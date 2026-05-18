@@ -1,0 +1,110 @@
+services:
+
+  ripe-line-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ripe_line_1
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_PORT=8000
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3050}
+      - ENABLE_WEBHOOK=true
+      - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:2500}
+      - BACKEND_API_VER=/api/v1
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
+      - MODEL_FILE=${MODEL_FILE:-best_3class.pt}
+      - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
+      - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
+      - CAMERA_DEVICE_INDEX=0
+      - MACHINE_ID=${LINE_1_MACHINE_ID}
+      - CAMERA_WIDTH=${CAMERA_WIDTH:-320}
+      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-240}
+      - CAMERA_FPS=${CAMERA_FPS:-30}
+      - LIC_ENABLED=${LIC_ENABLED:-false}
+      - LIC_SERVER_URL=${LIC_SERVER_URL:-}
+      - LIC_API_KEY=${LIC_API_KEY:-}
+      - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
+    volumes:
+      - ./artifacts/line-1:/app/artifacts
+      - ./models:/app/models:ro
+    # Untuk Hikrobot USB camera — uncomment dan sesuaikan device path
+    # devices:
+    #   - /dev/bus/usb:/dev/bus/usb
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  ripe-line-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ripe_line_2
+    restart: unless-stopped
+    ports:
+      - "8002:8000"
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_PORT=8000
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3050}
+      - ENABLE_WEBHOOK=true
+      - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:2500}
+      - BACKEND_API_VER=/api/v1
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
+      - MODEL_FILE=${MODEL_FILE:-best_3class.pt}
+      - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
+      - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
+      - CAMERA_DEVICE_INDEX=1
+      - MACHINE_ID=${LINE_2_MACHINE_ID}
+      - CAMERA_WIDTH=${CAMERA_WIDTH:-320}
+      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-240}
+      - CAMERA_FPS=${CAMERA_FPS:-30}
+      - LIC_ENABLED=${LIC_ENABLED:-false}
+      - LIC_SERVER_URL=${LIC_SERVER_URL:-}
+      - LIC_API_KEY=${LIC_API_KEY:-}
+      - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
+    volumes:
+      - ./artifacts/line-2:/app/artifacts
+      - ./models:/app/models:ro
+    # devices:
+    #   - /dev/bus/usb:/dev/bus/usb
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  ripe-line-3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ripe_line_3
+    restart: unless-stopped
+    ports:
+      - "8003:8000"
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_PORT=8000
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3050}
+      - ENABLE_WEBHOOK=true
+      - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:2500}
+      - BACKEND_API_VER=/api/v1
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
+      - MODEL_FILE=${MODEL_FILE:-best_3class.pt}
+      - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
+      - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
+      - CAMERA_DEVICE_INDEX=2
+      - MACHINE_ID=${LINE_3_MACHINE_ID}
+      - CAMERA_WIDTH=${CAMERA_WIDTH:-320}
+      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-240}
+      - CAMERA_FPS=${CAMERA_FPS:-30}
+      - LIC_ENABLED=${LIC_ENABLED:-false}
+      - LIC_SERVER_URL=${LIC_SERVER_URL:-}
+      - LIC_API_KEY=${LIC_API_KEY:-}
+      - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
+    volumes:
+      - ./artifacts/line-3:/app/artifacts
+      - ./models:/app/models:ro
+    # devices:
+    #   - /dev/bus/usb:/dev/bus/usb
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
