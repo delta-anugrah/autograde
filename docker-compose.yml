@@ -4,107 +4,151 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: palmgrade-vision:latest
     container_name: ripe_line_1
     restart: unless-stopped
-    ports:
-      - "8001:8000"
+    network_mode: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       - APP_ENV=${APP_ENV:-production}
-      - APP_PORT=8000
+      - APP_PORT=8001
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3050}
       - ENABLE_WEBHOOK=true
-      - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:2500}
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=/api/v1
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
-      - MODEL_FILE=${MODEL_FILE:-best_3class.pt}
+      - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
+      - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
+      - CONVEYOR_DIRECTION=${CONVEYOR_DIRECTION:-rtl}
+      - DETECTION_ENTRY_OFFSET=${DETECTION_ENTRY_OFFSET:-2200}
+      - DETECTION_EXIT_OFFSET=${DETECTION_EXIT_OFFSET:-100}
+      - ENTRY_MARGIN=${ENTRY_MARGIN:-100}
+      - STREAM_WIDTH=${STREAM_WIDTH:-1280}
+      - STREAM_HEIGHT=${STREAM_HEIGHT:-720}
       - CAMERA_DEVICE_INDEX=0
       - MACHINE_ID=${LINE_1_MACHINE_ID}
-      - CAMERA_WIDTH=${CAMERA_WIDTH:-320}
-      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-240}
-      - CAMERA_FPS=${CAMERA_FPS:-30}
+      - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
+      - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
+      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
+      - CAMERA_FPS=${CAMERA_FPS:-25}
+      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      - UPLOAD_HOUR=${UPLOAD_HOUR:-0}
+      - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
+      - DESTINATION_UPLOAD=${DESTINATION_UPLOAD:-}
       - LIC_ENABLED=${LIC_ENABLED:-false}
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
       - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
     volumes:
+      - .:/app
+      - /app/.venv
       - ./artifacts/line-1:/app/artifacts
       - ./models:/app/models:ro
-    # Untuk Hikrobot USB camera — uncomment dan sesuaikan device path
-    # devices:
-    #   - /dev/bus/usb:/dev/bus/usb
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   ripe-line-2:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: palmgrade-vision:latest
     container_name: ripe_line_2
     restart: unless-stopped
-    ports:
-      - "8002:8000"
+    network_mode: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       - APP_ENV=${APP_ENV:-production}
-      - APP_PORT=8000
+      - APP_PORT=8002
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3050}
       - ENABLE_WEBHOOK=true
-      - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:2500}
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=/api/v1
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
-      - MODEL_FILE=${MODEL_FILE:-best_3class.pt}
+      - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
+      - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
+      - CONVEYOR_DIRECTION=${CONVEYOR_DIRECTION:-rtl}
+      - DETECTION_ENTRY_OFFSET=${DETECTION_ENTRY_OFFSET:-2200}
+      - DETECTION_EXIT_OFFSET=${DETECTION_EXIT_OFFSET:-100}
+      - ENTRY_MARGIN=${ENTRY_MARGIN:-100}
+      - STREAM_WIDTH=${STREAM_WIDTH:-1280}
+      - STREAM_HEIGHT=${STREAM_HEIGHT:-720}
       - CAMERA_DEVICE_INDEX=1
       - MACHINE_ID=${LINE_2_MACHINE_ID}
-      - CAMERA_WIDTH=${CAMERA_WIDTH:-320}
-      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-240}
-      - CAMERA_FPS=${CAMERA_FPS:-30}
+      - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
+      - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
+      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
+      - CAMERA_FPS=${CAMERA_FPS:-25}
+      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      - UPLOAD_HOUR=${UPLOAD_HOUR:-0}
+      - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
+      - DESTINATION_UPLOAD=${DESTINATION_UPLOAD:-}
       - LIC_ENABLED=${LIC_ENABLED:-false}
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
       - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
     volumes:
+      - .:/app
+      - /app/.venv
       - ./artifacts/line-2:/app/artifacts
       - ./models:/app/models:ro
-    # devices:
-    #   - /dev/bus/usb:/dev/bus/usb
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   ripe-line-3:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: palmgrade-vision:latest
     container_name: ripe_line_3
     restart: unless-stopped
-    ports:
-      - "8003:8000"
+    network_mode: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       - APP_ENV=${APP_ENV:-production}
-      - APP_PORT=8000
+      - APP_PORT=8003
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3050}
       - ENABLE_WEBHOOK=true
-      - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:2500}
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=/api/v1
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
-      - MODEL_FILE=${MODEL_FILE:-best_3class.pt}
+      - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
+      - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
+      - CONVEYOR_DIRECTION=${CONVEYOR_DIRECTION:-rtl}
+      - DETECTION_ENTRY_OFFSET=${DETECTION_ENTRY_OFFSET:-2200}
+      - DETECTION_EXIT_OFFSET=${DETECTION_EXIT_OFFSET:-100}
+      - ENTRY_MARGIN=${ENTRY_MARGIN:-100}
+      - STREAM_WIDTH=${STREAM_WIDTH:-1280}
+      - STREAM_HEIGHT=${STREAM_HEIGHT:-720}
       - CAMERA_DEVICE_INDEX=2
       - MACHINE_ID=${LINE_3_MACHINE_ID}
-      - CAMERA_WIDTH=${CAMERA_WIDTH:-320}
-      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-240}
-      - CAMERA_FPS=${CAMERA_FPS:-30}
+      - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
+      - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
+      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
+      - CAMERA_FPS=${CAMERA_FPS:-25}
+      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      - UPLOAD_HOUR=${UPLOAD_HOUR:-0}
+      - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
+      - DESTINATION_UPLOAD=${DESTINATION_UPLOAD:-}
       - LIC_ENABLED=${LIC_ENABLED:-false}
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
       - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
     volumes:
+      - .:/app
+      - /app/.venv
       - ./artifacts/line-3:/app/artifacts
       - ./models:/app/models:ro
-    # devices:
-    #   - /dev/bus/usb:/dev/bus/usb
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
