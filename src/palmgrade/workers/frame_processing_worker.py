@@ -37,6 +37,8 @@ class FrameProcessingWorker:
         self._last_tp: dict | None = None
         self._frame_count: int = 0
         self._last_results = None  # cached YOLO result for skip frames
+        self._processed_times: dict[int, float] = {}
+        self._cleanup_counter: int = 0
 
     # ------------------------------------------------------------------ zone helpers
 
@@ -229,6 +231,7 @@ class FrameProcessingWorker:
                     ripeness_conf = score
                     self.state.track_history[track_id]["processed"] = True
                     self._processed_objects.add(track_id)
+                    self._processed_times[track_id] = time.time()
 
                     annotated = self.pipeline.draw_boxes(frame.copy(), results)
 
@@ -305,6 +308,20 @@ class FrameProcessingWorker:
             if self._inactive_counter[tid] >= 10:
                 self.state.track_history.pop(tid, None)
                 self._inactive_counter.pop(tid, None)
+
+        # Trim _processed_objects: remove IDs stale >300s and no longer in track_history
+        self._cleanup_counter += 1
+        if self._cleanup_counter >= 500:
+            self._cleanup_counter = 0
+            now = time.time()
+            stale = {
+                tid for tid in list(self._processed_objects)
+                if tid not in self.state.track_history
+                and now - self._processed_times.get(tid, now) > 300
+            }
+            self._processed_objects -= stale
+            for tid in stale:
+                self._processed_times.pop(tid, None)
 
         # DisplayWorker handles MJPEG rendering — processing worker only does detection.
 
