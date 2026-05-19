@@ -19,8 +19,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # COPY sdk/MvImport /usr/local/lib/python3.11/site-packages/MvImport
 # RUN ldconfig
 
+ENV PIP_DEFAULT_TIMEOUT=3600 \
+    PIP_RETRIES=10 \
+    PIP_NO_CACHE_DIR=1
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 COPY . .
 
