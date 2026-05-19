@@ -68,4 +68,8 @@ class FrameCaptureWorker:
 
     def run_loop(self) -> None:
         while True:
-            self.run_once()
+            try:
+                self.run_once()
+            except Exception:
+                logger.exception("Unhandled error in FrameCaptureWorker.run_once")
+                time.sleep(1)

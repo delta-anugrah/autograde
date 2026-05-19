@@ -124,8 +124,7 @@ def create_app() -> FastAPI:
                 for i, (name, thread, worker) in enumerate(state.worker_threads):
                     if not thread.is_alive():
                         logger.error("Worker thread '%s' died — restarting", name)
-                        new_thread = threading.Thread(target=worker.run_loop, daemon=True, name=name)
-                        new_thread.start()
+                        new_thread = _start_worker(name, worker.run_loop)
                         state.worker_threads[i] = (name, new_thread, worker)
 
         asyncio.create_task(_watchdog())

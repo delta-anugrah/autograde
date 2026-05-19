@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 
 import cv2
@@ -8,6 +9,8 @@ from ..core.config import Settings
 from ..core.constants import JPEG_QUALITY_STREAM, REF_LINE_THICKNESS
 from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
 from .runtime_state import RuntimeState
+
+logger = logging.getLogger(__name__)
 
 
 class DisplayWorker:
@@ -78,4 +81,8 @@ class DisplayWorker:
 
     def run_loop(self) -> None:
         while True:
-            self.run_once()
+            try:
+                self.run_once()
+            except Exception:
+                logger.exception("Unhandled error in DisplayWorker.run_once")
+                time.sleep(1)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import logging
 import queue
 import time
 
@@ -11,6 +12,8 @@ from ..integrations.notifications.webhook_client import WebhookClient
 from ..integrations.storage.local_file_storage import LocalFileStorage
 from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
 from .runtime_state import RuntimeState
+
+logger = logging.getLogger(__name__)
 
 
 class FrameProcessingWorker:
@@ -307,4 +310,8 @@ class FrameProcessingWorker:
 
     def run_loop(self) -> None:
         while True:
-            self.run_once()
+            try:
+                self.run_once()
+            except Exception:
+                logger.exception("Unhandled error in FrameProcessingWorker.run_once")
+                time.sleep(1)
