@@ -15,9 +15,10 @@ _RECONNECT_BACKOFF_MAX = 30.0
 
 
 class FrameCaptureWorker:
-    def __init__(self, camera: CameraSource, state: RuntimeState, target_fps: int = 24, **_) -> None:
+    def __init__(self, camera: CameraSource, state: RuntimeState, target_fps: int = 24, device_index: int = 0, **_) -> None:
         self.camera = camera
         self.state = state
+        self._device_index = device_index
         self._frame_interval = 1.0 / max(1, target_fps)
         self._last_frame_time: float = 0.0
         self._consecutive_failures: int = 0
@@ -32,7 +33,7 @@ class FrameCaptureWorker:
         time.sleep(self._reconnect_backoff)
         self._reconnect_backoff = min(self._reconnect_backoff * 2, _RECONNECT_BACKOFF_MAX)
         try:
-            self.camera.connect()
+            self.camera.connect(index=self._device_index)
             self._consecutive_failures = 0
             self._reconnect_backoff = _RECONNECT_BACKOFF_BASE
             logger.info("Camera reconnected successfully")

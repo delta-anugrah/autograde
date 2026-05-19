@@ -102,7 +102,7 @@ def create_app() -> FastAPI:
             t.start()
             return t
 
-        capture_worker = FrameCaptureWorker(camera=camera, state=state, target_fps=settings.camera_fps)
+        capture_worker = FrameCaptureWorker(camera=camera, state=state, target_fps=settings.camera_fps, device_index=settings.camera_device_index)
         display_worker = DisplayWorker(state=state, pipeline=pipeline, settings=settings, target_fps=settings.camera_fps)
         processing_worker = FrameProcessingWorker(
             pipeline=pipeline,
