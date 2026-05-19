@@ -15,9 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #   mkdir sdk && cp /opt/MVS/lib/64/libMvCameraControl.so* sdk/
 #   cp -r /opt/MVS/Samples/64/Python/MvImport sdk/
 # Uncomment baris di bawah untuk production:
-COPY sdk/libMvCameraControl.so* /usr/local/lib/
-COPY sdk/MvImport /usr/local/lib/python3.11/site-packages/MvImport
-RUN ldconfig
+# COPY sdk/libMvCameraControl.so* /usr/local/lib/
+# COPY sdk/MvImport /usr/local/lib/python3.11/site-packages/MvImport
+# RUN ldconfig
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
