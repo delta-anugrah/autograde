@@ -53,6 +53,7 @@ services:
       - /app/.venv
       - ./artifacts/line-1:/app/artifacts
       - ./models:/app/models:ro
+      - /home/nexio/Desktop/Projects/sawit:/videos:ro
 
   ripe-line-2:
     image: palmgrade-vision:latest
@@ -104,6 +105,7 @@ services:
       - /app/.venv
       - ./artifacts/line-2:/app/artifacts
       - ./models:/app/models:ro
+      - /home/nexio/Desktop/Projects/sawit:/videos:ro
 
   ripe-line-3:
     image: palmgrade-vision:latest
@@ -155,3 +157,4 @@ services:
       - /app/.venv
       - ./artifacts/line-3:/app/artifacts
       - ./models:/app/models:ro
+      - /home/nexio/Desktop/Projects/sawit:/videos:ro
