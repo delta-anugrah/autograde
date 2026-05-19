@@ -5,7 +5,8 @@ from typing import Any
 
 
 class CameraSource(ABC):
-    connected: bool = False
+    def __init__(self) -> None:
+        self.connected: bool = False
 
     @abstractmethod
     def connect(self, index: int = 0) -> None:
