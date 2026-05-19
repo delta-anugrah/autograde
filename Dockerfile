@@ -23,6 +23,17 @@ ENV PIP_DEFAULT_TIMEOUT=3600 \
     PIP_RETRIES=10 \
     PIP_NO_CACHE_DIR=1
 
+# TORCH_VARIANT:
+#   cpu  — development / video testing (~193MB, fast build)
+#   gpu  — production dengan NVIDIA GPU (~865MB CUDA version dari PyPI)
+ARG TORCH_VARIANT=cpu
+RUN if [ "${TORCH_VARIANT}" = "cpu" ]; then \
+        pip install torch==2.7.0+cpu torchvision==0.22.0+cpu \
+            --index-url https://download.pytorch.org/whl/cpu; \
+    else \
+        pip install torch==2.7.0 torchvision==0.22.0; \
+    fi
+
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
