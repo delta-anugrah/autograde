@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-import asyncio
 import datetime
 import logging
 import queue
 import time
+import uuid
 
 from ..core.config import Settings
 from ..core.constants import JPEG_QUALITY_SAVE
 from ..integrations.notifications.webhook_client import WebhookClient
+from ..integrations.outbox.outbox_store import OutboxStore
 from ..integrations.storage.local_file_storage import LocalFileStorage
 from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
 from .runtime_state import RuntimeState
@@ -24,12 +25,14 @@ class FrameProcessingWorker:
         storage: LocalFileStorage,
         webhook: WebhookClient,
         settings: Settings,
+        outbox_store: OutboxStore,
     ) -> None:
         self.pipeline = pipeline
         self.state = state
         self.storage = storage
         self.webhook = webhook
         self.settings = settings
+        self.outbox_store = outbox_store
 
         # Internal worker state — tidak perlu di RuntimeState karena hanya diakses worker ini
         self._processed_objects: set[int] = set()
@@ -39,6 +42,8 @@ class FrameProcessingWorker:
         self._last_results = None  # cached YOLO result for skip frames
         self._processed_times: dict[int, float] = {}
         self._cleanup_counter: int = 0
+        self._fps_counter: int = 0
+        self._fps_timer: float = 0.0
 
     # ------------------------------------------------------------------ zone helpers
 
@@ -147,11 +152,21 @@ class FrameProcessingWorker:
         self.storage.write_json(results_dir / f"{timestamp}_auto_tp.json", meta)
 
     def run_once(self) -> None:
-        if self.state.frame_queue.empty():
-            time.sleep(0.001)
+        if self.state.rewind_signal:
+            self.pipeline.reset_tracker()
+            self._processed_objects.clear()
+            self._inactive_counter.clear()
+            self._last_results = None
+            self._last_tp = None
+            self.state.track_history.clear()
+            self.state.rewind_signal = False
+            logger.info("Video rewind — ByteTrack and tracking state reset")
+
+        try:
+            frame = self.state.frame_queue.get(timeout=0.1)
+        except Exception:
             return
 
-        frame = self.state.frame_queue.get()
         self._frame_count += 1
         skip = self.settings.yolo_skip_frames
         run_yolo = (skip <= 1) or (self._frame_count % skip == 0) or (self._last_results is None)
@@ -167,6 +182,35 @@ class FrameProcessingWorker:
         self._last_results = results
         self.state.last_yolo_frame = frame        # paired: DisplayWorker pakai frame ini untuk draw boxes
         self.state.last_yolo_results = results    # paired: box selalu aligned dengan last_yolo_frame
+
+        # DEBUG: log raw model output
+        if results.boxes is not None and len(results.boxes) > 0:
+            detections = []
+            for b in results.boxes:
+                cls_id = int(b.cls[0].cpu().numpy())
+                tid = int(b.id[0].cpu().numpy()) if b.id is not None else -1
+                lbl = results.names[cls_id]
+                conf = float(b.conf[0])
+                bx1, by1, bx2, by2 = map(int, b.xyxy[0].tolist())
+                area = (bx2 - bx1) * (by2 - by1)
+                lead = self._lead_coord(bx1, by1, bx2, by2)
+                detections.append(f"id={tid} {lbl} conf={conf:.2f} bbox=({bx1},{by1},{bx2},{by2}) area={area} lead={lead}")
+            logger.debug("[MODEL] frame=%d n=%d entry=%d exit=%d | %s",
+                         self._frame_count, len(results.boxes),
+                         self._entry_line(frame.shape[1], frame.shape[0]),
+                         self._exit_line(frame.shape[1], frame.shape[0]),
+                         " | ".join(detections))
+        else:
+            logger.debug("[MODEL] frame=%d n=0", self._frame_count)
+
+        self._fps_counter += 1
+        if self._fps_timer == 0.0:
+            self._fps_timer = time.time()
+        elif time.time() - self._fps_timer >= 5.0:
+            elapsed = time.time() - self._fps_timer
+            logger.info("[FPS] yolo=%.1f", self._fps_counter / elapsed)
+            self._fps_counter = 0
+            self._fps_timer = time.time()
 
         current_active_tracks: set[int] = set()
 
@@ -281,25 +325,24 @@ class FrameProcessingWorker:
                     self.state.event_queue.put_nowait(event)
 
                     truck_id = self.state.current_truck_id
-                    if self.settings.enable_webhook and self.state.main_loop and truck_id:
-                        webhook_payload = {
+                    if truck_id:
+                        event_id = str(uuid.uuid4())
+                        outbox_payload = {
+                            "event_id": event_id,
+                            "machine_id": self.settings.machine_id,
+                            "assignment_id": self.state.current_assignment_id,
+                            "truck_id": truck_id,
                             "timestamp": datetime.datetime.now().isoformat(),
-                            "image_path": image_url,
                             "prediction": "Acc" if ripeness_status == "acc" else "Rej",
                             "ripeness_status": ripeness_status.upper(),
                             "ripeness_confidence": round(ripeness_conf, 2),
                             "tp_status": tp_snapshot["tp_status"] if tp_snapshot else None,
                             "tp_confidence": round(tp_snapshot["tp_confidence"], 2) if tp_snapshot else 0,
                             "capture_type": "auto",
-                            "truck_id": truck_id,
-                            "machine_id": self.settings.machine_id,
+                            "image_path": image_url,
                             "bounding_box": {"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
                         }
-                    if self.settings.enable_webhook and self.state.main_loop and truck_id:
-                        asyncio.run_coroutine_threadsafe(
-                            self.webhook.send_quality_event(webhook_payload),  # type: ignore[arg-type]
-                            self.state.main_loop,
-                        )
+                        self.outbox_store.add_event(event_id, self.settings.machine_id, outbox_payload)
 
         # H6: do NOT discard from _processed_objects on cleanup — prevents re-trigger
         # if ByteTrack reuses the ID or the object re-enters after being marked inactive.
