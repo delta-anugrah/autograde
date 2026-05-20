@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        TORCH_VARIANT: cu126
     image: palmgrade-vision:latest
     container_name: ripe_line_1
     restart: unless-stopped
@@ -47,6 +49,7 @@ services:
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
       - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
+      - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
       - /app/.venv
