@@ -182,6 +182,7 @@ class FrameProcessingWorker:
         self._last_results = results
         self.state.last_yolo_frame = frame        # paired: DisplayWorker pakai frame ini untuk draw boxes
         self.state.last_yolo_results = results    # paired: box selalu aligned dengan last_yolo_frame
+        self.state.last_yolo_frame_at = time.time()
 
         # DEBUG: log raw model output
         if results.boxes is not None and len(results.boxes) > 0:

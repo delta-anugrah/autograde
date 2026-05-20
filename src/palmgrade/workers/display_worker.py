@@ -33,6 +33,8 @@ class DisplayWorker:
         self.settings = settings
         self._frame_interval = 1.0 / max(1, target_fps)
         self._last_render_time: float = 0.0
+        self._fps_counter: int = 0
+        self._fps_timer: float = 0.0
 
     def _draw_zone_lines(self, frame) -> None:
         h, w, _ = frame.shape
@@ -58,19 +60,23 @@ class DisplayWorker:
             time.sleep(wait)
         self._last_render_time = time.time()
 
-        # Pakai frame yg SAMA dengan YOLO results — box selalu aligned meski CPU lambat
+        # Pakai last_yolo_frame jika fresh (< 500ms) supaya box selalu aligned.
+        # Kalau YOLO lambat (CPU), fallback ke raw frame biar stream tidak freeze.
         yolo_frame = self.state.last_yolo_frame
-        if yolo_frame is not None:
+        yolo_fresh = (time.time() - self.state.last_yolo_frame_at) < 0.5
+        if yolo_frame is not None and yolo_fresh:
             display = yolo_frame.copy()
+            use_boxes = True
         else:
             frame = self.state.latest_raw_frame
             if frame is None:
                 return
             display = frame.copy()
+            use_boxes = False  # box tidak di-render di raw frame — posisi tidak aligned
 
         display = self.pipeline.draw_roi(display)          # ROI highlight dulu
         results = self.state.last_yolo_results
-        if results is not None:
+        if use_boxes and results is not None:
             display = self.pipeline.draw_boxes(display, results)  # box di atas ROI
         self._draw_zone_lines(display)                     # zone lines paling atas
 
@@ -78,12 +84,21 @@ class DisplayWorker:
         target_h = self.settings.stream_height
         h, w = display.shape[:2]
         if w != target_w or h != target_h:
-            display = cv2.resize(display, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+            display = cv2.resize(display, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
 
         _, buf = cv2.imencode(".jpg", display, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY_STREAM])
         with self.state.frame_condition:
             self.state.latest_frame = buf.tobytes()
             self.state.frame_condition.notify_all()
+
+        self._fps_counter += 1
+        if self._fps_timer == 0.0:
+            self._fps_timer = time.time()
+        elif time.time() - self._fps_timer >= 5.0:
+            elapsed = time.time() - self._fps_timer
+            logger.info("[FPS] display=%.1f", self._fps_counter / elapsed)
+            self._fps_counter = 0
+            self._fps_timer = time.time()
 
     def run_loop(self) -> None:
         while True:

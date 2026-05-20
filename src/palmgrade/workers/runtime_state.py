@@ -26,6 +26,7 @@ class RuntimeState:
     latest_raw_frame: Any = None          # numpy ndarray, ditulis capture worker
     last_yolo_results: Any = None         # ultralytics Results, ditulis processing worker
     last_yolo_frame: Any = None           # frame yg BENAR-BENAR di-proses YOLO — paired dengan last_yolo_results
+    last_yolo_frame_at: float = 0.0       # time.time() saat last_yolo_frame terakhir diupdate
 
     track_history: dict[int, Any] = field(default_factory=dict)
 
