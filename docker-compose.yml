@@ -8,14 +8,13 @@ services:
     container_name: ripe_line_1
     restart: unless-stopped
     network_mode: host
-    # GPU passthrough — uncomment untuk production (butuh nvidia-container-toolkit di host):
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8001
@@ -60,14 +59,13 @@ services:
     container_name: ripe_line_2
     restart: unless-stopped
     network_mode: host
-    # GPU passthrough — uncomment untuk production (butuh nvidia-container-toolkit di host):
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8002
@@ -112,14 +110,13 @@ services:
     container_name: ripe_line_3
     restart: unless-stopped
     network_mode: host
-    # GPU passthrough — uncomment untuk production (butuh nvidia-container-toolkit di host):
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8003
