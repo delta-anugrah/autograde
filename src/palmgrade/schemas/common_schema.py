@@ -20,3 +20,6 @@ class HealthDetailSchema(BaseModel):
     gpu_device: str | None
     machine_id: str
     workers: list[WorkerStatus]
+    outbox_pending: int = 0
+    current_assignment_id: str | None = None
+    last_successful_api_push: str | None = None

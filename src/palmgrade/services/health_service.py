@@ -6,6 +6,7 @@ import torch
 
 from ..core.config import Settings
 from ..integrations.camera.base import CameraSource
+from ..integrations.outbox.outbox_store import OutboxStore
 from ..schemas.common_schema import HealthDetailSchema, WorkerStatus
 from ..workers.runtime_state import RuntimeState
 
@@ -15,6 +16,7 @@ class HealthService:
     settings: Settings
     state: RuntimeState
     camera: CameraSource
+    outbox: OutboxStore
 
     def get_health(self) -> dict[str, str]:
         return {
@@ -40,4 +42,7 @@ class HealthService:
             gpu_device=gpu_device,
             machine_id=self.settings.machine_id,
             workers=workers,
+            outbox_pending=self.outbox.pending_count(),
+            current_assignment_id=self.state.current_assignment_id,
+            last_successful_api_push=self.state.last_successful_api_push,
         )
