@@ -12,12 +12,16 @@ from fastapi.staticfiles import StaticFiles
 
 from .core.dependencies import (
     get_capture_repository,
+    get_outbox_store,
     get_realtime_inspection_pipeline,
     get_runtime_state,
     get_settings,
     get_webhook_client,
     set_camera,
 )
+from .integrations.outbox.outbox_store import OutboxStore
+from .routes.internal import router as internal_router
+from .workers.outbox_retry_worker import OutboxRetryWorker
 from .core.logging import configure_logging
 from .integrations.camera.base import CameraSource
 from .integrations.camera.hikrobot_camera import HikrobotCamera
@@ -103,13 +107,14 @@ def create_app() -> FastAPI:
             return t
 
         capture_worker = FrameCaptureWorker(camera=camera, state=state, target_fps=settings.camera_fps, device_index=settings.camera_device_index)
-        display_worker = DisplayWorker(state=state, pipeline=pipeline, settings=settings, target_fps=settings.camera_fps)
+        display_worker = DisplayWorker(state=state, pipeline=pipeline, settings=settings, target_fps=settings.camera_fps or 24)
         processing_worker = FrameProcessingWorker(
             pipeline=pipeline,
             state=state,
             storage=storage_instance,
             webhook=webhook,
             settings=settings,
+            outbox_store=get_outbox_store(),
         )
 
         state.worker_threads = [
@@ -117,6 +122,16 @@ def create_app() -> FastAPI:
             ("display", _start_worker("display", display_worker.run_loop), display_worker),
             ("processing", _start_worker("processing", processing_worker.run_loop), processing_worker),
         ]
+
+        # OutboxRetryWorker — delivers pending events to canonical API endpoint
+        outbox_store = get_outbox_store()
+        outbox_worker = OutboxRetryWorker(
+            outbox=outbox_store,
+            settings=settings,
+            state=state,
+        )
+        outbox_thread = _start_worker("outbox_retry", outbox_worker.run_loop)
+        state.worker_threads.append(("outbox_retry", outbox_thread, outbox_worker))
 
         async def _watchdog() -> None:
             while True:
@@ -168,6 +183,7 @@ def create_app() -> FastAPI:
     app.include_router(streaming_router)
     app.include_router(capture_router)
     app.include_router(truck_router)
+    app.include_router(internal_router)
 
     @app.websocket("/ws/results")
     async def websocket_endpoint(websocket: WebSocket) -> None:

@@ -4,6 +4,7 @@ from functools import lru_cache
 
 from ..integrations.camera.base import CameraSource
 from ..integrations.notifications.webhook_client import WebhookClient
+from ..integrations.outbox.outbox_store import OutboxStore
 from ..integrations.storage.local_file_storage import LocalFileStorage
 from ..pipelines.model_registry import ModelRegistry
 from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
@@ -93,6 +94,7 @@ def get_health_service() -> HealthService:
         settings=get_settings(),
         state=get_runtime_state(),
         camera=get_camera(),
+        outbox=get_outbox_store(),
     )
 
 
@@ -106,6 +108,12 @@ def get_streaming_service() -> StreamingService:
     return StreamingService(state=get_runtime_state())
 
 
+@lru_cache
+def get_outbox_store() -> OutboxStore:
+    settings = get_settings()
+    return OutboxStore(db_path=settings.artifacts_dir / "outbox.db")
+
+
 def get_capture_service() -> CaptureService:
     return CaptureService(
         capture_repository=get_capture_repository(),
@@ -114,6 +122,7 @@ def get_capture_service() -> CaptureService:
         state=get_runtime_state(),
         webhook=get_webhook_client(),
         settings=get_settings(),
+        outbox_store=get_outbox_store(),
     )
 
 
