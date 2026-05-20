@@ -184,11 +184,25 @@ Upload scheduler dan camera disconnect dikelola sebagai variabel lokal di dalam 
 
 Ada 3 worker thread dengan tanggung jawab eksklusif:
 - `FrameCaptureWorker` — grab frame dari kamera, set `state.latest_raw_frame`, push ke `frame_queue`
-- `DisplayWorker` — baca `latest_raw_frame` + `last_yolo_results`, draw box + zone lines, encode JPEG, tulis `state.latest_frame`
-- `FrameProcessingWorker` — YOLO inference dari `frame_queue`, set `state.last_yolo_results`, detection/save/webhook logic
+- `DisplayWorker` — baca `last_yolo_frame` + `last_yolo_results` (paired), draw ROI + box + zone lines, encode JPEG, tulis `state.latest_frame`
+- `FrameProcessingWorker` — YOLO inference dari `frame_queue`, set `state.last_yolo_frame` + `state.last_yolo_results` (paired), detection/save/webhook logic
 
 **Jangan tambahkan penulisan `state.latest_frame` di worker mana pun selain `DisplayWorker`.**
-Dua writer ke `state.latest_frame` menyebabkan glitch/flicker di MJPEG stream (frame bergantian antara dengan/tanpa annotation).
+Dua writer ke `state.latest_frame` menyebabkan glitch/flicker di MJPEG stream.
+
+### 12. `DisplayWorker` harus pakai `last_yolo_frame`, bukan `latest_raw_frame`
+
+`last_yolo_frame` adalah frame yang BENAR-BENAR di-proses YOLO, always paired dengan `last_yolo_results`.
+`FrameProcessingWorker` set keduanya secara berurutan setelah satu YOLO run.
+
+**Jangan render `last_yolo_results` di atas `latest_raw_frame`** — pada CPU, inference bisa 500ms-2000ms. Dalam waktu itu conveyor bergerak dan buah sudah pindah posisi. Box akan muncul di tempat yang salah.
+
+Kalau `last_yolo_frame` belum tersedia (sebelum YOLO pertama run), fallback ke `latest_raw_frame`.
+
+Draw order di `DisplayWorker.run_once()`:
+1. `draw_roi()` — ROI highlight (overlay semi-transparan, background)
+2. `draw_boxes()` — bounding boxes di atas ROI
+3. `_draw_zone_lines()` — entry/exit lines paling atas
 
 ### 8. Manual capture JSON pakai suffix `_ripeness`
 
