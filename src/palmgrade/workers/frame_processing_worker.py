@@ -342,7 +342,10 @@ class FrameProcessingWorker:
                             "image_path": image_url,
                             "bounding_box": {"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
                         }
-                        self.outbox_store.add_event(event_id, self.settings.machine_id, outbox_payload)
+                        try:
+                            self.outbox_store.add_event(event_id, self.settings.machine_id, outbox_payload)
+                        except Exception as exc:
+                            logger.error("Failed to write event %s to outbox: %s", event_id, exc)
 
         # H6: do NOT discard from _processed_objects on cleanup — prevents re-trigger
         # if ByteTrack reuses the ID or the object re-enters after being marked inactive.

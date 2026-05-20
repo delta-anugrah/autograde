@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import queue
 import uuid
 from typing import Any
@@ -11,6 +12,8 @@ from ..integrations.outbox.outbox_store import OutboxStore
 from ..repositories.capture_repository import CaptureRepository
 from ..repositories.truck_repository import TruckRepository
 from ..workers.runtime_state import RuntimeState
+
+logger = logging.getLogger(__name__)
 
 
 class CaptureService:
@@ -81,9 +84,12 @@ class CaptureService:
                 "tp_status": None,
                 "tp_confidence": 0,
                 "capture_type": result["capture_type"],
-                "image_path": result["image_url"],
-                "bounding_box": result["bounding_box"],
+                "image_path": result.get("image_url", ""),
+                "bounding_box": result.get("bounding_box") or {},
             }
-            self.outbox_store.add_event(event_id, self.settings.machine_id, outbox_payload)
+            try:
+                self.outbox_store.add_event(event_id, self.settings.machine_id, outbox_payload)
+            except Exception as exc:
+                logger.error("Failed to write event %s to outbox: %s", event_id, exc)
 
         return result
