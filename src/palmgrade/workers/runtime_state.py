@@ -10,6 +10,8 @@ from typing import Any
 @dataclass
 class RuntimeState:
     current_truck_id: str | None = None
+    current_assignment_id: str | None = None          # set by /internal/assignment
+    last_successful_api_push: str | None = None       # ISO timestamp, set by OutboxRetryWorker
 
     # Thread-safe queues
     frame_queue: Queue[Any] = field(default_factory=lambda: Queue(maxsize=5))
@@ -38,3 +40,6 @@ class RuntimeState:
 
     # Worker threads — populated by main.py lifespan, used by watchdog
     worker_threads: list[tuple[str, threading.Thread, Any]] = field(default_factory=list)
+
+    # Signal dari FrameCaptureWorker ke FrameProcessingWorker saat video loop/rewind
+    rewind_signal: bool = False

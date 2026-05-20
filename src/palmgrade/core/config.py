@@ -25,6 +25,7 @@ class Settings:
     backend_url: str = field(default_factory=lambda: os.getenv("BACKEND_URL", "http://localhost:2500"))
     backend_api_ver: str = field(default_factory=lambda: os.getenv("BACKEND_API_VER", "/api/v1"))
     webhook_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", "supersecret123"))
+    internal_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", "supersecret123"))
 
     # Camera
     camera_type: str = field(default_factory=lambda: os.getenv("CAMERA_TYPE", "hikrobot"))
@@ -124,3 +125,7 @@ class Settings:
     @property
     def webhook_url(self) -> str:
         return f"{self.backend_url}{self.backend_api_ver}/webhooks/qualitycontrols"
+
+    @property
+    def canonical_events_url(self) -> str:
+        return f"{self.backend_url}{self.backend_api_ver}/internal/vision/events"
