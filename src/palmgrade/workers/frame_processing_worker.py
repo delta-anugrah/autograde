@@ -165,7 +165,8 @@ class FrameProcessingWorker:
 
         results = self.pipeline.track_ripeness(frame)
         self._last_results = results
-        self.state.last_yolo_results = results  # DisplayWorker reads this
+        self.state.last_yolo_frame = frame        # paired: DisplayWorker pakai frame ini untuk draw boxes
+        self.state.last_yolo_results = results    # paired: box selalu aligned dengan last_yolo_frame
 
         current_active_tracks: set[int] = set()
 

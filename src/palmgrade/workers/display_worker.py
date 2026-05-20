@@ -58,15 +58,21 @@ class DisplayWorker:
             time.sleep(wait)
         self._last_render_time = time.time()
 
-        frame = self.state.latest_raw_frame
-        if frame is None:
-            return
+        # Pakai frame yg SAMA dengan YOLO results — box selalu aligned meski CPU lambat
+        yolo_frame = self.state.last_yolo_frame
+        if yolo_frame is not None:
+            display = yolo_frame.copy()
+        else:
+            frame = self.state.latest_raw_frame
+            if frame is None:
+                return
+            display = frame.copy()
 
-        display = frame.copy()
+        display = self.pipeline.draw_roi(display)          # ROI highlight dulu
         results = self.state.last_yolo_results
         if results is not None:
-            display = self.pipeline.draw_boxes(display, results)
-        self._draw_zone_lines(display)
+            display = self.pipeline.draw_boxes(display, results)  # box di atas ROI
+        self._draw_zone_lines(display)                     # zone lines paling atas
 
         target_w = self.settings.stream_width
         target_h = self.settings.stream_height

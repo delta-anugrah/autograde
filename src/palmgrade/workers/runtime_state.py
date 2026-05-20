@@ -23,6 +23,7 @@ class RuntimeState:
     # DisplayWorker baca keduanya untuk render MJPEG.
     latest_raw_frame: Any = None          # numpy ndarray, ditulis capture worker
     last_yolo_results: Any = None         # ultralytics Results, ditulis processing worker
+    last_yolo_frame: Any = None           # frame yg BENAR-BENAR di-proses YOLO — paired dengan last_yolo_results
 
     track_history: dict[int, Any] = field(default_factory=dict)
 
