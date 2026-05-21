@@ -13,8 +13,8 @@ from ..workers.runtime_state import RuntimeState
 
 logger = logging.getLogger(__name__)
 
-_POLL_INTERVAL = 10
-_REQUEST_TIMEOUT = 10
+_POLL_INTERVAL = 1
+_REQUEST_TIMEOUT = 5
 
 
 class OutboxRetryWorker:

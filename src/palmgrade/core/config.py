@@ -39,6 +39,7 @@ class Settings:
     # Stream display resolution — only affects MJPEG stream, not saved captures
     stream_width: int = field(default_factory=lambda: int(os.getenv("STREAM_WIDTH", "1280")))
     stream_height: int = field(default_factory=lambda: int(os.getenv("STREAM_HEIGHT", "720")))
+    stream_fps: int = field(default_factory=lambda: int(os.getenv("STREAM_FPS", "12")))
 
     # Line identification
     machine_id: str = field(default_factory=lambda: os.getenv("MACHINE_ID", ""))

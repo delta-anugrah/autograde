@@ -50,20 +50,24 @@ class RealtimeInspectionPipeline:
         d = self.settings.conveyor_direction
         entry_off = self.settings.detection_entry_offset
         exit_off = self.settings.detection_exit_offset
+        roi_color = np.array(COLOR_ROI, dtype=np.float32)
 
-        overlay = frame.copy()
         if d in ("rtl", "ltr"):
             entry_x = max(0, w - entry_off) if d == "rtl" else min(w, entry_off)
             exit_x = min(w, exit_off) if d == "rtl" else max(0, w - exit_off)
             x1, x2 = min(entry_x, exit_x), max(entry_x, exit_x)
-            cv2.rectangle(overlay, (x1, 0), (x2, h), COLOR_ROI, -1)
+            if x2 > x1:
+                region = frame[:, x1:x2]
+                frame[:, x1:x2] = (region * (1.0 - ROI_ALPHA) + roi_color * ROI_ALPHA).astype(np.uint8)
         else:  # ttb, btt
             entry_y = min(h, entry_off) if d == "ttb" else max(0, h - entry_off)
             exit_y = max(0, h - exit_off) if d == "ttb" else min(h, exit_off)
             y1, y2 = min(entry_y, exit_y), max(entry_y, exit_y)
-            cv2.rectangle(overlay, (0, y1), (w, y2), COLOR_ROI, -1)
+            if y2 > y1:
+                region = frame[y1:y2, :]
+                frame[y1:y2, :] = (region * (1.0 - ROI_ALPHA) + roi_color * ROI_ALPHA).astype(np.uint8)
 
-        return cv2.addWeighted(frame, 1.0 - ROI_ALPHA, overlay, ROI_ALPHA, 0)
+        return frame
 
     # ----------------------------------------------------------------- track
 
@@ -71,6 +75,14 @@ class RealtimeInspectionPipeline:
         return self.model.track(
             frame, persist=True, conf=self.settings.conf_threshold, tracker="bytetrack.yaml", verbose=False
         )[0]
+
+    def reset_tracker(self) -> None:
+        try:
+            if self.model.predictor is not None and hasattr(self.model.predictor, "trackers"):
+                for tracker in self.model.predictor.trackers:
+                    tracker.reset()
+        except Exception:
+            pass
 
     def get_status(self) -> dict:
         return {

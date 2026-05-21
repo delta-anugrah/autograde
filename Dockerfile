@@ -11,13 +11,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Hikrobot MVS SDK (production only) ──────────────────────────────────────
-# SDK harus di-copy manual dari host ke ./sdk/ sebelum build:
-#   mkdir sdk && cp /opt/MVS/lib/64/libMvCameraControl.so* sdk/
+# Sebelum `make up`, copy SDK files ke ./sdk/:
+#   cp /opt/MVS/lib/64/libMvCameraControl.so* sdk/
 #   cp -r /opt/MVS/Samples/64/Python/MvImport sdk/
-# Uncomment baris di bawah untuk production:
-# COPY sdk/libMvCameraControl.so* /usr/local/lib/
-# COPY sdk/MvImport /usr/local/lib/python3.11/site-packages/MvImport
-# RUN ldconfig
+ARG WITH_SDK=false
+COPY sdk/ /tmp/sdk/
+RUN if [ "${WITH_SDK}" = "true" ]; then \
+        cp /tmp/sdk/libMvCameraControl.so* /usr/local/lib/ && \
+        cp -r /tmp/sdk/MvImport /usr/local/lib/python3.11/site-packages/MvImport && \
+        ldconfig; \
+    fi && rm -rf /tmp/sdk
 
 ENV PIP_DEFAULT_TIMEOUT=3600 \
     PIP_RETRIES=10 \

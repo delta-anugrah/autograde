@@ -110,9 +110,28 @@ Save format:
 - `{timestamp}_auto_tp.json` — metadata TP (tanpa gambar, dipair dengan buah)
 - `list_today_results()` di `ResultRepository` merge keduanya per base_name
 
-**Webhook payload ke palmgrade-api** — field names dan values harus PERSIS seperti ini:
+**Outbox pattern — JANGAN kirim event langsung ke API**
+
+Semua event (auto detection + manual reject) ditulis ke `OutboxStore` (SQLite) terlebih dahulu.
+`OutboxRetryWorker` yang deliver ke API secara async dengan retry + exponential backoff.
+
+```
+FrameProcessingWorker / CaptureService
+    → OutboxStore.add_event(event_id, machine_id, payload)   ← tulis ke SQLite dulu
+        → OutboxRetryWorker (daemon thread, poll setiap 10s)
+            → POST {canonical_events_url} with x-webhook-secret header
+                → palmgrade-api /api/v1/internal/vision/events
+```
+
+`canonical_events_url` = `{backend_url}{backend_api_ver}/internal/vision/events` (dari `Settings.canonical_events_url`)
+
+**Event payload yang ditulis ke outbox** — field names harus PERSIS:
 ```json
 {
+  "event_id": "uuid-v4-generated",
+  "machine_id": "uuid",
+  "assignment_id": "uuid-or-null",
+  "truck_id": "uuid",
   "timestamp": "ISO string",
   "image_path": "captures/results/{date}/{ts}_auto.jpg",
   "prediction": "Acc" | "Rej",
@@ -121,22 +140,41 @@ Save format:
   "tp_status": "PASS" | null,
   "tp_confidence": 0.88,
   "capture_type": "auto" | "manual",
-  "truck_id": "uuid",
-  "machine_id": "uuid",
   "bounding_box": { "x_min": 0, "y_min": 0, "x_max": 100, "y_max": 100 }
 }
 ```
 
-**Aturan webhook:**
+**Aturan event:**
 - `ripeness_status` harus UPPERCASE (`"ACC"`/`"REJ"`) — API DTO validasi case-sensitive
 - `prediction` wajib ada (`"Acc"` atau `"Rej"`) — API DTO field required
-- `tp_status` harus `"PASS"` (bukan `"TP"`) atau `null` — API DTO hanya accept `"PASS"/"FAIL"/"UNKNOWN"`
-- Webhook hanya dikirim kalau `truck_id` tidak `None` — tanpa truck, API DTO reject dengan 400
-- `_last_tp` dict menyimpan `"tp_status": "PASS"` (bukan `"TP"` lagi)
+- `tp_status` harus `"PASS"` (bukan `"TP"`) atau `null`
+- Event selalu ditulis ke outbox, termasuk capture reject tanpa truck (`truck_id` boleh `None`)
+- `event_id` adalah UUID baru per event — dipakai API untuk idempotency
+- `assignment_id` diambil dari `state.current_assignment_id` (diset saat `/internal/assignment` dipanggil)
+
+**Internal endpoints — menerima command dari palmgrade-api:**
+- `POST /internal/assignment` — set `state.current_truck_id` + `state.current_assignment_id`; protected by `x-internal-secret: WEBHOOK_SECRET`
+- `POST /internal/manual-reject` — trigger `capture_manual_reject()` via `run_in_executor`; protected by same header
+
+**`WEBHOOK_SECRET` punya dual purpose:**
+- Outbox delivery ke API: dikirim sebagai `x-webhook-secret` header
+- API command ke vision: diterima sebagai `x-internal-secret` header (nilai sama)
+
+**`_last_tp` dict menyimpan `"tp_status": "PASS"` (bukan `"TP"` lagi)**
 
 ---
 
 ## Critical Invariants — Jangan Diubah Tanpa Diskusi
+
+### 0. OutboxStore harus ditulis SEBELUM event dianggap tersimpan
+
+`FrameProcessingWorker` dan `CaptureService` WAJIB memanggil `self.outbox_store.add_event(...)` sebelum fungsi kembali.
+**Jangan pernah mengirim event langsung ke API** (direct httpx/webhook call) dari worker thread — gunakan outbox.
+
+`OutboxStore.add_event()` di-wrap dalam `try/except` dengan `logger.error` — bukan `try/except: pass`.
+Kalau SQLite penuh atau disk full, log error tapi jangan crash detection loop.
+
+Ini penting karena: kalau API down atau network putus, event tidak hilang — OutboxRetryWorker akan retry.
 
 ### 1. `_processed_objects` di `FrameProcessingWorker`
 
@@ -162,6 +200,11 @@ Tanpa ini, concurrent access ke Hikrobot SDK bisa crash.
 Jangan ganti kembali ke `Queue.get()` — pattern lama hanya melayani satu viewer, yang lain tidak dapat frame.
 `event_queue` (untuk SSE/webhook) tetap pakai drop-old: `get_nowait()` + `put_nowait()`.
 
+### 4a. `get_outbox_store()` BOLEH `@lru_cache` — SQLite adalah singleton
+
+`OutboxStore` aman di-cache karena menggunakan `threading.Lock` dan membuka fresh `sqlite3.Connection` per operasi.
+`@lru_cache` pada `get_outbox_store()` memastikan satu DB path dipakai oleh semua caller (worker, service, health).
+
 ### 4. `get_capture_service()` tidak boleh `@lru_cache`
 
 Camera diinject via `set_camera()` di startup event, bukan saat import.
@@ -184,8 +227,10 @@ Upload scheduler dan camera disconnect dikelola sebagai variabel lokal di dalam 
 
 Ada 3 worker thread dengan tanggung jawab eksklusif:
 - `FrameCaptureWorker` — grab frame dari kamera, set `state.latest_raw_frame`, push ke `frame_queue`
-- `DisplayWorker` — baca `last_yolo_frame` + `last_yolo_results` (paired), draw ROI + box + zone lines, encode JPEG, tulis `state.latest_frame`
-- `FrameProcessingWorker` — YOLO inference dari `frame_queue`, set `state.last_yolo_frame` + `state.last_yolo_results` (paired), detection/save/webhook logic
+- `DisplayWorker` — baca `last_yolo_frame` + `last_yolo_results` (paired), draw ROI + box + zone lines, encode JPEG, tulis `state.latest_frame`; **berjalan di `settings.stream_fps` (default 12)** — decoupled dari camera FPS
+- `FrameProcessingWorker` — YOLO inference dari `frame_queue`, set `state.last_yolo_frame` + `state.last_yolo_results` (paired), detection/save/outbox logic
+
+**`STREAM_FPS` memisahkan FPS MJPEG dari FPS kamera/inferensi.** Kamera+YOLO tetap jalan di `CAMERA_FPS` (default 24), tapi browser operator hanya decode stream di `STREAM_FPS` (default 12). `DisplayWorker` dibuat dengan `target_fps=settings.stream_fps or 12` di `main.py`.
 
 **Jangan tambahkan penulisan `state.latest_frame` di worker mana pun selain `DisplayWorker`.**
 Dua writer ke `state.latest_frame` menyebabkan glitch/flicker di MJPEG stream.
@@ -328,19 +373,38 @@ deploy:
           count: all
           capabilities: [gpu]
 ```
-Membutuhkan NVIDIA Container Toolkit di host: `apt install nvidia-container-toolkit`.
+Membutuhkan NVIDIA Container Toolkit di host. `apt install nvidia-container-toolkit` **tidak cukup** — harus tambah repo NVIDIA dulu:
+```bash
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
+  sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit && sudo systemctl restart docker
+```
+
+**Production deployment checklist (pindah ke PC baru) — urutan ini penting:**
+1. Install NVIDIA Container Toolkit (perintah di atas) → `docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi` untuk verifikasi
+2. Install Hikrobot MVS SDK di host (`/opt/MVS/`)
+3. Copy model: `mkdir -p models/release` + copy `best_3class_v2.pt`
+4. Configure `.env`: `LINE_1/2/3_MACHINE_ID`, `BACKEND_URL`, `WEBHOOK_SECRET`, `CAMERA_TYPE=hikrobot`, `CAMERA_FPS=25`
+5. `make up` — otomatis copy SDK dari `/opt/MVS/` ke `sdk/`, build GPU image, start semua line
+6. Verifikasi: `curl http://localhost:8001/health/detail | grep gpu_available`
 
 **Make commands:**
 ```
-make up         # build + up semua line (build hanya satu kali via line-1)
-make up-1       # build image + up line-1
-make up-2       # up line-2 (reuse image yang sudah ada)
-make up-3       # up line-3 (reuse image yang sudah ada)
+make up         # production: copy SDK, build GPU+SDK, start semua line
+make up-dev     # development: build CPU tanpa SDK, start semua line
+make start      # start semua line tanpa rebuild (pakai image yang sudah ada)
+make up-1       # start line-1 saja tanpa rebuild
+make up-2       # start line-2 saja tanpa rebuild
+make up-3       # start line-3 saja tanpa rebuild
 make logs-1     # tail logs line-1
 make logs       # tail logs semua line (combined)
 make down       # stop semua
 make ps         # status semua container
-make rebuild    # rebuild image
+make rebuild    # rebuild image CPU (tanpa SDK)
+make rebuild-gpu # rebuild image GPU (tanpa SDK)
 make clean      # down + hapus local image
 ```
 

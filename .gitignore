@@ -2,6 +2,8 @@
 artifacts/
 models/release/
 models/experiments/
+sdk/*
+!sdk/.gitkeep
 *.pt
 *.onnx
 

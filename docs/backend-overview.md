@@ -6,7 +6,7 @@ Rangkuman teknis `palmgrade-vision` — Python AI camera service untuk sistem gr
 
 Menerima feed kamera industri Hikrobot, menjalankan model YOLO secara realtime,
 mengklasifikasi kematangan buah sawit (3 kelas), menyimpan hasil inspeksi ke file,
-dan mengirimkan webhook ke `palmgrade-api`.
+dan mengirimkan event ke `palmgrade-api` via OutboxStore (SQLite durable delivery).
 
 Dijalankan sebagai **3 container terpisah** (line 1/2/3), masing-masing satu port dan satu kamera.
 
@@ -44,7 +44,8 @@ palmgrade-vision/
       pipelines/               # Logic YOLO inference + frame processing
       integrations/
         camera/                # HikrobotCamera / OpenCVCamera / PhotoCamera
-        notifications/         # WebhookClient (httpx async)
+        notifications/         # WebhookClient (httpx async) — legacy, not used for main flow
+        outbox/                # OutboxStore — SQLite durable event persistence
         storage/               # LocalFileStorage (read/write JSON + JPEG)
         scheduler/             # APScheduler daily upload cron
       workers/                 # Background threads + asyncio tasks
@@ -132,13 +133,29 @@ Semua hasil grading hari ini.
 
 ---
 
-### `POST /api/set_truck`
+### `POST /api/set_truck` (legacy)
 
-Set truck ID aktif untuk line ini.
+Set truck ID aktif untuk line ini secara langsung ke vision.
 
 - **Request body:** `{ "truck_id": "uuid" }`
 - **Response:** `{ "message": "Truck ID set", "truck_id": "uuid" }`
-- **Side effect:** Menyimpan ke `RuntimeState.current_truck_id`. Semua auto detection setelah ini di-tag dengan truck_id ini.
+- **Side effect:** Menyimpan ke `RuntimeState.current_truck_id`. Masih aktif tapi operator sebaiknya pakai API `/api/v1/grading-console/lines/:id/assign-truck` — API akan push ke `/internal/assignment` yang juga set `current_assignment_id`.
+
+### `POST /internal/assignment`
+
+Terima assignment dari palmgrade-api. Protected by `x-internal-secret: WEBHOOK_SECRET`.
+
+- **Request body:** `{ "machine_id", "assignment_id", "truck_id", "assigned_at" }`
+- **Response:** `{ "accepted": true, "machine_id", "truck_id", "assignment_id" }`
+- **Side effect:** Set `state.current_truck_id` + `state.current_assignment_id` — semua event selanjutnya punya `assignment_id` ini.
+
+### `POST /internal/manual-reject`
+
+Terima command manual reject dari palmgrade-api. Protected by `x-internal-secret: WEBHOOK_SECRET`.
+
+- **Request body:** `{ "machine_id", "assignment_id", "requested_by", "requested_at" }`
+- **Response:** `{ "accepted": true, "message": "capture_reject_requested" }`
+- **Side effect:** Trigger `capture_manual_reject()` via `run_in_executor` — event ditulis ke OutboxStore.
 
 ---
 
@@ -161,7 +178,7 @@ Capture frame saat ini secara manual, langsung mark sebagai `rej`.
     "truck_id": "uuid-or-null"
   }
   ```
-- **Side effect:** Simpan JPEG + metadata JSON, kirim webhook ke `palmgrade-api`, push ke `event_queue` untuk WebSocket broadcast.
+- **Side effect:** Simpan JPEG + metadata JSON, tulis ke OutboxStore, push ke `event_queue` untuk WebSocket broadcast.
 
 ---
 
@@ -182,8 +199,12 @@ Status operasional container.
     "workers": [
       { "name": "capture", "alive": true },
       { "name": "display", "alive": true },
-      { "name": "processing", "alive": true }
-    ]
+      { "name": "processing", "alive": true },
+      { "name": "outbox_retry", "alive": true }
+    ],
+    "outbox_pending": 0,
+    "current_assignment_id": "uuid-or-null",
+    "last_successful_api_push": "ISO-timestamp-or-null"
   }
   ```
 
@@ -272,19 +293,27 @@ FE akses via: `${LINE_N_URL}/captures/results/{date}/{filename}`
 
 ---
 
-## Webhook ke palmgrade-api
+## Event Delivery ke palmgrade-api (via OutboxStore)
 
-Setiap detection final (auto atau manual), kirim POST ke:
+Setiap detection final (auto atau manual) ditulis ke OutboxStore dulu, lalu `OutboxRetryWorker` deliver ke API.
 
 ```
-POST {BACKEND_URL}/api/v1/webhooks/qualitycontrols
+FrameProcessingWorker / CaptureService
+    → OutboxStore.add_event(event_id, machine_id, payload)  [SQLite write]
+        → OutboxRetryWorker (daemon thread, poll 10s)
+            → POST {canonical_events_url}
+               = {BACKEND_URL}{BACKEND_API_VER}/internal/vision/events
 ```
 
 **Headers:** `x-webhook-secret: {WEBHOOK_SECRET}`, `Content-Type: application/json`
 
-**Payload** — field names dan values HARUS tepat (palmgrade-api validasi strict):
+**Payload** — field names dan values HARUS tepat:
 ```json
 {
+  "event_id": "uuid-v4",
+  "assignment_id": "uuid-or-null",
+  "machine_id": "uuid-dari-tabel-machines",
+  "truck_id": "uuid",
   "timestamp": "2026-05-18T10:30:00.123456",
   "image_path": "captures/results/2026-05-18/2026-05-18_103000_auto.jpg",
   "prediction": "Acc",
@@ -293,18 +322,23 @@ POST {BACKEND_URL}/api/v1/webhooks/qualitycontrols
   "tp_status": "PASS",
   "tp_confidence": 0.88,
   "capture_type": "auto",
-  "truck_id": "uuid",
-  "machine_id": "uuid-dari-tabel-machines",
   "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 }
 }
 ```
 
 **Kontrak penting:**
-- `prediction`: `"Acc"` / `"Rej"` — required, api DTO validate
-- `ripeness_status`: `"ACC"` / `"REJ"` UPPERCASE — api DTO `@IsIn(["ACC","REJ","UNKNOWN"])`
-- `tp_status`: `"PASS"` / `"FAIL"` / `"UNKNOWN"` atau `null` — BUKAN `"TP"`
-- `truck_id`: UUID valid — webhook di-skip kalau `None` (operator belum set truck)
-- `machine_id` diisi dari env `MACHINE_ID` — per container berbeda
+- `event_id`: UUID v4 baru per event — dipakai API untuk idempotency (sparse unique index)
+- `assignment_id`: dari `state.current_assignment_id` — set saat `/internal/assignment` dipanggil
+- `prediction`: `"Acc"` / `"Rej"` — required
+- `ripeness_status`: `"ACC"` / `"REJ"` UPPERCASE
+- `tp_status`: `"PASS"` / `null` — BUKAN `"TP"`
+- `truck_id`: event di-skip kalau `None` (belum set truck)
+- API returns `{status: "already_processed"}` jika `event_id` duplikat — OutboxRetryWorker delete event
+
+**OutboxStore (`artifacts/outbox.db`):**
+- SQLite file per container — survive restart container
+- Exponential backoff: 30s base, 600s cap, max 50 retries
+- `pending_count()` ditampilkan di `/health/detail`
 
 ---
 

@@ -1,18 +1,34 @@
 ENV_FILE=.env
 
-# Jalankan semua 3 line (build + detach)
+# Production — copy SDK dari host, build GPU + SDK, lalu start semua line
 up:
-	docker compose --env-file $(ENV_FILE) up -d --build
+	@test -d /opt/MVS || (echo "ERROR: Hikrobot MVS SDK tidak ditemukan di /opt/MVS. Install MVS terlebih dahulu." && exit 1)
+	cp /opt/MVS/lib/64/libMvCameraControl.so* sdk/
+	cp -r /opt/MVS/Samples/64/Python/MvImport sdk/
+	docker compose --env-file $(ENV_FILE) build \
+		--build-arg TORCH_VARIANT=cu126 \
+		--build-arg WITH_SDK=true
+	docker compose --env-file $(ENV_FILE) up -d
 
-# Jalankan hanya 1 line tertentu
+# Development — build tanpa SDK, CPU torch, lalu start semua line
+up-dev:
+	docker compose --env-file $(ENV_FILE) build \
+		--build-arg TORCH_VARIANT=cpu
+	docker compose --env-file $(ENV_FILE) up -d
+
+# Start semua line tanpa rebuild (pakai image yang sudah ada)
+start:
+	docker compose --env-file $(ENV_FILE) up -d
+
+# Start hanya 1 line tertentu tanpa rebuild
 up-1:
-	docker compose --env-file $(ENV_FILE) up -d --build ripe-line-1
+	docker compose --env-file $(ENV_FILE) up -d ripe-line-1
 
 up-2:
-	docker compose --env-file $(ENV_FILE) up -d --build ripe-line-2
+	docker compose --env-file $(ENV_FILE) up -d ripe-line-2
 
 up-3:
-	docker compose --env-file $(ENV_FILE) up -d --build ripe-line-3
+	docker compose --env-file $(ENV_FILE) up -d ripe-line-3
 
 down:
 	docker compose --env-file $(ENV_FILE) down

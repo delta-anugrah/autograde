@@ -20,3 +20,13 @@ class CameraSource(ABC):
     def disconnect(self) -> None:
         raise NotImplementedError
 
+    def get_fps(self) -> float:
+        return 0.0
+
+    @property
+    def exhausted(self) -> bool:
+        return False
+
+    @property
+    def supports_reconnect(self) -> bool:
+        return True

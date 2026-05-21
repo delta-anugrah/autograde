@@ -60,7 +60,7 @@ class OutboxStore:
                 """SELECT id, event_id, payload, retry_count
                    FROM outbox_events
                    WHERE status = 'pending' AND next_retry_at <= ?
-                   ORDER BY id ASC LIMIT ?""",
+                   ORDER BY retry_count ASC, id ASC LIMIT ?""",
                 (now, limit),
             ).fetchall()
         return [dict(r) for r in rows]

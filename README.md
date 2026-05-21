@@ -27,11 +27,14 @@ Camera (Hikrobot / OpenCV / Photo)
         → YOLOv8 + ByteTrack
         → detect: acc / rej / tp (tangkai panjang)
         → save JPEG + JSON to artifacts/results/
-        → POST webhook → palmgrade-api
-    → EventBroadcastWorker (asyncio task)
-        → SSE broadcast → palmgrade-api
+        → OutboxStore.add_event()  ← durable SQLite write
+    → OutboxRetryWorker (daemon thread)
+        → POST /api/v1/internal/vision/events → palmgrade-api
     → StreamingService
         → MJPEG /api/video_feed (multi-viewer via Condition broadcast)
+
+palmgrade-api → POST /internal/assignment → update state.current_truck_id + assignment_id
+palmgrade-api → POST /internal/manual-reject → trigger capture_manual_reject()
 ```
 
 **Detection model**: `best_3class_v2.pt` — 3 classes: `acc` (accepted), `rej` (rejected), `tp` (long stalk)
@@ -138,13 +141,75 @@ mkdir -p models/release
 
 ### 4. Siapkan Hikrobot SDK (production only)
 
+Install MVS SDK di host (`/opt/MVS/`). `make up` akan otomatis copy file yang dibutuhkan dari sana — tidak perlu copy manual.
+
+---
+
+## Production Deployment (Pindah ke PC Baru)
+
+Checklist lengkap sebelum `make up` di PC produksi. Urutan ini penting.
+
+### 1. Install NVIDIA Container Toolkit
+
+Wajib untuk GPU passthrough ke Docker. Tanpa ini `torch.cuda.is_available()` selalu `False` di dalam container dan YOLO jalan di CPU (10x lebih lambat).
+
 ```bash
-mkdir -p sdk
-cp /opt/MVS/lib/64/libMvCameraControl.so* sdk/
-cp -r /opt/MVS/Samples/64/Python/MvImport sdk/
+# Tambah repo NVIDIA
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
+  sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+sudo systemctl restart docker
 ```
 
-Setelah ini, `make rebuild` untuk build image dengan SDK di dalamnya.
+Verifikasi:
+```bash
+docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi
+```
+
+### 2. Siapkan Hikrobot SDK
+
+Install MVS SDK di host (`/opt/MVS/`). `make up` akan otomatis copy file SDK yang dibutuhkan ke `sdk/` dan include ke dalam Docker image — tidak perlu copy manual atau edit Dockerfile.
+
+### 3. Place YOLO model
+
+```bash
+mkdir -p models/release
+# copy best_3class_v2.pt ke models/release/
+```
+
+### 4. Configure `.env`
+
+```bash
+cp .env.example .env
+# Wajib diisi:
+# LINE_1_MACHINE_ID=<uuid>   — UUID dari tabel machines di PostgreSQL (palmgrade-api)
+# LINE_2_MACHINE_ID=<uuid>
+# LINE_3_MACHINE_ID=<uuid>
+# BACKEND_URL=http://<ip>:2500
+# WEBHOOK_SECRET=<sama dengan palmgrade-api>
+# CAMERA_TYPE=hikrobot
+# CAMERA_FPS=25
+```
+
+### 5. Build GPU image & run
+
+```bash
+# Build GPU image + copy SDK + start semua 3 line (~2.4GB download torch, ~30 menit)
+make up
+
+# Verifikasi GPU aktif
+curl http://localhost:8001/health/detail | grep gpu_available
+# Expected: "gpu_available": true
+```
+
+> **Download torch+cu126** langsung dari `download.pytorch.org/whl/cu126`.
+> `PIP_RETRIES=10` sudah di-set di Dockerfile — auto-retry kalau koneksi putus.
+> Setelah selesai jalankan `docker image prune -f` untuk bersihkan layer yang jadi dangling.
 
 ---
 
@@ -153,17 +218,20 @@ Setelah ini, `make rebuild` untuk build image dengan SDK di dalamnya.
 ### Semua command via `make`
 
 ```bash
-make up          # build + start ketiga line (8001/8002/8003)
-make up-1        # build + start line-1 (triggers image build)
-make up-2        # start line-2 (reuse image palmgrade-vision:latest)
-make up-3        # start line-3 (reuse image palmgrade-vision:latest)
+make up          # production: copy SDK dari /opt/MVS/, build GPU+SDK, start semua line
+make up-dev      # development: build CPU tanpa SDK, start semua line
+make start       # start semua line tanpa rebuild (pakai image yang sudah ada)
+make up-1        # start line-1 saja tanpa rebuild
+make up-2        # start line-2 saja tanpa rebuild
+make up-3        # start line-3 saja tanpa rebuild
 make down        # stop semua
 make logs        # tail logs gabungan semua line
 make logs-1      # tail logs line-1 saja
 make logs-2      # tail logs line-2 saja
 make logs-3      # tail logs line-3 saja
 make ps          # status semua container
-make rebuild     # rebuild Docker image
+make rebuild     # rebuild image CPU saja (tanpa SDK, tanpa start)
+make rebuild-gpu # rebuild image GPU saja (tanpa SDK, tanpa start)
 make clean       # down + hapus image lokal
 ```
 
@@ -203,13 +271,15 @@ make clean       # down + hapus image lokal
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/health` | Health check (always allowed, bypasses license guard) |
-| `GET` | `/health/detail` | Detailed status: camera connected, GPU, worker threads |
-| `GET` | `/api/video_feed` | MJPEG live stream (multi-viewer, resized to STREAM_WIDTH×STREAM_HEIGHT) |
-| `POST` | `/api/set_truck` | Set active truck ID for this line |
-| `POST` | `/api/manual_capture` | Trigger manual reject capture |
+| `GET` | `/health` | Health check (always allowed) |
+| `GET` | `/health/detail` | Detailed status: camera, GPU, workers, outbox_pending, current_assignment_id |
+| `GET` | `/api/video_feed` | MJPEG live stream (multi-viewer) |
+| `POST` | `/api/set_truck` | Set active truck ID (legacy — prefer API /grading-console/lines/:id/assign-truck) |
+| `POST` | `/api/manual_capture` | Trigger manual reject capture (legacy) |
 | `GET` | `/api/inspection/status` | Model + device info |
 | `GET` | `/api/results/today` | Today's grading results |
+| `POST` | `/internal/assignment` | Receive truck assignment from palmgrade-api (protected by x-internal-secret) |
+| `POST` | `/internal/manual-reject` | Receive manual reject command from palmgrade-api (protected by x-internal-secret) |
 | `WS` | `/ws/results` | WebSocket result push (legacy) |
 | `GET` | `/captures/results/...` | Static files — saved result images |
 
@@ -225,10 +295,16 @@ curl -X POST http://localhost:8001/api/set_truck \
 
 ---
 
-## Webhook Payload (sent to palmgrade-api on each detection)
+## Event Payload (sent to palmgrade-api via OutboxRetryWorker)
+
+Events are written to `OutboxStore` (SQLite) first, then delivered asynchronously to `POST /api/v1/internal/vision/events`.
 
 ```json
 {
+  "event_id": "uuid-v4",
+  "assignment_id": "uuid-or-null",
+  "machine_id": "uuid-from-machines-table",
+  "truck_id": "uuid",
   "timestamp": "2026-05-18T10:30:00.123456",
   "image_path": "captures/results/2026-05-18/2026-05-18_103000_123456_auto.jpg",
   "prediction": "Acc",
@@ -237,19 +313,17 @@ curl -X POST http://localhost:8001/api/set_truck \
   "tp_status": "PASS",
   "tp_confidence": 0.88,
   "capture_type": "auto",
-  "truck_id": "uuid",
-  "machine_id": "uuid-from-machines-table",
   "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 }
 }
 ```
 
-**Field contracts (palmgrade-api validasi strict):**
+**Field contracts:**
+- `event_id`: UUID v4 — used by API for idempotency
 - `prediction`: `"Acc"` / `"Rej"` — required
 - `ripeness_status`: `"ACC"` / `"REJ"` UPPERCASE
 - `tp_status`: `"PASS"` atau `null` — bukan `"TP"`
-- `truck_id`: webhook di-skip jika `null` (belum set truck)
-
-`machine_id` digunakan frontend untuk routing ke panel line yang benar.
+- `truck_id`: event di-skip jika `null` (belum set truck)
+- Events survive restart — stored in `artifacts/outbox.db` per container
 
 ---
 

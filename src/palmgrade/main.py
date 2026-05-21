@@ -82,6 +82,7 @@ def create_app() -> FastAPI:
                 width=settings.camera_width,
                 height=settings.camera_height,
                 fps=settings.camera_fps,
+                is_video_file=bool(settings.camera_video_path),
             )
         elif camera_type == "photo":
             camera = PhotoCamera(path=settings.camera_photo_path)
@@ -107,7 +108,12 @@ def create_app() -> FastAPI:
             return t
 
         capture_worker = FrameCaptureWorker(camera=camera, state=state, target_fps=settings.camera_fps, device_index=settings.camera_device_index)
-        display_worker = DisplayWorker(state=state, pipeline=pipeline, settings=settings, target_fps=settings.camera_fps or 24)
+        display_worker = DisplayWorker(
+            state=state,
+            pipeline=pipeline,
+            settings=settings,
+            target_fps=settings.stream_fps or 12,
+        )
         processing_worker = FrameProcessingWorker(
             pipeline=pipeline,
             state=state,

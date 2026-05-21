@@ -16,7 +16,7 @@ FONT = cv2.FONT_HERSHEY_SIMPLEX
 FONT_COLOR = (255, 255, 255)  # putih
 
 # Streaming
-JPEG_QUALITY_STREAM = 60
+JPEG_QUALITY_STREAM = 42
 JPEG_QUALITY_SAVE = 80
 
 # Frame queue
@@ -29,4 +29,4 @@ REF_LINE_THICKNESS = 7
 
 # ROI detection zone highlight (overlay semi-transparan di antara entry/exit line)
 COLOR_ROI = (0, 200, 200)   # kuning muda (BGR)
-ROI_ALPHA = 0.12             # opacity 12%
+ROI_ALPHA = 0.25             # opacity 25%
