@@ -1,13 +1,14 @@
-# Backend Overview — ripe-recognition-main
+# Backend Overview — palmgrade-vision
 
-Dokumen ini adalah rangkuman menyeluruh tentang project `ripe-recognition-main`
-sebagai Python backend untuk sistem inspeksi kematangan sawit.
+Rangkuman teknis `palmgrade-vision` — Python AI camera service untuk sistem grading kelapa sawit.
 
 ## Tujuan Project
 
-Menerima feed kamera industri (Hikrobot), menjalankan model YOLO secara
-realtime, mengklasifikasi kematangan buah sawit, menyimpan hasil inspeksi, dan
-mengirimkan webhook ke Node.js API.
+Menerima feed kamera industri Hikrobot, menjalankan model YOLO secara realtime,
+mengklasifikasi kematangan buah sawit (3 kelas), menyimpan hasil inspeksi ke file,
+dan mengirimkan event ke `palmgrade-api` via OutboxStore (SQLite durable delivery).
+
+Dijalankan sebagai **3 container terpisah** (line 1/2/3), masing-masing satu port dan satu kamera.
 
 ---
 
@@ -17,52 +18,51 @@ mengirimkan webhook ke Node.js API.
 |---|---|
 | Framework | FastAPI |
 | Server | Uvicorn |
-| Model inference | Ultralytics YOLO |
+| Model inference | Ultralytics YOLO (YOLOv8) |
 | Computer vision | OpenCV |
 | Deep learning | PyTorch |
 | Camera SDK | MvImport (Hikrobot proprietary) |
 | HTTP client | httpx (async) |
 | Scheduler | APScheduler |
 | Config | python-dotenv + dataclass |
-| Validasi schema | Pydantic |
+| Schema validation | Pydantic |
 
 ---
 
 ## Folder Structure
 
 ```
-ripe-recognition-main/
+palmgrade-vision/
   src/
-    ripe_recognition/
+    palmgrade/
       main.py                  # FastAPI app factory + middleware + lifecycle
 
       routes/                  # Hanya deklarasi endpoint dan router wiring
       controllers/             # Terima request, panggil service, return response
       services/                # Orchestration dan business flow
-      repositories/            # Baca/tulis persistence (file JSON, state)
-      pipelines/               # Logic YOLO inference dan frame processing
+      repositories/            # Baca/tulis file (JSON, JPEG)
+      pipelines/               # Logic YOLO inference + frame processing
       integrations/
-        camera/                # Abstraksi kamera (base + Hikrobot + OpenCV)
-        notifications/         # Webhook client (httpx)
-        storage/               # Read/write file lokal (JSON, JPEG)
-        scheduler/             # APScheduler untuk upload otomatis
-      workers/                 # Background thread loops + runtime state
-      domain/                  # Business rule murni (voting, PASS/FAIL)
+        camera/                # HikrobotCamera / OpenCVCamera / PhotoCamera
+        notifications/         # WebhookClient (httpx async) — legacy, not used for main flow
+        outbox/                # OutboxStore — SQLite durable event persistence
+        storage/               # LocalFileStorage (read/write JSON + JPEG)
+        scheduler/             # APScheduler daily upload cron
+      workers/                 # Background threads + asyncio tasks
+      domain/                  # Business rule murni — tidak ada I/O
       schemas/                 # Pydantic request/response schemas
-      core/                    # Config, logging, constants, exceptions, DI
+      core/                    # Config, logging, constants, DI wiring
+      license/                 # License guard (Ed25519 JWS, optional)
 
-  cli/                         # Script CLI untuk training dan predict offline
+  cli/                         # Script CLI offline (training, predict)
   models/
-    release/                   # Model .pt yang dipakai di produksi
-    experiments/               # Model eksperimen / training output
-  artifacts/
-    captures/                  # Metadata JSON dari manual capture
-    results/                   # Metadata JSON + JPEG dari auto detection
-    logs/                      # Log file
-  tests/
-    unit/
-    integration/
+    release/                   # Model .pt produksi — tidak di-commit ke git
+  artifacts/                   # Output runtime — tidak di-commit ke git
   docs/
+  Dockerfile
+  docker-compose.yml           # 3 services: line-1 (8001), line-2 (8002), line-3 (8003)
+  requirements.txt
+  .env / .env.example
 ```
 
 ---
@@ -72,13 +72,35 @@ ripe-recognition-main/
 | Layer | Boleh | Tidak Boleh |
 |---|---|---|
 | `routes/` | Deklarasi endpoint, include controller | Logic apapun |
-| `controllers/` | Terima request, return response | Query DB, panggil model |
-| `services/` | Orchestrasi, gabungkan repo + pipeline | Query langsung, detail SDK |
-| `repositories/` | Baca/tulis file/state | Business rule, HTTP call |
-| `pipelines/` | YOLO inference, frame processing | HTTP, persistence |
-| `integrations/` | Akses sistem eksternal | Business rule |
-| `workers/` | Background loop, queue runtime | HTTP handler |
-| `domain/` | Pure business rule (voting, status) | Semua I/O |
+| `controllers/` | Terima request, return response, HTTPException | Query DB, akses model langsung |
+| `services/` | Orchestrasi, gabungkan repo + pipeline | Raw SQL, detail SDK, return HTTP |
+| `repositories/` | Baca/tulis file JSON dan JPEG | Business rule, HTTP call, inference |
+| `pipelines/` | YOLO inference, frame processing, draw boxes | HTTP, persistence, business rule |
+| `integrations/` | Akses sistem eksternal (kamera, webhook, storage) | Business rule |
+| `workers/` | Background loop, queue, hold lock, RuntimeState | Langsung return HTTP response |
+| `domain/` | Pure function, pure dataclass — zero I/O | Import cv2, fastapi, httpx; baca/tulis file |
+
+---
+
+## Detection Model
+
+1 model (`best_3class_v2.pt`) mendeteksi 3 kelas sekaligus:
+- `acc` — buah matang / diterima
+- `rej` — buah tidak matang / ditolak
+- `tp` — tangkai panjang (long stalk)
+
+**Single-trigger detection** (bukan vote):
+- Track setiap buah via ByteTrack `track_id`
+- Saat pusat bounding box buah berada di dalam ROI box → simpan langsung (satu kali per track_id)
+- `MINIMUM_SIZE = 460000 px²` — buah < threshold → auto `rej`
+- TP yang terdeteksi disimpan sebagai JSON terpisah, dipasangkan dengan buah via timestamp
+- TP tidak dicek ROI — selalu diterima dari posisi manapun
+
+**ROI Box Detection Zone:**
+- Dikontrol via env var: `ROI_X1`, `ROI_Y1`, `ROI_X2`, `ROI_Y2` (semua dalam pixel)
+- Default `0,0,0,0` = full frame (semua objek eligible)
+- `ROI_X2=0` → otomatis jadi lebar frame; `ROI_Y2=0` → otomatis jadi tinggi frame
+- Ditampilkan sebagai overlay kuning semi-transparan (25% opacity) di MJPEG stream
 
 ---
 
@@ -86,225 +108,244 @@ ripe-recognition-main/
 
 ### `GET /api/video_feed`
 
-Streaming kamera realtime dalam format MJPEG.
+MJPEG live stream dari kamera.
 
-- **Response:** `StreamingResponse` dengan `Content-Type: multipart/x-mixed-replace; boundary=frame`
-- **Consumed by FE:** `<img src="${SAWIT_API_URL}/api/video_feed" />` di
-  [quality-control-list.tsx](../../supplier-dashboard/src/modules/quality-control/list/quality-control-list.tsx)
-- **Headers wajib:**
-  ```
-  Cache-Control: no-cache, no-store, must-revalidate
-  Connection: close
-  ```
+- **Response:** `StreamingResponse`, `Content-Type: multipart/x-mixed-replace; boundary=frame`
+- **Dikonsumsi FE:** `<img src="${LINE_N_URL}/api/video_feed" />`
 
 ---
 
-### `GET /api/results_today`
+### `GET /api/results/today`
 
-Mengembalikan semua hasil inspeksi hari ini dari folder results.
+Semua hasil grading hari ini.
 
 - **Response:**
   ```json
   [
     {
-      "id": "2024-01-15_120000_000000",
-      "status": "PASS | FAIL",
-      "title": "PASS Detected",
-      "description": "Prediction=Acc (conf=0.95, truck_id=TRK-001)",
-      "timestamp": "2024-01-15T12:00:00.000000",
-      "image_url": "captures/results/2024-01-15/2024-01-15_120000_000000_auto.jpg",
-      "capture_type": "auto | manual",
-      "truck_id": "TRK-001",
-      "bounding_box": { "x_min": 0, "y_min": 0, "x_max": 100, "y_max": 100 },
-      "trunk_box": { "label": "Acc", "score": 0.91, "x_min": 10, "y_min": 10, "x_max": 90, "y_max": 90 }
+      "id": "2026-05-18_103000_123456",
+      "ripeness_status": "acc",
+      "ripeness_confidence": 0.92,
+      "tp_status": "TP",
+      "tp_confidence": 0.88,
+      "timestamp": "2026-05-18T10:30:00.123456",
+      "image_url": "captures/results/2026-05-18/2026-05-18_103000_auto.jpg",
+      "capture_type": "auto",
+      "truck_id": "uuid-or-null",
+      "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 }
     }
   ]
   ```
-- **Catatan:** Data dibaca dari file `.json` di `artifacts/results/{YYYY-MM-DD}/`.
+- Data dibaca dari `_ripeness.json` dan `_tp.json` di `artifacts/results/{YYYY-MM-DD}/`.
 
 ---
 
-### `POST /api/set_truck`
+### `POST /api/set_truck` (legacy)
 
-Set truck ID yang sedang aktif dipantau.
+Set truck ID aktif untuk line ini secara langsung ke vision.
 
-- **Request body:**
-  ```json
-  { "truck_id": "TRK-001" }
-  ```
-- **Response:**
-  ```json
-  { "message": "Truck ID set", "truck_id": "TRK-001" }
-  ```
-- **Side effect:** Menyimpan `current_truck_id` ke `RuntimeState`. Semua
-  hasil auto detection setelah ini akan ter-tag dengan truck_id ini.
+- **Request body:** `{ "truck_id": "uuid" }`
+- **Response:** `{ "message": "Truck ID set", "truck_id": "uuid" }`
+- **Side effect:** Menyimpan ke `RuntimeState.current_truck_id`. Masih aktif tapi operator sebaiknya pakai API `/api/v1/grading-console/lines/:id/assign-truck` — API akan push ke `/internal/assignment` yang juga set `current_assignment_id`.
+
+### `POST /internal/assignment`
+
+Terima assignment dari palmgrade-api. Protected by `x-internal-secret: WEBHOOK_SECRET`.
+
+- **Request body:** `{ "machine_id", "assignment_id", "truck_id", "assigned_at" }`
+- **Response:** `{ "accepted": true, "machine_id", "truck_id", "assignment_id" }`
+- **Side effect:** Set `state.current_truck_id` + `state.current_assignment_id` — semua event selanjutnya punya `assignment_id` ini.
+
+### `POST /internal/manual-reject`
+
+Terima command manual reject dari palmgrade-api. Protected by `x-internal-secret: WEBHOOK_SECRET`.
+
+- **Request body:** `{ "machine_id", "assignment_id", "requested_by", "requested_at" }`
+- **Response:** `{ "accepted": true, "message": "capture_reject_requested" }`
+- **Side effect:** Trigger `capture_manual_reject()` via `run_in_executor` — event ditulis ke OutboxStore.
 
 ---
 
-### `POST /api/capture_reject`
+### `POST /api/manual_capture`
 
-Manual capture frame saat ini dan langsung mark sebagai FAIL.
+Capture frame saat ini secara manual, langsung mark sebagai `rej`.
 
-- **Request body:** Tidak ada.
+- **Request body:** tidak ada
 - **Response:**
   ```json
   {
-    "id": "2024-01-15_120000_000000",
-    "status": "FAIL",
-    "title": "FAIL Detected (Manual)",
-    "description": "Prediction=Rej (conf=1.00, manual capture)",
-    "timestamp": "2024-01-15T12:00:00.000000",
-    "image_url": "captures/results/2024-01-15/2024-01-15_120000_000000_manual.jpg",
+    "message": "Manual capture saved",
+    "ripeness_status": "rej",
+    "ripeness_confidence": 1.0,
+    "tp_status": null,
+    "tp_confidence": null,
+    "timestamp": "...",
+    "image_url": "captures/results/2026-05-18/..._manual.jpg",
     "capture_type": "manual",
-    "truck_id": "TRK-001",
-    "prediction": "Rej",
-    "confidence": 1.0
+    "truck_id": "uuid-or-null"
   }
   ```
-- **Side effect:** Simpan JPEG + metadata JSON, kirim webhook ke Node.js API,
-  push event ke `event_queue` untuk WebSocket broadcast.
+- **Side effect:** Simpan JPEG + metadata JSON, tulis ke OutboxStore, push ke `event_queue` untuk WebSocket broadcast.
+
+---
+
+### `GET /health/detail`
+
+Status operasional container.
+
+- **Response:**
+  ```json
+  {
+    "status": "ok",
+    "environment": "production",
+    "camera_type": "hikrobot",
+    "camera_connected": true,
+    "gpu_available": true,
+    "gpu_device": "NVIDIA GeForce GTX 1650",
+    "machine_id": "uuid-from-machines-table",
+    "workers": [
+      { "name": "capture", "alive": true },
+      { "name": "display", "alive": true },
+      { "name": "processing", "alive": true },
+      { "name": "outbox_retry", "alive": true }
+    ],
+    "outbox_pending": 0,
+    "current_assignment_id": "uuid-or-null",
+    "last_successful_api_push": "ISO-timestamp-or-null"
+  }
+  ```
+
+---
+
+### `GET /api/inspection/status`
+
+Info model dan device yang aktif.
 
 ---
 
 ### `WebSocket /ws/results`
 
-Push event realtime ke client saat ada hasil detection baru.
-
-- **Event payload:**
-  ```json
-  {
-    "id": "2024-01-15_120000_000000",
-    "status": "PASS | FAIL",
-    "title": "PASS Detected",
-    "description": "...",
-    "timestamp": "...",
-    "image_url": "captures/results/...",
-    "capture_type": "auto | manual",
-    "truck_id": "TRK-001"
-  }
-  ```
-- **Catatan:** WebSocket ini opsional. FE saat ini lebih menggunakan SSE dari
-  Node.js API untuk real-time update. WebSocket ini bisa dipertahankan sebagai
-  fallback atau untuk debugging.
+Push event realtime ke client saat ada detection baru. Legacy endpoint — masih aktif tapi FE utama memakai SSE dari `palmgrade-api`.
 
 ---
 
 ## Realtime Processing Flow
 
 ```
-Kamera (Hikrobot)
-  ↓ [FrameCaptureWorker — daemon thread]
-frame_queue
-  ↓ [FrameProcessingWorker — daemon thread]
-  ├── YOLO track() → detect bounding box + track_id
-  ├── VoteTracker.register(label) → akumulasi vote per track_id
-  ├── derive_status(label) → "PASS" atau "FAIL"
-  ├── [jika vote tembus threshold]
-  │     ├── LocalFileStorage.write_image() → simpan JPEG
-  │     ├── LocalFileStorage.write_json() → simpan metadata
-  │     ├── event_queue.put(event)
-  │     └── WebhookClient.send_quality_event() → POST ke Node.js
-  └── encode frame → result_queue
+Hikrobot Camera (GigE via RJ45 LAN)
+  ↓ [FrameCaptureWorker — daemon thread, holds state.lock]
+  │    Grab timeout: 100ms. Setelah 5 failures → _try_reconnect() (backoff 1-30s)
+  │    Reconnect pakai self._device_index (0/1/2 per line)
+  ↓
+frame_queue                      state.latest_raw_frame
+  ↓                                       ↓
+  ↓ [FrameProcessingWorker]    [DisplayWorker — sole MJPEG writer]
+  ├── YOLO track() → detect     ├── draw_boxes() + zone lines
+  ├── direction-aware zone       ├── resize to STREAM_WIDTH×STREAM_HEIGHT
+  ├── _processed_objects check   └── imencode → state.latest_frame
+  ├── Single-trigger save:            + frame_condition.notify_all()
+  │     ├── write_image() JPEG
+  │     ├── write_json() _ripeness.json
+  │     ├── write_json() _tp.json (if TP)
+  │     ├── event_queue.put_nowait()
+  │     └── WebhookClient.send() → POST palmgrade-api
+  └── state.last_yolo_results (read by DisplayWorker)
   ↓ [EventBroadcastWorker — asyncio task]
 WebSocket clients
-  ↓ [generate_frames()]
-MJPEG stream → FE
+
+state.latest_frame
+  ↓ [generate_frames() — satu per viewer, wait frame_condition]
+MJPEG stream → semua browser secara bersamaan
+
+[_watchdog — asyncio coroutine, every 10s]
+  └── checks thread.is_alive() → restart jika mati
+      (worker object dipertahankan, _processed_objects survive restart)
 ```
 
----
+**MJPEG broadcast:** `threading.Condition` (`frame_condition.notify_all()`) — semua viewer dapat frame yang sama.
+`DisplayWorker` adalah **satu-satunya writer** ke `state.latest_frame`. Frame di-resize ke `STREAM_WIDTH×STREAM_HEIGHT` sebelum encode — default 1280×720.
 
-## Domain Logic
+**Drop-old policy pada `event_queue`:** `get_nowait()` + `put_nowait()` — jangan `put()` blocking.
 
-### VoteTracker (`domain/voting.py`)
+**Lock policy:** `FrameCaptureWorker` dan `CaptureService` keduanya akses kamera fisik.
+Keduanya **wajib** acquire `state.lock` sebelum memanggil `camera.grab_frame()`.
 
-Setiap buah sawit di-track via YOLO track_id. Setiap frame, label detection
-di-register ke tracker. Jika label konsisten mencapai `VOTE_THRESHOLD` frame,
-hasilnya dianggap final.
-
-```
-frame 1: Acc → votes=1
-frame 2: Acc → votes=2
-frame 3: Acc → votes=3  ← tembus VOTE_THRESHOLD (default=3) → FINAL
-frame 4: (sudah di-skip karena processed=True)
-```
-
-Jika label berubah sebelum tembus threshold, vote direset dari 0.
-
-### Status Rule (`domain/rules.py`)
-
-```python
-derive_status("Rej")   → "FAIL"
-derive_status("reject") → "FAIL"
-derive_status("Acc")   → "PASS"
-```
+**Worker resilience:**
+- Semua `run_loop()` dibungkus `try/except` — crash di-log, thread tidak mati
+- `_watchdog` coroutine restart thread yang mati setiap 10s
+- Camera reconnect otomatis setelah 5 consecutive grab failures
 
 ---
 
 ## File & Path Conventions
 
-### Penyimpanan hasil detection
-
 ```
 artifacts/
   results/
     {YYYY-MM-DD}/
-      {timestamp}_auto.jpg    # Annotated frame
-      {timestamp}_auto.json   # Metadata
-      {timestamp}_manual.jpg  # Manual capture
-      {timestamp}_manual.json
-  captures/
-    {YYYY-MM-DD}/
-      {timestamp}.json        # Metadata dari manual capture
+      {timestamp}_auto.jpg              # Annotated frame buah
+      {timestamp}_auto_ripeness.json    # Metadata grading
+      {timestamp}_auto_tp.json          # Metadata TP (jika ada)
+      {timestamp}_manual.jpg             # Manual capture
+      {timestamp}_manual_ripeness.json  # suffix _ripeness wajib — dibaca oleh list_today_results()
+  errors/                               # Copy dari semua hasil rej
+  logs/
 ```
 
-### image_url format di response
+`image_url` di response: `captures/results/{date}/{timestamp}_auto.jpg`
 
-```
-captures/results/2024-01-15/2024-01-15_120000_000000_auto.jpg
-```
+FastAPI mount static: `app.mount("/captures", StaticFiles(directory="artifacts"))`
 
-URL ini diakses oleh FE dengan prefix `NEXT_PUBLIC_SAWIT_API_URL`:
-```
-http://localhost:8000/captures/results/2024-01-15/...jpg
-```
-
-Artinya FastAPI harus mount static files:
-```python
-app.mount("/captures", StaticFiles(directory="artifacts"), name="captures")
-```
+FE akses via: `${LINE_N_URL}/captures/results/{date}/{filename}`
 
 ---
 
-## Webhook ke Node.js API
+## Event Delivery ke palmgrade-api (via OutboxStore)
 
-Setiap ada detection final (auto maupun manual), BE mengirim POST request ke:
+Setiap detection final (auto atau manual) ditulis ke OutboxStore dulu, lalu `OutboxRetryWorker` deliver ke API.
 
 ```
-POST {BACKEND_URL}{BACKEND_API_VER}/webhooks/qualitycontrols
+FrameProcessingWorker / CaptureService
+    → OutboxStore.add_event(event_id, machine_id, payload)  [SQLite write]
+        → OutboxRetryWorker (daemon thread, poll 10s)
+            → POST {canonical_events_url}
+               = {BACKEND_URL}{BACKEND_API_VER}/internal/vision/events
 ```
 
-Default: `http://localhost:2500/api/v1/webhooks/qualitycontrols`
+**Headers:** `x-webhook-secret: {WEBHOOK_SECRET}`, `Content-Type: application/json`
 
-**Headers:**
-```
-Content-Type: application/json
-x-webhook-secret: {WEBHOOK_SECRET}
-```
-
-**Payload:**
+**Payload** — field names dan values HARUS tepat:
 ```json
 {
-  "timestamp": "2024-01-15T12:00:00",
-  "image_path": "captures/results/2024-01-15/..._auto.jpg",
-  "prediction": "Acc | Rej",
-  "confidence": 0.95,
-  "status": "PASS | FAIL",
-  "capture_type": "auto | manual",
-  "truck_id": "TRK-001",
-  "bounding_box": { "x_min": 0, "y_min": 0, "x_max": 100, "y_max": 100 },
-  "trunk_box": { "label": "Acc", "score": 0.91, ... }
+  "event_id": "uuid-v4",
+  "assignment_id": "uuid-or-null",
+  "machine_id": "uuid-dari-tabel-machines",
+  "truck_id": "uuid",
+  "timestamp": "2026-05-18T10:30:00.123456",
+  "image_path": "captures/results/2026-05-18/2026-05-18_103000_auto.jpg",
+  "prediction": "Acc",
+  "ripeness_status": "ACC",
+  "ripeness_confidence": 0.92,
+  "tp_status": "PASS",
+  "tp_confidence": 0.88,
+  "capture_type": "auto",
+  "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 }
 }
 ```
+
+**Kontrak penting:**
+- `event_id`: UUID v4 baru per event — dipakai API untuk idempotency (sparse unique index)
+- `assignment_id`: dari `state.current_assignment_id` — set saat `/internal/assignment` dipanggil
+- `prediction`: `"Acc"` / `"Rej"` — required
+- `ripeness_status`: `"ACC"` / `"REJ"` UPPERCASE
+- `tp_status`: `"PASS"` / `null` — BUKAN `"TP"`
+- `truck_id`: event di-skip kalau `None` (belum set truck)
+- API returns `{status: "already_processed"}` jika `event_id` duplikat — OutboxRetryWorker delete event
+
+**OutboxStore (`artifacts/outbox.db`):**
+- SQLite file per container — survive restart container
+- Exponential backoff: 30s base, 600s cap, max 50 retries
+- `pending_count()` ditampilkan di `/health/detail`
 
 ---
 
@@ -312,48 +353,40 @@ x-webhook-secret: {WEBHOOK_SECRET}
 
 | Variable | Default | Keterangan |
 |---|---|---|
-| `RUNNING_PORT` | `8000` | Port server |
+| `APP_PORT` | `8000` | Port server |
 | `APP_HOST` | `0.0.0.0` | Host server |
 | `FRONTEND_URL` | `*` | CORS allowed origin |
 | `ENABLE_WEBHOOK` | `true` | Toggle webhook |
-| `BACKEND_URL` | `http://localhost:2500` | Node.js API URL |
-| `BACKEND_API_VER` | `/api/v1` | Node.js API version prefix |
-| `WEBHOOK_SECRET` | `supersecret123` | Secret header untuk webhook |
-| `MODEL_SIZE` | `n` | Ukuran YOLO detection model |
-| `MODEL_VERSION` | `det_v1` | Versi YOLO detection model |
-| `CLS_MODEL_SIZE` | `m` | Ukuran YOLO classify model |
-| `CLS_MODEL_VERSION` | `cls_v1` | Versi YOLO classify model |
+| `BACKEND_URL` | `http://localhost:2500` | palmgrade-api base URL |
+| `WEBHOOK_SECRET` | — | HMAC secret header, harus cocok dengan palmgrade-api |
+| `MODEL_FILE` | `best_3class_v2.pt` | Nama file model di `models/release/` |
 | `CONF_THRESHOLD` | `0.75` | Minimum confidence YOLO |
-| `VOTE_THRESHOLD` | `3` | Jumlah frame konsisten untuk final result |
-| `CAMERA_WIDTH` | `320` | Resolusi kamera (width) |
-| `CAMERA_HEIGHT` | `240` | Resolusi kamera (height) |
-| `CAMERA_FPS` | `30` | Target FPS kamera |
-| `BORDER_THICKNESS` | `2` | Tebal border bounding box |
-| `FONT_SCALE` | `0.7` | Ukuran font label |
-| `FONT_THICKNESS` | `2` | Tebal font label |
-| `ROI_SCALE` | `0.7` | Skala ROI |
+| `MINIMUM_SIZE` | `460000` | Minimum area bounding box (px²) — di bawah ini auto rej |
+| `CAMERA_TYPE` | `hikrobot` | Sumber kamera: `hikrobot` / `opencv` (webcam atau video file) / `photo` |
+| `CAMERA_DEVICE_INDEX` | `0` | Index device webcam (dipakai kalau `CAMERA_TYPE=opencv` tanpa `CAMERA_VIDEO_PATH`) |
+| `CAMERA_VIDEO_PATH` | — | Path video file di dalam container (dipakai kalau `CAMERA_TYPE=opencv`) |
+| `MACHINE_ID` | — | UUID dari tabel `machines` di PostgreSQL — berbeda per container |
+| `ROI_X1` | `0` | Batas kiri area deteksi (px) |
+| `ROI_Y1` | `0` | Batas atas area deteksi (px) |
+| `ROI_X2` | `0` | Batas kanan area deteksi (px) — `0` = lebar penuh frame |
+| `ROI_Y2` | `0` | Batas bawah area deteksi (px) — `0` = tinggi penuh frame |
+| `STREAM_WIDTH` | `1280` | Lebar frame MJPEG stream (setelah resize, sebelum encode) |
+| `STREAM_HEIGHT` | `720` | Tinggi frame MJPEG stream |
 | `UPLOAD_HOUR` | `0` | Jam upload otomatis (cron) |
 | `UPLOAD_MINUTE` | `0` | Menit upload otomatis (cron) |
-| `DESTINATION_UPLOAD` | - | Path tujuan upload hasil |
+| `DESTINATION_UPLOAD` | — | Path tujuan upload hasil harian |
+| `LIC_ENABLED` | `false` | Aktifkan license guard |
+| `LIC_SERVER_URL` | — | URL license server |
+| `LIC_API_KEY` | — | API key license server |
+| `LIC_PUBKEY_PEM` | — | Public key Ed25519 untuk verifikasi JWS |
 
 ---
 
 ## Models
 
-| File | Deskripsi |
+| File | Keterangan |
 |---|---|
-| `models/release/classify_and_detect.pt` | Model utama: deteksi + klasifikasi kematangan |
-| `models/release/tangkai_sawit.pt` | Model deteksi tangkai/batang |
+| `models/release/best_3class_v2.pt` | Model utama — deteksi 3 kelas: acc, rej, tp. v2: dataset 2x lebih besar, TP conf lebih stabil |
 
-Kedua model di-load saat startup. Jika file tidak ditemukan, server gagal start.
-
----
-
-## Migration Status
-
-Lihat [migration-progress.md](./migration-progress.md) untuk status terkini.
-
-Singkatnya:
-- Skeleton folder dan routing: selesai
-- Core config, domain rules, storage: sebagian besar selesai
-- Camera SDK, webhook, pipeline YOLO, workers, main wiring: belum diimplementasi
+Model di-load saat startup. Jika file tidak ditemukan, server gagal start.
+Model tidak di-commit ke git (ada di `.gitignore` via `*.pt`).
