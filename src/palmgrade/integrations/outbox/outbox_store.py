@@ -26,7 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_outbox_status_retry
 """
 
 _MAX_RETRIES = 50
-_BACKOFF_BASE = 30
+_BACKOFF_BASE = 5    # retry cepat untuk startup race condition; exponential ke max 600s
 _BACKOFF_MAX  = 600
 
 
