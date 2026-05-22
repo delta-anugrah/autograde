@@ -28,5 +28,5 @@ EVENT_QUEUE_MAXSIZE = 10
 REF_LINE_THICKNESS = 7
 
 # ROI detection zone highlight (overlay semi-transparan di antara entry/exit line)
-COLOR_ROI = (0, 200, 200)   # kuning muda (BGR)
+COLOR_ROI = (0, 200, 0)    # hijau (BGR)
 ROI_ALPHA = 0.25             # opacity 25%
