@@ -40,6 +40,7 @@ palmgrade-api → POST /internal/manual-reject → trigger capture_manual_reject
 **Detection model**: `best_3class_v2.pt` — 3 classes: `acc` (accepted), `rej` (rejected), `tp` (long stalk)
 **Minimum size**: 460,000 px² — objects below this area are forced to `rej`
 **Tracking**: ByteTrack — each fruit gets a unique `track_id`, saved only once (single-trigger)
+**Detection zone**: ROI box (`ROI_X1/Y1/X2/Y2`) — only objects whose center falls inside the box are counted. Default `0,0,0,0` = full frame. TP class is exempt from ROI check.
 
 ---
 
@@ -379,6 +380,10 @@ When enabled, all routes (except `/health`, `/api/video_feed`, `/captures`) are 
 | `CAMERA_FPS` | `25` | Frame rate |
 | `STREAM_WIDTH` | `1280` | MJPEG stream width (resize before encode) |
 | `STREAM_HEIGHT` | `720` | MJPEG stream height (resize before encode) |
+| `ROI_X1` | `0` | Left edge of detection ROI box (px) |
+| `ROI_Y1` | `0` | Top edge of detection ROI box (px) |
+| `ROI_X2` | `0` | Right edge of ROI box — `0` = full frame width |
+| `ROI_Y2` | `0` | Bottom edge of ROI box — `0` = full frame height |
 | `MACHINE_ID` | — | UUID from `machines` table — set per line |
 | `LINE_1_MACHINE_ID` | — | Used by docker-compose for line 1 |
 | `LINE_2_MACHINE_ID` | — | Used by docker-compose for line 2 |

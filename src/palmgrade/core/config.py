@@ -56,26 +56,13 @@ class Settings:
     # Run YOLO every N frames — reduce CPU load on video-file testing (set to 1 for production)
     yolo_skip_frames: int = field(default_factory=lambda: int(os.getenv("YOLO_SKIP_FRAMES", "1")))
 
-    # Detection zone — direction-aware, works for all 4 conveyor orientations.
-    # CONVEYOR_DIRECTION: rtl (right→left) | ltr (left→right) | ttb (top→bottom) | btt (bottom→top)
-    # DETECTION_ENTRY_OFFSET: px from entry edge → where detection zone starts (blue line)
-    # DETECTION_EXIT_OFFSET:  px from exit edge  → where object is considered exited (green line)
-    # ENTRY_MARGIN: tolerance added to exit check to avoid spurious re-triggers at the boundary
-    #
-    # Production defaults tuned for Hikrobot RTL (~2448px wide).
-    # Must be recalibrated in the field for each camera/line.
-    conveyor_direction: str = field(default_factory=lambda: os.getenv("CONVEYOR_DIRECTION", "rtl").lower())
-    detection_entry_offset: int = field(default_factory=lambda: int(os.getenv("DETECTION_ENTRY_OFFSET", "2200")))
-    detection_exit_offset: int = field(default_factory=lambda: int(os.getenv("DETECTION_EXIT_OFFSET", "100")))
-    entry_margin: int = field(default_factory=lambda: int(os.getenv("ENTRY_MARGIN", "100")))
-
-    def __post_init__(self) -> None:
-        valid_directions = {"rtl", "ltr", "ttb", "btt"}
-        if self.conveyor_direction not in valid_directions:
-            raise ValueError(
-                f"CONVEYOR_DIRECTION='{self.conveyor_direction}' is invalid. "
-                f"Must be one of: {sorted(valid_directions)}"
-            )
+    # Detection zone — ROI rectangle (pixel coordinates, inclusive).
+    # 0,0,0,0 = full frame (all objects eligible).
+    # Set ROI_X1/Y1/X2/Y2 to restrict detection to a sub-region of the frame.
+    roi_x1: int = field(default_factory=lambda: int(os.getenv("ROI_X1", "0")))
+    roi_y1: int = field(default_factory=lambda: int(os.getenv("ROI_Y1", "0")))
+    roi_x2: int = field(default_factory=lambda: int(os.getenv("ROI_X2", "0")))
+    roi_y2: int = field(default_factory=lambda: int(os.getenv("ROI_Y2", "0")))
 
     # Display / annotation
     border_thickness: int = field(default_factory=lambda: int(os.getenv("BORDER_THICKNESS", "2")))

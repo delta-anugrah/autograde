@@ -91,9 +91,16 @@ palmgrade-vision/
 
 **Single-trigger detection** (bukan vote):
 - Track setiap buah via ByteTrack `track_id`
-- Saat buah melewati zona deteksi → simpan langsung (satu kali per track_id)
+- Saat pusat bounding box buah berada di dalam ROI box → simpan langsung (satu kali per track_id)
 - `MINIMUM_SIZE = 460000 px²` — buah < threshold → auto `rej`
 - TP yang terdeteksi disimpan sebagai JSON terpisah, dipasangkan dengan buah via timestamp
+- TP tidak dicek ROI — selalu diterima dari posisi manapun
+
+**ROI Box Detection Zone:**
+- Dikontrol via env var: `ROI_X1`, `ROI_Y1`, `ROI_X2`, `ROI_Y2` (semua dalam pixel)
+- Default `0,0,0,0` = full frame (semua objek eligible)
+- `ROI_X2=0` → otomatis jadi lebar frame; `ROI_Y2=0` → otomatis jadi tinggi frame
+- Ditampilkan sebagai overlay kuning semi-transparan (25% opacity) di MJPEG stream
 
 ---
 
@@ -359,10 +366,10 @@ FrameProcessingWorker / CaptureService
 | `CAMERA_DEVICE_INDEX` | `0` | Index device webcam (dipakai kalau `CAMERA_TYPE=opencv` tanpa `CAMERA_VIDEO_PATH`) |
 | `CAMERA_VIDEO_PATH` | — | Path video file di dalam container (dipakai kalau `CAMERA_TYPE=opencv`) |
 | `MACHINE_ID` | — | UUID dari tabel `machines` di PostgreSQL — berbeda per container |
-| `CONVEYOR_DIRECTION` | `rtl` | Arah conveyor: `rtl` / `ltr` / `ttb` / `btt` |
-| `DETECTION_ENTRY_OFFSET` | `2200` | Jarak (px) dari sisi masuk ke garis deteksi — wajib kalibrasi per kamera |
-| `DETECTION_EXIT_OFFSET` | `100` | Jarak (px) dari sisi keluar ke garis exit |
-| `ENTRY_MARGIN` | `100` | Toleransi (px) tambahan pada exit check |
+| `ROI_X1` | `0` | Batas kiri area deteksi (px) |
+| `ROI_Y1` | `0` | Batas atas area deteksi (px) |
+| `ROI_X2` | `0` | Batas kanan area deteksi (px) — `0` = lebar penuh frame |
+| `ROI_Y2` | `0` | Batas bawah area deteksi (px) — `0` = tinggi penuh frame |
 | `STREAM_WIDTH` | `1280` | Lebar frame MJPEG stream (setelah resize, sebelum encode) |
 | `STREAM_HEIGHT` | `720` | Tinggi frame MJPEG stream |
 | `UPLOAD_HOUR` | `0` | Jam upload otomatis (cron) |

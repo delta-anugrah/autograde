@@ -85,24 +85,18 @@ Flow deteksi (single-trigger, bukan vote):
 - Kalau ada `_last_tp` → save juga `_tp.json` (tanpa gambar) dengan timestamp yang sama
 - `MINIMUM_SIZE` = 460000 px² — kalau area buah < threshold → auto jadi `rej`
 
-**Detection zone — direction-aware:**
+**Detection zone — ROI Box:**
 
-Zona deteksi dikontrol via 3 env var:
-- `CONVEYOR_DIRECTION` = `rtl` | `ltr` | `ttb` | `btt` — arah gerak conveyor
-- `DETECTION_ENTRY_OFFSET` = jarak (px) dari sisi masuk ke garis deteksi (biru)
-- `DETECTION_EXIT_OFFSET` = jarak (px) dari sisi keluar ke garis exit (hijau)
+Zona deteksi dikontrol via 4 env var:
+- `ROI_X1`, `ROI_Y1` — sudut kiri atas kotak ROI (px)
+- `ROI_X2`, `ROI_Y2` — sudut kanan bawah kotak ROI (px)
 
-Logic per direction:
+Logic: pusat bounding box `(cx, cy) = ((x1+x2)/2, (y1+y2)/2)` harus berada di dalam ROI.
+Default `0,0,0,0` = full frame (ROI_X2=0 → lebar frame, ROI_Y2=0 → tinggi frame).
+TP tidak dicek ROI — selalu diterima dari posisi manapun.
 
-| Direction | Leading coord | Entry condition | Exit condition |
-|---|---|---|---|
-| `rtl` | `x1` | `x1 ≤ width − entry_offset` | `x1 < exit_offset + margin` |
-| `ltr` | `x2` | `x2 ≥ entry_offset` | `x2 > width − exit_offset − margin` |
-| `ttb` | `y1` | `y1 ≥ entry_offset` | `y1 > height − exit_offset − margin` |
-| `btt` | `y2` | `y2 ≤ height − entry_offset` | `y2 < exit_offset + margin` |
-
-TP diizinkan dari manapun (tidak dicek entry boundary).
-Nilai wajib dikalibrasi di lapangan per kamera dan per line.
+ROI ditampilkan sebagai overlay kuning semi-transparan (25% opacity) + border di MJPEG stream via `draw_roi()` di `DisplayWorker`.
+Kalibrasi: set `ROI_X1/Y1/X2/Y2` di `.env` sesuai area conveyor yang ingin dideteksi, lalu `make start`.
 
 Save format:
 - `{timestamp}_auto.jpg` — gambar buah
@@ -245,9 +239,8 @@ Dua writer ke `state.latest_frame` menyebabkan glitch/flicker di MJPEG stream.
 Kalau `last_yolo_frame` belum tersedia (sebelum YOLO pertama run), fallback ke `latest_raw_frame`.
 
 Draw order di `DisplayWorker.run_once()`:
-1. `draw_roi()` — ROI highlight (overlay semi-transparan, background)
+1. `draw_roi()` — ROI highlight (overlay kuning semi-transparan + border, background)
 2. `draw_boxes()` — bounding boxes di atas ROI
-3. `_draw_zone_lines()` — entry/exit lines paling atas
 
 ### 8. Manual capture JSON pakai suffix `_ripeness`
 

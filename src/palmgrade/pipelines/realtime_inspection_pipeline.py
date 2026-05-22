@@ -47,26 +47,16 @@ class RealtimeInspectionPipeline:
 
     def draw_roi(self, frame: np.ndarray) -> np.ndarray:
         h, w = frame.shape[:2]
-        d = self.settings.conveyor_direction
-        entry_off = self.settings.detection_entry_offset
-        exit_off = self.settings.detection_exit_offset
+        rx1 = self.settings.roi_x1
+        ry1 = self.settings.roi_y1
+        rx2 = self.settings.roi_x2 if self.settings.roi_x2 > 0 else w
+        ry2 = self.settings.roi_y2 if self.settings.roi_y2 > 0 else h
+        if rx2 <= rx1 or ry2 <= ry1:
+            return frame
         roi_color = np.array(COLOR_ROI, dtype=np.float32)
-
-        if d in ("rtl", "ltr"):
-            entry_x = max(0, w - entry_off) if d == "rtl" else min(w, entry_off)
-            exit_x = min(w, exit_off) if d == "rtl" else max(0, w - exit_off)
-            x1, x2 = min(entry_x, exit_x), max(entry_x, exit_x)
-            if x2 > x1:
-                region = frame[:, x1:x2]
-                frame[:, x1:x2] = (region * (1.0 - ROI_ALPHA) + roi_color * ROI_ALPHA).astype(np.uint8)
-        else:  # ttb, btt
-            entry_y = min(h, entry_off) if d == "ttb" else max(0, h - entry_off)
-            exit_y = max(0, h - exit_off) if d == "ttb" else min(h, exit_off)
-            y1, y2 = min(entry_y, exit_y), max(entry_y, exit_y)
-            if y2 > y1:
-                region = frame[y1:y2, :]
-                frame[y1:y2, :] = (region * (1.0 - ROI_ALPHA) + roi_color * ROI_ALPHA).astype(np.uint8)
-
+        region = frame[ry1:ry2, rx1:rx2]
+        frame[ry1:ry2, rx1:rx2] = (region * (1.0 - ROI_ALPHA) + roi_color * ROI_ALPHA).astype(np.uint8)
+        cv2.rectangle(frame, (rx1, ry1), (rx2, ry2), COLOR_ROI, 2)
         return frame
 
     # ----------------------------------------------------------------- track

@@ -47,46 +47,17 @@ class FrameProcessingWorker:
 
     # ------------------------------------------------------------------ zone helpers
 
-    def _lead_coord(self, x1: int, y1: int, x2: int, y2: int) -> int:
-        """Leading-edge coordinate in the direction of conveyor motion."""
-        d = self.settings.conveyor_direction
-        if d == "ltr": return x2
-        if d == "ttb": return y1
-        if d == "btt": return y2
-        return x1  # rtl
+    def _roi_box(self, width: int, height: int) -> tuple[int, int, int, int]:
+        """Effective ROI (x1,y1,x2,y2). Falls back to full frame when all coords are 0."""
+        x1, y1 = self.settings.roi_x1, self.settings.roi_y1
+        x2 = self.settings.roi_x2 if self.settings.roi_x2 > 0 else width
+        y2 = self.settings.roi_y2 if self.settings.roi_y2 > 0 else height
+        return x1, y1, x2, y2
 
-    def _entry_line(self, width: int, height: int) -> int:
-        """Pixel coordinate of the entry boundary (blue line)."""
-        d = self.settings.conveyor_direction
-        off = self.settings.detection_entry_offset
-        if d == "rtl": return max(0, width - off)
-        if d == "ltr": return min(width, off)
-        if d == "ttb": return min(height, off)
-        return max(0, height - off)  # btt
-
-    def _exit_line(self, width: int, height: int) -> int:
-        """Pixel coordinate of the exit boundary (green line)."""
-        d = self.settings.conveyor_direction
-        off = self.settings.detection_exit_offset
-        if d == "rtl": return min(width, off)
-        if d == "ltr": return max(0, width - off)
-        if d == "ttb": return max(0, height - off)
-        return min(height, off)  # btt
-
-    def _has_entered(self, lead: int, entry_line: int) -> bool:
-        """True when leading edge has crossed into the detection zone."""
-        d = self.settings.conveyor_direction
-        if d in ("rtl", "btt"):
-            return lead <= entry_line  # coord decreasing toward exit
-        return lead >= entry_line  # coord increasing toward exit (ltr, ttb)
-
-    def _has_exited(self, lead: int, exit_line: int) -> bool:
-        """True when leading edge has passed the exit boundary (+ margin)."""
-        d = self.settings.conveyor_direction
-        margin = self.settings.entry_margin
-        if d in ("rtl", "btt"):
-            return lead < exit_line + margin
-        return lead > exit_line - margin
+    def _is_in_roi(self, cx: int, cy: int, roi: tuple[int, int, int, int]) -> bool:
+        """True when object center (cx, cy) falls inside the ROI rectangle."""
+        rx1, ry1, rx2, ry2 = roi
+        return rx1 <= cx <= rx2 and ry1 <= cy <= ry2
 
     # ------------------------------------------------------------------ save
 
@@ -175,8 +146,7 @@ class FrameProcessingWorker:
             return  # DisplayWorker handles rendering with cached results
 
         height, width, _ = frame.shape
-        entry_line = self._entry_line(width, height)
-        exit_line = self._exit_line(width, height)
+        roi = self._roi_box(width, height)
 
         results = self.pipeline.track_ripeness(frame)
         self._last_results = results
@@ -194,12 +164,11 @@ class FrameProcessingWorker:
                 conf = float(b.conf[0])
                 bx1, by1, bx2, by2 = map(int, b.xyxy[0].tolist())
                 area = (bx2 - bx1) * (by2 - by1)
-                lead = self._lead_coord(bx1, by1, bx2, by2)
-                detections.append(f"id={tid} {lbl} conf={conf:.2f} bbox=({bx1},{by1},{bx2},{by2}) area={area} lead={lead}")
-            logger.debug("[MODEL] frame=%d n=%d entry=%d exit=%d | %s",
+                bcx, bcy = (bx1 + bx2) // 2, (by1 + by2) // 2
+                detections.append(f"id={tid} {lbl} conf={conf:.2f} bbox=({bx1},{by1},{bx2},{by2}) area={area} center=({bcx},{bcy})")
+            logger.debug("[MODEL] frame=%d n=%d roi=%s | %s",
                          self._frame_count, len(results.boxes),
-                         self._entry_line(frame.shape[1], frame.shape[0]),
-                         self._exit_line(frame.shape[1], frame.shape[0]),
+                         roi,
                          " | ".join(detections))
         else:
             logger.debug("[MODEL] frame=%d n=0", self._frame_count)
@@ -233,16 +202,10 @@ class FrameProcessingWorker:
                 if track_id in self._processed_objects:
                     continue
 
-                lead = self._lead_coord(x1, y1, x2, y2)
+                cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
 
-                # Objek sudah melewati exit boundary — finalize dan skip
-                if self._has_exited(lead, exit_line):
-                    if track_id in self.state.track_history and self.state.track_history[track_id].get("processed", False):
-                        self._processed_objects.add(track_id)
-                    continue
-
-                # Objek belum masuk entry boundary — skip (kecuali TP boleh dari mana saja)
-                if not self._has_entered(lead, entry_line) and label.lower() != "tp":
+                # Objek di luar ROI — skip (kecuali TP boleh dari mana saja)
+                if not self._is_in_roi(cx, cy, roi) and label.lower() != "tp":
                     continue
 
                 self._inactive_counter.pop(track_id, None)
