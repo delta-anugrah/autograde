@@ -76,7 +76,7 @@ class FrameCaptureWorker:
             if self._consecutive_failures >= _MAX_CONSECUTIVE_FAILURES and self.camera.supports_reconnect:
                 self._try_reconnect()
             else:
-                time.sleep(0.01)
+                time.sleep(0.1)
             return
 
         self._exhausted_logged = False
@@ -87,11 +87,12 @@ class FrameCaptureWorker:
         self._fps_counter += 1
         if self._fps_timer == 0.0:
             self._fps_timer = time.time()
-        elif time.time() - self._fps_timer >= 5.0:
-            elapsed = time.time() - self._fps_timer
-            logger.info("[FPS] capture=%.1f", self._fps_counter / elapsed)
-            self._fps_counter = 0
-            self._fps_timer = time.time()
+        else:
+            fps_now = time.time()
+            if fps_now - self._fps_timer >= 5.0:
+                logger.info("[FPS] capture=%.1f", self._fps_counter / (fps_now - self._fps_timer))
+                self._fps_counter = 0
+                self._fps_timer = fps_now
 
         # Saat video rewind (loop): flush stale frames + signal ke processing worker
         # untuk reset ByteTrack agar detection berjalan normal dari awal loop.
@@ -103,10 +104,19 @@ class FrameCaptureWorker:
                     break
             self.state.rewind_signal = True
 
+        # Drop-oldest policy: hapus frame paling lama dulu baru masukkan frame terbaru.
+        # Ini memastikan processing worker selalu dapat frame terbaru, bukan frame stale.
         try:
             self.state.frame_queue.put_nowait(frame)
         except queue.Full:
-            pass
+            try:
+                self.state.frame_queue.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self.state.frame_queue.put_nowait(frame)
+            except queue.Full:
+                pass
 
     def run_loop(self) -> None:
         self._sync_fps_from_camera()

@@ -33,30 +33,26 @@ _BACKOFF_MAX  = 600
 class OutboxStore:
     def __init__(self, db_path: Path) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.db_path = str(db_path)
         self._lock = threading.Lock()
+        self._db = sqlite3.connect(str(db_path), check_same_thread=False)
+        self._db.row_factory = sqlite3.Row
         self._init_db()
 
-    def _conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        return conn
-
     def _init_db(self) -> None:
-        with self._lock, self._conn() as conn:
-            conn.executescript(_CREATE_SQL)
+        with self._lock, self._db:
+            self._db.executescript(_CREATE_SQL)
 
     def add_event(self, event_id: str, machine_id: str, payload: dict[str, Any]) -> None:
-        with self._lock, self._conn() as conn:
-            conn.execute(
+        with self._lock, self._db:
+            self._db.execute(
                 "INSERT OR IGNORE INTO outbox_events (event_id, machine_id, payload) VALUES (?, ?, ?)",
                 (event_id, machine_id, json.dumps(payload)),
             )
 
     def get_pending(self, limit: int = 20) -> list[dict[str, Any]]:
         now = time.time()
-        with self._lock, self._conn() as conn:
-            rows = conn.execute(
+        with self._lock:
+            rows = self._db.execute(
                 """SELECT id, event_id, payload, retry_count
                    FROM outbox_events
                    WHERE status = 'pending' AND next_retry_at <= ?
@@ -66,24 +62,24 @@ class OutboxStore:
         return [dict(r) for r in rows]
 
     def mark_delivered(self, row_id: int) -> None:
-        with self._lock, self._conn() as conn:
-            conn.execute("DELETE FROM outbox_events WHERE id = ?", (row_id,))
+        with self._lock, self._db:
+            self._db.execute("DELETE FROM outbox_events WHERE id = ?", (row_id,))
 
     def mark_failed_attempt(self, row_id: int, error: str) -> None:
-        with self._lock, self._conn() as conn:
-            row = conn.execute("SELECT retry_count FROM outbox_events WHERE id = ?", (row_id,)).fetchone()
+        with self._lock, self._db:
+            row = self._db.execute("SELECT retry_count FROM outbox_events WHERE id = ?", (row_id,)).fetchone()
             if not row:
                 return
             retry = row["retry_count"] + 1
             backoff = min(_BACKOFF_BASE * (2 ** (retry - 1)), _BACKOFF_MAX)
             next_retry = time.time() + backoff
             new_status = "failed" if retry >= _MAX_RETRIES else "pending"
-            conn.execute(
+            self._db.execute(
                 "UPDATE outbox_events SET retry_count=?, next_retry_at=?, last_error=?, status=? WHERE id=?",
                 (retry, next_retry, error[:500], new_status, row_id),
             )
 
     def pending_count(self) -> int:
-        with self._lock, self._conn() as conn:
-            row = conn.execute("SELECT COUNT(*) as n FROM outbox_events WHERE status='pending'").fetchone()
+        with self._lock:
+            row = self._db.execute("SELECT COUNT(*) as n FROM outbox_events WHERE status='pending'").fetchone()
         return row["n"] if row else 0

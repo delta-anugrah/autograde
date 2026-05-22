@@ -22,6 +22,11 @@ class OutboxRetryWorker:
         self.outbox = outbox
         self.settings = settings
         self.state = state
+        self._client = httpx.Client(timeout=_REQUEST_TIMEOUT)
+        self._headers = {
+            "Content-Type": "application/json",
+            "x-webhook-secret": settings.webhook_secret,
+        }
 
     def run_loop(self) -> None:
         logger.info("OutboxRetryWorker started — target: %s", self.settings.canonical_events_url)
@@ -40,22 +45,17 @@ class OutboxRetryWorker:
             return
 
         url = self.settings.canonical_events_url
-        headers = {
-            "Content-Type": "application/json",
-            "x-webhook-secret": self.settings.webhook_secret,
-        }
-        with httpx.Client(timeout=_REQUEST_TIMEOUT) as client:
-            for row in pending:
-                try:
-                    payload = json.loads(row["payload"])
-                    res = client.post(url, json=payload, headers=headers)
-                    if res.status_code in (200, 201) or "already_processed" in res.text:
-                        self.outbox.mark_delivered(row["id"])
-                        self.state.last_successful_api_push = datetime.datetime.now().isoformat()
-                        logger.debug("Outbox delivered event %s (status=%s)", row["event_id"], res.status_code)
-                    else:
-                        self.outbox.mark_failed_attempt(row["id"], f"HTTP {res.status_code}: {res.text[:200]}")
-                        logger.warning("Outbox delivery failed %s: HTTP %s", row["event_id"], res.status_code)
-                except Exception as exc:
-                    self.outbox.mark_failed_attempt(row["id"], str(exc)[:500])
-                    logger.warning("Outbox delivery error %s: %s", row["event_id"], exc)
+        for row in pending:
+            try:
+                payload = json.loads(row["payload"])
+                res = self._client.post(url, json=payload, headers=self._headers)
+                if res.status_code in (200, 201) or "already_processed" in res.text:
+                    self.outbox.mark_delivered(row["id"])
+                    self.state.last_successful_api_push = datetime.datetime.now().isoformat()
+                    logger.debug("Outbox delivered event %s (status=%s)", row["event_id"], res.status_code)
+                else:
+                    self.outbox.mark_failed_attempt(row["id"], f"HTTP {res.status_code}: {res.text[:200]}")
+                    logger.warning("Outbox delivery failed %s: HTTP %s", row["event_id"], res.status_code)
+            except Exception as exc:
+                self.outbox.mark_failed_attempt(row["id"], str(exc)[:500])
+                logger.warning("Outbox delivery error %s: %s", row["event_id"], exc)

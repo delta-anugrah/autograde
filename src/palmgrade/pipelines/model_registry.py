@@ -27,8 +27,8 @@ class ModelRegistry:
         if self.device == "cuda":
             self.model.to(self.device).half()
 
-        # Warm-up: satu dummy inference untuk menghilangkan 2-3s jitter di frame pertama
-        dummy = np.zeros((640, 640, 3), dtype=np.uint8)
+        # Warm-up: dummy inference pakai resolusi kamera asli agar tidak ada jitter di frame pertama
+        dummy = np.zeros((settings.camera_height, settings.camera_width, 3), dtype=np.uint8)
         self.model.predict(dummy, verbose=False)
         logger.info("Model warm-up complete")
 

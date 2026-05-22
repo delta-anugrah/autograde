@@ -25,7 +25,9 @@ class RealtimeInspectionPipeline:
             settings.roi_x1 == 0 and settings.roi_y1 == 0
             and settings.roi_x2 == 0 and settings.roi_y2 == 0
         )
-        self._roi_color_f32 = np.array(COLOR_ROI, dtype=np.float32)
+        self._roi_blend_factor = 1.0 - ROI_ALPHA
+        self._roi_color_scaled = np.array(COLOR_ROI, dtype=np.float32) * ROI_ALPHA
+        self._use_half = model_registry.device == "cuda"
 
     @property
     def model(self):
@@ -61,7 +63,7 @@ class RealtimeInspectionPipeline:
         if rx2 <= rx1 or ry2 <= ry1:
             return frame
         region = frame[ry1:ry2, rx1:rx2]
-        frame[ry1:ry2, rx1:rx2] = (region * (1.0 - ROI_ALPHA) + self._roi_color_f32 * ROI_ALPHA).astype(np.uint8)
+        frame[ry1:ry2, rx1:rx2] = (region * self._roi_blend_factor + self._roi_color_scaled).astype(np.uint8)
         cv2.rectangle(frame, (rx1, ry1), (rx2, ry2), COLOR_ROI, 2)
         return frame
 
@@ -69,7 +71,8 @@ class RealtimeInspectionPipeline:
 
     def track_ripeness(self, frame: np.ndarray) -> Any:
         return self.model.track(
-            frame, persist=True, conf=self.settings.conf_threshold, tracker="bytetrack.yaml", verbose=False
+            frame, persist=True, conf=self.settings.conf_threshold,
+            tracker="bytetrack.yaml", verbose=False, half=self._use_half,
         )[0]
 
     def reset_tracker(self) -> None:
