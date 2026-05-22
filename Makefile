@@ -53,12 +53,11 @@ logs:
 ps:
 	docker compose --env-file $(ENV_FILE) ps
 
-# Rebuild image — CPU-only torch (dev/video test, ~193MB, cepat)
-rebuild:
-	docker compose --env-file $(ENV_FILE) build --build-arg TORCH_VARIANT=cpu
-
 # Rebuild image — CUDA torch (production dengan NVIDIA GPU, ~2.4GB dari PyTorch CDN)
 # TORCH_VARIANT=cu126 → compatible dengan driver >= 525 (host 580 ✅)
+rebuild:
+	docker compose --env-file $(ENV_FILE) build --build-arg TORCH_VARIANT=cu126
+
 rebuild-gpu:
 	docker compose --env-file $(ENV_FILE) build --build-arg TORCH_VARIANT=cu126
 

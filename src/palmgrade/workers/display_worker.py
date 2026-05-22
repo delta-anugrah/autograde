@@ -57,7 +57,6 @@ class DisplayWorker:
             display = frame.copy()
             use_boxes = False  # box tidak di-render di raw frame — posisi tidak aligned
 
-        display = self.pipeline.draw_roi(display)
         results = self.state.last_yolo_results
         if use_boxes and results is not None:
             display = self.pipeline.draw_boxes(display, results)
@@ -67,6 +66,8 @@ class DisplayWorker:
         h, w = display.shape[:2]
         if w != target_w or h != target_h:
             display = cv2.resize(display, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
+
+        display = self.pipeline.draw_roi(display)
 
         _, buf = cv2.imencode(".jpg", display, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY_STREAM])
         with self.state.frame_condition:

@@ -231,12 +231,14 @@ make logs-1      # tail logs line-1 saja
 make logs-2      # tail logs line-2 saja
 make logs-3      # tail logs line-3 saja
 make ps          # status semua container
-make rebuild     # rebuild image CPU saja (tanpa SDK, tanpa start)
-make rebuild-gpu # rebuild image GPU saja (tanpa SDK, tanpa start)
+make rebuild     # rebuild image GPU/CUDA (tanpa SDK, tanpa start) — selalu GPU
+make rebuild-gpu # sama dengan make rebuild (alias, untuk kompatibilitas)
 make clean       # down + hapus image lokal
 ```
 
-> **Satu image, tiga container** — hanya line-1 yang punya `build:` di docker-compose. Line-2 dan line-3 reuse image `palmgrade-vision:latest`. Jadi `make rebuild` atau `make up-1` cukup untuk update semua line (tinggal `docker compose up -d` line-2/3 setelahnya).
+> **Satu image, tiga container** — hanya line-1 yang punya `build:` di docker-compose. Line-2 dan line-3 reuse image `palmgrade-vision:latest`. Jadi `make rebuild` cukup untuk update semua line (tinggal `make start` setelahnya).
+>
+> **`make rebuild` selalu GPU** — tidak ada variant CPU untuk rebuild. Jika ingin build CPU (khusus dev tanpa GPU), gunakan `make up-dev`.
 
 > **Hot-reload** — source code di-mount via `.:/app`. Perubahan Python langsung terdeteksi tanpa rebuild image (saat `APP_ENV=development`).
 
@@ -380,10 +382,10 @@ When enabled, all routes (except `/health`, `/api/video_feed`, `/captures`) are 
 | `CAMERA_FPS` | `25` | Frame rate |
 | `STREAM_WIDTH` | `1280` | MJPEG stream width (resize before encode) |
 | `STREAM_HEIGHT` | `720` | MJPEG stream height (resize before encode) |
-| `ROI_X1` | `0` | Left edge of detection ROI box (px) |
-| `ROI_Y1` | `0` | Top edge of detection ROI box (px) |
-| `ROI_X2` | `0` | Right edge of ROI box — `0` = full frame width |
-| `ROI_Y2` | `0` | Bottom edge of ROI box — `0` = full frame height |
+| `ROI_X1` | `0` | Left edge of detection ROI box — **koordinat dalam stream resolution** (`STREAM_WIDTH × STREAM_HEIGHT`, default 1280×720) |
+| `ROI_Y1` | `0` | Top edge of detection ROI box |
+| `ROI_X2` | `0` | Right edge — `0` = full stream width. Wajib > `ROI_X1` |
+| `ROI_Y2` | `0` | Bottom edge — `0` = full stream height. Wajib > `ROI_Y1` |
 | `MACHINE_ID` | — | UUID from `machines` table — set per line |
 | `LINE_1_MACHINE_ID` | — | Used by docker-compose for line 1 |
 | `LINE_2_MACHINE_ID` | — | Used by docker-compose for line 2 |

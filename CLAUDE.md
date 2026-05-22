@@ -91,12 +91,16 @@ Zona deteksi dikontrol via 4 env var:
 - `ROI_X1`, `ROI_Y1` — sudut kiri atas kotak ROI (px)
 - `ROI_X2`, `ROI_Y2` — sudut kanan bawah kotak ROI (px)
 
+**PENTING: koordinat ROI dalam stream resolution space** (`STREAM_WIDTH × STREAM_HEIGHT`, default 1280×720) — bukan resolusi sensor kamera.
+`draw_roi()` dipanggil di `DisplayWorker` **setelah** frame di-resize ke stream resolution, sehingga operator bisa kalibrasi langsung dari apa yang mereka lihat di browser.
+
 Logic: pusat bounding box `(cx, cy) = ((x1+x2)/2, (y1+y2)/2)` harus berada di dalam ROI.
-Default `0,0,0,0` = full frame (ROI_X2=0 → lebar frame, ROI_Y2=0 → tinggi frame).
+Default `0,0,0,0` = full frame (ROI_X2=0 → lebar stream, ROI_Y2=0 → tinggi stream).
+Wajib: `ROI_X2 > ROI_X1` dan `ROI_Y2 > ROI_Y1` — jika tidak, ROI tidak digambar dan tidak ada zona deteksi.
 TP tidak dicek ROI — selalu diterima dari posisi manapun.
 
 ROI ditampilkan sebagai overlay kuning semi-transparan (25% opacity) + border di MJPEG stream via `draw_roi()` di `DisplayWorker`.
-Kalibrasi: set `ROI_X1/Y1/X2/Y2` di `.env` sesuai area conveyor yang ingin dideteksi, lalu `make start`.
+Kalibrasi: set `ROI_X1/Y1/X2/Y2` di `.env` sesuai area conveyor (dalam koordinat 1280×720), lalu `make start`.
 
 Save format:
 - `{timestamp}_auto.jpg` — gambar buah
@@ -239,8 +243,12 @@ Dua writer ke `state.latest_frame` menyebabkan glitch/flicker di MJPEG stream.
 Kalau `last_yolo_frame` belum tersedia (sebelum YOLO pertama run), fallback ke `latest_raw_frame`.
 
 Draw order di `DisplayWorker.run_once()`:
-1. `draw_roi()` — ROI highlight (overlay kuning semi-transparan + border, background)
-2. `draw_boxes()` — bounding boxes di atas ROI
+1. `draw_boxes()` — bounding boxes di atas frame (sebelum resize)
+2. `cv2.resize()` — upscale ke stream resolution (STREAM_WIDTH × STREAM_HEIGHT)
+3. `draw_roi()` — ROI highlight (overlay kuning semi-transparan + border) **setelah resize**
+
+`draw_roi()` dipanggil **setelah** resize karena koordinat ROI harus dalam stream space, bukan sensor space.
+Ini memungkinkan operator mengkalibrasi ROI langsung dari apa yang terlihat di browser (1280×720).
 
 ### 8. Manual capture JSON pakai suffix `_ripeness`
 
@@ -396,8 +404,8 @@ make logs-1     # tail logs line-1
 make logs       # tail logs semua line (combined)
 make down       # stop semua
 make ps         # status semua container
-make rebuild    # rebuild image CPU (tanpa SDK)
-make rebuild-gpu # rebuild image GPU (tanpa SDK)
+make rebuild    # rebuild image GPU/CUDA (tanpa SDK) — selalu GPU, tidak ada CPU variant
+make rebuild-gpu # alias make rebuild (sama persis)
 make clean      # down + hapus local image
 ```
 
