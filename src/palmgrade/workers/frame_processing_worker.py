@@ -186,6 +186,21 @@ class FrameProcessingWorker:
 
         current_active_tracks: set[int] = set()
 
+        # Pre-scan: hitung buah (ACC/REJ) yang belum diproses dan ada di dalam ROI.
+        # Jika > 1 buah sekaligus dalam ROI, semua di-force jadi rej.
+        roi_fruit_count = 0
+        if results.boxes is not None:
+            for _box in results.boxes:
+                _tid = int(_box.id[0].item()) if _box.id is not None else -1
+                _lbl = results.names[int(_box.cls[0].item())]
+                if _tid == -1 or _tid in self._processed_objects or _lbl.lower() not in ("acc", "rej"):
+                    continue
+                _bx1, _by1, _bx2, _by2 = map(int, _box.xyxy[0].tolist())
+                _cx, _cy = (_bx1 + _bx2) // 2, (_by1 + _by2) // 2
+                if self._is_in_roi(_cx, _cy, roi):
+                    roi_fruit_count += 1
+        force_rej_multi = roi_fruit_count > 1
+
         if results.boxes is not None and len(results.boxes) > 0:
             for box in results.boxes:
                 cls_id = int(box.cls[0].item())
@@ -239,7 +254,11 @@ class FrameProcessingWorker:
                     label.lower() in ("acc", "rej")
                     and not self.state.track_history[track_id]["processed"]
                 ):
-                    ripeness_status = "rej" if area < self.settings.minimum_size else label.lower()
+                    # >1 buah dalam ROI sekaligus → force rej (buah bertumpuk)
+                    if force_rej_multi or area < self.settings.minimum_size:
+                        ripeness_status = "rej"
+                    else:
+                        ripeness_status = label.lower()
                     ripeness_conf = score
                     self.state.track_history[track_id]["processed"] = True
                     self._processed_objects.add(track_id)
