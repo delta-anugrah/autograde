@@ -46,6 +46,9 @@ class RealtimeInspectionPipeline:
         return frame
 
     def draw_roi(self, frame: np.ndarray) -> np.ndarray:
+        if (self.settings.roi_x1 == 0 and self.settings.roi_y1 == 0
+                and self.settings.roi_x2 == 0 and self.settings.roi_y2 == 0):
+            return frame
         h, w = frame.shape[:2]
         rx1 = self.settings.roi_x1
         ry1 = self.settings.roi_y1
