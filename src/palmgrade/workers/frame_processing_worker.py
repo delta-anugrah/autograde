@@ -69,8 +69,9 @@ class FrameProcessingWorker:
         truck_id: str | None,
         bounding_box: dict,
     ) -> tuple[str, str, str]:
-        date_folder = datetime.datetime.now().strftime("%Y-%m-%d")
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S_%f")
+        now = datetime.datetime.now()
+        date_folder = now.strftime("%Y-%m-%d")
+        timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
 
         results_dir = self.settings.results_dir / date_folder
         img_filename = f"{timestamp}_auto.jpg"
@@ -79,7 +80,7 @@ class FrameProcessingWorker:
         self.storage.write_image(results_dir / img_filename, annotated_frame, quality=JPEG_QUALITY_SAVE)
 
         meta = {
-            "timestamp": datetime.datetime.now().isoformat(),
+            "timestamp": now.isoformat(),
             "image_path": image_url,
             "ripeness_status": ripeness_status,
             "ripeness_confidence": round(ripeness_conf, 2),
@@ -154,42 +155,43 @@ class FrameProcessingWorker:
         self.state.last_yolo_results = results    # paired: box selalu aligned dengan last_yolo_frame
         self.state.last_yolo_frame_at = time.time()
 
-        # DEBUG: log raw model output
-        if results.boxes is not None and len(results.boxes) > 0:
-            detections = []
-            for b in results.boxes:
-                cls_id = int(b.cls[0].cpu().numpy())
-                tid = int(b.id[0].cpu().numpy()) if b.id is not None else -1
-                lbl = results.names[cls_id]
-                conf = float(b.conf[0])
-                bx1, by1, bx2, by2 = map(int, b.xyxy[0].tolist())
-                area = (bx2 - bx1) * (by2 - by1)
-                bcx, bcy = (bx1 + bx2) // 2, (by1 + by2) // 2
-                detections.append(f"id={tid} {lbl} conf={conf:.2f} bbox=({bx1},{by1},{bx2},{by2}) area={area} center=({bcx},{bcy})")
-            logger.debug("[MODEL] frame=%d n=%d roi=%s | %s",
-                         self._frame_count, len(results.boxes),
-                         roi,
-                         " | ".join(detections))
-        else:
-            logger.debug("[MODEL] frame=%d n=0", self._frame_count)
+        if logger.isEnabledFor(logging.DEBUG):
+            if results.boxes is not None and len(results.boxes) > 0:
+                detections = []
+                for b in results.boxes:
+                    cls_id = int(b.cls[0].item())
+                    tid = int(b.id[0].item()) if b.id is not None else -1
+                    lbl = results.names[cls_id]
+                    conf = float(b.conf[0].item())
+                    bx1, by1, bx2, by2 = map(int, b.xyxy[0].tolist())
+                    area = (bx2 - bx1) * (by2 - by1)
+                    bcx, bcy = (bx1 + bx2) // 2, (by1 + by2) // 2
+                    detections.append(f"id={tid} {lbl} conf={conf:.2f} bbox=({bx1},{by1},{bx2},{by2}) area={area} center=({bcx},{bcy})")
+                logger.debug("[MODEL] frame=%d n=%d roi=%s | %s",
+                             self._frame_count, len(results.boxes),
+                             roi,
+                             " | ".join(detections))
+            else:
+                logger.debug("[MODEL] frame=%d n=0", self._frame_count)
 
         self._fps_counter += 1
         if self._fps_timer == 0.0:
             self._fps_timer = time.time()
-        elif time.time() - self._fps_timer >= 5.0:
-            elapsed = time.time() - self._fps_timer
-            logger.info("[FPS] yolo=%.1f", self._fps_counter / elapsed)
-            self._fps_counter = 0
-            self._fps_timer = time.time()
+        else:
+            fps_now = time.time()
+            if fps_now - self._fps_timer >= 5.0:
+                logger.info("[FPS] yolo=%.1f", self._fps_counter / (fps_now - self._fps_timer))
+                self._fps_counter = 0
+                self._fps_timer = fps_now
 
         current_active_tracks: set[int] = set()
 
         if results.boxes is not None and len(results.boxes) > 0:
             for box in results.boxes:
-                cls_id = int(box.cls[0].cpu().numpy())
-                track_id = int(box.id[0].cpu().numpy()) if box.id is not None else -1
+                cls_id = int(box.cls[0].item())
+                track_id = int(box.id[0].item()) if box.id is not None else -1
                 label = results.names[cls_id]
-                score = float(box.conf[0])
+                score = float(box.conf[0].item())
                 x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
 
                 area = (x2 - x1) * (y2 - y1) if cls_id in (0, 1) else 0
@@ -218,9 +220,10 @@ class FrameProcessingWorker:
                         "bbox": (x1, y1, x2, y2),
                     }
 
-                self.state.track_history[track_id]["label"] = label
-                self.state.track_history[track_id]["score"] = score
-                self.state.track_history[track_id]["bbox"] = (x1, y1, x2, y2)
+                track = self.state.track_history[track_id]
+                track["label"] = label
+                track["score"] = score
+                track["bbox"] = (x1, y1, x2, y2)
 
                 # Tangkai panjang (TP) → simpan sebagai kandidat terakhir
                 if label.lower() == "tp":
@@ -266,6 +269,7 @@ class FrameProcessingWorker:
                         )
                         self._last_tp = None
 
+                    event_ts = datetime.datetime.now().isoformat()
                     event = {
                         "id": timestamp,
                         "ripeness_status": ripeness_status,
@@ -274,7 +278,7 @@ class FrameProcessingWorker:
                         "tp_confidence": round(tp_snapshot["tp_confidence"], 2) if tp_snapshot else 0,
                         "title": f"{ripeness_status} Detected",
                         "description": f"{ripeness_status} (conf={ripeness_conf:.2f}, truck_id={self.state.current_truck_id})",
-                        "timestamp": datetime.datetime.now().isoformat(),
+                        "timestamp": event_ts,
                         "image_url": image_url,
                         "capture_type": "auto",
                         "truck_id": self.state.current_truck_id,
@@ -296,7 +300,7 @@ class FrameProcessingWorker:
                             "machine_id": self.settings.machine_id,
                             "assignment_id": self.state.current_assignment_id,
                             "truck_id": truck_id,
-                            "timestamp": datetime.datetime.now().isoformat(),
+                            "timestamp": event_ts,
                             "prediction": "Acc" if ripeness_status == "acc" else "Rej",
                             "ripeness_status": ripeness_status.upper(),
                             "ripeness_confidence": round(ripeness_conf, 2),
@@ -326,7 +330,7 @@ class FrameProcessingWorker:
             self._cleanup_counter = 0
             now = time.time()
             stale = {
-                tid for tid in list(self._processed_objects)
+                tid for tid in self._processed_objects
                 if tid not in self.state.track_history
                 and now - self._processed_times.get(tid, now) > 300
             }

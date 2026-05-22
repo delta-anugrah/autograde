@@ -21,6 +21,11 @@ class RealtimeInspectionPipeline:
     def __init__(self, model_registry: ModelRegistry, settings: Settings) -> None:
         self.model_registry = model_registry
         self.settings = settings
+        self._roi_enabled = not (
+            settings.roi_x1 == 0 and settings.roi_y1 == 0
+            and settings.roi_x2 == 0 and settings.roi_y2 == 0
+        )
+        self._roi_color_f32 = np.array(COLOR_ROI, dtype=np.float32)
 
     @property
     def model(self):
@@ -33,10 +38,10 @@ class RealtimeInspectionPipeline:
             return frame
         for box in results.boxes:
             x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-            cls_id = int(box.cls[0])
+            cls_id = int(box.cls[0].item())
             label = results.names[cls_id]
-            score = float(box.conf[0])
-            track_id = int(box.id[0]) if box.id is not None else None
+            score = float(box.conf[0].item())
+            track_id = int(box.id[0].item()) if box.id is not None else None
             color = COLOR_FAIL if "rej" in label.lower() else COLOR_PASS
             text = f"ID:{track_id} {label} ({score:.2f})"
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, self.settings.border_thickness)
@@ -46,8 +51,7 @@ class RealtimeInspectionPipeline:
         return frame
 
     def draw_roi(self, frame: np.ndarray) -> np.ndarray:
-        if (self.settings.roi_x1 == 0 and self.settings.roi_y1 == 0
-                and self.settings.roi_x2 == 0 and self.settings.roi_y2 == 0):
+        if not self._roi_enabled:
             return frame
         h, w = frame.shape[:2]
         rx1 = self.settings.roi_x1
@@ -56,9 +60,8 @@ class RealtimeInspectionPipeline:
         ry2 = self.settings.roi_y2 if self.settings.roi_y2 > 0 else h
         if rx2 <= rx1 or ry2 <= ry1:
             return frame
-        roi_color = np.array(COLOR_ROI, dtype=np.float32)
         region = frame[ry1:ry2, rx1:rx2]
-        frame[ry1:ry2, rx1:rx2] = (region * (1.0 - ROI_ALPHA) + roi_color * ROI_ALPHA).astype(np.uint8)
+        frame[ry1:ry2, rx1:rx2] = (region * (1.0 - ROI_ALPHA) + self._roi_color_f32 * ROI_ALPHA).astype(np.uint8)
         cv2.rectangle(frame, (rx1, ry1), (rx2, ry2), COLOR_ROI, 2)
         return frame
 

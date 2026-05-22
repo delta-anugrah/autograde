@@ -77,11 +77,12 @@ class DisplayWorker:
         self._fps_counter += 1
         if self._fps_timer == 0.0:
             self._fps_timer = time.time()
-        elif time.time() - self._fps_timer >= 5.0:
-            elapsed = time.time() - self._fps_timer
-            logger.info("[FPS] display=%.1f", self._fps_counter / elapsed)
-            self._fps_counter = 0
-            self._fps_timer = time.time()
+        else:
+            fps_now = time.time()
+            if fps_now - self._fps_timer >= 5.0:
+                logger.info("[FPS] display=%.1f", self._fps_counter / (fps_now - self._fps_timer))
+                self._fps_counter = 0
+                self._fps_timer = fps_now
 
     def run_loop(self) -> None:
         while True:
