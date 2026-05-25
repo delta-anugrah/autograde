@@ -10,18 +10,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# ── Hikrobot MVS SDK (production only) ──────────────────────────────────────
-# Sebelum `make up`, copy SDK files ke ./sdk/:
-#   cp /opt/MVS/lib/64/libMvCameraControl.so* sdk/
-#   cp -r /opt/MVS/Samples/64/Python/MvImport sdk/
-ARG WITH_SDK=false
-COPY sdk/ /tmp/sdk/
-RUN if [ "${WITH_SDK}" = "true" ]; then \
-        cp /tmp/sdk/libMvCameraControl.so* /usr/local/lib/ && \
-        cp -r /tmp/sdk/MvImport /usr/local/lib/python3.11/site-packages/MvImport && \
-        ldconfig; \
-    fi && rm -rf /tmp/sdk
-
 ENV PIP_DEFAULT_TIMEOUT=3600 \
     PIP_RETRIES=10 \
     PIP_NO_CACHE_DIR=1
@@ -38,6 +26,22 @@ RUN if [ "${TORCH_VARIANT}" = "cpu" ]; then \
         pip install torch==2.7.0+${TORCH_VARIANT} torchvision==0.22.0+${TORCH_VARIANT} \
             --index-url https://download.pytorch.org/whl/${TORCH_VARIANT}; \
     fi
+
+# ── Hikrobot MVS SDK (production only) ──────────────────────────────────────
+# Sebelum `make up`, jalankan di host:
+#   cp -r /opt/MVS/lib/64/. sdk/lib64/
+#   cp -r /opt/MVS/Samples/64/Python/MvImport sdk/MvImport
+# SDK diletakkan setelah torch supaya perubahan SDK tidak invalidate cache torch.
+ARG WITH_SDK=false
+COPY sdk/ /tmp/sdk/
+RUN if [ "${WITH_SDK}" = "true" ]; then \
+        cp -r /tmp/sdk/lib64 /opt/MVS/lib/64 && \
+        cp -r /tmp/sdk/MvImport /usr/local/lib/python3.11/site-packages/MvImport && \
+        ldconfig; \
+    fi && rm -rf /tmp/sdk
+
+# MvImport Python SDK mencari .so via MVCAM_COMMON_RUNENV/64/libMvCameraControl.so
+ENV MVCAM_COMMON_RUNENV=/opt/MVS/lib
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt

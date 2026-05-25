@@ -76,6 +76,8 @@ class HikrobotCamera(CameraSource):
         self.connected = True
 
     def grab_frame(self):
+        if not self.connected:
+            return None
         frame_info = MV_FRAME_OUT_INFO_EX()
 
         ret = self.cam.MV_CC_GetOneFrameTimeout(self._data_buf, self._buffer_size, frame_info, 100)

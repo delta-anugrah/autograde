@@ -3,8 +3,9 @@ ENV_FILE=.env
 # Production — copy SDK dari host, build GPU + SDK, lalu start semua line
 up:
 	@test -d /opt/MVS || (echo "ERROR: Hikrobot MVS SDK tidak ditemukan di /opt/MVS. Install MVS terlebih dahulu." && exit 1)
-	cp /opt/MVS/lib/64/libMvCameraControl.so* sdk/
-	cp -r /opt/MVS/Samples/64/Python/MvImport sdk/
+	mkdir -p sdk/lib64
+	cp -r /opt/MVS/lib/64/. sdk/lib64/
+	cp -r /opt/MVS/Samples/64/Python/MvImport sdk/MvImport
 	docker compose --env-file $(ENV_FILE) build \
 		--build-arg TORCH_VARIANT=cu126 \
 		--build-arg WITH_SDK=true

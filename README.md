@@ -48,8 +48,8 @@ palmgrade-api → POST /internal/manual-reject → trigger capture_manual_reject
 
 - Docker & Docker Compose
 - `make` (GNU Make)
-- Hikrobot MVS SDK files — copy ke `sdk/` sebelum build (production only)
-- NVIDIA Container Toolkit — untuk GPU passthrough ke Docker: `apt install nvidia-container-toolkit`
+- Hikrobot MVS SDK installed at `/opt/MVS/` on the host — `make up` auto-copies all required libs
+- NVIDIA Container Toolkit — untuk GPU passthrough ke Docker (lihat [Production Deployment](#production-deployment-pindah-ke-pc-baru))
 - YOLO model file at `models/release/best_3class_v2.pt`
 
 > **No local Python/venv needed** — semua dijalankan via Docker. `python:3.11-slim` base image sudah include semua dependencies.
@@ -142,7 +142,9 @@ mkdir -p models/release
 
 ### 4. Siapkan Hikrobot SDK (production only)
 
-Install MVS SDK di host (`/opt/MVS/`). `make up` akan otomatis copy file yang dibutuhkan dari sana — tidak perlu copy manual.
+Install Hikrobot MVS SDK di host (`/opt/MVS/`). `make up` akan otomatis copy **seluruh** `/opt/MVS/lib/64/` (termasuk GigE transport layer) ke `sdk/lib64/` dan include ke Docker image.
+
+> Lihat panduan lengkap: [`docs/SETUP.md`](docs/SETUP.md)
 
 ---
 
@@ -174,7 +176,9 @@ docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi
 
 ### 2. Siapkan Hikrobot SDK
 
-Install MVS SDK di host (`/opt/MVS/`). `make up` akan otomatis copy file SDK yang dibutuhkan ke `sdk/` dan include ke dalam Docker image — tidak perlu copy manual atau edit Dockerfile.
+Install Hikrobot MVS SDK di host (`/opt/MVS/`). `make up` otomatis copy **seluruh** `/opt/MVS/lib/64/` ke `sdk/lib64/` dan include ke Docker image — tidak perlu copy manual.
+
+> Panduan instalasi MVS lengkap: [`docs/SETUP.md § 3`](docs/SETUP.md)
 
 ### 3. Place YOLO model
 
@@ -266,6 +270,8 @@ make clean       # down + hapus image lokal
 
 **Hikrobot (GigE Vision) di Docker** — kamera terhubung via RJ45 LAN, bukan USB. Docker-compose sudah dikonfigurasi dengan `network_mode: host` sehingga container bisa langsung discover kamera via UDP broadcast. Tidak perlu konfigurasi tambahan selain pastikan kamera dan host ada di subnet yang sama.
 
+**Graceful startup** — app tetap jalan meskipun kamera belum terhubung saat startup. `health.detail.camera_connected` akan `false`, dan `FrameCaptureWorker` otomatis retry sampai kamera terdeteksi. Begitu kamera dicolok (dan MVS di-close), `camera_connected` berubah jadi `true` tanpa restart container.
+
 **MJPEG stream** — default encode di 1280×720 (dikontrol via `STREAM_WIDTH`/`STREAM_HEIGHT`). Frame asli Hikrobot 4K tetap disimpan ke disk; resize hanya untuk stream.
 
 ---
@@ -307,7 +313,7 @@ Events are written to `OutboxStore` (SQLite) first, then delivered asynchronousl
   "event_id": "uuid-v4",
   "assignment_id": "uuid-or-null",
   "machine_id": "uuid-from-machines-table",
-  "truck_id": "uuid",
+  "truck_id": "uuid-or-null",
   "timestamp": "2026-05-18T10:30:00.123456",
   "image_path": "captures/results/2026-05-18/2026-05-18_103000_123456_auto.jpg",
   "prediction": "Acc",
@@ -325,7 +331,7 @@ Events are written to `OutboxStore` (SQLite) first, then delivered asynchronousl
 - `prediction`: `"Acc"` / `"Rej"` — required
 - `ripeness_status`: `"ACC"` / `"REJ"` UPPERCASE
 - `tp_status`: `"PASS"` atau `null` — bukan `"TP"`
-- `truck_id`: event di-skip jika `null` (belum set truck)
+- `truck_id`: boleh `null` (capture reject tanpa truck) — API tetap menyimpan event, truck fields di MongoDB null
 - Events survive restart — stored in `artifacts/outbox.db` per container
 
 ---

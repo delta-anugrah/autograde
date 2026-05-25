@@ -386,15 +386,31 @@ sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit && sudo 
 
 **Production deployment checklist (pindah ke PC baru) — urutan ini penting:**
 1. Install NVIDIA Container Toolkit (perintah di atas) → `docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi` untuk verifikasi
-2. Install Hikrobot MVS SDK di host (`/opt/MVS/`)
+2. Install Hikrobot MVS SDK di host (`/opt/MVS/`) — panduan lengkap di `docs/SETUP.md § 3`
 3. Copy model: `mkdir -p models/release` + copy `best_3class_v2.pt`
-4. Configure `.env`: `LINE_1/2/3_MACHINE_ID`, `BACKEND_URL`, `WEBHOOK_SECRET`, `CAMERA_TYPE=hikrobot`, `CAMERA_FPS=25`
-5. `make up` — otomatis copy SDK dari `/opt/MVS/` ke `sdk/`, build GPU image, start semua line
-6. Verifikasi: `curl http://localhost:8001/health/detail | grep gpu_available`
+4. Configure `.env`: `LINE_1/2/3_MACHINE_ID`, `BACKEND_URL`, `WEBHOOK_SECRET`, `CAMERA_TYPE=hikrobot`, `CAMERA_FPS=10`
+5. `make up` — otomatis `mkdir -p sdk/lib64` + copy seluruh `/opt/MVS/lib/64/.` (GigE transport layer libs) + `MvImport/` ke `sdk/`, build GPU image dengan `WITH_SDK=true`, start semua line
+6. Verifikasi: `curl http://localhost:8001/health/detail | grep -E "gpu_available|camera_connected"`
+
+**SDK flow di `make up`:**
+`mkdir -p sdk/lib64` + `cp -r /opt/MVS/lib/64/. sdk/lib64/` + `cp -r /opt/MVS/Samples/64/Python/MvImport sdk/MvImport`
+→ Dockerfile `COPY sdk/ /tmp/sdk/` → `cp -r /tmp/sdk/lib64 /opt/MVS/lib/64` + `cp -r MvImport ...`
+→ ENV `MVCAM_COMMON_RUNENV=/opt/MVS/lib` (SDK Python code mencari .so via env var ini + `/64/libMvCameraControl.so`)
+
+**Kenapa butuh seluruh lib64, bukan hanya `libMvCameraControl.so`:**
+`MV_CC_EnumDevices()` load transport layer secara dinamis (`MvProducerGEV.cti`, `libMVGigEVisionSDK.so`, dll).
+Tanpa file-file ini, EnumDevices return `MV_E_LOAD_LIBRARY (0x8000000C)` meski library utama berhasil load.
+
+**Graceful startup — kamera tidak wajib terhubung saat startup:**
+`main.py` wrap `camera.connect()` dalam try/except untuk hikrobot. Jika kamera belum terdeteksi:
+- App tetap jalan, `health.detail.camera_connected = false`
+- `FrameCaptureWorker` auto-retry setiap ~30 detik
+- Begitu kamera dicolok (dan MVS di-close), `camera_connected` berubah `true` tanpa restart
+`HikrobotCamera.grab_frame()` return `None` jika `connected=False` — tidak crash meski belum connect.
 
 **Make commands:**
 ```
-make up         # production: copy SDK, build GPU+SDK, start semua line
+make up         # production: copy SDK (lib64 + MvImport), build GPU+SDK (WITH_SDK=true), start semua line
 make up-dev     # development: build CPU tanpa SDK, start semua line
 make start      # start semua line tanpa rebuild (pakai image yang sudah ada)
 make up-1       # start line-1 saja tanpa rebuild
@@ -404,10 +420,13 @@ make logs-1     # tail logs line-1
 make logs       # tail logs semua line (combined)
 make down       # stop semua
 make ps         # status semua container
-make rebuild    # rebuild image GPU/CUDA (tanpa SDK) — selalu GPU, tidak ada CPU variant
+make rebuild    # rebuild image GPU/CUDA (TORCH_VARIANT=cu126, tanpa SDK) — selalu GPU
 make rebuild-gpu # alias make rebuild (sama persis)
 make clean      # down + hapus local image
 ```
+
+`sdk/lib64/.gitignore` dikontrol via `.gitignore`: `sdk/*` + `!sdk/.gitkeep`. File SDK aktual tidak di-commit.
+`make up` selalu `mkdir -p sdk/lib64` sebelum copy — aman dijalankan meski folder belum ada.
 
 **`requirements.txt`** — jangan pernah replace dengan output `pip freeze` dari environment lain.
 Hanya include packages yang benar-benar diimport di source code:
@@ -437,3 +456,4 @@ Hanya include packages yang benar-benar diimport di source code:
 
 - `docs/architecture.md` — desain arsitektur final (jangan ubah tanpa diskusi)
 - `docs/backend-overview.md` — endpoint, flow, env var
+- `docs/SETUP.md` — panduan setup lengkap dari nol: NVIDIA toolkit, MVS install, IP camera, Docker build
