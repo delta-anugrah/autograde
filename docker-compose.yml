@@ -4,107 +4,157 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        TORCH_VARIANT: cu126
+    image: palmgrade-vision:latest
     container_name: ripe_line_1
     restart: unless-stopped
-    ports:
-      - "8001:8000"
+    network_mode: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       - APP_ENV=${APP_ENV:-production}
-      - APP_PORT=8000
+      - APP_PORT=8001
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3050}
       - ENABLE_WEBHOOK=true
-      - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:2500}
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=/api/v1
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
-      - MODEL_FILE=${MODEL_FILE:-best_3class.pt}
+      - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
+      - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
+      - ROI_X1=${ROI_X1:-0}
+      - ROI_Y1=${ROI_Y1:-0}
+      - ROI_X2=${ROI_X2:-0}
+      - ROI_Y2=${ROI_Y2:-0}
+      - STREAM_WIDTH=${STREAM_WIDTH:-1280}
+      - STREAM_HEIGHT=${STREAM_HEIGHT:-720}
       - CAMERA_DEVICE_INDEX=0
-      - MACHINE_ID=${LINE_1_MACHINE_ID}
-      - CAMERA_WIDTH=${CAMERA_WIDTH:-320}
-      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-240}
-      - CAMERA_FPS=${CAMERA_FPS:-30}
+      - MACHINE_ID=d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01
+      - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
+      - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
+      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
+      - CAMERA_FPS=${CAMERA_FPS:-25}
+      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      - UPLOAD_HOUR=${UPLOAD_HOUR:-0}
+      - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
+      - DESTINATION_UPLOAD=${DESTINATION_UPLOAD:-}
       - LIC_ENABLED=${LIC_ENABLED:-false}
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
       - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
+      - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
+      - .:/app
+      - /app/.venv
       - ./artifacts/line-1:/app/artifacts
       - ./models:/app/models:ro
-    # Untuk Hikrobot USB camera — uncomment dan sesuaikan device path
-    # devices:
-    #   - /dev/bus/usb:/dev/bus/usb
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - /home/nexio/Desktop/Projects/sawit:/videos:ro
 
   ripe-line-2:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: palmgrade-vision:latest
     container_name: ripe_line_2
     restart: unless-stopped
-    ports:
-      - "8002:8000"
+    network_mode: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       - APP_ENV=${APP_ENV:-production}
-      - APP_PORT=8000
+      - APP_PORT=8002
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3050}
       - ENABLE_WEBHOOK=true
-      - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:2500}
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=/api/v1
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
-      - MODEL_FILE=${MODEL_FILE:-best_3class.pt}
+      - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
+      - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
+      - ROI_X1=${ROI_X1:-0}
+      - ROI_Y1=${ROI_Y1:-0}
+      - ROI_X2=${ROI_X2:-0}
+      - ROI_Y2=${ROI_Y2:-0}
+      - STREAM_WIDTH=${STREAM_WIDTH:-1280}
+      - STREAM_HEIGHT=${STREAM_HEIGHT:-720}
       - CAMERA_DEVICE_INDEX=1
-      - MACHINE_ID=${LINE_2_MACHINE_ID}
-      - CAMERA_WIDTH=${CAMERA_WIDTH:-320}
-      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-240}
-      - CAMERA_FPS=${CAMERA_FPS:-30}
+      - MACHINE_ID=a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02
+      - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
+      - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
+      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
+      - CAMERA_FPS=${CAMERA_FPS:-25}
+      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      - UPLOAD_HOUR=${UPLOAD_HOUR:-0}
+      - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
+      - DESTINATION_UPLOAD=${DESTINATION_UPLOAD:-}
       - LIC_ENABLED=${LIC_ENABLED:-false}
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
       - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
     volumes:
+      - .:/app
+      - /app/.venv
       - ./artifacts/line-2:/app/artifacts
       - ./models:/app/models:ro
-    # devices:
-    #   - /dev/bus/usb:/dev/bus/usb
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - /home/nexio/Desktop/Projects/sawit:/videos:ro
 
   ripe-line-3:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: palmgrade-vision:latest
     container_name: ripe_line_3
     restart: unless-stopped
-    ports:
-      - "8003:8000"
+    network_mode: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       - APP_ENV=${APP_ENV:-production}
-      - APP_PORT=8000
+      - APP_PORT=8003
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3050}
       - ENABLE_WEBHOOK=true
-      - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:2500}
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=/api/v1
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
-      - MODEL_FILE=${MODEL_FILE:-best_3class.pt}
+      - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
+      - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
+      - ROI_X1=${ROI_X1:-0}
+      - ROI_Y1=${ROI_Y1:-0}
+      - ROI_X2=${ROI_X2:-0}
+      - ROI_Y2=${ROI_Y2:-0}
+      - STREAM_WIDTH=${STREAM_WIDTH:-1280}
+      - STREAM_HEIGHT=${STREAM_HEIGHT:-720}
       - CAMERA_DEVICE_INDEX=2
-      - MACHINE_ID=${LINE_3_MACHINE_ID}
-      - CAMERA_WIDTH=${CAMERA_WIDTH:-320}
-      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-240}
-      - CAMERA_FPS=${CAMERA_FPS:-30}
+      - MACHINE_ID=ad5f7bb9-c06d-4e87-8282-ce450ae331ec
+      - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
+      - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
+      - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
+      - CAMERA_FPS=${CAMERA_FPS:-25}
+      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      - UPLOAD_HOUR=${UPLOAD_HOUR:-0}
+      - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
+      - DESTINATION_UPLOAD=${DESTINATION_UPLOAD:-}
       - LIC_ENABLED=${LIC_ENABLED:-false}
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
       - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
     volumes:
+      - .:/app
+      - /app/.venv
       - ./artifacts/line-3:/app/artifacts
       - ./models:/app/models:ro
-    # devices:
-    #   - /dev/bus/usb:/dev/bus/usb
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - /home/nexio/Desktop/Projects/sawit:/videos:ro

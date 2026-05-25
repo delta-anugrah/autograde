@@ -9,7 +9,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from ripe_recognition.main import create_app
+from palmgrade.main import create_app
 
 
 def main() -> None:
