@@ -1,0 +1,62 @@
+name: Trello - Move Card to In Review
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+jobs:
+  move-trello-card:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - name: Extract Trello Card ID from PR body
+        id: extract
+        run: |
+          PR_BODY="${{ github.event.pull_request.body }}"
+          # Extract card short ID from Trello URL (https://trello.com/c/XXXXXXXX)
+          CARD_ID=$(echo "$PR_BODY" | grep -oP 'trello\.com/c/\K[a-zA-Z0-9]+' | head -1)
+
+          if [ -z "$CARD_ID" ]; then
+            echo "⚠️ No Trello card URL found in PR body. Skipping."
+            echo "found=false" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Found Trello card: $CARD_ID"
+            echo "card_id=$CARD_ID" >> $GITHUB_OUTPUT
+            echo "found=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get Trello Card Full ID
+        id: get_card
+        if: steps.extract.outputs.found == 'true'
+        run: |
+          RESPONSE=$(curl -s "https://api.trello.com/1/cards/${{ steps.extract.outputs.card_id }}?key=${{ secrets.TRELLO_API_KEY }}&token=${{ secrets.TRELLO_TOKEN }}")
+          FULL_ID=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+
+          if [ -z "$FULL_ID" ]; then
+            echo "❌ Could not fetch Trello card. Check API key/token."
+            exit 1
+          fi
+
+          echo "full_id=$FULL_ID" >> $GITHUB_OUTPUT
+
+      - name: Move Card to "In Review"
+        if: steps.extract.outputs.found == 'true'
+        run: |
+          curl -s -X PUT \
+            "https://api.trello.com/1/cards/${{ steps.get_card.outputs.full_id }}" \
+            -d "key=${{ secrets.TRELLO_API_KEY }}" \
+            -d "token=${{ secrets.TRELLO_TOKEN }}" \
+            -d "idList=${{ secrets.TRELLO_LIST_IN_REVIEW_ID }}" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print('✅ Card moved to In Review:', d.get('name',''))"
+
+      - name: Add PR link as Trello Card Attachment
+        if: steps.extract.outputs.found == 'true'
+        run: |
+          curl -s -X POST \
+            "https://api.trello.com/1/cards/${{ steps.get_card.outputs.full_id }}/attachments" \
+            -d "key=${{ secrets.TRELLO_API_KEY }}" \
+            -d "token=${{ secrets.TRELLO_TOKEN }}" \
+            -d "url=${{ github.event.pull_request.html_url }}" \
+            -d "name=PR: ${{ github.event.pull_request.title }}" \
+            > /dev/null && echo "✅ PR link attached to Trello card"
