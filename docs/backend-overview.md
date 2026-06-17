@@ -115,7 +115,7 @@ MJPEG live stream dari kamera.
 
 ---
 
-### `GET /api/results/today`
+### `GET /api/results_today`
 
 Semua hasil grading hari ini.
 
@@ -126,7 +126,7 @@ Semua hasil grading hari ini.
       "id": "2026-05-18_103000_123456",
       "ripeness_status": "acc",
       "ripeness_confidence": 0.92,
-      "tp_status": "TP",
+      "tp_status": "PASS",
       "tp_confidence": 0.88,
       "timestamp": "2026-05-18T10:30:00.123456",
       "image_url": "captures/results/2026-05-18/2026-05-18_103000_auto.jpg",
@@ -166,7 +166,7 @@ Terima command manual reject dari palmgrade-api. Protected by `x-internal-secret
 
 ---
 
-### `POST /api/manual_capture`
+### `POST /api/capture_reject`
 
 Capture frame saat ini secara manual, langsung mark sebagai `rej`.
 
@@ -217,9 +217,7 @@ Status operasional container.
 
 ---
 
-### `GET /api/inspection/status`
-
-Info model dan device yang aktif.
+> Info model dan device yang aktif tersedia di `GET /health/detail` (`gpu_available`, `gpu_device`, `camera_type`, dst.) — tidak ada endpoint `/api/inspection/status` terpisah.
 
 ---
 
@@ -248,7 +246,7 @@ frame_queue                      state.latest_raw_frame
   │     ├── write_json() _ripeness.json
   │     ├── write_json() _tp.json (if TP)
   │     ├── event_queue.put_nowait()
-  │     └── WebhookClient.send() → POST palmgrade-api
+  │     └── OutboxStore.add_event()  ← SQLite durable (auto: hanya jika ada truck aktif)
   └── state.last_yolo_results (read by DisplayWorker)
   ↓ [EventBroadcastWorker — asyncio task]
 WebSocket clients
@@ -307,7 +305,7 @@ Setiap detection final (auto atau manual) ditulis ke OutboxStore dulu, lalu `Out
 ```
 FrameProcessingWorker / CaptureService
     → OutboxStore.add_event(event_id, machine_id, payload)  [SQLite write]
-        → OutboxRetryWorker (daemon thread, poll 10s)
+        → OutboxRetryWorker (daemon thread, poll 1s)
             → POST {canonical_events_url}
                = {BACKEND_URL}{BACKEND_API_VER}/internal/vision/events
 ```
@@ -339,12 +337,12 @@ FrameProcessingWorker / CaptureService
 - `prediction`: `"Acc"` / `"Rej"` — required
 - `ripeness_status`: `"ACC"` / `"REJ"` UPPERCASE
 - `tp_status`: `"PASS"` / `null` — BUKAN `"TP"`
-- `truck_id`: event di-skip kalau `None` (belum set truck)
+- `truck_id`: **auto detection** (`FrameProcessingWorker`) di-skip dari outbox kalau `None` (belum set truck) — hasil tetap disimpan ke disk + WebSocket. **Manual reject** (`CaptureService`) selalu ditulis ke outbox walau `truck_id=None`.
 - API returns `{status: "already_processed"}` jika `event_id` duplikat — OutboxRetryWorker delete event
 
 **OutboxStore (`artifacts/outbox.db`):**
 - SQLite file per container — survive restart container
-- Exponential backoff: 30s base, 600s cap, max 50 retries
+- Exponential backoff: 5s base, 600s cap, max 50 retries
 - `pending_count()` ditampilkan di `/health/detail`
 
 ---
@@ -358,7 +356,8 @@ FrameProcessingWorker / CaptureService
 | `FRONTEND_URL` | `*` | CORS allowed origin |
 | `ENABLE_WEBHOOK` | `true` | Toggle webhook |
 | `BACKEND_URL` | `http://localhost:2500` | palmgrade-api base URL |
-| `WEBHOOK_SECRET` | — | HMAC secret header, harus cocok dengan palmgrade-api |
+| `BACKEND_API_VER` | `/api/v1` | Prefix versi API untuk canonical events URL |
+| `WEBHOOK_SECRET` | — | Shared secret header, harus cocok dengan palmgrade-api |
 | `MODEL_FILE` | `best_3class_v2.pt` | Nama file model di `models/release/` |
 | `CONF_THRESHOLD` | `0.75` | Minimum confidence YOLO |
 | `MINIMUM_SIZE` | `460000` | Minimum area bounding box (px²) — di bawah ini auto rej |
@@ -372,6 +371,8 @@ FrameProcessingWorker / CaptureService
 | `ROI_Y2` | `0` | Batas bawah area deteksi (px) — `0` = tinggi penuh frame |
 | `STREAM_WIDTH` | `1280` | Lebar frame MJPEG stream (setelah resize, sebelum encode) |
 | `STREAM_HEIGHT` | `720` | Tinggi frame MJPEG stream |
+| `STREAM_FPS` | `12` | FPS MJPEG stream — decoupled dari `CAMERA_FPS` |
+| `YOLO_SKIP_FRAMES` | `1` | Jalankan YOLO tiap N frame (`1` = produksi; `>1` hemat CPU saat tes video) |
 | `UPLOAD_HOUR` | `0` | Jam upload otomatis (cron) |
 | `UPLOAD_MINUTE` | `0` | Menit upload otomatis (cron) |
 | `DESTINATION_UPLOAD` | — | Path tujuan upload hasil harian |

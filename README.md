@@ -2,7 +2,7 @@
 
 AI camera service for the **Palmgrade** palm oil ripeness grading system.
 
-Runs as **3 separate Docker containers** (one per camera line), each connected to a Hikrobot industrial camera. Performs real-time YOLO-based fruit ripeness detection and pushes results to `palmgrade-api` via webhook.
+Runs as **3 separate Docker containers** (one per camera line), each connected to a Hikrobot industrial camera. Performs real-time YOLO-based fruit ripeness detection and pushes results to `palmgrade-api` via durable outbox delivery.
 
 ---
 
@@ -79,7 +79,7 @@ palmgrade-vision/
 │   └── license/                 # License guard (Ed25519 JWS, optional)
 ├── models/
 │   └── release/
-│       └── best_3class.pt       # YOLO model — required, not committed to git
+│       └── best_3class_v2.pt    # YOLO model — required, not committed to git
 ├── artifacts/                   # Runtime output — not committed to git
 │   ├── line-1/
 │   ├── line-2/
@@ -284,9 +284,8 @@ make clean       # down + hapus image lokal
 | `GET` | `/health/detail` | Detailed status: camera, GPU, workers, outbox_pending, current_assignment_id |
 | `GET` | `/api/video_feed` | MJPEG live stream (multi-viewer) |
 | `POST` | `/api/set_truck` | Set active truck ID (legacy — prefer API /grading-console/lines/:id/assign-truck) |
-| `POST` | `/api/manual_capture` | Trigger manual reject capture (legacy) |
-| `GET` | `/api/inspection/status` | Model + device info |
-| `GET` | `/api/results/today` | Today's grading results |
+| `POST` | `/api/capture_reject` | Trigger manual reject capture (legacy) |
+| `GET` | `/api/results_today` | Today's grading results (model/device info ada di `/health/detail`) |
 | `POST` | `/internal/assignment` | Receive truck assignment from palmgrade-api (protected by x-internal-secret) |
 | `POST` | `/internal/manual-reject` | Receive manual reject command from palmgrade-api (protected by x-internal-secret) |
 | `WS` | `/ws/results` | WebSocket result push (legacy) |
@@ -331,7 +330,7 @@ Events are written to `OutboxStore` (SQLite) first, then delivered asynchronousl
 - `prediction`: `"Acc"` / `"Rej"` — required
 - `ripeness_status`: `"ACC"` / `"REJ"` UPPERCASE
 - `tp_status`: `"PASS"` atau `null` — bukan `"TP"`
-- `truck_id`: boleh `null` (capture reject tanpa truck) — API tetap menyimpan event, truck fields di MongoDB null
+- `truck_id`: **auto detection** hanya dikirim ke API kalau ada truck aktif (tanpa truck event di-skip dari outbox, tapi tetap disimpan ke disk). **Manual reject** selalu dikirim, `truck_id` boleh `null` — API tetap menyimpan event, truck fields di MongoDB null
 - Events survive restart — stored in `artifacts/outbox.db` per container
 
 ---
@@ -374,20 +373,23 @@ When enabled, all routes (except `/health`, `/api/video_feed`, `/captures`) are 
 | `APP_PORT` | `8000` | Internal container port |
 | `FRONTEND_URL` | `http://localhost:3050` | CORS allowed origin |
 | `BACKEND_URL` | `http://localhost:2500` | palmgrade-api base URL |
-| `WEBHOOK_SECRET` | — | HMAC secret — must match palmgrade-api |
+| `BACKEND_API_VER` | `/api/v1` | Prefix versi API untuk canonical events URL |
+| `WEBHOOK_SECRET` | — | Shared secret header value — must match palmgrade-api |
 | `ENABLE_WEBHOOK` | `true` | Toggle webhook posting |
-| `MODEL_FILE` | `best_3class.pt` | YOLO model filename in `models/release/` |
+| `MODEL_FILE` | `best_3class_v2.pt` | YOLO model filename in `models/release/` |
 | `CONF_THRESHOLD` | `0.75` | YOLO confidence threshold |
 | `MINIMUM_SIZE` | `460000` | Min bounding box area in px² |
 | `CAMERA_TYPE` | `hikrobot` | `hikrobot` / `opencv` / `photo` |
 | `CAMERA_DEVICE_INDEX` | `0` | Camera index (0/1/2 per line) |
 | `CAMERA_VIDEO_PATH` | — | Path video file di dalam container (kalau `CAMERA_TYPE=opencv` + video) |
 | `CAMERA_PHOTO_PATH` | — | Path gambar test (kalau `CAMERA_TYPE=photo`) |
-| `CAMERA_WIDTH` | `2448` | Frame width (OpenCV only) |
-| `CAMERA_HEIGHT` | `2048` | Frame height (OpenCV only) |
-| `CAMERA_FPS` | `25` | Frame rate |
+| `CAMERA_WIDTH` | `320` | Frame width (OpenCV only; docker-compose Hikrobot: `2448`) |
+| `CAMERA_HEIGHT` | `240` | Frame height (OpenCV only; docker-compose Hikrobot: `2048`) |
+| `CAMERA_FPS` | `30` | Frame rate (docker-compose menetapkan `25`) |
+| `YOLO_SKIP_FRAMES` | `1` | Jalankan YOLO setiap N frame (`1` = tiap frame; `>1` hemat CPU saat tes video) |
 | `STREAM_WIDTH` | `1280` | MJPEG stream width (resize before encode) |
 | `STREAM_HEIGHT` | `720` | MJPEG stream height (resize before encode) |
+| `STREAM_FPS` | `12` | FPS MJPEG stream — decoupled dari `CAMERA_FPS` |
 | `ROI_X1` | `0` | Left edge of detection ROI box — **koordinat dalam stream resolution** (`STREAM_WIDTH × STREAM_HEIGHT`, default 1280×720) |
 | `ROI_Y1` | `0` | Top edge of detection ROI box |
 | `ROI_X2` | `0` | Right edge — `0` = full stream width. Wajib > `ROI_X1` |
@@ -400,6 +402,7 @@ When enabled, all routes (except `/health`, `/api/video_feed`, `/captures`) are 
 | `UPLOAD_HOUR` | `0` | Daily upload cron — hour (0–23) |
 | `UPLOAD_MINUTE` | `0` | Daily upload cron — minute (0–59) |
 | `DESTINATION_UPLOAD` | — | Upload destination path |
+| `DEBUG_MODEL_OUTPUT` | `false` | Log raw YOLO output untuk debugging (`core/logging.py`) |
 
 ---
 

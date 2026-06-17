@@ -107,8 +107,23 @@ class Settings:
 
     @property
     def ripeness_model_path(self) -> Path:
-        model_file = os.getenv("MODEL_FILE", "best_3class.pt")
+        model_file = os.getenv("MODEL_FILE", "best_3class_v2.pt")
         return self.models_release_dir / model_file
+
+    @property
+    def engines_dir(self) -> Path:
+        # Writable (models/ is mounted read-only) — TensorRT engines cached here.
+        return self.repo_root / "engines"
+
+    def engine_path_for_gpu(self, compute_capability: str) -> Path:
+        """TensorRT engine path tagged by GPU compute capability.
+
+        Engines are hardware-locked, so each GPU gets its own file (e.g.
+        `best_3class_v2.sm75.engine` for a GTX 1660). This makes the cache
+        safe across machines without overwriting each other.
+        """
+        stem = Path(os.getenv("MODEL_FILE", "best_3class_v2.pt")).stem
+        return self.engines_dir / f"{stem}.sm{compute_capability}.engine"
 
     @property
     def webhook_url(self) -> str:

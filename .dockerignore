@@ -1,0 +1,33 @@
+# Keep the build context small — these are NOT needed inside the image.
+# (sdk/ is intentionally NOT ignored: Dockerfile does `COPY sdk/` for WITH_SDK.)
+
+# Git / IDE / CI
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+# Python caches / local virtualenv (image installs its own deps)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Runtime output — mounted as volumes at runtime, must not be baked in
+artifacts/
+MvSdkLog/
+
+# Model weights — mounted via ./models:/app/models:ro at runtime (~280MB)
+models/
+
+# Docs / tests / media not needed at runtime
+docs/
+tests/
+*.mp4
+
+# Local env (compose injects env; never bake secrets into the image)
+.env
+.env.*
+!.env.example
