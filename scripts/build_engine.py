@@ -52,6 +52,14 @@ def main() -> int:
 
     settings.engines_dir.mkdir(parents=True, exist_ok=True)
 
+    # Sabuk pengaman: cegah Ultralytics auto-`pip install` tensorrt saat export
+    # kalau modulnya (entah kenapa) gak kedetect. Auto-install itu yang dulu HANG
+    # (narik tensorrt source dari PyPI publik). tensorrt-cu12 sudah dipasang di
+    # Dockerfile, jadi normalnya gak ke-trigger — ini cuma jaring pengaman supaya
+    # build_engine GAGAL-CEPAT dengan error jelas, bukan nyangkut diam-diam.
+    import os
+    os.environ.setdefault("ULTRALYTICS_SKIP_REQUIREMENTS_CHECKS", "1")
+
     # models/ di-mount read-only → ultralytics export menulis di sebelah source .pt,
     # jadi copy dulu .pt ke ./engines (writable), export di situ, lalu rename.
     from ultralytics import YOLO  # import telat supaya pesan CUDA di atas tampil duluan
@@ -62,8 +70,14 @@ def main() -> int:
     print(f"[build_engine] Build TensorRT FP16 engine untuk {gpu_name} (sm{cc}) @ imgsz={IMGSZ} ...")
     print("[build_engine] Sekali jalan, bisa 5-15 menit. Tunggu ya.")
 
+    # workspace=2 GiB: batasi memori sementara TensorRT saat build engine supaya
+    # AMAN di GPU VRAM kecil (GTX 1650 4GB di PC prod). Default (None=auto) bisa
+    # minta workspace sampai batas device → OOM di 4GB. 2 GiB cukup buat optimize
+    # YOLOv8 + sisain headroom buat OS/driver. Turunkan ke 1 kalau masih OOM.
     model = YOLO(str(work_pt))
-    exported = model.export(format="engine", half=True, imgsz=IMGSZ, device=0)
+    exported = model.export(
+        format="engine", half=True, imgsz=IMGSZ, device=0, workspace=2
+    )
 
     shutil.move(str(exported), str(target))
 
