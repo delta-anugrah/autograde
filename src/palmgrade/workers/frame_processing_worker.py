@@ -175,14 +175,13 @@ class FrameProcessingWorker:
                 logger.debug("[MODEL] frame=%d n=0", self._frame_count)
 
         self._fps_counter += 1
+        fps_now = time.time()
         if self._fps_timer == 0.0:
-            self._fps_timer = time.time()
-        else:
-            fps_now = time.time()
-            if fps_now - self._fps_timer >= 5.0:
-                logger.info("[FPS] yolo=%.1f", self._fps_counter / (fps_now - self._fps_timer))
-                self._fps_counter = 0
-                self._fps_timer = fps_now
+            self._fps_timer = fps_now
+        elif fps_now - self._fps_timer >= 1.0:
+            self.state.inference_fps = self._fps_counter / (fps_now - self._fps_timer)
+            self._fps_counter = 0
+            self._fps_timer = fps_now
 
         current_active_tracks: set[int] = set()
 
@@ -288,7 +287,7 @@ class FrameProcessingWorker:
                         )
                         self._last_tp = None
 
-                    event_ts = datetime.datetime.now().isoformat()
+                    event_ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
                     event = {
                         "id": timestamp,
                         "ripeness_status": ripeness_status,

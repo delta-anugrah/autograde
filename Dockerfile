@@ -27,6 +27,23 @@ RUN if [ "${TORCH_VARIANT}" = "cpu" ]; then \
             --index-url https://download.pytorch.org/whl/${TORCH_VARIANT}; \
     fi
 
+# TensorRT + ONNX exporters (GPU only) — dipakai `scripts/build_engine.py` untuk
+# export model .pt → .engine (FP16). Engine itu hardware-locked, jadi DIBANGUN
+# on-machine via `make build-engine`, BUKAN di-bake ke image. Diletakkan setelah
+# torch supaya layer-nya ikut ke-cache (hanya rebuild kalau torch berubah).
+#
+# PENTING: install `tensorrt-cu12` (varian CUDA-12) DARI INDEX NVIDIA
+# (https://pypi.nvidia.com). Di PyPI publik, `tensorrt-cu12-libs`/`-bindings`
+# cuma ada sebagai source stub (.tar.gz, Metadata 2.1) → pip wajib build dari
+# source → HANG di "Preparing metadata (pyproject.toml)". Index NVIDIA nyediain
+# wheel binary manylinux (.whl) sehingga install langsung, tanpa build/hang.
+# Tanpa flag ini, `make build-engine` bakal nyangkut (Ultralytics juga auto-coba
+# install tensorrt saat export kalau modulnya gak ada → hang yang sama).
+RUN if [ "${TORCH_VARIANT}" != "cpu" ]; then \
+        pip install --extra-index-url https://pypi.nvidia.com \
+            onnx onnxslim "tensorrt-cu12==10.13.3.9"; \
+    fi
+
 # ── Hikrobot MVS SDK (production only) ──────────────────────────────────────
 # Sebelum `make up`, jalankan di host:
 #   cp -r /opt/MVS/lib/64/. sdk/lib64/
@@ -35,6 +52,7 @@ RUN if [ "${TORCH_VARIANT}" = "cpu" ]; then \
 ARG WITH_SDK=false
 COPY sdk/ /tmp/sdk/
 RUN if [ "${WITH_SDK}" = "true" ]; then \
+        mkdir -p /opt/MVS/lib && \
         cp -r /tmp/sdk/lib64 /opt/MVS/lib/64 && \
         cp -r /tmp/sdk/MvImport /usr/local/lib/python3.11/site-packages/MvImport && \
         ldconfig; \

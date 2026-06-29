@@ -44,7 +44,7 @@ class CaptureRepository:
             "tp_confidence": 0,
             "title": "FAIL Detected (Manual)",
             "description": f"Manual reject capture (truck_id={truck_id})",
-            "timestamp": now.isoformat(),
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "image_url": image_url,
             "capture_type": MANUAL_CAPTURE_SUFFIX,
             "truck_id": truck_id,

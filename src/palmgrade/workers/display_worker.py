@@ -6,7 +6,7 @@ import time
 import cv2
 
 from ..core.config import Settings
-from ..core.constants import JPEG_QUALITY_STREAM
+from ..core.constants import FONT, JPEG_QUALITY_STREAM
 from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
 from .runtime_state import RuntimeState
 
@@ -35,6 +35,7 @@ class DisplayWorker:
         self._last_render_time: float = 0.0
         self._fps_counter: int = 0
         self._fps_timer: float = 0.0
+        self._display_fps: float = 0.0
 
     def run_once(self) -> None:
         now = time.time()
@@ -69,20 +70,24 @@ class DisplayWorker:
 
         display = self.pipeline.draw_roi(display)
 
+        # YOLO inference FPS overlay (from FrameProcessingWorker; drawn in stream space → fixed, always readable)
+        fps_text = f"{self.state.inference_fps:.0f} FPS"
+        cv2.putText(display, fps_text, (12, 36), FONT, 1.0, (0, 0, 0), 5, cv2.LINE_AA)
+        cv2.putText(display, fps_text, (12, 36), FONT, 1.0, (0, 255, 0), 2, cv2.LINE_AA)
+
         _, buf = cv2.imencode(".jpg", display, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY_STREAM])
         with self.state.frame_condition:
             self.state.latest_frame = buf.tobytes()
             self.state.frame_condition.notify_all()
 
         self._fps_counter += 1
+        fps_now = time.time()
         if self._fps_timer == 0.0:
-            self._fps_timer = time.time()
-        else:
-            fps_now = time.time()
-            if fps_now - self._fps_timer >= 5.0:
-                logger.info("[FPS] display=%.1f", self._fps_counter / (fps_now - self._fps_timer))
-                self._fps_counter = 0
-                self._fps_timer = fps_now
+            self._fps_timer = fps_now
+        elif fps_now - self._fps_timer >= 1.0:
+            self._display_fps = self._fps_counter / (fps_now - self._fps_timer)
+            self._fps_counter = 0
+            self._fps_timer = fps_now
 
     def run_loop(self) -> None:
         while True:

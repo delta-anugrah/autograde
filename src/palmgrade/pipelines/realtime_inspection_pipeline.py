@@ -35,18 +35,22 @@ class RealtimeInspectionPipeline:
     def draw_boxes(self, frame: np.ndarray, results: Any) -> np.ndarray:
         if results.boxes is None:
             return frame
+        bt = self.settings.border_thickness
+        fs = self.settings.font_scale
+        ft = self.settings.font_thickness
         for box in results.boxes:
             x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-            cls_id = int(box.cls[0].item())
-            label = results.names[cls_id]
+            label = results.names[int(box.cls[0].item())]
             score = float(box.conf[0].item())
-            track_id = int(box.id[0].item()) if box.id is not None else None
             color = COLOR_FAIL if "rej" in label.lower() else COLOR_PASS
-            text = f"ID:{track_id} {label} ({score:.2f})"
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, self.settings.border_thickness)
-            (tw, th), _ = cv2.getTextSize(text, FONT, self.settings.font_scale, self.settings.font_thickness)
-            cv2.rectangle(frame, (x1, y1 - th - 5), (x1 + tw, y1), color, -1)
-            cv2.putText(frame, text, (x1, y1 - 5), FONT, self.settings.font_scale, FONT_COLOR, self.settings.font_thickness)
+            # bounding box
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, bt)
+            # label: teks berwarna saja (tanpa bar) — ACC hijau, REJ merah; outline hitam biar kebaca
+            text = f"{label.upper()} {score * 100:.0f}%"
+            (tw, th), bl = cv2.getTextSize(text, FONT, fs, ft)
+            ty = y1 - 10 if y1 - th - 10 >= 0 else y1 + th + 10
+            cv2.putText(frame, text, (x1, ty), FONT, fs, (0, 0, 0), ft + 4, cv2.LINE_AA)  # outline tebal
+            cv2.putText(frame, text, (x1, ty), FONT, fs, color, ft + 1, cv2.LINE_AA)      # teks warna, agak tebal
         return frame
 
     def draw_roi(self, frame: np.ndarray) -> np.ndarray:

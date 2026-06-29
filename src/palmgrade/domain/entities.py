@@ -15,7 +15,7 @@ class InspectionResult:
     capture_type: CaptureType
     machine_id: str = ""
     truck_id: str | None = None
-    tp_status: str | None = None   # "TP" | None
+    tp_status: str | None = None   # "PASS" | None
     tp_confidence: float = 0.0
     bounding_box: BoundingBox | None = None
 
