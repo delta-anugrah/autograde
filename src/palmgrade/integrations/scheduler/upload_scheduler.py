@@ -30,9 +30,9 @@ def _upload_today_errors(settings: Settings) -> None:
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     destination = Path(settings.destination_upload)
 
+    # results/ adalah satu-satunya sumber kebenaran (errors/ sudah tidak ditulis lagi).
     for folder_type, source_dir in [
         ("results", settings.results_dir / today),
-        ("errors", settings.errors_dir / today),
     ]:
         if not source_dir.exists():
             logger.info("No source folder for today: %s", source_dir)

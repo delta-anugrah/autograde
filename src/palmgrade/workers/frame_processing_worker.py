@@ -74,7 +74,7 @@ class FrameProcessingWorker:
         timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
 
         results_dir = self.settings.results_dir / date_folder
-        img_filename = f"{timestamp}_auto.jpg"
+        img_filename = f"{timestamp}_auto.webp"
         image_url = f"captures/results/{date_folder}/{img_filename}"
 
         self.storage.write_image(results_dir / img_filename, annotated_frame, quality=JPEG_QUALITY_SAVE)
@@ -92,11 +92,8 @@ class FrameProcessingWorker:
         }
         self.storage.write_json(results_dir / f"{timestamp}_auto_ripeness.json", meta)
 
-        if ripeness_status == "rej":
-            errors_dir = self.settings.errors_dir / date_folder
-            self.storage.write_image(errors_dir / img_filename, annotated_frame, quality=JPEG_QUALITY_SAVE)
-            self.storage.write_json(errors_dir / f"{timestamp}_auto_ripeness.json", meta)
-
+        # results/ adalah satu-satunya sumber kebenaran; foto REJ ditemukan lewat
+        # metadata (ripeness_status == "REJ"), bukan folder errors/ terpisah.
         return date_folder, timestamp, image_url
 
     def _save_tp(

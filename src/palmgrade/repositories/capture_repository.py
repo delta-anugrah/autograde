@@ -30,7 +30,7 @@ class CaptureRepository:
         timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
 
         results_dir = self.settings.results_dir / date_folder
-        img_filename = f"{timestamp}_{MANUAL_CAPTURE_SUFFIX}.jpg"
+        img_filename = f"{timestamp}_{MANUAL_CAPTURE_SUFFIX}.webp"
         image_url = f"captures/results/{date_folder}/{img_filename}"
 
         height, width = frame.shape[:2]
@@ -55,9 +55,6 @@ class CaptureRepository:
         self.storage.write_image(results_dir / img_filename, frame, quality=JPEG_QUALITY_SAVE)
         self.storage.write_json(results_dir / json_filename, payload)
 
-        # Duplikasi ke errors/ karena manual capture selalu FAIL
-        errors_dir = self.settings.errors_dir / date_folder
-        self.storage.write_image(errors_dir / img_filename, frame, quality=JPEG_QUALITY_SAVE)
-        self.storage.write_json(errors_dir / json_filename, payload)
-
+        # results/ adalah satu-satunya sumber kebenaran; status FAIL ada di metadata
+        # (ripeness_status), jadi tidak perlu salinan terpisah di errors/.
         return payload
