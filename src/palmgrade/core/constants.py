@@ -17,7 +17,9 @@ FONT_COLOR = (255, 255, 255)  # putih
 
 # Streaming
 JPEG_QUALITY_STREAM = 42
-JPEG_QUALITY_SAVE = 80
+# Kualitas encode untuk gambar yang disimpan (WebP/JPEG, skala 0–100 sama untuk keduanya).
+# 65 = sweet-spot bukti visual: ukuran jauh lebih kecil, detail buah masih jelas.
+JPEG_QUALITY_SAVE = 65
 
 # Frame queue
 FRAME_QUEUE_MAXSIZE = 5
