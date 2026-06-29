@@ -12,10 +12,11 @@ jobs:
     steps:
       - name: Extract Trello Card ID from PR body
         id: extract
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          PR_BODY="${{ github.event.pull_request.body }}"
           # Extract card short ID from Trello URL (https://trello.com/c/XXXXXXXX)
-          CARD_ID=$(echo "$PR_BODY" | grep -oP 'trello\.com/c/\K[a-zA-Z0-9]+' | head -1)
+          CARD_ID=$(printf '%s' "$PR_BODY" | grep -oP 'trello\.com/c/\K[a-zA-Z0-9]+' | head -1)
 
           if [ -z "$CARD_ID" ]; then
             echo "⚠️ No Trello card URL found in PR body. Skipping."
@@ -52,11 +53,14 @@ jobs:
 
       - name: Add PR link as Trello Card Attachment
         if: steps.extract.outputs.found == 'true'
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           curl -s -X POST \
             "https://api.trello.com/1/cards/${{ steps.get_card.outputs.full_id }}/attachments" \
             -d "key=${{ secrets.TRELLO_API_KEY }}" \
             -d "token=${{ secrets.TRELLO_TOKEN }}" \
-            -d "url=${{ github.event.pull_request.html_url }}" \
-            -d "name=PR: ${{ github.event.pull_request.title }}" \
+            --data-urlencode "url=$PR_URL" \
+            --data-urlencode "name=PR: $PR_TITLE" \
             > /dev/null && echo "✅ PR link attached to Trello card"
