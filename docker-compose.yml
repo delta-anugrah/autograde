@@ -17,6 +17,21 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    # Healthcheck HTTP /health — restart policy hanya nolong kalau proses EXIT;
+    # ini menandai container UNHEALTHY kalau proses masih hidup tapi HANG (mis.
+    # threadpool starvation). Pakai python stdlib karena image slim tak punya curl.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,os;urllib.request.urlopen('http://localhost:'+os.environ['APP_PORT']+'/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # Batasi ukuran log per container supaya disk tidak penuh (log FPS 24/7).
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8001
@@ -71,6 +86,21 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    # Healthcheck HTTP /health — restart policy hanya nolong kalau proses EXIT;
+    # ini menandai container UNHEALTHY kalau proses masih hidup tapi HANG (mis.
+    # threadpool starvation). Pakai python stdlib karena image slim tak punya curl.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,os;urllib.request.urlopen('http://localhost:'+os.environ['APP_PORT']+'/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # Batasi ukuran log per container supaya disk tidak penuh (log FPS 24/7).
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8002
@@ -124,6 +154,21 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    # Healthcheck HTTP /health — restart policy hanya nolong kalau proses EXIT;
+    # ini menandai container UNHEALTHY kalau proses masih hidup tapi HANG (mis.
+    # threadpool starvation). Pakai python stdlib karena image slim tak punya curl.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,os;urllib.request.urlopen('http://localhost:'+os.environ['APP_PORT']+'/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # Batasi ukuran log per container supaya disk tidak penuh (log FPS 24/7).
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8003
