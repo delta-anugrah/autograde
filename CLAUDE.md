@@ -81,7 +81,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 - **`make up` cuma perlu** kalau dependency / `Dockerfile` / SDK berubah; untuk ubah kode pakai `make restart`.
 - **Dev without a camera**: `.env` → `CAMERA_TYPE=opencv` + `CAMERA_VIDEO_PATH=/videos/<file>.mp4` (host `sawit/` is mounted at `/videos`).
 - **Verify**: `curl :8001/health`; `curl :8001/health/detail` (camera_connected, gpu_available, workers, outbox_pending); stream at `http://localhost:8001/api/video_feed`.
-- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`). Lint via **`ruff check`**. Keduanya jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware).
+- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`). Lint via **`ruff check`**. Keduanya jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware).
 - From-zero prod setup (NVIDIA toolkit, MVS install, camera IP): `docs/SETUP.md`.
 
 ---
@@ -123,7 +123,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 - `GET /health` (line health check in api `getLines()`)
 
 **Shared config:**
-- `WEBHOOK_SECRET` — **one** secret, both directions; must equal `palmgrade-api` `WEBHOOK_SECRET`.
+- `WEBHOOK_SECRET` — **one** secret, both directions; must equal `palmgrade-api` `WEBHOOK_SECRET`. **Fail-fast:** `Settings.validate_for_runtime()` raise saat `APP_ENV=production` & secret masih default (`supersecret123`) → container tolak start. **Wajib isi `WEBHOOK_SECRET` di `.env` PC prod** (dev tetap boleh default, cuma warning).
 - `machine_id` — `LINE_1/2/3_MACHINE_ID` in `.env` = the three `machines.id` UUIDs in api Postgres.
   docker-compose falls back to seed UUIDs if unset.
 - Saved images: api maps `machine_id → machines.line_code` and serves at
