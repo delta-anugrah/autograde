@@ -256,9 +256,6 @@ class FrameProcessingWorker:
                     else:
                         ripeness_status = label.lower()
                     ripeness_conf = score
-                    self.state.track_history[track_id]["processed"] = True
-                    self._processed_objects.add(track_id)
-                    self._processed_times[track_id] = time.time()
 
                     annotated = self.pipeline.draw_boxes(frame.copy(), results)
 
@@ -309,7 +306,13 @@ class FrameProcessingWorker:
 
                     truck_id = self.state.current_truck_id
                     if truck_id:
-                        event_id = str(uuid.uuid4())
+                        # event_id deterministik (machine_id + timestamp file, unik per
+                        # detik per line) → kalau frame ini diproses ulang setelah crash
+                        # SEBELUM `processed` di-set, event_id tetap sama → API idempotent
+                        # (already_processed) → tidak double count.
+                        event_id = str(
+                            uuid.uuid5(uuid.NAMESPACE_URL, f"{self.settings.machine_id}:{timestamp}")
+                        )
                         outbox_payload = {
                             "event_id": event_id,
                             "machine_id": self.settings.machine_id,
@@ -329,6 +332,14 @@ class FrameProcessingWorker:
                             self.outbox_store.add_event(event_id, self.settings.machine_id, outbox_payload)
                         except Exception as exc:
                             logger.error("Failed to write event %s to outbox: %s", event_id, exc)
+
+                    # Tandai `processed` SETELAH event aman di outbox (Celah-1 fix):
+                    # kalau crash di tengah blok di atas, track ini BELUM processed →
+                    # diproses ulang next frame → event_id deterministik = idempotent.
+                    # Tanpa truck (truck_id null) tetap ditandai supaya tidak re-trigger.
+                    self.state.track_history[track_id]["processed"] = True
+                    self._processed_objects.add(track_id)
+                    self._processed_times[track_id] = time.time()
 
         # H6: do NOT discard from _processed_objects on cleanup — prevents re-trigger
         # if ByteTrack reuses the ID or the object re-enters after being marked inactive.
