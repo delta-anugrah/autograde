@@ -10,7 +10,7 @@ To apply on a camera, use MVS (or `MV_CC_FeatureLoad`) manually.
 
 | File | Source camera | Notes |
 |---|---|---|
-| `hikrobot.mfs` | HIKROBOT GigE Vision (device v1.2.0) | exported 2026-06-17 from production-tuned line |
+| `hikrobot.mfs` | HIKROBOT GigE Vision (device v1.2.0) | re-exported 2026-06-29 from `SAWIT-latest` MVS Feature Save (adds Decimation params; white balance masih Continuous — locking ke Once di-track terpisah) |
 
 ## Apply via MVS
 

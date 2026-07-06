@@ -57,11 +57,14 @@ each YOLO frame (ByteTrack assigns track_id per object):
   label in ("acc","rej") AND center inside ROI AND track not processed:
       area = (x2-x1)*(y2-y1)
       if area < MINIMUM_SIZE (460000) OR >1 fruit in ROI this frame → force "rej"
-      mark track processed (_processed_objects.add + _processed_times)
-      _save_ripeness(): annotated JPEG + {ts}_auto_ripeness.json
+      _save_ripeness(): annotated WebP (quality 65) + {ts}_auto_ripeness.json
       if _last_tp: _save_tp(): {ts}_auto_tp.json (no image, same timestamp) then clear
       push event to event_queue (drop-old) for WebSocket
       if truck active (if truck_id:) → outbox.add_event(...)   # auto: gated on truck
+          event_id = uuid5(machine_id:timestamp)  # deterministik → replay idempotent
+      mark track processed LAST (_processed_objects.add + _processed_times)
+      # processed di-set SETELAH outbox: crash mid-block → frame di-reprocess dgn
+      # event_id sama → API balas already_processed → tidak double count
 ```
 
 - `ResultRepository.list_today_results()` merges `_ripeness.json` + `_tp.json` per base_name.
@@ -95,18 +98,20 @@ FrameProcessingWorker / CaptureService
 - Backoff: base **5s**, exponential to cap **600s**, max **50** retries (`outbox_store.py`).
 - Delivered if api returns `200/201` **or** body contains `already_processed`.
 - Survives restart — `artifacts/outbox.db` per container. If api down/offline, events are **not** lost.
+- SQLite durability eksplisit: **`PRAGMA journal_mode=WAL` + `synchronous=FULL`** — commit di-fsync, event yang sudah tercatat selamat dari mati listrik (write rate rendah, biaya fsync ringan).
+- `event_id`: **auto** = uuid5 deterministik dari `machine_id:timestamp` (re-process pasca-crash → id sama → idempotent); **manual reject** = uuid4.
 - `add_event()` is wrapped in `try/except` + `logger.error` (never `try/except: pass`) so a full disk
   logs an error instead of crashing the detection loop.
 
 **Event payload (field names exact):**
 ```json
 {
-  "event_id": "uuid-v4",
+  "event_id": "uuid (auto: uuid5 deterministik, manual: uuid4)",
   "machine_id": "uuid",
   "assignment_id": "uuid-or-null",
   "truck_id": "uuid-or-null",
-  "timestamp": "ISO-8601 string",
-  "image_path": "captures/results/{date}/{ts}_auto.jpg",
+  "timestamp": "ISO-8601 UTC-aware (+00:00)",
+  "image_path": "captures/results/{date}/{ts}_auto.webp",
   "prediction": "Acc | Rej",
   "ripeness_status": "ACC | REJ",
   "ripeness_confidence": 0.92,
@@ -141,8 +146,9 @@ UUIDs (docker-compose falls back to seed UUIDs if unset). api maps `machine_id �
 to serve images at `/api/v1/captures/<line_code>/...`. api SSE events after ingest:
 `inspection_saved`, `new_quality_control`, `assignment_changed`.
 
-> Day-boundary note: vision sends naive local `datetime.now().isoformat()`; keep both containers
-> `TZ=Asia/Jakarta` so api's date bucketing (`+07:00`) lines up.
+> Day-boundary note: **event** `timestamp` sekarang UTC-aware (`datetime.now(timezone.utc)`) — api
+> parse dengan benar tanpa asumsi TZ. File JSON di disk masih pakai naive local time (nama folder
+> tanggal + `results_today` mengikuti jam lokal container).
 
 ---
 
@@ -156,6 +162,10 @@ to serve images at `/api/v1/captures/<line_code>/...`. api SSE events after inge
    (single-trigger). Never `discard()` an active track. `run_once` trims only IDs that are gone from
    `track_history` **and** stale >300s (`_processed_times`) — pure memory control, can't re-trigger
    (the fruit left the frame long ago).
+   **Ordering:** `processed` di-set **SETELAH** save + outbox write (bukan sebelum). Kalau crash di
+   tengah blok, track belum processed → frame berikutnya reprocess → `event_id` uuid5 deterministik
+   (`machine_id:timestamp`) menghasilkan id sama → API idempotent, tidak double count. Track tanpa
+   truck aktif tetap ditandai processed supaya tidak re-trigger.
 2. **`state.lock`** around all physical camera access (`FrameCaptureWorker.run_once` +
    `capture_manual_reject`) — concurrent Hikrobot SDK access can crash.
 3. **MJPEG via `threading.Condition`**, not `result_queue` — the old queue pattern served only one
@@ -216,6 +226,16 @@ Docker bridge blocks. Consequence: `ports:`/`extra_hosts:` are ignored — each 
 Toolkit on host (add the NVIDIA apt repo first; `apt install nvidia-container-toolkit` alone isn't enough
 — see `SETUP.md`). Without it YOLO runs on CPU (~10× slower).
 
+**TensorRT engine (SEMENTARA DINONAKTIFKAN):** normalnya `make build-engine` (one-shot container,
+`scripts/build_engine.py`) export `.pt` → engine FP16 di `engines/<model>.sm<cc>.engine` — **hardware-locked**
+per compute capability (`Settings.engine_path_for_gpu`), tidak di-commit, auto-skip kalau sudah ada;
+runtime (`pipelines/model_registry.py`) auto-pakai engine dan **fallback ke `.pt`** kalau tidak ada.
+Saat ini install TensorRT di `Dockerfile` dan step `$(MAKE) build-engine` di target `up` **di-comment**
+(unpack libnvinfer gagal "no space left on device" di disk dev yang ketat). Runtime jalan via `.pt`.
+Re-enable di PC prod: uncomment kedua blok → rebuild → `make build-engine` (~5–15 mnt pertama kali).
+PENTING: TensorRT wajib di-install dari index NVIDIA (`https://pypi.nvidia.com`, wheel binary) —
+PyPI publik cuma punya source stub yang bikin pip hang di "Preparing metadata".
+
 **SDK flow in `make up`:** `mkdir -p sdk/lib64` → `cp -r /opt/MVS/lib/64/. sdk/lib64/` +
 `cp -r /opt/MVS/Samples/64/Python/MvImport sdk/MvImport` → Dockerfile `COPY sdk/ /tmp/sdk/` → copy into
 `/opt/MVS/lib/64` + site-packages → `ENV MVCAM_COMMON_RUNENV=/opt/MVS/lib`. The **whole** `lib64` is
@@ -226,7 +246,7 @@ needed (not just `libMvCameraControl.so`): `MV_CC_EnumDevices()` dynamically loa
 1. Install NVIDIA Container Toolkit → verify `docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi`.
 2. Install Hikrobot MVS SDK at `/opt/MVS/` (`SETUP.md § 3`).
 3. `mkdir -p models/release` + copy `best_3class_v2.pt`.
-4. `.env`: `LINE_1/2/3_MACHINE_ID` (real UUIDs), `BACKEND_URL`, `WEBHOOK_SECRET`, `CAMERA_TYPE=hikrobot`, `CAMERA_FPS=25`.
+4. `.env`: `LINE_1/2/3_MACHINE_ID` (real UUIDs), `BACKEND_URL`, `WEBHOOK_SECRET`, `CAMERA_TYPE=hikrobot`, `CAMERA_FPS=10` (samakan dengan Acquisition Frame Rate kamera — `SETUP.md § 6.3`, alasan bandwidth 3 kamera).
 5. `make up`.
 6. Verify `curl :8001/health/detail | grep -E "gpu_available|camera_connected"`.
 
@@ -241,12 +261,15 @@ needed (not just `libMvCameraControl.so`): `MV_CC_EnumDevices()` dynamically loa
 
 ```
 artifacts/line-N/   (host) ↔ /app/artifacts (container)
-  results/{YYYY-MM-DD}/{ts}_auto.jpg + {ts}_auto_ripeness.json [+ {ts}_auto_tp.json]
-  captures/                 # manual reject frames
-  errors/{date}/            # copy of every rej (manual reject duplicated here)
+  results/{YYYY-MM-DD}/{ts}_auto.webp + {ts}_auto_ripeness.json [+ {ts}_auto_tp.json]
+                       {ts}_manual.webp + {ts}_manual_ripeness.json   # manual reject
+  captures/                 # legacy — dibuat saat startup, TIDAK ditulis lagi
+  errors/                   # legacy — dibuat saat startup, TIDAK ditulis lagi (REJ via metadata)
   logs/
-  outbox.db                 # SQLite durable outbox
+  outbox.db                 # SQLite durable outbox (WAL + synchronous=FULL)
 ```
+Gambar disimpan **WebP quality 65** (`JPEG_QUALITY_SAVE` di `core/constants.py` — nama konstanta
+legacy, berlaku untuk WebP juga; `LocalFileStorage.write_image` pilih codec dari ekstensi file).
 Served by FastAPI `StaticFiles` mount `/captures` → `artifacts/`, so `image_url`
 `captures/results/{date}/{file}` resolves on the vision side. (The api re-serves per line under
 `/api/v1/captures/<line_code>/...`.)

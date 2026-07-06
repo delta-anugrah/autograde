@@ -142,7 +142,7 @@ Orchestration layer — menggabungkan repository, pipeline, dan integration.
 
 ### `repositories/`
 
-Persistence layer — baca/tulis file JSON dan JPEG.
+Persistence layer — baca/tulis file JSON dan WebP.
 
 - Boleh: baca/tulis file via `LocalFileStorage`
 - Dilarang: rule PASS/FAIL, logic HTTP, logic model inference
