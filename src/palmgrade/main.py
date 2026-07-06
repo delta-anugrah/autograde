@@ -65,8 +65,9 @@ def create_app() -> FastAPI:
         for folder in [settings.captures_dir, settings.results_dir, settings.errors_dir, settings.logs_dir]:
             folder.mkdir(parents=True, exist_ok=True)
 
-        if settings.webhook_secret == "supersecret123":
-            logger.warning("WEBHOOK_SECRET is using the default value — set it before production deployment")
+        # Fail-fast kalau secret masih default di production (dev tetap boleh,
+        # cuma warning). Lihat Settings.validate_for_runtime().
+        settings.validate_for_runtime()
 
         # Init kamera — dikontrol lewat env var CAMERA_TYPE
         # hikrobot (default) = Hikrobot industrial camera (butuh SDK + hardware)

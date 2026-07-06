@@ -1,14 +1,24 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def _as_bool(value: str | None, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# Nilai default WEBHOOK_SECRET yang ikut ke-commit di repo (dan dipakai sebagai
+# fallback di docker-compose). Aman untuk dev, TAPI di production wajib diganti —
+# lihat Settings.validate_for_runtime(). Dikonstanta di satu tempat supaya tidak
+# tersebar sebagai magic string.
+_DEFAULT_WEBHOOK_SECRET = "supersecret123"
 
 
 @dataclass(frozen=True)
@@ -24,8 +34,8 @@ class Settings:
     enable_webhook: bool = field(default_factory=lambda: _as_bool(os.getenv("ENABLE_WEBHOOK"), True))
     backend_url: str = field(default_factory=lambda: os.getenv("BACKEND_URL", "http://localhost:2500"))
     backend_api_ver: str = field(default_factory=lambda: os.getenv("BACKEND_API_VER", "/api/v1"))
-    webhook_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", "supersecret123"))
-    internal_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", "supersecret123"))
+    webhook_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", _DEFAULT_WEBHOOK_SECRET))
+    internal_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", _DEFAULT_WEBHOOK_SECRET))
 
     # Camera
     camera_type: str = field(default_factory=lambda: os.getenv("CAMERA_TYPE", "hikrobot"))
@@ -74,6 +84,29 @@ class Settings:
     upload_hour: int = field(default_factory=lambda: int(os.getenv("UPLOAD_HOUR", "0")))
     upload_minute: int = field(default_factory=lambda: int(os.getenv("UPLOAD_MINUTE", "0")))
     destination_upload: str = field(default_factory=lambda: os.getenv("DESTINATION_UPLOAD", ""))
+
+    # ------------------------------------------------------------------ validation
+
+    def validate_for_runtime(self) -> None:
+        """Fail-fast untuk salah konfigurasi yang berbahaya di production.
+
+        WEBHOOK_SECRET mengamankan kedua arah antara vision <-> palmgrade-api.
+        Kalau `.env` lupa diisi di PC prod, service dulu tetap jalan normal pakai
+        default publik `supersecret123` (cuma warning) — siapa pun yang lihat repo
+        bisa mengirim event palsu atau perintah internal. Di production kita tolak
+        start; di development default tetap boleh (cuma warning) supaya alur
+        dev/opencv lancar.
+        """
+        if self.webhook_secret != _DEFAULT_WEBHOOK_SECRET:
+            return
+        if self.environment == "production":
+            raise RuntimeError(
+                "WEBHOOK_SECRET masih memakai nilai default publik di APP_ENV=production. "
+                "Set WEBHOOK_SECRET ke nilai rahasia (harus sama dengan palmgrade-api) sebelum deploy."
+            )
+        logger.warning(
+            "WEBHOOK_SECRET memakai nilai default — set sebelum deployment production."
+        )
 
     # ------------------------------------------------------------------ paths
 
