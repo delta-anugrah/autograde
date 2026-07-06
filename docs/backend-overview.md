@@ -40,13 +40,13 @@ palmgrade-vision/
       routes/                  # Hanya deklarasi endpoint dan router wiring
       controllers/             # Terima request, panggil service, return response
       services/                # Orchestration dan business flow
-      repositories/            # Baca/tulis file (JSON, JPEG)
+      repositories/            # Baca/tulis file (JSON, WebP)
       pipelines/               # Logic YOLO inference + frame processing
       integrations/
         camera/                # HikrobotCamera / OpenCVCamera / PhotoCamera
         notifications/         # WebhookClient (httpx async) — legacy, not used for main flow
         outbox/                # OutboxStore — SQLite durable event persistence
-        storage/               # LocalFileStorage (read/write JSON + JPEG)
+        storage/               # LocalFileStorage (read/write JSON + WebP)
         scheduler/             # APScheduler daily upload cron
       workers/                 # Background threads + asyncio tasks
       domain/                  # Business rule murni — tidak ada I/O
@@ -74,7 +74,7 @@ palmgrade-vision/
 | `routes/` | Deklarasi endpoint, include controller | Logic apapun |
 | `controllers/` | Terima request, return response, HTTPException | Query DB, akses model langsung |
 | `services/` | Orchestrasi, gabungkan repo + pipeline | Raw SQL, detail SDK, return HTTP |
-| `repositories/` | Baca/tulis file JSON dan JPEG | Business rule, HTTP call, inference |
+| `repositories/` | Baca/tulis file JSON dan WebP | Business rule, HTTP call, inference |
 | `pipelines/` | YOLO inference, frame processing, draw boxes | HTTP, persistence, business rule |
 | `integrations/` | Akses sistem eksternal (kamera, webhook, storage) | Business rule |
 | `workers/` | Background loop, queue, hold lock, RuntimeState | Langsung return HTTP response |
@@ -129,7 +129,7 @@ Semua hasil grading hari ini.
       "tp_status": "PASS",
       "tp_confidence": 0.88,
       "timestamp": "2026-05-18T10:30:00.123456",
-      "image_url": "captures/results/2026-05-18/2026-05-18_103000_auto.jpg",
+      "image_url": "captures/results/2026-05-18/2026-05-18_103000_auto.webp",
       "capture_type": "auto",
       "truck_id": "uuid-or-null",
       "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 }
@@ -180,12 +180,12 @@ Capture frame saat ini secara manual, langsung mark sebagai `rej`.
     "tp_status": null,
     "tp_confidence": null,
     "timestamp": "...",
-    "image_url": "captures/results/2026-05-18/..._manual.jpg",
+    "image_url": "captures/results/2026-05-18/..._manual.webp",
     "capture_type": "manual",
     "truck_id": "uuid-or-null"
   }
   ```
-- **Side effect:** Simpan JPEG + metadata JSON, tulis ke OutboxStore, push ke `event_queue` untuk WebSocket broadcast.
+- **Side effect:** Simpan WebP + metadata JSON ke `results/{date}/`, tulis ke OutboxStore, push ke `event_queue` untuk WebSocket broadcast.
 
 ---
 
@@ -242,7 +242,7 @@ frame_queue                      state.latest_raw_frame
   ├── direction-aware zone       ├── resize to STREAM_WIDTH×STREAM_HEIGHT
   ├── _processed_objects check   └── imencode → state.latest_frame
   ├── Single-trigger save:            + frame_condition.notify_all()
-  │     ├── write_image() JPEG
+  │     ├── write_image() WebP
   │     ├── write_json() _ripeness.json
   │     ├── write_json() _tp.json (if TP)
   │     ├── event_queue.put_nowait()
@@ -281,16 +281,18 @@ Keduanya **wajib** acquire `state.lock` sebelum memanggil `camera.grab_frame()`.
 artifacts/
   results/
     {YYYY-MM-DD}/
-      {timestamp}_auto.jpg              # Annotated frame buah
+      {timestamp}_auto.webp             # Annotated frame buah (WebP, quality 65)
       {timestamp}_auto_ripeness.json    # Metadata grading
       {timestamp}_auto_tp.json          # Metadata TP (jika ada)
-      {timestamp}_manual.jpg             # Manual capture
+      {timestamp}_manual.webp           # Manual capture
       {timestamp}_manual_ripeness.json  # suffix _ripeness wajib — dibaca oleh list_today_results()
-  errors/                               # Copy dari semua hasil rej
+  captures/                             # legacy — tidak ditulis lagi
+  errors/                               # legacy — tidak ditulis lagi (REJ ditemukan via metadata ripeness_status)
   logs/
+  outbox.db                             # SQLite durable outbox (WAL + synchronous=FULL)
 ```
 
-`image_url` di response: `captures/results/{date}/{timestamp}_auto.jpg`
+`image_url` di response: `captures/results/{date}/{timestamp}_auto.webp`
 
 FastAPI mount static: `app.mount("/captures", StaticFiles(directory="artifacts"))`
 
@@ -315,12 +317,12 @@ FrameProcessingWorker / CaptureService
 **Payload** — field names dan values HARUS tepat:
 ```json
 {
-  "event_id": "uuid-v4",
+  "event_id": "uuid",
   "assignment_id": "uuid-or-null",
   "machine_id": "uuid-dari-tabel-machines",
   "truck_id": "uuid",
-  "timestamp": "2026-05-18T10:30:00.123456",
-  "image_path": "captures/results/2026-05-18/2026-05-18_103000_auto.jpg",
+  "timestamp": "2026-05-18T10:30:00.123456+00:00",
+  "image_path": "captures/results/2026-05-18/2026-05-18_103000_auto.webp",
   "prediction": "Acc",
   "ripeness_status": "ACC",
   "ripeness_confidence": 0.92,
@@ -332,7 +334,8 @@ FrameProcessingWorker / CaptureService
 ```
 
 **Kontrak penting:**
-- `event_id`: UUID v4 baru per event — dipakai API untuk idempotency (sparse unique index)
+- `event_id`: dipakai API untuk idempotency (sparse unique index). **Auto** = uuid5 deterministik dari `machine_id:timestamp` (reprocess pasca-crash → id sama → tidak double count); **manual** = uuid4
+- `timestamp`: ISO-8601 **UTC-aware** (`datetime.now(timezone.utc)`)
 - `assignment_id`: dari `state.current_assignment_id` — set saat `/internal/assignment` dipanggil
 - `prediction`: `"Acc"` / `"Rej"` — required
 - `ripeness_status`: `"ACC"` / `"REJ"` UPPERCASE

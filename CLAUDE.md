@@ -43,7 +43,7 @@ src/palmgrade/
   routes/          # endpoint declarations only → controllers
   controllers/     # request handlers
   services/        # business flow (capture, inspection, streaming, truck, health, result)
-  repositories/    # file I/O (JPEG/JSON) via LocalFileStorage
+  repositories/    # file I/O (WebP/JSON) via LocalFileStorage
   pipelines/       # YOLO inference (realtime_inspection_pipeline, model_registry)
   workers/         # background threads + RuntimeState (capture / display / processing / outbox_retry / event_broadcast)
   integrations/    # camera/{hikrobot,opencv,photo}, notifications/(webhook), storage/, scheduler/, outbox/
@@ -66,7 +66,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 
 | Cmd | What |
 |---|---|
-| `make up` | prod: copy MVS SDK + build GPU (`cu126`) + **build TensorRT engine** + start 3 lines |
+| `make up` | prod: copy MVS SDK + build GPU (`cu126`) + start 3 lines (TensorRT build **temp-disabled**, lihat bawah) |
 | `make up-dev` | dev: build CPU (no SDK) + start 3 lines |
 | `make restart` | **code-only change** — kode di-bind-mount (`.:/app`), jadi **tidak perlu rebuild** |
 | `make start` / `make up-1\|2\|3` | start without rebuild (all / single line) |
@@ -74,7 +74,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 | `make logs` / `make logs-1` | tail logs (combined / per line) |
 | `make down` / `make ps` / `make rebuild` / `make rebuild-clean` / `make clean` | stop / status / rebuild / clean rebuild (`--no-cache`) / cleanup |
 
-- **TensorRT (GPU speedup, akurasi sama)**: `make up` otomatis build engine FP16 (`engines/<model>.sm<cc>.engine`, **hardware-locked**) sekali per GPU; runtime auto-pakai engine & **fallback ke `.pt`** kalau belum ada. Engine **tidak di-commit** — tiap PC build sendiri (pertama kali ~5–15 mnt). Detail: `docs/overview.md`.
+- **TensorRT (GPU speedup, akurasi sama) — SEMENTARA DINONAKTIFKAN**: install TensorRT di Dockerfile + step `build-engine` di `make up` di-comment (disk dev PC penuh saat unpack libnvinfer). Runtime **fallback ke `.pt`** otomatis (`pipelines/model_registry.py`). Di PC prod (disk lega): uncomment blok TensorRT di `Dockerfile` + baris `$(MAKE) build-engine` di `Makefile`, rebuild, lalu `make build-engine` — engine FP16 (`engines/<model>.sm<cc>.engine`, **hardware-locked**, tidak di-commit) dibangun sekali per GPU (~5–15 mnt). Detail: `docs/overview.md` § Docker/SDK/GPU.
 - **`make up` cuma perlu** kalau dependency / `Dockerfile` / SDK berubah; untuk ubah kode pakai `make restart`.
 - **Dev without a camera**: `.env` → `CAMERA_TYPE=opencv` + `CAMERA_VIDEO_PATH=/videos/<file>.mp4` (host `sawit/` is mounted at `/videos`).
 - **Verify**: `curl :8001/health`; `curl :8001/health/detail` (camera_connected, gpu_available, workers, outbox_pending); stream at `http://localhost:8001/api/video_feed`.
@@ -111,7 +111,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
   - `tp_status` `"PASS"` or `null` (never `"TP"`)
   - `capture_type` `"auto"|"manual"`
   - `machine_id` UUID (must equal a `machines.id`)
-  - `event_id` UUID (idempotency), `truck_id` optional, `bounding_box` `{x_min,y_min,x_max,y_max}`
+  - `event_id` UUID (idempotency; auto = uuid5 deterministik), `timestamp` ISO **UTC-aware**, `truck_id` optional, `bounding_box` `{x_min,y_min,x_max,y_max}`
 - api responds `200/201` or `{status:"already_processed"}` (both treated as delivered).
 
 **api → vision** — header **`x-internal-secret: WEBHOOK_SECRET`**:
@@ -136,12 +136,13 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 
 1. **Outbox before API** — never POST events directly from a worker; always `outbox_store.add_event()`.
    Auto detection enqueues **only when a truck is active** (`if truck_id:`); **manual reject always enqueues** (truck may be `null`).
+   Auto `event_id` = **deterministic uuid5** (`machine_id:timestamp`) dan track ditandai `processed` **SETELAH** outbox write — crash mid-block → frame diproses ulang dengan `event_id` sama → API idempotent, no double count. (Manual reject tetap uuid4.)
 2. **`_processed_objects`** — never `discard()` an active track (single-trigger). Trim only IDs that are inactive (gone from `track_history`) **and** stale >300s.
 3. **`state.lock`** around all physical camera access (`FrameCaptureWorker` + `capture_manual_reject`).
 4. **MJPEG** — only `DisplayWorker` writes `state.latest_frame`, via `threading.Condition.notify_all()` (multi-viewer). It renders `last_yolo_frame` (paired with results) and runs at `STREAM_FPS` (default 12), decoupled from `CAMERA_FPS`.
 5. **DI** (`core/dependencies.py`) — `@lru_cache` singletons **except** `get_capture_service()` / `get_health_service()` (camera injected at startup). `get_outbox_store()` may cache (SQLite singleton).
 6. **Lifespan** (not `@app.on_event`); `repo_root = parents[3]`; every worker `run_loop` wraps `run_once` in `try/except`; `FrameCaptureWorker` needs `device_index` (so line-2/3 reconnect to the correct camera).
-7. **`tp_status` = `"PASS"`** (not `"TP"`). **`image_url` = `captures/results/{date}/{ts}_auto.jpg`** (consistent with `/captures` mount).
+7. **`tp_status` = `"PASS"`** (not `"TP"`). **`image_url` = `captures/results/{date}/{ts}_auto.webp`** (consistent with `/captures` mount). Gambar disimpan **WebP** quality 65 (`JPEG_QUALITY_SAVE`); folder `errors/` **tidak ditulis lagi** — REJ ditemukan via metadata `ripeness_status`.
 8. **`cv2.imwrite` failure → `LocalFileStorage.write_image` raises `IOError`** (no orphaned JSON/outbox records).
 
 ---

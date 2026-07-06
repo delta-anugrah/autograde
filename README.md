@@ -26,7 +26,7 @@ Camera (Hikrobot / OpenCV / Photo)
     → FrameProcessingWorker (thread)
         → YOLOv8 + ByteTrack
         → detect: acc / rej / tp (tangkai panjang)
-        → save JPEG + JSON to artifacts/results/
+        → save WebP + JSON to artifacts/results/
         → OutboxStore.add_event()  ← durable SQLite write
     → OutboxRetryWorker (daemon thread)
         → POST /api/v1/internal/vision/events → palmgrade-api
@@ -41,6 +41,7 @@ palmgrade-api → POST /internal/manual-reject → trigger capture_manual_reject
 **Minimum size**: 460,000 px² — objects below this area are forced to `rej`
 **Tracking**: ByteTrack — each fruit gets a unique `track_id`, saved only once (single-trigger)
 **Detection zone**: ROI box (`ROI_X1/Y1/X2/Y2`) — only objects whose center falls inside the box are counted. Default `0,0,0,0` = full frame. TP class is exempt from ROI check.
+**Multi-fruit rule**: >1 buah (belum diproses) berada dalam ROI di frame yang sama → semuanya di-force `rej` (buah bertumpuk).
 
 ---
 
@@ -198,7 +199,7 @@ cp .env.example .env
 # BACKEND_URL=http://<ip>:2500
 # WEBHOOK_SECRET=<sama dengan palmgrade-api>
 # CAMERA_TYPE=hikrobot
-# CAMERA_FPS=25
+# CAMERA_FPS=10   — samakan dengan Acquisition Frame Rate kamera (docs/SETUP.md § 6.3)
 ```
 
 ### 5. Build GPU image & run
@@ -226,6 +227,7 @@ curl http://localhost:8001/health/detail | grep gpu_available
 make up          # production: copy SDK dari /opt/MVS/, build GPU+SDK, start semua line
 make up-dev      # development: build CPU tanpa SDK, start semua line
 make start       # start semua line tanpa rebuild (pakai image yang sudah ada)
+make restart     # restart semua container — cukup untuk perubahan KODE (bind-mount .:/app)
 make up-1        # start line-1 saja tanpa rebuild
 make up-2        # start line-2 saja tanpa rebuild
 make up-3        # start line-3 saja tanpa rebuild
@@ -237,6 +239,8 @@ make logs-3      # tail logs line-3 saja
 make ps          # status semua container
 make rebuild     # rebuild image GPU/CUDA (tanpa SDK, tanpa start) — selalu GPU
 make rebuild-gpu # sama dengan make rebuild (alias, untuk kompatibilitas)
+make rebuild-clean # full rebuild --no-cache (hanya kalau cache dicurigai rusak — lambat)
+make build-engine  # build TensorRT FP16 engine (SEMENTARA NONAKTIF — lihat catatan di bawah)
 make clean       # down + hapus image lokal
 ```
 
@@ -244,7 +248,9 @@ make clean       # down + hapus image lokal
 >
 > **`make rebuild` selalu GPU** — tidak ada variant CPU untuk rebuild. Jika ingin build CPU (khusus dev tanpa GPU), gunakan `make up-dev`.
 
-> **Hot-reload** — source code di-mount via `.:/app`. Perubahan Python langsung terdeteksi tanpa rebuild image (saat `APP_ENV=development`).
+> **Hot-reload** — source code di-mount via `.:/app`. Perubahan Python langsung terdeteksi tanpa rebuild image (saat `APP_ENV=development`). Di production cukup `make restart` untuk perubahan kode — `make up` hanya perlu kalau dependency / `Dockerfile` / SDK berubah.
+
+> **TensorRT (sementara nonaktif)** — install TensorRT di `Dockerfile` dan step `build-engine` di `make up` sedang di-comment (disk dev PC penuh saat unpack). Runtime otomatis **fallback ke model `.pt`** (`pipelines/model_registry.py`) — fungsional sama, hanya lebih lambat. Di PC prod: uncomment blok TensorRT di `Dockerfile` + `$(MAKE) build-engine` di `Makefile`, rebuild, lalu `make build-engine`.
 
 > **Video file** — kalau `CAMERA_TYPE=opencv` dan `CAMERA_VIDEO_PATH` diisi, path harus di dalam container. Semua 3 line sudah di-mount `/home/nexio/Desktop/Projects/sawit:/videos:ro`. Gunakan `CAMERA_VIDEO_PATH=/videos/namafile.mp4`.
 
@@ -309,12 +315,12 @@ Events are written to `OutboxStore` (SQLite) first, then delivered asynchronousl
 
 ```json
 {
-  "event_id": "uuid-v4",
+  "event_id": "uuid",
   "assignment_id": "uuid-or-null",
   "machine_id": "uuid-from-machines-table",
   "truck_id": "uuid-or-null",
-  "timestamp": "2026-05-18T10:30:00.123456",
-  "image_path": "captures/results/2026-05-18/2026-05-18_103000_123456_auto.jpg",
+  "timestamp": "2026-05-18T10:30:00.123456+00:00",
+  "image_path": "captures/results/2026-05-18/2026-05-18_103000_123456_auto.webp",
   "prediction": "Acc",
   "ripeness_status": "ACC",
   "ripeness_confidence": 0.92,
@@ -326,7 +332,8 @@ Events are written to `OutboxStore` (SQLite) first, then delivered asynchronousl
 ```
 
 **Field contracts:**
-- `event_id`: UUID v4 — used by API for idempotency
+- `event_id`: UUID — used by API for idempotency. **Auto detection** = uuid5 deterministik (`machine_id:timestamp`) supaya re-process setelah crash menghasilkan `event_id` sama (no double count); **manual reject** = uuid4
+- `timestamp`: ISO-8601 **UTC-aware** (`datetime.now(timezone.utc)`)
 - `prediction`: `"Acc"` / `"Rej"` — required
 - `ripeness_status`: `"ACC"` / `"REJ"` UPPERCASE
 - `tp_status`: `"PASS"` atau `null` — bukan `"TP"`
@@ -339,15 +346,18 @@ Events are written to `OutboxStore` (SQLite) first, then delivered asynchronousl
 
 ```
 artifacts/line-1/
-├── captures/                  # Manual reject captures
-├── results/
+├── results/                   # Satu-satunya sumber kebenaran (auto + manual)
 │   └── 2026-05-18/
-│       ├── 2026-05-18_103000_auto.jpg               # Fruit image
+│       ├── 2026-05-18_103000_auto.webp               # Fruit image (WebP, quality 65)
 │       ├── 2026-05-18_103000_auto_ripeness.json      # Detection metadata
-│       └── 2026-05-18_103000_auto_tp.json            # Long stalk metadata (if detected)
-├── errors/                    # Copy of all rej results
-└── logs/
+│       ├── 2026-05-18_103000_auto_tp.json            # Long stalk metadata (if detected)
+│       ├── 2026-05-18_104500_manual.webp             # Manual reject capture
+│       └── 2026-05-18_104500_manual_ripeness.json
+├── logs/
+└── outbox.db                  # SQLite durable outbox
 ```
+
+> Folder `captures/` dan `errors/` masih dibuat saat startup tapi **tidak ditulis lagi** — manual reject disimpan ke `results/`, dan foto REJ ditemukan via metadata (`ripeness_status: "REJ"`), bukan salinan terpisah.
 
 Images are served as static files: `GET /captures/results/{date}/{filename}`
 

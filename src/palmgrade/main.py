@@ -185,7 +185,7 @@ def create_app() -> FastAPI:
     )
 
     # Static files — path /captures/... → artifacts/ directory
-    # image_url format: "captures/results/{date}/{timestamp}.jpg"
+    # image_url format: "captures/results/{date}/{timestamp}.webp"
     artifacts_dir = settings.artifacts_dir
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/captures", StaticFiles(directory=str(artifacts_dir)), name="captures")

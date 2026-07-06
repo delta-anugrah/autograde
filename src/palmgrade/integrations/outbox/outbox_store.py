@@ -40,6 +40,12 @@ class OutboxStore:
 
     def _init_db(self) -> None:
         with self._lock, self._db:
+            # Durability eksplisit (jangan andalkan default implementasi):
+            # - WAL: lebih tahan korupsi saat power-loss + baca/tulis tidak saling blok.
+            # - synchronous=FULL: fsync tiap commit → transaksi yang sudah commit
+            #   selamat dari mati listrik. Outbox write rate rendah, biaya fsync ringan.
+            self._db.execute("PRAGMA journal_mode=WAL")
+            self._db.execute("PRAGMA synchronous=FULL")
             self._db.executescript(_CREATE_SQL)
 
     def add_event(self, event_id: str, machine_id: str, payload: dict[str, Any]) -> None:
