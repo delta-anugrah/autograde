@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 
 from .base import CameraSource
+from .frame_utils import _validate_frame_len
 
 logger = logging.getLogger(__name__)
 
@@ -86,20 +87,27 @@ class HikrobotCamera(CameraSource):
             return None
 
         img_bytes = np.frombuffer(self._data_buf, dtype=np.uint8, count=frame_info.nFrameLen)
+        w, h = frame_info.nWidth, frame_info.nHeight
 
         if frame_info.enPixelType == PixelType_Gvsp_Mono8:
-            img = img_bytes.reshape((frame_info.nHeight, frame_info.nWidth))
+            if not _validate_frame_len(frame_info.nFrameLen, w, h, channels=1):
+                logger.warning("Dropping partial Mono8 frame: expected=%d got=%d", w * h, frame_info.nFrameLen)
+                return None
+            img = img_bytes.reshape((h, w))
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
         elif frame_info.enPixelType == PixelType_Gvsp_BayerRG8:
-            img = img_bytes.reshape((frame_info.nHeight, frame_info.nWidth))
+            if not _validate_frame_len(frame_info.nFrameLen, w, h, channels=1):
+                logger.warning("Dropping partial Bayer frame: expected=%d got=%d", w * h, frame_info.nFrameLen)
+                return None
+            img = img_bytes.reshape((h, w))
             img = cv2.cvtColor(img, cv2.COLOR_BAYER_RGGB2BGR_EA)
 
         elif frame_info.enPixelType in (17301513, PixelType_Gvsp_RGB8_Packed):
-            expected = frame_info.nHeight * frame_info.nWidth * 3
-            if frame_info.nFrameLen != expected:
-                logger.warning("Frame size mismatch: expected=%d, got=%d", expected, frame_info.nFrameLen)
-            img = img_bytes.reshape((frame_info.nHeight, frame_info.nWidth, 3))
+            if not _validate_frame_len(frame_info.nFrameLen, w, h, channels=3):
+                logger.warning("Dropping partial RGB frame: expected=%d got=%d", w * h * 3, frame_info.nFrameLen)
+                return None
+            img = img_bytes.reshape((h, w, 3))
             img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
         else:
