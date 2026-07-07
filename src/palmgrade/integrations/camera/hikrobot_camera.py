@@ -7,6 +7,8 @@ import cv2
 import numpy as np
 
 from .base import CameraSource
+from .frame_utils import _validate_frame_len
+from .mvs_error import format_mvs_ret
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +47,7 @@ class HikrobotCamera(CameraSource):
     def connect(self, index: int = 0) -> None:
         ret = MvCamera.MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, self.device_list)
         if ret != 0 or self.device_list.nDeviceNum == 0:
-            raise RuntimeError(f"No camera found, return code: {ret}")
+            raise RuntimeError(f"No camera found, return code: {format_mvs_ret(ret)}")
         logger.info("Found %d device(s)", self.device_list.nDeviceNum)
 
         device_info = cast(
@@ -55,17 +57,17 @@ class HikrobotCamera(CameraSource):
 
         ret = self.cam.MV_CC_CreateHandle(device_info)
         if ret != 0:
-            raise RuntimeError(f"CreateHandle failed with code: {ret}")
+            raise RuntimeError(f"CreateHandle failed with code: {format_mvs_ret(ret)}")
         logger.info("Camera handle created")
 
         ret = self.cam.MV_CC_OpenDevice(MV_ACCESS_Exclusive, 0)
         if ret != 0:
-            raise RuntimeError(f"OpenDevice failed with code: {ret}")
+            raise RuntimeError(f"OpenDevice failed with code: {format_mvs_ret(ret)}")
         logger.info("Camera device opened")
 
         ret = self.cam.MV_CC_StartGrabbing()
         if ret != 0:
-            raise RuntimeError(f"StartGrabbing failed with code: {ret}")
+            raise RuntimeError(f"StartGrabbing failed with code: {format_mvs_ret(ret)}")
         logger.info("Camera started grabbing")
 
         # O1: allocate frame buffer once (max 4096×3072 RGB) to avoid 36 MB alloc per frame
@@ -82,24 +84,31 @@ class HikrobotCamera(CameraSource):
 
         ret = self.cam.MV_CC_GetOneFrameTimeout(self._data_buf, self._buffer_size, frame_info, 100)
         if ret != 0:
-            logger.warning("Failed to grab frame, return code: %d", ret)
+            logger.warning("Failed to grab frame, return code: %s", format_mvs_ret(ret))
             return None
 
         img_bytes = np.frombuffer(self._data_buf, dtype=np.uint8, count=frame_info.nFrameLen)
+        w, h = frame_info.nWidth, frame_info.nHeight
 
         if frame_info.enPixelType == PixelType_Gvsp_Mono8:
-            img = img_bytes.reshape((frame_info.nHeight, frame_info.nWidth))
+            if not _validate_frame_len(frame_info.nFrameLen, w, h, channels=1):
+                logger.warning("Dropping partial Mono8 frame: expected=%d got=%d", w * h, frame_info.nFrameLen)
+                return None
+            img = img_bytes.reshape((h, w))
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
         elif frame_info.enPixelType == PixelType_Gvsp_BayerRG8:
-            img = img_bytes.reshape((frame_info.nHeight, frame_info.nWidth))
+            if not _validate_frame_len(frame_info.nFrameLen, w, h, channels=1):
+                logger.warning("Dropping partial Bayer frame: expected=%d got=%d", w * h, frame_info.nFrameLen)
+                return None
+            img = img_bytes.reshape((h, w))
             img = cv2.cvtColor(img, cv2.COLOR_BAYER_RGGB2BGR_EA)
 
         elif frame_info.enPixelType in (17301513, PixelType_Gvsp_RGB8_Packed):
-            expected = frame_info.nHeight * frame_info.nWidth * 3
-            if frame_info.nFrameLen != expected:
-                logger.warning("Frame size mismatch: expected=%d, got=%d", expected, frame_info.nFrameLen)
-            img = img_bytes.reshape((frame_info.nHeight, frame_info.nWidth, 3))
+            if not _validate_frame_len(frame_info.nFrameLen, w, h, channels=3):
+                logger.warning("Dropping partial RGB frame: expected=%d got=%d", w * h * 3, frame_info.nFrameLen)
+                return None
+            img = img_bytes.reshape((h, w, 3))
             img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
         else:

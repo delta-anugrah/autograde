@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [staging, main]
+  push:
+    branches: [staging, main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Sengaja TIDAK install torch/opencv/SDK — unit test di sini murni-logic
+      # (domain rules, outbox SQLite, event_id uuid5, streaming/config) sehingga
+      # CI cepat dan tidak butuh GPU/hardware. Test integration yang butuh berat
+      # dijalankan di Docker terpisah (belum ada).
+      - name: Install tooling
+        run: pip install ruff pytest
+
+      # Lint hanya modul yang sudah bersih (tests + domain + outbox). Modul lain
+      # (torch/cv2/SDK) di-exclude via pyproject sampai di-hardening bertahap;
+      # cakupan lint diperluas per modul begitu tiap modul dirapikan.
+      - name: Ruff (lint)
+        run: ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/
+
+      - name: Pytest (unit)
+        run: pytest tests/unit/

@@ -1,0 +1,27 @@
+# Tooling config untuk palmgrade-vision. TIDAK dipakai untuk build/install
+# (runtime tetap via requirements.txt + Dockerfile). Hanya konfigurasi test & lint.
+
+[tool.pytest.ini_options]
+# src-layout: import `palmgrade.*` tanpa perlu set PYTHONPATH manual.
+pythonpath = ["src"]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+# Test murni-logic + domain tidak butuh dependency berat; sisanya (torch/cv2/SDK)
+# tidak di-lint di CI karena tidak ter-install di runner ringan.
+extend-exclude = ["sdk", "cli", "scripts", "predict.py"]
+
+[tool.ruff.lint]
+# Set konservatif supaya tidak bikin noise di kode yang sudah ada:
+#   E,F = pyflakes + pycodestyle errors; I = import sorting; UP = pyupgrade; B = bugbear.
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "E501",  # line-length ditangani formatter, jangan gagal-kan CI karenanya
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]

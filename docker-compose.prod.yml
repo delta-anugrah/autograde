@@ -1,0 +1,34 @@
+# Override PRODUKSI — dipakai bersama docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# (atau `make up-prod`).
+#
+# Tujuan: HAPUS bind-mount source `.:/app` dan `/videos` yang ada di
+# docker-compose.yml (itu pola DEV supaya `make restart` cukup tanpa rebuild).
+# Di produksi kita mau IMAGE IMMUTABLE: yang jalan = persis image yang di-build,
+# bukan working-tree host — rollback jadi deterministik, `git pull` di tengah
+# operasi tidak mengubah service yang sedang jalan.
+#
+# Default Compose MERGE (union) daftar volumes antar-file — jadi override biasa
+# TIDAK bisa menghapus mount. Tag `!override` memaksa daftar di bawah MENGGANTI
+# seluruh daftar volumes service (bukan append). Cukup daftarkan mount yang MEMANG
+# mau dipertahankan di prod: artifacts (output runtime), models read-only, engines
+# (cache TensorRT). `.:/app` dan `/videos` sengaja TIDAK didaftarkan → hilang di prod.
+
+services:
+  ripe-line-1:
+    volumes: !override
+      - ./artifacts/line-1:/app/artifacts
+      - ./models:/app/models:ro
+      - ./engines:/app/engines
+
+  ripe-line-2:
+    volumes: !override
+      - ./artifacts/line-2:/app/artifacts
+      - ./models:/app/models:ro
+      - ./engines:/app/engines
+
+  ripe-line-3:
+    volumes: !override
+      - ./artifacts/line-3:/app/artifacts
+      - ./models:/app/models:ro
+      - ./engines:/app/engines

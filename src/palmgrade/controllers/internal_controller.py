@@ -37,7 +37,7 @@ async def manual_reject_command(
     service: CaptureService,
 ) -> ManualRejectCommandResponse:
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, service.capture_manual_reject)
         logger.info("Manual reject executed: machine=%s assignment=%s", request.machine_id, request.assignment_id)
         return ManualRejectCommandResponse(accepted=True, message="capture_reject_requested")
