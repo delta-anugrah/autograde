@@ -51,9 +51,12 @@ src/palmgrade/
   schemas/         # Pydantic request/response models
   license/         # optional Ed25519 license guard
 docs/              # overview.md (DETAIL), architecture.md, backend-overview.md, SETUP.md
+tests/unit/        # unit test murni-logic (pytest, no torch/cv2)
 models/release/    # best_3class_v2.pt (required, NOT committed)
 artifacts/line-N/  # runtime output per line (NOT committed)
 ```
+
+Tooling: `pyproject.toml` (pytest + ruff config, TIDAK untuk build), `.github/workflows/ci.yml` (lint + test).
 
 Layer rule (strict): `route → controller → service → repository / pipeline / integration`.
 Per-layer do/don't: `docs/overview.md` + `docs/architecture.md`.
@@ -78,7 +81,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 - **`make up` cuma perlu** kalau dependency / `Dockerfile` / SDK berubah; untuk ubah kode pakai `make restart`.
 - **Dev without a camera**: `.env` → `CAMERA_TYPE=opencv` + `CAMERA_VIDEO_PATH=/videos/<file>.mp4` (host `sawit/` is mounted at `/videos`).
 - **Verify**: `curl :8001/health`; `curl :8001/health/detail` (camera_connected, gpu_available, workers, outbox_pending); stream at `http://localhost:8001/api/video_feed`.
-- **Tests**: `tests/unit` & `tests/integration` are currently only `.gitkeep` — **no automated tests yet**.
+- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`). Lint via **`ruff check`**. Keduanya jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware).
 - From-zero prod setup (NVIDIA toolkit, MVS install, camera IP): `docs/SETUP.md`.
 
 ---
