@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 
 from .base import CameraSource
+from .device_selector import extract_serial, find_index_by_serial
 from .frame_utils import _validate_frame_len
 from .mvs_error import format_mvs_ret
 
@@ -44,15 +45,32 @@ class HikrobotCamera(CameraSource):
         self._buffer_size: int = 0
         self._data_buf = None
 
-    def connect(self, index: int = 0) -> None:
+    def connect(self, index: int = 0, serial: str | None = None) -> None:
         ret = MvCamera.MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, self.device_list)
         if ret != 0 or self.device_list.nDeviceNum == 0:
             raise RuntimeError(f"No camera found, return code: {format_mvs_ret(ret)}")
         logger.info("Found %d device(s)", self.device_list.nDeviceNum)
 
-        device_info = cast(
-            self.device_list.pDeviceInfo[index], POINTER(MV_CC_DEVICE_INFO)
-        ).contents
+        device_infos = [
+            cast(self.device_list.pDeviceInfo[i], POINTER(MV_CC_DEVICE_INFO)).contents
+            for i in range(self.device_list.nDeviceNum)
+        ]
+
+        if serial:
+            # Pilih kamera by serial (stabil) — hindari rebutan antar line karena
+            # urutan enum GigE tidak deterministik. Raise kalau serial tak ada
+            # (reconnect loop akan retry; kamera bisa belum online).
+            target_index = find_index_by_serial(device_infos, serial)
+            logger.info("Camera selected by serial %s (enum index %d)", serial, target_index)
+        else:
+            target_index = index
+            logger.info(
+                "Camera selected by index %d (serial %s) — set CAMERA_SERIAL untuk stabil",
+                target_index,
+                extract_serial(device_infos[target_index]) or "?",
+            )
+
+        device_info = device_infos[target_index]
         self.cam = MvCamera()
 
         ret = self.cam.MV_CC_CreateHandle(device_info)
