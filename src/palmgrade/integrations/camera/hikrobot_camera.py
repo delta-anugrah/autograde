@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from ctypes import POINTER, cast, c_ubyte
 
 import cv2
@@ -45,7 +46,7 @@ class HikrobotCamera(CameraSource):
         self._buffer_size: int = 0
         self._data_buf = None
 
-    def connect(self, index: int = 0, serial: str | None = None) -> None:
+    def connect(self, index: int = 0, serial: str | None = None, feature_file: str | None = None) -> None:
         ret = MvCamera.MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, self.device_list)
         if ret != 0 or self.device_list.nDeviceNum == 0:
             raise RuntimeError(f"No camera found, return code: {format_mvs_ret(ret)}")
@@ -83,6 +84,12 @@ class HikrobotCamera(CameraSource):
             raise RuntimeError(f"OpenDevice failed with code: {format_mvs_ret(ret)}")
         logger.info("Camera device opened")
 
+        # Apply feature set (.mfs dari MVS Feature Save) sebelum grabbing. Non-fatal:
+        # kalau file tak ada / SDK menolak → warning + lanjut pakai setting firmware
+        # (kamera yang sudah pernah di-load MVS tetap aman; line tidak mati gara-gara .mfs).
+        if feature_file:
+            self._load_features(feature_file)
+
         ret = self.cam.MV_CC_StartGrabbing()
         if ret != 0:
             raise RuntimeError(f"StartGrabbing failed with code: {format_mvs_ret(ret)}")
@@ -94,6 +101,29 @@ class HikrobotCamera(CameraSource):
         logger.info("Frame buffer pre-allocated (%d bytes)", self._buffer_size)
 
         self.connected = True
+
+    def _load_features(self, feature_file: str) -> None:
+        """Load `.mfs` feature set ke kamera via MV_CC_FeatureLoad. Non-fatal.
+
+        File `.mfs` = hasil Feature Save dari MVS (framerate/exposure/gain/dll).
+        Kalau path tak ada atau SDK menolak → log warning dan lanjut; kamera tetap
+        grabbing pakai setting firmware/EEPROM (production-safe).
+        """
+        if not os.path.exists(feature_file):
+            logger.warning(
+                "CAMERA_FEATURE_FILE %s tidak ditemukan — lanjut pakai setting firmware",
+                feature_file,
+            )
+            return
+        ret = self.cam.MV_CC_FeatureLoad(feature_file)
+        if ret != 0:
+            logger.warning(
+                "MV_CC_FeatureLoad(%s) gagal: %s — lanjut pakai setting firmware",
+                feature_file,
+                format_mvs_ret(ret),
+            )
+            return
+        logger.info("Loaded camera features from %s", feature_file)
 
     def grab_frame(self):
         if not self.connected:

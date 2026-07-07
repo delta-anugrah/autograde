@@ -54,6 +54,8 @@ services:
       - CAMERA_DEVICE_INDEX=0
       # Pilih kamera by-serial (stabil, cegah rebutan antar line). Kosong → fallback index.
       - CAMERA_SERIAL=${LINE_1_CAMERA_SERIAL:-}
+      # Auto-load setting kamera (.mfs dari MVS) saat connect. Non-fatal kalau gagal.
+      - CAMERA_FEATURE_FILE=${LINE_1_FEATURE_FILE:-config/camera/hikrobot.mfs}
       - MACHINE_ID=${LINE_1_MACHINE_ID:-d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01}
       - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
@@ -125,6 +127,8 @@ services:
       - CAMERA_DEVICE_INDEX=1
       # Pilih kamera by-serial (stabil, cegah rebutan antar line). Kosong → fallback index.
       - CAMERA_SERIAL=${LINE_2_CAMERA_SERIAL:-}
+      # Auto-load setting kamera (.mfs dari MVS) saat connect. Non-fatal kalau gagal.
+      - CAMERA_FEATURE_FILE=${LINE_2_FEATURE_FILE:-config/camera/hikrobot.mfs}
       - MACHINE_ID=${LINE_2_MACHINE_ID:-a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02}
       - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
@@ -195,6 +199,8 @@ services:
       - CAMERA_DEVICE_INDEX=2
       # Pilih kamera by-serial (stabil, cegah rebutan antar line). Kosong → fallback index.
       - CAMERA_SERIAL=${LINE_3_CAMERA_SERIAL:-}
+      # Auto-load setting kamera (.mfs dari MVS) saat connect. Non-fatal kalau gagal.
+      - CAMERA_FEATURE_FILE=${LINE_3_FEATURE_FILE:-config/camera/hikrobot.mfs}
       - MACHINE_ID=${LINE_3_MACHINE_ID:-ad5f7bb9-c06d-4e87-8282-ce450ae331ec}
       - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}

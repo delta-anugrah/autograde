@@ -30,8 +30,8 @@ class OpenCVCamera(CameraSource):
         self._rewound: bool = False
         self._exhausted: bool = False
 
-    def connect(self, index: int = 0, serial: str | None = None) -> None:
-        # serial hanya relevan untuk kamera Hikrobot (GigE); diabaikan di sini.
+    def connect(self, index: int = 0, serial: str | None = None, feature_file: str | None = None) -> None:
+        # serial & feature_file hanya relevan untuk kamera Hikrobot (GigE); diabaikan di sini.
         self._cap = cv2.VideoCapture(self.source)
         if not self._cap.isOpened():
             raise RuntimeError(f"Tidak bisa buka camera source: {self.source}")
