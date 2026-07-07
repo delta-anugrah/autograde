@@ -15,7 +15,8 @@ Panduan instalasi lengkap dari nol sampai sistem berjalan. Ikuti urutan ini — 
 7. [Siapkan Project](#7-siapkan-project)
 8. [Build & Run Docker](#8-build--run-docker)
 9. [Verifikasi](#9-verifikasi)
-10. [Troubleshooting](#10-troubleshooting)
+10. [Network Hardening (Firewall)](#10-network-hardening-firewall)
+11. [Troubleshooting](#11-troubleshooting)
 
 ---
 
@@ -382,7 +383,41 @@ http://localhost:8001/api/video_feed
 
 ---
 
-## 10. Troubleshooting
+## 10. Network Hardening (Firewall)
+
+Vision jalan dengan `network_mode: host`, jadi port `8001/8002/8003` **terbuka di
+semua interface** PC. Selama PC prod cuma punya NIC ke switch kamera (LAN tertutup),
+ini aman. Tapi begitu PC prod dapat akses internet (mis. NIC#2 / USB-Ethernet buat
+kirim data), port itu jadi ter-ekspos — dan beberapa endpoint (`/api/set_truck`,
+`/api/capture_reject`, `/api/video_feed`) **tidak** punya auth (dipakai langsung
+oleh frontend di LAN).
+
+**Jangan matikan endpoint-nya** (frontend masih pakai). Batasi lewat firewall:
+izinkan port vision **hanya dari IP frontend/api**, tolak dari mana pun.
+
+```bash
+# Ganti <IP_FRONTEND_API> dengan IP host yang menjalankan palmgrade-frontend + api
+# (biasanya sama dengan PC ini atau 1 host di LAN internal).
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow from <IP_FRONTEND_API> to any port 8001,8002,8003 proto tcp
+# SSH kalau remote (jangan sampai kekunci):
+sudo ufw allow from <SUBNET_ADMIN> to any port 22 proto tcp
+sudo ufw enable
+sudo ufw status verbose
+```
+
+Catatan:
+- Endpoint internal (`/internal/*`) sudah dilindungi `x-internal-secret`, tapi
+  firewall tetap lapisan pertama (defense-in-depth).
+- Kalau frontend/api jalan di **PC yang sama**, cukup blok akses dari interface
+  internet dan izinkan `127.0.0.1` / interface LAN kamera.
+- Verifikasi dari host lain: `curl http://<IP_PROD>:8001/health` harus **timeout/refused**
+  dari luar allowlist, tapi jalan dari IP yang diizinkan.
+
+---
+
+## 11. Troubleshooting
 
 ### Kamera tidak muncul di MVS setelah colok
 
