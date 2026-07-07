@@ -89,3 +89,26 @@ class OutboxStore:
         with self._lock:
             row = self._db.execute("SELECT COUNT(*) as n FROM outbox_events WHERE status='pending'").fetchone()
         return row["n"] if row else 0
+
+    def failed_count(self) -> int:
+        """Jumlah event yang sudah 'dead-letter' (gagal >= _MAX_RETRIES).
+
+        Ini TIDAK terhitung di pending_count → tanpa dibuka lewat health, event
+        yang hilang tidak kelihatan. Expose di /health/detail sebagai outbox_failed.
+        """
+        with self._lock:
+            row = self._db.execute("SELECT COUNT(*) as n FROM outbox_events WHERE status='failed'").fetchone()
+        return row["n"] if row else 0
+
+    def requeue_failed(self) -> int:
+        """Kembalikan semua event 'failed' ke 'pending' untuk dicoba kirim lagi.
+
+        Reset retry_count + next_retry_at supaya langsung eligible di get_pending().
+        Dipakai setelah API yang tadinya down sudah pulih. Return jumlah yang dipindah.
+        """
+        with self._lock, self._db:
+            cur = self._db.execute(
+                "UPDATE outbox_events SET status='pending', retry_count=0, next_retry_at=0, last_error=NULL "
+                "WHERE status='failed'"
+            )
+            return cur.rowcount

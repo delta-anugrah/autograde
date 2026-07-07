@@ -5,12 +5,19 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, HTTPException
 
 from ..controllers.internal_controller import manual_reject_command, sync_assignment
-from ..core.dependencies import get_capture_service, get_runtime_state, get_settings
+from ..core.dependencies import (
+    get_capture_service,
+    get_outbox_store,
+    get_runtime_state,
+    get_settings,
+)
+from ..integrations.outbox.outbox_store import OutboxStore
 from ..schemas.internal_schema import (
     AssignmentSyncRequest,
     AssignmentSyncResponse,
     ManualRejectCommandRequest,
     ManualRejectCommandResponse,
+    OutboxRequeueResponse,
 )
 from ..services.capture_service import CaptureService
 from ..workers.runtime_state import RuntimeState
@@ -45,3 +52,13 @@ async def manual_reject(
     service: Annotated[CaptureService, Depends(get_capture_service)],
 ) -> ManualRejectCommandResponse:
     return await manual_reject_command(request, service)
+
+
+@router.post("/outbox/requeue", response_model=OutboxRequeueResponse)
+async def outbox_requeue(
+    outbox: Annotated[OutboxStore, Depends(get_outbox_store)],
+) -> OutboxRequeueResponse:
+    # Kembalikan event dead-letter (status='failed') ke 'pending' agar
+    # OutboxRetryWorker mencoba kirim lagi. Dipakai setelah API pulih dari
+    # gangguan panjang. Aman diulang (idempotent kalau tidak ada failed).
+    return OutboxRequeueResponse(requeued=outbox.requeue_failed())

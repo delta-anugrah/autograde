@@ -21,5 +21,6 @@ class HealthDetailSchema(BaseModel):
     machine_id: str
     workers: list[WorkerStatus]
     outbox_pending: int = 0
+    outbox_failed: int = 0
     current_assignment_id: str | None = None
     last_successful_api_push: str | None = None

@@ -25,3 +25,7 @@ class ManualRejectCommandRequest(BaseModel):
 class ManualRejectCommandResponse(BaseModel):
     accepted: bool
     message: str
+
+
+class OutboxRequeueResponse(BaseModel):
+    requeued: int
