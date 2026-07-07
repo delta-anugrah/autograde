@@ -1,4 +1,6 @@
 ENV_FILE=.env
+# Override produksi: image immutable (tanpa bind-mount .:/app & /videos).
+PROD_FILES=-f docker-compose.yml -f docker-compose.prod.yml
 
 # Production — copy SDK, build GPU+SDK, build TensorRT engine, start semua line.
 # CATATAN: untuk perubahan KODE saja, cukup `make restart` — kode di-bind-mount
@@ -15,6 +17,18 @@ up: sync-sdk
 	# Aktifkan lagi bareng TensorRT: uncomment baris di bawah + di Dockerfile.
 	# $(MAKE) build-engine
 	docker compose --env-file $(ENV_FILE) up -d
+	-docker image prune -f
+
+# Production IMMUTABLE — sama seperti `up` tapi pakai override docker-compose.prod.yml
+# yang MENGHAPUS bind-mount .:/app & /videos, jadi container jalan dari image yang
+# di-build (bukan working-tree). Pakai ini di PC prod. Karena kode TIDAK di-mount,
+# perubahan kode di prod butuh `make up-prod` lagi (bukan `make restart`).
+up-prod: sync-sdk
+	-docker compose $(PROD_FILES) --env-file $(ENV_FILE) down
+	docker compose $(PROD_FILES) --env-file $(ENV_FILE) build \
+		--build-arg TORCH_VARIANT=cu126 \
+		--build-arg WITH_SDK=true
+	docker compose $(PROD_FILES) --env-file $(ENV_FILE) up -d
 	-docker image prune -f
 
 # Copy Hikrobot MVS SDK dari host ke build context (perlu kalau SDK berubah).
