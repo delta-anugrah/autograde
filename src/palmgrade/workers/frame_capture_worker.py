@@ -15,10 +15,12 @@ _RECONNECT_BACKOFF_MAX = 30.0
 
 
 class FrameCaptureWorker:
-    def __init__(self, camera: CameraSource, state: RuntimeState, target_fps: int = 24, device_index: int = 0, **_) -> None:
+    def __init__(self, camera: CameraSource, state: RuntimeState, target_fps: int = 24, device_index: int = 0, serial: str | None = None, feature_file: str | None = None, **_) -> None:
         self.camera = camera
         self.state = state
         self._device_index = device_index
+        self._serial = serial
+        self._feature_file = feature_file
         self._target_fps = target_fps
         self._frame_interval = 1.0 / max(1, target_fps) if target_fps > 0 else 0.0
         self._last_frame_time: float = 0.0
@@ -44,7 +46,7 @@ class FrameCaptureWorker:
         time.sleep(self._reconnect_backoff)
         self._reconnect_backoff = min(self._reconnect_backoff * 2, _RECONNECT_BACKOFF_MAX)
         try:
-            self.camera.connect(index=self._device_index)
+            self.camera.connect(index=self._device_index, serial=self._serial, feature_file=self._feature_file)
             self._consecutive_failures = 0
             self._reconnect_backoff = _RECONNECT_BACKOFF_BASE
             self._sync_fps_from_camera()

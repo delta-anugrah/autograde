@@ -40,6 +40,18 @@ class Settings:
     # Camera
     camera_type: str = field(default_factory=lambda: os.getenv("CAMERA_TYPE", "hikrobot"))
     camera_device_index: int = field(default_factory=lambda: int(os.getenv("CAMERA_DEVICE_INDEX", "0")))
+    # Serial kamera Hikrobot (mis. "DA9069810"). Kalau diisi, pemilihan kamera
+    # by-serial (stabil) menggantikan device_index — cegah rebutan antar line.
+    # Kosong → fallback ke device_index (dev/webcam).
+    camera_serial: str | None = field(
+        default_factory=lambda: (os.getenv("CAMERA_SERIAL", "").strip() or None)
+    )
+    # File `.mfs` (MVS Feature Save) yang di-load ke kamera Hikrobot saat connect
+    # (framerate/exposure/gain/dll). Kosong → skip, pakai setting firmware.
+    # Non-fatal: gagal load → warning, kamera tetap grabbing.
+    camera_feature_file: str | None = field(
+        default_factory=lambda: (os.getenv("CAMERA_FEATURE_FILE", "").strip() or None)
+    )
     camera_video_path: str = field(default_factory=lambda: os.getenv("CAMERA_VIDEO_PATH", ""))
     camera_width: int = field(default_factory=lambda: int(os.getenv("CAMERA_WIDTH", "320")))
     camera_height: int = field(default_factory=lambda: int(os.getenv("CAMERA_HEIGHT", "240")))

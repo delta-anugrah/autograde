@@ -91,7 +91,7 @@ def create_app() -> FastAPI:
             camera = HikrobotCamera()
 
         try:
-            camera.connect(index=settings.camera_device_index)
+            camera.connect(index=settings.camera_device_index, serial=settings.camera_serial, feature_file=settings.camera_feature_file)
         except RuntimeError as exc:
             if camera_type == "hikrobot":
                 logger.warning("Camera not found at startup: %s — FrameCaptureWorker will keep retrying", exc)
@@ -114,7 +114,7 @@ def create_app() -> FastAPI:
             t.start()
             return t
 
-        capture_worker = FrameCaptureWorker(camera=camera, state=state, target_fps=settings.camera_fps, device_index=settings.camera_device_index)
+        capture_worker = FrameCaptureWorker(camera=camera, state=state, target_fps=settings.camera_fps, device_index=settings.camera_device_index, serial=settings.camera_serial, feature_file=settings.camera_feature_file)
         display_worker = DisplayWorker(
             state=state,
             pipeline=pipeline,

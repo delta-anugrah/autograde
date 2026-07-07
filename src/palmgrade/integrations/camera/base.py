@@ -9,7 +9,7 @@ class CameraSource(ABC):
         self.connected: bool = False
 
     @abstractmethod
-    def connect(self, index: int = 0) -> None:
+    def connect(self, index: int = 0, serial: str | None = None, feature_file: str | None = None) -> None:
         raise NotImplementedError
 
     @abstractmethod
