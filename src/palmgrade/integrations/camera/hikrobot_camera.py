@@ -8,6 +8,7 @@ import numpy as np
 
 from .base import CameraSource
 from .frame_utils import _validate_frame_len
+from .mvs_error import format_mvs_ret
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class HikrobotCamera(CameraSource):
     def connect(self, index: int = 0) -> None:
         ret = MvCamera.MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, self.device_list)
         if ret != 0 or self.device_list.nDeviceNum == 0:
-            raise RuntimeError(f"No camera found, return code: {ret}")
+            raise RuntimeError(f"No camera found, return code: {format_mvs_ret(ret)}")
         logger.info("Found %d device(s)", self.device_list.nDeviceNum)
 
         device_info = cast(
@@ -56,17 +57,17 @@ class HikrobotCamera(CameraSource):
 
         ret = self.cam.MV_CC_CreateHandle(device_info)
         if ret != 0:
-            raise RuntimeError(f"CreateHandle failed with code: {ret}")
+            raise RuntimeError(f"CreateHandle failed with code: {format_mvs_ret(ret)}")
         logger.info("Camera handle created")
 
         ret = self.cam.MV_CC_OpenDevice(MV_ACCESS_Exclusive, 0)
         if ret != 0:
-            raise RuntimeError(f"OpenDevice failed with code: {ret}")
+            raise RuntimeError(f"OpenDevice failed with code: {format_mvs_ret(ret)}")
         logger.info("Camera device opened")
 
         ret = self.cam.MV_CC_StartGrabbing()
         if ret != 0:
-            raise RuntimeError(f"StartGrabbing failed with code: {ret}")
+            raise RuntimeError(f"StartGrabbing failed with code: {format_mvs_ret(ret)}")
         logger.info("Camera started grabbing")
 
         # O1: allocate frame buffer once (max 4096×3072 RGB) to avoid 36 MB alloc per frame
@@ -83,7 +84,7 @@ class HikrobotCamera(CameraSource):
 
         ret = self.cam.MV_CC_GetOneFrameTimeout(self._data_buf, self._buffer_size, frame_info, 100)
         if ret != 0:
-            logger.warning("Failed to grab frame, return code: %d", ret)
+            logger.warning("Failed to grab frame, return code: %s", format_mvs_ret(ret))
             return None
 
         img_bytes = np.frombuffer(self._data_buf, dtype=np.uint8, count=frame_info.nFrameLen)
