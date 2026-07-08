@@ -191,7 +191,8 @@ mkdir -p models/release
 ### 4. Configure `.env`
 
 ```bash
-cp .env.example .env
+cp .env.production .env   # template prod siap-copas (APP_ENV=production, DEBUG off, secret placeholder)
+# atau: cp .env.example .env   (template minimal buat dev)
 # Wajib diisi:
 # LINE_1_MACHINE_ID=<uuid>   — UUID dari tabel machines di PostgreSQL (palmgrade-api)
 # LINE_2_MACHINE_ID=<uuid>
@@ -373,6 +374,43 @@ LIC_PUBKEY_PEM=-----BEGIN PUBLIC KEY-----\nMCow...\n-----END PUBLIC KEY-----
 ```
 
 When enabled, all routes (except `/health`, `/api/video_feed`, `/captures`) are blocked for expired licenses.
+
+---
+
+## Testing
+
+Unit test di sini **sengaja murni-logic** — tidak butuh torch / OpenCV / MVS SDK / GPU, jadi cepat dan jalan di runner CI ringan. Pengujian yang butuh hardware/model asli (inference YOLO, kamera fisik) adalah ranah **integration test** di Docker (`tests/integration/`, masih `.gitkeep`), bukan unit test.
+
+### Menjalankan test
+
+Dari `palmgrade-vision/`:
+
+```bash
+# CI menjalankan keduanya (lihat .github/workflows/ci.yml)
+pip install ruff pytest cryptography aiosqlite psutil httpx
+ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/palmgrade/license/
+pytest tests/unit/
+```
+
+> Konfigurasi pytest ada di `pyproject.toml` (`pythonpath=["src"]`) — tidak perlu set `PYTHONPATH` manual. Tidak memakai `pytest-asyncio`: kode async diuji lewat `asyncio.run` stdlib supaya dependency CI minimal.
+
+### Cakupan (`tests/unit/`)
+
+| Area | File | Yang dikunci |
+|---|---|---|
+| Domain rules | `test_rules.py` | Klasifikasi ripeness (inti keputusan bisnis) |
+| Idempotency | `test_event_id.py` | `event_id` uuid5 deterministik (anti double-count) |
+| Outbox durable | `test_outbox_store.py`, `test_outbox_requeue.py` | Persist → backoff → dead-letter (jaminan delivery ke API) |
+| Config | `test_config_validation.py` | Fail-fast saat secret masih default di `APP_ENV=production` |
+| Camera selector | `test_device_selector.py` | Pilih kamera by-serial (enum GigE tidak deterministik) |
+| Streaming | `test_streaming_service.py` | MJPEG keep-alive multi-viewer |
+| SDK boundary | `test_hikrobot_frame.py`, `test_mvs_error.py` | Konversi frame + mapping error SDK |
+| **License** | `test_license_manager.py`, `test_license_local_repo.py` | Verifikasi JWS **Ed25519 asli** (tamper/kid/foreign-key ditolak), state machine efektif (ACTIVE/TRIAL/EXPIRED/CANCEL/GRACE, online↔offline, anti-rollback `server_time`, device-id, `nbf`), warning window, dan hash-chain + high-water-mark di SQLite |
+
+**Prinsip menambah test:**
+- Uji **logic murni** (domain, state machine, persistence SQLite) — hindari test yang menyeret framework berat/hardware ke CI.
+- Untuk async, ikuti pola `asyncio.run` (lihat `test_event_broadcast_worker.py` / `test_license_local_repo.py`).
+- Kalau menambah modul baru ke lint, perluas juga scope `ruff check` di `ci.yml` (bertahap per modul yang sudah bersih).
 
 ---
 

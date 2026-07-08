@@ -18,17 +18,19 @@ jobs:
           python-version: "3.11"
 
       # Sengaja TIDAK install torch/opencv/SDK — unit test di sini murni-logic
-      # (domain rules, outbox SQLite, event_id uuid5, streaming/config) sehingga
-      # CI cepat dan tidak butuh GPU/hardware. Test integration yang butuh berat
-      # dijalankan di Docker terpisah (belum ada).
+      # (domain rules, outbox SQLite, event_id uuid5, streaming/config, license)
+      # sehingga CI cepat dan tidak butuh GPU/hardware. Test integration yang
+      # butuh berat dijalankan di Docker terpisah (belum ada).
+      # cryptography/aiosqlite/psutil/httpx = deps ringan (pure-python wheels)
+      # yang dibutuhkan test license/ (bukan hardware).
       - name: Install tooling
-        run: pip install ruff pytest
+        run: pip install ruff pytest cryptography aiosqlite psutil httpx
 
-      # Lint hanya modul yang sudah bersih (tests + domain + outbox). Modul lain
-      # (torch/cv2/SDK) di-exclude via pyproject sampai di-hardening bertahap;
-      # cakupan lint diperluas per modul begitu tiap modul dirapikan.
+      # Lint hanya modul yang sudah bersih (tests + domain + outbox + license).
+      # Modul lain (torch/cv2/SDK) di-exclude via pyproject sampai di-hardening
+      # bertahap; cakupan lint diperluas per modul begitu tiap modul dirapikan.
       - name: Ruff (lint)
-        run: ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/
+        run: ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/palmgrade/license/
 
       - name: Pytest (unit)
         run: pytest tests/unit/

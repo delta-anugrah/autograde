@@ -6,7 +6,6 @@ import json
 import math
 import socket
 import time
-import uuid
 
 import psutil
 from cryptography.exceptions import InvalidSignature
