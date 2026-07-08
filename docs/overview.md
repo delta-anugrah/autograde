@@ -281,3 +281,19 @@ Served by FastAPI `StaticFiles` mount `/captures` → `artifacts/`, so `image_ur
 `LIC_ENABLED=true` adds `LicenseGuardMiddleware` (Ed25519 JWS verify, device fingerprint,
 aiosqlite cache + hash-chain audit, `SyncClient` to license server). Added before CORS so a 403 still
 gets CORS headers. `LicenseManager` / `LicenseLocalRepo` / `SyncClient` live in `license/`.
+
+**Effective-status state machine** (`LicenseManager._evaluate`, urutan cek): `device_id` mismatch →
+`nbf` belum tiba → `server_time` rollback (< `max_seen_server_time`) → status `CANCEL`/`EXPIRED` →
+`now > exp` (grace habis) → semua di atas ⇒ **EXPIRED**. Kalau `license_expires_at < now ≤ exp` ⇒
+**GRACE** (`should_slow_response=True`, warning `LICENSE_EXPIRED_GRACE`). Online ⇒ pakai status token
+apa adanya (`online-valid`); offline ⇒ valid hanya jika `now ≤ max_offline_until` **dan** status
+`ACTIVE`/`TRIAL` (`offline-valid`), selain itu `offline-expired`. `max_offline_until = min(exp, iat +
+max_offline_days·86400)`. Middleware hanya mem-block status **EXPIRED** (403); GRACE tetap lolos tapi
+di-slow + header `x-license-warning-*`.
+
+**Tests** (`tests/unit/test_license_manager.py`, `test_license_local_repo.py`, murni-logic, no network):
+`_verify_jws` diuji dengan signature Ed25519 **asli** (tamper payload / kid-mismatch / foreign-key
+harus ditolak), seluruh cabang `_evaluate` di atas, `_warning_for`, plus hash-chain + monotonic
+`max_seen_server_time` di `LicenseLocalRepo`. Guard middleware sendiri tidak di-unit-test (butuh
+FastAPI/Starlette — di luar filosofi CI murni-logic); logic-nya tipis dan seluruhnya bersandar pada
+`get_effective_license()` yang sudah tercakup.
