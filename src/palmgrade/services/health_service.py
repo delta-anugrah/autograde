@@ -43,6 +43,7 @@ class HealthService:
             machine_id=self.settings.machine_id,
             workers=workers,
             outbox_pending=self.outbox.pending_count(),
+            outbox_failed=self.outbox.failed_count(),
             current_assignment_id=self.state.current_assignment_id,
             last_successful_api_push=self.state.last_successful_api_push,
         )

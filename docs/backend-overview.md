@@ -40,13 +40,13 @@ palmgrade-vision/
       routes/                  # Hanya deklarasi endpoint dan router wiring
       controllers/             # Terima request, panggil service, return response
       services/                # Orchestration dan business flow
-      repositories/            # Baca/tulis file (JSON, JPEG)
+      repositories/            # Baca/tulis file (JSON, WebP)
       pipelines/               # Logic YOLO inference + frame processing
       integrations/
         camera/                # HikrobotCamera / OpenCVCamera / PhotoCamera
         notifications/         # WebhookClient (httpx async) — legacy, not used for main flow
         outbox/                # OutboxStore — SQLite durable event persistence
-        storage/               # LocalFileStorage (read/write JSON + JPEG)
+        storage/               # LocalFileStorage (read/write JSON + WebP)
         scheduler/             # APScheduler daily upload cron
       workers/                 # Background threads + asyncio tasks
       domain/                  # Business rule murni — tidak ada I/O
@@ -74,7 +74,7 @@ palmgrade-vision/
 | `routes/` | Deklarasi endpoint, include controller | Logic apapun |
 | `controllers/` | Terima request, return response, HTTPException | Query DB, akses model langsung |
 | `services/` | Orchestrasi, gabungkan repo + pipeline | Raw SQL, detail SDK, return HTTP |
-| `repositories/` | Baca/tulis file JSON dan JPEG | Business rule, HTTP call, inference |
+| `repositories/` | Baca/tulis file JSON dan WebP | Business rule, HTTP call, inference |
 | `pipelines/` | YOLO inference, frame processing, draw boxes | HTTP, persistence, business rule |
 | `integrations/` | Akses sistem eksternal (kamera, webhook, storage) | Business rule |
 | `workers/` | Background loop, queue, hold lock, RuntimeState | Langsung return HTTP response |
@@ -115,7 +115,7 @@ MJPEG live stream dari kamera.
 
 ---
 
-### `GET /api/results/today`
+### `GET /api/results_today`
 
 Semua hasil grading hari ini.
 
@@ -126,10 +126,10 @@ Semua hasil grading hari ini.
       "id": "2026-05-18_103000_123456",
       "ripeness_status": "acc",
       "ripeness_confidence": 0.92,
-      "tp_status": "TP",
+      "tp_status": "PASS",
       "tp_confidence": 0.88,
       "timestamp": "2026-05-18T10:30:00.123456",
-      "image_url": "captures/results/2026-05-18/2026-05-18_103000_auto.jpg",
+      "image_url": "captures/results/2026-05-18/2026-05-18_103000_auto.webp",
       "capture_type": "auto",
       "truck_id": "uuid-or-null",
       "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 }
@@ -166,7 +166,7 @@ Terima command manual reject dari palmgrade-api. Protected by `x-internal-secret
 
 ---
 
-### `POST /api/manual_capture`
+### `POST /api/capture_reject`
 
 Capture frame saat ini secara manual, langsung mark sebagai `rej`.
 
@@ -180,12 +180,12 @@ Capture frame saat ini secara manual, langsung mark sebagai `rej`.
     "tp_status": null,
     "tp_confidence": null,
     "timestamp": "...",
-    "image_url": "captures/results/2026-05-18/..._manual.jpg",
+    "image_url": "captures/results/2026-05-18/..._manual.webp",
     "capture_type": "manual",
     "truck_id": "uuid-or-null"
   }
   ```
-- **Side effect:** Simpan JPEG + metadata JSON, tulis ke OutboxStore, push ke `event_queue` untuk WebSocket broadcast.
+- **Side effect:** Simpan WebP + metadata JSON ke `results/{date}/`, tulis ke OutboxStore, push ke `event_queue` untuk WebSocket broadcast.
 
 ---
 
@@ -217,9 +217,7 @@ Status operasional container.
 
 ---
 
-### `GET /api/inspection/status`
-
-Info model dan device yang aktif.
+> Info model dan device yang aktif tersedia di `GET /health/detail` (`gpu_available`, `gpu_device`, `camera_type`, dst.) — tidak ada endpoint `/api/inspection/status` terpisah.
 
 ---
 
@@ -244,11 +242,11 @@ frame_queue                      state.latest_raw_frame
   ├── direction-aware zone       ├── resize to STREAM_WIDTH×STREAM_HEIGHT
   ├── _processed_objects check   └── imencode → state.latest_frame
   ├── Single-trigger save:            + frame_condition.notify_all()
-  │     ├── write_image() JPEG
+  │     ├── write_image() WebP
   │     ├── write_json() _ripeness.json
   │     ├── write_json() _tp.json (if TP)
   │     ├── event_queue.put_nowait()
-  │     └── WebhookClient.send() → POST palmgrade-api
+  │     └── OutboxStore.add_event()  ← SQLite durable (auto: hanya jika ada truck aktif)
   └── state.last_yolo_results (read by DisplayWorker)
   ↓ [EventBroadcastWorker — asyncio task]
 WebSocket clients
@@ -283,16 +281,18 @@ Keduanya **wajib** acquire `state.lock` sebelum memanggil `camera.grab_frame()`.
 artifacts/
   results/
     {YYYY-MM-DD}/
-      {timestamp}_auto.jpg              # Annotated frame buah
+      {timestamp}_auto.webp             # Annotated frame buah (WebP, quality 65)
       {timestamp}_auto_ripeness.json    # Metadata grading
       {timestamp}_auto_tp.json          # Metadata TP (jika ada)
-      {timestamp}_manual.jpg             # Manual capture
+      {timestamp}_manual.webp           # Manual capture
       {timestamp}_manual_ripeness.json  # suffix _ripeness wajib — dibaca oleh list_today_results()
-  errors/                               # Copy dari semua hasil rej
+  captures/                             # legacy — tidak ditulis lagi
+  errors/                               # legacy — tidak ditulis lagi (REJ ditemukan via metadata ripeness_status)
   logs/
+  outbox.db                             # SQLite durable outbox (WAL + synchronous=FULL)
 ```
 
-`image_url` di response: `captures/results/{date}/{timestamp}_auto.jpg`
+`image_url` di response: `captures/results/{date}/{timestamp}_auto.webp`
 
 FastAPI mount static: `app.mount("/captures", StaticFiles(directory="artifacts"))`
 
@@ -307,7 +307,7 @@ Setiap detection final (auto atau manual) ditulis ke OutboxStore dulu, lalu `Out
 ```
 FrameProcessingWorker / CaptureService
     → OutboxStore.add_event(event_id, machine_id, payload)  [SQLite write]
-        → OutboxRetryWorker (daemon thread, poll 10s)
+        → OutboxRetryWorker (daemon thread, poll 1s)
             → POST {canonical_events_url}
                = {BACKEND_URL}{BACKEND_API_VER}/internal/vision/events
 ```
@@ -317,12 +317,12 @@ FrameProcessingWorker / CaptureService
 **Payload** — field names dan values HARUS tepat:
 ```json
 {
-  "event_id": "uuid-v4",
+  "event_id": "uuid",
   "assignment_id": "uuid-or-null",
   "machine_id": "uuid-dari-tabel-machines",
   "truck_id": "uuid",
-  "timestamp": "2026-05-18T10:30:00.123456",
-  "image_path": "captures/results/2026-05-18/2026-05-18_103000_auto.jpg",
+  "timestamp": "2026-05-18T10:30:00.123456+00:00",
+  "image_path": "captures/results/2026-05-18/2026-05-18_103000_auto.webp",
   "prediction": "Acc",
   "ripeness_status": "ACC",
   "ripeness_confidence": 0.92,
@@ -334,17 +334,18 @@ FrameProcessingWorker / CaptureService
 ```
 
 **Kontrak penting:**
-- `event_id`: UUID v4 baru per event — dipakai API untuk idempotency (sparse unique index)
+- `event_id`: dipakai API untuk idempotency (sparse unique index). **Auto** = uuid5 deterministik dari `machine_id:timestamp` (reprocess pasca-crash → id sama → tidak double count); **manual** = uuid4
+- `timestamp`: ISO-8601 **UTC-aware** (`datetime.now(timezone.utc)`)
 - `assignment_id`: dari `state.current_assignment_id` — set saat `/internal/assignment` dipanggil
 - `prediction`: `"Acc"` / `"Rej"` — required
 - `ripeness_status`: `"ACC"` / `"REJ"` UPPERCASE
 - `tp_status`: `"PASS"` / `null` — BUKAN `"TP"`
-- `truck_id`: event di-skip kalau `None` (belum set truck)
+- `truck_id`: **auto detection** (`FrameProcessingWorker`) di-skip dari outbox kalau `None` (belum set truck) — hasil tetap disimpan ke disk + WebSocket. **Manual reject** (`CaptureService`) selalu ditulis ke outbox walau `truck_id=None`.
 - API returns `{status: "already_processed"}` jika `event_id` duplikat — OutboxRetryWorker delete event
 
 **OutboxStore (`artifacts/outbox.db`):**
 - SQLite file per container — survive restart container
-- Exponential backoff: 30s base, 600s cap, max 50 retries
+- Exponential backoff: 5s base, 600s cap, max 50 retries
 - `pending_count()` ditampilkan di `/health/detail`
 
 ---
@@ -358,7 +359,8 @@ FrameProcessingWorker / CaptureService
 | `FRONTEND_URL` | `*` | CORS allowed origin |
 | `ENABLE_WEBHOOK` | `true` | Toggle webhook |
 | `BACKEND_URL` | `http://localhost:2500` | palmgrade-api base URL |
-| `WEBHOOK_SECRET` | — | HMAC secret header, harus cocok dengan palmgrade-api |
+| `BACKEND_API_VER` | `/api/v1` | Prefix versi API untuk canonical events URL |
+| `WEBHOOK_SECRET` | — | Shared secret header, harus cocok dengan palmgrade-api |
 | `MODEL_FILE` | `best_3class_v2.pt` | Nama file model di `models/release/` |
 | `CONF_THRESHOLD` | `0.75` | Minimum confidence YOLO |
 | `MINIMUM_SIZE` | `460000` | Minimum area bounding box (px²) — di bawah ini auto rej |
@@ -372,6 +374,8 @@ FrameProcessingWorker / CaptureService
 | `ROI_Y2` | `0` | Batas bawah area deteksi (px) — `0` = tinggi penuh frame |
 | `STREAM_WIDTH` | `1280` | Lebar frame MJPEG stream (setelah resize, sebelum encode) |
 | `STREAM_HEIGHT` | `720` | Tinggi frame MJPEG stream |
+| `STREAM_FPS` | `12` | FPS MJPEG stream — decoupled dari `CAMERA_FPS` |
+| `YOLO_SKIP_FRAMES` | `1` | Jalankan YOLO tiap N frame (`1` = produksi; `>1` hemat CPU saat tes video) |
 | `UPLOAD_HOUR` | `0` | Jam upload otomatis (cron) |
 | `UPLOAD_MINUTE` | `0` | Menit upload otomatis (cron) |
 | `DESTINATION_UPLOAD` | — | Path tujuan upload hasil harian |

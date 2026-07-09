@@ -1,14 +1,24 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def _as_bool(value: str | None, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# Nilai default WEBHOOK_SECRET yang ikut ke-commit di repo (dan dipakai sebagai
+# fallback di docker-compose). Aman untuk dev, TAPI di production wajib diganti —
+# lihat Settings.validate_for_runtime(). Dikonstanta di satu tempat supaya tidak
+# tersebar sebagai magic string.
+_DEFAULT_WEBHOOK_SECRET = "supersecret123"
 
 
 @dataclass(frozen=True)
@@ -24,12 +34,24 @@ class Settings:
     enable_webhook: bool = field(default_factory=lambda: _as_bool(os.getenv("ENABLE_WEBHOOK"), True))
     backend_url: str = field(default_factory=lambda: os.getenv("BACKEND_URL", "http://localhost:2500"))
     backend_api_ver: str = field(default_factory=lambda: os.getenv("BACKEND_API_VER", "/api/v1"))
-    webhook_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", "supersecret123"))
-    internal_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", "supersecret123"))
+    webhook_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", _DEFAULT_WEBHOOK_SECRET))
+    internal_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", _DEFAULT_WEBHOOK_SECRET))
 
     # Camera
     camera_type: str = field(default_factory=lambda: os.getenv("CAMERA_TYPE", "hikrobot"))
     camera_device_index: int = field(default_factory=lambda: int(os.getenv("CAMERA_DEVICE_INDEX", "0")))
+    # Serial kamera Hikrobot (mis. "DA9069810"). Kalau diisi, pemilihan kamera
+    # by-serial (stabil) menggantikan device_index — cegah rebutan antar line.
+    # Kosong → fallback ke device_index (dev/webcam).
+    camera_serial: str | None = field(
+        default_factory=lambda: (os.getenv("CAMERA_SERIAL", "").strip() or None)
+    )
+    # File `.mfs` (MVS Feature Save) yang di-load ke kamera Hikrobot saat connect
+    # (framerate/exposure/gain/dll). Kosong → skip, pakai setting firmware.
+    # Non-fatal: gagal load → warning, kamera tetap grabbing.
+    camera_feature_file: str | None = field(
+        default_factory=lambda: (os.getenv("CAMERA_FEATURE_FILE", "").strip() or None)
+    )
     camera_video_path: str = field(default_factory=lambda: os.getenv("CAMERA_VIDEO_PATH", ""))
     camera_width: int = field(default_factory=lambda: int(os.getenv("CAMERA_WIDTH", "320")))
     camera_height: int = field(default_factory=lambda: int(os.getenv("CAMERA_HEIGHT", "240")))
@@ -75,6 +97,29 @@ class Settings:
     upload_minute: int = field(default_factory=lambda: int(os.getenv("UPLOAD_MINUTE", "0")))
     destination_upload: str = field(default_factory=lambda: os.getenv("DESTINATION_UPLOAD", ""))
 
+    # ------------------------------------------------------------------ validation
+
+    def validate_for_runtime(self) -> None:
+        """Fail-fast untuk salah konfigurasi yang berbahaya di production.
+
+        WEBHOOK_SECRET mengamankan kedua arah antara vision <-> palmgrade-api.
+        Kalau `.env` lupa diisi di PC prod, service dulu tetap jalan normal pakai
+        default publik `supersecret123` (cuma warning) — siapa pun yang lihat repo
+        bisa mengirim event palsu atau perintah internal. Di production kita tolak
+        start; di development default tetap boleh (cuma warning) supaya alur
+        dev/opencv lancar.
+        """
+        if self.webhook_secret != _DEFAULT_WEBHOOK_SECRET:
+            return
+        if self.environment == "production":
+            raise RuntimeError(
+                "WEBHOOK_SECRET masih memakai nilai default publik di APP_ENV=production. "
+                "Set WEBHOOK_SECRET ke nilai rahasia (harus sama dengan palmgrade-api) sebelum deploy."
+            )
+        logger.warning(
+            "WEBHOOK_SECRET memakai nilai default — set sebelum deployment production."
+        )
+
     # ------------------------------------------------------------------ paths
 
     @property
@@ -107,8 +152,23 @@ class Settings:
 
     @property
     def ripeness_model_path(self) -> Path:
-        model_file = os.getenv("MODEL_FILE", "best_3class.pt")
+        model_file = os.getenv("MODEL_FILE", "best_3class_v2.pt")
         return self.models_release_dir / model_file
+
+    @property
+    def engines_dir(self) -> Path:
+        # Writable (models/ is mounted read-only) — TensorRT engines cached here.
+        return self.repo_root / "engines"
+
+    def engine_path_for_gpu(self, compute_capability: str) -> Path:
+        """TensorRT engine path tagged by GPU compute capability.
+
+        Engines are hardware-locked, so each GPU gets its own file (e.g.
+        `best_3class_v2.sm75.engine` for a GTX 1660). This makes the cache
+        safe across machines without overwriting each other.
+        """
+        stem = Path(os.getenv("MODEL_FILE", "best_3class_v2.pt")).stem
+        return self.engines_dir / f"{stem}.sm{compute_capability}.engine"
 
     @property
     def webhook_url(self) -> str:

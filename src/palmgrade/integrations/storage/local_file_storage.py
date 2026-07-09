@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import json
-import logging
 from pathlib import Path
 from typing import Any
 
 import cv2
 import numpy as np
-
-logger = logging.getLogger(__name__)
 
 
 class LocalFileStorage:
@@ -29,7 +26,17 @@ class LocalFileStorage:
 
     def write_image(self, path: Path, frame: np.ndarray, quality: int = 80) -> None:
         self.ensure_dir(path.parent)
-        ok = cv2.imwrite(str(path), frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+        # Encoder param mengikuti ekstensi: .webp → WEBP_QUALITY, selain itu JPEG_QUALITY.
+        # Keduanya skala 0–100, jadi `quality` sama validnya untuk WebP maupun JPEG.
+        # cv2.imwrite memilih codec dari ekstensi file; flag yang salah → file korup.
+        if path.suffix.lower() == ".webp":
+            params = [int(cv2.IMWRITE_WEBP_QUALITY), quality]
+        else:
+            params = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+        ok = cv2.imwrite(str(path), frame, params)
         if not ok:
-            logger.warning("cv2.imwrite failed — file not written: %s", path)
+            # O2: jangan diam-diam lanjut — gambar gagal ditulis berarti JSON/event tidak boleh
+            # dibuat (mencegah record yatim yang menunjuk file tidak ada). run_loop di
+            # FrameProcessingWorker menangkap exception (skip 1 frame + log); manual reject → 500.
+            raise IOError(f"cv2.imwrite gagal (disk penuh / permission?): {path}")
 

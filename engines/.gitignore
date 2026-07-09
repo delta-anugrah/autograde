@@ -1,0 +1,4 @@
+# Built TensorRT engines are hardware-locked (GPU + TensorRT version) —
+# never commit them; each machine builds its own via `make build-engine`.
+*
+!.gitignore

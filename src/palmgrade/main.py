@@ -65,8 +65,9 @@ def create_app() -> FastAPI:
         for folder in [settings.captures_dir, settings.results_dir, settings.errors_dir, settings.logs_dir]:
             folder.mkdir(parents=True, exist_ok=True)
 
-        if settings.webhook_secret == "supersecret123":
-            logger.warning("WEBHOOK_SECRET is using the default value — set it before production deployment")
+        # Fail-fast kalau secret masih default di production (dev tetap boleh,
+        # cuma warning). Lihat Settings.validate_for_runtime().
+        settings.validate_for_runtime()
 
         # Init kamera — dikontrol lewat env var CAMERA_TYPE
         # hikrobot (default) = Hikrobot industrial camera (butuh SDK + hardware)
@@ -90,7 +91,7 @@ def create_app() -> FastAPI:
             camera = HikrobotCamera()
 
         try:
-            camera.connect(index=settings.camera_device_index)
+            camera.connect(index=settings.camera_device_index, serial=settings.camera_serial, feature_file=settings.camera_feature_file)
         except RuntimeError as exc:
             if camera_type == "hikrobot":
                 logger.warning("Camera not found at startup: %s — FrameCaptureWorker will keep retrying", exc)
@@ -113,7 +114,7 @@ def create_app() -> FastAPI:
             t.start()
             return t
 
-        capture_worker = FrameCaptureWorker(camera=camera, state=state, target_fps=settings.camera_fps, device_index=settings.camera_device_index)
+        capture_worker = FrameCaptureWorker(camera=camera, state=state, target_fps=settings.camera_fps, device_index=settings.camera_device_index, serial=settings.camera_serial, feature_file=settings.camera_feature_file)
         display_worker = DisplayWorker(
             state=state,
             pipeline=pipeline,
@@ -185,7 +186,7 @@ def create_app() -> FastAPI:
     )
 
     # Static files — path /captures/... → artifacts/ directory
-    # image_url format: "captures/results/{date}/{timestamp}.jpg"
+    # image_url format: "captures/results/{date}/{timestamp}.webp"
     artifacts_dir = settings.artifacts_dir
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/captures", StaticFiles(directory=str(artifacts_dir)), name="captures")

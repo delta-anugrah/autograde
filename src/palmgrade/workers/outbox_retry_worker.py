@@ -51,7 +51,7 @@ class OutboxRetryWorker:
                 res = self._client.post(url, json=payload, headers=self._headers)
                 if res.status_code in (200, 201) or "already_processed" in res.text:
                     self.outbox.mark_delivered(row["id"])
-                    self.state.last_successful_api_push = datetime.datetime.now().isoformat()
+                    self.state.last_successful_api_push = datetime.datetime.now(datetime.timezone.utc).isoformat()
                     logger.debug("Outbox delivered event %s (status=%s)", row["event_id"], res.status_code)
                 else:
                     self.outbox.mark_failed_attempt(row["id"], f"HTTP {res.status_code}: {res.text[:200]}")

@@ -74,7 +74,7 @@ class FrameProcessingWorker:
         timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
 
         results_dir = self.settings.results_dir / date_folder
-        img_filename = f"{timestamp}_auto.jpg"
+        img_filename = f"{timestamp}_auto.webp"
         image_url = f"captures/results/{date_folder}/{img_filename}"
 
         self.storage.write_image(results_dir / img_filename, annotated_frame, quality=JPEG_QUALITY_SAVE)
@@ -92,11 +92,8 @@ class FrameProcessingWorker:
         }
         self.storage.write_json(results_dir / f"{timestamp}_auto_ripeness.json", meta)
 
-        if ripeness_status == "rej":
-            errors_dir = self.settings.errors_dir / date_folder
-            self.storage.write_image(errors_dir / img_filename, annotated_frame, quality=JPEG_QUALITY_SAVE)
-            self.storage.write_json(errors_dir / f"{timestamp}_auto_ripeness.json", meta)
-
+        # results/ adalah satu-satunya sumber kebenaran; foto REJ ditemukan lewat
+        # metadata (ripeness_status == "REJ"), bukan folder errors/ terpisah.
         return date_folder, timestamp, image_url
 
     def _save_tp(
@@ -175,14 +172,13 @@ class FrameProcessingWorker:
                 logger.debug("[MODEL] frame=%d n=0", self._frame_count)
 
         self._fps_counter += 1
+        fps_now = time.time()
         if self._fps_timer == 0.0:
-            self._fps_timer = time.time()
-        else:
-            fps_now = time.time()
-            if fps_now - self._fps_timer >= 5.0:
-                logger.info("[FPS] yolo=%.1f", self._fps_counter / (fps_now - self._fps_timer))
-                self._fps_counter = 0
-                self._fps_timer = fps_now
+            self._fps_timer = fps_now
+        elif fps_now - self._fps_timer >= 1.0:
+            self.state.inference_fps = self._fps_counter / (fps_now - self._fps_timer)
+            self._fps_counter = 0
+            self._fps_timer = fps_now
 
         current_active_tracks: set[int] = set()
 
@@ -260,9 +256,6 @@ class FrameProcessingWorker:
                     else:
                         ripeness_status = label.lower()
                     ripeness_conf = score
-                    self.state.track_history[track_id]["processed"] = True
-                    self._processed_objects.add(track_id)
-                    self._processed_times[track_id] = time.time()
 
                     annotated = self.pipeline.draw_boxes(frame.copy(), results)
 
@@ -288,7 +281,7 @@ class FrameProcessingWorker:
                         )
                         self._last_tp = None
 
-                    event_ts = datetime.datetime.now().isoformat()
+                    event_ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
                     event = {
                         "id": timestamp,
                         "ripeness_status": ripeness_status,
@@ -313,7 +306,13 @@ class FrameProcessingWorker:
 
                     truck_id = self.state.current_truck_id
                     if truck_id:
-                        event_id = str(uuid.uuid4())
+                        # event_id deterministik (machine_id + timestamp file, unik per
+                        # detik per line) → kalau frame ini diproses ulang setelah crash
+                        # SEBELUM `processed` di-set, event_id tetap sama → API idempotent
+                        # (already_processed) → tidak double count.
+                        event_id = str(
+                            uuid.uuid5(uuid.NAMESPACE_URL, f"{self.settings.machine_id}:{timestamp}")
+                        )
                         outbox_payload = {
                             "event_id": event_id,
                             "machine_id": self.settings.machine_id,
@@ -333,6 +332,14 @@ class FrameProcessingWorker:
                             self.outbox_store.add_event(event_id, self.settings.machine_id, outbox_payload)
                         except Exception as exc:
                             logger.error("Failed to write event %s to outbox: %s", event_id, exc)
+
+                    # Tandai `processed` SETELAH event aman di outbox (Celah-1 fix):
+                    # kalau crash di tengah blok di atas, track ini BELUM processed →
+                    # diproses ulang next frame → event_id deterministik = idempotent.
+                    # Tanpa truck (truck_id null) tetap ditandai supaya tidak re-trigger.
+                    self.state.track_history[track_id]["processed"] = True
+                    self._processed_objects.add(track_id)
+                    self._processed_times[track_id] = time.time()
 
         # H6: do NOT discard from _processed_objects on cleanup — prevents re-trigger
         # if ByteTrack reuses the ID or the object re-enters after being marked inactive.

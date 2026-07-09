@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from .value_objects import BoundingBox, CaptureType
 
@@ -15,7 +15,7 @@ class InspectionResult:
     capture_type: CaptureType
     machine_id: str = ""
     truck_id: str | None = None
-    tp_status: str | None = None   # "TP" | None
+    tp_status: str | None = None   # "PASS" | None
     tp_confidence: float = 0.0
     bounding_box: BoundingBox | None = None
 

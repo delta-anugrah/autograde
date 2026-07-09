@@ -17,6 +17,21 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    # Healthcheck HTTP /health — restart policy hanya nolong kalau proses EXIT;
+    # ini menandai container UNHEALTHY kalau proses masih hidup tapi HANG (mis.
+    # threadpool starvation). Pakai python stdlib karena image slim tak punya curl.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,os;urllib.request.urlopen('http://localhost:'+os.environ['APP_PORT']+'/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # Batasi ukuran log per container supaya disk tidak penuh (log FPS 24/7).
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8001
@@ -35,8 +50,13 @@ services:
       - ROI_Y2=${ROI_Y2:-0}
       - STREAM_WIDTH=${STREAM_WIDTH:-1280}
       - STREAM_HEIGHT=${STREAM_HEIGHT:-720}
+      - STREAM_FPS=${STREAM_FPS:-12}
       - CAMERA_DEVICE_INDEX=0
-      - MACHINE_ID=d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01
+      # Pilih kamera by-serial (stabil, cegah rebutan antar line). Kosong → fallback index.
+      - CAMERA_SERIAL=${LINE_1_CAMERA_SERIAL:-}
+      # Auto-load setting kamera (.mfs dari MVS) saat connect. Non-fatal kalau gagal.
+      - CAMERA_FEATURE_FILE=${LINE_1_FEATURE_FILE:-config/camera/hikrobot.mfs}
+      - MACHINE_ID=${LINE_1_MACHINE_ID:-d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01}
       - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
@@ -55,6 +75,7 @@ services:
       - /app/.venv
       - ./artifacts/line-1:/app/artifacts
       - ./models:/app/models:ro
+      - ./engines:/app/engines
       - /home/nexio/Desktop/Projects/sawit:/videos:ro
 
   ripe-line-2:
@@ -69,6 +90,21 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    # Healthcheck HTTP /health — restart policy hanya nolong kalau proses EXIT;
+    # ini menandai container UNHEALTHY kalau proses masih hidup tapi HANG (mis.
+    # threadpool starvation). Pakai python stdlib karena image slim tak punya curl.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,os;urllib.request.urlopen('http://localhost:'+os.environ['APP_PORT']+'/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # Batasi ukuran log per container supaya disk tidak penuh (log FPS 24/7).
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8002
@@ -87,8 +123,13 @@ services:
       - ROI_Y2=${ROI_Y2:-0}
       - STREAM_WIDTH=${STREAM_WIDTH:-1280}
       - STREAM_HEIGHT=${STREAM_HEIGHT:-720}
+      - STREAM_FPS=${STREAM_FPS:-12}
       - CAMERA_DEVICE_INDEX=1
-      - MACHINE_ID=a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02
+      # Pilih kamera by-serial (stabil, cegah rebutan antar line). Kosong → fallback index.
+      - CAMERA_SERIAL=${LINE_2_CAMERA_SERIAL:-}
+      # Auto-load setting kamera (.mfs dari MVS) saat connect. Non-fatal kalau gagal.
+      - CAMERA_FEATURE_FILE=${LINE_2_FEATURE_FILE:-config/camera/hikrobot.mfs}
+      - MACHINE_ID=${LINE_2_MACHINE_ID:-a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02}
       - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
@@ -106,6 +147,7 @@ services:
       - /app/.venv
       - ./artifacts/line-2:/app/artifacts
       - ./models:/app/models:ro
+      - ./engines:/app/engines
       - /home/nexio/Desktop/Projects/sawit:/videos:ro
 
   ripe-line-3:
@@ -120,6 +162,21 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    # Healthcheck HTTP /health — restart policy hanya nolong kalau proses EXIT;
+    # ini menandai container UNHEALTHY kalau proses masih hidup tapi HANG (mis.
+    # threadpool starvation). Pakai python stdlib karena image slim tak punya curl.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,os;urllib.request.urlopen('http://localhost:'+os.environ['APP_PORT']+'/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # Batasi ukuran log per container supaya disk tidak penuh (log FPS 24/7).
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8003
@@ -138,8 +195,13 @@ services:
       - ROI_Y2=${ROI_Y2:-0}
       - STREAM_WIDTH=${STREAM_WIDTH:-1280}
       - STREAM_HEIGHT=${STREAM_HEIGHT:-720}
+      - STREAM_FPS=${STREAM_FPS:-12}
       - CAMERA_DEVICE_INDEX=2
-      - MACHINE_ID=ad5f7bb9-c06d-4e87-8282-ce450ae331ec
+      # Pilih kamera by-serial (stabil, cegah rebutan antar line). Kosong → fallback index.
+      - CAMERA_SERIAL=${LINE_3_CAMERA_SERIAL:-}
+      # Auto-load setting kamera (.mfs dari MVS) saat connect. Non-fatal kalau gagal.
+      - CAMERA_FEATURE_FILE=${LINE_3_FEATURE_FILE:-config/camera/hikrobot.mfs}
+      - MACHINE_ID=${LINE_3_MACHINE_ID:-ad5f7bb9-c06d-4e87-8282-ce450ae331ec}
       - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
@@ -157,4 +219,5 @@ services:
       - /app/.venv
       - ./artifacts/line-3:/app/artifacts
       - ./models:/app/models:ro
+      - ./engines:/app/engines
       - /home/nexio/Desktop/Projects/sawit:/videos:ro
