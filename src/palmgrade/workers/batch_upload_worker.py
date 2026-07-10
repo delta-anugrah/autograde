@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -178,3 +179,82 @@ class BatchUploadWorker:
         if not payload["timestamp"]:
             raise _PoisonError(f"timestamp hilang: {json_path}")
         return payload
+
+    # ---------------------------------------------------------------- orchestration
+
+    def run_batch_once(self) -> None:
+        if not self.settings.r2_bucket:
+            if not self._warned_noop:
+                logger.warning("R2_BUCKET kosong — batch upload no-op (saklar off)")
+                self._warned_noop = True
+            return
+
+        self._scan()
+        items = self.manifest.get_uploadable(limit=self.settings.upload_max_items_per_tick)
+        logger.info("Batch tick: %d item eligible (%s)", len(items), self.manifest.counts())
+
+        for item in items:
+            try:
+                self._process_item(item)
+            except _PoisonError as exc:
+                logger.error("Item poisoned %s: %s", item["item_key"], exc)
+                self.manifest.mark_poisoned(item["id"], str(exc))
+                continue  # satu item busuk tidak menyandera batch
+            except _RequeueError as exc:
+                logger.warning("Item requeued %s: %s — batch break", item["item_key"], exc)
+                self.manifest.requeue(item["id"], str(exc))
+                break  # kondisi eksternal rusak — sisa antrean nunggu tick berikut
+
+        self._retention()
+
+    def _process_item(self, item: dict[str, Any]) -> None:
+        if item["status"] == "pending" and item["image_path"]:
+            local = self.settings.artifacts_dir / item["image_path"].lstrip("/").removeprefix("captures/")
+            if not local.exists():
+                raise _PoisonError(f"file gambar hilang: {local}")
+            try:
+                self.uploader.put(local, item["r2_key"])
+            except FileNotFoundError as exc:
+                raise _PoisonError(f"file gambar hilang: {local}") from exc
+            except Exception as exc:
+                raise _RequeueError(f"PUT R2 gagal: {exc}") from exc
+            self.manifest.mark_image_uploaded(item["id"])
+            item["status"] = "image_uploaded"
+
+        payload = self._build_payload(item)  # bisa raise _PoisonError
+        headers = {
+            "Content-Type": "application/json",
+            "x-webhook-secret": self.settings.upload_api_secret,
+        }
+        try:
+            res = self._client.post(self.settings.upload_events_url, json=payload, headers=headers)
+        except Exception as exc:
+            raise _RequeueError(f"POST gagal: {exc}") from exc
+
+        if res.status_code in (200, 201) or "already_processed" in res.text:
+            self.manifest.mark_done(item["id"])
+            return
+        if res.status_code in (400, 422):
+            raise _PoisonError(f"HTTP {res.status_code}: {res.text[:200]}")
+        if res.status_code in (401, 403):
+            logger.error("Auth ke API cloud ditolak (HTTP %s) — cek UPLOAD_API_SECRET", res.status_code)
+        if res.status_code == 404:
+            logger.error("Truck belum ada di DB cloud (HTTP 404) — item nunggu sinkronisasi truck")
+        raise _RequeueError(f"HTTP {res.status_code}: {res.text[:200]}")
+
+    # ---------------------------------------------------------------- retention
+
+    def _retention(self) -> None:
+        cutoff = time.time() - self.settings.upload_retention_days * 86400
+        for item in self.manifest.get_expired_done(cutoff):
+            json_path = self.settings.artifacts_dir / item["item_key"]
+            targets = [json_path]
+            if json_path.name.endswith("_auto_ripeness.json"):
+                targets.append(json_path.with_name(json_path.name.replace("_auto_ripeness.json", _TP_SUFFIX)))
+            if item["image_path"]:
+                targets.append(
+                    self.settings.artifacts_dir / item["image_path"].lstrip("/").removeprefix("captures/")
+                )
+            for t in targets:
+                t.unlink(missing_ok=True)
+            self.manifest.delete_item(item["id"])
