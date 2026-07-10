@@ -30,7 +30,8 @@ def _add(m, key="results/2026-07-10/a_auto_ripeness.json", **over):
 
 
 def test_scan_idempotent(m):
-    _add(m); _add(m)  # scan 2x → tetap 1 row
+    _add(m)
+    _add(m)  # scan 2x → tetap 1 row
     assert m.counts()["pending"] == 1
     assert m.has_item("results/2026-07-10/a_auto_ripeness.json")
 
