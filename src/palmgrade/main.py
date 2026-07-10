@@ -32,6 +32,9 @@ from .license.local_repo import LicenseLocalRepo
 from .license.manager import LicenseManager
 from .license.sync_client import SyncClient
 from .integrations.scheduler.upload_scheduler import UploadScheduler
+from .integrations.upload.r2_uploader import R2Uploader
+from .integrations.upload.upload_manifest import UploadManifest
+from .workers.batch_upload_worker import BatchUploadWorker
 from .routes.capture import router as capture_router
 from .routes.health import router as health_router
 from .routes.inspection import router as inspection_router
@@ -136,15 +139,16 @@ def create_app() -> FastAPI:
             ("processing", _start_worker("processing", processing_worker.run_loop), processing_worker),
         ]
 
+        # [DISABLED: batch-upload-r2 — lihat spec 2026-07-10]
         # OutboxRetryWorker — delivers pending events to canonical API endpoint
-        outbox_store = get_outbox_store()
-        outbox_worker = OutboxRetryWorker(
-            outbox=outbox_store,
-            settings=settings,
-            state=state,
-        )
-        outbox_thread = _start_worker("outbox_retry", outbox_worker.run_loop)
-        state.worker_threads.append(("outbox_retry", outbox_thread, outbox_worker))
+        # outbox_store = get_outbox_store()
+        # outbox_worker = OutboxRetryWorker(
+        #     outbox=outbox_store,
+        #     settings=settings,
+        #     state=state,
+        # )
+        # outbox_thread = _start_worker("outbox_retry", outbox_worker.run_loop)
+        # state.worker_threads.append(("outbox_retry", outbox_thread, outbox_worker))
 
         async def _watchdog() -> None:
             while True:
@@ -157,7 +161,18 @@ def create_app() -> FastAPI:
 
         asyncio.create_task(_watchdog())
 
-        upload_scheduler = UploadScheduler(settings=settings)
+        # Batch upload cloud: gambar → R2, teks → API cloud, tiap jam.
+        upload_manifest = UploadManifest(db_path=settings.artifacts_dir / "upload_manifest.db")
+        r2_uploader = R2Uploader(
+            account_id=settings.r2_account_id,
+            access_key_id=settings.r2_access_key_id,
+            secret_access_key=settings.r2_secret_access_key,
+            bucket=settings.r2_bucket,
+        )
+        batch_worker = BatchUploadWorker(
+            settings=settings, manifest=upload_manifest, uploader=r2_uploader
+        )
+        upload_scheduler = UploadScheduler(settings=settings, run_batch=batch_worker.run_batch_once)
         upload_scheduler.start()
 
         yield

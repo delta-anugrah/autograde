@@ -1,76 +1,47 @@
+"""Scheduler batch upload cloud — tiap jam pada menit UPLOAD_MINUTE.
+
+Pengganti archiver lokal lama (copytree+rmtree ke DESTINATION_UPLOAD) yang
+sudah tidak dipakai. Sekarang satu-satunya job: BatchUploadWorker.run_batch_once
+(spec 2026-07-10 §3.4). max_instances=1 + coalesce=True → tick yang telat/numpuk
+di-skip, tidak pernah jalan paralel.
+"""
 from __future__ import annotations
 
 import atexit
-import datetime
 import logging
-import shutil
-from pathlib import Path
+from typing import Callable
 
 from apscheduler.schedulers.background import BackgroundScheduler  # type: ignore
+from apscheduler.triggers.cron import CronTrigger  # type: ignore
 
 from ...core.config import Settings
 
 logger = logging.getLogger(__name__)
 
 
-def _get_unique_path(path: Path) -> Path:
-    counter = 1
-    new_path = path
-    while new_path.exists():
-        new_path = path.parent / f"{path.name}_{counter}"
-        counter += 1
-    return new_path
-
-
-def _upload_today_errors(settings: Settings) -> None:
-    if not settings.destination_upload:
-        logger.warning("DESTINATION_UPLOAD tidak diset, skip.")
-        return
-
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
-    destination = Path(settings.destination_upload)
-
-    # results/ adalah satu-satunya sumber kebenaran (errors/ sudah tidak ditulis lagi).
-    for folder_type, source_dir in [
-        ("results", settings.results_dir / today),
-    ]:
-        if not source_dir.exists():
-            logger.info("No source folder for today: %s", source_dir)
-            continue
-
-        dest_path = _get_unique_path(destination / f"{folder_type}_{today}")
-        try:
-            shutil.copytree(str(source_dir), str(dest_path))
-            logger.info("Copied %s -> %s", source_dir, dest_path)
-            shutil.rmtree(str(source_dir))
-            logger.info("Deleted %s", source_dir)
-        except Exception as e:
-            logger.error("Failed to upload %s: %s", source_dir, e)
-
-
 class UploadScheduler:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, run_batch: Callable[[], None]) -> None:
         self.settings = settings
+        self._run_batch = run_batch
         self._scheduler: BackgroundScheduler | None = None
 
     def start(self) -> None:
         self._scheduler = BackgroundScheduler()
         self._scheduler.add_job(
-            _upload_today_errors,
-            "cron",
-            hour=self.settings.upload_hour,
-            minute=self.settings.upload_minute,
-            args=[self.settings],
+            self._run_batch,
+            CronTrigger(minute=self.settings.upload_minute),
+            max_instances=1,
+            coalesce=True,
         )
         self._scheduler.start()
         atexit.register(self.stop)
         logger.info(
-            "Upload scheduled at %02d:%02d",
-            self.settings.upload_hour,
+            "Batch upload terjadwal tiap jam pada menit %02d (R2_BUCKET=%s)",
             self.settings.upload_minute,
+            self.settings.r2_bucket or "<kosong — no-op>",
         )
 
     def stop(self) -> None:
         if self._scheduler and self._scheduler.running:
             self._scheduler.shutdown()
-            logger.info("Scheduler stopped")
+            logger.info("Batch upload scheduler stopped")
