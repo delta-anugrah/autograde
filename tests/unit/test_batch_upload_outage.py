@@ -173,6 +173,25 @@ def test_http_404_truck_missing_requeues(env):
     # gambar sudah ke R2 (tak diulang), teks requeued — resume dari image_uploaded.
     assert c["image_uploaded"] == 1
     assert c["done"] == 0 and c["poisoned"] == 0   # nunggu truck disinkron, bukan poisoned
+    assert len(http.posts) == 1                    # 404 = requeue + CONTINUE (per-item, bukan break)
+
+
+def test_http_404_does_not_starve_batch(env):
+    settings, manifest, worker, uploader, http = env
+    _write_items(settings, 3)
+    responses = [FakeResponse(404, "Truck not found"), FakeResponse(201, "created"), FakeResponse(201, "created")]
+
+    def post(url, json=None, headers=None):
+        http.posts.append({"url": url, "json": json, "headers": headers})
+        return responses[len(http.posts) - 1]
+
+    http.post = post
+    worker.run_batch_once()
+    c = manifest.counts()
+    assert len(http.posts) == 3                     # item 1 tak menyandera item 2-3
+    assert c["done"] == 2                            # item 2 & 3 tuntas
+    assert c["image_uploaded"] == 1 and c["pending"] == 0  # item 1 requeued, resume dari image_uploaded
+    assert c["poisoned"] == 0
 
 
 def test_missing_image_file_poisons_json_kept(env):

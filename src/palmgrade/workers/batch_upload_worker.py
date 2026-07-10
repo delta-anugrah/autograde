@@ -5,8 +5,12 @@ R2, lalu POST teks ke API cloud) → retensi. State per item hidup di
 UploadManifest; worker ini stateless antar tick.
 
 Klasifikasi kegagalan (spec §5):
-- _RequeueError  → kondisi eksternal rusak (jaringan/5xx/429/401/403/404):
+- _RequeueError  → kondisi eksternal rusak (jaringan/5xx/429/401/403):
   requeue item + BREAK batch (percuma lanjut; sisa antrean nunggu tick berikut).
+  Kecuali HTTP 404 (truck belum sinkron) — itu kondisi PER-ITEM, bukan global:
+  requeue item + CONTINUE batch (`batch_fatal=False`), supaya satu item yang
+  terus-menerus 404 tidak menyandera item lain di belakangnya (head-of-line
+  starvation, antrean di-ORDER BY discovered_at ASC).
 - _PoisonError   → input cacat (JSON korup/field hilang/gambar hilang):
   poisoned + CONTINUE (satu item busuk tidak menyandera batch). File TIDAK dihapus.
 """
@@ -38,7 +42,17 @@ class _PoisonError(Exception):
 
 
 class _RequeueError(Exception):
-    """Kondisi eksternal rusak — item diantre ulang, batch berhenti dulu."""
+    """Kondisi eksternal rusak — item diantre ulang.
+
+    `batch_fatal=True` (default) → batch juga berhenti (kondisi global, mis.
+    jaringan/5xx/429/401/403 — percuma lanjut, semua item bakal gagal sama).
+    `batch_fatal=False` → batch lanjut (kondisi per-item, mis. HTTP 404 truck
+    belum sinkron — item lain di belakangnya tetap layak diproses tick ini).
+    """
+
+    def __init__(self, message: str, *, batch_fatal: bool = True) -> None:
+        super().__init__(message)
+        self.batch_fatal = batch_fatal
 
 
 def file_timestamp(json_name: str) -> str:
@@ -72,7 +86,7 @@ class BatchUploadWorker:
 
     def _read_meta(self, json_path: Path) -> dict[str, Any]:
         try:
-            return json.loads(json_path.read_text())
+            return json.loads(json_path.read_text(encoding="utf-8"))
         except FileNotFoundError as exc:
             raise _PoisonError(f"JSON hilang: {json_path}") from exc
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
@@ -201,9 +215,12 @@ class BatchUploadWorker:
                 self.manifest.mark_poisoned(item["id"], str(exc))
                 continue  # satu item busuk tidak menyandera batch
             except _RequeueError as exc:
-                logger.warning("Item requeued %s: %s — batch break", item["item_key"], exc)
                 self.manifest.requeue(item["id"], str(exc))
-                break  # kondisi eksternal rusak — sisa antrean nunggu tick berikut
+                if exc.batch_fatal:
+                    logger.warning("Item requeued %s: %s — batch break", item["item_key"], exc)
+                    break  # kondisi eksternal rusak — sisa antrean nunggu tick berikut
+                logger.warning("Item requeued %s: %s — batch continue", item["item_key"], exc)
+                continue  # kondisi per-item — item lain di belakangnya tetap diproses
 
         self._retention()
 
@@ -238,8 +255,10 @@ class BatchUploadWorker:
             raise _PoisonError(f"HTTP {res.status_code}: {res.text[:200]}")
         if res.status_code in (401, 403):
             logger.error("Auth ke API cloud ditolak (HTTP %s) — cek UPLOAD_API_SECRET", res.status_code)
+            raise _RequeueError(f"HTTP {res.status_code}: {res.text[:200]}")
         if res.status_code == 404:
             logger.error("Truck belum ada di DB cloud (HTTP 404) — item nunggu sinkronisasi truck")
+            raise _RequeueError(f"HTTP {res.status_code}: {res.text[:200]}", batch_fatal=False)
         raise _RequeueError(f"HTTP {res.status_code}: {res.text[:200]}")
 
     # ---------------------------------------------------------------- retention
