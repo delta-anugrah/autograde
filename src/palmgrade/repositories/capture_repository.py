@@ -24,6 +24,7 @@ class CaptureRepository:
         self,
         frame: np.ndarray,
         truck_id: str | None,
+        assignment_id: str | None = None,
     ) -> dict[str, Any]:
         now = datetime.datetime.now()
         date_folder = now.strftime("%Y-%m-%d")
@@ -49,6 +50,7 @@ class CaptureRepository:
             "capture_type": MANUAL_CAPTURE_SUFFIX,
             "truck_id": truck_id,
             "bounding_box": bounding_box,
+            "assignment_id": assignment_id,
         }
 
         json_filename = f"{timestamp}_{MANUAL_CAPTURE_SUFFIX}_ripeness.json"
