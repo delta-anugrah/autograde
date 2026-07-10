@@ -92,10 +92,19 @@ class Settings:
     font_thickness: int = field(default_factory=lambda: int(os.getenv("FONT_THICKNESS", "2")))
     roi_scale: float = field(default_factory=lambda: float(os.getenv("ROI_SCALE", "0.7")))
 
-    # Scheduler upload
-    upload_hour: int = field(default_factory=lambda: int(os.getenv("UPLOAD_HOUR", "0")))
+    # Batch upload cloud (R2 + API cloud) — semua kredensial placeholder sampai
+    # bucket/domain dibuat. R2_BUCKET kosong = batch worker no-op (saklar off).
     upload_minute: int = field(default_factory=lambda: int(os.getenv("UPLOAD_MINUTE", "0")))
-    destination_upload: str = field(default_factory=lambda: os.getenv("DESTINATION_UPLOAD", ""))
+    r2_account_id: str = field(default_factory=lambda: os.getenv("R2_ACCOUNT_ID", ""))
+    r2_access_key_id: str = field(default_factory=lambda: os.getenv("R2_ACCESS_KEY_ID", ""))
+    r2_secret_access_key: str = field(default_factory=lambda: os.getenv("R2_SECRET_ACCESS_KEY", ""))
+    r2_bucket: str = field(default_factory=lambda: os.getenv("R2_BUCKET", ""))
+    r2_public_url: str = field(default_factory=lambda: os.getenv("R2_PUBLIC_URL", "").rstrip("/"))
+    # Target POST teks = API CLOUD. BACKEND_URL tetap menunjuk API LOKAL (webhook realtime).
+    upload_api_url: str = field(default_factory=lambda: os.getenv("UPLOAD_API_URL", "").rstrip("/"))
+    upload_api_secret: str = field(default_factory=lambda: os.getenv("UPLOAD_API_SECRET", ""))
+    upload_max_items_per_tick: int = field(default_factory=lambda: int(os.getenv("UPLOAD_MAX_ITEMS_PER_TICK", "2000")))
+    upload_retention_days: int = field(default_factory=lambda: int(os.getenv("UPLOAD_RETENTION_DAYS", "7")))
 
     # ------------------------------------------------------------------ validation
 
@@ -109,6 +118,11 @@ class Settings:
         start; di development default tetap boleh (cuma warning) supaya alur
         dev/opencv lancar.
         """
+        if self.environment == "production" and not self.r2_bucket:
+            logger.warning(
+                "R2_BUCKET kosong — batch upload ke cloud nonaktif (no-op). "
+                "Isi R2_*/UPLOAD_API_* di .env untuk mengaktifkan."
+            )
         if self.webhook_secret != _DEFAULT_WEBHOOK_SECRET:
             return
         if self.environment == "production":
@@ -177,3 +191,7 @@ class Settings:
     @property
     def canonical_events_url(self) -> str:
         return f"{self.backend_url}{self.backend_api_ver}/internal/vision/events"
+
+    @property
+    def upload_events_url(self) -> str:
+        return f"{self.upload_api_url}{self.backend_api_ver}/internal/vision/events"
