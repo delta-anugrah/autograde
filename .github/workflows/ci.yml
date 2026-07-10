@@ -24,7 +24,7 @@ jobs:
       # cryptography/aiosqlite/psutil/httpx = deps ringan (pure-python wheels)
       # yang dibutuhkan test license/ (bukan hardware).
       - name: Install tooling
-        run: pip install ruff pytest cryptography aiosqlite psutil httpx
+        run: pip install ruff pytest cryptography aiosqlite psutil httpx boto3
 
       # Lint hanya modul yang sudah bersih (tests + domain + outbox + license).
       # Modul lain (torch/cv2/SDK) di-exclude via pyproject sampai di-hardening
