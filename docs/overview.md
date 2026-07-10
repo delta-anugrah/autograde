@@ -31,11 +31,11 @@
 | `FrameCaptureWorker` | thread | grab frame from camera (under `state.lock`) → `state.latest_raw_frame` + `frame_queue`. Auto-reconnects with `device_index`. |
 | `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); detection → save → outbox → `event_queue` |
 | `DisplayWorker` | thread | the **only** writer of `state.latest_frame`: draw boxes → resize → draw ROI → JPEG encode → `frame_condition.notify_all()`. Runs at `STREAM_FPS` (default 12). |
-| `OutboxRetryWorker` | thread | poll SQLite outbox every **1s**, POST pending events to api, mark delivered/failed |
+| ~~OutboxRetryWorker~~ | thread | **DINONAKTIFKAN (di-comment)** sejak batch-upload-r2 (spec 2026-07-10) — digantikan batch upload hourly ke R2 + API cloud |
 | `EventBroadcastWorker` | asyncio task | drain `event_queue` → push to `/ws/results` WebSocket clients |
 | `_watchdog` | asyncio task | every **10s**, restart any dead worker thread |
 
-`UploadScheduler` (APScheduler) runs the daily artifact upload cron.
+`UploadScheduler` (APScheduler) menjalankan `BatchUploadWorker.run_batch_once` tiap jam (menit `UPLOAD_MINUTE`): scan `artifacts/results/` → manifest SQLite → upload gambar ke R2 → POST teks ke API cloud. `R2_BUCKET` kosong = no-op.
 
 **Queues / sync primitives** (`workers/runtime_state.py`):
 - `frame_queue` — raw frames, bounded (drop-old).
@@ -89,7 +89,7 @@ inference can take 0.5–2s and the conveyor moves, so boxes would land in the w
 ```
 FrameProcessingWorker / CaptureService
   → OutboxStore.add_event(event_id, machine_id, payload)        # write to SQLite first
-      → OutboxRetryWorker (thread, poll 1s)
+      → [DISABLED] OutboxRetryWorker — diganti BatchUploadWorker (hourly, R2 + API cloud)
           → POST {canonical_events_url}  header x-webhook-secret: WEBHOOK_SECRET
               → palmgrade-api  /api/v1/internal/vision/events
 ```

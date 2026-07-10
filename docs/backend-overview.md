@@ -302,6 +302,8 @@ FE akses via: `${LINE_N_URL}/captures/results/{date}/{filename}`
 
 ## Event Delivery ke palmgrade-api (via OutboxStore)
 
+**Status: DINONAKTIFKAN (di-comment) sejak batch-upload-r2 — lihat docs/superpowers/specs/2026-07-10-batch-upload-r2-design.md.** Event historis kini dikirim batch worker tiap jam; webhook realtime lokal tidak berubah.
+
 Setiap detection final (auto atau manual) ditulis ke OutboxStore dulu, lalu `OutboxRetryWorker` deliver ke API.
 
 ```
@@ -348,6 +350,8 @@ FrameProcessingWorker / CaptureService
 - Exponential backoff: 5s base, 600s cap, max 50 retries
 - `pending_count()` ditampilkan di `/health/detail`
 
+**Catatan operasional:** outbox.db lama bisa berisi row pending sisa — inert (tidak ada pengirim); backfill batch meng-cover file yang sama via manifest, dan event_id idempoten mencegah dobel kalau outbox di-uncomment lagi.
+
 ---
 
 ## Environment Variables
@@ -376,9 +380,16 @@ FrameProcessingWorker / CaptureService
 | `STREAM_HEIGHT` | `720` | Tinggi frame MJPEG stream |
 | `STREAM_FPS` | `12` | FPS MJPEG stream — decoupled dari `CAMERA_FPS` |
 | `YOLO_SKIP_FRAMES` | `1` | Jalankan YOLO tiap N frame (`1` = produksi; `>1` hemat CPU saat tes video) |
-| `UPLOAD_HOUR` | `0` | Jam upload otomatis (cron) |
-| `UPLOAD_MINUTE` | `0` | Menit upload otomatis (cron) |
-| `DESTINATION_UPLOAD` | — | Path tujuan upload hasil harian |
+| `UPLOAD_MINUTE` | `0` | Menit tiap jam batch uploader jalan |
+| `UPLOAD_MAX_ITEMS_PER_TICK` | `2000` | Jumlah maksimal item per batch run |
+| `UPLOAD_RETENTION_DAYS` | `7` | Hari retensi manifest SQLite |
+| `R2_ACCOUNT_ID` | — | Cloudflare R2 account ID (placeholder — kosong = no-op) |
+| `R2_ACCESS_KEY_ID` | — | Cloudflare R2 access key ID (placeholder — kosong = no-op) |
+| `R2_SECRET_ACCESS_KEY` | — | Cloudflare R2 secret access key (placeholder — kosong = no-op) |
+| `R2_BUCKET` | — | Cloudflare R2 bucket name (kosong = no-op) |
+| `R2_PUBLIC_URL` | — | Cloudflare R2 public URL prefix (placeholder — kosong = no-op) |
+| `UPLOAD_API_URL` | — | Base URL API cloud untuk batch events |
+| `UPLOAD_API_SECRET` | — | WEBHOOK_SECRET API cloud |
 | `LIC_ENABLED` | `false` | Aktifkan license guard |
 | `LIC_SERVER_URL` | — | URL license server |
 | `LIC_API_KEY` | — | API key license server |
