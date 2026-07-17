@@ -89,6 +89,7 @@ class FrameProcessingWorker:
             "capture_type": "auto",
             "truck_id": truck_id,
             "bounding_box": bounding_box,
+            "assignment_id": self.state.current_assignment_id,
         }
         self.storage.write_json(results_dir / f"{timestamp}_auto_ripeness.json", meta)
 
@@ -117,6 +118,7 @@ class FrameProcessingWorker:
             "capture_type": "auto",
             "truck_id": truck_id,
             "bounding_box": bounding_box,
+            "assignment_id": self.state.current_assignment_id,
         }
         self.storage.write_json(results_dir / f"{timestamp}_auto_tp.json", meta)
 
@@ -304,34 +306,35 @@ class FrameProcessingWorker:
                         pass
                     self.state.event_queue.put_nowait(event)
 
-                    truck_id = self.state.current_truck_id
-                    if truck_id:
-                        # event_id deterministik (machine_id + timestamp file, unik per
-                        # detik per line) → kalau frame ini diproses ulang setelah crash
-                        # SEBELUM `processed` di-set, event_id tetap sama → API idempotent
-                        # (already_processed) → tidak double count.
-                        event_id = str(
-                            uuid.uuid5(uuid.NAMESPACE_URL, f"{self.settings.machine_id}:{timestamp}")
-                        )
-                        outbox_payload = {
-                            "event_id": event_id,
-                            "machine_id": self.settings.machine_id,
-                            "assignment_id": self.state.current_assignment_id,
-                            "truck_id": truck_id,
-                            "timestamp": event_ts,
-                            "prediction": "Acc" if ripeness_status == "acc" else "Rej",
-                            "ripeness_status": ripeness_status.upper(),
-                            "ripeness_confidence": round(ripeness_conf, 2),
-                            "tp_status": tp_snapshot["tp_status"] if tp_snapshot else None,
-                            "tp_confidence": round(tp_snapshot["tp_confidence"], 2) if tp_snapshot else 0,
-                            "capture_type": "auto",
-                            "image_path": image_url,
-                            "bounding_box": {"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
-                        }
-                        try:
-                            self.outbox_store.add_event(event_id, self.settings.machine_id, outbox_payload)
-                        except Exception as exc:
-                            logger.error("Failed to write event %s to outbox: %s", event_id, exc)
+                    # [DISABLED: batch-upload-r2 — lihat spec 2026-07-10]
+                    # truck_id = self.state.current_truck_id
+                    # if truck_id:
+                    #     # event_id deterministik (machine_id + timestamp file, unik per
+                    #     # detik per line) → kalau frame ini diproses ulang setelah crash
+                    #     # SEBELUM `processed` di-set, event_id tetap sama → API idempotent
+                    #     # (already_processed) → tidak double count.
+                    #     event_id = str(
+                    #         uuid.uuid5(uuid.NAMESPACE_URL, f"{self.settings.machine_id}:{timestamp}")
+                    #     )
+                    #     outbox_payload = {
+                    #         "event_id": event_id,
+                    #         "machine_id": self.settings.machine_id,
+                    #         "assignment_id": self.state.current_assignment_id,
+                    #         "truck_id": truck_id,
+                    #         "timestamp": event_ts,
+                    #         "prediction": "Acc" if ripeness_status == "acc" else "Rej",
+                    #         "ripeness_status": ripeness_status.upper(),
+                    #         "ripeness_confidence": round(ripeness_conf, 2),
+                    #         "tp_status": tp_snapshot["tp_status"] if tp_snapshot else None,
+                    #         "tp_confidence": round(tp_snapshot["tp_confidence"], 2) if tp_snapshot else 0,
+                    #         "capture_type": "auto",
+                    #         "image_path": image_url,
+                    #         "bounding_box": {"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
+                    #     }
+                    #     try:
+                    #         self.outbox_store.add_event(event_id, self.settings.machine_id, outbox_payload)
+                    #     except Exception as exc:
+                    #         logger.error("Failed to write event %s to outbox: %s", event_id, exc)
 
                     # Tandai `processed` SETELAH event aman di outbox (Celah-1 fix):
                     # kalau crash di tengah blok di atas, track ini BELUM processed →

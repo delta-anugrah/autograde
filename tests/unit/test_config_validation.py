@@ -46,3 +46,33 @@ def test_internal_secret_mirrors_webhook_secret(monkeypatch):
     settings = Settings()
 
     assert settings.internal_secret == settings.webhook_secret == "some-secret"
+
+
+def test_batch_upload_defaults(monkeypatch):
+    for var in ("R2_ACCOUNT_ID", "R2_BUCKET", "R2_PUBLIC_URL", "UPLOAD_API_URL",
+                "UPLOAD_MAX_ITEMS_PER_TICK", "UPLOAD_RETENTION_DAYS"):
+        monkeypatch.delenv(var, raising=False)
+    s = Settings()
+    assert s.r2_bucket == ""
+    assert s.upload_max_items_per_tick == 2000
+    assert s.upload_retention_days == 7
+    # var scheduler lama sudah dihapus dari Settings
+    assert not hasattr(s, "upload_hour")
+    assert not hasattr(s, "destination_upload")
+
+
+def test_upload_events_url_built_from_upload_api_url(monkeypatch):
+    monkeypatch.setenv("UPLOAD_API_URL", "https://api.palmgrade.ai/")
+    s = Settings()
+    assert s.upload_api_url == "https://api.palmgrade.ai"  # trailing slash dibuang
+    assert s.upload_events_url == "https://api.palmgrade.ai/api/v1/internal/vision/events"
+
+
+def test_production_empty_r2_bucket_warns_not_crash(monkeypatch, caplog):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("WEBHOOK_SECRET", "bukan-default-123")
+    monkeypatch.delenv("R2_BUCKET", raising=False)
+    s = Settings()
+    with caplog.at_level("WARNING"):
+        s.validate_for_runtime()  # TIDAK raise
+    assert any("R2_BUCKET" in r.message for r in caplog.records)
