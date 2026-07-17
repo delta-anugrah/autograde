@@ -141,6 +141,11 @@ class Settings:
         return self.repo_root / "artifacts"
 
     @property
+    def state_dir(self) -> Path:
+        """Operational state (SQLite manifests) — di LUAR mount statis /captures."""
+        return self.repo_root / "state"
+
+    @property
     def captures_dir(self) -> Path:
         return self.artifacts_dir / "captures"
 

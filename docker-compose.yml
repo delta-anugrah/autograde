@@ -81,6 +81,7 @@ services:
       - .:/app
       - /app/.venv
       - ./artifacts/line-1:/app/artifacts
+      - ./state/line-1:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
       - /home/nexio/Desktop/Projects/sawit:/videos:ro
@@ -160,6 +161,7 @@ services:
       - .:/app
       - /app/.venv
       - ./artifacts/line-2:/app/artifacts
+      - ./state/line-2:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
       - /home/nexio/Desktop/Projects/sawit:/videos:ro
@@ -239,6 +241,7 @@ services:
       - .:/app
       - /app/.venv
       - ./artifacts/line-3:/app/artifacts
+      - ./state/line-3:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
       - /home/nexio/Desktop/Projects/sawit:/videos:ro

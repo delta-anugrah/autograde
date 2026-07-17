@@ -162,7 +162,7 @@ def create_app() -> FastAPI:
         asyncio.create_task(_watchdog())
 
         # Batch upload cloud: gambar → R2, teks → API cloud, tiap jam.
-        upload_manifest = UploadManifest(db_path=settings.artifacts_dir / "upload_manifest.db")
+        upload_manifest = UploadManifest(db_path=settings.state_dir / "upload_manifest.db")
         r2_uploader = R2Uploader(
             account_id=settings.r2_account_id,
             access_key_id=settings.r2_access_key_id,
