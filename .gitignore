@@ -1,6 +1,7 @@
 # Project-specific
 artifacts/
 state/
+samples/
 models/release/
 models/experiments/
 sdk/*
