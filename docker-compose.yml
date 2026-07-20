@@ -62,9 +62,16 @@ services:
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-25}
       - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
-      - UPLOAD_HOUR=${UPLOAD_HOUR:-0}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
-      - DESTINATION_UPLOAD=${DESTINATION_UPLOAD:-}
+      - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
+      - UPLOAD_RETENTION_DAYS=${UPLOAD_RETENTION_DAYS:-7}
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
+      - R2_BUCKET=${R2_BUCKET:-}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
+      - UPLOAD_API_URL=${UPLOAD_API_URL:-}
+      - UPLOAD_API_SECRET=${UPLOAD_API_SECRET:-}
       - LIC_ENABLED=${LIC_ENABLED:-false}
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
@@ -74,6 +81,7 @@ services:
       - .:/app
       - /app/.venv
       - ./artifacts/line-1:/app/artifacts
+      - ./state/line-1:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
       - /home/nexio/Desktop/Projects/sawit:/videos:ro
@@ -135,9 +143,16 @@ services:
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-25}
       - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
-      - UPLOAD_HOUR=${UPLOAD_HOUR:-0}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
-      - DESTINATION_UPLOAD=${DESTINATION_UPLOAD:-}
+      - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
+      - UPLOAD_RETENTION_DAYS=${UPLOAD_RETENTION_DAYS:-7}
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
+      - R2_BUCKET=${R2_BUCKET:-}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
+      - UPLOAD_API_URL=${UPLOAD_API_URL:-}
+      - UPLOAD_API_SECRET=${UPLOAD_API_SECRET:-}
       - LIC_ENABLED=${LIC_ENABLED:-false}
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
@@ -146,6 +161,7 @@ services:
       - .:/app
       - /app/.venv
       - ./artifacts/line-2:/app/artifacts
+      - ./state/line-2:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
       - /home/nexio/Desktop/Projects/sawit:/videos:ro
@@ -207,9 +223,16 @@ services:
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-25}
       - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
-      - UPLOAD_HOUR=${UPLOAD_HOUR:-0}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
-      - DESTINATION_UPLOAD=${DESTINATION_UPLOAD:-}
+      - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
+      - UPLOAD_RETENTION_DAYS=${UPLOAD_RETENTION_DAYS:-7}
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
+      - R2_BUCKET=${R2_BUCKET:-}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
+      - UPLOAD_API_URL=${UPLOAD_API_URL:-}
+      - UPLOAD_API_SECRET=${UPLOAD_API_SECRET:-}
       - LIC_ENABLED=${LIC_ENABLED:-false}
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
@@ -218,6 +241,7 @@ services:
       - .:/app
       - /app/.venv
       - ./artifacts/line-3:/app/artifacts
+      - ./state/line-3:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
       - /home/nexio/Desktop/Projects/sawit:/videos:ro

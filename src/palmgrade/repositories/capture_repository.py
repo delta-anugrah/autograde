@@ -24,8 +24,11 @@ class CaptureRepository:
         self,
         frame: np.ndarray,
         truck_id: str | None,
+        assignment_id: str | None = None,
     ) -> dict[str, Any]:
-        now = datetime.datetime.now()
+        # Aware UTC so the filename shares one instant with the payload
+        # timestamp below (which was already UTC-aware).
+        now = datetime.datetime.now(datetime.timezone.utc)
         date_folder = now.strftime("%Y-%m-%d")
         timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
 
@@ -49,6 +52,7 @@ class CaptureRepository:
             "capture_type": MANUAL_CAPTURE_SUFFIX,
             "truck_id": truck_id,
             "bounding_box": bounding_box,
+            "assignment_id": assignment_id,
         }
 
         json_filename = f"{timestamp}_{MANUAL_CAPTURE_SUFFIX}_ripeness.json"

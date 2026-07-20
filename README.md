@@ -28,7 +28,7 @@ Camera (Hikrobot / OpenCV / Photo)
         → detect: acc / rej / tp (tangkai panjang)
         → save WebP + JSON to artifacts/results/
         → OutboxStore.add_event()  ← durable SQLite write
-    → OutboxRetryWorker (daemon thread)
+    → BatchUploadWorker (hourly — R2 + API cloud; OutboxRetryWorker di-comment)
         → POST /api/v1/internal/vision/events → palmgrade-api
     → StreamingService
         → MJPEG /api/video_feed (multi-viewer via Condition broadcast)
@@ -153,6 +153,17 @@ Install Hikrobot MVS SDK di host (`/opt/MVS/`). `make up` akan otomatis copy **s
 
 Checklist lengkap sebelum `make up` di PC produksi. Urutan ini penting.
 
+Cloud integration status (2026-07-10):
+
+- `palmgrade-vision` tetap jalan di PC pabrik/on-prem; tidak ikut deploy ke DigitalOcean.
+- Cloud API production: `https://api.smagri.id`.
+- Cloud app production: `https://app.smagri.id`.
+- Set `BACKEND_URL=https://api.smagri.id` dan pastikan `WEBHOOK_SECRET` sama persis dengan
+  `palmgrade-api` production.
+- Known limitations by design: capture image URL dari cloud bisa 404, MJPEG live view dari
+  cloud bisa kosong, dan api-to-vision push bersifat best-effort/non-fatal. Yang wajib jalan:
+  vision-to-api event delivery via outbound HTTPS.
+
 ### 1. Install NVIDIA Container Toolkit
 
 Wajib untuk GPU passthrough ke Docker. Tanpa ini `torch.cuda.is_available()` selalu `False` di dalam container dan YOLO jalan di CPU (10x lebih lambat).
@@ -197,7 +208,7 @@ cp .env.production .env   # template prod siap-copas (APP_ENV=production, DEBUG 
 # LINE_1_MACHINE_ID=<uuid>   — UUID dari tabel machines di PostgreSQL (palmgrade-api)
 # LINE_2_MACHINE_ID=<uuid>
 # LINE_3_MACHINE_ID=<uuid>
-# BACKEND_URL=http://<ip>:2500
+# BACKEND_URL=https://api.smagri.id
 # WEBHOOK_SECRET=<sama dengan palmgrade-api>
 # CAMERA_TYPE=hikrobot
 # CAMERA_FPS=10   — samakan dengan Acquisition Frame Rate kamera (docs/SETUP.md § 6.3)

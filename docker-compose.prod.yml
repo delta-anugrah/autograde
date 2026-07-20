@@ -18,17 +18,20 @@ services:
   ripe-line-1:
     volumes: !override
       - ./artifacts/line-1:/app/artifacts
+      - ./state/line-1:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
 
   ripe-line-2:
     volumes: !override
       - ./artifacts/line-2:/app/artifacts
+      - ./state/line-2:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
 
   ripe-line-3:
     volumes: !override
       - ./artifacts/line-3:/app/artifacts
+      - ./state/line-3:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines

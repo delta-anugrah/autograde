@@ -47,6 +47,7 @@ class CaptureService:
         result = self.capture_repository.save_manual_reject(
             frame=frame,
             truck_id=truck_id,
+            assignment_id=self.state.current_assignment_id,
         )
 
         event = {
@@ -70,25 +71,26 @@ class CaptureService:
             pass
         self.state.event_queue.put_nowait(event)
 
-        event_id = str(uuid.uuid4())
-        outbox_payload = {
-            "event_id": event_id,
-            "machine_id": self.settings.machine_id,
-            "assignment_id": self.state.current_assignment_id,
-            "truck_id": truck_id,
-            "timestamp": result["timestamp"],
-            "prediction": "Rej",
-            "ripeness_status": result["ripeness_status"].upper() if isinstance(result["ripeness_status"], str) else "REJ",
-            "ripeness_confidence": result["ripeness_confidence"],
-            "tp_status": None,
-            "tp_confidence": 0,
-            "capture_type": result["capture_type"],
-            "image_path": result.get("image_url", ""),
-            "bounding_box": result.get("bounding_box") or {},
-        }
-        try:
-            self.outbox_store.add_event(event_id, self.settings.machine_id, outbox_payload)
-        except Exception as exc:
-            logger.error("Failed to write event %s to outbox: %s", event_id, exc)
+        # [DISABLED: batch-upload-r2 — lihat spec 2026-07-10]
+        # event_id = str(uuid.uuid4())
+        # outbox_payload = {
+        #     "event_id": event_id,
+        #     "machine_id": self.settings.machine_id,
+        #     "assignment_id": self.state.current_assignment_id,
+        #     "truck_id": truck_id,
+        #     "timestamp": result["timestamp"],
+        #     "prediction": "Rej",
+        #     "ripeness_status": result["ripeness_status"].upper() if isinstance(result["ripeness_status"], str) else "REJ",
+        #     "ripeness_confidence": result["ripeness_confidence"],
+        #     "tp_status": None,
+        #     "tp_confidence": 0,
+        #     "capture_type": result["capture_type"],
+        #     "image_path": result.get("image_url", ""),
+        #     "bounding_box": result.get("bounding_box") or {},
+        # }
+        # try:
+        #     self.outbox_store.add_event(event_id, self.settings.machine_id, outbox_payload)
+        # except Exception as exc:
+        #     logger.error("Failed to write event %s to outbox: %s", event_id, exc)
 
         return result
