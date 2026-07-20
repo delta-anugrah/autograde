@@ -69,7 +69,12 @@ class FrameProcessingWorker:
         truck_id: str | None,
         bounding_box: dict,
     ) -> tuple[str, str, str]:
-        now = datetime.datetime.now()
+        # Timezone-aware UTC: a naive isoformat() leaves the consumer guessing.
+        # palmgrade-api runs TZ=Asia/Jakarta and resolved bare date-times as
+        # local, storing every capture 7 hours early. Deriving the filename from
+        # the same aware instant keeps names byte-identical (containers run UTC)
+        # while making the emitted timestamp unambiguous.
+        now = datetime.datetime.now(datetime.timezone.utc)
         date_folder = now.strftime("%Y-%m-%d")
         timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
 
@@ -109,7 +114,7 @@ class FrameProcessingWorker:
         results_dir = self.settings.results_dir / date_folder
 
         meta = {
-            "timestamp": datetime.datetime.now().isoformat(),
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "image_path": None,
             "ripeness_status": None,
             "ripeness_confidence": 0,

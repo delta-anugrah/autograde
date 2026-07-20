@@ -26,7 +26,9 @@ class CaptureRepository:
         truck_id: str | None,
         assignment_id: str | None = None,
     ) -> dict[str, Any]:
-        now = datetime.datetime.now()
+        # Aware UTC so the filename shares one instant with the payload
+        # timestamp below (which was already UTC-aware).
+        now = datetime.datetime.now(datetime.timezone.utc)
         date_folder = now.strftime("%Y-%m-%d")
         timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
 
