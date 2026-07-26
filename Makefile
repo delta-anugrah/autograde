@@ -108,7 +108,11 @@ rebuild-gpu:
 clean:
 	docker compose --env-file $(ENV_FILE) down --rmi local
 
-# Jalankan line-1 secara lokal tanpa Docker (butuh Python env aktif)
+# Jalankan line-1 secara lokal tanpa Docker (butuh Python env aktif).
+# MACHINE_ID sengaja TIDAK di-override di sini: main.py memanggil load_dotenv(), jadi
+# MACHINE_ID diambil langsung dari $(ENV_FILE) (isi dengan UUID line-1). Versi lama
+# meng-export `MACHINE_ID=$$(grep LINE_1_MACHINE_ID ...)`; kalau key itu tidak ada di
+# .env hasilnya string KOSONG, dan load_dotenv(override=False) tidak akan menimpanya
+# lagi — machine_id jadi "" dan semua event ditolak API.
 dev:
-	MACHINE_ID=$$(grep LINE_1_MACHINE_ID $(ENV_FILE) | cut -d= -f2) \
 	uvicorn src.palmgrade.main:app --host 0.0.0.0 --port 8001 --reload

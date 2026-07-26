@@ -412,8 +412,7 @@ FrameProcessingWorker / CaptureService
 
 | Variable | Default | Keterangan |
 |---|---|---|
-| `APP_PORT` | `8000` | Port server |
-| `APP_HOST` | `0.0.0.0` | Host server |
+| `APP_PORT` | `8000` | Port server — di-set docker-compose per line (`8001/8002/8003`), dibaca `entrypoint.sh` + healthcheck. Mengisinya di `.env` tidak berefek |
 | `FRONTEND_URL` | `*` | CORS allowed origin |
 | `ENABLE_WEBHOOK` | `true` | Toggle webhook |
 | `BACKEND_URL` | `http://localhost:2500` | palmgrade-api base URL |
@@ -423,9 +422,10 @@ FrameProcessingWorker / CaptureService
 | `CONF_THRESHOLD` | `0.75` | Minimum confidence YOLO |
 | `MINIMUM_SIZE` | `460000` | Minimum area bounding box (px²) — di bawah ini auto rej |
 | `CAMERA_TYPE` | `hikrobot` | Sumber kamera: `hikrobot` / `opencv` (webcam atau video file) / `photo` |
-| `CAMERA_DEVICE_INDEX` | `0` | Index device webcam (dipakai kalau `CAMERA_TYPE=opencv` tanpa `CAMERA_VIDEO_PATH`) |
+| `CAMERA_DEVICE_INDEX` | `0` | Index device webcam (dipakai kalau `CAMERA_TYPE=opencv` tanpa `CAMERA_VIDEO_PATH`). Di-set docker-compose per line (`0/1/2`) — nilai di `.env` hanya berlaku saat run lokal tanpa Docker |
 | `CAMERA_VIDEO_PATH` | — | Path video file di dalam container (dipakai kalau `CAMERA_TYPE=opencv`) |
-| `MACHINE_ID` | — | UUID dari tabel `machines` di PostgreSQL — berbeda per container |
+| `CAMERA_PHOTO_PATH` | — | Path image statis di dalam container (wajib kalau `CAMERA_TYPE=photo`). Kosong → `PhotoCamera` raise saat connect |
+| `MACHINE_ID` | — | UUID dari tabel `machines` di PostgreSQL — berbeda per container. Di-set docker-compose dari `LINE_{1,2,3}_MACHINE_ID` (fallback UUID seed); `MACHINE_ID` di `.env` hanya untuk run lokal tanpa Docker |
 | `ROI_X1` | `0` | Batas kiri area deteksi (px) |
 | `ROI_Y1` | `0` | Batas atas area deteksi (px) |
 | `ROI_X2` | `0` | Batas kanan area deteksi (px) — `0` = lebar penuh frame |
@@ -434,6 +434,10 @@ FrameProcessingWorker / CaptureService
 | `STREAM_HEIGHT` | `720` | Tinggi frame MJPEG stream |
 | `STREAM_FPS` | `12` | FPS MJPEG stream — decoupled dari `CAMERA_FPS` |
 | `YOLO_SKIP_FRAMES` | `1` | Jalankan YOLO tiap N frame (`1` = produksi; `>1` hemat CPU saat tes video) |
+| `DEBUG_MODEL_OUTPUT` | — | Log raw output model tiap inferensi (debug; berisik di produksi) |
+| `BORDER_THICKNESS` | `2` | Tebal garis bounding box (px) — naikkan untuk frame sensor 2448×2048 |
+| `FONT_SCALE` | `0.7` | Skala teks label deteksi — naikkan untuk frame sensor 2448×2048 |
+| `FONT_THICKNESS` | `2` | Tebal teks label deteksi — naikkan untuk frame sensor 2448×2048 |
 | `UPLOAD_MINUTE` | `0` | Menit tiap jam batch uploader jalan |
 | `UPLOAD_MAX_ITEMS_PER_TICK` | `2000` | Jumlah maksimal item per batch run |
 | `UPLOAD_RETENTION_DAYS` | `7` | Hari retensi manifest SQLite |

@@ -36,9 +36,9 @@ services:
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8001
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3050}
-      - ENABLE_WEBHOOK=true
+      - ENABLE_WEBHOOK=${ENABLE_WEBHOOK:-true}
       - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
-      - BACKEND_API_VER=/api/v1
+      - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
       - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
@@ -51,6 +51,11 @@ services:
       - STREAM_WIDTH=${STREAM_WIDTH:-1280}
       - STREAM_HEIGHT=${STREAM_HEIGHT:-720}
       - STREAM_FPS=${STREAM_FPS:-12}
+      # Tebal bbox + ukuran label yang digambar RealtimeInspectionPipeline.draw_boxes().
+      # Default = default kode; frame sensor 2448x2048 butuh jauh lebih besar (lihat .env).
+      - BORDER_THICKNESS=${BORDER_THICKNESS:-2}
+      - FONT_SCALE=${FONT_SCALE:-0.7}
+      - FONT_THICKNESS=${FONT_THICKNESS:-2}
       - CAMERA_DEVICE_INDEX=0
       # Pilih kamera by-serial (stabil, cegah rebutan antar line). Kosong → fallback index.
       - CAMERA_SERIAL=${LINE_1_CAMERA_SERIAL:-}
@@ -62,6 +67,9 @@ services:
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-25}
       - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
+      # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
+      - CAMERA_PHOTO_PATH=${CAMERA_PHOTO_PATH:-}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
       - UPLOAD_RETENTION_DAYS=${UPLOAD_RETENTION_DAYS:-7}
@@ -117,9 +125,9 @@ services:
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8002
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3050}
-      - ENABLE_WEBHOOK=true
+      - ENABLE_WEBHOOK=${ENABLE_WEBHOOK:-true}
       - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
-      - BACKEND_API_VER=/api/v1
+      - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
       - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
@@ -132,6 +140,11 @@ services:
       - STREAM_WIDTH=${STREAM_WIDTH:-1280}
       - STREAM_HEIGHT=${STREAM_HEIGHT:-720}
       - STREAM_FPS=${STREAM_FPS:-12}
+      # Tebal bbox + ukuran label yang digambar RealtimeInspectionPipeline.draw_boxes().
+      # Default = default kode; frame sensor 2448x2048 butuh jauh lebih besar (lihat .env).
+      - BORDER_THICKNESS=${BORDER_THICKNESS:-2}
+      - FONT_SCALE=${FONT_SCALE:-0.7}
+      - FONT_THICKNESS=${FONT_THICKNESS:-2}
       - CAMERA_DEVICE_INDEX=1
       # Pilih kamera by-serial (stabil, cegah rebutan antar line). Kosong → fallback index.
       - CAMERA_SERIAL=${LINE_2_CAMERA_SERIAL:-}
@@ -143,6 +156,9 @@ services:
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-25}
       - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
+      # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
+      - CAMERA_PHOTO_PATH=${CAMERA_PHOTO_PATH:-}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
       - UPLOAD_RETENTION_DAYS=${UPLOAD_RETENTION_DAYS:-7}
@@ -157,6 +173,7 @@ services:
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
       - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
+      - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
       - /app/.venv
@@ -197,9 +214,9 @@ services:
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8003
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3050}
-      - ENABLE_WEBHOOK=true
+      - ENABLE_WEBHOOK=${ENABLE_WEBHOOK:-true}
       - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
-      - BACKEND_API_VER=/api/v1
+      - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
       - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
@@ -212,6 +229,11 @@ services:
       - STREAM_WIDTH=${STREAM_WIDTH:-1280}
       - STREAM_HEIGHT=${STREAM_HEIGHT:-720}
       - STREAM_FPS=${STREAM_FPS:-12}
+      # Tebal bbox + ukuran label yang digambar RealtimeInspectionPipeline.draw_boxes().
+      # Default = default kode; frame sensor 2448x2048 butuh jauh lebih besar (lihat .env).
+      - BORDER_THICKNESS=${BORDER_THICKNESS:-2}
+      - FONT_SCALE=${FONT_SCALE:-0.7}
+      - FONT_THICKNESS=${FONT_THICKNESS:-2}
       - CAMERA_DEVICE_INDEX=2
       # Pilih kamera by-serial (stabil, cegah rebutan antar line). Kosong → fallback index.
       - CAMERA_SERIAL=${LINE_3_CAMERA_SERIAL:-}
@@ -223,6 +245,9 @@ services:
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-25}
       - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
+      # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
+      - CAMERA_PHOTO_PATH=${CAMERA_PHOTO_PATH:-}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
       - UPLOAD_RETENTION_DAYS=${UPLOAD_RETENTION_DAYS:-7}
@@ -237,6 +262,7 @@ services:
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
       - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
+      - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
       - /app/.venv
