@@ -146,8 +146,10 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
-.env.production
+# Glob, bukan daftar eksplisit: varian seperti .env-backup / .env.local / .env.bak
+# sebelumnya lolos dan bisa ikut ter-`git add .` bersama isinya.
+.env*
+!.env.example
 .envrc
 .venv
 env/

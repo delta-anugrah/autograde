@@ -341,9 +341,10 @@ class FrameProcessingWorker:
                     #     except Exception as exc:
                     #         logger.error("Failed to write event %s to outbox: %s", event_id, exc)
 
-                    # Tandai `processed` SETELAH event aman di outbox (Celah-1 fix):
-                    # kalau crash di tengah blok di atas, track ini BELUM processed →
-                    # diproses ulang next frame → event_id deterministik = idempotent.
+                    # Tandai `processed` SETELAH file tersimpan (Celah-1 fix): kalau
+                    # crash di tengah blok di atas, track ini BELUM processed → diproses
+                    # ulang next frame → nama file (dan event_id uuid5 yang dihitung
+                    # BatchUploadWorker dari nama itu) sama → idempotent di sisi API.
                     # Tanpa truck (truck_id null) tetap ditandai supaya tidak re-trigger.
                     self.state.track_history[track_id]["processed"] = True
                     self._processed_objects.add(track_id)
