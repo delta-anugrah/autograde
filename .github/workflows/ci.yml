@@ -26,7 +26,8 @@ jobs:
       - name: Install tooling
         run: pip install ruff pytest cryptography aiosqlite psutil httpx boto3
 
-      # Lint hanya modul yang sudah bersih (tests + domain + outbox + license).
+      # Lint hanya modul yang sudah bersih (tests + domain + outbox + upload +
+      # license + batch_upload_worker).
       # Modul lain (torch/cv2/SDK) di-exclude via pyproject sampai di-hardening
       # bertahap; cakupan lint diperluas per modul begitu tiap modul dirapikan.
       - name: Ruff (lint)
