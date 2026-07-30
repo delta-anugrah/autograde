@@ -240,6 +240,9 @@ Di panel **Feature Tree** (kanan):
 
 > **Mengapa 10 fps?** Kamera 5MP di full resolution (2448×2048) mengonsumsi ~400 Mbps per kamera. Dengan 3 kamera, total ~1.2 Gbps melebihi kapasitas uplink GigE (1 Gbps). Dengan 10 fps, total bandwidth ~400 Mbps — aman untuk 1 uplink.
 
+> Spesifikasi lengkap kamera, setting runtime yang aktif, dan kenapa `.mfs` menang
+> atas `.env`: [camera-spec.md](camera-spec.md).
+
 ### 6.4 Simpan ke Kamera (UserSet1)
 
 Agar setting bertahan setelah kamera restart:
