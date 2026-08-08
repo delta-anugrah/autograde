@@ -6,7 +6,8 @@ Rangkuman teknis `palmgrade-vision` — Python AI camera service untuk sistem gr
 
 Menerima feed kamera industri Hikrobot, menjalankan model YOLO secara realtime,
 mengklasifikasi kematangan buah sawit (3 kelas), menyimpan hasil inspeksi ke file,
-dan mengirimkan event ke `palmgrade-api` via OutboxStore (SQLite durable delivery).
+dan mengirimkan event ke `palmgrade-api` lewat **batch upload tiap jam** (`BatchUploadWorker`:
+gambar ke Cloudflare R2, teks ke API cloud). Jalur outbox realtime lama sudah di-comment.
 
 Dijalankan sebagai **3 container terpisah** (line 1/2/3), masing-masing satu port dan satu kamera.
 
@@ -45,9 +46,10 @@ palmgrade-vision/
       integrations/
         camera/                # HikrobotCamera / OpenCVCamera / PhotoCamera
         notifications/         # WebhookClient (httpx async) — legacy, not used for main flow
-        outbox/                # OutboxStore — SQLite durable event persistence
+        outbox/                # OutboxStore — dormant, retry worker di-comment
         storage/               # LocalFileStorage (read/write JSON + WebP)
-        scheduler/             # APScheduler daily upload cron
+        upload/                # R2Uploader (boto3) + UploadManifest (SQLite state per-item)
+        scheduler/             # UploadScheduler — APScheduler cron, tiap jam @ UPLOAD_MINUTE
       workers/                 # Background threads + asyncio tasks
       domain/                  # Business rule murni — tidak ada I/O
       schemas/                 # Pydantic request/response schemas
@@ -162,7 +164,9 @@ Terima command manual reject dari palmgrade-api. Protected by `x-internal-secret
 
 - **Request body:** `{ "machine_id", "assignment_id", "requested_by", "requested_at" }`
 - **Response:** `{ "accepted": true, "message": "capture_reject_requested" }`
-- **Side effect:** Trigger `capture_manual_reject()` via `run_in_executor` — event ditulis ke OutboxStore.
+- **Side effect:** Trigger `capture_manual_reject()` via `run_in_executor` — WebP + JSON ditulis ke
+  `results/{date}/`, lalu ikut ter-scan `BatchUploadWorker` pada tick berikutnya (write ke OutboxStore
+  sudah di-comment).
 
 ---
 
@@ -185,7 +189,7 @@ Capture frame saat ini secara manual, langsung mark sebagai `rej`.
     "truck_id": "uuid-or-null"
   }
   ```
-- **Side effect:** Simpan WebP + metadata JSON ke `results/{date}/`, tulis ke OutboxStore, push ke `event_queue` untuk WebSocket broadcast.
+- **Side effect:** Simpan WebP + metadata JSON ke `results/{date}/` (inilah yang jadi antrian upload), push ke `event_queue` untuk WebSocket broadcast. Write ke OutboxStore sudah di-comment.
 
 ---
 
@@ -206,14 +210,26 @@ Status operasional container.
     "workers": [
       { "name": "capture", "alive": true },
       { "name": "display", "alive": true },
-      { "name": "processing", "alive": true },
-      { "name": "outbox_retry", "alive": true }
+      { "name": "processing", "alive": true }
     ],
     "outbox_pending": 0,
+    "outbox_failed": 0,
     "current_assignment_id": "uuid-or-null",
-    "last_successful_api_push": "ISO-timestamp-or-null"
+    "last_successful_api_push": null
   }
   ```
+
+> ⚠️ **Endpoint ini tidak lagi memberi tahu apa pun soal pengiriman ke cloud.** Tiga field di bawah
+> ini sisa era outbox dan sekarang mati:
+>
+> | Field | Kondisi sekarang |
+> |---|---|
+> | `outbox_pending` / `outbox_failed` | **selalu `0`** — tidak ada lagi yang menulis ke outbox, jadi angka 0 di sini **bukan** berarti tidak ada backlog upload |
+> | `last_successful_api_push` | **selalu `null`** — hanya pernah di-set `OutboxRetryWorker` (`runtime_state.py:14`), yang sudah di-comment |
+> | `workers[]` | tidak memuat `outbox_retry` (registrasinya di-comment di `main.py:150-151`) **maupun** `BatchUploadWorker` — batch upload itu job APScheduler, bukan thread ter-register, jadi **watchdog `_watchdog` tidak memantaunya** |
+>
+> Untuk backlog upload sungguhan: query `state/upload_manifest.db` (`SELECT status, COUNT(*) FROM
+> upload_items GROUP BY status`) atau baca log worker. Ini gap observability yang belum ditutup.
 
 ---
 
@@ -246,10 +262,19 @@ frame_queue                      state.latest_raw_frame
   │     ├── write_json() _ripeness.json
   │     ├── write_json() _tp.json (if TP)
   │     ├── event_queue.put_nowait()
-  │     └── OutboxStore.add_event()  ← SQLite durable (auto: hanya jika ada truck aktif)
+  │     └── [DISABLED] OutboxStore.add_event() — di-comment; file di disk ITU antriannya
   └── state.last_yolo_results (read by DisplayWorker)
   ↓ [EventBroadcastWorker — asyncio task]
 WebSocket clients
+
+results/{date}/*.webp + *_ripeness.json   ← hasil save di atas
+  ↓ [UploadScheduler — APScheduler cron, tiap jam pada menit UPLOAD_MINUTE]
+BatchUploadWorker.run_batch_once()
+  ├── _scan() → UploadManifest (state/upload_manifest.db)
+  ├── PUT gambar → Cloudflare R2
+  ├── POST teks  → UPLOAD_API_URL (API cloud), header x-webhook-secret: UPLOAD_API_SECRET
+  └── _retention() → hapus file `done` yg lewat UPLOAD_RETENTION_DAYS (default 7)
+      ⚠️ bukan thread ter-register → TIDAK dipantau _watchdog
 
 state.latest_frame
   ↓ [generate_frames() — satu per viewer, wait frame_condition]
@@ -289,8 +314,15 @@ artifacts/
   captures/                             # legacy — tidak ditulis lagi
   errors/                               # legacy — tidak ditulis lagi (REJ ditemukan via metadata ripeness_status)
   logs/
-  outbox.db                             # SQLite durable outbox (WAL + synchronous=FULL)
+  outbox.db                             # outbox lama — dormant (retry worker di-comment)
+
+state/line-N/  ↔ /app/state             # SIBLING artifacts/, sengaja DI LUAR mount /captures
+  upload_manifest.db                    # progres BatchUploadWorker (WAL + synchronous=FULL)
 ```
+
+⚠️ `results/` **bukan arsip permanen** — `_retention()` menghapus WebP + JSON yang `done` dan lewat
+`UPLOAD_RETENTION_DAYS` (default 7). Setelah itu satu-satunya salinan gambar ada di R2
+(`captures.smagri.id`). Item `poisoned` sengaja tidak ikut dihapus.
 
 `image_url` di response: `captures/results/{date}/{timestamp}_auto.webp`
 
@@ -300,31 +332,44 @@ FE akses via: `${LINE_N_URL}/captures/results/{date}/{filename}`
 
 ---
 
-## Event Delivery ke palmgrade-api (via OutboxStore)
+## Event Delivery ke palmgrade-api (via `BatchUploadWorker`)
 
-**Status: DINONAKTIFKAN (di-comment) sejak batch-upload-r2 — lihat docs/superpowers/specs/2026-07-10-batch-upload-r2-design.md.** Event historis kini dikirim batch worker tiap jam; webhook realtime lokal tidak berubah.
-
-Setiap detection final (auto atau manual) ditulis ke OutboxStore dulu, lalu `OutboxRetryWorker` deliver ke API.
+Sejak spec batch-upload-r2 (`docs/superpowers/specs/2026-07-10-batch-upload-r2-design.md`),
+`OutboxRetryWorker` **di-comment** dan `OutboxStore.add_event()` tidak lagi dipanggil.
+**File hasil deteksi di disk sekarang ITU antriannya**; batch worker yang men-scan dan mengirimnya
+tiap jam. Konsekuensi operasional: event sampai ke cloud dengan **lag sampai ~1 jam**, bukan
+near-real-time.
 
 ```
 FrameProcessingWorker / CaptureService
-    → OutboxStore.add_event(event_id, machine_id, payload)  [SQLite write]
-        → OutboxRetryWorker (daemon thread, poll 1s)
-            → POST {canonical_events_url}
-               = {BACKEND_URL}{BACKEND_API_VER}/internal/vision/events
+    → tulis WebP + {ts}_*_ripeness.json ke artifacts/results/{date}/     ← antriannya
+        ↓ [UploadScheduler — APScheduler cron, tiap jam @ UPLOAD_MINUTE]
+    BatchUploadWorker.run_batch_once()
+        1. _scan()   → UploadManifest.upsert_item()   (idempotent, aman di-scan berulang)
+        2. claim     WHERE status IN ('pending','image_uploaded') AND next_retry_at <= now
+                     ORDER BY discovered_at ASC  LIMIT UPLOAD_MAX_ITEMS_PER_TICK (2000)
+        3. PUT gambar → Cloudflare R2               → mark_image_uploaded()
+        4. POST teks  → {upload_events_url}          → mark_done()
+                      = {UPLOAD_API_URL}{BACKEND_API_VER}/internal/vision/events
+        5. _retention() hapus file `done` yg lewat UPLOAD_RETENTION_DAYS
 ```
 
-**Headers:** `x-webhook-secret: {WEBHOOK_SECRET}`, `Content-Type: application/json`
+**Headers:** `x-webhook-secret: {UPLOAD_API_SECRET}`, `Content-Type: application/json`
+
+> ⚠️ **Jangan tertukar dua pasang variabel ini.** `BACKEND_URL` + `WEBHOOK_SECRET` = API **lokal**
+> (webhook realtime, tidak berubah). `UPLOAD_API_URL` + `UPLOAD_API_SECRET` = API **cloud**, dan
+> hanya inilah yang dipakai batch worker. `UPLOAD_API_SECRET` isinya `WEBHOOK_SECRET` milik API
+> cloud. **`R2_BUCKET` kosong = batch jadi no-op** — cuma `logger.warning` sekali lalu diam.
 
 **Payload** — field names dan values HARUS tepat:
 ```json
 {
   "event_id": "uuid",
-  "assignment_id": "uuid-or-null",
+  "assignment_id": "uuid",
   "machine_id": "uuid-dari-tabel-machines",
-  "truck_id": "uuid",
+  "truck_id": "uuid-or-null",
   "timestamp": "2026-05-18T10:30:00.123456+00:00",
-  "image_path": "captures/results/2026-05-18/2026-05-18_103000_auto.webp",
+  "image_path": "https://captures.smagri.id/{machine_id}/2026-05-18/2026-05-18_103000_auto.webp",
   "prediction": "Acc",
   "ripeness_status": "ACC",
   "ripeness_confidence": 0.92,
@@ -336,21 +381,30 @@ FrameProcessingWorker / CaptureService
 ```
 
 **Kontrak penting:**
-- `event_id`: dipakai API untuk idempotency (sparse unique index). **Auto** = uuid5 deterministik dari `machine_id:timestamp` (reprocess pasca-crash → id sama → tidak double count); **manual** = uuid4
+- `event_id`: dipakai API untuk idempotency (sparse unique index). **Auto** = uuid5 deterministik dari `machine_id:timestamp` — dihitung `BatchUploadWorker` dari **nama file**, bukan disimpan di JSON. Formulanya **sengaja identik** dengan outbox lama, jadi event yang sudah terkirim di era outbox tidak dobel kalau file-nya ikut ter-scan; **manual** = uuid4
 - `timestamp`: ISO-8601 **UTC-aware** (`datetime.now(timezone.utc)`)
-- `assignment_id`: dari `state.current_assignment_id` — set saat `/internal/assignment` dipanggil
+- `assignment_id`: dari `state.current_assignment_id` — set saat `/internal/assignment` dipanggil. Key-nya **di-omit** kalau meta tidak punya nilainya (bukan dikirim `null`)
+- `image_path`: **URL absolut R2** (`{R2_PUBLIC_URL}/{r2_key}`), bukan path relatif. `r2_key` diprefix `machine_id` supaya antar-line terisolasi. Gambar di-PUT duluan; POST baru jalan setelah PUT sukses
 - `prediction`: `"Acc"` / `"Rej"` — required
 - `ripeness_status`: `"ACC"` / `"REJ"` UPPERCASE
 - `tp_status`: `"PASS"` / `null` — BUKAN `"TP"`
-- `truck_id`: **auto detection** (`FrameProcessingWorker`) di-skip dari outbox kalau `None` (belum set truck) — hasil tetap disimpan ke disk + WebSocket. **Manual reject** (`CaptureService`) selalu ditulis ke outbox walau `truck_id=None`.
-- API returns `{status: "already_processed"}` jika `event_id` duplikat — OutboxRetryWorker delete event
+- `truck_id`: boleh `null`. **PERUBAHAN PERILAKU vs era outbox:** `_scan()` **tidak** memfilter truck, jadi deteksi auto tanpa truck aktif **ikut ter-upload** dengan `truck_id: null` — dulu event begitu di-skip. API tetap menyimpan event, truck fields di MongoDB null.
+- API returns `{status: "already_processed"}` jika `event_id` duplikat — worker anggap sukses, `mark_done()`
 
-**OutboxStore (`artifacts/outbox.db`):**
-- SQLite file per container — survive restart container
-- Exponential backoff: 5s base, 600s cap, max 50 retries
-- `pending_count()` ditampilkan di `/health/detail`
+**`UploadManifest` (`state/upload_manifest.db`):**
+- State per item: `pending` → `image_uploaded` → `done` (+ `poisoned` untuk input cacat)
+- Exponential backoff: 5s base, 600s cap — **TANPA retry cap, TANPA TTL** (beda kontrak dari outbox
+  lama yang dead-letter setelah 50 retry). Item menunggu selamanya sampai terkirim, sesuai syarat
+  "tahan outage berapa lama pun, nol data hilang, nol duplikat"
+- Durability: WAL + `synchronous=FULL` — sama persis dengan `outbox_store.py`
+- Penanganan kegagalan: `_PoisonError` → `mark_poisoned` + **continue** (file tidak dihapus, sengaja
+  ditinggal untuk diperiksa); `_RequeueError(batch_fatal=False)` untuk HTTP 404 → requeue +
+  **continue** (antrian `ORDER BY discovered_at ASC`, tanpa ini satu item lama bisa head-of-line
+  starve seluruh batch); `_RequeueError` default → requeue + **break batch**
+- ⚠️ **Tidak ditampilkan di `/health/detail`** — `outbox_pending` di sana selalu 0 dan tidak ada
+  kaitannya dengan manifest ini
 
-**Catatan operasional:** outbox.db lama bisa berisi row pending sisa — inert (tidak ada pengirim); backfill batch meng-cover file yang sama via manifest, dan event_id idempoten mencegah dobel kalau outbox di-uncomment lagi.
+**Catatan operasional:** `outbox.db` lama bisa berisi row pending sisa — inert (tidak ada pengirim); backfill batch meng-cover file yang sama via manifest, dan `event_id` idempoten mencegah dobel kalau outbox di-uncomment lagi.
 
 ---
 
@@ -358,8 +412,7 @@ FrameProcessingWorker / CaptureService
 
 | Variable | Default | Keterangan |
 |---|---|---|
-| `APP_PORT` | `8000` | Port server |
-| `APP_HOST` | `0.0.0.0` | Host server |
+| `APP_PORT` | `8000` | Port server — di-set docker-compose per line (`8001/8002/8003`), dibaca `entrypoint.sh` + healthcheck. Mengisinya di `.env` tidak berefek |
 | `FRONTEND_URL` | `*` | CORS allowed origin |
 | `ENABLE_WEBHOOK` | `true` | Toggle webhook |
 | `BACKEND_URL` | `http://localhost:2500` | palmgrade-api base URL |
@@ -369,9 +422,10 @@ FrameProcessingWorker / CaptureService
 | `CONF_THRESHOLD` | `0.75` | Minimum confidence YOLO |
 | `MINIMUM_SIZE` | `460000` | Minimum area bounding box (px²) — di bawah ini auto rej |
 | `CAMERA_TYPE` | `hikrobot` | Sumber kamera: `hikrobot` / `opencv` (webcam atau video file) / `photo` |
-| `CAMERA_DEVICE_INDEX` | `0` | Index device webcam (dipakai kalau `CAMERA_TYPE=opencv` tanpa `CAMERA_VIDEO_PATH`) |
+| `CAMERA_DEVICE_INDEX` | `0` | Index device webcam (dipakai kalau `CAMERA_TYPE=opencv` tanpa `CAMERA_VIDEO_PATH`). Di-set docker-compose per line (`0/1/2`) — nilai di `.env` hanya berlaku saat run lokal tanpa Docker |
 | `CAMERA_VIDEO_PATH` | — | Path video file di dalam container (dipakai kalau `CAMERA_TYPE=opencv`) |
-| `MACHINE_ID` | — | UUID dari tabel `machines` di PostgreSQL — berbeda per container |
+| `CAMERA_PHOTO_PATH` | — | Path image statis di dalam container (wajib kalau `CAMERA_TYPE=photo`). Kosong → `PhotoCamera` raise saat connect |
+| `MACHINE_ID` | — | UUID dari tabel `machines` di PostgreSQL — berbeda per container. Di-set docker-compose dari `LINE_{1,2,3}_MACHINE_ID` (fallback UUID seed); `MACHINE_ID` di `.env` hanya untuk run lokal tanpa Docker |
 | `ROI_X1` | `0` | Batas kiri area deteksi (px) |
 | `ROI_Y1` | `0` | Batas atas area deteksi (px) |
 | `ROI_X2` | `0` | Batas kanan area deteksi (px) — `0` = lebar penuh frame |
@@ -380,6 +434,10 @@ FrameProcessingWorker / CaptureService
 | `STREAM_HEIGHT` | `720` | Tinggi frame MJPEG stream |
 | `STREAM_FPS` | `12` | FPS MJPEG stream — decoupled dari `CAMERA_FPS` |
 | `YOLO_SKIP_FRAMES` | `1` | Jalankan YOLO tiap N frame (`1` = produksi; `>1` hemat CPU saat tes video) |
+| `DEBUG_MODEL_OUTPUT` | — | Log raw output model tiap inferensi (debug; berisik di produksi) |
+| `BORDER_THICKNESS` | `2` | Tebal garis bounding box (px) — naikkan untuk frame sensor 2448×2048 |
+| `FONT_SCALE` | `0.7` | Skala teks label deteksi — naikkan untuk frame sensor 2448×2048 |
+| `FONT_THICKNESS` | `2` | Tebal teks label deteksi — naikkan untuk frame sensor 2448×2048 |
 | `UPLOAD_MINUTE` | `0` | Menit tiap jam batch uploader jalan |
 | `UPLOAD_MAX_ITEMS_PER_TICK` | `2000` | Jumlah maksimal item per batch run |
 | `UPLOAD_RETENTION_DAYS` | `7` | Hari retensi manifest SQLite |

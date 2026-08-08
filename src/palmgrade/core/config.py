@@ -25,8 +25,9 @@ _DEFAULT_WEBHOOK_SECRET = "supersecret123"
 class Settings:
     app_name: str = "Ripe Recognition API"
     environment: str = field(default_factory=lambda: os.getenv("APP_ENV", "development"))
-    host: str = field(default_factory=lambda: os.getenv("APP_HOST", "0.0.0.0"))
-    port: int = field(default_factory=lambda: int(os.getenv("APP_PORT", os.getenv("RUNNING_PORT", "8000"))))
+    # Bind host/port TIDAK di sini: uvicorn dijalankan `entrypoint.sh` (host hardcoded
+    # 0.0.0.0, port dari env APP_PORT yang di-set docker-compose per line). Settings
+    # tidak pernah dibaca untuk binding — jangan tambah field host/port lagi.
     frontend_url: str = field(default_factory=lambda: os.getenv("FRONTEND_URL", "*"))
     repo_root: Path = field(default_factory=lambda: Path(__file__).resolve().parents[3])
 
@@ -90,7 +91,6 @@ class Settings:
     border_thickness: int = field(default_factory=lambda: int(os.getenv("BORDER_THICKNESS", "2")))
     font_scale: float = field(default_factory=lambda: float(os.getenv("FONT_SCALE", "0.7")))
     font_thickness: int = field(default_factory=lambda: int(os.getenv("FONT_THICKNESS", "2")))
-    roi_scale: float = field(default_factory=lambda: float(os.getenv("ROI_SCALE", "0.7")))
 
     # Batch upload cloud (R2 + API cloud) — semua kredensial placeholder sampai
     # bucket/domain dibuat. R2_BUCKET kosong = batch worker no-op (saklar off).

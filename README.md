@@ -2,7 +2,7 @@
 
 AI camera service for the **Palmgrade** palm oil ripeness grading system.
 
-Runs as **3 separate Docker containers** (one per camera line), each connected to a Hikrobot industrial camera. Performs real-time YOLO-based fruit ripeness detection and pushes results to `palmgrade-api` via durable outbox delivery.
+Runs as **3 separate Docker containers** (one per camera line), each connected to a Hikrobot industrial camera. Performs real-time YOLO-based fruit ripeness detection, writes every result to disk, then ships them to Cloudflare R2 + `palmgrade-api` in an **hourly batch upload** (not real-time).
 
 ---
 
@@ -26,10 +26,12 @@ Camera (Hikrobot / OpenCV / Photo)
     → FrameProcessingWorker (thread)
         → YOLOv8 + ByteTrack
         → detect: acc / rej / tp (tangkai panjang)
-        → save WebP + JSON to artifacts/results/
-        → OutboxStore.add_event()  ← durable SQLite write
-    → BatchUploadWorker (hourly — R2 + API cloud; OutboxRetryWorker di-comment)
-        → POST /api/v1/internal/vision/events → palmgrade-api
+        → save WebP + JSON to artifacts/results/   ← file di disk ITU antriannya
+    → BatchUploadWorker (hourly — OutboxRetryWorker di-comment, bukan real-time)
+        → _scan() → UploadManifest (SQLite, state/upload_manifest.db)
+        → PUT image ke Cloudflare R2
+        → POST /api/v1/internal/vision/events → palmgrade-api (cloud)
+        → _retention(): hapus WebP+JSON yg `done` & lewat UPLOAD_RETENTION_DAYS
     → StreamingService
         → MJPEG /api/video_feed (multi-viewer via Condition broadcast)
 
@@ -74,7 +76,9 @@ palmgrade-vision/
 │   │   ├── camera/              # HikrobotCamera / OpenCVCamera / PhotoCamera
 │   │   ├── notifications/       # WebhookClient (httpx)
 │   │   ├── storage/             # LocalFileStorage
-│   │   └── scheduler/           # APScheduler daily upload cron
+│   │   ├── upload/              # R2Uploader (boto3) + UploadManifest (SQLite per-item state)
+│   │   ├── outbox/              # OutboxStore — dormant, retry worker is commented out
+│   │   └── scheduler/           # UploadScheduler — APScheduler cron, hourly @ UPLOAD_MINUTE
 │   ├── domain/                  # Pure business rules (no I/O)
 │   ├── schemas/                 # Pydantic request/response models
 │   └── license/                 # License guard (Ed25519 JWS, optional)
@@ -299,7 +303,7 @@ make clean       # down + hapus image lokal
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Health check (always allowed) |
-| `GET` | `/health/detail` | Detailed status: camera, GPU, workers, outbox_pending, current_assignment_id |
+| `GET` | `/health/detail` | Detailed status: camera, GPU, workers, current_assignment_id. ⚠️ Masih expose `outbox_pending`/`outbox_failed` — sejak pindah ke `BatchUploadWorker` dua field itu **selalu 0** dan bukan indikator backlog upload; progres batch belum ter-expose di endpoint mana pun (cek `state/upload_manifest.db` atau log) |
 | `GET` | `/api/video_feed` | MJPEG live stream (multi-viewer) |
 | `POST` | `/api/set_truck` | Set active truck ID (legacy — prefer API /grading-console/lines/:id/assign-truck) |
 | `POST` | `/api/capture_reject` | Trigger manual reject capture (legacy) |
@@ -321,18 +325,22 @@ curl -X POST http://localhost:8001/api/set_truck \
 
 ---
 
-## Event Payload (sent to palmgrade-api via OutboxRetryWorker)
+## Event Payload (sent to palmgrade-api via `BatchUploadWorker`)
 
-Events are written to `OutboxStore` (SQLite) first, then delivered asynchronously to `POST /api/v1/internal/vision/events`.
+Setiap deteksi ditulis ke disk (`artifacts/results/`) sebagai WebP + JSON. **File di disk itulah
+antriannya** — tidak ada write ke outbox lagi. Sejam sekali `BatchUploadWorker` men-scan folder itu,
+mencatat tiap item di `UploadManifest`, PUT gambarnya ke Cloudflare R2, lalu baru POST payload teks
+di bawah ke `POST /api/v1/internal/vision/events`. Artinya event sampai ke cloud dengan **lag
+sampai ~1 jam**, bukan near-real-time.
 
 ```json
 {
   "event_id": "uuid",
-  "assignment_id": "uuid-or-null",
+  "assignment_id": "uuid",
   "machine_id": "uuid-from-machines-table",
   "truck_id": "uuid-or-null",
   "timestamp": "2026-05-18T10:30:00.123456+00:00",
-  "image_path": "captures/results/2026-05-18/2026-05-18_103000_123456_auto.webp",
+  "image_path": "https://captures.smagri.id/<machine_id>/2026-05-18/2026-05-18_103000_123456_auto.webp",
   "prediction": "Acc",
   "ripeness_status": "ACC",
   "ripeness_confidence": 0.92,
@@ -344,13 +352,15 @@ Events are written to `OutboxStore` (SQLite) first, then delivered asynchronousl
 ```
 
 **Field contracts:**
-- `event_id`: UUID — used by API for idempotency. **Auto detection** = uuid5 deterministik (`machine_id:timestamp`) supaya re-process setelah crash menghasilkan `event_id` sama (no double count); **manual reject** = uuid4
+- `event_id`: UUID — used by API for idempotency. **Auto detection** = uuid5 deterministik (`machine_id:timestamp` dari nama file) supaya re-upload item yang sama menghasilkan `event_id` sama → API balas `already_processed`, no double count. Formulanya **sengaja identik** dengan outbox lama, jadi event yang sudah terkirim di era outbox tidak dobel kalau file-nya ikut ter-scan lagi; **manual reject** = uuid4
+- `assignment_id`: key-nya **hanya ada kalau meta punya `assignment_id`** — di-omit, bukan dikirim `null`
+- `image_path`: **URL absolut R2** (`{R2_PUBLIC_URL}/{r2_key}`), bukan path relatif. Gambarnya di-PUT ke R2 lebih dulu; POST baru jalan setelah PUT sukses
 - `timestamp`: ISO-8601 **UTC-aware** (`datetime.now(timezone.utc)`)
 - `prediction`: `"Acc"` / `"Rej"` — required
 - `ripeness_status`: `"ACC"` / `"REJ"` UPPERCASE
 - `tp_status`: `"PASS"` atau `null` — bukan `"TP"`
-- `truck_id`: **auto detection** hanya dikirim ke API kalau ada truck aktif (tanpa truck event di-skip dari outbox, tapi tetap disimpan ke disk). **Manual reject** selalu dikirim, `truck_id` boleh `null` — API tetap menyimpan event, truck fields di MongoDB null
-- Events survive restart — stored in `artifacts/outbox.db` per container
+- `truck_id`: boleh `null`. `_scan()` **tidak** memfilter truck — event tanpa truck aktif ikut ter-upload dengan `truck_id: null` (beda dari perilaku outbox lama yang men-skip-nya). API tetap menyimpan event, truck fields di MongoDB null
+- Event tahan restart karena **file-nya ada di disk**, bukan karena SQLite queue. Progres per-item ada di `state/upload_manifest.db` (`pending` → `image_uploaded` → `done`, atau `poisoned`). Retry **tidak ada batasnya** — item gagal tidak pernah menyerah, statusnya tetap dan hanya backoff-nya yang maju
 
 ---
 
@@ -366,10 +376,18 @@ artifacts/line-1/
 │       ├── 2026-05-18_104500_manual.webp             # Manual reject capture
 │       └── 2026-05-18_104500_manual_ripeness.json
 ├── logs/
-└── outbox.db                  # SQLite durable outbox
+└── outbox.db                  # SQLite outbox lama — dormant, retry worker di-comment
+
+state/line-1/                  # SIBLING artifacts/, sengaja di LUAR mount statis /captures
+└── upload_manifest.db         # state per-item BatchUploadWorker (pending/image_uploaded/done/poisoned)
 ```
 
 > Folder `captures/` dan `errors/` masih dibuat saat startup tapi **tidak ditulis lagi** — manual reject disimpan ke `results/`, dan foto REJ ditemukan via metadata (`ripeness_status: "REJ"`), bukan salinan terpisah.
+
+> ⚠️ **`results/` bukan arsip permanen.** `BatchUploadWorker._retention()` menghapus WebP + JSON yang
+> statusnya `done` dan sudah lewat `UPLOAD_RETENTION_DAYS` (default **7**). Setelah itu satu-satunya
+> salinan gambar ada di R2 (`captures.smagri.id`). Item `poisoned` **tidak** dihapus — file-nya
+> sengaja ditinggal biar bisa diperiksa manual.
 
 Images are served as static files: `GET /captures/results/{date}/{filename}`
 
@@ -398,8 +416,8 @@ Dari `palmgrade-vision/`:
 
 ```bash
 # CI menjalankan keduanya (lihat .github/workflows/ci.yml)
-pip install ruff pytest cryptography aiosqlite psutil httpx
-ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/palmgrade/license/
+pip install ruff pytest cryptography aiosqlite psutil httpx boto3
+ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/palmgrade/integrations/upload/ src/palmgrade/license/ src/palmgrade/workers/batch_upload_worker.py
 pytest tests/unit/
 ```
 
@@ -411,7 +429,10 @@ pytest tests/unit/
 |---|---|---|
 | Domain rules | `test_rules.py` | Klasifikasi ripeness (inti keputusan bisnis) |
 | Idempotency | `test_event_id.py` | `event_id` uuid5 deterministik (anti double-count) |
-| Outbox durable | `test_outbox_store.py`, `test_outbox_requeue.py` | Persist → backoff → dead-letter (jaminan delivery ke API) |
+| **Batch upload** | `test_batch_upload_worker.py`, `test_upload_manifest.py`, `test_r2_uploader.py` | Discovery + rekonstruksi payload; manifest `pending → image_uploaded → done` (+ `poisoned`) **tanpa retry cap & tanpa TTL**; `r2_key` deterministik + prefix `machine_id` yang mengisolasi antar-line |
+| **Outage & crash** | `test_batch_upload_outage.py`, `test_batch_upload_crash.py` | Jantung requirement "internet mati berapa lama pun → nol data hilang, nol duplikat"; `os._exit` di tengah transisi state → manifest tetap konsisten (WAL + `synchronous=FULL`) |
+| Timestamp TZ | `test_capture_timestamp.py` | Regression guard geser 7 jam: timestamp **wajib** tz-aware (vision UTC vs API `TZ=Asia/Jakarta`) |
+| Outbox (dormant) | `test_outbox_store.py`, `test_outbox_requeue.py` | Persist → backoff → dead-letter. Jalur ini **tidak dipakai lagi** (retry worker di-comment); test-nya dijaga supaya jalur lama tidak busuk diam-diam kalau suatu saat dihidupkan |
 | Config | `test_config_validation.py` | Fail-fast saat secret masih default di `APP_ENV=production` |
 | Camera selector | `test_device_selector.py` | Pilih kamera by-serial (enum GigE tidak deterministik) |
 | Streaming | `test_streaming_service.py` | MJPEG keep-alive multi-viewer |
