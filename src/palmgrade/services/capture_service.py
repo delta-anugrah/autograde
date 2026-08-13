@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import logging
 import queue
-import uuid
 from typing import Any
 
 from ..core.config import Settings
+from ..domain.vision_event import build_event_payload
 from ..integrations.camera.base import CameraSource
 from ..integrations.notifications.webhook_client import WebhookClient
 from ..integrations.outbox.outbox_store import OutboxStore
@@ -71,26 +71,28 @@ class CaptureService:
             pass
         self.state.event_queue.put_nowait(event)
 
-        # [DISABLED: batch-upload-r2 — lihat spec 2026-07-10]
-        # event_id = str(uuid.uuid4())
-        # outbox_payload = {
-        #     "event_id": event_id,
-        #     "machine_id": self.settings.machine_id,
-        #     "assignment_id": self.state.current_assignment_id,
-        #     "truck_id": truck_id,
-        #     "timestamp": result["timestamp"],
-        #     "prediction": "Rej",
-        #     "ripeness_status": result["ripeness_status"].upper() if isinstance(result["ripeness_status"], str) else "REJ",
-        #     "ripeness_confidence": result["ripeness_confidence"],
-        #     "tp_status": None,
-        #     "tp_confidence": 0,
-        #     "capture_type": result["capture_type"],
-        #     "image_path": result.get("image_url", ""),
-        #     "bounding_box": result.get("bounding_box") or {},
-        # }
-        # try:
-        #     self.outbox_store.add_event(event_id, self.settings.machine_id, outbox_payload)
-        # except Exception as exc:
-        #     logger.error("Failed to write event %s to outbox: %s", event_id, exc)
+        # Realtime ke API lokal: OutboxRetryWorker mengirim ini dalam ~1 detik,
+        # jadi operator lihat hasilnya di Grading History tanpa nunggu batch R2.
+        outbox_payload = build_event_payload(
+            machine_id=self.settings.machine_id,
+            file_ts=result["id"],
+            timestamp=result["timestamp"],
+            ripeness_status=result["ripeness_status"],
+            ripeness_confidence=result["ripeness_confidence"],
+            capture_type=result["capture_type"],
+            image_path=result.get("image_url", ""),
+            truck_id=truck_id,
+            assignment_id=self.state.current_assignment_id,
+            bounding_box=result.get("bounding_box"),
+        )
+        try:
+            self.outbox_store.add_event(
+                outbox_payload["event_id"], self.settings.machine_id, outbox_payload
+            )
+        except Exception as exc:
+            # Gambar sudah aman di disk dan batch R2 masih bisa menyusul —
+            # menggagalkan request di sini bikin tombol capture balas 500
+            # padahal capture-nya sendiri sukses.
+            logger.error("Failed to write event %s to outbox: %s", outbox_payload["event_id"], exc)
 
         return result

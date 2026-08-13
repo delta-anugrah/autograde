@@ -4,10 +4,10 @@ import datetime
 import logging
 import queue
 import time
-import uuid
 
 from ..core.config import Settings
 from ..core.constants import JPEG_QUALITY_SAVE
+from ..domain.vision_event import build_event_payload
 from ..integrations.notifications.webhook_client import WebhookClient
 from ..integrations.outbox.outbox_store import OutboxStore
 from ..integrations.storage.local_file_storage import LocalFileStorage
@@ -311,35 +311,34 @@ class FrameProcessingWorker:
                         pass
                     self.state.event_queue.put_nowait(event)
 
-                    # [DISABLED: batch-upload-r2 — lihat spec 2026-07-10]
-                    # truck_id = self.state.current_truck_id
-                    # if truck_id:
-                    #     # event_id deterministik (machine_id + timestamp file, unik per
-                    #     # detik per line) → kalau frame ini diproses ulang setelah crash
-                    #     # SEBELUM `processed` di-set, event_id tetap sama → API idempotent
-                    #     # (already_processed) → tidak double count.
-                    #     event_id = str(
-                    #         uuid.uuid5(uuid.NAMESPACE_URL, f"{self.settings.machine_id}:{timestamp}")
-                    #     )
-                    #     outbox_payload = {
-                    #         "event_id": event_id,
-                    #         "machine_id": self.settings.machine_id,
-                    #         "assignment_id": self.state.current_assignment_id,
-                    #         "truck_id": truck_id,
-                    #         "timestamp": event_ts,
-                    #         "prediction": "Acc" if ripeness_status == "acc" else "Rej",
-                    #         "ripeness_status": ripeness_status.upper(),
-                    #         "ripeness_confidence": round(ripeness_conf, 2),
-                    #         "tp_status": tp_snapshot["tp_status"] if tp_snapshot else None,
-                    #         "tp_confidence": round(tp_snapshot["tp_confidence"], 2) if tp_snapshot else 0,
-                    #         "capture_type": "auto",
-                    #         "image_path": image_url,
-                    #         "bounding_box": {"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
-                    #     }
-                    #     try:
-                    #         self.outbox_store.add_event(event_id, self.settings.machine_id, outbox_payload)
-                    #     except Exception as exc:
-                    #         logger.error("Failed to write event %s to outbox: %s", event_id, exc)
+                    # Realtime ke API lokal: OutboxRetryWorker mengirim ini dalam
+                    # ~1 detik. Tetap ditulis walau truk belum di-assign — API
+                    # punya TruckResolver.resolveOrStub, dan membuangnya bikin
+                    # deteksi hilang permanen dari Grading History.
+                    outbox_payload = build_event_payload(
+                        machine_id=self.settings.machine_id,
+                        file_ts=timestamp,
+                        timestamp=event_ts,
+                        ripeness_status=ripeness_status,
+                        ripeness_confidence=ripeness_conf,
+                        capture_type="auto",
+                        image_path=image_url,
+                        truck_id=self.state.current_truck_id,
+                        assignment_id=self.state.current_assignment_id,
+                        bounding_box={"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
+                        tp_status=tp_snapshot["tp_status"] if tp_snapshot else None,
+                        tp_confidence=tp_snapshot["tp_confidence"] if tp_snapshot else None,
+                    )
+                    try:
+                        self.outbox_store.add_event(
+                            outbox_payload["event_id"], self.settings.machine_id, outbox_payload
+                        )
+                    except Exception as exc:
+                        logger.error(
+                            "Failed to write event %s to outbox: %s",
+                            outbox_payload["event_id"],
+                            exc,
+                        )
 
                     # Tandai `processed` SETELAH file tersimpan (Celah-1 fix): kalau
                     # crash di tengah blok di atas, track ini BELUM processed → diproses

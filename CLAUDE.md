@@ -28,8 +28,8 @@ Full system map: `../ARCHITECTURE.md`.
 - Python 3.11, **FastAPI** + uvicorn
 - **Ultralytics YOLO** (YOLOv8 + ByteTrack); torch/torchvision (CPU for dev, CUDA `cu126` for prod)
 - OpenCV, NumPy
-- **httpx** (cloud upload), **APScheduler** (hourly batch upload), **SQLite** (`UploadManifest`
-  per-item state; the legacy `outbox.db` still exists but nothing writes to it), **boto3** (R2)
+- **httpx** (cloud upload + realtime push), **APScheduler** (hourly batch upload), **SQLite**
+  (`outbox.db` = antrean realtime ke API lokal; `UploadManifest` = state per-item batch R2), **boto3** (R2)
 - **Hikrobot MVS SDK** (GigE industrial camera — prod only)
 - **Docker-only** (no host venv). Deps pinned in `requirements.txt` (torch installed separately in Dockerfile).
 
@@ -46,8 +46,8 @@ src/palmgrade/
   services/        # business flow (capture, inspection, streaming, truck, health, result)
   repositories/    # file I/O (WebP/JSON) via LocalFileStorage
   pipelines/       # YOLO inference (realtime_inspection_pipeline, model_registry)
-  workers/         # background threads + RuntimeState (capture / display / processing / event_broadcast / batch_upload; outbox_retry = DISABLED)
-  integrations/    # camera/{hikrobot,opencv,photo}, notifications/(webhook), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (dormant)
+  workers/         # background threads + RuntimeState (capture / display / processing / event_broadcast / outbox_retry / batch_upload)
+  integrations/    # camera/{hikrobot,opencv,photo}, notifications/(webhook), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
   domain/          # pure rules + entities (no I/O)
   schemas/         # Pydantic request/response models
   license/         # optional Ed25519 license guard
@@ -82,10 +82,10 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 - **`make up` cuma perlu** kalau dependency / `Dockerfile` / SDK berubah; untuk ubah kode pakai `make restart`.
 - **Dev without a camera**: `.env` → `CAMERA_TYPE=opencv` + `CAMERA_VIDEO_PATH=/videos/<file>.mp4` (host `sawit/` is mounted at `/videos`).
 - **Verify**: `curl :8001/health`; `curl :8001/health/detail` (camera_connected, gpu_available, workers, current_assignment_id); stream at `http://localhost:8001/api/video_feed`.
-  ⚠️ `/health/detail` still returns `outbox_pending`/`outbox_failed`, but they are **always `0`**
-  now that the outbox is disabled — they say nothing about batch-upload progress. To check
-  whether events are actually reaching the cloud, read the `Batch tick: N item eligible`
-  log line from `BatchUploadWorker` or query `state/upload_manifest.db` directly.
+  ⚠️ `outbox_pending`/`outbox_failed` di `/health/detail` mengukur **jalur realtime ke API lokal**
+  saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
+  mengatakan apa-apa soal batch upload ke cloud — untuk itu baca log `Batch tick: N item eligible`
+  dari `BatchUploadWorker` atau query `state/upload_manifest.db` langsung.
 - **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx`) di samping `ruff pytest`. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `license/` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
 - From-zero prod setup (NVIDIA toolkit, MVS install, camera IP): `docs/SETUP.md`.
 
@@ -109,8 +109,19 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 
 ## Integration Contracts (verified against palmgrade-api code)
 
-**vision → api** — batched delivery via `BatchUploadWorker` (hourly at minute `UPLOAD_MINUTE`;
-`OutboxRetryWorker` is disabled, so delivery is **not** near-real-time — budget up to ~1h lag):
+**vision → api** — **dua jalur paralel, sengaja**:
+
+| Jalur | Tujuan | Kapan | Gambar |
+|---|---|---|---|
+| `OutboxRetryWorker` (realtime) | `BACKEND_URL` = API **lokal** PC pabrik | poll 1 detik | path relatif → api meng-serve dari mount `artifacts/` |
+| `BatchUploadWorker` (batch) | `UPLOAD_API_URL` = API **cloud** | tiap jam menit `UPLOAD_MINUTE` | di-`PUT` ke R2 dulu, event bawa URL R2 absolut |
+
+`event_id` keduanya identik (uuid5 `machine_id:file_timestamp`), jadi kalaupun dua jalur ini
+menunjuk API yang sama, POST kedua dibalas `already_processed` — bukan baris dobel.
+⚠️ `BACKEND_URL` **wajib** API lokal. Menunjuknya ke `api.smagri.id` adalah yang membanjiri
+produksi dengan ~1098 event tes pada 2026-08-09.
+
+Kontrak jalur batch (gambar dulu ke R2, lalu teks ke API cloud):
 - Image first: `PUT` to Cloudflare R2, then the text event references the public R2 URL.
 - `POST {UPLOAD_API_URL}{BACKEND_API_VER}/internal/vision/events`
   → cloud `https://api.smagri.id/api/v1/internal/vision/events`
@@ -124,7 +135,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
   - `tp_status` `"PASS"` or `null` (never `"TP"`)
   - `capture_type` `"auto"|"manual"`
   - `machine_id` UUID (must equal a `machines.id`)
-  - `event_id` UUID (idempotency; auto = uuid5 deterministik), `timestamp` ISO **UTC-aware**, `truck_id` optional, `bounding_box` `{x_min,y_min,x_max,y_max}`
+  - `event_id` UUID (idempotency; **selalu** uuid5 deterministik, auto maupun manual), `timestamp` ISO **UTC-aware**, `truck_id` optional, `bounding_box` `{x_min,y_min,x_max,y_max}`
 - api responds `200/201` or `{status:"already_processed"}` (both treated as delivered).
 
 **api → vision** — header **`x-internal-secret: WEBHOOK_SECRET`**:
@@ -147,20 +158,27 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 
 ## Critical Rules (full rationale → `docs/overview.md` § Invariants)
 
-1. **Disk before API** — never POST events directly from a worker. `FrameProcessingWorker` and
-   `capture_service` only write WebP + JSON to `artifacts/results/`; **the files on disk ARE the
-   queue**. `BatchUploadWorker` discovers them each tick (`_scan()`), tracks per-item state in
-   `UploadManifest`, and is the only thing that talks to R2/the cloud API.
-   Auto `event_id` = **deterministic uuid5** (`machine_id:file_timestamp`) — the exact same
-   formula the old outbox used, so re-POSTing an already-delivered event returns
-   `already_processed` instead of creating a duplicate row. (Manual reject stays uuid4.)
-   Failure classes are load-bearing: `_PoisonError` → mark poisoned + **continue** (one bad item
-   must not hold up the batch; the file is NOT deleted); `_RequeueError` → requeue, and
-   **break** the batch when `batch_fatal=True` (network/5xx/429/401/403 — global condition), but
-   **continue** when `batch_fatal=False` (HTTP 404 = truck not synced yet, a per-item condition —
-   breaking there would starve everything behind it since the queue is `ORDER BY discovered_at ASC`).
-   The old outbox path is commented out in `frame_processing_worker.py` and `capture_service.py`
-   — leave it that way unless you are deliberately reviving it.
+1. **Disk before API** — never POST events directly from a worker; **antrean yang bicara ke
+   jaringan, bukan worker deteksi**. `FrameProcessingWorker` dan `capture_service` menulis WebP +
+   JSON ke `artifacts/results/` lalu **satu baris** ke `outbox.db` (`build_event_payload()` dari
+   `domain/vision_event.py`). Dua konsumen mengirimnya:
+   - `OutboxRetryWorker` → API **lokal** (`BACKEND_URL`), poll 1 detik. Ini yang bikin operator
+     lihat Grading History + gambar seketika, dan satu-satunya jalur yang hidup saat internet mati.
+   - `BatchUploadWorker` → R2 + API **cloud** (`UPLOAD_API_URL`), tiap jam. Menemukan item lewat
+     `_scan()` folder `results/` (**bukan** outbox), state per-item di `UploadManifest`.
+
+   `event_id` = **uuid5 deterministik** (`machine_id:file_timestamp`) di **semua** jalur, jadi
+   kirim ulang dibalas `already_processed`, bukan baris dobel. Jangan pernah pakai uuid4 di sini.
+
+   `image_path` dari kedua worker deteksi **harus relatif** (`captures/results/<tgl>/<file>.webp`);
+   api merakitnya jadi `{apiPrefix}/captures/{line_code}/...`. Hanya `BatchUploadWorker` yang
+   menukarnya dengan URL R2 absolut, dan itu untuk cloud saja.
+
+   Kelas kegagalan batch bersifat load-bearing: `_PoisonError` → poisoned + **continue** (satu item
+   busuk tidak menyandera batch; file TIDAK dihapus); `_RequeueError` → requeue, lalu **break**
+   kalau `batch_fatal=True` (jaringan/5xx/429/401/403 — kondisi global) tapi **continue** kalau
+   `batch_fatal=False` (HTTP 404 = truck belum sinkron, kondisi per-item — break di situ bikin
+   antrean `ORDER BY discovered_at ASC` kelaparan di belakangnya).
 2. **`_processed_objects`** — never `discard()` an active track (single-trigger). Trim only IDs that are inactive (gone from `track_history`) **and** stale >300s.
 3. **`state.lock`** around all physical camera access (`FrameCaptureWorker` + `capture_manual_reject`).
 4. **MJPEG** — only `DisplayWorker` writes `state.latest_frame`, via `threading.Condition.notify_all()` (multi-viewer). It renders `last_yolo_frame` (paired with results) and runs at `STREAM_FPS` (default 12), decoupled from `CAMERA_FPS`.

@@ -29,9 +29,9 @@
 | Worker | Kind | Responsibility |
 |---|---|---|
 | `FrameCaptureWorker` | thread | grab frame from camera (under `state.lock`) → `state.latest_raw_frame` + `frame_queue`. Auto-reconnects with `device_index`. |
-| `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); detection → save ke disk → `event_queue` (write ke outbox sudah di-comment) |
+| `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); detection → save ke disk → `event_queue` + `outbox.add_event()` |
 | `DisplayWorker` | thread | the **only** writer of `state.latest_frame`: draw boxes → resize → draw ROI → JPEG encode → `frame_condition.notify_all()`. Runs at `STREAM_FPS` (default 12). |
-| ~~OutboxRetryWorker~~ | thread | **DINONAKTIFKAN (di-comment)** sejak batch-upload-r2 (spec 2026-07-10) — digantikan batch upload hourly ke R2 + API cloud |
+| `OutboxRetryWorker` | thread | kirim isi `outbox.db` ke API **lokal** (`BACKEND_URL`), poll 1 detik — jalur realtime operator, hidup walau internet mati. Batch upload ke cloud jalan terpisah. |
 | `EventBroadcastWorker` | asyncio task | drain `event_queue` → push to `/ws/results` WebSocket clients |
 | `_watchdog` | asyncio task | every **10s**, restart any dead worker thread |
 
@@ -60,10 +60,10 @@ each YOLO frame (ByteTrack assigns track_id per object):
       _save_ripeness(): annotated WebP (quality 65) + {ts}_auto_ripeness.json
       if _last_tp: _save_tp(): {ts}_auto_tp.json (no image, same timestamp) then clear
       push event to event_queue (drop-old) for WebSocket
-      # [DISABLED] outbox.add_event(...) — di-comment sejak batch-upload-r2.
-      # Pengiriman ke cloud sekarang lewat BatchUploadWorker yang men-scan file
-      # hasil save di atas (lihat §4). event_id uuid5 dihitung ulang di sana dari
-      # machine_id + timestamp nama file, jadi tetap deterministik.
+      outbox.add_event(build_event_payload(...))  # → API lokal via OutboxRetryWorker
+      # Pengiriman ke CLOUD terpisah: BatchUploadWorker men-scan file hasil save
+      # di atas (lihat §4) dan menghitung ulang uuid5 yang sama dari machine_id +
+      # timestamp nama file — dua jalur, satu event_id, jadi tidak pernah dobel.
       mark track processed LAST (_processed_objects.add + _processed_times)
       # processed di-set SETELAH file tersimpan: crash mid-block → track belum
       # processed → di-reprocess → nama file (dan uuid5-nya) sama → idempotent
@@ -89,10 +89,11 @@ inference can take 0.5–2s and the conveyor moves, so boxes would land in the w
 
 ## 4. Batch Upload Delivery (hourly, at-least-once)
 
-> Menggantikan outbox delivery sejak spec batch-upload-r2 (2026-07-10). `OutboxRetryWorker`
-> **di-comment** di `main.py`, dan panggilan `outbox.add_event()` di `FrameProcessingWorker` +
-> `CaptureService` juga sudah di-comment. **File di disk sekarang ITU antriannya** — tidak ada
-> lagi write ke SQLite di jalur deteksi.
+> Jalur ke **cloud**, berdampingan dengan outbox (spec batch-upload-r2, 2026-07-10).
+> Antriannya **file di disk**, bukan `outbox.db`: `_scan()` menemukan `results/{date}/*.json`
+> dan menyimpan state per-item di `UploadManifest`. Outbox mengurus jalur **lokal** (§3) dan
+> tidak dibaca di sini; `event_id` keduanya identik sehingga sebuah event yang lewat dua-duanya
+> dibalas `already_processed` di API kedua.
 
 ```
 FrameProcessingWorker / CaptureService
@@ -127,14 +128,14 @@ BatchUploadWorker.run_batch_once()
 - Tahan restart karena **file-nya ada di disk**; manifest hanya menyimpan progres.
   SQLite durability eksplisit: **`PRAGMA journal_mode=WAL` + `synchronous=FULL`** — commit di-fsync,
   progres yang tercatat selamat dari mati listrik (write rate rendah, biaya fsync ringan).
-- `event_id`: **auto** = uuid5 deterministik dari `machine_id:timestamp` (formula **identik** dengan
-  outbox lama → re-upload item yang sama, atau event era outbox yang ikut ter-scan, balas
-  `already_processed` → tidak double count); **manual reject** = uuid4.
+- `event_id`: uuid5 deterministik dari `machine_id:timestamp` untuk **auto maupun manual**
+  (formula tunggal di `domain/vision_event.py`, dipakai jalur outbox juga) → item yang di-upload
+  ulang, atau event yang sudah lewat jalur realtime, dibalas `already_processed` → tidak dobel.
 - `state/upload_manifest.db` sengaja **sibling** `artifacts/`, di luar mount statis `/captures`
   (`Settings.state_dir`) supaya DB operasional tidak ikut ter-serve sebagai file publik.
-- ⚠️ Progres batch **tidak ter-expose** di endpoint mana pun. `/health/detail` masih mengembalikan
-  `outbox_pending`/`outbox_failed` yang kini **selalu 0** — itu bukan indikator backlog upload.
-  Untuk cek backlog sungguhan: query `state/upload_manifest.db` atau baca log worker.
+- ⚠️ Progres batch **tidak ter-expose** di endpoint mana pun. `outbox_pending`/`outbox_failed` di
+  `/health/detail` mengukur jalur realtime ke API lokal, **bukan** backlog upload cloud.
+  Untuk backlog sungguhan: query `state/upload_manifest.db` atau baca log worker.
 
 **Event payload (field names exact):**
 ```json
@@ -190,12 +191,11 @@ to serve images at `/api/v1/captures/<line_code>/...`. api SSE events after inge
 ## 6. Invariants — full rationale (don't change without discussion)
 
 0. **Disk before API.** Never POST events directly from a detection worker. `CaptureService` dan
-   `FrameProcessingWorker` **hanya menulis file** (WebP + `_ripeness.json`) ke `results/{date}/`;
-   satu-satunya yang bicara ke API cloud adalah `BatchUploadWorker` (§4). File di disk itulah
-   antriannya. Perubahan perilaku vs era outbox: deteksi **tanpa truck aktif ikut dikirim**
-   (`truck_id: null`) karena `_scan()` tidak memfilter truck — dulu event begitu di-skip.
-   Jalur outbox lama masih ada di repo tapi **di-comment** di `frame_processing_worker.py` +
-   `capture_service.py`; biarkan begitu kecuali memang sengaja dihidupkan lagi.
+   `FrameProcessingWorker` menulis file (WebP + `_ripeness.json`) ke `results/{date}/` lalu satu
+   baris ke `outbox.db` — **tidak pernah** memanggil HTTP sendiri. Yang bicara ke jaringan cuma
+   `OutboxRetryWorker` (API lokal, §3) dan `BatchUploadWorker` (R2 + cloud, §4). Deteksi **tanpa
+   truck aktif tetap dikirim** (`truck_id: null`) di kedua jalur: `_scan()` tidak memfilter truck,
+   dan outbox juga tidak — API punya `TruckResolver.resolveOrStub`.
 1. **`_processed_objects`.** After saving a track_id, add it so the next iteration `continue`s
    (single-trigger). Never `discard()` an active track. `run_once` trims only IDs that are gone from
    `track_history` **and** stale >300s (`_processed_times`) — pure memory control, can't re-trigger
@@ -305,7 +305,7 @@ artifacts/line-N/   (host) ↔ /app/artifacts (container)
   captures/                 # legacy — dibuat saat startup, TIDAK ditulis lagi
   errors/                   # legacy — dibuat saat startup, TIDAK ditulis lagi (REJ via metadata)
   logs/
-  outbox.db                 # SQLite outbox lama — dormant (retry worker di-comment)
+  outbox.db                 # SQLite — antrean realtime ke API lokal (OutboxRetryWorker)
 
 state/line-N/   (host) ↔ /app/state (container)   # SIBLING artifacts/, DI LUAR mount /captures
   upload_manifest.db        # progres BatchUploadWorker (WAL + synchronous=FULL)
