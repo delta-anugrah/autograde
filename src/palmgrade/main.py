@@ -139,16 +139,22 @@ def create_app() -> FastAPI:
             ("processing", _start_worker("processing", processing_worker.run_loop), processing_worker),
         ]
 
-        # [DISABLED: batch-upload-r2 — lihat spec 2026-07-10]
-        # OutboxRetryWorker — delivers pending events to canonical API endpoint
-        # outbox_store = get_outbox_store()
-        # outbox_worker = OutboxRetryWorker(
-        #     outbox=outbox_store,
-        #     settings=settings,
-        #     state=state,
-        # )
-        # outbox_thread = _start_worker("outbox_retry", outbox_worker.run_loop)
-        # state.worker_threads.append(("outbox_retry", outbox_thread, outbox_worker))
+        # OutboxRetryWorker — kirim event ke API di BACKEND_URL, poll 1 detik.
+        # Ini jalur realtime untuk operator (Grading History + gambar). Batch
+        # upload R2 ke cloud (UPLOAD_API_URL) jalan terpisah dan tidak diganggu:
+        # event_id-nya sama, jadi kalaupun keduanya menunjuk API yang sama, yang
+        # kedua dibalas already_processed.
+        #
+        # PENTING: BACKEND_URL harus API LOKAL (http://<ip-pc>:2500), bukan
+        # api.smagri.id. Menunjuk cloud dari sini yang membanjiri produksi
+        # dengan ~1098 event tes pada 2026-08-09.
+        outbox_worker = OutboxRetryWorker(
+            outbox=get_outbox_store(),
+            settings=settings,
+            state=state,
+        )
+        outbox_thread = _start_worker("outbox_retry", outbox_worker.run_loop)
+        state.worker_threads.append(("outbox_retry", outbox_thread, outbox_worker))
 
         async def _watchdog() -> None:
             while True:
