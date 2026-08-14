@@ -14,6 +14,13 @@ def _as_bool(value: str | None, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def parse_coil_list(value: str | None) -> tuple[int, ...]:
+    """'9,10' -> (9, 10). Kosong -> (). Raise ValueError kalau ada yang bukan angka."""
+    if not value or not value.strip():
+        return ()
+    return tuple(int(part.strip()) for part in value.split(","))
+
+
 # Nilai default WEBHOOK_SECRET yang ikut ke-commit di repo (dan dipakai sebagai
 # fallback di docker-compose). Aman untuk dev, TAPI di production wajib diganti —
 # lihat Settings.validate_for_runtime(). Dikonstanta di satu tempat supaya tidak
@@ -105,6 +112,26 @@ class Settings:
     upload_api_secret: str = field(default_factory=lambda: os.getenv("UPLOAD_API_SECRET", ""))
     upload_max_items_per_tick: int = field(default_factory=lambda: int(os.getenv("UPLOAD_MAX_ITEMS_PER_TICK", "2000")))
     upload_retention_days: int = field(default_factory=lambda: int(os.getenv("UPLOAD_RETENTION_DAYS", "7")))
+
+    # ── PLC / ODOT CN-8031 (Modbus-TCP) ──────────────────────────
+    # Logikanya ada di src/palmgrade/plc/. Coil map lengkap:
+    # docs/plc-integration.md. Mati secara default — cuma PC pabrik yang
+    # menyalakan. plc_coil_base = 0/3/6 per line, di-set docker-compose.
+    plc_enabled: bool = field(default_factory=lambda: _as_bool(os.getenv("PLC_ENABLED"), False))
+    plc_host: str = field(default_factory=lambda: os.getenv("PLC_HOST", ""))
+    plc_port: int = field(default_factory=lambda: int(os.getenv("PLC_PORT", "502")))
+    plc_unit_id: int = field(default_factory=lambda: int(os.getenv("PLC_UNIT_ID", "1")))
+    plc_coil_base: int = field(default_factory=lambda: int(os.getenv("PLC_COIL_BASE", "0")))
+    # Bit "line ini hidup" yang di-toggle PlcWorker tiap detik. Daftar, karena
+    # line 1 juga memegang coil 9 (HEARTBEAT PC). Kosong = fitur alive mati.
+    plc_coil_alive: tuple[int, ...] = field(
+        default_factory=lambda: parse_coil_list(os.getenv("PLC_COIL_ALIVE"))
+    )
+    plc_pulse_ms: int = field(default_factory=lambda: int(os.getenv("PLC_PULSE_MS", "200")))
+    plc_pulse_gap_ms: int = field(default_factory=lambda: int(os.getenv("PLC_PULSE_GAP_MS", "100")))
+    plc_queue_max: int = field(default_factory=lambda: int(os.getenv("PLC_QUEUE_MAX", "20")))
+    plc_poll_ms: int = field(default_factory=lambda: int(os.getenv("PLC_POLL_MS", "200")))
+    plc_di_count: int = field(default_factory=lambda: int(os.getenv("PLC_DI_COUNT", "16")))
 
     # ------------------------------------------------------------------ validation
 
@@ -200,3 +227,15 @@ class Settings:
     @property
     def upload_events_url(self) -> str:
         return f"{self.upload_api_url}{self.backend_api_ver}/internal/vision/events"
+
+    @property
+    def plc_coil_ok(self) -> int:
+        return self.plc_coil_base
+
+    @property
+    def plc_coil_ng(self) -> int:
+        return self.plc_coil_base + 1
+
+    @property
+    def plc_coil_error(self) -> int:
+        return self.plc_coil_base + 2
