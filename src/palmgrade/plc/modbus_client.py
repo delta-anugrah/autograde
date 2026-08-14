@@ -51,8 +51,8 @@ class ModbusPlcClient:
         try:
             if self._client is not None:
                 self._client.close()
-        except Exception:
-            pass
+        except Exception as close_exc:
+            logger.debug("Socket close gagal di _drop: %s", close_exc)
         self._client = None
 
     def write_coil(self, address: int, value: bool) -> bool:
@@ -84,7 +84,7 @@ class ModbusPlcClient:
         if self._client is not None:
             try:
                 self._client.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Socket close gagal: %s", exc)
         self._client = None
         self.connected = False
