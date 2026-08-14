@@ -6,8 +6,9 @@ Rangkuman teknis `palmgrade-vision` — Python AI camera service untuk sistem gr
 
 Menerima feed kamera industri Hikrobot, menjalankan model YOLO secara realtime,
 mengklasifikasi kematangan buah sawit (3 kelas), menyimpan hasil inspeksi ke file,
-dan mengirimkan event ke `palmgrade-api` lewat **batch upload tiap jam** (`BatchUploadWorker`:
-gambar ke Cloudflare R2, teks ke API cloud). Jalur outbox realtime lama sudah di-comment.
+dan mengirimkan event ke `palmgrade-api` lewat **dua jalur**: realtime ke API lokal
+(`OutboxRetryWorker`, poll 1 detik) dan **batch tiap jam** ke cloud (`BatchUploadWorker`:
+gambar ke Cloudflare R2, teks ke API cloud).
 
 Dijalankan sebagai **3 container terpisah** (line 1/2/3), masing-masing satu port dan satu kamera.
 
@@ -46,7 +47,7 @@ palmgrade-vision/
       integrations/
         camera/                # HikrobotCamera / OpenCVCamera / PhotoCamera
         notifications/         # WebhookClient (httpx async) — legacy, not used for main flow
-        outbox/                # OutboxStore — dormant, retry worker di-comment
+        outbox/                # OutboxStore — antrean realtime ke API lokal
         storage/               # LocalFileStorage (read/write JSON + WebP)
         upload/                # R2Uploader (boto3) + UploadManifest (SQLite state per-item)
         scheduler/             # UploadScheduler — APScheduler cron, tiap jam @ UPLOAD_MINUTE
@@ -165,8 +166,8 @@ Terima command manual reject dari palmgrade-api. Protected by `x-internal-secret
 - **Request body:** `{ "machine_id", "assignment_id", "requested_by", "requested_at" }`
 - **Response:** `{ "accepted": true, "message": "capture_reject_requested" }`
 - **Side effect:** Trigger `capture_manual_reject()` via `run_in_executor` — WebP + JSON ditulis ke
-  `results/{date}/`, lalu ikut ter-scan `BatchUploadWorker` pada tick berikutnya (write ke OutboxStore
-  sudah di-comment).
+  `results/{date}/` + satu baris ke `outbox.db` → terkirim ke API lokal dalam ~1 detik, dan ikut
+  ter-scan `BatchUploadWorker` ke cloud pada tick berikutnya.
 
 ---
 
@@ -189,7 +190,7 @@ Capture frame saat ini secara manual, langsung mark sebagai `rej`.
     "truck_id": "uuid-or-null"
   }
   ```
-- **Side effect:** Simpan WebP + metadata JSON ke `results/{date}/` (inilah yang jadi antrian upload), push ke `event_queue` untuk WebSocket broadcast. Write ke OutboxStore sudah di-comment.
+- **Side effect:** Simpan WebP + metadata JSON ke `results/{date}/` (inilah yang jadi antrian upload cloud), push ke `event_queue` untuk WebSocket broadcast, dan tulis satu baris ke OutboxStore (antrian realtime ke API lokal).
 
 ---
 
@@ -219,14 +220,13 @@ Status operasional container.
   }
   ```
 
-> ⚠️ **Endpoint ini tidak lagi memberi tahu apa pun soal pengiriman ke cloud.** Tiga field di bawah
-> ini sisa era outbox dan sekarang mati:
+> ⚠️ **Endpoint ini bicara soal jalur realtime lokal saja, bukan cloud:**
 >
-> | Field | Kondisi sekarang |
+> | Field | Artinya |
 > |---|---|
-> | `outbox_pending` / `outbox_failed` | **selalu `0`** — tidak ada lagi yang menulis ke outbox, jadi angka 0 di sini **bukan** berarti tidak ada backlog upload |
-> | `last_successful_api_push` | **selalu `null`** — hanya pernah di-set `OutboxRetryWorker` (`runtime_state.py:14`), yang sudah di-comment |
-> | `workers[]` | tidak memuat `outbox_retry` (registrasinya di-comment di `main.py:150-151`) **maupun** `BatchUploadWorker` — batch upload itu job APScheduler, bukan thread ter-register, jadi **watchdog `_watchdog` tidak memantaunya** |
+> | `outbox_pending` / `outbox_failed` | backlog ke **API lokal** (`BACKEND_URL`). Naik terus = API lokal tidak menjawab. **Bukan** indikator backlog upload cloud |
+> | `last_successful_api_push` | waktu POST terakhir yang sukses ke API lokal; `null` = belum pernah ada yang terkirim sejak start |
+> | `workers[]` | memuat `outbox_retry`, tapi **tidak** `BatchUploadWorker` — batch upload itu job APScheduler, bukan thread ter-register, jadi **watchdog `_watchdog` tidak memantaunya** |
 >
 > Untuk backlog upload sungguhan: query `state/upload_manifest.db` (`SELECT status, COUNT(*) FROM
 > upload_items GROUP BY status`) atau baca log worker. Ini gap observability yang belum ditutup.
@@ -262,7 +262,7 @@ frame_queue                      state.latest_raw_frame
   │     ├── write_json() _ripeness.json
   │     ├── write_json() _tp.json (if TP)
   │     ├── event_queue.put_nowait()
-  │     └── [DISABLED] OutboxStore.add_event() — di-comment; file di disk ITU antriannya
+  │     └── OutboxStore.add_event() — antrean realtime → API lokal (~1 detik)
   └── state.last_yolo_results (read by DisplayWorker)
   ↓ [EventBroadcastWorker — asyncio task]
 WebSocket clients
@@ -314,7 +314,7 @@ artifacts/
   captures/                             # legacy — tidak ditulis lagi
   errors/                               # legacy — tidak ditulis lagi (REJ ditemukan via metadata ripeness_status)
   logs/
-  outbox.db                             # outbox lama — dormant (retry worker di-comment)
+  outbox.db                             # antrean realtime ke API lokal
 
 state/line-N/  ↔ /app/state             # SIBLING artifacts/, sengaja DI LUAR mount /captures
   upload_manifest.db                    # progres BatchUploadWorker (WAL + synchronous=FULL)
@@ -332,13 +332,18 @@ FE akses via: `${LINE_N_URL}/captures/results/{date}/{filename}`
 
 ---
 
-## Event Delivery ke palmgrade-api (via `BatchUploadWorker`)
+## Event Delivery ke palmgrade-api (dua jalur)
 
-Sejak spec batch-upload-r2 (`docs/superpowers/specs/2026-07-10-batch-upload-r2-design.md`),
-`OutboxRetryWorker` **di-comment** dan `OutboxStore.add_event()` tidak lagi dipanggil.
-**File hasil deteksi di disk sekarang ITU antriannya**; batch worker yang men-scan dan mengirimnya
-tiap jam. Konsekuensi operasional: event sampai ke cloud dengan **lag sampai ~1 jam**, bukan
-near-real-time.
+- **Realtime → API lokal.** `OutboxStore.add_event()` dipanggil di jalur deteksi; `OutboxRetryWorker`
+  mem-poll tiap 1 detik dan POST ke `BACKEND_URL`. Ini yang dilihat operator di PC pabrik, dan
+  satu-satunya jalur yang hidup saat internet mati. `image_path` tetap relatif — api meng-serve
+  gambarnya dari mount `artifacts/` read-only.
+- **Batch → cloud.** Sejak spec batch-upload-r2
+  (`docs/superpowers/specs/2026-07-10-batch-upload-r2-design.md`), **file hasil deteksi di disk ITU
+  antriannya**; `BatchUploadWorker` men-scan tiap jam, `PUT` gambar ke R2, lalu POST ke
+  `UPLOAD_API_URL`. Lag ke cloud sampai ~1 jam — itu memang desainnya.
+
+`event_id` identik di kedua jalur, jadi tidak ada risiko dobel.
 
 ```
 FrameProcessingWorker / CaptureService
@@ -381,7 +386,7 @@ FrameProcessingWorker / CaptureService
 ```
 
 **Kontrak penting:**
-- `event_id`: dipakai API untuk idempotency (sparse unique index). **Auto** = uuid5 deterministik dari `machine_id:timestamp` — dihitung `BatchUploadWorker` dari **nama file**, bukan disimpan di JSON. Formulanya **sengaja identik** dengan outbox lama, jadi event yang sudah terkirim di era outbox tidak dobel kalau file-nya ikut ter-scan; **manual** = uuid4
+- `event_id`: dipakai API untuk idempotency (sparse unique index). uuid5 deterministik dari `machine_id:timestamp` untuk **auto maupun manual** — rumus tunggal di `domain/vision_event.py`; `BatchUploadWorker` menghitungnya ulang dari **nama file** (tidak disimpan di JSON), jadi event yang sudah lewat jalur realtime dibalas `already_processed` waktu batch mengirimnya lagi
 - `timestamp`: ISO-8601 **UTC-aware** (`datetime.now(timezone.utc)`)
 - `assignment_id`: dari `state.current_assignment_id` — set saat `/internal/assignment` dipanggil. Key-nya **di-omit** kalau meta tidak punya nilainya (bukan dikirim `null`)
 - `image_path`: **URL absolut R2** (`{R2_PUBLIC_URL}/{r2_key}`), bukan path relatif. `r2_key` diprefix `machine_id` supaya antar-line terisolasi. Gambar di-PUT duluan; POST baru jalan setelah PUT sukses
@@ -401,10 +406,10 @@ FrameProcessingWorker / CaptureService
   ditinggal untuk diperiksa); `_RequeueError(batch_fatal=False)` untuk HTTP 404 → requeue +
   **continue** (antrian `ORDER BY discovered_at ASC`, tanpa ini satu item lama bisa head-of-line
   starve seluruh batch); `_RequeueError` default → requeue + **break batch**
-- ⚠️ **Tidak ditampilkan di `/health/detail`** — `outbox_pending` di sana selalu 0 dan tidak ada
-  kaitannya dengan manifest ini
+- ⚠️ **Tidak ditampilkan di `/health/detail`** — `outbox_pending` di sana mengukur jalur realtime
+  lokal, tidak ada kaitannya dengan manifest ini
 
-**Catatan operasional:** `outbox.db` lama bisa berisi row pending sisa — inert (tidak ada pengirim); backfill batch meng-cover file yang sama via manifest, dan `event_id` idempoten mencegah dobel kalau outbox di-uncomment lagi.
+**Catatan operasional:** `outbox.db` dari instalasi lama bisa berisi row pending sisa. Sekarang ada pengirimnya lagi, jadi row itu akan ikut terkirim ke API lokal saat start — `event_id` yang idempoten mencegahnya jadi baris dobel. Kalau isinya sampah tes, kosongkan `artifacts/line-N/outbox.db` sebelum menyalakan.
 
 ---
 

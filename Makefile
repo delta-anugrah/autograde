@@ -31,12 +31,16 @@ up-prod: sync-sdk
 	docker compose $(PROD_FILES) --env-file $(ENV_FILE) up -d
 	-docker image prune -f
 
-# Copy Hikrobot MVS SDK dari host ke build context (perlu kalau SDK berubah).
+# Copy Hikrobot MVS SDK dari host ke build context. SDK-nya sekarang ikut
+# ke-commit (biar CI bisa build image), jadi ini cuma perlu kalau versi MVS di
+# host berubah. Dua-duanya pakai `/.` di sumber: tanpa itu, `cp -r` ke folder
+# yang SUDAH ada (dan sdk/MvImport sekarang SELALU ada) malah bikin salinan
+# bersarang sdk/MvImport/MvImport yang ikut ke-copy ke image.
 sync-sdk:
 	@test -d /opt/MVS || (echo "ERROR: Hikrobot MVS SDK tidak ditemukan di /opt/MVS. Install MVS terlebih dahulu." && exit 1)
-	mkdir -p sdk/lib64
+	mkdir -p sdk/lib64 sdk/MvImport
 	cp -r /opt/MVS/lib/64/. sdk/lib64/
-	cp -r /opt/MVS/Samples/64/Python/MvImport sdk/MvImport
+	cp -r /opt/MVS/Samples/64/Python/MvImport/. sdk/MvImport/
 
 # Build TensorRT FP16 engine SEKALI per GPU (auto-skip kalau engine utk GPU ini
 # sudah ada). Dijalankan sebagai 1 container one-shot → tidak ada race antar 3 line.

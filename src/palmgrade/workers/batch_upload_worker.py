@@ -19,13 +19,13 @@ from __future__ import annotations
 import json
 import logging
 import time
-import uuid
 from pathlib import Path
 from typing import Any
 
 import httpx
 
 from ..core.config import Settings
+from ..domain.vision_event import event_id_for
 from ..integrations.upload.r2_uploader import R2Uploader, build_r2_key
 from ..integrations.upload.upload_manifest import UploadManifest
 
@@ -62,10 +62,10 @@ def file_timestamp(json_name: str) -> str:
     raise ValueError(f"Bukan nama file hasil deteksi: {json_name}")
 
 
-def event_id_for(machine_id: str, file_ts: str) -> str:
-    # Rumus PERSIS sama dgn outbox lama (frame_processing_worker) → POST ulang
-    # event yang pernah terkirim dibalas already_processed, bukan row baru.
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{machine_id}:{file_ts}"))
+# Rumus dipindah ke domain/vision_event.py karena jalur realtime (outbox) dan
+# jalur batch harus memakai id yang sama persis. Di-re-export supaya import
+# lama tetap jalan.
+__all__ = ["BatchUploadWorker", "event_id_for", "file_timestamp"]
 
 
 class BatchUploadWorker:
