@@ -4,8 +4,6 @@ state/
 samples/
 models/release/
 models/experiments/
-sdk/*
-!sdk/.gitkeep
 *.pt
 *.onnx
 
@@ -219,3 +217,19 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# The two Hikrobot MVS SDK subtrees the Dockerfile copies are committed on
+# purpose: the release image bakes the SDK in, and GitHub Actions has no other
+# way to get it. This repository and the GHCR package it publishes are private
+# for that reason. Everything else dropped in sdk/ by hand stays ignored, and
+# the negations have to repeat because the generic Python rules further down
+# (*.so, lib64/) would otherwise swallow the libraries.
+sdk/*
+!sdk/.gitkeep
+!sdk/lib64/
+!sdk/lib64/**
+!sdk/MvImport/
+!sdk/MvImport/**
+# Copying the SDK twice leaves a nested duplicate of the same modules; the code
+# imports the flat `MvImport.*` path, so this copy is dead weight.
+sdk/MvImport/MvImport/
