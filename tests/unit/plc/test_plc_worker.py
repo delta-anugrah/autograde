@@ -188,7 +188,7 @@ def test_submit_overflow_increments_dropped_submissions_not_scheduler_dropped():
     assert w.scheduler.dropped == 0
 
 
-def test_start_plc_worker_called_twice_returns_same_worker_one_client(monkeypatch):
+def test_start_plc_worker_called_twice_returns_none_and_builds_one_client(monkeypatch):
     import palmgrade.plc as plc
 
     monkeypatch.setattr(plc, "_worker", None, raising=False)
@@ -218,7 +218,13 @@ def test_start_plc_worker_called_twice_returns_same_worker_one_client(monkeypatc
     first = plc.start_plc_worker(settings)
     second = plc.start_plc_worker(settings)
 
-    assert first is second
+    assert first is not None
+    # Panggilan kedua HARUS None, bukan worker yang sama. Pemanggil (main.py)
+    # memakai `is not None` untuk memutuskan start thread; mengembalikan worker
+    # yang sama membuat thread KEDUA jalan di run_loop yang sama, di atas socket
+    # ModbusTcpClient yang sama — ADU interleaved dan transaction id tidak cocok,
+    # lebih buruk daripada satu slot coupler yang dihemat guard ini.
+    assert second is None
     assert len(created) == 1
 
 

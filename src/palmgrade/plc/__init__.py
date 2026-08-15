@@ -40,7 +40,16 @@ def start_plc_worker(settings, health_check: Callable[[], bool] | None = None) -
     """
     global _worker
     if _worker is not None:
-        return _worker
+        # None, BUKAN worker yang sudah ada: pemanggil memakai `is not None` untuk
+        # memutuskan apakah perlu start thread. Mengembalikan worker yang sama
+        # menghemat satu slot coupler tapi menjalankan thread KEDUA di run_loop
+        # yang sama, di atas socket ModbusTcpClient yang sama — ADU interleaved
+        # dan transaction id tidak cocok. Itu jauh lebih buruk.
+        logger.warning(
+            "start_plc_worker dipanggil lagi padahal worker PLC sudah jalan — "
+            "panggilan ini diabaikan (tidak ada client dan thread kedua)"
+        )
+        return None
     if not settings.plc_enabled:
         return None
     if not settings.plc_host:
