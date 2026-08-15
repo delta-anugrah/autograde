@@ -246,3 +246,26 @@ def test_alive_coil_success_clears_stale_failed_retry():
 
     alive_writes = [v for (addr, v) in client.writes if addr == 11]
     assert alive_writes == [False]
+
+
+def test_error_coil_raised_when_pulses_are_dropped():
+    w, client = _worker()
+    w.scheduler.queue_max = 1
+    for _ in range(5):
+        w.submit("rej")
+    w.run_once(now=0.0)
+    assert (5, True) in client.writes      # coil base+2 = 5
+
+
+def test_error_coil_raised_when_health_check_says_unhealthy():
+    w, client = _worker(health_check=lambda: False)
+    w.run_once(now=0.0)
+    assert (5, True) in client.writes
+
+
+def test_error_coil_written_once_not_every_tick():
+    w, client = _worker(health_check=lambda: True)
+    w.run_once(now=0.0)
+    w.run_once(now=0.2)
+    w.run_once(now=0.4)
+    assert [v for (addr, v) in client.writes if addr == 5] == [False]

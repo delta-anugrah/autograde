@@ -37,6 +37,8 @@ class PlcWorker:
         # menagihnya lagi kecuali kita simpan dan coba ulang di tick berikutnya.
         self._failed_writes: dict[int, bool] = {}
         self.dropped_submissions = 0
+        # None = belum pernah dievaluasi, jadi evaluasi pertama selalu menulis.
+        self._error_level: bool | None = None
 
     def submit(self, status: str) -> None:
         """Dipanggil dari thread deteksi. Tidak pernah blocking, tidak pernah raise."""
@@ -98,6 +100,24 @@ class PlcWorker:
             self.inputs = bits
         else:
             logger.warning("Baca discrete input PLC gagal — state input terakhir dipertahankan")
+
+        # 5. Coil ERROR — level, bukan pulse. Ditulis hanya saat berubah supaya
+        #    tidak membanjiri bus dengan nilai yang sama tiap tick.
+        desired = self._is_unhealthy()
+        if desired != self._error_level:
+            self._write_coil(self.settings.plc_coil_error, desired)
+            self._error_level = desired
+
+    def _is_unhealthy(self) -> bool:
+        if self.scheduler.dropped:
+            return True
+        if self.health_check is not None:
+            try:
+                return not self.health_check()
+            except Exception:
+                logger.exception("health_check PLC gagal — dianggap tidak sehat")
+                return True
+        return False
 
     def _coil_for(self, status: str) -> int | None:
         normalized = (status or "").strip().lower()
