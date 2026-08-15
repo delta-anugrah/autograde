@@ -165,7 +165,16 @@ def create_app() -> FastAPI:
         # `create_app`/`lifespan`, bukan module-level. Aman karena `camera`
         # di-assign ulang dari `get_camera()` di scope yang sama, dan
         # `core/dependencies.py` menyimpannya sebagai satu singleton.
-        if (plc_worker := start_plc_worker(settings, health_check=lambda: camera.connected)) is not None:
+        # Dibungkus try/except karena PLC itu fitur OPSIONAL yang default-nya mati:
+        # env rusak (mis. PLC_PULSE_MS=0 yang lolos int() lalu ditolak
+        # PulseScheduler.__post_init__) tidak boleh menjatuhkan lifespan dan ikut
+        # mematikan grading. Gagal di sini = jalan terus tanpa PLC.
+        try:
+            plc_worker = start_plc_worker(settings, health_check=lambda: camera.connected)
+        except Exception:
+            logger.exception("Start PLC gagal — grading tetap jalan, PLC dinonaktifkan")
+            plc_worker = None
+        if plc_worker is not None:
             state.worker_threads.append(("plc", _start_worker("plc", plc_worker.run_loop), plc_worker))
 
         async def _watchdog() -> None:

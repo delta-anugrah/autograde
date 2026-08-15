@@ -88,6 +88,22 @@ Semua field dideklarasikan di `core/config.py` (satu blok berlabel `# ── PLC
 `docker-compose.yml` men-set `PLC_COIL_BASE`/`PLC_COIL_ALIVE` sebagai literal per service
 (`ripe-line-1/2/3`); variabel lain diinterpolasi dari `.env` dengan fallback default di atas.
 
+### Salah ketik `PLC_*` tidak boleh mematikan grading
+
+PLC adalah subsistem **opsional** yang default-nya mati, dan knob-nya diedit operator jam 2 pagi
+waktu commissioning. Karena itu semua field `PLC_*` diparse **toleran**:
+
+- Field integer lewat `_plc_int()` (`core/config.py`) — nilai bukan angka turun ke default dan
+  ditulis sebagai `logger.warning` yang menyebut nama variabelnya. Field **non-PLC** sengaja
+  tetap fail-fast; kelonggaran ini khusus PLC.
+- `parse_coil_list()` mengembalikan `()` + warning kalau rusak. `PLC_COIL_ALIVE=9,10,` (koma
+  nyantol) dulu melempar `ValueError` saat konstruksi `Settings()` — kontainer tidak pernah start.
+- `start_plc_worker()` dibungkus `try/except` di `lifespan`. `PLC_PULSE_MS=0` lolos `int()` tapi
+  ditolak `PulseScheduler.__post_init__`; sebelumnya exception itu menjatuhkan startup.
+
+Efek maksimal dari `PLC_*` yang salah ketik sekarang adalah **PLC mati sambil grading jalan
+terus**, bukan line berhenti.
+
 ---
 
 ## Throughput ceiling — DROP adalah steady state normal, bukan pengecualian

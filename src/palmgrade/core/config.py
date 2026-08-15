@@ -14,11 +14,44 @@ def _as_bool(value: str | None, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _plc_int(name: str, default: int) -> int:
+    """`int(os.getenv(...))` versi toleran — KHUSUS field PLC, jangan dipakai lain.
+
+    PLC itu subsistem opsional yang default-nya mati, dan knob-nya (`PLC_PULSE_MS`,
+    `PLC_POLL_MS`, ...) diedit operator jam 2 pagi waktu commissioning. Kalau typo
+    di sana melempar ValueError saat konstruksi `Settings()`, kontainer tidak pernah
+    start dan GRADING ikut mati gara-gara fitur yang bahkan tidak wajib hidup.
+    Nilai rusak turun ke default dan diteriakkan ke log. Field non-PLC sengaja
+    tetap fail-fast — di sana konfigurasi salah memang harus menghentikan start.
+    """
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("%s=%r bukan bilangan bulat — dipakai default %s", name, raw, default)
+        return default
+
+
 def parse_coil_list(value: str | None) -> tuple[int, ...]:
-    """'9,10' -> (9, 10). Kosong -> (). Raise ValueError kalau ada yang bukan angka."""
+    """'9,10' -> (9, 10). Kosong ATAU rusak -> () + warning. Tidak pernah raise.
+
+    Dipakai hanya oleh `PLC_COIL_ALIVE`. Alasan tidak raise sama dengan `_plc_int`:
+    `PLC_COIL_ALIVE=9,10,` (koma nyantol) tidak boleh menahan kontainer start.
+    Jatuhnya ke () berarti bit alive line ini mati — terlihat di PLC sebagai bit
+    yang berhenti toggle, bukan kegagalan diam-diam.
+    """
     if not value or not value.strip():
         return ()
-    return tuple(int(part.strip()) for part in value.split(","))
+    try:
+        return tuple(int(part.strip()) for part in value.split(","))
+    except ValueError:
+        logger.warning(
+            "PLC_COIL_ALIVE=%r tidak valid — bit alive line ini DIMATIKAN. Format: '9,10'.",
+            value,
+        )
+        return ()
 
 
 # Nilai default WEBHOOK_SECRET yang ikut ke-commit di repo (dan dipakai sebagai
@@ -119,23 +152,23 @@ class Settings:
     # menyalakan. plc_coil_base = 0/3/6 per line, di-set docker-compose.
     plc_enabled: bool = field(default_factory=lambda: _as_bool(os.getenv("PLC_ENABLED"), False))
     plc_host: str = field(default_factory=lambda: os.getenv("PLC_HOST", ""))
-    plc_port: int = field(default_factory=lambda: int(os.getenv("PLC_PORT", "502")))
-    plc_unit_id: int = field(default_factory=lambda: int(os.getenv("PLC_UNIT_ID", "1")))
-    plc_coil_base: int = field(default_factory=lambda: int(os.getenv("PLC_COIL_BASE", "0")))
+    plc_port: int = field(default_factory=lambda: _plc_int("PLC_PORT", 502))
+    plc_unit_id: int = field(default_factory=lambda: _plc_int("PLC_UNIT_ID", 1))
+    plc_coil_base: int = field(default_factory=lambda: _plc_int("PLC_COIL_BASE", 0))
     # Bit "line ini hidup" yang di-toggle PlcWorker tiap detik. Daftar, karena
     # line 1 juga memegang coil 9 (HEARTBEAT PC). Kosong = fitur alive mati.
     plc_coil_alive: tuple[int, ...] = field(
         default_factory=lambda: parse_coil_list(os.getenv("PLC_COIL_ALIVE"))
     )
-    plc_pulse_ms: int = field(default_factory=lambda: int(os.getenv("PLC_PULSE_MS", "200")))
-    plc_pulse_gap_ms: int = field(default_factory=lambda: int(os.getenv("PLC_PULSE_GAP_MS", "100")))
+    plc_pulse_ms: int = field(default_factory=lambda: _plc_int("PLC_PULSE_MS", 200))
+    plc_pulse_gap_ms: int = field(default_factory=lambda: _plc_int("PLC_PULSE_GAP_MS", 100))
     # Berapa banyak pulse yang boleh NGUTANG per coil. Ini knob "seberapa basi
     # sinyal boleh jadi", BUKAN kapasitas/keandalan: tiap slot antrean menambah
     # (pulse+gap) ms keterlambatan, dan sinyal telat menempel ke buah yang salah.
     # 1 = maksimal satu pulse terutang ⇒ staleness ≤ (pulse+gap).
-    plc_queue_max: int = field(default_factory=lambda: int(os.getenv("PLC_QUEUE_MAX", "1")))
-    plc_poll_ms: int = field(default_factory=lambda: int(os.getenv("PLC_POLL_MS", "200")))
-    plc_di_count: int = field(default_factory=lambda: int(os.getenv("PLC_DI_COUNT", "16")))
+    plc_queue_max: int = field(default_factory=lambda: _plc_int("PLC_QUEUE_MAX", 1))
+    plc_poll_ms: int = field(default_factory=lambda: _plc_int("PLC_POLL_MS", 200))
+    plc_di_count: int = field(default_factory=lambda: _plc_int("PLC_DI_COUNT", 16))
 
     # ------------------------------------------------------------------ validation
 
