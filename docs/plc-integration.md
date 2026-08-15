@@ -205,6 +205,29 @@ Dua sumber unhealthy, salah satu cukup:
 
 ---
 
+## Satu buah = satu pulse, walau tulis disk gagal
+
+`FrameProcessingWorker` memakai **dua** flag single-trigger pada track yang sama, dan itu
+disengaja:
+
+| Flag | Diset kapan | Kenapa terpisah |
+| --- | --- | --- |
+| `plc_signalled` | tepat setelah `submit_grading()`, **sebelum** tulis disk | Pulse Modbus tidak punya idempotensi |
+| `processed` | setelah file WebP + JSON tersimpan | Diproses ulang itu aman: `event_id` uuid5-nya sama, API membalas `already_processed` |
+
+`_save_ripeness()` melempar `IOError` kalau `cv2.imwrite` gagal — itu perilaku by-design
+(Critical Rule #8), pada disk yang repo ini sendiri jalankan retensi untuknya. Kalau kedua
+kepentingan itu digabung ke satu flag, kegagalan tulis disk membuat track tetap belum
+`processed`, lalu track yang sama masuk lagi ke blok deteksi pada frame berikutnya — 10–16 kali
+per detik. Satu buah nyangkut akan menjenuhkan coil OK atau NG tanpa henti dan PLC menghitung
+satu buah sebagai berpuluh-puluh.
+
+`submit_grading()` tetap dipanggil **sebelum** tulis disk (itu keputusan latency yang benar —
+sinyal tidak boleh menunggu I/O disk); yang diperbaiki hanya supaya ia tidak ikut mewarisi
+semantik retry milik jalur disk.
+
+---
+
 ## Mati secara default (`PLC_ENABLED=false`)
 
 Ini default di `.env.example` dan yang dijalankan cloud + semua PC dev. Efeknya:
