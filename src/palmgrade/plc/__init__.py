@@ -1,8 +1,9 @@
 """Integrasi PLC lewat coupler ODOT CN-8031 (Modbus-TCP).
 
-Kode di luar paket ini biasanya hanya butuh empat fungsi: `start_plc_worker`,
-`shutdown_plc_worker`, `submit_grading`, `inputs`. Kalau PLC_ENABLED=false,
-keempatnya jadi no-op dan tidak ada thread yang jalan. `ModbusPlcClient`, `PlcWorker`, `PulseScheduler`
+Kode di luar paket ini biasanya hanya butuh lima fungsi: `start_plc_worker`,
+`shutdown_plc_worker`, `submit_grading`, `inputs`, `diagnostics`. Kalau
+PLC_ENABLED=false, kelimanya jadi no-op dan tidak ada thread yang jalan.
+`ModbusPlcClient`, `PlcWorker`, `PulseScheduler`
 turut diekspor untuk pemanggil yang perlu merakit worker sendiri (mis. test).
 Coil map lengkap: docs/plc-integration.md.
 """
@@ -21,6 +22,7 @@ __all__ = [
     "ModbusPlcClient",
     "PlcWorker",
     "PulseScheduler",
+    "diagnostics",
     "inputs",
     "shutdown_plc_worker",
     "start_plc_worker",
@@ -91,6 +93,26 @@ def submit_grading(status: str) -> None:
 def inputs() -> list[bool]:
     """Snapshot discrete input terakhir dari PLC (motor fault + E-stop)."""
     return _worker.inputs if _worker is not None else []
+
+
+def diagnostics() -> dict | None:
+    """Snapshot PLC untuk /health/detail. None kalau PLC mati atau belum jalan.
+
+    Ini satu-satunya cara membaca E-stop (`inputs[10]`) dan memantau kedua
+    counter drop dari luar kontainer. Keduanya cuma diagnostik — tidak ada yang
+    memakainya untuk mengambil keputusan, jadi `None` saat PLC mati adalah
+    jawaban yang benar, bukan error.
+
+    `inputs` disalin: pemanggil tidak boleh bisa mengubah state worker.
+    """
+    worker = _worker
+    if worker is None:
+        return None
+    return {
+        "inputs": list(worker.inputs),
+        "dropped_pulses": worker.scheduler.dropped,
+        "dropped_submissions": worker.dropped_submissions,
+    }
 
 
 def shutdown_plc_worker(thread: threading.Thread | None = None, timeout: float = 2.0) -> None:

@@ -267,7 +267,7 @@ Hanya PC pabrik yang benar-benar terhubung ke coupler ODOT yang menyalakan ini.
 ```
 src/palmgrade/plc/
 ├── __init__.py        # Permukaan publik: start_plc_worker(), shutdown_plc_worker(),
-│                       # submit_grading(), inputs()
+│                       # submit_grading(), inputs(), diagnostics()
 │                       # + re-export ModbusPlcClient/PlcWorker/PulseScheduler untuk test
 ├── modbus_client.py    # ModbusPlcClient — satu-satunya file yang menyentuh pymodbus.
 │                        # write_coil/read_discrete_inputs mengembalikan sentinel
@@ -286,11 +286,38 @@ tests/unit/plc/
 └── test_plc_worker.py
 ```
 
-Kode di luar paket ini hanya boleh menyentuh **empat fungsi** yang diekspor `__init__.py`:
+Kode di luar paket ini hanya boleh menyentuh **lima fungsi** yang diekspor `__init__.py`:
 `start_plc_worker(settings, health_check=None)`, `shutdown_plc_worker(thread=None)`,
-`submit_grading(status)`, `inputs()`. Semua
+`submit_grading(status)`, `inputs()`, `diagnostics()`. Semua
 yang lain (`ModbusPlcClient`, `PlcWorker`, `PulseScheduler`) di-ekspor juga, tapi hanya untuk
 pemanggil yang perlu merakit worker-nya sendiri (mis. test).
+
+---
+
+## Melihat state PLC dari luar: `GET /health/detail`
+
+Tiga angka yang paling dibutuhkan saat commissioning — E-stop, dan kedua counter
+drop — sebelumnya cuma bisa dilihat dengan membuka shell Python di dalam
+kontainer. Sekarang ketiganya nempel di endpoint health yang sudah ada:
+
+```bash
+curl -s localhost:8001/health/detail | jq .plc
+{
+  "inputs": [false, false, ..., false],   # index 0-9 motor fault, index 10 E-stop
+  "dropped_pulses": 0,                    # scheduler.dropped — antrean pulse penuh
+  "dropped_submissions": 0                # antrean submit penuh (thread deteksi)
+}
+```
+
+`"plc": null` artinya `PLC_ENABLED=false` atau worker belum jalan. Itu **keadaan
+normal** di cloud dan PC dev, bukan error — endpoint tetap `200`, dan tidak ada
+field lain yang berubah. Lihat `plc.diagnostics()`.
+
+Kedua counter **naik monoton** selama proses hidup (tidak pernah di-reset), jadi
+yang berarti adalah **selisihnya antar-polling**, bukan nilai absolutnya. Angka
+yang bertambah terus saat belt jalan artinya kamera menghasilkan keputusan lebih
+cepat daripada yang bisa dikeluarkan `PLC_PULSE_MS + PLC_PULSE_GAP_MS` —
+plafon throughput, bukan bug. Baca ulang bagian `PLC_QUEUE_MAX`.
 
 ---
 

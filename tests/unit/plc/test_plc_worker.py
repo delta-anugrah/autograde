@@ -406,3 +406,46 @@ def test_shutdown_plc_worker_clears_singleton_even_when_link_is_dead(monkeypatch
     plc.shutdown_plc_worker()   # tidak boleh raise
 
     assert plc._worker is None
+
+
+def test_diagnostics_is_none_when_plc_is_disabled(monkeypatch):
+    import palmgrade.plc as plc
+
+    monkeypatch.setattr(plc, "_worker", None, raising=False)
+    assert plc.diagnostics() is None
+
+
+def test_diagnostics_exposes_estop_and_both_drop_counters(monkeypatch):
+    # Commissioning menyuruh operator "baca inputs()[10]" (E-stop) dan memantau
+    # kedua counter drop sepanjang shift. Tanpa ini, dua-duanya cuma bisa dilihat
+    # lewat shell Python di dalam kontainer.
+    import palmgrade.plc as plc
+
+    w, client = _worker()
+    client.di[10] = True                 # EMERGENCY STOP
+    w.scheduler.queue_max = 1
+    for _ in range(5):
+        w.submit("rej")
+    w.run_once(now=0.0)                  # -> scheduler.dropped naik
+    for _ in range(80):
+        w.submit("rej")                  # -> _queue (maxsize 50) meluap
+    monkeypatch.setattr(plc, "_worker", w, raising=False)
+
+    snapshot = plc.diagnostics()
+
+    assert snapshot["inputs"][10] is True
+    assert snapshot["dropped_pulses"] == w.scheduler.dropped
+    assert snapshot["dropped_submissions"] == w.dropped_submissions
+    assert snapshot["dropped_pulses"] > 0
+    assert snapshot["dropped_submissions"] > 0
+
+
+def test_diagnostics_inputs_is_a_copy_not_worker_state(monkeypatch):
+    import palmgrade.plc as plc
+
+    w, client = _worker()
+    w.run_once(now=0.0)
+    monkeypatch.setattr(plc, "_worker", w, raising=False)
+
+    plc.diagnostics()["inputs"][10] = True
+    assert w.inputs[10] is False

@@ -205,6 +205,11 @@ Status operasional container.
     "environment": "production",
     "camera_type": "hikrobot",
     "camera_connected": true,
+    "plc": {
+      "inputs": [false, false, false, false, false, false, false, false, false, false, false],
+      "dropped_pulses": 0,
+      "dropped_submissions": 0
+    },
     "gpu_available": true,
     "gpu_device": "NVIDIA GeForce GTX 1650",
     "machine_id": "uuid-from-machines-table",
@@ -226,7 +231,8 @@ Status operasional container.
 > |---|---|
 > | `outbox_pending` / `outbox_failed` | backlog ke **API lokal** (`BACKEND_URL`). Naik terus = API lokal tidak menjawab. **Bukan** indikator backlog upload cloud |
 > | `last_successful_api_push` | waktu POST terakhir yang sukses ke API lokal; `null` = belum pernah ada yang terkirim sejak start |
-> | `workers[]` | memuat `outbox_retry`, tapi **tidak** `BatchUploadWorker` — batch upload itu job APScheduler, bukan thread ter-register, jadi **watchdog `_watchdog` tidak memantaunya** |
+> | `workers[]` | memuat `outbox_retry` dan `plc` (kalau aktif), tapi **tidak** `BatchUploadWorker` — batch upload itu job APScheduler, bukan thread ter-register, jadi **watchdog `_watchdog` tidak memantaunya** |
+> | `plc` | `null` kalau `PLC_ENABLED=false` (normal di cloud & PC dev). Kalau terisi: `inputs` (index 0-9 motor fault, index 10 E-stop), plus dua counter drop yang **naik monoton** — yang berarti selisih antar-polling, bukan nilai absolut. Detail: `docs/plc-integration.md` |
 >
 > Untuk backlog upload sungguhan: query `state/upload_manifest.db` (`SELECT status, COUNT(*) FROM
 > upload_items GROUP BY status`) atau baca log worker. Ini gap observability yang belum ditutup.
