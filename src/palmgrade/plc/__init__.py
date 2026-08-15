@@ -57,6 +57,21 @@ def start_plc_worker(settings, health_check: Callable[[], bool] | None = None) -
     if not settings.plc_host:
         logger.warning("PLC_ENABLED=true tapi PLC_HOST kosong — PLC tidak dijalankan")
         return None
+    if settings.plc_pulse_ms < settings.plc_poll_ms:
+        # run_loop cuma bangun tiap PLC_POLL_MS, jadi itulah resolusi waktu yang
+        # sebenarnya. Pulse yang lebih pendek dari satu tick tidak bisa
+        # dihasilkan: ON dan OFF-nya jatuh di tick yang sama dan PLC tidak pernah
+        # melihat rising edge-nya. Warning saja — tidak raise dan tidak di-clamp,
+        # karena tuning yang benar tergantung PLC di lapangan, dan menebak-nebak
+        # nilai pengganti diam-diam lebih berbahaya daripada meneruskan apa
+        # adanya sambil bilang keras-keras.
+        logger.warning(
+            "PLC_PULSE_MS (%s) lebih kecil dari PLC_POLL_MS (%s) — resolusi waktu "
+            "sebenarnya adalah PLC_POLL_MS, jadi pulse selebar ini bisa tidak "
+            "pernah terlihat PLC. Naikkan PLC_PULSE_MS atau turunkan PLC_POLL_MS.",
+            settings.plc_pulse_ms,
+            settings.plc_poll_ms,
+        )
 
     _worker = PlcWorker(
         client=ModbusPlcClient(

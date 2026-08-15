@@ -1,3 +1,4 @@
+import logging
 import threading
 
 from palmgrade.plc.pulse import PulseScheduler
@@ -70,6 +71,10 @@ def test_submit_never_blocks_when_queue_is_full():
     w, _ = _worker()
     for _ in range(500):
         w.submit("rej")          # tidak boleh raise, tidak boleh menggantung
+    # Tanpa assert ini, test lolos bahkan kalau submit() diam-diam jadi no-op
+    # total. 50 pertama masuk antrean (maxsize), 450 sisanya HARUS terhitung.
+    assert w._queue.qsize() == 50
+    assert w.dropped_submissions == 450
 
 
 def test_alive_coils_toggle_between_ticks():
@@ -208,6 +213,7 @@ def test_start_plc_worker_called_twice_returns_none_and_builds_one_client(monkey
         plc_unit_id = 1
         plc_pulse_ms = 200
         plc_pulse_gap_ms = 100
+        plc_poll_ms = 200
         plc_queue_max = 20
         plc_coil_ok = 3
         plc_coil_ng = 4
@@ -449,3 +455,54 @@ def test_diagnostics_inputs_is_a_copy_not_worker_state(monkeypatch):
 
     plc.diagnostics()["inputs"][10] = True
     assert w.inputs[10] is False
+
+
+class _StartCfg:
+    """Settings minimal yang cukup buat start_plc_worker (client-nya di-fake)."""
+
+    plc_enabled = True
+    plc_host = "10.0.0.5"
+    plc_port = 502
+    plc_unit_id = 1
+    plc_pulse_ms = 200
+    plc_pulse_gap_ms = 100
+    plc_poll_ms = 200
+    plc_queue_max = 1
+    plc_coil_ok = 3
+    plc_coil_ng = 4
+    plc_coil_error = 5
+    plc_coil_alive = (11,)
+
+
+def _patch_start(monkeypatch):
+    import palmgrade.plc as plc
+
+    monkeypatch.setattr(plc, "_worker", None, raising=False)
+    monkeypatch.setattr(plc, "ModbusPlcClient", lambda **kwargs: _FakeClient())
+    return plc
+
+
+def test_pulse_shorter_than_poll_warns_but_still_starts(monkeypatch, caplog):
+    # Loop cuma bangun tiap PLC_POLL_MS, jadi pulse yang lebih pendek dari itu
+    # secara fisik tidak bisa dihasilkan: ON dan OFF-nya jatuh di tick yang sama
+    # dan PLC tidak pernah melihat rising edge-nya. Warning, bukan raise — PLC
+    # itu fitur opsional, salah tuning tidak boleh menjatuhkan grading.
+    plc = _patch_start(monkeypatch)
+    cfg = _StartCfg()
+    cfg.plc_pulse_ms = 100        # < plc_poll_ms 200
+
+    with caplog.at_level(logging.WARNING, logger="palmgrade.plc"):
+        worker = plc.start_plc_worker(cfg)
+
+    assert worker is not None
+    assert any("PLC_PULSE_MS" in r.message for r in caplog.records)
+
+
+def test_pulse_equal_to_poll_does_not_warn(monkeypatch, caplog):
+    plc = _patch_start(monkeypatch)
+
+    with caplog.at_level(logging.WARNING, logger="palmgrade.plc"):
+        worker = plc.start_plc_worker(_StartCfg())
+
+    assert worker is not None
+    assert not [r for r in caplog.records if "PLC_PULSE_MS" in r.message]

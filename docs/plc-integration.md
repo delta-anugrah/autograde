@@ -79,11 +79,33 @@ Semua field dideklarasikan di `core/config.py` (satu blok berlabel `# ── PLC
 | `PLC_UNIT_ID` | `1` | Modbus unit/slave ID |
 | `PLC_COIL_BASE` | `0` | **Literal per line, bukan dari `.env`** — properti fisik line, bukan setelan yang boleh beda antar PC. Line 1 = `0`, line 2 = `3`, line 3 = `6` |
 | `PLC_COIL_ALIVE` | (kosong) | **Literal per line.** Daftar coil dipisah koma yang di-toggle tiap detik. Line 1 = `9,10` (9 = HEARTBEAT PC bersama, 10 = ALIVE line 1), line 2 = `11`, line 3 = `12`. Kosong = fitur alive mati |
-| `PLC_PULSE_MS` | `200` | Lebar pulse ON untuk satu keputusan OK/NG. **Belum dikonfirmasi pak Ocit** — lihat "Belum diputuskan" |
+| `PLC_PULSE_MS` | `200` | Lebar pulse ON untuk satu keputusan OK/NG. **Wajib >= `PLC_POLL_MS`** (lihat di bawah). **Belum dikonfirmasi pak Ocit** — lihat "Belum diputuskan" |
 | `PLC_PULSE_GAP_MS` | `100` | Jeda OFF wajib sebelum pulse berikutnya pada coil yang sama, supaya PLC melihat tepi naik terpisah |
 | `PLC_QUEUE_MAX` | `1` | **Berapa banyak keterlambatan yang mau kamu beli**, bukan kapasitas/keandalan. Jumlah pulse yang boleh terutang per coil; tiap slot = `(pulse+gap)` ms sinyal jadi lebih basi. Penuh → drop + hitung, bukan tunggu |
-| `PLC_POLL_MS` | `200` | Interval `PlcWorker.run_once()` — sekaligus keepalive watchdog ODOT |
+| `PLC_POLL_MS` | `200` | Interval `PlcWorker.run_once()` — sekaligus keepalive watchdog ODOT, **dan resolusi waktu semua timing di atas** |
 | `PLC_DI_COUNT` | `16` | Jumlah discrete input yang dibaca tiap poll |
+
+### `PLC_POLL_MS` adalah resolusi waktu, bukan sekadar keepalive
+
+`PLC_PULSE_MS` dan `PLC_PULSE_GAP_MS` bukan timer sungguhan. `PulseScheduler` cuma
+dievaluasi saat `run_loop` bangun, jadi **semua timing dibulatkan ke kelipatan
+`PLC_POLL_MS`**. Pulse 200ms dengan poll 200ms artinya "ON di tick ini, OFF di tick
+berikutnya" — bukan 200ms yang presisi.
+
+Konsekuensinya satu aturan keras:
+
+> **`PLC_PULSE_MS` >= `PLC_POLL_MS`.**
+
+Pulse yang lebih pendek dari satu tick tidak bisa dihasilkan: ON dan OFF-nya jatuh
+di evaluasi yang sama, jadi coil-nya tidak pernah benar-benar naik dan PLC tidak
+pernah melihat rising edge-nya — buah lewat tanpa sinyal, diam-diam.
+
+Dilanggar → `start_plc_worker()` menulis `logger.warning` saat start dan **tetap
+jalan**. Sengaja tidak raise dan tidak di-clamp diam-diam: tuning yang benar
+tergantung PLC di lapangan, dan menebak nilai pengganti tanpa bilang-bilang lebih
+berbahaya daripada meneruskan apa adanya sambil teriak di log. Kalau memang butuh
+pulse lebih sempit dari 200ms, yang diturunkan adalah `PLC_POLL_MS` — bukan cuma
+`PLC_PULSE_MS`.
 
 `docker-compose.yml` men-set `PLC_COIL_BASE`/`PLC_COIL_ALIVE` sebagai literal per service
 (`ripe-line-1/2/3`); variabel lain diinterpolasi dari `.env` dengan fallback default di atas.

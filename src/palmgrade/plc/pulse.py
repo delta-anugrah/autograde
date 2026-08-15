@@ -53,7 +53,13 @@ class PulseScheduler:
                 changes[coil] = False
                 st.on_until = 0.0
                 st.free_at = now + self.gap_s     # gap_s > 0 menjamin ON tidak ikut di tick ini
-            # epsilon 1e-9 hanya efektif pada skala kecil (time.monotonic, ULP~1e-15); time.time() punya ULP~4e-7 → nol efek
+            # epsilon 1e-9 melawan galat pembulatan float, dan besarnya HANYA masuk akal
+            # pada skala time.monotonic() (uptime, bukan epoch). time.time() ~1.7e9 punya
+            # ULP ~2.4e-7, jauh lebih besar dari epsilon → nol efek. Mesin dengan uptime
+            # panjang menggerus ini juga: monotonic ~8.6e6 setelah 100 hari punya
+            # ULP ~1.9e-9 > 1e-9, jadi epsilon-nya berubah jadi no-op. Konsekuensinya
+            # cuma satu tick terlewat (pulse mundur <=200ms), TIDAK PERNAH output yang
+            # salah — coil dan levelnya tetap sama, cuma telat satu putaran loop.
             if st.pending and now + 1e-9 >= st.free_at:
                 st.pending -= 1
                 st.on_until = now + self.pulse_s

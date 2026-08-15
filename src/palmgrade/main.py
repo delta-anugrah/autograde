@@ -31,7 +31,6 @@ from .license.guard import LicenseGuardMiddleware
 from .license.local_repo import LicenseLocalRepo
 from .license.manager import LicenseManager
 from .license.sync_client import SyncClient
-from .plc import shutdown_plc_worker, start_plc_worker
 from .integrations.scheduler.upload_scheduler import UploadScheduler
 from .integrations.upload.r2_uploader import R2Uploader
 from .integrations.upload.upload_manifest import UploadManifest
@@ -45,6 +44,7 @@ from .workers.display_worker import DisplayWorker
 from .workers.event_broadcast_worker import EventBroadcastWorker
 from .workers.frame_capture_worker import FrameCaptureWorker
 from .workers.frame_processing_worker import FrameProcessingWorker
+from .plc import shutdown_plc_worker, start_plc_worker
 
 load_dotenv(override=False)
 
@@ -161,10 +161,13 @@ def create_app() -> FastAPI:
         # Mengembalikan None kalau PLC_ENABLED=false, jadi di cloud dan di PC
         # dev tidak ada thread tambahan sama sekali. Didaftarkan ke
         # worker_threads supaya ikut di-restart watchdog 10 detik kalau mati.
-        # `settings` dan `camera` di lambda ini closure-local milik
-        # `create_app`/`lifespan`, bukan module-level. Aman karena `camera`
-        # di-assign ulang dari `get_camera()` di scope yang sama, dan
-        # `core/dependencies.py` menyimpannya sebagai satu singleton.
+        # `camera` di lambda ini variabel lokal `lifespan`, di-assign sekali di
+        # atas (baris ~84-95) dan TIDAK PERNAH di-rebind sesudahnya. Jadi lambda
+        # ini selamanya menunjuk objek kamera yang sama — dan justru itu yang
+        # bikin benar: reconnect tidak membuat objek baru, `FrameCaptureWorker`
+        # cuma mengubah `.connected` di tempat pada objek yang sama
+        # (`integrations/camera/base.py:9`). health_check karena itu selalu
+        # membaca status terkini, bukan snapshot saat startup.
         # Dibungkus try/except karena PLC itu fitur OPSIONAL yang default-nya mati:
         # env rusak (mis. PLC_PULSE_MS=0 yang lolos int() lalu ditolak
         # PulseScheduler.__post_init__) tidak boleh menjatuhkan lifespan dan ikut
