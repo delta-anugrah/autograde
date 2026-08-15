@@ -31,6 +31,7 @@ from .license.guard import LicenseGuardMiddleware
 from .license.local_repo import LicenseLocalRepo
 from .license.manager import LicenseManager
 from .license.sync_client import SyncClient
+from .plc import start_plc_worker
 from .integrations.scheduler.upload_scheduler import UploadScheduler
 from .integrations.upload.r2_uploader import R2Uploader
 from .integrations.upload.upload_manifest import UploadManifest
@@ -155,6 +156,13 @@ def create_app() -> FastAPI:
         )
         outbox_thread = _start_worker("outbox_retry", outbox_worker.run_loop)
         state.worker_threads.append(("outbox_retry", outbox_thread, outbox_worker))
+
+        # PLC — sinyal grading ke PLC lewat coupler ODOT (Modbus-TCP).
+        # Mengembalikan None kalau PLC_ENABLED=false, jadi di cloud dan di PC
+        # dev tidak ada thread tambahan sama sekali. Didaftarkan ke
+        # worker_threads supaya ikut di-restart watchdog 10 detik kalau mati.
+        if (plc_worker := start_plc_worker(settings, health_check=lambda: camera.connected)) is not None:
+            state.worker_threads.append(("plc", _start_worker("plc", plc_worker.run_loop), plc_worker))
 
         async def _watchdog() -> None:
             while True:

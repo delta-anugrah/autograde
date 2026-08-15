@@ -12,6 +12,7 @@ from ..integrations.notifications.webhook_client import WebhookClient
 from ..integrations.outbox.outbox_store import OutboxStore
 from ..integrations.storage.local_file_storage import LocalFileStorage
 from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
+from ..plc import submit_grading
 from .runtime_state import RuntimeState
 
 logger = logging.getLogger(__name__)
@@ -263,6 +264,7 @@ class FrameProcessingWorker:
                     else:
                         ripeness_status = label.lower()
                     ripeness_conf = score
+                    submit_grading(ripeness_status)
 
                     annotated = self.pipeline.draw_boxes(frame.copy(), results)
 
