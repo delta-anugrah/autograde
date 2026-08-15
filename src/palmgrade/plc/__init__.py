@@ -1,7 +1,9 @@
 """Integrasi PLC lewat coupler ODOT CN-8031 (Modbus-TCP).
 
-Kode di luar paket ini hanya boleh menyentuh tiga fungsi di bawah. Kalau
-PLC_ENABLED=false, ketiganya jadi no-op dan tidak ada thread yang jalan.
+Kode di luar paket ini biasanya hanya butuh tiga fungsi: `start_plc_worker`,
+`submit_grading`, `inputs`. Kalau PLC_ENABLED=false, ketiganya jadi no-op dan
+tidak ada thread yang jalan. `ModbusPlcClient`, `PlcWorker`, `PulseScheduler`
+turut diekspor untuk pemanggil yang perlu merakit worker sendiri (mis. test).
 Coil map lengkap: docs/plc-integration.md.
 """
 
@@ -35,6 +37,8 @@ def start_plc_worker(settings, health_check: Callable[[], bool] | None = None) -
     Pemanggil bertanggung jawab menjalankan run_loop() di thread-nya sendiri.
     """
     global _worker
+    if _worker is not None:
+        return _worker
     if not settings.plc_enabled:
         return None
     if not settings.plc_host:

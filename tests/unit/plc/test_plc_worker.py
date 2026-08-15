@@ -112,3 +112,105 @@ def test_enabled_without_host_refuses_to_start(monkeypatch):
 
     monkeypatch.setattr(plc, "_worker", None, raising=False)
     assert plc.start_plc_worker(_NoHostCfg()) is None
+
+
+class _FlakyOffClient(_FakeClient):
+    """Gagal persis satu kali di write_coil OFF ke coil 3, sukses setelahnya."""
+
+    def __init__(self):
+        super().__init__()
+        self._off_failures_left = 1
+
+    def write_coil(self, address, value):
+        if address == 3 and value is False and self._off_failures_left > 0:
+            self._off_failures_left -= 1
+            return False
+        return super().write_coil(address, value)
+
+
+def test_failed_off_write_is_retried_next_tick_and_lands():
+    client = _FlakyOffClient()
+    w = PlcWorker(
+        client=client,
+        scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=20),
+        settings=_Cfg(),
+    )
+    w.submit("acc")
+    w.run_once(now=0.0)          # ON diterapkan
+    w.run_once(now=0.3)          # tick() laporkan OFF, write gagal
+    assert (3, False) not in client.writes
+    assert w._failed_writes.get(3) is False
+
+    w.run_once(now=0.3)          # tidak ada perubahan level baru dari tick(), tapi retry jalan
+    assert (3, False) in client.writes
+    assert 3 not in w._failed_writes
+
+
+class _FlakyReadClient(_FakeClient):
+    def __init__(self):
+        super().__init__()
+        self._fail_next_read = False
+
+    def read_discrete_inputs(self, start, count):
+        if self._fail_next_read:
+            return None
+        return super().read_discrete_inputs(start, count)
+
+
+def test_failed_read_does_not_clobber_previous_input_state():
+    client = _FlakyReadClient()
+    w = PlcWorker(
+        client=client,
+        scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=20),
+        settings=_Cfg(),
+    )
+    client.di[10] = True
+    w.run_once(now=0.0)
+    assert w.inputs[10] is True
+
+    client._fail_next_read = True
+    client.di[10] = False        # kalau ini bocor ke w.inputs, testnya salah
+    w.run_once(now=0.1)
+    assert w.inputs[10] is True
+
+
+def test_submit_overflow_increments_dropped_submissions_not_scheduler_dropped():
+    w, _ = _worker()
+    for _ in range(60):
+        w.submit("rej")
+    assert w.dropped_submissions > 0
+    assert w.scheduler.dropped == 0
+
+
+def test_start_plc_worker_called_twice_returns_same_worker_one_client(monkeypatch):
+    import palmgrade.plc as plc
+
+    monkeypatch.setattr(plc, "_worker", None, raising=False)
+
+    created = []
+
+    class _FakeModbusClient:
+        def __init__(self, *args, **kwargs):
+            created.append(self)
+
+    monkeypatch.setattr(plc, "ModbusPlcClient", _FakeModbusClient)
+
+    class _Settings:
+        plc_enabled = True
+        plc_host = "10.0.0.5"
+        plc_port = 502
+        plc_unit_id = 1
+        plc_pulse_ms = 200
+        plc_pulse_gap_ms = 100
+        plc_queue_max = 20
+        plc_coil_ok = 3
+        plc_coil_ng = 4
+        plc_coil_error = 5
+        plc_coil_alive = (11,)
+
+    settings = _Settings()
+    first = plc.start_plc_worker(settings)
+    second = plc.start_plc_worker(settings)
+
+    assert first is second
+    assert len(created) == 1
