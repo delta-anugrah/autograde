@@ -91,8 +91,8 @@ services:
       - PLC_UNIT_ID=${PLC_UNIT_ID:-1}
       # Properti fisik line ini (coil map skematik) — sengaja literal, bukan dari
       # env, karena tidak boleh berbeda antar PC.
-      - PLC_COIL_BASE="0"
-      - PLC_COIL_ALIVE="9,10"
+      - PLC_COIL_BASE=0
+      - PLC_COIL_ALIVE=9,10
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
       - PLC_QUEUE_MAX=${PLC_QUEUE_MAX:-20}
@@ -194,8 +194,8 @@ services:
       - PLC_UNIT_ID=${PLC_UNIT_ID:-1}
       # Properti fisik line ini (coil map skematik) — sengaja literal, bukan dari
       # env, karena tidak boleh berbeda antar PC.
-      - PLC_COIL_BASE="3"
-      - PLC_COIL_ALIVE="11"
+      - PLC_COIL_BASE=3
+      - PLC_COIL_ALIVE=11
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
       - PLC_QUEUE_MAX=${PLC_QUEUE_MAX:-20}
@@ -297,8 +297,8 @@ services:
       - PLC_UNIT_ID=${PLC_UNIT_ID:-1}
       # Properti fisik line ini (coil map skematik) — sengaja literal, bukan dari
       # env, karena tidak boleh berbeda antar PC.
-      - PLC_COIL_BASE="6"
-      - PLC_COIL_ALIVE="12"
+      - PLC_COIL_BASE=6
+      - PLC_COIL_ALIVE=12
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
       - PLC_QUEUE_MAX=${PLC_QUEUE_MAX:-20}

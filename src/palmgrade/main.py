@@ -161,14 +161,10 @@ def create_app() -> FastAPI:
         # Mengembalikan None kalau PLC_ENABLED=false, jadi di cloud dan di PC
         # dev tidak ada thread tambahan sama sekali. Didaftarkan ke
         # worker_threads supaya ikut di-restart watchdog 10 detik kalau mati.
-        # `settings` dan `camera` di lambda ini BUKAN variabel module-level —
-        # keduanya closure-local milik `create_app`/`lifespan` (`camera` di-assign
-        # ulang di baris 194 setelah `yield`, sama-sama scope ini). Aman karena
-        # lambda-nya dibaca sebelum scope itu berakhir, dan reassignment
-        # `camera = get_camera()` identity-preserving — `core/dependencies.py`
-        # menyimpan `_camera` sebagai satu singleton module-level tunggal yang
-        # dibaca `get_camera()`/di-set `set_camera()`, jadi `get_camera()` selalu
-        # mengembalikan objek yang sama dengan `camera` lokal ini.
+        # `settings` dan `camera` di lambda ini closure-local milik
+        # `create_app`/`lifespan`, bukan module-level. Aman karena `camera`
+        # di-assign ulang dari `get_camera()` di scope yang sama, dan
+        # `core/dependencies.py` menyimpannya sebagai satu singleton.
         if (plc_worker := start_plc_worker(settings, health_check=lambda: camera.connected)) is not None:
             state.worker_threads.append(("plc", _start_worker("plc", plc_worker.run_loop), plc_worker))
 
