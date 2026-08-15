@@ -269,3 +269,13 @@ def test_error_coil_written_once_not_every_tick():
     w.run_once(now=0.2)
     w.run_once(now=0.4)
     assert [v for (addr, v) in client.writes if addr == 5] == [False]
+
+
+def test_error_coil_from_overflow_self_clears_when_drops_stop():
+    w, client = _worker()
+    w.scheduler.queue_max = 1
+    for _ in range(5):
+        w.submit("rej")
+    w.run_once(now=0.0)          # drops just happened -> ERROR on
+    w.run_once(now=0.2)          # no new drops since last evaluation -> ERROR off
+    assert [v for (addr, v) in client.writes if addr == 5] == [True, False]

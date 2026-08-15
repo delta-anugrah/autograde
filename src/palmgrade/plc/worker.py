@@ -39,6 +39,9 @@ class PlcWorker:
         self.dropped_submissions = 0
         # None = belum pernah dievaluasi, jadi evaluasi pertama selalu menulis.
         self._error_level: bool | None = None
+        # Total drop (scheduler + submit) yang tercatat di evaluasi sebelumnya —
+        # dipakai supaya overflow bikin ERROR self-clearing, bukan latch selamanya.
+        self._last_drop_total = 0
 
     def submit(self, status: str) -> None:
         """Dipanggil dari thread deteksi. Tidak pernah blocking, tidak pernah raise."""
@@ -109,7 +112,14 @@ class PlcWorker:
             self._error_level = desired
 
     def _is_unhealthy(self) -> bool:
-        if self.scheduler.dropped:
+        # scheduler.dropped/dropped_submissions adalah counter total seumur proses
+        # (tidak pernah direset), jadi ERROR dari overflow hanya menyala saat total
+        # itu NAIK sejak evaluasi terakhir — kalau tidak ada drop baru, ini mereda
+        # sendiri di evaluasi berikutnya alih-alih nyala permanen sejak drop pertama.
+        drop_total = self.scheduler.dropped + self.dropped_submissions
+        overflowed = drop_total > self._last_drop_total
+        self._last_drop_total = drop_total
+        if overflowed:
             return True
         if self.health_check is not None:
             try:
