@@ -465,7 +465,7 @@ FrameProcessingWorker / CaptureService
 | `PLC_COIL_ALIVE` | — | Literal per line. Daftar coil dipisah koma yang ditoggle tiap detik. Line 1 = `9,10` (9 = HEARTBEAT PC bersama), line 2 = `11`, line 3 = `12` |
 | `PLC_PULSE_MS` | `200` | Lebar pulse ON per keputusan OK/NG — knob tuning lapangan, belum dikonfirmasi PLC engineer |
 | `PLC_PULSE_GAP_MS` | `100` | Jeda OFF wajib antar dua pulse pada coil yang sama |
-| `PLC_QUEUE_MAX` | `20` | Kapasitas antrean pulse per coil — penuh → drop + hitung (`PulseScheduler.dropped`) |
+| `PLC_QUEUE_MAX` | `1` | Berapa banyak pulse boleh terutang per coil = **berapa lama sinyal boleh basi** (`queue_max × (pulse+gap)`), bukan kapasitas. Penuh → drop + hitung (`PulseScheduler.dropped`) |
 | `PLC_POLL_MS` | `200` | Interval polling `PlcWorker` — sekaligus keepalive watchdog ODOT |
 | `PLC_DI_COUNT` | `16` | Jumlah discrete input yang dibaca tiap poll |
 

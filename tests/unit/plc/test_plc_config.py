@@ -18,6 +18,13 @@ def test_plc_disabled_by_default():
     assert Settings().plc_enabled is False
 
 
+def test_plc_queue_max_default_is_one():
+    # Antrean pulse > 1 = staleness terakumulasi (queue_max * (pulse+gap)).
+    # Sinyal yang telat menempel ke buah yang salah di belt — lebih buruk
+    # daripada tidak ada sinyal. Default harus membeli staleness sesedikit mungkin.
+    assert Settings().plc_queue_max == 1
+
+
 def test_parse_coil_list_handles_blank_and_spaces():
     assert parse_coil_list("") == ()
     assert parse_coil_list(None) == ()

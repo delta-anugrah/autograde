@@ -129,7 +129,11 @@ class Settings:
     )
     plc_pulse_ms: int = field(default_factory=lambda: int(os.getenv("PLC_PULSE_MS", "200")))
     plc_pulse_gap_ms: int = field(default_factory=lambda: int(os.getenv("PLC_PULSE_GAP_MS", "100")))
-    plc_queue_max: int = field(default_factory=lambda: int(os.getenv("PLC_QUEUE_MAX", "20")))
+    # Berapa banyak pulse yang boleh NGUTANG per coil. Ini knob "seberapa basi
+    # sinyal boleh jadi", BUKAN kapasitas/keandalan: tiap slot antrean menambah
+    # (pulse+gap) ms keterlambatan, dan sinyal telat menempel ke buah yang salah.
+    # 1 = maksimal satu pulse terutang ⇒ staleness ≤ (pulse+gap).
+    plc_queue_max: int = field(default_factory=lambda: int(os.getenv("PLC_QUEUE_MAX", "1")))
     plc_poll_ms: int = field(default_factory=lambda: int(os.getenv("PLC_POLL_MS", "200")))
     plc_di_count: int = field(default_factory=lambda: int(os.getenv("PLC_DI_COUNT", "16")))
 

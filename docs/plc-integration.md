@@ -81,7 +81,7 @@ Semua field dideklarasikan di `core/config.py` (satu blok berlabel `# ── PLC
 | `PLC_COIL_ALIVE` | (kosong) | **Literal per line.** Daftar coil dipisah koma yang di-toggle tiap detik. Line 1 = `9,10` (9 = HEARTBEAT PC bersama, 10 = ALIVE line 1), line 2 = `11`, line 3 = `12`. Kosong = fitur alive mati |
 | `PLC_PULSE_MS` | `200` | Lebar pulse ON untuk satu keputusan OK/NG. **Belum dikonfirmasi pak Ocit** — lihat "Belum diputuskan" |
 | `PLC_PULSE_GAP_MS` | `100` | Jeda OFF wajib sebelum pulse berikutnya pada coil yang sama, supaya PLC melihat tepi naik terpisah |
-| `PLC_QUEUE_MAX` | `20` | Kapasitas antrean pulse per coil di `PulseScheduler`. Penuh → drop + hitung, bukan tunggu |
+| `PLC_QUEUE_MAX` | `1` | **Berapa banyak keterlambatan yang mau kamu beli**, bukan kapasitas/keandalan. Jumlah pulse yang boleh terutang per coil; tiap slot = `(pulse+gap)` ms sinyal jadi lebih basi. Penuh → drop + hitung, bukan tunggu |
 | `PLC_POLL_MS` | `200` | Interval `PlcWorker.run_once()` — sekaligus keepalive watchdog ODOT |
 | `PLC_DI_COUNT` | `16` | Jumlah discrete input yang dibaca tiap poll |
 
@@ -112,12 +112,23 @@ sinyal yang akurat daripada mengirim semua sinyal yang salah tempat.
 ditinjau ulang saat commissioning**, setelah kecepatan belt dan actuator sesungguhnya
 diketahui (lihat "Belum diputuskan").
 
+### `PLC_QUEUE_MAX` = harga staleness, bukan kapasitas
+
+`PulseScheduler` menguras satu pulse terutang tiap `pulse_s + gap_s` (default 300ms). Jadi
+antrean yang penuh berarti **setiap pulse yang diterima PLC mewakili keputusan dari
+`queue_max × 300ms` yang lalu**. Dengan `queue_max=20` itu 6 detik — pada belt berjalan, sinyal
+itu mendarat di buah yang benar-benar berbeda, terus-menerus, selama produksi normal.
+
+Karena itu defaultnya **1**: paling banyak satu pulse terutang ⇒ staleness ≤ 300ms secara
+struktural, tanpa perlu state timestamp/discard tambahan. Menaikkan angka ini **tidak** membuat
+sinyal lebih andal — ia menukar drop (jujur, terhitung) dengan sinyal basi (diam-diam salah).
+
 ### Dua counter drop yang terpisah, sengaja tidak digabung
 
 - `PlcWorker.dropped_submissions` — dijatuhkan di **antrean ingestion** (`submit()` dari thread
   deteksi), saat `PlcWorker._queue` (maxsize 50) penuh.
 - `PulseScheduler.dropped` — dijatuhkan di **antrean per-coil** (`enqueue()`), saat
-  `queue_max` (default 20) pada satu coil penuh.
+  `queue_max` (default 1) pada satu coil penuh.
 
 Keduanya overflow yang berbeda titik: satu di depan pintu masuk PLC worker, satu lagi di depan
 satu coil spesifik. Digabung jadi satu angka akan menyembunyikan *di mana* penyempitannya
