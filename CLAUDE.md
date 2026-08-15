@@ -31,6 +31,7 @@ Full system map: `../ARCHITECTURE.md`.
 - **httpx** (cloud upload + realtime push), **APScheduler** (hourly batch upload), **SQLite**
   (`outbox.db` = antrean realtime ke API lokal; `UploadManifest` = state per-item batch R2), **boto3** (R2)
 - **Hikrobot MVS SDK** (GigE industrial camera — prod only)
+- **pymodbus** (Modbus-TCP client — PLC/ODOT integration, PC pabrik only, mati default)
 - **Docker-only** (no host venv). Deps pinned in `requirements.txt` (torch installed separately in Dockerfile).
 
 ---
@@ -49,6 +50,7 @@ src/palmgrade/
   workers/         # background threads + RuntimeState (capture / display / processing / event_broadcast / outbox_retry / batch_upload)
   integrations/    # camera/{hikrobot,opencv,photo}, notifications/(webhook), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
   domain/          # pure rules + entities (no I/O)
+  plc/             # PLC/ODOT Modbus-TCP integration, entirely self-contained — public surface is 3 functions (start_plc_worker/submit_grading/inputs)
   schemas/         # Pydantic request/response models
   license/         # optional Ed25519 license guard
 docs/              # overview.md (DETAIL), architecture.md, backend-overview.md, SETUP.md
@@ -86,7 +88,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
   saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
   mengatakan apa-apa soal batch upload ke cloud — untuk itu baca log `Batch tick: N item eligible`
   dari `BatchUploadWorker` atau query `state/upload_manifest.db` langsung.
-- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx`) di samping `ruff pytest`. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `license/` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
+- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx`) di samping `ruff pytest`. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `license/`, `plc/` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
 - From-zero prod setup (NVIDIA toolkit, MVS install, camera IP): `docs/SETUP.md`.
 
 ---
@@ -211,5 +213,6 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 - **`docs/overview.md`** — deep flows, ASCII diagrams, all invariants with rationale, worker/state model, Docker/SDK/GPU internals, prod deployment checklist, edge cases.
 - `docs/architecture.md` — layer boundaries (final design; don't change without discussion).
 - `docs/backend-overview.md` — full endpoint + event + env-var tables.
+- `docs/plc-integration.md` — PLC/ODOT CN-8031 coil map, env vars, throughput ceiling, open hardware questions.
 - `docs/SETUP.md` — from-zero prod setup (NVIDIA toolkit, MVS, camera IP, Docker build).
 - `../ARCHITECTURE.md` — 3-repo system architecture.

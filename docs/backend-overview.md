@@ -457,6 +457,19 @@ FrameProcessingWorker / CaptureService
 | `LIC_SERVER_URL` | — | URL license server |
 | `LIC_API_KEY` | — | API key license server |
 | `LIC_PUBKEY_PEM` | — | Public key Ed25519 untuk verifikasi JWS |
+| `PLC_ENABLED` | `false` | Aktifkan integrasi PLC/ODOT CN-8031. `false` = default, dipakai cloud + semua PC dev — nol thread tambahan, `submit_grading()` langsung `return` |
+| `PLC_HOST` | — | IP coupler ODOT. Kosong + `PLC_ENABLED=true` → worker tidak jalan, warning di log |
+| `PLC_PORT` | `502` | Port Modbus-TCP |
+| `PLC_UNIT_ID` | `1` | Modbus unit/slave ID |
+| `PLC_COIL_BASE` | `0` | Literal per line di `docker-compose.yml`, bukan dari `.env` — properti fisik line. Line 1 = `0`, line 2 = `3`, line 3 = `6` |
+| `PLC_COIL_ALIVE` | — | Literal per line. Daftar coil dipisah koma yang ditoggle tiap detik. Line 1 = `9,10` (9 = HEARTBEAT PC bersama), line 2 = `11`, line 3 = `12` |
+| `PLC_PULSE_MS` | `200` | Lebar pulse ON per keputusan OK/NG — knob tuning lapangan, belum dikonfirmasi PLC engineer |
+| `PLC_PULSE_GAP_MS` | `100` | Jeda OFF wajib antar dua pulse pada coil yang sama |
+| `PLC_QUEUE_MAX` | `20` | Kapasitas antrean pulse per coil — penuh → drop + hitung (`PulseScheduler.dropped`) |
+| `PLC_POLL_MS` | `200` | Interval polling `PlcWorker` — sekaligus keepalive watchdog ODOT |
+| `PLC_DI_COUNT` | `16` | Jumlah discrete input yang dibaca tiap poll |
+
+> Detail lengkap (coil map, hardware part number, throughput ceiling, open hardware questions): `docs/plc-integration.md`.
 
 ---
 

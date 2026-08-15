@@ -84,6 +84,20 @@ services:
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
       - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
+      # PLC / ODOT CN-8031 (Modbus-TCP) — mati default, cuma PC pabrik yang menyalakan.
+      - PLC_ENABLED=${PLC_ENABLED:-false}
+      - PLC_HOST=${PLC_HOST:-}
+      - PLC_PORT=${PLC_PORT:-502}
+      - PLC_UNIT_ID=${PLC_UNIT_ID:-1}
+      # Properti fisik line ini (coil map skematik) — sengaja literal, bukan dari
+      # env, karena tidak boleh berbeda antar PC.
+      - PLC_COIL_BASE="0"
+      - PLC_COIL_ALIVE="9,10"
+      - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
+      - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
+      - PLC_QUEUE_MAX=${PLC_QUEUE_MAX:-20}
+      - PLC_POLL_MS=${PLC_POLL_MS:-200}
+      - PLC_DI_COUNT=${PLC_DI_COUNT:-16}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
@@ -173,6 +187,20 @@ services:
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
       - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
+      # PLC / ODOT CN-8031 (Modbus-TCP) — mati default, cuma PC pabrik yang menyalakan.
+      - PLC_ENABLED=${PLC_ENABLED:-false}
+      - PLC_HOST=${PLC_HOST:-}
+      - PLC_PORT=${PLC_PORT:-502}
+      - PLC_UNIT_ID=${PLC_UNIT_ID:-1}
+      # Properti fisik line ini (coil map skematik) — sengaja literal, bukan dari
+      # env, karena tidak boleh berbeda antar PC.
+      - PLC_COIL_BASE="3"
+      - PLC_COIL_ALIVE="11"
+      - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
+      - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
+      - PLC_QUEUE_MAX=${PLC_QUEUE_MAX:-20}
+      - PLC_POLL_MS=${PLC_POLL_MS:-200}
+      - PLC_DI_COUNT=${PLC_DI_COUNT:-16}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
@@ -262,6 +290,20 @@ services:
       - LIC_SERVER_URL=${LIC_SERVER_URL:-}
       - LIC_API_KEY=${LIC_API_KEY:-}
       - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
+      # PLC / ODOT CN-8031 (Modbus-TCP) — mati default, cuma PC pabrik yang menyalakan.
+      - PLC_ENABLED=${PLC_ENABLED:-false}
+      - PLC_HOST=${PLC_HOST:-}
+      - PLC_PORT=${PLC_PORT:-502}
+      - PLC_UNIT_ID=${PLC_UNIT_ID:-1}
+      # Properti fisik line ini (coil map skematik) — sengaja literal, bukan dari
+      # env, karena tidak boleh berbeda antar PC.
+      - PLC_COIL_BASE="6"
+      - PLC_COIL_ALIVE="12"
+      - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
+      - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
+      - PLC_QUEUE_MAX=${PLC_QUEUE_MAX:-20}
+      - PLC_POLL_MS=${PLC_POLL_MS:-200}
+      - PLC_DI_COUNT=${PLC_DI_COUNT:-16}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
