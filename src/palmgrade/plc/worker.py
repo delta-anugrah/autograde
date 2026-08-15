@@ -51,7 +51,9 @@ class PlcWorker:
                 )
 
     def _write_coil(self, coil: int, level: bool) -> None:
-        if not self.client.write_coil(coil, level):
+        if self.client.write_coil(coil, level):
+            self._failed_writes.pop(coil, None)
+        else:
             self._failed_writes[coil] = level
             logger.warning("Write coil PLC gagal, akan dicoba lagi tick berikutnya: coil=%s level=%s", coil, level)
 

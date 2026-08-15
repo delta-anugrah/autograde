@@ -214,3 +214,35 @@ def test_start_plc_worker_called_twice_returns_same_worker_one_client(monkeypatc
 
     assert first is second
     assert len(created) == 1
+
+
+class _AliveFlakyClient(_FakeClient):
+    """Kendalikan sukses/gagal write coil alive (11) per panggilan; coil lain selalu sukses."""
+
+    def __init__(self, alive_outcomes):
+        super().__init__()
+        self._alive_outcomes = list(alive_outcomes)
+
+    def write_coil(self, address, value):
+        if address == 11:
+            ok = self._alive_outcomes.pop(0) if self._alive_outcomes else True
+            if not ok:
+                return False
+        return super().write_coil(address, value)
+
+
+def test_alive_coil_success_clears_stale_failed_retry():
+    # Urutan: tick1 write alive GAGAL, tick2 retry-nya (level basi) GAGAL lagi tapi
+    # write alive segar di tick yang sama SUKSES, tick3 tidak boleh menagih level basi.
+    client = _AliveFlakyClient(alive_outcomes=[False, False, True])
+    w = PlcWorker(
+        client=client,
+        scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=20),
+        settings=_Cfg(),
+    )
+    w.run_once(now=0.0)   # alive toggle -> True, write gagal
+    w.run_once(now=1.0)   # step 2 retry level basi (True) gagal; step 3 toggle -> False, sukses
+    w.run_once(now=1.1)   # belum waktunya toggle lagi; tidak boleh ada retry level basi
+
+    alive_writes = [v for (addr, v) in client.writes if addr == 11]
+    assert alive_writes == [False]
