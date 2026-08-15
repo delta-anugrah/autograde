@@ -1,3 +1,5 @@
+import threading
+
 from palmgrade.plc.pulse import PulseScheduler
 from palmgrade.plc.worker import PlcWorker
 
@@ -6,6 +8,7 @@ class _FakeClient:
     def __init__(self):
         self.writes: list[tuple[int, bool]] = []
         self.di = [False] * 16
+        self.closed = False
 
     def write_coil(self, address, value):
         self.writes.append((address, value))
@@ -13,6 +16,9 @@ class _FakeClient:
 
     def read_discrete_inputs(self, start, count):
         return self.di[start:start + count]
+
+    def close(self):
+        self.closed = True
 
 
 class _Cfg:
@@ -231,9 +237,26 @@ class _AliveFlakyClient(_FakeClient):
         return super().write_coil(address, value)
 
 
+def test_alive_toggle_overwrites_stale_retry_without_runt_pulse():
+    # tick1: write alive gagal, level basi (True) nyangkut di _failed_writes.
+    # tick2: tick toggle — level basi dan level segar (False) mengenai coil yang
+    # SAMA. Kalau keduanya benar-benar ditulis, PLC melihat pasangan ON/OFF
+    # selebar ~1ms di bit alive (runt pulse). Harus tepat SATU write, level segar.
+    client = _AliveFlakyClient(alive_outcomes=[False])
+    w = PlcWorker(
+        client=client,
+        scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=1),
+        settings=_Cfg(),
+    )
+    w.run_once(now=0.0)   # toggle -> True, write gagal
+    w.run_once(now=1.0)   # retry True + toggle False jatuh di tick yang sama
+
+    assert [v for (addr, v) in client.writes if addr == 11] == [False]
+
+
 def test_alive_coil_success_clears_stale_failed_retry():
-    # Urutan: tick1 write alive GAGAL, tick2 retry-nya (level basi) GAGAL lagi tapi
-    # write alive segar di tick yang sama SUKSES, tick3 tidak boleh menagih level basi.
+    # Urutan: tick1 write alive GAGAL, tick2 level segar (yang menimpa level basi)
+    # GAGAL lagi, tick3 retry level segar itu SUKSES dan tidak menagih apa pun lagi.
     client = _AliveFlakyClient(alive_outcomes=[False, False, True])
     w = PlcWorker(
         client=client,
@@ -279,3 +302,103 @@ def test_error_coil_from_overflow_self_clears_when_drops_stop():
     w.run_once(now=0.0)          # drops just happened -> ERROR on
     w.run_once(now=0.2)          # no new drops since last evaluation -> ERROR off
     assert [v for (addr, v) in client.writes if addr == 5] == [True, False]
+
+
+class _DeadClient:
+    """Link mati total: semua I/O melempar. Dipakai untuk membuktikan shutdown
+    tetap tuntas walau kabel sudah dicabut duluan."""
+
+    def write_coil(self, address, value):
+        raise OSError("kabel dicabut")
+
+    def read_discrete_inputs(self, start, count):
+        raise OSError("kabel dicabut")
+
+    def close(self):
+        raise OSError("socket sudah mati")
+
+
+def test_run_loop_exits_when_stopped():
+    # daemon=True saja tidak cukup: proses yang keluar tanpa menghentikan loop
+    # ini meninggalkan coil OK/NG nyangkut ON di tengah pulse.
+    w, _ = _worker()
+    t = threading.Thread(target=w.run_loop, daemon=True)
+    t.start()
+    w.stop()
+    t.join(timeout=2.0)
+    assert not t.is_alive()
+
+
+def test_deenergise_writes_off_to_every_coil_of_this_line():
+    w, client = _worker()
+    # Bookkeeping bilang ERROR sudah OFF dan tidak ada write tertunda —
+    # de-energise harus mengabaikan itu semua dan tetap menulis OFF.
+    w._error_level = False
+    w._failed_writes = {}
+    w.deenergise()
+    assert set(client.writes) == {(3, False), (4, False), (5, False), (11, False)}
+
+
+def test_deenergise_does_not_raise_on_dead_link():
+    w = PlcWorker(
+        client=_DeadClient(),
+        scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=1),
+        settings=_Cfg(),
+    )
+    w.deenergise()   # best-effort: dicatat, tidak di-retry, tidak di-raise
+
+
+def test_shutdown_plc_worker_is_safe_noop_when_never_started(monkeypatch):
+    import palmgrade.plc as plc
+
+    monkeypatch.setattr(plc, "_worker", None, raising=False)
+    plc.shutdown_plc_worker()          # tidak boleh raise
+    plc.shutdown_plc_worker(None)      # juga tanpa thread
+
+
+def test_shutdown_plc_worker_deenergises_closes_and_clears_singleton(monkeypatch):
+    import palmgrade.plc as plc
+
+    w, client = _worker()
+    w._error_level = False
+    monkeypatch.setattr(plc, "_worker", w, raising=False)
+
+    plc.shutdown_plc_worker()
+
+    assert set(client.writes) == {(3, False), (4, False), (5, False), (11, False)}
+    assert client.closed is True
+    assert plc._worker is None
+
+
+def test_shutdown_plc_worker_stops_loop_before_final_writes(monkeypatch):
+    # Urutan wajib: hentikan loop DULU, baru matikan coil. Kebalikannya bikin
+    # loop balapan dan menyalakan ulang bit alive sesudah kita mematikannya.
+    import palmgrade.plc as plc
+
+    w, client = _worker()
+    monkeypatch.setattr(plc, "_worker", w, raising=False)
+    t = threading.Thread(target=w.run_loop, daemon=True)
+    t.start()
+
+    plc.shutdown_plc_worker(t)
+
+    assert not t.is_alive()
+    last_level: dict[int, bool] = {}
+    for addr, level in client.writes:
+        last_level[addr] = level
+    assert last_level and all(level is False for level in last_level.values())
+
+
+def test_shutdown_plc_worker_clears_singleton_even_when_link_is_dead(monkeypatch):
+    import palmgrade.plc as plc
+
+    w = PlcWorker(
+        client=_DeadClient(),
+        scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=1),
+        settings=_Cfg(),
+    )
+    monkeypatch.setattr(plc, "_worker", w, raising=False)
+
+    plc.shutdown_plc_worker()   # tidak boleh raise
+
+    assert plc._worker is None

@@ -148,6 +148,42 @@ coil itu akan nyangkut ON selamanya — tidak ada yang menagihnya lagi. Retry di
 menutup celah itu: nilai gagal ikut di-merge ke perubahan tick berikutnya, dan ditimpa oleh
 nilai segar kalau coil yang sama berubah lagi sebelum retry-nya sempat jalan.
 
+### Satu peta write per tick — tidak ada runt pulse
+
+`run_once()` tidak menulis coil di beberapa tempat. Ia merakit **satu** `dict[int, bool]` berisi
+level yang diinginkan untuk seluruh tick, dengan urutan penyusunan: retry (`_failed_writes`) →
+`scheduler.tick()` → toggle alive → level ERROR. Entri belakangan menimpa yang depan, jadi level
+segar selalu menang atas level basi pada coil yang sama.
+
+Tanpa ini, retry level basi dan toggle segar pada bit alive ditulis terpisah dengan jarak ~1ms —
+PLC melihat pasangan ON/OFF selebar satu milidetik pada bit yang seharusnya kotak 1 detik.
+Peta tunggal itu menghilangkan celahnya secara struktural, bukan lewat pengecekan tambahan.
+
+Baca discrete input sengaja terjadi **setelah** flush write: itu round-trip Modbus yang bisa
+menggantung sampai timeout socket (1 detik), dan menaruhnya sebelum write akan menunda pulse
+selama itu — pulse telat menempel ke buah yang salah.
+
+---
+
+## Shutdown — coil dimatikan, bukan ditinggal ON
+
+`make restart` adalah langkah deploy **dan** langkah tuning lapangan, jadi SIGTERM di tengah
+produksi itu rutin. Dengan `PLC_PULSE_MS=200` dalam siklus 300ms, peluang sebuah coil sedang ON
+saat sinyal itu tiba kira-kira 2 dari 3.
+
+`shutdown_plc_worker()` (dipanggil `lifespan` sesudah `yield`) menjalankan, berurutan:
+
+1. `PlcWorker.stop()` — set `threading.Event`; `run_loop` mengeceknya tiap tick dan `wait()`
+   di antara tick, jadi ia keluar dalam hitungan milidetik, bukan satu poll penuh.
+2. `thread.join(timeout=2.0)` — **wajib sebelum langkah 3.** Kalau dibalik, tick terakhir
+   balapan dan menyalakan ulang coil yang baru saja dimatikan.
+3. `PlcWorker.deenergise()` — tulis `False` ke coil OK, NG, ERROR, dan semua coil `PLC_COIL_ALIVE`
+   **tanpa syarat**, mengabaikan bookkeeping `_error_level`/`_failed_writes` (tidak akan ada tick
+   berikutnya yang menagih retry). Gagal dicatat di log, tidak di-retry, tidak di-raise.
+4. `client.close()` lalu bersihkan singleton modul.
+
+No-op yang aman kalau `PLC_ENABLED=false` atau worker tidak pernah start.
+
 ---
 
 ## Coil ERROR — self-clearing, bukan latching
@@ -186,7 +222,8 @@ Hanya PC pabrik yang benar-benar terhubung ke coupler ODOT yang menyalakan ini.
 
 ```
 src/palmgrade/plc/
-├── __init__.py        # Permukaan publik: start_plc_worker(), submit_grading(), inputs()
+├── __init__.py        # Permukaan publik: start_plc_worker(), shutdown_plc_worker(),
+│                       # submit_grading(), inputs()
 │                       # + re-export ModbusPlcClient/PlcWorker/PulseScheduler untuk test
 ├── modbus_client.py    # ModbusPlcClient — satu-satunya file yang menyentuh pymodbus.
 │                        # write_coil/read_discrete_inputs mengembalikan sentinel
@@ -205,8 +242,9 @@ tests/unit/plc/
 └── test_plc_worker.py
 ```
 
-Kode di luar paket ini hanya boleh menyentuh **tiga fungsi** yang diekspor `__init__.py`:
-`start_plc_worker(settings, health_check=None)`, `submit_grading(status)`, `inputs()`. Semua
+Kode di luar paket ini hanya boleh menyentuh **empat fungsi** yang diekspor `__init__.py`:
+`start_plc_worker(settings, health_check=None)`, `shutdown_plc_worker(thread=None)`,
+`submit_grading(status)`, `inputs()`. Semua
 yang lain (`ModbusPlcClient`, `PlcWorker`, `PulseScheduler`) di-ekspor juga, tapi hanya untuk
 pemanggil yang perlu merakit worker-nya sendiri (mis. test).
 

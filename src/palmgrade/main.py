@@ -31,7 +31,7 @@ from .license.guard import LicenseGuardMiddleware
 from .license.local_repo import LicenseLocalRepo
 from .license.manager import LicenseManager
 from .license.sync_client import SyncClient
-from .plc import start_plc_worker
+from .plc import shutdown_plc_worker, start_plc_worker
 from .integrations.scheduler.upload_scheduler import UploadScheduler
 from .integrations.upload.r2_uploader import R2Uploader
 from .integrations.upload.upload_manifest import UploadManifest
@@ -196,6 +196,19 @@ def create_app() -> FastAPI:
         yield
 
         from .core.dependencies import get_camera
+
+        # PLC didahulukan: saat SIGTERM tiba, coil OK/NG punya peluang ~2 dari 3
+        # sedang ON di tengah pulse (200ms ON dalam siklus 300ms). Kontrak coil
+        # itu "satu pulse = satu buah" — dibiarkan ON sampai watchdog ODOT
+        # menyerah (masih 30 detik) berarti PLC menyortir banyak buah dengan
+        # keputusan basi. Digarap best-effort: gagal di sini tidak boleh
+        # menghalangi sisa shutdown.
+        try:
+            plc_thread = next((t for name, t, _ in state.worker_threads if name == "plc"), None)
+            shutdown_plc_worker(plc_thread)
+        except Exception:
+            logger.exception("Shutdown PLC gagal — shutdown lain tetap dilanjutkan")
+
         try:
             camera = get_camera()
             camera.disconnect()

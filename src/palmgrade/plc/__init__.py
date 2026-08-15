@@ -1,8 +1,8 @@
 """Integrasi PLC lewat coupler ODOT CN-8031 (Modbus-TCP).
 
-Kode di luar paket ini biasanya hanya butuh tiga fungsi: `start_plc_worker`,
-`submit_grading`, `inputs`. Kalau PLC_ENABLED=false, ketiganya jadi no-op dan
-tidak ada thread yang jalan. `ModbusPlcClient`, `PlcWorker`, `PulseScheduler`
+Kode di luar paket ini biasanya hanya butuh empat fungsi: `start_plc_worker`,
+`shutdown_plc_worker`, `submit_grading`, `inputs`. Kalau PLC_ENABLED=false,
+keempatnya jadi no-op dan tidak ada thread yang jalan. `ModbusPlcClient`, `PlcWorker`, `PulseScheduler`
 turut diekspor untuk pemanggil yang perlu merakit worker sendiri (mis. test).
 Coil map lengkap: docs/plc-integration.md.
 """
@@ -10,6 +10,7 @@ Coil map lengkap: docs/plc-integration.md.
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 
 from .modbus_client import ModbusPlcClient
@@ -21,6 +22,7 @@ __all__ = [
     "PlcWorker",
     "PulseScheduler",
     "inputs",
+    "shutdown_plc_worker",
     "start_plc_worker",
     "submit_grading",
 ]
@@ -80,3 +82,34 @@ def submit_grading(status: str) -> None:
 def inputs() -> list[bool]:
     """Snapshot discrete input terakhir dari PLC (motor fault + E-stop)."""
     return _worker.inputs if _worker is not None else []
+
+
+def shutdown_plc_worker(thread: threading.Thread | None = None, timeout: float = 2.0) -> None:
+    """Hentikan worker, matikan semua coil, tutup socket. Aman kalau PLC mati.
+
+    Urutan wajib: hentikan loop DULU, tunggu thread-nya benar-benar keluar, baru
+    tulis OFF. Kalau dibalik, tick terakhir balapan dengan kita dan menyalakan
+    ulang coil yang baru saja dimatikan. `thread` boleh None (mis. PLC dimatikan,
+    atau pemanggil tidak memegang thread-nya) — tanpa join, `_stop` tetap diset.
+
+    Seluruhnya best-effort: dipanggil di jalur shutdown, jadi tidak pernah raise
+    dan singleton selalu dibersihkan walau link sudah mati duluan.
+    """
+    global _worker
+    worker = _worker
+    if worker is None:
+        return
+    try:
+        worker.stop()
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=timeout)
+            if thread.is_alive():
+                logger.warning(
+                    "Thread PLC belum keluar setelah %ss — coil tetap dimatikan best-effort", timeout
+                )
+        worker.deenergise()
+        worker.client.close()
+    except Exception:
+        logger.exception("Shutdown PLC tidak bersih — dilanjutkan")
+    finally:
+        _worker = None
