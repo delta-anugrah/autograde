@@ -43,9 +43,6 @@ class PlcWorker:
         # Diset saat shutdown. run_loop mengecek ini SEBELUM tiap tick supaya
         # de-energise di shutdown_plc_worker() tidak balapan dengan tick terakhir.
         self._stop = threading.Event()
-        # Total drop (scheduler + submit) yang tercatat di evaluasi sebelumnya —
-        # dipakai supaya overflow bikin ERROR self-clearing, bukan latch selamanya.
-        self._last_drop_total = 0
 
     def submit(self, status: str) -> None:
         """Dipanggil dari thread deteksi. Tidak pernah blocking, tidak pernah raise."""
@@ -126,15 +123,12 @@ class PlcWorker:
             logger.warning("Baca discrete input PLC gagal — state input terakhir dipertahankan")
 
     def _is_unhealthy(self) -> bool:
-        # scheduler.dropped/dropped_submissions adalah counter total seumur proses
-        # (tidak pernah direset), jadi ERROR dari overflow hanya menyala saat total
-        # itu NAIK sejak evaluasi terakhir — kalau tidak ada drop baru, ini mereda
-        # sendiri di evaluasi berikutnya alih-alih nyala permanen sejak drop pertama.
-        drop_total = self.scheduler.dropped + self.dropped_submissions
-        overflowed = drop_total > self._last_drop_total
-        self._last_drop_total = drop_total
-        if overflowed:
-            return True
+        # Overflow SENGAJA tidak ikut menentukan ini. Drop adalah steady state yang
+        # dideklarasikan di bawah beban (docs/plc-integration.md): kamera bisa ~10
+        # keputusan/detik, satu coil muat ~3,3. Kalau drop menaikkan ERROR, coil
+        # CAM_N_ERROR menyala sepanjang shift dan artinya berubah jadi "line ini
+        # jalan normal". Kedua counter drop tetap dihitung dan tetap di-log — itu
+        # diagnostik (dibaca lewat /health/detail), bukan sinyal ke PLC.
         if self.health_check is not None:
             try:
                 return not self.health_check()

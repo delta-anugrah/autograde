@@ -271,13 +271,21 @@ def test_alive_coil_success_clears_stale_failed_retry():
     assert alive_writes == [False]
 
 
-def test_error_coil_raised_when_pulses_are_dropped():
-    w, client = _worker()
+def test_sustained_overflow_never_raises_error_coil():
+    # Overflow adalah steady state yang DIDEKLARASIKAN di bawah beban
+    # (docs/plc-integration.md): kamera bisa ~10 keputusan/detik, satu coil muat
+    # ~3,3. Kalau drop menaikkan ERROR, CAM_N_ERROR menyala sepanjang shift dan
+    # artinya berubah jadi "line ini jalan normal" — entah menghentikan produksi
+    # atau cuma jadi hiasan. ERROR = health check gagal (kamera mati), titik.
+    w, client = _worker(health_check=lambda: True)
     w.scheduler.queue_max = 1
-    for _ in range(5):
-        w.submit("rej")
-    w.run_once(now=0.0)
-    assert (5, True) in client.writes      # coil base+2 = 5
+    for tick in range(10):
+        for _ in range(5):
+            w.submit("rej")
+        w.run_once(now=tick * 0.2)
+
+    assert w.scheduler.dropped > 0          # benar-benar overflow, terus-menerus
+    assert [v for (addr, v) in client.writes if addr == 5] == [False]
 
 
 def test_error_coil_raised_when_health_check_says_unhealthy():
@@ -292,16 +300,6 @@ def test_error_coil_written_once_not_every_tick():
     w.run_once(now=0.2)
     w.run_once(now=0.4)
     assert [v for (addr, v) in client.writes if addr == 5] == [False]
-
-
-def test_error_coil_from_overflow_self_clears_when_drops_stop():
-    w, client = _worker()
-    w.scheduler.queue_max = 1
-    for _ in range(5):
-        w.submit("rej")
-    w.run_once(now=0.0)          # drops just happened -> ERROR on
-    w.run_once(now=0.2)          # no new drops since last evaluation -> ERROR off
-    assert [v for (addr, v) in client.writes if addr == 5] == [True, False]
 
 
 class _DeadClient:

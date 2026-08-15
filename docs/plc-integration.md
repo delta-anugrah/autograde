@@ -186,22 +186,27 @@ No-op yang aman kalau `PLC_ENABLED=false` atau worker tidak pernah start.
 
 ---
 
-## Coil ERROR — self-clearing, bukan latching
+## Coil ERROR — kesehatan line, BUKAN overflow
 
 Coil ERROR (`plc_coil_error`, = `PLC_COIL_BASE + 2`) berarti **"line ini tidak sehat saat
-ini"**, dievaluasi ulang tiap tick — bukan flag yang sekali nyala lalu menetap.
+ini"**, dievaluasi ulang tiap tick — bukan flag yang sekali nyala lalu menetap. Ditulis hanya
+saat levelnya berubah.
 
-Dua sumber unhealthy, salah satu cukup:
+Satu-satunya sumber unhealthy: **`health_check()` melaporkan tidak sehat** (praktiknya:
+`camera.connected` false), atau **exception dari `health_check()` itu sendiri** — dianggap tidak
+sehat (fail-loud). Sumber health yang tidak diketahui statusnya tidak boleh dibaca sebagai sehat
+pada sinyal keselamatan.
 
-1. **Overflow baru.** `PlcWorker` membandingkan total drop (`scheduler.dropped +
-   dropped_submissions`) sekarang vs. nilai yang tercatat di evaluasi sebelumnya. ERROR
-   menyala hanya kalau totalnya **naik** sejak evaluasi terakhir. Karena kedua counter itu
-   lifetime (tidak pernah direset), kalau dibaca sebagai `> 0` biasa, ERROR akan menyala di
-   menit pertama shift lalu tidak pernah padam lagi — self-clearing ini yang mencegah itu.
-   Begitu satu interval evaluasi lewat tanpa drop baru, ERROR mereda sendiri.
-2. **`health_check()` melaporkan tidak sehat**, atau **exception dari `health_check()` itu
-   sendiri** — dianggap tidak sehat (fail-loud). Sumber health yang tidak diketahui statusnya
-   tidak boleh dibaca sebagai sehat pada sinyal keselamatan.
+**Overflow sengaja TIDAK menaikkan ERROR.** Drop adalah steady state yang dideklarasikan di
+bawah beban (lihat "Throughput ceiling" di atas): kamera bisa ~10 keputusan/detik, satu coil muat
+~3,3. Kalau drop menggerakkan coil ini, `drop_total` naik hampir tiap tick di bawah beban dan
+CAM_N_ERROR menyala sepanjang shift — artinya berubah jadi "line ini jalan normal", yang entah
+menghentikan produksi atau bikin coil itu jadi hiasan yang diabaikan operator. `PLC_QUEUE_MAX=1`
+justru membuat drop makin sering, jadi menggabungkannya cuma memperparah.
+
+Kedua counter drop tetap dihitung dan tetap punya warning log rate-limited — itu **diagnostik**,
+dibaca lewat `GET /health/detail` (`plc.dropped_pulses` / `plc.dropped_submissions`), bukan
+sinyal ke PLC.
 
 ---
 
