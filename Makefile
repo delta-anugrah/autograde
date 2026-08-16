@@ -11,11 +11,7 @@ up: sync-sdk
 	docker compose --env-file $(ENV_FILE) build \
 		--build-arg TORCH_VARIANT=cu126 \
 		--build-arg WITH_SDK=true
-	# TEMP DISABLED: build-engine di-skip selama TensorRT di-comment di Dockerfile.
-	# Tanpa TensorRT, build_engine.py nyangkut di "tensorrt AutoUpdate" (download
-	# onnx + hang install tensorrt) — runtime tetap jalan via fallback .pt.
-	# Aktifkan lagi bareng TensorRT: uncomment baris di bawah + di Dockerfile.
-	# $(MAKE) build-engine
+	$(MAKE) build-engine
 	docker compose --env-file $(ENV_FILE) up -d
 	-docker image prune -f
 

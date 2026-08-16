@@ -72,7 +72,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 
 | Cmd | What |
 |---|---|
-| `make up` | prod: copy MVS SDK + build GPU (`cu126`) + start 3 lines (TensorRT build **temp-disabled**, lihat bawah) |
+| `make up` | prod: copy MVS SDK + build GPU (`cu126`) + build TensorRT engine + start 3 lines |
 | `make up-dev` | dev: build CPU (no SDK) + start 3 lines |
 | `make restart` | **code-only change** — kode di-bind-mount (`.:/app`), jadi **tidak perlu rebuild** |
 | `make start` / `make up-1\|2\|3` | start without rebuild (all / single line) |
@@ -80,7 +80,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 | `make logs` / `make logs-1` | tail logs (combined / per line) |
 | `make down` / `make ps` / `make rebuild` / `make rebuild-clean` / `make clean` | stop / status / rebuild / clean rebuild (`--no-cache`) / cleanup |
 
-- **TensorRT (GPU speedup, akurasi sama) — SEMENTARA DINONAKTIFKAN**: install TensorRT di Dockerfile + step `build-engine` di `make up` di-comment (disk dev PC penuh saat unpack libnvinfer). Runtime **fallback ke `.pt`** otomatis (`pipelines/model_registry.py`). Di PC prod (disk lega): uncomment blok TensorRT di `Dockerfile` + baris `$(MAKE) build-engine` di `Makefile`, rebuild, lalu `make build-engine` — engine FP16 (`engines/<model>.sm<cc>.engine`, **hardware-locked**, tidak di-commit) dibangun sekali per GPU (~5–15 mnt). Detail: `docs/overview.md` § Docker/SDK/GPU.
+- **TensorRT (GPU speedup, akurasi sama)**: engine FP16 (`engines/<model>.sm<cc>.engine`) **hardware-locked** (compute capability + versi TensorRT) → tidak di-commit, tidak di-bake ke image, dibangun **sekali per GPU** on-machine via `make build-engine` (~5–15 mnt, tidak butuh kamera). Engine tidak ada / tidak cocok → runtime **fallback ke `.pt`** otomatis (`pipelines/model_registry.py`), jadi kegagalan build bukan outage. Install TensorRT-nya ikut `Dockerfile` (`pypi.nvidia.com` — **wajib**, index PyPI publik cuma punya source stub yang bikin pip hang). Detail: `docs/overview.md` § Docker/SDK/GPU.
 - **`make up` cuma perlu** kalau dependency / `Dockerfile` / SDK berubah; untuk ubah kode pakai `make restart`.
 - **Dev without a camera**: `.env` → `CAMERA_TYPE=opencv` + `CAMERA_VIDEO_PATH=/videos/<file>.mp4` (host `sawit/` is mounted at `/videos`).
 - **Verify**: `curl :8001/health`; `curl :8001/health/detail` (camera_connected, gpu_available, workers, current_assignment_id, `plc` = `null` kalau PLC mati); stream at `http://localhost:8001/api/video_feed`.
