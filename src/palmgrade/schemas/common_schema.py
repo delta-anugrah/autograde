@@ -16,6 +16,10 @@ class HealthDetailSchema(BaseModel):
     environment: str
     camera_type: str
     camera_connected: bool
+    # None kalau PLC_ENABLED=false — itu keadaan normal di cloud dan PC dev,
+    # bukan error. Isinya: inputs (motor fault 0-9 + E-stop 10), dropped_pulses,
+    # dropped_submissions. Lihat plc.diagnostics().
+    plc: dict | None = None
     gpu_available: bool
     gpu_device: str | None
     machine_id: str
