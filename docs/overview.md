@@ -266,13 +266,20 @@ Docker bridge blocks. Consequence: `ports:`/`extra_hosts:` are ignored — each 
 Toolkit on host (add the NVIDIA apt repo first; `apt install nvidia-container-toolkit` alone isn't enough
 — see `SETUP.md`). Without it YOLO runs on CPU (~10× slower).
 
-**TensorRT engine (SEMENTARA DINONAKTIFKAN):** normalnya `make build-engine` (one-shot container,
-`scripts/build_engine.py`) export `.pt` → engine FP16 di `engines/<model>.sm<cc>.engine` — **hardware-locked**
-per compute capability (`Settings.engine_path_for_gpu`), tidak di-commit, auto-skip kalau sudah ada;
-runtime (`pipelines/model_registry.py`) auto-pakai engine dan **fallback ke `.pt`** kalau tidak ada.
-Saat ini install TensorRT di `Dockerfile` dan step `$(MAKE) build-engine` di target `up` **di-comment**
-(unpack libnvinfer gagal "no space left on device" di disk dev yang ketat). Runtime jalan via `.pt`.
-Re-enable di PC prod: uncomment kedua blok → rebuild → `make build-engine` (~5–15 mnt pertama kali).
+**TensorRT engine:** `make build-engine` (one-shot container, `scripts/build_engine.py`) export
+`.pt` → engine FP16 di `engines/<model>.sm<cc>.engine` — **hardware-locked** per compute capability
+(`Settings.engine_path_for_gpu`), tidak di-commit, **tidak di-bake ke image**, auto-skip kalau sudah ada.
+Runtime (`pipelines/model_registry.py`) auto-pakai engine dan **fallback ke `.pt`** kalau tidak ada atau
+tidak cocok — jadi build engine yang gagal bukan outage, cuma balik ke kecepatan lama.
+Butuh ~5–15 mnt sekali per GPU, **tidak butuh kamera**.
+
+⚠️ Di PC yang menjalankan **image dari GHCR** (bukan build lokal), `make build-engine` TIDAK bisa dipakai
+apa adanya: target itu memakai `docker-compose.yml` polos yang `image: palmgrade-vision:latest` + punya
+`build:`, jadi Docker akan mem-build ulang dari source alih-alih memakai image yang sudah di-pull.
+Di sana jalankan `docker compose run` dengan file override yang sama seperti stack-nya, sehingga
+`${PALMGRADE_VISION_IMAGE}` dan mount `./engines:/app/engines` ikut terpakai — tanpa mount itu engine
+ditulis ke dalam container sekali pakai dan hilang begitu container keluar.
+
 PENTING: TensorRT wajib di-install dari index NVIDIA (`https://pypi.nvidia.com`, wheel binary) —
 PyPI publik cuma punya source stub yang bikin pip hang di "Preparing metadata".
 
