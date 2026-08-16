@@ -12,6 +12,7 @@ from ..integrations.notifications.webhook_client import WebhookClient
 from ..integrations.outbox.outbox_store import OutboxStore
 from ..integrations.storage.local_file_storage import LocalFileStorage
 from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
+from ..plc import submit_grading
 from .runtime_state import RuntimeState
 
 logger = logging.getLogger(__name__)
@@ -256,6 +257,7 @@ class FrameProcessingWorker:
                 if (
                     label.lower() in ("acc", "rej")
                     and not self.state.track_history[track_id]["processed"]
+                    and not self.state.track_history[track_id].get("plc_signalled")
                 ):
                     # >1 buah dalam ROI sekaligus → force rej (buah bertumpuk)
                     if force_rej_multi or area < self.settings.minimum_size:
@@ -263,6 +265,19 @@ class FrameProcessingWorker:
                     else:
                         ripeness_status = label.lower()
                     ripeness_conf = score
+                    submit_grading(ripeness_status)
+                    # Single-trigger TERPISAH dari `processed` di bawah, sengaja.
+                    # `processed` baru diset setelah file tersimpan, supaya crash
+                    # di tengah blok ini memproses ulang track-nya — aman karena
+                    # event_id uuid5-nya sama dan API idempotent. Pulse Modbus
+                    # TIDAK punya idempotensi itu: `_save_ripeness` melempar
+                    # IOError kalau cv2.imwrite gagal (Critical Rule #8), track
+                    # tetap belum `processed`, dan frame berikutnya masuk lagi ke
+                    # blok ini pada 10-16 fps. Satu buah nyangkut akan menjenuhkan
+                    # coil-nya tanpa henti dan PLC menghitungnya berpuluh kali.
+                    # Flag ini diset SEBELUM tulis disk supaya jalur PLC tidak
+                    # ikut mewarisi semantik retry jalur disk.
+                    self.state.track_history[track_id]["plc_signalled"] = True
 
                     annotated = self.pipeline.draw_boxes(frame.copy(), results)
 

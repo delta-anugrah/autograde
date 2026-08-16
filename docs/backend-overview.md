@@ -205,6 +205,11 @@ Status operasional container.
     "environment": "production",
     "camera_type": "hikrobot",
     "camera_connected": true,
+    "plc": {
+      "inputs": [false, false, false, false, false, false, false, false, false, false, false],
+      "dropped_pulses": 0,
+      "dropped_submissions": 0
+    },
     "gpu_available": true,
     "gpu_device": "NVIDIA GeForce GTX 1650",
     "machine_id": "uuid-from-machines-table",
@@ -226,7 +231,8 @@ Status operasional container.
 > |---|---|
 > | `outbox_pending` / `outbox_failed` | backlog ke **API lokal** (`BACKEND_URL`). Naik terus = API lokal tidak menjawab. **Bukan** indikator backlog upload cloud |
 > | `last_successful_api_push` | waktu POST terakhir yang sukses ke API lokal; `null` = belum pernah ada yang terkirim sejak start |
-> | `workers[]` | memuat `outbox_retry`, tapi **tidak** `BatchUploadWorker` — batch upload itu job APScheduler, bukan thread ter-register, jadi **watchdog `_watchdog` tidak memantaunya** |
+> | `workers[]` | memuat `outbox_retry` dan `plc` (kalau aktif), tapi **tidak** `BatchUploadWorker` — batch upload itu job APScheduler, bukan thread ter-register, jadi **watchdog `_watchdog` tidak memantaunya** |
+> | `plc` | `null` kalau `PLC_ENABLED=false` (normal di cloud & PC dev). Kalau terisi: `inputs` (index 0-9 motor fault, index 10 E-stop), plus dua counter drop yang **naik monoton** — yang berarti selisih antar-polling, bukan nilai absolut. Detail: `docs/plc-integration.md` |
 >
 > Untuk backlog upload sungguhan: query `state/upload_manifest.db` (`SELECT status, COUNT(*) FROM
 > upload_items GROUP BY status`) atau baca log worker. Ini gap observability yang belum ditutup.
@@ -457,6 +463,19 @@ FrameProcessingWorker / CaptureService
 | `LIC_SERVER_URL` | — | URL license server |
 | `LIC_API_KEY` | — | API key license server |
 | `LIC_PUBKEY_PEM` | — | Public key Ed25519 untuk verifikasi JWS |
+| `PLC_ENABLED` | `false` | Aktifkan integrasi PLC/ODOT CN-8031. `false` = default, dipakai cloud + semua PC dev — nol thread tambahan, `submit_grading()` langsung `return` |
+| `PLC_HOST` | — | IP coupler ODOT. Kosong + `PLC_ENABLED=true` → worker tidak jalan, warning di log |
+| `PLC_PORT` | `502` | Port Modbus-TCP |
+| `PLC_UNIT_ID` | `1` | Modbus unit/slave ID |
+| `PLC_COIL_BASE` | `0` | Literal per line di `docker-compose.yml`, bukan dari `.env` — properti fisik line. Line 1 = `0`, line 2 = `3`, line 3 = `6` |
+| `PLC_COIL_ALIVE` | — | Literal per line. Daftar coil dipisah koma yang ditoggle tiap detik. Line 1 = `9,10` (9 = HEARTBEAT PC bersama), line 2 = `11`, line 3 = `12` |
+| `PLC_PULSE_MS` | `200` | Lebar pulse ON per keputusan OK/NG — knob tuning lapangan, belum dikonfirmasi PLC engineer |
+| `PLC_PULSE_GAP_MS` | `100` | Jeda OFF wajib antar dua pulse pada coil yang sama |
+| `PLC_QUEUE_MAX` | `1` | Berapa banyak pulse boleh terutang per coil = **berapa lama sinyal boleh basi** (`queue_max × (pulse+gap)`), bukan kapasitas. Penuh → drop + hitung (`PulseScheduler.dropped`) |
+| `PLC_POLL_MS` | `200` | Interval polling `PlcWorker` — sekaligus keepalive watchdog ODOT |
+| `PLC_DI_COUNT` | `16` | Jumlah discrete input yang dibaca tiap poll |
+
+> Detail lengkap (coil map, hardware part number, throughput ceiling, open hardware questions): `docs/plc-integration.md`.
 
 ---
 

@@ -7,6 +7,7 @@ import torch
 from ..core.config import Settings
 from ..integrations.camera.base import CameraSource
 from ..integrations.outbox.outbox_store import OutboxStore
+from ..plc import diagnostics as plc_diagnostics
 from ..schemas.common_schema import HealthDetailSchema, WorkerStatus
 from ..workers.runtime_state import RuntimeState
 
@@ -38,6 +39,7 @@ class HealthService:
             environment=self.settings.environment,
             camera_type=self.settings.camera_type,
             camera_connected=self.camera.connected,
+            plc=plc_diagnostics(),
             gpu_available=gpu_available,
             gpu_device=gpu_device,
             machine_id=self.settings.machine_id,

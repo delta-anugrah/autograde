@@ -44,6 +44,7 @@ from .workers.display_worker import DisplayWorker
 from .workers.event_broadcast_worker import EventBroadcastWorker
 from .workers.frame_capture_worker import FrameCaptureWorker
 from .workers.frame_processing_worker import FrameProcessingWorker
+from .plc import shutdown_plc_worker, start_plc_worker
 
 load_dotenv(override=False)
 
@@ -156,6 +157,29 @@ def create_app() -> FastAPI:
         outbox_thread = _start_worker("outbox_retry", outbox_worker.run_loop)
         state.worker_threads.append(("outbox_retry", outbox_thread, outbox_worker))
 
+        # PLC — sinyal grading ke PLC lewat coupler ODOT (Modbus-TCP).
+        # Mengembalikan None kalau PLC_ENABLED=false, jadi di cloud dan di PC
+        # dev tidak ada thread tambahan sama sekali. Didaftarkan ke
+        # worker_threads supaya ikut di-restart watchdog 10 detik kalau mati.
+        # `camera` di lambda ini variabel lokal `lifespan`, di-assign sekali di
+        # atas (baris ~84-95) dan TIDAK PERNAH di-rebind sesudahnya. Jadi lambda
+        # ini selamanya menunjuk objek kamera yang sama — dan justru itu yang
+        # bikin benar: reconnect tidak membuat objek baru, `FrameCaptureWorker`
+        # cuma mengubah `.connected` di tempat pada objek yang sama
+        # (`integrations/camera/base.py:9`). health_check karena itu selalu
+        # membaca status terkini, bukan snapshot saat startup.
+        # Dibungkus try/except karena PLC itu fitur OPSIONAL yang default-nya mati:
+        # env rusak (mis. PLC_PULSE_MS=0 yang lolos int() lalu ditolak
+        # PulseScheduler.__post_init__) tidak boleh menjatuhkan lifespan dan ikut
+        # mematikan grading. Gagal di sini = jalan terus tanpa PLC.
+        try:
+            plc_worker = start_plc_worker(settings, health_check=lambda: camera.connected)
+        except Exception:
+            logger.exception("Start PLC gagal — grading tetap jalan, PLC dinonaktifkan")
+            plc_worker = None
+        if plc_worker is not None:
+            state.worker_threads.append(("plc", _start_worker("plc", plc_worker.run_loop), plc_worker))
+
         async def _watchdog() -> None:
             while True:
                 await asyncio.sleep(10)
@@ -184,6 +208,19 @@ def create_app() -> FastAPI:
         yield
 
         from .core.dependencies import get_camera
+
+        # PLC didahulukan: saat SIGTERM tiba, coil OK/NG punya peluang ~2 dari 3
+        # sedang ON di tengah pulse (200ms ON dalam siklus 300ms). Kontrak coil
+        # itu "satu pulse = satu buah" — dibiarkan ON sampai watchdog ODOT
+        # menyerah (masih 30 detik) berarti PLC menyortir banyak buah dengan
+        # keputusan basi. Digarap best-effort: gagal di sini tidak boleh
+        # menghalangi sisa shutdown.
+        try:
+            plc_thread = next((t for name, t, _ in state.worker_threads if name == "plc"), None)
+            shutdown_plc_worker(plc_thread)
+        except Exception:
+            logger.exception("Shutdown PLC gagal — shutdown lain tetap dilanjutkan")
+
         try:
             camera = get_camera()
             camera.disconnect()
