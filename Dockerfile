@@ -39,16 +39,10 @@ RUN if [ "${TORCH_VARIANT}" = "cpu" ]; then \
 # wheel binary manylinux (.whl) sehingga install langsung, tanpa build/hang.
 # Tanpa flag ini, `make build-engine` bakal nyangkut (Ultralytics juga auto-coba
 # install tensorrt saat export kalau modulnya gak ada → hang yang sama).
-# TEMP DISABLED: TensorRT install di-skip karena layer-nya besar dan unpack-nya
-# gagal di disk yang ketat ("no space left on device" saat extract libnvinfer).
-# Tanpa ini, `make build-engine` tidak bisa jalan, tapi runtime tetap jalan via
-# fallback ke model .pt (PyTorch) — lihat pipelines/model_registry.py. Uncomment
-# lagi setelah disk dilegakan / Docker root dipindah ke partisi besar, lalu
-# rebuild + `make build-engine`.
-# RUN if [ "${TORCH_VARIANT}" != "cpu" ]; then \
-#         pip install --extra-index-url https://pypi.nvidia.com \
-#             onnx onnxslim "tensorrt-cu12==10.13.3.9"; \
-#     fi
+RUN if [ "${TORCH_VARIANT}" != "cpu" ]; then \
+        pip install --extra-index-url https://pypi.nvidia.com \
+            onnx onnxslim "tensorrt-cu12==10.13.3.9"; \
+    fi
 
 # ── Hikrobot MVS SDK (production only) ──────────────────────────────────────
 # Sebelum `make up`, jalankan di host:

@@ -21,8 +21,21 @@ peta coil, peta discrete input, alamat internal PLC, arah arus sink/source, samp
 **Tapi belum pernah ketemu hardware asli.** Semua pengujian kami pakai simulasi Modbus.
 Hari Selasa nanti benar-benar pertama kalinya program ini nyambung ke coupler sungguhan.
 
-**Ada lima hal yang masih kami tunggu dari sisi panel** — lengkapnya di bagian 7. Yang nomor 4
+**Ada enam hal yang masih kami tunggu dari sisi panel** — lengkapnya di bagian 7. Yang nomor 4
 (IP coupler) paling menghambat: tanpa itu kami tidak bisa nyambung sama sekali.
+
+### Sudah terpasang di komputer pabrik
+
+Program versi `v1.2.0` — versi yang sudah berisi seluruh bagian PLC ini — **sudah kami pasang
+dan jalankan di komputer pabrik Lampung tanggal 16 Agustus 2026**, dan sudah kami pastikan
+ketiga line jalan normal.
+
+Fitur PLC-nya sendiri **kami matikan dulu** (setelan `PLC_ENABLED=false`). Jadi sampai hari
+Selasa, program ini **tidak membuka koneksi Modbus sama sekali** dan **tidak pernah menulis
+coil apa pun** — tidak ada risiko coil kesenggol tak sengaja sebelum panel siap.
+
+Artinya pekerjaan hari Selasa di sisi kami tinggal: isi IP coupler, nyalakan satu setelan,
+restart. Bukan pasang program dari nol.
 
 ---
 
@@ -135,6 +148,26 @@ selama produksi jalan. Jadi bukan hilang diam-diam.
 terutama buat perintah OFF di akhir pulse: kalau OFF-nya gagal dan tidak ada yang menagih,
 coil itu nyangkut ON selamanya.
 
+**6.7 Kalau koneksi ke coupler putus, kamera tetap jalan.** Kabel lepas, panel dimatikan,
+coupler di-restart — apa pun sebabnya, yang terjadi di sisi kami:
+
+| | |
+| --- | --- |
+| Kamera + penilaian AI | **Tetap jalan normal.** Hasilnya tetap tersimpan dan tetap masuk laporan |
+| Koneksi Modbus | Dicoba nyambung ulang sendiri tiap 200 ms, tidak perlu restart program |
+| Sinyal selama putus | **Hilang, tidak diantrekan.** Alasannya sama dengan 6.5 — belt terus jalan |
+| Pembacaan E-stop / motor fault | Nilai terakhir dipertahankan, tidak berubah jadi nol |
+
+Yang perlu dicatat ladder: putusnya koneksi **tidak** menyalakan coil ERROR — coil itu hanya
+soal kamera (6.2), dan lagipula kalau jaringan putus kami memang tidak bisa menulis apa pun.
+Yang memberi tahu PLC adalah bit ALIVE yang berhenti bergoyang, plus watchdog coupler sendiri.
+
+**6.8 E-stop dan motor fault kami baca, tapi belum kami pakai buat apa-apa.** Sekarang ini
+kedua-duanya cuma tampil di halaman diagnosa kami. **Kamera tidak berhenti sendiri waktu E-stop
+ditekan** — dia tetap menilai buah yang kebetulan diam di depan lensa. Kalau menurut panel
+kamera memang harus ikut berhenti, tolong bilang hari Selasa; itu perubahan kecil di sisi kami,
+tapi kami sengaja tidak menebak-nebak sendiri untuk urusan safety. Lihat item 7.6.
+
 ---
 
 ## 7. Yang masih kami tunggu dari sisi panel
@@ -146,6 +179,22 @@ coil itu nyangkut ON selamanya.
 | 3 | **E-stop mohon dikabel ulang jadi NC.** CT-122F itu low-aktif, dan setelan `Fault Action for Input: Cleaning Input Value` bikin kabel putus terbaca persis sama dengan kondisi aman | *Fail-to-danger.* Kabel E-stop lepas tidak akan ketahuan. Sengaja tidak kami akali dari sisi software |
 | 4 | **IP address coupler dan nyambung ke switch/NIC yang mana.** NIC komputer sudah kepakai tiga kamera GigE | **Paling menghambat.** Kami tidak bisa nyambung sama sekali |
 | 5 | **Kalau ada buah yang lewat tanpa sinyal apa pun, actuator-nya default ngapain?** Ini pertanyaan baru dari kami, belum pernah kita bahas. Karena sebagian keputusan memang dibuang (6.5), pasti ada buah yang lewat tanpa pulse | Menentukan ke arah mana kesalahan sistem ini condong: buah tak tersinyal diloloskan atau dibuang |
+| 6 | **Waktu E-stop ditekan, kamera perlu ikut berhenti menilai atau tidak?** Sekarang tidak — lihat 6.8 | Kalau iya dan tidak kami pasang, akan ada hasil penilaian yang tercatat padahal line-nya lagi berhenti darurat |
+
+---
+
+## 7b. Yang perlu siap sebelum hari Selasa
+
+Supaya waktu di lapangan tidak habis buat urusan kabel:
+
+| Siapa | Yang disiapkan |
+| --- | --- |
+| Panel | IP coupler sudah di-set dan sudah dicatat (item 7.4) |
+| Panel | Watchdog coupler sudah diturunkan ke 2–3 detik (item 7.2), atau minimal sudah disepakati akan diturunkan |
+| Panel | Kabel LAN dari coupler ke ruang komputer, plus port kosong di switch |
+| Kami | Komputer sudah siap (**sudah beres**, lihat bagian 1) |
+| Kami | Port jaringan kedua di komputer buat ke coupler — **ini yang perlu dipastikan bareng**, karena port yang ada sekarang sudah dipakai tiga kamera GigE |
+| Bersama | Alat buat mengukur lebar pulse: scope atau monitor bit di GX Works |
 
 ---
 
@@ -170,10 +219,15 @@ itu perubahan kecil.
 3. Picu satu pulse, lalu **pastikan bareng-bareng bahwa coil 0 di sisi kami = X0300 di sisi PLC.** Jangan diasumsikan — beda satu alamat saja artinya CAM 1 OK jatuh ke CAM 1 NG.
 4. Ukur lebar pulse yang **sebenarnya** sampai di PLC, pakai scope atau monitor. Angka 200 ms itu perlu dibuktikan, bukan dipercaya.
 5. Cek bit ALIVE 10 bergoyang 1 Hz. Lalu matikan program line 1 — bit itu harus berhenti bergoyang, sementara bit line 2 dan 3 tetap jalan.
-6. **Cabut kabel E-stop**, lalu lihat pembacaan kami berubah atau tidak. Kalau tidak berubah, itu bukti masalah polaritas di item 7.3 — jangan diterima cuma karena bit-nya kebaca aman.
-7. Restart program line 1 pas pulse lagi jalan, pastikan tidak ada coil yang tertinggal ON.
-8. Jalankan produksi beneran sekitar 15 menit di satu line, lalu baca berapa sinyal yang terbuang dari halaman diagnosa. Angka itu yang jadi dasar buat menyetel ulang lebar pulse.
-9. Baru nyalakan line 2 dan 3.
+6. Picu satu motor fault dari sisi panel, pastikan bit yang berubah di sisi kami memang nomor motor yang sama. Cukup satu-dua motor buat membuktikan urutannya, tidak perlu sepuluh-sepuluhnya.
+7. **Cabut kabel E-stop**, lalu lihat pembacaan kami berubah atau tidak. Kalau tidak berubah, itu bukti masalah polaritas di item 7.3 — jangan diterima cuma karena bit-nya kebaca aman.
+8. **Cabut kabel LAN ke coupler** sekitar 10 detik, lalu colok lagi. Yang harus terlihat: bit ALIVE berhenti bergoyang lalu jalan lagi sendiri, tanpa ada yang perlu me-restart apa pun (6.7).
+9. Restart program line 1 pas pulse lagi jalan, pastikan tidak ada coil yang tertinggal ON.
+10. Jalankan produksi beneran sekitar 15 menit di satu line, lalu baca berapa sinyal yang terbuang dari halaman diagnosa. Angka itu yang jadi dasar buat menyetel ulang lebar pulse.
+11. Baru nyalakan line 2 dan 3.
+
+Kalau waktunya mepet, yang **tidak boleh dilewat** cuma tiga: langkah 3 (cocokkan alamat coil),
+langkah 4 (ukur lebar pulse beneran), dan langkah 7 (polaritas E-stop). Sisanya boleh menyusul.
 
 ---
 
