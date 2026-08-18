@@ -155,10 +155,20 @@ class Settings:
     plc_port: int = field(default_factory=lambda: _plc_int("PLC_PORT", 502))
     plc_unit_id: int = field(default_factory=lambda: _plc_int("PLC_UNIT_ID", 1))
     plc_coil_base: int = field(default_factory=lambda: _plc_int("PLC_COIL_BASE", 0))
-    # Bit "line ini hidup" yang di-toggle PlcWorker tiap detik. Daftar, karena
-    # line 1 juga memegang coil 9 (HEARTBEAT PC). Kosong = fitur alive mati.
+    # Bit "hidup" yang ditahan ON PlcWorker. Sesuai skematik ODOT cuma ADA SATU
+    # untuk seluruh PC — coil 9 (HEARTBIT PC ON), dipegang line 1. Line 2 dan 3
+    # kosong: coil 10-15 ditandai SPARE di skematik, bukan milik kita.
     plc_coil_alive: tuple[int, ...] = field(
         default_factory=lambda: parse_coil_list(os.getenv("PLC_COIL_ALIVE"))
+    )
+    # 0 = ON statis, sesuai skematik dan ladder pak Ocit ("coil OFF berarti PC
+    # mati, error muncul di seven segment"). PC mati / LAN putus tetap ketahuan
+    # lewat fault action coupler yang me-reset output. > 0 = toggle tiap sekian
+    # ms, yang JUGA menangkap proses hang dengan socket masih hidup — tapi ladder
+    # harus menghitung PERUBAHAN, bukan level, kalau tidak alarm "PC mati"
+    # menyala tiap setengah periode.
+    plc_alive_toggle_ms: int = field(
+        default_factory=lambda: _plc_int("PLC_ALIVE_TOGGLE_MS", 0)
     )
     plc_pulse_ms: int = field(default_factory=lambda: _plc_int("PLC_PULSE_MS", 200))
     plc_pulse_gap_ms: int = field(default_factory=lambda: _plc_int("PLC_PULSE_GAP_MS", 100))
