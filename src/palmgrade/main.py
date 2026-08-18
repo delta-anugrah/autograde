@@ -30,7 +30,6 @@ from .integrations.camera.photo_camera import PhotoCamera
 from .license.guard import LicenseGuardMiddleware
 from .license.local_repo import LicenseLocalRepo
 from .license.manager import LicenseManager
-from .license.sync_client import SyncClient
 from .integrations.scheduler.upload_scheduler import UploadScheduler
 from .integrations.upload.r2_uploader import R2Uploader
 from .integrations.upload.upload_manifest import UploadManifest
@@ -58,8 +57,7 @@ def create_app() -> FastAPI:
     _lic_manager: LicenseManager | None = None
     if settings.lic_enabled:
         _lic_repo = LicenseLocalRepo(settings.artifacts_dir / "license.db")
-        _lic_sync = SyncClient(settings.lic_server_url, settings.lic_api_key)
-        _lic_manager = LicenseManager(settings.lic_pubkey_pem, _lic_repo, _lic_sync)
+        _lic_manager = LicenseManager(settings.lic_pubkey_pem, _lic_repo, settings.lic_token)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

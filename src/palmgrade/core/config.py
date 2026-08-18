@@ -109,8 +109,10 @@ class Settings:
 
     # License Guard
     lic_enabled: bool = field(default_factory=lambda: _as_bool(os.getenv("LIC_ENABLED"), False))
-    lic_server_url: str = field(default_factory=lambda: os.getenv("LIC_SERVER_URL", ""))
-    lic_api_key: str = field(default_factory=lambda: os.getenv("LIC_API_KEY", ""))
+    # Token dipasang operator lewat `palmgrade license <token>`; env nempel saat
+    # container dibuat, jadi token baru butuh `palmgrade restart` (reboot saja
+    # TIDAK cukup — container lama dipakai ulang dengan env lamanya).
+    lic_token: str = field(default_factory=lambda: os.getenv("LICENSE_TOKEN", ""))
     lic_pubkey_pem: str = field(default_factory=lambda: os.getenv("LIC_PUBKEY_PEM", "").replace("\\n", "\n"))
 
     # Inference

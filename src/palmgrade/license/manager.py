@@ -1,19 +1,15 @@
 from __future__ import annotations
 
 import base64
-import hashlib
 import json
 import math
-import socket
 import time
 
-import psutil
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
 from .local_repo import LicenseLocalRepo
-from .sync_client import SyncClient
 from .types import (
     EffectiveLicense,
     LicensePayload,
@@ -28,33 +24,29 @@ def _b64url_decode(s: str) -> bytes:
     return base64.urlsafe_b64decode(s)
 
 
-def _compute_device_id() -> str:
-    hostname = socket.gethostname()
-    macs: list[str] = []
-    for addrs in psutil.net_if_addrs().values():
-        for addr in addrs:
-            if (
-                addr.family == psutil.AF_LINK
-                and addr.address
-                and addr.address != "00:00:00:00:00:00"
-            ):
-                macs.append(addr.address)
-    raw = f"{hostname}|{','.join(sorted(macs))}"
-    return hashlib.sha256(raw.encode()).hexdigest()
-
-
 class LicenseManager:
+    """Verifikasi surat izin yang dicetak API cloud.
+
+    Tokennya datang dari env (`LICENSE_TOKEN`), bukan dari HTTP: PC pabrik
+    tidak punya internet, jadi tidak ada yang bisa ditanya saat runtime. Token
+    dipasang operator lewat `palmgrade license <token>` dan baru berlaku saat
+    container dibuat ulang (env nempel saat itu).
+
+    Kuncinya asimetris: pabrik cuma pegang public key, jadi bisa memeriksa tapi
+    tidak bisa mengarang izin sendiri.
+    """
+
     def __init__(
         self,
         pubkey_pem: str,
-        repo: LicenseLocalRepo,
-        sync_client: SyncClient,
+        repo: LicenseLocalRepo | None,
+        token: str = "",
     ) -> None:
         self._pubkey_pem = pubkey_pem
         self._repo = repo
-        self._sync = sync_client
-        self._device_id = _compute_device_id()
+        self._token = (token or "").strip()
         self._public_key: Ed25519PublicKey = self._load_pubkey(pubkey_pem)
+        self._max_seen: int = 0
 
     @staticmethod
     def _load_pubkey(pem: str) -> Ed25519PublicKey:
@@ -80,18 +72,15 @@ class LicenseManager:
             raise ValueError("Invalid JWS signature") from exc
 
         p = LicensePayload(
-            sub_id=payload_dict["sub_id"],
+            company_id=payload_dict["company_id"],
+            company_name=payload_dict["company_name"],
             status=payload_dict["status"],
-            plan=payload_dict["plan"],
-            device_id=payload_dict["device_id"],
             nbf=int(payload_dict["nbf"]),
             iat=int(payload_dict["iat"]),
             exp=int(payload_dict["exp"]),
             license_expires_at=int(payload_dict["license_expires_at"]),
             warning_days_before_expiry=int(payload_dict["warning_days_before_expiry"]),
             grace_days_after_expiry=int(payload_dict["grace_days_after_expiry"]),
-            slow_response_ms=int(payload_dict["slow_response_ms"]),
-            max_offline_days=int(payload_dict["max_offline_days"]),
             server_time=int(payload_dict["server_time"]),
             nonce=payload_dict["nonce"],
             kid=payload_dict["kid"],
@@ -102,9 +91,6 @@ class LicenseManager:
 
         return p
 
-    def _max_offline_until(self, p: LicensePayload) -> int:
-        return min(p.exp, p.iat + p.max_offline_days * SECONDS_PER_DAY)
-
     def _warning_for(self, p: LicensePayload, now: int) -> LicenseWarning | None:
         seconds_until_expiry = p.license_expires_at - now
         warning_window = p.warning_days_before_expiry * SECONDS_PER_DAY
@@ -112,7 +98,7 @@ class LicenseManager:
         if 0 < seconds_until_expiry <= warning_window:
             return LicenseWarning(
                 code="LICENSE_EXPIRING_SOON",
-                message="License will expire soon. Please renew your subscription.",
+                message="Langganan akan habis. Hubungi Palmgrade untuk memperpanjang.",
                 days_remaining=max(0, math.ceil(seconds_until_expiry / SECONDS_PER_DAY)),
             )
 
@@ -120,7 +106,7 @@ class LicenseManager:
             seconds_until_grace_ends = p.exp - now
             return LicenseWarning(
                 code="LICENSE_EXPIRED_GRACE",
-                message="License has expired. Grace period is active. Please renew your subscription.",
+                message="Langganan sudah habis, masa tenggang berjalan. Segera perpanjang.",
                 days_remaining=max(0, math.ceil(seconds_until_grace_ends / SECONDS_PER_DAY)),
             )
 
@@ -131,91 +117,57 @@ class LicenseManager:
             status=kwargs["status"],
             reason=kwargs["reason"],
             payload=kwargs.get("payload"),
-            max_offline_until=kwargs.get("max_offline_until", 0),
             warning=kwargs.get("warning"),
-            should_slow_response=kwargs.get("should_slow_response", False),
-            slow_response_ms=kwargs.get("slow_response_ms", 0),
         )
 
-    def _evaluate(self, p: LicensePayload, online: bool, max_seen_server_time: int) -> EffectiveLicense:
+    def _evaluate(self, p: LicensePayload, max_seen_server_time: int) -> EffectiveLicense:
         now = int(time.time())
-        max_offline_until = self._max_offline_until(p)
-
-        if p.device_id != self._device_id:
-            return self._build(status="EXPIRED", reason="device_id mismatch", payload=p, max_offline_until=max_offline_until)
 
         if now < p.nbf:
-            return self._build(status="EXPIRED", reason="not before", payload=p, max_offline_until=max_offline_until)
+            return self._build(status="EXPIRED", reason="not before", payload=p)
 
         if p.server_time < max_seen_server_time:
-            return self._build(status="EXPIRED", reason="server_time rollback", payload=p, max_offline_until=max_offline_until)
+            return self._build(status="EXPIRED", reason="server_time rollback", payload=p)
 
         if p.status == "CANCEL":
-            return self._build(status="EXPIRED", reason="canceled", payload=p, max_offline_until=max_offline_until)
+            return self._build(status="EXPIRED", reason="canceled", payload=p)
 
         if p.status == "EXPIRED":
-            return self._build(status="EXPIRED", reason="subscription expired", payload=p, max_offline_until=max_offline_until)
+            return self._build(status="EXPIRED", reason="subscription expired", payload=p)
 
         if now > p.exp:
-            return self._build(status="EXPIRED", reason="grace period ended", payload=p, max_offline_until=max_offline_until)
+            return self._build(status="EXPIRED", reason="grace period ended", payload=p)
 
         if p.license_expires_at < now <= p.exp:
             return self._build(
                 status="GRACE",
-                reason="online-expired-grace" if online else "offline-expired-grace",
+                reason="expired-grace",
                 payload=p,
-                max_offline_until=max_offline_until,
-                warning=self._warning_for(p, now),
-                should_slow_response=True,
-                slow_response_ms=p.slow_response_ms,
-            )
-
-        if online:
-            return self._build(
-                status=p.status,
-                reason="online-valid",
-                payload=p,
-                max_offline_until=max_offline_until,
                 warning=self._warning_for(p, now),
             )
 
-        if now <= max_offline_until and p.status in ("ACTIVE", "TRIAL"):
-            return self._build(
-                status=p.status,
-                reason="offline-valid",
-                payload=p,
-                max_offline_until=max_offline_until,
-                warning=self._warning_for(p, now),
-            )
-
-        return self._build(status="EXPIRED", reason="offline-expired", payload=p, max_offline_until=max_offline_until)
+        return self._build(
+            status=p.status,
+            reason="valid",
+            payload=p,
+            warning=self._warning_for(p, now),
+        )
 
     async def init(self) -> None:
-        await self._repo.init()
+        if self._repo:
+            await self._repo.init()
+            state = await self._repo.read()
+            self._max_seen = state.max_seen_server_time
 
-    async def _sync_if_online(self) -> LicensePayload | None:
+    async def get_effective_license(self) -> EffectiveLicense:
+        """Nilai izin saat ini. Murni CPU: token dari env, tidak ada I/O
+        jaringan maupun SQLite per panggilan."""
+        if not self._token:
+            return self._build(status="EXPIRED", reason="no token", payload=None)
+
         try:
-            token_jws = await self._sync.fetch_latest(self._device_id)
-            payload = self._verify_jws(token_jws)
-            if payload.device_id != self._device_id:
-                raise ValueError("device mismatch")
-            await self._repo.write_token(token_jws, payload.server_time)
-            return payload
-        except Exception:
-            return None
+            payload = self._verify_jws(self._token)
+        except Exception as exc:
+            return self._build(status="EXPIRED", reason=f"invalid token: {exc}", payload=None)
 
-    async def get_effective_license(self, online_hint: bool = True) -> EffectiveLicense:
-        synced = await self._sync_if_online() if online_hint else None
-        state = await self._repo.read()
-
-        if synced:
-            payload = synced
-        elif state.token_jws:
-            try:
-                payload = self._verify_jws(state.token_jws)
-            except Exception:
-                return self._build(status="EXPIRED", reason="invalid cached token", max_offline_until=0)
-        else:
-            return self._build(status="EXPIRED", reason="no token", max_offline_until=0)
-
-        return self._evaluate(payload, bool(synced), state.max_seen_server_time)
+        return self._evaluate(payload, self._max_seen)

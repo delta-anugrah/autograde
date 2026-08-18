@@ -18,18 +18,29 @@ class LocalState:
 
 @dataclass
 class LicensePayload:
-    sub_id: str
+    """Isi surat izin. Harus cocok persis dengan yang dicetak
+    `palmgrade-api/src/utils/license.ts` — ini kontrak lintas repo.
+
+    Yang DIBUANG dari versi lama beserta alasannya:
+    - `device_id`: fingerprint-nya ikut MAC veth Docker, yang berubah tiap
+      container dibuat ulang — jadi ikatan ke perangkat malah mematikan PC yang
+      sah tiap `docker compose up`.
+    - `max_offline_days`: `exp` sudah membatasi semuanya, dan tidak ada lagi
+      sync otomatis yang perlu dipaksa.
+    - `slow_response_ms`: respons yang sengaja dilambatkan bikin operator
+      mengira sistem rusak, bukan mengira langganan habis.
+    - `sub_id` → `company_id`, `plan` dihapus (belum ada paket berbeda).
+    """
+
+    company_id: str
+    company_name: str
     status: LicenseStatus
-    plan: str
-    device_id: str
     nbf: int
     iat: int
     exp: int
     license_expires_at: int
     warning_days_before_expiry: int
     grace_days_after_expiry: int
-    slow_response_ms: int
-    max_offline_days: int
     server_time: int
     nonce: str
     kid: str
@@ -46,8 +57,14 @@ class LicenseWarning:
 class EffectiveLicense:
     status: LicenseEffectiveStatus
     reason: str
-    max_offline_until: int
     payload: LicensePayload | None
     warning: LicenseWarning | None
-    should_slow_response: bool
-    slow_response_ms: int
+
+    @property
+    def is_expired(self) -> bool:
+        return self.status == "EXPIRED"
+
+    @property
+    def grace_ends_at(self) -> int:
+        """Detik Unix akhir grace. 0 = tidak ada lisensi valid sama sekali."""
+        return self.payload.exp if self.payload and not self.is_expired else 0
