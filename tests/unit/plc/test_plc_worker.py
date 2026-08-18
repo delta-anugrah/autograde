@@ -25,6 +25,7 @@ class _FakeClient:
 class _Cfg:
     plc_coil_base = 3
     plc_coil_alive = (11,)
+    plc_alive_toggle_ms = 0
     plc_poll_ms = 200
     plc_di_count = 16
 
@@ -41,12 +42,16 @@ class _Cfg:
         return self.plc_coil_base + 2
 
 
-def _worker(health_check=None):
+class _CfgToggle(_Cfg):
+    plc_alive_toggle_ms = 1000
+
+
+def _worker(health_check=None, settings=None):
     client = _FakeClient()
     w = PlcWorker(
         client=client,
         scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=20),
-        settings=_Cfg(),
+        settings=settings or _Cfg(),
         health_check=health_check,
     )
     return w, client
@@ -77,8 +82,22 @@ def test_submit_never_blocks_when_queue_is_full():
     assert w.dropped_submissions == 450
 
 
-def test_alive_coils_toggle_between_ticks():
+def test_alive_coil_is_held_on_by_default():
+    # Skematik ODOT menulis "HEARTBIT PC ON" dan ladder pak Ocit membaca LEVEL
+    # ("coil OFF berarti PC mati"). Toggle akan memadamkan coil separuh periode
+    # dan memicu alarm PC-mati palsu terus-menerus. Ditulis ulang tiap detik,
+    # bukan sekali: fault action coupler bisa me-reset output saat link putus.
     w, client = _worker()
+    w.run_once(now=0.0)
+    w.run_once(now=1.0)
+    w.run_once(now=2.0)
+    assert [v for (addr, v) in client.writes if addr == 11] == [True, True, True]
+
+
+def test_alive_coil_toggles_only_when_toggle_ms_set():
+    # Jalur cadangan kalau pak Ocit memilih ladder penghitung-perubahan: itu satu
+    # -satunya cara mendeteksi proses hang yang socket-nya masih hidup.
+    w, client = _worker(settings=_CfgToggle())
     w.run_once(now=0.0)
     w.run_once(now=1.0)
     w.run_once(now=2.0)
@@ -258,7 +277,7 @@ def test_alive_toggle_overwrites_stale_retry_without_runt_pulse():
     w = PlcWorker(
         client=client,
         scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=1),
-        settings=_Cfg(),
+        settings=_CfgToggle(),
     )
     w.run_once(now=0.0)   # toggle -> True, write gagal
     w.run_once(now=1.0)   # retry True + toggle False jatuh di tick yang sama
@@ -273,7 +292,7 @@ def test_alive_coil_success_clears_stale_failed_retry():
     w = PlcWorker(
         client=client,
         scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=20),
-        settings=_Cfg(),
+        settings=_CfgToggle(),
     )
     w.run_once(now=0.0)   # alive toggle -> True, write gagal
     w.run_once(now=1.0)   # step 2 retry level basi (True) gagal; step 3 toggle -> False, sukses

@@ -44,14 +44,18 @@ container line (satu koneksi per proses, tidak ada pooling) memakai 3 dari 5 slo
 | 6     | X0306       | CAM 3 OK     | line 3       |
 | 7     | X0307       | CAM 3 NG     | line 3       |
 | 8     | X0308       | CAM 3 ERROR  | line 3       |
-| 9     | X0309       | HEARTBEAT PC | line 1       |
-| 10    | X030A       | LINE 1 ALIVE | line 1       |
-| 11    | X030B       | LINE 2 ALIVE | line 2       |
-| 12    | X030C       | LINE 3 ALIVE | line 3       |
-| 13–15 | X030D–X030F | SPARE        | —            |
+| 9     | X0309       | HEARTBIT PC ON | line 1     |
+| 10–15 | X030A–X030F | SPARE          | —          |
 
-Coil 9 (HEARTBEAT PC) tidak punya writer khusus — ia hidup lewat mekanisme `PLC_COIL_ALIVE`
-line 1 (lihat di bawah). Modbus function code `05` (write single coil).
+Coil 9 tidak punya writer khusus — ia hidup lewat mekanisme `PLC_COIL_ALIVE` line 1
+(lihat di bawah). Modbus function code `05` (write single coil).
+
+**Coil 10–15 SPARE dan tidak boleh disentuh.** Implementasi awal memakai 10/11/12 sebagai
+bit "line N alive" per proses; itu penambahan kita sendiri, bukan permintaan pak Ocit, dan
+skematik REMOTE IO menandai keenamnya SPARE. Konsekuensi yang diterima sadar: kalau proses
+satu line mati sendirian, PLC tidak melihatnya — coil `CAM_N_ERROR` line itu justru tidak
+akan menyala, karena yang harus menulisnya ya proses yang barusan mati. Butuh deteksi itu →
+minta pak Ocit mengalokasikan spare, jangan pakai diam-diam.
 
 ## Discrete input / DI — vision membaca (zero-based)
 
@@ -78,7 +82,8 @@ Semua field dideklarasikan di `core/config.py` (satu blok berlabel `# ── PLC
 | `PLC_PORT` | `502` | Port Modbus-TCP standar |
 | `PLC_UNIT_ID` | `1` | Modbus unit/slave ID |
 | `PLC_COIL_BASE` | `0` | **Literal per line, bukan dari `.env`** — properti fisik line, bukan setelan yang boleh beda antar PC. Line 1 = `0`, line 2 = `3`, line 3 = `6` |
-| `PLC_COIL_ALIVE` | (kosong) | **Literal per line.** Daftar coil dipisah koma yang di-toggle tiap detik. Line 1 = `9,10` (9 = HEARTBEAT PC bersama, 10 = ALIVE line 1), line 2 = `11`, line 3 = `12`. Kosong = fitur alive mati |
+| `PLC_COIL_ALIVE` | (kosong) | **Literal per line.** Daftar coil dipisah koma yang ditahan ON. Line 1 = `9` (HEARTBIT PC ON); line 2 dan 3 **kosong** — coil 10–15 SPARE di skematik. Kosong = fitur alive mati |
+| `PLC_ALIVE_TOGGLE_MS` | `0` | `0` = ON statis, sesuai skematik dan ladder pak Ocit ("coil OFF berarti PC mati"). `> 0` = toggle tiap sekian ms; **hanya kalau ladder-nya menghitung PERUBAHAN**, kalau tidak alarm PC-mati menyala tiap setengah periode |
 | `PLC_PULSE_MS` | `200` | Lebar pulse ON untuk satu keputusan OK/NG. **Wajib >= `PLC_POLL_MS`** (lihat di bawah). **Belum dikonfirmasi pak Ocit** — lihat "Belum diputuskan" |
 | `PLC_PULSE_GAP_MS` | `100` | Jeda OFF wajib sebelum pulse berikutnya pada coil yang sama, supaya PLC melihat tepi naik terpisah |
 | `PLC_QUEUE_MAX` | `1` | **Berapa banyak keterlambatan yang mau kamu beli**, bukan kapasitas/keandalan. Jumlah pulse yang boleh terutang per coil; tiap slot = `(pulse+gap)` ms sinyal jadi lebih basi. Penuh → drop + hitung, bukan tunggu |
@@ -176,7 +181,7 @@ terjadi, jadi keduanya dipertahankan terpisah.
 
 ## Failed write retry — coil OFF yang gagal tidak boleh nyangkut ON
 
-Setiap tulis coil (pulse, alive toggle, maupun coil ERROR) lewat satu helper internal,
+Setiap tulis coil (pulse, bit alive, maupun coil ERROR) lewat satu helper internal,
 `PlcWorker._write_coil()`. Kalau `client.write_coil()` gagal (link putus, PLC menolak), level
 yang gagal itu **disimpan** dan dicoba ulang pada tick berikutnya — bukan dibuang begitu saja.
 
@@ -190,10 +195,10 @@ nilai segar kalau coil yang sama berubah lagi sebelum retry-nya sempat jalan.
 
 `run_once()` tidak menulis coil di beberapa tempat. Ia merakit **satu** `dict[int, bool]` berisi
 level yang diinginkan untuk seluruh tick, dengan urutan penyusunan: retry (`_failed_writes`) →
-`scheduler.tick()` → toggle alive → level ERROR. Entri belakangan menimpa yang depan, jadi level
+`scheduler.tick()` → bit alive → level ERROR. Entri belakangan menimpa yang depan, jadi level
 segar selalu menang atas level basi pada coil yang sama.
 
-Tanpa ini, retry level basi dan toggle segar pada bit alive ditulis terpisah dengan jarak ~1ms —
+Tanpa ini, retry level basi dan level segar pada bit alive ditulis terpisah dengan jarak ~1ms —
 PLC melihat pasangan ON/OFF selebar satu milidetik pada bit yang seharusnya kotak 1 detik.
 Peta tunggal itu menghilangkan celahnya secara struktural, bukan lewat pengecekan tambahan.
 
@@ -298,7 +303,7 @@ src/palmgrade/plc/
 ├── pulse.py             # PulseScheduler — logika murni, nol I/O. Menjadwalkan satu
 │                         # keputusan jadi satu pulse ON/OFF per coil dengan jeda wajib.
 └── worker.py             # PlcWorker — satu-satunya thread yang menyentuh socket Modbus.
-                           # Menguras antrean submit → pulse, toggle bit alive, baca DI,
+                           # Menguras antrean submit → pulse, tahan bit alive, baca DI,
                            # evaluasi + tulis coil ERROR.
 
 tests/unit/plc/
