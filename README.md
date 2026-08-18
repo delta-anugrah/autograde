@@ -396,13 +396,17 @@ Images are served as static files: `GET /captures/results/{date}/{filename}`
 ## License Guard (optional, disabled by default)
 
 ```env
-LIC_ENABLED=true
-LIC_SERVER_URL=https://your-license-server.com
-LIC_API_KEY=your-api-key
-LIC_PUBKEY_PEM=-----BEGIN PUBLIC KEY-----\nMCow...\n-----END PUBLIC KEY-----
+LICENSE_ENABLED=true
+LICENSE_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\nMCow...\n-----END PUBLIC KEY-----
+LICENSE_TOKEN=<token from the cloud API>
 ```
 
-When enabled, all routes (except `/health`, `/api/video_feed`, `/captures`) are blocked for expired licenses.
+When enabled, all routes (except `/health`, `/api/video_feed`, `/captures`) are blocked for expired
+licenses, **and** `FrameProcessingWorker` stops running inference — HTTP-only blocking would leave the
+cameras grading and the PLC sorting fruit. The PLC alive coil is dropped too, so an expired
+subscription is visible on the factory floor.
+
+The token is installed offline with `palmgrade license <token>`; there is no license server to call.
 
 ---
 
@@ -478,7 +482,7 @@ pytest tests/unit/
 | `LINE_1_MACHINE_ID` | — | Used by docker-compose for line 1 |
 | `LINE_2_MACHINE_ID` | — | Used by docker-compose for line 2 |
 | `LINE_3_MACHINE_ID` | — | Used by docker-compose for line 3 |
-| `LIC_ENABLED` | `false` | Enable license guard middleware |
+| `LICENSE_ENABLED` | `false` | Enable license guard middleware + grading gate |
 | `UPLOAD_HOUR` | `0` | Daily upload cron — hour (0–23) |
 | `UPLOAD_MINUTE` | `0` | Daily upload cron — minute (0–59) |
 | `DESTINATION_UPLOAD` | — | Upload destination path |
