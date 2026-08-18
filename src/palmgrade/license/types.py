@@ -8,15 +8,6 @@ LicenseEffectiveStatus = Literal["ACTIVE", "TRIAL", "EXPIRED", "CANCEL", "GRACE"
 
 
 @dataclass
-class LocalState:
-    token_jws: str | None
-    last_sync_at: int | None
-    max_seen_server_time: int
-    hash_chain_prev: str | None
-    hash_chain_curr: str | None
-
-
-@dataclass
 class LicensePayload:
     """Isi surat izin. Harus cocok persis dengan yang dicetak
     `palmgrade-api/src/utils/license.ts` — ini kontrak lintas repo.

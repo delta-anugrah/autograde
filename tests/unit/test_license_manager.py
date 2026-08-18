@@ -6,7 +6,7 @@ malah jalan padahal langganan sudah dibatalkan. Test ini mengunci:
 
 - `_verify_jws`: signature ASLI (bukan mock) — tamper payload/sig/kid harus ditolak.
 - `_evaluate`: seluruh cabang state machine (ACTIVE/TRIAL/EXPIRED/CANCEL/GRACE,
-  anti-rollback server_time, nbf).
+  anti-rollback jam lokal, nbf).
 - `_warning_for`: window "expiring soon" + "grace".
 
 Sengaja pakai signature Ed25519 asli (bukan mock) supaya verifikasi benar-benar
@@ -14,6 +14,7 @@ teruji.
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import time
@@ -25,7 +26,12 @@ from cryptography.hazmat.primitives.serialization import (
     PublicFormat,
 )
 
-from palmgrade.license.manager import SECONDS_PER_DAY, LicenseManager
+from palmgrade.license.local_repo import LicenseLocalRepo
+from palmgrade.license.manager import (
+    CLOCK_ROLLBACK_TOLERANCE_S,
+    SECONDS_PER_DAY,
+    LicenseManager,
+)
 
 COMPANY_ID = "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
 
@@ -153,12 +159,30 @@ def test_evaluate_not_before_is_expired(mgr, keypair):
     assert eff.reason == "not before"
 
 
-def test_evaluate_server_time_rollback_is_expired(mgr, keypair):
+def test_evaluate_clock_rollback_is_expired(mgr, keypair):
+    # Tanggal BIOS dimundurkan 30 hari, tapi mesin ini pernah melihat "sekarang".
     now = int(time.time())
-    p = _payload_obj(mgr, keypair, server_time=now - 10_000)
-    eff = mgr._evaluate(p, max_seen_server_time=now)
+    p = _payload_obj(mgr, keypair)
+    eff = mgr._evaluate(p, max_seen_server_time=now + 30 * SECONDS_PER_DAY)
     assert eff.status == "EXPIRED"
-    assert eff.reason == "server_time rollback"
+    assert eff.reason == "clock rollback"
+
+
+def test_evaluate_tolerates_small_clock_drift(mgr, keypair):
+    # Drift NTP beberapa detik itu wajar — bukan serangan.
+    now = int(time.time())
+    p = _payload_obj(mgr, keypair)
+    eff = mgr._evaluate(p, max_seen_server_time=now + CLOCK_ROLLBACK_TOLERANCE_S - 30)
+    assert eff.status == "ACTIVE"
+
+
+def test_evaluate_clock_before_token_issue_is_expired(mgr, keypair):
+    # Tanpa state sama sekali (max_seen=0), token sendiri sudah jadi lantai:
+    # jam tidak mungkin lebih tua dari saat token dicetak.
+    p = _payload_obj(mgr, keypair, server_time=int(time.time()) + 10 * SECONDS_PER_DAY)
+    eff = mgr._evaluate(p, max_seen_server_time=0)
+    assert eff.status == "EXPIRED"
+    assert eff.reason == "clock rollback"
 
 
 def test_evaluate_canceled_is_expired(mgr, keypair):
@@ -241,3 +265,35 @@ def test_no_warning_when_far_from_expiry(mgr, keypair):
     )
     assert mgr._warning_for(p, now) is None
 
+
+
+def test_ratchet_records_current_clock(tmp_path, keypair):
+    _, pub_pem = keypair
+    repo = LicenseLocalRepo(db_path=tmp_path / "license.db")
+    mgr = LicenseManager(pubkey_pem=pub_pem, repo=repo)
+
+    asyncio.run(mgr.init())
+    assert mgr.max_seen >= int(time.time()) - 5
+
+
+def test_ratchet_never_moves_backwards(tmp_path, keypair):
+    _, pub_pem = keypair
+    repo = LicenseLocalRepo(db_path=tmp_path / "license.db")
+    future = int(time.time()) + 365 * SECONDS_PER_DAY
+    asyncio.run(repo.init())
+    asyncio.run(repo.ratchet(future))
+
+    mgr = LicenseManager(pubkey_pem=pub_pem, repo=repo)
+    asyncio.run(mgr.init())
+    assert mgr.max_seen == future
+
+
+def test_max_seen_survives_restart(tmp_path, keypair):
+    _, pub_pem = keypair
+    db = tmp_path / "license.db"
+    asyncio.run(LicenseManager(pubkey_pem=pub_pem, repo=LicenseLocalRepo(db)).init())
+    first = asyncio.run(LicenseLocalRepo(db).read_max_seen())
+
+    mgr2 = LicenseManager(pubkey_pem=pub_pem, repo=LicenseLocalRepo(db))
+    asyncio.run(mgr2.init())
+    assert mgr2.max_seen >= first

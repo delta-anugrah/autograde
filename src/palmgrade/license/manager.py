@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
+import logging
 import math
 import time
 
@@ -17,6 +19,18 @@ from .types import (
 )
 
 SECONDS_PER_DAY = 24 * 3600
+
+# Jam boleh mundur sebanyak ini tanpa dicurigai. Drift NTP beberapa detik itu
+# wajar; 30 hari mundur (biar langganan "belum habis") tidak.
+CLOCK_ROLLBACK_TOLERANCE_S = 300
+
+# Tiap 1 jam, bukan tiap 10 detik: menulis SQLite 8.640x/hari tidak menambah
+# perlindungan apa pun. Yang bisa hilang cuma jendela terakhir — dan mesin yang
+# baru saja mati listrik lalu dimundurkan jamnya masih tertangkap oleh penanda
+# jam sebelumnya.
+CLOCK_RATCHET_INTERVAL_S = 3600
+
+logger = logging.getLogger(__name__)
 
 
 def _b64url_decode(s: str) -> bytes:
@@ -47,6 +61,11 @@ class LicenseManager:
         self._token = (token or "").strip()
         self._public_key: Ed25519PublicKey = self._load_pubkey(pubkey_pem)
         self._max_seen: int = 0
+
+    @property
+    def max_seen(self) -> int:
+        """Detik Unix tertinggi yang pernah dilihat mesin ini."""
+        return self._max_seen
 
     @staticmethod
     def _load_pubkey(pem: str) -> Ed25519PublicKey:
@@ -126,8 +145,12 @@ class LicenseManager:
         if now < p.nbf:
             return self._build(status="EXPIRED", reason="not before", payload=p)
 
-        if p.server_time < max_seen_server_time:
-            return self._build(status="EXPIRED", reason="server_time rollback", payload=p)
+        # Lantai waktu: mesin ini pernah melihat `max_seen_server_time`, dan
+        # tokennya sendiri dicetak di `server_time` — jam yang jauh di bawah
+        # keduanya berarti tanggal dimundurkan, bukan langganan yang masih hidup.
+        floor = max(max_seen_server_time, p.server_time)
+        if now < floor - CLOCK_ROLLBACK_TOLERANCE_S:
+            return self._build(status="EXPIRED", reason="clock rollback", payload=p)
 
         if p.status == "CANCEL":
             return self._build(status="EXPIRED", reason="canceled", payload=p)
@@ -156,8 +179,21 @@ class LicenseManager:
     async def init(self) -> None:
         if self._repo:
             await self._repo.init()
-            state = await self._repo.read()
-            self._max_seen = state.max_seen_server_time
+            self._max_seen = await self._repo.ratchet(int(time.time()))
+
+    async def run_clock_ratchet(self) -> None:
+        """Catat jam sekarang secara berkala supaya rollback ketahuan.
+
+        Sengaja tidak pernah mengangkat exception ke pemanggil: penanda jam
+        yang gagal ditulis bukan alasan untuk mematikan proses grading.
+        """
+        while True:
+            await asyncio.sleep(CLOCK_RATCHET_INTERVAL_S)
+            try:
+                if self._repo:
+                    self._max_seen = await self._repo.ratchet(int(time.time()))
+            except Exception as exc:  # noqa: BLE001 - lihat docstring
+                logger.warning("Gagal menulis penanda jam lisensi: %s", exc)
 
     async def get_effective_license(self) -> EffectiveLicense:
         """Nilai izin saat ini. Murni CPU: token dari env, tidak ada I/O

@@ -63,6 +63,7 @@ def create_app() -> FastAPI:
     async def lifespan(app: FastAPI):
         if _lic_manager:
             await _lic_manager.init()
+            asyncio.create_task(_lic_manager.run_clock_ratchet())
 
         for folder in [settings.captures_dir, settings.results_dir, settings.errors_dir, settings.logs_dir]:
             folder.mkdir(parents=True, exist_ok=True)
