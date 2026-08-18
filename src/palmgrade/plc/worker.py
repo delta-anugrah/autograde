@@ -1,7 +1,7 @@
 """Worker yang bicara ke coupler ODOT CN-8031.
 
 Satu-satunya thread yang menyentuh socket Modbus. Tugasnya empat:
-menguras antrean keputusan jadi pulse coil, meng-toggle bit alive line ini,
+menguras antrean keputusan jadi pulse coil, menahan bit alive PC,
 memantulkan discrete input PLC ke memori, dan — sebagai efek samping dari
 polling reguler — menahan watchdog ODOT supaya tidak mereset output.
 """
@@ -32,7 +32,7 @@ class PlcWorker:
         self.inputs: list[bool] = []
         self._queue: queue.Queue[str] = queue.Queue(maxsize=50)
         self._alive_level = False
-        self._next_alive_toggle = 0.0
+        self._next_alive_write = 0.0
         # Coil -> level yang gagal ditulis tick sebelumnya. tick() cuma melaporkan
         # perubahan level SEKALI, jadi kalau write-nya gagal, tidak ada yang
         # menagihnya lagi kecuali kita simpan dan coba ulang di tick berikutnya.
@@ -94,12 +94,17 @@ class PlcWorker:
         self._failed_writes = {}
         writes.update(self.scheduler.tick(now))               # b. pulse segar
 
-        # c. Bit alive — toggle, bukan ON statis, supaya proses yang hang ikut ketahuan
-        if self.settings.plc_coil_alive and now >= self._next_alive_toggle:
-            self._alive_level = not self._alive_level
+        # c. Bit alive — ON statis, itu yang diminta skematik ODOT ("HEARTBIT PC
+        #    ON") dan yang dibaca ladder PLC. Ditulis ULANG tiap detik, bukan
+        #    sekali saat start: kalau coupler me-reset output waktu koneksi
+        #    putus, coil harus naik lagi sendiri begitu nyambung, tanpa restart.
+        #    PLC_ALIVE_TOGGLE_MS > 0 menukarnya jadi toggle — lihat config.py.
+        if self.settings.plc_coil_alive and now >= self._next_alive_write:
+            toggle_ms = self.settings.plc_alive_toggle_ms
+            self._alive_level = (not self._alive_level) if toggle_ms else True
             for coil in self.settings.plc_coil_alive:
                 writes[coil] = self._alive_level
-            self._next_alive_toggle = now + 1.0
+            self._next_alive_write = now + (toggle_ms / 1000.0 if toggle_ms else 1.0)
 
         # d. Coil ERROR — level, bukan pulse. Dimasukkan hanya saat berubah supaya
         #    tidak membanjiri bus dengan nilai yang sama tiap tick.
