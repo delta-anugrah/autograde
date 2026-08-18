@@ -46,13 +46,14 @@ class _CfgToggle(_Cfg):
     plc_alive_toggle_ms = 1000
 
 
-def _worker(health_check=None, settings=None):
+def _worker(health_check=None, settings=None, license_ok=None):
     client = _FakeClient()
     w = PlcWorker(
         client=client,
         scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=20),
         settings=settings or _Cfg(),
         health_check=health_check,
+        license_ok=license_ok,
     )
     return w, client
 
@@ -525,3 +526,37 @@ def test_pulse_equal_to_poll_does_not_warn(monkeypatch, caplog):
 
     assert worker is not None
     assert not [r for r in caplog.records if "PLC_PULSE_MS" in r.message]
+
+
+# --------------------------------------------------------------------- lisensi
+
+def test_alive_coil_goes_off_when_license_expired():
+    # Coil 9 = "HEARTBIT PC ON" yang dibaca ladder pak Ocit sebagai LEVEL.
+    # Mematikannya bikin seven segment alarm → langganan habis KELIHATAN di
+    # lantai pabrik. Alternatifnya (diam-diam) lebih buruk: PLC mengira semuanya
+    # normal, buah lewat tanpa disortir, dan yang dituduh nanti produk kita.
+    w, client = _worker(license_ok=lambda: False)
+    w.run_once(now=100.0)
+    assert (11, False) in client.writes
+
+
+def test_alive_coil_stays_on_while_licensed():
+    w, client = _worker(license_ok=lambda: True)
+    w.run_once(now=100.0)
+    assert (11, True) in client.writes
+
+
+def test_alive_coil_recovers_when_license_returns():
+    licensed = [False]
+    w, client = _worker(license_ok=lambda: licensed[0])
+    w.run_once(now=100.0)
+    licensed[0] = True
+    w.run_once(now=200.0)
+    assert client.writes[-1] == (11, True) or (11, True) in client.writes[1:]
+
+
+def test_no_license_callback_means_always_alive():
+    # PC tanpa fitur lisensi berperilaku persis seperti sebelum fitur ini ada.
+    w, client = _worker()
+    w.run_once(now=100.0)
+    assert (11, True) in client.writes

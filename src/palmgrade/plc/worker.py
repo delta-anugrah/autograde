@@ -24,11 +24,15 @@ class PlcWorker:
         scheduler,
         settings,
         health_check: Callable[[], bool] | None = None,
+        license_ok: Callable[[], bool] | None = None,
     ) -> None:
         self.client = client
         self.scheduler = scheduler
         self.settings = settings
         self.health_check = health_check
+        # None = fitur lisensi mati (PC dev / pabrik yang belum dilisensi):
+        # perilakunya persis seperti sebelum fitur ini ada.
+        self.license_ok = license_ok
         self.inputs: list[bool] = []
         self._queue: queue.Queue[str] = queue.Queue(maxsize=50)
         self._alive_level = False
@@ -99,9 +103,20 @@ class PlcWorker:
         #    sekali saat start: kalau coupler me-reset output waktu koneksi
         #    putus, coil harus naik lagi sendiri begitu nyambung, tanpa restart.
         #    PLC_ALIVE_TOGGLE_MS > 0 menukarnya jadi toggle — lihat config.py.
+        #    Langganan habis => coil ini DIMATIKAN. Ladder membacanya sebagai
+        #    "PC off" dan seven segment alarm, jadi berhentinya kelihatan di
+        #    lantai pabrik. Diam-diam lebih buruk: PLC mengira semuanya normal,
+        #    buah lewat tanpa disortir, dan yang dituduh nanti produk kita yang
+        #    rusak. Konsekuensi yang diterima: di PLC, "lisensi habis" dan "PC
+        #    mati" terlihat sama persis — yang membedakan cuma layar. Coil SPARE
+        #    10-15 sudah disepakati dengan pak Ocit untuk TIDAK disentuh, jadi
+        #    tidak ada coil terpisah untuk ini.
         if self.settings.plc_coil_alive and now >= self._next_alive_write:
             toggle_ms = self.settings.plc_alive_toggle_ms
-            self._alive_level = (not self._alive_level) if toggle_ms else True
+            licensed = self.license_ok() if self.license_ok else True
+            self._alive_level = (
+                False if not licensed else (not self._alive_level) if toggle_ms else True
+            )
             for coil in self.settings.plc_coil_alive:
                 writes[coil] = self._alive_level
             self._next_alive_write = now + (toggle_ms / 1000.0 if toggle_ms else 1.0)
