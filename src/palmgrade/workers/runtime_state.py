@@ -45,3 +45,10 @@ class RuntimeState:
 
     # Signal dari FrameCaptureWorker ke FrameProcessingWorker saat video loop/rewind
     rewind_signal: bool = False
+
+    # Detik Unix akhir masa tenggang lisensi. 0 = tidak ada lisensi valid.
+    # Sengaja int biasa, bukan objek lisensi: worker grading itu thread sinkron
+    # sementara LicenseManager async (aiosqlite). Menyeret async ke run_loop
+    # harganya jauh lebih mahal daripada satu int yang dibandingkan time.time().
+    # Diisi main.py saat lifespan; diabaikan kalau LICENSE_ENABLED=false.
+    license_exp: int = 0

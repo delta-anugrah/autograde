@@ -459,10 +459,9 @@ FrameProcessingWorker / CaptureService
 | `R2_PUBLIC_URL` | — | Cloudflare R2 public URL prefix (placeholder — kosong = no-op) |
 | `UPLOAD_API_URL` | — | Base URL API cloud untuk batch events |
 | `UPLOAD_API_SECRET` | — | WEBHOOK_SECRET API cloud |
-| `LIC_ENABLED` | `false` | Aktifkan license guard |
-| `LIC_SERVER_URL` | — | URL license server |
-| `LIC_API_KEY` | — | API key license server |
-| `LIC_PUBKEY_PEM` | — | Public key Ed25519 untuk verifikasi JWS |
+| `LICENSE_ENABLED` | `false` | Aktifkan license guard + gerbang grading |
+| `LICENSE_PUBLIC_KEY` | — | Public key Ed25519 untuk verifikasi JWS (nama sama dengan palmgrade-api) |
+| `LICENSE_TOKEN` | — | Token langganan; dipasang `palmgrade license <token>`, nempel saat container dibuat ulang |
 | `PLC_ENABLED` | `false` | Aktifkan integrasi PLC/ODOT CN-8031. `false` = default, dipakai cloud + semua PC dev — nol thread tambahan, `submit_grading()` langsung `return` |
 | `PLC_HOST` | — | IP coupler ODOT. Kosong + `PLC_ENABLED=true` → worker tidak jalan, warning di log |
 | `PLC_PORT` | `502` | Port Modbus-TCP |

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from fastapi import Request
@@ -12,11 +11,17 @@ from .manager import LicenseManager
 
 logger = logging.getLogger(__name__)
 
-# Paths yang selalu diizinkan tanpa cek license
+# Paths yang selalu diizinkan tanpa cek license. /health tetap terbuka supaya
+# operator dan watchdog masih bisa melihat kenapa mesin berhenti.
 _ALWAYS_ALLOWED = {"/health", "/jwks.json", "/docs", "/openapi.json", "/redoc", "/captures", "/api/video_feed"}
 
 
 class LicenseGuardMiddleware(BaseHTTPMiddleware):
+    """Gate HTTP. Ini SETENGAH penjagaan saja — grading AI jalan di thread
+    background yang tidak lewat sini, jadi gate yang sesungguhnya ada di
+    FrameProcessingWorker. Tanpa itu, dashboard mati tapi kamera tetap
+    menyortir buah."""
+
     def __init__(self, app, manager: LicenseManager) -> None:
         super().__init__(app)
         self._manager = manager
@@ -28,7 +33,7 @@ class LicenseGuardMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         try:
-            effective = await self._manager.get_effective_license(online_hint=True)
+            effective = await self._manager.get_effective_license()
         except Exception as exc:
             logger.error("License check failed: %s", exc)
             return JSONResponse(
@@ -36,19 +41,15 @@ class LicenseGuardMiddleware(BaseHTTPMiddleware):
                 content={"error": "LICENSE_CHECK_FAILED", "reason": str(exc)},
             )
 
-        if effective.status == "EXPIRED":
+        if effective.is_expired:
             return JSONResponse(
                 status_code=403,
                 content={
                     "error": "LICENSE_INVALID",
                     "status": effective.status,
                     "reason": effective.reason,
-                    "max_offline_until": effective.max_offline_until,
                 },
             )
-
-        if effective.should_slow_response and effective.slow_response_ms > 0:
-            await asyncio.sleep(effective.slow_response_ms / 1000)
 
         response = await call_next(request)
 

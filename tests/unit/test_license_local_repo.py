@@ -1,11 +1,12 @@
-"""Unit tests untuk LicenseLocalRepo — cache token + hash-chain di SQLite.
+"""Unit tests untuk LicenseLocalRepo — high-water mark jam di SQLite.
 
-Repo ini menyimpan token JWS terakhir + rantai hash (anti-tamper) + high-water-mark
-`max_seen_server_time` (dipakai manager buat deteksi rollback). Test mengunci:
-- init idempotent (row id=1 selalu ada).
-- write→read round-trip.
-- hash-chain: prev bergeser mengikuti curr sebelumnya, curr deterministik.
-- `max_seen_server_time` monotonik (MAX, tidak pernah turun).
+Repo ini tinggal satu angka: detik Unix tertinggi yang pernah dilihat mesin
+ini. Kalau angka ini bisa turun, seluruh sistem langganan bisa dijebol cukup
+dengan mengubah tanggal di BIOS. Test mengunci:
+- init idempotent (row id=1 selalu ada, nilai awal 0).
+- ratchet naik saat nilainya lebih besar.
+- ratchet DIABAIKAN saat nilainya lebih kecil (monotonik).
+- nilainya bertahan lintas instance (proses restart).
 
 Pakai `asyncio.run` stdlib (repo async via aiosqlite), DB throwaway di tmp_path —
 konsisten dengan test worker lain, CI tetap ringan.
@@ -26,56 +27,35 @@ def repo(tmp_path):
     return r
 
 
-def test_init_creates_default_row(repo):
-    state = asyncio.run(repo.read())
-    assert state.token_jws is None
-    assert state.max_seen_server_time == 0
-    assert state.hash_chain_curr is None
+def test_init_starts_at_zero(repo):
+    assert asyncio.run(repo.read_max_seen()) == 0
 
 
 def test_init_is_idempotent(tmp_path):
     r = LicenseLocalRepo(db_path=tmp_path / "license.db")
     asyncio.run(r.init())
     asyncio.run(r.init())  # tidak boleh error / tidak menggandakan row
-    state = asyncio.run(r.read())
-    assert state.max_seen_server_time == 0
+    assert asyncio.run(r.read_max_seen()) == 0
 
 
-def test_write_then_read_roundtrip(repo):
-    asyncio.run(repo.write_token("tok-1", server_time=1000))
-    state = asyncio.run(repo.read())
-    assert state.token_jws == "tok-1"
-    assert state.max_seen_server_time == 1000
-    assert state.last_sync_at is not None
-    assert state.hash_chain_curr is not None
-    assert state.hash_chain_prev is None  # write pertama: prev masih kosong
+def test_ratchet_moves_forward(repo):
+    assert asyncio.run(repo.ratchet(1000)) == 1000
+    assert asyncio.run(repo.read_max_seen()) == 1000
 
 
-def test_hash_chain_advances(repo):
-    asyncio.run(repo.write_token("tok-1", server_time=1000))
-    first = asyncio.run(repo.read())
-
-    asyncio.run(repo.write_token("tok-2", server_time=2000))
-    second = asyncio.run(repo.read())
-
-    # prev write kedua = curr write pertama (rantai bergerak).
-    assert second.hash_chain_prev == first.hash_chain_curr
-    assert second.hash_chain_curr != first.hash_chain_curr
+def test_ratchet_ignores_older_time(repo):
+    asyncio.run(repo.ratchet(5000))
+    # Jam dimundurkan → nilai lama yang menang, dan itulah yang dikembalikan.
+    assert asyncio.run(repo.ratchet(3000)) == 5000
+    assert asyncio.run(repo.read_max_seen()) == 5000
 
 
-def test_next_hash_is_deterministic(repo):
-    a = repo._next_hash("prev", "token", 123)
-    b = repo._next_hash("prev", "token", 123)
-    c = repo._next_hash("prev", "token", 124)
-    assert a == b
-    assert a != c
-    assert len(a) == 64  # sha256 hexdigest
+def test_value_survives_a_new_instance(tmp_path):
+    db = tmp_path / "license.db"
+    first = LicenseLocalRepo(db_path=db)
+    asyncio.run(first.init())
+    asyncio.run(first.ratchet(4242))
 
-
-def test_max_seen_server_time_is_monotonic(repo):
-    asyncio.run(repo.write_token("tok-1", server_time=5000))
-    asyncio.run(repo.write_token("tok-2", server_time=3000))  # lebih kecil → diabaikan
-    state = asyncio.run(repo.read())
-    assert state.max_seen_server_time == 5000
-    # token tetap ter-update meski server_time tidak naik.
-    assert state.token_jws == "tok-2"
+    second = LicenseLocalRepo(db_path=db)
+    asyncio.run(second.init())
+    assert asyncio.run(second.read_max_seen()) == 4242
