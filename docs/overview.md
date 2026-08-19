@@ -331,12 +331,14 @@ Served by FastAPI `StaticFiles` mount `/captures` → `artifacts/`, so `image_ur
 
 ## 10. License Guard (optional, default off)
 
-`LIC_ENABLED=true` adds `LicenseGuardMiddleware` (Ed25519 JWS verify, device fingerprint,
-aiosqlite cache + hash-chain audit, `SyncClient` to license server). Added before CORS so a 403 still
-gets CORS headers. `LicenseManager` / `LicenseLocalRepo` / `SyncClient` live in `license/`.
+`LICENSE_ENABLED=true` adds `LicenseGuardMiddleware` (Ed25519 JWS verify of `LICENSE_TOKEN`) plus a
+grading gate in `FrameProcessingWorker` — the HTTP middleware alone would leave the cameras running.
+Added before CORS so a 403 still gets CORS headers. `LicenseManager` / `LicenseLocalRepo` /
+`gate.py` live in `license/`. No network: the token comes from env, installed with
+`palmgrade license <token>`.
 
-**Effective-status state machine** (`LicenseManager._evaluate`, urutan cek): `device_id` mismatch →
-`nbf` belum tiba → `server_time` rollback (< `max_seen_server_time`) → status `CANCEL`/`EXPIRED` →
+**Effective-status state machine** (`LicenseManager._evaluate`, urutan cek):
+`nbf` belum tiba → clock rollback (jam < lantai `max(max_seen_server_time, server_time)` − 300 s) → status `CANCEL`/`EXPIRED` →
 `now > exp` (grace habis) → semua di atas ⇒ **EXPIRED**. Kalau `license_expires_at < now ≤ exp` ⇒
 **GRACE** (`should_slow_response=True`, warning `LICENSE_EXPIRED_GRACE`). Online ⇒ pakai status token
 apa adanya (`online-valid`); offline ⇒ valid hanya jika `now ≤ max_offline_until` **dan** status

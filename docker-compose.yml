@@ -80,10 +80,12 @@ services:
       - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
       - UPLOAD_API_URL=${UPLOAD_API_URL:-}
       - UPLOAD_API_SECRET=${UPLOAD_API_SECRET:-}
-      - LIC_ENABLED=${LIC_ENABLED:-false}
-      - LIC_SERVER_URL=${LIC_SERVER_URL:-}
-      - LIC_API_KEY=${LIC_API_KEY:-}
-      - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
+      # Langganan. Compose ini menyebut env satu per satu, jadi tanpa baris di
+      # sini mengisinya di .env sama sekali tidak berefek. LICENSE_TOKEN dipasang
+      # `palmgrade license <token>` dan baru nempel saat container DIBUAT ULANG.
+      - LICENSE_ENABLED=${LICENSE_ENABLED:-false}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY:-}
+      - LICENSE_TOKEN=${LICENSE_TOKEN:-}
       # PLC / ODOT CN-8031 (Modbus-TCP) — mati default, cuma PC pabrik yang menyalakan.
       - PLC_ENABLED=${PLC_ENABLED:-false}
       - PLC_HOST=${PLC_HOST:-}
@@ -185,10 +187,12 @@ services:
       - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
       - UPLOAD_API_URL=${UPLOAD_API_URL:-}
       - UPLOAD_API_SECRET=${UPLOAD_API_SECRET:-}
-      - LIC_ENABLED=${LIC_ENABLED:-false}
-      - LIC_SERVER_URL=${LIC_SERVER_URL:-}
-      - LIC_API_KEY=${LIC_API_KEY:-}
-      - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
+      # Langganan. Compose ini menyebut env satu per satu, jadi tanpa baris di
+      # sini mengisinya di .env sama sekali tidak berefek. LICENSE_TOKEN dipasang
+      # `palmgrade license <token>` dan baru nempel saat container DIBUAT ULANG.
+      - LICENSE_ENABLED=${LICENSE_ENABLED:-false}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY:-}
+      - LICENSE_TOKEN=${LICENSE_TOKEN:-}
       # PLC / ODOT CN-8031 (Modbus-TCP) — mati default, cuma PC pabrik yang menyalakan.
       - PLC_ENABLED=${PLC_ENABLED:-false}
       - PLC_HOST=${PLC_HOST:-}
@@ -290,10 +294,12 @@ services:
       - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
       - UPLOAD_API_URL=${UPLOAD_API_URL:-}
       - UPLOAD_API_SECRET=${UPLOAD_API_SECRET:-}
-      - LIC_ENABLED=${LIC_ENABLED:-false}
-      - LIC_SERVER_URL=${LIC_SERVER_URL:-}
-      - LIC_API_KEY=${LIC_API_KEY:-}
-      - LIC_PUBKEY_PEM=${LIC_PUBKEY_PEM:-}
+      # Langganan. Compose ini menyebut env satu per satu, jadi tanpa baris di
+      # sini mengisinya di .env sama sekali tidak berefek. LICENSE_TOKEN dipasang
+      # `palmgrade license <token>` dan baru nempel saat container DIBUAT ULANG.
+      - LICENSE_ENABLED=${LICENSE_ENABLED:-false}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY:-}
+      - LICENSE_TOKEN=${LICENSE_TOKEN:-}
       # PLC / ODOT CN-8031 (Modbus-TCP) — mati default, cuma PC pabrik yang menyalakan.
       - PLC_ENABLED=${PLC_ENABLED:-false}
       - PLC_HOST=${PLC_HOST:-}

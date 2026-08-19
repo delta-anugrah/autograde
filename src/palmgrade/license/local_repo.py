@@ -1,15 +1,26 @@
 from __future__ import annotations
 
-import hashlib
-import time
 from pathlib import Path
 
 import aiosqlite
 
-from .types import LocalState
-
 
 class LicenseLocalRepo:
+    """Penanda batas atas jam mesin ini — satu angka, satu baris SQLite.
+
+    Dulu repo ini juga menyimpan token JWS + rantai hash anti-tamper. Token
+    sekarang datang dari env (`LICENSE_TOKEN`) dan sudah bertanda tangan
+    Ed25519: menyalinnya ke SQLite tidak menambah keamanan apa pun, cuma bikin
+    dua sumber kebenaran yang bisa berbeda.
+
+    Yang tersisa justru bagian yang tidak bisa dititipkan ke token: detik Unix
+    tertinggi yang pernah dilihat mesin ini. Tanpa ini, seluruh sistem
+    langganan bisa dijebol cukup dengan memundurkan tanggal di BIOS.
+
+    File lama tetap terbaca apa adanya — `CREATE TABLE IF NOT EXISTS` tidak
+    menyentuh tabel yang sudah ada, dan kolom yang kita baca tidak berubah nama.
+    """
+
     def __init__(self, db_path: Path) -> None:
         self._db_path = str(db_path)
 
@@ -18,57 +29,28 @@ class LicenseLocalRepo:
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS license_state (
                     id INTEGER PRIMARY KEY DEFAULT 1,
-                    token_jws TEXT,
-                    last_sync_at INTEGER,
-                    max_seen_server_time INTEGER NOT NULL DEFAULT 0,
-                    hash_chain_prev TEXT,
-                    hash_chain_curr TEXT
+                    max_seen_server_time INTEGER NOT NULL DEFAULT 0
                 )
             """)
-            await db.execute(
-                "INSERT OR IGNORE INTO license_state (id) VALUES (1)"
-            )
+            await db.execute("INSERT OR IGNORE INTO license_state (id) VALUES (1)")
             await db.commit()
 
-    async def read(self) -> LocalState:
+    async def read_max_seen(self) -> int:
         async with aiosqlite.connect(self._db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM license_state WHERE id=1") as cur:
-                row = await cur.fetchone()
-        if not row:
-            return LocalState(None, None, 0, None, None)
-        return LocalState(
-            token_jws=row["token_jws"],
-            last_sync_at=row["last_sync_at"],
-            max_seen_server_time=int(row["max_seen_server_time"] or 0),
-            hash_chain_prev=row["hash_chain_prev"],
-            hash_chain_curr=row["hash_chain_curr"],
-        )
-
-    def _next_hash(self, prev: str | None, token: str, ts: int) -> str:
-        h = hashlib.sha256()
-        h.update((prev or "").encode())
-        h.update(b"|")
-        h.update(token.encode())
-        h.update(b"|")
-        h.update(str(ts).encode())
-        return h.hexdigest()
-
-    async def write_token(self, token_jws: str, server_time: int) -> None:
-        now = int(time.time())
-        async with aiosqlite.connect(self._db_path) as db:
-            db.row_factory = aiosqlite.Row
             async with db.execute(
-                "SELECT hash_chain_curr FROM license_state WHERE id=1"
+                "SELECT max_seen_server_time FROM license_state WHERE id=1"
             ) as cur:
                 row = await cur.fetchone()
-            prev = row["hash_chain_curr"] if row else None
-            curr = self._next_hash(prev, token_jws, now)
+        return int(row[0]) if row and row[0] else 0
+
+    async def ratchet(self, now: int) -> int:
+        """Naikkan penanda ke `now` kalau lebih besar. Kembalikan nilai final."""
+        async with aiosqlite.connect(self._db_path) as db:
             await db.execute(
                 """UPDATE license_state
-                   SET token_jws=?, last_sync_at=?, hash_chain_prev=?, hash_chain_curr=?,
-                       max_seen_server_time=MAX(max_seen_server_time, ?)
+                   SET max_seen_server_time = MAX(max_seen_server_time, ?)
                    WHERE id=1""",
-                (token_jws, now, prev, curr, server_time),
+                (now,),
             )
             await db.commit()
+        return await self.read_max_seen()

@@ -11,6 +11,7 @@ from ..domain.vision_event import build_event_payload
 from ..integrations.notifications.webhook_client import WebhookClient
 from ..integrations.outbox.outbox_store import OutboxStore
 from ..integrations.storage.local_file_storage import LocalFileStorage
+from ..license.gate import grading_blocked
 from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
 from ..plc import submit_grading
 from .runtime_state import RuntimeState
@@ -45,6 +46,7 @@ class FrameProcessingWorker:
         self._cleanup_counter: int = 0
         self._fps_counter: int = 0
         self._fps_timer: float = 0.0
+        self._license_stop_logged: bool = False
 
     # ------------------------------------------------------------------ zone helpers
 
@@ -129,6 +131,24 @@ class FrameProcessingWorker:
         self.storage.write_json(results_dir / f"{timestamp}_auto_tp.json", meta)
 
     def run_once(self) -> None:
+        # Gerbang lisensi — paling atas, sebelum frame diambil. Berhenti di sini
+        # berarti pipeline tidak jalan DAN submit_grading tidak pernah dipanggil,
+        # jadi coil OK/NG berhenti berdenyut dengan sendirinya.
+        if grading_blocked(self.settings.lic_enabled, self.state.license_exp):
+            if not self._license_stop_logged:
+                logger.error(
+                    "Langganan habis atau lisensi tidak valid — deteksi dihentikan. "
+                    "Pasang token baru dengan `palmgrade license <token>`."
+                )
+                self._license_stop_logged = True
+            # Tidur sebentar: tanpa ini run_loop memutar ribuan kali per detik
+            # untuk tidak melakukan apa-apa dan menghabiskan satu core.
+            time.sleep(1.0)
+            return
+        if self._license_stop_logged:
+            logger.info("Lisensi kembali valid — deteksi dilanjutkan")
+            self._license_stop_logged = False
+
         if self.state.rewind_signal:
             self.pipeline.reset_tracker()
             self._processed_objects.clear()

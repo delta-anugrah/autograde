@@ -35,7 +35,11 @@ logger = logging.getLogger(__name__)
 _worker: PlcWorker | None = None
 
 
-def start_plc_worker(settings, health_check: Callable[[], bool] | None = None) -> PlcWorker | None:
+def start_plc_worker(
+    settings,
+    health_check: Callable[[], bool] | None = None,
+    license_ok: Callable[[], bool] | None = None,
+) -> PlcWorker | None:
     """Bangun worker dari Settings. Kembalikan None kalau fitur PLC dimatikan.
 
     Pemanggil bertanggung jawab menjalankan run_loop() di thread-nya sendiri.
@@ -86,6 +90,7 @@ def start_plc_worker(settings, health_check: Callable[[], bool] | None = None) -
         ),
         settings=settings,
         health_check=health_check,
+        license_ok=license_ok,
     )
     logger.info(
         "PLC aktif: %s:%s, coil OK/NG/ERROR = %s/%s/%s, alive = %s",

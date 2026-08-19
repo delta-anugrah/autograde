@@ -27,10 +27,10 @@ from .integrations.camera.base import CameraSource
 from .integrations.camera.hikrobot_camera import HikrobotCamera
 from .integrations.camera.opencv_camera import OpenCVCamera
 from .integrations.camera.photo_camera import PhotoCamera
+from .license.gate import grading_blocked
 from .license.guard import LicenseGuardMiddleware
 from .license.local_repo import LicenseLocalRepo
 from .license.manager import LicenseManager
-from .license.sync_client import SyncClient
 from .integrations.scheduler.upload_scheduler import UploadScheduler
 from .integrations.upload.r2_uploader import R2Uploader
 from .integrations.upload.upload_manifest import UploadManifest
@@ -58,13 +58,13 @@ def create_app() -> FastAPI:
     _lic_manager: LicenseManager | None = None
     if settings.lic_enabled:
         _lic_repo = LicenseLocalRepo(settings.artifacts_dir / "license.db")
-        _lic_sync = SyncClient(settings.lic_server_url, settings.lic_api_key)
-        _lic_manager = LicenseManager(settings.lic_pubkey_pem, _lic_repo, _lic_sync)
+        _lic_manager = LicenseManager(settings.lic_pubkey_pem, _lic_repo, settings.lic_token)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         if _lic_manager:
             await _lic_manager.init()
+            asyncio.create_task(_lic_manager.run_clock_ratchet())
 
         for folder in [settings.captures_dir, settings.results_dir, settings.errors_dir, settings.logs_dir]:
             folder.mkdir(parents=True, exist_ok=True)
@@ -105,6 +105,20 @@ def create_app() -> FastAPI:
 
         state = get_runtime_state()
         state.main_loop = asyncio.get_running_loop()
+
+        # Gerbang lisensi untuk thread grading. Fail CLOSED: token yang tidak
+        # bisa diverifikasi meninggalkan license_exp = 0, dan 0 berarti kamera
+        # diam. Middleware HTTP saja tidak cukup — grading jalan di thread
+        # background yang tidak pernah lewat login.
+        if _lic_manager:
+            effective = await _lic_manager.get_effective_license()
+            state.license_exp = effective.grace_ends_at
+            if effective.is_expired:
+                logger.error(
+                    "Lisensi tidak berlaku (%s) — deteksi TIDAK dijalankan", effective.reason
+                )
+            elif effective.warning:
+                logger.warning("%s: %s", effective.warning.code, effective.warning.message)
 
         pipeline = get_realtime_inspection_pipeline()
         storage_instance = get_capture_repository().storage
@@ -173,7 +187,11 @@ def create_app() -> FastAPI:
         # PulseScheduler.__post_init__) tidak boleh menjatuhkan lifespan dan ikut
         # mematikan grading. Gagal di sini = jalan terus tanpa PLC.
         try:
-            plc_worker = start_plc_worker(settings, health_check=lambda: camera.connected)
+            plc_worker = start_plc_worker(
+                settings,
+                health_check=lambda: camera.connected,
+                license_ok=lambda: not grading_blocked(settings.lic_enabled, state.license_exp),
+            )
         except Exception:
             logger.exception("Start PLC gagal — grading tetap jalan, PLC dinonaktifkan")
             plc_worker = None

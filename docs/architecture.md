@@ -189,11 +189,12 @@ Business rule murni — zero I/O.
 
 ### `license/`
 
-License guard — opsional. Hanya aktif jika `LIC_ENABLED=true`.
+License guard — opsional. Hanya aktif jika `LICENSE_ENABLED=true`.
 
 - `guard.py` — `BaseHTTPMiddleware`, registered di `create_app()`
-- `manager.py` — Ed25519 JWS verify + device fingerprint + state machine
-- `local_repo.py` — aiosqlite SQLite cache + hash-chain audit
+- `gate.py` — aturan murni yang menghentikan thread grading (yang sebenarnya menghentikan pabrik)
+- `manager.py` — Ed25519 JWS verify `LICENSE_TOKEN` + state machine
+- `local_repo.py` — penanda batas atas jam (anti tanggal mundur), SQLite
 - `sync_client.py` — httpx POST ke license server
 
 ---
