@@ -9,7 +9,14 @@ from __future__ import annotations
 
 import pytest
 
-from palmgrade.core.config import _DEFAULT_WEBHOOK_SECRET, Settings
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519
+
+from palmgrade.core.config import (
+    _DEFAULT_WEBHOOK_SECRET,
+    LICENSE_PUBLIC_KEY_BAKED,
+    Settings,
+)
 
 
 def test_production_with_default_secret_raises(monkeypatch):
@@ -76,3 +83,31 @@ def test_production_empty_r2_bucket_warns_not_crash(monkeypatch, caplog):
     with caplog.at_level("WARNING"):
         s.validate_for_runtime()  # TIDAK raise
     assert any("R2_BUCKET" in r.message for r in caplog.records)
+
+
+def test_pubkey_falls_back_to_baked_in_key(monkeypatch):
+    """PC pabrik tanpa LICENSE_PUBLIC_KEY di .env tetap punya kunci.
+
+    Ini keadaan PC Lampung berbulan-bulan: `vision/.env` tanpa `LICENSE_*` sama
+    sekali, jadi guard-nya tidak pernah memeriksa apa pun.
+    """
+    monkeypatch.delenv("LICENSE_PUBLIC_KEY", raising=False)
+
+    assert Settings().lic_pubkey_pem == LICENSE_PUBLIC_KEY_BAKED
+
+
+def test_baked_in_key_is_a_real_ed25519_public_key():
+    key = serialization.load_pem_public_key(
+        LICENSE_PUBLIC_KEY_BAKED.replace("\\n", "\n").encode()
+    )
+
+    assert isinstance(key, ed25519.Ed25519PublicKey)
+
+
+def test_env_pubkey_wins_over_baked_in(monkeypatch):
+    """Laptop developer harus tetap bisa pakai keypair DEV-nya sendiri."""
+    monkeypatch.setenv("LICENSE_PUBLIC_KEY", "-----BEGIN PUBLIC KEY-----\\nDEV\\n-----END PUBLIC KEY-----")
+
+    assert Settings().lic_pubkey_pem == (
+        "-----BEGIN PUBLIC KEY-----\nDEV\n-----END PUBLIC KEY-----"
+    )
