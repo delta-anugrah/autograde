@@ -8,6 +8,27 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+# Kunci publik lisensi produksi, ditanam di image.
+#
+# Pasangan kuncinya cuma satu untuk semua pabrik dan tidak pernah diputar, jadi
+# menaruhnya di `.env` tiap PC pabrik cuma bikin satu langkah manual yang bisa
+# kelewat — dan memang kelewat: PC Lampung jalan berbulan-bulan dengan
+# `vision/.env` tanpa `LICENSE_*` sama sekali, artinya guard-nya tidak pernah
+# memeriksa apa pun. Ditanam di sini, PC pabrik baru langsung terjaga.
+#
+# Aman ditulis di repo: kunci publik cuma bisa MEMERIKSA tanda tangan. Yang bisa
+# memalsukan itu private key, dan itu tidak pernah keluar dari API cloud.
+#
+# `LICENSE_PUBLIC_KEY` di env tetap menang kalau diisi, supaya laptop developer
+# bisa pakai keypair DEV-nya sendiri. `utils/license.ts` di palmgrade-api
+# menanam konstanta yang sama persis.
+LICENSE_PUBLIC_KEY_BAKED = (
+    "-----BEGIN PUBLIC KEY-----\n"
+    "MCowBQYDK2VwAyEAHxGCTyuSMmK1xWHC2jyrCNqLK4jc+k0UsG1QdEvKYIk=\n"
+    "-----END PUBLIC KEY-----\n"
+)
+
+
 def _as_bool(value: str | None, default: bool = False) -> bool:
     if value is None:
         return default
@@ -113,10 +134,14 @@ class Settings:
     # container dibuat, jadi token baru butuh `palmgrade restart` (reboot saja
     # TIDAK cukup — container lama dipakai ulang dengan env lamanya).
     lic_token: str = field(default_factory=lambda: os.getenv("LICENSE_TOKEN", ""))
-    # Nama kunci env sengaja SAMA PERSIS dengan palmgrade-api: satu kunci publik
-    # yang sama dipasang di dua .env, dan dua nama untuk barang yang sama itu
-    # jebakan buat teknisi yang memasangnya di pabrik.
-    lic_pubkey_pem: str = field(default_factory=lambda: os.getenv("LICENSE_PUBLIC_KEY", "").replace("\\n", "\n"))
+    # Nama kunci env sengaja SAMA PERSIS dengan palmgrade-api. Sekarang keduanya
+    # juga menanam kunci bawaan yang sama, jadi env-nya opsional di dua-duanya —
+    # yang diisi menang, yang kosong jatuh ke kunci bawaan.
+    lic_pubkey_pem: str = field(
+        default_factory=lambda: (
+            os.getenv("LICENSE_PUBLIC_KEY") or LICENSE_PUBLIC_KEY_BAKED
+        ).replace("\\n", "\n")
+    )
 
     # Inference
     conf_threshold: float = field(default_factory=lambda: float(os.getenv("CONF_THRESHOLD", "0.75")))
