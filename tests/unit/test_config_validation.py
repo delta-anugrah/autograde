@@ -8,7 +8,6 @@ start when APP_ENV=production and the secret is still the default.
 from __future__ import annotations
 
 import pytest
-
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
