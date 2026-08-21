@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # menanam konstanta yang sama persis.
 LICENSE_PUBLIC_KEY_BAKED = (
     "-----BEGIN PUBLIC KEY-----\n"
-    "MCowBQYDK2VwAyEAHxGCTyuSMmK1xWHC2jyrCNqLK4jc+k0UsG1QdEvKYIk=\n"
+    "MCowBQYDK2VwAyEARvT6i531BDKvqg/j4glZoIAgvuKofP87Q6gkodLizyM=\n"
     "-----END PUBLIC KEY-----\n"
 )
 
