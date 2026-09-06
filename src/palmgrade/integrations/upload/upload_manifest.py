@@ -123,6 +123,21 @@ class UploadManifest:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def get_oldest_done(self, limit: int) -> list[dict[str, Any]]:
+        """Item `done` tertua duluan — bahan bakar pembersihan darurat saat disk menipis.
+
+        Hanya `done`, sama seperti `get_expired_done`: statusnya berarti gambar
+        sudah mendarat di R2 DAN API cloud sudah menjawab 2xx. Menyapu status
+        lain berarti menghapus satu-satunya salinan yang ada.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT id, item_key, image_path FROM upload_items "
+                "WHERE status='done' ORDER BY uploaded_at ASC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def delete_item(self, item_id: int) -> None:
         with self._lock, self._db:
             self._db.execute("DELETE FROM upload_items WHERE id=?", (item_id,))

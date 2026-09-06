@@ -175,6 +175,12 @@ class Settings:
     upload_api_secret: str = field(default_factory=lambda: os.getenv("UPLOAD_API_SECRET", ""))
     upload_max_items_per_tick: int = field(default_factory=lambda: int(os.getenv("UPLOAD_MAX_ITEMS_PER_TICK", "2000")))
     upload_retention_days: int = field(default_factory=lambda: int(os.getenv("UPLOAD_RETENTION_DAYS", "7")))
+    # Lantai sisa disk. Retensi berbasis umur saja tidak cukup begitu
+    # UPLOAD_RETENTION_DAYS dinaikkan ke hitungan bulan: kalau throughput naik
+    # di atas perkiraan, disk penuh SEBELUM item tertua jatuh tempo — dan disk
+    # penuh berarti grading berhenti menulis, bukan sekadar arsip meleset.
+    # 0 = matikan penjaga (kembali ke perilaku umur-saja).
+    upload_disk_min_free_gb: float = field(default_factory=lambda: float(os.getenv("UPLOAD_DISK_MIN_FREE_GB", "20")))
 
     # ── PLC / ODOT CN-8031 (Modbus-TCP) ──────────────────────────
     # Logikanya ada di src/palmgrade/plc/. Coil map lengkap:
