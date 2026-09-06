@@ -86,6 +86,10 @@ _DEFAULT_WEBHOOK_SECRET = "supersecret123"
 class Settings:
     app_name: str = "Ripe Recognition API"
     environment: str = field(default_factory=lambda: os.getenv("APP_ENV", "development"))
+    # Tag rilis yang di-bake saat deploy (pola sama dengan palmgrade-api dan
+    # palmgrade-frontend). "unknown" di lokal — sengaja bukan string kosong:
+    # versi yang hilang harus bisa dibedakan dari versi yang belum di-set.
+    app_version: str = field(default_factory=lambda: os.getenv("APP_VERSION", "unknown"))
     # Bind host/port TIDAK di sini: uvicorn dijalankan `entrypoint.sh` (host hardcoded
     # 0.0.0.0, port dari env APP_PORT yang di-set docker-compose per line). Settings
     # tidak pernah dibaca untuk binding — jangan tambah field host/port lagi.
