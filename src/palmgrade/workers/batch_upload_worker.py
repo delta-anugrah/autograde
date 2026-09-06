@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,10 @@ _REQUEST_TIMEOUT = 30  # payload teks kecil; 30s aman utk link pabrik lambat
 
 _RIPENESS_SUFFIXES = ("_auto_ripeness.json", "_manual_ripeness.json")
 _TP_SUFFIX = "_auto_tp.json"
+
+# Berapa item dihapus sebelum sisa disk diukur ulang. statvfs itu murah tapi
+# bukan gratis; 200 item ~40 MB, cukup halus untuk tidak kebablasan jauh.
+_DISK_SWEEP_CHUNK = 200
 
 
 class _PoisonError(Exception):
@@ -263,17 +268,79 @@ class BatchUploadWorker:
 
     # ---------------------------------------------------------------- retention
 
+    def _delete_item_files(self, item: dict[str, Any]) -> None:
+        """Hapus WebP + JSON milik satu item, lalu barisnya di manifest."""
+        json_path = self.settings.artifacts_dir / item["item_key"]
+        targets = [json_path]
+        if json_path.name.endswith("_auto_ripeness.json"):
+            targets.append(json_path.with_name(json_path.name.replace("_auto_ripeness.json", _TP_SUFFIX)))
+        if item["image_path"]:
+            targets.append(
+                self.settings.artifacts_dir / item["image_path"].lstrip("/").removeprefix("captures/")
+            )
+        for t in targets:
+            t.unlink(missing_ok=True)
+        self.manifest.delete_item(item["id"])
+
+    def _free_bytes(self) -> int | None:
+        """Sisa disk pada partisi artifacts, atau None kalau tak terbaca."""
+        try:
+            return shutil.disk_usage(self.settings.artifacts_dir).free
+        except OSError as exc:
+            logger.warning("Sisa disk tak terbaca (%s) — penjaga disk dilewati", exc)
+            return None
+
     def _retention(self) -> None:
         cutoff = time.time() - self.settings.upload_retention_days * 86400
         for item in self.manifest.get_expired_done(cutoff):
-            json_path = self.settings.artifacts_dir / item["item_key"]
-            targets = [json_path]
-            if json_path.name.endswith("_auto_ripeness.json"):
-                targets.append(json_path.with_name(json_path.name.replace("_auto_ripeness.json", _TP_SUFFIX)))
-            if item["image_path"]:
-                targets.append(
-                    self.settings.artifacts_dir / item["image_path"].lstrip("/").removeprefix("captures/")
+            self._delete_item_files(item)
+        self._retention_by_disk()
+
+    def _retention_by_disk(self) -> None:
+        """Pagar terakhir: buang `done` tertua sampai sisa disk di atas lantai.
+
+        Retensi umur saja bertaruh bahwa throughput tidak melebihi perkiraan
+        saat UPLOAD_RETENTION_DAYS disetel. Taruhan itu boleh kalah — yang tidak
+        boleh adalah disk penuh, karena `LocalFileStorage.write_image` lalu raise
+        dan **deteksi berhenti tersimpan**. Arsip lokal cuma cadangan; R2 dan DB
+        cloud yang jadi arsip sesungguhnya, jadi mengorbankan yang tertua di sini
+        selalu lebih murah daripada kehilangan grading yang sedang berjalan.
+        """
+        floor = int(self.settings.upload_disk_min_free_gb * 1024**3)
+        if floor <= 0:
+            return
+
+        free = self._free_bytes()
+        if free is None or free >= floor:
+            return
+
+        logger.warning(
+            "Sisa disk %.1f GB di bawah lantai %.1f GB — membuang item done tertua",
+            free / 1024**3, floor / 1024**3,
+        )
+        removed = 0
+        while free is not None and free < floor:
+            batch = self.manifest.get_oldest_done(_DISK_SWEEP_CHUNK)
+            if not batch:
+                # Tidak ada lagi yang aman dihapus: sisa disk terpakai oleh item
+                # yang BELUM sampai ke cloud. Menghapusnya = kehilangan permanen,
+                # jadi berhenti dan berisik — ini butuh tangan operator.
+                logger.error(
+                    "Sisa disk %.1f GB masih di bawah lantai %.1f GB tapi tidak ada item "
+                    "done tersisa — antrean upload macet atau disk dipakai hal lain. "
+                    "Cek koneksi ke cloud; grading berhenti menulis kalau disk habis.",
+                    free / 1024**3, floor / 1024**3,
                 )
-            for t in targets:
-                t.unlink(missing_ok=True)
-            self.manifest.delete_item(item["id"])
+                break
+            for item in batch:
+                self._delete_item_files(item)
+            removed += len(batch)
+            free = self._free_bytes()
+
+        if removed:
+            logger.warning(
+                "Penjaga disk menghapus %d item done lebih awal dari %d hari; sisa disk kini %s",
+                removed,
+                self.settings.upload_retention_days,
+                f"{free / 1024**3:.1f} GB" if free is not None else "tak terbaca",
+            )

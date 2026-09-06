@@ -48,6 +48,11 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("R2_PUBLIC_URL", "https://img.palmgrade.ai")
     monkeypatch.setenv("UPLOAD_API_URL", "https://api.palmgrade.ai")
     monkeypatch.setenv("UPLOAD_API_SECRET", "cloud-secret")
+    # Penjaga disk DIMATIKAN di sini: berkas ini menguji retensi berbasis umur.
+    # Lantai defaultnya 20 GB dan runner CI cuma punya ~13 GB kosong, jadi tanpa
+    # baris ini penjaga menyapu item `done` yang justru sedang diperiksa test —
+    # hasilnya lulus/gagal ikut sisa disk mesin yang menjalankannya.
+    monkeypatch.setenv("UPLOAD_DISK_MIN_FREE_GB", "0")
     settings = Settings(repo_root=tmp_path)
     manifest = UploadManifest(db_path=tmp_path / "m.db")
     uploader, http = FakeUploader(), FakeHttp()

@@ -188,7 +188,21 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 6. **Lifespan** (not `@app.on_event`); `repo_root = parents[3]`; every worker `run_loop` wraps `run_once` in `try/except`; `FrameCaptureWorker` needs `device_index` (so line-2/3 reconnect to the correct camera).
 7. **`tp_status` = `"PASS"`** (not `"TP"`). **`image_url` = `captures/results/{date}/{ts}_auto.webp`** (consistent with `/captures` mount). Gambar disimpan **WebP** quality 65 (`JPEG_QUALITY_SAVE`); folder `errors/` **tidak ditulis lagi** — REJ ditemukan via metadata `ripeness_status`.
 8. **`cv2.imwrite` failure → `LocalFileStorage.write_image` raises `IOError`** (no orphaned JSON records pointing at an image that was never written).
-9. **Retention deletes source files** — `BatchUploadWorker._retention()` unlinks the WebP + JSON once an item is `done` and older than `UPLOAD_RETENTION_DAYS` (default 7). Local artifacts are therefore **not** a long-term archive; the cloud + R2 are.
+   **Nama folder tanggal selalu UTC** (`FrameProcessingWorker._save_ripeness`,
+   `capture_repository`) — pembacanya wajib UTC juga. `datetime.now()` naive di
+   `ResultRepository` kebetulan cocok cuma karena container ini kebetulan
+   `TZ=UTC`; set `TZ=Asia/Jakarta` dan `/api/results_today` menunjuk folder yang
+   belum ada lalu melapor nol hasil. Jangan pernah pakai `datetime.now()` telanjang.
+9. **Retention deletes source files** — `BatchUploadWorker._retention()` unlinks the WebP + JSON once an item is `done` and older than `UPLOAD_RETENTION_DAYS` (default 7; PC pabrik 180). Local artifacts are therefore **not** a long-term archive; the cloud + R2 are.
+   Umur saja tidak cukup begitu angkanya jadi hitungan bulan, jadi
+   `_retention_by_disk()` jadi pagar terakhir: di bawah `UPLOAD_DISK_MIN_FREE_GB`
+   (default 20) ia membuang `done` **tertua** lebih awal sampai sisa disk lega.
+   Hanya `done` yang pernah disentuh — item lain adalah satu-satunya salinan yang
+   ada, jadi kalau `done` habis dan disk masih mepet, penjaga **berhenti dan
+   `logger.error`** (antrean upload macet — itu urusan operator, bukan hapus data).
+   ⚠️ Seluruh `_retention()` cuma jalan kalau `R2_BUCKET` terisi (`run_batch_once`
+   pulang lebih awal tanpanya), jadi dengan R2 mati tidak ada yang membersihkan
+   disk sama sekali — dan memang tidak boleh ada, karena tidak ada yang `done`.
 
 ---
 
