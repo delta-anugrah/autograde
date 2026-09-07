@@ -91,6 +91,7 @@ jobs:
           build-args: |
             TORCH_VARIANT=cu126
             WITH_SDK=true
+            APP_VERSION=${{ github.ref_name }}
           # `latest` is the marker the factory updater reads to find out whether
           # a newer version exists. It moves; the vX.Y.Z tag never does.
           tags: |

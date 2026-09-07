@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import torch
-
 from ..core.config import Settings
 from ..integrations.camera.base import CameraSource
 from ..integrations.outbox.outbox_store import OutboxStore
@@ -23,9 +21,15 @@ class HealthService:
         return {
             "message": "Ripe Recognition API is ready.",
             "detail": f"Environment: {self.settings.environment}",
+            "version": self.settings.app_version,
         }
 
     def get_health_detail(self) -> HealthDetailSchema:
+        # torch di-import di sini, bukan di level modul: CI unit test sengaja
+        # tidak memasang torch/opencv (lihat .github/workflows/ci.yml), dan
+        # get_health() harus tetap bisa diuji tanpa itu.
+        import torch
+
         gpu_available = torch.cuda.is_available()
         gpu_device = torch.cuda.get_device_name(0) if gpu_available else None
 
@@ -37,6 +41,7 @@ class HealthService:
         return HealthDetailSchema(
             status="ok",
             environment=self.settings.environment,
+            version=self.settings.app_version,
             camera_type=self.settings.camera_type,
             camera_connected=self.camera.connected,
             plc=plc_diagnostics(),
