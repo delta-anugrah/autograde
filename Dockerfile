@@ -69,6 +69,12 @@ COPY . .
 # Folder artifacts dibuat di startup, tapi kita pastiin parent-nya ada
 RUN mkdir -p artifacts/captures artifacts/results artifacts/errors artifacts/logs
 
+# Tag rilis di-bake sebagai APP_VERSION supaya GET /health bisa menyebutkan
+# versi image yang benar-benar jalan tanpa SSH ke PC pabrik. Ditaruh paling
+# bawah: nilainya berubah tiap rilis, jadi jangan sampai membatalkan cache pip.
+ARG APP_VERSION=unknown
+ENV APP_VERSION=${APP_VERSION}
+
 # Entrypoint di luar /app supaya tidak tertimpa volume mount .:/app
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

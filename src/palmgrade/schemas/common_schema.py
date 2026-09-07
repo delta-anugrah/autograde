@@ -4,6 +4,9 @@ from pydantic import BaseModel
 class ApiMessage(BaseModel):
     message: str
     detail: str | None = None
+    # Dipakai palmgrade-api lewat GET /system/versions. Sengaja menempel di
+    # /health yang murah, bukan /health/detail yang menyentuh GPU + outbox.
+    version: str = "unknown"
 
 
 class WorkerStatus(BaseModel):
@@ -14,6 +17,7 @@ class WorkerStatus(BaseModel):
 class HealthDetailSchema(BaseModel):
     status: str
     environment: str
+    version: str = "unknown"
     camera_type: str
     camera_connected: bool
     # None kalau PLC_ENABLED=false — itu keadaan normal di cloud dan PC dev,
