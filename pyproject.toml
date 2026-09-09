@@ -13,7 +13,7 @@ line-length = 120
 target-version = "py311"
 # Test murni-logic + domain tidak butuh dependency berat; sisanya (torch/cv2/SDK)
 # tidak di-lint di CI karena tidak ter-install di runner ringan.
-extend-exclude = ["sdk", "cli", "scripts", "predict.py"]
+extend-exclude = ["sdk", "cli", "scripts"]
 
 [tool.ruff.lint]
 # Set konservatif supaya tidak bikin noise di kode yang sudah ada:
