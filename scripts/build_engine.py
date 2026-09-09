@@ -40,6 +40,20 @@ def main() -> int:
     cc = f"{cc_major}{cc_minor}"
     gpu_name = torch.cuda.get_device_name(0)
 
+    # TensorRT 10.x cuma dukung Turing (sm75) ke atas. Di Pascal — Quadro P4000 = sm61 —
+    # builder-nya nolak dengan "Error Code 9: Target GPU SM 61 is not supported by this
+    # TensorRT release", TAPI baru setelah export ONNX 260 MB selesai, dan ultralytics
+    # menelannya jadi `TypeError: 'NoneType' object does not support the context manager
+    # protocol` yang tidak menyebut sebabnya sama sekali. Kejadian di PC pabrik 2026-09-09.
+    # Berhenti di sini saja: runtime sudah otomatis fallback ke .pt (model_registry), jadi
+    # ini bukan kegagalan — makanya return 0, biar `make build-engine` tidak memutus startup.
+    if (cc_major, cc_minor) < (7, 5):
+        print(
+            f"[build_engine] {gpu_name} (sm{cc}) tidak didukung TensorRT 10.x "
+            "— minimal sm75 (Turing). Lewati; runtime pakai .pt."
+        )
+        return 0
+
     target = settings.engine_path_for_gpu(cc)
     if target.exists():
         print(f"[build_engine] Engine sudah ada untuk {gpu_name} (sm{cc}): {target} — skip.")
@@ -71,13 +85,11 @@ def main() -> int:
     work_pt = settings.engines_dir / pt_path.name
     shutil.copy2(pt_path, work_pt)
 
-    # FP16 cuma menang di Turing ke atas (sm75+). Di Pascal — Quadro P4000 = sm61 —
-    # cuBLAS/TensorRT jatuh ke pseudo-FP16 (hitung tetap FP32), jadi nol speedup.
-    # Diukur di PC pabrik 2026-09-09: FP32 0.92 vs FP16 0.96 TFLOPS. Build FP32 saja.
-    half = cc_major >= 7
-    precision = "FP16" if half else "FP32"
-
-    print(f"[build_engine] Build TensorRT {precision} engine untuk {gpu_name} (sm{cc}) @ imgsz={IMGSZ} ...")
+    # half=True aman tanpa syarat di sini: guard sm75+ di atas sudah menjamin kartunya
+    # Turing ke atas, dan di situ FP16 jalan 2x FP32. Yang TIDAK punya bonus itu Pascal
+    # (pseudo-FP16: data FP16, hitung tetap FP32 — diukur di P4000 2026-09-09, FP32 0.92
+    # vs FP16 0.96 TFLOPS, nol beda), tapi Pascal sudah tidak sampai ke baris ini.
+    print(f"[build_engine] Build TensorRT FP16 engine untuk {gpu_name} (sm{cc}) @ imgsz={IMGSZ} ...")
     print("[build_engine] Sekali jalan, bisa 5-15 menit. Tunggu ya.")
 
     # workspace=2 GiB: batasi memori sementara TensorRT saat build engine supaya
@@ -89,7 +101,7 @@ def main() -> int:
         # simplify=False: ONNX-simplify butuh onnxruntime-gpu yang TIDAK ada di image
         # (dan bikin Ultralytics auto-install → nyangkut). TensorRT punya optimizer
         # graph sendiri, jadi tahap ini memang tidak dibutuhkan.
-        format="engine", half=half, simplify=False, imgsz=IMGSZ, device=0, workspace=2
+        format="engine", half=True, simplify=False, imgsz=IMGSZ, device=0, workspace=2
     )
 
     shutil.move(str(exported), str(target))
