@@ -96,19 +96,24 @@ def main() -> int:
     # AMAN di GPU VRAM kecil (GTX 1650 4GB di PC prod). Default (None=auto) bisa
     # minta workspace sampai batas device → OOM di 4GB. 2 GiB cukup buat optimize
     # YOLOv8 + sisain headroom buat OS/driver. Turunkan ke 1 kalau masih OOM.
-    model = YOLO(str(work_pt))
-    exported = model.export(
-        # simplify=False: ONNX-simplify butuh onnxruntime-gpu yang TIDAK ada di image
-        # (dan bikin Ultralytics auto-install → nyangkut). TensorRT punya optimizer
-        # graph sendiri, jadi tahap ini memang tidak dibutuhkan.
-        format="engine", half=True, simplify=False, imgsz=IMGSZ, device=0, workspace=2
-    )
-
-    shutil.move(str(exported), str(target))
-
-    # bersihkan artefak antara (.pt copy + .onnx)
-    work_pt.unlink(missing_ok=True)
-    work_pt.with_suffix(".onnx").unlink(missing_ok=True)
+    # try/finally: artefak antara HARUS kebuang walau export gagal. Sebelumnya
+    # pembersihan cuma jalan di jalur sukses, jadi tiap build gagal meninggalkan
+    # .pt copy (130 MB) + .onnx (260 MB) di engines/ — dan build gagal itu justru
+    # yang paling sering diulang-ulang. Di PC pabrik disk-nya mepet, dan file
+    # nyasar itu juga bikin `palmgrade status` salah lapor "engine perlu dibangun
+    # ulang" padahal yang ada cuma sampah.
+    try:
+        model = YOLO(str(work_pt))
+        exported = model.export(
+            # simplify=False: ONNX-simplify butuh onnxruntime-gpu yang TIDAK ada di image
+            # (dan bikin Ultralytics auto-install → nyangkut). TensorRT punya optimizer
+            # graph sendiri, jadi tahap ini memang tidak dibutuhkan.
+            format="engine", half=True, simplify=False, imgsz=IMGSZ, device=0, workspace=2
+        )
+        shutil.move(str(exported), str(target))
+    finally:
+        work_pt.unlink(missing_ok=True)
+        work_pt.with_suffix(".onnx").unlink(missing_ok=True)
 
     print(f"[build_engine] Selesai: {target}")
     return 0
