@@ -73,6 +73,11 @@ up-2:
 up-3:
 	docker compose --env-file $(ENV_FILE) up -d ripe-line-3
 
+# Konsol operator saja (APP_MODE=console, port 8000) — layar di /console.
+# Tanpa kamera/GPU, jadi aman di-restart sendiri tanpa mengganggu tiga line.
+up-console:
+	docker compose --env-file $(ENV_FILE) up -d console
+
 down:
 	docker compose --env-file $(ENV_FILE) down
 
@@ -88,6 +93,9 @@ logs-2:
 
 logs-3:
 	docker compose --env-file $(ENV_FILE) logs -f ripe-line-3
+
+logs-console:
+	docker compose --env-file $(ENV_FILE) logs -f console
 
 # Logs gabungan semua line (dengan prefix container name)
 logs:

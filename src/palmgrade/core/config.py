@@ -4,6 +4,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import NamedTuple
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,28 @@ def parse_coil_list(value: str | None) -> tuple[int, ...]:
 _DEFAULT_WEBHOOK_SECRET = "supersecret123"
 
 
+class LineEndpoint(NamedTuple):
+    """Satu line kamera dilihat DARI konsol operator.
+
+    Nilai, bukan kantong dict: `line.machine_id` salah ketik ketahuan, sedangkan
+    `line["machine_id"]` baru meledak saat runtime di tengah shift.
+    """
+
+    line_code: str
+    name: str
+    port: int
+    machine_id: str
+
+
+# Line di pabrik selalu tiga dan port-nya sudah dipatok docker-compose. Default
+# machine_id sama persis dengan compose supaya dev jalan tanpa .env tambahan.
+_CONSOLE_LINE_DEFAULTS: tuple[tuple[str, str, int, str], ...] = (
+    ("line-1", "Line 1", 8001, "d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01"),
+    ("line-2", "Line 2", 8002, "a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02"),
+    ("line-3", "Line 3", 8003, "ad5f7bb9-c06d-4e87-8282-ce450ae331ec"),
+)
+
+
 @dataclass(frozen=True)
 class Settings:
     app_name: str = "Ripe Recognition API"
@@ -90,6 +113,11 @@ class Settings:
     # palmgrade-frontend). "unknown" di lokal — sengaja bukan string kosong:
     # versi yang hilang harus bisa dibedakan dari versi yang belum di-set.
     app_version: str = field(default_factory=lambda: os.getenv("APP_VERSION", "unknown"))
+    # `line` (default) = instance kamera. `console` = instance ke-4, konsol operator
+    # offline (§4 rencana PalmOS): tanpa kamera, tanpa YOLO, tanpa PLC. Dipilih
+    # `entrypoint.sh` sebelum uvicorn — modul app-nya beda, jadi konsol tidak ikut
+    # meng-import torch/cv2 dan satu line kamera mati tidak menyeret layar operator.
+    app_mode: str = field(default_factory=lambda: os.getenv("APP_MODE", "line"))
     # Bind host/port TIDAK di sini: uvicorn dijalankan `entrypoint.sh` (host hardcoded
     # 0.0.0.0, port dari env APP_PORT yang di-set docker-compose per line). Settings
     # tidak pernah dibaca untuk binding — jangan tambah field host/port lagi.
@@ -185,6 +213,18 @@ class Settings:
     # penuh berarti grading berhenti menulis, bukan sekadar arsip meleset.
     # 0 = matikan penjaga (kembali ke perilaku umur-saja).
     upload_disk_min_free_gb: float = field(default_factory=lambda: float(os.getenv("UPLOAD_DISK_MIN_FREE_GB", "20")))
+
+    # ── Konsol operator (APP_MODE=console) ───────────────────────
+    # Zona waktu pabrik. Dipakai HANYA untuk menghitung `tanggal_kerja` saat
+    # ingest (§6.1): pabrik jalan ~20 jam/hari LEWAT tengah malam, jadi batas
+    # hari UTC memotong shift jadi dua. Resolve sekali saat boot — TZ ngawur
+    # harus mati di startup, bukan diam-diam salah tanggal berbulan-bulan.
+    factory_tz: str = field(default_factory=lambda: os.getenv("FACTORY_TZ", "Asia/Jakarta"))
+    console_sync_interval_s: int = field(default_factory=lambda: int(os.getenv("CONSOLE_SYNC_INTERVAL_S", "300")))
+    # Base URL tiap line kamera, dilihat DARI dalam container konsol. Konsol
+    # meneruskan assignment/manual-reject ke sini. Default localhost karena
+    # semua container pakai network_mode: host di PC pabrik.
+    console_line_host: str = field(default_factory=lambda: os.getenv("CONSOLE_LINE_HOST", "http://localhost").rstrip("/"))
 
     # ── PLC / ODOT CN-8031 (Modbus-TCP) ──────────────────────────
     # Logikanya ada di src/palmgrade/plc/. Coil map lengkap:
@@ -314,6 +354,31 @@ class Settings:
     @property
     def upload_events_url(self) -> str:
         return f"{self.upload_api_url}{self.backend_api_ver}/internal/vision/events"
+
+    @property
+    def console_db_path(self) -> Path:
+        """Index SQLite konsol (§6.2) — konsol tidak pernah memindai direktori."""
+        return self.state_dir / "console.db"
+
+    @property
+    def console_lines(self) -> tuple[LineEndpoint, ...]:
+        """Tiga line kamera yang dilayani konsol.
+
+        `LINE_N_MACHINE_ID` dibaca DI SINI, bukan di service: env cuma boleh
+        masuk lewat Settings (CLAUDE.md § Conventions). Nilainya sama dengan
+        yang di-set docker-compose untuk tiap line.
+        """
+        return tuple(
+            LineEndpoint(
+                code, name, port,
+                os.getenv(f"LINE_{code[-1]}_MACHINE_ID", default_machine).strip(),
+            )
+            for code, name, port, default_machine in _CONSOLE_LINE_DEFAULTS
+        )
+
+    @property
+    def master_data_url(self) -> str:
+        return f"{self.upload_api_url}{self.backend_api_ver}/internal/sync/master-data"
 
     @property
     def plc_coil_ok(self) -> int:
