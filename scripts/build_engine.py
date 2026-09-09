@@ -52,13 +52,17 @@ def main() -> int:
 
     settings.engines_dir.mkdir(parents=True, exist_ok=True)
 
-    # Sabuk pengaman: cegah Ultralytics auto-`pip install` tensorrt saat export
-    # kalau modulnya (entah kenapa) gak kedetect. Auto-install itu yang dulu HANG
-    # (narik tensorrt source dari PyPI publik). tensorrt-cu12 sudah dipasang di
-    # Dockerfile, jadi normalnya gak ke-trigger — ini cuma jaring pengaman supaya
+    # Sabuk pengaman: cegah Ultralytics auto-`pip install` saat export. Auto-install
+    # itu yang dulu HANG (narik paket dari PyPI publik). tensorrt-cu12 sudah dipasang
+    # di Dockerfile, jadi normalnya gak ke-trigger — ini jaring pengaman supaya
     # build_engine GAGAL-CEPAT dengan error jelas, bukan nyangkut diam-diam.
+    #
+    # NB: nama var-nya `YOLO_AUTOINSTALL`. Sebelumnya di sini tertulis
+    # ULTRALYTICS_SKIP_REQUIREMENTS_CHECKS — bukan var yang dikenal Ultralytics,
+    # jadi jaringnya bolong dan auto-install tetap jalan (kejadian di PC pabrik
+    # 2026-09-09: nyangkut narik onnxruntime-gpu).
     import os
-    os.environ.setdefault("ULTRALYTICS_SKIP_REQUIREMENTS_CHECKS", "1")
+    os.environ.setdefault("YOLO_AUTOINSTALL", "false")
 
     # models/ di-mount read-only → ultralytics export menulis di sebelah source .pt,
     # jadi copy dulu .pt ke ./engines (writable), export di situ, lalu rename.
@@ -67,7 +71,13 @@ def main() -> int:
     work_pt = settings.engines_dir / pt_path.name
     shutil.copy2(pt_path, work_pt)
 
-    print(f"[build_engine] Build TensorRT FP16 engine untuk {gpu_name} (sm{cc}) @ imgsz={IMGSZ} ...")
+    # FP16 cuma menang di Turing ke atas (sm75+). Di Pascal — Quadro P4000 = sm61 —
+    # cuBLAS/TensorRT jatuh ke pseudo-FP16 (hitung tetap FP32), jadi nol speedup.
+    # Diukur di PC pabrik 2026-09-09: FP32 0.92 vs FP16 0.96 TFLOPS. Build FP32 saja.
+    half = cc_major >= 7
+    precision = "FP16" if half else "FP32"
+
+    print(f"[build_engine] Build TensorRT {precision} engine untuk {gpu_name} (sm{cc}) @ imgsz={IMGSZ} ...")
     print("[build_engine] Sekali jalan, bisa 5-15 menit. Tunggu ya.")
 
     # workspace=2 GiB: batasi memori sementara TensorRT saat build engine supaya
@@ -76,7 +86,10 @@ def main() -> int:
     # YOLOv8 + sisain headroom buat OS/driver. Turunkan ke 1 kalau masih OOM.
     model = YOLO(str(work_pt))
     exported = model.export(
-        format="engine", half=True, imgsz=IMGSZ, device=0, workspace=2
+        # simplify=False: ONNX-simplify butuh onnxruntime-gpu yang TIDAK ada di image
+        # (dan bikin Ultralytics auto-install → nyangkut). TensorRT punya optimizer
+        # graph sendiri, jadi tahap ini memang tidak dibutuhkan.
+        format="engine", half=half, simplify=False, imgsz=IMGSZ, device=0, workspace=2
     )
 
     shutil.move(str(exported), str(target))
