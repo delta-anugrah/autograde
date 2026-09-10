@@ -104,7 +104,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
   saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
   mengatakan apa-apa soal batch upload ke cloud — untuk itu baca log `Batch tick: N item eligible`
   dari `BatchUploadWorker` atau query `state/upload_manifest.db` langsung.
-- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `tanggal_kerja` lewat tengah malam + `console_store` + invarian `console.html` + **dorong ke ERP**: kiriman ulang bukan error, 417 permanen, jaringan mati tidak membuang apa pun) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx`) di samping `ruff pytest`. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol — `integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py`, `workers/erp_push_worker.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
+- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `tanggal_kerja` lewat tengah malam + `console_store` + invarian `console.html` + **dorong ke ERP**: kiriman ulang bukan error, 417 permanen, jaringan mati tidak membuang apa pun, **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx`) di samping `ruff pytest`. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol — `integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py`, `workers/erp_push_worker.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
 - From-zero prod setup (NVIDIA toolkit, MVS install, camera IP): `docs/SETUP.md`.
 
 ---
@@ -131,9 +131,12 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 | GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
 | GET | `/api/console/history` | filter `tanggal_kerja` / `line_code` / `truck_id` |
 | GET | `/api/console/trucks` | master truk + supplier + `sumber_label` |
+| POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
+| GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto) |
 | POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line |
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
 | POST | `{BACKEND_API_VER}/internal/vision/events` | ← dari tiga line (`x-webhook-secret`), kontrak §5 |
+| POST | `{BACKEND_API_VER}/internal/scale/weighing` | ← dari program timbangan (`x-webhook-secret`), bentuk sementara kita |
 | GET | `/captures/{line_code}/...` | gambar line, mount read-only, bentuk URL = `resolveCaptureUrl` api |
 | GET | `/health` | ringan, sengaja bukan `routes/health.py` (yang itu menarik torch) |
 
@@ -266,6 +269,23 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     batch dihentikan. Menandai gagal di kelas ketiga akan menghapus janjang dari ERP gara-gara
     internet putus. `ERP_URL` kosong = worker mati diam-diam, dan itu default: jalur ini tidak
     boleh jadi syarat hidupnya layar operator.
+15. **Timbangan: `neto_kg` dihitung, tidak pernah dipercaya mentah** (§3.5c). Pengirim boleh
+    menyertakannya; kalau bedanya dari `bruto − tara` lewat `TOLERANSI_NETO_KG` (1 kg) kiriman
+    **ditolak 400**. Ini angka yang dibayar ke petani — dua sumber kebenaran yang diam-diam
+    berbeda adalah cara paling rapi untuk salah bayar berbulan-bulan.
+    Timbang-masuk dan timbang-keluar adalah **dua POST untuk satu baris**, digabung lewat
+    `COALESCE` per kolom: kiriman kedua yang cuma membawa tara tidak boleh menghapus bruto.
+    Kuncinya `ref` kalau ada, kalau tidak uuid5 dari (plat ternormalisasi + `waktu_masuk`) —
+    tanpa salah satu dari keduanya kiriman **ditolak**, karena timbang-keluar tidak akan bisa
+    menemukan barisnya dan satu tiket pecah jadi dua.
+    ⚠️ Format asli program timbangan **belum diketahui** (`../docs/PERTANYAAN-TERBUKA.md` X1).
+    Yang dibekukan di sini bentuk KITA; begitu formatnya turun, yang ditambah **adapter**,
+    bukan bongkar tabel.
+16. **Truk manual belum didorong ke ERP, sengaja.** DocType `Truck` belum ada di site mana pun
+    (`../docs/PERTANYAAN-TERBUKA.md` S1–S3), jadi `POST /api/console/trucks` hidup lokal dulu
+    dengan `status='manual'`. Id-nya uuid5 dari plat ternormalisasi, jadi tidak akan pernah
+    bertabrakan dengan id truk hasil sinkron master (yang datang dari cloud) — dan plat yang
+    sama diketik ulang besok mendarat di truk yang sama, bukan baris kembar.
 
 ---
 

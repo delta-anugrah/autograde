@@ -25,7 +25,7 @@
   .counts b { font-size:22px; display:block; font-weight:600; }
   .acc b { color:var(--acc); } .rej b { color:var(--rej); }
   .assign { display:flex; gap:8px; }
-  select, button { background:#222833; color:var(--fg); border:1px solid var(--line);
+  select, button, input { background:#222833; color:var(--fg); border:1px solid var(--line);
                    border-radius:6px; padding:7px 10px; font:inherit; }
   select { flex:1; min-width:0; }
   button { cursor:pointer; }
@@ -39,6 +39,9 @@
   .ACC { color:var(--acc); } .REJ { color:var(--rej); }
   #err { display:none; padding:8px 20px; background:#3a1f22; color:#ffb4b4; }
   section h2 { font-size:14px; padding:0 20px; margin:18px 0 6px; color:var(--muted); font-weight:500; }
+  .tools { display:flex; gap:8px; padding:0 20px 10px; }
+  .tools input { flex:1; max-width:320px; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
 </style>
 
 <header>
@@ -54,6 +57,24 @@
   <table>
     <thead><tr><th>Waktu</th><th>Line</th><th>Truk</th><th>Sumber</th><th>Hasil</th><th>Conf</th><th>Foto</th></tr></thead>
     <tbody id="recent"></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Truk &amp; timbangan</h2>
+  <!--
+    Truk manual: truk pinjaman / belum terdaftar diketik operator di sini, tidak
+    menunggu master data cloud. Timbangan: kolomnya sudah ada walau program
+    timbangannya belum mengirim apa-apa — tabel kosong itu memang keadaannya.
+  -->
+  <div class="tools">
+    <input id="plat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
+    <button id="daftar">Daftar truk manual</button>
+  </div>
+  <table>
+    <thead><tr><th>Masuk</th><th>Keluar</th><th>Truk</th><th>Sumber</th>
+      <th>Bruto (kg)</th><th>Tara (kg)</th><th>Neto (kg)</th></tr></thead>
+    <tbody id="timbangan"></tbody>
   </table>
 </section>
 
@@ -117,6 +138,20 @@ function kartuLine(l) {
       <button class="reject" data-aksi="tolak">Reject Manual</button>
     </div>
   </div>`;
+}
+
+const kg = (v) => (v === null || v === undefined ? "—" : Number(v).toLocaleString("id-ID"));
+
+function barisTimbangan(w) {
+  return `<tr>
+    <td>${w.waktu_masuk ? jam(w.waktu_masuk) : "—"}</td>
+    <td>${w.waktu_keluar ? jam(w.waktu_keluar) : "—"}</td>
+    <td>${dash(w.plate_number)}</td>
+    <td>${dash(w.sumber_label)}</td>
+    <td class="num">${kg(w.bruto_kg)}</td>
+    <td class="num">${kg(w.tara_kg)}</td>
+    <td class="num">${kg(w.neto_kg)}</td>
+  </tr>`;
 }
 
 function barisRecent(r) {
@@ -183,6 +218,32 @@ async function refresh() {
   } catch (e) { pesan("Konsol tidak merespons: " + e.message); }
 }
 
+$("daftar").addEventListener("click", async () => {
+  const plate_number = $("plat").value.trim();
+  if (!plate_number) return;
+  $("daftar").disabled = true;
+  try {
+    await api("/api/console/trucks", { method: "POST", body: JSON.stringify({ plate_number }) });
+    $("plat").value = "";
+    // Render ulang penuh supaya truk baru langsung muncul di dropdown ketiga
+    // line. Stream MJPEG ikut nyambung ulang sekali — itu harga satu klik
+    // sengaja dari operator, bukan sesuatu yang terjadi tiap 2 detik.
+    dipasang = false;
+    await muatTrucks();
+    await refresh();
+    pesan("");
+  } catch (e) {
+    pesan("Gagal mendaftarkan truk: " + e.message);
+  } finally {
+    $("daftar").disabled = false;
+  }
+});
+
+async function muatTimbangan() {
+  try { $("timbangan").innerHTML = (await api("/api/console/weighings")).items.map(barisTimbangan).join(""); }
+  catch (e) { /* program timbangan belum mengirim apa pun — layar tetap jalan */ }
+}
+
 async function muatTrucks() {
   try { trucks = (await api("/api/console/trucks")).items; }
   catch (e) { /* master data belum turun — layar tetap jalan tanpa daftar truk */ }
@@ -191,7 +252,11 @@ async function muatTrucks() {
 (async () => {
   await muatTrucks();
   await refresh();
+  await muatTimbangan();
   setInterval(refresh, 2000);
   setInterval(muatTrucks, 60000);
+  // Timbangan jauh lebih sepi dari grading (dua kiriman per truk), jadi 2 detik
+  // cuma bikin query sia-sia.
+  setInterval(muatTimbangan, 15000);
 })();
 </script>

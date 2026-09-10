@@ -69,6 +69,27 @@ CREATE TABLE IF NOT EXISTS assignments (
     started_at    REAL NOT NULL
 );
 
+-- Timbangan jembatan (§3.5c). Diisi oleh program timbangan lewat
+-- POST /internal/scale/weighing; formatnya belum diketahui (X1), jadi jalurnya
+-- disiapkan dalam bentuk KITA dan yang perlu ditambah nanti cuma adapter.
+-- `neto_kg` tidak pernah datang dari luar begitu saja — dihitung di service.
+CREATE TABLE IF NOT EXISTS weighings (
+    id            TEXT PRIMARY KEY,
+    ref           TEXT,
+    plate_number  TEXT,
+    plate_norm    TEXT,
+    truck_id      TEXT,
+    tanggal_kerja TEXT NOT NULL,
+    bruto_kg      REAL,
+    tara_kg       REAL,
+    neto_kg       REAL,
+    waktu_masuk   TEXT,
+    waktu_keluar  TEXT,
+    received_at   REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_weighings_hari ON weighings (tanggal_kerja, waktu_masuk DESC);
+CREATE INDEX IF NOT EXISTS idx_weighings_plat ON weighings (plate_norm);
+
 CREATE TABLE IF NOT EXISTS sync_state (
     key   TEXT PRIMARY KEY,
     value TEXT
@@ -189,6 +210,56 @@ class ConsoleStore:
                    FROM trucks t LEFT JOIN suppliers s ON s.id = t.supplier_id
                    WHERE t.status IS NULL OR t.status != 'inactive'
                    ORDER BY t.plate_number"""
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    # --------------------------------------------------------- timbangan
+
+    def upsert_weighing(self, row: dict[str, Any]) -> None:
+        """Idempoten per `id`, dan HANYA kolom terisi yang menimpa.
+
+        Timbang-masuk mengirim bruto, timbang-keluar mengirim tara — dua POST
+        untuk baris yang sama. Tanpa `COALESCE` kiriman kedua akan menimpa
+        bruto dengan NULL dan neto ikut hilang. Ini jalur uang; jangan sampai.
+        """
+        with self._lock, self._db:
+            self._db.execute(
+                """INSERT INTO weighings (
+                       id, ref, plate_number, plate_norm, truck_id, tanggal_kerja,
+                       bruto_kg, tara_kg, neto_kg, waktu_masuk, waktu_keluar, received_at)
+                   VALUES (:id, :ref, :plate_number, :plate_norm, :truck_id, :tanggal_kerja,
+                           :bruto_kg, :tara_kg, :neto_kg, :waktu_masuk, :waktu_keluar, :received_at)
+                   ON CONFLICT(id) DO UPDATE SET
+                       ref           = COALESCE(excluded.ref, weighings.ref),
+                       plate_number  = COALESCE(excluded.plate_number, weighings.plate_number),
+                       plate_norm    = COALESCE(excluded.plate_norm, weighings.plate_norm),
+                       truck_id      = COALESCE(excluded.truck_id, weighings.truck_id),
+                       bruto_kg      = COALESCE(excluded.bruto_kg, weighings.bruto_kg),
+                       tara_kg       = COALESCE(excluded.tara_kg, weighings.tara_kg),
+                       neto_kg       = COALESCE(excluded.neto_kg, weighings.neto_kg),
+                       waktu_masuk   = COALESCE(excluded.waktu_masuk, weighings.waktu_masuk),
+                       waktu_keluar  = COALESCE(excluded.waktu_keluar, weighings.waktu_keluar)""",
+                {**row, "received_at": time.time()},
+            )
+
+    def weighing(self, weighing_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._db.execute("SELECT * FROM weighings WHERE id = ?", (weighing_id,)).fetchone()
+        return dict(row) if row else None
+
+    def weighings(self, tanggal_kerja: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        # ponytail: join lewat `truck_id` saja, jadi truk hasil sinkron cloud
+        # (id-nya dari cloud, bukan uuid5 plat) belum ikut ternama. Cukup sampai
+        # jalur ERP hidup — lihat docs/PERTANYAAN-TERBUKA.md S1-S3.
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT w.*, s.name AS supplier_name, s.sumber
+                   FROM weighings w
+                   LEFT JOIN trucks t ON t.id = w.truck_id
+                   LEFT JOIN suppliers s ON s.id = t.supplier_id
+                   WHERE w.tanggal_kerja = ?
+                   ORDER BY w.waktu_masuk DESC, w.received_at DESC LIMIT ?""",
+                (tanggal_kerja, limit),
             ).fetchall()
         return [dict(r) for r in rows]
 

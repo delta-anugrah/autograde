@@ -21,6 +21,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint, Settings
+from ..domain.plat import normalisasi_plat, truck_id_for
 from ..domain.sumber_tbs import label_sumber
 from ..domain.tanggal_kerja import tanggal_kerja_for
 from ..integrations.notifications.line_client import LineClient
@@ -29,6 +30,11 @@ from ..repositories.console_repository import ConsoleStore
 logger = logging.getLogger(__name__)
 
 MASTER_CURSOR_KEY = "master_data_cursor"
+
+# Selisih neto yang masih dimaafkan sebelum kiriman ditolak. Timbangan
+# membulatkan, kita tidak boleh diam saja kalau selisihnya lebih dari itu:
+# neto adalah angka yang dibayar ke petani.
+TOLERANSI_NETO_KG = 1.0
 
 
 class ConsoleService:
@@ -144,6 +150,94 @@ class ConsoleService:
     def trucks(self) -> list[dict[str, Any]]:
         return [_label_sumber_in_place(row) for row in self.store.trucks()]
 
+    def weighings(self, tanggal_kerja: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        return [_label_sumber_in_place(row) for row in self.store.weighings(tanggal_kerja, limit=limit)]
+
+    # ------------------------------------------------- truk daftar manual
+
+    def daftar_truk_manual(
+        self, plate_number: str, *, supplier_id: str | None = None, capacity: float | None = None
+    ) -> dict[str, Any]:
+        """Truk pinjaman / belum terdaftar, diketik operator di konsol.
+
+        Id-nya uuid5 dari plat ternormalisasi, jadi plat yang sama diketik ulang
+        besok mendarat di truk yang sama. `status='manual'` membedakannya dari
+        truk hasil sinkron master — id master datang dari cloud, jadi keduanya
+        tidak akan pernah bertabrakan kunci.
+
+        Sengaja BELUM didorong ke ERP: DocType `Truck` belum ada di site mana
+        pun (docs/PERTANYAAN-TERBUKA.md S3). Barisnya hidup lokal dulu.
+        """
+        plat = (plate_number or "").strip()
+        truck_id = truck_id_for(plat)  # ValueError kalau plat kosong → route balas 400
+        self.store.upsert_truck(
+            {
+                "id": truck_id,
+                "plate_number": plat,
+                "supplier_id": supplier_id,
+                "capacity": capacity,
+                "status": "manual",
+            }
+        )
+        return {"id": truck_id, "plate_number": plat, "status": "manual"}
+
+    # ----------------------------------------------------- timbangan (§3.5c)
+
+    def catat_timbangan(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Satu kiriman dari program timbangan. Return baris hasil gabungnya.
+
+        Bentuk yang diminta bos: berat sebelum proses (bruto), berat sesudah
+        (tara), dan selisihnya (neto). Formatnya sendiri belum diketahui (X1) —
+        yang dibekukan di sini bentuk KITA, jadi begitu formatnya turun cukup
+        tambah adapter, bukan bongkar tabel.
+
+        `neto_kg` SELALU dihitung, tidak pernah dipercaya mentah-mentah. Kalau
+        pengirim menyertakannya dan bedanya lewat toleransi → ValueError → 400.
+        Angka yang dibayar tidak boleh berasal dari dua sumber yang beda diam-diam.
+        """
+        plat = str(payload.get("plate_number") or "").strip()
+        plat_norm = normalisasi_plat(plat)
+        ref = str(payload.get("ref") or "").strip() or None
+        waktu_masuk = str(payload.get("waktu_masuk") or "").strip() or None
+        waktu_keluar = str(payload.get("waktu_keluar") or "").strip() or None
+
+        if not (ref or waktu_masuk):
+            # Tanpa salah satunya, timbang-keluar tidak punya cara menemukan
+            # baris timbang-masuknya dan satu tiket pecah jadi dua.
+            raise ValueError("ref atau waktu_masuk wajib diisi")
+        acuan = waktu_masuk or waktu_keluar
+        if acuan is None:
+            raise ValueError("waktu_masuk atau waktu_keluar wajib diisi")
+        tanggal = tanggal_kerja_for(acuan, self.tz)
+
+        kunci = f"timbangan:{ref}" if ref else f"timbangan:{plat_norm}:{waktu_masuk}"
+        weighing_id = str(uuid.uuid5(uuid.NAMESPACE_URL, kunci))
+
+        # ponytail: baca-lalu-tulis tanpa transaksi. Kiriman timbangan sepi
+        # (dua per truk), satu proses uvicorn — pindahkan ke UPDATE...RETURNING
+        # kalau nanti ada pengirim kedua.
+        lama = self.store.weighing(weighing_id) or {}
+        bruto = _kg(payload.get("bruto_kg"), "bruto_kg", lama.get("bruto_kg"))
+        tara = _kg(payload.get("tara_kg"), "tara_kg", lama.get("tara_kg"))
+        neto = _neto(bruto, tara, _kg(payload.get("neto_kg"), "neto_kg", None))
+
+        self.store.upsert_weighing(
+            {
+                "id": weighing_id,
+                "ref": ref,
+                "plate_number": plat,
+                "plate_norm": plat_norm,
+                "truck_id": truck_id_for(plat),
+                "tanggal_kerja": tanggal,
+                "bruto_kg": bruto,
+                "tara_kg": tara,
+                "neto_kg": neto,
+                "waktu_masuk": waktu_masuk,
+                "waktu_keluar": waktu_keluar,
+            }
+        )
+        return self.store.weighing(weighing_id) or {}
+
     # ------------------------------------------------------ perintah line
 
     async def assign_truck(self, line_code: str, truck_id: str) -> dict[str, Any]:
@@ -180,6 +274,32 @@ class ConsoleService:
         if line is None:
             raise ValueError(f"line tidak dikenal: {line_code}")
         return line
+
+
+def _kg(nilai: Any, nama: str, bawaan: float | None) -> float | None:
+    """Angka kilogram, atau `bawaan` kalau tidak dikirim. ValueError kalau ngawur."""
+    if nilai is None or nilai == "":
+        return bawaan
+    try:
+        angka = float(nilai)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{nama} bukan angka: {nilai!r}") from exc
+    if angka < 0:
+        raise ValueError(f"{nama} tidak boleh negatif: {angka}")
+    return angka
+
+
+def _neto(bruto: float | None, tara: float | None, dikirim: float | None) -> float | None:
+    if bruto is None or tara is None:
+        if dikirim is not None:
+            raise ValueError("neto_kg dikirim tanpa bruto_kg + tara_kg")
+        return None
+    if tara > bruto:
+        raise ValueError(f"tara_kg ({tara}) lebih besar dari bruto_kg ({bruto})")
+    hitung = round(bruto - tara, 3)
+    if dikirim is not None and abs(dikirim - hitung) > TOLERANSI_NETO_KG:
+        raise ValueError(f"neto_kg tidak cocok: dikirim {dikirim}, bruto-tara {hitung}")
+    return hitung
 
 
 def _label_sumber_in_place(row: dict[str, Any]) -> dict[str, Any]:

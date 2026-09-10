@@ -70,6 +70,29 @@ async def console_trucks(service: Service) -> dict:
     return {"items": service.trucks()}
 
 
+@router.post("/api/console/trucks", status_code=201)
+async def daftar_truk_manual(service: Service, payload: Annotated[dict, Body()]) -> dict:
+    """Truk pinjaman / belum terdaftar, diketik operator (bukan dari master cloud)."""
+    try:
+        return service.daftar_truk_manual(
+            str(payload.get("plate_number") or ""),
+            supplier_id=payload.get("supplier_id"),
+            capacity=payload.get("capacity"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/api/console/weighings")
+async def console_weighings(
+    service: Service,
+    tanggal_kerja: str | None = None,
+    limit: int = Query(100, ge=1, le=500),
+) -> dict:
+    tanggal = tanggal_kerja or service.today()
+    return {"tanggal_kerja": tanggal, "items": service.weighings(tanggal, limit=limit)}
+
+
 @router.post("/api/console/lines/{line_code}/assign-truck")
 async def assign_truck(
     line_code: str, service: Service, truck_id: Annotated[str, Body(embed=True)]
@@ -115,3 +138,23 @@ async def ingest_event(
         # event cacat harus kelihatan, bukan hilang diam-diam.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "ok", "tanggal_kerja": tanggal_kerja}
+
+
+@ingest_router.post("/internal/scale/weighing", status_code=201)
+async def ingest_weighing(
+    service: Service,
+    payload: Annotated[dict, Body()],
+    x_webhook_secret: Annotated[str | None, Header()] = None,
+) -> dict:
+    """Kiriman program timbangan (§3.5c). Secret yang sama dengan jalur event.
+
+    Format aslinya belum diketahui (docs/PERTANYAAN-TERBUKA.md X1); yang beku di
+    sini bentuk kita — `plate_number`, `bruto_kg`, `tara_kg`, `waktu_masuk`,
+    `waktu_keluar`, opsional `ref`. Adapter menyusul kalau formatnya sudah turun.
+    """
+    if x_webhook_secret != service.settings.webhook_secret:
+        raise HTTPException(status_code=401, detail="Invalid webhook secret")
+    try:
+        return service.catat_timbangan(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
