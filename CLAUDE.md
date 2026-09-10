@@ -13,6 +13,13 @@
 (one per camera line), each doing real-time YOLO ripeness detection on its own port and
 delivering detection events to `palmgrade-api`. One of three repos:
 
+Sejak Fase 2 (rencana PalmOS) ada **container ke-4 dari image yang sama**: konsol operator
+offline, `APP_MODE=console`, port **8000**, layar di `http://localhost:8000/console`. Modul
+ASGI-nya beda (`console_main.py`) supaya tidak ikut memuat torch/cv2 — satu line kamera mati
+tidak menjatuhkan layar operator. Tiga line mengirim event ke konsol (`BACKEND_URL=http://localhost:8000`)
+lewat kontrak §5 yang sama persis dengan palmgrade-api, jadi `palmgrade_api` lokal tidak perlu
+hidup lagi di PC pabrik (7 → 4 container). Nol perubahan di kode line.
+
 | Repo | Role | Tech | Port |
 |---|---|---|---|
 | **palmgrade-vision** | **AI camera + inference (per line)** | **Python 3.11 / FastAPI** | **8001 / 8002 / 8003** |
@@ -41,6 +48,8 @@ Full system map: `../ARCHITECTURE.md`.
 ```
 src/palmgrade/
   main.py          # app factory + lifespan: camera init, workers, 10s watchdog, /captures mount, /ws/results
+  console_main.py  # app factory KONSOL (APP_MODE=console) — sengaja terpisah: tidak boleh import torch/cv2
+  static/          # console.html — satu file, vanilla JS, tanpa build step & tanpa CDN (harus jalan offline)
   core/            # config.py (Settings/env), dependencies.py (DI), logging.py, constants.py
   routes/          # endpoint declarations only → controllers
   controllers/     # request handlers
@@ -48,8 +57,9 @@ src/palmgrade/
   repositories/    # file I/O (WebP/JSON) via LocalFileStorage
   pipelines/       # YOLO inference (realtime_inspection_pipeline, model_registry)
   workers/         # background threads + RuntimeState (capture / display / processing / event_broadcast / outbox_retry / batch_upload)
-  integrations/    # camera/{hikrobot,opencv,photo}, notifications/(webhook), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
-  domain/          # pure rules + entities (no I/O)
+                   # konsol pakai asyncio, bukan thread: master_data (tarik dari cloud) / erp_push (dorong ke PalmOS)
+  integrations/    # camera/{hikrobot,opencv,photo}, notifications/ (webhook_client → api, line_client → line dari konsol), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
+  domain/          # pure rules + entities (no I/O) — termasuk tanggal_kerja.py (§6.1) & sumber_tbs.py (§3.5b)
   plc/             # PLC/ODOT Modbus-TCP integration, entirely self-contained — public surface is 5 functions (start_plc_worker/shutdown_plc_worker/submit_grading/inputs/diagnostics)
   schemas/         # Pydantic request/response models
   license/         # optional Ed25519 license guard
@@ -63,6 +73,11 @@ Tooling: `pyproject.toml` (pytest + ruff config, TIDAK untuk build), `.github/wo
 
 Layer rule (strict): `route → controller → service → repository / pipeline / integration`.
 Per-layer do/don't: `docs/overview.md` + `docs/architecture.md`.
+**Pengecualian sadar:** konsol jalan `route → service → repository / integration`, tanpa
+controller — controller di repo ini isinya cuma meneruskan argumen, dan konsol tidak punya
+logika yang butuh tempat menganggur di antaranya. HTTP ke line tetap di lapisan integration
+(`notifications/line_client.py`), disuntik ke `ConsoleService` lewat konstruktor: service tidak
+boleh tahu soal httpx, dan test menukar kolaboratornya, bukan menambal method privat.
 
 ---
 
@@ -76,6 +91,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 | `make up-dev` | dev: build CPU (no SDK) + start 3 lines |
 | `make restart` | **code-only change** — kode di-bind-mount (`.:/app`), jadi **tidak perlu rebuild** |
 | `make start` / `make up-1\|2\|3` | start without rebuild (all / single line) |
+| `make up-console` / `make logs-console` | konsol operator saja (port 8000, `/console`) — aman di-restart tanpa mengganggu line |
 | `make build-engine` | build TensorRT FP16 engine **once per GPU** (one-shot, auto-skip kalau sudah ada) |
 | `make logs` / `make logs-1` | tail logs (combined / per line) |
 | `make down` / `make ps` / `make rebuild` / `make rebuild-clean` / `make clean` | stop / status / rebuild / clean rebuild (`--no-cache`) / cleanup |
@@ -88,7 +104,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
   saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
   mengatakan apa-apa soal batch upload ke cloud — untuk itu baca log `Batch tick: N item eligible`
   dari `BatchUploadWorker` atau query `state/upload_manifest.db` langsung.
-- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx`) di samping `ruff pytest`. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
+- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `tanggal_kerja` lewat tengah malam + `console_store` + invarian `console.html` + **dorong ke ERP**: kiriman ulang bukan error, 417 permanen, jaringan mati tidak membuang apa pun) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx`) di samping `ruff pytest`. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol — `integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py`, `workers/erp_push_worker.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
 - From-zero prod setup (NVIDIA toolkit, MVS install, camera IP): `docs/SETUP.md`.
 
 ---
@@ -106,6 +122,20 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 | POST | `/internal/manual-reject` | ← from api: trigger manual reject (`x-internal-secret`) |
 | WS | `/ws/results` | legacy result push |
 | GET | `/captures/...` | static images (mount → `artifacts/`) |
+
+**Konsol (`APP_MODE=console`, port 8000)** — surface yang berbeda total; `main.py` tidak dipakai:
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/console` | layar operator (satu file HTML statis) |
+| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
+| GET | `/api/console/history` | filter `tanggal_kerja` / `line_code` / `truck_id` |
+| GET | `/api/console/trucks` | master truk + supplier + `sumber_label` |
+| POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line |
+| POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
+| POST | `{BACKEND_API_VER}/internal/vision/events` | ← dari tiga line (`x-webhook-secret`), kontrak §5 |
+| GET | `/captures/{line_code}/...` | gambar line, mount read-only, bentuk URL = `resolveCaptureUrl` api |
+| GET | `/health` | ringan, sengaja bukan `routes/health.py` (yang itu menarik torch) |
 
 ---
 
@@ -203,6 +233,39 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    ⚠️ Seluruh `_retention()` cuma jalan kalau `R2_BUCKET` terisi (`run_batch_once`
    pulang lebih awal tanpanya), jadi dengan R2 mati tidak ada yang membersihkan
    disk sama sekali — dan memang tidak boleh ada, karena tidak ada yang `done`.
+
+10. **Konsol: `tanggal_kerja` dihitung saat ingest, lalu DISIMPAN** (§6.1). Pabrik jalan ~20
+    jam/hari **lewat tengah malam**, jadi batas hari UTC memotong satu shift jadi dua tanggal.
+    `domain/tanggal_kerja.py` menurunkannya dari timestamp event itu sendiri di `FACTORY_TZ` —
+    **jangan pernah** dari `now()`, `creation`, atau nama folder. Timestamp cacat → `ValueError`
+    → ingest balas **400** → outbox line menahan dan menandainya `outbox_failed`; sengaja
+    terlihat gagal daripada mendarat di hari yang salah. `python:3.11-slim` butuh `tzdata`
+    (sudah di Dockerfile) — tanpa itu `ZoneInfo` gagal dan tanggal diam-diam balik ke UTC.
+11. **Konsol tidak boleh memindai direktori** (§6.2) — semua yang dibaca layar operator datang
+    dari **index SQLite** `state/console.db` (`repositories/console_repository.py`, konvensi
+    sama dengan `OutboxStore`: WAL + `synchronous=FULL` + satu lock + `INSERT OR IGNORE`).
+    Gambar tetap di disk line-nya, di-mount read-only dan di-serve statis. Polling `listdir`
+    tiap 2 detik akan memakan I/O yang dipakai grading.
+12. **Sumber TBS: edge cuma menampilkan, tidak pernah menentukan** (§3.5b). Nilainya **tiga**
+    (Inti / Plasma / Pihak Ketiga) dan itu Accounting Dimension di PalmOS. Simpan mentahnya,
+    tampilkan lewat `domain/sumber_tbs.py` (`Internal` / `External` / `—`). **Jangan pernah**
+    bikin boolean `is_internal`: begitu tiga nilai dipadatkan jadi dua di edge, laporan Plasma
+    vs Pihak Ketiga di cloud tidak bisa direkonstruksi lagi.
+13. **Penugasan truk: line dulu, baru dicatat.** `assign_truck` menunggu line menerima sebelum
+    menyimpan. Layar yang menampilkan truk terpasang padahal line tidak tahu apa-apa membuat
+    operator mengira sudah beres, dan tandan berikutnya terhitung tanpa truk.
+14. **Konsol MENDORONG ke ERP; ERP tidak pernah menarik** (§12.5). PC pabrik cuma bisa
+    dihubungi lewat AnyDesk — tidak ada inbound sama sekali, jadi jalur tarik memang mustahil.
+    `ErpPushWorker` POST ke `palmos.interfaces.api.terima_event` dengan
+    `Authorization: token <key>:<secret>`. Antreannya **tabel `inspections` itu sendiri**
+    (`erp_state IS NULL`), bukan tabel kedua — antrean terpisah selalu berakhir beda isi dengan
+    tabel yang dia bayangi. Tiga kelas hasil dan bedanya load-bearing: **200** = mendarat, dan
+    `{"baru": false}` juga sukses (kiriman ulang setelah internet balik memang benar); **417**
+    (`frappe.throw`) = tolakan permanen → `erp_state='tolak'`, tidak pernah diputar lagi;
+    **sisanya** (jaringan mati, 5xx, 401/403) = kondisi luar → kolomnya **TIDAK disentuh** dan
+    batch dihentikan. Menandai gagal di kelas ketiga akan menghapus janjang dari ERP gara-gara
+    internet putus. `ERP_URL` kosong = worker mati diam-diam, dan itu default: jalur ini tidak
+    boleh jadi syarat hidupnya layar operator.
 
 ---
 

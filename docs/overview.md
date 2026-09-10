@@ -352,3 +352,131 @@ harus ditolak), seluruh cabang `_evaluate` di atas, `_warning_for`, plus hash-ch
 `max_seen_server_time` di `LicenseLocalRepo`. Guard middleware sendiri tidak di-unit-test (butuh
 FastAPI/Starlette — di luar filosofi CI murni-logic); logic-nya tipis dan seluruhnya bersandar pada
 `get_effective_license()` yang sudah tercakup.
+
+---
+
+## 11. Konsol Operator Offline (`APP_MODE=console`, Fase 2)
+
+Layar operator pindah dari `palmgrade-frontend` ke sini. Instance **ke-4 dari image yang sama**,
+port **8000**, halaman di `http://localhost:8000/console`. Rencana & keputusan yang mengunci
+bentuknya: `../docs/runbooks/2026-09-09-rencana-palmos-autograde.md` (§4, §6.1, §6.2, §3.5b).
+
+**Kenapa modul ASGI-nya terpisah.** `main.py` menarik `core/dependencies.py` → pipelines →
+ultralytics → torch, dan `core/constants.py` → cv2. Konsol tidak butuh satupun, jadi
+`entrypoint.sh` memilih `src.palmgrade.console_main:app` saat `APP_MODE=console`. Efeknya bukan
+sekadar hemat memori: satu line kamera yang mati (SDK hang, GPU hilang) tidak ikut menjatuhkan
+layar operator, dan konsol boot dalam hitungan detik.
+
+**Kenapa konsol tidak "membaca disknya sendiri".** docker-compose memberi tiap line
+`artifacts/line-N` + `state/line-N` sendiri-sendiri, jadi instance ke-4 melihat pohon kosong.
+Yang dipakai justru **kontrak event beku §5**: konsol membuka
+`POST {BACKEND_API_VER}/internal/vision/events` dengan header `x-webhook-secret` — bentuk yang
+persis sama dengan palmgrade-api — lalu tiap line cukup di-set `BACKEND_URL=http://localhost:8000`.
+`OutboxRetryWorker` yang sudah ada menanggung retry, backoff, dan dedupe uuid5 saat konsol
+restart. Nol perubahan di kode line, dan `palmgrade_api` lokal tidak perlu hidup lagi di PC
+pabrik (7 → 4 container).
+
+Gambar tetap milik line-nya: tiga `artifacts/line-N` di-mount **read-only** ke konsol dan
+di-serve statis di `/captures/{line_code}/...` — bentuk URL yang sama dengan
+`resolveCaptureUrl()` di palmgrade-api, supaya pindah antara konsol dan cloud tidak mengubah
+apa yang dilihat operator.
+
+**Batas hari kerja (§6.1).** Pabrik jalan ~20 jam/hari dan **lewat tengah malam**, jadi batas
+hari UTC memotong satu shift jadi dua tanggal. `tanggal_kerja` dihitung **saat ingest** dari
+timestamp event itu sendiri (`domain/tanggal_kerja.py`, zona `FACTORY_TZ`) lalu **disimpan
+sebagai kolom** — bukan diturunkan ulang saat query, dan tidak pernah dari `now()`, `creation`,
+atau nama folder. Event yang datang telat (outbox menyusul setelah listrik mati) tetap mendarat
+di harinya sendiri. Timestamp cacat → 400 → outbox line menandainya `outbox_failed`, sengaja
+terlihat gagal. Batasnya **kalender**, tanpa cutoff shift; karena kolomnya disimpan, mengubah
+aturan itu nanti cuma menyentuh satu fungsi. `python:3.11-slim` butuh `tzdata` (sudah
+ditambahkan) — tanpa itu `ZoneInfo` gagal dan tanggal diam-diam kembali ke UTC.
+
+**Index, bukan pindai (§6.2).** Semua yang dibaca layar datang dari `state/console.db`
+(`repositories/console_repository.py`) — konvensinya sama dengan `OutboxStore`: WAL,
+`synchronous=FULL`, satu `threading.Lock`, `INSERT OR IGNORE` dengan kunci `event_id`. Layar
+polling tiap 2 detik lewat `GET /api/console/state`; tidak ada `listdir` di jalur manapun.
+Tabelnya: `inspections` (+ index `(tanggal_kerja, line_code)` dan `(tanggal_kerja, timestamp)`),
+`trucks`, `suppliers`, `assignments`, `sync_state`.
+
+**Master data & Sumber TBS (§3.5b).** `MasterDataWorker` menarik
+`GET {UPLOAD_API_URL}{BACKEND_API_VER}/internal/sync/master-data?updated_since=` dengan
+`x-webhook-secret` + `x-license-token` — endpoint, header, dan jendela tumpang tindih 5 detik
+yang sama dengan `edgeSync` di palmgrade-api, respons **JSON telanjang** (tanpa amplop
+`{status,data}`). Nol perubahan di cloud. Kursor hanya maju kalau **semua** baris mendarat;
+melewati satu baris yang gagal berarti pabrik terjebak di matriks setengah basi, termasuk
+pencabutan truk yang sudah dilakukan cloud. Sumber disimpan **mentah** (tiga nilai: Inti /
+Plasma / Pihak Ketiga) dan cuma dipetakan ke label tampilan Internal/External/`—` oleh
+`domain/sumber_tbs.py`. **Tidak ada boolean `is_internal` di manapun** — memadatkan tiga nilai
+jadi dua di edge menghapus laporan Plasma vs Pihak Ketiga di cloud secara permanen. Kolom
+`sumber` belum ada di API sampai Fase 1 PalmOS selesai, jadi dibaca defensif: sebelum itu
+nilainya `None` dan layar menampilkan `—`.
+
+**Dorong ke PalmOS (§12.5).** Arahnya satu, dan itu bukan selera: PC pabrik cuma bisa
+dihubungi lewat AnyDesk — tidak ada inbound sama sekali — jadi ERP tidak akan pernah bisa
+menarik dari sini. `ErpPushWorker` POST ke metode whitelisted
+`palmos.interfaces.api.terima_event` (`ERP_URL` + `Authorization: token <key>:<secret>`, user
+ber-Role `PalmOS AutoGrade`), payload kontrak §5 yang sama persis dengan yang dipakai api.
+
+Antreannya **tabel `inspections` itu sendiri**, bukan tabel kedua: `erp_state IS NULL` = belum
+didorong, `'ok'` = mendarat, `'tolak'` = ditolak permanen. Satu fakta di satu tempat — antrean
+terpisah selalu berakhir beda isi dengan tabel yang dia bayangi. `ORDER BY received_at`, bukan
+`timestamp`: yang dikejar urutan kedatangan, dan event yang nyusul berjam-jam setelah listrik
+balik tidak boleh menyelinap ke depan antrean.
+
+Tiga kelas hasil, dan bedanya yang menentukan:
+
+| Balasan | Artinya | Yang dilakukan |
+|---|---|---|
+| `200` | mendarat (`{"baru": true}`) **atau** sudah pernah mendarat (`{"baru": false}`) | `erp_state='ok'` — dua-duanya sukses; kiriman ulang setelah internet balik memang perilaku yang benar |
+| `417` | `frappe.throw` — ERP menolak isinya | `erp_state='tolak'` + alasannya masuk log. Permanen: payload cacat yang diputar tiap menit selamanya cuma bikin antrean di belakangnya kelaparan |
+| jaringan mati / 5xx / 401 / 403 | kondisi **luar**, bukan salah barisnya | kolomnya **tidak disentuh**, batch berhenti, tick berikutnya mengambil ulang |
+
+Kelas ketiga itu yang paling mudah salah: menandai gagal di situ berarti menghapus janjang dari
+ERP gara-gara internet putus. 401/403 dipisah lognya dan menyebut `ERP_API_KEY`/`ERP_API_SECRET`
++ Role-nya — tanpa itu kredensial kedaluwarsa tenggelam sebagai "gagal kirim" berhari-hari.
+
+`prediction`, `tp_status`, dan `tp_confidence` disimpan **apa adanya** dari line dan diteruskan
+apa adanya. Aturan Acc/Rej hidup di `domain/vision_event.py`; menurunkannya lagi di konsol
+berarti dua aturan yang bisa berbeda tanpa ada yang tahu. Field kosong juga tidak ditambal —
+ERP menolaknya dengan alasan yang kelihatan, sedangkan tebakan yang salah tidak kelihatan sama
+sekali.
+
+`ERP_URL` kosong = worker pulang saat start dan menulis satu baris log. Itu default: jalur ini
+tidak boleh jadi syarat hidupnya layar operator.
+
+**Perintah ke line.** Konsol meneruskan ke endpoint line yang **sudah ada**
+(`POST /internal/assignment`, `POST /internal/manual-reject`, header `x-internal-secret`).
+HTTP-nya duduk di `integrations/notifications/line_client.py` — satu-satunya bagian konsol yang
+tahu soal httpx — dan `ConsoleService` menerimanya lewat konstruktor bersama `ConsoleStore`
+(composition root: `get_console_service()` di `routes/console.py`). Line yang tidak menjawab
+melempar `LineUnavailable` → route balas **502**, bukan diam. Registry line-nya nilai bertipe
+(`Settings.console_lines` → `LineEndpoint`), dan `LINE_N_MACHINE_ID` dibaca **di Settings**,
+bukan di service. `assign_truck` menunggu line menerima **sebelum** menyimpan: layar yang menampilkan truk
+terpasang padahal line tidak tahu apa-apa membuat operator mengira sudah beres, dan tandan
+berikutnya terhitung tanpa truk. Penugasan disimpan di SQLite, bukan memori (§6.4), jadi
+selamat dari restart konsol di tengah shift.
+
+**UI.** Satu file `src/palmgrade/static/console.html` — vanilla JS, tanpa build step, **tanpa
+CDN** (harus tetap terbuka saat internet mati). Stream kamera pakai `<img>` MJPEG langsung ke
+line di port 8001-8003, jadi tiga koneksi video ditanggung browser, bukan proses konsol. ~2200
+baris React di frontend lama **diekspresikan ulang, bukan di-port**.
+
+**Belum termasuk Fase 2** (sengaja): login operator + PIN (§6.5), timbangan brondolan lewat PLC
+(§6.6b, Fase 3), nomor dokumen berprefiks lokal (§6.3), toggle tampil/sembunyi per line, dan
+halaman riwayat/laporan lintas hari (itu urusan cloud — live/hari ini lokal, riwayat cloud).
+
+**Tests** (`tests/unit/test_tanggal_kerja.py`, `test_console_store.py`, murni-logic, tanpa
+FastAPI): batas hari lewat tengah malam WIB vs UTC, timestamp cacat melempar, dedupe event
+kirim-ulang, pemisahan ACC/REJ per line, penugasan yang selamat restart, urutan
+line-dulu-baru-catat, bentuk URL gambar (relatif vs R2 absolut), Sumber TBS tetap tiga nilai,
+`LINE_N_MACHINE_ID` yang benar-benar sampai lewat Settings, dan kursor master data yang tidak
+maju saat ada baris gagal. `test_erp_push_worker.py` mengunci ketiga kelas hasil dorong-ke-ERP
+(kiriman ulang `{"baru": false}` bukan error, 417 permanen dan cuma dicoba sekali, jaringan
+mati/5xx/403 tidak membuang apa pun dan 403 menghentikan seluruh batch) plus tiga hal yang
+diam-diam bisa berubah tanpa ketahuan: bentuk header `token k:s`, URL metode whitelisted-nya
+persis, dan `prediction`/`tp_status`/`image_path` yang lewat apa adanya. Seam-nya kolaborator:
+test menukar `LineClient` dengan yang palsu dan jaringan dengan `httpx.MockTransport`,
+bukan menambal method privat service. `test_console_html.py` menjaga dua invarian UI yang tidak
+punya test runner sendiri (tanpa build step, jadi tanpa Vitest): tidak ada handler `on*` inline
+— tombol dipasang lewat delegasi + `data-line` — dan `esc()` tetap meloloskan `'` dan `` ` ``,
+karena nilainya masuk ke atribut HTML.

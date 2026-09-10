@@ -325,3 +325,70 @@ services:
       - ./models:/app/models:ro
       - ./engines:/app/engines
       - /home/nexio/Desktop/Projects/sawit:/videos:ro
+
+  # Instance ke-4 dari image yang SAMA: konsol operator offline (§4 rencana
+  # PalmOS). Tanpa kamera, tanpa GPU, tanpa PLC — supaya satu line kamera yang
+  # mati tidak ikut menjatuhkan layar operator. Tiga line mengirim event ke
+  # sini dengan menyetel BACKEND_URL=http://localhost:8000 di .env pabrik;
+  # dengan begitu palmgrade_api lokal tidak perlu hidup lagi (7 → 4 container).
+  console:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        TORCH_VARIANT: cu126
+    image: palmgrade-vision:latest
+    container_name: palmgrade_console
+    restart: unless-stopped
+    network_mode: host
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,os;urllib.request.urlopen('http://localhost:'+os.environ['APP_PORT']+'/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+    environment:
+      - APP_MODE=console
+      - APP_ENV=${APP_ENV:-production}
+      - APP_PORT=8000
+      - APP_VERSION=${APP_VERSION:-unknown}
+      - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
+      # Dipakai dua arah: memverifikasi event masuk dari line (x-webhook-secret)
+      # dan meneruskan perintah ke line (x-internal-secret). Satu nilai, sama
+      # persis dengan yang dipakai tiga line.
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
+      # Batas hari kerja (§6.1). Pabrik jalan ~20 jam/hari lewat tengah malam,
+      # jadi tanggal TIDAK boleh diturunkan dari UTC.
+      - FACTORY_TZ=${FACTORY_TZ:-Asia/Jakarta}
+      - CONSOLE_SYNC_INTERVAL_S=${CONSOLE_SYNC_INTERVAL_S:-300}
+      - CONSOLE_LINE_HOST=${CONSOLE_LINE_HOST:-http://localhost}
+      # Dorong event ke PalmOS. ERP_URL kosong = jalur mati, dan itu default:
+      # layar operator tidak boleh bergantung pada ERP hidup.
+      - ERP_URL=${ERP_URL:-}
+      - ERP_API_KEY=${ERP_API_KEY:-}
+      - ERP_API_SECRET=${ERP_API_SECRET:-}
+      - ERP_PUSH_INTERVAL_S=${ERP_PUSH_INTERVAL_S:-60}
+      - ERP_PUSH_BATCH=${ERP_PUSH_BATCH:-200}
+      # Sumber master data (truk, supplier, Sumber TBS) = API CLOUD, sama
+      # dengan yang dipakai batch upload.
+      - UPLOAD_API_URL=${UPLOAD_API_URL:-}
+      - UPLOAD_API_SECRET=${UPLOAD_API_SECRET:-}
+      - LICENSE_TOKEN=${LICENSE_TOKEN:-}
+      # Pemetaan machine_id → line, supaya event tahu dia dari line mana.
+      # Nilai default sama persis dengan tiga service di atas.
+      - LINE_1_MACHINE_ID=${LINE_1_MACHINE_ID:-d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01}
+      - LINE_2_MACHINE_ID=${LINE_2_MACHINE_ID:-a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02}
+      - LINE_3_MACHINE_ID=${LINE_3_MACHINE_ID:-ad5f7bb9-c06d-4e87-8282-ce450ae331ec}
+    volumes:
+      - .:/app
+      - /app/.venv
+      - ./state/console:/app/state
+      # Gambar tetap milik line-nya masing-masing — konsol cuma numpang baca.
+      - ./artifacts/line-1:/app/artifacts/line-1:ro
+      - ./artifacts/line-2:/app/artifacts/line-2:ro
+      - ./artifacts/line-3:/app/artifacts/line-3:ro

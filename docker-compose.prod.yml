@@ -35,3 +35,10 @@ services:
       - ./state/line-3:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
+
+  console:
+    volumes: !override
+      - ./state/console:/app/state
+      - ./artifacts/line-1:/app/artifacts/line-1:ro
+      - ./artifacts/line-2:/app/artifacts/line-2:ro
+      - ./artifacts/line-3:/app/artifacts/line-3:ro

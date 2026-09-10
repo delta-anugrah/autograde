@@ -1,0 +1,197 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Konsol Operator — Palmgrade</title>
+<!--
+  Satu file, tanpa build step, tanpa Node. Konsol harus tetap bisa dibuka saat
+  internet mati, jadi tidak ada CDN sama sekali. Stream kamera pakai <img>
+  MJPEG langsung ke line (port 8001-8003) — browser yang menanggung tiga
+  koneksi itu, bukan proses konsol.
+-->
+<style>
+  :root { --bg:#0f1115; --card:#181c23; --line:#262c36; --fg:#e6e9ef; --muted:#8b94a3;
+          --acc:#31c48d; --rej:#f05252; --warn:#e3a008; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; }
+  header { display:flex; align-items:baseline; gap:16px; padding:12px 20px; border-bottom:1px solid var(--line); }
+  h1 { font-size:16px; margin:0; }
+  .muted { color:var(--muted); }
+  #lines { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; padding:16px 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .card h2 { font-size:15px; margin:0; padding:10px 14px; border-bottom:1px solid var(--line); }
+  .feed { width:100%; aspect-ratio:16/9; object-fit:cover; background:#000; display:block; }
+  .body { padding:12px 14px; display:grid; gap:10px; }
+  .counts { display:flex; gap:18px; font-variant-numeric:tabular-nums; }
+  .counts b { font-size:22px; display:block; font-weight:600; }
+  .acc b { color:var(--acc); } .rej b { color:var(--rej); }
+  .assign { display:flex; gap:8px; }
+  select, button { background:#222833; color:var(--fg); border:1px solid var(--line);
+                   border-radius:6px; padding:7px 10px; font:inherit; }
+  select { flex:1; min-width:0; }
+  button { cursor:pointer; }
+  button:hover { border-color:#3a4352; }
+  button.reject { background:#3a1f22; border-color:#5a2c30; color:#ffb4b4; width:100%; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:7px 20px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--muted); font-weight:500; }
+  td img { height:38px; border-radius:4px; display:block; }
+  .pill { padding:1px 8px; border-radius:99px; font-size:12px; border:1px solid var(--line); }
+  .ACC { color:var(--acc); } .REJ { color:var(--rej); }
+  #err { display:none; padding:8px 20px; background:#3a1f22; color:#ffb4b4; }
+  section h2 { font-size:14px; padding:0 20px; margin:18px 0 6px; color:var(--muted); font-weight:500; }
+</style>
+
+<header>
+  <h1>Konsol Operator</h1>
+  <span class="muted">Hari kerja <b id="tanggal">—</b> <span id="tz"></span></span>
+</header>
+<div id="err"></div>
+
+<div id="lines"></div>
+
+<section>
+  <h2>Grading terbaru</h2>
+  <table>
+    <thead><tr><th>Waktu</th><th>Line</th><th>Truk</th><th>Sumber</th><th>Hasil</th><th>Conf</th><th>Foto</th></tr></thead>
+    <tbody id="recent"></tbody>
+  </table>
+</section>
+
+<script>
+const $ = (id) => document.getElementById(id);
+// Lolos ' dan ` juga: nilai ini masuk ke atribut HTML, dan line_code bisa berisi
+// machine_id mentah dari event (line yang machine_id-nya tidak dikenal registry).
+const esc = (s) => String(s ?? "").replace(/[&<>"'`]/g, (c) =>
+  ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;","`":"&#96;" }[c]));
+const dash = (v) => (v === null || v === undefined || v === "" ? "—" : esc(v));
+let trucks = [];
+
+function jam(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? esc(iso) : d.toLocaleTimeString("id-ID", { hour12: false });
+}
+
+async function api(path, opts) {
+  const res = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+  return res.json();
+}
+
+function pesan(text) {
+  $("err").textContent = text || "";
+  $("err").style.display = text ? "block" : "none";
+}
+
+// Satu-satunya tempat yang merakit baris truk — dipakai saat render awal DAN
+// saat patch tiap 2 detik, supaya keduanya tidak bisa menyimpang.
+function isiTruk(a) {
+  return `Truk: <b>${a ? dash(a.plate_number) : "belum ada"}</b>
+    · ${a ? dash(a.supplier_name) : "—"}
+    <span class="pill">${a ? dash(a.sumber_label) : "—"}</span>`;
+}
+
+function kartuLine(l) {
+  // Stream diambil dari host yang sama dengan halaman ini, cuma beda port —
+  // jadi konsol tetap benar saat dibuka lewat IP LAN, bukan cuma 127.0.0.1.
+  const feed = l.port ? `${location.protocol}//${location.hostname}:${l.port}/api/video_feed` : "";
+  const opsi = trucks.map((t) =>
+    `<option value="${esc(t.id)}"${l.assignment && l.assignment.truck_id === t.id ? " selected" : ""}>${dash(t.plate_number)}</option>`
+  ).join("");
+  // line_code cuma nempel sebagai data-line lalu dibaca via dataset — tidak
+  // pernah masuk ke atribut onclick, jadi tidak ada konteks string JS untuk
+  // disuntiki sama sekali.
+  return `<div class="card" data-line="${esc(l.line_code)}">
+    <h2>${esc(l.name)}</h2>
+    ${feed ? `<img class="feed" src="${feed}" alt="stream ${esc(l.name)}">` : ""}
+    <div class="body">
+      <div class="counts">
+        <span class="acc"><b>${l.acc}</b><span class="muted">ACC</span></span>
+        <span class="rej"><b>${l.rej}</b><span class="muted">REJ</span></span>
+        <span><b>${l.total}</b><span class="muted">Total</span></span>
+      </div>
+      <div class="truk muted">${isiTruk(l.assignment)}</div>
+      <div class="assign">
+        <select><option value="">— pilih truk —</option>${opsi}</select>
+        <button data-aksi="tugaskan">Tugaskan</button>
+      </div>
+      <button class="reject" data-aksi="tolak">Reject Manual</button>
+    </div>
+  </div>`;
+}
+
+function barisRecent(r) {
+  return `<tr>
+    <td>${jam(r.timestamp)}</td>
+    <td>${esc(r.line_code)}</td>
+    <td>${dash(r.plate_number)}</td>
+    <td>${dash(r.sumber_label)}</td>
+    <td class="${esc(r.ripeness_status)}">${dash(r.ripeness_status)}</td>
+    <td>${r.ripeness_confidence == null ? "—" : Number(r.ripeness_confidence).toFixed(2)}</td>
+    <td>${r.image_url ? `<a href="${esc(r.image_url)}" target="_blank"><img src="${esc(r.image_url)}" alt=""></a>` : "—"}</td>
+  </tr>`;
+}
+
+// Delegasi: satu listener untuk semua kartu, hidup terus walau kartu di-render
+// ulang. Tidak butuh handler global di window.
+$("lines").addEventListener("click", async (ev) => {
+  const tombol = ev.target.closest("button[data-aksi]");
+  if (!tombol) return;
+  const kartu = tombol.closest(".card");
+  const line = kartu.dataset.line;
+  tombol.disabled = true;
+  try {
+    if (tombol.dataset.aksi === "tugaskan") {
+      const truck_id = kartu.querySelector("select").value;
+      if (!truck_id) return;
+      await api(`/api/console/lines/${encodeURIComponent(line)}/assign-truck`,
+                { method: "POST", body: JSON.stringify({ truck_id }) });
+      await refresh();
+    } else {
+      await api(`/api/console/lines/${encodeURIComponent(line)}/manual-reject`,
+                { method: "POST", body: JSON.stringify({ requested_by: "operator" }) });
+    }
+    pesan("");
+  } catch (e) {
+    pesan("Gagal: " + e.message);
+  } finally {
+    tombol.disabled = false;
+  }
+});
+
+// Stream MJPEG di-render sekali saja: menulis ulang innerHTML tiap 2 detik akan
+// memutus dan menyambung ulang tiga koneksi video terus-menerus.
+let dipasang = false;
+async function refresh() {
+  try {
+    const s = await api("/api/console/state");
+    $("tanggal").textContent = s.tanggal_kerja;
+    $("tz").textContent = "(" + s.timezone + ")";
+    if (!dipasang) {
+      $("lines").innerHTML = s.lines.map(kartuLine).join("");
+      dipasang = true;
+    } else {
+      s.lines.forEach((l, i) => {
+        const c = $("lines").children[i];
+        if (!c) return;
+        const b = c.querySelectorAll(".counts b");
+        b[0].textContent = l.acc; b[1].textContent = l.rej; b[2].textContent = l.total;
+        c.querySelector(".truk").innerHTML = isiTruk(l.assignment);
+      });
+    }
+    $("recent").innerHTML = s.recent.map(barisRecent).join("");
+    pesan("");
+  } catch (e) { pesan("Konsol tidak merespons: " + e.message); }
+}
+
+async function muatTrucks() {
+  try { trucks = (await api("/api/console/trucks")).items; }
+  catch (e) { /* master data belum turun — layar tetap jalan tanpa daftar truk */ }
+}
+
+(async () => {
+  await muatTrucks();
+  await refresh();
+  setInterval(refresh, 2000);
+  setInterval(muatTrucks, 60000);
+})();
+</script>

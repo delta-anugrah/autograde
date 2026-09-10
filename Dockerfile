@@ -2,12 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System deps untuk OpenCV dan Hikrobot SDK
+# System deps untuk OpenCV dan Hikrobot SDK. `tzdata` dipakai konsol operator:
+# python:3.11-slim tidak punya basis data zona waktu, dan tanpa itu
+# ZoneInfo("Asia/Jakarta") gagal — batas hari kerja balik ke UTC diam-diam.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libgl1 \
     libusb-1.0-0 \
     libgomp1 \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PIP_DEFAULT_TIMEOUT=3600 \
