@@ -30,10 +30,21 @@ CREATE TABLE IF NOT EXISTS inspections (
     image_path          TEXT,
     truck_id            TEXT,
     assignment_id       TEXT,
-    received_at         REAL NOT NULL
+    received_at         REAL NOT NULL,
+    -- Disimpan apa adanya dari line, TIDAK diturunkan ulang dari
+    -- `ripeness_status`: ERP mewajibkan `prediction` dan menurunkannya di dua
+    -- repo berarti dua aturan yang bisa berbeda tanpa ada yang tahu.
+    prediction          TEXT,
+    tp_status           TEXT,
+    tp_confidence       REAL,
+    -- NULL = belum didorong ke ERP · 'ok' = mendarat · 'tolak' = ditolak
+    -- permanen (417). Tidak ada 'gagal': kegagalan sementara ditandai dengan
+    -- TIDAK mengubah kolom ini, jadi tick berikutnya mengambilnya lagi.
+    erp_state           TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_inspections_hari ON inspections (tanggal_kerja, line_code);
 CREATE INDEX IF NOT EXISTS idx_inspections_urut ON inspections (tanggal_kerja, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_inspections_erp ON inspections (erp_state, received_at);
 
 CREATE TABLE IF NOT EXISTS suppliers (
     id     TEXT PRIMARY KEY,
@@ -89,10 +100,12 @@ class ConsoleStore:
                 """INSERT OR IGNORE INTO inspections (
                        event_id, machine_id, line_code, tanggal_kerja, timestamp,
                        ripeness_status, ripeness_confidence, capture_type,
-                       image_path, truck_id, assignment_id, received_at)
+                       image_path, truck_id, assignment_id, received_at, prediction,
+                       tp_status, tp_confidence)
                    VALUES (:event_id, :machine_id, :line_code, :tanggal_kerja, :timestamp,
                            :ripeness_status, :ripeness_confidence, :capture_type,
-                           :image_path, :truck_id, :assignment_id, :received_at)""",
+                           :image_path, :truck_id, :assignment_id, :received_at, :prediction,
+                           :tp_status, :tp_confidence)""",
                 {**row, "received_at": time.time()},
             )
 
@@ -202,6 +215,29 @@ class ConsoleStore:
         return {r["line_code"]: dict(r) for r in rows}
 
     # ------------------------------------------------------- sync cursor
+
+    # ------------------------------------------------------- dorong ke ERP
+
+    def belum_didorong(self, limit: int) -> list[dict[str, Any]]:
+        """Event yang belum mendarat di ERP, tertua dulu.
+
+        `ORDER BY received_at` bukan `timestamp`: yang dikejar urutan kedatangan,
+        dan event yang nyusul berjam-jam setelah listrik balik tidak boleh
+        menyelinap ke depan antrean.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT * FROM inspections WHERE erp_state IS NULL
+                   ORDER BY received_at LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def tandai_erp(self, event_id: str, state: str) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "UPDATE inspections SET erp_state = ? WHERE event_id = ?", (state, event_id)
+            )
 
     def get_state(self, key: str) -> str | None:
         with self._lock:

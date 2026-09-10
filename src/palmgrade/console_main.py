@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .routes.console import get_console_service, ingest_router
 from .routes.console import router as console_router
+from .workers.erp_push_worker import ErpPushWorker
 from .workers.master_data_worker import MasterDataWorker
 
 logger = logging.getLogger(__name__)
@@ -25,10 +26,16 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     service = get_console_service()  # ZoneInfo(FACTORY_TZ) divalidasi di sini
-    task = asyncio.create_task(MasterDataWorker(service.settings, service.store).run_loop())
+    # Dua arah yang terpisah: master data ditarik dari cloud, event didorong ke
+    # ERP. Keduanya boleh mati tanpa menjatuhkan layar operator — itu inti Fase 2.
+    tasks = [
+        asyncio.create_task(MasterDataWorker(service.settings, service.store).run_loop()),
+        asyncio.create_task(ErpPushWorker(service.settings, service.store).run_loop()),
+    ]
     logger.info("Konsol siap — hari kerja %s (%s)", service.today(), service.settings.factory_tz)
     yield
-    task.cancel()
+    for task in tasks:
+        task.cancel()
 
 
 def create_console_app() -> FastAPI:

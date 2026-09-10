@@ -81,6 +81,12 @@ class ConsoleService:
                 "image_path": payload.get("image_path"),
                 "truck_id": payload.get("truck_id"),
                 "assignment_id": payload.get("assignment_id"),
+                # Diteruskan apa adanya — ERP mewajibkannya dan menolak nilai di
+                # luar {Acc, Rej}. Line yang menghitungnya (`vision_event.py`),
+                # konsol cuma membawa.
+                "prediction": payload.get("prediction"),
+                "tp_status": payload.get("tp_status"),
+                "tp_confidence": payload.get("tp_confidence"),
             }
         )
         return tanggal

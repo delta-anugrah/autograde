@@ -411,6 +411,39 @@ jadi dua di edge menghapus laporan Plasma vs Pihak Ketiga di cloud secara perman
 `sumber` belum ada di API sampai Fase 1 PalmOS selesai, jadi dibaca defensif: sebelum itu
 nilainya `None` dan layar menampilkan `—`.
 
+**Dorong ke PalmOS (§12.5).** Arahnya satu, dan itu bukan selera: PC pabrik cuma bisa
+dihubungi lewat AnyDesk — tidak ada inbound sama sekali — jadi ERP tidak akan pernah bisa
+menarik dari sini. `ErpPushWorker` POST ke metode whitelisted
+`palmos.interfaces.api.terima_event` (`ERP_URL` + `Authorization: token <key>:<secret>`, user
+ber-Role `PalmOS AutoGrade`), payload kontrak §5 yang sama persis dengan yang dipakai api.
+
+Antreannya **tabel `inspections` itu sendiri**, bukan tabel kedua: `erp_state IS NULL` = belum
+didorong, `'ok'` = mendarat, `'tolak'` = ditolak permanen. Satu fakta di satu tempat — antrean
+terpisah selalu berakhir beda isi dengan tabel yang dia bayangi. `ORDER BY received_at`, bukan
+`timestamp`: yang dikejar urutan kedatangan, dan event yang nyusul berjam-jam setelah listrik
+balik tidak boleh menyelinap ke depan antrean.
+
+Tiga kelas hasil, dan bedanya yang menentukan:
+
+| Balasan | Artinya | Yang dilakukan |
+|---|---|---|
+| `200` | mendarat (`{"baru": true}`) **atau** sudah pernah mendarat (`{"baru": false}`) | `erp_state='ok'` — dua-duanya sukses; kiriman ulang setelah internet balik memang perilaku yang benar |
+| `417` | `frappe.throw` — ERP menolak isinya | `erp_state='tolak'` + alasannya masuk log. Permanen: payload cacat yang diputar tiap menit selamanya cuma bikin antrean di belakangnya kelaparan |
+| jaringan mati / 5xx / 401 / 403 | kondisi **luar**, bukan salah barisnya | kolomnya **tidak disentuh**, batch berhenti, tick berikutnya mengambil ulang |
+
+Kelas ketiga itu yang paling mudah salah: menandai gagal di situ berarti menghapus janjang dari
+ERP gara-gara internet putus. 401/403 dipisah lognya dan menyebut `ERP_API_KEY`/`ERP_API_SECRET`
++ Role-nya — tanpa itu kredensial kedaluwarsa tenggelam sebagai "gagal kirim" berhari-hari.
+
+`prediction`, `tp_status`, dan `tp_confidence` disimpan **apa adanya** dari line dan diteruskan
+apa adanya. Aturan Acc/Rej hidup di `domain/vision_event.py`; menurunkannya lagi di konsol
+berarti dua aturan yang bisa berbeda tanpa ada yang tahu. Field kosong juga tidak ditambal —
+ERP menolaknya dengan alasan yang kelihatan, sedangkan tebakan yang salah tidak kelihatan sama
+sekali.
+
+`ERP_URL` kosong = worker pulang saat start dan menulis satu baris log. Itu default: jalur ini
+tidak boleh jadi syarat hidupnya layar operator.
+
 **Perintah ke line.** Konsol meneruskan ke endpoint line yang **sudah ada**
 (`POST /internal/assignment`, `POST /internal/manual-reject`, header `x-internal-secret`).
 HTTP-nya duduk di `integrations/notifications/line_client.py` — satu-satunya bagian konsol yang
@@ -437,7 +470,12 @@ FastAPI): batas hari lewat tengah malam WIB vs UTC, timestamp cacat melempar, de
 kirim-ulang, pemisahan ACC/REJ per line, penugasan yang selamat restart, urutan
 line-dulu-baru-catat, bentuk URL gambar (relatif vs R2 absolut), Sumber TBS tetap tiga nilai,
 `LINE_N_MACHINE_ID` yang benar-benar sampai lewat Settings, dan kursor master data yang tidak
-maju saat ada baris gagal. Seam-nya kolaborator: test menukar `LineClient` dengan yang palsu,
+maju saat ada baris gagal. `test_erp_push_worker.py` mengunci ketiga kelas hasil dorong-ke-ERP
+(kiriman ulang `{"baru": false}` bukan error, 417 permanen dan cuma dicoba sekali, jaringan
+mati/5xx/403 tidak membuang apa pun dan 403 menghentikan seluruh batch) plus tiga hal yang
+diam-diam bisa berubah tanpa ketahuan: bentuk header `token k:s`, URL metode whitelisted-nya
+persis, dan `prediction`/`tp_status`/`image_path` yang lewat apa adanya. Seam-nya kolaborator:
+test menukar `LineClient` dengan yang palsu dan jaringan dengan `httpx.MockTransport`,
 bukan menambal method privat service. `test_console_html.py` menjaga dua invarian UI yang tidak
 punya test runner sendiri (tanpa build step, jadi tanpa Vitest): tidak ada handler `on*` inline
 — tombol dipasang lewat delegasi + `data-line` — dan `esc()` tetap meloloskan `'` dan `` ` ``,

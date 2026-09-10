@@ -226,6 +226,17 @@ class Settings:
     # semua container pakai network_mode: host di PC pabrik.
     console_line_host: str = field(default_factory=lambda: os.getenv("CONSOLE_LINE_HOST", "http://localhost").rstrip("/"))
 
+    # ── Dorong event ke PalmOS (ERP) ─────────────────────────────
+    # Konsol MENDORONG; ERP tidak pernah menarik. PC pabrik cuma bisa dihubungi
+    # lewat AnyDesk, tidak ada inbound sama sekali (runbook §12.5). Kosongkan
+    # `ERP_URL` untuk mematikan — jalur ini tidak boleh jadi syarat hidupnya
+    # layar operator.
+    erp_url: str = field(default_factory=lambda: os.getenv("ERP_URL", "").rstrip("/"))
+    erp_api_key: str = field(default_factory=lambda: os.getenv("ERP_API_KEY", ""))
+    erp_api_secret: str = field(default_factory=lambda: os.getenv("ERP_API_SECRET", ""))
+    erp_push_interval_s: int = field(default_factory=lambda: int(os.getenv("ERP_PUSH_INTERVAL_S", "60")))
+    erp_push_batch: int = field(default_factory=lambda: int(os.getenv("ERP_PUSH_BATCH", "200")))
+
     # ── PLC / ODOT CN-8031 (Modbus-TCP) ──────────────────────────
     # Logikanya ada di src/palmgrade/plc/. Coil map lengkap:
     # docs/plc-integration.md. Mati secara default — cuma PC pabrik yang
@@ -354,6 +365,11 @@ class Settings:
     @property
     def upload_events_url(self) -> str:
         return f"{self.upload_api_url}{self.backend_api_ver}/internal/vision/events"
+
+    @property
+    def erp_events_url(self) -> str:
+        """Metode whitelisted PalmOS. Nama modulnya kontrak, bukan detail."""
+        return f"{self.erp_url}/api/method/palmos.interfaces.api.terima_event"
 
     @property
     def console_db_path(self) -> Path:

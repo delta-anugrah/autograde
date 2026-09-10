@@ -367,6 +367,13 @@ services:
       - FACTORY_TZ=${FACTORY_TZ:-Asia/Jakarta}
       - CONSOLE_SYNC_INTERVAL_S=${CONSOLE_SYNC_INTERVAL_S:-300}
       - CONSOLE_LINE_HOST=${CONSOLE_LINE_HOST:-http://localhost}
+      # Dorong event ke PalmOS. ERP_URL kosong = jalur mati, dan itu default:
+      # layar operator tidak boleh bergantung pada ERP hidup.
+      - ERP_URL=${ERP_URL:-}
+      - ERP_API_KEY=${ERP_API_KEY:-}
+      - ERP_API_SECRET=${ERP_API_SECRET:-}
+      - ERP_PUSH_INTERVAL_S=${ERP_PUSH_INTERVAL_S:-60}
+      - ERP_PUSH_BATCH=${ERP_PUSH_BATCH:-200}
       # Sumber master data (truk, supplier, Sumber TBS) = API CLOUD, sama
       # dengan yang dipakai batch upload.
       - UPLOAD_API_URL=${UPLOAD_API_URL:-}

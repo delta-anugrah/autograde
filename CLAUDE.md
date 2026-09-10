@@ -57,6 +57,7 @@ src/palmgrade/
   repositories/    # file I/O (WebP/JSON) via LocalFileStorage
   pipelines/       # YOLO inference (realtime_inspection_pipeline, model_registry)
   workers/         # background threads + RuntimeState (capture / display / processing / event_broadcast / outbox_retry / batch_upload)
+                   # konsol pakai asyncio, bukan thread: master_data (tarik dari cloud) / erp_push (dorong ke PalmOS)
   integrations/    # camera/{hikrobot,opencv,photo}, notifications/ (webhook_client → api, line_client → line dari konsol), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
   domain/          # pure rules + entities (no I/O) — termasuk tanggal_kerja.py (§6.1) & sumber_tbs.py (§3.5b)
   plc/             # PLC/ODOT Modbus-TCP integration, entirely self-contained — public surface is 5 functions (start_plc_worker/shutdown_plc_worker/submit_grading/inputs/diagnostics)
@@ -103,7 +104,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
   saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
   mengatakan apa-apa soal batch upload ke cloud — untuk itu baca log `Batch tick: N item eligible`
   dari `BatchUploadWorker` atau query `state/upload_manifest.db` langsung.
-- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `tanggal_kerja` lewat tengah malam + `console_store` + invarian `console.html`) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx`) di samping `ruff pytest`. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol — `integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
+- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `tanggal_kerja` lewat tengah malam + `console_store` + invarian `console.html` + **dorong ke ERP**: kiriman ulang bukan error, 417 permanen, jaringan mati tidak membuang apa pun) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx`) di samping `ruff pytest`. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol — `integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py`, `workers/erp_push_worker.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
 - From-zero prod setup (NVIDIA toolkit, MVS install, camera IP): `docs/SETUP.md`.
 
 ---
@@ -253,6 +254,18 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 13. **Penugasan truk: line dulu, baru dicatat.** `assign_truck` menunggu line menerima sebelum
     menyimpan. Layar yang menampilkan truk terpasang padahal line tidak tahu apa-apa membuat
     operator mengira sudah beres, dan tandan berikutnya terhitung tanpa truk.
+14. **Konsol MENDORONG ke ERP; ERP tidak pernah menarik** (§12.5). PC pabrik cuma bisa
+    dihubungi lewat AnyDesk — tidak ada inbound sama sekali, jadi jalur tarik memang mustahil.
+    `ErpPushWorker` POST ke `palmos.interfaces.api.terima_event` dengan
+    `Authorization: token <key>:<secret>`. Antreannya **tabel `inspections` itu sendiri**
+    (`erp_state IS NULL`), bukan tabel kedua — antrean terpisah selalu berakhir beda isi dengan
+    tabel yang dia bayangi. Tiga kelas hasil dan bedanya load-bearing: **200** = mendarat, dan
+    `{"baru": false}` juga sukses (kiriman ulang setelah internet balik memang benar); **417**
+    (`frappe.throw`) = tolakan permanen → `erp_state='tolak'`, tidak pernah diputar lagi;
+    **sisanya** (jaringan mati, 5xx, 401/403) = kondisi luar → kolomnya **TIDAK disentuh** dan
+    batch dihentikan. Menandai gagal di kelas ketiga akan menghapus janjang dari ERP gara-gara
+    internet putus. `ERP_URL` kosong = worker mati diam-diam, dan itu default: jalur ini tidak
+    boleh jadi syarat hidupnya layar operator.
 
 ---
 
