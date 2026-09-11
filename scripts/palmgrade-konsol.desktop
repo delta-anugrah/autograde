@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Palmgrade Konsol
-Comment=Konsol operator layar penuh
+Name=AutoGrade
+Comment=AutoGrade layar penuh
 # Sesuaikan ke lokasi nyata di PC pabrik (lihat CLAUDE.md: /opt/palmgrade/vision).
 Exec=/opt/palmgrade/vision/scripts/konsol-kiosk.sh
 Terminal=false

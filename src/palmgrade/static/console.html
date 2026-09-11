@@ -1,7 +1,7 @@
 <!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Konsol Operator - Palmgrade</title>
+<title>AutoGrade</title>
 <!--
   Satu file, tanpa build step, tanpa Node. Konsol harus tetap bisa dibuka saat
   internet mati, jadi tidak ada CDN sama sekali. Stream kamera pakai <img>
@@ -62,6 +62,8 @@
   header .aksi { margin-left:auto; display:flex; gap:8px; }
   header .aksi button { min-width:5rem; }
   h1 { font-size:1.2rem; margin:0; font-weight:700; }
+  /* Digit selebar sama: tanpa ini header bergeser sedikit tiap detik. */
+  #jam { font-variant-numeric:tabular-nums; }
   .muted { color:var(--muted); }
   /* Nilai ini ditimpa inline oleh terapkanKolom(); yang di sini dipakai sampai
      JS jalan, dan saat operator memilih "Otomatis". */
@@ -131,8 +133,8 @@
 </style>
 
 <header>
-  <h1 data-t="judul">Konsol Operator</h1>
-  <span class="muted"><span data-t="hariKerja">Hari kerja</span> <b id="tanggal">-</b> <span id="tz"></span></span>
+  <h1>AutoGrade</h1>
+  <span class="muted"><b id="jam">-</b> <span id="tz"></span> &middot; <span data-t="hariKerja">Hari kerja</span> <b id="tanggal">-</b></span>
   <span class="aksi">
     <button id="bahasa">EN</button>
     <button id="tema">Terang</button>
@@ -220,7 +222,7 @@ let trucks = [];
 // ── bahasa & tema ──────────────────────────────────────────────────────
 const KAMUS = {
   id: {
-    judul:"Konsol Operator", hariKerja:"Hari kerja",
+    hariKerja:"Hari kerja",
     judulGrading:"Grading terbaru", judulTruk:"Truk", judulTimbangan:"Timbangan",
     labelLayout:"Tata letak kamera", kolomAuto:"Otomatis",
     kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
@@ -241,7 +243,7 @@ const KAMUS = {
     gagalKonsol:"Konsol tidak merespons",
   },
   en: {
-    judul:"Operator Console", hariKerja:"Working day",
+    hariKerja:"Working day",
     judulGrading:"Recent grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge",
     labelLayout:"Camera layout", kolomAuto:"Auto",
     kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
@@ -282,7 +284,6 @@ function terapkanTema() {
 
 function terapkanBahasa() {
   document.documentElement.lang = bahasa;
-  document.title = t("judul") + " - Palmgrade";
   document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
   document.querySelectorAll("[data-t-ph]").forEach((el) => { el.placeholder = t(el.dataset.tPh); });
   $("bahasa").textContent = bahasa === "id" ? "EN" : "ID";
@@ -372,6 +373,10 @@ function waktu(iso) {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} `
        + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
+
+// Jam dinding dari browser, bukan dari server: tetap berdetak walau konsol
+// tidak menjawab, dan jam ini juga yang dipakai timbang masuk/keluar.
+const detak = () => { $("jam").textContent = waktu(new Date()); };
 
 async function api(path, opts) {
   const res = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
@@ -581,7 +586,7 @@ let dipasang = false;
 async function refresh() {
   try {
     const s = await api("/api/console/state");
-    $("tanggal").textContent = s.tanggal_kerja;
+    $("tanggal").textContent = s.tanggal_kerja.split("-").reverse().join("/");
     $("tz").textContent = "(" + s.timezone + ")";
     selarasUrutan(s.lines);
     if (!dipasang) {
@@ -626,6 +631,8 @@ async function muatTrucks() {
   terapkanBahasa();
   terapkanTab();
   terapkanKolom();
+  detak();
+  setInterval(detak, 1000);
   await muatTrucks();
   await refresh();
   await muatTimbangan();
