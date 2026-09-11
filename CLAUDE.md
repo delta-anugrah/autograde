@@ -133,7 +133,9 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 | GET | `/api/console/trucks` | master truk + supplier + `sumber_label` |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
 | GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto) |
+| POST | `/api/console/weighings` | operator mengetik bruto/tara sendiri — payload identik dengan kiriman program timbangan |
 | POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line |
+| POST | `/api/console/lines/{line}/release-truck` | truk pergi → `/internal/assignment` line dengan truk kosong |
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
 | POST | `{BACKEND_API_VER}/internal/vision/events` | ← dari tiga line (`x-webhook-secret`), kontrak §5 |
 | POST | `{BACKEND_API_VER}/internal/scale/weighing` | ← dari program timbangan (`x-webhook-secret`), bentuk sementara kita |
@@ -257,6 +259,11 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 13. **Penugasan truk: line dulu, baru dicatat.** `assign_truck` menunggu line menerima sebelum
     menyimpan. Layar yang menampilkan truk terpasang padahal line tidak tahu apa-apa membuat
     operator mengira sudah beres, dan tandan berikutnya terhitung tanpa truk.
+    **Melepasnya juga harus sampai ke line** (`lepas_truk`): penugasan yang tidak pernah
+    berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang — salah yang tidak
+    kelihatan salah di layar. Kontrak `/internal/assignment` beku, jadi kosong dikirim sebagai
+    string kosong dan line-lah yang mengubahnya jadi `None` (`schemas/internal_schema.py`);
+    `""` yang lolos apa adanya akan ditolak validasi UUID palmgrade-api.
 14. **Konsol MENDORONG ke ERP; ERP tidak pernah menarik** (§12.5). PC pabrik cuma bisa
     dihubungi lewat AnyDesk — tidak ada inbound sama sekali, jadi jalur tarik memang mustahil.
     `ErpPushWorker` POST ke `palmos.interfaces.api.terima_event` dengan

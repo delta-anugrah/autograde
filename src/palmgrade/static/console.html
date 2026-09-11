@@ -41,6 +41,7 @@
   section h2 { font-size:14px; padding:0 20px; margin:18px 0 6px; color:var(--muted); font-weight:500; }
   .tools { display:flex; gap:8px; padding:0 20px 10px; }
   .tools input { flex:1; max-width:320px; }
+  .tools input.kg { max-width:130px; }
   td.num { text-align:right; font-variant-numeric:tabular-nums; }
 </style>
 
@@ -64,16 +65,19 @@
   <h2>Truk &amp; timbangan</h2>
   <!--
     Truk manual: truk pinjaman / belum terdaftar diketik operator di sini, tidak
-    menunggu master data cloud. Timbangan: kolomnya sudah ada walau program
-    timbangannya belum mengirim apa-apa — tabel kosong itu memang keadaannya.
+    menunggu master data cloud. Timbangan: operator boleh mengetik bruto/tara
+    sendiri — bentuk payload-nya sama persis dengan kiriman program timbangan,
+    jadi begitu program itu hidup keduanya mendarat di baris yang sama.
   -->
   <div class="tools">
     <input id="plat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
     <button id="daftar">Daftar truk manual</button>
+    <input id="bruto" class="kg" placeholder="Bruto (kg)" inputmode="decimal" autocomplete="off">
+    <button id="masuk">Timbang masuk</button>
   </div>
   <table>
     <thead><tr><th>Masuk</th><th>Keluar</th><th>Truk</th><th>Sumber</th>
-      <th>Bruto (kg)</th><th>Tara (kg)</th><th>Neto (kg)</th></tr></thead>
+      <th>Bruto (kg)</th><th>Tara (kg)</th><th>Neto (kg)</th><th></th></tr></thead>
     <tbody id="timbangan"></tbody>
   </table>
 </section>
@@ -134,6 +138,7 @@ function kartuLine(l) {
       <div class="assign">
         <select><option value="">— pilih truk —</option>${opsi}</select>
         <button data-aksi="tugaskan">Tugaskan</button>
+        <button data-aksi="lepas" title="Truk sudah pergi">Lepas</button>
       </div>
       <button class="reject" data-aksi="tolak">Reject Manual</button>
     </div>
@@ -143,7 +148,11 @@ function kartuLine(l) {
 const kg = (v) => (v === null || v === undefined ? "—" : Number(v).toLocaleString("id-ID"));
 
 function barisTimbangan(w) {
-  return `<tr>
+  // Identitas tiket dibawa di baris supaya timbang-keluar mengirim ulang kunci
+  // yang sama persis (ref, atau plat + waktu_masuk) — kalau meleset, satu tiket
+  // pecah jadi dua baris dan netonya hilang.
+  return `<tr data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
+              data-masuk="${esc(w.waktu_masuk ?? "")}">
     <td>${w.waktu_masuk ? jam(w.waktu_masuk) : "—"}</td>
     <td>${w.waktu_keluar ? jam(w.waktu_keluar) : "—"}</td>
     <td>${dash(w.plate_number)}</td>
@@ -151,6 +160,7 @@ function barisTimbangan(w) {
     <td class="num">${kg(w.bruto_kg)}</td>
     <td class="num">${kg(w.tara_kg)}</td>
     <td class="num">${kg(w.neto_kg)}</td>
+    <td>${w.tara_kg == null ? `<button data-aksi="keluar">Timbang keluar</button>` : ""}</td>
   </tr>`;
 }
 
@@ -180,6 +190,9 @@ $("lines").addEventListener("click", async (ev) => {
       if (!truck_id) return;
       await api(`/api/console/lines/${encodeURIComponent(line)}/assign-truck`,
                 { method: "POST", body: JSON.stringify({ truck_id }) });
+      await refresh();
+    } else if (tombol.dataset.aksi === "lepas") {
+      await api(`/api/console/lines/${encodeURIComponent(line)}/release-truck`, { method: "POST" });
       await refresh();
     } else {
       await api(`/api/console/lines/${encodeURIComponent(line)}/manual-reject`,
@@ -237,6 +250,46 @@ $("daftar").addEventListener("click", async () => {
   } finally {
     $("daftar").disabled = false;
   }
+});
+
+// Timbang-masuk: bruto dulu, tara menyusul berjam-jam kemudian. Waktunya
+// diambil dari jam browser — di PC pabrik itu jam yang sama dengan yang dilihat
+// operator, dan server yang menurunkan tanggal kerjanya dari situ (§6.1).
+$("masuk").addEventListener("click", async () => {
+  const plate_number = $("plat").value.trim();
+  const bruto_kg = $("bruto").value.trim();
+  if (!plate_number || !bruto_kg) { pesan("Plat dan bruto wajib diisi"); return; }
+  $("masuk").disabled = true;
+  try {
+    await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
+      { plate_number, bruto_kg, waktu_masuk: new Date().toISOString() }) });
+    $("plat").value = ""; $("bruto").value = "";
+    await muatTimbangan();
+    pesan("");
+  } catch (e) {
+    pesan("Gagal mencatat timbangan: " + e.message);
+  } finally {
+    $("masuk").disabled = false;
+  }
+});
+
+// Tara lewat prompt(), bukan input di dalam baris: tabel ini ditulis ulang tiap
+// 15 detik, dan angka yang sedang diketik operator akan ikut terhapus.
+$("timbangan").addEventListener("click", async (ev) => {
+  const tombol = ev.target.closest("button[data-aksi='keluar']");
+  if (!tombol) return;
+  const baris = tombol.closest("tr").dataset;
+  const tara_kg = prompt(`Tara (kg) untuk ${baris.plat}`);
+  if (!tara_kg) return;
+  try {
+    await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
+      plate_number: baris.plat, ref: baris.ref, waktu_masuk: baris.masuk,
+      tara_kg, waktu_keluar: new Date().toISOString() }) });
+    pesan("");
+  } catch (e) {
+    pesan("Gagal mencatat tara: " + e.message);
+  }
+  await muatTimbangan();
 });
 
 async function muatTimbangan() {

@@ -258,6 +258,22 @@ class ConsoleService:
         self.store.set_assignment(line_code, assignment_id, truck_id)
         return {"assignment_id": assignment_id, "truck_id": truck_id, "line_code": line_code}
 
+    async def lepas_truk(self, line_code: str) -> dict[str, Any]:
+        """Truk selesai bongkar dan pergi. Line dulu, baru dicatat (§13, sama dengan assign).
+
+        Tanpa ini penugasan tidak pernah berakhir: line terus menempelkan truk
+        yang sudah pulang ke tandan berikutnya, dan tonasenya mendarat di truk
+        yang salah tanpa satu pun tanda di layar. Kosong dikirim sebagai string
+        kosong karena kontrak `/internal/assignment` beku — line yang mengubahnya
+        jadi `None` (`schemas/internal_schema.py`).
+        """
+        line = self._require_line(line_code)
+        await self._line_client.assign_truck(
+            line, assignment_id="", truck_id="", assigned_at=datetime.now(self.tz).isoformat()
+        )
+        self.store.set_assignment(line_code, "", None)
+        return {"line_code": line_code, "truck_id": None}
+
     async def manual_reject(self, line_code: str, requested_by: str) -> dict[str, Any]:
         line = self._require_line(line_code)
         current = self.store.assignments().get(line_code) or {}
@@ -314,7 +330,9 @@ def _label_sumber_in_place(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _assignment_view(row: dict[str, Any] | None) -> dict[str, Any] | None:
-    if not row:
+    # Baris dengan truck_id kosong = truk sudah dilepas. Barisnya sengaja tetap
+    # ada (riwayat penugasan line), tapi layar harus bilang "belum ada".
+    if not row or not row.get("truck_id"):
         return None
     return {
         "assignment_id": row["assignment_id"],

@@ -113,3 +113,14 @@ def test_berat_ngawur_ditolak(service):
         service.catat_timbangan(_kiriman(bruto_kg="dua belas ton"))
     with pytest.raises(ValueError):
         service.catat_timbangan(_kiriman(bruto_kg=-1))
+
+
+def test_ref_kosong_dari_layar_tidak_bikin_tiket_kembar(service):
+    # Layar operator SELALU mengirim `ref`; isinya kosong kalau tiketnya lahir di
+    # konsol, bukan dari program timbangan. Kalau "" tidak dianggap "tidak ada",
+    # kuncinya berubah dan timbang-keluar melahirkan baris kedua.
+    masuk = service.catat_timbangan(_kiriman(tara_kg=None))
+    keluar = service.catat_timbangan(_kiriman(ref="", bruto_kg=None, tara_kg=5000))
+    assert keluar["id"] == masuk["id"]
+    assert keluar["neto_kg"] == 7500
+    assert len(service.weighings("2026-09-10")) == 1

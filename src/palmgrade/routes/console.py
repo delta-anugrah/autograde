@@ -93,12 +93,36 @@ async def console_weighings(
     return {"tanggal_kerja": tanggal, "items": service.weighings(tanggal, limit=limit)}
 
 
+@router.post("/api/console/weighings", status_code=201)
+async def catat_timbangan_manual(service: Service, payload: Annotated[dict, Body()]) -> dict:
+    """Operator mengetik bruto/tara sendiri, bentuk payload-nya sama persis dengan
+    kiriman program timbangan — cuma tanpa secret, karena konsol cuma dibuka dari
+    127.0.0.1 (§4). Jalur ini yang bikin tiket timbangan tetap ada selama format
+    program timbangan belum diketahui (docs/PERTANYAAN-TERBUKA.md X1).
+    """
+    try:
+        return service.catat_timbangan(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/api/console/lines/{line_code}/assign-truck")
 async def assign_truck(
     line_code: str, service: Service, truck_id: Annotated[str, Body(embed=True)]
 ) -> dict:
     try:
         return await service.assign_truck(line_code, truck_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except LineUnavailable as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/api/console/lines/{line_code}/release-truck")
+async def release_truck(line_code: str, service: Service) -> dict:
+    """Truk pergi. Line ikut diberi tahu — lihat `ConsoleService.lepas_truk`."""
+    try:
+        return await service.lepas_truk(line_code)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except LineUnavailable as exc:
