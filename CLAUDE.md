@@ -92,6 +92,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 | `make restart` | **code-only change** — kode di-bind-mount (`.:/app`), jadi **tidak perlu rebuild** |
 | `make start` / `make up-1\|2\|3` | start without rebuild (all / single line) |
 | `make up-console` / `make logs-console` | konsol operator saja (port 8000, `/console`) — aman di-restart tanpa mengganggu line |
+| `make kiosk` | konsol layar penuh di PC ini (`scripts/konsol-kiosk.sh`) |
 | `make build-engine` | build TensorRT FP16 engine **once per GPU** (one-shot, auto-skip kalau sudah ada) |
 | `make logs` / `make logs-1` | tail logs (combined / per line) |
 | `make down` / `make ps` / `make rebuild` / `make rebuild-clean` / `make clean` | stop / status / rebuild / clean rebuild (`--no-cache`) / cleanup |
@@ -141,6 +142,16 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 | POST | `{BACKEND_API_VER}/internal/scale/weighing` | ← dari program timbangan (`x-webhook-secret`), bentuk sementara kita |
 | GET | `/captures/{line_code}/...` | gambar line, mount read-only, bentuk URL = `resolveCaptureUrl` api |
 | GET | `/health` | ringan, sengaja bukan `routes/health.py` (yang itu menarik torch) |
+
+**Layar penuh = urusan browser, BUKAN `console.html`.** `requestFullscreen()` wajib dipanggil
+dari gestur pengguna, jadi tidak ada halaman web yang boleh memfullscreen dirinya sendiri saat
+dimuat — kiosk datang dari `scripts/konsol-kiosk.sh` (Chrome `--kiosk`), dengan
+`scripts/palmgrade-konsol.desktop` untuk jalan otomatis saat login. Tiga hal di skrip itu yang
+tidak boleh hilang: `--user-data-dir` tetap (pilihan operator hidup di `localStorage`; profil
+sementara atau `--incognito` = semuanya balik ke bawaan tiap pagi), tunggu konsol menjawab dulu
+(sesudah listrik mati sesi desktop sering login sebelum Docker siap, dan kiosk yang mendarat di
+halaman error tidak pernah memuat ulang sendiri), dan `xset s off -dpms` (layar yang dilihat dari
+jauh tanpa disentuh berjam-jam akan ditidurkan screensaver).
 
 ---
 

@@ -78,6 +78,11 @@ up-3:
 up-console:
 	docker compose --env-file $(ENV_FILE) up -d console
 
+# Layar penuh di PC ini. Halaman tidak bisa memfullscreen dirinya sendiri
+# (requestFullscreen wajib dari gestur pengguna), jadi browsernya yang diatur.
+kiosk:
+	./scripts/konsol-kiosk.sh
+
 down:
 	docker compose --env-file $(ENV_FILE) down
 
