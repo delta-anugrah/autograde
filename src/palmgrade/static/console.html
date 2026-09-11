@@ -134,7 +134,7 @@
 
 <header>
   <h1>AutoGrade</h1>
-  <span class="muted"><b id="jam">-</b> <span id="tz"></span> &middot; <span data-t="hariKerja">Hari kerja</span> <b id="tanggal">-</b></span>
+  <span class="muted"><b id="jam">-</b> <span id="tz"></span></span>
   <span class="aksi">
     <button id="bahasa">EN</button>
     <button id="tema">Terang</button>
@@ -222,7 +222,6 @@ let trucks = [];
 // ── bahasa & tema ──────────────────────────────────────────────────────
 const KAMUS = {
   id: {
-    hariKerja:"Hari kerja",
     judulGrading:"Grading terbaru", judulTruk:"Truk", judulTimbangan:"Timbangan",
     labelLayout:"Tata letak kamera", kolomAuto:"Otomatis",
     kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
@@ -243,7 +242,6 @@ const KAMUS = {
     gagalKonsol:"Konsol tidak merespons",
   },
   en: {
-    hariKerja:"Working day",
     judulGrading:"Recent grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge",
     labelLayout:"Camera layout", kolomAuto:"Auto",
     kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
@@ -586,7 +584,6 @@ let dipasang = false;
 async function refresh() {
   try {
     const s = await api("/api/console/state");
-    $("tanggal").textContent = s.tanggal_kerja.split("-").reverse().join("/");
     $("tz").textContent = "(" + s.timezone + ")";
     selarasUrutan(s.lines);
     if (!dipasang) {
