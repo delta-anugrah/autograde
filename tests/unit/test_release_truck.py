@@ -1,9 +1,9 @@
-"""Melepas truk dari line (operator lapangan).
+"""Releasing a truck from a line (field operator).
 
-Truk selesai bongkar lalu pergi, dan sampai ada yang bilang ke line, line terus
-menempelkan truk itu ke tandan berikutnya. Yang dijaga di sini: line diberi tahu
-DULU (invarian yang sama dengan `assign_truck`), layar ikut kosong, dan line yang
-mati tidak boleh membuat layar berbohong.
+The truck finishes unloading and leaves, and until someone tells the line, the
+line keeps stamping it onto the next bunches. Guarded here: the line is told
+FIRST (same invariant as `assign_truck`), the screen clears with it, and a dead
+line must never make the screen lie.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from palmgrade.services.console_service import ConsoleService
 
 
 class FakeLine:
-    """Pengganti `LineClient` — service cuma tahu kolaboratornya, bukan httpx."""
+    """Stands in for `LineClient` — the service only knows the collaborator, not httpx."""
 
     def __init__(self, *, mati: bool = False) -> None:
         self.kiriman: list[tuple[str, str, str]] = []
@@ -55,7 +55,7 @@ def test_lepas_truk_memberi_tahu_line_lalu_mengosongkan_layar(service):
 
     asyncio.run(service.lepas_truk(kode))
 
-    # Yang penting bukan layarnya — line-nya yang harus tahu.
+    # The screen is not the point — the line is what has to know.
     assert service._line_client.kiriman[-1] == (kode, "", "")
     assert _kartu(service, kode)["assignment"] is None
 
@@ -67,7 +67,7 @@ def test_lepas_truk_gagal_kalau_line_mati_layar_tetap_jujur(service):
     with pytest.raises(LineUnavailable):
         asyncio.run(service.lepas_truk(kode))
 
-    # Layar masih menampilkan truk, dan memang benar begitu: line belum tahu.
+    # The screen still shows the truck, and rightly so: the line does not know yet.
     assert _kartu(service, kode)["assignment"] is not None
 
 
@@ -77,8 +77,8 @@ def test_lepas_truk_line_tak_dikenal_ditolak(service):
 
 
 def test_truk_kosong_sampai_di_line_sebagai_none_bukan_string_kosong():
-    # "" yang lolos apa adanya ikut ke payload event, dan palmgrade-api
-    # memvalidasi truck_id/assignment_id sebagai UUID → event ditolak 400.
+    # "" passed through as-is rides into the event payload, and palmgrade-api
+    # validates truck_id/assignment_id as UUIDs → event rejected 400.
     req = AssignmentSyncRequest(
         machine_id="m-1", assignment_id="", truck_id="", assigned_at="2026-09-11T08:00:00+07:00"
     )

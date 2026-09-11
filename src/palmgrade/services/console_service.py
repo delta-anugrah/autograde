@@ -1,16 +1,15 @@
-"""Otak konsol operator offline (§4 rencana PalmOS).
+"""Offline operator console core (plan §4).
 
-Konsol adalah instance ke-4 dari image yang sama (`APP_MODE=console`), berdiri
-di port 8000 tanpa kamera. Tiga line kamera menulis ke disk-nya masing-masing,
-jadi konsol TIDAK bisa "membaca disknya sendiri" — yang dipakai justru kontrak
-event beku §5: tiap line di-set `BACKEND_URL=http://localhost:8000`, lalu
-`OutboxRetryWorker` yang sudah ada mengirim event ke sini persis seperti ke
-palmgrade-api (idempoten lewat uuid5, retry + backoff kalau konsol mati). Nol
-perubahan di kode line, dan `palmgrade_api` lokal tidak perlu hidup lagi —
-inilah pengurangan 7 → 4 container yang diminta rencana.
+The console is a 4th instance of the same image (`APP_MODE=console`) on port
+8000, no camera. Each line writes to its own disk, so the console cannot read
+its own disk — it uses the frozen event contract §5 instead: every line gets
+`BACKEND_URL=http://localhost:8000` and the existing `OutboxRetryWorker` posts
+events here exactly like it does to palmgrade-api (idempotent via uuid5, retry
++ backoff while the console is down). Zero changes in line code, and the local
+`palmgrade_api` no longer has to run — the 7 → 4 container cut the plan wants.
 
-Gambar tetap di disk line, di-mount read-only ke konsol dan di-serve statis.
-Tidak ada pemindaian direktori di mana pun (§6.2).
+Images stay on the line's disk, mounted read-only and served statically. No
+directory scanning anywhere (§6.2).
 """
 from __future__ import annotations
 
@@ -21,7 +20,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint, Settings
-from ..domain.plat import normalisasi_plat, truck_id_for
+from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.sumber_tbs import label_sumber
 from ..domain.tanggal_kerja import tanggal_kerja_for
 from ..integrations.notifications.line_client import LineClient
@@ -31,9 +30,8 @@ logger = logging.getLogger(__name__)
 
 MASTER_CURSOR_KEY = "master_data_cursor"
 
-# Selisih neto yang masih dimaafkan sebelum kiriman ditolak. Timbangan
-# membulatkan, kita tidak boleh diam saja kalau selisihnya lebih dari itu:
-# neto adalah angka yang dibayar ke petani.
+# Net difference still forgiven before a payload is rejected. Scales round;
+# anything past this must not pass quietly — neto is what the farmer is paid.
 TOLERANSI_NETO_KG = 1.0
 
 
@@ -43,8 +41,8 @@ class ConsoleService:
         self.store = store
         self.lines = settings.console_lines
         self._line_client = line_client
-        # Sengaja resolve di konstruktor: FACTORY_TZ ngawur harus membunuh
-        # startup, bukan diam-diam menaruh tonase di tanggal yang salah.
+        # Resolved in the constructor on purpose: a bad FACTORY_TZ must kill
+        # startup, not quietly file tonnage under the wrong date.
         self.tz = ZoneInfo(settings.factory_tz)
         self._by_machine = {ln.machine_id: ln for ln in self.lines}
         self._by_code = {ln.line_code: ln for ln in self.lines}
@@ -55,11 +53,11 @@ class ConsoleService:
         return datetime.now(self.tz).strftime("%Y-%m-%d")
 
     def ingest(self, payload: dict[str, Any]) -> str:
-        """Terima satu event grading dari line. Return `tanggal_kerja`-nya.
+        """Take one grading event from a line. Returns its `tanggal_kerja`.
 
-        ValueError untuk payload cacat → route membalas 400 → outbox line
-        menahan event itu dan menandainya `outbox_failed`. Lebih baik terlihat
-        sebagai kegagalan daripada hilang atau mendarat di hari yang salah.
+        ValueError on a malformed payload → route replies 400 → the line's
+        outbox holds the event and marks it `outbox_failed`. Better visible as
+        a failure than lost, or landed on the wrong day.
         """
         event_id = str(payload.get("event_id") or "").strip()
         machine_id = str(payload.get("machine_id") or "").strip()
@@ -67,7 +65,7 @@ class ConsoleService:
         if not (event_id and machine_id and timestamp):
             raise ValueError("event_id, machine_id, dan timestamp wajib diisi")
 
-        # §6.1: dihitung DI SINI dari timestamp event, sekali, lalu disimpan.
+        # §6.1: computed HERE from the event timestamp, once, then stored.
         tanggal = tanggal_kerja_for(timestamp, self.tz)
 
         line = self._by_machine.get(machine_id)
@@ -75,9 +73,8 @@ class ConsoleService:
             {
                 "event_id": event_id,
                 "machine_id": machine_id,
-                # machine tak dikenal tetap disimpan apa adanya: barisnya muncul
-                # di layar sebagai line asing, jauh lebih cepat ketahuan
-                # daripada event yang ditelan diam-diam.
+                # Unknown machine is stored as-is: the row shows up as a
+                # foreign line, far quicker to spot than a swallowed event.
                 "line_code": line.line_code if line else machine_id,
                 "tanggal_kerja": tanggal,
                 "timestamp": timestamp,
@@ -87,9 +84,9 @@ class ConsoleService:
                 "image_path": payload.get("image_path"),
                 "truck_id": payload.get("truck_id"),
                 "assignment_id": payload.get("assignment_id"),
-                # Diteruskan apa adanya — ERP mewajibkannya dan menolak nilai di
-                # luar {Acc, Rej}. Line yang menghitungnya (`vision_event.py`),
-                # konsol cuma membawa.
+                # Passed through as-is — ERP requires it and rejects anything
+                # outside {Acc, Rej}. The line computes it
+                # (`vision_event.py`), the console only carries it.
                 "prediction": payload.get("prediction"),
                 "tp_status": payload.get("tp_status"),
                 "tp_confidence": payload.get("tp_confidence"),
@@ -97,7 +94,7 @@ class ConsoleService:
         )
         return tanggal
 
-    # ------------------------------------------------------------- baca
+    # ------------------------------------------------------------- read
 
     def state(self) -> dict[str, Any]:
         tanggal = self.today()
@@ -115,7 +112,7 @@ class ConsoleService:
             }
             for ln in self.lines
         ]
-        # Line asing (machine_id tak cocok registry) ikut ditampilkan.
+        # Foreign lines (machine_id not in the registry) are shown too.
         lines += [
             {"line_code": code, "name": f"? {code}", "port": None,
              "total": row["total"], "acc": row["acc"] or 0, "rej": row["rej"] or 0,
@@ -153,23 +150,23 @@ class ConsoleService:
     def weighings(self, tanggal_kerja: str, *, limit: int = 100) -> list[dict[str, Any]]:
         return [_label_sumber_in_place(row) for row in self.store.weighings(tanggal_kerja, limit=limit)]
 
-    # ------------------------------------------------- truk daftar manual
+    # --------------------------------------------------- manual truck entry
 
     def daftar_truk_manual(
         self, plate_number: str, *, supplier_id: str | None = None, capacity: float | None = None
     ) -> dict[str, Any]:
-        """Truk pinjaman / belum terdaftar, diketik operator di konsol.
+        """Borrowed or unregistered truck, typed in by the operator.
 
-        Id-nya uuid5 dari plat ternormalisasi, jadi plat yang sama diketik ulang
-        besok mendarat di truk yang sama. `status='manual'` membedakannya dari
-        truk hasil sinkron master — id master datang dari cloud, jadi keduanya
-        tidak akan pernah bertabrakan kunci.
+        The id is uuid5 of the normalised plate, so the same plate typed again
+        tomorrow lands on the same truck. `status='manual'` separates it from
+        master-synced trucks — master ids come from the cloud, so the two id
+        spaces can never collide.
 
-        Sengaja BELUM didorong ke ERP: DocType `Truck` belum ada di site mana
-        pun (docs/PERTANYAAN-TERBUKA.md S3). Barisnya hidup lokal dulu.
+        Deliberately NOT pushed to ERP yet: the `Truck` DocType exists on no
+        site (docs/PERTANYAAN-TERBUKA.md S3). The row stays local for now.
         """
         plat = (plate_number or "").strip()
-        truck_id = truck_id_for(plat)  # ValueError kalau plat kosong → route balas 400
+        truck_id = truck_id_for(plat)  # ValueError on an empty plate → route replies 400
         self.store.upsert_truck(
             {
                 "id": truck_id,
@@ -181,19 +178,19 @@ class ConsoleService:
         )
         return {"id": truck_id, "plate_number": plat, "status": "manual"}
 
-    # ----------------------------------------------------- timbangan (§3.5c)
+    # --------------------------------------------------------- scale (§3.5c)
 
     def catat_timbangan(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Satu kiriman dari program timbangan. Return baris hasil gabungnya.
+        """One payload from the scale program. Returns the merged row.
 
-        Bentuk yang diminta bos: berat sebelum proses (bruto), berat sesudah
-        (tara), dan selisihnya (neto). Formatnya sendiri belum diketahui (X1) —
-        yang dibekukan di sini bentuk KITA, jadi begitu formatnya turun cukup
-        tambah adapter, bukan bongkar tabel.
+        The shape the boss asked for: weight before unloading (bruto), weight
+        after (tara), and the difference (neto). The scale's own format is not
+        known yet (X1) — what is frozen here is OUR shape, so once the format
+        arrives it needs an adapter, not a table rewrite.
 
-        `neto_kg` SELALU dihitung, tidak pernah dipercaya mentah-mentah. Kalau
-        pengirim menyertakannya dan bedanya lewat toleransi → ValueError → 400.
-        Angka yang dibayar tidak boleh berasal dari dua sumber yang beda diam-diam.
+        `neto_kg` is ALWAYS computed, never trusted as sent. If the sender
+        includes it and it differs past the tolerance → ValueError → 400. The
+        number that gets paid must not quietly come from two sources.
         """
         plat = str(payload.get("plate_number") or "").strip()
         plat_norm = normalisasi_plat(plat)
@@ -202,8 +199,8 @@ class ConsoleService:
         waktu_keluar = str(payload.get("waktu_keluar") or "").strip() or None
 
         if not (ref or waktu_masuk):
-            # Tanpa salah satunya, timbang-keluar tidak punya cara menemukan
-            # baris timbang-masuknya dan satu tiket pecah jadi dua.
+            # Without one of them, weigh-out cannot find its weigh-in row and
+            # one ticket splits into two.
             raise ValueError("ref atau waktu_masuk wajib diisi")
         acuan = waktu_masuk or waktu_keluar
         if acuan is None:
@@ -213,9 +210,9 @@ class ConsoleService:
         kunci = f"timbangan:{ref}" if ref else f"timbangan:{plat_norm}:{waktu_masuk}"
         weighing_id = str(uuid.uuid5(uuid.NAMESPACE_URL, kunci))
 
-        # ponytail: baca-lalu-tulis tanpa transaksi. Kiriman timbangan sepi
-        # (dua per truk), satu proses uvicorn — pindahkan ke UPDATE...RETURNING
-        # kalau nanti ada pengirim kedua.
+        # ponytail: read-then-write, no transaction. Scale payloads are sparse
+        # (two per truck) and uvicorn runs one process — move to
+        # UPDATE...RETURNING if a second sender ever appears.
         lama = self.store.weighing(weighing_id) or {}
         bruto = _kg(payload.get("bruto_kg"), "bruto_kg", lama.get("bruto_kg"))
         tara = _kg(payload.get("tara_kg"), "tara_kg", lama.get("tara_kg"))
@@ -238,34 +235,34 @@ class ConsoleService:
         )
         return self.store.weighing(weighing_id) or {}
 
-    # ------------------------------------------------------ perintah line
+    # ------------------------------------------------------- line commands
 
     async def assign_truck(self, line_code: str, truck_id: str) -> dict[str, Any]:
         line = self._require_line(line_code)
         assignment_id = str(uuid.uuid4())
-        # Line dulu, baru simpan. Kalau line tidak menjawab, JANGAN dicatat:
-        # layar yang menampilkan truk terpasang padahal line tidak tahu apa-apa
-        # membuat operator mengira sudah beres, dan event berikutnya terkirim
-        # tanpa truk. Gagal harus kelihatan sebagai gagal.
+        # Line first, then store. If the line does not answer, DO NOT record:
+        # a screen showing a truck assigned while the line knows nothing makes
+        # the operator think it is done, and the next event ships with no
+        # truck. A failure has to look like one.
         await self._line_client.assign_truck(
             line,
             assignment_id=assignment_id,
             truck_id=truck_id,
             assigned_at=datetime.now(self.tz).isoformat(),
         )
-        # Disimpan, bukan ditaruh di memori (§6.4): truk yang sedang dibongkar
-        # harus tetap nempel di line-nya setelah konsol restart di tengah shift.
+        # Stored, not kept in memory (§6.4): the truck being unloaded must stay
+        # on its line after a console restart mid-shift.
         self.store.set_assignment(line_code, assignment_id, truck_id)
         return {"assignment_id": assignment_id, "truck_id": truck_id, "line_code": line_code}
 
     async def lepas_truk(self, line_code: str) -> dict[str, Any]:
-        """Truk selesai bongkar dan pergi. Line dulu, baru dicatat (§13, sama dengan assign).
+        """Truck done unloading and gone. Line first, then record (§13, like assign).
 
-        Tanpa ini penugasan tidak pernah berakhir: line terus menempelkan truk
-        yang sudah pulang ke tandan berikutnya, dan tonasenya mendarat di truk
-        yang salah tanpa satu pun tanda di layar. Kosong dikirim sebagai string
-        kosong karena kontrak `/internal/assignment` beku — line yang mengubahnya
-        jadi `None` (`schemas/internal_schema.py`).
+        Without this an assignment never ends: the line keeps stamping the truck
+        that already left onto the next bunches, and that tonnage lands on the
+        wrong truck with nothing on screen to show it. Empty goes out as an
+        empty string because the `/internal/assignment` contract is frozen — the
+        line turns it into `None` (`schemas/internal_schema.py`).
         """
         line = self._require_line(line_code)
         await self._line_client.assign_truck(
@@ -293,7 +290,7 @@ class ConsoleService:
 
 
 def _kg(nilai: Any, nama: str, bawaan: float | None) -> float | None:
-    """Angka kilogram, atau `bawaan` kalau tidak dikirim. ValueError kalau ngawur."""
+    """Kilogram figure, or `bawaan` when not sent. ValueError if malformed."""
     if nilai is None or nilai == "":
         return bawaan
     try:
@@ -319,19 +316,19 @@ def _neto(bruto: float | None, tara: float | None, dikirim: float | None) -> flo
 
 
 def _label_sumber_in_place(row: dict[str, Any]) -> dict[str, Any]:
-    """Tukar `sumber` mentah dengan labelnya saja (§3.5b).
+    """Swap the raw `sumber` for its label only (§3.5b).
 
-    Pop DULU, baru assign. `{**row, "sumber_label": label(row.pop(...))}` pernah
-    membocorkan nilai mentahnya ke respons API karena `**row` dievaluasi lebih
-    dulu daripada `pop` — bug yang cuma ketahuan lewat test.
+    Pop FIRST, then assign. `{**row, "sumber_label": label(row.pop(...))}` once
+    leaked the raw value into the API response because `**row` is evaluated
+    before `pop` — a bug only the tests caught.
     """
     row["sumber_label"] = label_sumber(row.pop("sumber", None))
     return row
 
 
 def _assignment_view(row: dict[str, Any] | None) -> dict[str, Any] | None:
-    # Baris dengan truck_id kosong = truk sudah dilepas. Barisnya sengaja tetap
-    # ada (riwayat penugasan line), tapi layar harus bilang "belum ada".
+    # A row with an empty truck_id = truck already released. The row stays on
+    # purpose (the line's assignment history), but the screen must say "none".
     if not row or not row.get("truck_id"):
         return None
     return {
@@ -344,9 +341,9 @@ def _assignment_view(row: dict[str, Any] | None) -> dict[str, Any] | None:
 
 
 def _capture_url(line_code: str | None, image_path: str | None) -> str | None:
-    """Cermin `resolveCaptureUrl` di palmgrade-api — bentuknya harus sama.
+    """Mirrors `resolveCaptureUrl` in palmgrade-api — the shape must match.
 
-    URL absolut (R2, dari jalur batch upload) diteruskan apa adanya.
+    Absolute URLs (R2, from the batch upload lane) pass through as-is.
     """
     if image_path and image_path.lower().startswith(("http://", "https://")):
         return image_path

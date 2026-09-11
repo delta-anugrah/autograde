@@ -3,44 +3,44 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AutoGrade</title>
 <!--
-  Satu file, tanpa build step, tanpa Node. Konsol harus tetap bisa dibuka saat
-  internet mati, jadi tidak ada CDN sama sekali. Stream kamera pakai <img>
-  MJPEG langsung ke line (port 8001-8003) - browser yang menanggung tiga
-  koneksi itu, bukan proses konsol.
+  One file, no build step, no Node. The console must still open with the
+  internet down, so there is no CDN at all. Camera streams are plain MJPEG
+  <img> straight to the lines (ports 8001-8003) - the browser carries those
+  three connections, not the console process.
 
-  Dua bahasa (ID/EN) dan dua tema (terang/gelap) ikut di berkas yang sama: teks
-  statis ditandai data-t, teks yang dirakit JS lewat t(). Semua pilihan
-  operator (bahasa, tema, tab, jumlah kolom, urutan kamera) disimpan di
-  localStorage supaya tidak perlu diatur ulang tiap pagi.
+  Two languages (ID/EN) and two themes (light/dark) live in the same file:
+  static text is tagged data-t, JS-built text goes through t(). Every operator
+  choice (language, theme, tab, column count, camera order) is kept in
+  localStorage so nothing has to be set again each morning.
 
-  Yang di bawah kamera dibagi TIGA TAB (Grading, Truk, Timbangan). Sebelumnya
-  ketiganya bertumpuk dan tabel-tabelnya mendorong kartu kamera keluar layar;
-  truk dan timbangan malah satu blok dengan satu kolom plat dipakai berdua,
-  jadi operator tidak pernah yakin tombol mana yang membaca kotak yang mana.
+  Below the cameras sits THREE TABS (Grading, Trucks, Weighbridge). They used
+  to be stacked, and the tables pushed the camera cards off screen; trucks and
+  weighing even shared one block with one plate field between them, so the
+  operator was never sure which button read which box.
 -->
 <style>
-  /* Konsol ini berdiri di area bongkar-muat, kena matahari langsung, dan
-     operator membacanya sambil lewat - bukan sambil duduk di depannya. Dua
-     akibatnya, dan keduanya melawan kebiasaan layar kantor:
+  /* This console stands in the unloading area, in direct sun, and is read in
+     passing - not sat in front of. Two consequences, both against office-screen
+     habit:
 
-     1. TERANG jadi bawaan, bukan gelap. Di bawah matahari panel memantulkan
-        cahaya sekitar ke SELURUH permukaannya: latar gelap ikut terangkat jadi
-        abu-abu sementara teks redupnya tidak ikut naik, jadi kontrasnya justru
-        hancur. Latar putih memakai kecerahan penuh panel dan bertahan. Tema
-        gelap tetap ada, tapi untuk shift malam dan ruang kontrol.
-     2. Ukuran dipatok dari jarak baca. Angka ACC/REJ dan plat truk yang dilihat
-        dari jauh, jadi itu yang paling besar; tabel memang tidak dibuat untuk
-        dibaca dari seberang lapangan - operator menghampiri layar untuk itu.
+     1. LIGHT is the default, not dark. In sunlight a panel reflects ambient
+        light across its WHOLE surface: a dark background lifts to grey while
+        its dim text does not lift with it, so contrast collapses. A white
+        background uses the panel's full brightness and holds. Dark theme stays,
+        but for night shift and the control room.
+     2. Sizes are set by reading distance. The ACC/REJ figures and truck plates
+        are what gets read from far away, so those are the largest; the tables
+        are not meant to be read from across the yard - the operator walks up.
 
-     Warna status dipilih di atas 6:1 terhadap latarnya, bukan sekadar "hijau"
-     dan "merah": silau memangkas kontras efektif, dan yang mepet 3:1 di ruangan
-     akan hilang total di luar. Teksnya juga tidak pernah hanya warna - ACC/REJ
-     selalu ada labelnya. */
+     Status colours are picked above 6:1 against their background, not just
+     "green" and "red": glare cuts effective contrast, and anything near 3:1
+     indoors vanishes outside. Text is never colour alone - ACC/REJ always
+     carry a label. */
   :root { color-scheme:light;
-          /* Tanpa CDN (konsol wajib hidup saat internet mati), jadi semua nama
-             di sini harus sudah ada di PC-nya. `system-ui` sengaja tidak di
-             depan: di sebagian desktop Linux dia jatuh ke font berstroke tipis,
-             dan stroke tipis yang pertama hilang kena silau. */
+          /* No CDN (the console must live with the internet down), so every
+             name here has to exist on the PC already. `system-ui` is
+             deliberately not first: on some Linux desktops it falls back to a
+             thin-stroke font, and thin strokes are the first to go in glare. */
           --font:"Segoe UI", Ubuntu, Roboto, "Noto Sans", "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
           --bg:#e8ecf1; --card:#ffffff; --line:#8e99a8; --fg:#0b0f14; --muted:#414a57;
           --acc:#03653c; --rej:#b3261e; --input:#ffffff; --hover:#414a57;
@@ -51,9 +51,9 @@
           --acc:#3ddc97; --rej:#ff7b72; --input:#232a35; --hover:#5b667a;
           --danger-bg:#40211f; --danger-line:#6b312d; --danger-fg:#ffc4bf;
           --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23a9b3c2%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
-  /* Satu knop untuk semua ukuran; sisanya rem. Operator masih bisa membesarkan
-     lagi dengan Ctrl + '+' - Chrome mengingatnya per-origin, jadi tidak perlu
-     tombol zoom sendiri di halaman ini. */
+  /* One knob for every size; the rest is rem. The operator can still zoom with
+     Ctrl + '+' - Chrome remembers that per origin, so this page needs no zoom
+     button of its own. */
   html { font-size:18px; }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font:1rem/1.5 var(--font); }
@@ -62,39 +62,39 @@
   header .aksi { margin-left:auto; display:flex; gap:8px; }
   header .aksi button { min-width:5rem; }
   h1 { font-size:1.2rem; margin:0; font-weight:700; }
-  /* Digit selebar sama: tanpa ini header bergeser sedikit tiap detik. */
+  /* Equal-width digits: without this the header shifts slightly every second. */
   #jam { font-variant-numeric:tabular-nums; }
   .muted { color:var(--muted); }
-  /* Nilai ini ditimpa inline oleh terapkanKolom(); yang di sini dipakai sampai
-     JS jalan, dan saat operator memilih "Otomatis". */
+  /* terapkanKolom() overrides this inline; this value holds until JS runs, and
+     whenever the operator picks "Auto". */
   #lines { display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:16px; padding:8px 20px 16px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
   .card h2 { font-size:1.1rem; font-weight:700; margin:0; padding:8px 14px;
              border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
   .card h2 .nama { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
   .card h2 button { padding:4px 12px; font-size:.95rem; line-height:1.2; }
-  /* Kotak hitamnya di pembungkus, bukan di <img>: begitu kamera putus <img>-nya
-     disembunyikan (tanpa ikon gambar rusak) dan tulisan di atasnya yang tampil. */
+  /* The black box sits on the wrapper, not the <img>: when the camera drops the
+     <img> is hidden (no broken-image icon) and the notice shows instead. */
   .feed { position:relative; aspect-ratio:16/9; background:#000; }
   .feed img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-  /* Chrome cuma merender ::after di gambar yang RUSAK. Ini menutup ikon rusak +
-     garis abu bawaannya selama jeda sebelum cekKamera() menandai kotaknya. */
+  /* Chrome only renders ::after on a BROKEN image. This covers the broken icon
+     and its grey border in the gap before cekKamera() marks the box. */
   .feed img::after { content:""; position:absolute; inset:0; background:#000; }
   .feed span { position:absolute; inset:0; display:none; place-items:center; padding:16px;
                text-align:center; color:#e8ecf1; font-size:1.1rem; font-weight:600; }
   .feed.putus img { visibility:hidden; }
   .feed.putus span { display:grid; }
   .body { padding:12px 14px; display:grid; gap:12px; }
-  /* Grid tiga kolom sama lebar, bukan flex: dengan flex jaraknya ikut jumlah
-     digit, jadi begitu ACC tembus ratusan angkanya saling menempel. */
+  /* Three equal columns, not flex: with flex the spacing follows digit count,
+     so once ACC passes a hundred the figures collide. */
   .counts { display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
             font-variant-numeric:tabular-nums; }
-  /* Ini satu-satunya yang harus terbaca dari seberang area bongkar. */
+  /* The only thing that must be readable from across the unloading area. */
   .counts b { font-size:clamp(2.4rem, 4.5vw, 3.6rem); line-height:1; display:block; font-weight:700; }
   .counts .muted { font-size:.8rem; font-weight:600; letter-spacing:.05em; }
-  /* Kiri - tengah - kanan. Rata kiri semua bikin Total berhenti di dua pertiga
-     kartu dan sepertiga kanannya kosong, padahal semua isi kartu lainnya rapat
-     ke tepi kanan (tombol Lepas, Reject). */
+  /* Left - centre - right. All-left leaves Total two thirds across with the
+     right third empty, while everything else in the card runs to the right edge
+     (Release, Reject). */
   .counts > :nth-child(2) { text-align:center; }
   .counts > :last-child { text-align:right; }
   .acc b { color:var(--acc); } .rej b { color:var(--rej); }
@@ -103,10 +103,10 @@
   .assign { display:flex; gap:8px; }
   select, button, input { background:var(--input); color:var(--fg); border:1px solid var(--line);
                    border-radius:6px; padding:10px 13px; font:inherit; }
-  /* Panah bawaan OS beda-beda tiap mesin dan kecil sekali dari jarak baca.
-     appearance:none + panah sendiri menyamakan tampilannya, tapi elemennya
-     TETAP <select> asli: keyboard, Esc, ketik-untuk-cari, dan daftar panjang
-     tetap ditangani browser - bukan kode kita yang harus menirukannya. */
+  /* The OS arrow differs per machine and is tiny at reading distance.
+     appearance:none plus our own arrow makes it uniform, but the element stays
+     a real <select>: keyboard, Esc, type-to-search and long lists are still the
+     browser's job, not ours to imitate. */
   select { flex:1; min-width:0; cursor:pointer; font-weight:600;
            appearance:none; -webkit-appearance:none; padding-right:40px;
            background-image:var(--chev); background-repeat:no-repeat;
@@ -116,9 +116,9 @@
   :is(select, button, input):focus-visible { outline:3px solid var(--acc); outline-offset:1px; }
   button { cursor:pointer; font-weight:600; }
   button:hover { border-color:var(--hover); }
-  /* Target sentuh/klik dari jarak satu langkah, sarung tangan, layar berdebu.
-     Panah urutan di judul kartu sengaja dikecualikan - dia jarang dipakai dan
-     akan menggemukkan judul tiap kartu. */
+  /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
+     arrows in card titles are deliberately excluded - rarely used, and they
+     would fatten every card title. */
   .assign button, .assign select, .tools button, .tools input, .tools select,
   #tabs button, button.reject, header .aksi button { min-height:2.6rem; }
   button.reject { background:var(--danger-bg); border-color:var(--danger-line); color:var(--danger-fg); width:100%; }
@@ -136,8 +136,8 @@
   #tata { padding:14px 20px 0; }
   #tata select { flex:0 0 auto; }
   #tabs { display:flex; gap:4px; padding:18px 20px 0; border-bottom:1px solid var(--line); }
-  /* flex:1 1 0 - lebarnya dibagi rata, bukan ikut panjang teksnya, jadi
-     "Grading terbaru" tidak menggeser dua tab lain saat bahasa diganti. */
+  /* flex:1 1 0 - widths split evenly instead of following text length, so
+     "Recent grading" does not shove the other two tabs when the language flips. */
   #tabs button { flex:1 1 0; background:transparent; color:var(--muted); border-radius:6px 6px 0 0;
                  border-color:transparent; margin-bottom:-1px; font-size:1.05rem; }
   #tabs button.aktif { background:var(--card); color:var(--fg); font-weight:700;
@@ -158,9 +158,9 @@
 <div id="err"></div>
 
 <!--
-  Tata letak kamera diatur operator, bukan dipaksa dari sini: tiap pabrik punya
-  jumlah line dan bentuk layar yang beda. Kolom mengatur bentuk barisnya (3 line
-  dengan 2 kolom = baris 2 lalu 1), panah di judul kartu mengatur urutannya.
+  The operator sets the camera layout, it is not forced from here: every mill
+  has a different line count and screen shape. Columns set the row shape (3
+  lines at 2 columns = a row of 2 then 1), the card arrows set the order.
 -->
 <div class="tools" id="tata">
   <label class="muted" for="kolom" data-t="labelLayout">Tata letak kamera</label>
@@ -190,9 +190,9 @@
 
 <section id="sec-truk" class="panel" hidden>
   <!--
-    Truk pinjaman / belum terdaftar diketik operator di sini, tidak menunggu
-    master data cloud. Daftarnya ikut tampil supaya operator bisa memastikan
-    truknya sudah masuk sebelum mencari-cari di dropdown line.
+    Borrowed or unregistered trucks are typed in here, without waiting for cloud
+    master data. The list is shown too so the operator can confirm the truck is
+    in before hunting for it in a line dropdown.
   -->
   <div class="tools">
     <input id="plat" data-t-ph="phPlat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
@@ -207,9 +207,9 @@
 
 <section id="sec-timbangan" class="panel" hidden>
   <!--
-    Operator boleh mengetik bruto/tara sendiri. Bentuk payload-nya sama persis
-    dengan kiriman program timbangan, jadi begitu program itu hidup keduanya
-    mendarat di baris yang sama, bukan dua tiket kembar.
+    The operator may type bruto/tara by hand. The payload shape is identical to
+    the scale program's, so once that program is live both land on the same row
+    instead of becoming twin tickets.
   -->
   <div class="tools">
     <input id="plat-timbang" data-t-ph="phPlat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
@@ -226,15 +226,15 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-// Lolos ' dan ` juga: nilai ini masuk ke atribut HTML, dan line_code bisa berisi
-// machine_id mentah dari event (line yang machine_id-nya tidak dikenal registry).
+// Escapes ' and ` too: these values go into HTML attributes, and line_code can
+// hold a raw machine_id from an event (a line unknown to the registry).
 const esc = (s) => String(s ?? "").replace(/[&<>"'`]/g, (c) =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;","`":"&#96;" }[c]));
 const KOSONG = "-";
 const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));
 let trucks = [];
 
-// ── bahasa & tema ──────────────────────────────────────────────────────
+// ── language & theme ───────────────────────────────────────────────────
 const KAMUS = {
   id: {
     judulGrading:"Grading terbaru", judulTruk:"Truk", judulTimbangan:"Timbangan",
@@ -278,10 +278,9 @@ const KAMUS = {
   },
 };
 
-// localStorage bisa dilempar browser (mode privat / cookie diblokir). Semua yang
-// disimpan di sini preferensi tampilan, bukan data, jadi gagalnya cukup berarti
-// "berlaku sesi ini saja".
-const simpan = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sesi ini saja */ } };
+// localStorage can throw (private mode / blocked cookies). Everything kept here
+// is display preference, not data, so a failure just means "this session only".
+const simpan = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* this session only */ } };
 const baca = (k, bawaan) => { try { return localStorage.getItem(k) || bawaan; } catch (e) { return bawaan; } };
 
 let bahasa = KAMUS[baca("bahasa", "id")] ? baca("bahasa", "id") : "id";
@@ -291,7 +290,7 @@ const lokal = () => (bahasa === "id" ? "id-ID" : "en-GB");
 
 function terapkanTema() {
   document.documentElement.dataset.theme = tema === "gelap" ? "dark" : "light";
-  // Tombol menyebut tema TUJUAN, bukan yang sedang dipakai.
+  // The button names the TARGET theme, not the current one.
   $("tema").textContent = tema === "terang" ? t("temaGelap") : t("temaTerang");
 }
 
@@ -307,8 +306,8 @@ $("bahasa").addEventListener("click", async () => {
   bahasa = bahasa === "id" ? "en" : "id";
   simpan("bahasa", bahasa);
   terapkanBahasa();
-  // Kartu line dirakit di JS, jadi harus digambar ulang. Stream MJPEG ikut
-  // nyambung ulang sekali - harga satu klik sengaja, bukan tiap 2 detik.
+  // Line cards are built in JS, so they have to be redrawn. The MJPEG streams
+  // reconnect once - the price of one deliberate click, not of every 2 s poll.
   dipasang = false;
   isiTrucks();
   await refresh();
@@ -321,7 +320,7 @@ $("tema").addEventListener("click", () => {
   terapkanTema();
 });
 
-// ── tab truk / timbangan ───────────────────────────────────────────────
+// ── truck / weighbridge tabs ───────────────────────────────────────────
 const TAB_SAH = ["grading", "truk", "timbangan"];
 let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
 
@@ -342,7 +341,7 @@ $("tabs").addEventListener("click", (ev) => {
   terapkanTab();
 });
 
-// ── tata letak kamera ──────────────────────────────────────────────────
+// ── camera layout ──────────────────────────────────────────────────────
 const KOLOM_SAH = ["auto", "1", "2", "3"];
 let kolom = KOLOM_SAH.includes(baca("kolom", "auto")) ? baca("kolom", "auto") : "auto";
 let urutan = [];
@@ -361,24 +360,24 @@ $("kolom").addEventListener("change", () => {
 });
 
 function selarasUrutan(lines) {
-  // Line yang hilang dari registry dibuang, line baru menempel di belakang -
-  // kalau tidak, indexOf() mengembalikan -1 dan kartunya melompat ke depan.
+  // Lines gone from the registry are dropped, new ones append at the end -
+  // otherwise indexOf() returns -1 and the card jumps to the front.
   const kode = lines.map((l) => l.line_code);
   urutan = urutan.filter((k) => kode.includes(k)).concat(kode.filter((k) => !urutan.includes(k)));
 }
 
 function terapkanUrutan() {
-  // Pakai CSS `order`, bukan menyusun ulang DOM: memindahkan <img> MJPEG berarti
-  // memutus lalu menyambung ulang streamnya tiap kali operator menekan panah.
+  // CSS `order`, not a DOM move: moving an MJPEG <img> tears down and reopens
+  // its stream every time the operator taps an arrow.
   for (const kartu of $("lines").children) kartu.style.order = urutan.indexOf(kartu.dataset.line);
 }
 
 // ── render ─────────────────────────────────────────────────────────────
 
-// Selalu lengkap dd/mm/yyyy HH:MM:SS. Jam saja tidak cukup: pabrik jalan lewat
-// tengah malam, jadi baris jam 01.30 bisa milik hari kerja kemarin atau hari ini.
-// Sengaja tidak pakai toLocaleString - id-ID memisahkan jam dengan titik dan
-// menyelipkan koma, jadi kolom waktu berganti bentuk tiap operator menekan EN/ID.
+// Always the full dd/mm/yyyy HH:MM:SS. Time alone is not enough: the mill runs
+// past midnight, so a 01:30 row could belong to yesterday's working day or
+// today's. toLocaleString is avoided on purpose - id-ID separates hours with a
+// dot and slips in a comma, so the column changes shape on every EN/ID flip.
 function waktu(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return esc(iso);
@@ -387,8 +386,8 @@ function waktu(iso) {
        + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-// Jam dinding dari browser, bukan dari server: tetap berdetak walau konsol
-// tidak menjawab, dan jam ini juga yang dipakai timbang masuk/keluar.
+// Wall clock from the browser, not the server: it keeps ticking when the
+// console stops answering, and it is the clock weigh-in/out timestamps use.
 const detak = () => { $("jam").textContent = waktu(new Date()); };
 
 async function api(path, opts) {
@@ -404,11 +403,11 @@ function pesan(text) {
 
 const barisKosong = (lebar, kunci) => `<tr><td colspan="${lebar}" class="muted">${esc(t(kunci))}</td></tr>`;
 
-// Satu-satunya tempat yang merakit baris truk - dipakai saat render awal DAN
-// saat patch tiap 2 detik, supaya keduanya tidak bisa menyimpang.
+// The only place that builds the truck line - used by the first render AND by
+// the 2 s patch, so the two cannot drift apart.
 function isiTruk(a) {
-  // Tanpa truk, pemisah + supplier + pil sumber semuanya cuma strip: tiga
-  // karakter yang tidak mengatakan apa pun di layar yang dilihat dari jauh.
+  // With no truck, the separator, supplier and source pill are all just
+  // dashes: three characters that say nothing on a screen read from afar.
   if (!a) return `${esc(t("truk"))}: <b>${esc(t("belumAda"))}</b>`;
   return `${esc(t("truk"))}: <b>${dash(a.plate_number)}</b>
     &middot; ${dash(a.supplier_name)}
@@ -416,15 +415,14 @@ function isiTruk(a) {
 }
 
 function kartuLine(l) {
-  // Stream diambil dari host yang sama dengan halaman ini, cuma beda port -
-  // jadi konsol tetap benar saat dibuka lewat IP LAN, bukan cuma 127.0.0.1.
+  // The stream comes from the same host as this page, only another port - so
+  // the console still works opened over a LAN IP, not just 127.0.0.1.
   const feed = l.port ? `${location.protocol}//${location.hostname}:${l.port}/api/video_feed` : "";
   const opsi = trucks.map((t2) =>
     `<option value="${esc(t2.id)}"${l.assignment && l.assignment.truck_id === t2.id ? " selected" : ""}>${dash(t2.plate_number)}</option>`
   ).join("");
-  // line_code cuma nempel sebagai data-line lalu dibaca via dataset - tidak
-  // pernah masuk ke atribut onclick, jadi tidak ada konteks string JS untuk
-  // disuntiki sama sekali.
+  // line_code only rides along as data-line and is read via dataset - it never
+  // enters an onclick attribute, so there is no JS string context to inject.
   return `<div class="card" data-line="${esc(l.line_code)}">
     <h2><span class="nama">${esc(l.name)}</span>
       <button data-aksi="geser" data-arah="-1" title="${esc(t("geserKiri"))}">&#9664;</button>
@@ -460,9 +458,9 @@ function barisTruk(tr) {
 }
 
 function barisTimbangan(w) {
-  // Identitas tiket dibawa di baris supaya timbang-keluar mengirim ulang kunci
-  // yang sama persis (ref, atau plat + waktu_masuk) - kalau meleset, satu tiket
-  // pecah jadi dua baris dan netonya hilang.
+  // The row carries the ticket identity so weigh-out resends exactly the same
+  // key (ref, or plate + waktu_masuk) - miss it and one ticket splits into two
+  // rows with its neto gone.
   return `<tr data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
               data-masuk="${esc(w.waktu_masuk ?? "")}">
     <td>${w.waktu_masuk ? waktu(w.waktu_masuk) : KOSONG}</td>
@@ -488,17 +486,17 @@ function barisRecent(r) {
   </tr>`;
 }
 
-// ── aksi ───────────────────────────────────────────────────────────────
+// ── actions ────────────────────────────────────────────────────────────
 
-// Delegasi: satu listener untuk semua kartu, hidup terus walau kartu di-render
-// ulang. Tidak butuh handler global di window.
+// Delegation: one listener for every card, surviving re-renders. No global
+// handler on window needed.
 $("lines").addEventListener("click", async (ev) => {
   const tombol = ev.target.closest("button[data-aksi]");
   if (!tombol) return;
   const kartu = tombol.closest(".card");
   const line = kartu.dataset.line;
   if (tombol.dataset.aksi === "geser") {
-    // Murni tampilan: tidak menyentuh line sama sekali, jadi tidak lewat api().
+    // Pure display: touches no line at all, so it does not go through api().
     const i = urutan.indexOf(line);
     const j = i + Number(tombol.dataset.arah);
     if (i < 0 || j < 0 || j >= urutan.length) return;
@@ -537,9 +535,9 @@ $("daftar").addEventListener("click", async () => {
   try {
     await api("/api/console/trucks", { method: "POST", body: JSON.stringify({ plate_number }) });
     $("plat").value = "";
-    // Render ulang penuh supaya truk baru langsung muncul di dropdown ketiga
-    // line. Stream MJPEG ikut nyambung ulang sekali - itu harga satu klik
-    // sengaja dari operator, bukan sesuatu yang terjadi tiap 2 detik.
+    // Full re-render so the new truck shows up in all three line dropdowns at
+    // once. The MJPEG streams reconnect once - the price of one deliberate
+    // operator click, not something that happens every 2 s.
     dipasang = false;
     await muatTrucks();
     await refresh();
@@ -551,9 +549,9 @@ $("daftar").addEventListener("click", async () => {
   }
 });
 
-// Timbang-masuk: bruto dulu, tara menyusul berjam-jam kemudian. Waktunya
-// diambil dari jam browser - di PC pabrik itu jam yang sama dengan yang dilihat
-// operator, dan server yang menurunkan tanggal kerjanya dari situ (§6.1).
+// Weigh-in: bruto now, tara hours later. The time comes from the browser clock
+// - on the mill PC that is the same clock the operator reads, and the server
+// derives the working day from it (§6.1).
 $("masuk").addEventListener("click", async () => {
   const plate_number = $("plat-timbang").value.trim();
   const bruto_kg = $("bruto").value.trim();
@@ -572,8 +570,8 @@ $("masuk").addEventListener("click", async () => {
   }
 });
 
-// Tara lewat prompt(), bukan input di dalam baris: tabel ini ditulis ulang tiap
-// 15 detik, dan angka yang sedang diketik operator akan ikut terhapus.
+// Tare via prompt(), not an input inside the row: this table is rewritten every
+// 15 s, which would wipe whatever the operator is typing.
 $("timbangan").addEventListener("click", async (ev) => {
   const tombol = ev.target.closest("button[data-aksi='keluar']");
   if (!tombol) return;
@@ -591,41 +589,41 @@ $("timbangan").addEventListener("click", async (ev) => {
   await muatTimbangan();
 });
 
-// ── status kamera ──────────────────────────────────────────────────────
-// ponytail: "tersambung" ditebak browser, bukan dilaporkan line:
-//  - error <img>          -> line menolak koneksi
-//  - load <img>           -> frame pertama masuk
-//  - naturalWidth 0       -> kamera copot: line cuma kirim keep-alive kosong dan
-//                            Chrome mengosongkan gambarnya dalam beberapa detik
-//  - /health tidak jawab  -> line mati di tengah stream: Chrome menahan frame
-//                            terakhir tanpa event apa pun, jadi harus ditanya
-// Batasnya: frame beku yang terus dikirim, atau line mati lalu hidup lagi di
-// antara dua pemeriksaan, tetap terlihat tersambung. Kalau itu kejadian, line
-// harus melaporkan status kamera lewat /api/console/state.
+// ── camera status ──────────────────────────────────────────────────────
+// ponytail: "connected" is guessed by the browser, not reported by the line:
+//  - <img> error       -> the line refuses the connection
+//  - <img> load        -> first frame arrived
+//  - naturalWidth 0    -> camera unplugged: the line sends empty keep-alives
+//                         only and Chrome blanks the image within seconds
+//  - /health silent    -> line died mid-stream: Chrome holds the last frame
+//                         with no event at all, so it has to be asked
+// Ceiling: a frozen frame that keeps being sent, or a line that dies and comes
+// back between two probes, still looks connected. If that bites, the line has
+// to report camera status through /api/console/state.
 $("lines").addEventListener("load", (ev) => ev.target.parentElement.classList.remove("putus"), true);
 $("lines").addEventListener("error", (ev) => ev.target.parentElement.classList.add("putus"), true);
 
 async function cekKamera() {
   await Promise.all([...document.querySelectorAll(".feed img")].map(async (img) => {
-    // no-cors: jawabannya tidak terbaca (beda port), tapi gagal tersambung tetap
-    // jadi error - dan cuma itu yang dibutuhkan.
+    // no-cors: the answer is unreadable (different port), but a failed connect
+    // still throws - and that is all this needs.
     const lineHidup = await fetch(new URL("/health", img.src), {
       mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(3000),
     }).then(() => true, () => false);
     if (lineHidup && img.naturalWidth > 0) return;
     img.parentElement.classList.add("putus");
-    // Tiap percobaan = satu koneksi baru ke line, makanya cuma sekali per
-    // pemeriksaan. Query t supaya browser benar-benar minta ulang.
+    // Each attempt = one new connection to the line, hence once per probe. The
+    // t query forces the browser to actually re-request.
     const url = new URL(img.src);
     url.searchParams.set("t", Date.now());
     img.src = url;
   }));
 }
 
-// ── muat ───────────────────────────────────────────────────────────────
+// ── load ───────────────────────────────────────────────────────────────
 
-// Stream MJPEG di-render sekali saja: menulis ulang innerHTML tiap 2 detik akan
-// memutus dan menyambung ulang tiga koneksi video terus-menerus.
+// MJPEG streams render once: rewriting innerHTML every 2 s would tear down and
+// reopen three video connections forever.
 let dipasang = false;
 async function refresh() {
   try {
@@ -656,7 +654,7 @@ async function muatTimbangan() {
     const items = (await api("/api/console/weighings")).items;
     $("timbangan").innerHTML = items.length
       ? items.map(barisTimbangan).join("") : barisKosong(8, "kosongTiket");
-  } catch (e) { /* program timbangan belum mengirim apa pun - layar tetap jalan */ }
+  } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
 }
 
 function isiTrucks() {
@@ -666,7 +664,7 @@ function isiTrucks() {
 
 async function muatTrucks() {
   try { trucks = (await api("/api/console/trucks")).items; }
-  catch (e) { /* master data belum turun - layar tetap jalan tanpa daftar truk */ }
+  catch (e) { /* master data has not arrived - the screen works without a truck list */ }
   isiTrucks();
 }
 
@@ -682,8 +680,8 @@ async function muatTrucks() {
   await muatTimbangan();
   setInterval(refresh, 2000);
   setInterval(muatTrucks, 60000);
-  // Timbangan jauh lebih sepi dari grading (dua kiriman per truk), jadi 2 detik
-  // cuma bikin query sia-sia.
+  // Weighing is far sparser than grading (two payloads per truck), so 2 s would
+  // only burn queries.
   setInterval(muatTimbangan, 15000);
 })();
 </script>

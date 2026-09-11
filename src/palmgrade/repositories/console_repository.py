@@ -1,13 +1,13 @@
-"""Index SQLite konsol operator (§6.2 rencana PalmOS).
+"""SQLite index for the operator console (plan §6.2).
 
-Konsol TIDAK BOLEH memindai direktori: tiga line menulis ribuan file per hari,
-dan polling yang `listdir` tiap 2 detik akan menghabiskan disk I/O yang dipakai
-grading. Semua yang dibaca layar operator datang dari index ini, yang ditulis
-sekali saat event masuk.
+The console MUST NOT scan directories: three lines write thousands of files a
+day, and a poll that runs `listdir` every 2 s would eat the disk I/O grading
+needs. Everything the operator screen reads comes from this index, written once
+when an event arrives.
 
-Konvensi durability & locking mengikuti `integrations/outbox/outbox_store.py`
-(WAL + synchronous=FULL + satu threading.Lock + INSERT OR IGNORE). Bebas
-torch/cv2 supaya proses konsol tetap ringan dan bisa dites di CI.
+Durability and locking follow `integrations/outbox/outbox_store.py` (WAL +
+synchronous=FULL + one threading.Lock + INSERT OR IGNORE). Free of torch/cv2 so
+the console process stays light and is testable in CI.
 """
 from __future__ import annotations
 
@@ -31,15 +31,15 @@ CREATE TABLE IF NOT EXISTS inspections (
     truck_id            TEXT,
     assignment_id       TEXT,
     received_at         REAL NOT NULL,
-    -- Disimpan apa adanya dari line, TIDAK diturunkan ulang dari
-    -- `ripeness_status`: ERP mewajibkan `prediction` dan menurunkannya di dua
-    -- repo berarti dua aturan yang bisa berbeda tanpa ada yang tahu.
+    -- Stored as sent by the line, NOT re-derived from `ripeness_status`: ERP
+    -- requires `prediction`, and deriving it in two repos means two rules that
+    -- can drift apart with nobody noticing.
     prediction          TEXT,
     tp_status           TEXT,
     tp_confidence       REAL,
-    -- NULL = belum didorong ke ERP · 'ok' = mendarat · 'tolak' = ditolak
-    -- permanen (417). Tidak ada 'gagal': kegagalan sementara ditandai dengan
-    -- TIDAK mengubah kolom ini, jadi tick berikutnya mengambilnya lagi.
+    -- NULL = not pushed to ERP yet · 'ok' = landed · 'tolak' = permanently
+    -- rejected (417). There is no 'failed': a temporary failure is marked by
+    -- NOT touching this column, so the next tick picks it up again.
     erp_state           TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_inspections_hari ON inspections (tanggal_kerja, line_code);
@@ -69,10 +69,10 @@ CREATE TABLE IF NOT EXISTS assignments (
     started_at    REAL NOT NULL
 );
 
--- Timbangan jembatan (§3.5c). Diisi oleh program timbangan lewat
--- POST /internal/scale/weighing; formatnya belum diketahui (X1), jadi jalurnya
--- disiapkan dalam bentuk KITA dan yang perlu ditambah nanti cuma adapter.
--- `neto_kg` tidak pernah datang dari luar begitu saja — dihitung di service.
+-- Weighbridge (§3.5c). Filled by the scale program via
+-- POST /internal/scale/weighing; its format is unknown (X1), so the lane is
+-- built in OUR shape and only an adapter is added later.
+-- `neto_kg` never arrives from outside as-is — it is computed in the service.
 CREATE TABLE IF NOT EXISTS weighings (
     id            TEXT PRIMARY KEY,
     ref           TEXT,
@@ -108,13 +108,13 @@ class ConsoleStore:
             self._db.execute("PRAGMA synchronous=FULL")
             self._db.executescript(_CREATE_SQL)
 
-    # ---------------------------------------------------------- inspeksi
+    # -------------------------------------------------------- inspections
 
     def add_inspection(self, row: dict[str, Any]) -> None:
-        """Idempoten: line mengirim ulang event yang sama setelah retry outbox.
+        """Idempotent: a line resends the same event after an outbox retry.
 
-        Kunci dedupe `event_id` = uuid5(machine_id, file_ts) — rumus beku yang
-        sama dipakai palmgrade-api, jadi satu tandan tidak pernah dihitung dua kali.
+        The dedupe key `event_id` = uuid5(machine_id, file_ts) — the same frozen
+        formula palmgrade-api uses, so one bunch is never counted twice.
         """
         with self._lock, self._db:
             self._db.execute(
@@ -175,8 +175,8 @@ class ConsoleStore:
     # ------------------------------------------------------- master data
 
     def upsert_supplier(self, row: dict[str, Any]) -> None:
-        # Cloud selalu menang (§3.4): tanpa syarat `updated_at`, karena trigger
-        # set_updated_at di cloud pernah mengunci baris permanen di edge sync.
+        # Cloud always wins (§3.4): no `updated_at` condition, because the
+        # cloud's set_updated_at trigger once froze rows forever in edge sync.
         with self._lock, self._db:
             self._db.execute(
                 """INSERT INTO suppliers (id, name, sumber, status) VALUES (?, ?, ?, ?)
@@ -213,14 +213,14 @@ class ConsoleStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
-    # --------------------------------------------------------- timbangan
+    # ---------------------------------------------------------- weighings
 
     def upsert_weighing(self, row: dict[str, Any]) -> None:
-        """Idempoten per `id`, dan HANYA kolom terisi yang menimpa.
+        """Idempotent per `id`, and ONLY filled columns overwrite.
 
-        Timbang-masuk mengirim bruto, timbang-keluar mengirim tara — dua POST
-        untuk baris yang sama. Tanpa `COALESCE` kiriman kedua akan menimpa
-        bruto dengan NULL dan neto ikut hilang. Ini jalur uang; jangan sampai.
+        Weigh-in sends bruto, weigh-out sends tara — two POSTs for one row.
+        Without `COALESCE` the second payload would overwrite bruto with NULL
+        and neto would go with it. This is the money lane; it must not happen.
         """
         with self._lock, self._db:
             self._db.execute(
@@ -248,9 +248,9 @@ class ConsoleStore:
         return dict(row) if row else None
 
     def weighings(self, tanggal_kerja: str, *, limit: int = 100) -> list[dict[str, Any]]:
-        # ponytail: join lewat `truck_id` saja, jadi truk hasil sinkron cloud
-        # (id-nya dari cloud, bukan uuid5 plat) belum ikut ternama. Cukup sampai
-        # jalur ERP hidup — lihat docs/PERTANYAAN-TERBUKA.md S1-S3.
+        # ponytail: joins on `truck_id` only, so a cloud-synced truck (id from
+        # the cloud, not uuid5 of the plate) shows no name yet. Good enough
+        # until the ERP lane is live — see docs/PERTANYAAN-TERBUKA.md S1-S3.
         with self._lock:
             rows = self._db.execute(
                 """SELECT w.*, s.name AS supplier_name, s.sumber
@@ -287,14 +287,14 @@ class ConsoleStore:
 
     # ------------------------------------------------------- sync cursor
 
-    # ------------------------------------------------------- dorong ke ERP
+    # --------------------------------------------------------- push to ERP
 
     def belum_didorong(self, limit: int) -> list[dict[str, Any]]:
-        """Event yang belum mendarat di ERP, tertua dulu.
+        """Events that have not landed in ERP yet, oldest first.
 
-        `ORDER BY received_at` bukan `timestamp`: yang dikejar urutan kedatangan,
-        dan event yang nyusul berjam-jam setelah listrik balik tidak boleh
-        menyelinap ke depan antrean.
+        `ORDER BY received_at`, not `timestamp`: arrival order is what matters,
+        and an event that shows up hours later after the power comes back must
+        not cut to the front of the queue.
         """
         with self._lock:
             rows = self._db.execute(

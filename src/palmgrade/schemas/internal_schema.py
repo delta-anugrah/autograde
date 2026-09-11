@@ -10,11 +10,11 @@ class AssignmentSyncRequest(BaseModel):
     @field_validator("assignment_id", "truck_id")
     @classmethod
     def _kosong_jadi_none(cls, nilai: str | None) -> str | None:
-        """Melepas truk = kirim string kosong; kontrak ini tidak punya cara lain.
+        """Releasing a truck = send an empty string; this contract has no other way.
 
-        Harus jadi `None` di sini, bukan diteruskan apa adanya: `""` ikut nempel
-        ke payload event berikutnya dan palmgrade-api memvalidasinya sebagai UUID
-        → event ditolak 400 dan mendarat di `outbox_failed`.
+        It must become `None` here, not pass through as-is: `""` rides along into
+        the next event payload and palmgrade-api validates it as a UUID → the
+        event is rejected 400 and lands in `outbox_failed`.
         """
         return nilai or None
 

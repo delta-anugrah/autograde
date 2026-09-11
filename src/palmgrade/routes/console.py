@@ -1,8 +1,8 @@
-"""Route konsol operator. Dipasang HANYA oleh `console_main.py`.
+"""Operator console routes. Mounted ONLY by `console_main.py`.
 
-Sengaja route → service → repository tanpa controller pass-through: lapisan
-controller di repo ini isinya cuma meneruskan argumen, dan konsol tidak punya
-logika yang butuh tempat menganggur di antaranya.
+Deliberately route → service → repository with no pass-through controller: the
+controller layer in this repo only forwards arguments, and the console has no
+logic that needs an idle stop in between.
 """
 from __future__ import annotations
 
@@ -23,17 +23,17 @@ _CONSOLE_HTML = Path(__file__).resolve().parents[1] / "static" / "console.html"
 
 @lru_cache
 def get_console_service() -> ConsoleService:
-    """Composition root konsol. Satu-satunya tempat yang merakit ketiganya."""
+    """Console composition root. The only place the three are wired."""
     settings = Settings()
     return ConsoleService(settings, ConsoleStore(settings.console_db_path), LineClient(settings))
 
 
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 
-# ── layar operator + API-nya (localhost, tanpa auth) ────────────────────
-# Konsol berdiri di PC operator dan cuma dibuka lewat http://127.0.0.1:8000
-# (§4: 127.0.0.1 origin tepercaya, 192.168.x.x TIDAK). Login operator = §6.5,
-# bukan bagian Fase 2.
+# ── operator screen + its API (localhost, no auth) ──────────────────────
+# The console sits on the operator PC and is only opened via
+# http://127.0.0.1:8000 (§4: 127.0.0.1 is a trusted origin, 192.168.x.x is
+# NOT). Operator login is §6.5, not part of phase 2.
 router = APIRouter(tags=["console"])
 
 
@@ -72,7 +72,7 @@ async def console_trucks(service: Service) -> dict:
 
 @router.post("/api/console/trucks", status_code=201)
 async def daftar_truk_manual(service: Service, payload: Annotated[dict, Body()]) -> dict:
-    """Truk pinjaman / belum terdaftar, diketik operator (bukan dari master cloud)."""
+    """Borrowed or unregistered truck, typed by the operator (not from cloud master)."""
     try:
         return service.daftar_truk_manual(
             str(payload.get("plate_number") or ""),
@@ -95,10 +95,10 @@ async def console_weighings(
 
 @router.post("/api/console/weighings", status_code=201)
 async def catat_timbangan_manual(service: Service, payload: Annotated[dict, Body()]) -> dict:
-    """Operator mengetik bruto/tara sendiri, bentuk payload-nya sama persis dengan
-    kiriman program timbangan — cuma tanpa secret, karena konsol cuma dibuka dari
-    127.0.0.1 (§4). Jalur ini yang bikin tiket timbangan tetap ada selama format
-    program timbangan belum diketahui (docs/PERTANYAAN-TERBUKA.md X1).
+    """Operator types bruto/tara by hand; the payload shape is identical to the
+    scale program's — only without the secret, since the console is opened from
+    127.0.0.1 only (§4). This lane keeps weighing tickets flowing while the
+    scale program's format is unknown (docs/PERTANYAAN-TERBUKA.md X1).
     """
     try:
         return service.catat_timbangan(payload)
@@ -120,7 +120,7 @@ async def assign_truck(
 
 @router.post("/api/console/lines/{line_code}/release-truck")
 async def release_truck(line_code: str, service: Service) -> dict:
-    """Truk pergi. Line ikut diberi tahu — lihat `ConsoleService.lepas_truk`."""
+    """Truck leaves. The line is told too — see `ConsoleService.lepas_truk`."""
     try:
         return await service.lepas_truk(line_code)
     except ValueError as exc:
@@ -141,9 +141,9 @@ async def manual_reject(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-# ── penerima event dari tiga line (kontrak beku §5) ─────────────────────
-# Bentuk URL & header-nya WAJIB identik dengan palmgrade-api, karena yang
-# mengirim adalah OutboxRetryWorker line yang tidak diubah sama sekali.
+# ── event receiver for the three lines (frozen contract §5) ─────────────
+# URL and header shape MUST match palmgrade-api: the sender is the line's
+# OutboxRetryWorker, which is not modified at all.
 ingest_router = APIRouter(tags=["ingest"])
 
 
@@ -158,8 +158,8 @@ async def ingest_event(
     try:
         tanggal_kerja = service.ingest(payload)
     except ValueError as exc:
-        # 400 → outbox line menahan & menandai gagal. Sengaja tidak 200:
-        # event cacat harus kelihatan, bukan hilang diam-diam.
+        # 400 → the line's outbox holds it and marks it failed. Not 200 on
+        # purpose: a malformed event must be visible, not vanish.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "ok", "tanggal_kerja": tanggal_kerja}
 
@@ -170,11 +170,11 @@ async def ingest_weighing(
     payload: Annotated[dict, Body()],
     x_webhook_secret: Annotated[str | None, Header()] = None,
 ) -> dict:
-    """Kiriman program timbangan (§3.5c). Secret yang sama dengan jalur event.
+    """Scale program payload (§3.5c). Same secret as the event lane.
 
-    Format aslinya belum diketahui (docs/PERTANYAAN-TERBUKA.md X1); yang beku di
-    sini bentuk kita — `plate_number`, `bruto_kg`, `tara_kg`, `waktu_masuk`,
-    `waktu_keluar`, opsional `ref`. Adapter menyusul kalau formatnya sudah turun.
+    The real format is unknown (docs/PERTANYAAN-TERBUKA.md X1); what is frozen
+    here is our shape — `plate_number`, `bruto_kg`, `tara_kg`, `waktu_masuk`,
+    `waktu_keluar`, optional `ref`. An adapter follows once the format lands.
     """
     if x_webhook_secret != service.settings.webhook_secret:
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
