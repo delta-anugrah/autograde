@@ -44,11 +44,13 @@
           --font:"Segoe UI", Ubuntu, Roboto, "Noto Sans", "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
           --bg:#e8ecf1; --card:#ffffff; --line:#8e99a8; --fg:#0b0f14; --muted:#414a57;
           --acc:#03653c; --rej:#b3261e; --input:#ffffff; --hover:#414a57;
-          --danger-bg:#fde8e6; --danger-line:#d99a94; --danger-fg:#8c1d18; }
+          --danger-bg:#fde8e6; --danger-line:#d99a94; --danger-fg:#8c1d18;
+          --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23414a57%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
   :root[data-theme="dark"] { color-scheme:dark;
           --bg:#0b0e13; --card:#161b22; --line:#5a6575; --fg:#f2f5fa; --muted:#a9b3c2;
           --acc:#3ddc97; --rej:#ff7b72; --input:#232a35; --hover:#5b667a;
-          --danger-bg:#40211f; --danger-line:#6b312d; --danger-fg:#ffc4bf; }
+          --danger-bg:#40211f; --danger-line:#6b312d; --danger-fg:#ffc4bf;
+          --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23a9b3c2%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
   /* Satu knop untuk semua ukuran; sisanya rem. Operator masih bisa membesarkan
      lagi dengan Ctrl + '+' - Chrome mengingatnya per-origin, jadi tidak perlu
      tombol zoom sendiri di halaman ini. */
@@ -84,7 +86,17 @@
   .assign { display:flex; gap:8px; }
   select, button, input { background:var(--input); color:var(--fg); border:1px solid var(--line);
                    border-radius:6px; padding:10px 13px; font:inherit; }
-  select { flex:1; min-width:0; }
+  /* Panah bawaan OS beda-beda tiap mesin dan kecil sekali dari jarak baca.
+     appearance:none + panah sendiri menyamakan tampilannya, tapi elemennya
+     TETAP <select> asli: keyboard, Esc, ketik-untuk-cari, dan daftar panjang
+     tetap ditangani browser - bukan kode kita yang harus menirukannya. */
+  select { flex:1; min-width:0; cursor:pointer; font-weight:600;
+           appearance:none; -webkit-appearance:none; padding-right:40px;
+           background-image:var(--chev); background-repeat:no-repeat;
+           background-position:right 13px center; background-size:16px; }
+  select:hover { border-color:var(--hover); }
+  select:disabled { cursor:default; opacity:.55; }
+  :is(select, button, input):focus-visible { outline:3px solid var(--acc); outline-offset:1px; }
   button { cursor:pointer; font-weight:600; }
   button:hover { border-color:var(--hover); }
   /* Target sentuh/klik dari jarak satu langkah, sarung tangan, layar berdebu.
@@ -370,9 +382,12 @@ const barisKosong = (lebar, kunci) => `<tr><td colspan="${lebar}" class="muted">
 // Satu-satunya tempat yang merakit baris truk - dipakai saat render awal DAN
 // saat patch tiap 2 detik, supaya keduanya tidak bisa menyimpang.
 function isiTruk(a) {
-  return `${esc(t("truk"))}: <b>${a ? dash(a.plate_number) : esc(t("belumAda"))}</b>
-    &middot; ${a ? dash(a.supplier_name) : KOSONG}
-    <span class="pill">${a ? dash(a.sumber_label) : KOSONG}</span>`;
+  // Tanpa truk, pemisah + supplier + pil sumber semuanya cuma strip: tiga
+  // karakter yang tidak mengatakan apa pun di layar yang dilihat dari jauh.
+  if (!a) return `${esc(t("truk"))}: <b>${esc(t("belumAda"))}</b>`;
+  return `${esc(t("truk"))}: <b>${dash(a.plate_number)}</b>
+    &middot; ${dash(a.supplier_name)}
+    <span class="pill">${dash(a.sumber_label)}</span>`;
 }
 
 function kartuLine(l) {
