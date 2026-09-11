@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=AutoGrade
+Comment=AutoGrade fullscreen
+# Adjust to the real path on the factory PC (see CLAUDE.md: /opt/palmgrade/vision).
+Exec=/opt/palmgrade/vision/scripts/console-kiosk.sh
+Terminal=false
+X-GNOME-Autostart-enabled=true

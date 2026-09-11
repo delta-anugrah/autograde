@@ -1,75 +1,394 @@
 <!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Konsol Operator — Palmgrade</title>
+<title>AutoGrade</title>
 <!--
-  Satu file, tanpa build step, tanpa Node. Konsol harus tetap bisa dibuka saat
-  internet mati, jadi tidak ada CDN sama sekali. Stream kamera pakai <img>
-  MJPEG langsung ke line (port 8001-8003) — browser yang menanggung tiga
-  koneksi itu, bukan proses konsol.
+  One file, no build step, no Node. The console must still open with the
+  internet down, so there is no CDN at all. Camera streams are plain MJPEG
+  <img> straight to the lines (ports 8001-8003) - the browser carries those
+  three connections, not the console process.
+
+  Two languages (ID/EN) and two themes (light/dark) live in the same file:
+  static text is tagged data-t, JS-built text goes through t(). Every operator
+  choice (language, theme, tab, column count, camera order) is kept in
+  localStorage so nothing has to be set again each morning.
+
+  Below the cameras sits THREE TABS (Grading, Trucks, Weighbridge). They used
+  to be stacked, and the tables pushed the camera cards off screen; trucks and
+  weighing even shared one block with one plate field between them, so the
+  operator was never sure which button read which box.
 -->
 <style>
-  :root { --bg:#0f1115; --card:#181c23; --line:#262c36; --fg:#e6e9ef; --muted:#8b94a3;
-          --acc:#31c48d; --rej:#f05252; --warn:#e3a008; }
+  /* This console stands in the unloading area, in direct sun, and is read in
+     passing - not sat in front of. Two consequences, both against office-screen
+     habit:
+
+     1. LIGHT is the default, not dark. In sunlight a panel reflects ambient
+        light across its WHOLE surface: a dark background lifts to grey while
+        its dim text does not lift with it, so contrast collapses. A white
+        background uses the panel's full brightness and holds. Dark theme stays,
+        but for night shift and the control room.
+     2. Sizes are set by reading distance. The ACC/REJ figures and truck plates
+        are what gets read from far away, so those are the largest; the tables
+        are not meant to be read from across the yard - the operator walks up.
+
+     Status colours are picked above 6:1 against their background, not just
+     "green" and "red": glare cuts effective contrast, and anything near 3:1
+     indoors vanishes outside. Text is never colour alone - ACC/REJ always
+     carry a label. */
+  :root { color-scheme:light;
+          /* No CDN (the console must live with the internet down), so every
+             name here has to exist on the PC already. `system-ui` is
+             deliberately not first: on some Linux desktops it falls back to a
+             thin-stroke font, and thin strokes are the first to go in glare. */
+          --font:"Segoe UI", Ubuntu, Roboto, "Noto Sans", "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
+          --bg:#e8ecf1; --card:#ffffff; --line:#8e99a8; --fg:#0b0f14; --muted:#414a57;
+          --acc:#03653c; --rej:#b3261e; --input:#ffffff; --hover:#414a57;
+          --danger-bg:#fde8e6; --danger-line:#d99a94; --danger-fg:#8c1d18;
+          --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23414a57%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
+  :root[data-theme="dark"] { color-scheme:dark;
+          --bg:#0b0e13; --card:#161b22; --line:#5a6575; --fg:#f2f5fa; --muted:#a9b3c2;
+          --acc:#3ddc97; --rej:#ff7b72; --input:#232a35; --hover:#5b667a;
+          --danger-bg:#40211f; --danger-line:#6b312d; --danger-fg:#ffc4bf;
+          --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23a9b3c2%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
+  /* One knob for every size; the rest is rem. The operator can still zoom with
+     Ctrl + '+' - Chrome remembers that per origin, so this page needs no zoom
+     button of its own. */
+  html { font-size:18px; }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; }
-  header { display:flex; align-items:baseline; gap:16px; padding:12px 20px; border-bottom:1px solid var(--line); }
-  h1 { font-size:16px; margin:0; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:1rem/1.5 var(--font); }
+  header { display:flex; align-items:baseline; flex-wrap:wrap; gap:10px 16px;
+           padding:12px 20px; border-bottom:1px solid var(--line); background:var(--card); }
+  header .aksi { margin-left:auto; display:flex; gap:8px; }
+  header .aksi button { min-width:5rem; }
+  h1 { font-size:1.2rem; margin:0; font-weight:700; }
+  /* Equal-width digits: without this the header shifts slightly every second. */
+  #jam { font-variant-numeric:tabular-nums; }
   .muted { color:var(--muted); }
-  #lines { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; padding:16px 20px; }
+  /* terapkanKolom() overrides this inline; this value holds until JS runs, and
+     whenever the operator picks "Auto". */
+  #lines { display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:16px; padding:8px 20px 16px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-  .card h2 { font-size:15px; margin:0; padding:10px 14px; border-bottom:1px solid var(--line); }
-  .feed { width:100%; aspect-ratio:16/9; object-fit:cover; background:#000; display:block; }
-  .body { padding:12px 14px; display:grid; gap:10px; }
-  .counts { display:flex; gap:18px; font-variant-numeric:tabular-nums; }
-  .counts b { font-size:22px; display:block; font-weight:600; }
+  .card h2 { font-size:1.1rem; font-weight:700; margin:0; padding:8px 14px;
+             border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
+  .card h2 .nama { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .card h2 button { padding:4px 12px; font-size:.95rem; line-height:1.2; }
+  /* The black box sits on the wrapper, not the <img>: when the camera drops the
+     <img> is hidden (no broken-image icon) and the notice shows instead. */
+  .feed { position:relative; aspect-ratio:16/9; background:#000; }
+  .feed img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  /* Chrome only renders ::after on a BROKEN image. This covers the broken icon
+     and its grey border in the gap before cekKamera() marks the box. */
+  .feed img::after { content:""; position:absolute; inset:0; background:#000; }
+  .feed span { position:absolute; inset:0; display:none; place-items:center; padding:16px;
+               text-align:center; color:#e8ecf1; font-size:1.1rem; font-weight:600; }
+  .feed.putus img { visibility:hidden; }
+  .feed.putus span { display:grid; }
+  .body { padding:12px 14px; display:grid; gap:12px; }
+  /* Three equal columns, not flex: with flex the spacing follows digit count,
+     so once ACC passes a hundred the figures collide. */
+  .counts { display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+            font-variant-numeric:tabular-nums; }
+  /* The only thing that must be readable from across the unloading area. */
+  .counts b { font-size:clamp(2.4rem, 4.5vw, 3.6rem); line-height:1; display:block; font-weight:700; }
+  .counts .muted { font-size:.8rem; font-weight:600; letter-spacing:.05em; }
+  /* Left - centre - right. All-left leaves Total two thirds across with the
+     right third empty, while everything else in the card runs to the right edge
+     (Release, Reject). */
+  .counts > :nth-child(2) { text-align:center; }
+  .counts > :last-child { text-align:right; }
   .acc b { color:var(--acc); } .rej b { color:var(--rej); }
+  .truk { font-size:1.05rem; color:var(--fg); }
+  .truk b { font-size:1.25rem; }
   .assign { display:flex; gap:8px; }
-  select, button { background:#222833; color:var(--fg); border:1px solid var(--line);
-                   border-radius:6px; padding:7px 10px; font:inherit; }
-  select { flex:1; min-width:0; }
-  button { cursor:pointer; }
-  button:hover { border-color:#3a4352; }
-  button.reject { background:#3a1f22; border-color:#5a2c30; color:#ffb4b4; width:100%; }
+  select, button, input { background:var(--input); color:var(--fg); border:1px solid var(--line);
+                   border-radius:6px; padding:10px 13px; font:inherit; }
+  /* The OS arrow differs per machine and is tiny at reading distance.
+     appearance:none plus our own arrow makes it uniform, but the element stays
+     a real <select>: keyboard, Esc, type-to-search and long lists are still the
+     browser's job, not ours to imitate. */
+  select { flex:1; min-width:0; cursor:pointer; font-weight:600;
+           appearance:none; -webkit-appearance:none; padding-right:40px;
+           background-image:var(--chev); background-repeat:no-repeat;
+           background-position:right 13px center; background-size:16px; }
+  select:hover { border-color:var(--hover); }
+  select:disabled { cursor:default; opacity:.55; }
+  :is(select, button, input):focus-visible { outline:3px solid var(--acc); outline-offset:1px; }
+  button { cursor:pointer; font-weight:600; }
+  button:hover { border-color:var(--hover); }
+  /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
+     arrows in card titles are deliberately excluded - rarely used, and they
+     would fatten every card title. */
+  .assign button, .assign select, .tools button, .tools input, .tools select,
+  #tabs button, button.reject, header .aksi button { min-height:2.6rem; }
+  button.reject { background:var(--danger-bg); border-color:var(--danger-line); color:var(--danger-fg); width:100%; }
   table { width:100%; border-collapse:collapse; }
-  th, td { text-align:left; padding:7px 20px; border-bottom:1px solid var(--line); white-space:nowrap; }
-  th { color:var(--muted); font-weight:500; }
-  td img { height:38px; border-radius:4px; display:block; }
-  .pill { padding:1px 8px; border-radius:99px; font-size:12px; border:1px solid var(--line); }
-  .ACC { color:var(--acc); } .REJ { color:var(--rej); }
-  #err { display:none; padding:8px 20px; background:#3a1f22; color:#ffb4b4; }
-  section h2 { font-size:14px; padding:0 20px; margin:18px 0 6px; color:var(--muted); font-weight:500; }
+  th, td { text-align:left; padding:11px 20px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--muted); font-weight:600; font-size:.85rem; letter-spacing:.03em; }
+  td { font-size:.95rem; }
+  td img { height:48px; border-radius:4px; display:block; }
+  .pill { padding:2px 10px; border-radius:99px; font-size:.8rem; border:1px solid var(--line); }
+  #err { display:none; padding:12px 20px; font-weight:600;
+         background:var(--danger-bg); color:var(--danger-fg); border-bottom:1px solid var(--danger-line); }
+  .tools { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:0 20px 10px; }
+  .tools input { flex:1; max-width:22rem; }
+  .tools input.kg { max-width:9rem; }
+  #tata { padding:14px 20px 0; }
+  #tata select { flex:0 0 auto; }
+  #tabs { display:flex; gap:4px; padding:18px 20px 0; border-bottom:1px solid var(--line); }
+  /* flex:1 1 0 - widths split evenly instead of following text length, so
+     "Recent grading" does not shove the other two tabs when the language flips. */
+  #tabs button { flex:1 1 0; background:transparent; color:var(--muted); border-radius:6px 6px 0 0;
+                 border-color:transparent; margin-bottom:-1px; font-size:1.05rem; }
+  #tabs button.aktif { background:var(--card); color:var(--fg); font-weight:700;
+                       border-color:var(--line); border-bottom-color:var(--card);
+                       box-shadow:inset 0 3px 0 var(--acc); }
+  .panel { padding-top:14px; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
 </style>
 
 <header>
-  <h1>Konsol Operator</h1>
-  <span class="muted">Hari kerja <b id="tanggal">—</b> <span id="tz"></span></span>
+  <h1>AutoGrade</h1>
+  <span class="muted"><b id="jam">-</b> <span id="tz"></span></span>
+  <span class="aksi">
+    <button id="bahasa">EN</button>
+    <button id="tema">Terang</button>
+  </span>
 </header>
 <div id="err"></div>
 
+<!--
+  The operator sets the camera layout, it is not forced from here: every mill
+  has a different line count and screen shape. Columns set the row shape (3
+  lines at 2 columns = a row of 2 then 1), the card arrows set the order.
+-->
+<div class="tools" id="tata">
+  <label class="muted" for="kolom" data-t="labelLayout">Tata letak kamera</label>
+  <select id="kolom">
+    <option value="auto" data-t="kolomAuto">Otomatis</option>
+    <option value="1" data-t="kolom1">1 per baris</option>
+    <option value="2" data-t="kolom2">2 per baris</option>
+    <option value="3" data-t="kolom3">3 per baris</option>
+  </select>
+</div>
 <div id="lines"></div>
 
-<section>
-  <h2>Grading terbaru</h2>
+<nav id="tabs">
+  <button data-tab="grading" data-t="judulGrading">Grading terbaru</button>
+  <button data-tab="truk" data-t="judulTruk">Truk</button>
+  <button data-tab="timbangan" data-t="judulTimbangan">Timbangan</button>
+</nav>
+
+<section id="sec-grading" class="panel" hidden>
   <table>
-    <thead><tr><th>Waktu</th><th>Line</th><th>Truk</th><th>Sumber</th><th>Hasil</th><th>Conf</th><th>Foto</th></tr></thead>
+    <thead><tr><th data-t="thWaktu">Waktu</th><th data-t="thLine">Line</th><th data-t="thTruk">Truk</th>
+      <th data-t="thSumber">Sumber</th><th data-t="thHasil">Hasil</th><th data-t="thConf">Conf</th>
+      <th data-t="thFoto">Foto</th></tr></thead>
     <tbody id="recent"></tbody>
+  </table>
+</section>
+
+<section id="sec-truk" class="panel" hidden>
+  <!--
+    Borrowed or unregistered trucks are typed in here, without waiting for cloud
+    master data. The list is shown too so the operator can confirm the truck is
+    in before hunting for it in a line dropdown.
+  -->
+  <div class="tools">
+    <input id="plat" data-t-ph="phPlat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
+    <button id="daftar" data-t="btnDaftar">Daftar truk manual</button>
+  </div>
+  <table>
+    <thead><tr><th data-t="thPlat">Plat</th><th data-t="thSupplier">Supplier</th>
+      <th data-t="thSumber">Sumber</th><th data-t="thStatus">Status</th></tr></thead>
+    <tbody id="trucks"></tbody>
+  </table>
+</section>
+
+<section id="sec-timbangan" class="panel" hidden>
+  <!--
+    The operator may type bruto/tara by hand. The payload shape is identical to
+    the scale program's, so once that program is live both land on the same row
+    instead of becoming twin tickets.
+  -->
+  <div class="tools">
+    <input id="plat-timbang" data-t-ph="phPlat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
+    <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)" inputmode="decimal" autocomplete="off">
+    <button id="masuk" data-t="btnMasuk">Timbang masuk</button>
+  </div>
+  <table>
+    <thead><tr><th data-t="thMasuk">Masuk</th><th data-t="thKeluar">Keluar</th><th data-t="thTruk">Truk</th>
+      <th data-t="thSumber">Sumber</th><th data-t="thBruto">Bruto (kg)</th><th data-t="thTara">Tara (kg)</th>
+      <th data-t="thNeto">Neto (kg)</th><th></th></tr></thead>
+    <tbody id="timbangan"></tbody>
   </table>
 </section>
 
 <script>
 const $ = (id) => document.getElementById(id);
-// Lolos ' dan ` juga: nilai ini masuk ke atribut HTML, dan line_code bisa berisi
-// machine_id mentah dari event (line yang machine_id-nya tidak dikenal registry).
+// Escapes ' and ` too: these values go into HTML attributes, and line_code can
+// hold a raw machine_id from an event (a line unknown to the registry).
 const esc = (s) => String(s ?? "").replace(/[&<>"'`]/g, (c) =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;","`":"&#96;" }[c]));
-const dash = (v) => (v === null || v === undefined || v === "" ? "—" : esc(v));
+const KOSONG = "-";
+const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));
 let trucks = [];
 
-function jam(iso) {
-  const d = new Date(iso);
-  return isNaN(d) ? esc(iso) : d.toLocaleTimeString("id-ID", { hour12: false });
+// ── language & theme ───────────────────────────────────────────────────
+const KAMUS = {
+  id: {
+    judulGrading:"Grading terbaru", judulTruk:"Truk", judulTimbangan:"Timbangan",
+    labelLayout:"Tata letak kamera", kolomAuto:"Otomatis",
+    kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
+    geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
+    thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
+    thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
+    thMasuk:"Masuk", thKeluar:"Keluar", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
+    phPlat:"Nomor polisi truk (mis. B 1234 XY)", phBruto:"Bruto (kg)",
+    btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
+    btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
+    temaGelap:"Gelap", temaTerang:"Terang",
+    truk:"Truk", belumAda:"belum ada", pilihTruk:"pilih truk", lepasTitle:"Truk sudah pergi",
+    kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
+    kosongGrading:"Belum ada grading hari ini",
+    promptTara:"Tara (kg) untuk", wajibIsi:"Plat dan bruto wajib diisi",
+    gagal:"Gagal", gagalDaftar:"Gagal mendaftarkan truk",
+    gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
+    gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
+  },
+  en: {
+    judulGrading:"Recent grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge",
+    labelLayout:"Camera layout", kolomAuto:"Auto",
+    kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
+    geserKiri:"Move left", geserKanan:"Move right",
+    thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
+    thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
+    thMasuk:"In", thKeluar:"Out", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
+    phPlat:"Truck plate number (e.g. B 1234 XY)", phBruto:"Gross (kg)",
+    btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
+    btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
+    temaGelap:"Dark", temaTerang:"Light",
+    truk:"Truck", belumAda:"none yet", pilihTruk:"select truck", lepasTitle:"Truck has left",
+    kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
+    kosongGrading:"No grading yet today",
+    promptTara:"Tare (kg) for", wajibIsi:"Plate and gross weight are required",
+    gagal:"Failed", gagalDaftar:"Failed to register truck",
+    gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
+    gagalKonsol:"Console not responding", kameraPutus:"Camera not connected",
+  },
+};
+
+// localStorage can throw (private mode / blocked cookies). Everything kept here
+// is display preference, not data, so a failure just means "this session only".
+const simpan = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* this session only */ } };
+const baca = (k, bawaan) => { try { return localStorage.getItem(k) || bawaan; } catch (e) { return bawaan; } };
+
+let bahasa = KAMUS[baca("bahasa", "id")] ? baca("bahasa", "id") : "id";
+let tema = baca("tema", "terang");
+const t = (k) => KAMUS[bahasa][k] ?? k;
+const lokal = () => (bahasa === "id" ? "id-ID" : "en-GB");
+
+function terapkanTema() {
+  document.documentElement.dataset.theme = tema === "gelap" ? "dark" : "light";
+  // The button names the TARGET theme, not the current one.
+  $("tema").textContent = tema === "terang" ? t("temaGelap") : t("temaTerang");
 }
+
+function terapkanBahasa() {
+  document.documentElement.lang = bahasa;
+  document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
+  document.querySelectorAll("[data-t-ph]").forEach((el) => { el.placeholder = t(el.dataset.tPh); });
+  $("bahasa").textContent = bahasa === "id" ? "EN" : "ID";
+  terapkanTema();
+}
+
+$("bahasa").addEventListener("click", async () => {
+  bahasa = bahasa === "id" ? "en" : "id";
+  simpan("bahasa", bahasa);
+  terapkanBahasa();
+  // Line cards are built in JS, so they have to be redrawn. The MJPEG streams
+  // reconnect once - the price of one deliberate click, not of every 2 s poll.
+  dipasang = false;
+  isiTrucks();
+  await refresh();
+  await muatTimbangan();
+});
+
+$("tema").addEventListener("click", () => {
+  tema = tema === "terang" ? "gelap" : "terang";
+  simpan("tema", tema);
+  terapkanTema();
+});
+
+// ── truck / weighbridge tabs ───────────────────────────────────────────
+const TAB_SAH = ["grading", "truk", "timbangan"];
+let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
+
+function terapkanTab() {
+  document.querySelectorAll("#tabs button").forEach((b) => {
+    const aktif = b.dataset.tab === tab;
+    b.classList.toggle("aktif", aktif);
+    b.setAttribute("aria-selected", String(aktif));
+    $("sec-" + b.dataset.tab).hidden = !aktif;
+  });
+}
+
+$("tabs").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-tab]");
+  if (!b) return;
+  tab = b.dataset.tab;
+  simpan("tab", tab);
+  terapkanTab();
+});
+
+// ── camera layout ──────────────────────────────────────────────────────
+const KOLOM_SAH = ["auto", "1", "2", "3"];
+let kolom = KOLOM_SAH.includes(baca("kolom", "auto")) ? baca("kolom", "auto") : "auto";
+let urutan = [];
+try { urutan = JSON.parse(baca("urutan", "[]")) || []; } catch (e) { urutan = []; }
+
+function terapkanKolom() {
+  $("kolom").value = kolom;
+  $("lines").style.gridTemplateColumns =
+    kolom === "auto" ? "repeat(auto-fit,minmax(320px,1fr))" : `repeat(${kolom},1fr)`;
+}
+
+$("kolom").addEventListener("change", () => {
+  kolom = $("kolom").value;
+  simpan("kolom", kolom);
+  terapkanKolom();
+});
+
+function selarasUrutan(lines) {
+  // Lines gone from the registry are dropped, new ones append at the end -
+  // otherwise indexOf() returns -1 and the card jumps to the front.
+  const kode = lines.map((l) => l.line_code);
+  urutan = urutan.filter((k) => kode.includes(k)).concat(kode.filter((k) => !urutan.includes(k)));
+}
+
+function terapkanUrutan() {
+  // CSS `order`, not a DOM move: moving an MJPEG <img> tears down and reopens
+  // its stream every time the operator taps an arrow.
+  for (const kartu of $("lines").children) kartu.style.order = urutan.indexOf(kartu.dataset.line);
+}
+
+// ── render ─────────────────────────────────────────────────────────────
+
+// Always the full dd/mm/yyyy HH:MM:SS. Time alone is not enough: the mill runs
+// past midnight, so a 01:30 row could belong to yesterday's working day or
+// today's. toLocaleString is avoided on purpose - id-ID separates hours with a
+// dot and slips in a comma, so the column changes shape on every EN/ID flip.
+function waktu(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return esc(iso);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} `
+       + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+// Wall clock from the browser, not the server: it keeps ticking when the
+// console stops answering, and it is the clock weigh-in/out timestamps use.
+const detak = () => { $("jam").textContent = waktu(new Date()); };
 
 async function api(path, opts) {
   const res = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
@@ -82,27 +401,34 @@ function pesan(text) {
   $("err").style.display = text ? "block" : "none";
 }
 
-// Satu-satunya tempat yang merakit baris truk — dipakai saat render awal DAN
-// saat patch tiap 2 detik, supaya keduanya tidak bisa menyimpang.
+const barisKosong = (lebar, kunci) => `<tr><td colspan="${lebar}" class="muted">${esc(t(kunci))}</td></tr>`;
+
+// The only place that builds the truck line - used by the first render AND by
+// the 2 s patch, so the two cannot drift apart.
 function isiTruk(a) {
-  return `Truk: <b>${a ? dash(a.plate_number) : "belum ada"}</b>
-    · ${a ? dash(a.supplier_name) : "—"}
-    <span class="pill">${a ? dash(a.sumber_label) : "—"}</span>`;
+  // With no truck, the separator, supplier and source pill are all just
+  // dashes: three characters that say nothing on a screen read from afar.
+  if (!a) return `${esc(t("truk"))}: <b>${esc(t("belumAda"))}</b>`;
+  return `${esc(t("truk"))}: <b>${dash(a.plate_number)}</b>
+    &middot; ${dash(a.supplier_name)}
+    <span class="pill">${dash(a.sumber_label)}</span>`;
 }
 
 function kartuLine(l) {
-  // Stream diambil dari host yang sama dengan halaman ini, cuma beda port —
-  // jadi konsol tetap benar saat dibuka lewat IP LAN, bukan cuma 127.0.0.1.
+  // The stream comes from the same host as this page, only another port - so
+  // the console still works opened over a LAN IP, not just 127.0.0.1.
   const feed = l.port ? `${location.protocol}//${location.hostname}:${l.port}/api/video_feed` : "";
-  const opsi = trucks.map((t) =>
-    `<option value="${esc(t.id)}"${l.assignment && l.assignment.truck_id === t.id ? " selected" : ""}>${dash(t.plate_number)}</option>`
+  const opsi = trucks.map((t2) =>
+    `<option value="${esc(t2.id)}"${l.assignment && l.assignment.truck_id === t2.id ? " selected" : ""}>${dash(t2.plate_number)}</option>`
   ).join("");
-  // line_code cuma nempel sebagai data-line lalu dibaca via dataset — tidak
-  // pernah masuk ke atribut onclick, jadi tidak ada konteks string JS untuk
-  // disuntiki sama sekali.
+  // line_code only rides along as data-line and is read via dataset - it never
+  // enters an onclick attribute, so there is no JS string context to inject.
   return `<div class="card" data-line="${esc(l.line_code)}">
-    <h2>${esc(l.name)}</h2>
-    ${feed ? `<img class="feed" src="${feed}" alt="stream ${esc(l.name)}">` : ""}
+    <h2><span class="nama">${esc(l.name)}</span>
+      <button data-aksi="geser" data-arah="-1" title="${esc(t("geserKiri"))}">&#9664;</button>
+      <button data-aksi="geser" data-arah="1" title="${esc(t("geserKanan"))}">&#9654;</button>
+    </h2>
+    ${feed ? `<div class="feed"><img src="${feed}" alt=""><span>${esc(t("kameraPutus"))}</span></div>` : ""}
     <div class="body">
       <div class="counts">
         <span class="acc"><b>${l.acc}</b><span class="muted">ACC</span></span>
@@ -111,33 +437,74 @@ function kartuLine(l) {
       </div>
       <div class="truk muted">${isiTruk(l.assignment)}</div>
       <div class="assign">
-        <select><option value="">— pilih truk —</option>${opsi}</select>
-        <button data-aksi="tugaskan">Tugaskan</button>
+        <select><option value="">${esc(t("pilihTruk"))}</option>${opsi}</select>
+        <button data-aksi="tugaskan">${esc(t("btnTugaskan"))}</button>
+        <button data-aksi="lepas" title="${esc(t("lepasTitle"))}">${esc(t("btnLepas"))}</button>
       </div>
-      <button class="reject" data-aksi="tolak">Reject Manual</button>
+      <button class="reject" data-aksi="tolak">${esc(t("btnReject"))}</button>
     </div>
   </div>`;
 }
 
+const kg = (v) => (v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal()));
+
+function barisTruk(tr) {
+  return `<tr>
+    <td>${dash(tr.plate_number)}</td>
+    <td>${dash(tr.supplier_name)}</td>
+    <td>${dash(tr.sumber_label)}</td>
+    <td>${dash(tr.status)}</td>
+  </tr>`;
+}
+
+function barisTimbangan(w) {
+  // The row carries the ticket identity so weigh-out resends exactly the same
+  // key (ref, or plate + waktu_masuk) - miss it and one ticket splits into two
+  // rows with its neto gone.
+  return `<tr data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
+              data-masuk="${esc(w.waktu_masuk ?? "")}">
+    <td>${w.waktu_masuk ? waktu(w.waktu_masuk) : KOSONG}</td>
+    <td>${w.waktu_keluar ? waktu(w.waktu_keluar) : KOSONG}</td>
+    <td>${dash(w.plate_number)}</td>
+    <td>${dash(w.sumber_label)}</td>
+    <td class="num">${kg(w.bruto_kg)}</td>
+    <td class="num">${kg(w.tara_kg)}</td>
+    <td class="num">${kg(w.neto_kg)}</td>
+    <td>${w.tara_kg == null ? `<button data-aksi="keluar">${esc(t("btnKeluar"))}</button>` : ""}</td>
+  </tr>`;
+}
+
 function barisRecent(r) {
   return `<tr>
-    <td>${jam(r.timestamp)}</td>
+    <td>${waktu(r.timestamp)}</td>
     <td>${esc(r.line_code)}</td>
     <td>${dash(r.plate_number)}</td>
     <td>${dash(r.sumber_label)}</td>
     <td class="${esc(r.ripeness_status)}">${dash(r.ripeness_status)}</td>
-    <td>${r.ripeness_confidence == null ? "—" : Number(r.ripeness_confidence).toFixed(2)}</td>
-    <td>${r.image_url ? `<a href="${esc(r.image_url)}" target="_blank"><img src="${esc(r.image_url)}" alt=""></a>` : "—"}</td>
+    <td>${r.ripeness_confidence == null ? KOSONG : Number(r.ripeness_confidence).toFixed(2)}</td>
+    <td>${r.image_url ? `<a href="${esc(r.image_url)}" target="_blank"><img src="${esc(r.image_url)}" alt=""></a>` : KOSONG}</td>
   </tr>`;
 }
 
-// Delegasi: satu listener untuk semua kartu, hidup terus walau kartu di-render
-// ulang. Tidak butuh handler global di window.
+// ── actions ────────────────────────────────────────────────────────────
+
+// Delegation: one listener for every card, surviving re-renders. No global
+// handler on window needed.
 $("lines").addEventListener("click", async (ev) => {
   const tombol = ev.target.closest("button[data-aksi]");
   if (!tombol) return;
   const kartu = tombol.closest(".card");
   const line = kartu.dataset.line;
+  if (tombol.dataset.aksi === "geser") {
+    // Pure display: touches no line at all, so it does not go through api().
+    const i = urutan.indexOf(line);
+    const j = i + Number(tombol.dataset.arah);
+    if (i < 0 || j < 0 || j >= urutan.length) return;
+    [urutan[i], urutan[j]] = [urutan[j], urutan[i]];
+    simpan("urutan", JSON.stringify(urutan));
+    terapkanUrutan();
+    return;
+  }
   tombol.disabled = true;
   try {
     if (tombol.dataset.aksi === "tugaskan") {
@@ -146,29 +513,127 @@ $("lines").addEventListener("click", async (ev) => {
       await api(`/api/console/lines/${encodeURIComponent(line)}/assign-truck`,
                 { method: "POST", body: JSON.stringify({ truck_id }) });
       await refresh();
+    } else if (tombol.dataset.aksi === "lepas") {
+      await api(`/api/console/lines/${encodeURIComponent(line)}/release-truck`, { method: "POST" });
+      await refresh();
     } else {
       await api(`/api/console/lines/${encodeURIComponent(line)}/manual-reject`,
                 { method: "POST", body: JSON.stringify({ requested_by: "operator" }) });
     }
     pesan("");
   } catch (e) {
-    pesan("Gagal: " + e.message);
+    pesan(t("gagal") + ": " + e.message);
   } finally {
     tombol.disabled = false;
   }
 });
 
-// Stream MJPEG di-render sekali saja: menulis ulang innerHTML tiap 2 detik akan
-// memutus dan menyambung ulang tiga koneksi video terus-menerus.
+$("daftar").addEventListener("click", async () => {
+  const plate_number = $("plat").value.trim();
+  if (!plate_number) return;
+  $("daftar").disabled = true;
+  try {
+    await api("/api/console/trucks", { method: "POST", body: JSON.stringify({ plate_number }) });
+    $("plat").value = "";
+    // Full re-render so the new truck shows up in all three line dropdowns at
+    // once. The MJPEG streams reconnect once - the price of one deliberate
+    // operator click, not something that happens every 2 s.
+    dipasang = false;
+    await muatTrucks();
+    await refresh();
+    pesan("");
+  } catch (e) {
+    pesan(t("gagalDaftar") + ": " + e.message);
+  } finally {
+    $("daftar").disabled = false;
+  }
+});
+
+// Weigh-in: bruto now, tara hours later. The time comes from the browser clock
+// - on the mill PC that is the same clock the operator reads, and the server
+// derives the working day from it (§6.1).
+$("masuk").addEventListener("click", async () => {
+  const plate_number = $("plat-timbang").value.trim();
+  const bruto_kg = $("bruto").value.trim();
+  if (!plate_number || !bruto_kg) { pesan(t("wajibIsi")); return; }
+  $("masuk").disabled = true;
+  try {
+    await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
+      { plate_number, bruto_kg, waktu_masuk: new Date().toISOString() }) });
+    $("plat-timbang").value = ""; $("bruto").value = "";
+    await muatTimbangan();
+    pesan("");
+  } catch (e) {
+    pesan(t("gagalTimbang") + ": " + e.message);
+  } finally {
+    $("masuk").disabled = false;
+  }
+});
+
+// Tare via prompt(), not an input inside the row: this table is rewritten every
+// 15 s, which would wipe whatever the operator is typing.
+$("timbangan").addEventListener("click", async (ev) => {
+  const tombol = ev.target.closest("button[data-aksi='keluar']");
+  if (!tombol) return;
+  const baris = tombol.closest("tr").dataset;
+  const tara_kg = prompt(`${t("promptTara")} ${baris.plat}`);
+  if (!tara_kg) return;
+  try {
+    await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
+      plate_number: baris.plat, ref: baris.ref, waktu_masuk: baris.masuk,
+      tara_kg, waktu_keluar: new Date().toISOString() }) });
+    pesan("");
+  } catch (e) {
+    pesan(t("gagalTara") + ": " + e.message);
+  }
+  await muatTimbangan();
+});
+
+// ── camera status ──────────────────────────────────────────────────────
+// ponytail: "connected" is guessed by the browser, not reported by the line:
+//  - <img> error       -> the line refuses the connection
+//  - <img> load        -> first frame arrived
+//  - naturalWidth 0    -> camera unplugged: the line sends empty keep-alives
+//                         only and Chrome blanks the image within seconds
+//  - /health silent    -> line died mid-stream: Chrome holds the last frame
+//                         with no event at all, so it has to be asked
+// Ceiling: a frozen frame that keeps being sent, or a line that dies and comes
+// back between two probes, still looks connected. If that bites, the line has
+// to report camera status through /api/console/state.
+$("lines").addEventListener("load", (ev) => ev.target.parentElement.classList.remove("putus"), true);
+$("lines").addEventListener("error", (ev) => ev.target.parentElement.classList.add("putus"), true);
+
+async function cekKamera() {
+  await Promise.all([...document.querySelectorAll(".feed img")].map(async (img) => {
+    // no-cors: the answer is unreadable (different port), but a failed connect
+    // still throws - and that is all this needs.
+    const lineHidup = await fetch(new URL("/health", img.src), {
+      mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(3000),
+    }).then(() => true, () => false);
+    if (lineHidup && img.naturalWidth > 0) return;
+    img.parentElement.classList.add("putus");
+    // Each attempt = one new connection to the line, hence once per probe. The
+    // t query forces the browser to actually re-request.
+    const url = new URL(img.src);
+    url.searchParams.set("t", Date.now());
+    img.src = url;
+  }));
+}
+
+// ── load ───────────────────────────────────────────────────────────────
+
+// MJPEG streams render once: rewriting innerHTML every 2 s would tear down and
+// reopen three video connections forever.
 let dipasang = false;
 async function refresh() {
   try {
     const s = await api("/api/console/state");
-    $("tanggal").textContent = s.tanggal_kerja;
     $("tz").textContent = "(" + s.timezone + ")";
+    selarasUrutan(s.lines);
     if (!dipasang) {
       $("lines").innerHTML = s.lines.map(kartuLine).join("");
       dipasang = true;
+      terapkanUrutan();
     } else {
       s.lines.forEach((l, i) => {
         const c = $("lines").children[i];
@@ -178,20 +643,45 @@ async function refresh() {
         c.querySelector(".truk").innerHTML = isiTruk(l.assignment);
       });
     }
-    $("recent").innerHTML = s.recent.map(barisRecent).join("");
+    $("recent").innerHTML = s.recent.length
+      ? s.recent.map(barisRecent).join("") : barisKosong(7, "kosongGrading");
     pesan("");
-  } catch (e) { pesan("Konsol tidak merespons: " + e.message); }
+  } catch (e) { pesan(t("gagalKonsol") + ": " + e.message); }
+}
+
+async function muatTimbangan() {
+  try {
+    const items = (await api("/api/console/weighings")).items;
+    $("timbangan").innerHTML = items.length
+      ? items.map(barisTimbangan).join("") : barisKosong(8, "kosongTiket");
+  } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
+}
+
+function isiTrucks() {
+  $("trucks").innerHTML = trucks.length
+    ? trucks.map(barisTruk).join("") : barisKosong(4, "kosongTruk");
 }
 
 async function muatTrucks() {
   try { trucks = (await api("/api/console/trucks")).items; }
-  catch (e) { /* master data belum turun — layar tetap jalan tanpa daftar truk */ }
+  catch (e) { /* master data has not arrived - the screen works without a truck list */ }
+  isiTrucks();
 }
 
 (async () => {
+  terapkanBahasa();
+  terapkanTab();
+  terapkanKolom();
+  detak();
+  setInterval(detak, 1000);
+  setInterval(cekKamera, 5000);
   await muatTrucks();
   await refresh();
+  await muatTimbangan();
   setInterval(refresh, 2000);
   setInterval(muatTrucks, 60000);
+  // Weighing is far sparser than grading (two payloads per truck), so 2 s would
+  // only burn queries.
+  setInterval(muatTimbangan, 15000);
 })();
 </script>
