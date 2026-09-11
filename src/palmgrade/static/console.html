@@ -13,9 +13,10 @@
   operator (bahasa, tema, tab, jumlah kolom, urutan kamera) disimpan di
   localStorage supaya tidak perlu diatur ulang tiap pagi.
 
-  Truk dan timbangan jadi DUA TAB. Sebelumnya satu blok gabungan dengan satu
-  kolom plat dipakai berdua, jadi operator tidak pernah yakin tombol mana yang
-  membaca kotak yang mana.
+  Yang di bawah kamera dibagi TIGA TAB (Grading, Truk, Timbangan). Sebelumnya
+  ketiganya bertumpuk dan tabel-tabelnya mendorong kartu kamera keluar layar;
+  truk dan timbangan malah satu blok dengan satu kolom plat dipakai berdua,
+  jadi operator tidak pernah yakin tombol mana yang membaca kotak yang mana.
 -->
 <style>
   /* Tema gelap = bawaan (layar pabrik dipandang seharian). Semua warna WAJIB
@@ -61,7 +62,6 @@
   td img { height:38px; border-radius:4px; display:block; }
   .pill { padding:1px 8px; border-radius:99px; font-size:12px; border:1px solid var(--line); }
   #err { display:none; padding:8px 20px; background:var(--danger-bg); color:var(--danger-fg); }
-  section h2 { font-size:14px; padding:0 20px; margin:18px 0 6px; color:var(--muted); font-weight:500; }
   .tools { display:flex; gap:8px; align-items:center; padding:0 20px 10px; }
   .tools input { flex:1; max-width:320px; }
   .tools input.kg { max-width:130px; }
@@ -102,8 +102,13 @@
 </div>
 <div id="lines"></div>
 
-<section>
-  <h2 data-t="judulGrading">Grading terbaru</h2>
+<nav id="tabs">
+  <button data-tab="grading" data-t="judulGrading">Grading terbaru</button>
+  <button data-tab="truk" data-t="judulTruk">Truk</button>
+  <button data-tab="timbangan" data-t="judulTimbangan">Timbangan</button>
+</nav>
+
+<section id="sec-grading" class="panel" hidden>
   <table>
     <thead><tr><th data-t="thWaktu">Waktu</th><th data-t="thLine">Line</th><th data-t="thTruk">Truk</th>
       <th data-t="thSumber">Sumber</th><th data-t="thHasil">Hasil</th><th data-t="thConf">Conf</th>
@@ -112,12 +117,7 @@
   </table>
 </section>
 
-<nav id="tabs">
-  <button data-tab="truk" data-t="judulTruk">Truk</button>
-  <button data-tab="timbangan" data-t="judulTimbangan">Timbangan</button>
-</nav>
-
-<section id="sec-truk" class="panel">
+<section id="sec-truk" class="panel" hidden>
   <!--
     Truk pinjaman / belum terdaftar diketik operator di sini, tidak menunggu
     master data cloud. Daftarnya ikut tampil supaya operator bisa memastikan
@@ -254,7 +254,8 @@ $("tema").addEventListener("click", () => {
 });
 
 // ── tab truk / timbangan ───────────────────────────────────────────────
-let tab = baca("tab", "truk") === "timbangan" ? "timbangan" : "truk";
+const TAB_SAH = ["grading", "truk", "timbangan"];
+let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
 
 function terapkanTab() {
   document.querySelectorAll("#tabs button").forEach((b) => {
