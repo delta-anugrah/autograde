@@ -68,7 +68,9 @@
   #tata { padding:14px 20px 0; }
   #tata select { flex:0 0 auto; }
   #tabs { display:flex; gap:4px; padding:18px 20px 0; border-bottom:1px solid var(--line); }
-  #tabs button { background:transparent; color:var(--muted); border-radius:6px 6px 0 0;
+  /* flex:1 dengan basis 0 - lebarnya dibagi rata, bukan ikut panjang teksnya,
+     jadi "Grading terbaru" tidak menggeser dua tab lain. */
+  #tabs button { flex:1 1 0; background:transparent; color:var(--muted); border-radius:6px 6px 0 0;
                  border-color:transparent; margin-bottom:-1px; }
   #tabs button.aktif { background:var(--card); color:var(--fg);
                        border-color:var(--line); border-bottom-color:var(--card); }
