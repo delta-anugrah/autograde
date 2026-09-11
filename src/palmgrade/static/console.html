@@ -1,19 +1,37 @@
 <!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Konsol Operator — Palmgrade</title>
+<title>Konsol Operator - Palmgrade</title>
 <!--
   Satu file, tanpa build step, tanpa Node. Konsol harus tetap bisa dibuka saat
   internet mati, jadi tidak ada CDN sama sekali. Stream kamera pakai <img>
-  MJPEG langsung ke line (port 8001-8003) — browser yang menanggung tiga
+  MJPEG langsung ke line (port 8001-8003) - browser yang menanggung tiga
   koneksi itu, bukan proses konsol.
+
+  Dua bahasa (ID/EN) dan dua tema (gelap/terang) ikut di berkas yang sama: teks
+  statis ditandai data-t, teks yang dirakit JS lewat t(). Pilihan operator
+  disimpan di localStorage supaya tidak perlu dipilih ulang tiap pagi.
+
+  Truk dan timbangan sengaja DUA section terpisah. Sebelumnya digabung dan satu
+  kolom plat dipakai berdua, jadi operator tidak pernah yakin tombol mana yang
+  membaca kotak yang mana.
 -->
 <style>
-  :root { --bg:#0f1115; --card:#181c23; --line:#262c36; --fg:#e6e9ef; --muted:#8b94a3;
-          --acc:#31c48d; --rej:#f05252; --warn:#e3a008; }
+  /* Tema gelap = bawaan (layar pabrik dipandang seharian). Semua warna WAJIB
+     lewat token di sini: satu nilai hardcode dan tema terang langsung bolong. */
+  :root { color-scheme:dark;
+          --bg:#0f1115; --card:#181c23; --line:#262c36; --fg:#e6e9ef; --muted:#8b94a3;
+          --acc:#31c48d; --rej:#f05252; --input:#222833; --hover:#3a4352;
+          --danger-bg:#3a1f22; --danger-line:#5a2c30; --danger-fg:#ffb4b4; }
+  :root[data-theme="light"] { color-scheme:light;
+          --bg:#f4f6f8; --card:#ffffff; --line:#dde2e9; --fg:#1a1f27; --muted:#5c6673;
+          --acc:#0f8a5f; --rej:#c53030; --input:#ffffff; --hover:#9aa3b0;
+          --danger-bg:#fdecec; --danger-line:#f3bcbc; --danger-fg:#9b1c1c; }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; }
   header { display:flex; align-items:baseline; gap:16px; padding:12px 20px; border-bottom:1px solid var(--line); }
+  header .aksi { margin-left:auto; display:flex; gap:8px; }
+  header .aksi button { min-width:64px; }
   h1 { font-size:16px; margin:0; }
   .muted { color:var(--muted); }
   #lines { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; padding:16px 20px; }
@@ -25,19 +43,18 @@
   .counts b { font-size:22px; display:block; font-weight:600; }
   .acc b { color:var(--acc); } .rej b { color:var(--rej); }
   .assign { display:flex; gap:8px; }
-  select, button, input { background:#222833; color:var(--fg); border:1px solid var(--line);
+  select, button, input { background:var(--input); color:var(--fg); border:1px solid var(--line);
                    border-radius:6px; padding:7px 10px; font:inherit; }
   select { flex:1; min-width:0; }
   button { cursor:pointer; }
-  button:hover { border-color:#3a4352; }
-  button.reject { background:#3a1f22; border-color:#5a2c30; color:#ffb4b4; width:100%; }
+  button:hover { border-color:var(--hover); }
+  button.reject { background:var(--danger-bg); border-color:var(--danger-line); color:var(--danger-fg); width:100%; }
   table { width:100%; border-collapse:collapse; }
   th, td { text-align:left; padding:7px 20px; border-bottom:1px solid var(--line); white-space:nowrap; }
   th { color:var(--muted); font-weight:500; }
   td img { height:38px; border-radius:4px; display:block; }
   .pill { padding:1px 8px; border-radius:99px; font-size:12px; border:1px solid var(--line); }
-  .ACC { color:var(--acc); } .REJ { color:var(--rej); }
-  #err { display:none; padding:8px 20px; background:#3a1f22; color:#ffb4b4; }
+  #err { display:none; padding:8px 20px; background:var(--danger-bg); color:var(--danger-fg); }
   section h2 { font-size:14px; padding:0 20px; margin:18px 0 6px; color:var(--muted); font-weight:500; }
   .tools { display:flex; gap:8px; padding:0 20px 10px; }
   .tools input { flex:1; max-width:320px; }
@@ -46,38 +63,61 @@
 </style>
 
 <header>
-  <h1>Konsol Operator</h1>
-  <span class="muted">Hari kerja <b id="tanggal">—</b> <span id="tz"></span></span>
+  <h1 data-t="judul">Konsol Operator</h1>
+  <span class="muted"><span data-t="hariKerja">Hari kerja</span> <b id="tanggal">-</b> <span id="tz"></span></span>
+  <span class="aksi">
+    <button id="bahasa">EN</button>
+    <button id="tema">Terang</button>
+  </span>
 </header>
 <div id="err"></div>
 
 <div id="lines"></div>
 
 <section>
-  <h2>Grading terbaru</h2>
+  <h2 data-t="judulGrading">Grading terbaru</h2>
   <table>
-    <thead><tr><th>Waktu</th><th>Line</th><th>Truk</th><th>Sumber</th><th>Hasil</th><th>Conf</th><th>Foto</th></tr></thead>
+    <thead><tr><th data-t="thWaktu">Waktu</th><th data-t="thLine">Line</th><th data-t="thTruk">Truk</th>
+      <th data-t="thSumber">Sumber</th><th data-t="thHasil">Hasil</th><th data-t="thConf">Conf</th>
+      <th data-t="thFoto">Foto</th></tr></thead>
     <tbody id="recent"></tbody>
   </table>
 </section>
 
 <section>
-  <h2>Truk &amp; timbangan</h2>
   <!--
-    Truk manual: truk pinjaman / belum terdaftar diketik operator di sini, tidak
-    menunggu master data cloud. Timbangan: operator boleh mengetik bruto/tara
-    sendiri — bentuk payload-nya sama persis dengan kiriman program timbangan,
-    jadi begitu program itu hidup keduanya mendarat di baris yang sama.
+    Truk pinjaman / belum terdaftar diketik operator di sini, tidak menunggu
+    master data cloud. Daftarnya ikut tampil supaya operator bisa memastikan
+    truknya sudah masuk sebelum mencari-cari di dropdown line.
   -->
+  <h2 data-t="judulTruk">Truk</h2>
   <div class="tools">
-    <input id="plat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
-    <button id="daftar">Daftar truk manual</button>
-    <input id="bruto" class="kg" placeholder="Bruto (kg)" inputmode="decimal" autocomplete="off">
-    <button id="masuk">Timbang masuk</button>
+    <input id="plat" data-t-ph="phPlat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
+    <button id="daftar" data-t="btnDaftar">Daftar truk manual</button>
   </div>
   <table>
-    <thead><tr><th>Masuk</th><th>Keluar</th><th>Truk</th><th>Sumber</th>
-      <th>Bruto (kg)</th><th>Tara (kg)</th><th>Neto (kg)</th><th></th></tr></thead>
+    <thead><tr><th data-t="thPlat">Plat</th><th data-t="thSupplier">Supplier</th>
+      <th data-t="thSumber">Sumber</th><th data-t="thStatus">Status</th></tr></thead>
+    <tbody id="trucks"></tbody>
+  </table>
+</section>
+
+<section>
+  <!--
+    Operator boleh mengetik bruto/tara sendiri. Bentuk payload-nya sama persis
+    dengan kiriman program timbangan, jadi begitu program itu hidup keduanya
+    mendarat di baris yang sama, bukan dua tiket kembar.
+  -->
+  <h2 data-t="judulTimbangan">Timbangan</h2>
+  <div class="tools">
+    <input id="plat-timbang" data-t-ph="phPlat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
+    <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)" inputmode="decimal" autocomplete="off">
+    <button id="masuk" data-t="btnMasuk">Timbang masuk</button>
+  </div>
+  <table>
+    <thead><tr><th data-t="thMasuk">Masuk</th><th data-t="thKeluar">Keluar</th><th data-t="thTruk">Truk</th>
+      <th data-t="thSumber">Sumber</th><th data-t="thBruto">Bruto (kg)</th><th data-t="thTara">Tara (kg)</th>
+      <th data-t="thNeto">Neto (kg)</th><th></th></tr></thead>
     <tbody id="timbangan"></tbody>
   </table>
 </section>
@@ -88,12 +128,98 @@ const $ = (id) => document.getElementById(id);
 // machine_id mentah dari event (line yang machine_id-nya tidak dikenal registry).
 const esc = (s) => String(s ?? "").replace(/[&<>"'`]/g, (c) =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;","`":"&#96;" }[c]));
-const dash = (v) => (v === null || v === undefined || v === "" ? "—" : esc(v));
+const KOSONG = "-";
+const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));
 let trucks = [];
+
+// ── bahasa & tema ──────────────────────────────────────────────────────
+const KAMUS = {
+  id: {
+    judul:"Konsol Operator", hariKerja:"Hari kerja",
+    judulGrading:"Grading terbaru", judulTruk:"Truk", judulTimbangan:"Timbangan",
+    thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
+    thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
+    thMasuk:"Masuk", thKeluar:"Keluar", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
+    phPlat:"Nomor polisi truk (mis. B 1234 XY)", phBruto:"Bruto (kg)",
+    btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
+    btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
+    temaGelap:"Gelap", temaTerang:"Terang",
+    truk:"Truk", belumAda:"belum ada", pilihTruk:"pilih truk", lepasTitle:"Truk sudah pergi",
+    kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
+    kosongGrading:"Belum ada grading hari ini",
+    promptTara:"Tara (kg) untuk", wajibIsi:"Plat dan bruto wajib diisi",
+    gagal:"Gagal", gagalDaftar:"Gagal mendaftarkan truk",
+    gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
+    gagalKonsol:"Konsol tidak merespons",
+  },
+  en: {
+    judul:"Operator Console", hariKerja:"Working day",
+    judulGrading:"Recent grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge",
+    thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
+    thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
+    thMasuk:"In", thKeluar:"Out", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
+    phPlat:"Truck plate number (e.g. B 1234 XY)", phBruto:"Gross (kg)",
+    btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
+    btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
+    temaGelap:"Dark", temaTerang:"Light",
+    truk:"Truck", belumAda:"none yet", pilihTruk:"select truck", lepasTitle:"Truck has left",
+    kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
+    kosongGrading:"No grading yet today",
+    promptTara:"Tare (kg) for", wajibIsi:"Plate and gross weight are required",
+    gagal:"Failed", gagalDaftar:"Failed to register truck",
+    gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
+    gagalKonsol:"Console not responding",
+  },
+};
+
+// localStorage bisa dilempar browser (mode privat / cookie diblokir). Pilihan
+// bahasa & tema bukan data, jadi gagalnya cukup berarti "berlaku sesi ini saja".
+const simpan = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sesi ini saja */ } };
+const baca = (k, bawaan) => { try { return localStorage.getItem(k) || bawaan; } catch (e) { return bawaan; } };
+
+let bahasa = KAMUS[baca("bahasa", "id")] ? baca("bahasa", "id") : "id";
+let tema = baca("tema", "gelap");
+const t = (k) => KAMUS[bahasa][k] ?? k;
+const lokal = () => (bahasa === "id" ? "id-ID" : "en-GB");
+
+function terapkanTema() {
+  document.documentElement.dataset.theme = tema === "terang" ? "light" : "dark";
+  // Tombol menyebut tema TUJUAN, bukan yang sedang dipakai.
+  $("tema").textContent = tema === "terang" ? t("temaGelap") : t("temaTerang");
+}
+
+function terapkanBahasa() {
+  document.documentElement.lang = bahasa;
+  document.title = t("judul") + " - Palmgrade";
+  document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
+  document.querySelectorAll("[data-t-ph]").forEach((el) => { el.placeholder = t(el.dataset.tPh); });
+  $("bahasa").textContent = bahasa === "id" ? "EN" : "ID";
+  terapkanTema();
+}
+
+$("bahasa").addEventListener("click", async () => {
+  bahasa = bahasa === "id" ? "en" : "id";
+  simpan("bahasa", bahasa);
+  terapkanBahasa();
+  // Kartu line dirakit di JS, jadi harus digambar ulang. Stream MJPEG ikut
+  // nyambung ulang sekali - harga satu klik sengaja, bukan tiap 2 detik.
+  dipasang = false;
+  isiTrucks();
+  await refresh();
+  await muatTimbangan();
+});
+
+$("tema").addEventListener("click", () => {
+  tema = tema === "terang" ? "gelap" : "terang";
+  simpan("tema", tema);
+  terapkanTema();
+});
+
+// ── render ─────────────────────────────────────────────────────────────
 
 function jam(iso) {
   const d = new Date(iso);
-  return isNaN(d) ? esc(iso) : d.toLocaleTimeString("id-ID", { hour12: false });
+  return isNaN(d) ? esc(iso) : d.toLocaleTimeString(lokal(), { hour12: false });
 }
 
 async function api(path, opts) {
@@ -107,22 +233,24 @@ function pesan(text) {
   $("err").style.display = text ? "block" : "none";
 }
 
-// Satu-satunya tempat yang merakit baris truk — dipakai saat render awal DAN
+const barisKosong = (kolom, kunci) => `<tr><td colspan="${kolom}" class="muted">${esc(t(kunci))}</td></tr>`;
+
+// Satu-satunya tempat yang merakit baris truk - dipakai saat render awal DAN
 // saat patch tiap 2 detik, supaya keduanya tidak bisa menyimpang.
 function isiTruk(a) {
-  return `Truk: <b>${a ? dash(a.plate_number) : "belum ada"}</b>
-    · ${a ? dash(a.supplier_name) : "—"}
-    <span class="pill">${a ? dash(a.sumber_label) : "—"}</span>`;
+  return `${esc(t("truk"))}: <b>${a ? dash(a.plate_number) : esc(t("belumAda"))}</b>
+    &middot; ${a ? dash(a.supplier_name) : KOSONG}
+    <span class="pill">${a ? dash(a.sumber_label) : KOSONG}</span>`;
 }
 
 function kartuLine(l) {
-  // Stream diambil dari host yang sama dengan halaman ini, cuma beda port —
+  // Stream diambil dari host yang sama dengan halaman ini, cuma beda port -
   // jadi konsol tetap benar saat dibuka lewat IP LAN, bukan cuma 127.0.0.1.
   const feed = l.port ? `${location.protocol}//${location.hostname}:${l.port}/api/video_feed` : "";
-  const opsi = trucks.map((t) =>
-    `<option value="${esc(t.id)}"${l.assignment && l.assignment.truck_id === t.id ? " selected" : ""}>${dash(t.plate_number)}</option>`
+  const opsi = trucks.map((t2) =>
+    `<option value="${esc(t2.id)}"${l.assignment && l.assignment.truck_id === t2.id ? " selected" : ""}>${dash(t2.plate_number)}</option>`
   ).join("");
-  // line_code cuma nempel sebagai data-line lalu dibaca via dataset — tidak
+  // line_code cuma nempel sebagai data-line lalu dibaca via dataset - tidak
   // pernah masuk ke atribut onclick, jadi tidak ada konteks string JS untuk
   // disuntiki sama sekali.
   return `<div class="card" data-line="${esc(l.line_code)}">
@@ -136,31 +264,40 @@ function kartuLine(l) {
       </div>
       <div class="truk muted">${isiTruk(l.assignment)}</div>
       <div class="assign">
-        <select><option value="">— pilih truk —</option>${opsi}</select>
-        <button data-aksi="tugaskan">Tugaskan</button>
-        <button data-aksi="lepas" title="Truk sudah pergi">Lepas</button>
+        <select><option value="">${esc(t("pilihTruk"))}</option>${opsi}</select>
+        <button data-aksi="tugaskan">${esc(t("btnTugaskan"))}</button>
+        <button data-aksi="lepas" title="${esc(t("lepasTitle"))}">${esc(t("btnLepas"))}</button>
       </div>
-      <button class="reject" data-aksi="tolak">Reject Manual</button>
+      <button class="reject" data-aksi="tolak">${esc(t("btnReject"))}</button>
     </div>
   </div>`;
 }
 
-const kg = (v) => (v === null || v === undefined ? "—" : Number(v).toLocaleString("id-ID"));
+const kg = (v) => (v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal()));
+
+function barisTruk(tr) {
+  return `<tr>
+    <td>${dash(tr.plate_number)}</td>
+    <td>${dash(tr.supplier_name)}</td>
+    <td>${dash(tr.sumber_label)}</td>
+    <td>${dash(tr.status)}</td>
+  </tr>`;
+}
 
 function barisTimbangan(w) {
   // Identitas tiket dibawa di baris supaya timbang-keluar mengirim ulang kunci
-  // yang sama persis (ref, atau plat + waktu_masuk) — kalau meleset, satu tiket
+  // yang sama persis (ref, atau plat + waktu_masuk) - kalau meleset, satu tiket
   // pecah jadi dua baris dan netonya hilang.
   return `<tr data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
               data-masuk="${esc(w.waktu_masuk ?? "")}">
-    <td>${w.waktu_masuk ? jam(w.waktu_masuk) : "—"}</td>
-    <td>${w.waktu_keluar ? jam(w.waktu_keluar) : "—"}</td>
+    <td>${w.waktu_masuk ? jam(w.waktu_masuk) : KOSONG}</td>
+    <td>${w.waktu_keluar ? jam(w.waktu_keluar) : KOSONG}</td>
     <td>${dash(w.plate_number)}</td>
     <td>${dash(w.sumber_label)}</td>
     <td class="num">${kg(w.bruto_kg)}</td>
     <td class="num">${kg(w.tara_kg)}</td>
     <td class="num">${kg(w.neto_kg)}</td>
-    <td>${w.tara_kg == null ? `<button data-aksi="keluar">Timbang keluar</button>` : ""}</td>
+    <td>${w.tara_kg == null ? `<button data-aksi="keluar">${esc(t("btnKeluar"))}</button>` : ""}</td>
   </tr>`;
 }
 
@@ -171,10 +308,12 @@ function barisRecent(r) {
     <td>${dash(r.plate_number)}</td>
     <td>${dash(r.sumber_label)}</td>
     <td class="${esc(r.ripeness_status)}">${dash(r.ripeness_status)}</td>
-    <td>${r.ripeness_confidence == null ? "—" : Number(r.ripeness_confidence).toFixed(2)}</td>
-    <td>${r.image_url ? `<a href="${esc(r.image_url)}" target="_blank"><img src="${esc(r.image_url)}" alt=""></a>` : "—"}</td>
+    <td>${r.ripeness_confidence == null ? KOSONG : Number(r.ripeness_confidence).toFixed(2)}</td>
+    <td>${r.image_url ? `<a href="${esc(r.image_url)}" target="_blank"><img src="${esc(r.image_url)}" alt=""></a>` : KOSONG}</td>
   </tr>`;
 }
+
+// ── aksi ───────────────────────────────────────────────────────────────
 
 // Delegasi: satu listener untuk semua kartu, hidup terus walau kartu di-render
 // ulang. Tidak butuh handler global di window.
@@ -200,11 +339,74 @@ $("lines").addEventListener("click", async (ev) => {
     }
     pesan("");
   } catch (e) {
-    pesan("Gagal: " + e.message);
+    pesan(t("gagal") + ": " + e.message);
   } finally {
     tombol.disabled = false;
   }
 });
+
+$("daftar").addEventListener("click", async () => {
+  const plate_number = $("plat").value.trim();
+  if (!plate_number) return;
+  $("daftar").disabled = true;
+  try {
+    await api("/api/console/trucks", { method: "POST", body: JSON.stringify({ plate_number }) });
+    $("plat").value = "";
+    // Render ulang penuh supaya truk baru langsung muncul di dropdown ketiga
+    // line. Stream MJPEG ikut nyambung ulang sekali - itu harga satu klik
+    // sengaja dari operator, bukan sesuatu yang terjadi tiap 2 detik.
+    dipasang = false;
+    await muatTrucks();
+    await refresh();
+    pesan("");
+  } catch (e) {
+    pesan(t("gagalDaftar") + ": " + e.message);
+  } finally {
+    $("daftar").disabled = false;
+  }
+});
+
+// Timbang-masuk: bruto dulu, tara menyusul berjam-jam kemudian. Waktunya
+// diambil dari jam browser - di PC pabrik itu jam yang sama dengan yang dilihat
+// operator, dan server yang menurunkan tanggal kerjanya dari situ (§6.1).
+$("masuk").addEventListener("click", async () => {
+  const plate_number = $("plat-timbang").value.trim();
+  const bruto_kg = $("bruto").value.trim();
+  if (!plate_number || !bruto_kg) { pesan(t("wajibIsi")); return; }
+  $("masuk").disabled = true;
+  try {
+    await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
+      { plate_number, bruto_kg, waktu_masuk: new Date().toISOString() }) });
+    $("plat-timbang").value = ""; $("bruto").value = "";
+    await muatTimbangan();
+    pesan("");
+  } catch (e) {
+    pesan(t("gagalTimbang") + ": " + e.message);
+  } finally {
+    $("masuk").disabled = false;
+  }
+});
+
+// Tara lewat prompt(), bukan input di dalam baris: tabel ini ditulis ulang tiap
+// 15 detik, dan angka yang sedang diketik operator akan ikut terhapus.
+$("timbangan").addEventListener("click", async (ev) => {
+  const tombol = ev.target.closest("button[data-aksi='keluar']");
+  if (!tombol) return;
+  const baris = tombol.closest("tr").dataset;
+  const tara_kg = prompt(`${t("promptTara")} ${baris.plat}`);
+  if (!tara_kg) return;
+  try {
+    await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
+      plate_number: baris.plat, ref: baris.ref, waktu_masuk: baris.masuk,
+      tara_kg, waktu_keluar: new Date().toISOString() }) });
+    pesan("");
+  } catch (e) {
+    pesan(t("gagalTara") + ": " + e.message);
+  }
+  await muatTimbangan();
+});
+
+// ── muat ───────────────────────────────────────────────────────────────
 
 // Stream MJPEG di-render sekali saja: menulis ulang innerHTML tiap 2 detik akan
 // memutus dan menyambung ulang tiga koneksi video terus-menerus.
@@ -226,83 +428,33 @@ async function refresh() {
         c.querySelector(".truk").innerHTML = isiTruk(l.assignment);
       });
     }
-    $("recent").innerHTML = s.recent.map(barisRecent).join("");
+    $("recent").innerHTML = s.recent.length
+      ? s.recent.map(barisRecent).join("") : barisKosong(7, "kosongGrading");
     pesan("");
-  } catch (e) { pesan("Konsol tidak merespons: " + e.message); }
+  } catch (e) { pesan(t("gagalKonsol") + ": " + e.message); }
 }
 
-$("daftar").addEventListener("click", async () => {
-  const plate_number = $("plat").value.trim();
-  if (!plate_number) return;
-  $("daftar").disabled = true;
-  try {
-    await api("/api/console/trucks", { method: "POST", body: JSON.stringify({ plate_number }) });
-    $("plat").value = "";
-    // Render ulang penuh supaya truk baru langsung muncul di dropdown ketiga
-    // line. Stream MJPEG ikut nyambung ulang sekali — itu harga satu klik
-    // sengaja dari operator, bukan sesuatu yang terjadi tiap 2 detik.
-    dipasang = false;
-    await muatTrucks();
-    await refresh();
-    pesan("");
-  } catch (e) {
-    pesan("Gagal mendaftarkan truk: " + e.message);
-  } finally {
-    $("daftar").disabled = false;
-  }
-});
-
-// Timbang-masuk: bruto dulu, tara menyusul berjam-jam kemudian. Waktunya
-// diambil dari jam browser — di PC pabrik itu jam yang sama dengan yang dilihat
-// operator, dan server yang menurunkan tanggal kerjanya dari situ (§6.1).
-$("masuk").addEventListener("click", async () => {
-  const plate_number = $("plat").value.trim();
-  const bruto_kg = $("bruto").value.trim();
-  if (!plate_number || !bruto_kg) { pesan("Plat dan bruto wajib diisi"); return; }
-  $("masuk").disabled = true;
-  try {
-    await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
-      { plate_number, bruto_kg, waktu_masuk: new Date().toISOString() }) });
-    $("plat").value = ""; $("bruto").value = "";
-    await muatTimbangan();
-    pesan("");
-  } catch (e) {
-    pesan("Gagal mencatat timbangan: " + e.message);
-  } finally {
-    $("masuk").disabled = false;
-  }
-});
-
-// Tara lewat prompt(), bukan input di dalam baris: tabel ini ditulis ulang tiap
-// 15 detik, dan angka yang sedang diketik operator akan ikut terhapus.
-$("timbangan").addEventListener("click", async (ev) => {
-  const tombol = ev.target.closest("button[data-aksi='keluar']");
-  if (!tombol) return;
-  const baris = tombol.closest("tr").dataset;
-  const tara_kg = prompt(`Tara (kg) untuk ${baris.plat}`);
-  if (!tara_kg) return;
-  try {
-    await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
-      plate_number: baris.plat, ref: baris.ref, waktu_masuk: baris.masuk,
-      tara_kg, waktu_keluar: new Date().toISOString() }) });
-    pesan("");
-  } catch (e) {
-    pesan("Gagal mencatat tara: " + e.message);
-  }
-  await muatTimbangan();
-});
-
 async function muatTimbangan() {
-  try { $("timbangan").innerHTML = (await api("/api/console/weighings")).items.map(barisTimbangan).join(""); }
-  catch (e) { /* program timbangan belum mengirim apa pun — layar tetap jalan */ }
+  try {
+    const items = (await api("/api/console/weighings")).items;
+    $("timbangan").innerHTML = items.length
+      ? items.map(barisTimbangan).join("") : barisKosong(8, "kosongTiket");
+  } catch (e) { /* program timbangan belum mengirim apa pun - layar tetap jalan */ }
+}
+
+function isiTrucks() {
+  $("trucks").innerHTML = trucks.length
+    ? trucks.map(barisTruk).join("") : barisKosong(4, "kosongTruk");
 }
 
 async function muatTrucks() {
   try { trucks = (await api("/api/console/trucks")).items; }
-  catch (e) { /* master data belum turun — layar tetap jalan tanpa daftar truk */ }
+  catch (e) { /* master data belum turun - layar tetap jalan tanpa daftar truk */ }
+  isiTrucks();
 }
 
 (async () => {
+  terapkanBahasa();
   await muatTrucks();
   await refresh();
   await muatTimbangan();
