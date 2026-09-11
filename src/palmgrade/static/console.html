@@ -9,10 +9,11 @@
   koneksi itu, bukan proses konsol.
 
   Dua bahasa (ID/EN) dan dua tema (gelap/terang) ikut di berkas yang sama: teks
-  statis ditandai data-t, teks yang dirakit JS lewat t(). Pilihan operator
-  disimpan di localStorage supaya tidak perlu dipilih ulang tiap pagi.
+  statis ditandai data-t, teks yang dirakit JS lewat t(). Semua pilihan
+  operator (bahasa, tema, tab, jumlah kolom, urutan kamera) disimpan di
+  localStorage supaya tidak perlu diatur ulang tiap pagi.
 
-  Truk dan timbangan sengaja DUA section terpisah. Sebelumnya digabung dan satu
+  Truk dan timbangan jadi DUA TAB. Sebelumnya satu blok gabungan dengan satu
   kolom plat dipakai berdua, jadi operator tidak pernah yakin tombol mana yang
   membaca kotak yang mana.
 -->
@@ -34,9 +35,14 @@
   header .aksi button { min-width:64px; }
   h1 { font-size:16px; margin:0; }
   .muted { color:var(--muted); }
-  #lines { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; padding:16px 20px; }
+  /* Nilai ini ditimpa inline oleh terapkanKolom(); yang di sini dipakai sampai
+     JS jalan, dan saat operator memilih "Otomatis". */
+  #lines { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; padding:8px 20px 16px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-  .card h2 { font-size:15px; margin:0; padding:10px 14px; border-bottom:1px solid var(--line); }
+  .card h2 { font-size:15px; margin:0; padding:8px 10px 8px 14px; border-bottom:1px solid var(--line);
+             display:flex; align-items:center; gap:8px; }
+  .card h2 .nama { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .card h2 button { padding:2px 9px; font-size:12px; line-height:1.4; }
   .feed { width:100%; aspect-ratio:16/9; object-fit:cover; background:#000; display:block; }
   .body { padding:12px 14px; display:grid; gap:10px; }
   .counts { display:flex; gap:18px; font-variant-numeric:tabular-nums; }
@@ -56,9 +62,17 @@
   .pill { padding:1px 8px; border-radius:99px; font-size:12px; border:1px solid var(--line); }
   #err { display:none; padding:8px 20px; background:var(--danger-bg); color:var(--danger-fg); }
   section h2 { font-size:14px; padding:0 20px; margin:18px 0 6px; color:var(--muted); font-weight:500; }
-  .tools { display:flex; gap:8px; padding:0 20px 10px; }
+  .tools { display:flex; gap:8px; align-items:center; padding:0 20px 10px; }
   .tools input { flex:1; max-width:320px; }
   .tools input.kg { max-width:130px; }
+  #tata { padding:14px 20px 0; }
+  #tata select { flex:0 0 auto; }
+  #tabs { display:flex; gap:4px; padding:18px 20px 0; border-bottom:1px solid var(--line); }
+  #tabs button { background:transparent; color:var(--muted); border-radius:6px 6px 0 0;
+                 border-color:transparent; margin-bottom:-1px; }
+  #tabs button.aktif { background:var(--card); color:var(--fg);
+                       border-color:var(--line); border-bottom-color:var(--card); }
+  .panel { padding-top:14px; }
   td.num { text-align:right; font-variant-numeric:tabular-nums; }
 </style>
 
@@ -72,6 +86,20 @@
 </header>
 <div id="err"></div>
 
+<!--
+  Tata letak kamera diatur operator, bukan dipaksa dari sini: tiap pabrik punya
+  jumlah line dan bentuk layar yang beda. Kolom mengatur bentuk barisnya (3 line
+  dengan 2 kolom = baris 2 lalu 1), panah di judul kartu mengatur urutannya.
+-->
+<div class="tools" id="tata">
+  <label class="muted" for="kolom" data-t="labelLayout">Tata letak kamera</label>
+  <select id="kolom">
+    <option value="auto" data-t="kolomAuto">Otomatis</option>
+    <option value="1" data-t="kolom1">1 per baris</option>
+    <option value="2" data-t="kolom2">2 per baris</option>
+    <option value="3" data-t="kolom3">3 per baris</option>
+  </select>
+</div>
 <div id="lines"></div>
 
 <section>
@@ -84,13 +112,17 @@
   </table>
 </section>
 
-<section>
+<nav id="tabs">
+  <button data-tab="truk" data-t="judulTruk">Truk</button>
+  <button data-tab="timbangan" data-t="judulTimbangan">Timbangan</button>
+</nav>
+
+<section id="sec-truk" class="panel">
   <!--
     Truk pinjaman / belum terdaftar diketik operator di sini, tidak menunggu
     master data cloud. Daftarnya ikut tampil supaya operator bisa memastikan
     truknya sudah masuk sebelum mencari-cari di dropdown line.
   -->
-  <h2 data-t="judulTruk">Truk</h2>
   <div class="tools">
     <input id="plat" data-t-ph="phPlat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
     <button id="daftar" data-t="btnDaftar">Daftar truk manual</button>
@@ -102,13 +134,12 @@
   </table>
 </section>
 
-<section>
+<section id="sec-timbangan" class="panel" hidden>
   <!--
     Operator boleh mengetik bruto/tara sendiri. Bentuk payload-nya sama persis
     dengan kiriman program timbangan, jadi begitu program itu hidup keduanya
     mendarat di baris yang sama, bukan dua tiket kembar.
   -->
-  <h2 data-t="judulTimbangan">Timbangan</h2>
   <div class="tools">
     <input id="plat-timbang" data-t-ph="phPlat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
     <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)" inputmode="decimal" autocomplete="off">
@@ -137,6 +168,9 @@ const KAMUS = {
   id: {
     judul:"Konsol Operator", hariKerja:"Hari kerja",
     judulGrading:"Grading terbaru", judulTruk:"Truk", judulTimbangan:"Timbangan",
+    labelLayout:"Tata letak kamera", kolomAuto:"Otomatis",
+    kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
+    geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
     thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"Masuk", thKeluar:"Keluar", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
@@ -155,6 +189,9 @@ const KAMUS = {
   en: {
     judul:"Operator Console", hariKerja:"Working day",
     judulGrading:"Recent grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge",
+    labelLayout:"Camera layout", kolomAuto:"Auto",
+    kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
+    geserKiri:"Move left", geserKanan:"Move right",
     thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"In", thKeluar:"Out", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
@@ -172,8 +209,9 @@ const KAMUS = {
   },
 };
 
-// localStorage bisa dilempar browser (mode privat / cookie diblokir). Pilihan
-// bahasa & tema bukan data, jadi gagalnya cukup berarti "berlaku sesi ini saja".
+// localStorage bisa dilempar browser (mode privat / cookie diblokir). Semua yang
+// disimpan di sini preferensi tampilan, bukan data, jadi gagalnya cukup berarti
+// "berlaku sesi ini saja".
 const simpan = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sesi ini saja */ } };
 const baca = (k, bawaan) => { try { return localStorage.getItem(k) || bawaan; } catch (e) { return bawaan; } };
 
@@ -215,6 +253,57 @@ $("tema").addEventListener("click", () => {
   terapkanTema();
 });
 
+// ── tab truk / timbangan ───────────────────────────────────────────────
+let tab = baca("tab", "truk") === "timbangan" ? "timbangan" : "truk";
+
+function terapkanTab() {
+  document.querySelectorAll("#tabs button").forEach((b) => {
+    const aktif = b.dataset.tab === tab;
+    b.classList.toggle("aktif", aktif);
+    b.setAttribute("aria-selected", String(aktif));
+    $("sec-" + b.dataset.tab).hidden = !aktif;
+  });
+}
+
+$("tabs").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-tab]");
+  if (!b) return;
+  tab = b.dataset.tab;
+  simpan("tab", tab);
+  terapkanTab();
+});
+
+// ── tata letak kamera ──────────────────────────────────────────────────
+const KOLOM_SAH = ["auto", "1", "2", "3"];
+let kolom = KOLOM_SAH.includes(baca("kolom", "auto")) ? baca("kolom", "auto") : "auto";
+let urutan = [];
+try { urutan = JSON.parse(baca("urutan", "[]")) || []; } catch (e) { urutan = []; }
+
+function terapkanKolom() {
+  $("kolom").value = kolom;
+  $("lines").style.gridTemplateColumns =
+    kolom === "auto" ? "repeat(auto-fit,minmax(320px,1fr))" : `repeat(${kolom},1fr)`;
+}
+
+$("kolom").addEventListener("change", () => {
+  kolom = $("kolom").value;
+  simpan("kolom", kolom);
+  terapkanKolom();
+});
+
+function selarasUrutan(lines) {
+  // Line yang hilang dari registry dibuang, line baru menempel di belakang -
+  // kalau tidak, indexOf() mengembalikan -1 dan kartunya melompat ke depan.
+  const kode = lines.map((l) => l.line_code);
+  urutan = urutan.filter((k) => kode.includes(k)).concat(kode.filter((k) => !urutan.includes(k)));
+}
+
+function terapkanUrutan() {
+  // Pakai CSS `order`, bukan menyusun ulang DOM: memindahkan <img> MJPEG berarti
+  // memutus lalu menyambung ulang streamnya tiap kali operator menekan panah.
+  for (const kartu of $("lines").children) kartu.style.order = urutan.indexOf(kartu.dataset.line);
+}
+
 // ── render ─────────────────────────────────────────────────────────────
 
 function jam(iso) {
@@ -233,7 +322,7 @@ function pesan(text) {
   $("err").style.display = text ? "block" : "none";
 }
 
-const barisKosong = (kolom, kunci) => `<tr><td colspan="${kolom}" class="muted">${esc(t(kunci))}</td></tr>`;
+const barisKosong = (lebar, kunci) => `<tr><td colspan="${lebar}" class="muted">${esc(t(kunci))}</td></tr>`;
 
 // Satu-satunya tempat yang merakit baris truk - dipakai saat render awal DAN
 // saat patch tiap 2 detik, supaya keduanya tidak bisa menyimpang.
@@ -254,7 +343,10 @@ function kartuLine(l) {
   // pernah masuk ke atribut onclick, jadi tidak ada konteks string JS untuk
   // disuntiki sama sekali.
   return `<div class="card" data-line="${esc(l.line_code)}">
-    <h2>${esc(l.name)}</h2>
+    <h2><span class="nama">${esc(l.name)}</span>
+      <button data-aksi="geser" data-arah="-1" title="${esc(t("geserKiri"))}">&#9664;</button>
+      <button data-aksi="geser" data-arah="1" title="${esc(t("geserKanan"))}">&#9654;</button>
+    </h2>
     ${feed ? `<img class="feed" src="${feed}" alt="stream ${esc(l.name)}">` : ""}
     <div class="body">
       <div class="counts">
@@ -322,6 +414,16 @@ $("lines").addEventListener("click", async (ev) => {
   if (!tombol) return;
   const kartu = tombol.closest(".card");
   const line = kartu.dataset.line;
+  if (tombol.dataset.aksi === "geser") {
+    // Murni tampilan: tidak menyentuh line sama sekali, jadi tidak lewat api().
+    const i = urutan.indexOf(line);
+    const j = i + Number(tombol.dataset.arah);
+    if (i < 0 || j < 0 || j >= urutan.length) return;
+    [urutan[i], urutan[j]] = [urutan[j], urutan[i]];
+    simpan("urutan", JSON.stringify(urutan));
+    terapkanUrutan();
+    return;
+  }
   tombol.disabled = true;
   try {
     if (tombol.dataset.aksi === "tugaskan") {
@@ -416,9 +518,11 @@ async function refresh() {
     const s = await api("/api/console/state");
     $("tanggal").textContent = s.tanggal_kerja;
     $("tz").textContent = "(" + s.timezone + ")";
+    selarasUrutan(s.lines);
     if (!dipasang) {
       $("lines").innerHTML = s.lines.map(kartuLine).join("");
       dipasang = true;
+      terapkanUrutan();
     } else {
       s.lines.forEach((l, i) => {
         const c = $("lines").children[i];
@@ -455,6 +559,8 @@ async function muatTrucks() {
 
 (async () => {
   terapkanBahasa();
+  terapkanTab();
+  terapkanKolom();
   await muatTrucks();
   await refresh();
   await muatTimbangan();
