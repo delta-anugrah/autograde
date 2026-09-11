@@ -361,9 +361,16 @@ function terapkanUrutan() {
 
 // ── render ─────────────────────────────────────────────────────────────
 
-function jam(iso) {
+// Selalu lengkap dd/mm/yyyy HH:MM:SS. Jam saja tidak cukup: pabrik jalan lewat
+// tengah malam, jadi baris jam 01.30 bisa milik hari kerja kemarin atau hari ini.
+// Sengaja tidak pakai toLocaleString - id-ID memisahkan jam dengan titik dan
+// menyelipkan koma, jadi kolom waktu berganti bentuk tiap operator menekan EN/ID.
+function waktu(iso) {
   const d = new Date(iso);
-  return isNaN(d) ? esc(iso) : d.toLocaleTimeString(lokal(), { hour12: false });
+  if (isNaN(d)) return esc(iso);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} `
+       + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
 async function api(path, opts) {
@@ -440,8 +447,8 @@ function barisTimbangan(w) {
   // pecah jadi dua baris dan netonya hilang.
   return `<tr data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
               data-masuk="${esc(w.waktu_masuk ?? "")}">
-    <td>${w.waktu_masuk ? jam(w.waktu_masuk) : KOSONG}</td>
-    <td>${w.waktu_keluar ? jam(w.waktu_keluar) : KOSONG}</td>
+    <td>${w.waktu_masuk ? waktu(w.waktu_masuk) : KOSONG}</td>
+    <td>${w.waktu_keluar ? waktu(w.waktu_keluar) : KOSONG}</td>
     <td>${dash(w.plate_number)}</td>
     <td>${dash(w.sumber_label)}</td>
     <td class="num">${kg(w.bruto_kg)}</td>
@@ -453,7 +460,7 @@ function barisTimbangan(w) {
 
 function barisRecent(r) {
   return `<tr>
-    <td>${jam(r.timestamp)}</td>
+    <td>${waktu(r.timestamp)}</td>
     <td>${esc(r.line_code)}</td>
     <td>${dash(r.plate_number)}</td>
     <td>${dash(r.sumber_label)}</td>
