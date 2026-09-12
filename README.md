@@ -101,7 +101,7 @@ palmgrade-vision/
 │   │   ├── upload/              # R2Uploader (boto3) + UploadManifest (SQLite per-item state)
 │   │   ├── outbox/              # OutboxStore — antrean realtime ke BACKEND_URL
 │   │   └── scheduler/           # UploadScheduler — APScheduler cron, hourly @ UPLOAD_MINUTE
-│   ├── domain/                  # Pure business rules (no I/O) — tanggal_kerja, sumber_tbs, plate
+│   ├── domain/                  # Pure business rules (no I/O) — working_day, ffb_source, plate
 │   ├── plc/                     # PLC/ODOT Modbus-TCP, self-contained, mati by default
 │   ├── schemas/                 # Pydantic request/response models
 │   └── license/                 # License guard (Ed25519 JWS, optional)
@@ -520,7 +520,7 @@ pytest tests/unit/
 | **Outage & crash** | `test_batch_upload_outage.py`, `test_batch_upload_crash.py` | Jantung requirement "internet mati berapa lama pun → nol data hilang, nol duplikat"; `os._exit` di tengah transisi state → manifest tetap konsisten (WAL + `synchronous=FULL`) |
 | Timestamp TZ | `test_capture_timestamp.py` | Regression guard geser 7 jam: timestamp **wajib** tz-aware (vision UTC vs API `TZ=Asia/Jakarta`) |
 | Outbox realtime | `test_outbox_store.py`, `test_outbox_requeue.py`, `test_edge_realtime_outbox.py` | Persist → backoff → dead-letter; jalur 1 detik ke `BACKEND_URL` (konsol lokal) |
-| **Konsol** | `test_console_store.py`, `test_tanggal_kerja.py`, `test_console_html.py` | Index SQLite (konsol tidak pernah memindai direktori); `tanggal_kerja` lewat tengah malam; invarian `console.html` (tanpa `on*=` inline, `esc()` meloloskan `& < > " ' \``, `data-line=` tetap ada) |
+| **Konsol** | `test_console_store.py`, `test_working_day.py`, `test_console_html.py` | Index SQLite (konsol tidak pernah memindai direktori); `tanggal_kerja` lewat tengah malam; invarian `console.html` (tanpa `on*=` inline, `esc()` meloloskan `& < > " ' \``, `data-line=` tetap ada) |
 | **Timbangan** | `test_weighing.py` | `neto_kg` dihitung bukan dipercaya; timbang-keluar **menggabung** bukan menimpa; plat beda tulisan tetap satu truk; koma = desimal, pemisah ribuan ditolak |
 | **Dorong ke ERP** | `test_erp_push_worker.py` | Kiriman ulang bukan error (`{"baru": false}`); 417 = tolakan permanen; jaringan mati **tidak** membuang apa pun |
 | Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |

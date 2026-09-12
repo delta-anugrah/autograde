@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from palmgrade.domain.tanggal_kerja import tanggal_kerja_for
+from palmgrade.domain.working_day import tanggal_kerja_for
 
 WIB = ZoneInfo("Asia/Jakarta")  # UTC+7
 

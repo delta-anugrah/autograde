@@ -1,10 +1,10 @@
-"""Label tampilan Sumber TBS (§3.5b rencana PalmOS).
+"""Display label for Sumber TBS, the FFB source (plan §3.5b).
 
-Sumber ada TIGA (Inti / Plasma / Pihak Ketiga) dan itu Accounting Dimension di
-PalmOS — bukan boolean. Edge tidak pernah MENENTUKAN sumber: nilainya ikut
-turun bersama master data supplier, konsol cuma menampilkannya. Jangan pernah
-menyimpan `is_internal` di sini; begitu sumber dipadatkan jadi 2 nilai di edge,
-laporan Plasma vs Pihak Ketiga di cloud tidak bisa direkonstruksi lagi.
+There are THREE sources (Inti / Plasma / Pihak Ketiga) and in PalmOS they are an
+Accounting Dimension, not a boolean. The edge never DECIDES the source: the
+value rides down with supplier master data and the console only renders it.
+Never store `is_internal` here; once three values are flattened to two at the
+edge, the cloud's Plasma vs Pihak Ketiga reporting cannot be reconstructed.
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ _EXTERNAL = {"plasma", "pihak ketiga"}
 
 
 def label_sumber(sumber: str | None) -> str | None:
-    """3 nilai master → label tampilan. None = belum ada sumber (render "—")."""
+    """3 master values -> display label. None = no source yet (renders "—")."""
     key = (sumber or "").strip().lower()
     if key in _INTERNAL:
         return "Internal"

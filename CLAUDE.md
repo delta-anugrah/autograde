@@ -59,7 +59,7 @@ src/palmgrade/
   workers/         # background threads + RuntimeState (capture / display / processing / event_broadcast / outbox_retry / batch_upload)
                    # konsol pakai asyncio, bukan thread: master_data (tarik dari cloud) / erp_push (dorong ke PalmOS)
   integrations/    # camera/{hikrobot,opencv,photo}, notifications/ (webhook_client → api, line_client → line dari konsol), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
-  domain/          # pure rules + entities (no I/O) — termasuk tanggal_kerja.py (§6.1) & sumber_tbs.py (§3.5b)
+  domain/          # pure rules + entities (no I/O) — termasuk working_day.py (§6.1) & ffb_source.py (§3.5b)
   plc/             # PLC/ODOT Modbus-TCP integration, entirely self-contained — public surface is 5 functions (start_plc_worker/shutdown_plc_worker/submit_grading/inputs/diagnostics)
   schemas/         # Pydantic request/response models
   license/         # optional Ed25519 license guard
@@ -252,7 +252,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 
 10. **Konsol: `tanggal_kerja` dihitung saat ingest, lalu DISIMPAN** (§6.1). Pabrik jalan ~20
     jam/hari **lewat tengah malam**, jadi batas hari UTC memotong satu shift jadi dua tanggal.
-    `domain/tanggal_kerja.py` menurunkannya dari timestamp event itu sendiri di `FACTORY_TZ` —
+    `domain/working_day.py` menurunkannya dari timestamp event itu sendiri di `FACTORY_TZ` —
     **jangan pernah** dari `now()`, `creation`, atau nama folder. Timestamp cacat → `ValueError`
     → ingest balas **400** → outbox line menahan dan menandainya `outbox_failed`; sengaja
     terlihat gagal daripada mendarat di hari yang salah. `python:3.11-slim` butuh `tzdata`
@@ -264,7 +264,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     tiap 2 detik akan memakan I/O yang dipakai grading.
 12. **Sumber TBS: edge cuma menampilkan, tidak pernah menentukan** (§3.5b). Nilainya **tiga**
     (Inti / Plasma / Pihak Ketiga) dan itu Accounting Dimension di PalmOS. Simpan mentahnya,
-    tampilkan lewat `domain/sumber_tbs.py` (`Internal` / `External` / `—`). **Jangan pernah**
+    tampilkan lewat `domain/ffb_source.py` (`Internal` / `External` / `—`). **Jangan pernah**
     bikin boolean `is_internal`: begitu tiga nilai dipadatkan jadi dua di edge, laporan Plasma
     vs Pihak Ketiga di cloud tidak bisa direkonstruksi lagi.
 13. **Penugasan truk: line dulu, baru dicatat.** `assign_truck` menunggu line menerima sebelum

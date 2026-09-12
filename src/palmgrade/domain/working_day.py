@@ -1,12 +1,12 @@
-"""Batas hari kerja pabrik (§6.1 rencana PalmOS).
+"""Mill working-day boundary (plan §6.1).
 
-Pabrik jalan ~20 jam/hari dan LEWAT tengah malam. Batas hari UTC memotong satu
-shift jadi dua tanggal, jadi `tanggal_kerja` dihitung dari timestamp event itu
-sendiri saat ingest lalu DISIMPAN sebagai kolom — jangan pernah diturunkan dari
-`creation`, `now()`, atau nama folder. Event yang datang telat (outbox retry
-setelah listrik mati) tetap mendarat di harinya sendiri.
+The mill runs ~20 hours a day and ACROSS midnight. A UTC day boundary cuts one
+shift into two dates, so `tanggal_kerja` is derived from the event's own
+timestamp at ingest and then STORED as a column - never derived from
+`creation`, `now()`, or a folder name. A late event (outbox retry after a power
+cut) still lands on its own day.
 
-Bebas dependensi berat supaya bisa dites tanpa kamera/torch.
+Free of heavy dependencies so it can be tested without a camera or torch.
 """
 from __future__ import annotations
 
@@ -14,16 +14,16 @@ from datetime import UTC, datetime, tzinfo
 
 
 def tanggal_kerja_for(timestamp_iso: str, tz: tzinfo) -> str:
-    """`YYYY-MM-DD` menurut zona pabrik. ValueError kalau timestamp tak terbaca.
+    """`YYYY-MM-DD` in the mill's zone. ValueError if the timestamp is unreadable.
 
-    Timestamp tanpa offset dianggap UTC — itu yang dikirim line kamera
-    (`datetime.now(timezone.utc).isoformat()` kadang tanpa suffix di data lama).
-    Sengaja melempar, bukan jatuh ke hari ini: ingest membalas 400, outbox line
-    menahan lalu mencoba lagi, dan barisnya muncul sebagai `outbox_failed` —
-    jauh lebih baik daripada tonase diam-diam nempel di tanggal yang salah.
+    A timestamp with no offset is read as UTC - that is what the camera lines
+    send (`datetime.now(timezone.utc).isoformat()` sometimes lost its suffix in
+    older data). Raising is deliberate rather than falling back to today: ingest
+    answers 400, the line's outbox holds and retries, and the row shows up as
+    `outbox_failed` - far better than tonnage quietly sticking to a wrong date.
     """
     raw = timestamp_iso.strip().replace("Z", "+00:00")
-    dt = datetime.fromisoformat(raw)  # ValueError kalau bentuknya bukan ISO
+    dt = datetime.fromisoformat(raw)  # ValueError when the shape is not ISO
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
     return dt.astimezone(tz).strftime("%Y-%m-%d")
