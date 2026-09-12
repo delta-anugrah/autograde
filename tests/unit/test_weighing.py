@@ -124,3 +124,14 @@ def test_ref_kosong_dari_layar_tidak_bikin_tiket_kembar(service):
     assert keluar["id"] == masuk["id"]
     assert keluar["neto_kg"] == 7500
     assert len(service.weighings("2026-09-10")) == 1
+
+
+def test_koma_dibaca_sebagai_desimal(service):
+    row = service.catat_timbangan(_kiriman(bruto_kg="12500,5", tara_kg="5000,5"))
+    assert row["bruto_kg"] == 12500.5
+    assert row["neto_kg"] == 7500.0
+
+
+def test_pemisah_ribuan_ditolak_bukan_diam_diam_jadi_kecil(service):
+    with pytest.raises(ValueError):
+        service.catat_timbangan(_kiriman(bruto_kg="12.500,5"))

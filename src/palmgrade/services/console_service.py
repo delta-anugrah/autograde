@@ -293,6 +293,12 @@ def _kg(nilai: Any, nama: str, bawaan: float | None) -> float | None:
     """Kilogram figure, or `bawaan` when not sent. ValueError if malformed."""
     if nilai is None or nilai == "":
         return bawaan
+    if isinstance(nilai, str):
+        # A comma is the decimal point on an Indonesian keypad, and the scale
+        # program may well send one. Only one separator is ever accepted, so a
+        # thousands-grouped "14.820,5" still fails loudly instead of silently
+        # becoming 14.82.
+        nilai = nilai.strip().replace(",", ".")
     try:
         angka = float(nilai)
     except (TypeError, ValueError) as exc:

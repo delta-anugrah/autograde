@@ -120,19 +120,14 @@
   #tally .bar { height:12px; border:1px solid var(--line); border-radius:2px;
                 background:var(--rej-bg); overflow:hidden; }
   #tally .bar span { display:block; height:100%; width:0; background:var(--acc); transition:width .4s ease; }
-
-  /* ---- section bar ---- */
-  .secbar { display:flex; align-items:center; flex-wrap:wrap; gap:10px 14px;
-            padding:22px var(--pad) 10px; }
-  .secbar h2 { margin:0; font-size:.72rem; font-weight:700; letter-spacing:.12em;
-               text-transform:uppercase; color:var(--muted); }
-  .secbar .garis { flex:1; height:1px; background:var(--line-kuat); min-width:1rem; }
-  .secbar .pilih { flex:0 0 13rem; }
+  #tally .tata { display:flex; align-items:center; gap:10px; padding:10px 16px;
+                 border-left:1px solid var(--line); }
+  #tally .tata .pilih { flex:0 0 11rem; }
 
   /* ---- camera panels ---- */
   /* terapkanKolom() overrides this inline; this value holds until JS runs, and
      whenever the operator picks "Auto". */
-  #lines { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr));
+  #lines { margin-top:14px; display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr));
            gap:16px; padding:0 var(--pad) 6px; }
   .card { background:var(--card); border:1px solid var(--line-kuat); border-radius:3px;
           display:flex; flex-direction:column; }
@@ -230,7 +225,7 @@
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
-  .assign button, .assign .pilih-tombol, .tools button, .tools input, .secbar .pilih-tombol,
+  .assign button, .assign .pilih-tombol, .tools button, .tools input, #tally .pilih-tombol,
   #tabs button, button.reject { min-height:2.6rem; }
 
   /* ---- dropdown ---- */
@@ -291,6 +286,7 @@
   /* The uppercase is for what the operator types, not for the hint. */
   .tools input.plat::placeholder { text-transform:none; }
   .tools input.kg { flex:0 0 9rem; }
+  .tools .catatan { font-size:.78rem; color:var(--muted); }
   .tools .pilih { flex:0 0 16rem; }
   .tools button { flex:0 0 12rem; }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
@@ -328,9 +324,9 @@
   /* `backwards`, not `both`: `both` leaves an identity transform behind, and an
      element with a transform is its own stacking context - which buries an open
      dropdown panel under the section that follows it. */
-  #topbar, #tally, .secbar, #lines, #tabs { animation:muncul .4s ease backwards; }
-  #tally { animation-delay:.05s; } .secbar { animation-delay:.1s; }
-  #lines { animation-delay:.14s; } #tabs { animation-delay:.2s; }
+  #topbar, #tally, #lines, #tabs { animation:muncul .4s ease backwards; }
+  #tally { animation-delay:.05s; }
+  #lines { animation-delay:.1s; } #tabs { animation-delay:.2s; }
   @media (prefers-reduced-motion:reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
   @media (max-width:640px) { :root { --pad:12px; } }
 </style>
@@ -354,33 +350,33 @@
     <div class="rasio-hd"><span class="lb" data-t="labelRasio">Rasio ACC</span><b id="tot-rate">-</b></div>
     <div class="bar"><span id="bar-acc"></span></div>
   </div>
-</section>
-
-<!--
-  The operator sets the camera layout, it is not forced from here: every mill
-  has a different line count and screen shape. Columns set the row shape (3
-  lines at 2 columns = a row of 2 then 1), the card arrows set the order.
--->
-<div class="secbar" id="tata">
-  <h2 data-t="labelKamera">Kamera</h2>
-  <span class="garis"></span>
-  <label class="lb" for="kolom-tombol" data-t="labelLayout">Tata letak kamera</label>
-  <div class="pilih" id="kolom" data-nilai="auto">
-    <button type="button" id="kolom-tombol" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
-      <span class="pilih-teks">Otomatis</span>
-    </button>
-    <div class="pilih-panel" role="listbox" hidden>
-      <div role="option" tabindex="-1" data-nilai="auto" aria-selected="true" data-t="kolomAuto">Otomatis</div>
-      <div role="option" tabindex="-1" data-nilai="1" aria-selected="false" data-t="kolom1">1 per baris</div>
-      <div role="option" tabindex="-1" data-nilai="2" aria-selected="false" data-t="kolom2">2 per baris</div>
-      <div role="option" tabindex="-1" data-nilai="3" aria-selected="false" data-t="kolom3">3 per baris</div>
+  <!--
+    The operator sets the camera layout, it is not forced from here: every mill
+    has a different line count and screen shape. Columns set the row shape (3
+    lines at 2 columns = a row of 2 then 1), the card arrows set the order.
+    It rides in the tally strip rather than a bar of its own: one row of chrome
+    less is one row more of camera.
+  -->
+  <div class="tata">
+    <label class="lb" for="kolom-tombol" data-t="labelLayout">Tata letak</label>
+    <div class="pilih" id="kolom" data-nilai="auto">
+      <button type="button" id="kolom-tombol" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
+        <span class="pilih-teks">Otomatis</span>
+      </button>
+      <div class="pilih-panel" role="listbox" hidden>
+        <div role="option" tabindex="-1" data-nilai="auto" aria-selected="true" data-t="kolomAuto">Otomatis</div>
+        <div role="option" tabindex="-1" data-nilai="1" aria-selected="false" data-t="kolom1">1 per baris</div>
+        <div role="option" tabindex="-1" data-nilai="2" aria-selected="false" data-t="kolom2">2 per baris</div>
+        <div role="option" tabindex="-1" data-nilai="3" aria-selected="false" data-t="kolom3">3 per baris</div>
+      </div>
     </div>
   </div>
-</div>
+</section>
+
 <div id="lines"></div>
 
 <nav id="tabs">
-  <button data-tab="grading" data-t="judulGrading">Grading terbaru</button>
+  <button data-tab="grading" data-t="judulGrading">Grading</button>
   <button data-tab="truk" data-t="judulTruk">Truk</button>
   <button data-tab="timbangan" data-t="judulTimbangan">Timbangan</button>
 </nav>
@@ -406,7 +402,7 @@
   -->
   <div class="tools">
     <input id="plat" class="plat" maxlength="11" data-t-ph="phPlat"
-           placeholder="Plat truk" autocomplete="off">
+           placeholder="KT 2509 ABC" autocomplete="off">
     <button id="daftar" class="utama" data-t="btnDaftar">Daftar truk manual</button>
   </div>
   <div class="tabel">
@@ -433,6 +429,7 @@
     <div class="pilih" id="plat-timbang" data-nilai=""></div>
     <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)" inputmode="decimal" autocomplete="off">
     <button id="masuk" class="utama" data-t="btnMasuk">Timbang masuk</button>
+    <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
   </div>
   <div class="tabel">
     <table>
@@ -459,14 +456,14 @@ let trucks = [];
 const KAMUS = {
   id: {
     judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan",
-    labelKamera:"Kamera", labelHariIni:"Hari ini", labelRasio:"Rasio ACC",
-    labelLayout:"Tata letak kamera", kolomAuto:"Otomatis",
+    labelHariIni:"Hari ini", labelRasio:"Rasio ACC",
+    labelLayout:"Tata letak", kolomAuto:"Otomatis",
     kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
     geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
     thNo:"No", thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"Masuk", thKeluar:"Keluar", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
-    phPlat:"Plat truk", phBruto:"Bruto (kg)",
+    phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
     btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
@@ -481,14 +478,14 @@ const KAMUS = {
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge",
-    labelKamera:"Cameras", labelHariIni:"Today", labelRasio:"ACC rate",
-    labelLayout:"Camera layout", kolomAuto:"Auto",
+    labelHariIni:"Today", labelRasio:"ACC rate",
+    labelLayout:"Layout", kolomAuto:"Auto",
     kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
     geserKiri:"Move left", geserKanan:"Move right",
     thNo:"No", thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"In", thKeluar:"Out", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
-    phPlat:"Truck plate", phBruto:"Gross (kg)",
+    phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
     btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
