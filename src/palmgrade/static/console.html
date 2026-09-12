@@ -319,6 +319,10 @@
   td.no { font-family:var(--mono); font-variant-numeric:tabular-nums; }
   th.num, td.num { text-align:right; }
   td.num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  /* The column heads already say ACC and REJ, so the colour is a second signal
+     here, never the only one. */
+  #rekap td.acc { color:var(--acc); font-weight:700; }
+  #rekap td.rej { color:var(--rej); font-weight:700; }
   td.kosong { text-align:center; color:var(--muted); padding:26px 16px; }
   td img { height:52px; border-radius:2px; border:1px solid var(--line-kuat); display:block; }
   .pill { font:700 .7rem/1 var(--font); letter-spacing:.1em; text-transform:uppercase;
@@ -390,6 +394,7 @@
   <button data-tab="grading" data-t="judulGrading">Grading</button>
   <button data-tab="truk" data-t="judulTruk">Truk</button>
   <button data-tab="timbangan" data-t="judulTimbangan">Timbangan</button>
+  <button data-tab="rekap" data-t="judulRekap">Rekap</button>
 </nav>
 
 <section id="sec-grading" class="panel" hidden>
@@ -453,6 +458,24 @@
   </div>
 </section>
 
+<section id="sec-rekap" class="panel" hidden>
+  <!--
+    One row per truck for today: what the supplier is handed. Grading and the
+    weighbridge are two different sources, so they are counted separately and
+    only laid side by side here - neto stays blank until the ticket is closed.
+  -->
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thTruk">Truk</th><th data-t="thSupplier">Supplier</th>
+        <th data-t="thSumber">Sumber</th><th class="num" data-t="thTotal">Total</th>
+        <th class="num" data-t="thAcc">ACC</th><th class="num" data-t="thRej">REJ</th>
+        <th class="num" data-t="thRasio">Rasio ACC</th>
+        <th class="num" data-t="thNeto">Neto (kg)</th></tr></thead>
+      <tbody id="rekap"></tbody>
+    </table>
+  </div>
+</section>
+
 <script>
 const $ = (id) => document.getElementById(id);
 // Escapes ' and ` too: these values go into HTML attributes, and line_code can
@@ -466,7 +489,7 @@ let trucks = [];
 // ── language & theme ───────────────────────────────────────────────────
 const KAMUS = {
   id: {
-    judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan",
+    judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan", judulRekap:"Rekap",
     labelHariIni:"Hari ini", labelRasio:"Rasio ACC",
     labelLayout:"Tata letak", kolomAuto:"Otomatis", statusOnline:"Online", statusOffline:"Offline",
     kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
@@ -481,14 +504,15 @@ const KAMUS = {
     truk:"Truk", supplier:"Supplier", trukBelum:"Truk belum dipilih",
     pilihTruk:"Pilih Truk", lepasTitle:"Truk sudah pergi", spasi:"Spasi",
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
-    kosongGrading:"Belum ada grading hari ini",
+    kosongGrading:"Belum ada grading hari ini", kosongRekap:"Belum ada rekap hari ini",
+    thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio ACC", trukTanpaNama:"Tanpa truk",
     promptTara:"Tara (kg) untuk", wajibIsi:"Plat dan bruto wajib diisi",
     gagal:"Gagal", gagalDaftar:"Gagal mendaftarkan truk",
     gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
   },
   en: {
-    judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge",
+    judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
     labelHariIni:"Today", labelRasio:"ACC rate",
     labelLayout:"Layout", kolomAuto:"Auto", statusOnline:"Online", statusOffline:"Offline",
     kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
@@ -503,7 +527,8 @@ const KAMUS = {
     truk:"Truck", supplier:"Supplier", trukBelum:"No truck selected",
     pilihTruk:"Select Truck", lepasTitle:"Truck has left", spasi:"Space",
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
-    kosongGrading:"No grading yet today",
+    kosongGrading:"No grading yet today", kosongRekap:"Nothing to recap yet today",
+    thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"ACC rate", trukTanpaNama:"No truck",
     promptTara:"Tare (kg) for", wajibIsi:"Plate and gross weight are required",
     gagal:"Failed", gagalDaftar:"Failed to register truck",
     gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
@@ -662,7 +687,7 @@ document.addEventListener("focusout", (ev) => {
 });
 
 // ── truck / weighbridge tabs ───────────────────────────────────────────
-const TAB_SAH = ["grading", "truk", "timbangan"];
+const TAB_SAH = ["grading", "truk", "timbangan", "rekap"];
 let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
 
 function terapkanTab() {
@@ -1067,6 +1092,29 @@ async function muatTimbangan() {
   } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
 }
 
+function barisRekap(r) {
+  const total = r.total || 0;
+  const rasio = total ? Math.round(((r.acc || 0) / total) * 100) + "%" : KOSONG;
+  return `<tr>
+    <td class="key">${r.plate_number ? esc(r.plate_number) : `<i>${esc(t("trukTanpaNama"))}</i>`}</td>
+    <td>${dash(r.supplier_name)}</td>
+    <td>${dash(r.sumber_label)}</td>
+    <td class="num">${total}</td>
+    <td class="num acc">${r.acc || 0}</td>
+    <td class="num rej">${r.rej || 0}</td>
+    <td class="num">${rasio}</td>
+    <td class="num">${r.neto_kg == null ? KOSONG : Number(r.neto_kg).toLocaleString("id-ID")}</td>
+  </tr>`;
+}
+
+async function muatRekap() {
+  try {
+    const items = (await api("/api/console/recap")).items;
+    $("rekap").innerHTML = items.length
+      ? items.map(barisRekap).join("") : barisKosong(8, "kosongRekap");
+  } catch (e) { /* nothing graded yet - the screen keeps working */ }
+}
+
 function isiTrucks() {
   $("trucks").innerHTML = trucks.length
     ? trucks.map(barisTruk).join("") : barisKosong(4, "kosongTruk");
@@ -1100,5 +1148,7 @@ async function muatTrucks() {
   // Weighing is far sparser than grading (two payloads per truck), so 2 s would
   // only burn queries.
   setInterval(muatTimbangan, 15000);
+  await muatRekap();
+  setInterval(muatRekap, 15000);
 })();
 </script>

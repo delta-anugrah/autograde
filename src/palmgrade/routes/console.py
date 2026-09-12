@@ -93,6 +93,13 @@ async def console_weighings(
     return {"tanggal_kerja": tanggal, "items": service.weighings(tanggal, limit=limit)}
 
 
+@router.get("/api/console/recap")
+async def console_recap(service: Service, tanggal_kerja: str | None = None) -> dict:
+    """What the supplier is handed: bunches and neto per truck for one day."""
+    tanggal = tanggal_kerja or service.today()
+    return {"tanggal_kerja": tanggal, "items": service.rekap(tanggal)}
+
+
 @router.post("/api/console/weighings", status_code=201)
 async def catat_timbangan_manual(service: Service, payload: Annotated[dict, Body()]) -> dict:
     """Operator types bruto/tara by hand; the payload shape is identical to the

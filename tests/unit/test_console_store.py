@@ -1,9 +1,9 @@
-"""Index SQLite konsol + jalur ingest (§6.2 rencana PalmOS).
+"""Console SQLite index + ingest path (plan §6.2).
 
-Konsol tidak boleh memindai direktori; semua yang dibaca layar operator datang
-dari index ini. Yang dikunci di sini: idempotensi event (line retry setelah
-konsol mati), pengelompokan per `tanggal_kerja` (bukan per waktu terima),
-penugasan truk yang selamat dari restart, dan Sumber TBS yang tetap 3 nilai.
+The console may never scan directories; everything the operator screen reads
+comes from this index. What is pinned here: event idempotency (a line retries
+after the console was down), grouping by `tanggal_kerja` rather than by receive
+time, truck assignments that survive a restart, and Sumber TBS staying 3 values.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from palmgrade.core.config import LineEndpoint, Settings
-from palmgrade.domain.sumber_tbs import label_sumber
+from palmgrade.domain.ffb_source import label_sumber
 from palmgrade.integrations.notifications.line_client import LineUnavailable
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.services.console_service import MASTER_CURSOR_KEY, ConsoleService
@@ -26,7 +26,7 @@ WIB = ZoneInfo("Asia/Jakarta")
 
 
 class FakeLineClient:
-    """Pengganti LineClient. Seam-nya kolaborator, bukan method privat service."""
+    """Stands in for LineClient. The seam is a collaborator, not a private method."""
 
     def __init__(self, *, mati: bool = False) -> None:
         self.mati = mati
@@ -78,8 +78,8 @@ def test_ingest_menyimpan_tanggal_kerja_wib_bukan_tanggal_terima(service):
 
 
 def test_event_yang_sama_dikirim_ulang_tidak_dihitung_dua_kali(service):
-    # OutboxRetryWorker line mengirim ulang sampai dapat 2xx. Tanpa dedupe,
-    # satu tandan bisa terhitung berkali-kali di layar operator.
+    # A line's OutboxRetryWorker resends until it gets a 2xx. Without dedupe one
+    # bunch can be counted over and over on the operator screen.
     service.ingest(_event(service))
     service.ingest(_event(service))
     assert service.store.summary("2026-09-10")[0]["total"] == 1
@@ -93,8 +93,8 @@ def test_payload_cacat_ditolak(service):
 
 
 def test_machine_tak_dikenal_tetap_tersimpan_dan_kelihatan(service):
-    # Event dari machine_id yang tidak cocok registry TIDAK boleh ditelan diam-
-    # diam: LINE_N_MACHINE_ID yang salah ketik harus kelihatan di layar.
+    # An event whose machine_id is not in the registry must NOT be swallowed:
+    # a mistyped LINE_N_MACHINE_ID has to be visible on the screen.
     sekarang = datetime.now(WIB).isoformat()
     service.ingest(_event(service, machine_id="entah-siapa", timestamp=sekarang))
     state = service.state()
@@ -113,8 +113,8 @@ def test_summary_memisahkan_acc_dan_rej_per_line(service):
 
 
 def test_penugasan_truk_selamat_dari_restart_konsol(tmp_path):
-    # §6.4: penugasan di memori hilang saat konsol restart di tengah bongkar
-    # muat, dan operator harus mengetik ulang truk yang sedang di belt.
+    # Plan §6.4: an in-memory assignment is lost when the console restarts
+    # mid-unload, and the operator has to retype the truck already on the belt.
     ConsoleStore(tmp_path / "console.db").set_assignment("line-1", "as-1", "truk-1")
     lagi = _service(tmp_path)
     assert lagi.store.assignments()["line-1"]["assignment_id"] == "as-1"
@@ -132,9 +132,9 @@ def test_url_r2_absolut_diteruskan_apa_adanya(service):
 
 
 def test_sumber_tbs_hanya_label_tampilan_dan_tetap_tiga_nilai(service, tmp_path):
-    # Edge TIDAK PERNAH menentukan sumber (§3.5b) — cuma memetakan ke label.
-    # Nilai mentahnya wajib tetap tersimpan 3 nilai supaya laporan Plasma vs
-    # Pihak Ketiga di cloud tidak hilang.
+    # The edge NEVER decides sumber (plan §3.5b), it only maps it to a label.
+    # The raw value must stay stored as 3 values or the cloud's Plasma vs Pihak
+    # Ketiga reporting cannot be reconstructed.
     assert label_sumber("Inti") == "Internal"
     assert label_sumber("Plasma") == label_sumber("Pihak Ketiga") == "External"
     assert label_sumber(None) is None
@@ -158,8 +158,8 @@ def test_master_data_dari_cloud_selalu_menang(service):
 
 
 def test_penugasan_gagal_tidak_dicatat_seolah_berhasil(tmp_path):
-    # Kalau line tidak menjawab tapi layar tetap menampilkan truk terpasang,
-    # operator mengira sudah beres dan tandan berikutnya terhitung tanpa truk.
+    # If the line does not answer but the screen still shows a truck attached,
+    # the operator thinks it is done and the next bunches count with no truck.
     service = _service(tmp_path, FakeLineClient(mati=True))
     with pytest.raises(LineUnavailable):
         asyncio.run(service.assign_truck("line-1", "t1"))
@@ -175,8 +175,9 @@ def test_penugasan_berhasil_dicatat(tmp_path):
 
 
 def test_machine_id_line_dibaca_dari_env_lewat_settings(monkeypatch, tmp_path):
-    # Env cuma boleh masuk lewat Settings. Kalau LINE_N_MACHINE_ID berhenti
-    # terbaca, semua event line itu jatuh ke cabang "line asing" tanpa error.
+    # Env may only enter through Settings. If LINE_N_MACHINE_ID stops being
+    # read, every event from that line falls into the "unknown line" branch
+    # without raising.
     monkeypatch.setenv("LINE_2_MACHINE_ID", "  mesin-dua  ")
     service = _service(tmp_path)
     assert service.lines[1].machine_id == "mesin-dua"
@@ -185,13 +186,41 @@ def test_machine_id_line_dibaca_dari_env_lewat_settings(monkeypatch, tmp_path):
 
 
 def test_kursor_master_data_tidak_maju_kalau_ada_baris_gagal(service):
-    # Melewati satu baris yang tidak pernah mendarat = pabrik terjebak selamanya
-    # di matriks setengah basi, termasuk pencabutan truk yang sudah dilakukan cloud.
+    # Skipping one row that never landed leaves the mill stuck forever on a
+    # half-stale matrix, including truck revocations the cloud already made.
     worker = MasterDataWorker(service.settings, service.store)
     worker.apply({"server_time": "2026-09-09T10:00:00Z",
                   "suppliers": [{"id": "s1", "name": "KUD A", "sumber": "Inti"}]})
     assert service.store.get_state(MASTER_CURSOR_KEY) == "2026-09-09T10:00:00Z"
 
     worker.apply({"server_time": "2026-09-09T11:00:00Z",
-                  "suppliers": [{"name": "tanpa id"}]})  # KeyError saat upsert
+                  "suppliers": [{"name": "no id"}]})  # KeyError on upsert
     assert service.store.get_state(MASTER_CURSOR_KEY) == "2026-09-09T10:00:00Z"
+
+
+def test_rekap_per_truk_menjumlah_neto_bukan_mengalikan_janjang(service):
+    # Two tickets for one truck in a day. Joined in SQL that would double every
+    # bunch; the recap must show 3 bunches and both netos added up.
+    truk = service.daftar_truk_manual("B 1234 XY")["id"]
+    for i, hasil in enumerate(("ACC", "ACC", "REJ")):
+        service.ingest(_event(service, event_id=f"ev-{i}", truck_id=truk, ripeness_status=hasil))
+    for ref, bruto in (("TKT-1", 12000), ("TKT-2", 11000)):
+        service.catat_timbangan({
+            "ref": ref, "plate_number": "B 1234 XY",
+            "waktu_masuk": "2026-09-09T18:30:00+00:00",
+            "bruto_kg": bruto, "tara_kg": 5000,
+        })
+
+    (baris,) = service.rekap("2026-09-10")
+    assert (baris["total"], baris["acc"], baris["rej"]) == (3, 2, 1)
+    assert baris["neto_kg"] == 13000  # (12000-5000) + (11000-5000)
+    assert baris["plate_number"] == "B 1234 XY"
+
+
+def test_rekap_tetap_menampilkan_janjang_tanpa_truk(service):
+    # A line graded before anyone assigned a truck. Dropping the row would hide
+    # exactly the thing the operator needs to notice.
+    service.ingest(_event(service))
+    (baris,) = service.rekap("2026-09-10")
+    assert baris["truck_id"] is None and baris["total"] == 1
+    assert baris["neto_kg"] is None

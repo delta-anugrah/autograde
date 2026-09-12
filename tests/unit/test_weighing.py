@@ -135,3 +135,10 @@ def test_koma_dibaca_sebagai_desimal(service):
 def test_pemisah_ribuan_ditolak_bukan_diam_diam_jadi_kecil(service):
     with pytest.raises(ValueError):
         service.catat_timbangan(_kiriman(bruto_kg="12.500,5"))
+
+
+def test_pemisah_ribuan_tanpa_desimal_ketahuan_lewat_lantai_berat(service):
+    # "14.820" typed for fourteen tonnes parses cleanly as 14.82 kg - the only
+    # thing that catches it is the floor.
+    with pytest.raises(ValueError):
+        service.catat_timbangan(_kiriman(bruto_kg="14.820", tara_kg=None))
