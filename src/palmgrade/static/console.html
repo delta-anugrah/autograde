@@ -57,7 +57,7 @@
           --warn:#7a4b00; --warn-bg:#fbeed2;
           --input:#ffffff; --hover:#414a57;
           --danger-bg:#fde8e6; --danger-line:#d99a94; --danger-fg:#8c1d18;
-          --grid:rgba(12,19,16,.05);
+          --bayang:rgba(12,19,16,.22);
           --pad:20px;
           --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23414a57%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
   :root[data-theme="dark"] { color-scheme:dark;
@@ -68,20 +68,14 @@
           --warn:#ffcf70; --warn-bg:#33260c;
           --input:#222933; --hover:#5b667a;
           --danger-bg:#40211f; --danger-line:#6b312d; --danger-fg:#ffc4bf;
-          --grid:rgba(255,255,255,.035);
+          --bayang:rgba(0,0,0,.55);
           --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23a9b3c2%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
   /* One knob for every size; the rest is rem. The operator can still zoom with
      Ctrl + '+' - Chrome remembers that per origin, so this page needs no zoom
      button of its own. */
   html { font-size:18px; }
   * { box-sizing:border-box; }
-  /* Faint survey grid. It gives the empty page a surface instead of a void;
-     every panel sits on solid --card, so nothing is read through it. */
-  body { margin:0; color:var(--fg); font:1rem/1.5 var(--font);
-         background:var(--bg);
-         background-image:linear-gradient(var(--grid) 1px, transparent 1px),
-                          linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-         background-size:48px 48px; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:1rem/1.5 var(--font); }
 
   /* Micro-label: every caption, table head and unit in the page. Uppercase and
      widely tracked so it reads as a legend, never as a value. */
@@ -111,8 +105,8 @@
   #tally { display:flex; flex-wrap:wrap; align-items:stretch;
            margin:16px var(--pad) 0; background:var(--card);
            border:1px solid var(--line-kuat); border-left:5px solid var(--acc); border-radius:3px; }
-  #tally .hari { display:flex; align-items:center; padding:10px 16px; line-height:1.3;
-                 border-right:1px solid var(--line); max-width:8rem; }
+  #tally .hari { display:flex; align-items:center; padding:10px 16px;
+                 border-right:1px solid var(--line); }
   #tally .stat { padding:10px 20px 12px; border-right:1px solid var(--line); min-width:6.5rem; }
   #tally .stat b { display:block; font-family:var(--mono); font-size:2rem; font-weight:700;
                    line-height:1.1; font-variant-numeric:tabular-nums; }
@@ -133,7 +127,7 @@
   .secbar h2 { margin:0; font-size:.72rem; font-weight:700; letter-spacing:.12em;
                text-transform:uppercase; color:var(--muted); }
   .secbar .garis { flex:1; height:1px; background:var(--line-kuat); min-width:1rem; }
-  .secbar select { flex:0 0 auto; min-height:2.6rem; }
+  .secbar .pilih { flex:0 0 13rem; }
 
   /* ---- camera panels ---- */
   /* terapkanKolom() overrides this inline; this value holds until JS runs, and
@@ -141,7 +135,7 @@
   #lines { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr));
            gap:16px; padding:0 var(--pad) 6px; }
   .card { background:var(--card); border:1px solid var(--line-kuat); border-radius:3px;
-          overflow:hidden; display:flex; flex-direction:column; }
+          display:flex; flex-direction:column; }
   .card h2 { font-size:1.05rem; font-weight:700; margin:0; padding:10px 8px 10px 14px;
              letter-spacing:.04em; border-bottom:1px solid var(--line);
              display:flex; align-items:center; gap:8px; }
@@ -167,12 +161,8 @@
                   animation:denyut 2.4s ease-in-out infinite; }
   @keyframes denyut { 0%,100% { opacity:1; } 50% { opacity:.25; } }
   .feed span { position:absolute; inset:0; z-index:4; display:none; place-items:center;
-               padding:16px 16px 30px; text-align:center; color:#fff;
+               padding:16px; text-align:center; color:#fff;
                font-size:1.15rem; font-weight:700; background:rgba(0,0,0,.72); }
-  /* Hazard tape: a dead camera has to be unmistakable from across the yard,
-     before anyone is close enough to read the sentence. */
-  .feed span::after { content:""; position:absolute; left:0; right:0; bottom:0; height:10px;
-                      background:repeating-linear-gradient(45deg,#e0b000 0 10px,#1a1a1a 10px 20px); }
   .feed.putus img { visibility:hidden; }
   .feed.putus span { display:grid; }
   .feed.putus::after, .feed.putus::before { display:none; }
@@ -182,7 +172,7 @@
      with flex the spacing follows digit count, so once ACC passes a hundred the
      figures collide. */
   .counts { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line);
-            border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+            border-block:1px solid var(--line); font-variant-numeric:tabular-nums; }
   .counts > span { display:block; background:var(--card); padding:9px 6px 11px; text-align:center; }
   .counts .acc { background:var(--acc-bg); }
   .counts .rej { background:var(--rej-bg); }
@@ -201,27 +191,17 @@
                  padding:9px 12px; border:1px solid var(--line); border-radius:3px;
                  background:var(--zebra); }
   .truk .truk-kosong { background:var(--warn-bg); border-color:var(--warn); }
-  .truk .truk-kosong .lb, .truk .truk-kosong .plat { color:var(--warn); }
+  .truk .truk-kosong .plat { color:var(--warn); font-size:1.15rem; letter-spacing:.02em; }
   .plat { font-family:var(--mono); font-size:1.4rem; font-weight:700; line-height:1.1;
           letter-spacing:.04em; text-transform:uppercase; }
   .truk .sup { font-size:.9rem; color:var(--muted); }
 
   .assign { display:flex; gap:8px; flex-wrap:wrap; }
-  .assign select { flex:1 1 9rem; }
+  .assign .pilih { flex:1 1 9rem; }
 
-  select, button, input { background:var(--input); color:var(--fg); border:1px solid var(--line-kuat);
-                   border-radius:3px; padding:10px 13px; font:inherit; }
-  /* The OS arrow differs per machine and is tiny at reading distance.
-     appearance:none plus our own arrow makes it uniform, but the element stays
-     a real <select>: keyboard, Esc, type-to-search and long lists are still the
-     browser's job, not ours to imitate. */
-  select { min-width:0; cursor:pointer; font-weight:600;
-           appearance:none; -webkit-appearance:none; padding-right:40px;
-           background-image:var(--chev); background-repeat:no-repeat;
-           background-position:right 13px center; background-size:16px; }
-  select:hover { border-color:var(--hover); }
-  select:disabled { cursor:default; opacity:.55; }
-  :is(select, button, input):focus-visible { outline:3px solid var(--acc); outline-offset:2px; }
+  button, input { background:var(--input); color:var(--fg); border:1px solid var(--line-kuat);
+                  border-radius:3px; padding:10px 13px; font:inherit; }
+  :is(button, input):focus-visible { outline:3px solid var(--acc); outline-offset:2px; }
   button { cursor:pointer; font-weight:700; }
   button:hover { border-color:var(--hover); }
   button:disabled { opacity:.55; cursor:default; }
@@ -231,18 +211,50 @@
   button.utama:hover { border-color:var(--fg); }
   button.reject { width:100%; text-transform:uppercase; letter-spacing:.08em;
                   background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
+  /* The keyboard hint is printed on the button, so the shortcut never has to be
+     remembered - and it follows the panel order the operator arranged. */
+  .pintas { margin-left:10px; font-size:.7rem; letter-spacing:.06em; opacity:.8;
+            border:1px solid currentColor; border-radius:2px; padding:2px 6px; }
+  .pintas:empty { display:none; }
+  /* Fires from a key, so the screen has to say which panel it landed on. */
+  @keyframes kedip { 40% { background:var(--danger-fg); color:var(--danger-bg); } }
+  button.reject.kedip { animation:kedip .45s ease; }
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
-  .assign button, .assign select, .tools button, .tools input, .tools select,
+  .assign button, .assign .pilih-tombol, .tools button, .tools input, .secbar .pilih-tombol,
   #tabs button, button.reject { min-height:2.6rem; }
+
+  /* ---- dropdown ---- */
+  /* A real listbox, not a styled <select>. The native picker draws its rows in
+     the OS font at OS size - unreadable at the distance this screen is used
+     from, and unstyleable. Keyboard control is kept in full (arrows, Enter,
+     Esc, Tab), because that is the part a fake dropdown usually throws away. */
+  .pilih { position:relative; min-width:0; }
+  .pilih-tombol { display:flex; align-items:center; width:100%; text-align:left;
+                  font-weight:600; padding-right:40px;
+                  background-image:var(--chev); background-repeat:no-repeat;
+                  background-position:right 13px center; background-size:16px; }
+  .pilih-teks { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pilih[data-buka="1"] .pilih-tombol { border-color:var(--acc); }
+  .pilih-panel { position:absolute; z-index:20; top:calc(100% + 4px); left:0; min-width:100%;
+                 max-height:17rem; overflow-y:auto; padding:4px;
+                 background:var(--card); border:1px solid var(--line-kuat); border-radius:3px;
+                 box-shadow:0 12px 28px var(--bayang); }
+  .pilih-panel [role="option"] { display:flex; align-items:center; min-height:2.6rem;
+                                 padding:10px 14px; border-radius:2px; cursor:pointer;
+                                 white-space:nowrap; font-weight:600; }
+  .pilih-panel [role="option"]:hover { background:var(--zebra); }
+  .pilih-panel [role="option"]:focus { outline:none; background:var(--zebra);
+                                       box-shadow:inset 4px 0 0 var(--acc); }
+  .pilih-panel [role="option"][aria-selected="true"] { background:var(--acc-bg); color:var(--acc); }
 
   /* ---- tabs ---- */
   #tabs { display:flex; gap:3px; padding:26px var(--pad) 0;
           border-bottom:2px solid var(--line-kuat); }
   /* flex:1 1 0 - widths split evenly instead of following text length, so
-     "Recent grading" does not shove the other two tabs when the language flips. */
-  /* The inactive tabs stay recessed rather than invisible - three bare words on
+     "Recent grading" does not shove the other two tabs when the language flips.
+     The inactive tabs stay recessed rather than invisible: three bare words on
      the page background do not read as "these are buttons". */
   #tabs button { flex:1 1 0; background:var(--zebra); color:var(--muted);
                  border:1px solid var(--line); border-bottom:2px solid var(--line-kuat);
@@ -290,7 +302,10 @@
   /* One staggered reveal on load, nothing after it. A screen that is watched
      all day must not keep moving. */
   @keyframes muncul { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
-  #topbar, #tally, .secbar, #lines, #tabs { animation:muncul .4s ease both; }
+  /* `backwards`, not `both`: `both` leaves an identity transform behind, and an
+     element with a transform is its own stacking context - which buries an open
+     dropdown panel under the section that follows it. */
+  #topbar, #tally, .secbar, #lines, #tabs { animation:muncul .4s ease backwards; }
   #tally { animation-delay:.05s; } .secbar { animation-delay:.1s; }
   #lines { animation-delay:.14s; } #tabs { animation-delay:.2s; }
   @media (prefers-reduced-motion:reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
@@ -308,7 +323,7 @@
 <div id="err"></div>
 
 <section id="tally">
-  <span class="lb hari" data-t="labelHariIni">Hari kerja ini</span>
+  <span class="lb hari" data-t="labelHariIni">Hari ini</span>
   <div class="stat acc"><span class="lb">ACC</span><b id="tot-acc">0</b></div>
   <div class="stat rej"><span class="lb">REJ</span><b id="tot-rej">0</b></div>
   <div class="stat"><span class="lb">Total</span><b id="tot-all">0</b></div>
@@ -326,13 +341,18 @@
 <div class="secbar" id="tata">
   <h2 data-t="labelKamera">Kamera</h2>
   <span class="garis"></span>
-  <label class="lb" for="kolom" data-t="labelLayout">Tata letak kamera</label>
-  <select id="kolom">
-    <option value="auto" data-t="kolomAuto">Otomatis</option>
-    <option value="1" data-t="kolom1">1 per baris</option>
-    <option value="2" data-t="kolom2">2 per baris</option>
-    <option value="3" data-t="kolom3">3 per baris</option>
-  </select>
+  <label class="lb" for="kolom-tombol" data-t="labelLayout">Tata letak kamera</label>
+  <div class="pilih" id="kolom" data-nilai="auto">
+    <button type="button" id="kolom-tombol" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
+      <span class="pilih-teks">Otomatis</span>
+    </button>
+    <div class="pilih-panel" role="listbox" hidden>
+      <div role="option" tabindex="-1" data-nilai="auto" aria-selected="true" data-t="kolomAuto">Otomatis</div>
+      <div role="option" tabindex="-1" data-nilai="1" aria-selected="false" data-t="kolom1">1 per baris</div>
+      <div role="option" tabindex="-1" data-nilai="2" aria-selected="false" data-t="kolom2">2 per baris</div>
+      <div role="option" tabindex="-1" data-nilai="3" aria-selected="false" data-t="kolom3">3 per baris</div>
+    </div>
+  </div>
 </div>
 <div id="lines"></div>
 
@@ -408,7 +428,7 @@ let trucks = [];
 const KAMUS = {
   id: {
     judulGrading:"Grading terbaru", judulTruk:"Truk", judulTimbangan:"Timbangan",
-    labelKamera:"Kamera", labelHariIni:"Hari kerja ini", labelRasio:"Rasio ACC",
+    labelKamera:"Kamera", labelHariIni:"Hari ini", labelRasio:"Rasio ACC",
     labelLayout:"Tata letak kamera", kolomAuto:"Otomatis",
     kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
     geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
@@ -419,7 +439,7 @@ const KAMUS = {
     btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
-    truk:"Truk", belumAda:"belum ada", pilihTruk:"pilih truk", lepasTitle:"Truk sudah pergi",
+    truk:"Truk", trukBelum:"Truk belum dipilih", pilihTruk:"pilih truk", lepasTitle:"Truk sudah pergi",
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
     kosongGrading:"Belum ada grading hari ini",
     promptTara:"Tara (kg) untuk", wajibIsi:"Plat dan bruto wajib diisi",
@@ -429,7 +449,7 @@ const KAMUS = {
   },
   en: {
     judulGrading:"Recent grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge",
-    labelKamera:"Cameras", labelHariIni:"This working day", labelRasio:"ACC rate",
+    labelKamera:"Cameras", labelHariIni:"Today", labelRasio:"ACC rate",
     labelLayout:"Camera layout", kolomAuto:"Auto",
     kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
     geserKiri:"Move left", geserKanan:"Move right",
@@ -440,7 +460,7 @@ const KAMUS = {
     btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
-    truk:"Truck", belumAda:"none yet", pilihTruk:"select truck", lepasTitle:"Truck has left",
+    truk:"Truck", trukBelum:"No truck selected", pilihTruk:"select truck", lepasTitle:"Truck has left",
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
     kosongGrading:"No grading yet today",
     promptTara:"Tare (kg) for", wajibIsi:"Plate and gross weight are required",
@@ -471,6 +491,7 @@ function terapkanBahasa() {
   document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
   document.querySelectorAll("[data-t-ph]").forEach((el) => { el.placeholder = t(el.dataset.tPh); });
   $("bahasa").textContent = bahasa === "id" ? "EN" : "ID";
+  segarkanPilih();
   terapkanTema();
 }
 
@@ -490,6 +511,113 @@ $("tema").addEventListener("click", () => {
   tema = tema === "terang" ? "gelap" : "terang";
   simpan("tema", tema);
   terapkanTema();
+});
+
+// ── dropdown ───────────────────────────────────────────────────────────
+// A real listbox, not a <select>. Its rows are sized for a gloved hand and read
+// at distance, which the OS picker cannot do. Value lives on the root as
+// data-nilai; picking one fires a "pilih" event that bubbles.
+function komponenPilih(opsi, terpilih) {
+  const aktif = opsi.find((o) => o.v === terpilih) || opsi[0];
+  const baris = opsi.map((o) =>
+    `<div role="option" tabindex="-1" data-nilai="${esc(o.v)}"
+          aria-selected="${o.v === aktif.v}">${esc(o.teks)}</div>`).join("");
+  return `<div class="pilih" data-nilai="${esc(aktif.v)}">
+    <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
+      <span class="pilih-teks">${esc(aktif.teks)}</span>
+    </button>
+    <div class="pilih-panel" role="listbox" hidden>${baris}</div>
+  </div>`;
+}
+
+const tombolPilih = (root) => root.querySelector(".pilih-tombol");
+
+function tutupPilih(root) {
+  root.dataset.buka = "";
+  root.querySelector(".pilih-panel").hidden = true;
+  tombolPilih(root).setAttribute("aria-expanded", "false");
+}
+
+function bukaPilih(root) {
+  document.querySelectorAll('.pilih[data-buka="1"]').forEach(tutupPilih);
+  root.dataset.buka = "1";
+  const panel = root.querySelector(".pilih-panel");
+  panel.hidden = false;
+  tombolPilih(root).setAttribute("aria-expanded", "true");
+  const awal = panel.querySelector('[aria-selected="true"]') || panel.firstElementChild;
+  // preventScroll: the panel opens right under a button the operator just
+  // pressed, so it is already in view - scrolling the cameras off screen to
+  // reach it is worse than not scrolling at all.
+  if (awal) awal.focus({ preventScroll: true });
+}
+
+function pilihNilai(root, v) {
+  const opt = root.querySelector(`[role="option"][data-nilai="${CSS.escape(v)}"]`);
+  if (!opt) return;
+  root.dataset.nilai = v;
+  root.querySelector(".pilih-teks").textContent = opt.textContent;
+  root.querySelectorAll('[role="option"]')
+      .forEach((o) => o.setAttribute("aria-selected", String(o === opt)));
+  root.dispatchEvent(new CustomEvent("pilih", { bubbles: true }));
+}
+
+// After a language flip the option rows are re-translated in place by data-t,
+// but the closed trigger still shows the old wording.
+function segarkanPilih() {
+  document.querySelectorAll(".pilih").forEach((root) => {
+    const opt = root.querySelector('[role="option"][aria-selected="true"]');
+    if (opt) root.querySelector(".pilih-teks").textContent = opt.textContent;
+  });
+}
+
+// One listener for every dropdown on the page, so JS-built cards need no wiring.
+document.addEventListener("click", (ev) => {
+  const opt = ev.target.closest('.pilih [role="option"]');
+  if (opt) {
+    const root = opt.closest(".pilih");
+    pilihNilai(root, opt.dataset.nilai);
+    tutupPilih(root);
+    tombolPilih(root).focus();
+    return;
+  }
+  const tombol = ev.target.closest(".pilih-tombol");
+  const root = tombol ? tombol.closest(".pilih") : null;
+  // Anything else on the page is a click outside: close what is open.
+  document.querySelectorAll('.pilih[data-buka="1"]').forEach((p) => { if (p !== root) tutupPilih(p); });
+  if (!root) return;
+  if (root.dataset.buka === "1") tutupPilih(root); else bukaPilih(root);
+});
+
+document.addEventListener("keydown", (ev) => {
+  const root = ev.target.closest && ev.target.closest(".pilih");
+  if (!root) return;
+  const opsi = [...root.querySelectorAll('[role="option"]')];
+  const i = opsi.indexOf(document.activeElement);
+  const buka = root.dataset.buka === "1";
+  if (ev.key === "Escape") {
+    tutupPilih(root);
+    tombolPilih(root).focus();
+  } else if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+    if (!buka) bukaPilih(root);
+    else {
+      const j = Math.min(opsi.length - 1, Math.max(0, i + (ev.key === "ArrowDown" ? 1 : -1)));
+      opsi[j].focus();
+    }
+  } else if (ev.key === "Enter" || ev.key === " ") {
+    if (!buka) bukaPilih(root);
+    else if (i >= 0) {
+      pilihNilai(root, opsi[i].dataset.nilai);
+      tutupPilih(root);
+      tombolPilih(root).focus();
+    }
+  } else return;
+  ev.preventDefault();
+});
+
+// Tab away and the panel would otherwise be left hanging open over the cards.
+document.addEventListener("focusout", (ev) => {
+  const root = ev.target.closest && ev.target.closest(".pilih");
+  if (root && !root.contains(ev.relatedTarget)) tutupPilih(root);
 });
 
 // ── truck / weighbridge tabs ───────────────────────────────────────────
@@ -520,13 +648,12 @@ let urutan = [];
 try { urutan = JSON.parse(baca("urutan", "[]")) || []; } catch (e) { urutan = []; }
 
 function terapkanKolom() {
-  $("kolom").value = kolom;
   $("lines").style.gridTemplateColumns =
     kolom === "auto" ? "repeat(auto-fit,minmax(360px,1fr))" : `repeat(${kolom},1fr)`;
 }
 
-$("kolom").addEventListener("change", () => {
-  kolom = $("kolom").value;
+$("kolom").addEventListener("pilih", () => {
+  kolom = $("kolom").dataset.nilai;
   simpan("kolom", kolom);
   terapkanKolom();
 });
@@ -541,7 +668,13 @@ function selarasUrutan(lines) {
 function terapkanUrutan() {
   // CSS `order`, not a DOM move: moving an MJPEG <img> tears down and reopens
   // its stream every time the operator taps an arrow.
-  for (const kartu of $("lines").children) kartu.style.order = urutan.indexOf(kartu.dataset.line);
+  for (const kartu of $("lines").children) {
+    const i = urutan.indexOf(kartu.dataset.line);
+    kartu.style.order = i;
+    // The reject shortcut follows what is on screen, so its hint moves with it.
+    const hint = kartu.querySelector(".pintas");
+    if (hint) hint.textContent = i >= 0 && i < 9 ? "Alt+" + (i + 1) : "";
+  }
 }
 
 // ── render ─────────────────────────────────────────────────────────────
@@ -582,10 +715,7 @@ const barisKosong = (lebar, kunci) => `<tr><td colspan="${lebar}" class="kosong"
 function isiTruk(a) {
   // With no truck, supplier and source would both be bare dashes: characters
   // that say nothing on a screen read from afar. Say the state instead.
-  if (!a) {
-    return `<span class="truk-kosong"><span class="lb">${esc(t("truk"))}</span>
-      <b class="plat">${esc(t("belumAda"))}</b></span>`;
-  }
+  if (!a) return `<span class="truk-kosong"><b class="plat">${esc(t("trukBelum"))}</b></span>`;
   return `<span class="truk-isi"><span class="lb">${esc(t("truk"))}</span>
     <b class="plat">${dash(a.plate_number)}</b>
     <span class="sup">${dash(a.supplier_name)}</span>
@@ -596,9 +726,8 @@ function kartuLine(l) {
   // The stream comes from the same host as this page, only another port - so
   // the console still works opened over a LAN IP, not just 127.0.0.1.
   const feed = l.port ? `${location.protocol}//${location.hostname}:${l.port}/api/video_feed` : "";
-  const opsi = trucks.map((t2) =>
-    `<option value="${esc(t2.id)}"${l.assignment && l.assignment.truck_id === t2.id ? " selected" : ""}>${dash(t2.plate_number)}</option>`
-  ).join("");
+  const opsi = [{ v: "", teks: t("pilihTruk") }]
+    .concat(trucks.map((tr) => ({ v: tr.id, teks: tr.plate_number || KOSONG })));
   // line_code only rides along as data-line and is read via dataset - it never
   // enters an onclick attribute, so there is no JS string context to inject.
   return `<div class="card" data-line="${esc(l.line_code)}">
@@ -617,11 +746,11 @@ function kartuLine(l) {
     <div class="body">
       <div class="truk">${isiTruk(l.assignment)}</div>
       <div class="assign">
-        <select><option value="">${esc(t("pilihTruk"))}</option>${opsi}</select>
+        ${komponenPilih(opsi, l.assignment ? l.assignment.truck_id : "")}
         <button class="utama" data-aksi="tugaskan">${esc(t("btnTugaskan"))}</button>
         <button data-aksi="lepas" title="${esc(t("lepasTitle"))}">${esc(t("btnLepas"))}</button>
       </div>
-      <button class="reject" data-aksi="tolak">${esc(t("btnReject"))}</button>
+      <button class="reject" data-aksi="tolak">${esc(t("btnReject"))}<span class="pintas"></span></button>
     </div>
   </div>`;
 }
@@ -705,7 +834,7 @@ $("lines").addEventListener("click", async (ev) => {
   tombol.disabled = true;
   try {
     if (tombol.dataset.aksi === "tugaskan") {
-      const truck_id = kartu.querySelector("select").value;
+      const truck_id = kartu.querySelector(".pilih").dataset.nilai;
       if (!truck_id) return;
       await api(`/api/console/lines/${encodeURIComponent(line)}/assign-truck`,
                 { method: "POST", body: JSON.stringify({ truck_id }) });
@@ -723,6 +852,28 @@ $("lines").addEventListener("click", async (ev) => {
   } finally {
     tombol.disabled = false;
   }
+});
+
+// Alt+1..3 = manual reject on the 1st..3rd camera panel, counted the way they
+// sit on screen (the operator reorders them). Alt keeps it out of reach of a
+// stray keypress, the digits match the hint printed on the button, and it is
+// ignored while a text field has focus. The click is replayed through the
+// delegated handler above, so there is one code path, not two.
+document.addEventListener("keydown", (ev) => {
+  if (!ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey) return;
+  const n = Number(ev.key);
+  if (!(n >= 1 && n <= 9)) return;
+  if (/^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) return;
+  const line = urutan[n - 1];
+  if (!line) return;
+  const tombol = $("lines").querySelector(`.card[data-line="${CSS.escape(line)}"] button.reject`);
+  if (!tombol || tombol.disabled) return;
+  ev.preventDefault();
+  // Restart the flash even if the same panel is rejected twice in a row.
+  tombol.classList.remove("kedip");
+  void tombol.offsetWidth;
+  tombol.classList.add("kedip");
+  tombol.click();
 });
 
 $("daftar").addEventListener("click", async () => {
@@ -869,6 +1020,7 @@ async function muatTrucks() {
 (async () => {
   terapkanBahasa();
   terapkanTab();
+  pilihNilai($("kolom"), kolom);
   terapkanKolom();
   detak();
   setInterval(detak, 1000);
