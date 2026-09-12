@@ -383,7 +383,7 @@ apa yang dilihat operator.
 
 **Batas hari kerja (§6.1).** Pabrik jalan ~20 jam/hari dan **lewat tengah malam**, jadi batas
 hari UTC memotong satu shift jadi dua tanggal. `tanggal_kerja` dihitung **saat ingest** dari
-timestamp event itu sendiri (`domain/tanggal_kerja.py`, zona `FACTORY_TZ`) lalu **disimpan
+timestamp event itu sendiri (`domain/working_day.py`, zona `FACTORY_TZ`) lalu **disimpan
 sebagai kolom** — bukan diturunkan ulang saat query, dan tidak pernah dari `now()`, `creation`,
 atau nama folder. Event yang datang telat (outbox menyusul setelah listrik mati) tetap mendarat
 di harinya sendiri. Timestamp cacat → 400 → outbox line menandainya `outbox_failed`, sengaja
@@ -406,7 +406,7 @@ yang sama dengan `edgeSync` di palmgrade-api, respons **JSON telanjang** (tanpa 
 melewati satu baris yang gagal berarti pabrik terjebak di matriks setengah basi, termasuk
 pencabutan truk yang sudah dilakukan cloud. Sumber disimpan **mentah** (tiga nilai: Inti /
 Plasma / Pihak Ketiga) dan cuma dipetakan ke label tampilan Internal/External/`—` oleh
-`domain/sumber_tbs.py`. **Tidak ada boolean `is_internal` di manapun** — memadatkan tiga nilai
+`domain/ffb_source.py`. **Tidak ada boolean `is_internal` di manapun** — memadatkan tiga nilai
 jadi dua di edge menghapus laporan Plasma vs Pihak Ketiga di cloud secara permanen. Kolom
 `sumber` belum ada di API sampai Fase 1 PalmOS selesai, jadi dibaca defensif: sebelum itu
 nilainya `None` dan layar menampilkan `—`.
@@ -465,7 +465,7 @@ baris React di frontend lama **diekspresikan ulang, bukan di-port**.
 (§6.6b, Fase 3), nomor dokumen berprefiks lokal (§6.3), toggle tampil/sembunyi per line, dan
 halaman riwayat/laporan lintas hari (itu urusan cloud — live/hari ini lokal, riwayat cloud).
 
-**Tests** (`tests/unit/test_tanggal_kerja.py`, `test_console_store.py`, murni-logic, tanpa
+**Tests** (`tests/unit/test_working_day.py`, `test_console_store.py`, murni-logic, tanpa
 FastAPI): batas hari lewat tengah malam WIB vs UTC, timestamp cacat melempar, dedupe event
 kirim-ulang, pemisahan ACC/REJ per line, penugasan yang selamat restart, urutan
 line-dulu-baru-catat, bentuk URL gambar (relatif vs R2 absolut), Sumber TBS tetap tiga nilai,

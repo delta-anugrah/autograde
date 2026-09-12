@@ -20,9 +20,9 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint, Settings
+from ..domain.ffb_source import label_sumber
 from ..domain.plate import normalisasi_plat, truck_id_for
-from ..domain.sumber_tbs import label_sumber
-from ..domain.tanggal_kerja import tanggal_kerja_for
+from ..domain.working_day import tanggal_kerja_for
 from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
 
@@ -33,6 +33,12 @@ MASTER_CURSOR_KEY = "master_data_cursor"
 # Net difference still forgiven before a payload is rejected. Scales round;
 # anything past this must not pass quietly — neto is what the farmer is paid.
 TOLERANSI_NETO_KG = 1.0
+
+# Below this a figure is not a truck, it is a typo. "14.820" typed for fourteen
+# tonnes parses as 14.82 kg, and nothing else in the payload contradicts it.
+# An empty truck already weighs tonnes, so a real bruto/tara clears this by two
+# orders of magnitude.
+MINIMUM_BERAT_KG = 100.0
 
 
 class ConsoleService:
@@ -150,6 +156,24 @@ class ConsoleService:
     def weighings(self, tanggal_kerja: str, *, limit: int = 100) -> list[dict[str, Any]]:
         return [_label_sumber_in_place(row) for row in self.store.weighings(tanggal_kerja, limit=limit)]
 
+    def rekap(self, tanggal_kerja: str) -> list[dict[str, Any]]:
+        """Per-truck tally with the weighbridge neto folded in.
+
+        Neto is summed here rather than joined in SQL: a truck can hold more
+        than one ticket in a day, and joining that to the grading rows would
+        multiply the bunch count by the ticket count.
+        """
+        neto: dict[str, float] = {}
+        for tiket in self.store.weighings(tanggal_kerja, limit=500):
+            truk, angka = tiket.get("truck_id"), tiket.get("neto_kg")
+            if truk and angka is not None:
+                neto[truk] = round(neto.get(truk, 0.0) + angka, 3)
+        rows = self.store.rekap_truk(tanggal_kerja)
+        for row in rows:
+            row["neto_kg"] = neto.get(row.get("truck_id"))
+            _label_sumber_in_place(row)
+        return rows
+
     # --------------------------------------------------- manual truck entry
 
     def daftar_truk_manual(
@@ -216,6 +240,12 @@ class ConsoleService:
         lama = self.store.weighing(weighing_id) or {}
         bruto = _kg(payload.get("bruto_kg"), "bruto_kg", lama.get("bruto_kg"))
         tara = _kg(payload.get("tara_kg"), "tara_kg", lama.get("tara_kg"))
+        for nama, angka in (("bruto_kg", bruto), ("tara_kg", tara)):
+            if angka is not None and angka < MINIMUM_BERAT_KG:
+                raise ValueError(
+                    f"{nama} ({angka}) di bawah {MINIMUM_BERAT_KG} kg - "
+                    "cek pemisah ribuan, mis. 14.820 terbaca jadi 14,82"
+                )
         neto = _neto(bruto, tara, _kg(payload.get("neto_kg"), "neto_kg", None))
 
         self.store.upsert_weighing(
@@ -293,6 +323,12 @@ def _kg(nilai: Any, nama: str, bawaan: float | None) -> float | None:
     """Kilogram figure, or `bawaan` when not sent. ValueError if malformed."""
     if nilai is None or nilai == "":
         return bawaan
+    if isinstance(nilai, str):
+        # A comma is the decimal point on an Indonesian keypad, and the scale
+        # program may well send one. Only one separator is ever accepted, so a
+        # thousands-grouped "14.820,5" still fails loudly instead of silently
+        # becoming 14.82.
+        nilai = nilai.strip().replace(",", ".")
     try:
         angka = float(nilai)
     except (TypeError, ValueError) as exc:

@@ -172,6 +172,34 @@ class ConsoleStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def rekap_truk(self, tanggal_kerja: str) -> list[dict[str, Any]]:
+        """Per-truck tally for one working day, newest truck first.
+
+        Grouped on `truck_id`, so bunches graded before a truck was assigned
+        land in one nameless row instead of being dropped - an unassigned line
+        is exactly what the operator needs to see.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT i.truck_id,
+                          t.plate_number,
+                          s.name AS supplier_name,
+                          s.sumber,
+                          COUNT(*) AS total,
+                          SUM(CASE WHEN i.ripeness_status = 'ACC' THEN 1 ELSE 0 END) AS acc,
+                          SUM(CASE WHEN i.ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej,
+                          MIN(i.timestamp) AS mulai,
+                          MAX(i.timestamp) AS selesai
+                   FROM inspections i
+                   LEFT JOIN trucks t ON t.id = i.truck_id
+                   LEFT JOIN suppliers s ON s.id = t.supplier_id
+                   WHERE i.tanggal_kerja = ?
+                   GROUP BY i.truck_id
+                   ORDER BY MAX(i.timestamp) DESC""",
+                (tanggal_kerja,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     # ------------------------------------------------------- master data
 
     def upsert_supplier(self, row: dict[str, Any]) -> None:
@@ -203,13 +231,20 @@ class ConsoleStore:
             )
 
     def trucks(self) -> list[dict[str, Any]]:
+        """Newest first.
+
+        `rowid DESC`, not a timestamp column: the table has no insert time and
+        an upsert from master data keeps its rowid, so a truck re-synced later
+        does not jump the queue. What the operator wants is the truck they just
+        registered, at the top.
+        """
         with self._lock:
             rows = self._db.execute(
                 """SELECT t.id, t.plate_number, t.capacity, t.status,
                           s.name AS supplier_name, s.sumber
                    FROM trucks t LEFT JOIN suppliers s ON s.id = t.supplier_id
                    WHERE t.status IS NULL OR t.status != 'inactive'
-                   ORDER BY t.plate_number"""
+                   ORDER BY t.rowid DESC"""
             ).fetchall()
         return [dict(r) for r in rows]
 

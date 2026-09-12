@@ -1,9 +1,10 @@
-"""ASGI app konsol operator (`APP_MODE=console`, port 8000).
+"""Operator console ASGI app (`APP_MODE=console`, port 8000).
 
-Modul TERPISAH dari `main.py` dengan sengaja: `main.py` menarik
-`core/dependencies.py` → pipelines → ultralytics → torch, dan `core/constants.py`
-→ cv2. Konsol tidak butuh satupun. Memisahkan modulnya berarti layar operator
-tetap hidup — dan boot dalam hitungan detik — walau satu line kamera mati (§4).
+Deliberately a SEPARATE module from `main.py`: that one pulls
+`core/dependencies.py` -> pipelines -> ultralytics -> torch, and
+`core/constants.py` -> cv2. The console needs none of it. Splitting the module
+is what keeps the operator screen alive - and booting in seconds - when a
+camera line is down (plan §4).
 """
 from __future__ import annotations
 
@@ -25,9 +26,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    service = get_console_service()  # ZoneInfo(FACTORY_TZ) divalidasi di sini
-    # Dua arah yang terpisah: master data ditarik dari cloud, event didorong ke
-    # ERP. Keduanya boleh mati tanpa menjatuhkan layar operator — itu inti Fase 2.
+    service = get_console_service()  # ZoneInfo(FACTORY_TZ) is validated here
+    # Two separate directions: master data is pulled from the cloud, events are
+    # pushed to the ERP. Either may die without taking the operator screen with
+    # it - that is the whole point of phase 2.
     tasks = [
         asyncio.create_task(MasterDataWorker(service.settings, service.store).run_loop()),
         asyncio.create_task(ErpPushWorker(service.settings, service.store).run_loop()),
@@ -43,9 +45,9 @@ def create_console_app() -> FastAPI:
     settings = service.settings
     app = FastAPI(title="Palmgrade Operator Console", lifespan=lifespan)
 
-    # Gambar tetap tinggal di disk line masing-masing, di-mount read-only ke
-    # sini oleh docker-compose. Serve statis — bukan dipindai (§6.2). Bentuk
-    # URL-nya mencerminkan palmgrade-api: /captures/{line_code}/results/...
+    # Images stay on each line's own disk, mounted read-only here by
+    # docker-compose. Served statically, never scanned (plan §6.2). The URL
+    # shape mirrors palmgrade-api: /captures/{line_code}/results/...
     for line in service.lines:
         line_dir = settings.artifacts_dir / line.line_code
         line_dir.mkdir(parents=True, exist_ok=True)
@@ -60,7 +62,7 @@ def create_console_app() -> FastAPI:
 
     @app.get("/health", include_in_schema=False)
     async def health() -> dict:
-        # Sengaja lokal, bukan routes/health.py: yang itu menarik torch.
+        # Deliberately local rather than routes/health.py: that one pulls torch.
         return {"status": "ok", "mode": "console", "version": settings.app_version}
 
     @app.get("/", include_in_schema=False)
