@@ -13,15 +13,19 @@
   choice (language, theme, tab, column count, camera order) is kept in
   localStorage so nothing has to be set again each morning.
 
-  Below the cameras sits THREE TABS (Grading, Trucks, Weighbridge). They used
-  to be stacked, and the tables pushed the camera cards off screen; trucks and
-  weighing even shared one block with one plate field between them, so the
-  operator was never sure which button read which box.
+  Layout, top to bottom: status bar, day tally, camera panels, then THREE TABS
+  (Grading, Trucks, Weighbridge). The tabs exist because stacked tables used to
+  push the camera panels off screen, and trucks and weighing shared one plate
+  field - the operator could not tell which button read which box.
 -->
 <style>
-  /* This console stands in the unloading area, in direct sun, and is read in
-     passing - not sat in front of. Two consequences, both against office-screen
-     habit:
+  /* Instrument-panel look: square panels, hairline rules, a colour bar down the
+     left of anything that reports a number, monospace figures. It is not
+     decoration - an operator reads this from a few metres away, walking past,
+     and the shape of a block has to say what it is before the text is legible.
+
+     This console stands in the unloading area, in direct sun. Two consequences,
+     both against office-screen habit:
 
      1. LIGHT is the default, not dark. In sunlight a panel reflects ambient
         light across its WHOLE surface: a dark background lifts to grey while
@@ -32,47 +36,119 @@
         are what gets read from far away, so those are the largest; the tables
         are not meant to be read from across the yard - the operator walks up.
 
-     Status colours are picked above 6:1 against their background, not just
-     "green" and "red": glare cuts effective contrast, and anything near 3:1
-     indoors vanishes outside. Text is never colour alone - ACC/REJ always
-     carry a label. */
+     Every status colour is picked above 6:1 against the surface it sits on, not
+     just "green" and "red": glare cuts effective contrast, and anything near
+     3:1 indoors vanishes outside. Colour is never the only signal - ACC/REJ
+     carry their label, and a line with no truck says so in words. */
   :root { color-scheme:light;
           /* No CDN (the console must live with the internet down), so every
              name here has to exist on the PC already. `system-ui` is
              deliberately not first: on some Linux desktops it falls back to a
              thin-stroke font, and thin strokes are the first to go in glare. */
           --font:"Segoe UI", Ubuntu, Roboto, "Noto Sans", "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
-          --bg:#e8ecf1; --card:#ffffff; --line:#8e99a8; --fg:#0b0f14; --muted:#414a57;
-          --acc:#03653c; --rej:#b3261e; --input:#ffffff; --hover:#414a57;
+          /* Figures and plates only. Fixed-width digits stop the big counters
+             from twitching as they tick, and a plate is read character by
+             character - the one place a mono face is easier, not harder. */
+          --mono:"DejaVu Sans Mono", "Ubuntu Mono", "Liberation Mono", Consolas, "Courier New", monospace;
+          --bg:#e7ebe8; --card:#ffffff; --fg:#0c1310; --muted:#414a57;
+          --line:#c1cac4; --line-kuat:#7b8792; --zebra:#f3f6f4;
+          --acc:#04613a; --acc-bg:#dff0e6; --on-acc:#ffffff;
+          --rej:#a72119; --rej-bg:#fdeeec;
+          --warn:#7a4b00; --warn-bg:#fbeed2;
+          --input:#ffffff; --hover:#414a57;
           --danger-bg:#fde8e6; --danger-line:#d99a94; --danger-fg:#8c1d18;
+          --grid:rgba(12,19,16,.05);
+          --pad:20px;
           --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23414a57%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
   :root[data-theme="dark"] { color-scheme:dark;
-          --bg:#0b0e13; --card:#161b22; --line:#5a6575; --fg:#f2f5fa; --muted:#a9b3c2;
-          --acc:#3ddc97; --rej:#ff7b72; --input:#232a35; --hover:#5b667a;
+          --bg:#0a0d11; --card:#151a21; --fg:#f2f5fa; --muted:#a9b3c2;
+          --line:#2c333d; --line-kuat:#4a5563; --zebra:#1a2028;
+          --acc:#4ee39f; --acc-bg:#0f2c20; --on-acc:#07211a;
+          --rej:#ff8078; --rej-bg:#331a18;
+          --warn:#ffcf70; --warn-bg:#33260c;
+          --input:#222933; --hover:#5b667a;
           --danger-bg:#40211f; --danger-line:#6b312d; --danger-fg:#ffc4bf;
+          --grid:rgba(255,255,255,.035);
           --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23a9b3c2%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
   /* One knob for every size; the rest is rem. The operator can still zoom with
      Ctrl + '+' - Chrome remembers that per origin, so this page needs no zoom
      button of its own. */
   html { font-size:18px; }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:1rem/1.5 var(--font); }
-  header { display:flex; align-items:baseline; flex-wrap:wrap; gap:10px 16px;
-           padding:12px 20px; border-bottom:1px solid var(--line); background:var(--card); }
-  header .aksi { margin-left:auto; display:flex; gap:8px; }
-  header .aksi button { min-width:5rem; }
-  h1 { font-size:1.2rem; margin:0; font-weight:700; }
-  /* Equal-width digits: without this the header shifts slightly every second. */
-  #jam { font-variant-numeric:tabular-nums; }
+  * { box-sizing:border-box; }
+  /* Faint survey grid. It gives the empty page a surface instead of a void;
+     every panel sits on solid --card, so nothing is read through it. */
+  body { margin:0; color:var(--fg); font:1rem/1.5 var(--font);
+         background:var(--bg);
+         background-image:linear-gradient(var(--grid) 1px, transparent 1px),
+                          linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+         background-size:48px 48px; }
+
+  /* Micro-label: every caption, table head and unit in the page. Uppercase and
+     widely tracked so it reads as a legend, never as a value. */
+  .lb { font-size:.72rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+        color:var(--muted); }
   .muted { color:var(--muted); }
+
+  /* ---- status bar ---- */
+  #topbar { display:flex; align-items:center; flex-wrap:wrap; gap:10px 20px;
+            padding:12px var(--pad); background:var(--card);
+            border-bottom:3px solid var(--acc); }
+  h1 { font-size:1.15rem; margin:0; font-weight:700; letter-spacing:.16em;
+       text-transform:uppercase; display:flex; align-items:center; gap:10px; }
+  h1::before { content:""; width:.75rem; height:1.15rem; background:var(--acc); border-radius:1px; }
+  #jam { font-family:var(--mono); font-size:1.25rem; font-weight:700; letter-spacing:.01em; }
+  .jam { display:flex; align-items:baseline; gap:8px; }
+  #topbar .aksi { margin-left:auto; display:flex; gap:8px; }
+  #topbar .aksi button { min-width:5.5rem; min-height:2.6rem; }
+
+  #err { display:none; padding:13px var(--pad); font-weight:700;
+         background:var(--danger-bg); color:var(--danger-fg);
+         border-bottom:1px solid var(--danger-line); border-left:6px solid var(--danger-fg); }
+
+  /* ---- day tally ---- */
+  /* The whole yard in one strip, for the glance from ten metres that never
+     reaches a single line panel. */
+  #tally { display:flex; flex-wrap:wrap; align-items:stretch;
+           margin:16px var(--pad) 0; background:var(--card);
+           border:1px solid var(--line-kuat); border-left:5px solid var(--acc); border-radius:3px; }
+  #tally .hari { display:flex; align-items:center; padding:10px 16px; line-height:1.3;
+                 border-right:1px solid var(--line); max-width:8rem; }
+  #tally .stat { padding:10px 20px 12px; border-right:1px solid var(--line); min-width:6.5rem; }
+  #tally .stat b { display:block; font-family:var(--mono); font-size:2rem; font-weight:700;
+                   line-height:1.1; font-variant-numeric:tabular-nums; }
+  #tally .stat.acc b { color:var(--acc); }
+  #tally .stat.rej b { color:var(--rej); }
+  #tally .rasio { flex:1 1 12rem; min-width:11rem; padding:12px 16px;
+                  display:flex; flex-direction:column; justify-content:center; gap:8px; }
+  #tally .rasio-hd { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  #tally .rasio-hd b { font-family:var(--mono); font-size:1.35rem; font-weight:700;
+                       font-variant-numeric:tabular-nums; }
+  #tally .bar { height:12px; border:1px solid var(--line); border-radius:2px;
+                background:var(--rej-bg); overflow:hidden; }
+  #tally .bar span { display:block; height:100%; width:0; background:var(--acc); transition:width .4s ease; }
+
+  /* ---- section bar ---- */
+  .secbar { display:flex; align-items:center; flex-wrap:wrap; gap:10px 14px;
+            padding:22px var(--pad) 10px; }
+  .secbar h2 { margin:0; font-size:.72rem; font-weight:700; letter-spacing:.12em;
+               text-transform:uppercase; color:var(--muted); }
+  .secbar .garis { flex:1; height:1px; background:var(--line-kuat); min-width:1rem; }
+  .secbar select { flex:0 0 auto; min-height:2.6rem; }
+
+  /* ---- camera panels ---- */
   /* terapkanKolom() overrides this inline; this value holds until JS runs, and
      whenever the operator picks "Auto". */
-  #lines { display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:16px; padding:8px 20px 16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
-  .card h2 { font-size:1.1rem; font-weight:700; margin:0; padding:8px 14px;
-             border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
-  .card h2 .nama { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
-  .card h2 button { padding:4px 12px; font-size:.95rem; line-height:1.2; }
+  #lines { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr));
+           gap:16px; padding:0 var(--pad) 6px; }
+  .card { background:var(--card); border:1px solid var(--line-kuat); border-radius:3px;
+          overflow:hidden; display:flex; flex-direction:column; }
+  .card h2 { font-size:1.05rem; font-weight:700; margin:0; padding:10px 8px 10px 14px;
+             letter-spacing:.04em; border-bottom:1px solid var(--line);
+             display:flex; align-items:center; gap:8px; }
+  .card h2 .nama { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .card h2 .ord { display:flex; gap:4px; }
+  .card h2 button { padding:3px 10px; font-size:.9rem; line-height:1.2; color:var(--muted); }
+
   /* The black box sits on the wrapper, not the <img>: when the camera drops the
      <img> is hidden (no broken-image icon) and the notice shows instead. */
   .feed { position:relative; aspect-ratio:16/9; background:#000; }
@@ -80,76 +156,150 @@
   /* Chrome only renders ::after on a BROKEN image. This covers the broken icon
      and its grey border in the gap before cekKamera() marks the box. */
   .feed img::after { content:""; position:absolute; inset:0; background:#000; }
-  .feed span { position:absolute; inset:0; display:none; place-items:center; padding:16px;
-               text-align:center; color:#e8ecf1; font-size:1.1rem; font-weight:600; }
+  /* Live badge, pure CSS off the .putus class - a still frame and a dead line
+     look identical otherwise, and the operator has no other way to tell. */
+  .feed::after { content:"LIVE"; position:absolute; z-index:2; top:8px; left:8px;
+                 padding:5px 9px 4px 21px; border-radius:2px;
+                 font:700 .68rem/1 var(--font); letter-spacing:.14em; color:#fff;
+                 background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.3); }
+  .feed::before { content:""; position:absolute; z-index:3; left:17px; top:15px;
+                  width:7px; height:7px; border-radius:50%; background:#3ddc97;
+                  animation:denyut 2.4s ease-in-out infinite; }
+  @keyframes denyut { 0%,100% { opacity:1; } 50% { opacity:.25; } }
+  .feed span { position:absolute; inset:0; z-index:4; display:none; place-items:center;
+               padding:16px 16px 30px; text-align:center; color:#fff;
+               font-size:1.15rem; font-weight:700; background:rgba(0,0,0,.72); }
+  /* Hazard tape: a dead camera has to be unmistakable from across the yard,
+     before anyone is close enough to read the sentence. */
+  .feed span::after { content:""; position:absolute; left:0; right:0; bottom:0; height:10px;
+                      background:repeating-linear-gradient(45deg,#e0b000 0 10px,#1a1a1a 10px 20px); }
   .feed.putus img { visibility:hidden; }
   .feed.putus span { display:grid; }
-  .body { padding:12px 14px; display:grid; gap:12px; }
-  /* Three equal columns, not flex: with flex the spacing follows digit count,
-     so once ACC passes a hundred the figures collide. */
-  .counts { display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
-            font-variant-numeric:tabular-nums; }
+  .feed.putus::after, .feed.putus::before { display:none; }
+
+  /* Three bounded cells, not three numbers on one surface: at distance the
+     tinted block is read before the figure inside it. Equal columns because
+     with flex the spacing follows digit count, so once ACC passes a hundred the
+     figures collide. */
+  .counts { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line);
+            border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  .counts > span { display:block; background:var(--card); padding:9px 6px 11px; text-align:center; }
+  .counts .acc { background:var(--acc-bg); }
+  .counts .rej { background:var(--rej-bg); }
   /* The only thing that must be readable from across the unloading area. */
-  .counts b { font-size:clamp(2.4rem, 4.5vw, 3.6rem); line-height:1; display:block; font-weight:700; }
-  .counts .muted { font-size:.8rem; font-weight:600; letter-spacing:.05em; }
-  /* Left - centre - right. All-left leaves Total two thirds across with the
-     right third empty, while everything else in the card runs to the right edge
-     (Release, Reject). */
-  .counts > :nth-child(2) { text-align:center; }
-  .counts > :last-child { text-align:right; }
-  .acc b { color:var(--acc); } .rej b { color:var(--rej); }
-  .truk { font-size:1.05rem; color:var(--fg); }
-  .truk b { font-size:1.25rem; }
-  .assign { display:flex; gap:8px; }
-  select, button, input { background:var(--input); color:var(--fg); border:1px solid var(--line);
-                   border-radius:6px; padding:10px 13px; font:inherit; }
+  .counts b { display:block; font-family:var(--mono); font-weight:700; line-height:1;
+              letter-spacing:-.02em; font-size:clamp(2.3rem, 4.4vw, 3.3rem); }
+  .counts .lb { display:block; margin-bottom:5px; }
+  .counts .acc b, .counts .acc .lb { color:var(--acc); }
+  .counts .rej b, .counts .rej .lb { color:var(--rej); }
+
+  .body { padding:12px 14px 14px; display:grid; gap:10px; }
+  /* isiTruk() builds the inner span, and it carries its own state class - a
+     line counting bunches with no truck assigned is an error worth shouting
+     about (§13), so the empty case is amber and says so in words. */
+  .truk > span { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px;
+                 padding:9px 12px; border:1px solid var(--line); border-radius:3px;
+                 background:var(--zebra); }
+  .truk .truk-kosong { background:var(--warn-bg); border-color:var(--warn); }
+  .truk .truk-kosong .lb, .truk .truk-kosong .plat { color:var(--warn); }
+  .plat { font-family:var(--mono); font-size:1.4rem; font-weight:700; line-height:1.1;
+          letter-spacing:.04em; text-transform:uppercase; }
+  .truk .sup { font-size:.9rem; color:var(--muted); }
+
+  .assign { display:flex; gap:8px; flex-wrap:wrap; }
+  .assign select { flex:1 1 9rem; }
+
+  select, button, input { background:var(--input); color:var(--fg); border:1px solid var(--line-kuat);
+                   border-radius:3px; padding:10px 13px; font:inherit; }
   /* The OS arrow differs per machine and is tiny at reading distance.
      appearance:none plus our own arrow makes it uniform, but the element stays
      a real <select>: keyboard, Esc, type-to-search and long lists are still the
      browser's job, not ours to imitate. */
-  select { flex:1; min-width:0; cursor:pointer; font-weight:600;
+  select { min-width:0; cursor:pointer; font-weight:600;
            appearance:none; -webkit-appearance:none; padding-right:40px;
            background-image:var(--chev); background-repeat:no-repeat;
            background-position:right 13px center; background-size:16px; }
   select:hover { border-color:var(--hover); }
   select:disabled { cursor:default; opacity:.55; }
-  :is(select, button, input):focus-visible { outline:3px solid var(--acc); outline-offset:1px; }
-  button { cursor:pointer; font-weight:600; }
+  :is(select, button, input):focus-visible { outline:3px solid var(--acc); outline-offset:2px; }
+  button { cursor:pointer; font-weight:700; }
   button:hover { border-color:var(--hover); }
+  button:disabled { opacity:.55; cursor:default; }
+  /* Assign is the one action with a consequence on the line, so it is the one
+     filled button on the card. */
+  button.utama { background:var(--acc); border-color:var(--acc); color:var(--on-acc); }
+  button.utama:hover { border-color:var(--fg); }
+  button.reject { width:100%; text-transform:uppercase; letter-spacing:.08em;
+                  background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
   .assign button, .assign select, .tools button, .tools input, .tools select,
-  #tabs button, button.reject, header .aksi button { min-height:2.6rem; }
-  button.reject { background:var(--danger-bg); border-color:var(--danger-line); color:var(--danger-fg); width:100%; }
-  table { width:100%; border-collapse:collapse; }
-  th, td { text-align:left; padding:11px 20px; border-bottom:1px solid var(--line); white-space:nowrap; }
-  th { color:var(--muted); font-weight:600; font-size:.85rem; letter-spacing:.03em; }
-  td { font-size:.95rem; }
-  td img { height:48px; border-radius:4px; display:block; }
-  .pill { padding:2px 10px; border-radius:99px; font-size:.8rem; border:1px solid var(--line); }
-  #err { display:none; padding:12px 20px; font-weight:600;
-         background:var(--danger-bg); color:var(--danger-fg); border-bottom:1px solid var(--danger-line); }
-  .tools { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:0 20px 10px; }
-  .tools input { flex:1; max-width:22rem; }
-  .tools input.kg { max-width:9rem; }
-  #tata { padding:14px 20px 0; }
-  #tata select { flex:0 0 auto; }
-  #tabs { display:flex; gap:4px; padding:18px 20px 0; border-bottom:1px solid var(--line); }
+  #tabs button, button.reject { min-height:2.6rem; }
+
+  /* ---- tabs ---- */
+  #tabs { display:flex; gap:3px; padding:26px var(--pad) 0;
+          border-bottom:2px solid var(--line-kuat); }
   /* flex:1 1 0 - widths split evenly instead of following text length, so
      "Recent grading" does not shove the other two tabs when the language flips. */
-  #tabs button { flex:1 1 0; background:transparent; color:var(--muted); border-radius:6px 6px 0 0;
-                 border-color:transparent; margin-bottom:-1px; font-size:1.05rem; }
-  #tabs button.aktif { background:var(--card); color:var(--fg); font-weight:700;
-                       border-color:var(--line); border-bottom-color:var(--card);
-                       box-shadow:inset 0 3px 0 var(--acc); }
-  .panel { padding-top:14px; }
-  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  /* The inactive tabs stay recessed rather than invisible - three bare words on
+     the page background do not read as "these are buttons". */
+  #tabs button { flex:1 1 0; background:var(--zebra); color:var(--muted);
+                 border:1px solid var(--line); border-bottom:2px solid var(--line-kuat);
+                 border-radius:3px 3px 0 0; margin-bottom:-2px;
+                 font-size:1rem; letter-spacing:.04em; }
+  #tabs button:hover { color:var(--fg); }
+  #tabs button.aktif { background:var(--card); color:var(--fg);
+                       border-color:var(--line-kuat); border-bottom-color:var(--card);
+                       box-shadow:inset 0 4px 0 var(--acc); }
+
+  /* ---- panels & tables ---- */
+  .panel { padding:16px var(--pad) 28px; }
+  .tools { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:14px;
+           background:var(--card); border:1px solid var(--line-kuat); border-bottom:none;
+           border-radius:3px 3px 0 0; }
+  .tools input { flex:1 1 14rem; max-width:22rem; }
+  .tools input.kg { flex:0 0 9rem; }
+  /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
+     screen, and without this the page itself scrolls sideways. */
+  .tabel { overflow-x:auto; background:var(--card);
+           border:1px solid var(--line-kuat); border-radius:3px; }
+  .tools + .tabel { border-top:none; border-radius:0 0 3px 3px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:12px 16px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { background:var(--zebra); border-bottom:2px solid var(--line-kuat);
+       font-size:.72rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+       color:var(--muted); }
+  td { font-size:.95rem; }
+  tbody tr:nth-child(even) { background:var(--zebra); }
+  tbody tr:last-child td { border-bottom:none; }
+  /* Plate columns: the one thing in a table anybody actually hunts for. */
+  td.key { font-family:var(--mono); font-weight:700; font-size:1rem; letter-spacing:.03em; }
+  th.num, td.num { text-align:right; }
+  td.num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  td.kosong { text-align:center; color:var(--muted); padding:26px 16px; }
+  td img { height:52px; border-radius:2px; border:1px solid var(--line-kuat); display:block; }
+  .pill { font:700 .7rem/1 var(--font); letter-spacing:.1em; text-transform:uppercase;
+          padding:5px 9px; border-radius:2px; border:1px solid var(--line-kuat);
+          color:var(--muted); background:var(--card); }
+  .tag { display:inline-block; font:700 .78rem/1 var(--font); letter-spacing:.1em;
+         padding:6px 10px; border-radius:2px; border:1px solid; }
+  .tag.ok { color:var(--acc); background:var(--acc-bg); border-color:var(--acc); }
+  .tag.no { color:var(--rej); background:var(--rej-bg); border-color:var(--rej); }
+
+  /* One staggered reveal on load, nothing after it. A screen that is watched
+     all day must not keep moving. */
+  @keyframes muncul { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  #topbar, #tally, .secbar, #lines, #tabs { animation:muncul .4s ease both; }
+  #tally { animation-delay:.05s; } .secbar { animation-delay:.1s; }
+  #lines { animation-delay:.14s; } #tabs { animation-delay:.2s; }
+  @media (prefers-reduced-motion:reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
+  @media (max-width:640px) { :root { --pad:12px; } }
 </style>
 
-<header>
+<header id="topbar">
   <h1>AutoGrade</h1>
-  <span class="muted"><b id="jam">-</b> <span id="tz"></span></span>
+  <span class="jam"><b id="jam">-</b> <span id="tz" class="lb"></span></span>
   <span class="aksi">
     <button id="bahasa">EN</button>
     <button id="tema">Terang</button>
@@ -157,13 +307,26 @@
 </header>
 <div id="err"></div>
 
+<section id="tally">
+  <span class="lb hari" data-t="labelHariIni">Hari kerja ini</span>
+  <div class="stat acc"><span class="lb">ACC</span><b id="tot-acc">0</b></div>
+  <div class="stat rej"><span class="lb">REJ</span><b id="tot-rej">0</b></div>
+  <div class="stat"><span class="lb">Total</span><b id="tot-all">0</b></div>
+  <div class="rasio">
+    <div class="rasio-hd"><span class="lb" data-t="labelRasio">Rasio ACC</span><b id="tot-rate">-</b></div>
+    <div class="bar"><span id="bar-acc"></span></div>
+  </div>
+</section>
+
 <!--
   The operator sets the camera layout, it is not forced from here: every mill
   has a different line count and screen shape. Columns set the row shape (3
   lines at 2 columns = a row of 2 then 1), the card arrows set the order.
 -->
-<div class="tools" id="tata">
-  <label class="muted" for="kolom" data-t="labelLayout">Tata letak kamera</label>
+<div class="secbar" id="tata">
+  <h2 data-t="labelKamera">Kamera</h2>
+  <span class="garis"></span>
+  <label class="lb" for="kolom" data-t="labelLayout">Tata letak kamera</label>
   <select id="kolom">
     <option value="auto" data-t="kolomAuto">Otomatis</option>
     <option value="1" data-t="kolom1">1 per baris</option>
@@ -180,12 +343,14 @@
 </nav>
 
 <section id="sec-grading" class="panel" hidden>
-  <table>
-    <thead><tr><th data-t="thWaktu">Waktu</th><th data-t="thLine">Line</th><th data-t="thTruk">Truk</th>
-      <th data-t="thSumber">Sumber</th><th data-t="thHasil">Hasil</th><th data-t="thConf">Conf</th>
-      <th data-t="thFoto">Foto</th></tr></thead>
-    <tbody id="recent"></tbody>
-  </table>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thWaktu">Waktu</th><th data-t="thLine">Line</th><th data-t="thTruk">Truk</th>
+        <th data-t="thSumber">Sumber</th><th data-t="thHasil">Hasil</th><th class="num" data-t="thConf">Conf</th>
+        <th data-t="thFoto">Foto</th></tr></thead>
+      <tbody id="recent"></tbody>
+    </table>
+  </div>
 </section>
 
 <section id="sec-truk" class="panel" hidden>
@@ -196,13 +361,15 @@
   -->
   <div class="tools">
     <input id="plat" data-t-ph="phPlat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
-    <button id="daftar" data-t="btnDaftar">Daftar truk manual</button>
+    <button id="daftar" class="utama" data-t="btnDaftar">Daftar truk manual</button>
   </div>
-  <table>
-    <thead><tr><th data-t="thPlat">Plat</th><th data-t="thSupplier">Supplier</th>
-      <th data-t="thSumber">Sumber</th><th data-t="thStatus">Status</th></tr></thead>
-    <tbody id="trucks"></tbody>
-  </table>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thPlat">Plat</th><th data-t="thSupplier">Supplier</th>
+        <th data-t="thSumber">Sumber</th><th data-t="thStatus">Status</th></tr></thead>
+      <tbody id="trucks"></tbody>
+    </table>
+  </div>
 </section>
 
 <section id="sec-timbangan" class="panel" hidden>
@@ -214,14 +381,17 @@
   <div class="tools">
     <input id="plat-timbang" data-t-ph="phPlat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
     <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)" inputmode="decimal" autocomplete="off">
-    <button id="masuk" data-t="btnMasuk">Timbang masuk</button>
+    <button id="masuk" class="utama" data-t="btnMasuk">Timbang masuk</button>
   </div>
-  <table>
-    <thead><tr><th data-t="thMasuk">Masuk</th><th data-t="thKeluar">Keluar</th><th data-t="thTruk">Truk</th>
-      <th data-t="thSumber">Sumber</th><th data-t="thBruto">Bruto (kg)</th><th data-t="thTara">Tara (kg)</th>
-      <th data-t="thNeto">Neto (kg)</th><th></th></tr></thead>
-    <tbody id="timbangan"></tbody>
-  </table>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thMasuk">Masuk</th><th data-t="thKeluar">Keluar</th><th data-t="thTruk">Truk</th>
+        <th data-t="thSumber">Sumber</th><th class="num" data-t="thBruto">Bruto (kg)</th>
+        <th class="num" data-t="thTara">Tara (kg)</th><th class="num" data-t="thNeto">Neto (kg)</th>
+        <th></th></tr></thead>
+      <tbody id="timbangan"></tbody>
+    </table>
+  </div>
 </section>
 
 <script>
@@ -238,6 +408,7 @@ let trucks = [];
 const KAMUS = {
   id: {
     judulGrading:"Grading terbaru", judulTruk:"Truk", judulTimbangan:"Timbangan",
+    labelKamera:"Kamera", labelHariIni:"Hari kerja ini", labelRasio:"Rasio ACC",
     labelLayout:"Tata letak kamera", kolomAuto:"Otomatis",
     kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
     geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
@@ -258,6 +429,7 @@ const KAMUS = {
   },
   en: {
     judulGrading:"Recent grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge",
+    labelKamera:"Cameras", labelHariIni:"This working day", labelRasio:"ACC rate",
     labelLayout:"Camera layout", kolomAuto:"Auto",
     kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
     geserKiri:"Move left", geserKanan:"Move right",
@@ -350,7 +522,7 @@ try { urutan = JSON.parse(baca("urutan", "[]")) || []; } catch (e) { urutan = []
 function terapkanKolom() {
   $("kolom").value = kolom;
   $("lines").style.gridTemplateColumns =
-    kolom === "auto" ? "repeat(auto-fit,minmax(320px,1fr))" : `repeat(${kolom},1fr)`;
+    kolom === "auto" ? "repeat(auto-fit,minmax(360px,1fr))" : `repeat(${kolom},1fr)`;
 }
 
 $("kolom").addEventListener("change", () => {
@@ -401,17 +573,23 @@ function pesan(text) {
   $("err").style.display = text ? "block" : "none";
 }
 
-const barisKosong = (lebar, kunci) => `<tr><td colspan="${lebar}" class="muted">${esc(t(kunci))}</td></tr>`;
+const barisKosong = (lebar, kunci) => `<tr><td colspan="${lebar}" class="kosong">${esc(t(kunci))}</td></tr>`;
 
 // The only place that builds the truck line - used by the first render AND by
-// the 2 s patch, so the two cannot drift apart.
+// the 2 s patch, so the two cannot drift apart. The state class rides inside
+// the returned markup, not on the container, because the patch replaces only
+// the container's innerHTML.
 function isiTruk(a) {
-  // With no truck, the separator, supplier and source pill are all just
-  // dashes: three characters that say nothing on a screen read from afar.
-  if (!a) return `${esc(t("truk"))}: <b>${esc(t("belumAda"))}</b>`;
-  return `${esc(t("truk"))}: <b>${dash(a.plate_number)}</b>
-    &middot; ${dash(a.supplier_name)}
-    <span class="pill">${dash(a.sumber_label)}</span>`;
+  // With no truck, supplier and source would both be bare dashes: characters
+  // that say nothing on a screen read from afar. Say the state instead.
+  if (!a) {
+    return `<span class="truk-kosong"><span class="lb">${esc(t("truk"))}</span>
+      <b class="plat">${esc(t("belumAda"))}</b></span>`;
+  }
+  return `<span class="truk-isi"><span class="lb">${esc(t("truk"))}</span>
+    <b class="plat">${dash(a.plate_number)}</b>
+    <span class="sup">${dash(a.supplier_name)}</span>
+    <span class="pill">${dash(a.sumber_label)}</span></span>`;
 }
 
 function kartuLine(l) {
@@ -425,20 +603,22 @@ function kartuLine(l) {
   // enters an onclick attribute, so there is no JS string context to inject.
   return `<div class="card" data-line="${esc(l.line_code)}">
     <h2><span class="nama">${esc(l.name)}</span>
-      <button data-aksi="geser" data-arah="-1" title="${esc(t("geserKiri"))}">&#9664;</button>
-      <button data-aksi="geser" data-arah="1" title="${esc(t("geserKanan"))}">&#9654;</button>
+      <span class="ord">
+        <button data-aksi="geser" data-arah="-1" title="${esc(t("geserKiri"))}">&#9664;</button>
+        <button data-aksi="geser" data-arah="1" title="${esc(t("geserKanan"))}">&#9654;</button>
+      </span>
     </h2>
     ${feed ? `<div class="feed"><img src="${feed}" alt=""><span>${esc(t("kameraPutus"))}</span></div>` : ""}
+    <div class="counts">
+      <span class="acc"><span class="lb">ACC</span><b>${l.acc}</b></span>
+      <span class="rej"><span class="lb">REJ</span><b>${l.rej}</b></span>
+      <span><span class="lb">Total</span><b>${l.total}</b></span>
+    </div>
     <div class="body">
-      <div class="counts">
-        <span class="acc"><b>${l.acc}</b><span class="muted">ACC</span></span>
-        <span class="rej"><b>${l.rej}</b><span class="muted">REJ</span></span>
-        <span><b>${l.total}</b><span class="muted">Total</span></span>
-      </div>
-      <div class="truk muted">${isiTruk(l.assignment)}</div>
+      <div class="truk">${isiTruk(l.assignment)}</div>
       <div class="assign">
         <select><option value="">${esc(t("pilihTruk"))}</option>${opsi}</select>
-        <button data-aksi="tugaskan">${esc(t("btnTugaskan"))}</button>
+        <button class="utama" data-aksi="tugaskan">${esc(t("btnTugaskan"))}</button>
         <button data-aksi="lepas" title="${esc(t("lepasTitle"))}">${esc(t("btnLepas"))}</button>
       </div>
       <button class="reject" data-aksi="tolak">${esc(t("btnReject"))}</button>
@@ -448,9 +628,14 @@ function kartuLine(l) {
 
 const kg = (v) => (v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal()));
 
+// ACC/REJ as a bordered badge, never colour alone: the word is the signal and
+// the colour only speeds it up.
+const tagHasil = (s) =>
+  s ? `<span class="tag ${s === "ACC" ? "ok" : "no"}">${esc(s)}</span>` : KOSONG;
+
 function barisTruk(tr) {
   return `<tr>
-    <td>${dash(tr.plate_number)}</td>
+    <td class="key">${dash(tr.plate_number)}</td>
     <td>${dash(tr.supplier_name)}</td>
     <td>${dash(tr.sumber_label)}</td>
     <td>${dash(tr.status)}</td>
@@ -465,7 +650,7 @@ function barisTimbangan(w) {
               data-masuk="${esc(w.waktu_masuk ?? "")}">
     <td>${w.waktu_masuk ? waktu(w.waktu_masuk) : KOSONG}</td>
     <td>${w.waktu_keluar ? waktu(w.waktu_keluar) : KOSONG}</td>
-    <td>${dash(w.plate_number)}</td>
+    <td class="key">${dash(w.plate_number)}</td>
     <td>${dash(w.sumber_label)}</td>
     <td class="num">${kg(w.bruto_kg)}</td>
     <td class="num">${kg(w.tara_kg)}</td>
@@ -478,12 +663,24 @@ function barisRecent(r) {
   return `<tr>
     <td>${waktu(r.timestamp)}</td>
     <td>${esc(r.line_code)}</td>
-    <td>${dash(r.plate_number)}</td>
+    <td class="key">${dash(r.plate_number)}</td>
     <td>${dash(r.sumber_label)}</td>
-    <td class="${esc(r.ripeness_status)}">${dash(r.ripeness_status)}</td>
-    <td>${r.ripeness_confidence == null ? KOSONG : Number(r.ripeness_confidence).toFixed(2)}</td>
+    <td>${tagHasil(r.ripeness_status)}</td>
+    <td class="num">${r.ripeness_confidence == null ? KOSONG : Number(r.ripeness_confidence).toFixed(2)}</td>
     <td>${r.image_url ? `<a href="${esc(r.image_url)}" target="_blank"><img src="${esc(r.image_url)}" alt=""></a>` : KOSONG}</td>
   </tr>`;
+}
+
+// Yard total across every line, for the glance that never reaches a card.
+function isiTally(lines) {
+  const jml = (k) => lines.reduce((n, l) => n + (l[k] || 0), 0);
+  const acc = jml("acc"), total = jml("total");
+  $("tot-acc").textContent = acc;
+  $("tot-rej").textContent = jml("rej");
+  $("tot-all").textContent = total;
+  const rasio = total ? (acc / total) * 100 : 0;
+  $("tot-rate").textContent = total ? Math.round(rasio) + "%" : KOSONG;
+  $("bar-acc").style.width = rasio + "%";
 }
 
 // ── actions ────────────────────────────────────────────────────────────
@@ -630,6 +827,7 @@ async function refresh() {
     const s = await api("/api/console/state");
     $("tz").textContent = "(" + s.timezone + ")";
     selarasUrutan(s.lines);
+    isiTally(s.lines);
     if (!dipasang) {
       $("lines").innerHTML = s.lines.map(kartuLine).join("");
       dipasang = true;
