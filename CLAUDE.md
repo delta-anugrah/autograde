@@ -329,6 +329,10 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 
 ## Git Workflow
 
+- **Judul dan isi PR wajib bahasa Inggris** (sejak 2026-09-12). Format ada di
+  `.github/pull_request_template.md`; judul `<type>(<scope>): <ringkas>`.
+  Pesan commit boleh tetap Indonesia — yang dibaca ulang berbulan-bulan kemudian
+  itu PR-nya, dan sesi MacBook ikut membacanya.
 - Default branch `staging`; **PR-only** (main & staging protected). Alur rilis:
   branch baru dari `staging` → PR **squash merge** ke `staging` → PR **merge commit** ke `main`.
   Rilis ke `main` sengaja BUKAN squash: `main` harus menyimpan tiap PR staging sebagai
