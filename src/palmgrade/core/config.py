@@ -140,16 +140,19 @@ class Settings:
     camera_serial: str | None = field(
         default_factory=lambda: (os.getenv("CAMERA_SERIAL", "").strip() or None)
     )
-    # File `.mfs` (MVS Feature Save) yang di-load ke kamera Hikrobot saat connect
-    # (framerate/exposure/gain/dll). Kosong → skip, pakai setting firmware.
-    # Non-fatal: gagal load → warning, kamera tetap grabbing.
+    # `.mfs` (MVS Feature Save) pushed to the camera on every connect — this is
+    # what sets the real frame rate, not `camera_fps` below.
+    # Non-fatal: a failed load logs a warning and the line keeps grabbing.
+    # Empty here means skip, but docker-compose substitutes
+    # `config/camera/hikrobot.mfs` when LINE_<n>_FEATURE_FILE is unset or empty,
+    # so commenting that env var out ENABLES the default instead of disabling it.
     camera_feature_file: str | None = field(
         default_factory=lambda: (os.getenv("CAMERA_FEATURE_FILE", "").strip() or None)
     )
     camera_video_path: str = field(default_factory=lambda: os.getenv("CAMERA_VIDEO_PATH", ""))
     camera_width: int = field(default_factory=lambda: int(os.getenv("CAMERA_WIDTH", "320")))
     camera_height: int = field(default_factory=lambda: int(os.getenv("CAMERA_HEIGHT", "240")))
-    camera_fps: int = field(default_factory=lambda: int(os.getenv("CAMERA_FPS", "30")))
+    camera_fps: int = field(default_factory=lambda: int(os.getenv("CAMERA_FPS", "15")))
     camera_photo_path: str = field(default_factory=lambda: os.getenv("CAMERA_PHOTO_PATH", ""))
 
     # Stream display resolution — only affects MJPEG stream, not saved captures

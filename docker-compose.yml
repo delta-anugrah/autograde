@@ -65,7 +65,7 @@ services:
       - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
-      - CAMERA_FPS=${CAMERA_FPS:-25}
+      - CAMERA_FPS=${CAMERA_FPS:-15}
       - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
       # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
       # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
@@ -172,7 +172,7 @@ services:
       - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
-      - CAMERA_FPS=${CAMERA_FPS:-25}
+      - CAMERA_FPS=${CAMERA_FPS:-15}
       - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
       # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
       # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
@@ -279,7 +279,7 @@ services:
       - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
-      - CAMERA_FPS=${CAMERA_FPS:-25}
+      - CAMERA_FPS=${CAMERA_FPS:-15}
       - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
       # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
       # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).

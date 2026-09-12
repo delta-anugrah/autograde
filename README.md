@@ -240,7 +240,7 @@ cp .env.production .env   # template prod siap-copas (APP_ENV=production, DEBUG 
 # BACKEND_URL=https://api.smagri.id
 # WEBHOOK_SECRET=<sama dengan palmgrade-api>
 # CAMERA_TYPE=hikrobot
-# CAMERA_FPS=10   — samakan dengan Acquisition Frame Rate kamera (docs/SETUP.md § 6.3)
+# CAMERA_FPS=15   — samakan dengan Acquisition Frame Rate kamera (docs/SETUP.md § 6.3)
 ```
 
 ### 5. Build GPU image & run
@@ -588,7 +588,7 @@ pytest tests/unit/
 | `CAMERA_PHOTO_PATH` | — | Path gambar test (kalau `CAMERA_TYPE=photo`) |
 | `CAMERA_WIDTH` | `320` | Frame width (OpenCV only; docker-compose Hikrobot: `2448`) |
 | `CAMERA_HEIGHT` | `240` | Frame height (OpenCV only; docker-compose Hikrobot: `2048`) |
-| `CAMERA_FPS` | `30` | Frame rate (docker-compose menetapkan `25`) |
+| `CAMERA_FPS` | `15` | Target loop capture — fps kamera sebenarnya diatur `.mfs` |
 | `YOLO_SKIP_FRAMES` | `1` | Jalankan YOLO setiap N frame (`1` = tiap frame; `>1` hemat CPU saat tes video) |
 | `STREAM_WIDTH` | `1280` | MJPEG stream width (resize before encode) |
 | `STREAM_HEIGHT` | `720` | MJPEG stream height (resize before encode) |

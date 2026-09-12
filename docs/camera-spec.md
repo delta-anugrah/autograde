@@ -62,7 +62,7 @@ over-exposed, ganti ke `Average`.
 | Parameter | Nilai | Keterangan |
 |---|---|---|
 | `AcquisitionMode` | `Continuous` | free-run, bukan trigger |
-| `AcquisitionFrameRate` | `10` | fps |
+| `AcquisitionFrameRate` | `15` | fps — lihat § 3.1 kenapa 15, bukan 24 |
 | `AcquisitionFrameRateEnable` | `1` | limiter aktif |
 | `TriggerMode` | `Off` | tidak ada hardware trigger |
 | `ExposureMode` | `Timed` | |
@@ -115,14 +115,46 @@ frame drop serta disconnect.
 **Dengan binning 2×2 — muat:**
 
 ```
-1224 × 1024 × 1 byte × 10 fps ≈ 100 Mbps per kamera
-100 Mbps × 3 kamera           ≈ 300 Mbps
+1224 × 1024 × 1 byte × 15 fps ≈ 150 Mbps per kamera
+150 Mbps × 3 kamera           ≈ 451 Mbps
 ```
 
-Sekitar 30% dari kapasitas uplink — lega, termasuk untuk overhead protokol.
+Sekitar 45% dari kapasitas uplink — masih lega, termasuk untuk overhead protokol.
+Model ini terverifikasi di lapangan: di 10 fps rumusnya memprediksi 301 Mbps dan
+`enp3s0` terukur 302 Mbps.
 
 Dua pengaman bekerja berdampingan: **binning 2×2** menurunkan byte per frame, dan
-**frame rate limiter 10 fps** menahan jumlah frame per detik. Keduanya diperlukan.
+**frame rate limiter** di `.mfs` menahan jumlah frame per detik. Keduanya diperlukan.
+
+### 3.1 Tiga plafon fps — jangan ketuker jadi satu
+
+Naikin fps kena tiga batas yang beda sifatnya. Per 2026-09-13, dengan RTX 3060 12GB
+dan TensorRT engine `sm86`:
+
+| Plafon | Batas | Kena di fps berapa |
+|---|---|---|
+| GPU | ~82–116 inferensi/detik untuk 3 line | 28–38 fps per line |
+| Bandwidth 1 port GigE, 3 kamera | ~900 Mbps efektif | 20 fps = 602 Mbps, 24 fps = 722 Mbps (mepet) |
+| PLC / ODOT | **3,3 sinyal/detik per line** | tidak ikut naik |
+
+Plafon PLC itu per **keputusan grading**, bukan per frame: satu pulse per tandan
+yang di-track, jadi menaikkan fps tidak menambah tekanan ke PLC
+(lihat `plc-integration.md § Throughput ceiling`).
+
+**Kenapa 15 dan bukan 24:** jumlah keputusan grading dibatasi jumlah tandan di
+belt, bukan fps. Yang didapat dari fps lebih tinggi adalah **lebih banyak frame per
+tandan** — ByteTrack lebih stabil megang ID, vote klasifikasi lebih banyak. 15 fps
+memberi +50% frame per tandan dibanding 10 sambil menyisakan setengah kapasitas GPU
+dan setengah bandwidth sebagai margin. Naik ke 24 menghabiskan margin itu tanpa
+menambah keputusan grading.
+
+⚠️ **Motion blur tidak diatur fps, tapi `ExposureTime`** (22 ms). Naikin fps tidak
+membuat frame lebih tajam. Kalau blur jadi masalah, turunkan exposure dan tambah
+cahaya — tapi ingat exposure 22 ms masih muat di periode 15 fps (66,7 ms), jadi fps
+bukan penghalangnya.
+
+⚠️ Kalau habis naik fps muncul frame tidak lengkap atau reconnect, knob-nya
+**`GevSCPD`** (§ 2.3) — dinaikkan untuk memberi jeda antar paket, bukan diturunkan.
 
 **Kenapa 1224×1024 tidak merugikan akurasi:** pipeline inference beroperasi di
 bawah resolusi itu, dan 1224×1024 masih di atas 720p. Detail yang tersedia untuk
@@ -185,9 +217,17 @@ Operasi ini **non-fatal**: kalau load gagal, line tetap jalan memakai setting
 firmware yang tersimpan di kamera, dan kegagalan hanya tercatat sebagai warning.
 
 > **Implikasi penting:** karena `.mfs` di-load setiap connect,
-> **`AcquisitionFrameRate = 10` di file inilah** yang menentukan fps runtime —
+> **`AcquisitionFrameRate = 15` di file inilah** yang menentukan fps runtime —
 > bukan `CAMERA_FPS` di `.env`. Untuk mengubah frame rate secara permanen, edit
 > `.mfs` (atau simpan ulang dari MVS), jangan hanya `.env`.
+
+> ⚠️ **Nge-comment `LINE_<n>_FEATURE_FILE` tidak mematikan auto-load.**
+> `docker-compose.yml` memakai `${LINE_1_FEATURE_FILE:-config/camera/hikrobot.mfs}`,
+> dan `:-` berlaku untuk *unset maupun kosong* — jadi meng-comment variabel itu
+> justru **mengaktifkan default**. Akibatnya nilai yang di-set manual lewat MVS
+> ditiban dalam hitungan detik setelah container connect. Untuk memakai `.mfs`
+> lain, isi variabelnya dengan path file itu; untuk benar-benar melewati auto-load,
+> arahkan ke path yang tidak ada (loader mencatat warning lalu lanjut).
 
 ---
 
@@ -224,7 +264,7 @@ Cara mendapatkan serial: buka MVS, atau baca log startup — aplikasi mencatat
 CAMERA_TYPE=hikrobot      # hikrobot (produksi) | opencv (dev) | photo (testing)
 CAMERA_WIDTH=2448
 CAMERA_HEIGHT=2048
-CAMERA_FPS=10
+CAMERA_FPS=15
 
 LINE_1_CAMERA_SERIAL=
 LINE_2_CAMERA_SERIAL=

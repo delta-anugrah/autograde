@@ -28,7 +28,7 @@ BalanceWhiteAuto	Continuous
 BalanceColorTemperatureMode	NarrowMode
 AcquisitionMode	Continuous
 AcquisitionBurstFrameCount	1
-AcquisitionFrameRate	10
+AcquisitionFrameRate	15
 AcquisitionFrameRateEnable	1
 TriggerCacheEnable	0
 ExposureMode	Timed
