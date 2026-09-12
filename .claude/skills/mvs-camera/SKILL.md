@@ -91,9 +91,11 @@ Simpan UserSet = jaring pengaman. Tes: simpan → cabut listrik kamera → nyala
 - **`MV_E_ACCESS_DENIED (0x80000203)`** waktu multi-kamera = urutan enumerasi GigE nggak
   deterministik, container rebutan kamera yang sama. Solusi (udah dipakai): pilih **by serial**
   lewat `LINE_n_CAMERA_SERIAL`, jangan `CAMERA_DEVICE_INDEX`.
-- **fps ceiling ganda.** `hikrobot.mfs` ngunci 10 fps → `CAMERA_FPS=24` mandul. Di atas itu
-  masih ada rebutan GPU: 1 GTX 1660 dibagi 3 line = ~5 fps per line. Lihat
-  memory `project_vision_fps_tensorrt`.
+- **fps kamera diatur `.mfs`, bukan `.env`.** `hikrobot.mfs` ngunci
+  `AcquisitionFrameRate` (sekarang 15) dan di-load tiap connect, jadi `CAMERA_FPS`
+  di `.env` cuma target loop capture. ⚠️ Nge-comment `LINE_n_FEATURE_FILE` **nggak**
+  mematikan auto-load — default `:-` di `docker-compose.yml` tetap nyuntik
+  `config/camera/hikrobot.mfs`. Plafon lain lihat `docs/camera-spec.md § 5.4`.
 - **Jaringan di docs beda sama live.** Live Lampung: NIC `enp3s0` `192.168.0.10`,
   kamera `192.168.0.13`, gateway `192.168.0.254`, `GEV SCDA/MCDA = 192.168.0.10`.
   `camera-spec.md` nulis `192.168.100.x`, `camera-field-setup.md` nulis `192.168.X.20`.

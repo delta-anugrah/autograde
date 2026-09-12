@@ -217,7 +217,7 @@ to serve images at `/api/v1/captures/<line_code>/...`. api SSE events after inge
 6. **`lifespan`** (not deprecated `@app.on_event`); scheduler + camera disconnect are lifespan locals.
 7. **MJPEG written only by `DisplayWorker`** — two writers to `state.latest_frame` cause flicker.
    It renders `last_yolo_frame` (paired with `last_yolo_results`), runs at `STREAM_FPS` (default 12),
-   decoupled from `CAMERA_FPS` (code default 30; docker-compose sets 25).
+   decoupled from `CAMERA_FPS` (default 15).
 8. **Manual capture JSON** uses suffix `_ripeness` so `list_today_results()` reads it correctly.
 9. **Every worker `run_loop` wraps `run_once` in `try/except`** + `logger.exception` — without it the
    thread dies silently and the watchdog restarts without a stack trace.
@@ -293,7 +293,7 @@ needed (not just `libMvCameraControl.so`): `MV_CC_EnumDevices()` dynamically loa
 1. Install NVIDIA Container Toolkit → verify `docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi`.
 2. Install Hikrobot MVS SDK at `/opt/MVS/` (`SETUP.md § 3`).
 3. `mkdir -p models/release` + copy `best_3class_v2.pt`.
-4. `.env`: `LINE_1/2/3_MACHINE_ID` (real UUIDs), `BACKEND_URL`, `WEBHOOK_SECRET`, `CAMERA_TYPE=hikrobot`, `CAMERA_FPS=10` (samakan dengan Acquisition Frame Rate kamera — `SETUP.md § 6.3`, alasan bandwidth 3 kamera).
+4. `.env`: `LINE_1/2/3_MACHINE_ID` (real UUIDs), `BACKEND_URL`, `WEBHOOK_SECRET`, `CAMERA_TYPE=hikrobot`, `CAMERA_FPS=15` (samakan dengan Acquisition Frame Rate kamera — `SETUP.md § 6.3`, alasan bandwidth 3 kamera).
 5. `make up`.
 6. Verify `curl :8001/health/detail | grep -E "gpu_available|camera_connected"`.
 
