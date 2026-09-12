@@ -187,14 +187,19 @@
   /* isiTruk() builds the inner span, and it carries its own state class - a
      line counting bunches with no truck assigned is an error worth shouting
      about (§13), so the empty case is amber and says so in words. */
-  .truk > span { display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px;
-                 padding:9px 12px; border:1px solid var(--line); border-radius:3px;
-                 background:var(--zebra); }
-  .truk .truk-kosong { background:var(--warn-bg); border-color:var(--warn); }
+  /* Two labelled rows, not one run-on line: plate and supplier are separate
+     facts and the operator checks one of them at a time. The label column is
+     shared, so both values start at the same x. */
+  .truk > span { display:grid; grid-template-columns:auto 1fr; align-items:center;
+                 gap:5px 12px; padding:9px 12px; border:1px solid var(--line);
+                 border-radius:3px; background:var(--zebra); }
+  .truk .truk-kosong { display:block; background:var(--warn-bg); border-color:var(--warn); }
   .truk .truk-kosong .plat { color:var(--warn); font-size:1.15rem; letter-spacing:.02em; }
   .plat { font-family:var(--mono); font-size:1.4rem; font-weight:700; line-height:1.1;
           letter-spacing:.04em; text-transform:uppercase; }
-  .truk .sup { font-size:.9rem; color:var(--muted); }
+  .truk .sup { display:flex; align-items:center; flex-wrap:wrap; gap:6px 9px;
+               min-width:0; font-size:.95rem; font-weight:600; }
+  .truk .sup span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
   .assign { display:flex; gap:8px; flex-wrap:wrap; }
   .assign .pilih { flex:1 1 9rem; }
@@ -439,7 +444,8 @@ const KAMUS = {
     btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
-    truk:"Truk", trukBelum:"Truk belum dipilih", pilihTruk:"pilih truk", lepasTitle:"Truk sudah pergi",
+    truk:"Truk", supplier:"Supplier", trukBelum:"Truk belum dipilih",
+    pilihTruk:"Pilih Truk", lepasTitle:"Truk sudah pergi", spasi:"Spasi",
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
     kosongGrading:"Belum ada grading hari ini",
     promptTara:"Tara (kg) untuk", wajibIsi:"Plat dan bruto wajib diisi",
@@ -460,7 +466,8 @@ const KAMUS = {
     btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
-    truk:"Truck", trukBelum:"No truck selected", pilihTruk:"select truck", lepasTitle:"Truck has left",
+    truk:"Truck", supplier:"Supplier", trukBelum:"No truck selected",
+    pilihTruk:"Select Truck", lepasTitle:"Truck has left", spasi:"Space",
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
     kosongGrading:"No grading yet today",
     promptTara:"Tare (kg) for", wajibIsi:"Plate and gross weight are required",
@@ -673,7 +680,7 @@ function terapkanUrutan() {
     kartu.style.order = i;
     // The reject shortcut follows what is on screen, so its hint moves with it.
     const hint = kartu.querySelector(".pintas");
-    if (hint) hint.textContent = i >= 0 && i < 9 ? "Alt+" + (i + 1) : "";
+    if (hint) hint.textContent = i >= 0 && i < 9 ? `${t("spasi")}+${i + 1}` : "";
   }
 }
 
@@ -716,10 +723,13 @@ function isiTruk(a) {
   // With no truck, supplier and source would both be bare dashes: characters
   // that say nothing on a screen read from afar. Say the state instead.
   if (!a) return `<span class="truk-kosong"><b class="plat">${esc(t("trukBelum"))}</b></span>`;
-  return `<span class="truk-isi"><span class="lb">${esc(t("truk"))}</span>
+  return `<span class="truk-isi">
+    <span class="lb">${esc(t("truk"))}</span>
     <b class="plat">${dash(a.plate_number)}</b>
-    <span class="sup">${dash(a.supplier_name)}</span>
-    <span class="pill">${dash(a.sumber_label)}</span></span>`;
+    <span class="lb">${esc(t("supplier"))}</span>
+    <span class="sup"><span>${dash(a.supplier_name)}</span>
+      <span class="pill">${dash(a.sumber_label)}</span></span>
+  </span>`;
 }
 
 function kartuLine(l) {
@@ -854,16 +864,24 @@ $("lines").addEventListener("click", async (ev) => {
   }
 });
 
-// Alt+1..3 = manual reject on the 1st..3rd camera panel, counted the way they
-// sit on screen (the operator reorders them). Alt keeps it out of reach of a
-// stray keypress, the digits match the hint printed on the button, and it is
-// ignored while a text field has focus. The click is replayed through the
-// delegated handler above, so there is one code path, not two.
+// Space + 1..3 = manual reject on the 1st..3rd camera panel, counted the way
+// they sit on screen (the operator reorders them). The digits match the hint
+// printed on the button. Space is not a real modifier, so the held state is
+// tracked by hand: cleared on key-up AND on window blur, because an Alt-Tab
+// away swallows the key-up and would leave it stuck down. Holding Space no
+// longer pages the view - that is the point, the shortcut must not scroll the
+// cameras off screen. The click is replayed through the delegated handler
+// above, so there is one code path, not two.
+let spasi = false;
+addEventListener("blur", () => { spasi = false; });
+document.addEventListener("keyup", (ev) => { if (ev.code === "Space") spasi = false; });
 document.addEventListener("keydown", (ev) => {
-  if (!ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey) return;
+  // Typing a plate, and picking from a listbox, both own the space bar.
+  if (ev.target.closest && ev.target.closest("input, textarea, .pilih")) return;
+  if (ev.code === "Space") { spasi = true; ev.preventDefault(); return; }
+  if (!spasi || ev.ctrlKey || ev.altKey || ev.metaKey) return;
   const n = Number(ev.key);
   if (!(n >= 1 && n <= 9)) return;
-  if (/^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) return;
   const line = urutan[n - 1];
   if (!line) return;
   const tombol = $("lines").querySelector(`.card[data-line="${CSS.escape(line)}"] button.reject`);
