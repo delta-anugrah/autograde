@@ -2,7 +2,7 @@
 
 AI camera service for the **Palmgrade** palm oil ripeness grading system.
 
-Runs as **3 separate Docker containers** (one per camera line), each connected to a Hikrobot industrial camera. Performs real-time YOLO-based fruit ripeness detection, writes every result to disk, then ships them to Cloudflare R2 + `palmgrade-api` in an **hourly batch upload** (not real-time).
+Runs as **3 camera containers** (one per line, each on its own Hikrobot industrial camera) plus a **4th container dari image yang sama**: konsol operator offline (`APP_MODE=console`, port **8000**). Line melakukan deteksi ripeness YOLO real-time, menulis tiap hasil ke disk, lalu mengirimkannya lewat **dua jalur paralel**: realtime ke konsol/API lokal (poll 1 detik) dan **batch tiap jam** ke Cloudflare R2 + API cloud.
 
 ---
 
@@ -10,9 +10,14 @@ Runs as **3 separate Docker containers** (one per camera line), each connected t
 
 | Repo | Role | Port |
 |---|---|---|
-| **`palmgrade-vision`** | AI camera + inference | 8001 / 8002 / 8003 |
-| `palmgrade-api` | Business logic, auth, SSE broker | 2500 |
-| `palmgrade-frontend` | Operator dashboard UI | 3050 |
+| **`palmgrade-vision`** | AI camera + inference (per line) | 8001 / 8002 / 8003 |
+| **`palmgrade-vision`** (`APP_MODE=console`) | Konsol operator offline — grading + timbangan | 8000 |
+| `palmgrade-api` | Business logic, auth, SSE broker — **pensiun**, diganti PalmOS | 2500 |
+| `palmgrade-frontend` | Operator dashboard UI — **pensiun**, konsol pindah ke sini | 3050 |
+
+> Sejak Fase 2 (PalmOS) konsol menggantikan peran `palmgrade_api` lokal di PC pabrik:
+> tiga line menyetel `BACKEND_URL=http://localhost:8000` dan mengirim event ke konsol
+> dengan kontrak yang sama persis (7 → 4 container). **Nol perubahan di kode line.**
 
 > Full system architecture: see [`ARCHITECTURE.md`](../ARCHITECTURE.md)
 
@@ -27,7 +32,8 @@ Camera (Hikrobot / OpenCV / Photo)
         → YOLOv8 + ByteTrack
         → detect: acc / rej / tp (tangkai panjang)
         → save WebP + JSON to artifacts/results/   ← file di disk ITU antriannya
-    → BatchUploadWorker (hourly — OutboxRetryWorker di-comment, bukan real-time)
+    → OutboxRetryWorker (poll 1 dtk) → POST BACKEND_URL = konsol lokal :8000
+    → BatchUploadWorker (tiap jam, jalur terpisah ke cloud)
         → _scan() → UploadManifest (SQLite, state/upload_manifest.db)
         → PUT image ke Cloudflare R2
         → POST /api/v1/internal/vision/events → palmgrade-api (cloud)
@@ -35,8 +41,22 @@ Camera (Hikrobot / OpenCV / Photo)
     → StreamingService
         → MJPEG /api/video_feed (multi-viewer via Condition broadcast)
 
-palmgrade-api → POST /internal/assignment → update state.current_truck_id + assignment_id
-palmgrade-api → POST /internal/manual-reject → trigger capture_manual_reject()
+konsol/api → POST /internal/assignment → update state.current_truck_id + assignment_id
+konsol/api → POST /internal/manual-reject → trigger capture_manual_reject()
+```
+
+**Konsol operator** (container ke-4, `console_main.py` — sengaja tidak memuat torch/cv2,
+jadi satu line kamera mati tidak menjatuhkan layar operator):
+
+```
+3 line → POST /api/v1/internal/vision/events ┐
+program timbangan → POST .../scale/weighing  ├→ index SQLite state/console.db
+                                             │  (konsol TIDAK pernah memindai direktori)
+                                             └→ ErpPushWorker → PalmOS (kalau ERP_URL diisi)
+                                                MasterDataWorker ← truk/supplier dari API cloud
+
+/console  → satu file HTML statis, vanilla JS, tanpa build/Node/CDN
+            stream kamera = <img> MJPEG langsung ke :8001/8002/8003, bukan lewat konsol
 ```
 
 **Detection model**: `best_3class_v2.pt` — 3 classes: `acc` (accepted), `rej` (rejected), `tp` (long stalk)
@@ -64,7 +84,9 @@ palmgrade-api → POST /internal/manual-reject → trigger capture_manual_reject
 ```
 palmgrade-vision/
 ├── src/palmgrade/
-│   ├── main.py                  # FastAPI app entry point (lifespan)
+│   ├── main.py                  # FastAPI app entry point line kamera (lifespan)
+│   ├── console_main.py          # app entry point KONSOL (APP_MODE=console) — tanpa torch/cv2
+│   ├── static/console.html      # layar operator: satu file, vanilla JS, tanpa build & tanpa CDN
 │   ├── core/                    # Config, logging, DI wiring
 │   ├── routes/                  # FastAPI routers
 │   ├── controllers/             # Request handlers
@@ -77,9 +99,10 @@ palmgrade-vision/
 │   │   ├── notifications/       # WebhookClient (httpx)
 │   │   ├── storage/             # LocalFileStorage
 │   │   ├── upload/              # R2Uploader (boto3) + UploadManifest (SQLite per-item state)
-│   │   ├── outbox/              # OutboxStore — dormant, retry worker is commented out
+│   │   ├── outbox/              # OutboxStore — antrean realtime ke BACKEND_URL
 │   │   └── scheduler/           # UploadScheduler — APScheduler cron, hourly @ UPLOAD_MINUTE
-│   ├── domain/                  # Pure business rules (no I/O)
+│   ├── domain/                  # Pure business rules (no I/O) — tanggal_kerja, sumber_tbs, plate
+│   ├── plc/                     # PLC/ODOT Modbus-TCP, self-contained, mati by default
 │   ├── schemas/                 # Pydantic request/response models
 │   └── license/                 # License guard (Ed25519 JWS, optional)
 ├── models/
@@ -89,9 +112,11 @@ palmgrade-vision/
 │   ├── line-1/
 │   ├── line-2/
 │   └── line-3/
+├── state/console/               # console.db (index konsol) — not committed to git
+├── scripts/                     # console-kiosk.sh + palmgrade-console.desktop
 ├── Makefile
 ├── Dockerfile
-├── docker-compose.yml           # 3 services: line-1 (8001), line-2 (8002), line-3 (8003)
+├── docker-compose.yml           # 4 services: line-1..3 (8001-8003) + console (8000)
 ├── requirements.txt
 ├── .env                         # Local env (copy from .env.example)
 └── .env.example
@@ -253,10 +278,13 @@ make logs-1      # tail logs line-1 saja
 make logs-2      # tail logs line-2 saja
 make logs-3      # tail logs line-3 saja
 make ps          # status semua container
+make up-console  # konsol operator saja (port 8000) — aman di-restart tanpa ganggu line
+make logs-console # tail logs konsol
+make kiosk       # buka konsol layar penuh di PC ini (scripts/console-kiosk.sh)
 make rebuild     # rebuild image GPU/CUDA (tanpa SDK, tanpa start) — selalu GPU
 make rebuild-gpu # sama dengan make rebuild (alias, untuk kompatibilitas)
 make rebuild-clean # full rebuild --no-cache (hanya kalau cache dicurigai rusak — lambat)
-make build-engine  # build TensorRT FP16 engine (SEMENTARA NONAKTIF — lihat catatan di bawah)
+make build-engine  # build TensorRT FP16 engine — sekali per GPU, auto-skip kalau sudah ada
 make clean       # down + hapus image lokal
 ```
 
@@ -266,7 +294,7 @@ make clean       # down + hapus image lokal
 
 > **Hot-reload** — source code di-mount via `.:/app`. Perubahan Python langsung terdeteksi tanpa rebuild image (saat `APP_ENV=development`). Di production cukup `make restart` untuk perubahan kode — `make up` hanya perlu kalau dependency / `Dockerfile` / SDK berubah.
 
-> **TensorRT (sementara nonaktif)** — install TensorRT di `Dockerfile` dan step `build-engine` di `make up` sedang di-comment (disk dev PC penuh saat unpack). Runtime otomatis **fallback ke model `.pt`** (`pipelines/model_registry.py`) — fungsional sama, hanya lebih lambat. Di PC prod: uncomment blok TensorRT di `Dockerfile` + `$(MAKE) build-engine` di `Makefile`, rebuild, lalu `make build-engine`.
+> **TensorRT** — engine FP16 (`engines/<model>.sm<cc>.engine`) **hardware-locked** (compute capability + versi TensorRT), jadi tidak di-commit dan tidak di-bake ke image: dibangun **sekali per GPU** on-machine (`make up` sudah memanggilnya; ~5–15 menit, tidak butuh kamera). Engine tidak ada / tidak cocok → runtime otomatis **fallback ke `.pt`** (`pipelines/model_registry.py`) — akurasi sama, hanya lebih lambat, jadi gagal build bukan outage. Install TensorRT-nya lewat index NVIDIA (`pypi.nvidia.com`) — **wajib**, index PyPI publik cuma punya source stub yang bikin pip hang.
 
 > **Video file** — kalau `CAMERA_TYPE=opencv` dan `CAMERA_VIDEO_PATH` diisi, path harus di dalam container. Semua 3 line sudah di-mount `/home/nexio/Desktop/Projects/sawit:/videos:ro`. Gunakan `CAMERA_VIDEO_PATH=/videos/namafile.mp4`.
 
@@ -277,6 +305,26 @@ make clean       # down + hapus image lokal
 | `ripe_line_1` | 8001 | 0 | `LINE_1_MACHINE_ID` |
 | `ripe_line_2` | 8002 | 1 | `LINE_2_MACHINE_ID` |
 | `ripe_line_3` | 8003 | 2 | `LINE_3_MACHINE_ID` |
+| `palmgrade_console` | 8000 | — | ketiganya (pemetaan `machine_id` → line) |
+
+### Konsol operator (`APP_MODE=console`)
+
+Layar di **`http://localhost:8000/console`**. Satu berkas HTML statis: vanilla JS, **tanpa
+build step, tanpa Node, tanpa CDN, tanpa webfont** — harus tetap kebuka saat internet mati.
+Isinya strip total hari kerja, kartu kamera per line (assign/lepas truk + reject manual), dan
+3 tab: Grading, Timbangan, Truk. Dwibahasa ID/EN, tema terang (default) / gelap, pilihan
+operator disimpan di `localStorage`.
+
+- **Stream kamera tidak lewat konsol** — kartunya `<img>` MJPEG langsung ke `:8001/8002/8003`.
+  Kartu dirender **sekali** lalu ditambal tiap 2 detik; urutan pakai CSS `order`. Memindah DOM =
+  stream putus lalu buka lagi. Status kamera dicek tiap 5 detik dan muncul sebagai
+  **ONLINE / OFFLINE** di judul kartu — warna tidak pernah jadi satu-satunya sinyal.
+- **Reject manual tanpa mouse**: tahan `SPACE` lalu tekan `1` / `2` / `3`.
+- **Layar penuh = urusan browser**, bukan halaman. `make kiosk` menjalankan Chrome `--kiosk`
+  lewat `scripts/console-kiosk.sh`; untuk jalan otomatis saat login pasang
+  `scripts/palmgrade-console.desktop`. Tiga hal di skrip itu jangan dihapus: `--user-data-dir`
+  tetap (pilihan operator hidup di `localStorage`), tunggu konsol menjawab dulu (sesudah listrik
+  mati desktop sering login sebelum Docker siap), dan `xset s off -dpms`.
 
 ### Camera type (dikontrol via env var `CAMERA_TYPE`)
 
@@ -305,7 +353,7 @@ make clean       # down + hapus image lokal
 | `GET` | `/health` | Health check (always allowed) |
 | `GET` | `/health/detail` | Detailed status: camera, GPU, workers, current_assignment_id. ⚠️ Masih expose `outbox_pending`/`outbox_failed` — sejak pindah ke `BatchUploadWorker` dua field itu **selalu 0** dan bukan indikator backlog upload; progres batch belum ter-expose di endpoint mana pun (cek `state/upload_manifest.db` atau log) |
 | `GET` | `/api/video_feed` | MJPEG live stream (multi-viewer) |
-| `POST` | `/api/set_truck` | Set active truck ID (legacy — prefer API /grading-console/lines/:id/assign-truck) |
+| `POST` | `/api/set_truck` | Set active truck ID (legacy — pakai konsol `/api/console/lines/{line}/assign-truck`) |
 | `POST` | `/api/capture_reject` | Trigger manual reject capture (legacy) |
 | `GET` | `/api/results_today` | Today's grading results (model/device info ada di `/health/detail`) |
 | `POST` | `/internal/assignment` | Receive truck assignment from palmgrade-api (protected by x-internal-secret) |
@@ -322,6 +370,37 @@ curl -X POST http://localhost:8001/api/set_truck \
   -H "Content-Type: application/json" \
   -d '{"truck_id": "your-truck-uuid"}'
 ```
+
+### Konsol (`APP_MODE=console`, port 8000)
+
+Surface-nya berbeda total — `main.py` tidak dipakai sama sekali.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/console` | Layar operator (satu file HTML statis) |
+| `GET` | `/api/console/state` | Ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
+| `GET` | `/api/console/history` | Filter `tanggal_kerja` / `line_code` / `truck_id` |
+| `GET` | `/api/console/trucks` | Master truk + supplier + `sumber_label` |
+| `POST` | `/api/console/trucks` | Truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
+| `GET` | `/api/console/weighings` | Tiket timbangan hari kerja (bruto / tara / neto) |
+| `POST` | `/api/console/weighings` | Operator mengetik bruto/tara sendiri — payload identik dengan kiriman program timbangan |
+| `POST` | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line |
+| `POST` | `/api/console/lines/{line}/release-truck` | Truk pergi → `/internal/assignment` dengan truk kosong |
+| `POST` | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
+| `POST` | `{BACKEND_API_VER}/internal/vision/events` | ← dari tiga line (`x-webhook-secret`), kontrak sama dengan palmgrade-api |
+| `POST` | `{BACKEND_API_VER}/internal/scale/weighing` | ← dari program timbangan (`x-webhook-secret`) |
+| `GET` | `/captures/{line_code}/...` | Gambar line, mount read-only |
+| `GET` | `/health` | Ringan — sengaja bukan `routes/health.py` (yang itu menarik torch) |
+
+```bash
+curl http://localhost:8000/api/console/state
+curl -X POST http://localhost:8000/api/console/trucks \
+  -H "Content-Type: application/json" -d '{"plate_number": "KT 2509 ABC"}'
+```
+
+⚠️ `neto_kg` **dihitung, tidak pernah dipercaya mentah**. Pengirim boleh menyertakannya; kalau
+bedanya dari `bruto − tara` lewat 1 kg, kiriman ditolak **400**. Desimal boleh titik atau koma
+(`14820,5`), tapi pemisah ribuan (`14.820`) **tidak** dikenali — itu dibaca 14,82 kg.
 
 ---
 
@@ -376,7 +455,7 @@ artifacts/line-1/
 │       ├── 2026-05-18_104500_manual.webp             # Manual reject capture
 │       └── 2026-05-18_104500_manual_ripeness.json
 ├── logs/
-└── outbox.db                  # SQLite outbox lama — dormant, retry worker di-comment
+└── outbox.db                  # antrean realtime ke BACKEND_URL (OutboxRetryWorker, poll 1 dtk)
 
 state/line-1/                  # SIBLING artifacts/, sengaja di LUAR mount statis /captures
 └── upload_manifest.db         # state per-item BatchUploadWorker (pending/image_uploaded/done/poisoned)
@@ -421,7 +500,11 @@ Dari `palmgrade-vision/`:
 ```bash
 # CI menjalankan keduanya (lihat .github/workflows/ci.yml)
 pip install ruff pytest cryptography aiosqlite psutil httpx boto3
-ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/palmgrade/integrations/upload/ src/palmgrade/license/ src/palmgrade/workers/batch_upload_worker.py
+ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/palmgrade/integrations/upload/ \
+  src/palmgrade/license/ src/palmgrade/plc/ src/palmgrade/workers/batch_upload_worker.py \
+  src/palmgrade/workers/master_data_worker.py src/palmgrade/workers/erp_push_worker.py \
+  src/palmgrade/integrations/notifications/line_client.py src/palmgrade/repositories/console_repository.py \
+  src/palmgrade/services/console_service.py src/palmgrade/routes/console.py src/palmgrade/console_main.py
 pytest tests/unit/
 ```
 
@@ -436,7 +519,12 @@ pytest tests/unit/
 | **Batch upload** | `test_batch_upload_worker.py`, `test_upload_manifest.py`, `test_r2_uploader.py` | Discovery + rekonstruksi payload; manifest `pending → image_uploaded → done` (+ `poisoned`) **tanpa retry cap & tanpa TTL**; `r2_key` deterministik + prefix `machine_id` yang mengisolasi antar-line |
 | **Outage & crash** | `test_batch_upload_outage.py`, `test_batch_upload_crash.py` | Jantung requirement "internet mati berapa lama pun → nol data hilang, nol duplikat"; `os._exit` di tengah transisi state → manifest tetap konsisten (WAL + `synchronous=FULL`) |
 | Timestamp TZ | `test_capture_timestamp.py` | Regression guard geser 7 jam: timestamp **wajib** tz-aware (vision UTC vs API `TZ=Asia/Jakarta`) |
-| Outbox (dormant) | `test_outbox_store.py`, `test_outbox_requeue.py` | Persist → backoff → dead-letter. Jalur ini **tidak dipakai lagi** (retry worker di-comment); test-nya dijaga supaya jalur lama tidak busuk diam-diam kalau suatu saat dihidupkan |
+| Outbox realtime | `test_outbox_store.py`, `test_outbox_requeue.py`, `test_edge_realtime_outbox.py` | Persist → backoff → dead-letter; jalur 1 detik ke `BACKEND_URL` (konsol lokal) |
+| **Konsol** | `test_console_store.py`, `test_tanggal_kerja.py`, `test_console_html.py` | Index SQLite (konsol tidak pernah memindai direktori); `tanggal_kerja` lewat tengah malam; invarian `console.html` (tanpa `on*=` inline, `esc()` meloloskan `& < > " ' \``, `data-line=` tetap ada) |
+| **Timbangan** | `test_weighing.py` | `neto_kg` dihitung bukan dipercaya; timbang-keluar **menggabung** bukan menimpa; plat beda tulisan tetap satu truk; koma = desimal, pemisah ribuan ditolak |
+| **Dorong ke ERP** | `test_erp_push_worker.py` | Kiriman ulang bukan error (`{"baru": false}`); 417 = tolakan permanen; jaringan mati **tidak** membuang apa pun |
+| Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |
+| PLC | `tests/unit/plc/` | Coil map ODOT + state machine Modbus-TCP |
 | Config | `test_config_validation.py` | Fail-fast saat secret masih default di `APP_ENV=production` |
 | Camera selector | `test_device_selector.py` | Pilih kamera by-serial (enum GigE tidak deterministik) |
 | Streaming | `test_streaming_service.py` | MJPEG keep-alive multi-viewer |
@@ -488,10 +576,27 @@ pytest tests/unit/
 | `DESTINATION_UPLOAD` | — | Upload destination path |
 | `DEBUG_MODEL_OUTPUT` | `false` | Log raw YOLO output untuk debugging (`core/logging.py`) |
 
+### Konsol operator (`APP_MODE=console`)
+
+| Variable | Default | Description |
+|---|---|---|
+| `APP_MODE` | `line` | `line` = instance kamera, `console` = konsol operator (container ke-4) |
+| `FACTORY_TZ` | `Asia/Jakarta` | Zona batas **hari kerja** — pabrik jalan ~20 jam lewat tengah malam, jadi tanggal tidak boleh diturunkan dari UTC |
+| `CONSOLE_SYNC_INTERVAL_S` | `300` | Interval `MasterDataWorker` menarik truk/supplier dari API cloud |
+| `CONSOLE_LINE_HOST` | `http://localhost` | Host tiga line dilihat dari konsol (assign/release/manual-reject) |
+| `ERP_URL` | — | PalmOS base URL. **Kosong = jalur ERP mati**, dan itu default: layar operator tidak boleh bergantung pada ERP hidup |
+| `ERP_API_KEY` / `ERP_API_SECRET` | — | `Authorization: token <key>:<secret>` |
+| `ERP_PUSH_INTERVAL_S` | `60` | Interval `ErpPushWorker` |
+| `ERP_PUSH_BATCH` | `200` | Maksimal event per putaran |
+| `UPLOAD_API_URL` / `UPLOAD_API_SECRET` | — | Sumber master data konsol = API **cloud**, sama dengan yang dipakai batch upload |
+
 ---
 
 ## Git Workflow
 
 - **Default branch**: `staging` — all development goes here first
 - **Branch protection**: org ruleset blocks direct push to `main` and `staging` — use PR
-- **Flow**: create branch from `staging` → PR → squash merge to `staging` → PR → squash merge to `main`
+- **Flow**: branch baru dari `staging` → PR **squash merge** ke `staging` → PR **merge commit** ke `main`
+- PR rilis `staging` → `main` **jangan** di-squash: `main` sengaja menyimpan merge commit-nya.
+  Cek isi pakai `git diff --stat origin/staging origin/main` (kosong = nol beda), bukan `git cherry`
+- Commit message: **tidak boleh** ada baris `Co-Authored-By: Claude` atau referensi AI apa pun

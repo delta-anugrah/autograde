@@ -84,13 +84,13 @@
   .muted { color:var(--muted); }
 
   /* ---- status bar ---- */
-  #topbar { display:flex; align-items:center; flex-wrap:wrap; gap:10px 20px;
-            padding:12px var(--pad); background:var(--card);
+  #topbar { display:flex; align-items:center; flex-wrap:wrap; gap:8px 20px;
+            padding:7px var(--pad); background:var(--card);
             border-bottom:3px solid var(--acc); }
-  h1 { font-size:1.15rem; margin:0; font-weight:700; letter-spacing:.16em;
+  h1 { font-size:1rem; margin:0; font-weight:700; letter-spacing:.14em;
        text-transform:uppercase; display:flex; align-items:center; gap:10px; }
-  h1::before { content:""; width:.75rem; height:1.15rem; background:var(--acc); border-radius:1px; }
-  #jam { font-family:var(--mono); font-size:1.25rem; font-weight:700; letter-spacing:.01em; }
+  h1::before { content:""; width:.7rem; height:1rem; background:var(--acc); border-radius:1px; }
+  #jam { font-family:var(--mono); font-size:1.15rem; font-weight:700; letter-spacing:.01em; }
   .jam { display:flex; align-items:baseline; gap:8px; }
   #topbar .aksi { margin-left:auto; display:flex; gap:8px; }
   #topbar .aksi button { min-width:5.5rem; min-height:2.6rem; }
@@ -131,12 +131,23 @@
            gap:16px; padding:0 var(--pad) 6px; }
   .card { background:var(--card); border:1px solid var(--line-kuat); border-radius:3px;
           display:flex; flex-direction:column; }
-  .card h2 { font-size:1.05rem; font-weight:700; margin:0; padding:10px 8px 10px 14px;
+  .card h2 { font-size:.95rem; font-weight:700; margin:0; padding:5px 7px 5px 13px;
              letter-spacing:.04em; border-bottom:1px solid var(--line);
              display:flex; align-items:center; gap:8px; }
   .card h2 .nama { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .card h2 .ord { display:flex; gap:4px; }
-  .card h2 button { padding:3px 10px; font-size:.9rem; line-height:1.2; color:var(--muted); }
+  .card h2 button { padding:2px 9px; font-size:.85rem; line-height:1.2; color:var(--muted); }
+
+  /* Camera state in a word, not only a colour, and in the title bar where it is
+     readable even when the feed itself is a black box. `.putus` lives on the
+     card so one class drives both the header and the feed. */
+  .sinyal { display:flex; align-items:center; gap:6px; font-size:.68rem; font-weight:700;
+            letter-spacing:.1em; text-transform:uppercase; color:var(--acc); }
+  .sinyal::before { content:""; width:.5rem; height:.5rem; border-radius:50%; background:var(--acc); }
+  .sinyal .off, .card.putus .sinyal .on { display:none; }
+  .card.putus .sinyal { color:var(--rej); }
+  .card.putus .sinyal::before { background:var(--rej); }
+  .card.putus .sinyal .off { display:inline; }
 
   /* The black box sits on the wrapper, not the <img>: when the camera drops the
      <img> is hidden (no broken-image icon) and the notice shows instead. */
@@ -158,9 +169,9 @@
   .feed span { position:absolute; inset:0; z-index:4; display:none; place-items:center;
                padding:16px; text-align:center; color:#fff;
                font-size:1.15rem; font-weight:700; background:rgba(0,0,0,.72); }
-  .feed.putus img { visibility:hidden; }
-  .feed.putus span { display:grid; }
-  .feed.putus::after, .feed.putus::before { display:none; }
+  .card.putus .feed img { visibility:hidden; }
+  .card.putus .feed span { display:grid; }
+  .card.putus .feed::after, .card.putus .feed::before { display:none; }
 
   /* Three bounded cells, not three numbers on one surface: at distance the
      tinted block is read before the figure inside it. Equal columns because
@@ -457,7 +468,7 @@ const KAMUS = {
   id: {
     judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan",
     labelHariIni:"Hari ini", labelRasio:"Rasio ACC",
-    labelLayout:"Tata letak", kolomAuto:"Otomatis",
+    labelLayout:"Tata letak", kolomAuto:"Otomatis", statusOnline:"Online", statusOffline:"Offline",
     kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
     geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
     thNo:"No", thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
@@ -479,7 +490,7 @@ const KAMUS = {
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge",
     labelHariIni:"Today", labelRasio:"ACC rate",
-    labelLayout:"Layout", kolomAuto:"Auto",
+    labelLayout:"Layout", kolomAuto:"Auto", statusOnline:"Online", statusOffline:"Offline",
     kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
     geserKiri:"Move left", geserKanan:"Move right",
     thNo:"No", thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
@@ -765,6 +776,10 @@ function kartuLine(l) {
   // enters an onclick attribute, so there is no JS string context to inject.
   return `<div class="card" data-line="${esc(l.line_code)}">
     <h2><span class="nama">${esc(l.name)}</span>
+      <span class="sinyal">
+        <span class="on" data-t="statusOnline">Online</span>
+        <span class="off" data-t="statusOffline">Offline</span>
+      </span>
       <span class="ord">
         <button data-aksi="geser" data-arah="-1" title="${esc(t("geserKiri"))}">&#9664;</button>
         <button data-aksi="geser" data-arah="1" title="${esc(t("geserKanan"))}">&#9654;</button>
@@ -994,8 +1009,8 @@ $("timbangan").addEventListener("click", async (ev) => {
 // Ceiling: a frozen frame that keeps being sent, or a line that dies and comes
 // back between two probes, still looks connected. If that bites, the line has
 // to report camera status through /api/console/state.
-$("lines").addEventListener("load", (ev) => ev.target.parentElement.classList.remove("putus"), true);
-$("lines").addEventListener("error", (ev) => ev.target.parentElement.classList.add("putus"), true);
+$("lines").addEventListener("load", (ev) => ev.target.closest(".card").classList.remove("putus"), true);
+$("lines").addEventListener("error", (ev) => ev.target.closest(".card").classList.add("putus"), true);
 
 async function cekKamera() {
   await Promise.all([...document.querySelectorAll(".feed img")].map(async (img) => {
@@ -1005,7 +1020,7 @@ async function cekKamera() {
       mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(3000),
     }).then(() => true, () => false);
     if (lineHidup && img.naturalWidth > 0) return;
-    img.parentElement.classList.add("putus");
+    img.closest(".card").classList.add("putus");
     // Each attempt = one new connection to the line, hence once per probe. The
     // t query forces the browser to actually re-request.
     const url = new URL(img.src);
