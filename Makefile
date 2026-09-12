@@ -1,11 +1,11 @@
 ENV_FILE=.env
-# Override produksi: image immutable (tanpa bind-mount .:/app & /videos).
+# Production override: immutable image (no bind-mount of .:/app & /videos).
 PROD_FILES=-f docker-compose.yml -f docker-compose.prod.yml
 
-# Production — copy SDK, build GPU+SDK, build TensorRT engine, start semua line.
-# CATATAN: untuk perubahan KODE saja, cukup `make restart` — kode di-bind-mount
-# (.:/app), jadi TIDAK perlu rebuild. `make up` cuma perlu kalau dependency /
-# Dockerfile / SDK berubah.
+# Production — copy SDK, build GPU+SDK, build the TensorRT engine, start all lines.
+# NOTE: for CODE changes alone `make restart` is enough — code is bind-mounted
+# (.:/app), so NO rebuild is needed. `make up` is only for dependency /
+# Dockerfile / SDK changes.
 up: sync-sdk
 	-docker compose --env-file $(ENV_FILE) down
 	docker compose --env-file $(ENV_FILE) build \
@@ -15,10 +15,10 @@ up: sync-sdk
 	docker compose --env-file $(ENV_FILE) up -d
 	-docker image prune -f
 
-# Production IMMUTABLE — sama seperti `up` tapi pakai override docker-compose.prod.yml
-# yang MENGHAPUS bind-mount .:/app & /videos, jadi container jalan dari image yang
-# di-build (bukan working-tree). Pakai ini di PC prod. Karena kode TIDAK di-mount,
-# perubahan kode di prod butuh `make up-prod` lagi (bukan `make restart`).
+# Production IMMUTABLE — like `up` but with the docker-compose.prod.yml override,
+# which REMOVES the .:/app & /videos bind-mounts, so containers run from the built
+# image, not the working tree. Use this on the prod PC. Since code is NOT mounted,
+# a code change in prod needs `make up-prod` again, not `make restart`.
 up-prod: sync-sdk
 	-docker compose $(PROD_FILES) --env-file $(ENV_FILE) down
 	docker compose $(PROD_FILES) --env-file $(ENV_FILE) build \
@@ -27,25 +27,25 @@ up-prod: sync-sdk
 	docker compose $(PROD_FILES) --env-file $(ENV_FILE) up -d
 	-docker image prune -f
 
-# Copy Hikrobot MVS SDK dari host ke build context. SDK-nya sekarang ikut
-# ke-commit (biar CI bisa build image), jadi ini cuma perlu kalau versi MVS di
-# host berubah. Dua-duanya pakai `/.` di sumber: tanpa itu, `cp -r` ke folder
-# yang SUDAH ada (dan sdk/MvImport sekarang SELALU ada) malah bikin salinan
-# bersarang sdk/MvImport/MvImport yang ikut ke-copy ke image.
+# Copy the Hikrobot MVS SDK from the host into the build context. The SDK is
+# committed now (so CI can build the image), so this is only needed when the
+# host's MVS version changes. Both sources end in `/.`: without it, `cp -r` into
+# a folder that ALREADY exists (and sdk/MvImport always does now) makes a nested
+# sdk/MvImport/MvImport copy that ends up in the image.
 sync-sdk:
-	@test -d /opt/MVS || (echo "ERROR: Hikrobot MVS SDK tidak ditemukan di /opt/MVS. Install MVS terlebih dahulu." && exit 1)
+	@test -d /opt/MVS || (echo "ERROR: Hikrobot MVS SDK not found at /opt/MVS. Install MVS first." && exit 1)
 	mkdir -p sdk/lib64 sdk/MvImport
 	cp -r /opt/MVS/lib/64/. sdk/lib64/
 	cp -r /opt/MVS/Samples/64/Python/MvImport/. sdk/MvImport/
 
-# Build TensorRT FP16 engine SEKALI per GPU (auto-skip kalau engine utk GPU ini
-# sudah ada). Dijalankan sebagai 1 container one-shot → tidak ada race antar 3 line.
-# Pertama kali per PC bisa 5-15 menit; berikutnya instan (engine ke-cache di ./engines).
+# Build the TensorRT FP16 engine ONCE per GPU (auto-skips if this GPU already has
+# one). Runs as a single one-shot container → no race between the 3 lines.
+# First run per PC takes 5-15 min; after that it is instant (cached in ./engines).
 build-engine:
 	docker compose --env-file $(ENV_FILE) run --rm --no-deps \
 		--entrypoint python ripe-line-1 scripts/build_engine.py
 
-# Full clean rebuild (pakai HANYA kalau cache dicurigai rusak — lambat, no-cache).
+# Full clean rebuild (use ONLY when the cache is suspect — slow, no-cache).
 rebuild-clean: sync-sdk
 	-docker compose --env-file $(ENV_FILE) down
 	-docker image rm palmgrade-vision:latest 2>/dev/null || true
@@ -53,17 +53,17 @@ rebuild-clean: sync-sdk
 		--build-arg TORCH_VARIANT=cu126 \
 		--build-arg WITH_SDK=true
 
-# Development — build tanpa SDK, CPU torch, lalu start semua line
+# Development — build without the SDK, CPU torch, then start all lines
 up-dev:
 	docker compose --env-file $(ENV_FILE) build \
 		--build-arg TORCH_VARIANT=cpu
 	docker compose --env-file $(ENV_FILE) up -d
 
-# Start semua line tanpa rebuild (pakai image yang sudah ada)
+# Start all lines without rebuilding (uses the existing image)
 start:
 	docker compose --env-file $(ENV_FILE) up -d
 
-# Start hanya 1 line tertentu tanpa rebuild
+# Start just one line, no rebuild
 up-1:
 	docker compose --env-file $(ENV_FILE) up -d ripe-line-1
 
@@ -72,6 +72,16 @@ up-2:
 
 up-3:
 	docker compose --env-file $(ENV_FILE) up -d ripe-line-3
+
+# Operator console only (APP_MODE=console, port 8000) — screen at /console.
+# No camera/GPU, so it is safe to restart on its own without touching the lines.
+up-console:
+	docker compose --env-file $(ENV_FILE) up -d console
+
+# Fullscreen on this PC. A page cannot fullscreen itself (requestFullscreen
+# needs a user gesture), so the browser is what gets configured.
+kiosk:
+	./scripts/console-kiosk.sh
 
 down:
 	docker compose --env-file $(ENV_FILE) down
@@ -89,30 +99,40 @@ logs-2:
 logs-3:
 	docker compose --env-file $(ENV_FILE) logs -f ripe-line-3
 
-# Logs gabungan semua line (dengan prefix container name)
+logs-console:
+	docker compose --env-file $(ENV_FILE) logs -f console
+
+# Combined logs for all lines (prefixed with the container name)
 logs:
 	docker compose --env-file $(ENV_FILE) logs -f
 
 ps:
 	docker compose --env-file $(ENV_FILE) ps
 
-# Rebuild image — CUDA torch (production dengan NVIDIA GPU, ~2.4GB dari PyTorch CDN)
-# TORCH_VARIANT=cu126 → compatible dengan driver >= 525 (host 580 ✅)
+# Rebuild the image — CUDA torch (production with an NVIDIA GPU, ~2.4GB from the
+# PyTorch CDN). TORCH_VARIANT=cu126 → needs driver >= 525 (host 580 ✅)
 rebuild:
 	docker compose --env-file $(ENV_FILE) build --build-arg TORCH_VARIANT=cu126
 
 rebuild-gpu:
 	docker compose --env-file $(ENV_FILE) build --build-arg TORCH_VARIANT=cu126
 
-# Hapus semua container (data artifacts aman — di volume lokal)
+# Remove all containers (data artifacts are safe — they live in local volumes)
 clean:
 	docker compose --env-file $(ENV_FILE) down --rmi local
 
-# Jalankan line-1 secara lokal tanpa Docker (butuh Python env aktif).
-# MACHINE_ID sengaja TIDAK di-override di sini: main.py memanggil load_dotenv(), jadi
-# MACHINE_ID diambil langsung dari $(ENV_FILE) (isi dengan UUID line-1). Versi lama
-# meng-export `MACHINE_ID=$$(grep LINE_1_MACHINE_ID ...)`; kalau key itu tidak ada di
-# .env hasilnya string KOSONG, dan load_dotenv(override=False) tidak akan menimpanya
-# lagi — machine_id jadi "" dan semua event ditolak API.
+# Run line-1 locally without Docker (needs an active Python env).
+# MACHINE_ID is deliberately NOT overridden here: main.py calls load_dotenv(), so
+# MACHINE_ID comes straight from $(ENV_FILE) (fill it with line-1's UUID). An older
+# version exported `MACHINE_ID=$$(grep LINE_1_MACHINE_ID ...)`; if that key is
+# missing from .env the result is an EMPTY string, and load_dotenv(override=False)
+# will not replace it — machine_id becomes "" and the API rejects every event.
 dev:
 	uvicorn src.palmgrade.main:app --host 0.0.0.0 --port 8001 --reload
+
+# Reload the console after a Python change. Bind-mounted code means HTML is
+# served fresh on refresh, but the running process keeps the old Python until
+# it is restarted. `up -d console` does NOT do this - it is a no-op when the
+# container already runs.
+restart-console:
+	docker compose --env-file $(ENV_FILE) restart console

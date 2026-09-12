@@ -284,7 +284,7 @@ CAMERA_DEVICE_INDEX=0       # 0 = kamera pertama yang ditemukan
 CAMERA_VIDEO_PATH=          # kosongkan untuk hikrobot
 CAMERA_WIDTH=2448
 CAMERA_HEIGHT=2048
-CAMERA_FPS=10
+CAMERA_FPS=15
 
 # ── Backend ──────────────────────────────────────────────────
 BACKEND_URL=http://localhost:2500        # atau IP server palmgrade-api
