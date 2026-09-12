@@ -129,3 +129,10 @@ clean:
 # will not replace it — machine_id becomes "" and the API rejects every event.
 dev:
 	uvicorn src.palmgrade.main:app --host 0.0.0.0 --port 8001 --reload
+
+# Reload the console after a Python change. Bind-mounted code means HTML is
+# served fresh on refresh, but the running process keeps the old Python until
+# it is restarted. `up -d console` does NOT do this - it is a no-op when the
+# container already runs.
+restart-console:
+	docker compose --env-file $(ENV_FILE) restart console
