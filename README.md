@@ -312,7 +312,7 @@ make clean       # down + hapus image lokal
 Layar di **`http://localhost:8000/console`**. Satu berkas HTML statis: vanilla JS, **tanpa
 build step, tanpa Node, tanpa CDN, tanpa webfont** — harus tetap kebuka saat internet mati.
 Isinya strip total hari kerja, kartu kamera per line (assign/lepas truk + reject manual), dan
-3 tab: Grading, Timbangan, Truk. Dwibahasa ID/EN, tema terang (default) / gelap, pilihan
+4 tab: Grading, Truk, Timbangan, Rekap. Dwibahasa ID/EN, tema terang (default) / gelap, pilihan
 operator disimpan di `localStorage`.
 
 - **Stream kamera tidak lewat konsol** — kartunya `<img>` MJPEG langsung ke `:8001/8002/8003`.
@@ -320,6 +320,12 @@ operator disimpan di `localStorage`.
   stream putus lalu buka lagi. Status kamera dicek tiap 5 detik dan muncul sebagai
   **ONLINE / OFFLINE** di judul kartu — warna tidak pernah jadi satu-satunya sinyal.
 - **Reject manual tanpa mouse**: tahan `SPACE` lalu tekan `1` / `2` / `3`.
+- **Tab Rekap** = yang diserahkan ke supplier: satu baris per truk untuk hari kerja itu —
+  janjang, ACC, REJ, rasio, dan neto timbangan. Grading dan timbangan tetap **dua sumber
+  terpisah** yang cuma disandingkan; neto dijumlah per truk di Python, bukan di-JOIN ke query
+  grading (satu truk bisa punya lebih dari satu tiket sehari, dan join itu akan mengalikan
+  jumlah janjang dengan jumlah tiket). Janjang yang ter-grading sebelum truk dipasang muncul
+  sebagai baris **Tanpa truk** — dibuang justru menyembunyikan yang perlu dilihat operator.
 - **Layar penuh = urusan browser**, bukan halaman. `make kiosk` menjalankan Chrome `--kiosk`
   lewat `scripts/console-kiosk.sh`; untuk jalan otomatis saat login pasang
   `scripts/palmgrade-console.desktop`. Tiga hal di skrip itu jangan dihapus: `--user-data-dir`
@@ -384,6 +390,7 @@ Surface-nya berbeda total — `main.py` tidak dipakai sama sekali.
 | `POST` | `/api/console/trucks` | Truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
 | `GET` | `/api/console/weighings` | Tiket timbangan hari kerja (bruto / tara / neto) |
 | `POST` | `/api/console/weighings` | Operator mengetik bruto/tara sendiri — payload identik dengan kiriman program timbangan |
+| `GET` | `/api/console/recap` | Rekap per truk satu hari kerja: janjang, ACC/REJ, dan neto timbangan |
 | `POST` | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line |
 | `POST` | `/api/console/lines/{line}/release-truck` | Truk pergi → `/internal/assignment` dengan truk kosong |
 | `POST` | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
@@ -394,13 +401,19 @@ Surface-nya berbeda total — `main.py` tidak dipakai sama sekali.
 
 ```bash
 curl http://localhost:8000/api/console/state
+curl http://localhost:8000/api/console/recap                       # hari ini
+curl 'http://localhost:8000/api/console/recap?tanggal_kerja=2026-09-10'
 curl -X POST http://localhost:8000/api/console/trucks \
   -H "Content-Type: application/json" -d '{"plate_number": "KT 2509 ABC"}'
 ```
 
 ⚠️ `neto_kg` **dihitung, tidak pernah dipercaya mentah**. Pengirim boleh menyertakannya; kalau
 bedanya dari `bruto − tara` lewat 1 kg, kiriman ditolak **400**. Desimal boleh titik atau koma
-(`14820,5`), tapi pemisah ribuan (`14.820`) **tidak** dikenali — itu dibaca 14,82 kg.
+(`14820,5`), tapi pemisah ribuan (`14.820`) **tidak** dikenali — itu dibaca 14,82 kg. Yang
+menangkapnya lantai `MINIMUM_BERAT_KG` = **100 kg** pada `bruto_kg`/`tara_kg`: `14.820` yang
+diketik untuk empat belas ton parse bersih jadi 14,82 dan tidak ada apa pun di payload yang
+membantahnya, sementara truk kosong saja sudah berton-ton — jadi berat sungguhan melewati
+lantai itu dua orde besaran.
 
 ---
 

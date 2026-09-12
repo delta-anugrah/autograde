@@ -135,6 +135,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
 | GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto) |
 | POST | `/api/console/weighings` | operator mengetik bruto/tara sendiri — payload identik dengan kiriman program timbangan |
+| GET | `/api/console/recap` | rekap per truk satu hari kerja (janjang, ACC/REJ, neto) — `?tanggal_kerja=` opsional |
 | POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line |
 | POST | `/api/console/lines/{line}/release-truck` | truk pergi → `/internal/assignment` line dengan truk kosong |
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
@@ -296,9 +297,19 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     Kuncinya `ref` kalau ada, kalau tidak uuid5 dari (plat ternormalisasi + `waktu_masuk`) —
     tanpa salah satu dari keduanya kiriman **ditolak**, karena timbang-keluar tidak akan bisa
     menemukan barisnya dan satu tiket pecah jadi dua.
+    Pemisah ribuan tanpa desimal (`"14.820"` untuk empat belas ton) parse **bersih** jadi
+    14,82 dan tidak ada apa pun di payload yang membantahnya, jadi yang menangkapnya lantai
+    `MINIMUM_BERAT_KG` = 100 kg pada `bruto_kg`/`tara_kg` — truk kosong saja sudah berton-ton,
+    berat sungguhan melewatinya dua orde besaran.
     ⚠️ Format asli program timbangan **belum diketahui** (`../docs/PERTANYAAN-TERBUKA.md` X1).
     Yang dibekukan di sini bentuk KITA; begitu formatnya turun, yang ditambah **adapter**,
     bukan bongkar tabel.
+17. **Rekap: grading dan timbangan dua sumber terpisah, cuma disandingkan.** `rekap()`
+    menjumlah `neto_kg` per truk **di Python**, bukan mem-JOIN agregat `weighings` ke query
+    GROUP BY grading: satu truk bisa punya lebih dari satu tiket sehari, dan join itu
+    mengalikan jumlah janjang dengan jumlah tiket. Baris `truck_id IS NULL` **tetap
+    ditampilkan** ("Tanpa truk") — janjang yang ter-grading sebelum truk dipasang justru yang
+    perlu dilihat operator, bukan yang perlu disembunyikan.
 16. **Truk manual belum didorong ke ERP, sengaja.** DocType `Truck` belum ada di site mana pun
     (`../docs/PERTANYAAN-TERBUKA.md` S1–S3), jadi `POST /api/console/trucks` hidup lokal dulu
     dengan `status='manual'`. Id-nya uuid5 dari plat ternormalisasi, jadi tidak akan pernah
@@ -318,7 +329,12 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 
 ## Git Workflow
 
-- Default branch `staging`; **PR-only** (main & staging protected). Flow: branch ← `staging` → PR → squash merge.
+- Default branch `staging`; **PR-only** (main & staging protected). Alur rilis:
+  branch baru dari `staging` → PR **squash merge** ke `staging` → PR **merge commit** ke `main`.
+  Rilis ke `main` sengaja BUKAN squash: `main` harus menyimpan tiap PR staging sebagai
+  commit tersendiri. Karena itu `main` selalu punya merge commit yang tidak ada di
+  `staging` — itu normal, bukan divergensi. Cek isinya dengan
+  `git diff --stat origin/staging origin/main` (kosong = nol beda), jangan `git cherry`.
 - Commit messages: **never** include "Co-Authored-By: Claude" or any AI reference.
 
 ---
