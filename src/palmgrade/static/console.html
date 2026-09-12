@@ -264,24 +264,20 @@
   .pilih-panel [role="option"][aria-selected="true"] { background:var(--acc-bg); color:var(--acc); }
 
   /* ---- tabs ---- */
-  #tabs { display:flex; gap:3px; padding:26px var(--pad) 0;
-          border-bottom:2px solid var(--line-kuat); }
-  /* flex:1 1 0 - widths split evenly instead of following text length, so
-     "Recent grading" does not shove the other two tabs when the language flips.
-     The inactive tabs stay recessed rather than invisible: three bare words on
-     the page background do not read as "these are buttons". */
+  #tabs { display:flex; gap:3px; padding:26px var(--pad) 0; }
+  /* flex:1 1 0 - widths split evenly instead of following text length, so a long
+     label does not shove the others when the language flips. Inactive tabs stay
+     recessed rather than invisible: bare words on the page background do not
+     read as "these are buttons". No rail under the strip - it ran past the tabs
+     into the page margin on both sides and read as a stray mark. */
   #tabs button { flex:1 1 0; background:var(--zebra); color:var(--muted);
-                 border:1px solid var(--line); border-bottom:2px solid var(--line-kuat);
-                 border-radius:3px 3px 0 0; margin-bottom:-2px;
+                 border:1px solid var(--line);
+                 border-radius:3px 3px 0 0;
                  font-size:1rem; letter-spacing:.04em; }
   #tabs button:hover { color:var(--fg); }
   #tabs button.aktif { background:var(--card); color:var(--fg);
-                       border-color:var(--line-kuat); border-bottom-color:var(--card);
+                       border-color:var(--line-kuat);
                        box-shadow:inset 0 4px 0 var(--acc); }
-  /* After .aktif, so it wins: the strip's two outer edges are the page margin,
-     and a rule floating there reads as a stray mark. */
-  #tabs button:first-child { border-left-color:transparent; }
-  #tabs button:last-child { border-right-color:transparent; }
 
   /* ---- panels & tables ---- */
   .panel { padding:16px var(--pad) 28px; }

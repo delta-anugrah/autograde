@@ -326,6 +326,24 @@ operator disimpan di `localStorage`.
   grading (satu truk bisa punya lebih dari satu tiket sehari, dan join itu akan mengalikan
   jumlah janjang dengan jumlah tiket). Janjang yang ter-grading sebelum truk dipasang muncul
   sebagai baris **Tanpa truk** — dibuang justru menyembunyikan yang perlu dilihat operator.
+- **Coba di lokal tanpa kamera**: `make up-console` lalu buka
+  <http://localhost:8000/console>. DB-nya kosong, jadi keempat tab masih polos —
+  isi dengan `scripts/seed-console-demo.py` (49 janjang di 3 line, 3 tiket timbangan,
+  satu janjang sengaja tanpa truk). **Dev saja, jangan pernah di PC pabrik**: skrip itu
+  menyuntik event ke `state/console/console.db` yang sama dengan punya operator.
+
+  ```bash
+  make up-console
+  WEBHOOK_SECRET=$(docker exec palmgrade_console printenv WEBHOOK_SECRET) \
+  LINE_1_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_1_MACHINE_ID) \
+  LINE_2_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_2_MACHINE_ID) \
+  LINE_3_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_3_MACHINE_ID) \
+  SEED_CONFIRM=1 python3 scripts/seed-console-demo.py
+  ```
+
+  Kamera akan tampil **OFFLINE** — itu benar, tidak ada line yang jalan. Semua id-nya
+  uuid5 deterministik, jadi dijalankan dua kali tidak menambah baris. Ubah `console.html`
+  → cukup refresh browser (berkasnya bind-mount); ubah kode Python → `make up-console`.
 - **Layar penuh = urusan browser**, bukan halaman. `make kiosk` menjalankan Chrome `--kiosk`
   lewat `scripts/console-kiosk.sh`; untuk jalan otomatis saat login pasang
   `scripts/palmgrade-console.desktop`. Tiga hal di skrip itu jangan dihapus: `--user-data-dir`
