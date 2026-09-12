@@ -346,6 +346,12 @@ operator disimpan di `localStorage`.
   → cukup refresh browser (berkasnya bind-mount); ubah kode **Python** → `make restart-console`.
   `make up-console` tidak cukup: `up -d` itu no-op kalau kontainernya sudah jalan, jadi
   proses lama tetap memegang kode lama.
+
+  Sesudah seed, jalankan `scripts/smoke-console.sh` — dia mengetuk semua endpoint
+  yang dipakai UI, memastikan halaman yang dilayani memang berkas di working tree
+  (bukan salinan di dalam image), lalu mengecek tiga jebakan yang pernah menggigit:
+  baris "Tanpa truk" tidak dibuang, neto truk bertiket-dua **dijumlah** bukan dikali,
+  dan `bruto_kg` "14.820" ditolak. Harus `11 passed, 0 failed`.
 - **Layar penuh = urusan browser**, bukan halaman. `make kiosk` menjalankan Chrome `--kiosk`
   lewat `scripts/console-kiosk.sh`; untuk jalan otomatis saat login pasang
   `scripts/palmgrade-console.desktop`. Tiga hal di skrip itu jangan dihapus: `--user-data-dir`
