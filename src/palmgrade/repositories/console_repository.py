@@ -203,13 +203,20 @@ class ConsoleStore:
             )
 
     def trucks(self) -> list[dict[str, Any]]:
+        """Newest first.
+
+        `rowid DESC`, not a timestamp column: the table has no insert time and
+        an upsert from master data keeps its rowid, so a truck re-synced later
+        does not jump the queue. What the operator wants is the truck they just
+        registered, at the top.
+        """
         with self._lock:
             rows = self._db.execute(
                 """SELECT t.id, t.plate_number, t.capacity, t.status,
                           s.name AS supplier_name, s.sumber
                    FROM trucks t LEFT JOIN suppliers s ON s.id = t.supplier_id
                    WHERE t.status IS NULL OR t.status != 'inactive'
-                   ORDER BY t.plate_number"""
+                   ORDER BY t.rowid DESC"""
             ).fetchall()
         return [dict(r) for r in rows]
 

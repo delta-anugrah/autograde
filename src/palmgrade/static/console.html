@@ -203,6 +203,9 @@
 
   .assign { display:flex; gap:8px; flex-wrap:wrap; }
   .assign .pilih { flex:1 1 9rem; }
+  /* One fixed basis for both, so the pair stays a matched set in either
+     language instead of following word length. */
+  .assign button { flex:0 0 7.5rem; }
 
   button, input { background:var(--input); color:var(--fg); border:1px solid var(--line-kuat);
                   border-radius:3px; padding:10px 13px; font:inherit; }
@@ -269,14 +272,27 @@
   #tabs button.aktif { background:var(--card); color:var(--fg);
                        border-color:var(--line-kuat); border-bottom-color:var(--card);
                        box-shadow:inset 0 4px 0 var(--acc); }
+  /* After .aktif, so it wins: the strip's two outer edges are the page margin,
+     and a rule floating there reads as a stray mark. */
+  #tabs button:first-child { border-left-color:transparent; }
+  #tabs button:last-child { border-right-color:transparent; }
 
   /* ---- panels & tables ---- */
   .panel { padding:16px var(--pad) 28px; }
   .tools { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:14px;
            background:var(--card); border:1px solid var(--line-kuat); border-bottom:none;
            border-radius:3px 3px 0 0; }
-  .tools input { flex:1 1 14rem; max-width:22rem; }
+  /* `min-width:0`: an input's automatic minimum is its `size` attribute,
+     20 characters, which otherwise overrides every basis below. */
+  .tools input { flex:1 1 14rem; max-width:22rem; min-width:0; }
+  /* A plate is 11 characters at most, so the box is sized for one instead of
+     stretching across the row. */
+  .tools input.plat { flex:0 0 13rem; text-transform:uppercase; }
+  /* The uppercase is for what the operator types, not for the hint. */
+  .tools input.plat::placeholder { text-transform:none; }
   .tools input.kg { flex:0 0 9rem; }
+  .tools .pilih { flex:0 0 16rem; }
+  .tools button { flex:0 0 12rem; }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
      screen, and without this the page itself scrolls sideways. */
   .tabel { overflow-x:auto; background:var(--card);
@@ -292,6 +308,8 @@
   tbody tr:last-child td { border-bottom:none; }
   /* Plate columns: the one thing in a table anybody actually hunts for. */
   td.key { font-family:var(--mono); font-weight:700; font-size:1rem; letter-spacing:.03em; }
+  th.no, td.no { width:1%; text-align:right; color:var(--muted); }
+  td.no { font-family:var(--mono); font-variant-numeric:tabular-nums; }
   th.num, td.num { text-align:right; }
   td.num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
   td.kosong { text-align:center; color:var(--muted); padding:26px 16px; }
@@ -370,8 +388,10 @@
 <section id="sec-grading" class="panel" hidden>
   <div class="tabel">
     <table>
-      <thead><tr><th data-t="thWaktu">Waktu</th><th data-t="thLine">Line</th><th data-t="thTruk">Truk</th>
-        <th data-t="thSumber">Sumber</th><th data-t="thHasil">Hasil</th><th class="num" data-t="thConf">Conf</th>
+      <thead><tr><th class="no" data-t="thNo">No</th>
+        <th data-t="thWaktu">Waktu</th><th data-t="thLine">Line</th><th data-t="thTruk">Truk</th>
+        <th data-t="thSumber">Sumber</th><th data-t="thHasil">Hasil</th>
+        <!-- <th class="num" data-t="thConf">Conf</th> -->
         <th data-t="thFoto">Foto</th></tr></thead>
       <tbody id="recent"></tbody>
     </table>
@@ -385,7 +405,8 @@
     in before hunting for it in a line dropdown.
   -->
   <div class="tools">
-    <input id="plat" data-t-ph="phPlat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
+    <input id="plat" class="plat" maxlength="11" data-t-ph="phPlat"
+           placeholder="Plat truk" autocomplete="off">
     <button id="daftar" class="utama" data-t="btnDaftar">Daftar truk manual</button>
   </div>
   <div class="tabel">
@@ -402,9 +423,14 @@
     The operator may type bruto/tara by hand. The payload shape is identical to
     the scale program's, so once that program is live both land on the same row
     instead of becoming twin tickets.
+
+    The truck is picked from the register, not retyped: the plate is already on
+    file by the time a truck reaches the weighbridge, and typing it twice is how
+    one truck ends up as two tickets. A truck that is not on the list yet gets
+    registered in the Trucks tab first.
   -->
   <div class="tools">
-    <input id="plat-timbang" data-t-ph="phPlat" placeholder="Nomor polisi truk (mis. B 1234 XY)" autocomplete="off">
+    <div class="pilih" id="plat-timbang" data-nilai=""></div>
     <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)" inputmode="decimal" autocomplete="off">
     <button id="masuk" class="utama" data-t="btnMasuk">Timbang masuk</button>
   </div>
@@ -432,15 +458,15 @@ let trucks = [];
 // ── language & theme ───────────────────────────────────────────────────
 const KAMUS = {
   id: {
-    judulGrading:"Grading terbaru", judulTruk:"Truk", judulTimbangan:"Timbangan",
+    judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan",
     labelKamera:"Kamera", labelHariIni:"Hari ini", labelRasio:"Rasio ACC",
     labelLayout:"Tata letak kamera", kolomAuto:"Otomatis",
     kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
     geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
-    thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
+    thNo:"No", thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"Masuk", thKeluar:"Keluar", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
-    phPlat:"Nomor polisi truk (mis. B 1234 XY)", phBruto:"Bruto (kg)",
+    phPlat:"Plat truk", phBruto:"Bruto (kg)",
     btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
@@ -454,15 +480,15 @@ const KAMUS = {
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
   },
   en: {
-    judulGrading:"Recent grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge",
+    judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge",
     labelKamera:"Cameras", labelHariIni:"Today", labelRasio:"ACC rate",
     labelLayout:"Camera layout", kolomAuto:"Auto",
     kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
     geserKiri:"Move left", geserKanan:"Move right",
-    thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
+    thNo:"No", thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"In", thKeluar:"Out", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
-    phPlat:"Truck plate number (e.g. B 1234 XY)", phBruto:"Gross (kg)",
+    phPlat:"Truck plate", phBruto:"Gross (kg)",
     btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
@@ -524,12 +550,12 @@ $("tema").addEventListener("click", () => {
 // A real listbox, not a <select>. Its rows are sized for a gloved hand and read
 // at distance, which the OS picker cannot do. Value lives on the root as
 // data-nilai; picking one fires a "pilih" event that bubbles.
-function komponenPilih(opsi, terpilih) {
+function komponenPilih(opsi, terpilih, id) {
   const aktif = opsi.find((o) => o.v === terpilih) || opsi[0];
   const baris = opsi.map((o) =>
     `<div role="option" tabindex="-1" data-nilai="${esc(o.v)}"
           aria-selected="${o.v === aktif.v}">${esc(o.teks)}</div>`).join("");
-  return `<div class="pilih" data-nilai="${esc(aktif.v)}">
+  return `<div class="pilih"${id ? ` id="${esc(id)}"` : ""} data-nilai="${esc(aktif.v)}">
     <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
       <span class="pilih-teks">${esc(aktif.teks)}</span>
     </button>
@@ -798,14 +824,19 @@ function barisTimbangan(w) {
   </tr>`;
 }
 
-function barisRecent(r) {
+// The list arrives newest first, so the number is a position on screen, not an
+// id - row 1 is the most recent grading.
+// Conf is parked, not deleted. To bring it back, uncomment the <th> in the
+// table head and this cell together:
+//   <td class="num">${r.ripeness_confidence == null ? KOSONG : Number(r.ripeness_confidence).toFixed(2)}</td>
+function barisRecent(r, i) {
   return `<tr>
+    <td class="no">${i + 1}</td>
     <td>${waktu(r.timestamp)}</td>
     <td>${esc(r.line_code)}</td>
     <td class="key">${dash(r.plate_number)}</td>
     <td>${dash(r.sumber_label)}</td>
     <td>${tagHasil(r.ripeness_status)}</td>
-    <td class="num">${r.ripeness_confidence == null ? KOSONG : Number(r.ripeness_confidence).toFixed(2)}</td>
     <td>${r.image_url ? `<a href="${esc(r.image_url)}" target="_blank"><img src="${esc(r.image_url)}" alt=""></a>` : KOSONG}</td>
   </tr>`;
 }
@@ -919,14 +950,14 @@ $("daftar").addEventListener("click", async () => {
 // - on the mill PC that is the same clock the operator reads, and the server
 // derives the working day from it (§6.1).
 $("masuk").addEventListener("click", async () => {
-  const plate_number = $("plat-timbang").value.trim();
+  const plate_number = $("plat-timbang").dataset.nilai;
   const bruto_kg = $("bruto").value.trim();
   if (!plate_number || !bruto_kg) { pesan(t("wajibIsi")); return; }
   $("masuk").disabled = true;
   try {
     await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
       { plate_number, bruto_kg, waktu_masuk: new Date().toISOString() }) });
-    $("plat-timbang").value = ""; $("bruto").value = "";
+    pilihNilai($("plat-timbang"), ""); $("bruto").value = "";
     await muatTimbangan();
     pesan("");
   } catch (e) {
@@ -1027,6 +1058,12 @@ async function muatTimbangan() {
 function isiTrucks() {
   $("trucks").innerHTML = trucks.length
     ? trucks.map(barisTruk).join("") : barisKosong(4, "kosongTruk");
+  // Rebuilt on every poll, so whatever is picked has to be carried over -
+  // otherwise a 60 s refresh clears it while the operator is typing bruto.
+  const pilih = $("plat-timbang");
+  const opsi = [{ v: "", teks: t("pilihTruk") }]
+    .concat(trucks.map((tr) => ({ v: tr.plate_number, teks: tr.plate_number || KOSONG })));
+  pilih.outerHTML = komponenPilih(opsi, pilih.dataset.nilai, "plat-timbang");
 }
 
 async function muatTrucks() {
