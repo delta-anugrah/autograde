@@ -101,8 +101,10 @@ palmgrade-vision/
 │   │   ├── storage/             # LocalFileStorage
 │   │   ├── upload/              # R2Uploader (boto3) + UploadManifest (SQLite per-item state)
 │   │   ├── outbox/              # OutboxStore — antrean realtime ke BACKEND_URL
+│   │   ├── erp/                 # ErpClient + ErpOutboxStore — antrean kirim ke AutoERP
 │   │   └── scheduler/           # UploadScheduler — APScheduler cron, hourly @ UPLOAD_MINUTE
-│   ├── domain/                  # Pure business rules (no I/O) — working_day, ffb_source, plate
+│   ├── domain/                  # Pure business rules (no I/O) — working_day, ffb_source, plate,
+│   │                            #   erp_master (dokumen ERP → baris konsol), erp_messages (§4.B/§4.C)
 │   ├── plc/                     # PLC/ODOT Modbus-TCP, self-contained, mati by default
 │   ├── schemas/                 # Pydantic request/response models
 │   └── license/                 # License guard (Ed25519 JWS, optional)
@@ -113,7 +115,7 @@ palmgrade-vision/
 │   ├── line-1/
 │   ├── line-2/
 │   └── line-3/
-├── state/console/               # console.db (index konsol) — not committed to git
+├── state/                       # console.db (index konsol) + erp_outbox.db — not committed to git
 ├── scripts/                     # console-kiosk.sh + palmgrade-console.desktop
 ├── Makefile
 ├── Dockerfile
