@@ -443,6 +443,34 @@ pabrik tidak perlu dibangun ulang; indeksnya dilepas lewat `_MIGRATE_SQL`.
 per kunjungan butuh `tp_confidence` untuk menghitung tangkai panjang (ACC dengan
 `tp_confidence > 0.8`).
 
+**Antrean kirim ke AutoERP (§5).** Yang dikirim ke ERP tidak pernah langsung dari jalur
+permintaan: `POST /api/console/trucks` menaruh satu baris di `state/erp_outbox.db`, dan
+`ErpOutboxWorker` yang mengirimkannya tiap 30 detik. Antreannya di **edge**, bukan cloud,
+karena di situ mati lampu dan internet putusnya.
+
+Kuncinya `(kind, key)` dengan `key` = kunci alami yang dicocokkan AutoERP (plat ternormalisasi
+untuk truk), jadi satu truk yang diketik dua kali tetap **satu pesan berisi keadaan terbaru** —
+bukan dua. Pesan yang diganti **saat masih di jalan** sengaja tidak ditandai terkirim
+(`mark_sent` mencocokkan payload-nya), supaya keadaan yang lebih baru tidak hilang.
+
+`integrations/erp/client.py` membedakan dua hal, dan pemanggilnya bertindak beda:
+
+| Balasan | Artinya | Yang dilakukan worker |
+|---|---|---|
+| 2xx | mendarat | handler mencatat jawabannya (mis. `erp_name` truk), baris selesai |
+| **4xx** (`ErpRejected`) | AutoERP **menolak isinya** — diulang pun sama | disimpan **dengan alasan dari Frappe**, batch lanjut ke pesan berikutnya |
+| **jaringan / 5xx** (`ErpUnavailable`) | AutoERP **tidak terjangkau** | batch **berhenti** — sisanya cuma akan membakar backoff-nya sendiri |
+
+Backoff 30 detik → 1 jam (kontrak §5). Handler yang gagal mencatat di sisi kita juga menahan
+pesannya: AutoERP sudah menerima, tapi kirim ulang aman (semua handler upsert) sedangkan
+kehilangan jawabannya tidak.
+
+**Truk baru naik (§4.B).** Truk yang diketik operator dikirim ke
+`erpnext.palm_mill.api.upsert_truck` dengan `plate_number` + `autograde_id`; AutoERP membuatnya
+**tanpa pemilik** dan backoffice yang melengkapi. Jawabannya (`name`, dan `supplier` kalau ERP
+sudah mengenal platnya) disimpan lewat `link_truck`, lalu tarikan berikutnya mengadopsinya jadi
+truk ERP biasa. Supplier dan kelas **tidak** ikut dikirim — itu milik AutoERP.
+
 `ERP_URL` kosong = worker pulang saat start dan menulis satu baris log. Itu default: jalur ini
 tidak boleh jadi syarat hidupnya layar operator.
 

@@ -57,7 +57,7 @@ src/palmgrade/
   repositories/    # file I/O (WebP/JSON) via LocalFileStorage
   pipelines/       # YOLO inference (realtime_inspection_pipeline, model_registry)
   workers/         # background threads + RuntimeState (capture / display / processing / event_broadcast / outbox_retry / batch_upload)
-                   # konsol pakai asyncio, bukan thread: master_data (tarik supplier + truk dari AutoERP, REST bawaan Frappe)
+                   # konsol pakai asyncio, bukan thread: master_data (tarik supplier + truk) / erp_outbox (kirim ke AutoERP) — dirakit di workers/erp_link.py, mati total kalau ERP_URL kosong
   integrations/    # camera/{hikrobot,opencv,photo}, notifications/ (webhook_client → api, line_client → line dari konsol), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
   domain/          # pure rules + entities (no I/O) — termasuk working_day.py (§6.1) & ffb_source.py (§3.5b)
   plc/             # PLC/ODOT Modbus-TCP integration, entirely self-contained — public surface is 5 functions (start_plc_worker/shutdown_plc_worker/submit_grading/inputs/diagnostics)
@@ -105,7 +105,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
   saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
   mengatakan apa-apa soal batch upload ke cloud — untuk itu baca log `Batch tick: N item eligible`
   dari `BatchUploadWorker` atau query `state/upload_manifest.db` langsung.
-- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `tanggal_kerja` lewat tengah malam + `console_store` + invarian `console.html` + **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: field yang diminta persis milik DocType (ERP palsu membalas 417 seperti Frappe) + Sumber TBS mengikuti `sumber_for_supplier` + grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic`) di samping `ruff pytest` — samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol — `integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
+- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `tanggal_kerja` lewat tengah malam + `console_store` + invarian `console.html` + **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: field yang diminta persis milik DocType (ERP palsu membalas 417 seperti Frappe) + Sumber TBS mengikuti `sumber_for_supplier` + grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual, **antrean ke AutoERP**: ditolak vs tidak terjangkau dibedakan + backoff 30 dtk→1 jam + pesan yang diganti saat masih di jalan tidak ditandai terkirim + truk manual masuk antrean + truk milik ERP read-only + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic`) di samping `ruff pytest` — samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol — `integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
 - From-zero prod setup (NVIDIA toolkit, MVS install, camera IP): `docs/SETUP.md`.
 
 ---
@@ -311,13 +311,17 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     mengalikan jumlah janjang dengan jumlah tiket. Baris `truck_id IS NULL` **tetap
     ditampilkan** ("Tanpa truk") — janjang yang ter-grading sebelum truk dipasang justru yang
     perlu dilihat operator, bukan yang perlu disembunyikan.
-16. **Truk manual belum didorong ke ERP, sengaja.** `POST /api/console/trucks` hidup lokal dulu
-    dengan `status='manual'`; arah naik (interface B) pekerjaan tersendiri. Id-nya uuid5 dari
-    plat ternormalisasi — dan sejak master data ditarik dari AutoERP, **dua ruang id itu
-    sengaja bertemu**: ERP menormalkan plat dengan aturan yang sama, jadi truk hasil tarik
+16. **Truk manual naik lewat antrean; truk milik AutoERP read-only.**
+    `POST /api/console/trucks` menyimpan lokal (`status='manual'`) lalu menaruh satu baris di
+    `erp_outbox` (kontrak §4.B): AutoERP membuat truk **tanpa pemilik**, backoffice yang
+    melengkapi supplier dan kelasnya. Id-nya uuid5 plat ternormalisasi, dan **dua ruang id itu
+    sengaja bertemu** dengan ERP (aturan normalisasi sama persis), jadi truk hasil tarik
     **mengadopsi** baris yang diketik operator, bukan bikin kembar yang membelah tonase sehari.
-    Tarikan tidak pernah mengosongkan `erp_name` (`COALESCE`), jadi plat yang diketik ulang
-    tidak memutus tautan ke ERP.
+    Tarikan tidak pernah mengosongkan `erp_name` (`COALESCE`).
+    ⚠️ **Truk yang sudah punya `erp_name` tidak boleh diubah dari konsol** (kontrak §4, FE-1):
+    mengetik ulang platnya mengembalikan baris apa adanya. Sebelum ini ketik ulang menghapus
+    suppliernya dan diam-diam mengubah label Sumber jadi Internal — termasuk di baris grading
+    yang sudah lewat, karena label dibaca dari truk, bukan disalin ke barisnya.
 
 ---
 
