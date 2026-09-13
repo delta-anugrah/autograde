@@ -365,6 +365,11 @@ class Settings:
         return f"{self.upload_api_url}{self.backend_api_ver}/internal/vision/events"
 
     @property
+    def erp_outbox_db_path(self) -> Path:
+        """Messages waiting for AutoERP — its own file, like the line outbox."""
+        return self.state_dir / "erp_outbox.db"
+
+    @property
     def console_db_path(self) -> Path:
         """The console's SQLite index (§6.2) — the console never scans directories."""
         return self.state_dir / "console.db"

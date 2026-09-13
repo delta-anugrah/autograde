@@ -52,7 +52,8 @@ jadi satu line kamera mati tidak menjatuhkan layar operator):
 3 line → POST /api/v1/internal/vision/events ┐
 program timbangan → POST .../scale/weighing  ├→ index SQLite state/console.db
                                              │  (konsol TIDAK pernah memindai direktori)
-                                             └→ MasterDataWorker ← supplier + truk dari AutoERP (kalau ERP_URL diisi)
+                                             └→ MasterDataWorker  ← supplier + truk dari AutoERP  (kalau ERP_URL diisi)
+                                                ErpOutboxWorker   → truk baru ke AutoERP (§4.B), antrean di edge
 
 /console  → satu file HTML statis, vanilla JS, tanpa build/Node/CDN
             stream kamera = <img> MJPEG langsung ke :8001/8002/8003, bukan lewat konsol
@@ -561,6 +562,8 @@ pytest tests/unit/
 | **Konsol** | `test_console_store.py`, `test_working_day.py`, `test_console_html.py` | Index SQLite (konsol tidak pernah memindai direktori); `tanggal_kerja` lewat tengah malam; invarian `console.html` (tanpa `on*=` inline, `esc()` meloloskan `& < > " ' \``, `data-line=` tetap ada) |
 | **Timbangan** | `test_weighing.py` | `neto_kg` dihitung bukan dipercaya; timbang-keluar **menggabung** bukan menimpa; plat beda tulisan tetap satu truk; koma = desimal, pemisah ribuan ditolak |
 | **Master data AutoERP** | `test_erp_master_data.py`, `test_ffb_source.py` | Field yang diminta persis milik DocType (Frappe balas 417 kalau tidak); truk ERP mengadopsi baris yang diketik operator; kursor per-DocType tidak maju kalau ada baris gagal; Sumber TBS mengikuti `sumber_for_supplier` AutoERP |
+| **Antrean ke AutoERP** | `test_erp_client.py`, `test_erp_outbox_store.py`, `test_erp_outbox_worker.py`, `test_erp_link.py`, `test_manual_truck_to_erp.py` | Ditolak (4xx) vs tidak terjangkau (jaringan/5xx) dibedakan; backoff 30 dtk → 1 jam; pesan yang diganti saat masih di jalan tidak ditandai terkirim; ERP mati = batch berhenti, bukan dihajar terus; truk manual naik lewat `upsert_truck`; truk milik AutoERP read-only |
+| **End-to-end** | `tests/e2e/test_console_autoerp.py` | Konsol + AutoERP sungguhan: truk dibuat di ERP lalu ditarik konsol, truk diketik di konsol lalu muncul di ERP, label Sumber sama di semua tab. Di-skip tanpa variabel `E2E_*` |
 | Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |
 | PLC | `tests/unit/plc/` | Coil map ODOT + state machine Modbus-TCP |
 | Config | `test_config_validation.py` | Fail-fast saat secret masih default di `APP_ENV=production` |

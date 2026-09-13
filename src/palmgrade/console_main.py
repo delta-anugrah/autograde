@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .routes.console import get_console_service, ingest_router
 from .routes.console import router as console_router
-from .workers.master_data_worker import MasterDataWorker
+from .workers.erp_link import build_erp_workers
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +26,10 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     service = get_console_service()  # ZoneInfo(FACTORY_TZ) is validated here
-    # Background links to AutoERP. Any of them may die without taking the
-    # operator screen down with it.
-    tasks = [
-        asyncio.create_task(MasterDataWorker(service.settings, service.store).run_loop()),
-    ]
+    # The AutoERP link is optional by design: with ERP_URL empty there are no
+    # workers at all, and any of them may die without taking the screen down.
+    workers = build_erp_workers(service.settings, service.store, service.erp_outbox)
+    tasks = [asyncio.create_task(worker.run_loop()) for worker in workers]
     logger.info("Console ready, working day %s (%s)", service.today(), service.settings.factory_tz)
     yield
     for task in tasks:

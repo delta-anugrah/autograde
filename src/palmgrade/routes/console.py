@@ -14,6 +14,7 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from ..core.config import Settings
+from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
 from ..repositories.console_repository import ConsoleStore
 from ..services.console_service import ConsoleService
@@ -23,9 +24,14 @@ _CONSOLE_HTML = Path(__file__).resolve().parents[1] / "static" / "console.html"
 
 @lru_cache
 def get_console_service() -> ConsoleService:
-    """Console composition root. The only place the three are wired."""
+    """Console composition root. The only place these are wired."""
     settings = Settings()
-    return ConsoleService(settings, ConsoleStore(settings.console_db_path), LineClient(settings))
+    return ConsoleService(
+        settings,
+        ConsoleStore(settings.console_db_path),
+        LineClient(settings),
+        erp_outbox=ErpOutboxStore(settings.erp_outbox_db_path),
+    )
 
 
 Service = Annotated[ConsoleService, Depends(get_console_service)]

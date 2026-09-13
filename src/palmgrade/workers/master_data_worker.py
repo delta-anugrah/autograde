@@ -1,34 +1,31 @@
 """Pull suppliers and trucks from AutoERP into the console (contract §4.A).
 
-AutoERP owns master data and always wins. Frappe's built-in REST API is the
-whole server side: `GET /api/resource/<DocType>` filtered on `modified`.
+AutoERP owns master data and always wins. Frappe's built-in REST is the whole
+server side of this; `integrations/erp/client.py` is what speaks it.
 
-Each DocType keeps its own cursor. They change at different rates, and one
+Each DocType keeps its own cursor. They change at very different rates, and one
 shared cursor would drag the quiet one back over rows it has already seen.
 """
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-import httpx
-
-from ..core.config import Settings
 from ..domain.erp_master import supplier_row, truck_row
+from ..integrations.erp.client import ErpClient
 from ..repositories.console_repository import ConsoleStore
 
 logger = logging.getLogger(__name__)
 
-_REQUEST_TIMEOUT = 15
 # Clocks never agree to the millisecond, so re-read a little behind the cursor.
 _PULL_OVERLAP = timedelta(seconds=5)
 _PAGE = 500
 _ERP_TIME = "%Y-%m-%d %H:%M:%S.%f"
+_INTERVAL_S = 300
 
 SUPPLIER_CURSOR_KEY = "erp_cursor_supplier"
 TRUCK_CURSOR_KEY = "erp_cursor_truck"
@@ -74,53 +71,41 @@ def _rewind(cursor: str) -> str:
 
 
 class MasterDataWorker:
-    def __init__(self, settings: Settings, store: ConsoleStore) -> None:
-        self.settings = settings
+    def __init__(
+        self, store: ConsoleStore, client: ErpClient, *, interval_s: int = _INTERVAL_S
+    ) -> None:
         self.store = store
+        self._client = client
+        self._interval_s = interval_s
 
     async def run_loop(self) -> None:
-        if not self.settings.erp_url:
-            logger.info("MasterDataWorker off: ERP_URL is empty")
-            return
-        logger.info("MasterDataWorker started, target %s", self.settings.erp_url)
+        logger.info("MasterDataWorker started, every %ss", self._interval_s)
         while True:
             try:
                 await self.pull_once()
             except Exception:
                 logger.exception("Master data pull failed; retrying next tick")
-            await asyncio.sleep(self.settings.console_sync_interval_s)
+            await asyncio.sleep(self._interval_s)
 
     async def pull_once(self) -> int:
-        """Pull each DocType once. Returns rows applied; no ERP_URL means no traffic."""
-        if not self.settings.erp_url:
-            return 0
-        headers = {
-            "Authorization": f"token {self.settings.erp_api_key}:{self.settings.erp_api_secret}"
-        }
+        """Pull each DocType once. Returns how many rows landed."""
         applied = 0
-        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT, headers=headers) as client:
-            for resource in _RESOURCES:
-                applied += await self._pull(client, resource)
+        for resource in _RESOURCES:
+            applied += await self._pull(resource)
         logger.info("Master data: %s rows applied", applied)
         return applied
 
-    async def _pull(self, client: httpx.AsyncClient, resource: _Resource) -> int:
+    async def _pull(self, resource: _Resource) -> int:
         cursor = self.store.get_state(resource.cursor_key)
-        params: dict[str, Any] = {
-            "fields": json.dumps(list(resource.fields)),
-            "limit_page_length": _PAGE,
-            "order_by": "modified asc",
-        }
-        if cursor:
-            params["filters"] = json.dumps([["modified", ">", _rewind(cursor)]])
-
-        res = await client.get(
-            f"{self.settings.erp_url}/api/resource/{resource.doctype}", params=params
+        docs = await self._client.list_modified_since(
+            resource.doctype,
+            resource.fields,
+            _rewind(cursor) if cursor else None,
+            limit=_PAGE,
         )
-        res.raise_for_status()
 
         applied, failed, newest = 0, False, cursor
-        for doc in res.json().get("data") or []:
+        for doc in docs:
             try:
                 resource.save(self.store, resource.to_row(doc))
             except Exception:

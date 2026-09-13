@@ -1,22 +1,20 @@
 """Master data pulled from AutoERP (autoerp `docs/autograde-integration.md` §4.A).
 
-Pinned here: the pull names only fields the DocTypes really have, an ERP truck
-lands on the row the operator already typed, and a failed row holds the cursor.
+Pinned: the pull names only fields the DocTypes really have, an ERP truck lands
+on the row the operator already typed, and a failed row holds the cursor.
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import sqlite3
-from dataclasses import replace
 
 import httpx
 
-from palmgrade.core.config import Settings
 from palmgrade.domain.erp_master import supplier_row, truck_row
 from palmgrade.domain.plate import truck_id_for
+from palmgrade.integrations.erp.client import ErpClient
 from palmgrade.repositories.console_repository import ConsoleStore
-from palmgrade.workers import master_data_worker
 from palmgrade.workers.master_data_worker import (
     SUPPLIER_CURSOR_KEY,
     TRUCK_CURSOR_KEY,
@@ -151,17 +149,10 @@ def test_retyping_a_plate_does_not_wipe_the_erp_name(tmp_path):
 # ------------------------------------------------------------------- worker
 
 
-def _worker(tmp_path, monkeypatch, handler, *, erp_url: str = ERP) -> MasterDataWorker:
-    """A real store; only the network is faked."""
-    transport = httpx.MockTransport(handler)
-    real_client = httpx.AsyncClient
-    monkeypatch.setattr(
-        master_data_worker.httpx,
-        "AsyncClient",
-        lambda **kw: real_client(transport=transport, headers=kw.get("headers")),
-    )
-    settings = replace(Settings(), erp_url=erp_url, erp_api_key="k", erp_api_secret="s")
-    return MasterDataWorker(settings, ConsoleStore(tmp_path / "console.db"))
+def _worker(tmp_path, handler) -> MasterDataWorker:
+    """A real store and a real client; only the network is faked."""
+    client = ErpClient(ERP, "k", "s", transport=httpx.MockTransport(handler))
+    return MasterDataWorker(ConsoleStore(tmp_path / "console.db"), client)
 
 
 def _fake_erp(suppliers: list[dict], trucks: list[dict]):
@@ -181,27 +172,17 @@ def _fake_erp(suppliers: list[dict], trucks: list[dict]):
     return handler, seen
 
 
-def test_an_unconfigured_erp_sends_no_traffic(tmp_path, monkeypatch):
-    """`ERP_URL` empty is the default; the operator screen never depends on it."""
-
-    def handler(request):  # pragma: no cover - must never run
-        raise AssertionError(f"unexpected request: {request.url}")
-
-    worker = _worker(tmp_path, monkeypatch, handler, erp_url="")
-    assert asyncio.run(worker.pull_once()) == 0
-
-
-def test_pull_names_only_fields_the_doctypes_have(tmp_path, monkeypatch):
+def test_pull_names_only_fields_the_doctypes_have(tmp_path):
     """One unknown field fails the whole request against a real AutoERP."""
     handler, _ = _fake_erp([_supplier()], [_truck()])
-    worker = _worker(tmp_path, monkeypatch, handler)
+    worker = _worker(tmp_path, handler)
 
     assert asyncio.run(worker.pull_once()) == 2
 
 
-def test_pull_asks_only_for_rows_changed_since_the_cursor(tmp_path, monkeypatch):
+def test_pull_asks_only_for_rows_changed_since_the_cursor(tmp_path):
     handler, seen = _fake_erp([], [])
-    worker = _worker(tmp_path, monkeypatch, handler)
+    worker = _worker(tmp_path, handler)
     worker.store.set_state(SUPPLIER_CURSOR_KEY, "2026-09-07 13:51:10.414651")
 
     asyncio.run(worker.pull_once())
@@ -214,10 +195,10 @@ def test_pull_asks_only_for_rows_changed_since_the_cursor(tmp_path, monkeypatch)
     assert request.headers["authorization"] == "token k:s"
 
 
-def test_each_cursor_follows_its_own_newest_row(tmp_path, monkeypatch):
+def test_each_cursor_follows_its_own_newest_row(tmp_path):
     """One shared cursor would drag a quiet resource back over seen rows."""
     handler, _ = _fake_erp([_supplier()], [_truck(modified="2026-09-08 09:00:00.000000")])
-    worker = _worker(tmp_path, monkeypatch, handler)
+    worker = _worker(tmp_path, handler)
 
     asyncio.run(worker.pull_once())
 
@@ -228,10 +209,10 @@ def test_each_cursor_follows_its_own_newest_row(tmp_path, monkeypatch):
     assert worker.store.get_state(TRUCK_CURSOR_KEY) == "2026-09-08 09:00:00.000000"
 
 
-def test_cursor_holds_when_a_row_fails_to_land(tmp_path, monkeypatch):
+def test_cursor_holds_when_a_row_fails_to_land(tmp_path):
     """Skipping a row that never landed leaves the mill half-stale for good."""
     handler, _ = _fake_erp([_supplier(), {"supplier_name": "no name"}], [])
-    worker = _worker(tmp_path, monkeypatch, handler)
+    worker = _worker(tmp_path, handler)
 
     asyncio.run(worker.pull_once())
 
