@@ -19,8 +19,7 @@ from palmgrade.core.config import LineEndpoint, Settings
 from palmgrade.domain.ffb_source import label_sumber
 from palmgrade.integrations.notifications.line_client import LineUnavailable
 from palmgrade.repositories.console_repository import ConsoleStore
-from palmgrade.services.console_service import MASTER_CURSOR_KEY, ConsoleService
-from palmgrade.workers.master_data_worker import MasterDataWorker
+from palmgrade.services.console_service import ConsoleService
 
 WIB = ZoneInfo("Asia/Jakarta")
 
@@ -183,19 +182,6 @@ def test_machine_id_line_dibaca_dari_env_lewat_settings(monkeypatch, tmp_path):
     assert service.lines[1].machine_id == "mesin-dua"
     service.ingest(_event(service, machine_id="mesin-dua", timestamp="2026-09-09T18:30:00+00:00"))
     assert {r["line_code"] for r in service.store.summary("2026-09-10")} == {"line-2"}
-
-
-def test_kursor_master_data_tidak_maju_kalau_ada_baris_gagal(service):
-    # Skipping one row that never landed leaves the mill stuck forever on a
-    # half-stale matrix, including truck revocations the cloud already made.
-    worker = MasterDataWorker(service.settings, service.store)
-    worker.apply({"server_time": "2026-09-09T10:00:00Z",
-                  "suppliers": [{"id": "s1", "name": "KUD A", "sumber": "Inti"}]})
-    assert service.store.get_state(MASTER_CURSOR_KEY) == "2026-09-09T10:00:00Z"
-
-    worker.apply({"server_time": "2026-09-09T11:00:00Z",
-                  "suppliers": [{"name": "no id"}]})  # KeyError on upsert
-    assert service.store.get_state(MASTER_CURSOR_KEY) == "2026-09-09T10:00:00Z"
 
 
 def test_rekap_per_truk_menjumlah_neto_bukan_mengalikan_janjang(service):

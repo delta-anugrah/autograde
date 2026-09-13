@@ -1,22 +1,26 @@
 """Display label for Sumber TBS, the FFB source (plan §3.5b).
 
-There are THREE sources (Inti / Plasma / Pihak Ketiga) and in PalmOS they are an
-Accounting Dimension, not a boolean. The edge never DECIDES the source: the
-value rides down with supplier master data and the console only renders it.
-Never store `is_internal` here; once three values are flattened to two at the
-edge, the cloud's Plasma vs Pihak Ketiga reporting cannot be reconstructed.
+In AutoERP the source is an Accounting Dimension, not a boolean, and the ERP
+derives it itself: fruit with a supplier is External, fruit without one is the
+mill's own. The distinction between kinds of external supplier — plasma, agent,
+anyone else — lives on the Supplier Group, which is master data an admin can
+add to at any time.
+
+So the edge stores what it was given RAW and only renders it. Never store
+`is_internal` here: flatten the source to two values at the edge and the
+Plasma vs Pihak Ketiga reporting upstream can no longer be reconstructed.
 """
 from __future__ import annotations
 
-_INTERNAL = {"inti"}
-_EXTERNAL = {"plasma", "pihak ketiga"}
+# The only value that is not bought. Everything else names a kind of supplier —
+# an open set, so it is matched by "is not this one" rather than by a list that
+# would silently render "—" the day someone adds a group in AutoERP.
+_INTERNAL = {"inti", "internal"}
 
 
 def label_sumber(sumber: str | None) -> str | None:
-    """3 master values -> display label. None = no source yet (renders "—")."""
+    """Raw master value -> display label. None = no source yet (renders "—")."""
     key = (sumber or "").strip().lower()
-    if key in _INTERNAL:
-        return "Internal"
-    if key in _EXTERNAL:
-        return "External"
-    return None
+    if not key:
+        return None
+    return "Internal" if key in _INTERNAL else "External"

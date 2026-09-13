@@ -398,14 +398,31 @@ polling tiap 2 detik lewat `GET /api/console/state`; tidak ada `listdir` di jalu
 Tabelnya: `inspections` (+ index `(tanggal_kerja, line_code)` dan `(tanggal_kerja, timestamp)`),
 `trucks`, `suppliers`, `assignments`, `sync_state`.
 
-**Master data & Sumber TBS (§3.5b).** `MasterDataWorker` menarik
-`GET {UPLOAD_API_URL}{BACKEND_API_VER}/internal/sync/master-data?updated_since=` dengan
-`x-webhook-secret` + `x-license-token` — endpoint, header, dan jendela tumpang tindih 5 detik
-yang sama dengan `edgeSync` di palmgrade-api, respons **JSON telanjang** (tanpa amplop
-`{status,data}`). Nol perubahan di cloud. Kursor hanya maju kalau **semua** baris mendarat;
+**Master data & Sumber TBS (§3.5b).** `MasterDataWorker` menarik dari **AutoERP**, bukan lagi
+dari cloud api: `GET {ERP_URL}/api/resource/Supplier` lalu `.../Truck`, REST bawaan Frappe
+dengan `Authorization: token <key>:<secret>`, `filters=[["modified",">",kursor]]`,
+`order_by=modified asc`, 500 baris per halaman. **Nol kode di sisi ERP.** `ERP_URL` kosong =
+worker mati diam-diam dan konsol jalan dari salinan terakhir.
+
+Tiap DocType punya **kursornya sendiri** (`erp_cursor_supplier`, `erp_cursor_truck`): supplier
+dan truk berubah dengan laju yang jauh berbeda, dan satu kursor bersama akan terus menyeret
+yang sepi melewati baris yang sudah dilihat. Jendela tumpang tindih 5 detik dipertahankan —
+jam edge dan ERP tidak pernah sama persis. Kursor hanya maju kalau **semua** baris mendarat;
 melewati satu baris yang gagal berarti pabrik terjebak di matriks setengah basi, termasuk
-pencabutan truk yang sudah dilakukan cloud. Sumber disimpan **mentah** (tiga nilai: Inti /
-Plasma / Pihak Ketiga) dan cuma dipetakan ke label tampilan Internal/External/`—` oleh
+pencabutan truk yang sudah dilakukan ERP.
+
+Identitas mengikuti "masing-masing menyimpan id lawannya": id truk lokal tetap uuid5 plat
+ternormalisasi, dan **AutoERP menormalkan plat dengan aturan yang sama**, jadi truk hasil tarik
+mendarat di baris yang sudah diketik operator, bukan baris kembar. `erp_name` (unik, boleh
+NULL) menyimpan docname ERP dan **tidak pernah dihapus** oleh kiriman yang tidak membawanya
+(`COALESCE`), supaya operator yang mengetik ulang plat tidak memutus tautannya.
+`disabled` di ERP → `status='inactive'`, dan `trucks()` memang sudah menyaring itu: truk yang
+dicabut berhenti bisa ditugaskan, barisnya tetap ada untuk riwayat.
+
+Sumber disimpan **mentah** — sekarang isinya `supplier_group` ERP (Plasma / Agen TBS / Umum),
+karena ERP sendiri yang menurunkan Internal/External (`sumber_for_supplier`: punya supplier =
+External) dan beda Plasma vs agen sengaja hidup di Supplier Group. Edge cuma memetakannya ke
+label tampilan Internal/External/`—` lewat
 `domain/ffb_source.py`. **Tidak ada boolean `is_internal` di manapun** — memadatkan tiga nilai
 jadi dua di edge menghapus laporan Plasma vs Pihak Ketiga di cloud secara permanen. Kolom
 `sumber` belum ada di API sampai Fase 1 PalmOS selesai, jadi dibaca defensif: sebelum itu

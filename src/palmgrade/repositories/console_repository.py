@@ -50,7 +50,10 @@ CREATE TABLE IF NOT EXISTS suppliers (
     id     TEXT PRIMARY KEY,
     name   TEXT,
     sumber TEXT,
-    status TEXT
+    status TEXT,
+    -- The AutoERP document name, this row's id on the other side. NULL until a
+    -- pull matches it; unique, so two local rows can never claim one supplier.
+    erp_name TEXT
 );
 
 CREATE TABLE IF NOT EXISTS trucks (
@@ -58,7 +61,8 @@ CREATE TABLE IF NOT EXISTS trucks (
     plate_number TEXT,
     supplier_id  TEXT,
     capacity     REAL,
-    status       TEXT
+    status       TEXT,
+    erp_name     TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_trucks_plat ON trucks (plate_number);
 
@@ -97,6 +101,15 @@ CREATE TABLE IF NOT EXISTS sync_state (
 """
 
 
+# Runs after the ALTERs above, never inside `_CREATE_SQL`: on a database that
+# predates the column, an index over it cannot be created yet. NULLs are exempt
+# from a SQLite unique index, so unmatched rows stay allowed.
+_MIGRATE_SQL = """
+CREATE UNIQUE INDEX IF NOT EXISTS idx_suppliers_erp ON suppliers (erp_name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trucks_erp ON trucks (erp_name);
+"""
+
+
 class ConsoleStore:
     def __init__(self, db_path: Path) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,6 +120,21 @@ class ConsoleStore:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
             self._db.executescript(_CREATE_SQL)
+            self._migrate()
+
+    def _migrate(self) -> None:
+        """Add what a console older than this build has not got.
+
+        `CREATE TABLE IF NOT EXISTS` leaves an existing table exactly as it is,
+        so a new column never reaches a factory database through the schema
+        above — it needs its own pass, and the index that depends on it has to
+        wait until the column exists.
+        """
+        for table, column in (("suppliers", "erp_name"), ("trucks", "erp_name")):
+            kolom = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
+            if column not in kolom:
+                self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+        self._db.executescript(_MIGRATE_SQL)
 
     # -------------------------------------------------------- inspections
 
@@ -207,26 +235,38 @@ class ConsoleStore:
         # cloud's set_updated_at trigger once froze rows forever in edge sync.
         with self._lock, self._db:
             self._db.execute(
-                """INSERT INTO suppliers (id, name, sumber, status) VALUES (?, ?, ?, ?)
+                """INSERT INTO suppliers (id, name, sumber, status, erp_name)
+                   VALUES (?, ?, ?, ?, ?)
                    ON CONFLICT(id) DO UPDATE SET name=excluded.name,
-                       sumber=excluded.sumber, status=excluded.status""",
-                (str(row["id"]), row.get("name"), row.get("sumber"), row.get("status")),
+                       sumber=excluded.sumber, status=excluded.status,
+                       erp_name=excluded.erp_name""",
+                (
+                    str(row["id"]),
+                    row.get("name"),
+                    row.get("sumber"),
+                    row.get("status"),
+                    row.get("erp_name"),
+                ),
             )
 
     def upsert_truck(self, row: dict[str, Any]) -> None:
         with self._lock, self._db:
             self._db.execute(
-                """INSERT INTO trucks (id, plate_number, supplier_id, capacity, status)
-                   VALUES (?, ?, ?, ?, ?)
+                """INSERT INTO trucks (id, plate_number, supplier_id, capacity, status, erp_name)
+                   VALUES (?, ?, ?, ?, ?, ?)
+                   -- Only the pull carries `erp_name`; an operator retyping the
+                   -- same plate must not unlink the truck from AutoERP.
                    ON CONFLICT(id) DO UPDATE SET plate_number=excluded.plate_number,
                        supplier_id=excluded.supplier_id, capacity=excluded.capacity,
-                       status=excluded.status""",
+                       status=excluded.status,
+                       erp_name=COALESCE(excluded.erp_name, trucks.erp_name)""",
                 (
                     str(row["id"]),
                     row.get("plate_number"),
                     str(row["supplier_id"]) if row.get("supplier_id") else None,
                     row.get("capacity"),
                     row.get("status"),
+                    row.get("erp_name"),
                 ),
             )
 

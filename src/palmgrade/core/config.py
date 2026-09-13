@@ -9,20 +9,18 @@ from typing import NamedTuple
 logger = logging.getLogger(__name__)
 
 
-# Kunci publik lisensi produksi, ditanam di image.
+# Production license public key, baked into the image.
 #
-# Pasangan kuncinya cuma satu untuk semua pabrik dan tidak pernah diputar, jadi
-# menaruhnya di `.env` tiap PC pabrik cuma bikin satu langkah manual yang bisa
-# kelewat — dan memang kelewat: PC Lampung jalan berbulan-bulan dengan
-# `vision/.env` tanpa `LICENSE_*` sama sekali, artinya guard-nya tidak pernah
-# memeriksa apa pun. Ditanam di sini, PC pabrik baru langsung terjaga.
+# One key pair serves every mill and it is never rotated, so putting it in each
+# factory PC's `.env` only adds a manual step that can be missed — and was: the
+# Lampung PC ran for months with no `LICENSE_*` at all, which means the guard
+# checked nothing. Baked in, a new factory PC is protected from first boot.
 #
-# Aman ditulis di repo: kunci publik cuma bisa MEMERIKSA tanda tangan. Yang bisa
-# memalsukan itu private key, dan itu tidak pernah keluar dari API cloud.
+# Safe to commit: a public key can only VERIFY a signature. Forging one needs
+# the private key, and that never leaves the cloud API.
 #
-# `LICENSE_PUBLIC_KEY` di env tetap menang kalau diisi, supaya laptop developer
-# bisa pakai keypair DEV-nya sendiri. `utils/license.ts` di palmgrade-api
-# menanam konstanta yang sama persis.
+# `LICENSE_PUBLIC_KEY` still wins when set, so a developer laptop can use its
+# own DEV key pair. palmgrade-api's `utils/license.ts` bakes the same constant.
 LICENSE_PUBLIC_KEY_BAKED = (
     "-----BEGIN PUBLIC KEY-----\n"
     "MCowBQYDK2VwAyEARvT6i531BDKvqg/j4glZoIAgvuKofP87Q6gkodLizyM=\n"
@@ -37,14 +35,14 @@ def _as_bool(value: str | None, default: bool = False) -> bool:
 
 
 def _plc_int(name: str, default: int) -> int:
-    """`int(os.getenv(...))` versi toleran — KHUSUS field PLC, jangan dipakai lain.
+    """Forgiving `int(os.getenv(...))` — PLC fields ONLY, never anything else.
 
-    PLC itu subsistem opsional yang default-nya mati, dan knob-nya (`PLC_PULSE_MS`,
-    `PLC_POLL_MS`, ...) diedit operator jam 2 pagi waktu commissioning. Kalau typo
-    di sana melempar ValueError saat konstruksi `Settings()`, kontainer tidak pernah
-    start dan GRADING ikut mati gara-gara fitur yang bahkan tidak wajib hidup.
-    Nilai rusak turun ke default dan diteriakkan ke log. Field non-PLC sengaja
-    tetap fail-fast — di sana konfigurasi salah memang harus menghentikan start.
+    The PLC is an optional subsystem, off by default, and its knobs
+    (`PLC_PULSE_MS`, `PLC_POLL_MS`, ...) get edited on site at 2am during
+    commissioning. A typo there raising ValueError inside `Settings()` would
+    stop the container from starting at all, taking GRADING down for a feature
+    that need not even run. A broken value falls back and shouts in the log.
+    Non-PLC fields stay fail-fast on purpose: there, bad config must stop boot.
     """
     raw = os.getenv(name)
     if raw is None:
@@ -52,17 +50,17 @@ def _plc_int(name: str, default: int) -> int:
     try:
         return int(raw)
     except ValueError:
-        logger.warning("%s=%r bukan bilangan bulat — dipakai default %s", name, raw, default)
+        logger.warning("%s=%r is not an integer — falling back to %s", name, raw, default)
         return default
 
 
 def parse_coil_list(value: str | None) -> tuple[int, ...]:
-    """'9,10' -> (9, 10). Kosong ATAU rusak -> () + warning. Tidak pernah raise.
+    """'9,10' -> (9, 10). Empty OR broken -> () plus a warning. Never raises.
 
-    Dipakai hanya oleh `PLC_COIL_ALIVE`. Alasan tidak raise sama dengan `_plc_int`:
-    `PLC_COIL_ALIVE=9,10,` (koma nyantol) tidak boleh menahan kontainer start.
-    Jatuhnya ke () berarti bit alive line ini mati — terlihat di PLC sebagai bit
-    yang berhenti toggle, bukan kegagalan diam-diam.
+    Used only by `PLC_COIL_ALIVE`, and for the same reason as `_plc_int`: a
+    trailing comma in `PLC_COIL_ALIVE=9,10,` must not hold the container down.
+    Falling back to () turns this line's alive bit off, which shows up at the
+    PLC as a bit that stopped toggling rather than as a silent failure.
     """
     if not value or not value.strip():
         return ()
@@ -70,24 +68,23 @@ def parse_coil_list(value: str | None) -> tuple[int, ...]:
         return tuple(int(part.strip()) for part in value.split(","))
     except ValueError:
         logger.warning(
-            "PLC_COIL_ALIVE=%r tidak valid — bit alive line ini DIMATIKAN. Format: '9,10'.",
+            "PLC_COIL_ALIVE=%r is invalid — this line's alive bit is OFF. Format: '9,10'.",
             value,
         )
         return ()
 
 
-# Nilai default WEBHOOK_SECRET yang ikut ke-commit di repo (dan dipakai sebagai
-# fallback di docker-compose). Aman untuk dev, TAPI di production wajib diganti —
-# lihat Settings.validate_for_runtime(). Dikonstanta di satu tempat supaya tidak
-# tersebar sebagai magic string.
+# The committed default WEBHOOK_SECRET, also the docker-compose fallback. Fine
+# for dev, MUST be replaced in production — see Settings.validate_for_runtime().
+# Kept as one constant so it never spreads as a magic string.
 _DEFAULT_WEBHOOK_SECRET = "supersecret123"
 
 
 class LineEndpoint(NamedTuple):
-    """Satu line kamera dilihat DARI konsol operator.
+    """One camera line as the operator console sees it.
 
-    Nilai, bukan kantong dict: `line.machine_id` salah ketik ketahuan, sedangkan
-    `line["machine_id"]` baru meledak saat runtime di tengah shift.
+    A value, not a dict: a typo in `line.machine_id` is caught, while
+    `line["machine_id"]` only blows up at runtime, mid-shift.
     """
 
     line_code: str
@@ -96,8 +93,8 @@ class LineEndpoint(NamedTuple):
     machine_id: str
 
 
-# Line di pabrik selalu tiga dan port-nya sudah dipatok docker-compose. Default
-# machine_id sama persis dengan compose supaya dev jalan tanpa .env tambahan.
+# A mill always has three lines and docker-compose pins their ports. The default
+# machine ids match compose exactly, so dev runs with no extra .env.
 _CONSOLE_LINE_DEFAULTS: tuple[tuple[str, str, int, str], ...] = (
     ("line-1", "Line 1", 8001, "d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01"),
     ("line-2", "Line 2", 8002, "a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02"),
@@ -109,18 +106,18 @@ _CONSOLE_LINE_DEFAULTS: tuple[tuple[str, str, int, str], ...] = (
 class Settings:
     app_name: str = "Ripe Recognition API"
     environment: str = field(default_factory=lambda: os.getenv("APP_ENV", "development"))
-    # Tag rilis yang di-bake saat deploy (pola sama dengan palmgrade-api dan
-    # palmgrade-frontend). "unknown" di lokal — sengaja bukan string kosong:
-    # versi yang hilang harus bisa dibedakan dari versi yang belum di-set.
+    # Release tag baked in at deploy time (same pattern as palmgrade-api and
+    # palmgrade-frontend). "unknown" locally, deliberately not an empty string:
+    # a missing version must be distinguishable from one never set.
     app_version: str = field(default_factory=lambda: os.getenv("APP_VERSION", "unknown"))
-    # `line` (default) = instance kamera. `console` = instance ke-4, konsol operator
-    # offline (§4 rencana PalmOS): tanpa kamera, tanpa YOLO, tanpa PLC. Dipilih
-    # `entrypoint.sh` sebelum uvicorn — modul app-nya beda, jadi konsol tidak ikut
-    # meng-import torch/cv2 dan satu line kamera mati tidak menyeret layar operator.
+    # `line` (default) = a camera instance. `console` = the 4th instance, the
+    # offline operator console (plan §4): no camera, no YOLO, no PLC. Chosen by
+    # `entrypoint.sh` before uvicorn — a different app module, so the console
+    # never imports torch/cv2 and a dead camera line cannot take the screen down.
     app_mode: str = field(default_factory=lambda: os.getenv("APP_MODE", "line"))
-    # Bind host/port TIDAK di sini: uvicorn dijalankan `entrypoint.sh` (host hardcoded
-    # 0.0.0.0, port dari env APP_PORT yang di-set docker-compose per line). Settings
-    # tidak pernah dibaca untuk binding — jangan tambah field host/port lagi.
+    # Bind host/port do NOT live here: `entrypoint.sh` runs uvicorn (host hardcoded
+    # to 0.0.0.0, port from APP_PORT which docker-compose sets per line). Settings
+    # is never read for binding — do not add host/port fields back.
     frontend_url: str = field(default_factory=lambda: os.getenv("FRONTEND_URL", "*"))
     repo_root: Path = field(default_factory=lambda: Path(__file__).resolve().parents[3])
 
@@ -134,9 +131,9 @@ class Settings:
     # Camera
     camera_type: str = field(default_factory=lambda: os.getenv("CAMERA_TYPE", "hikrobot"))
     camera_device_index: int = field(default_factory=lambda: int(os.getenv("CAMERA_DEVICE_INDEX", "0")))
-    # Serial kamera Hikrobot (mis. "DA9069810"). Kalau diisi, pemilihan kamera
-    # by-serial (stabil) menggantikan device_index — cegah rebutan antar line.
-    # Kosong → fallback ke device_index (dev/webcam).
+    # Hikrobot camera serial (e.g. "DA9069810"). When set, stable by-serial
+    # selection replaces device_index, so two lines cannot grab each other's
+    # camera. Empty falls back to device_index (dev/webcam).
     camera_serial: str | None = field(
         default_factory=lambda: (os.getenv("CAMERA_SERIAL", "").strip() or None)
     )
@@ -165,13 +162,14 @@ class Settings:
 
     # License Guard
     lic_enabled: bool = field(default_factory=lambda: _as_bool(os.getenv("LICENSE_ENABLED"), False))
-    # Token dipasang operator lewat `palmgrade license <token>`; env nempel saat
-    # container dibuat, jadi token baru butuh `palmgrade restart` (reboot saja
-    # TIDAK cukup — container lama dipakai ulang dengan env lamanya).
+    # The operator installs the token with `palmgrade license <token>`. Env is
+    # fixed when the container is created, so a new token needs
+    # `palmgrade restart` — a reboot is NOT enough, it reuses the old container
+    # with its old env.
     lic_token: str = field(default_factory=lambda: os.getenv("LICENSE_TOKEN", ""))
-    # Nama kunci env sengaja SAMA PERSIS dengan palmgrade-api. Sekarang keduanya
-    # juga menanam kunci bawaan yang sama, jadi env-nya opsional di dua-duanya —
-    # yang diisi menang, yang kosong jatuh ke kunci bawaan.
+    # The env key name matches palmgrade-api exactly. Both now bake the same
+    # default key too, so the variable is optional on both sides: whatever is
+    # set wins, empty falls back to the baked key.
     lic_pubkey_pem: str = field(
         default_factory=lambda: (
             os.getenv("LICENSE_PUBLIC_KEY") or LICENSE_PUBLIC_KEY_BAKED
@@ -197,43 +195,45 @@ class Settings:
     font_scale: float = field(default_factory=lambda: float(os.getenv("FONT_SCALE", "0.7")))
     font_thickness: int = field(default_factory=lambda: int(os.getenv("FONT_THICKNESS", "2")))
 
-    # Batch upload cloud (R2 + API cloud) — semua kredensial placeholder sampai
-    # bucket/domain dibuat. R2_BUCKET kosong = batch worker no-op (saklar off).
+    # Cloud batch upload (R2 + cloud API). Every credential is a placeholder
+    # until the bucket and domain exist. An empty R2_BUCKET makes the batch
+    # worker a no-op — that is the off switch.
     upload_minute: int = field(default_factory=lambda: int(os.getenv("UPLOAD_MINUTE", "0")))
     r2_account_id: str = field(default_factory=lambda: os.getenv("R2_ACCOUNT_ID", ""))
     r2_access_key_id: str = field(default_factory=lambda: os.getenv("R2_ACCESS_KEY_ID", ""))
     r2_secret_access_key: str = field(default_factory=lambda: os.getenv("R2_SECRET_ACCESS_KEY", ""))
     r2_bucket: str = field(default_factory=lambda: os.getenv("R2_BUCKET", ""))
     r2_public_url: str = field(default_factory=lambda: os.getenv("R2_PUBLIC_URL", "").rstrip("/"))
-    # Target POST teks = API CLOUD. BACKEND_URL tetap menunjuk API LOKAL (webhook realtime).
+    # The text POST goes to the CLOUD API. BACKEND_URL stays on the LOCAL API
+    # (the realtime webhook).
     upload_api_url: str = field(default_factory=lambda: os.getenv("UPLOAD_API_URL", "").rstrip("/"))
     upload_api_secret: str = field(default_factory=lambda: os.getenv("UPLOAD_API_SECRET", ""))
     upload_max_items_per_tick: int = field(default_factory=lambda: int(os.getenv("UPLOAD_MAX_ITEMS_PER_TICK", "2000")))
     upload_retention_days: int = field(default_factory=lambda: int(os.getenv("UPLOAD_RETENTION_DAYS", "7")))
-    # Lantai sisa disk. Retensi berbasis umur saja tidak cukup begitu
-    # UPLOAD_RETENTION_DAYS dinaikkan ke hitungan bulan: kalau throughput naik
-    # di atas perkiraan, disk penuh SEBELUM item tertua jatuh tempo — dan disk
-    # penuh berarti grading berhenti menulis, bukan sekadar arsip meleset.
-    # 0 = matikan penjaga (kembali ke perilaku umur-saja).
+    # Free-disk floor. Age-based retention alone stops being enough once
+    # UPLOAD_RETENTION_DAYS is measured in months: if throughput runs above
+    # forecast the disk fills BEFORE the oldest item is due — and a full disk
+    # means grading stops writing, not merely an archive running late.
+    # 0 disables the guard (back to age-only behaviour).
     upload_disk_min_free_gb: float = field(default_factory=lambda: float(os.getenv("UPLOAD_DISK_MIN_FREE_GB", "20")))
 
-    # ── Konsol operator (APP_MODE=console) ───────────────────────
-    # Zona waktu pabrik. Dipakai HANYA untuk menghitung `tanggal_kerja` saat
-    # ingest (§6.1): pabrik jalan ~20 jam/hari LEWAT tengah malam, jadi batas
-    # hari UTC memotong shift jadi dua. Resolve sekali saat boot — TZ ngawur
-    # harus mati di startup, bukan diam-diam salah tanggal berbulan-bulan.
+    # ── Operator console (APP_MODE=console) ──────────────────────
+    # Mill timezone. Used ONLY to derive `tanggal_kerja` at ingest (§6.1): a
+    # mill runs ~20 h a day ACROSS midnight, so a UTC day boundary cuts one
+    # shift in two. Resolved once at boot — a bogus TZ must fail at startup
+    # rather than quietly file months of rows under the wrong date.
     factory_tz: str = field(default_factory=lambda: os.getenv("FACTORY_TZ", "Asia/Jakarta"))
     console_sync_interval_s: int = field(default_factory=lambda: int(os.getenv("CONSOLE_SYNC_INTERVAL_S", "300")))
-    # Base URL tiap line kamera, dilihat DARI dalam container konsol. Konsol
-    # meneruskan assignment/manual-reject ke sini. Default localhost karena
-    # semua container pakai network_mode: host di PC pabrik.
+    # Base URL of each camera line as seen from inside the console container.
+    # The console forwards assignment and manual-reject here. Defaults to
+    # localhost because every container runs network_mode: host at the mill.
     console_line_host: str = field(default_factory=lambda: os.getenv("CONSOLE_LINE_HOST", "http://localhost").rstrip("/"))
 
-    # ── Dorong event ke PalmOS (ERP) ─────────────────────────────
-    # Konsol MENDORONG; ERP tidak pernah menarik. PC pabrik cuma bisa dihubungi
-    # lewat AnyDesk, tidak ada inbound sama sekali (runbook §12.5). Kosongkan
-    # `ERP_URL` untuk mematikan — jalur ini tidak boleh jadi syarat hidupnya
-    # layar operator.
+    # ── ERP link (push events, pull master data) ─────────────────
+    # The console PUSHES; the ERP never pulls. A factory PC is reachable only
+    # over AnyDesk, with no inbound at all (runbook §12.5). Leave `ERP_URL`
+    # empty to switch the whole link off — neither direction may ever become a
+    # condition for the operator screen staying up.
     erp_url: str = field(default_factory=lambda: os.getenv("ERP_URL", "").rstrip("/"))
     erp_api_key: str = field(default_factory=lambda: os.getenv("ERP_API_KEY", ""))
     erp_api_secret: str = field(default_factory=lambda: os.getenv("ERP_API_SECRET", ""))
@@ -241,35 +241,35 @@ class Settings:
     erp_push_batch: int = field(default_factory=lambda: int(os.getenv("ERP_PUSH_BATCH", "200")))
 
     # ── PLC / ODOT CN-8031 (Modbus-TCP) ──────────────────────────
-    # Logikanya ada di src/palmgrade/plc/. Coil map lengkap:
-    # docs/plc-integration.md. Mati secara default — cuma PC pabrik yang
-    # menyalakan. plc_coil_base = 0/3/6 per line, di-set docker-compose.
+    # Logic lives in src/palmgrade/plc/; the full coil map is in
+    # docs/plc-integration.md. Off by default — only a factory PC turns it on.
+    # plc_coil_base is 0/3/6 per line, set by docker-compose.
     plc_enabled: bool = field(default_factory=lambda: _as_bool(os.getenv("PLC_ENABLED"), False))
     plc_host: str = field(default_factory=lambda: os.getenv("PLC_HOST", ""))
     plc_port: int = field(default_factory=lambda: _plc_int("PLC_PORT", 502))
     plc_unit_id: int = field(default_factory=lambda: _plc_int("PLC_UNIT_ID", 1))
     plc_coil_base: int = field(default_factory=lambda: _plc_int("PLC_COIL_BASE", 0))
-    # Bit "hidup" yang ditahan ON PlcWorker. Sesuai skematik ODOT cuma ADA SATU
-    # untuk seluruh PC — coil 9 (HEARTBIT PC ON), dipegang line 1. Line 2 dan 3
-    # kosong: coil 10-15 ditandai SPARE di skematik, bukan milik kita.
+    # The "alive" bit PlcWorker holds ON. Per the ODOT schematic there is only
+    # ONE for the whole PC — coil 9 (HEARTBIT PC ON), owned by line 1. Lines 2
+    # and 3 stay empty: coils 10-15 are marked SPARE there, not ours to use.
     plc_coil_alive: tuple[int, ...] = field(
         default_factory=lambda: parse_coil_list(os.getenv("PLC_COIL_ALIVE"))
     )
-    # 0 = ON statis, sesuai skematik dan ladder pak Ocit ("coil OFF berarti PC
-    # mati, error muncul di seven segment"). PC mati / LAN putus tetap ketahuan
-    # lewat fault action coupler yang me-reset output. > 0 = toggle tiap sekian
-    # ms, yang JUGA menangkap proses hang dengan socket masih hidup — tapi ladder
-    # harus menghitung PERUBAHAN, bukan level, kalau tidak alarm "PC mati"
-    # menyala tiap setengah periode.
+    # 0 = held ON statically, matching the schematic and Pak Ocit's ladder
+    # ("coil OFF means the PC is down, the error shows on the seven segment").
+    # A dead PC or a cut LAN still shows up, through the coupler's fault action
+    # resetting the outputs. > 0 toggles every N ms, which ALSO catches a hung
+    # process whose socket is still open — but then the ladder must count
+    # CHANGES, not level, or the "PC down" alarm fires every half period.
     plc_alive_toggle_ms: int = field(
         default_factory=lambda: _plc_int("PLC_ALIVE_TOGGLE_MS", 0)
     )
     plc_pulse_ms: int = field(default_factory=lambda: _plc_int("PLC_PULSE_MS", 200))
     plc_pulse_gap_ms: int = field(default_factory=lambda: _plc_int("PLC_PULSE_GAP_MS", 100))
-    # Berapa banyak pulse yang boleh NGUTANG per coil. Ini knob "seberapa basi
-    # sinyal boleh jadi", BUKAN kapasitas/keandalan: tiap slot antrean menambah
-    # (pulse+gap) ms keterlambatan, dan sinyal telat menempel ke buah yang salah.
-    # 1 = maksimal satu pulse terutang ⇒ staleness ≤ (pulse+gap).
+    # How many pulses may be OWED per coil. This is a "how stale may a signal
+    # get" knob, NOT capacity or reliability: every queue slot adds
+    # (pulse+gap) ms of lateness, and a late signal lands on the wrong bunch.
+    # 1 = at most one pulse owed, so staleness stays <= (pulse+gap).
     plc_queue_max: int = field(default_factory=lambda: _plc_int("PLC_QUEUE_MAX", 1))
     plc_poll_ms: int = field(default_factory=lambda: _plc_int("PLC_POLL_MS", 200))
     plc_di_count: int = field(default_factory=lambda: _plc_int("PLC_DI_COUNT", 16))
@@ -277,30 +277,28 @@ class Settings:
     # ------------------------------------------------------------------ validation
 
     def validate_for_runtime(self) -> None:
-        """Fail-fast untuk salah konfigurasi yang berbahaya di production.
+        """Fail fast on misconfiguration that is dangerous in production.
 
-        WEBHOOK_SECRET mengamankan kedua arah antara vision <-> palmgrade-api.
-        Kalau `.env` lupa diisi di PC prod, service dulu tetap jalan normal pakai
-        default publik `supersecret123` (cuma warning) — siapa pun yang lihat repo
-        bisa mengirim event palsu atau perintah internal. Di production kita tolak
-        start; di development default tetap boleh (cuma warning) supaya alur
-        dev/opencv lancar.
+        WEBHOOK_SECRET guards both directions between vision and palmgrade-api.
+        When a production `.env` was left unset the service used to run happily
+        on the committed default `supersecret123` with only a warning — anyone
+        who had read the repo could post fake events or internal commands. In
+        production we now refuse to start; development still allows the default
+        (warning only) so the dev/opencv flow stays friction-free.
         """
         if self.environment == "production" and not self.r2_bucket:
             logger.warning(
-                "R2_BUCKET kosong — batch upload ke cloud nonaktif (no-op). "
-                "Isi R2_*/UPLOAD_API_* di .env untuk mengaktifkan."
+                "R2_BUCKET is empty — cloud batch upload is disabled (no-op). "
+                "Set R2_*/UPLOAD_API_* in .env to enable it."
             )
         if self.webhook_secret != _DEFAULT_WEBHOOK_SECRET:
             return
         if self.environment == "production":
             raise RuntimeError(
-                "WEBHOOK_SECRET masih memakai nilai default publik di APP_ENV=production. "
-                "Set WEBHOOK_SECRET ke nilai rahasia (harus sama dengan palmgrade-api) sebelum deploy."
+                "WEBHOOK_SECRET is still the public default under APP_ENV=production. "
+                "Set it to a secret value (identical to palmgrade-api's) before deploying."
             )
-        logger.warning(
-            "WEBHOOK_SECRET memakai nilai default — set sebelum deployment production."
-        )
+        logger.warning("WEBHOOK_SECRET is the default — set it before a production deploy.")
 
     # ------------------------------------------------------------------ paths
 
@@ -310,7 +308,7 @@ class Settings:
 
     @property
     def state_dir(self) -> Path:
-        """Operational state (SQLite manifests) — di LUAR mount statis /captures."""
+        """Operational state (SQLite manifests) — OUTSIDE the static /captures mount."""
         return self.repo_root / "state"
 
     @property
@@ -371,21 +369,21 @@ class Settings:
 
     @property
     def erp_events_url(self) -> str:
-        """Metode whitelisted PalmOS. Nama modulnya kontrak, bukan detail."""
+        """The ERP's whitelisted method. Its module path is contract, not detail."""
         return f"{self.erp_url}/api/method/palmos.interfaces.api.terima_event"
 
     @property
     def console_db_path(self) -> Path:
-        """Index SQLite konsol (§6.2) — konsol tidak pernah memindai direktori."""
+        """The console's SQLite index (§6.2) — the console never scans directories."""
         return self.state_dir / "console.db"
 
     @property
     def console_lines(self) -> tuple[LineEndpoint, ...]:
-        """Tiga line kamera yang dilayani konsol.
+        """The three camera lines the console serves.
 
-        `LINE_N_MACHINE_ID` dibaca DI SINI, bukan di service: env cuma boleh
-        masuk lewat Settings (CLAUDE.md § Conventions). Nilainya sama dengan
-        yang di-set docker-compose untuk tiap line.
+        `LINE_N_MACHINE_ID` is read HERE, not in the service: env may only enter
+        through Settings (CLAUDE.md § Conventions). The values match what
+        docker-compose sets for each line.
         """
         return tuple(
             LineEndpoint(
@@ -394,10 +392,6 @@ class Settings:
             )
             for code, name, port, default_machine in _CONSOLE_LINE_DEFAULTS
         )
-
-    @property
-    def master_data_url(self) -> str:
-        return f"{self.upload_api_url}{self.backend_api_ver}/internal/sync/master-data"
 
     @property
     def plc_coil_ok(self) -> int:

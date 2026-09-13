@@ -28,8 +28,6 @@ from ..repositories.console_repository import ConsoleStore
 
 logger = logging.getLogger(__name__)
 
-MASTER_CURSOR_KEY = "master_data_cursor"
-
 # Net difference still forgiven before a payload is rejected. Scales round;
 # anything past this must not pass quietly — neto is what the farmer is paid.
 TOLERANSI_NETO_KG = 1.0
@@ -182,12 +180,17 @@ class ConsoleService:
         """Borrowed or unregistered truck, typed in by the operator.
 
         The id is uuid5 of the normalised plate, so the same plate typed again
-        tomorrow lands on the same truck. `status='manual'` separates it from
-        master-synced trucks — master ids come from the cloud, so the two id
-        spaces can never collide.
+        tomorrow lands on the same truck. `status='manual'` marks a row the ERP
+        has not confirmed yet.
 
-        Deliberately NOT pushed to ERP yet: the `Truck` DocType exists on no
-        site (docs/PERTANYAAN-TERBUKA.md S3). The row stays local for now.
+        Since the master pull moved to AutoERP the two id spaces deliberately
+        MEET: AutoERP normalises a plate the same way, so a pulled truck lands
+        on this exact row and adopts it instead of creating a twin that would
+        split the day's tonnage. The pull never clears `erp_name` either, so an
+        operator retyping a linked plate cannot unlink it.
+
+        Deliberately NOT pushed up to AutoERP yet — that direction is its own
+        piece of work (interface B in the integration design).
         """
         plat = (plate_number or "").strip()
         truck_id = truck_id_for(plat)  # ValueError on an empty plate → route replies 400
