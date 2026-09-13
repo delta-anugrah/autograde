@@ -1,11 +1,10 @@
-"""Integrasi PLC lewat coupler ODOT CN-8031 (Modbus-TCP).
+"""PLC integration through an ODOT CN-8031 coupler (Modbus-TCP).
 
-Kode di luar paket ini biasanya hanya butuh lima fungsi: `start_plc_worker`,
-`shutdown_plc_worker`, `submit_grading`, `inputs`, `diagnostics`. Kalau
-PLC_ENABLED=false, kelimanya jadi no-op dan tidak ada thread yang jalan.
-`ModbusPlcClient`, `PlcWorker`, `PulseScheduler`
-turut diekspor untuk pemanggil yang perlu merakit worker sendiri (mis. test).
-Coil map lengkap: docs/plc-integration.md.
+Code outside this package normally needs five functions: `start_plc_worker`,
+`shutdown_plc_worker`, `submit_grading`, `inputs`, `diagnostics`. With
+PLC_ENABLED=false all five are no-ops and no thread runs. `ModbusPlcClient`,
+`PlcWorker` and `PulseScheduler` are exported too, for callers that assemble a
+worker themselves (tests, mainly). Full coil map: docs/plc-integration.md.
 """
 
 from __future__ import annotations
@@ -31,7 +30,7 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
-# Satu proses = satu line = satu koneksi PLC, jadi satu instance sudah benar.
+# One process = one line = one PLC connection, so a single instance is correct.
 _worker: PlcWorker | None = None
 
 
@@ -40,39 +39,38 @@ def start_plc_worker(
     health_check: Callable[[], bool] | None = None,
     license_ok: Callable[[], bool] | None = None,
 ) -> PlcWorker | None:
-    """Bangun worker dari Settings. Kembalikan None kalau fitur PLC dimatikan.
+    """Build the worker from Settings. Returns None when the PLC is disabled.
 
-    Pemanggil bertanggung jawab menjalankan run_loop() di thread-nya sendiri.
+    Running run_loop() on its own thread is the caller's job.
     """
     global _worker
     if _worker is not None:
-        # None, BUKAN worker yang sudah ada: pemanggil memakai `is not None` untuk
-        # memutuskan apakah perlu start thread. Mengembalikan worker yang sama
-        # menghemat satu slot coupler tapi menjalankan thread KEDUA di run_loop
-        # yang sama, di atas socket ModbusTcpClient yang sama — ADU interleaved
-        # dan transaction id tidak cocok. Itu jauh lebih buruk.
+        # None, NOT the existing worker: callers use `is not None` to decide
+        # whether to start a thread. Handing back the same worker would save a
+        # coupler slot but run a SECOND thread through the same run_loop over the
+        # same ModbusTcpClient socket — interleaved writes and mismatched
+        # transaction ids. Far worse than refusing.
         logger.warning(
-            "start_plc_worker dipanggil lagi padahal worker PLC sudah jalan — "
-            "panggilan ini diabaikan (tidak ada client dan thread kedua)"
+            "start_plc_worker called again while a PLC worker is running — "
+            "ignoring this call (no second client, no second thread)"
         )
         return None
     if not settings.plc_enabled:
         return None
     if not settings.plc_host:
-        logger.warning("PLC_ENABLED=true tapi PLC_HOST kosong — PLC tidak dijalankan")
+        logger.warning("PLC_ENABLED=true but PLC_HOST is empty — PLC not started")
         return None
     if settings.plc_pulse_ms < settings.plc_poll_ms:
-        # run_loop cuma bangun tiap PLC_POLL_MS, jadi itulah resolusi waktu yang
-        # sebenarnya. Pulse yang lebih pendek dari satu tick tidak bisa
-        # dihasilkan: ON dan OFF-nya jatuh di tick yang sama dan PLC tidak pernah
-        # melihat rising edge-nya. Warning saja — tidak raise dan tidak di-clamp,
-        # karena tuning yang benar tergantung PLC di lapangan, dan menebak-nebak
-        # nilai pengganti diam-diam lebih berbahaya daripada meneruskan apa
-        # adanya sambil bilang keras-keras.
+        # run_loop only wakes every PLC_POLL_MS, so that is the real time
+        # resolution. A pulse shorter than one tick cannot be produced: its ON
+        # and OFF land on the same tick and the PLC never sees a rising edge.
+        # Warn only — no raise, no clamping: correct tuning depends on the PLC
+        # on site, and silently guessing a replacement value is more dangerous
+        # than passing the value through and saying so loudly.
         logger.warning(
-            "PLC_PULSE_MS (%s) lebih kecil dari PLC_POLL_MS (%s) — resolusi waktu "
-            "sebenarnya adalah PLC_POLL_MS, jadi pulse selebar ini bisa tidak "
-            "pernah terlihat PLC. Naikkan PLC_PULSE_MS atau turunkan PLC_POLL_MS.",
+            "PLC_PULSE_MS (%s) is below PLC_POLL_MS (%s) — the real resolution is "
+            "PLC_POLL_MS, so a pulse this short may never be seen by the PLC. "
+            "Raise PLC_PULSE_MS or lower PLC_POLL_MS.",
             settings.plc_pulse_ms,
             settings.plc_poll_ms,
         )
@@ -93,37 +91,37 @@ def start_plc_worker(
         license_ok=license_ok,
     )
     logger.info(
-        "PLC aktif: %s:%s, coil OK/NG/ERROR = %s/%s/%s, alive = %s",
+        "PLC on: %s:%s, coil OK/NG/ERROR = %s/%s/%s, alive = %s",
         settings.plc_host,
         settings.plc_port,
         settings.plc_coil_ok,
         settings.plc_coil_ng,
         settings.plc_coil_error,
-        settings.plc_coil_alive or "(mati)",
+        settings.plc_coil_alive or "(off)",
     )
     return _worker
 
 
 def submit_grading(status: str) -> None:
-    """Kirim satu keputusan grading ('acc' / 'rej') ke PLC. No-op kalau PLC mati."""
+    """Send one grading verdict ('acc' / 'rej') to the PLC. No-op when off."""
     if _worker is not None:
         _worker.submit(status)
 
 
 def inputs() -> list[bool]:
-    """Snapshot discrete input terakhir dari PLC (motor fault + E-stop)."""
+    """Latest discrete-input snapshot from the PLC (motor fault + E-stop)."""
     return _worker.inputs if _worker is not None else []
 
 
 def diagnostics() -> dict | None:
-    """Snapshot PLC untuk /health/detail. None kalau PLC mati atau belum jalan.
+    """PLC snapshot for /health/detail. None when the PLC is off or not started.
 
-    Ini satu-satunya cara membaca E-stop (`inputs[10]`) dan memantau kedua
-    counter drop dari luar kontainer. Keduanya cuma diagnostik — tidak ada yang
-    memakainya untuk mengambil keputusan, jadi `None` saat PLC mati adalah
-    jawaban yang benar, bukan error.
+    This is the only way to read the E-stop (`inputs[10]`) and watch both drop
+    counters from outside the container. Both are diagnostics only — nothing
+    decides anything from them — so `None` while the PLC is off is the right
+    answer, not an error.
 
-    `inputs` disalin: pemanggil tidak boleh bisa mengubah state worker.
+    `inputs` is copied: a caller must not be able to mutate worker state.
     """
     worker = _worker
     if worker is None:
@@ -136,15 +134,15 @@ def diagnostics() -> dict | None:
 
 
 def shutdown_plc_worker(thread: threading.Thread | None = None, timeout: float = 2.0) -> None:
-    """Hentikan worker, matikan semua coil, tutup socket. Aman kalau PLC mati.
+    """Stop the worker, drop every coil, close the socket. Safe when PLC is off.
 
-    Urutan wajib: hentikan loop DULU, tunggu thread-nya benar-benar keluar, baru
-    tulis OFF. Kalau dibalik, tick terakhir balapan dengan kita dan menyalakan
-    ulang coil yang baru saja dimatikan. `thread` boleh None (mis. PLC dimatikan,
-    atau pemanggil tidak memegang thread-nya) — tanpa join, `_stop` tetap diset.
+    The order is mandatory: stop the loop FIRST, wait for the thread to actually
+    exit, and only then write OFF. Reversed, the last tick races us and switches
+    back on the coils we just cleared. `thread` may be None (PLC disabled, or the
+    caller does not hold the thread) — without a join, `_stop` is still set.
 
-    Seluruhnya best-effort: dipanggil di jalur shutdown, jadi tidak pernah raise
-    dan singleton selalu dibersihkan walau link sudah mati duluan.
+    All best-effort: this runs on the shutdown path, so it never raises and the
+    singleton is always cleared even if the link died first.
     """
     global _worker
     worker = _worker
@@ -156,11 +154,11 @@ def shutdown_plc_worker(thread: threading.Thread | None = None, timeout: float =
             thread.join(timeout=timeout)
             if thread.is_alive():
                 logger.warning(
-                    "Thread PLC belum keluar setelah %ss — coil tetap dimatikan best-effort", timeout
+                    "PLC thread still alive after %ss — dropping coils best-effort anyway", timeout
                 )
         worker.deenergise()
         worker.client.close()
     except Exception:
-        logger.exception("Shutdown PLC tidak bersih — dilanjutkan")
+        logger.exception("PLC shutdown was not clean — continuing anyway")
     finally:
         _worker = None

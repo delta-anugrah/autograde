@@ -20,15 +20,13 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint, Settings
-from ..domain.ffb_source import label_sumber
+from ..domain.ffb_source import ffb_source_label
 from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.working_day import tanggal_kerja_for
 from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
 
 logger = logging.getLogger(__name__)
-
-MASTER_CURSOR_KEY = "master_data_cursor"
 
 # Net difference still forgiven before a payload is rejected. Scales round;
 # anything past this must not pass quietly — neto is what the farmer is paid.
@@ -147,14 +145,14 @@ class ConsoleService:
         )
         for row in rows:
             row["image_url"] = _capture_url(row.get("line_code"), row.get("image_path"))
-            _label_sumber_in_place(row)
+            _with_source_label(row)
         return rows
 
     def trucks(self) -> list[dict[str, Any]]:
-        return [_label_sumber_in_place(row) for row in self.store.trucks()]
+        return [_with_source_label(row) for row in self.store.trucks()]
 
     def weighings(self, tanggal_kerja: str, *, limit: int = 100) -> list[dict[str, Any]]:
-        return [_label_sumber_in_place(row) for row in self.store.weighings(tanggal_kerja, limit=limit)]
+        return [_with_source_label(row) for row in self.store.weighings(tanggal_kerja, limit=limit)]
 
     def rekap(self, tanggal_kerja: str) -> list[dict[str, Any]]:
         """Per-truck tally with the weighbridge neto folded in.
@@ -171,7 +169,7 @@ class ConsoleService:
         rows = self.store.rekap_truk(tanggal_kerja)
         for row in rows:
             row["neto_kg"] = neto.get(row.get("truck_id"))
-            _label_sumber_in_place(row)
+            _with_source_label(row)
         return rows
 
     # --------------------------------------------------- manual truck entry
@@ -182,12 +180,17 @@ class ConsoleService:
         """Borrowed or unregistered truck, typed in by the operator.
 
         The id is uuid5 of the normalised plate, so the same plate typed again
-        tomorrow lands on the same truck. `status='manual'` separates it from
-        master-synced trucks — master ids come from the cloud, so the two id
-        spaces can never collide.
+        tomorrow lands on the same truck. `status='manual'` marks a row the ERP
+        has not confirmed yet.
 
-        Deliberately NOT pushed to ERP yet: the `Truck` DocType exists on no
-        site (docs/PERTANYAAN-TERBUKA.md S3). The row stays local for now.
+        Since the master pull moved to AutoERP the two id spaces deliberately
+        MEET: AutoERP normalises a plate the same way, so a pulled truck lands
+        on this exact row and adopts it instead of creating a twin that would
+        split the day's tonnage. The pull never clears `erp_name` either, so an
+        operator retyping a linked plate cannot unlink it.
+
+        Deliberately NOT pushed up to AutoERP yet — that direction is its own
+        piece of work (interface B in the integration design).
         """
         plat = (plate_number or "").strip()
         truck_id = truck_id_for(plat)  # ValueError on an empty plate → route replies 400
@@ -351,14 +354,21 @@ def _neto(bruto: float | None, tara: float | None, dikirim: float | None) -> flo
     return hitung
 
 
-def _label_sumber_in_place(row: dict[str, Any]) -> dict[str, Any]:
-    """Swap the raw `sumber` for its label only (§3.5b).
+def _source_label(row: dict[str, Any]) -> str | None:
+    """Label from the store's source facts, popped so they never reach the API."""
+    return ffb_source_label(
+        has_supplier=bool(row.pop("has_supplier", 0)),
+        in_erp=bool(row.pop("in_erp", 0)),
+    )
 
-    Pop FIRST, then assign. `{**row, "sumber_label": label(row.pop(...))}` once
-    leaked the raw value into the API response because `**row` is evaluated
-    before `pop` — a bug only the tests caught.
+
+def _with_source_label(row: dict[str, Any]) -> dict[str, Any]:
+    """Replace the source facts with the display label (§3.5b).
+
+    Pop first, then assign: `{**row, ...}` evaluates before `pop`, and that
+    once leaked raw columns into the API response.
     """
-    row["sumber_label"] = label_sumber(row.pop("sumber", None))
+    row["sumber_label"] = _source_label(row)
     return row
 
 
@@ -372,7 +382,7 @@ def _assignment_view(row: dict[str, Any] | None) -> dict[str, Any] | None:
         "truck_id": row["truck_id"],
         "plate_number": row.get("plate_number"),
         "supplier_name": row.get("supplier_name"),
-        "sumber_label": label_sumber(row.get("sumber")),
+        "sumber_label": _source_label(row),
     }
 
 

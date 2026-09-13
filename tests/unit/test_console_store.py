@@ -16,11 +16,9 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from palmgrade.core.config import LineEndpoint, Settings
-from palmgrade.domain.ffb_source import label_sumber
 from palmgrade.integrations.notifications.line_client import LineUnavailable
 from palmgrade.repositories.console_repository import ConsoleStore
-from palmgrade.services.console_service import MASTER_CURSOR_KEY, ConsoleService
-from palmgrade.workers.master_data_worker import MasterDataWorker
+from palmgrade.services.console_service import ConsoleService
 
 WIB = ZoneInfo("Asia/Jakarta")
 
@@ -131,22 +129,48 @@ def test_url_r2_absolut_diteruskan_apa_adanya(service):
     assert service.history("2026-09-10")[0]["image_url"] == "https://captures.smagri.id/x/f.webp"
 
 
-def test_sumber_tbs_hanya_label_tampilan_dan_tetap_tiga_nilai(service, tmp_path):
-    # The edge NEVER decides sumber (plan §3.5b), it only maps it to a label.
-    # The raw value must stay stored as 3 values or the cloud's Plasma vs Pihak
-    # Ketiga reporting cannot be reconstructed.
-    assert label_sumber("Inti") == "Internal"
-    assert label_sumber("Plasma") == label_sumber("Pihak Ketiga") == "External"
-    assert label_sumber(None) is None
-
+def test_source_label_mirrors_autoerp_and_the_raw_group_stays_stored(service, tmp_path):
+    # The edge never decides the source (§3.5b); it mirrors AutoERP's
+    # `sumber_for_supplier`. Plasma vs agent lives on the supplier group, so
+    # that value stays stored as it arrived.
     service.store.upsert_supplier({"id": "s1", "name": "KUD A", "sumber": "Plasma", "status": "active"})
-    service.store.upsert_truck({"id": "t1", "plate_number": "BE 1234 XX", "supplier_id": "s1", "status": "active"})
-    truk = service.trucks()[0]
-    assert truk["sumber_label"] == "External"
-    assert "sumber" not in truk
+    service.store.upsert_truck({"id": "t1", "plate_number": "BE 1 AA", "supplier_id": "s1", "status": "active"})
+    service.store.upsert_truck({"id": "t2", "plate_number": "BE 2 BB", "status": "active", "erp_name": "BE 2 BB"})
+    service.store.upsert_truck({"id": "t3", "plate_number": "BE 3 CC", "status": "manual"})
+
+    trucks = service.trucks()
+    assert {t["plate_number"]: t["sumber_label"] for t in trucks} == {
+        "BE 1 AA": "External",
+        "BE 2 BB": "Internal",
+        "BE 3 CC": None,
+    }
+    assert not {"sumber", "has_supplier", "in_erp"} & set(trucks[0])
     disk = sqlite3.connect(tmp_path / "console.db")
     assert disk.execute("SELECT sumber FROM suppliers WHERE id='s1'").fetchone()[0] == "Plasma"
     disk.close()
+
+
+def test_every_console_view_labels_the_source_the_same_way(service):
+    # One rule, five queries. A view still reading the supplier group would
+    # show another source for the same truck on a different tab.
+    service.store.upsert_truck({"id": "t2", "plate_number": "BE 2 BB", "status": "active", "erp_name": "BE 2 BB"})
+    today = service.today()
+    service.store.set_assignment("line-1", "as-1", "t2")
+    service.ingest(_event(service, truck_id="t2", timestamp=datetime.now(WIB).isoformat()))
+    service.store.upsert_weighing({
+        "id": "w1", "ref": "r1", "plate_number": "BE 2 BB", "plate_norm": "BE2BB", "truck_id": "t2",
+        "tanggal_kerja": today, "bruto_kg": 15000.0, "tara_kg": 5000.0, "neto_kg": 10000.0,
+        "waktu_masuk": None, "waktu_keluar": None,
+    })
+
+    state = service.state()
+    labels = [
+        state["lines"][0]["assignment"]["sumber_label"],
+        state["recent"][0]["sumber_label"],
+        service.rekap(today)[0]["sumber_label"],
+        service.weighings(today)[0]["sumber_label"],
+    ]
+    assert labels == ["Internal"] * 4
 
 
 def test_master_data_dari_cloud_selalu_menang(service):
@@ -183,19 +207,6 @@ def test_machine_id_line_dibaca_dari_env_lewat_settings(monkeypatch, tmp_path):
     assert service.lines[1].machine_id == "mesin-dua"
     service.ingest(_event(service, machine_id="mesin-dua", timestamp="2026-09-09T18:30:00+00:00"))
     assert {r["line_code"] for r in service.store.summary("2026-09-10")} == {"line-2"}
-
-
-def test_kursor_master_data_tidak_maju_kalau_ada_baris_gagal(service):
-    # Skipping one row that never landed leaves the mill stuck forever on a
-    # half-stale matrix, including truck revocations the cloud already made.
-    worker = MasterDataWorker(service.settings, service.store)
-    worker.apply({"server_time": "2026-09-09T10:00:00Z",
-                  "suppliers": [{"id": "s1", "name": "KUD A", "sumber": "Inti"}]})
-    assert service.store.get_state(MASTER_CURSOR_KEY) == "2026-09-09T10:00:00Z"
-
-    worker.apply({"server_time": "2026-09-09T11:00:00Z",
-                  "suppliers": [{"name": "no id"}]})  # KeyError on upsert
-    assert service.store.get_state(MASTER_CURSOR_KEY) == "2026-09-09T10:00:00Z"
 
 
 def test_rekap_per_truk_menjumlah_neto_bukan_mengalikan_janjang(service):

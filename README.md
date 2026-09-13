@@ -12,7 +12,7 @@ Runs as **3 camera containers** (one per line, each on its own Hikrobot industri
 |---|---|---|
 | **`palmgrade-vision`** | AI camera + inference (per line) | 8001 / 8002 / 8003 |
 | **`palmgrade-vision`** (`APP_MODE=console`) | Konsol operator offline — grading + timbangan | 8000 |
-| `palmgrade-api` | Business logic, auth, SSE broker — **pensiun**, diganti PalmOS | 2500 |
+| `palmgrade-api` | Business logic, auth, SSE broker — **pensiun**, diganti AutoERP | 2500 |
 | `palmgrade-frontend` | Operator dashboard UI — **pensiun**, konsol pindah ke sini | 3050 |
 
 > Sejak Fase 2 (PalmOS) konsol menggantikan peran `palmgrade_api` lokal di PC pabrik:
@@ -52,8 +52,7 @@ jadi satu line kamera mati tidak menjatuhkan layar operator):
 3 line → POST /api/v1/internal/vision/events ┐
 program timbangan → POST .../scale/weighing  ├→ index SQLite state/console.db
                                              │  (konsol TIDAK pernah memindai direktori)
-                                             └→ ErpPushWorker → PalmOS (kalau ERP_URL diisi)
-                                                MasterDataWorker ← truk/supplier dari API cloud
+                                             └→ MasterDataWorker ← supplier + truk dari AutoERP (kalau ERP_URL diisi)
 
 /console  → satu file HTML statis, vanilla JS, tanpa build/Node/CDN
             stream kamera = <img> MJPEG langsung ke :8001/8002/8003, bukan lewat konsol
@@ -538,10 +537,10 @@ Dari `palmgrade-vision/`:
 
 ```bash
 # CI menjalankan keduanya (lihat .github/workflows/ci.yml)
-pip install ruff pytest cryptography aiosqlite psutil httpx boto3
+pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic
 ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/palmgrade/integrations/upload/ \
   src/palmgrade/license/ src/palmgrade/plc/ src/palmgrade/workers/batch_upload_worker.py \
-  src/palmgrade/workers/master_data_worker.py src/palmgrade/workers/erp_push_worker.py \
+  src/palmgrade/workers/master_data_worker.py \
   src/palmgrade/integrations/notifications/line_client.py src/palmgrade/repositories/console_repository.py \
   src/palmgrade/services/console_service.py src/palmgrade/routes/console.py src/palmgrade/console_main.py
 pytest tests/unit/
@@ -561,7 +560,7 @@ pytest tests/unit/
 | Outbox realtime | `test_outbox_store.py`, `test_outbox_requeue.py`, `test_edge_realtime_outbox.py` | Persist → backoff → dead-letter; jalur 1 detik ke `BACKEND_URL` (konsol lokal) |
 | **Konsol** | `test_console_store.py`, `test_working_day.py`, `test_console_html.py` | Index SQLite (konsol tidak pernah memindai direktori); `tanggal_kerja` lewat tengah malam; invarian `console.html` (tanpa `on*=` inline, `esc()` meloloskan `& < > " ' \``, `data-line=` tetap ada) |
 | **Timbangan** | `test_weighing.py` | `neto_kg` dihitung bukan dipercaya; timbang-keluar **menggabung** bukan menimpa; plat beda tulisan tetap satu truk; koma = desimal, pemisah ribuan ditolak |
-| **Dorong ke ERP** | `test_erp_push_worker.py` | Kiriman ulang bukan error (`{"baru": false}`); 417 = tolakan permanen; jaringan mati **tidak** membuang apa pun |
+| **Master data AutoERP** | `test_erp_master_data.py`, `test_ffb_source.py` | Field yang diminta persis milik DocType (Frappe balas 417 kalau tidak); truk ERP mengadopsi baris yang diketik operator; kursor per-DocType tidak maju kalau ada baris gagal; Sumber TBS mengikuti `sumber_for_supplier` AutoERP |
 | Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |
 | PLC | `tests/unit/plc/` | Coil map ODOT + state machine Modbus-TCP |
 | Config | `test_config_validation.py` | Fail-fast saat secret masih default di `APP_ENV=production` |
@@ -621,13 +620,10 @@ pytest tests/unit/
 |---|---|---|
 | `APP_MODE` | `line` | `line` = instance kamera, `console` = konsol operator (container ke-4) |
 | `FACTORY_TZ` | `Asia/Jakarta` | Zona batas **hari kerja** — pabrik jalan ~20 jam lewat tengah malam, jadi tanggal tidak boleh diturunkan dari UTC |
-| `CONSOLE_SYNC_INTERVAL_S` | `300` | Interval `MasterDataWorker` menarik truk/supplier dari API cloud |
+| `CONSOLE_SYNC_INTERVAL_S` | `300` | Interval `MasterDataWorker` menarik supplier + truk dari AutoERP |
 | `CONSOLE_LINE_HOST` | `http://localhost` | Host tiga line dilihat dari konsol (assign/release/manual-reject) |
-| `ERP_URL` | — | PalmOS base URL. **Kosong = jalur ERP mati**, dan itu default: layar operator tidak boleh bergantung pada ERP hidup |
-| `ERP_API_KEY` / `ERP_API_SECRET` | — | `Authorization: token <key>:<secret>` |
-| `ERP_PUSH_INTERVAL_S` | `60` | Interval `ErpPushWorker` |
-| `ERP_PUSH_BATCH` | `200` | Maksimal event per putaran |
-| `UPLOAD_API_URL` / `UPLOAD_API_SECRET` | — | Sumber master data konsol = API **cloud**, sama dengan yang dipakai batch upload |
+| `ERP_URL` | — | AutoERP base URL. **Kosong = jalur ERP mati**, dan itu default: layar operator tidak boleh bergantung pada ERP hidup |
+| `ERP_API_KEY` / `ERP_API_SECRET` | — | `Authorization: token <key>:<secret>` dari `erpnext.palm_mill.setup.create_integration_user` |
 
 ---
 

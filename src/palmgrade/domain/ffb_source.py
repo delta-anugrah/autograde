@@ -1,22 +1,21 @@
-"""Display label for Sumber TBS, the FFB source (plan §3.5b).
+"""FFB source label (Sumber TBS) for the console screens (§3.5b).
 
-There are THREE sources (Inti / Plasma / Pihak Ketiga) and in PalmOS they are an
-Accounting Dimension, not a boolean. The edge never DECIDES the source: the
-value rides down with supplier master data and the console only renders it.
-Never store `is_internal` here; once three values are flattened to two at the
-edge, the cloud's Plasma vs Pihak Ketiga reporting cannot be reconstructed.
+AutoERP decides the source, not the edge: `sumber_for_supplier` in
+`erpnext/palm_mill` files fruit with a supplier as External and fruit without
+one as the mill's own. The console mirrors that rule and nothing more.
+
+Plasma vs agent lives on the Supplier Group upstream. Never flatten it into an
+`is_internal` flag here, or that reporting cannot be rebuilt.
 """
 from __future__ import annotations
 
-_INTERNAL = {"inti"}
-_EXTERNAL = {"plasma", "pihak ketiga"}
 
+def ffb_source_label(*, has_supplier: bool, in_erp: bool) -> str | None:
+    """Label for one truck. None renders as "—".
 
-def label_sumber(sumber: str | None) -> str | None:
-    """3 master values -> display label. None = no source yet (renders "—")."""
-    key = (sumber or "").strip().lower()
-    if key in _INTERNAL:
-        return "Internal"
-    if key in _EXTERNAL:
+    An ownerless truck is Internal only once AutoERP holds it; before that the
+    console has no source to show.
+    """
+    if has_supplier:
         return "External"
-    return None
+    return "Internal" if in_erp else None

@@ -17,7 +17,16 @@ BROWSER=""
 for b in google-chrome-stable google-chrome chromium chromium-browser; do
     if command -v "$b" >/dev/null 2>&1; then BROWSER="$b"; break; fi
 done
-[ -n "$BROWSER" ] || { echo "console-kiosk: needs Chrome or Chromium, none installed." >&2; exit 1; }
+# macOS keeps browsers in app bundles, never on PATH. The factory PC is Linux;
+# this branch is what lets a developer run the same screen on a Mac.
+if [ -z "$BROWSER" ]; then
+    for b in "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+             "/Applications/Chromium.app/Contents/MacOS/Chromium" \
+             "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"; do
+        if [ -x "$b" ]; then BROWSER="$b"; break; fi
+    done
+fi
+[ -n "$BROWSER" ] || { echo "console-kiosk: needs Chrome or Chromium, none found." >&2; exit 1; }
 
 # After a power cut the desktop often logs in before Docker is up, and a kiosk
 # stuck on an error page never reloads.

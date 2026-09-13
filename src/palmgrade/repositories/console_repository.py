@@ -37,20 +37,21 @@ CREATE TABLE IF NOT EXISTS inspections (
     prediction          TEXT,
     tp_status           TEXT,
     tp_confidence       REAL,
-    -- NULL = not pushed to ERP yet · 'ok' = landed · 'tolak' = permanently
-    -- rejected (417). There is no 'failed': a temporary failure is marked by
-    -- NOT touching this column, so the next tick picks it up again.
+    -- Unused since the per-bunch push was dropped: AutoERP takes one message
+    -- per truck visit. Kept so factory databases need no table rebuild.
     erp_state           TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_inspections_hari ON inspections (tanggal_kerja, line_code);
 CREATE INDEX IF NOT EXISTS idx_inspections_urut ON inspections (tanggal_kerja, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_inspections_erp ON inspections (erp_state, received_at);
 
 CREATE TABLE IF NOT EXISTS suppliers (
     id     TEXT PRIMARY KEY,
     name   TEXT,
     sumber TEXT,
-    status TEXT
+    status TEXT,
+    -- The AutoERP document name, this row's id on the other side. NULL until a
+    -- pull matches it; unique, so two local rows can never claim one supplier.
+    erp_name TEXT
 );
 
 CREATE TABLE IF NOT EXISTS trucks (
@@ -58,7 +59,8 @@ CREATE TABLE IF NOT EXISTS trucks (
     plate_number TEXT,
     supplier_id  TEXT,
     capacity     REAL,
-    status       TEXT
+    status       TEXT,
+    erp_name     TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_trucks_plat ON trucks (plate_number);
 
@@ -97,6 +99,21 @@ CREATE TABLE IF NOT EXISTS sync_state (
 """
 
 
+# Runs after the ALTERs above, never inside `_CREATE_SQL`: on a database that
+# predates the column, an index over it cannot be created yet. NULLs are exempt
+# from a SQLite unique index, so unmatched rows stay allowed.
+_MIGRATE_SQL = """
+CREATE UNIQUE INDEX IF NOT EXISTS idx_suppliers_erp ON suppliers (erp_name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trucks_erp ON trucks (erp_name);
+-- Served only the dropped per-bunch push; it cost a write on every event.
+DROP INDEX IF EXISTS idx_inspections_erp;
+"""
+
+# What the FFB source label needs from a truck (`domain/ffb_source.py`). One
+# definition, so every screen labels the same truck the same way.
+_SOURCE_FACTS = "t.supplier_id IS NOT NULL AS has_supplier, t.erp_name IS NOT NULL AS in_erp"
+
+
 class ConsoleStore:
     def __init__(self, db_path: Path) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,6 +124,21 @@ class ConsoleStore:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
             self._db.executescript(_CREATE_SQL)
+            self._migrate()
+
+    def _migrate(self) -> None:
+        """Add what a console older than this build has not got.
+
+        `CREATE TABLE IF NOT EXISTS` leaves an existing table exactly as it is,
+        so a new column never reaches a factory database through the schema
+        above — it needs its own pass, and the index that depends on it has to
+        wait until the column exists.
+        """
+        for table, column in (("suppliers", "erp_name"), ("trucks", "erp_name")):
+            kolom = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
+            if column not in kolom:
+                self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+        self._db.executescript(_MIGRATE_SQL)
 
     # -------------------------------------------------------- inspections
 
@@ -162,7 +194,7 @@ class ConsoleStore:
         params += [limit, offset]
         with self._lock:
             rows = self._db.execute(
-                f"""SELECT i.*, t.plate_number, s.name AS supplier_name, s.sumber
+                f"""SELECT i.*, t.plate_number, s.name AS supplier_name, {_SOURCE_FACTS}
                     FROM inspections i
                     LEFT JOIN trucks t ON t.id = i.truck_id
                     LEFT JOIN suppliers s ON s.id = t.supplier_id
@@ -181,10 +213,10 @@ class ConsoleStore:
         """
         with self._lock:
             rows = self._db.execute(
-                """SELECT i.truck_id,
+                f"""SELECT i.truck_id,
                           t.plate_number,
                           s.name AS supplier_name,
-                          s.sumber,
+                          {_SOURCE_FACTS},
                           COUNT(*) AS total,
                           SUM(CASE WHEN i.ripeness_status = 'ACC' THEN 1 ELSE 0 END) AS acc,
                           SUM(CASE WHEN i.ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej,
@@ -207,26 +239,38 @@ class ConsoleStore:
         # cloud's set_updated_at trigger once froze rows forever in edge sync.
         with self._lock, self._db:
             self._db.execute(
-                """INSERT INTO suppliers (id, name, sumber, status) VALUES (?, ?, ?, ?)
+                """INSERT INTO suppliers (id, name, sumber, status, erp_name)
+                   VALUES (?, ?, ?, ?, ?)
                    ON CONFLICT(id) DO UPDATE SET name=excluded.name,
-                       sumber=excluded.sumber, status=excluded.status""",
-                (str(row["id"]), row.get("name"), row.get("sumber"), row.get("status")),
+                       sumber=excluded.sumber, status=excluded.status,
+                       erp_name=excluded.erp_name""",
+                (
+                    str(row["id"]),
+                    row.get("name"),
+                    row.get("sumber"),
+                    row.get("status"),
+                    row.get("erp_name"),
+                ),
             )
 
     def upsert_truck(self, row: dict[str, Any]) -> None:
         with self._lock, self._db:
             self._db.execute(
-                """INSERT INTO trucks (id, plate_number, supplier_id, capacity, status)
-                   VALUES (?, ?, ?, ?, ?)
+                """INSERT INTO trucks (id, plate_number, supplier_id, capacity, status, erp_name)
+                   VALUES (?, ?, ?, ?, ?, ?)
+                   -- Only the pull carries `erp_name`; an operator retyping the
+                   -- same plate must not unlink the truck from AutoERP.
                    ON CONFLICT(id) DO UPDATE SET plate_number=excluded.plate_number,
                        supplier_id=excluded.supplier_id, capacity=excluded.capacity,
-                       status=excluded.status""",
+                       status=excluded.status,
+                       erp_name=COALESCE(excluded.erp_name, trucks.erp_name)""",
                 (
                     str(row["id"]),
                     row.get("plate_number"),
                     str(row["supplier_id"]) if row.get("supplier_id") else None,
                     row.get("capacity"),
                     row.get("status"),
+                    row.get("erp_name"),
                 ),
             )
 
@@ -240,8 +284,8 @@ class ConsoleStore:
         """
         with self._lock:
             rows = self._db.execute(
-                """SELECT t.id, t.plate_number, t.capacity, t.status,
-                          s.name AS supplier_name, s.sumber
+                f"""SELECT t.id, t.plate_number, t.capacity, t.status,
+                          s.name AS supplier_name, {_SOURCE_FACTS}
                    FROM trucks t LEFT JOIN suppliers s ON s.id = t.supplier_id
                    WHERE t.status IS NULL OR t.status != 'inactive'
                    ORDER BY t.rowid DESC"""
@@ -288,7 +332,7 @@ class ConsoleStore:
         # until the ERP lane is live — see docs/PERTANYAAN-TERBUKA.md S1-S3.
         with self._lock:
             rows = self._db.execute(
-                """SELECT w.*, s.name AS supplier_name, s.sumber
+                f"""SELECT w.*, s.name AS supplier_name, {_SOURCE_FACTS}
                    FROM weighings w
                    LEFT JOIN trucks t ON t.id = w.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id
@@ -313,7 +357,7 @@ class ConsoleStore:
     def assignments(self) -> dict[str, dict[str, Any]]:
         with self._lock:
             rows = self._db.execute(
-                """SELECT a.*, t.plate_number, s.name AS supplier_name, s.sumber
+                f"""SELECT a.*, t.plate_number, s.name AS supplier_name, {_SOURCE_FACTS}
                    FROM assignments a
                    LEFT JOIN trucks t ON t.id = a.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id"""
@@ -321,29 +365,6 @@ class ConsoleStore:
         return {r["line_code"]: dict(r) for r in rows}
 
     # ------------------------------------------------------- sync cursor
-
-    # --------------------------------------------------------- push to ERP
-
-    def belum_didorong(self, limit: int) -> list[dict[str, Any]]:
-        """Events that have not landed in ERP yet, oldest first.
-
-        `ORDER BY received_at`, not `timestamp`: arrival order is what matters,
-        and an event that shows up hours later after the power comes back must
-        not cut to the front of the queue.
-        """
-        with self._lock:
-            rows = self._db.execute(
-                """SELECT * FROM inspections WHERE erp_state IS NULL
-                   ORDER BY received_at LIMIT ?""",
-                (limit,),
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-    def tandai_erp(self, event_id: str, state: str) -> None:
-        with self._lock, self._db:
-            self._db.execute(
-                "UPDATE inspections SET erp_state = ? WHERE event_id = ?", (state, event_id)
-            )
 
     def get_state(self, key: str) -> str | None:
         with self._lock:
