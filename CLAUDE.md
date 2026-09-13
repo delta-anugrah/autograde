@@ -57,7 +57,7 @@ src/palmgrade/
   repositories/    # file I/O (WebP/JSON) via LocalFileStorage
   pipelines/       # YOLO inference (realtime_inspection_pipeline, model_registry)
   workers/         # background threads + RuntimeState (capture / display / processing / event_broadcast / outbox_retry / batch_upload)
-                   # konsol pakai asyncio, bukan thread: master_data (tarik dari AutoERP, REST bawaan Frappe) / erp_push (dorong ke ERP)
+                   # konsol pakai asyncio, bukan thread: master_data (tarik supplier + truk dari AutoERP, REST bawaan Frappe)
   integrations/    # camera/{hikrobot,opencv,photo}, notifications/ (webhook_client → api, line_client → line dari konsol), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
   domain/          # pure rules + entities (no I/O) — termasuk working_day.py (§6.1) & ffb_source.py (§3.5b)
   plc/             # PLC/ODOT Modbus-TCP integration, entirely self-contained — public surface is 5 functions (start_plc_worker/shutdown_plc_worker/submit_grading/inputs/diagnostics)
@@ -105,7 +105,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
   saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
   mengatakan apa-apa soal batch upload ke cloud — untuk itu baca log `Batch tick: N item eligible`
   dari `BatchUploadWorker` atau query `state/upload_manifest.db` langsung.
-- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `tanggal_kerja` lewat tengah malam + `console_store` + invarian `console.html` + **dorong ke ERP**: kiriman ulang bukan error, 417 permanen, jaringan mati tidak membuang apa pun, **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic`) di samping `ruff pytest` — samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol — `integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py`, `workers/erp_push_worker.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
+- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `tanggal_kerja` lewat tengah malam + `console_store` + invarian `console.html` + **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: field yang diminta persis milik DocType (ERP palsu membalas 417 seperti Frappe) + Sumber TBS mengikuti `sumber_for_supplier` + grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic`) di samping `ruff pytest` — samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol — `integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
 - From-zero prod setup (NVIDIA toolkit, MVS install, camera IP): `docs/SETUP.md`.
 
 ---
@@ -263,14 +263,14 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     sama dengan `OutboxStore`: WAL + `synchronous=FULL` + satu lock + `INSERT OR IGNORE`).
     Gambar tetap di disk line-nya, di-mount read-only dan di-serve statis. Polling `listdir`
     tiap 2 detik akan memakan I/O yang dipakai grading.
-12. **Sumber TBS: edge cuma menampilkan, tidak pernah menentukan** (§3.5b). Itu Accounting
-    Dimension di ERP, dan **ERP yang menurunkannya** (`sumber_for_supplier`: punya supplier =
-    External, tidak punya = Internal). Beda jenis supplier hidup di **Supplier Group**, dan itu
-    master data yang bisa ditambah admin kapan saja — karena itu `suppliers.sumber` menyimpan
-    grup **mentah** dari ERP dan `domain/ffb_source.py` memetakan "bukan Inti" jadi External,
-    bukan mencocokkan daftar nama grup yang akan diam-diam jadi `—` begitu ada grup baru.
-    **Jangan pernah** bikin boolean `is_internal`: begitu dipadatkan di edge, laporan Plasma vs
-    agen di ERP tidak bisa direkonstruksi lagi.
+12. **Sumber TBS: edge cuma mencerminkan aturan AutoERP, tidak pernah menebak** (§3.5b). AutoERP
+    menurunkannya dari supplier saja (`sumber_for_supplier`: punya supplier = External, tidak
+    punya = Internal). `domain/ffb_source.py` mencerminkannya persis: truk ber-supplier →
+    External; truk yang **sudah ada di ERP** tanpa supplier → Internal; truk tanpa supplier yang
+    belum dilihat ERP → `—`. Kelima query store memakai satu `_SOURCE_FACTS`, jadi tidak ada tab
+    yang berlabel beda. **Jangan** menurunkan sumber dari nama grup supplier. Grup tetap disimpan
+    **mentah** di `suppliers.sumber` karena beda Plasma vs agen hidup di sana; **jangan pernah**
+    bikin boolean `is_internal`.
 13. **Penugasan truk: line dulu, baru dicatat.** `assign_truck` menunggu line menerima sebelum
     menyimpan. Layar yang menampilkan truk terpasang padahal line tidak tahu apa-apa membuat
     operator mengira sudah beres, dan tandan berikutnya terhitung tanpa truk.
@@ -279,18 +279,16 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     kelihatan salah di layar. Kontrak `/internal/assignment` beku, jadi kosong dikirim sebagai
     string kosong dan line-lah yang mengubahnya jadi `None` (`schemas/internal_schema.py`);
     `""` yang lolos apa adanya akan ditolak validasi UUID palmgrade-api.
-14. **Konsol MENDORONG ke ERP; ERP tidak pernah menarik** (§12.5). PC pabrik cuma bisa
-    dihubungi lewat AnyDesk — tidak ada inbound sama sekali, jadi jalur tarik memang mustahil.
-    `ErpPushWorker` POST ke `palmos.interfaces.api.terima_event` dengan
-    `Authorization: token <key>:<secret>`. Antreannya **tabel `inspections` itu sendiri**
-    (`erp_state IS NULL`), bukan tabel kedua — antrean terpisah selalu berakhir beda isi dengan
-    tabel yang dia bayangi. Tiga kelas hasil dan bedanya load-bearing: **200** = mendarat, dan
-    `{"baru": false}` juga sukses (kiriman ulang setelah internet balik memang benar); **417**
-    (`frappe.throw`) = tolakan permanen → `erp_state='tolak'`, tidak pernah diputar lagi;
-    **sisanya** (jaringan mati, 5xx, 401/403) = kondisi luar → kolomnya **TIDAK disentuh** dan
-    batch dihentikan. Menandai gagal di kelas ketiga akan menghapus janjang dari ERP gara-gara
-    internet putus. `ERP_URL` kosong = worker mati diam-diam, dan itu default: jalur ini tidak
-    boleh jadi syarat hidupnya layar operator.
+14. **Konsol yang memanggil AutoERP; AutoERP tidak pernah memanggil ke pabrik.** PC pabrik
+    tidak punya inbound sama sekali. Kontraknya `autoerp/docs/autograde-integration.md`, dan
+    **per janjang tidak pernah dikirim** (§2: *"Not synced: per-bunch rows, images"*) — janjang
+    dan gambar tetap di edge sebagai bukti. AutoERP menerima tiga hal saja: tarikan master data
+    (§4.A, sudah jalan), truk baru dari pabrik lewat `upsert_truck` (§4.B), dan satu pesan per
+    kunjungan truk lewat `upsert_visit` (§4.C). `ErpPushWorker` per janjang sudah dihapus;
+    kolom `inspections.erp_state` sisa jalur itu, tidak dipakai. Semua field yang diminta ke
+    `/api/resource` harus persis milik DocType — Frappe membalas 417 untuk satu field asing.
+    `ERP_URL` kosong = semua worker ERP mati diam-diam, dan itu default: jalur ini tidak boleh
+    jadi syarat hidupnya layar operator.
 15. **Timbangan: `neto_kg` dihitung, tidak pernah dipercaya mentah** (§3.5c). Pengirim boleh
     menyertakannya; kalau bedanya dari `bruto − tara` lewat `TOLERANSI_NETO_KG` (1 kg) kiriman
     **ditolak 400**. Ini angka yang dibayar ke petani — dua sumber kebenaran yang diam-diam

@@ -416,47 +416,32 @@ ternormalisasi, dan **AutoERP menormalkan plat dengan aturan yang sama**, jadi t
 mendarat di baris yang sudah diketik operator, bukan baris kembar. `erp_name` (unik, boleh
 NULL) menyimpan docname ERP dan **tidak pernah dihapus** oleh kiriman yang tidak membawanya
 (`COALESCE`), supaya operator yang mengetik ulang plat tidak memutus tautannya.
-`disabled` di ERP → `status='inactive'`, dan `trucks()` memang sudah menyaring itu: truk yang
-dicabut berhenti bisa ditugaskan, barisnya tetap ada untuk riwayat.
+Supplier `disabled` di ERP → `status='inactive'`, barisnya tetap ada untuk riwayat. `Truck` di
+AutoERP **tidak punya** field `disabled`, jadi truk hasil tarik selalu `active`.
 
-Sumber disimpan **mentah** — sekarang isinya `supplier_group` ERP (Plasma / Agen TBS / Umum),
-karena ERP sendiri yang menurunkan Internal/External (`sumber_for_supplier`: punya supplier =
-External) dan beda Plasma vs agen sengaja hidup di Supplier Group. Edge cuma memetakannya ke
-label tampilan Internal/External/`—` lewat
-`domain/ffb_source.py`. **Tidak ada boolean `is_internal` di manapun** — memadatkan tiga nilai
-jadi dua di edge menghapus laporan Plasma vs Pihak Ketiga di cloud secara permanen. Kolom
-`sumber` belum ada di API sampai Fase 1 PalmOS selesai, jadi dibaca defensif: sebelum itu
-nilainya `None` dan layar menampilkan `—`.
+**Field yang diminta harus persis milik DocType.** Frappe membalas **417 `DataError: Field not
+permitted in query`** untuk satu field yang tidak ada, dan seluruh request gagal. Daftarnya
+disalin dari kontrak (`autoerp/docs/autograde-integration.md` §4.A), dan ERP palsu di
+`test_erp_master_data.py` menolak field asing dengan cara yang sama.
 
-**Dorong ke PalmOS (§12.5).** Arahnya satu, dan itu bukan selera: PC pabrik cuma bisa
-dihubungi lewat AnyDesk — tidak ada inbound sama sekali — jadi ERP tidak akan pernah bisa
-menarik dari sini. `ErpPushWorker` POST ke metode whitelisted
-`palmos.interfaces.api.terima_event` (`ERP_URL` + `Authorization: token <key>:<secret>`, user
-ber-Role `PalmOS AutoGrade`), payload kontrak §5 yang sama persis dengan yang dipakai api.
+**Sumber TBS mengikuti AutoERP, bukan ditebak edge.** AutoERP menurunkannya dari supplier saja
+(`sumber_for_supplier`: punya supplier = External, tidak punya = Internal). `domain/ffb_source.py`
+mencerminkan aturan itu: truk ber-supplier → External; truk yang **sudah ada di ERP** tanpa
+supplier → Internal; truk tanpa supplier yang belum dilihat ERP → `—`. Kelima query store
+memakai satu definisi (`_SOURCE_FACTS`), jadi truk yang sama tidak pernah berlabel beda di tab
+lain. Grup supplier tetap disimpan **mentah** di `suppliers.sumber` — beda Plasma vs agen hidup
+di situ. **Tidak ada boolean `is_internal` di manapun.**
 
-Antreannya **tabel `inspections` itu sendiri**, bukan tabel kedua: `erp_state IS NULL` = belum
-didorong, `'ok'` = mendarat, `'tolak'` = ditolak permanen. Satu fakta di satu tempat — antrean
-terpisah selalu berakhir beda isi dengan tabel yang dia bayangi. `ORDER BY received_at`, bukan
-`timestamp`: yang dikejar urutan kedatangan, dan event yang nyusul berjam-jam setelah listrik
-balik tidak boleh menyelinap ke depan antrean.
+**Per janjang tidak dikirim ke ERP.** Kontrak AutoERP §2 tegas: *"Not synced: per-bunch rows,
+images"*. Janjang dan gambarnya tetap di edge sebagai bukti; AutoERP menerima **satu pesan per
+kunjungan truk** (`upsert_visit`: timbang masuk → grading selesai → timbang keluar). Karena itu
+`ErpPushWorker` (POST per janjang ke `palmos.interfaces.api.terima_event`, endpoint yang tidak
+ada di autoerp) dihapus. Kolom `inspections.erp_state` dibiarkan tanpa dipakai supaya database
+pabrik tidak perlu dibangun ulang; indeksnya dilepas lewat `_MIGRATE_SQL`.
 
-Tiga kelas hasil, dan bedanya yang menentukan:
-
-| Balasan | Artinya | Yang dilakukan |
-|---|---|---|
-| `200` | mendarat (`{"baru": true}`) **atau** sudah pernah mendarat (`{"baru": false}`) | `erp_state='ok'` — dua-duanya sukses; kiriman ulang setelah internet balik memang perilaku yang benar |
-| `417` | `frappe.throw` — ERP menolak isinya | `erp_state='tolak'` + alasannya masuk log. Permanen: payload cacat yang diputar tiap menit selamanya cuma bikin antrean di belakangnya kelaparan |
-| jaringan mati / 5xx / 401 / 403 | kondisi **luar**, bukan salah barisnya | kolomnya **tidak disentuh**, batch berhenti, tick berikutnya mengambil ulang |
-
-Kelas ketiga itu yang paling mudah salah: menandai gagal di situ berarti menghapus janjang dari
-ERP gara-gara internet putus. 401/403 dipisah lognya dan menyebut `ERP_API_KEY`/`ERP_API_SECRET`
-+ Role-nya — tanpa itu kredensial kedaluwarsa tenggelam sebagai "gagal kirim" berhari-hari.
-
-`prediction`, `tp_status`, dan `tp_confidence` disimpan **apa adanya** dari line dan diteruskan
-apa adanya. Aturan Acc/Rej hidup di `domain/vision_event.py`; menurunkannya lagi di konsol
-berarti dua aturan yang bisa berbeda tanpa ada yang tahu. Field kosong juga tidak ditambal —
-ERP menolaknya dengan alasan yang kelihatan, sedangkan tebakan yang salah tidak kelihatan sama
-sekali.
+`prediction`, `tp_status`, dan `tp_confidence` tetap disimpan **apa adanya** dari line: rekap
+per kunjungan butuh `tp_confidence` untuk menghitung tangkai panjang (ACC dengan
+`tp_confidence > 0.8`).
 
 `ERP_URL` kosong = worker pulang saat start dan menulis satu baris log. Itu default: jalur ini
 tidak boleh jadi syarat hidupnya layar operator.
@@ -485,13 +470,12 @@ halaman riwayat/laporan lintas hari (itu urusan cloud — live/hari ini lokal, r
 **Tests** (`tests/unit/test_working_day.py`, `test_console_store.py`, murni-logic, tanpa
 FastAPI): batas hari lewat tengah malam WIB vs UTC, timestamp cacat melempar, dedupe event
 kirim-ulang, pemisahan ACC/REJ per line, penugasan yang selamat restart, urutan
-line-dulu-baru-catat, bentuk URL gambar (relatif vs R2 absolut), Sumber TBS tetap tiga nilai,
-`LINE_N_MACHINE_ID` yang benar-benar sampai lewat Settings, dan kursor master data yang tidak
-maju saat ada baris gagal. `test_erp_push_worker.py` mengunci ketiga kelas hasil dorong-ke-ERP
-(kiriman ulang `{"baru": false}` bukan error, 417 permanen dan cuma dicoba sekali, jaringan
-mati/5xx/403 tidak membuang apa pun dan 403 menghentikan seluruh batch) plus tiga hal yang
-diam-diam bisa berubah tanpa ketahuan: bentuk header `token k:s`, URL metode whitelisted-nya
-persis, dan `prediction`/`tp_status`/`image_path` yang lewat apa adanya. Seam-nya kolaborator:
+line-dulu-baru-catat, bentuk URL gambar (relatif vs R2 absolut), Sumber TBS yang sama di kelima
+tampilan, dan `LINE_N_MACHINE_ID` yang benar-benar sampai lewat Settings.
+`test_erp_master_data.py` + `test_ffb_source.py` mengunci tarikan AutoERP: field persis milik
+DocType (ERP palsunya membalas 417 seperti Frappe), adopsi baris manual, `erp_name` yang tidak
+terhapus, kursor per-DocType yang tidak maju saat ada baris gagal, bentuk header `token k:s`, dan
+aturan `sumber_for_supplier`. Seam-nya kolaborator:
 test menukar `LineClient` dengan yang palsu dan jaringan dengan `httpx.MockTransport`,
 bukan menambal method privat service. `test_console_html.py` menjaga dua invarian UI yang tidak
 punya test runner sendiri (tanpa build step, jadi tanpa Vitest): tidak ada handler `on*` inline
