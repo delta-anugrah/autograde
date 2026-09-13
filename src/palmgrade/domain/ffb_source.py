@@ -1,26 +1,21 @@
-"""Display label for Sumber TBS, the FFB source (plan §3.5b).
+"""FFB source label (Sumber TBS) for the console screens (§3.5b).
 
-In AutoERP the source is an Accounting Dimension, not a boolean, and the ERP
-derives it itself: fruit with a supplier is External, fruit without one is the
-mill's own. The distinction between kinds of external supplier — plasma, agent,
-anyone else — lives on the Supplier Group, which is master data an admin can
-add to at any time.
+AutoERP decides the source, not the edge: `sumber_for_supplier` in
+`erpnext/palm_mill` files fruit with a supplier as External and fruit without
+one as the mill's own. The console mirrors that rule and nothing more.
 
-So the edge stores what it was given RAW and only renders it. Never store
-`is_internal` here: flatten the source to two values at the edge and the
-Plasma vs Pihak Ketiga reporting upstream can no longer be reconstructed.
+Plasma vs agent lives on the Supplier Group upstream. Never flatten it into an
+`is_internal` flag here, or that reporting cannot be rebuilt.
 """
 from __future__ import annotations
 
-# The only value that is not bought. Everything else names a kind of supplier —
-# an open set, so it is matched by "is not this one" rather than by a list that
-# would silently render "—" the day someone adds a group in AutoERP.
-_INTERNAL = {"inti", "internal"}
 
+def ffb_source_label(*, has_supplier: bool, in_erp: bool) -> str | None:
+    """Label for one truck. None renders as "—".
 
-def label_sumber(sumber: str | None) -> str | None:
-    """Raw master value -> display label. None = no source yet (renders "—")."""
-    key = (sumber or "").strip().lower()
-    if not key:
-        return None
-    return "Internal" if key in _INTERNAL else "External"
+    An ownerless truck is Internal only once AutoERP holds it; before that the
+    console has no source to show.
+    """
+    if has_supplier:
+        return "External"
+    return "Internal" if in_erp else None

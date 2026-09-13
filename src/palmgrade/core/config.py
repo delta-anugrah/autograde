@@ -229,16 +229,13 @@ class Settings:
     # localhost because every container runs network_mode: host at the mill.
     console_line_host: str = field(default_factory=lambda: os.getenv("CONSOLE_LINE_HOST", "http://localhost").rstrip("/"))
 
-    # ── ERP link (push events, pull master data) ─────────────────
-    # The console PUSHES; the ERP never pulls. A factory PC is reachable only
-    # over AnyDesk, with no inbound at all (runbook §12.5). Leave `ERP_URL`
-    # empty to switch the whole link off — neither direction may ever become a
-    # condition for the operator screen staying up.
+    # ── AutoERP link ─────────────────────────────────────────────
+    # The console calls AutoERP; AutoERP never calls in (a factory PC has no
+    # inbound). Empty `ERP_URL` switches the link off, and the operator screen
+    # never depends on it.
     erp_url: str = field(default_factory=lambda: os.getenv("ERP_URL", "").rstrip("/"))
     erp_api_key: str = field(default_factory=lambda: os.getenv("ERP_API_KEY", ""))
     erp_api_secret: str = field(default_factory=lambda: os.getenv("ERP_API_SECRET", ""))
-    erp_push_interval_s: int = field(default_factory=lambda: int(os.getenv("ERP_PUSH_INTERVAL_S", "60")))
-    erp_push_batch: int = field(default_factory=lambda: int(os.getenv("ERP_PUSH_BATCH", "200")))
 
     # ── PLC / ODOT CN-8031 (Modbus-TCP) ──────────────────────────
     # Logic lives in src/palmgrade/plc/; the full coil map is in
@@ -366,11 +363,6 @@ class Settings:
     @property
     def upload_events_url(self) -> str:
         return f"{self.upload_api_url}{self.backend_api_ver}/internal/vision/events"
-
-    @property
-    def erp_events_url(self) -> str:
-        """The ERP's whitelisted method. Its module path is contract, not detail."""
-        return f"{self.erp_url}/api/method/palmos.interfaces.api.terima_event"
 
     @property
     def console_db_path(self) -> Path:

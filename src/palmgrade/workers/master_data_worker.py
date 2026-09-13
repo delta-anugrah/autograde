@@ -1,16 +1,10 @@
-"""Pull master data (suppliers + trucks) from AutoERP into the console.
+"""Pull suppliers and trucks from AutoERP into the console (contract §4.A).
 
-One direction, AutoERP always wins (§3.4): it owns suppliers, trucks, prices and
-deductions, and the console only renders what it is given. Frappe's own REST is
-the entire server side of this — there is nothing to build over there.
+AutoERP owns master data and always wins. Frappe's built-in REST API is the
+whole server side: `GET /api/resource/<DocType>` filtered on `modified`.
 
-This replaces a pull from palmgrade-api in the cloud. That API is being switched
-off (plan §6), and a mill pulling from two masters would end up with two
-versions of the same truck.
-
-Each resource carries its own cursor. Suppliers and trucks change at very
-different rates, and one shared cursor would keep dragging the quiet resource
-back over rows it has already seen.
+Each DocType keeps its own cursor. They change at different rates, and one
+shared cursor would drag the quiet one back over rows it has already seen.
 """
 from __future__ import annotations
 
@@ -31,8 +25,7 @@ from ..repositories.console_repository import ConsoleStore
 logger = logging.getLogger(__name__)
 
 _REQUEST_TIMEOUT = 15
-# Edge and ERP clocks never agree to the millisecond, so a row written in the
-# same second as the cursor would otherwise never be pulled again.
+# Clocks never agree to the millisecond, so re-read a little behind the cursor.
 _PULL_OVERLAP = timedelta(seconds=5)
 _PAGE = 500
 _ERP_TIME = "%Y-%m-%d %H:%M:%S.%f"
@@ -44,34 +37,34 @@ TRUCK_CURSOR_KEY = "erp_cursor_truck"
 @dataclass(frozen=True)
 class _Resource:
     doctype: str
+    # Exactly the contract's list: Frappe answers 417 for a field the DocType lacks.
     fields: tuple[str, ...]
     cursor_key: str
-    map: Callable[[dict[str, Any]], dict[str, Any]]
-    simpan: Callable[[ConsoleStore, dict[str, Any]], None]
+    to_row: Callable[[dict[str, Any]], dict[str, Any]]
+    save: Callable[[ConsoleStore, dict[str, Any]], None]
 
 
-# Suppliers first: a truck row points at a supplier id, and the operator should
-# never see a truck whose owner has not arrived yet.
+# Suppliers first, so a truck never arrives before its owner.
 _RESOURCES = (
     _Resource(
-        "Supplier",
-        ("name", "supplier_name", "supplier_group", "disabled", "modified"),
-        SUPPLIER_CURSOR_KEY,
-        supplier_row,
-        ConsoleStore.upsert_supplier,
+        doctype="Supplier",
+        fields=("name", "supplier_name", "supplier_group", "disabled", "modified"),
+        cursor_key=SUPPLIER_CURSOR_KEY,
+        to_row=supplier_row,
+        save=ConsoleStore.upsert_supplier,
     ),
     _Resource(
-        "Truck",
-        ("name", "plate_number", "plate_normalized", "supplier", "disabled", "modified"),
-        TRUCK_CURSOR_KEY,
-        truck_row,
-        ConsoleStore.upsert_truck,
+        doctype="Truck",
+        fields=("name", "plate_number", "plate_normalized", "supplier", "vehicle_class", "modified"),
+        cursor_key=TRUCK_CURSOR_KEY,
+        to_row=truck_row,
+        save=ConsoleStore.upsert_truck,
     ),
 )
 
 
-def _mundur(cursor: str) -> str:
-    """The cursor, minus the overlap. An unparsable one is used as it is."""
+def _rewind(cursor: str) -> str:
+    """Cursor minus the overlap. An unparsable cursor is used as is."""
     for fmt in (_ERP_TIME, "%Y-%m-%d %H:%M:%S"):
         try:
             return (datetime.strptime(cursor, fmt) - _PULL_OVERLAP).strftime(_ERP_TIME)
@@ -87,18 +80,18 @@ class MasterDataWorker:
 
     async def run_loop(self) -> None:
         if not self.settings.erp_url:
-            logger.info("MasterDataWorker off — ERP_URL kosong")
+            logger.info("MasterDataWorker off: ERP_URL is empty")
             return
-        logger.info("MasterDataWorker started — target: %s", self.settings.erp_url)
+        logger.info("MasterDataWorker started, target %s", self.settings.erp_url)
         while True:
             try:
                 await self.pull_once()
             except Exception:
-                logger.exception("MasterDataWorker pull gagal — coba lagi tick berikutnya")
+                logger.exception("Master data pull failed; retrying next tick")
             await asyncio.sleep(self.settings.console_sync_interval_s)
 
     async def pull_once(self) -> int:
-        """Return how many rows landed. No ERP configured means no traffic."""
+        """Pull each DocType once. Returns rows applied; no ERP_URL means no traffic."""
         if not self.settings.erp_url:
             return 0
         headers = {
@@ -107,11 +100,11 @@ class MasterDataWorker:
         applied = 0
         async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT, headers=headers) as client:
             for resource in _RESOURCES:
-                applied += await self._pull_resource(client, resource)
-        logger.info("Master data: %s baris diterapkan", applied)
+                applied += await self._pull(client, resource)
+        logger.info("Master data: %s rows applied", applied)
         return applied
 
-    async def _pull_resource(self, client: httpx.AsyncClient, resource: _Resource) -> int:
+    async def _pull(self, client: httpx.AsyncClient, resource: _Resource) -> int:
         cursor = self.store.get_state(resource.cursor_key)
         params: dict[str, Any] = {
             "fields": json.dumps(list(resource.fields)),
@@ -119,29 +112,28 @@ class MasterDataWorker:
             "order_by": "modified asc",
         }
         if cursor:
-            params["filters"] = json.dumps([["modified", ">", _mundur(cursor)]])
+            params["filters"] = json.dumps([["modified", ">", _rewind(cursor)]])
 
         res = await client.get(
             f"{self.settings.erp_url}/api/resource/{resource.doctype}", params=params
         )
         res.raise_for_status()
 
-        applied, gagal, terbaru = 0, False, cursor
+        applied, failed, newest = 0, False, cursor
         for doc in res.json().get("data") or []:
             try:
-                resource.simpan(self.store, resource.map(doc))
+                resource.save(self.store, resource.to_row(doc))
             except Exception:
-                logger.exception("%s gagal disimpan: %s", resource.doctype, doc.get("name"))
-                gagal = True
+                logger.exception("%s %s failed to save", resource.doctype, doc.get("name"))
+                failed = True
                 continue
             applied += 1
             modified = doc.get("modified")
-            if modified and (terbaru is None or modified > terbaru):
-                terbaru = modified
+            if modified and (newest is None or modified > newest):
+                newest = modified
 
-        # The cursor only moves when EVERY row landed. Stepping over one that
-        # failed leaves the mill on a half-stale matrix forever — including the
-        # truck revocations the ERP has already made.
-        if not gagal and terbaru and terbaru != cursor:
-            self.store.set_state(resource.cursor_key, terbaru)
+        # Advance only when every row landed; stepping over a failed one would
+        # leave the mill half-stale for good.
+        if not failed and newest and newest != cursor:
+            self.store.set_state(resource.cursor_key, newest)
         return applied

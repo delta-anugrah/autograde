@@ -37,14 +37,12 @@ CREATE TABLE IF NOT EXISTS inspections (
     prediction          TEXT,
     tp_status           TEXT,
     tp_confidence       REAL,
-    -- NULL = not pushed to ERP yet · 'ok' = landed · 'tolak' = permanently
-    -- rejected (417). There is no 'failed': a temporary failure is marked by
-    -- NOT touching this column, so the next tick picks it up again.
+    -- Unused since the per-bunch push was dropped: AutoERP takes one message
+    -- per truck visit. Kept so factory databases need no table rebuild.
     erp_state           TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_inspections_hari ON inspections (tanggal_kerja, line_code);
 CREATE INDEX IF NOT EXISTS idx_inspections_urut ON inspections (tanggal_kerja, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_inspections_erp ON inspections (erp_state, received_at);
 
 CREATE TABLE IF NOT EXISTS suppliers (
     id     TEXT PRIMARY KEY,
@@ -107,7 +105,13 @@ CREATE TABLE IF NOT EXISTS sync_state (
 _MIGRATE_SQL = """
 CREATE UNIQUE INDEX IF NOT EXISTS idx_suppliers_erp ON suppliers (erp_name);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_trucks_erp ON trucks (erp_name);
+-- Served only the dropped per-bunch push; it cost a write on every event.
+DROP INDEX IF EXISTS idx_inspections_erp;
 """
+
+# What the FFB source label needs from a truck (`domain/ffb_source.py`). One
+# definition, so every screen labels the same truck the same way.
+_SOURCE_FACTS = "t.supplier_id IS NOT NULL AS has_supplier, t.erp_name IS NOT NULL AS in_erp"
 
 
 class ConsoleStore:
@@ -190,7 +194,7 @@ class ConsoleStore:
         params += [limit, offset]
         with self._lock:
             rows = self._db.execute(
-                f"""SELECT i.*, t.plate_number, s.name AS supplier_name, s.sumber
+                f"""SELECT i.*, t.plate_number, s.name AS supplier_name, {_SOURCE_FACTS}
                     FROM inspections i
                     LEFT JOIN trucks t ON t.id = i.truck_id
                     LEFT JOIN suppliers s ON s.id = t.supplier_id
@@ -209,10 +213,10 @@ class ConsoleStore:
         """
         with self._lock:
             rows = self._db.execute(
-                """SELECT i.truck_id,
+                f"""SELECT i.truck_id,
                           t.plate_number,
                           s.name AS supplier_name,
-                          s.sumber,
+                          {_SOURCE_FACTS},
                           COUNT(*) AS total,
                           SUM(CASE WHEN i.ripeness_status = 'ACC' THEN 1 ELSE 0 END) AS acc,
                           SUM(CASE WHEN i.ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej,
@@ -280,8 +284,8 @@ class ConsoleStore:
         """
         with self._lock:
             rows = self._db.execute(
-                """SELECT t.id, t.plate_number, t.capacity, t.status,
-                          s.name AS supplier_name, s.sumber
+                f"""SELECT t.id, t.plate_number, t.capacity, t.status,
+                          s.name AS supplier_name, {_SOURCE_FACTS}
                    FROM trucks t LEFT JOIN suppliers s ON s.id = t.supplier_id
                    WHERE t.status IS NULL OR t.status != 'inactive'
                    ORDER BY t.rowid DESC"""
@@ -328,7 +332,7 @@ class ConsoleStore:
         # until the ERP lane is live — see docs/PERTANYAAN-TERBUKA.md S1-S3.
         with self._lock:
             rows = self._db.execute(
-                """SELECT w.*, s.name AS supplier_name, s.sumber
+                f"""SELECT w.*, s.name AS supplier_name, {_SOURCE_FACTS}
                    FROM weighings w
                    LEFT JOIN trucks t ON t.id = w.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id
@@ -353,7 +357,7 @@ class ConsoleStore:
     def assignments(self) -> dict[str, dict[str, Any]]:
         with self._lock:
             rows = self._db.execute(
-                """SELECT a.*, t.plate_number, s.name AS supplier_name, s.sumber
+                f"""SELECT a.*, t.plate_number, s.name AS supplier_name, {_SOURCE_FACTS}
                    FROM assignments a
                    LEFT JOIN trucks t ON t.id = a.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id"""
@@ -361,29 +365,6 @@ class ConsoleStore:
         return {r["line_code"]: dict(r) for r in rows}
 
     # ------------------------------------------------------- sync cursor
-
-    # --------------------------------------------------------- push to ERP
-
-    def belum_didorong(self, limit: int) -> list[dict[str, Any]]:
-        """Events that have not landed in ERP yet, oldest first.
-
-        `ORDER BY received_at`, not `timestamp`: arrival order is what matters,
-        and an event that shows up hours later after the power comes back must
-        not cut to the front of the queue.
-        """
-        with self._lock:
-            rows = self._db.execute(
-                """SELECT * FROM inspections WHERE erp_state IS NULL
-                   ORDER BY received_at LIMIT ?""",
-                (limit,),
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-    def tandai_erp(self, event_id: str, state: str) -> None:
-        with self._lock, self._db:
-            self._db.execute(
-                "UPDATE inspections SET erp_state = ? WHERE event_id = ?", (state, event_id)
-            )
 
     def get_state(self, key: str) -> str | None:
         with self._lock:
