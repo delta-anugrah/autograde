@@ -20,9 +20,11 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint, Settings
+from ..domain import erp_messages
 from ..domain.ffb_source import ffb_source_label
 from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.working_day import tanggal_kerja_for
+from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
 
@@ -40,11 +42,21 @@ MINIMUM_BERAT_KG = 100.0
 
 
 class ConsoleService:
-    def __init__(self, settings: Settings, store: ConsoleStore, line_client: LineClient) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        store: ConsoleStore,
+        line_client: LineClient,
+        *,
+        erp_outbox: ErpOutboxStore | None = None,
+    ) -> None:
         self.settings = settings
         self.store = store
         self.lines = settings.console_lines
         self._line_client = line_client
+        # None when the console runs without the AutoERP link: a truck typed
+        # then simply stays local until the link is configured.
+        self.erp_outbox = erp_outbox
         # Resolved in the constructor on purpose: a bad FACTORY_TZ must kill
         # startup, not quietly file tonnage under the wrong date.
         self.tz = ZoneInfo(settings.factory_tz)
@@ -189,11 +201,23 @@ class ConsoleService:
         split the day's tonnage. The pull never clears `erp_name` either, so an
         operator retyping a linked plate cannot unlink it.
 
-        Deliberately NOT pushed up to AutoERP yet — that direction is its own
-        piece of work (interface B in the integration design).
+        A truck AutoERP already owns is read-only here (contract §4, FE-1):
+        retyping its plate returns the row untouched. Overwriting it wiped the
+        supplier, and with it the source label on every grading row of that
+        truck — the label is read from the truck, never copied onto the row.
+
+        A truck AutoERP has not got goes up through the outbox (interface B).
         """
         plat = (plate_number or "").strip()
         truck_id = truck_id_for(plat)  # ValueError on an empty plate → route replies 400
+        owned_by_erp = self.store.truck(truck_id) or {}
+        if owned_by_erp.get("erp_name"):
+            return {
+                "id": truck_id,
+                "plate_number": owned_by_erp["plate_number"],
+                "status": owned_by_erp["status"],
+            }
+
         self.store.upsert_truck(
             {
                 "id": truck_id,
@@ -203,6 +227,9 @@ class ConsoleService:
                 "status": "manual",
             }
         )
+        if self.erp_outbox is not None:
+            key, payload = erp_messages.truck_message(plat)
+            self.erp_outbox.enqueue(erp_messages.TRUCK, key, payload)
         return {"id": truck_id, "plate_number": plat, "status": "manual"}
 
     # --------------------------------------------------------- scale (§3.5c)

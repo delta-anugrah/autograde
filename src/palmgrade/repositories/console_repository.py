@@ -274,6 +274,29 @@ class ConsoleStore:
                 ),
             )
 
+    def truck(self, truck_id: str) -> dict[str, Any] | None:
+        """One truck, including `erp_name` — who owns it decides what may edit it."""
+        with self._lock:
+            row = self._db.execute(
+                """SELECT id, plate_number, supplier_id, capacity, status, erp_name
+                   FROM trucks WHERE id = ?""",
+                (truck_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def link_truck(self, truck_id: str, erp_name: str, supplier_id: str | None = None) -> None:
+        """Record what AutoERP answered for a truck sent up (contract §4.B).
+
+        `supplier_id` only fills a gap: AutoERP owns the owner, so a value here
+        is what it just told us, and the next pull carries any later change.
+        """
+        with self._lock, self._db:
+            self._db.execute(
+                """UPDATE trucks SET erp_name = ?, supplier_id = COALESCE(?, supplier_id)
+                   WHERE id = ?""",
+                (erp_name, supplier_id, truck_id),
+            )
+
     def trucks(self) -> list[dict[str, Any]]:
         """Newest first.
 

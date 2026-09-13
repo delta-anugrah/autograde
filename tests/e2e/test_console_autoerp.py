@@ -14,6 +14,7 @@ CONSOLE_SYNC_INTERVAL_S=5, or waiting for the pull times out.
 """
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import time
@@ -66,12 +67,45 @@ def plates(erp):
     _delete_trucks(created.values())
 
 
+@pytest.fixture(scope="module")
+def mill_plate():
+    """A plate typed at the mill; the test never creates it in AutoERP itself."""
+    plate = f"BE {secrets.randbelow(9000) + 1000} TSC"
+    yield plate
+    _delete_trucks([plate])
+
+
 def _delete_trucks(names) -> None:
     with httpx.Client(base_url=ENV["E2E_ERP_URL"], timeout=30) as admin:
         login = {"usr": "Administrator", "pwd": ENV["E2E_ERP_ADMIN_PASSWORD"]}
         admin.post("/api/method/login", data=login).raise_for_status()
         for name in names:
-            admin.delete(f"/api/resource/Truck/{name}").raise_for_status()
+            res = admin.delete(f"/api/resource/Truck/{name}")
+            if res.status_code != 404:  # a test may have failed before creating it
+                res.raise_for_status()
+
+
+def _erp_trucks(erp, plate: str) -> list[dict]:
+    res = erp.get(
+        "/api/resource/Truck",
+        params={
+            "filters": json.dumps([["plate_number", "=", plate]]),
+            "fields": json.dumps(["name", "source", "autograde_id"]),
+        },
+    )
+    res.raise_for_status()
+    return res.json()["data"]
+
+
+def _eventually(read, message: str):
+    """Poll until the two systems agree, or fail saying what never happened."""
+    deadline = time.monotonic() + PULL_TIMEOUT_S
+    while time.monotonic() < deadline:
+        value = read()
+        if value:
+            return value
+        time.sleep(1)
+    pytest.fail(f"{message} within {PULL_TIMEOUT_S}s")
 
 
 def _console_trucks(console) -> dict[str, dict]:
@@ -148,8 +182,27 @@ def test_a_weighing_shows_its_trucks_source(console, pulled, plates):
     assert (row["neto_kg"], row["sumber_label"]) == (9160, "Internal")
 
 
-# Last on purpose: on a build with the bug it wipes the owned truck's supplier.
-@pytest.mark.xfail(strict=True, reason="known bug: retyping a linked plate wipes its owner (fixed on feat/erp-outbox)")
+def test_a_truck_typed_at_the_mill_reaches_autoerp(console, erp, mill_plate):
+    """Contract §4.B: an unknown plate becomes an ownerless Truck for the
+    backoffice to complete, and comes back down on the next pull."""
+    res = console.post("/api/console/trucks", json={"plate_number": mill_plate.lower()})
+    assert res.status_code == 201, res.text
+
+    truck = _eventually(
+        lambda: next(iter(_erp_trucks(erp, mill_plate)), None),
+        f"AutoERP never received {mill_plate}",
+    )
+    assert truck["source"] == "AutoGrade"
+    assert truck["autograde_id"] == truck_id_for(mill_plate)
+
+    adopted = _eventually(
+        lambda: _console_trucks(console).get(mill_plate) if
+        _console_trucks(console).get(mill_plate, {}).get("status") == "active" else None,
+        f"console never adopted {mill_plate} back from AutoERP",
+    )
+    assert adopted["sumber_label"] == "Internal"  # ownerless until the backoffice fills it in
+
+
 def test_retyping_a_plate_autoerp_owns_keeps_its_owner(console, pulled, plates):
     res = console.post("/api/console/trucks", json={"plate_number": plates["owned"]})
     assert res.status_code == 201, res.text
