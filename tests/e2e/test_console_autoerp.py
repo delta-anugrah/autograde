@@ -54,8 +54,46 @@ def console():
 
 
 @pytest.fixture(scope="module")
-def plates(erp):
-    """Two fresh trucks made through AutoERP's own endpoint, deleted afterwards."""
+def cleanup():
+    """One teardown for everything this module makes in AutoERP, in the order
+    AutoERP allows: a truck cannot be deleted while a ticket still points at it.
+
+    Tickets are found by their scale number rather than remembered, because
+    AutoERP adopts a truck's open ticket inside its matching window — one visit
+    can land on a ticket another test made.
+    """
+    plates: list[str] = []
+    yield plates
+    with httpx.Client(base_url=ENV["E2E_ERP_URL"], timeout=30) as admin:
+        login = {"usr": "Administrator", "pwd": ENV["E2E_ERP_ADMIN_PASSWORD"]}
+        admin.post("/api/method/login", data=login).raise_for_status()
+        _delete_e2e_tickets(admin)
+        for plate in plates:
+            admin.delete(f"/api/resource/Truck/{plate}")
+
+
+def _delete_e2e_tickets(admin: httpx.Client) -> None:
+    found = admin.get(
+        "/api/resource/Weighbridge Ticket",
+        params={
+            "filters": json.dumps([["scale_ticket_no", "like", "E2E-%"]]),
+            "fields": json.dumps(["name", "docstatus"]),
+            "limit_page_length": 100,
+        },
+    )
+    found.raise_for_status()
+    for ticket in found.json()["data"]:
+        if ticket["docstatus"] == 1:  # finalised: cancel before it can go
+            admin.post(
+                "/api/method/frappe.client.cancel",
+                json={"doctype": "Weighbridge Ticket", "name": ticket["name"]},
+            )
+        admin.delete(f"/api/resource/Weighbridge Ticket/{ticket['name']}")
+
+
+@pytest.fixture(scope="module")
+def plates(erp, cleanup):
+    """Two fresh trucks made through AutoERP's own endpoint."""
     series = secrets.randbelow(9000) + 1000
     created: dict[str, str] = {}
     for role, suffix, supplier in (("owned", "TSA", SUPPLIER), ("ownerless", "TSB", None)):
@@ -65,26 +103,16 @@ def plates(erp):
         )
         res.raise_for_status()
         created[role] = res.json()["message"]["name"]
-    yield created
-    _delete_trucks(created.values())
+        cleanup.append(created[role])
+    return created
 
 
 @pytest.fixture(scope="module")
-def mill_plate():
+def mill_plate(cleanup):
     """A plate typed at the mill; the test never creates it in AutoERP itself."""
     plate = f"BE {secrets.randbelow(9000) + 1000} TSC"
-    yield plate
-    _delete_trucks([plate])
-
-
-def _delete_trucks(names) -> None:
-    with httpx.Client(base_url=ENV["E2E_ERP_URL"], timeout=30) as admin:
-        login = {"usr": "Administrator", "pwd": ENV["E2E_ERP_ADMIN_PASSWORD"]}
-        admin.post("/api/method/login", data=login).raise_for_status()
-        for name in names:
-            res = admin.delete(f"/api/resource/Truck/{name}")
-            if res.status_code != 404:  # a test may have failed before creating it
-                res.raise_for_status()
+    cleanup.append(plate)
+    return plate
 
 
 def _erp_trucks(erp, plate: str) -> list[dict]:
@@ -226,11 +254,19 @@ def fake_line():
     """
 
     class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
         def do_POST(self) -> None:  # noqa: N802 - http.server's own naming
+            # Read the body before answering: replying to an unread request
+            # resets the connection, and the console reads that as "the line did
+            # not answer" — which is exactly what it should do for a real line.
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            body = b'{"status":"ok"}'
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(b'{"status":"ok"}')
+            self.wfile.write(body)
 
         do_GET = do_POST  # noqa: N815 - the console polls /health too
 
@@ -244,17 +280,15 @@ def fake_line():
 
 
 @pytest.fixture(scope="module")
-def tickets():
-    """Tickets the visits create, removed afterwards. They stay drafts on
-    purpose: no tare is ever sent, so AutoERP never finalises one into a
-    Purchase Receipt and the demo's ledger is left alone."""
-    made: list[str] = []
-    yield made
-    with httpx.Client(base_url=ENV["E2E_ERP_URL"], timeout=30) as admin:
-        login = {"usr": "Administrator", "pwd": ENV["E2E_ERP_ADMIN_PASSWORD"]}
-        admin.post("/api/method/login", data=login).raise_for_status()
-        for name in made:
-            admin.delete(f"/api/resource/Weighbridge Ticket/{name}")
+def grading_plate(erp, cleanup):
+    """A truck of its own for the grading test: a plate that already has a
+    weighed-out ticket would finalise, and finalising writes to the ledger."""
+    plate = f"BE {secrets.randbelow(9000) + 1000} TSD"
+    erp.post(
+        "/api/method/erpnext.palm_mill.api.upsert_truck", json={"plate_number": plate}
+    ).raise_for_status()
+    cleanup.append(plate)
+    return plate
 
 
 def _erp_ticket(erp, visit_id: str) -> dict | None:
@@ -272,7 +306,7 @@ def _erp_ticket(erp, visit_id: str) -> dict | None:
     return next(iter(res.json()["data"]), None)
 
 
-def test_a_gate_weighing_becomes_a_weighbridge_ticket(console, erp, pulled, plates, tickets):
+def test_a_gate_weighing_becomes_a_weighbridge_ticket(console, erp, pulled, plates):
     reference = f"E2E-{uuid.uuid4().hex[:8]}"
     res = console.post(
         "/api/v1/internal/scale/weighing",
@@ -288,30 +322,31 @@ def test_a_gate_weighing_becomes_a_weighbridge_ticket(console, erp, pulled, plat
     visit_id = res.json()["id"]
 
     ticket = _eventually(lambda: _erp_ticket(erp, visit_id), "AutoERP never received the visit")
-    tickets.append(ticket["name"])
     assert float(ticket["gross_weight_kg"]) == 14560.0
     assert ticket["scale_ticket_no"] == reference
 
 
-def test_closing_the_line_assignment_sends_the_grading(console, erp, pulled, plates, fake_line, tickets):
+def test_closing_the_line_assignment_sends_the_grading(console, erp, fake_line, grading_plate):
     """Three bunches: one long stalk among the accepted, one rejected."""
+    plate = grading_plate
+    console.post("/api/console/trucks", json={"plate_number": plate}).raise_for_status()
     visit_id = console.post(
         "/api/v1/internal/scale/weighing",
         headers=_secret(),
         json={
             "ref": f"E2E-{uuid.uuid4().hex[:8]}",
-            "plate_number": plates["owned"],
+            "plate_number": plate,
             "waktu_masuk": datetime.now(UTC).isoformat(),
             "bruto_kg": 15200,
         },
     ).json()["id"]
-    tickets.append(_eventually(lambda: _erp_ticket(erp, visit_id), "visit never arrived")["name"])
+    _eventually(lambda: _erp_ticket(erp, visit_id), "the visit never arrived")
 
     assigned = console.post(
-        "/api/console/lines/line-1/assign-truck", json={"truck_id": truck_id_for(plates["owned"])}
+        "/api/console/lines/line-1/assign-truck", json={"truck_id": truck_id_for(plate)}
     )
     assert assigned.status_code == 200, assigned.text
-    for n, (status, tp) in enumerate([("ACC", None), ("ACC", 0.91), ("REJ", None)], start=1):
+    for status, tp in (("ACC", None), ("ACC", 0.91), ("REJ", None)):
         console.post(
             "/api/v1/internal/vision/events",
             headers=_secret(),
@@ -326,7 +361,7 @@ def test_closing_the_line_assignment_sends_the_grading(console, erp, pulled, pla
                 "tp_confidence": tp,
                 "capture_type": "auto",
                 "image_path": None,
-                "truck_id": truck_id_for(plates["owned"]),
+                "truck_id": truck_id_for(plate),
                 "assignment_id": assigned.json()["assignment_id"],
             },
         ).raise_for_status()
