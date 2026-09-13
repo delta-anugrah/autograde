@@ -1,0 +1,144 @@
+"""When the console sends a visit (contract §4.C).
+
+Three moments, all of them things that happen anyway: the gate weighing, the
+truck leaving its line, and the weigh-out. Nothing here asks the operator to
+remember an extra step.
+"""
+from __future__ import annotations
+
+import asyncio
+from dataclasses import replace
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from palmgrade.core.config import Settings
+from palmgrade.domain.erp_master import supplier_row, truck_row
+from palmgrade.domain.plate import truck_id_for
+from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
+from palmgrade.repositories.console_repository import ConsoleStore
+from palmgrade.services.console_service import ConsoleService
+from palmgrade.services.erp_queue import ErpQueue
+
+PLATE = "BE 8821 KL"
+WIB = ZoneInfo("Asia/Jakarta")
+
+
+class FakeLineClient:
+    """The line is a collaborator; the visit lane must not depend on it."""
+
+    async def assign_truck(self, line, **_kw) -> None: ...
+
+    async def manual_reject(self, line, **_kw) -> None: ...
+
+
+def _service(tmp_path, *, linked: bool = False) -> tuple[ConsoleService, ErpOutboxStore]:
+    store = ConsoleStore(tmp_path / "console.db")
+    outbox = ErpOutboxStore(tmp_path / "erp_outbox.db")
+    if linked:
+        store.upsert_supplier(supplier_row({"name": "KUD Sumber Makmur", "supplier_group": "Plasma"}))
+        store.upsert_truck(
+            truck_row({"name": PLATE, "plate_number": PLATE, "supplier": "KUD Sumber Makmur"})
+        )
+    service = ConsoleService(
+        replace(Settings(), factory_tz="Asia/Jakarta"),
+        store,
+        FakeLineClient(),
+        erp_queue=ErpQueue(store, outbox, site="PT Sawit Rambang Lestari"),
+    )
+    return service, outbox
+
+
+def _now() -> str:
+    return datetime.now(WIB).isoformat()
+
+
+def _weigh(service: ConsoleService, **over) -> dict:
+    payload = {
+        "ref": "SCL-1",
+        "plate_number": PLATE,
+        "waktu_masuk": _now(),
+        "bruto_kg": 14560,
+    } | over
+    return service.catat_timbangan(payload)
+
+
+def _visits(outbox: ErpOutboxStore) -> list:
+    return [m for m in outbox.due() if m.kind == "visit"]
+
+
+def test_the_gate_weighing_queues_the_visit(tmp_path):
+    service, outbox = _service(tmp_path, linked=True)
+
+    ticket = _weigh(service)
+
+    [visit] = _visits(outbox)
+    assert visit.key == ticket["id"]
+    assert visit.payload["stage"] == "gate"
+    assert visit.payload["weighing"]["gross_kg"] == 14560.0
+    assert "tare_kg" not in visit.payload["weighing"]
+
+
+def test_the_weigh_out_replaces_it_with_the_tare(tmp_path):
+    """Same visit, same queue row: the second send carries the whole state."""
+    service, outbox = _service(tmp_path, linked=True)
+    _weigh(service)
+
+    _weigh(service, bruto_kg=None, tara_kg=5400, waktu_keluar=_now())
+
+    [visit] = _visits(outbox)
+    assert visit.payload["stage"] == "departed"
+    assert visit.payload["weighing"]["tare_kg"] == 5400.0
+    assert visit.payload["weighing"]["gross_kg"] == 14560.0
+
+
+def test_releasing_the_truck_queues_its_grading(tmp_path):
+    """The line assignment closing is what says "these bunches are that truck's"."""
+    service, outbox = _service(tmp_path, linked=True)
+    ticket = _weigh(service)
+    assignment = asyncio.run(service.assign_truck("line-1", truck_id_for(PLATE)))
+    for n, (status, tp) in enumerate([("ACC", None), ("ACC", 0.91), ("REJ", None)], start=1):
+        service.ingest(
+            {
+                "event_id": f"ev-{n}",
+                "machine_id": service.lines[0].machine_id,
+                "timestamp": _now(),
+                "ripeness_status": status,
+                "ripeness_confidence": 0.9,
+                "capture_type": "auto",
+                "image_path": None,
+                "truck_id": truck_id_for(PLATE),
+                "assignment_id": assignment["assignment_id"],
+                "prediction": "Acc" if status == "ACC" else "Rej",
+                "tp_status": "PASS" if tp else None,
+                "tp_confidence": tp,
+            }
+        )
+
+    asyncio.run(service.lepas_truk("line-1"))
+
+    [visit] = _visits(outbox)
+    assert visit.key == ticket["id"]
+    assert visit.payload["stage"] == "grading"
+    assert visit.payload["grading"]["assignment_id"] == assignment["assignment_id"]
+    assert visit.payload["grading"]["counts"] == {
+        "total": 3, "acc": 2, "rej": 1, "mentah": 1, "tangkai_panjang": 1, "manual_reject": 0,
+    }
+
+
+def test_a_truck_that_was_never_weighed_queues_nothing(tmp_path):
+    """AutoERP dates the ticket from `time_in`; without a weighing there is no
+    visit to send yet, and the daily resend will pick it up once there is."""
+    service, outbox = _service(tmp_path, linked=True)
+    asyncio.run(service.assign_truck("line-1", truck_id_for(PLATE)))
+
+    asyncio.run(service.lepas_truk("line-1"))
+
+    assert _visits(outbox) == []
+
+
+def test_a_console_without_the_erp_link_still_weighs(tmp_path):
+    """`ERP_URL` empty is the default: the scale lane must not depend on it."""
+    store = ConsoleStore(tmp_path / "console.db")
+    service = ConsoleService(replace(Settings(), factory_tz="Asia/Jakarta"), store, FakeLineClient())
+
+    assert _weigh(service)["bruto_kg"] == 14560.0

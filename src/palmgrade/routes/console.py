@@ -18,6 +18,7 @@ from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
 from ..repositories.console_repository import ConsoleStore
 from ..services.console_service import ConsoleService
+from ..services.erp_queue import ErpQueue
 
 _CONSOLE_HTML = Path(__file__).resolve().parents[1] / "static" / "console.html"
 
@@ -26,12 +27,11 @@ _CONSOLE_HTML = Path(__file__).resolve().parents[1] / "static" / "console.html"
 def get_console_service() -> ConsoleService:
     """Console composition root. The only place these are wired."""
     settings = Settings()
-    return ConsoleService(
-        settings,
-        ConsoleStore(settings.console_db_path),
-        LineClient(settings),
-        erp_outbox=ErpOutboxStore(settings.erp_outbox_db_path),
+    store = ConsoleStore(settings.console_db_path)
+    queue = ErpQueue(
+        store, ErpOutboxStore(settings.erp_outbox_db_path), site=settings.erp_company
     )
+    return ConsoleService(settings, store, LineClient(settings), erp_queue=queue)
 
 
 Service = Annotated[ConsoleService, Depends(get_console_service)]

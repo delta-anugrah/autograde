@@ -9,20 +9,23 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from typing import Any, Protocol
+from zoneinfo import ZoneInfo
 
 from ..core.config import Settings
 from ..domain import erp_messages
 from ..domain.erp_master import supplier_id_for
 from ..domain.plate import truck_id_for
 from ..integrations.erp.client import ErpClient
-from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..repositories.console_repository import ConsoleStore
+from ..services.erp_queue import ErpQueue
 from .erp_outbox_worker import ErpOutboxWorker, OutboxHandler
 from .master_data_worker import MasterDataWorker
+from .visit_resend_worker import VisitResendWorker
 
 logger = logging.getLogger(__name__)
 
 UPSERT_TRUCK = "erpnext.palm_mill.api.upsert_truck"
+UPSERT_VISIT = "erpnext.palm_mill.api.upsert_visit"
 
 
 class Worker(Protocol):
@@ -49,9 +52,19 @@ def truck_linked(store: ConsoleStore) -> Callable[[str, Any], None]:
     return record
 
 
-def build_erp_workers(
-    settings: Settings, store: ConsoleStore, outbox: ErpOutboxStore
-) -> list[Worker]:
+def visit_recorded(store: ConsoleStore) -> Callable[[str, Any], None]:
+    """Keep the Weighbridge Ticket AutoERP made — the trace from a weighbridge
+    row at the mill to the receipt in the ledger."""
+
+    def record(key: str, answer: Any) -> None:
+        ticket = (answer or {}).get("ticket")
+        if ticket:
+            store.link_weighing_to_ticket(key, ticket)
+
+    return record
+
+
+def build_erp_workers(settings: Settings, store: ConsoleStore, queue: ErpQueue) -> list[Worker]:
     """Every background task that talks to AutoERP, or none at all."""
     if not settings.erp_url:
         logger.info("AutoERP link off: ERP_URL is empty")
@@ -60,8 +73,10 @@ def build_erp_workers(
     client = ErpClient(settings.erp_url, settings.erp_api_key, settings.erp_api_secret)
     handlers = {
         erp_messages.TRUCK: OutboxHandler(method=UPSERT_TRUCK, on_sent=truck_linked(store)),
+        erp_messages.VISIT: OutboxHandler(method=UPSERT_VISIT, on_sent=visit_recorded(store)),
     }
     return [
         MasterDataWorker(store, client, interval_s=settings.console_sync_interval_s),
-        ErpOutboxWorker(outbox, client, handlers),
+        ErpOutboxWorker(queue.outbox, client, handlers),
+        VisitResendWorker(queue, store, ZoneInfo(settings.factory_tz)),
     ]

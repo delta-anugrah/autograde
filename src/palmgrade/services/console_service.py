@@ -20,13 +20,12 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint, Settings
-from ..domain import erp_messages
 from ..domain.ffb_source import ffb_source_label
 from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.working_day import tanggal_kerja_for
-from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
+from .erp_queue import ErpQueue
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +47,15 @@ class ConsoleService:
         store: ConsoleStore,
         line_client: LineClient,
         *,
-        erp_outbox: ErpOutboxStore | None = None,
+        erp_queue: ErpQueue | None = None,
     ) -> None:
         self.settings = settings
         self.store = store
         self.lines = settings.console_lines
         self._line_client = line_client
-        # None when the console runs without the AutoERP link: a truck typed
-        # then simply stays local until the link is configured.
-        self.erp_outbox = erp_outbox
+        # None when the console runs without the AutoERP link: everything at the
+        # mill still happens, it simply goes nowhere.
+        self.erp_queue = erp_queue
         # Resolved in the constructor on purpose: a bad FACTORY_TZ must kill
         # startup, not quietly file tonnage under the wrong date.
         self.tz = ZoneInfo(settings.factory_tz)
@@ -227,9 +226,8 @@ class ConsoleService:
                 "status": "manual",
             }
         )
-        if self.erp_outbox is not None:
-            key, payload = erp_messages.truck_message(plat)
-            self.erp_outbox.enqueue(erp_messages.TRUCK, key, payload)
+        if self.erp_queue is not None:
+            self.erp_queue.truck(plat)
         return {"id": truck_id, "plate_number": plat, "status": "manual"}
 
     # --------------------------------------------------------- scale (§3.5c)
@@ -293,7 +291,33 @@ class ConsoleService:
                 "waktu_keluar": waktu_keluar,
             }
         )
+        self._queue_visit(weighing_id)
         return self.store.weighing(weighing_id) or {}
+
+    # ------------------------------------------------------ send to AutoERP
+
+    def _queue_visit(self, weighing_id: str) -> None:
+        """A weighbridge row moved: AutoERP gets the whole visit as it stands."""
+        if self.erp_queue is not None:
+            self.erp_queue.visit(weighing_id, tz=self.tz)
+
+    def _queue_grading(self, closing: dict[str, Any]) -> None:
+        """The line assignment just closed, so its bunches belong to that truck's
+        visit — the link is written here, once, and never guessed at send time.
+        """
+        if self.erp_queue is None:
+            return
+        truck_id, assignment_id = closing.get("truck_id"), closing.get("assignment_id")
+        if not (truck_id and assignment_id):
+            return
+        hari = tanggal_kerja_for(datetime.now(self.tz).isoformat(), self.tz)
+        weighing_id = self.store.latest_weighing_for_truck(truck_id, hari)
+        if not weighing_id:
+            # Nothing weighed yet. AutoERP dates a ticket from `time_in`, so this
+            # visit goes up when the weighing does — or on the daily resend.
+            return
+        self.store.link_weighing_to_assignment(weighing_id, assignment_id)
+        self.erp_queue.visit(weighing_id, tz=self.tz)
 
     # ------------------------------------------------------- line commands
 
@@ -325,10 +349,12 @@ class ConsoleService:
         line turns it into `None` (`schemas/internal_schema.py`).
         """
         line = self._require_line(line_code)
+        closing = self.store.assignments().get(line_code) or {}
         await self._line_client.assign_truck(
             line, assignment_id="", truck_id="", assigned_at=datetime.now(self.tz).isoformat()
         )
         self.store.set_assignment(line_code, "", None)
+        self._queue_grading(closing)
         return {"line_code": line_code, "truck_id": None}
 
     async def manual_reject(self, line_code: str, requested_by: str) -> dict[str, Any]:

@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     service = get_console_service()  # ZoneInfo(FACTORY_TZ) is validated here
     # The AutoERP link is optional by design: with ERP_URL empty there are no
     # workers at all, and any of them may die without taking the screen down.
-    workers = build_erp_workers(service.settings, service.store, service.erp_outbox)
+    workers = build_erp_workers(service.settings, service.store, service.erp_queue)
     tasks = [asyncio.create_task(worker.run_loop()) for worker in workers]
     logger.info("Console ready, working day %s (%s)", service.today(), service.settings.factory_tz)
     yield

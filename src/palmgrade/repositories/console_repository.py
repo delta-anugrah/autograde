@@ -87,7 +87,13 @@ CREATE TABLE IF NOT EXISTS weighings (
     neto_kg       REAL,
     waktu_masuk   TEXT,
     waktu_keluar  TEXT,
-    received_at   REAL NOT NULL
+    received_at   REAL NOT NULL,
+    -- The line assignment this visit's bunches belong to, written when the truck
+    -- leaves the line. Without it a second ticket the same day would inherit the
+    -- first one's grading.
+    assignment_id TEXT,
+    -- The Weighbridge Ticket AutoERP made for this visit, as it answered.
+    erp_ticket    TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_weighings_hari ON weighings (tanggal_kerja, waktu_masuk DESC);
 CREATE INDEX IF NOT EXISTS idx_weighings_plat ON weighings (plate_norm);
@@ -134,7 +140,12 @@ class ConsoleStore:
         above — it needs its own pass, and the index that depends on it has to
         wait until the column exists.
         """
-        for table, column in (("suppliers", "erp_name"), ("trucks", "erp_name")):
+        for table, column in (
+            ("suppliers", "erp_name"),
+            ("trucks", "erp_name"),
+            ("weighings", "assignment_id"),
+            ("weighings", "erp_ticket"),
+        ):
             kolom = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
             if column not in kolom:
                 self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
@@ -343,6 +354,82 @@ class ConsoleStore:
                        waktu_keluar  = COALESCE(excluded.waktu_keluar, weighings.waktu_keluar)""",
                 {**row, "received_at": time.time()},
             )
+
+    def visit(self, weighing_id: str) -> dict[str, Any] | None:
+        """One weighbridge row with what AutoERP needs around it (contract §4.C).
+
+        `supplier_erp_name` comes from the pulled master data — AutoERP matches
+        its supplier by its own name, never by anything the console invents.
+        """
+        with self._lock:
+            row = self._db.execute(
+                """SELECT w.*, s.erp_name AS supplier_erp_name
+                   FROM weighings w
+                   LEFT JOIN trucks t ON t.id = w.truck_id
+                   LEFT JOIN suppliers s ON s.id = t.supplier_id
+                   WHERE w.id = ?""",
+                (weighing_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def grading_counts(self, assignment_id: str) -> dict[str, Any] | None:
+        """The AI result of one line assignment, counted in SQL (§4.C).
+
+        Criteria mapping: mentah is REJ, tangkai panjang an ACC the line marked
+        with `tp_confidence > 0.8`, matang the rest — AutoERP derives that one.
+        None when the assignment graded nothing: there is no summary to send.
+        """
+        with self._lock:
+            row = self._db.execute(
+                """SELECT COUNT(*) AS total,
+                          MIN(line_code) AS line_code,
+                          SUM(CASE WHEN ripeness_status = 'ACC' THEN 1 ELSE 0 END) AS acc,
+                          SUM(CASE WHEN ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej,
+                          SUM(CASE WHEN ripeness_status = 'ACC' AND tp_confidence > 0.8
+                                   THEN 1 ELSE 0 END) AS tangkai_panjang,
+                          SUM(CASE WHEN capture_type = 'manual' THEN 1 ELSE 0 END) AS manual_reject,
+                          MIN(timestamp) AS mulai,
+                          MAX(timestamp) AS selesai
+                   FROM inspections WHERE assignment_id = ?""",
+                (assignment_id,),
+            ).fetchone()
+        if not row or not row["total"]:
+            return None
+        return {"assignment_id": assignment_id, **dict(row)}
+
+    def link_weighing_to_assignment(self, weighing_id: str, assignment_id: str) -> None:
+        """Written when the truck leaves the line: these bunches are that visit's."""
+        with self._lock, self._db:
+            self._db.execute(
+                "UPDATE weighings SET assignment_id = ? WHERE id = ?", (assignment_id, weighing_id)
+            )
+
+    def link_weighing_to_ticket(self, weighing_id: str, erp_ticket: str) -> None:
+        """The Weighbridge Ticket AutoERP answered with — the trace back to the ledger."""
+        with self._lock, self._db:
+            self._db.execute(
+                "UPDATE weighings SET erp_ticket = ? WHERE id = ?", (erp_ticket, weighing_id)
+            )
+
+    def latest_weighing_for_truck(self, truck_id: str, tanggal_kerja: str) -> str | None:
+        """The visit a truck's grading belongs to: its newest ticket that day."""
+        with self._lock:
+            row = self._db.execute(
+                """SELECT id FROM weighings
+                   WHERE truck_id = ? AND tanggal_kerja = ?
+                   ORDER BY COALESCE(waktu_masuk, '') DESC, received_at DESC LIMIT 1""",
+                (truck_id, tanggal_kerja),
+            ).fetchone()
+        return row["id"] if row else None
+
+    def weighing_ids_on(self, tanggal_kerja: str) -> list[str]:
+        """Every visit of one working day, oldest first (the daily resend)."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT id FROM weighings WHERE tanggal_kerja = ? ORDER BY received_at",
+                (tanggal_kerja,),
+            ).fetchall()
+        return [row["id"] for row in rows]
 
     def weighing(self, weighing_id: str) -> dict[str, Any] | None:
         with self._lock:

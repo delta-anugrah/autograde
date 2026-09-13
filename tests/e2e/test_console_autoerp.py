@@ -17,9 +17,11 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import threading
 import time
 import uuid
 from datetime import UTC, datetime
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import httpx
 import pytest
@@ -209,3 +211,131 @@ def test_retyping_a_plate_autoerp_owns_keeps_its_owner(console, pulled, plates):
 
     owned = _console_trucks(console)[plates["owned"]]
     assert (owned["supplier_name"], owned["sumber_label"]) == (SUPPLIER, "External")
+
+
+# ------------------------------------------------- the visit (contract §4.C)
+
+
+@pytest.fixture(scope="module")
+def fake_line():
+    """Line 1, stood in for.
+
+    The console refuses to assign a truck the line never acknowledged, so
+    without a line there is no way to close an assignment — and closing one is
+    what sends the grading.
+    """
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802 - http.server's own naming
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"status":"ok"}')
+
+        do_GET = do_POST  # noqa: N815 - the console polls /health too
+
+        def log_message(self, *_args) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 8001), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield
+    server.shutdown()
+
+
+@pytest.fixture(scope="module")
+def tickets():
+    """Tickets the visits create, removed afterwards. They stay drafts on
+    purpose: no tare is ever sent, so AutoERP never finalises one into a
+    Purchase Receipt and the demo's ledger is left alone."""
+    made: list[str] = []
+    yield made
+    with httpx.Client(base_url=ENV["E2E_ERP_URL"], timeout=30) as admin:
+        login = {"usr": "Administrator", "pwd": ENV["E2E_ERP_ADMIN_PASSWORD"]}
+        admin.post("/api/method/login", data=login).raise_for_status()
+        for name in made:
+            admin.delete(f"/api/resource/Weighbridge Ticket/{name}")
+
+
+def _erp_ticket(erp, visit_id: str) -> dict | None:
+    res = erp.get(
+        "/api/resource/Weighbridge Ticket",
+        params={
+            "filters": json.dumps([["autograde_visit_id", "=", visit_id]]),
+            "fields": json.dumps(
+                ["name", "status", "gross_weight_kg", "scale_ticket_no",
+                 "grading_total", "grading_acc", "grading_rej"]
+            ),
+        },
+    )
+    res.raise_for_status()
+    return next(iter(res.json()["data"]), None)
+
+
+def test_a_gate_weighing_becomes_a_weighbridge_ticket(console, erp, pulled, plates, tickets):
+    reference = f"E2E-{uuid.uuid4().hex[:8]}"
+    res = console.post(
+        "/api/v1/internal/scale/weighing",
+        headers=_secret(),
+        json={
+            "ref": reference,
+            "plate_number": plates["owned"],
+            "waktu_masuk": datetime.now(UTC).isoformat(),
+            "bruto_kg": 14560,
+        },
+    )
+    assert res.status_code == 201, res.text
+    visit_id = res.json()["id"]
+
+    ticket = _eventually(lambda: _erp_ticket(erp, visit_id), "AutoERP never received the visit")
+    tickets.append(ticket["name"])
+    assert float(ticket["gross_weight_kg"]) == 14560.0
+    assert ticket["scale_ticket_no"] == reference
+
+
+def test_closing_the_line_assignment_sends_the_grading(console, erp, pulled, plates, fake_line, tickets):
+    """Three bunches: one long stalk among the accepted, one rejected."""
+    visit_id = console.post(
+        "/api/v1/internal/scale/weighing",
+        headers=_secret(),
+        json={
+            "ref": f"E2E-{uuid.uuid4().hex[:8]}",
+            "plate_number": plates["owned"],
+            "waktu_masuk": datetime.now(UTC).isoformat(),
+            "bruto_kg": 15200,
+        },
+    ).json()["id"]
+    tickets.append(_eventually(lambda: _erp_ticket(erp, visit_id), "visit never arrived")["name"])
+
+    assigned = console.post(
+        "/api/console/lines/line-1/assign-truck", json={"truck_id": truck_id_for(plates["owned"])}
+    )
+    assert assigned.status_code == 200, assigned.text
+    for n, (status, tp) in enumerate([("ACC", None), ("ACC", 0.91), ("REJ", None)], start=1):
+        console.post(
+            "/api/v1/internal/vision/events",
+            headers=_secret(),
+            json={
+                "event_id": str(uuid.uuid4()),
+                "machine_id": Settings().console_lines[0].machine_id,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "prediction": "Acc" if status == "ACC" else "Rej",
+                "ripeness_status": status,
+                "ripeness_confidence": 0.9,
+                "tp_status": "PASS" if tp else None,
+                "tp_confidence": tp,
+                "capture_type": "auto",
+                "image_path": None,
+                "truck_id": truck_id_for(plates["owned"]),
+                "assignment_id": assigned.json()["assignment_id"],
+            },
+        ).raise_for_status()
+
+    released = console.post("/api/console/lines/line-1/release-truck")
+    assert released.status_code == 200, released.text
+
+    graded = _eventually(
+        lambda: (_erp_ticket(erp, visit_id) or {}).get("grading_total") and _erp_ticket(erp, visit_id),
+        "the grading never reached the ticket",
+    )
+    assert (graded["grading_total"], graded["grading_acc"], graded["grading_rej"]) == (3, 2, 1)
