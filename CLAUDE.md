@@ -352,6 +352,12 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 - All paths via `Settings` (`core/config.py`) — never hardcode. New env var → add to `core/config.py` with a sane default.
 - `CAMERA_TYPE`: `hikrobot` (prod) / `opencv` (dev: webcam or video file) / `photo` (test). Switching needs **no code edit**.
 - ROI (`ROI_X1/Y1/X2/Y2`) coordinates are in **stream space** (`STREAM_WIDTH×STREAM_HEIGHT`, default 1280×720), not sensor space.
+- **Frame rate hidup di SATU tempat: `config/camera/hikrobot.mfs`.** File itu dikirim ke
+  kamera tiap connect, lalu `FrameCaptureWorker.adopt_camera_frame_rate()` menanyakan
+  balik laju sebenarnya (`ResultingFrameRate`) dan memakai itu sebagai jeda ambil frame.
+  `CAMERA_FPS` **cuma cadangan** untuk sumber yang tidak bisa melapor (webcam, file video).
+  Dulu keduanya hidup bersama dan yang lebih kecil menang — menurunkan `.mfs` terasa
+  bekerja, menaikkannya tidak, dan itu terbaca berbulan-bulan sebagai "`CAMERA_FPS` mandul".
 
 ---
 

@@ -149,7 +149,9 @@ class Settings:
     camera_video_path: str = field(default_factory=lambda: os.getenv("CAMERA_VIDEO_PATH", ""))
     camera_width: int = field(default_factory=lambda: int(os.getenv("CAMERA_WIDTH", "320")))
     camera_height: int = field(default_factory=lambda: int(os.getenv("CAMERA_HEIGHT", "240")))
-    camera_fps: int = field(default_factory=lambda: int(os.getenv("CAMERA_FPS", "15")))
+    # Safety net only: used when the camera cannot report its own rate (webcam,
+    # video file). A Hikrobot line is paced by the .mfs, read back from the camera.
+    camera_fps: int = field(default_factory=lambda: int(os.getenv("CAMERA_FPS", "20")))
     camera_photo_path: str = field(default_factory=lambda: os.getenv("CAMERA_PHOTO_PATH", ""))
 
     # Stream display resolution — only affects MJPEG stream, not saved captures
