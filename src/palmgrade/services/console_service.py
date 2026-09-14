@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo
 from ..core.config import LineEndpoint, Settings
 from ..domain.ffb_source import ffb_source_label
 from ..domain.plate import normalisasi_plat, truck_id_for
+from ..domain.vision_event import prediction_for, verdict_of
 from ..domain.working_day import tanggal_kerja_for
 from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
@@ -80,6 +81,16 @@ class ConsoleService:
         if not (event_id and machine_id and timestamp):
             raise ValueError("event_id, machine_id, dan timestamp wajib diisi")
 
+        # The one figure the mill is paid on is summed out of this field, so an
+        # unknown value must stop here rather than land in `total` and in
+        # neither `acc` nor `rej`.
+        verdict = verdict_of(payload.get("ripeness_status"))
+        prediction = payload.get("prediction")
+        if prediction and prediction != prediction_for(verdict):
+            raise ValueError(
+                f"prediction {prediction!r} bertentangan dengan ripeness_status {verdict!r}"
+            )
+
         # §6.1: computed HERE from the event timestamp, once, then stored.
         tanggal = tanggal_kerja_for(timestamp, self.tz)
 
@@ -93,16 +104,16 @@ class ConsoleService:
                 "line_code": line.line_code if line else machine_id,
                 "tanggal_kerja": tanggal,
                 "timestamp": timestamp,
-                "ripeness_status": str(payload.get("ripeness_status") or "").upper(),
+                "ripeness_status": verdict,
                 "ripeness_confidence": payload.get("ripeness_confidence"),
                 "capture_type": str(payload.get("capture_type") or "auto"),
                 "image_path": payload.get("image_path"),
                 "truck_id": payload.get("truck_id"),
                 "assignment_id": payload.get("assignment_id"),
-                # Passed through as-is — ERP requires it and rejects anything
-                # outside {Acc, Rej}. The line computes it
-                # (`vision_event.py`), the console only carries it.
-                "prediction": payload.get("prediction"),
+                # Passed through as the line sent it — ERP requires it, and
+                # deriving it here too would be a second rule that can drift.
+                # Checked against the verdict above, never rebuilt from it.
+                "prediction": prediction,
                 "tp_status": payload.get("tp_status"),
                 "tp_confidence": payload.get("tp_confidence"),
             }

@@ -297,9 +297,18 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     Grading ditautkan lewat `weighings.assignment_id` yang **ditulis saat truk dilepas**; tanpa
     tautan itu tiket kedua di hari yang sama mewarisi janjang tiket pertama. Kriteria: mentah =
     REJ, tangkai panjang = ACC dengan `tp_confidence > 0.8`, matang diturunkan AutoERP sendiri.
+    Karena angka itu dijumlah dari `ripeness_status`, **`ripeness_status` divalidasi saat ingest**
+    (`domain/vision_event.verdict_of`, satu kosakata untuk penulis dan pembaca field ini): di luar
+    `{ACC, REJ}` → 400, seperti timestamp cacat. Nilai asing dulu ikut `total` tapi tidak masuk
+    `acc` maupun `rej` — rekap yang dibayar tidak menjumlah, dan tidak ada yang bilang. `prediction`
+    tetap dibawa apa adanya, tapi yang **bertentangan** dengan verdict-nya ikut ditolak.
     ⚠️ AutoERP **mengadopsi tiket terbuka milik truk yang sama** dalam jendela ±2 jam, jadi dua
     kunjungan truk itu di jam yang sama memang mendarat di satu tiket — itu perilaku ERP,
-    bukan bug konsol.
+    bukan bug konsol. **Tapi ada sisi tajamnya:** kalau kunjungan kedua membawa
+    `scale_ticket_no` berbeda, adopsi itu **menimpa** bruto, jam masuk, nomor timbangan, dan
+    `autograde_visit_id` kunjungan pertama sambil menyisakan tara + jam keluarnya — netonya jadi
+    campuran dua kunjungan dan kunjungan pertama hilang dari pembukuan. Dibuktikan live
+    2026-09-14; dilaporkan ke Mas Samuel, jangan ditambal dari sisi konsol.
 15. **Timbangan: `neto_kg` dihitung, tidak pernah dipercaya mentah** (§3.5c). Pengirim boleh
     menyertakannya; kalau bedanya dari `bruto − tara` lewat `TOLERANSI_NETO_KG` (1 kg) kiriman
     **ditolak 400**. Ini angka yang dibayar ke petani — dua sumber kebenaran yang diam-diam

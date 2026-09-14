@@ -374,3 +374,74 @@ def test_closing_the_line_assignment_sends_the_grading(console, erp, fake_line, 
         "the grading never reached the ticket",
     )
     assert (graded["grading_total"], graded["grading_acc"], graded["grading_rej"]) == (3, 2, 1)
+
+
+@pytest.fixture(scope="module")
+def reconciling_plate(erp, cleanup):
+    """Its own truck again: the assertion is about one visit's counts."""
+    plate = f"BE {secrets.randbelow(9000) + 1000} TSE"
+    erp.post(
+        "/api/method/erpnext.palm_mill.api.upsert_truck", json={"plate_number": plate}
+    ).raise_for_status()
+    cleanup.append(plate)
+    return plate
+
+
+def test_a_bunch_without_a_verdict_never_reaches_the_ledger(
+    console, erp, fake_line, reconciling_plate
+):
+    """A ripeness class is not a verdict. Refused at the door, so what AutoERP
+    books still reconciles: grading_acc + grading_rej == grading_total.
+
+    Before the check, such an event was stored, counted in `total` and in
+    neither `acc` nor `rej` — the mill would have been paid on a summary that
+    did not add up.
+    """
+    plate = reconciling_plate
+    console.post("/api/console/trucks", json={"plate_number": plate}).raise_for_status()
+    visit_id = console.post(
+        "/api/v1/internal/scale/weighing",
+        headers=_secret(),
+        json={
+            "ref": f"E2E-{uuid.uuid4().hex[:8]}",
+            "plate_number": plate,
+            "waktu_masuk": datetime.now(UTC).isoformat(),
+            "bruto_kg": 13400,
+        },
+    ).json()["id"]
+    _eventually(lambda: _erp_ticket(erp, visit_id), "the visit never arrived")
+
+    assigned = console.post(
+        "/api/console/lines/line-1/assign-truck", json={"truck_id": truck_id_for(plate)}
+    )
+    assert assigned.status_code == 200, assigned.text
+
+    def bunch(status: str, **over) -> httpx.Response:
+        return console.post(
+            "/api/v1/internal/vision/events",
+            headers=_secret(),
+            json={
+                "event_id": str(uuid.uuid4()),
+                "machine_id": Settings().console_lines[0].machine_id,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "ripeness_status": status,
+                "ripeness_confidence": 0.9,
+                "capture_type": "auto",
+                "truck_id": truck_id_for(plate),
+                "assignment_id": assigned.json()["assignment_id"],
+                **over,
+            },
+        )
+
+    assert bunch("MATANG").status_code == 400
+    assert bunch("ACC", prediction="Rej").status_code == 400
+    bunch("ACC", prediction="Acc").raise_for_status()
+    bunch("REJ", prediction="Rej").raise_for_status()
+
+    console.post("/api/console/lines/line-1/release-truck").raise_for_status()
+
+    graded = _eventually(
+        lambda: (_erp_ticket(erp, visit_id) or {}).get("grading_total") and _erp_ticket(erp, visit_id),
+        "the grading never reached the ticket",
+    )
+    assert graded["grading_acc"] + graded["grading_rej"] == graded["grading_total"] == 2
