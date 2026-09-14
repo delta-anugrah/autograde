@@ -4,6 +4,9 @@
 > diagrams, full invariants, worker/state model, and Docker/SDK internals, read
 > **`docs/overview.md`** (on-demand, not auto-loaded).
 > `AGENTS.md` is a symlink to this file (Codex/Copilot read the same map).
+>
+> **Belum pernah lihat repo ini sama sekali?** `docs/ONBOARDING.md` dulu — bahasa Indonesia,
+> satu kali baca: sistemnya ngapain, alur satu janjang, isi tiap folder, jebakannya.
 
 ---
 
@@ -391,6 +394,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 
 ## Pointers
 
+- **`docs/ONBOARDING.md`** — titik masuk buat orang/agent baru: sistem ini ngapain, perjalanan satu janjang, fungsi tiap folder, jebakan, kamus istilah. PDF resminya `docs/ONBOARDING.pdf` — jangan diedit langsung: ubah `.md`-nya lalu `scripts/md_to_pdf.py docs/ONBOARDING.md` (butuh Chrome + `pip install markdown pypdf`). Blok ```` ```diagram:<nama> ```` di `.md` sengaja tetap ASCII untuk pembaca teks; PDF menukarnya dengan `docs/assets/onboarding/<nama>.svg`, jadi ubah keduanya bersamaan.
 - **`docs/overview.md`** — deep flows, ASCII diagrams, all invariants with rationale, worker/state model, Docker/SDK/GPU internals, prod deployment checklist, edge cases.
 - `docs/architecture.md` — layer boundaries (final design; don't change without discussion).
 - `docs/backend-overview.md` — full endpoint + event + env-var tables.
