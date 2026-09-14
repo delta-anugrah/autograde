@@ -7,6 +7,9 @@ python-dotenv==1.1.0
 # ── AI / Computer Vision ─────────────────────────────────────
 # torch dan torchvision di-install terpisah via Dockerfile (CPU vs GPU variant)
 ultralytics==8.3.119
+# ByteTrack (tracker="bytetrack.yaml") imports lap, but ultralytics does not depend
+# on it: without this pin it pip-installs at runtime, per container, online only.
+lap==0.5.12
 numpy==1.26.4
 opencv-python==4.11.0.86
 
