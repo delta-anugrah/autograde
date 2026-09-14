@@ -1,342 +1,325 @@
-# Kenalan sama AutoGrade
-
-Dokumen ini buat orang baru — manusia atau AI — yang belum pernah nyentuh repo ini.
-Bacanya sekali duduk, sekitar 20 menit, dan habis itu kamu ngerti sistemnya ngapain,
-kodenya ditaruh di mana, dan mana yang jangan diutak-atik.
-
-Kalau kamu AI agent: ini titik masuk. `CLAUDE.md` itu peta aturan yang lebih padat,
-`docs/overview.md` isinya detail dalam. Dokumen ini yang menyambungkan semuanya.
-
+---
+judul: Panduan Onboarding AutoGrade
+subjudul: Gambaran sistem, alur data, struktur repositori, dan aturan kerja bagi anggota tim baru — manusia maupun AI agent.
+label: Internal · Tim Engineering
+versi: "1.0"
+tanggal: 14 September 2026
+klasifikasi: Internal — tidak untuk dibagikan ke pihak luar
+pemilik: Tim Engineering AutoGrade
+sorotan: Sistem = Kamera · AI · Konsol operator; Integrasi = AutoERP · PLC · Timbangan; Pembaca = Developer · AI / Vision · IoT
 ---
 
-## 1. Ini sistem apa, sih
+# Panduan Onboarding AutoGrade
 
-AutoGrade itu **mata** pabrik kelapa sawit.
+Dokumen ini ditujukan bagi anggota tim yang baru pertama kali bekerja dengan repositori
+`autograde`. Setelah membacanya — sekitar 20 menit — pembaca diharapkan memahami apa yang
+dikerjakan sistem ini, di mana setiap bagian kodenya berada, dan aturan mana yang tidak boleh
+dilanggar.
 
-Truk masuk bawa buah sawit (namanya **janjang** atau tandan). Buah itu dituang ke
-conveyor, lewat di bawah kamera, dan kamera plus AI menilai satu per satu: buah ini
-layak diterima (**ACC**) atau ditolak (**REJ**). Hasilnya dipakai buat nentuin berapa
-yang dibayar ke pemasok.
+> **Catatan untuk AI agent (Codex, Claude).** Dokumen ini adalah titik masuk. `CLAUDE.md` berisi
+> ringkasan aturan yang lebih padat, dan `docs/overview.md` berisi rincian teknis. Dokumen ini
+> memberi konteks yang menghubungkan keduanya.
 
-Dulu penilaian ini dikerjain manusia dengan mata telanjang sambil berdiri di panas.
-Hasilnya beda-beda tiap orang, tiap jam, tiap capek. AutoGrade bikin penilaiannya
-konsisten dan tercatat — lengkap dengan fotonya, jadi kalau pemasok protes ada buktinya.
+## 1. Gambaran Umum
 
-**Tiga hal yang AutoGrade kerjakan:**
+AutoGrade adalah sistem penilaian mutu tandan buah segar (TBS) kelapa sawit berbasis kamera dan
+kecerdasan buatan, yang dipasang di pabrik kelapa sawit (PKS).
 
-1. Lihat tiap janjang lewat 3 kamera (3 conveyor, kita sebut **line**), nilai ACC/REJ.
-2. Kasih layar buat operator: truk mana lagi di line mana, berapa janjang masuk, berat timbangan.
-3. Kirim **rekap per truk** ke ERP (AutoERP), yang ngurus pembukuan dan pembayaran.
+Truk pemasok membawa buah sawit — disebut **janjang** atau tandan — ke pabrik. Buah dituang ke
+conveyor dan melintas di bawah kamera. Kamera dan model AI menilai setiap janjang: layak diterima
+(**ACC**) atau ditolak (**REJ**). Hasil penilaian ini menjadi dasar pembayaran kepada pemasok.
 
-**Yang AutoGrade TIDAK kerjakan:** harga, potongan, pembayaran, invoice. Itu semua
-punya ERP. AutoGrade cuma sensor pintar plus layar operator.
+Sebelumnya penilaian dilakukan secara manual oleh petugas sortasi, sehingga hasilnya bergantung
+pada orang, jam kerja, dan tingkat kelelahan. AutoGrade membuat penilaian konsisten dan
+terdokumentasi, lengkap dengan foto setiap janjang sebagai bukti bila ada keberatan dari pemasok.
 
----
+**Tiga fungsi utama AutoGrade:**
 
-## 2. Dua kotak, jangan ketuker
+1. Menilai setiap janjang di tiga conveyor (disebut **line**), masing-masing dengan satu kamera.
+2. Menyediakan layar operator: truk yang sedang dibongkar di tiap line, jumlah janjang, dan berat
+   timbangan.
+3. Mengirim **rekap per kunjungan truk** ke AutoERP, sistem yang mengelola pembukuan dan pembayaran.
 
-```
-┌─ PC di pabrik (boleh offline) ─────────┐      ┌─ Server di cloud ───────┐
-│                                        │      │                         │
-│  AutoGrade  ← repo ini                 │      │  AutoERP (fork ERPNext) │
-│  Python + FastAPI + YOLO + SQLite      │─────▶│  Frappe + MariaDB       │
-│  3 kamera + PLC + layar operator       │      │  Layar backoffice       │
-│                                        │      │                         │
+**Di luar cakupan AutoGrade:** harga, potongan, pembayaran, dan faktur. Seluruhnya dikelola
+AutoERP. AutoGrade berperan sebagai sensor dan layar operasional.
+
+## 2. Arsitektur: Dua Sistem Terpisah
+
+```diagram:arsitektur Pembagian peran AutoGrade di pabrik dan AutoERP di cloud
+┌─ PC pabrik (dapat beroperasi offline) ─┐      ┌─ Server cloud ──────────┐
+│  AutoGrade  ← repositori ini           │      │  AutoERP (fork ERPNext) │
+│  Python · FastAPI · YOLO · SQLite      │─────▶│  Frappe · MariaDB       │
+│  3 kamera · PLC · layar operator       │      │  Layar backoffice       │
 └────────────────────────────────────────┘      └─────────────────────────┘
-     janjang & foto BERHENTI di sini              yang naik cuma rekap per truk
+   data per janjang + foto tetap di pabrik        hanya menerima rekap per truk
 ```
 
-Kenapa dipisah begitu:
+Pemisahan ini disengaja, dengan dua alasan:
 
-- **Internet di pabrik suka putus.** Kalau layar operator butuh internet, pabrik berhenti
-  waktu internetnya mati. Jadi semua yang operator butuhkan hidup di PC pabrik.
-- **ERP itu buku besar, bukan tempat nyimpen event.** Ngirim 4.000 janjang per hari ke ERP
-  bikin dia sesak tanpa guna. Yang ERP butuh cuma: truk ini bawa sekian kilo, sekian persen
-  ditolak. Foto dan detail per janjang tetap di pabrik sebagai bukti.
+- **Koneksi internet di pabrik tidak dapat diandalkan.** Seluruh kebutuhan operator harus tetap
+  berfungsi ketika internet terputus, sehingga semuanya berjalan di PC pabrik.
+- **ERP adalah buku besar, bukan penyimpan kejadian.** Mengirim ribuan data janjang per hari ke
+  ERP membebaninya tanpa manfaat. ERP cukup menerima ringkasan per truk: berat dan persentase buah
+  yang ditolak. Foto dan data per janjang tetap di pabrik sebagai bukti.
 
-**Arah komunikasinya satu arah: pabrik → ERP.** ERP nggak pernah manggil ke pabrik, karena
-PC pabrik nggak punya pintu masuk dari internet sama sekali.
+**Arah komunikasi hanya satu: pabrik → ERP.** ERP tidak pernah menghubungi pabrik, karena PC
+pabrik tidak menerima koneksi masuk dari internet.
 
----
+## 3. Komponen yang Berjalan
 
-## 3. Empat container dari satu image
+Satu image Docker dijalankan empat kali dengan peran berbeda:
 
-Satu image Docker, dijalankan empat kali dengan peran beda:
-
-| Container | Port | Isinya | Kalau mati? |
+| Container | Port | Fungsi | Dampak bila berhenti |
 |---|---|---|---|
-| `ripe_line_1` | 8001 | kamera line 1 + AI | line 1 berhenti menilai, sisanya jalan |
-| `ripe_line_2` | 8002 | kamera line 2 + AI | sama |
-| `ripe_line_3` | 8003 | kamera line 3 + AI | sama |
-| `palmgrade_console` | 8000 | layar operator (`/console`) | operator buta, tapi line tetap menilai dan menyimpan |
+| `ripe_line_1` | 8001 | kamera dan AI line 1 | line 1 berhenti menilai; line lain tetap berjalan |
+| `ripe_line_2` | 8002 | kamera dan AI line 2 | sama seperti di atas |
+| `ripe_line_3` | 8003 | kamera dan AI line 3 | sama seperti di atas |
+| `palmgrade_console` | 8000 | layar operator (`/console`) | layar operator mati; line tetap menilai dan menyimpan |
 
-Line dan konsol sengaja pakai **modul ASGI yang beda**: `main.py` buat line (muat torch,
-OpenCV, driver kamera) dan `console_main.py` buat konsol (**haram** impor torch/cv2). Alasannya
-satu: kamera yang rewel jangan sampai menjatuhkan layar operator.
+Line dan konsol memakai **modul aplikasi yang berbeda**: `main.py` untuk line (memuat torch,
+OpenCV, dan driver kamera) dan `console_main.py` untuk konsol, yang **tidak boleh** mengimpor
+torch maupun OpenCV. Tujuannya satu: gangguan pada kamera tidak boleh mematikan layar operator.
 
----
+## 4. Alur Data: Satu Janjang
 
-## 4. Perjalanan satu janjang, dari cahaya sampai angka
+Bagian ini adalah inti sistem.
 
-Ini inti sistemnya. Kalau cuma satu bagian yang kamu hafal, hafalin ini.
-
-```
+```diagram:alur-janjang Perjalanan data satu janjang, dari kamera sampai AutoERP
 kamera → FrameCaptureWorker → antrean → FrameProcessingWorker → disk + outbox.db
-                                                                      │
-                                          DisplayWorker → MJPEG       ▼
-                                          (layar live)         OutboxRetryWorker
-                                                                      │
-                                                                      ▼
-                                                            konsol (SQLite console.db)
-                                                                      │
-                                                    rekap per truk ───┘──▶ AutoERP
+                                                                     │
+                                   DisplayWorker → MJPEG             ▼
+                                   (layar langsung)          OutboxRetryWorker
+                                                                     │
+                                                                     ▼
+                                                    konsol (SQLite console.db)
+                                                                     │
+                                            rekap per truk ──────────┘──▶ AutoERP
 ```
 
-1. **Ambil frame.** `FrameCaptureWorker` minta frame ke kamera dengan irama tetap. Iramanya
-   datang dari kameranya sendiri — lihat §8 soal `.mfs`. Frame masuk antrean yang **buang yang
-   paling lama** kalau penuh, jadi AI selalu dapat gambar terbaru, bukan gambar basi.
+1. **Pengambilan frame.** `FrameCaptureWorker` mengambil frame dari kamera dengan laju tetap. Laju
+   itu ditentukan oleh kamera sendiri (lihat bagian 8). Frame masuk ke antrean yang **membuang
+   frame terlama** saat penuh, sehingga model selalu memproses gambar terbaru.
+2. **Penilaian.** `FrameProcessingWorker` menjalankan YOLO dan ByteTrack. ByteTrack memastikan satu
+   janjang yang terlihat di banyak frame berturut-turut **dihitung satu kali**. Janjang dihitung
+   ketika memasuki area ROI di tengah conveyor.
+3. **Simpan ke disk sebelum mengirim.** Ini aturan terpenting di repositori ini. Worker penilaian
+   **tidak pernah** berkomunikasi lewat jaringan: ia menulis gambar WebP dan JSON ke
+   `artifacts/results/`, lalu menambahkan satu baris ke `outbox.db`.
+4. **Pengiriman lewat antrean.** `OutboxRetryWorker` memeriksa `outbox.db` setiap detik dan
+   mengirimnya ke konsol. Bila konsol sedang tidak aktif, data menunggu di antrean tanpa hilang.
+5. **Pencatatan di konsol.** Konsol menyimpan data ke `state/console.db` (SQLite). Layar operator
+   membaca dari indeks ini dan **tidak pernah** memindai folder, karena pemindaian berkala akan
+   menyita I/O yang dibutuhkan proses penilaian.
+6. **Unggah berkala ke cloud.** `BatchUploadWorker` mengunggah foto ke Cloudflare R2 dan datanya ke
+   API cloud setiap jam. Jalur ini terpisah dari langkah 4 dan boleh tertunda.
 
-2. **Nilai.** `FrameProcessingWorker` jalanin YOLO + ByteTrack. ByteTrack yang bikin satu buah
-   yang kelihatan di 20 frame berturut-turut **dihitung sekali**, bukan 20 kali. Buah dihitung
-   pas dia masuk kotak ROI (area tengah conveyor).
+Rancangan ini mengikuti kondisi pabrik: listrik padam, internet terputus, dan container dimulai
+ulang adalah kejadian rutin. Karena data selalu tersimpan di disk lebih dulu, gangguan hanya
+menyebabkan keterlambatan, bukan kehilangan data.
 
-3. **Simpan ke disk dulu, baru kirim.** Ini aturan paling penting di repo ini. Worker deteksi
-   **nggak pernah** ngomong ke jaringan. Dia nulis gambar WebP + JSON ke `artifacts/results/`,
-   terus satu baris ke `outbox.db`. Titik.
+## 5. Alur Kunjungan Truk
 
-4. **Antrean yang ngomong ke jaringan.** `OutboxRetryWorker` ngecek `outbox.db` tiap detik dan
-   ngirim ke konsol. Kalau konsolnya lagi mati, barisnya nunggu. Nggak ada yang hilang.
+Data per janjang adalah rincian. Yang masuk ke pembukuan adalah **kunjungan truk**:
 
-5. **Konsol nyimpen ke index.** Konsol nulis ke `state/console.db` (SQLite). Layar operator baca
-   dari situ, **nggak pernah** nyisir folder — nyisir folder tiap 2 detik bakal makan I/O yang
-   dipakai buat grading.
-
-6. **Jam-jaman, foto naik ke cloud.** `BatchUploadWorker` ngirim foto ke Cloudflare R2 dan
-   teksnya ke API cloud, sejam sekali. Ini jalur terpisah dari nomor 4 dan boleh telat.
-
-Kenapa ribet begini? Karena listrik mati, internet putus, dan container di-restart itu
-**kejadian biasa** di pabrik, bukan kasus langka. Disk dulu baru jaringan artinya mati listrik
-di tengah jalan cuma bikin telat, bukan bikin data hilang.
-
----
-
-## 5. Perjalanan satu truk
-
-Janjang itu butiran kecil. Yang masuk pembukuan adalah **kunjungan truk**:
-
-| # | Kejadian | Yang terjadi di sistem |
+| # | Kejadian | Proses di sistem |
 |---|---|---|
-| 1 | Truk naik timbangan bawa muatan | Timbangan → konsol → ERP: tahap `gate` (berat bruto + jam masuk) |
-| 2 | Operator pasang truk ke line | Konsol bilang ke line: mulai sekarang janjang dihitung atas nama truk ini |
-| 3 | Buah dituang, kamera menilai | Janjang numpuk di `console.db`, ERP belum dikasih tahu apa-apa |
-| 4 | Operator lepas truk dari line | Konsol → ERP: tahap `grading` (total, ACC, REJ, persennya) |
-| 5 | Truk naik timbangan lagi (kosong) | Konsol → ERP: tahap `departed` (berat tara + jam keluar) |
-| 6 | ERP menghitung | Neto = bruto − tara, potongan, harga, jadi Purchase Receipt |
+| 1 | Truk bermuatan naik timbangan | timbangan → konsol → AutoERP, tahap `gate`: berat bruto dan jam masuk |
+| 2 | Operator memasang truk ke line | konsol memberi tahu line: janjang berikutnya dicatat atas nama truk ini |
+| 3 | Buah dituang dan dinilai | data janjang tersimpan di `console.db`; AutoERP belum menerima apa pun |
+| 4 | Operator melepas truk dari line | konsol → AutoERP, tahap `grading`: total, ACC, REJ, dan persentasenya |
+| 5 | Truk kosong naik timbangan | konsol → AutoERP, tahap `departed`: berat tara dan jam keluar |
+| 6 | AutoERP memproses | neto = bruto − tara, potongan, harga, lalu Purchase Receipt |
 
-**Satu kunjungan = satu pesan `upsert_visit`, dikirim tiga kali seiring kunjungannya jalan.**
-Tiap kiriman **mengganti** bagian yang dibawanya — makanya bagian yang belum kita punya
-**tidak dikirim** sama sekali, karena bagian kosong bakal menghapus isi di ERP.
+**Satu kunjungan dikirim sebagai satu pesan `upsert_visit`, sebanyak tiga kali** sesuai tahapannya.
+Setiap kiriman **menggantikan** bagian yang dibawanya. Karena itu bagian yang belum tersedia **tidak
+dikirim sama sekali** — bagian kosong akan menghapus data yang sudah ada di AutoERP.
 
-Buah yang ditolak dinaikin lagi ke truk dan ikut pulang. Jadi waktu truk ditimbang keluar,
-buah tolakan itu ikut nambah berat tara — otomatis nggak ikut dibayar. Rapi banget sebenarnya.
+Janjang yang ditolak dinaikkan kembali ke truk dan ikut ditimbang saat truk keluar. Beratnya masuk
+ke tara, sehingga otomatis tidak ikut dibayar.
 
----
-
-## 6. Isi tiap folder
+## 6. Struktur Repositori
 
 ### Folder utama
 
-| Folder | Isinya | Kapan kamu buka |
+| Folder | Isi | Kapan dibuka |
 |---|---|---|
-| `src/palmgrade/` | seluruh kode Python | tiap ganti perilaku |
-| `tests/` | unit, e2e, integration | tiap ganti perilaku (tulis test **dulu**) |
-| `docs/` | dokumen dalam, termasuk berkas ini | pas butuh detail |
-| `scripts/` | skrip bantu (kiosk, seed, build engine, smoke test) | jarang |
-| `config/camera/` | `hikrobot.mfs` — setelan kamera, termasuk **fps** | pas ganti fps atau exposure |
-| `sdk/` | SDK Hikrobot (MVS), ikut repo biar build Docker nggak butuh internet | hampir nggak pernah |
-| `models/release/` | berkas model YOLO `.pt` | pas ganti model |
-| `engines/` | engine TensorRT hasil build per GPU | nggak pernah manual, `make build-engine` yang isi |
-| `images/` | `sample_sawit.jpg`, gambar contoh buat `CAMERA_TYPE=photo` | pas tes tanpa kamera |
-| `artifacts/` | hasil runtime: foto + JSON + `outbox.db` | pas mau lihat buktinya |
-| `state/` | `console.db`, `erp_outbox.db`, `upload_manifest.db` | pas mau lihat isi antrean |
+| `src/palmgrade/` | seluruh kode Python | setiap perubahan perilaku |
+| `tests/` | unit, e2e, integration | setiap perubahan perilaku — test ditulis **lebih dulu** |
+| `docs/` | dokumen teknis, termasuk dokumen ini | saat membutuhkan rincian |
+| `scripts/` | kiosk, data contoh, build engine, smoke test, pembuat PDF | sesekali |
+| `config/camera/` | `hikrobot.mfs` — setelan kamera, termasuk **fps** | saat mengubah fps atau exposure |
+| `sdk/` | SDK kamera Hikrobot (MVS), disertakan agar build Docker tidak butuh internet | hampir tidak pernah |
+| `models/release/` | berkas model YOLO (`.pt`) | saat mengganti model |
+| `engines/` | engine TensorRT hasil build per GPU | tidak diubah manual; diisi `make build-engine` |
+| `images/` | `sample_sawit.jpg`, gambar contoh untuk `CAMERA_TYPE=photo` | saat menguji tanpa kamera |
+| `artifacts/` | hasil runtime: foto, JSON, dan `outbox.db` | saat memeriksa bukti penilaian |
+| `state/` | `console.db`, `erp_outbox.db`, `upload_manifest.db` | saat memeriksa isi antrean |
 
-`models/`, `engines/`, `artifacts/`, `state/` **nggak masuk git** — isinya besar, beda tiap
-mesin, dan sebagian rahasia.
+Isi `models/`, `engines/`, `artifacts/`, dan `state/` **tidak disimpan di git**: ukurannya besar,
+berbeda di tiap mesin, dan sebagian bersifat rahasia.
 
-### Dalam `src/palmgrade/`
+### Isi folder src/palmgrade
 
-Kodenya berlapis, dan lapisannya **nggak boleh loncat**:
-`routes → controllers → services → repositories / pipelines / integrations`
+Kode disusun berlapis, dan urutan lapisannya **tidak boleh dilompati**:
+`routes → controllers → services → repositories / pipelines / integrations`.
 
-| Folder | Tugasnya | Contoh isi |
+| Folder | Tanggung jawab | Contoh isi |
 |---|---|---|
-| `core/` | setelan dan sambungan | `config.py` (semua env var), `dependencies.py`, `constants.py` |
-| `routes/` | daftar endpoint HTTP doang | `console.py`, `internal.py`, `health.py` |
-| `controllers/` | terima request, terusin ke service | `capture_controller.py` |
-| `services/` | alur bisnis | `console_service.py` (paling gemuk), `erp_queue.py` |
-| `repositories/` | baca-tulis disk & SQLite | `console_repository.py`, `capture_repository.py` |
+| `core/` | setelan dan perakitan dependensi | `config.py` (seluruh env var), `dependencies.py`, `constants.py` |
+| `routes/` | daftar endpoint HTTP saja | `console.py`, `internal.py`, `health.py` |
+| `controllers/` | menerima request dan meneruskannya ke service | `capture_controller.py` |
+| `services/` | alur bisnis | `console_service.py`, `erp_queue.py` |
+| `repositories/` | baca-tulis disk dan SQLite | `console_repository.py`, `capture_repository.py` |
 | `pipelines/` | inferensi YOLO | `model_registry.py`, `realtime_inspection_pipeline.py` |
-| `workers/` | proses latar yang jalan terus | capture, processing, display, outbox, batch upload, worker ERP |
-| `integrations/` | dunia luar | `camera/`, `erp/`, `notifications/`, `storage/`, `upload/`, `outbox/`, `scheduler/` |
-| `domain/` | aturan murni, **nol I/O** | `working_day.py`, `ffb_source.py`, `vision_event.py`, `plate.py` |
-| `schemas/` | bentuk request/response (Pydantic) | `internal_schema.py` |
-| `plc/` | Modbus-TCP ke PLC, berdiri sendiri, mati by default | `plc/` |
+| `workers/` | proses latar yang berjalan terus | capture, processing, display, outbox, batch upload, worker ERP |
+| `integrations/` | sistem luar | `camera/`, `erp/`, `notifications/`, `storage/`, `upload/`, `outbox/`, `scheduler/` |
+| `domain/` | aturan murni tanpa I/O | `working_day.py`, `ffb_source.py`, `vision_event.py`, `plate.py` |
+| `schemas/` | bentuk request dan response (Pydantic) | `internal_schema.py` |
+| `plc/` | Modbus-TCP ke PLC; berdiri sendiri, nonaktif secara bawaan | — |
 | `license/` | penjaga langganan (Ed25519), opsional | `manager.py`, `guard.py` |
-| `static/` | `console.html` — layar operator, **satu berkas**, tanpa build, tanpa CDN | pas ubah tampilan |
+| `static/` | `console.html` — layar operator dalam **satu berkas**, tanpa build dan tanpa CDN | — |
 
-Dua folder yang gampang salah paham:
+Dua folder yang sering disalahpahami:
 
-- **`domain/` itu tempat aturan yang harus benar walau nggak ada listrik.** Isinya fungsi murni:
-  masuk angka, keluar angka. Nggak ada baca disk, nggak ada HTTP. Ini yang paling gampang dites
-  dan paling mahal kalau salah — misalnya `working_day.py` yang nentuin satu shift malam masuk
-  tanggal kerja yang mana.
-- **`console.html` sengaja satu berkas tanpa framework.** Bukan karena malas: layar ini harus
-  hidup saat internet mati, dan halaman yang narik React dari CDN bakal blank persis di saat
-  paling nggak boleh blank.
+- **`domain/` berisi aturan yang harus benar tanpa bergantung pada apa pun.** Isinya fungsi murni:
+  menerima nilai dan mengembalikan nilai, tanpa akses disk maupun HTTP. Bagian ini paling mudah
+  diuji sekaligus paling mahal bila keliru — contohnya `working_day.py`, yang menentukan satu shift
+  malam masuk ke tanggal kerja yang mana.
+- **`console.html` sengaja dibuat satu berkas tanpa framework.** Layar ini harus tetap berfungsi
+  saat internet terputus; halaman yang memuat library dari CDN akan kosong tepat pada saat paling
+  dibutuhkan.
 
-### Berkas di akar repo
+### Berkas di akar repositori
 
-| Berkas | Gunanya |
+| Berkas | Fungsi |
 |---|---|
-| `Makefile` | **semua perintah lewat sini** — `make up`, `make restart`, `make logs-1`, `make console` |
-| `Dockerfile` | resep image (torch CPU buat dev, CUDA buat pabrik) |
-| `docker-compose.yml` | 4 service: 3 line + konsol |
-| `docker-compose.override.yml` | penyimpangan per mesin, dibaca compose **otomatis**, di-gitignore |
-| `.env.example` | contoh semua setelan; `.env` asli nggak masuk git |
-| `requirements.txt` | dependency Python, dipatok versinya |
-| `CLAUDE.md` | peta aturan buat AI agent (dan manusia buru-buru) |
-| `README.md` | cara pasang dan jalanin, panjang |
+| `Makefile` | **seluruh perintah dijalankan lewat sini** — `make up`, `make restart`, `make logs-1`, `make console` |
+| `Dockerfile` | resep image (torch CPU untuk pengembangan, CUDA untuk pabrik) |
+| `docker-compose.yml` | empat service: tiga line dan konsol |
+| `docker-compose.override.yml` | penyesuaian khusus satu mesin; dibaca compose **otomatis** dan tidak masuk git |
+| `.env.example` | contoh seluruh setelan; `.env` yang sebenarnya tidak masuk git |
+| `requirements.txt` | dependency Python dengan versi terkunci |
+| `CLAUDE.md` | ringkasan aturan untuk AI agent |
+| `README.md` | cara memasang dan menjalankan secara lengkap |
 
----
+## 7. Menjalankan Sistem
 
-## 7. Cara menjalankan
-
-### Di Mac (buat ngoding konsol)
+### Di Mac — pengembangan konsol
 
 ```bash
 cd autograde
 make console          # http://127.0.0.1:8100/console
 ```
 
-Konsol native, tanpa Docker. Port 8100, bukan 8000, karena 8000 dipakai ERP lokal.
-`make up` dan `make up-dev` **jangan** dipakai di Mac: butuh SDK kamera dan GPU NVIDIA.
+Konsol berjalan native, tanpa Docker, di port 8100 — port 8000 dipakai AutoERP lokal. Target
+`make up` dan `make up-dev` **tidak** dipakai di Mac karena membutuhkan SDK kamera dan GPU NVIDIA.
 
-Test:
-
-```bash
-.venv/bin/pytest tests/unit          # jangan tambah -q, pyproject udah masang
-.venv/bin/ruff check <daftar di ci.yml>
-```
-
-### Di PC pabrik (Linux + GPU)
+Menjalankan test:
 
 ```bash
-make up               # build + bangun engine TensorRT + nyalain 3 line
-make ps               # lihat status
-make logs-1           # log line 1
-make restart          # sesudah ubah kode (kode di-bind-mount, nggak perlu rebuild)
-make start            # sesudah ubah .env atau override
+.venv/bin/pytest tests/unit        # jangan tambahkan -q; pyproject.toml sudah memasangnya
+.venv/bin/ruff check <daftar berkas di .github/workflows/ci.yml>
 ```
 
-Aturannya gampang diingat: **ubah kode → `make restart`. Ubah setelan → `make start`.
-Ubah dependency atau Dockerfile → `make up`.**
+### Di PC pabrik — Linux dengan GPU
 
----
+```bash
+make up          # build image, bangun engine TensorRT, jalankan tiga line dan konsol
+make ps          # status container
+make logs-1      # log line 1
+make restart     # setelah mengubah kode (kode di-bind-mount, tanpa rebuild)
+make start       # setelah mengubah .env atau docker-compose.override.yml
+```
 
-## 8. Jebakan yang udah makan korban
+Pedoman singkat: **ubah kode → `make restart`; ubah setelan → `make start`; ubah dependency atau
+Dockerfile → `make up`.**
 
-Tiap baris di sini pernah bikin orang kehilangan waktu berjam-jam.
+## 8. Hal yang Wajib Diwaspadai
 
-1. **Fps kamera cuma hidup di satu tempat: `config/camera/hikrobot.mfs`.** Berkas itu dikirim ke
-   kamera tiap nyambung, terus lajunya dibaca balik dari kamera. `CAMERA_FPS` di `.env` itu
-   **cadangan** buat sumber yang nggak bisa lapor (webcam, file video). Dulu keduanya hidup
-   bareng dan yang lebih kecil menang — bikin orang mikir `CAMERA_FPS` rusak berbulan-bulan.
+Setiap butir berikut pernah menyebabkan kehilangan waktu berjam-jam.
 
-2. **Port 8000 di Mac itu ERP, bukan konsol.** Konsol di Mac selalu 8100. Di PC pabrik, konsol
-   di dalam Docker memang 8000.
+1. **Laju frame kamera hanya diatur di satu tempat: `config/camera/hikrobot.mfs`.** Berkas ini
+   dikirim ke kamera setiap kali terhubung, lalu lajunya dibaca kembali dari kamera. `CAMERA_FPS`
+   di `.env` hanya cadangan untuk sumber yang tidak dapat melaporkan lajunya (webcam, berkas video).
+2. **Port 8000 di Mac adalah AutoERP, bukan konsol.** Konsol di Mac selalu di port 8100. Di PC
+   pabrik, konsol di dalam Docker memang di port 8000.
+3. **`BACKEND_URL` wajib menunjuk API lokal.** Pernah diarahkan ke API cloud, dan produksi menerima
+   sekitar 1.098 event uji dalam sehari.
+4. **Label produksi adalah `ACC` dan `REJ`**, bukan `MATANG` atau `MENTAH`. Nilai lain ditolak
+   dengan status 400 saat diterima, karena angka ini menentukan pembayaran.
+5. **`neto_kg` selalu dihitung ulang, tidak pernah diterima apa adanya.** Neto yang berbeda lebih
+   dari 1 kg dari bruto − tara ditolak. Dua sumber angka yang diam-diam berbeda adalah cara paling
+   mudah untuk salah bayar berbulan-bulan.
+6. **Tanggal kerja dihitung saat data diterima, lalu disimpan.** Pabrik beroperasi sekitar 20 jam
+   sehari dan melewati tengah malam; menghitung tanggal dari waktu pembacaan akan memecah satu shift
+   menjadi dua hari.
+7. **Nama image GHCR tetap `palmgrade-vision`** walaupun repositori sudah bernama `autograde`.
+   Mengganti nama image membuat PC pabrik terus meminta nama lama, dan pembaruan berhenti tanpa
+   pesan error. Ketentuan ini dijaga oleh test.
+8. **Berkas `.mfs` di PC pabrik dilacak git.** Jalankan `git checkout config/camera/hikrobot.mfs`
+   sebelum `git pull` bila berkas itu sempat diubah untuk pengujian.
 
-3. **`BACKEND_URL` wajib nunjuk API lokal.** Pernah kejadian ditunjuk ke API cloud dan produksi
-   kebanjiran ~1.098 event tes dalam sehari.
+## 9. Aturan Kerja Tim
 
-4. **Label produksi itu `ACC` dan `REJ`**, bukan `MATANG`/`MENTAH`. Nilai di luar dua itu
-   ditolak 400 waktu masuk, karena angka ini yang jadi uang.
+- **Setiap perubahan melalui pull request.** Branch baru → PR *squash* ke `staging` → PR *merge
+  commit* ke `main`. Tidak ada commit langsung ke `staging`.
+- **Judul dan isi PR ditulis dalam bahasa Inggris.** Pesan commit boleh berbahasa Indonesia.
+- **Test ditulis sebelum kode.** Pastikan test gagal dengan alasan yang benar, baru perbaiki
+  kodenya. Test yang tidak pernah gagal tidak membuktikan apa pun.
+- **Unit test tidak boleh memuat torch, OpenCV, atau hardware.** CI berjalan tanpa GPU; pengujian
+  yang membutuhkan komponen berat ditempatkan di `tests/e2e/`.
+- **Komentar kode ditulis dalam bahasa Inggris, singkat, dan menjelaskan alasan** — bukan mengulang
+  apa yang sudah terbaca dari kodenya.
+- **Commit tidak mencantumkan `Co-Authored-By` atau referensi AI apa pun.**
+- **Selama Opsi B berjalan tidak ada deploy dan tidak ada tag rilis `vX.Y.Z`.**
 
-5. **`neto_kg` selalu dihitung, nggak pernah dipercaya mentah.** Kalau pengirim ngasih neto yang
-   beda dari bruto − tara lebih dari 1 kg, kiriman ditolak. Dua sumber kebenaran yang diam-diam
-   beda itu cara paling rapi buat salah bayar berbulan-bulan.
+## 10. Rujukan Dokumen
 
-6. **Tanggal kerja dihitung pas event masuk, terus disimpan.** Pabrik jalan ~20 jam sehari dan
-   lewat tengah malam, jadi kalau tanggalnya dihitung dari `now()` waktu dibaca, satu shift
-   kepotong jadi dua hari.
-
-7. **Nama image GHCR tetap `palmgrade-vision`** walau reponya udah ganti nama jadi `autograde`.
-   Ikut ganti = PC pabrik minta nama lama selamanya dan updater-nya jawab "udah paling baru",
-   tanpa error. Dijaga test.
-
-8. **Jangan `git pull` sesudah ngedit `.mfs` di PC pabrik** tanpa `git checkout` dulu — berkas
-   itu dilacak git dan editan lokalnya bakal berantem.
-
----
-
-## 9. Aturan kerja
-
-- **Semua perubahan lewat PR.** Branch baru → PR **squash** ke `staging` → PR **merge commit**
-  ke `main`. Jangan commit langsung ke `staging`.
-- **Judul dan isi PR wajib bahasa Inggris.** Pesan commit boleh Indonesia.
-- **Test dulu, kode belakangan.** Tulis test yang gagal, lihat dia gagal dengan alasan yang
-  benar, baru betulin. Test yang nggak pernah merah itu nggak menjaga apa-apa.
-- **Unit test haram narik torch, cv2, atau hardware.** CI jalan di runner kecil tanpa GPU.
-  Butuh yang berat? Taruh di `tests/e2e/`.
-- **Komentar dalam bahasa Inggris, singkat, dan jelasin _kenapa_** — bukan mengulang apa yang
-  udah kelihatan dari kodenya.
-- **Jangan pernah tulis "Co-Authored-By: Claude"** atau referensi AI apa pun di commit.
-
----
-
-## 10. Mau baca lebih dalam ke mana
-
-| Pertanyaan | Berkas |
+| Kebutuhan | Dokumen |
 |---|---|
-| Aturan padat buat AI agent | `CLAUDE.md` |
-| Alur dalam, diagram, semua invariant plus alasannya | `docs/overview.md` |
-| Batas antar lapisan | `docs/architecture.md` |
-| Daftar endpoint, event, dan env var | `docs/backend-overview.md` |
-| Pasang dari nol di PC pabrik | `docs/SETUP.md` |
-| Spesifikasi kamera | `docs/camera-spec.md` |
-| PLC / ODOT | `docs/plc-integration.md` |
-| Kontrak ke ERP | `../autoerp/docs/autograde-integration.md` |
-| Status kerjaan hari ini | `../docs/PROGRESS-AUTOGRADE-AUTOERP.md` |
+| Ringkasan aturan untuk AI agent | `CLAUDE.md` |
+| Alur rinci, diagram, dan seluruh invariant beserta alasannya | `docs/overview.md` |
+| Batas antar lapisan kode | `docs/architecture.md` |
+| Daftar endpoint, event, dan variabel lingkungan | `docs/backend-overview.md` |
+| Pemasangan dari nol di PC pabrik | `docs/SETUP.md` |
+| Spesifikasi dan setelan kamera | `docs/camera-spec.md` |
+| Integrasi PLC / ODOT dan urutan commissioning | `docs/plc-integration.md` |
+| Kontrak integrasi dengan AutoERP | `../autoerp/docs/autograde-integration.md` |
+| Status pekerjaan terkini | `../docs/PROGRESS-AUTOGRADE-AUTOERP.md` |
+| Membuat ulang PDF dokumen ini | `scripts/md_to_pdf.py` |
 
----
+## 11. Glosarium
 
-## 11. Kamus
-
-| Istilah | Artinya |
+| Istilah | Arti |
 |---|---|
 | **TBS** | Tandan Buah Segar — buah sawit yang baru dipanen |
-| **janjang / tandan** | satu buah sawit utuh, satuan yang dinilai kamera |
+| **Janjang / tandan** | satu buah sawit utuh; satuan yang dinilai kamera |
 | **PKS** | Pabrik Kelapa Sawit |
-| **ACC / REJ** | diterima / ditolak, hasil penilaian AI |
-| **tangkai panjang** | buah diterima tapi tangkainya kepanjangan — nambah berat, bukan minyak |
-| **mentah** | buah belum matang, minyaknya sedikit |
-| **brondolan** | buah lepasan yang rontok dari tandan |
-| **line** | satu conveyor dengan satu kamera; ada tiga |
-| **bruto / tara / neto** | berat truk isi / truk kosong / selisihnya = yang diterima pabrik |
-| **sortasi** | proses penilaian mutu buah |
-| **potongan** | pengurangan harga karena mutu jelek |
-| **Sumber TBS** | Internal (kebun sendiri) atau External (beli dari pemasok) |
-| **kunjungan** | satu siklus truk: masuk, tuang, keluar |
-| **outbox** | antrean di disk buat hal yang belum sempat terkirim |
+| **ACC / REJ** | diterima / ditolak; hasil penilaian AI |
+| **Tangkai panjang** | buah diterima tetapi tangkainya terlalu panjang — menambah berat tanpa menambah minyak |
+| **Mentah** | buah belum matang dengan kandungan minyak rendah |
+| **Brondolan** | buah lepasan yang rontok dari tandan |
+| **Line** | satu conveyor dengan satu kamera; terdapat tiga line |
+| **Bruto / tara / neto** | berat truk bermuatan / truk kosong / selisihnya, yaitu berat yang diterima pabrik |
+| **Sortasi** | proses penilaian mutu buah |
+| **Potongan** | pengurangan nilai pembayaran karena mutu buah |
+| **Sumber TBS** | Internal (kebun sendiri) atau External (pembelian dari pemasok) |
+| **Kunjungan** | satu siklus truk: masuk, bongkar, keluar |
+| **Outbox** | antrean di disk untuk data yang belum berhasil terkirim |
 
----
+## 12. Langkah Pertama
 
-## 12. Lima menit pertama kamu
+1. Baca bagian **Critical Rules** di `CLAUDE.md`.
+2. Jalankan `make console` di Mac dan coba layar operator.
+3. Buka `src/palmgrade/workers/frame_processing_worker.py` — di sinilah janjang diubah menjadi angka.
+4. Buka `src/palmgrade/domain/working_day.py` — contoh aturan murni yang ringkas di `domain/`.
+5. Jalankan `.venv/bin/pytest tests/unit` dan pastikan seluruhnya lolos sebelum mulai mengubah kode.
 
-1. Buka `CLAUDE.md`, baca bagian **Critical Rules**. Sepuluh menit, tapi nyelametin berhari-hari.
-2. Jalanin `make console` di Mac, buka layarnya, klik-klik.
-3. Buka `src/palmgrade/workers/frame_processing_worker.py` — di situ buah berubah jadi angka.
-4. Buka `src/palmgrade/domain/working_day.py` — contoh kecil dan bersih dari aturan `domain/`.
-5. Jalanin `.venv/bin/pytest tests/unit`, lihat semuanya hijau, baru mulai ngoding.
+Bila menemukan hal yang membingungkan atau tampak keliru, **catat sebagai temuan** — jangan
+dianggap "memang begitu".
 
-Kalau ada yang bikin bingung atau kelihatan salah: **itu temuan, bukan "mungkin emang gitu".**
-Catat.
+## Riwayat Revisi
+
+| Versi | Tanggal | Perubahan |
+|---|---|---|
+| 1.0 | 14 September 2026 | Rilis pertama |

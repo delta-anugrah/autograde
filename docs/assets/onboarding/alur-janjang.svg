@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 540" font-family="'Noto Sans','Helvetica Neue',Helvetica,Arial,sans-serif" role="img" aria-label="Alur data satu janjang dari kamera sampai AutoERP">
+  <defs>
+    <marker id="alur-panah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#134e5e"/>
+    </marker>
+  </defs>
+
+  <!-- Main path: boxes at y = 8, 86, 164, 242, 320, 398, 476 (h = 50) -->
+  <g stroke="#1f7a8c" stroke-width="1.5">
+    <rect x="190" y="8"   width="300" height="50" rx="8" fill="#eef5f6"/>
+    <rect x="190" y="86"  width="300" height="50" rx="8" fill="#eef5f6"/>
+    <rect x="190" y="164" width="300" height="50" rx="8" fill="#eef5f6"/>
+    <rect x="190" y="242" width="300" height="50" rx="8" fill="#134e5e" stroke="#134e5e"/>
+    <rect x="190" y="320" width="300" height="50" rx="8" fill="#eef5f6"/>
+    <rect x="190" y="398" width="300" height="50" rx="8" fill="#eef5f6"/>
+    <rect x="190" y="476" width="300" height="50" rx="8" fill="#ffffff" stroke="#134e5e"/>
+  </g>
+
+  <g text-anchor="middle">
+    <text x="340" y="30"  font-size="13" font-weight="700" fill="#134e5e">Kamera</text>
+    <text x="340" y="47"  font-size="11" fill="#5a6670">Hikrobot GigE · laju dari hikrobot.mfs</text>
+
+    <text x="340" y="108" font-size="13" font-weight="700" fill="#134e5e">FrameCaptureWorker</text>
+    <text x="340" y="125" font-size="11" fill="#5a6670">ambil frame; antrean membuang frame terlama</text>
+
+    <text x="340" y="186" font-size="13" font-weight="700" fill="#134e5e">FrameProcessingWorker</text>
+    <text x="340" y="203" font-size="11" fill="#5a6670">YOLO + ByteTrack; satu janjang dihitung sekali</text>
+
+    <text x="340" y="264" font-size="13" font-weight="700" fill="#ffffff">Simpan ke disk</text>
+    <text x="340" y="281" font-size="11" fill="#cfe3e8">artifacts/results (WebP + JSON) + outbox.db</text>
+
+    <text x="340" y="342" font-size="13" font-weight="700" fill="#134e5e">OutboxRetryWorker</text>
+    <text x="340" y="359" font-size="11" fill="#5a6670">kirim tiap 1 detik; data menunggu bila gagal</text>
+
+    <text x="340" y="420" font-size="13" font-weight="700" fill="#134e5e">Konsol operator</text>
+    <text x="340" y="437" font-size="11" fill="#5a6670">state/console.db → layar operator</text>
+
+    <text x="340" y="498" font-size="13" font-weight="700" fill="#134e5e">AutoERP</text>
+    <text x="340" y="515" font-size="11" fill="#5a6670">rekap per kunjungan truk (upsert_visit)</text>
+  </g>
+
+  <!-- Arrows down the main path -->
+  <g stroke="#134e5e" stroke-width="1.8" marker-end="url(#alur-panah)">
+    <line x1="340" y1="60"  x2="340" y2="83"/>
+    <line x1="340" y1="138" x2="340" y2="161"/>
+    <line x1="340" y1="216" x2="340" y2="239"/>
+    <line x1="340" y1="294" x2="340" y2="317"/>
+    <line x1="340" y1="372" x2="340" y2="395"/>
+    <line x1="340" y1="450" x2="340" y2="473"/>
+  </g>
+
+  <!-- Side paths -->
+  <g stroke="#1f7a8c" stroke-width="1.2" stroke-dasharray="5 4" fill="#ffffff">
+    <rect x="522" y="164" width="150" height="50" rx="8"/>
+    <rect x="522" y="242" width="150" height="50" rx="8"/>
+  </g>
+  <g stroke="#1f7a8c" stroke-width="1.5" marker-end="url(#alur-panah)">
+    <line x1="492" y1="189" x2="519" y2="189"/>
+    <line x1="492" y1="267" x2="519" y2="267"/>
+  </g>
+  <g text-anchor="middle">
+    <text x="597" y="186" font-size="12" font-weight="700" fill="#134e5e">DisplayWorker</text>
+    <text x="597" y="203" font-size="10.5" fill="#5a6670">stream ke layar langsung</text>
+    <text x="597" y="264" font-size="12" font-weight="700" fill="#134e5e">BatchUploadWorker</text>
+    <text x="597" y="281" font-size="10.5" fill="#5a6670">R2 + cloud, tiap jam</text>
+  </g>
+
+  <!-- Annotations -->
+  <rect x="10" y="242" width="3" height="50" fill="#d9a441"/>
+  <text x="22" y="258" font-size="11" font-weight="700" fill="#5c4212">Aturan utama</text>
+  <text x="22" y="274" font-size="11" fill="#5c4212">simpan ke disk dulu,</text>
+  <text x="22" y="290" font-size="11" fill="#5c4212">kirim belakangan</text>
+
+  <text x="22" y="459" font-size="11" font-weight="700" fill="#5a6670">Hanya rekap,</text>
+  <text x="22" y="475" font-size="11" fill="#5a6670">bukan data per janjang</text>
+</svg>
