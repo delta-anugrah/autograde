@@ -78,6 +78,17 @@ up-3:
 up-console:
 	docker compose --env-file $(ENV_FILE) up -d console
 
+# Operator console WITHOUT Docker — the development path on a Mac, where the
+# Docker targets cannot run (no MVS SDK, no NVIDIA GPU, host networking).
+# Port 8100 because a local AutoERP bench owns 8000. Settings come from .env
+# (console_main.py loads it); only WEBHOOK_SECRET is forced to the dev value the
+# seed script and E2E tests use. Override: make console CONSOLE_PORT=8200
+CONSOLE_PORT ?= 8100
+DEV_WEBHOOK_SECRET ?= devsecret
+console:
+	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) PYTHONPATH=src .venv/bin/uvicorn \
+		palmgrade.console_main:app --host 127.0.0.1 --port $(CONSOLE_PORT)
+
 # Fullscreen on this PC. A page cannot fullscreen itself (requestFullscreen
 # needs a user gesture), so the browser is what gets configured.
 kiosk:

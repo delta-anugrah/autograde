@@ -362,13 +362,18 @@ operator disimpan di `localStorage`.
   ```bash
   cd ../autoerp && make up && make key-show   # tempel ERP_API_KEY + ERP_API_SECRET ke .env
   cd ../palmgrade-vision
-  WEBHOOK_SECRET=devsecret PYTHONPATH=src .venv/bin/uvicorn palmgrade.console_main:app --host 127.0.0.1 --port 8100
+  make console                                # = uvicorn native di 127.0.0.1:8100
   ```
+
+  **Kenapa bukan target Docker di Mac:** `make up` butuh SDK MVS + GPU NVIDIA (PC pabrik),
+  dan container konsol memakai `network_mode: host` di port 8000 yang dipegang AutoERP.
+  `make up-dev` sekarang bisa dibuild di Apple Silicon, tapi untuk develop konsol jalur
+  native inilah yang dipakai. Target Docker adalah jalur Linux/pabrik dan tidak diubah.
 
   Baris ERP di `.env`: `ERP_URL=http://pks.localhost:8000`, `ERP_API_KEY`, `ERP_API_SECRET`,
   `ERP_COMPANY`, dan `CONSOLE_LINE_HOST=http://127.0.0.1` (di macOS `localhost` menunjuk `::1`
   dulu, line cuma IPv4). Port **8100** karena 8000 milik AutoERP. `WEBHOOK_SECRET=devsecret`
-  di depan menimpa `.env` untuk sekali jalan — variabel lingkungan selalu menang atas berkas —
+  (dipasang `make console`) menimpa `.env` — variabel lingkungan selalu menang atas berkas —
   supaya cocok dengan secret yang dipakai tes. **Jangan** `bench start` dua kali dan jangan
   jalankan `create_integration_user` ulang untuk melihat kunci (itu merotasi secret).
 
