@@ -240,7 +240,7 @@
   button:active:not(:disabled) { transform:translateY(0); box-shadow:none; }
   /* A gate, not a fault: the action is waiting for a field, so it is dimmed
      but keeps its shape and its label legible at distance. */
-  button:disabled { opacity:.45; cursor:default; box-shadow:none; }
+  button:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
   /* Assign is the one action with a consequence on the line, so it is the one
      filled button on the card. */
   button.utama { background:var(--acc); border-color:var(--acc); color:var(--on-acc); }
@@ -845,9 +845,9 @@ function kartuLine(l) {
       <div class="assign">
         ${komponenPilih(opsi, l.assignment ? l.assignment.truck_id : "")}
         <button class="utama" data-aksi="tugaskan"${l.assignment ? "" : " disabled"}>${esc(t("btnTugaskan"))}</button>
-        <button data-aksi="lepas" title="${esc(t("lepasTitle"))}">${esc(t("btnLepas"))}</button>
+        <button data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>
       </div>
-      <button class="reject" data-aksi="tolak">${esc(t("btnReject"))}<span class="pintas"></span></button>
+      <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
     </div>
   </div>`;
 }
@@ -1087,9 +1087,21 @@ async function cekKamera() {
 // rebuilt from scratch on refresh.
 function segarkanTombol() {
   document.querySelectorAll("#lines .card").forEach((c) => {
+    // Two different conditions, easy to conflate: Assign waits on the PICKER,
+    // while Release and Manual Reject wait on a truck actually being ON the
+    // line. Picking a plate from the list does not arm them - pressing Assign
+    // does. `.truk-isi` is what isiTruk() writes once there is an assignment,
+    // and the refresh rewrites that block, so this needs no state of its own.
+    const adaTruk = !!c.querySelector(".truk .truk-isi");
     const pilih = c.querySelector(".assign .pilih");
     const tugaskan = c.querySelector('[data-aksi="tugaskan"]');
+    const lepas = c.querySelector('[data-aksi="lepas"]');
+    const tolak = c.querySelector('[data-aksi="tolak"]');
     if (pilih && tugaskan) tugaskan.disabled = !pilih.dataset.nilai;
+    if (lepas) lepas.disabled = !adaTruk;
+    // Space+1..3 already bails on a disabled button, so the shortcut goes quiet
+    // with it instead of flashing a panel that cannot act.
+    if (tolak) tolak.disabled = !adaTruk;
   });
   $("daftar").disabled = !$("plat").value.trim();
   const timbang = $("plat-timbang");
