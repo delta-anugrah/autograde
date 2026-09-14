@@ -17,6 +17,13 @@ TARA_LEBIH_BESAR = "tara_lebih_besar"
 LINE_TIDAK_DIKENAL = "line_tidak_dikenal"
 LINE_TIDAK_MENJAWAB = "line_tidak_menjawab"
 LINE_MENOLAK = "line_menolak"
+# Login (Fase 4). `PIN_SALAH` deliberately says nothing about which of the two was
+# wrong, and is the same answer for an operator switched off.
+PIN_FORMAT = "pin_format"
+PIN_LEMAH = "pin_lemah"
+PIN_SALAH = "pin_salah"
+TERKUNCI = "terkunci"
+BELUM_MASUK = "belum_masuk"
 
 CODES = (
     PLAT_KOSONG,
@@ -27,6 +34,11 @@ CODES = (
     LINE_TIDAK_DIKENAL,
     LINE_TIDAK_MENJAWAB,
     LINE_MENOLAK,
+    PIN_FORMAT,
+    PIN_LEMAH,
+    PIN_SALAH,
+    TERKUNCI,
+    BELUM_MASUK,
 )
 
 

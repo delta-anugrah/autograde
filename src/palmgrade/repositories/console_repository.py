@@ -17,6 +17,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ..domain.operator_auth import operator_id_for
+
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
     event_id            TEXT PRIMARY KEY,
@@ -106,6 +108,30 @@ CREATE TABLE IF NOT EXISTS sync_state (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
+
+-- Operator accounts for the console login (Fase 4). Local on purpose: AutoERP has no
+-- operator DocType, and an operator must get in while the internet is down.
+CREATE TABLE IF NOT EXISTS operators (
+    id             TEXT PRIMARY KEY,
+    nama           TEXT NOT NULL UNIQUE,
+    pin_hash       TEXT NOT NULL,
+    status         TEXT NOT NULL DEFAULT 'active',
+    -- Reserved for the day AutoERP grows that DocType: these rows then have
+    -- somewhere to point and the pull needs no table rebuild.
+    erp_name       TEXT,
+    dibuat_at      REAL NOT NULL,
+    -- Wrong-PIN counter, on disk so reloading the page cannot reset the lockout.
+    gagal_count    INTEGER NOT NULL DEFAULT 0,
+    gagal_terakhir REAL
+);
+
+CREATE TABLE IF NOT EXISTS sesi (
+    token          TEXT PRIMARY KEY,
+    operator_id    TEXT NOT NULL,
+    dibuat_at      REAL NOT NULL,
+    kedaluwarsa_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sesi_kedaluwarsa ON sesi (kedaluwarsa_at);
 """
 
 
@@ -515,3 +541,101 @@ class ConsoleStore:
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                 (key, value),
             )
+
+    # ------------------------------------------------- operators & sessions
+
+    def upsert_operator(self, row: dict[str, Any]) -> str:
+        """Add an operator, or reset the PIN of the one already holding that name.
+
+        Idempotent by name, because the id is derived from it: running the operator
+        command twice cannot leave two people sharing one face on the keypad. A reset
+        also clears the lockout — that is what makes it a way back in.
+        """
+        operator_id = operator_id_for(row["nama"])
+        with self._lock, self._db:
+            self._db.execute(
+                """INSERT INTO operators (id, nama, pin_hash, status, erp_name, dibuat_at)
+                   VALUES (:id, :nama, :pin_hash, :status, :erp_name, :dibuat_at)
+                   ON CONFLICT(id) DO UPDATE SET
+                       nama           = excluded.nama,
+                       pin_hash       = excluded.pin_hash,
+                       status         = excluded.status,
+                       gagal_count    = 0,
+                       gagal_terakhir = NULL""",
+                {
+                    "id": operator_id,
+                    "nama": " ".join(str(row["nama"]).split()),
+                    "pin_hash": row["pin_hash"],
+                    "status": row.get("status") or "active",
+                    "erp_name": row.get("erp_name"),
+                    "dibuat_at": time.time(),
+                },
+            )
+        return operator_id
+
+    def operator(self, operator_id: str) -> dict[str, Any] | None:
+        """The whole row, hash included — for checking a PIN, and nothing else."""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT * FROM operators WHERE id = ?", (operator_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def operators(self) -> list[dict[str, Any]]:
+        """What the keypad may show before anyone is signed in: active names, no hashes."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT id, nama, status FROM operators WHERE status = 'active' ORDER BY nama"
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def set_operator_status(self, operator_id: str, status: str) -> None:
+        """`off` takes the name off the keypad, and `session()` drops the sessions it
+        still holds — that is how a leaver or a shared PIN is handled."""
+        with self._lock, self._db:
+            self._db.execute("UPDATE operators SET status = ? WHERE id = ?", (status, operator_id))
+
+    def record_login_failure(self, operator_id: str, *, now: float) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "UPDATE operators SET gagal_count = gagal_count + 1, gagal_terakhir = ? "
+                "WHERE id = ?",
+                (now, operator_id),
+            )
+
+    def clear_login_failures(self, operator_id: str) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "UPDATE operators SET gagal_count = 0, gagal_terakhir = NULL WHERE id = ?",
+                (operator_id,),
+            )
+
+    def create_session(self, token: str, operator_id: str, *, now: float, ttl_s: int) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                "INSERT OR REPLACE INTO sesi (token, operator_id, dibuat_at, kedaluwarsa_at) "
+                "VALUES (?, ?, ?, ?)",
+                (token, operator_id, now, now + ttl_s),
+            )
+
+    def session(self, token: str, *, now: float) -> dict[str, Any] | None:
+        """Who is behind a token — None when it is unknown, expired, or the operator
+        has been switched off since."""
+        with self._lock:
+            row = self._db.execute(
+                """SELECT s.operator_id, s.kedaluwarsa_at, o.nama
+                     FROM sesi s JOIN operators o ON o.id = s.operator_id
+                    WHERE s.token = ? AND s.kedaluwarsa_at > ? AND o.status = 'active'""",
+                (token, now),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def delete_session(self, token: str) -> None:
+        with self._lock, self._db:
+            self._db.execute("DELETE FROM sesi WHERE token = ?", (token,))
+
+    def purge_sessions(self, *, now: float) -> int:
+        """Sweep what has expired; returns how many rows went."""
+        with self._lock, self._db:
+            cursor = self._db.execute("DELETE FROM sesi WHERE kedaluwarsa_at <= ?", (now,))
+        return cursor.rowcount
