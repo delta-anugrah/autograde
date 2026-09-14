@@ -350,7 +350,7 @@ plafon throughput, bukan bug. Baca ulang bagian `PLC_QUEUE_MAX`.
 
 ## Belum diputuskan (open hardware questions)
 
-Empat hal ini ada di sisi pak Ocit (PLC engineer) dan butuh kerja panel + ladder. Vision sudah
+Hal-hal ini ada di sisi pak Ocit (PLC engineer) dan butuh kerja panel + ladder. Vision sudah
 punya default yang masuk akal untuk semuanya, jadi ini bukan blocker untuk mulai — tapi wajib
 dikonfirmasi sebelum commissioning:
 
@@ -366,6 +366,49 @@ dikonfirmasi sebelum commissioning:
    ODOT saat ini (`Fault Action for Input: Cleaning Input Value`) membuat **kabel putus terbaca
    persis sama dengan "aman"**. Perlu bit ON selama kondisi normal dan OFF saat E-stop ditekan,
    supaya kabel putus jatuh ke sisi aman, bukan sisi berbahaya.
-4. **IP address ODOT dan NIC yang dipakainya belum disuplai.** NIC PC pabrik sudah dipakai tiga
-   kamera GigE — perlu tahu ODOT nyambung ke switch yang mana dan IP-nya berapa untuk mengisi
-   `PLC_HOST`.
+4. **IP address ODOT dan NIC yang dipakainya belum dikonfirmasi.** Usulan dari sisi aplikasi
+   sudah dipasang di `.env.example`: `PLC_HOST=192.168.100.50` statis, subnet `255.255.255.0`,
+   kabel masuk ke switch gigabit yang sama dengan tiga kamera. Dipilih supaya tidak bentrok
+   dengan kamera (`.10`/`.11`/`.12`) maupun NIC komputer (`.100`); boleh diganti ke `.51`–`.99`
+   asal tetap `192.168.100.x`. **Paling menghambat** — tanpa ini aplikasi tidak bisa nyambung.
+5. **Buah yang lewat tanpa sinyal apa pun — aktuatornya default ngapain?** Sebagian keputusan
+   memang dibuang saat antrean penuh (lihat *Throughput ceiling* di atas), jadi pasti ada buah
+   yang lewat tanpa pulse. Jawabannya menentukan ke arah mana kesalahan sistem ini condong:
+   buah tak tersinyal diloloskan atau dibuang.
+6. **Saat E-stop ditekan, kamera ikut berhenti menilai atau tidak?** Sekarang tidak. Kalau
+   seharusnya iya, akan ada hasil penilaian yang tercatat padahal line sedang berhenti darurat.
+
+### Yang belum terbukti
+
+- **Belum pernah diuji ke coupler fisik** — semua tes memakai simulasi.
+- **"Satu buah = satu pulse walau simpan gambar gagal" belum punya tes otomatis.** Bagian itu
+  memuat pustaka kamera dan AI yang sengaja tidak dimuat unit test; perbaikannya baru diperiksa
+  manual.
+- **Celah lama yang belum ditutup:** simpan gambar gagal → buah keluar area pantau → nomor track
+  dipakai ulang untuk buah fisik yang sama → secara teori muncul pulse dobel. Perlu diamati saat
+  produksi.
+- **Hitungan 3,3 vs 10 sinyal per detik** bergantung pada lebar pulse di butir 1. Lebar pulse
+  berubah, seluruh hitungan itu ikut berubah.
+
+## Urutan commissioning
+
+Disarikan dari catatan serah terima Agustus 2026. Kalau waktu mepet, yang **tidak boleh
+dilewat** cuma langkah 3, 4, dan 7.
+
+1. Isi IP coupler, pastikan komputer bisa nyambung.
+2. Nyalakan line 1 saja; line 2 dan 3 mati — supaya sumber keanehan kelihatan.
+3. Picu satu pulse, lalu **pastikan bersama bahwa coil 0 di aplikasi = X0300 di PLC.** Beda satu
+   alamat saja, CAM 1 OK jatuh ke CAM 1 NG.
+4. **Ukur lebar pulse yang benar-benar sampai di PLC** (scope atau monitor bit GX Works). Angka
+   200 ms harus dibuktikan, bukan dipercaya.
+5. Cek coil 9 (HEARTBIT PC) ON. Matikan proses line 1 → coil 9 padam. Matikan line 2 atau 3 →
+   coil 9 tetap ON; memang begitu (cuma line 1 yang memegangnya).
+6. Picu satu motor fault dari panel, pastikan bit yang berubah di aplikasi nomor motor yang sama.
+7. **Cabut kabel E-stop**, lihat pembacaan aplikasi berubah atau tidak. Tidak berubah = bukti
+   masalah polaritas di butir 3 di atas — jangan diterima hanya karena bit-nya terbaca aman.
+8. Cabut kabel LAN coupler ±10 detik lalu colok lagi: coil 9 harus padam lewat *fault action*
+   coupler, lalu ON lagi sendiri tanpa ada yang di-restart.
+9. Restart proses line 1 saat pulse sedang jalan — tidak boleh ada coil yang tertinggal ON.
+10. Produksi sungguhan ±15 menit di satu line, lalu baca jumlah sinyal terbuang di
+    `GET /health/detail`. Angka itu dasar menyetel ulang lebar pulse.
+11. Baru nyalakan line 2 dan 3.

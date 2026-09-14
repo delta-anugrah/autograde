@@ -341,9 +341,8 @@ FE akses via: `${LINE_N_URL}/captures/results/{date}/{filename}`
   mem-poll tiap 1 detik dan POST ke `BACKEND_URL`. Ini yang dilihat operator di PC pabrik, dan
   satu-satunya jalur yang hidup saat internet mati. `image_path` tetap relatif — api meng-serve
   gambarnya dari mount `artifacts/` read-only.
-- **Batch → cloud.** Sejak spec batch-upload-r2
-  (`docs/superpowers/specs/2026-07-10-batch-upload-r2-design.md`), **file hasil deteksi di disk ITU
-  antriannya**; `BatchUploadWorker` men-scan tiap jam, `PUT` gambar ke R2, lalu POST ke
+- **Batch → cloud.** **File hasil deteksi di disk ITU antriannya** (rincian alur dan kelas
+  kegagalannya di `docs/overview.md` §4); `BatchUploadWorker` men-scan tiap jam, `PUT` gambar ke R2, lalu POST ke
   `UPLOAD_API_URL`. Lag ke cloud sampai ~1 jam — itu memang desainnya.
 
 `event_id` identik di kedua jalur, jadi tidak ada risiko dobel.
