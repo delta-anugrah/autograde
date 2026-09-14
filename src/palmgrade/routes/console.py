@@ -10,18 +10,21 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 
 from ..core.config import Settings
-from ..domain.operator_error import OperatorError
+from ..domain.operator_auth import SESSION_TTL_S
+from ..domain.operator_error import BELUM_MASUK, TERKUNCI, OperatorError
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
 from ..repositories.console_repository import ConsoleStore
+from ..services.auth_service import AuthService
 from ..services.console_service import ConsoleService
 from ..services.erp_queue import ErpQueue
 
 _CONSOLE_HTML = Path(__file__).resolve().parents[1] / "static" / "console.html"
+SESSION_COOKIE = "konsol_sesi"
 
 
 @lru_cache
@@ -35,7 +38,27 @@ def get_console_service() -> ConsoleService:
     return ConsoleService(settings, store, LineClient(settings), erp_queue=queue)
 
 
+@lru_cache
+def get_auth_service() -> AuthService:
+    """Shares the console's store: one SQLite file, one lock."""
+    return AuthService(get_console_service().store)
+
+
 Service = Annotated[ConsoleService, Depends(get_console_service)]
+Auth = Annotated[AuthService, Depends(get_auth_service)]
+
+
+def require_operator(
+    auth: Auth, konsol_sesi: Annotated[str | None, Cookie()] = None
+) -> dict:
+    """The operator behind the session cookie, or 401 with a code the gate words."""
+    operator = auth.current(konsol_sesi)
+    if operator is None:
+        raise _operator_error(401, OperatorError(BELUM_MASUK, "belum masuk atau sesi habis"))
+    return operator
+
+
+Operator = Annotated[dict, Depends(require_operator)]
 
 
 def _operator_error(status_code: int, exc: Exception) -> HTTPException:
@@ -46,10 +69,11 @@ def _operator_error(status_code: int, exc: Exception) -> HTTPException:
     detail = exc.as_detail() if isinstance(exc, OperatorError) else str(exc)
     return HTTPException(status_code=status_code, detail=detail)
 
-# ── operator screen + its API (localhost, no auth) ──────────────────────
-# The console sits on the operator PC and is only opened via
-# http://127.0.0.1:8000 (§4: 127.0.0.1 is a trusted origin, 192.168.x.x is
-# NOT). Operator login is §6.5, not part of phase 2.
+
+# ── operator screen + its API ───────────────────────────────────────────
+# Every operator lane needs a session (Fase 4, plan §6.5). Open on purpose: the page
+# itself (it draws the PIN gate), the operator names the gate offers, and signing in.
+# The machine lanes below keep the webhook secret and never see a cookie.
 router = APIRouter(tags=["console"])
 
 
@@ -58,14 +82,56 @@ async def console_page() -> FileResponse:
     return FileResponse(_CONSOLE_HTML, media_type="text/html")
 
 
+@router.get("/api/console/operators")
+async def console_operators(auth: Auth) -> dict:
+    """Read before anyone is signed in, so names and ids only — never a hash."""
+    return {"items": auth.operators()}
+
+
+@router.post("/api/console/login")
+async def login(auth: Auth, response: Response, payload: Annotated[dict, Body()]) -> dict:
+    try:
+        token, operator = auth.login(
+            str(payload.get("operator_id") or ""), str(payload.get("pin") or "")
+        )
+    except OperatorError as exc:
+        raise _operator_error(429 if exc.code == TERKUNCI else 401, exc) from exc
+    response.set_cookie(
+        SESSION_COOKIE,
+        token,
+        max_age=SESSION_TTL_S,
+        httponly=True,
+        samesite="strict",
+        path="/",
+        # No `secure`: the factory console is plain HTTP on the LAN, and a Secure
+        # cookie would simply never be sent back.
+    )
+    return {"operator": operator}
+
+
+@router.post("/api/console/logout")
+async def logout(
+    auth: Auth, response: Response, konsol_sesi: Annotated[str | None, Cookie()] = None
+) -> dict:
+    auth.logout(konsol_sesi)
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return {"status": "ok"}
+
+
+@router.get("/api/console/me")
+async def console_me(operator: Operator) -> dict:
+    return {"operator": {"id": operator["operator_id"], "nama": operator["nama"]}}
+
+
 @router.get("/api/console/state")
-async def console_state(service: Service) -> dict:
+async def console_state(service: Service, operator: Operator) -> dict:
     return service.state()
 
 
 @router.get("/api/console/history")
 async def console_history(
     service: Service,
+    operator: Operator,
     tanggal_kerja: str | None = None,
     line_code: str | None = None,
     truck_id: str | None = None,
@@ -82,12 +148,14 @@ async def console_history(
 
 
 @router.get("/api/console/trucks")
-async def console_trucks(service: Service) -> dict:
+async def console_trucks(service: Service, operator: Operator) -> dict:
     return {"items": service.trucks()}
 
 
 @router.post("/api/console/trucks", status_code=201)
-async def daftar_truk_manual(service: Service, payload: Annotated[dict, Body()]) -> dict:
+async def daftar_truk_manual(
+    service: Service, operator: Operator, payload: Annotated[dict, Body()]
+) -> dict:
     """Borrowed or unregistered truck, typed by the operator (not from cloud master)."""
     try:
         return service.daftar_truk_manual(
@@ -102,6 +170,7 @@ async def daftar_truk_manual(service: Service, payload: Annotated[dict, Body()])
 @router.get("/api/console/weighings")
 async def console_weighings(
     service: Service,
+    operator: Operator,
     tanggal_kerja: str | None = None,
     limit: int = Query(100, ge=1, le=500),
 ) -> dict:
@@ -110,18 +179,21 @@ async def console_weighings(
 
 
 @router.get("/api/console/recap")
-async def console_recap(service: Service, tanggal_kerja: str | None = None) -> dict:
+async def console_recap(
+    service: Service, operator: Operator, tanggal_kerja: str | None = None
+) -> dict:
     """What the supplier is handed: bunches and neto per truck for one day."""
     tanggal = tanggal_kerja or service.today()
     return {"tanggal_kerja": tanggal, "items": service.rekap(tanggal)}
 
 
 @router.post("/api/console/weighings", status_code=201)
-async def catat_timbangan_manual(service: Service, payload: Annotated[dict, Body()]) -> dict:
+async def catat_timbangan_manual(
+    service: Service, operator: Operator, payload: Annotated[dict, Body()]
+) -> dict:
     """Operator types bruto/tara by hand; the payload shape is identical to the
-    scale program's — only without the secret, since the console is opened from
-    127.0.0.1 only (§4). This lane keeps weighing tickets flowing while the
-    scale program's format is unknown (docs/PERTANYAAN-TERBUKA.md X1).
+    scale program's. This lane keeps weighing tickets flowing while the scale
+    program's format is unknown (docs/PERTANYAAN-TERBUKA.md X1).
     """
     try:
         return service.catat_timbangan(payload)
@@ -131,7 +203,10 @@ async def catat_timbangan_manual(service: Service, payload: Annotated[dict, Body
 
 @router.post("/api/console/lines/{line_code}/assign-truck")
 async def assign_truck(
-    line_code: str, service: Service, truck_id: Annotated[str, Body(embed=True)]
+    line_code: str,
+    service: Service,
+    operator: Operator,
+    truck_id: Annotated[str, Body(embed=True)],
 ) -> dict:
     try:
         return await service.assign_truck(line_code, truck_id)
@@ -142,7 +217,7 @@ async def assign_truck(
 
 
 @router.post("/api/console/lines/{line_code}/release-truck")
-async def release_truck(line_code: str, service: Service) -> dict:
+async def release_truck(line_code: str, service: Service, operator: Operator) -> dict:
     """Truck leaves. The line is told too — see `ConsoleService.lepas_truk`."""
     try:
         return await service.lepas_truk(line_code)
@@ -153,11 +228,11 @@ async def release_truck(line_code: str, service: Service) -> dict:
 
 
 @router.post("/api/console/lines/{line_code}/manual-reject")
-async def manual_reject(
-    line_code: str, service: Service, requested_by: Annotated[str, Body(embed=True)] = "operator"
-) -> dict:
+async def manual_reject(line_code: str, service: Service, operator: Operator) -> dict:
+    """Recorded against whoever is signed in. It used to be the literal "operator"
+    from the request body, which left the one action with a name on it anonymous."""
     try:
-        return await service.manual_reject(line_code, requested_by)
+        return await service.manual_reject(line_code, operator["nama"])
     except ValueError as exc:
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
