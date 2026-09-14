@@ -28,5 +28,10 @@ class CameraSource(ABC):
         return False
 
     @property
+    def rewound(self) -> bool:
+        """True on the first frame of a new pass through a looping source."""
+        return False
+
+    @property
     def supports_reconnect(self) -> bool:
         return True

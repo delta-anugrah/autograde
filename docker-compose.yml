@@ -67,6 +67,7 @@ services:
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-20}
       - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      - CAMERA_VIDEO_LOOP=${CAMERA_VIDEO_LOOP:-false}
       # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
       # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
       - CAMERA_PHOTO_PATH=${CAMERA_PHOTO_PATH:-}
@@ -174,6 +175,7 @@ services:
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-20}
       - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      - CAMERA_VIDEO_LOOP=${CAMERA_VIDEO_LOOP:-false}
       # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
       # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
       - CAMERA_PHOTO_PATH=${CAMERA_PHOTO_PATH:-}
@@ -281,6 +283,7 @@ services:
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-20}
       - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      - CAMERA_VIDEO_LOOP=${CAMERA_VIDEO_LOOP:-false}
       # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
       # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
       - CAMERA_PHOTO_PATH=${CAMERA_PHOTO_PATH:-}
