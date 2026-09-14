@@ -1,11 +1,11 @@
 ---
 name: mvs-camera
-description: Navigate & tune kamera Hikrobot MV-CS050-10GC lewat MVS (Machine Vision Software) untuk palmgrade-vision. Use when the user asks about MVS Feature Tree, setting kamera (exposure/gain/white balance/binning/fps), file .mfs, kamera GigE nggak kedetek / ACCESS_DENIED, fps kamera mentok, atau kalibrasi kamera di pabrik.
+description: Navigate & tune kamera Hikrobot MV-CS050-10GC lewat MVS (Machine Vision Software) untuk autograde. Use when the user asks about MVS Feature Tree, setting kamera (exposure/gain/white balance/binning/fps), file .mfs, kamera GigE nggak kedetek / ACCESS_DENIED, fps kamera mentok, atau kalibrasi kamera di pabrik.
 ---
 
 # MVS — Kamera Hikrobot MV-CS050-10GC (Palmgrade)
 
-Sumber kebenaran nilai & topologi: `palmgrade-vision/docs/camera-spec.md`.
+Sumber kebenaran nilai & topologi: `autograde/docs/camera-spec.md`.
 Checklist kalibrasi lapangan: `docs/camera-field-setup.md`.
 Skill ini = peta navigasi MVS + nilai live + jebakan. Jangan duplikat isi 2 dokumen itu.
 
@@ -22,7 +22,7 @@ sesudah `MV_CC_OpenDevice`, sebelum `StartGrabbing`. Gagal load = warning, **ngg
 
 Konsekuensi: `CAMERA_FPS` di `.env` cuma target loop capture, **bukan** fps kamera.
 Yang nentuin fps/exposure/gain = `AcquisitionFrameRate` dst di
-`palmgrade-vision/config/camera/hikrobot.mfs`. Mau ubah fps → edit `.mfs`, bukan `.env`.
+`autograde/config/camera/hikrobot.mfs`. Mau ubah fps → edit `.mfs`, bukan `.env`.
 
 Cara bikin `.mfs`: MVS → connect kamera → toolbar **Save Feature** (ekspor semua node
 ke XML). Load balik = **Load Feature**.

@@ -1,4 +1,4 @@
-# palmgrade-vision — Detailed Overview
+# autograde — Detailed Overview
 
 > **The DETAIL doc** (read on-demand). The lean map is `../CLAUDE.md`.
 > Even deeper, specialized docs: `architecture.md` (layer boundaries), `backend-overview.md`

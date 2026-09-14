@@ -1,6 +1,6 @@
 ---
 name: model-swap-eval
-description: Evaluasi, ganti, dan rollback model deteksi YOLO di palmgrade-vision — pilih kandidat dari hasil training, pasang ke models/release/, rebuild TensorRT engine, verifikasi. Pakai kalau ada model baru dari tim AI, mau bandingin model, ganti MODEL_FILE, deteksi tiba-tiba meleset, atau rebuild engine setelah ganti GPU.
+description: Evaluasi, ganti, dan rollback model deteksi YOLO di autograde — pilih kandidat dari hasil training, pasang ke models/release/, rebuild TensorRT engine, verifikasi. Pakai kalau ada model baru dari tim AI, mau bandingin model, ganti MODEL_FILE, deteksi tiba-tiba meleset, atau rebuild engine setelah ganti GPU.
 ---
 
 # Ganti & Evaluasi Model
