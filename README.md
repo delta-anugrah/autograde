@@ -355,6 +355,30 @@ operator disimpan di `localStorage`.
   (bukan salinan di dalam image), lalu mengecek tiga jebakan yang pernah menggigit:
   baris "Tanpa truk" tidak dibuang, neto truk bertiket-dua **dijumlah** bukan dikali,
   dan `bruto_kg` "14.820" ditolak. Harus `11 passed, 0 failed`.
+- **Tersambung ke AutoERP, di MacBook tanpa Docker.** AutoERP dinyalakan dari repo
+  `autoerp` (bench native), kuncinya diambil dengan `make key-show` lalu ditempel ke `.env`
+  di sini. Konsol membaca `.env` sendiri, jadi perintahnya pendek:
+
+  ```bash
+  cd ../autoerp && make up && make key-show   # tempel ERP_API_KEY + ERP_API_SECRET ke .env
+  cd ../palmgrade-vision
+  WEBHOOK_SECRET=devsecret PYTHONPATH=src .venv/bin/uvicorn palmgrade.console_main:app --host 127.0.0.1 --port 8100
+  ```
+
+  Baris ERP di `.env`: `ERP_URL=http://pks.localhost:8000`, `ERP_API_KEY`, `ERP_API_SECRET`,
+  `ERP_COMPANY`, dan `CONSOLE_LINE_HOST=http://127.0.0.1` (di macOS `localhost` menunjuk `::1`
+  dulu, line cuma IPv4). Port **8100** karena 8000 milik AutoERP. `WEBHOOK_SECRET=devsecret`
+  di depan menimpa `.env` untuk sekali jalan — variabel lingkungan selalu menang atas berkas —
+  supaya cocok dengan secret yang dipakai tes. **Jangan** `bench start` dua kali dan jangan
+  jalankan `create_integration_user` ulang untuk melihat kunci (itu merotasi secret).
+
+  Tes end-to-end lawan AutoERP asli — 8 tes, membersihkan datanya sendiri, butuh port 8001 kosong:
+
+  ```bash
+  E2E_CONSOLE_URL=http://127.0.0.1:8100 E2E_WEBHOOK_SECRET=devsecret \
+  E2E_ERP_URL=http://pks.localhost:8000 E2E_ERP_API_KEY=<key> E2E_ERP_API_SECRET=<secret> \
+  E2E_ERP_ADMIN_PASSWORD=admin .venv/bin/pytest tests/e2e -v
+  ```
 - **Layar penuh = urusan browser**, bukan halaman. `make kiosk` menjalankan Chrome `--kiosk`
   lewat `scripts/console-kiosk.sh`; untuk jalan otomatis saat login pasang
   `scripts/palmgrade-console.desktop`. Tiga hal di skrip itu jangan dihapus: `--user-data-dir`
@@ -541,7 +565,7 @@ Dari `palmgrade-vision/`:
 
 ```bash
 # CI menjalankan keduanya (lihat .github/workflows/ci.yml)
-pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic
+pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic pyyaml
 ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/palmgrade/integrations/upload/ \
   src/palmgrade/license/ src/palmgrade/plc/ src/palmgrade/workers/batch_upload_worker.py \
   src/palmgrade/workers/master_data_worker.py \
