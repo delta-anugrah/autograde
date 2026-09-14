@@ -11,9 +11,13 @@ so re-running adds nothing new and the rows stay recognisable afterwards.
     LINE_1_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_1_MACHINE_ID) \\
     LINE_2_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_2_MACHINE_ID) \\
     LINE_3_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_3_MACHINE_ID) \\
+    CONSOLE_OPERATOR="Nama Operator" CONSOLE_PIN=<pin> \\
     SEED_CONFIRM=1 python3 scripts/seed-console-demo.py
+
+Since Fase 4 the console API needs a session. Make the operator first with
+`make operator`; the seed signs in as them and never creates an account itself.
 """
-import json, os, sys, urllib.request, uuid
+import http.cookiejar, json, os, sys, urllib.request, uuid
 from datetime import datetime, timedelta, timezone
 
 if os.environ.get("SEED_CONFIRM") != "1":
@@ -25,18 +29,37 @@ SECRET = os.environ["WEBHOOK_SECRET"]
 MACHINES = [os.environ[f"LINE_{n}_MACHINE_ID"] for n in (1, 2, 3)]
 
 
+# One cookie jar for the whole run: the session cookie from sign-in rides along.
+OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+
+
 def post(path, body, secret=False):
     req = urllib.request.Request(
         BASE + path, data=json.dumps(body).encode(), method="POST",
         headers={"Content-Type": "application/json",
                  **({"x-webhook-secret": SECRET} if secret else {})})
-    with urllib.request.urlopen(req, timeout=10) as r:
+    with OPENER.open(req, timeout=10) as r:
         return json.loads(r.read() or b"{}")
 
 
 def get(path):
-    with urllib.request.urlopen(BASE + path, timeout=10) as r:
+    with OPENER.open(BASE + path, timeout=10) as r:
         return json.loads(r.read())
+
+
+def sign_in():
+    nama = " ".join(os.environ.get("CONSOLE_OPERATOR", "").split())
+    pin = os.environ.get("CONSOLE_PIN", "")
+    if not (nama and pin):
+        sys.exit("Set CONSOLE_OPERATOR dan CONSOLE_PIN - buat operatornya dulu: make operator")
+    operator = next((o for o in get("/api/console/operators")["items"]
+                     if o["nama"].lower() == nama.lower()), None)
+    if operator is None:
+        sys.exit(f"Operator {nama!r} tidak ada di konsol {BASE}")
+    post("/api/console/login", {"operator_id": operator["id"], "pin": pin})
+
+
+sign_in()
 
 
 PLATES = ["BE 8821 KL", "B 1234 XY", "KT 2509 ABC"]
