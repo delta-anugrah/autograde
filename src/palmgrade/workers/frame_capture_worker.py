@@ -15,7 +15,7 @@ _RECONNECT_BACKOFF_MAX = 30.0
 
 
 class FrameCaptureWorker:
-    def __init__(self, camera: CameraSource, state: RuntimeState, target_fps: int = 24, device_index: int = 0, serial: str | None = None, feature_file: str | None = None, **_) -> None:
+    def __init__(self, camera: CameraSource, state: RuntimeState, target_fps: int = 20, device_index: int = 0, serial: str | None = None, feature_file: str | None = None, **_) -> None:
         self.camera = camera
         self.state = state
         self._device_index = device_index

@@ -10,8 +10,12 @@ the fallback for sources that cannot (a webcam, a video file).
 """
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 
+from palmgrade.core.config import Settings
 from palmgrade.integrations.camera.base import CameraSource
 from palmgrade.workers.frame_capture_worker import FrameCaptureWorker
 from palmgrade.workers.runtime_state import RuntimeState
@@ -94,3 +98,27 @@ def test_a_camera_reporting_nothing_and_no_camera_fps_does_not_divide_by_zero():
     worker.adopt_camera_frame_rate()
 
     assert worker.frame_interval == 0.0
+
+
+# ------------------------------------------------------- the fallback itself
+
+
+FALLBACK_FPS = 20
+"""What a camera that cannot report a rate is paced at.
+
+Deliberately above the 15 the `.mfs` holds: this is a safety net for sources
+with no rate of their own (a webcam, a video file), and pacing it faster than
+the real cameras keeps the net from becoming a second, quieter limiter.
+Kept in sync across config.py, docker-compose.yml and .env.example — the three
+used to be able to drift apart.
+"""
+
+
+def test_the_fallback_rate_is_the_same_in_settings_compose_and_the_env_template(monkeypatch):
+    monkeypatch.delenv("CAMERA_FPS", raising=False)
+    assert Settings().camera_fps == FALLBACK_FPS
+
+    repo = Path(__file__).resolve().parents[2]
+    compose = re.findall(r"CAMERA_FPS=\$\{CAMERA_FPS:-(\d+)\}", (repo / "docker-compose.yml").read_text())
+    assert compose == [str(FALLBACK_FPS)] * 3, "every line must carry the same fallback"
+    assert f"\nCAMERA_FPS={FALLBACK_FPS}\n" in (repo / ".env.example").read_text()
