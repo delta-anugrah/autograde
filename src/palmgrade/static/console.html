@@ -58,6 +58,15 @@
           --input:#ffffff; --hover:#414a57;
           --danger-bg:#fde8e6; --danger-line:#d99a94; --danger-fg:#8c1d18;
           --bayang:rgba(12,19,16,.22);
+          /* One radius scale. Rounding is the only thing softened here: sizes,
+             contrast and the light-by-default rule are set by sunlight and
+             reading distance, not by taste, so they are untouched. */
+          --r-xs:7px; --r-sm:11px; --r-md:16px; --r-lg:20px; --r-pill:999px;
+          /* Depth instead of a second hairline. Kept shallow: a heavy shadow in
+             glare reads as a smudge, and the border is still what defines the
+             edge outdoors. */
+          --tinggi-1:0 1px 2px rgba(12,19,16,.05), 0 3px 10px rgba(12,19,16,.07);
+          --tinggi-2:0 2px 4px rgba(12,19,16,.06), 0 12px 28px rgba(12,19,16,.12);
           --pad:20px;
           --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23414a57%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
   :root[data-theme="dark"] { color-scheme:dark;
@@ -69,6 +78,8 @@
           --input:#222933; --hover:#5b667a;
           --danger-bg:#40211f; --danger-line:#6b312d; --danger-fg:#ffc4bf;
           --bayang:rgba(0,0,0,.55);
+          --tinggi-1:0 1px 2px rgba(0,0,0,.5), 0 3px 10px rgba(0,0,0,.45);
+          --tinggi-2:0 2px 6px rgba(0,0,0,.55), 0 12px 28px rgba(0,0,0,.55);
           --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23a9b3c2%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
   /* One knob for every size; the rest is rem. The operator can still zoom with
      Ctrl + '+' - Chrome remembers that per origin, so this page needs no zoom
@@ -89,11 +100,11 @@
             border-bottom:3px solid var(--acc); }
   h1 { font-size:1rem; margin:0; font-weight:700; letter-spacing:.14em;
        text-transform:uppercase; display:flex; align-items:center; gap:10px; }
-  h1::before { content:""; width:.7rem; height:1rem; background:var(--acc); border-radius:1px; }
+  h1::before { content:""; width:.7rem; height:1rem; background:var(--acc); border-radius:var(--r-pill); }
   #jam { font-family:var(--mono); font-size:1.15rem; font-weight:700; letter-spacing:.01em; }
   .jam { display:flex; align-items:baseline; gap:8px; }
   #topbar .aksi { margin-left:auto; display:flex; gap:8px; }
-  #topbar .aksi button { min-width:5.5rem; min-height:2.6rem; }
+  #topbar .aksi button { min-width:5.5rem; min-height:2.6rem; border-radius:var(--r-pill); }
 
   #err { display:none; padding:13px var(--pad); font-weight:700;
          background:var(--danger-bg); color:var(--danger-fg);
@@ -104,7 +115,8 @@
      reaches a single line panel. */
   #tally { display:flex; flex-wrap:wrap; align-items:stretch;
            margin:16px var(--pad) 0; background:var(--card);
-           border:1px solid var(--line-kuat); border-left:5px solid var(--acc); border-radius:3px; }
+           border:1px solid var(--line-kuat); border-left:5px solid var(--acc);
+           border-radius:var(--r-lg); box-shadow:var(--tinggi-1); }
   #tally .hari { display:flex; align-items:center; padding:10px 16px;
                  border-right:1px solid var(--line); }
   #tally .stat { padding:10px 20px 12px; border-right:1px solid var(--line); min-width:6.5rem; }
@@ -117,9 +129,9 @@
   #tally .rasio-hd { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
   #tally .rasio-hd b { font-family:var(--mono); font-size:1.35rem; font-weight:700;
                        font-variant-numeric:tabular-nums; }
-  #tally .bar { height:12px; border:1px solid var(--line); border-radius:2px;
+  #tally .bar { height:12px; border:1px solid var(--line); border-radius:var(--r-pill);
                 background:var(--rej-bg); overflow:hidden; }
-  #tally .bar span { display:block; height:100%; width:0; background:var(--acc); transition:width .4s ease; }
+  #tally .bar span { display:block; height:100%; width:0; border-radius:var(--r-pill); background:var(--acc); transition:width .4s ease; }
   #tally .tata { display:flex; align-items:center; gap:10px; padding:10px 16px;
                  border-left:1px solid var(--line); }
   #tally .tata .pilih { flex:0 0 11rem; }
@@ -129,7 +141,8 @@
      whenever the operator picks "Auto". */
   #lines { margin-top:14px; display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr));
            gap:16px; padding:0 var(--pad) 6px; }
-  .card { background:var(--card); border:1px solid var(--line-kuat); border-radius:3px;
+  .card { background:var(--card); border:1px solid var(--line-kuat);
+          border-radius:var(--r-md); box-shadow:var(--tinggi-1);
           display:flex; flex-direction:column; }
   .card h2 { font-size:.95rem; font-weight:700; margin:0; padding:5px 7px 5px 13px;
              letter-spacing:.04em; border-bottom:1px solid var(--line);
@@ -159,7 +172,7 @@
   /* Live badge, pure CSS off the .putus class - a still frame and a dead line
      look identical otherwise, and the operator has no other way to tell. */
   .feed::after { content:"LIVE"; position:absolute; z-index:2; top:8px; left:8px;
-                 padding:5px 9px 4px 21px; border-radius:2px;
+                 padding:5px 9px 4px 21px; border-radius:var(--r-xs);
                  font:700 .68rem/1 var(--font); letter-spacing:.14em; color:#fff;
                  background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.3); }
   .feed::before { content:""; position:absolute; z-index:3; left:17px; top:15px;
@@ -198,7 +211,7 @@
      shared, so both values start at the same x. */
   .truk > span { display:grid; grid-template-columns:auto 1fr; align-items:center;
                  gap:5px 12px; padding:9px 12px; border:1px solid var(--line);
-                 border-radius:3px; background:var(--zebra); }
+                 border-radius:var(--r-sm); background:var(--zebra); }
   .truk .truk-kosong { display:block; background:var(--warn-bg); border-color:var(--warn); }
   .truk .truk-kosong .plat { color:var(--warn); font-size:1.15rem; letter-spacing:.02em; }
   .plat { font-family:var(--mono); font-size:1.4rem; font-weight:700; line-height:1.1;
@@ -214,10 +227,17 @@
   .assign button { flex:0 0 7.5rem; }
 
   button, input { background:var(--input); color:var(--fg); border:1px solid var(--line-kuat);
-                  border-radius:3px; padding:10px 13px; font:inherit; }
+                  border-radius:var(--r-sm); padding:10px 13px; font:inherit; }
   :is(button, input):focus-visible { outline:3px solid var(--acc); outline-offset:2px; }
-  button { cursor:pointer; font-weight:700; }
-  button:hover { border-color:var(--hover); }
+  button { cursor:pointer; font-weight:700;
+           transition:background-color .12s ease, border-color .12s ease,
+                      box-shadow .12s ease, transform .12s ease; }
+  /* The lift is the whole point of the press: with gloves on a dusty screen the
+     operator often cannot tell a tap registered. Colour alone does not carry
+     that; a 1px rise plus a shadow does, and it costs no contrast. */
+  button:hover:not(:disabled) { border-color:var(--hover); box-shadow:var(--tinggi-1);
+                                transform:translateY(-1px); }
+  button:active:not(:disabled) { transform:translateY(0); box-shadow:none; }
   button:disabled { opacity:.55; cursor:default; }
   /* Assign is the one action with a consequence on the line, so it is the one
      filled button on the card. */
@@ -228,7 +248,7 @@
   /* The keyboard hint is printed on the button, so the shortcut never has to be
      remembered - and it follows the panel order the operator arranged. */
   .pintas { margin-left:10px; font-size:.7rem; letter-spacing:.06em; opacity:.8;
-            border:1px solid currentColor; border-radius:2px; padding:2px 6px; }
+            border:1px solid currentColor; border-radius:var(--r-xs); padding:2px 6px; }
   .pintas:empty { display:none; }
   /* Fires from a key, so the screen has to say which panel it landed on. */
   @keyframes kedip { 40% { background:var(--danger-fg); color:var(--danger-bg); } }
@@ -253,10 +273,10 @@
   .pilih[data-buka="1"] .pilih-tombol { border-color:var(--acc); }
   .pilih-panel { position:absolute; z-index:20; top:calc(100% + 4px); left:0; min-width:100%;
                  max-height:17rem; overflow-y:auto; padding:4px;
-                 background:var(--card); border:1px solid var(--line-kuat); border-radius:3px;
-                 box-shadow:0 12px 28px var(--bayang); }
+                 background:var(--card); border:1px solid var(--line-kuat);
+                 border-radius:var(--r-sm); box-shadow:var(--tinggi-2); }
   .pilih-panel [role="option"] { display:flex; align-items:center; min-height:2.6rem;
-                                 padding:10px 14px; border-radius:2px; cursor:pointer;
+                                 padding:10px 14px; border-radius:var(--r-xs); cursor:pointer;
                                  white-space:nowrap; font-weight:600; }
   .pilih-panel [role="option"]:hover { background:var(--zebra); }
   .pilih-panel [role="option"]:focus { outline:none; background:var(--zebra);
@@ -272,9 +292,9 @@
      into the page margin on both sides and read as a stray mark. */
   #tabs button { flex:1 1 0; background:var(--zebra); color:var(--muted);
                  border:1px solid var(--line);
-                 border-radius:3px 3px 0 0;
+                 border-radius:var(--r-sm) var(--r-sm) 0 0;
                  font-size:1rem; letter-spacing:.04em; }
-  #tabs button:hover { color:var(--fg); }
+  #tabs button:hover { color:var(--fg); transform:none; box-shadow:none; }
   #tabs button.aktif { background:var(--card); color:var(--fg);
                        border-color:var(--line-kuat);
                        box-shadow:inset 0 4px 0 var(--acc); }
@@ -283,7 +303,7 @@
   .panel { padding:16px var(--pad) 28px; }
   .tools { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:14px;
            background:var(--card); border:1px solid var(--line-kuat); border-bottom:none;
-           border-radius:3px 3px 0 0; }
+           border-radius:var(--r-md) var(--r-md) 0 0; }
   /* `min-width:0`: an input's automatic minimum is its `size` attribute,
      20 characters, which otherwise overrides every basis below. */
   .tools input { flex:1 1 14rem; max-width:22rem; min-width:0; }
@@ -299,8 +319,8 @@
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
      screen, and without this the page itself scrolls sideways. */
   .tabel { overflow-x:auto; background:var(--card);
-           border:1px solid var(--line-kuat); border-radius:3px; }
-  .tools + .tabel { border-top:none; border-radius:0 0 3px 3px; }
+           border:1px solid var(--line-kuat); border-radius:var(--r-md); }
+  .tools + .tabel { border-top:none; border-radius:0 0 var(--r-md) var(--r-md); }
   table { width:100%; border-collapse:collapse; }
   th, td { text-align:left; padding:12px 16px; border-bottom:1px solid var(--line); white-space:nowrap; }
   th { background:var(--zebra); border-bottom:2px solid var(--line-kuat);
@@ -320,12 +340,12 @@
   #rekap td.acc { color:var(--acc); font-weight:700; }
   #rekap td.rej { color:var(--rej); font-weight:700; }
   td.kosong { text-align:center; color:var(--muted); padding:26px 16px; }
-  td img { height:52px; border-radius:2px; border:1px solid var(--line-kuat); display:block; }
+  td img { height:52px; border-radius:var(--r-xs); border:1px solid var(--line-kuat); display:block; }
   .pill { font:700 .7rem/1 var(--font); letter-spacing:.1em; text-transform:uppercase;
-          padding:5px 9px; border-radius:2px; border:1px solid var(--line-kuat);
+          padding:5px 9px; border-radius:var(--r-pill); border:1px solid var(--line-kuat);
           color:var(--muted); background:var(--card); }
   .tag { display:inline-block; font:700 .78rem/1 var(--font); letter-spacing:.1em;
-         padding:6px 10px; border-radius:2px; border:1px solid; }
+         padding:6px 10px; border-radius:var(--r-pill); border:1px solid; }
   .tag.ok { color:var(--acc); background:var(--acc-bg); border-color:var(--acc); }
   .tag.no { color:var(--rej); background:var(--rej-bg); border-color:var(--rej); }
 
