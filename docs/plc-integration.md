@@ -7,7 +7,8 @@ Teknologi Otomasi), yang tidak ada di repo — tabel alamat di bawah disalin apa
 sana, plus percakapan dengan pak Ocit (PLC engineer).
 
 Seluruh logika terkurung di paket `src/palmgrade/plc/`. Kode di luar paket ini hanya boleh
-menyentuh tiga fungsi: `start_plc_worker`, `submit_grading`, `inputs`.
+menyentuh lima fungsi: `start_plc_worker`, `shutdown_plc_worker`, `submit_grading`, `inputs`,
+`diagnostics`.
 
 ---
 
@@ -139,11 +140,14 @@ Satu coil hanya bisa membawa satu pulse pada satu waktu. Dengan default `PLC_PUL
 `PLC_PULSE_GAP_MS=100`, kapasitas satu coil adalah:
 
 ```
-1 / (pulse_s + gap_s) = 1 / (0.2 + 0.1) ≈ 3.3 sinyal/detik
+Satu tick = PLC_POLL_MS. Pulse butuh 1 tick ON, jeda butuh 1 tick penuh
+(gap 100 ms dibulatkan ke atas), jadi satu siklus = 2 tick ≈ 410 ms:
+
+  1 / (2 × 0,205 dtk) ≈ 2,5 sinyal/detik
 ```
 
 Kamera always-ON bisa menghasilkan sampai **~10 keputusan grading/detik** per line. Itu jauh
-di atas 3,3/detik yang muat di satu coil OK atau NG. Konsekuensinya: **overflow adalah kondisi
+di atas 2,5/detik yang muat di satu coil OK atau NG. Konsekuensinya: **overflow adalah kondisi
 normal di bawah beban, bukan sesuatu yang salah.**
 
 Kebijakannya **DROP dan hitung — tidak pernah nge-lag**. Menahan sinyal di antrean supaya
@@ -157,12 +161,13 @@ diketahui (lihat "Belum diputuskan").
 
 ### `PLC_QUEUE_MAX` = harga staleness, bukan kapasitas
 
-`PulseScheduler` menguras satu pulse terutang tiap `pulse_s + gap_s` (default 300ms). Jadi
-antrean yang penuh berarti **setiap pulse yang diterima PLC mewakili keputusan dari
-`queue_max × 300ms` yang lalu**. Dengan `queue_max=20` itu 6 detik — pada belt berjalan, sinyal
-itu mendarat di buah yang benar-benar berbeda, terus-menerus, selama produksi normal.
+`PulseScheduler` menguras satu pulse terutang tiap satu siklus tick (≈410 ms — lihat "Throughput
+ceiling" di atas). Jadi antrean yang penuh berarti **setiap pulse yang diterima PLC mewakili
+keputusan dari `queue_max × 410 ms` yang lalu**. Dengan `queue_max=20` itu ≈8,2 detik — pada
+belt berjalan, sinyal itu mendarat di buah yang benar-benar berbeda, terus-menerus, selama
+produksi normal.
 
-Karena itu defaultnya **1**: paling banyak satu pulse terutang ⇒ staleness ≤ 300ms secara
+Karena itu defaultnya **1**: paling banyak satu pulse terutang ⇒ staleness ≤ 410 ms secara
 struktural, tanpa perlu state timestamp/discard tambahan. Menaikkan angka ini **tidak** membuat
 sinyal lebih andal — ia menukar drop (jujur, terhitung) dengan sinyal basi (diam-diam salah).
 
@@ -211,8 +216,8 @@ selama itu — pulse telat menempel ke buah yang salah.
 ## Shutdown — coil dimatikan, bukan ditinggal ON
 
 `make restart` adalah langkah deploy **dan** langkah tuning lapangan, jadi SIGTERM di tengah
-produksi itu rutin. Dengan `PLC_PULSE_MS=200` dalam siklus 300ms, peluang sebuah coil sedang ON
-saat sinyal itu tiba kira-kira 2 dari 3.
+produksi itu rutin. Dengan `PLC_PULSE_MS=200` dalam siklus ≈410 ms (2 tick), peluang sebuah coil
+sedang ON saat sinyal itu tiba kira-kira 1 dari 2.
 
 `shutdown_plc_worker()` (dipanggil `lifespan` sesudah `yield`) menjalankan, berurutan:
 
@@ -242,7 +247,7 @@ pada sinyal keselamatan.
 
 **Overflow sengaja TIDAK menaikkan ERROR.** Drop adalah steady state yang dideklarasikan di
 bawah beban (lihat "Throughput ceiling" di atas): kamera bisa ~10 keputusan/detik, satu coil muat
-~3,3. Kalau drop menggerakkan coil ini, `drop_total` naik hampir tiap tick di bawah beban dan
+~2,5. Kalau drop menggerakkan coil ini, `drop_total` naik hampir tiap tick di bawah beban dan
 CAM_N_ERROR menyala sepanjang shift — artinya berubah jadi "line ini jalan normal", yang entah
 menghentikan produksi atau bikin coil itu jadi hiasan yang diabaikan operator. `PLC_QUEUE_MAX=1`
 justru membuat drop makin sering, jadi menggabungkannya cuma memperparah.
@@ -355,7 +360,7 @@ punya default yang masuk akal untuk semuanya, jadi ini bukan blocker untuk mulai
 dikonfirmasi sebelum commissioning:
 
 1. **Lebar pulse (`PLC_PULSE_MS`) dan jeda (`PLC_PULSE_GAP_MS`) belum dikonfirmasi terhadap
-   kecepatan belt sesungguhnya.** Default 200ms/100ms (~3,3 sinyal/detik) adalah patokan, bukan
+   kecepatan belt sesungguhnya.** Default 200ms/100ms (~2,5 sinyal/detik) adalah patokan, bukan
    angka final — perlu tahu apakah sinyal OK/NG itu pulse atau level, satu sinyal = satu buah
    atau status batch, dan cycle time actuator penyortir yang sebenarnya.
 2. **Watchdog coupler ODOT perlu diturunkan dari 30 detik ke 2–3 detik.** PC polling tiap
@@ -387,7 +392,7 @@ dikonfirmasi sebelum commissioning:
 - **Celah lama yang belum ditutup:** simpan gambar gagal → buah keluar area pantau → nomor track
   dipakai ulang untuk buah fisik yang sama → secara teori muncul pulse dobel. Perlu diamati saat
   produksi.
-- **Hitungan 3,3 vs 10 sinyal per detik** bergantung pada lebar pulse di butir 1. Lebar pulse
+- **Hitungan 2,5 vs 10 sinyal per detik** bergantung pada lebar pulse di butir 1. Lebar pulse
   berubah, seluruh hitungan itu ikut berubah.
 
 ## Urutan commissioning
