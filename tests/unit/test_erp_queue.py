@@ -90,6 +90,31 @@ def test_the_grading_of_the_assignment_the_visit_is_linked_to_rides_along(tmp_pa
     assert message.payload["stage"] == "grading"
 
 
+def test_the_visit_carries_the_erp_truck_name_once_autoerp_knows_the_truck(tmp_path):
+    """The whole path: a pull stored `erp_name`, the visit query picks it up, the payload
+    sends it. AutoERP then resolves the truck by its own id instead of re-normalising a
+    plate text the backoffice may have corrected upstream."""
+    queue, store, outbox = _queue(tmp_path)
+    _linked_truck(store)
+    _weighing(store)
+
+    queue.visit("w1")
+
+    [message] = outbox.due()
+    assert message.payload["truck"]["erp_name"] == PLATE
+
+
+def test_a_truck_autoerp_has_never_seen_sends_no_erp_name(tmp_path):
+    """Omitted, not null — that is the owner-less Truck interface B creates."""
+    queue, store, outbox = _queue(tmp_path)
+    _weighing(store)
+
+    queue.visit("w1")
+
+    [message] = outbox.due()
+    assert "erp_name" not in message.payload["truck"]
+
+
 def test_a_visit_with_no_weighing_row_is_not_queued(tmp_path):
     """`weighing.time_in` dates the ticket; AutoERP refuses a visit without it."""
     queue, _, outbox = _queue(tmp_path)

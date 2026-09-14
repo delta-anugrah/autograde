@@ -360,10 +360,14 @@ class ConsoleStore:
 
         `supplier_erp_name` comes from the pulled master data — AutoERP matches
         its supplier by its own name, never by anything the console invents.
+        `truck_erp_name` is the same idea for the truck: AutoERP prefers it over
+        the plate text, so a plate corrected upstream cannot become a twin truck.
         """
         with self._lock:
             row = self._db.execute(
-                """SELECT w.*, s.erp_name AS supplier_erp_name
+                """SELECT w.*,
+                          s.erp_name AS supplier_erp_name,
+                          t.erp_name AS truck_erp_name
                    FROM weighings w
                    LEFT JOIN trucks t ON t.id = w.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id

@@ -46,10 +46,7 @@ def visit_message(
     payload: dict[str, Any] = {
         "visit_id": visit["id"],
         "stage": _stage(visit, grading),
-        "truck": {
-            "plate_number": visit["plate_number"],
-            "autograde_id": visit["truck_id"] or truck_id_for(visit["plate_number"]),
-        },
+        "truck": _truck(visit),
         "weighing": _weighing(visit),
         "emitted_at": emitted_at,
     }
@@ -62,6 +59,23 @@ def visit_message(
     if grading:
         payload["grading"] = _grading(grading)
     return visit["id"], payload
+
+
+def _truck(visit: dict[str, Any]) -> dict[str, Any]:
+    """AutoERP resolves `erp_name` before the plate, so send it whenever we have it.
+
+    Without it, a plate whose text the backoffice corrected upstream normalises to a
+    different key here, and AutoERP creates a SECOND Truck: the visit books onto a twin
+    that splits the plate's tonnage. Left out entirely while unknown — that is the
+    owner-less truck interface B creates.
+    """
+    truck: dict[str, Any] = {
+        "plate_number": visit["plate_number"],
+        "autograde_id": visit["truck_id"] or truck_id_for(visit["plate_number"]),
+    }
+    if visit.get("truck_erp_name"):
+        truck["erp_name"] = visit["truck_erp_name"]
+    return truck
 
 
 def _stage(visit: dict[str, Any], grading: dict[str, Any] | None) -> str:
