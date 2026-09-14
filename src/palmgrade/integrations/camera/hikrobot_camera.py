@@ -125,6 +125,39 @@ class HikrobotCamera(CameraSource):
             return
         logger.info("Loaded camera features from %s", feature_file)
 
+    def get_fps(self) -> float:
+        """Frame rate the camera is actually running at, asked of the camera itself.
+
+        This is what makes the `.mfs` the ONE place the rate is set: the file is
+        pushed on every connect, and the capture worker paces itself by what the
+        camera answers here rather than by `CAMERA_FPS`.
+
+        `ResultingFrameRate` is what the camera will really deliver — the limiter
+        from the `.mfs`, already capped by exposure and link bandwidth.
+        `AcquisitionFrameRate` is only what was asked for, so it is the second
+        choice. 0.0 means "cannot say", and the caller falls back to CAMERA_FPS.
+        """
+        if not self.connected:
+            return 0.0
+        # Imported here, not at module load: a firmware or SDK build without this
+        # struct must cost the rate reading only, never the whole camera.
+        try:
+            from MvImport.MvCameraControl_class import MVCC_FLOATVALUE  # type: ignore
+        except ImportError:  # pragma: no cover - depends on the vendored SDK
+            return 0.0
+
+        for node in ("ResultingFrameRate", "AcquisitionFrameRate"):
+            value = MVCC_FLOATVALUE()
+            ret = self.cam.MV_CC_GetFloatValue(node, value)
+            if ret == 0 and value.fCurValue > 0:
+                logger.info("Camera reports %s = %.2f fps", node, value.fCurValue)
+                return float(value.fCurValue)
+        logger.warning(
+            "Camera did not report a frame rate — pacing falls back to CAMERA_FPS, "
+            "so the rate in the feature file cannot be confirmed."
+        )
+        return 0.0
+
     def grab_frame(self):
         if not self.connected:
             return None

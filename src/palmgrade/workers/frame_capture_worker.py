@@ -30,12 +30,32 @@ class FrameCaptureWorker:
         self._fps_timer: float = 0.0
         self._exhausted_logged: bool = False
 
-    def _sync_fps_from_camera(self) -> None:
-        if self._target_fps == 0:
-            detected = self.camera.get_fps()
-            if detected > 0:
-                self._frame_interval = 1.0 / detected
-                logger.info("FrameCaptureWorker: using camera FPS=%.2f", detected)
+    @property
+    def frame_interval(self) -> float:
+        """Seconds between grabs. 0 = grab as fast as the camera hands frames over."""
+        return self._frame_interval
+
+    def adopt_camera_frame_rate(self) -> None:
+        """Let the camera decide the pace, so the rate lives in ONE place.
+
+        On a Hikrobot line that place is the `.mfs` pushed to the camera on
+        every connect (`CAMERA_FEATURE_FILE`), and reading the rate back from
+        the camera is what keeps `CAMERA_FPS` from quietly becoming a second
+        setting: pacing slower than the camera used to throttle it, while
+        pacing faster did nothing at all.
+
+        `CAMERA_FPS` stays the fallback for sources that cannot report a rate —
+        a webcam or a video file.
+        """
+        detected = self.camera.get_fps()
+        if detected > 0:
+            self._frame_interval = 1.0 / detected
+            logger.info("Capture paced by the camera: %.2f fps", detected)
+            return
+        self._frame_interval = 1.0 / self._target_fps if self._target_fps > 0 else 0.0
+        logger.info(
+            "Camera reports no frame rate — pacing from CAMERA_FPS=%s", self._target_fps
+        )
 
     def _try_reconnect(self) -> None:
         logger.warning("Camera: %d consecutive failures — attempting reconnect", self._consecutive_failures)
@@ -49,7 +69,7 @@ class FrameCaptureWorker:
             self.camera.connect(index=self._device_index, serial=self._serial, feature_file=self._feature_file)
             self._consecutive_failures = 0
             self._reconnect_backoff = _RECONNECT_BACKOFF_BASE
-            self._sync_fps_from_camera()
+            self.adopt_camera_frame_rate()
             logger.info("Camera reconnected successfully")
         except Exception as exc:
             logger.error("Camera reconnect failed: %s", exc)
@@ -121,7 +141,7 @@ class FrameCaptureWorker:
                 pass
 
     def run_loop(self) -> None:
-        self._sync_fps_from_camera()
+        self.adopt_camera_frame_rate()
         while True:
             try:
                 self.run_once()
