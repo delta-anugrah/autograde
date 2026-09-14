@@ -372,6 +372,9 @@ services:
       - ERP_URL=${ERP_URL:-}
       - ERP_API_KEY=${ERP_API_KEY:-}
       - ERP_API_SECRET=${ERP_API_SECRET:-}
+      # Empty is correct on a single-company site: AutoERP then books against
+      # its own default company.
+      - ERP_COMPANY=${ERP_COMPANY:-}
       - LICENSE_TOKEN=${LICENSE_TOKEN:-}
       # Pemetaan machine_id → line, supaya event tahu dia dari line mana.
       # Nilai default sama persis dengan tiga service di atas.

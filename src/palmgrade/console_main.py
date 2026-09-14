@@ -12,6 +12,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,6 +20,11 @@ from fastapi.staticfiles import StaticFiles
 from .routes.console import get_console_service, ingest_router
 from .routes.console import router as console_router
 from .workers.erp_link import build_erp_workers
+
+# Same bootstrap as main.py, and for the same reason: settings are read when the
+# app is built, below. `override=False` keeps a real environment variable ahead
+# of the file, so docker-compose and systemd stay authoritative.
+load_dotenv(override=False)
 
 logger = logging.getLogger(__name__)
 
