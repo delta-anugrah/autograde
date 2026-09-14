@@ -4,6 +4,10 @@ AI camera service for the **Palmgrade** palm oil ripeness grading system.
 
 Runs as **3 camera containers** (one per line, each on its own Hikrobot industrial camera) plus a **4th container dari image yang sama**: konsol operator offline (`APP_MODE=console`, port **8000**). Line melakukan deteksi ripeness YOLO real-time, menulis tiap hasil ke disk, lalu mengirimkannya lewat **dua jalur paralel**: realtime ke konsol/API lokal (poll 1 detik) dan **batch tiap jam** ke Cloudflare R2 + API cloud.
 
+> **Baru pertama kali buka repo ini?** Baca [`docs/ONBOARDING.md`](docs/ONBOARDING.md) dulu —
+> bahasa Indonesia, ±20 menit: sistem ini ngapain, perjalanan satu janjang dari kamera sampai ERP,
+> fungsi tiap folder, dan jebakan yang sudah makan korban. Versi cetak: `docs/ONBOARDING.pdf`.
+
 ---
 
 ## Quick Start — pilih jalur
