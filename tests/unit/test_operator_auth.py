@@ -8,6 +8,8 @@ repeated wrong tries.
 
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 
 from palmgrade.domain.operator_auth import (
@@ -40,6 +42,16 @@ def test_a_hash_this_build_cannot_read_is_refused_not_trusted():
     """A row written by another scheme (or hand-edited to plain text) must fail shut."""
     assert not verify_pin(PIN, "142536")
     assert not verify_pin(PIN, "")
+
+
+def test_a_hash_with_parameters_this_build_never_writes_is_refused_even_when_it_matches():
+    """The row is data, and data can be edited. Trusting the cost it names lets a
+    tampered row downgrade to a hash anyone can brute-force — or name a cost that eats
+    the PC's memory on every sign-in."""
+    salt = bytes(16)
+    weak = hashlib.scrypt(PIN.encode(), salt=salt, n=4, r=1, p=1, dklen=32)
+
+    assert not verify_pin(PIN, f"scrypt$4$1$1${salt.hex()}${weak.hex()}")
 
 
 def test_a_pin_must_be_exactly_six_digits():

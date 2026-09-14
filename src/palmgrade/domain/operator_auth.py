@@ -66,22 +66,24 @@ def hash_pin(pin: str) -> str:
 
 
 def verify_pin(pin: str, stored: str) -> bool:
-    """False, never an exception: a row this build cannot read has to fail shut."""
+    """False, never an exception: a row this build cannot read has to fail shut.
+
+    Only the parameters this build writes are accepted. The row is data and data can be
+    edited: trusting the cost it names would let a tampered row downgrade to a hash
+    anyone can brute-force, or name one that eats the PC's memory on every sign-in.
+    Raising the cost later means accepting both sets here, deliberately.
+    """
     try:
         scheme, n, r, p, salt_hex, want = str(stored).split("$")
-        if scheme != _SCHEME:
-            return False
-        digest = hashlib.scrypt(
-            pin.encode(),
-            salt=bytes.fromhex(salt_hex),
-            n=int(n),
-            r=int(r),
-            p=int(p),
-            dklen=len(bytes.fromhex(want)),
-        )
-    except (ValueError, TypeError):
+        salt, expected = bytes.fromhex(salt_hex), bytes.fromhex(want)
+    except ValueError:
         return False
-    return hmac.compare_digest(digest.hex(), want)
+    if (scheme, n, r, p) != (_SCHEME, str(_N), str(_R), str(_P)):
+        return False
+    if len(salt) != _SALT_BYTES or len(expected) != _DKLEN:
+        return False
+    digest = hashlib.scrypt(pin.encode(), salt=salt, n=_N, r=_R, p=_P, dklen=_DKLEN)
+    return hmac.compare_digest(digest, expected)
 
 
 def lockout_seconds_left(gagal_count: int, *, last_failed_at: float | None, now: float) -> int:

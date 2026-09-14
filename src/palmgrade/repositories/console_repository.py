@@ -571,6 +571,10 @@ class ConsoleStore:
                     "dibuat_at": time.time(),
                 },
             )
+            # A new PIN, or an account put back: every session opened before it ends.
+            # A PIN is reset because someone saw it; a session that outlives the reset
+            # would make it a formality.
+            self._db.execute("DELETE FROM sesi WHERE operator_id = ?", (operator_id,))
         return operator_id
 
     def operator(self, operator_id: str) -> dict[str, Any] | None:
@@ -590,10 +594,17 @@ class ConsoleStore:
         return [dict(row) for row in rows]
 
     def set_operator_status(self, operator_id: str, status: str) -> None:
-        """`off` takes the name off the keypad, and `session()` drops the sessions it
-        still holds — that is how a leaver or a shared PIN is handled."""
+        """`off` takes the name off the keypad and ends the sessions it still holds —
+        that is how a leaver or a shared PIN is handled.
+
+        The sessions are deleted, not just filtered out by `session()`: filtering alone
+        would hand an old, unexpired token its power back the moment the account is
+        switched on again.
+        """
         with self._lock, self._db:
             self._db.execute("UPDATE operators SET status = ? WHERE id = ?", (status, operator_id))
+            if status != "active":
+                self._db.execute("DELETE FROM sesi WHERE operator_id = ?", (operator_id,))
 
     def record_login_failure(self, operator_id: str, *, now: float) -> None:
         with self._lock, self._db:

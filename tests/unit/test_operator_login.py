@@ -55,6 +55,23 @@ def test_a_wrong_pin_says_nothing_about_which_part_was_wrong(tmp_path):
     assert wrong.value.code == unknown.value.code == PIN_SALAH
 
 
+def test_a_pin_of_the_wrong_shape_never_reaches_the_hash(tmp_path, monkeypatch):
+    """scrypt is deliberately slow. A request body with a megabyte "PIN" must be turned
+    away before it gets there — and still count as a wrong try."""
+    auth, store, _ = _auth(tmp_path)
+    hashed = []
+    monkeypatch.setattr(
+        "palmgrade.services.auth_service.verify_pin", lambda *args: hashed.append(args) or False
+    )
+
+    with pytest.raises(OperatorError) as refused:
+        auth.login(operator_id_for(NAMA), "9" * 100_000)
+
+    assert refused.value.code == PIN_SALAH
+    assert hashed == []
+    assert store.operator(operator_id_for(NAMA))["gagal_count"] == 1
+
+
 def test_five_wrong_pins_shut_the_keypad_and_the_answer_says_for_how_long(tmp_path):
     auth, _, clock = _auth(tmp_path)
 

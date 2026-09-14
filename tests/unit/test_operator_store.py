@@ -131,6 +131,33 @@ def test_expired_sessions_can_be_swept_so_the_table_stays_small(tmp_path):
     assert store.session(fresh, now=2000.0) is not None
 
 
+def test_resetting_a_pin_ends_every_session_opened_with_the_old_one(tmp_path):
+    """A PIN is reset because the shift saw it. A session opened with it that keeps
+    working for another twelve hours makes the reset a formality."""
+    store = _store(tmp_path)
+    operator_id = _operator(store)
+    token = new_session_token()
+    store.create_session(token, operator_id, now=1000.0, ttl_s=43200)
+
+    _operator(store, pin="908171")
+
+    assert store.session(token, now=1000.0) is None
+
+
+def test_switching_an_operator_back_on_does_not_revive_the_sessions_they_held(tmp_path):
+    """Filtering on status alone would hand an old, unexpired token its power back the
+    moment the account is reactivated."""
+    store = _store(tmp_path)
+    operator_id = _operator(store)
+    token = new_session_token()
+    store.create_session(token, operator_id, now=1000.0, ttl_s=43200)
+
+    store.set_operator_status(operator_id, "off")
+    store.set_operator_status(operator_id, "active")
+
+    assert store.session(token, now=1000.0) is None
+
+
 def test_a_session_of_an_operator_switched_off_stops_working(tmp_path):
     """Switching someone off is how a lost PIN or a leaver is handled; a session they
     still hold must not outlive it."""
