@@ -19,19 +19,23 @@ from typing import Any
 import httpx
 
 from ...core.config import LineEndpoint, Settings
+from ...domain.operator_error import LINE_MENOLAK, LINE_TIDAK_MENJAWAB, OperatorError
 
 logger = logging.getLogger(__name__)
 
 _TIMEOUT_S = 10.0
 
 
-class LineUnavailable(RuntimeError):
+class LineUnavailable(OperatorError, RuntimeError):
     """Line kamera tidak menjawab — operator harus lihat ini, bukan diam."""
 
 
 class LineClient:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self, settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None
+    ) -> None:
         self._settings = settings
+        self._transport = transport  # tests swap the network, like ErpClient
 
     async def assign_truck(
         self, line: LineEndpoint, *, assignment_id: str, truck_id: str, assigned_at: str
@@ -64,16 +68,27 @@ class LineClient:
     async def _post(self, line: LineEndpoint, path: str, body: dict[str, Any]) -> None:
         url = f"{self._settings.console_line_host}:{line.port}{path}"
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT_S) as client:
+            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
                 res = await client.post(
                     url,
                     json=body,
                     headers={"x-internal-secret": self._settings.internal_secret},
                 )
         except httpx.HTTPError as exc:
-            raise LineUnavailable(f"{line.line_code} tidak menjawab: {exc}") from exc
-        if res.status_code >= 400:
+            # The screen shows a translated sentence; the httpx cause lives in the log.
+            logger.warning("Perintah %s ke %s gagal: %s", path, line.line_code, exc)
             raise LineUnavailable(
-                f"{line.line_code} menolak: HTTP {res.status_code} {res.text[:200]}"
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} tidak menjawab: {exc}", line=line.name
+            ) from exc
+        if res.status_code >= 400:
+            logger.warning(
+                "Perintah %s ditolak %s: HTTP %s %s",
+                path, line.line_code, res.status_code, res.text[:200],
+            )
+            raise LineUnavailable(
+                LINE_MENOLAK,
+                f"{line.line_code} menolak: HTTP {res.status_code} {res.text[:200]}",
+                line=line.name,
+                status=res.status_code,
             )
         logger.info("Perintah %s diterima %s", path, line.line_code)

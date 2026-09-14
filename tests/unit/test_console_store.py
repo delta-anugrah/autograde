@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from palmgrade.core.config import LineEndpoint, Settings
+from palmgrade.domain.operator_error import LINE_TIDAK_MENJAWAB
 from palmgrade.integrations.notifications.line_client import LineUnavailable
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.services.console_service import ConsoleService
@@ -38,7 +39,7 @@ class FakeLineClient:
 
     def _catat(self, line: LineEndpoint, aksi: str) -> None:
         if self.mati:
-            raise LineUnavailable(f"{line.line_code} tidak menjawab")
+            raise LineUnavailable(LINE_TIDAK_MENJAWAB, f"{line.line_code} tidak menjawab")
         self.dipanggil.append((line.line_code, aksi))
 
 

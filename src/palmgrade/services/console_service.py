@@ -21,6 +21,14 @@ from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint, Settings
 from ..domain.ffb_source import ffb_source_label
+from ..domain.operator_error import (
+    BUKAN_ANGKA,
+    DI_BAWAH_MINIMUM,
+    LINE_TIDAK_DIKENAL,
+    NEGATIF,
+    TARA_LEBIH_BESAR,
+    InvalidInput,
+)
 from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.vision_event import prediction_for, verdict_of
 from ..domain.working_day import tanggal_kerja_for
@@ -281,9 +289,13 @@ class ConsoleService:
         tara = _kg(payload.get("tara_kg"), "tara_kg", lama.get("tara_kg"))
         for nama, angka in (("bruto_kg", bruto), ("tara_kg", tara)):
             if angka is not None and angka < MINIMUM_BERAT_KG:
-                raise ValueError(
+                raise InvalidInput(
+                    DI_BAWAH_MINIMUM,
                     f"{nama} ({angka}) di bawah {MINIMUM_BERAT_KG} kg - "
-                    "cek pemisah ribuan, mis. 14.820 terbaca jadi 14,82"
+                    "cek pemisah ribuan, mis. 14.820 terbaca jadi 14,82",
+                    field=nama,
+                    value=angka,
+                    minimum=MINIMUM_BERAT_KG,
                 )
         neto = _neto(bruto, tara, _kg(payload.get("neto_kg"), "neto_kg", None))
 
@@ -382,7 +394,9 @@ class ConsoleService:
     def _require_line(self, line_code: str) -> LineEndpoint:
         line = self._by_code.get(line_code)
         if line is None:
-            raise ValueError(f"line tidak dikenal: {line_code}")
+            raise InvalidInput(
+                LINE_TIDAK_DIKENAL, f"line tidak dikenal: {line_code}", line=line_code
+            )
         return line
 
 
@@ -399,9 +413,13 @@ def _kg(nilai: Any, nama: str, bawaan: float | None) -> float | None:
     try:
         angka = float(nilai)
     except (TypeError, ValueError) as exc:
-        raise ValueError(f"{nama} bukan angka: {nilai!r}") from exc
+        raise InvalidInput(
+            BUKAN_ANGKA, f"{nama} bukan angka: {nilai!r}", field=nama, value=str(nilai)
+        ) from exc
     if angka < 0:
-        raise ValueError(f"{nama} tidak boleh negatif: {angka}")
+        raise InvalidInput(
+            NEGATIF, f"{nama} tidak boleh negatif: {angka}", field=nama, value=angka
+        )
     return angka
 
 
@@ -411,7 +429,12 @@ def _neto(bruto: float | None, tara: float | None, dikirim: float | None) -> flo
             raise ValueError("neto_kg dikirim tanpa bruto_kg + tara_kg")
         return None
     if tara > bruto:
-        raise ValueError(f"tara_kg ({tara}) lebih besar dari bruto_kg ({bruto})")
+        raise InvalidInput(
+            TARA_LEBIH_BESAR,
+            f"tara_kg ({tara}) lebih besar dari bruto_kg ({bruto})",
+            tara=tara,
+            bruto=bruto,
+        )
     hitung = round(bruto - tara, 3)
     if dikirim is not None and abs(dikirim - hitung) > TOLERANSI_NETO_KG:
         raise ValueError(f"neto_kg tidak cocok: dikirim {dikirim}, bruto-tara {hitung}")
