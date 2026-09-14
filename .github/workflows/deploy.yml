@@ -15,7 +15,12 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  # Pinned, NOT ${{ github.repository }}: the repo is being renamed to `autograde`,
+  # and the factory PC pulls `.../palmgrade-vision` from its own .env. Following the
+  # repo name would publish the next tag somewhere nobody is looking — `palmgrade pull
+  # vision` would then report "already up to date" forever, with no error anywhere.
+  # The image name moves in Fase 5, when the factory PC gets a new compose file.
+  IMAGE_NAME: delta-anugrah/palmgrade-vision
 
 jobs:
   build-and-push:
