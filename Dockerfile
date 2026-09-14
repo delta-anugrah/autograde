@@ -22,8 +22,13 @@ ENV PIP_DEFAULT_TIMEOUT=3600 \
 #   cu126 — production dengan NVIDIA GPU, CUDA 12.6 (~2.4GB, dari PyTorch CDN)
 #           Compatible dengan driver >= 525 (host saat ini: 580, CUDA 13.0 ✅)
 ARG TORCH_VARIANT=cpu
+# The CPU pins carry no `+cpu` label on purpose. PyTorch publishes
+# torchvision 0.22.0 for aarch64 (Apple Silicon Docker) without it, so
+# `==0.22.0+cpu` cannot resolve there. A bare `==0.22.0` still matches
+# `0.22.0+cpu` (PEP 440), so x86 installs the exact same wheels as before.
+# The release image and the factory PC use cu126 (the else branch), untouched.
 RUN if [ "${TORCH_VARIANT}" = "cpu" ]; then \
-        pip install torch==2.7.0+cpu torchvision==0.22.0+cpu \
+        pip install torch==2.7.0 torchvision==0.22.0 \
             --index-url https://download.pytorch.org/whl/cpu; \
     else \
         pip install torch==2.7.0+${TORCH_VARIANT} torchvision==0.22.0+${TORCH_VARIANT} \

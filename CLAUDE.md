@@ -92,6 +92,7 @@ All via **`make`** (Docker only). From `palmgrade-vision/`:
 | `make restart` | **code-only change** — kode di-bind-mount (`.:/app`), jadi **tidak perlu rebuild** |
 | `make start` / `make up-1\|2\|3` | start without rebuild (all / single line) |
 | `make up-console` / `make logs-console` | konsol operator saja (port 8000, `/console`) — aman di-restart tanpa mengganggu line |
+| `make console` | konsol **native tanpa Docker** di `127.0.0.1:8100` — jalur develop di Mac (baca `.env`, `WEBHOOK_SECRET=devsecret`); target Docker tetap jalur Linux/pabrik |
 | `make kiosk` | konsol layar penuh di PC ini (`scripts/console-kiosk.sh`) |
 | `make build-engine` | build TensorRT FP16 engine **once per GPU** (one-shot, auto-skip kalau sudah ada) |
 | `make logs` / `make logs-1` | tail logs (combined / per line) |
