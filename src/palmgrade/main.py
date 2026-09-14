@@ -66,8 +66,9 @@ def create_app() -> FastAPI:
             await _lic_manager.init()
             asyncio.create_task(_lic_manager.run_clock_ratchet())
 
-        for folder in [settings.captures_dir, settings.results_dir, settings.errors_dir, settings.logs_dir]:
-            folder.mkdir(parents=True, exist_ok=True)
+        # Only `results/`. Nothing writes to the others: REJ images are found
+        # through `ripeness_status` metadata, and logs go to stdout for Docker.
+        settings.results_dir.mkdir(parents=True, exist_ok=True)
 
         # Fail-fast kalau secret masih default di production (dev tetap boleh,
         # cuma warning). Lihat Settings.validate_for_runtime().

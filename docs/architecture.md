@@ -97,10 +97,6 @@ autograde/
         manager.py
         guard.py
 
-  cli/
-    serve.py
-    predict_detect.py
-
   models/
     release/                     # .pt files — tidak di-commit ke git
   artifacts/                     # Output runtime — tidak di-commit ke git

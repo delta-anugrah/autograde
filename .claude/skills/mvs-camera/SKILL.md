@@ -6,7 +6,7 @@ description: Navigate & tune kamera Hikrobot MV-CS050-10GC lewat MVS (Machine Vi
 # MVS — Kamera Hikrobot MV-CS050-10GC (Palmgrade)
 
 Sumber kebenaran nilai & topologi: `autograde/docs/camera-spec.md`.
-Checklist kalibrasi lapangan: `docs/camera-field-setup.md`.
+Checklist kalibrasi lapangan: `../docs/camera-field-setup.md` (workspace `sawit`, bukan repo ini).
 Skill ini = peta navigasi MVS + nilai live + jebakan. Jangan duplikat isi 2 dokumen itu.
 
 ## Hardware

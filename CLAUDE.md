@@ -246,7 +246,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 4. **MJPEG** — only `DisplayWorker` writes `state.latest_frame`, via `threading.Condition.notify_all()` (multi-viewer). It renders `last_yolo_frame` (paired with results) and runs at `STREAM_FPS` (default 12), decoupled from `CAMERA_FPS`.
 5. **DI** (`core/dependencies.py`) — `@lru_cache` singletons **except** `get_capture_service()` / `get_health_service()` (camera injected at startup). `get_outbox_store()` may cache (SQLite singleton).
 6. **Lifespan** (not `@app.on_event`); `repo_root = parents[3]`; every worker `run_loop` wraps `run_once` in `try/except`; `FrameCaptureWorker` needs `device_index` (so line-2/3 reconnect to the correct camera).
-7. **`tp_status` = `"PASS"`** (not `"TP"`). **`image_url` = `captures/results/{date}/{ts}_auto.webp`** (consistent with `/captures` mount). Gambar disimpan **WebP** quality 65 (`JPEG_QUALITY_SAVE`); folder `errors/` **tidak ditulis lagi** — REJ ditemukan via metadata `ripeness_status`.
+7. **`tp_status` = `"PASS"`** (not `"TP"`). **`image_url` = `captures/results/{date}/{ts}_auto.webp`** (consistent with `/captures` mount). Gambar disimpan **WebP** quality 65 (`JPEG_QUALITY_SAVE`); folder `errors/`, `captures/`, dan `logs/` **sudah tidak ada** — dulu dibuat saat startup tapi tidak pernah ditulis (REJ ditemukan via metadata `ripeness_status`, log ke stdout). Startup cuma membuat `results/`, dijaga `tests/unit/test_artifact_dirs.py`.
 8. **`cv2.imwrite` failure → `LocalFileStorage.write_image` raises `IOError`** (no orphaned JSON records pointing at an image that was never written).
    **Nama folder tanggal selalu UTC** (`FrameProcessingWorker._save_ripeness`,
    `capture_repository`) — pembacanya wajib UTC juga. `datetime.now()` naive di
