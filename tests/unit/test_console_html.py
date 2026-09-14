@@ -50,3 +50,50 @@ def test_setiap_kode_error_operator_diterjemahkan_di_kedua_bahasa():
 def test_pesan_error_dirangkai_di_layar_bukan_ditempel_dari_server():
     # `+ e.message` glues a server sentence onto a translated prefix.
     assert '+ e.message' not in HTML, "pakai alasan(e), bukan e.message mentah"
+
+
+# ── gerbang PIN (Fase 4) ────────────────────────────────────────────────
+
+
+def _fungsi(nama: str) -> str:
+    """Body of one top-level function, up to the first line that closes it."""
+    awal = HTML.index(f"function {nama}(")
+    return HTML[awal : HTML.index("\n}", awal)]
+
+
+def test_layar_punya_gerbang_pin():
+    assert 'id="gerbang"' in HTML, "gerbang PIN hilang dari layar"
+
+
+def test_sesi_habis_membuka_gerbang_bukan_cuma_pesan_error():
+    """Every lane answers 401 `belum_masuk` once a session is gone. Treating that like
+    any other error would leave the operator staring at a red banner over a stale screen."""
+    api = _fungsi("api")
+    assert "belum_masuk" in api and "bukaGerbang" in api
+
+
+def test_gerbang_yang_terbuka_menahan_polling_data():
+    """Found by watching a real browser: with the gate up, the 2 s poll kept asking for
+    `/api/console/state` and got 401 every time — all night, on a console left signed
+    out. Only the gate's own lanes may go out while it is up."""
+    api = _fungsi("api")
+    assert 'gerbang").hidden' in api and "LANE_GERBANG" in api
+
+
+def test_nama_operator_masuk_layar_lewat_esc():
+    """Operator names are typed on the PC and served to an unauthenticated page."""
+    assert "esc(" in _fungsi("tombolOperator")
+
+
+def test_label_gerbang_diterjemahkan_di_kedua_bahasa():
+    kunci = ("gerbangJudul", "gerbangPilih", "gerbangHapus", "gerbangMasuk", "tombolKeluar")
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        hilang = [k for k in kunci if f"{k}:" not in isi]
+        assert not hilang, f"KAMUS.{bahasa} belum menerjemahkan {hilang}"
+
+
+def test_halaman_tidak_pernah_membaca_cookie():
+    """The session cookie is HttpOnly. Code that reaches for `document.cookie` is someone
+    trying to handle auth in the page, where any script could read it."""
+    assert "document.cookie" not in HTML
