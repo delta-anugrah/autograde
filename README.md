@@ -6,6 +6,57 @@ Runs as **3 camera containers** (one per line, each on its own Hikrobot industri
 
 ---
 
+## Quick Start — pilih jalur
+
+Ada **dua jalur yang sengaja dipisah**. Produksi selalu jalan di Linux; develop boleh di Mac.
+Jalur Linux tidak pernah diubah demi Mac — yang untuk Mac cuma tambahan.
+
+| | **Develop di Mac** (tanpa kamera) | **Linux / PC pabrik** (produksi) |
+|---|---|---|
+| Yang jalan | konsol operator, native (tanpa Docker) | 3 line kamera + konsol, di Docker |
+| Butuh | Python 3.12 | Docker, GPU NVIDIA + Container Toolkit, SDK MVS di `/opt/MVS`, model `.pt` |
+| Start | `make console` | `make up` |
+| Layar | http://127.0.0.1:8100/console | http://localhost:8000/console |
+
+### Develop di Mac — dari nol
+
+```bash
+git clone git@github.com:delta-anugrah/palmgrade-vision.git
+cd palmgrade-vision
+cp .env.example .env
+
+# venv khusus konsol + tes. Sengaja TIDAK memasang torch / ultralytics / opencv:
+# konsol tidak memakainya, dan requirements.txt penuh itu untuk image Docker.
+python3.12 -m venv .venv
+.venv/bin/pip install "fastapi==0.115.12" "uvicorn[standard]==0.34.0" "python-dotenv==1.1.0" \
+  "httpx==0.28.1" "pydantic==2.11.3" pytest ruff cryptography aiosqlite psutil boto3 pyyaml
+
+make console                      # http://127.0.0.1:8100/console — Ctrl-C untuk berhenti
+.venv/bin/pytest tests/unit       # unit test, tidak butuh konsol maupun AutoERP
+```
+
+- **Tanpa AutoERP** konsol tetap jalan penuh dari data lokal (`ERP_URL` kosong di `.env`).
+  Tiga kartu kamera tampil **OFFLINE** — itu benar, di Mac tidak ada line kamera.
+- **Menyambung ke AutoERP lokal:** nyalakan dari repo `autoerp` (`make up`, lalu `make key-show`),
+  lalu tempel kuncinya ke `.env`. Langkah lengkap + tes end-to-end ada di
+  [Konsol operator](#konsol-operator-app_modeconsole); untuk E2E, `CONSOLE_LINE_HOST` di `.env`
+  harus `http://127.0.0.1` (di macOS `localhost` menunjuk `::1` dulu).
+- **Port 8100**, bukan 8000: AutoERP lokal memakai 8000.
+
+⚠️ **Target Docker bukan untuk Mac:**
+- `make up` / `make up-prod` butuh SDK MVS + GPU NVIDIA, jadi berhenti di
+  `Hikrobot MVS SDK not found at /opt/MVS`. Itu memang seharusnya.
+- `make up-dev` bisa dibuild di Apple Silicon, tapi container konsol memakai `network_mode: host`
+  di port 8000 (rebutan dengan AutoERP), dan line-nya tidak punya kamera.
+
+### Linux / PC pabrik
+
+Pasang dulu lewat [Setup](#setup) dan [Production Deployment](#production-deployment-pindah-ke-pc-baru),
+lalu `make up` (daftar perintah lengkap di [Running](#running)). PC pabrik Lampung sehari-hari
+memakai skrip `palmgrade` di host, bukan `make` — lihat `sawit/docs/runbooks/`.
+
+---
+
 ## Part of the Palmgrade System
 
 | Repo | Role | Port |
@@ -76,7 +127,7 @@ program timbangan → POST .../scale/weighing  ├→ index SQLite state/console
 - NVIDIA Container Toolkit — untuk GPU passthrough ke Docker (lihat [Production Deployment](#production-deployment-pindah-ke-pc-baru))
 - YOLO model file at `models/release/best_3class_v2.pt`
 
-> **No local Python/venv needed** — semua dijalankan via Docker. `python:3.11-slim` base image sudah include semua dependencies.
+> **Linux / PC pabrik: tidak perlu Python/venv lokal** — semua dijalankan via Docker, `python:3.11-slim` base image sudah include semua dependencies. Develop di Mac memakai venv kecil: lihat [Quick Start](#quick-start--pilih-jalur).
 
 ---
 
@@ -569,7 +620,8 @@ Unit test di sini **sengaja murni-logic** — tidak butuh torch / OpenCV / MVS S
 Dari `palmgrade-vision/`:
 
 ```bash
-# CI menjalankan keduanya (lihat .github/workflows/ci.yml)
+# CI menjalankan keduanya (lihat .github/workflows/ci.yml).
+# Di Mac, venv dari Quick Start sudah berisi semua paket ini — cukup .venv/bin/pytest tests/unit
 pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic pyyaml
 ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/palmgrade/integrations/upload/ \
   src/palmgrade/license/ src/palmgrade/plc/ src/palmgrade/workers/batch_upload_worker.py \
