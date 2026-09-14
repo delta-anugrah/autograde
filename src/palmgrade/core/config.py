@@ -316,20 +316,9 @@ class Settings:
         return self.repo_root / "state"
 
     @property
-    def captures_dir(self) -> Path:
-        return self.artifacts_dir / "captures"
-
-    @property
     def results_dir(self) -> Path:
+        """The only artifact folder anything writes to."""
         return self.artifacts_dir / "results"
-
-    @property
-    def errors_dir(self) -> Path:
-        return self.artifacts_dir / "errors"
-
-    @property
-    def logs_dir(self) -> Path:
-        return self.artifacts_dir / "logs"
 
     @property
     def models_release_dir(self) -> Path:

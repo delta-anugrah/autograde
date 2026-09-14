@@ -162,6 +162,8 @@ autograde/
 ├── models/
 │   └── release/
 │       └── best_3class_v2.pt    # YOLO model — required, not committed to git
+├── images/
+│   └── sample_sawit.jpg         # gambar contoh untuk CAMERA_TYPE=photo
 ├── artifacts/                   # Runtime output — not committed to git
 │   ├── line-1/
 │   ├── line-2/
@@ -576,14 +578,13 @@ artifacts/line-1/
 │       ├── 2026-05-18_103000_auto_tp.json            # Long stalk metadata (if detected)
 │       ├── 2026-05-18_104500_manual.webp             # Manual reject capture
 │       └── 2026-05-18_104500_manual_ripeness.json
-├── logs/
 └── outbox.db                  # antrean realtime ke BACKEND_URL (OutboxRetryWorker, poll 1 dtk)
 
 state/line-1/                  # SIBLING artifacts/, sengaja di LUAR mount statis /captures
 └── upload_manifest.db         # state per-item BatchUploadWorker (pending/image_uploaded/done/poisoned)
 ```
 
-> Folder `captures/` dan `errors/` masih dibuat saat startup tapi **tidak ditulis lagi** — manual reject disimpan ke `results/`, dan foto REJ ditemukan via metadata (`ripeness_status: "REJ"`), bukan salinan terpisah.
+> Folder `captures/`, `errors/`, dan `logs/` **sudah tidak ada**. Dulu dibuat saat startup tapi tidak pernah ditulis: manual reject disimpan ke `results/`, foto REJ ditemukan via metadata (`ripeness_status: "REJ"`) bukan salinan terpisah, dan log keluar ke stdout supaya `docker logs` yang mengurus. Startup cuma membuat `results/` — dijaga `tests/unit/test_artifact_dirs.py`.
 
 > ⚠️ **`results/` bukan arsip permanen.** `BatchUploadWorker._retention()` menghapus WebP + JSON yang
 > statusnya `done` dan sudah lewat `UPLOAD_RETENTION_DAYS` (default **7**). Setelah itu satu-satunya

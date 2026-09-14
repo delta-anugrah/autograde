@@ -75,7 +75,7 @@ RUN pip install -r requirements.txt
 COPY . .
 
 # Folder artifacts dibuat di startup, tapi kita pastiin parent-nya ada
-RUN mkdir -p artifacts/captures artifacts/results artifacts/errors artifacts/logs
+RUN mkdir -p artifacts/results
 
 # Tag rilis di-bake sebagai APP_VERSION supaya GET /health bisa menyebutkan
 # versi image yang benar-benar jalan tanpa SSH ke PC pabrik. Ditaruh paling

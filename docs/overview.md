@@ -310,9 +310,6 @@ needed (not just `libMvCameraControl.so`): `MV_CC_EnumDevices()` dynamically loa
 artifacts/line-N/   (host) ↔ /app/artifacts (container)
   results/{YYYY-MM-DD}/{ts}_auto.webp + {ts}_auto_ripeness.json [+ {ts}_auto_tp.json]
                        {ts}_manual.webp + {ts}_manual_ripeness.json   # manual reject
-  captures/                 # legacy — dibuat saat startup, TIDAK ditulis lagi
-  errors/                   # legacy — dibuat saat startup, TIDAK ditulis lagi (REJ via metadata)
-  logs/
   outbox.db                 # SQLite — antrean realtime ke API lokal (OutboxRetryWorker)
 
 state/line-N/   (host) ↔ /app/state (container)   # SIBLING artifacts/, DI LUAR mount /captures

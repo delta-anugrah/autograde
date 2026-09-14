@@ -57,7 +57,7 @@ autograde/
       core/                    # Config, logging, constants, DI wiring
       license/                 # License guard (Ed25519 JWS, optional)
 
-  cli/                         # Script CLI offline (training, predict)
+  images/                      # sample_sawit.jpg — gambar contoh untuk CAMERA_TYPE=photo
   models/
     release/                   # Model .pt produksi — tidak di-commit ke git
   artifacts/                   # Output runtime — tidak di-commit ke git
@@ -317,9 +317,6 @@ artifacts/
       {timestamp}_auto_tp.json          # Metadata TP (jika ada)
       {timestamp}_manual.webp           # Manual capture
       {timestamp}_manual_ripeness.json  # suffix _ripeness wajib — dibaca oleh list_today_results()
-  captures/                             # legacy — tidak ditulis lagi
-  errors/                               # legacy — tidak ditulis lagi (REJ ditemukan via metadata ripeness_status)
-  logs/
   outbox.db                             # antrean realtime ke API lokal
 
 state/line-N/  ↔ /app/state             # SIBLING artifacts/, sengaja DI LUAR mount /captures
