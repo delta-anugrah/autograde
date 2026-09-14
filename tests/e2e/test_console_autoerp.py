@@ -445,3 +445,34 @@ def test_a_bunch_without_a_verdict_never_reaches_the_ledger(
         "the grading never reached the ticket",
     )
     assert graded["grading_acc"] + graded["grading_rej"] == graded["grading_total"] == 2
+
+
+def test_operator_failures_come_back_as_codes_the_screen_translates(console):
+    """The screen words a failure in the operator's language, so the console
+    must send a code, not a sentence. Machine lanes keep plain text.
+
+    Line 3 has no stand-in here: nothing listens on its port, exactly like a
+    camera service that is down.
+    """
+    down = console.post("/api/console/lines/line-3/assign-truck", json={"truck_id": "t"})
+    assert down.status_code == 502, down.text
+    assert down.json()["detail"]["code"] == "line_tidak_menjawab"
+    assert down.json()["detail"]["params"]["line"] == Settings().console_lines[2].name
+
+    unknown = console.post("/api/console/lines/line-9/assign-truck", json={"truck_id": "t"})
+    assert unknown.status_code == 404
+    assert unknown.json()["detail"]["code"] == "line_tidak_dikenal"
+
+    weighing = {
+        "plate_number": "E2E 1 ERR",
+        "bruto_kg": "14,82",
+        "waktu_masuk": datetime.now(UTC).isoformat(),
+    }
+    typed = console.post("/api/console/weighings", json=weighing)
+    assert typed.status_code == 400
+    assert typed.json()["detail"]["code"] == "di_bawah_minimum"
+    assert typed.json()["detail"]["params"]["value"] == 14.82
+
+    scale = console.post("/api/v1/internal/scale/weighing", headers=_secret(), json=weighing)
+    assert scale.status_code == 400
+    assert isinstance(scale.json()["detail"], str)

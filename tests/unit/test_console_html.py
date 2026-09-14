@@ -28,3 +28,25 @@ def test_escaper_menutup_kedua_kutip():
     escaper = next(baris for baris in HTML.splitlines() if "const esc =" in baris)
     for karakter in ("&", "<", ">", '"', "'", "`"):
         assert karakter in escaper, f"esc() tidak meloloskan {karakter!r}"
+
+
+def _kamus(bahasa: str) -> str:
+    """The body of one language block inside `const KAMUS = {...}`."""
+    kamus = HTML.split("const KAMUS = {", 1)[1].split("\n};", 1)[0]
+    blok = re.search(rf"^  {bahasa}: \{{(.*?)^  \}},", kamus, re.S | re.M)
+    assert blok, f"blok bahasa {bahasa!r} tidak ditemukan"
+    return blok.group(1)
+
+
+def test_setiap_kode_error_operator_diterjemahkan_di_kedua_bahasa():
+    from palmgrade.domain.operator_error import CODES
+
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        hilang = [c for c in CODES if f"err_{c}:" not in isi]
+        assert not hilang, f"KAMUS.{bahasa} belum menerjemahkan {hilang}"
+
+
+def test_pesan_error_dirangkai_di_layar_bukan_ditempel_dari_server():
+    # `+ e.message` glues a server sentence onto a translated prefix.
+    assert '+ e.message' not in HTML, "pakai alasan(e), bukan e.message mentah"

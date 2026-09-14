@@ -13,6 +13,7 @@ from dataclasses import replace
 import pytest
 
 from palmgrade.core.config import Settings
+from palmgrade.domain.operator_error import LINE_TIDAK_MENJAWAB
 from palmgrade.integrations.notifications.line_client import LineUnavailable
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.schemas.internal_schema import AssignmentSyncRequest
@@ -28,7 +29,7 @@ class FakeLine:
 
     async def assign_truck(self, line, *, assignment_id, truck_id, assigned_at) -> None:
         if self.mati:
-            raise LineUnavailable("line tidak menjawab")
+            raise LineUnavailable(LINE_TIDAK_MENJAWAB, "line tidak menjawab")
         self.kiriman.append((line.line_code, assignment_id, truck_id))
 
 

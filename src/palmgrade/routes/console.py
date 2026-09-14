@@ -14,6 +14,7 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from ..core.config import Settings
+from ..domain.operator_error import OperatorError
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
 from ..repositories.console_repository import ConsoleStore
@@ -35,6 +36,15 @@ def get_console_service() -> ConsoleService:
 
 
 Service = Annotated[ConsoleService, Depends(get_console_service)]
+
+
+def _operator_error(status_code: int, exc: Exception) -> HTTPException:
+    """Operator routes answer with a code the screen words in its own language.
+
+    Machine lanes (events, scale program) keep a plain-text detail — see below.
+    """
+    detail = exc.as_detail() if isinstance(exc, OperatorError) else str(exc)
+    return HTTPException(status_code=status_code, detail=detail)
 
 # ── operator screen + its API (localhost, no auth) ──────────────────────
 # The console sits on the operator PC and is only opened via
@@ -86,7 +96,7 @@ async def daftar_truk_manual(service: Service, payload: Annotated[dict, Body()])
             capacity=payload.get("capacity"),
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise _operator_error(400, exc) from exc
 
 
 @router.get("/api/console/weighings")
@@ -116,7 +126,7 @@ async def catat_timbangan_manual(service: Service, payload: Annotated[dict, Body
     try:
         return service.catat_timbangan(payload)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise _operator_error(400, exc) from exc
 
 
 @router.post("/api/console/lines/{line_code}/assign-truck")
@@ -126,9 +136,9 @@ async def assign_truck(
     try:
         return await service.assign_truck(line_code, truck_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise _operator_error(502, exc) from exc
 
 
 @router.post("/api/console/lines/{line_code}/release-truck")
@@ -137,9 +147,9 @@ async def release_truck(line_code: str, service: Service) -> dict:
     try:
         return await service.lepas_truk(line_code)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise _operator_error(502, exc) from exc
 
 
 @router.post("/api/console/lines/{line_code}/manual-reject")
@@ -149,9 +159,9 @@ async def manual_reject(
     try:
         return await service.manual_reject(line_code, requested_by)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise _operator_error(502, exc) from exc
 
 
 # ── event receiver for the three lines (frozen contract §5) ─────────────

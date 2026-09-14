@@ -531,9 +531,19 @@ const KAMUS = {
     kosongGrading:"Belum ada grading hari ini", kosongRekap:"Belum ada rekap hari ini",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio ACC", trukTanpaNama:"Tanpa truk",
     promptTara:"Tara (kg) untuk", wajibIsi:"Plat dan bruto wajib diisi",
-    gagal:"Gagal", gagalDaftar:"Gagal mendaftarkan truk",
+    gagalTugaskan:"Gagal menugaskan truk", gagalLepas:"Gagal melepas truk",
+    gagalReject:"Reject manual gagal", gagalDaftar:"Gagal mendaftarkan truk",
     gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
+    bruto_kg:"Bruto", tara_kg:"Tara",
+    err_plat_kosong:"Nomor polisi tidak boleh kosong",
+    err_bukan_angka:"{field} bukan angka: {value}",
+    err_negatif:"{field} tidak boleh negatif",
+    err_di_bawah_minimum:"{field} {value} kg di bawah {minimum} kg - cek pemisah ribuan, mis. 14.820 terbaca 14,82",
+    err_tara_lebih_besar:"Tara {tara} kg lebih besar dari bruto {bruto} kg",
+    err_line_tidak_dikenal:"{line} tidak dikenal konsol",
+    err_line_tidak_menjawab:"{line} tidak menjawab - pastikan layanan kameranya menyala",
+    err_line_menolak:"{line} menolak perintah (HTTP {status})",
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
@@ -554,9 +564,19 @@ const KAMUS = {
     kosongGrading:"No grading yet today", kosongRekap:"Nothing to recap yet today",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"ACC rate", trukTanpaNama:"No truck",
     promptTara:"Tare (kg) for", wajibIsi:"Plate and gross weight are required",
-    gagal:"Failed", gagalDaftar:"Failed to register truck",
+    gagalTugaskan:"Failed to assign truck", gagalLepas:"Failed to release truck",
+    gagalReject:"Manual reject failed", gagalDaftar:"Failed to register truck",
     gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
     gagalKonsol:"Console not responding", kameraPutus:"Camera not connected",
+    bruto_kg:"Gross", tara_kg:"Tare",
+    err_plat_kosong:"Plate number cannot be empty",
+    err_bukan_angka:"{field} is not a number: {value}",
+    err_negatif:"{field} cannot be negative",
+    err_di_bawah_minimum:"{field} {value} kg is below {minimum} kg - check the thousands separator, e.g. 14.820 is read as 14.82",
+    err_tara_lebih_besar:"Tare {tara} kg is greater than gross {bruto} kg",
+    err_line_tidak_dikenal:"{line} is not known to the console",
+    err_line_tidak_menjawab:"{line} is not responding - check that its camera service is running",
+    err_line_menolak:"{line} refused the command (HTTP {status})",
   },
 };
 
@@ -787,8 +807,27 @@ const detak = () => { $("jam").textContent = waktu(new Date()); };
 
 async function api(path, opts) {
   const res = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+  if (!res.ok) {
+    // Operator routes send {code, params, message}; machine lanes send plain text.
+    const detail = (await res.json().catch(() => ({}))).detail;
+    const err = new Error((typeof detail === "string" ? detail : detail?.message) || `HTTP ${res.status}`);
+    err.kode = detail?.code;
+    err.params = detail?.params || {};
+    throw err;
+  }
   return res.json();
+}
+
+// The sentence is built here from the code, so an error reads in one language.
+// Unknown code (or none) -> the server text, better than nothing.
+function alasan(e) {
+  const pola = e.kode && KAMUS[bahasa]["err_" + e.kode];
+  if (!pola) return e.message;
+  return pola.replace(/\{(\w+)\}/g, (_, k) => {
+    const v = e.params[k];
+    if (typeof v === "number") return v.toLocaleString(lokal());
+    return k === "field" ? t(v) : String(v ?? "");
+  });
 }
 
 function pesan(text) {
@@ -950,7 +989,8 @@ $("lines").addEventListener("click", async (ev) => {
     }
     pesan("");
   } catch (e) {
-    pesan(t("gagal") + ": " + e.message);
+    const awalan = { tugaskan: "gagalTugaskan", lepas: "gagalLepas" }[tombol.dataset.aksi] || "gagalReject";
+    pesan(t(awalan) + ": " + alasan(e));
   } finally {
     tombol.disabled = false;
   }
@@ -1001,7 +1041,7 @@ $("daftar").addEventListener("click", async () => {
     await refresh();
     pesan("");
   } catch (e) {
-    pesan(t("gagalDaftar") + ": " + e.message);
+    pesan(t("gagalDaftar") + ": " + alasan(e));
   } finally {
     // Not `disabled = false`: the plate box was just cleared, so the gate - not
     // the request - decides what happens next.
@@ -1024,7 +1064,7 @@ $("masuk").addEventListener("click", async () => {
     await muatTimbangan();
     pesan("");
   } catch (e) {
-    pesan(t("gagalTimbang") + ": " + e.message);
+    pesan(t("gagalTimbang") + ": " + alasan(e));
   } finally {
     segarkanTombol();
   }
@@ -1044,7 +1084,7 @@ $("timbangan").addEventListener("click", async (ev) => {
       tara_kg, waktu_keluar: new Date().toISOString() }) });
     pesan("");
   } catch (e) {
-    pesan(t("gagalTara") + ": " + e.message);
+    pesan(t("gagalTara") + ": " + alasan(e));
   }
   await muatTimbangan();
 });
@@ -1140,7 +1180,7 @@ async function refresh() {
       ? s.recent.map(barisRecent).join("") : barisKosong(7, "kosongGrading");
     segarkanTombol();
     pesan("");
-  } catch (e) { pesan(t("gagalKonsol") + ": " + e.message); }
+  } catch (e) { pesan(t("gagalKonsol") + ": " + alasan(e)); }
 }
 
 async function muatTimbangan() {
