@@ -1,4 +1,4 @@
-# CLAUDE.md — palmgrade-vision
+# CLAUDE.md — autograde
 
 > **This is the MAP, not the manual.** It tells you *where to look*. For deep flows,
 > diagrams, full invariants, worker/state model, and Docker/SDK internals, read
@@ -9,7 +9,7 @@
 
 ## System Role
 
-`palmgrade-vision` is the **Python AI camera service**. It runs as **3 Docker containers**
+`autograde` is the **Python AI camera service**. It runs as **3 Docker containers**
 (one per camera line), each doing real-time YOLO ripeness detection on its own port and
 delivering detection events to `palmgrade-api`. One of three repos:
 
@@ -22,11 +22,23 @@ hidup lagi di PC pabrik (7 → 4 container). Nol perubahan di kode line.
 
 | Repo | Role | Tech | Port |
 |---|---|---|---|
-| **palmgrade-vision** | **AI camera + inference (per line)** | **Python 3.11 / FastAPI** | **8001 / 8002 / 8003** |
+| **autograde** | **AI camera + inference (per line)** | **Python 3.11 / FastAPI** | **8001 / 8002 / 8003** |
 | palmgrade-api | Business logic, auth, SSE broker | Node.js / Express | 2500 |
 | palmgrade-frontend | Operator dashboard UI | Next.js 15 | 3050 |
 
 Full system map: `../ARCHITECTURE.md`.
+
+⚠️ **Repo ini dulu bernama `palmgrade-vision`** (diganti 2026-09-14, bareng `autoerp` pindah
+ke org `delta-anugrah`). Yang **sengaja tidak ikut berubah**, jangan "dirapikan":
+
+- **Nama image GHCR** `ghcr.io/delta-anugrah/palmgrade-vision`, dipatok di `deploy.yml` dan
+  dijaga `tests/unit/test_deploy_image_name.py`. `.env` PC Lampung menarik nama itu; ikut
+  mengganti = `palmgrade pull vision` menjawab "sudah terbaru" selamanya, tanpa error.
+- **Tag image lokal** `palmgrade-vision:latest` di `docker-compose.yml` + `Makefile`.
+- **Paket Python** `src/palmgrade/`, **nama container** (`ripe_line_*`, `palmgrade_console`),
+  dan path `/opt/palmgrade/vision/` di PC pabrik.
+
+Semuanya baru berganti di **Fase 5**, saat PC pabrik memang dapat compose baru.
 
 ---
 
@@ -83,7 +95,7 @@ boleh tahu soal httpx, dan test menukar kolaboratornya, bukan menambal method pr
 
 ## Run / Build / Test
 
-All via **`make`** (Docker only). From `palmgrade-vision/`:
+All via **`make`** (Docker only). From `autograde/`:
 
 | Cmd | What |
 |---|---|

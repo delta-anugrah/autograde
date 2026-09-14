@@ -1,6 +1,6 @@
 ---
 name: plc-coil-map
-description: Peta coil & discrete input ODOT CN-8031 (Modbus-TCP) buat palmgrade-vision — alamat OK/NG/ERROR per line, heartbeat PC, motor fault, E-stop. Pakai kalau sinyal PLC nggak keluar pas grading, alarm "PC mati" nyala terus, coil nyangkut ON, lagi commissioning line baru, atau mau ganti/nambah alamat coil.
+description: Peta coil & discrete input ODOT CN-8031 (Modbus-TCP) buat autograde — alamat OK/NG/ERROR per line, heartbeat PC, motor fault, E-stop. Pakai kalau sinyal PLC nggak keluar pas grading, alarm "PC mati" nyala terus, coil nyangkut ON, lagi commissioning line baru, atau mau ganti/nambah alamat coil.
 ---
 
 # Peta Coil PLC — ODOT CN-8031

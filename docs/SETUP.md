@@ -261,8 +261,8 @@ Ulangi 6.2–6.4 untuk setiap kamera.
 ### 7.1 Clone & env
 
 ```bash
-git clone git@github.com:delta-anugrah/palmgrade-vision.git
-cd palmgrade-vision
+git clone git@github.com:delta-anugrah/autograde.git
+cd autograde
 cp .env.example .env
 ```
 

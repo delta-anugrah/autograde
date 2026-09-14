@@ -6,7 +6,7 @@
 | --- | --- |
 | Tanggal catatan | 16 Agustus 2026 |
 | Commissioning | Selasa, 18 Agustus 2026 |
-| Sisi aplikasi | `palmgrade-vision` (komputer + kamera) |
+| Sisi aplikasi | `autograde` (komputer + kamera) |
 | Sisi panel | PLC Mitsubishi + remote IO ODOT |
 | Rekan PLC | Mas Ocit — PT Nexio Teknologi Otomasi |
 
@@ -252,4 +252,4 @@ langkah 4 (ukur lebar pulse beneran), dan langkah 7 (polaritas E-stop). Sisanya 
 
 ---
 
-Detail teknis lengkapnya ada di `palmgrade-vision/docs/plc-integration.md`.
+Detail teknis lengkapnya ada di `autograde/docs/plc-integration.md`.

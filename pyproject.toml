@@ -1,4 +1,4 @@
-# Tooling config untuk palmgrade-vision. TIDAK dipakai untuk build/install
+# Tooling config untuk autograde. TIDAK dipakai untuk build/install
 # (runtime tetap via requirements.txt + Dockerfile). Hanya konfigurasi test & lint.
 
 [tool.pytest.ini_options]

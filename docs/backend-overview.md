@@ -1,6 +1,6 @@
-# Backend Overview — palmgrade-vision
+# Backend Overview — autograde
 
-Rangkuman teknis `palmgrade-vision` — Python AI camera service untuk sistem grading kelapa sawit.
+Rangkuman teknis `autograde` — Python AI camera service untuk sistem grading kelapa sawit.
 
 ## Tujuan Project
 
@@ -34,7 +34,7 @@ Dijalankan sebagai **3 container terpisah** (line 1/2/3), masing-masing satu por
 ## Folder Structure
 
 ```
-palmgrade-vision/
+autograde/
   src/
     palmgrade/
       main.py                  # FastAPI app factory + middleware + lifecycle

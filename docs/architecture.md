@@ -1,6 +1,6 @@
-# Architecture — palmgrade-vision
+# Architecture — autograde
 
-Dokumen ini adalah acuan desain arsitektur `palmgrade-vision`.
+Dokumen ini adalah acuan desain arsitektur `autograde`.
 Struktur ini sudah diimplementasikan — bukan target, ini adalah kondisi saat ini.
 
 ---
@@ -17,7 +17,7 @@ Struktur ini sudah diimplementasikan — bukan target, ini adalah kondisi saat i
 ## Folder Structure
 
 ```
-palmgrade-vision/
+autograde/
   src/
     palmgrade/
       main.py                    # FastAPI app factory + middleware + lifecycle

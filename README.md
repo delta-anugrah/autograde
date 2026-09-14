@@ -1,4 +1,4 @@
-# palmgrade-vision
+# autograde
 
 AI camera service for the **Palmgrade** palm oil ripeness grading system.
 
@@ -21,8 +21,8 @@ Jalur Linux tidak pernah diubah demi Mac — yang untuk Mac cuma tambahan.
 ### Develop di Mac — dari nol
 
 ```bash
-git clone git@github.com:delta-anugrah/palmgrade-vision.git
-cd palmgrade-vision
+git clone git@github.com:delta-anugrah/autograde.git
+cd autograde
 cp .env.example .env
 
 # venv khusus konsol + tes. Sengaja TIDAK memasang torch / ultralytics / opencv:
@@ -61,8 +61,8 @@ memakai skrip `palmgrade` di host, bukan `make` — lihat `sawit/docs/runbooks/`
 
 | Repo | Role | Port |
 |---|---|---|
-| **`palmgrade-vision`** | AI camera + inference (per line) | 8001 / 8002 / 8003 |
-| **`palmgrade-vision`** (`APP_MODE=console`) | Konsol operator offline — grading + timbangan | 8000 |
+| **`autograde`** | AI camera + inference (per line) | 8001 / 8002 / 8003 |
+| **`autograde`** (`APP_MODE=console`) | Konsol operator offline — grading + timbangan | 8000 |
 | `palmgrade-api` | Business logic, auth, SSE broker — **pensiun**, diganti AutoERP | 2500 |
 | `palmgrade-frontend` | Operator dashboard UI — **pensiun**, konsol pindah ke sini | 3050 |
 
@@ -134,7 +134,7 @@ program timbangan → POST .../scale/weighing  ├→ index SQLite state/console
 ## Project Structure
 
 ```
-palmgrade-vision/
+autograde/
 ├── src/palmgrade/
 │   ├── main.py                  # FastAPI app entry point line kamera (lifespan)
 │   ├── console_main.py          # app entry point KONSOL (APP_MODE=console) — tanpa torch/cv2
@@ -183,8 +183,8 @@ palmgrade-vision/
 ### 1. Clone & copy env
 
 ```bash
-git clone git@github.com:delta-anugrah/palmgrade-vision.git
-cd palmgrade-vision
+git clone git@github.com:delta-anugrah/autograde.git
+cd autograde
 cp .env.example .env
 ```
 
@@ -238,7 +238,7 @@ Checklist lengkap sebelum `make up` di PC produksi. Urutan ini penting.
 
 Cloud integration status (2026-07-10):
 
-- `palmgrade-vision` tetap jalan di PC pabrik/on-prem; tidak ikut deploy ke DigitalOcean.
+- `autograde` tetap jalan di PC pabrik/on-prem; tidak ikut deploy ke DigitalOcean.
 - Cloud API production: `https://api.smagri.id`.
 - Cloud app production: `https://app.smagri.id`.
 - Set `BACKEND_URL=https://api.smagri.id` dan pastikan `WEBHOOK_SECRET` sama persis dengan
@@ -412,7 +412,7 @@ operator disimpan di `localStorage`.
 
   ```bash
   cd ../autoerp && make up && make key-show   # tempel ERP_API_KEY + ERP_API_SECRET ke .env
-  cd ../palmgrade-vision
+  cd ../autograde
   make console                                # = uvicorn native di 127.0.0.1:8100
   ```
 
@@ -617,7 +617,7 @@ Unit test di sini **sengaja murni-logic** — tidak butuh torch / OpenCV / MVS S
 
 ### Menjalankan test
 
-Dari `palmgrade-vision/`:
+Dari `autograde/`:
 
 ```bash
 # CI menjalankan keduanya (lihat .github/workflows/ci.yml).
