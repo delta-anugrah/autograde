@@ -147,6 +147,8 @@ class Settings:
         default_factory=lambda: (os.getenv("CAMERA_FEATURE_FILE", "").strip() or None)
     )
     camera_video_path: str = field(default_factory=lambda: os.getenv("CAMERA_VIDEO_PATH", ""))
+    # Loop the video until the line is stopped (performance runs). Off = play once.
+    camera_video_loop: bool = field(default_factory=lambda: _as_bool(os.getenv("CAMERA_VIDEO_LOOP"), False))
     camera_width: int = field(default_factory=lambda: int(os.getenv("CAMERA_WIDTH", "320")))
     camera_height: int = field(default_factory=lambda: int(os.getenv("CAMERA_HEIGHT", "240")))
     # Safety net only: used when the camera cannot report its own rate (webcam,

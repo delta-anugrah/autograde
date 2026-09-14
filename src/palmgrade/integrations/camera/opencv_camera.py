@@ -19,12 +19,15 @@ class OpenCVCamera(CameraSource):
         height: int = 0,
         fps: int = 0,
         is_video_file: bool = False,
+        loop: bool = False,
     ) -> None:
         self.source = source
         self.width = width
         self.height = height
         self.fps = fps
         self._is_video_file = is_video_file
+        # Start over at the end instead of stopping (CAMERA_VIDEO_LOOP). Video only.
+        self._loop = loop and is_video_file
         self._cap: cv2.VideoCapture | None = None
         self.connected: bool = False
         self._rewound: bool = False
@@ -72,13 +75,29 @@ class OpenCVCamera(CameraSource):
             return None
         self._rewound = False
         ret, frame = self._cap.read()
-        if not ret:
-            if self._is_video_file:
-                self._exhausted = True
-                self.disconnect()
-                logger.info("OpenCV video finished once and stopped: %s", self.source)
-                return None
+        if ret:
+            return frame
+        if not self._is_video_file:
             return None
+        if self._loop:
+            frame = self._start_over()
+            if frame is not None:
+                return frame
+            logger.warning("OpenCV video cannot start over, stopping: %s", self.source)
+        self._exhausted = True
+        self.disconnect()
+        logger.info("OpenCV video finished once and stopped: %s", self.source)
+        return None
+
+    def _start_over(self):
+        """Seek back to frame 0 and read it. None if the file will not seek or is empty,
+        so a broken clip stops instead of spinning on an endless read-fail-seek."""
+        if not self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0):
+            return None
+        ret, frame = self._cap.read()
+        if not ret:
+            return None
+        self._rewound = True  # tells the capture worker to reset tracking
         return frame
 
     def disconnect(self) -> None:

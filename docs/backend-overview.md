@@ -435,6 +435,7 @@ FrameProcessingWorker / CaptureService
 | `CAMERA_TYPE` | `hikrobot` | Sumber kamera: `hikrobot` / `opencv` (webcam atau video file) / `photo` |
 | `CAMERA_DEVICE_INDEX` | `0` | Index device webcam (dipakai kalau `CAMERA_TYPE=opencv` tanpa `CAMERA_VIDEO_PATH`). Di-set docker-compose per line (`0/1/2`) — nilai di `.env` hanya berlaku saat run lokal tanpa Docker |
 | `CAMERA_VIDEO_PATH` | — | Path video file di dalam container (dipakai kalau `CAMERA_TYPE=opencv`) |
+| `CAMERA_VIDEO_LOOP` | `false` | `true` = video diulang terus sampai line di-stop (uji performa); tiap putaran baru me-reset ByteTrack. `false` = diputar sekali lalu capture diam. Tidak berefek ke kamera Hikrobot |
 | `CAMERA_PHOTO_PATH` | — | Path image statis di dalam container (wajib kalau `CAMERA_TYPE=photo`). Kosong → `PhotoCamera` raise saat connect |
 | `MACHINE_ID` | — | UUID dari tabel `machines` di PostgreSQL — berbeda per container. Di-set docker-compose dari `LINE_{1,2,3}_MACHINE_ID` (fallback UUID seed); `MACHINE_ID` di `.env` hanya untuk run lokal tanpa Docker |
 | `ROI_X1` | `0` | Batas kiri area deteksi (px) |

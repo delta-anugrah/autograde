@@ -118,7 +118,7 @@ class FrameCaptureWorker:
 
         # Saat video rewind (loop): flush stale frames + signal ke processing worker
         # untuk reset ByteTrack agar detection berjalan normal dari awal loop.
-        if getattr(self.camera, "rewound", False):
+        if self.camera.rewound:
             while not self.state.frame_queue.empty():
                 try:
                     self.state.frame_queue.get_nowait()

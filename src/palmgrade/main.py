@@ -88,6 +88,7 @@ def create_app() -> FastAPI:
                 height=settings.camera_height,
                 fps=settings.camera_fps,
                 is_video_file=bool(settings.camera_video_path),
+                loop=settings.camera_video_loop,
             )
         elif camera_type == "photo":
             camera = PhotoCamera(path=settings.camera_photo_path)
