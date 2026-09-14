@@ -20,7 +20,9 @@ jobs:
       # No torch/opencv/SDK on purpose: unit tests are pure logic, so CI stays
       # fast and needs no GPU. The rest are light pure-python wheels.
       - name: Install tooling
-        run: pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic
+        # pyyaml is test-only, like ruff and pytest: it is how the compose file
+        # is read back and checked against the settings the console reads.
+        run: pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic pyyaml
 
       # Lint covers only modules already cleaned up; widen it one module at a time.
       - name: Ruff (lint)
