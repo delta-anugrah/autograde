@@ -53,13 +53,29 @@ def truck_linked(store: ConsoleStore) -> Callable[[str, Any], None]:
 
 
 def visit_recorded(store: ConsoleStore) -> Callable[[str, Any], None]:
-    """Keep the Weighbridge Ticket AutoERP made — the trace from a weighbridge
-    row at the mill to the receipt in the ledger."""
+    """Keep what AutoERP answered for a visit.
+
+    The Weighbridge Ticket is the trace from a weighbridge row at the mill to the
+    receipt in the ledger. The `note` is the part that used to be dropped, and it is
+    the part a human needs: AutoERP never rewrites a finalised ticket, so a late
+    grading change is acknowledged as `revised` with a comment on its side — and the
+    mill kept marking that send simply "delivered".
+    """
 
     def record(key: str, answer: Any) -> None:
-        ticket = (answer or {}).get("ticket")
-        if ticket:
-            store.link_weighing_to_ticket(key, ticket)
+        answer = answer or {}
+        note = answer.get("note")
+        store.record_visit_answer(
+            key, ticket=answer.get("ticket"), status=answer.get("status"), note=note
+        )
+        if note or answer.get("revised"):
+            logger.warning(
+                "AutoERP answer needs a look for visit %s: %s (ticket %s, status %s)",
+                key,
+                note or "grading revised after finalisation",
+                answer.get("ticket"),
+                answer.get("status"),
+            )
 
     return record
 

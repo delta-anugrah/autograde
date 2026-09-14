@@ -92,8 +92,12 @@ CREATE TABLE IF NOT EXISTS weighings (
     -- leaves the line. Without it a second ticket the same day would inherit the
     -- first one's grading.
     assignment_id TEXT,
-    -- The Weighbridge Ticket AutoERP made for this visit, as it answered.
-    erp_ticket    TEXT
+    -- What AutoERP answered for this visit: the Weighbridge Ticket it made, that
+    -- ticket's status, and the note it sends only when a human is needed — a
+    -- finalised ticket whose grading changed, or a cancelled one it ignored.
+    erp_ticket    TEXT,
+    erp_status    TEXT,
+    erp_note      TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_weighings_hari ON weighings (tanggal_kerja, waktu_masuk DESC);
 CREATE INDEX IF NOT EXISTS idx_weighings_plat ON weighings (plate_norm);
@@ -145,6 +149,8 @@ class ConsoleStore:
             ("trucks", "erp_name"),
             ("weighings", "assignment_id"),
             ("weighings", "erp_ticket"),
+            ("weighings", "erp_status"),
+            ("weighings", "erp_note"),
         ):
             kolom = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
             if column not in kolom:
@@ -408,11 +414,28 @@ class ConsoleStore:
                 "UPDATE weighings SET assignment_id = ? WHERE id = ?", (assignment_id, weighing_id)
             )
 
-    def link_weighing_to_ticket(self, weighing_id: str, erp_ticket: str) -> None:
-        """The Weighbridge Ticket AutoERP answered with — the trace back to the ledger."""
+    def record_visit_answer(
+        self, weighing_id: str, *, ticket: str | None, status: str | None, note: str | None
+    ) -> None:
+        """What AutoERP answered for this visit.
+
+        The ticket is the trace back to the ledger. The status and the note are the two
+        things only AutoERP knows: it never rewrites a finalised ticket, so a late
+        grading change comes back as a note and a flag on its side — and used to leave
+        no trace at all on ours.
+
+        `ticket` and `status` are COALESCEd: a later answer that omits one must not erase
+        it. `note` is replaced, because its absence is itself the news — whatever it
+        described is no longer true of this visit.
+        """
         with self._lock, self._db:
             self._db.execute(
-                "UPDATE weighings SET erp_ticket = ? WHERE id = ?", (erp_ticket, weighing_id)
+                """UPDATE weighings
+                      SET erp_ticket = COALESCE(?, erp_ticket),
+                          erp_status = COALESCE(?, erp_status),
+                          erp_note   = ?
+                    WHERE id = ?""",
+                (ticket, status, note, weighing_id),
             )
 
     def latest_weighing_for_truck(self, truck_id: str, tanggal_kerja: str) -> str | None:
