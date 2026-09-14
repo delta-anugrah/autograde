@@ -238,11 +238,19 @@
   button:hover:not(:disabled) { border-color:var(--hover); box-shadow:var(--tinggi-1);
                                 transform:translateY(-1px); }
   button:active:not(:disabled) { transform:translateY(0); box-shadow:none; }
-  button:disabled { opacity:.55; cursor:default; }
+  /* A gate, not a fault: the action is waiting for a field, so it is dimmed
+     but keeps its shape and its label legible at distance. */
+  button:disabled { opacity:.45; cursor:default; box-shadow:none; }
   /* Assign is the one action with a consequence on the line, so it is the one
      filled button on the card. */
   button.utama { background:var(--acc); border-color:var(--acc); color:var(--on-acc); }
   button.utama:hover { border-color:var(--fg); }
+  /* Release throws away the line's current assignment, so it wears the same
+     palette as the reject button - the two destructive actions on the card look
+     alike, and Assign is the only filled one. */
+  .assign [data-aksi="lepas"] { background:var(--danger-bg); border-color:var(--danger-line);
+                                color:var(--danger-fg); }
+  .assign [data-aksi="lepas"]:hover:not(:disabled) { border-color:var(--danger-fg); }
   button.reject { width:100%; text-transform:uppercase; letter-spacing:.08em;
                   background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
   /* The keyboard hint is printed on the button, so the shortcut never has to be
@@ -435,7 +443,7 @@
   <div class="tools">
     <input id="plat" class="plat" maxlength="11" data-t-ph="phPlat"
            placeholder="KT 2509 ABC" autocomplete="off">
-    <button id="daftar" class="utama" data-t="btnDaftar">Daftar truk manual</button>
+    <button id="daftar" class="utama" data-t="btnDaftar" disabled>Daftar truk manual</button>
   </div>
   <div class="tabel">
     <table>
@@ -460,7 +468,7 @@
   <div class="tools">
     <div class="pilih" id="plat-timbang" data-nilai=""></div>
     <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)" inputmode="decimal" autocomplete="off">
-    <button id="masuk" class="utama" data-t="btnMasuk">Timbang masuk</button>
+    <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang masuk</button>
     <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
   </div>
   <div class="tabel">
@@ -836,7 +844,7 @@ function kartuLine(l) {
       <div class="truk">${isiTruk(l.assignment)}</div>
       <div class="assign">
         ${komponenPilih(opsi, l.assignment ? l.assignment.truck_id : "")}
-        <button class="utama" data-aksi="tugaskan">${esc(t("btnTugaskan"))}</button>
+        <button class="utama" data-aksi="tugaskan"${l.assignment ? "" : " disabled"}>${esc(t("btnTugaskan"))}</button>
         <button data-aksi="lepas" title="${esc(t("lepasTitle"))}">${esc(t("btnLepas"))}</button>
       </div>
       <button class="reject" data-aksi="tolak">${esc(t("btnReject"))}<span class="pintas"></span></button>
@@ -995,7 +1003,9 @@ $("daftar").addEventListener("click", async () => {
   } catch (e) {
     pesan(t("gagalDaftar") + ": " + e.message);
   } finally {
-    $("daftar").disabled = false;
+    // Not `disabled = false`: the plate box was just cleared, so the gate - not
+    // the request - decides what happens next.
+    segarkanTombol();
   }
 });
 
@@ -1016,7 +1026,7 @@ $("masuk").addEventListener("click", async () => {
   } catch (e) {
     pesan(t("gagalTimbang") + ": " + e.message);
   } finally {
-    $("masuk").disabled = false;
+    segarkanTombol();
   }
 });
 
@@ -1070,6 +1080,26 @@ async function cekKamera() {
   }));
 }
 
+// An action whose inputs are not filled in is disabled here, rather than left
+// to fail at the server: on this screen a rejected POST surfaces as a red bar
+// the operator has to read, for something the page already knew. Re-applied
+// after every render because the line cards and the weighbridge picker are both
+// rebuilt from scratch on refresh.
+function segarkanTombol() {
+  document.querySelectorAll("#lines .card").forEach((c) => {
+    const pilih = c.querySelector(".assign .pilih");
+    const tugaskan = c.querySelector('[data-aksi="tugaskan"]');
+    if (pilih && tugaskan) tugaskan.disabled = !pilih.dataset.nilai;
+  });
+  $("daftar").disabled = !$("plat").value.trim();
+  const timbang = $("plat-timbang");
+  $("masuk").disabled = !(timbang && timbang.dataset.nilai && $("bruto").value.trim());
+}
+// One pair of listeners for the whole page: dropdowns bubble `pilih`, text
+// boxes bubble `input`, and cards built in JS need no wiring of their own.
+document.addEventListener("pilih", segarkanTombol);
+document.addEventListener("input", segarkanTombol);
+
 // ── load ───────────────────────────────────────────────────────────────
 
 // MJPEG streams render once: rewriting innerHTML every 2 s would tear down and
@@ -1096,6 +1126,7 @@ async function refresh() {
     }
     $("recent").innerHTML = s.recent.length
       ? s.recent.map(barisRecent).join("") : barisKosong(7, "kosongGrading");
+    segarkanTombol();
     pesan("");
   } catch (e) { pesan(t("gagalKonsol") + ": " + e.message); }
 }
@@ -1140,6 +1171,7 @@ function isiTrucks() {
   const opsi = [{ v: "", teks: t("pilihTruk") }]
     .concat(trucks.map((tr) => ({ v: tr.plate_number, teks: tr.plate_number || KOSONG })));
   pilih.outerHTML = komponenPilih(opsi, pilih.dataset.nilai, "plat-timbang");
+  segarkanTombol();
 }
 
 async function muatTrucks() {
