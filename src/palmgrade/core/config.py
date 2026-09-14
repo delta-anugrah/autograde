@@ -236,6 +236,9 @@ class Settings:
     erp_url: str = field(default_factory=lambda: os.getenv("ERP_URL", "").rstrip("/"))
     erp_api_key: str = field(default_factory=lambda: os.getenv("ERP_API_KEY", ""))
     erp_api_secret: str = field(default_factory=lambda: os.getenv("ERP_API_SECRET", ""))
+    # AutoERP Company this mill books against. Empty lets AutoERP use its own
+    # default company, which is right on a single-company site.
+    erp_company: str = field(default_factory=lambda: os.getenv("ERP_COMPANY", ""))
 
     # ── PLC / ODOT CN-8031 (Modbus-TCP) ──────────────────────────
     # Logic lives in src/palmgrade/plc/; the full coil map is in

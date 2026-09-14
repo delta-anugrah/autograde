@@ -15,15 +15,17 @@ from palmgrade.domain.plate import truck_id_for
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.services.console_service import ConsoleService
+from palmgrade.services.erp_queue import ErpQueue
 
 
 def _service(tmp_path) -> tuple[ConsoleService, ErpOutboxStore]:
+    store = ConsoleStore(tmp_path / "console.db")
     outbox = ErpOutboxStore(tmp_path / "erp_outbox.db")
     service = ConsoleService(
         replace(Settings(), factory_tz="Asia/Jakarta"),
-        ConsoleStore(tmp_path / "console.db"),
+        store,
         None,
-        erp_outbox=outbox,
+        erp_queue=ErpQueue(store, outbox, site=""),
     )
     return service, outbox
 

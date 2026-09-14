@@ -53,7 +53,8 @@ jadi satu line kamera mati tidak menjatuhkan layar operator):
 program timbangan → POST .../scale/weighing  ├→ index SQLite state/console.db
                                              │  (konsol TIDAK pernah memindai direktori)
                                              └→ MasterDataWorker  ← supplier + truk dari AutoERP  (kalau ERP_URL diisi)
-                                                ErpOutboxWorker   → truk baru ke AutoERP (§4.B), antrean di edge
+                                                ErpOutboxWorker   → truk baru (§4.B) + kunjungan truk (§4.C)
+                                                VisitResendWorker → kunjungan kemarin, sekali sehari
 
 /console  → satu file HTML statis, vanilla JS, tanpa build/Node/CDN
             stream kamera = <img> MJPEG langsung ke :8001/8002/8003, bukan lewat konsol
@@ -100,8 +101,10 @@ palmgrade-vision/
 │   │   ├── storage/             # LocalFileStorage
 │   │   ├── upload/              # R2Uploader (boto3) + UploadManifest (SQLite per-item state)
 │   │   ├── outbox/              # OutboxStore — antrean realtime ke BACKEND_URL
+│   │   ├── erp/                 # ErpClient + ErpOutboxStore — antrean kirim ke AutoERP
 │   │   └── scheduler/           # UploadScheduler — APScheduler cron, hourly @ UPLOAD_MINUTE
-│   ├── domain/                  # Pure business rules (no I/O) — working_day, ffb_source, plate
+│   ├── domain/                  # Pure business rules (no I/O) — working_day, ffb_source, plate,
+│   │                            #   erp_master (dokumen ERP → baris konsol), erp_messages (§4.B/§4.C)
 │   ├── plc/                     # PLC/ODOT Modbus-TCP, self-contained, mati by default
 │   ├── schemas/                 # Pydantic request/response models
 │   └── license/                 # License guard (Ed25519 JWS, optional)
@@ -112,7 +115,7 @@ palmgrade-vision/
 │   ├── line-1/
 │   ├── line-2/
 │   └── line-3/
-├── state/console/               # console.db (index konsol) — not committed to git
+├── state/                       # console.db (index konsol) + erp_outbox.db — not committed to git
 ├── scripts/                     # console-kiosk.sh + palmgrade-console.desktop
 ├── Makefile
 ├── Dockerfile
@@ -563,7 +566,8 @@ pytest tests/unit/
 | **Timbangan** | `test_weighing.py` | `neto_kg` dihitung bukan dipercaya; timbang-keluar **menggabung** bukan menimpa; plat beda tulisan tetap satu truk; koma = desimal, pemisah ribuan ditolak |
 | **Master data AutoERP** | `test_erp_master_data.py`, `test_ffb_source.py` | Field yang diminta persis milik DocType (Frappe balas 417 kalau tidak); truk ERP mengadopsi baris yang diketik operator; kursor per-DocType tidak maju kalau ada baris gagal; Sumber TBS mengikuti `sumber_for_supplier` AutoERP |
 | **Antrean ke AutoERP** | `test_erp_client.py`, `test_erp_outbox_store.py`, `test_erp_outbox_worker.py`, `test_erp_link.py`, `test_manual_truck_to_erp.py` | Ditolak (4xx) vs tidak terjangkau (jaringan/5xx) dibedakan; backoff 30 dtk → 1 jam; pesan yang diganti saat masih di jalan tidak ditandai terkirim; ERP mati = batch berhenti, bukan dihajar terus; truk manual naik lewat `upsert_truck`; truk milik AutoERP read-only |
-| **End-to-end** | `tests/e2e/test_console_autoerp.py` | Konsol + AutoERP sungguhan: truk dibuat di ERP lalu ditarik konsol, truk diketik di konsol lalu muncul di ERP, label Sumber sama di semua tab. Di-skip tanpa variabel `E2E_*` |
+| **Kunjungan truk** | `test_visit_message.py`, `test_erp_queue.py`, `test_visit_triggers.py`, `test_visit_resend.py` | Bentuk pesan §4.C; `stage` diturunkan dari keadaan kunjungan; bagian yang tidak ada tidak dikirim; grading ikut lewat tautan assignment yang ditulis saat truk dilepas; kirim ulang harian sekali sehari |
+| **End-to-end** | `tests/e2e/test_console_autoerp.py` | Konsol + AutoERP sungguhan: truk dibuat di ERP lalu ditarik konsol, truk diketik di konsol lalu muncul di ERP, timbangan jadi Weighbridge Ticket, grading mendarat di tiket saat truk dilepas dari line. Di-skip tanpa variabel `E2E_*` |
 | Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |
 | PLC | `tests/unit/plc/` | Coil map ODOT + state machine Modbus-TCP |
 | Config | `test_config_validation.py` | Fail-fast saat secret masih default di `APP_ENV=production` |
@@ -627,6 +631,7 @@ pytest tests/unit/
 | `CONSOLE_LINE_HOST` | `http://localhost` | Host tiga line dilihat dari konsol (assign/release/manual-reject) |
 | `ERP_URL` | — | AutoERP base URL. **Kosong = jalur ERP mati**, dan itu default: layar operator tidak boleh bergantung pada ERP hidup |
 | `ERP_API_KEY` / `ERP_API_SECRET` | — | `Authorization: token <key>:<secret>` dari `erpnext.palm_mill.setup.create_integration_user` |
+| `ERP_COMPANY` | — | Company AutoERP yang dibukukan pabrik ini. Kosong = AutoERP pakai company bawaannya (benar untuk situs satu perusahaan) |
 
 ---
 

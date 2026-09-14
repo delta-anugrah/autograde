@@ -465,6 +465,31 @@ Backoff 30 detik → 1 jam (kontrak §5). Handler yang gagal mencatat di sisi ki
 pesannya: AutoERP sudah menerima, tapi kirim ulang aman (semua handler upsert) sedangkan
 kehilangan jawabannya tidak.
 
+**Kunjungan truk (§4.C).** Satu pesan per kunjungan, dikirim tiga kali saat kejadian yang
+memang terjadi: **timbang masuk**, **truk dilepas dari line**, dan **timbang keluar**. Plus
+kirim ulang kunjungan kemarin sekali sehari (`VisitResendWorker`, penanda harinya di
+`sync_state`) sebagai jaring pengaman.
+
+`services/erp_queue.py` satu-satunya yang merakit pesan — pemicu langsung dan kirim ulang
+memakai jalan yang sama, jadi keduanya tidak bisa berbeda isi. Payloadnya **dibangun ulang dari
+store tiap kali**, tidak ditambal, sehingga kiriman yang antre di belakang tidak pernah membawa
+keadaan lebih lama daripada barisnya.
+
+| Hal | Aturannya |
+|---|---|
+| `visit_id` | id baris timbangan (uuid5 dari `ref`, atau plat + `waktu_masuk`) |
+| `stage` | **diturunkan** dari keadaan: ada tara → `departed`, ada grading → `grading`, sisanya `gate` |
+| bagian kosong | **tidak dikirim** — tiap kiriman mengganti bagian yang dibawanya, jadi bagian kosong menghapus isi ERP |
+| grading | lewat `weighings.assignment_id`, ditulis **saat truk dilepas**; tanpa itu tiket kedua hari itu mewarisi janjang tiket pertama |
+| kriteria | mentah = REJ, tangkai panjang = ACC dengan `tp_confidence > 0.8`, matang diturunkan AutoERP |
+| `erp_ticket` | nomor Weighbridge Ticket jawaban AutoERP, disimpan balik ke baris timbangan |
+
+⚠️ AutoERP **mengadopsi tiket terbuka milik truk yang sama** dalam jendela ±2 jam. Dua
+kunjungan truk itu di jam yang sama karena itu mendarat di satu tiket — perilaku ERP, bukan bug
+konsol. Dan tiket yang sudah punya berat bersih lalu menerima grading akan **difinalisasi**;
+untuk buah Inti itu butuh Gudang Penerimaan TBS + Akun Pendapatan Transfer di Pengaturan PKS,
+yang di situs demo belum diisi (AutoERP membalas 417 dan antrean menahannya dengan alasannya).
+
 **Truk baru naik (§4.B).** Truk yang diketik operator dikirim ke
 `erpnext.palm_mill.api.upsert_truck` dengan `plate_number` + `autograde_id`; AutoERP membuatnya
 **tanpa pemilik** dan backoffice yang melengkapi. Jawabannya (`name`, dan `supplier` kalau ERP

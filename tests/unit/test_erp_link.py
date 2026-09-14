@@ -1,4 +1,4 @@
-"""Wiring the AutoERP link, and what a truck AutoERP accepted does locally.
+"""Wiring the AutoERP link, and what AutoERP's answers do locally.
 
 The composition root decides whether the link exists at all: no `ERP_URL`, no
 workers, no traffic — the operator screen must never depend on AutoERP.
@@ -12,56 +12,81 @@ from palmgrade.domain.erp_master import supplier_id_for
 from palmgrade.domain.plate import truck_id_for
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.repositories.console_repository import ConsoleStore
-from palmgrade.workers.erp_link import build_erp_workers, truck_linked
+from palmgrade.services.erp_queue import ErpQueue
+from palmgrade.workers.erp_link import build_erp_workers, truck_linked, visit_recorded
 from palmgrade.workers.erp_outbox_worker import ErpOutboxWorker
 from palmgrade.workers.master_data_worker import MasterDataWorker
+from palmgrade.workers.visit_resend_worker import VisitResendWorker
+
+PLATE = "BE 1 AA"
 
 
-def _parts(tmp_path) -> tuple[ConsoleStore, ErpOutboxStore]:
-    return ConsoleStore(tmp_path / "console.db"), ErpOutboxStore(tmp_path / "erp_outbox.db")
+def _parts(tmp_path) -> tuple[ConsoleStore, ErpQueue]:
+    store = ConsoleStore(tmp_path / "console.db")
+    return store, ErpQueue(store, ErpOutboxStore(tmp_path / "erp_outbox.db"))
 
 
 def test_without_an_erp_url_there_are_no_workers(tmp_path):
-    store, outbox = _parts(tmp_path)
+    store, queue = _parts(tmp_path)
 
-    assert build_erp_workers(replace(Settings(), erp_url=""), store, outbox) == []
+    assert build_erp_workers(replace(Settings(), erp_url=""), store, queue) == []
 
 
-def test_an_erp_url_starts_the_pull_and_the_outbox(tmp_path):
-    store, outbox = _parts(tmp_path)
+def test_an_erp_url_starts_the_pull_the_outbox_and_the_daily_resend(tmp_path):
+    store, queue = _parts(tmp_path)
     settings = replace(
         Settings(), erp_url="http://erp.local", erp_api_key="k", erp_api_secret="s"
     )
 
-    workers = build_erp_workers(settings, store, outbox)
+    workers = build_erp_workers(settings, store, queue)
 
-    assert [type(worker) for worker in workers] == [MasterDataWorker, ErpOutboxWorker]
+    assert [type(worker) for worker in workers] == [
+        MasterDataWorker, ErpOutboxWorker, VisitResendWorker,
+    ]
 
 
 def test_a_truck_autoerp_accepted_is_linked_to_its_erp_name(tmp_path):
     """`erp_name` is what the visit is sent under later; losing it makes the
     ticket unmatchable on the ERP side."""
     store, _ = _parts(tmp_path)
-    store.upsert_truck(
-        {"id": truck_id_for("be 1 aa"), "plate_number": "be 1 aa", "status": "manual"}
-    )
+    store.upsert_truck({"id": truck_id_for("be 1 aa"), "plate_number": "be 1 aa", "status": "manual"})
 
-    truck_linked(store)("BE1AA", {"name": "BE 1 AA", "supplier": None, "vehicle_class": ""})
+    truck_linked(store)("BE1AA", {"name": PLATE, "supplier": None, "vehicle_class": ""})
 
-    row = store.truck(truck_id_for("BE 1 AA"))
-    assert (row["erp_name"], row["supplier_id"]) == ("BE 1 AA", None)
+    row = store.truck(truck_id_for(PLATE))
+    assert (row["erp_name"], row["supplier_id"]) == (PLATE, None)
 
 
 def test_a_plate_autoerp_already_knew_brings_its_owner_back(tmp_path):
     """AutoERP answers with the owner it already has; the console shows it at
     once instead of waiting for the truck to be touched upstream again."""
     store, _ = _parts(tmp_path)
-    store.upsert_truck(
-        {"id": truck_id_for("BE 1 AA"), "plate_number": "BE 1 AA", "status": "manual"}
+    store.upsert_truck({"id": truck_id_for(PLATE), "plate_number": PLATE, "status": "manual"})
+
+    truck_linked(store)("BE1AA", {"name": PLATE, "supplier": "KUD Sumber Makmur"})
+
+    assert store.truck(truck_id_for(PLATE))["supplier_id"] == supplier_id_for("KUD Sumber Makmur")
+
+
+def test_the_ticket_autoerp_made_is_kept_against_the_weighing(tmp_path):
+    """The trace from a weighbridge row at the mill to the receipt in the ledger."""
+    store, _ = _parts(tmp_path)
+    store.upsert_weighing(
+        {
+            "id": "w1", "ref": "SCL-1", "plate_number": PLATE, "plate_norm": "BE1AA",
+            "truck_id": truck_id_for(PLATE), "tanggal_kerja": "2026-09-13",
+            "bruto_kg": 14560.0, "tara_kg": None, "neto_kg": None,
+            "waktu_masuk": "2026-09-13T07:41:00+07:00", "waktu_keluar": None,
+        }
     )
 
-    truck_linked(store)("BE1AA", {"name": "BE 1 AA", "supplier": "KUD Sumber Makmur"})
+    visit_recorded(store)("w1", {"ticket": "WB-2026-03851", "status": "Waiting Grading"})
 
-    assert store.truck(truck_id_for("BE 1 AA"))["supplier_id"] == supplier_id_for(
-        "KUD Sumber Makmur"
-    )
+    assert store.weighing("w1")["erp_ticket"] == "WB-2026-03851"
+
+
+def test_an_answer_without_a_ticket_changes_nothing(tmp_path):
+    """A cancelled visit is acknowledged without a ticket; nothing to record."""
+    store, _ = _parts(tmp_path)
+
+    visit_recorded(store)("w1", {"note": "ticket cancelled; visit ignored"})
