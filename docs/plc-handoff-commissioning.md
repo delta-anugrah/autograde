@@ -64,7 +64,8 @@ PC pabrik (3 proses line)  --Modbus-TCP-->  ODOT CN-8031  --kabel-->  PLC Mitsub
 
 Setiap proses hanya menyentuh coil miliknya: line 1 = coil 0, 1, 2, 9; line 2 = coil 3, 4, 5;
 line 3 = coil 6, 7, 8. Discrete input dibaca ketiga proses sekaligus — motor fault dan E-stop
-adalah status bersama conveyor, bukan status per line.
+adalah status bersama conveyor, bukan status per line. Aplikasi tidak pernah membaca balik coil
+yang ditulisnya sendiri, dan tidak pernah menulis ke sisi discrete input.
 
 Perangkat keras (part number lengkap di Lampiran 10.1): pasangan sink/source sudah diperiksa
 cocok tanpa relay perantara — CT-222F source/PNP menuju modul input Mitsubishi dengan COM di 0V,
@@ -106,7 +107,7 @@ tersendiri per line, dan itu tidak diminta di sini agar sisa spare tidak habis s
 
 - Pulse. Satu tepi naik (0→1) = satu janjang. ON ≈205 ms, lalu OFF ≈205 ms sebelum pulse berikutnya
   pada coil yang sama. Kapasitas maksimum ≈2,5 tepi per detik per coil — bukan 3,3.
-- **Kelebihan dibuang, bukan diantre.** Kamera dapat menghasilkan hingga ≈10 keputusan/detik/line,
+- **Kelebihan dibuang, bukan diantrekan.** Kamera dapat menghasilkan hingga ≈10 keputusan/detik/line,
   jauh di atas kapasitas satu coil. Kelebihan dibuang dengan sengaja — mengantrekan membuat sinyal
   terlambat menempel pada janjang yang salah. Ladder **harus menghitung tepi naik, bukan mengukur
   lama ON**: lebar pulse tetap dan tidak membawa arti tambahan.
@@ -225,7 +226,7 @@ dilarang aturan ladder nomor 3.
 | 2 | **Jumlah piston per line, dan arti "buka" secara fisik** | Satu bit per line hanya cukup kalau "buka" berarti satu keadaan; lebih dari satu piston berdiri sendiri per line berarti alokasi bit harus dirancang ulang |
 | 3 | **Konfirmasi: buah yang lewat tanpa sinyal akan lolos** | Aturan buah internal (Bab 6) menghasilkan kebalikan dari yang dikehendaki |
 | 4 | **Persetujuan enam aturan ladder (Bab 5)**, terutama aturan 3 | Tanpa aturan 3, melepas E-stop membuat piston bergerak sendiri |
-| 5 | **Watchdog coupler diturunkan dari 30 detik ke 2–3 detik** (permintaan lama) | PC yang mati membuat coil terakhir tertinggal sampai setengah menit — cukup lama untuk menyortir banyak buah dengan keputusan basi. Timeout socket Modbus aplikasi 1 detik (Bab 2); satu round-trip yang menggantung dapat merenggangkan jeda antar-tulis mendekati satu detik — tim panel yang menilai margin 2–3 detik dengan angka itu |
+| 5 | **Watchdog coupler diturunkan dari 30 detik ke 2–3 detik** (permintaan lama) | PC yang mati membuat coil terakhir tertinggal sampai setengah menit — cukup lama untuk menyortir banyak buah dengan keputusan basi. Aplikasi poll tiap 200 ms, jadi 2–3 detik aman dari false trip. Timeout socket Modbus aplikasi 1 detik (Bab 2); satu round-trip yang menggantung dapat merenggangkan jeda antar-tulis mendekati satu detik — tim panel yang menilai margin 2–3 detik dengan angka itu |
 | 6 | **E-stop dikabel ulang menjadi NC (normally closed)** (permintaan lama) | CT-122F low-active dan setelan coupler saat ini membuat **kabel putus terbaca persis sama dengan kondisi aman** |
 | 7 | **Alamat IP coupler dan NIC yang dipakainya** — usulan `192.168.100.50`, subnet `255.255.255.0` (permintaan lama) | **Paling menghambat.** Tanpa ini aplikasi tidak dapat tersambung sama sekali. Usulan dipilih agar tidak bentrok dengan tiga kamera (`.10`–`.12`) maupun NIC komputer (`.100`); boleh diganti ke `.51`–`.99` asalkan tetap `192.168.100.x` |
 
@@ -262,7 +263,7 @@ Satu line dulu, satu perubahan dalam satu waktu. **Tidak boleh dilewat: langkah 
    dari Bab 7.
 10. Restart proses line 1 saat pulse sedang berjalan — tidak boleh ada coil yang tertinggal ON.
 11. Jalankan produksi sungguhan ±15 menit pada satu line, baca jumlah sinyal terbuang dari layar
-    diagnosa (Bab 10). Angka itu menjadi dasar menyetel ulang lebar pulse.
+    diagnosa (Bab 10.2). Angka itu menjadi dasar menyetel ulang lebar pulse.
 12. Baru nyalakan line 2 dan line 3, ulangi langkah 3 untuk coil 3 dan coil 6.
 
 **Bagian B — piston manual, setelah ladder siap**
@@ -298,7 +299,20 @@ Satu line dulu, satu perubahan dalam satu waktu. **Tidak boleh dilewat: langkah 
 | AJ65SBTB1-16D1 | Modul input Mitsubishi 16 titik — menerima dari CT-222F |
 | AJ65SBTB1-16T1 | Modul output Mitsubishi 16 titik — mengirim ke CT-122F |
 
-### 10.2 Glosarium
+### 10.2 Layar diagnosa `GET /health/detail`
+
+Line 1: `curl -s localhost:8001/health/detail` (line 2 port 8002, line 3 port 8003). Bagian `plc`
+pada jawabannya:
+
+| Field | Arti |
+|---|---|
+| `dropped_pulses` | Sinyal dibuang karena antrean satu coil penuh |
+| `dropped_submissions` | Keputusan dibuang sebelum sempat masuk penjadwal pulse |
+
+`plc` kosong berarti fitur PLC mati. Kedua angka kumulatif sejak proses start — yang berarti
+selisih dua kali baca, bukan nilai mutlaknya.
+
+### 10.3 Glosarium
 
 | Istilah | Arti dalam dokumen ini |
 |---|---|
