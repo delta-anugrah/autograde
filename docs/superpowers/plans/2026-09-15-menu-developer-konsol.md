@@ -808,6 +808,12 @@ Di `domain/operator_error.py`, sebelah `BELUM_MASUK`:
 BUKAN_SUPPORT = "bukan_support"
 ```
 
+⚠️ **Tambahkan juga ke tuple `CODES` di berkas yang sama, dan ke KAMUS `id` dan `en`
+di `console.html`** (`err_bukan_support:"..."`). `tests/unit/test_console_html.py::
+test_setiap_kode_error_operator_diterjemahkan_di_kedua_bahasa` memaksa tiap kode
+punya terjemahan di kedua bahasa; pesan galat dirangkai di layar dari kodenya, jadi
+kode tanpa terjemahan muncul sebagai teks mentah di depan operator.
+
 - [ ] **Step 4: Tulis penjaga dan route ping**
 
 Di `routes/console.py`, sesudah `Operator = Annotated[...]`:
