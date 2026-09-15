@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
-"""Operator accounts for the console login (Fase 4).
+"""Local operator accounts for the console login (Fase 4).
 
-    make operator                  add an operator, or reset a forgotten PIN
-    make operator AKSI=daftar      list the active operators
+    make operator                  add a local account, or reset a forgotten password
+    make operator AKSI=daftar      list the active accounts and where each came from
     make operator AKSI=matikan     switch one off; their sessions end at once
+
+Only **local** accounts are managed here — the built-in one and the support account,
+which exist so a mill that has never reached the internet can still be opened. The real
+accounts come from AutoERP (`AutoGrade Operator`) and are reset there; this command
+refuses to touch them, because the next pull would undo the change anyway.
 
 On the factory PC the console runs in Docker: use `make operator-docker` with the same
 AKSI. It runs inside the console container, against the database that console actually
 reads — the native command there would write a file the container never opens.
 
-Name and PIN are asked for interactively, so the PIN never lands in shell history.
+Email, name and password are asked for interactively, so the password never lands in
+shell history.
 """
 
 from __future__ import annotations
@@ -36,19 +42,22 @@ def main(argv: list[str]) -> int:
 
     try:
         if aksi == "tambah":
+            email = input("Email operator: ")
             nama = input("Nama operator: ")
-            pin = getpass.getpass("PIN (6 angka): ")
-            ulang = getpass.getpass("Ulangi PIN: ")
-            admin.add_or_reset(nama, pin, ulang)
+            sandi = getpass.getpass("Sandi (minimal 8 karakter): ")
+            ulang = getpass.getpass("Ulangi sandi: ")
+            admin.add_or_reset(email, nama, sandi, ulang)
             print("Tersimpan. Sesi lama operator ini, kalau ada, sudah diakhiri.")
         elif aksi == "daftar":
             rows = admin.listing()
             for row in rows:
-                print(f"  {row['nama']}")
+                # `asal` is the answer to "why will this password not change?" —
+                # an `erp` account is backoffice's to reset, not this PC's.
+                print(f"  {row['email']:<32} {row['nama']:<24} [{row['asal']}]")
             if not rows:
                 print("  (belum ada operator aktif)")
         elif aksi == "matikan":
-            admin.switch_off(input("Nama operator yang dimatikan: "))
+            admin.switch_off(input("Email operator yang dimatikan: "))
             print("Dimatikan. Sesinya berakhir sekarang juga.")
         else:
             print(f"Aksi tidak dikenal: {aksi} (tambah | daftar | matikan)", file=sys.stderr)

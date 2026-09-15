@@ -11,7 +11,7 @@ so re-running adds nothing new and the rows stay recognisable afterwards.
     LINE_1_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_1_MACHINE_ID) \\
     LINE_2_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_2_MACHINE_ID) \\
     LINE_3_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_3_MACHINE_ID) \\
-    CONSOLE_OPERATOR="Nama Operator" CONSOLE_PIN=<pin> \\
+    CONSOLE_EMAIL=operator@pks.test CONSOLE_SANDI=<sandi> \\
     SEED_CONFIRM=1 python3 scripts/seed-console-demo.py
 
 Since Fase 4 the console API needs a session. Make the operator first with
@@ -48,15 +48,11 @@ def get(path):
 
 
 def sign_in():
-    nama = " ".join(os.environ.get("CONSOLE_OPERATOR", "").split())
-    pin = os.environ.get("CONSOLE_PIN", "")
-    if not (nama and pin):
-        sys.exit("Set CONSOLE_OPERATOR dan CONSOLE_PIN - buat operatornya dulu: make operator")
-    operator = next((o for o in get("/api/console/operators")["items"]
-                     if o["nama"].lower() == nama.lower()), None)
-    if operator is None:
-        sys.exit(f"Operator {nama!r} tidak ada di konsol {BASE}")
-    post("/api/console/login", {"operator_id": operator["id"], "pin": pin})
+    email = " ".join(os.environ.get("CONSOLE_EMAIL", "").split()).lower()
+    sandi = os.environ.get("CONSOLE_SANDI", "")
+    if not (email and sandi):
+        sys.exit("Set CONSOLE_EMAIL dan CONSOLE_SANDI - buat operatornya dulu: make operator")
+    post("/api/console/login", {"email": email, "sandi": sandi})
 
 
 sign_in()

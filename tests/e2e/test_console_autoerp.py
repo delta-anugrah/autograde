@@ -8,8 +8,8 @@ Real processes and real HTTP, no fakes. Skipped unless these are set:
     E2E_ERP_API_KEY          integration user key (create_integration_user)
     E2E_ERP_API_SECRET       integration user secret
     E2E_ERP_ADMIN_PASSWORD   Administrator password, used only to delete the test trucks
-    E2E_OPERATOR             console operator name, made once with `make operator`
-    E2E_PIN                  that operator's PIN (the console API needs a session, Fase 4)
+    E2E_EMAIL                console operator email, made once with `make operator`
+    E2E_SANDI                that operator's password (the console API needs a session, Fase 4)
 
 The console must point ERP_URL at the same AutoERP and run with
 CONSOLE_SYNC_INTERVAL_S=5, or waiting for the pull times out.
@@ -34,7 +34,7 @@ from palmgrade.domain.plate import truck_id_for
 _KEYS = (
     "E2E_CONSOLE_URL", "E2E_WEBHOOK_SECRET", "E2E_ERP_URL",
     "E2E_ERP_API_KEY", "E2E_ERP_API_SECRET", "E2E_ERP_ADMIN_PASSWORD",
-    "E2E_OPERATOR", "E2E_PIN",
+    "E2E_EMAIL", "E2E_SANDI",
 )
 ENV = {key: os.getenv(key, "") for key in _KEYS}
 pytestmark = pytest.mark.skipif(not all(ENV.values()), reason="E2E services not configured")
@@ -59,13 +59,14 @@ def console():
 
 def _sign_in(client: httpx.Client) -> None:
     """The console API is shut until someone signs in (Fase 4). The operator is made once
-    with `make operator`; the suite never creates accounts on a console itself."""
-    want = " ".join(ENV["E2E_OPERATOR"].split()).lower()
-    operators = client.get("/api/console/operators").json()["items"]
-    operator = next((o for o in operators if o["nama"].lower() == want), None)
-    assert operator, f"operator {ENV['E2E_OPERATOR']!r} is not on this console - make operator"
+    with `make operator`; the suite never creates accounts on a console itself.
+
+    No lookup first: the email is the account, so sign-in needs nothing the caller does
+    not already have.
+    """
     client.post(
-        "/api/console/login", json={"operator_id": operator["id"], "pin": ENV["E2E_PIN"]}
+        "/api/console/login",
+        json={"email": ENV["E2E_EMAIL"], "sandi": ENV["E2E_SANDI"]},
     ).raise_for_status()
 
 

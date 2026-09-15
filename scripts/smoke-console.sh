@@ -9,7 +9,7 @@
 # Since Fase 4 the console API needs a session. The signed-in checks run only when
 # an operator is given (make one with `make operator`); without one, only the lock
 # itself is checked:
-#   CONSOLE_OPERATOR="Nama Operator" CONSOLE_PIN=<pin> scripts/smoke-console.sh
+#   CONSOLE_EMAIL=operator@pks.test CONSOLE_SANDI=<sandi> scripts/smoke-console.sh
 #
 # Seed some data first, or the recap checks have nothing to look at:
 #   SEED_CONFIRM=1 python3 scripts/seed-console-demo.py
@@ -48,21 +48,20 @@ check "console.html matches the working tree" same \
           "$(md5sum src/palmgrade/static/console.html | cut -d' ' -f1)" ]; \
      then echo same; else echo STALE; fi)"
 
-if [ -z "${CONSOLE_OPERATOR:-}" ] || [ -z "${CONSOLE_PIN:-}" ]; then
-  echo "== signed-in checks skipped: set CONSOLE_OPERATOR and CONSOLE_PIN (make operator) =="
+if [ -z "${CONSOLE_EMAIL:-}" ] || [ -z "${CONSOLE_SANDI:-}" ]; then
+  echo "== signed-in checks skipped: set CONSOLE_EMAIL and CONSOLE_SANDI (make operator) =="
   finish
 fi
 
 echo "== sign in =="
-# Built in Python and piped on stdin, so the PIN never shows up in the process list.
-login_code="$(curl -s "$BASE/api/console/operators" | python3 -c '
-import json, os, sys
-want = " ".join(os.environ["CONSOLE_OPERATOR"].split()).lower()
-match = next((o for o in json.load(sys.stdin)["items"] if o["nama"].lower() == want), None)
-print(json.dumps({"operator_id": match["id"] if match else "", "pin": os.environ["CONSOLE_PIN"]}))
+# Built in Python and piped on stdin, so the password never shows up in the process list.
+login_code="$(python3 -c '
+import json, os
+print(json.dumps({"email": os.environ["CONSOLE_EMAIL"].strip().lower(),
+                  "sandi": os.environ["CONSOLE_SANDI"]}))
 ' | curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -H 'content-type: application/json' \
       --data @- "$BASE/api/console/login")"
-check "POST /api/console/login as $CONSOLE_OPERATOR" 200 "$login_code"
+check "POST /api/console/login as $CONSOLE_EMAIL" 200 "$login_code"
 [ "$login_code" = 200 ] || finish
 
 echo "== endpoints the UI calls =="

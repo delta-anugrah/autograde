@@ -96,8 +96,8 @@ kiosk:
 
 # Operator accounts for the console login (Fase 4). Name and PIN are asked for
 # interactively, so the PIN never lands in shell history.
-#   make operator                 add an operator, or reset a forgotten PIN
-#   make operator AKSI=daftar     list the active operators
+#   make operator                 add a local account, or reset a forgotten password
+#   make operator AKSI=daftar     list the active accounts and where each came from
 #   make operator AKSI=matikan    switch one off (their sessions end at once)
 # `operator` is the native console (Mac). `operator-docker` runs inside the console
 # container on the factory PC, against the database that console really reads.
