@@ -171,6 +171,27 @@
   .halaman-nomor .halaman-no[aria-current="true"] { opacity:1; background:var(--acc);
      color:var(--on-acc); border-color:var(--acc); }
   .halaman-celah { padding:0 2px; color:var(--muted); }
+
+  /* ---- kartu QR truk ---- */
+  #qr-cetak { padding:16px 0; }
+  #qr-cetak[hidden] { display:none; }
+  .qr-kartu { display:flex; flex-wrap:wrap; gap:12px; }
+  .qr-satu { margin:0; padding:10px; text-align:center; background:#fff;
+             border:1px solid var(--line-kuat); border-radius:var(--r-sm); }
+  /* Latar putih dipatok, bukan var(--card): di tema gelap kartunya jadi hitam, dan
+     QR gelap di latar gelap tidak terbaca scanner mana pun. */
+  .qr-satu img { display:block; width:180px; height:180px; background:#fff; }
+  .qr-satu figcaption { margin-top:6px; font-family:var(--mono); font-weight:700;
+                        font-size:1rem; color:#000; }
+
+  /* Yang dicetak cuma kartunya. Tanpa ini, satu halaman berisi kamera, tabel, dan
+     strip tally — puluhan lembar terbuang sebelum kartu pertama muncul. */
+  @media print {
+    body > *:not(#sec-truk) { display:none !important; }
+    #sec-truk > *:not(#qr-cetak) { display:none !important; }
+    #sec-truk { display:block !important; }
+    .qr-satu { break-inside:avoid; border-color:#000; }
+  }
   #gerbang-masuk { min-height:3.6rem; font-size:1.1rem; border-radius:var(--r-md); }
   #gerbang-pesan { min-height:1.5rem; margin:0; font-weight:700; color:var(--danger-fg); }
   #operator-aktif { align-self:center; font-weight:700; }
@@ -601,6 +622,18 @@
     <input id="plat" class="plat" maxlength="11" data-t-ph="phPlat"
            placeholder="KT 2509 ABC" autocomplete="off">
     <button id="daftar" class="utama" data-t="btnDaftar" disabled>Daftar truk manual</button>
+    <!--
+      Kartu QR untuk ditempel di kaca truk atau dikirim ke HP supir. Sekali cetak untuk
+      semua truk: menempel satu per satu berarti membuka halaman ini puluhan kali.
+      Cetaknya lewat dialog print browser — halaman di sandbox tidak bisa memaksa
+      unduhan berkas, jadi tombol "Download PDF" akan diam-diam tidak melakukan apa pun.
+    -->
+    <button id="cetak-qr" data-t="btnCetakQr">Cetak QR truk</button>
+  </div>
+  <!-- Diisi saat tombol ditekan; disembunyikan di luar mode cetak. -->
+  <div id="qr-cetak" hidden>
+    <h2 data-t="qrJudul">Kartu QR truk</h2>
+    <div id="qr-kartu" class="qr-kartu"></div>
   </div>
   <div class="tabel">
     <table>
@@ -714,6 +747,7 @@ const KAMUS = {
     lihatSingkat:"Lihat", sembunyikanSingkat:"Tutup",
     perHalaman:"Baris per halaman", halamanSebelum:"Sebelumnya", halamanBerikut:"Berikutnya",
     keHalaman:"Ke halaman",
+    btnCetakQr:"Cetak QR truk", qrJudul:"Kartu QR truk",
     rentangBaris:"{dari}-{sampai} dari {total}",
     gerbangKosong:"Belum ada operator. Buat dulu di PC ini: make operator",
     btnPistonBuka:"Buka piston", btnPistonTutup:"Tutup piston",
@@ -767,6 +801,7 @@ const KAMUS = {
     lihatSingkat:"Show", sembunyikanSingkat:"Hide",
     perHalaman:"Rows per page", halamanSebelum:"Previous", halamanBerikut:"Next",
     keHalaman:"Go to page",
+    btnCetakQr:"Print truck QR", qrJudul:"Truck QR cards",
     rentangBaris:"{dari}-{sampai} of {total}",
     gerbangKosong:"No operators yet. Create one on this PC: make operator",
     btnPistonBuka:"Open piston", btnPistonTutup:"Close piston",
@@ -1790,6 +1825,37 @@ async function muatRekap() {
       ? items.map(barisRekap).join("") : barisKosong(8, "kosongRekap");
   } catch (e) { /* nothing graded yet - the screen keeps working */ }
 }
+
+// Satu kartu QR: gambarnya dari server (tidak ada pustaka CDN — layar ini harus
+// tetap terbuka saat internet mati), dan platnya ikut tercetak sebagai tulisan
+// supaya kartu yang kotor atau rusak masih bisa diketik manual operator.
+function kartuQr(tr) {
+  const plat = tr.plate_number || "";
+  // encodeURIComponent: plat berspasi akan memotong URL-nya dan gambarnya tidak
+  // pernah dimuat.
+  const src = `/api/console/trucks/${encodeURIComponent(plat)}/qr.png`;
+  return `<figure class="qr-satu">
+    <img src="${esc(src)}" alt="${esc(plat)}" width="180" height="180">
+    <figcaption>${esc(plat)}</figcaption>
+  </figure>`;
+}
+
+$("cetak-qr").addEventListener("click", () => {
+  // Dirakit saat ditekan, bukan di setiap poll: puluhan <img> yang dibangun ulang
+  // tiap 60 detik akan meminta ulang semua gambarnya.
+  $("qr-kartu").innerHTML = trucks.filter((tr) => tr.plate_number).map(kartuQr).join("");
+  $("qr-cetak").hidden = false;
+  // Menunggu gambarnya dimuat dulu: print() yang dipanggil terlalu cepat mencetak
+  // kotak kosong, dan itu setumpuk kertas terbuang yang baru terlihat sesudahnya.
+  const gambar = [...$("qr-kartu").querySelectorAll("img")];
+  Promise.all(gambar.map((g) => g.complete ? null : new Promise((r) => {
+    g.onload = g.onerror = r;
+  }))).then(() => window.print());
+});
+
+// Sesudah dialog print ditutup, kartunya disembunyikan lagi: satu layar penuh QR
+// membuat tab Truk tidak terpakai.
+window.addEventListener("afterprint", () => { $("qr-cetak").hidden = true; });
 
 function isiTrucks() {
   $("trucks").innerHTML = trucks.length

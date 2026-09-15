@@ -11,6 +11,9 @@ developer's own `state/console.db` and leave test rows in it.
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -154,3 +157,89 @@ def test_yang_bukan_plat_ditolak_400(gerbang, sampah):
 
     assert jawab.status_code == 400
     assert jawab.json()["detail"]["code"] == PLAT_KOSONG
+
+
+# ── cetak QR (lane gambar) ───────────────────────────────────────────────────
+
+
+def test_gambar_qr_butuh_sesi():
+    """Plat truk itu data operasional pabrik. Lane gambarnya ikut di belakang gerbang
+    seperti lane operator lain."""
+    # App tanpa sesi: fixture `gerbang` sudah sign-in, jadi dirakit sendiri di sini.
+    store = ConsoleStore(Path(tempfile.mkdtemp()) / "console.db")
+    app = FastAPI()
+    app.include_router(console_router)
+    app.dependency_overrides[get_console_service] = lambda: _StubConsole(store)
+    app.dependency_overrides[get_auth_service] = lambda: AuthService(store)
+    app.dependency_overrides[get_scan_service] = lambda: ScanService(store)
+
+    jawab = TestClient(app).get(f"/api/console/trucks/{PLAT}/qr.png")
+
+    assert jawab.status_code == 401
+
+
+def test_gambar_qr_dikirim_sebagai_png(gerbang):
+    client, _ = gerbang
+    _masuk(client)
+
+    jawab = client.get(f"/api/console/trucks/{PLAT}/qr.png")
+
+    assert jawab.status_code == 200
+    assert jawab.headers["content-type"] == "image/png"
+    assert jawab.content.startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def test_gambar_qr_berisi_plat_yang_diminta(gerbang):
+    """Dibuktikan lewat pola QR-nya: pola untuk satu isi bersifat tetap, jadi sama
+    dengan pola `BE4412OFL` berarti isinya memang itu."""
+    import segno
+
+    from palmgrade.services.qr_cetak import KOREKSI, png_qr
+
+    client, _ = gerbang
+    _masuk(client)
+
+    jawab = client.get(f"/api/console/trucks/{PLAT}/qr.png")
+
+    assert jawab.content == png_qr(PLAT)
+    # Dan pola itu memang pola platnya, bukan kebetulan dua fungsi yang sama-sama salah.
+    assert segno.make("BE4412OFL", error=KOREKSI).matrix is not None
+
+
+def test_plat_gaya_apa_pun_menghasilkan_qr_yang_sama(gerbang):
+    """Satu truk = satu QR. Kalau tidak, dua kartu tercetak untuk satu truk dan
+    salah satunya nanti tidak cocok dengan barisnya."""
+    client, _ = gerbang
+    _masuk(client)
+
+    isi = {
+        client.get(f"/api/console/trucks/{p}/qr.png").content
+        for p in ("BE4412OFL", "be-4412-ofl", "BE 4412 OFL")
+    }
+
+    assert len(isi) == 1
+
+
+def test_plat_yang_bukan_plat_ditolak_400(gerbang):
+    """Isi QR datang dari baris truk, dan baris itu bisa salah isi. Kartu yang isinya
+    bukan plat tidak akan pernah bisa di-scan."""
+    client, _ = gerbang
+    _masuk(client)
+
+    jawab = client.get("/api/console/trucks/bukan-plat-1234567/qr.png")
+
+    assert jawab.status_code == 400
+    assert jawab.json()["detail"]["code"] == PLAT_KOSONG
+
+
+def test_gambar_qr_truk_yang_belum_terdaftar_tetap_dibuat(gerbang):
+    """Kartu dicetak DULU, truknya didaftarkan kemudian — itu urutan yang wajar untuk
+    truk baru. Menolak di sini memaksa backoffice mendaftarkan dulu sebelum bisa
+    mencetak, padahal QR-nya cuma berisi plat."""
+    client, _ = gerbang
+    _masuk(client)
+
+    jawab = client.get("/api/console/trucks/BE9999XYZ/qr.png")
+
+    assert jawab.status_code == 200
+    assert jawab.content.startswith(b"\x89PNG\r\n\x1a\n")

@@ -455,3 +455,52 @@ def test_favicon_tidak_memutus_atribut_href():
     dipulihkan = urllib.parse.unquote(muatan)
     assert dipulihkan.lstrip().startswith("<svg"), "data URI tidak memuat SVG"
     assert dipulihkan.rstrip().endswith("</svg>")
+
+
+# ── halaman cetak QR ────────────────────────────────────────────────────────
+
+
+def test_tab_truk_punya_tombol_cetak_qr():
+    blok = HTML.split('<section id="sec-truk"', 1)[1].split("</section>", 1)[0]
+    assert 'id="cetak-qr"' in blok
+
+
+def test_kartu_qr_memuat_gambar_dari_server_bukan_pustaka_cdn():
+    """`console.html` nol referensi https:// dengan sengaja — layar harus tetap terbuka
+    saat internet mati, dan QR yang gagal dimuat berarti gerbang berhenti."""
+    fn = _fungsi("kartuQr")
+    assert "/api/console/trucks/" in fn and "qr.png" in fn
+    assert "https://" not in fn
+
+
+def test_plat_di_url_qr_di_encode():
+    """Plat masuk ke URL. Tanpa encode, plat berspasi memotong URL-nya dan gambarnya
+    tidak pernah dimuat."""
+    assert "encodeURIComponent" in _fungsi("kartuQr")
+
+
+def test_kartu_qr_juga_mencetak_platnya_sebagai_tulisan():
+    """QR yang rusak atau kotor tidak terbaca scanner. Nomor platnya harus tetap ada
+    supaya operator bisa mengetiknya manual."""
+    fn = _fungsi("kartuQr")
+    assert "plate_number" in fn
+
+
+def test_nama_truk_di_kartu_lewat_esc():
+    """Plat truk manual diketik operator, jadi nilai dari database masuk ke HTML."""
+    assert "esc(" in _fungsi("kartuQr")
+
+
+def test_halaman_cetak_disembunyikan_saat_tidak_mencetak():
+    """Kartunya menumpuk di bawah tabel kalau tidak disembunyikan, dan layar operator
+    dibaca dari jauh — satu layar penuh kartu QR membuat tab Truk tidak terpakai."""
+    assert 'id="qr-cetak"' in HTML
+    aturan = [b for b in HTML.splitlines() if "#qr-cetak" in b and "display" in b]
+    assert aturan, "#qr-cetak tidak punya aturan display"
+
+
+def test_label_cetak_qr_diterjemahkan():
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("btnCetakQr", "qrJudul"):
+            assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"

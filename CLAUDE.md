@@ -158,6 +158,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/console/history` | filter `tanggal_kerja` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas |
 | GET | `/api/console/trucks` | master truk + supplier + `sumber_label` |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
+| GET | `/api/console/trucks/{plat}/qr.png` | kartu QR untuk ditempel di truk / dikirim ke HP supir. **Dibuat di server** (`segno`, pure-Python) karena `console.html` nol referensi `https://` — pustaka CDN akan mati saat internet putus. Isinya plat ternormalisasi, divalidasi ulang sebelum dicetak. Truk yang belum terdaftar tetap dilayani: kartu dicetak dulu, truknya didaftarkan kemudian |
 | POST | `/api/console/scan` | `{qr}` hasil scan di gerbang timbangan → truk yang sudah ada. Truk belum terdaftar dijawab **200 `ditemukan:false`** (truk pinjaman itu kasus normal, 404 terbaca seperti kerusakan); yang bukan plat **400**. **Tidak pernah membuat truk dan tidak pernah menulis berat** |
 | GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto) |
 | POST | `/api/console/weighings` | operator mengetik bruto/tara sendiri — payload identik dengan kiriman program timbangan |
@@ -398,6 +399,16 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     (dua penulis untuk angka yang dibayar adalah cara paling rapi untuk salah bayar
     berbulan-bulan). Id truknya diturunkan dari plat, **aturan yang sama** dengan
     `catat_timbangan` — kalau beda, satu kunjungan bisa mendarat di dua truk.
+    **Kartu QR dibuat di server, bukan pustaka CDN** (`services/qr_cetak.py`, `segno`
+    pure-Python 77 KB): `console.html` nol referensi `https://` dengan sengaja, dan QR
+    yang gagal dimuat berarti gerbang timbangan berhenti. Koreksi kesalahan `m` (15%) —
+    kartunya hidup di kaca truk, dan `l` (7%) terlalu tipis untuk hujan dan debu sawit.
+    Kartunya **dipatok putih dengan tulisan hitam**, tidak ikut tema: QR gelap di latar
+    gelap tidak terbaca scanner mana pun. Halaman cetak menunggu semua gambar dimuat
+    sebelum `print()` — dialog yang muncul terlalu cepat mencetak kotak kosong, dan itu
+    setumpuk kertas terbuang yang baru terlihat sesudahnya. `@media print`
+    menyembunyikan kamera, tally, tab, dan tabel: tanpa itu puluhan lembar terbuang
+    sebelum kartu pertama muncul.
     **Input manual tetap ada dan tidak boleh dihapus**: truk pinjaman, dan layar HP
     retak / gelap / kena matahari langsung adalah kasus nyata di gerbang.
 19. **Login konsol: email + sandi, dua sumber akun, diverifikasi offline** (Fase 4, §6.5).
