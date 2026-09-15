@@ -16,7 +16,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[2]
 COMPOSE = REPO / "docker-compose.yml"
-DOCS = [REPO / "docs/plc-handoff-commissioning.md", REPO / "docs/plc-ai-context.md"]
+DOCS = [REPO / "docs/plc-handoff-commissioning.md"]
 
 
 def _compose_map() -> dict[str, list[int]]:
