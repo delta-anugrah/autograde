@@ -410,3 +410,25 @@ def test_tarikan_erp_tidak_menurunkan_peran_akun_lokal(tmp_path):
          "erp_name": "s", "active": 1, "peran": "operator"}
     )
     assert store.operator_by_email("support@autograde.local")["peran"] == "support"
+
+
+def test_reset_sandi_lokal_tidak_menghapus_peran(tmp_path):
+    """`make operator` mengganti sandi lewat upsert yang sama dengan pembuatan.
+
+    Kalau upsert itu ikut menimpa peran, akun support di PC pabrik diam-diam turun
+    jadi operator setiap kali sandinya direset — dan layar diagnostik hilang persis
+    saat seseorang datang lewat AnyDesk untuk memakainya.
+    """
+    store = ConsoleStore(tmp_path / "c.db")
+    oid = store.upsert_operator_lokal(
+        {"email": "support@autograde.local", "nama": "S", "password_hash": "scrypt$lama"}
+    )
+    store.set_peran(oid, "support")
+
+    store.upsert_operator_lokal(
+        {"email": "support@autograde.local", "nama": "S", "password_hash": "scrypt$baru"}
+    )
+
+    row = store.operator_by_email("support@autograde.local")
+    assert row["peran"] == "support"
+    assert row["password_hash"] == "scrypt$baru", "sandi tetap harus terganti"
