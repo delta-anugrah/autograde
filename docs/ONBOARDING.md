@@ -80,10 +80,12 @@ Line dan konsol memakai **modul aplikasi yang berbeda**: `main.py` untuk line (m
 OpenCV, dan driver kamera) dan `console_main.py` untuk konsol, yang **tidak boleh** mengimpor
 torch maupun OpenCV. Tujuannya satu: gangguan pada kamera tidak boleh mematikan layar operator.
 
-**Layar operator terkunci.** Sampai ada yang masuk dengan PIN, seluruh layar tertutup gerbang dan
-seluruh API konsol menjawab 401. Akun operator bersifat lokal — AutoERP belum punya DocType
-operator, dan operator harus tetap bisa masuk saat internet mati — dan dibuat dari PC itu sendiri
-dengan `make operator`. Tidak ada halaman web untuk membuat akun.
+**Layar operator terkunci.** Sampai ada yang masuk dengan **email dan sandi**, seluruh layar
+tertutup gerbang dan seluruh API konsol menjawab 401. Akun datang dari dua tempat: dibuat di
+AutoERP (DocType `AutoGrade Operator`, ikut turun bareng master data) atau dibuat lokal di PC itu
+dengan `make operator` — akun bawaan dan akun support, supaya pabrik yang belum pernah dapat
+internet tetap bisa dibuka. Keduanya diperiksa di pabrik, jadi login tetap jalan saat internet
+mati: yang ikut turun itu hash sandinya, bukan sandinya. Tidak ada halaman web untuk membuat akun.
 
 ## 4. Alur Data: Satu Janjang
 
@@ -213,7 +215,7 @@ Dua folder yang sering disalahpahami:
 
 ```bash
 cd autograde
-make operator         # sekali: akun operator (tanya nama + PIN 6 angka)
+make operator         # sekali: akun lokal (tanya email + nama + sandi)
 make console          # http://127.0.0.1:8100/console
 ```
 
@@ -317,8 +319,8 @@ Setiap butir berikut pernah menyebabkan kehilangan waktu berjam-jam.
 ## 12. Langkah Pertama
 
 1. Baca bagian **Critical Rules** di `CLAUDE.md`.
-2. Buat operator dengan `make operator`, jalankan `make console`, lalu masuk dengan PIN itu dan
-   coba layar operator.
+2. Buat operator dengan `make operator`, jalankan `make console`, lalu masuk dengan email dan
+   sandi itu dan coba layar operator.
 3. Buka `src/palmgrade/workers/frame_processing_worker.py` — di sinilah janjang diubah menjadi angka.
 4. Buka `src/palmgrade/domain/working_day.py` — contoh aturan murni yang ringkas di `domain/`.
 5. Jalankan `.venv/bin/pytest tests/unit` dan pastikan seluruhnya lolos sebelum mulai mengubah kode.
@@ -330,5 +332,6 @@ dianggap "memang begitu".
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 1.2 | 15 September 2026 | Login email + sandi: akun dari AutoERP (`AutoGrade Operator`) atau lokal, diverifikasi offline |
 | 1.1 | 15 September 2026 | Login konsol (Fase 4): gerbang PIN, akun lokal lewat `make operator` |
 | 1.0 | 14 September 2026 | Rilis pertama |
