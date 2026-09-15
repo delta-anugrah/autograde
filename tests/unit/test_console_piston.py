@@ -45,17 +45,17 @@ def service(tmp_path):
 def test_perintah_piston_diteruskan_ke_line(service):
     kode = service.lines[0].line_code
     asyncio.run(service.piston(kode, True))
-    assert service._line_client.perintah == [(kode, True)]
+    assert service.line_client.perintah == [(kode, True)]
 
 
 def test_line_mati_muncul_sebagai_error_operator(service):
-    service._line_client.mati = True
+    service.line_client.mati = True
     with pytest.raises(LineUnavailable):
         asyncio.run(service.piston(service.lines[0].line_code, True))
 
 
 def test_worker_menyimpan_status_line_dan_state_memakainya(service):
-    worker = LineStatusWorker(service.lines, service._line_client, interval_s=0)
+    worker = LineStatusWorker(service.lines, service.line_client, interval_s=0)
     asyncio.run(worker.run_once())
     service.line_status = worker.snapshot
 
@@ -67,7 +67,7 @@ def test_worker_menyimpan_status_line_dan_state_memakainya(service):
 
 
 def test_line_mati_tidak_menjatuhkan_worker(service):
-    service._line_client.mati = True
-    worker = LineStatusWorker(service.lines, service._line_client, interval_s=0)
+    service.line_client.mati = True
+    worker = LineStatusWorker(service.lines, service.line_client, interval_s=0)
     asyncio.run(worker.run_once())          # tidak boleh raise
     assert worker.snapshot()[service.lines[0].line_code]["reachable"] is False

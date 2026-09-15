@@ -164,3 +164,80 @@ def test_the_listing_shows_where_each_account_came_from(tmp_path):
     asal = {row["email"]: row["asal"] for row in admin.listing()}
 
     assert asal == {EMAIL: "lokal", "sari@pks.test": "erp"}
+
+
+# ------------------------------------------------------------------- peran
+#
+# The gap these cover: a mill whose accounts were all made by `make operator`
+# before it knew about roles ends up with nobody able to reach the developer
+# screens, and no local way back in. `AKSI=peran` (via `set_peran`) and a role
+# on `AKSI=tambah` (via `add_or_reset`) are the two ways out.
+
+
+def test_a_role_given_on_add_lands_in_the_column(tmp_path):
+    admin, store = _admin(tmp_path)
+
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, peran="support")
+
+    assert store.operator(operator_id_for(EMAIL))["peran"] == "support"
+
+
+def test_an_unrecognised_role_on_add_falls_back_to_operator(tmp_path):
+    """A typo in PERAN must not land on the column unchecked — the column
+    gates the piston screen, same reasoning as `ConsoleStore.set_peran`."""
+    admin, store = _admin(tmp_path)
+
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, peran="admin")
+
+    assert store.operator(operator_id_for(EMAIL))["peran"] == "operator"
+
+
+def test_omitting_the_role_on_add_promotes_nobody(tmp_path):
+    """The default `make operator` run — no PERAN typed — must never be the
+    thing that silently creates a second support account."""
+    admin, store = _admin(tmp_path)
+
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI)
+
+    assert store.operator(operator_id_for(EMAIL))["peran"] == "operator"
+
+
+def test_a_role_on_add_never_touches_an_existing_accounts_role(tmp_path):
+    """`add_or_reset` is also the forgotten-password path. A password reset run
+    with no PERAN typed must not silently demote a support account back to
+    plain operator."""
+    admin, store = _admin(tmp_path)
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, peran="support")
+
+    _, disahkan = admin.add_or_reset(EMAIL, NAMA, "sawit2027", "sawit2027")
+
+    assert disahkan == "support"
+    assert store.operator(operator_id_for(EMAIL))["peran"] == "support"
+
+
+def test_set_peran_changes_an_existing_accounts_role(tmp_path):
+    admin, store = _admin(tmp_path)
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI)
+
+    disahkan = admin.set_peran(EMAIL, "support")
+
+    assert disahkan == "support"
+    assert store.operator(operator_id_for(EMAIL))["peran"] == "support"
+
+
+def test_set_peran_also_falls_back_to_operator_on_an_unknown_value(tmp_path):
+    admin, store = _admin(tmp_path)
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, peran="support")
+
+    disahkan = admin.set_peran(EMAIL, "admin")
+
+    assert disahkan == "operator"
+    assert store.operator(operator_id_for(EMAIL))["peran"] == "operator"
+
+
+def test_set_peran_on_an_email_nobody_has_says_so(tmp_path):
+    """Same reasoning as `switch_off`: a typo must not read as success."""
+    admin, _ = _admin(tmp_path)
+
+    with pytest.raises(ValueError, match="tidak ada"):
+        admin.set_peran("budiman@pks.test", "support")

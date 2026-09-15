@@ -72,7 +72,7 @@ def get_dev_service() -> DevService:
     settings = service.settings
     return DevService(
         LogStore(settings.log_db_path, retensi_hari=settings.log_retensi_hari),
-        line_client=service._line_client,
+        line_client=service.line_client,
         lines=service.lines,
         erp_outbox=service.erp_queue.outbox,
         settings=settings,

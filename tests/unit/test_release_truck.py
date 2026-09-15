@@ -57,13 +57,13 @@ def test_lepas_truk_memberi_tahu_line_lalu_mengosongkan_layar(service):
     asyncio.run(service.lepas_truk(kode))
 
     # The screen is not the point — the line is what has to know.
-    assert service._line_client.kiriman[-1] == (kode, "", "")
+    assert service.line_client.kiriman[-1] == (kode, "", "")
     assert _kartu(service, kode)["assignment"] is None
 
 
 def test_lepas_truk_gagal_kalau_line_mati_layar_tetap_jujur(service):
     kode = _pasang_truk(service)
-    service._line_client.mati = True
+    service.line_client.mati = True
 
     with pytest.raises(LineUnavailable):
         asyncio.run(service.lepas_truk(kode))

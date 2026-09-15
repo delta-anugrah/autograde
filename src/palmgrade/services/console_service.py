@@ -65,7 +65,7 @@ class ConsoleService:
         self.settings = settings
         self.store = store
         self.lines = settings.console_lines
-        self._line_client = line_client
+        self.line_client = line_client
         # None when the console runs without the AutoERP link: everything at the
         # mill still happens, it simply goes nowhere.
         self.erp_queue = erp_queue
@@ -394,7 +394,7 @@ class ConsoleService:
         # a screen showing a truck assigned while the line knows nothing makes
         # the operator think it is done, and the next event ships with no
         # truck. A failure has to look like one.
-        await self._line_client.assign_truck(
+        await self.line_client.assign_truck(
             line,
             assignment_id=assignment_id,
             truck_id=truck_id,
@@ -417,7 +417,7 @@ class ConsoleService:
         """
         line = self._require_line(line_code)
         closing = self.store.assignments().get(line_code) or {}
-        await self._line_client.assign_truck(
+        await self.line_client.assign_truck(
             line,
             assignment_id="",
             truck_id="",
@@ -431,7 +431,7 @@ class ConsoleService:
     async def manual_reject(self, line_code: str, requested_by: str) -> dict[str, Any]:
         line = self._require_line(line_code)
         current = self.store.assignments().get(line_code) or {}
-        await self._line_client.manual_reject(
+        await self.line_client.manual_reject(
             line,
             assignment_id=current.get("assignment_id") or "",
             requested_by=requested_by,
@@ -442,7 +442,7 @@ class ConsoleService:
     async def piston(self, line_code: str, open: bool) -> dict[str, Any]:
         """Teruskan permintaan piston ke line. Line yang menolak = error operator."""
         line = self._require_line(line_code)
-        await self._line_client.set_piston(
+        await self.line_client.set_piston(
             line, open=open, requested_by="operator",
             requested_at=datetime.now(self.tz).isoformat(),
         )

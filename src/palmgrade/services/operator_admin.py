@@ -20,6 +20,7 @@ from ..domain.operator_auth import (
     normalise_nama,
     operator_id_for,
 )
+from ..domain.peran import PERAN_OPERATOR, peran_sah
 from ..repositories.console_repository import ConsoleStore
 
 
@@ -27,8 +28,16 @@ class OperatorAdmin:
     def __init__(self, store: ConsoleStore) -> None:
         self._store = store
 
-    def add_or_reset(self, email: str, nama: str, sandi: str, sandi_again: str) -> str:
+    def add_or_reset(
+        self, email: str, nama: str, sandi: str, sandi_again: str, peran: str = PERAN_OPERATOR
+    ) -> tuple[str, str]:
         """Add a local account, or reset the password of the one holding that email.
+
+        Returns `(operator_id, peran)` — the role actually stored, which is only ever
+        `peran` on a brand-new account. `ConsoleStore.upsert_operator_lokal` keeps an
+        EXISTING account's role untouched by a password reset — a role set once must not
+        be erased by the next reset — so the caller is told what really landed rather
+        than what it asked for. Promoting an existing account is `set_peran`.
 
         A reset ends every session opened with the old password — a password is reset
         because someone saw it. Nothing is stored unless every check passes.
@@ -49,9 +58,32 @@ class OperatorAdmin:
             raise ValueError(
                 f"{email} milik AutoERP — ubah sandinya di AutoERP, bukan di PC ini"
             )
-        return self._store.upsert_operator_lokal(
-            {"email": email, "nama": nama, "password_hash": hash_password(sandi)}
+        operator_id = self._store.upsert_operator_lokal(
+            {
+                "email": email,
+                "nama": nama,
+                "password_hash": hash_password(sandi),
+                "peran": peran_sah(peran),
+            }
         )
+        # Read back rather than assumed: the row is the only source of truth for
+        # which role actually landed (new account vs. an existing one kept its own).
+        return operator_id, self._store.operator(operator_id)["peran"]
+
+    def set_peran(self, email: str, peran: str) -> str:
+        """Change one EXISTING local account's role. Returns the role actually stored.
+
+        `add_or_reset` never touches the role of an account that already exists — on
+        purpose, so a password reset can never double as a silent promotion. This is
+        the explicit, separate action for changing a role on its own.
+        """
+        operator_id = operator_id_for(email)
+        if self._store.operator(operator_id) is None:
+            # A typo must not read as success while the real account stays live.
+            raise ValueError(f"operator {normalise_email(email)!r} tidak ada")
+        disahkan = peran_sah(peran)
+        self._store.set_peran(operator_id, disahkan)
+        return disahkan
 
     def switch_off(self, email: str) -> None:
         """Take an account off the sign-in screen and end its sessions now.

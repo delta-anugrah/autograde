@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from ..domain.operator_auth import normalise_email, normalise_nama, operator_id_for
-from ..domain.peran import peran_sah, saring_peran_erp
+from ..domain.peran import PERAN_SUPPORT, peran_sah, saring_peran_erp
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
@@ -819,6 +819,20 @@ class ConsoleStore:
                 "WHERE status = 'active' ORDER BY nama"
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def ada_akun_support(self) -> bool:
+        """Whether any active account can reach the developer screens.
+
+        Existence check in SQL, not a Python loop over `operators()`: the
+        lifespan asks this once at every startup, and a mill can carry years
+        of accounts by then.
+        """
+        with self._lock:
+            row = self._db.execute(
+                "SELECT 1 FROM operators WHERE peran = ? AND status = 'active' LIMIT 1",
+                (PERAN_SUPPORT,),
+            ).fetchone()
+        return row is not None
 
     def set_operator_status(self, operator_id: str, status: str) -> None:
         """`off` takes the account off the sign-in screen and ends the sessions it still

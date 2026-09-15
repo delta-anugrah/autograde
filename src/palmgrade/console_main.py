@@ -64,6 +64,17 @@ async def lifespan(app: FastAPI):
             "ERP_URL kosong, jadi tidak ada yang bisa masuk konsol. Isi hash di .env "
             "(buat dengan `make hash-sandi`, tulis $$ untuk satu $), atau set ERP_URL."
         )
+    # A mill whose .env predates this build, or whose accounts came only from
+    # `make operator` before it could set a role, can end up with every account on
+    # `operator` — locking out the developer screens with no account able to open
+    # them back up. Said once, at the only moment anybody is watching the log.
+    if not service.store.ada_akun_support():
+        logger.warning(
+            "Tidak ada akun dengan peran support: layar developer konsol ini tidak bisa "
+            "dibuka siapa pun. Jalankan `make operator AKSI=peran PERAN=support` di PC ini "
+            "(pakai `make operator-docker` kalau konsolnya jalan di Docker) untuk menaikkan "
+            "akun yang sudah ada, atau `make operator PERAN=support` untuk akun baru."
+        )
     # The AutoERP link is optional by design: with ERP_URL empty there are no
     # workers at all, and any of them may die without taking the screen down.
     workers = build_erp_workers(service.settings, service.store, service.erp_queue)
@@ -71,7 +82,7 @@ async def lifespan(app: FastAPI):
 
     # Separate from the ERP workers above: the piston button must survive an
     # empty ERP_URL, so it cannot depend on build_erp_workers().
-    status_worker = LineStatusWorker(service.lines, service._line_client)
+    status_worker = LineStatusWorker(service.lines, service.line_client)
     service.line_status = status_worker.snapshot
     tasks.append(asyncio.create_task(status_worker.run_loop()))
 

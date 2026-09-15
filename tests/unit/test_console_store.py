@@ -379,6 +379,42 @@ def test_set_peran_menolak_nilai_asing(tmp_path):
     assert store.operator_by_email("x@b.c")["peran"] == "operator"
 
 
+def test_ada_akun_support_kosong_kalau_tidak_ada_operator_sama_sekali(tmp_path):
+    store = ConsoleStore(tmp_path / "c.db")
+    assert store.ada_akun_support() is False
+
+
+def test_ada_akun_support_kosong_kalau_semua_operator(tmp_path):
+    """The exact trap this method exists to catch: every account on `operator`,
+    none able to open the screen that would promote another one."""
+    store = ConsoleStore(tmp_path / "c.db")
+    store.upsert_operator_lokal(
+        {"email": "op@b.c", "nama": "Operator", "password_hash": "scrypt$x"}
+    )
+    assert store.ada_akun_support() is False
+
+
+def test_ada_akun_support_benar_begitu_satu_akun_dinaikkan(tmp_path):
+    store = ConsoleStore(tmp_path / "c.db")
+    oid = store.upsert_operator_lokal(
+        {"email": "s@b.c", "nama": "S", "password_hash": "scrypt$x"}
+    )
+    store.set_peran(oid, "support")
+    assert store.ada_akun_support() is True
+
+
+def test_ada_akun_support_kosong_kalau_akun_support_dimatikan(tmp_path):
+    """A switched-off account cannot sign in, so it does not count as an escape
+    hatch — same rule `operators()` already applies to the sign-in list."""
+    store = ConsoleStore(tmp_path / "c.db")
+    oid = store.upsert_operator_lokal(
+        {"email": "s@b.c", "nama": "S", "password_hash": "scrypt$x"}
+    )
+    store.set_peran(oid, "support")
+    store.set_operator_status(oid, "off")
+    assert store.ada_akun_support() is False
+
+
 def test_tarikan_erp_menulis_peran_yang_diizinkan(tmp_path):
     store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset({"support"}))
     store.upsert_operator_erp(
