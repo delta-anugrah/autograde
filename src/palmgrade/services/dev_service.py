@@ -26,7 +26,7 @@ from ..domain.operator_error import (
     OperatorError,
 )
 from ..integrations.erp.outbox_store import ErpOutboxStore
-from ..integrations.notifications.line_client import LineClient, LinePlcTolak
+from ..integrations.notifications.line_client import LineClient, LinePlcTolak, LineUnavailable
 from ..repositories.log_repository import LogStore
 
 logger = logging.getLogger(__name__)
@@ -164,6 +164,17 @@ class DevService:
                 raise PlcSibuk("line sedang memproses truk") from exc
             if exc.status_code == 422:
                 raise CoilTidakDikenal(f"coil {coil} tidak dikenal") from exc
+            raise
+        except LineUnavailable as exc:
+            # An unreachable line is the ORDINARY state while a mill is being
+            # commissioned or is already broken — exactly when this button gets
+            # pressed, and exactly when the trail matters most. LineClient logs
+            # its own line (line_client.py) for the network story, but that log
+            # line has no idea who the operator is — this one does.
+            logger.warning(
+                "UJI PLC: %s memicu coil %s di %s — line tidak terjangkau: %s",
+                operator_email, coil, line_code, exc,
+            )
             raise
         logger.warning(
             "UJI PLC: %s memicu coil %s di %s (fired=%s)",

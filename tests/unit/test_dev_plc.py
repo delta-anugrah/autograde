@@ -283,6 +283,46 @@ def test_picu_line_tidak_menjawab_502(tmp_path):
     assert r.status_code == 502
 
 
+def test_line_tidak_terjangkau_juga_meninggalkan_jejak_di_log(tmp_path):
+    """A network-unreachable line is the ORDINARY state at a mill being
+    commissioned or already broken — exactly when this button gets pressed,
+    and exactly when the trail matters most. `LineClient` logs its own line
+    for the network story (no operator identity there), but the console's
+    own trail must still name who pressed what. Asserts the row's CONTENT,
+    not merely that a row exists — a row with no email would still pass a
+    weaker assertion and hide this exact regression.
+    """
+    store = ConsoleStore(tmp_path / "console.db")
+    log_store = LogStore(tmp_path / "log.db")
+    erp_outbox = ErpOutboxStore(tmp_path / "erp_outbox.db")
+    dev_logger = logging.getLogger("palmgrade.services.dev_service")
+    dev_logger.handlers.clear()
+    dev_logger.setLevel(logging.DEBUG)
+    dev_logger.addHandler(SqliteLogHandler(log_store))
+    dev_logger.propagate = False
+    try:
+        app = FastAPI()
+        app.include_router(console_router)
+        app.dependency_overrides[get_console_service] = lambda: _StubConsole(store)
+        app.dependency_overrides[get_auth_service] = lambda: AuthService(store)
+        app.dependency_overrides[get_dev_service] = lambda: DevService(
+            log_store, line_client=_FakeLineClientTidakMenjawab(), lines=(LINE_1,),
+            erp_outbox=erp_outbox, settings=_FakeSettings(),
+        )
+        r = _client_support(app, store, email="s@b.c").post(
+            "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
+        )
+        assert r.status_code == 502
+
+        items = log_store.baca(level="WARNING", cari="coil", limit=10, offset=0)["items"]
+        assert len(items) == 1
+        assert "s@b.c" in items[0]["pesan"]
+        assert "11" in items[0]["pesan"]
+        assert "line-1" in items[0]["pesan"]
+    finally:
+        dev_logger.handlers.clear()
+
+
 def test_uji_plc_menolak_operator_biasa(tmp_path):
     app, store, _ = _app_plc(tmp_path)
     assert _client_operator(app, store).get("/api/console/dev/plc/line-1").status_code == 403

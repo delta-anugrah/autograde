@@ -25,7 +25,7 @@ from palmgrade.domain.operator_auth import hash_password
 from palmgrade.domain.operator_error import BUKAN_SUPPORT
 from palmgrade.domain.peran import PERAN_OPERATOR, PERAN_SUPPORT
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
-from palmgrade.integrations.notifications.line_client import LinePlcTolak
+from palmgrade.integrations.notifications.line_client import LinePlcTolak, LineUnavailable
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.repositories.log_repository import LogStore
 from palmgrade.routes.console import get_auth_service, get_console_service, get_dev_service
@@ -52,8 +52,9 @@ class _LineClientPlc:
     fact every safety test below turns on.
     """
 
-    def __init__(self, *, busy: bool = False, inputs=None):
+    def __init__(self, *, busy: bool = False, unreachable: bool = False, inputs=None):
         self.busy = busy
+        self.unreachable = unreachable
         self.inputs = inputs or [False, False, True]
         self.writes: list[int] = []
 
@@ -61,6 +62,10 @@ class _LineClientPlc:
         return {"enabled": True, "inputs": self.inputs, "testable_coils": [0, 1, 11]}
 
     async def plc_coil(self, line: LineEndpoint, *, coil: int, requested_by: str) -> dict:
+        if self.unreachable:
+            raise LineUnavailable(
+                "LINE_TIDAK_MENJAWAB", f"{line.line_code} tidak menjawab: timeout", line=line.name
+            )
         if self.busy:
             raise LinePlcTolak(409, "line_sedang_memproses_truk")
         self.writes.append(coil)
@@ -193,6 +198,40 @@ def test_picu_berhasil_meninggalkan_baris_warning_di_log(gerbang):
 
         assert jawab.status_code == 200
         assert line_client.writes == [11]
+
+        baris = log_store.baca(level="WARNING", cari="coil", limit=10, offset=0)["items"]
+        assert len(baris) == 1
+        assert "support@pks.test" in baris[0]["pesan"]
+        assert "11" in baris[0]["pesan"]
+        assert "line-1" in baris[0]["pesan"]
+    finally:
+        dev_logger.handlers.clear()
+
+
+def test_line_tidak_terjangkau_juga_meninggalkan_jejak_di_log(gerbang):
+    """A network-unreachable line is the ORDINARY state at a mill being
+    commissioned or already broken — exactly when this button gets pressed,
+    and exactly when the trail matters most. Before this test existed,
+    `LineUnavailable` propagated past DevService's logging entirely and the
+    press left NO row at all — asserting the row's content (not merely its
+    presence) is what would have caught that.
+    """
+    client, _, log_store, line_client = gerbang
+    line_client.unreachable = True
+    dev_logger = logging.getLogger("palmgrade.services.dev_service")
+    dev_logger.handlers.clear()
+    dev_logger.setLevel(logging.DEBUG)
+    dev_logger.addHandler(SqliteLogHandler(log_store))
+    dev_logger.propagate = False
+    try:
+        _masuk(client, "support@pks.test")
+
+        jawab = client.post(
+            "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
+        )
+
+        assert jawab.status_code == 502
+        assert line_client.writes == []
 
         baris = log_store.baca(level="WARNING", cari="coil", limit=10, offset=0)["items"]
         assert len(baris) == 1
