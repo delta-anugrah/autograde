@@ -212,6 +212,26 @@ async def console_scan(
         raise _operator_error(400, exc) from exc
 
 
+@router.post("/api/console/scan/keluar")
+async def console_scan_keluar(
+    scan: Scan, service: Service, operator: Operator, payload: Annotated[dict, Body()]
+) -> dict:
+    """The second scan, at the exit gate: which ticket is waiting for its tare.
+
+    The operator scans the plate and the console finds the ticket, instead of the
+    operator hunting for that truck's row among the day's tickets.
+
+    **Two open tickets are refused, not guessed** (operator's decision, 2026-09-15):
+    guessing here can attach the tare to the wrong visit and mix two visits' tonnage —
+    the same shape as the ticket-adoption bug we reported to AutoERP. The screen shows
+    both and the operator picks.
+    """
+    try:
+        return scan.tiket_terbuka(str(payload.get("qr") or ""), service.today())
+    except OperatorError as exc:
+        raise _operator_error(400, exc) from exc
+
+
 @router.get("/api/console/trucks/{plate_number}/qr.png", include_in_schema=False)
 async def console_truck_qr(plate_number: str, operator: Operator) -> Response:
     """The QR card image for one plate, built here rather than in the browser.

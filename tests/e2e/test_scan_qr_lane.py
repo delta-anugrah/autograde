@@ -372,3 +372,100 @@ def test_kartu_qr_yang_dicetak_bisa_dipakai_scan(gerbang):
 
     assert hasil["ditemukan"] is True
     assert hasil["truck"]["plate_number"] == PLAT
+
+
+# ── scan di gerbang keluar ───────────────────────────────────────────────────
+
+
+def _masuk_timbang(client, plat: str, jam: str = "08:00:00") -> dict:
+    jawab = client.post(
+        "/api/console/weighings",
+        json={"plate_number": plat, "bruto_kg": 13250,
+              "waktu_masuk": f"2026-09-15T{jam}+07:00"},
+    )
+    assert jawab.status_code == 201, jawab.text
+    return jawab.json()
+
+
+def test_scan_keluar_butuh_sesi(gerbang):
+    client, _ = gerbang
+
+    jawab = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"})
+
+    assert jawab.status_code == 401
+    assert jawab.json()["detail"]["code"] == BELUM_MASUK
+
+
+def test_scan_keluar_menemukan_tiket_yang_menunggu_tara(gerbang_penuh):
+    """Alur gerbang keluar: scan plat, sistem yang mencari tiketnya."""
+    client, _ = gerbang_penuh
+    _masuk(client)
+    tiket = _masuk_timbang(client, PLAT)
+
+    jawab = client.post("/api/console/scan/keluar", json={"qr": "be-4412-ofl"})
+
+    assert jawab.status_code == 200
+    hasil = jawab.json()
+    assert hasil["ditemukan"] is True
+    assert hasil["weighing"]["id"] == tiket["id"]
+    assert hasil["weighing"]["bruto_kg"] == 13250
+
+
+def test_scan_keluar_lalu_catat_tara_menutup_tiket_yang_sama(gerbang_penuh):
+    """Lingkaran penuh gerbang keluar. Yang dijaga: tara mendarat di tiket yang
+    di-scan, dan netonya dihitung dari bruto tiket itu — bukan tiket lain."""
+    client, store = gerbang_penuh
+    _masuk(client)
+    _masuk_timbang(client, PLAT)
+
+    hasil = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"}).json()
+    w = hasil["weighing"]
+
+    jawab = client.post(
+        "/api/console/weighings",
+        json={"plate_number": PLAT, "ref": w.get("ref"), "waktu_masuk": w["waktu_masuk"],
+              "tara_kg": 5000, "waktu_keluar": "2026-09-15T09:00:00+07:00"},
+    )
+
+    assert jawab.status_code == 201
+    assert jawab.json()["neto_kg"] == 8250.0
+    # Dan tiketnya tidak terbuka lagi.
+    ulang = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"}).json()
+    assert ulang["ditemukan"] is False
+
+
+def test_dua_tiket_terbuka_dijawab_minta_pilih_bukan_ditebak(gerbang_penuh):
+    """Keputusan operator: menebak bisa memasangkan tara ke kunjungan yang salah dan
+    mencampur tonase dua kunjungan."""
+    client, _ = gerbang_penuh
+    _masuk(client)
+    _masuk_timbang(client, PLAT, "08:00:00")
+    _masuk_timbang(client, PLAT, "10:00:00")
+
+    hasil = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"}).json()
+
+    assert hasil["ditemukan"] is False
+    assert hasil["ganda"] is True
+    assert len(hasil["pilihan"]) == 2
+
+
+def test_scan_keluar_tanpa_tiket_terbuka_dijawab_200(gerbang_penuh):
+    """Truk yang timbang masuknya terlewat. Jawaban jelas, bukan 404 yang terbaca
+    seperti kerusakan."""
+    client, _ = gerbang_penuh
+    _masuk(client)
+
+    jawab = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"})
+
+    assert jawab.status_code == 200
+    assert jawab.json()["ditemukan"] is False
+
+
+def test_scan_keluar_yang_bukan_plat_ditolak_400(gerbang_penuh):
+    client, _ = gerbang_penuh
+    _masuk(client)
+
+    jawab = client.post("/api/console/scan/keluar", json={"qr": "https://contoh.id"})
+
+    assert jawab.status_code == 400
+    assert jawab.json()["detail"]["code"] == BUKAN_PLAT

@@ -186,3 +186,97 @@ def test_kode_bukan_plat_terdaftar_supaya_wajib_diterjemahkan():
     from palmgrade.domain.operator_error import BUKAN_PLAT, CODES
 
     assert BUKAN_PLAT in CODES
+
+
+# ── scan di timbang keluar ───────────────────────────────────────────────────
+
+
+def _timbang_masuk(store: ConsoleStore, wid: str, plat: str, **over) -> None:
+    row = {
+        "id": wid, "ref": None, "plate_number": plat,
+        "plate_norm": "".join(c for c in plat.upper() if c.isalnum()),
+        "truck_id": truck_id_for(plat), "tanggal_kerja": "2026-09-15",
+        "bruto_kg": 13000.0, "tara_kg": None, "neto_kg": None,
+        "waktu_masuk": "2026-09-15T08:00:00+07:00", "waktu_keluar": None,
+    }
+    row.update(over)
+    store.upsert_weighing(row)
+
+
+def test_scan_keluar_menemukan_tiket_terbuka_truk_itu(store, scan):
+    """Operator scan platnya, sistem yang mencari tiketnya — bukan operator yang
+    menyusuri tabel mencari baris truk itu."""
+    _truk(store, "BE 4412 OFL")
+    _timbang_masuk(store, "w-1", "BE 4412 OFL")
+
+    hasil = scan.tiket_terbuka("BE4412OFL", "2026-09-15")
+
+    assert hasil["ditemukan"] is True
+    assert hasil["weighing"]["id"] == "w-1"
+
+
+def test_tiket_yang_sudah_ada_taranya_bukan_tiket_terbuka(store, scan):
+    """Sudah ditimbang keluar. Menawarkannya lagi berarti tara pertama ditimpa dan
+    neto berubah tanpa ada yang tahu."""
+    _truk(store, "BE 4412 OFL")
+    _timbang_masuk(store, "w-1", "BE 4412 OFL", tara_kg=5000.0, neto_kg=8000.0,
+                   waktu_keluar="2026-09-15T09:00:00+07:00")
+
+    hasil = scan.tiket_terbuka("BE4412OFL", "2026-09-15")
+
+    assert hasil["ditemukan"] is False
+
+
+def test_dua_tiket_terbuka_ditolak_bukan_ditebak(store, scan):
+    """Keputusan operator 2026-09-15: menebak di sini bisa mencampur tonase dua
+    kunjungan — persis bug adopsi tiket yang kami laporkan ke AutoERP. Layar meminta
+    operator memilih sendiri."""
+    _truk(store, "BE 4412 OFL")
+    _timbang_masuk(store, "w-1", "BE 4412 OFL")
+    _timbang_masuk(store, "w-2", "BE 4412 OFL", waktu_masuk="2026-09-15T10:00:00+07:00")
+
+    hasil = scan.tiket_terbuka("BE4412OFL", "2026-09-15")
+
+    assert hasil["ditemukan"] is False
+    assert hasil["ganda"] is True
+    assert len(hasil["pilihan"]) == 2
+
+
+def test_truk_tanpa_tiket_terbuka_dijawab_belum_ada(store, scan):
+    """Truk baru masuk gerbang keluar tanpa pernah timbang masuk — kejadian kalau
+    timbang masuknya terlewat. Jawabannya jelas, bukan error."""
+    _truk(store, "BE 4412 OFL")
+
+    hasil = scan.tiket_terbuka("BE4412OFL", "2026-09-15")
+
+    assert hasil["ditemukan"] is False
+    assert hasil.get("ganda") is not True
+
+
+def test_tiket_hari_lain_tidak_ikut_terbawa(store, scan):
+    """Tiket kemarin yang taranya belum terisi tidak boleh muncul hari ini: netonya
+    akan memakai bruto kemarin dan tara hari ini."""
+    _truk(store, "BE 4412 OFL")
+    _timbang_masuk(store, "w-kemarin", "BE 4412 OFL", tanggal_kerja="2026-09-14")
+
+    hasil = scan.tiket_terbuka("BE4412OFL", "2026-09-15")
+
+    assert hasil["ditemukan"] is False
+
+
+def test_scan_keluar_menolak_yang_bukan_plat(store, scan):
+    from palmgrade.domain.operator_error import BUKAN_PLAT
+
+    with pytest.raises(OperatorError) as kena:
+        scan.tiket_terbuka("https://contoh.id", "2026-09-15")
+    assert kena.value.code == BUKAN_PLAT
+
+
+def test_scan_keluar_tidak_pernah_menulis_apa_pun(store, scan):
+    """Mencari saja. Yang menulis tara tetap `catat_timbangan`, satu jalur."""
+    _truk(store, "BE 4412 OFL")
+    _timbang_masuk(store, "w-1", "BE 4412 OFL")
+
+    scan.tiket_terbuka("BE4412OFL", "2026-09-15")
+
+    assert store.weighing("w-1")["tara_kg"] is None

@@ -683,6 +683,17 @@
     -->
     <span id="scan-pesan" class="scan-pesan" role="status"></span>
   </div>
+  <!--
+    Gerbang keluar: scan plat, konsol yang mencari tiket mana yang menunggu tara.
+    Kolomnya sendiri, bukan mode pada kolom masuk: dua gerbang itu dua tempat fisik
+    yang berbeda, dan mode yang harus ditukar dulu adalah satu langkah yang bisa
+    terlupa - lalu scan keluar mendarat di jalur masuk dan membuat tiket kedua.
+  -->
+  <div class="tools">
+    <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="Scan QR truk keluar"
+           autocomplete="off" autocapitalize="characters" spellcheck="false">
+    <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
+  </div>
   <div class="tabel">
     <table>
       <thead><tr><th data-t="thMasuk">Masuk</th><th data-t="thKeluar">Keluar</th><th data-t="thTruk">Truk</th>
@@ -772,6 +783,8 @@ const KAMUS = {
     keHalaman:"Ke halaman",
     btnCetakQr:"Cetak QR truk", qrJudul:"Kartu QR truk",
     phScan:"Scan QR truk", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
+    phScanKeluar:"Scan QR truk keluar", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
+    scanGanda:"Ada 2 tiket terbuka, pilih di tabel bawah untuk",
     rentangBaris:"{dari}-{sampai} dari {total}",
     gerbangKosong:"Belum ada operator. Buat dulu di PC ini: make operator",
     btnPistonBuka:"Buka piston", btnPistonTutup:"Tutup piston",
@@ -828,6 +841,8 @@ const KAMUS = {
     keHalaman:"Go to page",
     btnCetakQr:"Print truck QR", qrJudul:"Truck QR cards",
     phScan:"Scan truck QR", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
+    phScanKeluar:"Scan truck QR on exit", scanTakAdaTiket:"No open ticket today for",
+    scanGanda:"Two open tickets, pick one in the table below for",
     rentangBaris:"{dari}-{sampai} of {total}",
     gerbangKosong:"No operators yet. Create one on this PC: make operator",
     btnPistonBuka:"Open piston", btnPistonTutup:"Close piston",
@@ -1574,6 +1589,49 @@ async function kirimScan() {
   }
 }
 
+// Gerbang keluar. Tara tetap ditulis `catat_timbangan` lewat jalur yang sama dengan
+// tombol per baris - scan cuma menemukan tiketnya.
+async function kirimScanKeluar() {
+  const teks = $("scan-keluar").value.trim();
+  if (!teks || scanSibuk) return;
+  scanSibuk = true;
+  try {
+    const hasil = await api("/api/console/scan/keluar", {
+      method: "POST", body: JSON.stringify({ qr: teks }),
+    });
+    $("scan-keluar").value = "";
+    if (hasil.ganda) {
+      // Dua tiket terbuka: operator yang memilih. Menebak di sini bisa memasangkan
+      // tara ke kunjungan yang salah dan mencampur tonase dua kunjungan.
+      pesanScanKeluar(`${t("scanGanda")} ${hasil.plate_number}`, true);
+      return;
+    }
+    if (!hasil.ditemukan) {
+      pesanScanKeluar(`${t("scanTakAdaTiket")} ${hasil.plate_number}`, true);
+      return;
+    }
+    pesanScanKeluar("");
+    await tanyaTara(hasil.weighing);
+  } catch (e) {
+    $("scan-keluar").value = "";
+    pesanScanKeluar(alasan(e), true);
+  } finally {
+    scanSibuk = false;
+  }
+}
+
+function pesanScanKeluar(teks, salah = false) {
+  const el = $("scan-keluar-pesan");
+  el.textContent = teks || "";
+  el.classList.toggle("salah", Boolean(teks) && salah);
+}
+
+$("scan-keluar").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  ev.preventDefault();
+  kirimScanKeluar();
+});
+
 $("scan-plat").addEventListener("keydown", (ev) => {
   if (ev.key !== "Enter") return;
   // Enter datang dari scanner, bukan dari orang: jangan biarkan dia men-submit
@@ -1606,18 +1664,24 @@ $("timbangan").addEventListener("click", async (ev) => {
   const tombol = ev.target.closest("button[data-aksi='keluar']");
   if (!tombol) return;
   const baris = tombol.closest("tr").dataset;
-  const tara_kg = prompt(`${t("promptTara")} ${baris.plat}`);
+  await tanyaTara({ plate_number: baris.plat, ref: baris.ref, waktu_masuk: baris.masuk });
+});
+
+// Satu jalur tara untuk tombol per baris DAN hasil scan keluar: dua salinan akan
+// berbeda cepat atau lambat, dan yang ditulisnya angka yang dibayar.
+async function tanyaTara(w) {
+  const tara_kg = prompt(`${t("promptTara")} ${w.plate_number}`);
   if (!tara_kg) return;
   try {
     await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
-      plate_number: baris.plat, ref: baris.ref, waktu_masuk: baris.masuk,
+      plate_number: w.plate_number, ref: w.ref, waktu_masuk: w.waktu_masuk,
       tara_kg, waktu_keluar: new Date().toISOString() }) });
     pesan("");
   } catch (e) {
     pesan(t("gagalTara") + ": " + alasan(e));
   }
   await muatTimbangan();
-});
+}
 
 // ── camera status ──────────────────────────────────────────────────────
 // ponytail: "connected" is guessed by the browser, not reported by the line:

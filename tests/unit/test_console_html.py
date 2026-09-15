@@ -588,3 +588,34 @@ def test_pesan_hasil_scan_tidak_terhapus_polling_dua_detik():
     badan = HTML.split("async function kirimScan()", 1)[1].split('$("scan-plat").addEventListener', 1)[0]
     assert "pesanScan(" in badan, "hasil scan masih memakai banner global"
     assert "pesan(" not in badan.replace("pesanScan(", ""), "masih ada jalur ke banner global"
+
+
+# ── scan di gerbang keluar ──────────────────────────────────────────────────
+
+
+def test_scan_keluar_memanggil_lane_keluar_bukan_lane_masuk():
+    """Dua scan, dua jawaban berbeda: yang masuk mencari truk, yang keluar mencari
+    tiket yang menunggu tara."""
+    assert "/api/console/scan/keluar" in _fungsi("kirimScanKeluar")
+
+
+def test_dua_tiket_terbuka_diminta_dipilih_bukan_ditebak():
+    """Keputusan operator 2026-09-15. Menebak bisa memasangkan tara ke kunjungan yang
+    salah dan mencampur tonase dua kunjungan."""
+    fn = _fungsi("kirimScanKeluar")
+    assert "ganda" in fn
+    for bahasa in ("id", "en"):
+        assert "scanGanda:" in _kamus(bahasa)
+
+
+def test_tombol_timbang_keluar_per_baris_tetap_ada():
+    """Scan melengkapi, tidak menggantikan: scanner rusak atau QR belum dicetak tetap
+    harus bisa menimbang keluar."""
+    assert 'data-aksi="keluar"' in HTML
+
+
+def test_label_scan_keluar_diterjemahkan():
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("phScanKeluar", "scanTakAdaTiket"):
+            assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
