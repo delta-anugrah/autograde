@@ -141,9 +141,9 @@ Satu coil hanya bisa membawa satu pulse pada satu waktu. Dengan default `PLC_PUL
 
 ```
 Satu tick = PLC_POLL_MS. Pulse butuh 1 tick ON, jeda butuh 1 tick penuh
-(gap 100 ms dibulatkan ke atas), jadi satu siklus = 2 tick ≈ 410 ms:
+(gap 100 ms dibulatkan ke atas), jadi satu siklus = 2 tick = 400 ms:
 
-  1 / (2 × 0,205 dtk) ≈ 2,5 sinyal/detik
+  1 / (2 × 0,200 dtk) = 2,5 sinyal/detik
 ```
 
 Kamera always-ON bisa menghasilkan sampai **~10 keputusan grading/detik** per line. Itu jauh
@@ -161,13 +161,13 @@ diketahui (lihat "Belum diputuskan").
 
 ### `PLC_QUEUE_MAX` = harga staleness, bukan kapasitas
 
-`PulseScheduler` menguras satu pulse terutang tiap satu siklus tick (≈410 ms — lihat "Throughput
+`PulseScheduler` menguras satu pulse terutang tiap satu siklus tick (400 ms — lihat "Throughput
 ceiling" di atas). Jadi antrean yang penuh berarti **setiap pulse yang diterima PLC mewakili
-keputusan dari `queue_max × 410 ms` yang lalu**. Dengan `queue_max=20` itu ≈8,2 detik — pada
+keputusan dari `queue_max × 400 ms` yang lalu**. Dengan `queue_max=20` itu 8 detik — pada
 belt berjalan, sinyal itu mendarat di buah yang benar-benar berbeda, terus-menerus, selama
 produksi normal.
 
-Karena itu defaultnya **1**: paling banyak satu pulse terutang ⇒ staleness ≤ 410 ms secara
+Karena itu defaultnya **1**: paling banyak satu pulse terutang ⇒ staleness ≤ 400 ms secara
 struktural, tanpa perlu state timestamp/discard tambahan. Menaikkan angka ini **tidak** membuat
 sinyal lebih andal — ia menukar drop (jujur, terhitung) dengan sinyal basi (diam-diam salah).
 
@@ -216,7 +216,7 @@ selama itu — pulse telat menempel ke buah yang salah.
 ## Shutdown — coil dimatikan, bukan ditinggal ON
 
 `make restart` adalah langkah deploy **dan** langkah tuning lapangan, jadi SIGTERM di tengah
-produksi itu rutin. Dengan `PLC_PULSE_MS=200` dalam siklus ≈410 ms (2 tick), peluang sebuah coil
+produksi itu rutin. Dengan `PLC_PULSE_MS=200` dalam siklus 400 ms (2 tick), peluang sebuah coil
 sedang ON saat sinyal itu tiba kira-kira 1 dari 2.
 
 `shutdown_plc_worker()` (dipanggil `lifespan` sesudah `yield`) menjalankan, berurutan:

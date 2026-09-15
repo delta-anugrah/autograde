@@ -242,7 +242,7 @@ class PlcWorker:
         Sengaja tidak lewat `_write_coil`: bookkeeping `_error_level`/`_failed_writes`
         tidak relevan lagi karena tidak akan ada tick berikutnya yang menagih retry.
         Best-effort — gagal dicatat, tidak di-retry, tidak di-raise. SIGTERM di
-        tengah pulse (200ms ON dalam siklus ≈410 ms, 2 tick) kalau tidak begini
+        tengah pulse (200ms ON dalam siklus 400 ms, 2 tick) kalau tidak begini
         meninggalkan coil OK atau NG nyangkut ON sampai watchdog ODOT menyerah.
         """
         coils = [
