@@ -619,3 +619,67 @@ def test_label_scan_keluar_diterjemahkan():
         isi = _kamus(bahasa)
         for kunci in ("phScanKeluar", "scanTakAdaTiket"):
             assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+
+
+# ── dua kolom scan harus bisa dibedakan di layar ────────────────────────────
+
+
+def test_setiap_kolom_scan_punya_label_sendiri():
+    """Ketemu dari screenshot operator: dua kolom bertulisan "Scan QR truk" yang sama,
+    satu di atas satu di bawah, tanpa penanda mana yang mana. Yang atas MEMBUAT tiket,
+    yang bawah MENUTUP tiket — ketukar berarti tiket dobel.
+    """
+    blok = HTML.split('<section id="sec-timbangan"', 1)[1].split("</section>", 1)[0]
+    assert 'for="scan-plat"' in blok, "kolom scan masuk tanpa label"
+    assert 'for="scan-keluar"' in blok, "kolom scan keluar tanpa label"
+
+
+def test_placeholder_dua_kolom_scan_tidak_sama():
+    """Kalau placeholder-nya sama, label pun tidak menolong saat operator melihat
+    cepat: yang dibaca pertama itu isi kolomnya."""
+    assert _kamus("id").count('phScan:"Scan QR truk"') <= 1
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        masuk = re.search(r'phScan:"([^"]+)"', isi).group(1)
+        keluar = re.search(r'phScanKeluar:"([^"]+)"', isi).group(1)
+        assert masuk != keluar, f"KAMUS.{bahasa}: placeholder dua kolom scan sama"
+
+
+def test_label_arah_gerbang_diterjemahkan():
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("lbGerbangMasuk", "lbGerbangKeluar"):
+            assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+
+
+def test_dua_kolom_scan_dalam_satu_baris_alat():
+    """Layar operator dibaca dari beberapa meter; satu baris alat yang tinggi itu ruang
+    kamera yang hilang. Dua kolom scan hidup di SATU `.tools`, bukan dua baris."""
+    blok = HTML.split('<section id="sec-timbangan"', 1)[1].split('<div class="tabel">', 1)[0]
+    # Dicocokkan per kelas, bukan per string persis: barisnya boleh punya kelas kedua.
+    assert len(re.findall(r'class="tools\b', blok)) == 1, (
+        "kolom scan masih terpecah di dua baris alat"
+    )
+
+
+def test_kelas_gerbang_login_tidak_dipakai_di_tab_timbangan():
+    """Akar bug tata letak yang terlihat di screenshot operator: kolom scan memakai
+    `.gerbang-isi`, nama yang sudah dipakai gerbang LOGIN (flex column, input 3.4rem).
+    Aturan login menang, dan kolom scan melar jadi kotak raksasa yang berhamburan.
+
+    Satu file CSS tanpa scoping berarti nama kelas itu ruang nama global. Yang dipakai
+    di tab Timbangan harus berawalan `timbang-`, bukan `gerbang-`.
+    """
+    blok = HTML.split('<section id="sec-timbangan"', 1)[1].split("</section>", 1)[0]
+    bocor = re.findall(r'class="[^"]*\bgerbang-[\w-]+', blok)
+    assert not bocor, f"kelas gerbang login dipakai di tab Timbangan: {bocor}"
+
+
+def test_pemisah_dua_gerbang_ikut_berpindah_saat_turun_baris():
+    """Di layar sempit gerbang keluar turun ke baris kedua, dan garis di KIRI jadi
+    janggal karena tidak ada apa pun di sebelahnya. Dibuktikan di browser: 1440 px
+    garis kiri, 1280 px garis atas."""
+    assert ".timbang-keluar" in HTML
+    aturan = HTML.split("@media (max-width:1330px)", 1)
+    assert len(aturan) == 2, "belum ada aturan layar sempit untuk pemisah gerbang"
+    assert "border-top" in aturan[1][:300]
