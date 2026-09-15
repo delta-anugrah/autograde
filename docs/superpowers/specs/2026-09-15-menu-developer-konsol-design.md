@@ -1,7 +1,7 @@
 # Menu developer di konsol AutoGrade
 
 Tanggal: 2026-09-15
-Status: rancangan disetujui, siap dibuat rencana kerja
+Status: rancangan disetujui (diperbarui 2026-09-15 — peran dari ERP dinyalakan)
 
 ## Masalah
 
@@ -25,7 +25,9 @@ ditambah satu tabel baru untuk riwayat error yang tahan restart.
 - **Layar operator dibaca dari beberapa meter, di luar ruangan.** Tab yang tidak
   bisa dipakai operator hanya mempersempit layar — karena itu disembunyikan,
   bukan dinonaktifkan.
-- **Kontrak AutoERP tidak disentuh** di pekerjaan ini. Lihat §Peran dari ERP.
+- **DocType `AutoGrade Operator` milik repo kita**, jadi menambah field peran tidak
+  perlu menunggu siapa pun. Tapi Frappe membalas **417** untuk satu field asing di
+  `/api/resource`, jadi urutannya terkunci: field di ERP dulu, baru AutoGrade memintanya.
 
 ## Keputusan
 
@@ -60,32 +62,43 @@ semua endpoint itu, supaya tidak ada yang lupa dipasangi.
 `/api/console/me` menambah field `peran` supaya `console.html` tahu tab mana yang
 dirender.
 
-### 2. Peran dari ERP — disiapkan, belum dinyalakan
+### 2. Peran dari ERP — dinyalakan, tapi disaring dari sisi pabrik
 
-Akun yang ditarik dari AutoERP (`asal = 'erp'`) **selalu** mendapat
-`peran = 'operator'` pada pekerjaan ini.
+DocType `AutoGrade Operator` **milik repo ini sendiri** (`autoerp/erpnext/palm_mill/
+doctype/autograde_operator/`), bukan milik Mas Samuel, dan kita punya akses write.
+Jadi tidak ada yang perlu ditunggu: field peran ditambah sendiri.
 
-Alasannya: kalau ERP boleh mengirim peran, siapa pun yang bisa mengubah DocType
-`AutoGrade Operator` bisa memberi dirinya akses developer ke **semua** PC pabrik
-sekaligus — termasuk layar Uji PLC yang menggerakkan piston. Jalur itu tidak
-dikendalikan dari PC pabrik dan tidak terlihat dari sana.
+Field baru di DocType: `peran`, fieldtype **Select**, pilihan `operator` / `support`,
+default `operator`. Ditambah bersama patch migrasi supaya baris yang sudah ada terisi.
+`master_data_worker` menambahkannya ke daftar field yang diminta (§4.A).
 
-Yang disiapkan sekarang supaya nanti tidak perlu ubah kode:
+**Penyaring `.env` tetap dipertahankan**, dan sekarang defaultnya terisi:
 
 ```
-PERAN_ERP_DIIZINKAN=          # kosong (bawaan) = peran dari ERP diabaikan
+PERAN_ERP_DIIZINKAN=support     # bawaan; kosongkan untuk menolak peran dari ERP
 ```
 
-Setelan ini dibaca dan diterapkan sejak PR 1. Selama kosong, peran apa pun yang
-datang dari ERP dibuang. Begitu DocType di `autoerp` punya field peran, yang
-perlu diubah di AutoGrade hanya isi `.env` — bukan kode, bukan migrasi.
+Ini satu-satunya rem yang bisa ditarik **dari sisi pabrik**. Kalau akun ERP suatu saat
+bermasalah — bocor, salah setel, atau ada yang iseng — PC pabrik bisa dikosongkan
+setelannya lalu restart, dan piston aman dalam hitungan menit tanpa menunggu ERP
+dibereskan. Tanpa penyaring ini, satu-satunya jalan adalah memperbaiki ERP, dan selama
+itu semua PC pabrik terbuka. Biayanya nol: kodenya sama, hanya beda nilai bawaan.
 
-Pembukaannya menyentuh kontrak Mas Samuel, jadi harus dibicarakan lebih dulu
-(CLAUDE.md: cocokkan kontrak sebelum menulis kode integrasi). DocType
-`AutoGrade Operator` hari ini membawa `name, email, full_name, active,
-password_hash, modified` — belum ada field peran, dan Frappe membalas **417**
-untuk satu field asing di `/api/resource`. Jadi `master_data_worker` tidak boleh
-meminta field peran sampai field itu benar-benar ada di ERP.
+Peran yang datang dari ERP tapi tidak ada di daftar izin dibuang jadi `operator` —
+bukan ditolak, supaya akunnya tetap bisa masuk sebagai operator biasa.
+
+**Akun lokal tidak tersentuh.** Aturan lama tetap: tarikan ERP tidak pernah menimpa
+baris `asal='lokal'`, dan sebaliknya. Konsekuensinya jelas dan memang diinginkan —
+saat internet putus, menaikkan seseorang jadi support dilakukan lewat `make operator`
+di PC itu, bukan lewat ERP. ERP untuk sehari-hari, lokal untuk darurat.
+
+**Hanya dua peran.** `operator` dan `support`. Peran ketiga (`developer`) sengaja tidak
+dibuat: dari lima menu di §4, tidak ada satu pun yang masuk akal dibuka untuk yang satu
+tapi ditutup untuk yang lain — jadi ia akan jadi nama kedua untuk hal yang sama, dan satu
+tempat lagi untuk salah setel. Kolom `peran` sengaja TEXT bebas (bukan CHECK constraint)
+dan field ERP-nya Select, jadi menambah peran ketiga nanti = satu nilai baru, tanpa
+migrasi. Yang akan membenarkan peran ketiga adalah pembagian yang nyata — misalnya
+support boleh membaca Log tapi tidak boleh memegang Uji PLC.
 
 ### 3. Tabel `log_kejadian`
 
@@ -170,20 +183,24 @@ fisik, karena itu tiga pengaman:
 
 ## Urutan kerja
 
-Empat PR. PR 1 berdiri sendiri karena ia pondasi: kalau penjaga aksesnya salah,
-semua menu ikut bocor.
+Lima PR, dua repo. PR 0 di `autoerp` harus lebih dulu karena urutan kontraknya
+terkunci. PR 1 berdiri sendiri karena ia pondasi: kalau penjaga aksesnya salah, semua
+menu ikut bocor.
 
-| PR | Isi | Kenapa terpisah |
-|---|---|---|
-| 1 | Kolom `peran`, seed support, dependency penjaga 403, `PERAN_ERP_DIIZINKAN`, `me` mengembalikan peran, kerangka tab tersembunyi | Pondasi keamanan, diuji sendiri |
-| 2 | `log_kejadian` + handler + penggabungan + retensi + penyaring rahasia + layar Log | Satu-satunya yang menulis data baru |
-| 3 | Diagnostik + Antrean ERP + Versi & Lisensi | Tiga-tiganya hanya membaca, aman disatukan |
-| 4 | Uji PLC + tiga pengaman | Satu-satunya yang menggerakkan barang fisik |
+| Repo | PR | Isi | Kenapa terpisah |
+|---|---|---|---|
+| autoerp | **0** | Field `peran` (Select) di DocType + patch migrasi + tes | Harus lebih dulu: AutoGrade tidak boleh meminta field yang belum ada (417) |
+| autograde | **1** | Kolom `peran`, seed support, dependency penjaga 403, `PERAN_ERP_DIIZINKAN`, tarik peran di `master_data_worker`, `me` mengembalikan peran, kerangka tab tersembunyi | Pondasi keamanan, diuji sendiri |
+| autograde | **2** | `log_kejadian` + handler + penggabungan + retensi + penyaring rahasia + layar Log | Satu-satunya yang menulis data baru |
+| autograde | **3** | Diagnostik + Antrean ERP + Versi & Lisensi | Tiga-tiganya hanya membaca, aman disatukan |
+| autograde | **4** | Uji PLC + tiga pengaman | Satu-satunya yang menggerakkan barang fisik |
 
 ## Pengujian
 
-- **Peran**: akun lama default `operator`; endpoint developer menolak
-  `operator` dengan 403; `PERAN_ERP_DIIZINKAN` kosong membuang peran dari ERP.
+- **Peran**: akun lama default `operator`; endpoint developer menolak `operator`
+  dengan 403; peran dari ERP di luar `PERAN_ERP_DIIZINKAN` jatuh jadi `operator`;
+  `PERAN_ERP_DIIZINKAN` kosong membuang semua peran dari ERP; tarikan ERP tidak
+  menimpa peran akun `asal='lokal'`.
 - **Log**: hanya ERROR/WARNING tertulis; dua pesan identik dalam 60 detik jadi
   satu baris `jumlah=2`; baris lebih tua dari 180 hari terbuang; sandi dan token
   tidak muncul di baris tersimpan; handler yang gagal menulis tidak melempar.
@@ -206,4 +223,5 @@ milik developer.
   dari berkas — itu mempersulit dukungan, bukan mempermudah.
 - **Mengirim log ke luar** (Discord, cloud). Konsol harus tetap jalan offline;
   jalur lapor masalah sudah ada di repo lain.
-- **Peran dinamis dari ERP**, sampai kontraknya disepakati. Lihat §2.
+- **Peran ketiga (`developer`)**. Lihat §2 — jalannya sudah dibuka, tapi belum ada
+  pembagian nyata yang membenarkannya.
