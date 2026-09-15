@@ -572,7 +572,9 @@ class ConsoleStore:
         change made here would be silently undone by the next pull — worse than being
         told no, because the operator would believe the new password works.
         """
-        return self._upsert_operator(row, asal="lokal", overwrite_asal=("lokal",))
+        return self._upsert_operator(
+            row, asal="lokal", overwrite_asal=("lokal",), selalu_akhiri_sesi=True
+        )
 
     def upsert_operator_erp(self, row: dict[str, Any]) -> str:
         """Apply one `AutoGrade Operator` document from the §4.A pull.
@@ -584,7 +586,12 @@ class ConsoleStore:
         return self._upsert_operator(row, asal="erp", overwrite_asal=("erp",))
 
     def _upsert_operator(
-        self, row: dict[str, Any], *, asal: str, overwrite_asal: tuple[str, ...]
+        self,
+        row: dict[str, Any],
+        *,
+        asal: str,
+        overwrite_asal: tuple[str, ...],
+        selalu_akhiri_sesi: bool = False,
     ) -> str:
         """Add or update one account, id derived from the email.
 
@@ -597,10 +604,19 @@ class ConsoleStore:
         status = row.get("status") or ("active" if row.get("active", 1) else "off")
         with self._lock, self._db:
             existing = self._db.execute(
-                "SELECT asal FROM operators WHERE id = ?", (operator_id,)
+                "SELECT asal, password_hash, status FROM operators WHERE id = ?",
+                (operator_id,),
             ).fetchone()
             if existing and existing["asal"] not in overwrite_asal:
                 return operator_id
+            # Worked out before the write, while the old row is still readable.
+            akhiri_sesi = selalu_akhiri_sesi or existing is None or any(
+                existing[kolom] != baru
+                for kolom, baru in (
+                    ("password_hash", row["password_hash"]),
+                    ("status", status),
+                )
+            )
             self._db.execute(
                 """INSERT INTO operators
                        (id, email, nama, password_hash, status, asal, erp_name, dibuat_at)
@@ -628,7 +644,14 @@ class ConsoleStore:
             # A new password, or an account switched off by a pull: every session opened
             # before it ends. A password is reset because someone saw it, and a session
             # that outlives the reset would make it a formality.
-            self._db.execute("DELETE FROM sesi WHERE operator_id = ?", (operator_id,))
+            #
+            # But ONLY then. A pull re-reads unchanged rows by design (`_rewind` steps
+            # back a few seconds because two clocks never agree), so deleting here
+            # unconditionally signed the operator out on every sync — every 5 minutes at
+            # the mill, with the screen blaming an expired session. Seen in a browser
+            # 2026-09-15.
+            if akhiri_sesi:
+                self._db.execute("DELETE FROM sesi WHERE operator_id = ?", (operator_id,))
         return operator_id
 
     def operator(self, operator_id: str) -> dict[str, Any] | None:
