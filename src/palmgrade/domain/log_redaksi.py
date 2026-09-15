@@ -9,23 +9,36 @@ from __future__ import annotations
 
 import re
 
-_KUNCI = "password|sandi|password_hash|token|secret|authorization|api_key|x-webhook-secret"
+_KUNCI = (
+    "password|sandi|password_hash|token|secret|authorization|api_key"
+    "|x-webhook-secret|konsol_sesi"
+)
 
-# `key=value`, `key: value`, and JSON `"key": "value"`. `\b` around the key stops
-# "passwordless" from matching "password". The value is either:
-#   - quoted: consume to the matching close quote, spaces included (a value
-#     with a space is never seen if we stop at whitespace); or
-#   - unquoted: stop at the next separator, but first swallow a leading auth
-#     scheme word (Bearer/Basic/Token/Digest) so "Authorization: Bearer <tok>"
-#     redacts the token, not just the scheme name.
+# The key must start the string or follow a separator, not sit mid-word — this
+# is what keeps "not-a-secret" whole while still matching "password_hash"
+# (underscore is deliberately not a separator).
+_BATAS_KUNCI = r'(?:^|(?<=[\s"\'{,;?&]))'
+_KUNCI_G = rf'(?P<kunci>["\']?(?:{_KUNCI})["\']?\s*[:=]\s*)'
+
+# Quoted value: `\\.` matches first so an escaped quote doesn't end the value
+# early; DOTALL (in the outer flags) lets it span a newline — a multi-line
+# traceback is exactly the shape this filter exists to catch. Named groups
+# throughout, not \1-style backreferences: once embedded in the composed
+# pattern below, a numbered backreference renumbers by position and silently
+# points at the wrong group.
+_NILAI_KUTIP = r'(?P<kutip>["\'])(?P<isi_kutip>(?:\\.|(?!(?P=kutip)).)*)(?P=kutip)'
+
+# Unquoted value: an optional auth scheme word is kept visible, the real
+# value stops at the next separator.
+_NILAI_POLOS = (
+    r'(?P<skema>(?:(?:Bearer|Basic|Token|Digest)\s+)?)'
+    r'(?P<nilai_polos>[^\s,;}\'"]+)'
+)
+
 _POLA = re.compile(
-    rf'''(?ix)
-    (["\']?\b(?:{_KUNCI})\b["\']?\s*[:=]\s*)
-    (?:
-        (["\'])(.*?)(\2)
-        |
-        ((?:(?:Bearer|Basic|Token|Digest)\s+)?)([^\s,;}}\'"]+)
-    )
+    rf'''(?ixs)
+    {_BATAS_KUNCI}{_KUNCI_G}
+    (?:{_NILAI_KUTIP}|{_NILAI_POLOS})
     '''
 )
 
@@ -40,7 +53,8 @@ def redaksi(teks: str) -> str:
 
 
 def _ganti(m: re.Match[str]) -> str:
-    if m.group(2) is not None:  # quoted value matched
-        return f"{m.group(1)}{m.group(2)}{_TUTUP}{m.group(4)}"
-    scheme = m.group(5) or ""  # unquoted: keep the scheme word, hide the rest
-    return f"{m.group(1)}{scheme}{_TUTUP}"
+    if m.group("kutip") is not None:
+        kutip = m.group("kutip")
+        return f"{m.group('kunci')}{kutip}{_TUTUP}{kutip}"
+    skema = m.group("skema") or ""  # unquoted: keep the scheme word, hide the rest
+    return f"{m.group('kunci')}{skema}{_TUTUP}"

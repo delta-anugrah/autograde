@@ -64,3 +64,33 @@ def test_json_dengan_spasi_tetap_menyisakan_field_lain():
     """Nilai berspasi tertutup penuh, tapi field tetangga tetap kebaca."""
     keluar = redaksi('{"sandi":"p@ss w0rd","line":"line-1"}')
     assert "line-1" in keluar
+
+
+def test_nilai_berkutip_dengan_baris_baru_ditutup():
+    """Traceback multi-baris adalah bentuk asli yang mau ditangkap penyaring ini."""
+    keluar = redaksi('secret="line1\nline2"')
+    assert "line1" not in keluar
+    assert "line2" not in keluar
+
+
+def test_kutip_ter_escape_tidak_mengakhiri_nilai():
+    """`\\"` di dalam nilai tidak boleh dibaca sebagai penutup — ekor sesudahnya jangan bocor."""
+    keluar = redaksi('password="p\\"ss"')
+    assert 'ss"' not in keluar
+
+
+def test_konsol_sesi_ditutup():
+    """`konsol_sesi` = nama cookie sesi konsol (routes/console.py) — token hidup."""
+    assert "abc123def" not in redaksi("Set-Cookie: konsol_sesi=abc123def; HttpOnly")
+
+
+def test_kunci_tengah_kata_tidak_terpicu():
+    """`not-a-secret` bukan kunci rahasia — jangan ditutup, dan tetangganya tetap kebaca."""
+    pesan = "not-a-secret=fine"
+    assert redaksi(pesan) == pesan
+    assert "fine" in redaksi(pesan)
+
+
+def test_dua_kunci_di_satu_baris_dua_duanya_ditutup():
+    keluar = redaksi("token=a secret=b")
+    assert keluar == "token=«ditutup» secret=«ditutup»"
