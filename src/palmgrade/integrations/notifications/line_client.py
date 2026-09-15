@@ -30,6 +30,20 @@ class LineUnavailable(OperatorError, RuntimeError):
     """Line kamera tidak menjawab — operator harus lihat ini, bukan diam."""
 
 
+class LinePlcTolak(RuntimeError):
+    """Line answered but refused the PLC coil command (409 busy, 422 unknown coil).
+
+    Kept separate from `LineUnavailable`: those two codes are the dev screen's
+    own safety guards echoed back from the line, not "the line is down" —
+    DevService needs the real status_code to answer the console the same way.
+    """
+
+    def __init__(self, status_code: int, detail: str) -> None:
+        super().__init__(detail)
+        self.status_code = status_code
+        self.detail = detail
+
+
 class LineClient:
     def __init__(
         self, settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None
@@ -87,6 +101,48 @@ class LineClient:
                 "requested_at": requested_at,
             },
         )
+
+    async def plc_state(self, line: LineEndpoint) -> dict[str, Any]:
+        """DI snapshot + testable coils for the commissioning test screen.
+
+        Read-only lane; same short timeout as `status()` — this backs a
+        polling screen, not a once-a-shift diagnostic read.
+        """
+        url = f"{self._settings.console_line_host}:{line.port}/internal/plc"
+        try:
+            async with httpx.AsyncClient(timeout=2.0, transport=self._transport) as client:
+                res = await client.get(
+                    url, headers={"x-internal-secret": self._settings.internal_secret}
+                )
+                res.raise_for_status()
+                return res.json()
+        except httpx.HTTPError as exc:
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} tidak menjawab: {exc}", line=line.name
+            ) from exc
+
+    async def plc_coil(self, line: LineEndpoint, *, coil: int, requested_by: str) -> dict[str, Any]:
+        """Fire one PLC coil on `line` for a wiring test. Raises on 4xx/5xx —
+        the caller (DevService) must see the reason, not a silent no-op."""
+        url = f"{self._settings.console_line_host}:{line.port}/internal/plc/coil"
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
+                res = await client.post(
+                    url,
+                    json={"machine_id": line.machine_id, "coil": coil, "requested_by": requested_by},
+                    headers={"x-internal-secret": self._settings.internal_secret},
+                )
+        except httpx.HTTPError as exc:
+            logger.warning("Uji PLC coil %s ke %s gagal: %s", coil, line.line_code, exc)
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} tidak menjawab: {exc}", line=line.name
+            ) from exc
+        if res.status_code >= 400:
+            # 409 busy / 422 unknown coil are the line's own safety answers, not
+            # "unreachable" — raised distinctly so DevService can echo the same
+            # status back to the console instead of collapsing both into 502.
+            raise LinePlcTolak(res.status_code, res.text[:200])
+        return res.json()
 
     async def status(self, line: LineEndpoint) -> dict[str, Any]:
         """Dipanggil tiap detik oleh LineStatusWorker, jadi timeoutnya pendek:

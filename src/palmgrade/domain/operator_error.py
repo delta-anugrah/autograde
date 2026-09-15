@@ -29,6 +29,10 @@ TERKUNCI = "terkunci"
 BELUM_MASUK = "belum_masuk"
 # Signed in, but not a `support` account.
 BUKAN_SUPPORT = "bukan_support"
+# PLC test screen (support only) — the only console lane that moves hardware.
+KONFIRMASI_KURANG = "konfirmasi_kurang"
+PLC_SIBUK = "plc_sibuk"
+COIL_TIDAK_DIKENAL = "coil_tidak_dikenal"
 
 CODES = (
     PLAT_KOSONG,
@@ -45,6 +49,9 @@ CODES = (
     TERKUNCI,
     BELUM_MASUK,
     BUKAN_SUPPORT,
+    KONFIRMASI_KURANG,
+    PLC_SIBUK,
+    COIL_TIDAK_DIKENAL,
 )
 
 

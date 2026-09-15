@@ -577,3 +577,47 @@ def test_no_license_callback_means_always_alive():
     w, client = _worker()
     w.run_once(now=100.0)
     assert (11, True) in client.writes
+
+
+# ── picu_coil: manual coil test for commissioning ───────────────────────
+
+
+def test_picu_coil_queues_a_pulse_written_on_the_next_tick():
+    w, client = _worker()
+    assert w.picu_coil(3) is True
+    client.writes.clear()
+    w.run_once(now=0.0)
+    assert (3, True) in client.writes
+
+
+def test_picu_coil_does_not_touch_the_coil_by_itself():
+    # enqueue() only schedules — the write happens in run_once, same as a
+    # grading pulse. Calling picu_coil() alone must move nothing.
+    w, client = _worker()
+    w.picu_coil(3)
+    assert client.writes == []
+
+
+def test_picu_coil_returns_false_when_the_pulse_queue_is_full():
+    # queue_max=20 in _worker(); a dedicated tiny scheduler makes "full" reachable
+    # in one call, so the drop path is exercised directly rather than by looping.
+    client = _FakeClient()
+    w = PlcWorker(
+        client=client,
+        scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=1),
+        settings=_Cfg(),
+    )
+    assert w.picu_coil(3) is True
+    assert w.picu_coil(3) is False    # dropped: queue already holds one pending pulse
+
+
+def test_picu_coil_shares_the_scheduler_safely_with_grading_pulses():
+    # picu_coil() runs on the HTTP thread while run_once() (submit()'s consumer)
+    # runs on the worker thread — this is the first caller of scheduler.enqueue()
+    # from outside that thread, so the two must not corrupt each other's state.
+    w, client = _worker()
+    w.submit("acc")
+    assert w.picu_coil(4) is True
+    w.run_once(now=0.0)
+    assert (3, True) in client.writes    # grading acc -> coil_ok
+    assert (4, True) in client.writes    # manual test -> coil_ng

@@ -59,6 +59,11 @@ class PlcWorker:
         self._piston_requested = False
         self._piston_written: bool | None = None     # level terakhir yang benar-benar ditulis
         self._piston_deadline = 0.0                  # batas tunggu konfirmasi DI
+        # `scheduler` (PulseScheduler) used to be touched only from run_once's own
+        # thread. picu_coil() is the first caller from the HTTP thread, so its
+        # dict mutations (enqueue/tick both touch `_coils`) now need a lock —
+        # same shape as `_piston_lock` above, one small lock per shared field.
+        self._scheduler_lock = threading.Lock()
 
     def submit(self, status: str) -> None:
         """Dipanggil dari thread deteksi. Tidak pernah blocking, tidak pernah raise."""
@@ -90,6 +95,18 @@ class PlcWorker:
         with self._piston_lock:
             return {"requested": self._piston_requested, "confirmed_open": confirmed}
 
+    def picu_coil(self, coil: int) -> bool:
+        """Queue one test pulse on `coil`, for wiring checks at commissioning.
+
+        Goes through the same scheduler as grading pulses, so it self-clears
+        on the next tick — no state left for the caller to clean up. Returns
+        False when the pulse queue is full and the request was dropped, NOT
+        written: a caller that swallows this would show "fired" for a coil
+        that never moved.
+        """
+        with self._scheduler_lock:
+            return self.scheduler.enqueue(coil)
+
     def _write_coil(self, coil: int, level: bool) -> None:
         if self.client.write_coil(coil, level):
             self._failed_writes.pop(coil, None)
@@ -117,7 +134,9 @@ class PlcWorker:
             if coil is None:
                 logger.debug("Status PLC tidak dikenal, dilewati: %r", status)
                 continue
-            if not self.scheduler.enqueue(coil):
+            with self._scheduler_lock:
+                terjadwal = self.scheduler.enqueue(coil)
+            if not terjadwal:
                 if self.scheduler.dropped == 1 or self.scheduler.dropped % 100 == 0:
                     logger.warning(
                         "Antrean pulse PLC penuh — sinyal dibuang (total %s). "
@@ -133,7 +152,8 @@ class PlcWorker:
         #    level segar keluar berurutan dengan jarak ~1ms di coil yang sama.
         writes: dict[int, bool] = dict(self._failed_writes)   # a. retry tick lalu
         self._failed_writes = {}
-        writes.update(self.scheduler.tick(now))               # b. pulse segar
+        with self._scheduler_lock:
+            writes.update(self.scheduler.tick(now))           # b. pulse segar
 
         # c. Bit alive — ON statis, itu yang diminta skematik ODOT ("HEARTBIT PC
         #    ON") dan yang dibaca ladder PLC. Ditulis ULANG tiap detik, bukan

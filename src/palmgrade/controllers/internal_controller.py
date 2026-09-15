@@ -12,6 +12,9 @@ from ..schemas.internal_schema import (
     ManualRejectCommandRequest,
     ManualRejectCommandResponse,
     PistonCommandRequest,
+    PlcCoilCommandRequest,
+    PlcCoilCommandResponse,
+    PlcStateResponse,
 )
 from ..services.capture_service import CaptureService
 from ..workers.runtime_state import RuntimeState
@@ -61,6 +64,52 @@ async def piston_command(request: PistonCommandRequest, state: RuntimeState) -> 
         request.machine_id, request.requested_by, request.requested_at,
     )
     return await line_status(state)
+
+
+async def plc_state() -> PlcStateResponse:
+    """Read-only: DI snapshot + which coils this line allows hand-firing.
+
+    Never touches a coil — support can open the test screen at any time.
+    `enabled=False` (PLC_ENABLED=false, the normal dev/cloud state) means
+    the screen should say so, not error.
+    """
+    from ..core.dependencies import get_settings
+    from ..plc import diagnostics, testable_coils
+
+    snapshot = diagnostics()
+    if snapshot is None:
+        return PlcStateResponse(enabled=False)
+    return PlcStateResponse(
+        enabled=True,
+        inputs=snapshot["inputs"],
+        testable_coils=sorted(testable_coils(get_settings())),
+    )
+
+
+async def plc_coil_command(request: PlcCoilCommandRequest, state: RuntimeState) -> PlcCoilCommandResponse:
+    """Fire one PLC coil for a commissioning wiring test (console dev screen only).
+
+    Guarded here, not in the console: this process owns `state` and the real
+    PLC connection, so this is the only place the check can't be bypassed by
+    a stale read. Refused while a truck is being processed — a piston moving
+    under a passing bunch is dangerous, not just untidy.
+    """
+    from ..core.dependencies import get_settings
+    from ..plc import picu_coil, testable_coils
+
+    if request.coil not in testable_coils(get_settings()):
+        raise HTTPException(status_code=422, detail="coil_tidak_dikenal")
+    if state.current_assignment_id is not None:
+        raise HTTPException(status_code=409, detail="line_sedang_memproses_truk")
+    fired = picu_coil(request.coil)
+    # Container stdout only — the record that matters (`log_kejadian`, read by
+    # the support screen) is written by the console, the only process with a
+    # LogStore and the signed-in operator's identity.
+    logger.warning(
+        "UJI PLC: coil %s dipicu oleh %s (machine=%s, fired=%s)",
+        request.coil, request.requested_by, request.machine_id, fired,
+    )
+    return PlcCoilCommandResponse(fired=fired, coil=request.coil)
 
 
 async def line_status(state: RuntimeState) -> LineStatusResponse:

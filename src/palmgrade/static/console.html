@@ -292,6 +292,17 @@
   .kartu-grid dt { color:var(--muted); }
   .kartu-grid dd { margin:0; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
+  /* Uji PLC: the only card that moves hardware. DI bits are read-only text;
+     coil buttons get the danger tokens piston.terbuka already uses, so the
+     one control in the whole console that fires a physical output stands
+     out even read from several metres away outdoors. */
+  .plc-di { padding:8px 13px; font-size:.8rem; display:flex; flex-wrap:wrap; gap:8px; }
+  .plc-di-bit { white-space:nowrap; }
+  .plc-coil { padding:0 13px 12px; display:flex; flex-wrap:wrap; gap:8px; }
+  button.uji-coil { flex:1; min-width:9rem; min-height:2.6rem; border-color:var(--danger-line);
+                     background:var(--danger-bg); color:var(--danger-fg); font-weight:600; }
+  button.uji-coil:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
+
   /* Versi: a plain definition list, key left, value right. */
   .daftar-definisi { background:var(--card); border:1px solid var(--line-kuat);
                       border-radius:var(--r-md); padding:14px var(--pad); margin:0 var(--pad);
@@ -873,6 +884,18 @@
   <dl id="versi-daftar" class="daftar-definisi"></dl>
 </section>
 
+<section id="sec-plc" class="panel" hidden data-dev="1">
+  <!--
+    Support-only. The ONLY screen in the console that moves physical hardware -
+    reading (this panel) is always safe to open, firing a coil is not. One
+    card per line (a coil address only means something on its own line's PLC
+    connection - main.py per line, never console_main.py). Coil buttons are
+    disabled while that line is busy, with a visible reason, and confirming a
+    fire always goes through a typed dialog, never a bare click.
+  -->
+  <div id="plc-kartu" class="kartu-grid"></div>
+</section>
+
 <script>
 const $ = (id) => document.getElementById(id);
 // Escapes ' and ` too: these values go into HTML attributes, and line_code can
@@ -963,6 +986,16 @@ const KAMUS = {
     labelVersi:"Versi", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Lisensi", gagalVersi:"Gagal memuat versi",
     lisensiAktif:"Aktif", lisensiTanpaToken:"Aktif, token belum terpasang", lisensiMati:"Mati",
+    thDi:"DI", diAktif:"Aktif", diMati:"Mati", plcMati:"PLC mati di line ini",
+    gagalPlc:"Gagal memuat status PLC",
+    btnUjiCoil:"Uji coil {coil}", coilMatiLineSibuk:"Line sedang memproses truk",
+    konfirmasiUjiPlc:"Coil {coil} di {line} akan menyala sesaat - ini menggerakkan barang sungguhan. Ketik UJI untuk lanjut:",
+    ujiPlcDibatalkan:"Dibatalkan - konfirmasi tidak cocok",
+    ujiPlcBerhasil:"Coil {coil} dipicu", ujiPlcDijatuhkan:"Coil {coil} TIDAK menyala - antrean pulse PLC penuh, coba lagi",
+    gagalUjiPlc:"Gagal memicu coil",
+    err_konfirmasi_kurang:"Ketik UJI persis untuk memicu coil",
+    err_plc_sibuk:"Line sedang memproses truk - coil tidak bisa dipicu",
+    err_coil_tidak_dikenal:"Coil ini tidak dikenal line",
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
@@ -1040,6 +1073,16 @@ const KAMUS = {
     labelVersi:"Version", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Licence", gagalVersi:"Failed to load version",
     lisensiAktif:"Active", lisensiTanpaToken:"Active, no token installed", lisensiMati:"Inactive",
+    thDi:"DI", diAktif:"On", diMati:"Off", plcMati:"PLC is off on this line",
+    gagalPlc:"Failed to load PLC status",
+    btnUjiCoil:"Test coil {coil}", coilMatiLineSibuk:"Line is processing a truck",
+    konfirmasiUjiPlc:"Coil {coil} on {line} will pulse briefly - this moves real hardware. Type UJI to continue:",
+    ujiPlcDibatalkan:"Cancelled - confirmation did not match",
+    ujiPlcBerhasil:"Coil {coil} fired", ujiPlcDijatuhkan:"Coil {coil} did NOT fire - PLC pulse queue is full, try again",
+    gagalUjiPlc:"Failed to fire coil",
+    err_konfirmasi_kurang:"Type UJI exactly to fire the coil",
+    err_plc_sibuk:"Line is processing a truck - the coil cannot be fired",
+    err_coil_tidak_dikenal:"This coil is not known to the line",
   },
 };
 
@@ -1203,8 +1246,7 @@ document.addEventListener("focusout", (ev) => {
 });
 
 // ── truck / weighbridge tabs ───────────────────────────────────────────
-// "plc" is still nav-only (its own task); the rest all have a real panel.
-const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "diagnostik", "antrean", "versi"];
+const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "diagnostik", "antrean", "versi", "plc"];
 let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
 
 function terapkanTab() {
@@ -1212,8 +1254,6 @@ function terapkanTab() {
     const aktif = b.dataset.tab === tab;
     b.classList.toggle("aktif", aktif);
     b.setAttribute("aria-selected", String(aktif));
-    // "plc" has no `sec-*` panel yet (nav-only); skip instead of letting
-    // `$()` throw null on first load.
     const panel = $("sec-" + b.dataset.tab);
     if (panel) panel.hidden = !aktif;
   });
@@ -1225,7 +1265,7 @@ function terapkanTab() {
 // tab stays open (a line coming back or dying should show up unattended);
 // the timer is started/stopped in `bukaTabDev` below, never left running
 // behind a tab nobody is looking at.
-const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi };
+const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc };
 
 function bukaTabDev(namaTab) {
   clearInterval(diagnostikTimer);
@@ -2468,6 +2508,91 @@ async function muatVersi() {
     if (e.kode !== "belum_masuk") $("versi-daftar").innerHTML = `<dt>${esc(t("gagalVersi"))}</dt><dd></dd>`;
   }
 }
+
+// ── developer: uji PLC (support only) ───────────────────────────────────
+// The only lane in the whole console that moves physical hardware. One card
+// per line (a coil only means something on that line's own PLC connection),
+// each fetched independently so one dead line does not blank the others -
+// same shape as diagnostik's per-line cards.
+function kartuPlc(kode, sibuk) {
+  return `<div class="card" data-line="${esc(kode)}" data-plc-sibuk="${sibuk ? "1" : "0"}">
+    <h2><span class="nama">${esc(kode)}</span></h2>
+    <div class="plc-di" data-plc-di></div>
+    <div class="plc-coil" data-plc-coil></div>
+  </div>`;
+}
+
+function isiDiPlc(inputs) {
+  if (!inputs || !inputs.length) return `<span class="muted">${esc(t("plcMati"))}</span>`;
+  return inputs.map((on, i) => `<span class="plc-di-bit">${i}:${on ? esc(t("diAktif")) : esc(t("diMati"))}</span>`).join(" ");
+}
+
+function isiCoilPlc(kode, data, sibuk) {
+  if (!data.enabled) return `<span class="muted">${esc(t("plcMati"))}</span>`;
+  return (data.testable_coils || []).map((coil) => `
+    <button type="button" class="uji-coil" data-line="${esc(kode)}" data-coil="${coil}"
+      ${sibuk ? `disabled title="${esc(t("coilMatiLineSibuk"))}"` : ""}>
+      ${esc(t("btnUjiCoil").replace("{coil}", coil))}
+    </button>`).join("");
+}
+
+async function muatPlc() {
+  try {
+    // Line codes come from diagnostik (already fetched by support screens
+    // elsewhere) rather than a hardcoded list here, so a line rename needs
+    // no edit to this file.
+    const diag = await api("/api/console/dev/diagnostik");
+    const kodeLine = Object.keys(diag.lines);
+    $("plc-kartu").innerHTML = kodeLine
+      .map((kode) => kartuPlc(kode, diag.lines[kode].terjangkau && diag.lines[kode].current_assignment_id))
+      .join("");
+    await Promise.all(kodeLine.map((kode) => muatPlcSatuLine(kode)));
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("plc-kartu").innerHTML = `<p class="muted">${esc(t("gagalPlc"))}</p>`;
+  }
+}
+
+async function muatPlcSatuLine(kode) {
+  const kartu = $("plc-kartu").querySelector(`.card[data-line="${CSS.escape(kode)}"]`);
+  if (!kartu) return;
+  const sibuk = kartu.dataset.plcSibuk === "1";
+  try {
+    const data = await api(`/api/console/dev/plc/${encodeURIComponent(kode)}`);
+    kartu.querySelector("[data-plc-di]").innerHTML = isiDiPlc(data.inputs);
+    kartu.querySelector("[data-plc-coil]").innerHTML = isiCoilPlc(kode, data, sibuk);
+  } catch (e) {
+    if (e.kode === "belum_masuk") return;
+    kartu.querySelector("[data-plc-di]").innerHTML = `<span class="muted">${esc(alasan(e))}</span>`;
+    kartu.querySelector("[data-plc-coil]").innerHTML = "";
+  }
+}
+
+$("plc-kartu").addEventListener("click", async (ev) => {
+  const tombol = ev.target.closest("button.uji-coil");
+  if (!tombol || tombol.disabled) return;
+  const line_code = tombol.dataset.line;
+  const coil = Number(tombol.dataset.coil);
+  // Typed confirmation, not a click: a click (even through a confirm()
+  // dialog) can be brushed on a touchscreen read from several metres away.
+  const ketikan = prompt(t("konfirmasiUjiPlc").replace("{coil}", coil).replace("{line}", line_code));
+  if (ketikan === null) return;               // dialog dibatalkan - jangan kirim apa pun
+  if (ketikan.trim() !== "UJI") {
+    pesan(t("ujiPlcDibatalkan"));
+    return;
+  }
+  tombol.disabled = true;
+  try {
+    const hasil = await api(`/api/console/dev/plc/${encodeURIComponent(line_code)}/coil`, {
+      method: "POST",
+      body: JSON.stringify({ coil, konfirmasi: ketikan.trim() }),
+    });
+    pesan(hasil.fired ? t("ujiPlcBerhasil").replace("{coil}", coil) : t("ujiPlcDijatuhkan").replace("{coil}", coil));
+  } catch (e) {
+    if (e.kode !== "belum_masuk") pesan(t("gagalUjiPlc") + ": " + alasan(e));
+  } finally {
+    await muatPlcSatuLine(line_code);          // re-enables the button if the line is still idle
+  }
+});
 
 (async () => {
   terapkanBahasa();

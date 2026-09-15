@@ -23,7 +23,7 @@ from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
 from ..services.auth_service import AuthService
 from ..services.console_service import ConsoleService
-from ..services.dev_service import DevService
+from ..services.dev_service import CoilTidakDikenal, DevService, KonfirmasiKurang, PlcSibuk
 from ..services.erp_queue import ErpQueue
 from ..services.qr_cetak import png_qr
 from ..services.scan_service import ScanService
@@ -423,6 +423,55 @@ async def dev_kirim_ulang(dev: Dev, operator: Support) -> dict:
 @router.get("/api/console/dev/versi")
 async def dev_versi(dev: Dev, operator: Support) -> dict:
     return dev.versi()
+
+
+@router.get("/api/console/dev/plc/{line_code}")
+async def dev_plc(dev: Dev, operator: Support, line_code: str) -> dict:
+    """DI snapshot + testable coils for one line. Read-only — safe to open anytime,
+    including PLC_ENABLED=false (the normal dev/cloud state): the line answers
+    `{"enabled": false}` rather than erroring, and the screen says so."""
+    try:
+        return await dev.plc_baca(line_code)
+    except ValueError as exc:
+        raise _operator_error(404, exc) from exc
+    except LineUnavailable as exc:
+        raise _operator_error(502, exc) from exc
+
+
+@router.post("/api/console/dev/plc/{line_code}/coil")
+async def dev_plc_coil(
+    dev: Dev,
+    operator: Support,
+    line_code: str,
+    coil: Annotated[int, Body()],
+    konfirmasi: Annotated[str, Body()],
+) -> dict:
+    """The only lane in this whole console that moves physical hardware.
+
+    Three guards: typed confirmation, refused while the line is processing a
+    truck (409, checked on the line — see DevService.plc_picu), and every
+    attempt — fired or refused — leaves a WARNING row in log_kejadian.
+    """
+    try:
+        return await dev.plc_picu(
+            line_code=line_code,
+            coil=coil,
+            konfirmasi=konfirmasi,
+            operator_email=operator["email"],
+        )
+    except KonfirmasiKurang as exc:
+        raise _operator_error(400, exc) from exc
+    except PlcSibuk as exc:
+        raise _operator_error(409, exc) from exc
+    except CoilTidakDikenal as exc:
+        raise _operator_error(422, exc) from exc
+    except LineUnavailable as exc:
+        raise _operator_error(502, exc) from exc
+    except ValueError as exc:
+        # Must come AFTER KonfirmasiKurang/CoilTidakDikenal above — both are
+        # ALSO ValueError (via OperatorError, ValueError), and a bare catch
+        # placed first would swallow them into the wrong status code.
+        raise _operator_error(404, exc) from exc
 
 
 # ── event receiver for the three lines (frozen contract §5) ─────────────

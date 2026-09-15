@@ -61,3 +61,22 @@ class LineStatusResponse(BaseModel):
     truck_id: str | None
     ffb_source: str | None
     piston: dict | None
+
+
+class PlcCoilCommandRequest(BaseModel):
+    machine_id: str
+    coil: int
+    requested_by: str = "support"
+
+
+class PlcCoilCommandResponse(BaseModel):
+    fired: bool
+    coil: int
+
+
+class PlcStateResponse(BaseModel):
+    """DI snapshot + which coils this line allows hand-firing. Read-only."""
+
+    enabled: bool
+    inputs: list[bool] = []
+    testable_coils: list[int] = []

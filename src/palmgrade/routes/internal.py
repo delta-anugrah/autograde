@@ -8,6 +8,8 @@ from ..controllers.internal_controller import (
     line_status,
     manual_reject_command,
     piston_command,
+    plc_coil_command,
+    plc_state,
     sync_assignment,
 )
 from ..core.dependencies import (
@@ -25,6 +27,9 @@ from ..schemas.internal_schema import (
     ManualRejectCommandResponse,
     OutboxRequeueResponse,
     PistonCommandRequest,
+    PlcCoilCommandRequest,
+    PlcCoilCommandResponse,
+    PlcStateResponse,
 )
 from ..services.capture_service import CaptureService
 from ..workers.runtime_state import RuntimeState
@@ -84,3 +89,16 @@ async def line_status_endpoint(
     state: Annotated[RuntimeState, Depends(get_runtime_state)],
 ) -> LineStatusResponse:
     return await line_status(state)
+
+
+@router.get("/plc", response_model=PlcStateResponse)
+async def plc_state_endpoint() -> PlcStateResponse:
+    return await plc_state()
+
+
+@router.post("/plc/coil", response_model=PlcCoilCommandResponse)
+async def plc_coil(
+    request: PlcCoilCommandRequest,
+    state: Annotated[RuntimeState, Depends(get_runtime_state)],
+) -> PlcCoilCommandResponse:
+    return await plc_coil_command(request, state)
