@@ -190,26 +190,18 @@
      satu baris sampai 1024 px. */
   .timbang-baris input.plat { flex:0 0 10rem; }
 
-  /* ---- dialog tara ---- */
-  /* Menumpang `.gerbang-kotak` (kotak dialog yang sudah ada), tapi ISI-nya pakai kelas
-     sendiri: `.gerbang-isi` milik gerbang login, dan memakainya di sini membuat
-     kolomnya melar - kesalahan yang sama sudah terjadi sekali di baris alat timbangan. */
-  #dialog-tara { position:fixed; inset:0; z-index:60; display:flex; align-items:center;
-                 justify-content:center; padding:var(--pad); background:var(--bg);
-                 overflow:auto; }
-  #dialog-tara[hidden] { display:none; }
-  .tara-isi { display:flex; flex-direction:column; gap:10px; }
-  .tara-isi input { min-height:3.4rem; padding:0 14px; font-size:1.4rem;
-                    font-family:var(--mono); text-align:right; }
-  .tara-isi input:focus-visible { outline:3px solid var(--acc); outline-offset:1px; }
-  /* Platnya besar: operator melihat beberapa truk sehari sambil memegang HP supir. */
-  .tara-plat { font-family:var(--mono); font-size:1.6rem; letter-spacing:.02em; }
-  #tara-pesan { min-height:1.5rem; margin:0; font-weight:700; color:var(--danger-fg); }
-  /* Tombol sebesar jempol bersarung tangan, Simpan lebih lebar karena itu yang dituju. */
-  .tara-aksi { display:flex; gap:10px; }
-  .tara-aksi button { min-height:3.6rem; font-size:1.1rem; border-radius:var(--r-md); }
-  .tara-aksi #tara-simpan { flex:2; }
-  .tara-aksi #tara-batal { flex:1; }
+  /* ---- kolom tara di gerbang keluar ---- */
+  /* Inline, BUKAN lapisan di atas layar: dialog yang menutup layar menghilangkan kamera
+     line dan strip tally sampai tara selesai diisi, dan di gerbang yang sibuk itu
+     kehilangan pandangan justru saat paling butuh. Dilaporkan operator 2026-09-15. */
+  .tara-grup { display:flex; align-items:center; gap:8px; }
+  .tara-grup[hidden] { display:none; }
+  /* Platnya disebut: operator melihat beberapa truk sehari sambil memegang HP supir,
+     dan kolom tanpa nama truk bisa mendarat di kunjungan yang salah. */
+  .tara-plat { font-family:var(--mono); font-weight:700; font-size:1.05rem;
+               white-space:nowrap; }
+  .tara-grup input { flex:0 0 8rem; font-family:var(--mono); text-align:right; }
+  .tara-grup button { flex:0 0 7rem; }
   /* Pemisah: dua gerbang itu dua tempat fisik, dan garis ini yang mengatakannya. */
   .timbang-keluar { padding-left:18px; border-left:1px solid var(--line-kuat); }
   /* Di layar sempit gerbang keluar turun ke baris kedua, dan garis di KIRI jadi
@@ -544,30 +536,7 @@
 </header>
 <div id="err"></div>
 
-<!--
-  Dialog tara. Menggantikan dialog bawaan browser, yang di layar pabrik punya tiga
-  masalah: kotaknya kecil untuk jempol bersarung tangan, ukurannya tidak bisa diatur,
-  dan menerima teks apa pun tanpa validasi. Dilaporkan operator dari screenshot.
 
-  Platnya disebut besar: operator melihat beberapa truk sehari sambil memegang HP supir,
-  dan dialog tanpa nama truk adalah dialog yang bisa mendarat di kunjungan yang salah.
--->
-<div id="dialog-tara" hidden>
-  <div class="gerbang-kotak" role="dialog" aria-modal="true" aria-labelledby="tara-judul">
-    <h2 id="tara-judul" data-t="taraJudul">Timbang keluar</h2>
-    <b id="tara-plat" class="tara-plat"></b>
-    <span class="lb" data-t="phTara">Tara (kg)</span>
-    <div class="tara-isi">
-      <input id="tara-nilai" class="kg" inputmode="decimal" autocomplete="off"
-             data-t-ph="phTara" placeholder="Tara (kg)" aria-labelledby="tara-judul">
-    </div>
-    <p id="tara-pesan" role="alert"></p>
-    <div class="tara-aksi">
-      <button type="button" id="tara-simpan" class="utama" data-t="btnSimpanTara">Simpan</button>
-      <button type="button" id="tara-batal" data-t="btnBatal">Batal</button>
-    </div>
-  </div>
-</div>
 
 <div id="gerbang">
   <div class="gerbang-kotak" role="dialog" aria-modal="true" aria-labelledby="gerbang-judul">
@@ -765,6 +734,22 @@
       <div class="timbang-baris">
         <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="QR keluar"
                autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <!--
+          Kolom tara muncul DI SINI setelah scan berhasil, bukan sebagai lapisan di atas
+          layar: dialog yang menutup seluruh layar menghilangkan kamera line dan strip
+          tally sampai tara selesai diisi, dan di gerbang yang sibuk itu kehilangan
+          pandangan justru saat paling butuh. Dilaporkan operator 2026-09-15.
+
+          Disembunyikan sampai ada truk terpilih: kolom yang bisa diisi tanpa tiket
+          adalah kolom yang tidak tahu harus menulis ke mana.
+        -->
+        <span id="tara-grup" class="tara-grup" hidden>
+          <b id="tara-plat" class="tara-plat"></b>
+          <input id="tara-nilai" class="kg" inputmode="decimal" autocomplete="off"
+                 data-t-ph="phTara" placeholder="Tara (kg)">
+          <button type="button" id="tara-simpan" class="utama" data-t="btnSimpanTara">Simpan</button>
+          <button type="button" id="tara-batal" data-t="btnBatal">Batal</button>
+        </span>
       </div>
       <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
     </div>
@@ -1766,13 +1751,12 @@ function tanyaTara(w) {
   taraUntuk = w;
   $("tara-plat").textContent = w.plate_number || "";
   $("tara-nilai").value = "";
-  $("tara-pesan").textContent = "";
-  $("dialog-tara").hidden = false;
+  $("tara-grup").hidden = false;
   $("tara-nilai").focus();
 }
 
 function tutupTara() {
-  $("dialog-tara").hidden = true;
+  $("tara-grup").hidden = true;
   taraUntuk = null;
 }
 
@@ -1783,7 +1767,7 @@ async function simpanTara() {
   const teks = $("tara-nilai").value.trim().replace(",", ".");
   const angka = Number(teks);
   if (!teks || !Number.isFinite(angka) || angka < MINIMUM_BERAT_KG) {
-    $("tara-pesan").textContent = t("taraMinimum");
+    pesanScanKeluar(t("taraMinimum"), true);
     $("tara-nilai").focus();
     return;
   }
@@ -1794,11 +1778,11 @@ async function simpanTara() {
       plate_number: w.plate_number, ref: w.ref, waktu_masuk: w.waktu_masuk,
       tara_kg: teks, waktu_keluar: new Date().toISOString() }) });
     tutupTara();
-    pesan("");
+    pesanScanKeluar("");
   } catch (e) {
-    // Dialog dibiarkan terbuka: angkanya masih di kolom, jadi operator bisa
+    // Kolomnya dibiarkan terbuka: angkanya masih di situ, jadi operator bisa
     // membetulkan tanpa mengetik ulang dari nol.
-    $("tara-pesan").textContent = alasan(e);
+    pesanScanKeluar(alasan(e), true);
   } finally {
     $("tara-simpan").disabled = false;
   }

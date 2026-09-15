@@ -421,14 +421,20 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     membacanya (ketemu di browser). **`BUKAN_PLAT` kode tersendiri, bukan `PLAT_KOSONG`**:
     layar menerjemahkan per kode, dan QR berisi URL yang dijawab "tidak boleh kosong"
     adalah pesan salah di depan operator gerbang.
-    **Tara diminta lewat dialog sendiri, bukan `prompt()` bawaan browser** (dilaporkan
-    operator 2026-09-15): kotak bawaan itu kecil untuk jempol bersarung tangan, ukurannya
-    tidak bisa diatur, dan menerima teks apa pun tanpa validasi. Dialognya menyebut plat
-    dengan huruf besar - operator melihat beberapa truk sehari sambil memegang HP supir -
-    dan memvalidasi angkanya **di layar** sebelum dikirim, karena bolak-balik jaringan
-    untuk hal yang terlihat di tempat itu satu detik yang hilang di gerbang. Gagal kirim
-    **tidak menutup dialog**: angkanya masih di kolom, jadi bisa dibetulkan tanpa
-    mengetik ulang. Koma diterima sebagai desimal (papan ketik Indonesia).
+    **Tara diisi di kolom yang muncul DI BARIS ALAT, bukan dialog yang menutup layar**
+    (dua kali dilaporkan operator 2026-09-15). `prompt()` bawaan browser ditolak lebih
+    dulu: kotaknya kecil untuk jempol bersarung tangan, ukurannya tidak bisa diatur, dan
+    menerima teks apa pun tanpa validasi. Lalu dialog sendiri **juga** ditolak, dan
+    alasannya lebih penting: lapisan yang menutup layar menghilangkan kamera line dan
+    strip tally sampai tara selesai diisi, dan di gerbang yang sibuk itu kehilangan
+    pandangan justru saat paling butuh. Kolomnya **tersembunyi sampai scan berhasil** -
+    kolom yang bisa diisi tanpa tiket adalah kolom yang tidak tahu harus menulis ke mana.
+    Platnya disebut di sebelahnya: operator melihat beberapa truk sehari sambil memegang
+    HP supir. Angkanya divalidasi **di layar** sebelum dikirim, karena bolak-balik
+    jaringan untuk hal yang terlihat di tempat itu satu detik yang hilang di gerbang;
+    server tetap yang berwenang. Gagal kirim **tidak menutup kolomnya**: angkanya masih
+    di situ, jadi bisa dibetulkan tanpa mengetik ulang. Koma diterima sebagai desimal
+    (papan ketik Indonesia).
     ⚠️ **`MINIMUM_BERAT_KG` = 1 ton, bukan 100 kg.** Lantai lama meloloskan `100` persis
     (perbandingannya `<`), dan itu mendarat di layar pabrik sebagai tiket sungguhan.
     Truk teringan yang benar-benar datang sekitar 2,5 t kosong, jadi satu ton masih
