@@ -118,6 +118,9 @@ operator menekan "Tutup piston" → aplikasi menurunkan coil ke 0 → ladder men
 | 5 | Timer maksimum: piston terbuka melampaui batas waktu tertentu → tutup sendiri atau bunyikan alarm | Piston yang terlupakan membuat satu line kehilangan sortir sepanjang sisa shift |
 | 6 | Tandan tanpa sinyal = lolos (perilaku default aktuator) | Aturan tandan internal tidak bekerja, dan tandan yang sinyalnya terbuang karena kepadatan justru dibuang secara fisik |
 
+Aturan 5 diajukan sebagai usulan; tim panel yang paling memahami batas waktu yang masuk akal bagi
+aktuator di lapangan.
+
 Rekonsiliasi sisi aplikasi (usulan): kalau discrete input konfirmasi tetap menunjukkan tertutup
 sementara coil aplikasi masih 1 selama lebih dari ≈2 detik, aplikasi menurunkan coilnya sendiri ke
 0, supaya klik berikutnya operator menjadi tepi 0→1 yang baru dan aturan 3 tetap berlaku.

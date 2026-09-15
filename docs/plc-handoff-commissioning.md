@@ -161,7 +161,7 @@ dan itu **tidak** diminta dalam dokumen ini agar sisa spare tidak habis sekaligu
 |---|---|---|
 | OK dan NG | **Pulse** | Satu tepi naik = satu janjang. Yang dihitung ladder adalah tepi naik, bukan lama ON |
 | ERROR | **Level** | 1 selama line tidak sehat, 0 selama sehat. Dievaluasi ulang setiap tick |
-| HEARTBIT PC | **Level, ON terus** | 1 selama aplikasi hidup dan berlisensi. 0 berarti PC berhenti |
+| HEARTBIT PC | **Level, ON terus** | 1 selama aplikasi hidup dan berlisensi. 0 berarti PC berhenti **atau** lisensi habis — dua keadaan itu terlihat sama di sisi PLC, sengaja |
 
 **Pulse OK dan NG.** Setiap keputusan grading menghasilkan satu pulse pada satu coil: ACC ke coil
 OK, REJ ke coil NG. Aplikasi menjamin ada jeda OFF di antara dua pulse pada coil yang sama,
@@ -197,6 +197,7 @@ Akibatnya semua durasi dibulatkan ke kelipatan satu tick.
 | Jeda OFF wajib | **±205 ms** | Jeda 100 ms dibulatkan ke atas menjadi satu tick penuh |
 | Satu siklus pulse | **±410 ms** | Dua tick: satu ON, satu jeda |
 | Kapasitas satu coil | **±2,5 pulse per detik** | 1 ÷ (2 × 0,205 detik) |
+| Timeout socket Modbus | 1 detik | Batas tunggu satu operasi baca/tulis ke coupler. Satu round-trip yang menggantung dapat menunda tick berikutnya selama itu |
 
 Angka **2,5 pulse per detik** itu yang berlaku, bukan 3,3. Perbedaannya berasal dari pembulatan
 jeda: jeda 100 ms tidak dapat terjadi dalam separuh tick, sehingga ia menempati satu tick penuh.
@@ -331,7 +332,7 @@ data dan foto di pabrik; yang tidak dikirim hanyalah sinyal ke PLC.
 | **Kabel LAN coupler dicabut** | Aplikasi tidak dapat menulis apa pun. Coupler menjalankan *fault action* miliknya dan me-reset output | Seluruh coil AutoGrade padam, termasuk HEARTBIT. Setelah kabel dipasang lagi, HEARTBIT dan coil ERROR **naik lagi sendiri** dalam ±1 detik tanpa restart |
 | **PC mati atau kehilangan daya** | Tidak ada penulisan sama sekali; watchdog coupler kedaluwarsa | HEARTBIT padam. Cepat-lambatnya bergantung pada watchdog coupler — lihat Bab 8 nomor 5 |
 | **Aplikasi berhenti atau di-restart** | Aplikasi menjalankan `deenergise()`: coil OK, NG, ERROR, dan HEARTBIT milik line itu ditulis 0 secara tegas sebelum koneksi ditutup | Tidak ada coil yang tertinggal ON. Ini penting karena peluang sebuah coil sedang ON saat perintah berhenti tiba kira-kira satu berbanding dua |
-| **E-stop ditekan** | Tidak ada perubahan pada coil. Kamera **tetap menilai** dan pulse tetap dikirim | Ladder yang memegang interlock. Perilaku kamera saat E-stop adalah butir terbuka — Bab 8 nomor 7 |
+| **E-stop ditekan** | Tidak ada perubahan pada coil. Kamera **tetap menilai** dan pulse tetap dikirim | Ladder yang memegang interlock. Perilaku kamera saat E-stop adalah butir terbuka — lihat butir tambahan di akhir Bab 8 |
 | **Langganan lisensi habis** | Coil HEARTBIT dimatikan secara sengaja | Terlihat persis sama dengan PC mati. Disengaja: berhenti secara diam-diam lebih berbahaya. Yang membedakan hanya layar operator |
 | **Koneksi putus saat piston terbuka** (usulan) | Permintaan buka dianggap batal dan **tidak** ditulis ulang setelah koneksi pulih | Piston tidak terbuka kembali dengan sendirinya. Operator harus menekan tombolnya lagi |
 
@@ -358,7 +359,7 @@ Dua perilaku di tabel itu berpasangan dan sengaja dibuat berbeda, sehingga perlu
 | 2 | **Jumlah piston per line, dan arti "buka" secara fisik** | Satu bit per line hanya cukup kalau "buka" berarti satu keadaan. Kalau satu line punya lebih dari satu piston yang berdiri sendiri, alokasi bitnya harus dirancang ulang sebelum ladder ditulis |
 | 3 | **Konfirmasi: buah yang lewat tanpa sinyal akan lolos** | Aturan buah internal (Bab 6) menghasilkan kebalikan dari yang dikehendaki, dan setiap sinyal yang terbuang karena kepadatan berubah menjadi buah yang dibuang secara fisik |
 | 4 | **Persetujuan enam aturan ladder (bagian 5.3)**, terutama aturan 3 | Tanpa aturan 3, melepas E-stop membuat piston bergerak sendiri — tepat saat ada orang yang membereskan sangkutan |
-| 5 | **Watchdog coupler diturunkan dari 30 detik ke 2–3 detik** (permintaan lama) | PC yang mati membuat coil terakhir tertinggal sampai setengah menit. Cukup lama untuk menyortir banyak buah memakai keputusan yang sudah basi. Aplikasi melakukan polling tiap 200 ms, jadi 2–3 detik aman dari false trip |
+| 5 | **Watchdog coupler diturunkan dari 30 detik ke 2–3 detik** (permintaan lama) | PC yang mati membuat coil terakhir tertinggal sampai setengah menit. Cukup lama untuk menyortir banyak buah memakai keputusan yang sudah basi. Aplikasi melakukan polling tiap 200 ms, jadi 2–3 detik aman dari false trip. Perlu diperhitungkan: timeout socket Modbus aplikasi 1 detik (bagian 4.2), jadi satu round-trip yang menggantung dapat merenggangkan jeda antar-tulis mendekati satu detik — tim panel yang menilai apakah margin 2–3 detik masih cukup dengan angka itu |
 | 6 | **E-stop dikabel ulang menjadi NC (normally closed)** (permintaan lama) | CT-122F low-active dan setelan coupler saat ini membuat **kabel putus terbaca persis sama dengan kondisi aman**. Kegagalan kabel jatuh ke sisi berbahaya, bukan sisi aman |
 | 7 | **Alamat IP coupler dan NIC yang dipakainya** — usulan `192.168.100.50`, subnet `255.255.255.0` (permintaan lama) | **Paling menghambat.** Tanpa ini aplikasi tidak dapat tersambung sama sekali. Usulan dipilih agar tidak bentrok dengan tiga kamera (`.10`, `.11`, `.12`) maupun NIC komputer (`.100`); boleh diganti ke `.51`–`.99` asalkan tetap `192.168.100.x` |
 
