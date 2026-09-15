@@ -142,6 +142,62 @@ def test_an_operator_deactivated_in_autoerp_is_switched_off_here(tmp_path):
     assert store.operators() == []
 
 
+def test_a_pull_that_changes_nothing_leaves_the_session_alone(tmp_path):
+    """Found in a real browser: the operator was thrown back to the gate a few seconds
+    after signing in, over and over.
+
+    `_rewind()` deliberately re-reads a little behind the cursor (clocks never agree to
+    the millisecond), so an unchanged document arrives on **every** pull. Deleting
+    sessions unconditionally therefore signed the operator out every sync interval — 5
+    minutes at the mill, forever, and the screen just said "sesi habis".
+
+    Only a real change may end a session.
+    """
+    store = _store(tmp_path)
+    operator_id = _erp(store)
+    token = new_session_token()
+    store.create_session(token, operator_id, now=1000.0, ttl_s=43200)
+
+    _erp(store)  # byte-for-byte the same document, as a re-read delivers it
+
+    assert store.session(token, now=1000.0) is not None
+
+
+def test_a_pull_that_changes_the_password_still_ends_the_session(tmp_path):
+    """The exemption above must not swallow the case it exists for: a password reset
+    means somebody saw the old one."""
+    store = _store(tmp_path)
+    operator_id = _erp(store)
+    token = new_session_token()
+    store.create_session(token, operator_id, now=1000.0, ttl_s=43200)
+
+    store.upsert_operator_erp(
+        {
+            "email": EMAIL,
+            "nama": NAMA,
+            "password_hash": "$pbkdf2-sha256$29000$GgPAeE9pTSnlHMOYc25NqQ$xm8TMCM65o6kxwljP.UukzwU7RMx9CUur3dwsgfNoAQ",
+            "erp_name": EMAIL,
+            "active": 1,
+        }
+    )
+
+    assert store.session(token, now=1000.0) is None
+
+
+def test_a_local_reset_that_changes_nothing_still_ends_the_session(tmp_path):
+    """`make operator` is typed by a person who means it — usually because a password
+    was seen. It is not a sync, so it always ends the sessions, even if the new password
+    happens to hash to a row that looks similar."""
+    store = _store(tmp_path)
+    operator_id = _lokal(store)
+    token = new_session_token()
+    store.create_session(token, operator_id, now=1000.0, ttl_s=43200)
+
+    _lokal(store)  # same password; the hash differs because the salt is new
+
+    assert store.session(token, now=1000.0) is None
+
+
 def test_a_pull_that_deactivates_someone_ends_the_sessions_they_hold(tmp_path):
     """Someone dismissed in the morning must not still be signed in at the mill all
     afternoon on a token minted before the pull."""
