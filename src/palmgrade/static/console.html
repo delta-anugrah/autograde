@@ -110,9 +110,9 @@
          background:var(--danger-bg); color:var(--danger-fg);
          border-bottom:1px solid var(--danger-line); border-left:6px solid var(--danger-fg); }
 
-  /* ---- PIN gate (Fase 4) ---- */
+  /* ---- sign-in gate (Fase 4) ---- */
   /* Covers the whole screen on purpose: a console nobody is signed in to shows
-     nothing behind it. Keys are sized for a gloved hand like every other control,
+     nothing behind it. Fields are sized for a gloved hand like every other control,
      and the gate is shown from the first paint so no data flashes past before the
      session is checked. `display:flex` would beat the UA's [hidden] rule, hence
      the explicit one. */
@@ -123,13 +123,17 @@
                    padding:22px; background:var(--card); border:1px solid var(--line-kuat);
                    border-top:5px solid var(--acc); border-radius:var(--r-lg); box-shadow:var(--tinggi-2); }
   .gerbang-kotak h2 { margin:0; font-size:1.3rem; }
+  /* Known accounts as buttons: they fill the email field, because typing an address
+     on an outdoor touchscreen is slow. The password is still required. */
   .gerbang-nama { display:flex; flex-wrap:wrap; gap:8px; }
   .gerbang-op { min-height:3rem; padding:0 16px; border-radius:var(--r-pill); }
   .gerbang-op[aria-pressed="true"] { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
-  #gerbang-titik { display:block; text-align:center; font-family:var(--mono);
-                   font-size:2rem; letter-spacing:.35em; }
-  .keypad { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }
-  .keypad button { min-height:4.2rem; font-size:1.5rem; border-radius:var(--r-md); }
+  .gerbang-isi { display:flex; flex-direction:column; gap:10px; }
+  .gerbang-isi input { min-height:3.4rem; padding:0 14px; font-size:1.1rem;
+                       font-family:inherit; color:var(--fg); background:var(--bg);
+                       border:1px solid var(--line-kuat); border-radius:var(--r-md); }
+  .gerbang-isi input:focus-visible { outline:3px solid var(--acc); outline-offset:1px; }
+  #gerbang-masuk { min-height:3.6rem; font-size:1.1rem; border-radius:var(--r-md); }
   #gerbang-pesan { min-height:1.5rem; margin:0; font-weight:700; color:var(--danger-fg); }
   #operator-aktif { align-self:center; font-weight:700; }
 
@@ -408,23 +412,18 @@
 <div id="gerbang">
   <div class="gerbang-kotak" role="dialog" aria-modal="true" aria-labelledby="gerbang-judul">
     <h2 id="gerbang-judul" data-t="gerbangJudul">Masuk ke konsol</h2>
-    <span class="lb" data-t="gerbangPilih">Pilih nama, lalu ketik PIN 6 angka</span>
+    <span class="lb" data-t="gerbangPilih">Ketik email dan sandi</span>
     <div id="gerbang-nama" class="gerbang-nama"></div>
-    <span id="gerbang-titik" aria-hidden="true"></span>
-    <div class="keypad">
-      <button type="button" data-kunci="1">1</button>
-      <button type="button" data-kunci="2">2</button>
-      <button type="button" data-kunci="3">3</button>
-      <button type="button" data-kunci="4">4</button>
-      <button type="button" data-kunci="5">5</button>
-      <button type="button" data-kunci="6">6</button>
-      <button type="button" data-kunci="7">7</button>
-      <button type="button" data-kunci="8">8</button>
-      <button type="button" data-kunci="9">9</button>
-      <button type="button" data-kunci="hapus" data-t="gerbangHapus">Hapus</button>
-      <button type="button" data-kunci="0">0</button>
-      <button type="button" id="gerbang-masuk" data-kunci="masuk" data-t="gerbangMasuk" disabled>Masuk</button>
+    <div class="gerbang-isi">
+      <!-- autocomplete off: a shared outdoor screen must not offer the last
+           operator's address to whoever stands there next. -->
+      <input id="gerbang-email" type="email" inputmode="email" autocomplete="off"
+             autocapitalize="none" spellcheck="false" data-t-ph="gerbangEmail"
+             placeholder="Email" aria-labelledby="gerbang-judul">
+      <input id="gerbang-sandi" type="password" autocomplete="off"
+             data-t-ph="gerbangSandi" placeholder="Sandi" aria-labelledby="gerbang-judul">
     </div>
+    <button type="button" id="gerbang-masuk" data-t="gerbangMasuk">Masuk</button>
     <p id="gerbang-pesan" role="alert"></p>
   </div>
 </div>
@@ -593,13 +592,13 @@ const KAMUS = {
     err_line_tidak_dikenal:"{line} tidak dikenal konsol",
     err_line_tidak_menjawab:"{line} tidak menjawab - pastikan layanan kameranya menyala",
     err_line_menolak:"{line} menolak perintah (HTTP {status})",
-    err_pin_format:"PIN harus 6 angka",
-    err_pin_lemah:"PIN terlalu mudah ditebak - jangan angka berulang atau berurutan",
-    err_pin_salah:"PIN salah",
-    err_terkunci:"Keypad terkunci {detik} detik lagi setelah beberapa PIN salah",
-    err_belum_masuk:"Sesi habis - masuk lagi dengan PIN",
-    gerbangJudul:"Masuk ke konsol", gerbangPilih:"Pilih nama, lalu ketik PIN 6 angka",
-    gerbangHapus:"Hapus", gerbangMasuk:"Masuk", tombolKeluar:"Keluar",
+    err_sandi_pendek:"Sandi minimal 8 karakter",
+    err_sandi_salah:"Email atau sandi salah",
+    err_terkunci:"Login terkunci {detik} detik lagi setelah beberapa sandi salah",
+    err_belum_masuk:"Sesi habis - masuk lagi",
+    gerbangJudul:"Masuk ke konsol", gerbangPilih:"Ketik email dan sandi",
+    gerbangEmail:"Email", gerbangSandi:"Sandi",
+    gerbangMasuk:"Masuk", tombolKeluar:"Keluar",
     gerbangKosong:"Belum ada operator. Buat dulu di PC ini: make operator",
   },
   en: {
@@ -634,13 +633,13 @@ const KAMUS = {
     err_line_tidak_dikenal:"{line} is not known to the console",
     err_line_tidak_menjawab:"{line} is not responding - check that its camera service is running",
     err_line_menolak:"{line} refused the command (HTTP {status})",
-    err_pin_format:"The PIN must be 6 digits",
-    err_pin_lemah:"That PIN is too easy to guess - no repeated or sequential digits",
-    err_pin_salah:"Wrong PIN",
-    err_terkunci:"Keypad locked for another {detik} s after repeated wrong PINs",
-    err_belum_masuk:"Session ended - sign in with your PIN again",
-    gerbangJudul:"Sign in to the console", gerbangPilih:"Pick your name, then type your 6-digit PIN",
-    gerbangHapus:"Delete", gerbangMasuk:"Sign in", tombolKeluar:"Sign out",
+    err_sandi_pendek:"The password must be at least 8 characters",
+    err_sandi_salah:"Wrong email or password",
+    err_terkunci:"Sign-in locked for another {detik} s after repeated wrong passwords",
+    err_belum_masuk:"Session ended - sign in again",
+    gerbangJudul:"Sign in to the console", gerbangPilih:"Type your email and password",
+    gerbangEmail:"Email", gerbangSandi:"Password",
+    gerbangMasuk:"Sign in", tombolKeluar:"Sign out",
     gerbangKosong:"No operators yet. Create one on this PC: make operator",
   },
 };
@@ -664,6 +663,8 @@ function terapkanTema() {
 function terapkanBahasa() {
   document.documentElement.lang = bahasa;
   document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
+  // Placeholders are their own channel: a field's hint is not its textContent.
+  document.querySelectorAll("[data-t-ph]").forEach((el) => { el.placeholder = t(el.dataset.tPh); });
   document.querySelectorAll("[data-t-ph]").forEach((el) => { el.placeholder = t(el.dataset.tPh); });
   $("bahasa").textContent = bahasa === "id" ? "EN" : "ID";
   segarkanPilih();
@@ -876,7 +877,13 @@ const LANE_GERBANG = new Set(["/api/console/operators", "/api/console/login", "/
 async function api(path, opts) {
   // A signed-out console left on all night would otherwise ask for data every 2 s
   // and be refused every time. The polls resume the moment someone signs in.
-  if (!$("gerbang").hidden && !LANE_GERBANG.has(path)) throw new Error(t("err_belum_masuk"));
+  if (!$("gerbang").hidden && !LANE_GERBANG.has(path)) {
+    // Carries the same code as the server's 401, so callers have one case to handle
+    // and neither path can raise a "console is down" banner over the gate.
+    const belum = new Error(t("err_belum_masuk"));
+    belum.kode = "belum_masuk";
+    throw belum;
+  }
   const res = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
   if (!res.ok) {
     // Operator routes send {code, params, message}; machine lanes send plain text.
@@ -1230,67 +1237,69 @@ document.addEventListener("input", segarkanTombol);
 
 // ── load ───────────────────────────────────────────────────────────────
 
-// ── PIN gate (Fase 4) ──────────────────────────────────────────────────
-// The whole screen sits behind it. Names come from /api/console/operators (open on
-// purpose, names only); the PIN goes to /api/console/login, which sets an HttpOnly
-// cookie this page never touches. Once a session is gone every lane answers 401
-// `belum_masuk`, and api() sends that here.
-const PIN_PANJANG = 6;
-let gerbangAktif = false;     // names loaded for the gate that is up now
-let gerbangOperator = null;   // id picked on the gate
-let gerbangPin = "";
+// ── sign-in gate (Fase 4) ──────────────────────────────────────────────
+// The whole screen sits behind it. Known accounts come from /api/console/operators
+// (open on purpose, no hashes) and only fill the email field; email + sandi go to
+// /api/console/login, which sets an HttpOnly cookie this page never touches. Once a
+// session is gone every lane answers 401 `belum_masuk`, and api() sends that here.
+//
+// Accounts are AutoERP's (pulled with the master data) or local to this PC. The screen
+// cannot tell the difference and does not need to: the console verifies either kind
+// offline, which is what keeps the mill working with the internet down.
+let gerbangAktif = false;     // accounts loaded for the gate that is up now
+let gerbangSibuk = false;     // a sign-in is in flight
 
 function tombolOperator(o) {
-  return `<button type="button" class="gerbang-op" data-operator="${esc(o.id)}"
-            aria-pressed="${o.id === gerbangOperator}">${esc(o.nama)}</button>`;
-}
-
-function isiTitik() {
-  $("gerbang-titik").textContent =
-    "●".repeat(gerbangPin.length) + "○".repeat(PIN_PANJANG - gerbangPin.length);
-  $("gerbang-masuk").disabled = !(gerbangOperator && gerbangPin.length === PIN_PANJANG);
+  return `<button type="button" class="gerbang-op" data-email="${esc(o.email)}"
+            >${esc(o.nama)}</button>`;
 }
 
 async function bukaGerbang() {
   $("gerbang").hidden = false;
   $("operator-aktif").hidden = true;
   $("keluar").hidden = true;
-  gerbangPin = "";
-  isiTitik();
+  $("gerbang-sandi").value = "";
+  // The gate replaces whatever the banner was saying. A "console not responding" left
+  // over from the poll that discovered the session was gone would otherwise sit above
+  // the gate for the rest of the shift, since nothing clears the banner until a lane
+  // succeeds again — and none can while the gate is up.
+  pesan("");
   // Several polls find out the session is gone at the same moment: load once.
   if (gerbangAktif) return;
   gerbangAktif = true;
   try {
     const items = (await api("/api/console/operators")).items;
-    if (!items.some((o) => o.id === gerbangOperator)) {
-      gerbangOperator = items.length === 1 ? items[0].id : null;
-    }
     $("gerbang-nama").innerHTML = items.length
       ? items.map(tombolOperator).join("")
       : `<p class="muted">${esc(t("gerbangKosong"))}</p>`;
+    // One account on this mill: fill it in, so only the password is left to type.
+    if (items.length === 1 && !$("gerbang-email").value) {
+      $("gerbang-email").value = items[0].email;
+    }
   } catch (e) { $("gerbang-pesan").textContent = alasan(e); }
-  isiTitik();
 }
 
 function tutupGerbang(operator) {
   gerbangAktif = false;
-  gerbangPin = "";
   $("gerbang").hidden = true;
   $("gerbang-pesan").textContent = "";
+  $("gerbang-sandi").value = "";
   $("operator-aktif").textContent = operator.nama;
   $("operator-aktif").hidden = false;
   $("keluar").hidden = false;
 }
 
-async function kirimPin() {
-  if (!(gerbangOperator && gerbangPin.length === PIN_PANJANG)) return;
-  const pin = gerbangPin;
-  // Cleared before the request, so a sixth digit and the button cannot send twice.
-  gerbangPin = "";
-  isiTitik();
+async function kirimSandi() {
+  const email = $("gerbang-email").value.trim();
+  const sandi = $("gerbang-sandi").value;
+  if (!(email && sandi) || gerbangSibuk) return;
+  // Locked while in flight: hashing is deliberately slow, and Enter plus the button
+  // would otherwise spend two wrong tries out of the five the lockout allows.
+  gerbangSibuk = true;
+  $("gerbang-masuk").disabled = true;
   try {
     const { operator } = await api("/api/console/login", {
-      method: "POST", body: JSON.stringify({ operator_id: gerbangOperator, pin }),
+      method: "POST", body: JSON.stringify({ email, sandi }),
     });
     tutupGerbang(operator);
     dipasang = false;
@@ -1298,16 +1307,14 @@ async function kirimPin() {
     await refresh();
     await muatTimbangan();
     await muatRekap();
-  } catch (e) { $("gerbang-pesan").textContent = alasan(e); }
-}
-
-function tekanKunci(kunci) {
-  if (kunci === "masuk") { kirimPin(); return; }
-  if (kunci === "hapus") gerbangPin = gerbangPin.slice(0, -1);
-  else if (/^\d$/.test(kunci) && gerbangPin.length < PIN_PANJANG) gerbangPin += kunci;
-  $("gerbang-pesan").textContent = "";
-  isiTitik();
-  if (gerbangPin.length === PIN_PANJANG && gerbangOperator) kirimPin();
+  } catch (e) {
+    $("gerbang-pesan").textContent = alasan(e);
+    $("gerbang-sandi").value = "";
+    $("gerbang-sandi").focus();
+  } finally {
+    gerbangSibuk = false;
+    $("gerbang-masuk").disabled = false;
+  }
 }
 
 async function cekSesi() {
@@ -1316,27 +1323,27 @@ async function cekSesi() {
 }
 
 $("gerbang").addEventListener("click", (ev) => {
-  const op = ev.target.closest("[data-operator]");
+  // A name only fills the address; the password is still required.
+  const op = ev.target.closest("[data-email]");
   if (op) {
-    gerbangOperator = op.dataset.operator;
-    document.querySelectorAll(".gerbang-op")
-      .forEach((b) => b.setAttribute("aria-pressed", String(b === op)));
+    $("gerbang-email").value = op.dataset.email;
     $("gerbang-pesan").textContent = "";
-    isiTitik();
+    $("gerbang-sandi").focus();
     return;
   }
-  const kunci = ev.target.closest("[data-kunci]");
-  if (kunci) tekanKunci(kunci.dataset.kunci);
+  if (ev.target.closest("#gerbang-masuk")) kirimSandi();
 });
 
-// A keyboard at the office PC types the PIN too.
-document.addEventListener("keydown", (ev) => {
-  if ($("gerbang").hidden) return;
-  if (/^\d$/.test(ev.key)) tekanKunci(ev.key);
-  else if (ev.key === "Backspace") tekanKunci("hapus");
-  else if (ev.key === "Enter") tekanKunci("masuk");
-  else return;
+// Enter from either field signs in, the way every login screen behaves.
+$("gerbang").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  if (!ev.target.closest("#gerbang-email, #gerbang-sandi")) return;
   ev.preventDefault();
+  if (ev.target.id === "gerbang-email" && !$("gerbang-sandi").value) {
+    $("gerbang-sandi").focus();
+    return;
+  }
+  kirimSandi();
 });
 
 $("keluar").addEventListener("click", async () => {
@@ -1371,7 +1378,12 @@ async function refresh() {
       ? s.recent.map(barisRecent).join("") : barisKosong(7, "kosongGrading");
     segarkanTombol();
     pesan("");
-  } catch (e) { pesan(t("gagalKonsol") + ": " + alasan(e)); }
+  } catch (e) {
+    // Not signed in is a normal state, and the gate is already saying so on top of
+    // this screen. Claiming the console is down as well trains the shift to ignore
+    // that banner, which is the one that matters when it really has stopped answering.
+    pesan(e.kode === "belum_masuk" ? "" : t("gagalKonsol") + ": " + alasan(e));
+  }
 }
 
 async function muatTimbangan() {

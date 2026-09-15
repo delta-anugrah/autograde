@@ -80,17 +80,55 @@ def test_gerbang_yang_terbuka_menahan_polling_data():
     assert 'gerbang").hidden' in api and "LANE_GERBANG" in api
 
 
+def test_lane_yang_ditahan_gerbang_memakai_kode_yang_sama():
+    """The gate blocks the poll locally, without asking the server, so that throw has to
+    carry `belum_masuk` too — otherwise the blocked path is an unknown error again and
+    raises the same false "console is down" banner the server path no longer does."""
+    api = _fungsi("api")
+    assert api.count("belum_masuk") >= 2
+
+
+def test_belum_masuk_bukan_konsol_mati():
+    """Also found in a real browser: the gate was up and a red "Konsol tidak merespons"
+    banner sat above it. Not signed in is a normal state the gate already explains, and
+    a false alarm about the console being down is what makes operators stop reading the
+    banner that matters — the one raised when the console really has stopped answering."""
+    assert "belum_masuk" in _fungsi("refresh")
+
+
+def test_gerbang_yang_naik_membersihkan_banner():
+    """The first fix was not enough, and only the browser said so: the banner is written
+    by the poll that *discovers* the session is gone, and nothing clears it afterwards
+    because clearing only happens when a lane succeeds — which none can while the gate
+    is up. So raising the gate has to clear it."""
+    assert 'pesan("")' in _fungsi("bukaGerbang")
+
+
 def test_nama_operator_masuk_layar_lewat_esc():
     """Operator names are typed on the PC and served to an unauthenticated page."""
     assert "esc(" in _fungsi("tombolOperator")
 
 
 def test_label_gerbang_diterjemahkan_di_kedua_bahasa():
-    kunci = ("gerbangJudul", "gerbangPilih", "gerbangHapus", "gerbangMasuk", "tombolKeluar")
+    kunci = (
+        "gerbangJudul", "gerbangPilih", "gerbangEmail", "gerbangSandi",
+        "gerbangMasuk", "tombolKeluar",
+    )
     for bahasa in ("id", "en"):
         isi = _kamus(bahasa)
         hilang = [k for k in kunci if f"{k}:" not in isi]
         assert not hilang, f"KAMUS.{bahasa} belum menerjemahkan {hilang}"
+
+
+def test_setiap_placeholder_ikut_diterjemahkan():
+    """`data-t-ph` is a second, easily-forgotten channel: `terapkanBahasa` handles
+    `data-t` textContent, and a placeholder that nothing applies stays Indonesian on the
+    English screen — visible only to whoever switches language and looks at a hint."""
+    assert "data-t-ph" in _fungsi("terapkanBahasa")
+
+    for atribut in re.findall(r'data-t-ph="(\w+)"', HTML):
+        for bahasa in ("id", "en"):
+            assert f"{atribut}:" in _kamus(bahasa), f"KAMUS.{bahasa} belum punya {atribut}"
 
 
 def test_halaman_tidak_pernah_membaca_cookie():
