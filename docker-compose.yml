@@ -97,6 +97,9 @@ services:
       - PLC_COIL_BASE=0
       # Coil 9 = HEARTBIT PC, satu-satunya bit alive di skematik ODOT.
       - PLC_COIL_ALIVE=9
+      # Piston manual line 1 — coil 10 (X030A), konfirmasi DI 11 (Y031B).
+      - PLC_COIL_MANUAL=10
+      - PLC_DI_MANUAL=11
       - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-0}
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
@@ -205,6 +208,9 @@ services:
       - PLC_COIL_BASE=3
       # Kosong: coil 11 ditandai SPARE di skematik ODOT.
       - PLC_COIL_ALIVE=
+      # Piston manual line 2 — coil 11, konfirmasi DI 12.
+      - PLC_COIL_MANUAL=11
+      - PLC_DI_MANUAL=12
       - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-0}
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
@@ -313,6 +319,9 @@ services:
       - PLC_COIL_BASE=6
       # Kosong: coil 12 ditandai SPARE di skematik ODOT.
       - PLC_COIL_ALIVE=
+      # Piston manual line 3 — coil 12, konfirmasi DI 13.
+      - PLC_COIL_MANUAL=12
+      - PLC_DI_MANUAL=13
       - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-0}
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}

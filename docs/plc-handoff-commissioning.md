@@ -95,7 +95,7 @@ OK mendarat di alamat CAM 1 NG, dan buah yang layak dibuang.
 | **12** | **X030C** | **LINE 3: piston manual buka** | **level, 1 = minta buka** | **line 3** | **Usulan** |
 | 13–15 | X030D–X030F | SPARE, tidak disentuh aplikasi | — | — | — |
 
-<!-- plc-map: coil_base=0,3,6; coil_alive=9; coil_manual=; di_manual= -->
+<!-- plc-map: coil_base=0,3,6; coil_alive=9; coil_manual=10,11,12; di_manual=11,12,13 -->
 
 Coil 10–15 sebelumnya disepakati sebagai SPARE. Permintaan sekarang memindahkan 10, 11, 12 menjadi
 piston manual, menyisakan 13–15 sebagai spare. Konsekuensi yang diterima sadar: kalau proses satu

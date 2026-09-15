@@ -58,3 +58,23 @@ def test_non_plc_int_env_still_fails_fast(monkeypatch):
     monkeypatch.setenv("UPLOAD_RETENTION_DAYS", "abc")
     with pytest.raises(ValueError):
         Settings()
+
+
+def test_coil_manual_mati_kalau_tidak_diset():
+    # Fitur piston harus mati total selama panel belum mengalokasikan coil.
+    s = Settings()
+    assert s.plc_coil_manual is None
+    assert s.plc_di_manual is None
+
+
+def test_coil_manual_dibaca_dari_env(monkeypatch):
+    monkeypatch.setenv("PLC_COIL_MANUAL", "11")
+    monkeypatch.setenv("PLC_DI_MANUAL", "12")
+    s = Settings()
+    assert (s.plc_coil_manual, s.plc_di_manual) == (11, 12)
+
+
+def test_coil_manual_rusak_mematikan_fitur_bukan_grading(monkeypatch):
+    monkeypatch.setenv("PLC_COIL_MANUAL", "sebelas")
+    s = Settings()               # tidak boleh raise
+    assert s.plc_coil_manual is None
