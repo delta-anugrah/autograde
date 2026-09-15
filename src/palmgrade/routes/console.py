@@ -149,12 +149,12 @@ async def console_history(
     offset: int = Query(0, ge=0),
 ) -> dict:
     tanggal = tanggal_kerja or service.today()
-    return {
-        "tanggal_kerja": tanggal,
-        "items": service.history(
-            tanggal, line_code=line_code, truck_id=truck_id, limit=limit, offset=offset
-        ),
-    }
+    # `items` keeps its shape; `total` is added beside it so the screen can page without
+    # a second round trip, and older callers that only read `items` are unaffected.
+    halaman = service.history_halaman(
+        tanggal, line_code=line_code, truck_id=truck_id, limit=limit, offset=offset
+    )
+    return {"tanggal_kerja": tanggal, **halaman}
 
 
 @router.get("/api/console/trucks")

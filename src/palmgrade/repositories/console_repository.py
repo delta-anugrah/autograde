@@ -238,6 +238,46 @@ class ConsoleStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    @staticmethod
+    def _saringan_inspeksi(
+        tanggal_kerja: str, line_code: str | None, truck_id: str | None
+    ) -> tuple[list[str], list[Any]]:
+        """One place both the page and its count are filtered.
+
+        Built once and shared on purpose: a count that filters differently from the rows
+        produces a page 4 of a list that only has one page - the Next button stays live
+        and lands on an empty screen.
+        """
+        where = ["i.tanggal_kerja = ?"]
+        params: list[Any] = [tanggal_kerja]
+        if line_code:
+            where.append("i.line_code = ?")
+            params.append(line_code)
+        if truck_id:
+            where.append("i.truck_id = ?")
+            params.append(truck_id)
+        return where, params
+
+    def jumlah_inspeksi(
+        self,
+        tanggal_kerja: str,
+        *,
+        line_code: str | None = None,
+        truck_id: str | None = None,
+    ) -> int:
+        """How many rows the same filter matches across the whole day.
+
+        Counted in SQL rather than measured with `len(items)`: that is only ever as long
+        as one page, so the screen would claim 25 rows on a day that graded eight hundred.
+        """
+        where, params = self._saringan_inspeksi(tanggal_kerja, line_code, truck_id)
+        with self._lock:
+            row = self._db.execute(
+                f"SELECT COUNT(*) AS n FROM inspections i WHERE {' AND '.join(where)}",
+                params,
+            ).fetchone()
+        return int(row["n"])
+
     def inspections(
         self,
         tanggal_kerja: str,
@@ -247,14 +287,7 @@ class ConsoleStore:
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        where = ["i.tanggal_kerja = ?"]
-        params: list[Any] = [tanggal_kerja]
-        if line_code:
-            where.append("i.line_code = ?")
-            params.append(line_code)
-        if truck_id:
-            where.append("i.truck_id = ?")
-            params.append(truck_id)
+        where, params = self._saringan_inspeksi(tanggal_kerja, line_code, truck_id)
         params += [limit, offset]
         with self._lock:
             rows = self._db.execute(

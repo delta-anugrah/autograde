@@ -233,3 +233,127 @@ def test_pintasan_piston_tidak_aktif_saat_mengetik():
     # against.
     blok = _blok_pintasan_p()
     assert 'closest("input, textarea, .pilih")' in blok
+# ── panel dropdown tidak boleh terpotong tepi layar ────────────────────────────
+
+
+def test_panel_dropdown_menempel_ke_tepi_yang_benar():
+    """Panel `.pilih` yang menempel di sisi kanan strip tally tumbuh ke kanan dan
+    keluar layar: `left:0` mengukur dari tepi kiri tombol, dan tombolnya sendiri sudah
+    mepet kanan. Dibuktikan di browser 1366x768: kanan panel 1369 px di layar 1366.
+
+    Perbaikannya tidak bisa `right:0` polos untuk semua `.pilih` (yang di sisi kiri
+    justru jadi salah arah), jadi yang dipakai penanda posisi eksplisit.
+    """
+    assert ".pilih-panel--kanan" in HTML, "belum ada varian panel yang menempel kanan"
+    aturan = next(
+        baris for baris in HTML.splitlines() if ".pilih-panel--kanan" in baris and "right" in baris
+    )
+    assert "right:0" in aturan.replace(" ", "")
+    assert "left:auto" in aturan.replace(" ", ""), "left:0 bawaan harus dibatalkan"
+
+
+def test_dropdown_tata_letak_memakai_varian_kanan():
+    """Ini satu-satunya `.pilih` yang duduk di ujung kanan strip."""
+    blok = HTML.split('<div class="tata">', 1)[1].split("</div>\n</section>", 1)[0]
+    assert "pilih-panel--kanan" in blok
+
+
+# ── tombol lihat sandi ─────────────────────────────────────────────────────────
+
+
+def test_tombol_lihat_sandi_ada_di_gerbang():
+    """Diketik buta, sering pakai sarung tangan, di layar sentuh luar ruangan. Tanpa
+    cara melihat yang diketik, satu salah ketik terbaca sebagai "sandi saya ditolak"."""
+    blok = HTML.split('<div class="gerbang-isi">', 1)[1].split("</div>", 1)[0]
+    assert 'id="gerbang-lihat"' in blok
+
+
+def test_tombol_lihat_sandi_menukar_type_bukan_menaruh_sandi_di_DOM():
+    """Menampilkannya dengan menulis nilai ke elemen lain akan menyalin sandi ke tempat
+    kedua yang gampang ikut ter-render atau ter-log. Yang ditukar atribut `type`."""
+    fn = _fungsi("lihatSandi")
+    assert '"text"' in fn and '"password"' in fn
+    assert ".value" not in fn, "sandi tidak boleh disalin ke tempat lain"
+
+
+def test_status_lihat_sandi_tidak_ikut_tersimpan():
+    """`simpan()` menaruh di localStorage. Sandi terbuka yang bertahan antar sesi bikin
+    layar bersama menampilkan sandi operator berikutnya."""
+    assert "simpan(\"lihatSandi\"" not in HTML
+
+
+def test_sandi_kembali_tertutup_setiap_gerbang_dibuka():
+    """Operator berikutnya tidak boleh mewarisi kolom yang masih terbuka."""
+    assert "tutupSandi()" in _fungsi("bukaGerbang")
+
+
+def test_tombol_lihat_sandi_punya_label_dua_bahasa():
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("lihatSandi", "sembunyikanSandi"):
+            assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+
+
+# ── pagination riwayat grading ────────────────────────────────────────────────
+
+
+def test_grading_punya_pemilih_jumlah_baris_dan_tombol_halaman():
+    blok = HTML.split('<section id="sec-grading"', 1)[1].split("</section>", 1)[0]
+    assert 'id="grading-per"' in blok, "belum ada pemilih jumlah baris per halaman"
+    assert 'id="grading-prev"' in blok and 'id="grading-next"' in blok
+
+
+def test_halaman_grading_dibaca_dari_total_server_bukan_panjang_halaman():
+    """`items.length` cuma sepanjang satu halaman, jadi halaman terakhir yang kebetulan
+    penuh akan terbaca sebagai "masih ada lagi" selamanya."""
+    assert "gradingTotal = r.total" in _fungsi("muatGrading")
+    # Yang menentukan ada-tidaknya halaman berikutnya harus total, bukan panjang halaman.
+    batas = _fungsi("segarkanHalaman")
+    assert "gradingTotal" in batas
+    assert "items.length" not in batas
+
+
+def test_polling_dua_detik_tidak_menarik_halaman_yang_sedang_dibaca():
+    """Kalau tarikan 2 detik ikut menimpa tabel, operator yang sedang di halaman 3
+    dilempar balik ke halaman 1 tiap dua detik. Halaman selain yang pertama dipegang."""
+    fn = _fungsi("refresh")
+    assert "gradingOffset" in fn
+
+
+def test_pindah_halaman_tidak_pernah_offset_negatif():
+    """Tombol Sebelumnya di halaman pertama tidak boleh mengirim offset negatif: server
+    menolaknya 422 dan layar cuma menampilkan error tanpa sebab yang kelihatan."""
+    fn = _fungsi("gantiHalaman")
+    assert "Math.max(0" in fn
+
+
+def test_label_pagination_diterjemahkan_di_kedua_bahasa():
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("perHalaman", "halamanSebelum", "halamanBerikut", "rentangBaris"):
+            assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+
+
+def test_tombol_lihat_sandi_duduk_di_dalam_kolom():
+    """Tombol terpisah di samping kolom tidak terbaca sebagai "lihat sandi" oleh yang
+    memakainya. Posisinya di dalam kolom, seperti layar login mana pun."""
+    aturan = next(b for b in HTML.splitlines() if ".sandi-lihat {" in b)
+    assert "position:absolute" in aturan.replace(" ", "")
+    # Dan tidak boleh menutupi teks: kolomnya menyisakan ruang selebar tombol, jadi
+    # ketukan di ujung sandi yang sudah diketik tetap mendarat di kolomnya.
+    input_aturan = next(b for b in HTML.splitlines() if ".sandi-baris input" in b)
+    assert "padding-right" in input_aturan
+
+
+def test_tulisan_tombol_berubah_saat_sandi_terbuka():
+    """Latarnya tidak diwarnai penuh, jadi yang memberi tahu keadaannya tulisannya.
+    Satu kata untuk dua keadaan berarti tidak ada yang menandai sandi sedang terbuka."""
+    fn = _fungsi("lihatSandi")
+    assert "sembunyikanSingkat" in fn and "lihatSingkat" in fn
+
+
+def test_tombol_lihat_sandi_tidak_memakai_data_t():
+    """Wajahnya bergantian antara dua kunci, disetel `lihatSandi`. `data-t` di elemen itu
+    akan menimpanya tiap ganti bahasa dan mengunci tulisannya di satu keadaan."""
+    blok = HTML.split('id="gerbang-lihat"', 1)[1].split(">", 1)[0]
+    assert "data-t=" not in blok

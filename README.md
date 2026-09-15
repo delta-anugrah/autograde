@@ -538,7 +538,7 @@ sengaja terbuka, karena gerbang login sendiri perlu bisa digambar dan dipakai ma
 | `POST` | `/api/console/logout` | Akhiri sesi ini saja |
 | `GET` | `/api/console/me` | Operator yang sedang masuk |
 | `GET` | `/api/console/state` | Ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
-| `GET` | `/api/console/history` | Filter `tanggal_kerja` / `line_code` / `truck_id` |
+| `GET` | `/api/console/history` | Filter `tanggal_kerja` / `line_code` / `truck_id`. Pagination lewat `limit` (maks 200) + `offset`; balasannya juga berisi `total` = jumlah baris yang cocok filter di seluruh hari, dipakai layar untuk menghitung jumlah halaman |
 | `GET` | `/api/console/trucks` | Master truk + supplier + `sumber_label` |
 | `POST` | `/api/console/trucks` | Truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
 | `GET` | `/api/console/weighings` | Tiket timbangan hari kerja (bruto / tara / neto) |
