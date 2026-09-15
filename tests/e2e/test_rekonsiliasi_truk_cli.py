@@ -10,6 +10,12 @@ Not skipped and needs no services: the script's only dependency is a database pa
 which the fixture builds. It is the one E2E in this suite that can run anywhere,
 and it is kept out of `tests/unit` deliberately — it spawns processes and touches
 the filesystem, which the unit suite must not do.
+
+⚠️ The `_cli` suffix is load-bearing. There is no `__init__.py` under `tests/`, so
+pytest imports test modules by basename: two files called `test_rekonsiliasi_truk.py`
+in `unit/` and `e2e/` collide, and collection fails for BOTH. CI only runs
+`tests/unit/`, so it stays green and the clash only appears when someone runs the two
+suites together. Give every E2E file a basename no unit file uses.
 """
 
 from __future__ import annotations
