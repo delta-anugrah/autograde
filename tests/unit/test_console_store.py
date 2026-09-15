@@ -236,3 +236,51 @@ def test_rekap_tetap_menampilkan_janjang_tanpa_truk(service):
     (baris,) = service.rekap("2026-09-10")
     assert baris["truck_id"] is None and baris["total"] == 1
     assert baris["neto_kg"] is None
+
+
+# ── pagination riwayat grading ────────────────────────────────────────────────
+
+
+def test_jumlah_inspeksi_menghitung_seluruh_hari_bukan_sehalaman(service):
+    """Angka total tidak boleh datang dari `len(items)`: itu cuma sepanjang halaman,
+    jadi layar akan menulis "25 baris" di hari yang punya delapan ratus."""
+    for i in range(7):
+        service.ingest(_event(service, event_id=f"ev-{i}"))
+
+    assert service.store.jumlah_inspeksi("2026-09-10") == 7
+    # Halaman pertama dibatasi, hitungannya tidak.
+    assert len(service.store.inspections("2026-09-10", limit=3)) == 3
+    assert service.store.jumlah_inspeksi("2026-09-10") == 7
+
+
+def test_jumlah_inspeksi_memakai_filter_yang_sama_dengan_barisnya(service):
+    """Hitungan yang mengabaikan filter bikin halaman 4 dari 1 halaman yang ada:
+    tombol Berikutnya hidup, halamannya kosong."""
+    lain = service.lines[1].machine_id
+    for i in range(4):
+        service.ingest(_event(service, event_id=f"a-{i}"))
+    for i in range(2):
+        service.ingest(_event(service, event_id=f"b-{i}", machine_id=lain))
+
+    satu = service.lines[0].line_code
+    assert service.store.jumlah_inspeksi("2026-09-10", line_code=satu) == 4
+    assert service.store.jumlah_inspeksi("2026-09-10", line_code=service.lines[1].line_code) == 2
+    assert service.store.jumlah_inspeksi("2026-09-10") == 6
+
+
+def test_jumlah_inspeksi_hari_kosong_nol(service):
+    assert service.store.jumlah_inspeksi("2026-09-10") == 0
+
+
+def test_history_membawa_total_supaya_layar_bisa_menghitung_halaman(service):
+    for i in range(5):
+        service.ingest(_event(service, event_id=f"ev-{i}"))
+
+    hasil = service.history_halaman("2026-09-10", limit=2, offset=0)
+    assert hasil["total"] == 5
+    assert len(hasil["items"]) == 2
+
+    # Halaman terakhir: sisa satu baris, totalnya tetap sama.
+    akhir = service.history_halaman("2026-09-10", limit=2, offset=4)
+    assert akhir["total"] == 5
+    assert len(akhir["items"]) == 1

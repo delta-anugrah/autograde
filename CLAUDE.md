@@ -154,7 +154,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/logout` | akhiri sesi ini saja |
 | GET | `/api/console/me` | operator yang sedang masuk |
 | GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
-| GET | `/api/console/history` | filter `tanggal_kerja` / `line_code` / `truck_id` |
+| GET | `/api/console/history` | filter `tanggal_kerja` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas |
 | GET | `/api/console/trucks` | master truk + supplier + `sumber_label` |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
 | GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto) |

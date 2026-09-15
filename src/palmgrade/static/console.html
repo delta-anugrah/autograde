@@ -133,6 +133,23 @@
                        font-family:inherit; color:var(--fg); background:var(--bg);
                        border:1px solid var(--line-kuat); border-radius:var(--r-md); }
   .gerbang-isi input:focus-visible { outline:3px solid var(--acc); outline-offset:1px; }
+  /* The eye sits beside the field, not on top of it: an overlay button on a touchscreen
+     steals taps meant for the end of the text. */
+  .sandi-baris { display:flex; gap:8px; }
+  .sandi-baris input { flex:1; min-width:0; }
+  .sandi-lihat { flex:0 0 3.4rem; min-height:3.4rem; font-size:1.2rem; line-height:1;
+                 border-radius:var(--r-sm); }
+  .sandi-lihat[aria-pressed="true"] { background:var(--acc); color:var(--on-acc);
+                                      border-color:var(--acc); }
+
+  /* ---- pagination ---- */
+  .halaman { display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+             padding:12px 0 0; }
+  .halaman .pilih { flex:0 0 7rem; }
+  /* Pushes the buttons to the far end, so the pair sits where a thumb reaches. */
+  .halaman-tombol { margin-left:auto; display:flex; gap:8px; }
+  .halaman-tombol button { min-height:2.8rem; }
+  .halaman-tombol button:disabled { opacity:.45; cursor:default; }
   #gerbang-masuk { min-height:3.6rem; font-size:1.1rem; border-radius:var(--r-md); }
   #gerbang-pesan { min-height:1.5rem; margin:0; font-weight:700; color:var(--danger-fg); }
   #operator-aktif { align-self:center; font-weight:700; }
@@ -336,6 +353,11 @@
   .pilih-panel [role="option"]:focus { outline:none; background:var(--zebra);
                                        box-shadow:inset 4px 0 0 var(--acc); }
   .pilih-panel [role="option"][aria-selected="true"] { background:var(--acc-bg); color:var(--acc); }
+  /* A panel on a button already flush with the right edge grows off-screen: `left:0`
+     measures from the button's left, and the panel is wider than the button. Anchored
+     to the right edge instead. Not applied to every `.pilih` - the ones on the left
+     would then grow the wrong way - so it is asked for per dropdown. */
+  .pilih-panel--kanan { left:auto; right:0; }
 
   /* ---- tabs ---- */
   #tabs { display:flex; gap:3px; padding:26px var(--pad) 0; }
@@ -439,8 +461,17 @@
       <input id="gerbang-email" type="email" inputmode="email" autocomplete="off"
              autocapitalize="none" spellcheck="false" data-t-ph="gerbangEmail"
              placeholder="Email" aria-labelledby="gerbang-judul">
-      <input id="gerbang-sandi" type="password" autocomplete="off"
-             data-t-ph="gerbangSandi" placeholder="Sandi" aria-labelledby="gerbang-judul">
+      <!--
+        Typed blind, often with gloves on, on an outdoor touchscreen. Without a way to
+        see it a single typo reads as "my password is being refused", and the next thing
+        that happens is someone writing the password on the monitor.
+      -->
+      <div class="sandi-baris">
+        <input id="gerbang-sandi" type="password" autocomplete="off"
+               data-t-ph="gerbangSandi" placeholder="Sandi" aria-labelledby="gerbang-judul">
+        <button type="button" id="gerbang-lihat" class="sandi-lihat"
+                aria-pressed="false" data-t-lb="lihatSandi">👁</button>
+      </div>
     </div>
     <button type="button" id="gerbang-masuk" data-t="gerbangMasuk">Masuk</button>
     <p id="gerbang-pesan" role="alert"></p>
@@ -469,7 +500,7 @@
       <button type="button" id="kolom-tombol" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
         <span class="pilih-teks">Otomatis</span>
       </button>
-      <div class="pilih-panel" role="listbox" hidden>
+      <div class="pilih-panel pilih-panel--kanan" role="listbox" hidden>
         <div role="option" tabindex="-1" data-nilai="auto" aria-selected="true" data-t="kolomAuto">Otomatis</div>
         <div role="option" tabindex="-1" data-nilai="1" aria-selected="false" data-t="kolom1">1 per baris</div>
         <div role="option" tabindex="-1" data-nilai="2" aria-selected="false" data-t="kolom2">2 per baris</div>
@@ -498,6 +529,31 @@
         <th data-t="thFoto">Foto</th></tr></thead>
       <tbody id="recent"></tbody>
     </table>
+  </div>
+  <!--
+    A mill grades hundreds of bunches a day, so "the last 20" hides most of the shift.
+    The row count is the operator's choice: the same page is read on a 15" panel by the
+    line and on a desk monitor in the office.
+  -->
+  <div class="halaman">
+    <label class="lb" for="grading-per-tombol" data-t="perHalaman">Baris per halaman</label>
+    <div class="pilih" id="grading-per" data-nilai="25">
+      <button type="button" id="grading-per-tombol" class="pilih-tombol"
+              aria-haspopup="listbox" aria-expanded="false">
+        <span class="pilih-teks">25</span>
+      </button>
+      <div class="pilih-panel" role="listbox" hidden>
+        <div role="option" tabindex="-1" data-nilai="25" aria-selected="true">25</div>
+        <div role="option" tabindex="-1" data-nilai="50" aria-selected="false">50</div>
+        <div role="option" tabindex="-1" data-nilai="100" aria-selected="false">100</div>
+        <div role="option" tabindex="-1" data-nilai="200" aria-selected="false">200</div>
+      </div>
+    </div>
+    <span id="grading-rentang" class="muted"></span>
+    <span class="halaman-tombol">
+      <button type="button" id="grading-prev" data-t="halamanSebelum" disabled>Sebelumnya</button>
+      <button type="button" id="grading-next" data-t="halamanBerikut" disabled>Berikutnya</button>
+    </span>
   </div>
 </section>
 
@@ -618,6 +674,9 @@ const KAMUS = {
     gerbangJudul:"Masuk ke konsol", gerbangPilih:"Ketik email dan sandi",
     gerbangEmail:"Email", gerbangSandi:"Sandi",
     gerbangMasuk:"Masuk", tombolKeluar:"Keluar",
+    lihatSandi:"Lihat sandi", sembunyikanSandi:"Sembunyikan sandi",
+    perHalaman:"Baris per halaman", halamanSebelum:"Sebelumnya", halamanBerikut:"Berikutnya",
+    rentangBaris:"{dari}-{sampai} dari {total}",
     gerbangKosong:"Belum ada operator. Buat dulu di PC ini: make operator",
     btnPistonBuka:"Buka piston", btnPistonTutup:"Tutup piston",
     pistonMenunggu:"Menunggu PLC…", pistonMati:"Piston mati",
@@ -666,6 +725,9 @@ const KAMUS = {
     gerbangJudul:"Sign in to the console", gerbangPilih:"Type your email and password",
     gerbangEmail:"Email", gerbangSandi:"Password",
     gerbangMasuk:"Sign in", tombolKeluar:"Sign out",
+    lihatSandi:"Show password", sembunyikanSandi:"Hide password",
+    perHalaman:"Rows per page", halamanSebelum:"Previous", halamanBerikut:"Next",
+    rentangBaris:"{dari}-{sampai} of {total}",
     gerbangKosong:"No operators yet. Create one on this PC: make operator",
     btnPistonBuka:"Open piston", btnPistonTutup:"Close piston",
     pistonMenunggu:"Waiting for PLC…", pistonMati:"Piston disabled",
@@ -698,7 +760,11 @@ function terapkanBahasa() {
   document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
   // Placeholders are their own channel: a field's hint is not its textContent.
   document.querySelectorAll("[data-t-ph]").forEach((el) => { el.placeholder = t(el.dataset.tPh); });
-  document.querySelectorAll("[data-t-ph]").forEach((el) => { el.placeholder = t(el.dataset.tPh); });
+  // So are labels read only by a screen reader - a button whose face is an icon says
+  // nothing at all without one.
+  document.querySelectorAll("[data-t-lb]").forEach((el) => {
+    el.setAttribute("aria-label", t(el.dataset.tLb));
+  });
   $("bahasa").textContent = bahasa === "id" ? "EN" : "ID";
   segarkanPilih();
   terapkanTema();
@@ -866,6 +932,65 @@ $("kolom").addEventListener("pilih", () => {
   simpan("kolom", kolom);
   terapkanKolom();
 });
+
+// ── grading pagination ─────────────────────────────────────────────────
+// The row count is remembered (a preference), the page is not: coming back to the
+// screen should land on what is happening now, not on page 7 of yesterday's reading.
+const PER_SAH = ["25", "50", "100", "200"];
+let gradingPer = PER_SAH.includes(baca("gradingPer", "25")) ? baca("gradingPer", "25") : "25";
+let gradingOffset = 0;
+let gradingTotal = 0;
+
+async function muatGrading() {
+  const per = Number(gradingPer);
+  try {
+    const r = await api(`/api/console/history?limit=${per}&offset=${gradingOffset}`);
+    gradingTotal = r.total;
+    // Deleted rows, or a filter that shrank the day, can leave the offset past the end.
+    // Step back one page rather than showing an empty table with a live Previous button.
+    if (!r.items.length && gradingOffset > 0) {
+      gradingOffset = Math.max(0, gradingOffset - per);
+      return muatGrading();
+    }
+    $("recent").innerHTML = r.items.length
+      ? r.items.map(barisRecent).join("") : barisKosong(7, "kosongGrading");
+    segarkanHalaman();
+  } catch (e) { /* the gate is already up on 401; the screen keeps working */ }
+}
+
+// "51-75 dari 812" - the operator needs to know both where they are and how much
+// there is, because the row numbers restart at 1 on every page.
+function segarkanHalaman() {
+  const per = Number(gradingPer);
+  const dari = gradingTotal ? gradingOffset + 1 : 0;
+  const sampai = Math.min(gradingOffset + per, gradingTotal);
+  $("grading-rentang").textContent = t("rentangBaris")
+    .replace("{dari}", dari).replace("{sampai}", sampai).replace("{total}", gradingTotal);
+  $("grading-prev").disabled = gradingOffset <= 0;
+  $("grading-next").disabled = gradingOffset + per >= gradingTotal;
+}
+
+function gantiHalaman(arah) {
+  const per = Number(gradingPer);
+  // Clamped at zero: the server answers 422 to a negative offset, and the screen would
+  // show an error with no visible cause.
+  const baru = Math.max(0, gradingOffset + arah * per);
+  if (baru === gradingOffset) return;
+  gradingOffset = baru;
+  muatGrading();
+}
+
+$("grading-per").addEventListener("pilih", () => {
+  gradingPer = $("grading-per").dataset.nilai;
+  simpan("gradingPer", gradingPer);
+  // Back to the first page: row 300 sits on a different page once the size changes, so
+  // keeping the offset would land somewhere the operator did not ask for.
+  gradingOffset = 0;
+  muatGrading();
+});
+
+$("grading-prev").addEventListener("click", () => gantiHalaman(-1));
+$("grading-next").addEventListener("click", () => gantiHalaman(1));
 
 function selarasUrutan(lines) {
   // Lines gone from the registry are dropped, new ones append at the end -
@@ -1365,11 +1490,25 @@ function tombolOperator(o) {
             >${esc(o.nama)}</button>`;
 }
 
+// Swapping `type` is the whole mechanism on purpose. Rendering the password into a
+// second element would copy it somewhere that can be read, screenshotted, or logged;
+// here it never leaves the field it was typed into.
+function lihatSandi(buka) {
+  $("gerbang-sandi").type = buka ? "text" : "password";
+  $("gerbang-lihat").setAttribute("aria-pressed", String(buka));
+  $("gerbang-lihat").setAttribute("aria-label", t(buka ? "sembunyikanSandi" : "lihatSandi"));
+}
+
+function tutupSandi() { lihatSandi(false); }
+
 async function bukaGerbang() {
   $("gerbang").hidden = false;
   $("operator-aktif").hidden = true;
   $("keluar").hidden = true;
   $("gerbang-sandi").value = "";
+  // Never inherited by the next operator: this is a screen several people share, and
+  // the state is deliberately not remembered anywhere.
+  tutupSandi();
   // The gate replaces whatever the banner was saying. A "console not responding" left
   // over from the poll that discovered the session was gone would otherwise sit above
   // the gate for the rest of the shift, since nothing clears the banner until a lane
@@ -1395,6 +1534,7 @@ function tutupGerbang(operator) {
   $("gerbang").hidden = true;
   $("gerbang-pesan").textContent = "";
   $("gerbang-sandi").value = "";
+  tutupSandi();
   $("operator-aktif").textContent = operator.nama;
   $("operator-aktif").hidden = false;
   $("keluar").hidden = false;
@@ -1439,6 +1579,11 @@ $("gerbang").addEventListener("click", (ev) => {
   if (op) {
     $("gerbang-email").value = op.dataset.email;
     $("gerbang-pesan").textContent = "";
+    $("gerbang-sandi").focus();
+    return;
+  }
+  if (ev.target.closest("#gerbang-lihat")) {
+    lihatSandi($("gerbang-sandi").type === "password");
     $("gerbang-sandi").focus();
     return;
   }
@@ -1498,8 +1643,13 @@ async function refresh() {
       });
       terapkanUrutan();
     }
-    $("recent").innerHTML = s.recent.length
-      ? s.recent.map(barisRecent).join("") : barisKosong(7, "kosongGrading");
+    // Only the first page follows the live poll. Past it the operator is reading, and a
+    // table replaced every 2 s would throw them back to the newest rows mid-sentence.
+    //
+    // `state` carries the newest 20 and no total, which is enough to keep page 1 live at
+    // the default size but cannot say how many pages exist - so the count comes from
+    // /history, which is also the only source once the operator asks for more than 20.
+    if (gradingOffset === 0) await muatGrading();
     segarkanTombol();
     pesan("");
   } catch (e) {
@@ -1563,6 +1713,7 @@ async function muatTrucks() {
   terapkanBahasa();
   terapkanTab();
   pilihNilai($("kolom"), kolom);
+  pilihNilai($("grading-per"), gradingPer);
   terapkanKolom();
   detak();
   setInterval(detak, 1000);

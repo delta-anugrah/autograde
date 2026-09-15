@@ -185,6 +185,31 @@ class ConsoleService:
             _with_source_label(row)
         return rows
 
+    def history_halaman(
+        self,
+        tanggal_kerja: str,
+        *,
+        line_code: str | None = None,
+        truck_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """One page of grading plus how many rows the filter matches in total.
+
+        The total is what lets the screen say "51-75 of 812" and know whether there is a
+        next page at all. Without it the only honest thing a page can show is "more",
+        and the operator cannot tell a full last page from a list that keeps going.
+        """
+        return {
+            "items": self.history(
+                tanggal_kerja, line_code=line_code, truck_id=truck_id,
+                limit=limit, offset=offset,
+            ),
+            "total": self.store.jumlah_inspeksi(
+                tanggal_kerja, line_code=line_code, truck_id=truck_id
+            ),
+        }
+
     def trucks(self) -> list[dict[str, Any]]:
         return [_with_source_label(row) for row in self.store.trucks()]
 
