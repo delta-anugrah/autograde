@@ -394,6 +394,68 @@ class ConsoleStore:
                 (erp_name, supplier_id, truck_id),
             )
 
+    def trucks_semua(self) -> list[dict[str, Any]]:
+        """Every truck row, `inactive` included — for OPS-2 reconciliation only.
+
+        `trucks()` hides `inactive` because the operator must not be offered a
+        retired truck. Reconciliation needs the opposite: an inactive row still
+        carrying an old random id will collide with the plate-derived id the next
+        pull brings, and the twin appears months later when someone reactivates it.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT id, plate_number, supplier_id, capacity, status, erp_name
+                   FROM trucks ORDER BY rowid"""
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def pindahkan_truk(self, dari: str, ke: str) -> None:
+        """Move everything hanging off one truck id onto another, in ONE transaction
+        (OPS-2, one-time reconciliation when a running mill PC gets AutoGrade).
+
+        `truck_id` lives in three tables, and a half-done move is worse than none:
+        rows left pointing at a deleted id vanish from the recap entirely, and that
+        recap is what the supplier is paid on. So the whole move commits or nothing
+        does.
+
+        The surviving row keeps what either side knew: `erp_name` is the link to
+        AutoERP (losing it sends the truck up again as a new owner-less truck), and
+        `supplier_id` decides the FFB source label on every grading row of that truck,
+        because the label is read from the truck and never copied onto the row.
+        """
+        if dari == ke:
+            return
+        with self._lock, self._db:
+            lama = self._db.execute(
+                "SELECT plate_number, supplier_id, capacity, status, erp_name"
+                "  FROM trucks WHERE id = ?",
+                (dari,),
+            ).fetchone()
+            if lama is None:
+                return
+            baru = self._db.execute("SELECT 1 FROM trucks WHERE id = ?", (ke,)).fetchone()
+            if baru is None:
+                # No row to merge into: the old row simply takes the right id, so a
+                # later pull of that plate adopts it instead of adding a second row.
+                self._db.execute("UPDATE trucks SET id = ? WHERE id = ?", (ke, dari))
+            else:
+                self._db.execute(
+                    """UPDATE trucks SET
+                           plate_number = COALESCE(plate_number, ?),
+                           supplier_id  = COALESCE(supplier_id, ?),
+                           capacity     = COALESCE(capacity, ?),
+                           status       = COALESCE(status, ?),
+                           erp_name     = COALESCE(erp_name, ?)
+                       WHERE id = ?""",
+                    (lama["plate_number"], lama["supplier_id"], lama["capacity"],
+                     lama["status"], lama["erp_name"], ke),
+                )
+                self._db.execute("DELETE FROM trucks WHERE id = ?", (dari,))
+            for tabel in ("inspections", "assignments", "weighings"):
+                self._db.execute(
+                    f"UPDATE {tabel} SET truck_id = ? WHERE truck_id = ?", (ke, dari)
+                )
+
     def trucks(self) -> list[dict[str, Any]]:
         """Newest first.
 

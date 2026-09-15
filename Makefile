@@ -113,6 +113,17 @@ operator-docker:
 hash-sandi:
 	PYTHONPATH=src .venv/bin/python scripts/hash-sandi.py
 
+# OPS-2: satukan truk kembar di PC pabrik yang SUDAH punya data dari palmgrade-api.
+# Truk lama ber-id acak, AutoGrade menurunkan id dari plat, dan plat tidak punya
+# indeks unik - tanpa ini tarikan pertama membelah tonase satu truk jadi dua baris.
+# Dijalankan sekali saat pasang. PC baru (DB kosong) tidak perlu.
+# Tanpa TULIS=1 cuma melihat; di Docker pakai rekonsiliasi-truk-docker.
+rekonsiliasi-truk:
+	PYTHONPATH=src .venv/bin/python scripts/rekonsiliasi-truk.py $(if $(TULIS),--tulis,)
+
+rekonsiliasi-truk-docker:
+	docker compose --env-file $(ENV_FILE) exec console python scripts/rekonsiliasi-truk.py $(if $(TULIS),--tulis,)
+
 down:
 	docker compose --env-file $(ENV_FILE) down
 
