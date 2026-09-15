@@ -35,14 +35,22 @@ tinggal 3.
 
 | DI | Alamat PLC | Arti |
 |---|---|---|
-| 0–9 | Y0310–Y0319 | MOTOR 1–10 FAULT |
-| 10 | Y031A | EMERGENCY STOP |
-| 11 / 12 / 13 | Y031B–Y031D | **Konfirmasi piston terbuka** line 1 / 2 / 3 |
-| 14–15 | Y031E–Y031F | SPARE |
+| 0–10 | Y0310–Y031A | MOTOR 1–11 FAULT |
+| 11 | Y031B | EMERGENCY STOP |
+| 12 / 13 / 14 | Y031C–Y031E | **Konfirmasi piston terbuka** line 1 / 2 / 3 |
+| 15 | Y031F | SPARE |
+
+⚠️ **Semua geser satu pada 2026-09-15 — motor jadi 11, bukan 10.** Dulu motor
+DI 0–9, E-stop DI 10, piston DI 11–13. Kalau ketemu dokumen/catatan lama yang
+nulis `inputs[10]` = E-stop, itu yang basi, bukan ini. Sisa spare tinggal **satu**.
 
 DI dibaca function code `02`. **Ketiga line baca DI yang sama** — itu status
 conveyor bersama, bukan per-line. Baca dari luar kontainer lewat
-`GET /health/detail` (`inputs[10]` = E-stop).
+`GET /health/detail` (`inputs[11]` = E-stop).
+
+Aplikasi **nggak pernah nafsirin index DI sendiri kecuali `PLC_DI_MANUAL`** —
+`run_once` baca blok 16 DI mentah, simpen apa adanya. Jadi geseran kayak gini
+murni env + dokumen, nol perubahan logika.
 
 ## Bentuk sinyalnya
 
@@ -102,7 +110,7 @@ Semua dideklarasikan satu blok di `src/palmgrade/core/config.py`
 | `PLC_COIL_BASE` | `0` | **Literal per line di compose**, bukan `.env`: line 1=`0`, line 2=`3`, line 3=`6` |
 | `PLC_COIL_ALIVE` | (kosong) | **Literal per line.** Line 1=`9`, line 2 & 3 **kosong** |
 | `PLC_COIL_MANUAL` | (kosong) | **Literal per line.** Line 1=`10`, 2=`11`, 3=`12`. Kosong/rusak = piston mati total, grading jalan terus |
-| `PLC_DI_MANUAL` | (kosong) | **Literal per line.** Line 1=`11`, 2=`12`, 3=`13`. Konfirmasi dari PLC |
+| `PLC_DI_MANUAL` | (kosong) | **Literal per line.** Line 1=`12`, 2=`13`, 3=`14`. Konfirmasi dari PLC |
 | `PLC_ALIVE_TOGGLE_MS` | `0` | `0` = ON statis. `>0` = toggle — **cuma kalau ladder ngitung PERUBAHAN** |
 | `PLC_PULSE_MS` | `200` | **Wajib ≥ `PLC_POLL_MS`** |
 | `PLC_QUEUE_MAX` | `1` | Ini knob "sinyal boleh sebasi apa", bukan kapasitas. Tiap slot = +400 ms (satu siklus 2 tick) keterlambatan |
@@ -156,7 +164,7 @@ mati **atau** `PLC_COIL_MANUAL` kosong.
 | Coil nyangkut ON | SIGTERM di tengah pulse — `deenergise()` harusnya nutup ini, cek log shutdown |
 | Buah kesortir telat / salah | `PLC_QUEUE_MAX` kegedean; `dropped_pulses` naik = buah lebih cepat dari yang bisa dihitung PLC |
 | Tombol piston mati / "Piston mati" | `PLC_COIL_MANUAL` di compose; `plc.piston` di `/health/detail` `null`? |
-| Klik buka, piston nggak gerak | Wajar kalau ladder nolak (E-stop/motor fault): DI konfirmasi tetap 0, coil turun sendiri setelah 2 dtk. Cek DI 11/12/13 |
+| Klik buka, piston nggak gerak | Wajar kalau ladder nolak (E-stop/motor fault): DI konfirmasi tetap 0, coil turun sendiri setelah 2 dtk. Cek DI 12/13/14 |
 | Buah REJ internal tetap kebuang | Cek `ffb_source` beneran `"Internal"` (bukan `null`) di log `Assignment synced:`; lalu tanya panel apa buah tanpa sinyal emang lolos |
 
 ## Kode

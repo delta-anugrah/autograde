@@ -139,7 +139,8 @@ def piston_state() -> dict | None:
 def diagnostics() -> dict | None:
     """PLC snapshot for /health/detail. None when the PLC is off or not started.
 
-    This is the only way to read the E-stop (`inputs[10]`) and watch both drop
+    This is the only way to read the E-stop (`inputs[11]` since the panel grew to
+    11 motors on 2026-09-15; it was `inputs[10]`) and watch both drop
     counters from outside the container. Both are diagnostics only — nothing
     decides anything from them — so `None` while the PLC is off is the right
     answer, not an error.
