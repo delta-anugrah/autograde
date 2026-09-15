@@ -189,6 +189,27 @@
      placeholder cukup "Scan QR" - dan kolom yang lebih sempit membuat dua gerbang tetap
      satu baris sampai 1024 px. */
   .timbang-baris input.plat { flex:0 0 10rem; }
+
+  /* ---- dialog tara ---- */
+  /* Menumpang `.gerbang-kotak` (kotak dialog yang sudah ada), tapi ISI-nya pakai kelas
+     sendiri: `.gerbang-isi` milik gerbang login, dan memakainya di sini membuat
+     kolomnya melar - kesalahan yang sama sudah terjadi sekali di baris alat timbangan. */
+  #dialog-tara { position:fixed; inset:0; z-index:60; display:flex; align-items:center;
+                 justify-content:center; padding:var(--pad); background:var(--bg);
+                 overflow:auto; }
+  #dialog-tara[hidden] { display:none; }
+  .tara-isi { display:flex; flex-direction:column; gap:10px; }
+  .tara-isi input { min-height:3.4rem; padding:0 14px; font-size:1.4rem;
+                    font-family:var(--mono); text-align:right; }
+  .tara-isi input:focus-visible { outline:3px solid var(--acc); outline-offset:1px; }
+  /* Platnya besar: operator melihat beberapa truk sehari sambil memegang HP supir. */
+  .tara-plat { font-family:var(--mono); font-size:1.6rem; letter-spacing:.02em; }
+  #tara-pesan { min-height:1.5rem; margin:0; font-weight:700; color:var(--danger-fg); }
+  /* Tombol sebesar jempol bersarung tangan, Simpan lebih lebar karena itu yang dituju. */
+  .tara-aksi { display:flex; gap:10px; }
+  .tara-aksi button { min-height:3.6rem; font-size:1.1rem; border-radius:var(--r-md); }
+  .tara-aksi #tara-simpan { flex:2; }
+  .tara-aksi #tara-batal { flex:1; }
   /* Pemisah: dua gerbang itu dua tempat fisik, dan garis ini yang mengatakannya. */
   .timbang-keluar { padding-left:18px; border-left:1px solid var(--line-kuat); }
   /* Di layar sempit gerbang keluar turun ke baris kedua, dan garis di KIRI jadi
@@ -523,6 +544,31 @@
 </header>
 <div id="err"></div>
 
+<!--
+  Dialog tara. Menggantikan dialog bawaan browser, yang di layar pabrik punya tiga
+  masalah: kotaknya kecil untuk jempol bersarung tangan, ukurannya tidak bisa diatur,
+  dan menerima teks apa pun tanpa validasi. Dilaporkan operator dari screenshot.
+
+  Platnya disebut besar: operator melihat beberapa truk sehari sambil memegang HP supir,
+  dan dialog tanpa nama truk adalah dialog yang bisa mendarat di kunjungan yang salah.
+-->
+<div id="dialog-tara" hidden>
+  <div class="gerbang-kotak" role="dialog" aria-modal="true" aria-labelledby="tara-judul">
+    <h2 id="tara-judul" data-t="taraJudul">Timbang keluar</h2>
+    <b id="tara-plat" class="tara-plat"></b>
+    <span class="lb" data-t="phTara">Tara (kg)</span>
+    <div class="tara-isi">
+      <input id="tara-nilai" class="kg" inputmode="decimal" autocomplete="off"
+             data-t-ph="phTara" placeholder="Tara (kg)" aria-labelledby="tara-judul">
+    </div>
+    <p id="tara-pesan" role="alert"></p>
+    <div class="tara-aksi">
+      <button type="button" id="tara-simpan" class="utama" data-t="btnSimpanTara">Simpan</button>
+      <button type="button" id="tara-batal" data-t="btnBatal">Batal</button>
+    </div>
+  </div>
+</div>
+
 <div id="gerbang">
   <div class="gerbang-kotak" role="dialog" aria-modal="true" aria-labelledby="gerbang-judul">
     <h2 id="gerbang-judul" data-t="gerbangJudul">Masuk ke konsol</h2>
@@ -783,7 +829,7 @@ const KAMUS = {
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
     kosongGrading:"Belum ada grading hari ini", kosongRekap:"Belum ada rekap hari ini",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio ACC", trukTanpaNama:"Tanpa truk",
-    promptTara:"Tara (kg) untuk", wajibIsi:"Plat dan bruto wajib diisi",
+    wajibIsi:"Plat dan bruto wajib diisi",
     gagalTugaskan:"Gagal menugaskan truk", gagalLepas:"Gagal melepas truk",
     gagalReject:"Reject manual gagal", gagalDaftar:"Gagal mendaftarkan truk",
     gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
@@ -813,6 +859,9 @@ const KAMUS = {
     keHalaman:"Ke halaman",
     btnCetakQr:"Cetak QR truk", qrJudul:"Kartu QR truk",
     lbGerbangMasuk:"Truk masuk", lbGerbangKeluar:"Truk keluar",
+    taraJudul:"Timbang keluar", btnSimpanTara:"Simpan", btnBatal:"Batal",
+    phTara:"Tara (kg)",
+    taraMinimum:"Tara minimal 1.000 kg - cek angkanya",
     phScan:"QR masuk", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
     phScanKeluar:"QR keluar", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
     scanGanda:"Ada 2 tiket terbuka, pilih di tabel bawah untuk",
@@ -844,7 +893,7 @@ const KAMUS = {
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
     kosongGrading:"No grading yet today", kosongRekap:"Nothing to recap yet today",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"ACC rate", trukTanpaNama:"No truck",
-    promptTara:"Tare (kg) for", wajibIsi:"Plate and gross weight are required",
+    wajibIsi:"Plate and gross weight are required",
     gagalTugaskan:"Failed to assign truck", gagalLepas:"Failed to release truck",
     gagalReject:"Manual reject failed", gagalDaftar:"Failed to register truck",
     gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
@@ -872,6 +921,9 @@ const KAMUS = {
     keHalaman:"Go to page",
     btnCetakQr:"Print truck QR", qrJudul:"Truck QR cards",
     lbGerbangMasuk:"Truck in", lbGerbangKeluar:"Truck out",
+    taraJudul:"Weigh out", btnSimpanTara:"Save", btnBatal:"Cancel",
+    phTara:"Tare (kg)",
+    taraMinimum:"Tare must be at least 1,000 kg - check the figure",
     phScan:"QR in", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
     phScanKeluar:"QR out", scanTakAdaTiket:"No open ticket today for",
     scanGanda:"Two open tickets, pick one in the table below for",
@@ -1643,7 +1695,7 @@ async function kirimScanKeluar() {
       return;
     }
     pesanScanKeluar("");
-    await tanyaTara(hasil.weighing);
+    tanyaTara(hasil.weighing);
   } catch (e) {
     $("scan-keluar").value = "";
     pesanScanKeluar(alasan(e), true);
@@ -1690,30 +1742,78 @@ $("masuk").addEventListener("click", async () => {
   }
 });
 
-// Tare via prompt(), not an input inside the row: this table is rewritten every
-// 15 s, which would wipe whatever the operator is typing.
+// Tara lewat dialog, bukan kolom di dalam barisnya: tabel ini dibangun ulang tiap
+// tarikan, yang akan menghapus apa pun yang sedang diketik operator.
 $("timbangan").addEventListener("click", async (ev) => {
   const tombol = ev.target.closest("button[data-aksi='keluar']");
   if (!tombol) return;
   const baris = tombol.closest("tr").dataset;
-  await tanyaTara({ plate_number: baris.plat, ref: baris.ref, waktu_masuk: baris.masuk });
+  tanyaTara({ plate_number: baris.plat, ref: baris.ref, waktu_masuk: baris.masuk });
 });
 
 // Satu jalur tara untuk tombol per baris DAN hasil scan keluar: dua salinan akan
 // berbeda cepat atau lambat, dan yang ditulisnya angka yang dibayar.
-async function tanyaTara(w) {
-  const tara_kg = prompt(`${t("promptTara")} ${w.plate_number}`);
-  if (!tara_kg) return;
+// Lantai berat, disalin dari `services/console_service.py`. Sengaja divalidasi juga di
+// sini: salah ketik tertahan di layar, bukan sesudah bolak-balik ke server - satu detik
+// yang hilang di gerbang dengan truk menunggu. Servernya tetap yang berwenang.
+const MINIMUM_BERAT_KG = 1000;
+
+// Tiket yang sedang ditanyakan taranya. Disimpan di sini, bukan dibaca ulang dari
+// tabel: tabel itu dibangun ulang tiap 2 detik oleh polling.
+let taraUntuk = null;
+
+function tanyaTara(w) {
+  taraUntuk = w;
+  $("tara-plat").textContent = w.plate_number || "";
+  $("tara-nilai").value = "";
+  $("tara-pesan").textContent = "";
+  $("dialog-tara").hidden = false;
+  $("tara-nilai").focus();
+}
+
+function tutupTara() {
+  $("dialog-tara").hidden = true;
+  taraUntuk = null;
+}
+
+async function simpanTara() {
+  if (!taraUntuk) return;
+  // Koma diterima: papan ketik Indonesia menulis desimal dengan koma, dan menolaknya
+  // berarti operator mengetik ulang angka yang sudah benar.
+  const teks = $("tara-nilai").value.trim().replace(",", ".");
+  const angka = Number(teks);
+  if (!teks || !Number.isFinite(angka) || angka < MINIMUM_BERAT_KG) {
+    $("tara-pesan").textContent = t("taraMinimum");
+    $("tara-nilai").focus();
+    return;
+  }
+  const w = taraUntuk;
+  $("tara-simpan").disabled = true;
   try {
     await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
       plate_number: w.plate_number, ref: w.ref, waktu_masuk: w.waktu_masuk,
-      tara_kg, waktu_keluar: new Date().toISOString() }) });
+      tara_kg: teks, waktu_keluar: new Date().toISOString() }) });
+    tutupTara();
     pesan("");
   } catch (e) {
-    pesan(t("gagalTara") + ": " + alasan(e));
+    // Dialog dibiarkan terbuka: angkanya masih di kolom, jadi operator bisa
+    // membetulkan tanpa mengetik ulang dari nol.
+    $("tara-pesan").textContent = alasan(e);
+  } finally {
+    $("tara-simpan").disabled = false;
   }
   await muatTimbangan();
 }
+
+$("tara-simpan").addEventListener("click", simpanTara);
+$("tara-batal").addEventListener("click", tutupTara);
+
+$("tara-nilai").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter") { ev.preventDefault(); simpanTara(); }
+  // Esc menutup, seperti dialog mana pun: truk yang keliru di-scan tidak boleh
+  // memaksa operator menyimpan sesuatu.
+  if (ev.key === "Escape") tutupTara();
+});
 
 // ── camera status ──────────────────────────────────────────────────────
 // ponytail: "connected" is guessed by the browser, not reported by the line:

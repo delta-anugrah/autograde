@@ -45,9 +45,12 @@ TOLERANSI_NETO_KG = 1.0
 
 # Below this a figure is not a truck, it is a typo. "14.820" typed for fourteen
 # tonnes parses as 14.82 kg, and nothing else in the payload contradicts it.
-# An empty truck already weighs tonnes, so a real bruto/tara clears this by two
-# orders of magnitude.
-MINIMUM_BERAT_KG = 100.0
+#
+# One tonne, not 100 kg: the old floor let a literal `100` through (the comparison is
+# `<`), and that landed on a mill screen as a real ticket — seen 2026-09-15. The
+# lightest truck that actually arrives is a Colt Diesel at roughly 2.5 t empty, so one
+# tonne still clears every real weighing while catching a thousand-separator slip.
+MINIMUM_BERAT_KG = 1000.0
 
 
 class ConsoleService:

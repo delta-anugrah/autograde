@@ -683,3 +683,51 @@ def test_pemisah_dua_gerbang_ikut_berpindah_saat_turun_baris():
     aturan = HTML.split("@media (max-width:1330px)", 1)
     assert len(aturan) == 2, "belum ada aturan layar sempit untuk pemisah gerbang"
     assert "border-top" in aturan[1][:300]
+
+
+# ── dialog tara sendiri, bukan prompt() bawaan browser ──────────────────────
+
+
+def test_tara_tidak_memakai_prompt_bawaan_browser():
+    """`prompt()` di layar pabrik: kotaknya kecil untuk jempol bersarung tangan, tidak
+    bisa diatur ukurannya, dan menerima teks apa pun tanpa validasi. Dilaporkan operator
+    dari screenshot."""
+    assert "prompt(" not in HTML, "masih memakai prompt() bawaan browser"
+
+
+def test_dialog_tara_ada_di_layar():
+    assert 'id="dialog-tara"' in HTML
+    assert 'id="tara-nilai"' in HTML
+
+
+def test_dialog_tara_menyebut_platnya():
+    """Operator memegang HP supir dan melihat beberapa truk sehari. Dialog tanpa nama
+    truk adalah dialog yang bisa mendarat di kunjungan yang salah."""
+    assert 'id="tara-plat"' in HTML
+    assert "tara-plat" in _fungsi("tanyaTara")
+
+
+def test_dialog_tara_memvalidasi_angka_sebelum_dikirim():
+    """Salah ketik tertahan di layar, bukan di server: bolak-balik jaringan untuk hal
+    yang bisa dilihat di tempat itu satu detik yang hilang di gerbang."""
+    fn = _fungsi("simpanTara")
+    assert "MINIMUM_BERAT" in fn or "minimum" in fn.lower()
+
+
+def test_dialog_tara_bisa_ditutup_tanpa_menyimpan():
+    """Truk keliru di-scan. Batal harus benar-benar tidak menulis apa pun."""
+    assert 'id="tara-batal"' in HTML
+
+
+def test_enter_di_kolom_tara_menyimpan():
+    """Operator baru saja mengetik angka; tangannya di papan ketik, bukan di layar."""
+    blok = HTML.split('$("tara-nilai").addEventListener("keydown"', 1)
+    assert len(blok) == 2, "Enter di kolom tara tidak ditangani"
+    assert '"Enter"' in blok[1][:200]
+
+
+def test_label_dialog_tara_diterjemahkan():
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("taraJudul", "btnSimpanTara", "taraMinimum"):
+            assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
