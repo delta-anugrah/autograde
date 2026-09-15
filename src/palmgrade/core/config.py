@@ -268,9 +268,8 @@ class Settings:
     # AutoERP Company this mill books against. Empty lets AutoERP use its own
     # default company, which is right on a single-company site.
     erp_company: str = field(default_factory=lambda: os.getenv("ERP_COMPANY", ""))
-    # Peran mana yang boleh datang dari AutoERP. Kosongkan untuk menolak semuanya —
-    # satu-satunya rem yang bisa ditarik dari sisi pabrik kalau akun ERP bermasalah,
-    # tanpa menunggu ERP dibereskan lebih dulu.
+    # Roles AutoERP is allowed to grant. Empty rejects all of them — the one
+    # brake the factory side can pull without waiting on ERP to be fixed.
     peran_erp_diizinkan: str = field(
         default_factory=lambda: os.getenv("PERAN_ERP_DIIZINKAN", "support")
     )

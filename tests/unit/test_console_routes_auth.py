@@ -198,11 +198,11 @@ def test_scan_yang_bukan_plat_ditolak_400(console):
     assert response.json()["detail"]["code"] == BUKAN_PLAT
 
 
-# ── lane developer: require_support (2026-09-15) ──────────────────────────────
+# ── developer lane: require_support (2026-09-15) ──────────────────────────────
 
 
 def test_lane_support_menolak_operator_biasa(console):
-    """Yang menjaga backend, bukan tab yang disembunyikan."""
+    """The backend enforces this, not just a hidden tab."""
     client, _, _ = console
     _sign_in(client)
 
@@ -226,7 +226,7 @@ def test_lane_support_menerima_akun_support(console):
 
 
 def test_lane_support_tanpa_sesi_tetap_401(console):
-    """Belum masuk dijawab 401, bukan 403 — bedanya kelihatan di layar."""
+    """Not signed in answers 401, not 403 — the screen shows the difference."""
     client, _, _ = console
 
     response = client.get("/api/console/dev/ping")

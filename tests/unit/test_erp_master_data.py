@@ -137,9 +137,7 @@ def test_operator_row_membawa_peran():
 
 
 def test_operator_row_tanpa_peran_tetap_mentah():
-    """ERP lama, atau dokumen yang field-nya belum terisi. `operator_row` tidak
-    menormalkan — itu tugas store lewat `saring_peran_erp`, supaya daftar izin
-    PC ini bisa mengganti sebuah 'support' jadi 'operator' juga."""
+    """`operator_row` does not normalize; only the store does, via `saring_peran_erp`."""
     row = operator_row({"name": "a@b.c", "email": "a@b.c", "full_name": "A"})
     assert row["peran"] == ""
 

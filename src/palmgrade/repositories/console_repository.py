@@ -123,8 +123,8 @@ CREATE TABLE IF NOT EXISTS operators (
     status         TEXT NOT NULL DEFAULT 'active',
     asal           TEXT NOT NULL DEFAULT 'lokal',
     erp_name       TEXT,
-    -- `operator` atau `support`. Yang menegakkan ini route, bukan kolomnya:
-    -- sengaja tanpa CHECK, supaya peran ketiga nanti tidak butuh migrasi tabel.
+    -- `operator` or `support`. No CHECK on purpose: a third role later should
+    -- not need a table migration; the route is what enforces this column.
     peran          TEXT NOT NULL DEFAULT 'operator',
     dibuat_at      REAL NOT NULL,
     -- Wrong-password counter, on disk so reloading the page cannot reset the lockout.
@@ -163,7 +163,7 @@ class ConsoleStore:
         self._lock = threading.Lock()
         self._db = sqlite3.connect(str(db_path), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
-        # Daftar izin peran dari pull ERP (§4.A) — dipakai `_upsert_operator`.
+        # ERP-pull role allow-list, read by `_upsert_operator`.
         self._peran_erp_diizinkan = peran_erp_diizinkan or frozenset()
         with self._lock, self._db:
             self._db.execute("PRAGMA journal_mode=WAL")
@@ -191,9 +191,9 @@ class ConsoleStore:
             kolom = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
             if column not in kolom:
                 self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
-        # Sendiri, bukan lewat loop di atas: loop itu hanya bisa `ADD COLUMN ... TEXT`
-        # polos, sementara kolom ini butuh NOT NULL + DEFAULT supaya baris lama langsung
-        # terisi `operator` alih-alih NULL yang harus ditebak pembacanya.
+        # Separate from the loop above: that loop can only do a plain `ADD COLUMN
+        # ... TEXT`, but this column needs NOT NULL + DEFAULT so old rows land on
+        # `operator` instead of a NULL readers have to guess at.
         kolom_operator = {r["name"] for r in self._db.execute("PRAGMA table_info(operators)")}
         if "peran" not in kolom_operator:
             self._db.execute(
@@ -737,10 +737,9 @@ class ConsoleStore:
             ).fetchone()
             if existing and existing["asal"] not in overwrite_asal:
                 return operator_id
-            # ERP menulis peran lewat daftar izin PC ini. Sumber lain (baris lokal,
-            # atau baris ini belum ada) tidak pernah menyentuh peran di sini — itu
-            # tugas `set_peran`; menimpanya di sini akan menghapus peran akun lokal
-            # tiap kali sandinya di-reset lewat `make operator`.
+            # Only an ERP row sets `peran` here, via the allow-list. Otherwise keep
+            # the existing role — overwriting it would erase a local account's role
+            # every time `make operator` resets its password.
             if asal == "erp":
                 peran = saring_peran_erp(row.get("peran"), self._peran_erp_diizinkan)
             elif existing is not None:
@@ -835,11 +834,8 @@ class ConsoleStore:
                 self._db.execute("DELETE FROM sesi WHERE operator_id = ?", (operator_id,))
 
     def set_peran(self, operator_id: str, peran: str) -> None:
-        """Setel peran satu akun. Nilai asing disimpan sebagai `operator`.
-
-        Disaring di sini, bukan dipercaya dari pemanggil: kolom ini yang menentukan
-        siapa boleh membuka layar yang menggerakkan piston.
-        """
+        """Set one account's role. An unknown value is stored as `operator`,
+        not trusted from the caller — this column gates the piston screen."""
         with self._lock, self._db:
             self._db.execute(
                 "UPDATE operators SET peran = ? WHERE id = ?",

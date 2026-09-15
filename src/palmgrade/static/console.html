@@ -1101,8 +1101,8 @@ function terapkanTab() {
     const aktif = b.dataset.tab === tab;
     b.classList.toggle("aktif", aktif);
     b.setAttribute("aria-selected", String(aktif));
-    // Tab developer belum punya panel `sec-*` — PR ini cuma kerangka nav-nya.
-    // Skip daripada `$()` melempar null saat halaman baru dimuat.
+    // Developer tabs have no `sec-*` panel yet (nav-only PR); skip instead of
+    // letting `$()` throw null on first load.
     const panel = $("sec-" + b.dataset.tab);
     if (panel) panel.hidden = !aktif;
   });
@@ -1948,9 +1948,7 @@ function tutupGerbang(operator) {
 }
 
 function hapusTabDeveloper(peran) {
-  // Dibuang dari DOM, bukan disembunyikan: layar operator dibaca dari beberapa
-  // meter di luar ruangan, dan tab mati cuma mempersempit yang dipakai. Yang
-  // menjaga aksesnya tetap backend — ini kerapian, bukan pengaman.
+  // Removed from the DOM, not hidden: the backend guards access, this is tidiness.
   if (peran === "support") return;
   document.querySelectorAll('[data-dev="1"]').forEach((el) => el.remove());
 }

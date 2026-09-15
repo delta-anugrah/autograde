@@ -751,15 +751,18 @@ def test_label_tara_diterjemahkan():
 # ── tab developer (2026-09-15) ─────────────────────────────────────────────
 
 
+# ── developer tab (2026-09-15) ─────────────────────────────────────────────
+
+
 def test_tab_developer_ditandai_data_dev():
     assert 'data-dev="1"' in HTML
 
 
 def test_tab_developer_disembunyikan_default():
-    """Tanpa peran support, tab developer tidak boleh ada di layar operator."""
+    """Without a support role, the developer tab must not appear on screen."""
     assert "hapusTabDeveloper" in HTML
 
 
 def test_konsol_tetap_tanpa_referensi_https():
-    """Invarian lama: konsol harus jalan saat internet putus."""
+    """Long-standing invariant: the console must run with the internet down."""
     assert "https://" not in HTML

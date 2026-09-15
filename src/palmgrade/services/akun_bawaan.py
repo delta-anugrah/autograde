@@ -55,13 +55,9 @@ def seed_akun_bawaan(
 
 
 def _pastikan_peran_support(store: ConsoleStore) -> None:
-    """Naikkan akun support, juga di PC yang sudah punya akun itu sejak sebelum
-    kolom `peran` ada.
-
-    Terpisah dari pembuatan dan hanya menyentuh `peran`: akun yang sudah ada tidak
-    boleh kehilangan sandi yang sudah diganti pabrik — alasan yang sama dengan
-    kenapa seed tidak pernah meng-upsert ulang.
-    """
+    """Promote the support account, including on a PC that had it before the
+    `peran` column existed. Touches only `peran`, never the password — same
+    reason the seed never re-upserts an existing account."""
     row = store.operator_by_email(EMAIL_SUPPORT)
     if row is not None and row["peran"] != PERAN_SUPPORT:
         store.set_peran(row["id"], PERAN_SUPPORT)

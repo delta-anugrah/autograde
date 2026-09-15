@@ -1,11 +1,8 @@
-"""Dua peran akun konsol, dan penyaring untuk peran yang datang dari AutoERP.
+"""The two console account roles, plus filtering for roles pulled from AutoERP.
 
-Murni aturan, tanpa I/O — yang menyimpannya `console_repository`, yang menegakkannya
-`routes/console.py`.
-
-Sengaja hanya dua: dari lima layar developer tidak ada satu pun yang masuk akal
-dibuka untuk yang satu tapi ditutup untuk yang lain. Peran ketiga akan jadi nama
-kedua untuk hal yang sama, dan satu tempat lagi untuk salah setel.
+Pure rules, no I/O: `console_repository` stores it, `routes/console.py` enforces it.
+Only two roles on purpose — none of the developer screens split sensibly between
+a third role, which would just be a second name for one of these.
 """
 
 from __future__ import annotations
@@ -17,12 +14,8 @@ _DIKENAL = frozenset({PERAN_OPERATOR, PERAN_SUPPORT})
 
 
 def peran_sah(nilai: object) -> str:
-    """Peran yang dikenal, atau `operator`.
-
-    Apa pun yang aneh jatuh ke peran paling sempit, tidak pernah melempar: baris
-    yang rusak harus tetap bisa login sebagai operator biasa, bukan mengunci
-    layar pabrik.
-    """
+    """A known role, or `operator`. Never raises: a bad row must still be able
+    to sign in as a plain operator, not lock the mill's screen."""
     if not isinstance(nilai, str):
         return PERAN_OPERATOR
     bersih = nilai.strip().lower()
@@ -30,7 +23,7 @@ def peran_sah(nilai: object) -> str:
 
 
 def parse_daftar_izin(mentah: str) -> frozenset[str]:
-    """`PERAN_ERP_DIIZINKAN` jadi himpunan peran yang boleh datang dari ERP."""
+    """`PERAN_ERP_DIIZINKAN` as the set of roles ERP is allowed to grant."""
     if not mentah:
         return frozenset()
     return frozenset(
@@ -39,11 +32,10 @@ def parse_daftar_izin(mentah: str) -> frozenset[str]:
 
 
 def saring_peran_erp(nilai: object, diizinkan: frozenset[str]) -> str:
-    """Peran dari AutoERP, tapi hanya kalau PC ini mengizinkannya.
+    """Role from AutoERP, but only if this PC's allow-list grants it.
 
-    Satu-satunya rem yang bisa ditarik dari sisi pabrik: kosongkan setelan, restart,
-    dan tidak ada akun ERP yang bisa membuka layar developer — tanpa menunggu ERP
-    dibereskan lebih dulu.
+    The one brake the factory side can pull on its own: clear the setting and
+    restart, and no ERP account can open a developer screen.
     """
     peran = peran_sah(nilai)
     return peran if peran in diizinkan else PERAN_OPERATOR

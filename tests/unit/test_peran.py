@@ -13,7 +13,7 @@ def test_peran_dikenal_lolos_apa_adanya():
 
 
 def test_peran_asing_jatuh_ke_operator():
-    """Sebuah nilai yang tidak dikenal tidak boleh membuka apa pun."""
+    """An unrecognized value must not unlock anything."""
     for nilai in ("admin", "", None, 7, "developer"):
         assert peran_sah(nilai) == PERAN_OPERATOR
 
@@ -23,11 +23,7 @@ def test_peran_dibaca_tanpa_peduli_besar_kecil_huruf():
 
 
 def test_spasi_pinggir_ditoleransi():
-    """Nilai peran datang dari env dan dari kolom yang bisa diketik orang.
-
-    Menolak karena satu spasi akan menurunkan akun support jadi operator tanpa
-    jejak apa pun — gagal diam-diam, yang paling mahal di layar pabrik.
-    """
+    """A stray space must not silently demote a support account to operator."""
     assert peran_sah("  support  ") == PERAN_SUPPORT
     assert peran_sah("SUPPORT ") == PERAN_SUPPORT
 
@@ -40,7 +36,7 @@ def test_daftar_izin_dibaca_dari_env():
 
 
 def test_peran_erp_di_luar_daftar_izin_jatuh_ke_operator():
-    """Rem dari sisi pabrik: kosongkan .env dan ERP tidak bisa menaikkan siapa pun."""
+    """Factory-side brake: an empty .env means ERP cannot promote anyone."""
     assert saring_peran_erp("support", frozenset()) == PERAN_OPERATOR
     assert saring_peran_erp("support", frozenset({"support"})) == PERAN_SUPPORT
 

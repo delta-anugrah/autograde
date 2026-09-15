@@ -50,7 +50,7 @@ def operator_row(doc: dict[str, Any]) -> dict[str, Any]:
         "erp_name": erp_name,
         # AutoERP's word for it; the store turns it into `status`.
         "active": 1 if doc.get("active", 1) else 0,
-        # Mentah dari ERP; store yang menyaringnya lewat daftar izin PC ini.
+        # Raw from ERP; the store filters it through this PC's allow-list.
         "peran": doc.get("peran") or "",
     }
 

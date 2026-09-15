@@ -325,7 +325,7 @@ def test_truk_kosong_paling_ringan_tetap_diterima(service):
 
 
 def test_operator_baru_default_operator(tmp_path):
-    """Tidak ada akun yang naik hak karena migrasi."""
+    """No account gains privilege through migration alone."""
     store = ConsoleStore(tmp_path / "c.db")
     store.upsert_operator_lokal(
         {"email": "a@b.c", "nama": "A", "password_hash": "scrypt$x"}
@@ -334,7 +334,7 @@ def test_operator_baru_default_operator(tmp_path):
 
 
 def test_peran_ikut_di_baris_sesi(tmp_path):
-    """Penjaga route membaca peran dari sesi, jadi sesi harus membawanya."""
+    """The route guard reads `peran` off the session row, so it must carry it."""
     store = ConsoleStore(tmp_path / "c.db")
     oid = store.upsert_operator_lokal(
         {"email": "s@b.c", "nama": "S", "password_hash": "scrypt$x"}
@@ -345,7 +345,7 @@ def test_peran_ikut_di_baris_sesi(tmp_path):
 
 
 def test_migrasi_menambah_peran_ke_db_lama(tmp_path):
-    """PC pabrik yang sudah jalan punya tabel tanpa kolom ini."""
+    """A factory PC already running has a table without this column."""
     import sqlite3
 
     db_path = tmp_path / "lama.db"
@@ -370,7 +370,7 @@ def test_migrasi_menambah_peran_ke_db_lama(tmp_path):
 
 
 def test_set_peran_menolak_nilai_asing(tmp_path):
-    """Nilai asing tidak boleh mengendap di kolom yang menjaga akses."""
+    """An unrecognized value must not settle into the access-gating column."""
     store = ConsoleStore(tmp_path / "c.db")
     oid = store.upsert_operator_lokal(
         {"email": "x@b.c", "nama": "X", "password_hash": "scrypt$x"}
@@ -389,7 +389,7 @@ def test_tarikan_erp_menulis_peran_yang_diizinkan(tmp_path):
 
 
 def test_daftar_izin_kosong_membuang_peran_dari_erp(tmp_path):
-    """Rem sisi pabrik: kosongkan .env, restart, tidak ada akun ERP yang naik."""
+    """Factory-side brake: an empty .env means no ERP account can be promoted."""
     store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset())
     store.upsert_operator_erp(
         {"email": "s@erp.c", "nama": "S", "password_hash": "x",
@@ -399,7 +399,7 @@ def test_daftar_izin_kosong_membuang_peran_dari_erp(tmp_path):
 
 
 def test_tarikan_erp_tidak_menurunkan_peran_akun_lokal(tmp_path):
-    """Akun lokal adalah jalan masuk saat internet mati; ERP tidak boleh menyentuhnya."""
+    """The local account is the way in when the internet is down; ERP must not touch it."""
     store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset({"support"}))
     oid = store.upsert_operator_lokal(
         {"email": "support@autograde.local", "nama": "S", "password_hash": "scrypt$x"}
@@ -413,12 +413,8 @@ def test_tarikan_erp_tidak_menurunkan_peran_akun_lokal(tmp_path):
 
 
 def test_reset_sandi_lokal_tidak_menghapus_peran(tmp_path):
-    """`make operator` mengganti sandi lewat upsert yang sama dengan pembuatan.
-
-    Kalau upsert itu ikut menimpa peran, akun support di PC pabrik diam-diam turun
-    jadi operator setiap kali sandinya direset — dan layar diagnostik hilang persis
-    saat seseorang datang lewat AnyDesk untuk memakainya.
-    """
+    """`make operator` resets a password through the same upsert used to create
+    the account; that upsert must not silently demote the account's role too."""
     store = ConsoleStore(tmp_path / "c.db")
     oid = store.upsert_operator_lokal(
         {"email": "support@autograde.local", "nama": "S", "password_hash": "scrypt$lama"}

@@ -79,11 +79,11 @@ Operator = Annotated[dict, Depends(require_operator)]
 
 
 def require_support(operator: Operator) -> dict:
-    """Akun support, atau 403.
+    """A support account, or 403.
 
-    Ini yang menjaga layar developer — menyembunyikan tabnya di `console.html` cuma
-    merapikan layar operator yang dibaca dari beberapa meter, bukan pengaman. Semua
-    lane `/api/console/dev/*` lewat sini, satu tempat, supaya tidak ada yang lupa.
+    This is the actual guard on the developer screen; hiding its tab in
+    console.html is tidiness, not security. Every `/api/console/dev/*` route
+    goes through here so none can forget the check.
     """
     if operator.get("peran") != PERAN_SUPPORT:
         raise _operator_error(
@@ -369,7 +369,7 @@ async def piston(line_code: str, service: Service, open: Annotated[bool, Body(em
 
 @router.get("/api/console/dev/ping")
 async def dev_ping(operator: Support) -> dict:
-    """Lane developer paling ringan — dipakai layar untuk memastikan aksesnya hidup."""
+    """Lightest developer lane — used by the screen to confirm access still works."""
     return {"status": "ok"}
 
 
