@@ -746,3 +746,20 @@ def test_label_tara_diterjemahkan():
         isi = _kamus(bahasa)
         for kunci in ("btnSimpanTara", "taraMinimum", "phTara"):
             assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+
+
+# ── tab developer (2026-09-15) ─────────────────────────────────────────────
+
+
+def test_tab_developer_ditandai_data_dev():
+    assert 'data-dev="1"' in HTML
+
+
+def test_tab_developer_disembunyikan_default():
+    """Tanpa peran support, tab developer tidak boleh ada di layar operator."""
+    assert "hapusTabDeveloper" in HTML
+
+
+def test_konsol_tetap_tanpa_referensi_https():
+    """Invarian lama: konsol harus jalan saat internet putus."""
+    assert "https://" not in HTML

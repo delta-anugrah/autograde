@@ -609,6 +609,11 @@
   <button data-tab="truk" data-t="judulTruk">Truk</button>
   <button data-tab="timbangan" data-t="judulTimbangan">Timbangan</button>
   <button data-tab="rekap" data-t="judulRekap">Rekap</button>
+  <button data-tab="log" data-dev="1" data-t="judulLog">Log</button>
+  <button data-tab="diagnostik" data-dev="1" data-t="judulDiagnostik">Diagnostik</button>
+  <button data-tab="antrean" data-dev="1" data-t="judulAntrean">Antrean ERP</button>
+  <button data-tab="versi" data-dev="1" data-t="judulVersi">Versi</button>
+  <button data-tab="plc" data-dev="1" data-t="judulPlc">Uji PLC</button>
 </nav>
 
 <section id="sec-grading" class="panel" hidden>
@@ -798,6 +803,7 @@ let trucks = [];
 const KAMUS = {
   id: {
     judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan", judulRekap:"Rekap",
+    judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", judulPlc:"Uji PLC",
     labelHariIni:"Hari ini", labelRasio:"Rasio ACC",
     labelLayout:"Tata letak", kolomAuto:"Otomatis", statusOnline:"Online", statusOffline:"Offline",
     kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
@@ -863,6 +869,7 @@ const KAMUS = {
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
+    judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", judulPlc:"PLC Test",
     labelHariIni:"Today", labelRasio:"ACC rate",
     labelLayout:"Layout", kolomAuto:"Auto", statusOnline:"Online", statusOffline:"Offline",
     kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
@@ -1094,7 +1101,10 @@ function terapkanTab() {
     const aktif = b.dataset.tab === tab;
     b.classList.toggle("aktif", aktif);
     b.setAttribute("aria-selected", String(aktif));
-    $("sec-" + b.dataset.tab).hidden = !aktif;
+    // Tab developer belum punya panel `sec-*` — PR ini cuma kerangka nav-nya.
+    // Skip daripada `$()` melempar null saat halaman baru dimuat.
+    const panel = $("sec-" + b.dataset.tab);
+    if (panel) panel.hidden = !aktif;
   });
 }
 
@@ -1937,6 +1947,14 @@ function tutupGerbang(operator) {
   $("keluar").hidden = false;
 }
 
+function hapusTabDeveloper(peran) {
+  // Dibuang dari DOM, bukan disembunyikan: layar operator dibaca dari beberapa
+  // meter di luar ruangan, dan tab mati cuma mempersempit yang dipakai. Yang
+  // menjaga aksesnya tetap backend — ini kerapian, bukan pengaman.
+  if (peran === "support") return;
+  document.querySelectorAll('[data-dev="1"]').forEach((el) => el.remove());
+}
+
 async function kirimSandi() {
   const email = $("gerbang-email").value.trim();
   const sandi = $("gerbang-sandi").value;
@@ -1950,6 +1968,7 @@ async function kirimSandi() {
       method: "POST", body: JSON.stringify({ email, sandi }),
     });
     tutupGerbang(operator);
+    hapusTabDeveloper(operator.peran);
     dipasang = false;
     await muatTrucks();
     await refresh();
@@ -1966,7 +1985,11 @@ async function kirimSandi() {
 }
 
 async function cekSesi() {
-  try { tutupGerbang((await api("/api/console/me")).operator); }
+  try {
+    const { operator } = await api("/api/console/me");
+    tutupGerbang(operator);
+    hapusTabDeveloper(operator.peran);
+  }
   catch (e) { /* api() has already put the gate up on 401 */ }
 }
 
