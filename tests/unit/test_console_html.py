@@ -685,49 +685,64 @@ def test_pemisah_dua_gerbang_ikut_berpindah_saat_turun_baris():
     assert "border-top" in aturan[1][:300]
 
 
-# ── dialog tara sendiri, bukan prompt() bawaan browser ──────────────────────
+# ── kolom tara inline, bukan dialog yang menutup layar ─────────────────────
 
 
 def test_tara_tidak_memakai_prompt_bawaan_browser():
     """`prompt()` di layar pabrik: kotaknya kecil untuk jempol bersarung tangan, tidak
-    bisa diatur ukurannya, dan menerima teks apa pun tanpa validasi. Dilaporkan operator
-    dari screenshot."""
+    bisa diatur ukurannya, dan menerima teks apa pun tanpa validasi."""
     assert "prompt(" not in HTML, "masih memakai prompt() bawaan browser"
 
 
-def test_dialog_tara_ada_di_layar():
-    assert 'id="dialog-tara"' in HTML
-    assert 'id="tara-nilai"' in HTML
+def test_tara_tidak_menutup_layar():
+    """Dilaporkan operator: dialog yang menutup seluruh layar menghilangkan kamera line
+    dan strip tally sampai tara selesai diisi. Di gerbang yang sibuk itu kehilangan
+    pandangan justru saat paling butuh.
+
+    Kolomnya muncul DI BARIS ALAT, bukan sebagai lapisan di atas layar.
+    """
+    assert 'id="dialog-tara"' not in HTML, "masih memakai overlay yang menutup layar"
+    assert "position:fixed" not in HTML.split(".tara-isi", 1)[0][-400:]
 
 
-def test_dialog_tara_menyebut_platnya():
-    """Operator memegang HP supir dan melihat beberapa truk sehari. Dialog tanpa nama
-    truk adalah dialog yang bisa mendarat di kunjungan yang salah."""
+def test_kolom_tara_ada_di_baris_alat_gerbang_keluar():
+    blok = HTML.split('class="timbang-sisi timbang-keluar"', 1)[1].split("</div>\n  </div>", 1)[0]
+    assert 'id="tara-nilai"' in blok, "kolom tara tidak ada di sisi gerbang keluar"
+    assert 'id="tara-simpan"' in blok
+
+
+def test_kolom_tara_disembunyikan_sampai_scan_berhasil():
+    """Kolom yang selalu terlihat tanpa truk terpilih adalah kolom yang bisa diisi lalu
+    tidak tahu harus ke tiket mana."""
+    assert 'id="tara-grup" hidden' in HTML or 'id="tara-grup"' in HTML
+    assert "tara-grup" in _fungsi("tanyaTara")
+
+
+def test_kolom_tara_menyebut_platnya():
+    """Operator melihat beberapa truk sehari; kolom tanpa nama truk bisa mendarat di
+    kunjungan yang salah."""
     assert 'id="tara-plat"' in HTML
     assert "tara-plat" in _fungsi("tanyaTara")
 
 
-def test_dialog_tara_memvalidasi_angka_sebelum_dikirim():
-    """Salah ketik tertahan di layar, bukan di server: bolak-balik jaringan untuk hal
-    yang bisa dilihat di tempat itu satu detik yang hilang di gerbang."""
+def test_kolom_tara_memvalidasi_angka_sebelum_dikirim():
     fn = _fungsi("simpanTara")
-    assert "MINIMUM_BERAT" in fn or "minimum" in fn.lower()
+    assert "MINIMUM_BERAT" in fn
 
 
-def test_dialog_tara_bisa_ditutup_tanpa_menyimpan():
-    """Truk keliru di-scan. Batal harus benar-benar tidak menulis apa pun."""
+def test_kolom_tara_bisa_dibatalkan():
     assert 'id="tara-batal"' in HTML
+    assert "tutupTara" in _fungsi("simpanTara") or "tutupTara" in HTML
 
 
 def test_enter_di_kolom_tara_menyimpan():
-    """Operator baru saja mengetik angka; tangannya di papan ketik, bukan di layar."""
     blok = HTML.split('$("tara-nilai").addEventListener("keydown"', 1)
     assert len(blok) == 2, "Enter di kolom tara tidak ditangani"
     assert '"Enter"' in blok[1][:200]
 
 
-def test_label_dialog_tara_diterjemahkan():
+def test_label_tara_diterjemahkan():
     for bahasa in ("id", "en"):
         isi = _kamus(bahasa)
-        for kunci in ("taraJudul", "btnSimpanTara", "taraMinimum"):
+        for kunci in ("btnSimpanTara", "taraMinimum", "phTara"):
             assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
