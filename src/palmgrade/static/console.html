@@ -172,6 +172,11 @@
      color:var(--on-acc); border-color:var(--acc); }
   .halaman-celah { padding:0 2px; color:var(--muted); }
 
+  /* Hasil scan, di sebelah kolomnya. Tinggi dipatok supaya baris alat tidak bergeser
+     saat pesannya muncul dan hilang - tombol yang bergerak sulit ditekan. */
+  .scan-pesan { min-height:1.4rem; align-self:center; font-weight:700; color:var(--acc); }
+  .scan-pesan.salah { color:var(--danger-fg); }
+
   /* ---- kartu QR truk ---- */
   #qr-cetak { padding:16px 0; }
   #qr-cetak[hidden] { display:none; }
@@ -656,10 +661,27 @@
     registered in the Trucks tab first.
   -->
   <div class="tools">
+    <!--
+      Kolom scan. Scanner barcode itu papan ketik: dia mengetik isi QR lalu menekan
+      Enter sendiri, jadi tidak ada driver dan tidak perlu tombol. Kolomnya juga
+      menerima ketikan tangan, yang membuatnya bisa dipakai sebelum scanner datang.
+
+      Dropdown plat di sebelahnya TIDAK dihapus: scanner rusak, layar HP retak, atau
+      QR belum dicetak adalah tiga kejadian nyata di gerbang.
+    -->
+    <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="Scan QR truk"
+           autocomplete="off" autocapitalize="characters" spellcheck="false">
     <div class="pilih" id="plat-timbang" data-nilai=""></div>
     <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)" inputmode="decimal" autocomplete="off">
     <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang masuk</button>
     <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
+    <!--
+      Hasil scan punya tempatnya sendiri, bukan banner global `#err`: `refresh()`
+      membersihkan banner itu setiap kali berhasil, jadi pesan scan hilang dalam 2
+      detik dan operator yang sedang memegang HP supir tidak pernah membacanya.
+      Ketemu di browser, bukan di test.
+    -->
+    <span id="scan-pesan" class="scan-pesan" role="status"></span>
   </div>
   <div class="tabel">
     <table>
@@ -727,6 +749,7 @@ const KAMUS = {
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
     bruto_kg:"Bruto", tara_kg:"Tara",
     err_plat_kosong:"Nomor polisi tidak boleh kosong",
+    err_bukan_plat:"Yang di-scan bukan nomor polisi",
     err_bukan_angka:"{field} bukan angka: {value}",
     err_negatif:"{field} tidak boleh negatif",
     err_di_bawah_minimum:"{field} {value} kg di bawah {minimum} kg - cek pemisah ribuan, mis. 14.820 terbaca 14,82",
@@ -748,6 +771,7 @@ const KAMUS = {
     perHalaman:"Baris per halaman", halamanSebelum:"Sebelumnya", halamanBerikut:"Berikutnya",
     keHalaman:"Ke halaman",
     btnCetakQr:"Cetak QR truk", qrJudul:"Kartu QR truk",
+    phScan:"Scan QR truk", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
     rentangBaris:"{dari}-{sampai} dari {total}",
     gerbangKosong:"Belum ada operator. Buat dulu di PC ini: make operator",
     btnPistonBuka:"Buka piston", btnPistonTutup:"Tutup piston",
@@ -783,6 +807,7 @@ const KAMUS = {
     gagalKonsol:"Console not responding", kameraPutus:"Camera not connected",
     bruto_kg:"Gross", tara_kg:"Tare",
     err_plat_kosong:"Plate number cannot be empty",
+    err_bukan_plat:"What was scanned is not a plate number",
     err_bukan_angka:"{field} is not a number: {value}",
     err_negatif:"{field} cannot be negative",
     err_di_bawah_minimum:"{field} {value} kg is below {minimum} kg - check the thousands separator, e.g. 14.820 is read as 14.82",
@@ -802,6 +827,7 @@ const KAMUS = {
     perHalaman:"Rows per page", halamanSebelum:"Previous", halamanBerikut:"Next",
     keHalaman:"Go to page",
     btnCetakQr:"Print truck QR", qrJudul:"Truck QR cards",
+    phScan:"Scan truck QR", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
     rentangBaris:"{dari}-{sampai} of {total}",
     gerbangKosong:"No operators yet. Create one on this PC: make operator",
     btnPistonBuka:"Open piston", btnPistonTutup:"Close piston",
@@ -1502,6 +1528,60 @@ $("daftar").addEventListener("click", async () => {
 // Weigh-in: bruto now, tara hours later. The time comes from the browser clock
 // - on the mill PC that is the same clock the operator reads, and the server
 // derives the working day from it (§6.1).
+// ── scan QR di gerbang timbangan ───────────────────────────────────────
+// Scanner mengirim isi QR lalu Enter. Lane `/api/console/scan` yang menormalkan
+// platnya dan menolak yang bukan plat - layar tidak menebak sendiri, supaya tidak
+// ada aturan kedua yang bisa berbeda dari servernya.
+let scanSibuk = false;
+
+// Hasil scan tidak lewat banner global: `refresh()` membersihkannya tiap kali berhasil,
+// jadi pesannya hilang dalam 2 detik. Di sini dia bertahan sampai scan berikutnya.
+function pesanScan(teks, salah = false) {
+  const el = $("scan-pesan");
+  el.textContent = teks || "";
+  el.classList.toggle("salah", Boolean(teks) && salah);
+}
+
+async function kirimScan() {
+  const teks = $("scan-plat").value.trim();
+  // Scanner kadang membaca satu QR dua kali dalam beberapa ratus milidetik; tanpa
+  // penjaga ini kiriman kedua menimpa apa yang baru saja terisi.
+  if (!teks || scanSibuk) return;
+  scanSibuk = true;
+  try {
+    const hasil = await api("/api/console/scan", {
+      method: "POST", body: JSON.stringify({ qr: teks }),
+    });
+    // Dikosongkan apa pun hasilnya: isi yang tertinggal akan tersambung dengan scan
+    // berikutnya menjadi satu teks panjang yang tidak cocok plat mana pun.
+    $("scan-plat").value = "";
+    if (!hasil.ditemukan) {
+      // Truk pinjaman. Katakan apa yang bisa dilakukan, bukan cuma "tidak ada".
+      pesanScan(`${t("scanBelumAda")} ${hasil.plate_number}`, true);
+      return;
+    }
+    pesanScan("");
+    pilihNilai($("plat-timbang"), hasil.truck.plate_number);
+    // Kursor langsung ke kolom berikutnya: operator menimbang sambil memegang HP
+    // supir, dan satu sentuhan layar yang dihemat itu yang jadi gunanya scan.
+    $("bruto").focus();
+    segarkanTombol();
+  } catch (e) {
+    $("scan-plat").value = "";
+    pesanScan(alasan(e), true);
+  } finally {
+    scanSibuk = false;
+  }
+}
+
+$("scan-plat").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  // Enter datang dari scanner, bukan dari orang: jangan biarkan dia men-submit
+  // apa pun selain ini.
+  ev.preventDefault();
+  kirimScan();
+});
+
 $("masuk").addEventListener("click", async () => {
   const plate_number = $("plat-timbang").dataset.nilai;
   const bruto_kg = $("bruto").value.trim();

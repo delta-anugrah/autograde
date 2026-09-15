@@ -10,6 +10,10 @@ from __future__ import annotations
 # screen showing the raw server text again. `test_console_html.py` checks both
 # languages translate every code listed in CODES.
 PLAT_KOSONG = "plat_kosong"
+# Kode sendiri, BUKAN dipakai bersama PLAT_KOSONG: layar menerjemahkan per kode, dan
+# QR berisi URL yang dijawab "tidak boleh kosong" adalah pesan yang salah di depan
+# operator gerbang. Ketemu di browser, bukan di test.
+BUKAN_PLAT = "bukan_plat"
 BUKAN_ANGKA = "bukan_angka"
 NEGATIF = "negatif"
 DI_BAWAH_MINIMUM = "di_bawah_minimum"
@@ -26,6 +30,7 @@ BELUM_MASUK = "belum_masuk"
 
 CODES = (
     PLAT_KOSONG,
+    BUKAN_PLAT,
     BUKAN_ANGKA,
     NEGATIF,
     DI_BAWAH_MINIMUM,

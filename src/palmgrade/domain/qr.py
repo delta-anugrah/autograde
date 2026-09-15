@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import re
 
-from .operator_error import PLAT_KOSONG, InvalidInput
+from .operator_error import BUKAN_PLAT, InvalidInput
 from .plate import normalisasi_plat
 
 # Plat Indonesia: 1-2 huruf wilayah, 1-4 angka, 1-3 huruf akhir. Dicek SESUDAH
@@ -57,7 +57,7 @@ def baca_qr(teks: str) -> str:
     plat = normalisasi_plat(teks)  # raise sendiri kalau kosong
     if not _BENTUK_PLAT.match(plat):
         raise InvalidInput(
-            PLAT_KOSONG,
+            BUKAN_PLAT,
             f"hasil scan {teks!r} tidak berbentuk nomor polisi",
             field="plate_number",
             value=teks,

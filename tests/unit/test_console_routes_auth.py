@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from palmgrade.domain.operator_auth import hash_password
-from palmgrade.domain.operator_error import BELUM_MASUK, PLAT_KOSONG, SANDI_SALAH
+from palmgrade.domain.operator_error import BELUM_MASUK, BUKAN_PLAT, SANDI_SALAH
 from palmgrade.domain.plate import truck_id_for
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.routes.console import (
@@ -190,4 +190,4 @@ def test_scan_yang_bukan_plat_ditolak_400(console):
     response = client.post("/api/console/scan", json={"qr": "https://contoh.id/promo"})
 
     assert response.status_code == 400
-    assert response.json()["detail"]["code"] == PLAT_KOSONG
+    assert response.json()["detail"]["code"] == BUKAN_PLAT
