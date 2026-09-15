@@ -229,12 +229,12 @@ def create_app() -> FastAPI:
 
         from .core.dependencies import get_camera
 
-        # PLC didahulukan: saat SIGTERM tiba, coil OK/NG punya peluang ~2 dari 3
-        # sedang ON di tengah pulse (200ms ON dalam siklus 300ms). Kontrak coil
-        # itu "satu pulse = satu buah" — dibiarkan ON sampai watchdog ODOT
-        # menyerah (masih 30 detik) berarti PLC menyortir banyak buah dengan
-        # keputusan basi. Digarap best-effort: gagal di sini tidak boleh
-        # menghalangi sisa shutdown.
+        # PLC didahulukan: saat SIGTERM tiba, coil OK/NG punya peluang kira-kira
+        # 1 dari 2 sedang ON di tengah pulse (200ms ON dalam siklus ≈410 ms, 2
+        # tick). Kontrak coil itu "satu pulse = satu buah" — dibiarkan ON sampai
+        # watchdog ODOT menyerah (masih 30 detik) berarti PLC menyortir banyak
+        # buah dengan keputusan basi. Digarap best-effort: gagal di sini tidak
+        # boleh menghalangi sisa shutdown.
         try:
             plc_thread = next((t for name, t, _ in state.worker_threads if name == "plc"), None)
             shutdown_plc_worker(plc_thread)

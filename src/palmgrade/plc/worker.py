@@ -151,7 +151,7 @@ class PlcWorker:
     def _is_unhealthy(self) -> bool:
         # Overflow SENGAJA tidak ikut menentukan ini. Drop adalah steady state yang
         # dideklarasikan di bawah beban (docs/plc-integration.md): kamera bisa ~10
-        # keputusan/detik, satu coil muat ~3,3. Kalau drop menaikkan ERROR, coil
+        # keputusan/detik, satu coil muat ~2,5. Kalau drop menaikkan ERROR, coil
         # CAM_N_ERROR menyala sepanjang shift dan artinya berubah jadi "line ini
         # jalan normal". Kedua counter drop tetap dihitung dan tetap di-log — itu
         # diagnostik (dibaca lewat /health/detail), bukan sinyal ke PLC.
@@ -181,8 +181,8 @@ class PlcWorker:
         Sengaja tidak lewat `_write_coil`: bookkeeping `_error_level`/`_failed_writes`
         tidak relevan lagi karena tidak akan ada tick berikutnya yang menagih retry.
         Best-effort — gagal dicatat, tidak di-retry, tidak di-raise. SIGTERM di
-        tengah pulse (200ms ON dalam siklus 300ms) kalau tidak begini meninggalkan
-        coil OK atau NG nyangkut ON sampai watchdog ODOT menyerah.
+        tengah pulse (200ms ON dalam siklus ≈410 ms, 2 tick) kalau tidak begini
+        meninggalkan coil OK atau NG nyangkut ON sampai watchdog ODOT menyerah.
         """
         coils = [
             self.settings.plc_coil_ok,

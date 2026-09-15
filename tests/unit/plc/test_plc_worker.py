@@ -306,7 +306,7 @@ def test_alive_coil_success_clears_stale_failed_retry():
 def test_sustained_overflow_never_raises_error_coil():
     # Overflow adalah steady state yang DIDEKLARASIKAN di bawah beban
     # (docs/plc-integration.md): kamera bisa ~10 keputusan/detik, satu coil muat
-    # ~3,3. Kalau drop menaikkan ERROR, CAM_N_ERROR menyala sepanjang shift dan
+    # ~2,5. Kalau drop menaikkan ERROR, CAM_N_ERROR menyala sepanjang shift dan
     # artinya berubah jadi "line ini jalan normal" — entah menghentikan produksi
     # atau cuma jadi hiasan. ERROR = health check gagal (kamera mati), titik.
     w, client = _worker(health_check=lambda: True)
