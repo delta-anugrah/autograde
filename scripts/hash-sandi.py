@@ -3,8 +3,8 @@
 
     make hash-sandi
 
-Dipakai sekali per PKS waktu pasang PC pabrik. Menanyakan **dua** sandi sekaligus —
-operator pabrik dan support — karena keduanya memang harus berbeda, dan menyerahkan itu
+Dipakai sekali per PKS waktu pasang PC pabrik. Menanyakan **dua** sandi sekaligus,
+yaitu operator pabrik dan support, karena keduanya memang harus berbeda. Menyerahkan itu
 ke ingatan orang yang sedang mengerjakan sepuluh hal lain adalah cara paling rapi untuk
 berakhir dengan dua akun bersandi sama.
 
@@ -13,7 +13,7 @@ pabrik bisa diakses lewat AnyDesk dan layer image bisa dibaca siapa pun yang peg
 image-nya, jadi satu sandi yang ikut tertanam berarti semua pabrik terbuka sekaligus.
 
 Sandinya diminta interaktif, jadi tidak nyangkut di history shell maupun daftar proses.
-Catat sandinya di catatan internal (1Password/sejenisnya) — hash ini tidak bisa dibalik,
+Catat sandinya di catatan internal (1Password/sejenisnya): hash ini tidak bisa dibalik,
 jadi sandi yang hilang berarti akunnya harus dibuat ulang dengan `make operator`
 langsung di PC-nya.
 """
@@ -40,7 +40,7 @@ _AKUN = (
 def _tanya_sandi(sebutan: str, email: str) -> str | None:
     """Satu sandi, diketik dua kali. None kalau ditolak."""
     print()
-    print(f"Sandi akun {sebutan} — {email}")
+    print(f"Sandi akun {sebutan}: {email}")
     sandi = getpass.getpass("  Sandi (minimal 8 karakter): ")
     ulang = getpass.getpass("  Ulangi sandi: ")
     if sandi != ulang:
@@ -56,7 +56,7 @@ def _tanya_sandi(sebutan: str, email: str) -> str | None:
 
 def main() -> int:
     print("Hash sandi akun bawaan konsol AutoGrade")
-    print("Dua akun, dua sandi berbeda. Catat sandinya di catatan internal —")
+    print("Dua akun, dua sandi berbeda. Catat sandinya di catatan internal:")
     print("hash tidak bisa dibalik.")
 
     sandi = {}
@@ -67,7 +67,7 @@ def main() -> int:
         sandi[variabel] = nilai
 
     # Sandi yang sama untuk dua akun berarti jalur masuk developer sama dengan jalur
-    # operator — dan operator pabrik tahu sandinya. Ditolak, bukan sekadar diperingatkan.
+    # operator, dan operator pabrik tahu sandinya. Ditolak, bukan sekadar diperingatkan.
     if len(set(sandi.values())) != len(sandi):
         print(
             "Gagal: sandi operator dan support tidak boleh sama. "
@@ -76,25 +76,17 @@ def main() -> int:
         )
         return 1
 
-    print()
-    print("=" * 72)
-    print("Simpan yang di bawah ini, BUKAN sandinya.")
-    print("=" * 72)
-
+    # Hanya dua akun dan hash-nya. Yang dicetak di sini disalin orang ke `.env` atau ke
+    # perintah build, jadi tiap baris tambahan cuma menambah peluang salah salin.
     for sebutan, email, variabel in _AKUN:
         hash_sandi = hash_password(sandi[variabel])
         print()
-        print(f"── akun {sebutan} — {email}")
-        print()
-        print("  Waktu build image:")
-        print(f"    docker build --build-arg {variabel}='{hash_sandi}' .")
-        print()
-        print("  Atau di .env PC pabrik — ⚠️ compose memakan `$`, jadi `$$`:")
-        print(f"    {variabel}={hash_sandi.replace('$', '$$')}")
+        print(f"[{sebutan}] {email}")
+        print(f"  docker build --build-arg {variabel}='{hash_sandi}' .")
+        # Compose memakan `$`, jadi satu `$` ditulis `$$`. Hash yang terpotong di `$`
+        # pertama menghasilkan akun yang tidak bisa dibuka siapa pun.
+        print(f"  {variabel}={hash_sandi.replace('$', '$$')}")
 
-    print()
-    print("=" * 72)
-    print("Sandinya beda tiap PKS. Satu bocor tidak boleh membuka pabrik lain.")
     return 0
 
 

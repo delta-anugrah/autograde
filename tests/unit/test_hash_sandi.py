@@ -118,3 +118,25 @@ def test_kedua_email_disebut_supaya_tidak_salah_pasang():
 
     assert EMAIL_BAWAAN in hasil.stdout
     assert EMAIL_SUPPORT in hasil.stdout
+
+
+def test_keluarannya_cuma_dua_akun_tanpa_basa_basi():
+    """Yang dicetak ini disalin orang ke `.env`. Tiap baris yang bukan hash atau nama
+    akun menambah peluang salah salin, jadi pembatas dan kalimat penutup tidak dicetak."""
+    hasil = _jalankan(f"{SANDI_OPERATOR}\n{SANDI_OPERATOR}\n{SANDI_SUPPORT}\n{SANDI_SUPPORT}\n")
+
+    assert "=" * 20 not in hasil.stdout
+    # Blok hasil = dari baris akun pertama sampai habis. Isinya persis enam baris: tiap
+    # akun satu judul + build arg + baris .env, tidak ada pengantar atau penutup.
+    baris = hasil.stdout.splitlines()
+    mulai = next(i for i, b in enumerate(baris) if b.startswith("[operator pabrik]"))
+    blok = [b for b in baris[mulai:] if b.strip()]
+    assert len(blok) == 6, "blok hasil bukan 6 baris:\n" + "\n".join(blok)
+
+
+def test_tidak_memakai_em_dash():
+    """Em dash sering berubah jadi karakter rusak di terminal PC pabrik dan waktu
+    disalin ke catatan. Dihindari di seluruh keluaran."""
+    hasil = _jalankan(f"{SANDI_OPERATOR}\n{SANDI_OPERATOR}\n{SANDI_SUPPORT}\n{SANDI_SUPPORT}\n")
+
+    assert "—" not in hasil.stdout + hasil.stderr
