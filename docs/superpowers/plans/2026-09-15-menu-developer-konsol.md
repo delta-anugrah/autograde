@@ -1685,6 +1685,13 @@ Di `console.html`, tambahkan panel `<section data-panel="log">` berisi: dua tomb
 
 ⚠️ Total halaman **wajib** dari `total` respons, bukan `items.length` — jebakan yang sama dengan pagination grading (memori `project_konsol_login_operator`).
 
+⚠️ **Tambahkan tes pemetaan tab ↔ panel** di `tests/unit/test_console_html.py`: tiap
+`data-tab="x"` yang punya panel harus punya `id="sec-x"` yang cocok. Task 7 memasang
+penjaga null di `terapkanTab()` (perlu, karena lima tab dev belum punya panel) —
+konsekuensinya `data-tab` salah ketik sekarang diam-diam tidak melakukan apa-apa
+alih-alih melempar. Panel dev pertama lahir di task ini, jadi di sinilah tesnya mulai
+punya sesuatu untuk dijaga.
+
 - [ ] **Step 6: Jalankan tes, pastikan lolos**
 
 Run: `pytest tests/unit/ -v && ruff check src/palmgrade/`
