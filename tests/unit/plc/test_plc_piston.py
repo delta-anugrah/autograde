@@ -133,3 +133,14 @@ def test_shutdown_menutup_piston():
     client.writes.clear()
     w.deenergise()
     assert (10, False) in client.writes
+
+
+def test_permintaan_piston_ditolak_kalau_plc_mati():
+    from palmgrade import plc
+
+    # Singleton modul: test lain di suite ini bisa meninggalkannya terisi, dan
+    # hasil test tidak boleh bergantung urutan eksekusi.
+    plc._worker = None
+
+    assert plc.request_piston(True) is False      # tidak ada worker = tidak ada piston
+    assert plc.piston_state() is None

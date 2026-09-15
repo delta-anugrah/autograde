@@ -47,3 +47,17 @@ class ManualRejectCommandResponse(BaseModel):
 
 class OutboxRequeueResponse(BaseModel):
     requeued: int
+
+
+class PistonCommandRequest(BaseModel):
+    machine_id: str
+    open: bool
+    requested_by: str = "operator"
+    requested_at: str
+
+
+class LineStatusResponse(BaseModel):
+    machine_id: str
+    truck_id: str | None
+    ffb_source: str | None
+    piston: dict | None

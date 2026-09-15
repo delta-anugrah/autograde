@@ -23,6 +23,8 @@ __all__ = [
     "PulseScheduler",
     "diagnostics",
     "inputs",
+    "piston_state",
+    "request_piston",
     "shutdown_plc_worker",
     "start_plc_worker",
     "submit_grading",
@@ -113,6 +115,27 @@ def inputs() -> list[bool]:
     return _worker.inputs if _worker is not None else []
 
 
+def request_piston(open: bool) -> bool:
+    """Minta piston line ini buka/tutup. False = PLC mati atau coil belum diset.
+
+    False bukan error: selama panel belum mengalokasikan coil, tombolnya memang
+    harus mati di layar, bukan berpura-pura bekerja.
+    """
+    worker = _worker
+    if worker is None or getattr(worker.settings, "plc_coil_manual", None) is None:
+        return False
+    worker.request_piston(open)
+    return True
+
+
+def piston_state() -> dict | None:
+    """Status piston untuk konsol. None kalau PLC mati atau coil belum diset."""
+    worker = _worker
+    if worker is None or getattr(worker.settings, "plc_coil_manual", None) is None:
+        return None
+    return worker.piston_state()
+
+
 def diagnostics() -> dict | None:
     """PLC snapshot for /health/detail. None when the PLC is off or not started.
 
@@ -130,6 +153,7 @@ def diagnostics() -> dict | None:
         "inputs": list(worker.inputs),
         "dropped_pulses": worker.scheduler.dropped,
         "dropped_submissions": worker.dropped_submissions,
+        "piston": piston_state(),
     }
 
 
