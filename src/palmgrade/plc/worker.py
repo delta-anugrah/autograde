@@ -52,6 +52,13 @@ class PlcWorker:
         # Diset saat shutdown. run_loop mengecek ini SEBELUM tiap tick supaya
         # de-energise di shutdown_plc_worker() tidak balapan dengan tick terakhir.
         self._stop = threading.Event()
+        # Piston manual. `_piston_requested` ditulis dari thread HTTP dan dibaca
+        # run_once; satu bool dilindungi lock kecil sudah cukup, tidak perlu
+        # antrean — yang berlaku selalu permintaan terakhir.
+        self._piston_lock = threading.Lock()
+        self._piston_requested = False
+        self._piston_written: bool | None = None     # level terakhir yang benar-benar ditulis
+        self._piston_deadline = 0.0                  # batas tunggu konfirmasi DI
 
     def submit(self, status: str) -> None:
         """Dipanggil dari thread deteksi. Tidak pernah blocking, tidak pernah raise."""
@@ -65,12 +72,37 @@ class PlcWorker:
                     self.dropped_submissions,
                 )
 
+    def request_piston(self, open: bool) -> None:
+        """Minta piston line ini buka (True) atau tutup (False).
+
+        Aman dipanggil dari thread HTTP: yang terjadi di sini cuma menyimpan
+        niat. Coil-nya ditulis `run_once`, satu-satunya penyentuh socket.
+        """
+        with self._piston_lock:
+            self._piston_requested = bool(open)
+
+    def piston_state(self) -> dict:
+        """Status untuk layar operator. `confirmed_open=None` = DI belum diset."""
+        coil = getattr(self.settings, "plc_di_manual", None)
+        confirmed = None
+        if coil is not None and coil < len(self.inputs):
+            confirmed = bool(self.inputs[coil])
+        with self._piston_lock:
+            return {"requested": self._piston_requested, "confirmed_open": confirmed}
+
     def _write_coil(self, coil: int, level: bool) -> None:
         if self.client.write_coil(coil, level):
             self._failed_writes.pop(coil, None)
-        else:
-            self._failed_writes[coil] = level
-            logger.warning("Write coil PLC gagal, akan dicoba lagi tick berikutnya: coil=%s level=%s", coil, level)
+            return
+        if level and coil == getattr(self.settings, "plc_coil_manual", None):
+            # Permintaan buka yang gagal TIDAK di-retry: lihat blok e di run_once.
+            with self._piston_lock:
+                self._piston_requested = False
+            self._piston_written = False
+            logger.warning("Tulis coil piston gagal — permintaan buka dibatalkan, bukan diulang")
+            return
+        self._failed_writes[coil] = level
+        logger.warning("Write coil PLC gagal, akan dicoba lagi tick berikutnya: coil=%s level=%s", coil, level)
 
     def run_once(self, now: float | None = None) -> None:
         now = time.monotonic() if now is None else now
@@ -134,6 +166,35 @@ class PlcWorker:
             self._error_level = desired
             self._next_error_write = now + 1.0
 
+        # e. Piston manual — level, seperti ERROR, tapi TIDAK pernah ditegakkan
+        #    ulang: kalau coupler me-reset output atau link putus, permintaan
+        #    dianggap batal. Menegakkannya kembali berarti piston bergerak
+        #    sendiri saat koneksi pulih, tanpa ada orang yang memintanya.
+        coil_manual = getattr(self.settings, "plc_coil_manual", None)
+        if coil_manual is not None:
+            with self._piston_lock:
+                minta = self._piston_requested
+            di_manual = getattr(self.settings, "plc_di_manual", None)
+            # `_piston_written is True` menjaga supaya pembatalan ini baru bisa
+            # menyala SESUDAH coil ON benar-benar ditulis. Tanpa itu, tick
+            # pertama (deadline masih 0.0, `self.inputs` masih kosong) langsung
+            # membatalkan permintaan yang belum sempat dikirim ke PLC.
+            if minta and self._piston_written is True and di_manual is not None \
+                    and now >= self._piston_deadline:
+                # Ladder tidak membenarkan dalam tenggang: E-stop, motor fault,
+                # atau mode manual ditolak. Turunkan supaya klik berikutnya jadi
+                # tepi naik yang baru (aturan ladder nomor 3).
+                terbuka = di_manual < len(self.inputs) and self.inputs[di_manual]
+                if not terbuka:
+                    with self._piston_lock:
+                        self._piston_requested = minta = False
+                    logger.warning("PLC tidak membenarkan piston terbuka — permintaan dibatalkan")
+            if minta != self._piston_written:
+                writes[coil_manual] = minta
+                self._piston_written = minta
+                if minta:
+                    self._piston_deadline = now + 2.0
+
         # 3. Satu-satunya titik tulis coil dalam satu tick.
         for coil, level in writes.items():
             self._write_coil(coil, level)
@@ -190,6 +251,9 @@ class PlcWorker:
             self.settings.plc_coil_error,
             *(self.settings.plc_coil_alive or ()),
         ]
+        coil_manual = getattr(self.settings, "plc_coil_manual", None)
+        if coil_manual is not None:
+            coils.append(coil_manual)
         for coil in coils:
             try:
                 if not self.client.write_coil(coil, False):

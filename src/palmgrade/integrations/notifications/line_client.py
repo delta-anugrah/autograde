@@ -74,6 +74,36 @@ class LineClient:
             },
         )
 
+    async def set_piston(
+        self, line: LineEndpoint, *, open: bool, requested_by: str, requested_at: str
+    ) -> None:
+        await self._post(
+            line,
+            "/internal/piston",
+            {
+                "machine_id": line.machine_id,
+                "open": open,
+                "requested_by": requested_by,
+                "requested_at": requested_at,
+            },
+        )
+
+    async def status(self, line: LineEndpoint) -> dict[str, Any]:
+        """Dipanggil tiap detik oleh LineStatusWorker, jadi timeoutnya pendek:
+        layar operator tidak boleh ikut menunggu line yang sekarat."""
+        url = f"{self._settings.console_line_host}:{line.port}/internal/status"
+        try:
+            async with httpx.AsyncClient(timeout=1.5, transport=self._transport) as client:
+                res = await client.get(
+                    url, headers={"x-internal-secret": self._settings.internal_secret}
+                )
+                res.raise_for_status()
+                return res.json()
+        except httpx.HTTPError as exc:
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} tidak menjawab: {exc}", line=line.name
+            ) from exc
+
     async def _post(self, line: LineEndpoint, path: str, body: dict[str, Any]) -> None:
         url = f"{self._settings.console_line_host}:{line.port}{path}"
         try:

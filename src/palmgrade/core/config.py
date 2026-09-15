@@ -54,6 +54,22 @@ def _plc_int(name: str, default: int) -> int:
         return default
 
 
+def _plc_opt_int(name: str) -> int | None:
+    """`PLC_COIL_MANUAL` / `PLC_DI_MANUAL`: kosong atau rusak = fitur mati.
+
+    Beda dengan `_plc_int`, tidak ada nilai bawaan yang masuk akal: menebak
+    nomor coil berarti menulis ke alamat milik orang lain di panel.
+    """
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("%s=%r bukan angka — piston manual dimatikan", name, raw)
+        return None
+
+
 def parse_coil_list(value: str | None) -> tuple[int, ...]:
     """'9,10' -> (9, 10). Empty OR broken -> () plus a warning. Never raises.
 
@@ -286,6 +302,14 @@ class Settings:
     plc_queue_max: int = field(default_factory=lambda: _plc_int("PLC_QUEUE_MAX", 1))
     plc_poll_ms: int = field(default_factory=lambda: _plc_int("PLC_POLL_MS", 200))
     plc_di_count: int = field(default_factory=lambda: _plc_int("PLC_DI_COUNT", 16))
+
+    # Piston manual (usulan panel; lihat docs/plc-handoff-commissioning.md).
+    # Coil level per line: 1 = minta piston buka. Kosong = fitur mati, dan itu
+    # keadaan yang benar sampai Pak Ocit mengalokasikan coil 10/11/12.
+    plc_coil_manual: int | None = field(default_factory=lambda: _plc_opt_int("PLC_COIL_MANUAL"))
+    # DI konfirmasi dari PLC: piston line ini benar-benar terbuka. Kosong =
+    # layar cuma bisa menampilkan permintaan, ditandai "belum dikonfirmasi PLC".
+    plc_di_manual: int | None = field(default_factory=lambda: _plc_opt_int("PLC_DI_MANUAL"))
 
     # ------------------------------------------------------------------ validation
 

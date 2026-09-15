@@ -145,3 +145,91 @@ def test_halaman_tidak_pernah_membaca_cookie():
     """The session cookie is HttpOnly. Code that reaches for `document.cookie` is someone
     trying to handle auth in the page, where any script could read it."""
     assert "document.cookie" not in HTML
+
+
+# ── piston manual ───────────────────────────────────────────────────────
+
+
+def _blok_klik_piston() -> str:
+    """The body of the `data-aksi === "piston"` branch in the delegated click
+    handler — from its own `else if` guard up to (not including) the next
+    branch's guard.
+
+    Slicing on the guard STRING (not a fixed character count) means the slice
+    boundary moves with the code: it starts exactly where the piston branch's
+    condition is written and ends exactly where the next `} else {` (the
+    manual-reject fallback, the last branch in the chain) begins. Bunches of
+    unrelated code before (`tugaskan`, `lepas`) can never leak in because the
+    split point is *after* them; the reject fallback after the piston branch
+    can never leak in because the split point on `} else {` is *before* it.
+    """
+    setelah_guard = HTML.split('tombol.dataset.aksi === "piston"', 1)[1]
+    return setelah_guard.split('} else {', 1)[0]
+
+
+def test_membuka_lewat_dialog_menutup_langsung():
+    # Opening moves metal: it must ask first. Closing returns to the safe
+    # state: it must never be blocked by anything, confirm() included.
+    blok = _blok_klik_piston()
+
+    # (a) Opening requires confirmation. There must be exactly one confirm()
+    # in the branch, and it must be reached only when `buka` (open) is true -
+    # a version that wrapped the WHOLE branch (open and close alike) behind
+    # one `if (buka ...) confirm(...)` would still contain both the strings
+    # "confirm(" and "buka", so the guard's shape is checked, not just its
+    # presence.
+    assert blok.count('confirm(') == 1, "harus ada tepat satu confirm() di cabang piston"
+    sebelum_confirm = blok.split('confirm(', 1)[0]
+    assert re.search(r'if\s*\(\s*buka\s*&&', sebelum_confirm), (
+        "confirm() harus dijaga oleh `if (buka && ...)` - kalau tidak, "
+        "menutup piston (buka=false) ikut kena dialog juga"
+    )
+
+    # (b) Closing is instant: past that one guard line, the call that reaches
+    # the server is not wrapped in any further `if (buka` condition. Cutting
+    # the branch right after the guard's early-return (`return;`) isolates
+    # exactly the code both open (once confirmed) and close fall through to -
+    # a second `if (buka ...)` gating the API call there would mean closing
+    # silently does nothing, which "confirm(" being merely absent would not
+    # catch.
+    setelah_guard = blok.split('confirm(', 1)[1]
+    setelah_return = setelah_guard.split('return;', 1)[1]
+    assert 'api(' in setelah_return, "cabang piston tidak pernah memanggil endpoint"
+    jalur_bersama = setelah_return.split('api(', 1)[0]
+    assert 'if (buka' not in jalur_bersama, (
+        "panggilan API tidak boleh digerbangi `if (buka` lagi setelah dialog - "
+        "kalau begitu menutup piston tidak melakukan apa-apa"
+    )
+
+
+def _blok_pintasan_p() -> str:
+    """The full `P` shortcut block, from its own `pTahan` state declaration to
+    the end of its `keydown` listener.
+
+    `pTahan` (not `spasi`) is the state flag this block declares for itself,
+    so `let pTahan = false;` only ever appears once, at the TOP of this block -
+    slicing from there cannot start inside the `Spasi` block above it, whose
+    own state flag is a different identifier (`spasi`) declared earlier in the
+    file. The end boundary is the block's own listener closing with `});`
+    immediately followed by the next top-level statement in the brief
+    (`$("daftar")...`), so the slice cannot run on into unrelated code either.
+    """
+    dari_awal = HTML.split('let pTahan = false;', 1)[1]
+    return dari_awal.split('$("daftar")', 1)[0]
+
+
+def test_pintasan_piston_memakai_kode_tombol_bukan_huruf():
+    # Layout keyboard beda-beda; ev.key bisa bukan "p".
+    assert 'ev.code === "KeyP"' in HTML
+
+
+def test_pintasan_piston_tidak_aktif_saat_mengetik():
+    # A slice ending right before the FIRST `ev.code === "KeyP"` can
+    # accidentally read backwards into the END of the `Spasi` block above it
+    # (which has its own, identical-looking typing guard) and pass even if the
+    # `P` block itself has none. Anchoring on the block's own `pTahan` start
+    # instead means the guard checked here can only be the one written inside
+    # this block - there is nothing from `Spasi` left in the slice to match
+    # against.
+    blok = _blok_pintasan_p()
+    assert 'closest("input, textarea, .pilih")' in blok

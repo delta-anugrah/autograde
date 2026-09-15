@@ -2,18 +2,18 @@
 judul: Panduan Integrasi AutoGrade ↔ PLC
 subjudul: Spesifikasi sinyal coil dan discrete input coupler ODOT CN-8031 — alamat, bentuk, dan trigger ladder yang diminta, untuk commissioning.
 label: Internal · Tim Engineering
-versi: "2.0"
+versi: "3.0"
 tanggal: 15 September 2026
 klasifikasi: Internal — untuk tim panel dan tim engineering
 pemilik: Tim Engineering AutoGrade
-sorotan: Berjalan = Coil 0–9, DI 0–10; Usulan = Piston manual coil 10–12, DI 11–13; Ditunggu dari panel = 7 butir
+sorotan: Berjalan = Coil 0–9, DI 0–10; Siap di aplikasi = Piston manual coil 10–12, DI 11–13 — alokasi menunggu panel; Ditunggu dari panel = 7 butir
 ---
 
 # Panduan Integrasi AutoGrade ↔ PLC
 
 ## 1. Ringkasan
 
-**Status bab: Berjalan sekarang (v1.8.0) dan usulan, dibedakan per baris.**
+**Status bab: Berjalan sekarang, plus piston manual — siap di aplikasi, alokasi menunggu panel.**
 
 AutoGrade menilai mutu tandan buah segar dengan kamera di PC pabrik. Untuk setiap janjang,
 aplikasi memutuskan diterima (ACC) atau ditolak (REJ) dan mengirim keputusan itu sebagai pulse ke
@@ -26,22 +26,22 @@ PLC.
 
 | Bagian | Status |
 |---|---|
-| Coil 0–8: hasil grading tiga line (OK / NG / ERROR) | Berjalan (v1.8.0) |
-| Coil 9: HEARTBIT PC ON | Berjalan (v1.8.0) |
-| Discrete input 0–10: motor fault dan E-stop | Berjalan (v1.8.0) |
-| Coil 10–12: piston manual per line | **Usulan** |
-| Discrete input 11–13: konfirmasi piston terbuka | **Usulan** |
+| Coil 0–8: hasil grading tiga line (OK / NG / ERROR) | Berjalan |
+| Coil 9: HEARTBIT PC ON | Berjalan |
+| Discrete input 0–10: motor fault dan E-stop | Berjalan |
+| Coil 10–12: piston manual per line | **Siap di aplikasi — alokasi menunggu panel** |
+| Discrete input 11–13: konfirmasi piston terbuka | **Siap di aplikasi — alokasi menunggu panel** |
 
-> **Piston manual belum ada di aplikasi yang terpasang.** Versi v1.8.0 di PC pabrik tidak menulis
-> coil 10, 11, maupun 12, dan tidak membaca discrete input 11, 12, maupun 13. Seluruh Bab 5 adalah
-> permintaan alokasi. Selama nomor coil kosong di konfigurasi, fitur piston mati total.
+> **Piston manual sudah selesai di sisi aplikasi.** Yang belum beres bukan kode, tapi alokasi:
+> selama coil 10, 11, 12 belum resmi disetujui panel, konfigurasi tetap kosong dan fitur ini mati
+> total. Alamat di Bab 3 dan 4 adalah usulan kami, bukan yang sudah disepakati.
 
 Yang diminta: persetujuan alokasi coil 10–12 dan DI 11–13, konfirmasi enam aturan ladder di Bab 5,
 dan jawaban atas tujuh butir di Bab 8.
 
 ## 2. Sambungan
 
-**Status bab: Berjalan sekarang (v1.8.0).**
+**Status bab: Berjalan sekarang.**
 
 PC pabrik menjalankan tiga proses aplikasi terpisah, satu per line kamera, masing-masing dengan
 koneksi Modbus-TCP sendiri ke coupler ODOT CN-8031.
@@ -73,7 +73,7 @@ dan modul output Mitsubishi sink dengan COM di 0V menuju CT-122F yang low-active
 
 ## 3. Sinyal yang dikirim AutoGrade (coil)
 
-**Status bab: Coil 0–9 berjalan sekarang (v1.8.0). Coil 10–12 usulan, menunggu persetujuan panel.**
+**Status bab: Coil 0–9 berjalan sekarang. Coil 10–12 siap di aplikasi, alokasi menunggu panel.**
 
 Tabel ini adalah bagian paling penting dalam dokumen. Satu angka yang keliru berarti sinyal CAM 1
 OK mendarat di alamat CAM 1 NG, dan buah yang layak dibuang.
@@ -90,15 +90,16 @@ OK mendarat di alamat CAM 1 NG, dan buah yang layak dibuang.
 | 7 | X0307 | CAM 3 NG | pulse | line 3 | Berjalan |
 | 8 | X0308 | CAM 3 ERROR | level | line 3 | Berjalan |
 | 9 | X0309 | HEARTBIT PC ON | level, ON terus | line 1 | Berjalan |
-| **10** | **X030A** | **LINE 1: piston manual buka** | **level, 1 = minta buka** | **line 1** | **Usulan** |
-| **11** | **X030B** | **LINE 2: piston manual buka** | **level, 1 = minta buka** | **line 2** | **Usulan** |
-| **12** | **X030C** | **LINE 3: piston manual buka** | **level, 1 = minta buka** | **line 3** | **Usulan** |
+| **10** | **X030A** | **LINE 1: piston manual buka** | **level, 1 = minta buka** | **line 1** | **Siap, menunggu alokasi** |
+| **11** | **X030B** | **LINE 2: piston manual buka** | **level, 1 = minta buka** | **line 2** | **Siap, menunggu alokasi** |
+| **12** | **X030C** | **LINE 3: piston manual buka** | **level, 1 = minta buka** | **line 3** | **Siap, menunggu alokasi** |
 | 13–15 | X030D–X030F | SPARE, tidak disentuh aplikasi | — | — | — |
 
-<!-- plc-map: coil_base=0,3,6; coil_alive=9; coil_manual=; di_manual= -->
+<!-- plc-map: coil_base=0,3,6; coil_alive=9; coil_manual=10,11,12; di_manual=11,12,13 -->
 
 Coil 10–15 sebelumnya disepakati sebagai SPARE. Permintaan sekarang memindahkan 10, 11, 12 menjadi
-piston manual, menyisakan 13–15 sebagai spare. Konsekuensi yang diterima sadar: kalau proses satu
+piston manual, menyisakan 13–15 sebagai spare. Aplikasi sudah siap menulis ketiganya; yang menunggu
+tinggal persetujuan panel atas pemindahan ini. Konsekuensi yang diterima sadar: kalau proses satu
 line berhenti sendirian, PLC tidak melihatnya — coil CAM_N_ERROR line itu justru tidak menyala,
 karena yang seharusnya menulisnya adalah proses yang berhenti. Menutup lubang itu perlu coil alive
 tersendiri per line, dan itu tidak diminta di sini agar sisa spare tidak habis sekaligus.
@@ -128,37 +129,38 @@ ATAU lisensi habis** — sengaja tidak dapat dibedakan dari sisi PLC. Berhenti d
 berbahaya daripada ambigu: PLC harus tetap mengira ada masalah, bukan mengira semuanya normal
 sementara buah lewat tanpa disortir.
 
-### 3.4 Piston manual (coil 10–12) — usulan, belum diimplementasikan
+### 3.4 Piston manual (coil 10–12) — siap di aplikasi, alokasi menunggu panel
 
 Level, 1 = permintaan buka. Ditulis sekali saat permintaan berubah, lalu ditahan — **tidak**
 ditulis ulang berkala seperti HEARTBIT, karena ini tindakan operator pada satu saat, bukan
 pernyataan keadaan. Kalau DI konfirmasi tetap tertutup sementara coil masih 1 lebih dari ±2 detik,
 aplikasi menurunkan coilnya sendiri ke 0, supaya klik berikutnya menjadi tepi 0→1 baru (aturan 3 di
-Bab 5 tetap berlaku). Permintaan buka **tidak bertahan** melewati putusnya koneksi (Bab 7). Selama
-nomor coil kosong di konfigurasi, fitur ini mati total.
+Bab 5 tetap berlaku). Permintaan buka **tidak bertahan** melewati putusnya koneksi (Bab 7), dan
+sebuah write ON yang gagal langsung membatalkan permintaan alih-alih diulang. Selama nomor coil
+kosong di konfigurasi, fitur ini mati total — itu satu-satunya yang masih menunggu panel.
 
 ## 4. Sinyal yang dibaca AutoGrade (discrete input)
 
-**Status bab: DI 0–10 berjalan sekarang (v1.8.0). DI 11–13 usulan.**
+**Status bab: DI 0–10 berjalan sekarang. DI 11–13 siap di aplikasi, alokasi menunggu panel.**
 
 | DI | Alamat PLC | Arti | Status |
 |---|---|---|---|
 | 0–9 | Y0310–Y0319 | MOTOR 1–10 FAULT | Berjalan |
 | 10 | Y031A | EMERGENCY STOP | Berjalan |
-| **11** | **Y031B** | **LINE 1: piston terbuka (konfirmasi PLC)** | **Usulan** |
-| **12** | **Y031C** | **LINE 2: piston terbuka (konfirmasi PLC)** | **Usulan** |
-| **13** | **Y031D** | **LINE 3: piston terbuka (konfirmasi PLC)** | **Usulan** |
+| **11** | **Y031B** | **LINE 1: piston terbuka (konfirmasi PLC)** | **Siap, menunggu alokasi** |
+| **12** | **Y031C** | **LINE 2: piston terbuka (konfirmasi PLC)** | **Siap, menunggu alokasi** |
+| **13** | **Y031D** | **LINE 3: piston terbuka (konfirmasi PLC)** | **Siap, menunggu alokasi** |
 | 14–15 | Y031E–Y031F | SPARE | — |
 
-Ketiga proses line membaca blok 16 discrete input yang sama pada setiap poll. DI 11–13 karena itu
-**sudah ikut terbaca hari ini**, tetapi belum ditafsirkan — penafsirannya menunggu alokasi dan
-ladder piston manual di Bab 5.
+Ketiga proses line membaca blok 16 discrete input yang sama pada setiap poll. Aplikasi sudah
+menafsirkan DI 11–13 sebagai konfirmasi piston; yang menunggu tinggal alokasi resmi dari panel.
 
-## 5. Piston manual (usulan)
+## 5. Piston manual (siap di aplikasi, alokasi menunggu panel)
 
-**Status bab: Usulan, menunggu persetujuan panel. Belum ada satu baris pun di aplikasi terpasang.**
+**Status bab: Tombol dan logikanya sudah ada di aplikasi. Yang menunggu panel: alokasi coil/DI
+dan persetujuan enam aturan ladder di bawah.**
 
-Permintaan: satu tombol per line di konsol yang menahan piston terbuka sampai operator menutupnya.
+Sudah ada: satu tombol per line di konsol yang menahan piston terbuka sampai operator menutupnya.
 AutoGrade hanya menaikkan satu bit permintaan — seluruh gerakan, interlock, dan keselamatan tetap
 di ladder.
 
@@ -188,7 +190,7 @@ aktuator di lapangan.
 
 ## 6. Buah internal tidak dibuang
 
-**Status bab: Di sisi PLC tidak ada yang berubah. Satu konfirmasi diperlukan.**
+**Status bab: Selesai di aplikasi. Di sisi PLC tidak ada yang berubah — satu konfirmasi diperlukan.**
 
 Untuk truk internal (kebun sendiri), janjang REJ **tidak mengirim pulse sama sekali** — tidak ada
 pulse NG, tidak ada pulse OK pengganti. Tidak ada coil baru, tidak ada DI baru; arti pulse NG
@@ -201,16 +203,17 @@ yang dikehendaki. Konfirmasi yang sama berlaku untuk buah yang sinyalnya terbuan
 
 ## 7. Perilaku saat gangguan
 
-**Status bab: Baris coil 0–9 berjalan sekarang (v1.8.0). Baris piston manual adalah usulan.**
+**Status bab: Baris coil 0–9 berjalan sekarang. Baris piston manual siap di aplikasi, menunggu
+alokasi panel.**
 
 | Kejadian | Yang terjadi pada coil | Yang dilihat ladder |
 |---|---|---|
 | **Kabel LAN coupler dicabut** | Aplikasi tidak dapat menulis apa pun. Coupler menjalankan *fault action* dan me-reset output | Seluruh coil AutoGrade padam, termasuk HEARTBIT. Setelah kabel dipasang lagi, HEARTBIT dan coil ERROR **naik lagi sendiri** dalam ±1 detik tanpa restart |
 | **PC mati atau kehilangan daya** | Tidak ada penulisan sama sekali; watchdog coupler kedaluwarsa | HEARTBIT padam. Cepat-lambatnya bergantung pada watchdog coupler — lihat Bab 8 nomor 5 |
-| **Aplikasi berhenti atau di-restart** | Aplikasi menjalankan `deenergise()`: coil OK, NG, ERROR, dan HEARTBIT line itu ditulis 0 tegas sebelum koneksi ditutup | Tidak ada coil yang tertinggal ON |
+| **Aplikasi berhenti atau di-restart** | Aplikasi menjalankan `deenergise()`: coil OK, NG, ERROR, HEARTBIT, dan piston manual (kalau nomornya diisi) ditulis 0 tegas sebelum koneksi ditutup | Tidak ada coil yang tertinggal ON |
 | **E-stop ditekan** | Tidak ada perubahan pada coil. Kamera **tetap menilai** dan pulse tetap dikirim | Ladder yang memegang interlock. Perilaku kamera saat E-stop adalah butir terbuka — lihat butir tambahan di akhir Bab 8 |
 | **Langganan lisensi habis** | Coil HEARTBIT dimatikan sengaja | Terlihat persis sama dengan PC mati. Yang membedakan hanya layar operator |
-| **Koneksi putus saat piston terbuka** (usulan) | Permintaan buka dianggap batal dan **tidak** ditulis ulang setelah koneksi pulih | Piston tidak terbuka kembali sendiri. Operator harus menekan tombolnya lagi |
+| **Koneksi putus saat piston terbuka** | Permintaan buka dianggap batal dan **tidak** ditulis ulang setelah koneksi pulih | Piston tidak terbuka kembali sendiri. Operator harus menekan tombolnya lagi |
 
 HEARTBIT dan coil ERROR ditulis ulang tiap detik karena keduanya pernyataan tentang keadaan
 sekarang, jadi harus pulih sendiri setelah coupler me-reset output. Permintaan piston manual justru
@@ -238,8 +241,9 @@ darurat.
 
 ## 9. Urutan uji di lapangan
 
-**Status bab: Langkah 1–12 (Bagian A) menguji yang berjalan sekarang (v1.8.0). Langkah 13–19
-(Bagian B) baru dapat dijalankan setelah coil piston dialokasikan dan ladder-nya siap.**
+**Status bab: Langkah 1–12 (Bagian A) menguji yang berjalan sekarang. Langkah 13–19 (Bagian B)
+menguji piston manual — siap dijalankan begitu coil dialokasikan dan ladder-nya siap; aplikasi
+sudah menunggu di sisi ini.**
 
 Satu line dulu, satu perubahan dalam satu waktu. **Tidak boleh dilewat: langkah 3, 4, 8, dan 9.**
 
@@ -268,7 +272,7 @@ Satu line dulu, satu perubahan dalam satu waktu. **Tidak boleh dilewat: langkah 
     diagnosa (Bab 10.2). Angka itu menjadi dasar menyetel ulang lebar pulse.
 12. Baru nyalakan line 2 dan line 3, ulangi langkah 3 untuk coil 3 dan coil 6.
 
-**Bagian B — piston manual, setelah ladder siap**
+**Bagian B — piston manual, setelah coil dialokasikan dan ladder siap**
 
 13. Isi nomor coil dan discrete input piston pada konfigurasi aplikasi, lalu restart proses line.
 14. Tekan "Buka piston" pada line 1 dari konsol. Berurutan: coil 10 naik ke 1, piston membuka, DI
@@ -288,7 +292,7 @@ Satu line dulu, satu perubahan dalam satu waktu. **Tidak boleh dilewat: langkah 
 
 ## 10. Lampiran
 
-**Status bab: Berjalan sekarang (v1.8.0), kecuali dua baris yang ditandai usulan.**
+**Status bab: Berjalan sekarang.**
 
 ### 10.1 Perangkat keras
 

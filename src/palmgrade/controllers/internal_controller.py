@@ -8,8 +8,10 @@ from fastapi import HTTPException
 from ..schemas.internal_schema import (
     AssignmentSyncRequest,
     AssignmentSyncResponse,
+    LineStatusResponse,
     ManualRejectCommandRequest,
     ManualRejectCommandResponse,
+    PistonCommandRequest,
 )
 from ..services.capture_service import CaptureService
 from ..workers.runtime_state import RuntimeState
@@ -45,3 +47,29 @@ async def manual_reject_command(
     except RuntimeError as exc:
         logger.warning("Manual reject failed: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+async def piston_command(request: PistonCommandRequest, state: RuntimeState) -> LineStatusResponse:
+    from ..plc import request_piston
+
+    if not request_piston(request.open):
+        # 409, bukan 500: ini konfigurasi yang memang belum ada, bukan kerusakan.
+        raise HTTPException(status_code=409, detail="piston_manual_tidak_aktif")
+    logger.info(
+        "Piston %s diminta: machine=%s oleh=%s pada=%s",
+        "buka" if request.open else "tutup",
+        request.machine_id, request.requested_by, request.requested_at,
+    )
+    return await line_status(state)
+
+
+async def line_status(state: RuntimeState) -> LineStatusResponse:
+    from ..core.dependencies import get_settings
+    from ..plc import piston_state
+
+    return LineStatusResponse(
+        machine_id=get_settings().machine_id,
+        truck_id=state.current_truck_id,
+        ffb_source=state.current_ffb_source,
+        piston=piston_state(),
+    )

@@ -4,7 +4,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 
-from ..controllers.internal_controller import manual_reject_command, sync_assignment
+from ..controllers.internal_controller import (
+    line_status,
+    manual_reject_command,
+    piston_command,
+    sync_assignment,
+)
 from ..core.dependencies import (
     get_capture_service,
     get_outbox_store,
@@ -15,9 +20,11 @@ from ..integrations.outbox.outbox_store import OutboxStore
 from ..schemas.internal_schema import (
     AssignmentSyncRequest,
     AssignmentSyncResponse,
+    LineStatusResponse,
     ManualRejectCommandRequest,
     ManualRejectCommandResponse,
     OutboxRequeueResponse,
+    PistonCommandRequest,
 )
 from ..services.capture_service import CaptureService
 from ..workers.runtime_state import RuntimeState
@@ -62,3 +69,18 @@ async def outbox_requeue(
     # OutboxRetryWorker mencoba kirim lagi. Dipakai setelah API pulih dari
     # gangguan panjang. Aman diulang (idempotent kalau tidak ada failed).
     return OutboxRequeueResponse(requeued=outbox.requeue_failed())
+
+
+@router.post("/piston", response_model=LineStatusResponse)
+async def piston(
+    request: PistonCommandRequest,
+    state: Annotated[RuntimeState, Depends(get_runtime_state)],
+) -> LineStatusResponse:
+    return await piston_command(request, state)
+
+
+@router.get("/status", response_model=LineStatusResponse)
+async def line_status_endpoint(
+    state: Annotated[RuntimeState, Depends(get_runtime_state)],
+) -> LineStatusResponse:
+    return await line_status(state)

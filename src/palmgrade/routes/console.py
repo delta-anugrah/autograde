@@ -249,6 +249,16 @@ async def manual_reject(line_code: str, service: Service, operator: Operator) ->
         raise _operator_error(502, exc) from exc
 
 
+@router.post("/api/console/lines/{line_code}/piston")
+async def piston(line_code: str, service: Service, open: Annotated[bool, Body(embed=True)]) -> dict:
+    try:
+        return await service.piston(line_code, open)
+    except ValueError as exc:
+        raise _operator_error(404, exc) from exc
+    except LineUnavailable as exc:
+        raise _operator_error(502, exc) from exc
+
+
 # ── event receiver for the three lines (frozen contract §5) ─────────────
 # URL and header shape MUST match palmgrade-api: the sender is the line's
 # OutboxRetryWorker, which is not modified at all.
