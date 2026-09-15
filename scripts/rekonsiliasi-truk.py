@@ -33,27 +33,52 @@ from palmgrade.repositories.console_repository import ConsoleStore  # noqa: E402
 from palmgrade.services.rekonsiliasi import rekonsiliasi_truk  # noqa: E402
 
 
-def _db_dari_argumen() -> Path:
-    """`--db <path>` menang atas setelan.
+def _kandidat_db() -> list[Path]:
+    """Tempat database konsol bisa berada, urut dari yang paling mungkin.
 
-    Ada supaya rekonsiliasi bisa dicoba di SALINAN dulu. Tanpa ini satu-satunya cara
-    mencobanya adalah menjalankannya di database pabrik yang sungguhan, dan itu
-    persis yang tidak boleh dilakukan untuk memeriksa apakah hasilnya benar.
+    Ada DUA bentuk, dan itu ketemu di PC Lampung 2026-09-15 waktu skrip ini menjawab
+    "Database konsol tidak ada" padahal ada 53 MB di sana:
+
+    - **native** (`make console` di Mac, atau dari DALAM container): `state/console.db`
+    - **host, konsol di Docker**: `state/console/console.db` — compose me-mount
+      `./state/console:/app/state`, jadi dari sisi host ada satu tingkat folder lagi
+
+    `Settings.state_dir` diturunkan dari lokasi berkas kode, jadi dia selalu menunjuk
+    bentuk pertama. Yang menjalankan ini sedang memasang PC pabrik dan tidak semestinya
+    menebak mana yang berlaku, jadi keduanya dicari.
+    """
+    state = Path(Settings().state_dir)
+    return [state / "console.db", state / "console" / "console.db"]
+
+
+def _db_dari_argumen() -> Path | None:
+    """`--db <path>` menang atas pencarian otomatis, None kalau tidak ada yang ketemu.
+
+    Argumen itu ada supaya rekonsiliasi bisa dicoba di SALINAN dulu. Tanpa itu
+    satu-satunya cara mencobanya adalah menjalankannya di database pabrik yang
+    sungguhan — persis yang tidak boleh dilakukan untuk memeriksa hasilnya.
     """
     if "--db" in sys.argv:
         i = sys.argv.index("--db")
         if i + 1 >= len(sys.argv):
             raise SystemExit("--db butuh path")
         return Path(sys.argv[i + 1])
-    return Path(Settings().console_db_path)
+    return next((p for p in _kandidat_db() if p.exists()), None)
 
 
 def main() -> int:
     tulis = "--tulis" in sys.argv
     db = _db_dari_argumen()
-    if not db.exists():
-        print(f"Database konsol tidak ada: {db}", file=sys.stderr)
-        print("PC baru tidak perlu rekonsiliasi.", file=sys.stderr)
+    if db is None or not db.exists():
+        # Kedua tempat disebut: kalau cuma satu, yang membacanya menyimpulkan salah
+        # checkout padahal database-nya ada — cuma di bentuk yang satunya.
+        print("Database konsol tidak ada. Yang dicari:", file=sys.stderr)
+        for kandidat in _kandidat_db():
+            print(f"  - {kandidat}", file=sys.stderr)
+        print(file=sys.stderr)
+        print("PC baru memang belum punya, jadi tidak perlu rekonsiliasi.", file=sys.stderr)
+        print("Kalau konsolnya jalan di tempat lain, tunjuk langsung:", file=sys.stderr)
+        print("  scripts/rekonsiliasi-truk.py --db <path>", file=sys.stderr)
         return 1
 
     print(f"Database: {db}")

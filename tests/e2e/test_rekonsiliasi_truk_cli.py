@@ -220,3 +220,37 @@ def test_pc_baru_tanpa_truk_tidak_melaporkan_apa_pun(tmp_path):
 
     assert hasil.returncode == 0
     assert "Tidak ada yang perlu dibetulkan" in hasil.stdout
+
+
+# ── menemukan database-nya sendiri ───────────────────────────────────────────
+# Ketemu di PC Lampung 2026-09-15: `make rekonsiliasi-truk` di host menjawab
+# "Database konsol tidak ada" padahal ada 53 MB di sana. Compose me-mount
+# `./state/console:/app/state`, jadi dari HOST berkasnya di `state/console/console.db`
+# sementara dari DALAM container di `state/console.db`. Skrip yang cuma tahu satu
+# bentuk mati di salah satu tempat, dan yang menjalankannya sedang memasang PC pabrik.
+
+
+def test_kedua_bentuk_path_dicari():
+    """Yang dijaga: daftar kandidatnya memuat bentuk native DAN bentuk host-Docker."""
+    import importlib.util
+
+    spek = importlib.util.spec_from_file_location("rekon_cli", SKRIP)
+    modul = importlib.util.module_from_spec(spek)
+    spek.loader.exec_module(modul)
+
+    kandidat = [str(p) for p in modul._kandidat_db()]
+
+    assert any(p.endswith("state/console.db") for p in kandidat), kandidat
+    assert any(p.endswith("state/console/console.db") for p in kandidat), kandidat
+
+
+def test_menyebut_kedua_tempat_saat_benar_benar_tidak_ada(tmp_path):
+    """Kalau memang tidak ada, pesannya harus menyebut DUA tempat yang dicari — kalau
+    cuma satu, yang membacanya menyimpulkan salah checkout padahal database-nya ada."""
+    hasil = _jalankan(tmp_path / "tidak-ada.db")
+
+    assert hasil.returncode == 1
+    gabung = hasil.stdout + hasil.stderr
+    assert "state/console.db" in gabung
+    assert "state/console/console.db" in gabung
+    assert "--db" in gabung, "jalan keluarnya harus disebut"
