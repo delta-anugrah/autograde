@@ -139,7 +139,11 @@ def test_tombol_kirim_ulang_memindahkan_baris_gagal_jadi_pending(gerbang):
     erp_outbox.enqueue("truck", "K1", {"plate_number": "BE 1 AA"})
     erp_outbox.mark_error(erp_outbox.due()[0], "AutoERP unreachable")
     _masuk(client, "support@pks.test")
-    assert client.get("/api/console/dev/antrean").json()["gagal"] == 1
+    before = client.get("/api/console/dev/antrean").json()
+    assert before["gagal"] == 1
+    # next_attempt_at is what the "next attempt" column reads - must actually
+    # be in the HTTP body, not just present on the store's internal row.
+    assert before["items"][0]["next_attempt_at"] > 0
 
     hasil = client.post("/api/console/dev/antrean/kirim-ulang")
 

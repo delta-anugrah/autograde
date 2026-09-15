@@ -861,7 +861,8 @@
   <div class="tabel">
     <table>
       <thead><tr><th data-t="thJenis">Jenis</th><th data-t="thKunci">Kunci</th>
-        <th data-t="thPesan">Pesan</th><th class="num" data-t="thPercobaan">Percobaan</th></tr></thead>
+        <th data-t="thPesan">Pesan</th><th class="num" data-t="thPercobaan">Percobaan</th>
+        <th data-t="thBerikutnya">Percobaan berikutnya</th></tr></thead>
       <tbody id="antrean-baris"></tbody>
     </table>
   </div>
@@ -955,7 +956,8 @@ const KAMUS = {
     thSebab:"Sebab", thKamera:"Kamera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Antrean lokal", lineTidakTerjangkau:"Tidak terjangkau",
     gagalDiagnostik:"Gagal memuat diagnostik",
-    thJenis:"Jenis", thKunci:"Kunci", thPercobaan:"Percobaan",
+    thJenis:"Jenis", thKunci:"Kunci", thPercobaan:"Percobaan", thBerikutnya:"Percobaan berikutnya",
+    antreanSekarang:"Sekarang",
     btnKirimUlang:"Kirim Ulang", ringkasAntrean:"{pending} menunggu · {gagal} gagal",
     kosongAntrean:"Antrean ERP kosong", gagalAntrean:"Gagal memuat antrean",
     labelVersi:"Versi", labelMachineId:"Machine ID", labelEnvironment:"Environment",
@@ -1031,7 +1033,8 @@ const KAMUS = {
     thSebab:"Reason", thKamera:"Camera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Local queue", lineTidakTerjangkau:"Unreachable",
     gagalDiagnostik:"Failed to load diagnostics",
-    thJenis:"Kind", thKunci:"Key", thPercobaan:"Attempts",
+    thJenis:"Kind", thKunci:"Key", thPercobaan:"Attempts", thBerikutnya:"Next attempt",
+    antreanSekarang:"Now",
     btnKirimUlang:"Resend", ringkasAntrean:"{pending} pending · {gagal} failed",
     kosongAntrean:"ERP queue is empty", gagalAntrean:"Failed to load the queue",
     labelVersi:"Version", labelMachineId:"Machine ID", labelEnvironment:"Environment",
@@ -2400,12 +2403,21 @@ async function muatDiagnostik() {
 }
 
 // ── developer: antrean ERP (support only) ───────────────────────────────
+// next_attempt_at is a Unix epoch in seconds (ErpOutboxStore's own clock),
+// same as LogStore's terakhir_at - needs the same ×1000 before waktu().
+// A row already past its next attempt reads as due now rather than a stale
+// timestamp: that is exactly the state kirim_ulang() just put every row in.
+function jadwalAntrean(nextAttemptAt) {
+  return nextAttemptAt * 1000 <= Date.now() ? t("antreanSekarang") : waktu(nextAttemptAt * 1000);
+}
+
 function barisAntrean(r) {
   return `<tr>
     <td>${esc(r.kind)}</td>
     <td>${esc(r.key)}</td>
     <td title="${esc(r.last_error || "")}">${esc(r.last_error || KOSONG)}</td>
     <td class="num">${dash(r.attempts)}</td>
+    <td>${jadwalAntrean(r.next_attempt_at)}</td>
   </tr>`;
 }
 
@@ -2415,9 +2427,9 @@ async function muatAntrean() {
     $("antrean-ringkas").textContent = t("ringkasAntrean")
       .replace("{pending}", r.pending).replace("{gagal}", r.gagal);
     $("antrean-baris").innerHTML = r.items.length
-      ? r.items.map(barisAntrean).join("") : barisKosong(4, "kosongAntrean");
+      ? r.items.map(barisAntrean).join("") : barisKosong(5, "kosongAntrean");
   } catch (e) {
-    if (e.kode !== "belum_masuk") $("antrean-baris").innerHTML = barisKosong(4, "gagalAntrean");
+    if (e.kode !== "belum_masuk") $("antrean-baris").innerHTML = barisKosong(5, "gagalAntrean");
   }
 }
 

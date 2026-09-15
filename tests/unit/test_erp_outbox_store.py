@@ -210,3 +210,21 @@ def test_requeue_failed_returns_zero_when_nothing_is_stuck(tmp_path):
     outbox.enqueue("truck", "K1", {"v": 1})
 
     assert outbox.requeue_failed() == 0
+
+
+def test_requeue_failed_resets_next_attempt_at_to_now(tmp_path):
+    """The screen's "next attempt" column must read due now right after the
+    button is pressed, not the stale time the row was backed off to."""
+    clock = Clock()
+    outbox = _store(tmp_path, clock)
+    outbox.enqueue("truck", "K1", {"v": 1})
+    outbox.mark_error(outbox.due()[0], "timeout")  # next_attempt_at = now + 30s
+
+    outbox.requeue_failed()
+
+    # A clock jump far past any real backoff (max is one hour): due() only
+    # returns rows whose next_attempt_at is <= now, so the row surviving this
+    # proves it was reset to (at most) the moment of the jump, not left at
+    # its old backed-off value.
+    clock.now += 7200
+    assert [m.key for m in outbox.due()] == ["K1"]
