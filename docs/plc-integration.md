@@ -60,14 +60,22 @@ minta pak Ocit mengalokasikan spare, jangan pakai diam-diam.
 
 ## Discrete input / DI — vision membaca (zero-based)
 
-| DI    | Alamat PLC  | Arti             |
-| ----- | ----------- | ---------------- |
-| 0–9   | Y0310–Y0319 | MOTOR 1–10 FAULT |
-| 10    | Y031A       | EMERGENCY STOP   |
-| 11–15 | Y031B–Y031F | SPARE            |
+| DI    | Alamat PLC  | Arti                                  |
+| ----- | ----------- | ------------------------------------- |
+| 0–10  | Y0310–Y031A | MOTOR 1–11 FAULT                      |
+| 11    | Y031B       | EMERGENCY STOP                        |
+| 12    | Y031C       | LINE 1: piston terbuka (konfirmasi)   |
+| 13    | Y031D       | LINE 2: piston terbuka (konfirmasi)   |
+| 14    | Y031E       | LINE 3: piston terbuka (konfirmasi)   |
+| 15    | Y031F       | SPARE                                 |
 
 Modbus function code `02` (read discrete inputs). Semua tiga line membaca discrete input yang
 sama — itu status bersama conveyor, bukan per-line.
+
+⚠️ **Digeser satu pada 2026-09-15: motor jadi 11, bukan 10.** Dulu motor di DI 0–9 dan E-stop di
+DI 10. Aplikasi sendiri **tidak pernah menafsirkan index mana pun kecuali `PLC_DI_MANUAL`** —
+`run_once` membaca blok 16 DI mentah dan menyimpannya apa adanya, jadi pergeseran ini murni
+perubahan env + dokumen, nol perubahan logika. Sisa spare tinggal satu.
 
 ---
 

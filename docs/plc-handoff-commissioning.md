@@ -6,7 +6,7 @@ versi: "3.0"
 tanggal: 15 September 2026
 klasifikasi: Internal — untuk tim panel dan tim engineering
 pemilik: Tim Engineering AutoGrade
-sorotan: Berjalan = Coil 0–9, DI 0–10; Siap di aplikasi = Piston manual coil 10–12, DI 11–13 — alokasi menunggu panel; Ditunggu dari panel = 7 butir
+sorotan: Berjalan = Coil 0–9, DI 0–11; Siap di aplikasi = Piston manual coil 10–12, DI 12–14 — alokasi menunggu panel; Ditunggu dari panel = 7 butir
 ---
 
 # Panduan Integrasi AutoGrade ↔ PLC
@@ -28,15 +28,15 @@ PLC.
 |---|---|
 | Coil 0–8: hasil grading tiga line (OK / NG / ERROR) | Berjalan |
 | Coil 9: HEARTBIT PC ON | Berjalan |
-| Discrete input 0–10: motor fault dan E-stop | Berjalan |
+| Discrete input 0–11: motor fault (11 motor) dan E-stop | Berjalan |
 | Coil 10–12: piston manual per line | **Siap di aplikasi — alokasi menunggu panel** |
-| Discrete input 11–13: konfirmasi piston terbuka | **Siap di aplikasi — alokasi menunggu panel** |
+| Discrete input 12–14: konfirmasi piston terbuka | **Siap di aplikasi — alokasi menunggu panel** |
 
 > **Piston manual sudah selesai di sisi aplikasi.** Yang belum beres bukan kode, tapi alokasi:
 > selama coil 10, 11, 12 belum resmi disetujui panel, konfigurasi tetap kosong dan fitur ini mati
 > total. Alamat di Bab 3 dan 4 adalah usulan kami, bukan yang sudah disepakati.
 
-Yang diminta: persetujuan alokasi coil 10–12 dan DI 11–13, konfirmasi enam aturan ladder di Bab 5,
+Yang diminta: persetujuan alokasi coil 10–12 dan DI 12–14, konfirmasi enam aturan ladder di Bab 5,
 dan jawaban atas tujuh butir di Bab 8.
 
 ## 2. Sambungan
@@ -95,7 +95,7 @@ OK mendarat di alamat CAM 1 NG, dan buah yang layak dibuang.
 | **12** | **X030C** | **LINE 3: piston manual buka** | **level, 1 = minta buka** | **line 3** | **Siap, menunggu alokasi** |
 | 13–15 | X030D–X030F | SPARE, tidak disentuh aplikasi | — | — | — |
 
-<!-- plc-map: coil_base=0,3,6; coil_alive=9; coil_manual=10,11,12; di_manual=11,12,13 -->
+<!-- plc-map: coil_base=0,3,6; coil_alive=9; coil_manual=10,11,12; di_manual=12,13,14 -->
 
 Coil 10–15 sebelumnya disepakati sebagai SPARE. Permintaan sekarang memindahkan 10, 11, 12 menjadi
 piston manual, menyisakan 13–15 sebagai spare. Aplikasi sudah siap menulis ketiganya; yang menunggu
@@ -141,19 +141,28 @@ kosong di konfigurasi, fitur ini mati total — itu satu-satunya yang masih menu
 
 ## 4. Sinyal yang dibaca AutoGrade (discrete input)
 
-**Status bab: DI 0–10 berjalan sekarang. DI 11–13 siap di aplikasi, alokasi menunggu panel.**
+**Status bab: DI 0–11 berjalan sekarang. DI 12–14 siap di aplikasi, alokasi menunggu panel.**
 
 | DI | Alamat PLC | Arti | Status |
 |---|---|---|---|
-| 0–9 | Y0310–Y0319 | MOTOR 1–10 FAULT | Berjalan |
-| 10 | Y031A | EMERGENCY STOP | Berjalan |
-| **11** | **Y031B** | **LINE 1: piston terbuka (konfirmasi PLC)** | **Siap, menunggu alokasi** |
-| **12** | **Y031C** | **LINE 2: piston terbuka (konfirmasi PLC)** | **Siap, menunggu alokasi** |
-| **13** | **Y031D** | **LINE 3: piston terbuka (konfirmasi PLC)** | **Siap, menunggu alokasi** |
-| 14–15 | Y031E–Y031F | SPARE | — |
+| 0–10 | Y0310–Y031A | MOTOR 1–11 FAULT | Berjalan |
+| 11 | Y031B | EMERGENCY STOP | Berjalan |
+| **12** | **Y031C** | **LINE 1: piston terbuka (konfirmasi PLC)** | **Siap, menunggu alokasi** |
+| **13** | **Y031D** | **LINE 2: piston terbuka (konfirmasi PLC)** | **Siap, menunggu alokasi** |
+| **14** | **Y031E** | **LINE 3: piston terbuka (konfirmasi PLC)** | **Siap, menunggu alokasi** |
+| 15 | Y031F | SPARE | — |
+
+> **Digeser satu 15 September 2026 atas permintaan tim panel: motor jadi 11, bukan 10.**
+> Sebelumnya motor menempati DI 0–9 dan E-stop DI 10. Motor ke-11 mengambil DI 10, jadi E-stop
+> dan ketiga konfirmasi piston bergeser satu ke atas. **Sisi coil tidak ikut bergeser** — jumlah
+> motor tidak menyentuh apa pun yang ditulis AutoGrade.
 
 Ketiga proses line membaca blok 16 discrete input yang sama pada setiap poll. Aplikasi sudah
-menafsirkan DI 11–13 sebagai konfirmasi piston; yang menunggu tinggal alokasi resmi dari panel.
+menafsirkan DI 12–14 sebagai konfirmasi piston; yang menunggu tinggal alokasi resmi dari panel.
+
+Setelah pergeseran ini **sisa spare tinggal satu (DI 15)**. Motor ke-12 tidak akan muat tanpa
+menambah blok discrete input, jadi kalau jumlah motor masih mungkin bertambah, itu perlu
+dibicarakan sekarang, bukan saat commissioning.
 
 ## 5. Piston manual (siap di aplikasi, alokasi menunggu panel)
 
@@ -276,10 +285,10 @@ Satu line dulu, satu perubahan dalam satu waktu. **Tidak boleh dilewat: langkah 
 
 13. Isi nomor coil dan discrete input piston pada konfigurasi aplikasi, lalu restart proses line.
 14. Tekan "Buka piston" pada line 1 dari konsol. Berurutan: coil 10 naik ke 1, piston membuka, DI
-    11 naik, layar konsol berubah menjadi "Tutup piston".
+    12 naik, layar konsol berubah menjadi "Tutup piston".
 15. Selama piston terbuka, jalankan buah melewati kamera. Pulse OK dan NG line itu harus
     **diabaikan** ladder dan tidak menggerakkan aktuator sortir.
-16. Tekan "Tutup piston". Coil 10 turun ke 0, piston menutup, DI 11 turun, line kembali mengikuti
+16. Tekan "Tutup piston". Coil 10 turun ke 0, piston menutup, DI 12 turun, line kembali mengikuti
     sortir kamera.
 17. **Uji E-stop saat piston terbuka.** Buka piston line 1, tekan E-stop — piston harus menutup.
     Lepaskan E-stop dan jangan menyentuh apa pun: piston harus **tetap tertutup**. Kalau piston
@@ -288,7 +297,7 @@ Satu line dulu, satu perubahan dalam satu waktu. **Tidak boleh dilewat: langkah 
 18. Uji penolakan: minta buka dalam kondisi yang membuat ladder menolak (mis. motor fault aktif).
     DI konfirmasi tetap 0, dan setelah ±2 detik aplikasi menurunkan coilnya sendiri. Setelah kondisi
     normal kembali, klik berikutnya harus membuka piston seperti biasa.
-19. Ulangi langkah 14–17 untuk line 2 (coil 11, DI 12) dan line 3 (coil 12, DI 13).
+19. Ulangi langkah 14–17 untuk line 2 (coil 11, DI 13) dan line 3 (coil 12, DI 14).
 
 ## 10. Lampiran
 
