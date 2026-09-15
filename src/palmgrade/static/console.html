@@ -105,6 +105,12 @@
   .jam { display:flex; align-items:baseline; gap:8px; }
   #topbar .aksi { margin-left:auto; display:flex; gap:8px; }
   #topbar .aksi button { min-width:5.5rem; min-height:2.6rem; border-radius:var(--r-pill); }
+  /* Last in the row and in the danger colours: signing out drops a shift's
+     screen back to the login gate, so it must never be the button a gloved
+     hand hits while reaching for the language or theme toggle. */
+  #topbar .aksi #keluar { background:var(--danger-bg); border-color:var(--danger-line);
+                          color:var(--danger-fg); }
+  #topbar .aksi #keluar:hover { border-color:var(--danger-fg); }
 
   #err { display:none; padding:13px var(--pad); font-weight:700;
          background:var(--danger-bg); color:var(--danger-fg);
@@ -168,7 +174,8 @@
            border-radius:var(--r-lg); box-shadow:var(--tinggi-1); }
   #tally .hari { display:flex; align-items:center; padding:10px 16px;
                  border-right:1px solid var(--line); }
-  #tally .stat { padding:10px 20px 12px; border-right:1px solid var(--line); min-width:6.5rem; }
+  #tally .stat { padding:10px 20px 12px; border-right:1px solid var(--line); min-width:6.5rem;
+                 text-align:center; }
   #tally .stat b { display:block; font-family:var(--mono); font-size:2rem; font-weight:700;
                    line-height:1.1; font-variant-numeric:tabular-nums; }
   #tally .stat.acc b { color:var(--acc); }
@@ -181,9 +188,13 @@
   #tally .bar { height:12px; border:1px solid var(--line); border-radius:var(--r-pill);
                 background:var(--rej-bg); overflow:hidden; }
   #tally .bar span { display:block; height:100%; width:0; border-radius:var(--r-pill); background:var(--acc); transition:width .4s ease; }
-  #tally .tata { display:flex; align-items:center; gap:10px; padding:10px 16px;
-                 border-left:1px solid var(--line); }
-  #tally .tata .pilih { flex:0 0 11rem; }
+  /* Label above the control, not beside it: beside it the two-word caption set
+     its own width and the strip's last cell came out a different shape from
+     every other cell. Centred and stacked, it lines up with the stat blocks. */
+  #tally .tata { display:flex; flex-direction:column; justify-content:center;
+                 gap:5px; padding:10px 16px; border-left:1px solid var(--line);
+                 text-align:center; }
+  #tally .tata .pilih { width:11rem; }
 
   /* ---- camera panels ---- */
   /* terapkanKolom() overrides this inline; this value holds until JS runs, and
@@ -197,7 +208,9 @@
              letter-spacing:.04em; border-bottom:1px solid var(--line);
              display:flex; align-items:center; gap:8px; }
   .card h2 .nama { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .card h2 .ord { display:flex; gap:4px; }
+  /* Without align-items the two buttons stretch to the header's full height,
+     so the glyphs sit high against the ONLINE text beside them. */
+  .card h2 .ord { display:flex; align-items:center; gap:4px; }
   .card h2 button { padding:2px 9px; font-size:.85rem; line-height:1.2; color:var(--muted); }
 
   /* Camera state in a word, not only a colour, and in the title bar where it is
@@ -218,22 +231,15 @@
   /* Chrome only renders ::after on a BROKEN image. This covers the broken icon
      and its grey border in the gap before cekKamera() marks the box. */
   .feed img::after { content:""; position:absolute; inset:0; background:#000; }
-  /* Live badge, pure CSS off the .putus class - a still frame and a dead line
-     look identical otherwise, and the operator has no other way to tell. */
-  .feed::after { content:"LIVE"; position:absolute; z-index:2; top:8px; left:8px;
-                 padding:5px 9px 4px 21px; border-radius:var(--r-xs);
-                 font:700 .68rem/1 var(--font); letter-spacing:.14em; color:#fff;
-                 background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.3); }
-  .feed::before { content:""; position:absolute; z-index:3; left:17px; top:15px;
-                  width:7px; height:7px; border-radius:50%; background:#3ddc97;
-                  animation:denyut 2.4s ease-in-out infinite; }
-  @keyframes denyut { 0%,100% { opacity:1; } 50% { opacity:.25; } }
+  /* No LIVE badge: the header already says ONLINE/OFFLINE per line, and the
+     FPS counter the vision service burns into the frame moves on a live feed
+     and freezes on a dead one - so the badge only repeated what was already
+     on screen, over the picture the operator is trying to read. */
   .feed span { position:absolute; inset:0; z-index:4; display:none; place-items:center;
                padding:16px; text-align:center; color:#fff;
                font-size:1.15rem; font-weight:700; background:rgba(0,0,0,.72); }
   .card.putus .feed img { visibility:hidden; }
   .card.putus .feed span { display:grid; }
-  .card.putus .feed::after, .card.putus .feed::before { display:none; }
 
   /* Three bounded cells, not three numbers on one surface: at distance the
      tinted block is read before the figure inside it. Equal columns because
@@ -363,6 +369,10 @@
      to the right edge instead. Not applied to every `.pilih` - the ones on the left
      would then grow the wrong way - so it is asked for per dropdown. */
   .pilih-panel--kanan { left:auto; right:0; }
+  /* Opens upward. The rows-per-page control sits at the bottom of a long table,
+     where a panel dropping down lands off the foot of the page and the operator
+     has to scroll to reach an option. Asked for per dropdown, like --kanan. */
+  .pilih-panel--atas { top:auto; bottom:calc(100% + 4px); }
 
   /* ---- tabs ---- */
   #tabs { display:flex; gap:3px; padding:26px var(--pad) 0; }
@@ -448,9 +458,9 @@
   <span class="jam"><b id="jam">-</b> <span id="tz" class="lb"></span></span>
   <span class="aksi">
     <span id="operator-aktif" hidden></span>
-    <button id="keluar" hidden data-t="tombolKeluar">Keluar</button>
     <button id="bahasa">EN</button>
     <button id="tema">Terang</button>
+    <button id="keluar" hidden data-t="tombolKeluar">Keluar</button>
   </span>
 </header>
 <div id="err"></div>
@@ -551,7 +561,7 @@
               aria-haspopup="listbox" aria-expanded="false">
         <span class="pilih-teks">25</span>
       </button>
-      <div class="pilih-panel" role="listbox" hidden>
+      <div class="pilih-panel pilih-panel--atas" role="listbox" hidden>
         <div role="option" tabindex="-1" data-nilai="25" aria-selected="true">25</div>
         <div role="option" tabindex="-1" data-nilai="50" aria-selected="false">50</div>
         <div role="option" tabindex="-1" data-nilai="100" aria-selected="false">100</div>
