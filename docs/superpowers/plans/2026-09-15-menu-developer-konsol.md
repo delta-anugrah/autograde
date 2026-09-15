@@ -22,6 +22,11 @@
 - **Frappe membalas 417** untuk satu field asing di `/api/resource` → PR 0 (autoerp) wajib merge duluan.
 - Retensi log **180 hari**; jendela penggabungan **60 detik**; hanya level **ERROR** dan **WARNING** yang ditulis.
 - `PERAN_ERP_DIIZINKAN` bawaan `support`.
+- **Setelan baru di `Settings` WAJIB ikut ditambahkan ke `docker-compose.yml` service
+  `console` dan ke `.env.example`, di commit yang sama.**
+  `tests/unit/test_console_compose_env.py` membaca keduanya satu sama lain dan akan
+  gagal kalau tidak. Tes itu ada karena `ERP_COMPANY` pernah rilis tak terjangkau:
+  setelan yang tidak diteruskan compose diam-diam jatuh ke default di dalam container.
 - Dua peran saja: `operator`, `support`.
 
 ---
@@ -654,6 +659,16 @@ Di `core/config.py`, dalam kelas `Settings`:
     # tanpa menunggu ERP dibereskan lebih dulu.
     peran_erp_diizinkan: str = "support"
 ```
+
+Teruskan juga di `docker-compose.yml`, service `console`, di dekat blok `ERP_*`
+(pola yang sama dengan `ERP_COMPANY` di baris ~396):
+
+```yaml
+      - PERAN_ERP_DIIZINKAN=${PERAN_ERP_DIIZINKAN:-support}
+```
+
+dan tambahkan barisnya ke `.env.example`. Tanpa ini
+`tests/unit/test_console_compose_env.py` gagal.
 
 - [ ] **Step 4: `operator_row` membawa peran**
 
@@ -1488,6 +1503,15 @@ Di `core/config.py`, tambahkan:
 ```
 
 Tambahkan juga `log_db_path` mengikuti pola `console_db_path` yang sudah ada.
+
+Teruskan setelan yang dibaca dari env di `docker-compose.yml` service `console`
+dan `.env.example`, di commit yang sama:
+
+```yaml
+      - LOG_RETENSI_HARI=${LOG_RETENSI_HARI:-180}
+```
+
+Tanpa ini `tests/unit/test_console_compose_env.py` gagal.
 
 Di `console_main.py`, dalam lifespan, sesudah store konsol dibuat:
 
