@@ -167,6 +167,14 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line |
 | POST | `/api/console/lines/{line}/release-truck` | truk pergi → `/internal/assignment` line dengan truk kosong |
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
+| GET | `/api/console/dev/ping` | lane developer paling ringan — dipakai layar untuk memastikan akses masih hidup. **Semua tujuh baris di bawah ini butuh `peran='support'`, dijawab 403 kalau bukan** |
+| GET | `/api/console/dev/log` | isi `log_kejadian` — filter `level`/`cari`, pagination `limit`+`offset` |
+| GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu layar |
+| GET | `/api/console/dev/antrean` | isi `erp_outbox` — jumlah pending/gagal + daftar yang gagal |
+| POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox` |
+| GET | `/api/console/dev/versi` | versi image + status lisensi berjalan |
+| GET | `/api/console/dev/plc/{line_code}` | snapshot DI + daftar coil yang boleh diuji untuk satu line — baca saja, aman dibuka kapan pun |
+| POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil PLC line itu — **satu-satunya aksi konsol yang menggerakkan hardware fisik**, lihat Critical Rules |
 | POST | `{BACKEND_API_VER}/internal/vision/events` | ← dari tiga line (`x-webhook-secret`), kontrak §5 |
 | POST | `{BACKEND_API_VER}/internal/scale/weighing` | ← dari program timbangan (`x-webhook-secret`), bentuk sementara kita |
 | GET | `/captures/{line_code}/...` | gambar line, mount read-only, bentuk URL = `resolveCaptureUrl` api |
@@ -480,6 +488,37 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     dimasukkan. Seed **cuma bikin kalau email belum ada**: restart tidak boleh memulihkan
     sandi pabrikan di akun yang sandinya sudah diganti, dan tidak boleh menghidupkan akun
     yang sudah sengaja dimatikan.
+21. **Lane developer: backend yang menjaga, layar cuma merapikan** (Task 14, 2026-09-15).
+    Ketujuh `/api/console/dev/*` (tabel di atas) lewat `require_support` — itu yang
+    sebenarnya menolak 403, dan tab developer yang disembunyikan dari operator biasa di
+    `console.html` cuma kerapian, bukan pengaman: siapa pun yang tahu URL-nya tetap
+    ditolak backend kalau `peran` bukan `support`.
+    **`PERAN_ERP_DIIZINKAN`** (bawaan `support`) membatasi peran mana yang boleh datang
+    dari AutoERP (`domain/peran.py`, `saring_peran_erp`) — **satu-satunya rem sisi
+    pabrik**: kosongkan lalu restart, dan tidak ada akun ERP yang bisa membuka layar
+    developer lagi, tanpa perlu menyentuh AutoERP sama sekali. Akun `lokal` (dibuat
+    `make operator`) tidak lewat penyaring ini.
+    **`log_kejadian` cuma menyimpan ERROR dan WARNING**, retensi 180 hari
+    (`LOG_RETENSI_HARI`). Pesan identik yang datang dalam 60 detik **digabung** jadi satu
+    baris dengan hitungan naik, bukan baris baru per kejadian — tanpa itu satu loop yang
+    gagal tiap detik akan memenuhi tabel dalam semenit dan mendorong keluar galat lain
+    yang lebih tua. `redaksi()` (`domain/log_redaksi.py`) menyaring rahasia **sebelum**
+    baris menyentuh disk, bukan saat ditampilkan: berkasnya dibaca lewat AnyDesk
+    berbulan-bulan kemudian, dan sandi/token yang sempat mendarat di disk sudah bocor
+    walau layarnya sendiri tidak pernah menampilkannya.
+    **Uji PLC satu-satunya aksi konsol yang menggerakkan hardware fisik**, dan bawa tiga
+    pengaman sekaligus: **ditolak selama line itu punya assignment** — dicek di proses
+    line yang memegang `RuntimeState`-nya sendiri, **bukan** di konsol, karena konsol
+    tidak pernah tahu keadaan line sebenarnya selain lewat jawabannya; **konfirmasi
+    ketik**, bukan klik, karena layar sentuh bisa mendaftarkan sentuhan tak sengaja
+    sebagai klik tapi tidak akan pernah mengetik kata yang benar tanpa maksud; dan
+    **setiap percobaan dicatat WARNING** menyebut operator, coil, dan line — baik
+    dipicu maupun ditolak — supaya ada jejak siapa menekan apa kalau ada insiden,
+    ditolak atau tidak.
+    **PKS tanpa satu pun akun `support` tidak bisa membuka lane developer sama sekali** —
+    bukan cuma tab yang hilang, seluruh menunya buntu di 403. Lifespan konsol memeriksa
+    ini saat startup dan `logger.warning` kalau kosong, supaya yang pasang PC tahu
+    sebelum AnyDesk pertama yang butuh layar ini datang.
 
 ---
 
