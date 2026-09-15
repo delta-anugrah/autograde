@@ -35,6 +35,7 @@ python3.12 -m venv .venv
 .venv/bin/pip install "fastapi==0.115.12" "uvicorn[standard]==0.34.0" "python-dotenv==1.1.0" \
   "httpx==0.28.1" "pydantic==2.11.3" pytest ruff cryptography aiosqlite psutil boto3 pyyaml
 
+make operator                     # sekali: akun lokal buat login (tanya email + nama + sandi)
 make console                      # http://127.0.0.1:8100/console — Ctrl-C untuk berhenti
 .venv/bin/pytest tests/unit       # unit test, tidak butuh konsol maupun AutoERP
 ```
@@ -375,6 +376,30 @@ Isinya strip total hari kerja, kartu kamera per line (assign/lepas truk + reject
 4 tab: Grading, Truk, Timbangan, Rekap. Dwibahasa ID/EN, tema terang (default) / gelap, pilihan
 operator disimpan di `localStorage`.
 
+- **Login (Fase 4).** Layar tertutup gerbang sampai ada yang masuk: operator mengetik **email
+  dan sandi** (tombol nama yang ada cuma mengisi kolom email — sandinya tetap wajib), dan topbar
+  menampilkan namanya plus tombol **Keluar**. Semua `/api/console/*` menjawab 401 tanpa cookie
+  `konsol_sesi`; yang tetap terbuka cuma `/console`, daftar akun, dan `login`. Sesi 12 jam, dan
+  Reject Manual tercatat atas nama yang sedang masuk.
+
+  Akun datang dari **dua tempat**: AutoERP (DocType `AutoGrade Operator`, ditarik bareng master
+  data) dan **lokal** di PC ini (akun bawaan + akun support, supaya pabrik yang belum pernah
+  dapat internet tetap bisa dibuka). Keduanya **diverifikasi di pabrik**, jadi login tetap jalan
+  saat internet mati — yang ditarik hash-nya, bukan sandinya. Sandi minimal 8 karakter.
+
+  **Dua akun bawaan di tiap image**: `operator@autograde.local` (dipegang pabrik) dan
+  `support@autograde.local` (jalur masuk kita lewat AnyDesk). Email-nya sama di semua PKS
+  supaya support tidak perlu nanya dulu; **sandinya beda tiap PKS**, dibuat waktu pasang PC
+  dengan `make hash-sandi` lalu diisi ke `CONSOLE_DEFAULT_HASH` / `CONSOLE_SUPPORT_HASH` —
+  yang tertanam **hash**-nya, sandi mentah tidak pernah masuk image atau `.env`. Akun cuma
+  dibuat kalau email-nya belum ada, jadi **sandi yang sudah diganti pabrik tidak ketimpa
+  restart**, dan akun yang sudah dimatikan tidak dihidupkan lagi.
+  Akun lokal dibuat dari PC ini: `make operator`, atau `make operator-docker` kalau konsolnya di
+  Docker. `AKSI=daftar` melihat daftar beserta asal tiap akun, `AKSI=matikan` mematikan satu
+  akun — sesinya langsung berakhir. Reset sandi lokal = `make operator` lagi dengan email yang
+  sama; sandi akun milik AutoERP direset **di AutoERP** (CLI-nya menolak, karena tarikan
+  berikutnya akan membatalkannya).
+
 - **Stream kamera tidak lewat konsol** — kartunya `<img>` MJPEG langsung ke `:8001/8002/8003`.
   Kartu dirender **sekali** lalu ditambal tiap 2 detik; urutan pakai CSS `order`. Memindah DOM =
   stream putus lalu buka lagi. Status kamera dicek tiap 5 detik dan muncul sebagai
@@ -394,10 +419,12 @@ operator disimpan di `localStorage`.
 
   ```bash
   make up-console
+  make operator-docker            # sekali: akun operator, dipakai seed buat masuk
   WEBHOOK_SECRET=$(docker exec palmgrade_console printenv WEBHOOK_SECRET) \
   LINE_1_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_1_MACHINE_ID) \
   LINE_2_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_2_MACHINE_ID) \
   LINE_3_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_3_MACHINE_ID) \
+  CONSOLE_EMAIL=operator@pks.test CONSOLE_SANDI=<sandi> \
   SEED_CONFIRM=1 python3 scripts/seed-console-demo.py
   ```
 
@@ -407,11 +434,14 @@ operator disimpan di `localStorage`.
   `make up-console` tidak cukup: `up -d` itu no-op kalau kontainernya sudah jalan, jadi
   proses lama tetap memegang kode lama.
 
-  Sesudah seed, jalankan `scripts/smoke-console.sh` — dia mengetuk semua endpoint
-  yang dipakai UI, memastikan halaman yang dilayani memang berkas di working tree
-  (bukan salinan di dalam image), lalu mengecek tiga jebakan yang pernah menggigit:
-  baris "Tanpa truk" tidak dibuang, neto truk bertiket-dua **dijumlah** bukan dikali,
-  dan `bruto_kg` "14.820" ditolak. Harus `11 passed, 0 failed`.
+  Sesudah seed, jalankan `CONSOLE_EMAIL=operator@pks.test CONSOLE_SANDI=<sandi>
+  scripts/smoke-console.sh` — dia memeriksa gembok dulu (lane data 401 tanpa sesi, lane
+  gerbang terbuka), lalu masuk dan mengetuk semua endpoint yang dipakai UI, memastikan
+  halaman yang dilayani memang berkas di working tree (bukan salinan di dalam image), dan
+  mengecek tiga jebakan yang pernah menggigit: baris "Tanpa truk" tidak dibuang, neto truk
+  bertiket-dua **dijumlah** bukan dikali, dan `bruto_kg` "14.820" ditolak. Harus **nol FAIL**;
+  tanpa `CONSOLE_EMAIL` bagian sesudah gembok dilewati, dan dua jebakan rekap memang
+  butuh seed dijalankan dulu.
 - **Tersambung ke AutoERP, di MacBook tanpa Docker.** AutoERP dinyalakan dari repo
   `autoerp` (bench native), kuncinya diambil dengan `make key-show` lalu ditempel ke `.env`
   di sini. Konsol membaca `.env` sendiri, jadi perintahnya pendek:
@@ -434,10 +464,12 @@ operator disimpan di `localStorage`.
   supaya cocok dengan secret yang dipakai tes. **Jangan** `bench start` dua kali dan jangan
   jalankan `create_integration_user` ulang untuk melihat kunci (itu merotasi secret).
 
-  Tes end-to-end lawan AutoERP asli — 8 tes, membersihkan datanya sendiri, butuh port 8001 kosong:
+  Tes end-to-end lawan AutoERP asli — 11 tes, membersihkan datanya sendiri, butuh port 8001
+  kosong dan satu operator (`make operator`) karena API konsol sekarang butuh sesi:
 
   ```bash
   E2E_CONSOLE_URL=http://127.0.0.1:8100 E2E_WEBHOOK_SECRET=devsecret \
+  E2E_EMAIL=operator@pks.test E2E_SANDI=<sandi> \
   E2E_ERP_URL=http://pks.localhost:8000 E2E_ERP_API_KEY=<key> E2E_ERP_API_SECRET=<secret> \
   E2E_ERP_ADMIN_PASSWORD=admin .venv/bin/pytest tests/e2e -v
   ```
@@ -494,11 +526,17 @@ curl -X POST http://localhost:8001/api/set_truck \
 
 ### Konsol (`APP_MODE=console`, port 8000)
 
-Surface-nya berbeda total — `main.py` tidak dipakai sama sekali.
+Surface-nya berbeda total — `main.py` tidak dipakai sama sekali. **Semua `/api/console/*` butuh
+sesi** (Fase 4): tanpa cookie `konsol_sesi` jawabannya 401 `belum_masuk`. Tiga baris pertama
+sengaja terbuka, karena gerbang login sendiri perlu bisa digambar dan dipakai masuk.
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/console` | Layar operator (satu file HTML statis) |
+| `GET` | `/console` | Layar operator (satu file HTML statis) — terbuka |
+| `GET` | `/api/console/operators` | Email + nama akun aktif untuk mengisi kolom email, tanpa hash — terbuka |
+| `POST` | `/api/console/login` | `{email, sandi}` → cookie `konsol_sesi` HttpOnly 12 jam. Sandi salah 401, login terkunci 429 |
+| `POST` | `/api/console/logout` | Akhiri sesi ini saja |
+| `GET` | `/api/console/me` | Operator yang sedang masuk |
 | `GET` | `/api/console/state` | Ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
 | `GET` | `/api/console/history` | Filter `tanggal_kerja` / `line_code` / `truck_id` |
 | `GET` | `/api/console/trucks` | Master truk + supplier + `sumber_label` |
@@ -515,10 +553,14 @@ Surface-nya berbeda total — `main.py` tidak dipakai sama sekali.
 | `GET` | `/health` | Ringan — sengaja bukan `routes/health.py` (yang itu menarik torch) |
 
 ```bash
-curl http://localhost:8000/api/console/state
-curl http://localhost:8000/api/console/recap                       # hari ini
-curl 'http://localhost:8000/api/console/recap?tanggal_kerja=2026-09-10'
-curl -X POST http://localhost:8000/api/console/trucks \
+# Masuk dulu — tanpa cookie semuanya 401. Akun lokal dibuat dengan `make operator`.
+curl -s -c /tmp/konsol.jar -H 'content-type: application/json' \
+  -d '{"email":"operator@pks.test","sandi":"<sandi>"}' http://localhost:8000/api/console/login
+
+curl -b /tmp/konsol.jar http://localhost:8000/api/console/state
+curl -b /tmp/konsol.jar http://localhost:8000/api/console/recap     # hari ini
+curl -b /tmp/konsol.jar 'http://localhost:8000/api/console/recap?tanggal_kerja=2026-09-10'
+curl -b /tmp/konsol.jar -X POST http://localhost:8000/api/console/trucks \
   -H "Content-Type: application/json" -d '{"plate_number": "KT 2509 ABC"}'
 ```
 
@@ -627,7 +669,7 @@ Dari `autograde/`:
 ```bash
 # CI menjalankan keduanya (lihat .github/workflows/ci.yml).
 # Di Mac, venv dari Quick Start sudah berisi semua paket ini — cukup .venv/bin/pytest tests/unit
-pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic pyyaml
+pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi
 ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/palmgrade/integrations/upload/ \
   src/palmgrade/license/ src/palmgrade/plc/ src/palmgrade/workers/batch_upload_worker.py \
   src/palmgrade/workers/master_data_worker.py \
@@ -670,6 +712,17 @@ pytest tests/unit/
 ---
 
 ## Environment Variables Reference
+
+**Diaudit 2026-09-15: tiap variabel di `.env.example` memang dibaca, dan tidak ada yang
+dibaca kode tapi hilang dari dokumentasi.** Empat pola di bawah kelihatan seperti
+variabel mati padahal bukan — jangan dihapus karena `grep os.getenv` tidak menemukannya:
+
+| Kelihatan mati | Kenyataannya |
+|---|---|
+| `LINE_1/2/3_CAMERA_SERIAL`, `LINE_N_FEATURE_FILE`, `LINE_N_MACHINE_ID` | Dipetakan **compose** jadi `CAMERA_SERIAL` / `CAMERA_FEATURE_FILE` per container; `LINE_N_MACHINE_ID` dibaca f-string di `config.py`. Inilah yang bikin tiap line dapat kamera yang benar |
+| Semua `PLC_*` selain `PLC_ENABLED`/`PLC_HOST` | Lewat helper `_plc_int()` / `parse_coil_list()`, bukan `os.getenv` literal |
+| `APP_MODE`, `APP_VERSION`, `CAMERA_SERIAL`, `CAMERA_FEATURE_FILE`, `PLC_COIL_ALIVE`, `PLC_COIL_BASE` | **Sengaja tidak ada** di `.env.example`: compose/Dockerfile yang mengisinya, dan literal compose selalu menang atas berkas ini (alasan lengkap di komentar `.env.example` § PLC) |
+| `CONSOLE`, `CONSOLE_EMAIL`, `CONSOLE_SANDI`, `SEED_CONFIRM` | Variabel **skrip dev** (`seed-console-demo.py`, `smoke-console.sh`), bukan setelan runtime |
 
 | Variable | Default | Description |
 |---|---|---|
@@ -715,6 +768,8 @@ pytest tests/unit/
 | `FACTORY_TZ` | `Asia/Jakarta` | Zona batas **hari kerja** — pabrik jalan ~20 jam lewat tengah malam, jadi tanggal tidak boleh diturunkan dari UTC |
 | `CONSOLE_SYNC_INTERVAL_S` | `300` | Interval `MasterDataWorker` menarik supplier + truk dari AutoERP |
 | `CONSOLE_LINE_HOST` | `http://localhost` | Host tiga line dilihat dari konsol (assign/release/manual-reject) |
+| `CONSOLE_DEFAULT_HASH` | — | **Hash** sandi akun `operator@autograde.local`. Bikin dengan `make hash-sandi`; sandi mentah jangan pernah ditaruh di sini. ⚠️ Di compose tulis `$$` untuk satu `$` |
+| `CONSOLE_SUPPORT_HASH` | — | Sama, untuk akun `support@autograde.local` (jalur masuk kita). Sandinya beda dari akun bawaan, dan beda tiap PKS |
 | `ERP_URL` | — | AutoERP base URL. **Kosong = jalur ERP mati**, dan itu default: layar operator tidak boleh bergantung pada ERP hidup |
 | `ERP_API_KEY` / `ERP_API_SECRET` | — | `Authorization: token <key>:<secret>` dari `erpnext.palm_mill.setup.create_integration_user` |
 | `ERP_COMPANY` | — | Company AutoERP yang dibukukan pabrik ini. Kosong = AutoERP pakai company bawaannya (benar untuk situs satu perusahaan) |

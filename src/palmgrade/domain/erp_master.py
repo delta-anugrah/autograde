@@ -29,6 +29,30 @@ def supplier_row(doc: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def operator_row(doc: dict[str, Any]) -> dict[str, Any]:
+    """One `AutoGrade Operator` document as a console operator row (§4.A).
+
+    The hash travels with it: that is what lets the console verify a sign-in with the
+    internet down. The DocType is named by the email, so `name` and `email` agree —
+    `email` is still read on its own, because the id must come from the normalised
+    address rather than from Frappe's naming.
+
+    A document with no hash yet (created, password not set) is passed through with an
+    empty one. `verify_password` refuses it, so the account simply cannot sign in until
+    backoffice sets a password — which is the honest reading of that state.
+    """
+    erp_name = doc["name"]
+    email = doc.get("email") or erp_name
+    return {
+        "email": email,
+        "nama": doc.get("full_name") or email,
+        "password_hash": doc.get("password_hash") or "",
+        "erp_name": erp_name,
+        # AutoERP's word for it; the store turns it into `status`.
+        "active": 1 if doc.get("active", 1) else 0,
+    }
+
+
 def truck_row(doc: dict[str, Any]) -> dict[str, Any]:
     """The id comes from the plate, so an ERP truck adopts the operator's row.
 

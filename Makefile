@@ -94,6 +94,25 @@ console:
 kiosk:
 	./scripts/console-kiosk.sh
 
+# Operator accounts for the console login (Fase 4). Name and PIN are asked for
+# interactively, so the PIN never lands in shell history.
+#   make operator                 add a local account, or reset a forgotten password
+#   make operator AKSI=daftar     list the active accounts and where each came from
+#   make operator AKSI=matikan    switch one off (their sessions end at once)
+# `operator` is the native console (Mac). `operator-docker` runs inside the console
+# container on the factory PC, against the database that console really reads.
+AKSI ?= tambah
+operator:
+	PYTHONPATH=src .venv/bin/python scripts/console-operator.py $(AKSI)
+
+operator-docker:
+	docker compose --env-file $(ENV_FILE) exec console python scripts/console-operator.py $(AKSI)
+
+# Hash untuk dua akun bawaan konsol. Dipakai waktu pasang PC pabrik: sandinya beda
+# per PKS, dan yang masuk ke image atau .env cuma hash-nya, bukan sandi mentah.
+hash-sandi:
+	PYTHONPATH=src .venv/bin/python scripts/hash-sandi.py
+
 down:
 	docker compose --env-file $(ENV_FILE) down
 

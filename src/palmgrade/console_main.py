@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .routes.console import get_console_service, ingest_router
 from .routes.console import router as console_router
+from .services.akun_bawaan import seed_akun_bawaan
 from .workers.erp_link import build_erp_workers
 
 # Same bootstrap as main.py, and for the same reason: settings are read when the
@@ -32,6 +33,14 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     service = get_console_service()  # ZoneInfo(FACTORY_TZ) is validated here
+    # Before anything else: a mill installed before it ever reached the internet has no
+    # AutoERP accounts yet, and a console nobody can sign into is useless on exactly the
+    # day it is needed. Existing accounts are never touched (see akun_bawaan).
+    seed_akun_bawaan(
+        service.store,
+        hash_bawaan=service.settings.console_default_hash,
+        hash_support=service.settings.console_support_hash,
+    )
     # The AutoERP link is optional by design: with ERP_URL empty there are no
     # workers at all, and any of them may die without taking the screen down.
     workers = build_erp_workers(service.settings, service.store, service.erp_queue)

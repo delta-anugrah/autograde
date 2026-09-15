@@ -513,12 +513,26 @@ CDN** (harus tetap terbuka saat internet mati). Stream kamera pakai `<img>` MJPE
 line di port 8001-8003, jadi tiga koneksi video ditanggung browser, bukan proses konsol. ~2200
 baris React di frontend lama **diekspresikan ulang, bukan di-port**.
 
-**Belum termasuk Fase 2** (sengaja): login operator + PIN (§6.5), timbangan brondolan lewat PLC
-(§6.6b, Fase 3), nomor dokumen berprefiks lokal (§6.3), toggle tampil/sembunyi per line, dan
-halaman riwayat/laporan lintas hari (itu urusan cloud — live/hari ini lokal, riwayat cloud).
+**Login (Fase 4, §6.5).** Layar tertutup gerbang **email + sandi** sampai ada yang masuk, dan
+**semua** `/api/console/*` menjawab 401 `belum_masuk` tanpa cookie `konsol_sesi` — kecuali
+`/console` sendiri, daftar akun untuk mengisi kolom email, dan `login`. Akun datang dari dua
+tempat: DocType **`AutoGrade Operator`** di AutoERP (ditarik §4.A) dan akun **lokal** di PC itu
+(bawaan + support, supaya pabrik tanpa internet tetap bisa dibuka). Keduanya diverifikasi di
+pabrik — yang ditarik `password_hash`-nya, bukan sandinya, dan itulah sebabnya field-nya `Data`
+biasa: fieldtype `Password` hidup di `__Auth` yang Frappe sengaja tidak pernah layani lewat REST,
+jadi tidak akan ada yang bisa ditarik. Dua skema berdampingan: `pbkdf2_sha256` milik AutoERP
+(dibaca `hashlib` saja) dan `scrypt` untuk akun lokal. Sesi 12 jam (`sesi`), lockout berlipat dua
+sesudah lima kali salah, dan `requested_by` Reject Manual sekarang nama operator yang masuk —
+bukan lagi string `"operator"`. Akun lokal dibuat dari PC dengan `make operator`; tidak ada lane
+web untuk itu. Rincian aturannya di `CLAUDE.md` invarian 19.
 
-**Tests** (`tests/unit/test_working_day.py`, `test_console_store.py`, murni-logic, tanpa
-FastAPI): batas hari lewat tengah malam WIB vs UTC, timestamp cacat melempar, dedupe event
+**Belum termasuk Fase 2** (sengaja): timbangan brondolan lewat PLC (§6.6b, Fase 3), nomor dokumen
+berprefiks lokal (§6.3), toggle tampil/sembunyi per line, dan halaman riwayat/laporan lintas hari
+(itu urusan cloud — live/hari ini lokal, riwayat cloud).
+
+**Tests** (`tests/unit/test_working_day.py`, `test_console_store.py`, murni-logic; satu-satunya yang
+memakai FastAPI adalah penjaga sesi konsol, lawan app rakitan sendiri): batas hari lewat tengah
+malam WIB vs UTC, timestamp cacat melempar, dedupe event
 kirim-ulang, pemisahan ACC/REJ per line, penugasan yang selamat restart, urutan
 line-dulu-baru-catat, bentuk URL gambar (relatif vs R2 absolut), Sumber TBS yang sama di kelima
 tampilan, dan `LINE_N_MACHINE_ID` yang benar-benar sampai lewat Settings.

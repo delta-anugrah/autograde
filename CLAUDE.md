@@ -109,6 +109,8 @@ All via **`make`** (Docker only). From `autograde/`:
 | `make up-console` / `make logs-console` | konsol operator saja (port 8000, `/console`) — aman di-restart tanpa mengganggu line |
 | `make console` | konsol **native tanpa Docker** di `127.0.0.1:8100` — jalur develop di Mac (baca `.env`, `WEBHOOK_SECRET=devsecret`); target Docker tetap jalur Linux/pabrik |
 | `make kiosk` | konsol layar penuh di PC ini (`scripts/console-kiosk.sh`) |
+| `make operator` | akun **lokal** untuk login konsol: tambah / reset sandi (email + sandi). `AKSI=daftar\|matikan`. Akun milik AutoERP diurus di AutoERP. Di PC pabrik pakai `make operator-docker` (konsolnya di Docker, DB-nya beda berkas) |
+| `make hash-sandi` | hash untuk dua akun bawaan image (`CONSOLE_DEFAULT_HASH`/`CONSOLE_SUPPORT_HASH`). Dipakai saat pasang PC pabrik — sandi mentah tidak pernah ditanam |
 | `make build-engine` | build TensorRT FP16 engine **once per GPU** (one-shot, auto-skip kalau sudah ada) |
 | `make logs` / `make logs-1` | tail logs (combined / per line) |
 | `make down` / `make ps` / `make rebuild` / `make rebuild-clean` / `make clean` | stop / status / rebuild / clean rebuild (`--no-cache`) / cleanup |
@@ -121,7 +123,7 @@ All via **`make`** (Docker only). From `autograde/`:
   saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
   mengatakan apa-apa soal batch upload ke cloud — untuk itu baca log `Batch tick: N item eligible`
   dari `BatchUploadWorker` atau query `state/upload_manifest.db` langsung.
-- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `tanggal_kerja` lewat tengah malam + `console_store` + invarian `console.html` + **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: field yang diminta persis milik DocType (ERP palsu membalas 417 seperti Frappe) + Sumber TBS mengikuti `sumber_for_supplier` + grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual, **antrean ke AutoERP**: ditolak vs tidak terjangkau dibedakan + backoff 30 dtk→1 jam + pesan yang diganti saat masih di jalan tidak ditandai terkirim + truk manual masuk antrean + truk milik ERP read-only, **kunjungan truk**: bentuk pesan §4.C + `stage` diturunkan dari keadaan + bagian kosong tidak dikirim + grading ikut lewat tautan assignment + kirim ulang harian sekali sehari + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic pyyaml` — `pyyaml` cuma untuk tes yang mencocokkan `docker-compose.yml` dengan `Settings`) di samping `ruff pytest` — samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol — `integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret framework berat/hardware ke CI.**
+- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `tanggal_kerja` lewat tengah malam + `console_store` + invarian `console.html` + **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: field yang diminta persis milik DocType (ERP palsu membalas 417 seperti Frappe) + Sumber TBS mengikuti `sumber_for_supplier` + grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual, **antrean ke AutoERP**: ditolak vs tidak terjangkau dibedakan + backoff 30 dtk→1 jam + pesan yang diganti saat masih di jalan tidak ditandai terkirim + truk manual masuk antrean + truk milik ERP read-only, **kunjungan truk**: bentuk pesan §4.C + `stage` diturunkan dari keadaan + bagian kosong tidak dikirim + grading ikut lewat tautan assignment + kirim ulang harian sekali sehari + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi` — `pyyaml` cuma untuk tes yang mencocokkan `docker-compose.yml` dengan `Settings`; `fastapi` cuma untuk penjaga sesi konsol, yang cuma bisa dibuktikan lawan app sungguhan) di samping `ruff pytest` — samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol — `integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret hardware, torch, atau cv2 ke CI.** FastAPI `TestClient` boleh, tapi hanya untuk hal yang memang cuma ada di lapisan HTTP (penjaga sesi): app-nya dirakit sendiri di test dengan dependensi di-override, **bukan** `create_console_app()` — yang itu menyentuh `state/console.db` milik developer.
 - From-zero prod setup (NVIDIA toolkit, MVS install, camera IP): `docs/SETUP.md`.
 
 ---
@@ -140,11 +142,17 @@ All via **`make`** (Docker only). From `autograde/`:
 | WS | `/ws/results` | legacy result push |
 | GET | `/captures/...` | static images (mount → `artifacts/`) |
 
-**Konsol (`APP_MODE=console`, port 8000)** — surface yang berbeda total; `main.py` tidak dipakai:
+**Konsol (`APP_MODE=console`, port 8000)** — surface yang berbeda total; `main.py` tidak dipakai.
+**Semua `/api/console/*` butuh sesi** (Fase 4) kecuali tiga baris pertama di bawah; tanpa cookie
+`konsol_sesi` jawabannya 401 `belum_masuk`. Lane mesin (`/internal/*`) tetap pakai webhook secret:
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/console` | layar operator (satu file HTML statis) |
+| GET | `/console` | layar operator (satu file HTML statis) — terbuka, dia yang menggambar gerbang login |
+| GET | `/api/console/operators` | email + nama akun aktif untuk mengisi kolom email, **tanpa** hash — terbuka |
+| POST | `/api/console/login` | `{email, sandi}` → cookie `konsol_sesi` HttpOnly, 12 jam. Sandi salah 401, login terkunci 429 |
+| POST | `/api/console/logout` | akhiri sesi ini saja |
+| GET | `/api/console/me` | operator yang sedang masuk |
 | GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
 | GET | `/api/console/history` | filter `tanggal_kerja` / `line_code` / `truck_id` |
 | GET | `/api/console/trucks` | master truk + supplier + `sumber_label` |
@@ -358,6 +366,45 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     mengetik ulang platnya mengembalikan baris apa adanya. Sebelum ini ketik ulang menghapus
     suppliernya dan diam-diam mengubah label Sumber jadi Internal — termasuk di baris grading
     yang sudah lewat, karena label dibaca dari truk, bukan disalin ke barisnya.
+19. **Login konsol: email + sandi, dua sumber akun, diverifikasi offline** (Fase 4, §6.5).
+    Akun datang dari dua tempat dan barisnya menyimpan yang mana (`operators.asal`):
+    `erp` ditarik dari DocType **`AutoGrade Operator`** (dibuat 2026-09-15, §4.A —
+    `name, email, full_name, active, password_hash, modified`, kursor `erp_cursor_operator`),
+    `lokal` ditulis `make operator` di PC itu (akun bawaan + akun support, satu-satunya cara
+    membuka pabrik yang belum pernah dapat internet). **Tidak ada yang boleh menimpa milik
+    yang lain**: tarikan yang meratakan akun lokal mematikan jalan masuk justru saat internet
+    mati, dan CLI yang menimpa akun ERP bikin pabrik beda dengan pembukuan sampai ada yang
+    sadar. `active=0` dari ERP → status `off` **dan** sesinya dihapus.
+    **`password_hash` sengaja field `Data` yang bisa dibaca REST**, bukan `Password`:
+    fieldtype `Password` hidup di `__Auth` yang tidak pernah dilayani REST, jadi tidak ada
+    yang bisa ditarik dan login offline mustahil. Yang keluar dari ERP hash, bukan sandi.
+    **Dua skema hash hidup bersebelahan**: `pbkdf2_sha256` milik passlib AutoERP (diverifikasi
+    pakai `hashlib` saja — tidak ada dependensi baru di pabrik; ⚠️ passlib menulis base64
+    dialeknya sendiri, `.` untuk `+` tanpa padding, dan salah decode = separuh akun ditolak
+    padahal sandinya benar) dan `scrypt` untuk akun lokal. `_verify_scrypt` **hanya** menerima
+    parameter yang ditulis build ini (barisnya data dan bisa diubah); rounds pbkdf2 **diikuti**
+    di atas lantai minimum, karena AutoERP yang punya biaya itu dan boleh menaikkannya.
+    Sesi 12 jam di `sesi`. Hitungan sandi salah di disk (lockout 5× lalu berlipat dua sampai
+    15 menit), karena di memori muat-ulang halaman akan mengosongkannya. Reset sandi **dan**
+    mematikan operator sama-sama menghapus sesinya — menyaring status saja akan menghidupkan
+    token lama begitu akun diaktifkan lagi. Satu jawaban untuk sandi salah / akun tidak ada /
+    akun mati, supaya layar bersama tidak bisa dipakai memetakan siapa yang punya akun.
+    Sandi minimal 8 karakter, tanpa aturan jenis karakter (aturan yang memaksa simbol di
+    layar sentuh luar ruangan berakhir jadi tulisan di monitor). **Tidak ada lane web untuk
+    membuat akun**: `make operator` di PC itu sendiri, dan itu cuma mengurus akun `lokal`.
+    **Dua akun bawaan di tiap image** (`services/akun_bawaan.py`, dipanggil di lifespan
+    konsol): `operator@autograde.local` + `support@autograde.local`. Alasannya PC yang baru
+    dipasang belum pernah dapat internet, jadi akun AutoERP belum turun — tanpa ini
+    konsolnya layar terkunci di hari dia paling dibutuhkan. Email dipatok supaya support
+    tidak perlu menebak; **sandi beda per PKS** (keputusan operator 2026-09-15), dibuat
+    `make hash-sandi` saat pasang PC. Yang ditanam **hash** lewat build arg
+    `CONSOLE_DEFAULT_HASH`/`CONSOLE_SUPPORT_HASH`, **jangan pernah sandi mentah**: PC pabrik
+    bisa diakses AnyDesk dan layer image terbaca siapa pun yang pegang image. Hash yang
+    tidak berawalan `$pbkdf2-sha256$`/`scrypt$` **ditolak dan di-`logger.error`** — itu yang
+    menangkap `$` dimakan compose (`$$` untuk satu `$`) dan sandi mentah yang keliru
+    dimasukkan. Seed **cuma bikin kalau email belum ada**: restart tidak boleh memulihkan
+    sandi pabrikan di akun yang sandinya sudah diganti, dan tidak boleh menghidupkan akun
+    yang sudah sengaja dimatikan.
 
 ---
 

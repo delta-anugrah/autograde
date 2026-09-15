@@ -83,6 +83,16 @@ RUN mkdir -p artifacts/results
 ARG APP_VERSION=unknown
 ENV APP_VERSION=${APP_VERSION}
 
+# Dua akun bawaan konsol (operator pabrik + support kita). Yang ditanam HASH-nya,
+# bukan sandinya: PC pabrik bisa diakses lewat AnyDesk, dan layer image bisa dibaca
+# siapa pun yang pegang image-nya. Bikin hash-nya dengan `make hash-sandi`.
+# Sandinya beda per PKS, dan `.env` di PC pabrik boleh menimpa nilai ini.
+# Kosong itu normal: pabrik yang semua akunnya dari AutoERP tidak menanam apa pun.
+ARG CONSOLE_DEFAULT_HASH=""
+ARG CONSOLE_SUPPORT_HASH=""
+ENV CONSOLE_DEFAULT_HASH=${CONSOLE_DEFAULT_HASH} \
+    CONSOLE_SUPPORT_HASH=${CONSOLE_SUPPORT_HASH}
+
 # Entrypoint di luar /app supaya tidak tertimpa volume mount .:/app
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

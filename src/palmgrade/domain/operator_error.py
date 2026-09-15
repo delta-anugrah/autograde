@@ -17,6 +17,12 @@ TARA_LEBIH_BESAR = "tara_lebih_besar"
 LINE_TIDAK_DIKENAL = "line_tidak_dikenal"
 LINE_TIDAK_MENJAWAB = "line_tidak_menjawab"
 LINE_MENOLAK = "line_menolak"
+# Login (Fase 4). `SANDI_SALAH` deliberately says nothing about which of the two was
+# wrong, and is the same answer for an operator switched off.
+SANDI_PENDEK = "sandi_pendek"
+SANDI_SALAH = "sandi_salah"
+TERKUNCI = "terkunci"
+BELUM_MASUK = "belum_masuk"
 
 CODES = (
     PLAT_KOSONG,
@@ -27,6 +33,10 @@ CODES = (
     LINE_TIDAK_DIKENAL,
     LINE_TIDAK_MENJAWAB,
     LINE_MENOLAK,
+    SANDI_PENDEK,
+    SANDI_SALAH,
+    TERKUNCI,
+    BELUM_MASUK,
 )
 
 

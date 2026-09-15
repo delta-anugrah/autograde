@@ -232,6 +232,15 @@ class Settings:
     # The console forwards assignment and manual-reject here. Defaults to
     # localhost because every container runs network_mode: host at the mill.
     console_line_host: str = field(default_factory=lambda: os.getenv("CONSOLE_LINE_HOST", "http://localhost").rstrip("/"))
+    # The two accounts baked into every image (services/akun_bawaan.py): the mill's own
+    # and ours for support. **Hashes, never passwords** — a factory PC is reachable over
+    # AnyDesk and an image layer is readable by anyone holding the image. Passwords
+    # differ per mill, generated at install time with `make hash-sandi`. Empty is
+    # normal: a mill whose accounts all come from AutoERP seeds nothing.
+    # ⚠️ docker-compose eats `$`; write `$$` for a literal one, or the hash arrives
+    # truncated and the account is refused (deliberately loudly).
+    console_default_hash: str = field(default_factory=lambda: os.getenv("CONSOLE_DEFAULT_HASH", ""))
+    console_support_hash: str = field(default_factory=lambda: os.getenv("CONSOLE_SUPPORT_HASH", ""))
 
     # ── AutoERP link ─────────────────────────────────────────────
     # The console calls AutoERP; AutoERP never calls in (a factory PC has no

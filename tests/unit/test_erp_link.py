@@ -26,6 +26,18 @@ def _parts(tmp_path) -> tuple[ConsoleStore, ErpQueue]:
     return store, ErpQueue(store, ErpOutboxStore(tmp_path / "erp_outbox.db"))
 
 
+def _weighing(store: ConsoleStore, weighing_id: str = "w1") -> str:
+    store.upsert_weighing(
+        {
+            "id": weighing_id, "ref": "SCL-1", "plate_number": PLATE, "plate_norm": "BE1AA",
+            "truck_id": truck_id_for(PLATE), "tanggal_kerja": "2026-09-13",
+            "bruto_kg": 14560.0, "tara_kg": None, "neto_kg": None,
+            "waktu_masuk": "2026-09-13T07:41:00+07:00", "waktu_keluar": None,
+        }
+    )
+    return weighing_id
+
+
 def test_without_an_erp_url_there_are_no_workers(tmp_path):
     store, queue = _parts(tmp_path)
 
@@ -71,22 +83,56 @@ def test_a_plate_autoerp_already_knew_brings_its_owner_back(tmp_path):
 def test_the_ticket_autoerp_made_is_kept_against_the_weighing(tmp_path):
     """The trace from a weighbridge row at the mill to the receipt in the ledger."""
     store, _ = _parts(tmp_path)
-    store.upsert_weighing(
-        {
-            "id": "w1", "ref": "SCL-1", "plate_number": PLATE, "plate_norm": "BE1AA",
-            "truck_id": truck_id_for(PLATE), "tanggal_kerja": "2026-09-13",
-            "bruto_kg": 14560.0, "tara_kg": None, "neto_kg": None,
-            "waktu_masuk": "2026-09-13T07:41:00+07:00", "waktu_keluar": None,
-        }
-    )
+    _weighing(store)
 
     visit_recorded(store)("w1", {"ticket": "WB-2026-03851", "status": "Waiting Grading"})
 
-    assert store.weighing("w1")["erp_ticket"] == "WB-2026-03851"
+    row = store.weighing("w1")
+    assert (row["erp_ticket"], row["erp_status"]) == ("WB-2026-03851", "Waiting Grading")
 
 
-def test_an_answer_without_a_ticket_changes_nothing(tmp_path):
-    """A cancelled visit is acknowledged without a ticket; nothing to record."""
+def test_a_revision_after_finalisation_is_recorded_and_logged(tmp_path, caplog):
+    """AutoERP never rewrites a finalised ticket: it flags `grading_revised`, leaves a
+    comment, and says so in `note`. Keeping only the ticket number threw that away, so
+    nobody at the mill could tell that the numbers they sent were not the booked ones.
+    """
+    store, _ = _parts(tmp_path)
+    _weighing(store)
+
+    with caplog.at_level("WARNING"):
+        visit_recorded(store)(
+            "w1",
+            {
+                "ticket": "WB-2026-03851",
+                "status": "Finalised",
+                "revised": True,
+                "note": "ticket already finalised; grading revised",
+            },
+        )
+
+    row = store.weighing("w1")
+    assert (row["erp_status"], row["erp_note"]) == (
+        "Finalised",
+        "ticket already finalised; grading revised",
+    )
+    assert "grading revised" in caplog.text
+
+
+def test_a_cancelled_ticket_is_recorded_as_such(tmp_path):
+    """`note: ticket cancelled; visit ignored` means AutoERP took nothing from this
+    send. Marking it delivered without the note reads as success."""
+    store, _ = _parts(tmp_path)
+    _weighing(store)
+
+    visit_recorded(store)(
+        "w1", {"ticket": "WB-2026-03851", "status": "Cancelled", "note": "ticket cancelled; visit ignored"}
+    )
+
+    assert store.weighing("w1")["erp_note"] == "ticket cancelled; visit ignored"
+
+
+def test_an_answer_for_a_weighing_we_no_longer_have_is_harmless(tmp_path):
+    """The row can be gone by the time the outbox drains; recording must not raise."""
     store, _ = _parts(tmp_path)
 
     visit_recorded(store)("w1", {"note": "ticket cancelled; visit ignored"})

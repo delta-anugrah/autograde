@@ -19,6 +19,7 @@ def _visit(**over) -> dict:
         "ref": "SCL-2026-000201",
         "plate_number": "BE 8821 KL",
         "truck_id": truck_id_for("BE 8821 KL"),
+        "truck_erp_name": None,
         "supplier_erp_name": "KUD Sumber Makmur",
         "bruto_kg": 14560.0,
         "tara_kg": None,
@@ -87,6 +88,30 @@ def test_the_truck_and_its_owner_travel_with_the_visit():
     }
     assert payload["supplier_erp_name"] == "KUD Sumber Makmur"
     assert payload["scale_ticket_no"] == "SCL-2026-000201"
+
+
+def test_the_erp_truck_name_travels_whenever_we_know_it():
+    """AutoERP resolves `truck.erp_name` before the plate (`api.py::upsert_visit`).
+
+    Without it a plate whose text the backoffice corrected in AutoERP normalises to
+    something else here, and `get_or_create_truck` makes a SECOND Truck: the visit then
+    books onto a twin that splits the plate's tonnage.
+    """
+    _, payload = _payload(_visit(truck_erp_name="BE 8821 KL"))
+
+    assert payload["truck"] == {
+        "plate_number": "BE 8821 KL",
+        "autograde_id": truck_id_for("BE 8821 KL"),
+        "erp_name": "BE 8821 KL",
+    }
+
+
+def test_a_truck_autoerp_has_not_seen_sends_no_erp_name():
+    """Omitted, not null: AutoERP then resolves by normalised plate and creates the
+    owner-less Truck that interface B is for."""
+    _, payload = _payload(_visit(truck_erp_name=None))
+
+    assert "erp_name" not in payload["truck"]
 
 
 def test_an_unknown_owner_is_left_out_rather_than_guessed():

@@ -8,6 +8,8 @@ Real processes and real HTTP, no fakes. Skipped unless these are set:
     E2E_ERP_API_KEY          integration user key (create_integration_user)
     E2E_ERP_API_SECRET       integration user secret
     E2E_ERP_ADMIN_PASSWORD   Administrator password, used only to delete the test trucks
+    E2E_EMAIL                console operator email, made once with `make operator`
+    E2E_SANDI                that operator's password (the console API needs a session, Fase 4)
 
 The console must point ERP_URL at the same AutoERP and run with
 CONSOLE_SYNC_INTERVAL_S=5, or waiting for the pull times out.
@@ -32,6 +34,7 @@ from palmgrade.domain.plate import truck_id_for
 _KEYS = (
     "E2E_CONSOLE_URL", "E2E_WEBHOOK_SECRET", "E2E_ERP_URL",
     "E2E_ERP_API_KEY", "E2E_ERP_API_SECRET", "E2E_ERP_ADMIN_PASSWORD",
+    "E2E_EMAIL", "E2E_SANDI",
 )
 ENV = {key: os.getenv(key, "") for key in _KEYS}
 pytestmark = pytest.mark.skipif(not all(ENV.values()), reason="E2E services not configured")
@@ -50,7 +53,40 @@ def erp():
 @pytest.fixture(scope="module")
 def console():
     with httpx.Client(base_url=ENV["E2E_CONSOLE_URL"], timeout=15) as client:
+        _sign_in(client)
         yield client
+
+
+def _sign_in(client: httpx.Client) -> None:
+    """The console API is shut until someone signs in (Fase 4). The operator is made once
+    with `make operator`; the suite never creates accounts on a console itself.
+
+    No lookup first: the email is the account, so sign-in needs nothing the caller does
+    not already have.
+    """
+    client.post(
+        "/api/console/login",
+        json={"email": ENV["E2E_EMAIL"], "sandi": ENV["E2E_SANDI"]},
+    ).raise_for_status()
+
+
+def test_the_console_api_is_shut_without_a_session():
+    """Over real HTTP, not a test client: a fresh browser gets the gate's lanes and
+    nothing else."""
+    with httpx.Client(base_url=ENV["E2E_CONSOLE_URL"], timeout=15) as anonymous:
+        assert anonymous.get("/api/console/operators").status_code == 200
+        for path in ("/api/console/state", "/api/console/trucks", "/api/console/weighings"):
+            assert anonymous.get(path).status_code == 401, path
+
+
+def test_a_signed_in_console_reads_and_signing_out_shuts_it_again():
+    with httpx.Client(base_url=ENV["E2E_CONSOLE_URL"], timeout=15) as client:
+        _sign_in(client)
+        assert client.get("/api/console/state").status_code == 200
+        assert client.get("/api/console/me").json()["operator"]["nama"]
+
+        client.post("/api/console/logout").raise_for_status()
+        assert client.get("/api/console/state").status_code == 401
 
 
 @pytest.fixture(scope="module")

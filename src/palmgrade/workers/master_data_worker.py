@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from ..domain.erp_master import supplier_row, truck_row
+from ..domain.erp_master import operator_row, supplier_row, truck_row
 from ..integrations.erp.client import ErpClient
 from ..repositories.console_repository import ConsoleStore
 
@@ -29,6 +29,7 @@ _INTERVAL_S = 300
 
 SUPPLIER_CURSOR_KEY = "erp_cursor_supplier"
 TRUCK_CURSOR_KEY = "erp_cursor_truck"
+OPERATOR_CURSOR_KEY = "erp_cursor_operator"
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,17 @@ _RESOURCES = (
         cursor_key=TRUCK_CURSOR_KEY,
         to_row=truck_row,
         save=ConsoleStore.upsert_truck,
+    ),
+    # Sign-in accounts. `password_hash` is pulled with them: the console verifies it
+    # here, offline, because the operator has to get in while the internet is down.
+    # It is readable over REST on purpose — a `Password` field would live in `__Auth`,
+    # which Frappe deliberately never serves, leaving nothing to pull.
+    _Resource(
+        doctype="AutoGrade Operator",
+        fields=("name", "email", "full_name", "active", "password_hash", "modified"),
+        cursor_key=OPERATOR_CURSOR_KEY,
+        to_row=operator_row,
+        save=ConsoleStore.upsert_operator_erp,
     ),
 )
 

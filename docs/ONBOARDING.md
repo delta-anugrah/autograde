@@ -2,8 +2,8 @@
 judul: Panduan Onboarding AutoGrade
 subjudul: Gambaran sistem, alur data, struktur repositori, dan aturan kerja bagi anggota tim baru — manusia maupun AI agent.
 label: Internal · Tim Engineering
-versi: "1.0"
-tanggal: 14 September 2026
+versi: "1.1"
+tanggal: 15 September 2026
 klasifikasi: Internal — tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
 sorotan: Sistem = Kamera · AI · Konsol operator; Integrasi = AutoERP · PLC · Timbangan; Pembaca = Developer · AI / Vision · IoT
@@ -79,6 +79,13 @@ Satu image Docker dijalankan empat kali dengan peran berbeda:
 Line dan konsol memakai **modul aplikasi yang berbeda**: `main.py` untuk line (memuat torch,
 OpenCV, dan driver kamera) dan `console_main.py` untuk konsol, yang **tidak boleh** mengimpor
 torch maupun OpenCV. Tujuannya satu: gangguan pada kamera tidak boleh mematikan layar operator.
+
+**Layar operator terkunci.** Sampai ada yang masuk dengan **email dan sandi**, seluruh layar
+tertutup gerbang dan seluruh API konsol menjawab 401. Akun datang dari dua tempat: dibuat di
+AutoERP (DocType `AutoGrade Operator`, ikut turun bareng master data) atau dibuat lokal di PC itu
+dengan `make operator` — akun bawaan dan akun support, supaya pabrik yang belum pernah dapat
+internet tetap bisa dibuka. Keduanya diperiksa di pabrik, jadi login tetap jalan saat internet
+mati: yang ikut turun itu hash sandinya, bukan sandinya. Tidak ada halaman web untuk membuat akun.
 
 ## 4. Alur Data: Satu Janjang
 
@@ -208,6 +215,7 @@ Dua folder yang sering disalahpahami:
 
 ```bash
 cd autograde
+make operator         # sekali: akun lokal (tanya email + nama + sandi)
 make console          # http://127.0.0.1:8100/console
 ```
 
@@ -224,7 +232,8 @@ Menjalankan test:
 ### Di PC pabrik — Linux dengan GPU
 
 ```bash
-make up          # build image, bangun engine TensorRT, jalankan tiga line dan konsol
+make up              # build image, bangun engine TensorRT, jalankan tiga line dan konsol
+make operator-docker # sekali: akun operator untuk login konsol (di dalam container)
 make ps          # status container
 make logs-1      # log line 1
 make restart     # setelah mengubah kode (kode di-bind-mount, tanpa rebuild)
@@ -310,7 +319,8 @@ Setiap butir berikut pernah menyebabkan kehilangan waktu berjam-jam.
 ## 12. Langkah Pertama
 
 1. Baca bagian **Critical Rules** di `CLAUDE.md`.
-2. Jalankan `make console` di Mac dan coba layar operator.
+2. Buat operator dengan `make operator`, jalankan `make console`, lalu masuk dengan email dan
+   sandi itu dan coba layar operator.
 3. Buka `src/palmgrade/workers/frame_processing_worker.py` — di sinilah janjang diubah menjadi angka.
 4. Buka `src/palmgrade/domain/working_day.py` — contoh aturan murni yang ringkas di `domain/`.
 5. Jalankan `.venv/bin/pytest tests/unit` dan pastikan seluruhnya lolos sebelum mulai mengubah kode.
@@ -322,4 +332,6 @@ dianggap "memang begitu".
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 1.2 | 15 September 2026 | Login email + sandi: akun dari AutoERP (`AutoGrade Operator`) atau lokal, diverifikasi offline |
+| 1.1 | 15 September 2026 | Login konsol (Fase 4): gerbang PIN, akun lokal lewat `make operator` |
 | 1.0 | 14 September 2026 | Rilis pertama |
