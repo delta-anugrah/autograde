@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from ..domain.operator_auth import normalise_email, normalise_nama, operator_id_for
+from ..domain.peran import peran_sah
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
@@ -122,6 +123,9 @@ CREATE TABLE IF NOT EXISTS operators (
     status         TEXT NOT NULL DEFAULT 'active',
     asal           TEXT NOT NULL DEFAULT 'lokal',
     erp_name       TEXT,
+    -- `operator` atau `support`. Yang menegakkan ini route, bukan kolomnya:
+    -- sengaja tanpa CHECK, supaya peran ketiga nanti tidak butuh migrasi tabel.
+    peran          TEXT NOT NULL DEFAULT 'operator',
     dibuat_at      REAL NOT NULL,
     -- Wrong-password counter, on disk so reloading the page cannot reset the lockout.
     gagal_count    INTEGER NOT NULL DEFAULT 0,
@@ -154,11 +158,14 @@ _SOURCE_FACTS = "t.supplier_id IS NOT NULL AS has_supplier, t.erp_name IS NOT NU
 
 
 class ConsoleStore:
-    def __init__(self, db_path: Path) -> None:
+    def __init__(self, db_path: Path, *, peran_erp_diizinkan: frozenset[str] | None = None) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._db = sqlite3.connect(str(db_path), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
+        # Dipakai task lanjutan (penyaring peran dari pull ERP); belum ada
+        # pemanggil di berkas ini sendiri.
+        self._peran_erp_diizinkan = peran_erp_diizinkan or frozenset()
         with self._lock, self._db:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
@@ -185,6 +192,14 @@ class ConsoleStore:
             kolom = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
             if column not in kolom:
                 self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+        # Sendiri, bukan lewat loop di atas: loop itu hanya bisa `ADD COLUMN ... TEXT`
+        # polos, sementara kolom ini butuh NOT NULL + DEFAULT supaya baris lama langsung
+        # terisi `operator` alih-alih NULL yang harus ditebak pembacanya.
+        kolom_operator = {r["name"] for r in self._db.execute("PRAGMA table_info(operators)")}
+        if "peran" not in kolom_operator:
+            self._db.execute(
+                "ALTER TABLE operators ADD COLUMN peran TEXT NOT NULL DEFAULT 'operator'"
+            )
         self._db.executescript(_MIGRATE_SQL)
 
     def _drop_pin_era_operators(self) -> None:
@@ -808,6 +823,18 @@ class ConsoleStore:
             if status != "active":
                 self._db.execute("DELETE FROM sesi WHERE operator_id = ?", (operator_id,))
 
+    def set_peran(self, operator_id: str, peran: str) -> None:
+        """Setel peran satu akun. Nilai asing disimpan sebagai `operator`.
+
+        Disaring di sini, bukan dipercaya dari pemanggil: kolom ini yang menentukan
+        siapa boleh membuka layar yang menggerakkan piston.
+        """
+        with self._lock, self._db:
+            self._db.execute(
+                "UPDATE operators SET peran = ? WHERE id = ?",
+                (peran_sah(peran), operator_id),
+            )
+
     def record_login_failure(self, operator_id: str, *, now: float) -> None:
         with self._lock, self._db:
             self._db.execute(
@@ -836,7 +863,7 @@ class ConsoleStore:
         has been switched off since."""
         with self._lock:
             row = self._db.execute(
-                """SELECT s.operator_id, s.kedaluwarsa_at, o.nama, o.email, o.asal
+                """SELECT s.operator_id, s.kedaluwarsa_at, o.nama, o.email, o.asal, o.peran
                      FROM sesi s JOIN operators o ON o.id = s.operator_id
                     WHERE s.token = ? AND s.kedaluwarsa_at > ? AND o.status = 'active'""",
                 (token, now),

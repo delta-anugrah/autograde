@@ -322,3 +322,58 @@ def test_truk_kosong_paling_ringan_tetap_diterima(service):
         "waktu_masuk": "2026-09-15T08:00:00+07:00",
     })
     assert hasil["bruto_kg"] == 2500.0
+
+
+def test_operator_baru_default_operator(tmp_path):
+    """Tidak ada akun yang naik hak karena migrasi."""
+    store = ConsoleStore(tmp_path / "c.db")
+    store.upsert_operator_lokal(
+        {"email": "a@b.c", "nama": "A", "password_hash": "scrypt$x"}
+    )
+    assert store.operator_by_email("a@b.c")["peran"] == "operator"
+
+
+def test_peran_ikut_di_baris_sesi(tmp_path):
+    """Penjaga route membaca peran dari sesi, jadi sesi harus membawanya."""
+    store = ConsoleStore(tmp_path / "c.db")
+    oid = store.upsert_operator_lokal(
+        {"email": "s@b.c", "nama": "S", "password_hash": "scrypt$x"}
+    )
+    store.set_peran(oid, "support")
+    store.create_session("tok", oid, now=1000.0, ttl_s=3600)
+    assert store.session("tok", now=1001.0)["peran"] == "support"
+
+
+def test_migrasi_menambah_peran_ke_db_lama(tmp_path):
+    """PC pabrik yang sudah jalan punya tabel tanpa kolom ini."""
+    import sqlite3
+
+    db_path = tmp_path / "lama.db"
+    db = sqlite3.connect(str(db_path))
+    db.execute(
+        """CREATE TABLE operators (
+               id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, nama TEXT NOT NULL,
+               password_hash TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active',
+               asal TEXT NOT NULL DEFAULT 'lokal', erp_name TEXT,
+               dibuat_at REAL NOT NULL, gagal_count INTEGER NOT NULL DEFAULT 0,
+               gagal_terakhir REAL)"""
+    )
+    db.execute(
+        "INSERT INTO operators (id, email, nama, password_hash, dibuat_at)"
+        " VALUES ('i1', 'lama@b.c', 'Lama', 'scrypt$x', 1.0)"
+    )
+    db.commit()
+    db.close()
+
+    store = ConsoleStore(db_path)
+    assert store.operator_by_email("lama@b.c")["peran"] == "operator"
+
+
+def test_set_peran_menolak_nilai_asing(tmp_path):
+    """Nilai asing tidak boleh mengendap di kolom yang menjaga akses."""
+    store = ConsoleStore(tmp_path / "c.db")
+    oid = store.upsert_operator_lokal(
+        {"email": "x@b.c", "nama": "X", "password_hash": "scrypt$x"}
+    )
+    store.set_peran(oid, "admin")
+    assert store.operator_by_email("x@b.c")["peran"] == "operator"
