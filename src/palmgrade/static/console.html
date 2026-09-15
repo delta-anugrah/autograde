@@ -288,11 +288,30 @@
   /* Fires from a key, so the screen has to say which panel it landed on. */
   @keyframes kedip { 40% { background:var(--danger-fg); color:var(--danger-bg); } }
   button.reject.kedip { animation:kedip .45s ease; }
+  /* Piston: closed looks like any other action (opening asks first, so the
+     button itself does not need to shout). Open is the state that needs
+     shouting - `.terbuka` swaps to the same danger palette as Reject, because
+     both a piston left open and an unrejected reject are "something is
+     wrong until this is pressed again". Disabled (line unreachable / PLC or
+     coil not configured / waiting for confirmation) keeps its plain shape -
+     button:disabled already dims it, so there is no state to add here. */
+  button.piston { width:100%; text-transform:uppercase; letter-spacing:.08em; margin-top:2px; }
+  button.piston.terbuka { background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
+  button.piston.kedip { animation:kedip .45s ease; }
+  /* Merah penuh, dibaca dari jarak jalan yang sama dengan angka ACC/REJ -
+     bukan status kecil di pojok kartu. Berkedip pelan supaya mata yang lewat
+     ikut tertarik, tapi tidak berhenti (motion-reduce mematikannya di bawah). */
+  .pita-piston { margin:10px 13px 0; padding:11px 13px; border-radius:var(--r-sm);
+                 background:var(--danger-fg); color:var(--danger-bg);
+                 font-size:1rem; font-weight:700; text-align:center;
+                 text-transform:uppercase; letter-spacing:.04em;
+                 animation:denyut-pita 1.6s ease-in-out infinite; }
+  @keyframes denyut-pita { 0%,100% { opacity:1; } 50% { opacity:.72; } }
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
   .assign button, .assign .pilih-tombol, .tools button, .tools input, #tally .pilih-tombol,
-  #tabs button, button.reject { min-height:2.6rem; }
+  #tabs button, button.reject, button.piston { min-height:2.6rem; }
 
   /* ---- dropdown ---- */
   /* A real listbox, not a styled <select>. The native picker draws its rows in
@@ -600,6 +619,13 @@ const KAMUS = {
     gerbangEmail:"Email", gerbangSandi:"Sandi",
     gerbangMasuk:"Masuk", tombolKeluar:"Keluar",
     gerbangKosong:"Belum ada operator. Buat dulu di PC ini: make operator",
+    btnPistonBuka:"Buka piston", btnPistonTutup:"Tutup piston",
+    pistonMenunggu:"Menunggu PLC…", pistonMati:"Piston mati",
+    pistonBelumKonfirmasi:"belum dikonfirmasi PLC",
+    pistonTerbuka:"PISTON TERBUKA - hati-hati, besi bergerak",
+    konfirmasiBuka:"Buka piston {line}? Ini menggerakkan besi.",
+    labelInternal:"Internal · REJ tidak dibuang",
+    gagalPiston:"Perintah piston gagal",
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
@@ -641,6 +667,13 @@ const KAMUS = {
     gerbangEmail:"Email", gerbangSandi:"Password",
     gerbangMasuk:"Sign in", tombolKeluar:"Sign out",
     gerbangKosong:"No operators yet. Create one on this PC: make operator",
+    btnPistonBuka:"Open piston", btnPistonTutup:"Close piston",
+    pistonMenunggu:"Waiting for PLC…", pistonMati:"Piston disabled",
+    pistonBelumKonfirmasi:"not confirmed by PLC",
+    pistonTerbuka:"PISTON OPEN - moving metal, stand clear",
+    konfirmasiBuka:"Open the piston on {line}? This moves metal.",
+    labelInternal:"Internal · REJ not discarded",
+    gagalPiston:"Piston command failed",
   },
 };
 
@@ -847,9 +880,13 @@ function terapkanUrutan() {
   for (const kartu of $("lines").children) {
     const i = urutan.indexOf(kartu.dataset.line);
     kartu.style.order = i;
-    // The reject shortcut follows what is on screen, so its hint moves with it.
-    const hint = kartu.querySelector(".pintas");
-    if (hint) hint.textContent = i >= 0 && i < 9 ? `${t("spasi")}+${i + 1}` : "";
+    // Both shortcuts follow what is on screen, so their hints move with it -
+    // Reject on Spasi+N, piston on P+N, each printed on its own button.
+    const posisiValid = i >= 0 && i < 9;
+    const hintReject = kartu.querySelector("button.reject .pintas");
+    if (hintReject) hintReject.textContent = posisiValid ? `${t("spasi")}+${i + 1}` : "";
+    const hintPiston = kartu.querySelector("button.piston .pintas");
+    if (hintPiston) hintPiston.textContent = posisiValid ? `P+${i + 1}` : "";
   }
 }
 
@@ -935,6 +972,38 @@ function isiTruk(a) {
   </span>`;
 }
 
+// Keadaan tombol datang dari PLC (l.plc), bukan dari klik terakhir: kalau ladder
+// menolak karena E-stop, tombol tidak boleh mengaku piston sudah terbuka. Line
+// tidak terjangkau ATAU PLC/coil belum dikonfigurasi (piston_requested null/
+// undefined - lihat plc.piston_state()) mati dengan alasan, bukan menebak.
+function tombolPiston(l) {
+  const p = l.plc || {};
+  if (!p.reachable || p.piston_requested === null || p.piston_requested === undefined)
+    return `<button class="piston" data-aksi="piston" disabled title="${esc(t("pistonMati"))}">${esc(t("pistonMati"))}</button>`;
+  const menunggu = p.piston_requested && p.piston_open === false;
+  // piston_open === null dengan piston_requested true = PLC_DI_MANUAL belum
+  // diset: ikuti permintaan (tampilkan sebagai terbuka) tapi katakan belum
+  // dikonfirmasi PLC - jangan diam-diam berpura-pura DI sudah menjawab.
+  const belumKonfirmasi = p.piston_requested && p.piston_open === null;
+  const terbuka = p.piston_open === true || belumKonfirmasi;
+  const teks = menunggu ? t("pistonMenunggu") : terbuka ? t("btnPistonTutup") : t("btnPistonBuka");
+  const catatan = belumKonfirmasi ? ` (${t("pistonBelumKonfirmasi")})` : "";
+  return `<button class="piston${terbuka ? " terbuka" : ""}" data-aksi="piston"
+     data-buka="${terbuka ? "0" : "1"}"${menunggu ? " disabled" : ""}>${esc(teks)}${esc(catatan)}<span class="pintas"></span></button>`;
+}
+
+// Merah, teks besar: dibaca dari beberapa meter saat besi memang sedang
+// bergerak. `belumKonfirmasi` memakai frasa yang sama dengan tombolnya supaya
+// pita dan tombol tidak pernah bilang dua hal berbeda soal line yang sama.
+function pitaPiston(l) {
+  const p = l.plc || {};
+  const belumKonfirmasi = p.piston_requested && p.piston_open === null;
+  const terbuka = p.piston_open === true || belumKonfirmasi;
+  if (!terbuka) return "";
+  const catatan = belumKonfirmasi ? ` (${t("pistonBelumKonfirmasi")})` : "";
+  return `<div class="pita-piston">${esc(t("pistonTerbuka"))}${esc(catatan)}</div>`;
+}
+
 function kartuLine(l) {
   // The stream comes from the same host as this page, only another port - so
   // the console still works opened over a LAN IP, not just 127.0.0.1.
@@ -954,6 +1023,7 @@ function kartuLine(l) {
         <button data-aksi="geser" data-arah="1" title="${esc(t("geserKanan"))}">&#9654;</button>
       </span>
     </h2>
+    ${pitaPiston(l)}
     ${feed ? `<div class="feed"><img src="${feed}" alt=""><span>${esc(t("kameraPutus"))}</span></div>` : ""}
     <div class="counts">
       <span class="acc"><span class="lb">ACC</span><b>${l.acc}</b></span>
@@ -968,6 +1038,7 @@ function kartuLine(l) {
         <button data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>
       </div>
       <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
+      ${tombolPiston(l)}
     </div>
   </div>`;
 }
@@ -1064,6 +1135,16 @@ $("lines").addEventListener("click", async (ev) => {
     } else if (tombol.dataset.aksi === "lepas") {
       await api(`/api/console/lines/${encodeURIComponent(line)}/release-truck`, { method: "POST" });
       await refresh();
+    } else if (tombol.dataset.aksi === "piston") {
+      // Opening moves metal: ask first. Closing is the safe state - it must
+      // never be blocked by a dialog, so the guard below only ever runs when
+      // `buka` is true and returns before touching the network.
+      const buka = tombol.dataset.buka === "1";
+      if (buka && !confirm(t("konfirmasiBuka").replace("{line}", kartu.querySelector(".nama").textContent)))
+        return;
+      await api(`/api/console/lines/${encodeURIComponent(line)}/piston`,
+                { method: "POST", body: JSON.stringify({ open: buka }) });
+      await refresh();
     } else {
       // No `requested_by`: the server records whoever holds the session (Fase 4). The
       // page used to send the literal "operator", which the server now ignores — left
@@ -1073,7 +1154,7 @@ $("lines").addEventListener("click", async (ev) => {
     }
     pesan("");
   } catch (e) {
-    const awalan = { tugaskan: "gagalTugaskan", lepas: "gagalLepas" }[tombol.dataset.aksi] || "gagalReject";
+    const awalan = { tugaskan: "gagalTugaskan", lepas: "gagalLepas", piston: "gagalPiston" }[tombol.dataset.aksi] || "gagalReject";
     pesan(t(awalan) + ": " + alasan(e));
   } finally {
     tombol.disabled = false;
@@ -1110,6 +1191,33 @@ document.addEventListener("keydown", (ev) => {
   void tombol.offsetWidth;
   tombol.classList.add("kedip");
   tombol.click();
+});
+
+// P + 1..3 = buka/tutup piston panel ke-1..3, P + 0 = tutup semua yang terbuka.
+// Huruf lain dari Spasi supaya jari tidak tertukar dengan Reject. Dibaca dari
+// ev.code, jadi layout keyboard tidak mengubah apa pun. Statusnya dilepas di
+// keyup DAN di blur: Alt-Tab menelan keyup dan tombolnya akan tersangkut.
+let pTahan = false;
+addEventListener("blur", () => { pTahan = false; });
+document.addEventListener("keyup", (ev) => { if (ev.code === "KeyP") pTahan = false; });
+document.addEventListener("keydown", (ev) => {
+  if (ev.target.closest && ev.target.closest("input, textarea, .pilih")) return;
+  if (ev.code === "KeyP") { pTahan = true; return; }
+  if (!pTahan || spasi || ev.ctrlKey || ev.altKey || ev.metaKey) return;
+  const n = Number(ev.key);
+  if (!(n >= 0 && n <= 9)) return;
+  ev.preventDefault();
+  const kode = n === 0 ? urutan : [urutan[n - 1]];
+  for (const line of kode) {
+    if (!line) continue;
+    const tombol = $("lines").querySelector(`.card[data-line="${CSS.escape(line)}"] button.piston`);
+    if (!tombol || tombol.disabled) continue;
+    if (n === 0 && tombol.dataset.buka !== "0") continue;   // P+0 hanya menutup
+    tombol.classList.remove("kedip");
+    void tombol.offsetWidth;
+    tombol.classList.add("kedip");
+    tombol.click();
+  }
 });
 
 $("daftar").addEventListener("click", async () => {
@@ -1375,7 +1483,20 @@ async function refresh() {
         const b = c.querySelectorAll(".counts b");
         b[0].textContent = l.acc; b[1].textContent = l.rej; b[2].textContent = l.total;
         c.querySelector(".truk").innerHTML = isiTruk(l.assignment);
+        // The piston button and banner must follow what the PLC just confirmed,
+        // every poll - not only on the first render. outerHTML (not innerHTML on
+        // a wrapper) so the button's own hint span comes back with it, and
+        // terapkanUrutan() below repaints the P+n hint the same way it already
+        // does for Reject after every redraw.
+        const tombolLama = c.querySelector("button.piston");
+        if (tombolLama) tombolLama.outerHTML = tombolPiston(l);
+        const pitaLama = c.querySelector(".pita-piston");
+        const pitaBaru = pitaPiston(l);
+        if (pitaLama && !pitaBaru) pitaLama.remove();
+        else if (pitaLama) pitaLama.outerHTML = pitaBaru;
+        else if (pitaBaru) c.querySelector("h2").insertAdjacentHTML("afterend", pitaBaru);
       });
+      terapkanUrutan();
     }
     $("recent").innerHTML = s.recent.length
       ? s.recent.map(barisRecent).join("") : barisKosong(7, "kosongGrading");
