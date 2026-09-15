@@ -10,9 +10,11 @@ machine_id-nya tidak cocok registry), jadi `onclick="tugaskan('${x}')"` adalah
 konteks injeksi sungguhan, bukan teori — dan `esc()` versi awal memang tidak
 meloloskan kutip tunggal.
 """
+
 from __future__ import annotations
 
 import re
+import urllib.parse
 from pathlib import Path
 
 HTML = (Path(__file__).resolve().parents[2] / "src/palmgrade/static/console.html").read_text()
@@ -49,7 +51,7 @@ def test_setiap_kode_error_operator_diterjemahkan_di_kedua_bahasa():
 
 def test_pesan_error_dirangkai_di_layar_bukan_ditempel_dari_server():
     # `+ e.message` glues a server sentence onto a translated prefix.
-    assert '+ e.message' not in HTML, "pakai alasan(e), bukan e.message mentah"
+    assert "+ e.message" not in HTML, "pakai alasan(e), bukan e.message mentah"
 
 
 # ── gerbang PIN (Fase 4) ────────────────────────────────────────────────
@@ -111,8 +113,12 @@ def test_nama_operator_masuk_layar_lewat_esc():
 
 def test_label_gerbang_diterjemahkan_di_kedua_bahasa():
     kunci = (
-        "gerbangJudul", "gerbangPilih", "gerbangEmail", "gerbangSandi",
-        "gerbangMasuk", "tombolKeluar",
+        "gerbangJudul",
+        "gerbangPilih",
+        "gerbangEmail",
+        "gerbangSandi",
+        "gerbangMasuk",
+        "tombolKeluar",
     )
     for bahasa in ("id", "en"):
         isi = _kamus(bahasa)
@@ -138,7 +144,7 @@ def test_reject_manual_tidak_mengirim_nama_dari_halaman():
     # Yang dicek kodenya, bukan komentarnya: komentar di atas baris itu memang
     # menyebut `requested_by` untuk menerangkan kenapa dia tidak dikirim lagi.
     assert "requested_by:" not in HTML
-    assert 'JSON.stringify({ requested_by' not in HTML
+    assert "JSON.stringify({ requested_by" not in HTML
 
 
 def test_halaman_tidak_pernah_membaca_cookie():
@@ -164,7 +170,7 @@ def _blok_klik_piston() -> str:
     can never leak in because the split point on `} else {` is *before* it.
     """
     setelah_guard = HTML.split('tombol.dataset.aksi === "piston"', 1)[1]
-    return setelah_guard.split('} else {', 1)[0]
+    return setelah_guard.split("} else {", 1)[0]
 
 
 def test_membuka_lewat_dialog_menutup_langsung():
@@ -178,9 +184,9 @@ def test_membuka_lewat_dialog_menutup_langsung():
     # one `if (buka ...) confirm(...)` would still contain both the strings
     # "confirm(" and "buka", so the guard's shape is checked, not just its
     # presence.
-    assert blok.count('confirm(') == 1, "harus ada tepat satu confirm() di cabang piston"
-    sebelum_confirm = blok.split('confirm(', 1)[0]
-    assert re.search(r'if\s*\(\s*buka\s*&&', sebelum_confirm), (
+    assert blok.count("confirm(") == 1, "harus ada tepat satu confirm() di cabang piston"
+    sebelum_confirm = blok.split("confirm(", 1)[0]
+    assert re.search(r"if\s*\(\s*buka\s*&&", sebelum_confirm), (
         "confirm() harus dijaga oleh `if (buka && ...)` - kalau tidak, "
         "menutup piston (buka=false) ikut kena dialog juga"
     )
@@ -192,11 +198,11 @@ def test_membuka_lewat_dialog_menutup_langsung():
     # a second `if (buka ...)` gating the API call there would mean closing
     # silently does nothing, which "confirm(" being merely absent would not
     # catch.
-    setelah_guard = blok.split('confirm(', 1)[1]
-    setelah_return = setelah_guard.split('return;', 1)[1]
-    assert 'api(' in setelah_return, "cabang piston tidak pernah memanggil endpoint"
-    jalur_bersama = setelah_return.split('api(', 1)[0]
-    assert 'if (buka' not in jalur_bersama, (
+    setelah_guard = blok.split("confirm(", 1)[1]
+    setelah_return = setelah_guard.split("return;", 1)[1]
+    assert "api(" in setelah_return, "cabang piston tidak pernah memanggil endpoint"
+    jalur_bersama = setelah_return.split("api(", 1)[0]
+    assert "if (buka" not in jalur_bersama, (
         "panggilan API tidak boleh digerbangi `if (buka` lagi setelah dialog - "
         "kalau begitu menutup piston tidak melakukan apa-apa"
     )
@@ -214,7 +220,7 @@ def _blok_pintasan_p() -> str:
     immediately followed by the next top-level statement in the brief
     (`$("daftar")...`), so the slice cannot run on into unrelated code either.
     """
-    dari_awal = HTML.split('let pTahan = false;', 1)[1]
+    dari_awal = HTML.split("let pTahan = false;", 1)[1]
     return dari_awal.split('$("daftar")', 1)[0]
 
 
@@ -233,6 +239,8 @@ def test_pintasan_piston_tidak_aktif_saat_mengetik():
     # against.
     blok = _blok_pintasan_p()
     assert 'closest("input, textarea, .pilih")' in blok
+
+
 # ── panel dropdown tidak boleh terpotong tepi layar ────────────────────────────
 
 
@@ -245,9 +253,7 @@ def test_panel_dropdown_menempel_ke_tepi_yang_benar():
     justru jadi salah arah), jadi yang dipakai penanda posisi eksplisit.
     """
     assert ".pilih-panel--kanan" in HTML, "belum ada varian panel yang menempel kanan"
-    aturan = next(
-        baris for baris in HTML.splitlines() if ".pilih-panel--kanan" in baris and "right" in baris
-    )
+    aturan = next(baris for baris in HTML.splitlines() if ".pilih-panel--kanan" in baris and "right" in baris)
     assert "right:0" in aturan.replace(" ", "")
     assert "left:auto" in aturan.replace(" ", ""), "left:0 bawaan harus dibatalkan"
 
@@ -266,9 +272,7 @@ def test_ada_varian_panel_ke_atas():
     atas justru jadi salah arah), jadi dipakai penanda posisi eksplisit.
     """
     assert ".pilih-panel--atas" in HTML, "belum ada varian panel yang membuka ke atas"
-    aturan = next(
-        baris for baris in HTML.splitlines() if ".pilih-panel--atas" in baris and "bottom" in baris
-    )
+    aturan = next(baris for baris in HTML.splitlines() if ".pilih-panel--atas" in baris and "bottom" in baris)
     assert "top:auto" in aturan.replace(" ", ""), "top bawaan harus dibatalkan"
     assert "bottom:calc(100%+4px)" in aturan.replace(" ", "")
 
@@ -300,7 +304,7 @@ def test_tombol_lihat_sandi_menukar_type_bukan_menaruh_sandi_di_DOM():
 def test_status_lihat_sandi_tidak_ikut_tersimpan():
     """`simpan()` menaruh di localStorage. Sandi terbuka yang bertahan antar sesi bikin
     layar bersama menampilkan sandi operator berikutnya."""
-    assert "simpan(\"lihatSandi\"" not in HTML
+    assert 'simpan("lihatSandi"' not in HTML
 
 
 def test_sandi_kembali_tertutup_setiap_gerbang_dibuka():
@@ -425,3 +429,29 @@ def test_input_lompat_halaman_diterjemahkan():
     for bahasa in ("id", "en"):
         isi = _kamus(bahasa)
         assert "keHalaman:" in isi, f"KAMUS.{bahasa} belum punya keHalaman"
+
+
+def test_favicon_tertanam_bukan_berkas_luar():
+    """Konsol harus tetap utuh saat internet mati dan `static/` tidak di-mount,
+    jadi lambangnya ikut di dalam berkas — bukan URL yang harus diambil."""
+    ikon = re.search(r'<link rel="icon" href="([^"]*)">', HTML)
+    assert ikon, "link favicon hilang"
+    href = ikon.group(1)
+    assert href.startswith("data:image/svg+xml,"), "favicon menunjuk ke luar berkas"
+    # `xmlns` itu label namespace XML, bukan alamat yang diambil browser — dibuang
+    # dulu supaya sisanya benar-benar diperiksa sebagai permintaan jaringan.
+    isi = urllib.parse.unquote(href).replace("http://www.w3.org/2000/svg", "")
+    assert "http://" not in isi and "https://" not in isi, "favicon menarik sesuatu dari jaringan"
+
+
+def test_favicon_tidak_memutus_atribut_href():
+    """Kutip ganda dan `#` mentah di dalam data URI memutus atribut href — yang
+    pertama menutup href lebih awal, yang kedua dibaca sebagai fragment URL.
+    Keduanya bikin ikon diam-diam tidak muncul, tanpa error di mana pun."""
+    href = re.search(r'<link rel="icon" href="([^"]*)">', HTML).group(1)
+    muatan = href[len("data:image/svg+xml,") :]
+    assert '"' not in muatan, "kutip ganda mentah memutus atribut href"
+    assert "#" not in muatan, "# mentah memotong data URI jadi fragment"
+    dipulihkan = urllib.parse.unquote(muatan)
+    assert dipulihkan.lstrip().startswith("<svg"), "data URI tidak memuat SVG"
+    assert dipulihkan.rstrip().endswith("</svg>")
