@@ -526,8 +526,9 @@ nama operator yang masuk — bukan lagi string `"operator"`. Akun dibuat dari PC
 berprefiks lokal (§6.3), toggle tampil/sembunyi per line, dan halaman riwayat/laporan lintas hari
 (itu urusan cloud — live/hari ini lokal, riwayat cloud).
 
-**Tests** (`tests/unit/test_working_day.py`, `test_console_store.py`, murni-logic, tanpa
-FastAPI): batas hari lewat tengah malam WIB vs UTC, timestamp cacat melempar, dedupe event
+**Tests** (`tests/unit/test_working_day.py`, `test_console_store.py`, murni-logic; satu-satunya yang
+memakai FastAPI adalah penjaga sesi konsol, lawan app rakitan sendiri): batas hari lewat tengah
+malam WIB vs UTC, timestamp cacat melempar, dedupe event
 kirim-ulang, pemisahan ACC/REJ per line, penugasan yang selamat restart, urutan
 line-dulu-baru-catat, bentuk URL gambar (relatif vs R2 absolut), Sumber TBS yang sama di kelima
 tampilan, dan `LINE_N_MACHINE_ID` yang benar-benar sampai lewat Settings.

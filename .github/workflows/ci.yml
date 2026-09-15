@@ -22,7 +22,10 @@ jobs:
       - name: Install tooling
         # pyyaml is test-only, like ruff and pytest: it is how the compose file
         # is read back and checked against the settings the console reads.
-        run: pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic pyyaml
+        # fastapi is here for one guard (Fase 4): every operator lane must refuse a
+        # request without a session, and that can only be proven against a real app.
+        # Still no torch, cv2 or SDK — those stay out of CI.
+        run: pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi
 
       # Lint covers only modules already cleaned up; widen it one module at a time.
       - name: Ruff (lint)

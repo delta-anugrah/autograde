@@ -656,7 +656,7 @@ Dari `autograde/`:
 ```bash
 # CI menjalankan keduanya (lihat .github/workflows/ci.yml).
 # Di Mac, venv dari Quick Start sudah berisi semua paket ini — cukup .venv/bin/pytest tests/unit
-pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic pyyaml
+pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi
 ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/palmgrade/integrations/upload/ \
   src/palmgrade/license/ src/palmgrade/plc/ src/palmgrade/workers/batch_upload_worker.py \
   src/palmgrade/workers/master_data_worker.py \
