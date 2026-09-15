@@ -7,6 +7,7 @@ import time
 
 from ..core.config import Settings
 from ..core.constants import JPEG_QUALITY_SAVE
+from ..domain.plc_signal import plc_status_for
 from ..domain.vision_event import build_event_payload
 from ..integrations.notifications.webhook_client import WebhookClient
 from ..integrations.outbox.outbox_store import OutboxStore
@@ -98,6 +99,9 @@ class FrameProcessingWorker:
             "truck_id": truck_id,
             "bounding_box": bounding_box,
             "assignment_id": self.state.current_assignment_id,
+            # Bukti kenapa sebuah janjang REJ tidak dibuang piston. Sumbernya
+            # potret saat truk dipasang, bukan hasil hitung ulang belakangan.
+            "ffb_source": self.state.current_ffb_source,
         }
         self.storage.write_json(results_dir / f"{timestamp}_auto_ripeness.json", meta)
 
@@ -285,7 +289,11 @@ class FrameProcessingWorker:
                     else:
                         ripeness_status = label.lower()
                     ripeness_conf = score
-                    submit_grading(ripeness_status)
+                    # Buah REJ milik truk Internal tetap masuk ramp: tidak ada
+                    # pulse ke PLC, tapi `ripeness_status` di bawah tetap REJ.
+                    sinyal = plc_status_for(ripeness_status, self.state.current_ffb_source)
+                    if sinyal is not None:
+                        submit_grading(sinyal)
                     # Single-trigger TERPISAH dari `processed` di bawah, sengaja.
                     # `processed` baru diset setelah file tersimpan, supaya crash
                     # di tengah blok ini memproses ulang track-nya — aman karena
@@ -296,7 +304,9 @@ class FrameProcessingWorker:
                     # blok ini pada 10-16 fps. Satu buah nyangkut akan menjenuhkan
                     # coil-nya tanpa henti dan PLC menghitungnya berpuluh kali.
                     # Flag ini diset SEBELUM tulis disk supaya jalur PLC tidak
-                    # ikut mewarisi semantik retry jalur disk.
+                    # ikut mewarisi semantik retry jalur disk. Diset juga saat
+                    # sinyal ditahan (buah REJ truk Internal): flag ini berarti
+                    # "keputusan PLC sudah diambil", bukan "pulse sudah dikirim".
                     self.state.track_history[track_id]["plc_signalled"] = True
 
                     annotated = self.pipeline.draw_boxes(frame.copy(), results)
