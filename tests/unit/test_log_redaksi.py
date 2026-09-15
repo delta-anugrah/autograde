@@ -94,3 +94,25 @@ def test_kunci_tengah_kata_tidak_terpicu():
 def test_dua_kunci_di_satu_baris_dua_duanya_ditutup():
     keluar = redaksi("token=a secret=b")
     assert keluar == "token=«ditutup» secret=«ditutup»"
+
+
+def test_query_string_hanya_menutup_nilai_bukan_sisa_baris():
+    """`&` bukan bagian nilai yang sah — parameter tetangga (line, truck) tidak boleh ikut hilang."""
+    keluar = redaksi("GET /x?api_key=abc123&line=2&truck=B1234XY")
+    assert "abc123" not in keluar
+    assert "line=2" in keluar
+    assert "truck=B1234XY" in keluar
+
+
+def test_query_string_password_menyisakan_redirect():
+    keluar = redaksi("POST /login?password=p123&redirect=/console")
+    assert "p123" not in keluar
+    assert "redirect=/console" in keluar
+
+
+def test_query_string_dua_rahasia_dua_duanya_ditutup_line_selamat():
+    """Dua kunci rahasia di satu query string — keduanya harus tertutup, bukan cuma yang pertama."""
+    keluar = redaksi("/api?token=t1&api_key=k2&line=3")
+    assert "t1" not in keluar
+    assert "k2" not in keluar
+    assert "line=3" in keluar

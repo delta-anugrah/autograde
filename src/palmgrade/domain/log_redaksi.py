@@ -29,10 +29,13 @@ _KUNCI_G = rf'(?P<kunci>["\']?(?:{_KUNCI})["\']?\s*[:=]\s*)'
 _NILAI_KUTIP = r'(?P<kutip>["\'])(?P<isi_kutip>(?:\\.|(?!(?P=kutip)).)*)(?P=kutip)'
 
 # Unquoted value: an optional auth scheme word is kept visible, the real
-# value stops at the next separator.
+# value stops at the next separator. `&`/`#` count as separators too — a
+# query string's next param and a URL fragment can't legally be part of an
+# unquoted value, so stopping there keeps neighbouring params (line, truck)
+# readable instead of swallowing the rest of the line.
 _NILAI_POLOS = (
     r'(?P<skema>(?:(?:Bearer|Basic|Token|Digest)\s+)?)'
-    r'(?P<nilai_polos>[^\s,;}\'"]+)'
+    r'(?P<nilai_polos>[^\s,;}\'"&#]+)'
 )
 
 _POLA = re.compile(
