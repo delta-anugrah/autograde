@@ -31,9 +31,12 @@ cp .env.example .env
 
 # venv khusus konsol + tes. Sengaja TIDAK memasang torch / ultralytics / opencv:
 # konsol tidak memakainya, dan requirements.txt penuh itu untuk image Docker.
+# `segno` (77 KB, pure-Python) dipakai membuat kartu QR truk di server: console.html
+# nol referensi https://, jadi pustaka QR dari CDN mati saat internet putus.
 python3.12 -m venv .venv
 .venv/bin/pip install "fastapi==0.115.12" "uvicorn[standard]==0.34.0" "python-dotenv==1.1.0" \
-  "httpx==0.28.1" "pydantic==2.11.3" pytest ruff cryptography aiosqlite psutil boto3 pyyaml
+  "httpx==0.28.1" "pydantic==2.11.3" "segno==1.6.6" \
+  pytest ruff cryptography aiosqlite psutil boto3 pyyaml
 
 make operator                     # sekali: akun lokal buat login (tanya email + nama + sandi)
 make console                      # http://127.0.0.1:8100/console — Ctrl-C untuk berhenti
@@ -400,6 +403,14 @@ operator disimpan di `localStorage`.
   sama; sandi akun milik AutoERP direset **di AutoERP** (CLI-nya menolak, karena tarikan
   berikutnya akan membatalkannya).
 
+⚠️ **Memasang AutoGrade di PC yang SUDAH jalan dengan palmgrade-api butuh satu langkah
+  tambahan: `make rekonsiliasi-truk` (OPS-2), dikerjakan SEBELUM `ERP_URL` diisi.** Truk
+  lama ber-id acak dari palmgrade-api, AutoGrade menurunkan id dari plat, dan kolom plat
+  tidak punya indeks unik — jadi tarikan pertama membuat baris kedua untuk truk yang sama
+  dan tonase satu truk terbelah dua tanpa pesan apa pun. Tanpa `TULIS=1` perintahnya cuma
+  melihat; `--db <path>` untuk mencoba di salinan dulu. PC baru (DB kosong) tidak perlu.
+  Langkah lengkapnya: `../docs/runbooks/2026-09-15-checklist-ops2-rekonsiliasi-truk-lampung.md`.
+
 - **Stream kamera tidak lewat konsol** — kartunya `<img>` MJPEG langsung ke `:8001/8002/8003`.
   Kartu dirender **sekali** lalu ditambal tiap 2 detik; urutan pakai CSS `order`. Memindah DOM =
   stream putus lalu buka lagi. Status kamera dicek tiap 5 detik dan muncul sebagai
@@ -539,6 +550,9 @@ sengaja terbuka, karena gerbang login sendiri perlu bisa digambar dan dipakai ma
 | `GET` | `/api/console/me` | Operator yang sedang masuk |
 | `GET` | `/api/console/state` | Ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
 | `GET` | `/api/console/history` | Filter `tanggal_kerja` / `line_code` / `truck_id`. Pagination lewat `limit` (maks 200) + `offset`; balasannya juga berisi `total` = jumlah baris yang cocok filter di seluruh hari, dipakai layar untuk menghitung jumlah halaman |
+| `POST` | `/api/console/scan` | `{qr}` hasil scan di gerbang masuk → truk yang sudah ada. Truk belum terdaftar dijawab **200 `ditemukan:false`** (truk pinjaman itu kasus normal; 404 terbaca seperti kerusakan), yang bukan plat **400**. **Tidak pernah membuat truk dan tidak pernah menulis berat** |
+| `POST` | `/api/console/scan/keluar` | `{qr}` di gerbang keluar → tiket yang menunggu tara. **Dua tiket terbuka ditolak, tidak ditebak**: menebak bisa memasangkan tara ke kunjungan yang salah dan mencampur tonase dua kunjungan. Dibatasi hari kerja |
+| `GET` | `/api/console/trucks/{plat}/qr.png` | Kartu QR untuk ditempel di truk / dikirim ke HP supir. **Dibuat di server** (`segno`) karena `console.html` nol referensi `https://` — pustaka CDN mati saat internet putus. Isinya plat ternormalisasi |
 | `GET` | `/api/console/trucks` | Master truk + supplier + `sumber_label` |
 | `POST` | `/api/console/trucks` | Truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
 | `GET` | `/api/console/weighings` | Tiket timbangan hari kerja (bruto / tara / neto) |
