@@ -303,6 +303,17 @@
                      background:var(--danger-bg); color:var(--danger-fg); font-weight:600; }
   button.uji-coil:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
 
+  /* Konfirmasi uji PLC: inline, bukan dialog bawaan browser - lihat komentar HTML
+     di #sec-plc. Sama bentuknya dengan .tara-grup, ditempatkan di luar #plc-kartu
+     supaya tidak ikut terhapus saat kartu dibangun ulang oleh polling. */
+  .plc-konfirmasi { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+                     margin:12px var(--pad) 0; padding:11px 13px; border-radius:var(--r-sm);
+                     border:1px solid var(--danger-line); background:var(--danger-bg); }
+  .plc-konfirmasi[hidden] { display:none; }
+  .plc-konfirmasi b { flex:1 1 100%; color:var(--danger-fg); font-weight:600; }
+  .plc-konfirmasi input { flex:0 0 8rem; font-family:var(--mono); text-transform:uppercase; }
+  .plc-konfirmasi button { flex:0 0 7rem; }
+
   /* Versi: a plain definition list, key left, value right. */
   .daftar-definisi { background:var(--card); border:1px solid var(--line-kuat);
                       border-radius:var(--r-md); padding:14px var(--pad); margin:0 var(--pad);
@@ -894,6 +905,23 @@
     fire always goes through a typed dialog, never a bare click.
   -->
   <div id="plc-kartu" class="kartu-grid"></div>
+  <!--
+    Inline, BUKAN kotak dialog bawaan browser: kotaknya kecil untuk jempol bersarung
+    tangan, tidak bisa diatur ukurannya, dan menerima teks apa pun tanpa validasi.
+    Sama seperti tara-grup di tab Timbangan - dialog yang menutup layar
+    menghilangkan kamera line dan strip tally justru saat firing sedang ditunggu.
+
+    Ketikan tetap wajib (bukan tombol klik): klik bisa tersenggol jempol
+    bersarung tangan di layar sentuh, ketikan tidak. Ini satu-satunya layar
+    konsol yang menggerakkan besi sungguhan.
+  -->
+  <div id="plc-konfirmasi" class="plc-konfirmasi" hidden>
+    <b id="plc-konfirmasi-teks"></b>
+    <input id="plc-konfirmasi-nilai" data-t-ph="phUjiPlc" placeholder="UJI"
+           autocomplete="off" autocapitalize="characters" spellcheck="false">
+    <button type="button" id="plc-konfirmasi-jalankan" class="utama" data-t="btnUjiPlcJalankan">Jalankan</button>
+    <button type="button" id="plc-konfirmasi-batal" data-t="btnBatal">Batal</button>
+  </div>
 </section>
 
 <script>
@@ -990,6 +1018,7 @@ const KAMUS = {
     gagalPlc:"Gagal memuat status PLC",
     btnUjiCoil:"Uji coil {coil}", coilMatiLineSibuk:"Line sedang memproses truk",
     konfirmasiUjiPlc:"Coil {coil} di {line} akan menyala sesaat - ini menggerakkan barang sungguhan. Ketik UJI untuk lanjut:",
+    phUjiPlc:"Ketik UJI", btnUjiPlcJalankan:"Jalankan",
     ujiPlcDibatalkan:"Dibatalkan - konfirmasi tidak cocok",
     ujiPlcBerhasil:"Coil {coil} dipicu", ujiPlcDijatuhkan:"Coil {coil} TIDAK menyala - antrean pulse PLC penuh, coba lagi",
     gagalUjiPlc:"Gagal memicu coil",
@@ -1077,6 +1106,7 @@ const KAMUS = {
     gagalPlc:"Failed to load PLC status",
     btnUjiCoil:"Test coil {coil}", coilMatiLineSibuk:"Line is processing a truck",
     konfirmasiUjiPlc:"Coil {coil} on {line} will pulse briefly - this moves real hardware. Type UJI to continue:",
+    phUjiPlc:"Type UJI", btnUjiPlcJalankan:"Fire",
     ujiPlcDibatalkan:"Cancelled - confirmation did not match",
     ujiPlcBerhasil:"Coil {coil} fired", ujiPlcDijatuhkan:"Coil {coil} did NOT fire - PLC pulse queue is full, try again",
     gagalUjiPlc:"Failed to fire coil",
@@ -2567,24 +2597,45 @@ async function muatPlcSatuLine(kode) {
   }
 }
 
-$("plc-kartu").addEventListener("click", async (ev) => {
-  const tombol = ev.target.closest("button.uji-coil");
-  if (!tombol || tombol.disabled) return;
-  const line_code = tombol.dataset.line;
-  const coil = Number(tombol.dataset.coil);
-  // Typed confirmation, not a click: a click (even through a confirm()
-  // dialog) can be brushed on a touchscreen read from several metres away.
-  const ketikan = prompt(t("konfirmasiUjiPlc").replace("{coil}", coil).replace("{line}", line_code));
-  if (ketikan === null) return;               // dialog dibatalkan - jangan kirim apa pun
-  if (ketikan.trim() !== "UJI") {
+// Uji coil ditanya inline, bukan kotak dialog bawaan browser - lihat komentar HTML
+// di #sec-plc. Satu grup terbagi untuk semua kartu line (bukan satu per kartu):
+// operator cuma menguji satu coil dalam satu waktu, dan kartu dibangun ulang
+// tiap polling sehingga grup yang hidup di dalamnya akan lenyap begitu saja.
+//
+// Coil dan line yang sedang ditanyakan. Disimpan di sini, bukan dibaca ulang
+// dari tombol: tombol yang memicunya bisa sudah tergantikan saat kartu
+// dibangun ulang oleh muatPlcSatuLine/muatPlc sebelum operator selesai mengetik.
+let ujiUntuk = null;
+
+function tanyaUjiPlc(line_code, coil) {
+  ujiUntuk = { line_code, coil };
+  $("plc-konfirmasi-teks").textContent = t("konfirmasiUjiPlc").replace("{coil}", coil).replace("{line}", line_code);
+  $("plc-konfirmasi-nilai").value = "";
+  $("plc-konfirmasi").hidden = false;
+  $("plc-konfirmasi-nilai").focus();
+}
+
+function tutupUjiPlc() {
+  $("plc-konfirmasi").hidden = true;
+  ujiUntuk = null;
+}
+
+async function jalankanUjiPlc() {
+  if (!ujiUntuk) return;
+  // Ketikan tetap wajib - beda dari tara, kolom ini bukan validasi angka tapi
+  // kata sandi sekali pakai: klik saja (bahkan lewat dialog konfirmasi bawaan
+  // browser) bisa tersenggol jempol bersarung tangan di layar sentuh, ketikan tidak.
+  if ($("plc-konfirmasi-nilai").value.trim() !== "UJI") {
     pesan(t("ujiPlcDibatalkan"));
+    tutupUjiPlc();
     return;
   }
-  tombol.disabled = true;
+  const { line_code, coil } = ujiUntuk;
+  tutupUjiPlc();
   try {
     const hasil = await api(`/api/console/dev/plc/${encodeURIComponent(line_code)}/coil`, {
       method: "POST",
-      body: JSON.stringify({ coil, konfirmasi: ketikan.trim() }),
+      body: JSON.stringify({ coil, konfirmasi: "UJI" }),
     });
     pesan(hasil.fired ? t("ujiPlcBerhasil").replace("{coil}", coil) : t("ujiPlcDijatuhkan").replace("{coil}", coil));
   } catch (e) {
@@ -2592,6 +2643,22 @@ $("plc-kartu").addEventListener("click", async (ev) => {
   } finally {
     await muatPlcSatuLine(line_code);          // re-enables the button if the line is still idle
   }
+}
+
+$("plc-konfirmasi-jalankan").addEventListener("click", jalankanUjiPlc);
+$("plc-konfirmasi-batal").addEventListener("click", tutupUjiPlc);
+
+$("plc-konfirmasi-nilai").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter") { ev.preventDefault(); jalankanUjiPlc(); }
+  // Esc menutup, seperti dialog mana pun: coil yang keliru dipilih tidak boleh
+  // memaksa operator memicu sesuatu.
+  if (ev.key === "Escape") tutupUjiPlc();
+});
+
+$("plc-kartu").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button.uji-coil");
+  if (!tombol || tombol.disabled) return;
+  tanyaUjiPlc(tombol.dataset.line, Number(tombol.dataset.coil));
 });
 
 (async () => {
