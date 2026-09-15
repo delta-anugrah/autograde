@@ -713,6 +713,17 @@ pytest tests/unit/
 
 ## Environment Variables Reference
 
+**Diaudit 2026-09-15: tiap variabel di `.env.example` memang dibaca, dan tidak ada yang
+dibaca kode tapi hilang dari dokumentasi.** Empat pola di bawah kelihatan seperti
+variabel mati padahal bukan — jangan dihapus karena `grep os.getenv` tidak menemukannya:
+
+| Kelihatan mati | Kenyataannya |
+|---|---|
+| `LINE_1/2/3_CAMERA_SERIAL`, `LINE_N_FEATURE_FILE`, `LINE_N_MACHINE_ID` | Dipetakan **compose** jadi `CAMERA_SERIAL` / `CAMERA_FEATURE_FILE` per container; `LINE_N_MACHINE_ID` dibaca f-string di `config.py`. Inilah yang bikin tiap line dapat kamera yang benar |
+| Semua `PLC_*` selain `PLC_ENABLED`/`PLC_HOST` | Lewat helper `_plc_int()` / `parse_coil_list()`, bukan `os.getenv` literal |
+| `APP_MODE`, `APP_VERSION`, `CAMERA_SERIAL`, `CAMERA_FEATURE_FILE`, `PLC_COIL_ALIVE`, `PLC_COIL_BASE` | **Sengaja tidak ada** di `.env.example`: compose/Dockerfile yang mengisinya, dan literal compose selalu menang atas berkas ini (alasan lengkap di komentar `.env.example` § PLC) |
+| `CONSOLE`, `CONSOLE_EMAIL`, `CONSOLE_SANDI`, `SEED_CONFIRM` | Variabel **skrip dev** (`seed-console-demo.py`, `smoke-console.sh`), bukan setelan runtime |
+
 | Variable | Default | Description |
 |---|---|---|
 | `APP_PORT` | `8000` | Internal container port |
