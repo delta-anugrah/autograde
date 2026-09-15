@@ -35,6 +35,7 @@ python3.12 -m venv .venv
 .venv/bin/pip install "fastapi==0.115.12" "uvicorn[standard]==0.34.0" "python-dotenv==1.1.0" \
   "httpx==0.28.1" "pydantic==2.11.3" pytest ruff cryptography aiosqlite psutil boto3 pyyaml
 
+make operator                     # sekali: akun operator buat login (tanya nama + PIN 6 angka)
 make console                      # http://127.0.0.1:8100/console — Ctrl-C untuk berhenti
 .venv/bin/pytest tests/unit       # unit test, tidak butuh konsol maupun AutoERP
 ```
@@ -375,6 +376,15 @@ Isinya strip total hari kerja, kartu kamera per line (assign/lepas truk + reject
 4 tab: Grading, Truk, Timbangan, Rekap. Dwibahasa ID/EN, tema terang (default) / gelap, pilihan
 operator disimpan di `localStorage`.
 
+- **Login (Fase 4).** Layar tertutup gerbang PIN sampai ada yang masuk: operator menyentuh
+  namanya lalu mengetik 6 angka di keypad (atau keyboard), dan topbar menampilkan namanya plus
+  tombol **Keluar**. Semua `/api/console/*` menjawab 401 tanpa cookie `konsol_sesi`; yang tetap
+  terbuka cuma `/console`, daftar nama operator, dan `login`. Sesi 12 jam, dan Reject Manual
+  tercatat atas nama yang sedang masuk. Akunnya **lokal** (AutoERP belum punya DocType operator)
+  dan dibuat dari PC ini: `make operator`, atau `make operator-docker` kalau konsolnya di Docker.
+  `AKSI=daftar` melihat daftar, `AKSI=matikan` mematikan satu operator — sesinya langsung
+  berakhir. Reset PIN = `make operator` lagi dengan nama yang sama.
+
 - **Stream kamera tidak lewat konsol** — kartunya `<img>` MJPEG langsung ke `:8001/8002/8003`.
   Kartu dirender **sekali** lalu ditambal tiap 2 detik; urutan pakai CSS `order`. Memindah DOM =
   stream putus lalu buka lagi. Status kamera dicek tiap 5 detik dan muncul sebagai
@@ -394,10 +404,12 @@ operator disimpan di `localStorage`.
 
   ```bash
   make up-console
+  make operator-docker            # sekali: akun operator, dipakai seed buat masuk
   WEBHOOK_SECRET=$(docker exec palmgrade_console printenv WEBHOOK_SECRET) \
   LINE_1_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_1_MACHINE_ID) \
   LINE_2_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_2_MACHINE_ID) \
   LINE_3_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_3_MACHINE_ID) \
+  CONSOLE_OPERATOR="Nama Operator" CONSOLE_PIN=<pin> \
   SEED_CONFIRM=1 python3 scripts/seed-console-demo.py
   ```
 
@@ -407,11 +419,14 @@ operator disimpan di `localStorage`.
   `make up-console` tidak cukup: `up -d` itu no-op kalau kontainernya sudah jalan, jadi
   proses lama tetap memegang kode lama.
 
-  Sesudah seed, jalankan `scripts/smoke-console.sh` — dia mengetuk semua endpoint
-  yang dipakai UI, memastikan halaman yang dilayani memang berkas di working tree
-  (bukan salinan di dalam image), lalu mengecek tiga jebakan yang pernah menggigit:
-  baris "Tanpa truk" tidak dibuang, neto truk bertiket-dua **dijumlah** bukan dikali,
-  dan `bruto_kg` "14.820" ditolak. Harus `11 passed, 0 failed`.
+  Sesudah seed, jalankan `CONSOLE_OPERATOR="Nama Operator" CONSOLE_PIN=<pin>
+  scripts/smoke-console.sh` — dia memeriksa gembok dulu (lane data 401 tanpa sesi, lane
+  gerbang terbuka), lalu masuk dan mengetuk semua endpoint yang dipakai UI, memastikan
+  halaman yang dilayani memang berkas di working tree (bukan salinan di dalam image), dan
+  mengecek tiga jebakan yang pernah menggigit: baris "Tanpa truk" tidak dibuang, neto truk
+  bertiket-dua **dijumlah** bukan dikali, dan `bruto_kg` "14.820" ditolak. Harus **nol FAIL**;
+  tanpa `CONSOLE_OPERATOR` bagian sesudah gembok dilewati, dan dua jebakan rekap memang
+  butuh seed dijalankan dulu.
 - **Tersambung ke AutoERP, di MacBook tanpa Docker.** AutoERP dinyalakan dari repo
   `autoerp` (bench native), kuncinya diambil dengan `make key-show` lalu ditempel ke `.env`
   di sini. Konsol membaca `.env` sendiri, jadi perintahnya pendek:
@@ -434,10 +449,12 @@ operator disimpan di `localStorage`.
   supaya cocok dengan secret yang dipakai tes. **Jangan** `bench start` dua kali dan jangan
   jalankan `create_integration_user` ulang untuk melihat kunci (itu merotasi secret).
 
-  Tes end-to-end lawan AutoERP asli — 8 tes, membersihkan datanya sendiri, butuh port 8001 kosong:
+  Tes end-to-end lawan AutoERP asli — 11 tes, membersihkan datanya sendiri, butuh port 8001
+  kosong dan satu operator (`make operator`) karena API konsol sekarang butuh sesi:
 
   ```bash
   E2E_CONSOLE_URL=http://127.0.0.1:8100 E2E_WEBHOOK_SECRET=devsecret \
+  E2E_OPERATOR="Nama Operator" E2E_PIN=<pin> \
   E2E_ERP_URL=http://pks.localhost:8000 E2E_ERP_API_KEY=<key> E2E_ERP_API_SECRET=<secret> \
   E2E_ERP_ADMIN_PASSWORD=admin .venv/bin/pytest tests/e2e -v
   ```
@@ -494,11 +511,17 @@ curl -X POST http://localhost:8001/api/set_truck \
 
 ### Konsol (`APP_MODE=console`, port 8000)
 
-Surface-nya berbeda total — `main.py` tidak dipakai sama sekali.
+Surface-nya berbeda total — `main.py` tidak dipakai sama sekali. **Semua `/api/console/*` butuh
+sesi** (Fase 4): tanpa cookie `konsol_sesi` jawabannya 401 `belum_masuk`. Tiga baris pertama
+sengaja terbuka, karena gerbang PIN sendiri perlu bisa digambar dan dipakai masuk.
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/console` | Layar operator (satu file HTML statis) |
+| `GET` | `/console` | Layar operator (satu file HTML statis) — terbuka |
+| `GET` | `/api/console/operators` | Nama + id operator aktif untuk gerbang PIN, tanpa hash — terbuka |
+| `POST` | `/api/console/login` | `{operator_id, pin}` → cookie `konsol_sesi` HttpOnly 12 jam. PIN salah 401, keypad terkunci 429 |
+| `POST` | `/api/console/logout` | Akhiri sesi ini saja |
+| `GET` | `/api/console/me` | Operator yang sedang masuk |
 | `GET` | `/api/console/state` | Ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
 | `GET` | `/api/console/history` | Filter `tanggal_kerja` / `line_code` / `truck_id` |
 | `GET` | `/api/console/trucks` | Master truk + supplier + `sumber_label` |
@@ -515,10 +538,16 @@ Surface-nya berbeda total — `main.py` tidak dipakai sama sekali.
 | `GET` | `/health` | Ringan — sengaja bukan `routes/health.py` (yang itu menarik torch) |
 
 ```bash
-curl http://localhost:8000/api/console/state
-curl http://localhost:8000/api/console/recap                       # hari ini
-curl 'http://localhost:8000/api/console/recap?tanggal_kerja=2026-09-10'
-curl -X POST http://localhost:8000/api/console/trucks \
+# Masuk dulu — tanpa cookie semuanya 401. Operatornya dibuat dengan `make operator`.
+ID=$(curl -s http://localhost:8000/api/console/operators \
+     | python3 -c 'import json,sys; print(json.load(sys.stdin)["items"][0]["id"])')
+curl -s -c /tmp/konsol.jar -H 'content-type: application/json' \
+  -d "{\"operator_id\":\"$ID\",\"pin\":\"<pin>\"}" http://localhost:8000/api/console/login
+
+curl -b /tmp/konsol.jar http://localhost:8000/api/console/state
+curl -b /tmp/konsol.jar http://localhost:8000/api/console/recap     # hari ini
+curl -b /tmp/konsol.jar 'http://localhost:8000/api/console/recap?tanggal_kerja=2026-09-10'
+curl -b /tmp/konsol.jar -X POST http://localhost:8000/api/console/trucks \
   -H "Content-Type: application/json" -d '{"plate_number": "KT 2509 ABC"}'
 ```
 

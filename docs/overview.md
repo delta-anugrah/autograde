@@ -513,9 +513,18 @@ CDN** (harus tetap terbuka saat internet mati). Stream kamera pakai `<img>` MJPE
 line di port 8001-8003, jadi tiga koneksi video ditanggung browser, bukan proses konsol. ~2200
 baris React di frontend lama **diekspresikan ulang, bukan di-port**.
 
-**Belum termasuk Fase 2** (sengaja): login operator + PIN (§6.5), timbangan brondolan lewat PLC
-(§6.6b, Fase 3), nomor dokumen berprefiks lokal (§6.3), toggle tampil/sembunyi per line, dan
-halaman riwayat/laporan lintas hari (itu urusan cloud — live/hari ini lokal, riwayat cloud).
+**Login (Fase 4, §6.5).** Layar tertutup gerbang PIN sampai ada yang masuk, dan **semua**
+`/api/console/*` menjawab 401 `belum_masuk` tanpa cookie `konsol_sesi` — kecuali `/console`
+sendiri, daftar nama operator untuk gerbang, dan `login`. Akunnya **lokal**: AutoERP tidak punya
+DocType operator dan hash sandi Frappe tidak pernah dilayani lewat REST, sedangkan operator harus
+tetap bisa masuk saat internet mati. PIN 6 angka (scrypt bersalt, `operators`), sesi 12 jam
+(`sesi`), lockout berlipat dua sesudah lima kali salah, dan `requested_by` Reject Manual sekarang
+nama operator yang masuk — bukan lagi string `"operator"`. Akun dibuat dari PC dengan
+`make operator`; tidak ada lane web untuk itu. Rincian aturannya di `CLAUDE.md` invarian 19.
+
+**Belum termasuk Fase 2** (sengaja): timbangan brondolan lewat PLC (§6.6b, Fase 3), nomor dokumen
+berprefiks lokal (§6.3), toggle tampil/sembunyi per line, dan halaman riwayat/laporan lintas hari
+(itu urusan cloud — live/hari ini lokal, riwayat cloud).
 
 **Tests** (`tests/unit/test_working_day.py`, `test_console_store.py`, murni-logic, tanpa
 FastAPI): batas hari lewat tengah malam WIB vs UTC, timestamp cacat melempar, dedupe event

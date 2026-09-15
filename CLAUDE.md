@@ -109,6 +109,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | `make up-console` / `make logs-console` | konsol operator saja (port 8000, `/console`) — aman di-restart tanpa mengganggu line |
 | `make console` | konsol **native tanpa Docker** di `127.0.0.1:8100` — jalur develop di Mac (baca `.env`, `WEBHOOK_SECRET=devsecret`); target Docker tetap jalur Linux/pabrik |
 | `make kiosk` | konsol layar penuh di PC ini (`scripts/console-kiosk.sh`) |
+| `make operator` | akun operator untuk login konsol: tambah / reset PIN. `AKSI=daftar\|matikan`. Di PC pabrik pakai `make operator-docker` (konsolnya di Docker, DB-nya beda berkas) |
 | `make build-engine` | build TensorRT FP16 engine **once per GPU** (one-shot, auto-skip kalau sudah ada) |
 | `make logs` / `make logs-1` | tail logs (combined / per line) |
 | `make down` / `make ps` / `make rebuild` / `make rebuild-clean` / `make clean` | stop / status / rebuild / clean rebuild (`--no-cache`) / cleanup |
@@ -140,11 +141,17 @@ All via **`make`** (Docker only). From `autograde/`:
 | WS | `/ws/results` | legacy result push |
 | GET | `/captures/...` | static images (mount → `artifacts/`) |
 
-**Konsol (`APP_MODE=console`, port 8000)** — surface yang berbeda total; `main.py` tidak dipakai:
+**Konsol (`APP_MODE=console`, port 8000)** — surface yang berbeda total; `main.py` tidak dipakai.
+**Semua `/api/console/*` butuh sesi** (Fase 4) kecuali tiga baris pertama di bawah; tanpa cookie
+`konsol_sesi` jawabannya 401 `belum_masuk`. Lane mesin (`/internal/*`) tetap pakai webhook secret:
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/console` | layar operator (satu file HTML statis) |
+| GET | `/console` | layar operator (satu file HTML statis) — terbuka, dia yang menggambar gerbang PIN |
+| GET | `/api/console/operators` | nama + id operator aktif untuk gerbang, **tanpa** hash — terbuka |
+| POST | `/api/console/login` | `{operator_id, pin}` → cookie `konsol_sesi` HttpOnly, 12 jam. PIN salah 401, keypad terkunci 429 |
+| POST | `/api/console/logout` | akhiri sesi ini saja |
+| GET | `/api/console/me` | operator yang sedang masuk |
 | GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
 | GET | `/api/console/history` | filter `tanggal_kerja` / `line_code` / `truck_id` |
 | GET | `/api/console/trucks` | master truk + supplier + `sumber_label` |
@@ -358,6 +365,18 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     mengetik ulang platnya mengembalikan baris apa adanya. Sebelum ini ketik ulang menghapus
     suppliernya dan diam-diam mengubah label Sumber jadi Internal — termasuk di baris grading
     yang sudah lewat, karena label dibaca dari truk, bukan disalin ke barisnya.
+19. **Login konsol: akun lokal, layar terkunci penuh, admin cuma dari PC** (Fase 4, §6.5).
+    AutoERP tidak punya DocType operator, dan hash sandi user Frappe hidup di `__Auth` yang
+    sengaja tidak pernah dilayani lewat REST — jadi tidak ada yang bisa ditarik, dan operator
+    harus bisa masuk saat internet mati. PIN 6 angka, scrypt bersalt di `operators` (kolom
+    `erp_name` disiapkan untuk hari ERP punya DocType-nya), sesi 12 jam di `sesi`.
+    `verify_pin` **hanya** menerima parameter scrypt yang ditulis build ini: barisnya data dan
+    bisa diubah. Hitungan PIN salah di disk (lockout 5× lalu berlipat dua sampai 15 menit),
+    karena di memori muat-ulang halaman akan mengosongkannya. Reset PIN **dan** mematikan
+    operator sama-sama menghapus sesinya — menyaring status saja akan menghidupkan token lama
+    begitu akun diaktifkan lagi. Satu jawaban untuk PIN salah / operator tidak ada / operator
+    mati, supaya layar bersama tidak bisa dipakai memetakan siapa yang punya akun.
+    **Tidak ada lane web untuk membuat akun**: `make operator` di PC itu sendiri.
 
 ---
 
