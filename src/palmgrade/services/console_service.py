@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -65,6 +66,10 @@ class ConsoleService:
         # None when the console runs without the AutoERP link: everything at the
         # mill still happens, it simply goes nowhere.
         self.erp_queue = erp_queue
+        # Wired to `LineStatusWorker.snapshot` by console_main.py's lifespan.
+        # Default (empty dict) keeps old tests, which never touch the worker,
+        # working — every line just shows unreachable instead of crashing.
+        self.line_status: Callable[[], dict] = dict
         # Resolved in the constructor on purpose: a bad FACTORY_TZ must kill
         # startup, not quietly file tonnage under the wrong date.
         self.tz = ZoneInfo(settings.factory_tz)
@@ -134,6 +139,7 @@ class ConsoleService:
         tanggal = self.today()
         summary = {row["line_code"]: row for row in self.store.summary(tanggal)}
         assignments = self.store.assignments()
+        status_line = self.line_status()
         lines = [
             {
                 "line_code": ln.line_code,
@@ -143,6 +149,7 @@ class ConsoleService:
                 "acc": summary.get(ln.line_code, {}).get("acc", 0) or 0,
                 "rej": summary.get(ln.line_code, {}).get("rej", 0) or 0,
                 "assignment": _assignment_view(assignments.get(ln.line_code)),
+                "plc": status_line.get(ln.line_code, {"reachable": False}),
             }
             for ln in self.lines
         ]
@@ -403,6 +410,15 @@ class ConsoleService:
             requested_at=datetime.now(self.tz).isoformat(),
         )
         return {"accepted": True, "line_code": line_code}
+
+    async def piston(self, line_code: str, open: bool) -> dict[str, Any]:
+        """Teruskan permintaan piston ke line. Line yang menolak = error operator."""
+        line = self._require_line(line_code)
+        await self._line_client.set_piston(
+            line, open=open, requested_by="operator",
+            requested_at=datetime.now(self.tz).isoformat(),
+        )
+        return {"line_code": line_code, "open": open}
 
     def _require_line(self, line_code: str) -> LineEndpoint:
         line = self._by_code.get(line_code)

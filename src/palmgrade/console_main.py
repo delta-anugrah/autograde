@@ -21,6 +21,7 @@ from .routes.console import get_console_service, ingest_router
 from .routes.console import router as console_router
 from .services.akun_bawaan import seed_akun_bawaan
 from .workers.erp_link import build_erp_workers
+from .workers.line_status_worker import LineStatusWorker
 
 # Same bootstrap as main.py, and for the same reason: settings are read when the
 # app is built, below. `override=False` keeps a real environment variable ahead
@@ -45,6 +46,13 @@ async def lifespan(app: FastAPI):
     # workers at all, and any of them may die without taking the screen down.
     workers = build_erp_workers(service.settings, service.store, service.erp_queue)
     tasks = [asyncio.create_task(worker.run_loop()) for worker in workers]
+
+    # Separate from the ERP workers above: the piston button must survive an
+    # empty ERP_URL, so it cannot depend on build_erp_workers().
+    status_worker = LineStatusWorker(service.lines, service._line_client)
+    service.line_status = status_worker.snapshot
+    tasks.append(asyncio.create_task(status_worker.run_loop()))
+
     logger.info("Console ready, working day %s (%s)", service.today(), service.settings.factory_tz)
     yield
     for task in tasks:
