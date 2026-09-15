@@ -16,7 +16,11 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from palmgrade.core.config import LineEndpoint, Settings
-from palmgrade.domain.operator_error import LINE_TIDAK_MENJAWAB
+from palmgrade.domain.operator_error import (
+    DI_BAWAH_MINIMUM,
+    LINE_TIDAK_MENJAWAB,
+    OperatorError,
+)
 from palmgrade.integrations.notifications.line_client import LineUnavailable
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.services.console_service import ConsoleService
@@ -284,3 +288,37 @@ def test_history_membawa_total_supaya_layar_bisa_menghitung_halaman(service):
     akhir = service.history_halaman("2026-09-10", limit=2, offset=4)
     assert akhir["total"] == 5
     assert len(akhir["items"]) == 1
+
+
+# ── lantai berat: angka mustahil harus tertahan ──────────────────────────────
+
+
+def test_bruto_seratus_kilo_ditolak(service):
+    """Terlihat di layar pabrik: satu baris bruto 100 kg lolos, karena lantainya
+    100.0 dan perbandingannya `<`. Truk kosong saja belasan ton — 100 kg itu salah
+    ketik, dan neto yang lahir darinya dibayar ke petani."""
+    with pytest.raises(OperatorError) as kena:
+        service.catat_timbangan({
+            "plate_number": "BE 4412 OFL", "bruto_kg": 100,
+            "waktu_masuk": "2026-09-15T08:00:00+07:00",
+        })
+    assert kena.value.code == DI_BAWAH_MINIMUM
+
+
+def test_berat_setengah_ton_masih_ditolak(service):
+    """500 kg pun bukan truk. Lantai yang terlalu rendah cuma menangkap nol."""
+    with pytest.raises(OperatorError):
+        service.catat_timbangan({
+            "plate_number": "BE 4412 OFL", "bruto_kg": 500,
+            "waktu_masuk": "2026-09-15T08:00:00+07:00",
+        })
+
+
+def test_truk_kosong_paling_ringan_tetap_diterima(service):
+    """Colt Diesel kosong sekitar 2,5 ton. Lantai tidak boleh menolak truk sungguhan
+    yang paling ringan — itu menghalangi pekerjaan, bukan menjaganya."""
+    hasil = service.catat_timbangan({
+        "plate_number": "BE 4412 OFL", "bruto_kg": 2500,
+        "waktu_masuk": "2026-09-15T08:00:00+07:00",
+    })
+    assert hasil["bruto_kg"] == 2500.0
