@@ -230,7 +230,7 @@ def create_app() -> FastAPI:
         from .core.dependencies import get_camera
 
         # PLC didahulukan: saat SIGTERM tiba, coil OK/NG punya peluang kira-kira
-        # 1 dari 2 sedang ON di tengah pulse (200ms ON dalam siklus ≈410 ms, 2
+        # 1 dari 2 sedang ON di tengah pulse (200ms ON dalam siklus 400 ms, 2
         # tick). Kontrak coil itu "satu pulse = satu buah" — dibiarkan ON sampai
         # watchdog ODOT menyerah (masih 30 detik) berarti PLC menyortir banyak
         # buah dengan keputusan basi. Digarap best-effort: gagal di sini tidak
