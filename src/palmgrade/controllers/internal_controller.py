@@ -20,9 +20,10 @@ logger = logging.getLogger(__name__)
 async def sync_assignment(request: AssignmentSyncRequest, state: RuntimeState) -> AssignmentSyncResponse:
     state.current_truck_id = request.truck_id
     state.current_assignment_id = request.assignment_id
+    state.current_ffb_source = request.ffb_source
     logger.info(
-        "Assignment synced: machine=%s truck=%s assignment=%s",
-        request.machine_id, request.truck_id, request.assignment_id,
+        "Assignment synced: machine=%s truck=%s assignment=%s ffb_source=%s",
+        request.machine_id, request.truck_id, request.assignment_id, request.ffb_source,
     )
     return AssignmentSyncResponse(
         accepted=True,

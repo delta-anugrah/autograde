@@ -27,7 +27,7 @@ class FakeLine:
         self.kiriman: list[tuple[str, str, str]] = []
         self.mati = mati
 
-    async def assign_truck(self, line, *, assignment_id, truck_id, assigned_at) -> None:
+    async def assign_truck(self, line, *, assignment_id, truck_id, assigned_at, ffb_source=None) -> None:
         if self.mati:
             raise LineUnavailable(LINE_TIDAK_MENJAWAB, "line tidak menjawab")
         self.kiriman.append((line.line_code, assignment_id, truck_id))
@@ -85,3 +85,27 @@ def test_truk_kosong_sampai_di_line_sebagai_none_bukan_string_kosong():
     )
     assert req.truck_id is None
     assert req.assignment_id is None
+
+
+def test_ffb_source_ikut_di_penugasan_dan_kosong_kalau_tidak_dikirim():
+    # palmgrade-api tidak mengirim field ini; tanpa field artinya sortir normal.
+    lama = AssignmentSyncRequest(
+        machine_id="m-1", assignment_id="a-1", truck_id="t-1", assigned_at="2026-09-15T08:00:00+07:00"
+    )
+    assert lama.ffb_source is None
+
+    internal = AssignmentSyncRequest(
+        machine_id="m-1", assignment_id="a-1", truck_id="t-1",
+        assigned_at="2026-09-15T08:00:00+07:00", ffb_source="Internal",
+    )
+    assert internal.ffb_source == "Internal"
+
+
+def test_ffb_source_asing_ditolak_bukan_diam_diam_dianggap_kosong():
+    import pydantic
+
+    with pytest.raises(pydantic.ValidationError):
+        AssignmentSyncRequest(
+            machine_id="m-1", assignment_id="a-1", truck_id="t-1",
+            assigned_at="2026-09-15T08:00:00+07:00", ffb_source="internal",
+        )

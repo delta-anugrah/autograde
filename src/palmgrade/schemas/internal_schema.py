@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, field_validator
 
 
@@ -6,6 +8,11 @@ class AssignmentSyncRequest(BaseModel):
     assignment_id: str | None
     truck_id: str | None
     assigned_at: str
+    # Sumber TBS truk ini menurut AutoERP, dititipkan konsol. None = tidak
+    # dikirim (palmgrade-api, konsol lama) atau truk yang sumbernya belum jelas;
+    # dua-duanya berarti sortir normal. Sengaja Literal, bukan str: nilai asing
+    # lebih baik ditolak 422 daripada diam-diam mematikan pembuangan buah.
+    ffb_source: Literal["Internal", "External"] | None = None
 
     @field_validator("assignment_id", "truck_id")
     @classmethod
