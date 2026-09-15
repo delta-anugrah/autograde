@@ -219,12 +219,22 @@ def test_peran_dikenal_lolos_apa_adanya():
 
 def test_peran_asing_jatuh_ke_operator():
     """Sebuah nilai yang tidak dikenal tidak boleh membuka apa pun."""
-    for nilai in ("admin", "SUPPORT ", "", None, 7, "developer"):
+    for nilai in ("admin", "", None, 7, "developer"):
         assert peran_sah(nilai) == PERAN_OPERATOR
 
 
 def test_peran_dibaca_tanpa_peduli_besar_kecil_huruf():
     assert peran_sah("Support") == PERAN_SUPPORT
+
+
+def test_spasi_pinggir_ditoleransi():
+    """Nilai peran datang dari env dan dari kolom yang bisa diketik orang.
+
+    Menolak karena satu spasi akan menurunkan akun support jadi operator tanpa
+    jejak apa pun — gagal diam-diam, yang paling mahal di layar pabrik.
+    """
+    assert peran_sah("  support  ") == PERAN_SUPPORT
+    assert peran_sah("SUPPORT ") == PERAN_SUPPORT
 
 
 def test_daftar_izin_dibaca_dari_env():
@@ -308,7 +318,7 @@ def saring_peran_erp(nilai: object, diizinkan: frozenset[str]) -> str:
 - [ ] **Step 5: Jalankan tes, pastikan lolos**
 
 Run: `pytest tests/unit/test_peran.py -v && ruff check src/palmgrade/domain/peran.py tests/unit/test_peran.py`
-Expected: 6 PASS, ruff bersih.
+Expected: 7 PASS, ruff bersih.
 
 - [ ] **Step 6: Commit**
 
