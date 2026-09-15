@@ -332,3 +332,28 @@ def test_label_pagination_diterjemahkan_di_kedua_bahasa():
         isi = _kamus(bahasa)
         for kunci in ("perHalaman", "halamanSebelum", "halamanBerikut", "rentangBaris"):
             assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+
+
+def test_tombol_lihat_sandi_duduk_di_dalam_kolom():
+    """Tombol terpisah di samping kolom tidak terbaca sebagai "lihat sandi" oleh yang
+    memakainya. Posisinya di dalam kolom, seperti layar login mana pun."""
+    aturan = next(b for b in HTML.splitlines() if ".sandi-lihat {" in b)
+    assert "position:absolute" in aturan.replace(" ", "")
+    # Dan tidak boleh menutupi teks: kolomnya menyisakan ruang selebar tombol, jadi
+    # ketukan di ujung sandi yang sudah diketik tetap mendarat di kolomnya.
+    input_aturan = next(b for b in HTML.splitlines() if ".sandi-baris input" in b)
+    assert "padding-right" in input_aturan
+
+
+def test_tulisan_tombol_berubah_saat_sandi_terbuka():
+    """Latarnya tidak diwarnai penuh, jadi yang memberi tahu keadaannya tulisannya.
+    Satu kata untuk dua keadaan berarti tidak ada yang menandai sandi sedang terbuka."""
+    fn = _fungsi("lihatSandi")
+    assert "sembunyikanSingkat" in fn and "lihatSingkat" in fn
+
+
+def test_tombol_lihat_sandi_tidak_memakai_data_t():
+    """Wajahnya bergantian antara dua kunci, disetel `lihatSandi`. `data-t` di elemen itu
+    akan menimpanya tiap ganti bahasa dan mengunci tulisannya di satu keadaan."""
+    blok = HTML.split('id="gerbang-lihat"', 1)[1].split(">", 1)[0]
+    assert "data-t=" not in blok

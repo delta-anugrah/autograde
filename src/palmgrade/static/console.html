@@ -133,14 +133,19 @@
                        font-family:inherit; color:var(--fg); background:var(--bg);
                        border:1px solid var(--line-kuat); border-radius:var(--r-md); }
   .gerbang-isi input:focus-visible { outline:3px solid var(--acc); outline-offset:1px; }
-  /* The eye sits beside the field, not on top of it: an overlay button on a touchscreen
-     steals taps meant for the end of the text. */
-  .sandi-baris { display:flex; gap:8px; }
-  .sandi-baris input { flex:1; min-width:0; }
-  .sandi-lihat { flex:0 0 3.4rem; min-height:3.4rem; font-size:1.2rem; line-height:1;
-                 border-radius:var(--r-sm); }
-  .sandi-lihat[aria-pressed="true"] { background:var(--acc); color:var(--on-acc);
-                                      border-color:var(--acc); }
+  /* The toggle sits inside the field, where every login screen puts it, and it overlaps
+     no text: the input reserves right padding as wide as the button, so a tap at the end
+     of what was typed still lands on the input. Its face is a word rather than an eye -
+     an eye alone does not say whether it shows or hides. */
+  .sandi-baris { position:relative; display:flex; }
+  .sandi-baris input { flex:1; min-width:0; padding-right:5.5rem; }
+  .sandi-lihat { position:absolute; top:4px; right:4px; bottom:4px; width:5rem;
+                 display:flex; align-items:center; justify-content:center;
+                 padding:0; font-size:.95rem; font-weight:700; color:var(--muted);
+                 background:none; border:0; border-radius:var(--r-xs); cursor:pointer; }
+  .sandi-lihat:hover { color:var(--fg); background:var(--zebra); }
+  .sandi-lihat:focus-visible { outline:3px solid var(--acc); outline-offset:-2px; }
+  .sandi-lihat[aria-pressed="true"] { color:var(--acc); }
 
   /* ---- pagination ---- */
   .halaman { display:flex; flex-wrap:wrap; align-items:center; gap:12px;
@@ -469,8 +474,12 @@
       <div class="sandi-baris">
         <input id="gerbang-sandi" type="password" autocomplete="off"
                data-t-ph="gerbangSandi" placeholder="Sandi" aria-labelledby="gerbang-judul">
+        <!--
+          No `data-t`: the face alternates between two keys, so `lihatSandi` sets it on
+          load and on every toggle. A `data-t` here would fight that on a language flip.
+        -->
         <button type="button" id="gerbang-lihat" class="sandi-lihat"
-                aria-pressed="false" data-t-lb="lihatSandi">👁</button>
+                aria-pressed="false" data-t-lb="lihatSandi">Lihat</button>
       </div>
     </div>
     <button type="button" id="gerbang-masuk" data-t="gerbangMasuk">Masuk</button>
@@ -675,6 +684,9 @@ const KAMUS = {
     gerbangEmail:"Email", gerbangSandi:"Sandi",
     gerbangMasuk:"Masuk", tombolKeluar:"Keluar",
     lihatSandi:"Lihat sandi", sembunyikanSandi:"Sembunyikan sandi",
+    // Short faces for the button inside the field; the long ones above stay the
+    // aria-label, so a screen reader still hears which password is meant.
+    lihatSingkat:"Lihat", sembunyikanSingkat:"Tutup",
     perHalaman:"Baris per halaman", halamanSebelum:"Sebelumnya", halamanBerikut:"Berikutnya",
     rentangBaris:"{dari}-{sampai} dari {total}",
     gerbangKosong:"Belum ada operator. Buat dulu di PC ini: make operator",
@@ -726,6 +738,7 @@ const KAMUS = {
     gerbangEmail:"Email", gerbangSandi:"Password",
     gerbangMasuk:"Sign in", tombolKeluar:"Sign out",
     lihatSandi:"Show password", sembunyikanSandi:"Hide password",
+    lihatSingkat:"Show", sembunyikanSingkat:"Hide",
     perHalaman:"Rows per page", halamanSebelum:"Previous", halamanBerikut:"Next",
     rentangBaris:"{dari}-{sampai} of {total}",
     gerbangKosong:"No operators yet. Create one on this PC: make operator",
@@ -766,6 +779,9 @@ function terapkanBahasa() {
     el.setAttribute("aria-label", t(el.dataset.tLb));
   });
   $("bahasa").textContent = bahasa === "id" ? "EN" : "ID";
+  // Its face alternates between two keys, so it cannot be a plain `data-t`; re-applied
+  // here in whichever state it is currently in.
+  lihatSandi($("gerbang-sandi").type === "text");
   segarkanPilih();
   terapkanTema();
 }
@@ -1497,6 +1513,10 @@ function lihatSandi(buka) {
   $("gerbang-sandi").type = buka ? "text" : "password";
   $("gerbang-lihat").setAttribute("aria-pressed", String(buka));
   $("gerbang-lihat").setAttribute("aria-label", t(buka ? "sembunyikanSandi" : "lihatSandi"));
+  // The face is a word, not an icon: it says which way the button goes, where an eye
+  // alone leaves the operator guessing whether it shows or hides. Same choice as the
+  // AutoERP form, so the two screens read alike.
+  $("gerbang-lihat").textContent = t(buka ? "sembunyikanSingkat" : "lihatSingkat");
 }
 
 function tutupSandi() { lihatSandi(false); }
