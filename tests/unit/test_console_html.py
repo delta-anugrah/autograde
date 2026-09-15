@@ -131,6 +131,16 @@ def test_setiap_placeholder_ikut_diterjemahkan():
             assert f"{atribut}:" in _kamus(bahasa), f"KAMUS.{bahasa} belum punya {atribut}"
 
 
+def test_reject_manual_tidak_mengirim_nama_dari_halaman():
+    """Sejak Fase 4 server memakai pemegang sesi. Halaman yang tetap mengirim
+    `requested_by` bikin satu-satunya aksi operator yang bernama itu terbaca seolah
+    namanya masih datang dari layar — padahal diabaikan."""
+    # Yang dicek kodenya, bukan komentarnya: komentar di atas baris itu memang
+    # menyebut `requested_by` untuk menerangkan kenapa dia tidak dikirim lagi.
+    assert "requested_by:" not in HTML
+    assert 'JSON.stringify({ requested_by' not in HTML
+
+
 def test_halaman_tidak_pernah_membaca_cookie():
     """The session cookie is HttpOnly. Code that reaches for `document.cookie` is someone
     trying to handle auth in the page, where any script could read it."""

@@ -1065,8 +1065,11 @@ $("lines").addEventListener("click", async (ev) => {
       await api(`/api/console/lines/${encodeURIComponent(line)}/release-truck`, { method: "POST" });
       await refresh();
     } else {
+      // No `requested_by`: the server records whoever holds the session (Fase 4). The
+      // page used to send the literal "operator", which the server now ignores — left
+      // in, it would read like the name still comes from here.
       await api(`/api/console/lines/${encodeURIComponent(line)}/manual-reject`,
-                { method: "POST", body: JSON.stringify({ requested_by: "operator" }) });
+                { method: "POST" });
     }
     pesan("");
   } catch (e) {
