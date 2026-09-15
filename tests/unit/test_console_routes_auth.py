@@ -16,15 +16,16 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from palmgrade.domain.operator_auth import hash_pin, operator_id_for
-from palmgrade.domain.operator_error import BELUM_MASUK, PIN_SALAH
+from palmgrade.domain.operator_auth import hash_password
+from palmgrade.domain.operator_error import BELUM_MASUK, SANDI_SALAH
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.routes.console import get_auth_service, get_console_service
 from palmgrade.routes.console import router as console_router
 from palmgrade.services.auth_service import AuthService
 
+EMAIL = "budi@pks.test"
 NAMA = "Pak Budi"
-PIN = "142536"
+SANDI = "sawit2026"
 
 
 class _StubConsole:
@@ -45,7 +46,9 @@ class _StubConsole:
 @pytest.fixture
 def console(tmp_path):
     store = ConsoleStore(tmp_path / "console.db")
-    store.upsert_operator({"nama": NAMA, "pin_hash": hash_pin(PIN)})
+    store.upsert_operator_lokal(
+        {"email": EMAIL, "nama": NAMA, "password_hash": hash_password(SANDI)}
+    )
     auth = AuthService(store)
     stub = _StubConsole()
 
@@ -56,10 +59,8 @@ def console(tmp_path):
     return TestClient(app), store, stub
 
 
-def _sign_in(client: TestClient, pin: str = PIN):
-    return client.post(
-        "/api/console/login", json={"operator_id": operator_id_for(NAMA), "pin": pin}
-    )
+def _sign_in(client: TestClient, sandi: str = SANDI, email: str = EMAIL):
+    return client.post("/api/console/login", json={"email": email, "sandi": sandi})
 
 
 def test_the_screen_data_is_refused_without_a_session(console):
@@ -71,7 +72,7 @@ def test_the_screen_data_is_refused_without_a_session(console):
     assert response.json()["detail"]["code"] == BELUM_MASUK
 
 
-def test_the_right_pin_opens_every_lane(console):
+def test_the_right_password_opens_every_lane(console):
     client, _, _ = console
 
     assert _sign_in(client).status_code == 200
@@ -89,13 +90,13 @@ def test_the_session_cookie_cannot_be_read_by_a_script_on_the_page(console):
     assert "samesite=strict" in cookie
 
 
-def test_a_wrong_pin_hands_out_no_session(console):
+def test_a_wrong_password_hands_out_no_session(console):
     client, _, _ = console
 
-    response = _sign_in(client, pin="998877")
+    response = _sign_in(client, sandi="sawit2027")
 
     assert response.status_code == 401
-    assert response.json()["detail"]["code"] == PIN_SALAH
+    assert response.json()["detail"]["code"] == SANDI_SALAH
     assert "set-cookie" not in response.headers
     assert client.get("/api/console/state").status_code == 401
 
@@ -108,16 +109,16 @@ def test_signing_out_shuts_the_lanes_again(console):
     assert client.get("/api/console/state").status_code == 401
 
 
-def test_the_keypad_can_read_the_operator_list_before_anyone_is_in(console):
-    """The gate has to draw the names it offers, so this one lane stays open — names
-    and ids only, never a hash."""
+def test_the_screen_can_read_the_account_list_before_anyone_is_in(console):
+    """The gate fills the email field from it on a touchscreen where typing one is slow,
+    so this one lane stays open — emails and names only, never a hash."""
     client, _, _ = console
 
     response = client.get("/api/console/operators")
 
     assert response.status_code == 200
-    assert [item["nama"] for item in response.json()["items"]] == [NAMA]
-    assert all("pin_hash" not in item for item in response.json()["items"])
+    assert [item["email"] for item in response.json()["items"]] == [EMAIL]
+    assert all("password_hash" not in item for item in response.json()["items"])
 
 
 def test_a_manual_reject_is_recorded_against_whoever_is_signed_in(console):

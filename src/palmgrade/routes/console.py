@@ -72,7 +72,7 @@ def _operator_error(status_code: int, exc: Exception) -> HTTPException:
 
 # ── operator screen + its API ───────────────────────────────────────────
 # Every operator lane needs a session (Fase 4, plan §6.5). Open on purpose: the page
-# itself (it draws the PIN gate), the operator names the gate offers, and signing in.
+# itself (it draws the sign-in gate), the accounts the gate offers, and signing in.
 # The machine lanes below keep the webhook secret and never see a cookie.
 router = APIRouter(tags=["console"])
 
@@ -84,7 +84,11 @@ async def console_page() -> FileResponse:
 
 @router.get("/api/console/operators")
 async def console_operators(auth: Auth) -> dict:
-    """Read before anyone is signed in, so names and ids only — never a hash."""
+    """Read before anyone is signed in, so emails and names only — never a hash.
+
+    The gate uses it to fill the email field on a touchscreen where typing an address is
+    slow. The password is still required, so this is a convenience, not a way in.
+    """
     return {"items": auth.operators()}
 
 
@@ -92,7 +96,7 @@ async def console_operators(auth: Auth) -> dict:
 async def login(auth: Auth, response: Response, payload: Annotated[dict, Body()]) -> dict:
     try:
         token, operator = auth.login(
-            str(payload.get("operator_id") or ""), str(payload.get("pin") or "")
+            str(payload.get("email") or ""), str(payload.get("sandi") or "")
         )
     except OperatorError as exc:
         raise _operator_error(429 if exc.code == TERKUNCI else 401, exc) from exc
@@ -120,7 +124,13 @@ async def logout(
 
 @router.get("/api/console/me")
 async def console_me(operator: Operator) -> dict:
-    return {"operator": {"id": operator["operator_id"], "nama": operator["nama"]}}
+    return {
+        "operator": {
+            "id": operator["operator_id"],
+            "email": operator["email"],
+            "nama": operator["nama"],
+        }
+    }
 
 
 @router.get("/api/console/state")
