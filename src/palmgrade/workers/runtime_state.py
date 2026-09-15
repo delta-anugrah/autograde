@@ -11,6 +11,7 @@ from typing import Any
 class RuntimeState:
     current_truck_id: str | None = None
     current_assignment_id: str | None = None          # set by /internal/assignment
+    current_ffb_source: str | None = None             # "Internal" / "External" / None
     last_successful_api_push: str | None = None       # ISO timestamp, set by OutboxRetryWorker
 
     # Thread-safe queues
