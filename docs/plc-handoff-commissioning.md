@@ -6,7 +6,7 @@ versi: "2.0"
 tanggal: 15 September 2026
 klasifikasi: Internal — untuk tim panel dan tim engineering
 pemilik: Tim Engineering AutoGrade
-sorotan: Berjalan = Coil 0–9 · Usulan = Piston manual 10–12 · Butuh keputusan panel = 7 butir
+sorotan: Berjalan = Coil 0–9, DI 0–10; Usulan = Piston manual coil 10–12, DI 11–13; Ditunggu dari panel = 7 butir
 ---
 
 # Panduan Integrasi AutoGrade ↔ PLC
