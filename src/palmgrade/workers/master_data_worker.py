@@ -64,7 +64,7 @@ _RESOURCES = (
     # which Frappe deliberately never serves, leaving nothing to pull.
     _Resource(
         doctype="AutoGrade Operator",
-        fields=("name", "email", "full_name", "active", "password_hash", "modified"),
+        fields=("name", "email", "full_name", "active", "password_hash", "peran", "modified"),
         cursor_key=OPERATOR_CURSOR_KEY,
         to_row=operator_row,
         save=ConsoleStore.upsert_operator_erp,

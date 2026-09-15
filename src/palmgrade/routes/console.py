@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse
 from ..core.config import Settings
 from ..domain.operator_auth import SESSION_TTL_S
 from ..domain.operator_error import BELUM_MASUK, TERKUNCI, OperatorError
+from ..domain.peran import parse_daftar_izin
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
 from ..repositories.console_repository import ConsoleStore
@@ -33,7 +34,10 @@ SESSION_COOKIE = "konsol_sesi"
 def get_console_service() -> ConsoleService:
     """Console composition root. The only place these are wired."""
     settings = Settings()
-    store = ConsoleStore(settings.console_db_path)
+    store = ConsoleStore(
+        settings.console_db_path,
+        peran_erp_diizinkan=parse_daftar_izin(settings.peran_erp_diizinkan),
+    )
     queue = ErpQueue(
         store, ErpOutboxStore(settings.erp_outbox_db_path), site=settings.erp_company
     )

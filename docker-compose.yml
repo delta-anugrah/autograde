@@ -394,6 +394,8 @@ services:
       # Empty is correct on a single-company site: AutoERP then books against
       # its own default company.
       - ERP_COMPANY=${ERP_COMPANY:-}
+      # Peran mana yang boleh datang dari AutoERP. Kosongkan untuk menolak semuanya.
+      - PERAN_ERP_DIIZINKAN=${PERAN_ERP_DIIZINKAN:-support}
       - LICENSE_TOKEN=${LICENSE_TOKEN:-}
       # Pemetaan machine_id → line, supaya event tahu dia dari line mana.
       # Nilai default sama persis dengan tiga service di atas.

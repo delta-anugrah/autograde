@@ -36,7 +36,9 @@ DOCTYPE_FIELDS = {
         "driver_name", "plate_normalized", "autograde_id", "source",
     },
     # `erpnext/palm_mill/doctype/autograde_operator/autograde_operator.json`.
-    "AutoGrade Operator": {"name", "modified", "email", "full_name", "active", "password_hash"},
+    "AutoGrade Operator": {
+        "name", "modified", "email", "full_name", "active", "password_hash", "peran",
+    },
 }
 
 # What AutoERP's passlib context writes. The console verifies it without passlib, which
@@ -124,6 +126,22 @@ def test_an_operator_with_no_password_yet_arrives_with_an_empty_hash():
 def test_an_operator_with_no_full_name_falls_back_to_the_email():
     """The screen has to show something, and an empty button is unusable."""
     assert operator_row(_operator(full_name=None))["nama"] == "budi@pks.test"
+
+
+def test_operator_row_membawa_peran():
+    row = operator_row(
+        {"name": "a@b.c", "email": "a@b.c", "full_name": "A",
+         "password_hash": "x", "active": 1, "peran": "support"}
+    )
+    assert row["peran"] == "support"
+
+
+def test_operator_row_tanpa_peran_tetap_mentah():
+    """ERP lama, atau dokumen yang field-nya belum terisi. `operator_row` tidak
+    menormalkan — itu tugas store lewat `saring_peran_erp`, supaya daftar izin
+    PC ini bisa mengganti sebuah 'support' jadi 'operator' juga."""
+    row = operator_row({"name": "a@b.c", "email": "a@b.c", "full_name": "A"})
+    assert row["peran"] == ""
 
 
 def test_truck_lands_on_the_id_the_operator_already_typed():

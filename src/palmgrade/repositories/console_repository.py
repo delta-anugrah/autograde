@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from ..domain.operator_auth import normalise_email, normalise_nama, operator_id_for
-from ..domain.peran import peran_sah
+from ..domain.peran import peran_sah, saring_peran_erp
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
@@ -163,8 +163,7 @@ class ConsoleStore:
         self._lock = threading.Lock()
         self._db = sqlite3.connect(str(db_path), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
-        # Dipakai task lanjutan (penyaring peran dari pull ERP); belum ada
-        # pemanggil di berkas ini sendiri.
+        # Daftar izin peran dari pull ERP (§4.A) — dipakai `_upsert_operator`.
         self._peran_erp_diizinkan = peran_erp_diizinkan or frozenset()
         with self._lock, self._db:
             self._db.execute("PRAGMA journal_mode=WAL")
@@ -733,11 +732,21 @@ class ConsoleStore:
         status = row.get("status") or ("active" if row.get("active", 1) else "off")
         with self._lock, self._db:
             existing = self._db.execute(
-                "SELECT asal, password_hash, status FROM operators WHERE id = ?",
+                "SELECT asal, password_hash, status, peran FROM operators WHERE id = ?",
                 (operator_id,),
             ).fetchone()
             if existing and existing["asal"] not in overwrite_asal:
                 return operator_id
+            # ERP menulis peran lewat daftar izin PC ini. Sumber lain (baris lokal,
+            # atau baris ini belum ada) tidak pernah menyentuh peran di sini — itu
+            # tugas `set_peran`; menimpanya di sini akan menghapus peran akun lokal
+            # tiap kali sandinya di-reset lewat `make operator`.
+            if asal == "erp":
+                peran = saring_peran_erp(row.get("peran"), self._peran_erp_diizinkan)
+            elif existing is not None:
+                peran = existing["peran"]
+            else:
+                peran = peran_sah(row.get("peran"))
             # Worked out before the write, while the old row is still readable.
             akhiri_sesi = selalu_akhiri_sesi or existing is None or any(
                 existing[kolom] != baru
@@ -748,8 +757,8 @@ class ConsoleStore:
             )
             self._db.execute(
                 """INSERT INTO operators
-                       (id, email, nama, password_hash, status, asal, erp_name, dibuat_at)
-                   VALUES (:id, :email, :nama, :password_hash, :status, :asal, :erp_name, :dibuat_at)
+                       (id, email, nama, password_hash, status, asal, erp_name, peran, dibuat_at)
+                   VALUES (:id, :email, :nama, :password_hash, :status, :asal, :erp_name, :peran, :dibuat_at)
                    ON CONFLICT(id) DO UPDATE SET
                        email          = excluded.email,
                        nama           = excluded.nama,
@@ -757,6 +766,7 @@ class ConsoleStore:
                        status         = excluded.status,
                        asal           = excluded.asal,
                        erp_name       = excluded.erp_name,
+                       peran          = excluded.peran,
                        gagal_count    = 0,
                        gagal_terakhir = NULL""",
                 {
@@ -766,6 +776,7 @@ class ConsoleStore:
                     "password_hash": row["password_hash"],
                     "status": status,
                     "asal": asal,
+                    "peran": peran,
                     "erp_name": row.get("erp_name"),
                     "dibuat_at": time.time(),
                 },

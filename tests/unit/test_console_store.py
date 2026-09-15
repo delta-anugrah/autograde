@@ -377,3 +377,36 @@ def test_set_peran_menolak_nilai_asing(tmp_path):
     )
     store.set_peran(oid, "admin")
     assert store.operator_by_email("x@b.c")["peran"] == "operator"
+
+
+def test_tarikan_erp_menulis_peran_yang_diizinkan(tmp_path):
+    store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset({"support"}))
+    store.upsert_operator_erp(
+        {"email": "s@erp.c", "nama": "S", "password_hash": "x",
+         "erp_name": "s@erp.c", "active": 1, "peran": "support"}
+    )
+    assert store.operator_by_email("s@erp.c")["peran"] == "support"
+
+
+def test_daftar_izin_kosong_membuang_peran_dari_erp(tmp_path):
+    """Rem sisi pabrik: kosongkan .env, restart, tidak ada akun ERP yang naik."""
+    store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset())
+    store.upsert_operator_erp(
+        {"email": "s@erp.c", "nama": "S", "password_hash": "x",
+         "erp_name": "s@erp.c", "active": 1, "peran": "support"}
+    )
+    assert store.operator_by_email("s@erp.c")["peran"] == "operator"
+
+
+def test_tarikan_erp_tidak_menurunkan_peran_akun_lokal(tmp_path):
+    """Akun lokal adalah jalan masuk saat internet mati; ERP tidak boleh menyentuhnya."""
+    store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset({"support"}))
+    oid = store.upsert_operator_lokal(
+        {"email": "support@autograde.local", "nama": "S", "password_hash": "scrypt$x"}
+    )
+    store.set_peran(oid, "support")
+    store.upsert_operator_erp(
+        {"email": "support@autograde.local", "nama": "S", "password_hash": "y",
+         "erp_name": "s", "active": 1, "peran": "operator"}
+    )
+    assert store.operator_by_email("support@autograde.local")["peran"] == "support"
