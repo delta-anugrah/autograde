@@ -105,8 +105,10 @@ tersendiri per line, dan itu tidak diminta di sini agar sisa spare tidak habis s
 
 ### 3.1 OK / NG — trigger: tepi naik
 
-- Pulse. Satu tepi naik (0→1) = satu janjang. ON ≈205 ms, lalu OFF ≈205 ms sebelum pulse berikutnya
-  pada coil yang sama. Kapasitas maksimum ≈2,5 tepi per detik per coil — bukan 3,3.
+- Pulse. Satu tepi naik (0→1) = satu janjang. ON 200 ms, lalu OFF 200 ms sebelum pulse berikutnya
+  pada coil yang sama — keduanya kelipatan tick poll 200 ms, jadi jeda 100 ms yang disetel
+  dibulatkan ke atas menjadi satu tick penuh. Kapasitas maksimum ≈2,5 tepi per detik per coil —
+  bukan 3,3. Di lapangan angkanya bisa bergeser beberapa milidetik mengikuti jitter loop.
 - **Kelebihan dibuang, bukan diantrekan.** Kamera dapat menghasilkan hingga ≈10 keputusan/detik/line,
   jauh di atas kapasitas satu coil. Kelebihan dibuang dengan sengaja — mengantrekan membuat sinyal
   terlambat menempel pada janjang yang salah. Ladder **harus menghitung tepi naik, bukan mengukur
@@ -248,7 +250,7 @@ Satu line dulu, satu perubahan dalam satu waktu. **Tidak boleh dilewat: langkah 
 3. **Picu satu pulse, lalu pastikan bersama bahwa coil 0 di aplikasi benar-benar X0300 di PLC.**
    Beda satu alamat saja membuat CAM 1 OK jatuh di CAM 1 NG, tanpa terlihat dari layar mana pun.
 4. **Ukur lebar pulse yang benar-benar sampai di PLC**, memakai osiloskop atau monitor bit GX
-   Works. Angka ±205 ms harus dibuktikan, bukan dipercaya.
+   Works. Angka 200 ms harus dibuktikan, bukan dipercaya.
 5. Periksa coil 9 (HEARTBIT PC) ON. Hentikan proses line 1 → coil 9 padam. Hentikan line 2 atau
    line 3 → coil 9 **tetap ON**; memang begitu, hanya line 1 yang memegangnya.
 6. Picu satu motor fault dari panel, pastikan bit yang berubah di aplikasi adalah nomor motor yang
