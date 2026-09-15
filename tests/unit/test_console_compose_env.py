@@ -19,7 +19,7 @@ COMPOSE = REPO_ROOT / "docker-compose.yml"
 
 # Settings read by the console. Line-only settings (cameras, PLC, uploads) are
 # deliberately out of scope: the console service has no business carrying them.
-CONSOLE_PREFIXES = ("ERP_", "CONSOLE_")
+CONSOLE_PREFIXES = ("ERP_", "CONSOLE_", "LOG_")
 
 
 def _settings_env_names() -> set[str]:

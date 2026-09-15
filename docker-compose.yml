@@ -396,6 +396,8 @@ services:
       - ERP_COMPANY=${ERP_COMPANY:-}
       # Peran mana yang boleh datang dari AutoERP. Kosongkan untuk menolak semuanya.
       - PERAN_ERP_DIIZINKAN=${PERAN_ERP_DIIZINKAN:-support}
+      # Berapa lama layar Log (support) menyimpan riwayat ERROR/WARNING.
+      - LOG_RETENSI_HARI=${LOG_RETENSI_HARI:-180}
       - LICENSE_TOKEN=${LICENSE_TOKEN:-}
       # Pemetaan machine_id → line, supaya event tahu dia dari line mana.
       # Nilai default sama persis dengan tiga service di atas.

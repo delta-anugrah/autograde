@@ -257,6 +257,10 @@ class Settings:
     # truncated and the account is refused (deliberately loudly).
     console_default_hash: str = field(default_factory=lambda: os.getenv("CONSOLE_DEFAULT_HASH", ""))
     console_support_hash: str = field(default_factory=lambda: os.getenv("CONSOLE_SUPPORT_HASH", ""))
+    # How long the fault log (support Log screen) is kept. A time limit, not a
+    # row-count cap: a count cap would discard old rows exactly while errors
+    # are flooding. ~300 bytes/row, so 180 days is ~10 MB.
+    log_retensi_hari: int = field(default_factory=lambda: int(os.getenv("LOG_RETENSI_HARI", "180")))
 
     # ── AutoERP link ─────────────────────────────────────────────
     # The console calls AutoERP; AutoERP never calls in (a factory PC has no
@@ -407,6 +411,12 @@ class Settings:
     def console_db_path(self) -> Path:
         """The console's SQLite index (§6.2) — the console never scans directories."""
         return self.state_dir / "console.db"
+
+    @property
+    def log_db_path(self) -> Path:
+        """Its own file, not a table in console.db — an error flood must not
+        slow down the queries serving the operator screen."""
+        return self.state_dir / "log_kejadian.db"
 
     @property
     def console_lines(self) -> tuple[LineEndpoint, ...]:

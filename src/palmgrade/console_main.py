@@ -18,6 +18,8 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from .core.log_sink import pasang_log_sink
+from .repositories.log_repository import LogStore
 from .routes.console import get_console_service, ingest_router
 from .routes.console import router as console_router
 from .services.akun_bawaan import seed_akun_bawaan
@@ -35,6 +37,10 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     service = get_console_service()  # ZoneInfo(FACTORY_TZ) is validated here
+    # Own SQLite file, own logging handler: a fault must survive a restart, and
+    # must not touch console.db to get there (see log_db_path).
+    log_store = LogStore(service.settings.log_db_path, retensi_hari=service.settings.log_retensi_hari)
+    pasang_log_sink(log_store)
     # Before anything else: a mill installed before it ever reached the internet has no
     # AutoERP accounts yet, and a console nobody can sign into is useless on exactly the
     # day it is needed. Existing accounts are never touched (see akun_bawaan).
