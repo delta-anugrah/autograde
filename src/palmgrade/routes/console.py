@@ -22,6 +22,7 @@ from ..repositories.console_repository import ConsoleStore
 from ..services.auth_service import AuthService
 from ..services.console_service import ConsoleService
 from ..services.erp_queue import ErpQueue
+from ..services.qr_cetak import png_qr
 from ..services.scan_service import ScanService
 
 _CONSOLE_HTML = Path(__file__).resolve().parents[1] / "static" / "console.html"
@@ -209,6 +210,32 @@ async def console_scan(
         return scan.cari(str(payload.get("qr") or ""))
     except OperatorError as exc:
         raise _operator_error(400, exc) from exc
+
+
+@router.get("/api/console/trucks/{plate_number}/qr.png", include_in_schema=False)
+async def console_truck_qr(plate_number: str, operator: Operator) -> Response:
+    """The QR card image for one plate, built here rather than in the browser.
+
+    No CDN library: `console.html` has zero `https://` references on purpose, because
+    the screen has to keep working while the internet is down — and a QR that fails to
+    load means the weighbridge gate stops.
+
+    Works for a plate that is not registered yet: the card is printed first and the
+    truck registered later, which is the normal order for a new truck. Refusing here
+    would force backoffice to register before they can print, for a code that only ever
+    contains the plate.
+    """
+    try:
+        gambar = png_qr(plate_number)
+    except OperatorError as exc:
+        raise _operator_error(400, exc) from exc
+    # Cached by the browser: the card for one plate never changes, and the print page
+    # asks for every truck at once.
+    return Response(
+        content=gambar,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @router.get("/api/console/weighings")
