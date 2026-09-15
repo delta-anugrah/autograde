@@ -104,6 +104,26 @@ class LineClient:
                 LINE_TIDAK_MENJAWAB, f"{line.line_code} tidak menjawab: {exc}", line=line.name
             ) from exc
 
+    async def health_detail(self, line: LineEndpoint) -> dict[str, Any]:
+        """Full `/health/detail` for the support diagnostics screen.
+
+        Longer timeout than `status()`: this is a support-only read, not the
+        once-a-second path, so it can afford to wait a little longer on a
+        struggling line instead of flagging it unreachable too eagerly.
+        """
+        url = f"{self._settings.console_line_host}:{line.port}/health/detail"
+        try:
+            async with httpx.AsyncClient(timeout=5.0, transport=self._transport) as client:
+                res = await client.get(
+                    url, headers={"x-internal-secret": self._settings.internal_secret}
+                )
+                res.raise_for_status()
+                return res.json()
+        except httpx.HTTPError as exc:
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} tidak menjawab: {exc}", line=line.name
+            ) from exc
+
     async def _post(self, line: LineEndpoint, path: str, body: dict[str, Any]) -> None:
         url = f"{self._settings.console_line_host}:{line.port}{path}"
         try:

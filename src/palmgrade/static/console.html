@@ -284,6 +284,21 @@
   .card h2 .ord { display:flex; align-items:center; gap:4px; }
   .card h2 button { padding:2px 9px; font-size:.85rem; line-height:1.2; color:var(--muted); }
 
+  /* Diagnostik: one .card per line, same grid rhythm as #lines above. */
+  .kartu-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+  .kartu-grid .card.tidak-terjangkau { border-color:var(--rej); }
+  .kartu-grid dl { margin:0; padding:10px 13px; display:grid; grid-template-columns:auto 1fr;
+                   gap:4px 10px; font-size:.85rem; }
+  .kartu-grid dt { color:var(--muted); }
+  .kartu-grid dd { margin:0; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* Versi: a plain definition list, key left, value right. */
+  .daftar-definisi { background:var(--card); border:1px solid var(--line-kuat);
+                      border-radius:var(--r-md); padding:14px var(--pad); margin:0 var(--pad);
+                      display:grid; grid-template-columns:auto 1fr; gap:8px 16px; max-width:480px; }
+  .daftar-definisi dt { color:var(--muted); }
+  .daftar-definisi dd { margin:0; font-weight:600; }
+
   /* Camera state in a word, not only a colour, and in the title bar where it is
      readable even when the feed itself is a black box. `.putus` lives on the
      card so one class drives both the header and the feed. */
@@ -826,6 +841,37 @@
   </div>
 </section>
 
+<section id="sec-diagnostik" class="panel" hidden data-dev="1">
+  <!--
+    Support-only: /health/detail from each line, gathered concurrently server-side.
+    An unreachable line still gets a card - that is the one worth seeing.
+  -->
+  <div id="diagnostik-kartu" class="kartu-grid"></div>
+</section>
+
+<section id="sec-antrean" class="panel" hidden data-dev="1">
+  <!--
+    Support-only: what is stuck in the ERP outbox, why, and one button to
+    move it all back to pending so the next tick tries again.
+  -->
+  <div class="tools">
+    <span id="antrean-ringkas" class="muted"></span>
+    <button type="button" id="antrean-kirim-ulang" data-t="btnKirimUlang">Kirim Ulang</button>
+  </div>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thJenis">Jenis</th><th data-t="thKunci">Kunci</th>
+        <th data-t="thPesan">Pesan</th><th class="num" data-t="thPercobaan">Percobaan</th></tr></thead>
+      <tbody id="antrean-baris"></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="sec-versi" class="panel" hidden data-dev="1">
+  <!-- Support-only. Version, machine id, licence state - never a secret. -->
+  <dl id="versi-daftar" class="daftar-definisi"></dl>
+</section>
+
 <script>
 const $ = (id) => document.getElementById(id);
 // Escapes ' and ` too: these values go into HTML attributes, and line_code can
@@ -906,6 +952,15 @@ const KAMUS = {
     konfirmasiBuka:"Buka piston {line}? Ini menggerakkan besi.",
     labelInternal:"Internal · REJ tidak dibuang",
     gagalPiston:"Perintah piston gagal",
+    thSebab:"Sebab", thKamera:"Kamera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
+    thAntreanLokal:"Antrean lokal", lineTidakTerjangkau:"Tidak terjangkau",
+    gagalDiagnostik:"Gagal memuat diagnostik",
+    thJenis:"Jenis", thKunci:"Kunci", thPercobaan:"Percobaan",
+    btnKirimUlang:"Kirim Ulang", ringkasAntrean:"{pending} menunggu · {gagal} gagal",
+    kosongAntrean:"Antrean ERP kosong", gagalAntrean:"Gagal memuat antrean",
+    labelVersi:"Versi", labelMachineId:"Machine ID", labelEnvironment:"Environment",
+    labelLisensi:"Lisensi", gagalVersi:"Gagal memuat versi",
+    lisensiAktif:"Aktif", lisensiTanpaToken:"Aktif, token belum terpasang", lisensiMati:"Mati",
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
@@ -973,6 +1028,15 @@ const KAMUS = {
     konfirmasiBuka:"Open the piston on {line}? This moves metal.",
     labelInternal:"Internal · REJ not discarded",
     gagalPiston:"Piston command failed",
+    thSebab:"Reason", thKamera:"Camera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
+    thAntreanLokal:"Local queue", lineTidakTerjangkau:"Unreachable",
+    gagalDiagnostik:"Failed to load diagnostics",
+    thJenis:"Kind", thKunci:"Key", thPercobaan:"Attempts",
+    btnKirimUlang:"Resend", ringkasAntrean:"{pending} pending · {gagal} failed",
+    kosongAntrean:"ERP queue is empty", gagalAntrean:"Failed to load the queue",
+    labelVersi:"Version", labelMachineId:"Machine ID", labelEnvironment:"Environment",
+    labelLisensi:"Licence", gagalVersi:"Failed to load version",
+    lisensiAktif:"Active", lisensiTanpaToken:"Active, no token installed", lisensiMati:"Inactive",
   },
 };
 
@@ -1136,9 +1200,8 @@ document.addEventListener("focusout", (ev) => {
 });
 
 // ── truck / weighbridge tabs ───────────────────────────────────────────
-// "log" is the first developer tab with a real panel; the rest still fall
-// back to the localStorage default below until their own tasks land.
-const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log"];
+// "plc" is still nav-only (its own task); the rest all have a real panel.
+const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "diagnostik", "antrean", "versi"];
 let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
 
 function terapkanTab() {
@@ -1146,11 +1209,27 @@ function terapkanTab() {
     const aktif = b.dataset.tab === tab;
     b.classList.toggle("aktif", aktif);
     b.setAttribute("aria-selected", String(aktif));
-    // Developer tabs have no `sec-*` panel yet (nav-only PR); skip instead of
-    // letting `$()` throw null on first load.
+    // "plc" has no `sec-*` panel yet (nav-only); skip instead of letting
+    // `$()` throw null on first load.
     const panel = $("sec-" + b.dataset.tab);
     if (panel) panel.hidden = !aktif;
   });
+}
+
+// Support-only tabs are not part of the 2 s poll (the stores run their own
+// retention/backoff on their own schedule) - loaded on demand instead, same
+// as switching into any of them. Diagnostik alone keeps refreshing while the
+// tab stays open (a line coming back or dying should show up unattended);
+// the timer is started/stopped in `bukaTabDev` below, never left running
+// behind a tab nobody is looking at.
+const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi };
+
+function bukaTabDev(namaTab) {
+  clearInterval(diagnostikTimer);
+  diagnostikTimer = null;
+  const muat = MUAT_TAB[namaTab] ? MUAT_TAB[namaTab]() : Promise.resolve();
+  if (namaTab === "diagnostik") diagnostikTimer = setInterval(muatDiagnostik, 5000);
+  return muat;
 }
 
 $("tabs").addEventListener("click", (ev) => {
@@ -1159,9 +1238,7 @@ $("tabs").addEventListener("click", (ev) => {
   tab = b.dataset.tab;
   simpan("tab", tab);
   terapkanTab();
-  // Not part of the 2 s poll (support-only, and the store runs its own hourly
-  // retention sweep) - loaded on demand instead, same as switching into it.
-  if (tab === "log") muatLog();
+  bukaTabDev(tab);
 });
 
 // ── camera layout ──────────────────────────────────────────────────────
@@ -2283,6 +2360,103 @@ $("log-next").addEventListener("click", () => {
   muatLog();
 });
 
+// ── developer: diagnostik (support only) ────────────────────────────────
+// The 5 s auto-refresh timer itself lives in `bukaTabDev` above.
+let diagnostikTimer = null;
+
+// Dynamic markup, generated fresh on every poll: static labels are resolved
+// with t() inline here, not via data-t - that attribute is only ever scanned
+// once, over the page's static HTML (see terapkanBahasa).
+function kartuDiagnostik(kode, d) {
+  if (!d.terjangkau) {
+    return `<div class="card tidak-terjangkau" data-line="${esc(kode)}">
+      <h2><span class="nama">${esc(kode)}</span></h2>
+      <dl><dt>${esc(t("thStatus"))}</dt><dd>${esc(t("lineTidakTerjangkau"))}</dd>
+        <dt>${esc(t("thSebab"))}</dt><dd title="${esc(d.sebab)}">${esc(d.sebab)}</dd></dl>
+    </div>`;
+  }
+  const w = (d.workers || []).map((x) => `${esc(x.name)}:${x.alive ? "✓" : "✗"}`).join(" ");
+  const plc = d.plc ? "✓" : KOSONG;
+  return `<div class="card" data-line="${esc(kode)}">
+    <h2><span class="nama">${esc(kode)}</span></h2>
+    <dl>
+      <dt>${esc(t("thKamera"))}</dt><dd>${d.camera_connected ? "✓" : "✗"}</dd>
+      <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : (d.gpu_available ? "✓" : "✗")}</dd>
+      <dt>${esc(t("thPlc"))}</dt><dd>${plc}</dd>
+      <dt>${esc(t("thWorkers"))}</dt><dd title="${esc(w)}">${esc(w) || KOSONG}</dd>
+      <dt>${esc(t("thAntreanLokal"))}</dt><dd>${dash(d.outbox_pending)} / ${dash(d.outbox_failed)}</dd>
+    </dl>
+  </div>`;
+}
+
+async function muatDiagnostik() {
+  try {
+    const r = await api("/api/console/dev/diagnostik");
+    $("diagnostik-kartu").innerHTML = Object.entries(r.lines)
+      .map(([kode, d]) => kartuDiagnostik(kode, d)).join("");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("diagnostik-kartu").innerHTML = `<p class="muted">${esc(t("gagalDiagnostik"))}</p>`;
+  }
+}
+
+// ── developer: antrean ERP (support only) ───────────────────────────────
+function barisAntrean(r) {
+  return `<tr>
+    <td>${esc(r.kind)}</td>
+    <td>${esc(r.key)}</td>
+    <td title="${esc(r.last_error || "")}">${esc(r.last_error || KOSONG)}</td>
+    <td class="num">${dash(r.attempts)}</td>
+  </tr>`;
+}
+
+async function muatAntrean() {
+  try {
+    const r = await api("/api/console/dev/antrean");
+    $("antrean-ringkas").textContent = t("ringkasAntrean")
+      .replace("{pending}", r.pending).replace("{gagal}", r.gagal);
+    $("antrean-baris").innerHTML = r.items.length
+      ? r.items.map(barisAntrean).join("") : barisKosong(4, "kosongAntrean");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("antrean-baris").innerHTML = barisKosong(4, "gagalAntrean");
+  }
+}
+
+$("antrean-kirim-ulang").addEventListener("click", async () => {
+  $("antrean-kirim-ulang").disabled = true;
+  try {
+    await api("/api/console/dev/antrean/kirim-ulang", { method: "POST" });
+    await muatAntrean();
+  } catch (e) {
+    // Same element the summary normally lives in - the next successful
+    // muatAntrean() overwrites it, so nothing needs clearing by hand.
+    if (e.kode !== "belum_masuk") $("antrean-ringkas").textContent = alasan(e);
+  } finally {
+    $("antrean-kirim-ulang").disabled = false;
+  }
+});
+
+// ── developer: versi & lisensi (support only) ───────────────────────────
+function barisVersi(label, nilai) {
+  return `<dt>${esc(label)}</dt><dd>${esc(nilai)}</dd>`;
+}
+
+async function muatVersi() {
+  try {
+    const r = await api("/api/console/dev/versi");
+    const lisensi = r.lisensi.aktif
+      ? (r.lisensi.token_terpasang ? t("lisensiAktif") : t("lisensiTanpaToken"))
+      : t("lisensiMati");
+    $("versi-daftar").innerHTML = [
+      barisVersi(t("labelVersi"), r.versi),
+      barisVersi(t("labelMachineId"), r.machine_id),
+      barisVersi(t("labelEnvironment"), r.environment),
+      barisVersi(t("labelLisensi"), lisensi),
+    ].join("");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("versi-daftar").innerHTML = `<dt>${esc(t("gagalVersi"))}</dt><dd></dd>`;
+  }
+}
+
 (async () => {
   terapkanBahasa();
   terapkanTab();
@@ -2305,9 +2479,9 @@ $("log-next").addEventListener("click", () => {
   setInterval(muatTimbangan, 15000);
   await muatRekap();
   setInterval(muatRekap, 15000);
-  // A remembered "log" tab from a previous support sign-in on this shared PC:
+  // A remembered developer tab from a previous support sign-in on this shared PC:
   // cekSesi() above has already run hapusTabDeveloper(), so the button (and
   // this check) only survive for an account that is still support.
-  if (tab === "log" && $('button[data-tab="log"]')) await muatLog();
+  if (MUAT_TAB[tab] && $(`button[data-tab="${tab}"]`)) await bukaTabDev(tab);
 })();
 </script>

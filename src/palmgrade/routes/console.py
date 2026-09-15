@@ -64,10 +64,19 @@ def get_scan_service() -> ScanService:
 
 @lru_cache
 def get_dev_service() -> DevService:
-    """Its own SQLite file, not `console.db`: an error flood must not slow
-    down the queries serving the operator screen."""
-    settings = Settings()
-    return DevService(LogStore(settings.log_db_path, retensi_hari=settings.log_retensi_hari))
+    """Log store is its own SQLite file, not `console.db`: an error flood must
+    not slow down the queries serving the operator screen. The line client and
+    ERP outbox are shared with the console service — one connection each, not two.
+    """
+    service = get_console_service()
+    settings = service.settings
+    return DevService(
+        LogStore(settings.log_db_path, retensi_hari=settings.log_retensi_hari),
+        line_client=service._line_client,
+        lines=service.lines,
+        erp_outbox=service.erp_queue.outbox,
+        settings=settings,
+    )
 
 
 Service = Annotated[ConsoleService, Depends(get_console_service)]
@@ -394,6 +403,26 @@ async def dev_log(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict:
     return dev.log(level=level, cari=cari, limit=limit, offset=offset)
+
+
+@router.get("/api/console/dev/diagnostik")
+async def dev_diagnostik(dev: Dev, operator: Support) -> dict:
+    return await dev.diagnostik()
+
+
+@router.get("/api/console/dev/antrean")
+async def dev_antrean(dev: Dev, operator: Support) -> dict:
+    return dev.antrean()
+
+
+@router.post("/api/console/dev/antrean/kirim-ulang")
+async def dev_kirim_ulang(dev: Dev, operator: Support) -> dict:
+    return dev.kirim_ulang()
+
+
+@router.get("/api/console/dev/versi")
+async def dev_versi(dev: Dev, operator: Support) -> dict:
+    return dev.versi()
 
 
 # ── event receiver for the three lines (frozen contract §5) ─────────────
