@@ -135,7 +135,7 @@ dan TensorRT engine `sm86`:
 |---|---|---|
 | GPU | ~82–116 inferensi/detik untuk 3 line | 28–38 fps per line |
 | Bandwidth 1 port GigE, 3 kamera | ~900 Mbps efektif | 20 fps = 602 Mbps, 24 fps = 722 Mbps (mepet) |
-| PLC / ODOT | **3,3 sinyal/detik per line** | tidak ikut naik |
+| PLC / ODOT | **2,5 sinyal/detik per line** | tidak ikut naik |
 
 Plafon PLC itu per **keputusan grading**, bukan per frame: satu pulse per tandan
 yang di-track, jadi menaikkan fps tidak menambah tekanan ke PLC

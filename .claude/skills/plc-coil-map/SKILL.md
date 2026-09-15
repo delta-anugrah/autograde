@@ -39,8 +39,9 @@ conveyor bersama, bukan per-line. Baca dari luar kontainer lewat
   OFF wajib, biar PLC lihat rising edge terpisah.
 - **ERROR = level**, ditulis cuma pas berubah. Sumbernya `health_check`, **bukan**
   drop pulse — drop itu steady state di bawah beban (kamera ~10 keputusan/detik,
-  satu coil muat ~3,3), kalau ikut ngangkat ERROR maka coil-nya nyala sepanjang
-  shift dan artinya berubah jadi "line ini normal".
+  satu coil muat ~2,5, jeda 100 ms dibulatkan ke tick 200 ms), kalau ikut
+  ngangkat ERROR maka coil-nya nyala sepanjang shift dan artinya berubah jadi
+  "line ini normal".
 - **Heartbeat = ON statis** (`PLC_ALIVE_TOGGLE_MS=0`), ditulis ulang tiap detik.
   Bukan sekali pas start: kalau coupler nge-reset output waktu link putus, coil
   harus naik lagi sendiri tanpa restart.
@@ -63,7 +64,7 @@ Semua dideklarasikan satu blok di `src/palmgrade/core/config.py`
 
 `PLC_COIL_BASE` dan `PLC_COIL_ALIVE` sengaja **nggak ada di `.env.example`** —
 itu properti fisik line, bukan setelan yang boleh beda antar PC. Tempatnya di
-`docker-compose.yml` (baris 96/98, 203/205, 310/312).
+`docker-compose.yml` (baris 97/99, 205/207, 313/315).
 
 ## Jebakan
 
@@ -83,16 +84,16 @@ itu properti fisik line, bukan setelan yang boleh beda antar PC. Tempatnya di
 
 ```bash
 docker ps --format '{{.Names}}'                    # nama asli: ripe_line_1|2|3
-docker logs --since 5m ripe_line_1 | grep -i plc   # "PLC aktif: <ip>:<port>, coil OK/NG/ERROR = ..."
+docker logs --since 5m ripe_line_1 | grep -iE "PLC (aktif|on):"   # v1.8.0 "PLC aktif: ...", staging "PLC on: ..."
 curl -s localhost:<port>/health/detail             # inputs[], dropped_pulses, dropped_submissions
 ```
 
-Baris log `PLC aktif:` nyebut coil OK/NG/ERROR dan alive yang **beneran kepakai**
-— itu cara tercepat mastiin `PLC_COIL_BASE` line-nya bener.
+Baris log `PLC aktif:` (v1.8.0) / `PLC on:` (staging) nyebut coil OK/NG/ERROR dan
+alive yang **beneran kepakai** — itu cara tercepat mastiin `PLC_COIL_BASE` line-nya bener.
 
 | Gejala | Cek dulu |
 |---|---|
-| Nggak ada sinyal sama sekali | `PLC_ENABLED`, `PLC_HOST` keisi, log `PLC aktif:` |
+| Nggak ada sinyal sama sekali | `PLC_ENABLED`, `PLC_HOST` keisi, log `PLC aktif:`/`PLC on:` |
 | Sinyal masuk ke line yang salah | `PLC_COIL_BASE` di compose (0/3/6) |
 | Alarm PC-mati nyala terus | `PLC_ALIVE_TOGGLE_MS` harus `0`; cek lisensi belum habis |
 | Coil nyangkut ON | SIGTERM di tengah pulse — `deenergise()` harusnya nutup ini, cek log shutdown |

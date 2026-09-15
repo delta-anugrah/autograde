@@ -44,6 +44,11 @@ class PlcWorker:
         self.dropped_submissions = 0
         # None = belum pernah dievaluasi, jadi evaluasi pertama selalu menulis.
         self._error_level: bool | None = None
+        # Kapan level ERROR ditegakkan ulang, terlepas dari ada perubahan atau
+        # tidak. Coupler ODOT me-reset output saat link putus (fault action), dan
+        # level yang cuma ditulis saat berubah tidak punya siapa pun yang
+        # menagihnya naik lagi sesudah tersambung.
+        self._next_error_write = 0.0
         # Diset saat shutdown. run_loop mengecek ini SEBELUM tiap tick supaya
         # de-energise di shutdown_plc_worker() tidak balapan dengan tick terakhir.
         self._stop = threading.Event()
@@ -121,12 +126,13 @@ class PlcWorker:
                 writes[coil] = self._alive_level
             self._next_alive_write = now + (toggle_ms / 1000.0 if toggle_ms else 1.0)
 
-        # d. Coil ERROR — level, bukan pulse. Dimasukkan hanya saat berubah supaya
-        #    tidak membanjiri bus dengan nilai yang sama tiap tick.
+        # d. Coil ERROR — level, bukan pulse. Ditulis saat berubah, DAN ditegakkan
+        #    ulang tiap detik supaya selamat dari reset output milik coupler.
         desired = self._is_unhealthy()
-        if desired != self._error_level:
+        if desired != self._error_level or now >= self._next_error_write:
             writes[self.settings.plc_coil_error] = desired
             self._error_level = desired
+            self._next_error_write = now + 1.0
 
         # 3. Satu-satunya titik tulis coil dalam satu tick.
         for coil, level in writes.items():
@@ -145,7 +151,7 @@ class PlcWorker:
     def _is_unhealthy(self) -> bool:
         # Overflow SENGAJA tidak ikut menentukan ini. Drop adalah steady state yang
         # dideklarasikan di bawah beban (docs/plc-integration.md): kamera bisa ~10
-        # keputusan/detik, satu coil muat ~3,3. Kalau drop menaikkan ERROR, coil
+        # keputusan/detik, satu coil muat ~2,5. Kalau drop menaikkan ERROR, coil
         # CAM_N_ERROR menyala sepanjang shift dan artinya berubah jadi "line ini
         # jalan normal". Kedua counter drop tetap dihitung dan tetap di-log — itu
         # diagnostik (dibaca lewat /health/detail), bukan sinyal ke PLC.
@@ -175,8 +181,8 @@ class PlcWorker:
         Sengaja tidak lewat `_write_coil`: bookkeeping `_error_level`/`_failed_writes`
         tidak relevan lagi karena tidak akan ada tick berikutnya yang menagih retry.
         Best-effort — gagal dicatat, tidak di-retry, tidak di-raise. SIGTERM di
-        tengah pulse (200ms ON dalam siklus 300ms) kalau tidak begini meninggalkan
-        coil OK atau NG nyangkut ON sampai watchdog ODOT menyerah.
+        tengah pulse (200ms ON dalam siklus ≈410 ms, 2 tick) kalau tidak begini
+        meninggalkan coil OK atau NG nyangkut ON sampai watchdog ODOT menyerah.
         """
         coils = [
             self.settings.plc_coil_ok,

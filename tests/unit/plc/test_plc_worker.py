@@ -306,7 +306,7 @@ def test_alive_coil_success_clears_stale_failed_retry():
 def test_sustained_overflow_never_raises_error_coil():
     # Overflow adalah steady state yang DIDEKLARASIKAN di bawah beban
     # (docs/plc-integration.md): kamera bisa ~10 keputusan/detik, satu coil muat
-    # ~3,3. Kalau drop menaikkan ERROR, CAM_N_ERROR menyala sepanjang shift dan
+    # ~2,5. Kalau drop menaikkan ERROR, CAM_N_ERROR menyala sepanjang shift dan
     # artinya berubah jadi "line ini jalan normal" — entah menghentikan produksi
     # atau cuma jadi hiasan. ERROR = health check gagal (kamera mati), titik.
     w, client = _worker(health_check=lambda: True)
@@ -317,7 +317,7 @@ def test_sustained_overflow_never_raises_error_coil():
         w.run_once(now=tick * 0.2)
 
     assert w.scheduler.dropped > 0          # benar-benar overflow, terus-menerus
-    assert [v for (addr, v) in client.writes if addr == 5] == [False]
+    assert True not in [v for (addr, v) in client.writes if addr == 5]
 
 
 def test_error_coil_raised_when_health_check_says_unhealthy():
@@ -332,6 +332,23 @@ def test_error_coil_written_once_not_every_tick():
     w.run_once(now=0.2)
     w.run_once(now=0.4)
     assert [v for (addr, v) in client.writes if addr == 5] == [False]
+
+
+def test_error_coil_is_rewritten_after_the_coupler_resets_outputs():
+    # Fault action ODOT me-nol-kan output saat link putus. Level yang cuma ditulis
+    # SAAT BERUBAH tidak akan pernah naik lagi sesudahnya: PLC melihat line sehat
+    # padahal kameranya masih terputus. Karena itu ERROR ditulis ulang tiap detik,
+    # sama seperti bit alive.
+    w, client = _worker(health_check=lambda: False)
+    w.run_once(now=0.0)
+    assert (5, True) in client.writes
+
+    client.writes.clear()
+    w.run_once(now=0.2)
+    assert client.writes == []          # di bawah satu detik: tetap diam
+
+    w.run_once(now=1.0)
+    assert (5, True) in client.writes   # satu detik lewat: level ditegakkan lagi
 
 
 class _DeadClient:
