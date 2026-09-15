@@ -341,11 +341,17 @@ def test_polling_dua_detik_tidak_menarik_halaman_yang_sedang_dibaca():
     assert "gradingOffset" in fn
 
 
-def test_pindah_halaman_tidak_pernah_offset_negatif():
-    """Tombol Sebelumnya di halaman pertama tidak boleh mengirim offset negatif: server
-    menolaknya 422 dan layar cuma menampilkan error tanpa sebab yang kelihatan."""
-    fn = _fungsi("gantiHalaman")
-    assert "Math.max(0" in fn
+def test_pindah_halaman_tidak_pernah_keluar_rentang():
+    """Offset negatif maupun offset melewati akhir daftar dibalas 422 oleh server, dan
+    layar cuma menampilkan error tanpa sebab yang kelihatan.
+
+    Dijepitnya di `keHalaman`, satu tempat: tombol nomor dan tombol
+    Sebelumnya/Berikutnya dua-duanya lewat sana, jadi tidak ada jalur yang bisa lolos
+    tanpa penjepitan.
+    """
+    assert "keHalaman(" in _fungsi("gantiHalaman"), "harus lewat keHalaman, bukan hitung sendiri"
+    penjepit = _fungsi("keHalaman")
+    assert "Math.max(1" in penjepit and "Math.min(" in penjepit
 
 
 def test_label_pagination_diterjemahkan_di_kedua_bahasa():
@@ -378,3 +384,44 @@ def test_tombol_lihat_sandi_tidak_memakai_data_t():
     akan menimpanya tiap ganti bahasa dan mengunci tulisannya di satu keadaan."""
     blok = HTML.split('id="gerbang-lihat"', 1)[1].split(">", 1)[0]
     assert "data-t=" not in blok
+
+
+# ── nomor baris & lompat halaman ─────────────────────────────────────────────
+
+
+def test_nomor_baris_ikut_halaman_bukan_selalu_mulai_dari_satu():
+    """Ketemu di PC Lampung 2026-09-15 dengan 130.506 baris: nomor di kolom "No"
+    selalu 1-200 di setiap halaman, jadi dua baris berbeda punya nomor sama dan
+    operator tidak bisa menyebut "baris nomor 412" ke siapa pun.
+
+    Nomornya harus offset halaman + posisi, bukan posisi saja.
+    """
+    fn = _fungsi("barisRecent")
+    assert "gradingOffset" in fn, "nomor baris tidak memakai offset halaman"
+
+
+def test_lompat_halaman_ada_supaya_tidak_klik_berkali_kali():
+    """130.506 baris pada 200 per halaman = 653 halaman. Tanpa lompat, halaman 300
+    berarti 299 kali klik Berikutnya."""
+    blok = HTML.split('<section id="sec-grading"', 1)[1].split("</section>", 1)[0]
+    assert 'id="grading-nomor"' in blok, "belum ada tombol nomor halaman"
+
+
+def test_nomor_halaman_dibatasi_jumlahnya():
+    """653 tombol halaman akan memenuhi layar. Yang ditampilkan jendela di sekitar
+    halaman sekarang, plus yang pertama dan terakhir supaya dua ujung selalu terjangkau."""
+    fn = _fungsi("tombolNomorHalaman")
+    assert "JENDELA_HALAMAN" in fn or "jendela" in fn.lower()
+
+
+def test_lompat_halaman_menolak_di_luar_rentang():
+    """Halaman 0 atau halaman 700 dari 653 mengirim offset yang dibalas 422, dan
+    layar cuma menampilkan error tanpa sebab yang kelihatan."""
+    fn = _fungsi("keHalaman")
+    assert "Math.max" in fn and "Math.min" in fn
+
+
+def test_input_lompat_halaman_diterjemahkan():
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        assert "keHalaman:" in isi, f"KAMUS.{bahasa} belum punya keHalaman"

@@ -161,6 +161,15 @@
   .halaman-tombol { margin-left:auto; display:flex; gap:8px; }
   .halaman-tombol button { min-height:2.8rem; }
   .halaman-tombol button:disabled { opacity:.45; cursor:default; }
+  /* Nomor halaman. Lebar minimum dijaga supaya "7" dan "653" sama besar dan deretannya
+     tidak bergeser saat halaman berganti - target yang bergerak sulit ditekan. */
+  .halaman-nomor { display:flex; align-items:center; gap:4px; }
+  .halaman-nomor .halaman-no { min-width:2.8rem; padding:0 8px; font-variant-numeric:tabular-nums; }
+  /* Halaman sekarang: disabled, jadi opacity bawaan akan membuatnya paling pudar
+     justru saat dia yang harus paling jelas. */
+  .halaman-nomor .halaman-no[aria-current="true"] { opacity:1; background:var(--acc);
+     color:var(--on-acc); border-color:var(--acc); }
+  .halaman-celah { padding:0 2px; color:var(--muted); }
   #gerbang-masuk { min-height:3.6rem; font-size:1.1rem; border-radius:var(--r-md); }
   #gerbang-pesan { min-height:1.5rem; margin:0; font-weight:700; color:var(--danger-fg); }
   #operator-aktif { align-self:center; font-weight:700; }
@@ -571,6 +580,11 @@
     <span id="grading-rentang" class="muted"></span>
     <span class="halaman-tombol">
       <button type="button" id="grading-prev" data-t="halamanSebelum" disabled>Sebelumnya</button>
+      <!--
+        Nomor halaman, dirakit di JS. 130.506 baris pada 200 per halaman = 653
+        halaman: tanpa ini, halaman 300 berarti 299 kali klik Berikutnya.
+      -->
+      <span id="grading-nomor" class="halaman-nomor"></span>
       <button type="button" id="grading-next" data-t="halamanBerikut" disabled>Berikutnya</button>
     </span>
   </div>
@@ -698,6 +712,7 @@ const KAMUS = {
     // aria-label, so a screen reader still hears which password is meant.
     lihatSingkat:"Lihat", sembunyikanSingkat:"Tutup",
     perHalaman:"Baris per halaman", halamanSebelum:"Sebelumnya", halamanBerikut:"Berikutnya",
+    keHalaman:"Ke halaman",
     rentangBaris:"{dari}-{sampai} dari {total}",
     gerbangKosong:"Belum ada operator. Buat dulu di PC ini: make operator",
     btnPistonBuka:"Buka piston", btnPistonTutup:"Tutup piston",
@@ -750,6 +765,7 @@ const KAMUS = {
     lihatSandi:"Show password", sembunyikanSandi:"Hide password",
     lihatSingkat:"Show", sembunyikanSingkat:"Hide",
     perHalaman:"Rows per page", halamanSebelum:"Previous", halamanBerikut:"Next",
+    keHalaman:"Go to page",
     rentangBaris:"{dari}-{sampai} of {total}",
     gerbangKosong:"No operators yet. Create one on this PC: make operator",
     btnPistonBuka:"Open piston", btnPistonTutup:"Close piston",
@@ -994,17 +1010,66 @@ function segarkanHalaman() {
     .replace("{dari}", dari).replace("{sampai}", sampai).replace("{total}", gradingTotal);
   $("grading-prev").disabled = gradingOffset <= 0;
   $("grading-next").disabled = gradingOffset + per >= gradingTotal;
+  $("grading-nomor").innerHTML = tombolNomorHalaman();
+}
+
+// Berapa nomor halaman yang ditampilkan di kiri dan kanan halaman sekarang. 653
+// halaman tidak bisa dicetak semua - layar operator dibaca dari beberapa meter, dan
+// deretan tombol sekecil itu tidak bisa ditekan dengan sarung tangan.
+const JENDELA_HALAMAN = 2;
+
+function tombolNomorHalaman() {
+  const per = Number(gradingPer);
+  const jumlah = Math.max(1, Math.ceil(gradingTotal / per));
+  if (jumlah <= 1) return "";
+  const kini = Math.floor(gradingOffset / per) + 1;
+
+  // Halaman pertama dan terakhir selalu ikut: dua ujung daftar harus terjangkau
+  // dalam satu ketukan, dari halaman mana pun.
+  const nomor = new Set([1, jumlah]);
+  for (let n = kini - JENDELA_HALAMAN; n <= kini + JENDELA_HALAMAN; n++) {
+    if (n >= 1 && n <= jumlah) nomor.add(n);
+  }
+
+  const urut = [...nomor].sort((a, b) => a - b);
+  let html = "";
+  urut.forEach((n, i) => {
+    // Celah ditandai, bukan disembunyikan: tanpa tanda, 1 lalu 298 terbaca seperti
+    // halaman yang hilang.
+    if (i > 0 && n - urut[i - 1] > 1) html += `<span class="halaman-celah">…</span>`;
+    // aria-label: angka telanjang tidak mengatakan apa-apa ke pembaca layar.
+    html += `<button type="button" class="halaman-no" data-halaman="${n}"
+             aria-label="${esc(t("keHalaman"))} ${n}"
+             aria-current="${n === kini}"${n === kini ? " disabled" : ""}>${n}</button>`;
+  });
+  return html;
 }
 
 function gantiHalaman(arah) {
   const per = Number(gradingPer);
-  // Clamped at zero: the server answers 422 to a negative offset, and the screen would
-  // show an error with no visible cause.
-  const baru = Math.max(0, gradingOffset + arah * per);
+  keHalaman(Math.floor(gradingOffset / per) + 1 + arah);
+}
+
+// Lompat ke satu halaman. Dipakai tombol nomor DAN Sebelumnya/Berikutnya, jadi
+// penjepitan rentangnya cuma ada di satu tempat.
+function keHalaman(nomor) {
+  const per = Number(gradingPer);
+  const jumlah = Math.max(1, Math.ceil(gradingTotal / per));
+  // Dijepit dua sisi: offset negatif maupun offset di luar akhir daftar dibalas 422
+  // oleh server, dan layar cuma menampilkan error tanpa sebab yang kelihatan.
+  const aman = Math.max(1, Math.min(nomor, jumlah));
+  const baru = (aman - 1) * per;
   if (baru === gradingOffset) return;
   gradingOffset = baru;
   muatGrading();
 }
+
+// Delegasi: tombol nomornya dirakit ulang setiap halaman berubah, jadi listener per
+// tombol akan hilang bersamanya.
+$("grading-nomor").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-halaman]");
+  if (tombol) keHalaman(Number(tombol.dataset.halaman));
+});
 
 $("grading-per").addEventListener("pilih", () => {
   gradingPer = $("grading-per").dataset.nilai;
@@ -1233,8 +1298,12 @@ function barisTimbangan(w) {
 // table head and this cell together:
 //   <td class="num">${r.ripeness_confidence == null ? KOSONG : Number(r.ripeness_confidence).toFixed(2)}</td>
 function barisRecent(r, i) {
+  // Offset halaman + posisi, bukan posisi saja. Ditemukan di PC pabrik dengan
+  // 130.506 baris: tanpa offset setiap halaman menomori 1..200 lagi, jadi dua baris
+  // berbeda punya nomor sama dan operator tidak bisa menyebut "baris nomor 412"
+  // kepada siapa pun.
   return `<tr>
-    <td class="no">${i + 1}</td>
+    <td class="no">${gradingOffset + i + 1}</td>
     <td>${waktu(r.timestamp)}</td>
     <td>${esc(r.line_code)}</td>
     <td class="key">${dash(r.plate_number)}</td>
