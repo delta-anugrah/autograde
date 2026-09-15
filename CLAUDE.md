@@ -111,6 +111,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | `make kiosk` | konsol layar penuh di PC ini (`scripts/console-kiosk.sh`) |
 | `make operator` | akun **lokal** untuk login konsol: tambah / reset sandi (email + sandi). `AKSI=daftar\|matikan`. Akun milik AutoERP diurus di AutoERP. Di PC pabrik pakai `make operator-docker` (konsolnya di Docker, DB-nya beda berkas) |
 | `make hash-sandi` | hash untuk dua akun bawaan image (`CONSOLE_DEFAULT_HASH`/`CONSOLE_SUPPORT_HASH`). Dipakai saat pasang PC pabrik — sandi mentah tidak pernah ditanam |
+| `make rekonsiliasi-truk` | **OPS-2**, sekali saat pasang di PC yang **sudah** punya data palmgrade-api: satukan truk kembar. Tanpa `TULIS=1` cuma melihat. `--db <path>` untuk mencoba di salinan. Di Docker: `make rekonsiliasi-truk-docker`. PC baru (DB kosong) tidak perlu |
 | `make build-engine` | build TensorRT FP16 engine **once per GPU** (one-shot, auto-skip kalau sudah ada) |
 | `make logs` / `make logs-1` | tail logs (combined / per line) |
 | `make down` / `make ps` / `make rebuild` / `make rebuild-clean` / `make clean` | stop / status / rebuild / clean rebuild (`--no-cache`) / cleanup |
@@ -366,6 +367,18 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     mengetik ulang platnya mengembalikan baris apa adanya. Sebelum ini ketik ulang menghapus
     suppliernya dan diam-diam mengubah label Sumber jadi Internal — termasuk di baris grading
     yang sudah lewat, karena label dibaca dari truk, bukan disalin ke barisnya.
+    ⚠️ **Yang di atas cuma berlaku untuk truk yang id-nya sudah turunan plat.** PC pabrik yang
+    sudah jalan menyimpan truk ber-id **acak** dari palmgrade-api (`gen_random_uuid()`), dan
+    `plate_number` **tidak punya indeks unik** — jadi di PC itu tarikan pertama tetap membuat
+    baris kedua. Itu yang dibereskan **OPS-2** (`make rekonsiliasi-truk`,
+    `services/rekonsiliasi.py`), dijalankan **sekali saat pasang**, sebelum `ERP_URL` diisi.
+    Id acak lama tidak bisa dihitung ulang dari apa pun, jadi jembatannya cuma plat
+    ternormalisasi. `pindahkan_truk` memindahkan **tiga** tabel (`inspections`, `assignments`,
+    `weighings`) dalam **satu transaksi**: separuh pindah lebih buruk daripada tidak pindah,
+    karena baris yang menggantung ke id terhapus hilang dari rekap — dan rekap itu yang
+    dibayar. Baris berplat kosong **dilewati dan dicetak**, bukan bikin seluruh rekonsiliasi
+    gagal. `trucks_semua()` dipakai, bukan `trucks()`: yang terakhir menyembunyikan baris
+    `inactive`, dan baris inactive ber-id lama tetap akan kembar begitu platnya ditarik.
 19. **Login konsol: email + sandi, dua sumber akun, diverifikasi offline** (Fase 4, §6.5).
     Akun datang dari dua tempat dan barisnya menyimpan yang mana (`operators.asal`):
     `erp` ditarik dari DocType **`AutoGrade Operator`** (dibuat 2026-09-15, §4.A —
