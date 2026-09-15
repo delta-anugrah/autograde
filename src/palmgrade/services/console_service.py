@@ -344,6 +344,14 @@ class ConsoleService:
 
     # ------------------------------------------------------- line commands
 
+    def _ffb_source(self, truck_id: str) -> str | None:
+        """Label AutoERP untuk truk ini, atau None kalau belum bisa ditentukan."""
+        truk = self.store.truck(truck_id) or {}
+        return ffb_source_label(
+            has_supplier=bool(truk.get("supplier_id")),
+            in_erp=bool(truk.get("erp_name")),
+        )
+
     async def assign_truck(self, line_code: str, truck_id: str) -> dict[str, Any]:
         line = self._require_line(line_code)
         assignment_id = str(uuid.uuid4())
@@ -356,6 +364,7 @@ class ConsoleService:
             assignment_id=assignment_id,
             truck_id=truck_id,
             assigned_at=datetime.now(self.tz).isoformat(),
+            ffb_source=self._ffb_source(truck_id),
         )
         # Stored, not kept in memory (§6.4): the truck being unloaded must stay
         # on its line after a console restart mid-shift.
@@ -374,7 +383,11 @@ class ConsoleService:
         line = self._require_line(line_code)
         closing = self.store.assignments().get(line_code) or {}
         await self._line_client.assign_truck(
-            line, assignment_id="", truck_id="", assigned_at=datetime.now(self.tz).isoformat()
+            line,
+            assignment_id="",
+            truck_id="",
+            assigned_at=datetime.now(self.tz).isoformat(),
+            ffb_source=None,
         )
         self.store.set_assignment(line_code, "", None)
         self._queue_grading(closing)

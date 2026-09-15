@@ -27,7 +27,7 @@ class FakeLine:
         self.kiriman: list[tuple[str, str, str]] = []
         self.mati = mati
 
-    async def assign_truck(self, line, *, assignment_id, truck_id, assigned_at) -> None:
+    async def assign_truck(self, line, *, assignment_id, truck_id, assigned_at, ffb_source=None) -> None:
         if self.mati:
             raise LineUnavailable(LINE_TIDAK_MENJAWAB, "line tidak menjawab")
         self.kiriman.append((line.line_code, assignment_id, truck_id))

@@ -38,7 +38,13 @@ class LineClient:
         self._transport = transport  # tests swap the network, like ErpClient
 
     async def assign_truck(
-        self, line: LineEndpoint, *, assignment_id: str, truck_id: str, assigned_at: str
+        self,
+        line: LineEndpoint,
+        *,
+        assignment_id: str,
+        truck_id: str,
+        assigned_at: str,
+        ffb_source: str | None = None,
     ) -> None:
         await self._post(
             line,
@@ -48,6 +54,9 @@ class LineClient:
                 "assignment_id": assignment_id,
                 "truck_id": truck_id,
                 "assigned_at": assigned_at,
+                # Line lama mengabaikan field asing (pydantic extra=ignore), jadi
+                # aman dikirim ke image yang belum mengenalnya.
+                "ffb_source": ffb_source,
             },
         )
 
