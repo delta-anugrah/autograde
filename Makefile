@@ -108,6 +108,11 @@ operator:
 operator-docker:
 	docker compose --env-file $(ENV_FILE) exec console python scripts/console-operator.py $(AKSI)
 
+# Hash untuk dua akun bawaan konsol. Dipakai waktu pasang PC pabrik: sandinya beda
+# per PKS, dan yang masuk ke image atau .env cuma hash-nya, bukan sandi mentah.
+hash-sandi:
+	PYTHONPATH=src .venv/bin/python scripts/hash-sandi.py
+
 down:
 	docker compose --env-file $(ENV_FILE) down
 

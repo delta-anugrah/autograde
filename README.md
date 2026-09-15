@@ -386,6 +386,14 @@ operator disimpan di `localStorage`.
   data) dan **lokal** di PC ini (akun bawaan + akun support, supaya pabrik yang belum pernah
   dapat internet tetap bisa dibuka). Keduanya **diverifikasi di pabrik**, jadi login tetap jalan
   saat internet mati — yang ditarik hash-nya, bukan sandinya. Sandi minimal 8 karakter.
+
+  **Dua akun bawaan di tiap image**: `operator@autograde.local` (dipegang pabrik) dan
+  `support@autograde.local` (jalur masuk kita lewat AnyDesk). Email-nya sama di semua PKS
+  supaya support tidak perlu nanya dulu; **sandinya beda tiap PKS**, dibuat waktu pasang PC
+  dengan `make hash-sandi` lalu diisi ke `CONSOLE_DEFAULT_HASH` / `CONSOLE_SUPPORT_HASH` —
+  yang tertanam **hash**-nya, sandi mentah tidak pernah masuk image atau `.env`. Akun cuma
+  dibuat kalau email-nya belum ada, jadi **sandi yang sudah diganti pabrik tidak ketimpa
+  restart**, dan akun yang sudah dimatikan tidak dihidupkan lagi.
   Akun lokal dibuat dari PC ini: `make operator`, atau `make operator-docker` kalau konsolnya di
   Docker. `AKSI=daftar` melihat daftar beserta asal tiap akun, `AKSI=matikan` mematikan satu
   akun — sesinya langsung berakhir. Reset sandi lokal = `make operator` lagi dengan email yang
@@ -749,6 +757,8 @@ pytest tests/unit/
 | `FACTORY_TZ` | `Asia/Jakarta` | Zona batas **hari kerja** — pabrik jalan ~20 jam lewat tengah malam, jadi tanggal tidak boleh diturunkan dari UTC |
 | `CONSOLE_SYNC_INTERVAL_S` | `300` | Interval `MasterDataWorker` menarik supplier + truk dari AutoERP |
 | `CONSOLE_LINE_HOST` | `http://localhost` | Host tiga line dilihat dari konsol (assign/release/manual-reject) |
+| `CONSOLE_DEFAULT_HASH` | — | **Hash** sandi akun `operator@autograde.local`. Bikin dengan `make hash-sandi`; sandi mentah jangan pernah ditaruh di sini. ⚠️ Di compose tulis `$$` untuk satu `$` |
+| `CONSOLE_SUPPORT_HASH` | — | Sama, untuk akun `support@autograde.local` (jalur masuk kita). Sandinya beda dari akun bawaan, dan beda tiap PKS |
 | `ERP_URL` | — | AutoERP base URL. **Kosong = jalur ERP mati**, dan itu default: layar operator tidak boleh bergantung pada ERP hidup |
 | `ERP_API_KEY` / `ERP_API_SECRET` | — | `Authorization: token <key>:<secret>` dari `erpnext.palm_mill.setup.create_integration_user` |
 | `ERP_COMPANY` | — | Company AutoERP yang dibukukan pabrik ini. Kosong = AutoERP pakai company bawaannya (benar untuk situs satu perusahaan) |

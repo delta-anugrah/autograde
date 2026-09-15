@@ -110,6 +110,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | `make console` | konsol **native tanpa Docker** di `127.0.0.1:8100` — jalur develop di Mac (baca `.env`, `WEBHOOK_SECRET=devsecret`); target Docker tetap jalur Linux/pabrik |
 | `make kiosk` | konsol layar penuh di PC ini (`scripts/console-kiosk.sh`) |
 | `make operator` | akun **lokal** untuk login konsol: tambah / reset sandi (email + sandi). `AKSI=daftar\|matikan`. Akun milik AutoERP diurus di AutoERP. Di PC pabrik pakai `make operator-docker` (konsolnya di Docker, DB-nya beda berkas) |
+| `make hash-sandi` | hash untuk dua akun bawaan image (`CONSOLE_DEFAULT_HASH`/`CONSOLE_SUPPORT_HASH`). Dipakai saat pasang PC pabrik — sandi mentah tidak pernah ditanam |
 | `make build-engine` | build TensorRT FP16 engine **once per GPU** (one-shot, auto-skip kalau sudah ada) |
 | `make logs` / `make logs-1` | tail logs (combined / per line) |
 | `make down` / `make ps` / `make rebuild` / `make rebuild-clean` / `make clean` | stop / status / rebuild / clean rebuild (`--no-cache`) / cleanup |
@@ -391,6 +392,19 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     Sandi minimal 8 karakter, tanpa aturan jenis karakter (aturan yang memaksa simbol di
     layar sentuh luar ruangan berakhir jadi tulisan di monitor). **Tidak ada lane web untuk
     membuat akun**: `make operator` di PC itu sendiri, dan itu cuma mengurus akun `lokal`.
+    **Dua akun bawaan di tiap image** (`services/akun_bawaan.py`, dipanggil di lifespan
+    konsol): `operator@autograde.local` + `support@autograde.local`. Alasannya PC yang baru
+    dipasang belum pernah dapat internet, jadi akun AutoERP belum turun — tanpa ini
+    konsolnya layar terkunci di hari dia paling dibutuhkan. Email dipatok supaya support
+    tidak perlu menebak; **sandi beda per PKS** (keputusan operator 2026-09-15), dibuat
+    `make hash-sandi` saat pasang PC. Yang ditanam **hash** lewat build arg
+    `CONSOLE_DEFAULT_HASH`/`CONSOLE_SUPPORT_HASH`, **jangan pernah sandi mentah**: PC pabrik
+    bisa diakses AnyDesk dan layer image terbaca siapa pun yang pegang image. Hash yang
+    tidak berawalan `$pbkdf2-sha256$`/`scrypt$` **ditolak dan di-`logger.error`** — itu yang
+    menangkap `$` dimakan compose (`$$` untuk satu `$`) dan sandi mentah yang keliru
+    dimasukkan. Seed **cuma bikin kalau email belum ada**: restart tidak boleh memulihkan
+    sandi pabrikan di akun yang sandinya sudah diganti, dan tidak boleh menghidupkan akun
+    yang sudah sengaja dimatikan.
 
 ---
 

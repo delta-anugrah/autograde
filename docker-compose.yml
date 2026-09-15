@@ -370,6 +370,13 @@ services:
       - FACTORY_TZ=${FACTORY_TZ:-Asia/Jakarta}
       - CONSOLE_SYNC_INTERVAL_S=${CONSOLE_SYNC_INTERVAL_S:-300}
       - CONSOLE_LINE_HOST=${CONSOLE_LINE_HOST:-http://localhost}
+      # Dua akun bawaan (operator@autograde.local + support@autograde.local). Isinya
+      # HASH, bukan sandi — bikin dengan `make hash-sandi`. Default-nya nilai yang
+      # ditanam di image; `.env` menimpanya kalau PKS ini pakai sandi lain.
+      # ⚠️ Compose memakan `$`: tulis `$$` untuk satu `$`, kalau tidak hash-nya
+      # terpotong dan akunnya ditolak (sengaja, dengan pesan error).
+      - CONSOLE_DEFAULT_HASH=${CONSOLE_DEFAULT_HASH:-}
+      - CONSOLE_SUPPORT_HASH=${CONSOLE_SUPPORT_HASH:-}
       # AutoERP link. Empty ERP_URL switches it off (the default); the operator
       # screen never depends on AutoERP being up.
       - ERP_URL=${ERP_URL:-}
