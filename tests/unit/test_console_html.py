@@ -258,6 +258,27 @@ def test_dropdown_tata_letak_memakai_varian_kanan():
     assert "pilih-panel--kanan" in blok
 
 
+def test_ada_varian_panel_ke_atas():
+    """Panel yang duduk di kaki tabel panjang tumbuh ke bawah, keluar dari ujung
+    halaman, dan operator harus menggulir dulu untuk menjangkau pilihannya.
+
+    Sama seperti `--kanan`, ini tidak bisa dipukul rata ke semua `.pilih` (yang di
+    atas justru jadi salah arah), jadi dipakai penanda posisi eksplisit.
+    """
+    assert ".pilih-panel--atas" in HTML, "belum ada varian panel yang membuka ke atas"
+    aturan = next(
+        baris for baris in HTML.splitlines() if ".pilih-panel--atas" in baris and "bottom" in baris
+    )
+    assert "top:auto" in aturan.replace(" ", ""), "top bawaan harus dibatalkan"
+    assert "bottom:calc(100%+4px)" in aturan.replace(" ", "")
+
+
+def test_dropdown_baris_per_halaman_memakai_varian_atas():
+    """`.pilih` ini duduk paling bawah di tab Grading, di bawah tabelnya."""
+    blok = HTML.split('<div class="halaman">', 1)[1].split("</div>\n</section>", 1)[0]
+    assert "pilih-panel--atas" in blok
+
+
 # ── tombol lihat sandi ─────────────────────────────────────────────────────────
 
 

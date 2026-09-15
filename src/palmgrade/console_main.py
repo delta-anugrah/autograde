@@ -6,6 +6,7 @@ Deliberately a SEPARATE module from `main.py`: that one pulls
 is what keeps the operator screen alive - and booting in seconds - when a
 camera line is down (plan §4).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -42,6 +43,21 @@ async def lifespan(app: FastAPI):
         hash_bawaan=service.settings.console_default_hash,
         hash_support=service.settings.console_support_hash,
     )
+    # An empty hash is skipped in silence on purpose (a mill whose accounts all come
+    # from AutoERP seeds nothing). But with ERP_URL empty too there is no account
+    # source at all, and the first sign of it is an operator who cannot sign in on
+    # install day. Said once, at the only moment anybody is watching the log.
+    if not (
+        service.settings.console_default_hash
+        or service.settings.console_support_hash
+        or service.settings.erp_url
+        or service.store.operators()
+    ):
+        logger.warning(
+            "Tidak ada sumber akun: CONSOLE_DEFAULT_HASH/CONSOLE_SUPPORT_HASH kosong dan "
+            "ERP_URL kosong, jadi tidak ada yang bisa masuk konsol. Isi hash di .env "
+            "(buat dengan `make hash-sandi`, tulis $$ untuk satu $), atau set ERP_URL."
+        )
     # The AutoERP link is optional by design: with ERP_URL empty there are no
     # workers at all, and any of them may die without taking the screen down.
     workers = build_erp_workers(service.settings, service.store, service.erp_queue)
