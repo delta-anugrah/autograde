@@ -156,3 +156,33 @@ def test_hasil_scan_membawa_id_yang_sama_dengan_jalur_timbangan(store, scan):
     tid = _truk(store, "BE 4412 OFL")
 
     assert scan.cari("BE4412OFL")["truck"]["id"] == tid == truck_id_for("BE 4412 OFL")
+
+
+# ── dua bug yang ketemu di browser, bukan di test ────────────────────────────
+
+
+def test_bukan_plat_punya_kode_sendiri_bukan_dipakai_bersama_plat_kosong():
+    """Ketemu di browser: QR berisi URL menampilkan "Nomor polisi tidak boleh kosong",
+    padahal isinya justru tidak kosong. Layar menerjemahkan per KODE, jadi dua sebab
+    berbeda yang memakai satu kode akan selalu memberi pesan yang salah untuk salah
+    satunya — dan operator gerbang yang membacanya.
+    """
+    from palmgrade.domain.operator_error import BUKAN_PLAT, PLAT_KOSONG
+
+    assert BUKAN_PLAT != PLAT_KOSONG
+
+    with pytest.raises(OperatorError) as kosong:
+        baca_qr("   ")
+    assert kosong.value.code == PLAT_KOSONG
+
+    with pytest.raises(OperatorError) as bukan:
+        baca_qr("https://contoh.id/promo")
+    assert bukan.value.code == BUKAN_PLAT
+
+
+def test_kode_bukan_plat_terdaftar_supaya_wajib_diterjemahkan():
+    """`CODES` itu yang dipakai penjaga terjemahan. Kode yang tidak terdaftar akan
+    lolos ke layar sebagai teks server mentah dalam satu bahasa saja."""
+    from palmgrade.domain.operator_error import BUKAN_PLAT, CODES
+
+    assert BUKAN_PLAT in CODES

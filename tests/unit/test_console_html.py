@@ -504,3 +504,87 @@ def test_label_cetak_qr_diterjemahkan():
         isi = _kamus(bahasa)
         for kunci in ("btnCetakQr", "qrJudul"):
             assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+
+
+# ── kolom scan di timbang masuk ─────────────────────────────────────────────
+
+
+def test_tab_timbangan_punya_kolom_scan():
+    blok = HTML.split('<section id="sec-timbangan"', 1)[1].split("</section>", 1)[0]
+    assert 'id="scan-plat"' in blok
+
+
+def test_dropdown_plat_tetap_ada_sebagai_cadangan():
+    """Scanner rusak, layar HP retak, QR belum dicetak — tiga kejadian nyata di gerbang.
+    Scan melengkapi cara lama, tidak menggantikannya."""
+    blok = HTML.split('<section id="sec-timbangan"', 1)[1].split("</section>", 1)[0]
+    assert 'id="plat-timbang"' in blok
+
+
+def test_scan_dikirim_saat_enter_bukan_butuh_tombol():
+    """Scanner barcode itu papan ketik: dia mengetik isi QR lalu menekan Enter sendiri.
+    Kalau butuh klik tombol, operator harus menyentuh layar tiap truk dan gunanya
+    scan hilang."""
+    # Enter ditangani di listener keydown pada kolom scan itu sendiri.
+    blok = HTML.split('$("scan-plat").addEventListener("keydown"', 1)
+    assert len(blok) == 2, "kolom scan tidak menangani Enter"
+    assert '"Enter"' in blok[1][:200], "keydown-nya tidak memeriksa Enter"
+    assert "kirimScan()" in blok[1][:400], "Enter tidak mengirim scan"
+
+
+def test_scan_memanggil_lane_scan_bukan_menebak_sendiri():
+    """Normalisasi plat dan penolakan QR sampah hidup di server (`domain/qr.py`).
+    Layar yang menebak sendiri akan punya aturan kedua yang bisa berbeda."""
+    assert "/api/console/scan" in _fungsi("kirimScan")
+
+
+def test_scan_yang_ketemu_mengisi_plat_lalu_pindah_ke_bruto():
+    """Yang menghemat waktu bukan scan-nya saja, tapi kursor yang sudah siap di kolom
+    berikutnya: operator menimbang sambil memegang HP supir."""
+    fn = _fungsi("kirimScan")
+    assert "pilihNilai" in fn and "plat-timbang" in fn
+    assert 'bruto").focus' in fn
+
+
+def test_scan_ganda_dalam_sekejap_diabaikan():
+    """Scanner kadang membaca satu QR dua kali dalam beberapa ratus milidetik. Tanpa
+    penjaga, kiriman kedua menimpa apa yang baru terisi."""
+    fn = _fungsi("kirimScan")
+    assert "scanSibuk" in fn
+
+
+def test_truk_belum_terdaftar_diarahkan_ke_pendaftaran_manual():
+    """Truk pinjaman itu alasan fitur ini ada. Layar harus mengatakan apa yang bisa
+    dilakukan, bukan cuma "tidak ditemukan"."""
+    fn = _fungsi("kirimScan")
+    assert "ditemukan" in fn
+    for bahasa in ("id", "en"):
+        assert "scanBelumAda:" in _kamus(bahasa)
+
+
+def test_kolom_scan_dikosongkan_setelah_dibaca():
+    """Isi yang tertinggal akan tersambung dengan scan berikutnya menjadi satu teks
+    panjang yang tidak cocok plat mana pun."""
+    assert 'scan-plat").value = ""' in _fungsi("kirimScan")
+
+
+def test_label_scan_diterjemahkan():
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("phScan", "scanBelumAda"):
+            assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+
+
+def test_pesan_hasil_scan_tidak_terhapus_polling_dua_detik():
+    """Ketemu di browser: pesan "truk belum terdaftar" hilang dalam 2 detik karena
+    `refresh()` selalu membersihkan banner saat berhasil. Operator gerbang yang sedang
+    memegang HP supir tidak akan pernah membacanya.
+
+    Pesan hasil scan punya tempatnya sendiri di dekat kolomnya, bukan banner global.
+    """
+    assert 'id="scan-pesan"' in HTML
+    # `_fungsi` memotong di `\n}` pertama, dan `kirimScan` punya blok bersarang — jadi
+    # yang diiris di sini seluruh badannya, dari namanya sampai listener berikutnya.
+    badan = HTML.split("async function kirimScan()", 1)[1].split('$("scan-plat").addEventListener', 1)[0]
+    assert "pesanScan(" in badan, "hasil scan masih memakai banner global"
+    assert "pesan(" not in badan.replace("pesanScan(", ""), "masih ada jalur ke banner global"

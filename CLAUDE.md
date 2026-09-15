@@ -409,6 +409,17 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     setumpuk kertas terbuang yang baru terlihat sesudahnya. `@media print`
     menyembunyikan kamera, tally, tab, dan tabel: tanpa itu puluhan lembar terbuang
     sebelum kartu pertama muncul.
+    **Kolom scan di tab Timbangan** mengisi plat lalu memindahkan kursor ke Bruto —
+    itu satu sentuhan layar yang dihemat per truk, dan itulah gunanya scan. Enter
+    datang dari scanner sendiri (scanner = papan ketik), jadi tidak ada tombol; kolomnya
+    juga menerima ketikan, yang membuatnya bisa dipakai sebelum scanner datang.
+    `scanSibuk` menolak bacaan kedua dalam sekejap: scanner kadang membaca satu QR dua
+    kali dalam beberapa ratus milidetik. **Hasil scan punya `#scan-pesan` sendiri, bukan
+    banner global** — `refresh()` membersihkan banner tiap kali berhasil, jadi pesan
+    scan hilang dalam 2 detik dan operator yang sedang memegang HP supir tidak pernah
+    membacanya (ketemu di browser). **`BUKAN_PLAT` kode tersendiri, bukan `PLAT_KOSONG`**:
+    layar menerjemahkan per kode, dan QR berisi URL yang dijawab "tidak boleh kosong"
+    adalah pesan salah di depan operator gerbang.
     **Input manual tetap ada dan tidak boleh dihapus**: truk pinjaman, dan layar HP
     retak / gelap / kena matahari langsung adalah kasus nyata di gerbang.
 19. **Login konsol: email + sandi, dua sumber akun, diverifikasi offline** (Fase 4, §6.5).
