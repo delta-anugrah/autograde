@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 
 from ..domain.operator_auth import operator_id_for
+from ..domain.peran import PERAN_SUPPORT
 from ..repositories.console_repository import ConsoleStore
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,21 @@ def seed_akun_bawaan(
     ):
         if _buat_kalau_belum_ada(store, email, nama, hash_sandi):
             dibuat.append(email)
+    _pastikan_peran_support(store)
     return dibuat
+
+
+def _pastikan_peran_support(store: ConsoleStore) -> None:
+    """Naikkan akun support, juga di PC yang sudah punya akun itu sejak sebelum
+    kolom `peran` ada.
+
+    Terpisah dari pembuatan dan hanya menyentuh `peran`: akun yang sudah ada tidak
+    boleh kehilangan sandi yang sudah diganti pabrik — alasan yang sama dengan
+    kenapa seed tidak pernah meng-upsert ulang.
+    """
+    row = store.operator_by_email(EMAIL_SUPPORT)
+    if row is not None and row["peran"] != PERAN_SUPPORT:
+        store.set_peran(row["id"], PERAN_SUPPORT)
 
 
 def _buat_kalau_belum_ada(

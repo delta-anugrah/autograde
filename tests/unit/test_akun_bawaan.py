@@ -170,3 +170,26 @@ def test_akun_milik_autoerp_dengan_email_sama_tidak_disentuh(tmp_path):
 
     row = store.operator_by_email(EMAIL_SUPPORT)
     assert (row["asal"], row["password_hash"]) == ("erp", erp_hash)
+
+
+def test_akun_support_dibuat_dengan_peran_support(tmp_path):
+    store = _store(tmp_path)
+    _seed(store)
+    assert store.operator_by_email(EMAIL_SUPPORT)["peran"] == "support"
+    assert store.operator_by_email(EMAIL_BAWAAN)["peran"] == "operator"
+
+
+def test_akun_support_lama_dinaikkan_tanpa_menyentuh_sandi(tmp_path):
+    """PC pabrik sudah punya akun support dari image sebelum kolom peran ada.
+
+    Perannya harus naik, tapi sandinya tidak boleh kembali ke bawaan pabrik —
+    aturan yang sama dengan alasan seed tidak pernah menimpa akun yang ada.
+    """
+    store = _store(tmp_path)
+    store.upsert_operator_lokal(
+        {"email": EMAIL_SUPPORT, "nama": "Support", "password_hash": "scrypt$sandi-mill"}
+    )
+    _seed(store)
+    row = store.operator_by_email(EMAIL_SUPPORT)
+    assert row["peran"] == "support"
+    assert row["password_hash"] == "scrypt$sandi-mill"
