@@ -478,6 +478,12 @@
   .tools .catatan { font-size:.78rem; color:var(--muted); }
   .tools .pilih { flex:0 0 16rem; }
   .tools button { flex:0 0 12rem; }
+  /* Level filter: three fixed choices read faster as buttons than a dropdown
+     on a touchscreen read from a few metres away. */
+  .log-level { display:flex; gap:4px; flex:0 0 auto; }
+  .log-level button { flex:0 0 auto; min-width:5rem; background:var(--zebra);
+                       color:var(--muted); border:1px solid var(--line); }
+  .log-level button.aktif { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
      screen, and without this the page itself scrolls sideways. */
   .tabel { overflow-x:auto; background:var(--card);
@@ -789,6 +795,37 @@
   </div>
 </section>
 
+<section id="sec-log" class="panel" hidden data-dev="1">
+  <!--
+    Support-only: read via /api/console/dev/log, guarded server-side by
+    require_support. Identical messages are already merged into one row with
+    a count (LogStore's merge window) - this screen just displays that.
+  -->
+  <div class="tools">
+    <span class="log-level" id="log-level" data-nilai="">
+      <button type="button" class="aktif" data-nilai="" data-t="logSemua">Semua</button>
+      <button type="button" data-nilai="ERROR">ERROR</button>
+      <button type="button" data-nilai="WARNING">WARNING</button>
+    </span>
+    <input id="log-cari" data-t-ph="phCariLog" placeholder="Cari pesan atau sumber" autocomplete="off">
+  </div>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thWaktu">Waktu</th><th data-t="thLevel">Level</th>
+        <th data-t="thSumber">Sumber</th><th data-t="thPesan">Pesan</th>
+        <th class="num" data-t="thJumlah">×</th></tr></thead>
+      <tbody id="log-baris"></tbody>
+    </table>
+  </div>
+  <div class="halaman">
+    <span id="log-rentang" class="muted"></span>
+    <span class="halaman-tombol">
+      <button type="button" id="log-prev" data-t="halamanSebelum" disabled>Sebelumnya</button>
+      <button type="button" id="log-next" data-t="halamanBerikut" disabled>Berikutnya</button>
+    </span>
+  </div>
+</section>
+
 <script>
 const $ = (id) => document.getElementById(id);
 // Escapes ' and ` too: these values go into HTML attributes, and line_code can
@@ -811,7 +848,10 @@ const KAMUS = {
     thNo:"No", thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"Masuk", thKeluar:"Keluar", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
-    phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
+    thLevel:"Level", thPesan:"Pesan", thJumlah:"×",
+    phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan atau sumber",
+    hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
+    logSemua:"Semua", kosongLog:"Belum ada galat tercatat", gagalLog:"Gagal memuat log",
     btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
@@ -877,7 +917,10 @@ const KAMUS = {
     thNo:"No", thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"In", thKeluar:"Out", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
-    phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
+    thLevel:"Level", thPesan:"Message", thJumlah:"×",
+    phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message or source",
+    hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
+    logSemua:"All", kosongLog:"No faults logged yet", gagalLog:"Failed to load the log",
     btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
@@ -1093,7 +1136,9 @@ document.addEventListener("focusout", (ev) => {
 });
 
 // ── truck / weighbridge tabs ───────────────────────────────────────────
-const TAB_SAH = ["grading", "truk", "timbangan", "rekap"];
+// "log" is the first developer tab with a real panel; the rest still fall
+// back to the localStorage default below until their own tasks land.
+const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log"];
 let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
 
 function terapkanTab() {
@@ -1114,6 +1159,9 @@ $("tabs").addEventListener("click", (ev) => {
   tab = b.dataset.tab;
   simpan("tab", tab);
   terapkanTab();
+  // Not part of the 2 s poll (support-only, and the store runs its own hourly
+  // retention sweep) - loaded on demand instead, same as switching into it.
+  if (tab === "log") muatLog();
 });
 
 // ── camera layout ──────────────────────────────────────────────────────
@@ -2158,6 +2206,83 @@ async function muatTrucks() {
   isiTrucks();
 }
 
+// ── developer: fault log (support only) ─────────────────────────────────
+let logLevel = "";
+let logCari = "";
+let logOffset = 0;
+let logTotal = 0;
+const LOG_PER = 50;
+
+function barisLog(r) {
+  // terakhir_at is a Unix epoch (seconds, from LogStore) - not an ISO string,
+  // so it needs ×1000 before Date() rather than going through waktu() as-is.
+  return `<tr>
+    <td>${waktu(r.terakhir_at * 1000)}</td>
+    <td class="key">${esc(r.level)}</td>
+    <td>${esc(r.sumber)}</td>
+    <td>${esc(r.pesan)}</td>
+    <td class="num">${r.jumlah > 1 ? "×" + r.jumlah : ""}</td>
+  </tr>`;
+}
+
+function segarkanHalamanLog() {
+  const dari = logTotal ? logOffset + 1 : 0;
+  const sampai = Math.min(logOffset + LOG_PER, logTotal);
+  $("log-rentang").textContent = t("rentangBaris")
+    .replace("{dari}", dari).replace("{sampai}", sampai).replace("{total}", logTotal);
+  $("log-prev").disabled = logOffset === 0;
+  // `logTotal`, not items.length on the page just drawn - the same pagination
+  // trap the grading screen hit before (total comes from the server response).
+  $("log-next").disabled = logOffset + LOG_PER >= logTotal;
+}
+
+async function muatLog() {
+  try {
+    const qs = new URLSearchParams({ limit: String(LOG_PER), offset: String(logOffset) });
+    if (logLevel) qs.set("level", logLevel);
+    if (logCari) qs.set("cari", logCari);
+    const r = await api(`/api/console/dev/log?${qs}`);
+    logTotal = r.total;
+    $("log-baris").innerHTML = r.items.length
+      ? r.items.map(barisLog).join("") : barisKosong(5, "kosongLog");
+    segarkanHalamanLog();
+  } catch (e) {
+    // Support-only lane: a plain operator who somehow lands here (shared PC,
+    // stale localStorage tab) gets a quiet empty table, not a red banner.
+    if (e.kode !== "belum_masuk") $("log-baris").innerHTML = barisKosong(5, "gagalLog");
+  }
+}
+
+$("log-level").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-nilai]");
+  if (!b) return;
+  logLevel = b.dataset.nilai;
+  logOffset = 0;
+  $("log-level").querySelectorAll("button").forEach((x) => x.classList.toggle("aktif", x === b));
+  muatLog();
+});
+
+let logCariTimer = null;
+$("log-cari").addEventListener("input", () => {
+  // Debounced: a search box wired straight to fetch would fire once per
+  // keystroke on a shared touchscreen keyboard.
+  clearTimeout(logCariTimer);
+  logCariTimer = setTimeout(() => {
+    logCari = $("log-cari").value.trim();
+    logOffset = 0;
+    muatLog();
+  }, 300);
+});
+
+$("log-prev").addEventListener("click", () => {
+  logOffset = Math.max(0, logOffset - LOG_PER);
+  muatLog();
+});
+$("log-next").addEventListener("click", () => {
+  if (logOffset + LOG_PER < logTotal) logOffset += LOG_PER;
+  muatLog();
+});
+
 (async () => {
   terapkanBahasa();
   terapkanTab();
@@ -2180,5 +2305,9 @@ async function muatTrucks() {
   setInterval(muatTimbangan, 15000);
   await muatRekap();
   setInterval(muatRekap, 15000);
+  // A remembered "log" tab from a previous support sign-in on this shared PC:
+  // cekSesi() above has already run hapusTabDeveloper(), so the button (and
+  // this check) only survive for an account that is still support.
+  if (tab === "log" && $('button[data-tab="log"]')) await muatLog();
 })();
 </script>

@@ -20,8 +20,10 @@ from ..domain.peran import PERAN_SUPPORT, parse_daftar_izin
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
 from ..repositories.console_repository import ConsoleStore
+from ..repositories.log_repository import LogStore
 from ..services.auth_service import AuthService
 from ..services.console_service import ConsoleService
+from ..services.dev_service import DevService
 from ..services.erp_queue import ErpQueue
 from ..services.qr_cetak import png_qr
 from ..services.scan_service import ScanService
@@ -60,9 +62,18 @@ def get_scan_service() -> ScanService:
     return ScanService(get_console_service().store)
 
 
+@lru_cache
+def get_dev_service() -> DevService:
+    """Its own SQLite file, not `console.db`: an error flood must not slow
+    down the queries serving the operator screen."""
+    settings = Settings()
+    return DevService(LogStore(settings.log_db_path, retensi_hari=settings.log_retensi_hari))
+
+
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
 Scan = Annotated[ScanService, Depends(get_scan_service)]
+Dev = Annotated[DevService, Depends(get_dev_service)]
 
 
 def require_operator(
@@ -371,6 +382,18 @@ async def piston(line_code: str, service: Service, open: Annotated[bool, Body(em
 async def dev_ping(operator: Support) -> dict:
     """Lightest developer lane — used by the screen to confirm access still works."""
     return {"status": "ok"}
+
+
+@router.get("/api/console/dev/log")
+async def dev_log(
+    dev: Dev,
+    operator: Support,
+    level: Annotated[str | None, Query()] = None,
+    cari: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> dict:
+    return dev.log(level=level, cari=cari, limit=limit, offset=offset)
 
 
 # ── event receiver for the three lines (frozen contract §5) ─────────────

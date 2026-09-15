@@ -766,3 +766,31 @@ def test_tab_developer_disembunyikan_default():
 def test_konsol_tetap_tanpa_referensi_https():
     """Long-standing invariant: the console must run with the internet down."""
     assert "https://" not in HTML
+
+
+# ── tab ↔ panel mapping ─────────────────────────────────────────────────────
+
+
+def test_setiap_tab_berpanel_punya_id_yang_cocok():
+    """`terapkanTab()` (Task 7) skips a tab with no `sec-*` panel instead of
+    throwing on a null `$()` lookup - which means a typo'd id now fails
+    silently rather than loudly (the tab looks clickable but nothing shows).
+    The Log panel is the first dev panel to exist, so from here on a mismatch
+    has something to be caught by, in both directions:
+    - a tab this screen expects to work must have a panel at the right id;
+    - a panel that exists must be reachable from some data-tab button (a
+      typo'd id orphans the panel instead of merely mislabelling it)."""
+    # The tabs wired to a working panel today - kept here, not derived from
+    # TAB_SAH in the script, so a JS-side typo cannot make this test agree
+    # with the very bug it exists to catch.
+    tab_dengan_panel = {"grading", "truk", "timbangan", "rekap", "log"}
+
+    data_tab = set(re.findall(r'data-tab="(\w+)"', HTML))
+    id_panel = set(re.findall(r'<section id="sec-(\w+)"', HTML))
+
+    for tab in tab_dengan_panel:
+        assert tab in data_tab, f"tab {tab!r} tidak lagi punya tombol data-tab"
+        assert tab in id_panel, f"tab {tab!r} tidak punya panel id=\"sec-{tab}\""
+
+    yatim = id_panel - data_tab
+    assert not yatim, f"panel ada tapi id-nya tidak cocok tombol mana pun: {sorted(yatim)}"
