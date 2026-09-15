@@ -52,3 +52,31 @@ class ScanService:
             return {"ditemukan": False, "plate_number": plat, "truck": None}
 
         return {"ditemukan": True, "plate_number": plat, "truck": truk}
+
+    def tiket_terbuka(self, teks_qr: str, tanggal_kerja: str) -> dict[str, Any]:
+        """Scan kedua, di gerbang keluar: tiket mana yang sedang menunggu tara.
+
+        Operator scan platnya, sistem yang mencari tiketnya — bukan operator yang
+        menyusuri tabel mencari baris truk itu di antara puluhan baris hari ini.
+
+        **Dua tiket terbuka ditolak, tidak ditebak** (keputusan operator 2026-09-15):
+        menebak di sini bisa memasangkan tara ke kunjungan yang salah dan mencampur
+        tonase dua kunjungan — persis bentuk bug adopsi tiket yang kami laporkan ke
+        AutoERP. Layar menampilkan keduanya dan operator memilih sendiri.
+        """
+        plat = baca_qr(teks_qr)
+        terbuka = self.store.weighings_terbuka(truck_id_for(plat), tanggal_kerja)
+
+        if len(terbuka) == 1:
+            return {"ditemukan": True, "plate_number": plat, "weighing": terbuka[0]}
+
+        if len(terbuka) > 1:
+            logger.info("Scan keluar %s: %d tiket terbuka, minta operator memilih",
+                        plat, len(terbuka))
+            return {
+                "ditemukan": False, "ganda": True,
+                "plate_number": plat, "pilihan": terbuka,
+            }
+
+        logger.info("Scan keluar %s: tidak ada tiket terbuka hari ini", plat)
+        return {"ditemukan": False, "plate_number": plat, "weighing": None}

@@ -159,6 +159,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/console/trucks` | master truk + supplier + `sumber_label` |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
 | GET | `/api/console/trucks/{plat}/qr.png` | kartu QR untuk ditempel di truk / dikirim ke HP supir. **Dibuat di server** (`segno`, pure-Python) karena `console.html` nol referensi `https://` — pustaka CDN akan mati saat internet putus. Isinya plat ternormalisasi, divalidasi ulang sebelum dicetak. Truk yang belum terdaftar tetap dilayani: kartu dicetak dulu, truknya didaftarkan kemudian |
+| POST | `/api/console/scan/keluar` | `{qr}` di gerbang keluar → tiket yang menunggu tara. **Dua tiket terbuka ditolak, tidak ditebak** (keputusan operator 2026-09-15): menebak bisa memasangkan tara ke kunjungan yang salah dan mencampur tonase dua kunjungan. Dibatasi hari kerja: tiket kemarin yang taranya kosong akan memberi neto dari bruto kemarin dan tara hari ini |
 | POST | `/api/console/scan` | `{qr}` hasil scan di gerbang timbangan → truk yang sudah ada. Truk belum terdaftar dijawab **200 `ditemukan:false`** (truk pinjaman itu kasus normal, 404 terbaca seperti kerusakan); yang bukan plat **400**. **Tidak pernah membuat truk dan tidak pernah menulis berat** |
 | GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto) |
 | POST | `/api/console/weighings` | operator mengetik bruto/tara sendiri — payload identik dengan kiriman program timbangan |

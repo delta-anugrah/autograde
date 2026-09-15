@@ -621,6 +621,25 @@ class ConsoleStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def weighings_terbuka(self, truck_id: str, tanggal_kerja: str) -> list[dict[str, Any]]:
+        """Tiket truk ini yang belum ditimbang keluar, hari kerja itu saja.
+
+        `tara_kg IS NULL` yang menentukan terbuka: tiket yang sudah punya tara berarti
+        truknya sudah pergi, dan menawarkannya lagi akan menimpa tara pertama — neto
+        berubah tanpa ada yang tahu, dan neto itu yang dibayar.
+
+        Dibatasi hari kerja: tiket kemarin yang taranya tidak pernah terisi akan
+        menghasilkan neto dari bruto kemarin dan tara hari ini.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT * FROM weighings
+                   WHERE truck_id = ? AND tanggal_kerja = ? AND tara_kg IS NULL
+                   ORDER BY COALESCE(waktu_masuk, '') DESC, received_at DESC""",
+                (truck_id, tanggal_kerja),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     # -------------------------------------------------------- assignment
 
     def set_assignment(self, line_code: str, assignment_id: str, truck_id: str | None) -> None:
