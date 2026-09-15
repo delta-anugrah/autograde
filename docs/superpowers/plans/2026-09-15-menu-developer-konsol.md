@@ -575,7 +575,7 @@ git commit -m "feat(konsol): akun support bawaan selalu berperan support"
 - Modify: `src/palmgrade/domain/erp_master.py:32-55` (`operator_row`)
 - Modify: `src/palmgrade/workers/master_data_worker.py:66-70`
 - Modify: `src/palmgrade/repositories/console_repository.py` (`_upsert_operator`)
-- Test: `tests/unit/test_erp_master.py`, `tests/unit/test_console_store.py`
+- Test: `tests/unit/test_erp_master_data.py`, `tests/unit/test_console_store.py`
 
 **Interfaces:**
 - Consumes: `domain.peran.saring_peran_erp`, `parse_daftar_izin`
@@ -586,7 +586,7 @@ git commit -m "feat(konsol): akun support bawaan selalu berperan support"
 
 - [ ] **Step 1: Tulis tes yang gagal**
 
-Tambahkan ke `tests/unit/test_erp_master.py`:
+Tambahkan ke `tests/unit/test_erp_master_data.py`:
 
 ```python
 def test_operator_row_membawa_peran():
@@ -641,7 +641,7 @@ def test_tarikan_erp_tidak_menurunkan_peran_akun_lokal(tmp_path):
 
 - [ ] **Step 2: Jalankan tes, pastikan gagal**
 
-Run: `pytest tests/unit/test_erp_master.py tests/unit/test_console_store.py -k peran -v`
+Run: `pytest tests/unit/test_erp_master_data.py tests/unit/test_console_store.py -k peran -v`
 Expected: FAIL — `KeyError: 'peran'` / `TypeError: unexpected keyword 'peran_erp_diizinkan'`
 
 - [ ] **Step 3: Tambah setelan**
@@ -722,7 +722,7 @@ git commit -m "feat(konsol): tarik peran dari AutoERP, disaring daftar izin PC"
 **Files:**
 - Modify: `src/palmgrade/routes/console.py:60-75`
 - Modify: `src/palmgrade/domain/operator_error.py`
-- Test: `tests/unit/test_console_session_guard.py`
+- Test: `tests/unit/test_console_routes_auth.py`
 
 **Interfaces:**
 - Consumes: `require_operator`, `domain.peran.PERAN_SUPPORT`
@@ -733,7 +733,7 @@ git commit -m "feat(konsol): tarik peran dari AutoERP, disaring daftar izin PC"
 
 - [ ] **Step 1: Tulis tes yang gagal**
 
-Tambahkan ke `tests/unit/test_console_session_guard.py`:
+Tambahkan ke `tests/unit/test_console_routes_auth.py`:
 
 ```python
 def test_lane_support_menolak_operator_biasa():
@@ -782,7 +782,7 @@ Kalau helper `_app_dengan_store()` belum ada di berkas itu, tulis satu yang mera
 
 - [ ] **Step 2: Jalankan tes, pastikan gagal**
 
-Run: `pytest tests/unit/test_console_session_guard.py -v`
+Run: `pytest tests/unit/test_console_routes_auth.py -v`
 Expected: FAIL — 404 (route `dev/ping` belum ada).
 
 - [ ] **Step 3: Tambah kode galat**
@@ -832,7 +832,7 @@ Di `console_me`, tambahkan `"peran": operator["peran"],` ke dict `operator` yang
 
 - [ ] **Step 6: Jalankan tes, pastikan lolos**
 
-Run: `pytest tests/unit/test_console_session_guard.py -v && ruff check src/palmgrade/routes/console.py`
+Run: `pytest tests/unit/test_console_routes_auth.py -v && ruff check src/palmgrade/routes/console.py`
 Expected: PASS, ruff bersih.
 
 - [ ] **Step 7: Commit**
