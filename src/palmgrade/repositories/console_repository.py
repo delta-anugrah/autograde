@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ..domain.operator_auth import operator_id_for
+from ..domain.operator_auth import normalise_email, normalise_nama, operator_id_for
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
@@ -109,18 +109,21 @@ CREATE TABLE IF NOT EXISTS sync_state (
     value TEXT
 );
 
--- Operator accounts for the console login (Fase 4). Local on purpose: AutoERP has no
--- operator DocType, and an operator must get in while the internet is down.
+-- Operator accounts for the console login (Fase 4). Two sources, and the row says
+-- which: `erp` is pulled from AutoERP's `AutoGrade Operator` (§4.A), `lokal` is written
+-- on this PC by `make operator` — the built-in and support accounts, which are how a
+-- mill that has never reached the internet gets opened. Neither may overwrite the
+-- other. The hash is verified here, offline; nothing is asked of AutoERP at sign-in.
 CREATE TABLE IF NOT EXISTS operators (
     id             TEXT PRIMARY KEY,
-    nama           TEXT NOT NULL UNIQUE,
-    pin_hash       TEXT NOT NULL,
+    email          TEXT NOT NULL UNIQUE,
+    nama           TEXT NOT NULL,
+    password_hash  TEXT NOT NULL,
     status         TEXT NOT NULL DEFAULT 'active',
-    -- Reserved for the day AutoERP grows that DocType: these rows then have
-    -- somewhere to point and the pull needs no table rebuild.
+    asal           TEXT NOT NULL DEFAULT 'lokal',
     erp_name       TEXT,
     dibuat_at      REAL NOT NULL,
-    -- Wrong-PIN counter, on disk so reloading the page cannot reset the lockout.
+    -- Wrong-password counter, on disk so reloading the page cannot reset the lockout.
     gagal_count    INTEGER NOT NULL DEFAULT 0,
     gagal_terakhir REAL
 );
@@ -170,6 +173,7 @@ class ConsoleStore:
         above — it needs its own pass, and the index that depends on it has to
         wait until the column exists.
         """
+        self._drop_pin_era_operators()
         for table, column in (
             ("suppliers", "erp_name"),
             ("trucks", "erp_name"),
@@ -182,6 +186,23 @@ class ConsoleStore:
             if column not in kolom:
                 self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
         self._db.executescript(_MIGRATE_SQL)
+
+    def _drop_pin_era_operators(self) -> None:
+        """Rebuild `operators` if it still carries the six-digit-PIN shape.
+
+        Dropped rather than migrated, deliberately. The PIN table keyed accounts by
+        `nama` with no email anywhere, and an email cannot be invented for a row — a
+        guessed one would be a sign-in that silently belongs to nobody. The accounts are
+        re-made by `make operator` or arrive with the next AutoERP pull, so the cost is
+        one command on a dev database. No factory PC ran the PIN build: it never left
+        this branch, and the sessions go with the table so nobody stays signed in
+        against an account that no longer exists.
+        """
+        kolom = {r["name"] for r in self._db.execute("PRAGMA table_info(operators)")}
+        if kolom and "pin_hash" in kolom:
+            self._db.execute("DROP TABLE IF EXISTS sesi")
+            self._db.execute("DROP TABLE operators")
+            self._db.executescript(_CREATE_SQL)
 
     # -------------------------------------------------------- inspections
 
@@ -544,58 +565,102 @@ class ConsoleStore:
 
     # ------------------------------------------------- operators & sessions
 
-    def upsert_operator(self, row: dict[str, Any]) -> str:
-        """Add an operator, or reset the PIN of the one already holding that name.
+    def upsert_operator_lokal(self, row: dict[str, Any]) -> str:
+        """Write an account that lives only on this PC (`make operator`).
 
-        Idempotent by name, because the id is derived from it: running the operator
-        command twice cannot leave two people sharing one face on the keypad. A reset
-        also clears the lockout — that is what makes it a way back in.
+        Refuses to touch a row AutoERP owns: backoffice owns those passwords, and a
+        change made here would be silently undone by the next pull — worse than being
+        told no, because the operator would believe the new password works.
         """
-        operator_id = operator_id_for(row["nama"])
+        return self._upsert_operator(row, asal="lokal", overwrite_asal=("lokal",))
+
+    def upsert_operator_erp(self, row: dict[str, Any]) -> str:
+        """Apply one `AutoGrade Operator` document from the §4.A pull.
+
+        Refuses to touch a local row. The support and built-in accounts exist so a mill
+        with no internet can be opened at all; a pull that flattened them would take
+        that away at exactly the moment it is needed.
+        """
+        return self._upsert_operator(row, asal="erp", overwrite_asal=("erp",))
+
+    def _upsert_operator(
+        self, row: dict[str, Any], *, asal: str, overwrite_asal: tuple[str, ...]
+    ) -> str:
+        """Add or update one account, id derived from the email.
+
+        Deriving the id means both sources land on the same row for one person instead
+        of beside each other — the same adoption trick as trucks (§4.B). `active` is
+        AutoERP's word for it and `status` is ours; the pull passes the former.
+        """
+        email = normalise_email(row["email"])
+        operator_id = operator_id_for(email)
+        status = row.get("status") or ("active" if row.get("active", 1) else "off")
         with self._lock, self._db:
+            existing = self._db.execute(
+                "SELECT asal FROM operators WHERE id = ?", (operator_id,)
+            ).fetchone()
+            if existing and existing["asal"] not in overwrite_asal:
+                return operator_id
             self._db.execute(
-                """INSERT INTO operators (id, nama, pin_hash, status, erp_name, dibuat_at)
-                   VALUES (:id, :nama, :pin_hash, :status, :erp_name, :dibuat_at)
+                """INSERT INTO operators
+                       (id, email, nama, password_hash, status, asal, erp_name, dibuat_at)
+                   VALUES (:id, :email, :nama, :password_hash, :status, :asal, :erp_name, :dibuat_at)
                    ON CONFLICT(id) DO UPDATE SET
+                       email          = excluded.email,
                        nama           = excluded.nama,
-                       pin_hash       = excluded.pin_hash,
+                       password_hash  = excluded.password_hash,
                        status         = excluded.status,
+                       asal           = excluded.asal,
+                       erp_name       = excluded.erp_name,
                        gagal_count    = 0,
                        gagal_terakhir = NULL""",
                 {
                     "id": operator_id,
-                    "nama": " ".join(str(row["nama"]).split()),
-                    "pin_hash": row["pin_hash"],
-                    "status": row.get("status") or "active",
+                    "email": email,
+                    "nama": normalise_nama(row.get("nama") or email),
+                    "password_hash": row["password_hash"],
+                    "status": status,
+                    "asal": asal,
                     "erp_name": row.get("erp_name"),
                     "dibuat_at": time.time(),
                 },
             )
-            # A new PIN, or an account put back: every session opened before it ends.
-            # A PIN is reset because someone saw it; a session that outlives the reset
-            # would make it a formality.
+            # A new password, or an account switched off by a pull: every session opened
+            # before it ends. A password is reset because someone saw it, and a session
+            # that outlives the reset would make it a formality.
             self._db.execute("DELETE FROM sesi WHERE operator_id = ?", (operator_id,))
         return operator_id
 
     def operator(self, operator_id: str) -> dict[str, Any] | None:
-        """The whole row, hash included — for checking a PIN, and nothing else."""
+        """The whole row, hash included — for checking a password, and nothing else."""
         with self._lock:
             row = self._db.execute(
                 "SELECT * FROM operators WHERE id = ?", (operator_id,)
             ).fetchone()
         return dict(row) if row else None
 
+    def operator_by_email(self, email: str) -> dict[str, Any] | None:
+        """Sign-in has an email, not an id. Kept here rather than derived by the caller
+        so the normalisation rule stays in one place."""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT * FROM operators WHERE email = ?", (normalise_email(email),)
+            ).fetchone()
+        return dict(row) if row else None
+
     def operators(self) -> list[dict[str, Any]]:
-        """What the keypad may show before anyone is signed in: active names, no hashes."""
+        """What the sign-in screen may show before anyone is in: active accounts, no
+        hashes. Whatever this returns is readable by any unauthenticated page."""
         with self._lock:
             rows = self._db.execute(
-                "SELECT id, nama, status FROM operators WHERE status = 'active' ORDER BY nama"
+                "SELECT id, email, nama, status, asal FROM operators "
+                "WHERE status = 'active' ORDER BY nama"
             ).fetchall()
         return [dict(row) for row in rows]
 
     def set_operator_status(self, operator_id: str, status: str) -> None:
-        """`off` takes the name off the keypad and ends the sessions it still holds —
-        that is how a leaver or a shared PIN is handled.
+        """`off` takes the account off the sign-in screen and ends the sessions it still
+        holds — that is how a leaver or a shared password is handled.
 
         The sessions are deleted, not just filtered out by `session()`: filtering alone
         would hand an old, unexpired token its power back the moment the account is
@@ -634,7 +699,7 @@ class ConsoleStore:
         has been switched off since."""
         with self._lock:
             row = self._db.execute(
-                """SELECT s.operator_id, s.kedaluwarsa_at, o.nama
+                """SELECT s.operator_id, s.kedaluwarsa_at, o.nama, o.email, o.asal
                      FROM sesi s JOIN operators o ON o.id = s.operator_id
                     WHERE s.token = ? AND s.kedaluwarsa_at > ? AND o.status = 'active'""",
                 (token, now),
