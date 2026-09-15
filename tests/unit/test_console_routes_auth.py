@@ -17,11 +17,17 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from palmgrade.domain.operator_auth import hash_password
-from palmgrade.domain.operator_error import BELUM_MASUK, SANDI_SALAH
+from palmgrade.domain.operator_error import BELUM_MASUK, PLAT_KOSONG, SANDI_SALAH
+from palmgrade.domain.plate import truck_id_for
 from palmgrade.repositories.console_repository import ConsoleStore
-from palmgrade.routes.console import get_auth_service, get_console_service
+from palmgrade.routes.console import (
+    get_auth_service,
+    get_console_service,
+    get_scan_service,
+)
 from palmgrade.routes.console import router as console_router
 from palmgrade.services.auth_service import AuthService
+from palmgrade.services.scan_service import ScanService
 
 EMAIL = "budi@pks.test"
 NAMA = "Pak Budi"
@@ -56,6 +62,9 @@ def console(tmp_path):
     app.include_router(console_router)
     app.dependency_overrides[get_console_service] = lambda: stub
     app.dependency_overrides[get_auth_service] = lambda: auth
+    # Scanning reads trucks from the same store. The stub has none, so this is the
+    # real service on the test database rather than a third fake to keep in step.
+    app.dependency_overrides[get_scan_service] = lambda: ScanService(store)
     return TestClient(app), store, stub
 
 
@@ -130,3 +139,55 @@ def test_a_manual_reject_is_recorded_against_whoever_is_signed_in(console):
     client.post("/api/console/lines/line-1/manual-reject", json={"requested_by": "siapa saja"})
 
     assert stub.rejected_by == NAMA
+
+
+# ── scan QR (2026-09-15) ──────────────────────────────────────────────────────
+
+
+def test_scan_butuh_sesi_seperti_lane_operator_lain(console):
+    """Hasil scan menyebut truk siapa yang datang. Itu data operasional pabrik, jadi
+    lane-nya ikut di belakang gerbang seperti yang lain."""
+    client, _, _ = console
+
+    response = client.post("/api/console/scan", json={"qr": "BE4412OFL"})
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == BELUM_MASUK
+
+
+def test_scan_truk_terdaftar_dijawab_dengan_truknya(console):
+    client, store, _ = console
+    _sign_in(client)
+    store.upsert_truck(
+        {"id": truck_id_for("BE 4412 OFL"), "plate_number": "BE 4412 OFL", "status": "active"}
+    )
+
+    response = client.post("/api/console/scan", json={"qr": "BE4412OFL"})
+
+    assert response.status_code == 200
+    assert response.json()["ditemukan"] is True
+    assert response.json()["truck"]["plate_number"] == "BE 4412 OFL"
+
+
+def test_scan_truk_pinjaman_dijawab_belum_ada_bukan_error(console):
+    """Truk pinjaman itu alasan fitur ini ada. 404 akan terbaca seperti kerusakan,
+    padahal jawabannya normal: layar menawarkan input manual."""
+    client, _, _ = console
+    _sign_in(client)
+
+    response = client.post("/api/console/scan", json={"qr": "BE9999XYZ"})
+
+    assert response.status_code == 200
+    assert response.json()["ditemukan"] is False
+    assert response.json()["plate_number"] == "BE9999XYZ"
+
+
+def test_scan_yang_bukan_plat_ditolak_400(console):
+    """Struk parkir atau QR promo yang kebetulan ke-scan tidak boleh jadi truk."""
+    client, _, _ = console
+    _sign_in(client)
+
+    response = client.post("/api/console/scan", json={"qr": "https://contoh.id/promo"})
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == PLAT_KOSONG

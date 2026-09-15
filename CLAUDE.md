@@ -158,6 +158,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/console/history` | filter `tanggal_kerja` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas |
 | GET | `/api/console/trucks` | master truk + supplier + `sumber_label` |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
+| POST | `/api/console/scan` | `{qr}` hasil scan di gerbang timbangan → truk yang sudah ada. Truk belum terdaftar dijawab **200 `ditemukan:false`** (truk pinjaman itu kasus normal, 404 terbaca seperti kerusakan); yang bukan plat **400**. **Tidak pernah membuat truk dan tidak pernah menulis berat** |
 | GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto) |
 | POST | `/api/console/weighings` | operator mengetik bruto/tara sendiri — payload identik dengan kiriman program timbangan |
 | GET | `/api/console/recap` | rekap per truk satu hari kerja (janjang, ACC/REJ, neto) — `?tanggal_kerja=` opsional |
@@ -379,6 +380,26 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     dibayar. Baris berplat kosong **dilewati dan dicetak**, bukan bikin seluruh rekonsiliasi
     gagal. `trucks_semua()` dipakai, bukan `trucks()`: yang terakhir menyembunyikan baris
     `inactive`, dan baris inactive ber-id lama tetap akan kembar begitu platnya ditarik.
+20. **Scan QR: isinya nomor plat, tidak lebih** (keputusan operator 2026-09-15).
+    **Dua** tahap scan, dua-duanya di gerbang timbangan (masuk + keluar), karena cuma
+    di situ scan menggantikan ketikan yang sungguhan ada. Tahap sortir **tidak**
+    di-scan: yang tahu bak sudah kosong itu operator line, bukan supir yang datang
+    membawa HP, dan tombol Lepas sudah ada di depan mata operator. Empat scan menambah
+    dua langkah tanpa menambah satu data pun.
+    **QR isinya cuma plat ternormalisasi** (`domain/qr.py`). Bukan seluruh data truk:
+    supplier dan nama sopir berubah di ERP **sesudah** QR dicetak, jadi QR yang
+    membawanya jadi bohong tanpa ada yang tahu — dan nama sopir itu data pribadi yang
+    menempel di kaca truk. Bukan id truk ERP: truk **pinjaman** belum terdaftar, jadi
+    belum punya id, jadi tidak bisa di-scan — padahal itu kasus yang mau dipecahkan
+    (S4). Nama sopir tetap diambil, tapi dari `Truck.driver_name` di ERP, dan boleh
+    ditimpa ketikan operator per kunjungan (`upsert_visit` sudah menerimanya).
+    `ScanService` **cuma mencari**: tidak membuat truk (satu QR salah baca akan
+    menambah truk hantu yang naik ke AutoERP lewat interface B) dan tidak menulis berat
+    (dua penulis untuk angka yang dibayar adalah cara paling rapi untuk salah bayar
+    berbulan-bulan). Id truknya diturunkan dari plat, **aturan yang sama** dengan
+    `catat_timbangan` — kalau beda, satu kunjungan bisa mendarat di dua truk.
+    **Input manual tetap ada dan tidak boleh dihapus**: truk pinjaman, dan layar HP
+    retak / gelap / kena matahari langsung adalah kasus nyata di gerbang.
 19. **Login konsol: email + sandi, dua sumber akun, diverifikasi offline** (Fase 4, §6.5).
     Akun datang dari dua tempat dan barisnya menyimpan yang mana (`operators.asal`):
     `erp` ditarik dari DocType **`AutoGrade Operator`** (dibuat 2026-09-15, §4.A —

@@ -22,6 +22,7 @@ from ..repositories.console_repository import ConsoleStore
 from ..services.auth_service import AuthService
 from ..services.console_service import ConsoleService
 from ..services.erp_queue import ErpQueue
+from ..services.scan_service import ScanService
 
 _CONSOLE_HTML = Path(__file__).resolve().parents[1] / "static" / "console.html"
 SESSION_COOKIE = "konsol_sesi"
@@ -44,8 +45,19 @@ def get_auth_service() -> AuthService:
     return AuthService(get_console_service().store)
 
 
+@lru_cache
+def get_scan_service() -> ScanService:
+    """Also shares the store — one SQLite file, one lock, like the auth service.
+
+    Its own dependency rather than a method on `ConsoleService`: scanning only reads
+    trucks, and keeping it apart is what stops it growing a second way to create one.
+    """
+    return ScanService(get_console_service().store)
+
+
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
+Scan = Annotated[ScanService, Depends(get_scan_service)]
 
 
 def require_operator(
@@ -174,6 +186,28 @@ async def daftar_truk_manual(
             capacity=payload.get("capacity"),
         )
     except ValueError as exc:
+        raise _operator_error(400, exc) from exc
+
+
+@router.post("/api/console/scan")
+async def console_scan(
+    scan: Scan, operator: Operator, payload: Annotated[dict, Body()]
+) -> dict:
+    """One QR read at the weighbridge gate → the truck it belongs to.
+
+    Behind the gate like every operator lane: the answer says which truck just
+    arrived, which is mill operations, not public data.
+
+    A plate that is not registered is **200 with `ditemukan: false`**, not 404: a
+    borrowed truck is the normal case this exists for, and 404 would read on screen
+    like something is broken. The screen offers manual entry instead.
+
+    Anything that is not a plate is 400 — a parking receipt or promo QR that happens
+    to get scanned must never turn into a ghost truck in master data.
+    """
+    try:
+        return scan.cari(str(payload.get("qr") or ""))
+    except OperatorError as exc:
         raise _operator_error(400, exc) from exc
 
 
