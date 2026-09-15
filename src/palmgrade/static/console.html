@@ -174,7 +174,29 @@
 
   /* Hasil scan, di sebelah kolomnya. Tinggi dipatok supaya baris alat tidak bergeser
      saat pesannya muncul dan hilang - tombol yang bergerak sulit ditekan. */
-  .scan-pesan { min-height:1.4rem; align-self:center; font-weight:700; color:var(--acc); }
+  .scan-pesan { min-height:1.4rem; font-weight:700; color:var(--acc); }
+  /* Dua gerbang dalam satu baris alat, masing-masing berlabel. Labelnya yang membuat
+     dua kolom scan bisa dibedakan sekali lihat - tanpa itu keduanya terbaca sama dan
+     scan keluar mendarat di jalur masuk, membuat tiket kedua untuk satu kunjungan. */
+  .timbang-alat { align-items:flex-start; gap:18px; }
+  /* ⚠️ JANGAN pakai nama `.gerbang-*` di sini: itu milik gerbang login di atas
+     (`.gerbang-isi` = flex column, input 3.4rem). Kelas yang sama membuat kolom scan
+     melar jadi kotak raksasa yang berhamburan - kejadian sekali, terlihat di
+     screenshot operator, dan tidak ada test statis yang bisa menangkapnya. */
+  .timbang-sisi { flex:0 1 auto; min-width:0; display:flex; flex-direction:column; gap:6px; }
+  .timbang-baris { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  /* Lebih sempit dari 13rem bawaan: labelnya sudah mengatakan MASUK atau KELUAR, jadi
+     placeholder cukup "Scan QR" - dan kolom yang lebih sempit membuat dua gerbang tetap
+     satu baris sampai 1024 px. */
+  .timbang-baris input.plat { flex:0 0 10rem; }
+  /* Pemisah: dua gerbang itu dua tempat fisik, dan garis ini yang mengatakannya. */
+  .timbang-keluar { padding-left:18px; border-left:1px solid var(--line-kuat); }
+  /* Di layar sempit gerbang keluar turun ke baris kedua, dan garis di KIRI jadi
+     janggal karena tidak ada apa pun di sebelahnya lagi. Pemisahnya pindah ke atas. */
+  @media (max-width:1330px) {
+    .timbang-keluar { padding-left:0; padding-top:12px; border-left:0;
+                      border-top:1px solid var(--line-kuat); width:100%; }
+  }
   .scan-pesan.salah { color:var(--danger-fg); }
 
   /* ---- kartu QR truk ---- */
@@ -660,39 +682,47 @@
     one truck ends up as two tickets. A truck that is not on the list yet gets
     registered in the Trucks tab first.
   -->
-  <div class="tools">
-    <!--
-      Kolom scan. Scanner barcode itu papan ketik: dia mengetik isi QR lalu menekan
-      Enter sendiri, jadi tidak ada driver dan tidak perlu tombol. Kolomnya juga
-      menerima ketikan tangan, yang membuatnya bisa dipakai sebelum scanner datang.
-
-      Dropdown plat di sebelahnya TIDAK dihapus: scanner rusak, layar HP retak, atau
-      QR belum dicetak adalah tiga kejadian nyata di gerbang.
-    -->
-    <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="Scan QR truk"
-           autocomplete="off" autocapitalize="characters" spellcheck="false">
-    <div class="pilih" id="plat-timbang" data-nilai=""></div>
-    <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)" inputmode="decimal" autocomplete="off">
-    <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang masuk</button>
-    <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
-    <!--
-      Hasil scan punya tempatnya sendiri, bukan banner global `#err`: `refresh()`
-      membersihkan banner itu setiap kali berhasil, jadi pesan scan hilang dalam 2
-      detik dan operator yang sedang memegang HP supir tidak pernah membacanya.
-      Ketemu di browser, bukan di test.
-    -->
-    <span id="scan-pesan" class="scan-pesan" role="status"></span>
-  </div>
   <!--
-    Gerbang keluar: scan plat, konsol yang mencari tiket mana yang menunggu tara.
-    Kolomnya sendiri, bukan mode pada kolom masuk: dua gerbang itu dua tempat fisik
-    yang berbeda, dan mode yang harus ditukar dulu adalah satu langkah yang bisa
-    terlupa - lalu scan keluar mendarat di jalur masuk dan membuat tiket kedua.
+    Satu baris alat, dua gerbang, masing-masing berlabel. Ketemu dari screenshot
+    operator: dua kolom bertulisan "Scan QR truk" yang sama, satu di atas satu di
+    bawah, tanpa penanda mana yang mana. Yang kiri MEMBUAT tiket, yang kanan MENUTUP
+    tiket - tertukar berarti tiket dobel untuk satu kunjungan.
+
+    Scanner barcode itu papan ketik: dia mengetik isi QR lalu menekan Enter sendiri,
+    jadi tidak ada driver dan tidak perlu tombol. Kolomnya juga menerima ketikan
+    tangan, yang membuatnya bisa dipakai sebelum scanner datang.
+
+    Dropdown plat TIDAK dihapus: scanner rusak, layar HP retak, atau QR belum dicetak
+    adalah tiga kejadian nyata di gerbang, dan jalan cadangan harus langsung terlihat
+    bukan disembunyikan di balik satu klik lagi.
   -->
-  <div class="tools">
-    <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="Scan QR truk keluar"
-           autocomplete="off" autocapitalize="characters" spellcheck="false">
-    <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
+  <div class="tools timbang-alat">
+    <div class="timbang-sisi">
+      <label class="lb" for="scan-plat" data-t="lbGerbangMasuk">Truk masuk</label>
+      <div class="timbang-baris">
+        <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="QR masuk"
+               autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <div class="pilih" id="plat-timbang" data-nilai=""></div>
+        <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
+               inputmode="decimal" autocomplete="off">
+        <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang masuk</button>
+      </div>
+      <!--
+        Hasil scan punya tempatnya sendiri, bukan banner global `#err`: `refresh()`
+        membersihkan banner itu setiap kali berhasil, jadi pesan scan hilang dalam 2
+        detik dan operator yang sedang memegang HP supir tidak pernah membacanya.
+      -->
+      <span id="scan-pesan" class="scan-pesan" role="status"></span>
+    </div>
+    <div class="timbang-sisi timbang-keluar">
+      <label class="lb" for="scan-keluar" data-t="lbGerbangKeluar">Truk keluar</label>
+      <div class="timbang-baris">
+        <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="QR keluar"
+               autocomplete="off" autocapitalize="characters" spellcheck="false">
+      </div>
+      <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
+    </div>
+    <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
   </div>
   <div class="tabel">
     <table>
@@ -782,8 +812,9 @@ const KAMUS = {
     perHalaman:"Baris per halaman", halamanSebelum:"Sebelumnya", halamanBerikut:"Berikutnya",
     keHalaman:"Ke halaman",
     btnCetakQr:"Cetak QR truk", qrJudul:"Kartu QR truk",
-    phScan:"Scan QR truk", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
-    phScanKeluar:"Scan QR truk keluar", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
+    lbGerbangMasuk:"Truk masuk", lbGerbangKeluar:"Truk keluar",
+    phScan:"QR masuk", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
+    phScanKeluar:"QR keluar", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
     scanGanda:"Ada 2 tiket terbuka, pilih di tabel bawah untuk",
     rentangBaris:"{dari}-{sampai} dari {total}",
     gerbangKosong:"Belum ada operator. Buat dulu di PC ini: make operator",
@@ -840,8 +871,9 @@ const KAMUS = {
     perHalaman:"Rows per page", halamanSebelum:"Previous", halamanBerikut:"Next",
     keHalaman:"Go to page",
     btnCetakQr:"Print truck QR", qrJudul:"Truck QR cards",
-    phScan:"Scan truck QR", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
-    phScanKeluar:"Scan truck QR on exit", scanTakAdaTiket:"No open ticket today for",
+    lbGerbangMasuk:"Truck in", lbGerbangKeluar:"Truck out",
+    phScan:"QR in", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
+    phScanKeluar:"QR out", scanTakAdaTiket:"No open ticket today for",
     scanGanda:"Two open tickets, pick one in the table below for",
     rentangBaris:"{dari}-{sampai} of {total}",
     gerbangKosong:"No operators yet. Create one on this PC: make operator",
