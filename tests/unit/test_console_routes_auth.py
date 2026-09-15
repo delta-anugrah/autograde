@@ -17,7 +17,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from palmgrade.domain.operator_auth import hash_password
-from palmgrade.domain.operator_error import BELUM_MASUK, BUKAN_PLAT, SANDI_SALAH
+from palmgrade.domain.operator_error import (
+    BELUM_MASUK,
+    BUKAN_PLAT,
+    BUKAN_SUPPORT,
+    SANDI_SALAH,
+)
 from palmgrade.domain.plate import truck_id_for
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.routes.console import (
@@ -191,3 +196,53 @@ def test_scan_yang_bukan_plat_ditolak_400(console):
 
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == BUKAN_PLAT
+
+
+# ── lane developer: require_support (2026-09-15) ──────────────────────────────
+
+
+def test_lane_support_menolak_operator_biasa(console):
+    """Yang menjaga backend, bukan tab yang disembunyikan."""
+    client, _, _ = console
+    _sign_in(client)
+
+    response = client.get("/api/console/dev/ping")
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == BUKAN_SUPPORT
+
+
+def test_lane_support_menerima_akun_support(console):
+    client, store, _ = console
+    oid = store.upsert_operator_lokal(
+        {"email": "s@b.c", "nama": "S", "password_hash": hash_password(SANDI)}
+    )
+    store.set_peran(oid, "support")
+
+    _sign_in(client, email="s@b.c")
+    response = client.get("/api/console/dev/ping")
+
+    assert response.status_code == 200
+
+
+def test_lane_support_tanpa_sesi_tetap_401(console):
+    """Belum masuk dijawab 401, bukan 403 — bedanya kelihatan di layar."""
+    client, _, _ = console
+
+    response = client.get("/api/console/dev/ping")
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == BELUM_MASUK
+
+
+def test_me_membawa_peran(console):
+    client, store, _ = console
+    oid = store.upsert_operator_lokal(
+        {"email": "s@b.c", "nama": "S", "password_hash": hash_password(SANDI)}
+    )
+    store.set_peran(oid, "support")
+
+    _sign_in(client, email="s@b.c")
+    response = client.get("/api/console/me")
+
+    assert response.json()["operator"]["peran"] == "support"

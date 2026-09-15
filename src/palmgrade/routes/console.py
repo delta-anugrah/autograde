@@ -15,8 +15,8 @@ from fastapi.responses import FileResponse
 
 from ..core.config import Settings
 from ..domain.operator_auth import SESSION_TTL_S
-from ..domain.operator_error import BELUM_MASUK, TERKUNCI, OperatorError
-from ..domain.peran import parse_daftar_izin
+from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
+from ..domain.peran import PERAN_SUPPORT, parse_daftar_izin
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
 from ..repositories.console_repository import ConsoleStore
@@ -76,6 +76,23 @@ def require_operator(
 
 
 Operator = Annotated[dict, Depends(require_operator)]
+
+
+def require_support(operator: Operator) -> dict:
+    """Akun support, atau 403.
+
+    Ini yang menjaga layar developer — menyembunyikan tabnya di `console.html` cuma
+    merapikan layar operator yang dibaca dari beberapa meter, bukan pengaman. Semua
+    lane `/api/console/dev/*` lewat sini, satu tempat, supaya tidak ada yang lupa.
+    """
+    if operator.get("peran") != PERAN_SUPPORT:
+        raise _operator_error(
+            403, OperatorError(BUKAN_SUPPORT, "menu ini untuk akun support")
+        )
+    return operator
+
+
+Support = Annotated[dict, Depends(require_support)]
 
 
 def _operator_error(status_code: int, exc: Exception) -> HTTPException:
@@ -146,6 +163,7 @@ async def console_me(operator: Operator) -> dict:
             "id": operator["operator_id"],
             "email": operator["email"],
             "nama": operator["nama"],
+            "peran": operator["peran"],
         }
     }
 
@@ -342,6 +360,17 @@ async def piston(line_code: str, service: Service, open: Annotated[bool, Body(em
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
         raise _operator_error(502, exc) from exc
+
+
+# ── developer lanes (support only) ───────────────────────────────────────
+# Every `/api/console/dev/*` route depends on `Support`, never `Operator` directly —
+# one chokepoint so a later lane cannot forget the guard.
+
+
+@router.get("/api/console/dev/ping")
+async def dev_ping(operator: Support) -> dict:
+    """Lane developer paling ringan — dipakai layar untuk memastikan aksesnya hidup."""
+    return {"status": "ok"}
 
 
 # ── event receiver for the three lines (frozen contract §5) ─────────────

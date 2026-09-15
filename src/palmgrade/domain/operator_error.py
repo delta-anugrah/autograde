@@ -27,6 +27,8 @@ SANDI_PENDEK = "sandi_pendek"
 SANDI_SALAH = "sandi_salah"
 TERKUNCI = "terkunci"
 BELUM_MASUK = "belum_masuk"
+# Lane developer (Task 6): akun masuk tapi bukan peran `support`.
+BUKAN_SUPPORT = "bukan_support"
 
 CODES = (
     PLAT_KOSONG,
@@ -42,6 +44,7 @@ CODES = (
     SANDI_SALAH,
     TERKUNCI,
     BELUM_MASUK,
+    BUKAN_SUPPORT,
 )
 
 
