@@ -20,22 +20,30 @@ _KUNCI = (
 _BATAS_KUNCI = r'(?:^|(?<=[\s"\'{,;?&]))'
 _KUNCI_G = rf'(?P<kunci>["\']?(?:{_KUNCI})["\']?\s*[:=]\s*)'
 
-# Quoted value: `\\.` matches first so an escaped quote doesn't end the value
-# early; DOTALL (in the outer flags) lets it span a newline — a multi-line
-# traceback is exactly the shape this filter exists to catch. Named groups
-# throughout, not \1-style backreferences: once embedded in the composed
-# pattern below, a numbered backreference renumbers by position and silently
-# points at the wrong group.
-_NILAI_KUTIP = r'(?P<kutip>["\'])(?P<isi_kutip>(?:\\.|(?!(?P=kutip)).)*)(?P=kutip)'
+# Quoted value, unrolled-loop form (non-special run, then repeat escape-pair +
+# run) — the only way to match a given input. `(?:\\.|(?!q).)*` looks
+# equivalent but is ambiguous on a run of backslashes and blows up
+# exponentially on an unterminated value; this runs inside a logging handler,
+# so a hang here would freeze whatever thread was logging, maybe a grading
+# line. Named groups, not \1-backreferences — numbered ones renumber by
+# position once embedded below and silently point at the wrong group.
+_NILAI_KUTIP = (
+    r'(?P<kutip>["\'])'
+    r'(?P<isi_kutip>'
+    r'(?:(?!(?P=kutip)|\\).)*'
+    r'(?:\\.(?:(?!(?P=kutip)|\\).)*)*'
+    r')'
+    r'(?P=kutip)'
+)
 
-# Unquoted value: an optional auth scheme word is kept visible, the real
-# value stops at the next separator. `&`/`#` count as separators too — a
-# query string's next param and a URL fragment can't legally be part of an
-# unquoted value, so stopping there keeps neighbouring params (line, truck)
-# readable instead of swallowing the rest of the line.
+# Unquoted value: an optional auth scheme word stays visible; the value stops
+# at the next separator. `&`/`#` end it only when followed by `word=` — deep
+# inside a token they must stay part of the value (else the tail leaks after
+# the marker), but before the next query param they must still end it (else
+# that param gets swallowed).
 _NILAI_POLOS = (
     r'(?P<skema>(?:(?:Bearer|Basic|Token|Digest)\s+)?)'
-    r'(?P<nilai_polos>[^\s,;}\'"&#]+)'
+    r'(?P<nilai_polos>(?:[^\s,;}\'"&#]|[&#](?!\w+=))+)'
 )
 
 _POLA = re.compile(

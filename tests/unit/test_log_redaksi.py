@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from palmgrade.domain.log_redaksi import redaksi
@@ -116,3 +118,30 @@ def test_query_string_dua_rahasia_dua_duanya_ditutup_line_selamat():
     assert "t1" not in keluar
     assert "k2" not in keluar
     assert "line=3" in keluar
+
+
+@pytest.mark.parametrize(
+    "teks",
+    [
+        "password=p#ss123",
+        "token=ab&cd1234",
+        "api_key=a#b&c",
+    ],
+)
+def test_nilai_polos_dengan_ampersand_pagar_tidak_bocor_ekor(teks: str):
+    """`&`/`#` di tengah nilai (bukan sebelum param baru) tidak boleh mengakhiri redaksi.
+
+    Kebalikan dari kutip ter-escape: ekornya bocor SESUDAH marker, bukan sebelum.
+    """
+    keluar = redaksi(teks)
+    assert "«ditutup»" in keluar
+    ekor = keluar.split("«ditutup»", 1)[1]
+    assert ekor == "", f"ekor bocor sesudah marker: {ekor!r}"
+
+
+def test_kutip_tak_ditutup_tidak_hang():
+    """Nilai berkutip yang tidak pernah ditutup, dibanjiri backslash, tidak boleh macet."""
+    mulai = time.monotonic()
+    redaksi('password="' + "\\" * 60)
+    lama = time.monotonic() - mulai
+    assert lama < 1.0, f"terlalu lama: {lama:.3f}s — kemungkinan backtracking katastrofik"
