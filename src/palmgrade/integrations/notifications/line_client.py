@@ -149,6 +149,32 @@ class LineClient:
             raise LinePlcTolak(res.status_code, res.text[:200])
         return res.json()
 
+    async def kirim_setelan(
+        self, line: LineEndpoint, *, conf_threshold: float, minimum_size: int
+    ) -> dict[str, Any]:
+        """Kirim setelan grading ke satu line. Melempar kalau line tidak menjawab.
+
+        Pemanggil (`ConsoleService`) menangkapnya per line, jadi satu line yang
+        mati tidak membatalkan pengiriman ke dua line lainnya — konsol sudah
+        menyimpan nilainya dan akan mengirim ulang saat line itu kembali.
+        """
+        url = f"{self._settings.console_line_host}:{line.port}/internal/setelan"
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
+                res = await client.post(
+                    url,
+                    json={"conf_threshold": conf_threshold, "minimum_size": minimum_size},
+                    headers={"x-internal-secret": self._settings.internal_secret},
+                )
+        except httpx.HTTPError as exc:
+            logger.warning("Kirim setelan ke %s gagal: %s", line.line_code, exc)
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+            ) from exc
+        if res.status_code >= 400:
+            raise LinePlcTolak(res.status_code, res.text[:200])
+        return res.json()
+
     async def status(self, line: LineEndpoint) -> dict[str, Any]:
         """Called once a second by LineStatusWorker, so the timeout is short:
         the operator screen must not be made to wait on a dying line."""

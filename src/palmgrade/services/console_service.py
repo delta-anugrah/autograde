@@ -13,6 +13,7 @@ directory scanning anywhere (§6.2).
 """
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from collections.abc import Callable
@@ -32,6 +33,7 @@ from ..domain.operator_error import (
     InvalidInput,
 )
 from ..domain.plate import normalisasi_plat, truck_id_for
+from ..domain.setelan_grading import KUNCI_SETELAN, bersihkan_setelan
 from ..domain.vision_event import prediction_for, verdict_of
 from ..domain.working_day import work_date_for
 from ..integrations.notifications.line_client import LineClient
@@ -451,6 +453,54 @@ class ConsoleService:
         self.store.set_assignment(line_code, "", None)
         self._queue_grading(closing)
         return {"line_code": line_code, "truck_id": None}
+
+    # ------------------------------------------------------ setelan grading
+
+    def setelan_grading(self) -> dict[str, Any]:
+        """Setelan yang tersimpan di konsol, atau nilai `.env` kalau belum pernah
+        diubah. Konsol yang memegang kebenarannya — line cuma menerima salinan."""
+        tersimpan = self.store.get_state(KUNCI_SETELAN)
+        if tersimpan:
+            nilai = json.loads(tersimpan)
+            return {**nilai, "sumber": "konsol"}
+        return {
+            "conf_threshold": self.settings.conf_threshold,
+            "minimum_size": self.settings.minimum_size,
+            "sumber": "env",
+        }
+
+    async def simpan_setelan_grading(
+        self, payload: dict[str, Any], *, diubah_oleh: str
+    ) -> dict[str, Any]:
+        """Simpan dulu, baru sebar. Urutannya sengaja begini.
+
+        Kalau disebar dulu lalu disimpan, line yang sempat menerima nilai baru
+        akan memakainya sementara konsol masih memegang nilai lama — dan saat
+        line itu restart, konsol mengirim balik nilai lama tanpa ada yang sadar.
+        Menyimpan lebih dulu membuat konsol selalu jadi sumber kebenaran.
+
+        Line yang tidak menjawab TIDAK membatalkan penyimpanan: nilainya sudah
+        sah, tinggal line itu yang belum menerimanya. Hasil per line dikembalikan
+        apa adanya supaya layar bisa bilang line mana yang belum kena.
+        """
+        bersih = bersihkan_setelan(payload)
+        self.store.set_state(KUNCI_SETELAN, json.dumps(bersih))
+        logger.warning(
+            "Setelan grading diubah oleh %s: conf=%s minimum_size=%s",
+            diubah_oleh, bersih["conf_threshold"], bersih["minimum_size"],
+        )
+
+        hasil = []
+        for line in self.lines:
+            try:
+                await self.line_client.kirim_setelan(line, **bersih)
+                hasil.append({"line_code": line.line_code, "terkirim": True})
+            except Exception as exc:  # LineUnavailable / LinePlcTolak / apa pun
+                logger.warning("Setelan belum sampai ke %s: %s", line.line_code, exc)
+                hasil.append(
+                    {"line_code": line.line_code, "terkirim": False, "alasan": str(exc)[:200]}
+                )
+        return {**bersih, "sumber": "konsol", "lines": hasil}
 
     async def manual_reject(self, line_code: str, requested_by: str) -> dict[str, Any]:
         line = self._require_line(line_code)

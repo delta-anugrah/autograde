@@ -17,6 +17,7 @@ from ..core.config import Settings
 from ..domain.operator_auth import SESSION_TTL_S
 from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
 from ..domain.role import ROLE_SUPPORT, parse_allowed_roles
+from ..domain.setelan_grading import SetelanTidakSah
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
 from ..repositories.console_repository import ConsoleStore
@@ -423,6 +424,30 @@ async def dev_resend(dev: Dev, operator: Support) -> dict:
 @router.get("/api/console/dev/versi")
 async def dev_version(dev: Dev, operator: Support) -> dict:
     return dev.version()
+
+
+@router.get("/api/console/dev/setelan")
+async def dev_setelan_baca(service: Service, operator: Support) -> dict:
+    """Setelan grading yang sedang berlaku, menurut konsol."""
+    return service.setelan_grading()
+
+
+@router.post("/api/console/dev/setelan")
+async def dev_setelan_simpan(
+    service: Service, operator: Support, payload: Annotated[dict, Body()]
+) -> dict:
+    """Ubah CONF_THRESHOLD/MINIMUM_SIZE untuk SEMUA line, tanpa restart.
+
+    `role=support` saja (lane dev), dan tiap perubahan dicatat WARNING menyebut
+    siapa yang mengubah — angka ini menentukan janjang dibuang atau lolos, jadi
+    harus ada jejaknya kalau tonase sehari terlihat aneh.
+    """
+    try:
+        return await service.simpan_setelan_grading(
+            payload, diubah_oleh=operator["email"]
+        )
+    except SetelanTidakSah as exc:
+        raise _operator_error(400, exc) from exc
 
 
 @router.get("/api/console/dev/plc/{line_code}")

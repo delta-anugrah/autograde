@@ -86,3 +86,17 @@ class PlcStateResponse(BaseModel):
     enabled: bool
     inputs: list[bool] = []
     testable_coils: list[int] = []
+
+
+class SetelanGradingRequest(BaseModel):
+    """Setelan grading dari konsol. Divalidasi lagi di `domain/setelan_grading`
+    — Pydantic cuma menjamin bentuknya, bukan kewarasan angkanya."""
+
+    conf_threshold: float
+    minimum_size: int
+
+
+class SetelanGradingResponse(BaseModel):
+    conf_threshold: float
+    minimum_size: int
+    sumber: str  # "konsol" kalau ditimpa, "env" kalau masih dari .env
