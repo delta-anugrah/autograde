@@ -10,9 +10,11 @@ from ..core.constants import (
     COLOR_FAIL,
     COLOR_PASS,
     COLOR_ROI,
+    COLOR_TP,
     FONT,
     FONT_COLOR,
 )
+from ..domain.grade_class import TP, grade_class_or_none, verdict_for_class
 from .model_registry import ModelRegistry
 
 
@@ -42,11 +44,25 @@ class RealtimeInspectionPipeline:
             x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
             label = results.names[int(box.cls[0].item())]
             score = float(box.conf[0].item())
-            color = COLOR_FAIL if "rej" in label.lower() else COLOR_PASS
+            # Warna ikut VERDICT, bukan substring nama kelas. Dulu barisnya
+            # `"rej" in label.lower()`, dan itu benar selama model masih
+            # ACC/Rej/TP. Untuk model 4 kelas SALAH TOTAL: `Unripe` dan `JK`
+            # tidak mengandung "rej", jadi janjang yang justru dibuang piston
+            # digambar HIJAU — operator melihat hijau untuk buah yang ditolak.
+            kelas = grade_class_or_none(label)
+            verdict = verdict_for_class(kelas) if kelas else None
+            color = COLOR_FAIL if verdict == "REJ" else COLOR_PASS
+            # TP bukan buah dan tidak punya verdict: dikuningkan supaya tidak
+            # terbaca sebagai "lolos" padahal dia cuma penanda tangkai panjang.
+            if kelas == TP:
+                color = COLOR_TP
             # bounding box
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, bt)
-            # label: teks berwarna saja (tanpa bar) — ACC hijau, REJ merah; outline hitam biar kebaca
-            text = f"{label.upper()} {score * 100:.0f}%"
+            # Teks memakai nama kelas apa adanya (Ripe/Unripe/JK/TP), BUKAN
+            # `.upper()`: operator menyebut kelasnya persis begini, dan JK yang
+            # jadi "JK" sama saja sedangkan "UNRIPE" lebih sulit dipindai mata
+            # dari jarak jauh daripada "Unripe".
+            text = f"{kelas or label} {score * 100:.0f}%"
             (tw, th), bl = cv2.getTextSize(text, FONT, fs, ft)
             ty = y1 - 10 if y1 - th - 10 >= 0 else y1 + th + 10
             cv2.putText(frame, text, (x1, ty), FONT, fs, (0, 0, 0), ft + 4, cv2.LINE_AA)  # outline tebal
@@ -68,9 +84,17 @@ class RealtimeInspectionPipeline:
 
     # ----------------------------------------------------------------- track
 
-    def track_ripeness(self, frame: np.ndarray) -> Any:
+    def track_ripeness(self, frame: np.ndarray, conf: float | None = None) -> Any:
+        """`conf` menimpa `CONF_THRESHOLD` dari `.env` kalau diisi.
+
+        Dikirim sebagai argumen, bukan dibaca dari `RuntimeState` di sini:
+        pipeline sengaja tidak tahu apa-apa soal state runtime — yang memegang
+        state itu worker, dan itu yang membuat pipeline bisa dites tanpa merakit
+        satu line pun.
+        """
         return self.model.track(
-            frame, persist=True, conf=self.settings.conf_threshold,
+            frame, persist=True,
+            conf=self.settings.conf_threshold if conf is None else conf,
             tracker="bytetrack.yaml", verbose=False, half=self._use_half,
         )[0]
 

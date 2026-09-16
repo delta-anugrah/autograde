@@ -13,6 +13,10 @@ AUTO_CAPTURE_SUFFIX = "auto"
 # Bounding box colors (BGR)
 COLOR_PASS = (0, 255, 0)   # hijau
 COLOR_FAIL = (0, 0, 255)   # merah
+# Tangkai panjang: kuning, sengaja bukan hijau maupun merah. TP bukan janjang
+# dan tidak punya verdict — menggambarnya hijau membuatnya terbaca "lolos",
+# merah membuatnya terbaca "dibuang", dan dua-duanya bohong.
+COLOR_TP = (0, 215, 255)   # kuning-amber (BGR)
 
 # Annotation font. Resolved on first access (PEP 562) rather than at import, so
 # that importing any other constant here does not require OpenCV. Its value is
