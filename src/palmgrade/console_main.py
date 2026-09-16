@@ -80,6 +80,12 @@ async def lifespan(app: FastAPI):
     workers = build_erp_workers(service.settings, service.store, service.erp_queue)
     tasks = [asyncio.create_task(worker.run_loop()) for worker in workers]
 
+    # Independent of the AutoERP link above: the manifest worker exists whenever
+    # R2 is configured (get_console_service), regardless of ERP_URL. Logged once
+    # already, in get_console_service, when it is off.
+    if service.manifest_queue is not None:
+        tasks.append(asyncio.create_task(service.manifest_queue.run_loop()))
+
     # Separate from the ERP workers above: the piston button must survive an
     # empty ERP_URL, so it cannot depend on build_erp_workers().
     status_worker = LineStatusWorker(service.lines, service.line_client)

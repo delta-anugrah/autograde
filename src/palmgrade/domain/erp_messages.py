@@ -99,8 +99,8 @@ def _grading(grading: dict[str, Any]) -> dict[str, Any]:
     """Criteria mapping (§4.C, AutoERP contract field names — do not rename):
     `mentah` is the rejected share, `tangkai_panjang` the long stalks among
     accepted bunches, `matang` the rest — AutoERP derives that last one itself.
-    `detail_url` is deliberately not sent (see
-    `../docs/PROGRESS-AUTOGRADE-AUTOERP.md` §"Beda dari rancangan Mas Samuel").
+    `detail_url` is sent only when the mill has one (R2 configured): an empty
+    value would erase what AutoERP has.
     """
     total = int(grading.get("total") or 0)
     counts = {
@@ -111,7 +111,7 @@ def _grading(grading: dict[str, Any]) -> dict[str, Any]:
         "tangkai_panjang": int(grading.get("tangkai_panjang") or 0),
         "manual_reject": int(grading.get("manual_reject") or 0),
     }
-    return {
+    grading_out = {
         "assignment_id": grading.get("assignment_id"),
         "line_code": grading.get("line_code"),
         "started_at": grading.get("started_at"),
@@ -122,6 +122,9 @@ def _grading(grading: dict[str, Any]) -> dict[str, Any]:
             "tangkai_panjang": _share(counts["tangkai_panjang"], total),
         },
     }
+    if grading.get("detail_url"):
+        grading_out["detail_url"] = grading["detail_url"]
+    return grading_out
 
 
 def _share(count: int, total: int) -> float:

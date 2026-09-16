@@ -6,9 +6,12 @@ logic that needs an idle stop in between.
 """
 from __future__ import annotations
 
+import logging
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Query, Response
 from fastapi.responses import FileResponse
@@ -17,8 +20,10 @@ from ..core.config import Settings
 from ..domain.operator_auth import SESSION_TTL_S
 from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
 from ..domain.role import ROLE_SUPPORT, parse_allowed_roles
+from ..domain.visit_manifest import detail_url_for
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
+from ..integrations.upload.r2_uploader import R2Uploader
 from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
 from ..services.auth_service import AuthService
@@ -27,6 +32,9 @@ from ..services.dev_service import CoilTidakDikenal, DevService, KonfirmasiKuran
 from ..services.erp_queue import ErpQueue
 from ..services.qr_cetak import png_qr
 from ..services.scan_service import ScanService
+from ..workers.visit_manifest_worker import VisitManifestWorker
+
+logger = logging.getLogger(__name__)
 
 _CONSOLE_HTML = Path(__file__).resolve().parents[1] / "static" / "console.html"
 SESSION_COOKIE = "konsol_sesi"
@@ -40,10 +48,41 @@ def get_console_service() -> ConsoleService:
         settings.console_db_path,
         erp_allowed_roles=parse_allowed_roles(settings.erp_allowed_roles_raw),
     )
+    # The detail page does not depend on the AutoERP link: it exists whenever R2
+    # is configured, regardless of whether ERP_URL is also set.
+    manifest_worker = None
+    if settings.r2_bucket and settings.r2_public_url:
+        uploader = R2Uploader(
+            account_id=settings.r2_account_id,
+            access_key_id=settings.r2_access_key_id,
+            secret_access_key=settings.r2_secret_access_key,
+            bucket=settings.r2_bucket,
+        )
+        manifest_worker = VisitManifestWorker(
+            store,
+            ErpOutboxStore(settings.state_dir / "manifest_outbox.db"),
+            uploader,
+            public_url=settings.r2_public_url,
+            viewer_html=Path(__file__).resolve().parents[1] / "static" / "viewer.html",
+            # `generated_at` in the manifest reads the mill's own clock, same as
+            # every other FACTORY_TZ use here (§6.1) — not the container's UTC.
+            clock=lambda: datetime.now(ZoneInfo(settings.factory_tz)).isoformat(),
+        )
+    else:
+        logger.info("Visit manifests off: R2_BUCKET or R2_PUBLIC_URL is empty")
     queue = ErpQueue(
-        store, ErpOutboxStore(settings.erp_outbox_db_path), site=settings.erp_company
+        store,
+        ErpOutboxStore(settings.erp_outbox_db_path),
+        site=settings.erp_company,
+        detail_url_for=(
+            (lambda visit_id: detail_url_for(settings.r2_public_url, visit_id))
+            if manifest_worker is not None
+            else (lambda visit_id: None)
+        ),
     )
-    return ConsoleService(settings, store, LineClient(settings), erp_queue=queue)
+    return ConsoleService(
+        settings, store, LineClient(settings), erp_queue=queue, manifest_queue=manifest_worker
+    )
 
 
 @lru_cache
