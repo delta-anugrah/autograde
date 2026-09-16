@@ -22,6 +22,20 @@ class FakeUploader:
         self.puts.append((r2_key, content_type, body))
 
 
+class KeyFailingUploader:
+    """Fails only for one specific key; everything else succeeds. Used to pin
+    that `_viewer_uploaded` is only set AFTER its PUT lands — not before."""
+
+    def __init__(self, fail_key: str) -> None:
+        self.puts: list[tuple[str, str, bytes]] = []
+        self.fail_key = fail_key
+
+    def put_bytes(self, body, r2_key, *, content_type):
+        if r2_key == self.fail_key:
+            raise ConnectionError("R2 down for viewer.html")
+        self.puts.append((r2_key, content_type, body))
+
+
 def _inspection_row(**over) -> dict:
     """Shaped exactly like `add_inspection`'s INSERT requires — same helper
     pattern as `test_console_store.py`'s `_inspection_row`. `grade_class` is
@@ -117,6 +131,44 @@ def test_r2_down_keeps_the_row_and_backs_off(tmp_path):
     worker.enqueue(wid, "a-1")
     assert asyncio.run(worker.drain_once()) == 0
     assert worker.outbox.failed_count() == 1
+    # `failed_count() == 1` only proves a row moved to `error`, not that it
+    # survives usefully. `failed_rows()` is what a support screen reads —
+    # the row must come back with its key and the actual failure reason
+    # attached, not just a count.
+    [row] = worker.outbox.failed_rows()
+    assert row["key"] == wid
+    assert "R2 down" in row["last_error"]
+
+
+def test_viewer_upload_failing_does_not_mark_it_uploaded(tmp_path):
+    """`_put_viewer_once` must only flip `_viewer_uploaded` AFTER its PUT
+    succeeds. If that assignment ever moves above the PUT, the viewer page
+    never lands in R2 and every manifest afterwards points at a page that
+    does not exist — silently, since the manifest PUT can still succeed.
+
+    First drain: the viewer PUT is the one that fails, so nothing lands and
+    the row is held, not sent. Then the fake is fixed and a second drain
+    uploads BOTH the viewer and the manifest, and the row is sent — proving
+    the first failure did not leave the flag optimistically set to True.
+    """
+    store, wid = _store(tmp_path)
+    uploader = KeyFailingUploader(fail_key="viewer.html")
+    worker = _worker(tmp_path, store, uploader)
+    worker.enqueue(wid, "a-1")
+
+    assert asyncio.run(worker.drain_once()) == 0
+    assert worker._viewer_uploaded is False
+    assert uploader.puts == []
+    assert worker.outbox.failed_count() == 1
+
+    uploader.fail_key = ""  # viewer.html now succeeds too
+    worker.outbox.requeue_failed()  # due again now, instead of waiting out the backoff
+    assert asyncio.run(worker.drain_once()) == 1
+    keys = [k for k, _, _ in uploader.puts]
+    assert "viewer.html" in keys
+    assert f"visits/{wid}.json" in keys
+    assert worker._viewer_uploaded is True
+    assert worker.outbox.due() == []
 
 
 def test_an_assignment_that_graded_nothing_is_dropped_not_retried(tmp_path):
@@ -126,3 +178,9 @@ def test_an_assignment_that_graded_nothing_is_dropped_not_retried(tmp_path):
     worker.enqueue(wid, "kosong")
     asyncio.run(worker.drain_once())
     assert worker.outbox.failed_count() == 0 and not [k for k, _, _ in uploader.puts if k.startswith("visits/")]
+    # `failed_count() == 0` and "nothing uploaded" are both equally true of a
+    # row left `pending` forever — exactly the bug this test exists to catch.
+    # Only `due()` being empty proves the row actually reached `sent`; a
+    # pending row would still be due, and a second drain would count it again.
+    assert worker.outbox.due() == []
+    assert asyncio.run(worker.drain_once()) == 0
