@@ -3,8 +3,6 @@ from __future__ import annotations
 import datetime
 from typing import TYPE_CHECKING, Any
 
-import numpy as np
-
 from ..core.config import Settings
 from ..core.constants import (
     MANUAL_CAPTURE_CONFIDENCE,
@@ -13,9 +11,11 @@ from ..core.constants import (
 )
 from ..services.capture_writer import CaptureWriter
 
-if TYPE_CHECKING:  # annotation only — it imports cv2, and the unit suite runs
-    # without it on purpose (CLAUDE.md § Tests). Storage is injected, so nothing
-    # in this module ever constructs one.
+if TYPE_CHECKING:  # annotations only — numpy and cv2 are absent from the unit
+    # suite on purpose (CLAUDE.md § Tests). The frame is passed in and storage is
+    # injected, so nothing in this module ever constructs either.
+    import numpy as np
+
     from ..integrations.storage.local_file_storage import LocalFileStorage
 
 

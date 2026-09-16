@@ -259,10 +259,20 @@ def test_manual_reject_without_a_console_still_saves(settings, storage):
     assert f"/{UNASSIGNED_FOLDER}/" in result["image_url"]
 
 
-def _tiny_frame():
-    import numpy as np
+class _Frame:
+    """Stands in for a numpy frame.
 
-    return np.zeros((4, 4, 3), dtype=np.uint8)
+    The repository only forwards the frame to storage and reads `.shape`, and
+    storage is stubbed here — so a real array would pull numpy into a suite that
+    runs without it on purpose (CLAUDE.md § Tests). The real encode is covered
+    against actual numpy and cv2 in `tests/e2e/test_capture_folder_layout.py`.
+    """
+
+    shape = (4, 4, 3)
+
+
+def _tiny_frame():
+    return _Frame()
 
 
 # ------------------------------------------------------- payload compatibility
