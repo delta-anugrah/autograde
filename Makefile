@@ -102,10 +102,28 @@ console:
 # Portnya 8001 dan itu TIDAK boleh diubah sembarangan: konsol mencari line-1 di
 # 8001 (`core/config.py` _CONSOLE_LINE_DEFAULTS, dipatok di kode). Line di port
 # lain akan menggrading dengan benar tapi kartunya tetap "Kamera tidak tersambung".
-LINE_PORT ?= 8001
+# N=1|2|3 memilih line mana yang dijalankan. Port DAN machine id ikut berubah
+# bersama: konsol mencocokkan event ke line lewat `machine_id` (bukan port), jadi
+# tiga line yang memakai MACHINE_ID sama dari `.env` akan semuanya mendarat di
+# kartu line-1 dan dua kartu lain tetap kosong.
+# UUID-nya sama persis dengan fallback docker-compose, supaya line native dan
+# line Docker menunjuk baris `machines` yang sama.
+N ?= 1
+LINE_PORT ?= 800$(N)
+LINE_1_ID ?= d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01
+LINE_2_ID ?= a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02
+LINE_3_ID ?= ad5f7bb9-c06d-4e87-8282-ce450ae331ec
+LINE_ID = $(LINE_$(N)_ID)
+# BACKEND_URL ikut diarahkan ke `make console` (127.0.0.1:$(CONSOLE_PORT)), bukan
+# dibiarkan memakai nilai `.env`. Alasannya: `.env` menunjuk port Docker (8000)
+# karena di pabrik konsol memang di situ, sedangkan `make console` jalan di 8100.
+# Tanpa ini janjangnya TERSIMPAN di disk tapi tiap kiriman dibalas 404 — layar
+# tetap nol dan yang terlihat cuma baris "Outbox delivery failed ... HTTP 404"
+# di log line, jauh dari layar yang sedang ditonton.
 line:
-	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) PYTHONPATH=src .venv/bin/uvicorn \
-		palmgrade.main:app --host 127.0.0.1 --port $(LINE_PORT)
+	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) MACHINE_ID=$(LINE_ID) \
+	BACKEND_URL=http://127.0.0.1:$(CONSOLE_PORT) PYTHONPATH=src \
+		.venv/bin/uvicorn palmgrade.main:app --host 127.0.0.1 --port $(LINE_PORT)
 
 # Fullscreen on this PC. A page cannot fullscreen itself (requestFullscreen
 # needs a user gesture), so the browser is what gets configured.
