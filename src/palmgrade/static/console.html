@@ -245,12 +245,19 @@
            border-radius:var(--r-lg); box-shadow:var(--tinggi-1); }
   #tally .hari { display:flex; align-items:center; padding:10px 16px;
                  border-right:1px solid var(--line); }
-  #tally .stat { padding:10px 20px 12px; border-right:1px solid var(--line); min-width:6.5rem;
-                 text-align:center; }
+  /* `min-width` turun dari 6,5rem: strip ini sekarang memuat lima angka (empat
+     kelas + Total), bukan tiga. Padding mengecil di layar sempit lewat clamp
+     supaya barisnya tetap muat tanpa menggeser rasio ke baris berikutnya. */
+  #tally .stat { padding:10px clamp(10px, 2.2vw, 20px) 12px; border-right:1px solid var(--line);
+                 min-width:4.6rem; text-align:center; }
   #tally .stat b { display:block; font-family:var(--mono); font-size:2rem; font-weight:700;
                    line-height:1.1; font-variant-numeric:tabular-nums; }
   #tally .stat.acc b { color:var(--acc); }
   #tally .stat.rej b { color:var(--rej); }
+  /* TP tidak hijau dan tidak merah: tangkai panjang itu sifat janjang, bukan
+     lolos/buang. Pakai `--warn` yang sudah ada, jadi tidak ada warna baru yang
+     harus dicek ulang kontrasnya di dua tema. */
+  #tally .stat.tp b { color:var(--warn); }
   #tally .rasio { flex:1 1 12rem; min-width:11rem; padding:12px 16px;
                   display:flex; flex-direction:column; justify-content:center; gap:8px; }
   #tally .rasio-hd { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
@@ -349,21 +356,25 @@
   .card.putus .feed img { visibility:hidden; }
   .card.putus .feed span { display:grid; }
 
-  /* Three bounded cells, not three numbers on one surface: at distance the
-     tinted block is read before the figure inside it. Equal columns because
-     with flex the spacing follows digit count, so once ACC passes a hundred the
-     figures collide. */
-  .counts { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line);
+  /* Bounded cells, not numbers on one surface: at distance the tinted block is
+     read before the figure inside it. Equal columns because with flex the
+     spacing follows digit count, so once a figure passes a hundred they collide.
+     Lima kolom sejak model jadi 4 kelas (Ripe/Unripe/JK/TP + Total). Angkanya
+     ikut mengecil di aturan `.counts b` di bawah — tetap dua kali tinggi teks
+     biasa, masih terbaca dari seberang area bongkar. */
+  .counts { display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--line);
             border-block:1px solid var(--line); font-variant-numeric:tabular-nums; }
   .counts > span { display:block; background:var(--card); padding:9px 6px 11px; text-align:center; }
   .counts .acc { background:var(--acc-bg); }
   .counts .rej { background:var(--rej-bg); }
   /* The only thing that must be readable from across the unloading area. */
   .counts b { display:block; font-family:var(--mono); font-weight:700; line-height:1;
-              letter-spacing:-.02em; font-size:clamp(2.3rem, 4.4vw, 3.3rem); }
+              letter-spacing:-.02em; font-size:clamp(1.5rem, 2.6vw, 2.2rem); }
   .counts .lb { display:block; margin-bottom:5px; }
+  .counts .tp { background:var(--warn-bg); }
   .counts .acc b, .counts .acc .lb { color:var(--acc); }
   .counts .rej b, .counts .rej .lb { color:var(--rej); }
+  .counts .tp b, .counts .tp .lb { color:var(--warn); }
 
   .body { padding:12px 14px 14px; display:grid; gap:10px; }
   /* isiTruk() builds the inner span, and it carries its own state class - a
@@ -542,6 +553,7 @@
   td.num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
   /* The column heads already say ACC and REJ, so the colour is a second signal
      here, never the only one. */
+  #rekap td.tp { color:var(--warn); font-weight:700; }
   #rekap td.acc { color:var(--acc); font-weight:700; }
   #rekap td.rej { color:var(--rej); font-weight:700; }
   td.kosong { text-align:center; color:var(--muted); padding:26px 16px; }
@@ -615,11 +627,13 @@
 
 <section id="tally">
   <span class="lb hari" data-t="labelHariIni">Hari ini</span>
-  <div class="stat acc"><span class="lb">ACC</span><b id="tot-acc">0</b></div>
-  <div class="stat rej"><span class="lb">REJ</span><b id="tot-rej">0</b></div>
+  <div class="stat acc"><span class="lb" data-t="clsRipe">Ripe</span><b id="tot-ripe">0</b></div>
+  <div class="stat rej"><span class="lb" data-t="clsUnripe">Unripe</span><b id="tot-unripe">0</b></div>
+  <div class="stat rej"><span class="lb" data-t="clsJk">JK</span><b id="tot-jk">0</b></div>
+  <div class="stat tp"><span class="lb" data-t="clsTp">TP</span><b id="tot-tp">0</b></div>
   <div class="stat"><span class="lb">Total</span><b id="tot-all">0</b></div>
   <div class="rasio">
-    <div class="rasio-hd"><span class="lb" data-t="labelRasio">Rasio ACC</span><b id="tot-rate">-</b></div>
+    <div class="rasio-hd"><span class="lb" data-t="labelRasio">Rasio Ripe</span><b id="tot-rate">-</b></div>
     <div class="bar"><span id="bar-acc"></span></div>
   </div>
   <!--
@@ -824,8 +838,9 @@
     <table>
       <thead><tr><th data-t="thTruk">Truk</th><th data-t="thSupplier">Supplier</th>
         <th data-t="thSumber">Sumber</th><th class="num" data-t="thTotal">Total</th>
-        <th class="num" data-t="thAcc">ACC</th><th class="num" data-t="thRej">REJ</th>
-        <th class="num" data-t="thRasio">Rasio ACC</th>
+        <th class="num" data-t="clsRipe">Ripe</th><th class="num" data-t="clsUnripe">Unripe</th>
+        <th class="num" data-t="clsJk">JK</th><th class="num" data-t="clsTp">TP</th>
+        <th class="num" data-t="thRasio">Rasio Ripe</th>
         <th class="num" data-t="thNeto">Neto (kg)</th></tr></thead>
       <tbody id="rekap"></tbody>
     </table>
@@ -939,7 +954,10 @@ const KAMUS = {
   id: {
     judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan", judulRekap:"Rekap",
     judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", judulPlc:"Uji PLC",
-    labelHariIni:"Hari ini", labelRasio:"Rasio ACC",
+    labelHariIni:"Hari ini", labelRasio:"Rasio Ripe",
+    // Nama kelas TIDAK diterjemahkan: keempatnya nama kelas model, dan operator
+    // maupun support menyebutnya persis begini saat bicara lewat telepon.
+    clsRipe:"Ripe", clsUnripe:"Unripe", clsJk:"JK", clsTp:"TP",
     labelLayout:"Tata letak", kolomAuto:"Otomatis", statusOnline:"Online", statusOffline:"Offline",
     kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
     geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
@@ -957,7 +975,7 @@ const KAMUS = {
     pilihTruk:"Pilih Truk", lepasTitle:"Truk sudah pergi", spasi:"Spasi",
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
     kosongGrading:"Belum ada grading hari ini", kosongRekap:"Belum ada rekap hari ini",
-    thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio ACC", trukTanpaNama:"Tanpa truk",
+    thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio Ripe", trukTanpaNama:"Tanpa truk",
     wajibIsi:"Plat dan bruto wajib diisi",
     gagalTugaskan:"Gagal menugaskan truk", gagalLepas:"Gagal melepas truk",
     gagalReject:"Reject manual gagal", gagalDaftar:"Gagal mendaftarkan truk",
@@ -1029,7 +1047,8 @@ const KAMUS = {
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
     judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", judulPlc:"PLC Test",
-    labelHariIni:"Today", labelRasio:"ACC rate",
+    labelHariIni:"Today", labelRasio:"Ripe rate",
+    clsRipe:"Ripe", clsUnripe:"Unripe", clsJk:"JK", clsTp:"TP",
     labelLayout:"Layout", kolomAuto:"Auto", statusOnline:"Online", statusOffline:"Offline",
     kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
     geserKiri:"Move left", geserKanan:"Move right",
@@ -1047,7 +1066,7 @@ const KAMUS = {
     pilihTruk:"Select Truck", lepasTitle:"Truck has left", spasi:"Space",
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
     kosongGrading:"No grading yet today", kosongRekap:"Nothing to recap yet today",
-    thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"ACC rate", trukTanpaNama:"No truck",
+    thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Ripe rate", trukTanpaNama:"No truck",
     wajibIsi:"Plate and gross weight are required",
     gagalTugaskan:"Failed to assign truck", gagalLepas:"Failed to release truck",
     gagalReject:"Manual reject failed", gagalDaftar:"Failed to register truck",
@@ -1599,9 +1618,11 @@ function kartuLine(l) {
     ${pitaPiston(l)}
     ${feed ? `<div class="feed"><img src="${feed}" alt=""><span>${esc(t("kameraPutus"))}</span></div>` : ""}
     <div class="counts">
-      <span class="acc"><span class="lb">ACC</span><b>${l.acc}</b></span>
-      <span class="rej"><span class="lb">REJ</span><b>${l.rej}</b></span>
-      <span><span class="lb">Total</span><b>${l.total}</b></span>
+      <span class="acc"><span class="lb">${esc(t("clsRipe"))}</span><b data-k="ripe">${l.ripe || 0}</b></span>
+      <span class="rej"><span class="lb">${esc(t("clsUnripe"))}</span><b data-k="unripe">${l.unripe || 0}</b></span>
+      <span class="rej"><span class="lb">${esc(t("clsJk"))}</span><b data-k="jk">${l.jk || 0}</b></span>
+      <span class="tp"><span class="lb">${esc(t("clsTp"))}</span><b data-k="tp">${l.tp || 0}</b></span>
+      <span><span class="lb">Total</span><b data-k="total">${l.total}</b></span>
     </div>
     <div class="body">
       <div class="truk">${isiTruk(l.assignment)}</div>
@@ -1618,10 +1639,19 @@ function kartuLine(l) {
 
 const kg = (v) => (v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal()));
 
-// ACC/REJ as a bordered badge, never colour alone: the word is the signal and
-// the colour only speeds it up.
-const tagHasil = (s) =>
-  s ? `<span class="tag ${s === "ACC" ? "ok" : "no"}">${esc(s)}</span>` : KOSONG;
+// Hasil satu janjang sebagai badge berbingkai, tidak pernah warna saja: katanya
+// yang jadi sinyal, warnanya cuma mempercepat.
+//
+// Yang ditampilkan `grade_class` (Ripe/Unripe/JK) kalau ada — itu yang bisa
+// menjawab "kenapa dibuang". Baris yang ditulis sebelum kolom itu ada jatuh
+// kembali ke verdict biner, jadi riwayat lama tetap terbaca apa adanya, bukan
+// jadi strip kosong. Warnanya ikut VERDICT, bukan kelas: hijau = lolos, merah =
+// dibuang, jadi JK dan Unripe sama-sama merah seperti yang dilihat piston.
+const tagHasil = (s, kelas) => {
+  if (!s && !kelas) return KOSONG;
+  const lolos = String(s).toUpperCase() === "ACC";
+  return `<span class="tag ${lolos ? "ok" : "no"}">${esc(kelas || s)}</span>`;
+};
 
 function barisTruk(tr) {
   return `<tr>
@@ -1665,7 +1695,7 @@ function barisRecent(r, i) {
     <td>${esc(r.line_code)}</td>
     <td class="key">${dash(r.plate_number)}</td>
     <td>${dash(r.source_label)}</td>
-    <td>${tagHasil(r.ripeness_status)}</td>
+    <td>${tagHasil(r.ripeness_status, r.grade_class)}</td>
     <td>${r.image_url ? `<a href="${esc(r.image_url)}" target="_blank"><img src="${esc(r.image_url)}" alt=""></a>` : KOSONG}</td>
   </tr>`;
 }
@@ -1674,9 +1704,17 @@ function barisRecent(r, i) {
 function isiTally(lines) {
   const jml = (k) => lines.reduce((n, l) => n + (l[k] || 0), 0);
   const acc = jml("acc"), total = jml("total");
-  $("tot-acc").textContent = acc;
-  $("tot-rej").textContent = jml("rej");
+  // Baris lama (sebelum kolom `grade_class` ada) cuma punya ACC/REJ, jadi
+  // keempat angka kelas ini bisa nol padahal `total` tidak. Itu bukan bug:
+  // kelas aslinya memang tidak pernah direkam, dan menebaknya dari verdict
+  // akan mengarang — REJ bisa Unripe atau JK.
+  $("tot-ripe").textContent = jml("ripe");
+  $("tot-unripe").textContent = jml("unripe");
+  $("tot-jk").textContent = jml("jk");
+  $("tot-tp").textContent = jml("tp");
   $("tot-all").textContent = total;
+  // Rasio tetap dihitung dari verdict biner, BUKAN dari `ripe/total`: piston
+  // memang biner, dan baris lama tanpa kelas akan menyeret rasio ke nol.
   const rasio = total ? (acc / total) * 100 : 0;
   $("tot-rate").textContent = total ? Math.round(rasio) + "%" : KOSONG;
   $("bar-acc").style.width = rasio + "%";
@@ -2248,8 +2286,12 @@ async function refresh() {
       s.lines.forEach((l, i) => {
         const c = $("lines").children[i];
         if (!c) return;
-        const b = c.querySelectorAll(".counts b");
-        b[0].textContent = l.acc; b[1].textContent = l.rej; b[2].textContent = l.total;
+        // Dicocokkan lewat `data-k`, bukan urutan. Dulu `b[0]/b[1]/b[2]`, dan
+        // menukar urutan markup di `kartuLine` diam-diam menukar angka yang
+        // tampil di layar line — salah yang tidak kelihatan salah.
+        c.querySelectorAll(".counts b[data-k]").forEach((el) => {
+          el.textContent = l[el.dataset.k] || 0;
+        });
         c.querySelector(".truk").innerHTML = isiTruk(l.assignment);
         // The piston button and banner must follow what the PLC just confirmed,
         // every poll - not only on the first render. outerHTML (not innerHTML on
@@ -2299,8 +2341,10 @@ function barisRekap(r) {
     <td>${dash(r.supplier_name)}</td>
     <td>${dash(r.source_label)}</td>
     <td class="num">${total}</td>
-    <td class="num acc">${r.acc || 0}</td>
-    <td class="num rej">${r.rej || 0}</td>
+    <td class="num acc">${r.ripe || 0}</td>
+    <td class="num rej">${r.unripe || 0}</td>
+    <td class="num rej">${r.jk || 0}</td>
+    <td class="num tp">${r.tp || 0}</td>
     <td class="num">${rasio}</td>
     <td class="num">${r.net_kg == null ? KOSONG : Number(r.net_kg).toLocaleString("id-ID")}</td>
   </tr>`;
@@ -2310,7 +2354,9 @@ async function muatRekap() {
   try {
     const items = (await api("/api/console/recap")).items;
     $("rekap").innerHTML = items.length
-      ? items.map(barisRekap).join("") : barisKosong(8, "kosongRekap");
+      // 10 kolom, bukan 8: Ripe/Unripe/JK/TP menggantikan ACC/REJ. Colspan yang
+      // ketinggalan bikin baris "belum ada data" berhenti di tengah tabel.
+      ? items.map(barisRekap).join("") : barisKosong(10, "kosongRekap");
   } catch (e) { /* nothing graded yet - the screen keeps working */ }
 }
 
