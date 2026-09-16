@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from ..domain.operator_auth import normalise_email, normalise_nama, operator_id_for
-from ..domain.peran import ROLE_SUPPORT, filter_erp_role, sanitize_role
+from ..domain.role import ROLE_SUPPORT, filter_erp_role, sanitize_role
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
@@ -743,11 +743,11 @@ class ConsoleStore:
             # the existing role — overwriting it would erase a local account's role
             # every time `make operator` resets its password.
             if origin == "erp":
-                role = filter_erp_role(row.get("peran"), self._erp_allowed_roles)
+                role = filter_erp_role(row.get("role"), self._erp_allowed_roles)
             elif existing is not None:
                 role = existing["role"]
             else:
-                role = sanitize_role(row.get("peran"))
+                role = sanitize_role(row.get("role"))
             # Worked out before the write, while the old row is still readable.
             end_session = always_end_session or existing is None or any(
                 existing[column] != new_value

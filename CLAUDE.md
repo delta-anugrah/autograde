@@ -493,7 +493,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     sebenarnya menolak 403, dan tab developer yang disembunyikan dari operator biasa di
     `console.html` cuma kerapian, bukan pengaman: siapa pun yang tahu URL-nya tetap
     ditolak backend kalau `role` bukan `support`.
-    **`PERAN_ERP_DIIZINKAN`** (bawaan `support`) membatasi peran mana yang boleh datang
+    **`ERP_ALLOWED_ROLES`** (bawaan `support`) membatasi peran mana yang boleh datang
     dari AutoERP (`domain/peran.py`, `saring_peran_erp`) — **satu-satunya rem sisi
     pabrik**: kosongkan lalu restart, dan tidak ada akun ERP yang bisa membuka layar
     developer lagi, tanpa perlu menyentuh AutoERP sama sekali. Akun `lokal` (dibuat

@@ -21,7 +21,7 @@
 - **Branch dari `staging`**, PR squash merge ke `staging`.
 - **Frappe membalas 417** untuk satu field asing di `/api/resource` → PR 0 (autoerp) wajib merge duluan.
 - Retensi log **180 hari**; jendela penggabungan **60 detik**; hanya level **ERROR** dan **WARNING** yang ditulis.
-- `PERAN_ERP_DIIZINKAN` bawaan `support`.
+- `ERP_ALLOWED_ROLES` bawaan `support`.
 - **Setelan baru di `Settings` WAJIB ikut ditambahkan ke `docker-compose.yml` service
   `console` dan ke `.env.example`, di commit yang sama.**
   `tests/unit/test_console_compose_env.py` membaca keduanya satu sama lain dan akan
@@ -51,7 +51,7 @@
 | `services/dev_service.py` | **Baru.** Flow lima layar developer |
 | `routes/console.py` | `require_support`, endpoint `/api/console/dev/*` |
 | `static/console.html` | Lima tab, dirender hanya kalau `peran === "support"` |
-| `core/config.py` | `PERAN_ERP_DIIZINKAN`, `LOG_RETENSI_HARI` |
+| `core/config.py` | `ERP_ALLOWED_ROLES`, `LOG_RETENSI_HARI` |
 
 ---
 
@@ -301,7 +301,7 @@ def peran_sah(nilai: object) -> str:
 
 
 def parse_daftar_izin(mentah: str) -> frozenset[str]:
-    """`PERAN_ERP_DIIZINKAN` jadi himpunan peran yang boleh datang dari ERP."""
+    """`ERP_ALLOWED_ROLES` jadi himpunan peran yang boleh datang dari ERP."""
     if not mentah:
         return frozenset()
     return frozenset(
@@ -585,7 +585,7 @@ git commit -m "feat(konsol): akun support bawaan selalu berperan support"
 **Interfaces:**
 - Consumes: `domain.peran.saring_peran_erp`, `parse_daftar_izin`
 - Produces:
-  - `Settings.peran_erp_diizinkan: str` (bawaan `"support"`)
+  - `Settings.erp_allowed_roles: str` (bawaan `"support"`)
   - `operator_row()` mengembalikan kunci `peran`
   - `upsert_operator_erp` menulis peran; akun `asal='lokal'` tidak tersentuh
 
@@ -612,7 +612,7 @@ Tambahkan ke `tests/unit/test_console_store.py`:
 
 ```python
 def test_tarikan_erp_menulis_peran_yang_diizinkan(tmp_path):
-    store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset({"support"}))
+    store = ConsoleStore(tmp_path / "c.db", erp_allowed_roles=frozenset({"support"}))
     store.upsert_operator_erp(
         {"email": "s@erp.c", "nama": "S", "password_hash": "x",
          "erp_name": "s@erp.c", "active": 1, "peran": "support"}
@@ -622,7 +622,7 @@ def test_tarikan_erp_menulis_peran_yang_diizinkan(tmp_path):
 
 def test_daftar_izin_kosong_membuang_peran_dari_erp(tmp_path):
     """Rem sisi pabrik: kosongkan .env, restart, tidak ada akun ERP yang naik."""
-    store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset())
+    store = ConsoleStore(tmp_path / "c.db", erp_allowed_roles=frozenset())
     store.upsert_operator_erp(
         {"email": "s@erp.c", "nama": "S", "password_hash": "x",
          "erp_name": "s@erp.c", "active": 1, "peran": "support"}
@@ -632,7 +632,7 @@ def test_daftar_izin_kosong_membuang_peran_dari_erp(tmp_path):
 
 def test_tarikan_erp_tidak_menurunkan_peran_akun_lokal(tmp_path):
     """Akun lokal adalah jalan masuk saat internet mati; ERP tidak boleh menyentuhnya."""
-    store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset({"support"}))
+    store = ConsoleStore(tmp_path / "c.db", erp_allowed_roles=frozenset({"support"}))
     oid = store.upsert_operator_lokal(
         {"email": "support@autograde.local", "nama": "S", "password_hash": "scrypt$x"}
     )
@@ -647,7 +647,7 @@ def test_tarikan_erp_tidak_menurunkan_peran_akun_lokal(tmp_path):
 - [ ] **Step 2: Jalankan tes, pastikan gagal**
 
 Run: `pytest tests/unit/test_erp_master_data.py tests/unit/test_console_store.py -k peran -v`
-Expected: FAIL — `KeyError: 'peran'` / `TypeError: unexpected keyword 'peran_erp_diizinkan'`
+Expected: FAIL — `KeyError: 'peran'` / `TypeError: unexpected keyword 'erp_allowed_roles'`
 
 - [ ] **Step 3: Tambah setelan**
 
@@ -657,14 +657,14 @@ Di `core/config.py`, dalam kelas `Settings`:
     # Peran mana yang boleh datang dari AutoERP. Kosongkan untuk menolak semuanya —
     # satu-satunya rem yang bisa ditarik dari sisi pabrik kalau akun ERP bermasalah,
     # tanpa menunggu ERP dibereskan lebih dulu.
-    peran_erp_diizinkan: str = "support"
+    erp_allowed_roles: str = "support"
 ```
 
 Teruskan juga di `docker-compose.yml`, service `console`, di dekat blok `ERP_*`
 (pola yang sama dengan `ERP_COMPANY` di baris ~396):
 
 ```yaml
-      - PERAN_ERP_DIIZINKAN=${PERAN_ERP_DIIZINKAN:-support}
+      - ERP_ALLOWED_ROLES=${ERP_ALLOWED_ROLES:-support}
 ```
 
 dan tambahkan barisnya ke `.env.example`. Tanpa ini
@@ -698,20 +698,20 @@ Di `ConsoleStore.__init__`, tambah parameter:
         self,
         db_path: Path,
         *,
-        peran_erp_diizinkan: frozenset[str] | None = None,
+        erp_allowed_roles: frozenset[str] | None = None,
     ) -> None:
 ```
 
-dan simpan: `self._peran_erp_diizinkan = peran_erp_diizinkan or frozenset()`
+dan simpan: `self._erp_allowed_roles = erp_allowed_roles or frozenset()`
 
-Di `_upsert_operator`, saat `asal == "erp"`, hitung peran lewat `saring_peran_erp(row.get("peran"), self._peran_erp_diizinkan)` dan sertakan di `INSERT`. Pada cabang `UPDATE` untuk baris yang sudah ada, peran **hanya** ditimpa kalau baris target `asal='erp'` — baris `lokal` tidak tersentuh, sejalan dengan `overwrite_asal` yang sudah ada.
+Di `_upsert_operator`, saat `asal == "erp"`, hitung peran lewat `saring_peran_erp(row.get("peran"), self._erp_allowed_roles)` dan sertakan di `INSERT`. Pada cabang `UPDATE` untuk baris yang sudah ada, peran **hanya** ditimpa kalau baris target `asal='erp'` — baris `lokal` tidak tersentuh, sejalan dengan `overwrite_asal` yang sudah ada.
 
 Di `routes/console.py` `get_console_service()`, teruskan setelan:
 
 ```python
     store = ConsoleStore(
         settings.console_db_path,
-        peran_erp_diizinkan=parse_daftar_izin(settings.peran_erp_diizinkan),
+        erp_allowed_roles=parse_daftar_izin(settings.erp_allowed_roles),
     )
 ```
 
@@ -957,7 +957,7 @@ gh pr create --base staging --title "feat(console): add a support role and the d
 
 - \`operators.peran\` (operator/support), migrated for factory databases that predate it
 - \`require_support\` → 403; the hidden tabs are tidiness, the guard is the backend
-- roles pulled from AutoERP, filtered by \`PERAN_ERP_DIIZINKAN\` (default \`support\`) — the one brake that can be pulled from the mill side
+- roles pulled from AutoERP, filtered by \`ERP_ALLOWED_ROLES\` (default \`support\`) — the one brake that can be pulled from the mill side
 - local accounts are never touched by a pull, so a mill with no internet keeps its way in
 
 Needs delta-anugrah/autoerp#<N> merged first: Frappe answers 417 for one unknown field."
@@ -2144,7 +2144,7 @@ Di `.env.example`, dengan komentarnya:
 ```bash
 # Peran mana yang boleh datang dari AutoERP. Kosongkan untuk menolak semuanya —
 # rem sisi pabrik kalau akun ERP bermasalah.
-PERAN_ERP_DIIZINKAN=support
+ERP_ALLOWED_ROLES=support
 
 # Berapa lama riwayat galat disimpan untuk layar Log support.
 LOG_RETENSI_HARI=180

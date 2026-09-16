@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse
 from ..core.config import Settings
 from ..domain.operator_auth import SESSION_TTL_S
 from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
-from ..domain.peran import ROLE_SUPPORT, parse_allowed_roles
+from ..domain.role import ROLE_SUPPORT, parse_allowed_roles
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
 from ..repositories.console_repository import ConsoleStore

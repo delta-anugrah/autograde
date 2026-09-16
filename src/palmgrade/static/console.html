@@ -2152,9 +2152,9 @@ function tutupGerbang(operator) {
   $("keluar").hidden = false;
 }
 
-function hapusTabDeveloper(peran) {
+function hapusTabDeveloper(role) {
   // Removed from the DOM, not hidden: the backend guards access, this is tidiness.
-  if (peran === "support") return;
+  if (role === "support") return;
   document.querySelectorAll('[data-dev="1"]').forEach((el) => el.remove());
 }
 

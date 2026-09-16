@@ -20,7 +20,7 @@ from ..domain.operator_auth import (
     normalise_nama,
     operator_id_for,
 )
-from ..domain.peran import ROLE_OPERATOR, sanitize_role
+from ..domain.role import ROLE_OPERATOR, sanitize_role
 from ..repositories.console_repository import ConsoleStore
 
 
@@ -63,7 +63,7 @@ class OperatorAdmin:
                 "email": email,
                 "full_name": full_name,
                 "password_hash": hash_password(sandi),
-                "peran": sanitize_role(role),
+                "role": sanitize_role(role),
             }
         )
         # Read back rather than assumed: the row is the only source of truth for

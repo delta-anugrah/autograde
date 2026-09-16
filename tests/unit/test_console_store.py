@@ -340,7 +340,7 @@ def test_operator_baru_default_operator(tmp_path):
 
 
 def test_peran_ikut_di_baris_sesi(tmp_path):
-    """The route guard reads `peran` off the session row, so it must carry it."""
+    """The route guard reads `role` off the session row, so it must carry it."""
     store = ConsoleStore(tmp_path / "c.db")
     oid = store.upsert_operator_manual(
         {"email": "s@b.c", "full_name": "S", "password_hash": "scrypt$x"}
@@ -425,7 +425,7 @@ def test_tarikan_erp_menulis_peran_yang_diizinkan(tmp_path):
     store = ConsoleStore(tmp_path / "c.db", erp_allowed_roles=frozenset({"support"}))
     store.upsert_operator_erp(
         {"email": "s@erp.c", "full_name": "S", "password_hash": "x",
-         "erp_name": "s@erp.c", "active": 1, "peran": "support"}
+         "erp_name": "s@erp.c", "active": 1, "role": "support"}
     )
     assert store.operator_by_email("s@erp.c")["role"] == "support"
 
@@ -435,7 +435,7 @@ def test_daftar_izin_kosong_membuang_peran_dari_erp(tmp_path):
     store = ConsoleStore(tmp_path / "c.db", erp_allowed_roles=frozenset())
     store.upsert_operator_erp(
         {"email": "s@erp.c", "full_name": "S", "password_hash": "x",
-         "erp_name": "s@erp.c", "active": 1, "peran": "support"}
+         "erp_name": "s@erp.c", "active": 1, "role": "support"}
     )
     assert store.operator_by_email("s@erp.c")["role"] == "operator"
 
@@ -449,7 +449,7 @@ def test_tarikan_erp_tidak_menurunkan_peran_akun_lokal(tmp_path):
     store.set_role(oid, "support")
     store.upsert_operator_erp(
         {"email": "support@autograde.local", "full_name": "S", "password_hash": "y",
-         "erp_name": "s", "active": 1, "peran": "operator"}
+         "erp_name": "s", "active": 1, "role": "operator"}
     )
     assert store.operator_by_email("support@autograde.local")["role"] == "support"
 

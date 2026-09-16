@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 
 from ..domain.operator_auth import operator_id_for
-from ..domain.peran import ROLE_SUPPORT
+from ..domain.role import ROLE_SUPPORT
 from ..repositories.console_repository import ConsoleStore
 
 logger = logging.getLogger(__name__)

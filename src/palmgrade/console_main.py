@@ -71,9 +71,9 @@ async def lifespan(app: FastAPI):
     if not service.store.has_support_account():
         logger.warning(
             "No account has the support role: this console's developer screens cannot "
-            "be opened by anyone. Run `make operator AKSI=peran PERAN=support` on this PC "
+            "be opened by anyone. Run `make operator AKSI=role ROLE=support` on this PC "
             "(use `make operator-docker` if the console runs in Docker) to promote an "
-            "existing account, or `make operator PERAN=support` for a new one."
+            "existing account, or `make operator ROLE=support` for a new one."
         )
     # The AutoERP link is optional by design: with ERP_URL empty there are no
     # workers at all, and any of them may die without taking the screen down.

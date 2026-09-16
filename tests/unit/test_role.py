@@ -1,4 +1,4 @@
-from palmgrade.domain.peran import (
+from palmgrade.domain.role import (
     ROLE_OPERATOR,
     ROLE_SUPPORT,
     filter_erp_role,

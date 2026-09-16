@@ -395,7 +395,7 @@ services:
       # its own default company.
       - ERP_COMPANY=${ERP_COMPANY:-}
       # Peran mana yang boleh datang dari AutoERP. Kosongkan untuk menolak semuanya.
-      - PERAN_ERP_DIIZINKAN=${PERAN_ERP_DIIZINKAN:-support}
+      - ERP_ALLOWED_ROLES=${ERP_ALLOWED_ROLES:-support}
       # Berapa lama layar Log (support) menyimpan riwayat ERROR/WARNING.
       - LOG_RETENSI_HARI=${LOG_RETENSI_HARI:-180}
       - LICENSE_TOKEN=${LICENSE_TOKEN:-}

@@ -487,7 +487,7 @@ FrameProcessingWorker / CaptureService
 | `PLC_QUEUE_MAX` | `1` | Berapa banyak pulse boleh terutang per coil = **berapa lama sinyal boleh basi** (`queue_max × (pulse+gap)`), bukan kapasitas. Penuh → drop + hitung (`PulseScheduler.dropped`) |
 | `PLC_POLL_MS` | `200` | Interval polling `PlcWorker` — sekaligus keepalive watchdog ODOT |
 | `PLC_DI_COUNT` | `16` | Jumlah discrete input yang dibaca tiap poll |
-| `PERAN_ERP_DIIZINKAN` | `support` | **Konsol saja.** Peran mana yang boleh datang dari AutoERP (`domain/peran.py`, `saring_peran_erp`). Kosong = tolak semua akun ERP dari lane developer — satu-satunya rem sisi pabrik, tanpa menyentuh AutoERP |
+| `ERP_ALLOWED_ROLES` | `support` | **Konsol saja.** Peran mana yang boleh datang dari AutoERP (`domain/peran.py`, `saring_peran_erp`). Kosong = tolak semua akun ERP dari lane developer — satu-satunya rem sisi pabrik, tanpa menyentuh AutoERP |
 | `LOG_RETENSI_HARI` | `180` | **Konsol saja.** Berapa lama baris `log_kejadian` (ERROR/WARNING, layar Log support) disimpan sebelum dibuang |
 
 > Detail lengkap (coil map, hardware part number, throughput ceiling, open hardware questions): `docs/plc-integration.md`.

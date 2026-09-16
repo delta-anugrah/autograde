@@ -37,7 +37,7 @@ DOCTYPE_FIELDS = {
     },
     # `erpnext/palm_mill/doctype/autograde_operator/autograde_operator.json`.
     "AutoGrade Operator": {
-        "name", "modified", "email", "full_name", "active", "password_hash", "peran",
+        "name", "modified", "email", "full_name", "active", "password_hash", "role",
     },
 }
 
@@ -131,15 +131,15 @@ def test_an_operator_with_no_full_name_falls_back_to_the_email():
 def test_operator_row_membawa_peran():
     row = operator_row(
         {"name": "a@b.c", "email": "a@b.c", "full_name": "A",
-         "password_hash": "x", "active": 1, "peran": "support"}
+         "password_hash": "x", "active": 1, "role": "support"}
     )
-    assert row["peran"] == "support"
+    assert row["role"] == "support"
 
 
 def test_operator_row_tanpa_peran_tetap_mentah():
     """`operator_row` does not normalize; only the store does, via `filter_erp_role`."""
     row = operator_row({"name": "a@b.c", "email": "a@b.c", "full_name": "A"})
-    assert row["peran"] == ""
+    assert row["role"] == ""
 
 
 def test_truck_lands_on_the_id_the_operator_already_typed():

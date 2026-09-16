@@ -170,7 +170,7 @@ def test_the_listing_shows_where_each_account_came_from(tmp_path):
 #
 # The gap these cover: a mill whose accounts were all made by `make operator`
 # before it knew about roles ends up with nobody able to reach the developer
-# screens, and no local way back in. `AKSI=peran` (via `set_role`) and a role
+# screens, and no local way back in. `AKSI=role` (via `set_role`) and a role
 # on `AKSI=tambah` (via `add_or_reset`) are the two ways out.
 
 
@@ -183,7 +183,7 @@ def test_a_role_given_on_add_lands_in_the_column(tmp_path):
 
 
 def test_an_unrecognised_role_on_add_falls_back_to_operator(tmp_path):
-    """A typo in PERAN must not land on the column unchecked — the column
+    """A typo in ROLE must not land on the column unchecked — the column
     gates the piston screen, same reasoning as `ConsoleStore.set_role`."""
     admin, store = _admin(tmp_path)
 
@@ -193,7 +193,7 @@ def test_an_unrecognised_role_on_add_falls_back_to_operator(tmp_path):
 
 
 def test_omitting_the_role_on_add_promotes_nobody(tmp_path):
-    """The default `make operator` run — no PERAN typed — must never be the
+    """The default `make operator` run — no ROLE typed — must never be the
     thing that silently creates a second support account."""
     admin, store = _admin(tmp_path)
 
@@ -204,7 +204,7 @@ def test_omitting_the_role_on_add_promotes_nobody(tmp_path):
 
 def test_a_role_on_add_never_touches_an_existing_accounts_role(tmp_path):
     """`add_or_reset` is also the forgotten-password path. A password reset run
-    with no PERAN typed must not silently demote a support account back to
+    with no ROLE typed must not silently demote a support account back to
     plain operator."""
     admin, store = _admin(tmp_path)
     admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, role="support")

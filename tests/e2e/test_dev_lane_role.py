@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 
 from palmgrade.domain.operator_auth import hash_password
 from palmgrade.domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT
-from palmgrade.domain.peran import ROLE_OPERATOR, ROLE_SUPPORT
+from palmgrade.domain.role import ROLE_OPERATOR, ROLE_SUPPORT
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.routes.console import get_auth_service, get_console_service
 from palmgrade.routes.console import router as console_router
@@ -41,7 +41,7 @@ def gerbang(tmp_path):
             "email": "operator@pks.test",
             "full_name": "Operator Biasa",
             "password_hash": hash_password(SANDI),
-            "peran": ROLE_OPERATOR,
+            "role": ROLE_OPERATOR,
         }
     )
     store.upsert_operator_manual(
@@ -49,7 +49,7 @@ def gerbang(tmp_path):
             "email": "support@pks.test",
             "full_name": "Akun Support",
             "password_hash": hash_password(SANDI),
-            "peran": ROLE_SUPPORT,
+            "role": ROLE_SUPPORT,
         }
     )
 

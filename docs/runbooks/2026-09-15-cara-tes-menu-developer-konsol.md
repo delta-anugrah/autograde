@@ -192,7 +192,7 @@ Ini kasus nyata di PC pabrik yang `.env`-nya dibuat sebelum fitur ini ada.
 
 | Setelan | Bawaan | Artinya |
 |---|---|---|
-| `PERAN_ERP_DIIZINKAN` | `support` | Peran mana yang boleh datang dari AutoERP. **Dikosongkan = semua peran dari ERP ditolak** — rem yang bisa ditarik dari sisi pabrik kalau akun ERP bermasalah, tanpa menunggu ERP dibereskan. |
+| `ERP_ALLOWED_ROLES` | `support` | Peran mana yang boleh datang dari AutoERP. **Dikosongkan = semua peran dari ERP ditolak** — rem yang bisa ditarik dari sisi pabrik kalau akun ERP bermasalah, tanpa menunggu ERP dibereskan. |
 | `LOG_RETENSI_HARI` | `180` | Berapa lama riwayat galat disimpan. ±10 MB pada 200 galat/hari. |
 
 Keduanya sudah ada di `.env.example` dan diteruskan `docker-compose.yml`.

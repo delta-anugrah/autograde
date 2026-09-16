@@ -275,7 +275,7 @@ class Settings:
     # Roles AutoERP is allowed to grant. Empty rejects all of them — the one
     # brake the factory side can pull without waiting on ERP to be fixed.
     erp_allowed_roles_raw: str = field(
-        default_factory=lambda: os.getenv("PERAN_ERP_DIIZINKAN", "support")
+        default_factory=lambda: os.getenv("ERP_ALLOWED_ROLES", "support")
     )
 
     # ── PLC / ODOT CN-8031 (Modbus-TCP) ──────────────────────────

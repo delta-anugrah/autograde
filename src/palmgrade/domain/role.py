@@ -23,7 +23,7 @@ def sanitize_role(value: object) -> str:
 
 
 def parse_allowed_roles(raw: str) -> frozenset[str]:
-    """`PERAN_ERP_DIIZINKAN` as the set of roles ERP is allowed to grant."""
+    """`ERP_ALLOWED_ROLES` as the set of roles ERP is allowed to grant."""
     if not raw:
         return frozenset()
     return frozenset(part.strip().lower() for part in raw.split(",") if part.strip())
