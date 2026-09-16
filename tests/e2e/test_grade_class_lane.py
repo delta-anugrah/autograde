@@ -86,7 +86,7 @@ def _kirim(klien, *, grade_class, verdict, menit_lalu=1, tp=None):
         headers={"x-webhook-secret": SECRET},
     )
     assert r.status_code in (200, 201), r.text
-    return body["event_id"]
+    return body["event_id"], r.json()["work_date"]
 
 
 def test_janjang_jk_masuk_sebagai_jk_tapi_dihitung_rej(klien):
@@ -143,11 +143,15 @@ def test_tp_terhitung_dengan_ambang_yang_sama_dengan_erp(klien):
     """Layar dan buku besar harus memakai satu ambang (> 0.8); kalau beda,
     operator melapor 'selisih' yang sebenarnya dua aturan."""
     _, service, _ = klien
-    _kirim(klien, grade_class="Ripe", verdict="ACC", tp=0.95)
+    _, hari = _kirim(klien, grade_class="Ripe", verdict="ACC", tp=0.95)
     _kirim(klien, grade_class="Ripe", verdict="ACC", tp=0.5)
 
     counts = service.store.grading_counts(ASSIGNMENT)
-    layar = service.store.summary(service.today())
+    # Hari kerja JANJANGNYA, bukan `service.today()`: janjang distempel semenit
+    # lalu, jadi tes yang jalan tepat sesudah tengah malam membandingkan dua hari
+    # yang berbeda dan gagal tanpa ada yang rusak. Persis jebakan tanggal keras
+    # yang sudah kena sekali di `test_scan_qr_lane.py` (PR #95).
+    layar = service.store.summary(hari)
     assert counts["tangkai_panjang"] == 1
     assert sum(r["tp"] or 0 for r in layar) == counts["tangkai_panjang"]
 
