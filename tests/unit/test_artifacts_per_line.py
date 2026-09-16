@@ -12,7 +12,6 @@ layar dijawab **404**. Gagalnya sunyi: tidak ada error di sisi line sama sekali.
 from __future__ import annotations
 
 import pathlib
-import re
 
 from palmgrade.core.config import Settings
 
@@ -61,11 +60,32 @@ def test_mount_video_compose_tidak_dipatok_ke_mesin_siapa_pun():
     """Dulu `/home/nexio/Desktop/Projects/sawit:/videos:ro` — path milik satu
     laptop. Di PC lain folder itu tidak ada, jadi videonya tidak terlihat dari
     dalam container dan line mati saat start dengan "Tidak bisa buka camera
-    source". Sekarang lewat `VIDEOS_DIR`, dan `..` sebagai bawaan menjaga
-    perilaku lama untuk checkout yang bersebelahan dengan folder sawit."""
+    source"."""
     compose = (AKAR / "docker-compose.yml").read_text(encoding="utf-8")
     assert "/home/nexio" not in compose, "path mesin orang lain kembali masuk"
-    assert compose.count("${VIDEOS_DIR:-..}:/videos:ro") == 3, "tiga line, tiga mount"
+
+
+def test_satu_env_saja_untuk_video():
+    """Operator mengisi SATU baris (path di komputernya); compose me-mount berkas
+    itu sendiri dan menerjemahkan pathnya jadi nama tetap di dalam container.
+
+    Dua variabel (folder + path container) pernah dicoba dan ditolak: yang kedua
+    harus ditulis dengan awalan yang tidak ada di komputer mana pun, dan salah
+    menulisnya berakhir sebagai line yang mati saat start."""
+    compose = (AKAR / "docker-compose.yml").read_text(encoding="utf-8")
+    assert "VIDEOS_DIR" not in compose, "variabel kedua kembali masuk"
+    # `:-/dev/null` supaya mode hikrobot/photo (path kosong) tidak membuat
+    # compose menolak spec-nya: ":/videos/video-in: empty section between colons".
+    assert compose.count("${CAMERA_VIDEO_PATH:-/dev/null}:/videos/video-in:ro") == 3
+    # `:+` = kirim ke container HANYA kalau operator mengisinya; kosong tetap
+    # kosong, bukan path palsu yang membuat OpenCV mencoba membuka /dev/null.
+    assert compose.count("CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:+/videos/video-in}") == 3
+
+
+def test_env_example_tidak_lagi_menyuruh_menulis_path_container():
+    contoh = (AKAR / ".env.example").read_text(encoding="utf-8")
+    assert "VIDEOS_DIR" not in contoh
+    assert "DI KOMPUTER INI" in contoh
 
 
 def test_setiap_line_punya_volume_artifacts_sendiri_di_docker():
@@ -75,9 +95,4 @@ def test_setiap_line_punya_volume_artifacts_sendiri_di_docker():
         assert f"./artifacts/line-{n}:/app/artifacts" in compose
 
 
-def test_env_example_menjelaskan_path_dalam_container():
-    """Salah paham yang paling mahal di sini: mengisi path host ke
-    CAMERA_VIDEO_PATH saat memakai Docker."""
-    contoh = (AKAR / ".env.example").read_text(encoding="utf-8")
-    assert re.search(r"VIDEOS_DIR", contoh)
-    assert "/videos/" in contoh
+

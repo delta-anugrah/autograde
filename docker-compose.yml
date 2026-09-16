@@ -66,7 +66,10 @@ services:
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-20}
-      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      # Path DI DALAM container selalu nama tetap ini; yang diisi operator di
+      # `.env` adalah path di komputernya, dan mount di bawah yang menjembatani.
+      # Kosong = tidak pakai file video (mode hikrobot/photo), jadi tetap kosong.
+      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:+/videos/video-in}
       - CAMERA_VIDEO_LOOP=${CAMERA_VIDEO_LOOP:-false}
       # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
       # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
@@ -114,7 +117,7 @@ services:
       - ./state/line-1:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
-      - ${VIDEOS_DIR:-..}:/videos:ro
+      - ${CAMERA_VIDEO_PATH:-/dev/null}:/videos/video-in:ro
 
   ripe-line-2:
     image: palmgrade-vision:latest
@@ -177,7 +180,10 @@ services:
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-20}
-      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      # Path DI DALAM container selalu nama tetap ini; yang diisi operator di
+      # `.env` adalah path di komputernya, dan mount di bawah yang menjembatani.
+      # Kosong = tidak pakai file video (mode hikrobot/photo), jadi tetap kosong.
+      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:+/videos/video-in}
       - CAMERA_VIDEO_LOOP=${CAMERA_VIDEO_LOOP:-false}
       # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
       # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
@@ -225,7 +231,7 @@ services:
       - ./state/line-2:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
-      - ${VIDEOS_DIR:-..}:/videos:ro
+      - ${CAMERA_VIDEO_PATH:-/dev/null}:/videos/video-in:ro
 
   ripe-line-3:
     image: palmgrade-vision:latest
@@ -288,7 +294,10 @@ services:
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-20}
-      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      # Path DI DALAM container selalu nama tetap ini; yang diisi operator di
+      # `.env` adalah path di komputernya, dan mount di bawah yang menjembatani.
+      # Kosong = tidak pakai file video (mode hikrobot/photo), jadi tetap kosong.
+      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:+/videos/video-in}
       - CAMERA_VIDEO_LOOP=${CAMERA_VIDEO_LOOP:-false}
       # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
       # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
@@ -336,7 +345,7 @@ services:
       - ./state/line-3:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
-      - ${VIDEOS_DIR:-..}:/videos:ro
+      - ${CAMERA_VIDEO_PATH:-/dev/null}:/videos/video-in:ro
 
   # Instance ke-4 dari image yang SAMA: konsol operator offline (§4 rencana
   # PalmOS). Tanpa kamera, tanpa GPU, tanpa PLC — supaya satu line kamera yang
