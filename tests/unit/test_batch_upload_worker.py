@@ -174,6 +174,11 @@ def test_without_a_text_receiver_the_item_is_done_once_the_image_is_up(tmp_path,
     monkeypatch.setenv("MACHINE_ID", "M1")
     monkeypatch.setenv("R2_BUCKET", "palmgrade")
     monkeypatch.delenv("UPLOAD_API_URL", raising=False)
+    # Penjaga disk dimatikan: dia menghapus item `done` tertua begitu sisa disk
+    # di bawah lantainya, dan runner CI sering di bawah 20 GB — itu membuang
+    # justru item yang tes ini periksa. Pola yang sama dipakai
+    # `test_batch_upload_thumb.py` dan `test_batch_upload_clean_retention.py`.
+    monkeypatch.setenv("UPLOAD_DISK_MIN_FREE_GB", "0")
     settings = Settings(repo_root=tmp_path)
     assert settings.upload_events_url == ""
     _write_ripeness(settings)
