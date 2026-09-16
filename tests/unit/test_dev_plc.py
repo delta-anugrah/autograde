@@ -105,15 +105,15 @@ class _FakeSettings:
 
 
 def _client_support(app, store, *, email: str = "s@b.c") -> TestClient:
-    store.upsert_operator_lokal({"email": email, "nama": "Support", "password_hash": hash_password(SANDI)})
-    store.set_peran(store.operator_by_email(email)["id"], "support")
+    store.upsert_operator_manual({"email": email, "nama": "Support", "password_hash": hash_password(SANDI)})
+    store.set_role(store.operator_by_email(email)["id"], "support")
     client = TestClient(app)
     assert client.post("/api/console/login", json={"email": email, "sandi": SANDI}).status_code == 200
     return client
 
 
 def _client_operator(app, store, *, email: str = "o@b.c") -> TestClient:
-    store.upsert_operator_lokal({"email": email, "nama": "Operator", "password_hash": hash_password(SANDI)})
+    store.upsert_operator_manual({"email": email, "nama": "Operator", "password_hash": hash_password(SANDI)})
     client = TestClient(app)
     assert client.post("/api/console/login", json={"email": email, "sandi": SANDI}).status_code == 200
     return client
@@ -218,7 +218,7 @@ def test_penekanan_meninggalkan_jejak_di_log(tmp_path):
         _client_support(app, store, email="s@b.c").post(
             "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
         )
-        items = log_store.baca(level="WARNING", cari="coil", limit=10, offset=0)["items"]
+        items = log_store.read(level="WARNING", search="coil", limit=10, offset=0)["items"]
         assert len(items) == 1
         assert "s@b.c" in items[0]["pesan"]
         assert "11" in items[0]["pesan"]
@@ -240,7 +240,7 @@ def test_penolakan_juga_meninggalkan_jejak_di_log(tmp_path):
         _client_support(app, store, email="s@b.c").post(
             "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
         )
-        items = log_store.baca(level="WARNING", cari="coil", limit=10, offset=0)["items"]
+        items = log_store.read(level="WARNING", search="coil", limit=10, offset=0)["items"]
         assert len(items) == 1
         assert "s@b.c" in items[0]["pesan"]
     finally:
@@ -314,7 +314,7 @@ def test_line_tidak_terjangkau_juga_meninggalkan_jejak_di_log(tmp_path):
         )
         assert r.status_code == 502
 
-        items = log_store.baca(level="WARNING", cari="coil", limit=10, offset=0)["items"]
+        items = log_store.read(level="WARNING", search="coil", limit=10, offset=0)["items"]
         assert len(items) == 1
         assert "s@b.c" in items[0]["pesan"]
         assert "11" in items[0]["pesan"]

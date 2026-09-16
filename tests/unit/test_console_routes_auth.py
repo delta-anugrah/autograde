@@ -57,7 +57,7 @@ class _StubConsole:
 @pytest.fixture
 def console(tmp_path):
     store = ConsoleStore(tmp_path / "console.db")
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {"email": EMAIL, "full_name": NAMA, "password_hash": hash_password(SANDI)}
     )
     auth = AuthService(store)
@@ -214,10 +214,10 @@ def test_lane_support_menolak_operator_biasa(console):
 
 def test_lane_support_menerima_akun_support(console):
     client, store, _ = console
-    oid = store.upsert_operator_lokal(
+    oid = store.upsert_operator_manual(
         {"email": "s@b.c", "full_name": "S", "password_hash": hash_password(SANDI)}
     )
-    store.set_peran(oid, "support")
+    store.set_role(oid, "support")
 
     _sign_in(client, email="s@b.c")
     response = client.get("/api/console/dev/ping")
@@ -237,10 +237,10 @@ def test_lane_support_tanpa_sesi_tetap_401(console):
 
 def test_me_membawa_peran(console):
     client, store, _ = console
-    oid = store.upsert_operator_lokal(
+    oid = store.upsert_operator_manual(
         {"email": "s@b.c", "full_name": "S", "password_hash": hash_password(SANDI)}
     )
-    store.set_peran(oid, "support")
+    store.set_role(oid, "support")
 
     _sign_in(client, email="s@b.c")
     response = client.get("/api/console/me")

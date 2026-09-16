@@ -8,22 +8,22 @@ class AssignmentSyncRequest(BaseModel):
     assignment_id: str | None
     truck_id: str | None
     assigned_at: str
-    # Sumber TBS truk ini menurut AutoERP, dititipkan konsol. None = tidak
-    # dikirim (palmgrade-api, konsol lama) atau truk yang sumbernya belum jelas;
-    # dua-duanya berarti sortir normal. Sengaja Literal, bukan str: nilai asing
-    # lebih baik ditolak 422 daripada diam-diam mematikan pembuangan buah.
+    # This truck's FFB source per AutoERP, forwarded by the console. None = not
+    # sent (palmgrade-api, an old console) or a truck whose source is not yet
+    # known; both mean normal sorting. Deliberately Literal, not str: an
+    # unknown value is better refused with 422 than silently disabling reject.
     ffb_source: Literal["Internal", "External"] | None = None
 
     @field_validator("assignment_id", "truck_id")
     @classmethod
-    def _kosong_jadi_none(cls, nilai: str | None) -> str | None:
+    def _empty_becomes_none(cls, value: str | None) -> str | None:
         """Releasing a truck = send an empty string; this contract has no other way.
 
         It must become `None` here, not pass through as-is: `""` rides along into
         the next event payload and palmgrade-api validates it as a UUID → the
         event is rejected 400 and lands in `outbox_failed`.
         """
-        return nilai or None
+        return value or None
 
 
 class AssignmentSyncResponse(BaseModel):

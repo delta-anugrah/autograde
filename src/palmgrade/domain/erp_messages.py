@@ -96,9 +96,10 @@ def _weighing(visit: dict[str, Any]) -> dict[str, Any]:
 
 
 def _grading(grading: dict[str, Any]) -> dict[str, Any]:
-    """Criteria mapping (§4.C): mentah is the rejected share, tangkai panjang the
-    long stalks among accepted bunches, matang the rest — AutoERP derives that
-    last one itself. `detail_url` is deliberately not sent (see
+    """Criteria mapping (§4.C, AutoERP contract field names — do not rename):
+    `mentah` is the rejected share, `tangkai_panjang` the long stalks among
+    accepted bunches, `matang` the rest — AutoERP derives that last one itself.
+    `detail_url` is deliberately not sent (see
     `../docs/PROGRESS-AUTOGRADE-AUTOERP.md` §"Beda dari rancangan Mas Samuel").
     """
     total = int(grading.get("total") or 0)
@@ -113,8 +114,8 @@ def _grading(grading: dict[str, Any]) -> dict[str, Any]:
     return {
         "assignment_id": grading.get("assignment_id"),
         "line_code": grading.get("line_code"),
-        "started_at": grading.get("mulai"),
-        "ended_at": grading.get("selesai"),
+        "started_at": grading.get("started_at"),
+        "ended_at": grading.get("ended_at"),
         "counts": counts,
         "pct": {
             "mentah": _share(counts["mentah"], total),

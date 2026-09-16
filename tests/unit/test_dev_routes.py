@@ -87,10 +87,10 @@ class _FakeSettings:
 
 
 def _client_support(app, store) -> TestClient:
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {"email": "s@b.c", "nama": "Support", "password_hash": hash_password(SANDI)}
     )
-    store.set_peran(store.operator_by_email("s@b.c")["id"], "support")
+    store.set_role(store.operator_by_email("s@b.c")["id"], "support")
     client = TestClient(app)
     assert client.post(
         "/api/console/login", json={"email": "s@b.c", "sandi": SANDI}
@@ -105,7 +105,7 @@ def dev(tmp_path):
 
 def test_log_butuh_peran_support(dev):
     app, store, _, _ = dev
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {"email": "o@b.c", "nama": "O", "password_hash": hash_password(SANDI)}
     )
     client = TestClient(app)
@@ -130,7 +130,7 @@ def test_log_mengembalikan_halaman_dan_total(dev):
     # read as 180 days expired and vanish before the assertion runs.
     dasar = time.time()
     for i in range(25):
-        log_store.tulis("ERROR", f"s{i}", f"pesan {i}", None, now=dasar + i)
+        log_store.write("ERROR", f"s{i}", f"pesan {i}", None, now=dasar + i)
     client = _client_support(app, store)
 
     data = client.get("/api/console/dev/log?limit=10").json()
@@ -142,8 +142,8 @@ def test_log_mengembalikan_halaman_dan_total(dev):
 def test_log_saring_level(dev):
     app, store, log_store, _ = dev
     dasar = time.time()
-    log_store.tulis("ERROR", "a", "satu", None, now=dasar)
-    log_store.tulis("WARNING", "b", "dua", None, now=dasar + 1)
+    log_store.write("ERROR", "a", "satu", None, now=dasar)
+    log_store.write("WARNING", "b", "dua", None, now=dasar + 1)
     client = _client_support(app, store)
 
     assert client.get("/api/console/dev/log?level=ERROR").json()["total"] == 1
@@ -167,8 +167,8 @@ def test_log_offset_tidak_boleh_negatif(dev):
 def test_log_cari_menyaring_pesan(dev):
     app, store, log_store, _ = dev
     dasar = time.time()
-    log_store.tulis("ERROR", "a", "kamera putus", None, now=dasar)
-    log_store.tulis("ERROR", "b", "antrean penuh", None, now=dasar + 1)
+    log_store.write("ERROR", "a", "kamera putus", None, now=dasar)
+    log_store.write("ERROR", "b", "antrean penuh", None, now=dasar + 1)
     client = _client_support(app, store)
 
     assert client.get("/api/console/dev/log?cari=kamera").json()["total"] == 1
@@ -222,7 +222,7 @@ def test_satu_line_mati_tidak_menjatuhkan_line_lain(tmp_path):
 
 def test_diagnostik_butuh_peran_support(dev):
     app, store, _, _ = dev
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {"email": "o2@b.c", "nama": "O2", "password_hash": hash_password(SANDI)}
     )
     client = TestClient(app)
@@ -280,7 +280,7 @@ def test_kirim_ulang_adalah_post_bukan_get(dev):
 
 def test_antrean_butuh_peran_support(dev):
     app, store, _, _ = dev
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {"email": "o3@b.c", "nama": "O3", "password_hash": hash_password(SANDI)}
     )
     client = TestClient(app)
@@ -316,7 +316,7 @@ def test_versi_tidak_membocorkan_rahasia(dev):
 
 def test_versi_butuh_peran_support(dev):
     app, store, _, _ = dev
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {"email": "o4@b.c", "nama": "O4", "password_hash": hash_password(SANDI)}
     )
     client = TestClient(app)
@@ -328,7 +328,7 @@ def test_versi_butuh_peran_support(dev):
 def test_semua_lane_dev_menolak_operator_biasa(dev):
     """Satu tes untuk keempatnya: penjaganya satu, jadi lupa memasangnya kelihatan."""
     app, store, _, _ = dev
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {"email": "o5@b.c", "nama": "O5", "password_hash": hash_password(SANDI)}
     )
     client = TestClient(app)

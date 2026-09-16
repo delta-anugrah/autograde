@@ -51,7 +51,7 @@ def sign_in():
     email = " ".join(os.environ.get("CONSOLE_EMAIL", "").split()).lower()
     sandi = os.environ.get("CONSOLE_SANDI", "")
     if not (email and sandi):
-        sys.exit("Set CONSOLE_EMAIL dan CONSOLE_SANDI - buat operatornya dulu: make operator")
+        sys.exit("Set CONSOLE_EMAIL and CONSOLE_SANDI - make the operator first: make operator")
     post("/api/console/login", {"email": email, "sandi": sandi})
 
 
@@ -112,7 +112,7 @@ post("/api/v1/internal/scale/weighing", {
 
 state = get("/api/console/state")
 recap = get("/api/console/recap")
-print(f"{n} grading + 3 tiket timbangan masuk, hari kerja {state['work_date']}")
+print(f"{n} grading + 3 weighing tickets seeded, work date {state['work_date']}")
 for r in recap["items"]:
-    print(f"  {r['plate_number'] or '(tanpa truk)':<14} total={r['total']:<4} "
-          f"acc={r['acc']:<4} rej={r['rej']:<3} neto={r['net_kg']}")
+    print(f"  {r['plate_number'] or '(no truck)':<14} total={r['total']:<4} "
+          f"acc={r['acc']:<4} rej={r['rej']:<3} net={r['net_kg']}")

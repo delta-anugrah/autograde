@@ -32,8 +32,8 @@ def _grading(**over) -> dict:
     return {
         "assignment_id": "a1",
         "line_code": "line-1",
-        "mulai": "2026-09-13T07:58:00+07:00",
-        "selesai": "2026-09-13T08:23:00+07:00",
+        "started_at": "2026-09-13T07:58:00+07:00",
+        "ended_at": "2026-09-13T08:23:00+07:00",
         "total": 412,
         "acc": 371,
         "rej": 41,

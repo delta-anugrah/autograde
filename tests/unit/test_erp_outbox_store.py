@@ -155,7 +155,7 @@ def test_daftar_gagal_carries_the_reason(tmp_path):
     outbox.enqueue("truck", "K1", {"v": 1})
     outbox.mark_error(outbox.due()[0], "417 unknown field")
 
-    [row] = outbox.daftar_gagal()
+    [row] = outbox.failed_rows()
     assert row["kind"] == "truck"
     assert row["key"] == "K1"
     assert "417" in row["last_error"]
@@ -170,7 +170,7 @@ def test_daftar_gagal_excludes_pending_and_sent_rows(tmp_path):
     outbox.mark_error(outbox.due()[0], "timeout")  # K3: error
     outbox.enqueue("truck", "K1", {"v": 1})  # K1: stays pending
 
-    assert [row["key"] for row in outbox.daftar_gagal()] == ["K3"]
+    assert [row["key"] for row in outbox.failed_rows()] == ["K3"]
 
 
 def test_requeue_failed_moves_error_rows_back_to_pending(tmp_path):

@@ -21,19 +21,21 @@ from __future__ import annotations
 import logging
 
 from ..domain.operator_auth import operator_id_for
-from ..domain.peran import PERAN_SUPPORT
+from ..domain.peran import ROLE_SUPPORT
 from ..repositories.console_repository import ConsoleStore
 
 logger = logging.getLogger(__name__)
 
+# Names kept as-is (not translated): scripts/hash-sandi.py and its test import
+# these two constants directly, outside this branch's scope.
 EMAIL_BAWAAN = "operator@autograde.local"
 EMAIL_SUPPORT = "support@autograde.local"
 
-_NAMA_BAWAAN = "Operator Pabrik"
-_NAMA_SUPPORT = "Support AutoGrade"
+_DEFAULT_NAME = "Operator Pabrik"
+_SUPPORT_NAME = "Support AutoGrade"
 
 
-def seed_akun_bawaan(
+def seed_default_accounts(
     store: ConsoleStore, *, hash_bawaan: str, hash_support: str
 ) -> list[str]:
     """Create whichever of the two accounts is missing. Returns the emails created.
@@ -43,42 +45,42 @@ def seed_akun_bawaan(
     the factory password would undo every password the mill had changed, on exactly the
     accounts whose passwords are identical across images.
     """
-    dibuat = []
-    for email, full_name, hash_sandi in (
-        (EMAIL_BAWAAN, _NAMA_BAWAAN, hash_bawaan),
-        (EMAIL_SUPPORT, _NAMA_SUPPORT, hash_support),
+    created = []
+    for email, full_name, password_hash in (
+        (EMAIL_BAWAAN, _DEFAULT_NAME, hash_bawaan),
+        (EMAIL_SUPPORT, _SUPPORT_NAME, hash_support),
     ):
-        if _buat_kalau_belum_ada(store, email, full_name, hash_sandi):
-            dibuat.append(email)
-    _pastikan_peran_support(store)
-    return dibuat
+        if _create_if_missing(store, email, full_name, password_hash):
+            created.append(email)
+    _ensure_support_role(store)
+    return created
 
 
-def _pastikan_peran_support(store: ConsoleStore) -> None:
+def _ensure_support_role(store: ConsoleStore) -> None:
     """Promote the support account, including on a PC that had it before the
     `role` column existed. Touches only `role`, never the password — same
     reason the seed never re-upserts an existing account."""
     row = store.operator_by_email(EMAIL_SUPPORT)
-    if row is not None and row["role"] != PERAN_SUPPORT:
-        store.set_peran(row["id"], PERAN_SUPPORT)
+    if row is not None and row["role"] != ROLE_SUPPORT:
+        store.set_role(row["id"], ROLE_SUPPORT)
 
 
-def _buat_kalau_belum_ada(
-    store: ConsoleStore, email: str, full_name: str, hash_sandi: str
+def _create_if_missing(
+    store: ConsoleStore, email: str, full_name: str, password_hash: str
 ) -> bool:
-    if not hash_sandi:
+    if not password_hash:
         # A build with no hash, or a `.env` nobody filled in. Skipped silently: this is
         # the normal state of a mill whose accounts all come from AutoERP.
         return False
 
-    if not _hash_terbaca(hash_sandi):
+    if not _hash_is_readable(password_hash):
         # Compose eats `$` (`$$` for a literal one), so a truncated hash is a real
         # accident rather than a theory. An account nobody can sign into but that shows
         # on screen is worse than no account, so it is refused and said out loud.
         logger.error(
-            "Akun bawaan %s tidak dibuat: hash tidak terbaca. "
-            "Isi CONSOLE_DEFAULT_HASH/CONSOLE_SUPPORT_HASH dengan hash, bukan sandi; "
-            "di docker-compose tulis $$ untuk satu $.",
+            "Default account %s not created: hash is not readable. "
+            "Set CONSOLE_DEFAULT_HASH/CONSOLE_SUPPORT_HASH to a hash, not a raw password; "
+            "in docker-compose write $$ for one literal $.",
             email,
         )
         return False
@@ -86,15 +88,15 @@ def _buat_kalau_belum_ada(
     if store.operator(operator_id_for(email)) is not None:
         return False
 
-    store.upsert_operator_lokal({"email": email, "full_name": full_name, "password_hash": hash_sandi})
-    logger.info("Akun bawaan %s dibuat dari hash yang ditanam di image", email)
+    store.upsert_operator_manual({"email": email, "full_name": full_name, "password_hash": password_hash})
+    logger.info("Default account %s created from the hash baked into the image", email)
     return True
 
 
-def _hash_terbaca(hash_sandi: str) -> bool:
+def _hash_is_readable(password_hash: str) -> bool:
     """Only the two shapes this build can verify are accepted.
 
     A raw password passed by mistake fails here, which is the point: it must never end
     up baked into an image. So does a hash Compose truncated at the first `$`.
     """
-    return hash_sandi.startswith(("$pbkdf2-sha256$", "scrypt$"))
+    return password_hash.startswith(("$pbkdf2-sha256$", "scrypt$"))

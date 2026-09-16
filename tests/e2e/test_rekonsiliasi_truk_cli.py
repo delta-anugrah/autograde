@@ -31,16 +31,16 @@ from palmgrade.domain.plate import truck_id_for
 from palmgrade.repositories.console_repository import ConsoleStore
 
 REPO = Path(__file__).resolve().parents[2]
-SKRIP = REPO / "scripts" / "rekonsiliasi-truk.py"
+SCRIPT = REPO / "scripts" / "rekonsiliasi-truk.py"
 
 # The shape palmgrade-api leaves behind: uuid4, unrelated to the plate.
 ID_LAMA = "7f3a9b21-0000-4000-8000-00000000000{}"
 
 
-def _jalankan(db: Path, *argumen: str) -> subprocess.CompletedProcess:
+def _run(db: Path, *args: str) -> subprocess.CompletedProcess:
     """The script as the installer runs it: its own process, its own interpreter."""
     return subprocess.run(
-        [sys.executable, str(SKRIP), "--db", str(db), *argumen],
+        [sys.executable, str(SCRIPT), "--db", str(db), *args],
         capture_output=True,
         text=True,
         env={"PYTHONPATH": str(REPO / "src"), "PATH": "/usr/bin:/bin"},
@@ -49,7 +49,7 @@ def _jalankan(db: Path, *argumen: str) -> subprocess.CompletedProcess:
 
 
 @pytest.fixture
-def db_pabrik(tmp_path) -> Path:
+def factory_db(tmp_path) -> Path:
     """A database shaped like a mill PC that has been running on palmgrade-api.
 
     Four trucks with random ids, one of them already twinned by an ERP pull, plus
@@ -57,9 +57,9 @@ def db_pabrik(tmp_path) -> Path:
     """
     path = tmp_path / "console.db"
     store = ConsoleStore(path)
-    plat = ["BE 4412 OFL", "be-9012-tt", "BG 1234 AB", "BE 7788 QQ"]
+    plates = ["BE 4412 OFL", "be-9012-tt", "BG 1234 AB", "BE 7788 QQ"]
 
-    for i, p in enumerate(plat, 1):
+    for i, p in enumerate(plates, 1):
         tid = ID_LAMA.format(i)
         store.upsert_truck({"id": tid, "plate_number": p, "status": "active"})
         store.upsert_weighing(
@@ -91,7 +91,7 @@ def db_pabrik(tmp_path) -> Path:
     return path
 
 
-def _neto(db: Path) -> float:
+def _net(db: Path) -> float:
     con = sqlite3.connect(db)
     try:
         return con.execute("SELECT COALESCE(SUM(net_kg), 0) FROM weighings").fetchone()[0]
@@ -99,7 +99,7 @@ def _neto(db: Path) -> float:
         con.close()
 
 
-def _menggantung(db: Path) -> dict[str, int]:
+def _dangling(db: Path) -> dict[str, int]:
     """Rows pointing at a truck id that no longer exists — the failure that empties
     the recap without any error anywhere."""
     con = sqlite3.connect(db)
@@ -115,7 +115,7 @@ def _menggantung(db: Path) -> dict[str, int]:
         con.close()
 
 
-def _plat_kembar(db: Path) -> int:
+def _twin_plates(db: Path) -> int:
     con = sqlite3.connect(db)
     try:
         return con.execute(
@@ -128,129 +128,133 @@ def _plat_kembar(db: Path) -> int:
         con.close()
 
 
-def test_mode_lihat_tidak_menyentuh_berkas(db_pabrik):
-    """Dijalankan dulu untuk dibaca sebelum diputuskan. Kalau mode ini ikut menulis,
-    tidak ada cara aman memeriksa hasilnya sebelum mengubah data pabrik."""
-    sebelum = db_pabrik.read_bytes()
+def test_dry_run_does_not_touch_the_file(factory_db):
+    """Run first to read before deciding. If this mode also wrote, there would be
+    no safe way to check the result before changing the mill's data."""
+    before = factory_db.read_bytes()
 
-    hasil = _jalankan(db_pabrik)
+    result = _run(factory_db)
 
-    assert hasil.returncode == 0, hasil.stderr
-    assert "lihat saja" in hasil.stdout
-    assert db_pabrik.read_bytes() == sebelum, "berkas berubah padahal mode lihat"
-
-
-def test_laporannya_menyebut_plat_supaya_bisa_dicocokkan_orang(db_pabrik):
-    """Dibaca di terminal PC pabrik sambil memegang catatan truk."""
-    hasil = _jalankan(db_pabrik)
-
-    assert "BE 4412 OFL" in hasil.stdout
-    assert "PERLU DIPERIKSA ORANG" in hasil.stdout
-    assert "rusak-1" in hasil.stdout
+    assert result.returncode == 0, result.stderr
+    assert "lihat saja" in result.stdout
+    assert factory_db.read_bytes() == before, "the file changed even though this is dry-run mode"
 
 
-def test_tonase_tidak_berubah_sedikit_pun(db_pabrik):
-    """Ini seluruh taruhannya: neto adalah angka yang dibayar ke petani. Truk boleh
-    digabung, tonase tidak boleh bergeser satu kilo pun."""
-    sebelum = _neto(db_pabrik)
+def test_the_report_names_plates_so_a_person_can_match_them(factory_db):
+    """Read in the factory PC's terminal while holding truck records."""
+    result = _run(factory_db)
 
-    _jalankan(db_pabrik, "--tulis")
-
-    assert _neto(db_pabrik) == sebelum == 32000.0
-
-
-def test_tidak_ada_baris_yang_menggantung_sesudahnya(db_pabrik):
-    """`truck_id` ada di tiga tabel. Kelewat satu = barisnya hilang dari rekap tanpa
-    error di mana pun — kegagalan yang paling sulit terlihat."""
-    _jalankan(db_pabrik, "--tulis")
-
-    assert _menggantung(db_pabrik) == {"weighings": 0, "inspections": 0, "assignments": 0}
+    assert "BE 4412 OFL" in result.stdout
+    assert "PERLU DIPERIKSA ORANG" in result.stdout
+    assert "rusak-1" in result.stdout
 
 
-def test_truk_kembar_hilang_dan_erp_name_selamat(db_pabrik):
-    assert _plat_kembar(db_pabrik) == 1
+def test_tonnage_does_not_shift_by_even_one_kilo(factory_db):
+    """This is the entire stake: net weight is the figure the farmer gets paid on.
+    Trucks may be merged, tonnage must not move by a single kilo."""
+    before = _net(factory_db)
 
-    _jalankan(db_pabrik, "--tulis")
+    _run(factory_db, "--tulis")
 
-    assert _plat_kembar(db_pabrik) == 0
-    con = sqlite3.connect(db_pabrik)
+    assert _net(factory_db) == before == 32000.0
+
+
+def test_no_row_is_left_dangling_afterwards(factory_db):
+    """`truck_id` lives in three tables. Miss one and that row disappears from the
+    recap with no error anywhere — the hardest kind of failure to notice."""
+    _run(factory_db, "--tulis")
+
+    assert _dangling(factory_db) == {"weighings": 0, "inspections": 0, "assignments": 0}
+
+
+def test_twin_trucks_disappear_and_erp_name_survives(factory_db):
+    assert _twin_plates(factory_db) == 1
+
+    _run(factory_db, "--tulis")
+
+    assert _twin_plates(factory_db) == 0
+    con = sqlite3.connect(factory_db)
     try:
         assert con.execute("SELECT COUNT(*) FROM trucks WHERE erp_name='TRK-0001'").fetchone()[0] == 1
     finally:
         con.close()
 
 
-def test_dijalankan_dua_kali_aman(db_pabrik):
-    """Yang menjalankannya sedang mengerjakan sepuluh hal lain dan sering ragu apakah
-    tadi sudah jalan."""
-    _jalankan(db_pabrik, "--tulis")
-    setelah_pertama = _neto(db_pabrik)
+def test_running_it_twice_is_safe(factory_db):
+    """Whoever runs this is juggling ten other things and often unsure whether it
+    already ran."""
+    _run(factory_db, "--tulis")
+    after_first = _net(factory_db)
 
-    kedua = _jalankan(db_pabrik, "--tulis")
+    second = _run(factory_db, "--tulis")
 
-    assert "digabung : 0" in kedua.stdout
-    assert "dipindah : 0" in kedua.stdout
-    assert _neto(db_pabrik) == setelah_pertama
-
-
-def test_kode_keluar_menandai_yang_butuh_orang(db_pabrik):
-    """Bukan kegagalan — sisanya sudah dibetulkan. Tapi harus tidak-nol, kalau tidak
-    daftar pengecualiannya lewat begitu saja di skrip pemasangan."""
-    assert _jalankan(db_pabrik, "--tulis").returncode == 2
+    assert "digabung : 0" in second.stdout
+    assert "dipindah : 0" in second.stdout
+    assert _net(factory_db) == after_first
 
 
-def test_database_yang_tidak_ada_ditolak_bukan_dibuat(tmp_path):
-    """Salah ketik path tidak boleh menghasilkan database kosong yang terbaca seperti
-    pabrik tanpa truk."""
-    hilang = tmp_path / "tidak-ada.db"
-
-    hasil = _jalankan(hilang)
-
-    assert hasil.returncode == 1
-    assert not hilang.exists(), "skrip membuat database baru dari path yang salah ketik"
+def test_the_exit_code_flags_what_needs_a_person(factory_db):
+    """Not a failure — the rest has already been fixed. But it must be non-zero, or
+    the exception list slides straight past an installation script."""
+    assert _run(factory_db, "--tulis").returncode == 2
 
 
-def test_pc_baru_tanpa_truk_tidak_melaporkan_apa_pun(tmp_path):
-    """Pabrik baru menjalankan ini juga (checklist pasang tidak bercabang), dan hasilnya
-    harus mengatakan dengan jelas bahwa tidak ada yang perlu dikerjakan."""
-    kosong = tmp_path / "console.db"
-    ConsoleStore(kosong)
+def test_a_missing_database_is_refused_not_created(tmp_path):
+    """A typo in the path must not produce an empty database that reads like a
+    mill with no trucks."""
+    missing = tmp_path / "tidak-ada.db"
 
-    hasil = _jalankan(kosong)
+    result = _run(missing)
 
-    assert hasil.returncode == 0
-    assert "Tidak ada yang perlu dibetulkan" in hasil.stdout
-
-
-# ── menemukan database-nya sendiri ───────────────────────────────────────────
-# Ketemu di PC Lampung 2026-09-15: `make rekonsiliasi-truk` di host menjawab
-# "Database konsol tidak ada" padahal ada 53 MB di sana. Compose me-mount
-# `./state/console:/app/state`, jadi dari HOST berkasnya di `state/console/console.db`
-# sementara dari DALAM container di `state/console.db`. Skrip yang cuma tahu satu
-# bentuk mati di salah satu tempat, dan yang menjalankannya sedang memasang PC pabrik.
+    assert result.returncode == 1
+    assert not missing.exists(), "the script created a new database from a mistyped path"
 
 
-def test_kedua_bentuk_path_dicari():
-    """Yang dijaga: daftar kandidatnya memuat bentuk native DAN bentuk host-Docker."""
+def test_a_fresh_pc_with_no_trucks_reports_nothing_to_do(tmp_path):
+    """A brand-new mill runs this too (the install checklist does not branch), and
+    the result must say plainly that there is nothing to do."""
+    empty = tmp_path / "console.db"
+    ConsoleStore(empty)
+
+    result = _run(empty)
+
+    assert result.returncode == 0
+    assert "Tidak ada yang perlu dibetulkan" in result.stdout
+
+
+# ── finding its own database ─────────────────────────────────────────────────
+# Found on the Lampung PC 2026-09-15: `make rekonsiliasi-truk` on the host
+# answered "Database konsol tidak ada" even though 53 MB of it sat right
+# there. Compose mounts `./state/console:/app/state`, so from the HOST the
+# file is at `state/console/console.db` while from INSIDE the container it is
+# `state/console.db`. A script that only knows one shape dies in one of the
+# two places, and whoever is running it is in the middle of installing a
+# factory PC.
+
+
+def test_both_path_shapes_are_searched():
+    """What is guarded: the candidate list carries BOTH the native shape and the
+    host-Docker shape."""
     import importlib.util
 
-    spek = importlib.util.spec_from_file_location("rekon_cli", SKRIP)
-    modul = importlib.util.module_from_spec(spek)
-    spek.loader.exec_module(modul)
+    spec = importlib.util.spec_from_file_location("rekon_cli", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
 
-    kandidat = [str(p) for p in modul._kandidat_db()]
+    candidates = [str(p) for p in module._kandidat_db()]
 
-    assert any(p.endswith("state/console.db") for p in kandidat), kandidat
-    assert any(p.endswith("state/console/console.db") for p in kandidat), kandidat
+    assert any(p.endswith("state/console.db") for p in candidates), candidates
+    assert any(p.endswith("state/console/console.db") for p in candidates), candidates
 
 
-def test_menyebut_kedua_tempat_saat_benar_benar_tidak_ada(tmp_path):
-    """Kalau memang tidak ada, pesannya harus menyebut DUA tempat yang dicari — kalau
-    cuma satu, yang membacanya menyimpulkan salah checkout padahal database-nya ada."""
-    hasil = _jalankan(tmp_path / "tidak-ada.db")
+def test_both_locations_are_named_when_truly_missing(tmp_path):
+    """When it really is missing, the message must name BOTH searched locations —
+    naming only one leads the reader to conclude a wrong checkout when the
+    database is actually there."""
+    result = _run(tmp_path / "tidak-ada.db")
 
-    assert hasil.returncode == 1
-    gabung = hasil.stdout + hasil.stderr
-    assert "state/console.db" in gabung
-    assert "state/console/console.db" in gabung
-    assert "--db" in gabung, "jalan keluarnya harus disebut"
+    assert result.returncode == 1
+    combined = result.stdout + result.stderr
+    assert "state/console.db" in combined
+    assert "state/console/console.db" in combined
+    assert "--db" in combined, "the way out must be named"

@@ -2,7 +2,7 @@
 
 Code outside this package normally needs the functions in `__all__` below
 (`start_plc_worker`, `shutdown_plc_worker`, `submit_grading`, `inputs`,
-`diagnostics`, `request_piston`, `piston_state`, `picu_coil`, `testable_coils`).
+`diagnostics`, `request_piston`, `piston_state`, `fire_test_coil`, `testable_coils`).
 With PLC_ENABLED=false they are all no-ops and no thread runs. `ModbusPlcClient`,
 `PlcWorker` and `PulseScheduler` are exported too, for callers that assemble a
 worker themselves (tests, mainly). Full coil map: docs/plc-integration.md.
@@ -23,8 +23,8 @@ __all__ = [
     "PlcWorker",
     "PulseScheduler",
     "diagnostics",
+    "fire_test_coil",
     "inputs",
-    "picu_coil",
     "piston_state",
     "request_piston",
     "shutdown_plc_worker",
@@ -119,10 +119,10 @@ def inputs() -> list[bool]:
 
 
 def request_piston(open: bool) -> bool:
-    """Minta piston line ini buka/tutup. False = PLC mati atau coil belum diset.
+    """Ask for this line's piston to open/close. False = PLC off or coil not set.
 
-    False bukan error: selama panel belum mengalokasikan coil, tombolnya memang
-    harus mati di layar, bukan berpura-pura bekerja.
+    False is not an error: while the panel has not allocated a coil yet, the
+    button genuinely has to be off on the screen, not pretend to work.
     """
     worker = _worker
     if worker is None or getattr(worker.settings, "plc_coil_manual", None) is None:
@@ -132,7 +132,7 @@ def request_piston(open: bool) -> bool:
 
 
 def piston_state() -> dict | None:
-    """Status piston untuk konsol. None kalau PLC mati atau coil belum diset."""
+    """Piston status for the console. None when the PLC is off or the coil is not set."""
     worker = _worker
     if worker is None or getattr(worker.settings, "plc_coil_manual", None) is None:
         return None
@@ -155,7 +155,7 @@ def testable_coils(settings) -> frozenset[int]:
     return frozenset(coils)
 
 
-def picu_coil(coil: int) -> bool:
+def fire_test_coil(coil: int) -> bool:
     """Fire one test coil for commissioning. False = PLC off or pulse dropped.
 
     Both cases mean "nothing moved" and must read the same way on the test
@@ -165,7 +165,7 @@ def picu_coil(coil: int) -> bool:
     worker = _worker
     if worker is None:
         return False
-    return worker.picu_coil(coil)
+    return worker.fire_test_coil(coil)
 
 
 def diagnostics() -> dict | None:

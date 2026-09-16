@@ -56,11 +56,11 @@ async def piston_command(request: PistonCommandRequest, state: RuntimeState) -> 
     from ..plc import request_piston
 
     if not request_piston(request.open):
-        # 409, bukan 500: ini konfigurasi yang memang belum ada, bukan kerusakan.
+        # 409, not 500: this is configuration that simply isn't set yet, not a fault.
         raise HTTPException(status_code=409, detail="piston_manual_tidak_aktif")
     logger.info(
-        "Piston %s diminta: machine=%s oleh=%s pada=%s",
-        "buka" if request.open else "tutup",
+        "Piston %s requested: machine=%s by=%s at=%s",
+        "open" if request.open else "close",
         request.machine_id, request.requested_by, request.requested_at,
     )
     return await line_status(state)
@@ -95,18 +95,18 @@ async def plc_coil_command(request: PlcCoilCommandRequest, state: RuntimeState) 
     under a passing bunch is dangerous, not just untidy.
     """
     from ..core.dependencies import get_settings
-    from ..plc import picu_coil, testable_coils
+    from ..plc import fire_test_coil, testable_coils
 
     if request.coil not in testable_coils(get_settings()):
         raise HTTPException(status_code=422, detail="coil_tidak_dikenal")
     if state.current_assignment_id is not None:
         raise HTTPException(status_code=409, detail="line_sedang_memproses_truk")
-    fired = picu_coil(request.coil)
+    fired = fire_test_coil(request.coil)
     # Container stdout only — the record that matters (`log_kejadian`, read by
     # the support screen) is written by the console, the only process with a
     # LogStore and the signed-in operator's identity.
     logger.warning(
-        "UJI PLC: coil %s dipicu oleh %s (machine=%s, fired=%s)",
+        "PLC TEST: coil %s fired by %s (machine=%s, fired=%s)",
         request.coil, request.requested_by, request.machine_id, fired,
     )
     return PlcCoilCommandResponse(fired=fired, coil=request.coil)

@@ -2,50 +2,50 @@ import time
 
 import pytest
 
-from palmgrade.domain.log_redaksi import redaksi
+from palmgrade.domain.log_redaksi import redact
 
 
-def test_sandi_ditutup():
-    assert "rahasia123" not in redaksi("login gagal: password=rahasia123")
+def test_password_is_masked():
+    assert "rahasia123" not in redact("login gagal: password=rahasia123")
 
 
-def test_token_ditutup_dalam_json():
-    keluar = redaksi('{"token": "abc.def.ghi", "line": "line-1"}')
-    assert "abc.def.ghi" not in keluar
-    assert "line-1" in keluar, "yang bukan rahasia harus tetap kebaca"
+def test_token_masked_inside_json():
+    result = redact('{"token": "abc.def.ghi", "line": "line-1"}')
+    assert "abc.def.ghi" not in result
+    assert "line-1" in result, "a non-secret must stay readable"
 
 
-def test_hash_sandi_ditutup():
-    assert "$pbkdf2-sha256$29000$xyz" not in redaksi(
+def test_password_hash_is_masked():
+    assert "$pbkdf2-sha256$29000$xyz" not in redact(
         "hash mismatch for password_hash=$pbkdf2-sha256$29000$xyz"
     )
 
 
-def test_header_authorization_ditutup():
+def test_authorization_header_is_masked():
     # Must check the token substring alone, not "Bearer eyJhbGci" together —
     # that compound check used to pass even when only "Bearer" got redacted
     # and the token itself leaked in full.
-    assert "eyJhbGci" not in redaksi("Authorization: Bearer eyJhbGci")
+    assert "eyJhbGci" not in redact("Authorization: Bearer eyJhbGci")
 
 
-def test_pesan_biasa_tidak_berubah():
-    """Penyaring yang terlalu rakus bikin log tidak berguna."""
-    pesan = "kamera line-2 putus setelah 43 detik, retry 3"
-    assert redaksi(pesan) == pesan
+def test_ordinary_message_is_unchanged():
+    """A filter that is too eager makes the log useless."""
+    message = "kamera line-2 putus setelah 43 detik, retry 3"
+    assert redact(message) == message
 
 
-def test_teks_kosong_aman():
-    assert redaksi("") == ""
+def test_empty_text_is_safe():
+    assert redact("") == ""
 
 
-def test_passwordless_tidak_terpicu():
-    """Kunci "password" tidak boleh cocok sebagai prefix kata lain."""
-    pesan = "passwordless mode aktif untuk line-1"
-    assert redaksi(pesan) == pesan
+def test_passwordless_does_not_trigger():
+    """The "password" key must not match as a prefix of another word."""
+    message = "passwordless mode aktif untuk line-1"
+    assert redact(message) == message
 
 
 @pytest.mark.parametrize(
-    ("teks", "rahasia"),
+    ("text", "secret"),
     [
         ("token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abc-_XYZ", "eyJhbGciOiJIUzI1NiJ9"),
         ("password_hash=$pbkdf2-sha256$29000$salt$digest", "digest"),
@@ -58,90 +58,89 @@ def test_passwordless_tidak_terpicu():
         ("secret='sh h h'", "sh h h"),
     ],
 )
-def test_rahasia_tidak_bocor(teks: str, rahasia: str):
-    assert rahasia not in redaksi(teks)
+def test_secret_does_not_leak(text: str, secret: str):
+    assert secret not in redact(text)
 
 
-def test_json_dengan_spasi_tetap_menyisakan_field_lain():
-    """Nilai berspasi tertutup penuh, tapi field tetangga tetap kebaca."""
-    keluar = redaksi('{"sandi":"p@ss w0rd","line":"line-1"}')
-    assert "line-1" in keluar
+def test_json_with_spaces_still_leaves_other_fields_readable():
+    result = redact('{"sandi":"p@ss w0rd","line":"line-1"}')
+    assert "line-1" in result
 
 
-def test_nilai_berkutip_dengan_baris_baru_ditutup():
-    """Traceback multi-baris adalah bentuk asli yang mau ditangkap penyaring ini."""
-    keluar = redaksi('secret="line1\nline2"')
-    assert "line1" not in keluar
-    assert "line2" not in keluar
+def test_quoted_value_with_a_newline_is_masked():
+    """A multi-line traceback is exactly the shape this filter has to catch."""
+    result = redact('secret="line1\nline2"')
+    assert "line1" not in result
+    assert "line2" not in result
 
 
-def test_kutip_ter_escape_tidak_mengakhiri_nilai():
-    """`\\"` di dalam nilai tidak boleh dibaca sebagai penutup — ekor sesudahnya jangan bocor."""
-    keluar = redaksi('password="p\\"ss"')
-    assert 'ss"' not in keluar
+def test_escaped_quote_does_not_end_the_value():
+    """`\\"` inside a value must not read as its closing quote — the tail after it must not leak."""
+    result = redact('password="p\\"ss"')
+    assert 'ss"' not in result
 
 
-def test_konsol_sesi_ditutup():
-    """`konsol_sesi` = nama cookie sesi konsol (routes/console.py) — token hidup."""
-    assert "abc123def" not in redaksi("Set-Cookie: konsol_sesi=abc123def; HttpOnly")
+def test_konsol_sesi_is_masked():
+    """`konsol_sesi` = the console session cookie name (routes/console.py) — a live token."""
+    assert "abc123def" not in redact("Set-Cookie: konsol_sesi=abc123def; HttpOnly")
 
 
-def test_kunci_tengah_kata_tidak_terpicu():
-    """`not-a-secret` bukan kunci rahasia — jangan ditutup, dan tetangganya tetap kebaca."""
-    pesan = "not-a-secret=fine"
-    assert redaksi(pesan) == pesan
-    assert "fine" in redaksi(pesan)
+def test_key_mid_word_does_not_trigger():
+    """`not-a-secret` is not a secret key — leave it and its neighbour alone."""
+    message = "not-a-secret=fine"
+    assert redact(message) == message
+    assert "fine" in redact(message)
 
 
-def test_dua_kunci_di_satu_baris_dua_duanya_ditutup():
-    keluar = redaksi("token=a secret=b")
-    assert keluar == "token=«ditutup» secret=«ditutup»"
+def test_two_keys_on_one_line_are_both_masked():
+    result = redact("token=a secret=b")
+    assert result == "token=«redacted» secret=«redacted»"
 
 
-def test_query_string_hanya_menutup_nilai_bukan_sisa_baris():
-    """`&` bukan bagian nilai yang sah — parameter tetangga (line, truck) tidak boleh ikut hilang."""
-    keluar = redaksi("GET /x?api_key=abc123&line=2&truck=B1234XY")
-    assert "abc123" not in keluar
-    assert "line=2" in keluar
-    assert "truck=B1234XY" in keluar
+def test_query_string_masks_only_the_value_not_the_rest_of_the_line():
+    """`&` is not part of a valid value — neighbouring params (line, truck) must survive."""
+    result = redact("GET /x?api_key=abc123&line=2&truck=B1234XY")
+    assert "abc123" not in result
+    assert "line=2" in result
+    assert "truck=B1234XY" in result
 
 
-def test_query_string_password_menyisakan_redirect():
-    keluar = redaksi("POST /login?password=p123&redirect=/console")
-    assert "p123" not in keluar
-    assert "redirect=/console" in keluar
+def test_query_string_password_leaves_the_redirect_readable():
+    result = redact("POST /login?password=p123&redirect=/console")
+    assert "p123" not in result
+    assert "redirect=/console" in result
 
 
-def test_query_string_dua_rahasia_dua_duanya_ditutup_line_selamat():
-    """Dua kunci rahasia di satu query string — keduanya harus tertutup, bukan cuma yang pertama."""
-    keluar = redaksi("/api?token=t1&api_key=k2&line=3")
-    assert "t1" not in keluar
-    assert "k2" not in keluar
-    assert "line=3" in keluar
+def test_query_string_two_secrets_both_masked_line_survives():
+    """Two secret keys in one query string — both must be masked, not just the first."""
+    result = redact("/api?token=t1&api_key=k2&line=3")
+    assert "t1" not in result
+    assert "k2" not in result
+    assert "line=3" in result
 
 
 @pytest.mark.parametrize(
-    "teks",
+    "text",
     [
         "password=p#ss123",
         "token=ab&cd1234",
         "api_key=a#b&c",
     ],
 )
-def test_nilai_polos_dengan_ampersand_pagar_tidak_bocor_ekor(teks: str):
-    """`&`/`#` di tengah nilai (bukan sebelum param baru) tidak boleh mengakhiri redaksi.
+def test_plain_value_with_ampersand_or_hash_does_not_leak_a_tail(text: str):
+    """`&`/`#` mid-value (not before a new param) must not end the mask early.
 
-    Kebalikan dari kutip ter-escape: ekornya bocor SESUDAH marker, bukan sebelum.
+    The mirror case of an escaped quote: here the tail leaks AFTER the marker, not before.
     """
-    keluar = redaksi(teks)
-    assert "«ditutup»" in keluar
-    ekor = keluar.split("«ditutup»", 1)[1]
-    assert ekor == "", f"ekor bocor sesudah marker: {ekor!r}"
+    result = redact(text)
+    assert "«redacted»" in result
+    tail = result.split("«redacted»", 1)[1]
+    assert tail == "", f"tail leaked after the marker: {tail!r}"
 
 
-def test_kutip_tak_ditutup_tidak_hang():
-    """Nilai berkutip yang tidak pernah ditutup, dibanjiri backslash, tidak boleh macet."""
-    mulai = time.monotonic()
-    redaksi('password="' + "\\" * 60)
-    lama = time.monotonic() - mulai
-    assert lama < 1.0, f"terlalu lama: {lama:.3f}s — kemungkinan backtracking katastrofik"
+def test_unclosed_quoted_value_does_not_hang():
+    """A quoted value that never closes, flooded with backslashes, must not hang."""
+    start = time.monotonic()
+    redact('password="' + "\\" * 60)
+    elapsed = time.monotonic() - start
+    assert elapsed < 1.0, f"too slow: {elapsed:.3f}s — likely catastrophic backtracking"

@@ -59,7 +59,7 @@ def _weigh(service: ConsoleService, **over) -> dict:
         "entered_at": _now(),
         "gross_kg": 14560,
     } | over
-    return service.catat_timbangan(payload)
+    return service.record_weighing(payload)
 
 
 def _visits(outbox: ErpOutboxStore) -> list:
@@ -114,7 +114,7 @@ def test_releasing_the_truck_queues_its_grading(tmp_path):
             }
         )
 
-    asyncio.run(service.lepas_truk("line-1"))
+    asyncio.run(service.release_truck("line-1"))
 
     [visit] = _visits(outbox)
     assert visit.key == ticket["id"]
@@ -131,7 +131,7 @@ def test_a_truck_that_was_never_weighed_queues_nothing(tmp_path):
     service, outbox = _service(tmp_path, linked=True)
     asyncio.run(service.assign_truck("line-1", truck_id_for(PLATE)))
 
-    asyncio.run(service.lepas_truk("line-1"))
+    asyncio.run(service.release_truck("line-1"))
 
     assert _visits(outbox) == []
 

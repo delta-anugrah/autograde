@@ -174,7 +174,7 @@ def test_every_console_view_labels_the_source_the_same_way(service):
     labels = [
         state["lines"][0]["assignment"]["source_label"],
         state["recent"][0]["source_label"],
-        service.rekap(today)[0]["source_label"],
+        service.recap(today)[0]["source_label"],
         service.weighings(today)[0]["source_label"],
     ]
     assert labels == ["Internal"] * 4
@@ -223,17 +223,17 @@ def test_machine_id_line_dibaca_dari_env_lewat_settings(monkeypatch, tmp_path):
 def test_rekap_per_truk_menjumlah_neto_bukan_mengalikan_janjang(service):
     # Two tickets for one truck in a day. Joined in SQL that would double every
     # bunch; the recap must show 3 bunches and both netos added up.
-    truk = service.daftar_truk_manual("B 1234 XY")["id"]
+    truk = service.register_manual_truck("B 1234 XY")["id"]
     for i, hasil in enumerate(("ACC", "ACC", "REJ")):
         service.ingest(_event(service, event_id=f"ev-{i}", truck_id=truk, ripeness_status=hasil))
     for ref, bruto in (("TKT-1", 12000), ("TKT-2", 11000)):
-        service.catat_timbangan({
+        service.record_weighing({
             "ref": ref, "plate_number": "B 1234 XY",
             "entered_at": "2026-09-09T18:30:00+00:00",
             "gross_kg": bruto, "tare_kg": 5000,
         })
 
-    (baris,) = service.rekap("2026-09-10")
+    (baris,) = service.recap("2026-09-10")
     assert (baris["total"], baris["acc"], baris["rej"]) == (3, 2, 1)
     assert baris["net_kg"] == 13000  # (12000-5000) + (11000-5000)
     assert baris["plate_number"] == "B 1234 XY"
@@ -243,7 +243,7 @@ def test_rekap_tetap_menampilkan_janjang_tanpa_truk(service):
     # A line graded before anyone assigned a truck. Dropping the row would hide
     # exactly the thing the operator needs to notice.
     service.ingest(_event(service))
-    (baris,) = service.rekap("2026-09-10")
+    (baris,) = service.recap("2026-09-10")
     assert baris["truck_id"] is None and baris["total"] == 1
     assert baris["net_kg"] is None
 
@@ -251,19 +251,19 @@ def test_rekap_tetap_menampilkan_janjang_tanpa_truk(service):
 # ── pagination riwayat grading ────────────────────────────────────────────────
 
 
-def test_jumlah_inspeksi_menghitung_seluruh_hari_bukan_sehalaman(service):
+def test_inspection_count_covers_the_whole_day_not_one_page(service):
     """Angka total tidak boleh datang dari `len(items)`: itu cuma sepanjang halaman,
     jadi layar akan menulis "25 baris" di hari yang punya delapan ratus."""
     for i in range(7):
         service.ingest(_event(service, event_id=f"ev-{i}"))
 
-    assert service.store.jumlah_inspeksi("2026-09-10") == 7
+    assert service.store.inspection_count("2026-09-10") == 7
     # Halaman pertama dibatasi, hitungannya tidak.
     assert len(service.store.inspections("2026-09-10", limit=3)) == 3
-    assert service.store.jumlah_inspeksi("2026-09-10") == 7
+    assert service.store.inspection_count("2026-09-10") == 7
 
 
-def test_jumlah_inspeksi_memakai_filter_yang_sama_dengan_barisnya(service):
+def test_inspection_count_uses_the_same_filter_as_the_rows(service):
     """Hitungan yang mengabaikan filter bikin halaman 4 dari 1 halaman yang ada:
     tombol Berikutnya hidup, halamannya kosong."""
     lain = service.lines[1].machine_id
@@ -273,13 +273,13 @@ def test_jumlah_inspeksi_memakai_filter_yang_sama_dengan_barisnya(service):
         service.ingest(_event(service, event_id=f"b-{i}", machine_id=lain))
 
     satu = service.lines[0].line_code
-    assert service.store.jumlah_inspeksi("2026-09-10", line_code=satu) == 4
-    assert service.store.jumlah_inspeksi("2026-09-10", line_code=service.lines[1].line_code) == 2
-    assert service.store.jumlah_inspeksi("2026-09-10") == 6
+    assert service.store.inspection_count("2026-09-10", line_code=satu) == 4
+    assert service.store.inspection_count("2026-09-10", line_code=service.lines[1].line_code) == 2
+    assert service.store.inspection_count("2026-09-10") == 6
 
 
-def test_jumlah_inspeksi_hari_kosong_nol(service):
-    assert service.store.jumlah_inspeksi("2026-09-10") == 0
+def test_inspection_count_is_zero_on_an_empty_day(service):
+    assert service.store.inspection_count("2026-09-10") == 0
 
 
 def test_history_membawa_total_supaya_layar_bisa_menghitung_halaman(service):
@@ -304,7 +304,7 @@ def test_bruto_seratus_kilo_ditolak(service):
     100.0 dan perbandingannya `<`. Truk kosong saja belasan ton — 100 kg itu salah
     ketik, dan neto yang lahir darinya dibayar ke petani."""
     with pytest.raises(OperatorError) as kena:
-        service.catat_timbangan({
+        service.record_weighing({
             "plate_number": "BE 4412 OFL", "gross_kg": 100,
             "entered_at": "2026-09-15T08:00:00+07:00",
         })
@@ -314,7 +314,7 @@ def test_bruto_seratus_kilo_ditolak(service):
 def test_berat_setengah_ton_masih_ditolak(service):
     """500 kg pun bukan truk. Lantai yang terlalu rendah cuma menangkap nol."""
     with pytest.raises(OperatorError):
-        service.catat_timbangan({
+        service.record_weighing({
             "plate_number": "BE 4412 OFL", "gross_kg": 500,
             "entered_at": "2026-09-15T08:00:00+07:00",
         })
@@ -323,7 +323,7 @@ def test_berat_setengah_ton_masih_ditolak(service):
 def test_truk_kosong_paling_ringan_tetap_diterima(service):
     """Colt Diesel kosong sekitar 2,5 ton. Lantai tidak boleh menolak truk sungguhan
     yang paling ringan — itu menghalangi pekerjaan, bukan menjaganya."""
-    hasil = service.catat_timbangan({
+    hasil = service.record_weighing({
         "plate_number": "BE 4412 OFL", "gross_kg": 2500,
         "entered_at": "2026-09-15T08:00:00+07:00",
     })
@@ -333,7 +333,7 @@ def test_truk_kosong_paling_ringan_tetap_diterima(service):
 def test_operator_baru_default_operator(tmp_path):
     """No account gains privilege through migration alone."""
     store = ConsoleStore(tmp_path / "c.db")
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {"email": "a@b.c", "full_name": "A", "password_hash": "scrypt$x"}
     )
     assert store.operator_by_email("a@b.c")["role"] == "operator"
@@ -342,10 +342,10 @@ def test_operator_baru_default_operator(tmp_path):
 def test_peran_ikut_di_baris_sesi(tmp_path):
     """The route guard reads `peran` off the session row, so it must carry it."""
     store = ConsoleStore(tmp_path / "c.db")
-    oid = store.upsert_operator_lokal(
+    oid = store.upsert_operator_manual(
         {"email": "s@b.c", "full_name": "S", "password_hash": "scrypt$x"}
     )
-    store.set_peran(oid, "support")
+    store.set_role(oid, "support")
     store.create_session("tok", oid, now=1000.0, ttl_s=3600)
     assert store.session("tok", now=1001.0)["role"] == "support"
 
@@ -378,51 +378,51 @@ def test_migrasi_menambah_peran_ke_db_lama(tmp_path):
 def test_set_peran_menolak_nilai_asing(tmp_path):
     """An unrecognized value must not settle into the access-gating column."""
     store = ConsoleStore(tmp_path / "c.db")
-    oid = store.upsert_operator_lokal(
+    oid = store.upsert_operator_manual(
         {"email": "x@b.c", "full_name": "X", "password_hash": "scrypt$x"}
     )
-    store.set_peran(oid, "admin")
+    store.set_role(oid, "admin")
     assert store.operator_by_email("x@b.c")["role"] == "operator"
 
 
-def test_ada_akun_support_kosong_kalau_tidak_ada_operator_sama_sekali(tmp_path):
+def test_has_support_account_false_with_no_operators_at_all(tmp_path):
     store = ConsoleStore(tmp_path / "c.db")
-    assert store.ada_akun_support() is False
+    assert store.has_support_account() is False
 
 
-def test_ada_akun_support_kosong_kalau_semua_operator(tmp_path):
+def test_has_support_account_false_when_all_are_operators(tmp_path):
     """The exact trap this method exists to catch: every account on `operator`,
     none able to open the screen that would promote another one."""
     store = ConsoleStore(tmp_path / "c.db")
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {"email": "op@b.c", "full_name": "Operator", "password_hash": "scrypt$x"}
     )
-    assert store.ada_akun_support() is False
+    assert store.has_support_account() is False
 
 
-def test_ada_akun_support_benar_begitu_satu_akun_dinaikkan(tmp_path):
+def test_has_support_account_true_once_one_account_is_promoted(tmp_path):
     store = ConsoleStore(tmp_path / "c.db")
-    oid = store.upsert_operator_lokal(
+    oid = store.upsert_operator_manual(
         {"email": "s@b.c", "full_name": "S", "password_hash": "scrypt$x"}
     )
-    store.set_peran(oid, "support")
-    assert store.ada_akun_support() is True
+    store.set_role(oid, "support")
+    assert store.has_support_account() is True
 
 
-def test_ada_akun_support_kosong_kalau_akun_support_dimatikan(tmp_path):
+def test_has_support_account_false_when_the_support_account_is_off(tmp_path):
     """A switched-off account cannot sign in, so it does not count as an escape
     hatch — same rule `operators()` already applies to the sign-in list."""
     store = ConsoleStore(tmp_path / "c.db")
-    oid = store.upsert_operator_lokal(
+    oid = store.upsert_operator_manual(
         {"email": "s@b.c", "full_name": "S", "password_hash": "scrypt$x"}
     )
-    store.set_peran(oid, "support")
+    store.set_role(oid, "support")
     store.set_operator_status(oid, "off")
-    assert store.ada_akun_support() is False
+    assert store.has_support_account() is False
 
 
 def test_tarikan_erp_menulis_peran_yang_diizinkan(tmp_path):
-    store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset({"support"}))
+    store = ConsoleStore(tmp_path / "c.db", erp_allowed_roles=frozenset({"support"}))
     store.upsert_operator_erp(
         {"email": "s@erp.c", "full_name": "S", "password_hash": "x",
          "erp_name": "s@erp.c", "active": 1, "peran": "support"}
@@ -432,7 +432,7 @@ def test_tarikan_erp_menulis_peran_yang_diizinkan(tmp_path):
 
 def test_daftar_izin_kosong_membuang_peran_dari_erp(tmp_path):
     """Factory-side brake: an empty .env means no ERP account can be promoted."""
-    store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset())
+    store = ConsoleStore(tmp_path / "c.db", erp_allowed_roles=frozenset())
     store.upsert_operator_erp(
         {"email": "s@erp.c", "full_name": "S", "password_hash": "x",
          "erp_name": "s@erp.c", "active": 1, "peran": "support"}
@@ -442,11 +442,11 @@ def test_daftar_izin_kosong_membuang_peran_dari_erp(tmp_path):
 
 def test_tarikan_erp_tidak_menurunkan_peran_akun_lokal(tmp_path):
     """The local account is the way in when the internet is down; ERP must not touch it."""
-    store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset({"support"}))
-    oid = store.upsert_operator_lokal(
+    store = ConsoleStore(tmp_path / "c.db", erp_allowed_roles=frozenset({"support"}))
+    oid = store.upsert_operator_manual(
         {"email": "support@autograde.local", "full_name": "S", "password_hash": "scrypt$x"}
     )
-    store.set_peran(oid, "support")
+    store.set_role(oid, "support")
     store.upsert_operator_erp(
         {"email": "support@autograde.local", "full_name": "S", "password_hash": "y",
          "erp_name": "s", "active": 1, "peran": "operator"}
@@ -458,12 +458,12 @@ def test_reset_sandi_lokal_tidak_menghapus_peran(tmp_path):
     """`make operator` resets a password through the same upsert used to create
     the account; that upsert must not silently demote the account's role too."""
     store = ConsoleStore(tmp_path / "c.db")
-    oid = store.upsert_operator_lokal(
+    oid = store.upsert_operator_manual(
         {"email": "support@autograde.local", "full_name": "S", "password_hash": "scrypt$lama"}
     )
-    store.set_peran(oid, "support")
+    store.set_role(oid, "support")
 
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {"email": "support@autograde.local", "full_name": "S", "password_hash": "scrypt$baru"}
     )
 

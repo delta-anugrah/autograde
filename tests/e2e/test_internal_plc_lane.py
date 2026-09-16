@@ -11,7 +11,7 @@ CI collection there (CI's `pip install` list has no opencv-python; see
 `ci.yml` and CLAUDE.md's "jangan seret hardware, torch, atau cv2 ke CI").
 `tests/e2e/` is not CI-gated, so it can afford the real import.
 
-Exercises the real `palmgrade.plc` module functions (`picu_coil`,
+Exercises the real `palmgrade.plc` module functions (`fire_test_coil`,
 `testable_coils`) against a real `PlcWorker` + fake Modbus client, the same
 `monkeypatch.setattr(plc, "_worker", ...)` pattern `test_plc_worker.py` uses
 for `diagnostics()` — not a mock of the guard itself, so a regression that
@@ -155,7 +155,7 @@ def test_antrean_penuh_melapor_fired_false_bukan_error(monkeypatch):
     server error, and swallowing it would tell the screen "fired" for nothing."""
     worker, client = _plc_aktif(monkeypatch, queue_max=1)
     state = RuntimeState(current_assignment_id=None)
-    worker.picu_coil(0)   # fill the one queue slot this coil gets
+    worker.fire_test_coil(0)   # fill the one queue slot this coil gets
     req = PlcCoilCommandRequest(machine_id="m-1", coil=0, requested_by="s@b.c")
 
     hasil = _run(plc_coil_command(req, state))
@@ -182,7 +182,7 @@ def test_plc_state_melapor_di_dan_coil_yang_bisa_diuji(monkeypatch):
 
     assert hasil.enabled is True
     assert hasil.inputs[0] is True
-    assert 9 not in hasil.testable_coils     # alive tetap tidak boleh muncul di layar
+    assert 9 not in hasil.testable_coils     # alive must never appear on the test screen
 
 
 def _run(coro):

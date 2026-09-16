@@ -70,9 +70,9 @@ async def manual_reject(
 async def outbox_requeue(
     outbox: Annotated[OutboxStore, Depends(get_outbox_store)],
 ) -> OutboxRequeueResponse:
-    # Kembalikan event dead-letter (status='failed') ke 'pending' agar
-    # OutboxRetryWorker mencoba kirim lagi. Dipakai setelah API pulih dari
-    # gangguan panjang. Aman diulang (idempotent kalau tidak ada failed).
+    # Move dead-letter events (status='failed') back to 'pending' so
+    # OutboxRetryWorker tries sending them again. Used after the API recovers
+    # from a long outage. Safe to repeat (idempotent when nothing has failed).
     return OutboxRequeueResponse(requeued=outbox.requeue_failed())
 
 

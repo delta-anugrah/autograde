@@ -34,7 +34,7 @@ def _store(tmp_path) -> ConsoleStore:
 
 
 def _lokal(store: ConsoleStore, email: str = EMAIL, sandi: str = SANDI, full_name: str = NAMA) -> str:
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {"email": email, "full_name": full_name, "password_hash": hash_password(sandi)}
     )
     return operator_id_for(email)

@@ -28,7 +28,7 @@ ERP_HASH = "$pbkdf2-sha256$29000$LuX8f895T2kNYcx5T2nt3Q$D5HIS3SGDVbL0W7HeOWXMlT9
 
 def _auth(tmp_path, *, now: float = 1000.0):
     store = ConsoleStore(tmp_path / "console.db")
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {"email": EMAIL, "full_name": NAMA, "password_hash": hash_password(SANDI)}
     )
     clock = [now]
@@ -85,7 +85,7 @@ def test_a_wrong_password_says_nothing_about_which_part_was_wrong(tmp_path):
     """One answer for a wrong password, an unknown account and a switched-off one: a
     shared screen must not let anyone map out who exists."""
     auth, store, _ = _auth(tmp_path)
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {"email": "mati@pks.test", "full_name": "Sudah Keluar", "password_hash": hash_password(SANDI)}
     )
     store.set_operator_status(operator_id_for("mati@pks.test"), "off")

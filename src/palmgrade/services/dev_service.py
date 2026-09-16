@@ -33,30 +33,31 @@ logger = logging.getLogger(__name__)
 
 # Purge at most this often. A worker of its own would be one more thread a
 # factory PC has to pay for, for a table that grows a few hundred rows a day.
-_BUANG_INTERVAL_S = 3600.0
+_PURGE_INTERVAL_S = 3600.0
 
 # Typed exactly, not just "non-empty": the PLC test screen is the only one
 # that moves physical hardware, and a stray character landing in the field
 # (autocomplete, a brushed key) must not read as a deliberate confirmation.
-_KONFIRMASI_UJI_PLC = "UJI"
+# Value is a console.html contract ("Type UJI to continue") — do not change it.
+_PLC_TEST_CONFIRMATION = "UJI"
 
 
 class KonfirmasiKurang(OperatorError, ValueError):
-    """Konfirmasi ketik belum sesuai — coil tidak boleh dipicu."""
+    """Typed confirmation did not match — the coil must not fire."""
 
     def __init__(self, message: str) -> None:
         super().__init__(KONFIRMASI_KURANG, message)
 
 
 class PlcSibuk(OperatorError, RuntimeError):
-    """Line sedang memproses truk — coil tidak boleh dipicu."""
+    """Line is busy processing a truck — the coil must not fire."""
 
     def __init__(self, message: str) -> None:
         super().__init__(PLC_SIBUK, message)
 
 
 class CoilTidakDikenal(OperatorError, ValueError):
-    """Line menolak nomor coil ini (bukan bagian dari `testable_coils`)."""
+    """Line rejected this coil number (not part of `testable_coils`)."""
 
     def __init__(self, message: str) -> None:
         super().__init__(COIL_TIDAK_DIKENAL, message)
@@ -73,38 +74,38 @@ class DevService:
         settings: Settings | None = None,
     ) -> None:
         self._log = log_store
-        self._buang_terakhir = 0.0
+        self._last_purge = 0.0
         self._line_client = line_client
         self._lines = lines
         self._erp_outbox = erp_outbox
         self._settings = settings
 
     def log(
-        self, *, level: str | None, cari: str | None, limit: int, offset: int
+        self, *, level: str | None, search: str | None, limit: int, offset: int
     ) -> dict[str, Any]:
-        self._buang_berkala()
-        return self._log.baca(level=level, cari=cari, limit=limit, offset=offset)
+        self._purge_periodically()
+        return self._log.read(level=level, search=search, limit=limit, offset=offset)
 
-    def _buang_berkala(self, *, now: float | None = None) -> None:
+    def _purge_periodically(self, *, now: float | None = None) -> None:
         """Sweep expired rows, tied to a read rather than its own timer."""
-        sekarang = now if now is not None else time.time()
-        if sekarang - self._buang_terakhir < _BUANG_INTERVAL_S:
+        current = now if now is not None else time.time()
+        if current - self._last_purge < _PURGE_INTERVAL_S:
             return
-        self._buang_terakhir = sekarang
-        self._log.buang_kedaluwarsa(now=sekarang)
+        self._last_purge = current
+        self._log.purge_expired(now=current)
 
-    async def diagnostik(self) -> dict[str, Any]:
+    async def diagnostics(self) -> dict[str, Any]:
         """`/health/detail` from every line, gathered concurrently.
 
         A line that does not answer is reported `terjangkau: False` with the
         reason, never raised — a dead line is the thing this screen most
         needs to show, and one dead line must not empty it for the other two.
         """
-        hasil = await asyncio.gather(
-            *(self._satu_line(line) for line in self._lines), return_exceptions=True
+        results = await asyncio.gather(
+            *(self._one_line(line) for line in self._lines), return_exceptions=True
         )
         lines: dict[str, Any] = {}
-        for line, entry in zip(self._lines, hasil, strict=True):
+        for line, entry in zip(self._lines, results, strict=True):
             # Any exception (LineUnavailable or otherwise) reads as unreachable —
             # a bug in one line's fetch must not take the other two cards down too.
             if isinstance(entry, BaseException):
@@ -113,25 +114,25 @@ class DevService:
                 lines[line.line_code] = {"terjangkau": True, **entry}
         return {"lines": lines}
 
-    async def _satu_line(self, line: LineEndpoint) -> dict[str, Any]:
+    async def _one_line(self, line: LineEndpoint) -> dict[str, Any]:
         return await self._line_client.health_detail(line)
 
-    def antrean(self) -> dict[str, Any]:
+    def queue(self) -> dict[str, Any]:
         return {
             "pending": self._erp_outbox.pending_count(),
             "gagal": self._erp_outbox.failed_count(),
-            "items": self._erp_outbox.daftar_gagal(limit=50),
+            "items": self._erp_outbox.failed_rows(limit=50),
         }
 
-    def kirim_ulang(self) -> dict[str, Any]:
+    def resend(self) -> dict[str, Any]:
         return {"dikirim_ulang": self._erp_outbox.requeue_failed()}
 
-    async def plc_baca(self, line_code: str) -> dict[str, Any]:
+    async def plc_read(self, line_code: str) -> dict[str, Any]:
         """DI snapshot + testable coils for one line. Read-only — safe to open anytime."""
         line = self._require_line(line_code)
         return await self._line_client.plc_state(line)
 
-    async def plc_picu(
+    async def plc_fire(
         self, *, line_code: str, coil: int, konfirmasi: str, operator_email: str
     ) -> dict[str, Any]:
         """Fire one PLC coil on `line_code` to tell a wiring fault from a program
@@ -144,26 +145,26 @@ class DevService:
         outcome, so an incident always has a trail naming who pressed what.
         """
         line = self._require_line(line_code)
-        if konfirmasi.strip() != _KONFIRMASI_UJI_PLC:
-            raise KonfirmasiKurang(f"ketik '{_KONFIRMASI_UJI_PLC}' sebelum memicu coil")
+        if konfirmasi.strip() != _PLC_TEST_CONFIRMATION:
+            raise KonfirmasiKurang(f"type '{_PLC_TEST_CONFIRMATION}' before firing the coil")
         try:
-            hasil = await self._line_client.plc_coil(
+            result = await self._line_client.plc_coil(
                 line, coil=coil, requested_by=operator_email
             )
         except LinePlcTolak as exc:
             # Every attempt is logged, hit or refused: a coil that was REFUSED is
             # still an event support needs to see in the trail, same as one fired.
-            # logger.warning(), not LogStore.tulis() directly, so this goes through
+            # logger.warning(), not LogStore.write() directly, so this goes through
             # the same SqliteLogHandler as everything else in log_kejadian —
-            # that is what applies redaksi() before the row settles on disk.
+            # that is what applies redact() before the row settles on disk.
             logger.warning(
-                "UJI PLC: %s memicu coil %s di %s — ditolak line: %s",
+                "PLC TEST: %s fired coil %s on %s — rejected by line: %s",
                 operator_email, coil, line_code, exc,
             )
             if exc.status_code == 409:
-                raise PlcSibuk("line sedang memproses truk") from exc
+                raise PlcSibuk("line is processing a truck") from exc
             if exc.status_code == 422:
-                raise CoilTidakDikenal(f"coil {coil} tidak dikenal") from exc
+                raise CoilTidakDikenal(f"coil {coil} is not known") from exc
             raise
         except LineUnavailable as exc:
             # An unreachable line is the ORDINARY state while a mill is being
@@ -172,23 +173,23 @@ class DevService:
             # its own line (line_client.py) for the network story, but that log
             # line has no idea who the operator is — this one does.
             logger.warning(
-                "UJI PLC: %s memicu coil %s di %s — line tidak terjangkau: %s",
+                "PLC TEST: %s fired coil %s on %s — line unreachable: %s",
                 operator_email, coil, line_code, exc,
             )
             raise
         logger.warning(
-            "UJI PLC: %s memicu coil %s di %s (fired=%s)",
-            operator_email, coil, line_code, hasil.get("fired"),
+            "PLC TEST: %s fired coil %s on %s (fired=%s)",
+            operator_email, coil, line_code, result.get("fired"),
         )
-        return {"line_code": line_code, **hasil}
+        return {"line_code": line_code, **result}
 
     def _require_line(self, line_code: str) -> LineEndpoint:
         for line in self._lines:
             if line.line_code == line_code:
                 return line
-        raise InvalidInput(LINE_TIDAK_DIKENAL, f"line tidak dikenal: {line_code}", line=line_code)
+        raise InvalidInput(LINE_TIDAK_DIKENAL, f"unknown line: {line_code}", line=line_code)
 
-    def versi(self) -> dict[str, Any]:
+    def version(self) -> dict[str, Any]:
         """Version, machine id, environment, licence state.
 
         Never the webhook secret, the ERP key, or a password hash — this

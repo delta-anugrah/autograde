@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from ..domain.operator_auth import normalise_email, normalise_nama, operator_id_for
-from ..domain.peran import PERAN_SUPPORT, peran_sah, saring_peran_erp
+from ..domain.peran import ROLE_SUPPORT, filter_erp_role, sanitize_role
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
@@ -158,13 +158,13 @@ _SOURCE_FACTS = "t.supplier_id IS NOT NULL AS has_supplier, t.erp_name IS NOT NU
 
 
 class ConsoleStore:
-    def __init__(self, db_path: Path, *, peran_erp_diizinkan: frozenset[str] | None = None) -> None:
+    def __init__(self, db_path: Path, *, erp_allowed_roles: frozenset[str] | None = None) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._db = sqlite3.connect(str(db_path), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
         # ERP-pull role allow-list, read by `_upsert_operator`.
-        self._peran_erp_diizinkan = peran_erp_diizinkan or frozenset()
+        self._erp_allowed_roles = erp_allowed_roles or frozenset()
         with self._lock, self._db:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
@@ -188,14 +188,14 @@ class ConsoleStore:
             ("weighings", "erp_status"),
             ("weighings", "erp_note"),
         ):
-            kolom = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
-            if column not in kolom:
+            columns = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
+            if column not in columns:
                 self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
         # Separate from the loop above: that loop can only do a plain `ADD COLUMN
         # ... TEXT`, but this column needs NOT NULL + DEFAULT so old rows land on
         # `operator` instead of a NULL readers have to guess at.
-        kolom_operator = {r["name"] for r in self._db.execute("PRAGMA table_info(operators)")}
-        if "role" not in kolom_operator:
+        operator_columns = {r["name"] for r in self._db.execute("PRAGMA table_info(operators)")}
+        if "role" not in operator_columns:
             self._db.execute(
                 "ALTER TABLE operators ADD COLUMN role TEXT NOT NULL DEFAULT 'operator'"
             )
@@ -212,8 +212,8 @@ class ConsoleStore:
         this branch, and the sessions go with the table so nobody stays signed in
         against an account that no longer exists.
         """
-        kolom = {r["name"] for r in self._db.execute("PRAGMA table_info(operators)")}
-        if kolom and "pin_hash" in kolom:
+        columns = {r["name"] for r in self._db.execute("PRAGMA table_info(operators)")}
+        if columns and "pin_hash" in columns:
             self._db.execute("DROP TABLE IF EXISTS sesi")
             self._db.execute("DROP TABLE operators")
             self._db.executescript(_CREATE_SQL)
@@ -253,7 +253,7 @@ class ConsoleStore:
         return [dict(r) for r in rows]
 
     @staticmethod
-    def _saringan_inspeksi(
+    def _inspection_filter(
         work_date: str, line_code: str | None, truck_id: str | None
     ) -> tuple[list[str], list[Any]]:
         """One place both the page and its count are filtered.
@@ -272,7 +272,7 @@ class ConsoleStore:
             params.append(truck_id)
         return where, params
 
-    def jumlah_inspeksi(
+    def inspection_count(
         self,
         work_date: str,
         *,
@@ -284,7 +284,7 @@ class ConsoleStore:
         Counted in SQL rather than measured with `len(items)`: that is only ever as long
         as one page, so the screen would claim 25 rows on a day that graded eight hundred.
         """
-        where, params = self._saringan_inspeksi(work_date, line_code, truck_id)
+        where, params = self._inspection_filter(work_date, line_code, truck_id)
         with self._lock:
             row = self._db.execute(
                 f"SELECT COUNT(*) AS n FROM inspections i WHERE {' AND '.join(where)}",
@@ -301,7 +301,7 @@ class ConsoleStore:
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        where, params = self._saringan_inspeksi(work_date, line_code, truck_id)
+        where, params = self._inspection_filter(work_date, line_code, truck_id)
         params += [limit, offset]
         with self._lock:
             rows = self._db.execute(
@@ -315,7 +315,7 @@ class ConsoleStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def rekap_truk(self, work_date: str) -> list[dict[str, Any]]:
+    def truck_recap(self, work_date: str) -> list[dict[str, Any]]:
         """Per-truck tally for one working day, newest truck first.
 
         Grouped on `truck_id`, so bunches graded before a truck was assigned
@@ -331,8 +331,8 @@ class ConsoleStore:
                           COUNT(*) AS total,
                           SUM(CASE WHEN i.ripeness_status = 'ACC' THEN 1 ELSE 0 END) AS acc,
                           SUM(CASE WHEN i.ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej,
-                          MIN(i.timestamp) AS mulai,
-                          MAX(i.timestamp) AS selesai
+                          MIN(i.timestamp) AS started_at,
+                          MAX(i.timestamp) AS ended_at
                    FROM inspections i
                    LEFT JOIN trucks t ON t.id = i.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id
@@ -541,9 +541,10 @@ class ConsoleStore:
     def grading_counts(self, assignment_id: str) -> dict[str, Any] | None:
         """The AI result of one line assignment, counted in SQL (§4.C).
 
-        Criteria mapping: mentah is REJ, tangkai panjang an ACC the line marked
-        with `tp_confidence > 0.8`, matang the rest — AutoERP derives that one.
-        None when the assignment graded nothing: there is no summary to send.
+        Criteria mapping (AutoERP contract field names, do not rename): `mentah` is
+        REJ, `tangkai_panjang` an ACC the line marked with `tp_confidence > 0.8`,
+        `matang` the rest — AutoERP derives that one. None when the assignment
+        graded nothing: there is no summary to send.
         """
         with self._lock:
             row = self._db.execute(
@@ -554,8 +555,8 @@ class ConsoleStore:
                           SUM(CASE WHEN ripeness_status = 'ACC' AND tp_confidence > 0.8
                                    THEN 1 ELSE 0 END) AS tangkai_panjang,
                           SUM(CASE WHEN capture_type = 'manual' THEN 1 ELSE 0 END) AS manual_reject,
-                          MIN(timestamp) AS mulai,
-                          MAX(timestamp) AS selesai
+                          MIN(timestamp) AS started_at,
+                          MAX(timestamp) AS ended_at
                    FROM inspections WHERE assignment_id = ?""",
                 (assignment_id,),
             ).fetchone()
@@ -635,15 +636,16 @@ class ConsoleStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def weighings_terbuka(self, truck_id: str, work_date: str) -> list[dict[str, Any]]:
-        """Tiket truk ini yang belum ditimbang keluar, hari kerja itu saja.
+    def open_weighings_for_truck(self, truck_id: str, work_date: str) -> list[dict[str, Any]]:
+        """This truck's tickets not yet weighed out, for that working day only.
 
-        `tare_kg IS NULL` yang menentukan terbuka: tiket yang sudah punya tara berarti
-        truknya sudah pergi, dan menawarkannya lagi akan menimpa tara pertama — neto
-        berubah tanpa ada yang tahu, dan neto itu yang dibayar.
+        `tare_kg IS NULL` is what makes a ticket open: one that already has a
+        tare means its truck has left, and offering it again would overwrite
+        the first tare — net silently changes, and net is what gets paid.
 
-        Dibatasi hari kerja: tiket kemarin yang taranya tidak pernah terisi akan
-        menghasilkan neto dari bruto kemarin dan tara hari ini.
+        Scoped to the working day: yesterday's ticket whose tare was never
+        filled would otherwise produce a net from yesterday's gross and
+        today's tare.
         """
         with self._lock:
             rows = self._db.execute(
@@ -693,7 +695,7 @@ class ConsoleStore:
 
     # ------------------------------------------------- operators & sessions
 
-    def upsert_operator_lokal(self, row: dict[str, Any]) -> str:
+    def upsert_operator_manual(self, row: dict[str, Any]) -> str:
         """Write an account that lives only on this PC (`make operator`).
 
         Refuses to touch a row AutoERP owns: backoffice owns those passwords, and a
@@ -701,7 +703,7 @@ class ConsoleStore:
         told no, because the operator would believe the new password works.
         """
         return self._upsert_operator(
-            row, origin="lokal", overwrite_origin=("lokal",), selalu_akhiri_sesi=True
+            row, origin="lokal", overwrite_origin=("lokal",), always_end_session=True
         )
 
     def upsert_operator_erp(self, row: dict[str, Any]) -> str:
@@ -719,7 +721,7 @@ class ConsoleStore:
         *,
         origin: str,
         overwrite_origin: tuple[str, ...],
-        selalu_akhiri_sesi: bool = False,
+        always_end_session: bool = False,
     ) -> str:
         """Add or update one account, id derived from the email.
 
@@ -741,15 +743,15 @@ class ConsoleStore:
             # the existing role — overwriting it would erase a local account's role
             # every time `make operator` resets its password.
             if origin == "erp":
-                peran = saring_peran_erp(row.get("peran"), self._peran_erp_diizinkan)
+                role = filter_erp_role(row.get("peran"), self._erp_allowed_roles)
             elif existing is not None:
-                peran = existing["role"]
+                role = existing["role"]
             else:
-                peran = peran_sah(row.get("peran"))
+                role = sanitize_role(row.get("peran"))
             # Worked out before the write, while the old row is still readable.
-            akhiri_sesi = selalu_akhiri_sesi or existing is None or any(
-                existing[kolom] != baru
-                for kolom, baru in (
+            end_session = always_end_session or existing is None or any(
+                existing[column] != new_value
+                for column, new_value in (
                     ("password_hash", row["password_hash"]),
                     ("status", status),
                 )
@@ -775,7 +777,7 @@ class ConsoleStore:
                     "password_hash": row["password_hash"],
                     "status": status,
                     "origin": origin,
-                    "role": peran,
+                    "role": role,
                     "erp_name": row.get("erp_name"),
                     "created_at": time.time(),
                 },
@@ -789,7 +791,7 @@ class ConsoleStore:
             # unconditionally signed the operator out on every sync — every 5 minutes at
             # the mill, with the screen blaming an expired session. Seen in a browser
             # 2026-09-15.
-            if akhiri_sesi:
+            if end_session:
                 self._db.execute("DELETE FROM sesi WHERE operator_id = ?", (operator_id,))
         return operator_id
 
@@ -820,7 +822,7 @@ class ConsoleStore:
             ).fetchall()
         return [dict(row) for row in rows]
 
-    def ada_akun_support(self) -> bool:
+    def has_support_account(self) -> bool:
         """Whether any active account can reach the developer screens.
 
         Existence check in SQL, not a Python loop over `operators()`: the
@@ -830,7 +832,7 @@ class ConsoleStore:
         with self._lock:
             row = self._db.execute(
                 "SELECT 1 FROM operators WHERE role = ? AND status = 'active' LIMIT 1",
-                (PERAN_SUPPORT,),
+                (ROLE_SUPPORT,),
             ).fetchone()
         return row is not None
 
@@ -847,13 +849,13 @@ class ConsoleStore:
             if status != "active":
                 self._db.execute("DELETE FROM sesi WHERE operator_id = ?", (operator_id,))
 
-    def set_peran(self, operator_id: str, peran: str) -> None:
+    def set_role(self, operator_id: str, role: str) -> None:
         """Set one account's role. An unknown value is stored as `operator`,
         not trusted from the caller — this column gates the piston screen."""
         with self._lock, self._db:
             self._db.execute(
                 "UPDATE operators SET role = ? WHERE id = ?",
-                (peran_sah(peran), operator_id),
+                (sanitize_role(role), operator_id),
             )
 
     def record_login_failure(self, operator_id: str, *, now: float) -> None:

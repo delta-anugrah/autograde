@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 
 from palmgrade.domain.operator_auth import hash_password
 from palmgrade.domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT
-from palmgrade.domain.peran import PERAN_OPERATOR, PERAN_SUPPORT
+from palmgrade.domain.peran import ROLE_OPERATOR, ROLE_SUPPORT
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.routes.console import get_auth_service, get_console_service
 from palmgrade.routes.console import router as console_router
@@ -36,20 +36,20 @@ class _StubConsole:
 @pytest.fixture
 def gerbang(tmp_path):
     store = ConsoleStore(tmp_path / "console.db")
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {
             "email": "operator@pks.test",
             "full_name": "Operator Biasa",
             "password_hash": hash_password(SANDI),
-            "peran": PERAN_OPERATOR,
+            "peran": ROLE_OPERATOR,
         }
     )
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {
             "email": "support@pks.test",
             "full_name": "Akun Support",
             "password_hash": hash_password(SANDI),
-            "peran": PERAN_SUPPORT,
+            "peran": ROLE_SUPPORT,
         }
     )
 
@@ -104,11 +104,11 @@ def test_me_membawa_peran_untuk_kedua_akun(gerbang):
     client, _ = gerbang
 
     _masuk(client, "operator@pks.test")
-    assert client.get("/api/console/me").json()["operator"]["role"] == PERAN_OPERATOR
+    assert client.get("/api/console/me").json()["operator"]["role"] == ROLE_OPERATOR
 
     client.post("/api/console/logout")
     _masuk(client, "support@pks.test")
-    assert client.get("/api/console/me").json()["operator"]["role"] == PERAN_SUPPORT
+    assert client.get("/api/console/me").json()["operator"]["role"] == ROLE_SUPPORT
 
 
 def test_peran_dicabut_ditolak_pada_sesi_lama(gerbang):
@@ -120,7 +120,7 @@ def test_peran_dicabut_ditolak_pada_sesi_lama(gerbang):
     assert client.get("/api/console/dev/ping").status_code == 200
 
     operator_id = client.get("/api/console/me").json()["operator"]["id"]
-    store.set_peran(operator_id, PERAN_OPERATOR)
+    store.set_role(operator_id, ROLE_OPERATOR)
 
     jawab = client.get("/api/console/dev/ping")
 

@@ -35,16 +35,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from palmgrade.core.config import Settings  # noqa: E402
-from palmgrade.domain.peran import PERAN_OPERATOR  # noqa: E402
+from palmgrade.domain.peran import ROLE_OPERATOR  # noqa: E402
 from palmgrade.repositories.console_repository import ConsoleStore  # noqa: E402
 from palmgrade.services.operator_admin import OperatorAdmin  # noqa: E402
 
 
 def main(argv: list[str]) -> int:
     aksi = argv[1] if len(argv) > 1 else "tambah"
-    # Never trusted as-is: OperatorAdmin validates through domain.peran.peran_sah,
+    # Never trusted as-is: OperatorAdmin validates through domain.peran.sanitize_role,
     # so a typo here lands on `operator`, not on whatever was typed.
-    peran = argv[2] if len(argv) > 2 else PERAN_OPERATOR
+    peran = argv[2] if len(argv) > 2 else ROLE_OPERATOR
     settings = Settings()
     admin = OperatorAdmin(ConsoleStore(settings.console_db_path))
     # Printed every time: writing the right accounts into the wrong file is the one
@@ -57,7 +57,7 @@ def main(argv: list[str]) -> int:
             full_name = input("Nama operator: ")
             sandi = getpass.getpass("Sandi (minimal 8 karakter): ")
             ulang = getpass.getpass("Ulangi sandi: ")
-            _, disahkan = admin.add_or_reset(email, full_name, sandi, ulang, peran=peran)
+            _, disahkan = admin.add_or_reset(email, full_name, sandi, ulang, role=peran)
             print("Tersimpan. Sesi lama operator ini, kalau ada, sudah diakhiri.")
             print(f"Peran: {disahkan}")
         elif aksi == "daftar":
@@ -73,7 +73,7 @@ def main(argv: list[str]) -> int:
             print("Dimatikan. Sesinya berakhir sekarang juga.")
         elif aksi == "peran":
             email = input("Email operator: ")
-            disahkan = admin.set_peran(email, peran)
+            disahkan = admin.set_role(email, peran)
             print(f"Peran diubah jadi: {disahkan}")
         else:
             print(

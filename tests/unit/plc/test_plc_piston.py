@@ -146,7 +146,7 @@ def test_permintaan_piston_ditolak_kalau_plc_mati():
     assert plc.piston_state() is None
 
 
-# ── picu_coil / testable_coils: layar uji PLC untuk commissioning ──────────
+# ── fire_test_coil / testable_coils: layar uji PLC untuk commissioning ──────────
 
 
 def test_testable_coils_mengecualikan_alive_dan_error():
@@ -176,25 +176,25 @@ def test_testable_coils_tanpa_piston_manual_dikonfigurasi():
     assert plc.testable_coils(_CfgTanpaManual()) == frozenset({0, 1})
 
 
-def test_picu_coil_modul_ditolak_kalau_plc_mati():
+def test_fire_test_coil_modul_ditolak_kalau_plc_mati():
     from palmgrade import plc
 
     plc._worker = None
-    assert plc.picu_coil(0) is False
+    assert plc.fire_test_coil(0) is False
 
 
-def test_picu_coil_modul_meneruskan_ke_worker():
+def test_fire_test_coil_modul_meneruskan_ke_worker():
     from palmgrade import plc
 
     w, _ = _worker()
     plc._worker = w
     try:
-        assert plc.picu_coil(0) is True
+        assert plc.fire_test_coil(0) is True
     finally:
         plc._worker = None                # jangan bocor ke test lain di suite ini
 
 
-def test_picu_coil_modul_meneruskan_penolakan_antrean_penuh():
+def test_fire_test_coil_modul_meneruskan_penolakan_antrean_penuh():
     from palmgrade import plc
 
     client = _FakeClient()
@@ -203,9 +203,9 @@ def test_picu_coil_modul_meneruskan_penolakan_antrean_penuh():
         scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=1),
         settings=_Cfg(),
     )
-    w.picu_coil(0)                         # penuhi antrean coil 0
+    w.fire_test_coil(0)                         # penuhi antrean coil 0
     plc._worker = w
     try:
-        assert plc.picu_coil(0) is False   # antrean penuh -> tidak dipicu, bukan error
+        assert plc.fire_test_coil(0) is False   # antrean penuh -> tidak dipicu, bukan error
     finally:
         plc._worker = None

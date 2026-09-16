@@ -13,14 +13,14 @@ import time
 import traceback
 from typing import Any, Protocol
 
-from ..domain.log_redaksi import redaksi
+from ..domain.log_redaksi import redact
 
-_LEVEL_DISIMPAN = frozenset({"ERROR", "CRITICAL", "WARNING"})
+_STORED_LEVELS = frozenset({"ERROR", "CRITICAL", "WARNING"})
 
 
 class _LogSink(Protocol):
-    def tulis(
-        self, level: str, sumber: str, pesan: str, detail: str | None, *, now: float
+    def write(
+        self, level: str, source: str, message: str, detail: str | None, *, now: float
     ) -> None: ...
 
 
@@ -31,28 +31,28 @@ class SqliteLogHandler(logging.Handler):
         super().__init__(level=logging.WARNING)
         self._store = store
         self._now = now
-        self._sudah_mengeluh = False
+        self._already_complained = False
 
     def emit(self, record: logging.LogRecord) -> None:
-        if record.levelname not in _LEVEL_DISIMPAN:
+        if record.levelname not in _STORED_LEVELS:
             return
         try:
             detail = self._format_exception(record) if record.exc_info else None
-            self._store.tulis(
+            self._store.write(
                 "ERROR" if record.levelname == "CRITICAL" else record.levelname,
                 record.name,
-                redaksi(record.getMessage()),
-                redaksi(detail) if detail else None,
+                redact(record.getMessage()),
+                redact(detail) if detail else None,
                 now=self._now(),
             )
         except Exception:
             # Swallowed on purpose: a line must not die because its logging aid
             # failed. Complained once to stderr so a permanent failure still
             # shows in `docker logs` instead of going silent forever.
-            if not self._sudah_mengeluh:
-                self._sudah_mengeluh = True
+            if not self._already_complained:
+                self._already_complained = True
                 print(
-                    "log_kejadian tidak bisa ditulis; layar Log akan kosong",
+                    "event log could not be written; the Log screen will stay empty",
                     file=sys.stderr,
                 )
 
@@ -61,7 +61,7 @@ class SqliteLogHandler(logging.Handler):
         return "".join(traceback.format_exception(*record.exc_info))
 
 
-def pasang_log_sink(store: _LogSink) -> SqliteLogHandler:
+def install_log_sink(store: _LogSink) -> SqliteLogHandler:
     """Attach the handler to the root logger. Returns it so a test can detach it."""
     handler = SqliteLogHandler(store)
     logging.getLogger().addHandler(handler)

@@ -1,8 +1,8 @@
-"""Tombol piston di konsol: perintah diteruskan, status dibaca dari line.
+"""The console's piston button: the command is forwarded, status is read from the line.
 
-Layar menampilkan apa yang dibenarkan PLC, bukan apa yang barusan diklik.
-Karena itu status datang dari worker yang membaca line, bukan dari ingatan
-konsol sendiri.
+The screen shows what the PLC confirmed, not what was just clicked. That is
+why status comes from the worker that reads the line, not from the console's
+own memory.
 """
 from __future__ import annotations
 
@@ -20,17 +20,17 @@ from palmgrade.workers.line_status_worker import LineStatusWorker
 
 
 class FakeLine:
-    def __init__(self, *, mati: bool = False) -> None:
-        self.perintah: list[tuple[str, bool]] = []
-        self.mati = mati
+    def __init__(self, *, down: bool = False) -> None:
+        self.commands: list[tuple[str, bool]] = []
+        self.down = down
 
     async def set_piston(self, line, *, open, requested_by, requested_at):
-        if self.mati:
+        if self.down:
             raise LineUnavailable(LINE_TIDAK_MENJAWAB, "line tidak menjawab")
-        self.perintah.append((line.line_code, open))
+        self.commands.append((line.line_code, open))
 
     async def status(self, line):
-        if self.mati:
+        if self.down:
             raise LineUnavailable(LINE_TIDAK_MENJAWAB, "line tidak menjawab")
         return {"truck_id": "t-1", "ffb_source": "Internal",
                 "piston": {"requested": True, "confirmed_open": True}}
@@ -42,32 +42,32 @@ def service(tmp_path):
     return ConsoleService(settings, ConsoleStore(tmp_path / "console.db"), FakeLine())
 
 
-def test_perintah_piston_diteruskan_ke_line(service):
-    kode = service.lines[0].line_code
-    asyncio.run(service.piston(kode, True))
-    assert service.line_client.perintah == [(kode, True)]
+def test_piston_command_is_forwarded_to_the_line(service):
+    code = service.lines[0].line_code
+    asyncio.run(service.piston(code, True))
+    assert service.line_client.commands == [(code, True)]
 
 
-def test_line_mati_muncul_sebagai_error_operator(service):
-    service.line_client.mati = True
+def test_a_down_line_surfaces_as_an_operator_error(service):
+    service.line_client.down = True
     with pytest.raises(LineUnavailable):
         asyncio.run(service.piston(service.lines[0].line_code, True))
 
 
-def test_worker_menyimpan_status_line_dan_state_memakainya(service):
+def test_the_worker_stores_line_status_and_state_uses_it(service):
     worker = LineStatusWorker(service.lines, service.line_client, interval_s=0)
     asyncio.run(worker.run_once())
     service.line_status = worker.snapshot
 
-    kartu = next(k for k in service.state()["lines"] if k["line_code"] == service.lines[0].line_code)
-    assert kartu["plc"] == {
+    card = next(k for k in service.state()["lines"] if k["line_code"] == service.lines[0].line_code)
+    assert card["plc"] == {
         "reachable": True, "ffb_source": "Internal",
         "piston_requested": True, "piston_open": True,
     }
 
 
-def test_line_mati_tidak_menjatuhkan_worker(service):
-    service.line_client.mati = True
+def test_a_down_line_does_not_bring_down_the_worker(service):
+    service.line_client.down = True
     worker = LineStatusWorker(service.lines, service.line_client, interval_s=0)
-    asyncio.run(worker.run_once())          # tidak boleh raise
+    asyncio.run(worker.run_once())          # must not raise
     assert worker.snapshot()[service.lines[0].line_code]["reachable"] is False

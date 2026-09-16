@@ -137,7 +137,7 @@ def test_operator_row_membawa_peran():
 
 
 def test_operator_row_tanpa_peran_tetap_mentah():
-    """`operator_row` does not normalize; only the store does, via `saring_peran_erp`."""
+    """`operator_row` does not normalize; only the store does, via `filter_erp_role`."""
     row = operator_row({"name": "a@b.c", "email": "a@b.c", "full_name": "A"})
     assert row["peran"] == ""
 

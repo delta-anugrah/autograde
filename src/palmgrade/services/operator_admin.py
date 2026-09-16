@@ -20,7 +20,7 @@ from ..domain.operator_auth import (
     normalise_nama,
     operator_id_for,
 )
-from ..domain.peran import PERAN_OPERATOR, peran_sah
+from ..domain.peran import ROLE_OPERATOR, sanitize_role
 from ..repositories.console_repository import ConsoleStore
 
 
@@ -29,15 +29,15 @@ class OperatorAdmin:
         self._store = store
 
     def add_or_reset(
-        self, email: str, full_name: str, sandi: str, sandi_again: str, peran: str = PERAN_OPERATOR
+        self, email: str, full_name: str, sandi: str, sandi_again: str, role: str = ROLE_OPERATOR
     ) -> tuple[str, str]:
         """Add a local account, or reset the password of the one holding that email.
 
         Returns `(operator_id, role)` — the role actually stored, which is only ever
-        `peran` on a brand-new account. `ConsoleStore.upsert_operator_lokal` keeps an
+        `role` on a brand-new account. `ConsoleStore.upsert_operator_manual` keeps an
         EXISTING account's role untouched by a password reset — a role set once must not
         be erased by the next reset — so the caller is told what really landed rather
-        than what it asked for. Promoting an existing account is `set_peran`.
+        than what it asked for. Promoting an existing account is `set_role`.
 
         A reset ends every session opened with the old password — a password is reset
         because someone saw it. Nothing is stored unless every check passes.
@@ -58,19 +58,19 @@ class OperatorAdmin:
             raise ValueError(
                 f"{email} milik AutoERP — ubah sandinya di AutoERP, bukan di PC ini"
             )
-        operator_id = self._store.upsert_operator_lokal(
+        operator_id = self._store.upsert_operator_manual(
             {
                 "email": email,
                 "full_name": full_name,
                 "password_hash": hash_password(sandi),
-                "peran": peran_sah(peran),
+                "peran": sanitize_role(role),
             }
         )
         # Read back rather than assumed: the row is the only source of truth for
         # which role actually landed (new account vs. an existing one kept its own).
         return operator_id, self._store.operator(operator_id)["role"]
 
-    def set_peran(self, email: str, peran: str) -> str:
+    def set_role(self, email: str, role: str) -> str:
         """Change one EXISTING local account's role. Returns the role actually stored.
 
         `add_or_reset` never touches the role of an account that already exists — on
@@ -81,9 +81,9 @@ class OperatorAdmin:
         if self._store.operator(operator_id) is None:
             # A typo must not read as success while the real account stays live.
             raise ValueError(f"operator {normalise_email(email)!r} tidak ada")
-        disahkan = peran_sah(peran)
-        self._store.set_peran(operator_id, disahkan)
-        return disahkan
+        sanitized = sanitize_role(role)
+        self._store.set_role(operator_id, sanitized)
+        return sanitized
 
     def switch_off(self, email: str) -> None:
         """Take an account off the sign-in screen and end its sessions now.

@@ -44,7 +44,7 @@ def _link_an_erp_truck(service: ConsoleService) -> None:
 def test_a_new_manual_truck_is_queued_for_autoerp(tmp_path):
     service, outbox = _service(tmp_path)
 
-    service.daftar_truk_manual("be 1234 xy")
+    service.register_manual_truck("be 1234 xy")
 
     [message] = outbox.due()
     assert (message.kind, message.key) == ("truck", "BE1234XY")
@@ -58,7 +58,7 @@ def test_retyping_a_truck_autoerp_owns_changes_nothing(tmp_path):
     service, outbox = _service(tmp_path)
     _link_an_erp_truck(service)
 
-    service.daftar_truk_manual("be-8821-kl")
+    service.register_manual_truck("be-8821-kl")
 
     [truck] = service.trucks()
     assert (truck["supplier_name"], truck["source_label"], truck["status"]) == (
@@ -70,9 +70,9 @@ def test_retyping_a_truck_autoerp_owns_changes_nothing(tmp_path):
 def test_an_unlinked_truck_can_still_be_retyped(tmp_path):
     """Only AutoERP's own trucks are read-only; a borrowed one is not."""
     service, outbox = _service(tmp_path)
-    service.daftar_truk_manual("BE 1 AA")
+    service.register_manual_truck("BE 1 AA")
 
-    result = service.daftar_truk_manual("BE 1 AA", capacity=8.0)
+    result = service.register_manual_truck("BE 1 AA", capacity=8.0)
 
     assert result["status"] == "manual"
     assert [m.key for m in outbox.due()] == ["BE1AA"]
@@ -86,4 +86,4 @@ def test_a_console_without_the_erp_link_keeps_the_truck_local(tmp_path):
         None,
     )
 
-    assert service.daftar_truk_manual("BE 1 AA")["status"] == "manual"
+    assert service.register_manual_truck("BE 1 AA")["status"] == "manual"

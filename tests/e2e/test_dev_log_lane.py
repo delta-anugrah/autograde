@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 
 from palmgrade.domain.operator_auth import hash_password
 from palmgrade.domain.operator_error import BUKAN_SUPPORT
-from palmgrade.domain.peran import PERAN_OPERATOR, PERAN_SUPPORT
+from palmgrade.domain.peran import ROLE_OPERATOR, ROLE_SUPPORT
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.repositories.log_repository import LogStore
 from palmgrade.routes.console import get_auth_service, get_console_service, get_dev_service
@@ -41,20 +41,20 @@ class _StubConsole:
 def gerbang(tmp_path):
     store = ConsoleStore(tmp_path / "console.db")
     log_store = LogStore(tmp_path / "log.db")
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {
             "email": "operator@pks.test",
             "nama": "Operator Biasa",
             "password_hash": hash_password(SANDI),
-            "peran": PERAN_OPERATOR,
+            "peran": ROLE_OPERATOR,
         }
     )
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {
             "email": "support@pks.test",
             "nama": "Akun Support",
             "password_hash": hash_password(SANDI),
-            "peran": PERAN_SUPPORT,
+            "peran": ROLE_SUPPORT,
         }
     )
 
@@ -74,7 +74,7 @@ def _masuk(client: TestClient, email: str) -> None:
 
 def test_support_membaca_log_dengan_total_dan_items(gerbang):
     client, _, log_store = gerbang
-    log_store.tulis("ERROR", "line-1", "kamera putus", None, now=time.time())
+    log_store.write("ERROR", "line-1", "kamera putus", None, now=time.time())
     _masuk(client, "support@pks.test")
 
     jawab = client.get("/api/console/dev/log")
@@ -87,7 +87,7 @@ def test_support_membaca_log_dengan_total_dan_items(gerbang):
 
 def test_operator_biasa_ditolak_403(gerbang):
     client, _, log_store = gerbang
-    log_store.tulis("ERROR", "line-1", "kamera putus", None, now=time.time())
+    log_store.write("ERROR", "line-1", "kamera putus", None, now=time.time())
     _masuk(client, "operator@pks.test")
 
     jawab = client.get("/api/console/dev/log")
@@ -103,7 +103,7 @@ def test_halaman_terakhir_membawa_total_yang_benar(gerbang):
     client, _, log_store = gerbang
     dasar = time.time()
     for i in range(23):
-        log_store.tulis("ERROR", f"s{i}", f"pesan {i}", None, now=dasar + i)
+        log_store.write("ERROR", f"s{i}", f"pesan {i}", None, now=dasar + i)
     _masuk(client, "support@pks.test")
 
     halaman_pertama = client.get("/api/console/dev/log?limit=20&offset=0").json()
@@ -118,8 +118,8 @@ def test_halaman_terakhir_membawa_total_yang_benar(gerbang):
 def test_saring_level_bekerja_lewat_http(gerbang):
     client, _, log_store = gerbang
     dasar = time.time()
-    log_store.tulis("ERROR", "a", "galat berat", None, now=dasar)
-    log_store.tulis("WARNING", "b", "peringatan", None, now=dasar + 1)
+    log_store.write("ERROR", "a", "galat berat", None, now=dasar)
+    log_store.write("WARNING", "b", "peringatan", None, now=dasar + 1)
     _masuk(client, "support@pks.test")
 
     hanya_error = client.get("/api/console/dev/log?level=ERROR").json()

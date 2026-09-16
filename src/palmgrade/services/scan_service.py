@@ -1,21 +1,21 @@
-"""Scan QR di gerbang timbangan: satu plat masuk, satu truk keluar.
+"""Scan a QR at the weighbridge gate: one plate in, one truck out.
 
-Dua tahap scan, dua-duanya di gerbang, dua-duanya menggantikan **ketikan yang
-sungguhan ada**: timbang masuk dan timbang keluar. Tahap sortir tidak di-scan —
-yang tahu bak sudah kosong itu operator line, bukan supir yang datang membawa HP,
-dan tombolnya sudah ada di depan mata operator.
+Two scan stages, both at the gate, both replacing **typing that genuinely
+happens**: weigh-in and weigh-out. The sorting stage is not scanned — knowing
+the hopper is empty is the line operator's call, not the driver's who just
+carries a phone, and the button is already right in front of the operator.
 
-Lapisan ini **cuma mencari**. Dia tidak membuat truk dan tidak menyentuh berat:
+This layer **only searches**. It never creates a truck and never touches weight:
 
-- kalau scan ikut membuat truk, satu QR salah baca menambah truk hantu ke master
-  data, dan truk itu naik ke AutoERP lewat interface B
-- kalau scan ikut menulis berat, ada dua tempat yang bisa menulis angka yang
-  dibayar ke petani. Yang mencatat berat tetap `ConsoleService.catat_timbangan`
+- if scanning also created trucks, one misread QR adds a ghost truck to master
+  data, and that truck rides up to AutoERP through interface B
+- if scanning also wrote weight, there would be two places that can write the
+  figure the farmer is paid on. Recording weight stays `ConsoleService.record_weighing`
 
-Truk yang belum terdaftar (truk pinjaman) dijawab "belum ada", dan layar yang
-menawarkan input manual. Itu satu-satunya jalur yang masih diketik tangan, dan
-memang harus tetap ada: layar HP retak, gelap, atau kena matahari langsung adalah
-kasus nyata di gerbang pabrik.
+An unregistered (borrowed) truck is answered "not found", and the screen
+offers manual entry. That is the one lane still typed by hand, and it has to
+stay: a cracked screen, a dark one, or one in direct sun are real cases at the
+factory gate.
 """
 
 from __future__ import annotations
@@ -31,52 +31,53 @@ logger = logging.getLogger(__name__)
 
 
 class ScanService:
-    """Pencarian truk dari hasil scan. Tidak menulis apa pun."""
+    """Look up a truck from a scan. Never writes anything."""
 
     def __init__(self, store: ConsoleStore) -> None:
         self.store = store
 
-    def cari(self, teks_qr: str) -> dict[str, Any]:
-        """Hasil bacaan scanner → truk yang sudah ada, atau "belum ada".
+    def search(self, qr_text: str) -> dict[str, Any]:
+        """A scanner read → the truck already on file, or "not found".
 
-        Id-nya diturunkan dari plat, sama seperti `catat_timbangan` — bukan query
-        kolom plat tersendiri. Satu aturan untuk dua jalur: kalau pencarian di sini
-        memakai aturan lain, satu kunjungan bisa mendarat di truk yang berbeda dari
-        yang dipakai saat menimbang.
+        The id is derived from the plate, same as `record_weighing` — not a
+        separate plate-column query. One rule for both lanes: if the search
+        here used a different rule, one visit could land on a different
+        truck than the one used while weighing.
         """
-        plat = baca_qr(teks_qr)  # menolak yang bukan plat
-        truk = self.store.truck(truck_id_for(plat))
+        plate = baca_qr(qr_text)  # rejects anything that is not a plate
+        truck = self.store.truck(truck_id_for(plate))
 
-        if truk is None:
-            logger.info("Scan %s: truk belum terdaftar", plat)
-            return {"ditemukan": False, "plate_number": plat, "truck": None}
+        if truck is None:
+            logger.info("Scan %s: truck not yet registered", plate)
+            return {"ditemukan": False, "plate_number": plate, "truck": None}
 
-        return {"ditemukan": True, "plate_number": plat, "truck": truk}
+        return {"ditemukan": True, "plate_number": plate, "truck": truck}
 
-    def tiket_terbuka(self, teks_qr: str, work_date: str) -> dict[str, Any]:
-        """Scan kedua, di gerbang keluar: tiket mana yang sedang menunggu tara.
+    def open_ticket(self, qr_text: str, work_date: str) -> dict[str, Any]:
+        """Second scan, at the exit gate: which ticket is waiting for its tare.
 
-        Operator scan platnya, sistem yang mencari tiketnya — bukan operator yang
-        menyusuri tabel mencari baris truk itu di antara puluhan baris hari ini.
+        The operator scans the plate and the system finds the ticket — instead
+        of the operator combing the table for that truck's row among dozens
+        for the day.
 
-        **Dua tiket terbuka ditolak, tidak ditebak** (keputusan operator 2026-09-15):
-        menebak di sini bisa memasangkan tara ke kunjungan yang salah dan mencampur
-        tonase dua kunjungan — persis bentuk bug adopsi tiket yang kami laporkan ke
-        AutoERP. Layar menampilkan keduanya dan operator memilih sendiri.
+        **Two open tickets are refused, not guessed** (operator's decision,
+        2026-09-15): guessing here can attach the tare to the wrong visit and
+        mix two visits' tonnage — the same shape as the ticket-adoption bug
+        reported to AutoERP. The screen shows both and the operator picks.
         """
-        plat = baca_qr(teks_qr)
-        terbuka = self.store.weighings_terbuka(truck_id_for(plat), work_date)
+        plate = baca_qr(qr_text)
+        open_weighings = self.store.open_weighings_for_truck(truck_id_for(plate), work_date)
 
-        if len(terbuka) == 1:
-            return {"ditemukan": True, "plate_number": plat, "weighing": terbuka[0]}
+        if len(open_weighings) == 1:
+            return {"ditemukan": True, "plate_number": plate, "weighing": open_weighings[0]}
 
-        if len(terbuka) > 1:
-            logger.info("Scan keluar %s: %d tiket terbuka, minta operator memilih",
-                        plat, len(terbuka))
+        if len(open_weighings) > 1:
+            logger.info("Scan keluar %s: %d open tickets, asking the operator to choose",
+                        plate, len(open_weighings))
             return {
                 "ditemukan": False, "ganda": True,
-                "plate_number": plat, "pilihan": terbuka,
+                "plate_number": plate, "choices": open_weighings,
             }
 
-        logger.info("Scan keluar %s: tidak ada tiket terbuka hari ini", plat)
-        return {"ditemukan": False, "plate_number": plat, "weighing": None}
+        logger.info("Scan keluar %s: no open ticket today", plate)
+        return {"ditemukan": False, "plate_number": plate, "weighing": None}

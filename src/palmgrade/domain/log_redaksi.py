@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-_KUNCI = (
+_KEYS = (
     "password|sandi|password_hash|token|secret|authorization|api_key"
     "|x-webhook-secret|konsol_sesi"
 )
@@ -17,8 +17,8 @@ _KUNCI = (
 # The key must start the string or follow a separator, not sit mid-word — this
 # is what keeps "not-a-secret" whole while still matching "password_hash"
 # (underscore is deliberately not a separator).
-_BATAS_KUNCI = r'(?:^|(?<=[\s"\'{,;?&]))'
-_KUNCI_G = rf'(?P<kunci>["\']?(?:{_KUNCI})["\']?\s*[:=]\s*)'
+_KEY_BOUNDARY = r'(?:^|(?<=[\s"\'{,;?&]))'
+_KEY_G = rf'(?P<key>["\']?(?:{_KEYS})["\']?\s*[:=]\s*)'
 
 # Quoted value, unrolled-loop form (non-special run, then repeat escape-pair +
 # run) — the only way to match a given input. `(?:\\.|(?!q).)*` looks
@@ -27,13 +27,13 @@ _KUNCI_G = rf'(?P<kunci>["\']?(?:{_KUNCI})["\']?\s*[:=]\s*)'
 # so a hang here would freeze whatever thread was logging, maybe a grading
 # line. Named groups, not \1-backreferences — numbered ones renumber by
 # position once embedded below and silently point at the wrong group.
-_NILAI_KUTIP = (
-    r'(?P<kutip>["\'])'
-    r'(?P<isi_kutip>'
-    r'(?:(?!(?P=kutip)|\\).)*'
-    r'(?:\\.(?:(?!(?P=kutip)|\\).)*)*'
+_QUOTED_VALUE = (
+    r'(?P<quote>["\'])'
+    r'(?P<quoted_body>'
+    r'(?:(?!(?P=quote)|\\).)*'
+    r'(?:\\.(?:(?!(?P=quote)|\\).)*)*'
     r')'
-    r'(?P=kutip)'
+    r'(?P=quote)'
 )
 
 # Unquoted value: an optional auth scheme word stays visible; the value stops
@@ -41,31 +41,31 @@ _NILAI_KUTIP = (
 # inside a token they must stay part of the value (else the tail leaks after
 # the marker), but before the next query param they must still end it (else
 # that param gets swallowed).
-_NILAI_POLOS = (
-    r'(?P<skema>(?:(?:Bearer|Basic|Token|Digest)\s+)?)'
-    r'(?P<nilai_polos>(?:[^\s,;}\'"&#]|[&#](?!\w+=))+)'
+_PLAIN_VALUE = (
+    r'(?P<scheme>(?:(?:Bearer|Basic|Token|Digest)\s+)?)'
+    r'(?P<plain_value>(?:[^\s,;}\'"&#]|[&#](?!\w+=))+)'
 )
 
-_POLA = re.compile(
+_PATTERN = re.compile(
     rf'''(?ixs)
-    {_BATAS_KUNCI}{_KUNCI_G}
-    (?:{_NILAI_KUTIP}|{_NILAI_POLOS})
+    {_KEY_BOUNDARY}{_KEY_G}
+    (?:{_QUOTED_VALUE}|{_PLAIN_VALUE})
     '''
 )
 
-_TUTUP = "«ditutup»"
+_MASK = "«redacted»"
 
 
-def redaksi(teks: str) -> str:
-    """Return `teks` with secret values replaced by a marker."""
-    if not teks:
-        return teks
-    return _POLA.sub(_ganti, teks)
+def redact(text: str) -> str:
+    """Return `text` with secret values replaced by a marker."""
+    if not text:
+        return text
+    return _PATTERN.sub(_replace, text)
 
 
-def _ganti(m: re.Match[str]) -> str:
-    if m.group("kutip") is not None:
-        kutip = m.group("kutip")
-        return f"{m.group('kunci')}{kutip}{_TUTUP}{kutip}"
-    skema = m.group("skema") or ""  # unquoted: keep the scheme word, hide the rest
-    return f"{m.group('kunci')}{skema}{_TUTUP}"
+def _replace(m: re.Match[str]) -> str:
+    if m.group("quote") is not None:
+        quote = m.group("quote")
+        return f"{m.group('key')}{quote}{_MASK}{quote}"
+    scheme = m.group("scheme") or ""  # unquoted: keep the scheme word, hide the rest
+    return f"{m.group('key')}{scheme}{_MASK}"

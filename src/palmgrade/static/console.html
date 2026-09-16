@@ -1369,9 +1369,9 @@ function segarkanHalaman() {
   $("grading-nomor").innerHTML = tombolNomorHalaman();
 }
 
-// Berapa nomor halaman yang ditampilkan di kiri dan kanan halaman sekarang. 653
-// halaman tidak bisa dicetak semua - layar operator dibaca dari beberapa meter, dan
-// deretan tombol sekecil itu tidak bisa ditekan dengan sarung tangan.
+// How many page numbers show on each side of the current page. 653 pages
+// cannot all be printed - the operator screen is read from a few metres away,
+// and a row of buttons that small cannot be pressed wearing gloves.
 const JENDELA_HALAMAN = 2;
 
 function tombolNomorHalaman() {
@@ -1380,8 +1380,8 @@ function tombolNomorHalaman() {
   if (jumlah <= 1) return "";
   const kini = Math.floor(gradingOffset / per) + 1;
 
-  // Halaman pertama dan terakhir selalu ikut: dua ujung daftar harus terjangkau
-  // dalam satu ketukan, dari halaman mana pun.
+  // The first and last page are always included: both ends of the list must
+  // be reachable in one tap, from any page.
   const nomor = new Set([1, jumlah]);
   for (let n = kini - JENDELA_HALAMAN; n <= kini + JENDELA_HALAMAN; n++) {
     if (n >= 1 && n <= jumlah) nomor.add(n);
@@ -1390,10 +1390,10 @@ function tombolNomorHalaman() {
   const urut = [...nomor].sort((a, b) => a - b);
   let html = "";
   urut.forEach((n, i) => {
-    // Celah ditandai, bukan disembunyikan: tanpa tanda, 1 lalu 298 terbaca seperti
-    // halaman yang hilang.
+    // The gap is marked, not hidden: without a mark, 1 then 298 reads like a
+    // missing page.
     if (i > 0 && n - urut[i - 1] > 1) html += `<span class="halaman-celah">…</span>`;
-    // aria-label: angka telanjang tidak mengatakan apa-apa ke pembaca layar.
+    // aria-label: a bare number tells a screen reader nothing.
     html += `<button type="button" class="halaman-no" data-halaman="${n}"
              aria-label="${esc(t("keHalaman"))} ${n}"
              aria-current="${n === kini}"${n === kini ? " disabled" : ""}>${n}</button>`;
@@ -1406,13 +1406,14 @@ function gantiHalaman(arah) {
   keHalaman(Math.floor(gradingOffset / per) + 1 + arah);
 }
 
-// Lompat ke satu halaman. Dipakai tombol nomor DAN Sebelumnya/Berikutnya, jadi
-// penjepitan rentangnya cuma ada di satu tempat.
+// Jump to one page. Used by the number buttons AND Previous/Next, so the
+// range clamping lives in exactly one place.
 function keHalaman(nomor) {
   const per = Number(gradingPer);
   const jumlah = Math.max(1, Math.ceil(gradingTotal / per));
-  // Dijepit dua sisi: offset negatif maupun offset di luar akhir daftar dibalas 422
-  // oleh server, dan layar cuma menampilkan error tanpa sebab yang kelihatan.
+  // Clamped on both sides: a negative offset or one past the end of the list
+  // is answered 422 by the server, and the screen just shows an error with no
+  // visible cause.
   const aman = Math.max(1, Math.min(nomor, jumlah));
   const baru = (aman - 1) * per;
   if (baru === gradingOffset) return;
@@ -1420,8 +1421,8 @@ function keHalaman(nomor) {
   muatGrading();
 }
 
-// Delegasi: tombol nomornya dirakit ulang setiap halaman berubah, jadi listener per
-// tombol akan hilang bersamanya.
+// Delegated: the number buttons are rebuilt on every page change, so a
+// per-button listener would disappear along with them.
 $("grading-nomor").addEventListener("click", (ev) => {
   const tombol = ev.target.closest("button[data-halaman]");
   if (tombol) keHalaman(Number(tombol.dataset.halaman));
@@ -1544,18 +1545,18 @@ function isiTruk(a) {
   </span>`;
 }
 
-// Keadaan tombol datang dari PLC (l.plc), bukan dari klik terakhir: kalau ladder
-// menolak karena E-stop, tombol tidak boleh mengaku piston sudah terbuka. Line
-// tidak terjangkau ATAU PLC/coil belum dikonfigurasi (piston_requested null/
-// undefined - lihat plc.piston_state()) mati dengan alasan, bukan menebak.
+// Button state comes from the PLC (l.plc), not from the last click: if the
+// ladder refuses because of an E-stop, the button must not claim the piston
+// is open. Line unreachable OR PLC/coil not configured (piston_requested
+// null/undefined - see plc.piston_state()) is off with a reason, not a guess.
 function tombolPiston(l) {
   const p = l.plc || {};
   if (!p.reachable || p.piston_requested === null || p.piston_requested === undefined)
     return `<button class="piston" data-aksi="piston" disabled title="${esc(t("pistonMati"))}">${esc(t("pistonMati"))}</button>`;
   const menunggu = p.piston_requested && p.piston_open === false;
-  // piston_open === null dengan piston_requested true = PLC_DI_MANUAL belum
-  // diset: ikuti permintaan (tampilkan sebagai terbuka) tapi katakan belum
-  // dikonfirmasi PLC - jangan diam-diam berpura-pura DI sudah menjawab.
+  // piston_open === null with piston_requested true = PLC_DI_MANUAL not set
+  // yet: follow the request (show as open) but say it is not confirmed by
+  // the PLC - never silently pretend the DI already answered.
   const belumKonfirmasi = p.piston_requested && p.piston_open === null;
   const terbuka = p.piston_open === true || belumKonfirmasi;
   const teks = menunggu ? t("pistonMenunggu") : terbuka ? t("btnPistonTutup") : t("btnPistonBuka");
@@ -1564,9 +1565,9 @@ function tombolPiston(l) {
      data-buka="${terbuka ? "0" : "1"}"${menunggu ? " disabled" : ""}>${esc(teks)}${esc(catatan)}<span class="pintas"></span></button>`;
 }
 
-// Merah, teks besar: dibaca dari beberapa meter saat besi memang sedang
-// bergerak. `belumKonfirmasi` memakai frasa yang sama dengan tombolnya supaya
-// pita dan tombol tidak pernah bilang dua hal berbeda soal line yang sama.
+// Red, large text: read from a few metres away while the hardware is
+// actually moving. `belumKonfirmasi` uses the same phrase as the button so
+// the banner and the button never say two different things about the same line.
 function pitaPiston(l) {
   const p = l.plc || {};
   const belumKonfirmasi = p.piston_requested && p.piston_open === null;
@@ -1654,10 +1655,10 @@ function barisTimbangan(w) {
 // table head and this cell together:
 //   <td class="num">${r.ripeness_confidence == null ? KOSONG : Number(r.ripeness_confidence).toFixed(2)}</td>
 function barisRecent(r, i) {
-  // Offset halaman + posisi, bukan posisi saja. Ditemukan di PC pabrik dengan
-  // 130.506 baris: tanpa offset setiap halaman menomori 1..200 lagi, jadi dua baris
-  // berbeda punya nomor sama dan operator tidak bisa menyebut "baris nomor 412"
-  // kepada siapa pun.
+  // Page offset + position, not position alone. Found on the factory PC with
+  // 130,506 rows: without the offset every page numbers 1..200 again, so two
+  // different rows carry the same number and the operator cannot call out
+  // "row number 412" to anyone.
   return `<tr>
     <td class="no">${gradingOffset + i + 1}</td>
     <td>${waktu(r.timestamp)}</td>
@@ -1769,10 +1770,10 @@ document.addEventListener("keydown", (ev) => {
   tombol.click();
 });
 
-// P + 1..3 = buka/tutup piston panel ke-1..3, P + 0 = tutup semua yang terbuka.
-// Huruf lain dari Spasi supaya jari tidak tertukar dengan Reject. Dibaca dari
-// ev.code, jadi layout keyboard tidak mengubah apa pun. Statusnya dilepas di
-// keyup DAN di blur: Alt-Tab menelan keyup dan tombolnya akan tersangkut.
+// P + 1..3 = open/close piston panel 1..3, P + 0 = close every open one.
+// A different key from Space so a finger cannot mix it up with Reject. Read
+// from ev.code, so keyboard layout changes nothing. Released on keyup AND on
+// blur: Alt-Tab swallows keyup and the key would otherwise get stuck held.
 let pTahan = false;
 addEventListener("blur", () => { pTahan = false; });
 document.addEventListener("keyup", (ev) => { if (ev.code === "KeyP") pTahan = false; });
@@ -1822,14 +1823,16 @@ $("daftar").addEventListener("click", async () => {
 // Weigh-in: bruto now, tara hours later. The time comes from the browser clock
 // - on the mill PC that is the same clock the operator reads, and the server
 // derives the working day from it (§6.1).
-// ── scan QR di gerbang timbangan ───────────────────────────────────────
-// Scanner mengirim isi QR lalu Enter. Lane `/api/console/scan` yang menormalkan
-// platnya dan menolak yang bukan plat - layar tidak menebak sendiri, supaya tidak
-// ada aturan kedua yang bisa berbeda dari servernya.
+// ── scan QR at the weighbridge gate ─────────────────────────────────────
+// The scanner sends the QR content then Enter. The `/api/console/scan` lane
+// normalises the plate and rejects anything that is not a plate - the screen
+// does not guess on its own, so there is no second rule that could disagree
+// with the server's.
 let scanSibuk = false;
 
-// Hasil scan tidak lewat banner global: `refresh()` membersihkannya tiap kali berhasil,
-// jadi pesannya hilang dalam 2 detik. Di sini dia bertahan sampai scan berikutnya.
+// A scan result does not go through the global banner: `refresh()` clears it
+// on every successful poll, so the message would vanish within 2 seconds.
+// Here it stays until the next scan.
 function pesanScan(teks, salah = false) {
   const el = $("scan-pesan");
   el.textContent = teks || "";
@@ -1838,26 +1841,27 @@ function pesanScan(teks, salah = false) {
 
 async function kirimScan() {
   const teks = $("scan-plat").value.trim();
-  // Scanner kadang membaca satu QR dua kali dalam beberapa ratus milidetik; tanpa
-  // penjaga ini kiriman kedua menimpa apa yang baru saja terisi.
+  // The scanner sometimes reads one QR twice within a few hundred ms; without
+  // this guard the second submission would overwrite what was just filled in.
   if (!teks || scanSibuk) return;
   scanSibuk = true;
   try {
     const hasil = await api("/api/console/scan", {
       method: "POST", body: JSON.stringify({ qr: teks }),
     });
-    // Dikosongkan apa pun hasilnya: isi yang tertinggal akan tersambung dengan scan
-    // berikutnya menjadi satu teks panjang yang tidak cocok plat mana pun.
+    // Cleared regardless of the outcome: leftover content would run into the
+    // next scan and form one long string matching no plate at all.
     $("scan-plat").value = "";
     if (!hasil.ditemukan) {
-      // Truk pinjaman. Katakan apa yang bisa dilakukan, bukan cuma "tidak ada".
+      // A borrowed truck. Say what can be done, not just "not found".
       pesanScan(`${t("scanBelumAda")} ${hasil.plate_number}`, true);
       return;
     }
     pesanScan("");
     pilihNilai($("plat-timbang"), hasil.truck.plate_number);
-    // Kursor langsung ke kolom berikutnya: operator menimbang sambil memegang HP
-    // supir, dan satu sentuhan layar yang dihemat itu yang jadi gunanya scan.
+    // Cursor straight to the next field: the operator is weighing while
+    // holding the driver's phone, and that one saved screen touch is the
+    // whole point of scanning.
     $("bruto").focus();
     segarkanTombol();
   } catch (e) {
@@ -1868,8 +1872,8 @@ async function kirimScan() {
   }
 }
 
-// Gerbang keluar. Tara tetap ditulis `catat_timbangan` lewat jalur yang sama dengan
-// tombol per baris - scan cuma menemukan tiketnya.
+// Exit gate. The tare is still written by `record_weighing` through the same
+// path as the per-row button - the scan only finds the ticket.
 async function kirimScanKeluar() {
   const teks = $("scan-keluar").value.trim();
   if (!teks || scanSibuk) return;
@@ -1880,8 +1884,8 @@ async function kirimScanKeluar() {
     });
     $("scan-keluar").value = "";
     if (hasil.ganda) {
-      // Dua tiket terbuka: operator yang memilih. Menebak di sini bisa memasangkan
-      // tara ke kunjungan yang salah dan mencampur tonase dua kunjungan.
+      // Two open tickets: the operator picks. Guessing here can attach the
+      // tare to the wrong visit and mix two visits' tonnage.
       pesanScanKeluar(`${t("scanGanda")} ${hasil.plate_number}`, true);
       return;
     }
@@ -1913,8 +1917,8 @@ $("scan-keluar").addEventListener("keydown", (ev) => {
 
 $("scan-plat").addEventListener("keydown", (ev) => {
   if (ev.key !== "Enter") return;
-  // Enter datang dari scanner, bukan dari orang: jangan biarkan dia men-submit
-  // apa pun selain ini.
+  // Enter comes from the scanner, not a person: do not let it submit
+  // anything other than this.
   ev.preventDefault();
   kirimScan();
 });
@@ -1937,8 +1941,8 @@ $("masuk").addEventListener("click", async () => {
   }
 });
 
-// Tara lewat dialog, bukan kolom di dalam barisnya: tabel ini dibangun ulang tiap
-// tarikan, yang akan menghapus apa pun yang sedang diketik operator.
+// Tare goes through a dialog, not a column inside its row: this table is
+// rebuilt on every poll, which would wipe out anything the operator is typing.
 $("timbangan").addEventListener("click", async (ev) => {
   const tombol = ev.target.closest("button[data-aksi='keluar']");
   if (!tombol) return;
@@ -1946,15 +1950,17 @@ $("timbangan").addEventListener("click", async (ev) => {
   tanyaTara({ plate_number: baris.plat, ref: baris.ref, entered_at: baris.masuk });
 });
 
-// Satu jalur tara untuk tombol per baris DAN hasil scan keluar: dua salinan akan
-// berbeda cepat atau lambat, dan yang ditulisnya angka yang dibayar.
-// Lantai berat, disalin dari `services/console_service.py`. Sengaja divalidasi juga di
-// sini: salah ketik tertahan di layar, bukan sesudah bolak-balik ke server - satu detik
-// yang hilang di gerbang dengan truk menunggu. Servernya tetap yang berwenang.
+// One tare path for both the per-row button AND the exit scan result: two
+// copies would drift apart sooner or later, and what they write is the
+// figure the farmer gets paid on.
+// Weight floor, copied from `services/console_service.py`. Deliberately
+// validated here too: a typo is caught on screen, not after a round trip to
+// the server - one second lost at the gate with a truck waiting. The server
+// still has the final say.
 const MINIMUM_BERAT_KG = 1000;
 
-// Tiket yang sedang ditanyakan taranya. Disimpan di sini, bukan dibaca ulang dari
-// tabel: tabel itu dibangun ulang tiap 2 detik oleh polling.
+// The ticket currently being asked for its tare. Kept here, not re-read from
+// the table: the table is rebuilt every 2 seconds by polling.
 let taraUntuk = null;
 
 function tanyaTara(w) {
@@ -1972,8 +1978,9 @@ function tutupTara() {
 
 async function simpanTara() {
   if (!taraUntuk) return;
-  // Koma diterima: papan ketik Indonesia menulis desimal dengan koma, dan menolaknya
-  // berarti operator mengetik ulang angka yang sudah benar.
+  // A comma is accepted: an Indonesian keyboard writes decimals with a comma,
+  // and rejecting it would mean the operator retypes a number that was
+  // already correct.
   const teks = $("tara-nilai").value.trim().replace(",", ".");
   const angka = Number(teks);
   if (!teks || !Number.isFinite(angka) || angka < MINIMUM_BERAT_KG) {
@@ -1990,8 +1997,8 @@ async function simpanTara() {
     tutupTara();
     pesanScanKeluar("");
   } catch (e) {
-    // Kolomnya dibiarkan terbuka: angkanya masih di situ, jadi operator bisa
-    // membetulkan tanpa mengetik ulang dari nol.
+    // The field is left open: the number is still there, so the operator can
+    // fix it without retyping from scratch.
     pesanScanKeluar(alasan(e), true);
   } finally {
     $("tara-simpan").disabled = false;
@@ -2004,8 +2011,8 @@ $("tara-batal").addEventListener("click", tutupTara);
 
 $("tara-nilai").addEventListener("keydown", (ev) => {
   if (ev.key === "Enter") { ev.preventDefault(); simpanTara(); }
-  // Esc menutup, seperti dialog mana pun: truk yang keliru di-scan tidak boleh
-  // memaksa operator menyimpan sesuatu.
+  // Esc closes it, like any dialog: a wrongly scanned truck must not force
+  // the operator to save anything.
   if (ev.key === "Escape") tutupTara();
 });
 
@@ -2307,13 +2314,14 @@ async function muatRekap() {
   } catch (e) { /* nothing graded yet - the screen keeps working */ }
 }
 
-// Satu kartu QR: gambarnya dari server (tidak ada pustaka CDN — layar ini harus
-// tetap terbuka saat internet mati), dan platnya ikut tercetak sebagai tulisan
-// supaya kartu yang kotor atau rusak masih bisa diketik manual operator.
+// One QR card: the image comes from the server (no CDN library — this screen
+// has to stay open while the internet is down), and the plate is also
+// printed as text so a dirty or damaged card can still be typed manually by
+// the operator.
 function kartuQr(tr) {
   const plat = tr.plate_number || "";
-  // encodeURIComponent: plat berspasi akan memotong URL-nya dan gambarnya tidak
-  // pernah dimuat.
+  // encodeURIComponent: a plate with a space would cut off the URL and the
+  // image would never load.
   const src = `/api/console/trucks/${encodeURIComponent(plat)}/qr.png`;
   return `<figure class="qr-satu">
     <img src="${esc(src)}" alt="${esc(plat)}" width="180" height="180">
@@ -2322,20 +2330,20 @@ function kartuQr(tr) {
 }
 
 $("cetak-qr").addEventListener("click", () => {
-  // Dirakit saat ditekan, bukan di setiap poll: puluhan <img> yang dibangun ulang
-  // tiap 60 detik akan meminta ulang semua gambarnya.
+  // Built when pressed, not on every poll: dozens of <img> rebuilt every 60
+  // seconds would re-request every image.
   $("qr-kartu").innerHTML = trucks.filter((tr) => tr.plate_number).map(kartuQr).join("");
   $("qr-cetak").hidden = false;
-  // Menunggu gambarnya dimuat dulu: print() yang dipanggil terlalu cepat mencetak
-  // kotak kosong, dan itu setumpuk kertas terbuang yang baru terlihat sesudahnya.
+  // Wait for the images to load first: calling print() too early prints
+  // empty boxes, and that is a stack of wasted paper only noticed afterwards.
   const gambar = [...$("qr-kartu").querySelectorAll("img")];
   Promise.all(gambar.map((g) => g.complete ? null : new Promise((r) => {
     g.onload = g.onerror = r;
   }))).then(() => window.print());
 });
 
-// Sesudah dialog print ditutup, kartunya disembunyikan lagi: satu layar penuh QR
-// membuat tab Truk tidak terpakai.
+// Once the print dialog closes, the cards are hidden again: a whole screen
+// full of QR codes would make the Trucks tab unusable.
 window.addEventListener("afterprint", () => { $("qr-cetak").hidden = true; });
 
 function isiTrucks() {
@@ -2597,14 +2605,16 @@ async function muatPlcSatuLine(kode) {
   }
 }
 
-// Uji coil ditanya inline, bukan kotak dialog bawaan browser - lihat komentar HTML
-// di #sec-plc. Satu grup terbagi untuk semua kartu line (bukan satu per kartu):
-// operator cuma menguji satu coil dalam satu waktu, dan kartu dibangun ulang
-// tiap polling sehingga grup yang hidup di dalamnya akan lenyap begitu saja.
+// The coil test is confirmed inline, not via the browser's built-in dialog -
+// see the HTML comment at #sec-plc. One shared group for every line card
+// (not one per card): the operator only tests one coil at a time, and cards
+// are rebuilt on every poll, which would make a group living inside one
+// simply vanish.
 //
-// Coil dan line yang sedang ditanyakan. Disimpan di sini, bukan dibaca ulang
-// dari tombol: tombol yang memicunya bisa sudah tergantikan saat kartu
-// dibangun ulang oleh muatPlcSatuLine/muatPlc sebelum operator selesai mengetik.
+// The coil and line currently being confirmed. Kept here, not re-read from
+// the button: the button that triggered it may already have been replaced
+// when the card is rebuilt by muatPlcSatuLine/muatPlc before the operator
+// finishes typing.
 let ujiUntuk = null;
 
 function tanyaUjiPlc(line_code, coil) {
@@ -2622,9 +2632,10 @@ function tutupUjiPlc() {
 
 async function jalankanUjiPlc() {
   if (!ujiUntuk) return;
-  // Ketikan tetap wajib - beda dari tara, kolom ini bukan validasi angka tapi
-  // kata sandi sekali pakai: klik saja (bahkan lewat dialog konfirmasi bawaan
-  // browser) bisa tersenggol jempol bersarung tangan di layar sentuh, ketikan tidak.
+  // Typing is still required - unlike the tare field, this is not a number
+  // check but a one-time password: a mere click (even through the browser's
+  // built-in confirm dialog) can be brushed by a gloved thumb on a
+  // touchscreen, typing cannot.
   if ($("plc-konfirmasi-nilai").value.trim() !== "UJI") {
     pesan(t("ujiPlcDibatalkan"));
     tutupUjiPlc();
@@ -2650,8 +2661,8 @@ $("plc-konfirmasi-batal").addEventListener("click", tutupUjiPlc);
 
 $("plc-konfirmasi-nilai").addEventListener("keydown", (ev) => {
   if (ev.key === "Enter") { ev.preventDefault(); jalankanUjiPlc(); }
-  // Esc menutup, seperti dialog mana pun: coil yang keliru dipilih tidak boleh
-  // memaksa operator memicu sesuatu.
+  // Esc closes it, like any dialog: a wrongly selected coil must not force
+  // the operator to fire anything.
   if (ev.key === "Escape") tutupUjiPlc();
 });
 

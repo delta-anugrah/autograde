@@ -23,7 +23,7 @@ from palmgrade.core.config import LineEndpoint
 from palmgrade.core.log_sink import SqliteLogHandler
 from palmgrade.domain.operator_auth import hash_password
 from palmgrade.domain.operator_error import BUKAN_SUPPORT
-from palmgrade.domain.peran import PERAN_OPERATOR, PERAN_SUPPORT
+from palmgrade.domain.peran import ROLE_OPERATOR, ROLE_SUPPORT
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.integrations.notifications.line_client import LinePlcTolak, LineUnavailable
 from palmgrade.repositories.console_repository import ConsoleStore
@@ -85,20 +85,20 @@ def gerbang(tmp_path):
     store = ConsoleStore(tmp_path / "console.db")
     log_store = LogStore(tmp_path / "log.db")
     erp_outbox = ErpOutboxStore(tmp_path / "erp_outbox.db")
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {
             "email": "operator@pks.test",
             "nama": "Operator Biasa",
             "password_hash": hash_password(SANDI),
-            "peran": PERAN_OPERATOR,
+            "peran": ROLE_OPERATOR,
         }
     )
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {
             "email": "support@pks.test",
             "nama": "Akun Support",
             "password_hash": hash_password(SANDI),
-            "peran": PERAN_SUPPORT,
+            "peran": ROLE_SUPPORT,
         }
     )
     line_client = _LineClientPlc()
@@ -199,7 +199,7 @@ def test_picu_berhasil_meninggalkan_baris_warning_di_log(gerbang):
         assert jawab.status_code == 200
         assert line_client.writes == [11]
 
-        baris = log_store.baca(level="WARNING", cari="coil", limit=10, offset=0)["items"]
+        baris = log_store.read(level="WARNING", search="coil", limit=10, offset=0)["items"]
         assert len(baris) == 1
         assert "support@pks.test" in baris[0]["pesan"]
         assert "11" in baris[0]["pesan"]
@@ -233,7 +233,7 @@ def test_line_tidak_terjangkau_juga_meninggalkan_jejak_di_log(gerbang):
         assert jawab.status_code == 502
         assert line_client.writes == []
 
-        baris = log_store.baca(level="WARNING", cari="coil", limit=10, offset=0)["items"]
+        baris = log_store.read(level="WARNING", search="coil", limit=10, offset=0)["items"]
         assert len(baris) == 1
         assert "support@pks.test" in baris[0]["pesan"]
         assert "11" in baris[0]["pesan"]

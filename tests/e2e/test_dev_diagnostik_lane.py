@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from palmgrade.core.config import LineEndpoint
 from palmgrade.domain.operator_auth import hash_password
 from palmgrade.domain.operator_error import BUKAN_SUPPORT
-from palmgrade.domain.peran import PERAN_OPERATOR, PERAN_SUPPORT
+from palmgrade.domain.peran import ROLE_OPERATOR, ROLE_SUPPORT
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.integrations.notifications.line_client import LineUnavailable
 from palmgrade.repositories.console_repository import ConsoleStore
@@ -63,20 +63,20 @@ def gerbang(tmp_path):
     store = ConsoleStore(tmp_path / "console.db")
     log_store = LogStore(tmp_path / "log.db")
     erp_outbox = ErpOutboxStore(tmp_path / "erp_outbox.db")
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {
             "email": "operator@pks.test",
             "nama": "Operator Biasa",
             "password_hash": hash_password(SANDI),
-            "peran": PERAN_OPERATOR,
+            "peran": ROLE_OPERATOR,
         }
     )
-    store.upsert_operator_lokal(
+    store.upsert_operator_manual(
         {
             "email": "support@pks.test",
             "nama": "Akun Support",
             "password_hash": hash_password(SANDI),
-            "peran": PERAN_SUPPORT,
+            "peran": ROLE_SUPPORT,
         }
     )
 
@@ -120,7 +120,8 @@ def test_operator_biasa_ditolak_403_di_ketiga_lane(gerbang):
 
 
 def test_line_yang_tidak_menjawab_dilaporkan_bukan_menggagalkan_permintaan(gerbang):
-    """Dua dari tiga line mati: layar tetap 200, dan tiap line dilaporkan apa adanya."""
+    """Two of three lines are down: the screen still answers 200, and each line is
+    reported exactly as it stands."""
     client, _, _ = gerbang
     _masuk(client, "support@pks.test")
 

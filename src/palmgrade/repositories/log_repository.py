@@ -33,14 +33,14 @@ CREATE INDEX IF NOT EXISTS idx_log_sidik ON log_kejadian (sidik, terakhir_at DES
 # Identical messages inside this window are counted, not stacked. Long enough
 # to absorb a per-second error flood, short enough that tomorrow's copy of the
 # same event still reads as its own event.
-JENDELA_GABUNG_S = 60.0
+MERGE_WINDOW_S = 60.0
 
-_SEHARI_S = 86400.0
+_DAY_S = 86400.0
 
 
 class LogStore:
-    def __init__(self, db_path: Path, *, retensi_hari: int = 180) -> None:
-        self._retensi_s = retensi_hari * _SEHARI_S
+    def __init__(self, db_path: Path, *, retention_days: int = 180) -> None:
+        self._retention_s = retention_days * _DAY_S
         self._lock = threading.Lock()
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db = sqlite3.connect(str(db_path), check_same_thread=False)
@@ -50,48 +50,48 @@ class LogStore:
             self._db.execute("PRAGMA synchronous=FULL")
             self._db.executescript(_CREATE_SQL)
 
-    def tulis(
-        self, level: str, sumber: str, pesan: str, detail: str | None, *, now: float
+    def write(
+        self, level: str, source: str, message: str, detail: str | None, *, now: float
     ) -> None:
         """Record one event, or bump the counter if it is a duplicate within the merge window."""
-        sidik = _sidik(level, sumber, pesan)
+        fingerprint = _fingerprint(level, source, message)
         with self._lock, self._db:
-            baris = self._db.execute(
+            row = self._db.execute(
                 "SELECT id FROM log_kejadian"
                 " WHERE sidik = ? AND terakhir_at >= ?"
                 " ORDER BY terakhir_at DESC LIMIT 1",
-                (sidik, now - JENDELA_GABUNG_S),
+                (fingerprint, now - MERGE_WINDOW_S),
             ).fetchone()
-            if baris is not None:
+            if row is not None:
                 self._db.execute(
                     "UPDATE log_kejadian SET jumlah = jumlah + 1, terakhir_at = ?"
                     " WHERE id = ?",
-                    (now, baris["id"]),
+                    (now, row["id"]),
                 )
                 return
             self._db.execute(
                 "INSERT INTO log_kejadian"
                 " (waktu, level, sumber, pesan, detail, sidik, jumlah, terakhir_at)"
                 " VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
-                (now, level, sumber, pesan, detail, sidik, now),
+                (now, level, source, message, detail, fingerprint, now),
             )
 
-    def baca(
-        self, *, level: str | None, cari: str | None, limit: int, offset: int
+    def read(
+        self, *, level: str | None, search: str | None, limit: int, offset: int
     ) -> dict[str, Any]:
         """One page, newest first, plus `total` across the whole filtered set.
 
         `total` comes from its own SQL COUNT, never `len(items)` — the last
         page would otherwise report a wrong count and pagination breaks.
         """
-        syarat, args = [], []
+        conditions, args = [], []
         if level:
-            syarat.append("level = ?")
+            conditions.append("level = ?")
             args.append(level)
-        if cari:
-            syarat.append("(pesan LIKE ? OR sumber LIKE ?)")
-            args.extend([f"%{cari}%", f"%{cari}%"])
-        where = f" WHERE {' AND '.join(syarat)}" if syarat else ""
+        if search:
+            conditions.append("(pesan LIKE ? OR sumber LIKE ?)")
+            args.extend([f"%{search}%", f"%{search}%"])
+        where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
 
         with self._lock:
             total = self._db.execute(
@@ -104,7 +104,7 @@ class LogStore:
             ).fetchall()
         return {"items": [dict(r) for r in rows], "total": total}
 
-    def buang_kedaluwarsa(self, *, now: float) -> int:
+    def purge_expired(self, *, now: float) -> int:
         """Delete rows past the retention window. Return how many were removed.
 
         Time-based only, never row-count-based: a count cap would discard the
@@ -112,10 +112,10 @@ class LogStore:
         """
         with self._lock, self._db:
             cur = self._db.execute(
-                "DELETE FROM log_kejadian WHERE terakhir_at < ?", (now - self._retensi_s,)
+                "DELETE FROM log_kejadian WHERE terakhir_at < ?", (now - self._retention_s,)
             )
             return cur.rowcount
 
 
-def _sidik(level: str, sumber: str, pesan: str) -> str:
-    return hashlib.sha256(f"{level}|{sumber}|{pesan}".encode()).hexdigest()[:32]
+def _fingerprint(level: str, source: str, message: str) -> str:
+    return hashlib.sha256(f"{level}|{source}|{message}".encode()).hexdigest()[:32]

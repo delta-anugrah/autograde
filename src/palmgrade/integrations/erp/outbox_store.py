@@ -134,7 +134,7 @@ class ErpOutboxStore:
             ).fetchone()
         return row["n"]
 
-    def daftar_gagal(self, limit: int = 50) -> list[dict[str, Any]]:
+    def failed_rows(self, limit: int = 50) -> list[dict[str, Any]]:
         """Rows waiting out their backoff, newest failure first — what support reads."""
         with self._lock:
             rows = self._db.execute(

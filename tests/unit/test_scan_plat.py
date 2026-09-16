@@ -92,7 +92,7 @@ def test_qr_yang_isinya_bukan_plat_ditolak():
 def test_scan_truk_terdaftar_mengembalikan_truknya(store, scan):
     _truk(store, "BE 4412 OFL", erp_name="TRK-0001")
 
-    hasil = scan.cari("BE4412OFL")
+    hasil = scan.search("BE4412OFL")
 
     assert hasil["ditemukan"] is True
     assert hasil["truck"]["plate_number"] == "BE 4412 OFL"
@@ -104,14 +104,14 @@ def test_scan_memakai_plat_ternormalisasi_bukan_teks_mentah(store, scan):
     pencariannya membandingkan teks mentah, truk yang ada terbaca tidak ada."""
     _truk(store, "BE 4412 OFL")
 
-    assert scan.cari("BE4412OFL")["ditemukan"] is True
-    assert scan.cari("be-4412-ofl")["ditemukan"] is True
+    assert scan.search("BE4412OFL")["ditemukan"] is True
+    assert scan.search("be-4412-ofl")["ditemukan"] is True
 
 
 def test_scan_truk_belum_terdaftar_mengembalikan_tidak_ditemukan(store, scan):
     """Truk pinjaman. Jawabannya "belum ada", dan layar menawarkan input manual —
     scan TIDAK boleh membuat truknya sendiri."""
-    hasil = scan.cari("BE9999XYZ")
+    hasil = scan.search("BE9999XYZ")
 
     assert hasil["ditemukan"] is False
     assert hasil["plate_number"] == "BE9999XYZ"
@@ -123,7 +123,7 @@ def test_scan_tidak_pernah_membuat_truk(store, scan):
     hantu ke master data, dan itu naik ke AutoERP."""
     sebelum = len(store.trucks_semua())
 
-    scan.cari("BE9999XYZ")
+    scan.search("BE9999XYZ")
 
     assert len(store.trucks_semua()) == sebelum
 
@@ -133,7 +133,7 @@ def test_scan_tidak_pernah_menyentuh_timbangan(store, scan):
     supaya tidak ada dua tempat yang bisa menulis angka yang dibayar."""
     _truk(store, "BE 4412 OFL")
 
-    scan.cari("BE4412OFL")
+    scan.search("BE4412OFL")
 
     assert store.weighings("2026-09-15") == []
 
@@ -144,7 +144,7 @@ def test_truk_nonaktif_terbaca_tapi_ditandai(store, scan):
     diam-diam terbaca seperti truk normal."""
     _truk(store, "BE 4412 OFL", status="inactive")
 
-    hasil = scan.cari("BE4412OFL")
+    hasil = scan.search("BE4412OFL")
 
     assert hasil["ditemukan"] is True
     assert hasil["truck"]["status"] == "inactive"
@@ -155,7 +155,7 @@ def test_hasil_scan_membawa_id_yang_sama_dengan_jalur_timbangan(store, scan):
     lain, satu kunjungan bisa mendarat di dua truk."""
     tid = _truk(store, "BE 4412 OFL")
 
-    assert scan.cari("BE4412OFL")["truck"]["id"] == tid == truck_id_for("BE 4412 OFL")
+    assert scan.search("BE4412OFL")["truck"]["id"] == tid == truck_id_for("BE 4412 OFL")
 
 
 # ── dua bug yang ketemu di browser, bukan di test ────────────────────────────
@@ -209,7 +209,7 @@ def test_scan_keluar_menemukan_tiket_terbuka_truk_itu(store, scan):
     _truk(store, "BE 4412 OFL")
     _timbang_masuk(store, "w-1", "BE 4412 OFL")
 
-    hasil = scan.tiket_terbuka("BE4412OFL", "2026-09-15")
+    hasil = scan.open_ticket("BE4412OFL", "2026-09-15")
 
     assert hasil["ditemukan"] is True
     assert hasil["weighing"]["id"] == "w-1"
@@ -222,7 +222,7 @@ def test_tiket_yang_sudah_ada_taranya_bukan_tiket_terbuka(store, scan):
     _timbang_masuk(store, "w-1", "BE 4412 OFL", tare_kg=5000.0, net_kg=8000.0,
                    exited_at="2026-09-15T09:00:00+07:00")
 
-    hasil = scan.tiket_terbuka("BE4412OFL", "2026-09-15")
+    hasil = scan.open_ticket("BE4412OFL", "2026-09-15")
 
     assert hasil["ditemukan"] is False
 
@@ -235,11 +235,11 @@ def test_dua_tiket_terbuka_ditolak_bukan_ditebak(store, scan):
     _timbang_masuk(store, "w-1", "BE 4412 OFL")
     _timbang_masuk(store, "w-2", "BE 4412 OFL", entered_at="2026-09-15T10:00:00+07:00")
 
-    hasil = scan.tiket_terbuka("BE4412OFL", "2026-09-15")
+    hasil = scan.open_ticket("BE4412OFL", "2026-09-15")
 
     assert hasil["ditemukan"] is False
     assert hasil["ganda"] is True
-    assert len(hasil["pilihan"]) == 2
+    assert len(hasil["choices"]) == 2
 
 
 def test_truk_tanpa_tiket_terbuka_dijawab_belum_ada(store, scan):
@@ -247,7 +247,7 @@ def test_truk_tanpa_tiket_terbuka_dijawab_belum_ada(store, scan):
     timbang masuknya terlewat. Jawabannya jelas, bukan error."""
     _truk(store, "BE 4412 OFL")
 
-    hasil = scan.tiket_terbuka("BE4412OFL", "2026-09-15")
+    hasil = scan.open_ticket("BE4412OFL", "2026-09-15")
 
     assert hasil["ditemukan"] is False
     assert hasil.get("ganda") is not True
@@ -259,7 +259,7 @@ def test_tiket_hari_lain_tidak_ikut_terbawa(store, scan):
     _truk(store, "BE 4412 OFL")
     _timbang_masuk(store, "w-kemarin", "BE 4412 OFL", work_date="2026-09-14")
 
-    hasil = scan.tiket_terbuka("BE4412OFL", "2026-09-15")
+    hasil = scan.open_ticket("BE4412OFL", "2026-09-15")
 
     assert hasil["ditemukan"] is False
 
@@ -268,7 +268,7 @@ def test_scan_keluar_menolak_yang_bukan_plat(store, scan):
     from palmgrade.domain.operator_error import BUKAN_PLAT
 
     with pytest.raises(OperatorError) as kena:
-        scan.tiket_terbuka("https://contoh.id", "2026-09-15")
+        scan.open_ticket("https://contoh.id", "2026-09-15")
     assert kena.value.code == BUKAN_PLAT
 
 
@@ -277,6 +277,6 @@ def test_scan_keluar_tidak_pernah_menulis_apa_pun(store, scan):
     _truk(store, "BE 4412 OFL")
     _timbang_masuk(store, "w-1", "BE 4412 OFL")
 
-    scan.tiket_terbuka("BE4412OFL", "2026-09-15")
+    scan.open_ticket("BE4412OFL", "2026-09-15")
 
     assert store.weighing("w-1")["tare_kg"] is None

@@ -55,10 +55,10 @@ def _plc_int(name: str, default: int) -> int:
 
 
 def _plc_opt_int(name: str) -> int | None:
-    """`PLC_COIL_MANUAL` / `PLC_DI_MANUAL`: kosong atau rusak = fitur mati.
+    """`PLC_COIL_MANUAL` / `PLC_DI_MANUAL`: empty or broken = feature off.
 
-    Beda dengan `_plc_int`, tidak ada nilai bawaan yang masuk akal: menebak
-    nomor coil berarti menulis ke alamat milik orang lain di panel.
+    Unlike `_plc_int`, no sensible default exists here: guessing a coil
+    number means writing to an address that belongs to someone else on the panel.
     """
     raw = os.getenv(name)
     if raw is None or not raw.strip():
@@ -66,7 +66,7 @@ def _plc_opt_int(name: str) -> int | None:
     try:
         return int(raw)
     except ValueError:
-        logger.warning("%s=%r bukan angka — piston manual dimatikan", name, raw)
+        logger.warning("%s=%r is not a number — manual piston disabled", name, raw)
         return None
 
 
@@ -260,7 +260,7 @@ class Settings:
     # How long the fault log (support Log screen) is kept. A time limit, not a
     # row-count cap: a count cap would discard old rows exactly while errors
     # are flooding. ~300 bytes/row, so 180 days is ~10 MB.
-    log_retensi_hari: int = field(default_factory=lambda: int(os.getenv("LOG_RETENSI_HARI", "180")))
+    log_retention_days: int = field(default_factory=lambda: int(os.getenv("LOG_RETENSI_HARI", "180")))
 
     # ── AutoERP link ─────────────────────────────────────────────
     # The console calls AutoERP; AutoERP never calls in (a factory PC has no
@@ -274,7 +274,7 @@ class Settings:
     erp_company: str = field(default_factory=lambda: os.getenv("ERP_COMPANY", ""))
     # Roles AutoERP is allowed to grant. Empty rejects all of them — the one
     # brake the factory side can pull without waiting on ERP to be fixed.
-    peran_erp_diizinkan: str = field(
+    erp_allowed_roles_raw: str = field(
         default_factory=lambda: os.getenv("PERAN_ERP_DIIZINKAN", "support")
     )
 
@@ -312,12 +312,12 @@ class Settings:
     plc_poll_ms: int = field(default_factory=lambda: _plc_int("PLC_POLL_MS", 200))
     plc_di_count: int = field(default_factory=lambda: _plc_int("PLC_DI_COUNT", 16))
 
-    # Piston manual (usulan panel; lihat docs/plc-handoff-commissioning.md).
-    # Coil level per line: 1 = minta piston buka. Kosong = fitur mati, dan itu
-    # keadaan yang benar sampai Pak Ocit mengalokasikan coil 10/11/12.
+    # Manual piston (panel proposal; see docs/plc-handoff-commissioning.md).
+    # Coil level per line: 1 = request piston open. Empty = feature off, which is
+    # the correct state until Pak Ocit allocates coil 10/11/12.
     plc_coil_manual: int | None = field(default_factory=lambda: _plc_opt_int("PLC_COIL_MANUAL"))
-    # DI konfirmasi dari PLC: piston line ini benar-benar terbuka. Kosong =
-    # layar cuma bisa menampilkan permintaan, ditandai "belum dikonfirmasi PLC".
+    # DI confirmation from the PLC: this line's piston is actually open. Empty =
+    # the screen can only show the request, marked "not confirmed by PLC".
     plc_di_manual: int | None = field(default_factory=lambda: _plc_opt_int("PLC_DI_MANUAL"))
 
     # ------------------------------------------------------------------ validation

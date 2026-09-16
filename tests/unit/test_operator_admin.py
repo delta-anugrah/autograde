@@ -161,33 +161,33 @@ def test_the_listing_shows_where_each_account_came_from(tmp_path):
         }
     )
 
-    asal = {row["email"]: row["origin"] for row in admin.listing()}
+    origin = {row["email"]: row["origin"] for row in admin.listing()}
 
-    assert asal == {EMAIL: "lokal", "sari@pks.test": "erp"}
+    assert origin == {EMAIL: "lokal", "sari@pks.test": "erp"}
 
 
-# ------------------------------------------------------------------- peran
+# ------------------------------------------------------------------- roles
 #
 # The gap these cover: a mill whose accounts were all made by `make operator`
 # before it knew about roles ends up with nobody able to reach the developer
-# screens, and no local way back in. `AKSI=peran` (via `set_peran`) and a role
+# screens, and no local way back in. `AKSI=peran` (via `set_role`) and a role
 # on `AKSI=tambah` (via `add_or_reset`) are the two ways out.
 
 
 def test_a_role_given_on_add_lands_in_the_column(tmp_path):
     admin, store = _admin(tmp_path)
 
-    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, peran="support")
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, role="support")
 
     assert store.operator(operator_id_for(EMAIL))["role"] == "support"
 
 
 def test_an_unrecognised_role_on_add_falls_back_to_operator(tmp_path):
     """A typo in PERAN must not land on the column unchecked — the column
-    gates the piston screen, same reasoning as `ConsoleStore.set_peran`."""
+    gates the piston screen, same reasoning as `ConsoleStore.set_role`."""
     admin, store = _admin(tmp_path)
 
-    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, peran="admin")
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, role="admin")
 
     assert store.operator(operator_id_for(EMAIL))["role"] == "operator"
 
@@ -207,37 +207,37 @@ def test_a_role_on_add_never_touches_an_existing_accounts_role(tmp_path):
     with no PERAN typed must not silently demote a support account back to
     plain operator."""
     admin, store = _admin(tmp_path)
-    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, peran="support")
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, role="support")
 
-    _, disahkan = admin.add_or_reset(EMAIL, NAMA, "sawit2027", "sawit2027")
+    _, sanitized = admin.add_or_reset(EMAIL, NAMA, "sawit2027", "sawit2027")
 
-    assert disahkan == "support"
+    assert sanitized == "support"
     assert store.operator(operator_id_for(EMAIL))["role"] == "support"
 
 
-def test_set_peran_changes_an_existing_accounts_role(tmp_path):
+def test_set_role_changes_an_existing_accounts_role(tmp_path):
     admin, store = _admin(tmp_path)
     admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI)
 
-    disahkan = admin.set_peran(EMAIL, "support")
+    sanitized = admin.set_role(EMAIL, "support")
 
-    assert disahkan == "support"
+    assert sanitized == "support"
     assert store.operator(operator_id_for(EMAIL))["role"] == "support"
 
 
-def test_set_peran_also_falls_back_to_operator_on_an_unknown_value(tmp_path):
+def test_set_role_also_falls_back_to_operator_on_an_unknown_value(tmp_path):
     admin, store = _admin(tmp_path)
-    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, peran="support")
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, role="support")
 
-    disahkan = admin.set_peran(EMAIL, "admin")
+    sanitized = admin.set_role(EMAIL, "admin")
 
-    assert disahkan == "operator"
+    assert sanitized == "operator"
     assert store.operator(operator_id_for(EMAIL))["role"] == "operator"
 
 
-def test_set_peran_on_an_email_nobody_has_says_so(tmp_path):
+def test_set_role_on_an_email_nobody_has_says_so(tmp_path):
     """Same reasoning as `switch_off`: a typo must not read as success."""
     admin, _ = _admin(tmp_path)
 
     with pytest.raises(ValueError, match="tidak ada"):
-        admin.set_peran("budiman@pks.test", "support")
+        admin.set_role("budiman@pks.test", "support")
