@@ -570,6 +570,28 @@
   #rekap td.rej { color:var(--rej); font-weight:700; }
   td.kosong { text-align:center; color:var(--muted); padding:26px 16px; }
   td img { height:52px; border-radius:var(--r-xs); border:1px solid var(--line-kuat); display:block; }
+  /* Pemicu foto: tombol, bukan tautan — tujuannya membuka lapisan di halaman
+     ini, bukan menavigasi ke mana pun. Dibuat setipis mungkin supaya thumbnail
+     tetap terlihat persis seperti sebelumnya. */
+  button.foto { padding:0; border:0; background:none; cursor:pointer; display:block;
+                border-radius:var(--r-xs); }
+  button.foto:focus-visible { outline:3px solid var(--acc); outline-offset:2px; }
+
+  /* Lapisan foto. Ukurannya dipatok ke viewport, bukan ke ukuran gambar: foto
+     janjang 2448x2048 akan melampaui layar mana pun kalau dibiarkan apa adanya. */
+  #foto-modal { border:0; padding:0; background:var(--card); color:var(--fg);
+                border-radius:var(--r); max-width:min(96vw, 1100px); max-height:92vh;
+                overflow:hidden; }
+  #foto-modal::backdrop { background:rgba(0,0,0,.72); }
+  .foto-kepala { display:flex; align-items:center; justify-content:space-between;
+                 gap:12px; padding:10px 12px; border-bottom:1px solid var(--line);
+                 font-family:var(--mono); font-size:.95rem; }
+  /* Tombol tutup besar: layar sentuh luar ruangan, jempol bersarung tangan. */
+  #foto-tutup { min-width:44px; min-height:44px; font-size:1.6rem; line-height:1;
+                border:1px solid var(--line-kuat); border-radius:var(--r-xs);
+                background:var(--input); color:var(--fg); cursor:pointer; }
+  #foto-besar { display:block; max-width:96vw; max-height:calc(92vh - 64px);
+                object-fit:contain; background:#000; }
   .pill { font:700 .7rem/1 var(--font); letter-spacing:.1em; text-transform:uppercase;
           padding:5px 9px; border-radius:var(--r-pill); border:1px solid var(--line-kuat);
           color:var(--muted); background:var(--card); }
@@ -998,6 +1020,29 @@
     <button type="button" id="plc-konfirmasi-batal" data-t="btnBatal">Batal</button>
   </div>
 </section>
+
+<!--
+  Foto satu janjang, dibuka di tempat. Dulu `target="_blank"`: tiap foto yang
+  dilihat meninggalkan satu tab, dan di kiosk Chrome (`--kiosk`) tab baru tidak
+  punya bar alamat maupun tombol tutup — operator kehilangan layarnya sendiri.
+
+  <dialog> bawaan, bukan lapisan buatan sendiri: Esc menutupnya, fokus terkunci
+  di dalam, dan sisa halaman disembunyikan dari pembaca layar tanpa satu baris JS
+  pun. Tidak ada pustaka: konsol harus jalan saat internet putus, dan dua tes
+  menjaga berkas ini tetap nol referensi ke alamat web mana pun.
+
+  Berbeda dari dialog tara yang DITOLAK operator (§ Critical Rules 20): yang itu
+  menutup kamera line justru saat operator sedang butuh melihatnya. Di sini
+  menutup layar memang yang diminta — melihat foto lebih besar, sebentar, lalu
+  kembali.
+-->
+<dialog id="foto-modal" aria-labelledby="foto-judul">
+  <div class="foto-kepala">
+    <span id="foto-judul"></span>
+    <button type="button" id="foto-tutup" aria-label="Tutup">&times;</button>
+  </div>
+  <img id="foto-besar" alt="">
+</dialog>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -1725,6 +1770,38 @@ const kg = (v) => (v === null || v === undefined ? KOSONG : Number(v).toLocaleSt
 // kembali ke verdict biner, jadi riwayat lama tetap terbaca apa adanya, bukan
 // jadi strip kosong. Warnanya ikut VERDICT, bukan kelas: hijau = lolos, merah =
 // dibuang, jadi JK dan Unripe sama-sama merah seperti yang dilihat piston.
+// ── Foto satu janjang ──────────────────────────────────────────────────
+// Satu listener di document, bukan per baris: tabel grading digambar ulang tiap
+// kali halaman berpindah dan tiap 2 detik saat polling, jadi listener per <img>
+// akan hilang bersama barisnya.
+document.addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button.foto");
+  if (!tombol) return;
+  const modal = $("foto-modal");
+  // `src` diisi SAAT dibuka, bukan saat baris digambar: foto penuhnya
+  // berukuran megabyte, dan 25 baris per halaman berarti 25 unduhan yang
+  // tidak pernah dilihat siapa pun.
+  $("foto-besar").src = tombol.dataset.foto;
+  $("foto-judul").textContent = tombol.dataset.judul || "";
+  modal.showModal();
+});
+
+$("foto-tutup").addEventListener("click", () => $("foto-modal").close());
+
+// Klik di luar gambar menutup — kebiasaan yang dibawa orang dari aplikasi lain.
+// <dialog> menganggap backdrop bagian dari dirinya, jadi yang dibandingkan
+// targetnya: hanya klik yang mendarat di elemen dialog itu sendiri (= backdrop)
+// yang menutup, bukan klik pada gambar atau judulnya.
+$("foto-modal").addEventListener("click", (ev) => {
+  if (ev.target === ev.currentTarget) ev.currentTarget.close();
+});
+
+// Lepaskan gambarnya setelah ditutup supaya foto besar tidak menetap di memori
+// sepanjang shift. Esc bawaan <dialog> juga lewat sini.
+$("foto-modal").addEventListener("close", () => {
+  $("foto-besar").removeAttribute("src");
+});
+
 const tagHasil = (s, kelas) => {
   if (!s && !kelas) return KOSONG;
   const lolos = String(s).toUpperCase() === "ACC";
@@ -1774,7 +1851,11 @@ function barisRecent(r, i) {
     <td class="key">${dash(r.plate_number)}</td>
     <td>${dash(r.source_label)}</td>
     <td>${tagHasil(r.ripeness_status, r.grade_class)}</td>
-    <td>${r.image_url ? `<a href="${esc(r.image_url)}" target="_blank"><img src="${esc(r.image_url)}" alt=""></a>` : KOSONG}</td>
+    <td>${r.image_url
+      ? `<button type="button" class="foto" data-foto="${esc(r.image_url)}" data-judul="${esc(
+          `${waktu(r.timestamp)} · ${r.line_code} · ${r.grade_class || r.ripeness_status || ""}`,
+        )}"><img src="${esc(r.image_url)}" alt="" loading="lazy"></button>`
+      : KOSONG}</td>
   </tr>`;
 }
 
