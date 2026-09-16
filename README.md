@@ -603,7 +603,7 @@ sampai ~1 jam**, bukan near-real-time.
   "machine_id": "uuid-from-machines-table",
   "truck_id": "uuid-or-null",
   "timestamp": "2026-05-18T10:30:00.123456+00:00",
-  "image_path": "https://captures.smagri.id/<machine_id>/2026-05-18/2026-05-18_103000_123456_auto.webp",
+  "image_path": "https://captures.smagri.id/<machine_id>/2026-05-18/083000_B1234XY_a3f9c201/bbox/rej/2026-05-18_103000_123456_auto.webp",
   "prediction": "Acc",
   "ripeness_status": "ACC",
   "ripeness_confidence": 0.92,
@@ -632,17 +632,37 @@ sampai ~1 jam**, bukan near-real-time.
 ```
 artifacts/line-1/
 ├── results/                   # Satu-satunya sumber kebenaran (auto + manual)
-│   └── 2026-05-18/
-│       ├── 2026-05-18_103000_auto.webp               # Fruit image (WebP, quality 65)
-│       ├── 2026-05-18_103000_auto_ripeness.json      # Detection metadata
+│   └── 2026-05-18/                                   # tanggal = UTC
+│       ├── 2026-05-18_103000_auto_ripeness.json      # Detection metadata — DATAR, lihat ⚠️
 │       ├── 2026-05-18_103000_auto_tp.json            # Long stalk metadata (if detected)
-│       ├── 2026-05-18_104500_manual.webp             # Manual reject capture
-│       └── 2026-05-18_104500_manual_ripeness.json
+│       ├── 2026-05-18_104500_manual_ripeness.json
+│       ├── 083000_B1234XY_a3f9c201/                  # satu folder per kunjungan truk
+│       │   ├── bbox/acc/ · bbox/rej/                 # bergambar kotak — ini yang ditunjuk
+│       │   │   └── 2026-05-18_103000_auto.webp       #   image_path, dan yang naik ke R2
+│       │   └── clean/acc/ · clean/rej/               # polos — buat latih model ulang
+│       │       └── 2026-05-18_103000_auto.webp       #   nama berkasnya SAMA persis
+│       └── _belum-assign/                            # ter-grading sebelum truk dipasang
 └── outbox.db                  # antrean realtime ke BACKEND_URL (OutboxRetryWorker, poll 1 dtk)
 
 state/line-1/                  # SIBLING artifacts/, sengaja di LUAR mount statis /captures
 └── upload_manifest.db         # state per-item BatchUploadWorker (pending/image_uploaded/done/poisoned)
 ```
+
+> ⚠️ **Sidecar JSON WAJIB tetap datar di folder tanggal.** `BatchUploadWorker._scan()`
+> mencarinya dengan `glob("*/*_ripeness.json")` — kedalaman dipatok dua. Sidecar yang ikut
+> masuk subfolder tidak akan pernah ketemu, dan upload ke R2 + cloud berhenti **tanpa error
+> dan tanpa log**. Yang pindah ke subfolder cuma gambar; pengunggah membaca letaknya dari
+> `image_path` di dalam JSON, bukan dari letak JSON-nya.
+>
+> ⚠️ **Nama folder truk pakai `FACTORY_TZ`, nama berkas tetap UTC.** Nama berkas menurunkan
+> `event_id` (uuid5) jadi tidak boleh bergeser; nama folder itu satu-satunya tempat manusia
+> membaca jam. Truk yang bongkar 16:00 WIB terarsip `090000` bikin folder ini tidak berguna.
+> Dua zona dalam satu pohon memang disengaja — **folder buat manusia, berkas buat mesin**.
+> Aturannya di `src/palmgrade/domain/capture_layout.py`, penulisnya `services/capture_writer.py`.
+>
+> ⚠️ **Salinan `clean/` tidak diupload ke mana pun** — dia bukti mentah buat melatih model
+> ulang, dan model tidak boleh dilatih pakai gambar yang sudah dicoret prediksinya sendiri.
+> Konsekuensinya pemakaian disk **dua kali lipat**; retensi menghapus keduanya bersamaan.
 
 > Folder `captures/`, `errors/`, dan `logs/` **sudah tidak ada**. Dulu dibuat saat startup tapi tidak pernah ditulis: manual reject disimpan ke `results/`, foto REJ ditemukan via metadata (`ripeness_status: "REJ"`) bukan salinan terpisah, dan log keluar ke stdout supaya `docker logs` yang mengurus. Startup cuma membuat `results/` — dijaga `tests/unit/test_artifact_dirs.py`.
 
@@ -651,7 +671,7 @@ state/line-1/                  # SIBLING artifacts/, sengaja di LUAR mount stati
 > salinan gambar ada di R2 (`captures.smagri.id`). Item `poisoned` **tidak** dihapus — file-nya
 > sengaja ditinggal biar bisa diperiksa manual.
 
-Images are served as static files: `GET /captures/results/{date}/{filename}`
+Images are served as static files: `GET /captures/results/{date}/{HHMMSS}_{plat}_{assign8}/{bbox|clean}/{acc|rej}/{filename}`
 
 ---
 

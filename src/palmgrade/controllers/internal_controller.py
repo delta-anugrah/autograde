@@ -26,9 +26,12 @@ async def sync_assignment(request: AssignmentSyncRequest, state: RuntimeState) -
     state.current_truck_id = request.truck_id
     state.current_assignment_id = request.assignment_id
     state.current_ffb_source = request.ffb_source
+    state.current_plate = request.plate
+    state.current_assigned_at = request.assigned_at
     logger.info(
-        "Assignment synced: machine=%s truck=%s assignment=%s ffb_source=%s",
-        request.machine_id, request.truck_id, request.assignment_id, request.ffb_source,
+        "Assignment synced: machine=%s truck=%s assignment=%s ffb_source=%s plate=%s",
+        request.machine_id, request.truck_id, request.assignment_id,
+        request.ffb_source, request.plate,
     )
     return AssignmentSyncResponse(
         accepted=True,

@@ -12,6 +12,11 @@ class RuntimeState:
     current_truck_id: str | None = None
     current_assignment_id: str | None = None          # set by /internal/assignment
     current_ffb_source: str | None = None             # "Internal" / "External" / None
+    # Capture-folder label and clock, both set by /internal/assignment. The
+    # folder is named once per truck, so its time is when the truck was
+    # assigned — not when each bunch happened to be graded.
+    current_plate: str | None = None
+    current_assigned_at: str | None = None            # ISO, mill-local from the console
     last_successful_api_push: str | None = None       # ISO timestamp, set by OutboxRetryWorker
 
     # Thread-safe queues

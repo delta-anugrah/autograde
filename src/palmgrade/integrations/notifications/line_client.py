@@ -60,6 +60,7 @@ class LineClient:
         truck_id: str,
         assigned_at: str,
         ffb_source: str | None = None,
+        plate: str | None = None,
     ) -> None:
         await self._post(
             line,
@@ -72,6 +73,9 @@ class LineClient:
                 # An old line ignores unknown fields (pydantic extra=ignore), so
                 # it is safe to send this to an image that does not know it yet.
                 "ffb_source": ffb_source,
+                # Label only — names the capture folder. `truck_id` above stays
+                # the key for every number that matters.
+                "plate": plate,
             },
         )
 

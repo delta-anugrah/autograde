@@ -4,18 +4,24 @@ import datetime
 import logging
 import queue
 import time
+from typing import TYPE_CHECKING
 
 from ..core.config import Settings
-from ..core.constants import JPEG_QUALITY_SAVE
 from ..domain.plc_signal import plc_status_for
 from ..domain.vision_event import build_event_payload
-from ..integrations.notifications.webhook_client import WebhookClient
 from ..integrations.outbox.outbox_store import OutboxStore
-from ..integrations.storage.local_file_storage import LocalFileStorage
 from ..license.gate import grading_blocked
-from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
 from ..plc import submit_grading
+from ..services.capture_writer import CaptureWriter
 from .runtime_state import RuntimeState
+
+if TYPE_CHECKING:  # annotations only — these pull in cv2/torch, and the unit
+    # suite deliberately runs without either (CLAUDE.md § Tests). Importing them
+    # at runtime would keep the save path out of CI for no benefit: every one of
+    # them is injected, so nothing here constructs one.
+    from ..integrations.notifications.webhook_client import WebhookClient
+    from ..integrations.storage.local_file_storage import LocalFileStorage
+    from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +42,7 @@ class FrameProcessingWorker:
         self.webhook = webhook
         self.settings = settings
         self.outbox_store = outbox_store
+        self.capture_writer = CaptureWriter(settings, storage)
 
         # Internal worker state — tidak perlu di RuntimeState karena hanya diakses worker ini
         self._processed_objects: set[int] = set()
@@ -68,6 +75,7 @@ class FrameProcessingWorker:
     def _save_ripeness(
         self,
         annotated_frame,
+        clean_frame,
         ripeness_status: str,
         ripeness_conf: float,
         truck_id: str | None,
@@ -84,9 +92,23 @@ class FrameProcessingWorker:
 
         results_dir = self.settings.results_dir / date_folder
         img_filename = f"{timestamp}_auto.webp"
-        image_url = f"captures/results/{date_folder}/{img_filename}"
 
-        self.storage.write_image(results_dir / img_filename, annotated_frame, quality=JPEG_QUALITY_SAVE)
+        # Images are filed per truck and per verdict; the sidecar below is NOT
+        # (see `domain/capture_layout`). `image_url` names the annotated copy.
+        truck_folder = self.capture_writer.truck_folder(
+            assignment_id=self.state.current_assignment_id,
+            plate=self.state.current_plate,
+            assigned_at=self.state.current_assigned_at,
+            now=now,
+        )
+        image_url = self.capture_writer.write_pair(
+            date_folder=date_folder,
+            truck_folder=truck_folder,
+            ripeness_status=ripeness_status,
+            filename=img_filename,
+            annotated_frame=annotated_frame,
+            clean_frame=clean_frame,
+        )
 
         meta = {
             "timestamp": now.isoformat(),
@@ -309,10 +331,12 @@ class FrameProcessingWorker:
                     # "keputusan PLC sudah diambil", bukan "pulse sudah dikirim".
                     self.state.track_history[track_id]["plc_signalled"] = True
 
+                    # `draw_boxes` gets the copy, so `frame` is still the clean
+                    # capture — the training copy costs no second inference.
                     annotated = self.pipeline.draw_boxes(frame.copy(), results)
 
                     date_folder, timestamp, image_url = self._save_ripeness(
-                        annotated, ripeness_status, ripeness_conf,
+                        annotated, frame, ripeness_status, ripeness_conf,
                         self.state.current_truck_id,
                         {"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
                     )

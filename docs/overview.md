@@ -146,7 +146,7 @@ BatchUploadWorker.run_batch_once()
   "assignment_id": "uuid-or-null",
   "truck_id": "uuid-or-null",
   "timestamp": "ISO-8601 UTC-aware (+00:00)",
-  "image_path": "captures/results/{date}/{ts}_auto.webp",
+  "image_path": "captures/results/{date}/{HHMMSS}_{plat}_{assign8}/bbox/{acc|rej}/{ts}_auto.webp",
   "prediction": "Acc | Rej",
   "ripeness_status": "ACC | REJ",
   "ripeness_confidence": 0.92,
@@ -308,8 +308,13 @@ needed (not just `libMvCameraControl.so`): `MV_CC_EnumDevices()` dynamically loa
 
 ```
 artifacts/line-N/   (host) ↔ /app/artifacts (container)
-  results/{YYYY-MM-DD}/{ts}_auto.webp + {ts}_auto_ripeness.json [+ {ts}_auto_tp.json]
-                       {ts}_manual.webp + {ts}_manual_ripeness.json   # manual reject
+  results/{YYYY-MM-DD}/                        # tanggal = UTC
+    {ts}_auto_ripeness.json [+ {ts}_auto_tp.json]   # sidecar — DATAR di sini, wajib
+    {ts}_manual_ripeness.json                        # manual reject
+    {HHMMSS}_{plat}_{assign8}/                       # satu folder per kunjungan truk
+      bbox/{acc|rej}/{ts}_auto.webp                  # bergambar kotak → image_path, naik R2
+      clean/{acc|rej}/{ts}_auto.webp                 # polos → latih model, TIDAK diupload
+    _belum-assign/                                   # ter-grading sebelum truk dipasang
   outbox.db                 # SQLite — antrean realtime ke API lokal (OutboxRetryWorker)
 
 state/line-N/   (host) ↔ /app/state (container)   # SIBLING artifacts/, DI LUAR mount /captures
@@ -320,8 +325,20 @@ state/line-N/   (host) ↔ /app/state (container)   # SIBLING artifacts/, DI LUA
 `poisoned` sengaja tidak dihapus.
 Gambar disimpan **WebP quality 65** (`JPEG_QUALITY_SAVE` di `core/constants.py` — nama konstanta
 legacy, berlaku untuk WebP juga; `LocalFileStorage.write_image` pilih codec dari ekstensi file).
+⚠️ **Sidecar JSON tidak pernah ikut pindah ke subfolder.** `_scan()` mencarinya dengan
+`glob("*/*_ripeness.json")` — kedalaman dipatok dua, jadi sidecar yang lebih dalam tidak akan
+pernah ketemu dan upload cloud berhenti **tanpa error apa pun**. Yang masuk subfolder cuma
+gambar; letaknya dibaca dari `image_path` di dalam JSON.
+⚠️ **Jam folder truk pakai `FACTORY_TZ`, nama berkas tetap UTC** — nama berkas menurunkan
+`event_id` (uuid5) jadi tidak boleh bergeser, sementara nama folder satu-satunya yang dibaca
+manusia. Dua zona dalam satu pohon disengaja: folder buat manusia, berkas buat mesin.
+Aturan penamaan: `domain/capture_layout.py`. Penulis (satu-satunya, dipakai jalur auto maupun
+manual): `services/capture_writer.py`.
+⚠️ **Salinan `clean/` bikin pemakaian disk dua kali lipat** dan tidak punya baris manifest
+sendiri — `_delete_item_files` menghapusnya lewat `clean_twin_of()`. Menambah gambar ketiga
+tanpa ikut mendaftarkannya di situ = file yang tidak pernah dihapus siapa pun.
 Served by FastAPI `StaticFiles` mount `/captures` → `artifacts/`, so `image_url`
-`captures/results/{date}/{file}` resolves on the vision side. (The api re-serves per line under
+`captures/results/{date}/{truk}/{bbox|clean}/{acc|rej}/{file}` resolves on the vision side. (The api re-serves per line under
 `/api/v1/captures/<line_code>/...`.)
 
 ---

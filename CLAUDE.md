@@ -269,14 +269,16 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 4. **MJPEG** — only `DisplayWorker` writes `state.latest_frame`, via `threading.Condition.notify_all()` (multi-viewer). It renders `last_yolo_frame` (paired with results) and runs at `STREAM_FPS` (default 12), decoupled from `CAMERA_FPS`.
 5. **DI** (`core/dependencies.py`) — `@lru_cache` singletons **except** `get_capture_service()` / `get_health_service()` (camera injected at startup). `get_outbox_store()` may cache (SQLite singleton).
 6. **Lifespan** (not `@app.on_event`); `repo_root = parents[3]`; every worker `run_loop` wraps `run_once` in `try/except`; `FrameCaptureWorker` needs `device_index` (so line-2/3 reconnect to the correct camera).
-7. **`tp_status` = `"PASS"`** (not `"TP"`). **`image_url` = `captures/results/{date}/{ts}_auto.webp`** (consistent with `/captures` mount). Gambar disimpan **WebP** quality 65 (`JPEG_QUALITY_SAVE`); folder `errors/`, `captures/`, dan `logs/` **sudah tidak ada** — dulu dibuat saat startup tapi tidak pernah ditulis (REJ ditemukan via metadata `ripeness_status`, log ke stdout). Startup cuma membuat `results/`, dijaga `tests/unit/test_artifact_dirs.py`.
+7. **`tp_status` = `"PASS"`** (not `"TP"`). **`image_url` = `captures/results/{date}/{HHMMSS}_{plat}_{assign8}/bbox/{acc|rej}/{ts}_auto.webp`** (consistent with `/captures` mount) — satu folder per truk, isi `bbox/` (bergambar kotak, ini yang ditunjuk `image_path` dan yang naik R2) dan `clean/` (polos, buat latih model ulang; **tidak** diupload). Jam folder pakai `FACTORY_TZ`, **bukan** UTC — folder dibaca manusia, nama berkas dibaca mesin. Truk belum di-assign → `_belum-assign/`. **JSON sidecar-nya TETAP datar di folder tanggal**: `BatchUploadWorker._scan()` mencarinya dengan `glob("*/*_ripeness.json")` (kedalaman dipatok dua), jadi sidecar yang ikut masuk subfolder bikin upload cloud berhenti **tanpa error**. Aturannya di `domain/capture_layout.py`, penulisnya `services/capture_writer.py` (satu-satunya yang menulis gambar, dipakai jalur auto maupun manual). Gambar disimpan **WebP** quality 65 (`JPEG_QUALITY_SAVE`); folder `errors/`, `captures/`, dan `logs/` **sudah tidak ada** — dulu dibuat saat startup tapi tidak pernah ditulis (REJ ditemukan via metadata `ripeness_status`, log ke stdout). Startup cuma membuat `results/`, dijaga `tests/unit/test_artifact_dirs.py`.
 8. **`cv2.imwrite` failure → `LocalFileStorage.write_image` raises `IOError`** (no orphaned JSON records pointing at an image that was never written).
-   **Nama folder tanggal selalu UTC** (`FrameProcessingWorker._save_ripeness`,
-   `capture_repository`) — pembacanya wajib UTC juga. `datetime.now()` naive di
+   **Nama folder TANGGAL selalu UTC** (`FrameProcessingWorker._save_ripeness`,
+   `capture_repository`) — pembacanya wajib UTC juga. ⚠️ Yang pakai `FACTORY_TZ`
+   cuma **folder truk di dalamnya** (aturan 7); dua zona dalam satu pohon itu
+   disengaja, jangan "diseragamkan" ke salah satunya. `datetime.now()` naive di
    `ResultRepository` kebetulan cocok cuma karena container ini kebetulan
    `TZ=UTC`; set `TZ=Asia/Jakarta` dan `/api/results_today` menunjuk folder yang
    belum ada lalu melapor nol hasil. Jangan pernah pakai `datetime.now()` telanjang.
-9. **Retention deletes source files** — `BatchUploadWorker._retention()` unlinks the WebP + JSON once an item is `done` and older than `UPLOAD_RETENTION_DAYS` (default 7; PC pabrik 180). Local artifacts are therefore **not** a long-term archive; the cloud + R2 are.
+9. **Retention deletes source files** — `BatchUploadWorker._retention()` unlinks **kedua** WebP (`bbox/` + `clean/`, dipasangkan `domain/capture_layout.clean_twin_of`) + JSON once an item is `done` and older than `UPLOAD_RETENTION_DAYS` (default 7; PC pabrik 180). Local artifacts are therefore **not** a long-term archive; the cloud + R2 are.
    Umur saja tidak cukup begitu angkanya jadi hitungan bulan, jadi
    `_retention_by_disk()` jadi pagar terakhir: di bawah `UPLOAD_DISK_MIN_FREE_GB`
    (default 20) ia membuang `done` **tertua** lebih awal sampai sisa disk lega.
@@ -286,6 +288,10 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    ⚠️ Seluruh `_retention()` cuma jalan kalau `R2_BUCKET` terisi (`run_batch_once`
    pulang lebih awal tanpanya), jadi dengan R2 mati tidak ada yang membersihkan
    disk sama sekali — dan memang tidak boleh ada, karena tidak ada yang `done`.
+   ⚠️ **Salinan `clean/` tidak punya baris manifest sendiri** — dia dihapus di sini
+   atau tidak sama sekali. Menambah gambar ketiga tanpa ikut menambahnya ke
+   `_delete_item_files` berarti penjaga disk menyapu item `done` sambil cuma
+   membebaskan separuh byte-nya, sampai disk penuh dan grading berhenti menyimpan.
 
 10. **Konsol: `work_date` dihitung saat ingest, lalu DISIMPAN** (§6.1). Pabrik jalan ~20
     jam/hari **lewat tengah malam**, jadi batas hari UTC memotong satu shift jadi dua tanggal.

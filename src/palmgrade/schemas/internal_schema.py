@@ -13,8 +13,14 @@ class AssignmentSyncRequest(BaseModel):
     # known; both mean normal sorting. Deliberately Literal, not str: an
     # unknown value is better refused with 422 than silently disabling reject.
     ffb_source: Literal["Internal", "External"] | None = None
+    # Display label for the capture folder name, forwarded by the console.
+    # `truck_id` is a uuid5 *of* the plate and cannot be reversed, so without
+    # this the folder can only be named after an opaque id. Optional on purpose:
+    # an older console omits it, and a line that refused the payload would stop
+    # assignment outright during a partial upgrade.
+    plate: str | None = None
 
-    @field_validator("assignment_id", "truck_id")
+    @field_validator("assignment_id", "truck_id", "plate")
     @classmethod
     def _empty_becomes_none(cls, value: str | None) -> str | None:
         """Releasing a truck = send an empty string; this contract has no other way.

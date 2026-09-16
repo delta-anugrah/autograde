@@ -132,7 +132,7 @@ Semua hasil grading hari ini.
       "tp_status": "PASS",
       "tp_confidence": 0.88,
       "timestamp": "2026-05-18T10:30:00.123456",
-      "image_url": "captures/results/2026-05-18/2026-05-18_103000_auto.webp",
+      "image_url": "captures/results/2026-05-18/083000_B1234XY_a3f9c201/bbox/rej/2026-05-18_103000_auto.webp",
       "capture_type": "auto",
       "truck_id": "uuid-or-null",
       "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 }
@@ -155,9 +155,10 @@ Set truck ID aktif untuk line ini secara langsung ke vision.
 
 Terima assignment dari palmgrade-api. Protected by `x-internal-secret: WEBHOOK_SECRET`.
 
-- **Request body:** `{ "machine_id", "assignment_id", "truck_id", "assigned_at" }`
+- **Request body:** `{ "machine_id", "assignment_id", "truck_id", "assigned_at", "ffb_source"?, "plate"? }`
 - **Response:** `{ "accepted": true, "machine_id", "truck_id", "assignment_id" }`
-- **Side effect:** Set `state.current_truck_id` + `state.current_assignment_id` — semua event selanjutnya punya `assignment_id` ini.
+- **Side effect:** Set `state.current_truck_id` + `state.current_assignment_id` — semua event selanjutnya punya `assignment_id` ini. `plate` + `assigned_at` juga disimpan, dipakai buat **menamai folder capture** truk itu (`domain/capture_layout.py`).
+- ⚠️ `plate` itu **label, bukan identitas** — `truck_id` tetap kunci semua angka. Opsional: konsol lama tidak mengirimnya, dan line yang menolak payload tanpa `plate` akan menghentikan penugasan saat upgrade separuh jalan. Dikirim karena `truck_id` itu uuid5 **dari** plat dan tidak bisa dibalik.
 
 ### `POST /internal/manual-reject`
 
@@ -290,7 +291,7 @@ frame_queue                      state.latest_raw_frame
   ↓ [EventBroadcastWorker — asyncio task]
 WebSocket clients
 
-results/{date}/*.webp + *_ripeness.json   ← hasil save di atas
+results/{date}/{truk}/{bbox|clean}/{acc|rej}/*.webp + results/{date}/*_ripeness.json   ← hasil save di atas
   ↓ [UploadScheduler — APScheduler cron, tiap jam pada menit UPLOAD_MINUTE]
 BatchUploadWorker.run_batch_once()
   ├── _scan() → UploadManifest (state/upload_manifest.db)
@@ -329,7 +330,8 @@ Keduanya **wajib** acquire `state.lock` sebelum memanggil `camera.grab_frame()`.
 artifacts/
   results/
     {YYYY-MM-DD}/
-      {timestamp}_auto.webp             # Annotated frame buah (WebP, quality 65)
+      {HHMMSS}_{plat}_{assign8}/bbox/{acc|rej}/{timestamp}_auto.webp   # bergambar kotak
+      {HHMMSS}_{plat}_{assign8}/clean/{acc|rej}/{timestamp}_auto.webp  # polos, buat latihan
       {timestamp}_auto_ripeness.json    # Metadata grading
       {timestamp}_auto_tp.json          # Metadata TP (jika ada)
       {timestamp}_manual.webp           # Manual capture
@@ -344,7 +346,9 @@ state/line-N/  ↔ /app/state             # SIBLING artifacts/, sengaja DI LUAR 
 `UPLOAD_RETENTION_DAYS` (default 7). Setelah itu satu-satunya salinan gambar ada di R2
 (`captures.smagri.id`). Item `poisoned` sengaja tidak ikut dihapus.
 
-`image_url` di response: `captures/results/{date}/{timestamp}_auto.webp`
+`image_url` di response: `captures/results/{date}/{HHMMSS}_{plat}_{assign8}/{bbox|clean}/{acc|rej}/{timestamp}_auto.webp`
+⚠️ Sidecar JSON-nya **tidak** ikut ke subfolder — `BatchUploadWorker._scan()` memakai
+`glob("*/*_ripeness.json")` (kedalaman dipatok dua). Lihat `domain/capture_layout.py`.
 
 FastAPI mount static: `app.mount("/captures", StaticFiles(directory="artifacts"))`
 
