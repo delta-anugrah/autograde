@@ -168,7 +168,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/lines/{line}/release-truck` | truk pergi → `/internal/assignment` line dengan truk kosong |
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
 | GET | `/api/console/dev/ping` | lane developer paling ringan — dipakai layar untuk memastikan akses masih hidup. **Semua tujuh baris di bawah ini butuh `role='support'`, dijawab 403 kalau bukan** |
-| GET | `/api/console/dev/log` | isi `log_kejadian` — filter `level`/`cari`, pagination `limit`+`offset` |
+| GET | `/api/console/dev/log` | isi `event_log` — filter `level`/`cari`, pagination `limit`+`offset` |
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu layar |
 | GET | `/api/console/dev/antrean` | isi `erp_outbox` — jumlah pending/gagal + daftar yang gagal |
 | POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox` |
@@ -346,11 +346,11 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     tetap dibawa apa adanya, tapi yang **bertentangan** dengan verdict-nya ikut ditolak.
     ⚠️ AutoERP **mengadopsi tiket terbuka milik truk yang sama** dalam jendela ±2 jam, jadi dua
     kunjungan truk itu di jam yang sama memang mendarat di satu tiket — itu perilaku ERP,
-    bukan bug konsol. **Tapi ada sisi tajamnya:** kalau kunjungan kedua membawa
-    `scale_ticket_no` berbeda, adopsi itu **menimpa** bruto, jam masuk, nomor timbangan, dan
-    `autograde_visit_id` kunjungan pertama sambil menyisakan tara + jam keluarnya — netonya jadi
-    campuran dua kunjungan dan kunjungan pertama hilang dari pembukuan. Dibuktikan live
-    2026-09-14; dilaporkan ke Mas Samuel, jangan ditambal dari sisi konsol.
+    bukan bug konsol. Dulu adopsi itu bisa **menimpa** bruto, jam masuk, dan nomor timbangan
+    kunjungan pertama sampai netonya jadi campuran dua kunjungan; dibuktikan live 2026-09-14.
+    **Sudah diperbaiki di AutoERP** (autoerp PR #7, merge 2026-09-16): kunjungan dengan
+    `scale_ticket_no` berbeda tidak lagi mengadopsi tiket milik kunjungan lain. Tidak ada yang
+    perlu ditambal dari sisi konsol — dulu maupun sekarang.
 15. **Timbangan: `net_kg` dihitung, tidak pernah dipercaya mentah** (§3.5c). Pengirim boleh
     menyertakannya; kalau bedanya dari `bruto − tara` lewat `TOLERANSI_NETO_KG` (1 kg) kiriman
     **ditolak 400**. Ini angka yang dibayar ke petani — dua sumber kebenaran yang diam-diam
@@ -499,12 +499,12 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     sebenarnya menolak 403, dan tab developer yang disembunyikan dari operator biasa di
     `console.html` cuma kerapian, bukan pengaman: siapa pun yang tahu URL-nya tetap
     ditolak backend kalau `role` bukan `support`.
-    **`ERP_ALLOWED_ROLES`** (bawaan `support`) membatasi peran mana yang boleh datang
-    dari AutoERP (`domain/peran.py`, `saring_peran_erp`) — **satu-satunya rem sisi
+    **`ERP_ALLOWED_ROLES`** (bawaan `support`) membatasi role mana yang boleh datang
+    dari AutoERP (`domain/role.py`, `filter_erp_role`) — **satu-satunya rem sisi
     pabrik**: kosongkan lalu restart, dan tidak ada akun ERP yang bisa membuka layar
     developer lagi, tanpa perlu menyentuh AutoERP sama sekali. Akun `lokal` (dibuat
     `make operator`) tidak lewat penyaring ini.
-    **`log_kejadian` cuma menyimpan ERROR dan WARNING**, retensi 180 hari
+    **`event_log` cuma menyimpan ERROR dan WARNING**, retensi 180 hari
     (`LOG_RETENSI_HARI`). Pesan identik yang datang dalam 60 detik **digabung** jadi satu
     baris dengan hitungan naik, bukan baris baru per kejadian — tanpa itu satu loop yang
     gagal tiap detik akan memenuhi tabel dalam semenit dan mendorong keluar galat lain
