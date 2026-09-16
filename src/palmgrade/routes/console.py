@@ -15,12 +15,15 @@ from fastapi.responses import FileResponse
 
 from ..core.config import Settings
 from ..domain.operator_auth import SESSION_TTL_S
-from ..domain.operator_error import BELUM_MASUK, TERKUNCI, OperatorError
+from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
+from ..domain.role import ROLE_SUPPORT, parse_allowed_roles
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
 from ..repositories.console_repository import ConsoleStore
+from ..repositories.log_repository import LogStore
 from ..services.auth_service import AuthService
 from ..services.console_service import ConsoleService
+from ..services.dev_service import CoilTidakDikenal, DevService, KonfirmasiKurang, PlcSibuk
 from ..services.erp_queue import ErpQueue
 from ..services.qr_cetak import png_qr
 from ..services.scan_service import ScanService
@@ -33,7 +36,10 @@ SESSION_COOKIE = "konsol_sesi"
 def get_console_service() -> ConsoleService:
     """Console composition root. The only place these are wired."""
     settings = Settings()
-    store = ConsoleStore(settings.console_db_path)
+    store = ConsoleStore(
+        settings.console_db_path,
+        erp_allowed_roles=parse_allowed_roles(settings.erp_allowed_roles_raw),
+    )
     queue = ErpQueue(
         store, ErpOutboxStore(settings.erp_outbox_db_path), site=settings.erp_company
     )
@@ -56,9 +62,27 @@ def get_scan_service() -> ScanService:
     return ScanService(get_console_service().store)
 
 
+@lru_cache
+def get_dev_service() -> DevService:
+    """Log store is its own SQLite file, not `console.db`: an error flood must
+    not slow down the queries serving the operator screen. The line client and
+    ERP outbox are shared with the console service — one connection each, not two.
+    """
+    service = get_console_service()
+    settings = service.settings
+    return DevService(
+        LogStore(settings.log_db_path, retention_days=settings.log_retention_days),
+        line_client=service.line_client,
+        lines=service.lines,
+        erp_outbox=service.erp_queue.outbox,
+        settings=settings,
+    )
+
+
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
 Scan = Annotated[ScanService, Depends(get_scan_service)]
+Dev = Annotated[DevService, Depends(get_dev_service)]
 
 
 def require_operator(
@@ -72,6 +96,23 @@ def require_operator(
 
 
 Operator = Annotated[dict, Depends(require_operator)]
+
+
+def require_support(operator: Operator) -> dict:
+    """A support account, or 403.
+
+    This is the actual guard on the developer screen; hiding its tab in
+    console.html is tidiness, not security. Every `/api/console/dev/*` route
+    goes through here so none can forget the check.
+    """
+    if operator.get("role") != ROLE_SUPPORT:
+        raise _operator_error(
+            403, OperatorError(BUKAN_SUPPORT, "menu ini untuk akun support")
+        )
+    return operator
+
+
+Support = Annotated[dict, Depends(require_support)]
 
 
 def _operator_error(status_code: int, exc: Exception) -> HTTPException:
@@ -141,7 +182,8 @@ async def console_me(operator: Operator) -> dict:
         "operator": {
             "id": operator["operator_id"],
             "email": operator["email"],
-            "nama": operator["nama"],
+            "full_name": operator["full_name"],
+            "role": operator["role"],
         }
     }
 
@@ -155,19 +197,19 @@ async def console_state(service: Service, operator: Operator) -> dict:
 async def console_history(
     service: Service,
     operator: Operator,
-    tanggal_kerja: str | None = None,
+    work_date: str | None = None,
     line_code: str | None = None,
     truck_id: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> dict:
-    tanggal = tanggal_kerja or service.today()
+    resolved_date = work_date or service.today()
     # `items` keeps its shape; `total` is added beside it so the screen can page without
     # a second round trip, and older callers that only read `items` are unaffected.
-    halaman = service.history_halaman(
-        tanggal, line_code=line_code, truck_id=truck_id, limit=limit, offset=offset
+    page = service.history_halaman(
+        resolved_date, line_code=line_code, truck_id=truck_id, limit=limit, offset=offset
     )
-    return {"tanggal_kerja": tanggal, **halaman}
+    return {"work_date": resolved_date, **page}
 
 
 @router.get("/api/console/trucks")
@@ -176,12 +218,12 @@ async def console_trucks(service: Service, operator: Operator) -> dict:
 
 
 @router.post("/api/console/trucks", status_code=201)
-async def daftar_truk_manual(
+async def register_manual_truck(
     service: Service, operator: Operator, payload: Annotated[dict, Body()]
 ) -> dict:
     """Borrowed or unregistered truck, typed by the operator (not from cloud master)."""
     try:
-        return service.daftar_truk_manual(
+        return service.register_manual_truck(
             str(payload.get("plate_number") or ""),
             supplier_id=payload.get("supplier_id"),
             capacity=payload.get("capacity"),
@@ -207,13 +249,13 @@ async def console_scan(
     to get scanned must never turn into a ghost truck in master data.
     """
     try:
-        return scan.cari(str(payload.get("qr") or ""))
+        return scan.search(str(payload.get("qr") or ""))
     except OperatorError as exc:
         raise _operator_error(400, exc) from exc
 
 
 @router.post("/api/console/scan/keluar")
-async def console_scan_keluar(
+async def console_scan_exit(
     scan: Scan, service: Service, operator: Operator, payload: Annotated[dict, Body()]
 ) -> dict:
     """The second scan, at the exit gate: which ticket is waiting for its tare.
@@ -227,7 +269,7 @@ async def console_scan_keluar(
     both and the operator picks.
     """
     try:
-        return scan.tiket_terbuka(str(payload.get("qr") or ""), service.today())
+        return scan.open_ticket(str(payload.get("qr") or ""), service.today())
     except OperatorError as exc:
         raise _operator_error(400, exc) from exc
 
@@ -246,13 +288,13 @@ async def console_truck_qr(plate_number: str, operator: Operator) -> Response:
     contains the plate.
     """
     try:
-        gambar = png_qr(plate_number)
+        image = png_qr(plate_number)
     except OperatorError as exc:
         raise _operator_error(400, exc) from exc
     # Cached by the browser: the card for one plate never changes, and the print page
     # asks for every truck at once.
     return Response(
-        content=gambar,
+        content=image,
         media_type="image/png",
         headers={"Cache-Control": "public, max-age=86400"},
     )
@@ -262,24 +304,24 @@ async def console_truck_qr(plate_number: str, operator: Operator) -> Response:
 async def console_weighings(
     service: Service,
     operator: Operator,
-    tanggal_kerja: str | None = None,
+    work_date: str | None = None,
     limit: int = Query(100, ge=1, le=500),
 ) -> dict:
-    tanggal = tanggal_kerja or service.today()
-    return {"tanggal_kerja": tanggal, "items": service.weighings(tanggal, limit=limit)}
+    resolved_date = work_date or service.today()
+    return {"work_date": resolved_date, "items": service.weighings(resolved_date, limit=limit)}
 
 
 @router.get("/api/console/recap")
 async def console_recap(
-    service: Service, operator: Operator, tanggal_kerja: str | None = None
+    service: Service, operator: Operator, work_date: str | None = None
 ) -> dict:
     """What the supplier is handed: bunches and neto per truck for one day."""
-    tanggal = tanggal_kerja or service.today()
-    return {"tanggal_kerja": tanggal, "items": service.rekap(tanggal)}
+    resolved_date = work_date or service.today()
+    return {"work_date": resolved_date, "items": service.recap(resolved_date)}
 
 
 @router.post("/api/console/weighings", status_code=201)
-async def catat_timbangan_manual(
+async def record_weighing_manual(
     service: Service, operator: Operator, payload: Annotated[dict, Body()]
 ) -> dict:
     """Operator types bruto/tara by hand; the payload shape is identical to the
@@ -287,7 +329,7 @@ async def catat_timbangan_manual(
     program's format is unknown (docs/PERTANYAAN-TERBUKA.md X1).
     """
     try:
-        return service.catat_timbangan(payload)
+        return service.record_weighing(payload)
     except ValueError as exc:
         raise _operator_error(400, exc) from exc
 
@@ -311,7 +353,7 @@ async def assign_truck(
 async def release_truck(line_code: str, service: Service, operator: Operator) -> dict:
     """Truck leaves. The line is told too — see `ConsoleService.lepas_truk`."""
     try:
-        return await service.lepas_truk(line_code)
+        return await service.release_truck(line_code)
     except ValueError as exc:
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
@@ -323,7 +365,7 @@ async def manual_reject(line_code: str, service: Service, operator: Operator) ->
     """Recorded against whoever is signed in. It used to be the literal "operator"
     from the request body, which left the one action with a name on it anonymous."""
     try:
-        return await service.manual_reject(line_code, operator["nama"])
+        return await service.manual_reject(line_code, operator["full_name"])
     except ValueError as exc:
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
@@ -338,6 +380,98 @@ async def piston(line_code: str, service: Service, open: Annotated[bool, Body(em
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
         raise _operator_error(502, exc) from exc
+
+
+# ── developer lanes (support only) ───────────────────────────────────────
+# Every `/api/console/dev/*` route depends on `Support`, never `Operator` directly —
+# one chokepoint so a later lane cannot forget the guard.
+
+
+@router.get("/api/console/dev/ping")
+async def dev_ping(operator: Support) -> dict:
+    """Lightest developer lane — used by the screen to confirm access still works."""
+    return {"status": "ok"}
+
+
+@router.get("/api/console/dev/log")
+async def dev_log(
+    dev: Dev,
+    operator: Support,
+    level: Annotated[str | None, Query()] = None,
+    cari: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> dict:
+    return dev.log(level=level, search=cari, limit=limit, offset=offset)
+
+
+@router.get("/api/console/dev/diagnostik")
+async def dev_diagnostics(dev: Dev, operator: Support) -> dict:
+    return await dev.diagnostics()
+
+
+@router.get("/api/console/dev/antrean")
+async def dev_queue(dev: Dev, operator: Support) -> dict:
+    return dev.queue()
+
+
+@router.post("/api/console/dev/antrean/kirim-ulang")
+async def dev_resend(dev: Dev, operator: Support) -> dict:
+    return dev.resend()
+
+
+@router.get("/api/console/dev/versi")
+async def dev_version(dev: Dev, operator: Support) -> dict:
+    return dev.version()
+
+
+@router.get("/api/console/dev/plc/{line_code}")
+async def dev_plc(dev: Dev, operator: Support, line_code: str) -> dict:
+    """DI snapshot + testable coils for one line. Read-only — safe to open anytime,
+    including PLC_ENABLED=false (the normal dev/cloud state): the line answers
+    `{"enabled": false}` rather than erroring, and the screen says so."""
+    try:
+        return await dev.plc_read(line_code)
+    except ValueError as exc:
+        raise _operator_error(404, exc) from exc
+    except LineUnavailable as exc:
+        raise _operator_error(502, exc) from exc
+
+
+@router.post("/api/console/dev/plc/{line_code}/coil")
+async def dev_plc_coil(
+    dev: Dev,
+    operator: Support,
+    line_code: str,
+    coil: Annotated[int, Body()],
+    konfirmasi: Annotated[str, Body()],
+) -> dict:
+    """The only lane in this whole console that moves physical hardware.
+
+    Three guards: typed confirmation, refused while the line is processing a
+    truck (409, checked on the line — see DevService.plc_fire), and every
+    attempt — fired or refused — leaves a WARNING row in log_kejadian.
+    """
+    try:
+        return await dev.plc_fire(
+            line_code=line_code,
+            coil=coil,
+            konfirmasi=konfirmasi,
+            operator_email=operator["email"],
+        )
+    except KonfirmasiKurang as exc:
+        raise _operator_error(400, exc) from exc
+    except PlcSibuk as exc:
+        raise _operator_error(409, exc) from exc
+    except CoilTidakDikenal as exc:
+        raise _operator_error(422, exc) from exc
+    except LineUnavailable as exc:
+        raise _operator_error(502, exc) from exc
+    except ValueError as exc:
+        # Must come AFTER KonfirmasiKurang/CoilTidakDikenal above — both are
+        # ALSO ValueError (via OperatorError, ValueError), and a bare catch
+        # placed first would swallow them into the wrong status code.
+        raise _operator_error(404, exc) from exc
 
 
 # ── event receiver for the three lines (frozen contract §5) ─────────────
@@ -355,12 +489,12 @@ async def ingest_event(
     if x_webhook_secret != service.settings.webhook_secret:
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
     try:
-        tanggal_kerja = service.ingest(payload)
+        work_date = service.ingest(payload)
     except ValueError as exc:
         # 400 → the line's outbox holds it and marks it failed. Not 200 on
         # purpose: a malformed event must be visible, not vanish.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"status": "ok", "tanggal_kerja": tanggal_kerja}
+    return {"status": "ok", "work_date": work_date}
 
 
 @ingest_router.post("/internal/scale/weighing", status_code=201)
@@ -372,12 +506,12 @@ async def ingest_weighing(
     """Scale program payload (§3.5c). Same secret as the event lane.
 
     The real format is unknown (docs/PERTANYAAN-TERBUKA.md X1); what is frozen
-    here is our shape — `plate_number`, `bruto_kg`, `tara_kg`, `waktu_masuk`,
-    `waktu_keluar`, optional `ref`. An adapter follows once the format lands.
+    here is our shape — `plate_number`, `gross_kg`, `tare_kg`, `entered_at`,
+    `exited_at`, optional `ref`. An adapter follows once the format lands.
     """
     if x_webhook_secret != service.settings.webhook_secret:
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
     try:
-        return service.catat_timbangan(payload)
+        return service.record_weighing(payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

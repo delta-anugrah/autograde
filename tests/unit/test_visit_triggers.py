@@ -56,10 +56,10 @@ def _weigh(service: ConsoleService, **over) -> dict:
     payload = {
         "ref": "SCL-1",
         "plate_number": PLATE,
-        "waktu_masuk": _now(),
-        "bruto_kg": 14560,
+        "entered_at": _now(),
+        "gross_kg": 14560,
     } | over
-    return service.catat_timbangan(payload)
+    return service.record_weighing(payload)
 
 
 def _visits(outbox: ErpOutboxStore) -> list:
@@ -83,7 +83,7 @@ def test_the_weigh_out_replaces_it_with_the_tare(tmp_path):
     service, outbox = _service(tmp_path, linked=True)
     _weigh(service)
 
-    _weigh(service, bruto_kg=None, tara_kg=5400, waktu_keluar=_now())
+    _weigh(service, gross_kg=None, tare_kg=5400, exited_at=_now())
 
     [visit] = _visits(outbox)
     assert visit.payload["stage"] == "departed"
@@ -114,7 +114,7 @@ def test_releasing_the_truck_queues_its_grading(tmp_path):
             }
         )
 
-    asyncio.run(service.lepas_truk("line-1"))
+    asyncio.run(service.release_truck("line-1"))
 
     [visit] = _visits(outbox)
     assert visit.key == ticket["id"]
@@ -131,7 +131,7 @@ def test_a_truck_that_was_never_weighed_queues_nothing(tmp_path):
     service, outbox = _service(tmp_path, linked=True)
     asyncio.run(service.assign_truck("line-1", truck_id_for(PLATE)))
 
-    asyncio.run(service.lepas_truk("line-1"))
+    asyncio.run(service.release_truck("line-1"))
 
     assert _visits(outbox) == []
 
@@ -141,4 +141,4 @@ def test_a_console_without_the_erp_link_still_weighs(tmp_path):
     store = ConsoleStore(tmp_path / "console.db")
     service = ConsoleService(replace(Settings(), factory_tz="Asia/Jakarta"), store, FakeLineClient())
 
-    assert _weigh(service)["bruto_kg"] == 14560.0
+    assert _weigh(service)["gross_kg"] == 14560.0

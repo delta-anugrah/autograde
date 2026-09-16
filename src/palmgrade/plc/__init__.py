@@ -1,8 +1,9 @@
 """PLC integration through an ODOT CN-8031 coupler (Modbus-TCP).
 
-Code outside this package normally needs five functions: `start_plc_worker`,
-`shutdown_plc_worker`, `submit_grading`, `inputs`, `diagnostics`. With
-PLC_ENABLED=false all five are no-ops and no thread runs. `ModbusPlcClient`,
+Code outside this package normally needs the functions in `__all__` below
+(`start_plc_worker`, `shutdown_plc_worker`, `submit_grading`, `inputs`,
+`diagnostics`, `request_piston`, `piston_state`, `fire_test_coil`, `testable_coils`).
+With PLC_ENABLED=false they are all no-ops and no thread runs. `ModbusPlcClient`,
 `PlcWorker` and `PulseScheduler` are exported too, for callers that assemble a
 worker themselves (tests, mainly). Full coil map: docs/plc-integration.md.
 """
@@ -22,12 +23,14 @@ __all__ = [
     "PlcWorker",
     "PulseScheduler",
     "diagnostics",
+    "fire_test_coil",
     "inputs",
     "piston_state",
     "request_piston",
     "shutdown_plc_worker",
     "start_plc_worker",
     "submit_grading",
+    "testable_coils",
 ]
 
 logger = logging.getLogger(__name__)
@@ -116,10 +119,10 @@ def inputs() -> list[bool]:
 
 
 def request_piston(open: bool) -> bool:
-    """Minta piston line ini buka/tutup. False = PLC mati atau coil belum diset.
+    """Ask for this line's piston to open/close. False = PLC off or coil not set.
 
-    False bukan error: selama panel belum mengalokasikan coil, tombolnya memang
-    harus mati di layar, bukan berpura-pura bekerja.
+    False is not an error: while the panel has not allocated a coil yet, the
+    button genuinely has to be off on the screen, not pretend to work.
     """
     worker = _worker
     if worker is None or getattr(worker.settings, "plc_coil_manual", None) is None:
@@ -129,11 +132,40 @@ def request_piston(open: bool) -> bool:
 
 
 def piston_state() -> dict | None:
-    """Status piston untuk konsol. None kalau PLC mati atau coil belum diset."""
+    """Piston status for the console. None when the PLC is off or the coil is not set."""
     worker = _worker
     if worker is None or getattr(worker.settings, "plc_coil_manual", None) is None:
         return None
     return worker.piston_state()
+
+
+def testable_coils(settings) -> frozenset[int]:
+    """Coils safe to pulse by hand from the commissioning test screen.
+
+    OK/NG/manual-piston only, and only the ones actually configured (may be
+    None). `plc_coil_alive` (coil 9, "HEARTBIT PC ON") is deliberately NOT
+    here: firing it by hand can make the panel believe the PC died and raise
+    a seven-segment alarm. `plc_coil_error` is excluded too — it is a level
+    driven by health_check(), not something a hand pulse should perturb.
+    """
+    coils = {settings.plc_coil_ok, settings.plc_coil_ng}
+    manual = getattr(settings, "plc_coil_manual", None)
+    if manual is not None:
+        coils.add(manual)
+    return frozenset(coils)
+
+
+def fire_test_coil(coil: int) -> bool:
+    """Fire one test coil for commissioning. False = PLC off or pulse dropped.
+
+    Both cases mean "nothing moved" and must read the same way on the test
+    screen — a caller that treats them differently risks reporting a fired
+    coil that never actually pulsed.
+    """
+    worker = _worker
+    if worker is None:
+        return False
+    return worker.fire_test_coil(coil)
 
 
 def diagnostics() -> dict | None:

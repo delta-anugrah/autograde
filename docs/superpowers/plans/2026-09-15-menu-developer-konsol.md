@@ -21,7 +21,12 @@
 - **Branch dari `staging`**, PR squash merge ke `staging`.
 - **Frappe membalas 417** untuk satu field asing di `/api/resource` → PR 0 (autoerp) wajib merge duluan.
 - Retensi log **180 hari**; jendela penggabungan **60 detik**; hanya level **ERROR** dan **WARNING** yang ditulis.
-- `PERAN_ERP_DIIZINKAN` bawaan `support`.
+- `ERP_ALLOWED_ROLES` bawaan `support`.
+- **Setelan baru di `Settings` WAJIB ikut ditambahkan ke `docker-compose.yml` service
+  `console` dan ke `.env.example`, di commit yang sama.**
+  `tests/unit/test_console_compose_env.py` membaca keduanya satu sama lain dan akan
+  gagal kalau tidak. Tes itu ada karena `ERP_COMPANY` pernah rilis tak terjangkau:
+  setelan yang tidak diteruskan compose diam-diam jatuh ke default di dalam container.
 - Dua peran saja: `operator`, `support`.
 
 ---
@@ -46,7 +51,7 @@
 | `services/dev_service.py` | **Baru.** Flow lima layar developer |
 | `routes/console.py` | `require_support`, endpoint `/api/console/dev/*` |
 | `static/console.html` | Lima tab, dirender hanya kalau `peran === "support"` |
-| `core/config.py` | `PERAN_ERP_DIIZINKAN`, `LOG_RETENSI_HARI` |
+| `core/config.py` | `ERP_ALLOWED_ROLES`, `LOG_RETENSI_HARI` |
 
 ---
 
@@ -219,12 +224,22 @@ def test_peran_dikenal_lolos_apa_adanya():
 
 def test_peran_asing_jatuh_ke_operator():
     """Sebuah nilai yang tidak dikenal tidak boleh membuka apa pun."""
-    for nilai in ("admin", "SUPPORT ", "", None, 7, "developer"):
+    for nilai in ("admin", "", None, 7, "developer"):
         assert peran_sah(nilai) == PERAN_OPERATOR
 
 
 def test_peran_dibaca_tanpa_peduli_besar_kecil_huruf():
     assert peran_sah("Support") == PERAN_SUPPORT
+
+
+def test_spasi_pinggir_ditoleransi():
+    """Nilai peran datang dari env dan dari kolom yang bisa diketik orang.
+
+    Menolak karena satu spasi akan menurunkan akun support jadi operator tanpa
+    jejak apa pun — gagal diam-diam, yang paling mahal di layar pabrik.
+    """
+    assert peran_sah("  support  ") == PERAN_SUPPORT
+    assert peran_sah("SUPPORT ") == PERAN_SUPPORT
 
 
 def test_daftar_izin_dibaca_dari_env():
@@ -286,7 +301,7 @@ def peran_sah(nilai: object) -> str:
 
 
 def parse_daftar_izin(mentah: str) -> frozenset[str]:
-    """`PERAN_ERP_DIIZINKAN` jadi himpunan peran yang boleh datang dari ERP."""
+    """`ERP_ALLOWED_ROLES` jadi himpunan peran yang boleh datang dari ERP."""
     if not mentah:
         return frozenset()
     return frozenset(
@@ -308,7 +323,7 @@ def saring_peran_erp(nilai: object, diizinkan: frozenset[str]) -> str:
 - [ ] **Step 5: Jalankan tes, pastikan lolos**
 
 Run: `pytest tests/unit/test_peran.py -v && ruff check src/palmgrade/domain/peran.py tests/unit/test_peran.py`
-Expected: 6 PASS, ruff bersih.
+Expected: 7 PASS, ruff bersih.
 
 - [ ] **Step 6: Commit**
 
@@ -565,18 +580,18 @@ git commit -m "feat(konsol): akun support bawaan selalu berperan support"
 - Modify: `src/palmgrade/domain/erp_master.py:32-55` (`operator_row`)
 - Modify: `src/palmgrade/workers/master_data_worker.py:66-70`
 - Modify: `src/palmgrade/repositories/console_repository.py` (`_upsert_operator`)
-- Test: `tests/unit/test_erp_master.py`, `tests/unit/test_console_store.py`
+- Test: `tests/unit/test_erp_master_data.py`, `tests/unit/test_console_store.py`
 
 **Interfaces:**
 - Consumes: `domain.peran.saring_peran_erp`, `parse_daftar_izin`
 - Produces:
-  - `Settings.peran_erp_diizinkan: str` (bawaan `"support"`)
+  - `Settings.erp_allowed_roles: str` (bawaan `"support"`)
   - `operator_row()` mengembalikan kunci `peran`
   - `upsert_operator_erp` menulis peran; akun `asal='lokal'` tidak tersentuh
 
 - [ ] **Step 1: Tulis tes yang gagal**
 
-Tambahkan ke `tests/unit/test_erp_master.py`:
+Tambahkan ke `tests/unit/test_erp_master_data.py`:
 
 ```python
 def test_operator_row_membawa_peran():
@@ -597,7 +612,7 @@ Tambahkan ke `tests/unit/test_console_store.py`:
 
 ```python
 def test_tarikan_erp_menulis_peran_yang_diizinkan(tmp_path):
-    store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset({"support"}))
+    store = ConsoleStore(tmp_path / "c.db", erp_allowed_roles=frozenset({"support"}))
     store.upsert_operator_erp(
         {"email": "s@erp.c", "nama": "S", "password_hash": "x",
          "erp_name": "s@erp.c", "active": 1, "peran": "support"}
@@ -607,7 +622,7 @@ def test_tarikan_erp_menulis_peran_yang_diizinkan(tmp_path):
 
 def test_daftar_izin_kosong_membuang_peran_dari_erp(tmp_path):
     """Rem sisi pabrik: kosongkan .env, restart, tidak ada akun ERP yang naik."""
-    store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset())
+    store = ConsoleStore(tmp_path / "c.db", erp_allowed_roles=frozenset())
     store.upsert_operator_erp(
         {"email": "s@erp.c", "nama": "S", "password_hash": "x",
          "erp_name": "s@erp.c", "active": 1, "peran": "support"}
@@ -617,7 +632,7 @@ def test_daftar_izin_kosong_membuang_peran_dari_erp(tmp_path):
 
 def test_tarikan_erp_tidak_menurunkan_peran_akun_lokal(tmp_path):
     """Akun lokal adalah jalan masuk saat internet mati; ERP tidak boleh menyentuhnya."""
-    store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset({"support"}))
+    store = ConsoleStore(tmp_path / "c.db", erp_allowed_roles=frozenset({"support"}))
     oid = store.upsert_operator_lokal(
         {"email": "support@autograde.local", "nama": "S", "password_hash": "scrypt$x"}
     )
@@ -631,8 +646,8 @@ def test_tarikan_erp_tidak_menurunkan_peran_akun_lokal(tmp_path):
 
 - [ ] **Step 2: Jalankan tes, pastikan gagal**
 
-Run: `pytest tests/unit/test_erp_master.py tests/unit/test_console_store.py -k peran -v`
-Expected: FAIL — `KeyError: 'peran'` / `TypeError: unexpected keyword 'peran_erp_diizinkan'`
+Run: `pytest tests/unit/test_erp_master_data.py tests/unit/test_console_store.py -k peran -v`
+Expected: FAIL — `KeyError: 'peran'` / `TypeError: unexpected keyword 'erp_allowed_roles'`
 
 - [ ] **Step 3: Tambah setelan**
 
@@ -642,8 +657,18 @@ Di `core/config.py`, dalam kelas `Settings`:
     # Peran mana yang boleh datang dari AutoERP. Kosongkan untuk menolak semuanya —
     # satu-satunya rem yang bisa ditarik dari sisi pabrik kalau akun ERP bermasalah,
     # tanpa menunggu ERP dibereskan lebih dulu.
-    peran_erp_diizinkan: str = "support"
+    erp_allowed_roles: str = "support"
 ```
+
+Teruskan juga di `docker-compose.yml`, service `console`, di dekat blok `ERP_*`
+(pola yang sama dengan `ERP_COMPANY` di baris ~396):
+
+```yaml
+      - ERP_ALLOWED_ROLES=${ERP_ALLOWED_ROLES:-support}
+```
+
+dan tambahkan barisnya ke `.env.example`. Tanpa ini
+`tests/unit/test_console_compose_env.py` gagal.
 
 - [ ] **Step 4: `operator_row` membawa peran**
 
@@ -673,20 +698,20 @@ Di `ConsoleStore.__init__`, tambah parameter:
         self,
         db_path: Path,
         *,
-        peran_erp_diizinkan: frozenset[str] | None = None,
+        erp_allowed_roles: frozenset[str] | None = None,
     ) -> None:
 ```
 
-dan simpan: `self._peran_erp_diizinkan = peran_erp_diizinkan or frozenset()`
+dan simpan: `self._erp_allowed_roles = erp_allowed_roles or frozenset()`
 
-Di `_upsert_operator`, saat `asal == "erp"`, hitung peran lewat `saring_peran_erp(row.get("peran"), self._peran_erp_diizinkan)` dan sertakan di `INSERT`. Pada cabang `UPDATE` untuk baris yang sudah ada, peran **hanya** ditimpa kalau baris target `asal='erp'` — baris `lokal` tidak tersentuh, sejalan dengan `overwrite_asal` yang sudah ada.
+Di `_upsert_operator`, saat `asal == "erp"`, hitung peran lewat `saring_peran_erp(row.get("peran"), self._erp_allowed_roles)` dan sertakan di `INSERT`. Pada cabang `UPDATE` untuk baris yang sudah ada, peran **hanya** ditimpa kalau baris target `asal='erp'` — baris `lokal` tidak tersentuh, sejalan dengan `overwrite_asal` yang sudah ada.
 
 Di `routes/console.py` `get_console_service()`, teruskan setelan:
 
 ```python
     store = ConsoleStore(
         settings.console_db_path,
-        peran_erp_diizinkan=parse_daftar_izin(settings.peran_erp_diizinkan),
+        erp_allowed_roles=parse_daftar_izin(settings.erp_allowed_roles),
     )
 ```
 
@@ -712,7 +737,7 @@ git commit -m "feat(konsol): tarik peran dari AutoERP, disaring daftar izin PC"
 **Files:**
 - Modify: `src/palmgrade/routes/console.py:60-75`
 - Modify: `src/palmgrade/domain/operator_error.py`
-- Test: `tests/unit/test_console_session_guard.py`
+- Test: `tests/unit/test_console_routes_auth.py`
 
 **Interfaces:**
 - Consumes: `require_operator`, `domain.peran.PERAN_SUPPORT`
@@ -723,7 +748,7 @@ git commit -m "feat(konsol): tarik peran dari AutoERP, disaring daftar izin PC"
 
 - [ ] **Step 1: Tulis tes yang gagal**
 
-Tambahkan ke `tests/unit/test_console_session_guard.py`:
+Tambahkan ke `tests/unit/test_console_routes_auth.py`:
 
 ```python
 def test_lane_support_menolak_operator_biasa():
@@ -772,7 +797,7 @@ Kalau helper `_app_dengan_store()` belum ada di berkas itu, tulis satu yang mera
 
 - [ ] **Step 2: Jalankan tes, pastikan gagal**
 
-Run: `pytest tests/unit/test_console_session_guard.py -v`
+Run: `pytest tests/unit/test_console_routes_auth.py -v`
 Expected: FAIL — 404 (route `dev/ping` belum ada).
 
 - [ ] **Step 3: Tambah kode galat**
@@ -782,6 +807,12 @@ Di `domain/operator_error.py`, sebelah `BELUM_MASUK`:
 ```python
 BUKAN_SUPPORT = "bukan_support"
 ```
+
+⚠️ **Tambahkan juga ke tuple `CODES` di berkas yang sama, dan ke KAMUS `id` dan `en`
+di `console.html`** (`err_bukan_support:"..."`). `tests/unit/test_console_html.py::
+test_setiap_kode_error_operator_diterjemahkan_di_kedua_bahasa` memaksa tiap kode
+punya terjemahan di kedua bahasa; pesan galat dirangkai di layar dari kodenya, jadi
+kode tanpa terjemahan muncul sebagai teks mentah di depan operator.
 
 - [ ] **Step 4: Tulis penjaga dan route ping**
 
@@ -822,7 +853,7 @@ Di `console_me`, tambahkan `"peran": operator["peran"],` ke dict `operator` yang
 
 - [ ] **Step 6: Jalankan tes, pastikan lolos**
 
-Run: `pytest tests/unit/test_console_session_guard.py -v && ruff check src/palmgrade/routes/console.py`
+Run: `pytest tests/unit/test_console_routes_auth.py -v && ruff check src/palmgrade/routes/console.py`
 Expected: PASS, ruff bersih.
 
 - [ ] **Step 7: Commit**
@@ -926,7 +957,7 @@ gh pr create --base staging --title "feat(console): add a support role and the d
 
 - \`operators.peran\` (operator/support), migrated for factory databases that predate it
 - \`require_support\` → 403; the hidden tabs are tidiness, the guard is the backend
-- roles pulled from AutoERP, filtered by \`PERAN_ERP_DIIZINKAN\` (default \`support\`) — the one brake that can be pulled from the mill side
+- roles pulled from AutoERP, filtered by \`ERP_ALLOWED_ROLES\` (default \`support\`) — the one brake that can be pulled from the mill side
 - local accounts are never touched by a pull, so a mill with no internet keeps its way in
 
 Needs delta-anugrah/autoerp#<N> merged first: Frappe answers 417 for one unknown field."
@@ -1479,6 +1510,15 @@ Di `core/config.py`, tambahkan:
 
 Tambahkan juga `log_db_path` mengikuti pola `console_db_path` yang sudah ada.
 
+Teruskan setelan yang dibaca dari env di `docker-compose.yml` service `console`
+dan `.env.example`, di commit yang sama:
+
+```yaml
+      - LOG_RETENSI_HARI=${LOG_RETENSI_HARI:-180}
+```
+
+Tanpa ini `tests/unit/test_console_compose_env.py` gagal.
+
 Di `console_main.py`, dalam lifespan, sesudah store konsol dibuat:
 
 ```python
@@ -1644,6 +1684,13 @@ async def dev_log(
 Di `console.html`, tambahkan panel `<section data-panel="log">` berisi: dua tombol saring level (Semua / ERROR / WARNING), satu kotak cari, tabel (waktu, level, sumber, pesan, `×jumlah`), dan tombol halaman berikut/sebelumnya memakai `total` dari respons.
 
 ⚠️ Total halaman **wajib** dari `total` respons, bukan `items.length` — jebakan yang sama dengan pagination grading (memori `project_konsol_login_operator`).
+
+⚠️ **Tambahkan tes pemetaan tab ↔ panel** di `tests/unit/test_console_html.py`: tiap
+`data-tab="x"` yang punya panel harus punya `id="sec-x"` yang cocok. Task 7 memasang
+penjaga null di `terapkanTab()` (perlu, karena lima tab dev belum punya panel) —
+konsekuensinya `data-tab` salah ketik sekarang diam-diam tidak melakukan apa-apa
+alih-alih melempar. Panel dev pertama lahir di task ini, jadi di sinilah tesnya mulai
+punya sesuatu untuk dijaga.
 
 - [ ] **Step 6: Jalankan tes, pastikan lolos**
 
@@ -2097,7 +2144,7 @@ Di `.env.example`, dengan komentarnya:
 ```bash
 # Peran mana yang boleh datang dari AutoERP. Kosongkan untuk menolak semuanya —
 # rem sisi pabrik kalau akun ERP bermasalah.
-PERAN_ERP_DIIZINKAN=support
+ERP_ALLOWED_ROLES=support
 
 # Berapa lama riwayat galat disimpan untuk layar Log support.
 LOG_RETENSI_HARI=180

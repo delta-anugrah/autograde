@@ -17,7 +17,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from palmgrade.domain.operator_auth import hash_password
-from palmgrade.domain.operator_error import BELUM_MASUK, BUKAN_PLAT, SANDI_SALAH
+from palmgrade.domain.operator_error import (
+    BELUM_MASUK,
+    BUKAN_PLAT,
+    BUKAN_SUPPORT,
+    SANDI_SALAH,
+)
 from palmgrade.domain.plate import truck_id_for
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.routes.console import (
@@ -52,8 +57,8 @@ class _StubConsole:
 @pytest.fixture
 def console(tmp_path):
     store = ConsoleStore(tmp_path / "console.db")
-    store.upsert_operator_lokal(
-        {"email": EMAIL, "nama": NAMA, "password_hash": hash_password(SANDI)}
+    store.upsert_operator_manual(
+        {"email": EMAIL, "full_name": NAMA, "password_hash": hash_password(SANDI)}
     )
     auth = AuthService(store)
     stub = _StubConsole()
@@ -86,7 +91,7 @@ def test_the_right_password_opens_every_lane(console):
 
     assert _sign_in(client).status_code == 200
     assert client.get("/api/console/state").status_code == 200
-    assert client.get("/api/console/me").json()["operator"]["nama"] == NAMA
+    assert client.get("/api/console/me").json()["operator"]["full_name"] == NAMA
 
 
 def test_the_session_cookie_cannot_be_read_by_a_script_on_the_page(console):
@@ -191,3 +196,53 @@ def test_scan_yang_bukan_plat_ditolak_400(console):
 
     assert response.status_code == 400
     assert response.json()["detail"]["code"] == BUKAN_PLAT
+
+
+# ── developer lane: require_support (2026-09-15) ──────────────────────────────
+
+
+def test_lane_support_menolak_operator_biasa(console):
+    """The backend enforces this, not just a hidden tab."""
+    client, _, _ = console
+    _sign_in(client)
+
+    response = client.get("/api/console/dev/ping")
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == BUKAN_SUPPORT
+
+
+def test_lane_support_menerima_akun_support(console):
+    client, store, _ = console
+    oid = store.upsert_operator_manual(
+        {"email": "s@b.c", "full_name": "S", "password_hash": hash_password(SANDI)}
+    )
+    store.set_role(oid, "support")
+
+    _sign_in(client, email="s@b.c")
+    response = client.get("/api/console/dev/ping")
+
+    assert response.status_code == 200
+
+
+def test_lane_support_tanpa_sesi_tetap_401(console):
+    """Not signed in answers 401, not 403 — the screen shows the difference."""
+    client, _, _ = console
+
+    response = client.get("/api/console/dev/ping")
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == BELUM_MASUK
+
+
+def test_me_membawa_peran(console):
+    client, store, _ = console
+    oid = store.upsert_operator_manual(
+        {"email": "s@b.c", "full_name": "S", "password_hash": hash_password(SANDI)}
+    )
+    store.set_role(oid, "support")
+
+    _sign_in(client, email="s@b.c")
+    response = client.get("/api/console/me")
+
+    assert response.json()["operator"]["role"] == "support"

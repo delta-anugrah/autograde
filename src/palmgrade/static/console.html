@@ -284,6 +284,43 @@
   .card h2 .ord { display:flex; align-items:center; gap:4px; }
   .card h2 button { padding:2px 9px; font-size:.85rem; line-height:1.2; color:var(--muted); }
 
+  /* Diagnostik: one .card per line, same grid rhythm as #lines above. */
+  .kartu-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+  .kartu-grid .card.tidak-terjangkau { border-color:var(--rej); }
+  .kartu-grid dl { margin:0; padding:10px 13px; display:grid; grid-template-columns:auto 1fr;
+                   gap:4px 10px; font-size:.85rem; }
+  .kartu-grid dt { color:var(--muted); }
+  .kartu-grid dd { margin:0; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* Uji PLC: the only card that moves hardware. DI bits are read-only text;
+     coil buttons get the danger tokens piston.terbuka already uses, so the
+     one control in the whole console that fires a physical output stands
+     out even read from several metres away outdoors. */
+  .plc-di { padding:8px 13px; font-size:.8rem; display:flex; flex-wrap:wrap; gap:8px; }
+  .plc-di-bit { white-space:nowrap; }
+  .plc-coil { padding:0 13px 12px; display:flex; flex-wrap:wrap; gap:8px; }
+  button.uji-coil { flex:1; min-width:9rem; min-height:2.6rem; border-color:var(--danger-line);
+                     background:var(--danger-bg); color:var(--danger-fg); font-weight:600; }
+  button.uji-coil:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
+
+  /* Konfirmasi uji PLC: inline, bukan dialog bawaan browser - lihat komentar HTML
+     di #sec-plc. Sama bentuknya dengan .tara-grup, ditempatkan di luar #plc-kartu
+     supaya tidak ikut terhapus saat kartu dibangun ulang oleh polling. */
+  .plc-konfirmasi { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+                     margin:12px var(--pad) 0; padding:11px 13px; border-radius:var(--r-sm);
+                     border:1px solid var(--danger-line); background:var(--danger-bg); }
+  .plc-konfirmasi[hidden] { display:none; }
+  .plc-konfirmasi b { flex:1 1 100%; color:var(--danger-fg); font-weight:600; }
+  .plc-konfirmasi input { flex:0 0 8rem; font-family:var(--mono); text-transform:uppercase; }
+  .plc-konfirmasi button { flex:0 0 7rem; }
+
+  /* Versi: a plain definition list, key left, value right. */
+  .daftar-definisi { background:var(--card); border:1px solid var(--line-kuat);
+                      border-radius:var(--r-md); padding:14px var(--pad); margin:0 var(--pad);
+                      display:grid; grid-template-columns:auto 1fr; gap:8px 16px; max-width:480px; }
+  .daftar-definisi dt { color:var(--muted); }
+  .daftar-definisi dd { margin:0; font-weight:600; }
+
   /* Camera state in a word, not only a colour, and in the title bar where it is
      readable even when the feed itself is a black box. `.putus` lives on the
      card so one class drives both the header and the feed. */
@@ -478,6 +515,12 @@
   .tools .catatan { font-size:.78rem; color:var(--muted); }
   .tools .pilih { flex:0 0 16rem; }
   .tools button { flex:0 0 12rem; }
+  /* Level filter: three fixed choices read faster as buttons than a dropdown
+     on a touchscreen read from a few metres away. */
+  .log-level { display:flex; gap:4px; flex:0 0 auto; }
+  .log-level button { flex:0 0 auto; min-width:5rem; background:var(--zebra);
+                       color:var(--muted); border:1px solid var(--line); }
+  .log-level button.aktif { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
      screen, and without this the page itself scrolls sideways. */
   .tabel { overflow-x:auto; background:var(--card);
@@ -609,6 +652,11 @@
   <button data-tab="truk" data-t="judulTruk">Truk</button>
   <button data-tab="timbangan" data-t="judulTimbangan">Timbangan</button>
   <button data-tab="rekap" data-t="judulRekap">Rekap</button>
+  <button data-tab="log" data-dev="1" data-t="judulLog">Log</button>
+  <button data-tab="diagnostik" data-dev="1" data-t="judulDiagnostik">Diagnostik</button>
+  <button data-tab="antrean" data-dev="1" data-t="judulAntrean">Antrean ERP</button>
+  <button data-tab="versi" data-dev="1" data-t="judulVersi">Versi</button>
+  <button data-tab="plc" data-dev="1" data-t="judulPlc">Uji PLC</button>
 </nav>
 
 <section id="sec-grading" class="panel" hidden>
@@ -784,6 +832,98 @@
   </div>
 </section>
 
+<section id="sec-log" class="panel" hidden data-dev="1">
+  <!--
+    Support-only: read via /api/console/dev/log, guarded server-side by
+    require_support. Identical messages are already merged into one row with
+    a count (LogStore's merge window) - this screen just displays that.
+  -->
+  <div class="tools">
+    <span class="log-level" id="log-level" data-nilai="">
+      <button type="button" class="aktif" data-nilai="" data-t="logSemua">Semua</button>
+      <button type="button" data-nilai="ERROR">ERROR</button>
+      <button type="button" data-nilai="WARNING">WARNING</button>
+    </span>
+    <input id="log-cari" data-t-ph="phCariLog" placeholder="Cari pesan atau sumber" autocomplete="off">
+  </div>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thWaktu">Waktu</th><th data-t="thLevel">Level</th>
+        <th data-t="thSumber">Sumber</th><th data-t="thPesan">Pesan</th>
+        <th class="num" data-t="thJumlah">×</th></tr></thead>
+      <tbody id="log-baris"></tbody>
+    </table>
+  </div>
+  <div class="halaman">
+    <span id="log-rentang" class="muted"></span>
+    <span class="halaman-tombol">
+      <button type="button" id="log-prev" data-t="halamanSebelum" disabled>Sebelumnya</button>
+      <button type="button" id="log-next" data-t="halamanBerikut" disabled>Berikutnya</button>
+    </span>
+  </div>
+</section>
+
+<section id="sec-diagnostik" class="panel" hidden data-dev="1">
+  <!--
+    Support-only: /health/detail from each line, gathered concurrently server-side.
+    An unreachable line still gets a card - that is the one worth seeing.
+  -->
+  <div id="diagnostik-kartu" class="kartu-grid"></div>
+</section>
+
+<section id="sec-antrean" class="panel" hidden data-dev="1">
+  <!--
+    Support-only: what is stuck in the ERP outbox, why, and one button to
+    move it all back to pending so the next tick tries again.
+  -->
+  <div class="tools">
+    <span id="antrean-ringkas" class="muted"></span>
+    <button type="button" id="antrean-kirim-ulang" data-t="btnKirimUlang">Kirim Ulang</button>
+  </div>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thJenis">Jenis</th><th data-t="thKunci">Kunci</th>
+        <th data-t="thPesan">Pesan</th><th class="num" data-t="thPercobaan">Percobaan</th>
+        <th data-t="thBerikutnya">Percobaan berikutnya</th></tr></thead>
+      <tbody id="antrean-baris"></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="sec-versi" class="panel" hidden data-dev="1">
+  <!-- Support-only. Version, machine id, licence state - never a secret. -->
+  <dl id="versi-daftar" class="daftar-definisi"></dl>
+</section>
+
+<section id="sec-plc" class="panel" hidden data-dev="1">
+  <!--
+    Support-only. The ONLY screen in the console that moves physical hardware -
+    reading (this panel) is always safe to open, firing a coil is not. One
+    card per line (a coil address only means something on its own line's PLC
+    connection - main.py per line, never console_main.py). Coil buttons are
+    disabled while that line is busy, with a visible reason, and confirming a
+    fire always goes through a typed dialog, never a bare click.
+  -->
+  <div id="plc-kartu" class="kartu-grid"></div>
+  <!--
+    Inline, BUKAN kotak dialog bawaan browser: kotaknya kecil untuk jempol bersarung
+    tangan, tidak bisa diatur ukurannya, dan menerima teks apa pun tanpa validasi.
+    Sama seperti tara-grup di tab Timbangan - dialog yang menutup layar
+    menghilangkan kamera line dan strip tally justru saat firing sedang ditunggu.
+
+    Ketikan tetap wajib (bukan tombol klik): klik bisa tersenggol jempol
+    bersarung tangan di layar sentuh, ketikan tidak. Ini satu-satunya layar
+    konsol yang menggerakkan besi sungguhan.
+  -->
+  <div id="plc-konfirmasi" class="plc-konfirmasi" hidden>
+    <b id="plc-konfirmasi-teks"></b>
+    <input id="plc-konfirmasi-nilai" data-t-ph="phUjiPlc" placeholder="UJI"
+           autocomplete="off" autocapitalize="characters" spellcheck="false">
+    <button type="button" id="plc-konfirmasi-jalankan" class="utama" data-t="btnUjiPlcJalankan">Jalankan</button>
+    <button type="button" id="plc-konfirmasi-batal" data-t="btnBatal">Batal</button>
+  </div>
+</section>
+
 <script>
 const $ = (id) => document.getElementById(id);
 // Escapes ' and ` too: these values go into HTML attributes, and line_code can
@@ -798,6 +938,7 @@ let trucks = [];
 const KAMUS = {
   id: {
     judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan", judulRekap:"Rekap",
+    judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", judulPlc:"Uji PLC",
     labelHariIni:"Hari ini", labelRasio:"Rasio ACC",
     labelLayout:"Tata letak", kolomAuto:"Otomatis", statusOnline:"Online", statusOffline:"Offline",
     kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
@@ -805,7 +946,10 @@ const KAMUS = {
     thNo:"No", thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"Masuk", thKeluar:"Keluar", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
-    phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
+    thLevel:"Level", thPesan:"Pesan", thJumlah:"×",
+    phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan atau sumber",
+    hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
+    logSemua:"Semua", kosongLog:"Belum ada galat tercatat", gagalLog:"Gagal memuat log",
     btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
@@ -819,7 +963,7 @@ const KAMUS = {
     gagalReject:"Reject manual gagal", gagalDaftar:"Gagal mendaftarkan truk",
     gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
-    bruto_kg:"Bruto", tara_kg:"Tara",
+    gross_kg:"Bruto", tare_kg:"Tara",
     err_plat_kosong:"Nomor polisi tidak boleh kosong",
     err_bukan_plat:"Yang di-scan bukan nomor polisi",
     err_bukan_angka:"{field} bukan angka: {value}",
@@ -833,6 +977,7 @@ const KAMUS = {
     err_sandi_salah:"Email atau sandi salah",
     err_terkunci:"Login terkunci {detik} detik lagi setelah beberapa sandi salah",
     err_belum_masuk:"Sesi habis - masuk lagi",
+    err_bukan_support:"Menu ini untuk akun support",
     gerbangJudul:"Masuk ke konsol", gerbangPilih:"Ketik email dan sandi",
     gerbangEmail:"Email", gerbangSandi:"Sandi",
     gerbangMasuk:"Masuk", tombolKeluar:"Keluar",
@@ -859,9 +1004,31 @@ const KAMUS = {
     konfirmasiBuka:"Buka piston {line}? Ini menggerakkan besi.",
     labelInternal:"Internal · REJ tidak dibuang",
     gagalPiston:"Perintah piston gagal",
+    thSebab:"Sebab", thKamera:"Kamera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
+    thAntreanLokal:"Antrean lokal", lineTidakTerjangkau:"Tidak terjangkau",
+    gagalDiagnostik:"Gagal memuat diagnostik",
+    thJenis:"Jenis", thKunci:"Kunci", thPercobaan:"Percobaan", thBerikutnya:"Percobaan berikutnya",
+    antreanSekarang:"Sekarang",
+    btnKirimUlang:"Kirim Ulang", ringkasAntrean:"{pending} menunggu · {gagal} gagal",
+    kosongAntrean:"Antrean ERP kosong", gagalAntrean:"Gagal memuat antrean",
+    labelVersi:"Versi", labelMachineId:"Machine ID", labelEnvironment:"Environment",
+    labelLisensi:"Lisensi", gagalVersi:"Gagal memuat versi",
+    lisensiAktif:"Aktif", lisensiTanpaToken:"Aktif, token belum terpasang", lisensiMati:"Mati",
+    thDi:"DI", diAktif:"Aktif", diMati:"Mati", plcMati:"PLC mati di line ini",
+    gagalPlc:"Gagal memuat status PLC",
+    btnUjiCoil:"Uji coil {coil}", coilMatiLineSibuk:"Line sedang memproses truk",
+    konfirmasiUjiPlc:"Coil {coil} di {line} akan menyala sesaat - ini menggerakkan barang sungguhan. Ketik UJI untuk lanjut:",
+    phUjiPlc:"Ketik UJI", btnUjiPlcJalankan:"Jalankan",
+    ujiPlcDibatalkan:"Dibatalkan - konfirmasi tidak cocok",
+    ujiPlcBerhasil:"Coil {coil} dipicu", ujiPlcDijatuhkan:"Coil {coil} TIDAK menyala - antrean pulse PLC penuh, coba lagi",
+    gagalUjiPlc:"Gagal memicu coil",
+    err_konfirmasi_kurang:"Ketik UJI persis untuk memicu coil",
+    err_plc_sibuk:"Line sedang memproses truk - coil tidak bisa dipicu",
+    err_coil_tidak_dikenal:"Coil ini tidak dikenal line",
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
+    judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", judulPlc:"PLC Test",
     labelHariIni:"Today", labelRasio:"ACC rate",
     labelLayout:"Layout", kolomAuto:"Auto", statusOnline:"Online", statusOffline:"Offline",
     kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
@@ -869,7 +1036,10 @@ const KAMUS = {
     thNo:"No", thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"In", thKeluar:"Out", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
-    phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
+    thLevel:"Level", thPesan:"Message", thJumlah:"×",
+    phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message or source",
+    hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
+    logSemua:"All", kosongLog:"No faults logged yet", gagalLog:"Failed to load the log",
     btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
@@ -883,7 +1053,7 @@ const KAMUS = {
     gagalReject:"Manual reject failed", gagalDaftar:"Failed to register truck",
     gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
     gagalKonsol:"Console not responding", kameraPutus:"Camera not connected",
-    bruto_kg:"Gross", tara_kg:"Tare",
+    gross_kg:"Gross", tare_kg:"Tare",
     err_plat_kosong:"Plate number cannot be empty",
     err_bukan_plat:"What was scanned is not a plate number",
     err_bukan_angka:"{field} is not a number: {value}",
@@ -897,6 +1067,7 @@ const KAMUS = {
     err_sandi_salah:"Wrong email or password",
     err_terkunci:"Sign-in locked for another {detik} s after repeated wrong passwords",
     err_belum_masuk:"Session ended - sign in again",
+    err_bukan_support:"This menu is for support accounts",
     gerbangJudul:"Sign in to the console", gerbangPilih:"Type your email and password",
     gerbangEmail:"Email", gerbangSandi:"Password",
     gerbangMasuk:"Sign in", tombolKeluar:"Sign out",
@@ -921,6 +1092,27 @@ const KAMUS = {
     konfirmasiBuka:"Open the piston on {line}? This moves metal.",
     labelInternal:"Internal · REJ not discarded",
     gagalPiston:"Piston command failed",
+    thSebab:"Reason", thKamera:"Camera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
+    thAntreanLokal:"Local queue", lineTidakTerjangkau:"Unreachable",
+    gagalDiagnostik:"Failed to load diagnostics",
+    thJenis:"Kind", thKunci:"Key", thPercobaan:"Attempts", thBerikutnya:"Next attempt",
+    antreanSekarang:"Now",
+    btnKirimUlang:"Resend", ringkasAntrean:"{pending} pending · {gagal} failed",
+    kosongAntrean:"ERP queue is empty", gagalAntrean:"Failed to load the queue",
+    labelVersi:"Version", labelMachineId:"Machine ID", labelEnvironment:"Environment",
+    labelLisensi:"Licence", gagalVersi:"Failed to load version",
+    lisensiAktif:"Active", lisensiTanpaToken:"Active, no token installed", lisensiMati:"Inactive",
+    thDi:"DI", diAktif:"On", diMati:"Off", plcMati:"PLC is off on this line",
+    gagalPlc:"Failed to load PLC status",
+    btnUjiCoil:"Test coil {coil}", coilMatiLineSibuk:"Line is processing a truck",
+    konfirmasiUjiPlc:"Coil {coil} on {line} will pulse briefly - this moves real hardware. Type UJI to continue:",
+    phUjiPlc:"Type UJI", btnUjiPlcJalankan:"Fire",
+    ujiPlcDibatalkan:"Cancelled - confirmation did not match",
+    ujiPlcBerhasil:"Coil {coil} fired", ujiPlcDijatuhkan:"Coil {coil} did NOT fire - PLC pulse queue is full, try again",
+    gagalUjiPlc:"Failed to fire coil",
+    err_konfirmasi_kurang:"Type UJI exactly to fire the coil",
+    err_plc_sibuk:"Line is processing a truck - the coil cannot be fired",
+    err_coil_tidak_dikenal:"This coil is not known to the line",
   },
 };
 
@@ -1084,7 +1276,7 @@ document.addEventListener("focusout", (ev) => {
 });
 
 // ── truck / weighbridge tabs ───────────────────────────────────────────
-const TAB_SAH = ["grading", "truk", "timbangan", "rekap"];
+const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "diagnostik", "antrean", "versi", "plc"];
 let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
 
 function terapkanTab() {
@@ -1092,8 +1284,25 @@ function terapkanTab() {
     const aktif = b.dataset.tab === tab;
     b.classList.toggle("aktif", aktif);
     b.setAttribute("aria-selected", String(aktif));
-    $("sec-" + b.dataset.tab).hidden = !aktif;
+    const panel = $("sec-" + b.dataset.tab);
+    if (panel) panel.hidden = !aktif;
   });
+}
+
+// Support-only tabs are not part of the 2 s poll (the stores run their own
+// retention/backoff on their own schedule) - loaded on demand instead, same
+// as switching into any of them. Diagnostik alone keeps refreshing while the
+// tab stays open (a line coming back or dying should show up unattended);
+// the timer is started/stopped in `bukaTabDev` below, never left running
+// behind a tab nobody is looking at.
+const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc };
+
+function bukaTabDev(namaTab) {
+  clearInterval(diagnostikTimer);
+  diagnostikTimer = null;
+  const muat = MUAT_TAB[namaTab] ? MUAT_TAB[namaTab]() : Promise.resolve();
+  if (namaTab === "diagnostik") diagnostikTimer = setInterval(muatDiagnostik, 5000);
+  return muat;
 }
 
 $("tabs").addEventListener("click", (ev) => {
@@ -1102,6 +1311,7 @@ $("tabs").addEventListener("click", (ev) => {
   tab = b.dataset.tab;
   simpan("tab", tab);
   terapkanTab();
+  bukaTabDev(tab);
 });
 
 // ── camera layout ──────────────────────────────────────────────────────
@@ -1159,9 +1369,9 @@ function segarkanHalaman() {
   $("grading-nomor").innerHTML = tombolNomorHalaman();
 }
 
-// Berapa nomor halaman yang ditampilkan di kiri dan kanan halaman sekarang. 653
-// halaman tidak bisa dicetak semua - layar operator dibaca dari beberapa meter, dan
-// deretan tombol sekecil itu tidak bisa ditekan dengan sarung tangan.
+// How many page numbers show on each side of the current page. 653 pages
+// cannot all be printed - the operator screen is read from a few metres away,
+// and a row of buttons that small cannot be pressed wearing gloves.
 const JENDELA_HALAMAN = 2;
 
 function tombolNomorHalaman() {
@@ -1170,8 +1380,8 @@ function tombolNomorHalaman() {
   if (jumlah <= 1) return "";
   const kini = Math.floor(gradingOffset / per) + 1;
 
-  // Halaman pertama dan terakhir selalu ikut: dua ujung daftar harus terjangkau
-  // dalam satu ketukan, dari halaman mana pun.
+  // The first and last page are always included: both ends of the list must
+  // be reachable in one tap, from any page.
   const nomor = new Set([1, jumlah]);
   for (let n = kini - JENDELA_HALAMAN; n <= kini + JENDELA_HALAMAN; n++) {
     if (n >= 1 && n <= jumlah) nomor.add(n);
@@ -1180,10 +1390,10 @@ function tombolNomorHalaman() {
   const urut = [...nomor].sort((a, b) => a - b);
   let html = "";
   urut.forEach((n, i) => {
-    // Celah ditandai, bukan disembunyikan: tanpa tanda, 1 lalu 298 terbaca seperti
-    // halaman yang hilang.
+    // The gap is marked, not hidden: without a mark, 1 then 298 reads like a
+    // missing page.
     if (i > 0 && n - urut[i - 1] > 1) html += `<span class="halaman-celah">…</span>`;
-    // aria-label: angka telanjang tidak mengatakan apa-apa ke pembaca layar.
+    // aria-label: a bare number tells a screen reader nothing.
     html += `<button type="button" class="halaman-no" data-halaman="${n}"
              aria-label="${esc(t("keHalaman"))} ${n}"
              aria-current="${n === kini}"${n === kini ? " disabled" : ""}>${n}</button>`;
@@ -1196,13 +1406,14 @@ function gantiHalaman(arah) {
   keHalaman(Math.floor(gradingOffset / per) + 1 + arah);
 }
 
-// Lompat ke satu halaman. Dipakai tombol nomor DAN Sebelumnya/Berikutnya, jadi
-// penjepitan rentangnya cuma ada di satu tempat.
+// Jump to one page. Used by the number buttons AND Previous/Next, so the
+// range clamping lives in exactly one place.
 function keHalaman(nomor) {
   const per = Number(gradingPer);
   const jumlah = Math.max(1, Math.ceil(gradingTotal / per));
-  // Dijepit dua sisi: offset negatif maupun offset di luar akhir daftar dibalas 422
-  // oleh server, dan layar cuma menampilkan error tanpa sebab yang kelihatan.
+  // Clamped on both sides: a negative offset or one past the end of the list
+  // is answered 422 by the server, and the screen just shows an error with no
+  // visible cause.
   const aman = Math.max(1, Math.min(nomor, jumlah));
   const baru = (aman - 1) * per;
   if (baru === gradingOffset) return;
@@ -1210,8 +1421,8 @@ function keHalaman(nomor) {
   muatGrading();
 }
 
-// Delegasi: tombol nomornya dirakit ulang setiap halaman berubah, jadi listener per
-// tombol akan hilang bersamanya.
+// Delegated: the number buttons are rebuilt on every page change, so a
+// per-button listener would disappear along with them.
 $("grading-nomor").addEventListener("click", (ev) => {
   const tombol = ev.target.closest("button[data-halaman]");
   if (tombol) keHalaman(Number(tombol.dataset.halaman));
@@ -1330,22 +1541,22 @@ function isiTruk(a) {
     <b class="plat">${dash(a.plate_number)}</b>
     <span class="lb">${esc(t("supplier"))}</span>
     <span class="sup"><span>${dash(a.supplier_name)}</span>
-      <span class="pill">${dash(a.sumber_label)}</span></span>
+      <span class="pill">${dash(a.source_label)}</span></span>
   </span>`;
 }
 
-// Keadaan tombol datang dari PLC (l.plc), bukan dari klik terakhir: kalau ladder
-// menolak karena E-stop, tombol tidak boleh mengaku piston sudah terbuka. Line
-// tidak terjangkau ATAU PLC/coil belum dikonfigurasi (piston_requested null/
-// undefined - lihat plc.piston_state()) mati dengan alasan, bukan menebak.
+// Button state comes from the PLC (l.plc), not from the last click: if the
+// ladder refuses because of an E-stop, the button must not claim the piston
+// is open. Line unreachable OR PLC/coil not configured (piston_requested
+// null/undefined - see plc.piston_state()) is off with a reason, not a guess.
 function tombolPiston(l) {
   const p = l.plc || {};
   if (!p.reachable || p.piston_requested === null || p.piston_requested === undefined)
     return `<button class="piston" data-aksi="piston" disabled title="${esc(t("pistonMati"))}">${esc(t("pistonMati"))}</button>`;
   const menunggu = p.piston_requested && p.piston_open === false;
-  // piston_open === null dengan piston_requested true = PLC_DI_MANUAL belum
-  // diset: ikuti permintaan (tampilkan sebagai terbuka) tapi katakan belum
-  // dikonfirmasi PLC - jangan diam-diam berpura-pura DI sudah menjawab.
+  // piston_open === null with piston_requested true = PLC_DI_MANUAL not set
+  // yet: follow the request (show as open) but say it is not confirmed by
+  // the PLC - never silently pretend the DI already answered.
   const belumKonfirmasi = p.piston_requested && p.piston_open === null;
   const terbuka = p.piston_open === true || belumKonfirmasi;
   const teks = menunggu ? t("pistonMenunggu") : terbuka ? t("btnPistonTutup") : t("btnPistonBuka");
@@ -1354,9 +1565,9 @@ function tombolPiston(l) {
      data-buka="${terbuka ? "0" : "1"}"${menunggu ? " disabled" : ""}>${esc(teks)}${esc(catatan)}<span class="pintas"></span></button>`;
 }
 
-// Merah, teks besar: dibaca dari beberapa meter saat besi memang sedang
-// bergerak. `belumKonfirmasi` memakai frasa yang sama dengan tombolnya supaya
-// pita dan tombol tidak pernah bilang dua hal berbeda soal line yang sama.
+// Red, large text: read from a few metres away while the hardware is
+// actually moving. `belumKonfirmasi` uses the same phrase as the button so
+// the banner and the button never say two different things about the same line.
 function pitaPiston(l) {
   const p = l.plc || {};
   const belumKonfirmasi = p.piston_requested && p.piston_open === null;
@@ -1416,25 +1627,25 @@ function barisTruk(tr) {
   return `<tr>
     <td class="key">${dash(tr.plate_number)}</td>
     <td>${dash(tr.supplier_name)}</td>
-    <td>${dash(tr.sumber_label)}</td>
+    <td>${dash(tr.source_label)}</td>
     <td>${dash(tr.status)}</td>
   </tr>`;
 }
 
 function barisTimbangan(w) {
   // The row carries the ticket identity so weigh-out resends exactly the same
-  // key (ref, or plate + waktu_masuk) - miss it and one ticket splits into two
+  // key (ref, or plate + entered_at) - miss it and one ticket splits into two
   // rows with its neto gone.
   return `<tr data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
-              data-masuk="${esc(w.waktu_masuk ?? "")}">
-    <td>${w.waktu_masuk ? waktu(w.waktu_masuk) : KOSONG}</td>
-    <td>${w.waktu_keluar ? waktu(w.waktu_keluar) : KOSONG}</td>
+              data-masuk="${esc(w.entered_at ?? "")}">
+    <td>${w.entered_at ? waktu(w.entered_at) : KOSONG}</td>
+    <td>${w.exited_at ? waktu(w.exited_at) : KOSONG}</td>
     <td class="key">${dash(w.plate_number)}</td>
-    <td>${dash(w.sumber_label)}</td>
-    <td class="num">${kg(w.bruto_kg)}</td>
-    <td class="num">${kg(w.tara_kg)}</td>
-    <td class="num">${kg(w.neto_kg)}</td>
-    <td>${w.tara_kg == null ? `<button data-aksi="keluar">${esc(t("btnKeluar"))}</button>` : ""}</td>
+    <td>${dash(w.source_label)}</td>
+    <td class="num">${kg(w.gross_kg)}</td>
+    <td class="num">${kg(w.tare_kg)}</td>
+    <td class="num">${kg(w.net_kg)}</td>
+    <td>${w.tare_kg == null ? `<button data-aksi="keluar">${esc(t("btnKeluar"))}</button>` : ""}</td>
   </tr>`;
 }
 
@@ -1444,16 +1655,16 @@ function barisTimbangan(w) {
 // table head and this cell together:
 //   <td class="num">${r.ripeness_confidence == null ? KOSONG : Number(r.ripeness_confidence).toFixed(2)}</td>
 function barisRecent(r, i) {
-  // Offset halaman + posisi, bukan posisi saja. Ditemukan di PC pabrik dengan
-  // 130.506 baris: tanpa offset setiap halaman menomori 1..200 lagi, jadi dua baris
-  // berbeda punya nomor sama dan operator tidak bisa menyebut "baris nomor 412"
-  // kepada siapa pun.
+  // Page offset + position, not position alone. Found on the factory PC with
+  // 130,506 rows: without the offset every page numbers 1..200 again, so two
+  // different rows carry the same number and the operator cannot call out
+  // "row number 412" to anyone.
   return `<tr>
     <td class="no">${gradingOffset + i + 1}</td>
     <td>${waktu(r.timestamp)}</td>
     <td>${esc(r.line_code)}</td>
     <td class="key">${dash(r.plate_number)}</td>
-    <td>${dash(r.sumber_label)}</td>
+    <td>${dash(r.source_label)}</td>
     <td>${tagHasil(r.ripeness_status)}</td>
     <td>${r.image_url ? `<a href="${esc(r.image_url)}" target="_blank"><img src="${esc(r.image_url)}" alt=""></a>` : KOSONG}</td>
   </tr>`;
@@ -1559,10 +1770,10 @@ document.addEventListener("keydown", (ev) => {
   tombol.click();
 });
 
-// P + 1..3 = buka/tutup piston panel ke-1..3, P + 0 = tutup semua yang terbuka.
-// Huruf lain dari Spasi supaya jari tidak tertukar dengan Reject. Dibaca dari
-// ev.code, jadi layout keyboard tidak mengubah apa pun. Statusnya dilepas di
-// keyup DAN di blur: Alt-Tab menelan keyup dan tombolnya akan tersangkut.
+// P + 1..3 = open/close piston panel 1..3, P + 0 = close every open one.
+// A different key from Space so a finger cannot mix it up with Reject. Read
+// from ev.code, so keyboard layout changes nothing. Released on keyup AND on
+// blur: Alt-Tab swallows keyup and the key would otherwise get stuck held.
 let pTahan = false;
 addEventListener("blur", () => { pTahan = false; });
 document.addEventListener("keyup", (ev) => { if (ev.code === "KeyP") pTahan = false; });
@@ -1612,14 +1823,16 @@ $("daftar").addEventListener("click", async () => {
 // Weigh-in: bruto now, tara hours later. The time comes from the browser clock
 // - on the mill PC that is the same clock the operator reads, and the server
 // derives the working day from it (§6.1).
-// ── scan QR di gerbang timbangan ───────────────────────────────────────
-// Scanner mengirim isi QR lalu Enter. Lane `/api/console/scan` yang menormalkan
-// platnya dan menolak yang bukan plat - layar tidak menebak sendiri, supaya tidak
-// ada aturan kedua yang bisa berbeda dari servernya.
+// ── scan QR at the weighbridge gate ─────────────────────────────────────
+// The scanner sends the QR content then Enter. The `/api/console/scan` lane
+// normalises the plate and rejects anything that is not a plate - the screen
+// does not guess on its own, so there is no second rule that could disagree
+// with the server's.
 let scanSibuk = false;
 
-// Hasil scan tidak lewat banner global: `refresh()` membersihkannya tiap kali berhasil,
-// jadi pesannya hilang dalam 2 detik. Di sini dia bertahan sampai scan berikutnya.
+// A scan result does not go through the global banner: `refresh()` clears it
+// on every successful poll, so the message would vanish within 2 seconds.
+// Here it stays until the next scan.
 function pesanScan(teks, salah = false) {
   const el = $("scan-pesan");
   el.textContent = teks || "";
@@ -1628,26 +1841,27 @@ function pesanScan(teks, salah = false) {
 
 async function kirimScan() {
   const teks = $("scan-plat").value.trim();
-  // Scanner kadang membaca satu QR dua kali dalam beberapa ratus milidetik; tanpa
-  // penjaga ini kiriman kedua menimpa apa yang baru saja terisi.
+  // The scanner sometimes reads one QR twice within a few hundred ms; without
+  // this guard the second submission would overwrite what was just filled in.
   if (!teks || scanSibuk) return;
   scanSibuk = true;
   try {
     const hasil = await api("/api/console/scan", {
       method: "POST", body: JSON.stringify({ qr: teks }),
     });
-    // Dikosongkan apa pun hasilnya: isi yang tertinggal akan tersambung dengan scan
-    // berikutnya menjadi satu teks panjang yang tidak cocok plat mana pun.
+    // Cleared regardless of the outcome: leftover content would run into the
+    // next scan and form one long string matching no plate at all.
     $("scan-plat").value = "";
     if (!hasil.ditemukan) {
-      // Truk pinjaman. Katakan apa yang bisa dilakukan, bukan cuma "tidak ada".
+      // A borrowed truck. Say what can be done, not just "not found".
       pesanScan(`${t("scanBelumAda")} ${hasil.plate_number}`, true);
       return;
     }
     pesanScan("");
     pilihNilai($("plat-timbang"), hasil.truck.plate_number);
-    // Kursor langsung ke kolom berikutnya: operator menimbang sambil memegang HP
-    // supir, dan satu sentuhan layar yang dihemat itu yang jadi gunanya scan.
+    // Cursor straight to the next field: the operator is weighing while
+    // holding the driver's phone, and that one saved screen touch is the
+    // whole point of scanning.
     $("bruto").focus();
     segarkanTombol();
   } catch (e) {
@@ -1658,8 +1872,8 @@ async function kirimScan() {
   }
 }
 
-// Gerbang keluar. Tara tetap ditulis `catat_timbangan` lewat jalur yang sama dengan
-// tombol per baris - scan cuma menemukan tiketnya.
+// Exit gate. The tare is still written by `record_weighing` through the same
+// path as the per-row button - the scan only finds the ticket.
 async function kirimScanKeluar() {
   const teks = $("scan-keluar").value.trim();
   if (!teks || scanSibuk) return;
@@ -1670,8 +1884,8 @@ async function kirimScanKeluar() {
     });
     $("scan-keluar").value = "";
     if (hasil.ganda) {
-      // Dua tiket terbuka: operator yang memilih. Menebak di sini bisa memasangkan
-      // tara ke kunjungan yang salah dan mencampur tonase dua kunjungan.
+      // Two open tickets: the operator picks. Guessing here can attach the
+      // tare to the wrong visit and mix two visits' tonnage.
       pesanScanKeluar(`${t("scanGanda")} ${hasil.plate_number}`, true);
       return;
     }
@@ -1703,20 +1917,20 @@ $("scan-keluar").addEventListener("keydown", (ev) => {
 
 $("scan-plat").addEventListener("keydown", (ev) => {
   if (ev.key !== "Enter") return;
-  // Enter datang dari scanner, bukan dari orang: jangan biarkan dia men-submit
-  // apa pun selain ini.
+  // Enter comes from the scanner, not a person: do not let it submit
+  // anything other than this.
   ev.preventDefault();
   kirimScan();
 });
 
 $("masuk").addEventListener("click", async () => {
   const plate_number = $("plat-timbang").dataset.nilai;
-  const bruto_kg = $("bruto").value.trim();
-  if (!plate_number || !bruto_kg) { pesan(t("wajibIsi")); return; }
+  const gross_kg = $("bruto").value.trim();
+  if (!plate_number || !gross_kg) { pesan(t("wajibIsi")); return; }
   $("masuk").disabled = true;
   try {
     await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
-      { plate_number, bruto_kg, waktu_masuk: new Date().toISOString() }) });
+      { plate_number, gross_kg, entered_at: new Date().toISOString() }) });
     pilihNilai($("plat-timbang"), ""); $("bruto").value = "";
     await muatTimbangan();
     pesan("");
@@ -1727,24 +1941,26 @@ $("masuk").addEventListener("click", async () => {
   }
 });
 
-// Tara lewat dialog, bukan kolom di dalam barisnya: tabel ini dibangun ulang tiap
-// tarikan, yang akan menghapus apa pun yang sedang diketik operator.
+// Tare goes through a dialog, not a column inside its row: this table is
+// rebuilt on every poll, which would wipe out anything the operator is typing.
 $("timbangan").addEventListener("click", async (ev) => {
   const tombol = ev.target.closest("button[data-aksi='keluar']");
   if (!tombol) return;
   const baris = tombol.closest("tr").dataset;
-  tanyaTara({ plate_number: baris.plat, ref: baris.ref, waktu_masuk: baris.masuk });
+  tanyaTara({ plate_number: baris.plat, ref: baris.ref, entered_at: baris.masuk });
 });
 
-// Satu jalur tara untuk tombol per baris DAN hasil scan keluar: dua salinan akan
-// berbeda cepat atau lambat, dan yang ditulisnya angka yang dibayar.
-// Lantai berat, disalin dari `services/console_service.py`. Sengaja divalidasi juga di
-// sini: salah ketik tertahan di layar, bukan sesudah bolak-balik ke server - satu detik
-// yang hilang di gerbang dengan truk menunggu. Servernya tetap yang berwenang.
+// One tare path for both the per-row button AND the exit scan result: two
+// copies would drift apart sooner or later, and what they write is the
+// figure the farmer gets paid on.
+// Weight floor, copied from `services/console_service.py`. Deliberately
+// validated here too: a typo is caught on screen, not after a round trip to
+// the server - one second lost at the gate with a truck waiting. The server
+// still has the final say.
 const MINIMUM_BERAT_KG = 1000;
 
-// Tiket yang sedang ditanyakan taranya. Disimpan di sini, bukan dibaca ulang dari
-// tabel: tabel itu dibangun ulang tiap 2 detik oleh polling.
+// The ticket currently being asked for its tare. Kept here, not re-read from
+// the table: the table is rebuilt every 2 seconds by polling.
 let taraUntuk = null;
 
 function tanyaTara(w) {
@@ -1762,8 +1978,9 @@ function tutupTara() {
 
 async function simpanTara() {
   if (!taraUntuk) return;
-  // Koma diterima: papan ketik Indonesia menulis desimal dengan koma, dan menolaknya
-  // berarti operator mengetik ulang angka yang sudah benar.
+  // A comma is accepted: an Indonesian keyboard writes decimals with a comma,
+  // and rejecting it would mean the operator retypes a number that was
+  // already correct.
   const teks = $("tara-nilai").value.trim().replace(",", ".");
   const angka = Number(teks);
   if (!teks || !Number.isFinite(angka) || angka < MINIMUM_BERAT_KG) {
@@ -1775,13 +1992,13 @@ async function simpanTara() {
   $("tara-simpan").disabled = true;
   try {
     await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
-      plate_number: w.plate_number, ref: w.ref, waktu_masuk: w.waktu_masuk,
-      tara_kg: teks, waktu_keluar: new Date().toISOString() }) });
+      plate_number: w.plate_number, ref: w.ref, entered_at: w.entered_at,
+      tare_kg: teks, exited_at: new Date().toISOString() }) });
     tutupTara();
     pesanScanKeluar("");
   } catch (e) {
-    // Kolomnya dibiarkan terbuka: angkanya masih di situ, jadi operator bisa
-    // membetulkan tanpa mengetik ulang dari nol.
+    // The field is left open: the number is still there, so the operator can
+    // fix it without retyping from scratch.
     pesanScanKeluar(alasan(e), true);
   } finally {
     $("tara-simpan").disabled = false;
@@ -1794,8 +2011,8 @@ $("tara-batal").addEventListener("click", tutupTara);
 
 $("tara-nilai").addEventListener("keydown", (ev) => {
   if (ev.key === "Enter") { ev.preventDefault(); simpanTara(); }
-  // Esc menutup, seperti dialog mana pun: truk yang keliru di-scan tidak boleh
-  // memaksa operator menyimpan sesuatu.
+  // Esc closes it, like any dialog: a wrongly scanned truck must not force
+  // the operator to save anything.
   if (ev.key === "Escape") tutupTara();
 });
 
@@ -1878,7 +2095,7 @@ let gerbangSibuk = false;     // a sign-in is in flight
 
 function tombolOperator(o) {
   return `<button type="button" class="gerbang-op" data-email="${esc(o.email)}"
-            >${esc(o.nama)}</button>`;
+            >${esc(o.full_name)}</button>`;
 }
 
 // Swapping `type` is the whole mechanism on purpose. Rendering the password into a
@@ -1930,9 +2147,15 @@ function tutupGerbang(operator) {
   $("gerbang-pesan").textContent = "";
   $("gerbang-sandi").value = "";
   tutupSandi();
-  $("operator-aktif").textContent = operator.nama;
+  $("operator-aktif").textContent = operator.full_name;
   $("operator-aktif").hidden = false;
   $("keluar").hidden = false;
+}
+
+function hapusTabDeveloper(role) {
+  // Removed from the DOM, not hidden: the backend guards access, this is tidiness.
+  if (role === "support") return;
+  document.querySelectorAll('[data-dev="1"]').forEach((el) => el.remove());
 }
 
 async function kirimSandi() {
@@ -1948,6 +2171,7 @@ async function kirimSandi() {
       method: "POST", body: JSON.stringify({ email, sandi }),
     });
     tutupGerbang(operator);
+    hapusTabDeveloper(operator.role);
     dipasang = false;
     await muatTrucks();
     await refresh();
@@ -1964,7 +2188,11 @@ async function kirimSandi() {
 }
 
 async function cekSesi() {
-  try { tutupGerbang((await api("/api/console/me")).operator); }
+  try {
+    const { operator } = await api("/api/console/me");
+    tutupGerbang(operator);
+    hapusTabDeveloper(operator.role);
+  }
   catch (e) { /* api() has already put the gate up on 401 */ }
 }
 
@@ -2069,12 +2297,12 @@ function barisRekap(r) {
   return `<tr>
     <td class="key">${r.plate_number ? esc(r.plate_number) : `<i>${esc(t("trukTanpaNama"))}</i>`}</td>
     <td>${dash(r.supplier_name)}</td>
-    <td>${dash(r.sumber_label)}</td>
+    <td>${dash(r.source_label)}</td>
     <td class="num">${total}</td>
     <td class="num acc">${r.acc || 0}</td>
     <td class="num rej">${r.rej || 0}</td>
     <td class="num">${rasio}</td>
-    <td class="num">${r.neto_kg == null ? KOSONG : Number(r.neto_kg).toLocaleString("id-ID")}</td>
+    <td class="num">${r.net_kg == null ? KOSONG : Number(r.net_kg).toLocaleString("id-ID")}</td>
   </tr>`;
 }
 
@@ -2086,13 +2314,14 @@ async function muatRekap() {
   } catch (e) { /* nothing graded yet - the screen keeps working */ }
 }
 
-// Satu kartu QR: gambarnya dari server (tidak ada pustaka CDN — layar ini harus
-// tetap terbuka saat internet mati), dan platnya ikut tercetak sebagai tulisan
-// supaya kartu yang kotor atau rusak masih bisa diketik manual operator.
+// One QR card: the image comes from the server (no CDN library — this screen
+// has to stay open while the internet is down), and the plate is also
+// printed as text so a dirty or damaged card can still be typed manually by
+// the operator.
 function kartuQr(tr) {
   const plat = tr.plate_number || "";
-  // encodeURIComponent: plat berspasi akan memotong URL-nya dan gambarnya tidak
-  // pernah dimuat.
+  // encodeURIComponent: a plate with a space would cut off the URL and the
+  // image would never load.
   const src = `/api/console/trucks/${encodeURIComponent(plat)}/qr.png`;
   return `<figure class="qr-satu">
     <img src="${esc(src)}" alt="${esc(plat)}" width="180" height="180">
@@ -2101,20 +2330,20 @@ function kartuQr(tr) {
 }
 
 $("cetak-qr").addEventListener("click", () => {
-  // Dirakit saat ditekan, bukan di setiap poll: puluhan <img> yang dibangun ulang
-  // tiap 60 detik akan meminta ulang semua gambarnya.
+  // Built when pressed, not on every poll: dozens of <img> rebuilt every 60
+  // seconds would re-request every image.
   $("qr-kartu").innerHTML = trucks.filter((tr) => tr.plate_number).map(kartuQr).join("");
   $("qr-cetak").hidden = false;
-  // Menunggu gambarnya dimuat dulu: print() yang dipanggil terlalu cepat mencetak
-  // kotak kosong, dan itu setumpuk kertas terbuang yang baru terlihat sesudahnya.
+  // Wait for the images to load first: calling print() too early prints
+  // empty boxes, and that is a stack of wasted paper only noticed afterwards.
   const gambar = [...$("qr-kartu").querySelectorAll("img")];
   Promise.all(gambar.map((g) => g.complete ? null : new Promise((r) => {
     g.onload = g.onerror = r;
   }))).then(() => window.print());
 });
 
-// Sesudah dialog print ditutup, kartunya disembunyikan lagi: satu layar penuh QR
-// membuat tab Truk tidak terpakai.
+// Once the print dialog closes, the cards are hidden again: a whole screen
+// full of QR codes would make the Trucks tab unusable.
 window.addEventListener("afterprint", () => { $("qr-cetak").hidden = true; });
 
 function isiTrucks() {
@@ -2134,6 +2363,314 @@ async function muatTrucks() {
   catch (e) { /* master data has not arrived - the screen works without a truck list */ }
   isiTrucks();
 }
+
+// ── developer: fault log (support only) ─────────────────────────────────
+let logLevel = "";
+let logCari = "";
+let logOffset = 0;
+let logTotal = 0;
+const LOG_PER = 50;
+
+function barisLog(r) {
+  // terakhir_at is a Unix epoch (seconds, from LogStore) - not an ISO string,
+  // so it needs ×1000 before Date() rather than going through waktu() as-is.
+  return `<tr>
+    <td>${waktu(r.terakhir_at * 1000)}</td>
+    <td class="key">${esc(r.level)}</td>
+    <td>${esc(r.sumber)}</td>
+    <td>${esc(r.pesan)}</td>
+    <td class="num">${r.jumlah > 1 ? "×" + r.jumlah : ""}</td>
+  </tr>`;
+}
+
+function segarkanHalamanLog() {
+  const dari = logTotal ? logOffset + 1 : 0;
+  const sampai = Math.min(logOffset + LOG_PER, logTotal);
+  $("log-rentang").textContent = t("rentangBaris")
+    .replace("{dari}", dari).replace("{sampai}", sampai).replace("{total}", logTotal);
+  $("log-prev").disabled = logOffset === 0;
+  // `logTotal`, not items.length on the page just drawn - the same pagination
+  // trap the grading screen hit before (total comes from the server response).
+  $("log-next").disabled = logOffset + LOG_PER >= logTotal;
+}
+
+async function muatLog() {
+  try {
+    const qs = new URLSearchParams({ limit: String(LOG_PER), offset: String(logOffset) });
+    if (logLevel) qs.set("level", logLevel);
+    if (logCari) qs.set("cari", logCari);
+    const r = await api(`/api/console/dev/log?${qs}`);
+    logTotal = r.total;
+    $("log-baris").innerHTML = r.items.length
+      ? r.items.map(barisLog).join("") : barisKosong(5, "kosongLog");
+    segarkanHalamanLog();
+  } catch (e) {
+    // Support-only lane: a plain operator who somehow lands here (shared PC,
+    // stale localStorage tab) gets a quiet empty table, not a red banner.
+    if (e.kode !== "belum_masuk") $("log-baris").innerHTML = barisKosong(5, "gagalLog");
+  }
+}
+
+$("log-level").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-nilai]");
+  if (!b) return;
+  logLevel = b.dataset.nilai;
+  logOffset = 0;
+  $("log-level").querySelectorAll("button").forEach((x) => x.classList.toggle("aktif", x === b));
+  muatLog();
+});
+
+let logCariTimer = null;
+$("log-cari").addEventListener("input", () => {
+  // Debounced: a search box wired straight to fetch would fire once per
+  // keystroke on a shared touchscreen keyboard.
+  clearTimeout(logCariTimer);
+  logCariTimer = setTimeout(() => {
+    logCari = $("log-cari").value.trim();
+    logOffset = 0;
+    muatLog();
+  }, 300);
+});
+
+$("log-prev").addEventListener("click", () => {
+  logOffset = Math.max(0, logOffset - LOG_PER);
+  muatLog();
+});
+$("log-next").addEventListener("click", () => {
+  if (logOffset + LOG_PER < logTotal) logOffset += LOG_PER;
+  muatLog();
+});
+
+// ── developer: diagnostik (support only) ────────────────────────────────
+// The 5 s auto-refresh timer itself lives in `bukaTabDev` above.
+let diagnostikTimer = null;
+
+// Dynamic markup, generated fresh on every poll: static labels are resolved
+// with t() inline here, not via data-t - that attribute is only ever scanned
+// once, over the page's static HTML (see terapkanBahasa).
+function kartuDiagnostik(kode, d) {
+  if (!d.terjangkau) {
+    return `<div class="card tidak-terjangkau" data-line="${esc(kode)}">
+      <h2><span class="nama">${esc(kode)}</span></h2>
+      <dl><dt>${esc(t("thStatus"))}</dt><dd>${esc(t("lineTidakTerjangkau"))}</dd>
+        <dt>${esc(t("thSebab"))}</dt><dd title="${esc(d.sebab)}">${esc(d.sebab)}</dd></dl>
+    </div>`;
+  }
+  const w = (d.workers || []).map((x) => `${esc(x.name)}:${x.alive ? "✓" : "✗"}`).join(" ");
+  const plc = d.plc ? "✓" : KOSONG;
+  return `<div class="card" data-line="${esc(kode)}">
+    <h2><span class="nama">${esc(kode)}</span></h2>
+    <dl>
+      <dt>${esc(t("thKamera"))}</dt><dd>${d.camera_connected ? "✓" : "✗"}</dd>
+      <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : (d.gpu_available ? "✓" : "✗")}</dd>
+      <dt>${esc(t("thPlc"))}</dt><dd>${plc}</dd>
+      <dt>${esc(t("thWorkers"))}</dt><dd title="${esc(w)}">${esc(w) || KOSONG}</dd>
+      <dt>${esc(t("thAntreanLokal"))}</dt><dd>${dash(d.outbox_pending)} / ${dash(d.outbox_failed)}</dd>
+    </dl>
+  </div>`;
+}
+
+async function muatDiagnostik() {
+  try {
+    const r = await api("/api/console/dev/diagnostik");
+    $("diagnostik-kartu").innerHTML = Object.entries(r.lines)
+      .map(([kode, d]) => kartuDiagnostik(kode, d)).join("");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("diagnostik-kartu").innerHTML = `<p class="muted">${esc(t("gagalDiagnostik"))}</p>`;
+  }
+}
+
+// ── developer: antrean ERP (support only) ───────────────────────────────
+// next_attempt_at is a Unix epoch in seconds (ErpOutboxStore's own clock),
+// same as LogStore's terakhir_at - needs the same ×1000 before waktu().
+// A row already past its next attempt reads as due now rather than a stale
+// timestamp: that is exactly the state kirim_ulang() just put every row in.
+function jadwalAntrean(nextAttemptAt) {
+  return nextAttemptAt * 1000 <= Date.now() ? t("antreanSekarang") : waktu(nextAttemptAt * 1000);
+}
+
+function barisAntrean(r) {
+  return `<tr>
+    <td>${esc(r.kind)}</td>
+    <td>${esc(r.key)}</td>
+    <td title="${esc(r.last_error || "")}">${esc(r.last_error || KOSONG)}</td>
+    <td class="num">${dash(r.attempts)}</td>
+    <td>${jadwalAntrean(r.next_attempt_at)}</td>
+  </tr>`;
+}
+
+async function muatAntrean() {
+  try {
+    const r = await api("/api/console/dev/antrean");
+    $("antrean-ringkas").textContent = t("ringkasAntrean")
+      .replace("{pending}", r.pending).replace("{gagal}", r.gagal);
+    $("antrean-baris").innerHTML = r.items.length
+      ? r.items.map(barisAntrean).join("") : barisKosong(5, "kosongAntrean");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("antrean-baris").innerHTML = barisKosong(5, "gagalAntrean");
+  }
+}
+
+$("antrean-kirim-ulang").addEventListener("click", async () => {
+  $("antrean-kirim-ulang").disabled = true;
+  try {
+    await api("/api/console/dev/antrean/kirim-ulang", { method: "POST" });
+    await muatAntrean();
+  } catch (e) {
+    // Same element the summary normally lives in - the next successful
+    // muatAntrean() overwrites it, so nothing needs clearing by hand.
+    if (e.kode !== "belum_masuk") $("antrean-ringkas").textContent = alasan(e);
+  } finally {
+    $("antrean-kirim-ulang").disabled = false;
+  }
+});
+
+// ── developer: versi & lisensi (support only) ───────────────────────────
+function barisVersi(label, nilai) {
+  return `<dt>${esc(label)}</dt><dd>${esc(nilai)}</dd>`;
+}
+
+async function muatVersi() {
+  try {
+    const r = await api("/api/console/dev/versi");
+    const lisensi = r.lisensi.aktif
+      ? (r.lisensi.token_terpasang ? t("lisensiAktif") : t("lisensiTanpaToken"))
+      : t("lisensiMati");
+    $("versi-daftar").innerHTML = [
+      barisVersi(t("labelVersi"), r.versi),
+      barisVersi(t("labelMachineId"), r.machine_id),
+      barisVersi(t("labelEnvironment"), r.environment),
+      barisVersi(t("labelLisensi"), lisensi),
+    ].join("");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("versi-daftar").innerHTML = `<dt>${esc(t("gagalVersi"))}</dt><dd></dd>`;
+  }
+}
+
+// ── developer: uji PLC (support only) ───────────────────────────────────
+// The only lane in the whole console that moves physical hardware. One card
+// per line (a coil only means something on that line's own PLC connection),
+// each fetched independently so one dead line does not blank the others -
+// same shape as diagnostik's per-line cards.
+function kartuPlc(kode, sibuk) {
+  return `<div class="card" data-line="${esc(kode)}" data-plc-sibuk="${sibuk ? "1" : "0"}">
+    <h2><span class="nama">${esc(kode)}</span></h2>
+    <div class="plc-di" data-plc-di></div>
+    <div class="plc-coil" data-plc-coil></div>
+  </div>`;
+}
+
+function isiDiPlc(inputs) {
+  if (!inputs || !inputs.length) return `<span class="muted">${esc(t("plcMati"))}</span>`;
+  return inputs.map((on, i) => `<span class="plc-di-bit">${i}:${on ? esc(t("diAktif")) : esc(t("diMati"))}</span>`).join(" ");
+}
+
+function isiCoilPlc(kode, data, sibuk) {
+  if (!data.enabled) return `<span class="muted">${esc(t("plcMati"))}</span>`;
+  return (data.testable_coils || []).map((coil) => `
+    <button type="button" class="uji-coil" data-line="${esc(kode)}" data-coil="${coil}"
+      ${sibuk ? `disabled title="${esc(t("coilMatiLineSibuk"))}"` : ""}>
+      ${esc(t("btnUjiCoil").replace("{coil}", coil))}
+    </button>`).join("");
+}
+
+async function muatPlc() {
+  try {
+    // Line codes come from diagnostik (already fetched by support screens
+    // elsewhere) rather than a hardcoded list here, so a line rename needs
+    // no edit to this file.
+    const diag = await api("/api/console/dev/diagnostik");
+    const kodeLine = Object.keys(diag.lines);
+    $("plc-kartu").innerHTML = kodeLine
+      .map((kode) => kartuPlc(kode, diag.lines[kode].terjangkau && diag.lines[kode].current_assignment_id))
+      .join("");
+    await Promise.all(kodeLine.map((kode) => muatPlcSatuLine(kode)));
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("plc-kartu").innerHTML = `<p class="muted">${esc(t("gagalPlc"))}</p>`;
+  }
+}
+
+async function muatPlcSatuLine(kode) {
+  const kartu = $("plc-kartu").querySelector(`.card[data-line="${CSS.escape(kode)}"]`);
+  if (!kartu) return;
+  const sibuk = kartu.dataset.plcSibuk === "1";
+  try {
+    const data = await api(`/api/console/dev/plc/${encodeURIComponent(kode)}`);
+    kartu.querySelector("[data-plc-di]").innerHTML = isiDiPlc(data.inputs);
+    kartu.querySelector("[data-plc-coil]").innerHTML = isiCoilPlc(kode, data, sibuk);
+  } catch (e) {
+    if (e.kode === "belum_masuk") return;
+    kartu.querySelector("[data-plc-di]").innerHTML = `<span class="muted">${esc(alasan(e))}</span>`;
+    kartu.querySelector("[data-plc-coil]").innerHTML = "";
+  }
+}
+
+// The coil test is confirmed inline, not via the browser's built-in dialog -
+// see the HTML comment at #sec-plc. One shared group for every line card
+// (not one per card): the operator only tests one coil at a time, and cards
+// are rebuilt on every poll, which would make a group living inside one
+// simply vanish.
+//
+// The coil and line currently being confirmed. Kept here, not re-read from
+// the button: the button that triggered it may already have been replaced
+// when the card is rebuilt by muatPlcSatuLine/muatPlc before the operator
+// finishes typing.
+let ujiUntuk = null;
+
+function tanyaUjiPlc(line_code, coil) {
+  ujiUntuk = { line_code, coil };
+  $("plc-konfirmasi-teks").textContent = t("konfirmasiUjiPlc").replace("{coil}", coil).replace("{line}", line_code);
+  $("plc-konfirmasi-nilai").value = "";
+  $("plc-konfirmasi").hidden = false;
+  $("plc-konfirmasi-nilai").focus();
+}
+
+function tutupUjiPlc() {
+  $("plc-konfirmasi").hidden = true;
+  ujiUntuk = null;
+}
+
+async function jalankanUjiPlc() {
+  if (!ujiUntuk) return;
+  // Typing is still required - unlike the tare field, this is not a number
+  // check but a one-time password: a mere click (even through the browser's
+  // built-in confirm dialog) can be brushed by a gloved thumb on a
+  // touchscreen, typing cannot.
+  if ($("plc-konfirmasi-nilai").value.trim() !== "UJI") {
+    pesan(t("ujiPlcDibatalkan"));
+    tutupUjiPlc();
+    return;
+  }
+  const { line_code, coil } = ujiUntuk;
+  tutupUjiPlc();
+  try {
+    const hasil = await api(`/api/console/dev/plc/${encodeURIComponent(line_code)}/coil`, {
+      method: "POST",
+      body: JSON.stringify({ coil, konfirmasi: "UJI" }),
+    });
+    pesan(hasil.fired ? t("ujiPlcBerhasil").replace("{coil}", coil) : t("ujiPlcDijatuhkan").replace("{coil}", coil));
+  } catch (e) {
+    if (e.kode !== "belum_masuk") pesan(t("gagalUjiPlc") + ": " + alasan(e));
+  } finally {
+    await muatPlcSatuLine(line_code);          // re-enables the button if the line is still idle
+  }
+}
+
+$("plc-konfirmasi-jalankan").addEventListener("click", jalankanUjiPlc);
+$("plc-konfirmasi-batal").addEventListener("click", tutupUjiPlc);
+
+$("plc-konfirmasi-nilai").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter") { ev.preventDefault(); jalankanUjiPlc(); }
+  // Esc closes it, like any dialog: a wrongly selected coil must not force
+  // the operator to fire anything.
+  if (ev.key === "Escape") tutupUjiPlc();
+});
+
+$("plc-kartu").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button.uji-coil");
+  if (!tombol || tombol.disabled) return;
+  tanyaUjiPlc(tombol.dataset.line, Number(tombol.dataset.coil));
+});
 
 (async () => {
   terapkanBahasa();
@@ -2157,5 +2694,9 @@ async function muatTrucks() {
   setInterval(muatTimbangan, 15000);
   await muatRekap();
   setInterval(muatRekap, 15000);
+  // A remembered developer tab from a previous support sign-in on this shared PC:
+  // cekSesi() above has already run hapusTabDeveloper(), so the button (and
+  // this check) only survive for an account that is still support.
+  if (MUAT_TAB[tab] && $(`button[data-tab="${tab}"]`)) await bukaTabDev(tab);
 })();
 </script>

@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """Local operator accounts for the console login (Fase 4).
 
-    make operator                  add a local account, or reset a forgotten password
-    make operator AKSI=daftar      list the active accounts and where each came from
-    make operator AKSI=matikan     switch one off; their sessions end at once
+    make operator                        add a local account, or reset a forgotten
+                                          password — role `operator` unless ROLE=support
+    make operator ROLE=support          same, but the account can open the developer
+                                          screens
+    make operator AKSI=daftar            list the active accounts and where each came from
+    make operator AKSI=matikan           switch one off; their sessions end at once
+    make operator AKSI=role ROLE=support
+                                          change an EXISTING account's role, without
+                                          touching its password
 
 Only **local** accounts are managed here — the built-in one and the support account,
 which exist so a mill that has never reached the internet can still be opened. The real
@@ -11,11 +17,12 @@ accounts come from AutoERP (`AutoGrade Operator`) and are reset there; this comm
 refuses to touch them, because the next pull would undo the change anyway.
 
 On the factory PC the console runs in Docker: use `make operator-docker` with the same
-AKSI. It runs inside the console container, against the database that console actually
-reads — the native command there would write a file the container never opens.
+AKSI/ROLE. It runs inside the console container, against the database that console
+actually reads — the native command there would write a file the container never opens.
 
 Email, name and password are asked for interactively, so the password never lands in
-shell history.
+shell history. ROLE is not a secret, so it travels the same way AKSI does: a Makefile
+variable substituted straight into the command line.
 """
 
 from __future__ import annotations
@@ -28,12 +35,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from palmgrade.core.config import Settings  # noqa: E402
+from palmgrade.domain.role import ROLE_OPERATOR  # noqa: E402
 from palmgrade.repositories.console_repository import ConsoleStore  # noqa: E402
 from palmgrade.services.operator_admin import OperatorAdmin  # noqa: E402
 
 
 def main(argv: list[str]) -> int:
     aksi = argv[1] if len(argv) > 1 else "tambah"
+    # Never trusted as-is: OperatorAdmin validates through domain.role.sanitize_role,
+    # so a typo here lands on `operator`, not on whatever was typed.
+    role = argv[2] if len(argv) > 2 else ROLE_OPERATOR
     settings = Settings()
     admin = OperatorAdmin(ConsoleStore(settings.console_db_path))
     # Printed every time: writing the right accounts into the wrong file is the one
@@ -43,24 +54,32 @@ def main(argv: list[str]) -> int:
     try:
         if aksi == "tambah":
             email = input("Email operator: ")
-            nama = input("Nama operator: ")
+            full_name = input("Nama operator: ")
             sandi = getpass.getpass("Sandi (minimal 8 karakter): ")
             ulang = getpass.getpass("Ulangi sandi: ")
-            admin.add_or_reset(email, nama, sandi, ulang)
+            _, disahkan = admin.add_or_reset(email, full_name, sandi, ulang, role=role)
             print("Tersimpan. Sesi lama operator ini, kalau ada, sudah diakhiri.")
+            print(f"Peran: {disahkan}")
         elif aksi == "daftar":
             rows = admin.listing()
             for row in rows:
-                # `asal` is the answer to "why will this password not change?" —
+                # `origin` is the answer to "why will this password not change?" —
                 # an `erp` account is backoffice's to reset, not this PC's.
-                print(f"  {row['email']:<32} {row['nama']:<24} [{row['asal']}]")
+                print(f"  {row['email']:<32} {row['full_name']:<24} [{row['origin']}]")
             if not rows:
                 print("  (belum ada operator aktif)")
         elif aksi == "matikan":
             admin.switch_off(input("Email operator yang dimatikan: "))
             print("Dimatikan. Sesinya berakhir sekarang juga.")
+        elif aksi == "role":
+            email = input("Email operator: ")
+            disahkan = admin.set_role(email, role)
+            print(f"Peran diubah jadi: {disahkan}")
         else:
-            print(f"Aksi tidak dikenal: {aksi} (tambah | daftar | matikan)", file=sys.stderr)
+            print(
+                f"Aksi tidak dikenal: {aksi} (tambah | daftar | matikan | role)",
+                file=sys.stderr,
+            )
             return 2
     except ValueError as exc:
         print(f"Gagal: {exc}", file=sys.stderr)

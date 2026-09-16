@@ -36,7 +36,9 @@ DOCTYPE_FIELDS = {
         "driver_name", "plate_normalized", "autograde_id", "source",
     },
     # `erpnext/palm_mill/doctype/autograde_operator/autograde_operator.json`.
-    "AutoGrade Operator": {"name", "modified", "email", "full_name", "active", "password_hash"},
+    "AutoGrade Operator": {
+        "name", "modified", "email", "full_name", "active", "password_hash", "role",
+    },
 }
 
 # What AutoERP's passlib context writes. The console verifies it without passlib, which
@@ -84,7 +86,7 @@ def test_supplier_group_is_stored_raw():
     """AutoERP keeps Plasma vs agent on the Supplier Group; it arrives untouched."""
     row = supplier_row(_supplier(supplier_group="Agen TBS"))
 
-    assert (row["sumber"], row["erp_name"], row["name"]) == (
+    assert (row["source_group"], row["erp_name"], row["name"]) == (
         "Agen TBS", "KUD Sumber Makmur", "KUD Sumber Makmur",
     )
 
@@ -104,7 +106,7 @@ def test_operator_arrives_with_the_hash_the_console_will_verify_offline():
     """The hash travels with the account; nothing is asked of AutoERP at sign-in."""
     row = operator_row(_operator())
 
-    assert (row["email"], row["nama"], row["erp_name"]) == (
+    assert (row["email"], row["full_name"], row["erp_name"]) == (
         "budi@pks.test", "Pak Budi", "budi@pks.test",
     )
     assert (row["password_hash"], row["active"]) == (OPERATOR_HASH, 1)
@@ -123,7 +125,21 @@ def test_an_operator_with_no_password_yet_arrives_with_an_empty_hash():
 
 def test_an_operator_with_no_full_name_falls_back_to_the_email():
     """The screen has to show something, and an empty button is unusable."""
-    assert operator_row(_operator(full_name=None))["nama"] == "budi@pks.test"
+    assert operator_row(_operator(full_name=None))["full_name"] == "budi@pks.test"
+
+
+def test_operator_row_membawa_peran():
+    row = operator_row(
+        {"name": "a@b.c", "email": "a@b.c", "full_name": "A",
+         "password_hash": "x", "active": 1, "role": "support"}
+    )
+    assert row["role"] == "support"
+
+
+def test_operator_row_tanpa_peran_tetap_mentah():
+    """`operator_row` does not normalize; only the store does, via `filter_erp_role`."""
+    row = operator_row({"name": "a@b.c", "email": "a@b.c", "full_name": "A"})
+    assert row["role"] == ""
 
 
 def test_truck_lands_on_the_id_the_operator_already_typed():
@@ -147,7 +163,7 @@ def test_erp_name_reaches_a_console_database_that_predates_the_column(tmp_path):
     db = tmp_path / "console.db"
     old = sqlite3.connect(db)
     old.executescript(
-        """CREATE TABLE suppliers (id TEXT PRIMARY KEY, name TEXT, sumber TEXT, status TEXT);
+        """CREATE TABLE suppliers (id TEXT PRIMARY KEY, name TEXT, source_group TEXT, status TEXT);
            CREATE TABLE trucks (id TEXT PRIMARY KEY, plate_number TEXT, supplier_id TEXT,
                                 capacity REAL, status TEXT);
            INSERT INTO suppliers VALUES ('old', 'KUD Lama', 'Plasma', 'active');"""
@@ -238,7 +254,7 @@ def test_a_pulled_operator_can_sign_in_at_the_mill(tmp_path):
     asyncio.run(worker.pull_once())
 
     row = worker.store.operator_by_email("budi@pks.test")
-    assert (row["nama"], row["asal"], row["status"]) == ("Pak Budi", "erp", "active")
+    assert (row["full_name"], row["origin"], row["status"]) == ("Pak Budi", "erp", "active")
     assert verify_password("sawit2026", row["password_hash"])
 
 

@@ -51,7 +51,7 @@ def sign_in():
     email = " ".join(os.environ.get("CONSOLE_EMAIL", "").split()).lower()
     sandi = os.environ.get("CONSOLE_SANDI", "")
     if not (email and sandi):
-        sys.exit("Set CONSOLE_EMAIL dan CONSOLE_SANDI - buat operatornya dulu: make operator")
+        sys.exit("Set CONSOLE_EMAIL and CONSOLE_SANDI - make the operator first: make operator")
     post("/api/console/login", {"email": email, "sandi": sandi})
 
 
@@ -101,18 +101,18 @@ n += 1
 for ref, bruto in (("TKT-1001", 12480), ("TKT-1002", 11950)):
     post("/api/v1/internal/scale/weighing", {
         "ref": ref, "plate_number": "BE 8821 KL",
-        "waktu_masuk": (now - timedelta(hours=2)).isoformat(),
-        "bruto_kg": bruto, "tara_kg": 5120,
+        "entered_at": (now - timedelta(hours=2)).isoformat(),
+        "gross_kg": bruto, "tare_kg": 5120,
     }, secret=True)
 post("/api/v1/internal/scale/weighing", {
     "ref": "TKT-1003", "plate_number": "B 1234 XY",
-    "waktu_masuk": (now - timedelta(hours=1)).isoformat(),
-    "bruto_kg": 9870.5, "tara_kg": 4200,
+    "entered_at": (now - timedelta(hours=1)).isoformat(),
+    "gross_kg": 9870.5, "tare_kg": 4200,
 }, secret=True)
 
 state = get("/api/console/state")
 recap = get("/api/console/recap")
-print(f"{n} grading + 3 tiket timbangan masuk, hari kerja {state['tanggal_kerja']}")
+print(f"{n} grading + 3 weighing tickets seeded, work date {state['work_date']}")
 for r in recap["items"]:
-    print(f"  {r['plate_number'] or '(tanpa truk)':<14} total={r['total']:<4} "
-          f"acc={r['acc']:<4} rej={r['rej']:<3} neto={r['neto_kg']}")
+    print(f"  {r['plate_number'] or '(no truck)':<14} total={r['total']:<4} "
+          f"acc={r['acc']:<4} rej={r['rej']:<3} net={r['net_kg']}")

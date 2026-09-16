@@ -18,13 +18,14 @@ from pathlib import Path
 from typing import Any
 
 from ..domain.operator_auth import normalise_email, normalise_nama, operator_id_for
+from ..domain.role import ROLE_SUPPORT, filter_erp_role, sanitize_role
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
     event_id            TEXT PRIMARY KEY,
     machine_id          TEXT NOT NULL,
     line_code           TEXT NOT NULL,
-    tanggal_kerja       TEXT NOT NULL,
+    work_date           TEXT NOT NULL,
     timestamp           TEXT NOT NULL,
     ripeness_status     TEXT NOT NULL,
     ripeness_confidence REAL,
@@ -43,14 +44,14 @@ CREATE TABLE IF NOT EXISTS inspections (
     -- per truck visit. Kept so factory databases need no table rebuild.
     erp_state           TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_inspections_hari ON inspections (tanggal_kerja, line_code);
-CREATE INDEX IF NOT EXISTS idx_inspections_urut ON inspections (tanggal_kerja, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_inspections_hari ON inspections (work_date, line_code);
+CREATE INDEX IF NOT EXISTS idx_inspections_urut ON inspections (work_date, timestamp DESC);
 
 CREATE TABLE IF NOT EXISTS suppliers (
-    id     TEXT PRIMARY KEY,
-    name   TEXT,
-    sumber TEXT,
-    status TEXT,
+    id           TEXT PRIMARY KEY,
+    name         TEXT,
+    source_group TEXT,
+    status       TEXT,
     -- The AutoERP document name, this row's id on the other side. NULL until a
     -- pull matches it; unique, so two local rows can never claim one supplier.
     erp_name TEXT
@@ -76,19 +77,19 @@ CREATE TABLE IF NOT EXISTS assignments (
 -- Weighbridge (§3.5c). Filled by the scale program via
 -- POST /internal/scale/weighing; its format is unknown (X1), so the lane is
 -- built in OUR shape and only an adapter is added later.
--- `neto_kg` never arrives from outside as-is — it is computed in the service.
+-- `net_kg` never arrives from outside as-is — it is computed in the service.
 CREATE TABLE IF NOT EXISTS weighings (
     id            TEXT PRIMARY KEY,
     ref           TEXT,
     plate_number  TEXT,
     plate_norm    TEXT,
     truck_id      TEXT,
-    tanggal_kerja TEXT NOT NULL,
-    bruto_kg      REAL,
-    tara_kg       REAL,
-    neto_kg       REAL,
-    waktu_masuk   TEXT,
-    waktu_keluar  TEXT,
+    work_date     TEXT NOT NULL,
+    gross_kg      REAL,
+    tare_kg       REAL,
+    net_kg        REAL,
+    entered_at    TEXT,
+    exited_at     TEXT,
     received_at   REAL NOT NULL,
     -- The line assignment this visit's bunches belong to, written when the truck
     -- leaves the line. Without it a second ticket the same day would inherit the
@@ -101,7 +102,7 @@ CREATE TABLE IF NOT EXISTS weighings (
     erp_status    TEXT,
     erp_note      TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_weighings_hari ON weighings (tanggal_kerja, waktu_masuk DESC);
+CREATE INDEX IF NOT EXISTS idx_weighings_hari ON weighings (work_date, entered_at DESC);
 CREATE INDEX IF NOT EXISTS idx_weighings_plat ON weighings (plate_norm);
 
 CREATE TABLE IF NOT EXISTS sync_state (
@@ -117,24 +118,27 @@ CREATE TABLE IF NOT EXISTS sync_state (
 CREATE TABLE IF NOT EXISTS operators (
     id             TEXT PRIMARY KEY,
     email          TEXT NOT NULL UNIQUE,
-    nama           TEXT NOT NULL,
+    full_name      TEXT NOT NULL,
     password_hash  TEXT NOT NULL,
     status         TEXT NOT NULL DEFAULT 'active',
-    asal           TEXT NOT NULL DEFAULT 'lokal',
+    origin         TEXT NOT NULL DEFAULT 'lokal',
     erp_name       TEXT,
-    dibuat_at      REAL NOT NULL,
+    -- `operator` or `support`. No CHECK on purpose: a third role later should
+    -- not need a table migration; the route is what enforces this column.
+    role           TEXT NOT NULL DEFAULT 'operator',
+    created_at     REAL NOT NULL,
     -- Wrong-password counter, on disk so reloading the page cannot reset the lockout.
-    gagal_count    INTEGER NOT NULL DEFAULT 0,
-    gagal_terakhir REAL
+    fail_count     INTEGER NOT NULL DEFAULT 0,
+    last_failed_at REAL
 );
 
 CREATE TABLE IF NOT EXISTS sesi (
     token          TEXT PRIMARY KEY,
     operator_id    TEXT NOT NULL,
-    dibuat_at      REAL NOT NULL,
-    kedaluwarsa_at REAL NOT NULL
+    created_at     REAL NOT NULL,
+    expires_at     REAL NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_sesi_kedaluwarsa ON sesi (kedaluwarsa_at);
+CREATE INDEX IF NOT EXISTS idx_sesi_kedaluwarsa ON sesi (expires_at);
 """
 
 
@@ -154,11 +158,13 @@ _SOURCE_FACTS = "t.supplier_id IS NOT NULL AS has_supplier, t.erp_name IS NOT NU
 
 
 class ConsoleStore:
-    def __init__(self, db_path: Path) -> None:
+    def __init__(self, db_path: Path, *, erp_allowed_roles: frozenset[str] | None = None) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._db = sqlite3.connect(str(db_path), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
+        # ERP-pull role allow-list, read by `_upsert_operator`.
+        self._erp_allowed_roles = erp_allowed_roles or frozenset()
         with self._lock, self._db:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
@@ -182,24 +188,32 @@ class ConsoleStore:
             ("weighings", "erp_status"),
             ("weighings", "erp_note"),
         ):
-            kolom = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
-            if column not in kolom:
+            columns = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
+            if column not in columns:
                 self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+        # Separate from the loop above: that loop can only do a plain `ADD COLUMN
+        # ... TEXT`, but this column needs NOT NULL + DEFAULT so old rows land on
+        # `operator` instead of a NULL readers have to guess at.
+        operator_columns = {r["name"] for r in self._db.execute("PRAGMA table_info(operators)")}
+        if "role" not in operator_columns:
+            self._db.execute(
+                "ALTER TABLE operators ADD COLUMN role TEXT NOT NULL DEFAULT 'operator'"
+            )
         self._db.executescript(_MIGRATE_SQL)
 
     def _drop_pin_era_operators(self) -> None:
         """Rebuild `operators` if it still carries the six-digit-PIN shape.
 
         Dropped rather than migrated, deliberately. The PIN table keyed accounts by
-        `nama` with no email anywhere, and an email cannot be invented for a row — a
+        `full_name` with no email anywhere, and an email cannot be invented for a row — a
         guessed one would be a sign-in that silently belongs to nobody. The accounts are
         re-made by `make operator` or arrive with the next AutoERP pull, so the cost is
         one command on a dev database. No factory PC ran the PIN build: it never left
         this branch, and the sessions go with the table so nobody stays signed in
         against an account that no longer exists.
         """
-        kolom = {r["name"] for r in self._db.execute("PRAGMA table_info(operators)")}
-        if kolom and "pin_hash" in kolom:
+        columns = {r["name"] for r in self._db.execute("PRAGMA table_info(operators)")}
+        if columns and "pin_hash" in columns:
             self._db.execute("DROP TABLE IF EXISTS sesi")
             self._db.execute("DROP TABLE operators")
             self._db.executescript(_CREATE_SQL)
@@ -215,32 +229,32 @@ class ConsoleStore:
         with self._lock, self._db:
             self._db.execute(
                 """INSERT OR IGNORE INTO inspections (
-                       event_id, machine_id, line_code, tanggal_kerja, timestamp,
+                       event_id, machine_id, line_code, work_date, timestamp,
                        ripeness_status, ripeness_confidence, capture_type,
                        image_path, truck_id, assignment_id, received_at, prediction,
                        tp_status, tp_confidence)
-                   VALUES (:event_id, :machine_id, :line_code, :tanggal_kerja, :timestamp,
+                   VALUES (:event_id, :machine_id, :line_code, :work_date, :timestamp,
                            :ripeness_status, :ripeness_confidence, :capture_type,
                            :image_path, :truck_id, :assignment_id, :received_at, :prediction,
                            :tp_status, :tp_confidence)""",
                 {**row, "received_at": time.time()},
             )
 
-    def summary(self, tanggal_kerja: str) -> list[dict[str, Any]]:
+    def summary(self, work_date: str) -> list[dict[str, Any]]:
         with self._lock:
             rows = self._db.execute(
                 """SELECT line_code,
                           COUNT(*) AS total,
                           SUM(CASE WHEN ripeness_status = 'ACC' THEN 1 ELSE 0 END) AS acc,
                           SUM(CASE WHEN ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej
-                   FROM inspections WHERE tanggal_kerja = ? GROUP BY line_code""",
-                (tanggal_kerja,),
+                   FROM inspections WHERE work_date = ? GROUP BY line_code""",
+                (work_date,),
             ).fetchall()
         return [dict(r) for r in rows]
 
     @staticmethod
-    def _saringan_inspeksi(
-        tanggal_kerja: str, line_code: str | None, truck_id: str | None
+    def _inspection_filter(
+        work_date: str, line_code: str | None, truck_id: str | None
     ) -> tuple[list[str], list[Any]]:
         """One place both the page and its count are filtered.
 
@@ -248,8 +262,8 @@ class ConsoleStore:
         produces a page 4 of a list that only has one page - the Next button stays live
         and lands on an empty screen.
         """
-        where = ["i.tanggal_kerja = ?"]
-        params: list[Any] = [tanggal_kerja]
+        where = ["i.work_date = ?"]
+        params: list[Any] = [work_date]
         if line_code:
             where.append("i.line_code = ?")
             params.append(line_code)
@@ -258,9 +272,9 @@ class ConsoleStore:
             params.append(truck_id)
         return where, params
 
-    def jumlah_inspeksi(
+    def inspection_count(
         self,
-        tanggal_kerja: str,
+        work_date: str,
         *,
         line_code: str | None = None,
         truck_id: str | None = None,
@@ -270,7 +284,7 @@ class ConsoleStore:
         Counted in SQL rather than measured with `len(items)`: that is only ever as long
         as one page, so the screen would claim 25 rows on a day that graded eight hundred.
         """
-        where, params = self._saringan_inspeksi(tanggal_kerja, line_code, truck_id)
+        where, params = self._inspection_filter(work_date, line_code, truck_id)
         with self._lock:
             row = self._db.execute(
                 f"SELECT COUNT(*) AS n FROM inspections i WHERE {' AND '.join(where)}",
@@ -280,14 +294,14 @@ class ConsoleStore:
 
     def inspections(
         self,
-        tanggal_kerja: str,
+        work_date: str,
         *,
         line_code: str | None = None,
         truck_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        where, params = self._saringan_inspeksi(tanggal_kerja, line_code, truck_id)
+        where, params = self._inspection_filter(work_date, line_code, truck_id)
         params += [limit, offset]
         with self._lock:
             rows = self._db.execute(
@@ -301,7 +315,7 @@ class ConsoleStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def rekap_truk(self, tanggal_kerja: str) -> list[dict[str, Any]]:
+    def truck_recap(self, work_date: str) -> list[dict[str, Any]]:
         """Per-truck tally for one working day, newest truck first.
 
         Grouped on `truck_id`, so bunches graded before a truck was assigned
@@ -317,15 +331,15 @@ class ConsoleStore:
                           COUNT(*) AS total,
                           SUM(CASE WHEN i.ripeness_status = 'ACC' THEN 1 ELSE 0 END) AS acc,
                           SUM(CASE WHEN i.ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej,
-                          MIN(i.timestamp) AS mulai,
-                          MAX(i.timestamp) AS selesai
+                          MIN(i.timestamp) AS started_at,
+                          MAX(i.timestamp) AS ended_at
                    FROM inspections i
                    LEFT JOIN trucks t ON t.id = i.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id
-                   WHERE i.tanggal_kerja = ?
+                   WHERE i.work_date = ?
                    GROUP BY i.truck_id
                    ORDER BY MAX(i.timestamp) DESC""",
-                (tanggal_kerja,),
+                (work_date,),
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -336,15 +350,15 @@ class ConsoleStore:
         # cloud's set_updated_at trigger once froze rows forever in edge sync.
         with self._lock, self._db:
             self._db.execute(
-                """INSERT INTO suppliers (id, name, sumber, status, erp_name)
+                """INSERT INTO suppliers (id, name, source_group, status, erp_name)
                    VALUES (?, ?, ?, ?, ?)
                    ON CONFLICT(id) DO UPDATE SET name=excluded.name,
-                       sumber=excluded.sumber, status=excluded.status,
+                       source_group=excluded.source_group, status=excluded.status,
                        erp_name=excluded.erp_name""",
                 (
                     str(row["id"]),
                     row.get("name"),
-                    row.get("sumber"),
+                    row.get("source_group"),
                     row.get("status"),
                     row.get("erp_name"),
                 ),
@@ -486,20 +500,20 @@ class ConsoleStore:
         with self._lock, self._db:
             self._db.execute(
                 """INSERT INTO weighings (
-                       id, ref, plate_number, plate_norm, truck_id, tanggal_kerja,
-                       bruto_kg, tara_kg, neto_kg, waktu_masuk, waktu_keluar, received_at)
-                   VALUES (:id, :ref, :plate_number, :plate_norm, :truck_id, :tanggal_kerja,
-                           :bruto_kg, :tara_kg, :neto_kg, :waktu_masuk, :waktu_keluar, :received_at)
+                       id, ref, plate_number, plate_norm, truck_id, work_date,
+                       gross_kg, tare_kg, net_kg, entered_at, exited_at, received_at)
+                   VALUES (:id, :ref, :plate_number, :plate_norm, :truck_id, :work_date,
+                           :gross_kg, :tare_kg, :net_kg, :entered_at, :exited_at, :received_at)
                    ON CONFLICT(id) DO UPDATE SET
                        ref           = COALESCE(excluded.ref, weighings.ref),
                        plate_number  = COALESCE(excluded.plate_number, weighings.plate_number),
                        plate_norm    = COALESCE(excluded.plate_norm, weighings.plate_norm),
                        truck_id      = COALESCE(excluded.truck_id, weighings.truck_id),
-                       bruto_kg      = COALESCE(excluded.bruto_kg, weighings.bruto_kg),
-                       tara_kg       = COALESCE(excluded.tara_kg, weighings.tara_kg),
-                       neto_kg       = COALESCE(excluded.neto_kg, weighings.neto_kg),
-                       waktu_masuk   = COALESCE(excluded.waktu_masuk, weighings.waktu_masuk),
-                       waktu_keluar  = COALESCE(excluded.waktu_keluar, weighings.waktu_keluar)""",
+                       gross_kg      = COALESCE(excluded.gross_kg, weighings.gross_kg),
+                       tare_kg       = COALESCE(excluded.tare_kg, weighings.tare_kg),
+                       net_kg        = COALESCE(excluded.net_kg, weighings.net_kg),
+                       entered_at    = COALESCE(excluded.entered_at, weighings.entered_at),
+                       exited_at     = COALESCE(excluded.exited_at, weighings.exited_at)""",
                 {**row, "received_at": time.time()},
             )
 
@@ -527,9 +541,10 @@ class ConsoleStore:
     def grading_counts(self, assignment_id: str) -> dict[str, Any] | None:
         """The AI result of one line assignment, counted in SQL (§4.C).
 
-        Criteria mapping: mentah is REJ, tangkai panjang an ACC the line marked
-        with `tp_confidence > 0.8`, matang the rest — AutoERP derives that one.
-        None when the assignment graded nothing: there is no summary to send.
+        Criteria mapping (AutoERP contract field names, do not rename): `mentah` is
+        REJ, `tangkai_panjang` an ACC the line marked with `tp_confidence > 0.8`,
+        `matang` the rest — AutoERP derives that one. None when the assignment
+        graded nothing: there is no summary to send.
         """
         with self._lock:
             row = self._db.execute(
@@ -540,8 +555,8 @@ class ConsoleStore:
                           SUM(CASE WHEN ripeness_status = 'ACC' AND tp_confidence > 0.8
                                    THEN 1 ELSE 0 END) AS tangkai_panjang,
                           SUM(CASE WHEN capture_type = 'manual' THEN 1 ELSE 0 END) AS manual_reject,
-                          MIN(timestamp) AS mulai,
-                          MAX(timestamp) AS selesai
+                          MIN(timestamp) AS started_at,
+                          MAX(timestamp) AS ended_at
                    FROM inspections WHERE assignment_id = ?""",
                 (assignment_id,),
             ).fetchone()
@@ -580,23 +595,23 @@ class ConsoleStore:
                 (ticket, status, note, weighing_id),
             )
 
-    def latest_weighing_for_truck(self, truck_id: str, tanggal_kerja: str) -> str | None:
+    def latest_weighing_for_truck(self, truck_id: str, work_date: str) -> str | None:
         """The visit a truck's grading belongs to: its newest ticket that day."""
         with self._lock:
             row = self._db.execute(
                 """SELECT id FROM weighings
-                   WHERE truck_id = ? AND tanggal_kerja = ?
-                   ORDER BY COALESCE(waktu_masuk, '') DESC, received_at DESC LIMIT 1""",
-                (truck_id, tanggal_kerja),
+                   WHERE truck_id = ? AND work_date = ?
+                   ORDER BY COALESCE(entered_at, '') DESC, received_at DESC LIMIT 1""",
+                (truck_id, work_date),
             ).fetchone()
         return row["id"] if row else None
 
-    def weighing_ids_on(self, tanggal_kerja: str) -> list[str]:
+    def weighing_ids_on(self, work_date: str) -> list[str]:
         """Every visit of one working day, oldest first (the daily resend)."""
         with self._lock:
             rows = self._db.execute(
-                "SELECT id FROM weighings WHERE tanggal_kerja = ? ORDER BY received_at",
-                (tanggal_kerja,),
+                "SELECT id FROM weighings WHERE work_date = ? ORDER BY received_at",
+                (work_date,),
             ).fetchall()
         return [row["id"] for row in rows]
 
@@ -605,7 +620,7 @@ class ConsoleStore:
             row = self._db.execute("SELECT * FROM weighings WHERE id = ?", (weighing_id,)).fetchone()
         return dict(row) if row else None
 
-    def weighings(self, tanggal_kerja: str, *, limit: int = 100) -> list[dict[str, Any]]:
+    def weighings(self, work_date: str, *, limit: int = 100) -> list[dict[str, Any]]:
         # ponytail: joins on `truck_id` only, so a cloud-synced truck (id from
         # the cloud, not uuid5 of the plate) shows no name yet. Good enough
         # until the ERP lane is live — see docs/PERTANYAAN-TERBUKA.md S1-S3.
@@ -615,28 +630,29 @@ class ConsoleStore:
                    FROM weighings w
                    LEFT JOIN trucks t ON t.id = w.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id
-                   WHERE w.tanggal_kerja = ?
-                   ORDER BY w.waktu_masuk DESC, w.received_at DESC LIMIT ?""",
-                (tanggal_kerja, limit),
+                   WHERE w.work_date = ?
+                   ORDER BY w.entered_at DESC, w.received_at DESC LIMIT ?""",
+                (work_date, limit),
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def weighings_terbuka(self, truck_id: str, tanggal_kerja: str) -> list[dict[str, Any]]:
-        """Tiket truk ini yang belum ditimbang keluar, hari kerja itu saja.
+    def open_weighings_for_truck(self, truck_id: str, work_date: str) -> list[dict[str, Any]]:
+        """This truck's tickets not yet weighed out, for that working day only.
 
-        `tara_kg IS NULL` yang menentukan terbuka: tiket yang sudah punya tara berarti
-        truknya sudah pergi, dan menawarkannya lagi akan menimpa tara pertama — neto
-        berubah tanpa ada yang tahu, dan neto itu yang dibayar.
+        `tare_kg IS NULL` is what makes a ticket open: one that already has a
+        tare means its truck has left, and offering it again would overwrite
+        the first tare — net silently changes, and net is what gets paid.
 
-        Dibatasi hari kerja: tiket kemarin yang taranya tidak pernah terisi akan
-        menghasilkan neto dari bruto kemarin dan tara hari ini.
+        Scoped to the working day: yesterday's ticket whose tare was never
+        filled would otherwise produce a net from yesterday's gross and
+        today's tare.
         """
         with self._lock:
             rows = self._db.execute(
                 """SELECT * FROM weighings
-                   WHERE truck_id = ? AND tanggal_kerja = ? AND tara_kg IS NULL
-                   ORDER BY COALESCE(waktu_masuk, '') DESC, received_at DESC""",
-                (truck_id, tanggal_kerja),
+                   WHERE truck_id = ? AND work_date = ? AND tare_kg IS NULL
+                   ORDER BY COALESCE(entered_at, '') DESC, received_at DESC""",
+                (truck_id, work_date),
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -679,7 +695,7 @@ class ConsoleStore:
 
     # ------------------------------------------------- operators & sessions
 
-    def upsert_operator_lokal(self, row: dict[str, Any]) -> str:
+    def upsert_operator_manual(self, row: dict[str, Any]) -> str:
         """Write an account that lives only on this PC (`make operator`).
 
         Refuses to touch a row AutoERP owns: backoffice owns those passwords, and a
@@ -687,7 +703,7 @@ class ConsoleStore:
         told no, because the operator would believe the new password works.
         """
         return self._upsert_operator(
-            row, asal="lokal", overwrite_asal=("lokal",), selalu_akhiri_sesi=True
+            row, origin="lokal", overwrite_origin=("lokal",), always_end_session=True
         )
 
     def upsert_operator_erp(self, row: dict[str, Any]) -> str:
@@ -697,15 +713,15 @@ class ConsoleStore:
         with no internet can be opened at all; a pull that flattened them would take
         that away at exactly the moment it is needed.
         """
-        return self._upsert_operator(row, asal="erp", overwrite_asal=("erp",))
+        return self._upsert_operator(row, origin="erp", overwrite_origin=("erp",))
 
     def _upsert_operator(
         self,
         row: dict[str, Any],
         *,
-        asal: str,
-        overwrite_asal: tuple[str, ...],
-        selalu_akhiri_sesi: bool = False,
+        origin: str,
+        overwrite_origin: tuple[str, ...],
+        always_end_session: bool = False,
     ) -> str:
         """Add or update one account, id derived from the email.
 
@@ -718,41 +734,52 @@ class ConsoleStore:
         status = row.get("status") or ("active" if row.get("active", 1) else "off")
         with self._lock, self._db:
             existing = self._db.execute(
-                "SELECT asal, password_hash, status FROM operators WHERE id = ?",
+                "SELECT origin, password_hash, status, role FROM operators WHERE id = ?",
                 (operator_id,),
             ).fetchone()
-            if existing and existing["asal"] not in overwrite_asal:
+            if existing and existing["origin"] not in overwrite_origin:
                 return operator_id
+            # Only an ERP row sets `role` here, via the allow-list. Otherwise keep
+            # the existing role — overwriting it would erase a local account's role
+            # every time `make operator` resets its password.
+            if origin == "erp":
+                role = filter_erp_role(row.get("role"), self._erp_allowed_roles)
+            elif existing is not None:
+                role = existing["role"]
+            else:
+                role = sanitize_role(row.get("role"))
             # Worked out before the write, while the old row is still readable.
-            akhiri_sesi = selalu_akhiri_sesi or existing is None or any(
-                existing[kolom] != baru
-                for kolom, baru in (
+            end_session = always_end_session or existing is None or any(
+                existing[column] != new_value
+                for column, new_value in (
                     ("password_hash", row["password_hash"]),
                     ("status", status),
                 )
             )
             self._db.execute(
                 """INSERT INTO operators
-                       (id, email, nama, password_hash, status, asal, erp_name, dibuat_at)
-                   VALUES (:id, :email, :nama, :password_hash, :status, :asal, :erp_name, :dibuat_at)
+                       (id, email, full_name, password_hash, status, origin, erp_name, role, created_at)
+                   VALUES (:id, :email, :full_name, :password_hash, :status, :origin, :erp_name, :role, :created_at)
                    ON CONFLICT(id) DO UPDATE SET
                        email          = excluded.email,
-                       nama           = excluded.nama,
+                       full_name      = excluded.full_name,
                        password_hash  = excluded.password_hash,
                        status         = excluded.status,
-                       asal           = excluded.asal,
+                       origin         = excluded.origin,
                        erp_name       = excluded.erp_name,
-                       gagal_count    = 0,
-                       gagal_terakhir = NULL""",
+                       role           = excluded.role,
+                       fail_count     = 0,
+                       last_failed_at = NULL""",
                 {
                     "id": operator_id,
                     "email": email,
-                    "nama": normalise_nama(row.get("nama") or email),
+                    "full_name": normalise_nama(row.get("full_name") or email),
                     "password_hash": row["password_hash"],
                     "status": status,
-                    "asal": asal,
+                    "origin": origin,
+                    "role": role,
                     "erp_name": row.get("erp_name"),
-                    "dibuat_at": time.time(),
+                    "created_at": time.time(),
                 },
             )
             # A new password, or an account switched off by a pull: every session opened
@@ -764,7 +791,7 @@ class ConsoleStore:
             # unconditionally signed the operator out on every sync — every 5 minutes at
             # the mill, with the screen blaming an expired session. Seen in a browser
             # 2026-09-15.
-            if akhiri_sesi:
+            if end_session:
                 self._db.execute("DELETE FROM sesi WHERE operator_id = ?", (operator_id,))
         return operator_id
 
@@ -790,10 +817,24 @@ class ConsoleStore:
         hashes. Whatever this returns is readable by any unauthenticated page."""
         with self._lock:
             rows = self._db.execute(
-                "SELECT id, email, nama, status, asal FROM operators "
-                "WHERE status = 'active' ORDER BY nama"
+                "SELECT id, email, full_name, status, origin FROM operators "
+                "WHERE status = 'active' ORDER BY full_name"
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def has_support_account(self) -> bool:
+        """Whether any active account can reach the developer screens.
+
+        Existence check in SQL, not a Python loop over `operators()`: the
+        lifespan asks this once at every startup, and a mill can carry years
+        of accounts by then.
+        """
+        with self._lock:
+            row = self._db.execute(
+                "SELECT 1 FROM operators WHERE role = ? AND status = 'active' LIMIT 1",
+                (ROLE_SUPPORT,),
+            ).fetchone()
+        return row is not None
 
     def set_operator_status(self, operator_id: str, status: str) -> None:
         """`off` takes the account off the sign-in screen and ends the sessions it still
@@ -808,10 +849,19 @@ class ConsoleStore:
             if status != "active":
                 self._db.execute("DELETE FROM sesi WHERE operator_id = ?", (operator_id,))
 
+    def set_role(self, operator_id: str, role: str) -> None:
+        """Set one account's role. An unknown value is stored as `operator`,
+        not trusted from the caller — this column gates the piston screen."""
+        with self._lock, self._db:
+            self._db.execute(
+                "UPDATE operators SET role = ? WHERE id = ?",
+                (sanitize_role(role), operator_id),
+            )
+
     def record_login_failure(self, operator_id: str, *, now: float) -> None:
         with self._lock, self._db:
             self._db.execute(
-                "UPDATE operators SET gagal_count = gagal_count + 1, gagal_terakhir = ? "
+                "UPDATE operators SET fail_count = fail_count + 1, last_failed_at = ? "
                 "WHERE id = ?",
                 (now, operator_id),
             )
@@ -819,14 +869,14 @@ class ConsoleStore:
     def clear_login_failures(self, operator_id: str) -> None:
         with self._lock, self._db:
             self._db.execute(
-                "UPDATE operators SET gagal_count = 0, gagal_terakhir = NULL WHERE id = ?",
+                "UPDATE operators SET fail_count = 0, last_failed_at = NULL WHERE id = ?",
                 (operator_id,),
             )
 
     def create_session(self, token: str, operator_id: str, *, now: float, ttl_s: int) -> None:
         with self._lock, self._db:
             self._db.execute(
-                "INSERT OR REPLACE INTO sesi (token, operator_id, dibuat_at, kedaluwarsa_at) "
+                "INSERT OR REPLACE INTO sesi (token, operator_id, created_at, expires_at) "
                 "VALUES (?, ?, ?, ?)",
                 (token, operator_id, now, now + ttl_s),
             )
@@ -836,9 +886,9 @@ class ConsoleStore:
         has been switched off since."""
         with self._lock:
             row = self._db.execute(
-                """SELECT s.operator_id, s.kedaluwarsa_at, o.nama, o.email, o.asal
+                """SELECT s.operator_id, s.expires_at, o.full_name, o.email, o.origin, o.role
                      FROM sesi s JOIN operators o ON o.id = s.operator_id
-                    WHERE s.token = ? AND s.kedaluwarsa_at > ? AND o.status = 'active'""",
+                    WHERE s.token = ? AND s.expires_at > ? AND o.status = 'active'""",
                 (token, now),
             ).fetchone()
         return dict(row) if row else None
@@ -850,5 +900,5 @@ class ConsoleStore:
     def purge_sessions(self, *, now: float) -> int:
         """Sweep what has expired; returns how many rows went."""
         with self._lock, self._db:
-            cursor = self._db.execute("DELETE FROM sesi WHERE kedaluwarsa_at <= ?", (now,))
+            cursor = self._db.execute("DELETE FROM sesi WHERE expires_at <= ?", (now,))
         return cursor.rowcount

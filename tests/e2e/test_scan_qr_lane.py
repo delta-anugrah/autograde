@@ -43,8 +43,8 @@ class _StubConsole:
 @pytest.fixture
 def gerbang(tmp_path):
     store = ConsoleStore(tmp_path / "console.db")
-    store.upsert_operator_lokal(
-        {"email": EMAIL, "nama": "Operator Gerbang", "password_hash": hash_password(SANDI)}
+    store.upsert_operator_manual(
+        {"email": EMAIL, "full_name": "Operator Gerbang", "password_hash": hash_password(SANDI)}
     )
     store.upsert_truck(
         {
@@ -65,12 +65,12 @@ def gerbang(tmp_path):
 
 @pytest.fixture
 def gerbang_penuh(tmp_path):
-    """Seperti `gerbang`, tapi dengan `ConsoleService` sungguhan.
+    """Like `gerbang`, but with a real `ConsoleService`.
 
-    Dipakai hanya oleh test yang menembus jalur timbangan: `_StubConsole` sengaja
-    tidak punya `catat_timbangan`, karena lane scan tidak boleh menyentuhnya. Test
-    alur penuh justru perlu keduanya hidup, supaya terbukti scan dan timbangan
-    menunjuk truk yang sama.
+    Used only by tests that reach into the weighing path: `_StubConsole`
+    deliberately has no `record_weighing`, because the scan lane must never
+    touch it. A full-flow test needs both alive, to prove scanning and
+    weighing point at the same truck.
     """
     from dataclasses import replace
 
@@ -78,106 +78,106 @@ def gerbang_penuh(tmp_path):
     from palmgrade.services.console_service import ConsoleService
 
     store = ConsoleStore(tmp_path / "console.db")
-    store.upsert_operator_lokal(
-        {"email": EMAIL, "nama": "Operator Gerbang", "password_hash": hash_password(SANDI)}
+    store.upsert_operator_manual(
+        {"email": EMAIL, "full_name": "Operator Gerbang", "password_hash": hash_password(SANDI)}
     )
     store.upsert_truck(
         {"id": truck_id_for(PLAT), "plate_number": PLAT, "status": "active",
          "erp_name": "TRK-0001"}
     )
 
-    class LineDiam:
+    class SilentLine:
         async def assign_truck(self, *_a, **_k): pass
         async def manual_reject(self, *_a, **_k): pass
 
-    layanan = ConsoleService(
-        replace(Settings(), factory_tz="Asia/Jakarta"), store, LineDiam()
+    service = ConsoleService(
+        replace(Settings(), factory_tz="Asia/Jakarta"), store, SilentLine()
     )
 
     app = FastAPI()
     app.include_router(console_router)
-    app.dependency_overrides[get_console_service] = lambda: layanan
+    app.dependency_overrides[get_console_service] = lambda: service
     app.dependency_overrides[get_auth_service] = lambda: AuthService(store)
     app.dependency_overrides[get_scan_service] = lambda: ScanService(store)
     return TestClient(app), store
 
 
-def _masuk(client: TestClient) -> None:
+def _sign_in(client: TestClient) -> None:
     assert client.post(
         "/api/console/login", json={"email": EMAIL, "sandi": SANDI}
     ).status_code == 200
 
 
-def test_lane_scan_tertutup_tanpa_sesi(gerbang):
+def test_scan_lane_closed_without_a_session(gerbang):
     client, _ = gerbang
 
-    jawab = client.post("/api/console/scan", json={"qr": "BE4412OFL"})
+    result = client.post("/api/console/scan", json={"qr": "BE4412OFL"})
 
-    assert jawab.status_code == 401
-    assert jawab.json()["detail"]["code"] == BELUM_MASUK
+    assert result.status_code == 401
+    assert result.json()["detail"]["code"] == BELUM_MASUK
 
 
-def test_qr_yang_dicetak_terbaca_kembali(gerbang):
-    """Lingkaran penuh: yang dicetak `isi_qr_untuk` harus dikenali lane scan. Kalau
-    dua sisi ini memakai aturan normalisasi berbeda, QR yang kita cetak sendiri tidak
-    terbaca — dan itu baru ketahuan di gerbang pabrik."""
+def test_a_printed_qr_reads_back_correctly(gerbang):
+    """Full circle: what `isi_qr_untuk` prints must be recognised by the scan lane.
+    If the two sides used different normalisation rules, a QR we printed ourselves
+    would not read back — and that would only surface at the factory gate."""
     client, _ = gerbang
-    _masuk(client)
+    _sign_in(client)
 
-    jawab = client.post("/api/console/scan", json={"qr": isi_qr_untuk(PLAT)})
+    result = client.post("/api/console/scan", json={"qr": isi_qr_untuk(PLAT)})
 
-    assert jawab.status_code == 200
-    assert jawab.json()["ditemukan"] is True
-    assert jawab.json()["truck"]["erp_name"] == "TRK-0001"
+    assert result.status_code == 200
+    assert result.json()["ditemukan"] is True
+    assert result.json()["truck"]["erp_name"] == "TRK-0001"
 
 
-def test_tiga_gaya_tulisan_satu_truk(gerbang):
-    """Plat ditulis berbeda oleh operator, program timbangan, dan ERP."""
+def test_three_writing_styles_are_one_truck(gerbang):
+    """The plate is written differently by the operator, the scale program, and ERP."""
     client, _ = gerbang
-    _masuk(client)
+    _sign_in(client)
 
-    id_truk = {
+    truck_ids = {
         client.post("/api/console/scan", json={"qr": q}).json()["truck"]["id"]
         for q in ("BE4412OFL", "be-4412-ofl", "BE 4412 OFL")
     }
 
-    assert len(id_truk) == 1, "satu truk fisik terbaca sebagai beberapa truk"
+    assert len(truck_ids) == 1, "one physical truck read back as several trucks"
 
 
-def test_truk_pinjaman_dijawab_200_bukan_404(gerbang):
-    """404 di layar terbaca seperti kerusakan. Truk pinjaman itu kasus normal, dan
-    jawabannya harus membuat layar menawarkan input manual."""
+def test_a_borrowed_truck_answers_200_not_404(gerbang):
+    """A 404 on screen reads like something broke. A borrowed truck is the normal
+    case, and the answer has to make the screen offer manual entry."""
     client, _ = gerbang
-    _masuk(client)
+    _sign_in(client)
 
-    jawab = client.post("/api/console/scan", json={"qr": "BE9999XYZ"})
+    result = client.post("/api/console/scan", json={"qr": "BE9999XYZ"})
 
-    assert jawab.status_code == 200
-    assert jawab.json() == {
+    assert result.status_code == 200
+    assert result.json() == {
         "ditemukan": False,
         "plate_number": "BE9999XYZ",
         "truck": None,
     }
 
 
-def test_scan_berkali_kali_tidak_menambah_truk(gerbang):
-    """Pagar utamanya: satu QR salah baca tidak boleh menambah truk hantu ke master
-    data, karena truk itu naik ke AutoERP lewat interface B."""
+def test_scanning_repeatedly_does_not_add_a_truck(gerbang):
+    """The main guard: one misread QR must not add a ghost truck to master data,
+    because that truck would ride up to AutoERP through interface B."""
     client, store = gerbang
-    _masuk(client)
-    sebelum = len(store.trucks_semua())
+    _sign_in(client)
+    before = len(store.trucks_semua())
 
     for q in ("BE9999XYZ", "BE1111AAA", "BE9999XYZ"):
         client.post("/api/console/scan", json={"qr": q})
 
-    assert len(store.trucks_semua()) == sebelum
+    assert len(store.trucks_semua()) == before
 
 
-def test_scan_tidak_menulis_timbangan(gerbang):
-    """Yang mencatat berat cuma `catat_timbangan`. Dua penulis untuk angka yang
-    dibayar adalah cara paling rapi untuk salah bayar berbulan-bulan."""
+def test_scan_writes_no_weighing(gerbang):
+    """Only `record_weighing` writes weight. Two writers for the figure that gets
+    paid is the tidiest way to be wrong for months."""
     client, store = gerbang
-    _masuk(client)
+    _sign_in(client)
 
     client.post("/api/console/scan", json={"qr": "BE4412OFL"})
 
@@ -185,39 +185,41 @@ def test_scan_tidak_menulis_timbangan(gerbang):
 
 
 @pytest.mark.parametrize(
-    ("sampah", "kode"),
+    ("junk", "code"),
     [
         ("https://contoh.id/promo", BUKAN_PLAT),
         ("TRK-0001", BUKAN_PLAT),
-        ("!!!", PLAT_KOSONG),   # nol karakter alfanumerik: memang kosong
+        ("!!!", PLAT_KOSONG),   # zero alphanumeric characters: genuinely empty
         ("1234", BUKAN_PLAT),
         ("", PLAT_KOSONG),
         ("   ", PLAT_KOSONG),
     ],
 )
-def test_yang_bukan_plat_ditolak_400(gerbang, sampah, kode):
-    """Apa pun bisa masuk ke scanner: struk parkir, QR promo, id ERP, bacaan gagal.
+def test_anything_that_is_not_a_plate_is_refused_400(gerbang, junk, code):
+    """Anything can land in the scanner: a parking receipt, a promo QR, an ERP id,
+    a failed read.
 
-    Kodenya dibedakan per sebab: layar menerjemahkan per kode, jadi satu kode untuk
-    dua sebab akan selalu salah untuk salah satunya. Ketemu di browser — QR berisi URL
-    menampilkan "Nomor polisi tidak boleh kosong".
+    The code is distinguished per cause: the screen translates per code, so one
+    code for two causes will always be wrong for one of them. Found in the browser
+    — a QR holding a URL showed "Nomor polisi tidak boleh kosong".
     """
     client, _ = gerbang
-    _masuk(client)
+    _sign_in(client)
 
-    jawab = client.post("/api/console/scan", json={"qr": sampah})
+    result = client.post("/api/console/scan", json={"qr": junk})
 
-    assert jawab.status_code == 400
-    assert jawab.json()["detail"]["code"] == kode
-
-
-# ── cetak QR (lane gambar) ───────────────────────────────────────────────────
+    assert result.status_code == 400
+    assert result.json()["detail"]["code"] == code
 
 
-def test_gambar_qr_butuh_sesi():
-    """Plat truk itu data operasional pabrik. Lane gambarnya ikut di belakang gerbang
-    seperti lane operator lain."""
-    # App tanpa sesi: fixture `gerbang` sudah sign-in, jadi dirakit sendiri di sini.
+# ── printing a QR (image lane) ───────────────────────────────────────────────
+
+
+def test_the_qr_image_needs_a_session():
+    """A truck's plate is mill operational data. The image lane sits behind the
+    gate like every other operator lane."""
+    # App with no session: the `gerbang` fixture already signs in, so this one is
+    # assembled by hand.
     store = ConsoleStore(Path(tempfile.mkdtemp()) / "console.db")
     app = FastAPI()
     app.include_router(console_router)
@@ -225,127 +227,128 @@ def test_gambar_qr_butuh_sesi():
     app.dependency_overrides[get_auth_service] = lambda: AuthService(store)
     app.dependency_overrides[get_scan_service] = lambda: ScanService(store)
 
-    jawab = TestClient(app).get(f"/api/console/trucks/{PLAT}/qr.png")
+    result = TestClient(app).get(f"/api/console/trucks/{PLAT}/qr.png")
 
-    assert jawab.status_code == 401
+    assert result.status_code == 401
 
 
-def test_gambar_qr_dikirim_sebagai_png(gerbang):
+def test_the_qr_image_is_sent_as_png(gerbang):
     client, _ = gerbang
-    _masuk(client)
+    _sign_in(client)
 
-    jawab = client.get(f"/api/console/trucks/{PLAT}/qr.png")
+    result = client.get(f"/api/console/trucks/{PLAT}/qr.png")
 
-    assert jawab.status_code == 200
-    assert jawab.headers["content-type"] == "image/png"
-    assert jawab.content.startswith(b"\x89PNG\r\n\x1a\n")
+    assert result.status_code == 200
+    assert result.headers["content-type"] == "image/png"
+    assert result.content.startswith(b"\x89PNG\r\n\x1a\n")
 
 
-def test_gambar_qr_berisi_plat_yang_diminta(gerbang):
-    """Dibuktikan lewat pola QR-nya: pola untuk satu isi bersifat tetap, jadi sama
-    dengan pola `BE4412OFL` berarti isinya memang itu."""
+def test_the_qr_image_carries_the_requested_plate(gerbang):
+    """Proven through the QR pattern itself: the pattern for one payload is fixed,
+    so matching `BE4412OFL`'s pattern means the content really is that."""
     import segno
 
     from palmgrade.services.qr_cetak import KOREKSI, png_qr
 
     client, _ = gerbang
-    _masuk(client)
+    _sign_in(client)
 
-    jawab = client.get(f"/api/console/trucks/{PLAT}/qr.png")
+    result = client.get(f"/api/console/trucks/{PLAT}/qr.png")
 
-    assert jawab.content == png_qr(PLAT)
-    # Dan pola itu memang pola platnya, bukan kebetulan dua fungsi yang sama-sama salah.
+    assert result.content == png_qr(PLAT)
+    # And that pattern really is the plate's pattern, not a coincidence of two
+    # functions that are both wrong the same way.
     assert segno.make("BE4412OFL", error=KOREKSI).matrix is not None
 
 
-def test_plat_gaya_apa_pun_menghasilkan_qr_yang_sama(gerbang):
-    """Satu truk = satu QR. Kalau tidak, dua kartu tercetak untuk satu truk dan
-    salah satunya nanti tidak cocok dengan barisnya."""
+def test_any_plate_writing_style_produces_the_same_qr(gerbang):
+    """One truck = one QR. Otherwise two cards get printed for one truck, and one
+    of them later fails to match its row."""
     client, _ = gerbang
-    _masuk(client)
+    _sign_in(client)
 
-    isi = {
+    contents = {
         client.get(f"/api/console/trucks/{p}/qr.png").content
         for p in ("BE4412OFL", "be-4412-ofl", "BE 4412 OFL")
     }
 
-    assert len(isi) == 1
+    assert len(contents) == 1
 
 
-def test_plat_yang_bukan_plat_ditolak_400(gerbang):
-    """Isi QR datang dari baris truk, dan baris itu bisa salah isi. Kartu yang isinya
-    bukan plat tidak akan pernah bisa di-scan."""
+def test_something_that_is_not_a_plate_is_refused_400(gerbang):
+    """A QR's content comes from the truck row, and that row can be wrong. A card
+    whose content is not a plate can never be scanned anyway."""
     client, _ = gerbang
-    _masuk(client)
+    _sign_in(client)
 
-    jawab = client.get("/api/console/trucks/bukan-plat-1234567/qr.png")
+    result = client.get("/api/console/trucks/bukan-plat-1234567/qr.png")
 
-    assert jawab.status_code == 400
-    assert jawab.json()["detail"]["code"] == BUKAN_PLAT
+    assert result.status_code == 400
+    assert result.json()["detail"]["code"] == BUKAN_PLAT
 
 
-def test_gambar_qr_truk_yang_belum_terdaftar_tetap_dibuat(gerbang):
-    """Kartu dicetak DULU, truknya didaftarkan kemudian — itu urutan yang wajar untuk
-    truk baru. Menolak di sini memaksa backoffice mendaftarkan dulu sebelum bisa
-    mencetak, padahal QR-nya cuma berisi plat."""
+def test_the_qr_image_for_an_unregistered_truck_is_still_created(gerbang):
+    """The card is printed FIRST, the truck registered later — the normal order
+    for a new truck. Refusing here would force backoffice to register before they
+    can print, for a code that only ever contains the plate."""
     client, _ = gerbang
-    _masuk(client)
+    _sign_in(client)
 
-    jawab = client.get("/api/console/trucks/BE9999XYZ/qr.png")
+    result = client.get("/api/console/trucks/BE9999XYZ/qr.png")
 
-    assert jawab.status_code == 200
-    assert jawab.content.startswith(b"\x89PNG\r\n\x1a\n")
-
-
-# ── scan lalu timbang masuk, satu kunjungan ──────────────────────────────────
+    assert result.status_code == 200
+    assert result.content.startswith(b"\x89PNG\r\n\x1a\n")
 
 
-def test_scan_lalu_timbang_masuk_mendarat_di_truk_yang_sama(gerbang_penuh):
-    """Alur gerbang: scan QR, lalu catat bruto. Yang dijaga di sini bukan dua panggilan
-    itu berhasil, tapi keduanya **menunjuk truk yang sama** — `catat_timbangan`
-    menurunkan `truck_id` dari plat, dan kalau lane scan memakai aturan lain satu
-    kunjungan mendarat di dua truk.
+# ── scan then weigh in, one visit ────────────────────────────────────────────
+
+
+def test_scan_then_weigh_in_lands_on_the_same_truck(gerbang_penuh):
+    """Gate flow: scan the QR, then record gross weight. What is guarded here is
+    not that both calls succeed, but that they **point at the same truck** —
+    `record_weighing` derives `truck_id` from the plate, and if the scan lane used
+    a different rule one visit would land on two trucks.
     """
     client, store = gerbang_penuh
-    _masuk(client)
+    _sign_in(client)
 
-    hasil = client.post("/api/console/scan", json={"qr": "be-4412-ofl"}).json()
-    assert hasil["ditemukan"] is True
+    result = client.post("/api/console/scan", json={"qr": "be-4412-ofl"}).json()
+    assert result["ditemukan"] is True
 
-    jawab = client.post(
+    response = client.post(
         "/api/console/weighings",
         json={
-            "plate_number": hasil["truck"]["plate_number"],
-            "bruto_kg": 13250,
-            "waktu_masuk": "2026-09-15T08:55:00+07:00",
+            "plate_number": result["truck"]["plate_number"],
+            "gross_kg": 13250,
+            "entered_at": "2026-09-15T08:55:00+07:00",
         },
     )
 
-    assert jawab.status_code == 201
-    tiket = jawab.json()
-    assert tiket["truck_id"] == hasil["truck"]["id"]
+    assert response.status_code == 201
+    ticket = response.json()
+    assert ticket["truck_id"] == result["truck"]["id"]
 
 
-def test_scan_gaya_apa_pun_menimbang_truk_yang_sama(gerbang):
-    """Plat yang sama di-scan dari QR (`BE4412OFL`) atau diketik (`BE 4412 OFL`) harus
-    menghasilkan satu tiket, bukan dua."""
+def test_any_scan_style_weighs_the_same_truck(gerbang):
+    """The same plate scanned from a QR (`BE4412OFL`) or typed (`BE 4412 OFL`) must
+    produce one ticket, not two."""
     client, store = gerbang
-    _masuk(client)
+    _sign_in(client)
 
-    id_truk = set()
+    truck_ids = set()
     for qr in ("BE4412OFL", "be-4412-ofl", "BE 4412 OFL"):
-        hasil = client.post("/api/console/scan", json={"qr": qr}).json()
-        id_truk.add(hasil["truck"]["id"])
+        result = client.post("/api/console/scan", json={"qr": qr}).json()
+        truck_ids.add(result["truck"]["id"])
 
-    assert len(id_truk) == 1
+    assert len(truck_ids) == 1
 
 
-def test_scan_truk_pinjaman_lalu_daftar_lalu_scan_lagi(gerbang):
-    """Urutan yang sebenarnya terjadi di gerbang saat truk pinjaman datang: scan gagal,
-    operator mendaftarkan platnya, scan kedua berhasil. Tanpa langkah tengah itu truk
-    pinjaman tidak bisa ditimbang sama sekali."""
+def test_scan_a_borrowed_truck_then_register_then_scan_again(gerbang):
+    """The actual order at the gate when a borrowed truck arrives: the scan fails,
+    the operator registers the plate, the second scan succeeds. Without that
+    middle step a borrowed truck could never be weighed at all."""
     client, store = gerbang
-    _masuk(client)
+    _sign_in(client)
 
     assert client.post("/api/console/scan", json={"qr": "BE9999XYZ"}).json()["ditemukan"] is False
 
@@ -353,119 +356,120 @@ def test_scan_truk_pinjaman_lalu_daftar_lalu_scan_lagi(gerbang):
         {"id": truck_id_for("BE 9999 XYZ"), "plate_number": "BE 9999 XYZ", "status": "manual"}
     )
 
-    ulang = client.post("/api/console/scan", json={"qr": "BE9999XYZ"}).json()
-    assert ulang["ditemukan"] is True
-    assert ulang["truck"]["plate_number"] == "BE 9999 XYZ"
+    again = client.post("/api/console/scan", json={"qr": "BE9999XYZ"}).json()
+    assert again["ditemukan"] is True
+    assert again["truck"]["plate_number"] == "BE 9999 XYZ"
 
 
-def test_kartu_qr_yang_dicetak_bisa_dipakai_scan(gerbang):
-    """Lingkaran penuh dari kartu ke gerbang: isi yang dicetak ke QR harus dikenali
-    lane scan. Kalau tidak, kita mencetak setumpuk kartu yang tidak bisa dibaca sendiri.
+def test_a_printed_qr_card_can_be_used_to_scan(gerbang):
+    """Full circle from card to gate: what is printed onto a QR must be recognised
+    by the scan lane. Otherwise we print a stack of cards that cannot read
+    themselves back.
     """
     client, _ = gerbang
-    _masuk(client)
+    _sign_in(client)
 
-    # Yang tercetak di kartu untuk plat ini:
-    isi_kartu = isi_qr_untuk(PLAT)
+    # What gets printed on the card for this plate:
+    card_content = isi_qr_untuk(PLAT)
 
-    hasil = client.post("/api/console/scan", json={"qr": isi_kartu}).json()
+    result = client.post("/api/console/scan", json={"qr": card_content}).json()
 
-    assert hasil["ditemukan"] is True
-    assert hasil["truck"]["plate_number"] == PLAT
-
-
-# ── scan di gerbang keluar ───────────────────────────────────────────────────
+    assert result["ditemukan"] is True
+    assert result["truck"]["plate_number"] == PLAT
 
 
-def _masuk_timbang(client, plat: str, jam: str = "08:00:00") -> dict:
-    jawab = client.post(
+# ── scan at the exit gate ─────────────────────────────────────────────────────
+
+
+def _weigh_in(client, plate: str, time: str = "08:00:00") -> dict:
+    response = client.post(
         "/api/console/weighings",
-        json={"plate_number": plat, "bruto_kg": 13250,
-              "waktu_masuk": f"2026-09-15T{jam}+07:00"},
+        json={"plate_number": plate, "gross_kg": 13250,
+              "entered_at": f"2026-09-15T{time}+07:00"},
     )
-    assert jawab.status_code == 201, jawab.text
-    return jawab.json()
+    assert response.status_code == 201, response.text
+    return response.json()
 
 
-def test_scan_keluar_butuh_sesi(gerbang):
+def test_exit_scan_needs_a_session(gerbang):
     client, _ = gerbang
 
-    jawab = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"})
+    result = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"})
 
-    assert jawab.status_code == 401
-    assert jawab.json()["detail"]["code"] == BELUM_MASUK
+    assert result.status_code == 401
+    assert result.json()["detail"]["code"] == BELUM_MASUK
 
 
-def test_scan_keluar_menemukan_tiket_yang_menunggu_tara(gerbang_penuh):
-    """Alur gerbang keluar: scan plat, sistem yang mencari tiketnya."""
+def test_exit_scan_finds_the_ticket_waiting_for_its_tare(gerbang_penuh):
+    """Exit gate flow: scan the plate, the system finds the ticket."""
     client, _ = gerbang_penuh
-    _masuk(client)
-    tiket = _masuk_timbang(client, PLAT)
+    _sign_in(client)
+    ticket = _weigh_in(client, PLAT)
 
-    jawab = client.post("/api/console/scan/keluar", json={"qr": "be-4412-ofl"})
+    result = client.post("/api/console/scan/keluar", json={"qr": "be-4412-ofl"})
 
-    assert jawab.status_code == 200
-    hasil = jawab.json()
-    assert hasil["ditemukan"] is True
-    assert hasil["weighing"]["id"] == tiket["id"]
-    assert hasil["weighing"]["bruto_kg"] == 13250
+    assert result.status_code == 200
+    body = result.json()
+    assert body["ditemukan"] is True
+    assert body["weighing"]["id"] == ticket["id"]
+    assert body["weighing"]["gross_kg"] == 13250
 
 
-def test_scan_keluar_lalu_catat_tara_menutup_tiket_yang_sama(gerbang_penuh):
-    """Lingkaran penuh gerbang keluar. Yang dijaga: tara mendarat di tiket yang
-    di-scan, dan netonya dihitung dari bruto tiket itu — bukan tiket lain."""
+def test_exit_scan_then_recording_tare_closes_the_same_ticket(gerbang_penuh):
+    """Full circle at the exit gate. What is guarded: the tare lands on the
+    scanned ticket, and net is computed from that ticket's gross — not another one."""
     client, store = gerbang_penuh
-    _masuk(client)
-    _masuk_timbang(client, PLAT)
+    _sign_in(client)
+    _weigh_in(client, PLAT)
 
-    hasil = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"}).json()
-    w = hasil["weighing"]
+    result = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"}).json()
+    w = result["weighing"]
 
-    jawab = client.post(
+    response = client.post(
         "/api/console/weighings",
-        json={"plate_number": PLAT, "ref": w.get("ref"), "waktu_masuk": w["waktu_masuk"],
-              "tara_kg": 5000, "waktu_keluar": "2026-09-15T09:00:00+07:00"},
+        json={"plate_number": PLAT, "ref": w.get("ref"), "entered_at": w["entered_at"],
+              "tare_kg": 5000, "exited_at": "2026-09-15T09:00:00+07:00"},
     )
 
-    assert jawab.status_code == 201
-    assert jawab.json()["neto_kg"] == 8250.0
-    # Dan tiketnya tidak terbuka lagi.
-    ulang = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"}).json()
-    assert ulang["ditemukan"] is False
+    assert response.status_code == 201
+    assert response.json()["net_kg"] == 8250.0
+    # And the ticket is no longer open.
+    again = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"}).json()
+    assert again["ditemukan"] is False
 
 
-def test_dua_tiket_terbuka_dijawab_minta_pilih_bukan_ditebak(gerbang_penuh):
-    """Keputusan operator: menebak bisa memasangkan tara ke kunjungan yang salah dan
-    mencampur tonase dua kunjungan."""
+def test_two_open_tickets_are_answered_with_a_choice_not_a_guess(gerbang_penuh):
+    """Operator's decision: guessing here can attach the tare to the wrong visit
+    and mix two visits' tonnage."""
     client, _ = gerbang_penuh
-    _masuk(client)
-    _masuk_timbang(client, PLAT, "08:00:00")
-    _masuk_timbang(client, PLAT, "10:00:00")
+    _sign_in(client)
+    _weigh_in(client, PLAT, "08:00:00")
+    _weigh_in(client, PLAT, "10:00:00")
 
-    hasil = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"}).json()
+    result = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"}).json()
 
-    assert hasil["ditemukan"] is False
-    assert hasil["ganda"] is True
-    assert len(hasil["pilihan"]) == 2
+    assert result["ditemukan"] is False
+    assert result["ganda"] is True
+    assert len(result["choices"]) == 2
 
 
-def test_scan_keluar_tanpa_tiket_terbuka_dijawab_200(gerbang_penuh):
-    """Truk yang timbang masuknya terlewat. Jawaban jelas, bukan 404 yang terbaca
-    seperti kerusakan."""
+def test_exit_scan_with_no_open_ticket_answers_200(gerbang_penuh):
+    """A truck whose weigh-in was missed. The answer must be clear, not a 404 that
+    reads like something broke."""
     client, _ = gerbang_penuh
-    _masuk(client)
+    _sign_in(client)
 
-    jawab = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"})
+    result = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"})
 
-    assert jawab.status_code == 200
-    assert jawab.json()["ditemukan"] is False
+    assert result.status_code == 200
+    assert result.json()["ditemukan"] is False
 
 
-def test_scan_keluar_yang_bukan_plat_ditolak_400(gerbang_penuh):
+def test_exit_scan_of_something_that_is_not_a_plate_is_refused_400(gerbang_penuh):
     client, _ = gerbang_penuh
-    _masuk(client)
+    _sign_in(client)
 
-    jawab = client.post("/api/console/scan/keluar", json={"qr": "https://contoh.id"})
+    result = client.post("/api/console/scan/keluar", json={"qr": "https://contoh.id"})
 
-    assert jawab.status_code == 400
-    assert jawab.json()["detail"]["code"] == BUKAN_PLAT
+    assert result.status_code == 400
+    assert result.json()["detail"]["code"] == BUKAN_PLAT

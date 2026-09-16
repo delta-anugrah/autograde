@@ -80,25 +80,26 @@ def _truck(visit: dict[str, Any]) -> dict[str, Any]:
 
 def _stage(visit: dict[str, Any], grading: dict[str, Any] | None) -> str:
     """Informational for AutoERP, but it must not claim the truck is still here."""
-    if visit.get("tara_kg") is not None:
+    if visit.get("tare_kg") is not None:
         return "departed"
     return "grading" if grading else "gate"
 
 
 def _weighing(visit: dict[str, Any]) -> dict[str, Any]:
-    weighing: dict[str, Any] = {"time_in": visit["waktu_masuk"]}
-    for ours, theirs in (("bruto_kg", "gross_kg"), ("tara_kg", "tare_kg")):
-        if visit.get(ours) is not None:
-            weighing[theirs] = float(visit[ours])
-    if visit.get("waktu_keluar"):
-        weighing["time_out"] = visit["waktu_keluar"]
+    weighing: dict[str, Any] = {"time_in": visit["entered_at"]}
+    for field in ("gross_kg", "tare_kg"):
+        if visit.get(field) is not None:
+            weighing[field] = float(visit[field])
+    if visit.get("exited_at"):
+        weighing["time_out"] = visit["exited_at"]
     return weighing
 
 
 def _grading(grading: dict[str, Any]) -> dict[str, Any]:
-    """Criteria mapping (§4.C): mentah is the rejected share, tangkai panjang the
-    long stalks among accepted bunches, matang the rest — AutoERP derives that
-    last one itself. `detail_url` is deliberately not sent (see
+    """Criteria mapping (§4.C, AutoERP contract field names — do not rename):
+    `mentah` is the rejected share, `tangkai_panjang` the long stalks among
+    accepted bunches, `matang` the rest — AutoERP derives that last one itself.
+    `detail_url` is deliberately not sent (see
     `../docs/PROGRESS-AUTOGRADE-AUTOERP.md` §"Beda dari rancangan Mas Samuel").
     """
     total = int(grading.get("total") or 0)
@@ -113,8 +114,8 @@ def _grading(grading: dict[str, Any]) -> dict[str, Any]:
     return {
         "assignment_id": grading.get("assignment_id"),
         "line_code": grading.get("line_code"),
-        "started_at": grading.get("mulai"),
-        "ended_at": grading.get("selesai"),
+        "started_at": grading.get("started_at"),
+        "ended_at": grading.get("ended_at"),
         "counts": counts,
         "pct": {
             "mentah": _share(counts["mentah"], total),

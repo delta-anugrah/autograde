@@ -45,7 +45,7 @@ def _kartu(service, line_code):
 
 def _pasang_truk(service):
     kode = service.lines[0].line_code
-    truk = service.daftar_truk_manual("B 1234 XY")
+    truk = service.register_manual_truck("B 1234 XY")
     asyncio.run(service.assign_truck(kode, truk["id"]))
     assert _kartu(service, kode)["assignment"]["truck_id"] == truk["id"]
     return kode
@@ -54,19 +54,19 @@ def _pasang_truk(service):
 def test_lepas_truk_memberi_tahu_line_lalu_mengosongkan_layar(service):
     kode = _pasang_truk(service)
 
-    asyncio.run(service.lepas_truk(kode))
+    asyncio.run(service.release_truck(kode))
 
     # The screen is not the point — the line is what has to know.
-    assert service._line_client.kiriman[-1] == (kode, "", "")
+    assert service.line_client.kiriman[-1] == (kode, "", "")
     assert _kartu(service, kode)["assignment"] is None
 
 
 def test_lepas_truk_gagal_kalau_line_mati_layar_tetap_jujur(service):
     kode = _pasang_truk(service)
-    service._line_client.mati = True
+    service.line_client.mati = True
 
     with pytest.raises(LineUnavailable):
-        asyncio.run(service.lepas_truk(kode))
+        asyncio.run(service.release_truck(kode))
 
     # The screen still shows the truck, and rightly so: the line does not know yet.
     assert _kartu(service, kode)["assignment"] is not None
@@ -74,7 +74,7 @@ def test_lepas_truk_gagal_kalau_line_mati_layar_tetap_jujur(service):
 
 def test_lepas_truk_line_tak_dikenal_ditolak(service):
     with pytest.raises(ValueError):
-        asyncio.run(service.lepas_truk("line-9"))
+        asyncio.run(service.release_truck("line-9"))
 
 
 def test_truk_kosong_sampai_di_line_sebagai_none_bukan_string_kosong():

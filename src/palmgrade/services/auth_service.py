@@ -66,7 +66,7 @@ class AuthService:
 
         operator_id = row["id"]
         locked = lockout_seconds_left(
-            row["gagal_count"], last_failed_at=row["gagal_terakhir"], now=now
+            row["fail_count"], last_failed_at=row["last_failed_at"], now=now
         )
         if locked:
             raise OperatorError(TERKUNCI, f"login terkunci {locked} detik lagi", detik=locked)
@@ -83,7 +83,7 @@ class AuthService:
         # One sweep per sign-in, and nowhere else: enough to keep the table from growing
         # for the life of a factory PC, without a worker of its own.
         self._store.purge_sessions(now=now)
-        return token, {"id": operator_id, "email": row["email"], "nama": row["nama"]}
+        return token, {"id": operator_id, "email": row["email"], "full_name": row["full_name"]}
 
     @staticmethod
     def _password_plausible(password: object) -> bool:

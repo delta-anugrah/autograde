@@ -223,7 +223,7 @@ def test_a_graded_bunch_shows_its_trucks_source(console, pulled, plates):
     )
     assert res.status_code == 201, res.text
 
-    history = console.get("/api/console/history", params={"tanggal_kerja": res.json()["tanggal_kerja"]})
+    history = console.get("/api/console/history", params={"work_date": res.json()["work_date"]})
     [row] = [r for r in history.json()["items"] if r["event_id"] == event_id]
     assert (row["plate_number"], row["sumber_label"]) == (plates["owned"], "External")
 
@@ -235,17 +235,17 @@ def test_a_weighing_shows_its_trucks_source(console, pulled, plates):
         json={
             "ref": f"E2E-{uuid.uuid4().hex[:8]}",
             "plate_number": plates["ownerless"],
-            "waktu_masuk": datetime.now(UTC).isoformat(),
-            "bruto_kg": 14560,
-            "tara_kg": 5400,
+            "entered_at": datetime.now(UTC).isoformat(),
+            "gross_kg": 14560,
+            "tare_kg": 5400,
         },
     )
     assert res.status_code == 201, res.text
     ticket = res.json()
 
-    weighings = console.get("/api/console/weighings", params={"tanggal_kerja": ticket["tanggal_kerja"]})
+    weighings = console.get("/api/console/weighings", params={"work_date": ticket["work_date"]})
     [row] = [w for w in weighings.json()["items"] if w["id"] == ticket["id"]]
-    assert (row["neto_kg"], row["sumber_label"]) == (9160, "Internal")
+    assert (row["net_kg"], row["sumber_label"]) == (9160, "Internal")
 
 
 def test_a_truck_typed_at_the_mill_reaches_autoerp(console, erp, mill_plate):
@@ -350,8 +350,8 @@ def test_a_gate_weighing_becomes_a_weighbridge_ticket(console, erp, pulled, plat
         json={
             "ref": reference,
             "plate_number": plates["owned"],
-            "waktu_masuk": datetime.now(UTC).isoformat(),
-            "bruto_kg": 14560,
+            "entered_at": datetime.now(UTC).isoformat(),
+            "gross_kg": 14560,
         },
     )
     assert res.status_code == 201, res.text
@@ -372,8 +372,8 @@ def test_closing_the_line_assignment_sends_the_grading(console, erp, fake_line, 
         json={
             "ref": f"E2E-{uuid.uuid4().hex[:8]}",
             "plate_number": plate,
-            "waktu_masuk": datetime.now(UTC).isoformat(),
-            "bruto_kg": 15200,
+            "entered_at": datetime.now(UTC).isoformat(),
+            "gross_kg": 15200,
         },
     ).json()["id"]
     _eventually(lambda: _erp_ticket(erp, visit_id), "the visit never arrived")
@@ -441,8 +441,8 @@ def test_a_bunch_without_a_verdict_never_reaches_the_ledger(
         json={
             "ref": f"E2E-{uuid.uuid4().hex[:8]}",
             "plate_number": plate,
-            "waktu_masuk": datetime.now(UTC).isoformat(),
-            "bruto_kg": 13400,
+            "entered_at": datetime.now(UTC).isoformat(),
+            "gross_kg": 13400,
         },
     ).json()["id"]
     _eventually(lambda: _erp_ticket(erp, visit_id), "the visit never arrived")
@@ -501,8 +501,8 @@ def test_operator_failures_come_back_as_codes_the_screen_translates(console):
 
     weighing = {
         "plate_number": "E2E 1 ERR",
-        "bruto_kg": "14,82",
-        "waktu_masuk": datetime.now(UTC).isoformat(),
+        "gross_kg": "14,82",
+        "entered_at": datetime.now(UTC).isoformat(),
     }
     typed = console.post("/api/console/weighings", json=weighing)
     assert typed.status_code == 400

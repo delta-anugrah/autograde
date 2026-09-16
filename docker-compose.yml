@@ -394,6 +394,10 @@ services:
       # Empty is correct on a single-company site: AutoERP then books against
       # its own default company.
       - ERP_COMPANY=${ERP_COMPANY:-}
+      # Peran mana yang boleh datang dari AutoERP. Kosongkan untuk menolak semuanya.
+      - ERP_ALLOWED_ROLES=${ERP_ALLOWED_ROLES:-support}
+      # Berapa lama layar Log (support) menyimpan riwayat ERROR/WARNING.
+      - LOG_RETENSI_HARI=${LOG_RETENSI_HARI:-180}
       - LICENSE_TOKEN=${LICENSE_TOKEN:-}
       # Pemetaan machine_id → line, supaya event tahu dia dari line mana.
       # Nilai default sama persis dengan tiga service di atas.

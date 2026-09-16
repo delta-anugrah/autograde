@@ -746,3 +746,104 @@ def test_label_tara_diterjemahkan():
         isi = _kamus(bahasa)
         for kunci in ("btnSimpanTara", "taraMinimum", "phTara"):
             assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+
+
+# ── konfirmasi uji PLC inline, bukan prompt() bawaan browser (2026-09-16) ───
+# Regression guard: the PLC coil test used to fire through `prompt()`, which a
+# rebase from staging then forbade console-wide (same reasoning as tara: the
+# box is tiny for a gloved thumb, can't be sized, and takes any text with no
+# validation). It must stay inline like tara AND keep requiring the typed
+# word - a click alone can be brushed on a touchscreen, and this is the only
+# console screen that fires a PLC coil and moves a piston.
+
+
+def test_uji_plc_tidak_memakai_dialog_bawaan_browser():
+    assert "prompt(" not in HTML, "uji PLC masih memakai prompt() bawaan browser"
+    assert "confirm(" not in _fungsi("jalankanUjiPlc"), "uji PLC memakai confirm() bawaan browser"
+
+
+def test_kolom_konfirmasi_plc_ada_dan_disembunyikan_sampai_diminta():
+    blok = HTML.split('id="plc-konfirmasi"', 1)[1].split(">", 1)[0]
+    assert "hidden" in blok, "grup konfirmasi PLC harus mulai tersembunyi"
+    assert "plc-konfirmasi" in _fungsi("tanyaUjiPlc"), "tombol uji coil tidak membuka grup inline"
+
+
+def test_konfirmasi_plc_tetap_wajib_ketik_uji():
+    """Beda dari tara: kolom ini bukan validasi angka tapi kata sandi sekali pakai
+    untuk memicu hardware sungguhan. Klik saja - bahkan lewat confirm() - bisa
+    tersenggol jempol bersarung tangan di layar sentuh; ketikan tidak."""
+    fn = _fungsi("jalankanUjiPlc")
+    assert '!== "UJI"' in fn, "konfirmasi uji PLC tidak lagi memvalidasi ketikan UJI"
+    assert "konfirmasi: \"UJI\"" in fn, "body POST tidak lagi mengirim konfirmasi: UJI"
+
+
+def test_batal_konfirmasi_plc_tidak_mengirim_apa_pun():
+    fn = _fungsi("tutupUjiPlc")
+    assert "hidden = true" in fn
+    assert "ujiUntuk = null" in fn, "batal harus melepas coil/line yang sedang ditanyakan"
+    assert "api(" not in fn, "batal tidak boleh memanggil endpoint apa pun"
+
+
+def test_konfirmasi_plc_menyebut_coil_dan_line():
+    """Sama seperti prompt() lama: operator harus tahu coil DAN line mana yang
+    akan menyala sebelum mengetik UJI."""
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        assert "konfirmasiUjiPlc:" in isi
+    assert "{coil}" in HTML.split("konfirmasiUjiPlc:", 1)[1][:200]
+    assert "{line}" in HTML.split("konfirmasiUjiPlc:", 1)[1][:200]
+
+
+def test_label_konfirmasi_plc_diterjemahkan():
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("phUjiPlc", "btnUjiPlcJalankan", "konfirmasiUjiPlc", "ujiPlcDibatalkan"):
+            assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+
+
+# ── tab developer (2026-09-15) ─────────────────────────────────────────────
+
+
+# ── developer tab (2026-09-15) ─────────────────────────────────────────────
+
+
+def test_tab_developer_ditandai_data_dev():
+    assert 'data-dev="1"' in HTML
+
+
+def test_tab_developer_disembunyikan_default():
+    """Without a support role, the developer tab must not appear on screen."""
+    assert "hapusTabDeveloper" in HTML
+
+
+def test_konsol_tetap_tanpa_referensi_https():
+    """Long-standing invariant: the console must run with the internet down."""
+    assert "https://" not in HTML
+
+
+# ── tab ↔ panel mapping ─────────────────────────────────────────────────────
+
+
+def test_setiap_tab_berpanel_punya_id_yang_cocok():
+    """`terapkanTab()` (Task 7) skips a tab with no `sec-*` panel instead of
+    throwing on a null `$()` lookup - which means a typo'd id now fails
+    silently rather than loudly (the tab looks clickable but nothing shows).
+    The Log panel is the first dev panel to exist, so from here on a mismatch
+    has something to be caught by, in both directions:
+    - a tab this screen expects to work must have a panel at the right id;
+    - a panel that exists must be reachable from some data-tab button (a
+      typo'd id orphans the panel instead of merely mislabelling it)."""
+    # The tabs wired to a working panel today - kept here, not derived from
+    # TAB_SAH in the script, so a JS-side typo cannot make this test agree
+    # with the very bug it exists to catch.
+    tab_dengan_panel = {"grading", "truk", "timbangan", "rekap", "log"}
+
+    data_tab = set(re.findall(r'data-tab="(\w+)"', HTML))
+    id_panel = set(re.findall(r'<section id="sec-(\w+)"', HTML))
+
+    for tab in tab_dengan_panel:
+        assert tab in data_tab, f"tab {tab!r} tidak lagi punya tombol data-tab"
+        assert tab in id_panel, f"tab {tab!r} tidak punya panel id=\"sec-{tab}\""
+
+    yatim = id_panel - data_tab
+    assert not yatim, f"panel ada tapi id-nya tidak cocok tombol mana pun: {sorted(yatim)}"

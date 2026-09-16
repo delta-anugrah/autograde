@@ -18,9 +18,11 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from .core.log_sink import install_log_sink
+from .repositories.log_repository import LogStore
 from .routes.console import get_console_service, ingest_router
 from .routes.console import router as console_router
-from .services.akun_bawaan import seed_akun_bawaan
+from .services.akun_bawaan import seed_default_accounts
 from .workers.erp_link import build_erp_workers
 from .workers.line_status_worker import LineStatusWorker
 
@@ -35,10 +37,14 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     service = get_console_service()  # ZoneInfo(FACTORY_TZ) is validated here
+    # Own SQLite file, own logging handler: a fault must survive a restart, and
+    # must not touch console.db to get there (see log_db_path).
+    log_store = LogStore(service.settings.log_db_path, retention_days=service.settings.log_retention_days)
+    install_log_sink(log_store)
     # Before anything else: a mill installed before it ever reached the internet has no
     # AutoERP accounts yet, and a console nobody can sign into is useless on exactly the
     # day it is needed. Existing accounts are never touched (see akun_bawaan).
-    seed_akun_bawaan(
+    seed_default_accounts(
         service.store,
         hash_bawaan=service.settings.console_default_hash,
         hash_support=service.settings.console_support_hash,
@@ -54,9 +60,20 @@ async def lifespan(app: FastAPI):
         or service.store.operators()
     ):
         logger.warning(
-            "Tidak ada sumber akun: CONSOLE_DEFAULT_HASH/CONSOLE_SUPPORT_HASH kosong dan "
-            "ERP_URL kosong, jadi tidak ada yang bisa masuk konsol. Isi hash di .env "
-            "(buat dengan `make hash-sandi`, tulis $$ untuk satu $), atau set ERP_URL."
+            "No account source: CONSOLE_DEFAULT_HASH/CONSOLE_SUPPORT_HASH are empty and "
+            "ERP_URL is empty, so nobody can sign into the console. Set a hash in .env "
+            "(make one with `make hash-sandi`, write $$ for one literal $), or set ERP_URL."
+        )
+    # A mill whose .env predates this build, or whose accounts came only from
+    # `make operator` before it could set a role, can end up with every account on
+    # `operator` — locking out the developer screens with no account able to open
+    # them back up. Said once, at the only moment anybody is watching the log.
+    if not service.store.has_support_account():
+        logger.warning(
+            "No account has the support role: this console's developer screens cannot "
+            "be opened by anyone. Run `make operator AKSI=role ROLE=support` on this PC "
+            "(use `make operator-docker` if the console runs in Docker) to promote an "
+            "existing account, or `make operator ROLE=support` for a new one."
         )
     # The AutoERP link is optional by design: with ERP_URL empty there are no
     # workers at all, and any of them may die without taking the screen down.
@@ -65,7 +82,7 @@ async def lifespan(app: FastAPI):
 
     # Separate from the ERP workers above: the piston button must survive an
     # empty ERP_URL, so it cannot depend on build_erp_workers().
-    status_worker = LineStatusWorker(service.lines, service._line_client)
+    status_worker = LineStatusWorker(service.lines, service.line_client)
     service.line_status = status_worker.snapshot
     tasks.append(asyncio.create_task(status_worker.run_loop()))
 

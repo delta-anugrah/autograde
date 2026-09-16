@@ -55,10 +55,10 @@ def _plc_int(name: str, default: int) -> int:
 
 
 def _plc_opt_int(name: str) -> int | None:
-    """`PLC_COIL_MANUAL` / `PLC_DI_MANUAL`: kosong atau rusak = fitur mati.
+    """`PLC_COIL_MANUAL` / `PLC_DI_MANUAL`: empty or broken = feature off.
 
-    Beda dengan `_plc_int`, tidak ada nilai bawaan yang masuk akal: menebak
-    nomor coil berarti menulis ke alamat milik orang lain di panel.
+    Unlike `_plc_int`, no sensible default exists here: guessing a coil
+    number means writing to an address that belongs to someone else on the panel.
     """
     raw = os.getenv(name)
     if raw is None or not raw.strip():
@@ -66,7 +66,7 @@ def _plc_opt_int(name: str) -> int | None:
     try:
         return int(raw)
     except ValueError:
-        logger.warning("%s=%r bukan angka — piston manual dimatikan", name, raw)
+        logger.warning("%s=%r is not a number — manual piston disabled", name, raw)
         return None
 
 
@@ -238,7 +238,7 @@ class Settings:
     upload_disk_min_free_gb: float = field(default_factory=lambda: float(os.getenv("UPLOAD_DISK_MIN_FREE_GB", "20")))
 
     # ── Operator console (APP_MODE=console) ──────────────────────
-    # Mill timezone. Used ONLY to derive `tanggal_kerja` at ingest (§6.1): a
+    # Mill timezone. Used ONLY to derive `work_date` at ingest (§6.1): a
     # mill runs ~20 h a day ACROSS midnight, so a UTC day boundary cuts one
     # shift in two. Resolved once at boot — a bogus TZ must fail at startup
     # rather than quietly file months of rows under the wrong date.
@@ -257,6 +257,10 @@ class Settings:
     # truncated and the account is refused (deliberately loudly).
     console_default_hash: str = field(default_factory=lambda: os.getenv("CONSOLE_DEFAULT_HASH", ""))
     console_support_hash: str = field(default_factory=lambda: os.getenv("CONSOLE_SUPPORT_HASH", ""))
+    # How long the fault log (support Log screen) is kept. A time limit, not a
+    # row-count cap: a count cap would discard old rows exactly while errors
+    # are flooding. ~300 bytes/row, so 180 days is ~10 MB.
+    log_retention_days: int = field(default_factory=lambda: int(os.getenv("LOG_RETENSI_HARI", "180")))
 
     # ── AutoERP link ─────────────────────────────────────────────
     # The console calls AutoERP; AutoERP never calls in (a factory PC has no
@@ -268,6 +272,11 @@ class Settings:
     # AutoERP Company this mill books against. Empty lets AutoERP use its own
     # default company, which is right on a single-company site.
     erp_company: str = field(default_factory=lambda: os.getenv("ERP_COMPANY", ""))
+    # Roles AutoERP is allowed to grant. Empty rejects all of them — the one
+    # brake the factory side can pull without waiting on ERP to be fixed.
+    erp_allowed_roles_raw: str = field(
+        default_factory=lambda: os.getenv("ERP_ALLOWED_ROLES", "support")
+    )
 
     # ── PLC / ODOT CN-8031 (Modbus-TCP) ──────────────────────────
     # Logic lives in src/palmgrade/plc/; the full coil map is in
@@ -303,12 +312,12 @@ class Settings:
     plc_poll_ms: int = field(default_factory=lambda: _plc_int("PLC_POLL_MS", 200))
     plc_di_count: int = field(default_factory=lambda: _plc_int("PLC_DI_COUNT", 16))
 
-    # Piston manual (usulan panel; lihat docs/plc-handoff-commissioning.md).
-    # Coil level per line: 1 = minta piston buka. Kosong = fitur mati, dan itu
-    # keadaan yang benar sampai Pak Ocit mengalokasikan coil 10/11/12.
+    # Manual piston (panel proposal; see docs/plc-handoff-commissioning.md).
+    # Coil level per line: 1 = request piston open. Empty = feature off, which is
+    # the correct state until Pak Ocit allocates coil 10/11/12.
     plc_coil_manual: int | None = field(default_factory=lambda: _plc_opt_int("PLC_COIL_MANUAL"))
-    # DI konfirmasi dari PLC: piston line ini benar-benar terbuka. Kosong =
-    # layar cuma bisa menampilkan permintaan, ditandai "belum dikonfirmasi PLC".
+    # DI confirmation from the PLC: this line's piston is actually open. Empty =
+    # the screen can only show the request, marked "not confirmed by PLC".
     plc_di_manual: int | None = field(default_factory=lambda: _plc_opt_int("PLC_DI_MANUAL"))
 
     # ------------------------------------------------------------------ validation
@@ -402,6 +411,12 @@ class Settings:
     def console_db_path(self) -> Path:
         """The console's SQLite index (§6.2) — the console never scans directories."""
         return self.state_dir / "console.db"
+
+    @property
+    def log_db_path(self) -> Path:
+        """Its own file, not a table in console.db — an error flood must not
+        slow down the queries serving the operator screen."""
+        return self.state_dir / "log_kejadian.db"
 
     @property
     def console_lines(self) -> tuple[LineEndpoint, ...]:

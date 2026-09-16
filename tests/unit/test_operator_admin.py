@@ -40,7 +40,7 @@ def test_an_operator_added_can_sign_in_with_that_password(tmp_path):
     admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI)
 
     row = store.operator(operator_id_for(EMAIL))
-    assert (row["status"], row["asal"], row["nama"]) == ("active", "lokal", NAMA)
+    assert (row["status"], row["origin"], row["full_name"]) == ("active", "lokal", NAMA)
     assert verify_password(SANDI, row["password_hash"])
 
 
@@ -106,7 +106,7 @@ def test_an_account_autoerp_owns_cannot_be_rewritten_from_the_pc(tmp_path):
     works, whose old one still does, is worse off than one told to go to backoffice."""
     admin, store = _admin(tmp_path)
     store.upsert_operator_erp(
-        {"email": EMAIL, "nama": NAMA, "password_hash": ERP_HASH, "erp_name": EMAIL, "active": 1}
+        {"email": EMAIL, "full_name": NAMA, "password_hash": ERP_HASH, "erp_name": EMAIL, "active": 1}
     )
 
     with pytest.raises(ValueError, match="AutoERP"):
@@ -130,7 +130,7 @@ def test_an_account_autoerp_owns_can_still_be_switched_off_here(tmp_path):
     The pull puts it back if AutoERP still says active — the owner winning, correctly."""
     admin, store = _admin(tmp_path)
     store.upsert_operator_erp(
-        {"email": EMAIL, "nama": NAMA, "password_hash": ERP_HASH, "erp_name": EMAIL, "active": 1}
+        {"email": EMAIL, "full_name": NAMA, "password_hash": ERP_HASH, "erp_name": EMAIL, "active": 1}
     )
 
     admin.switch_off(EMAIL)
@@ -154,13 +154,90 @@ def test_the_listing_shows_where_each_account_came_from(tmp_path):
     store.upsert_operator_erp(
         {
             "email": "sari@pks.test",
-            "nama": "Bu Sari",
+            "full_name": "Bu Sari",
             "password_hash": ERP_HASH,
             "erp_name": "sari@pks.test",
             "active": 1,
         }
     )
 
-    asal = {row["email"]: row["asal"] for row in admin.listing()}
+    origin = {row["email"]: row["origin"] for row in admin.listing()}
 
-    assert asal == {EMAIL: "lokal", "sari@pks.test": "erp"}
+    assert origin == {EMAIL: "lokal", "sari@pks.test": "erp"}
+
+
+# ------------------------------------------------------------------- roles
+#
+# The gap these cover: a mill whose accounts were all made by `make operator`
+# before it knew about roles ends up with nobody able to reach the developer
+# screens, and no local way back in. `AKSI=role` (via `set_role`) and a role
+# on `AKSI=tambah` (via `add_or_reset`) are the two ways out.
+
+
+def test_a_role_given_on_add_lands_in_the_column(tmp_path):
+    admin, store = _admin(tmp_path)
+
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, role="support")
+
+    assert store.operator(operator_id_for(EMAIL))["role"] == "support"
+
+
+def test_an_unrecognised_role_on_add_falls_back_to_operator(tmp_path):
+    """A typo in ROLE must not land on the column unchecked — the column
+    gates the piston screen, same reasoning as `ConsoleStore.set_role`."""
+    admin, store = _admin(tmp_path)
+
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, role="admin")
+
+    assert store.operator(operator_id_for(EMAIL))["role"] == "operator"
+
+
+def test_omitting_the_role_on_add_promotes_nobody(tmp_path):
+    """The default `make operator` run — no ROLE typed — must never be the
+    thing that silently creates a second support account."""
+    admin, store = _admin(tmp_path)
+
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI)
+
+    assert store.operator(operator_id_for(EMAIL))["role"] == "operator"
+
+
+def test_a_role_on_add_never_touches_an_existing_accounts_role(tmp_path):
+    """`add_or_reset` is also the forgotten-password path. A password reset run
+    with no ROLE typed must not silently demote a support account back to
+    plain operator."""
+    admin, store = _admin(tmp_path)
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, role="support")
+
+    _, sanitized = admin.add_or_reset(EMAIL, NAMA, "sawit2027", "sawit2027")
+
+    assert sanitized == "support"
+    assert store.operator(operator_id_for(EMAIL))["role"] == "support"
+
+
+def test_set_role_changes_an_existing_accounts_role(tmp_path):
+    admin, store = _admin(tmp_path)
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI)
+
+    sanitized = admin.set_role(EMAIL, "support")
+
+    assert sanitized == "support"
+    assert store.operator(operator_id_for(EMAIL))["role"] == "support"
+
+
+def test_set_role_also_falls_back_to_operator_on_an_unknown_value(tmp_path):
+    admin, store = _admin(tmp_path)
+    admin.add_or_reset(EMAIL, NAMA, SANDI, SANDI, role="support")
+
+    sanitized = admin.set_role(EMAIL, "admin")
+
+    assert sanitized == "operator"
+    assert store.operator(operator_id_for(EMAIL))["role"] == "operator"
+
+
+def test_set_role_on_an_email_nobody_has_says_so(tmp_path):
+    """Same reasoning as `switch_off`: a typo must not read as success."""
+    admin, _ = _admin(tmp_path)
+
+    with pytest.raises(ValueError, match="tidak ada"):
+        admin.set_role("budiman@pks.test", "support")

@@ -10,9 +10,9 @@ from __future__ import annotations
 # screen showing the raw server text again. `test_console_html.py` checks both
 # languages translate every code listed in CODES.
 PLAT_KOSONG = "plat_kosong"
-# Kode sendiri, BUKAN dipakai bersama PLAT_KOSONG: layar menerjemahkan per kode, dan
-# QR berisi URL yang dijawab "tidak boleh kosong" adalah pesan yang salah di depan
-# operator gerbang. Ketemu di browser, bukan di test.
+# Its own code, NOT shared with PLAT_KOSONG: the screen translates per code, and a
+# QR holding a URL answered with "cannot be empty" would be the wrong message in
+# front of the gate operator. Found in the browser, not in a test.
 BUKAN_PLAT = "bukan_plat"
 BUKAN_ANGKA = "bukan_angka"
 NEGATIF = "negatif"
@@ -27,6 +27,12 @@ SANDI_PENDEK = "sandi_pendek"
 SANDI_SALAH = "sandi_salah"
 TERKUNCI = "terkunci"
 BELUM_MASUK = "belum_masuk"
+# Signed in, but not a `support` account.
+BUKAN_SUPPORT = "bukan_support"
+# PLC test screen (support only) — the only console lane that moves hardware.
+KONFIRMASI_KURANG = "konfirmasi_kurang"
+PLC_SIBUK = "plc_sibuk"
+COIL_TIDAK_DIKENAL = "coil_tidak_dikenal"
 
 CODES = (
     PLAT_KOSONG,
@@ -42,6 +48,10 @@ CODES = (
     SANDI_SALAH,
     TERKUNCI,
     BELUM_MASUK,
+    BUKAN_SUPPORT,
+    KONFIRMASI_KURANG,
+    PLC_SIBUK,
+    COIL_TIDAK_DIKENAL,
 )
 
 

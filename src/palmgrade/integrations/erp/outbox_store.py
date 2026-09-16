@@ -120,6 +120,56 @@ class ErpOutboxStore:
                 (attempts, error[:_ERROR_CHARS], self._clock() + backoff, message.kind, message.key),
             )
 
+    def pending_count(self) -> int:
+        with self._lock:
+            row = self._db.execute(
+                "SELECT COUNT(*) AS n FROM erp_outbox WHERE status='pending'"
+            ).fetchone()
+        return row["n"]
+
+    def failed_count(self) -> int:
+        with self._lock:
+            row = self._db.execute(
+                "SELECT COUNT(*) AS n FROM erp_outbox WHERE status='error'"
+            ).fetchone()
+        return row["n"]
+
+    def failed_rows(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Rows waiting out their backoff, newest failure first — what support reads."""
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT kind, key, last_error, attempts, next_attempt_at FROM erp_outbox
+                   WHERE status='error' ORDER BY next_attempt_at DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "kind": row["kind"],
+                "key": row["key"],
+                "last_error": row["last_error"],
+                "attempts": row["attempts"],
+                "next_attempt_at": row["next_attempt_at"],
+            }
+            for row in rows
+        ]
+
+    def requeue_failed(self) -> int:
+        """Move every `error` row back to `pending`, due at once. Returns how many moved.
+
+        `attempts` is deliberately left alone: a row old enough to matter is
+        already near the hour ceiling, so keeping the count only ever shortens
+        its next backoff, never lengthens it. Resetting to 0 would also let
+        this button re-hammer a still-down AutoERP at 30s/1m/2m again, and
+        would erase the one signal support has for "stuck forever" (a 417 on
+        a bad field) versus "just a blip" (a network timeout).
+        """
+        with self._lock, self._db:
+            cur = self._db.execute(
+                """UPDATE erp_outbox SET status='pending', next_attempt_at=0
+                   WHERE status='error'"""
+            )
+        return cur.rowcount
+
 
 def _dump(payload: dict[str, Any]) -> str:
     """Sorted keys: the stored text is compared when marking a message sent."""

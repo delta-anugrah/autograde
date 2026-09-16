@@ -7,8 +7,9 @@ Teknologi Otomasi), yang tidak ada di repo — tabel alamat di bawah disalin apa
 sana, plus percakapan dengan pak Ocit (PLC engineer).
 
 Seluruh logika terkurung di paket `src/palmgrade/plc/`. Kode di luar paket ini hanya boleh
-menyentuh lima fungsi: `start_plc_worker`, `shutdown_plc_worker`, `submit_grading`, `inputs`,
-`diagnostics`.
+menyentuh fungsi yang diekspor `__init__.py`: `start_plc_worker`, `shutdown_plc_worker`,
+`submit_grading`, `inputs`, `diagnostics`, `request_piston`, `piston_state`, `picu_coil`,
+`testable_coils`.
 
 ---
 
@@ -326,9 +327,10 @@ tests/unit/plc/
 └── test_plc_worker.py
 ```
 
-Kode di luar paket ini hanya boleh menyentuh **lima fungsi** yang diekspor `__init__.py`:
+Kode di luar paket ini hanya boleh menyentuh fungsi yang diekspor `__init__.py`:
 `start_plc_worker(settings, health_check=None)`, `shutdown_plc_worker(thread=None)`,
-`submit_grading(status)`, `inputs()`, `diagnostics()`. Semua
+`submit_grading(status)`, `inputs()`, `diagnostics()`, `request_piston(open)`,
+`piston_state()`, `picu_coil(coil)`, `testable_coils(settings)`. Semua
 yang lain (`ModbusPlcClient`, `PlcWorker`, `PulseScheduler`) di-ekspor juga, tapi hanya untuk
 pemanggil yang perlu merakit worker-nya sendiri (mis. test).
 

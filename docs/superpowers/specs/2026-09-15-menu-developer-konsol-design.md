@@ -75,7 +75,7 @@ default `operator`. Ditambah bersama patch migrasi supaya baris yang sudah ada t
 **Penyaring `.env` tetap dipertahankan**, dan sekarang defaultnya terisi:
 
 ```
-PERAN_ERP_DIIZINKAN=support     # bawaan; kosongkan untuk menolak peran dari ERP
+ERP_ALLOWED_ROLES=support     # bawaan; kosongkan untuk menolak peran dari ERP
 ```
 
 Ini satu-satunya rem yang bisa ditarik **dari sisi pabrik**. Kalau akun ERP suatu saat
@@ -190,7 +190,7 @@ menu ikut bocor.
 | Repo | PR | Isi | Kenapa terpisah |
 |---|---|---|---|
 | autoerp | **0** | Field `peran` (Select) di DocType + patch migrasi + tes | Harus lebih dulu: AutoGrade tidak boleh meminta field yang belum ada (417) |
-| autograde | **1** | Kolom `peran`, seed support, dependency penjaga 403, `PERAN_ERP_DIIZINKAN`, tarik peran di `master_data_worker`, `me` mengembalikan peran, kerangka tab tersembunyi | Pondasi keamanan, diuji sendiri |
+| autograde | **1** | Kolom `peran`, seed support, dependency penjaga 403, `ERP_ALLOWED_ROLES`, tarik peran di `master_data_worker`, `me` mengembalikan peran, kerangka tab tersembunyi | Pondasi keamanan, diuji sendiri |
 | autograde | **2** | `log_kejadian` + handler + penggabungan + retensi + penyaring rahasia + layar Log | Satu-satunya yang menulis data baru |
 | autograde | **3** | Diagnostik + Antrean ERP + Versi & Lisensi | Tiga-tiganya hanya membaca, aman disatukan |
 | autograde | **4** | Uji PLC + tiga pengaman | Satu-satunya yang menggerakkan barang fisik |
@@ -198,8 +198,8 @@ menu ikut bocor.
 ## Pengujian
 
 - **Peran**: akun lama default `operator`; endpoint developer menolak `operator`
-  dengan 403; peran dari ERP di luar `PERAN_ERP_DIIZINKAN` jatuh jadi `operator`;
-  `PERAN_ERP_DIIZINKAN` kosong membuang semua peran dari ERP; tarikan ERP tidak
+  dengan 403; peran dari ERP di luar `ERP_ALLOWED_ROLES` jatuh jadi `operator`;
+  `ERP_ALLOWED_ROLES` kosong membuang semua peran dari ERP; tarikan ERP tidak
   menimpa peran akun `asal='lokal'`.
 - **Log**: hanya ERROR/WARNING tertulis; dua pesan identik dalam 60 detik jadi
   satu baris `jumlah=2`; baris lebih tua dari 180 hari terbuang; sandi dan token

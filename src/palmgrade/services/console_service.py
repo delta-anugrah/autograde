@@ -32,7 +32,7 @@ from ..domain.operator_error import (
 )
 from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.vision_event import prediction_for, verdict_of
-from ..domain.working_day import tanggal_kerja_for
+from ..domain.working_day import work_date_for
 from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
 from .erp_queue import ErpQueue
@@ -40,8 +40,8 @@ from .erp_queue import ErpQueue
 logger = logging.getLogger(__name__)
 
 # Net difference still forgiven before a payload is rejected. Scales round;
-# anything past this must not pass quietly — neto is what the farmer is paid.
-TOLERANSI_NETO_KG = 1.0
+# anything past this must not pass quietly — net is what the farmer is paid.
+NET_TOLERANCE_KG = 1.0
 
 # Below this a figure is not a truck, it is a typo. "14.820" typed for fourteen
 # tonnes parses as 14.82 kg, and nothing else in the payload contradicts it.
@@ -50,7 +50,7 @@ TOLERANSI_NETO_KG = 1.0
 # `<`), and that landed on a mill screen as a real ticket — seen 2026-09-15. The
 # lightest truck that actually arrives is a Colt Diesel at roughly 2.5 t empty, so one
 # tonne still clears every real weighing while catching a thousand-separator slip.
-MINIMUM_BERAT_KG = 1000.0
+MINIMUM_WEIGHT_KG = 1000.0
 
 
 class ConsoleService:
@@ -65,7 +65,7 @@ class ConsoleService:
         self.settings = settings
         self.store = store
         self.lines = settings.console_lines
-        self._line_client = line_client
+        self.line_client = line_client
         # None when the console runs without the AutoERP link: everything at the
         # mill still happens, it simply goes nowhere.
         self.erp_queue = erp_queue
@@ -85,7 +85,7 @@ class ConsoleService:
         return datetime.now(self.tz).strftime("%Y-%m-%d")
 
     def ingest(self, payload: dict[str, Any]) -> str:
-        """Take one grading event from a line. Returns its `tanggal_kerja`.
+        """Take one grading event from a line. Returns its `work_date`.
 
         ValueError on a malformed payload → route replies 400 → the line's
         outbox holds the event and marks it `outbox_failed`. Better visible as
@@ -108,7 +108,7 @@ class ConsoleService:
             )
 
         # §6.1: computed HERE from the event timestamp, once, then stored.
-        tanggal = tanggal_kerja_for(timestamp, self.tz)
+        work_date = work_date_for(timestamp, self.tz)
 
         line = self._by_machine.get(machine_id)
         self.store.add_inspection(
@@ -118,7 +118,7 @@ class ConsoleService:
                 # Unknown machine is stored as-is: the row shows up as a
                 # foreign line, far quicker to spot than a swallowed event.
                 "line_code": line.line_code if line else machine_id,
-                "tanggal_kerja": tanggal,
+                "work_date": work_date,
                 "timestamp": timestamp,
                 "ripeness_status": verdict,
                 "ripeness_confidence": payload.get("ripeness_confidence"),
@@ -134,13 +134,13 @@ class ConsoleService:
                 "tp_confidence": payload.get("tp_confidence"),
             }
         )
-        return tanggal
+        return work_date
 
     # ------------------------------------------------------------- read
 
     def state(self) -> dict[str, Any]:
-        tanggal = self.today()
-        summary = {row["line_code"]: row for row in self.store.summary(tanggal)}
+        work_date = self.today()
+        summary = {row["line_code"]: row for row in self.store.summary(work_date)}
         assignments = self.store.assignments()
         status_line = self.line_status()
         lines = [
@@ -164,15 +164,15 @@ class ConsoleService:
             for code, row in summary.items() if code not in self._by_code
         ]
         return {
-            "tanggal_kerja": tanggal,
+            "work_date": work_date,
             "timezone": self.settings.factory_tz,
             "lines": lines,
-            "recent": self.history(tanggal, limit=20),
+            "recent": self.history(work_date, limit=20),
         }
 
     def history(
         self,
-        tanggal_kerja: str,
+        work_date: str,
         *,
         line_code: str | None = None,
         truck_id: str | None = None,
@@ -180,7 +180,7 @@ class ConsoleService:
         offset: int = 0,
     ) -> list[dict[str, Any]]:
         rows = self.store.inspections(
-            tanggal_kerja, line_code=line_code, truck_id=truck_id,
+            work_date, line_code=line_code, truck_id=truck_id,
             limit=min(limit, 200), offset=offset,
         )
         for row in rows:
@@ -190,7 +190,7 @@ class ConsoleService:
 
     def history_halaman(
         self,
-        tanggal_kerja: str,
+        work_date: str,
         *,
         line_code: str | None = None,
         truck_id: str | None = None,
@@ -205,41 +205,41 @@ class ConsoleService:
         """
         return {
             "items": self.history(
-                tanggal_kerja, line_code=line_code, truck_id=truck_id,
+                work_date, line_code=line_code, truck_id=truck_id,
                 limit=limit, offset=offset,
             ),
-            "total": self.store.jumlah_inspeksi(
-                tanggal_kerja, line_code=line_code, truck_id=truck_id
+            "total": self.store.inspection_count(
+                work_date, line_code=line_code, truck_id=truck_id
             ),
         }
 
     def trucks(self) -> list[dict[str, Any]]:
         return [_with_source_label(row) for row in self.store.trucks()]
 
-    def weighings(self, tanggal_kerja: str, *, limit: int = 100) -> list[dict[str, Any]]:
-        return [_with_source_label(row) for row in self.store.weighings(tanggal_kerja, limit=limit)]
+    def weighings(self, work_date: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        return [_with_source_label(row) for row in self.store.weighings(work_date, limit=limit)]
 
-    def rekap(self, tanggal_kerja: str) -> list[dict[str, Any]]:
+    def recap(self, work_date: str) -> list[dict[str, Any]]:
         """Per-truck tally with the weighbridge neto folded in.
 
         Neto is summed here rather than joined in SQL: a truck can hold more
         than one ticket in a day, and joining that to the grading rows would
         multiply the bunch count by the ticket count.
         """
-        neto: dict[str, float] = {}
-        for tiket in self.store.weighings(tanggal_kerja, limit=500):
-            truk, angka = tiket.get("truck_id"), tiket.get("neto_kg")
-            if truk and angka is not None:
-                neto[truk] = round(neto.get(truk, 0.0) + angka, 3)
-        rows = self.store.rekap_truk(tanggal_kerja)
+        net_by_truck: dict[str, float] = {}
+        for ticket in self.store.weighings(work_date, limit=500):
+            truck, amount = ticket.get("truck_id"), ticket.get("net_kg")
+            if truck and amount is not None:
+                net_by_truck[truck] = round(net_by_truck.get(truck, 0.0) + amount, 3)
+        rows = self.store.truck_recap(work_date)
         for row in rows:
-            row["neto_kg"] = neto.get(row.get("truck_id"))
+            row["net_kg"] = net_by_truck.get(row.get("truck_id"))
             _with_source_label(row)
         return rows
 
     # --------------------------------------------------- manual truck entry
 
-    def daftar_truk_manual(
+    def register_manual_truck(
         self, plate_number: str, *, supplier_id: str | None = None, capacity: float | None = None
     ) -> dict[str, Any]:
         """Borrowed or unregistered truck, typed in by the operator.
@@ -261,8 +261,8 @@ class ConsoleService:
 
         A truck AutoERP has not got goes up through the outbox (interface B).
         """
-        plat = (plate_number or "").strip()
-        truck_id = truck_id_for(plat)  # ValueError on an empty plate → route replies 400
+        plate = (plate_number or "").strip()
+        truck_id = truck_id_for(plate)  # ValueError on an empty plate → route replies 400
         owned_by_erp = self.store.truck(truck_id) or {}
         if owned_by_erp.get("erp_name"):
             return {
@@ -274,79 +274,79 @@ class ConsoleService:
         self.store.upsert_truck(
             {
                 "id": truck_id,
-                "plate_number": plat,
+                "plate_number": plate,
                 "supplier_id": supplier_id,
                 "capacity": capacity,
                 "status": "manual",
             }
         )
         if self.erp_queue is not None:
-            self.erp_queue.truck(plat)
-        return {"id": truck_id, "plate_number": plat, "status": "manual"}
+            self.erp_queue.truck(plate)
+        return {"id": truck_id, "plate_number": plate, "status": "manual"}
 
     # --------------------------------------------------------- scale (§3.5c)
 
-    def catat_timbangan(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def record_weighing(self, payload: dict[str, Any]) -> dict[str, Any]:
         """One payload from the scale program. Returns the merged row.
 
-        The shape the boss asked for: weight before unloading (bruto), weight
-        after (tara), and the difference (neto). The scale's own format is not
+        The shape the boss asked for: weight before unloading (gross), weight
+        after (tare), and the difference (net). The scale's own format is not
         known yet (X1) — what is frozen here is OUR shape, so once the format
         arrives it needs an adapter, not a table rewrite.
 
-        `neto_kg` is ALWAYS computed, never trusted as sent. If the sender
+        `net_kg` is ALWAYS computed, never trusted as sent. If the sender
         includes it and it differs past the tolerance → ValueError → 400. The
         number that gets paid must not quietly come from two sources.
         """
-        plat = str(payload.get("plate_number") or "").strip()
-        plat_norm = normalisasi_plat(plat)
+        plate = str(payload.get("plate_number") or "").strip()
+        plate_norm = normalisasi_plat(plate)
         ref = str(payload.get("ref") or "").strip() or None
-        waktu_masuk = str(payload.get("waktu_masuk") or "").strip() or None
-        waktu_keluar = str(payload.get("waktu_keluar") or "").strip() or None
+        entered_at = str(payload.get("entered_at") or "").strip() or None
+        exited_at = str(payload.get("exited_at") or "").strip() or None
 
-        if not (ref or waktu_masuk):
+        if not (ref or entered_at):
             # Without one of them, weigh-out cannot find its weigh-in row and
             # one ticket splits into two.
-            raise ValueError("ref atau waktu_masuk wajib diisi")
-        acuan = waktu_masuk or waktu_keluar
-        if acuan is None:
-            raise ValueError("waktu_masuk atau waktu_keluar wajib diisi")
-        tanggal = tanggal_kerja_for(acuan, self.tz)
+            raise ValueError("ref atau entered_at wajib diisi")
+        reference_time = entered_at or exited_at
+        if reference_time is None:
+            raise ValueError("entered_at atau exited_at wajib diisi")
+        work_date = work_date_for(reference_time, self.tz)
 
-        kunci = f"timbangan:{ref}" if ref else f"timbangan:{plat_norm}:{waktu_masuk}"
-        weighing_id = str(uuid.uuid5(uuid.NAMESPACE_URL, kunci))
+        cache_key = f"timbangan:{ref}" if ref else f"timbangan:{plate_norm}:{entered_at}"
+        weighing_id = str(uuid.uuid5(uuid.NAMESPACE_URL, cache_key))
 
         # ponytail: read-then-write, no transaction. Scale payloads are sparse
         # (two per truck) and uvicorn runs one process — move to
         # UPDATE...RETURNING if a second sender ever appears.
-        lama = self.store.weighing(weighing_id) or {}
-        bruto = _kg(payload.get("bruto_kg"), "bruto_kg", lama.get("bruto_kg"))
-        tara = _kg(payload.get("tara_kg"), "tara_kg", lama.get("tara_kg"))
-        for nama, angka in (("bruto_kg", bruto), ("tara_kg", tara)):
-            if angka is not None and angka < MINIMUM_BERAT_KG:
+        existing = self.store.weighing(weighing_id) or {}
+        gross = _kg(payload.get("gross_kg"), "gross_kg", existing.get("gross_kg"))
+        tare = _kg(payload.get("tare_kg"), "tare_kg", existing.get("tare_kg"))
+        for field_name, number in (("gross_kg", gross), ("tare_kg", tare)):
+            if number is not None and number < MINIMUM_WEIGHT_KG:
                 raise InvalidInput(
                     DI_BAWAH_MINIMUM,
-                    f"{nama} ({angka}) di bawah {MINIMUM_BERAT_KG} kg - "
+                    f"{field_name} ({number}) di bawah {MINIMUM_WEIGHT_KG} kg - "
                     "cek pemisah ribuan, mis. 14.820 terbaca jadi 14,82",
-                    field=nama,
-                    value=angka,
-                    minimum=MINIMUM_BERAT_KG,
+                    field=field_name,
+                    value=number,
+                    minimum=MINIMUM_WEIGHT_KG,
                 )
-        neto = _neto(bruto, tara, _kg(payload.get("neto_kg"), "neto_kg", None))
+        net = _neto(gross, tare, _kg(payload.get("net_kg"), "net_kg", None))
 
         self.store.upsert_weighing(
             {
                 "id": weighing_id,
                 "ref": ref,
-                "plate_number": plat,
-                "plate_norm": plat_norm,
-                "truck_id": truck_id_for(plat),
-                "tanggal_kerja": tanggal,
-                "bruto_kg": bruto,
-                "tara_kg": tara,
-                "neto_kg": neto,
-                "waktu_masuk": waktu_masuk,
-                "waktu_keluar": waktu_keluar,
+                "plate_number": plate,
+                "plate_norm": plate_norm,
+                "truck_id": truck_id_for(plate),
+                "work_date": work_date,
+                "gross_kg": gross,
+                "tare_kg": tare,
+                "net_kg": net,
+                "entered_at": entered_at,
+                "exited_at": exited_at,
             }
         )
         self._queue_visit(weighing_id)
@@ -368,7 +368,7 @@ class ConsoleService:
         truck_id, assignment_id = closing.get("truck_id"), closing.get("assignment_id")
         if not (truck_id and assignment_id):
             return
-        hari = tanggal_kerja_for(datetime.now(self.tz).isoformat(), self.tz)
+        hari = work_date_for(datetime.now(self.tz).isoformat(), self.tz)
         weighing_id = self.store.latest_weighing_for_truck(truck_id, hari)
         if not weighing_id:
             # Nothing weighed yet. AutoERP dates a ticket from `time_in`, so this
@@ -380,11 +380,11 @@ class ConsoleService:
     # ------------------------------------------------------- line commands
 
     def _ffb_source(self, truck_id: str) -> str | None:
-        """Label AutoERP untuk truk ini, atau None kalau belum bisa ditentukan."""
-        truk = self.store.truck(truck_id) or {}
+        """AutoERP label for this truck, or None while it cannot be determined yet."""
+        truck = self.store.truck(truck_id) or {}
         return ffb_source_label(
-            has_supplier=bool(truk.get("supplier_id")),
-            in_erp=bool(truk.get("erp_name")),
+            has_supplier=bool(truck.get("supplier_id")),
+            in_erp=bool(truck.get("erp_name")),
         )
 
     async def assign_truck(self, line_code: str, truck_id: str) -> dict[str, Any]:
@@ -394,7 +394,7 @@ class ConsoleService:
         # a screen showing a truck assigned while the line knows nothing makes
         # the operator think it is done, and the next event ships with no
         # truck. A failure has to look like one.
-        await self._line_client.assign_truck(
+        await self.line_client.assign_truck(
             line,
             assignment_id=assignment_id,
             truck_id=truck_id,
@@ -406,7 +406,7 @@ class ConsoleService:
         self.store.set_assignment(line_code, assignment_id, truck_id)
         return {"assignment_id": assignment_id, "truck_id": truck_id, "line_code": line_code}
 
-    async def lepas_truk(self, line_code: str) -> dict[str, Any]:
+    async def release_truck(self, line_code: str) -> dict[str, Any]:
         """Truck done unloading and gone. Line first, then record (§13, like assign).
 
         Without this an assignment never ends: the line keeps stamping the truck
@@ -417,7 +417,7 @@ class ConsoleService:
         """
         line = self._require_line(line_code)
         closing = self.store.assignments().get(line_code) or {}
-        await self._line_client.assign_truck(
+        await self.line_client.assign_truck(
             line,
             assignment_id="",
             truck_id="",
@@ -431,7 +431,7 @@ class ConsoleService:
     async def manual_reject(self, line_code: str, requested_by: str) -> dict[str, Any]:
         line = self._require_line(line_code)
         current = self.store.assignments().get(line_code) or {}
-        await self._line_client.manual_reject(
+        await self.line_client.manual_reject(
             line,
             assignment_id=current.get("assignment_id") or "",
             requested_by=requested_by,
@@ -440,9 +440,9 @@ class ConsoleService:
         return {"accepted": True, "line_code": line_code}
 
     async def piston(self, line_code: str, open: bool) -> dict[str, Any]:
-        """Teruskan permintaan piston ke line. Line yang menolak = error operator."""
+        """Forward the piston request to the line. A line that refuses = an operator error."""
         line = self._require_line(line_code)
-        await self._line_client.set_piston(
+        await self.line_client.set_piston(
             line, open=open, requested_by="operator",
             requested_at=datetime.now(self.tz).isoformat(),
         )
@@ -457,45 +457,45 @@ class ConsoleService:
         return line
 
 
-def _kg(nilai: Any, nama: str, bawaan: float | None) -> float | None:
-    """Kilogram figure, or `bawaan` when not sent. ValueError if malformed."""
-    if nilai is None or nilai == "":
-        return bawaan
-    if isinstance(nilai, str):
+def _kg(value: Any, field_name: str, default: float | None) -> float | None:
+    """Kilogram figure, or `default` when not sent. ValueError if malformed."""
+    if value is None or value == "":
+        return default
+    if isinstance(value, str):
         # A comma is the decimal point on an Indonesian keypad, and the scale
         # program may well send one. Only one separator is ever accepted, so a
         # thousands-grouped "14.820,5" still fails loudly instead of silently
         # becoming 14.82.
-        nilai = nilai.strip().replace(",", ".")
+        value = value.strip().replace(",", ".")
     try:
-        angka = float(nilai)
+        number = float(value)
     except (TypeError, ValueError) as exc:
         raise InvalidInput(
-            BUKAN_ANGKA, f"{nama} bukan angka: {nilai!r}", field=nama, value=str(nilai)
+            BUKAN_ANGKA, f"{field_name} bukan angka: {value!r}", field=field_name, value=str(value)
         ) from exc
-    if angka < 0:
+    if number < 0:
         raise InvalidInput(
-            NEGATIF, f"{nama} tidak boleh negatif: {angka}", field=nama, value=angka
+            NEGATIF, f"{field_name} tidak boleh negatif: {number}", field=field_name, value=number
         )
-    return angka
+    return number
 
 
-def _neto(bruto: float | None, tara: float | None, dikirim: float | None) -> float | None:
-    if bruto is None or tara is None:
-        if dikirim is not None:
-            raise ValueError("neto_kg dikirim tanpa bruto_kg + tara_kg")
+def _neto(gross: float | None, tare: float | None, sent: float | None) -> float | None:
+    if gross is None or tare is None:
+        if sent is not None:
+            raise ValueError("net_kg dikirim tanpa gross_kg + tare_kg")
         return None
-    if tara > bruto:
+    if tare > gross:
         raise InvalidInput(
             TARA_LEBIH_BESAR,
-            f"tara_kg ({tara}) lebih besar dari bruto_kg ({bruto})",
-            tara=tara,
-            bruto=bruto,
+            f"tare_kg ({tare}) lebih besar dari gross_kg ({gross})",
+            tara=tare,
+            bruto=gross,
         )
-    hitung = round(bruto - tara, 3)
-    if dikirim is not None and abs(dikirim - hitung) > TOLERANSI_NETO_KG:
-        raise ValueError(f"neto_kg tidak cocok: dikirim {dikirim}, bruto-tara {hitung}")
-    return hitung
+    computed = round(gross - tare, 3)
+    if sent is not None and abs(sent - computed) > NET_TOLERANCE_KG:
+        raise ValueError(f"net_kg tidak cocok: dikirim {sent}, gross-tare {computed}")
+    return computed
 
 
 def _source_label(row: dict[str, Any]) -> str | None:
@@ -512,7 +512,7 @@ def _with_source_label(row: dict[str, Any]) -> dict[str, Any]:
     Pop first, then assign: `{**row, ...}` evaluates before `pop`, and that
     once leaked raw columns into the API response.
     """
-    row["sumber_label"] = _source_label(row)
+    row["source_label"] = _source_label(row)
     return row
 
 
@@ -526,7 +526,7 @@ def _assignment_view(row: dict[str, Any] | None) -> dict[str, Any] | None:
         "truck_id": row["truck_id"],
         "plate_number": row.get("plate_number"),
         "supplier_name": row.get("supplier_name"),
-        "sumber_label": _source_label(row),
+        "source_label": _source_label(row),
     }
 
 

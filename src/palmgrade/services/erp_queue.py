@@ -40,7 +40,7 @@ class ErpQueue:
         row it came from.
         """
         visit = self._store.visit(weighing_id)
-        if not visit or not visit.get("waktu_masuk"):
+        if not visit or not visit.get("entered_at"):
             # `weighing.time_in` dates the ticket in AutoERP; without it there is
             # no visit to send. The daily resend picks it up once there is.
             return False
@@ -55,9 +55,9 @@ class ErpQueue:
         self.outbox.enqueue(erp_messages.VISIT, key, payload)
         return True
 
-    def visits_on(self, tanggal_kerja: str, *, tz: ZoneInfo | None = None) -> int:
+    def visits_on(self, work_date: str, *, tz: ZoneInfo | None = None) -> int:
         """Every visit of one working day, queued again (the daily resend, §5)."""
-        queued = sum(self.visit(wid, tz=tz) for wid in self._store.weighing_ids_on(tanggal_kerja))
+        queued = sum(self.visit(wid, tz=tz) for wid in self._store.weighing_ids_on(work_date))
         if queued:
-            logger.info("Visits re-queued for %s: %s", tanggal_kerja, queued)
+            logger.info("Visits re-queued for %s: %s", work_date, queued)
         return queued

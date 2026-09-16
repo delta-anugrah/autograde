@@ -1,6 +1,6 @@
 """Operator accounts and their sessions in the console index (Fase 4, plan §6.5).
 
-Accounts arrive from two places and the row remembers which (`asal`):
+Accounts arrive from two places and the row remembers which (`origin`):
 
 - `erp` — AutoERP's `AutoGrade Operator` DocType, pulled with the master data (§4.A).
   AutoERP owns these; backoffice creates them and sets the passwords.
@@ -33,18 +33,18 @@ def _store(tmp_path) -> ConsoleStore:
     return ConsoleStore(tmp_path / "console.db")
 
 
-def _lokal(store: ConsoleStore, email: str = EMAIL, sandi: str = SANDI, nama: str = NAMA) -> str:
-    store.upsert_operator_lokal(
-        {"email": email, "nama": nama, "password_hash": hash_password(sandi)}
+def _lokal(store: ConsoleStore, email: str = EMAIL, sandi: str = SANDI, full_name: str = NAMA) -> str:
+    store.upsert_operator_manual(
+        {"email": email, "full_name": full_name, "password_hash": hash_password(sandi)}
     )
     return operator_id_for(email)
 
 
-def _erp(store: ConsoleStore, email: str = EMAIL, *, nama: str = NAMA, active: int = 1) -> str:
+def _erp(store: ConsoleStore, email: str = EMAIL, *, full_name: str = NAMA, active: int = 1) -> str:
     store.upsert_operator_erp(
         {
             "email": email,
-            "nama": nama,
+            "full_name": full_name,
             "password_hash": ERP_HASH,
             "erp_name": email,
             "active": active,
@@ -59,8 +59,8 @@ def test_a_local_operator_is_stored_with_a_verifiable_password(tmp_path):
 
     row = store.operator(operator_id)
 
-    assert (row["email"], row["nama"], row["status"]) == (EMAIL, NAMA, "active")
-    assert (row["asal"], row["erp_name"]) == ("lokal", None)
+    assert (row["email"], row["full_name"], row["status"]) == (EMAIL, NAMA, "active")
+    assert (row["origin"], row["erp_name"]) == ("lokal", None)
     assert row["password_hash"] != SANDI
 
 
@@ -72,7 +72,7 @@ def test_an_operator_pulled_from_autoerp_keeps_the_hash_autoerp_wrote(tmp_path):
 
     row = store.operator(operator_id)
 
-    assert (row["asal"], row["erp_name"]) == ("erp", EMAIL)
+    assert (row["origin"], row["erp_name"]) == ("erp", EMAIL)
     assert row["password_hash"] == ERP_HASH
 
 
@@ -100,7 +100,7 @@ def test_a_pull_never_overwrites_a_local_account(tmp_path):
 
     row = store.operator(operator_id)
     assert row["password_hash"] == before
-    assert (row["asal"], row["erp_name"]) == ("lokal", None)
+    assert (row["origin"], row["erp_name"]) == ("lokal", None)
 
 
 def test_the_console_never_overwrites_an_account_autoerp_owns(tmp_path):
@@ -113,7 +113,7 @@ def test_the_console_never_overwrites_an_account_autoerp_owns(tmp_path):
 
     row = store.operator(operator_id)
     assert row["password_hash"] == ERP_HASH
-    assert row["asal"] == "erp"
+    assert row["origin"] == "erp"
 
 
 def test_a_later_pull_does_update_the_password_autoerp_changed(tmp_path):
@@ -124,7 +124,7 @@ def test_a_later_pull_does_update_the_password_autoerp_changed(tmp_path):
     baru = "$pbkdf2-sha256$29000$GgPAeE9pTSnlHMOYc25NqQ$xm8TMCM65o6kxwljP.UukzwU7RMx9CUur3dwsgfNoAQ"
 
     store.upsert_operator_erp(
-        {"email": EMAIL, "nama": NAMA, "password_hash": baru, "erp_name": EMAIL, "active": 1}
+        {"email": EMAIL, "full_name": NAMA, "password_hash": baru, "erp_name": EMAIL, "active": 1}
     )
 
     assert store.operator(operator_id)["password_hash"] == baru
@@ -174,7 +174,7 @@ def test_a_pull_that_changes_the_password_still_ends_the_session(tmp_path):
     store.upsert_operator_erp(
         {
             "email": EMAIL,
-            "nama": NAMA,
+            "full_name": NAMA,
             "password_hash": "$pbkdf2-sha256$29000$GgPAeE9pTSnlHMOYc25NqQ$xm8TMCM65o6kxwljP.UukzwU7RMx9CUur3dwsgfNoAQ",
             "erp_name": EMAIL,
             "active": 1,
@@ -263,11 +263,11 @@ def test_wrong_passwords_are_counted_and_the_count_is_cleared_on_the_way_in(tmp_
     store.record_login_failure(operator_id, now=1000.0)
     store.record_login_failure(operator_id, now=1001.0)
     row = store.operator(operator_id)
-    assert (row["gagal_count"], row["gagal_terakhir"]) == (2, 1001.0)
+    assert (row["fail_count"], row["last_failed_at"]) == (2, 1001.0)
 
     store.clear_login_failures(operator_id)
     row = store.operator(operator_id)
-    assert (row["gagal_count"], row["gagal_terakhir"]) == (0, None)
+    assert (row["fail_count"], row["last_failed_at"]) == (0, None)
 
 
 def test_a_session_names_the_operator_it_belongs_to(tmp_path):
@@ -278,7 +278,7 @@ def test_a_session_names_the_operator_it_belongs_to(tmp_path):
     store.create_session(token, operator_id, now=1000.0, ttl_s=43200)
 
     session = store.session(token, now=1000.0)
-    assert (session["operator_id"], session["nama"], session["email"]) == (
+    assert (session["operator_id"], session["full_name"], session["email"]) == (
         operator_id,
         NAMA,
         EMAIL,
