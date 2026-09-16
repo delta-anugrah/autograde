@@ -5,9 +5,11 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from ultralytics import YOLO  # type: ignore
+from ultralytics import YOLO
 
 from ..core.config import Settings
+from ..domain.grade_class import GRADE_CLASSES  # type: ignore
+from ..domain.grade_class import grade_class_or_none as _grade_class_or_none
 
 logging.getLogger("ultralytics").setLevel(logging.WARNING)
 
@@ -60,6 +62,7 @@ class ModelRegistry:
         if self.device == "cuda":
             model.to(self.device).half()
         self.backend = "pytorch"
+        _warn_on_unexpected_classes(model, logger)
         return model
 
     @property
@@ -69,3 +72,37 @@ class ModelRegistry:
     @property
     def experiments_dir(self) -> Path:
         return self.settings.models_experiments_dir
+
+
+def _warn_on_unexpected_classes(model, logger: logging.Logger) -> None:
+    """Adukan saat startup kalau kelas model bukan keempat yang dikenal.
+
+    Model yang salah pasang tidak pernah error: YOLO memuatnya dengan senang
+    hati, `grade_class_of` menolak tiap label, dan tiap janjang dilewati. Yang
+    terlihat di layar cuma angka yang tidak pernah naik — line yang "jalan" tapi
+    tidak menghitung apa pun. Satu baris ERROR di startup jauh lebih murah
+    daripada menemukannya sesudah satu shift.
+
+    Sengaja peringatan, bukan `raise`: nama kelas itu metadata hasil latih, dan
+    mematikan line di pabrik gara-gara ejaan bukan keputusan yang boleh diambil
+    kode ini sendiri.
+    """
+    try:
+        names = set(getattr(model, "names", {}).values())
+    except Exception:
+        return
+    if not names:
+        return
+    unknown = {n for n in names if _grade_class_or_none(n) is None}
+    missing = {c for c in GRADE_CLASSES if c not in {_grade_class_or_none(n) for n in names}}
+    if unknown or missing:
+        logger.error(
+            "Kelas model tidak seperti yang diharapkan. Ada: %s. "
+            "Tidak dikenal: %s. Hilang: %s. Yang diharapkan: %s. "
+            "Cek MODEL_FILE menunjuk ke model yang benar — kelas yang tidak "
+            "dikenal DILEWATI, jadi line bisa terlihat jalan tanpa menghitung.",
+            sorted(names), sorted(unknown) or "-", sorted(missing) or "-",
+            list(GRADE_CLASSES),
+        )
+    else:
+        logger.info("Kelas model terverifikasi: %s", sorted(names))
