@@ -155,6 +155,23 @@ operator:
 operator-docker:
 	docker compose --env-file $(ENV_FILE) exec console python scripts/console-operator.py $(AKSI) $(ROLE)
 
+# Data demo untuk showcase ke klien. Truk, kunjungan, janjang, dan dua akun untuk
+# masuk konsol. Platnya sama persis dengan seeder AutoERP (`palm_mill/demo.py`),
+# jadi satu truk adalah truk yang sama di dua layar.
+#   make demo                jalankan (7 hari riwayat)
+#   make demo HARI=3         riwayat lebih pendek
+#   make demo AKSI=reset     hapus data demo lama dulu, lalu isi ulang
+# ⚠️ JANGAN di PC pabrik. Skripnya menolak database yang sudah punya data
+# sungguhan; PAKSA=1 melewati penolakan itu — jangan dipakai kecuali yakin.
+HARI ?= 7
+demo:
+	PYTHONPATH=src .venv/bin/python scripts/seed-console-demo.py \
+		--hari $(HARI) $(if $(filter reset,$(AKSI)),--reset,) $(if $(PAKSA),--paksa,)
+
+demo-docker:
+	docker compose --env-file $(ENV_FILE) exec console python scripts/seed-console-demo.py \
+		--hari $(HARI) $(if $(filter reset,$(AKSI)),--reset,) $(if $(PAKSA),--paksa,)
+
 # Hash untuk dua akun bawaan konsol. Dipakai waktu pasang PC pabrik: sandinya beda
 # per PKS, dan yang masuk ke image atau .env cuma hash-nya, bukan sandi mentah.
 hash-sandi:
