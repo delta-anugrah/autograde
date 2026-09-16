@@ -20,7 +20,7 @@ class FakeLine:
     def __init__(self) -> None:
         self.kiriman: list[dict] = []
 
-    async def assign_truck(self, line, *, assignment_id, truck_id, assigned_at, ffb_source=None):
+    async def assign_truck(self, line, *, assignment_id, truck_id, assigned_at, ffb_source=None, plate=None):
         self.kiriman.append({"truck_id": truck_id, "ffb_source": ffb_source})
 
 

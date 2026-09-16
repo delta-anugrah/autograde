@@ -1,30 +1,37 @@
 from __future__ import annotations
 
 import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from ..core.config import Settings
 from ..core.constants import (
-    JPEG_QUALITY_SAVE,
     MANUAL_CAPTURE_CONFIDENCE,
     MANUAL_CAPTURE_STATUS,
     MANUAL_CAPTURE_SUFFIX,
 )
-from ..integrations.storage.local_file_storage import LocalFileStorage
+from ..services.capture_writer import CaptureWriter
+
+if TYPE_CHECKING:  # annotation only — it imports cv2, and the unit suite runs
+    # without it on purpose (CLAUDE.md § Tests). Storage is injected, so nothing
+    # in this module ever constructs one.
+    from ..integrations.storage.local_file_storage import LocalFileStorage
 
 
 class CaptureRepository:
     def __init__(self, settings: Settings, storage: LocalFileStorage) -> None:
         self.settings = settings
         self.storage = storage
+        self.writer = CaptureWriter(settings, storage)
 
     def save_manual_reject(
         self,
         frame: np.ndarray,
         truck_id: str | None,
         assignment_id: str | None = None,
+        plate: str | None = None,
+        assigned_at: str | None = None,
     ) -> dict[str, Any]:
         # Aware UTC so the filename shares one instant with the payload
         # timestamp below (which was already UTC-aware).
@@ -34,7 +41,24 @@ class CaptureRepository:
 
         results_dir = self.settings.results_dir / date_folder
         img_filename = f"{timestamp}_{MANUAL_CAPTURE_SUFFIX}.webp"
-        image_url = f"captures/results/{date_folder}/{img_filename}"
+
+        # Same layout as the auto path — one writer for both, or the folders
+        # come to mean different things depending on who filled them.
+        truck_folder = self.writer.truck_folder(
+            assignment_id=assignment_id, plate=plate, assigned_at=assigned_at, now=now
+        )
+        # A manual reject is never drawn on, so both copies are the same frame.
+        # Written anyway: `bbox/` is where every consumer looks for the image a
+        # record points at, and `clean/` is where a training run collects them —
+        # a gap in either would have to be special-cased by both.
+        image_url = self.writer.write_pair(
+            date_folder=date_folder,
+            truck_folder=truck_folder,
+            ripeness_status=MANUAL_CAPTURE_STATUS,
+            filename=img_filename,
+            annotated_frame=frame,
+            clean_frame=frame,
+        )
 
         height, width = frame.shape[:2]
         bounding_box = {"x_min": 0, "y_min": 0, "x_max": width, "y_max": height}
@@ -56,7 +80,6 @@ class CaptureRepository:
         }
 
         json_filename = f"{timestamp}_{MANUAL_CAPTURE_SUFFIX}_ripeness.json"
-        self.storage.write_image(results_dir / img_filename, frame, quality=JPEG_QUALITY_SAVE)
         self.storage.write_json(results_dir / json_filename, payload)
 
         # results/ adalah satu-satunya sumber kebenaran; status FAIL ada di metadata

@@ -387,6 +387,15 @@ class ConsoleService:
             in_erp=bool(truck.get("erp_name")),
         )
 
+    def _plate(self, truck_id: str) -> str | None:
+        """Display label for the line's capture folders, or None if unknown.
+
+        Never an identifier: `truck_id` carries every number that matters, so a
+        truck the store cannot read costs readability and nothing more.
+        """
+        truck = self.store.truck(truck_id) or {}
+        return truck.get("plate_number") or None
+
     async def assign_truck(self, line_code: str, truck_id: str) -> dict[str, Any]:
         line = self._require_line(line_code)
         assignment_id = str(uuid.uuid4())
@@ -400,6 +409,7 @@ class ConsoleService:
             truck_id=truck_id,
             assigned_at=datetime.now(self.tz).isoformat(),
             ffb_source=self._ffb_source(truck_id),
+            plate=self._plate(truck_id),
         )
         # Stored, not kept in memory (§6.4): the truck being unloaded must stay
         # on its line after a console restart mid-shift.

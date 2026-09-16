@@ -155,9 +155,10 @@ Set truck ID aktif untuk line ini secara langsung ke vision.
 
 Terima assignment dari palmgrade-api. Protected by `x-internal-secret: WEBHOOK_SECRET`.
 
-- **Request body:** `{ "machine_id", "assignment_id", "truck_id", "assigned_at" }`
+- **Request body:** `{ "machine_id", "assignment_id", "truck_id", "assigned_at", "ffb_source"?, "plate"? }`
 - **Response:** `{ "accepted": true, "machine_id", "truck_id", "assignment_id" }`
-- **Side effect:** Set `state.current_truck_id` + `state.current_assignment_id` — semua event selanjutnya punya `assignment_id` ini.
+- **Side effect:** Set `state.current_truck_id` + `state.current_assignment_id` — semua event selanjutnya punya `assignment_id` ini. `plate` + `assigned_at` juga disimpan, dipakai buat **menamai folder capture** truk itu (`domain/capture_layout.py`).
+- ⚠️ `plate` itu **label, bukan identitas** — `truck_id` tetap kunci semua angka. Opsional: konsol lama tidak mengirimnya, dan line yang menolak payload tanpa `plate` akan menghentikan penugasan saat upgrade separuh jalan. Dikirim karena `truck_id` itu uuid5 **dari** plat dan tidak bisa dibalik.
 
 ### `POST /internal/manual-reject`
 

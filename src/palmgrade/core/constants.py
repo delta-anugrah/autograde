@@ -1,4 +1,7 @@
-import cv2
+# cv2 is imported lazily, below `FONT`. Importing it at module level made every
+# constant here cost an OpenCV import, which kept the capture path out of the
+# unit suite (it runs without cv2 on purpose — CLAUDE.md § Tests). Only drawing
+# code needs `FONT`, and that code already imports cv2 itself.
 
 # Capture
 MANUAL_CAPTURE_PREDICTION = "rej"
@@ -11,9 +14,18 @@ AUTO_CAPTURE_SUFFIX = "auto"
 COLOR_PASS = (0, 255, 0)   # hijau
 COLOR_FAIL = (0, 0, 255)   # merah
 
-# Annotation font
-FONT = cv2.FONT_HERSHEY_SIMPLEX
+# Annotation font. Resolved on first access (PEP 562) rather than at import, so
+# that importing any other constant here does not require OpenCV. Its value is
+# unchanged: `cv2.FONT_HERSHEY_SIMPLEX`.
 FONT_COLOR = (255, 255, 255)  # putih
+
+
+def __getattr__(name: str):
+    if name == "FONT":
+        import cv2
+
+        return cv2.FONT_HERSHEY_SIMPLEX
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # Streaming
 JPEG_QUALITY_STREAM = 42

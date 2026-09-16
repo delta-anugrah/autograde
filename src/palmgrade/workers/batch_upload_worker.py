@@ -26,6 +26,7 @@ from typing import Any
 import httpx
 
 from ..core.config import Settings
+from ..domain.capture_layout import clean_twin_of
 from ..domain.vision_event import event_id_for
 from ..integrations.upload.r2_uploader import R2Uploader, build_r2_key
 from ..integrations.upload.upload_manifest import UploadManifest
@@ -275,9 +276,15 @@ class BatchUploadWorker:
         if json_path.name.endswith("_auto_ripeness.json"):
             targets.append(json_path.with_name(json_path.name.replace("_auto_ripeness.json", _TP_SUFFIX)))
         if item["image_path"]:
-            targets.append(
+            annotated = (
                 self.settings.artifacts_dir / item["image_path"].lstrip("/").removeprefix("captures/")
             )
+            targets.append(annotated)
+            # The clean twin is deleted here or by nothing at all: it has no
+            # manifest row of its own, so both age-based retention and the disk
+            # guard would sweep `done` items while freeing only half the bytes —
+            # until the disk fills and `write_image` stops grading (Rule #8/#9).
+            targets.extend(clean_twin_of(annotated))
         for t in targets:
             t.unlink(missing_ok=True)
         self.manifest.delete_item(item["id"])
