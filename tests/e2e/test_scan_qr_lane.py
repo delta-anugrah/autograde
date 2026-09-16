@@ -12,12 +12,15 @@ developer's own `state/console.db` and leave test rows in it.
 from __future__ import annotations
 
 import tempfile
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from palmgrade.core.config import Settings
 from palmgrade.domain.operator_auth import hash_password
 from palmgrade.domain.operator_error import BELUM_MASUK, BUKAN_PLAT, PLAT_KOSONG
 from palmgrade.domain.plate import truck_id_for
@@ -181,7 +184,7 @@ def test_scan_writes_no_weighing(gerbang):
 
     client.post("/api/console/scan", json={"qr": "BE4412OFL"})
 
-    assert store.weighings("2026-09-15") == []
+    assert store.weighings(_today()) == []
 
 
 @pytest.mark.parametrize(
@@ -320,7 +323,7 @@ def test_scan_then_weigh_in_lands_on_the_same_truck(gerbang_penuh):
         json={
             "plate_number": result["truck"]["plate_number"],
             "gross_kg": 13250,
-            "entered_at": "2026-09-15T08:55:00+07:00",
+            "entered_at": f"{_today()}T08:55:00+07:00",
         },
     )
 
@@ -381,11 +384,21 @@ def test_a_printed_qr_card_can_be_used_to_scan(gerbang):
 # ── scan at the exit gate ─────────────────────────────────────────────────────
 
 
+def _today() -> str:
+    """The working day the console is on right now — the same way it computes it.
+
+    These tests drive the real exit-scan lane, which only looks for a ticket on
+    today's working day. A hard-coded date passes on the day it is written and
+    fails every day after.
+    """
+    return datetime.now(ZoneInfo(Settings().factory_tz)).strftime("%Y-%m-%d")
+
+
 def _weigh_in(client, plate: str, time: str = "08:00:00") -> dict:
     response = client.post(
         "/api/console/weighings",
         json={"plate_number": plate, "gross_kg": 13250,
-              "entered_at": f"2026-09-15T{time}+07:00"},
+              "entered_at": f"{_today()}T{time}+07:00"},
     )
     assert response.status_code == 201, response.text
     return response.json()
@@ -428,7 +441,7 @@ def test_exit_scan_then_recording_tare_closes_the_same_ticket(gerbang_penuh):
     response = client.post(
         "/api/console/weighings",
         json={"plate_number": PLAT, "ref": w.get("ref"), "entered_at": w["entered_at"],
-              "tare_kg": 5000, "exited_at": "2026-09-15T09:00:00+07:00"},
+              "tare_kg": 5000, "exited_at": f"{_today()}T09:00:00+07:00"},
     )
 
     assert response.status_code == 201
