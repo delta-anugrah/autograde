@@ -103,6 +103,12 @@ def test_payload_bawa_field_yang_diminta_api() -> None:
         "capture_type",
         "image_path",
         "bounding_box",
+        # Rincian 4 kelas model (Ripe/Unripe/JK/TP). Ikut di payload karena
+        # payload inilah yang sampai ke konsol lewat outbox — kontrak §5 yang
+        # sama. Aman buat palmgrade-api: DTO-nya tidak memakai whitelist, jadi
+        # field tambahan diabaikan, bukan ditolak. `ripeness_status` dan
+        # `prediction` di atas TETAP biner: piston dan buku besar cuma punya dua.
+        "grade_class",
     }
     assert p["capture_type"] == "manual"
     assert p["truck_id"] == "truck-7"

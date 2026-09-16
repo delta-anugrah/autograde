@@ -7,6 +7,7 @@ import time
 from typing import TYPE_CHECKING
 
 from ..core.config import Settings
+from ..domain.grade_class import TP, grade_class_of, is_fruit_class, verdict_for_class
 from ..domain.plc_signal import plc_status_for
 from ..domain.vision_event import build_event_payload
 from ..integrations.outbox.outbox_store import OutboxStore
@@ -24,6 +25,34 @@ if TYPE_CHECKING:  # annotations only — these pull in cv2/torch, and the unit
     from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
 
 logger = logging.getLogger(__name__)
+
+# Label asing yang sudah pernah diadukan. Loop ini jalan 10-16 fps per line, jadi
+# satu kelas tak dikenal akan menulis puluhan ribu baris log per jam dan menutupi
+# semua yang lain. Diadukan sekali per nama, lalu diam.
+_unknown_labels_seen: set[str] = set()
+
+
+def _grade_class_or_none(label: str | None) -> str | None:
+    """Kelas model yang sudah dinormalkan, atau `None` kalau di luar keempatnya.
+
+    Jalur realtime sengaja TIDAK melempar seperti `grade_class_of`: melempar di
+    tengah loop frame akan mematikan grading satu line gara-gara satu kotak yang
+    aneh. Yang tak dikenal dilewati (tidak digrading, tidak dipulse ke PLC) dan
+    dicatat sekali — cukup buat ketahuan kalau model salah pasang, tanpa membuat
+    line berhenti.
+    """
+    try:
+        return grade_class_of(label)
+    except ValueError:
+        name = str(label)
+        if name not in _unknown_labels_seen:
+            _unknown_labels_seen.add(name)
+            logger.error(
+                "Kelas model tidak dikenal: %r - dilewati, tidak digrading. "
+                "Cek MODEL_FILE menunjuk ke model 4 kelas (Ripe/Unripe/JK/TP).",
+                name,
+            )
+        return None
 
 
 class FrameProcessingWorker:
@@ -80,6 +109,7 @@ class FrameProcessingWorker:
         ripeness_conf: float,
         truck_id: str | None,
         bounding_box: dict,
+        grade_class: str | None = None,
     ) -> tuple[str, str, str]:
         # Timezone-aware UTC: a naive isoformat() leaves the consumer guessing.
         # palmgrade-api runs TZ=Asia/Jakarta and resolved bare date-times as
@@ -114,6 +144,10 @@ class FrameProcessingWorker:
             "timestamp": now.isoformat(),
             "image_path": image_url,
             "ripeness_status": ripeness_status,
+            # Ikut ditulis ke sidecar supaya jalur batch (yang membacanya dari
+            # disk berjam-jam kemudian, bukan dari memori) membawa kelas yang
+            # sama dengan jalur realtime.
+            "grade_class": grade_class,
             "ripeness_confidence": round(ripeness_conf, 2),
             "tp_status": None,
             "tp_confidence": 0,
@@ -236,14 +270,16 @@ class FrameProcessingWorker:
 
         current_active_tracks: set[int] = set()
 
-        # Pre-scan: hitung buah (ACC/REJ) yang belum diproses dan ada di dalam ROI.
-        # Jika > 1 buah sekaligus dalam ROI, semua di-force jadi rej.
+        # Pre-scan: hitung buah (Ripe/Unripe/JK) yang belum diproses dan ada di
+        # dalam ROI. Jika > 1 buah sekaligus dalam ROI, semua di-force jadi rej.
         roi_fruit_count = 0
         if results.boxes is not None:
             for _box in results.boxes:
                 _tid = int(_box.id[0].item()) if _box.id is not None else -1
-                _lbl = results.names[int(_box.cls[0].item())]
-                if _tid == -1 or _tid in self._processed_objects or _lbl.lower() not in ("acc", "rej"):
+                _lbl = _grade_class_or_none(results.names[int(_box.cls[0].item())])
+                if _tid == -1 or _tid in self._processed_objects or not (
+                    _lbl is not None and is_fruit_class(_lbl)
+                ):
                     continue
                 _bx1, _by1, _bx2, _by2 = map(int, _box.xyxy[0].tolist())
                 _cx, _cy = (_bx1 + _bx2) // 2, (_by1 + _by2) // 2
@@ -259,7 +295,14 @@ class FrameProcessingWorker:
                 score = float(box.conf[0].item())
                 x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
 
-                area = (x2 - x1) * (y2 - y1) if cls_id in (0, 1) else 0
+                # Kelas dibaca dari NAMA, bukan urutan id. Model yang dilatih ulang
+                # boleh menukar urutan kelasnya; dulu baris ini `cls_id in (0, 1)`
+                # dan penukaran itu membuat `area` selalu 0 untuk buah — penjaga
+                # `minimum_size` berhenti bekerja tanpa satu pun pesan error.
+                grade_class = _grade_class_or_none(label)
+                area = (x2 - x1) * (y2 - y1) if (
+                    grade_class is not None and is_fruit_class(grade_class)
+                ) else 0
 
                 if track_id == -1:
                     continue
@@ -272,7 +315,7 @@ class FrameProcessingWorker:
                 cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
 
                 # Objek di luar ROI — skip (kecuali TP boleh dari mana saja)
-                if not self._is_in_roi(cx, cy, roi) and label.lower() != "tp":
+                if not self._is_in_roi(cx, cy, roi) and grade_class != TP:
                     continue
 
                 self._inactive_counter.pop(track_id, None)
@@ -290,8 +333,14 @@ class FrameProcessingWorker:
                 track["score"] = score
                 track["bbox"] = (x1, y1, x2, y2)
 
+                # Kelas di luar keempatnya: lewati, jangan tebak. Menganggapnya
+                # buah akan memalsukan rekap; menganggapnya REJ akan membuang
+                # janjang yang bagus.
+                if grade_class is None:
+                    continue
+
                 # Tangkai panjang (TP) → simpan sebagai kandidat terakhir
-                if label.lower() == "tp":
+                if grade_class == TP:
                     self._last_tp = {
                         "tp_status": "PASS",
                         "tp_confidence": score,
@@ -299,17 +348,21 @@ class FrameProcessingWorker:
                     }
                     continue
 
-                # Buah (ACC/REJ) yang sudah masuk zona deteksi
+                # Buah (Ripe/Unripe/JK) yang sudah masuk zona deteksi
                 if (
-                    label.lower() in ("acc", "rej")
+                    is_fruit_class(grade_class)
                     and not self.state.track_history[track_id]["processed"]
                     and not self.state.track_history[track_id].get("plc_signalled")
                 ):
-                    # >1 buah dalam ROI sekaligus → force rej (buah bertumpuk)
+                    # >1 buah dalam ROI sekaligus → force rej (buah bertumpuk),
+                    # begitu juga buah yang terlalu kecil. Keduanya menimpa
+                    # verdict, TAPI tidak menimpa `grade_class`: kelasnya tetap
+                    # apa yang dilihat model, supaya konsol tidak melaporkan
+                    # janjang matang sebagai Unripe hanya karena bertumpuk.
                     if force_rej_multi or area < self.settings.minimum_size:
                         ripeness_status = "rej"
                     else:
-                        ripeness_status = label.lower()
+                        ripeness_status = (verdict_for_class(grade_class) or "REJ").lower()
                     ripeness_conf = score
                     # Buah REJ milik truk Internal tetap masuk ramp: tidak ada
                     # pulse ke PLC, tapi `ripeness_status` di bawah tetap REJ.
@@ -339,6 +392,7 @@ class FrameProcessingWorker:
                         annotated, frame, ripeness_status, ripeness_conf,
                         self.state.current_truck_id,
                         {"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
+                        grade_class,
                     )
 
                     # H3: snapshot _last_tp before clearing so event + webhook carry TP data
@@ -361,6 +415,7 @@ class FrameProcessingWorker:
                     event = {
                         "id": timestamp,
                         "ripeness_status": ripeness_status,
+                        "grade_class": grade_class,
                         "ripeness_confidence": round(ripeness_conf, 2),
                         "tp_status": tp_snapshot["tp_status"] if tp_snapshot else None,
                         "tp_confidence": round(tp_snapshot["tp_confidence"], 2) if tp_snapshot else 0,
@@ -397,6 +452,7 @@ class FrameProcessingWorker:
                         bounding_box={"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
                         tp_status=tp_snapshot["tp_status"] if tp_snapshot else None,
                         tp_confidence=tp_snapshot["tp_confidence"] if tp_snapshot else None,
+                        grade_class=grade_class,
                     )
                     try:
                         self.outbox_store.add_event(

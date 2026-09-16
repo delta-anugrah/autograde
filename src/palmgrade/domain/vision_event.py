@@ -64,6 +64,7 @@ def build_event_payload(
     bounding_box: dict[str, Any] | None = None,
     tp_status: str | None = None,
     tp_confidence: float | None = None,
+    grade_class: str | None = None,
 ) -> dict[str, Any]:
     """`image_path` HARUS relatif (`captures/results/<tgl>/<file>.webp`).
 
@@ -73,8 +74,13 @@ def build_event_payload(
     hanya dipakai jalur batch upload ke cloud.
     """
     status = ripeness_status.upper()
+    # `grade_class` menemani verdict, tidak menggantikannya: `prediction` dan
+    # `ripeness_status` tetap biner karena piston dan buku besar AutoERP memang
+    # biner. Field ini opsional supaya event lama (dan capture manual, yang tidak
+    # lewat model) tetap sah tanpa menebak kelasnya.
     return {
         "event_id": event_id_for(machine_id, file_ts),
+        "grade_class": grade_class,
         "machine_id": machine_id,
         "assignment_id": assignment_id,
         "truck_id": truck_id,
