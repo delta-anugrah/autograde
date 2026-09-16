@@ -330,6 +330,67 @@ def test_truk_kosong_paling_ringan_tetap_diterima(service):
     assert hasil["gross_kg"] == 2500.0
 
 
+# ── manifest janjang R2: visit() + bunches_for_assignment() ─────────────────
+
+
+def _inspection_row(**over) -> dict:
+    """A row shaped exactly like `add_inspection`'s INSERT requires — see the
+    same helper pattern in `test_erp_queue.py` / `test_rekonsiliasi_truk.py`."""
+    row = {
+        "event_id": "e-1",
+        "machine_id": "m-1",
+        "line_code": "line-1",
+        "work_date": "2026-09-16",
+        "timestamp": "2026-09-16T08:01:00+07:00",
+        "ripeness_status": "ACC",
+        "ripeness_confidence": 0.9,
+        "capture_type": "auto",
+        "image_path": "captures/results/2026-09-16/f.webp",
+        "truck_id": None,
+        "assignment_id": "a-1",
+        "prediction": "Acc",
+        "tp_status": None,
+        "tp_confidence": None,
+    }
+    row.update(over)
+    return row
+
+
+def test_bunches_for_assignment_come_back_in_time_order(tmp_path):
+    store = ConsoleStore(tmp_path / "c.db")
+    store.add_inspection(_inspection_row(event_id="e-2", timestamp="2026-09-16T08:02:00+07:00"))
+    store.add_inspection(_inspection_row(event_id="e-1", timestamp="2026-09-16T08:01:00+07:00"))
+    store.add_inspection(
+        _inspection_row(event_id="e-9", timestamp="2026-09-16T08:03:00+07:00", assignment_id="lain")
+    )
+    assert [b["event_id"] for b in store.bunches_for_assignment("a-1")] == ["e-1", "e-2"]
+
+
+def test_bunches_for_assignment_carries_every_key_the_manifest_reads(tmp_path):
+    # build_manifest() reads these off each bunch row (task-B3 brief). Missing
+    # one means the manifest silently renders with a hole in it.
+    store = ConsoleStore(tmp_path / "c.db")
+    store.add_inspection(_inspection_row(grade_class="Ripe", tp_confidence=0.91))
+    (bunch,) = store.bunches_for_assignment("a-1")
+    for key in (
+        "event_id", "machine_id", "timestamp", "ripeness_status", "ripeness_confidence",
+        "capture_type", "grade_class", "tp_confidence", "image_path",
+    ):
+        assert key in bunch, key
+
+
+def test_visit_carries_supplier_name(tmp_path):
+    store = ConsoleStore(tmp_path / "c.db")
+    store.upsert_supplier({"id": "s1", "name": "KUD Sumber Makmur", "source_group": "Plasma", "status": "active"})
+    store.upsert_truck({"id": "t1", "plate_number": "BE 1 AA", "supplier_id": "s1", "status": "active"})
+    store.upsert_weighing({
+        "id": "w1", "ref": "r1", "plate_number": "BE 1 AA", "plate_norm": "BE1AA", "truck_id": "t1",
+        "work_date": "2026-09-16", "gross_kg": 15000.0, "tare_kg": 5000.0, "net_kg": 10000.0,
+        "entered_at": "2026-09-16T08:00:00+07:00", "exited_at": None,
+    })
+    assert store.visit("w1")["supplier_name"] == "KUD Sumber Makmur"
+
+
 def test_operator_baru_default_operator(tmp_path):
     """No account gains privilege through migration alone."""
     store = ConsoleStore(tmp_path / "c.db")

@@ -46,3 +46,10 @@ def test_tangkai_panjang_uses_the_same_threshold_as_the_recap():
     """`grading_counts()` counts ACC with tp_confidence > 0.8; a bunch must agree with its own recap."""
     m = build_manifest(VISIT, GRADING, [_bunch(tp_confidence=0.8)], public_url=PUBLIC, generated_at="t")
     assert m["bunches"][0]["tangkai_panjang"] is False
+
+
+def test_a_missing_tp_confidence_gives_false_rather_than_raising():
+    """Manual-reject bunches never go through the model, so `tp_confidence` is
+    `None` on that row — this must not be mistaken for a `> TP_THRESHOLD` check."""
+    m = build_manifest(VISIT, GRADING, [_bunch(tp_confidence=None)], public_url=PUBLIC, generated_at="t")
+    assert m["bunches"][0]["tangkai_panjang"] is False
