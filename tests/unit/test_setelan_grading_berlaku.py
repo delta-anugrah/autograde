@@ -7,6 +7,7 @@ shift. Berkas ini menguji sisi pemakaiannya, bukan sisi penyimpanannya.
 """
 from __future__ import annotations
 
+import pathlib
 from dataclasses import replace
 
 from palmgrade.core.config import Settings
@@ -49,19 +50,24 @@ def test_override_nol_tidak_mungkin_lolos_ke_state():
 
 def test_conf_override_dikirim_ke_pipeline_sebagai_argumen():
     """Pipeline tidak boleh membaca `RuntimeState` sendiri — worker yang
-    mengirimnya. Ini yang membuat pipeline bisa dites tanpa merakit satu line."""
-    import inspect
+    mengirimnya. Ini yang membuat pipeline bisa dites tanpa merakit satu line.
 
-    from palmgrade.pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
+    Sumbernya dibaca sebagai TEKS, bukan lewat `import`: modul pipeline menarik
+    cv2 dan torch, dan CI sengaja jalan tanpa keduanya (CLAUDE.md § Tests).
+    Meng-import-nya di sini membuat tes ini hijau di laptop yang kebetulan punya
+    cv2 dan merah di CI — persis yang terjadi sebelum perbaikan ini.
+    """
+    berkas = (
+        pathlib.Path(__file__).resolve().parents[2]
+        / "src" / "palmgrade" / "pipelines" / "realtime_inspection_pipeline.py"
+    )
+    sumber = berkas.read_text(encoding="utf-8")
+    fungsi = sumber.split("def track_ripeness(")[1].split("\n    def ")[0]
 
-    sig = inspect.signature(RealtimeInspectionPipeline.track_ripeness)
-    assert "conf" in sig.parameters
-    assert sig.parameters["conf"].default is None, "None = pakai .env"
-
-    # Docstring-nya boleh menyebut RuntimeState (menjelaskan kenapa TIDAK
-    # dipakai); yang dicek badan fungsinya.
-    sumber = inspect.getsource(RealtimeInspectionPipeline.track_ripeness)
-    badan = sumber.split('"""')[-1]
+    assert "conf: float | None = None" in fungsi, "None = pakai .env"
+    # Docstring boleh menyebut RuntimeState (menjelaskan kenapa TIDAK dipakai);
+    # yang dicek badan fungsinya.
+    badan = fungsi.split('"""')[-1]
     assert "state" not in badan.lower()
     assert "conf=self.settings.conf_threshold if conf is None else conf" in badan
 
@@ -69,11 +75,15 @@ def test_conf_override_dikirim_ke_pipeline_sebagai_argumen():
 def test_worker_membaca_override_tiap_frame():
     """Dibaca di dalam loop, bukan disimpan saat worker dibuat: kalau di-cache
     di `__init__`, mengubah setelan butuh restart line — persis yang mau
-    dihilangkan fitur ini."""
-    import inspect
+    dihilangkan fitur ini.
 
-    from palmgrade.workers.frame_processing_worker import FrameProcessingWorker
-
-    sumber = inspect.getsource(FrameProcessingWorker.run_once)
-    assert "self.state.conf_threshold_override" in sumber
-    assert "self.state.minimum_size_override" in sumber
+    Sumbernya dibaca sebagai teks, alasannya sama dengan tes di atas: modul
+    worker ini menarik cv2 lewat `capture_writer`."""
+    berkas = (
+        pathlib.Path(__file__).resolve().parents[2]
+        / "src" / "palmgrade" / "workers" / "frame_processing_worker.py"
+    )
+    sumber = berkas.read_text(encoding="utf-8")
+    run_once = sumber.split("def run_once(")[1].split("\n    def ")[0]
+    assert "self.state.conf_threshold_override" in run_once
+    assert "self.state.minimum_size_override" in run_once
