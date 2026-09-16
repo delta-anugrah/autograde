@@ -257,6 +257,13 @@ class BatchUploadWorker:
             self.manifest.mark_image_uploaded(item["id"])
             item["status"] = "image_uploaded"
 
+        if not self.settings.upload_events_url:
+            # No text receiver: the image is the upload. An item with no image at
+            # all (an orphan tp sidecar) has nothing to send — done, so retention
+            # can clean it up rather than poison holding the file forever.
+            self.manifest.mark_done(item["id"])
+            return
+
         payload = self._build_payload(item)  # bisa raise _PoisonError
         headers = {
             "Content-Type": "application/json",

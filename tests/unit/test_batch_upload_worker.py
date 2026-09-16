@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from unittest.mock import Mock
 
 import pytest
 
@@ -167,3 +168,17 @@ def test_build_payload_orphan_tp_without_pair_raises_poison(env):
     worker._scan()
     with pytest.raises(_PoisonError):
         worker._build_payload(manifest.get_uploadable(limit=1)[0])
+
+
+def test_without_a_text_receiver_the_item_is_done_once_the_image_is_up(tmp_path, monkeypatch):
+    monkeypatch.setenv("MACHINE_ID", "M1")
+    monkeypatch.setenv("R2_BUCKET", "palmgrade")
+    monkeypatch.delenv("UPLOAD_API_URL", raising=False)
+    settings = Settings(repo_root=tmp_path)
+    assert settings.upload_events_url == ""
+    _write_ripeness(settings)
+    manifest = UploadManifest(db_path=tmp_path / "m.db")
+    uploader, http = Mock(), Mock()
+    BatchUploadWorker(settings=settings, manifest=manifest, uploader=uploader, http_client=http).run_batch_once()
+    assert manifest.counts()["done"] == 1
+    http.post.assert_not_called()
