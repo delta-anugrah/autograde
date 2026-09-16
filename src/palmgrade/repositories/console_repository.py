@@ -206,7 +206,8 @@ class ConsoleStore:
         """Carry an `operators` table written before the column rename.
 
         The rename (`nama`→`full_name`, `asal`→`origin`, `dibuat_at`→`created_at`,
-        `peran`→`role`) shipped without this pass, on the reasoning that no factory PC had
+        `gagal_count`→`fail_count`, `gagal_terakhir`→`last_failed_at`, `peran`→`role`)
+        shipped without this pass, on the reasoning that no factory PC had
         ever run that schema. True for factory PCs, false for every machine that had a
         console database already: `CREATE TABLE IF NOT EXISTS` left the old table alone,
         so every read of `full_name` hit a column that was not there and the sign-in
@@ -221,7 +222,13 @@ class ConsoleStore:
         columns = {r["name"] for r in self._db.execute("PRAGMA table_info(operators)")}
         if not columns:
             return
-        for old, new in (("nama", "full_name"), ("asal", "origin"), ("dibuat_at", "created_at")):
+        for old, new in (
+            ("nama", "full_name"),
+            ("asal", "origin"),
+            ("dibuat_at", "created_at"),
+            ("gagal_count", "fail_count"),
+            ("gagal_terakhir", "last_failed_at"),
+        ):
             if old in columns and new not in columns:
                 self._db.execute(f"ALTER TABLE operators RENAME COLUMN {old} TO {new}")
         if "peran" not in columns:

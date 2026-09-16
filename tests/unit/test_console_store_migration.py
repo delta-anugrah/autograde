@@ -167,3 +167,95 @@ def test_the_pin_era_table_is_still_dropped(tmp_path):
 
     assert store.operators() == []
     assert _columns(path) >= {"email", "full_name", "role"}
+
+
+# --------------------------------------------------------------------- end to end
+# The unit tests above prove the columns move. These prove the screen comes back:
+# the same HTTP lanes the console itself calls, over a database in the old shape.
+
+
+def _client(db_path):
+    """The console router on a pre-rename database, wired like `test_console_routes_auth`."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from palmgrade.routes.console import get_auth_service, get_console_service
+    from palmgrade.routes.console import router as console_router
+    from palmgrade.services.auth_service import AuthService
+
+    class _StubConsole:
+        def state(self) -> dict:
+            return {"hari_ini": {}, "lines": []}
+
+    store = ConsoleStore(db_path)
+    app = FastAPI()
+    app.include_router(console_router)
+    app.dependency_overrides[get_console_service] = lambda: _StubConsole()
+    app.dependency_overrides[get_auth_service] = lambda: AuthService(store)
+    return TestClient(app), store
+
+
+def test_the_sign_in_screen_lists_the_accounts_by_name(tmp_path):
+    """Bug as reported: the pills rendered, one per account, every one of them blank.
+
+    `/api/console/operators` is what fills them, and on a pre-rename database it used to
+    raise `no such column: full_name` before it could answer.
+    """
+    from palmgrade.domain.operator_auth import hash_password
+
+    path = _pre_rename_db(
+        tmp_path / "console.db",
+        [
+            {"id": "op-1", "email": "operator@pks.test", "nama": "Pak Budi", "hash": hash_password("sawit2026")},
+            {"id": "op-2", "email": "support3@example.com", "nama": "Support 3", "peran": "support"},
+        ],
+    )
+    client, _ = _client(path)
+
+    response = client.get("/api/console/operators")
+
+    assert response.status_code == 200
+    named = {row["email"]: row["full_name"] for row in response.json()["items"]}
+    assert named == {"operator@pks.test": "Pak Budi", "support3@example.com": "Support 3"}
+
+
+def test_the_navbar_gets_the_operator_name_after_signing_in(tmp_path):
+    """The second half of the bug: `/api/console/me` feeds the name in the top bar."""
+    from palmgrade.domain.operator_auth import hash_password
+
+    path = _pre_rename_db(
+        tmp_path / "console.db",
+        [{"id": "op-1", "email": "operator@pks.test", "nama": "Pak Budi", "hash": hash_password("sawit2026")}],
+    )
+    client, _ = _client(path)
+
+    assert client.post(
+        "/api/console/login", json={"email": "operator@pks.test", "sandi": "sawit2026"}
+    ).status_code == 200
+    assert client.get("/api/console/me").json()["operator"]["full_name"] == "Pak Budi"
+
+
+def test_a_support_account_still_reaches_the_developer_lane(tmp_path):
+    """`role` used to be defaulted rather than carried, so a support account that
+    predated the rename came back as an operator and its own menus answered 403."""
+    from palmgrade.domain.operator_auth import hash_password
+
+    path = _pre_rename_db(
+        tmp_path / "console.db",
+        [
+            {
+                "id": "op-sup",
+                "email": "support3@example.com",
+                "nama": "Support 3",
+                "hash": hash_password("sawit2026"),
+                "peran": "support",
+            }
+        ],
+    )
+    client, _ = _client(path)
+
+    assert client.post(
+        "/api/console/login", json={"email": "support3@example.com", "sandi": "sawit2026"}
+    ).status_code == 200
+    assert client.get("/api/console/me").json()["operator"]["role"] == "support"
+    assert client.get("/api/console/dev/ping").status_code == 200
