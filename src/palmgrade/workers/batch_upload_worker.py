@@ -262,11 +262,14 @@ class BatchUploadWorker:
                     self.uploader.put(thumb_local, thumb_key)
                 except Exception as exc:  # noqa: BLE001 — a preview must not hold the queue
                     # Never fatal, and never a poison: the annotated image — the
-                    # evidence — is already in R2, and the key is deterministic, so
-                    # the next tick overwrites this same object. Batch-fatal here
-                    # would let one unreadable thumbnail hold back every image and
-                    # event queued behind it (the docstring reserves that for
-                    # global conditions), for a picture the viewer can do without.
+                    # evidence — is already in R2, so a picture the viewer can do
+                    # without must not hold back every image and event queued
+                    # behind it (batch-fatal is reserved for global conditions,
+                    # the docstring above). This item is not requeued for the
+                    # thumbnail alone, and nothing else revisits this PUT, so a
+                    # failure here is not a delay — the thumbnail is permanently
+                    # missing for this bunch. The viewer falls back to the full
+                    # image when the thumbnail is absent (static/viewer.html).
                     logger.warning("PUT thumb R2 gagal (%s): %s", thumb_key, exc)
 
             self.manifest.mark_image_uploaded(item["id"])

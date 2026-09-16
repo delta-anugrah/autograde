@@ -106,6 +106,59 @@ def test_every_img_has_onerror_fallback():
     assert "onerror" in html
 
 
+def test_thumb_404_falls_back_to_full_image_before_placeholder():
+    """`b.thumb` cuma URL turunan (domain/visit_manifest._urls) — bukan
+    pernyataan bahwa thumbnail-nya benar-benar tertulis atau ter-upload.
+    Penulisan thumbnail boleh gagal diam-diam (disk penuh) dan PUT R2-nya
+    boleh gagal tanpa membatalkan batch (batch_upload_worker, blok PUT
+    thumb) — dua-duanya menyisakan `thumb` yang 404 sementara `image`
+    (foto penuh, bukti sesungguhnya) aman di R2. Kalau `onerror` pada
+    `thumb` langsung lompat ke placeholder tanpa mencoba `b.image` dulu,
+    backoffice yang sedang menyelesaikan sengketa pembayaran dibilang
+    "tidak ada foto" padahal foto lengkapnya cuma satu URL lagi.
+
+    Dicek dengan pola yang tahan terhadap detail implementasi (nama
+    variabel di dalam `onerror`) tapi tetap gagal kalau fallback-nya
+    dihapus: kode dalam callback `onerror` gambar grid harus menyebut
+    `b.image` sebagai `img.src` berikutnya, dan itu harus terjadi
+    SEBELUM baris yang menampilkan placeholder ditulis ulang.
+    """
+    html = VIEWER.read_text(encoding="utf-8")
+    # Ambil badan fungsi kartuJanjang saja, supaya pola di bawah ini tidak
+    # kebetulan cocok dengan `onerror` overlay (yang punya kontrak beda —
+    # dia hanya menulis keterangan, tidak fallback ke sumber lain).
+    mulai = html.index("function kartuJanjang(b)")
+    selesai = html.index("function bukaOverlay(b)")
+    assert selesai > mulai, "kartuJanjang atau bukaOverlay pindah/hilang — perbarui tes ini"
+    badan = html[mulai:selesai]
+
+    assert "onerror" in badan, "img grid tidak punya fallback onerror sama sekali"
+    # Placeholder harus tetap ada sebagai jaring pengaman terakhir.
+    assert "Foto belum terunggah" in badan
+    # Invarian inti: sebelum menulis placeholder, callback error grid harus
+    # menunjuk ulang ke `b.image` (foto penuh) sebagai upaya berikutnya.
+    # Ini gagal kalau seseorang menghapus fallback dan langsung memanggil
+    # `img.remove()` / menulis placeholder begitu `thumb` gagal.
+    posisi_img_src_ke_image = badan.find("img.src = b.image")
+    posisi_placeholder = badan.find("Foto belum terunggah")
+    assert posisi_img_src_ke_image != -1, (
+        "onerror grid tidak pernah mencoba `b.image` — thumbnail yang gagal "
+        "akan langsung dibilang 'tidak ada foto' walau foto penuhnya ada di R2"
+    )
+    assert posisi_img_src_ke_image < posisi_placeholder, (
+        "fallback ke b.image harus dicoba SEBELUM placeholder ditampilkan"
+    )
+
+    # Guard against an infinite retry loop: the fallback attempt must be
+    # gated so it can only fire once per <img>, otherwise a truck with
+    # both URLs broken retries forever instead of settling on the
+    # placeholder.
+    assert re.search(r"\bsudahFallback\b|\bfallback\w*\s*=\s*true\b", badan, re.IGNORECASE), (
+        "tidak ada penanda sekali-coba — fallback ke b.image bisa retry tanpa henti "
+        "kalau b.image juga 404"
+    )
+
+
 def test_viewer_labels_verdict_with_text_not_colour_alone():
     """Hijau/merah untuk ACC/REJ tidak boleh jadi satu-satunya sinyal — itu
     satu hal yang wajib tidak terlewat untuk pembaca buta warna. Tekstualnya

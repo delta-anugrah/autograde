@@ -145,7 +145,6 @@
 // seolah terbaca benar, karena itu bisa salah menampilkan janjang ke
 // backoffice yang sedang menyelesaikan sengketa.
 const SCHEMA_DIKENAL = 1;
-const AMBANG_TP = 0.8;
 
 const $ = (id) => document.getElementById(id);
 
@@ -299,11 +298,24 @@ function kartuJanjang(b) {
     const img = document.createElement("img");
     img.loading = "lazy";
     img.alt = "";
-    // `onerror` wajib: foto naik ke R2 tiap jam (bukan seketika), dan retensi
-    // 90 hari menghapus yang lama — manifest yang terbaca tidak menjamin
-    // fotonya sudah ada di R2. Fallback-nya elemen baru lewat createElement,
-    // bukan string HTML yang ditimpakan, supaya nilai manifest tidak lewat situ.
+    // `thumb` cuma URL turunan (lihat domain/visit_manifest._urls) — bukan
+    // jaminan berkasnya benar-benar ada di R2. Penulisan thumbnail boleh gagal
+    // diam-diam (disk penuh, atau PUT R2-nya sendiri gagal — batch_upload_worker
+    // tidak menjadikan itu fatal, foto lengkap sudah cukup jadi bukti). Jadi
+    // `onerror` di sini TIDAK boleh langsung jatuh ke placeholder kalau sumber
+    // yang gagal itu `thumb`: foto penuh (`image`) sering masih ada di R2, dan
+    // itulah bukti yang dicari backoffice saat menyelesaikan sengketa dengan
+    // supplier. Placeholder cuma muncul kalau fallback itu juga gagal, atau
+    // memang tidak ada `image` sama sekali (bisa null). `sudahFallback`
+    // menjamin fallback ini dicoba paling banyak sekali per elemen, supaya
+    // `image` yang ikut gagal tidak membuat elemen retry selamanya.
+    let sudahFallback = false;
     img.onerror = () => {
+      if (sumber === b.thumb && b.image && !sudahFallback) {
+        sudahFallback = true;
+        img.src = b.image;
+        return;
+      }
       img.remove();
       bungkusGambar.append(teks(buat("span", "placeholder"), "Foto belum terunggah"));
     };
