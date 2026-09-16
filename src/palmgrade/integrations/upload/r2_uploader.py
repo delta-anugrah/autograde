@@ -39,10 +39,8 @@ class R2Uploader:
             )
         return self._client
 
-    def put(self, local_path: Path, r2_key: str) -> None:
-        self._get_client().put_object(
-            Bucket=self.bucket,
-            Key=r2_key,
-            Body=local_path.read_bytes(),
-            ContentType="image/webp",
-        )
+    def put(self, local_path: Path, r2_key: str, *, content_type: str = "image/webp") -> None:
+        self.put_bytes(local_path.read_bytes(), r2_key, content_type=content_type)
+
+    def put_bytes(self, body: bytes, r2_key: str, *, content_type: str) -> None:
+        self._get_client().put_object(Bucket=self.bucket, Key=r2_key, Body=body, ContentType=content_type)
