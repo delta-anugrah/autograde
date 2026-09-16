@@ -200,7 +200,7 @@ def test_penekanan_meninggalkan_jejak_di_log(tmp_path):
     Verified through the REAL logging path (SqliteLogHandler attached to
     DevService's own logger, exactly like production's pasang_log_sink) —
     not a mock — so this proves redaksi() actually runs before the row lands,
-    and that log_kejadian gets the row at all.
+    and that event_log gets the row at all.
     """
     app, store, _ = _app_plc(tmp_path)
     log_store = LogStore(tmp_path / "log.db")
@@ -220,8 +220,8 @@ def test_penekanan_meninggalkan_jejak_di_log(tmp_path):
         )
         items = log_store.read(level="WARNING", search="coil", limit=10, offset=0)["items"]
         assert len(items) == 1
-        assert "s@b.c" in items[0]["pesan"]
-        assert "11" in items[0]["pesan"]
+        assert "s@b.c" in items[0]["message"]
+        assert "11" in items[0]["message"]
     finally:
         dev_logger.handlers.clear()
 
@@ -242,7 +242,7 @@ def test_penolakan_juga_meninggalkan_jejak_di_log(tmp_path):
         )
         items = log_store.read(level="WARNING", search="coil", limit=10, offset=0)["items"]
         assert len(items) == 1
-        assert "s@b.c" in items[0]["pesan"]
+        assert "s@b.c" in items[0]["message"]
     finally:
         dev_logger.handlers.clear()
 
@@ -316,9 +316,9 @@ def test_line_tidak_terjangkau_juga_meninggalkan_jejak_di_log(tmp_path):
 
         items = log_store.read(level="WARNING", search="coil", limit=10, offset=0)["items"]
         assert len(items) == 1
-        assert "s@b.c" in items[0]["pesan"]
-        assert "11" in items[0]["pesan"]
-        assert "line-1" in items[0]["pesan"]
+        assert "s@b.c" in items[0]["message"]
+        assert "11" in items[0]["message"]
+        assert "line-1" in items[0]["message"]
     finally:
         dev_logger.handlers.clear()
 

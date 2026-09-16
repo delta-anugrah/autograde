@@ -15,20 +15,34 @@ from pathlib import Path
 from typing import Any
 
 _CREATE_SQL = """
-CREATE TABLE IF NOT EXISTS log_kejadian (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    waktu       REAL NOT NULL,
-    level       TEXT NOT NULL,
-    sumber      TEXT NOT NULL,
-    pesan       TEXT NOT NULL,
-    detail      TEXT,
-    sidik       TEXT NOT NULL,
-    jumlah      INTEGER NOT NULL DEFAULT 1,
-    terakhir_at REAL NOT NULL
+CREATE TABLE IF NOT EXISTS event_log (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    logged_at     REAL NOT NULL,
+    level         TEXT NOT NULL,
+    source        TEXT NOT NULL,
+    message       TEXT NOT NULL,
+    detail        TEXT,
+    fingerprint   TEXT NOT NULL,
+    count         INTEGER NOT NULL DEFAULT 1,
+    last_seen_at  REAL NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_log_waktu ON log_kejadian (waktu DESC);
-CREATE INDEX IF NOT EXISTS idx_log_sidik ON log_kejadian (sidik, terakhir_at DESC);
+CREATE INDEX IF NOT EXISTS idx_event_log_logged_at ON event_log (logged_at DESC);
+CREATE INDEX IF NOT EXISTS idx_event_log_fingerprint ON event_log (fingerprint, last_seen_at DESC);
 """
+
+# Renamed from `log_kejadian` (Indonesian) after the rest of the schema had
+# already moved to English. `CREATE TABLE IF NOT EXISTS` leaves an existing
+# table alone, so without this pass a developer machine with an old-named
+# table would end up with two tables and lose its log history.
+_OLD_TABLE = "log_kejadian"
+_RENAMED_COLUMNS = (
+    ("waktu", "logged_at"),
+    ("sumber", "source"),
+    ("pesan", "message"),
+    ("sidik", "fingerprint"),
+    ("jumlah", "count"),
+    ("terakhir_at", "last_seen_at"),
+)
 
 # Identical messages inside this window are counted, not stacked. Long enough
 # to absorb a per-second error flood, short enough that tomorrow's copy of the
@@ -48,7 +62,30 @@ class LogStore:
         with self._lock, self._db:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
+            # Before `_CREATE_SQL`: its indexes name the English columns, so on a
+            # database written before the rename they would be created against
+            # columns that do not exist yet.
+            self._rename_indonesian_table()
             self._db.executescript(_CREATE_SQL)
+
+    def _rename_indonesian_table(self) -> None:
+        """Carry a database written before `log_kejadian` became `event_log`.
+
+        Same shape as `ConsoleStore._rename_indonesian_columns`: rename the
+        table, then rename each column that still has its old name, so
+        existing rows and their history survive instead of being orphaned
+        under the new table name.
+        """
+        table_exists = self._db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (_OLD_TABLE,)
+        ).fetchone()
+        if not table_exists:
+            return
+        self._db.execute(f"ALTER TABLE {_OLD_TABLE} RENAME TO event_log")
+        columns = {r["name"] for r in self._db.execute("PRAGMA table_info(event_log)")}
+        for old, new in _RENAMED_COLUMNS:
+            if old in columns and new not in columns:
+                self._db.execute(f"ALTER TABLE event_log RENAME COLUMN {old} TO {new}")
 
     def write(
         self, level: str, source: str, message: str, detail: str | None, *, now: float
@@ -57,21 +94,21 @@ class LogStore:
         fingerprint = _fingerprint(level, source, message)
         with self._lock, self._db:
             row = self._db.execute(
-                "SELECT id FROM log_kejadian"
-                " WHERE sidik = ? AND terakhir_at >= ?"
-                " ORDER BY terakhir_at DESC LIMIT 1",
+                "SELECT id FROM event_log"
+                " WHERE fingerprint = ? AND last_seen_at >= ?"
+                " ORDER BY last_seen_at DESC LIMIT 1",
                 (fingerprint, now - MERGE_WINDOW_S),
             ).fetchone()
             if row is not None:
                 self._db.execute(
-                    "UPDATE log_kejadian SET jumlah = jumlah + 1, terakhir_at = ?"
+                    "UPDATE event_log SET count = count + 1, last_seen_at = ?"
                     " WHERE id = ?",
                     (now, row["id"]),
                 )
                 return
             self._db.execute(
-                "INSERT INTO log_kejadian"
-                " (waktu, level, sumber, pesan, detail, sidik, jumlah, terakhir_at)"
+                "INSERT INTO event_log"
+                " (logged_at, level, source, message, detail, fingerprint, count, last_seen_at)"
                 " VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
                 (now, level, source, message, detail, fingerprint, now),
             )
@@ -89,17 +126,17 @@ class LogStore:
             conditions.append("level = ?")
             args.append(level)
         if search:
-            conditions.append("(pesan LIKE ? OR sumber LIKE ?)")
+            conditions.append("(message LIKE ? OR source LIKE ?)")
             args.extend([f"%{search}%", f"%{search}%"])
         where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
 
         with self._lock:
             total = self._db.execute(
-                f"SELECT COUNT(*) AS n FROM log_kejadian{where}", args
+                f"SELECT COUNT(*) AS n FROM event_log{where}", args
             ).fetchone()["n"]
             rows = self._db.execute(
-                f"SELECT * FROM log_kejadian{where}"
-                " ORDER BY terakhir_at DESC LIMIT ? OFFSET ?",
+                f"SELECT * FROM event_log{where}"
+                " ORDER BY last_seen_at DESC LIMIT ? OFFSET ?",
                 [*args, limit, offset],
             ).fetchall()
         return {"items": [dict(r) for r in rows], "total": total}
@@ -112,7 +149,7 @@ class LogStore:
         """
         with self._lock, self._db:
             cur = self._db.execute(
-                "DELETE FROM log_kejadian WHERE terakhir_at < ?", (now - self._retention_s,)
+                "DELETE FROM event_log WHERE last_seen_at < ?", (now - self._retention_s,)
             )
             return cur.rowcount
 

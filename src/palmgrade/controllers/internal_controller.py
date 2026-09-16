@@ -102,7 +102,7 @@ async def plc_coil_command(request: PlcCoilCommandRequest, state: RuntimeState) 
     if state.current_assignment_id is not None:
         raise HTTPException(status_code=409, detail="line_sedang_memproses_truk")
     fired = fire_test_coil(request.coil)
-    # Container stdout only — the record that matters (`log_kejadian`, read by
+    # Container stdout only — the record that matters (`event_log`, read by
     # the support screen) is written by the console, the only process with a
     # LogStore and the signed-in operator's identity.
     logger.warning(

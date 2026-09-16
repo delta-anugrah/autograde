@@ -470,3 +470,53 @@ def test_reset_sandi_lokal_tidak_menghapus_peran(tmp_path):
     row = store.operator_by_email("support@autograde.local")
     assert row["role"] == "support"
     assert row["password_hash"] == "scrypt$baru", "sandi tetap harus terganti"
+
+
+def test_migration_renames_every_indonesian_column_not_just_operators(tmp_path):
+    """A console database written before the rename keeps ALL its old names.
+
+    The first fix only carried `operators`, so `sesi` and `weighings` still held
+    `kedaluwarsa_at` and `bruto_kg` — every sign-in died on `no such column:
+    s.expires_at` and the screen answered 500 before anyone could log in.
+    """
+    import sqlite3
+
+    db_path = tmp_path / "lama.db"
+    db = sqlite3.connect(str(db_path))
+    db.executescript(
+        """
+        CREATE TABLE sesi (token TEXT PRIMARY KEY, operator_id TEXT NOT NULL,
+            dibuat_at REAL NOT NULL, kedaluwarsa_at REAL NOT NULL);
+        CREATE TABLE weighings (id TEXT PRIMARY KEY, ref TEXT, plate_number TEXT,
+            plate_norm TEXT, truck_id TEXT, tanggal_kerja TEXT, bruto_kg REAL,
+            tara_kg REAL, neto_kg REAL, waktu_masuk TEXT, waktu_keluar TEXT,
+            received_at REAL);
+        CREATE TABLE suppliers (id TEXT PRIMARY KEY, name TEXT, sumber TEXT);
+        CREATE TABLE inspections (event_id TEXT PRIMARY KEY, tanggal_kerja TEXT,
+            line_code TEXT, timestamp TEXT);
+        INSERT INTO weighings (id, plate_number, plate_norm, tanggal_kerja, bruto_kg,
+            tara_kg, neto_kg, waktu_masuk, received_at)
+        VALUES ('w1', 'BE 1 A', 'BE1A', '2026-09-15', 12480.0, 5120.0, 7360.0,
+                '2026-09-15T08:00:00+07:00', 1.0);
+        """
+    )
+    db.commit()
+    db.close()
+
+    store = ConsoleStore(db_path)
+
+    def columns(table):
+        with store._lock:
+            return {r["name"] for r in store._db.execute(f"PRAGMA table_info({table})")}
+
+    assert {"created_at", "expires_at"} <= columns("sesi")
+    assert {"work_date", "gross_kg", "tare_kg", "net_kg", "entered_at"} <= columns("weighings")
+    assert "source_group" in columns("suppliers")
+    assert "work_date" in columns("inspections")
+
+    # The numbers a mill gets paid on must survive the rename untouched.
+    with store._lock:
+        row = store._db.execute(
+            "SELECT gross_kg, tare_kg, net_kg FROM weighings WHERE id = 'w1'"
+        ).fetchone()
+    assert (row["gross_kg"], row["tare_kg"], row["net_kg"]) == (12480.0, 5120.0, 7360.0)

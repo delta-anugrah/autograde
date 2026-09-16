@@ -2372,14 +2372,14 @@ let logTotal = 0;
 const LOG_PER = 50;
 
 function barisLog(r) {
-  // terakhir_at is a Unix epoch (seconds, from LogStore) - not an ISO string,
+  // last_seen_at is a Unix epoch (seconds, from LogStore) - not an ISO string,
   // so it needs ×1000 before Date() rather than going through waktu() as-is.
   return `<tr>
-    <td>${waktu(r.terakhir_at * 1000)}</td>
+    <td>${waktu(r.last_seen_at * 1000)}</td>
     <td class="key">${esc(r.level)}</td>
-    <td>${esc(r.sumber)}</td>
-    <td>${esc(r.pesan)}</td>
-    <td class="num">${r.jumlah > 1 ? "×" + r.jumlah : ""}</td>
+    <td>${esc(r.source)}</td>
+    <td>${esc(r.message)}</td>
+    <td class="num">${r.count > 1 ? "×" + r.count : ""}</td>
   </tr>`;
 }
 

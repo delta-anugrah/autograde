@@ -49,7 +49,7 @@ def test_password_never_lands_on_disk(tmp_path):
     store = LogStore(tmp_path / "log.db")
     _logger_with_handler(store, "t.rahasia").error("gagal: password=rahasia123")
     items = store.read(level=None, search=None, limit=10, offset=0)["items"]
-    assert "rahasia123" not in items[0]["pesan"]
+    assert "rahasia123" not in items[0]["message"]
 
 
 def test_traceback_lands_in_detail(tmp_path):
@@ -84,4 +84,4 @@ def test_konsol_sesi_never_lands_on_disk(tmp_path):
     log = _logger_with_handler(store, "t.sesi")
     log.error("request gagal: konsol_sesi=abc123def")
     items = store.read(level=None, search=None, limit=10, offset=0)["items"]
-    assert "abc123def" not in items[0]["pesan"]
+    assert "abc123def" not in items[0]["message"]
