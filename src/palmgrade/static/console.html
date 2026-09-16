@@ -903,6 +903,26 @@
       <tbody id="antrean-baris"></tbody>
     </table>
   </div>
+  <!--
+    Second row, same screen: the R2 manifest queue (VisitManifestWorker's own
+    ErpOutboxStore, a different file). Manifest not configured (no R2) reads
+    as its own explicit message, never as zeros - 0 pending/0 failed looks
+    identical to a healthy idle queue, and that is exactly the outage this
+    card exists to catch.
+  -->
+  <div class="tools">
+    <strong data-t="judulManifest">Manifest R2</strong>
+    <span id="manifest-ringkas" class="muted"></span>
+  </div>
+  <p id="manifest-nonaktif" hidden class="muted" data-t="manifestNonaktif">R2 belum disetel.</p>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thJenis">Jenis</th><th data-t="thKunci">Kunci</th>
+        <th data-t="thPesan">Pesan</th><th class="num" data-t="thPercobaan">Percobaan</th>
+        <th data-t="thBerikutnya">Percobaan berikutnya</th></tr></thead>
+      <tbody id="manifest-baris"></tbody>
+    </table>
+  </div>
 </section>
 
 <section id="sec-versi" class="panel" hidden data-dev="1">
@@ -1029,6 +1049,9 @@ const KAMUS = {
     antreanSekarang:"Sekarang",
     btnKirimUlang:"Kirim Ulang", ringkasAntrean:"{pending} menunggu · {gagal} gagal",
     kosongAntrean:"Antrean ERP kosong", gagalAntrean:"Gagal memuat antrean",
+    judulManifest:"Manifest R2", ringkasManifest:"{pending} menunggu · {gagal} gagal",
+    kosongManifest:"Antrean manifest kosong", gagalManifest:"Gagal memuat antrean manifest",
+    manifestNonaktif:"R2 belum disetel — halaman detail truk tidak berjalan di PKS ini.",
     labelVersi:"Versi", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Lisensi", gagalVersi:"Gagal memuat versi",
     lisensiAktif:"Aktif", lisensiTanpaToken:"Aktif, token belum terpasang", lisensiMati:"Mati",
@@ -1118,6 +1141,9 @@ const KAMUS = {
     antreanSekarang:"Now",
     btnKirimUlang:"Resend", ringkasAntrean:"{pending} pending · {gagal} failed",
     kosongAntrean:"ERP queue is empty", gagalAntrean:"Failed to load the queue",
+    judulManifest:"R2 manifest", ringkasManifest:"{pending} pending · {gagal} failed",
+    kosongManifest:"Manifest queue is empty", gagalManifest:"Failed to load the manifest queue",
+    manifestNonaktif:"R2 is not configured — the truck detail page is not running on this mill.",
     labelVersi:"Version", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Licence", gagalVersi:"Failed to load version",
     lisensiAktif:"Active", lisensiTanpaToken:"Active, no token installed", lisensiMati:"Inactive",
@@ -2554,6 +2580,37 @@ async function muatAntrean() {
       ? r.items.map(barisAntrean).join("") : barisKosong(5, "kosongAntrean");
   } catch (e) {
     if (e.kode !== "belum_masuk") $("antrean-baris").innerHTML = barisKosong(5, "gagalAntrean");
+  }
+  await muatManifest();
+}
+
+// Second row, same screen: the R2 manifest queue. Row shape is the same
+// ErpOutboxStore.failed_rows() as the ERP outbox above, so barisAntrean() and
+// jadwalAntrean() are reused as-is.
+//
+// `aktif: false` (R2 not configured) is handled as its OWN branch, not as an
+// empty queue: the whole point of this card is that a stalled/never-started
+// queue must not read the same as a healthy empty one, which "0 pending / 0
+// gagal" alone would.
+async function muatManifest() {
+  try {
+    const r = await api("/api/console/dev/antrean/manifest");
+    if (!r.aktif) {
+      $("manifest-nonaktif").hidden = false;
+      $("manifest-ringkas").textContent = "";
+      $("manifest-baris").innerHTML = "";
+      return;
+    }
+    $("manifest-nonaktif").hidden = true;
+    $("manifest-ringkas").textContent = t("ringkasManifest")
+      .replace("{pending}", r.pending).replace("{gagal}", r.gagal);
+    $("manifest-baris").innerHTML = r.items.length
+      ? r.items.map(barisAntrean).join("") : barisKosong(5, "kosongManifest");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") {
+      $("manifest-nonaktif").hidden = true;
+      $("manifest-baris").innerHTML = barisKosong(5, "gagalManifest");
+    }
   }
 }
 

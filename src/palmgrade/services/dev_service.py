@@ -71,6 +71,7 @@ class DevService:
         line_client: LineClient | None = None,
         lines: tuple[LineEndpoint, ...] = (),
         erp_outbox: ErpOutboxStore | None = None,
+        manifest_outbox: ErpOutboxStore | None = None,
         settings: Settings | None = None,
     ) -> None:
         self._log = log_store
@@ -78,6 +79,10 @@ class DevService:
         self._line_client = line_client
         self._lines = lines
         self._erp_outbox = erp_outbox
+        # None whenever R2 is not configured (`ConsoleService.manifest_queue`
+        # is None) — see `manifest_queue()` below, which is the whole reason
+        # this is a separate field instead of folding into `_erp_outbox`.
+        self._manifest_outbox = manifest_outbox
         self._settings = settings
 
     def log(
@@ -126,6 +131,25 @@ class DevService:
 
     def resend(self) -> dict[str, Any]:
         return {"dikirim_ulang": self._erp_outbox.requeue_failed()}
+
+    def manifest_queue(self) -> dict[str, Any]:
+        """Second row on the Antrean screen: the R2 manifest queue.
+
+        Same `ErpOutboxStore` shape as `queue()` above, on a different file
+        (`manifest_outbox.db`) — but `_manifest_outbox` is `None` whenever R2
+        is not configured, and that case is reported explicitly (`aktif:
+        False`), not as zeros. A stalled queue and a queue that never started
+        both show 0 pending / 0 failed; only the explicit flag tells them
+        apart, and that is the one failure this card exists to expose.
+        """
+        if self._manifest_outbox is None:
+            return {"aktif": False}
+        return {
+            "aktif": True,
+            "pending": self._manifest_outbox.pending_count(),
+            "gagal": self._manifest_outbox.failed_count(),
+            "items": self._manifest_outbox.failed_rows(limit=50),
+        }
 
     async def plc_read(self, line_code: str) -> dict[str, Any]:
         """DI snapshot + testable coils for one line. Read-only — safe to open anytime."""

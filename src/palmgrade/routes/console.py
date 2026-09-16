@@ -114,6 +114,12 @@ def get_dev_service() -> DevService:
         line_client=service.line_client,
         lines=service.lines,
         erp_outbox=service.erp_queue.outbox,
+        # None whenever R2 is not configured (ConsoleService.manifest_queue is
+        # None) — DevService.manifest_queue() reports that explicitly rather
+        # than as an empty queue.
+        manifest_outbox=(
+            service.manifest_queue.outbox if service.manifest_queue is not None else None
+        ),
         settings=settings,
     )
 
@@ -457,6 +463,14 @@ async def dev_queue(dev: Dev, operator: Support) -> dict:
 @router.post("/api/console/dev/antrean/kirim-ulang")
 async def dev_resend(dev: Dev, operator: Support) -> dict:
     return dev.resend()
+
+
+@router.get("/api/console/dev/antrean/manifest")
+async def dev_manifest_queue(dev: Dev, operator: Support) -> dict:
+    """Second row on the same screen: the R2 manifest queue (a separate
+    `ErpOutboxStore`, see VisitManifestWorker). `{"aktif": false}` when R2 is
+    not configured — the screen must say so, not show zeros."""
+    return dev.manifest_queue()
 
 
 @router.get("/api/console/dev/versi")
