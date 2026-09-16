@@ -180,6 +180,7 @@ class ConsoleStore:
         wait until the column exists.
         """
         self._drop_pin_era_operators()
+        self._rename_indonesian_operator_columns()
         for table, column in (
             ("suppliers", "erp_name"),
             ("trucks", "erp_name"),
@@ -200,6 +201,38 @@ class ConsoleStore:
                 "ALTER TABLE operators ADD COLUMN role TEXT NOT NULL DEFAULT 'operator'"
             )
         self._db.executescript(_MIGRATE_SQL)
+
+    def _rename_indonesian_operator_columns(self) -> None:
+        """Carry an `operators` table written before the column rename.
+
+        The rename (`nama`→`full_name`, `asal`→`origin`, `dibuat_at`→`created_at`,
+        `peran`→`role`) shipped without this pass, on the reasoning that no factory PC had
+        ever run that schema. True for factory PCs, false for every machine that had a
+        console database already: `CREATE TABLE IF NOT EXISTS` left the old table alone,
+        so every read of `full_name` hit a column that was not there and the sign-in
+        screen drew one blank pill per account.
+
+        `role` is the sharp one. The pass below it adds `role` as a *new* column
+        defaulting to `operator`, so a database that still had `peran` came out with both
+        — and every support account silently demoted to operator, keeping its name but
+        losing the developer menus. So the value is carried over before that runs, and
+        `peran` is dropped only once `role` holds its value.
+        """
+        columns = {r["name"] for r in self._db.execute("PRAGMA table_info(operators)")}
+        if not columns:
+            return
+        for old, new in (("nama", "full_name"), ("asal", "origin"), ("dibuat_at", "created_at")):
+            if old in columns and new not in columns:
+                self._db.execute(f"ALTER TABLE operators RENAME COLUMN {old} TO {new}")
+        if "peran" not in columns:
+            return
+        if "role" in columns:
+            # Both present: the earlier pass added `role` with its default, so the values
+            # operators actually signed in with are still in `peran`.
+            self._db.execute("UPDATE operators SET role = peran")
+            self._db.execute("ALTER TABLE operators DROP COLUMN peran")
+        else:
+            self._db.execute("ALTER TABLE operators RENAME COLUMN peran TO role")
 
     def _drop_pin_era_operators(self) -> None:
         """Rebuild `operators` if it still carries the six-digit-PIN shape.
