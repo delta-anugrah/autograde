@@ -23,7 +23,14 @@ VIEWER = Path(__file__).resolve().parents[2] / "src/palmgrade/static/viewer.html
 
 def test_viewer_has_no_external_dependency():
     html = VIEWER.read_text(encoding="utf-8")
-    assert "https://" not in html and "http://" not in html
+    # Favicon-nya SVG inline dengan `xmlns="http://www.w3.org/2000/svg"` — itu label
+    # namespace XML yang wajib ada supaya Chrome/Firefox mau menggambar SVG lepas
+    # (data URI diparse sebagai dokumen berdiri sendiri, tanpa xmlns ikonnya tidak
+    # tampil sama sekali, senyap, tanpa error). Bukan alamat yang diambil browser,
+    # jadi dibuang dulu supaya sisanya benar-benar diperiksa sebagai permintaan
+    # jaringan. Pola yang sama dengan `test_console_html.py` untuk `console.html`.
+    tanpa_namespace = html.replace("http://www.w3.org/2000/svg", "")
+    assert "https://" not in tanpa_namespace and "http://" not in tanpa_namespace
 
 
 def test_viewer_reads_the_manifest_relative_to_itself():
