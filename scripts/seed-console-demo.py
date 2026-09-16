@@ -66,6 +66,10 @@ n = 0
 for i, (plate, truck_id) in enumerate(trucks.items()):
     for j in range(12 + i * 4):
         rej = j % 5 == 0
+        # Kelas model: JK sesekali di antara yang dibuang, supaya layar demo
+        # memperlihatkan kolom JK terisi — kalau selalu Unripe, kolomnya nol
+        # terus dan tidak ada yang sadar kalau salah kabel.
+        grade_class = ("JK" if j % 15 == 0 else "Unripe") if rej else "Ripe"
         ts = now - timedelta(minutes=(i * 30 + j * 2))
         post("/api/v1/internal/vision/events", {
             "event_id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"seed:{i}:{j}")),
@@ -73,6 +77,7 @@ for i, (plate, truck_id) in enumerate(trucks.items()):
             "timestamp": ts.isoformat(),
             "prediction": "Rej" if rej else "Acc",
             "ripeness_status": "REJ" if rej else "ACC",
+            "grade_class": grade_class,
             "ripeness_confidence": 0.72 if rej else 0.93,
             "tp_status": None if rej else "PASS",
             "capture_type": "manual" if j == 3 else "auto",
@@ -88,7 +93,8 @@ ts = now - timedelta(minutes=4)
 post("/api/v1/internal/vision/events", {
     "event_id": str(uuid.uuid5(uuid.NAMESPACE_URL, "seed:orphan")),
     "machine_id": MACHINES[2], "timestamp": ts.isoformat(),
-    "prediction": "Acc", "ripeness_status": "ACC", "ripeness_confidence": 0.88,
+    "prediction": "Acc", "ripeness_status": "ACC", "grade_class": "Ripe",
+    "ripeness_confidence": 0.88,
     "tp_status": "PASS", "capture_type": "auto",
     "image_path": f"captures/results/{ts:%Y-%m-%d}/seed_orphan.webp",
     "truck_id": None, "assignment_id": None,

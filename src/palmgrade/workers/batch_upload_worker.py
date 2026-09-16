@@ -27,7 +27,8 @@ import httpx
 
 from ..core.config import Settings
 from ..domain.capture_layout import clean_twin_of
-from ..domain.vision_event import event_id_for
+from ..domain.grade_class import grade_class_or_none
+from ..domain.vision_event import event_id_for, prediction_for, verdict_of
 from ..integrations.upload.r2_uploader import R2Uploader, build_r2_key
 from ..integrations.upload.upload_manifest import UploadManifest
 
@@ -164,6 +165,15 @@ class BatchUploadWorker:
         ripeness_status = meta.get("ripeness_status")
         if not ripeness_status:
             raise _PoisonError(f"ripeness_status hilang: {json_path}")
+        # Divalidasi pakai kosakata yang sama dengan jalur realtime. Dulu baris
+        # ini `"Acc" if ... == "acc" else "Rej"`: verdict asing diam-diam jadi
+        # Rej, jadi satu sidecar cacat mengirim janjang bagus ke cloud sebagai
+        # REJ tanpa sepatah pun peringatan. `_PoisonError`, bukan ValueError
+        # telanjang — satu berkas busuk tidak boleh menyandera seluruh batch.
+        try:
+            verdict = verdict_of(ripeness_status)
+        except ValueError as exc:
+            raise _PoisonError(f"{exc}: {json_path}") from exc
 
         image_ref = self._image_ref(meta)
         if not image_ref:
@@ -184,8 +194,11 @@ class BatchUploadWorker:
             "event_id": item["event_id"],
             "machine_id": self.settings.machine_id,
             "timestamp": meta.get("timestamp"),
-            "prediction": "Acc" if str(ripeness_status).lower() == "acc" else "Rej",
-            "ripeness_status": str(ripeness_status).upper(),
+            "prediction": prediction_for(verdict),
+            "ripeness_status": verdict,
+            # Sama dengan jalur realtime; dibaca dari sidecar. Baris lama tidak
+            # punya kunci ini dan tetap sah — nilainya None.
+            "grade_class": grade_class_or_none(meta.get("grade_class")),
             "ripeness_confidence": meta.get("ripeness_confidence", 0),
             "tp_status": tp_status,
             "tp_confidence": tp_confidence,

@@ -40,7 +40,7 @@ services:
       - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
-      - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
+      - MODEL_FILE=${MODEL_FILE:-best.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
       - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
@@ -151,7 +151,7 @@ services:
       - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
-      - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
+      - MODEL_FILE=${MODEL_FILE:-best.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
       - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
@@ -262,7 +262,7 @@ services:
       - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
-      - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
+      - MODEL_FILE=${MODEL_FILE:-best.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
       - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}

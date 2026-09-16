@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint, Settings
 from ..domain.ffb_source import ffb_source_label
+from ..domain.grade_class import grade_class_or_none
 from ..domain.operator_error import (
     BUKAN_ANGKA,
     DI_BAWAH_MINIMUM,
@@ -130,6 +131,12 @@ class ConsoleService:
                 # deriving it here too would be a second rule that can drift.
                 # Checked against the verdict above, never rebuilt from it.
                 "prediction": prediction,
+                # Detail 4 kelas di samping verdict biner. Kelas asing di sini
+                # TIDAK menolak event — beda dengan `ripeness_status`, yang
+                # dijumlah jadi angka bayaran. Ini cuma label buat layar, dan
+                # menjatuhkan satu janjang gara-gara label baru dari model yang
+                # dilatih ulang jauh lebih mahal daripada menyimpannya NULL.
+                "grade_class": grade_class_or_none(payload.get("grade_class")),
                 "tp_status": payload.get("tp_status"),
                 "tp_confidence": payload.get("tp_confidence"),
             }
@@ -151,6 +158,13 @@ class ConsoleService:
                 "total": summary.get(ln.line_code, {}).get("total", 0),
                 "acc": summary.get(ln.line_code, {}).get("acc", 0) or 0,
                 "rej": summary.get(ln.line_code, {}).get("rej", 0) or 0,
+                # Rincian 4 kelas di samping verdict biner di atas. `acc`/`rej`
+                # sengaja tetap dikirim: rasio dan warna kartu dihitung darinya,
+                # dan baris lama (grade_class NULL) cuma punya itu.
+                **{
+                    k: summary.get(ln.line_code, {}).get(k, 0) or 0
+                    for k in ("ripe", "unripe", "jk", "tp", "tanpa_kelas")
+                },
                 "assignment": _assignment_view(assignments.get(ln.line_code)),
                 "plc": status_line.get(ln.line_code, {"reachable": False}),
             }

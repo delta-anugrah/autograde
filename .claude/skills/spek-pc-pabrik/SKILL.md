@@ -73,7 +73,7 @@ di atas dibagi dua.** Di 500 janjang/jam/line, 41 hari jadi ~20 hari.
 ## GPU
 
 RTX 3060 12 GB, **compute capability sm86**. Engine TensorRT hardware-locked per
-GPU: `engines/best_3class_v2.sm86.engine`, sekali bangun ~208 detik.
+GPU: `engines/best.sm86.engine`, sekali bangun ~208 detik.
 
 Saat idle: 196 MiB / 12288 MiB terpakai (cuma Xorg + cinnamon). VRAM bukan
 kendala — 3 line jalan di ~1,5 GB total. Yang jadi kendala fps itu CPU/kamera,

@@ -36,7 +36,7 @@ Panduan instalasi lengkap dari nol sampai sistem berjalan. Ikuti urutan ini — 
 - `make` (GNU Make)
 
 ### File yang dibutuhkan
-- YOLO model: `best_3class_v2.pt` → taruh di `models/release/`
+- YOLO model: `best.pt` → taruh di `models/release/`
 - `.env` → copy dari `.env.example`
 
 ---
@@ -271,7 +271,7 @@ cp .env.example .env
 
 ```bash
 mkdir -p models/release
-# copy best_3class_v2.pt ke models/release/
+# copy best.pt ke models/release/
 ```
 
 ### 7.3 Edit `.env`
@@ -298,7 +298,7 @@ LINE_2_MACHINE_ID=<uuid-dari-db>
 LINE_3_MACHINE_ID=<uuid-dari-db>
 
 # ── Model ────────────────────────────────────────────────────
-MODEL_FILE=best_3class_v2.pt
+MODEL_FILE=best.pt
 CONF_THRESHOLD=0.75
 MINIMUM_SIZE=460000
 ```

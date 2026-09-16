@@ -87,7 +87,7 @@ autograde/
 
 ## Detection Model
 
-1 model (`best_3class_v2.pt`) mendeteksi 3 kelas sekaligus:
+1 model (`best.pt`) mendeteksi 3 kelas sekaligus:
 - `acc` — buah matang / diterima
 - `rej` — buah tidak matang / ditolak
 - `tp` — tangkai panjang (long stalk)
@@ -446,7 +446,7 @@ FrameProcessingWorker / CaptureService
 | `BACKEND_URL` | `http://localhost:2500` | palmgrade-api base URL |
 | `BACKEND_API_VER` | `/api/v1` | Prefix versi API untuk canonical events URL |
 | `WEBHOOK_SECRET` | — | Shared secret header, harus cocok dengan palmgrade-api |
-| `MODEL_FILE` | `best_3class_v2.pt` | Nama file model di `models/release/` |
+| `MODEL_FILE` | `best.pt` | Nama file model di `models/release/` |
 | `CONF_THRESHOLD` | `0.75` | Minimum confidence YOLO |
 | `MINIMUM_SIZE` | `460000` | Minimum area bounding box (px²) — di bawah ini auto rej |
 | `CAMERA_TYPE` | `hikrobot` | Sumber kamera: `hikrobot` / `opencv` (webcam atau video file) / `photo` |
@@ -502,7 +502,7 @@ FrameProcessingWorker / CaptureService
 
 | File | Keterangan |
 |---|---|
-| `models/release/best_3class_v2.pt` | Model utama — deteksi 3 kelas: acc, rej, tp. v2: dataset 2x lebih besar, TP conf lebih stabil |
+| `models/release/best.pt` | Model utama — deteksi 3 kelas: acc, rej, tp. v2: dataset 2x lebih besar, TP conf lebih stabil |
 
 Model di-load saat startup. Jika file tidak ditemukan, server gagal start.
 Model tidak di-commit ke git (ada di `.gitignore` via `*.pt`).

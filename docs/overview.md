@@ -50,7 +50,22 @@
 
 ## 3. Detection Flow (single-trigger, not voting)
 
-Model `best_3class_v2.pt` detects 3 classes in one pass: `acc`, `rej`, `tp`.
+Model `best.pt` detects 4 classes in one pass: `Ripe`, `Unripe`, `JK`
+(janjang kosong) and `TP` (tangkai panjang).
+
+The class is NOT the verdict. `Ripe` → ACC; `Unripe` and `JK` → REJ; `TP` is not
+a bunch at all and gets no verdict — it rides beside a bunch as `tp_confidence`.
+The mapping lives in one place, `domain/grade_class.py`, because two things
+downstream stayed binary on purpose: the PLC owns exactly two coils (OK and NG —
+a third category would be wiring, not code), and AutoERP books three AI criteria
+(`Mentah` / `Tangkai Panjang` / `Matang`) under a frozen contract. So a row
+carries both: `ripeness_status` is the verdict that fires pistons and is paid on,
+`grade_class` is the detail the console shows.
+
+⚠️ **`JK` is deliberately not sent to AutoERP.** There is no criterion for it
+there, and both near-misses misreport: `Sampah` is *weighed*, not seen by a
+camera, and folding JK into `Mentah` overstates the unripe share the supplier is
+docked for. Its count stays on the edge until a contract change is agreed.
 
 ```
 each YOLO frame (ByteTrack assigns track_id per object):
@@ -292,7 +307,7 @@ needed (not just `libMvCameraControl.so`): `MV_CC_EnumDevices()` dynamically loa
 **Production deployment checklist (new PC — order matters):**
 1. Install NVIDIA Container Toolkit → verify `docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi`.
 2. Install Hikrobot MVS SDK at `/opt/MVS/` (`SETUP.md § 3`).
-3. `mkdir -p models/release` + copy `best_3class_v2.pt`.
+3. `mkdir -p models/release` + copy `best.pt`.
 4. `.env`: `LINE_1/2/3_MACHINE_ID` (real UUIDs), `BACKEND_URL`, `WEBHOOK_SECRET`, `CAMERA_TYPE=hikrobot`, `CAMERA_FPS=15` (samakan dengan Acquisition Frame Rate kamera — `SETUP.md § 6.3`, alasan bandwidth 3 kamera).
 5. `make up`.
 6. Verify `curl :8001/health/detail | grep -E "gpu_available|camera_connected"`.
