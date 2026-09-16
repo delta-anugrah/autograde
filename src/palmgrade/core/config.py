@@ -358,7 +358,18 @@ class Settings:
 
     @property
     def artifacts_dir(self) -> Path:
-        return self.repo_root / "artifacts"
+        """Folder tulisan line ini: gambar, sidecar JSON, outbox.
+
+        `ARTIFACTS_DIR` menimpanya. Di Docker tiap line punya volume sendiri
+        (`./artifacts/line-N:/app/artifacts`), jadi ketiganya menulis ke
+        `/app/artifacts` tanpa pernah bertabrakan. Di jalur NATIVE (`make line`)
+        tidak ada volume: tanpa env ini tiga line menulis ke satu folder yang
+        sama, sementara konsol menyajikan `/captures/{line_code}` dari
+        `artifacts/{line_code}` — jadi gambarnya tersimpan tapi tiap tautan di
+        layar dijawab 404.
+        """
+        dari_env = os.getenv("ARTIFACTS_DIR", "").strip()
+        return Path(dari_env) if dari_env else self.repo_root / "artifacts"
 
     @property
     def state_dir(self) -> Path:
