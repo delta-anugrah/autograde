@@ -1,0 +1,375 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detail Grading</title>
+<link rel="icon" href="data:image/svg+xml,<svg width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22 fill=%22none%22> <rect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%230289F7%22/> <path d=%22M16 13.2C14 10 14.2 7.2 16 4.8C17.8 7.2 18 10 16 13.2Z%22 fill=%22white%22/> <path d=%22M16 13.2C18.4 8.6 22.6 6.6 27.4 8.2C24 11.4 20 12.6 16 13.2Z%22 fill=%22white%22/> <path d=%22M16 13.2C13.6 8.6 9.4 6.6 4.6 8.2C8 11.4 12 12.6 16 13.2Z%22 fill=%22white%22/> </svg>">
+<!--
+  Satu berkas, nol build step, NOL CDN — bukan cuma gaya console.html, di sini
+  itu syarat keamanan. Halaman ini diunggah sekali ke R2 dan dibuka dari tautan
+  di tiket AutoERP, di belakang Cloudflare Access; dia tidak boleh tergantung
+  host lain sama sekali. Jangan pernah tambah tag skrip yang menunjuk ke
+  jaringan luar, font dari Google Fonts, atau apa pun yang menoleh keluar
+  berkas ini — bahkan di dalam komentar dokumentasi (tes memindai seluruh
+  isi berkas, harfiah, tanpa mengerti mana kode dan mana komentar).
+
+  Beda dari console.html: ini bukan layar yang hidup di PC pabrik, jadi tidak
+  ada localStorage untuk bahasa/tema, tidak ada polling, tidak ada sesi. Satu
+  fetch, satu render. Manifest-nya dibaca RELATIF ke berkas ini
+  (`visits/<id>.json`) supaya halaman ini jalan di domain apa pun yang
+  menyajikannya — jangan pernah tulis URL absolut ke sini.
+
+  Nilai dari manifest (plat, nama supplier, kelas grading) adalah data yang
+  diketik operator di PC pabrik. DOM dirakit lewat textContent/createElement
+  saja — pola yang sama yang dijaga tes untuk console.html.
+-->
+<style>
+  :root { color-scheme:light;
+          --font:"Segoe UI", Ubuntu, Roboto, "Noto Sans", "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
+          --mono:"DejaVu Sans Mono", "Ubuntu Mono", "Liberation Mono", Consolas, "Courier New", monospace;
+          --bg:#e7ebe8; --card:#ffffff; --fg:#0c1310; --muted:#414a57;
+          --line:#c1cac4; --line-kuat:#7b8792; --zebra:#f3f6f4;
+          --acc:#04613a; --acc-bg:#dff0e6;
+          --rej:#a72119; --rej-bg:#fdeeec;
+          --warn:#7a4b00; --warn-bg:#fbeed2;
+          --bayang:rgba(12,19,16,.22);
+          --r-xs:7px; --r-sm:11px; --r-md:16px; --r-pill:999px; }
+  :root[data-theme="dark"] { color-scheme:dark;
+          --bg:#0a0d11; --card:#151a21; --fg:#f2f5fa; --muted:#a9b3c2;
+          --line:#2c333d; --line-kuat:#4a5563; --zebra:#1a2028;
+          --acc:#4ee39f; --acc-bg:#0f2c20;
+          --rej:#ff8078; --rej-bg:#331a18;
+          --warn:#ffcf70; --warn-bg:#33260c;
+          --bayang:rgba(0,0,0,.55); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+          color-scheme:dark; --bg:#0a0d11; --card:#151a21; --fg:#f2f5fa; --muted:#a9b3c2;
+          --line:#2c333d; --line-kuat:#4a5563; --zebra:#1a2028;
+          --acc:#4ee39f; --acc-bg:#0f2c20; --rej:#ff8078; --rej-bg:#331a18;
+          --warn:#ffcf70; --warn-bg:#33260c; --bayang:rgba(0,0,0,.55); } }
+  * { box-sizing:border-box; }
+  html { font-size:17px; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:1rem/1.5 var(--font); }
+  .lb { font-size:.72rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
+
+  /* ---- header ---- */
+  header { padding:16px; background:var(--card); border-bottom:3px solid var(--acc); }
+  header h1 { margin:0 0 10px; font-size:1.1rem; font-weight:700; }
+  .ringkas { display:flex; flex-wrap:wrap; gap:6px 20px; margin-bottom:14px; }
+  .ringkas div span { display:block; }
+  .ringkas .nilai { font-weight:700; font-size:1.02rem; }
+  .hitung { display:flex; flex-wrap:wrap; gap:8px; }
+  .kotak { flex:1 1 90px; padding:8px 10px; border-radius:var(--r-sm); background:var(--zebra);
+           border:1px solid var(--line); text-align:center; }
+  .kotak b { display:block; font-family:var(--mono); font-size:1.3rem; }
+  .kotak.acc { background:var(--acc-bg); color:var(--acc); border-color:var(--acc); }
+  .kotak.rej { background:var(--rej-bg); color:var(--rej); border-color:var(--rej); }
+  .kotak.warn { background:var(--warn-bg); color:var(--warn); border-color:var(--warn); }
+
+  /* ---- filter ---- */
+  .filter { display:flex; gap:8px; padding:12px 16px; flex-wrap:wrap; }
+  .filter button { min-height:2.4rem; padding:0 14px; border-radius:var(--r-pill);
+                    border:1px solid var(--line-kuat); background:var(--card); color:var(--fg);
+                    font-weight:600; font-size:.92rem; cursor:pointer; }
+  .filter button[aria-pressed="true"] { background:var(--fg); color:var(--bg); border-color:var(--fg); }
+
+  /* ---- grid ---- */
+  #grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));
+          gap:10px; padding:6px 16px 24px; }
+  .kartu { border-radius:var(--r-md); overflow:hidden; background:var(--card);
+           border:3px solid var(--line); cursor:pointer; text-align:left; padding:0;
+           font:inherit; color:inherit; }
+  .kartu.acc { border-color:var(--acc); }
+  .kartu.rej { border-color:var(--rej); }
+  .kartu .gambar { position:relative; aspect-ratio:1; background:var(--zebra);
+                    display:flex; align-items:center; justify-content:center; }
+  .kartu img { width:100%; height:100%; object-fit:cover; display:block; }
+  .kartu .placeholder { padding:8px; text-align:center; font-size:.78rem; color:var(--muted); }
+  .kartu .tag { position:absolute; top:6px; left:6px; padding:2px 8px; border-radius:var(--r-pill);
+                font-size:.72rem; font-weight:800; letter-spacing:.04em; }
+  .kartu.acc .tag { background:var(--acc); color:var(--acc-bg); }
+  .kartu.rej .tag { background:var(--rej); color:var(--rej-bg); }
+  .kartu .tp { position:absolute; top:6px; right:6px; padding:2px 8px; border-radius:var(--r-pill);
+               font-size:.68rem; font-weight:700; background:var(--warn); color:var(--warn-bg); }
+  .kartu .info { padding:7px 9px; }
+  .kartu .kelas { font-weight:700; font-size:.88rem; }
+  .kartu .rincian { color:var(--muted); font-size:.76rem; font-family:var(--mono); }
+
+  #kosong, #galat { display:none; margin:24px 16px; padding:16px; border-radius:var(--r-md);
+                     background:var(--card); border:1px solid var(--line); }
+  #galat { border-color:var(--rej); color:var(--rej); font-weight:600; }
+
+  /* ---- overlay foto ---- */
+  #overlay { display:none; position:fixed; inset:0; background:var(--bayang); z-index:10;
+             align-items:center; justify-content:center; padding:20px; }
+  #overlay.terbuka { display:flex; }
+  #overlay-isi { position:relative; max-width:min(92vw, 900px); max-height:90vh; }
+  #overlay-isi img { display:block; max-width:100%; max-height:90vh; border-radius:var(--r-sm); }
+  #overlay-tutup { position:absolute; top:-14px; right:-14px; width:2.4rem; height:2.4rem;
+                    border-radius:50%; border:2px solid var(--card); background:var(--fg);
+                    color:var(--bg); font-size:1.2rem; font-weight:700; cursor:pointer; }
+  #overlay-keterangan { color:#fff; text-align:center; margin-top:10px; font-size:.85rem; }
+
+  @media (max-width:400px) {
+    #grid { grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); }
+  }
+</style>
+
+<header>
+  <h1 id="judul">Detail Grading</h1>
+  <div class="ringkas" id="ringkas"></div>
+  <div class="hitung" id="hitung"></div>
+</header>
+
+<div class="filter" id="filter" hidden>
+  <button type="button" data-filter="semua" aria-pressed="true">Semua</button>
+  <button type="button" data-filter="acc" aria-pressed="false">ACC</button>
+  <button type="button" data-filter="rej" aria-pressed="false">REJ</button>
+  <button type="button" data-filter="tp" aria-pressed="false">Tangkai Panjang</button>
+</div>
+
+<div id="grid"></div>
+<p id="kosong">Tidak ada janjang untuk filter ini.</p>
+<p id="galat"></p>
+
+<div id="overlay">
+  <div id="overlay-isi">
+    <button type="button" id="overlay-tutup" aria-label="Tutup">&times;</button>
+    <img id="overlay-img" src="" alt="">
+    <div id="overlay-keterangan"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+// Kontrak schema hidup di `domain/visit_manifest.py` (SCHEMA = 1). Halaman
+// ini cuma tahu bentuk versi 1 — manifest versi lain tidak boleh dirender
+// seolah terbaca benar, karena itu bisa salah menampilkan janjang ke
+// backoffice yang sedang menyelesaikan sengketa.
+const SCHEMA_DIKENAL = 1;
+const AMBANG_TP = 0.8;
+
+const $ = (id) => document.getElementById(id);
+
+function teks(elemen, isi) {
+  elemen.textContent = isi;
+  return elemen;
+}
+
+function buat(tag, kelas, isi) {
+  const el = document.createElement(tag);
+  if (kelas) el.className = kelas;
+  if (isi !== undefined) el.textContent = isi;
+  return el;
+}
+
+function waktu(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso ?? "");
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function tanggal(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+// ── ambil id kunjungan dari ?visit= ──────────────────────────────────────
+const params = new URLSearchParams(window.location.search);
+const visitId = params.get("visit");
+
+let manifest = null;
+let filterAktif = "semua";
+
+function tampilkanGalat(pesan) {
+  const el = $("galat");
+  el.textContent = pesan;
+  el.style.display = "block";
+}
+
+async function muat() {
+  if (!visitId) {
+    tampilkanGalat("Tautan tidak lengkap — tidak ada ?visit= di alamat halaman ini.");
+    return;
+  }
+  let jawaban;
+  try {
+    jawaban = await fetch(`visits/${encodeURIComponent(visitId)}.json`);
+  } catch {
+    tampilkanGalat("Tidak bisa menghubungi server. Cek koneksi lalu muat ulang halaman.");
+    return;
+  }
+  if (jawaban.status === 404) {
+    tampilkanGalat("Manifest belum terunggah — coba lagi beberapa menit lagi. Worker pengunggah jalan lewat antrean, jadi truk yang baru saja selesai grading bisa belum sampai.");
+    return;
+  }
+  if (!jawaban.ok) {
+    tampilkanGalat(`Gagal memuat manifest (HTTP ${jawaban.status}).`);
+    return;
+  }
+  let data;
+  try {
+    data = await jawaban.json();
+  } catch {
+    tampilkanGalat("Manifest rusak — tidak bisa dibaca sebagai JSON.");
+    return;
+  }
+  if (data.schema !== SCHEMA_DIKENAL) {
+    tampilkanGalat("Versi manifest tidak dikenal, perbarui viewer.");
+    return;
+  }
+  manifest = data;
+  render();
+}
+
+// ── render ────────────────────────────────────────────────────────────
+function render() {
+  renderHeader();
+  $("filter").hidden = false;
+  renderGrid();
+}
+
+function renderHeader() {
+  document.title = `Detail Grading — ${manifest.plate_number || manifest.visit_id}`;
+  teks($("judul"), `Detail Grading — ${manifest.plate_number || "(plat tidak ada)"}`);
+
+  const ringkas = $("ringkas");
+  ringkas.replaceChildren();
+  const baris = [
+    ["Plat", manifest.plate_number || "-"],
+    ["Supplier", manifest.supplier_name || "-"],
+    ["Tanggal Kerja", manifest.work_date || "-"],
+    ["Line", manifest.line_code || "-"],
+    ["Mulai", manifest.started_at ? `${tanggal(manifest.started_at)} ${waktu(manifest.started_at)}` : "-"],
+    ["Selesai", manifest.ended_at ? `${tanggal(manifest.ended_at)} ${waktu(manifest.ended_at)}` : "-"],
+  ];
+  for (const [label, nilai] of baris) {
+    const kotak = buat("div");
+    kotak.append(teks(buat("span", "lb"), label), teks(buat("span", "nilai"), nilai));
+    ringkas.append(kotak);
+  }
+
+  const c = manifest.counts || {};
+  const hitung = $("hitung");
+  hitung.replaceChildren();
+  const angka = [
+    ["total", "Total", c.total],
+    ["acc", "ACC", c.acc],
+    ["rej", "REJ", c.rej],
+    ["warn", "Tangkai Panjang", c.tangkai_panjang],
+    ["warn", "Reject Manual", c.manual_reject],
+  ];
+  for (const [kelas, label, nilai] of angka) {
+    const kotak = buat("div", `kotak ${kelas}`);
+    kotak.append(teks(buat("span", "lb"), label), teks(buat("b"), String(nilai ?? 0)));
+    hitung.append(kotak);
+  }
+}
+
+function janjangCocokFilter(b) {
+  if (filterAktif === "acc") return b.verdict === "ACC";
+  if (filterAktif === "rej") return b.verdict === "REJ";
+  if (filterAktif === "tp") return !!b.tangkai_panjang;
+  return true;
+}
+
+function renderGrid() {
+  const grid = $("grid");
+  grid.replaceChildren();
+  const bunches = manifest.bunches || [];
+  const dipakai = bunches.filter(janjangCocokFilter);
+
+  $("kosong").style.display = dipakai.length ? "none" : "block";
+
+  for (const b of dipakai) {
+    grid.append(kartuJanjang(b));
+  }
+}
+
+function kartuJanjang(b) {
+  const lolos = b.verdict === "ACC";
+  const kartu = buat("button", `kartu ${lolos ? "acc" : "rej"}`);
+  kartu.type = "button";
+
+  const bungkusGambar = buat("div", "gambar");
+  const sumber = b.thumb || b.image;
+  if (sumber) {
+    const img = document.createElement("img");
+    img.loading = "lazy";
+    img.alt = "";
+    // `onerror` wajib: foto naik ke R2 tiap jam (bukan seketika), dan retensi
+    // 90 hari menghapus yang lama — manifest yang terbaca tidak menjamin
+    // fotonya sudah ada di R2. Fallback-nya elemen baru lewat createElement,
+    // bukan string HTML yang ditimpakan, supaya nilai manifest tidak lewat situ.
+    img.onerror = () => {
+      img.remove();
+      bungkusGambar.append(teks(buat("span", "placeholder"), "Foto belum terunggah"));
+    };
+    img.src = sumber;
+    bungkusGambar.append(img);
+  } else {
+    bungkusGambar.append(teks(buat("span", "placeholder"), "Foto belum terunggah"));
+  }
+
+  // Warna bingkai/tag bukan satu-satunya sinyal verdict — tulisan ACC/REJ
+  // sendiri wajib ada supaya pembaca buta warna tidak kehilangan info ini.
+  bungkusGambar.append(teks(buat("span", "tag"), lolos ? "ACC" : "REJ"));
+  if (b.tangkai_panjang) {
+    bungkusGambar.append(teks(buat("span", "tp"), "TP"));
+  }
+  kartu.append(bungkusGambar);
+
+  const info = buat("div", "info");
+  const kelasTeks = b.grade_class ? b.grade_class : (lolos ? "ACC" : "REJ");
+  info.append(teks(buat("div", "kelas"), kelasTeks));
+  const conf = b.confidence == null ? "-" : Number(b.confidence).toFixed(2);
+  info.append(teks(buat("div", "rincian"), `${conf} · ${waktu(b.timestamp)}`));
+  kartu.append(info);
+
+  kartu.addEventListener("click", () => bukaOverlay(b));
+  return kartu;
+}
+
+// ── overlay foto penuh ───────────────────────────────────────────────────
+function bukaOverlay(b) {
+  if (!b.image) return; // tidak ada foto penuh untuk dibuka
+  const img = $("overlay-img");
+  img.onerror = () => {
+    $("overlay-keterangan").textContent = "Foto penuh belum terunggah.";
+  };
+  img.src = b.image;
+  img.alt = "";
+  teks($("overlay-keterangan"), `${b.verdict} · ${b.grade_class || ""} · ${waktu(b.timestamp)}`.replace(" ·  ·", " ·"));
+  $("overlay").classList.add("terbuka");
+}
+
+function tutupOverlay() {
+  $("overlay").classList.remove("terbuka");
+  $("overlay-img").src = "";
+}
+
+$("overlay-tutup").addEventListener("click", tutupOverlay);
+// Klik backdrop menutup, klik di dalam foto tidak — dicek lewat target
+// event, bukan lapisan kedua, supaya tidak ada elemen tambahan yang bisa
+// menutupi foto.
+$("overlay").addEventListener("click", (ev) => {
+  if (ev.target.id === "overlay") tutupOverlay();
+});
+window.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") tutupOverlay();
+});
+
+$("filter").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-filter]");
+  if (!tombol) return;
+  filterAktif = tombol.dataset.filter;
+  for (const b of $("filter").querySelectorAll("button[data-filter]")) {
+    b.setAttribute("aria-pressed", String(b === tombol));
+  }
+  renderGrid();
+});
+
+muat();
+</script>
