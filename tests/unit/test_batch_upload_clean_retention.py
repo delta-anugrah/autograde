@@ -40,12 +40,13 @@ def settings(tmp_path) -> Settings:
     )
 
 
-def _write_capture(settings: Settings) -> tuple[Path, Path, Path]:
-    """One finished capture on disk: sidecar + annotated + clean."""
+def _write_capture(settings: Settings) -> tuple[Path, Path, Path, Path]:
+    """One finished capture on disk: sidecar + annotated + clean + thumb."""
     day = settings.results_dir / DAY
     annotated = day / TRUCK / "bbox" / "rej" / f"{STAMP}_auto.webp"
     clean = day / TRUCK / "clean" / "rej" / f"{STAMP}_auto.webp"
-    for image in (annotated, clean):
+    thumb = day / TRUCK / "thumb" / "rej" / f"{STAMP}_auto.webp"
+    for image in (annotated, clean, thumb):
         image.parent.mkdir(parents=True, exist_ok=True)
         image.write_bytes(b"webp")
 
@@ -64,7 +65,7 @@ def _write_capture(settings: Settings) -> tuple[Path, Path, Path]:
         ),
         encoding="utf-8",
     )
-    return sidecar, annotated, clean
+    return sidecar, annotated, clean, thumb
 
 
 @pytest.fixture
@@ -82,7 +83,7 @@ def _expire_the_only_item(worker, settings) -> dict:
 
 
 def test_retention_deletes_both_variants(worker, settings):
-    sidecar, annotated, clean = _write_capture(settings)
+    sidecar, annotated, clean, thumb = _write_capture(settings)
     _expire_the_only_item(worker, settings)
 
     # Everything older than "now" is expired when the cutoff is in the future.
@@ -91,6 +92,7 @@ def test_retention_deletes_both_variants(worker, settings):
 
     assert not annotated.exists(), "the evidence copy must go"
     assert not clean.exists(), "the training copy must go with it — nothing else deletes it"
+    assert not thumb.exists(), "the thumbnail must go with it — nothing else deletes it"
     assert not sidecar.exists()
 
 
@@ -98,7 +100,7 @@ def test_deleting_is_indifferent_to_a_missing_clean_copy(worker, settings):
     """Captures written before this change have no clean twin. Retention must
     still complete, not raise and leave the rest of the sweep undone.
     """
-    sidecar, annotated, clean = _write_capture(settings)
+    sidecar, annotated, clean, thumb = _write_capture(settings)
     clean.unlink()
     _expire_the_only_item(worker, settings)
 
@@ -106,6 +108,7 @@ def test_deleting_is_indifferent_to_a_missing_clean_copy(worker, settings):
         worker._delete_item_files(item)
 
     assert not annotated.exists()
+    assert not thumb.exists(), "the thumbnail must still go even without a clean twin"
     assert not sidecar.exists()
 
 

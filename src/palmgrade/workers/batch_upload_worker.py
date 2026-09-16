@@ -26,7 +26,7 @@ from typing import Any
 import httpx
 
 from ..core.config import Settings
-from ..domain.capture_layout import clean_twin_of
+from ..domain.capture_layout import thumb_key_of, thumb_twin_of, twins_of
 from ..domain.grade_class import grade_class_or_none
 from ..domain.vision_event import event_id_for, prediction_for, verdict_of
 from ..integrations.upload.r2_uploader import R2Uploader, build_r2_key
@@ -254,6 +254,15 @@ class BatchUploadWorker:
                 raise _PoisonError(f"file gambar hilang: {local}") from exc
             except Exception as exc:
                 raise _RequeueError(f"PUT R2 gagal: {exc}") from exc
+
+            thumb_local = thumb_twin_of(local)
+            thumb_key = thumb_key_of(item["r2_key"])
+            if thumb_local is not None and thumb_local.exists() and thumb_key is not None:
+                try:
+                    self.uploader.put(thumb_local, thumb_key)
+                except Exception as exc:
+                    raise _RequeueError(f"PUT thumb R2 gagal: {exc}") from exc
+
             self.manifest.mark_image_uploaded(item["id"])
             item["status"] = "image_uploaded"
 
@@ -300,11 +309,11 @@ class BatchUploadWorker:
                 self.settings.artifacts_dir / item["image_path"].lstrip("/").removeprefix("captures/")
             )
             targets.append(annotated)
-            # The clean twin is deleted here or by nothing at all: it has no
-            # manifest row of its own, so both age-based retention and the disk
-            # guard would sweep `done` items while freeing only half the bytes —
-            # until the disk fills and `write_image` stops grading (Rule #8/#9).
-            targets.extend(clean_twin_of(annotated))
+            # The clean and thumb twins are deleted here or by nothing at all: they
+            # have no manifest row of their own, so both age-based retention and the
+            # disk guard would sweep `done` items while freeing only part of the
+            # bytes — until the disk fills and `write_image` stops grading (Rule #8/#9).
+            targets.extend(twins_of(annotated))
         for t in targets:
             t.unlink(missing_ok=True)
         self.manifest.delete_item(item["id"])
