@@ -260,8 +260,14 @@ class BatchUploadWorker:
             if thumb_local is not None and thumb_local.exists() and thumb_key is not None:
                 try:
                     self.uploader.put(thumb_local, thumb_key)
-                except Exception as exc:
-                    raise _RequeueError(f"PUT thumb R2 gagal: {exc}") from exc
+                except Exception as exc:  # noqa: BLE001 — a preview must not hold the queue
+                    # Never fatal, and never a poison: the annotated image — the
+                    # evidence — is already in R2, and the key is deterministic, so
+                    # the next tick overwrites this same object. Batch-fatal here
+                    # would let one unreadable thumbnail hold back every image and
+                    # event queued behind it (the docstring reserves that for
+                    # global conditions), for a picture the viewer can do without.
+                    logger.warning("PUT thumb R2 gagal (%s): %s", thumb_key, exc)
 
             self.manifest.mark_image_uploaded(item["id"])
             item["status"] = "image_uploaded"

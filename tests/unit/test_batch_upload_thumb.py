@@ -28,6 +28,22 @@ class FakeUploader:
         self.keys.append(r2_key)
 
 
+class FakeUploaderThumbFails:
+    """The annotated PUT succeeds; the thumb PUT always raises.
+
+    Proves a broken thumbnail is a warning, not a requeue: the item must still
+    reach `done`, and the annotated (evidence) key must still have gone up.
+    """
+
+    def __init__(self) -> None:
+        self.keys: list[str] = []
+
+    def put(self, local_path, r2_key, *, content_type="image/webp") -> None:
+        if "/thumb/" in r2_key:
+            raise RuntimeError("thumb PUT gagal")
+        self.keys.append(r2_key)
+
+
 @pytest.fixture
 def settings(tmp_path) -> Settings:
     # UPLOAD_API_URL deliberately empty: no text receiver (see A4).
@@ -73,4 +89,21 @@ def test_a_capture_without_a_thumb_still_uploads(settings):
     _capture(settings, with_thumb=False)
     manifest, uploader = _run(settings)
     assert len(uploader.keys) == 1
+    assert manifest.counts()["done"] == 1
+
+
+def test_a_failed_thumb_put_does_not_stall_the_batch(settings):
+    """A thumbnail that cannot be PUT is a warning, not a requeue.
+
+    The annotated image is already in R2 by the time the thumb PUT is tried, and
+    r2_key is deterministic — a later tick overwrites the same object. Requeuing
+    here (batch-fatal by default) would hold back every image and event queued
+    behind this item for a picture the viewer can do without.
+    """
+    _capture(settings, with_thumb=True)
+    manifest = UploadManifest(db_path=settings.state_dir / "m.db")
+    uploader = FakeUploaderThumbFails()
+    BatchUploadWorker(settings=settings, manifest=manifest, uploader=uploader).run_batch_once()
+
+    assert uploader.keys == [f"{MACHINE_ID}/results/{DAY}/{TRUCK}/bbox/acc/{STAMP}_auto.webp"]
     assert manifest.counts()["done"] == 1
