@@ -25,12 +25,16 @@ logger = logging.getLogger(__name__)
 # Pulling it in here would drag the whole capture path out of CI.
 # `tests/unit/test_capture_layout_constants.py` keeps the two in step.
 _SAVE_QUALITY = 65
+# The backoffice grid loads 500 of these per truck: keep one under ~15 KB.
+_THUMB_WIDTH = 400
+_THUMB_QUALITY = 60
 
 
 class ImageStorage(Protocol):
     """The slice of `LocalFileStorage` this needs — a seam for tests."""
 
     def write_image(self, path: Path, frame: Any, quality: int = ...) -> None: ...
+    def write_thumbnail(self, path: Path, frame: Any, *, max_width: int, quality: int) -> None: ...
 
 
 class CaptureWriter:
@@ -137,5 +141,19 @@ class CaptureWriter:
             # Never fatal: the evidence copy and its sidecar are already safe, and
             # a grading line must not stop because the training copy did not fit.
             logger.error("Clean capture copy failed (%s): %s", clean_relative, exc)
+
+        thumb_relative = image_relative_path(
+            date_folder=date_folder, truck_folder=truck_folder,
+            variant=CaptureVariant.THUMB, ripeness_status=ripeness_status, filename=filename,
+        )
+        try:
+            self._storage.write_thumbnail(
+                self._settings.results_dir / thumb_relative, annotated_frame,
+                max_width=_THUMB_WIDTH, quality=_THUMB_QUALITY,
+            )
+        except OSError as exc:
+            # Same rule as the clean copy: the evidence is already on disk, and a
+            # grading line must not stop because a preview did not fit.
+            logger.error("Thumbnail failed (%s): %s", thumb_relative, exc)
 
         return f"captures/results/{annotated_relative}"
