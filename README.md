@@ -89,7 +89,7 @@ Camera (Hikrobot / OpenCV / Photo)
     → FrameCaptureWorker  (thread) → frame_queue
     → FrameProcessingWorker (thread)
         → YOLOv8 + ByteTrack
-        → detect: acc / rej / tp (tangkai panjang)
+        → detect: Ripe / Unripe / JK (janjang kosong) / TP (tangkai panjang)
         → save WebP + JSON to artifacts/results/   ← file di disk ITU antriannya
     → OutboxRetryWorker (poll 1 dtk) → POST BACKEND_URL = konsol lokal :8000
     → BatchUploadWorker (tiap jam, jalur terpisah ke cloud)
@@ -119,7 +119,13 @@ program timbangan → POST .../scale/weighing  ├→ index SQLite state/console
             stream kamera = <img> MJPEG langsung ke :8001/8002/8003, bukan lewat konsol
 ```
 
-**Detection model**: `best_3class_v2.pt` — 3 classes: `acc` (accepted), `rej` (rejected), `tp` (long stalk)
+**Detection model**: `best.pt` — 4 classes: `Ripe`, `Unripe`, `JK` (janjang
+kosong / empty bunch), `TP` (tangkai panjang / long stalk).
+
+The verdict is derived from the class, not equal to it (`domain/grade_class.py`):
+`Ripe` → ACC, `Unripe` and `JK` → REJ, `TP` → no verdict. The PLC has two coils
+and AutoERP three criteria, so the binary `ripeness_status` stays the thing that
+fires pistons and gets booked; `grade_class` is the 4-way detail on screen.
 **Minimum size**: 460,000 px² — objects below this area are forced to `rej`
 **Tracking**: ByteTrack — each fruit gets a unique `track_id`, saved only once (single-trigger)
 **Detection zone**: ROI box (`ROI_X1/Y1/X2/Y2`) — only objects whose center falls inside the box are counted. Default `0,0,0,0` = full frame. TP class is exempt from ROI check.
@@ -133,7 +139,7 @@ program timbangan → POST .../scale/weighing  ├→ index SQLite state/console
 - `make` (GNU Make)
 - Hikrobot MVS SDK installed at `/opt/MVS/` on the host — `make up` auto-copies all required libs
 - NVIDIA Container Toolkit — untuk GPU passthrough ke Docker (lihat [Production Deployment](#production-deployment-pindah-ke-pc-baru))
-- YOLO model file at `models/release/best_3class_v2.pt`
+- YOLO model file at `models/release/best.pt`
 
 > **Linux / PC pabrik: tidak perlu Python/venv lokal** — semua dijalankan via Docker, `python:3.11-slim` base image sudah include semua dependencies. Develop di Mac memakai venv kecil: lihat [Quick Start](#quick-start--pilih-jalur).
 
@@ -169,7 +175,7 @@ autograde/
 │   └── license/                 # License guard (Ed25519 JWS, optional)
 ├── models/
 │   └── release/
-│       └── best_3class_v2.pt    # YOLO model — required, not committed to git
+│       └── best.pt    # YOLO model — required, not committed to git
 ├── images/
 │   └── sample_sawit.jpg         # gambar contoh untuk CAMERA_TYPE=photo
 ├── artifacts/                   # Runtime output — not committed to git
@@ -218,7 +224,7 @@ LINE_2_MACHINE_ID=<uuid-from-db>
 LINE_3_MACHINE_ID=<uuid-from-db>
 
 # Model
-MODEL_FILE=best_3class_v2.pt
+MODEL_FILE=best.pt
 CONF_THRESHOLD=0.75
 MINIMUM_SIZE=460000
 
@@ -231,7 +237,7 @@ STREAM_HEIGHT=720
 
 ```bash
 mkdir -p models/release
-# copy best_3class_v2.pt ke models/release/
+# copy best.pt ke models/release/
 ```
 
 ### 4. Siapkan Hikrobot SDK (production only)
@@ -289,7 +295,7 @@ Install Hikrobot MVS SDK di host (`/opt/MVS/`). `make up` otomatis copy **seluru
 
 ```bash
 mkdir -p models/release
-# copy best_3class_v2.pt ke models/release/
+# copy best.pt ke models/release/
 ```
 
 ### 4. Configure `.env`
@@ -766,7 +772,7 @@ variabel mati padahal bukan — jangan dihapus karena `grep os.getenv` tidak men
 | `BACKEND_API_VER` | `/api/v1` | Prefix versi API untuk canonical events URL |
 | `WEBHOOK_SECRET` | — | Shared secret header value — must match palmgrade-api |
 | `ENABLE_WEBHOOK` | `true` | Toggle webhook posting |
-| `MODEL_FILE` | `best_3class_v2.pt` | YOLO model filename in `models/release/` |
+| `MODEL_FILE` | `best.pt` | YOLO model filename in `models/release/` |
 | `CONF_THRESHOLD` | `0.75` | YOLO confidence threshold |
 | `MINIMUM_SIZE` | `460000` | Min bounding box area in px² |
 | `CAMERA_TYPE` | `hikrobot` | `hikrobot` / `opencv` / `photo` |

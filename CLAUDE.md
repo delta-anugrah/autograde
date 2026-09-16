@@ -80,7 +80,7 @@ src/palmgrade/
   license/         # optional Ed25519 license guard
 docs/              # overview.md (DETAIL), architecture.md, backend-overview.md, SETUP.md
 tests/unit/        # unit test murni-logic (pytest, no torch/cv2)
-models/release/    # best_3class_v2.pt (required, NOT committed)
+models/release/    # best.pt (required, NOT committed)
 artifacts/line-N/  # runtime output per line (NOT committed)
 ```
 
@@ -242,6 +242,27 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 ---
 
 ## Critical Rules (full rationale → `docs/overview.md` § Invariants)
+
+0. **Model 4 kelas; kelas BUKAN verdict.** `best.pt` mendeteksi `Ripe`, `Unripe`,
+   `JK` (janjang kosong), `TP` (tangkai panjang). Pemetaannya hidup di **satu**
+   tempat, `domain/grade_class.py`: `Ripe`→ACC, `Unripe`/`JK`→REJ, `TP`→tidak
+   punya verdict (bukan janjang; menempel di `tp_confidence`). Dua hal di hilir
+   sengaja tetap biner: **PLC cuma punya dua coil** (OK/NG — kategori ketiga itu
+   kabel, bukan kode) dan **AutoERP cuma membukukan tiga kriteria** (`Mentah` /
+   `Tangkai Panjang` / `Matang`, kontrak beku). Jadi satu baris membawa
+   **keduanya**: `ripeness_status` = verdict yang menggerakkan piston dan dibayar,
+   `grade_class` = rincian yang dibaca layar.
+   ⚠️ **`JK` tidak dikirim ke AutoERP.** Tidak ada kriterianya di sana, dan dua
+   kandidat terdekat sama-sama salah lapor: `Sampah` itu **ditimbang**, bukan
+   dilihat kamera (jawaban Samuel 2026-09-16), dan menggabung JK ke `Mentah`
+   membesarkan porsi mentah yang dipotong dari supplier. Angkanya berhenti di
+   edge sampai ada perubahan kontrak yang disepakati.
+   ⚠️ Kelas dibaca dari **nama**, bukan urutan id. `cls_id in (0, 1)` dulu
+   dipakai buat menentukan `area`, dan model yang dilatih ulang boleh menukar
+   urutan kelas — `area` jadi 0 untuk buah dan penjaga `MINIMUM_SIZE` berhenti
+   bekerja tanpa satu pun error. `domain/rules.py` **pensiun** karena alasan yang
+   sama: aturannya mencocokkan substring `"rej"`, yang tidak pernah cocok dengan
+   `Unripe` maupun `JK`.
 
 1. **Disk before API** — never POST events directly from a worker; **antrean yang bicara ke
    jaringan, bukan worker deteksi**. `FrameProcessingWorker` dan `capture_service` menulis WebP +

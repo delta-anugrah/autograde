@@ -7,7 +7,7 @@ description: Evaluasi, ganti, dan rollback model deteksi YOLO di autograde — p
 
 ## Yang lagi jalan
 
-`MODEL_FILE` di `.env` (default `best_3class_v2.pt`) → dibaca
+`MODEL_FILE` di `.env` (default `best.pt`) → dibaca
 `Settings.ripeness_model_path` → **selalu dari `models/release/`**, bukan `models/`.
 
 3 kelas: `ACC` / `Rej` / `TP`. `submit_grading()` cuma memetakan `acc` → coil OK
@@ -50,7 +50,7 @@ cp <kandidat>.pt models/release/
 ### 2. Rebuild TensorRT engine
 
 Nama engine diturunin dari **stem nama model**
-(`best_3class_v2.pt` → `best_3class_v2.sm75.engine`, lihat `engine_path_for_gpu`).
+(`best.pt` → `best.sm75.engine`, lihat `engine_path_for_gpu`).
 Jadi begitu `MODEL_FILE` ganti, engine lama otomatis nggak kepilih dan runtime
 **diam-diam turun ke `.pt`** — jalan, tapi ±2x lebih lambat. Nggak ada error.
 
