@@ -168,6 +168,10 @@ class ConsoleStore:
         with self._lock, self._db:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
+            # Before `_CREATE_SQL`: its indexes name the English columns, so on a
+            # database written before the rename they would be created against
+            # columns that do not exist yet.
+            self._rename_indonesian_columns()
             self._db.executescript(_CREATE_SQL)
             self._migrate()
 
@@ -180,7 +184,6 @@ class ConsoleStore:
         wait until the column exists.
         """
         self._drop_pin_era_operators()
-        self._rename_indonesian_operator_columns()
         for table, column in (
             ("suppliers", "erp_name"),
             ("trucks", "erp_name"),
@@ -202,40 +205,63 @@ class ConsoleStore:
             )
         self._db.executescript(_MIGRATE_SQL)
 
-    def _rename_indonesian_operator_columns(self) -> None:
-        """Carry an `operators` table written before the column rename.
+    # Columns renamed to English after the schema had already been created on
+    # developer machines. `CREATE TABLE IF NOT EXISTS` leaves an existing table
+    # alone, so without this pass every read hits a column that is not there.
+    _RENAMED_COLUMNS = (
+        ("inspections", (("tanggal_kerja", "work_date"),)),
+        ("suppliers", (("sumber", "source_group"),)),
+        (
+            "weighings",
+            (
+                ("tanggal_kerja", "work_date"),
+                ("bruto_kg", "gross_kg"),
+                ("tara_kg", "tare_kg"),
+                ("neto_kg", "net_kg"),
+                ("waktu_masuk", "entered_at"),
+                ("waktu_keluar", "exited_at"),
+            ),
+        ),
+        ("sesi", (("dibuat_at", "created_at"), ("kedaluwarsa_at", "expires_at"))),
+        (
+            "operators",
+            (
+                ("nama", "full_name"),
+                ("asal", "origin"),
+                ("dibuat_at", "created_at"),
+                ("gagal_count", "fail_count"),
+                ("gagal_terakhir", "last_failed_at"),
+            ),
+        ),
+    )
 
-        The rename (`nama`→`full_name`, `asal`→`origin`, `dibuat_at`→`created_at`,
-        `gagal_count`→`fail_count`, `gagal_terakhir`→`last_failed_at`, `peran`→`role`)
-        shipped without this pass, on the reasoning that no factory PC had
-        ever run that schema. True for factory PCs, false for every machine that had a
-        console database already: `CREATE TABLE IF NOT EXISTS` left the old table alone,
-        so every read of `full_name` hit a column that was not there and the sign-in
-        screen drew one blank pill per account.
+    def _rename_indonesian_columns(self) -> None:
+        """Carry a database written before the columns were renamed to English.
 
-        `role` is the sharp one. The pass below it adds `role` as a *new* column
-        defaulting to `operator`, so a database that still had `peran` came out with both
-        — and every support account silently demoted to operator, keeping its name but
-        losing the developer menus. So the value is carried over before that runs, and
-        `peran` is dropped only once `role` holds its value.
+        The rename shipped without this pass, on the reasoning that no factory PC had
+        ever run that schema. True for factory PCs, false for every machine that already
+        had a console database — there the old names stayed and every read missed.
+
+        `peran` is the sharp one: the pass in `_migrate` adds `role` as a *new* column
+        defaulting to `operator`, so a database that still had `peran` came out with
+        both — every support account silently demoted while keeping its name. The value
+        is carried over before that runs, and `peran` dropped only once `role` holds it.
         """
+        for table, pairs in self._RENAMED_COLUMNS:
+            columns = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
+            if not columns:
+                continue
+            for old, new in pairs:
+                if old in columns and new not in columns:
+                    self._db.execute(f"ALTER TABLE {table} RENAME COLUMN {old} TO {new}")
+        self._rename_operator_role()
+
+    def _rename_operator_role(self) -> None:
+        """`peran` → `role`, keeping the value even when both columns exist."""
         columns = {r["name"] for r in self._db.execute("PRAGMA table_info(operators)")}
-        if not columns:
-            return
-        for old, new in (
-            ("nama", "full_name"),
-            ("asal", "origin"),
-            ("dibuat_at", "created_at"),
-            ("gagal_count", "fail_count"),
-            ("gagal_terakhir", "last_failed_at"),
-        ):
-            if old in columns and new not in columns:
-                self._db.execute(f"ALTER TABLE operators RENAME COLUMN {old} TO {new}")
         if "peran" not in columns:
             return
         if "role" in columns:
-            # Both present: the earlier pass added `role` with its default, so the values
-            # operators actually signed in with are still in `peran`.
             self._db.execute("UPDATE operators SET role = peran")
             self._db.execute("ALTER TABLE operators DROP COLUMN peran")
         else:
