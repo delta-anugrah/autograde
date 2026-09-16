@@ -8,6 +8,7 @@ after a power cut.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -19,12 +20,23 @@ logger = logging.getLogger(__name__)
 
 
 class ErpQueue:
-    def __init__(self, store: ConsoleStore, outbox: ErpOutboxStore, *, site: str = "") -> None:
+    def __init__(
+        self,
+        store: ConsoleStore,
+        outbox: ErpOutboxStore,
+        *,
+        site: str = "",
+        detail_url_for: Callable[[str], str | None] = lambda visit_id: None,
+    ) -> None:
         self._store = store
         # Public: the worker that drains it is built from the same queue object,
         # so there is one outbox in the process and no way to wire a second.
         self.outbox = outbox
         self._site = site
+        # Defaults to "no detail page" so every existing construction site and
+        # test keeps working unchanged. console_main.py wires the real one only
+        # when R2 is configured (see domain/visit_manifest.detail_url_for).
+        self._detail_url_for = detail_url_for
 
     def truck(self, plate_number: str) -> None:
         """Interface B: a plate first seen at the mill goes up to AutoERP."""
@@ -48,6 +60,8 @@ class ErpQueue:
         grading = (
             self._store.grading_counts(visit["assignment_id"]) if visit.get("assignment_id") else None
         )
+        if grading and (url := self._detail_url_for(visit["id"])):
+            grading = grading | {"detail_url": url}
         emitted_at = datetime.now(tz).isoformat() if tz else datetime.now().astimezone().isoformat()
         key, payload = erp_messages.visit_message(
             visit, grading, site=self._site, emitted_at=emitted_at

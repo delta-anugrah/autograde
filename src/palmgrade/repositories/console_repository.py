@@ -627,6 +627,7 @@ class ConsoleStore:
             row = self._db.execute(
                 """SELECT w.*,
                           s.erp_name AS supplier_erp_name,
+                          s.name AS supplier_name,
                           t.erp_name AS truck_erp_name
                    FROM weighings w
                    LEFT JOIN trucks t ON t.id = w.truck_id
@@ -668,6 +669,18 @@ class ConsoleStore:
         if not row or not row["total"]:
             return None
         return {"assignment_id": assignment_id, **dict(row)}
+
+    def bunches_for_assignment(self, assignment_id: str) -> list[dict[str, Any]]:
+        """Every bunch of one line assignment, oldest first — the visit manifest."""
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT event_id, machine_id, line_code, timestamp, ripeness_status,
+                          ripeness_confidence, capture_type, image_path, grade_class,
+                          tp_status, tp_confidence
+                   FROM inspections WHERE assignment_id = ? ORDER BY timestamp""",
+                (assignment_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def link_weighing_to_assignment(self, weighing_id: str, assignment_id: str) -> None:
         """Written when the truck leaves the line: these bunches are that visit's."""

@@ -38,6 +38,7 @@ from ..domain.vision_event import prediction_for, verdict_of
 from ..domain.working_day import work_date_for
 from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
+from ..workers.visit_manifest_worker import VisitManifestWorker
 from .erp_queue import ErpQueue
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,7 @@ class ConsoleService:
         line_client: LineClient,
         *,
         erp_queue: ErpQueue | None = None,
+        manifest_queue: VisitManifestWorker | None = None,
     ) -> None:
         self.settings = settings
         self.store = store
@@ -72,6 +74,10 @@ class ConsoleService:
         # None when the console runs without the AutoERP link: everything at the
         # mill still happens, it simply goes nowhere.
         self.erp_queue = erp_queue
+        # None when R2 is not configured: no per-truck detail pages, no
+        # `detail_url` in what erp_queue sends — but the AutoERP link (if any)
+        # still works. See _queue_grading: the two are independent.
+        self.manifest_queue = manifest_queue
         # Wired to `LineStatusWorker.snapshot` by console_main.py's lifespan.
         # Default (empty dict) keeps old tests, which never touch the worker,
         # working — every line just shows unreachable instead of crashing.
@@ -379,8 +385,6 @@ class ConsoleService:
         """The line assignment just closed, so its bunches belong to that truck's
         visit — the link is written here, once, and never guessed at send time.
         """
-        if self.erp_queue is None:
-            return
         truck_id, assignment_id = closing.get("truck_id"), closing.get("assignment_id")
         if not (truck_id and assignment_id):
             return
@@ -391,7 +395,12 @@ class ConsoleService:
             # visit goes up when the weighing does — or on the daily resend.
             return
         self.store.link_weighing_to_assignment(weighing_id, assignment_id)
-        self.erp_queue.visit(weighing_id, tz=self.tz)
+        # The detail page does not depend on the AutoERP link: a mill with R2 but
+        # no ERP_URL still gets its per-truck pages.
+        if self.manifest_queue is not None:
+            self.manifest_queue.enqueue(weighing_id, assignment_id)
+        if self.erp_queue is not None:
+            self.erp_queue.visit(weighing_id, tz=self.tz)
 
     # ------------------------------------------------------- line commands
 

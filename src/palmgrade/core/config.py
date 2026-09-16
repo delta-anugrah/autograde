@@ -343,7 +343,7 @@ class Settings:
         if self.environment == "production" and not self.r2_bucket:
             logger.warning(
                 "R2_BUCKET is empty — cloud batch upload is disabled (no-op). "
-                "Set R2_*/UPLOAD_API_* in .env to enable it."
+                "Set R2_* in .env to enable it."
             )
         if self.webhook_secret != _DEFAULT_WEBHOOK_SECRET:
             return
@@ -408,6 +408,11 @@ class Settings:
 
     @property
     def upload_events_url(self) -> str:
+        """Empty when there is no cloud API: the image in R2 is then the whole upload.
+        palmgrade-api was switched off in 2026-09 (Opsi B); AutoERP takes one message
+        per visit from the console, never per bunch."""
+        if not self.upload_api_url:
+            return ""
         return f"{self.upload_api_url}{self.backend_api_ver}/internal/vision/events"
 
     @property

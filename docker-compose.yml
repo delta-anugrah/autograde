@@ -398,6 +398,13 @@ services:
       - ERP_ALLOWED_ROLES=${ERP_ALLOWED_ROLES:-support}
       # Berapa lama layar Log (support) menyimpan riwayat ERROR/WARNING.
       - LOG_RETENSI_HARI=${LOG_RETENSI_HARI:-180}
+      # R2: tempat manifest per truk + viewer.html, bucket yang sama dengan foto
+      # dari tiga line. R2_BUCKET kosong = tidak ada manifest, tidak ada detail_url.
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
+      - R2_BUCKET=${R2_BUCKET:-}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
       - LICENSE_TOKEN=${LICENSE_TOKEN:-}
       # Pemetaan machine_id → line, supaya event tahu dia dari line mana.
       # Nilai default sama persis dengan tiga service di atas.

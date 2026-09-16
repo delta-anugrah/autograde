@@ -36,12 +36,16 @@ class RecordingStorage:
     def __init__(self) -> None:
         self.images: dict[str, object] = {}
         self.json: dict[str, dict] = {}
+        self.thumbs: dict[str, object] = {}
 
     def write_image(self, path: Path, frame, quality: int = 80) -> None:
         self.images[str(path)] = frame
 
     def write_json(self, path: Path, payload: dict) -> None:
         self.json[str(path)] = payload
+
+    def write_thumbnail(self, path: Path, frame, *, max_width: int, quality: int) -> None:
+        self.thumbs[str(path)] = (frame, max_width, quality)
 
 
 @pytest.fixture
@@ -302,3 +306,32 @@ def test_the_sidecar_still_carries_every_field_the_uploader_reads(worker, storag
         assert field in meta, f"BatchUploadWorker reads {field}"
     # Serialisable: it is written to disk as JSON and read back hours later.
     json.dumps(meta)
+
+
+# -------------------------------------------------- thumbnail
+
+
+def _pair(writer, **over):
+    return writer.write_pair(**{
+        "date_folder": "2026-09-08", "truck_folder": "091432_B1234XY_a3f9c201",
+        "ripeness_status": "acc", "filename": "x.webp",
+        "annotated_frame": "ANNOTATED", "clean_frame": "CLEAN",
+    } | over)
+
+
+def test_write_pair_also_writes_a_400px_thumbnail_of_the_annotated_frame(settings, storage):
+    from palmgrade.services.capture_writer import CaptureWriter
+
+    _pair(CaptureWriter(settings, storage))
+    [(path, (frame, width, quality))] = storage.thumbs.items()
+    assert str(Path(path).relative_to(settings.results_dir)) == "2026-09-08/091432_B1234XY_a3f9c201/thumb/acc/x.webp"
+    assert (frame, width, quality) == ("ANNOTATED", 400, 60)
+
+
+def test_a_failed_thumbnail_never_fails_the_capture(settings, storage):
+    from palmgrade.services.capture_writer import CaptureWriter
+
+    def boom(path, frame, *, max_width, quality):
+        raise OSError("disk penuh")
+    storage.write_thumbnail = boom
+    assert _pair(CaptureWriter(settings, storage)).endswith("/bbox/acc/x.webp")

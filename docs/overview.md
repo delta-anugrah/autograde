@@ -238,7 +238,7 @@ to serve images at `/api/v1/captures/<line_code>/...`. api SSE events after inge
    thread dies silently and the watchdog restarts without a stack trace.
 10. **`FrameCaptureWorker` needs `device_index`** — reconnect calls `camera.connect(index=...)`; a bare
     `connect()` (default 0) makes line-2/3 reconnect to the wrong camera.
-11. **`cv2.imwrite` failure raises `IOError`** in `LocalFileStorage.write_image` — a silent warning
+11. **`cv2.imwrite` failure raises `OSError`** in `LocalFileStorage.write_image` — a silent warning
     would leave orphaned JSON pointing at a missing image — dan karena JSON itulah yang di-scan
     `BatchUploadWorker`, item-nya berakhir `poisoned` saat upload. Auto path: caught by
     `run_loop` (skip 1 frame). Manual path: propagates → 500 to operator.

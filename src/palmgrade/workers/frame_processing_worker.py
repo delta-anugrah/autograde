@@ -384,7 +384,7 @@ class FrameProcessingWorker:
                     # di tengah blok ini memproses ulang track-nya — aman karena
                     # event_id uuid5-nya sama dan API idempotent. Pulse Modbus
                     # TIDAK punya idempotensi itu: `_save_ripeness` melempar
-                    # IOError kalau cv2.imwrite gagal (Critical Rule #8), track
+                    # OSError kalau cv2.imwrite gagal (Critical Rule #8), track
                     # tetap belum `processed`, dan frame berikutnya masuk lagi ke
                     # blok ini pada 10-16 fps. Satu buah nyangkut akan menjenuhkan
                     # coil-nya tanpa henti dan PLC menghitungnya berpuluh kali.

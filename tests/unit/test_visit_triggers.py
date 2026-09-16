@@ -18,6 +18,7 @@ from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.services.console_service import ConsoleService
 from palmgrade.services.erp_queue import ErpQueue
+from palmgrade.workers.visit_manifest_worker import VisitManifestWorker
 
 PLATE = "BE 8821 KL"
 WIB = ZoneInfo("Asia/Jakarta")
@@ -31,7 +32,16 @@ class FakeLineClient:
     async def manual_reject(self, line, **_kw) -> None: ...
 
 
-def _service(tmp_path, *, linked: bool = False) -> tuple[ConsoleService, ErpOutboxStore]:
+class FakeUploader:
+    """The manifest lane only needs `.enqueue()` and `.outbox` to prove wiring;
+    nothing here ever calls `put_bytes` in these tests (no `drain_once()`)."""
+
+    def put_bytes(self, body, r2_key, *, content_type) -> None: ...
+
+
+def _service(
+    tmp_path, *, linked: bool = False, manifest: VisitManifestWorker | None = None
+) -> tuple[ConsoleService, ErpOutboxStore]:
     store = ConsoleStore(tmp_path / "console.db")
     outbox = ErpOutboxStore(tmp_path / "erp_outbox.db")
     if linked:
@@ -39,13 +49,51 @@ def _service(tmp_path, *, linked: bool = False) -> tuple[ConsoleService, ErpOutb
         store.upsert_truck(
             truck_row({"name": PLATE, "plate_number": PLATE, "supplier": "KUD Sumber Makmur"})
         )
+    detail_url_for = (
+        (lambda visit_id: f"https://captures.smagri.id/viewer.html?visit={visit_id}")
+        if manifest is not None
+        else (lambda visit_id: None)
+    )
     service = ConsoleService(
         replace(Settings(), factory_tz="Asia/Jakarta"),
         store,
         FakeLineClient(),
-        erp_queue=ErpQueue(store, outbox, site="PT Sawit Rambang Lestari"),
+        erp_queue=ErpQueue(
+            store, outbox, site="PT Sawit Rambang Lestari", detail_url_for=detail_url_for
+        ),
+        manifest_queue=manifest,
     )
     return service, outbox
+
+
+def _service_with_manifest(tmp_path) -> tuple[ConsoleService, ErpOutboxStore, VisitManifestWorker]:
+    store = ConsoleStore(tmp_path / "console.db")
+    manifest = VisitManifestWorker(
+        store,
+        ErpOutboxStore(tmp_path / "manifest_outbox.db"),
+        FakeUploader(),
+        public_url="https://captures.smagri.id",
+        viewer_html=tmp_path / "viewer.html",
+        clock=lambda: "2026-09-16T09:00:00+07:00",
+    )
+    store.upsert_supplier(supplier_row({"name": "KUD Sumber Makmur", "supplier_group": "Plasma"}))
+    store.upsert_truck(
+        truck_row({"name": PLATE, "plate_number": PLATE, "supplier": "KUD Sumber Makmur"})
+    )
+    outbox = ErpOutboxStore(tmp_path / "erp_outbox.db")
+    service = ConsoleService(
+        replace(Settings(), factory_tz="Asia/Jakarta"),
+        store,
+        FakeLineClient(),
+        erp_queue=ErpQueue(
+            store,
+            outbox,
+            site="PT Sawit Rambang Lestari",
+            detail_url_for=lambda visit_id: f"https://captures.smagri.id/viewer.html?visit={visit_id}",
+        ),
+        manifest_queue=manifest,
+    )
+    return service, outbox, manifest
 
 
 def _now() -> str:
@@ -123,6 +171,37 @@ def test_releasing_the_truck_queues_its_grading(tmp_path):
     assert visit.payload["grading"]["counts"] == {
         "total": 3, "acc": 2, "rej": 1, "mentah": 1, "tangkai_panjang": 1, "manual_reject": 0,
     }
+
+
+def test_releasing_the_truck_queues_the_manifest_and_the_detail_url(tmp_path):
+    """The manifest enqueue and the ERP enqueue are independent — a mill with R2
+    configured gets both the per-truck page and a `detail_url` pointing at it."""
+    service, outbox, manifest = _service_with_manifest(tmp_path)
+    ticket = _weigh(service)
+    assignment = asyncio.run(service.assign_truck("line-1", truck_id_for(PLATE)))
+    service.ingest(
+        {
+            "event_id": "ev-1",
+            "machine_id": service.lines[0].machine_id,
+            "timestamp": _now(),
+            "ripeness_status": "ACC",
+            "ripeness_confidence": 0.9,
+            "capture_type": "auto",
+            "image_path": None,
+            "truck_id": truck_id_for(PLATE),
+            "assignment_id": assignment["assignment_id"],
+            "prediction": "Acc",
+            "tp_status": None,
+            "tp_confidence": None,
+        }
+    )
+
+    asyncio.run(service.release_truck("line-1"))
+
+    [visit] = _visits(outbox)
+    assert visit.payload["grading"]["detail_url"] == f"https://captures.smagri.id/viewer.html?visit={ticket['id']}"
+    [queued] = manifest.outbox.due()
+    assert (queued.kind, queued.key) == ("manifest", ticket["id"])
 
 
 def test_a_truck_that_was_never_weighed_queues_nothing(tmp_path):

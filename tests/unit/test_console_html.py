@@ -821,6 +821,72 @@ def test_konsol_tetap_tanpa_referensi_https():
     assert "https://" not in HTML
 
 
+# ── antrean manifest R2: second row on the same Antrean screen (task B7) ───
+# Pattern: `sec-antrean` already shows erp_outbox (pending/gagal/gagal
+# terakhir). This adds the manifest queue's own numbers alongside it, on the
+# SAME screen — not a new tab, not a new nav button — because it is the same
+# kind of data (an ErpOutboxStore) about a different queue.
+
+
+def test_antrean_punya_baris_manifest_r2():
+    blok = HTML.split('<section id="sec-antrean"', 1)[1].split("</section>", 1)[0]
+    assert 'id="manifest-ringkas"' in blok, "belum ada ringkasan antrean manifest"
+    assert 'id="manifest-baris"' in blok, "belum ada tabel gagal antrean manifest"
+
+
+def test_manifest_tidak_aktif_punya_pesan_tersendiri():
+    """R2 belum disetel harus terbaca beda dari antrean kosong (0 pending, 0
+    gagal) — dua keadaan itu SAMA angkanya, jadi harus beda elemen/pesan."""
+    blok = HTML.split('<section id="sec-antrean"', 1)[1].split("</section>", 1)[0]
+    assert 'id="manifest-nonaktif"' in blok
+    assert 'id="manifest-nonaktif" hidden' in blok, "pesan nonaktif harus mulai tersembunyi"
+
+
+def test_muat_manifest_memanggil_endpoint_antrean_manifest():
+    fn = _fungsi("muatManifest")
+    assert "/api/console/dev/antrean/manifest" in fn
+
+
+def test_muat_manifest_membedakan_nonaktif_dari_kosong():
+    """`aktif: false` harus mengambil cabang berbeda dari kosong-tapi-jalan —
+    kalau tidak, R2 yang tidak disetel dan antrean manifest yang kosong
+    tampil identik (dua-duanya 0 pending, 0 gagal)."""
+    fn = _fungsi("muatManifest")
+    assert "aktif" in fn
+
+
+def test_manifest_dipanggil_saat_tab_antrean_dibuka():
+    """Sama seperti muatAntrean() - tab Antrean memuat dua sumber sekarang,
+    jadi keduanya harus dipanggil saat tab itu dibuka."""
+    assert "muatAntrean" in HTML and "muatManifest" in HTML
+    # MUAT_TAB memetakan satu nama tab ke satu fungsi pemuat; kalau
+    # muatManifest tidak dipanggil dari sana atau dari dalam muatAntrean
+    # sendiri, tab Antrean tidak akan pernah menariknya.
+    peta_antrean = re.search(r"antrean:\s*(\w+)", HTML)
+    assert peta_antrean, "MUAT_TAB tidak lagi memetakan tab antrean"
+    if peta_antrean.group(1) != "muatManifest":
+        dipanggil_dari = _fungsi(peta_antrean.group(1))
+        assert "muatManifest(" in dipanggil_dari, (
+            "muatManifest() tidak dipanggil dari pemuat tab antrean"
+        )
+
+
+def test_label_manifest_diterjemahkan_di_kedua_bahasa():
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("judulManifest", "ringkasManifest", "kosongManifest", "gagalManifest", "manifestNonaktif"):
+            assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+
+
+def test_pesan_manifest_nonaktif_bukan_placeholder_kosong():
+    """Isi pesan harus berbeda dari string kosong di kedua bahasa - ini yang
+    membuat 'R2 belum disetel' benar-benar terbaca, bukan cuma kunci ada."""
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        nilai = re.search(r'manifestNonaktif:"([^"]+)"', isi)
+        assert nilai and len(nilai.group(1)) > 5
+
+
 # ── tab ↔ panel mapping ─────────────────────────────────────────────────────
 
 
