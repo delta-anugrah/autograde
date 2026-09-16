@@ -11,10 +11,7 @@ from pathlib import Path
 
 import boto3
 
-
-def build_r2_key(machine_id: str, image_path: str) -> str:
-    relative = image_path.lstrip("/").removeprefix("captures/")
-    return f"{machine_id}/{relative}"
+from ...domain.capture_layout import build_r2_key  # noqa: F401
 
 
 class R2Uploader:

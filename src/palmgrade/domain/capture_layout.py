@@ -46,15 +46,18 @@ _SHORT_ASSIGNMENT_LEN = 8
 
 
 class CaptureVariant(enum.Enum):
-    """The two images kept per bunch.
+    """The three images kept per bunch.
 
     ANNOTATED is what the operator and any dispute look at. CLEAN is the raw
     frame: a model must never be retrained on pictures carrying its own
     predictions, so the training copy has to be the undrawn one.
+    Same picture as ANNOTATED, 400 px wide: what the backoffice grid loads.
+    Full size is one click away; 500 of these is 7 MB, 500 full ones is 90.
     """
 
     ANNOTATED = "bbox"
     CLEAN = "clean"
+    THUMB = "thumb"
 
 
 def _sanitise(value: str) -> str:
@@ -112,6 +115,23 @@ def image_relative_path(
     return f"{date_folder}/{truck_folder}/{variant.value}/{verdict}/{filename}"
 
 
+def build_r2_key(machine_id: str, image_path: str) -> str:
+    """Object key in R2: deterministic from the path, so a re-upload overwrites itself."""
+    relative = image_path.lstrip("/").removeprefix("captures/")
+    return f"{machine_id}/{relative}"
+
+
+def _twin(annotated: Path, variant: CaptureVariant) -> Path | None:
+    if annotated.parent.parent.name != CaptureVariant.ANNOTATED.value:
+        return None  # written before this layout existed (flat in the day folder)
+    return annotated.parent.parent.parent / variant.value / annotated.parent.name / annotated.name
+
+
+def twins_of(annotated: Path) -> list[Path]:
+    """Every sibling copy of one annotated image: what retention must delete with it."""
+    return [p for v in (CaptureVariant.CLEAN, CaptureVariant.THUMB) if (p := _twin(annotated, v))]
+
+
 def clean_twin_of(annotated: Path) -> list[Path]:
     """The clean copy beside an annotated one, or nothing if there cannot be one.
 
@@ -124,7 +144,17 @@ def clean_twin_of(annotated: Path) -> list[Path]:
     folder) — those keep arriving in retention for a full retention period after
     an upgrade, and they simply have no twin.
     """
-    if annotated.parent.parent.name != CaptureVariant.ANNOTATED.value:
-        return []
-    clean = annotated.parent.parent.parent / CaptureVariant.CLEAN.value
-    return [clean / annotated.parent.name / annotated.name]
+    clean = _twin(annotated, CaptureVariant.CLEAN)
+    return [clean] if clean else []
+
+
+def thumb_twin_of(annotated: Path) -> Path | None:
+    return _twin(annotated, CaptureVariant.THUMB)
+
+
+def thumb_key_of(r2_key: str) -> str | None:
+    """R2 key of the thumbnail beside an annotated key; None for a flat (old) key."""
+    marker = f"/{CaptureVariant.ANNOTATED.value}/"
+    if marker not in r2_key:
+        return None
+    return r2_key.replace(marker, f"/{CaptureVariant.THUMB.value}/", 1)

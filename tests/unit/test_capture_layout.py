@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import datetime
 import re
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -21,8 +22,13 @@ import pytest
 from palmgrade.domain.capture_layout import (
     UNASSIGNED_FOLDER,
     CaptureVariant,
+    build_r2_key,
+    clean_twin_of,
     image_relative_path,
+    thumb_key_of,
+    thumb_twin_of,
     truck_folder_name,
+    twins_of,
 )
 
 JAKARTA = ZoneInfo("Asia/Jakarta")
@@ -212,3 +218,31 @@ def test_both_variants_share_one_filename() -> None:
 
     assert annotated.rsplit("/", 1)[-1] == clean.rsplit("/", 1)[-1]
     assert annotated != clean
+
+
+# ----------------------------------------------------------------- image twins
+
+
+ANNOTATED = Path("/r/2026-09-08/091432_B1234XY_a3f9c201/bbox/acc/x.webp")
+
+
+def test_twins_are_the_clean_and_thumb_copies() -> None:
+    root = Path("/r/2026-09-08/091432_B1234XY_a3f9c201")
+    assert twins_of(ANNOTATED) == [root / "clean/acc/x.webp", root / "thumb/acc/x.webp"]
+    assert clean_twin_of(ANNOTATED) == [root / "clean/acc/x.webp"]
+    assert thumb_twin_of(ANNOTATED) == root / "thumb/acc/x.webp"
+
+
+def test_a_flat_capture_has_no_twins() -> None:
+    flat = Path("/r/2026-09-08/x.webp")
+    assert twins_of(flat) == []
+    assert thumb_twin_of(flat) is None
+
+
+def test_thumb_key_swaps_only_the_variant_segment() -> None:
+    assert thumb_key_of("M1/results/2026-09-08/T/bbox/acc/x.webp") == "M1/results/2026-09-08/T/thumb/acc/x.webp"
+    assert thumb_key_of("M1/results/2026-09-08/x.webp") is None
+
+
+def test_r2_key_is_machine_then_path_without_captures_prefix() -> None:
+    assert build_r2_key("M1", "captures/results/2026-09-08/T/bbox/acc/x.webp") == "M1/results/2026-09-08/T/bbox/acc/x.webp"
