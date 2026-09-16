@@ -261,7 +261,27 @@ def test_the_qr_image_carries_the_requested_plate(gerbang):
     assert result.content == png_qr(PLAT)
     # And that pattern really is the plate's pattern, not a coincidence of two
     # functions that are both wrong the same way.
-    assert segno.make("BE4412OFL", error=KOREKSI).matrix is not None
+    assert segno.make_qr("BE4412OFL", error=KOREKSI).matrix is not None
+
+
+def test_printed_card_is_a_full_qr_not_a_micro_qr():
+    """A Micro QR looks perfectly fine on screen and cannot be scanned at all.
+
+    `segno.make` picks Micro QR by itself for text as short as a plate, and cheap
+    gate scanners - OpenCV among them - read nothing from it. The card would be
+    printed, stuck to the windscreen, and only found to be unreadable at the gate.
+    Pinned by decoding the real image rather than by checking which function was
+    called, because it is the decoding that the driver depends on.
+    """
+    cv2 = pytest.importorskip("cv2", reason="decoder not installed in this env")
+    import numpy as np
+
+    from palmgrade.services.qr_cetak import png_qr
+
+    image = cv2.imdecode(np.frombuffer(png_qr("BE 4412 OFL"), np.uint8), cv2.IMREAD_GRAYSCALE)
+    decoded, _, _ = cv2.QRCodeDetector().detectAndDecode(image)
+
+    assert decoded == "BE4412OFL"
 
 
 def test_any_plate_writing_style_produces_the_same_qr(gerbang):

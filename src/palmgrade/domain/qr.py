@@ -18,6 +18,13 @@ Plat masuk lewat tiga tempat dengan tiga gaya tulisan (operator, program timbang
 ERP), jadi yang disimpan di QR sudah bentuk ternormalisasi: satu truk = satu QR,
 walau platnya pernah ditulis `be-4412-ofl` di satu tempat dan `BE 4412 OFL` di
 tempat lain.
+
+**Yang mencetak kartunya AutoERP (2026-09-17), bukan lagi konsol ini.** Backoffice
+yang mendaftarkan truk sudah ada di ERP Desk, jadi tombol cetaknya di sana. Aturan
+normalisasi di atas tetap satu-satunya yang berlaku: `palm_mill/utils.py`
+memakai regex yang sama persis, dan `plate_normalized` di DocType `Truck` itulah
+yang dicetak ke dalam QR. Endpoint `qr.png` di konsol **tidak dihapus** - dia
+cadangan waktu internet pabrik putus dan ada truk baru datang.
 """
 
 from __future__ import annotations
@@ -27,11 +34,26 @@ import re
 from .operator_error import BUKAN_PLAT, InvalidInput
 from .plate import normalisasi_plat
 
-# Plat Indonesia: 1-2 huruf wilayah, 1-4 angka, 1-3 huruf akhir. Dicek SESUDAH
-# dinormalisasi, jadi pemisahnya sudah hilang. Longgar dengan sengaja - plat
-# dinas dan plat lama bentuknya menyimpang, dan yang perlu ditolak di sini cuma
-# hal yang jelas bukan plat (tautan, id ERP, sampah dari scanner gagal baca).
-_BENTUK_PLAT = re.compile(r"^[A-Z]{1,2}\d{1,4}[A-Z]{1,3}$")
+# Bentuk plat, dicek SESUDAH dinormalisasi (pemisahnya sudah hilang): huruf
+# wilayah opsional, angka, huruf akhir opsional.
+#
+# **Sengaja lebih longgar dari plat sipil biasa.** Sejak kartu QR dicetak dari
+# AutoERP, backoffice boleh mendaftarkan plat yang bentuknya menyimpang - plat
+# dinas, plat lama, kendaraan luar daerah - setelah mengiyakan peringatan di
+# layar. Kalau gerbang lebih ketat dari yang mencetak, kartunya tercetak, tertempel
+# di kaca, lalu ditolak scanner; sopirnya yang menanggung, dan tidak ada yang tahu
+# sampai truknya sampai.
+#
+# Yang tetap harus ditolak: apa pun yang jelas bukan plat. Dua batas menjaga itu:
+#
+# - huruf wilayah maksimal **dua**, karena `TRK0042` (id ERP) berbentuk mirip plat
+#   dan tiga huruf awal akan meloloskannya;
+# - **wajib ada huruf**, karena angka telanjang seperti `1234` itu bisa apa saja -
+#   nomor tiket, berat, harga - dan scanner gerbang membaca apa pun yang disodorkan.
+#
+# Satu salah scan yang lolos menambah truk hantu ke master data, dan truk itu naik
+# ke AutoERP lewat interface B.
+_BENTUK_PLAT = re.compile(r"^(?:[A-Z]{1,2}\d{1,5}[A-Z]{0,4}|\d{1,5}[A-Z]{1,4})$")
 
 
 def isi_qr_untuk(plat: str) -> str:

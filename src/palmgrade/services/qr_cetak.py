@@ -38,7 +38,11 @@ def png_qr(plat: str) -> bytes:
     isi = isi_qr_untuk(plat)  # menormalkan, dan menolak yang kosong
     _pastikan_terbaca(isi)
     buf = io.BytesIO()
-    segno.make(isi, error=KOREKSI).save(buf, kind="png", scale=_SKALA, border=_BINGKAI)
+    # `make_qr`, bukan `make`: `make` memilih **Micro QR** untuk teks sependek plat,
+    # dan scanner gerbang kelas murah - juga OpenCV - tidak bisa membacanya sama
+    # sekali (terbukti: decoder mengembalikan string kosong). Kartunya kelihatan
+    # baik-baik saja di layar, dan baru ketahuan tidak terbaca di gerbang.
+    segno.make_qr(isi, error=KOREKSI).save(buf, kind="png", scale=_SKALA, border=_BINGKAI)
     return buf.getvalue()
 
 

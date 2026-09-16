@@ -86,6 +86,31 @@ def test_qr_yang_isinya_bukan_plat_ditolak():
             baca_qr(teks)
 
 
+def test_plat_menyimpang_diterima_karena_autoerp_boleh_mencetaknya():
+    """Gerbang tidak boleh lebih ketat dari yang mencetak kartunya.
+
+    AutoERP cuma **memperingatkan** backoffice waktu platnya tidak berbentuk plat
+    sipil biasa; kalau dia bilang benar, trucknya jadi dan kartunya tercetak. Kalau
+    scanner di sini menolaknya, kartu itu tertempel di kaca truk dan baru ketahuan
+    tidak terbaca waktu sopirnya sampai di gerbang.
+    """
+    for teks in ("B 1234", "BE 12345 OFL", "B 1 A", "1234 AB", "B 1234 XYZW"):
+        assert baca_qr(teks) == baca_qr(teks.lower())
+
+
+def test_id_erp_tetap_ditolak_walau_bentuknya_mirip_plat():
+    """`TRK0042` itu huruf-lalu-angka, persis bentuk plat. Yang membuatnya tertolak
+    cuma batas **dua** huruf wilayah - kalau batasnya dinaikkan jadi tiga demi
+    meloloskan satu plat aneh, id ERP ikut lolos, dan satu salah scan menambah truk
+    hantu yang lalu naik ke AutoERP.
+    """
+    # `1234` ikut di sini, bukan di test plat menyimpang: angka telanjang itu bisa
+    # nomor tiket, berat, atau harga - bukan plat.
+    for teks in ("TRK-0042", "TRK0042", "INV-2026-0001", "PROMO2024DISKON", "1234"):
+        with pytest.raises(OperatorError):
+            baca_qr(teks)
+
+
 # ── cari truk dari hasil scan ────────────────────────────────────────────────
 
 
@@ -280,3 +305,25 @@ def test_scan_keluar_tidak_pernah_menulis_apa_pun(store, scan):
     scan.open_ticket("BE4412OFL", "2026-09-15")
 
     assert store.weighing("w-1")["tare_kg"] is None
+
+
+def test_kartu_dicetak_sebagai_qr_biasa_bukan_micro_qr():
+    """Micro QR kelihatan baik-baik saja di layar dan tidak terbaca sama sekali.
+
+    `segno.make` memilih Micro QR sendiri untuk teks sependek plat, dan scanner
+    gerbang kelas murah - juga decoder OpenCV - membaca string kosong darinya.
+    Kartunya tercetak, tertempel di kaca truk, dan baru ketahuan mati di gerbang.
+
+    Dijaga di `tests/unit/` dan bukan cuma di e2e karena **CI hanya menjalankan
+    `tests/unit/`** (utang G1): penjaga yang tidak pernah jalan bukan penjaga.
+    """
+    import segno
+
+    from palmgrade.services.qr_cetak import KOREKSI, png_qr
+
+    assert not segno.make_qr("BE4412OFL", error=KOREKSI).is_micro
+
+    # Header PNG + ukuran matriks: QR versi 1 itu 21 modul, Micro QR M3 cuma 15.
+    gambar = png_qr("BE 4412 OFL")
+    assert gambar.startswith(b"\x89PNG\r\n\x1a\n")
+    assert len(segno.make_qr("BE4412OFL", error=KOREKSI).matrix) == 21
