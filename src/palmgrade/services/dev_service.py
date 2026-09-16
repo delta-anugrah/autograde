@@ -155,7 +155,7 @@ class DevService:
             # Every attempt is logged, hit or refused: a coil that was REFUSED is
             # still an event support needs to see in the trail, same as one fired.
             # logger.warning(), not LogStore.write() directly, so this goes through
-            # the same SqliteLogHandler as everything else in log_kejadian —
+            # the same SqliteLogHandler as everything else in event_log —
             # that is what applies redact() before the row settles on disk.
             logger.warning(
                 "PLC TEST: %s fired coil %s on %s — rejected by line: %s",

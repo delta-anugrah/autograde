@@ -450,7 +450,7 @@ async def dev_plc_coil(
 
     Three guards: typed confirmation, refused while the line is processing a
     truck (409, checked on the line — see DevService.plc_fire), and every
-    attempt — fired or refused — leaves a WARNING row in log_kejadian.
+    attempt — fired or refused — leaves a WARNING row in event_log.
     """
     try:
         return await dev.plc_fire(

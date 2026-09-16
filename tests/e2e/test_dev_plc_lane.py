@@ -8,7 +8,7 @@ login, a role read from the same store the rest of the console uses, and
 This is the only lane in the whole console that moves physical hardware, so
 every scenario here maps to one of its three mandatory guards: typed
 confirmation, refused while the target line is processing a truck, and every
-attempt leaving a WARNING row in `log_kejadian`.
+attempt leaving a WARNING row in `event_log`.
 """
 
 from __future__ import annotations
@@ -201,9 +201,9 @@ def test_picu_berhasil_meninggalkan_baris_warning_di_log(gerbang):
 
         baris = log_store.read(level="WARNING", search="coil", limit=10, offset=0)["items"]
         assert len(baris) == 1
-        assert "support@pks.test" in baris[0]["pesan"]
-        assert "11" in baris[0]["pesan"]
-        assert "line-1" in baris[0]["pesan"]
+        assert "support@pks.test" in baris[0]["message"]
+        assert "11" in baris[0]["message"]
+        assert "line-1" in baris[0]["message"]
     finally:
         dev_logger.handlers.clear()
 
@@ -235,9 +235,9 @@ def test_line_tidak_terjangkau_juga_meninggalkan_jejak_di_log(gerbang):
 
         baris = log_store.read(level="WARNING", search="coil", limit=10, offset=0)["items"]
         assert len(baris) == 1
-        assert "support@pks.test" in baris[0]["pesan"]
-        assert "11" in baris[0]["pesan"]
-        assert "line-1" in baris[0]["pesan"]
+        assert "support@pks.test" in baris[0]["message"]
+        assert "11" in baris[0]["message"]
+        assert "line-1" in baris[0]["message"]
     finally:
         dev_logger.handlers.clear()
 

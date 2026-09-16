@@ -82,7 +82,7 @@ def test_support_membaca_log_dengan_total_dan_items(gerbang):
     assert jawab.status_code == 200
     data = jawab.json()
     assert data["total"] == 1
-    assert data["items"][0]["pesan"] == "kamera putus"
+    assert data["items"][0]["message"] == "kamera putus"
 
 
 def test_operator_biasa_ditolak_403(gerbang):
