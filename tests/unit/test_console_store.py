@@ -2,7 +2,7 @@
 
 The console may never scan directories; everything the operator screen reads
 comes from this index. What is pinned here: event idempotency (a line retries
-after the console was down), grouping by `tanggal_kerja` rather than by receive
+after the console was down), grouping by `work_date` rather than by receive
 time, truck assignments that survive a restart, and Sumber TBS staying 3 values.
 """
 from __future__ import annotations
@@ -74,7 +74,7 @@ def _event(service, **over):
     return payload
 
 
-def test_ingest_menyimpan_tanggal_kerja_wib_bukan_tanggal_terima(service):
+def test_ingest_menyimpan_work_date_wib_bukan_tanggal_terima(service):
     assert service.ingest(_event(service)) == "2026-09-10"
     assert service.store.summary("2026-09-10")[0]["total"] == 1
     assert service.store.summary("2026-09-09") == []
@@ -138,20 +138,22 @@ def test_source_label_mirrors_autoerp_and_the_raw_group_stays_stored(service, tm
     # The edge never decides the source (§3.5b); it mirrors AutoERP's
     # `sumber_for_supplier`. Plasma vs agent lives on the supplier group, so
     # that value stays stored as it arrived.
-    service.store.upsert_supplier({"id": "s1", "name": "KUD A", "sumber": "Plasma", "status": "active"})
+    service.store.upsert_supplier(
+        {"id": "s1", "name": "KUD A", "source_group": "Plasma", "status": "active"}
+    )
     service.store.upsert_truck({"id": "t1", "plate_number": "BE 1 AA", "supplier_id": "s1", "status": "active"})
     service.store.upsert_truck({"id": "t2", "plate_number": "BE 2 BB", "status": "active", "erp_name": "BE 2 BB"})
     service.store.upsert_truck({"id": "t3", "plate_number": "BE 3 CC", "status": "manual"})
 
     trucks = service.trucks()
-    assert {t["plate_number"]: t["sumber_label"] for t in trucks} == {
+    assert {t["plate_number"]: t["source_label"] for t in trucks} == {
         "BE 1 AA": "External",
         "BE 2 BB": "Internal",
         "BE 3 CC": None,
     }
-    assert not {"sumber", "has_supplier", "in_erp"} & set(trucks[0])
+    assert not {"source_group", "has_supplier", "in_erp"} & set(trucks[0])
     disk = sqlite3.connect(tmp_path / "console.db")
-    assert disk.execute("SELECT sumber FROM suppliers WHERE id='s1'").fetchone()[0] == "Plasma"
+    assert disk.execute("SELECT source_group FROM suppliers WHERE id='s1'").fetchone()[0] == "Plasma"
     disk.close()
 
 
@@ -164,26 +166,30 @@ def test_every_console_view_labels_the_source_the_same_way(service):
     service.ingest(_event(service, truck_id="t2", timestamp=datetime.now(WIB).isoformat()))
     service.store.upsert_weighing({
         "id": "w1", "ref": "r1", "plate_number": "BE 2 BB", "plate_norm": "BE2BB", "truck_id": "t2",
-        "tanggal_kerja": today, "bruto_kg": 15000.0, "tara_kg": 5000.0, "neto_kg": 10000.0,
-        "waktu_masuk": None, "waktu_keluar": None,
+        "work_date": today, "gross_kg": 15000.0, "tare_kg": 5000.0, "net_kg": 10000.0,
+        "entered_at": None, "exited_at": None,
     })
 
     state = service.state()
     labels = [
-        state["lines"][0]["assignment"]["sumber_label"],
-        state["recent"][0]["sumber_label"],
-        service.rekap(today)[0]["sumber_label"],
-        service.weighings(today)[0]["sumber_label"],
+        state["lines"][0]["assignment"]["source_label"],
+        state["recent"][0]["source_label"],
+        service.rekap(today)[0]["source_label"],
+        service.weighings(today)[0]["source_label"],
     ]
     assert labels == ["Internal"] * 4
 
 
 def test_master_data_dari_cloud_selalu_menang(service):
-    service.store.upsert_supplier({"id": "s1", "name": "Lama", "sumber": "Inti", "status": "active"})
-    service.store.upsert_supplier({"id": "s1", "name": "Baru", "sumber": "Pihak Ketiga", "status": "active"})
+    service.store.upsert_supplier(
+        {"id": "s1", "name": "Lama", "source_group": "Inti", "status": "active"}
+    )
+    service.store.upsert_supplier(
+        {"id": "s1", "name": "Baru", "source_group": "Pihak Ketiga", "status": "active"}
+    )
     service.store.upsert_truck({"id": "t1", "plate_number": "BE 1", "supplier_id": "s1", "status": "active"})
     truk = service.trucks()[0]
-    assert (truk["supplier_name"], truk["sumber_label"]) == ("Baru", "External")
+    assert (truk["supplier_name"], truk["source_label"]) == ("Baru", "External")
 
 
 def test_penugasan_gagal_tidak_dicatat_seolah_berhasil(tmp_path):
@@ -223,13 +229,13 @@ def test_rekap_per_truk_menjumlah_neto_bukan_mengalikan_janjang(service):
     for ref, bruto in (("TKT-1", 12000), ("TKT-2", 11000)):
         service.catat_timbangan({
             "ref": ref, "plate_number": "B 1234 XY",
-            "waktu_masuk": "2026-09-09T18:30:00+00:00",
-            "bruto_kg": bruto, "tara_kg": 5000,
+            "entered_at": "2026-09-09T18:30:00+00:00",
+            "gross_kg": bruto, "tare_kg": 5000,
         })
 
     (baris,) = service.rekap("2026-09-10")
     assert (baris["total"], baris["acc"], baris["rej"]) == (3, 2, 1)
-    assert baris["neto_kg"] == 13000  # (12000-5000) + (11000-5000)
+    assert baris["net_kg"] == 13000  # (12000-5000) + (11000-5000)
     assert baris["plate_number"] == "B 1234 XY"
 
 
@@ -239,7 +245,7 @@ def test_rekap_tetap_menampilkan_janjang_tanpa_truk(service):
     service.ingest(_event(service))
     (baris,) = service.rekap("2026-09-10")
     assert baris["truck_id"] is None and baris["total"] == 1
-    assert baris["neto_kg"] is None
+    assert baris["net_kg"] is None
 
 
 # ── pagination riwayat grading ────────────────────────────────────────────────
@@ -299,8 +305,8 @@ def test_bruto_seratus_kilo_ditolak(service):
     ketik, dan neto yang lahir darinya dibayar ke petani."""
     with pytest.raises(OperatorError) as kena:
         service.catat_timbangan({
-            "plate_number": "BE 4412 OFL", "bruto_kg": 100,
-            "waktu_masuk": "2026-09-15T08:00:00+07:00",
+            "plate_number": "BE 4412 OFL", "gross_kg": 100,
+            "entered_at": "2026-09-15T08:00:00+07:00",
         })
     assert kena.value.code == DI_BAWAH_MINIMUM
 
@@ -309,8 +315,8 @@ def test_berat_setengah_ton_masih_ditolak(service):
     """500 kg pun bukan truk. Lantai yang terlalu rendah cuma menangkap nol."""
     with pytest.raises(OperatorError):
         service.catat_timbangan({
-            "plate_number": "BE 4412 OFL", "bruto_kg": 500,
-            "waktu_masuk": "2026-09-15T08:00:00+07:00",
+            "plate_number": "BE 4412 OFL", "gross_kg": 500,
+            "entered_at": "2026-09-15T08:00:00+07:00",
         })
 
 
@@ -318,30 +324,30 @@ def test_truk_kosong_paling_ringan_tetap_diterima(service):
     """Colt Diesel kosong sekitar 2,5 ton. Lantai tidak boleh menolak truk sungguhan
     yang paling ringan — itu menghalangi pekerjaan, bukan menjaganya."""
     hasil = service.catat_timbangan({
-        "plate_number": "BE 4412 OFL", "bruto_kg": 2500,
-        "waktu_masuk": "2026-09-15T08:00:00+07:00",
+        "plate_number": "BE 4412 OFL", "gross_kg": 2500,
+        "entered_at": "2026-09-15T08:00:00+07:00",
     })
-    assert hasil["bruto_kg"] == 2500.0
+    assert hasil["gross_kg"] == 2500.0
 
 
 def test_operator_baru_default_operator(tmp_path):
     """No account gains privilege through migration alone."""
     store = ConsoleStore(tmp_path / "c.db")
     store.upsert_operator_lokal(
-        {"email": "a@b.c", "nama": "A", "password_hash": "scrypt$x"}
+        {"email": "a@b.c", "full_name": "A", "password_hash": "scrypt$x"}
     )
-    assert store.operator_by_email("a@b.c")["peran"] == "operator"
+    assert store.operator_by_email("a@b.c")["role"] == "operator"
 
 
 def test_peran_ikut_di_baris_sesi(tmp_path):
     """The route guard reads `peran` off the session row, so it must carry it."""
     store = ConsoleStore(tmp_path / "c.db")
     oid = store.upsert_operator_lokal(
-        {"email": "s@b.c", "nama": "S", "password_hash": "scrypt$x"}
+        {"email": "s@b.c", "full_name": "S", "password_hash": "scrypt$x"}
     )
     store.set_peran(oid, "support")
     store.create_session("tok", oid, now=1000.0, ttl_s=3600)
-    assert store.session("tok", now=1001.0)["peran"] == "support"
+    assert store.session("tok", now=1001.0)["role"] == "support"
 
 
 def test_migrasi_menambah_peran_ke_db_lama(tmp_path):
@@ -352,31 +358,31 @@ def test_migrasi_menambah_peran_ke_db_lama(tmp_path):
     db = sqlite3.connect(str(db_path))
     db.execute(
         """CREATE TABLE operators (
-               id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, nama TEXT NOT NULL,
+               id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, full_name TEXT NOT NULL,
                password_hash TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active',
-               asal TEXT NOT NULL DEFAULT 'lokal', erp_name TEXT,
-               dibuat_at REAL NOT NULL, gagal_count INTEGER NOT NULL DEFAULT 0,
-               gagal_terakhir REAL)"""
+               origin TEXT NOT NULL DEFAULT 'lokal', erp_name TEXT,
+               created_at REAL NOT NULL, fail_count INTEGER NOT NULL DEFAULT 0,
+               last_failed_at REAL)"""
     )
     db.execute(
-        "INSERT INTO operators (id, email, nama, password_hash, dibuat_at)"
+        "INSERT INTO operators (id, email, full_name, password_hash, created_at)"
         " VALUES ('i1', 'lama@b.c', 'Lama', 'scrypt$x', 1.0)"
     )
     db.commit()
     db.close()
 
     store = ConsoleStore(db_path)
-    assert store.operator_by_email("lama@b.c")["peran"] == "operator"
+    assert store.operator_by_email("lama@b.c")["role"] == "operator"
 
 
 def test_set_peran_menolak_nilai_asing(tmp_path):
     """An unrecognized value must not settle into the access-gating column."""
     store = ConsoleStore(tmp_path / "c.db")
     oid = store.upsert_operator_lokal(
-        {"email": "x@b.c", "nama": "X", "password_hash": "scrypt$x"}
+        {"email": "x@b.c", "full_name": "X", "password_hash": "scrypt$x"}
     )
     store.set_peran(oid, "admin")
-    assert store.operator_by_email("x@b.c")["peran"] == "operator"
+    assert store.operator_by_email("x@b.c")["role"] == "operator"
 
 
 def test_ada_akun_support_kosong_kalau_tidak_ada_operator_sama_sekali(tmp_path):
@@ -389,7 +395,7 @@ def test_ada_akun_support_kosong_kalau_semua_operator(tmp_path):
     none able to open the screen that would promote another one."""
     store = ConsoleStore(tmp_path / "c.db")
     store.upsert_operator_lokal(
-        {"email": "op@b.c", "nama": "Operator", "password_hash": "scrypt$x"}
+        {"email": "op@b.c", "full_name": "Operator", "password_hash": "scrypt$x"}
     )
     assert store.ada_akun_support() is False
 
@@ -397,7 +403,7 @@ def test_ada_akun_support_kosong_kalau_semua_operator(tmp_path):
 def test_ada_akun_support_benar_begitu_satu_akun_dinaikkan(tmp_path):
     store = ConsoleStore(tmp_path / "c.db")
     oid = store.upsert_operator_lokal(
-        {"email": "s@b.c", "nama": "S", "password_hash": "scrypt$x"}
+        {"email": "s@b.c", "full_name": "S", "password_hash": "scrypt$x"}
     )
     store.set_peran(oid, "support")
     assert store.ada_akun_support() is True
@@ -408,7 +414,7 @@ def test_ada_akun_support_kosong_kalau_akun_support_dimatikan(tmp_path):
     hatch — same rule `operators()` already applies to the sign-in list."""
     store = ConsoleStore(tmp_path / "c.db")
     oid = store.upsert_operator_lokal(
-        {"email": "s@b.c", "nama": "S", "password_hash": "scrypt$x"}
+        {"email": "s@b.c", "full_name": "S", "password_hash": "scrypt$x"}
     )
     store.set_peran(oid, "support")
     store.set_operator_status(oid, "off")
@@ -418,34 +424,34 @@ def test_ada_akun_support_kosong_kalau_akun_support_dimatikan(tmp_path):
 def test_tarikan_erp_menulis_peran_yang_diizinkan(tmp_path):
     store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset({"support"}))
     store.upsert_operator_erp(
-        {"email": "s@erp.c", "nama": "S", "password_hash": "x",
+        {"email": "s@erp.c", "full_name": "S", "password_hash": "x",
          "erp_name": "s@erp.c", "active": 1, "peran": "support"}
     )
-    assert store.operator_by_email("s@erp.c")["peran"] == "support"
+    assert store.operator_by_email("s@erp.c")["role"] == "support"
 
 
 def test_daftar_izin_kosong_membuang_peran_dari_erp(tmp_path):
     """Factory-side brake: an empty .env means no ERP account can be promoted."""
     store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset())
     store.upsert_operator_erp(
-        {"email": "s@erp.c", "nama": "S", "password_hash": "x",
+        {"email": "s@erp.c", "full_name": "S", "password_hash": "x",
          "erp_name": "s@erp.c", "active": 1, "peran": "support"}
     )
-    assert store.operator_by_email("s@erp.c")["peran"] == "operator"
+    assert store.operator_by_email("s@erp.c")["role"] == "operator"
 
 
 def test_tarikan_erp_tidak_menurunkan_peran_akun_lokal(tmp_path):
     """The local account is the way in when the internet is down; ERP must not touch it."""
     store = ConsoleStore(tmp_path / "c.db", peran_erp_diizinkan=frozenset({"support"}))
     oid = store.upsert_operator_lokal(
-        {"email": "support@autograde.local", "nama": "S", "password_hash": "scrypt$x"}
+        {"email": "support@autograde.local", "full_name": "S", "password_hash": "scrypt$x"}
     )
     store.set_peran(oid, "support")
     store.upsert_operator_erp(
-        {"email": "support@autograde.local", "nama": "S", "password_hash": "y",
+        {"email": "support@autograde.local", "full_name": "S", "password_hash": "y",
          "erp_name": "s", "active": 1, "peran": "operator"}
     )
-    assert store.operator_by_email("support@autograde.local")["peran"] == "support"
+    assert store.operator_by_email("support@autograde.local")["role"] == "support"
 
 
 def test_reset_sandi_lokal_tidak_menghapus_peran(tmp_path):
@@ -453,14 +459,14 @@ def test_reset_sandi_lokal_tidak_menghapus_peran(tmp_path):
     the account; that upsert must not silently demote the account's role too."""
     store = ConsoleStore(tmp_path / "c.db")
     oid = store.upsert_operator_lokal(
-        {"email": "support@autograde.local", "nama": "S", "password_hash": "scrypt$lama"}
+        {"email": "support@autograde.local", "full_name": "S", "password_hash": "scrypt$lama"}
     )
     store.set_peran(oid, "support")
 
     store.upsert_operator_lokal(
-        {"email": "support@autograde.local", "nama": "S", "password_hash": "scrypt$baru"}
+        {"email": "support@autograde.local", "full_name": "S", "password_hash": "scrypt$baru"}
     )
 
     row = store.operator_by_email("support@autograde.local")
-    assert row["peran"] == "support"
+    assert row["role"] == "support"
     assert row["password_hash"] == "scrypt$baru", "sandi tetap harus terganti"

@@ -30,9 +30,9 @@ def _weighing(store: ConsoleStore, weighing_id: str = "w1") -> str:
     store.upsert_weighing(
         {
             "id": weighing_id, "ref": "SCL-1", "plate_number": PLATE, "plate_norm": "BE1AA",
-            "truck_id": truck_id_for(PLATE), "tanggal_kerja": "2026-09-13",
-            "bruto_kg": 14560.0, "tara_kg": None, "neto_kg": None,
-            "waktu_masuk": "2026-09-13T07:41:00+07:00", "waktu_keluar": None,
+            "truck_id": truck_id_for(PLATE), "work_date": "2026-09-13",
+            "gross_kg": 14560.0, "tare_kg": None, "net_kg": None,
+            "entered_at": "2026-09-13T07:41:00+07:00", "exited_at": None,
         }
     )
     return weighing_id

@@ -80,18 +80,18 @@ def _truck(visit: dict[str, Any]) -> dict[str, Any]:
 
 def _stage(visit: dict[str, Any], grading: dict[str, Any] | None) -> str:
     """Informational for AutoERP, but it must not claim the truck is still here."""
-    if visit.get("tara_kg") is not None:
+    if visit.get("tare_kg") is not None:
         return "departed"
     return "grading" if grading else "gate"
 
 
 def _weighing(visit: dict[str, Any]) -> dict[str, Any]:
-    weighing: dict[str, Any] = {"time_in": visit["waktu_masuk"]}
-    for ours, theirs in (("bruto_kg", "gross_kg"), ("tara_kg", "tare_kg")):
-        if visit.get(ours) is not None:
-            weighing[theirs] = float(visit[ours])
-    if visit.get("waktu_keluar"):
-        weighing["time_out"] = visit["waktu_keluar"]
+    weighing: dict[str, Any] = {"time_in": visit["entered_at"]}
+    for field in ("gross_kg", "tare_kg"):
+        if visit.get(field) is not None:
+            weighing[field] = float(visit[field])
+    if visit.get("exited_at"):
+        weighing["time_out"] = visit["exited_at"]
     return weighing
 
 

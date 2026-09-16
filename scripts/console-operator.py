@@ -54,18 +54,18 @@ def main(argv: list[str]) -> int:
     try:
         if aksi == "tambah":
             email = input("Email operator: ")
-            nama = input("Nama operator: ")
+            full_name = input("Nama operator: ")
             sandi = getpass.getpass("Sandi (minimal 8 karakter): ")
             ulang = getpass.getpass("Ulangi sandi: ")
-            _, disahkan = admin.add_or_reset(email, nama, sandi, ulang, peran=peran)
+            _, disahkan = admin.add_or_reset(email, full_name, sandi, ulang, peran=peran)
             print("Tersimpan. Sesi lama operator ini, kalau ada, sudah diakhiri.")
             print(f"Peran: {disahkan}")
         elif aksi == "daftar":
             rows = admin.listing()
             for row in rows:
-                # `asal` is the answer to "why will this password not change?" —
+                # `origin` is the answer to "why will this password not change?" —
                 # an `erp` account is backoffice's to reset, not this PC's.
-                print(f"  {row['email']:<32} {row['nama']:<24} [{row['asal']}]")
+                print(f"  {row['email']:<32} {row['full_name']:<24} [{row['origin']}]")
             if not rows:
                 print("  (belum ada operator aktif)")
         elif aksi == "matikan":

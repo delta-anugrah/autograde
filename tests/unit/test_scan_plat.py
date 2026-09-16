@@ -195,9 +195,9 @@ def _timbang_masuk(store: ConsoleStore, wid: str, plat: str, **over) -> None:
     row = {
         "id": wid, "ref": None, "plate_number": plat,
         "plate_norm": "".join(c for c in plat.upper() if c.isalnum()),
-        "truck_id": truck_id_for(plat), "tanggal_kerja": "2026-09-15",
-        "bruto_kg": 13000.0, "tara_kg": None, "neto_kg": None,
-        "waktu_masuk": "2026-09-15T08:00:00+07:00", "waktu_keluar": None,
+        "truck_id": truck_id_for(plat), "work_date": "2026-09-15",
+        "gross_kg": 13000.0, "tare_kg": None, "net_kg": None,
+        "entered_at": "2026-09-15T08:00:00+07:00", "exited_at": None,
     }
     row.update(over)
     store.upsert_weighing(row)
@@ -219,8 +219,8 @@ def test_tiket_yang_sudah_ada_taranya_bukan_tiket_terbuka(store, scan):
     """Sudah ditimbang keluar. Menawarkannya lagi berarti tara pertama ditimpa dan
     neto berubah tanpa ada yang tahu."""
     _truk(store, "BE 4412 OFL")
-    _timbang_masuk(store, "w-1", "BE 4412 OFL", tara_kg=5000.0, neto_kg=8000.0,
-                   waktu_keluar="2026-09-15T09:00:00+07:00")
+    _timbang_masuk(store, "w-1", "BE 4412 OFL", tare_kg=5000.0, net_kg=8000.0,
+                   exited_at="2026-09-15T09:00:00+07:00")
 
     hasil = scan.tiket_terbuka("BE4412OFL", "2026-09-15")
 
@@ -233,7 +233,7 @@ def test_dua_tiket_terbuka_ditolak_bukan_ditebak(store, scan):
     operator memilih sendiri."""
     _truk(store, "BE 4412 OFL")
     _timbang_masuk(store, "w-1", "BE 4412 OFL")
-    _timbang_masuk(store, "w-2", "BE 4412 OFL", waktu_masuk="2026-09-15T10:00:00+07:00")
+    _timbang_masuk(store, "w-2", "BE 4412 OFL", entered_at="2026-09-15T10:00:00+07:00")
 
     hasil = scan.tiket_terbuka("BE4412OFL", "2026-09-15")
 
@@ -257,7 +257,7 @@ def test_tiket_hari_lain_tidak_ikut_terbawa(store, scan):
     """Tiket kemarin yang taranya belum terisi tidak boleh muncul hari ini: netonya
     akan memakai bruto kemarin dan tara hari ini."""
     _truk(store, "BE 4412 OFL")
-    _timbang_masuk(store, "w-kemarin", "BE 4412 OFL", tanggal_kerja="2026-09-14")
+    _timbang_masuk(store, "w-kemarin", "BE 4412 OFL", work_date="2026-09-14")
 
     hasil = scan.tiket_terbuka("BE4412OFL", "2026-09-15")
 
@@ -279,4 +279,4 @@ def test_scan_keluar_tidak_pernah_menulis_apa_pun(store, scan):
 
     scan.tiket_terbuka("BE4412OFL", "2026-09-15")
 
-    assert store.weighing("w-1")["tara_kg"] is None
+    assert store.weighing("w-1")["tare_kg"] is None

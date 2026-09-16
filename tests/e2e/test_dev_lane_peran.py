@@ -39,7 +39,7 @@ def gerbang(tmp_path):
     store.upsert_operator_lokal(
         {
             "email": "operator@pks.test",
-            "nama": "Operator Biasa",
+            "full_name": "Operator Biasa",
             "password_hash": hash_password(SANDI),
             "peran": PERAN_OPERATOR,
         }
@@ -47,7 +47,7 @@ def gerbang(tmp_path):
     store.upsert_operator_lokal(
         {
             "email": "support@pks.test",
-            "nama": "Akun Support",
+            "full_name": "Akun Support",
             "password_hash": hash_password(SANDI),
             "peran": PERAN_SUPPORT,
         }
@@ -100,15 +100,15 @@ def test_tanpa_sesi_dijawab_401_bukan_403(gerbang):
 
 
 def test_me_membawa_peran_untuk_kedua_akun(gerbang):
-    """`peran` has to reach the screen so it can hide the developer tab."""
+    """`role` has to reach the screen so it can hide the developer tab."""
     client, _ = gerbang
 
     _masuk(client, "operator@pks.test")
-    assert client.get("/api/console/me").json()["operator"]["peran"] == PERAN_OPERATOR
+    assert client.get("/api/console/me").json()["operator"]["role"] == PERAN_OPERATOR
 
     client.post("/api/console/logout")
     _masuk(client, "support@pks.test")
-    assert client.get("/api/console/me").json()["operator"]["peran"] == PERAN_SUPPORT
+    assert client.get("/api/console/me").json()["operator"]["role"] == PERAN_SUPPORT
 
 
 def test_peran_dicabut_ditolak_pada_sesi_lama(gerbang):

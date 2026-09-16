@@ -963,7 +963,7 @@ const KAMUS = {
     gagalReject:"Reject manual gagal", gagalDaftar:"Gagal mendaftarkan truk",
     gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
-    bruto_kg:"Bruto", tara_kg:"Tara",
+    gross_kg:"Bruto", tare_kg:"Tara",
     err_plat_kosong:"Nomor polisi tidak boleh kosong",
     err_bukan_plat:"Yang di-scan bukan nomor polisi",
     err_bukan_angka:"{field} bukan angka: {value}",
@@ -1053,7 +1053,7 @@ const KAMUS = {
     gagalReject:"Manual reject failed", gagalDaftar:"Failed to register truck",
     gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
     gagalKonsol:"Console not responding", kameraPutus:"Camera not connected",
-    bruto_kg:"Gross", tara_kg:"Tare",
+    gross_kg:"Gross", tare_kg:"Tare",
     err_plat_kosong:"Plate number cannot be empty",
     err_bukan_plat:"What was scanned is not a plate number",
     err_bukan_angka:"{field} is not a number: {value}",
@@ -1540,7 +1540,7 @@ function isiTruk(a) {
     <b class="plat">${dash(a.plate_number)}</b>
     <span class="lb">${esc(t("supplier"))}</span>
     <span class="sup"><span>${dash(a.supplier_name)}</span>
-      <span class="pill">${dash(a.sumber_label)}</span></span>
+      <span class="pill">${dash(a.source_label)}</span></span>
   </span>`;
 }
 
@@ -1626,25 +1626,25 @@ function barisTruk(tr) {
   return `<tr>
     <td class="key">${dash(tr.plate_number)}</td>
     <td>${dash(tr.supplier_name)}</td>
-    <td>${dash(tr.sumber_label)}</td>
+    <td>${dash(tr.source_label)}</td>
     <td>${dash(tr.status)}</td>
   </tr>`;
 }
 
 function barisTimbangan(w) {
   // The row carries the ticket identity so weigh-out resends exactly the same
-  // key (ref, or plate + waktu_masuk) - miss it and one ticket splits into two
+  // key (ref, or plate + entered_at) - miss it and one ticket splits into two
   // rows with its neto gone.
   return `<tr data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
-              data-masuk="${esc(w.waktu_masuk ?? "")}">
-    <td>${w.waktu_masuk ? waktu(w.waktu_masuk) : KOSONG}</td>
-    <td>${w.waktu_keluar ? waktu(w.waktu_keluar) : KOSONG}</td>
+              data-masuk="${esc(w.entered_at ?? "")}">
+    <td>${w.entered_at ? waktu(w.entered_at) : KOSONG}</td>
+    <td>${w.exited_at ? waktu(w.exited_at) : KOSONG}</td>
     <td class="key">${dash(w.plate_number)}</td>
-    <td>${dash(w.sumber_label)}</td>
-    <td class="num">${kg(w.bruto_kg)}</td>
-    <td class="num">${kg(w.tara_kg)}</td>
-    <td class="num">${kg(w.neto_kg)}</td>
-    <td>${w.tara_kg == null ? `<button data-aksi="keluar">${esc(t("btnKeluar"))}</button>` : ""}</td>
+    <td>${dash(w.source_label)}</td>
+    <td class="num">${kg(w.gross_kg)}</td>
+    <td class="num">${kg(w.tare_kg)}</td>
+    <td class="num">${kg(w.net_kg)}</td>
+    <td>${w.tare_kg == null ? `<button data-aksi="keluar">${esc(t("btnKeluar"))}</button>` : ""}</td>
   </tr>`;
 }
 
@@ -1663,7 +1663,7 @@ function barisRecent(r, i) {
     <td>${waktu(r.timestamp)}</td>
     <td>${esc(r.line_code)}</td>
     <td class="key">${dash(r.plate_number)}</td>
-    <td>${dash(r.sumber_label)}</td>
+    <td>${dash(r.source_label)}</td>
     <td>${tagHasil(r.ripeness_status)}</td>
     <td>${r.image_url ? `<a href="${esc(r.image_url)}" target="_blank"><img src="${esc(r.image_url)}" alt=""></a>` : KOSONG}</td>
   </tr>`;
@@ -1921,12 +1921,12 @@ $("scan-plat").addEventListener("keydown", (ev) => {
 
 $("masuk").addEventListener("click", async () => {
   const plate_number = $("plat-timbang").dataset.nilai;
-  const bruto_kg = $("bruto").value.trim();
-  if (!plate_number || !bruto_kg) { pesan(t("wajibIsi")); return; }
+  const gross_kg = $("bruto").value.trim();
+  if (!plate_number || !gross_kg) { pesan(t("wajibIsi")); return; }
   $("masuk").disabled = true;
   try {
     await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
-      { plate_number, bruto_kg, waktu_masuk: new Date().toISOString() }) });
+      { plate_number, gross_kg, entered_at: new Date().toISOString() }) });
     pilihNilai($("plat-timbang"), ""); $("bruto").value = "";
     await muatTimbangan();
     pesan("");
@@ -1943,7 +1943,7 @@ $("timbangan").addEventListener("click", async (ev) => {
   const tombol = ev.target.closest("button[data-aksi='keluar']");
   if (!tombol) return;
   const baris = tombol.closest("tr").dataset;
-  tanyaTara({ plate_number: baris.plat, ref: baris.ref, waktu_masuk: baris.masuk });
+  tanyaTara({ plate_number: baris.plat, ref: baris.ref, entered_at: baris.masuk });
 });
 
 // Satu jalur tara untuk tombol per baris DAN hasil scan keluar: dua salinan akan
@@ -1985,8 +1985,8 @@ async function simpanTara() {
   $("tara-simpan").disabled = true;
   try {
     await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
-      plate_number: w.plate_number, ref: w.ref, waktu_masuk: w.waktu_masuk,
-      tara_kg: teks, waktu_keluar: new Date().toISOString() }) });
+      plate_number: w.plate_number, ref: w.ref, entered_at: w.entered_at,
+      tare_kg: teks, exited_at: new Date().toISOString() }) });
     tutupTara();
     pesanScanKeluar("");
   } catch (e) {
@@ -2088,7 +2088,7 @@ let gerbangSibuk = false;     // a sign-in is in flight
 
 function tombolOperator(o) {
   return `<button type="button" class="gerbang-op" data-email="${esc(o.email)}"
-            >${esc(o.nama)}</button>`;
+            >${esc(o.full_name)}</button>`;
 }
 
 // Swapping `type` is the whole mechanism on purpose. Rendering the password into a
@@ -2140,7 +2140,7 @@ function tutupGerbang(operator) {
   $("gerbang-pesan").textContent = "";
   $("gerbang-sandi").value = "";
   tutupSandi();
-  $("operator-aktif").textContent = operator.nama;
+  $("operator-aktif").textContent = operator.full_name;
   $("operator-aktif").hidden = false;
   $("keluar").hidden = false;
 }
@@ -2164,7 +2164,7 @@ async function kirimSandi() {
       method: "POST", body: JSON.stringify({ email, sandi }),
     });
     tutupGerbang(operator);
-    hapusTabDeveloper(operator.peran);
+    hapusTabDeveloper(operator.role);
     dipasang = false;
     await muatTrucks();
     await refresh();
@@ -2184,7 +2184,7 @@ async function cekSesi() {
   try {
     const { operator } = await api("/api/console/me");
     tutupGerbang(operator);
-    hapusTabDeveloper(operator.peran);
+    hapusTabDeveloper(operator.role);
   }
   catch (e) { /* api() has already put the gate up on 401 */ }
 }
@@ -2290,12 +2290,12 @@ function barisRekap(r) {
   return `<tr>
     <td class="key">${r.plate_number ? esc(r.plate_number) : `<i>${esc(t("trukTanpaNama"))}</i>`}</td>
     <td>${dash(r.supplier_name)}</td>
-    <td>${dash(r.sumber_label)}</td>
+    <td>${dash(r.source_label)}</td>
     <td class="num">${total}</td>
     <td class="num acc">${r.acc || 0}</td>
     <td class="num rej">${r.rej || 0}</td>
     <td class="num">${rasio}</td>
-    <td class="num">${r.neto_kg == null ? KOSONG : Number(r.neto_kg).toLocaleString("id-ID")}</td>
+    <td class="num">${r.net_kg == null ? KOSONG : Number(r.net_kg).toLocaleString("id-ID")}</td>
   </tr>`;
 }
 

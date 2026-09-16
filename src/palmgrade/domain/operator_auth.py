@@ -69,8 +69,8 @@ def normalise_email(email: str) -> str:
     return " ".join(str(email or "").split()).lower()
 
 
-def normalise_nama(nama: str) -> str:
-    return " ".join(str(nama or "").split())
+def normalise_nama(full_name: str) -> str:
+    return " ".join(str(full_name or "").split())
 
 
 def check_password_format(password: str) -> None:
@@ -148,16 +148,16 @@ def _b64_decode(text: str) -> bytes:
     return base64.b64decode(padded, validate=True)
 
 
-def lockout_seconds_left(gagal_count: int, *, last_failed_at: float | None, now: float) -> int:
+def lockout_seconds_left(fail_count: int, *, last_failed_at: float | None, now: float) -> int:
     """How long the keypad stays shut after wrong PINs.
 
     Doubles with every further mistake past the allowance, capped: guessing six digits
     must cost real time, but a shift locked out by a wet glove cannot be made to wait
     out the night.
     """
-    if gagal_count < _LOCK_AFTER or last_failed_at is None:
+    if fail_count < _LOCK_AFTER or last_failed_at is None:
         return 0
-    wait = min(_LOCK_BASE_S * 2 ** (gagal_count - _LOCK_AFTER), _LOCK_MAX_S)
+    wait = min(_LOCK_BASE_S * 2 ** (fail_count - _LOCK_AFTER), _LOCK_MAX_S)
     return max(0, int(last_failed_at + wait - now))
 
 

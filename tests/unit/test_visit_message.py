@@ -21,10 +21,10 @@ def _visit(**over) -> dict:
         "truck_id": truck_id_for("BE 8821 KL"),
         "truck_erp_name": None,
         "supplier_erp_name": "KUD Sumber Makmur",
-        "bruto_kg": 14560.0,
-        "tara_kg": None,
-        "waktu_masuk": "2026-09-13T07:41:00+07:00",
-        "waktu_keluar": None,
+        "gross_kg": 14560.0,
+        "tare_kg": None,
+        "entered_at": "2026-09-13T07:41:00+07:00",
+        "exited_at": None,
     } | over
 
 
@@ -65,7 +65,7 @@ def test_the_gate_send_carries_the_weighing_and_no_grading():
 
 def test_the_departure_send_adds_the_tare_and_the_time_out():
     _, payload = _payload(
-        _visit(tara_kg=5400.0, waktu_keluar="2026-09-13T08:35:00+07:00")
+        _visit(tare_kg=5400.0, exited_at="2026-09-13T08:35:00+07:00")
     )
 
     assert payload["stage"] == "departed"
@@ -140,7 +140,7 @@ def test_the_grading_send_carries_the_counts_and_the_shares_they_imply():
 
 def test_a_weighed_out_truck_stays_departed_even_with_grading():
     """`stage` is informational, but it must not claim the truck is still here."""
-    _, payload = _payload(_visit(tara_kg=5400.0), grading=_grading())
+    _, payload = _payload(_visit(tare_kg=5400.0), grading=_grading())
 
     assert payload["stage"] == "departed"
     assert "grading" in payload

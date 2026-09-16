@@ -124,7 +124,7 @@ All via **`make`** (Docker only). From `autograde/`:
   saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
   mengatakan apa-apa soal batch upload ke cloud — untuk itu baca log `Batch tick: N item eligible`
   dari `BatchUploadWorker` atau query `state/upload_manifest.db` langsung.
-- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `tanggal_kerja` lewat tengah malam + `console_store` + invarian `console.html` + **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: field yang diminta persis milik DocType (ERP palsu membalas 417 seperti Frappe) + Sumber TBS mengikuti `sumber_for_supplier` + grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual, **antrean ke AutoERP**: ditolak vs tidak terjangkau dibedakan + backoff 30 dtk→1 jam + pesan yang diganti saat masih di jalan tidak ditandai terkirim + truk manual masuk antrean + truk milik ERP read-only, **kunjungan truk**: bentuk pesan §4.C + `stage` diturunkan dari keadaan + bagian kosong tidak dikirim + grading ikut lewat tautan assignment + kirim ulang harian sekali sehari + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi` — `pyyaml` cuma untuk tes yang mencocokkan `docker-compose.yml` dengan `Settings`; `fastapi` cuma untuk penjaga sesi konsol, yang cuma bisa dibuktikan lawan app sungguhan) di samping `ruff pytest` — samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol — `integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret hardware, torch, atau cv2 ke CI.** FastAPI `TestClient` boleh, tapi hanya untuk hal yang memang cuma ada di lapisan HTTP (penjaga sesi): app-nya dirakit sendiri di test dengan dependensi di-override, **bukan** `create_console_app()` — yang itu menyentuh `state/console.db` milik developer.
+- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `work_date` lewat tengah malam + `console_store` + invarian `console.html` + **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: field yang diminta persis milik DocType (ERP palsu membalas 417 seperti Frappe) + Sumber TBS mengikuti `sumber_for_supplier` + grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual, **antrean ke AutoERP**: ditolak vs tidak terjangkau dibedakan + backoff 30 dtk→1 jam + pesan yang diganti saat masih di jalan tidak ditandai terkirim + truk manual masuk antrean + truk milik ERP read-only, **kunjungan truk**: bentuk pesan §4.C + `stage` diturunkan dari keadaan + bagian kosong tidak dikirim + grading ikut lewat tautan assignment + kirim ulang harian sekali sehari + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal) — jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi` — `pyyaml` cuma untuk tes yang mencocokkan `docker-compose.yml` dengan `Settings`; `fastapi` cuma untuk penjaga sesi konsol, yang cuma bisa dibuktikan lawan app sungguhan) di samping `ruff pytest` — samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol — `integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py` — diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration` masih `.gitkeep` (butuh Docker + hardware). **Nambah test → utamakan logic murni; jangan seret hardware, torch, atau cv2 ke CI.** FastAPI `TestClient` boleh, tapi hanya untuk hal yang memang cuma ada di lapisan HTTP (penjaga sesi): app-nya dirakit sendiri di test dengan dependensi di-override, **bukan** `create_console_app()` — yang itu menyentuh `state/console.db` milik developer.
 - From-zero prod setup (NVIDIA toolkit, MVS install, camera IP): `docs/SETUP.md`.
 
 ---
@@ -155,19 +155,19 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/logout` | akhiri sesi ini saja |
 | GET | `/api/console/me` | operator yang sedang masuk |
 | GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
-| GET | `/api/console/history` | filter `tanggal_kerja` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas |
-| GET | `/api/console/trucks` | master truk + supplier + `sumber_label` |
+| GET | `/api/console/history` | filter `work_date` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas |
+| GET | `/api/console/trucks` | master truk + supplier + `source_label` |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
 | GET | `/api/console/trucks/{plat}/qr.png` | kartu QR untuk ditempel di truk / dikirim ke HP supir. **Dibuat di server** (`segno`, pure-Python) karena `console.html` nol referensi `https://` — pustaka CDN akan mati saat internet putus. Isinya plat ternormalisasi, divalidasi ulang sebelum dicetak. Truk yang belum terdaftar tetap dilayani: kartu dicetak dulu, truknya didaftarkan kemudian |
 | POST | `/api/console/scan/keluar` | `{qr}` di gerbang keluar → tiket yang menunggu tara. **Dua tiket terbuka ditolak, tidak ditebak** (keputusan operator 2026-09-15): menebak bisa memasangkan tara ke kunjungan yang salah dan mencampur tonase dua kunjungan. Dibatasi hari kerja: tiket kemarin yang taranya kosong akan memberi neto dari bruto kemarin dan tara hari ini |
 | POST | `/api/console/scan` | `{qr}` hasil scan di gerbang timbangan → truk yang sudah ada. Truk belum terdaftar dijawab **200 `ditemukan:false`** (truk pinjaman itu kasus normal, 404 terbaca seperti kerusakan); yang bukan plat **400**. **Tidak pernah membuat truk dan tidak pernah menulis berat** |
 | GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto) |
 | POST | `/api/console/weighings` | operator mengetik bruto/tara sendiri — payload identik dengan kiriman program timbangan |
-| GET | `/api/console/recap` | rekap per truk satu hari kerja (janjang, ACC/REJ, neto) — `?tanggal_kerja=` opsional |
+| GET | `/api/console/recap` | rekap per truk satu hari kerja (janjang, ACC/REJ, neto) — `?work_date=` opsional |
 | POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line |
 | POST | `/api/console/lines/{line}/release-truck` | truk pergi → `/internal/assignment` line dengan truk kosong |
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
-| GET | `/api/console/dev/ping` | lane developer paling ringan — dipakai layar untuk memastikan akses masih hidup. **Semua tujuh baris di bawah ini butuh `peran='support'`, dijawab 403 kalau bukan** |
+| GET | `/api/console/dev/ping` | lane developer paling ringan — dipakai layar untuk memastikan akses masih hidup. **Semua tujuh baris di bawah ini butuh `role='support'`, dijawab 403 kalau bukan** |
 | GET | `/api/console/dev/log` | isi `log_kejadian` — filter `level`/`cari`, pagination `limit`+`offset` |
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu layar |
 | GET | `/api/console/dev/antrean` | isi `erp_outbox` — jumlah pending/gagal + daftar yang gagal |
@@ -287,7 +287,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    pulang lebih awal tanpanya), jadi dengan R2 mati tidak ada yang membersihkan
    disk sama sekali — dan memang tidak boleh ada, karena tidak ada yang `done`.
 
-10. **Konsol: `tanggal_kerja` dihitung saat ingest, lalu DISIMPAN** (§6.1). Pabrik jalan ~20
+10. **Konsol: `work_date` dihitung saat ingest, lalu DISIMPAN** (§6.1). Pabrik jalan ~20
     jam/hari **lewat tengah malam**, jadi batas hari UTC memotong satu shift jadi dua tanggal.
     `domain/working_day.py` menurunkannya dari timestamp event itu sendiri di `FACTORY_TZ` —
     **jangan pernah** dari `now()`, `creation`, atau nama folder. Timestamp cacat → `ValueError`
@@ -305,7 +305,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     External; truk yang **sudah ada di ERP** tanpa supplier → Internal; truk tanpa supplier yang
     belum dilihat ERP → `—`. Kelima query store memakai satu `_SOURCE_FACTS`, jadi tidak ada tab
     yang berlabel beda. **Jangan** menurunkan sumber dari nama grup supplier. Grup tetap disimpan
-    **mentah** di `suppliers.sumber` karena beda Plasma vs agen hidup di sana; **jangan pernah**
+    **mentah** di `suppliers.source_group` karena beda Plasma vs agen hidup di sana; **jangan pernah**
     bikin boolean `is_internal`.
 13. **Penugasan truk: line dulu, baru dicatat.** `assign_truck` menunggu line menerima sebelum
     menyimpan. Layar yang menampilkan truk terpasang padahal line tidak tahu apa-apa membuat
@@ -345,24 +345,24 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     `autograde_visit_id` kunjungan pertama sambil menyisakan tara + jam keluarnya — netonya jadi
     campuran dua kunjungan dan kunjungan pertama hilang dari pembukuan. Dibuktikan live
     2026-09-14; dilaporkan ke Mas Samuel, jangan ditambal dari sisi konsol.
-15. **Timbangan: `neto_kg` dihitung, tidak pernah dipercaya mentah** (§3.5c). Pengirim boleh
+15. **Timbangan: `net_kg` dihitung, tidak pernah dipercaya mentah** (§3.5c). Pengirim boleh
     menyertakannya; kalau bedanya dari `bruto − tara` lewat `TOLERANSI_NETO_KG` (1 kg) kiriman
     **ditolak 400**. Ini angka yang dibayar ke petani — dua sumber kebenaran yang diam-diam
     berbeda adalah cara paling rapi untuk salah bayar berbulan-bulan.
     Timbang-masuk dan timbang-keluar adalah **dua POST untuk satu baris**, digabung lewat
     `COALESCE` per kolom: kiriman kedua yang cuma membawa tara tidak boleh menghapus bruto.
-    Kuncinya `ref` kalau ada, kalau tidak uuid5 dari (plat ternormalisasi + `waktu_masuk`) —
+    Kuncinya `ref` kalau ada, kalau tidak uuid5 dari (plat ternormalisasi + `entered_at`) —
     tanpa salah satu dari keduanya kiriman **ditolak**, karena timbang-keluar tidak akan bisa
     menemukan barisnya dan satu tiket pecah jadi dua.
     Pemisah ribuan tanpa desimal (`"14.820"` untuk empat belas ton) parse **bersih** jadi
     14,82 dan tidak ada apa pun di payload yang membantahnya, jadi yang menangkapnya lantai
-    `MINIMUM_BERAT_KG` = 100 kg pada `bruto_kg`/`tara_kg` — truk kosong saja sudah berton-ton,
+    `MINIMUM_BERAT_KG` = 100 kg pada `gross_kg`/`tare_kg` — truk kosong saja sudah berton-ton,
     berat sungguhan melewatinya dua orde besaran.
     ⚠️ Format asli program timbangan **belum diketahui** (`../docs/PERTANYAAN-TERBUKA.md` X1).
     Yang dibekukan di sini bentuk KITA; begitu formatnya turun, yang ditambah **adapter**,
     bukan bongkar tabel.
 17. **Rekap: grading dan timbangan dua sumber terpisah, cuma disandingkan.** `rekap()`
-    menjumlah `neto_kg` per truk **di Python**, bukan mem-JOIN agregat `weighings` ke query
+    menjumlah `net_kg` per truk **di Python**, bukan mem-JOIN agregat `weighings` ke query
     GROUP BY grading: satu truk bisa punya lebih dari satu tiket sehari, dan join itu
     mengalikan jumlah janjang dengan jumlah tiket. Baris `truck_id IS NULL` **tetap
     ditampilkan** ("Tanpa truk") — janjang yang ter-grading sebelum truk dipasang justru yang
@@ -450,7 +450,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     **Input manual tetap ada dan tidak boleh dihapus**: truk pinjaman, dan layar HP
     retak / gelap / kena matahari langsung adalah kasus nyata di gerbang.
 19. **Login konsol: email + sandi, dua sumber akun, diverifikasi offline** (Fase 4, §6.5).
-    Akun datang dari dua tempat dan barisnya menyimpan yang mana (`operators.asal`):
+    Akun datang dari dua tempat dan barisnya menyimpan yang mana (`operators.origin`):
     `erp` ditarik dari DocType **`AutoGrade Operator`** (dibuat 2026-09-15, §4.A —
     `name, email, full_name, active, password_hash, modified`, kursor `erp_cursor_operator`),
     `lokal` ditulis `make operator` di PC itu (akun bawaan + akun support, satu-satunya cara
@@ -492,7 +492,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     Ketujuh `/api/console/dev/*` (tabel di atas) lewat `require_support` — itu yang
     sebenarnya menolak 403, dan tab developer yang disembunyikan dari operator biasa di
     `console.html` cuma kerapian, bukan pengaman: siapa pun yang tahu URL-nya tetap
-    ditolak backend kalau `peran` bukan `support`.
+    ditolak backend kalau `role` bukan `support`.
     **`PERAN_ERP_DIIZINKAN`** (bawaan `support`) membatasi peran mana yang boleh datang
     dari AutoERP (`domain/peran.py`, `saring_peran_erp`) — **satu-satunya rem sisi
     pabrik**: kosongkan lalu restart, dan tidak ada akun ERP yang bisa membuka layar

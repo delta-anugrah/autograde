@@ -58,7 +58,7 @@ class _StubConsole:
 def console(tmp_path):
     store = ConsoleStore(tmp_path / "console.db")
     store.upsert_operator_lokal(
-        {"email": EMAIL, "nama": NAMA, "password_hash": hash_password(SANDI)}
+        {"email": EMAIL, "full_name": NAMA, "password_hash": hash_password(SANDI)}
     )
     auth = AuthService(store)
     stub = _StubConsole()
@@ -91,7 +91,7 @@ def test_the_right_password_opens_every_lane(console):
 
     assert _sign_in(client).status_code == 200
     assert client.get("/api/console/state").status_code == 200
-    assert client.get("/api/console/me").json()["operator"]["nama"] == NAMA
+    assert client.get("/api/console/me").json()["operator"]["full_name"] == NAMA
 
 
 def test_the_session_cookie_cannot_be_read_by_a_script_on_the_page(console):
@@ -215,7 +215,7 @@ def test_lane_support_menolak_operator_biasa(console):
 def test_lane_support_menerima_akun_support(console):
     client, store, _ = console
     oid = store.upsert_operator_lokal(
-        {"email": "s@b.c", "nama": "S", "password_hash": hash_password(SANDI)}
+        {"email": "s@b.c", "full_name": "S", "password_hash": hash_password(SANDI)}
     )
     store.set_peran(oid, "support")
 
@@ -238,11 +238,11 @@ def test_lane_support_tanpa_sesi_tetap_401(console):
 def test_me_membawa_peran(console):
     client, store, _ = console
     oid = store.upsert_operator_lokal(
-        {"email": "s@b.c", "nama": "S", "password_hash": hash_password(SANDI)}
+        {"email": "s@b.c", "full_name": "S", "password_hash": hash_password(SANDI)}
     )
     store.set_peran(oid, "support")
 
     _sign_in(client, email="s@b.c")
     response = client.get("/api/console/me")
 
-    assert response.json()["operator"]["peran"] == "support"
+    assert response.json()["operator"]["role"] == "support"

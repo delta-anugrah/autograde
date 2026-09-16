@@ -44,7 +44,7 @@ class _StubConsole:
 def gerbang(tmp_path):
     store = ConsoleStore(tmp_path / "console.db")
     store.upsert_operator_lokal(
-        {"email": EMAIL, "nama": "Operator Gerbang", "password_hash": hash_password(SANDI)}
+        {"email": EMAIL, "full_name": "Operator Gerbang", "password_hash": hash_password(SANDI)}
     )
     store.upsert_truck(
         {
@@ -79,7 +79,7 @@ def gerbang_penuh(tmp_path):
 
     store = ConsoleStore(tmp_path / "console.db")
     store.upsert_operator_lokal(
-        {"email": EMAIL, "nama": "Operator Gerbang", "password_hash": hash_password(SANDI)}
+        {"email": EMAIL, "full_name": "Operator Gerbang", "password_hash": hash_password(SANDI)}
     )
     store.upsert_truck(
         {"id": truck_id_for(PLAT), "plate_number": PLAT, "status": "active",
@@ -316,8 +316,8 @@ def test_scan_lalu_timbang_masuk_mendarat_di_truk_yang_sama(gerbang_penuh):
         "/api/console/weighings",
         json={
             "plate_number": hasil["truck"]["plate_number"],
-            "bruto_kg": 13250,
-            "waktu_masuk": "2026-09-15T08:55:00+07:00",
+            "gross_kg": 13250,
+            "entered_at": "2026-09-15T08:55:00+07:00",
         },
     )
 
@@ -380,8 +380,8 @@ def test_kartu_qr_yang_dicetak_bisa_dipakai_scan(gerbang):
 def _masuk_timbang(client, plat: str, jam: str = "08:00:00") -> dict:
     jawab = client.post(
         "/api/console/weighings",
-        json={"plate_number": plat, "bruto_kg": 13250,
-              "waktu_masuk": f"2026-09-15T{jam}+07:00"},
+        json={"plate_number": plat, "gross_kg": 13250,
+              "entered_at": f"2026-09-15T{jam}+07:00"},
     )
     assert jawab.status_code == 201, jawab.text
     return jawab.json()
@@ -408,7 +408,7 @@ def test_scan_keluar_menemukan_tiket_yang_menunggu_tara(gerbang_penuh):
     hasil = jawab.json()
     assert hasil["ditemukan"] is True
     assert hasil["weighing"]["id"] == tiket["id"]
-    assert hasil["weighing"]["bruto_kg"] == 13250
+    assert hasil["weighing"]["gross_kg"] == 13250
 
 
 def test_scan_keluar_lalu_catat_tara_menutup_tiket_yang_sama(gerbang_penuh):
@@ -423,12 +423,12 @@ def test_scan_keluar_lalu_catat_tara_menutup_tiket_yang_sama(gerbang_penuh):
 
     jawab = client.post(
         "/api/console/weighings",
-        json={"plate_number": PLAT, "ref": w.get("ref"), "waktu_masuk": w["waktu_masuk"],
-              "tara_kg": 5000, "waktu_keluar": "2026-09-15T09:00:00+07:00"},
+        json={"plate_number": PLAT, "ref": w.get("ref"), "entered_at": w["entered_at"],
+              "tare_kg": 5000, "exited_at": "2026-09-15T09:00:00+07:00"},
     )
 
     assert jawab.status_code == 201
-    assert jawab.json()["neto_kg"] == 8250.0
+    assert jawab.json()["net_kg"] == 8250.0
     # Dan tiketnya tidak terbuka lagi.
     ulang = client.post("/api/console/scan/keluar", json={"qr": "BE4412OFL"}).json()
     assert ulang["ditemukan"] is False

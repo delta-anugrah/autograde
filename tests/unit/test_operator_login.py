@@ -29,7 +29,7 @@ ERP_HASH = "$pbkdf2-sha256$29000$LuX8f895T2kNYcx5T2nt3Q$D5HIS3SGDVbL0W7HeOWXMlT9
 def _auth(tmp_path, *, now: float = 1000.0):
     store = ConsoleStore(tmp_path / "console.db")
     store.upsert_operator_lokal(
-        {"email": EMAIL, "nama": NAMA, "password_hash": hash_password(SANDI)}
+        {"email": EMAIL, "full_name": NAMA, "password_hash": hash_password(SANDI)}
     )
     clock = [now]
     return AuthService(store, now=lambda: clock[0]), store, clock
@@ -47,8 +47,8 @@ def test_the_right_password_opens_a_session_that_names_its_operator(tmp_path):
 
     token, operator = auth.login(EMAIL, SANDI)
 
-    assert (operator["nama"], operator["email"]) == (NAMA, EMAIL)
-    assert auth.current(token)["nama"] == NAMA
+    assert (operator["full_name"], operator["email"]) == (NAMA, EMAIL)
+    assert auth.current(token)["full_name"] == NAMA
 
 
 def test_an_account_pulled_from_autoerp_signs_in_without_asking_autoerp(tmp_path):
@@ -58,7 +58,7 @@ def test_an_account_pulled_from_autoerp_signs_in_without_asking_autoerp(tmp_path
     store.upsert_operator_erp(
         {
             "email": "sari@pks.test",
-            "nama": "Bu Sari",
+            "full_name": "Bu Sari",
             "password_hash": ERP_HASH,
             "erp_name": "sari@pks.test",
             "active": 1,
@@ -67,7 +67,7 @@ def test_an_account_pulled_from_autoerp_signs_in_without_asking_autoerp(tmp_path
 
     token, operator = auth.login("sari@pks.test", SANDI)
 
-    assert operator["nama"] == "Bu Sari"
+    assert operator["full_name"] == "Bu Sari"
     assert auth.current(token) is not None
 
 
@@ -86,7 +86,7 @@ def test_a_wrong_password_says_nothing_about_which_part_was_wrong(tmp_path):
     shared screen must not let anyone map out who exists."""
     auth, store, _ = _auth(tmp_path)
     store.upsert_operator_lokal(
-        {"email": "mati@pks.test", "nama": "Sudah Keluar", "password_hash": hash_password(SANDI)}
+        {"email": "mati@pks.test", "full_name": "Sudah Keluar", "password_hash": hash_password(SANDI)}
     )
     store.set_operator_status(operator_id_for("mati@pks.test"), "off")
 
@@ -114,7 +114,7 @@ def test_an_oversized_password_never_reaches_the_hash(tmp_path, monkeypatch):
 
     assert refused.value.code == SANDI_SALAH
     assert hashed == []
-    assert store.operator(operator_id_for(EMAIL))["gagal_count"] == 1
+    assert store.operator(operator_id_for(EMAIL))["fail_count"] == 1
 
 
 def test_an_empty_password_is_refused_and_counted(tmp_path):
@@ -122,13 +122,13 @@ def test_an_empty_password_is_refused_and_counted(tmp_path):
     must not be openable by sending nothing."""
     auth, store, _ = _auth(tmp_path)
     store.upsert_operator_erp(
-        {"email": "baru@pks.test", "nama": "Belum Diisi", "password_hash": "", "active": 1}
+        {"email": "baru@pks.test", "full_name": "Belum Diisi", "password_hash": "", "active": 1}
     )
 
     with pytest.raises(OperatorError):
         auth.login("baru@pks.test", "")
 
-    assert store.operator(operator_id_for("baru@pks.test"))["gagal_count"] == 1
+    assert store.operator(operator_id_for("baru@pks.test"))["fail_count"] == 1
 
 
 def test_five_wrong_passwords_shut_sign_in_and_the_answer_says_for_how_long(tmp_path):
@@ -152,7 +152,7 @@ def test_the_right_password_gets_in_once_the_lockout_has_run_out(tmp_path):
     token, _ = auth.login(EMAIL, SANDI)
 
     assert auth.current(token) is not None
-    assert store.operator(operator_id_for(EMAIL))["gagal_count"] == 0
+    assert store.operator(operator_id_for(EMAIL))["fail_count"] == 0
 
 
 def test_a_session_lasts_a_shift_and_not_a_day(tmp_path):
@@ -199,4 +199,4 @@ def test_the_sign_in_screen_gets_no_hashes(tmp_path):
 
     [operator] = auth.operators()
 
-    assert set(operator) == {"id", "email", "nama", "status", "asal"}
+    assert set(operator) == {"id", "email", "full_name", "status", "origin"}

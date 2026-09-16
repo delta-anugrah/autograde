@@ -40,7 +40,7 @@ def _worker(tmp_path, clock: Clock) -> tuple[VisitResendWorker, ConsoleStore, Er
     return VisitResendWorker(queue, store, WIB, clock=clock), store, outbox
 
 
-def _weighing(store: ConsoleStore, weighing_id: str, tanggal_kerja: str) -> None:
+def _weighing(store: ConsoleStore, weighing_id: str, work_date: str) -> None:
     store.upsert_weighing(
         {
             "id": weighing_id,
@@ -48,12 +48,12 @@ def _weighing(store: ConsoleStore, weighing_id: str, tanggal_kerja: str) -> None
             "plate_number": PLATE,
             "plate_norm": "BE8821KL",
             "truck_id": truck_id_for(PLATE),
-            "tanggal_kerja": tanggal_kerja,
-            "bruto_kg": 14560.0,
-            "tara_kg": 5400.0,
-            "neto_kg": 9160.0,
-            "waktu_masuk": f"{tanggal_kerja}T07:41:00+07:00",
-            "waktu_keluar": f"{tanggal_kerja}T08:35:00+07:00",
+            "work_date": work_date,
+            "gross_kg": 14560.0,
+            "tare_kg": 5400.0,
+            "net_kg": 9160.0,
+            "entered_at": f"{work_date}T07:41:00+07:00",
+            "exited_at": f"{work_date}T08:35:00+07:00",
         }
     )
 

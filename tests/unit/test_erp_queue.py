@@ -33,12 +33,12 @@ def _weighing(store: ConsoleStore, **over) -> str:
         "plate_number": PLATE,
         "plate_norm": "BE8821KL",
         "truck_id": truck_id_for(PLATE),
-        "tanggal_kerja": "2026-09-13",
-        "bruto_kg": 14560.0,
-        "tara_kg": None,
-        "neto_kg": None,
-        "waktu_masuk": "2026-09-13T07:41:00+07:00",
-        "waktu_keluar": None,
+        "work_date": "2026-09-13",
+        "gross_kg": 14560.0,
+        "tare_kg": None,
+        "net_kg": None,
+        "entered_at": "2026-09-13T07:41:00+07:00",
+        "exited_at": None,
     } | over
     store.upsert_weighing(row)
     return row["id"]
@@ -129,7 +129,7 @@ def test_a_day_of_visits_can_be_queued_again(tmp_path):
     queue, store, outbox = _queue(tmp_path)
     _linked_truck(store)
     _weighing(store)
-    _weighing(store, id="w2", ref="SCL-2", waktu_masuk="2026-09-13T09:00:00+07:00")
+    _weighing(store, id="w2", ref="SCL-2", entered_at="2026-09-13T09:00:00+07:00")
 
     assert queue.visits_on("2026-09-13") == 2
     assert sorted(m.key for m in outbox.due()) == ["w1", "w2"]
@@ -148,7 +148,7 @@ def _grade(store: ConsoleStore, *, assignment_id: str, acc: int, rej: int, long_
                 "event_id": f"{assignment_id}-{n}",
                 "machine_id": "m1",
                 "line_code": "line-1",
-                "tanggal_kerja": "2026-09-13",
+                "work_date": "2026-09-13",
                 "timestamp": f"2026-09-13T08:0{n}:00+07:00",
                 "ripeness_status": status,
                 "ripeness_confidence": 0.9,

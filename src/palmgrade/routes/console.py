@@ -105,7 +105,7 @@ def require_support(operator: Operator) -> dict:
     console.html is tidiness, not security. Every `/api/console/dev/*` route
     goes through here so none can forget the check.
     """
-    if operator.get("peran") != PERAN_SUPPORT:
+    if operator.get("role") != PERAN_SUPPORT:
         raise _operator_error(
             403, OperatorError(BUKAN_SUPPORT, "menu ini untuk akun support")
         )
@@ -182,8 +182,8 @@ async def console_me(operator: Operator) -> dict:
         "operator": {
             "id": operator["operator_id"],
             "email": operator["email"],
-            "nama": operator["nama"],
-            "peran": operator["peran"],
+            "full_name": operator["full_name"],
+            "role": operator["role"],
         }
     }
 
@@ -197,19 +197,19 @@ async def console_state(service: Service, operator: Operator) -> dict:
 async def console_history(
     service: Service,
     operator: Operator,
-    tanggal_kerja: str | None = None,
+    work_date: str | None = None,
     line_code: str | None = None,
     truck_id: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> dict:
-    tanggal = tanggal_kerja or service.today()
+    tanggal = work_date or service.today()
     # `items` keeps its shape; `total` is added beside it so the screen can page without
     # a second round trip, and older callers that only read `items` are unaffected.
     halaman = service.history_halaman(
         tanggal, line_code=line_code, truck_id=truck_id, limit=limit, offset=offset
     )
-    return {"tanggal_kerja": tanggal, **halaman}
+    return {"work_date": tanggal, **halaman}
 
 
 @router.get("/api/console/trucks")
@@ -304,20 +304,20 @@ async def console_truck_qr(plate_number: str, operator: Operator) -> Response:
 async def console_weighings(
     service: Service,
     operator: Operator,
-    tanggal_kerja: str | None = None,
+    work_date: str | None = None,
     limit: int = Query(100, ge=1, le=500),
 ) -> dict:
-    tanggal = tanggal_kerja or service.today()
-    return {"tanggal_kerja": tanggal, "items": service.weighings(tanggal, limit=limit)}
+    tanggal = work_date or service.today()
+    return {"work_date": tanggal, "items": service.weighings(tanggal, limit=limit)}
 
 
 @router.get("/api/console/recap")
 async def console_recap(
-    service: Service, operator: Operator, tanggal_kerja: str | None = None
+    service: Service, operator: Operator, work_date: str | None = None
 ) -> dict:
     """What the supplier is handed: bunches and neto per truck for one day."""
-    tanggal = tanggal_kerja or service.today()
-    return {"tanggal_kerja": tanggal, "items": service.rekap(tanggal)}
+    tanggal = work_date or service.today()
+    return {"work_date": tanggal, "items": service.rekap(tanggal)}
 
 
 @router.post("/api/console/weighings", status_code=201)
@@ -365,7 +365,7 @@ async def manual_reject(line_code: str, service: Service, operator: Operator) ->
     """Recorded against whoever is signed in. It used to be the literal "operator"
     from the request body, which left the one action with a name on it anonymous."""
     try:
-        return await service.manual_reject(line_code, operator["nama"])
+        return await service.manual_reject(line_code, operator["full_name"])
     except ValueError as exc:
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
@@ -489,12 +489,12 @@ async def ingest_event(
     if x_webhook_secret != service.settings.webhook_secret:
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
     try:
-        tanggal_kerja = service.ingest(payload)
+        work_date = service.ingest(payload)
     except ValueError as exc:
         # 400 → the line's outbox holds it and marks it failed. Not 200 on
         # purpose: a malformed event must be visible, not vanish.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"status": "ok", "tanggal_kerja": tanggal_kerja}
+    return {"status": "ok", "work_date": work_date}
 
 
 @ingest_router.post("/internal/scale/weighing", status_code=201)
@@ -506,8 +506,8 @@ async def ingest_weighing(
     """Scale program payload (§3.5c). Same secret as the event lane.
 
     The real format is unknown (docs/PERTANYAAN-TERBUKA.md X1); what is frozen
-    here is our shape — `plate_number`, `bruto_kg`, `tara_kg`, `waktu_masuk`,
-    `waktu_keluar`, optional `ref`. An adapter follows once the format lands.
+    here is our shape — `plate_number`, `gross_kg`, `tare_kg`, `entered_at`,
+    `exited_at`, optional `ref`. An adapter follows once the format lands.
     """
     if x_webhook_secret != service.settings.webhook_secret:
         raise HTTPException(status_code=401, detail="Invalid webhook secret")

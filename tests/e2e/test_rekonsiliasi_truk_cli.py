@@ -69,12 +69,12 @@ def db_pabrik(tmp_path) -> Path:
                 "plate_number": p,
                 "plate_norm": p.replace(" ", "").replace("-", "").upper(),
                 "truck_id": tid,
-                "tanggal_kerja": "2026-09-15",
-                "bruto_kg": 13000.0,
-                "tara_kg": 5000.0,
-                "neto_kg": 8000.0,
-                "waktu_masuk": "2026-09-15T08:00:00+07:00",
-                "waktu_keluar": "2026-09-15T09:00:00+07:00",
+                "work_date": "2026-09-15",
+                "gross_kg": 13000.0,
+                "tare_kg": 5000.0,
+                "net_kg": 8000.0,
+                "entered_at": "2026-09-15T08:00:00+07:00",
+                "exited_at": "2026-09-15T09:00:00+07:00",
             }
         )
 
@@ -94,7 +94,7 @@ def db_pabrik(tmp_path) -> Path:
 def _neto(db: Path) -> float:
     con = sqlite3.connect(db)
     try:
-        return con.execute("SELECT COALESCE(SUM(neto_kg), 0) FROM weighings").fetchone()[0]
+        return con.execute("SELECT COALESCE(SUM(net_kg), 0) FROM weighings").fetchone()[0]
     finally:
         con.close()
 

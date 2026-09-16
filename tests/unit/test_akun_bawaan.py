@@ -60,7 +60,7 @@ def test_kedua_akun_dibuat_dan_bisa_dipakai_masuk(tmp_path):
     for email, sandi in ((EMAIL_BAWAAN, SANDI_BAWAAN), (EMAIL_SUPPORT, SANDI_SUPPORT)):
         row = store.operator_by_email(email)
         assert row["status"] == "active"
-        assert row["asal"] == "lokal", "akun bawaan milik PC ini, bukan milik AutoERP"
+        assert row["origin"] == "lokal", "akun bawaan milik PC ini, bukan milik AutoERP"
         assert verify_password(sandi, row["password_hash"])
 
 
@@ -79,7 +79,7 @@ def test_seed_kedua_kali_tidak_menimpa_apa_pun(tmp_path):
     store.upsert_operator_lokal(
         {
             "email": EMAIL_BAWAAN,
-            "nama": "Pak Budi",
+            "full_name": "Pak Budi",
             "password_hash": hash_password("sudahdiganti2026"),
         }
     )
@@ -159,7 +159,7 @@ def test_akun_milik_autoerp_dengan_email_sama_tidak_disentuh(tmp_path):
     store.upsert_operator_erp(
         {
             "email": EMAIL_SUPPORT,
-            "nama": "Support ERP",
+            "full_name": "Support ERP",
             "password_hash": erp_hash,
             "erp_name": EMAIL_SUPPORT,
             "active": 1,
@@ -169,24 +169,24 @@ def test_akun_milik_autoerp_dengan_email_sama_tidak_disentuh(tmp_path):
     _seed(store)
 
     row = store.operator_by_email(EMAIL_SUPPORT)
-    assert (row["asal"], row["password_hash"]) == ("erp", erp_hash)
+    assert (row["origin"], row["password_hash"]) == ("erp", erp_hash)
 
 
 def test_akun_support_dibuat_dengan_peran_support(tmp_path):
     store = _store(tmp_path)
     _seed(store)
-    assert store.operator_by_email(EMAIL_SUPPORT)["peran"] == "support"
-    assert store.operator_by_email(EMAIL_BAWAAN)["peran"] == "operator"
+    assert store.operator_by_email(EMAIL_SUPPORT)["role"] == "support"
+    assert store.operator_by_email(EMAIL_BAWAAN)["role"] == "operator"
 
 
 def test_akun_support_lama_dinaikkan_tanpa_menyentuh_sandi(tmp_path):
-    """A PC upgrading from before the `peran` column must gain the role
+    """A PC upgrading from before the `role` column must gain the role
     without its factory-set password reverting to the seed default."""
     store = _store(tmp_path)
     store.upsert_operator_lokal(
-        {"email": EMAIL_SUPPORT, "nama": "Support", "password_hash": "scrypt$sandi-mill"}
+        {"email": EMAIL_SUPPORT, "full_name": "Support", "password_hash": "scrypt$sandi-mill"}
     )
     _seed(store)
     row = store.operator_by_email(EMAIL_SUPPORT)
-    assert row["peran"] == "support"
+    assert row["role"] == "support"
     assert row["password_hash"] == "scrypt$sandi-mill"

@@ -61,7 +61,7 @@ def test_retyping_a_truck_autoerp_owns_changes_nothing(tmp_path):
     service.daftar_truk_manual("be-8821-kl")
 
     [truck] = service.trucks()
-    assert (truck["supplier_name"], truck["sumber_label"], truck["status"]) == (
+    assert (truck["supplier_name"], truck["source_label"], truck["status"]) == (
         "KUD Sumber Makmur", "External", "active",
     )
     assert outbox.due() == [], "AutoERP already owns this truck; nothing to send"

@@ -44,11 +44,11 @@ def seed_akun_bawaan(
     accounts whose passwords are identical across images.
     """
     dibuat = []
-    for email, nama, hash_sandi in (
+    for email, full_name, hash_sandi in (
         (EMAIL_BAWAAN, _NAMA_BAWAAN, hash_bawaan),
         (EMAIL_SUPPORT, _NAMA_SUPPORT, hash_support),
     ):
-        if _buat_kalau_belum_ada(store, email, nama, hash_sandi):
+        if _buat_kalau_belum_ada(store, email, full_name, hash_sandi):
             dibuat.append(email)
     _pastikan_peran_support(store)
     return dibuat
@@ -56,15 +56,15 @@ def seed_akun_bawaan(
 
 def _pastikan_peran_support(store: ConsoleStore) -> None:
     """Promote the support account, including on a PC that had it before the
-    `peran` column existed. Touches only `peran`, never the password — same
+    `role` column existed. Touches only `role`, never the password — same
     reason the seed never re-upserts an existing account."""
     row = store.operator_by_email(EMAIL_SUPPORT)
-    if row is not None and row["peran"] != PERAN_SUPPORT:
+    if row is not None and row["role"] != PERAN_SUPPORT:
         store.set_peran(row["id"], PERAN_SUPPORT)
 
 
 def _buat_kalau_belum_ada(
-    store: ConsoleStore, email: str, nama: str, hash_sandi: str
+    store: ConsoleStore, email: str, full_name: str, hash_sandi: str
 ) -> bool:
     if not hash_sandi:
         # A build with no hash, or a `.env` nobody filled in. Skipped silently: this is
@@ -86,7 +86,7 @@ def _buat_kalau_belum_ada(
     if store.operator(operator_id_for(email)) is not None:
         return False
 
-    store.upsert_operator_lokal({"email": email, "nama": nama, "password_hash": hash_sandi})
+    store.upsert_operator_lokal({"email": email, "full_name": full_name, "password_hash": hash_sandi})
     logger.info("Akun bawaan %s dibuat dari hash yang ditanam di image", email)
     return True
 

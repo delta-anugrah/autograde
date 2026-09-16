@@ -53,7 +53,7 @@ class ScanService:
 
         return {"ditemukan": True, "plate_number": plat, "truck": truk}
 
-    def tiket_terbuka(self, teks_qr: str, tanggal_kerja: str) -> dict[str, Any]:
+    def tiket_terbuka(self, teks_qr: str, work_date: str) -> dict[str, Any]:
         """Scan kedua, di gerbang keluar: tiket mana yang sedang menunggu tara.
 
         Operator scan platnya, sistem yang mencari tiketnya — bukan operator yang
@@ -65,7 +65,7 @@ class ScanService:
         AutoERP. Layar menampilkan keduanya dan operator memilih sendiri.
         """
         plat = baca_qr(teks_qr)
-        terbuka = self.store.weighings_terbuka(truck_id_for(plat), tanggal_kerja)
+        terbuka = self.store.weighings_terbuka(truck_id_for(plat), work_date)
 
         if len(terbuka) == 1:
             return {"ditemukan": True, "plate_number": plat, "weighing": terbuka[0]}

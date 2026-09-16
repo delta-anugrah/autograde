@@ -23,7 +23,7 @@ def supplier_row(doc: dict[str, Any]) -> dict[str, Any]:
         "erp_name": erp_name,
         "name": doc.get("supplier_name") or erp_name,
         # Raw group: AutoERP keeps Plasma vs agent here.
-        "sumber": doc.get("supplier_group"),
+        "source_group": doc.get("supplier_group"),
         # Marked, never dropped: history still points at it.
         "status": "inactive" if doc.get("disabled") else "active",
     }
@@ -45,7 +45,7 @@ def operator_row(doc: dict[str, Any]) -> dict[str, Any]:
     email = doc.get("email") or erp_name
     return {
         "email": email,
-        "nama": doc.get("full_name") or email,
+        "full_name": doc.get("full_name") or email,
         "password_hash": doc.get("password_hash") or "",
         "erp_name": erp_name,
         # AutoERP's word for it; the store turns it into `status`.

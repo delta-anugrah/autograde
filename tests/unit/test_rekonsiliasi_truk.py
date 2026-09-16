@@ -50,12 +50,12 @@ def _timbangan(store: ConsoleStore, wid: str, truck_id: str, plat: str, **over) 
         "plate_number": plat,
         "plate_norm": plat.replace(" ", "").replace("-", "").upper(),
         "truck_id": truck_id,
-        "tanggal_kerja": "2026-09-15",
-        "bruto_kg": 13250.0,
-        "tara_kg": None,
-        "neto_kg": None,
-        "waktu_masuk": "2026-09-15T08:55:00+07:00",
-        "waktu_keluar": None,
+        "work_date": "2026-09-15",
+        "gross_kg": 13250.0,
+        "tare_kg": None,
+        "net_kg": None,
+        "entered_at": "2026-09-15T08:55:00+07:00",
+        "exited_at": None,
     }
     row.update(over)
     store.upsert_weighing(row)
@@ -67,7 +67,7 @@ def _inspeksi(store: ConsoleStore, event_id: str, truck_id: str) -> None:
             "event_id": event_id,
             "machine_id": "m-1",
             "line_code": "line-1",
-            "tanggal_kerja": "2026-09-15",
+            "work_date": "2026-09-15",
             "timestamp": "2026-09-15T09:00:00+07:00",
             "ripeness_status": "ACC",
             "ripeness_confidence": 0.9,

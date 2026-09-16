@@ -238,7 +238,7 @@ class Settings:
     upload_disk_min_free_gb: float = field(default_factory=lambda: float(os.getenv("UPLOAD_DISK_MIN_FREE_GB", "20")))
 
     # ── Operator console (APP_MODE=console) ──────────────────────
-    # Mill timezone. Used ONLY to derive `tanggal_kerja` at ingest (§6.1): a
+    # Mill timezone. Used ONLY to derive `work_date` at ingest (§6.1): a
     # mill runs ~20 h a day ACROSS midnight, so a UTC day boundary cuts one
     # shift in two. Resolved once at boot — a bogus TZ must fail at startup
     # rather than quietly file months of rows under the wrong date.

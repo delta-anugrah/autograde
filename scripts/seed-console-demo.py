@@ -101,18 +101,18 @@ n += 1
 for ref, bruto in (("TKT-1001", 12480), ("TKT-1002", 11950)):
     post("/api/v1/internal/scale/weighing", {
         "ref": ref, "plate_number": "BE 8821 KL",
-        "waktu_masuk": (now - timedelta(hours=2)).isoformat(),
-        "bruto_kg": bruto, "tara_kg": 5120,
+        "entered_at": (now - timedelta(hours=2)).isoformat(),
+        "gross_kg": bruto, "tare_kg": 5120,
     }, secret=True)
 post("/api/v1/internal/scale/weighing", {
     "ref": "TKT-1003", "plate_number": "B 1234 XY",
-    "waktu_masuk": (now - timedelta(hours=1)).isoformat(),
-    "bruto_kg": 9870.5, "tara_kg": 4200,
+    "entered_at": (now - timedelta(hours=1)).isoformat(),
+    "gross_kg": 9870.5, "tare_kg": 4200,
 }, secret=True)
 
 state = get("/api/console/state")
 recap = get("/api/console/recap")
-print(f"{n} grading + 3 tiket timbangan masuk, hari kerja {state['tanggal_kerja']}")
+print(f"{n} grading + 3 tiket timbangan masuk, hari kerja {state['work_date']}")
 for r in recap["items"]:
     print(f"  {r['plate_number'] or '(tanpa truk)':<14} total={r['total']:<4} "
-          f"acc={r['acc']:<4} rej={r['rej']:<3} neto={r['neto_kg']}")
+          f"acc={r['acc']:<4} rej={r['rej']:<3} neto={r['net_kg']}")

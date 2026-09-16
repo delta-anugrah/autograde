@@ -35,7 +35,7 @@ def service(tmp_path):
 
 def _timbang(service, **isi):
     return service.catat_timbangan(
-        {"plate_number": "B 1234 XY", "ref": "T-1", "waktu_masuk": "2026-09-14T08:00:00+07:00", **isi}
+        {"plate_number": "B 1234 XY", "ref": "T-1", "entered_at": "2026-09-14T08:00:00+07:00", **isi}
     )
 
 
@@ -58,31 +58,31 @@ def test_plat_kosong_membawa_kode(service):
 
 
 def test_bruto_bukan_angka_menyebut_kolom_dan_isinya(service):
-    err = _gagal(lambda: _timbang(service, bruto_kg="abc"))
-    assert (err.code, err.params) == (kode.BUKAN_ANGKA, {"field": "bruto_kg", "value": "abc"})
+    err = _gagal(lambda: _timbang(service, gross_kg="abc"))
+    assert (err.code, err.params) == (kode.BUKAN_ANGKA, {"field": "gross_kg", "value": "abc"})
 
 
 def test_berat_negatif_menyebut_kolomnya(service):
-    err = _gagal(lambda: _timbang(service, bruto_kg="-5"))
-    assert (err.code, err.params) == (kode.NEGATIF, {"field": "bruto_kg", "value": -5.0})
+    err = _gagal(lambda: _timbang(service, gross_kg="-5"))
+    assert (err.code, err.params) == (kode.NEGATIF, {"field": "gross_kg", "value": -5.0})
 
 
 def test_berat_di_bawah_minimum_membawa_angka_bukan_teks(service):
     # Numbers, not strings: the screen formats them with the operator's decimal mark.
-    err = _gagal(lambda: _timbang(service, bruto_kg="14,82"))
+    err = _gagal(lambda: _timbang(service, gross_kg="14,82"))
     assert err.code == kode.DI_BAWAH_MINIMUM
-    assert err.params == {"field": "bruto_kg", "value": 14.82, "minimum": MINIMUM_BERAT_KG}
+    assert err.params == {"field": "gross_kg", "value": 14.82, "minimum": MINIMUM_BERAT_KG}
 
 
 def test_tara_lebih_besar_dari_bruto_membawa_keduanya(service):
-    _timbang(service, bruto_kg="14000")
-    err = _gagal(lambda: _timbang(service, tara_kg="15000", waktu_keluar="2026-09-14T09:00:00+07:00"))
+    _timbang(service, gross_kg="14000")
+    err = _gagal(lambda: _timbang(service, tare_kg="15000", exited_at="2026-09-14T09:00:00+07:00"))
     assert (err.code, err.params) == (kode.TARA_LEBIH_BESAR, {"tara": 15000.0, "bruto": 14000.0})
 
 
 def test_pesan_lama_tetap_ada_untuk_log_dan_program_timbangan(service):
-    err = _gagal(lambda: _timbang(service, bruto_kg="abc"))
-    assert str(err) == "bruto_kg bukan angka: 'abc'"
+    err = _gagal(lambda: _timbang(service, gross_kg="abc"))
+    assert str(err) == "gross_kg bukan angka: 'abc'"
 
 
 def test_detail_membawa_kode_parameter_dan_pesan():
