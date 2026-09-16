@@ -114,6 +114,11 @@ LINE_1_ID ?= d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01
 LINE_2_ID ?= a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02
 LINE_3_ID ?= ad5f7bb9-c06d-4e87-8282-ce450ae331ec
 LINE_ID = $(LINE_$(N)_ID)
+# ARTIFACTS_DIR dipisah per line, meniru volume compose
+# (`./artifacts/line-N:/app/artifacts`). Tanpa ini tiga line native menulis ke
+# satu folder yang sama, sementara konsol menyajikan `/captures/{line_code}` dari
+# `artifacts/{line_code}` — gambarnya tersimpan tapi tiap tautan dijawab 404.
+#
 # BACKEND_URL ikut diarahkan ke `make console` (127.0.0.1:$(CONSOLE_PORT)), bukan
 # dibiarkan memakai nilai `.env`. Alasannya: `.env` menunjuk port Docker (8000)
 # karena di pabrik konsol memang di situ, sedangkan `make console` jalan di 8100.
@@ -122,7 +127,8 @@ LINE_ID = $(LINE_$(N)_ID)
 # di log line, jauh dari layar yang sedang ditonton.
 line:
 	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) MACHINE_ID=$(LINE_ID) \
-	BACKEND_URL=http://127.0.0.1:$(CONSOLE_PORT) PYTHONPATH=src \
+	BACKEND_URL=http://127.0.0.1:$(CONSOLE_PORT) \
+	ARTIFACTS_DIR=$(CURDIR)/artifacts/line-$(N) PYTHONPATH=src \
 		.venv/bin/uvicorn palmgrade.main:app --host 127.0.0.1 --port $(LINE_PORT)
 
 # Fullscreen on this PC. A page cannot fullscreen itself (requestFullscreen

@@ -114,7 +114,7 @@ services:
       - ./state/line-1:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
-      - /home/nexio/Desktop/Projects/sawit:/videos:ro
+      - ${VIDEOS_DIR:-..}:/videos:ro
 
   ripe-line-2:
     image: palmgrade-vision:latest
@@ -225,7 +225,7 @@ services:
       - ./state/line-2:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
-      - /home/nexio/Desktop/Projects/sawit:/videos:ro
+      - ${VIDEOS_DIR:-..}:/videos:ro
 
   ripe-line-3:
     image: palmgrade-vision:latest
@@ -336,7 +336,7 @@ services:
       - ./state/line-3:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
-      - /home/nexio/Desktop/Projects/sawit:/videos:ro
+      - ${VIDEOS_DIR:-..}:/videos:ro
 
   # Instance ke-4 dari image yang SAMA: konsol operator offline (§4 rencana
   # PalmOS). Tanpa kamera, tanpa GPU, tanpa PLC — supaya satu line kamera yang
