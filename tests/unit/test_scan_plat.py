@@ -305,3 +305,25 @@ def test_scan_keluar_tidak_pernah_menulis_apa_pun(store, scan):
     scan.open_ticket("BE4412OFL", "2026-09-15")
 
     assert store.weighing("w-1")["tare_kg"] is None
+
+
+def test_kartu_dicetak_sebagai_qr_biasa_bukan_micro_qr():
+    """Micro QR kelihatan baik-baik saja di layar dan tidak terbaca sama sekali.
+
+    `segno.make` memilih Micro QR sendiri untuk teks sependek plat, dan scanner
+    gerbang kelas murah - juga decoder OpenCV - membaca string kosong darinya.
+    Kartunya tercetak, tertempel di kaca truk, dan baru ketahuan mati di gerbang.
+
+    Dijaga di `tests/unit/` dan bukan cuma di e2e karena **CI hanya menjalankan
+    `tests/unit/`** (utang G1): penjaga yang tidak pernah jalan bukan penjaga.
+    """
+    import segno
+
+    from palmgrade.services.qr_cetak import KOREKSI, png_qr
+
+    assert not segno.make_qr("BE4412OFL", error=KOREKSI).is_micro
+
+    # Header PNG + ukuran matriks: QR versi 1 itu 21 modul, Micro QR M3 cuma 15.
+    gambar = png_qr("BE 4412 OFL")
+    assert gambar.startswith(b"\x89PNG\r\n\x1a\n")
+    assert len(segno.make_qr("BE4412OFL", error=KOREKSI).matrix) == 21
