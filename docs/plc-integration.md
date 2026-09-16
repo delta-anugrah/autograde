@@ -277,7 +277,7 @@ disengaja:
 | `plc_signalled` | tepat setelah `submit_grading()`, **sebelum** tulis disk | Pulse Modbus tidak punya idempotensi |
 | `processed` | setelah file WebP + JSON tersimpan | Diproses ulang itu aman: `event_id` uuid5-nya sama, API membalas `already_processed` |
 
-`_save_ripeness()` melempar `IOError` kalau `cv2.imwrite` gagal — itu perilaku by-design
+`_save_ripeness()` melempar `OSError` kalau `cv2.imwrite` gagal — itu perilaku by-design
 (Critical Rule #8), pada disk yang repo ini sendiri jalankan retensi untuknya. Kalau kedua
 kepentingan itu digabung ke satu flag, kegagalan tulis disk membuat track tetap belum
 `processed`, lalu track yang sama masuk lagi ke blok deteksi pada frame berikutnya — 10–16 kali
