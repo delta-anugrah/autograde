@@ -234,7 +234,9 @@ class FrameProcessingWorker:
         height, width, _ = frame.shape
         roi = self._roi_box(width, height)
 
-        results = self.pipeline.track_ripeness(frame)
+        results = self.pipeline.track_ripeness(
+            frame, conf=self.state.conf_threshold_override
+        )
         self._last_results = results
         self.state.last_yolo_frame = frame        # paired: DisplayWorker pakai frame ini untuk draw boxes
         self.state.last_yolo_results = results    # paired: box selalu aligned dengan last_yolo_frame
@@ -359,7 +361,15 @@ class FrameProcessingWorker:
                     # verdict, TAPI tidak menimpa `grade_class`: kelasnya tetap
                     # apa yang dilihat model, supaya konsol tidak melaporkan
                     # janjang matang sebagai Unripe hanya karena bertumpuk.
-                    if force_rej_multi or area < self.settings.minimum_size:
+                    # Setelan dari konsol menang atas `.env` kalau ada
+                    # (`/internal/setelan`); dibaca tiap frame supaya berlaku
+                    # tanpa restart line.
+                    minimum_size = (
+                        self.state.minimum_size_override
+                        if self.state.minimum_size_override is not None
+                        else self.settings.minimum_size
+                    )
+                    if force_rej_multi or area < minimum_size:
                         ripeness_status = "rej"
                     else:
                         ripeness_status = (verdict_for_class(grade_class) or "REJ").lower()

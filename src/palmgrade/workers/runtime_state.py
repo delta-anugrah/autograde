@@ -19,6 +19,14 @@ class RuntimeState:
     current_assigned_at: str | None = None            # ISO, mill-local from the console
     last_successful_api_push: str | None = None       # ISO timestamp, set by OutboxRetryWorker
 
+    # Setelan grading yang ditimpa dari konsol (`/internal/setelan`). None =
+    # pakai nilai `.env` lewat `Settings`. Ditaruh di sini, BUKAN di `Settings`,
+    # karena `Settings` itu `frozen=True` dengan sengaja: env tidak boleh berubah
+    # diam-diam di tengah jalan, dan satu-satunya yang boleh bergerak saat line
+    # hidup adalah dua angka ini. Dibaca tiap frame, jadi berlaku tanpa restart.
+    conf_threshold_override: float | None = None
+    minimum_size_override: int | None = None
+
     # Thread-safe queues
     frame_queue: Queue[Any] = field(default_factory=lambda: Queue(maxsize=5))
     event_queue: Queue[Any] = field(default_factory=lambda: Queue(maxsize=10))

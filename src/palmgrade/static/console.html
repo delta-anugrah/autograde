@@ -553,6 +553,18 @@
   td.num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
   /* The column heads already say ACC and REJ, so the colour is a second signal
      here, never the only one. */
+  /* Form setelan: kolom sempit dan label di atas, bukan sebaris. Angkanya
+     diketik jarang tapi harus terbaca ulang sebelum Simpan ditekan — ini dua
+     nilai yang menggeser tonase. */
+  .setelan-form { display:grid; gap:16px; max-width:28rem; padding:16px; }
+  .setelan-form label { display:grid; gap:6px; }
+  .setelan-form input { padding:10px 12px; font-family:var(--mono); font-size:1.1rem;
+                        border:1px solid var(--line-kuat); border-radius:var(--r);
+                        background:var(--input); color:var(--fg); }
+  .setelan-form small { font-size:.85rem; }
+  #set-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
+                           background:var(--warn-bg); color:var(--warn); }
+  #set-lines:not(:empty) { color:var(--rej); }
   #rekap td.tp { color:var(--warn); font-weight:700; }
   #rekap td.acc { color:var(--acc); font-weight:700; }
   #rekap td.rej { color:var(--rej); font-weight:700; }
@@ -670,6 +682,7 @@
   <button data-tab="diagnostik" data-dev="1" data-t="judulDiagnostik">Diagnostik</button>
   <button data-tab="antrean" data-dev="1" data-t="judulAntrean">Antrean ERP</button>
   <button data-tab="versi" data-dev="1" data-t="judulVersi">Versi</button>
+  <button data-tab="setelan" data-dev="1" data-t="judulSetelan">Setelan</button>
   <button data-tab="plc" data-dev="1" data-t="judulPlc">Uji PLC</button>
 </nav>
 
@@ -878,6 +891,33 @@
   </div>
 </section>
 
+<section id="sec-setelan" class="panel" hidden data-dev="1">
+  <!--
+    Support-only: dua angka yang menentukan janjang dibuang atau lolos.
+    Berlaku untuk SEMUA line sekaligus (keputusan operator 2026-09-16) dan
+    langsung dipakai tanpa restart. Tiap perubahan tercatat di tab Log dengan
+    email yang mengubahnya - angka ini menggeser tonase yang dibayar.
+  -->
+  <div class="setelan-form">
+    <label>
+      <span data-t="labelConf">Ambang keyakinan (0-1)</span>
+      <input id="set-conf" type="text" inputmode="decimal" autocomplete="off">
+      <small class="muted" data-t="bantuConf">Makin tinggi = makin sedikit yang dianggap buah.</small>
+    </label>
+    <label>
+      <span data-t="labelMinSize">Ukuran minimum (piksel)</span>
+      <input id="set-minsize" type="text" inputmode="numeric" autocomplete="off">
+      <small class="muted" data-t="bantuMinSize">Janjang lebih kecil dari ini otomatis REJ.</small>
+    </label>
+    <div class="tools">
+      <button id="set-simpan" class="utama" data-t="btnSimpanSetelan">Simpan</button>
+      <span id="set-sumber" class="muted"></span>
+    </div>
+    <p id="set-pesan" role="alert"></p>
+    <div id="set-lines" class="muted"></div>
+  </div>
+</section>
+
 <section id="sec-diagnostik" class="panel" hidden data-dev="1">
   <!--
     Support-only: /health/detail from each line, gathered concurrently server-side.
@@ -974,6 +1014,12 @@ const KAMUS = {
   id: {
     judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan", judulRekap:"Rekap",
     judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", judulPlc:"Uji PLC",
+    judulSetelan:"Setelan", labelConf:"Ambang keyakinan (0-1)", labelMinSize:"Ukuran minimum (piksel)",
+    bantuConf:"Makin tinggi = makin sedikit yang dianggap buah.",
+    bantuMinSize:"Janjang lebih kecil dari ini otomatis REJ.",
+    btnSimpanSetelan:"Simpan", setelanTersimpan:"Tersimpan dan dikirim ke line.",
+    setelanDariEnv:"Sumber: .env (belum pernah diubah dari sini)",
+    setelanDariKonsol:"Sumber: konsol",
     labelHariIni:"Hari ini", labelRasio:"Rasio Ripe",
     // Nama kelas TIDAK diterjemahkan: keempatnya nama kelas model, dan operator
     // maupun support menyebutnya persis begini saat bicara lewat telepon.
@@ -1070,6 +1116,12 @@ const KAMUS = {
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
     judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", judulPlc:"PLC Test",
+    judulSetelan:"Settings", labelConf:"Confidence threshold (0-1)", labelMinSize:"Minimum size (pixels)",
+    bantuConf:"Higher = fewer things counted as fruit.",
+    bantuMinSize:"Bunches smaller than this are auto-REJ.",
+    btnSimpanSetelan:"Save", setelanTersimpan:"Saved and sent to the lines.",
+    setelanDariEnv:"Source: .env (never changed from here)",
+    setelanDariKonsol:"Source: console",
     labelHariIni:"Today", labelRasio:"Ripe rate",
     clsRipe:"Ripe", clsUnripe:"Unripe", clsJk:"JK", clsTp:"TP",
     labelLayout:"Layout", kolomAuto:"Auto", statusOnline:"Online", statusOffline:"Offline",
@@ -1340,7 +1392,7 @@ function terapkanTab() {
 // tab stays open (a line coming back or dying should show up unattended);
 // the timer is started/stopped in `bukaTabDev` below, never left running
 // behind a tab nobody is looking at.
-const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc };
+const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, setelan: muatSetelan };
 
 function bukaTabDev(namaTab) {
   clearInterval(diagnostikTimer);
@@ -2676,6 +2728,47 @@ function isiCoilPlc(kode, data, sibuk) {
       ${esc(t("btnUjiCoil").replace("{coil}", coil))}
     </button>`).join("");
 }
+
+// ── Setelan grading (support only) ─────────────────────────────────────
+// Dua angka yang menggeser tonase. Nilainya dipegang konsol, bukan line:
+// line yang mati saat diubah akan menerimanya lagi saat konsol mengirim ulang,
+// jadi tidak ada dua sumber kebenaran yang bisa berbeda diam-diam.
+async function muatSetelan() {
+  try {
+    const r = await api("/api/console/dev/setelan");
+    $("set-conf").value = r.conf_threshold;
+    $("set-minsize").value = r.minimum_size;
+    $("set-sumber").textContent = t(r.sumber === "konsol" ? "setelanDariKonsol" : "setelanDariEnv");
+    $("set-pesan").textContent = "";
+    $("set-lines").textContent = "";
+  } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = e.pesan || "gagal"; }
+}
+
+$("set-simpan").addEventListener("click", async () => {
+  const pesan = $("set-pesan");
+  pesan.textContent = "";
+  try {
+    // Koma -> titik di sini juga, bukan cuma di server: papan ketik Indonesia
+    // menulis `0,8`, dan menunggu bolak-balik jaringan untuk hal yang terlihat
+    // di tempat itu satu detik yang hilang.
+    const r = await api("/api/console/dev/setelan", {
+      method: "POST",
+      body: JSON.stringify({
+        conf_threshold: $("set-conf").value.replace(",", "."),
+        minimum_size: $("set-minsize").value.replace(",", "."),
+      }),
+    });
+    $("set-sumber").textContent = t("setelanDariKonsol");
+    pesan.textContent = t("setelanTersimpan");
+    // Line yang tidak menjawab disebut apa adanya: nilainya SUDAH tersimpan,
+    // line itu saja yang belum menerimanya. Menyembunyikannya membuat operator
+    // mengira semua line sudah berubah.
+    const belum = (r.lines || []).filter((l) => !l.terkirim).map((l) => l.line_code);
+    $("set-lines").textContent = belum.length ? `Belum sampai ke: ${belum.join(", ")}` : "";
+  } catch (e) {
+    pesan.textContent = e.pesan || e.detail || "gagal";
+  }
+});
 
 async function muatPlc() {
   try {

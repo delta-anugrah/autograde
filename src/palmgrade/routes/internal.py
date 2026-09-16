@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -18,6 +19,8 @@ from ..core.dependencies import (
     get_runtime_state,
     get_settings,
 )
+from ..core.config import Settings
+from ..domain.setelan_grading import bersihkan_setelan
 from ..integrations.outbox.outbox_store import OutboxStore
 from ..schemas.internal_schema import (
     AssignmentSyncRequest,
@@ -30,9 +33,13 @@ from ..schemas.internal_schema import (
     PlcCoilCommandRequest,
     PlcCoilCommandResponse,
     PlcStateResponse,
+    SetelanGradingRequest,
+    SetelanGradingResponse,
 )
 from ..services.capture_service import CaptureService
 from ..workers.runtime_state import RuntimeState
+
+logger = logging.getLogger(__name__)
 
 
 async def _verify_internal_secret(
@@ -56,6 +63,46 @@ async def assignment_sync(
     state: Annotated[RuntimeState, Depends(get_runtime_state)],
 ) -> AssignmentSyncResponse:
     return await sync_assignment(request, state)
+
+
+@router.post("/setelan", response_model=SetelanGradingResponse)
+async def setelan_grading(
+    request: SetelanGradingRequest,
+    state: Annotated[RuntimeState, Depends(get_runtime_state)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> SetelanGradingResponse:
+    """Timpa CONF_THRESHOLD/MINIMUM_SIZE line ini tanpa restart.
+
+    Disimpan di `RuntimeState`, bukan di `Settings` (yang `frozen=True` dengan
+    sengaja). Hilang kalau container dibuat ulang — itu disengaja: konsol yang
+    memegang nilai sebenarnya dan mengirimnya lagi saat line kembali online,
+    jadi tidak ada dua sumber kebenaran yang bisa berbeda diam-diam.
+    """
+    bersih = bersihkan_setelan(request.model_dump())
+    state.conf_threshold_override = bersih["conf_threshold"]
+    state.minimum_size_override = bersih["minimum_size"]
+    logger.warning(
+        "Setelan grading diubah dari konsol: conf=%s minimum_size=%s (sebelumnya env conf=%s size=%s)",
+        bersih["conf_threshold"], bersih["minimum_size"],
+        settings.conf_threshold, settings.minimum_size,
+    )
+    return SetelanGradingResponse(**bersih, sumber="konsol")
+
+
+@router.get("/setelan", response_model=SetelanGradingResponse)
+async def setelan_grading_aktif(
+    state: Annotated[RuntimeState, Depends(get_runtime_state)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> SetelanGradingResponse:
+    """Yang BENAR-BENAR dipakai line ini sekarang, bukan yang ada di `.env`."""
+    ditimpa = state.conf_threshold_override is not None
+    return SetelanGradingResponse(
+        conf_threshold=state.conf_threshold_override
+        if ditimpa else settings.conf_threshold,
+        minimum_size=state.minimum_size_override
+        if state.minimum_size_override is not None else settings.minimum_size,
+        sumber="konsol" if ditimpa else "env",
+    )
 
 
 @router.post("/manual-reject", response_model=ManualRejectCommandResponse)

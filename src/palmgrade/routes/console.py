@@ -20,6 +20,7 @@ from ..core.config import Settings
 from ..domain.operator_auth import SESSION_TTL_S
 from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
 from ..domain.role import ROLE_SUPPORT, parse_allowed_roles
+from ..domain.setelan_grading import SetelanTidakSah
 from ..domain.visit_manifest import detail_url_for
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
@@ -478,6 +479,30 @@ async def dev_version(dev: Dev, operator: Support) -> dict:
     return dev.version()
 
 
+@router.get("/api/console/dev/setelan")
+async def dev_setelan_baca(service: Service, operator: Support) -> dict:
+    """Setelan grading yang sedang berlaku, menurut konsol."""
+    return service.setelan_grading()
+
+
+@router.post("/api/console/dev/setelan")
+async def dev_setelan_simpan(
+    service: Service, operator: Support, payload: Annotated[dict, Body()]
+) -> dict:
+    """Ubah CONF_THRESHOLD/MINIMUM_SIZE untuk SEMUA line, tanpa restart.
+
+    `role=support` saja (lane dev), dan tiap perubahan dicatat WARNING menyebut
+    siapa yang mengubah — angka ini menentukan janjang dibuang atau lolos, jadi
+    harus ada jejaknya kalau tonase sehari terlihat aneh.
+    """
+    try:
+        return await service.simpan_setelan_grading(
+            payload, diubah_oleh=operator["email"]
+        )
+    except SetelanTidakSah as exc:
+        raise _operator_error(400, exc) from exc
+
+
 @router.get("/api/console/dev/plc/{line_code}")
 async def dev_plc(dev: Dev, operator: Support, line_code: str) -> dict:
     """DI snapshot + testable coils for one line. Read-only — safe to open anytime,
@@ -548,6 +573,23 @@ async def ingest_event(
         # purpose: a malformed event must be visible, not vanish.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "ok", "work_date": work_date}
+
+
+@ingest_router.get("/internal/setelan")
+async def setelan_untuk_line(
+    service: Service,
+    x_webhook_secret: Annotated[str | None, Header()] = None,
+) -> dict:
+    """Setelan grading yang berlaku, untuk diambil LINE saat dia start.
+
+    Lane mesin (`x-webhook-secret`), bukan lane operator: line tidak punya sesi.
+    Ini yang membuat setelan bertahan saat container line dibuat ulang — override
+    di `RuntimeState` hilang bersama prosesnya, jadi line menanyakannya lagi.
+    Konsol tetap satu-satunya pemegang kebenaran; line cuma menyalin.
+    """
+    if x_webhook_secret != service.settings.webhook_secret:
+        raise HTTPException(status_code=401, detail="Invalid webhook secret")
+    return service.setelan_grading()
 
 
 @ingest_router.post("/internal/scale/weighing", status_code=201)

@@ -169,7 +169,15 @@ class Settings:
     camera_height: int = field(default_factory=lambda: int(os.getenv("CAMERA_HEIGHT", "240")))
     # Safety net only: used when the camera cannot report its own rate (webcam,
     # video file). A Hikrobot line is paced by the .mfs, read back from the camera.
-    camera_fps: int = field(default_factory=lambda: int(os.getenv("CAMERA_FPS", "20")))
+    # Kosong atau 0 = "jangan patok, tanya sumbernya". Untuk file video itu satu-
+    # satunya cara memutarnya pada kecepatan aslinya: `OpenCVCamera` cuma
+    # membaca fps bawaan berkas kalau nilai ini tidak diisi. Kosong sengaja
+    # diperlakukan seperti 0 dan BUKAN error — `.env.example` sendiri menyuruh
+    # mengosongkannya, dan `int("")` menjatuhkan line saat start dengan pesan
+    # yang tidak menyebut CAMERA_FPS sama sekali.
+    camera_fps: int = field(
+        default_factory=lambda: int(os.getenv("CAMERA_FPS", "20").strip() or 0)
+    )
     camera_photo_path: str = field(default_factory=lambda: os.getenv("CAMERA_PHOTO_PATH", ""))
 
     # Stream display resolution — only affects MJPEG stream, not saved captures
