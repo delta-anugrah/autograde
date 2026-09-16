@@ -153,9 +153,17 @@ def test_grading_with_no_bunches_sends_no_percentages():
     assert payload["grading"]["pct"] == {"mentah": 0.0, "tangkai_panjang": 0.0}
 
 
-def test_no_detail_url_is_sent():
-    """Decided 2026-09-13: the contract points it at a frontend being switched
-    off, and the console itself is LAN-only. AutoERP keeps whatever it has."""
+def test_detail_url_rides_along_when_the_mill_has_one():
+    """Since 2026-09-16 the detail page lives in R2, reachable from the cloud, so
+    the contract's `detail_url` is sent again (it was blank while it could only
+    point at the LAN-only console)."""
+    _, payload = _payload(grading=_grading(detail_url="https://captures.smagri.id/viewer.html?visit=v-1"))
+
+    assert payload["grading"]["detail_url"] == "https://captures.smagri.id/viewer.html?visit=v-1"
+
+
+def test_no_detail_url_without_r2():
+    """R2_PUBLIC_URL empty: nothing to point at, and an empty string would erase what AutoERP has."""
     _, payload = _payload(grading=_grading())
 
     assert "detail_url" not in payload["grading"]

@@ -38,5 +38,11 @@ class LocalFileStorage:
             # O2: jangan diam-diam lanjut — gambar gagal ditulis berarti JSON/event tidak boleh
             # dibuat (mencegah record yatim yang menunjuk file tidak ada). run_loop di
             # FrameProcessingWorker menangkap exception (skip 1 frame + log); manual reject → 500.
-            raise IOError(f"cv2.imwrite gagal (disk penuh / permission?): {path}")
+            raise OSError(f"cv2.imwrite gagal (disk penuh / permission?): {path}")
+
+    def write_thumbnail(self, path: Path, frame: np.ndarray, *, max_width: int, quality: int) -> None:
+        h, w = frame.shape[:2]
+        if w > max_width:
+            frame = cv2.resize(frame, (max_width, round(h * max_width / w)), interpolation=cv2.INTER_AREA)
+        self.write_image(path, frame, quality=quality)
 

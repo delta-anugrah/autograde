@@ -57,10 +57,15 @@ class _LineClientMati:
         raise LineUnavailable("LINE_TIDAK_MENJAWAB", f"{line.line_code} tidak menjawab: timeout", line=line.name)
 
 
-def _app_dev(tmp_path, *, line_client=None, lines=(LINE_1, LINE_2)):
+def _app_dev(tmp_path, *, line_client=None, lines=(LINE_1, LINE_2), manifest_outbox="default"):
     store = ConsoleStore(tmp_path / "console.db")
     log_store = LogStore(tmp_path / "log.db")
     erp_outbox = ErpOutboxStore(tmp_path / "erp_outbox.db")
+    # "default" (not None) sentinel: most tests want a real manifest outbox
+    # wired up, same as `erp_outbox` above. Passing `manifest_outbox=None`
+    # explicitly is how a test simulates R2 not being configured.
+    if manifest_outbox == "default":
+        manifest_outbox = ErpOutboxStore(tmp_path / "manifest_outbox.db")
 
     app = FastAPI()
     app.include_router(console_router)
@@ -71,9 +76,10 @@ def _app_dev(tmp_path, *, line_client=None, lines=(LINE_1, LINE_2)):
         line_client=line_client,
         lines=lines,
         erp_outbox=erp_outbox,
+        manifest_outbox=manifest_outbox,
         settings=_FakeSettings(),
     )
-    return app, store, log_store, erp_outbox
+    return app, store, log_store, erp_outbox, manifest_outbox
 
 
 class _FakeSettings:
@@ -104,7 +110,7 @@ def dev(tmp_path):
 
 
 def test_log_butuh_peran_support(dev):
-    app, store, _, _ = dev
+    app, store, _, _, _ = dev
     store.upsert_operator_manual(
         {"email": "o@b.c", "nama": "O", "password_hash": hash_password(SANDI)}
     )
@@ -115,7 +121,7 @@ def test_log_butuh_peran_support(dev):
 
 
 def test_log_tanpa_sesi_401(dev):
-    app, _, _, _ = dev
+    app, _, _, _, _ = dev
     client = TestClient(app)
 
     response = client.get("/api/console/dev/log")
@@ -124,7 +130,7 @@ def test_log_tanpa_sesi_401(dev):
 
 
 def test_log_mengembalikan_halaman_dan_total(dev):
-    app, store, log_store, _ = dev
+    app, store, log_store, _, _ = dev
     # Real-clock timestamps: DevService's own hourly purge (below) compares
     # against wall-clock time.time(), so a fixed-epoch stub like 1000.0 would
     # read as 180 days expired and vanish before the assertion runs.
@@ -140,7 +146,7 @@ def test_log_mengembalikan_halaman_dan_total(dev):
 
 
 def test_log_saring_level(dev):
-    app, store, log_store, _ = dev
+    app, store, log_store, _, _ = dev
     dasar = time.time()
     log_store.write("ERROR", "a", "satu", None, now=dasar)
     log_store.write("WARNING", "b", "dua", None, now=dasar + 1)
@@ -151,21 +157,21 @@ def test_log_saring_level(dev):
 
 def test_log_limit_dibatasi_atas(dev):
     """Satu permintaan tidak boleh menarik 180 hari riwayat sekaligus."""
-    app, store, _, _ = dev
+    app, store, _, _, _ = dev
     client = _client_support(app, store)
 
     assert client.get("/api/console/dev/log?limit=99999").status_code == 422
 
 
 def test_log_offset_tidak_boleh_negatif(dev):
-    app, store, _, _ = dev
+    app, store, _, _, _ = dev
     client = _client_support(app, store)
 
     assert client.get("/api/console/dev/log?offset=-1").status_code == 422
 
 
 def test_log_cari_menyaring_pesan(dev):
-    app, store, log_store, _ = dev
+    app, store, log_store, _, _ = dev
     dasar = time.time()
     log_store.write("ERROR", "a", "kamera putus", None, now=dasar)
     log_store.write("ERROR", "b", "antrean penuh", None, now=dasar + 1)
@@ -182,7 +188,7 @@ def test_diagnostik_mengumpulkan_tiap_line(tmp_path):
         "line-1": {"status": "ok", "camera_connected": True},
         "line-2": {"status": "ok", "camera_connected": True},
     })
-    app, store, _, _ = _app_dev(tmp_path, line_client=line_client)
+    app, store, _, _, _ = _app_dev(tmp_path, line_client=line_client)
     client = _client_support(app, store)
 
     data = client.get("/api/console/dev/diagnostik").json()
@@ -193,7 +199,7 @@ def test_diagnostik_mengumpulkan_tiap_line(tmp_path):
 
 def test_line_mati_dilaporkan_bukan_mengosongkan_layar(tmp_path):
     """Satu line mati justru yang perlu dilihat; layar tidak boleh gagal karenanya."""
-    app, store, _, _ = _app_dev(tmp_path, line_client=_LineClientMati())
+    app, store, _, _, _ = _app_dev(tmp_path, line_client=_LineClientMati())
     client = _client_support(app, store)
 
     data = client.get("/api/console/dev/diagnostik").json()
@@ -211,7 +217,7 @@ def test_satu_line_mati_tidak_menjatuhkan_line_lain(tmp_path):
                 return {"status": "ok"}
             raise LineUnavailable("LINE_TIDAK_MENJAWAB", f"{line.line_code} tidak menjawab: timeout", line=line.name)
 
-    app, store, _, _ = _app_dev(tmp_path, line_client=_Campuran())
+    app, store, _, _, _ = _app_dev(tmp_path, line_client=_Campuran())
     client = _client_support(app, store)
 
     data = client.get("/api/console/dev/diagnostik").json()
@@ -221,7 +227,7 @@ def test_satu_line_mati_tidak_menjatuhkan_line_lain(tmp_path):
 
 
 def test_diagnostik_butuh_peran_support(dev):
-    app, store, _, _ = dev
+    app, store, _, _, _ = dev
     store.upsert_operator_manual(
         {"email": "o2@b.c", "nama": "O2", "password_hash": hash_password(SANDI)}
     )
@@ -235,7 +241,7 @@ def test_diagnostik_butuh_peran_support(dev):
 
 
 def test_antrean_menampilkan_sebab_gagal(dev):
-    app, store, _, erp_outbox = dev
+    app, store, _, erp_outbox, _ = dev
     erp_outbox.enqueue("truck", "K1", {"plate_number": "BE 1 AA"})
     erp_outbox.mark_error(erp_outbox.due()[0], "417 unknown field")
     client = _client_support(app, store)
@@ -247,7 +253,7 @@ def test_antrean_menampilkan_sebab_gagal(dev):
 
 
 def test_antrean_menghitung_pending_dan_gagal_terpisah(dev):
-    app, store, _, erp_outbox = dev
+    app, store, _, erp_outbox, _ = dev
     erp_outbox.enqueue("truck", "K1", {"v": 1})
     erp_outbox.enqueue("truck", "K2", {"v": 2})
     erp_outbox.mark_error(erp_outbox.due()[0], "timeout")
@@ -260,7 +266,7 @@ def test_antrean_menghitung_pending_dan_gagal_terpisah(dev):
 
 
 def test_kirim_ulang_memindahkan_gagal_jadi_pending(dev):
-    app, store, _, erp_outbox = dev
+    app, store, _, erp_outbox, _ = dev
     erp_outbox.enqueue("truck", "K1", {"v": 1})
     erp_outbox.mark_error(erp_outbox.due()[0], "timeout")
     client = _client_support(app, store)
@@ -272,14 +278,14 @@ def test_kirim_ulang_memindahkan_gagal_jadi_pending(dev):
 
 
 def test_kirim_ulang_adalah_post_bukan_get(dev):
-    app, store, _, _ = dev
+    app, store, _, _, _ = dev
     client = _client_support(app, store)
 
     assert client.get("/api/console/dev/antrean/kirim-ulang").status_code == 405
 
 
 def test_antrean_butuh_peran_support(dev):
-    app, store, _, _ = dev
+    app, store, _, _, _ = dev
     store.upsert_operator_manual(
         {"email": "o3@b.c", "nama": "O3", "password_hash": hash_password(SANDI)}
     )
@@ -290,11 +296,70 @@ def test_antrean_butuh_peran_support(dev):
     assert client.post("/api/console/dev/antrean/kirim-ulang").status_code == 403
 
 
+# ── antrean/manifest: R2 manifest queue — second row on the same screen ────
+# Same shape as erp_outbox above (pending/failed/failed_rows), on the SAME
+# ErpOutboxStore class but a different file (manifest_outbox.db). The state
+# that matters most here is `manifest_outbox is None` (R2 not configured):
+# zero-pending and not-running must not look identical, or a mill that never
+# configured R2 reads as a healthy, empty queue.
+
+
+def test_manifest_menampilkan_sebab_gagal(dev):
+    app, store, _, _, manifest_outbox = dev
+    manifest_outbox.enqueue("visit", "K1", {"assignment_id": "a1"})
+    manifest_outbox.mark_error(manifest_outbox.due()[0], "R2 unreachable")
+    client = _client_support(app, store)
+
+    data = client.get("/api/console/dev/antrean/manifest").json()
+
+    assert data["aktif"] is True
+    assert data["gagal"] == 1
+    assert "R2 unreachable" in data["items"][0]["last_error"]
+
+
+def test_manifest_menghitung_pending_dan_gagal_terpisah(dev):
+    app, store, _, _, manifest_outbox = dev
+    manifest_outbox.enqueue("visit", "K1", {"assignment_id": "a1"})
+    manifest_outbox.enqueue("visit", "K2", {"assignment_id": "a2"})
+    manifest_outbox.mark_error(manifest_outbox.due()[0], "timeout")
+    client = _client_support(app, store)
+
+    data = client.get("/api/console/dev/antrean/manifest").json()
+
+    assert data["pending"] == 1
+    assert data["gagal"] == 1
+
+
+def test_manifest_tidak_aktif_saat_r2_tidak_disetel(tmp_path):
+    """The state this card most exists to catch: R2 not configured. Must read
+    distinctly from an empty-but-running queue (0 pending, 0 failed) — not as
+    zeros, or a mill that never set up R2 looks like a healthy idle queue."""
+    app, store, _, _, _ = _app_dev(tmp_path, manifest_outbox=None)
+    client = _client_support(app, store)
+
+    data = client.get("/api/console/dev/antrean/manifest").json()
+
+    assert data["aktif"] is False
+    assert "pending" not in data
+    assert "gagal" not in data
+
+
+def test_manifest_butuh_peran_support(dev):
+    app, store, _, _, _ = dev
+    store.upsert_operator_manual(
+        {"email": "o6@b.c", "nama": "O6", "password_hash": hash_password(SANDI)}
+    )
+    client = TestClient(app)
+    client.post("/api/console/login", json={"email": "o6@b.c", "sandi": SANDI})
+
+    assert client.get("/api/console/dev/antrean/manifest").status_code == 403
+
+
 # ── versi: version, machine id, licence state — never a secret ─────────────
 
 
 def test_versi_membawa_machine_id_dan_lisensi(dev):
-    app, store, _, _ = dev
+    app, store, _, _, _ = dev
     client = _client_support(app, store)
 
     data = client.get("/api/console/dev/versi").json()
@@ -306,7 +371,7 @@ def test_versi_membawa_machine_id_dan_lisensi(dev):
 
 def test_versi_tidak_membocorkan_rahasia(dev):
     """The one secret _FakeSettings carries must never reach the response body."""
-    app, store, _, _ = dev
+    app, store, _, _, _ = dev
     client = _client_support(app, store)
 
     mentah = client.get("/api/console/dev/versi").text
@@ -315,7 +380,7 @@ def test_versi_tidak_membocorkan_rahasia(dev):
 
 
 def test_versi_butuh_peran_support(dev):
-    app, store, _, _ = dev
+    app, store, _, _, _ = dev
     store.upsert_operator_manual(
         {"email": "o4@b.c", "nama": "O4", "password_hash": hash_password(SANDI)}
     )
@@ -327,7 +392,7 @@ def test_versi_butuh_peran_support(dev):
 
 def test_semua_lane_dev_menolak_operator_biasa(dev):
     """Satu tes untuk keempatnya: penjaganya satu, jadi lupa memasangnya kelihatan."""
-    app, store, _, _ = dev
+    app, store, _, _, _ = dev
     store.upsert_operator_manual(
         {"email": "o5@b.c", "nama": "O5", "password_hash": hash_password(SANDI)}
     )

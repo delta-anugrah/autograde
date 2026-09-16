@@ -24,7 +24,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 np = pytest.importorskip("numpy")
-pytest.importorskip("cv2")
+cv2 = pytest.importorskip("cv2")
 
 from palmgrade.core.config import Settings  # noqa: E402
 from palmgrade.integrations.storage.local_file_storage import LocalFileStorage  # noqa: E402
@@ -50,7 +50,10 @@ def settings(tmp_path) -> Settings:
 
 @pytest.fixture
 def frame():
-    return np.full((32, 32, 3), 127, dtype=np.uint8)
+    """Wider than `_THUMB_WIDTH` (400) on purpose: a 32px frame would skip the
+    resize branch entirely, and the thumbnail would be proved only by its path."""
+    rng = np.random.default_rng(0)
+    return rng.integers(0, 255, (768, 1024, 3), dtype=np.uint8)
 
 
 def _save_one(settings, frame, *, assigned_at: str | None = None) -> dict:
@@ -81,18 +84,35 @@ def _day_folder(settings) -> Path:
     return day
 
 
-def test_a_capture_writes_two_real_images_under_its_truck(settings, frame):
+def test_a_capture_writes_three_real_images_under_its_truck(settings, frame):
     result = _save_one(settings, frame)
 
     images = _images(settings)
-    assert len(images) == 2
+    assert len(images) == 3
     for image in images:
         assert image.stat().st_size > 0, "cv2 wrote an empty file"
 
     truck = _day_folder(settings) / "091432_B1234XY_a3f9c201"
     assert (truck / "bbox" / "rej").is_dir()
     assert (truck / "clean" / "rej").is_dir()
+    assert (truck / "thumb" / "rej").is_dir()
     assert "/091432_B1234XY_a3f9c201/bbox/rej/" in result["image_url"]
+
+
+def test_the_thumbnail_is_really_smaller_than_the_evidence(settings, frame):
+    """The whole point of the third copy: a 500-bunch page loads previews, not
+    full frames. Only a real cv2 write can show the resize actually happened —
+    the unit suite stubs storage, so it can only prove the path.
+    """
+    _save_one(settings, frame)
+    truck = _day_folder(settings) / "091432_B1234XY_a3f9c201"
+    (annotated,) = (truck / "bbox" / "rej").glob("*.webp")
+    (thumb,) = (truck / "thumb" / "rej").glob("*.webp")
+
+    width, height = cv2.imread(str(thumb)).shape[1], cv2.imread(str(thumb)).shape[0]
+    assert width == 400, "thumbnail was not resized to _THUMB_WIDTH"
+    assert height == 300, "aspect ratio of a 1024x768 frame must be kept"
+    assert thumb.stat().st_size < annotated.stat().st_size
 
 
 def test_the_sidecar_sits_where_the_uploader_globs_for_it(settings, frame):
