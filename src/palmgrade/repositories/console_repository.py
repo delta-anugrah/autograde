@@ -38,6 +38,12 @@ CREATE TABLE IF NOT EXISTS inspections (
     -- requires `prediction`, and deriving it in two repos means two rules that
     -- can drift apart with nobody noticing.
     prediction          TEXT,
+    -- Kelas model yang sebenarnya (Ripe/Unripe/JK/TP), di samping verdict biner
+    -- di `ripeness_status`. Dua kolom, bukan satu, karena piston dan buku besar
+    -- AutoERP cuma mengenal ACC/REJ (`domain/grade_class.py`). NULL untuk baris
+    -- yang ditulis sebelum kolom ini ada, dan untuk capture manual — yang itu
+    -- tidak pernah lewat model, jadi kelasnya memang tidak diketahui.
+    grade_class         TEXT,
     tp_status           TEXT,
     tp_confidence       REAL,
     -- Unused since the per-bunch push was dropped: AutoERP takes one message
@@ -191,6 +197,12 @@ class ConsoleStore:
             ("weighings", "erp_ticket"),
             ("weighings", "erp_status"),
             ("weighings", "erp_note"),
+            # Konsol pabrik yang sudah jalan punya tabel `inspections` tanpa
+            # kolom ini; `CREATE TABLE IF NOT EXISTS` di atas tidak akan
+            # menambahkannya. Baris lama tetap NULL — sengaja, karena kelas
+            # aslinya memang tidak pernah direkam dan menebaknya dari
+            # `ripeness_status` akan mengarang: REJ bisa Unripe atau JK.
+            ("inspections", "grade_class"),
         ):
             columns = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
             if column not in columns:
@@ -298,12 +310,17 @@ class ConsoleStore:
                        event_id, machine_id, line_code, work_date, timestamp,
                        ripeness_status, ripeness_confidence, capture_type,
                        image_path, truck_id, assignment_id, received_at, prediction,
-                       tp_status, tp_confidence)
+                       grade_class, tp_status, tp_confidence)
                    VALUES (:event_id, :machine_id, :line_code, :work_date, :timestamp,
                            :ripeness_status, :ripeness_confidence, :capture_type,
                            :image_path, :truck_id, :assignment_id, :received_at, :prediction,
-                           :tp_status, :tp_confidence)""",
-                {**row, "received_at": time.time()},
+                           :grade_class, :tp_status, :tp_confidence)""",
+                # `grade_class` diberi default di sini, bukan diwajibkan ke tiap
+                # pemanggil: ini kolom rincian yang opsional, dan penulis yang
+                # lebih tua darinya (atau capture manual, yang memang tidak lewat
+                # model) tidak boleh gagal mencatat satu janjang cuma karena
+                # labelnya tidak ada.
+                {"grade_class": None, **row, "received_at": time.time()},
             )
 
     def summary(self, work_date: str) -> list[dict[str, Any]]:
@@ -312,7 +329,17 @@ class ConsoleStore:
                 """SELECT line_code,
                           COUNT(*) AS total,
                           SUM(CASE WHEN ripeness_status = 'ACC' THEN 1 ELSE 0 END) AS acc,
-                          SUM(CASE WHEN ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej
+                          SUM(CASE WHEN ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej,
+                          SUM(CASE WHEN grade_class = 'Ripe'   THEN 1 ELSE 0 END) AS ripe,
+                          SUM(CASE WHEN grade_class = 'Unripe' THEN 1 ELSE 0 END) AS unripe,
+                          SUM(CASE WHEN grade_class = 'JK'     THEN 1 ELSE 0 END) AS jk,
+                          SUM(CASE WHEN grade_class IS NULL THEN 1 ELSE 0 END) AS tanpa_kelas,
+                          -- Ambang `> 0.8` SAMA PERSIS dengan `grading_counts`.
+                          -- Kalau dibuat beda, angka TP di layar tidak akan
+                          -- cocok dengan `tangkai_panjang` yang dibukukan
+                          -- AutoERP, dan operator yang membandingkan keduanya
+                          -- akan melapor "selisih" yang sebenarnya dua aturan.
+                          SUM(CASE WHEN tp_confidence > 0.8 THEN 1 ELSE 0 END) AS tp
                    FROM inspections WHERE work_date = ? GROUP BY line_code""",
                 (work_date,),
             ).fetchall()
@@ -397,6 +424,11 @@ class ConsoleStore:
                           COUNT(*) AS total,
                           SUM(CASE WHEN i.ripeness_status = 'ACC' THEN 1 ELSE 0 END) AS acc,
                           SUM(CASE WHEN i.ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej,
+                          SUM(CASE WHEN i.grade_class = 'Ripe'   THEN 1 ELSE 0 END) AS ripe,
+                          SUM(CASE WHEN i.grade_class = 'Unripe' THEN 1 ELSE 0 END) AS unripe,
+                          SUM(CASE WHEN i.grade_class = 'JK'     THEN 1 ELSE 0 END) AS jk,
+                          SUM(CASE WHEN i.grade_class IS NULL THEN 1 ELSE 0 END) AS tanpa_kelas,
+                          SUM(CASE WHEN i.tp_confidence > 0.8 THEN 1 ELSE 0 END) AS tp,
                           MIN(i.timestamp) AS started_at,
                           MAX(i.timestamp) AS ended_at
                    FROM inspections i
@@ -620,6 +652,13 @@ class ConsoleStore:
                           SUM(CASE WHEN ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej,
                           SUM(CASE WHEN ripeness_status = 'ACC' AND tp_confidence > 0.8
                                    THEN 1 ELSE 0 END) AS tangkai_panjang,
+                          -- Rincian 4 kelas, buat layar konsol. Sengaja TIDAK
+                          -- ikut ke AutoERP: `erp_messages._grading` memilih
+                          -- field satu per satu, dan `jk` tidak punya kriteria
+                          -- di sana (lihat `domain/grade_class.py`).
+                          SUM(CASE WHEN grade_class = 'Ripe'   THEN 1 ELSE 0 END) AS ripe,
+                          SUM(CASE WHEN grade_class = 'Unripe' THEN 1 ELSE 0 END) AS unripe,
+                          SUM(CASE WHEN grade_class = 'JK'     THEN 1 ELSE 0 END) AS jk,
                           SUM(CASE WHEN capture_type = 'manual' THEN 1 ELSE 0 END) AS manual_reject,
                           MIN(timestamp) AS started_at,
                           MAX(timestamp) AS ended_at
