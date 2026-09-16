@@ -89,6 +89,24 @@ console:
 	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) PYTHONPATH=src .venv/bin/uvicorn \
 		palmgrade.console_main:app --host 127.0.0.1 --port $(CONSOLE_PORT)
 
+# Satu line kamera NATIVE tanpa Docker — pasangan `make console` untuk develop di
+# Mac, di mana `make up` memang tidak bisa jalan (butuh MVS SDK, CUDA cu126, dan
+# TensorRT; ketiganya Linux + GPU NVIDIA).
+#
+# Sumber gambarnya dibaca dari `.env` APA ADANYA — target ini sengaja tidak
+# menyetel CAMERA_TYPE sendiri. Setel di `.env`:
+#   CAMERA_TYPE=opencv + CAMERA_VIDEO_PATH=/path/video.mp4   -> file video
+#   CAMERA_TYPE=photo  + CAMERA_PHOTO_PATH=images/x.jpg      -> satu gambar
+#   CAMERA_TYPE=hikrobot                                     -> kamera pabrik
+#
+# Portnya 8001 dan itu TIDAK boleh diubah sembarangan: konsol mencari line-1 di
+# 8001 (`core/config.py` _CONSOLE_LINE_DEFAULTS, dipatok di kode). Line di port
+# lain akan menggrading dengan benar tapi kartunya tetap "Kamera tidak tersambung".
+LINE_PORT ?= 8001
+line:
+	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) PYTHONPATH=src .venv/bin/uvicorn \
+		palmgrade.main:app --host 127.0.0.1 --port $(LINE_PORT)
+
 # Fullscreen on this PC. A page cannot fullscreen itself (requestFullscreen
 # needs a user gesture), so the browser is what gets configured.
 kiosk:

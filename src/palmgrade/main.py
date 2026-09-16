@@ -5,6 +5,7 @@ import logging
 import threading
 from contextlib import asynccontextmanager
 
+import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,6 +32,7 @@ from .license.gate import grading_blocked
 from .license.guard import LicenseGuardMiddleware
 from .license.local_repo import LicenseLocalRepo
 from .license.manager import LicenseManager
+from .domain.setelan_grading import bersihkan_setelan
 from .integrations.scheduler.upload_scheduler import UploadScheduler
 from .integrations.upload.r2_uploader import R2Uploader
 from .integrations.upload.upload_manifest import UploadManifest
@@ -49,6 +51,47 @@ from .plc import shutdown_plc_worker, start_plc_worker
 load_dotenv(override=False)
 
 logger = logging.getLogger(__name__)
+
+
+async def _tarik_setelan_grading(settings, state) -> None:
+    """Tanya konsol berapa setelan grading yang berlaku, sekali saat start.
+
+    Override di `RuntimeState` hilang bersama prosesnya, jadi container line yang
+    dibuat ulang akan kembali memakai `.env` — padahal konsol masih memegang
+    angka yang sudah disetujui. Tanpa tarikan ini, satu `docker compose up` di
+    tengah shift diam-diam mengembalikan ambang lama dan tidak ada yang tahu
+    sampai tonase harian terlihat aneh.
+
+    Gagal = diam dan pakai `.env`. Konsol yang belum hidup saat line start itu
+    kejadian normal (urutan start container tidak dijamin), dan line yang menolak
+    start gara-gara itu jauh lebih buruk daripada line yang jalan dengan nilai
+    `.env` sampai setelan berikutnya disimpan.
+    """
+    url = f"{settings.backend_url}{settings.backend_api_ver}/internal/setelan"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.get(
+                url, headers={"x-webhook-secret": settings.webhook_secret}
+            )
+        if res.status_code != 200:
+            logger.info("Setelan grading tidak diambil (HTTP %s) — pakai .env", res.status_code)
+            return
+        data = res.json()
+        if data.get("sumber") != "konsol":
+            # Konsol belum pernah diubah dari layar: nilainya memang .env, dan
+            # menimpanya dengan angka yang sama cuma bikin log membingungkan.
+            return
+        bersih = bersihkan_setelan(
+            {k: data[k] for k in ("conf_threshold", "minimum_size")}
+        )
+        state.conf_threshold_override = bersih["conf_threshold"]
+        state.minimum_size_override = bersih["minimum_size"]
+        logger.info(
+            "Setelan grading diambil dari konsol: conf=%s minimum_size=%s",
+            bersih["conf_threshold"], bersih["minimum_size"],
+        )
+    except Exception as exc:
+        logger.info("Setelan grading tidak bisa diambil (%s) — pakai .env", exc)
 
 
 def create_app() -> FastAPI:
@@ -107,6 +150,10 @@ def create_app() -> FastAPI:
 
         state = get_runtime_state()
         state.main_loop = asyncio.get_running_loop()
+
+        # Sesudah `state` ada, sebelum worker deteksi menyala: setelan yang
+        # dipegang konsol harus sudah terpasang saat janjang pertama lewat.
+        await _tarik_setelan_grading(settings, state)
 
         # Gerbang lisensi untuk thread grading. Fail CLOSED: token yang tidak
         # bisa diverifikasi meninggalkan license_exp = 0, dan 0 berarti kamera

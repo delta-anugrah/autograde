@@ -107,6 +107,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | `make restart` | **code-only change** — kode di-bind-mount (`.:/app`), jadi **tidak perlu rebuild** |
 | `make start` / `make up-1\|2\|3` | start without rebuild (all / single line) |
 | `make up-console` / `make logs-console` | konsol operator saja (port 8000, `/console`) — aman di-restart tanpa mengganggu line |
+| `make line` | satu line kamera **native tanpa Docker** di `127.0.0.1:8001` — pasangan `make console` untuk develop di Mac (`make up` tidak bisa: butuh MVS SDK + CUDA + TensorRT). Sumber gambar dibaca dari `.env` apa adanya (`CAMERA_TYPE`), target ini tidak menyetel apa pun sendiri. ⚠️ Port 8001 dipatok: konsol mencari line-1 di situ |
 | `make console` | konsol **native tanpa Docker** di `127.0.0.1:8100` — jalur develop di Mac (baca `.env`, `WEBHOOK_SECRET=devsecret`); target Docker tetap jalur Linux/pabrik |
 | `make kiosk` | konsol layar penuh di PC ini (`scripts/console-kiosk.sh`) |
 | `make operator` | akun **lokal** untuk login konsol: tambah / reset sandi (email + sandi). `AKSI=daftar\|matikan`. Akun milik AutoERP diurus di AutoERP. Di PC pabrik pakai `make operator-docker` (konsolnya di Docker, DB-nya beda berkas) |
@@ -550,6 +551,25 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 ---
 
 ## Conventions
+
+⚠️ **Env var proses MENANG atas `.env`.** `load_dotenv(override=False)` di
+`main.py` dan `console_main.py` berarti apa pun yang sudah ada di lingkungan
+tidak akan ditimpa berkas `.env`. Jadi `CAMERA_TYPE=opencv ... uvicorn ...`
+mengalahkan `CAMERA_TYPE=hikrobot` di `.env`, dan itu **tidak terlihat** di mana
+pun kecuali `/health/detail`. Urutannya: env var proses → `.env` → default di
+`core/config.py`. Kalau bingung kenapa setelan tidak berlaku, cek env var proses
+lebih dulu.
+
+**Tiga sumber gambar, bukan dua** (`CAMERA_TYPE`): `hikrobot` (kamera GigE
+pabrik), `opencv` (file video lewat `CAMERA_VIDEO_PATH`, atau webcam), `photo`
+(satu gambar diam, diulang terus). Video pakai **`opencv`**, bukan `photo`.
+
+**`docker-compose.override.yml` tidak ada di repo dan tidak wajib** — dia
+`.gitignore`, berkas pribadi per mesin. Compose membacanya otomatis kalau ada dan
+menimpa `docker-compose.yml`. Gunanya cuma satu: menyetel **satu line berbeda
+dari dua lainnya** (mis. line 1 pakai video, line 2-3 tetap kamera). Kalau
+setelannya sama untuk tiga line, `.env` sudah cukup — jangan bikin override.
+
 
 - `snake_case` files/functions, `PascalCase` classes, `UPPER_SNAKE` constants (`core/constants.py`) & env vars.
 - All paths via `Settings` (`core/config.py`) — never hardcode. New env var → add to `core/config.py` with a sane default.

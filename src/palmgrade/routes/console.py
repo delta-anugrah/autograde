@@ -522,6 +522,23 @@ async def ingest_event(
     return {"status": "ok", "work_date": work_date}
 
 
+@ingest_router.get("/internal/setelan")
+async def setelan_untuk_line(
+    service: Service,
+    x_webhook_secret: Annotated[str | None, Header()] = None,
+) -> dict:
+    """Setelan grading yang berlaku, untuk diambil LINE saat dia start.
+
+    Lane mesin (`x-webhook-secret`), bukan lane operator: line tidak punya sesi.
+    Ini yang membuat setelan bertahan saat container line dibuat ulang — override
+    di `RuntimeState` hilang bersama prosesnya, jadi line menanyakannya lagi.
+    Konsol tetap satu-satunya pemegang kebenaran; line cuma menyalin.
+    """
+    if x_webhook_secret != service.settings.webhook_secret:
+        raise HTTPException(status_code=401, detail="Invalid webhook secret")
+    return service.setelan_grading()
+
+
 @ingest_router.post("/internal/scale/weighing", status_code=201)
 async def ingest_weighing(
     service: Service,
