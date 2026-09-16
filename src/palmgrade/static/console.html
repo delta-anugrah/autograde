@@ -590,7 +590,13 @@
   #foto-tutup { min-width:44px; min-height:44px; font-size:1.6rem; line-height:1;
                 border:1px solid var(--line-kuat); border-radius:var(--r-xs);
                 background:var(--input); color:var(--fg); cursor:pointer; }
-  #foto-besar { display:block; max-width:96vw; max-height:calc(92vh - 64px);
+  /* `100%` = lebar dialog, BUKAN lebar layar. Dulu `96vw` di sini sementara
+     dialognya dibatasi `min(96vw, 1100px)`: di layar lebih lebar dari 1100px
+     gambarnya jadi lebih besar daripada wadahnya, dan `overflow:hidden` di atas
+     memotongnya — sisi kanan foto hilang tanpa scrollbar apa pun sebagai
+     petunjuk. Tingginya tetap dipatok ke viewport dikurangi baris judul supaya
+     foto potret tidak mendorong tombol tutup keluar layar. */
+  #foto-besar { display:block; width:100%; max-height:calc(92vh - 64px);
                 object-fit:contain; background:#000; }
   .pill { font:700 .7rem/1 var(--font); letter-spacing:.1em; text-transform:uppercase;
           padding:5px 9px; border-radius:var(--r-pill); border:1px solid var(--line-kuat);

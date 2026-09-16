@@ -101,12 +101,20 @@ def test_tombol_tutup_cukup_besar_untuk_jempol_bersarung(html):
     assert "min-width:44px" in css and "min-height:44px" in css
 
 
-def test_gambar_dipatok_ke_layar_bukan_ke_ukuran_aslinya(html):
-    """Frame sensor 2448x2048 akan melampaui layar mana pun kalau dibiarkan apa
-    adanya, dan dialog yang lebih besar dari viewport tidak bisa ditutup."""
-    css = html.split("#foto-besar")[1][:260]
-    assert "max-width:96vw" in css
+def test_lebar_gambar_relatif_ke_dialog_bukan_ke_layar(html):
+    """Regresi: gambarnya sempat `max-width:96vw` sementara dialognya dibatasi
+    `min(96vw, 1100px)`. Di layar lebih lebar dari 1100px gambar jadi lebih besar
+    daripada wadahnya, dan `overflow:hidden` memotong sisi kanannya — tanpa
+    scrollbar apa pun sebagai petunjuk bahwa ada bagian foto yang hilang.
+
+    `width:100%` mengikat gambar ke lebar dialog, berapa pun lebar layarnya."""
+    css = html.split("#foto-besar")[1][:320]
+    assert "width:100%" in css
+    assert "96vw" not in css, "satuan viewport di sini = kepotong lagi di layar lebar"
+    # Tinggi TETAP dipatok ke viewport dikurangi baris judul: foto potret yang
+    # lebih tinggi dari layar akan mendorong tombol tutup keluar jangkauan.
     assert "max-height:calc(92vh" in css
+    assert "object-fit:contain" in css, "cover akan memangkas isi foto"
 
 
 def test_masih_nol_referensi_https(kode):
