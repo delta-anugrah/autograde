@@ -598,9 +598,15 @@ lantai itu dua orde besaran.
 
 Setiap deteksi ditulis ke disk (`artifacts/results/`) sebagai WebP + JSON. **File di disk itulah
 antriannya** — tidak ada write ke outbox lagi. Sejam sekali `BatchUploadWorker` men-scan folder itu,
-mencatat tiap item di `UploadManifest`, PUT gambarnya ke Cloudflare R2, lalu baru POST payload teks
-di bawah ke `POST /api/v1/internal/vision/events`. Artinya event sampai ke cloud dengan **lag
-sampai ~1 jam**, bukan near-real-time.
+mencatat tiap item di `UploadManifest`, PUT gambar beranotasi + thumbnail-nya ke Cloudflare R2, lalu
+baru POST payload teks di bawah ke `POST /api/v1/internal/vision/events`. Artinya event sampai ke
+cloud dengan **lag sampai ~1 jam**, bukan near-real-time.
+
+> ⚠️ **`UPLOAD_API_URL` kosong = tanpa penerima teks, dan itu setelan Lampung.** `palmgrade-api`
+> dimatikan (Opsi B) — gambar yang sampai di R2 **itulah** upload-nya, jadi item langsung `done`
+> begitu PUT gambar sukses, POST di bawah ini **tidak pernah terjadi**, dan retensi tetap jalan.
+> Sebelum ini kosong berarti tiap item macet selamanya di `image_uploaded` dan disk pabrik penuh
+> (`upload_events_url` di `core/config.py`).
 
 ```json
 {
@@ -645,8 +651,10 @@ artifacts/line-1/
 │       ├── 083000_B1234XY_a3f9c201/                  # satu folder per kunjungan truk
 │       │   ├── bbox/acc/ · bbox/rej/                 # bergambar kotak — ini yang ditunjuk
 │       │   │   └── 2026-05-18_103000_auto.webp       #   image_path, dan yang naik ke R2
-│       │   └── clean/acc/ · clean/rej/               # polos — buat latih model ulang
-│       │       └── 2026-05-18_103000_auto.webp       #   nama berkasnya SAMA persis
+│       │   ├── clean/acc/ · clean/rej/               # polos — buat latih model ulang
+│       │   │   └── 2026-05-18_103000_auto.webp       #   nama berkasnya SAMA persis
+│       │   └── thumb/acc/ · thumb/rej/               # 400px WebP q60 dari bbox/ — naik ke R2
+│       │       └── 2026-05-18_103000_auto.webp       #   juga, buat grid viewer.html
 │       └── _belum-assign/                            # ter-grading sebelum truk dipasang
 └── outbox.db                  # antrean realtime ke BACKEND_URL (OutboxRetryWorker, poll 1 dtk)
 
@@ -668,7 +676,10 @@ state/line-1/                  # SIBLING artifacts/, sengaja di LUAR mount stati
 >
 > ⚠️ **Salinan `clean/` tidak diupload ke mana pun** — dia bukti mentah buat melatih model
 > ulang, dan model tidak boleh dilatih pakai gambar yang sudah dicoret prediksinya sendiri.
-> Konsekuensinya pemakaian disk **dua kali lipat**; retensi menghapus keduanya bersamaan.
+> `thumb/` beda: dia **memang** naik ke R2 berdampingan dengan `bbox/` (§ detail per truk di
+> bawah). Konsekuensinya pemakaian disk **tiga kali lipat**; retensi menghapus ketiganya
+> bersamaan (`domain/capture_layout.twins_of`). Gagal menulis thumbnail cuma di-log, tidak
+> pernah menggagalkan capture — line tidak boleh berhenti karena pratinjau tidak muat.
 
 > Folder `captures/`, `errors/`, dan `logs/` **sudah tidak ada**. Dulu dibuat saat startup tapi tidak pernah ditulis: manual reject disimpan ke `results/`, foto REJ ditemukan via metadata (`ripeness_status: "REJ"`) bukan salinan terpisah, dan log keluar ke stdout supaya `docker logs` yang mengurus. Startup cuma membuat `results/` — dijaga `tests/unit/test_artifact_dirs.py`.
 
@@ -677,7 +688,58 @@ state/line-1/                  # SIBLING artifacts/, sengaja di LUAR mount stati
 > salinan gambar ada di R2 (`captures.smagri.id`). Item `poisoned` **tidak** dihapus — file-nya
 > sengaja ditinggal biar bisa diperiksa manual.
 
-Images are served as static files: `GET /captures/results/{date}/{HHMMSS}_{plat}_{assign8}/{bbox|clean}/{acc|rej}/{filename}`
+Images are served as static files: `GET /captures/results/{date}/{HHMMSS}_{plat}_{assign8}/{bbox|clean|thumb}/{acc|rej}/{filename}`
+
+---
+
+## Detail Grading per Truk (R2)
+
+Sejak 2026-09-16, tiap truk yang dilepas dari line dapat **satu halaman detail** yang bisa
+dibuka dari tiket AutoERP di kantor — bukan cuma dari PC pabrik. PC pabrik nol inbound (cuma
+AnyDesk), jadi halamannya tidak bisa hidup di konsol; dia hidup di R2, domain publik yang sama
+dengan foto (`captures.smagri.id`).
+
+Alurnya, saat konsol melepas truk dari line (`_queue_grading`):
+
+1. Konsol membaca semua janjang assignment itu dari SQLite-nya sendiri
+   (`ConsoleStore.bunches_for_assignment`), lalu merakit **satu JSON per kunjungan**
+   (`domain/visit_manifest.py`, murni — tanpa I/O) di kunci `visits/<visit_id>.json`.
+   `visit_id` = id baris `weighings`, angka yang sama dengan `autograde_visit_id` di tiket ERP.
+2. JSON itu masuk **antrean sendiri** (`workers/visit_manifest_worker.py`, `ErpOutboxStore` yang
+   sama dengan outbox AutoERP, tapi berkas DB beda — `manifest_outbox.db`). Alasannya sederhana:
+   R2 mati tidak boleh menahan pesan ke AutoERP, dan AutoERP mati tidak boleh menahan manifest.
+   Worker juga mengunggah `static/viewer.html` sekali per proses ke kunci `viewer.html` — jadi
+   viewer dan manifest tidak pernah drift, keduanya ikut naik lewat jalur yang sama.
+3. `detail_url` = `{R2_PUBLIC_URL}/viewer.html?visit=<visit_id>` **deterministik** — bisa dikirim
+   ke AutoERP tanpa menunggu upload manifest selesai. Kalau fotonya belum sampai, viewer cukup
+   menampilkan "belum terunggah" untuk gambar itu.
+4. `static/viewer.html` (±16 KB, **nol dependensi eksternal** — di belakang Cloudflare Access,
+   halaman ini tidak boleh menoleh ke host lain sama sekali) mem-fetch manifestnya sendiri
+   (relatif, `visits/<id>.json`) dan menampilkan grid foto: header plat/pemasok/tanggal/line +
+   `counts`, filter Semua/ACC/REJ/Tangkai Panjang, grid `thumb` (jatuh ke `image` kalau thumbnail-nya
+   hilang), dan klik untuk memperbesar ke foto penuh.
+
+> ⚠️ **`detail_url` dikirim lagi ke AutoERP — tapi cuma kalau R2 terkonfigurasi.** Sebelum ini
+> field-nya sengaja dikosongkan, karena satu-satunya halaman detail hidup di konsol, LAN-only.
+> Sekarang: dengan R2 terisi, `detail_url` ikut payload `grading`; tanpa R2 key-nya **absen**,
+> bukan string kosong — tiap kiriman ke AutoERP mengganti seluruh bagian yang dibawanya, jadi
+> string kosong akan **menghapus** URL yang sudah dipunya AutoERP dari kiriman sebelumnya
+> (`domain/erp_messages.py` `_grading()`).
+>
+> ⚠️ **`R2_BUCKET` kosong = bukan cuma manifest yang mati.** Sama seperti retensi foto (lihat
+> blockquote di atas), `run_batch_once()` pulang lebih awal sebelum `_retention()` kalau
+> `R2_BUCKET` kosong — mematikan R2 tanpa pengganti berarti tidak ada yang membersihkan disk
+> pabrik sama sekali, bukan cuma kehilangan tautan detail.
+
+Layar **Antrean** di menu developer (`role=support`) punya baris kedua untuk antrean ini
+(`GET /api/console/dev/antrean/manifest`) — dan baris itu membaca `aktif: false` saat R2 belum
+diisi, **bukan** nol pending/nol gagal: antrean yang belum pernah mulai dan antrean yang macet
+kelihatan sama-sama nol kalau tidak ada penanda eksplisit itu.
+
+⚠️ **Belum bisa dibuka dari kantor hari ini.** Kodenya siap, tapi tiga langkah pasang belum
+dikerjakan: Cloudflare Access di `captures.smagri.id` (domain itu **publik** sekarang), aturan
+lifecycle R2 90 hari, dan `.env` PC Lampung (`R2_*` di konsol, `UPLOAD_API_URL` dikosongkan).
+Rencana lengkap + urutan: `../docs/runbooks/2026-09-16-rencana-detail-grading-r2.md`.
 
 ---
 
@@ -726,7 +788,7 @@ pytest tests/unit/
 |---|---|---|
 | Domain rules | `test_rules.py` | Klasifikasi ripeness (inti keputusan bisnis) |
 | Idempotency | `test_event_id.py` | `event_id` uuid5 deterministik (anti double-count) |
-| **Batch upload** | `test_batch_upload_worker.py`, `test_upload_manifest.py`, `test_r2_uploader.py` | Discovery + rekonstruksi payload; manifest `pending → image_uploaded → done` (+ `poisoned`) **tanpa retry cap & tanpa TTL**; `r2_key` deterministik + prefix `machine_id` yang mengisolasi antar-line |
+| **Batch upload** | `test_batch_upload_worker.py`, `test_upload_manifest.py`, `test_r2_uploader.py`, `test_batch_upload_thumb.py` | Discovery + rekonstruksi payload; manifest `pending → image_uploaded → done` (+ `poisoned`) **tanpa retry cap & tanpa TTL**; `r2_key` deterministik + prefix `machine_id` yang mengisolasi antar-line; thumbnail naik bersama `bbox/` dan tidak jadi racun kalau tidak ada; `UPLOAD_API_URL` kosong → item `done` begitu foto sampai, tanpa POST teks |
 | **Outage & crash** | `test_batch_upload_outage.py`, `test_batch_upload_crash.py` | Jantung requirement "internet mati berapa lama pun → nol data hilang, nol duplikat"; `os._exit` di tengah transisi state → manifest tetap konsisten (WAL + `synchronous=FULL`) |
 | Timestamp TZ | `test_capture_timestamp.py` | Regression guard geser 7 jam: timestamp **wajib** tz-aware (vision UTC vs API `TZ=Asia/Jakarta`) |
 | Outbox realtime | `test_outbox_store.py`, `test_outbox_requeue.py`, `test_edge_realtime_outbox.py` | Persist → backoff → dead-letter; jalur 1 detik ke `BACKEND_URL` (konsol lokal) |
@@ -735,6 +797,7 @@ pytest tests/unit/
 | **Master data AutoERP** | `test_erp_master_data.py`, `test_ffb_source.py` | Field yang diminta persis milik DocType (Frappe balas 417 kalau tidak); truk ERP mengadopsi baris yang diketik operator; kursor per-DocType tidak maju kalau ada baris gagal; Sumber TBS mengikuti `sumber_for_supplier` AutoERP |
 | **Antrean ke AutoERP** | `test_erp_client.py`, `test_erp_outbox_store.py`, `test_erp_outbox_worker.py`, `test_erp_link.py`, `test_manual_truck_to_erp.py` | Ditolak (4xx) vs tidak terjangkau (jaringan/5xx) dibedakan; backoff 30 dtk → 1 jam; pesan yang diganti saat masih di jalan tidak ditandai terkirim; ERP mati = batch berhenti, bukan dihajar terus; truk manual naik lewat `upsert_truck`; truk milik AutoERP read-only |
 | **Kunjungan truk** | `test_visit_message.py`, `test_erp_queue.py`, `test_visit_triggers.py`, `test_visit_resend.py` | Bentuk pesan §4.C; `stage` diturunkan dari keadaan kunjungan; bagian yang tidak ada tidak dikirim; grading ikut lewat tautan assignment yang ditulis saat truk dilepas; kirim ulang harian sekali sehari |
+| **Detail grading per truk (R2)** | `test_capture_layout.py`, `test_visit_manifest.py`, `test_console_store.py` (`bunches_for_assignment`), `test_visit_manifest_worker.py`, `test_viewer_html.py`, `test_console_compose_env.py` | Varian `thumb` + pasangan/kunci R2 (`twins_of`, `thumb_key_of`); bentuk JSON manifest murni tanpa I/O; janjang satu assignment urut waktu; antrean manifest sendiri (`manifest_outbox.db`) — R2 mati menahan baris, viewer diunggah sekali per proses; invarian statis `viewer.html` (nol dependensi eksternal, manifest dibaca relatif); env `R2_*` konsol wajib ada di `docker-compose.yml` |
 | **End-to-end** | `tests/e2e/test_console_autoerp.py` | Konsol + AutoERP sungguhan: truk dibuat di ERP lalu ditarik konsol, truk diketik di konsol lalu muncul di ERP, timbangan jadi Weighbridge Ticket, grading mendarat di tiket saat truk dilepas dari line. Di-skip tanpa variabel `E2E_*` |
 | Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |
 | PLC | `tests/unit/plc/` | Coil map ODOT + state machine Modbus-TCP |
@@ -813,6 +876,9 @@ variabel mati padahal bukan — jangan dihapus karena `grep os.getenv` tidak men
 | `ERP_URL` | — | AutoERP base URL. **Kosong = jalur ERP mati**, dan itu default: layar operator tidak boleh bergantung pada ERP hidup |
 | `ERP_API_KEY` / `ERP_API_SECRET` | — | `Authorization: token <key>:<secret>` dari `erpnext.palm_mill.setup.create_integration_user` |
 | `ERP_COMPANY` | — | Company AutoERP yang dibukukan pabrik ini. Kosong = AutoERP pakai company bawaannya (benar untuk situs satu perusahaan) |
+| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | — | Kredensial R2 buat konsol sendiri — sejak 2026-09-16 konsol yang mengunggah manifest + `viewer.html`, bukan cuma tiga line |
+| `R2_BUCKET` | — | Bucket yang sama dengan foto tiga line. **Kosong = manifest mati**: tidak ada `visits/<id>.json` yang naik, dan `detail_url` tidak pernah dikirim ke AutoERP |
+| `R2_PUBLIC_URL` | — | `https://captures.smagri.id` — dasar `detail_url` (`{R2_PUBLIC_URL}/viewer.html?visit=<id>`). Lihat § Detail Grading per Truk (R2) |
 
 ---
 
