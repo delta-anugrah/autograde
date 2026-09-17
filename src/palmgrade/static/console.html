@@ -117,6 +117,47 @@
          background:var(--danger-bg); color:var(--danger-fg);
          border-bottom:1px solid var(--danger-line); border-left:6px solid var(--danger-fg); }
 
+  /* ---- toasts ----
+     `#err` above is wiped by refresh() every 2 s, so a success there is gone
+     before it can be read - the operator taps Tugaskan and sees nothing.
+     Toasts live in their own container, untouched by refresh(), and stay on
+     screen for as long as their kind below says.
+
+     Bottom-right, not a top corner: the top holds the three camera panels and
+     the tally strip (ACC/REJ read from metres away - the whole point of this
+     screen), and the sign-in gate already owns dead centre. Bottom-right is
+     the one spot nothing else claims - #tabs runs its buttons along the top
+     of that area and the table rows sit left-aligned, so a card stacking up
+     from the corner covers neither.
+
+     pointer-events:none on the container + auto only on each card: the empty
+     margin around the stack must stay click-through, or a toast sitting over
+     the tab table would block the very row the operator is trying to tap
+     while it fades. z-index 40 - above the dropdown panels (20) so a toast is
+     never hidden under an open one, below the sign-in gate (50) so a toast
+     can never sit on top of the login screen. */
+  #toasts { position:fixed; z-index:40; right:var(--pad); bottom:var(--pad);
+            display:flex; flex-direction:column-reverse; gap:8px;
+            width:min(24rem, calc(100vw - 2 * var(--pad)));
+            pointer-events:none; }
+  .toast { pointer-events:auto; display:flex; align-items:flex-start; gap:10px;
+           padding:12px 14px; border-radius:var(--r-sm); border:1px solid;
+           box-shadow:var(--tinggi-2); font-weight:600; line-height:1.35;
+           /* Slightly transparent on purpose - it must never fully hide
+              whatever card or feed sits behind it while it is up. Opaque text
+              on a translucent card: the background is see-through, the
+              message is not. */
+          opacity:.94; animation:toast-masuk .2s ease backwards; }
+  @keyframes toast-masuk { from { opacity:0; transform:translateY(6px); } }
+  .toast .pesan { flex:1; }
+  .toast .tutup { flex:none; min-width:2rem; min-height:2rem; padding:0; border:0;
+                   background:transparent; font-size:1.1rem; line-height:1;
+                   color:inherit; opacity:.7; }
+  .toast .tutup:hover { opacity:1; }
+  .toast.sukses { background:var(--acc-bg); border-color:var(--acc); color:var(--acc); }
+  .toast.gagal { background:var(--danger-bg); border-color:var(--danger-line); color:var(--danger-fg); }
+  .toast.peringatan { background:var(--warn-bg); border-color:var(--warn); color:var(--warn); }
+
   /* ---- sign-in gate (Fase 4) ---- */
   /* Covers the whole screen on purpose: a console nobody is signed in to shows
      nothing behind it. Fields are sized for a gloved hand like every other control,
@@ -630,7 +671,7 @@
   </span>
 </header>
 <div id="err"></div>
-
+<div id="toasts" aria-live="polite"></div>
 
 
 <div id="gerbang">
@@ -1098,6 +1139,11 @@ const KAMUS = {
     gagalReject:"Reject manual gagal", gagalDaftar:"Gagal mendaftarkan truk",
     gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
+    toastTutup:"Tutup",
+    sukTugaskan:"Truk ditugaskan", sukLepas:"Truk dilepas",
+    sukReject:"Reject manual tercatat", sukDaftar:"Truk terdaftar",
+    sukMasuk:"Timbang masuk tercatat", sukTara:"Timbang keluar tercatat",
+    sukScan:"Truk ditemukan",
     gross_kg:"Bruto", tare_kg:"Tara",
     err_plat_kosong:"Nomor polisi tidak boleh kosong",
     err_bukan_plat:"Yang di-scan bukan nomor polisi",
@@ -1198,6 +1244,11 @@ const KAMUS = {
     gagalReject:"Manual reject failed", gagalDaftar:"Failed to register truck",
     gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
     gagalKonsol:"Console not responding", kameraPutus:"Camera not connected",
+    toastTutup:"Dismiss",
+    sukTugaskan:"Truck assigned", sukLepas:"Truck released",
+    sukReject:"Manual reject recorded", sukDaftar:"Truck registered",
+    sukMasuk:"Weigh-in recorded", sukTara:"Weigh-out recorded",
+    sukScan:"Truck found",
     gross_kg:"Gross", tare_kg:"Tare",
     err_plat_kosong:"Plate number cannot be empty",
     err_bukan_plat:"What was scanned is not a plate number",
@@ -1674,6 +1725,44 @@ function pesan(text) {
   $("err").style.display = text ? "block" : "none";
 }
 
+// Toasts vs `pesan()`/`#err`: the banner above is wiped by refresh() every 2 s
+// (see its own comment), so it can carry a standing warning ("session about
+// to expire") but never a one-off confirmation - by the time the operator
+// looks up from the truck it is gone. A toast is a separate DOM node that
+// refresh() never touches, and removes itself on its own clock instead.
+//
+// How long each kind stays is picked by what happens if it is missed, not by
+// how important the action was: a routine success the operator already saw
+// happen (the truck card updates) only needs a quick corner-of-the-eye
+// confirmation. A warning is a "look before you act again" case (borrowed
+// truck, two open tickets) so it gets longer. A failure needs the operator to
+// actually read a sentence and decide what to do next - it does not
+// self-dismiss at all, it waits for the tap on ×.
+const TOAST_DURASI = { sukses: 3000, peringatan: 5000, gagal: 0 };
+// More than this and the stack would climb high enough to cover the tab
+// table underneath it - four is as many as fit in the corner without that,
+// even during a run of rapid manual rejects.
+const TOAST_MAKS = 4;
+
+function toast(kind, text) {
+  if (!text) return;
+  const wadah = $("toasts");
+  while (wadah.children.length >= TOAST_MAKS) wadah.firstElementChild.remove();
+  const el = document.createElement("div");
+  el.className = `toast ${kind}`;
+  el.setAttribute("role", kind === "gagal" ? "alert" : "status");
+  el.innerHTML = `<span class="pesan"></span><button type="button" class="tutup" aria-label="${esc(t("toastTutup"))}">&times;</button>`;
+  el.querySelector(".pesan").textContent = text;
+  const hapus = () => el.remove();
+  el.querySelector(".tutup").addEventListener("click", hapus);
+  const durasi = TOAST_DURASI[kind];
+  if (durasi) setTimeout(hapus, durasi);
+  wadah.append(el);
+}
+const toastSukses = (text) => toast("sukses", text);
+const toastGagal = (text) => toast("gagal", text);
+const toastPeringatan = (text) => toast("peringatan", text);
+
 const barisKosong = (lebar, kunci) => `<tr><td colspan="${lebar}" class="kosong">${esc(t(kunci))}</td></tr>`;
 
 // The only place that builds the truck line - used by the first render AND by
@@ -1912,9 +2001,11 @@ $("lines").addEventListener("click", async (ev) => {
       await api(`/api/console/lines/${encodeURIComponent(line)}/assign-truck`,
                 { method: "POST", body: JSON.stringify({ truck_id }) });
       await refresh();
+      toastSukses(t("sukTugaskan"));
     } else if (tombol.dataset.aksi === "lepas") {
       await api(`/api/console/lines/${encodeURIComponent(line)}/release-truck`, { method: "POST" });
       await refresh();
+      toastSukses(t("sukLepas"));
     } else if (tombol.dataset.aksi === "piston") {
       // Opening moves metal: ask first. Closing is the safe state - it must
       // never be blocked by a dialog, so the guard below only ever runs when
@@ -1925,17 +2016,25 @@ $("lines").addEventListener("click", async (ev) => {
       await api(`/api/console/lines/${encodeURIComponent(line)}/piston`,
                 { method: "POST", body: JSON.stringify({ open: buka }) });
       await refresh();
+      // No toast here on purpose: the button itself already reports the
+      // outcome (state now driven by the PLC, `.kedip` flash on click), and
+      // the guard above already interrupted the operator with a dialog for
+      // the one case (opening) that needs their attention. A toast on top
+      // would be a third signal for the same event.
     } else {
       // No `requested_by`: the server records whoever holds the session (Fase 4). The
       // page used to send the literal "operator", which the server now ignores — left
       // in, it would read like the name still comes from here.
       await api(`/api/console/lines/${encodeURIComponent(line)}/manual-reject`,
                 { method: "POST" });
+      toastSukses(t("sukReject"));
     }
     pesan("");
   } catch (e) {
     const awalan = { tugaskan: "gagalTugaskan", lepas: "gagalLepas", piston: "gagalPiston" }[tombol.dataset.aksi] || "gagalReject";
-    pesan(t(awalan) + ": " + alasan(e));
+    const teks = t(awalan) + ": " + alasan(e);
+    pesan(teks);
+    toastGagal(teks);
   } finally {
     tombol.disabled = false;
   }
@@ -2014,8 +2113,11 @@ $("daftar").addEventListener("click", async () => {
     await muatTrucks();
     await refresh();
     pesan("");
+    toastSukses(t("sukDaftar"));
   } catch (e) {
-    pesan(t("gagalDaftar") + ": " + alasan(e));
+    const teks = t("gagalDaftar") + ": " + alasan(e);
+    pesan(teks);
+    toastGagal(teks);
   } finally {
     // Not `disabled = false`: the plate box was just cleared, so the gate - not
     // the request - decides what happens next.
@@ -2056,8 +2158,11 @@ async function kirimScan() {
     // next scan and form one long string matching no plate at all.
     $("scan-plat").value = "";
     if (!hasil.ditemukan) {
-      // A borrowed truck. Say what can be done, not just "not found".
+      // A borrowed truck. Say what can be done, not just "not found". Yellow,
+      // not red: `scan/` answers 200 for this on purpose (§20) - it is not an
+      // error, it is a truck that needs registering first.
       pesanScan(`${t("scanBelumAda")} ${hasil.plate_number}`, true);
+      toastPeringatan(`${t("scanBelumAda")} ${hasil.plate_number}`);
       return;
     }
     pesanScan("");
@@ -2067,9 +2172,11 @@ async function kirimScan() {
     // whole point of scanning.
     $("bruto").focus();
     segarkanTombol();
+    toastSukses(t("sukScan"));
   } catch (e) {
     $("scan-plat").value = "";
     pesanScan(alasan(e), true);
+    toastGagal(alasan(e));
   } finally {
     scanSibuk = false;
   }
@@ -2088,19 +2195,26 @@ async function kirimScanKeluar() {
     $("scan-keluar").value = "";
     if (hasil.ganda) {
       // Two open tickets: the operator picks. Guessing here can attach the
-      // tare to the wrong visit and mix two visits' tonnage.
+      // tare to the wrong visit and mix two visits' tonnage. Yellow: this is
+      // a refusal on purpose (§20), not a failure.
       pesanScanKeluar(`${t("scanGanda")} ${hasil.plate_number}`, true);
+      toastPeringatan(`${t("scanGanda")} ${hasil.plate_number}`);
       return;
     }
     if (!hasil.ditemukan) {
       pesanScanKeluar(`${t("scanTakAdaTiket")} ${hasil.plate_number}`, true);
+      toastPeringatan(`${t("scanTakAdaTiket")} ${hasil.plate_number}`);
       return;
     }
     pesanScanKeluar("");
+    // No success toast here: this scan only opens the tare box below (Ganda
+    // check above requires it exists) - `simpanTara()` is the actual weigh-out
+    // and already toasts its own success once the number is saved.
     tanyaTara(hasil.weighing);
   } catch (e) {
     $("scan-keluar").value = "";
     pesanScanKeluar(alasan(e), true);
+    toastGagal(alasan(e));
   } finally {
     scanSibuk = false;
   }
@@ -2137,8 +2251,11 @@ $("masuk").addEventListener("click", async () => {
     pilihNilai($("plat-timbang"), ""); $("bruto").value = "";
     await muatTimbangan();
     pesan("");
+    toastSukses(t("sukMasuk"));
   } catch (e) {
-    pesan(t("gagalTimbang") + ": " + alasan(e));
+    const teks = t("gagalTimbang") + ": " + alasan(e);
+    pesan(teks);
+    toastGagal(teks);
   } finally {
     segarkanTombol();
   }
@@ -2199,10 +2316,18 @@ async function simpanTara() {
       tare_kg: teks, exited_at: new Date().toISOString() }) });
     tutupTara();
     pesanScanKeluar("");
+    // The tare box just closed and took the plate with it, so the toast is
+    // the only confirmation left on screen - unlike weigh-in, there is no
+    // more field nearby that still shows what happened.
+    toastSukses(t("sukTara"));
   } catch (e) {
     // The field is left open: the number is still there, so the operator can
-    // fix it without retyping from scratch.
+    // fix it without retyping from scratch. pesanScanKeluar already puts the
+    // reason right next to the field the operator is looking at; the toast
+    // is a second read of the same failure for anyone glancing at the corner
+    // instead, not a replacement for it.
     pesanScanKeluar(alasan(e), true);
+    toastGagal(t("gagalTara") + ": " + alasan(e));
   } finally {
     $("tara-simpan").disabled = false;
   }

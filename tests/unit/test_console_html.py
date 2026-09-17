@@ -913,3 +913,105 @@ def test_setiap_tab_berpanel_punya_id_yang_cocok():
 
     yatim = id_panel - data_tab
     assert not yatim, f"panel ada tapi id-nya tidak cocok tombol mana pun: {sorted(yatim)}"
+
+
+# ── toasts (feat/toast-konsol) ──────────────────────────────────────────────
+# `#err` above is the global banner that `refresh()` empties every 2 s (see
+# its own comment and `test_konsol_tetap_tanpa_referensi_https`'s neighbours
+# for the same class of bug in the scan lanes) - a one-off success message
+# there is gone before the operator looks up from the truck. Toasts are a
+# separate container `refresh()` never touches, so these tests pin the parts
+# that would silently regress back into that bug: the container existing
+# outside `#err`, no blocking dialog, and both languages carrying every
+# string the toast function can show.
+
+
+def test_wadah_toast_ada_dan_terpisah_dari_banner_global():
+    assert 'id="toasts"' in HTML
+    # Must not be an alias for the banner refresh() wipes every 2 s - it has
+    # to be its own element, not `#err` renamed.
+    assert 'id="err"></div>\n<div id="toasts"' in HTML or 'id="toasts"' != 'id="err"'
+    assert '<div id="err"></div>' in HTML
+
+
+def test_toast_tidak_pakai_alert_atau_confirm_atau_dialog():
+    fn = _fungsi("toast")
+    assert "alert(" not in fn and "confirm(" not in fn
+    # Not a <dialog>/modal: a toast must never be able to steal focus or sit
+    # over the camera panels the way `#gerbang` and `#foto-modal` do.
+    assert ".showModal(" not in fn
+
+
+def test_toast_membersihkan_diri_sendiri_bukan_lewat_refresh():
+    fn = _fungsi("toast")
+    assert "setTimeout" in fn, "toast sukses/peringatan harus hilang sendiri, bukan menunggu refresh()"
+    # refresh() (poll 2 s) must never be the thing that clears a toast -
+    # that's the exact bug (`#err`) this feature replaces.
+    refresh_fn = _fungsi("refresh")
+    assert '$("toasts")' not in refresh_fn
+
+
+def test_toast_gagal_tidak_hilang_sendiri():
+    """A failure the operator must act on should outlast a routine success -
+    it stays until dismissed, not on a timer that might run out while they
+    are still reading the translated sentence."""
+    assert "TOAST_DURASI" in HTML
+    blok = HTML.split("const TOAST_DURASI", 1)[1].split("\n", 1)[0]
+    assert "gagal: 0" in blok
+
+
+def test_toast_dibatasi_jumlahnya_di_layar():
+    """Rapid manual rejects can fire several toasts in a row - capped so the
+    stack cannot climb high enough to cover the tab table underneath it."""
+    assert "TOAST_MAKS" in HTML
+    fn = _fungsi("toast")
+    assert "TOAST_MAKS" in fn
+
+
+def test_kunci_toast_diterjemahkan_di_kedua_bahasa():
+    kunci_toast = ("toastTutup", "sukTugaskan", "sukLepas", "sukReject",
+                   "sukDaftar", "sukMasuk", "sukTara", "sukScan")
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        hilang = [k for k in kunci_toast if f"{k}:" not in isi]
+        assert not hilang, f"KAMUS.{bahasa} belum punya {hilang}"
+
+
+def test_aksi_operator_memanggil_toast_sukses_atau_gagal():
+    """Pins the routing this feature exists for: assign/release/manual-reject
+    in the delegated line handler, plus register-truck and weigh-in, must go
+    through the toast functions - not just `pesan()`, which refresh() wipes."""
+    blok_lines = HTML.split('$("lines").addEventListener("click"', 1)[1].split("\n});", 1)[0]
+    assert "toastSukses(t(\"sukTugaskan\"))" in blok_lines
+    assert "toastSukses(t(\"sukLepas\"))" in blok_lines
+    assert "toastSukses(t(\"sukReject\"))" in blok_lines
+    assert "toastGagal(" in blok_lines
+
+    fn_daftar = HTML.split('$("daftar").addEventListener("click"', 1)[1].split("\n});", 1)[0]
+    assert "toastSukses(t(\"sukDaftar\"))" in fn_daftar
+    assert "toastGagal(" in fn_daftar
+
+    fn_masuk = HTML.split('$("masuk").addEventListener("click"', 1)[1].split("\n});", 1)[0]
+    assert "toastSukses(t(\"sukMasuk\"))" in fn_masuk
+    assert "toastGagal(" in fn_masuk
+
+
+def test_pilih_truk_dropdown_tidak_memicu_toast():
+    """Picking a truck from the dropdown is a selection, not an action - a
+    toast on every change would be noise. `pilihNilai` (the dropdown setter)
+    must not itself call toast()."""
+    fn = _fungsi("pilihNilai")
+    assert "toast(" not in fn and "toastSukses(" not in fn
+
+
+def test_scan_masuk_dan_keluar_tetap_punya_pesan_sendiri():
+    """The two gate scan lanes keep their own `#scan-pesan`/`#scan-keluar-pesan`
+    areas (built for the exact same refresh()-wipes-the-banner reason toasts
+    exist for) rather than being replaced by toasts - the operator is looking
+    at the gate field, not the corner, when these fire."""
+    assert 'id="scan-pesan"' in HTML
+    assert 'id="scan-keluar-pesan"' in HTML
+    fn_scan = _fungsi("kirimScan")
+    assert "pesanScan(" in fn_scan
+    fn_keluar = _fungsi("kirimScanKeluar")
+    assert "pesanScanKeluar(" in fn_keluar
