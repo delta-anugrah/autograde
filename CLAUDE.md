@@ -16,7 +16,7 @@
 (one per camera line), each doing real-time YOLO ripeness detection on its own port and
 delivering detection events to `palmgrade-api`. One of three repos:
 
-Sejak Fase 2 (rencana PalmOS) ada **container ke-4 dari image yang sama**: konsol operator
+Sejak Fase 2 (rencana yang dulu bernama PalmOS, sekarang **AutoERP**) ada **container ke-4 dari image yang sama**: konsol operator
 offline, `APP_MODE=console`, port **8000**, layar di `http://localhost:8000/console`. Modul
 ASGI-nya beda (`console_main.py`) supaya tidak ikut memuat torch/cv2 — satu line kamera mati
 tidak menjatuhkan layar operator. Tiga line mengirim event ke konsol (`BACKEND_URL=http://localhost:8000`)
@@ -111,6 +111,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | `make console` | konsol **native tanpa Docker** di `127.0.0.1:8100` — jalur develop di Mac (baca `.env`, `WEBHOOK_SECRET=devsecret`); target Docker tetap jalur Linux/pabrik |
 | `make kiosk` | konsol layar penuh di PC ini (`scripts/console-kiosk.sh`) |
 | `make operator` | akun **lokal** untuk login konsol: tambah / reset sandi (email + sandi). `AKSI=daftar\|matikan`. Akun milik AutoERP diurus di AutoERP. Di PC pabrik pakai `make operator-docker` (konsolnya di Docker, DB-nya beda berkas) |
+| `make demo` | **data demo untuk showcase**: 10 truk, seminggu kunjungan, ratusan janjang, dua akun (`operator@`/`support@demo.autoerp.test`, sandi `sawit2026`). `HARI=3` memperpendek, `AKSI=reset` mengisi ulang bersih. Platnya **sama persis** dengan seeder AutoERP (`palm_mill/demo.py`) — satu truk = truk yang sama di dua layar. Menolak DB yang sudah punya data sungguhan. Di Docker: `make demo-docker`. ⚠️ jangan di PC pabrik |
 | `make hash-sandi` | hash untuk dua akun bawaan image (`CONSOLE_DEFAULT_HASH`/`CONSOLE_SUPPORT_HASH`). Dipakai saat pasang PC pabrik — sandi mentah tidak pernah ditanam |
 | `make rekonsiliasi-truk` | **OPS-2**, sekali saat pasang di PC yang **sudah** punya data palmgrade-api: satukan truk kembar. Tanpa `TULIS=1` cuma melihat. `--db <path>` untuk mencoba di salinan. Di Docker: `make rekonsiliasi-truk-docker`. PC baru (DB kosong) tidak perlu |
 | `make build-engine` | build TensorRT FP16 engine **once per GPU** (one-shot, auto-skip kalau sudah ada) |

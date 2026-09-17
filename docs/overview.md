@@ -388,7 +388,8 @@ FastAPI/Starlette — di luar filosofi CI murni-logic); logic-nya tipis dan selu
 
 Layar operator pindah dari `palmgrade-frontend` ke sini. Instance **ke-4 dari image yang sama**,
 port **8000**, halaman di `http://localhost:8000/console`. Rencana & keputusan yang mengunci
-bentuknya: `../docs/runbooks/2026-09-09-rencana-palmos-autograde.md` (§4, §6.1, §6.2, §3.5b).
+bentuknya: runbook `2026-09-09-rencana-palmos-autograde.md` di repo `sawit` (§4, §6.1, §6.2,
+§3.5b). Nama "PalmOS" di judulnya sudah pensiun — kotak ERP sekarang **AutoERP**.
 
 **Kenapa modul ASGI-nya terpisah.** `main.py` menarik `core/dependencies.py` → pipelines →
 ultralytics → torch, dan `core/constants.py` → cv2. Konsol tidak butuh satupun, jadi
@@ -411,7 +412,7 @@ di-serve statis di `/captures/{line_code}/...` — bentuk URL yang sama dengan
 apa yang dilihat operator.
 
 **Batas hari kerja (§6.1).** Pabrik jalan ~20 jam/hari dan **lewat tengah malam**, jadi batas
-hari UTC memotong satu shift jadi dua tanggal. `tanggal_kerja` dihitung **saat ingest** dari
+hari UTC memotong satu shift jadi dua tanggal. `work_date` dihitung **saat ingest** dari
 timestamp event itu sendiri (`domain/working_day.py`, zona `FACTORY_TZ`) lalu **disimpan
 sebagai kolom** — bukan diturunkan ulang saat query, dan tidak pernah dari `now()`, `creation`,
 atau nama folder. Event yang datang telat (outbox menyusul setelah listrik mati) tetap mendarat
@@ -424,7 +425,7 @@ ditambahkan) — tanpa itu `ZoneInfo` gagal dan tanggal diam-diam kembali ke UTC
 (`repositories/console_repository.py`) — konvensinya sama dengan `OutboxStore`: WAL,
 `synchronous=FULL`, satu `threading.Lock`, `INSERT OR IGNORE` dengan kunci `event_id`. Layar
 polling tiap 2 detik lewat `GET /api/console/state`; tidak ada `listdir` di jalur manapun.
-Tabelnya: `inspections` (+ index `(tanggal_kerja, line_code)` dan `(tanggal_kerja, timestamp)`),
+Tabelnya: `inspections` (+ index `(work_date, line_code)` dan `(work_date, timestamp)`),
 `trucks`, `suppliers`, `assignments`, `sync_state`.
 
 **Master data & Sumber TBS (§3.5b).** `MasterDataWorker` menarik dari **AutoERP**, bukan lagi
@@ -458,7 +459,7 @@ disalin dari kontrak (`autoerp/docs/autograde-integration.md` §4.A), dan ERP pa
 mencerminkan aturan itu: truk ber-supplier → External; truk yang **sudah ada di ERP** tanpa
 supplier → Internal; truk tanpa supplier yang belum dilihat ERP → `—`. Kelima query store
 memakai satu definisi (`_SOURCE_FACTS`), jadi truk yang sama tidak pernah berlabel beda di tab
-lain. Grup supplier tetap disimpan **mentah** di `suppliers.sumber` — beda Plasma vs agen hidup
+lain. Grup supplier tetap disimpan **mentah** di `suppliers.source_group` — beda Plasma vs agen hidup
 di situ. **Tidak ada boolean `is_internal` di manapun.**
 
 **Per janjang tidak dikirim ke ERP.** Kontrak AutoERP §2 tegas: *"Not synced: per-bunch rows,

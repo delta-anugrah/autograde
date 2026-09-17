@@ -39,6 +39,7 @@ python3.12 -m venv .venv
   pytest ruff cryptography aiosqlite psutil boto3 pyyaml
 
 make operator                     # sekali: akun lokal buat login (tanya email + nama + sandi)
+make demo                         # opsional: isi layar dengan data contoh (lihat "Coba di lokal")
 make console                      # http://127.0.0.1:8100/console — Ctrl-C untuk berhenti
 .venv/bin/pytest tests/unit       # unit test, tidak butuh konsol maupun AutoERP
 ```
@@ -74,7 +75,8 @@ memakai skrip `palmgrade` di host, bukan `make` — lihat `sawit/docs/runbooks/`
 | `palmgrade-api` | Business logic, auth, SSE broker — **pensiun**, diganti AutoERP | 2500 |
 | `palmgrade-frontend` | Operator dashboard UI — **pensiun**, konsol pindah ke sini | 3050 |
 
-> Sejak Fase 2 (PalmOS) konsol menggantikan peran `palmgrade_api` lokal di PC pabrik:
+> Sejak Fase 2 (rencana yang dulu bernama PalmOS, sekarang AutoERP) konsol menggantikan
+> peran `palmgrade_api` lokal di PC pabrik:
 > tiga line menyetel `BACKEND_URL=http://localhost:8000` dan mengirim event ke konsol
 > dengan kontrak yang sama persis (7 → 4 container). **Nol perubahan di kode line.**
 
@@ -214,11 +216,17 @@ CAMERA_TYPE=hikrobot        # hikrobot | opencv | photo
 CAMERA_VIDEO_PATH=          # isi path video kalau CAMERA_TYPE=opencv dan mau pakai video file
 CAMERA_PHOTO_PATH=          # wajib kalau CAMERA_TYPE=photo
 
-# Backend (palmgrade-api)
-BACKEND_URL=http://localhost:2500
+# Backend — ke mana line mengirim event.
+# Di PC pabrik ini adalah KONSOL, bukan palmgrade-api (yang sudah pensiun):
+#   di dalam Docker      → http://console:8000
+#   `make line` native   → http://localhost:8100
+# Bawaan di kode masih :2500 (palmgrade-api) karena belum diganti; isi sendiri.
+BACKEND_URL=http://localhost:8100
 WEBHOOK_SECRET=your-webhook-secret   # wajib ganti dari default!
 
-# Machine UUIDs — must match machines.id in PostgreSQL (palmgrade-api)
+# Machine UUIDs — dulu harus cocok dengan machines.id di PostgreSQL palmgrade-api.
+# Sejak api pensiun, compose sudah membawa UUID bawaan; konsol mencocokkan event
+# berdasarkan machine_id, bukan port.
 LINE_1_MACHINE_ID=<uuid-from-db>
 LINE_2_MACHINE_ID=<uuid-from-db>
 LINE_3_MACHINE_ID=<uuid-from-db>
@@ -430,20 +438,29 @@ operator disimpan di `localStorage`.
   sebagai baris **Tanpa truk** — dibuang justru menyembunyikan yang perlu dilihat operator.
 - **Coba di lokal tanpa kamera**: `make up-console` lalu buka
   <http://localhost:8000/console>. DB-nya kosong, jadi keempat tab masih polos —
-  isi dengan `scripts/seed-console-demo.py` (49 janjang di 3 line, 3 tiket timbangan,
-  satu janjang sengaja tanpa truk). **Dev saja, jangan pernah di PC pabrik**: skrip itu
-  menyuntik event ke `state/console/console.db` yang sama dengan punya operator.
+  isi dengan **`make demo`** — 10 truk, ~6 kunjungan per hari selama seminggu, ratusan
+  janjang dengan ACC/REJ/JK terbagi, dan dua akun untuk masuk. **Dev dan demo saja,
+  jangan pernah di PC pabrik**: skrip itu menulis ke database yang sama dengan punya
+  operator. Dia menolak database yang sudah punya data sungguhan (truk ber-id bukan
+  turunan plat, atau akun dari AutoERP), tapi jangan bergantung pada penolakan itu.
 
   ```bash
-  make up-console
-  make operator-docker            # sekali: akun operator, dipakai seed buat masuk
-  WEBHOOK_SECRET=$(docker exec palmgrade_console printenv WEBHOOK_SECRET) \
-  LINE_1_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_1_MACHINE_ID) \
-  LINE_2_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_2_MACHINE_ID) \
-  LINE_3_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_3_MACHINE_ID) \
-  CONSOLE_EMAIL=operator@pks.test CONSOLE_SANDI=<sandi> \
-  SEED_CONFIRM=1 python3 scripts/seed-console-demo.py
+  make demo                       # 7 hari riwayat
+  make demo HARI=3                # lebih pendek
+  make demo AKSI=reset            # hapus data demo lama dulu, lalu isi ulang
+  make console                    # → http://127.0.0.1:8100/console
   ```
+
+  Masuk dengan `operator@demo.autoerp.test` atau `support@demo.autoerp.test`, sandi
+  `sawit2026`. Di PC pabrik (konsol di Docker) pakai `make demo-docker`.
+
+  **Platnya sama persis dengan seeder AutoERP** (`erpnext/palm_mill/demo.py`), jadi
+  seed dua-duanya dan satu truk adalah truk yang sama di dua layar: kunjungan di konsol
+  pabrik, tiketnya di ERP Desk. Ganti plat di sini → ganti di sana dalam PR yang sama.
+
+  Skripnya menulis ke SQLite langsung, jadi konsolnya **tidak perlu hidup** dan tidak ada
+  secret yang dilewatkan di baris perintah. Versi lama butuh `WEBHOOK_SECRET`, tiga
+  machine id, dan sandi operator cuma untuk mulai.
 
   Kamera akan tampil **OFFLINE** — itu benar, tidak ada line yang jalan. Semua id-nya
   uuid5 deterministik, jadi dijalankan dua kali tidak menambah baris. Ubah `console.html`
@@ -451,7 +468,7 @@ operator disimpan di `localStorage`.
   `make up-console` tidak cukup: `up -d` itu no-op kalau kontainernya sudah jalan, jadi
   proses lama tetap memegang kode lama.
 
-  Sesudah seed, jalankan `CONSOLE_EMAIL=operator@pks.test CONSOLE_SANDI=<sandi>
+  Sesudah seed, jalankan `CONSOLE_EMAIL=operator@demo.autoerp.test CONSOLE_SANDI=sawit2026
   scripts/smoke-console.sh` — dia memeriksa gembok dulu (lane data 401 tanpa sesi, lane
   gerbang terbuka), lalu masuk dan mengetuk semua endpoint yang dipakai UI, memastikan
   halaman yang dilayani memang berkas di working tree (bukan salinan di dalam image), dan
@@ -555,7 +572,7 @@ sengaja terbuka, karena gerbang login sendiri perlu bisa digambar dan dipakai ma
 | `POST` | `/api/console/logout` | Akhiri sesi ini saja |
 | `GET` | `/api/console/me` | Operator yang sedang masuk |
 | `GET` | `/api/console/state` | Ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
-| `GET` | `/api/console/history` | Filter `tanggal_kerja` / `line_code` / `truck_id`. Pagination lewat `limit` (maks 200) + `offset`; balasannya juga berisi `total` = jumlah baris yang cocok filter di seluruh hari, dipakai layar untuk menghitung jumlah halaman |
+| `GET` | `/api/console/history` | Filter `work_date` / `line_code` / `truck_id`. Pagination lewat `limit` (maks 200) + `offset`; balasannya juga berisi `total` = jumlah baris yang cocok filter di seluruh hari, dipakai layar untuk menghitung jumlah halaman |
 | `POST` | `/api/console/scan` | `{qr}` hasil scan di gerbang masuk → truk yang sudah ada. Truk belum terdaftar dijawab **200 `ditemukan:false`** (truk pinjaman itu kasus normal; 404 terbaca seperti kerusakan), yang bukan plat **400**. **Tidak pernah membuat truk dan tidak pernah menulis berat** |
 | `POST` | `/api/console/scan/keluar` | `{qr}` di gerbang keluar → tiket yang menunggu tara. **Dua tiket terbuka ditolak, tidak ditebak**: menebak bisa memasangkan tara ke kunjungan yang salah dan mencampur tonase dua kunjungan. Dibatasi hari kerja |
 | `GET` | `/api/console/trucks/{plat}/qr.png` | Kartu QR untuk ditempel di truk / dikirim ke HP supir. **Dibuat di server** (`segno`) karena `console.html` nol referensi `https://` — pustaka CDN mati saat internet putus. Isinya plat ternormalisasi |
@@ -579,7 +596,7 @@ curl -s -c /tmp/konsol.jar -H 'content-type: application/json' \
 
 curl -b /tmp/konsol.jar http://localhost:8000/api/console/state
 curl -b /tmp/konsol.jar http://localhost:8000/api/console/recap     # hari ini
-curl -b /tmp/konsol.jar 'http://localhost:8000/api/console/recap?tanggal_kerja=2026-09-10'
+curl -b /tmp/konsol.jar 'http://localhost:8100/api/console/recap?work_date=2026-09-10'
 curl -b /tmp/konsol.jar -X POST http://localhost:8000/api/console/trucks \
   -H "Content-Type: application/json" -d '{"plate_number": "KT 2509 ABC"}'
 ```
@@ -792,7 +809,7 @@ pytest tests/unit/
 | **Outage & crash** | `test_batch_upload_outage.py`, `test_batch_upload_crash.py` | Jantung requirement "internet mati berapa lama pun → nol data hilang, nol duplikat"; `os._exit` di tengah transisi state → manifest tetap konsisten (WAL + `synchronous=FULL`) |
 | Timestamp TZ | `test_capture_timestamp.py` | Regression guard geser 7 jam: timestamp **wajib** tz-aware (vision UTC vs API `TZ=Asia/Jakarta`) |
 | Outbox realtime | `test_outbox_store.py`, `test_outbox_requeue.py`, `test_edge_realtime_outbox.py` | Persist → backoff → dead-letter; jalur 1 detik ke `BACKEND_URL` (konsol lokal) |
-| **Konsol** | `test_console_store.py`, `test_working_day.py`, `test_console_html.py` | Index SQLite (konsol tidak pernah memindai direktori); `tanggal_kerja` lewat tengah malam; invarian `console.html` (tanpa `on*=` inline, `esc()` meloloskan `& < > " ' \``, `data-line=` tetap ada) |
+| **Konsol** | `test_console_store.py`, `test_working_day.py`, `test_console_html.py` | Index SQLite (konsol tidak pernah memindai direktori); `work_date` lewat tengah malam; invarian `console.html` (tanpa `on*=` inline, `esc()` meloloskan `& < > " ' \``, `data-line=` tetap ada) |
 | **Timbangan** | `test_weighing.py` | `neto_kg` dihitung bukan dipercaya; timbang-keluar **menggabung** bukan menimpa; plat beda tulisan tetap satu truk; koma = desimal, pemisah ribuan ditolak |
 | **Master data AutoERP** | `test_erp_master_data.py`, `test_ffb_source.py` | Field yang diminta persis milik DocType (Frappe balas 417 kalau tidak); truk ERP mengadopsi baris yang diketik operator; kursor per-DocType tidak maju kalau ada baris gagal; Sumber TBS mengikuti `sumber_for_supplier` AutoERP |
 | **Antrean ke AutoERP** | `test_erp_client.py`, `test_erp_outbox_store.py`, `test_erp_outbox_worker.py`, `test_erp_link.py`, `test_manual_truck_to_erp.py` | Ditolak (4xx) vs tidak terjangkau (jaringan/5xx) dibedakan; backoff 30 dtk → 1 jam; pesan yang diganti saat masih di jalan tidak ditandai terkirim; ERP mati = batch berhenti, bukan dihajar terus; truk manual naik lewat `upsert_truck`; truk milik AutoERP read-only |
@@ -825,7 +842,7 @@ variabel mati padahal bukan — jangan dihapus karena `grep os.getenv` tidak men
 | `LINE_1/2/3_CAMERA_SERIAL`, `LINE_N_FEATURE_FILE`, `LINE_N_MACHINE_ID` | Dipetakan **compose** jadi `CAMERA_SERIAL` / `CAMERA_FEATURE_FILE` per container; `LINE_N_MACHINE_ID` dibaca f-string di `config.py`. Inilah yang bikin tiap line dapat kamera yang benar |
 | Semua `PLC_*` selain `PLC_ENABLED`/`PLC_HOST` | Lewat helper `_plc_int()` / `parse_coil_list()`, bukan `os.getenv` literal |
 | `APP_MODE`, `APP_VERSION`, `CAMERA_SERIAL`, `CAMERA_FEATURE_FILE`, `PLC_COIL_ALIVE`, `PLC_COIL_BASE` | **Sengaja tidak ada** di `.env.example`: compose/Dockerfile yang mengisinya, dan literal compose selalu menang atas berkas ini (alasan lengkap di komentar `.env.example` § PLC) |
-| `CONSOLE`, `CONSOLE_EMAIL`, `CONSOLE_SANDI`, `SEED_CONFIRM` | Variabel **skrip dev** (`seed-console-demo.py`, `smoke-console.sh`), bukan setelan runtime |
+| `CONSOLE`, `CONSOLE_EMAIL`, `CONSOLE_SANDI` | Variabel **skrip dev** (`smoke-console.sh`), bukan setelan runtime. `make demo` tidak butuh satu pun dari ini |
 
 | Variable | Default | Description |
 |---|---|---|

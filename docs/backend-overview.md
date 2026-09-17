@@ -252,16 +252,18 @@ Push event realtime ke client saat ada detection baru. Legacy endpoint — masih
 
 ## Console Dev Lanes (`APP_MODE=console`, Task 14)
 
-Surface terpisah dari tabel di atas — berjalan sebagai konsol (`routes/console.py`), bukan `main.py`. Tujuh lane ini melayani lima layar developer (Log, Diagnostik, Antrean ERP, Versi, Uji PLC); semuanya lewat `require_support` dan dijawab **403** kalau operator yang masuk bukan `peran='support'`. Detail rasionalnya: CLAUDE.md, Critical Rule 21.
+Surface terpisah dari tabel di atas — berjalan sebagai konsol (`routes/console.py`), bukan `main.py`. Sembilan lane ini melayani enam layar developer (Log, Diagnostik, Antrean ERP, Versi, Setelan, Uji PLC); semuanya lewat `require_support` dan dijawab **403** kalau operator yang masuk bukan `role='support'`. Detail rasionalnya: CLAUDE.md, Critical Rule 21.
 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/console/dev/ping` | cek akses masih hidup, tanpa membaca apa pun |
-| GET | `/api/console/dev/log` | `log_kejadian` — filter `level`/`cari`, `limit`+`offset` |
+| GET | `/api/console/dev/log` | `event_log` — filter `level`/`cari`, `limit`+`offset` |
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu jawaban |
 | GET | `/api/console/dev/antrean` | `erp_outbox` — jumlah pending/gagal + daftar gagal |
-| POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox` |
+| GET | `/api/console/dev/antrean/manifest` | antrean manifest R2 (DB terpisah dari `erp_outbox`, supaya R2 mati tidak menahan pesan AutoERP) |
+| POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox`. **`attempts` sengaja tidak di-reset** — itu yang membedakan "macet selamanya" dari "gangguan sesaat" |
 | GET | `/api/console/dev/versi` | versi image + status lisensi |
+| GET / POST | `/api/console/dev/setelan` | dua ambang grading yang bisa diubah dari layar Setelan |
 | GET | `/api/console/dev/plc/{line_code}` | snapshot DI + coil yang boleh diuji — baca saja |
 | POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil — satu-satunya lane yang menggerakkan hardware; tiga pengaman (assignment line, konfirmasi ketik, WARNING tiap percobaan) |
 
@@ -491,7 +493,7 @@ FrameProcessingWorker / CaptureService
 | `PLC_QUEUE_MAX` | `1` | Berapa banyak pulse boleh terutang per coil = **berapa lama sinyal boleh basi** (`queue_max × (pulse+gap)`), bukan kapasitas. Penuh → drop + hitung (`PulseScheduler.dropped`) |
 | `PLC_POLL_MS` | `200` | Interval polling `PlcWorker` — sekaligus keepalive watchdog ODOT |
 | `PLC_DI_COUNT` | `16` | Jumlah discrete input yang dibaca tiap poll |
-| `ERP_ALLOWED_ROLES` | `support` | **Konsol saja.** Peran mana yang boleh datang dari AutoERP (`domain/peran.py`, `saring_peran_erp`). Kosong = tolak semua akun ERP dari lane developer — satu-satunya rem sisi pabrik, tanpa menyentuh AutoERP |
+| `ERP_ALLOWED_ROLES` | `support` | **Konsol saja.** Peran mana yang boleh datang dari AutoERP (`domain/role.py`, `filter_erp_role`). Kosong = tolak semua akun ERP dari lane developer — satu-satunya rem sisi pabrik, tanpa menyentuh AutoERP |
 | `LOG_RETENSI_HARI` | `180` | **Konsol saja.** Berapa lama baris `log_kejadian` (ERROR/WARNING, layar Log support) disimpan sebelum dibuang |
 
 > Detail lengkap (coil map, hardware part number, throughput ceiling, open hardware questions): `docs/plc-integration.md`.
