@@ -87,17 +87,49 @@ class FrameProcessingWorker:
 
     # ------------------------------------------------------------------ zone helpers
 
-    def _roi_box(self, width: int, height: int) -> tuple[int, int, int, int]:
-        """Effective ROI (x1,y1,x2,y2). Falls back to full frame when all coords are 0."""
-        x1, y1 = self.settings.roi_x1, self.settings.roi_y1
-        x2 = self.settings.roi_x2 if self.settings.roi_x2 > 0 else width
-        y2 = self.settings.roi_y2 if self.settings.roi_y2 > 0 else height
-        return x1, y1, x2, y2
+    @staticmethod
+    def _roi_box_for(
+        settings: Settings, width: int, height: int
+    ) -> tuple[int, int, int, int]:
+        """Effective ROI (x1,y1,x2,y2) in the coordinate space of THIS frame.
 
-    def _is_in_roi(self, cx: int, cy: int, roi: tuple[int, int, int, int]) -> bool:
+        `ROI_*` is written in **stream space** (`STREAM_WIDTH x STREAM_HEIGHT`),
+        because that is the picture the operator calibrates against. Detection,
+        however, runs on the raw camera frame — `frame_queue` is never resized,
+        so on a Hikrobot line that is 2448x2048, not 1280x720. The numbers are
+        scaled here so both ends mean the same rectangle.
+
+        Skipping the scale is what made `ROI=100,100,1180,620` draw a box over
+        ~92% of the screen while filtering only ~11% of the sensor frame: fruit
+        outside that top-left corner was tracked, drawn, then dropped without a
+        word — read as "detection sometimes misses", not as a bad calibration.
+        """
+        x1, y1 = settings.roi_x1, settings.roi_y1
+        x2, y2 = settings.roi_x2, settings.roi_y2
+        if x1 == 0 and y1 == 0 and x2 == 0 and y2 == 0:
+            return 0, 0, width, height
+
+        # Guard against a zero/absent stream size rather than dividing by it.
+        sw = settings.stream_width or width
+        sh = settings.stream_height or height
+        fx = width / sw
+        fy = height / sh
+
+        x2 = x2 if x2 > 0 else sw
+        y2 = y2 if y2 > 0 else sh
+        return round(x1 * fx), round(y1 * fy), round(x2 * fx), round(y2 * fy)
+
+    def _roi_box(self, width: int, height: int) -> tuple[int, int, int, int]:
+        return self._roi_box_for(self.settings, width, height)
+
+    @staticmethod
+    def _is_in_roi_box(cx: int, cy: int, roi: tuple[int, int, int, int]) -> bool:
         """True when object center (cx, cy) falls inside the ROI rectangle."""
         rx1, ry1, rx2, ry2 = roi
         return rx1 <= cx <= rx2 and ry1 <= cy <= ry2
+
+    def _is_in_roi(self, cx: int, cy: int, roi: tuple[int, int, int, int]) -> bool:
+        return self._is_in_roi_box(cx, cy, roi)
 
     # ------------------------------------------------------------------ save
 
