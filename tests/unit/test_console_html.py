@@ -982,10 +982,26 @@ def test_aksi_operator_memanggil_toast_sukses_atau_gagal():
     in the delegated line handler, plus register-truck and weigh-in, must go
     through the toast functions - not just `pesan()`, which refresh() wipes."""
     blok_lines = HTML.split('$("lines").addEventListener("click"', 1)[1].split("\n});", 1)[0]
-    assert "toastSukses(t(\"sukTugaskan\"))" in blok_lines
-    assert "toastSukses(t(\"sukLepas\"))" in blok_lines
-    assert "toastSukses(t(\"sukReject\"))" in blok_lines
+    # Kunci pemanggilannya, bukan bentuk persisnya: ketiganya kini menyisipkan
+    # nama line lewat `.replace("{line}", namaLine)`, dan tes yang mematok
+    # string utuh akan merah tiap kali teksnya disesuaikan.
+    for kunci in ("sukTugaskan", "sukLepas", "sukReject"):
+        assert f'toastSukses(t("{kunci}")' in blok_lines, kunci
     assert "toastGagal(" in blok_lines
+
+
+def test_toast_aksi_per_line_menyebut_line_mana():
+    """Operator menekan tombol di salah satu dari tiga panel yang bisa dia urutkan
+    sendiri, dan reject lewat SPASI+angka tidak memberi umpan balik visual di panel
+    mana pun. Toast tanpa nama line tidak memberi tahu apa yang belum dia tahu."""
+    blok_lines = HTML.split('$("lines").addEventListener("click"', 1)[1].split("\n});", 1)[0]
+    assert "namaLine" in blok_lines
+
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("sukTugaskan", "sukLepas", "sukReject"):
+            baris = isi.split(f"{kunci}:", 1)[1].split(",", 1)[0]
+            assert "{line}" in baris, f"KAMUS.{bahasa}.{kunci} tanpa placeholder {{line}}"
 
     fn_daftar = HTML.split('$("daftar").addEventListener("click"', 1)[1].split("\n});", 1)[0]
     assert "toastSukses(t(\"sukDaftar\"))" in fn_daftar

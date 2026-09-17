@@ -1140,8 +1140,8 @@ const KAMUS = {
     gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
     toastTutup:"Tutup",
-    sukTugaskan:"Truk ditugaskan", sukLepas:"Truk dilepas",
-    sukReject:"Reject manual tercatat", sukDaftar:"Truk terdaftar",
+    sukTugaskan:"Truk ditugaskan di {line}", sukLepas:"Truk dilepas dari {line}",
+    sukReject:"Reject manual tercatat di {line}", sukDaftar:"Truk terdaftar",
     sukMasuk:"Timbang masuk tercatat", sukTara:"Timbang keluar tercatat",
     sukScan:"Truk ditemukan",
     gross_kg:"Bruto", tare_kg:"Tara",
@@ -1245,8 +1245,8 @@ const KAMUS = {
     gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
     gagalKonsol:"Console not responding", kameraPutus:"Camera not connected",
     toastTutup:"Dismiss",
-    sukTugaskan:"Truck assigned", sukLepas:"Truck released",
-    sukReject:"Manual reject recorded", sukDaftar:"Truck registered",
+    sukTugaskan:"Truck assigned on {line}", sukLepas:"Truck released from {line}",
+    sukReject:"Manual reject recorded on {line}", sukDaftar:"Truck registered",
     sukMasuk:"Weigh-in recorded", sukTara:"Weigh-out recorded",
     sukScan:"Truck found",
     gross_kg:"Gross", tare_kg:"Tare",
@@ -1995,17 +1995,23 @@ $("lines").addEventListener("click", async (ev) => {
   }
   tombol.disabled = true;
   try {
+    // Nama line seperti yang tertulis di kartu ("Line 1"), bukan kode internal
+    // `line-1`: operator menekan tombol di salah satu dari tiga panel yang bisa
+    // dia urutkan sendiri, jadi toast tanpa nama line tidak memberi tahu apa pun
+    // yang belum dia tahu — dan reject manual lewat SPASI+angka tidak punya
+    // panel yang berkedip sama sekali.
+    const namaLine = kartu.querySelector(".nama")?.textContent?.trim() || line;
     if (tombol.dataset.aksi === "tugaskan") {
       const truck_id = kartu.querySelector(".pilih").dataset.nilai;
       if (!truck_id) return;
       await api(`/api/console/lines/${encodeURIComponent(line)}/assign-truck`,
                 { method: "POST", body: JSON.stringify({ truck_id }) });
       await refresh();
-      toastSukses(t("sukTugaskan"));
+      toastSukses(t("sukTugaskan").replace("{line}", namaLine));
     } else if (tombol.dataset.aksi === "lepas") {
       await api(`/api/console/lines/${encodeURIComponent(line)}/release-truck`, { method: "POST" });
       await refresh();
-      toastSukses(t("sukLepas"));
+      toastSukses(t("sukLepas").replace("{line}", namaLine));
     } else if (tombol.dataset.aksi === "piston") {
       // Opening moves metal: ask first. Closing is the safe state - it must
       // never be blocked by a dialog, so the guard below only ever runs when
@@ -2027,7 +2033,7 @@ $("lines").addEventListener("click", async (ev) => {
       // in, it would read like the name still comes from here.
       await api(`/api/console/lines/${encodeURIComponent(line)}/manual-reject`,
                 { method: "POST" });
-      toastSukses(t("sukReject"));
+      toastSukses(t("sukReject").replace("{line}", namaLine));
     }
     pesan("");
   } catch (e) {
