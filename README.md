@@ -39,6 +39,7 @@ python3.12 -m venv .venv
   pytest ruff cryptography aiosqlite psutil boto3 pyyaml
 
 make operator                     # sekali: akun lokal buat login (tanya email + nama + sandi)
+make demo                         # opsional: isi layar dengan data contoh (lihat "Coba di lokal")
 make console                      # http://127.0.0.1:8100/console — Ctrl-C untuk berhenti
 .venv/bin/pytest tests/unit       # unit test, tidak butuh konsol maupun AutoERP
 ```
@@ -437,20 +438,29 @@ operator disimpan di `localStorage`.
   sebagai baris **Tanpa truk** — dibuang justru menyembunyikan yang perlu dilihat operator.
 - **Coba di lokal tanpa kamera**: `make up-console` lalu buka
   <http://localhost:8000/console>. DB-nya kosong, jadi keempat tab masih polos —
-  isi dengan `scripts/seed-console-demo.py` (49 janjang di 3 line, 3 tiket timbangan,
-  satu janjang sengaja tanpa truk). **Dev saja, jangan pernah di PC pabrik**: skrip itu
-  menyuntik event ke `state/console/console.db` yang sama dengan punya operator.
+  isi dengan **`make demo`** — 10 truk, ~6 kunjungan per hari selama seminggu, ratusan
+  janjang dengan ACC/REJ/JK terbagi, dan dua akun untuk masuk. **Dev dan demo saja,
+  jangan pernah di PC pabrik**: skrip itu menulis ke database yang sama dengan punya
+  operator. Dia menolak database yang sudah punya data sungguhan (truk ber-id bukan
+  turunan plat, atau akun dari AutoERP), tapi jangan bergantung pada penolakan itu.
 
   ```bash
-  make up-console
-  make operator-docker            # sekali: akun operator, dipakai seed buat masuk
-  WEBHOOK_SECRET=$(docker exec palmgrade_console printenv WEBHOOK_SECRET) \
-  LINE_1_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_1_MACHINE_ID) \
-  LINE_2_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_2_MACHINE_ID) \
-  LINE_3_MACHINE_ID=$(docker exec palmgrade_console printenv LINE_3_MACHINE_ID) \
-  CONSOLE_EMAIL=operator@pks.test CONSOLE_SANDI=<sandi> \
-  SEED_CONFIRM=1 python3 scripts/seed-console-demo.py
+  make demo                       # 7 hari riwayat
+  make demo HARI=3                # lebih pendek
+  make demo AKSI=reset            # hapus data demo lama dulu, lalu isi ulang
+  make console                    # → http://127.0.0.1:8100/console
   ```
+
+  Masuk dengan `operator@demo.autoerp.test` atau `support@demo.autoerp.test`, sandi
+  `sawit2026`. Di PC pabrik (konsol di Docker) pakai `make demo-docker`.
+
+  **Platnya sama persis dengan seeder AutoERP** (`erpnext/palm_mill/demo.py`), jadi
+  seed dua-duanya dan satu truk adalah truk yang sama di dua layar: kunjungan di konsol
+  pabrik, tiketnya di ERP Desk. Ganti plat di sini → ganti di sana dalam PR yang sama.
+
+  Skripnya menulis ke SQLite langsung, jadi konsolnya **tidak perlu hidup** dan tidak ada
+  secret yang dilewatkan di baris perintah. Versi lama butuh `WEBHOOK_SECRET`, tiga
+  machine id, dan sandi operator cuma untuk mulai.
 
   Kamera akan tampil **OFFLINE** — itu benar, tidak ada line yang jalan. Semua id-nya
   uuid5 deterministik, jadi dijalankan dua kali tidak menambah baris. Ubah `console.html`
@@ -458,7 +468,7 @@ operator disimpan di `localStorage`.
   `make up-console` tidak cukup: `up -d` itu no-op kalau kontainernya sudah jalan, jadi
   proses lama tetap memegang kode lama.
 
-  Sesudah seed, jalankan `CONSOLE_EMAIL=operator@pks.test CONSOLE_SANDI=<sandi>
+  Sesudah seed, jalankan `CONSOLE_EMAIL=operator@demo.autoerp.test CONSOLE_SANDI=sawit2026
   scripts/smoke-console.sh` — dia memeriksa gembok dulu (lane data 401 tanpa sesi, lane
   gerbang terbuka), lalu masuk dan mengetuk semua endpoint yang dipakai UI, memastikan
   halaman yang dilayani memang berkas di working tree (bukan salinan di dalam image), dan
@@ -832,7 +842,7 @@ variabel mati padahal bukan — jangan dihapus karena `grep os.getenv` tidak men
 | `LINE_1/2/3_CAMERA_SERIAL`, `LINE_N_FEATURE_FILE`, `LINE_N_MACHINE_ID` | Dipetakan **compose** jadi `CAMERA_SERIAL` / `CAMERA_FEATURE_FILE` per container; `LINE_N_MACHINE_ID` dibaca f-string di `config.py`. Inilah yang bikin tiap line dapat kamera yang benar |
 | Semua `PLC_*` selain `PLC_ENABLED`/`PLC_HOST` | Lewat helper `_plc_int()` / `parse_coil_list()`, bukan `os.getenv` literal |
 | `APP_MODE`, `APP_VERSION`, `CAMERA_SERIAL`, `CAMERA_FEATURE_FILE`, `PLC_COIL_ALIVE`, `PLC_COIL_BASE` | **Sengaja tidak ada** di `.env.example`: compose/Dockerfile yang mengisinya, dan literal compose selalu menang atas berkas ini (alasan lengkap di komentar `.env.example` § PLC) |
-| `CONSOLE`, `CONSOLE_EMAIL`, `CONSOLE_SANDI`, `SEED_CONFIRM` | Variabel **skrip dev** (`seed-console-demo.py`, `smoke-console.sh`), bukan setelan runtime |
+| `CONSOLE`, `CONSOLE_EMAIL`, `CONSOLE_SANDI` | Variabel **skrip dev** (`smoke-console.sh`), bukan setelan runtime. `make demo` tidak butuh satu pun dari ini |
 
 | Variable | Default | Description |
 |---|---|---|
