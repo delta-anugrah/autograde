@@ -603,6 +603,7 @@ setelannya sama untuk tiga line, `.env` sudah cukup — jangan bikin override.
 
 ## Pointers
 
+- **`docs/MANUAL.md`** — manual untuk orang yang ikut memegang AutoGrade: cara pakai konsol, fitur, setup dari nol (laptop + PC pabrik), operasional, troubleshooting, aturan. PDF-nya dibuat sama seperti ONBOARDING (`scripts/md_to_pdf.py docs/MANUAL.md`, diagram di `docs/assets/manual/`). Skill ringkasnya `.claude/skills/panduan-autograde/` (juga tersambung di `.agents/skills/` untuk Codex).
 - **`docs/ONBOARDING.md`** — titik masuk buat orang/agent baru: sistem ini ngapain, perjalanan satu janjang, fungsi tiap folder, jebakan, kamus istilah. PDF resminya `docs/ONBOARDING.pdf` — jangan diedit langsung: ubah `.md`-nya lalu `scripts/md_to_pdf.py docs/ONBOARDING.md` (butuh Chrome + `pip install markdown pypdf`). Blok ```` ```diagram:<nama> ```` di `.md` sengaja tetap ASCII untuk pembaca teks; PDF menukarnya dengan `docs/assets/onboarding/<nama>.svg`, jadi ubah keduanya bersamaan.
 - **`docs/overview.md`** — deep flows, ASCII diagrams, all invariants with rationale, worker/state model, Docker/SDK/GPU internals, prod deployment checklist, edge cases.
 - `docs/architecture.md` — layer boundaries (final design; don't change without discussion).
