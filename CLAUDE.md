@@ -16,7 +16,7 @@
 (one per camera line), each doing real-time YOLO ripeness detection on its own port and
 delivering detection events to `palmgrade-api`. One of three repos:
 
-Sejak Fase 2 (rencana PalmOS) ada **container ke-4 dari image yang sama**: konsol operator
+Sejak Fase 2 (rencana yang dulu bernama PalmOS, sekarang **AutoERP**) ada **container ke-4 dari image yang sama**: konsol operator
 offline, `APP_MODE=console`, port **8000**, layar di `http://localhost:8000/console`. Modul
 ASGI-nya beda (`console_main.py`) supaya tidak ikut memuat torch/cv2 — satu line kamera mati
 tidak menjatuhkan layar operator. Tiga line mengirim event ke konsol (`BACKEND_URL=http://localhost:8000`)

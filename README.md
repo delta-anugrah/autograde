@@ -74,7 +74,8 @@ memakai skrip `palmgrade` di host, bukan `make` — lihat `sawit/docs/runbooks/`
 | `palmgrade-api` | Business logic, auth, SSE broker — **pensiun**, diganti AutoERP | 2500 |
 | `palmgrade-frontend` | Operator dashboard UI — **pensiun**, konsol pindah ke sini | 3050 |
 
-> Sejak Fase 2 (PalmOS) konsol menggantikan peran `palmgrade_api` lokal di PC pabrik:
+> Sejak Fase 2 (rencana yang dulu bernama PalmOS, sekarang AutoERP) konsol menggantikan
+> peran `palmgrade_api` lokal di PC pabrik:
 > tiga line menyetel `BACKEND_URL=http://localhost:8000` dan mengirim event ke konsol
 > dengan kontrak yang sama persis (7 → 4 container). **Nol perubahan di kode line.**
 
@@ -214,11 +215,17 @@ CAMERA_TYPE=hikrobot        # hikrobot | opencv | photo
 CAMERA_VIDEO_PATH=          # isi path video kalau CAMERA_TYPE=opencv dan mau pakai video file
 CAMERA_PHOTO_PATH=          # wajib kalau CAMERA_TYPE=photo
 
-# Backend (palmgrade-api)
-BACKEND_URL=http://localhost:2500
+# Backend — ke mana line mengirim event.
+# Di PC pabrik ini adalah KONSOL, bukan palmgrade-api (yang sudah pensiun):
+#   di dalam Docker      → http://console:8000
+#   `make line` native   → http://localhost:8100
+# Bawaan di kode masih :2500 (palmgrade-api) karena belum diganti; isi sendiri.
+BACKEND_URL=http://localhost:8100
 WEBHOOK_SECRET=your-webhook-secret   # wajib ganti dari default!
 
-# Machine UUIDs — must match machines.id in PostgreSQL (palmgrade-api)
+# Machine UUIDs — dulu harus cocok dengan machines.id di PostgreSQL palmgrade-api.
+# Sejak api pensiun, compose sudah membawa UUID bawaan; konsol mencocokkan event
+# berdasarkan machine_id, bukan port.
 LINE_1_MACHINE_ID=<uuid-from-db>
 LINE_2_MACHINE_ID=<uuid-from-db>
 LINE_3_MACHINE_ID=<uuid-from-db>
@@ -555,7 +562,7 @@ sengaja terbuka, karena gerbang login sendiri perlu bisa digambar dan dipakai ma
 | `POST` | `/api/console/logout` | Akhiri sesi ini saja |
 | `GET` | `/api/console/me` | Operator yang sedang masuk |
 | `GET` | `/api/console/state` | Ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
-| `GET` | `/api/console/history` | Filter `tanggal_kerja` / `line_code` / `truck_id`. Pagination lewat `limit` (maks 200) + `offset`; balasannya juga berisi `total` = jumlah baris yang cocok filter di seluruh hari, dipakai layar untuk menghitung jumlah halaman |
+| `GET` | `/api/console/history` | Filter `work_date` / `line_code` / `truck_id`. Pagination lewat `limit` (maks 200) + `offset`; balasannya juga berisi `total` = jumlah baris yang cocok filter di seluruh hari, dipakai layar untuk menghitung jumlah halaman |
 | `POST` | `/api/console/scan` | `{qr}` hasil scan di gerbang masuk → truk yang sudah ada. Truk belum terdaftar dijawab **200 `ditemukan:false`** (truk pinjaman itu kasus normal; 404 terbaca seperti kerusakan), yang bukan plat **400**. **Tidak pernah membuat truk dan tidak pernah menulis berat** |
 | `POST` | `/api/console/scan/keluar` | `{qr}` di gerbang keluar → tiket yang menunggu tara. **Dua tiket terbuka ditolak, tidak ditebak**: menebak bisa memasangkan tara ke kunjungan yang salah dan mencampur tonase dua kunjungan. Dibatasi hari kerja |
 | `GET` | `/api/console/trucks/{plat}/qr.png` | Kartu QR untuk ditempel di truk / dikirim ke HP supir. **Dibuat di server** (`segno`) karena `console.html` nol referensi `https://` — pustaka CDN mati saat internet putus. Isinya plat ternormalisasi |
@@ -579,7 +586,7 @@ curl -s -c /tmp/konsol.jar -H 'content-type: application/json' \
 
 curl -b /tmp/konsol.jar http://localhost:8000/api/console/state
 curl -b /tmp/konsol.jar http://localhost:8000/api/console/recap     # hari ini
-curl -b /tmp/konsol.jar 'http://localhost:8000/api/console/recap?tanggal_kerja=2026-09-10'
+curl -b /tmp/konsol.jar 'http://localhost:8100/api/console/recap?work_date=2026-09-10'
 curl -b /tmp/konsol.jar -X POST http://localhost:8000/api/console/trucks \
   -H "Content-Type: application/json" -d '{"plate_number": "KT 2509 ABC"}'
 ```
@@ -792,7 +799,7 @@ pytest tests/unit/
 | **Outage & crash** | `test_batch_upload_outage.py`, `test_batch_upload_crash.py` | Jantung requirement "internet mati berapa lama pun → nol data hilang, nol duplikat"; `os._exit` di tengah transisi state → manifest tetap konsisten (WAL + `synchronous=FULL`) |
 | Timestamp TZ | `test_capture_timestamp.py` | Regression guard geser 7 jam: timestamp **wajib** tz-aware (vision UTC vs API `TZ=Asia/Jakarta`) |
 | Outbox realtime | `test_outbox_store.py`, `test_outbox_requeue.py`, `test_edge_realtime_outbox.py` | Persist → backoff → dead-letter; jalur 1 detik ke `BACKEND_URL` (konsol lokal) |
-| **Konsol** | `test_console_store.py`, `test_working_day.py`, `test_console_html.py` | Index SQLite (konsol tidak pernah memindai direktori); `tanggal_kerja` lewat tengah malam; invarian `console.html` (tanpa `on*=` inline, `esc()` meloloskan `& < > " ' \``, `data-line=` tetap ada) |
+| **Konsol** | `test_console_store.py`, `test_working_day.py`, `test_console_html.py` | Index SQLite (konsol tidak pernah memindai direktori); `work_date` lewat tengah malam; invarian `console.html` (tanpa `on*=` inline, `esc()` meloloskan `& < > " ' \``, `data-line=` tetap ada) |
 | **Timbangan** | `test_weighing.py` | `neto_kg` dihitung bukan dipercaya; timbang-keluar **menggabung** bukan menimpa; plat beda tulisan tetap satu truk; koma = desimal, pemisah ribuan ditolak |
 | **Master data AutoERP** | `test_erp_master_data.py`, `test_ffb_source.py` | Field yang diminta persis milik DocType (Frappe balas 417 kalau tidak); truk ERP mengadopsi baris yang diketik operator; kursor per-DocType tidak maju kalau ada baris gagal; Sumber TBS mengikuti `sumber_for_supplier` AutoERP |
 | **Antrean ke AutoERP** | `test_erp_client.py`, `test_erp_outbox_store.py`, `test_erp_outbox_worker.py`, `test_erp_link.py`, `test_manual_truck_to_erp.py` | Ditolak (4xx) vs tidak terjangkau (jaringan/5xx) dibedakan; backoff 30 dtk → 1 jam; pesan yang diganti saat masih di jalan tidak ditandai terkirim; ERP mati = batch berhenti, bukan dihajar terus; truk manual naik lewat `upsert_truck`; truk milik AutoERP read-only |

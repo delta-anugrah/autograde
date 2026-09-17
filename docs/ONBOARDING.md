@@ -256,8 +256,8 @@ Setiap butir berikut pernah menyebabkan kehilangan waktu berjam-jam.
    sekitar 1.098 event uji dalam sehari.
 4. **Label produksi adalah `ACC` dan `REJ`**, bukan `MATANG` atau `MENTAH`. Nilai lain ditolak
    dengan status 400 saat diterima, karena angka ini menentukan pembayaran.
-5. **`neto_kg` selalu dihitung ulang, tidak pernah diterima apa adanya.** Neto yang berbeda lebih
-   dari 1 kg dari bruto − tara ditolak. Dua sumber angka yang diam-diam berbeda adalah cara paling
+5. **`net_kg` selalu dihitung ulang, tidak pernah diterima apa adanya.** Neto yang berbeda lebih
+   dari 1 kg dari `gross_kg` − `tare_kg` ditolak. Dua sumber angka yang diam-diam berbeda adalah cara paling
    mudah untuk salah bayar berbulan-bulan.
 6. **Tanggal kerja dihitung saat data diterima, lalu disimpan.** Pabrik beroperasi sekitar 20 jam
    sehari dan melewati tengah malam; menghitung tanggal dari waktu pembacaan akan memecah satu shift

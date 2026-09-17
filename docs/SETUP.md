@@ -292,7 +292,9 @@ BACKEND_URL=http://localhost:2500        # atau IP server palmgrade-api
 WEBHOOK_SECRET=your-webhook-secret      # harus sama dengan palmgrade-api
 
 # ── Machine UUIDs ────────────────────────────────────────────
-# UUID dari tabel machines di PostgreSQL (palmgrade-api)
+# Dulu dari tabel machines di PostgreSQL palmgrade-api (pensiun).
+# Sekarang bebas, asal UNIK per line dan tetap sama selamanya —
+# konsol mencocokkan event berdasarkan machine_id. compose sudah bawa bawaan.
 LINE_1_MACHINE_ID=<uuid-dari-db>
 LINE_2_MACHINE_ID=<uuid-dari-db>
 LINE_3_MACHINE_ID=<uuid-dari-db>
@@ -303,7 +305,7 @@ CONF_THRESHOLD=0.75
 MINIMUM_SIZE=460000
 ```
 
-> **LINE_X_MACHINE_ID** — ambil dari tabel `machines` di database PostgreSQL palmgrade-api. Setiap line harus punya UUID yang unik dan terdaftar di DB.
+> **LINE_X_MACHINE_ID** — sejak `palmgrade-api` pensiun tidak ada lagi PostgreSQL yang harus dibaca; `docker-compose.yml` sudah membawa UUID bawaan per line. Yang wajib: **unik per line dan tidak pernah berubah**. Tiga line dengan `MACHINE_ID` sama akan menumpuk di kartu line-1 di konsol.
 
 ---
 
