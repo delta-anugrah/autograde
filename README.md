@@ -40,6 +40,7 @@ python3.12 -m venv .venv
 
 make operator                     # sekali: akun lokal buat login (tanya email + nama + sandi)
 make demo                         # opsional: isi layar dengan data contoh (lihat "Coba di lokal")
+make demo-off                     # sesudah showcase: hapus data demo, data sungguhan tidak disentuh
 make console                      # http://127.0.0.1:8100/console — Ctrl-C untuk berhenti
 .venv/bin/pytest tests/unit       # unit test, tidak butuh konsol maupun AutoERP
 ```
