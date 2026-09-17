@@ -33,18 +33,11 @@
           --warn:#7a4b00; --warn-bg:#fbeed2;
           --bayang:rgba(12,19,16,.22);
           --r-xs:7px; --r-sm:11px; --r-md:16px; --r-pill:999px; }
-  :root[data-theme="dark"] { color-scheme:dark;
-          --bg:#0a0d11; --card:#151a21; --fg:#f2f5fa; --muted:#a9b3c2;
-          --line:#2c333d; --line-kuat:#4a5563; --zebra:#1a2028;
-          --acc:#4ee39f; --acc-bg:#0f2c20;
-          --rej:#ff8078; --rej-bg:#331a18;
-          --warn:#ffcf70; --warn-bg:#33260c;
-          --bayang:rgba(0,0,0,.55); }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-          color-scheme:dark; --bg:#0a0d11; --card:#151a21; --fg:#f2f5fa; --muted:#a9b3c2;
-          --line:#2c333d; --line-kuat:#4a5563; --zebra:#1a2028;
-          --acc:#4ee39f; --acc-bg:#0f2c20; --rej:#ff8078; --rej-bg:#331a18;
-          --warn:#ffcf70; --warn-bg:#33260c; --bayang:rgba(0,0,0,.55); } }
+  /* Sengaja TIDAK mengikuti tema sistem. Halaman ini dibuka dari tiket ERP untuk
+     melihat FOTO buah — dan foto dinilai di latar terang, sama seperti kertas
+     sortasi yang selama ini dipakai. Latar gelap mengubah kesan warna janjang,
+     dan warna itulah yang sedang disengketakan waktu halaman ini dibuka.
+     Konsol operator boleh gelap: itu layar luar ruangan, bukan layar bukti. */
   * { box-sizing:border-box; }
   html { font-size:17px; }
   body { margin:0; background:var(--bg); color:var(--fg); font:1rem/1.5 var(--font); }
@@ -336,8 +329,11 @@ function kartuJanjang(b) {
   const info = buat("div", "info");
   const kelasTeks = b.grade_class ? b.grade_class : (lolos ? "ACC" : "REJ");
   info.append(teks(buat("div", "kelas"), kelasTeks));
-  const conf = b.confidence == null ? "-" : Number(b.confidence).toFixed(2);
-  info.append(teks(buat("div", "rincian"), `${conf} · ${waktu(b.timestamp)}`));
+  // Confidence sengaja TIDAK ditampilkan. Halaman ini dibaca orang backoffice yang
+  // sedang menyelesaikan sengketa bayar, bukan orang yang menyetel model: angka
+  // 0.92 di sebelah "Ripe" mengundang tawar-menawar soal ambang, padahal yang
+  // menentukan bayaran adalah verdict-nya. Angkanya tetap ada di manifest.
+  info.append(teks(buat("div", "rincian"), waktu(b.timestamp)));
   kartu.append(info);
 
   kartu.addEventListener("click", () => bukaOverlay(b));
