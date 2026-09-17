@@ -511,7 +511,6 @@ Kalau gejalanya tidak ada di tabel: tab Log dulu, lalu `make logs-<line>`, lalu 
 | Spesifikasi dan setelan kamera, kenapa `.mfs` menang | `docs/camera-spec.md` |
 | PLC / ODOT: coil, wiring, commissioning | `docs/plc-integration.md`, `docs/plc-handoff-commissioning.pdf`, skill `plc-coil-map` |
 | Spek terukur PC Lampung | skill `spek-pc-pabrik` |
-| Cara tes lima tab support | `docs/runbooks/2026-09-15-cara-tes-menu-developer-konsol.md` |
 | Kontrak dengan AutoERP (yang harus dicocokkan dulu) | `../autoerp/docs/autograde-integration.md` |
 | Rekonsiliasi truk OPS-2, checklist PC pabrik | `../docs/runbooks/` di workspace `sawit` |
 | Sisa pekerjaan | `../docs/TODO-AUTOGRADE-AUTOERP.md` |

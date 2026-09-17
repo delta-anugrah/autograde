@@ -3,7 +3,7 @@
 The release tag is injected as APP_VERSION at deploy time (same pattern as
 palmgrade-api and palmgrade-frontend). It has to reach GET /health so the
 support account can read all three service versions from the browser without
-SSH — see docs/superpowers/specs/2026-09-06-error-reporting-and-version-info-design.md
+SSH — the console surfaces it on the support-only Versi tab.
 """
 from __future__ import annotations
 
