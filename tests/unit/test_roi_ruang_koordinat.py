@@ -15,10 +15,13 @@ kadang tidak masuk", bukan sebagai salah kalibrasi.
 
 Satu ruang sekarang: ROI ditulis dalam ruang STREAM (sama dengan yang dilihat
 operator), lalu diskalakan ke ukuran frame mentah saat menyaring.
+
+`draw_roi()` sengaja tidak diuji di sini: dia menggambar lewat cv2, dan CI ini
+sengaja tidak memasang cv2/numpy/torch. Yang diuji aritmetikanya — itu bagian
+yang dulu salah, dan itu bagian yang tidak butuh gambar sungguhan.
 """
 from __future__ import annotations
 
-import numpy as np
 import pytest
 
 from palmgrade.core.config import Settings
@@ -102,32 +105,27 @@ def test_frame_seukuran_stream_tidak_diskalakan(monkeypatch: pytest.MonkeyPatch)
     assert FrameProcessingWorker._roi_box_for(settings, STREAM_W, STREAM_H) == ROI
 
 
-def test_kotak_yang_digambar_tetap_di_ruang_stream(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`draw_roi` menggambar di frame yang SUDAH di-resize, jadi tanpa skala.
+def test_janjang_di_pinggir_kanan_ikut_terhitung(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regresi yang terlihat di layar: buah di kanan frame dulu dibuang diam-diam.
 
-    Penjaga arah sebaliknya: kalau nanti ada yang menskalakan di sisi gambar
-    juga, kotaknya akan meleset keluar layar.
+    ROI lama berhenti di x=1180 dari 2448, jadi apa pun di paruh kanan frame
+    sensor ada di luar zona — padahal di layar jelas di dalam kotak.
     """
-    from palmgrade.pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
+    from palmgrade.workers.frame_processing_worker import FrameProcessingWorker
 
     settings = _settings(monkeypatch)
-    frame = np.zeros((STREAM_H, STREAM_W, 3), dtype=np.uint8)
+    roi = FrameProcessingWorker._roi_box_for(settings, SENSOR_W, SENSOR_H)
 
-    digambar = RealtimeInspectionPipeline.draw_roi(
-        _PipelineStub(settings), frame.copy()
-    )
-
-    # Piksel ROI berwarna tepat di garis kotak seperti yang ditulis di `.env`.
-    ys, xs = np.where(digambar.any(axis=2))
-    assert xs.min() == pytest.approx(ROI[0], abs=2)
-    assert ys.min() == pytest.approx(ROI[1], abs=2)
-    assert xs.max() == pytest.approx(ROI[2], abs=2)
-    assert ys.max() == pytest.approx(ROI[3], abs=2)
+    # x=1800 pada frame sensor = x=941 di ruang stream — di dalam kotak (100..1180).
+    assert FrameProcessingWorker._is_in_roi_box(1800, 1000, roi)
 
 
-class _PipelineStub:
-    """Cukup untuk `draw_roi`: dia hanya menyentuh settings + flag aktif."""
+def test_roi_tidak_pernah_melampaui_frame(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hasil penskalaan wajib tetap di dalam frame, bukan menunjuk piksel yang tidak ada."""
+    from palmgrade.workers.frame_processing_worker import FrameProcessingWorker
 
-    def __init__(self, settings: Settings) -> None:
-        self.settings = settings
-        self._roi_enabled = True
+    settings = _settings(monkeypatch)
+    x1, y1, x2, y2 = FrameProcessingWorker._roi_box_for(settings, SENSOR_W, SENSOR_H)
+
+    assert 0 <= x1 < x2 <= SENSOR_W
+    assert 0 <= y1 < y2 <= SENSOR_H
