@@ -196,6 +196,8 @@ python3.12 -m venv .venv
 
 make operator          # akun lokal: email + nama + sandi (min. 8 karakter)
 make demo              # opsional: 10 truk, seminggu riwayat, akun operator@/support@demo.autoerp.test sandi sawit2026
+make demo-reset        # hapus data demo lalu isi ulang bersih
+make demo-off          # sesudah demo: hapus data demo, berhenti di situ (data sungguhan tidak disentuh)
 make console           # http://127.0.0.1:8100/console  (Ctrl-C untuk berhenti)
 .venv/bin/pytest tests/unit
 ```
@@ -203,6 +205,11 @@ make console           # http://127.0.0.1:8100/console  (Ctrl-C untuk berhenti)
 Yang perlu diketahui:
 
 - Venv ini **sengaja tanpa torch / ultralytics / OpenCV**. Konsol tidak memakainya.
+- **Sesudah showcase, jalankan `make demo-off` sebelum uji coba sungguhan.** Data demo
+  kalau dibiarkan akan menutupi baris yang baru digrading — janjangnya berstempel sampai
+  mendekati jam sekarang, dan tab Grading + tabel Timbangan urut waktu terbaru, jadi baris
+  demo selalu di atas. Layarnya terlihat "beku" padahal real-time-nya jalan. `make demo-off`
+  cuma menghapus sepuluh plat demo; truk, timbangan, dan janjang sungguhan tidak disentuh.
 - Port **8100**, bukan 8000: di laptop, 8000 biasanya dipegang AutoERP lokal.
 - Tiga kartu kamera tampil **OFFLINE**. Itu benar, tidak ada line di laptop.
 - `make console` jalan **tanpa auto-reload**: ubah Python → jalankan ulang. Ubah `console.html`
@@ -412,7 +419,9 @@ hanya lewat AnyDesk, tidak ada SSH masuk.
 | `make build-engine` | engine TensorRT, sekali per GPU (auto-skip kalau sudah ada) |
 | `make kiosk` | konsol layar penuh |
 | `make rekonsiliasi-truk-docker [TULIS=1]` | OPS-2, sekali saat pasang di PC ber-data lama |
-| `make demo [HARI=3] [AKSI=reset]` | data contoh. **Hanya laptop/demo, jangan pernah di PC pabrik** |
+| `make demo [HARI=3]` | data contoh. **Hanya laptop/demo, jangan pernah di PC pabrik** |
+| `make demo-reset` | hapus data demo lama lalu isi ulang bersih (`AKSI=reset` juga masih jalan) |
+| `make demo-off` | hapus data demo, berhenti di situ (tidak mengisi ulang seperti `demo-reset`). Data sungguhan tidak disentuh — jalankan sesudah showcase, sebelum uji coba. AutoERP punya tiga perintah nama sama |
 | `make rebuild-clean` | build ulang tanpa cache, hanya kalau cache dicurigai rusak |
 
 ### 6.2 Memperbarui kode di pabrik

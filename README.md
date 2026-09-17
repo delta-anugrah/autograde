@@ -40,6 +40,8 @@ python3.12 -m venv .venv
 
 make operator                     # sekali: akun lokal buat login (tanya email + nama + sandi)
 make demo                         # opsional: isi layar dengan data contoh (lihat "Coba di lokal")
+make demo-reset                   # hapus data demo lalu isi ulang bersih
+make demo-off                     # sesudah showcase: hapus data demo, data sungguhan tidak disentuh
 make console                      # http://127.0.0.1:8100/console — Ctrl-C untuk berhenti
 .venv/bin/pytest tests/unit       # unit test, tidak butuh konsol maupun AutoERP
 ```
@@ -447,7 +449,8 @@ operator disimpan di `localStorage`.
   ```bash
   make demo                       # 7 hari riwayat
   make demo HARI=3                # lebih pendek
-  make demo AKSI=reset            # hapus data demo lama dulu, lalu isi ulang
+  make demo-reset                 # hapus data demo lama dulu, lalu isi ulang (AKSI=reset juga masih jalan)
+  make demo-off                   # sesudah showcase: hapus data demo, berhenti di situ (tidak isi ulang)
   make console                    # → http://127.0.0.1:8100/console
   ```
 
@@ -457,6 +460,8 @@ operator disimpan di `localStorage`.
   **Platnya sama persis dengan seeder AutoERP** (`erpnext/palm_mill/demo.py`), jadi
   seed dua-duanya dan satu truk adalah truk yang sama di dua layar: kunjungan di konsol
   pabrik, tiketnya di ERP Desk. Ganti plat di sini → ganti di sana dalam PR yang sama.
+  AutoERP punya tiga perintah `make` yang sama persis (`demo`/`demo-reset`/`demo-off`),
+  jadi urutan showcase di dua layar tidak perlu dihafal beda-beda.
 
   Skripnya menulis ke SQLite langsung, jadi konsolnya **tidak perlu hidup** dan tidak ada
   secret yang dilewatkan di baris perintah. Versi lama butuh `WEBHOOK_SECRET`, tiga

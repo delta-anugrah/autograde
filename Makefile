@@ -160,13 +160,26 @@ operator-docker:
 # jadi satu truk adalah truk yang sama di dua layar.
 #   make demo                jalankan (7 hari riwayat)
 #   make demo HARI=3         riwayat lebih pendek
-#   make demo AKSI=reset     hapus data demo lama dulu, lalu isi ulang
+#   make demo-reset          hapus data demo lama dulu, lalu isi ulang
+#   make demo-off            hapus data demo, berhenti di situ (sesudah demo selesai)
+# `AKSI=reset` masih jalan (dipakai dokumen lama), tapi `make demo-reset` yang dipakai
+# sekarang — namanya sejajar dengan AutoERP, jadi satu nama untuk dua repo.
 # ⚠️ JANGAN di PC pabrik. Skripnya menolak database yang sudah punya data
 # sungguhan; PAKSA=1 melewati penolakan itu — jangan dipakai kecuali yakin.
 HARI ?= 7
 demo:
 	PYTHONPATH=src .venv/bin/python scripts/seed-console-demo.py \
 		--hari $(HARI) $(if $(filter reset,$(AKSI)),--reset,) $(if $(PAKSA),--paksa,)
+
+# Bersihkan data demo sesudah showcase. Menghapus baris milik sepuluh plat demo
+# saja — timbangan dan janjang truk sungguhan tidak disentuh. Wajib dijalankan
+# sebelum uji coba: janjang seeder berstempel sampai ~20 jam ke depan, jadi selama
+# masih ada dia selalu berada di atas baris yang baru saja digrading.
+demo-reset:
+	PYTHONPATH=src .venv/bin/python scripts/seed-console-demo.py --hari $(HARI) --reset
+
+demo-off:
+	PYTHONPATH=src .venv/bin/python scripts/seed-console-demo.py --hapus
 
 demo-docker:
 	docker compose --env-file $(ENV_FILE) exec console python scripts/seed-console-demo.py \
