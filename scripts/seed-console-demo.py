@@ -130,9 +130,21 @@ def tulis_gambar_demo(tujuan: Path, *, label: str, nomor: int) -> None:
     Pakai cv2, bukan Pillow: `opencv-python` ada di `requirements.txt`, Pillow
     cuma kebetulan ikut terpasang lewat dependency lain dan bisa hilang kapan
     saja tanpa ada yang tahu sampai `make demo` gagal.
+
+    Import-nya di dalam fungsi, dan itu disengaja: suite unit jalan di CI yang
+    **tidak** memasang cv2 maupun numpy (`ci.yml` pasang deps ringan pure-Python
+    saja). Mengangkatnya ke atas modul bikin seluruh berkas ini gagal diimpor di
+    sana, termasuk untuk test yang cuma memeriksa aritmetika path.
     """
-    import cv2
-    import numpy as np
+    try:
+        import cv2
+        import numpy as np
+    except ModuleNotFoundError as exc:  # pragma: no cover - lingkungan tanpa cv2
+        raise RuntimeError(
+            "gambar demo sintetis butuh opencv-python + numpy "
+            "(`pip install -r requirements.txt`). Kalau `artifacts/` sudah punya "
+            "capture nyata, seeder menyalinnya dan tidak butuh keduanya."
+        ) from exc
 
     lebar, tinggi = DEMO_IMAGE_SIZE
     img = np.zeros((tinggi, lebar, 3), dtype=np.uint8)
