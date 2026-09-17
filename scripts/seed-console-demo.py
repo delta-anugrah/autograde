@@ -4,6 +4,7 @@
     make demo                  a week of history, then the accounts to sign in with
     make demo HARI=3           fewer days
     make demo AKSI=reset       delete what this script made, then build it again
+    make demo-off              delete what this script made, and stop there
 
 DEV AND DEMO ONLY — never on the factory PC. It writes grading events and weighbridge
 tickets into the console database, and on a real mill that is the operator's own day
@@ -216,6 +217,11 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--hari", type=int, default=DAYS, help="days of history (default 7)")
     ap.add_argument("--reset", action="store_true", help="delete demo rows first")
+    ap.add_argument(
+        "--hapus",
+        action="store_true",
+        help="delete the demo rows and stop — leaves real data alone",
+    )
     ap.add_argument("--paksa", action="store_true", help="run even on a non-empty database")
     args = ap.parse_args(argv[1:])
 
@@ -225,6 +231,14 @@ def main(argv: list[str]) -> int:
     # Printed every time: writing demo data into the wrong database is the one mistake
     # this script could make silently.
     print(f"Database konsol: {settings.console_db_path}")
+
+    if args.hapus:
+        # Hapus lalu BERHENTI. Dipakai sesudah demo supaya layar konsol kembali
+        # berisi data sungguhan saja: janjang seeder berstempel sampai ~20 jam ke
+        # depan, jadi selama masih ada dia selalu menutupi baris yang baru digrading.
+        print(f"  dihapus: {wipe(store)} baris demo")
+        print("  data demo dibersihkan; data sungguhan tidak disentuh")
+        return 0
 
     if args.reset:
         print(f"  dihapus: {wipe(store)} baris demo")
