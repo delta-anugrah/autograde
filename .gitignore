@@ -239,3 +239,8 @@ sdk/MvImport/MvImport/
 # ter-commit dia akan jalan juga di PC pabrik dan menimpa setelan kamera di sana.
 docker-compose.override.yml
 docker-compose.override.yaml
+
+# Sampah Finder macOS. Ikut ter-commit dua kali lewat `git add -A`; berkas ini
+# tidak berarti apa-apa di Linux maupun di image, dan berubah tiap kali folder
+# dibuka sehingga muncul terus di `git status`.
+.DS_Store
