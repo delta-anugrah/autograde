@@ -34,8 +34,14 @@ def _muat_seeder():
 
 
 @pytest.fixture
-def seeder():
-    return _muat_seeder()
+def seeder(monkeypatch):
+    """Penulis gambar ditambal: yang diuji di sini stempel waktu, dan gambar
+    sintetis butuh cv2 + numpy yang sengaja TIDAK ada di suite unit (CI ringan,
+    `CLAUDE.md` §Tests). Tanpa tambalan ini seluruh berkas gagal di CI sementara
+    lolos di laptop yang kebetulan punya cv2."""
+    modul = _muat_seeder()
+    monkeypatch.setattr(modul, "tulis_gambar_demo", lambda *a, **k: None)
+    return modul
 
 
 @pytest.fixture
