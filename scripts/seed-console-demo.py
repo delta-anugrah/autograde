@@ -390,10 +390,23 @@ def _seed_one_visit(
     key = f"{day:%Y%m%d}:{i:03d}"
     assignment_id = _uid("assignment", key)
 
-    # A visit occupies one slot in the working day, from 07:00 on.
-    start = day.replace(hour=7, minute=0, second=0, microsecond=0) + timedelta(
-        minutes=(i * 97) % 600
-    )
+    # A visit occupies one slot in the working day, from 07:00 on — but never in
+    # the future. Tab Grading dan tabel Timbangan urut waktu terbaru, jadi satu
+    # baris demo berstempel jam yang belum lewat akan selalu berada DI ATAS janjang
+    # yang baru saja digrading: layarnya terlihat beku padahal real-time-nya jalan.
+    # Hari lampau tidak terpengaruh — `sisa` di sana jauh lebih besar dari 600.
+    # Ekor janjang (`j * 20` detik) dan `exited_at` (+1 jam) ikut dihitung, supaya
+    # yang dibatasi adalah kunjungan UTUH, bukan cuma jam mulainya.
+    ekor = timedelta(seconds=BUNCHES_PER_VISIT[1] * 20) + timedelta(hours=1)
+    # Kunjungan terakhir harus SELESAI sebelum `day`. Demo yang dijalankan subuh
+    # tidak punya ruang di hari kerjanya sendiri, jadi jam mulainya digeser mundur
+    # — hari kerja pabrik memang lewat tengah malam, dan baris yang jamnya agak
+    # aneh jauh lebih murah daripada baris yang menutupi grading sungguhan.
+    batas = day - ekor
+    start = min(day.replace(hour=7, minute=0, second=0, microsecond=0), batas)
+    sisa = int((batas - start).total_seconds() // 60)
+    if sisa > 0:
+        start += timedelta(minutes=(i * 97) % min(600, sisa))
     work_date = work_date_for(start.isoformat(), tz)
     # Folder truk yang sama dengan yang ditulis line sungguhan, jadi demo dan
     # produksi punya satu bentuk folder — bukan dua yang harus diingat terpisah.
