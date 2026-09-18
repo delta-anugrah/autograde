@@ -6,8 +6,8 @@ description: Pasang PC pabrik Palmgrade baru dari nol — jaringan kamera, docke
 # Pasang PC pabrik Palmgrade dari nol
 
 ⚠️ Dua berkas di bawah ada di repo **`sawit`** (workspace internal), bukan di repo ini:
-`docs/runbooks/2026-08-21-checklist-pasang-pc-pabrik.md` (checklist ringkas buat operator)
-dan `docs/runbooks/2026-08-15-factory-pc-install-ringkas.md` (detail panjang + template
+`../docs/runbooks/2026-08-21-checklist-pasang-pc-pabrik.md` (checklist ringkas buat operator)
+dan `../docs/runbooks/2026-08-15-factory-pc-install-ringkas.md` (detail panjang + template
 `.env` lengkap). Tanpa akses ke sana, mintalah `.env` contoh ke yang memegang repo itu —
 sisanya di skill ini sudah cukup untuk memandu pemasangan.
 

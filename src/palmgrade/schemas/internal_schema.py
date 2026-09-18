@@ -16,7 +16,11 @@ class AssignmentSyncRequest(BaseModel):
     # Display label for the capture folder name, forwarded by the console.
     # `truck_id` is a uuid5 *of* the plate and cannot be reversed, so without
     # this the folder can only be named after an opaque id. Optional on purpose:
+<<<<<<< Updated upstream
     # an older console omits it, and a line that refused the payload would stop
+=======
+    # an older console omits it, and a line that refuses the payload would stop
+>>>>>>> Stashed changes
     # assignment outright during a partial upgrade.
     plate: str | None = None
 
