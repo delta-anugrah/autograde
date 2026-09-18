@@ -21,7 +21,7 @@ membebani user dengan pertanyaan yang jawabannya sudah ada.
 | Hostname | `admin-pc` (desktop, bukan server) |
 | OS | Linux Mint 22 |
 | CPU | Intel i5-12400F — 6 core / 12 thread |
-| RAM | 31 GB (+2 GB swap) |
+| RAM | 31 GB (+2 GB swap) — dipakai antrean penulis bukti, lihat catatan di bawah |
 | Disk | **468 GB** T-FORCE SSD (NVMe/SSD, `ROTA=0`), **sisa 232 GB** |
 | GPU | **RTX 3060 12 GB** (sm86), driver 575.64.03, CUDA 12.9 |
 | Line kamera | **3** (line-1/2/3) |
@@ -74,6 +74,13 @@ di atas dibagi dua.** Di 500 janjang/jam/line, 41 hari jadi ~20 hari.
 
 RTX 3060 12 GB, **compute capability sm86**. Engine TensorRT hardware-locked per
 GPU: `engines/best.sm86.engine`, sekali bangun ~208 detik.
+
+### RAM — antrean penulis bukti (sejak 2026-09-18)
+
+`CaptureSaveWorker` menahan **dua frame 2448×2048 BGR per janjang di antrean** (14,3 MB
+masing-masing = 28,7 MB per job). Antrean 8 dalam ⇒ **230 MB per line, 689 MB untuk tiga
+line** dari 31 GB. Murah, dan itu yang membatasi kedalaman antrean dari atas — bukan CPU.
+Angka itu dipakai memutuskan 8, bukan angka bulat; jangan diperdalam tanpa menghitung ulang.
 
 Saat idle: 196 MiB / 12288 MiB terpakai (cuma Xorg + cinnamon). VRAM bukan
 kendala — 3 line jalan di ~1,5 GB total. Yang jadi kendala fps itu CPU/kamera,

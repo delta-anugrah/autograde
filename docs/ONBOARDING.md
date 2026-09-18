@@ -92,8 +92,8 @@ mati: yang ikut turun itu hash sandinya, bukan sandinya. Tidak ada halaman web u
 Bagian ini adalah inti sistem.
 
 ```diagram:alur-janjang Perjalanan data satu janjang, dari kamera sampai AutoERP
-kamera → FrameCaptureWorker → antrean → FrameProcessingWorker → disk + outbox.db
-                                                                     │
+kamera → FrameCaptureWorker → antrean → FrameProcessingWorker → CaptureSaveWorker
+                                                                     │   (disk + outbox.db)
                                    DisplayWorker → MJPEG             ▼
                                    (layar langsung)          OutboxRetryWorker
                                                                      │
@@ -108,10 +108,16 @@ kamera → FrameCaptureWorker → antrean → FrameProcessingWorker → disk + o
    frame terlama** saat penuh, sehingga model selalu memproses gambar terbaru.
 2. **Penilaian.** `FrameProcessingWorker` menjalankan YOLO dan ByteTrack. ByteTrack memastikan satu
    janjang yang terlihat di banyak frame berturut-turut **dihitung satu kali**. Janjang dihitung
-   ketika memasuki area ROI di tengah conveyor.
+   ketika kotaknya **menyentuh garis capture** — satu garis lurus yang diatur dari layar setelan.
+   Area ROI menentukan *di mana* (bagian gambar yang dianggap conveyor); garisnya menentukan
+   *kapan*.
 3. **Simpan ke disk sebelum mengirim.** Ini aturan terpenting di repositori ini. Worker penilaian
-   **tidak pernah** berkomunikasi lewat jaringan: ia menulis gambar WebP dan JSON ke
-   `artifacts/results/`, lalu menambahkan satu baris ke `outbox.db`.
+   **tidak pernah** berkomunikasi lewat jaringan, dan sejak September 2026 ia juga **tidak menulis
+   ke disk sendiri**: ia menyerahkan pekerjaan ke `CaptureSaveWorker`, lalu langsung lanjut ke frame
+   berikutnya. Penulis itulah yang menulis gambar WebP dan JSON ke `artifacts/results/`, lalu
+   menambahkan satu baris ke `outbox.db`.
+   Alasannya terukur: satu janjang memakan ~590 ms untuk disimpan pada frame 2448×2048, dan selama
+   itu penilaian **berhenti** — frame dibuang diam-diam, jejak ByteTrack putus, layar membeku.
 4. **Pengiriman lewat antrean.** `OutboxRetryWorker` memeriksa `outbox.db` setiap detik dan
    mengirimnya ke konsol. Bila konsol sedang tidak aktif, data menunggu di antrean tanpa hilang.
 5. **Pencatatan di konsol.** Konsol menyimpan data ke `state/console.db` (SQLite). Layar operator
@@ -178,7 +184,7 @@ Kode disusun berlapis, dan urutan lapisannya **tidak boleh dilompati**:
 | `services/` | alur bisnis | `console_service.py`, `erp_queue.py` |
 | `repositories/` | baca-tulis disk dan SQLite | `console_repository.py`, `capture_repository.py` |
 | `pipelines/` | inferensi YOLO | `model_registry.py`, `realtime_inspection_pipeline.py` |
-| `workers/` | proses latar yang berjalan terus | capture, processing, display, outbox, batch upload, worker ERP |
+| `workers/` | proses latar yang berjalan terus | capture, processing, **capture_save** (penulis bukti), display, outbox, batch upload, worker ERP |
 | `integrations/` | sistem luar | `camera/`, `erp/`, `notifications/`, `storage/`, `upload/`, `outbox/`, `scheduler/` |
 | `domain/` | aturan murni tanpa I/O | `working_day.py`, `ffb_source.py`, `vision_event.py`, `plate.py` |
 | `schemas/` | bentuk request dan response (Pydantic) | `internal_schema.py` |

@@ -65,8 +65,16 @@ yang **tidak** memuat keduanya, supaya gangguan kamera tidak mematikan layar ope
 `TP` cuma penanda, bukan verdict. Objek lebih kecil dari `MINIMUM_SIZE` piksel² otomatis REJ.
 Dua buah bertumpuk dalam ROI di satu frame → semuanya REJ.
 
+**Kapan janjang difoto.** Saat kotaknya **menyentuh garis capture** — garis biru bertanda
+`CAPTURE` di layar line, diatur dari tab Setelan. ROI menjawab *di mana* (bagian gambar yang
+dianggap conveyor), garis menjawab *kapan*. Janjang difoto apa adanya, ada tangkai panjang atau
+tidak. Tangkai panjang dipasangkan ke janjang **terdekat**; tangkai yang baru muncul sesudah
+janjangnya difoto tidak ikut, dan jumlahnya terbaca di tab Diagnostik sebagai `tp_telat`.
+Garis `0` = tanpa garis, janjang difoto begitu masuk ROI (perilaku sebelum September 2026).
+
 ```diagram:alur-janjang Perjalanan satu janjang dari kamera sampai AutoERP
-kamera → FrameCaptureWorker → antrean → FrameProcessingWorker → disk + outbox.db
+kamera → FrameCaptureWorker → antrean → FrameProcessingWorker → CaptureSaveWorker
+                                                                   (disk + outbox.db)
                                                                      │
                                    DisplayWorker → MJPEG             ▼
                                    (layar langsung)          OutboxRetryWorker
@@ -79,8 +87,11 @@ kamera → FrameCaptureWorker → antrean → FrameProcessingWorker → disk + o
 
 Urutan yang penting dipahami:
 
-1. Kamera → frame → YOLO + ByteTrack (satu janjang dihitung **sekali** walau terlihat di banyak frame).
-2. Hasil ditulis ke **disk dulu** (`artifacts/line-N/results/`: WebP + JSON), lalu satu baris ke `outbox.db`.
+1. Kamera → frame → YOLO + ByteTrack (satu janjang dihitung **sekali** walau terlihat di banyak frame),
+   dan difoto saat kotaknya **menyentuh garis capture**.
+2. Hasil ditulis ke **disk dulu** (`artifacts/line-N/results/`: WebP + JSON), lalu satu baris ke
+   `outbox.db`. Penulisannya dikerjakan `CaptureSaveWorker` di thread terpisah supaya penilaian
+   tidak berhenti menunggu disk — satu janjang memakan sekitar setengah detik untuk disimpan.
 3. `OutboxRetryWorker` mengirim ke konsol tiap detik. Konsol mati = data menunggu, tidak hilang.
 4. Konsol menyimpan ke `state/console.db`. Layar membaca dari sini, **tidak pernah memindai folder**.
 5. Tiap jam `BatchUploadWorker` mengunggah foto ke Cloudflare R2 (kalau `R2_BUCKET` diisi).
@@ -152,6 +163,11 @@ Aturan angka yang dijaga konsol:
 | Tab | Isi | Yang bisa dilakukan |
 |---|---|---|
 | **Grading** | riwayat janjang: waktu, line, truk, sumber, hasil, kelas, confidence, foto | filter per line/truk, pagination, klik foto → tampilan besar |
+
+> Angka keyakinan ada di tabel Grading, tapi **tidak** digambar di kotak janjang pada layar
+> line — dari beberapa meter "54%" terbaca seperti "54% matang". Saklar **Mode dev** di tab
+> Setelan mengembalikannya, untuk yang sedang menyetel ambang.
+
 | **Truk** | master truk + supplier + asal data (ERP / manual) | **Daftar truk manual**, **Cetak QR truk** (kartu QR berisi plat, dibuat di server) |
 | **Timbangan** | tiket hari kerja: masuk, keluar, bruto, tara, neto | **Timbang masuk**, isi tara lewat scan keluar |
 | **Rekap** | satu baris per truk per hari kerja: janjang, ACC, REJ, rasio, neto | ini yang diserahkan ke supplier; baris **Tanpa truk** = janjang ter-grading sebelum truk ditugaskan |
@@ -167,11 +183,11 @@ Muncul hanya untuk akun berperan `support`. Tujuannya: memeriksa PC pabrik dari 
 | Tab | Isi |
 |---|---|
 | **Log** | ERROR/WARNING 180 hari terakhir, selamat dari restart; pesan berulang digabung `×N`; sandi/token tertulis `«ditutup»` |
-| **Diagnostik** | tiga kartu line: worker, kamera, fps, GPU, PLC, antrean lokal. Line mati tetap tampil dengan sebabnya |
+| **Diagnostik** | tiga kartu line: worker, kamera, fps, GPU, PLC, antrean lokal. Line mati tetap tampil dengan sebabnya. ⚠️ `capture_save_dropped` dan `tp_telat` **harus nol** — di atas nol berarti ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat |
 | **Antrean ERP** | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang**. Plus antrean manifest R2 |
 | **Versi** | versi, machine id, environment, status lisensi (tanpa token) |
 | **Uji PLC** | status coil/DI per line dan tombol uji coil. Mati saat line memproses truk; konfirmasi ketik `UJI`; coil 9 (heartbeat) sengaja tidak ada |
-| **Setelan** | ambang keyakinan (0–1) dan ukuran minimum (piksel). Tersimpan dan langsung dikirim ke tiga line, menang atas `.env` |
+| **Setelan** | ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`. Tab paling kanan |
 
 ### 3.6 Layar penuh di PC pabrik
 
@@ -315,6 +331,7 @@ Baris yang wajib disentuh. Sisanya biarkan bawaan.
 | `FACTORY_TZ` | `Asia/Jakarta` (sesuaikan) | batas tanggal kerja |
 | `CONSOLE_DEFAULT_HASH`, `CONSOLE_SUPPORT_HASH` | keluaran `make hash-sandi` | dua sandi **berbeda**, catat di catatan internal. Tulis `$$` untuk tiap `$` (compose memakan `$`) |
 | `CONF_THRESHOLD`, `MINIMUM_SIZE`, `ROI_*` | nilai pabrik | Lampung: 0.5, 3000, ROI 100/100/1180/620. Bisa diubah dari tab Setelan |
+| `GARIS_CAPTURE`, `SUMBU_GARIS`, `MODE_DEV` | `0`, `tegak`, `false` | **nilai awal saja** — yang dipakai sehari-hari diatur dari tab Setelan, berlaku tanpa restart. Garis `0` = tanpa garis |
 | `BORDER_THICKNESS`, `FONT_SCALE`, `FONT_THICKNESS` | 8, 2.5, 5 | frame 2448×2048 butuh angka besar |
 | `R2_ACCOUNT_ID` … `R2_PUBLIC_URL` | dari Cloudflare, atau kosong | kosong = foto tidak diunggah, tidak ada `detail_url` di tiket ERP |
 | `UPLOAD_API_URL`, `UPLOAD_API_SECRET` | **kosong** | penerima teks per janjang sudah pensiun |
@@ -443,7 +460,7 @@ pembaruan di pabrik dilakukan manual lewat `git pull`. Nama image GHCR tetap
 | Cara | Yang dilihat |
 |---|---|
 | tab **Diagnostik** (support) | worker, kamera, fps, GPU, PLC per line |
-| `curl localhost:8001/health/detail` | `camera_connected`, `gpu_available`, `current_assignment_id`, `outbox_pending` |
+| `curl localhost:8001/health/detail` | `camera_connected`, `gpu_available`, `current_assignment_id`, `outbox_pending`, dan **`capture_save_dropped` + `tp_telat` yang harus NOL** |
 | tab **Antrean ERP** | pesan yang belum sampai ke AutoERP dan sebabnya |
 | tab **Log** | ERROR/WARNING 180 hari, bertahan lewat restart |
 | `docker logs ripe_line_1 \| grep 'Batch tick'` | progres unggah ke R2 (tidak ada di `/health`) |

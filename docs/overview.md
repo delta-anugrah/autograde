@@ -29,7 +29,8 @@
 | Worker | Kind | Responsibility |
 |---|---|---|
 | `FrameCaptureWorker` | thread | grab frame from camera (under `state.lock`) → `state.latest_raw_frame` + `frame_queue`. Auto-reconnects with `device_index`. |
-| `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); detection → save ke disk → `event_queue` + `outbox.add_event()` |
+| `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); janjang menyentuh garis capture → pulse PLC + `event_queue` + serahkan `SaveJob`, lalu **lanjut**. Sejak 2026-09-18 **tidak menulis ke disk maupun outbox sendiri** |
+| `CaptureSaveWorker` | thread | penulis bukti: encode WebP bbox+clean+thumb, sidecar JSON, dan satu baris `outbox.add_event()`. Antrean 8 dalam, drop yang terbaru + `logger.error` kalau penuh (`capture_save_dropped`). Ikut diawasi watchdog; antreannya dikuras saat shutdown sebelum kamera dilepas |
 | `DisplayWorker` | thread | the **only** writer of `state.latest_frame`: draw boxes → resize → draw ROI → JPEG encode → `frame_condition.notify_all()`. Runs at `STREAM_FPS` (default 12). |
 | `OutboxRetryWorker` | thread | kirim isi `outbox.db` ke API **lokal** (`BACKEND_URL`), poll 1 detik — jalur realtime operator, hidup walau internet mati. Batch upload ke cloud jalan terpisah. |
 | `PlcWorker` | thread | **hanya kalau `PLC_ENABLED=true`** (default mati → nol thread tambahan di cloud & PC dev). Satu-satunya thread yang menyentuh socket Modbus ke coupler ODOT: kuras antrean keputusan → pulse coil OK/NG, toggle bit alive, baca discrete input, tulis coil ERROR. Bangun tiap `PLC_POLL_MS` (default 200ms) **selamanya** — polling reguler inilah yang menahan watchdog ODOT. Sinyal telat = buah salah yang tersortir, jadi kebijakannya **buang dan hitung, jangan pernah tunda**. |
@@ -69,20 +70,28 @@ docked for. Its count stays on the edge until a contract change is agreed.
 
 ```
 each YOLO frame (ByteTrack assigns track_id per object):
-  label == "tp"                  → store in _last_tp (candidate, paired later)
-  label in ("acc","rej") AND center inside ROI AND track not processed:
+  pre-scan: kumpulkan kotak semua TP + semua janjang di frame ini
+            (TP butuh track_id sah dan belum dipakai — `kandidat_tp_sah`)
+
+  label in ("Ripe","Unripe","JK") AND center inside ROI AND track not processed
+  AND kotaknya MENYENTUH garis capture:
       area = (x2-x1)*(y2-y1)
       if area < MINIMUM_SIZE (460000) OR >1 fruit in ROI this frame → force "rej"
-      _save_ripeness(): annotated WebP (quality 65) + {ts}_auto_ripeness.json
-      if _last_tp: _save_tp(): {ts}_auto_tp.json (no image, same timestamp) then clear
+      submit_grading() → pulse PLC          # seketika, tidak boleh ditunda
+      tetapkan timestamp                     # sumber event_id uuid5 — WAJIB di sini
+      tp = tp_untuk_janjang(...)             # TP TERDEKAT, dan hanya kalau janjang
+                                             # ini yang terdekat di antara semua
       push event to event_queue (drop-old) for WebSocket
+      capture_saver.submit(SaveJob(...))     # ← encode + disk + outbox pindah ke sini
+      mark track processed                   # sesudah DISERAHKAN, bukan sesudah ditulis
+
+  CaptureSaveWorker (thread lain):
+      write_pair(): WebP bbox + clean + thumb (quality 65 / 60)
+      {ts}_auto_ripeness.json, dan {ts}_auto_tp.json kalau janjang itu bawa TP
       outbox.add_event(build_event_payload(...))  # → API lokal via OutboxRetryWorker
       # Pengiriman ke CLOUD terpisah: BatchUploadWorker men-scan file hasil save
       # di atas (lihat §4) dan menghitung ulang uuid5 yang sama dari machine_id +
       # timestamp nama file — dua jalur, satu event_id, jadi tidak pernah dobel.
-      mark track processed LAST (_processed_objects.add + _processed_times)
-      # processed di-set SETELAH file tersimpan: crash mid-block → track belum
-      # processed → di-reprocess → nama file (dan uuid5-nya) sama → idempotent
 ```
 
 - `ResultRepository.list_today_results()` merges `_ripeness.json` + `_tp.json` per base_name.
@@ -172,7 +181,8 @@ sudah diputuskan `CONF_THRESHOLD`, jadi apa pun yang tergambar sudah lolos amban
 `viewer.html` membuangnya lebih dulu (`abd8f17`). Nilainya **tetap** disimpan di sidecar dan
 dikirim ke API — yang dibuang tampilannya, bukan datanya.
 
-**DisplayWorker draw order:** `draw_boxes()` (on `last_yolo_frame`) → `cv2.resize()` → `draw_roi()`.
+**DisplayWorker draw order:** `draw_boxes()` (on `last_yolo_frame`) → `cv2.resize()` → `draw_roi()`
+(yang juga menggambar **garis capture** biru bertanda `CAPTURE`, sesudah resize, di ruang stream).
 Render boxes over `last_yolo_frame` (paired with results), **never** over `latest_raw_frame` — on CPU,
 inference can take 0.5–2s and the conveyor moves, so boxes would land in the wrong place. Fallback to
 `latest_raw_frame` only before the first YOLO run.

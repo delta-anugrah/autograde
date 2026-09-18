@@ -95,8 +95,8 @@ Yang gampang salah dipahami:
   dikenal nggak boleh diam-diam lolos.
 - Flag `plc_signalled` di `frame_processing_worker` diset **walaupun sinyalnya
   ditahan**: artinya "keputusan PLC udah diambil", bukan "pulse udah dikirim".
-  Kalau nggak, satu buah internal REJ yang nyangkut di ROI masuk blok itu lagi
-  tiap frame di 10–16 fps.
+  Kalau nggak, satu buah internal REJ yang nyangkut **di garis capture** masuk
+  blok itu lagi tiap frame di 10–16 fps.
 
 ## Env (`PLC_*`)
 
@@ -184,7 +184,10 @@ baca itu sebelum ngubah:
 Di luar `plc/`, yang ikut nentuin apa yang sampai ke PLC:
 
 - `domain/plc_signal.py` — aturan buah internal (logika murni, nol I/O)
-- `workers/frame_processing_worker.py` — satu-satunya pemanggil `submit_grading`
+- `workers/frame_processing_worker.py` — satu-satunya pemanggil `submit_grading`.
+  ⚠️ Pulse PLC **sengaja tetap di thread deteksi** walau tulis disk sudah pindah ke
+  `CaptureSaveWorker` (2026-09-18): piston menyortir buah yang lewat **sekarang**, bukan buah
+  setengah detik lalu. Jangan "rapikan" dengan memindahkannya ke penulis
 - `workers/line_status_worker.py` — konsol nanya status piston tiap line, 1 dtk
 - `static/console.html` — tombol piston + pintasan `P` (tahan `P` + angka line,
   `P`+`0` nutup semua)
