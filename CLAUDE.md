@@ -34,9 +34,14 @@ Full system map: `../ARCHITECTURE.md`.
 ⚠️ **Repo ini dulu bernama `palmgrade-vision`** (diganti 2026-09-14, bareng `autoerp` pindah
 ke org `delta-anugrah`). Yang **sengaja tidak ikut berubah**, jangan "dirapikan":
 
-- **Nama image GHCR** `ghcr.io/delta-anugrah/palmgrade-vision`, dipatok di `deploy.yml` dan
-  dijaga `tests/unit/test_deploy_image_name.py`. `.env` PC Lampung menarik nama itu; ikut
-  mengganti = `palmgrade pull vision` menjawab "sudah terbaru" selamanya, tanpa error.
+- **Nama image GHCR `ghcr.io/delta-anugrah/autograde`**, satu nama, tanpa warisan (keputusan
+  2026-09-18: semuanya pindah ke AutoGrade, PC Lampung ikut; `palmgrade-vision` **dicabut**).
+  Dipatok di `deploy.yml` dan dijaga `tests/unit/test_deploy_image_name.py`.
+  ⚠️ **Urutan rilis pertama tidak boleh dibalik: `.env` PC Lampung dulu, tag kemudian.**
+  Mesin itu tidak punya SSH masuk — `PALMGRADE_VISION_IMAGE` di `/opt/palmgrade/vision/.env`
+  diedit tangan lewat AnyDesk ke nama baru. Menerbitkan tag lebih dulu membuat
+  `palmgrade pull vision` menjawab "sudah terbaru" **selamanya**: nol error, pabrik berhenti
+  menerima pembaruan, dan baru ketahuan saat ada yang bertanya kenapa versinya tidak naik.
 - **Tag image lokal** `palmgrade-vision:latest` di `docker-compose.yml` + `Makefile`.
 - **Paket Python** `src/palmgrade/`, **nama container** (`ripe_line_*`, `palmgrade_console`),
   dan path `/opt/palmgrade/vision/` di PC pabrik.
@@ -119,6 +124,8 @@ All via **`make`** (Docker only). From `autograde/`:
 | `make rekonsiliasi-truk` | **OPS-2**, sekali saat pasang di PC yang **sudah** punya data palmgrade-api: satukan truk kembar. Tanpa `TULIS=1` cuma melihat. `--db <path>` untuk mencoba di salinan. Di Docker: `make rekonsiliasi-truk-docker`. PC baru (DB kosong) tidak perlu |
 | `make build-engine` | build TensorRT FP16 engine **once per GPU** (one-shot, auto-skip kalau sudah ada) |
 | `make logs` / `make logs-1` | tail logs (combined / per line) |
+| `make reset-data` | **lihat dulu**: berapa foto dan basis data yang akan hilang. Tidak menghapus apa pun |
+| `make reset-data-fresh` | **HAPUS SEMUA DATA** di PC ini: `artifacts/` (foto + sidecar) dan `state/` (semua SQLite). Minta **konfirmasi ketik `HAPUS`**. **Tanpa backup, tidak bisa dikembalikan.** ⚠️ Akun buatan `make operator`, antrean yang belum terkirim, dan foto yang belum naik R2 ikut hilang; **dua akun bawaan image dibuat ulang sendiri** saat konsol start, jadi cukup `make start` sesudahnya. ⚠️ Jangan di PC pabrik yang sedang produksi |
 | `make down` / `make ps` / `make rebuild` / `make rebuild-clean` / `make clean` | stop / status / rebuild / clean rebuild (`--no-cache`) / cleanup |
 
 - **TensorRT (GPU speedup, akurasi sama)**: engine FP16 (`engines/<model>.sm<cc>.engine`) **hardware-locked** (compute capability + versi TensorRT) → tidak di-commit, tidak di-bake ke image, dibangun **sekali per GPU** on-machine via `make build-engine` (~5–15 mnt, tidak butuh kamera). Engine tidak ada / tidak cocok → runtime **fallback ke `.pt`** otomatis (`pipelines/model_registry.py`), jadi kegagalan build bukan outage. Install TensorRT-nya ikut `Dockerfile` (`pypi.nvidia.com` — **wajib**, index PyPI publik cuma punya source stub yang bikin pip hang). Detail: `docs/overview.md` § Docker/SDK/GPU.

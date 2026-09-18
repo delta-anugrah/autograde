@@ -1,4 +1,4 @@
-name: Build and Push Vision Release Image
+name: Build and Push AutoGrade Release Image
 
 # Build-only, unlike the api and frontend workflows: vision runs on factory PCs
 # that this workflow cannot reach (no public address, no inbound SSH). The PC
@@ -15,12 +15,21 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Pinned, NOT ${{ github.repository }}: the repo is being renamed to `autograde`,
-  # and the factory PC pulls `.../palmgrade-vision` from its own .env. Following the
-  # repo name would publish the next tag somewhere nobody is looking — `palmgrade pull
-  # vision` would then report "already up to date" forever, with no error anywhere.
-  # The image name moves in Fase 5, when the factory PC gets a new compose file.
-  IMAGE_NAME: delta-anugrah/palmgrade-vision
+  # One name, no legacy (decision 2026-09-18: everything moves to AutoGrade, the
+  # Lampung PC included, and the old `palmgrade-vision` name is not carried over).
+  #
+  # ⚠️ BEFORE the first tag, `PALMGRADE_VISION_IMAGE` in
+  # `/opt/palmgrade/vision/.env` on the Lampung PC must already point at this
+  # name. That machine has no inbound SSH — it is edited by hand over AnyDesk —
+  # and its updater compares the configured name against the `:latest` marker
+  # under that same name. Tag first, edit later, and `palmgrade pull vision`
+  # answers "already up to date" forever: no error anywhere, the factory simply
+  # stops receiving updates, and it only surfaces when someone asks why the
+  # version never moves.
+  #
+  # Pinned, never `${{ github.repository }}`: a repo rename would move the image
+  # and cut the factory off in exactly the same silent way.
+  IMAGE_NAME: delta-anugrah/autograde
 
 jobs:
   build-and-push:

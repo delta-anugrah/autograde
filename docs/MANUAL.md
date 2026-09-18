@@ -450,10 +450,18 @@ git pull
 make restart                              # atau make up kalau dependency berubah
 ```
 
-Selama "Opsi B" dikerjakan **tidak ada tag rilis `vX.Y.Z` dan tidak ada deploy otomatis**;
-pembaruan di pabrik dilakukan manual lewat `git pull`. Nama image GHCR tetap
-`ghcr.io/delta-anugrah/palmgrade-vision` walau repositori bernama `autograde`; jangan
-"dirapikan".
+**Rilis lewat tag dibuka lagi 2026-09-18.** Tag `vX.Y.Z` menerbitkan image ke GHCR; PC pabrik
+menariknya sendiri (`palmgrade pull vision`) — tidak ada deploy otomatis, karena PC pabrik tidak
+punya alamat publik.
+
+Nama image sekarang **`ghcr.io/delta-anugrah/autograde`** — satu nama, nama lama
+`palmgrade-vision` sudah dicabut.
+
+⚠️ **Sebelum tag rilis pertama, `.env` PC pabrik harus diedit dulu.** Di
+`/opt/palmgrade/vision/.env`, ubah `PALMGRADE_VISION_IMAGE` ke nama baru. Kalau tag diterbitkan
+lebih dulu, `palmgrade pull vision` menjawab "sudah terbaru" selamanya dan PC itu berhenti menerima
+pembaruan **tanpa satu pun pesan error** — baru ketahuan saat ada yang bertanya kenapa versinya
+tidak naik-naik.
 
 ### 6.3 Cek kesehatan
 

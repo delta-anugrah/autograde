@@ -235,6 +235,58 @@ rebuild:
 rebuild-gpu:
 	docker compose --env-file $(ENV_FILE) build --build-arg TORCH_VARIANT=cu126
 
+# HAPUS SEMUA DATA AutoGrade di PC ini: foto, JSON, semua SQLite.
+#
+#   make reset-data          lihat dulu: berapa yang akan hilang, tidak menghapus
+#   make reset-data-fresh    hapus sungguhan (minta konfirmasi ketik)
+#
+# Yang hilang, semuanya PERMANEN dan tanpa backup:
+#   artifacts/       foto bbox+clean+thumb dan sidecar JSON tiap janjang
+#   state/           console.db (grading, truk, timbangan, akun, sesi),
+#                    outbox.db tiap line, erp_outbox.db, log_kejadian.db,
+#                    upload_manifest.db
+#
+# Tiga akibat yang harus disadari sebelum mengetiknya:
+#   1. AKUN LOKAL BUATAN SENDIRI HILANG. Dua akun bawaan image
+#      (`operator@`/`support@autograde.local`) dibuat ulang sendiri saat konsol
+#      start, jadi layar tetap bisa dibuka. Yang TIDAK kembali: akun yang dibuat
+#      `make operator`. Akun milik AutoERP turun lagi saat sinkron berikutnya.
+#   2. ANTREAN YANG BELUM TERKIRIM HILANG. Janjang di `outbox.db` dan kunjungan
+#      truk di `erp_outbox.db` yang belum sampai tidak bisa dikirim ulang.
+#   3. FOTO YANG BELUM NAIK R2 HILANG. Retensi bekerja lewat manifest, jadi
+#      menghapus DB saja akan meninggalkan foto yatim — makanya keduanya
+#      dihapus bersama, bukan salah satu.
+#
+# ⚠️ JANGAN di PC pabrik yang sedang produksi. Ini alat untuk PC uji coba atau
+# PC baru sebelum dipakai sungguhan.
+reset-data:
+	@echo "Akan menghapus PERMANEN (tanpa backup):"
+	@echo "  artifacts/  — $$(find artifacts -type f 2>/dev/null | wc -l | tr -d ' ') berkas foto + JSON"
+	@echo "  state/      — $$(find state -name '*.db' 2>/dev/null | wc -l | tr -d ' ') basis data SQLite"
+	@echo ""
+	@echo "Akun buatan 'make operator', antrean yang belum terkirim, dan foto yang"
+	@echo "belum naik R2 ikut hilang. Tidak ada cara mengembalikannya."
+	@echo "(Dua akun bawaan image dibuat ulang sendiri saat konsol start.)"
+	@echo ""
+	@echo "Kalau memang itu yang diinginkan: make reset-data-fresh"
+
+# Konfirmasi diketik, bukan ditekan. Layar sentuh bisa mendaftarkan sentuhan tak
+# sengaja sebagai klik, dan Enter bisa terkirim dari perintah sebelumnya yang
+# masih di riwayat — tapi tidak ada yang mengetik satu kata tertentu tanpa maksud.
+# Pola yang sama dipakai Uji PLC di konsol, satu-satunya aksi lain yang tidak
+# bisa dibatalkan.
+reset-data-fresh:
+	@echo "SEMUA data AutoGrade di PC ini akan dihapus permanen, tanpa backup."
+	@echo "Jalankan 'make reset-data' dulu kalau ingin melihat rinciannya."
+	@echo ""
+	@printf "Ketik HAPUS untuk melanjutkan: "
+	@read jawab; [ "$$jawab" = "HAPUS" ] || { echo "Dibatalkan."; exit 1; }
+	docker compose --env-file $(ENV_FILE) down
+	rm -rf artifacts state
+	mkdir -p artifacts state
+	@echo ""
+	@echo "Data dihapus. Jalankan 'make start' — dua akun bawaan dibuat ulang sendiri."
+
 # Remove all containers (data artifacts are safe — they live in local volumes)
 clean:
 	docker compose --env-file $(ENV_FILE) down --rmi local
