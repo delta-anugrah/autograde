@@ -454,11 +454,14 @@ make restart                              # atau make up kalau dependency beruba
 menariknya sendiri (`palmgrade pull vision`) — tidak ada deploy otomatis, karena PC pabrik tidak
 punya alamat publik.
 
-Nama image sekarang **`ghcr.io/delta-anugrah/autograde`**. Satu build masih menerbitkan nama lama
-`palmgrade-vision` juga, sampai `PALMGRADE_VISION_IMAGE` di `/opt/palmgrade/vision/.env` PC Lampung
-diedit ke nama baru. ⚠️ Jangan cabut nama lama sebelum `.env` itu pindah: `palmgrade pull vision`
-akan menjawab "sudah terbaru" selamanya dan pabrik berhenti menerima pembaruan **tanpa satu pun
-pesan error**.
+Nama image sekarang **`ghcr.io/delta-anugrah/autograde`** — satu nama, nama lama
+`palmgrade-vision` sudah dicabut.
+
+⚠️ **Sebelum tag rilis pertama, `.env` PC pabrik harus diedit dulu.** Di
+`/opt/palmgrade/vision/.env`, ubah `PALMGRADE_VISION_IMAGE` ke nama baru. Kalau tag diterbitkan
+lebih dulu, `palmgrade pull vision` menjawab "sudah terbaru" selamanya dan PC itu berhenti menerima
+pembaruan **tanpa satu pun pesan error** — baru ketahuan saat ada yang bertanya kenapa versinya
+tidak naik-naik.
 
 ### 6.3 Cek kesehatan
 
