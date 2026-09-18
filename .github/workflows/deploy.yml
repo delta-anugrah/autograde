@@ -1,4 +1,4 @@
-name: Build and Push Vision Release Image
+name: Build and Push AutoGrade Release Image
 
 # Build-only, unlike the api and frontend workflows: vision runs on factory PCs
 # that this workflow cannot reach (no public address, no inbound SSH). The PC
@@ -15,12 +15,20 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Pinned, NOT ${{ github.repository }}: the repo is being renamed to `autograde`,
-  # and the factory PC pulls `.../palmgrade-vision` from its own .env. Following the
-  # repo name would publish the next tag somewhere nobody is looking — `palmgrade pull
-  # vision` would then report "already up to date" forever, with no error anywhere.
-  # The image name moves in Fase 5, when the factory PC gets a new compose file.
-  IMAGE_NAME: delta-anugrah/palmgrade-vision
+  # The name every new machine pulls (decision 2026-09-18: everything moves to
+  # AutoGrade, the Lampung PC included).
+  IMAGE_NAME: delta-anugrah/autograde
+  # Transitional second name, published from the same build.
+  #
+  # The Lampung PC reads `PALMGRADE_VISION_IMAGE` out of its own
+  # `/opt/palmgrade/vision/.env`, and its updater compares that against the
+  # `:latest` marker under that same name. Publishing only under the new name
+  # would make `palmgrade pull vision` answer "already up to date" forever —
+  # no error anywhere, the factory just stops receiving updates.
+  #
+  # So both names ship until that `.env` is edited. Remove this, and the two
+  # `LEGACY_IMAGE` lines further down, once every machine pulls `autograde`.
+  LEGACY_IMAGE: delta-anugrah/palmgrade-vision
 
 jobs:
   build-and-push:
@@ -102,6 +110,8 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.LEGACY_IMAGE }}:${{ github.ref_name }}
+            ${{ env.REGISTRY }}/${{ env.LEGACY_IMAGE }}:latest
           labels: |
             org.opencontainers.image.version=${{ github.ref_name }}
             org.opencontainers.image.revision=${{ github.sha }}

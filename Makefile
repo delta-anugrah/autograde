@@ -235,6 +235,50 @@ rebuild:
 rebuild-gpu:
 	docker compose --env-file $(ENV_FILE) build --build-arg TORCH_VARIANT=cu126
 
+# HAPUS SEMUA DATA AutoGrade di PC ini: foto, JSON, semua SQLite.
+#
+# Yang hilang, semuanya PERMANEN dan tanpa backup:
+#   artifacts/       foto bbox+clean+thumb dan sidecar JSON tiap janjang
+#   state/           console.db (grading, truk, timbangan, AKUN OPERATOR, sesi),
+#                    outbox.db tiap line, erp_outbox.db, log_kejadian.db,
+#                    upload_manifest.db
+#
+# Tiga akibat yang harus disadari sebelum mengetiknya:
+#   1. AKUN OPERATOR IKUT HILANG. Konsol memakai akun bawaan image lagi
+#      (`operator@`/`support@autograde.local`); akun buatan `make operator`
+#      harus dibuat ulang. Akun milik AutoERP turun sendiri saat sinkron.
+#   2. ANTREAN YANG BELUM TERKIRIM HILANG. Janjang di `outbox.db` dan kunjungan
+#      truk di `erp_outbox.db` yang belum sampai tidak bisa dikirim ulang.
+#   3. FOTO YANG BELUM NAIK R2 HILANG. Retensi bekerja lewat manifest, jadi
+#      menghapus DB saja akan meninggalkan foto yatim — makanya keduanya
+#      dihapus bersama, bukan salah satu.
+#
+# Container dimatikan dulu: SQLite sedang dibuka empat proses (tiga line +
+# konsol), dan menghapus berkas WAL di bawah proses yang hidup meninggalkan
+# basis data separuh jadi, bukan basis data kosong.
+#
+# Butuh TULIS=1 supaya tidak pernah terjadi karena salah ketik atau salah
+# tempel. Tanpa itu cuma menyebutkan apa yang akan dihapus.
+#
+# ⚠️ JANGAN di PC pabrik yang sedang produksi. Ini alat untuk PC uji coba atau
+# PC baru sebelum dipakai sungguhan.
+reset-data:
+ifndef TULIS
+	@echo "Akan menghapus PERMANEN (tanpa backup):"
+	@echo "  artifacts/  — $$(find artifacts -type f 2>/dev/null | wc -l | tr -d ' ') berkas foto + JSON"
+	@echo "  state/      — $$(find state -name '*.db' 2>/dev/null | wc -l | tr -d ' ') basis data SQLite"
+	@echo ""
+	@echo "Akun operator lokal, antrean yang belum terkirim, dan foto yang belum"
+	@echo "naik R2 ikut hilang. Tidak ada cara mengembalikannya."
+	@echo ""
+	@echo "Jalankan: make reset-data TULIS=1"
+else
+	docker compose --env-file $(ENV_FILE) down
+	rm -rf artifacts state
+	mkdir -p artifacts state
+	@echo "Data dihapus. Jalankan 'make start' lalu 'make operator' untuk akun lokal."
+endif
+
 # Remove all containers (data artifacts are safe — they live in local volumes)
 clean:
 	docker compose --env-file $(ENV_FILE) down --rmi local
