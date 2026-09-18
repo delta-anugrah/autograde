@@ -125,6 +125,13 @@ All via **`make`** (Docker only). From `autograde/`:
 - **`make up` cuma perlu** kalau dependency / `Dockerfile` / SDK berubah; untuk ubah kode pakai `make restart`.
 - **Dev without a camera**: `.env` → `CAMERA_TYPE=opencv` + `CAMERA_VIDEO_PATH=/videos/<file>.mp4` (host `sawit/` is mounted at `/videos`). `CAMERA_VIDEO_LOOP=true` replays it until the line is stopped (default plays once). ⚠️ `CAMERA_TYPE`/`CAMERA_VIDEO_*` are shared by all 3 lines — to put a video on ONE line only, override that service in `docker-compose.override.yml`.
 - **Verify**: `curl :8001/health`; `curl :8001/health/detail` (camera_connected, gpu_available, workers, current_assignment_id, `plc` = `null` kalau PLC mati); stream at `http://localhost:8001/api/video_feed`.
+  ⚠️ **`capture_save_dropped` di `/health/detail` harus NOL.** Di atas nol berarti antrean penulis
+  pernah penuh dan janjang yang sudah digrading — sudah dapat pulse PLC, sudah masuk rekap —
+  tidak tersimpan sama sekali: tidak ada gambar, tidak ada sidecar, jadi tidak ada yang bisa
+  ditemukan `BatchUploadWorker._scan()` belakangan. Tidak ada retry (menahan deteksi akan
+  mengembalikan lag ~590 ms yang dihilangkan); yang harus dikejar penyebabnya — disk lambat atau
+  laju grading melewati kemampuan menulis. `capture_save_pending` yang naik terus adalah
+  peringatan dininya.
   ⚠️ `outbox_pending`/`outbox_failed` di `/health/detail` mengukur **jalur realtime ke API lokal**
   saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
   mengatakan apa-apa soal batch upload ke cloud — untuk itu baca log `Batch tick: N item eligible`
@@ -145,7 +152,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/capture_reject` | legacy manual reject capture |
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |
 | POST | `/internal/manual-reject` | ← from api: trigger manual reject (`x-internal-secret`) |
-| WS | `/ws/results` | legacy result push |
+| WS | `/ws/results` | legacy result push. ⚠️ `image_url`-nya dikirim **sebelum** berkasnya ada di disk (deteksi menyerahkan janjang ke `CaptureSaveWorker` lalu lanjut) — jendelanya ratusan milidetik. Tidak ada yang memakai lane ini hari ini (`console.html` tidak membukanya), tapi siapa pun yang menghidupkannya harus menahan gambar sampai 404 pertama lewat. Jalur yang dipakai konsol aman: barisnya ditulis penulis **sesudah** gambarnya jadi |
 | GET | `/captures/...` | static images (mount → `artifacts/`) |
 
 **Konsol (`APP_MODE=console`, port 8000)** — surface yang berbeda total; `main.py` tidak dipakai.
@@ -306,10 +313,14 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    `image_url` untuk layar dihitung di depan lewat `CaptureWriter.annotated_url()` — **rumus yang
    sama** yang dikembalikan `write_pair()`, jadi tautan yang tampil dan berkas yang ditulis tidak
    bisa menyimpang (kalau menyimpang: gambar 404 di konsol, nol error di line).
-   Antrean **3 dalam, drop yang terbaru + `logger.error`**: menahan deteksi sampai antrean lega akan
-   mengembalikan persis lag yang dihilangkan. Antrean yang sering penuh berarti disk/CPU tidak
-   mengimbangi laju grading — itu yang harus dibaca dari log, bukan ditambal dengan antrean lebih
-   dalam. Satu janjang >1 detik diadukan `logger.warning` (`tulis … ms, antre … ms`).
+   Antrean **8 dalam, drop yang terbaru + `logger.error`**: menahan deteksi sampai antrean lega akan
+   mengembalikan persis lag yang dihilangkan. Angkanya dari dua ukuran — beban nyata **300
+   janjang/jam/line** (satu tiap 12 detik, sementara penulis butuh ~0,6 detik, jadi antrean ini
+   untuk **lonjakan**, bukan laju rata-rata) dan biaya memorinya: tiap job menahan dua frame 14,3 MB,
+   jadi 8 dalam = 230 MB per line, 689 MB untuk tiga line dari RAM 31 GB. Antrean yang sering penuh
+   berarti disk/CPU tidak mengimbangi laju grading — itu yang harus dibaca dari log, bukan ditambal
+   dengan antrean lebih dalam lagi. Satu janjang >1 detik diadukan `logger.warning`
+   (`tulis … ms, antre … ms, antrean=N`) — itu alat ukur lapangannya.
 2. **`_processed_objects`** — never `discard()` an active track (single-trigger). Trim only IDs that are inactive (gone from `track_history`) **and** stale >300s.
 3. **`state.lock`** around all physical camera access (`FrameCaptureWorker` + `capture_manual_reject`).
 4. **MJPEG** — only `DisplayWorker` writes `state.latest_frame`, via `threading.Condition.notify_all()` (multi-viewer). It renders `last_yolo_frame` (paired with results) and runs at `STREAM_FPS` (default 12), decoupled from `CAMERA_FPS`.

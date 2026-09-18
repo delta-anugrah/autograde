@@ -38,6 +38,15 @@ class HealthService:
             for name, thread, _ in self.state.worker_threads
         ]
 
+        # Penulis bukti dicari lewat daftar worker, bukan disuntik sendiri:
+        # `HealthService` dirakit `get_health_service()` yang tidak tahu apa-apa
+        # soal worker, dan menambah satu dependensi lagi ke situ cuma untuk dua
+        # angka tidak sepadan. Line konsol (`APP_MODE=console`) tidak punya
+        # penulis sama sekali, jadi ketiadaannya normal, bukan kesalahan.
+        saver = next(
+            (w for name, _t, w in self.state.worker_threads if name == "capture_save"), None
+        )
+
         return HealthDetailSchema(
             status="ok",
             environment=self.settings.environment,
@@ -51,6 +60,8 @@ class HealthService:
             workers=workers,
             outbox_pending=self.outbox.pending_count(),
             outbox_failed=self.outbox.failed_count(),
+            capture_save_pending=saver.antrean if saver else 0,
+            capture_save_dropped=saver.dibuang if saver else 0,
             current_assignment_id=self.state.current_assignment_id,
             last_successful_api_push=self.state.last_successful_api_push,
         )

@@ -45,11 +45,22 @@ from ..services.capture_writer import CaptureWriter
 
 logger = logging.getLogger(__name__)
 
-# Kedalaman antrean. Tiga janjang = ~1,8 detik kerja penulis pada frame sensor
-# penuh; lebih dalam dari itu cuma menunda kabar buruk (dan menahan referensi ke
-# frame 15 MB yang belum boleh dilepas GC). Penuh = grading memang lebih cepat
-# dari disk, dan itu harus terdengar, bukan diserap diam-diam.
-_QUEUE_MAX = 3
+# Kedalaman antrean, dipilih dari dua angka terukur yang saling menarik.
+#
+# Beban nyata pabrik **300 janjang/jam/line** (skill `spek-pc-pabrik`) = satu
+# janjang tiap 12 detik, sementara penulis butuh ~0,6 detik. Jadi pada laju
+# rata-rata antrean ini praktis tidak pernah terisi; dia ada untuk **lonjakan**,
+# saat beberapa janjang lewat ROI beruntun.
+#
+# Yang membatasi dari atas: tiap SaveJob menahan DUA frame 2448x2048 BGR = 28,7
+# MB yang belum boleh dilepas GC. Delapan dalam = 230 MB per line, 689 MB untuk
+# tiga line — murah dari RAM 31 GB, dan cukup menampung ~5 detik lonjakan
+# beruntun. Puluhan dalam baru mulai berarti buat RAM sekaligus cuma menunda
+# kabar buruk.
+#
+# Penuh = grading memang lebih cepat dari disk, dan itu harus terdengar
+# (`logger.error` di `submit`), bukan diserap diam-diam.
+_QUEUE_MAX = 8
 
 # Berapa lama penulis boleh menunggu pekerjaan sebelum melihat flag berhenti
 # lagi. Hanya menentukan kecepatan shutdown, bukan throughput.
@@ -124,6 +135,7 @@ class CaptureSaveWorker:
         # sibuk, dan `tunggu_kosong` salah satu line akan menunggu pekerjaan
         # line lain.
         self._sedang_menulis = False
+        self._dropped = 0
 
     # --------------------------------------------------------------- lifecycle
 
@@ -131,6 +143,15 @@ class CaptureSaveWorker:
     def antrean(self) -> int:
         """Janjang yang menunggu ditulis. Naik terus = penulis kalah cepat."""
         return self._queue.qsize()
+
+    @property
+    def dibuang(self) -> int:
+        """Janjang yang hilang karena antrean penuh, sejak proses ini hidup.
+
+        Angka yang tidak boleh nol di pabrik. Naik = bukti hilang permanen untuk
+        buah yang sudah terlanjur disortir PLC dan sudah masuk rekap.
+        """
+        return self._dropped
 
     def start(self) -> threading.Thread:
         self._stop.clear()
@@ -140,15 +161,25 @@ class CaptureSaveWorker:
         return thread
 
     def stop(self, timeout: float = 5.0) -> None:
-        """Minta penulis berhenti sesudah pekerjaan yang sedang dipegangnya.
+        """Minta penulis berhenti, lalu tunggu dia benar-benar keluar.
 
-        `run_loop` boleh dijalankan thread yang dibuat di luar (`main.py`
-        memakai `_start_worker` supaya watchdog ikut mengawasinya), jadi
-        `_thread` bisa kosong — flag-nya tetap yang menghentikan loop.
+        `run_loop` biasanya dijalankan thread yang dibuat DI LUAR kelas ini:
+        `main.py` memakai `_start_worker` supaya watchdog 10 detik ikut
+        mengawasinya, jadi `self._thread` kosong di produksi. Menunggu hanya
+        `self._thread` karena itu membuat `stop()` balik seketika di satu-satunya
+        tempat yang benar-benar memakainya — tenggangnya terlewat diam-diam
+        justru saat penulis sedang tersendat, yaitu saat tenggang itu berguna.
+        Makanya thread-nya dicari lewat nama kalau `_thread` kosong.
         """
         self._stop.set()
-        if self._thread is not None:
-            self._thread.join(timeout=timeout)
+        thread = self._thread
+        if thread is None:
+            thread = next(
+                (t for t in threading.enumerate() if t.name == "capture_save" and t.is_alive()),
+                None,
+            )
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=timeout)
 
     def tunggu_kosong(self, timeout: float = 5.0) -> bool:
         """Antrean kosong DAN tidak ada yang sedang ditulis. Untuk tes dan shutdown."""
@@ -174,11 +205,20 @@ class CaptureSaveWorker:
             self._queue.put_nowait(job)
             return True
         except queue.Full:
+            # Dihitung, bukan cuma dicatat. Janjang ini sudah menerima pulse PLC
+            # (buahnya sudah disortir mesin) dan sudah masuk hitungan di layar,
+            # tapi tidak akan punya gambar maupun sidecar — jadi `_scan()` milik
+            # `BatchUploadWorker` tidak akan pernah menemukannya, sekarang atau
+            # nanti. Satu baris log di PC yang cuma dijenguk lewat AnyDesk sama
+            # saja dengan tidak ada kabar; angkanya diekspos di `/health/detail`
+            # bersebelahan dengan `outbox_failed` yang memang sudah rutin dilihat.
+            self._dropped += 1
             logger.error(
-                "Antrean simpan penuh (%d) — janjang %s TIDAK disimpan. "
+                "Antrean simpan penuh (%d) — janjang %s TIDAK disimpan (total dibuang: %d). "
                 "Disk atau CPU tidak mengimbangi laju grading.",
                 self._queue.maxsize,
                 job.timestamp,
+                self._dropped,
             )
             return False
 

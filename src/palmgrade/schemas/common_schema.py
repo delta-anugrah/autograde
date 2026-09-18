@@ -30,5 +30,14 @@ class HealthDetailSchema(BaseModel):
     workers: list[WorkerStatus]
     outbox_pending: int = 0
     outbox_failed: int = 0
+    # Antrean penulis bukti (`CaptureSaveWorker`). `capture_save_dropped` naik
+    # berarti janjang yang SUDAH digrading dan sudah dapat pulse PLC tidak
+    # tersimpan sama sekali — tidak ada gambar, tidak ada sidecar, jadi tidak ada
+    # yang bisa ditemukan `BatchUploadWorker._scan()` belakangan. Diekspos di
+    # sini karena satu baris log tidak akan pernah terbaca di PC yang cuma
+    # dijenguk lewat AnyDesk, sementara angka ini sebaris dengan `outbox_*` yang
+    # sudah rutin dilihat.
+    capture_save_pending: int = 0
+    capture_save_dropped: int = 0
     current_assignment_id: str | None = None
     last_successful_api_push: str | None = None

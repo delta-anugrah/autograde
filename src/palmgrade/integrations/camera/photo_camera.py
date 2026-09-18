@@ -30,7 +30,19 @@ class PhotoCamera(CameraSource):
         logger.info("PhotoCamera loaded: %s", self.path)
 
     def grab_frame(self):
-        return self._frame
+        """Salinan, bukan objek yang sama untuk selamanya.
+
+        Dua kamera lain memang menyerahkan array baru tiap frame: OpenCV
+        mengalokasikannya di `read()`, dan Hikrobot lewat `cv2.cvtColor` (yang
+        juga mengalokasikan) di ketiga cabang format pikselnya. Yang ini dulu
+        satu-satunya yang membagi SATU array ke semua pemakainya sekaligus —
+        aman selama semuanya cuma membaca, tapi itu jaminan yang tidak tertulis
+        di mana pun, dan sejak janjang diserahkan ke `CaptureSaveWorker` array
+        itu dipegang thread lain sampai ratusan milidetik kemudian. Satu salinan
+        per frame pada jalur yang memang cuma untuk dev/demo jauh lebih murah
+        daripada bug yang cuma muncul di satu `CAMERA_TYPE`.
+        """
+        return None if self._frame is None else self._frame.copy()
 
     def disconnect(self) -> None:
         self._frame = None

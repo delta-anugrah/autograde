@@ -313,6 +313,27 @@ def test_the_watchdog_can_bring_the_writer_back_after_a_stop(settings):
         hidup_lagi.join(timeout=2)
 
 
+def test_the_default_queue_holds_a_realistic_burst_without_hoarding_ram(settings):
+    """Kedalaman bawaan itu kompromi dua angka terukur, bukan angka bulat.
+
+    Dari bawah: beban nyata 300 janjang/jam/line (`spek-pc-pabrik`) = satu tiap
+    12 detik, sementara penulis butuh ~0,6 detik — jadi antrean ini untuk
+    lonjakan, dan terlalu dangkal berarti bukti hilang saat beberapa janjang
+    lewat ROI beruntun.
+    Dari atas: tiap job menahan DUA frame 2448x2048 (28,7 MB), jadi 3 line x 8
+    = 689 MB dari RAM 31 GB. Puluhan dalam mulai berarti buat RAM sekaligus cuma
+    menunda kabar buruk.
+    """
+    w = CaptureSaveWorker(
+        settings=settings, storage=RecordingStorage(), outbox_store=RecordingOutbox()
+    )
+    assert w._queue.maxsize == 8
+
+    megabyte_per_job = 2 * 2448 * 2048 * 3 / 1024 / 1024
+    tiga_line = 3 * w._queue.maxsize * megabyte_per_job
+    assert tiga_line < 1024, f"tiga line menahan {tiga_line:.0f} MB frame di antrean"
+
+
 def test_the_queue_depth_is_visible(settings):
     """Kedalaman antrean itu alat ukur: kalau naik terus, penulis kalah cepat."""
     w = CaptureSaveWorker(
@@ -321,3 +342,79 @@ def test_the_queue_depth_is_visible(settings):
     assert w.antrean == 0
     w.submit(_job())
     assert w.antrean == 1
+
+
+def test_dropped_bunches_are_counted_not_only_logged(settings):
+    """Bukti yang hilang harus punya ANGKA, bukan cuma satu baris log.
+
+    Janjang yang dibuang sudah menerima pulse PLC (buahnya sudah disortir) dan
+    sudah masuk hitungan di layar, tapi tidak akan punya gambar maupun sidecar —
+    jadi `BatchUploadWorker._scan()` tidak akan pernah menemukannya, sekarang
+    maupun nanti. PC pabrik cuma dijenguk lewat AnyDesk dan log-nya bergulir;
+    angka di `/health/detail` adalah satu-satunya cara ini kelihatan.
+    """
+    w = CaptureSaveWorker(
+        settings=settings,
+        storage=RecordingStorage(),
+        outbox_store=RecordingOutbox(),
+        queue_max=1,
+    )
+    assert w.dibuang == 0
+    w.submit(_job(timestamp="a"))
+    w.submit(_job(timestamp="b"))
+    w.submit(_job(timestamp="c"))
+    assert w.dibuang == 2
+
+
+def test_health_detail_can_carry_the_two_numbers(settings):
+    """Skema `/health/detail` harus punya tempat untuk keduanya.
+
+    Angkanya percuma kalau `HealthDetailSchema` membuangnya diam-diam — Pydantic
+    tidak akan mengeluh, dan yang terlihat cuma endpoint yang tidak pernah
+    menyebut janjang yang hilang. `HealthService` sendiri mengimpor torch, jadi
+    yang diuji di CI ringan adalah kontrak datanya (CLAUDE.md § Tests).
+    """
+    from palmgrade.schemas.common_schema import HealthDetailSchema
+
+    payload = HealthDetailSchema(
+        status="ok", environment="production", version="v1",
+        camera_type="hikrobot", camera_connected=True,
+        gpu_available=True, gpu_device="RTX 3060",
+        machine_id="m", workers=[],
+        outbox_pending=0, outbox_failed=0,
+        capture_save_pending=2, capture_save_dropped=7,
+    )
+
+    assert payload.capture_save_pending == 2
+    assert payload.capture_save_dropped == 7
+    # Bawaannya nol, supaya konsol (yang tidak punya penulis) tetap sah.
+    kosong = HealthDetailSchema(
+        status="ok", environment="production", version="v1",
+        camera_type="hikrobot", camera_connected=True,
+        gpu_available=False, gpu_device=None, machine_id="m", workers=[],
+    )
+    assert kosong.capture_save_dropped == 0
+
+
+def test_stop_waits_for_a_thread_it_did_not_start_itself(settings):
+    """`main.py` menjalankan `run_loop` lewat `_start_worker`, bukan `start()`.
+
+    Jadi `_thread` kosong di produksi. `stop()` yang cuma menunggu `_thread`
+    akan balik seketika di satu-satunya tempat yang benar-benar memakainya —
+    dan tenggang itu terlewat justru saat penulis sedang tersendat, yaitu saat
+    tenggangnya berguna.
+    """
+    import threading as th
+
+    w = CaptureSaveWorker(
+        settings=settings, storage=RecordingStorage(), outbox_store=RecordingOutbox()
+    )
+    # Persis seperti main.py: thread dibuat di luar, dinamai sama.
+    t = th.Thread(target=w.run_loop, daemon=True, name="capture_save")
+    t.start()
+    # Beri loop kesempatan benar-benar masuk.
+    assert w.tunggu_kosong(timeout=5)
+
+    w.stop(timeout=5)
+
+    assert not t.is_alive(), "stop() balik sebelum penulis benar-benar keluar"
