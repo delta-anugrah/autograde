@@ -610,6 +610,14 @@ setelannya sama untuk tiga line, `.env` sudah cukup — jangan bikin override.
 - All paths via `Settings` (`core/config.py`) — never hardcode. New env var → add to `core/config.py` with a sane default.
 - `CAMERA_TYPE`: `hikrobot` (prod) / `opencv` (dev: webcam or video file) / `photo` (test). Switching needs **no code edit**.
 - ROI (`ROI_X1/Y1/X2/Y2`) coordinates are in **stream space** (`STREAM_WIDTH×STREAM_HEIGHT`, default 1280×720), not sensor space.
+- **Garis biru bertanda `CAPTURE`** di layar line = titik janjang difoto: sisi **kanan** kotak ROI
+  (buah bergerak kanan → kiri). ⚠️ Yang memicu **titik tengah** kotak janjang, bukan tepinya — foto
+  diambil saat setengah janjang sudah lewat. Kalau capture terasa terlalu cepat, **geser
+  `ROI_X2` ke kiri**, jangan sentuh `CONF_THRESHOLD`. Garisnya digambar walau `ROI_*` masih
+  `0,0,0,0` (= seluruh layar), karena keadaan itu yang paling perlu terlihat.
+- **Label janjang tidak memuat angka confidence** (permintaan operator 2026-09-18): dari beberapa
+  meter "54%" terbaca seperti "54% matang", padahal itu keyakinan model dan sudah lolos
+  `CONF_THRESHOLD`. Nilainya tetap ditulis ke sidecar dan dikirim ke API.
 - **Frame rate hidup di SATU tempat: `config/camera/hikrobot.mfs`.** File itu dikirim ke
   kamera tiap connect, lalu `FrameCaptureWorker.adopt_camera_frame_rate()` menanyakan
   balik laju sebenarnya (`ResultingFrameRate`) dan memakai itu sebagai jeda ambil frame.

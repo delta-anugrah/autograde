@@ -96,6 +96,23 @@ NOT sensor space — operators calibrate from what they see in the browser. Cent
 inside the box. `0,0,0,0` = full frame (X2=0→stream width, Y2=0→stream height); require `X2>X1` & `Y2>Y1`.
 TP is exempt from the ROI check. `draw_roi()` runs in `DisplayWorker` **after** resize.
 
+**Garis pemicu capture (biru, bertanda `CAPTURE`)** — sejak 2026-09-18, digambar `draw_roi()` di
+**sisi kanan** kotak ROI, karena buah bergerak kanan → kiri sehingga itulah batas yang dilewati
+lebih dulu. Menjawab pertanyaan operator "di titik mana buahnya difoto?", yang sebelumnya cuma
+bisa dijawab dengan membaca kode. ⚠️ Yang memicu itu **titik tengah** kotak janjang, bukan
+tepinya, jadi foto diambil saat setengah janjang sudah melewati garis — itu sebabnya capture
+terasa "terlalu cepat" selama garisnya belum terlihat. Digambar **selalu**, termasuk saat
+`ROI_*` masih `0,0,0,0`: justru keadaan itu yang paling perlu terbaca, karena ROI penuh layar
+berarti janjang difoto begitu terdeteksi di mana pun termasuk di pinggir frame saat janjangnya
+belum utuh. Pada ROI penuh layar garisnya ditarik masuk `_TRIGGER_MARGIN` px dari tepi (0,47%
+lebar layar) — garis di kolom terakhir terpotong cv2 dan berhimpit dengan bingkai video browser.
+
+**Label janjang tanpa angka confidence** (2026-09-18, permintaan operator). Angkanya keyakinan
+model, bukan mutu buah, dan dari beberapa meter "54%" terbaca seperti "54% matang"; ambangnya
+sudah diputuskan `CONF_THRESHOLD`, jadi apa pun yang tergambar sudah lolos ambang itu.
+`viewer.html` membuangnya lebih dulu (`abd8f17`). Nilainya **tetap** disimpan di sidecar dan
+dikirim ke API — yang dibuang tampilannya, bukan datanya.
+
 **DisplayWorker draw order:** `draw_boxes()` (on `last_yolo_frame`) → `cv2.resize()` → `draw_roi()`.
 Render boxes over `last_yolo_frame` (paired with results), **never** over `latest_raw_frame` — on CPU,
 inference can take 0.5–2s and the conveyor moves, so boxes would land in the wrong place. Fallback to
