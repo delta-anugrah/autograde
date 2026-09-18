@@ -128,7 +128,10 @@ def _pusat(bbox: tuple[int, int, int, int]) -> tuple[float, float]:
 
 
 def tp_untuk_janjang(
-    *, janjang: tuple[int, int, int, int], kandidat: list[dict]
+    *,
+    janjang: tuple[int, int, int, int],
+    kandidat: list[dict],
+    janjang_lain: list[tuple[int, int, int, int]] | None = None,
 ) -> dict | None:
     """TP milik `janjang` dari daftar `kandidat`, atau `None` kalau tidak ada.
 
@@ -143,6 +146,13 @@ def tp_untuk_janjang(
 
     Yang terdekat yang menang, bukan yang paling yakin: confidence mengukur
     seberapa yakin model itu TP, bukan seberapa mungkin TP itu milik janjang ini.
+
+    `janjang_lain` = janjang lain di frame yang sama. Ambang jarak saja tidak
+    cukup begitu dua janjang berdempetan di conveyor: keduanya bisa sama-sama
+    berada dalam jangkauan TP yang sama, dan yang menang tinggal siapa yang
+    kebetulan diproses lebih dulu — padahal urutan kotak dalam satu frame tidak
+    dijamin. Sebuah TP diberikan hanya kalau janjang INI yang paling dekat
+    dengannya, jadi hasilnya tidak lagi bergantung urutan.
     """
     if not kandidat:
         return None
@@ -155,11 +165,20 @@ def tp_untuk_janjang(
     ukuran = (((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5) / 2
     batas = ukuran * _JANGKAUAN_TP
 
+    pusat_lain = [_pusat(b) for b in (janjang_lain or [])]
+
     terdekat, jarak_terdekat = None, None
     for tp in kandidat:
         tx, ty = _pusat(tp["bbox"])
         jarak = ((tx - jx) ** 2 + (ty - jy) ** 2) ** 0.5
         if jarak > batas:
+            continue
+        # Janjang lain yang lebih dekat ke TP ini = TP itu miliknya, bukan milik
+        # janjang ini. Dibandingkan apa adanya, tanpa ambang: yang ditanyakan
+        # "siapa pemiliknya", dan pemiliknya cuma satu.
+        if any(
+            ((tx - ox) ** 2 + (ty - oy) ** 2) ** 0.5 < jarak for ox, oy in pusat_lain
+        ):
             continue
         if jarak_terdekat is None or jarak < jarak_terdekat:
             terdekat, jarak_terdekat = tp, jarak

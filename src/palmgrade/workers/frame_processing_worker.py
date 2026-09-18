@@ -95,6 +95,11 @@ class FrameProcessingWorker:
         # puluhan kali, dan supaya entri lamanya bisa dipangkas berkala
         # (tanpa itu dia tumbuh sepanjang shift 20 jam).
         self._tp_terhitung: dict[int, float] = {}
+        # Kotak janjang yang sudah difoto, beserta jamnya. Umurnya sama
+        # dengan `_processed_objects` (dipangkas di blok cleanup yang sama),
+        # supaya `tp_telat` tetap terhitung untuk TP yang muncul jauh
+        # sesudah janjangnya lewat.
+        self._janjang_difoto: list[tuple[tuple[int, int, int, int], float]] = []
         self._frame_count: int = 0
         self._last_results = None  # cached YOLO result for skip frames
         self._processed_times: dict[int, float] = {}
@@ -248,15 +253,18 @@ class FrameProcessingWorker:
         dari sisi janjang (bukan dari TP) supaya pakai ambang yang sama
         persis dengan `tp_untuk_janjang` — dua ambang yang berbeda akan
         membuat angkanya bohong.
+
+        Sumbernya `_janjang_difoto`, BUKAN `state.track_history`: tabel itu
+        dibuang 10 frame sesudah janjangnya hilang dari pandangan (sekitar
+        setengah detik di 20 fps), jadi TP yang muncul sesudah itu tidak
+        menemukan janjang untuk dibandingkan dan tidak pernah terhitung — angka
+        yang diam-diam terlalu kecil justru pada kasus yang paling ingin diukur.
         """
         tp = {"bbox": (x1, y1, x2, y2), "tp_confidence": 0.0}
-        for tid, track in self.state.track_history.items():
-            if tid not in self._processed_objects:
-                continue
-            bbox = track.get("bbox")
-            if bbox and tp_untuk_janjang(janjang=bbox, kandidat=[tp]) is not None:
-                return True
-        return False
+        return any(
+            tp_untuk_janjang(janjang=bbox, kandidat=[tp]) is not None
+            for bbox, _ in self._janjang_difoto
+        )
 
     def run_once(self) -> None:
         # Gerbang lisensi — paling atas, sebelum frame diambil. Berhenti di sini
@@ -283,6 +291,7 @@ class FrameProcessingWorker:
             self._inactive_counter.clear()
             self._last_results = None
             self._tp_terhitung.clear()
+            self._janjang_difoto.clear()
             self.state.track_history.clear()
             self.state.rewind_signal = False
             logger.info("Video rewind — ByteTrack and tracking state reset")
@@ -362,15 +371,25 @@ class FrameProcessingWorker:
         # Pre-scan: hitung buah (Ripe/Unripe/JK) yang belum diproses dan ada di
         # dalam ROI. Jika > 1 buah sekaligus dalam ROI, semua di-force jadi rej.
         roi_fruit_count = 0
+        # Kotak semua janjang di frame ini, dipakai `tp_untuk_janjang` untuk
+        # memutuskan TP itu milik siapa. Dikumpulkan di loop yang SUDAH ADA,
+        # bukan loop baru: ini jalan tiap frame pada 8-20 fps per line.
+        janjang_frame_ini: list[tuple[int, int, int, int]] = []
         if results.boxes is not None:
             for _box in results.boxes:
                 _tid = int(_box.id[0].item()) if _box.id is not None else -1
                 _lbl = _grade_class_or_none(results.names[int(_box.cls[0].item())])
-                if _tid == -1 or _tid in self._processed_objects or not (
-                    _lbl is not None and is_fruit_class(_lbl)
-                ):
+                if not (_lbl is not None and is_fruit_class(_lbl)):
                     continue
                 _bx1, _by1, _bx2, _by2 = map(int, _box.xyxy[0].tolist())
+                # Semua janjang ikut jadi saingan pemilik TP, termasuk yang sudah
+                # diproses: tangkai milik janjang yang baru saja difoto tidak
+                # boleh pindah ke tetangganya hanya karena pemiliknya sudah
+                # selesai. Yang begitu memang tidak ikut ke mana pun (dihitung
+                # `tp_telat`), dan itu jauh lebih jujur daripada salah tempel.
+                janjang_frame_ini.append((_bx1, _by1, _bx2, _by2))
+                if _tid == -1 or _tid in self._processed_objects:
+                    continue
                 _cx, _cy = (_bx1 + _bx2) // 2, (_by1 + _by2) // 2
                 if self._is_in_roi(_cx, _cy, roi):
                     roi_fruit_count += 1
@@ -566,7 +585,17 @@ class FrameProcessingWorker:
                     # menambah jendela tunggu nanti diambil dari angka nyata,
                     # bukan dari dugaan.
                     tp_snapshot = tp_untuk_janjang(
-                        janjang=(x1, y1, x2, y2), kandidat=tp_frame_ini
+                        janjang=(x1, y1, x2, y2),
+                        kandidat=tp_frame_ini,
+                        # Janjang lain di frame ini. Tanpa ini, dua janjang yang
+                        # berdempetan sama-sama "dalam jangkauan" TP yang sama,
+                        # dan yang menang tinggal siapa yang kebetulan diproses
+                        # lebih dulu — urutan kotak dalam satu frame tidak
+                        # dijamin. Janjang B dikreditkan tangkai milik A, dan
+                        # tangkai A yang asli tidak tercatat.
+                        janjang_lain=[
+                            b for b in janjang_frame_ini if b != (x1, y1, x2, y2)
+                        ],
                     )
                     if tp_snapshot is not None:
                         # Satu tangkai milik SATU janjang. Ditandai lewat
@@ -662,6 +691,7 @@ class FrameProcessingWorker:
                     self.state.track_history[track_id]["processed"] = True
                     self._processed_objects.add(track_id)
                     self._processed_times[track_id] = time.time()
+                    self._janjang_difoto.append(((x1, y1, x2, y2), time.time()))
 
         # H6: do NOT discard from _processed_objects on cleanup — prevents re-trigger
         # if ByteTrack reuses the ID or the object re-enters after being marked inactive.
@@ -694,6 +724,9 @@ class FrameProcessingWorker:
             self._tp_terhitung = {
                 tid: t for tid, t in self._tp_terhitung.items() if now - t <= 300
             }
+            self._janjang_difoto = [
+                (b, t) for b, t in self._janjang_difoto if now - t <= 300
+            ]
 
         # DisplayWorker handles MJPEG rendering — processing worker only does detection.
 

@@ -140,6 +140,16 @@ dipakai supaya janjang tegak dan janjang rebah menjangkau sama jauhnya.
 operator 2026-09-18), jadi menuntut irisan akan membuang tangkai yang sah.
 ⚠️ Yang menang **yang terdekat**, bukan yang paling yakin: confidence mengukur seberapa yakin
 model itu TP, bukan seberapa mungkin TP itu milik janjang ini.
+⚠️ **Terdekat di antara SEMUA janjang di frame**, bukan sekadar dalam ambangnya sendiri
+(`janjang_lain`). Dua janjang berdempetan — 450x450 px berjarak 500 px pada sensor 2448x2048 —
+sama-sama berjangkauan 477 px, jadi satu tangkai di antara keduanya masuk jangkauan dua-duanya
+dan pemenangnya tinggal urutan pemrosesan, yang tidak dijamin. Janjang yang sudah difoto ikut
+jadi saingan, supaya tangkai milik janjang yang baru selesai tidak pindah ke tetangganya.
+⚠️ TP tepat di **tengah sela** dua janjang memang ambigu secara geometri; aturan apa pun cuma
+menebak di situ, dan itu sengaja tidak diuji seolah punya jawaban benar.
+`tp_telat` dihitung dari `_janjang_difoto` (catatan sendiri, umur 300 detik), **bukan**
+`track_history` — tabel itu dibuang 10 frame sesudah janjangnya hilang dari pandangan, jadi TP
+yang muncul sesudahnya tidak pernah terhitung dan angkanya diam-diam terlalu kecil.
 
 **Arah conveyor** (`sumbu_garis`, disetel di layar yang sama sejak 2026-09-18):
 

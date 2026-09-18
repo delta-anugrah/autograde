@@ -151,3 +151,19 @@ def test_satu_tangkai_tidak_ikut_ke_dua_janjang():
 
     kedua = tp_untuk_janjang(janjang=_janjang(700), kandidat=kandidat)
     assert kedua is None, "tangkai yang sama ikut ke janjang kedua"
+
+
+def test_tetangga_tidak_merebut_tangkai_milik_janjang_lain():
+    """Dua janjang berdempetan, satu tangkai. Hasilnya tidak boleh bergantung
+    urutan pemrosesan — dan urutan kotak dalam satu frame memang tidak dijamin.
+
+    Angka skala sensor: dua janjang 450x450 berjarak 500 px, tangkai 253 px dari
+    A dan 457 px dari B, sementara ambang keduanya 477 px. Aturan ambang saja
+    akan menyerahkannya ke siapa pun yang kebetulan lebih dulu.
+    """
+    A = (775, 675, 1225, 1125)
+    B = (1275, 675, 1725, 1125)
+    tp = {"tp_status": "PASS", "tp_confidence": 0.9, "bbox": (1075, 1100, 1135, 1160)}
+
+    assert tp_untuk_janjang(janjang=A, kandidat=[tp], janjang_lain=[B]) is tp
+    assert tp_untuk_janjang(janjang=B, kandidat=[tp], janjang_lain=[A]) is None

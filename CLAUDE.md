@@ -327,6 +327,13 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    ambang RELATIF, karena janjang dekat kamera jauh lebih besar daripada yang di ujung frame.
    TP dikumpulkan di **pra-pindai**, sebelum loop janjang: urutan kotak dalam satu frame tidak
    dijamin, jadi TP yang disebut sesudah janjangnya akan terlewat kalau dibaca sambil jalan.
+   ⚠️ **Ambang saja tidak cukup**: dua janjang berdempetan bisa sama-sama berada dalam
+   jangkauan TP yang sama, dan yang menang tinggal siapa yang kebetulan diproses lebih dulu.
+   Karena itu TP diberikan hanya kalau janjang itu yang **paling dekat di antara semua**
+   janjang di frame (`janjang_lain`) — tanpa itu janjang B dikreditkan tangkai milik A dan
+   tangkai A yang asli tidak tercatat, dan `tp_confidence > 0.8` itu kriteria Tangkai Panjang
+   yang dibukukan AutoERP. Janjang yang **sudah difoto** ikut jadi saingan: tangkai milik
+   janjang yang baru selesai tidak boleh pindah ke tetangganya.
    ⚠️ **Alur LAMA yang diganti** (jangan dihidupkan lagi): satu slot `_last_tp` berisi "TP
    terakhir yang terlihat", diberikan ke janjang berikutnya yang menyentuh garis, tanpa pernah
    melihat posisi. Dua akibatnya sama-sama salah bayar dan sama-sama senyap: TP milik janjang A

@@ -339,3 +339,68 @@ class TestKandidatTpDiPraPindai:
 
     def test_tp_bertrack_dan_belum_dipakai_adalah_kandidat(self):
         assert kandidat_tp_sah(track_id=7, sudah_diproses=False) is True
+
+
+class TestTpTidakDirebutTetangga:
+    """TP milik janjang yang PALING dekat di antara semua janjang di frame.
+
+    Ambang jarak saja tidak cukup begitu dua janjang berdempetan di conveyor:
+    keduanya bisa sama-sama berada dalam jangkauan TP yang sama, dan yang
+    menang tinggal siapa yang kebetulan diproses lebih dulu — urutan kotak
+    dalam satu frame tidak dijamin. Akibatnya janjang B dikreditkan tangkai
+    milik A, dan tangkai A yang asli tidak tercatat. `tp_confidence > 0.8` itu
+    kriteria Tangkai Panjang yang dibukukan AutoERP, jadi ini menggeser
+    potongan yang dibayar ke supplier.
+    """
+
+    # Angka skala sensor 2448x2048: dua janjang 450x450 berjarak 500 px.
+    #
+    # TP-nya sengaja ditaruh di posisi yang BENAR-BENAR diperebutkan: jaraknya
+    # 253 px dari A dan 457 px dari B, sementara ambang keduanya 477 px. Jadi
+    # dua-duanya "dalam jangkauan" dan aturan ambang saja akan menyerahkannya ke
+    # siapa pun yang diproses lebih dulu. A yang lebih dekat, jadi A pemiliknya.
+    #
+    # TP tepat di tengah sela sengaja TIDAK diuji: di situ geometrinya memang
+    # ambigu, dan aturan apa pun cuma menebak.
+    A = (775, 675, 1225, 1125)
+    B = (1275, 675, 1725, 1125)
+    TP_MILIK_A = (1075, 1100, 1135, 1160)
+
+    def test_tanpa_saingan_janjang_terdekat_mendapatkannya(self):
+        assert tp_untuk_janjang(
+            janjang=self.A, kandidat=[{"bbox": self.TP_MILIK_A}], janjang_lain=[]
+        ) is not None
+
+    def test_tetangga_yang_lebih_jauh_tidak_boleh_merebut(self):
+        """B masih dalam ambangnya sendiri, tapi A lebih dekat — jadi bukan milik B."""
+        assert tp_untuk_janjang(
+            janjang=self.B, kandidat=[{"bbox": self.TP_MILIK_A}], janjang_lain=[self.A]
+        ) is None
+
+    def test_pemilik_sah_tetap_mendapatkannya_walau_ada_tetangga(self):
+        assert tp_untuk_janjang(
+            janjang=self.A, kandidat=[{"bbox": self.TP_MILIK_A}], janjang_lain=[self.B]
+        ) is not None
+
+    def test_urutan_pemrosesan_tidak_lagi_menentukan(self):
+        """Inti perbaikannya: hasilnya sama, diproses A dulu atau B dulu."""
+        tp = {"bbox": self.TP_MILIK_A}
+        a_dulu = (
+            tp_untuk_janjang(janjang=self.A, kandidat=[tp], janjang_lain=[self.B]),
+            tp_untuk_janjang(janjang=self.B, kandidat=[tp], janjang_lain=[self.A]),
+        )
+        b_dulu = (
+            tp_untuk_janjang(janjang=self.B, kandidat=[tp], janjang_lain=[self.A]),
+            tp_untuk_janjang(janjang=self.A, kandidat=[tp], janjang_lain=[self.B]),
+        )
+        assert a_dulu == (tp, None)
+        assert b_dulu == (None, tp)
+
+    def test_janjang_lain_yang_di_luar_jangkauan_tidak_menghalangi(self):
+        """Tetangga di seberang frame bukan saingan; dia tidak boleh membatalkan
+        pasangan yang sah hanya karena dia ada."""
+        assert tp_untuk_janjang(
+            janjang=self.A,
+            kandidat=[{"bbox": self.TP_MILIK_A}],
+            janjang_lain=[(2000, 1700, 2400, 2000)],
+        ) is not None
