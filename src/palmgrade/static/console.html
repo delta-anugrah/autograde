@@ -978,6 +978,11 @@
       <input id="set-minsize" type="text" inputmode="numeric" autocomplete="off">
       <small class="muted" data-t="bantuMinSize">Janjang lebih kecil dari ini otomatis REJ.</small>
     </label>
+    <label>
+      <span data-t="labelGaris">Garis capture (piksel dari kiri)</span>
+      <input id="set-garis" type="text" inputmode="numeric" autocomplete="off">
+      <small class="muted" data-t="bantuGaris">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
+    </label>
     <div class="tools">
       <button id="set-simpan" class="utama" data-t="btnSimpanSetelan">Simpan</button>
       <span id="set-sumber" class="muted"></span>
@@ -1109,6 +1114,8 @@ const KAMUS = {
     judulSetelan:"Setelan", labelConf:"Ambang keyakinan (0-1)", labelMinSize:"Ukuran minimum (piksel)",
     bantuConf:"Makin tinggi = makin sedikit yang dianggap buah.",
     bantuMinSize:"Janjang lebih kecil dari ini otomatis REJ.",
+    labelGaris:"Garis capture (piksel dari kiri)",
+    bantuGaris:"Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
     btnSimpanSetelan:"Simpan", setelanTersimpan:"Tersimpan dan dikirim ke line.",
     setelanDariEnv:"Sumber: .env (belum pernah diubah dari sini)",
     setelanDariKonsol:"Sumber: konsol",
@@ -1216,6 +1223,8 @@ const KAMUS = {
     judulSetelan:"Settings", labelConf:"Confidence threshold (0-1)", labelMinSize:"Minimum size (pixels)",
     bantuConf:"Higher = fewer things counted as fruit.",
     bantuMinSize:"Bunches smaller than this are auto-REJ.",
+    labelGaris:"Capture line (pixels from left)",
+    bantuGaris:"A bunch is photographed when it touches the blue line. 0 = no line.",
     btnSimpanSetelan:"Save", setelanTersimpan:"Saved and sent to the lines.",
     setelanDariEnv:"Source: .env (never changed from here)",
     setelanDariKonsol:"Source: console",
@@ -2956,6 +2965,10 @@ async function muatSetelan() {
     const r = await api("/api/console/dev/setelan");
     $("set-conf").value = r.conf_threshold;
     $("set-minsize").value = r.minimum_size;
+    // `?? 0` bukan `|| 0`: 0 itu nilai yang sah (garis mati), dan `||` akan
+    // menukarnya dengan 0 juga — kebetulan benar di sini, tapi salah begitu
+    // nilainya berubah makna. Yang dijaga: server lama tanpa field ini.
+    $("set-garis").value = r.garis_capture ?? 0;
     $("set-sumber").textContent = t(r.sumber === "konsol" ? "setelanDariKonsol" : "setelanDariEnv");
     $("set-pesan").textContent = "";
     $("set-lines").textContent = "";
@@ -2974,6 +2987,7 @@ $("set-simpan").addEventListener("click", async () => {
       body: JSON.stringify({
         conf_threshold: $("set-conf").value.replace(",", "."),
         minimum_size: $("set-minsize").value.replace(",", "."),
+        garis_capture: $("set-garis").value.replace(",", "."),
       }),
     });
     $("set-sumber").textContent = t("setelanDariKonsol");

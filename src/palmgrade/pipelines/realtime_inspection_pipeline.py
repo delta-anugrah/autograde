@@ -100,55 +100,50 @@ class RealtimeInspectionPipeline:
             return None
         return rx1, ry1, rx2, ry2
 
-    def draw_roi(self, frame: np.ndarray) -> np.ndarray:
-        """Kotak ROI (hijau) + garis pemicu capture (biru).
+    def draw_roi(self, frame: np.ndarray, garis_capture: int = 0) -> np.ndarray:
+        """Kotak ROI (hijau, tipis) + garis capture (biru, tebal, bertanda).
 
-        Garis birunya menjawab satu pertanyaan yang sebelumnya cuma bisa dijawab
-        dengan membaca kode: **di titik mana janjang difoto?** Jawabannya, titik
-        TENGAH kotak janjang masuk ke kotak ROI (`_is_in_roi`, dievaluasi tiap
-        frame). Karena buah bergerak dari kanan ke kiri di conveyor, batas yang
-        dilewati lebih dulu adalah **sisi kanan** ROI — itu yang digambar tebal.
-        Salah menandai sisi kiri akan membuat operator menggeser ROI ke arah
-        yang keliru saat menyetel.
-        ⚠️ Yang menentukan itu titik tengah, bukan tepi janjang. Jadi foto diambil
-        saat SETENGAH janjang sudah melewati garis, bukan saat ujungnya menyentuh.
-        Itu sebabnya capture terasa "terlalu cepat" kalau garisnya tidak terlihat.
+        Dua hal berbeda yang sengaja digambar berbeda, karena keduanya menjawab
+        pertanyaan yang berbeda:
 
-        Digambar **selalu**, termasuk saat `ROI_*` masih `0,0,0,0`. Justru itu
-        keadaan yang paling perlu terlihat: ROI penuh layar berarti janjang
-        difoto begitu terdeteksi di mana pun, termasuk di pinggir frame tempat
-        janjangnya belum utuh — dan tanpa garis ini, layarnya kosong dan
-        terbaca seolah tidak ada aturan sama sekali.
+        * **ROI** = WILAYAH. Bagian frame yang dianggap conveyor; janjang di luar
+          itu tidak dihitung sama sekali. Tipis, karena ini konteks.
+        * **Garis capture** = WAKTU. Janjang difoto saat kotaknya MENYENTUH garis
+          ini (`domain/garis_capture.menyentuh_garis`). Tebal dan bertanda,
+          karena inilah yang ditunjuk operator saat menyetel.
+
+        `garis_capture` datang dari pemanggil (`DisplayWorker`) dalam ruang
+        stream, bukan dibaca dari `Settings` di sini: nilainya bisa diubah dari
+        konsol tanpa restart, dan `Settings` `frozen=True` dengan sengaja.
+
+        `0` = tidak ada garis, dan tidak ada yang digambar selain ROI. Itu
+        perilaku sebelum fitur ini ada, dan tetap sah — tapi artinya janjang
+        difoto begitu masuk ROI, yang pada ROI penuh layar berarti begitu
+        terdeteksi di mana pun.
         """
         h, w = frame.shape[:2]
         kotak = self.roi_in_stream_space(w, h)
-        if kotak is None:
-            return frame
-        rx1, ry1, rx2, ry2 = kotak
-
-        # Kotak ROI: batas wilayah yang dihitung. Tipis, karena ini konteks.
-        if self._roi_enabled:
+        if kotak is not None and self._roi_enabled:
+            rx1, ry1, rx2, ry2 = kotak
             cv2.rectangle(frame, (rx1, ry1), (rx2, ry2), COLOR_ROI, 2)
 
-        # Garis pemicu: tebal, biru, dari atas ke bawah kotak ROI.
-        #
-        # Ditarik MASUK dari tepi frame, bukan sekadar dijepit ke kolom terakhir.
-        # Garis di kolom paling kanan terpotong separuh lebarnya oleh cv2 dan
-        # berhimpit dengan bingkai video di browser — pada ROI penuh layar
-        # (keadaan bawaan, dan keadaan PC Lampung saat ini) hasilnya praktis
-        # tidak terlihat, padahal justru itu keadaan yang paling perlu terbaca:
-        # tanpa ROI, janjang difoto begitu terdeteksi di mana pun.
-        x = min(rx2, w - 1 - _TRIGGER_MARGIN)
-        cv2.line(frame, (x, ry1), (x, ry2), COLOR_TRIGGER, TRIGGER_THICKNESS)
+        if garis_capture <= 0:
+            return frame
 
-        # Diberi nama, karena garis berwarna tanpa keterangan cuma memindahkan
-        # pertanyaannya. Ditulis di sisi KIRI garis supaya tidak keluar layar
-        # saat garisnya menempel tepi kanan.
+        # Dijepit ke dalam frame: garis di kolom terakhir terpotong separuh oleh
+        # cv2 dan berhimpit dengan bingkai video di browser, jadi praktis tidak
+        # terlihat justru saat operator paling perlu melihatnya.
+        x = max(_TRIGGER_MARGIN, min(garis_capture, w - 1 - _TRIGGER_MARGIN))
+        cv2.line(frame, (x, 0), (x, h), COLOR_TRIGGER, TRIGGER_THICKNESS)
+
+        # Diberi nama: garis berwarna tanpa keterangan cuma memindahkan
+        # pertanyaannya. Ditulis di sisi kiri garis, dan pindah ke kanan kalau
+        # garisnya dekat tepi kiri — teks yang keluar layar sama saja hilang.
         teks = "CAPTURE"
         skala, tebal = 0.6, 2
         (tw, th), _ = cv2.getTextSize(teks, FONT, skala, tebal)
-        tx = max(4, x - tw - 8)
-        ty = min(ry1 + th + 8, frame.shape[0] - 4)
+        tx = x - tw - 8 if x - tw - 8 >= 4 else min(x + 8, w - tw - 4)
+        ty = th + 8
         cv2.putText(frame, teks, (tx, ty), FONT, skala, (0, 0, 0), tebal + 3, cv2.LINE_AA)
         cv2.putText(frame, teks, (tx, ty), FONT, skala, COLOR_TRIGGER, tebal, cv2.LINE_AA)
         return frame

@@ -68,7 +68,18 @@ class DisplayWorker:
         if w != target_w or h != target_h:
             display = cv2.resize(display, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
 
-        display = self.pipeline.draw_roi(display)
+        # Garis capture digambar dalam ruang STREAM — sesudah resize, sama
+        # seperti ROI, dan sama seperti ruang tempat operator menyetelnya. Dibaca
+        # dari `RuntimeState` tiap render supaya perubahan dari konsol langsung
+        # terlihat tanpa restart line.
+        display = self.pipeline.draw_roi(
+            display,
+            garis_capture=(
+                self.state.garis_capture_override
+                if self.state.garis_capture_override is not None
+                else self.settings.garis_capture
+            ),
+        )
 
         # YOLO inference FPS overlay (from FrameProcessingWorker; drawn in stream space → fixed, always readable)
         fps_text = f"{self.state.inference_fps:.0f} FPS"

@@ -81,10 +81,12 @@ async def setelan_grading(
     bersih = bersihkan_setelan(request.model_dump())
     state.conf_threshold_override = bersih["conf_threshold"]
     state.minimum_size_override = bersih["minimum_size"]
+    state.garis_capture_override = bersih["garis_capture"]
     logger.warning(
-        "Setelan grading diubah dari konsol: conf=%s minimum_size=%s (sebelumnya env conf=%s size=%s)",
-        bersih["conf_threshold"], bersih["minimum_size"],
-        settings.conf_threshold, settings.minimum_size,
+        "Setelan grading diubah dari konsol: conf=%s minimum_size=%s garis_capture=%s "
+        "(sebelumnya env conf=%s size=%s garis=%s)",
+        bersih["conf_threshold"], bersih["minimum_size"], bersih["garis_capture"],
+        settings.conf_threshold, settings.minimum_size, settings.garis_capture,
     )
     return SetelanGradingResponse(**bersih, sumber="konsol")
 
@@ -101,6 +103,8 @@ async def setelan_grading_aktif(
         if ditimpa else settings.conf_threshold,
         minimum_size=state.minimum_size_override
         if state.minimum_size_override is not None else settings.minimum_size,
+        garis_capture=state.garis_capture_override
+        if state.garis_capture_override is not None else settings.garis_capture,
         sumber="konsol" if ditimpa else "env",
     )
 

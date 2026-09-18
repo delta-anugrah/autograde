@@ -96,16 +96,31 @@ NOT sensor space — operators calibrate from what they see in the browser. Cent
 inside the box. `0,0,0,0` = full frame (X2=0→stream width, Y2=0→stream height); require `X2>X1` & `Y2>Y1`.
 TP is exempt from the ROI check. `draw_roi()` runs in `DisplayWorker` **after** resize.
 
-**Garis pemicu capture (biru, bertanda `CAPTURE`)** — sejak 2026-09-18, digambar `draw_roi()` di
-**sisi kanan** kotak ROI, karena buah bergerak kanan → kiri sehingga itulah batas yang dilewati
-lebih dulu. Menjawab pertanyaan operator "di titik mana buahnya difoto?", yang sebelumnya cuma
-bisa dijawab dengan membaca kode. ⚠️ Yang memicu itu **titik tengah** kotak janjang, bukan
-tepinya, jadi foto diambil saat setengah janjang sudah melewati garis — itu sebabnya capture
-terasa "terlalu cepat" selama garisnya belum terlihat. Digambar **selalu**, termasuk saat
-`ROI_*` masih `0,0,0,0`: justru keadaan itu yang paling perlu terbaca, karena ROI penuh layar
-berarti janjang difoto begitu terdeteksi di mana pun termasuk di pinggir frame saat janjangnya
-belum utuh. Pada ROI penuh layar garisnya ditarik masuk `_TRIGGER_MARGIN` px dari tepi (0,47%
-lebar layar) — garis di kolom terakhir terpotong cv2 dan berhimpit dengan bingkai video browser.
+**Garis capture (biru, bertanda `CAPTURE`)** — sejak 2026-09-18 menggantikan aturan lama "titik
+tengah masuk kotak ROI" sebagai penentu KAPAN janjang difoto. Dua hal yang sengaja dipisah:
+
+| | Menjawab | Aturan |
+|---|---|---|
+| ROI | di mana | titik tengah janjang di dalam kotak = wilayah conveyor |
+| Garis capture | kapan | kotak janjang **menyentuh** garis (`domain/garis_capture`) |
+
+Aturan lama memfoto janjang saat **separuhnya** sudah lewat, dan dengan `ROI_*` bawaan `0,0,0,0`
+(= seluruh layar) itu berarti begitu terdeteksi di mana pun — termasuk di pinggir frame saat
+janjangnya belum utuh. Itu keluhan "capture terlalu cepat" dari PC Lampung.
+
+Disetel dari **layar support konsol**, satu angka untuk semua line, berlaku tanpa restart lewat
+`/internal/setelan` — jalur yang sama persis dengan `CONF_THRESHOLD` dan `MINIMUM_SIZE`
+(`domain/setelan_grading`, `RuntimeState.garis_capture_override`). `GARIS_CAPTURE` di `.env` cuma
+nilai awal. **`0` = tidak ada garis**, dan itu perilaku sebelum fitur ini ada — satu-satunya cara
+PKS yang belum menyetel tidak kehilangan janjang, jadi batas bawahnya inklusif (`BAWAH_INKLUSIF`),
+beda dari dua setelan lain yang `0`-nya justru mematikan grading diam-diam.
+
+⚠️ Angkanya ruang **stream**, diskalakan ke ruang sensor saat menyaring (`skala_garis_ke_frame`).
+Melewatkan penskalaan itu bug yang sudah pernah terjadi di ROI (`bdcb300`).
+⚠️ Pemicunya **perpotongan**, bukan sentuhan persis: garis dievaluasi sekali per frame, dan pada
+8-20 fps janjang bisa melompati garis di antara dua frame — menuntut sentuhan persis membuat
+janjang cepat tidak pernah difoto, hilang tanpa satu pun pesan.
+`TP` dikecualikan dari garis, sama seperti dari ROI.
 
 **Label janjang tanpa angka confidence** (2026-09-18, permintaan operator). Angkanya keyakinan
 model, bukan mutu buah, dan dari beberapa meter "54%" terbaca seperti "54% matang"; ambangnya

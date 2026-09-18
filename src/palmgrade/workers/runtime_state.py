@@ -26,6 +26,9 @@ class RuntimeState:
     # hidup adalah dua angka ini. Dibaca tiap frame, jadi berlaku tanpa restart.
     conf_threshold_override: float | None = None
     minimum_size_override: int | None = None
+    # Garis capture dalam ruang STREAM (px dari kiri). 0 = tidak ada garis, dan
+    # itu perilaku sebelum fitur ini ada: semua janjang di dalam ROI difoto.
+    garis_capture_override: int | None = None
 
     # Thread-safe queues
     frame_queue: Queue[Any] = field(default_factory=lambda: Queue(maxsize=5))

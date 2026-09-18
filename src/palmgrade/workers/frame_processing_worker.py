@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from ..core.config import Settings
 from ..domain.grade_class import TP, grade_class_of, is_fruit_class, verdict_for_class
+from ..domain.garis_capture import menyentuh_garis, skala_garis_ke_frame
 from ..domain.plc_signal import plc_status_for
 from ..integrations.outbox.outbox_store import OutboxStore
 from ..license.gate import grading_blocked
@@ -273,6 +274,17 @@ class FrameProcessingWorker:
 
         height, width, _ = frame.shape
         roi = self._roi_box(width, height)
+        # Dihitung sekali per frame, bukan per kotak: nilainya sama untuk semua
+        # janjang di frame ini, dan `skala_garis_ke_frame` dipanggil puluhan kali
+        # per detik kalau ditaruh di dalam loop. Dibaca dari `RuntimeState` tiap
+        # frame supaya setelan dari konsol berlaku tanpa restart line.
+        garis_capture = skala_garis_ke_frame(
+            self.state.garis_capture_override
+            if self.state.garis_capture_override is not None
+            else self.settings.garis_capture,
+            stream_width=self.settings.stream_width,
+            frame_width=width,
+        )
 
         results = self.pipeline.track_ripeness(
             frame, conf=self.state.conf_threshold_override
@@ -356,8 +368,24 @@ class FrameProcessingWorker:
 
                 cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
 
-                # Objek di luar ROI — skip (kecuali TP boleh dari mana saja)
+                # Objek di luar ROI — skip (kecuali TP boleh dari mana saja).
+                # ROI menyaring WILAYAH: bagian frame yang memang bukan conveyor.
                 if not self._is_in_roi(cx, cy, roi) and grade_class != TP:
+                    continue
+
+                # Garis capture menentukan WAKTU-nya (2026-09-18). Dua hal yang
+                # berbeda dan sengaja dipisah: ROI menjawab "apakah ini di
+                # conveyor", garis menjawab "apakah sudah waktunya difoto".
+                #
+                # Menggantikan aturan lama yang memakai titik tengah masuk kotak
+                # ROI — itu memfoto janjang saat separuhnya sudah lewat, dan
+                # dengan ROI penuh layar (bawaan) berarti begitu terdeteksi di
+                # mana pun, termasuk di pinggir frame saat janjangnya belum utuh.
+                # TP dikecualikan seperti pada ROI: dia penanda tangkai, bukan
+                # janjang yang difoto.
+                if grade_class != TP and not menyentuh_garis(
+                    x1=x1, x2=x2, garis_x=garis_capture
+                ):
                     continue
 
                 self._inactive_counter.pop(track_id, None)

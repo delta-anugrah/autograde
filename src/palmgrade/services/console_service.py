@@ -471,10 +471,15 @@ class ConsoleService:
         tersimpan = self.store.get_state(KUNCI_SETELAN)
         if tersimpan:
             nilai = json.loads(tersimpan)
-            return {**nilai, "sumber": "konsol"}
+            # Baris yang disimpan SEBELUM `garis_capture` ada tidak punya field
+            # itu. Dilengkapi di sini, bukan dibiarkan hilang: layar yang
+            # menerima `undefined` akan mengirim balik payload cacat saat
+            # operator menyimpan setelan lain.
+            return {"garis_capture": 0, **nilai, "sumber": "konsol"}
         return {
             "conf_threshold": self.settings.conf_threshold,
             "minimum_size": self.settings.minimum_size,
+            "garis_capture": self.settings.garis_capture,
             "sumber": "env",
         }
 
@@ -495,8 +500,9 @@ class ConsoleService:
         bersih = bersihkan_setelan(payload)
         self.store.set_state(KUNCI_SETELAN, json.dumps(bersih))
         logger.warning(
-            "Setelan grading diubah oleh %s: conf=%s minimum_size=%s",
+            "Setelan grading diubah oleh %s: conf=%s minimum_size=%s garis_capture=%s",
             diubah_oleh, bersih["conf_threshold"], bersih["minimum_size"],
+            bersih["garis_capture"],
         )
 
         hasil = []

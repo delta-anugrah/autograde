@@ -610,11 +610,19 @@ setelannya sama untuk tiga line, `.env` sudah cukup — jangan bikin override.
 - All paths via `Settings` (`core/config.py`) — never hardcode. New env var → add to `core/config.py` with a sane default.
 - `CAMERA_TYPE`: `hikrobot` (prod) / `opencv` (dev: webcam or video file) / `photo` (test). Switching needs **no code edit**.
 - ROI (`ROI_X1/Y1/X2/Y2`) coordinates are in **stream space** (`STREAM_WIDTH×STREAM_HEIGHT`, default 1280×720), not sensor space.
-- **Garis biru bertanda `CAPTURE`** di layar line = titik janjang difoto: sisi **kanan** kotak ROI
-  (buah bergerak kanan → kiri). ⚠️ Yang memicu **titik tengah** kotak janjang, bukan tepinya — foto
-  diambil saat setengah janjang sudah lewat. Kalau capture terasa terlalu cepat, **geser
-  `ROI_X2` ke kiri**, jangan sentuh `CONF_THRESHOLD`. Garisnya digambar walau `ROI_*` masih
-  `0,0,0,0` (= seluruh layar), karena keadaan itu yang paling perlu terlihat.
+- **Garis capture (biru, bertanda `CAPTURE`) menentukan KAPAN janjang difoto; ROI menentukan DI MANA.**
+  Dua hal berbeda, sengaja dipisah sejak 2026-09-18. Janjang difoto saat kotaknya **menyentuh**
+  garis (`domain/garis_capture.menyentuh_garis`) — bukan lagi saat titik tengahnya masuk kotak ROI,
+  yang memfoto janjang saat separuhnya sudah lewat. ROI tetap menyaring wilayah conveyor, dan `TP`
+  tetap dikecualikan dari keduanya.
+  **Disetel dari layar support konsol** (Setelan → Garis capture), satu angka untuk semua line,
+  berlaku tanpa restart lewat `/internal/setelan` — jalur yang sama dengan `CONF_THRESHOLD` dan
+  `MINIMUM_SIZE`. `GARIS_CAPTURE` di `.env` cuma nilai awal. **`0` = tidak ada garis**, dan itu
+  perilaku sebelum fitur ini ada (semua janjang di dalam ROI difoto).
+  ⚠️ Angkanya ruang **stream** (`STREAM_WIDTH`, bawaan 1280), diskalakan ke ruang sensor saat
+  menyaring (`skala_garis_ke_frame`) — melewatkan penskalaan itu bug yang sudah pernah terjadi di
+  ROI (`bdcb300`): garis terlihat benar di layar sementara yang menyaring sepertiga frame.
+  Kalau capture terasa terlalu cepat, **geser garisnya**, jangan sentuh `CONF_THRESHOLD`.
 - **Label janjang tidak memuat angka confidence** (permintaan operator 2026-09-18): dari beberapa
   meter "54%" terbaca seperti "54% matang", padahal itu keyakinan model dan sudah lolos
   `CONF_THRESHOLD`. Nilainya tetap ditulis ke sidecar dan dikirim ke API.

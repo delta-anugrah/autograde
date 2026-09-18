@@ -150,7 +150,12 @@ class LineClient:
         return res.json()
 
     async def kirim_setelan(
-        self, line: LineEndpoint, *, conf_threshold: float, minimum_size: int
+        self,
+        line: LineEndpoint,
+        *,
+        conf_threshold: float,
+        minimum_size: int,
+        garis_capture: int = 0,
     ) -> dict[str, Any]:
         """Kirim setelan grading ke satu line. Melempar kalau line tidak menjawab.
 
@@ -163,7 +168,11 @@ class LineClient:
             async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
                 res = await client.post(
                     url,
-                    json={"conf_threshold": conf_threshold, "minimum_size": minimum_size},
+                    json={
+                        "conf_threshold": conf_threshold,
+                        "minimum_size": minimum_size,
+                        "garis_capture": garis_capture,
+                    },
                     headers={"x-internal-secret": self._settings.internal_secret},
                 )
         except httpx.HTTPError as exc:

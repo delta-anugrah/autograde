@@ -25,17 +25,25 @@ from palmgrade.domain.setelan_grading import (
 
 
 def test_nilai_wajar_diterima_apa_adanya():
+    # `garis_capture` menyusul 2026-09-18 dan opsional: payload tanpa dia tetap
+    # sah, dan diisi 0 = garis mati = perilaku sebelum fitur itu ada. Bentuk
+    # lengkapnya dikunci di sini karena inilah yang disimpan ke `sync_state` dan
+    # dikirim ke tiga line.
     assert bersihkan_setelan({"conf_threshold": 0.5, "minimum_size": 3000}) == {
         "conf_threshold": 0.5,
         "minimum_size": 3000,
+        "garis_capture": 0,
     }
 
 
 def test_angka_berbentuk_teks_diterima():
     """Yang mengirim itu layar, dan input HTML selalu memberi string."""
-    assert bersihkan_setelan({"conf_threshold": "0.75", "minimum_size": "460000"}) == {
+    assert bersihkan_setelan(
+        {"conf_threshold": "0.75", "minimum_size": "460000", "garis_capture": "900"}
+    ) == {
         "conf_threshold": 0.75,
         "minimum_size": 460000,
+        "garis_capture": 900,
     }
 
 

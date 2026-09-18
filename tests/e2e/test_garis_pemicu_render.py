@@ -67,57 +67,75 @@ def _frame():
     return np.zeros((STREAM_H, STREAM_W, 3), dtype=np.uint8)
 
 
-# ----------------------------------------------------------- garis pemicu
+# ----------------------------------------------------------- garis capture
 
 
-def test_the_trigger_line_is_actually_drawn_in_blue(monkeypatch):
-    """Operator meminta biru supaya bisa dibedakan dari hijau ROI dan bbox."""
-    p = _pipeline(monkeypatch, roi=(100, 100, 900, 600))
-    out = p.draw_roi(_frame())
+def test_the_capture_line_is_drawn_where_it_was_set(monkeypatch):
+    """Garisnya berdiri sendiri di `garis_capture`, bukan menempel sisi ROI.
 
-    kolom = out[100:600, 900]
-    cocok = [tuple(int(v) for v in px) for px in kolom if tuple(px) == COLOR_TRIGGER]
-    assert len(cocok) > 400, "garis biru tidak tergambar di batas kanan ROI"
-
-
-def test_the_line_marks_the_right_hand_edge_not_the_left(monkeypatch):
-    """Buah bergerak kanan → kiri, jadi sisi kanan ROI yang dilewati lebih dulu.
-
-    Menandai sisi kiri akan membuat operator menggeser ROI ke arah yang salah
-    saat menyetel kapan foto diambil.
-    """
-    p = _pipeline(monkeypatch, roi=(100, 100, 900, 600))
-    out = p.draw_roi(_frame())
-
-    def biru_di(x):
-        return sum(1 for px in out[100:600, x] if tuple(px) == COLOR_TRIGGER)
-
-    assert biru_di(900) > 400, "sisi kanan harus bergaris tebal"
-    # Label CAPTURE juga biru, jadi yang dibandingkan tingginya: garis penuh
-    # setinggi ROI, teks cuma setinggi beberapa puluh piksel.
-    assert biru_di(100) < 50, "sisi kiri bukan titik pemicu"
-
-
-def test_a_full_screen_roi_still_shows_the_line(monkeypatch):
-    """`0,0,0,0` itu keadaan bawaan DAN keadaan PC Lampung saat ini.
-
-    Justru di sinilah garisnya paling perlu: ROI penuh layar berarti janjang
-    difoto begitu terdeteksi di mana pun. Garis yang digambar tepat di kolom
-    terakhir terpotong separuh oleh cv2 dan berhimpit dengan bingkai video di
-    browser, jadi dia ditarik masuk dari tepi.
+    Itu perubahan 2026-09-18: operator minta satu garis lurus yang bisa digeser,
+    dan zonanya bukan lagi kotak. Kalau garis ini ikut sisi ROI, menggesernya
+    berarti ikut mengubah wilayah yang dihitung — dua hal berbeda yang tidak
+    boleh terikat satu angka.
     """
     p = _pipeline(monkeypatch, roi=(0, 0, 0, 0))
-    out = p.draw_roi(_frame())
+    out = p.draw_roi(_frame(), garis_capture=640)
 
-    # Kolom garisnya harus utuh dari atas ke bawah, bukan sekadar "ada biru"
-    # (label CAPTURE juga biru, dan itu bukan bukti garisnya kelihatan).
+    def biru_di(x):
+        return sum(1 for px in out[:, x] if tuple(px) == COLOR_TRIGGER)
+
+    assert biru_di(640) > STREAM_H * 0.9, "garis tidak ada di posisi yang disetel"
+    assert biru_di(200) == 0, "ada garis di tempat yang tidak disetel"
+
+
+def test_the_line_spans_the_whole_frame_height(monkeypatch):
+    """Garis lurus dari atas ke bawah, bukan sepanjang sisi ROI saja.
+
+    Janjang bisa lewat di ketinggian mana pun di conveyor; garis yang berhenti
+    di batas ROI membuat operator mengira janjang di atas/bawahnya tidak
+    terhitung, padahal terhitung.
+    """
+    p = _pipeline(monkeypatch, roi=(100, 200, 900, 400))
+    out = p.draw_roi(_frame(), garis_capture=640)
+
+    assert tuple(out[5, 640]) == COLOR_TRIGGER, "garis tidak sampai atas frame"
+    assert tuple(out[STREAM_H - 5, 640]) == COLOR_TRIGGER, "garis tidak sampai bawah frame"
+
+
+def test_no_line_is_drawn_when_it_is_switched_off(monkeypatch):
+    """`0` = tanpa garis, dan itu perilaku sebelum fitur ini ada.
+
+    Menggambar garis di x=0 akan terbaca seperti pemicu di tepi kiri layar —
+    kebalikan dari yang sebenarnya terjadi (semua janjang lolos).
+    """
+    p = _pipeline(monkeypatch, roi=(100, 100, 900, 600))
+    out = p.draw_roi(_frame(), garis_capture=0)
+
+    assert int(((out == np.array(COLOR_TRIGGER, dtype=np.uint8)).all(axis=2)).sum()) == 0
+
+
+def test_a_line_at_the_very_edge_is_pulled_into_view(monkeypatch):
+    """Garis di kolom terakhir terpotong cv2 dan berhimpit bingkai video browser."""
+    p = _pipeline(monkeypatch, roi=(0, 0, 0, 0))
+    out = p.draw_roi(_frame(), garis_capture=STREAM_W)
+
     kolom = [
         x for x in range(STREAM_W)
         if sum(1 for px in out[:, x] if tuple(px) == COLOR_TRIGGER) > STREAM_H * 0.9
     ]
-    assert kolom, "tidak ada satu pun kolom penuh biru — garis tenggelam di tepi"
+    assert kolom, "garis tenggelam di tepi frame"
     assert max(kolom) < STREAM_W - 1, "garis masih menempel kolom terakhir"
-    assert max(kolom) > STREAM_W - 20, "garis terlalu jauh masuk, tidak lagi menandai tepi"
+
+
+def test_the_roi_box_is_still_drawn_next_to_the_line(monkeypatch):
+    """ROI tidak dihapus: dia tetap menyaring WILAYAH, garis menentukan WAKTU."""
+    p = _pipeline(monkeypatch, roi=(100, 100, 900, 600))
+    out = p.draw_roi(_frame(), garis_capture=640)
+
+    from palmgrade.core.constants import COLOR_ROI
+
+    hijau = int(((out == np.array(COLOR_ROI, dtype=np.uint8)).all(axis=2)).sum())
+    assert hijau > 1000, "kotak ROI hilang"
 
 
 def test_the_line_is_labelled_so_it_needs_no_explaining(monkeypatch):
@@ -126,21 +144,24 @@ def test_the_line_is_labelled_so_it_needs_no_explaining(monkeypatch):
     Diuji lewat piksel biru DI LUAR kolom garis: itu hanya bisa datang dari
     teksnya.
     """
-    p = _pipeline(monkeypatch, roi=(100, 100, 900, 600))
-    out = p.draw_roi(_frame())
+    p = _pipeline(monkeypatch, roi=(0, 0, 0, 0))
+    out = p.draw_roi(_frame(), garis_capture=640)
 
     tanpa_garis = out.copy()
-    tanpa_garis[:, 895:905] = 0
+    tanpa_garis[:, 635:645] = 0
     teks = int(((tanpa_garis == np.array(COLOR_TRIGGER, dtype=np.uint8)).all(axis=2)).sum())
     assert teks > 50, "garis tidak punya label"
 
 
-def test_an_inverted_roi_draws_nothing_rather_than_a_wrong_line(monkeypatch):
-    """X2 < X1 itu salah ketik; garis di tempat salah lebih buruk dari tanpa garis."""
-    p = _pipeline(monkeypatch, roi=(900, 100, 200, 600))
-    out = p.draw_roi(_frame())
+def test_the_label_stays_on_screen_when_the_line_hugs_the_left_edge(monkeypatch):
+    """Teks di kiri garis akan keluar layar kalau garisnya dekat tepi kiri."""
+    p = _pipeline(monkeypatch, roi=(0, 0, 0, 0))
+    out = p.draw_roi(_frame(), garis_capture=20)
 
-    assert int(((out == np.array(COLOR_TRIGGER, dtype=np.uint8)).all(axis=2)).sum()) == 0
+    kanan = out[:, 25:]
+    assert int(((kanan == np.array(COLOR_TRIGGER, dtype=np.uint8)).all(axis=2)).sum()) > 50, (
+        "label pindah ke kanan garis saat garisnya di tepi kiri"
+    )
 
 
 # ------------------------------------------------------------ label janjang

@@ -33,7 +33,29 @@ BATAS: dict[str, tuple[float, float]] = {
     # 100 juta piksel: jauh di atas sensor mana pun yang dipakai (1224x1024 ≈ 1,25
     # juta), jadi yang tersaring cuma salah ketik yang benar-benar ngawur.
     "minimum_size": (0.0, 100_000_000.0),
+    # Garis capture, dalam ruang STREAM (px dari kiri). Batas bawahnya 0 dan
+    # INKLUSIF (lihat `BAWAH_INKLUSIF`) karena 0 = garis mati = perilaku lama.
+    # Batas atasnya lebar — 10.000 px — karena `STREAM_WIDTH` boleh diubah per
+    # PKS; yang ditolak cuma angka yang pasti di luar layar mana pun, karena
+    # garis di sana tidak akan pernah disentuh janjang dan line terlihat jalan
+    # sambil tidak pernah memfoto apa pun.
+    "garis_capture": (0.0, 10_000.0),
 }
+
+#: Field yang boleh tidak ada di payload, beserta nilai bawaannya.
+#:
+#: `garis_capture` ditambahkan belakangan (2026-09-18), dan konsol versi lama
+#: (juga `.env` yang belum tahu field ini) mengirim payload tanpa dia. Menolaknya
+#: 400 akan membuat line berhenti menerima setelan **sama sekali** — termasuk dua
+#: setelan lain yang sudah lama jalan. Bawaan `0` = garis mati = perilaku lama.
+OPSIONAL: dict[str, Any] = {"garis_capture": 0}
+
+#: Field yang batas bawahnya INKLUSIF (`bawah <= nilai`), bukan eksklusif.
+#:
+#: `conf_threshold` 0 dan `minimum_size` 0 mematikan grading diam-diam, jadi
+#: keduanya ditolak. `garis_capture` 0 justru sah dan berarti "tidak ada garis" —
+#: tanpa ini tidak ada cara mengembalikan perilaku sebelum fitur ini ada.
+BAWAH_INKLUSIF = frozenset({"garis_capture"})
 
 
 class SetelanTidakSah(ValueError):
@@ -68,19 +90,25 @@ def bersihkan_setelan(payload: dict[str, Any]) -> dict[str, Any]:
     if asing:
         raise SetelanTidakSah(f"field tidak dikenal: {', '.join(sorted(asing))}")
 
-    kurang = set(BATAS) - set(payload)
+    kurang = set(BATAS) - set(payload) - set(OPSIONAL)
     if kurang:
         raise SetelanTidakSah(f"field wajib belum diisi: {', '.join(sorted(kurang))}")
 
     bersih: dict[str, Any] = {}
     for field, (bawah, atas) in BATAS.items():
+        if field not in payload:
+            bersih[field] = OPSIONAL[field]
+            continue
         nilai = _angka(field, payload[field])
-        if not (bawah < nilai <= atas):
+        inklusif = field in BAWAH_INKLUSIF
+        sah = (bawah <= nilai <= atas) if inklusif else (bawah < nilai <= atas)
+        if not sah:
+            pembanding = "minimal" if inklusif else "lebih besar dari"
             raise SetelanTidakSah(
-                f"{field} harus lebih besar dari {bawah:g} dan maksimal {atas:g}"
+                f"{field} harus {pembanding} {bawah:g} dan maksimal {atas:g}"
             )
         # `minimum_size` itu luas piksel — bilangan bulat, dan menyimpannya
         # sebagai float membuat perbandingan `area < minimum_size` bekerja pada
-        # angka yang bukan piksel.
+        # angka yang bukan piksel. `garis_capture` sama: koordinat px.
         bersih[field] = nilai if field == "conf_threshold" else int(nilai)
     return bersih
