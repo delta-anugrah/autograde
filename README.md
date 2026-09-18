@@ -372,7 +372,18 @@ make rebuild-gpu # sama dengan make rebuild (alias, untuk kompatibilitas)
 make rebuild-clean # full rebuild --no-cache (hanya kalau cache dicurigai rusak — lambat)
 make build-engine  # build TensorRT FP16 engine — sekali per GPU, auto-skip kalau sudah ada
 make clean       # down + hapus image lokal
+make reset-data       # lihat dulu: berapa foto + basis data yang akan hilang
+make reset-data-fresh # HAPUS SEMUA DATA (artifacts/ + state/) — minta ketik HAPUS
 ```
+
+> ⚠️ **`make reset-data-fresh` tidak bisa dibatalkan dan tidak membuat backup.** Yang hilang:
+> semua foto dan sidecar (`artifacts/`), dan semua SQLite (`state/`) — riwayat grading, truk,
+> timbangan, antrean yang belum terkirim, dan akun buatan `make operator`. **Dua akun bawaan
+> image dibuat ulang sendiri** saat konsol start, jadi cukup `make start` sesudahnya; layar
+> tidak terkunci. Container dimatikan lebih dulu — menghapus berkas SQLite di bawah proses yang
+> masih membukanya meninggalkan basis data separuh jadi, bukan basis data kosong.
+> Jangan di PC pabrik yang sedang produksi. AutoERP punya dua target nama sama
+> (`bench reinstall`, bukan `drop-site`).
 
 > **Satu image, tiga container** — hanya line-1 yang punya `build:` di docker-compose. Line-2 dan line-3 reuse image `palmgrade-vision:latest`. Jadi `make rebuild` cukup untuk update semua line (tinggal `make start` setelahnya).
 >

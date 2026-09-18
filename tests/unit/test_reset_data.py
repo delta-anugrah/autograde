@@ -108,3 +108,60 @@ def test_pesan_akhir_tidak_menyuruh_bikin_akun_yang_sudah_ada():
     """Sesudah reset, `make start` saja sudah cukup untuk bisa masuk."""
     blok = _target("reset-data-fresh")
     assert "make start" in blok
+
+
+# --------------------------------------------- kepemilikan berkas (2026-09-18)
+
+
+def test_menghapus_lewat_container_karena_berkasnya_milik_root():
+    """`Dockerfile` tidak punya `USER`, jadi container jalan sebagai root dan
+    semua foto + SQLite yang ditulisnya jadi milik root.
+
+    `rm -rf` dari user biasa karena itu dijawab "Permission denied" ribuan kali
+    dan target berhenti dengan Error 1 — kejadian di PC Lampung 2026-09-18.
+
+    ⚠️ Di macOS ini TIDAK PERNAH terlihat: Docker Desktop memetakan pemilik ke
+    user yang menjalankan, jadi penghapusan terasa berhasil di laptop dan gagal
+    di pabrik — satu-satunya tempat yang penting. Itu sebabnya penjaganya di
+    sini, bukan dipercayakan pada satu kali coba di laptop.
+    """
+    blok = _target("reset-data-fresh")
+    assert "$(HAPUS_ISI)" in blok, "tidak menghapus lewat container"
+    assert "docker run" in MAKEFILE, "HAPUS_ISI tidak menjalankan container"
+
+
+def test_container_penghapus_melihat_seluruh_folder_kerja():
+    """`docker compose run` TIDAK bisa dipakai di sini: tiap service me-mount
+    `./artifacts/line-N` ke `/app/artifacts`, jadi container line cuma melihat
+    foldernya sendiri dan dua line lain luput terhapus."""
+    perintah = re.search(r"^HAPUS_ISI = (.*?)(?=\n\n)", MAKEFILE, re.S | re.M)
+    assert perintah, "HAPUS_ISI tidak ditemukan"
+    isi = perintah.group(1)
+    assert "docker compose run" not in isi, "memakai compose — cuma melihat satu line"
+    assert "$(CURDIR)" in isi, "folder kerja tidak di-mount utuh"
+
+
+def test_folder_induk_tidak_ikut_dihapus():
+    """Yang dibuang isinya, foldernya tetap: `artifacts/` dan `state/` adalah
+    titik mount, dan menghapus lalu membuatnya lagi dari dalam container akan
+    mengubah pemiliknya jadi root — line berikutnya gagal menulis."""
+    perintah = re.search(r"^HAPUS_ISI = (.*?)(?=\n\n)", MAKEFILE, re.S | re.M)
+    assert "-mindepth 1" in perintah.group(1), "folder induk ikut terhapus"
+
+
+def test_berkas_tersembunyi_ikut_terhapus():
+    """`rm -rf folder/*` melewatkan berkas berawalan titik, dan `.DS_Store` atau
+    `.gitkeep` yang tertinggal membuat pemeriksaan sisa di bawah selalu gagal."""
+    blok = _target("reset-data-fresh")
+    perintah = re.search(r"^HAPUS_ISI = (.*?)(?=\n\n)", MAKEFILE, re.S | re.M)
+    assert "find" in perintah.group(1), "memakai glob, bukan find"
+    assert ".[!.]*" in blok, "jaring kedua melewatkan berkas tersembunyi"
+
+
+def test_gagal_menghapus_tidak_dilaporkan_sebagai_berhasil():
+    """Kegagalan diam adalah yang paling mahal di sini: orang mengira datanya
+    sudah bersih, lalu memulai uji coba di atas ribuan baris lama."""
+    blok = _target("reset-data-fresh")
+    assert "sisa=" in blok, "tidak memeriksa sisa"
+    assert "GAGAL" in blok, "tidak memberi tahu kalau gagal"
+    assert "sudo rm -rf" in blok, "tidak menyebut jalan keluarnya"
