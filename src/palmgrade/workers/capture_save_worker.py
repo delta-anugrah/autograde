@@ -268,6 +268,13 @@ class CaptureSaveWorker:
             logger.error("Gagal menulis event %s ke outbox: %s", payload["event_id"], exc)
 
     def run_loop(self) -> None:
+        # Sengaja membersihkan flag berhenti di awal, bukan cuma di `start()`:
+        # watchdog 10 detik di `main.py` menghidupkan worker yang mati dengan
+        # memanggil `run_loop` langsung, tanpa lewat `start()`. Tanpa baris ini
+        # penulis yang mati SESUDAH satu `stop()` (mis. reload) akan "hidup"
+        # sebagai loop yang langsung keluar — terbaca sehat di daftar thread,
+        # padahal tidak pernah menulis apa pun lagi.
+        self._stop.clear()
         while not self._stop.is_set():
             try:
                 job = self._queue.get(timeout=_POLL_TIMEOUT)

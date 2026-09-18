@@ -289,6 +289,30 @@ def test_a_full_queue_drops_the_newest_and_says_so(settings, caplog):
     assert "antrean simpan penuh" in caplog.text.lower()
 
 
+def test_the_watchdog_can_bring_the_writer_back_after_a_stop(settings):
+    """Watchdog 10 detik di `main.py` memanggil `run_loop` langsung, bukan `start()`.
+
+    Penulis yang pernah di-`stop()` lalu dihidupkan lagi lewat jalan itu harus
+    benar-benar menulis lagi. Kalau flag berhentinya masih menempel, thread-nya
+    hidup dan terlihat sehat di daftar worker — sambil tidak pernah menyimpan
+    satu janjang pun.
+    """
+    storage = RecordingStorage()
+    w = CaptureSaveWorker(settings=settings, storage=storage, outbox_store=RecordingOutbox())
+    w.start()
+    w.stop()
+
+    hidup_lagi = threading.Thread(target=w.run_loop, daemon=True)
+    hidup_lagi.start()
+    try:
+        w.submit(_job())
+        assert w.tunggu_kosong(timeout=5), "penulis yang dihidupkan watchdog tetap diam"
+        assert storage.images, "hidup tapi tidak menulis apa pun"
+    finally:
+        w.stop()
+        hidup_lagi.join(timeout=2)
+
+
 def test_the_queue_depth_is_visible(settings):
     """Kedalaman antrean itu alat ukur: kalau naik terus, penulis kalah cepat."""
     w = CaptureSaveWorker(
