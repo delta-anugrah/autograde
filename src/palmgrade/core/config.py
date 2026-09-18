@@ -220,6 +220,9 @@ class Settings:
     # px dari kiri) atau "mendatar" (conveyor menurun, garis horizontal, angka
     # = px dari atas). Sama seperti `garis_capture`, ini cuma nilai awal.
     sumbu_garis: str = field(default_factory=lambda: os.getenv("SUMBU_GARIS", "tegak"))
+    # Mode dev: angka confidence ikut digambar di kotak janjang. Nilai awal
+    # saja; disetel dari layar support konsol.
+    mode_dev: bool = field(default_factory=lambda: _as_bool(os.getenv("MODE_DEV"), False))
 
     # Detection zone — ROI rectangle (pixel coordinates, inclusive).
     # 0,0,0,0 = full frame (all objects eligible).

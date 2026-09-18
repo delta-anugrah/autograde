@@ -122,6 +122,25 @@ Melewatkan penskalaan itu bug yang sudah pernah terjadi di ROI (`bdcb300`).
 janjang cepat tidak pernah difoto, hilang tanpa satu pun pesan.
 `TP` dikecualikan dari garis, sama seperti dari ROI.
 
+**Pasangan TP ↔ janjang** (2026-09-18). Janjang difoto **apa adanya** begitu menyentuh garis,
+ada TP atau tidak — tanpa penundaan. TP yang dipakai adalah yang pusatnya **paling dekat** dan
+masih dalam `_JANGKAUAN_TP` × setengah diagonal janjang (`domain/garis_capture`), dikumpulkan
+di pra-pindai supaya urutan kotak dalam satu frame tidak menentukan hasil.
+
+| Urutan | Alur LAMA (`_last_tp`) | Sekarang |
+|---|---|---|
+| TP terlihat, lalu janjangnya menyentuh garis | ikut, kebetulan urutannya cocok | ikut, karena jaraknya dekat |
+| TP milik janjang A, janjang B lewat garis dulu | **salah**: TP menempel ke B | tidak ikut ke B |
+| Janjang difoto, TP-nya baru terlihat | **salah**: menempel ke janjang berikutnya | tidak ikut, dihitung `tp_telat` |
+
+Ambangnya relatif, bukan piksel tetap: janjang di dekat kamera jauh lebih besar daripada yang di
+ujung frame, jadi satu angka piksel akan benar cuma di satu jarak kamera. Setengah diagonal
+dipakai supaya janjang tegak dan janjang rebah menjangkau sama jauhnya.
+⚠️ Yang dipakai **jarak**, bukan irisan kotak: TP bisa terpisah dari kotak janjangnya (jawaban
+operator 2026-09-18), jadi menuntut irisan akan membuang tangkai yang sah.
+⚠️ Yang menang **yang terdekat**, bukan yang paling yakin: confidence mengukur seberapa yakin
+model itu TP, bukan seberapa mungkin TP itu milik janjang ini.
+
 **Arah conveyor** (`sumbu_garis`, disetel di layar yang sama sejak 2026-09-18):
 
 | Sumbu | Conveyor | Garis | Angkanya |

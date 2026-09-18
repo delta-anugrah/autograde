@@ -418,3 +418,61 @@ def test_stop_waits_for_a_thread_it_did_not_start_itself(settings):
     w.stop(timeout=5)
 
     assert not t.is_alive(), "stop() balik sebelum penulis benar-benar keluar"
+
+
+# ------------------------------------------- penghitung TP telat + mode dev
+
+
+def test_health_detail_membawa_hitungan_tp_telat():
+    """`tp_telat` di `/health/detail` = TP yang muncul sesudah janjangnya difoto.
+
+    Janjang difoto apa adanya begitu menyentuh garis (keputusan operator
+    2026-09-18), jadi tangkai yang telat memang tidak ikut. Angkanya diekspos
+    supaya keputusan menambah jendela tunggu nanti diambil dari data Lampung,
+    bukan dari dugaan — dan PC pabrik cuma dijenguk lewat AnyDesk, jadi satu
+    baris log saja tidak akan pernah terbaca.
+    """
+    from palmgrade.schemas.common_schema import HealthDetailSchema
+
+    payload = HealthDetailSchema(
+        status="ok", environment="production", version="v1",
+        camera_type="hikrobot", camera_connected=True,
+        gpu_available=True, gpu_device="RTX 3060",
+        machine_id="m", workers=[], tp_telat=3,
+    )
+    assert payload.tp_telat == 3
+    # Bawaannya nol: konsol tidak punya jalur deteksi sama sekali.
+    assert HealthDetailSchema(
+        status="ok", environment="production", version="v1",
+        camera_type="hikrobot", camera_connected=True,
+        gpu_available=False, gpu_device=None, machine_id="m", workers=[],
+    ).tp_telat == 0
+
+
+def test_mode_dev_ikut_jalur_setelan_yang_sama():
+    """Toggle dev menumpang mekanisme `CONF_THRESHOLD`, bukan mekanisme baru.
+
+    Bawaannya MATI: angka confidence di layar operator terbaca seperti mutu
+    buah dari jarak beberapa meter, dan itu yang membuatnya dibuang 2026-09-18.
+    Yang butuh angka itu support yang sedang menyetel ambang.
+    """
+    from palmgrade.domain.setelan_grading import bersihkan_setelan
+
+    assert bersihkan_setelan(
+        {"conf_threshold": 0.5, "minimum_size": 3000}
+    )["mode_dev"] is False
+
+    assert bersihkan_setelan(
+        {"conf_threshold": 0.5, "minimum_size": 3000, "mode_dev": True}
+    )["mode_dev"] is True
+
+
+def test_mode_dev_menerima_bentuk_yang_dikirim_layar_maupun_konsol_lama():
+    """Input HTML dan konsol versi lain tidak seragam mengirim boolean."""
+    from palmgrade.domain.setelan_grading import bersihkan_setelan
+
+    for dikirim, diharapkan in (("true", True), ("false", False), (1, True), (0, False)):
+        bersih = bersihkan_setelan(
+            {"conf_threshold": 0.5, "minimum_size": 3000, "mode_dev": dikirim}
+        )
+        assert bersih["mode_dev"] is diharapkan, f"{dikirim!r} dibaca salah"

@@ -610,6 +610,11 @@
     border:1px solid var(--line-kuat); border-radius:var(--r);
     background:var(--input); color:var(--fg); width:100%; box-sizing:border-box; }
   .setelan-form select { font-family:inherit; }
+  /* Saklar: kotak centang di kiri, teks di kanan, sejajar atas. `grid` milik
+     label biasa akan menaruh kotaknya selebar kolom. */
+  .setelan-form label.saklar { display:flex; gap:12px; align-items:flex-start; cursor:pointer; }
+  .setelan-form label.saklar input { width:22px; height:22px; margin-top:2px; flex:none; accent-color:var(--aksen); }
+  .setelan-form label.saklar > span { display:grid; gap:4px; }
   .setelan-form input:focus-visible, .setelan-form select:focus-visible {
     outline:2px solid var(--aksen); outline-offset:1px; }
   /* Angka yang ditolak ditandai DI KOLOMNYA, bukan cuma di banner bawah:
@@ -1024,6 +1029,14 @@
              data-angka="bulat" maxlength="5">
       <small class="muted" id="set-garis-bantu">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
     </label>
+    <!-- Saklar, bukan kolom: ini ya/tidak, dan kotak centang tidak bisa diisi huruf. -->
+    <label class="saklar">
+      <input id="set-dev" type="checkbox">
+      <span>
+        <span data-t="labelDev">Mode dev</span>
+        <small class="muted" data-t="bantuDev">Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.</small>
+      </span>
+    </label>
     <div class="tools">
       <button id="set-simpan" class="utama" data-t="btnSimpanSetelan">Simpan</button>
       <span id="set-sumber" class="muted"></span>
@@ -1160,6 +1173,7 @@ const KAMUS = {
     bantuSumbu:"Menentukan garis capture tegak atau mendatar.",
     bantuGarisTegak:"Piksel dari KIRI. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
     bantuGarisMendatar:"Piksel dari ATAS. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
+    labelDev:"Mode dev", bantuDev:"Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.",
     btnSimpanSetelan:"Simpan", setelanTersimpan:"Tersimpan dan dikirim ke line.",
     setelanDariEnv:"Sumber: .env (belum pernah diubah dari sini)",
     setelanDariKonsol:"Sumber: konsol",
@@ -1272,6 +1286,7 @@ const KAMUS = {
     bantuSumbu:"Sets whether the capture line is vertical or horizontal.",
     bantuGarisTegak:"Pixels from the LEFT. A bunch is photographed when it touches the blue line. 0 = no line.",
     bantuGarisMendatar:"Pixels from the TOP. A bunch is photographed when it touches the blue line. 0 = no line.",
+    labelDev:"Dev mode", bantuDev:"Show the confidence number on bunch boxes. For tuning the threshold, not for operators.",
     btnSimpanSetelan:"Save", setelanTersimpan:"Saved and sent to the lines.",
     setelanDariEnv:"Source: .env (never changed from here)",
     setelanDariKonsol:"Source: console",
@@ -3064,6 +3079,7 @@ async function muatSetelan() {
     // nilainya berubah makna. Yang dijaga: server lama tanpa field ini.
     $("set-garis").value = r.garis_capture ?? 0;
     $("set-sumbu").value = r.sumbu_garis ?? "tegak";
+    $("set-dev").checked = Boolean(r.mode_dev);
     labelGaris();
     $("set-sumber").textContent = t(r.sumber === "konsol" ? "setelanDariKonsol" : "setelanDariEnv");
     $("set-pesan").textContent = "";
@@ -3085,6 +3101,7 @@ $("set-simpan").addEventListener("click", async () => {
         minimum_size: $("set-minsize").value.replace(",", "."),
         garis_capture: $("set-garis").value.replace(",", "."),
         sumbu_garis: $("set-sumbu").value,
+        mode_dev: $("set-dev").checked,
       }),
     });
     $("set-sumber").textContent = t("setelanDariKonsol");

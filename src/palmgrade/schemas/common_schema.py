@@ -39,5 +39,10 @@ class HealthDetailSchema(BaseModel):
     # sudah rutin dilihat.
     capture_save_pending: int = 0
     capture_save_dropped: int = 0
+    # TP yang muncul sesudah janjang terdekatnya difoto. Janjang difoto apa
+    # adanya begitu menyentuh garis (keputusan operator 2026-09-18), jadi
+    # tangkai yang telat memang tidak ikut. Diekspos supaya keputusan
+    # menambah jendela tunggu nanti diambil dari angka, bukan dugaan.
+    tp_telat: int = 0
     current_assignment_id: str | None = None
     last_successful_api_push: str | None = None

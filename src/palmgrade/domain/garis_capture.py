@@ -110,3 +110,74 @@ def skala_garis_ke_frame(garis_x: int, *, stream_width: int, frame_width: int) -
     if garis_x <= 0 or stream_width <= 0 or frame_width <= 0:
         return garis_x
     return round(garis_x * frame_width / stream_width)
+
+
+#: Sejauh mana TP boleh berada dari janjangnya, sebagai kelipatan ukuran janjang
+#: (setengah diagonal kotaknya). Ambang RELATIF, bukan piksel tetap: janjang di
+#: dekat kamera jauh lebih besar daripada yang di ujung frame, dan satu angka
+#: piksel akan benar cuma di satu jarak kamera. 1,5 = kira-kira satu badan
+#: janjang di sekitarnya — cukup untuk tangkai yang menjulur keluar kotak
+#: (operator menegaskan TP bisa terpisah), belum cukup untuk menjangkau janjang
+#: tetangga di conveyor.
+_JANGKAUAN_TP = 1.5
+
+
+def _pusat(bbox: tuple[int, int, int, int]) -> tuple[float, float]:
+    x1, y1, x2, y2 = bbox
+    return (x1 + x2) / 2, (y1 + y2) / 2
+
+
+def tp_untuk_janjang(
+    *, janjang: tuple[int, int, int, int], kandidat: list[dict]
+) -> dict | None:
+    """TP milik `janjang` dari daftar `kandidat`, atau `None` kalau tidak ada.
+
+    Menggantikan aturan lama "TP terakhir yang terlihat", yang tidak pernah
+    melihat posisi dan karena itu bisa menempelkan TP milik janjang A ke janjang
+    B yang kebetulan menyentuh garis lebih dulu. Dua-duanya salah bayar, dan
+    dua-duanya tidak meninggalkan jejak apa pun.
+
+    Jaraknya antar PUSAT kotak, bukan irisan: TP bisa terpisah dari kotak
+    janjangnya (jawaban operator 2026-09-18), jadi menuntut irisan akan
+    membuang TP yang sah. Ambangnya ikut ukuran janjang — lihat `_JANGKAUAN_TP`.
+
+    Yang terdekat yang menang, bukan yang paling yakin: confidence mengukur
+    seberapa yakin model itu TP, bukan seberapa mungkin TP itu milik janjang ini.
+    """
+    if not kandidat:
+        return None
+
+    jx, jy = _pusat(janjang)
+    x1, y1, x2, y2 = janjang
+    # Setengah diagonal: satu angka yang mewakili "ukuran" janjang tanpa
+    # memihak lebar atau tinggi, jadi janjang tegak dan janjang rebah
+    # menjangkau sama jauhnya.
+    ukuran = (((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5) / 2
+    batas = ukuran * _JANGKAUAN_TP
+
+    terdekat, jarak_terdekat = None, None
+    for tp in kandidat:
+        tx, ty = _pusat(tp["bbox"])
+        jarak = ((tx - jx) ** 2 + (ty - jy) ** 2) ** 0.5
+        if jarak > batas:
+            continue
+        if jarak_terdekat is None or jarak < jarak_terdekat:
+            terdekat, jarak_terdekat = tp, jarak
+    return terdekat
+
+
+def kandidat_tp_sah(*, track_id: int, sudah_diproses: bool) -> bool:
+    """Boleh tidaknya satu kotak TP dipakai sebagai kandidat pasangan.
+
+    Dua gerbang, keduanya diwarisi dari kode sebelum pasangan-lewat-jarak dan
+    keduanya punya alasan sendiri:
+
+    * `track_id == -1` berarti ByteTrack belum menetapkan identitas untuk kotak
+      ini — deteksi yang dia sendiri belum yakini. Menempelkannya ke janjang
+      berarti menambah tangkai panjang yang mungkin tidak ada, dan tangkai
+      panjang itu kriteria yang dibukukan AutoERP.
+    * Track yang sudah diproses berarti tangkainya sudah menempel ke satu
+      janjang. Satu tangkai milik satu janjang; tanpa gerbang ini dia ikut ke
+      setiap janjang yang lewat selama dia masih terlihat di frame.
+    """
+    return track_id != -1 and not sudah_diproses

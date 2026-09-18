@@ -49,13 +49,18 @@ BATAS: dict[str, tuple[float, float]] = {
 #: garis capture tegak (conveyor mendatar) atau mendatar (conveyor menurun).
 PILIHAN: dict[str, tuple[str, ...]] = {"sumbu_garis": SUMBU}
 
+#: Field saklar (True/False). `mode_dev` menampilkan angka confidence di
+#: kotak janjang — untuk support yang sedang menyetel ambang, BUKAN untuk
+#: operator: dari jarak jauh "54%" terbaca seperti "54% matang".
+SAKLAR: tuple[str, ...] = ("mode_dev",)
+
 #: Field yang boleh tidak ada di payload, beserta nilai bawaannya.
 #:
 #: `garis_capture` ditambahkan belakangan (2026-09-18), dan konsol versi lama
 #: (juga `.env` yang belum tahu field ini) mengirim payload tanpa dia. Menolaknya
 #: 400 akan membuat line berhenti menerima setelan **sama sekali** — termasuk dua
 #: setelan lain yang sudah lama jalan. Bawaan `0` = garis mati = perilaku lama.
-OPSIONAL: dict[str, Any] = {"garis_capture": 0, "sumbu_garis": TEGAK}
+OPSIONAL: dict[str, Any] = {"garis_capture": 0, "sumbu_garis": TEGAK, "mode_dev": False}
 
 #: Field yang batas bawahnya INKLUSIF (`bawah <= nilai`), bukan eksklusif.
 #:
@@ -93,7 +98,7 @@ def bersihkan_setelan(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise SetelanTidakSah("setelan harus objek")
 
-    dikenal = set(BATAS) | set(PILIHAN)
+    dikenal = set(BATAS) | set(PILIHAN) | set(SAKLAR)
     asing = set(payload) - dikenal
     if asing:
         raise SetelanTidakSah(f"field tidak dikenal: {', '.join(sorted(asing))}")
@@ -103,6 +108,16 @@ def bersihkan_setelan(payload: dict[str, Any]) -> dict[str, Any]:
         raise SetelanTidakSah(f"field wajib belum diisi: {', '.join(sorted(kurang))}")
 
     bersih: dict[str, Any] = {}
+    for field in SAKLAR:
+        nilai = payload.get(field, OPSIONAL[field])
+        # Layar mengirim boolean JSON; nilai lain ("true", 1) juga diterima
+        # karena input HTML dan konsol lama tidak seragam. Yang ditolak cuma
+        # yang tidak bisa dibaca sebagai ya/tidak sama sekali.
+        if isinstance(nilai, str):
+            nilai = nilai.strip().lower() in ("1", "true", "ya", "on")
+        elif not isinstance(nilai, bool):
+            nilai = bool(nilai)
+        bersih[field] = nilai
     for field, sah in PILIHAN.items():
         nilai = payload.get(field, OPSIONAL[field])
         if nilai not in sah:

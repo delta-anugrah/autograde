@@ -32,6 +32,9 @@ class RuntimeState:
     # Sumbu garis: "tegak" (conveyor mendatar) atau "mendatar" (conveyor
     # menurun). Menentukan koordinat mana yang dibandingkan dengan garis.
     sumbu_garis_override: str | None = None
+    # Mode dev: tampilkan angka confidence di kotak janjang. Untuk support
+    # yang menyetel ambang; operator tidak butuh dan salah membacanya.
+    mode_dev_override: bool | None = None
 
     # Thread-safe queues
     frame_queue: Queue[Any] = field(default_factory=lambda: Queue(maxsize=5))
@@ -47,6 +50,11 @@ class RuntimeState:
     last_yolo_results: Any = None         # ultralytics Results, ditulis processing worker
     last_yolo_frame: Any = None           # frame yg BENAR-BENAR di-proses YOLO — paired dengan last_yolo_results
     last_yolo_frame_at: float = 0.0       # time.time() saat last_yolo_frame terakhir diupdate
+    # TP yang muncul sesudah janjang terdekatnya difoto, jadi tidak ikut ke
+    # mana pun. Nol berarti aturan "capture apa adanya" tidak kehilangan
+    # tangkai; angka yang naik terus adalah alasan terukur untuk menahan
+    # penyimpanan sesaat menunggu TP menyusul.
+    tp_telat: int = 0
     inference_fps: float = 0.0            # YOLO inference FPS — ditulis FrameProcessingWorker, dibaca DisplayWorker overlay
 
     track_history: dict[int, Any] = field(default_factory=dict)

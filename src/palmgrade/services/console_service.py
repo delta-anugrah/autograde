@@ -475,12 +475,13 @@ class ConsoleService:
             # itu. Dilengkapi di sini, bukan dibiarkan hilang: layar yang
             # menerima `undefined` akan mengirim balik payload cacat saat
             # operator menyimpan setelan lain.
-            return {"garis_capture": 0, "sumbu_garis": "tegak", **nilai, "sumber": "konsol"}
+            return {"garis_capture": 0, "sumbu_garis": "tegak", "mode_dev": False, **nilai, "sumber": "konsol"}
         return {
             "conf_threshold": self.settings.conf_threshold,
             "minimum_size": self.settings.minimum_size,
             "garis_capture": self.settings.garis_capture,
             "sumbu_garis": self.settings.sumbu_garis,
+            "mode_dev": self.settings.mode_dev,
             "sumber": "env",
         }
 

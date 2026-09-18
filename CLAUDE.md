@@ -321,6 +321,22 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    berarti disk/CPU tidak mengimbangi laju grading — itu yang harus dibaca dari log, bukan ditambal
    dengan antrean lebih dalam lagi. Satu janjang >1 detik diadukan `logger.warning`
    (`tulis … ms, antre … ms, antrean=N`) — itu alat ukur lapangannya.
+1c. **TP dipasangkan lewat JARAK, bukan urutan waktu** (sejak 2026-09-18,
+   `domain/garis_capture.tp_untuk_janjang`). Saat janjang difoto, TP yang dipakai adalah yang
+   pusatnya paling dekat dan masih dalam `_JANGKAUAN_TP` × setengah diagonal janjang —
+   ambang RELATIF, karena janjang dekat kamera jauh lebih besar daripada yang di ujung frame.
+   TP dikumpulkan di **pra-pindai**, sebelum loop janjang: urutan kotak dalam satu frame tidak
+   dijamin, jadi TP yang disebut sesudah janjangnya akan terlewat kalau dibaca sambil jalan.
+   ⚠️ **Alur LAMA yang diganti** (jangan dihidupkan lagi): satu slot `_last_tp` berisi "TP
+   terakhir yang terlihat", diberikan ke janjang berikutnya yang menyentuh garis, tanpa pernah
+   melihat posisi. Dua akibatnya sama-sama salah bayar dan sama-sama senyap: TP milik janjang A
+   menempel ke janjang B yang lewat garis lebih dulu, dan TP yang terlihat sesudah janjangnya
+   difoto menempel ke janjang berikutnya.
+   ⚠️ **TP yang datang SESUDAH janjang terdekatnya difoto memang tidak ikut** — itu harga yang
+   sadar dibayar dari "capture apa adanya". Dihitung di `tp_telat` (`/health/detail`) supaya
+   keputusan menambah jendela tunggu nanti diambil dari angka Lampung, bukan dugaan. Tiga jalan
+   yang sudah ditimbang dan ditunda: tahan simpan ~0,5 dtk, biarkan hilang, atau kirim susulan
+   (yang terakhir menyentuh kontrak ingest idempotent + rekap kunjungan AutoERP).
 2. **`_processed_objects`** — never `discard()` an active track (single-trigger). Trim only IDs that are inactive (gone from `track_history`) **and** stale >300s.
 3. **`state.lock`** around all physical camera access (`FrameCaptureWorker` + `capture_manual_reject`).
 4. **MJPEG** — only `DisplayWorker` writes `state.latest_frame`, via `threading.Condition.notify_all()` (multi-viewer). It renders `last_yolo_frame` (paired with results) and runs at `STREAM_FPS` (default 12), decoupled from `CAMERA_FPS`.
@@ -623,6 +639,9 @@ setelannya sama untuk tiga line, `.env` sudah cukup — jangan bikin override.
   menyaring (`skala_garis_ke_frame`) — melewatkan penskalaan itu bug yang sudah pernah terjadi di
   ROI (`bdcb300`): garis terlihat benar di layar sementara yang menyaring sepertiga frame.
   Kalau capture terasa terlalu cepat, **geser garisnya**, jangan sentuh `CONF_THRESHOLD`.
+  **Janjang difoto APA ADANYA begitu menyentuh garis**, ada TP atau tidak (keputusan operator
+  2026-09-18): tidak ada penundaan, tidak ada jendela tunggu. Yang menggerakkan mesin (pulse
+  PLC) dan yang dilihat operator sama-sama seketika.
   **Arah conveyor** ikut disetel di layar yang sama (`sumbu_garis`): `tegak` = conveyor
   mendatar, garis vertikal, angka px dari **kiri**; `mendatar` = conveyor menurun, garis
   horizontal, angka px dari **atas**. Arah gerak DI DALAM satu sumbu tidak perlu disetel —
@@ -632,6 +651,8 @@ setelannya sama untuk tiga line, `.env` sudah cukup — jangan bikin override.
 - **Label janjang tidak memuat angka confidence** (permintaan operator 2026-09-18): dari beberapa
   meter "54%" terbaca seperti "54% matang", padahal itu keyakinan model dan sudah lolos
   `CONF_THRESHOLD`. Nilainya tetap ditulis ke sidecar dan dikirim ke API.
+  **Saklar `mode_dev`** di layar setelan menghidupkannya lagi — untuk support yang sedang
+  menyetel ambang, bukan untuk operator. Bawaannya mati.
 - **Frame rate hidup di SATU tempat: `config/camera/hikrobot.mfs`.** File itu dikirim ke
   kamera tiap connect, lalu `FrameCaptureWorker.adopt_camera_frame_rate()` menanyakan
   balik laju sebenarnya (`ResultingFrameRate`) dan memakai itu sebagai jeda ambil frame.

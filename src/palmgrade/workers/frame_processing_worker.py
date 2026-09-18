@@ -7,8 +7,13 @@ import time
 from typing import TYPE_CHECKING
 
 from ..core.config import Settings
+from ..domain.garis_capture import (
+    kandidat_tp_sah,
+    menyentuh_kotak,
+    skala_garis,
+    tp_untuk_janjang,
+)
 from ..domain.grade_class import TP, grade_class_of, is_fruit_class, verdict_for_class
-from ..domain.garis_capture import menyentuh_kotak, skala_garis
 from ..domain.plc_signal import plc_status_for
 from ..integrations.outbox.outbox_store import OutboxStore
 from ..license.gate import grading_blocked
@@ -85,7 +90,11 @@ class FrameProcessingWorker:
         # Internal worker state — tidak perlu di RuntimeState karena hanya diakses worker ini
         self._processed_objects: set[int] = set()
         self._inactive_counter: dict[int, int] = {}
-        self._last_tp: dict | None = None
+        # Track id TP yang sudah dihitung -> jam hitungnya. Supaya satu
+        # tangkai yang terlihat puluhan frame berturut-turut tidak dihitung
+        # puluhan kali, dan supaya entri lamanya bisa dipangkas berkala
+        # (tanpa itu dia tumbuh sepanjang shift 20 jam).
+        self._tp_terhitung: dict[int, float] = {}
         self._frame_count: int = 0
         self._last_results = None  # cached YOLO result for skip frames
         self._processed_times: dict[int, float] = {}
@@ -157,7 +166,7 @@ class FrameProcessingWorker:
         # local, storing every capture 7 hours early. Deriving the filename from
         # the same aware instant keeps names byte-identical (containers run UTC)
         # while making the emitted timestamp unambiguous.
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
         date_folder = now.strftime("%Y-%m-%d")
         timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
 
@@ -218,7 +227,7 @@ class FrameProcessingWorker:
         results_dir = self.settings.results_dir / date_folder
 
         meta = {
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
             "image_path": None,
             "ripeness_status": None,
             "ripeness_confidence": 0,
@@ -230,6 +239,24 @@ class FrameProcessingWorker:
             "assignment_id": self.state.current_assignment_id,
         }
         self.storage.write_json(results_dir / f"{timestamp}_auto_tp.json", meta)
+
+    def _janjang_terdekat_sudah_difoto(self, x1: int, y1: int, x2: int, y2: int) -> bool:
+        """True kalau TP ini punya janjang di dekatnya yang SUDAH diproses.
+
+        Dipakai hanya untuk menghitung, tidak untuk memutuskan apa pun: TP
+        yang terlambat tetap tidak ikut ke mana pun. Jangkauannya dihitung
+        dari sisi janjang (bukan dari TP) supaya pakai ambang yang sama
+        persis dengan `tp_untuk_janjang` — dua ambang yang berbeda akan
+        membuat angkanya bohong.
+        """
+        tp = {"bbox": (x1, y1, x2, y2), "tp_confidence": 0.0}
+        for tid, track in self.state.track_history.items():
+            if tid not in self._processed_objects:
+                continue
+            bbox = track.get("bbox")
+            if bbox and tp_untuk_janjang(janjang=bbox, kandidat=[tp]) is not None:
+                return True
+        return False
 
     def run_once(self) -> None:
         # Gerbang lisensi — paling atas, sebelum frame diambil. Berhenti di sini
@@ -255,7 +282,7 @@ class FrameProcessingWorker:
             self._processed_objects.clear()
             self._inactive_counter.clear()
             self._last_results = None
-            self._last_tp = None
+            self._tp_terhitung.clear()
             self.state.track_history.clear()
             self.state.rewind_signal = False
             logger.info("Video rewind — ByteTrack and tracking state reset")
@@ -349,6 +376,36 @@ class FrameProcessingWorker:
                     roi_fruit_count += 1
         force_rej_multi = roi_fruit_count > 1
 
+        # Semua TP di frame ini, dikumpulkan SEBELUM janjang diperiksa.
+        #
+        # Dulu yang dipakai satu slot `_last_tp` berisi "TP terakhir yang
+        # terlihat", dan itu tidak pernah melihat posisi — jadi TP milik janjang
+        # A bisa menempel ke janjang B yang kebetulan menyentuh garis lebih
+        # dulu. Dikumpulkan di sini, bukan di dalam loop di bawah, karena urutan
+        # kotak dalam satu frame tidak dijamin: TP yang kebetulan disebut
+        # sesudah janjangnya akan terlewat kalau dibaca sambil jalan.
+        tp_frame_ini: list[dict] = []
+        if results.boxes is not None:
+            for _box in results.boxes:
+                if _grade_class_or_none(results.names[int(_box.cls[0].item())]) != TP:
+                    continue
+                _tid = int(_box.id[0].item()) if _box.id is not None else -1
+                # Gerbang yang sama dengan kode sebelum pasangan-lewat-jarak:
+                # kotak tanpa track id adalah deteksi yang ByteTrack sendiri
+                # belum yakini, dan tangkai yang sudah menempel ke satu janjang
+                # tidak boleh ikut ke janjang berikutnya juga.
+                if not kandidat_tp_sah(
+                    track_id=_tid, sudah_diproses=_tid in self._processed_objects
+                ):
+                    continue
+                _bx1, _by1, _bx2, _by2 = map(int, _box.xyxy[0].tolist())
+                tp_frame_ini.append({
+                    "track_id": _tid,
+                    "tp_status": "PASS",
+                    "tp_confidence": float(_box.conf[0].item()),
+                    "bbox": (_bx1, _by1, _bx2, _by2),
+                })
+
         if results.boxes is not None and len(results.boxes) > 0:
             for box in results.boxes:
                 cls_id = int(box.cls[0].item())
@@ -418,13 +475,26 @@ class FrameProcessingWorker:
                 if grade_class is None:
                     continue
 
-                # Tangkai panjang (TP) → simpan sebagai kandidat terakhir
+                # Tangkai panjang (TP) sudah dikumpulkan di pra-pindai
+                # (`tp_frame_ini`) dan dipasangkan lewat jarak saat janjangnya
+                # difoto. Yang tersisa di sini cuma menghitung TP yang datang
+                # TERLAMBAT: janjang terdekatnya sudah difoto, jadi TP ini tidak
+                # akan pernah ikut ke mana pun.
+                #
+                # Dihitung, bukan didiamkan: kalau angkanya ternyata besar di
+                # pabrik, itu alasan terukur untuk menahan penyimpanan sesaat
+                # menunggu TP menyusul — keputusan yang sengaja ditunda sampai
+                # ada datanya (operator memilih capture apa adanya dulu).
                 if grade_class == TP:
-                    self._last_tp = {
-                        "tp_status": "PASS",
-                        "tp_confidence": score,
-                        "bbox": (x1, y1, x2, y2),
-                    }
+                    if track_id not in self._tp_terhitung:
+                        self._tp_terhitung[track_id] = time.time()
+                        if self._janjang_terdekat_sudah_difoto(x1, y1, x2, y2):
+                            self.state.tp_telat += 1
+                            logger.info(
+                                "TP muncul sesudah janjang terdekatnya difoto "
+                                "(total: %d) — tangkai ini tidak ikut ke mana pun",
+                                self.state.tp_telat,
+                            )
                     continue
 
                 # Buah (Ripe/Unripe/JK) yang sudah masuk zona deteksi
@@ -481,14 +551,36 @@ class FrameProcessingWorker:
                     # itu berjam-jam kemudian. Penulis yang menstempel jamnya
                     # sendiri akan membuat dua jalur itu berbeda untuk satu
                     # janjang, dan idempotensi di API putus.
-                    now = datetime.datetime.now(datetime.timezone.utc)
+                    now = datetime.datetime.now(datetime.UTC)
                     date_folder = now.strftime("%Y-%m-%d")
                     timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
                     event_ts = now.isoformat()
 
-                    # H3: snapshot _last_tp before handing off so the job carries TP data
-                    tp_snapshot = self._last_tp
-                    self._last_tp = None
+                    # TP dipasangkan lewat JARAK, dari TP yang ada di frame ini
+                    # juga — bukan dari slot "TP terakhir yang terlihat".
+                    #
+                    # Janjang difoto apa adanya begitu menyentuh garis, ada TP
+                    # atau tidak (keputusan operator 2026-09-18): tidak ada
+                    # penundaan, dan TP yang baru muncul sesudahnya memang tidak
+                    # ikut. Yang dihitung `tp_telat` di bawah, supaya keputusan
+                    # menambah jendela tunggu nanti diambil dari angka nyata,
+                    # bukan dari dugaan.
+                    tp_snapshot = tp_untuk_janjang(
+                        janjang=(x1, y1, x2, y2), kandidat=tp_frame_ini
+                    )
+                    if tp_snapshot is not None:
+                        # Satu tangkai milik SATU janjang. Ditandai lewat
+                        # `_processed_objects` — set yang sama yang menjaga
+                        # janjang tidak difoto dua kali — supaya tangkai ini
+                        # tidak ikut lagi ke janjang berikutnya yang lewat
+                        # selama dia masih terlihat di frame. Dibuang juga dari
+                        # kandidat frame ini, karena dua janjang bisa menyentuh
+                        # garis pada frame yang sama.
+                        _tid_tp = tp_snapshot.get("track_id", -1)
+                        if _tid_tp != -1:
+                            self._processed_objects.add(_tid_tp)
+                            self._processed_times[_tid_tp] = time.time()
+                        tp_frame_ini = [t for t in tp_frame_ini if t is not tp_snapshot]
 
                     # Encode + tulis disk + outbox pindah ke thread penulis. Ini
                     # inti perbaikan 2026-09-18: pada frame 2448x2048 rangkaian
@@ -593,6 +685,15 @@ class FrameProcessingWorker:
             self._processed_objects -= stale
             for tid in stale:
                 self._processed_times.pop(tid, None)
+            # `_tp_terhitung` dipangkas dengan jejak WAKTU, bukan keanggotaan
+            # `track_history`: tabel itu cuma diisi untuk janjang, tidak pernah
+            # untuk TP, jadi menyaring lewat dia akan mengosongkan set ini tiap
+            # kali dan satu tangkai yang bertahan lama terhitung berulang.
+            # Tanpa pemangkasan sama sekali, set ini tumbuh satu int per tangkai
+            # yang pernah lewat sepanjang shift 20 jam.
+            self._tp_terhitung = {
+                tid: t for tid, t in self._tp_terhitung.items() if now - t <= 300
+            }
 
         # DisplayWorker handles MJPEG rendering — processing worker only does detection.
 

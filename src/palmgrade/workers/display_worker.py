@@ -60,7 +60,14 @@ class DisplayWorker:
 
         results = self.state.last_yolo_results
         if use_boxes and results is not None:
-            display = self.pipeline.draw_boxes(display, results)
+            display = self.pipeline.draw_boxes(
+                display, results,
+                tampilkan_confidence=(
+                    self.state.mode_dev_override
+                    if self.state.mode_dev_override is not None
+                    else self.settings.mode_dev
+                ),
+            )
 
         target_w = self.settings.stream_width
         target_h = self.settings.stream_height

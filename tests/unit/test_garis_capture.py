@@ -22,9 +22,11 @@ from __future__ import annotations
 import pytest
 
 from palmgrade.domain.garis_capture import (
+    kandidat_tp_sah,
     menyentuh_garis,
     menyentuh_kotak,
     skala_garis_ke_frame,
+    tp_untuk_janjang,
 )
 
 
@@ -244,3 +246,96 @@ class TestValidasiSumbu:
                 "conf_threshold": 0.5, "minimum_size": 3000,
                 "garis_capture": 360, "sumbu_garis": "miring",
             })
+
+
+# ------------------------------------------- pasangan TP ↔ janjang (jarak)
+
+
+class TestPasanganTp:
+    """TP menempel ke janjang TERDEKAT, bukan ke janjang yang kebetulan lewat
+    garis sesudahnya.
+
+    Aturan lama menyimpan satu slot "TP terakhir terlihat" dan memberikannya ke
+    janjang berikutnya yang menyentuh garis, tanpa pernah melihat posisi. Dua
+    akibatnya sama-sama salah bayar dan sama-sama senyap:
+
+    * TP milik janjang A menempel ke janjang B yang lewat garis lebih dulu;
+    * TP yang terlihat sesudah janjangnya difoto menempel ke janjang berikutnya.
+
+    Jarak diukur antar PUSAT kotak, dengan ambang yang ikut ukuran janjang —
+    bukan angka piksel tetap, karena janjang di dekat kamera jauh lebih besar
+    daripada yang di ujung frame, dan satu ambang tetap akan benar cuma di satu
+    jarak kamera.
+    """
+
+    def _janjang(self, x1, y1, x2, y2):
+        return (x1, y1, x2, y2)
+
+    def test_tp_di_dalam_kotak_janjang_dipasangkan(self):
+        """Kasus yang terlihat di layar pabrik: kotak TP di dalam kotak janjang."""
+        assert tp_untuk_janjang(
+            janjang=(500, 300, 900, 900),
+            kandidat=[{"bbox": (700, 800, 820, 920), "tp_confidence": 0.8}],
+        ) is not None
+
+    def test_tp_yang_terpisah_tapi_dekat_tetap_dipasangkan(self):
+        """TP bisa terpisah dari kotak janjangnya (jawaban operator 2026-09-18),
+        jadi irisan kotak saja tidak cukup — yang dipakai jarak."""
+        pasangan = tp_untuk_janjang(
+            janjang=(500, 300, 900, 900),
+            kandidat=[{"bbox": (920, 850, 1000, 950), "tp_confidence": 0.8}],
+        )
+        assert pasangan is not None
+
+    def test_tp_di_seberang_frame_tidak_dipasangkan(self):
+        """Ini inti perbaikannya: TP milik janjang lain tidak boleh ikut."""
+        assert tp_untuk_janjang(
+            janjang=(100, 100, 300, 400),
+            kandidat=[{"bbox": (2000, 1800, 2100, 1900), "tp_confidence": 0.8}],
+        ) is None
+
+    def test_yang_terdekat_yang_menang(self):
+        """Dua TP di frame yang sama: yang menang yang pusatnya lebih dekat."""
+        dekat = {"bbox": (900, 850, 980, 930), "tp_confidence": 0.5}
+        jauh = {"bbox": (1200, 1100, 1280, 1180), "tp_confidence": 0.9}
+        pasangan = tp_untuk_janjang(
+            janjang=(500, 300, 900, 900), kandidat=[jauh, dekat]
+        )
+        assert pasangan is dekat, "confidence tidak boleh mengalahkan jarak"
+
+    def test_ambang_ikut_ukuran_janjang(self):
+        """Janjang besar (dekat kamera) memaafkan jarak lebih jauh daripada
+        janjang kecil di ujung frame. Ambang piksel tetap akan benar cuma di
+        satu jarak kamera."""
+        # TP yang sama, dua janjang berpusat SAMA supaya jaraknya identik —
+        # yang berbeda cuma ukuran janjangnya, dan itu yang sedang diuji.
+        tp = {"bbox": (640, 640, 700, 700), "tp_confidence": 0.8}
+        besar = tp_untuk_janjang(janjang=(150, 150, 650, 650), kandidat=[tp])
+        kecil = tp_untuk_janjang(janjang=(370, 370, 430, 430), kandidat=[tp])
+        assert besar is not None, "janjang besar harus menjangkau TP ini"
+        assert kecil is None, "janjang kecil tidak boleh menjangkau sejauh itu"
+
+    def test_tanpa_kandidat_mengembalikan_none(self):
+        assert tp_untuk_janjang(janjang=(100, 100, 300, 300), kandidat=[]) is None
+
+
+class TestKandidatTpDiPraPindai:
+    """TP yang boleh jadi kandidat harus lewat gerbang yang sama dengan dulu.
+
+    Kode lama mencatat TP hanya sesudah dua gerbang: `track_id != -1` dan track
+    itu belum diproses. Pra-pindai yang melewatkannya adalah perubahan perilaku
+    yang tidak disengaja — dan yang pertama berbahaya: kotak tanpa track id
+    adalah deteksi yang ByteTrack sendiri belum yakini, jadi menempelkannya ke
+    janjang berarti menambah tangkai panjang yang mungkin tidak ada.
+    """
+
+    def test_tp_tanpa_track_id_bukan_kandidat(self):
+        assert kandidat_tp_sah(track_id=-1, sudah_diproses=False) is False
+
+    def test_tp_yang_sudah_dipakai_bukan_kandidat_lagi(self):
+        """Satu tangkai menempel ke SATU janjang. Tanpa ini, tangkai yang sama
+        ikut ke setiap janjang yang lewat selama dia masih terlihat."""
+        assert kandidat_tp_sah(track_id=7, sudah_diproses=True) is False
+
+    def test_tp_bertrack_dan_belum_dipakai_adalah_kandidat(self):
+        assert kandidat_tp_sah(track_id=7, sudah_diproses=False) is True

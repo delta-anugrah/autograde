@@ -99,6 +99,7 @@ class SetelanGradingRequest(BaseModel):
     # menerima SEMUA setelan, termasuk dua yang sudah lama jalan. 0 = garis mati.
     garis_capture: int = 0
     sumbu_garis: str = "tegak"
+    mode_dev: bool = False
 
 
 class SetelanGradingResponse(BaseModel):
@@ -106,4 +107,5 @@ class SetelanGradingResponse(BaseModel):
     minimum_size: int
     garis_capture: int = 0
     sumbu_garis: str = "tegak"
+    mode_dev: bool = False
     sumber: str  # "konsol" kalau ditimpa, "env" kalau masih dari .env

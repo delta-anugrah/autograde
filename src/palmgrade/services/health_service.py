@@ -62,6 +62,7 @@ class HealthService:
             outbox_failed=self.outbox.failed_count(),
             capture_save_pending=saver.antrean if saver else 0,
             capture_save_dropped=saver.dibuang if saver else 0,
+            tp_telat=self.state.tp_telat,
             current_assignment_id=self.state.current_assignment_id,
             last_successful_api_push=self.state.last_successful_api_push,
         )

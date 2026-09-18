@@ -157,6 +157,7 @@ class LineClient:
         minimum_size: int,
         garis_capture: int = 0,
         sumbu_garis: str = "tegak",
+        mode_dev: bool = False,
     ) -> dict[str, Any]:
         """Kirim setelan grading ke satu line. Melempar kalau line tidak menjawab.
 
@@ -174,6 +175,7 @@ class LineClient:
                         "minimum_size": minimum_size,
                         "garis_capture": garis_capture,
                         "sumbu_garis": sumbu_garis,
+                        "mode_dev": mode_dev,
                     },
                     headers={"x-internal-secret": self._settings.internal_secret},
                 )

@@ -1100,3 +1100,16 @@ def test_setiap_kunci_terjemahan_setelan_ada_di_dua_bahasa():
     for kunci in ("labelSumbu", "sumbuTegak", "sumbuMendatar", "bantuSumbu", "labelGaris"):
         for bahasa in ("id", "en"):
             assert kunci in _kamus(bahasa), f"{kunci} hilang di bahasa {bahasa}"
+
+
+def test_toggle_mode_dev_ada_dan_terkirim():
+    """Saklar, bukan kolom: ini ya/tidak, dan kotak centang tidak bisa diisi huruf."""
+    assert 'id="set-dev"' in HTML
+    assert 'type="checkbox"' in _fungsi_atau_blok('id="set-dev"')[:200]
+    assert 'mode_dev: $("set-dev").checked' in HTML
+
+
+def test_label_mode_dev_ada_di_dua_bahasa():
+    for kunci in ("labelDev", "bantuDev"):
+        for bahasa in ("id", "en"):
+            assert kunci in _kamus(bahasa), f"{kunci} hilang di bahasa {bahasa}"

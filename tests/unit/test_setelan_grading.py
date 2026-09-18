@@ -34,6 +34,7 @@ def test_nilai_wajar_diterima_apa_adanya():
         "minimum_size": 3000,
         "garis_capture": 0,
         "sumbu_garis": "tegak",
+        "mode_dev": False,
     }
 
 
@@ -46,6 +47,7 @@ def test_angka_berbentuk_teks_diterima():
         "minimum_size": 460000,
         "garis_capture": 900,
         "sumbu_garis": "tegak",
+        "mode_dev": False,
     }
 
 

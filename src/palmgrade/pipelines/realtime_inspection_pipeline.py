@@ -41,7 +41,16 @@ class RealtimeInspectionPipeline:
 
     # ------------------------------------------------------------------ draw
 
-    def draw_boxes(self, frame: np.ndarray, results: Any) -> np.ndarray:
+    def draw_boxes(
+        self, frame: np.ndarray, results: Any, *, tampilkan_confidence: bool = False
+    ) -> np.ndarray:
+        """`tampilkan_confidence` = mode dev (setelan `mode_dev` dari konsol).
+
+        Bawaannya MATI, dan itu keputusan operator (2026-09-18): angkanya
+        keyakinan model, bukan mutu buah, dan dari beberapa meter "54%"
+        terbaca seperti "54% matang". Support yang menyetel `CONF_THRESHOLD`
+        justru butuh angka itu — makanya jadi saklar, bukan dihapus.
+        """
         if results.boxes is None:
             return frame
         bt = self.settings.border_thickness
@@ -50,6 +59,7 @@ class RealtimeInspectionPipeline:
         for box in results.boxes:
             x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
             label = results.names[int(box.cls[0].item())]
+            score = float(box.conf[0].item())
             # Warna ikut VERDICT, bukan substring nama kelas. Dulu barisnya
             # `"rej" in label.lower()`, dan itu benar selama model masih
             # ACC/Rej/TP. Untuk model 4 kelas SALAH TOTAL: `Unripe` dan `JK`
@@ -79,6 +89,8 @@ class RealtimeInspectionPipeline:
             # Nilainya TETAP disimpan di sidecar dan dikirim ke API: yang
             # dibuang tampilannya, bukan datanya.
             text = f"{kelas or label}"
+            if tampilkan_confidence:
+                text = f"{text} {score * 100:.0f}%"
             (tw, th), bl = cv2.getTextSize(text, FONT, fs, ft)
             ty = y1 - 10 if y1 - th - 10 >= 0 else y1 + th + 10
             cv2.putText(frame, text, (x1, ty), FONT, fs, (0, 0, 0), ft + 4, cv2.LINE_AA)  # outline tebal
