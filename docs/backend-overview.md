@@ -94,10 +94,15 @@ autograde/
 
 **Single-trigger detection** (bukan vote):
 - Track setiap buah via ByteTrack `track_id`
-- Saat pusat bounding box buah berada di dalam ROI box → simpan langsung (satu kali per track_id)
+- Saat kotak buah **MENYENTUH garis capture** → simpan langsung (satu kali per track_id).
+  ⚠️ Sejak 2026-09-18, menggantikan "pusat bounding box masuk ROI box": aturan lama memfoto
+  janjang saat **separuhnya sudah lewat**, dan dengan ROI bawaan `0,0,0,0` (= seluruh layar)
+  berarti begitu terdeteksi di mana pun. ROI tetap menyaring **wilayah**, garis menentukan **waktu**
 - `MINIMUM_SIZE = 460000 px²` — buah < threshold → auto `rej`
-- TP yang terdeteksi disimpan sebagai JSON terpisah, dipasangkan dengan buah via timestamp
-- TP tidak dicek ROI — selalu diterima dari posisi manapun
+- TP dipasangkan ke janjang **terdekat** (`domain/garis_capture.tp_untuk_janjang`), bukan via
+  timestamp. ⚠️ Aturan lama (satu slot "TP terakhir terlihat" → janjang berikutnya yang lewat
+  garis) menempelkan tangkai milik janjang A ke janjang B; keduanya salah bayar dan senyap
+- TP tidak dicek ROI maupun garis — selalu diterima dari posisi manapun
 
 **ROI Box Detection Zone:**
 - Dikontrol via env var: `ROI_X1`, `ROI_Y1`, `ROI_X2`, `ROI_Y2` (semua dalam pixel)
@@ -217,10 +222,14 @@ Status operasional container.
     "workers": [
       { "name": "capture", "alive": true },
       { "name": "display", "alive": true },
-      { "name": "processing", "alive": true }
+      { "name": "processing", "alive": true },
+      { "name": "capture_save", "alive": true }
     ],
     "outbox_pending": 0,
     "outbox_failed": 0,
+    "capture_save_pending": 0,
+    "capture_save_dropped": 0,
+    "tp_telat": 0,
     "current_assignment_id": "uuid-or-null",
     "last_successful_api_push": null
   }
@@ -231,6 +240,9 @@ Status operasional container.
 > | Field | Artinya |
 > |---|---|
 > | `outbox_pending` / `outbox_failed` | backlog ke **API lokal** (`BACKEND_URL`). Naik terus = API lokal tidak menjawab. **Bukan** indikator backlog upload cloud |
+> | `capture_save_pending` | janjang yang menunggu ditulis `CaptureSaveWorker` (antrean 8 dalam). Naik terus = disk/CPU tidak mengimbangi laju grading |
+> | `capture_save_dropped` | **harus NOL.** Janjang yang dibuang karena antrean penuh: sudah dapat pulse PLC dan sudah masuk rekap, tapi **tidak punya gambar maupun sidecar** — jadi `BatchUploadWorker._scan()` tidak akan pernah menemukannya. Tidak ada retry (menahan deteksi mengembalikan lag ~590 ms yang dihilangkan); yang dikejar penyebabnya |
+> | `tp_telat` | **harus NOL.** TP yang muncul sesudah janjang terdekatnya difoto, jadi tangkainya tidak ikut ke mana pun. Angka yang naik = alasan terukur untuk menahan penyimpanan sesaat menunggu TP menyusul |
 > | `last_successful_api_push` | waktu POST terakhir yang sukses ke API lokal; `null` = belum pernah ada yang terkirim sejak start |
 > | `workers[]` | memuat `outbox_retry` dan `plc` (kalau aktif), tapi **tidak** `BatchUploadWorker` — batch upload itu job APScheduler, bukan thread ter-register, jadi **watchdog `_watchdog` tidak memantaunya** |
 > | `plc` | `null` kalau `PLC_ENABLED=false` (normal di cloud & PC dev). Kalau terisi: `inputs` (index 0-9 motor fault, index 10 E-stop), plus dua counter drop yang **naik monoton** — yang berarti selisih antar-polling, bukan nilai absolut. Detail: `docs/plc-integration.md` |
@@ -263,7 +275,7 @@ Surface terpisah dari tabel di atas — berjalan sebagai konsol (`routes/console
 | GET | `/api/console/dev/antrean/manifest` | antrean manifest R2 (DB terpisah dari `erp_outbox`, supaya R2 mati tidak menahan pesan AutoERP) |
 | POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox`. **`attempts` sengaja tidak di-reset** — itu yang membedakan "macet selamanya" dari "gangguan sesaat" |
 | GET | `/api/console/dev/versi` | versi image + status lisensi |
-| GET / POST | `/api/console/dev/setelan` | dua ambang grading yang bisa diubah dari layar Setelan |
+| GET / POST | `/api/console/dev/setelan` | lima setelan grading dari layar Setelan: `conf_threshold`, `minimum_size`, `garis_capture`, `sumbu_garis`, `mode_dev`. Tersimpan di konsol, disebar ke tiga line, berlaku tanpa restart |
 | GET | `/api/console/dev/plc/{line_code}` | snapshot DI + coil yang boleh diuji — baca saja |
 | POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil — satu-satunya lane yang menggerakkan hardware; tiga pengaman (assignment line, konfirmasi ketik, WARNING tiap percobaan) |
 
@@ -280,8 +292,8 @@ Hikrobot Camera (GigE via RJ45 LAN)
 frame_queue                      state.latest_raw_frame
   ↓                                       ↓
   ↓ [FrameProcessingWorker]    [DisplayWorker — sole MJPEG writer]
-  ├── YOLO track() → detect     ├── draw_boxes() + zone lines
-  ├── direction-aware zone       ├── resize to STREAM_WIDTH×STREAM_HEIGHT
+  ├── YOLO track() → detect     ├── draw_boxes() + kotak ROI + garis capture biru
+  ├── garis capture (kotak janjang menyentuh garis; ROI menyaring wilayah)       ├── resize to STREAM_WIDTH×STREAM_HEIGHT
   ├── _processed_objects check   └── imencode → state.latest_frame
   ├── Single-trigger save:            + frame_condition.notify_all()
   │     ├── write_image() WebP
@@ -360,7 +372,7 @@ FE akses via: `${LINE_N_URL}/captures/results/{date}/{filename}`
 
 ## Event Delivery ke palmgrade-api (dua jalur)
 
-- **Realtime → API lokal.** `OutboxStore.add_event()` dipanggil di jalur deteksi; `OutboxRetryWorker`
+- **Realtime → API lokal.** `OutboxStore.add_event()` dipanggil `CaptureSaveWorker` (sesudah gambarnya benar-benar ada di disk), bukan di jalur deteksi; `OutboxRetryWorker`
   mem-poll tiap 1 detik dan POST ke `BACKEND_URL`. Ini yang dilihat operator di PC pabrik, dan
   satu-satunya jalur yang hidup saat internet mati. `image_path` tetap relatif — api meng-serve
   gambarnya dari mount `artifacts/` read-only.
@@ -371,7 +383,7 @@ FE akses via: `${LINE_N_URL}/captures/results/{date}/{filename}`
 `event_id` identik di kedua jalur, jadi tidak ada risiko dobel.
 
 ```
-FrameProcessingWorker / CaptureService
+CaptureSaveWorker (jalur auto) / CaptureService (jalur manual)
     → tulis WebP + {ts}_*_ripeness.json ke artifacts/results/{date}/     ← antriannya
         ↓ [UploadScheduler — APScheduler cron, tiap jam @ UPLOAD_MINUTE]
     BatchUploadWorker.run_batch_once()
@@ -451,6 +463,9 @@ FrameProcessingWorker / CaptureService
 | `MODEL_FILE` | `best.pt` | Nama file model di `models/release/` |
 | `CONF_THRESHOLD` | `0.75` | Minimum confidence YOLO |
 | `MINIMUM_SIZE` | `460000` | Minimum area bounding box (px²) — di bawah ini auto rej |
+| `GARIS_CAPTURE` | `0` | Garis capture (px, ruang **stream**). Janjang difoto saat kotaknya menyentuh garis ini. `0` = tanpa garis. **Nilai awal saja** — yang dipakai diatur dari layar support konsol |
+| `SUMBU_GARIS` | `tegak` | Sumbu garis: `tegak` (conveyor mendatar, px dari **kiri**) / `mendatar` (conveyor menurun, px dari **atas**). Nilai awal saja |
+| `MODE_DEV` | `false` | `true` = angka keyakinan ikut digambar di kotak janjang. Untuk support yang menyetel ambang, **bukan** untuk operator. Nilai awal saja |
 | `CAMERA_TYPE` | `hikrobot` | Sumber kamera: `hikrobot` / `opencv` (webcam atau video file) / `photo` |
 | `CAMERA_DEVICE_INDEX` | `0` | Index device webcam (dipakai kalau `CAMERA_TYPE=opencv` tanpa `CAMERA_VIDEO_PATH`). Di-set docker-compose per line (`0/1/2`) — nilai di `.env` hanya berlaku saat run lokal tanpa Docker |
 | `CAMERA_VIDEO_PATH` | — | Path video file di dalam container (dipakai kalau `CAMERA_TYPE=opencv`) |

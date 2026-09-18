@@ -303,6 +303,14 @@ LINE_3_MACHINE_ID=<uuid-dari-db>
 MODEL_FILE=best.pt
 CONF_THRESHOLD=0.75
 MINIMUM_SIZE=460000
+# Garis capture: janjang difoto saat kotaknya MENYENTUH garis ini (px, ruang stream).
+# 0 = tanpa garis. Sumbu: tegak (conveyor mendatar, px dari kiri) / mendatar (px dari atas).
+# Mode dev: angka keyakinan ikut digambar di kotak janjang — untuk menyetel ambang.
+# Ketiganya NILAI AWAL saja: yang dipakai sehari-hari diatur dari tab Setelan di konsol,
+# berlaku tanpa restart.
+GARIS_CAPTURE=0
+SUMBU_GARIS=tegak
+MODE_DEV=false
 ```
 
 > **LINE_X_MACHINE_ID** — sejak `palmgrade-api` pensiun tidak ada lagi PostgreSQL yang harus dibaca; `docker-compose.yml` sudah membawa UUID bawaan per line. Yang wajib: **unik per line dan tidak pernah berubah**. Tiga line dengan `MACHINE_ID` sama akan menumpuk di kartu line-1 di konsol.
@@ -376,10 +384,23 @@ Response yang diharapkan:
   "status": "ok",
   "camera_connected": true,
   "gpu_available": true,
-  "workers_running": true,
-  "outbox_pending": 0
+  "workers": [
+    { "name": "capture", "alive": true },
+    { "name": "display", "alive": true },
+    { "name": "processing", "alive": true },
+    { "name": "capture_save", "alive": true }
+  ],
+  "outbox_pending": 0,
+  "capture_save_pending": 0,
+  "capture_save_dropped": 0,
+  "tp_telat": 0
 }
 ```
+
+⚠️ **`capture_save_dropped` dan `tp_telat` harus NOL.** Yang pertama berarti janjang sudah
+dipulse PLC dan masuk rekap tapi **tidak punya gambar maupun sidecar** — hilang permanen, karena
+`BatchUploadWorker._scan()` menemukan pekerjaan lewat berkas di disk. Yang kedua berarti tangkai
+panjang muncul sesudah janjangnya difoto, jadi tidak tercatat.
 
 Cek live stream di browser:
 ```
@@ -462,7 +483,9 @@ Normal terjadi jika kamera belum terhubung atau MVS masih buka. App tetap jalan 
 Jika `camera_connected` tetap `false` meski kamera sudah terhubung:
 1. Pastikan MVS sudah di-close (hanya 1 proses yang bisa akses kamera)
 2. Cek koneksi fisik + LED
-3. `curl http://localhost:8001/health/detail` — cek `workers[capture].alive`
+3. `curl http://localhost:8001/health/detail` — cek `workers[capture].alive`.
+   Cek juga `workers[capture_save].alive`: penulis bukti yang mati itu **senyap** — grading
+   jalan, PLC menyortir, angka di layar naik, dan nol gambar tersimpan.
 
 ### `MvImport SDK tidak ditemukan` saat container start
 

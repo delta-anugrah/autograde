@@ -30,6 +30,9 @@ Tiap run training ninggalin `results.csv` + `confusion_matrix.png`. Urutan bacan
    ngasih tau *jenis* errornya. Bedanya menentukan obatnya:
    - **Antar kelas** (ACC diprediksi Rej) → beneran masalah model, perlu retrain
    - **Background → kelas** (false positive) → obatnya **ROI + `CONF_THRESHOLD`**, bukan model baru
+   - **Difoto di saat yang salah** (kekecilan, kepotong, janjang belum utuh) → itu **bukan**
+     soal model maupun ambang: **geser `GARIS_CAPTURE`**. Sejak 2026-09-18 yang menentukan
+     kapan janjang difoto adalah garis capture, bukan pusat kotak masuk ROI
    - **Kelas → background** (kelewat) → turunin `CONF_THRESHOLD`, atau memang objeknya kekecil di imgsz 640
 2. `results.csv` kolom `metrics/mAP50-95(B)` di baris terakhir — buat bandingin antar run.
 3. **Cek jumlah objek di confusion matrix.** Val set ratusan objek = angkanya
@@ -115,6 +118,9 @@ Coba ini dulu sebelum minta model baru — tiga-tiganya lebih murah dan bisa dib
 |---|---|---|
 | `CONF_THRESHOLD` | `0.75` | Naik = false positive turun, kelewat naik. Turun = sebaliknya |
 | `ROI_X1/Y1/X2/Y2` | `0` (mati) | Crop area kerja. Ini yang **matiin FP background secara struktural**, bukan nebak threshold |
+| `GARIS_CAPTURE` | `0` (mati) | Titik janjang difoto (px, ruang stream). Ini knob buat "kefoto kecepetan/kelambatan", **bukan** `CONF_THRESHOLD`. Diatur dari tab Setelan konsol, tanpa restart |
+| `SUMBU_GARIS` | `tegak` | Arah conveyor: `tegak` (px dari kiri) / `mendatar` (px dari atas) |
+| `MODE_DEV` | `false` | Nyalain buat lihat **angka confidence di kotak janjang** — satu-satunya cara melihatnya di layar sejak angkanya dibuang dari label. Wajib dinyalain waktu nyetel `CONF_THRESHOLD` |
 | `DEBUG_MODEL_OUTPUT` | kosong | Nyalain buat lihat output mentah per frame di log |
 
 ## Provenance

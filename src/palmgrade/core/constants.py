@@ -48,3 +48,9 @@ REF_LINE_THICKNESS = 7
 # ROI detection zone highlight (overlay semi-transparan di antara entry/exit line)
 COLOR_ROI = (0, 200, 0)    # hijau (BGR)
 ROI_ALPHA = 0.25             # opacity 25%
+
+# Garis pemicu capture — BIRU (BGR), diminta operator 2026-09-18.
+# Sengaja biru, bukan hijau: hijau sudah dipakai kotak ROI dan bbox janjang yang
+# lolos, dan operator perlu bisa menunjuk satu garis tanpa mengira itu bbox.
+COLOR_TRIGGER = (255, 120, 0)   # biru terang
+TRIGGER_THICKNESS = 3

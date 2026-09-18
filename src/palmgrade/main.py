@@ -37,6 +37,7 @@ from .integrations.scheduler.upload_scheduler import UploadScheduler
 from .integrations.upload.r2_uploader import R2Uploader
 from .integrations.upload.upload_manifest import UploadManifest
 from .workers.batch_upload_worker import BatchUploadWorker
+from .workers.capture_save_worker import CaptureSaveWorker
 from .routes.capture import router as capture_router
 from .routes.health import router as health_router
 from .routes.inspection import router as inspection_router
@@ -81,14 +82,24 @@ async def _tarik_setelan_grading(settings, state) -> None:
             # Konsol belum pernah diubah dari layar: nilainya memang .env, dan
             # menimpanya dengan angka yang sama cuma bikin log membingungkan.
             return
+        # `garis_capture` ikut kalau konsolnya sudah tahu field itu; konsol lama
+        # tidak mengirimnya, dan `bersihkan_setelan` mengisinya 0 (garis mati).
         bersih = bersihkan_setelan(
-            {k: data[k] for k in ("conf_threshold", "minimum_size")}
+            {
+                k: data[k]
+                for k in ("conf_threshold", "minimum_size", "garis_capture", "sumbu_garis", "mode_dev")
+                if k in data
+            }
         )
         state.conf_threshold_override = bersih["conf_threshold"]
         state.minimum_size_override = bersih["minimum_size"]
+        state.garis_capture_override = bersih["garis_capture"]
+        state.sumbu_garis_override = bersih["sumbu_garis"]
+        state.mode_dev_override = bersih["mode_dev"]
         logger.info(
-            "Setelan grading diambil dari konsol: conf=%s minimum_size=%s",
+            "Setelan grading diambil dari konsol: conf=%s minimum_size=%s garis=%s sumbu=%s",
             bersih["conf_threshold"], bersih["minimum_size"],
+            bersih["garis_capture"], bersih["sumbu_garis"],
         )
     except Exception as exc:
         logger.info("Setelan grading tidak bisa diambil (%s) — pakai .env", exc)
@@ -188,6 +199,15 @@ def create_app() -> FastAPI:
             settings=settings,
             target_fps=settings.stream_fps or 12,
         )
+        # Penulis bukti, thread sendiri. Encode WebP frame sensor penuh memakan
+        # ~285 ms per gambar (diukur di PC Lampung 2026-09-17), dan selama itu
+        # dulu deteksi BERHENTI — frame dibuang diam-diam, ByteTrack kehilangan
+        # jejak, layar membeku. Dipisah supaya biaya itu dipikul core lain.
+        capture_saver = CaptureSaveWorker(
+            settings=settings,
+            storage=storage_instance,
+            outbox_store=get_outbox_store(),
+        )
         processing_worker = FrameProcessingWorker(
             pipeline=pipeline,
             state=state,
@@ -195,12 +215,17 @@ def create_app() -> FastAPI:
             webhook=webhook,
             settings=settings,
             outbox_store=get_outbox_store(),
+            capture_saver=capture_saver,
         )
 
         state.worker_threads = [
             ("capture", _start_worker("capture", capture_worker.run_loop), capture_worker),
             ("display", _start_worker("display", display_worker.run_loop), display_worker),
             ("processing", _start_worker("processing", processing_worker.run_loop), processing_worker),
+            # Didaftarkan seperti worker lain supaya ikut diawasi watchdog 10
+            # detik: penulis yang mati tanpa pengganti berarti grading jalan,
+            # PLC menyortir, layar menghitung — dan nol bukti tersimpan.
+            ("capture_save", _start_worker("capture_save", capture_saver.run_loop), capture_saver),
         ]
 
         # OutboxRetryWorker — kirim event ke API di BACKEND_URL, poll 1 detik.
@@ -287,6 +312,21 @@ def create_app() -> FastAPI:
             shutdown_plc_worker(plc_thread)
         except Exception:
             logger.exception("Shutdown PLC gagal — shutdown lain tetap dilanjutkan")
+
+        # Janjang yang sudah digrading (dan sudah dapat pulse PLC) tapi belum
+        # sempat ditulis akan hilang bersama proses ini. Beri penulis kesempatan
+        # menghabiskan antreannya dulu — beberapa ratus milidetik per janjang,
+        # dan antreannya cuma tiga dalam. Best-effort: gagal di sini tidak boleh
+        # menahan sisa shutdown.
+        try:
+            if not capture_saver.tunggu_kosong(timeout=5.0):
+                logger.warning(
+                    "Shutdown: %d janjang masih di antrean simpan dan tidak sempat ditulis",
+                    capture_saver.antrean,
+                )
+            capture_saver.stop(timeout=2.0)
+        except Exception:
+            logger.exception("Menguras antrean simpan gagal — shutdown dilanjutkan")
 
         try:
             camera = get_camera()

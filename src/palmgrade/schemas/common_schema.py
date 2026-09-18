@@ -30,5 +30,19 @@ class HealthDetailSchema(BaseModel):
     workers: list[WorkerStatus]
     outbox_pending: int = 0
     outbox_failed: int = 0
+    # Antrean penulis bukti (`CaptureSaveWorker`). `capture_save_dropped` naik
+    # berarti janjang yang SUDAH digrading dan sudah dapat pulse PLC tidak
+    # tersimpan sama sekali — tidak ada gambar, tidak ada sidecar, jadi tidak ada
+    # yang bisa ditemukan `BatchUploadWorker._scan()` belakangan. Diekspos di
+    # sini karena satu baris log tidak akan pernah terbaca di PC yang cuma
+    # dijenguk lewat AnyDesk, sementara angka ini sebaris dengan `outbox_*` yang
+    # sudah rutin dilihat.
+    capture_save_pending: int = 0
+    capture_save_dropped: int = 0
+    # TP yang muncul sesudah janjang terdekatnya difoto. Janjang difoto apa
+    # adanya begitu menyentuh garis (keputusan operator 2026-09-18), jadi
+    # tangkai yang telat memang tidak ikut. Diekspos supaya keputusan
+    # menambah jendela tunggu nanti diambil dari angka, bukan dugaan.
+    tp_telat: int = 0
     current_assignment_id: str | None = None
     last_successful_api_push: str | None = None

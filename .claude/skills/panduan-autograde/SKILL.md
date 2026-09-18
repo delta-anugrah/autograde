@@ -49,6 +49,17 @@ ditanya.
   Diagnostik / `:800N/health/detail` (`camera_connected`). Janjang nyasar ke kartu
   lain = `LINE_N_MACHINE_ID` kembar (konsol mencocokkan lewat `machine_id`, bukan port).
 - **Layar nol + log "Outbox delivery failed HTTP 404":** `BACKEND_URL` salah port.
+- **Janjang difoto di titik mana:** saat kotaknya **menyentuh garis capture** — garis biru
+  bertanda `CAPTURE`, diatur dari tab **Setelan** (piksel, ruang stream; `0` = tanpa garis,
+  janjang difoto begitu masuk ROI). ROI menjawab *di mana*, garis menjawab *kapan*. Arah
+  conveyor (`tegak`/`mendatar`) menentukan garisnya tegak atau melintang. Berlaku tanpa
+  restart. "Capture terlalu cepat" → **geser garisnya**, jangan sentuh `CONF_THRESHOLD`.
+- **Angka keyakinan hilang dari kotak janjang:** disengaja — dari beberapa meter "54%"
+  terbaca seperti "54% matang". Saklar **Mode dev** di tab Setelan mengembalikannya.
+  Nilainya tetap tersimpan di sidecar dan tabel Grading.
+- **`capture_save_dropped` / `tp_telat` di `/health/detail` harus NOL.** Yang pertama =
+  janjang sudah dipulse PLC tapi tidak punya gambar maupun sidecar (disk/CPU kalah cepat);
+  yang kedua = tangkai panjang muncul sesudah janjangnya difoto, jadi tidak tercatat.
 - **fps:** untuk Hikrobot diatur `config/camera/hikrobot.mfs`, `CAMERA_FPS` diabaikan.
 - **Berat:** neto dihitung konsol, bruto/tara < 1.000 kg ditolak, `14.820` terbaca 14,82.
 

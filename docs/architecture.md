@@ -69,6 +69,7 @@ autograde/
       workers/
         frame_capture_worker.py
         frame_processing_worker.py
+        capture_save_worker.py
         event_broadcast_worker.py
         runtime_state.py
 

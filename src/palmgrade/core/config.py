@@ -209,6 +209,20 @@ class Settings:
     minimum_size: int = field(default_factory=lambda: int(os.getenv("MINIMUM_SIZE", "460000")))
     # Run YOLO every N frames — reduce CPU load on video-file testing (set to 1 for production)
     yolo_skip_frames: int = field(default_factory=lambda: int(os.getenv("YOLO_SKIP_FRAMES", "1")))
+    # Garis capture: x (px) dalam ruang STREAM (`STREAM_WIDTH`), bukan ruang
+    # sensor. Janjang difoto saat kotaknya MENYENTUH garis ini — beda dari ROI,
+    # yang menyaring wilayah dan memakai titik tengah. `0` = tidak ada garis,
+    # dan itu perilaku sebelum fitur ini ada.
+    # Ini cuma nilai awal: yang berlaku sehari-hari diatur dari layar support
+    # konsol dan dikirim ke line lewat `/internal/setelan` tanpa restart.
+    garis_capture: int = field(default_factory=lambda: int(os.getenv("GARIS_CAPTURE", "0")))
+    # Sumbu garis capture: "tegak" (conveyor mendatar, garis vertikal, angka =
+    # px dari kiri) atau "mendatar" (conveyor menurun, garis horizontal, angka
+    # = px dari atas). Sama seperti `garis_capture`, ini cuma nilai awal.
+    sumbu_garis: str = field(default_factory=lambda: os.getenv("SUMBU_GARIS", "tegak"))
+    # Mode dev: angka confidence ikut digambar di kotak janjang. Nilai awal
+    # saja; disetel dari layar support konsol.
+    mode_dev: bool = field(default_factory=lambda: _as_bool(os.getenv("MODE_DEV"), False))
 
     # Detection zone — ROI rectangle (pixel coordinates, inclusive).
     # 0,0,0,0 = full frame (all objects eligible).

@@ -94,7 +94,10 @@ Camera (Hikrobot / OpenCV / Photo)
     → FrameProcessingWorker (thread)
         → YOLOv8 + ByteTrack
         → detect: Ripe / Unripe / JK (janjang kosong) / TP (tangkai panjang)
-        → save WebP + JSON to artifacts/results/   ← file di disk ITU antriannya
+        → janjang MENYENTUH garis capture → pulse PLC + serahkan SaveJob, lalu LANJUT
+    → CaptureSaveWorker (thread, antrean 8)     ← sejak 2026-09-18
+        → encode WebP bbox + clean + thumb, tulis JSON sidecar, satu baris outbox
+        → file di disk ITU antriannya untuk jalur cloud
     → OutboxRetryWorker (poll 1 dtk) → POST BACKEND_URL = konsol lokal :8000
     → BatchUploadWorker (tiap jam, jalur terpisah ke cloud)
         → _scan() → UploadManifest (SQLite, state/upload_manifest.db)
@@ -133,7 +136,10 @@ fires pistons and gets booked; `grade_class` is the 4-way detail on screen.
 **Minimum size**: 460,000 px² — objects below this area are forced to `rej`
 **Tracking**: ByteTrack — each fruit gets a unique `track_id`, saved only once (single-trigger)
 **Detection zone**: ROI box (`ROI_X1/Y1/X2/Y2`) — only objects whose center falls inside the box are counted. Default `0,0,0,0` = full frame. TP class is exempt from ROI check.
+**Capture point**: a bunch is photographed when its box **touches** the capture line (`GARIS_CAPTURE`, set from the console support screen). ROI answers *where* (this is the conveyor), the line answers *when*. Since 2026-09-18 this replaced "centre enters the ROI box", which fired once half the bunch was already past — and with the default full-screen ROI, the moment a bunch was detected anywhere. `0` = no line, previous behaviour. `SUMBU_GARIS` picks a vertical line (horizontal conveyor, px from the left) or a horizontal one (vertical conveyor, px from the top).
+**Long stalks (TP)**: paired to the **nearest** bunch within 1.5 × half its box diagonal, and only when no other bunch in the frame is nearer (`domain/garis_capture.tp_untuk_janjang`). A bunch is photographed as-is whether or not it has a stalk; a TP that appears afterwards is counted in `tp_telat` on `/health/detail`.
 **Multi-fruit rule**: >1 buah (belum diproses) berada dalam ROI di frame yang sama → semuanya di-force `rej` (buah bertumpuk).
+**Box labels**: class only (`Ripe` / `Unripe` / …), no confidence percentage — from a few metres "54%" reads as ripeness. The `mode_dev` switch on the settings screen puts it back for threshold tuning.
 
 ---
 
@@ -543,7 +549,7 @@ operator disimpan di `localStorage`.
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Health check (always allowed) |
-| `GET` | `/health/detail` | Detailed status: camera, GPU, workers, current_assignment_id. ⚠️ Masih expose `outbox_pending`/`outbox_failed` — sejak pindah ke `BatchUploadWorker` dua field itu **selalu 0** dan bukan indikator backlog upload; progres batch belum ter-expose di endpoint mana pun (cek `state/upload_manifest.db` atau log) |
+| `GET` | `/health/detail` | Detailed status: camera, GPU, workers, current_assignment_id. Sejak 2026-09-18 juga `capture_save_pending` / `capture_save_dropped` (antrean penulis bukti — **`dropped` harus NOL**: di atas nol berarti janjang yang sudah dipulse PLC tidak punya gambar maupun sidecar sama sekali) dan `tp_telat` (**harus NOL**: TP yang muncul sesudah janjangnya difoto). ⚠️ `outbox_pending`/`outbox_failed` mengukur jalur realtime ke API lokal, **bukan** backlog upload cloud — untuk itu cek `state/upload_manifest.db` atau log |
 | `GET` | `/api/video_feed` | MJPEG live stream (multi-viewer) |
 | `POST` | `/api/set_truck` | Set active truck ID (legacy — pakai konsol `/api/console/lines/{line}/assign-truck`) |
 | `POST` | `/api/capture_reject` | Trigger manual reject capture (legacy) |
@@ -859,6 +865,9 @@ variabel mati padahal bukan — jangan dihapus karena `grep os.getenv` tidak men
 | `ENABLE_WEBHOOK` | `true` | Toggle webhook posting |
 | `MODEL_FILE` | `best.pt` | YOLO model filename in `models/release/` |
 | `CONF_THRESHOLD` | `0.75` | YOLO confidence threshold |
+| `GARIS_CAPTURE` | `0` | Capture line (px, **stream** space). A bunch is photographed when its box touches it. `0` = no line. Initial value only — the live one is set from the console support screen, no restart |
+| `SUMBU_GARIS` | `tegak` | Line axis: `tegak` (horizontal conveyor, px from the **left**) / `mendatar` (vertical conveyor, px from the **top**). Initial value only |
+| `MODE_DEV` | `false` | `true` = draw the confidence number on bunch boxes. For support tuning the threshold, not for operators. Initial value only |
 | `MINIMUM_SIZE` | `460000` | Min bounding box area in px² |
 | `CAMERA_TYPE` | `hikrobot` | `hikrobot` / `opencv` / `photo` |
 | `CAMERA_DEVICE_INDEX` | `0` | Camera index (0/1/2 per line) |

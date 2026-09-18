@@ -29,7 +29,8 @@
 | Worker | Kind | Responsibility |
 |---|---|---|
 | `FrameCaptureWorker` | thread | grab frame from camera (under `state.lock`) → `state.latest_raw_frame` + `frame_queue`. Auto-reconnects with `device_index`. |
-| `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); detection → save ke disk → `event_queue` + `outbox.add_event()` |
+| `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); janjang menyentuh garis capture → pulse PLC + `event_queue` + serahkan `SaveJob`, lalu **lanjut**. Sejak 2026-09-18 **tidak menulis ke disk maupun outbox sendiri** |
+| `CaptureSaveWorker` | thread | penulis bukti: encode WebP bbox+clean+thumb, sidecar JSON, dan satu baris `outbox.add_event()`. Antrean 8 dalam, drop yang terbaru + `logger.error` kalau penuh (`capture_save_dropped`). Ikut diawasi watchdog; antreannya dikuras saat shutdown sebelum kamera dilepas |
 | `DisplayWorker` | thread | the **only** writer of `state.latest_frame`: draw boxes → resize → draw ROI → JPEG encode → `frame_condition.notify_all()`. Runs at `STREAM_FPS` (default 12). |
 | `OutboxRetryWorker` | thread | kirim isi `outbox.db` ke API **lokal** (`BACKEND_URL`), poll 1 detik — jalur realtime operator, hidup walau internet mati. Batch upload ke cloud jalan terpisah. |
 | `PlcWorker` | thread | **hanya kalau `PLC_ENABLED=true`** (default mati → nol thread tambahan di cloud & PC dev). Satu-satunya thread yang menyentuh socket Modbus ke coupler ODOT: kuras antrean keputusan → pulse coil OK/NG, toggle bit alive, baca discrete input, tulis coil ERROR. Bangun tiap `PLC_POLL_MS` (default 200ms) **selamanya** — polling reguler inilah yang menahan watchdog ODOT. Sinyal telat = buah salah yang tersortir, jadi kebijakannya **buang dan hitung, jangan pernah tunda**. |
@@ -69,20 +70,28 @@ docked for. Its count stays on the edge until a contract change is agreed.
 
 ```
 each YOLO frame (ByteTrack assigns track_id per object):
-  label == "tp"                  → store in _last_tp (candidate, paired later)
-  label in ("acc","rej") AND center inside ROI AND track not processed:
+  pre-scan: kumpulkan kotak semua TP + semua janjang di frame ini
+            (TP butuh track_id sah dan belum dipakai — `kandidat_tp_sah`)
+
+  label in ("Ripe","Unripe","JK") AND center inside ROI AND track not processed
+  AND kotaknya MENYENTUH garis capture:
       area = (x2-x1)*(y2-y1)
       if area < MINIMUM_SIZE (460000) OR >1 fruit in ROI this frame → force "rej"
-      _save_ripeness(): annotated WebP (quality 65) + {ts}_auto_ripeness.json
-      if _last_tp: _save_tp(): {ts}_auto_tp.json (no image, same timestamp) then clear
+      submit_grading() → pulse PLC          # seketika, tidak boleh ditunda
+      tetapkan timestamp                     # sumber event_id uuid5 — WAJIB di sini
+      tp = tp_untuk_janjang(...)             # TP TERDEKAT, dan hanya kalau janjang
+                                             # ini yang terdekat di antara semua
       push event to event_queue (drop-old) for WebSocket
+      capture_saver.submit(SaveJob(...))     # ← encode + disk + outbox pindah ke sini
+      mark track processed                   # sesudah DISERAHKAN, bukan sesudah ditulis
+
+  CaptureSaveWorker (thread lain):
+      write_pair(): WebP bbox + clean + thumb (quality 65 / 60)
+      {ts}_auto_ripeness.json, dan {ts}_auto_tp.json kalau janjang itu bawa TP
       outbox.add_event(build_event_payload(...))  # → API lokal via OutboxRetryWorker
       # Pengiriman ke CLOUD terpisah: BatchUploadWorker men-scan file hasil save
       # di atas (lihat §4) dan menghitung ulang uuid5 yang sama dari machine_id +
       # timestamp nama file — dua jalur, satu event_id, jadi tidak pernah dobel.
-      mark track processed LAST (_processed_objects.add + _processed_times)
-      # processed di-set SETELAH file tersimpan: crash mid-block → track belum
-      # processed → di-reprocess → nama file (dan uuid5-nya) sama → idempotent
 ```
 
 - `ResultRepository.list_today_results()` merges `_ripeness.json` + `_tp.json` per base_name.
@@ -96,7 +105,84 @@ NOT sensor space — operators calibrate from what they see in the browser. Cent
 inside the box. `0,0,0,0` = full frame (X2=0→stream width, Y2=0→stream height); require `X2>X1` & `Y2>Y1`.
 TP is exempt from the ROI check. `draw_roi()` runs in `DisplayWorker` **after** resize.
 
-**DisplayWorker draw order:** `draw_boxes()` (on `last_yolo_frame`) → `cv2.resize()` → `draw_roi()`.
+**Garis capture (biru, bertanda `CAPTURE`)** — sejak 2026-09-18 menggantikan aturan lama "titik
+tengah masuk kotak ROI" sebagai penentu KAPAN janjang difoto. Dua hal yang sengaja dipisah:
+
+| | Menjawab | Aturan |
+|---|---|---|
+| ROI | di mana | titik tengah janjang di dalam kotak = wilayah conveyor |
+| Garis capture | kapan | kotak janjang **menyentuh** garis (`domain/garis_capture`) |
+
+Aturan lama memfoto janjang saat **separuhnya** sudah lewat, dan dengan `ROI_*` bawaan `0,0,0,0`
+(= seluruh layar) itu berarti begitu terdeteksi di mana pun — termasuk di pinggir frame saat
+janjangnya belum utuh. Itu keluhan "capture terlalu cepat" dari PC Lampung.
+
+Disetel dari **layar support konsol**, satu angka untuk semua line, berlaku tanpa restart lewat
+`/internal/setelan` — jalur yang sama persis dengan `CONF_THRESHOLD` dan `MINIMUM_SIZE`
+(`domain/setelan_grading`, `RuntimeState.garis_capture_override`). `GARIS_CAPTURE` di `.env` cuma
+nilai awal. **`0` = tidak ada garis**, dan itu perilaku sebelum fitur ini ada — satu-satunya cara
+PKS yang belum menyetel tidak kehilangan janjang, jadi batas bawahnya inklusif (`BAWAH_INKLUSIF`),
+beda dari dua setelan lain yang `0`-nya justru mematikan grading diam-diam.
+
+⚠️ Angkanya ruang **stream**, diskalakan ke ruang sensor saat menyaring (`skala_garis_ke_frame`).
+Melewatkan penskalaan itu bug yang sudah pernah terjadi di ROI (`bdcb300`).
+⚠️ Pemicunya **perpotongan**, bukan sentuhan persis: garis dievaluasi sekali per frame, dan pada
+8-20 fps janjang bisa melompati garis di antara dua frame — menuntut sentuhan persis membuat
+janjang cepat tidak pernah difoto, hilang tanpa satu pun pesan.
+`TP` dikecualikan dari garis, sama seperti dari ROI.
+
+**Pasangan TP ↔ janjang** (2026-09-18). Janjang difoto **apa adanya** begitu menyentuh garis,
+ada TP atau tidak — tanpa penundaan. TP yang dipakai adalah yang pusatnya **paling dekat** dan
+masih dalam `_JANGKAUAN_TP` × setengah diagonal janjang (`domain/garis_capture`), dikumpulkan
+di pra-pindai supaya urutan kotak dalam satu frame tidak menentukan hasil.
+
+| Urutan | Alur LAMA (`_last_tp`) | Sekarang |
+|---|---|---|
+| TP terlihat, lalu janjangnya menyentuh garis | ikut, kebetulan urutannya cocok | ikut, karena jaraknya dekat |
+| TP milik janjang A, janjang B lewat garis dulu | **salah**: TP menempel ke B | tidak ikut ke B |
+| Janjang difoto, TP-nya baru terlihat | **salah**: menempel ke janjang berikutnya | tidak ikut, dihitung `tp_telat` |
+
+Ambangnya relatif, bukan piksel tetap: janjang di dekat kamera jauh lebih besar daripada yang di
+ujung frame, jadi satu angka piksel akan benar cuma di satu jarak kamera. Setengah diagonal
+dipakai supaya janjang tegak dan janjang rebah menjangkau sama jauhnya.
+⚠️ Yang dipakai **jarak**, bukan irisan kotak: TP bisa terpisah dari kotak janjangnya (jawaban
+operator 2026-09-18), jadi menuntut irisan akan membuang tangkai yang sah.
+⚠️ Yang menang **yang terdekat**, bukan yang paling yakin: confidence mengukur seberapa yakin
+model itu TP, bukan seberapa mungkin TP itu milik janjang ini.
+⚠️ **Terdekat di antara SEMUA janjang di frame**, bukan sekadar dalam ambangnya sendiri
+(`janjang_lain`). Dua janjang berdempetan — 450x450 px berjarak 500 px pada sensor 2448x2048 —
+sama-sama berjangkauan 477 px, jadi satu tangkai di antara keduanya masuk jangkauan dua-duanya
+dan pemenangnya tinggal urutan pemrosesan, yang tidak dijamin. Janjang yang sudah difoto ikut
+jadi saingan, supaya tangkai milik janjang yang baru selesai tidak pindah ke tetangganya.
+⚠️ TP tepat di **tengah sela** dua janjang memang ambigu secara geometri; aturan apa pun cuma
+menebak di situ, dan itu sengaja tidak diuji seolah punya jawaban benar.
+`tp_telat` dihitung dari `_janjang_difoto` (catatan sendiri, umur 300 detik), **bukan**
+`track_history` — tabel itu dibuang 10 frame sesudah janjangnya hilang dari pandangan, jadi TP
+yang muncul sesudahnya tidak pernah terhitung dan angkanya diam-diam terlalu kecil.
+
+**Arah conveyor** (`sumbu_garis`, disetel di layar yang sama sejak 2026-09-18):
+
+| Sumbu | Conveyor | Garis | Angkanya |
+|---|---|---|---|
+| `tegak` (bawaan) | mendatar, buah lewat kiri↔kanan | vertikal | px dari **kiri** |
+| `mendatar` | menurun, buah lewat atas↔bawah | horizontal | px dari **atas** |
+
+Arah gerak DI DALAM satu sumbu tidak perlu disetel: pemicunya perpotongan, berlaku dari sisi
+mana pun, jadi conveyor yang membalik arah tetap jalan tanpa satu pun perubahan.
+⚠️ Sumbu mendatar diskalakan dengan **tinggi** frame, bukan lebar (`skala_garis`) — frame
+2448x2048 tidak persegi, jadi memakai lebar membuat garis meleset ~19% tanpa satu pun error.
+⚠️ Sumbu yang tidak dikenal **tidak melempar** di jalur deteksi (jatuh ke `tegak`): nilainya
+bisa datang dari konsol versi lain, dan satu string asing tidak boleh menghentikan grading.
+Yang menolak nilai aneh adalah jalur SIMPAN, di gerbang, sebelum sampai ke tiga line.
+
+**Label janjang tanpa angka confidence** (2026-09-18, permintaan operator). Angkanya keyakinan
+model, bukan mutu buah, dan dari beberapa meter "54%" terbaca seperti "54% matang"; ambangnya
+sudah diputuskan `CONF_THRESHOLD`, jadi apa pun yang tergambar sudah lolos ambang itu.
+`viewer.html` membuangnya lebih dulu (`abd8f17`). Nilainya **tetap** disimpan di sidecar dan
+dikirim ke API — yang dibuang tampilannya, bukan datanya.
+
+**DisplayWorker draw order:** `draw_boxes()` (on `last_yolo_frame`) → `cv2.resize()` → `draw_roi()`
+(yang juga menggambar **garis capture** biru bertanda `CAPTURE`, sesudah resize, di ruang stream).
 Render boxes over `last_yolo_frame` (paired with results), **never** over `latest_raw_frame` — on CPU,
 inference can take 0.5–2s and the conveyor moves, so boxes would land in the wrong place. Fallback to
 `latest_raw_frame` only before the first YOLO run.
@@ -216,10 +302,16 @@ to serve images at `/api/v1/captures/<line_code>/...`. api SSE events after inge
    (single-trigger). Never `discard()` an active track. `run_once` trims only IDs that are gone from
    `track_history` **and** stale >300s (`_processed_times`) — pure memory control, can't re-trigger
    (the fruit left the frame long ago).
-   **Ordering:** `processed` di-set **SETELAH** file tersimpan (bukan sebelum). Kalau crash di
-   tengah blok, track belum processed → frame berikutnya reprocess → nama file (dan `event_id` uuid5
-   `machine_id:timestamp` yang dihitung `BatchUploadWorker` dari nama itu) sama → API idempotent,
-   tidak double count. Track tanpa truck aktif tetap ditandai processed supaya tidak re-trigger.
+   **Ordering:** `processed` di-set **SETELAH janjang diserahkan ke `CaptureSaveWorker`** — sejak
+   2026-09-18 itu titik yang tidak boleh diulang, menggantikan "setelah file tersimpan" yang berlaku
+   selama penulisan masih sinkron. Yang dijaga tidak berubah: nama file (dan `event_id` uuid5
+   `machine_id:timestamp` yang dihitung `BatchUploadWorker` dari nama itu) ditetapkan **di jalur
+   deteksi**, sebelum serah-terima, jadi idempotensi dipegang oleh nama, bukan oleh urutan tulis.
+   Track tanpa truck aktif tetap ditandai processed supaya tidak re-trigger.
+   ⚠️ Konsekuensi yang dibeli sadar: kalau proses mati di antara serah-terima dan penulisan, janjang
+   itu hilang (tidak ada retry — track sudah `processed`). Lifespan karena itu **menguras antrean
+   dulu** saat shutdown. Jendelanya ratusan milidetik, dan harganya adalah hilangnya lag ~590 ms per
+   janjang yang sebelumnya membuang ~12 frame kamera dan memutus jejak ByteTrack.
 2. **`state.lock`** around all physical camera access (`FrameCaptureWorker.run_once` +
    `capture_manual_reject`) — concurrent Hikrobot SDK access can crash.
 3. **MJPEG via `threading.Condition`**, not `result_queue` — the old queue pattern served only one

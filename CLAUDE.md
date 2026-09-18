@@ -71,7 +71,8 @@ src/palmgrade/
   services/        # business flow (capture, inspection, streaming, truck, health, result)
   repositories/    # file I/O (WebP/JSON) via LocalFileStorage
   pipelines/       # YOLO inference (realtime_inspection_pipeline, model_registry)
-  workers/         # background threads + RuntimeState (capture / display / processing / event_broadcast / outbox_retry / batch_upload)
+  workers/         # background threads + RuntimeState (capture / display / processing / capture_save / event_broadcast / outbox_retry / batch_upload)
+                   # capture_save = penulis bukti (encode WebP + sidecar + outbox) di thread sendiri; deteksi cuma menyerahkan, tidak pernah menunggu disk
                    # konsol pakai asyncio, bukan thread: master_data (tarik supplier + truk) / erp_outbox (kirim ke AutoERP) / visit_resend (kirim ulang kunjungan kemarin) — dirakit di workers/erp_link.py, mati total kalau ERP_URL kosong
   integrations/    # camera/{hikrobot,opencv,photo}, notifications/ (webhook_client → api, line_client → line dari konsol), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
   domain/          # pure rules + entities (no I/O) — termasuk working_day.py (§6.1) & ffb_source.py (§3.5b)
@@ -124,6 +125,13 @@ All via **`make`** (Docker only). From `autograde/`:
 - **`make up` cuma perlu** kalau dependency / `Dockerfile` / SDK berubah; untuk ubah kode pakai `make restart`.
 - **Dev without a camera**: `.env` → `CAMERA_TYPE=opencv` + `CAMERA_VIDEO_PATH=/videos/<file>.mp4` (host `sawit/` is mounted at `/videos`). `CAMERA_VIDEO_LOOP=true` replays it until the line is stopped (default plays once). ⚠️ `CAMERA_TYPE`/`CAMERA_VIDEO_*` are shared by all 3 lines — to put a video on ONE line only, override that service in `docker-compose.override.yml`.
 - **Verify**: `curl :8001/health`; `curl :8001/health/detail` (camera_connected, gpu_available, workers, current_assignment_id, `plc` = `null` kalau PLC mati); stream at `http://localhost:8001/api/video_feed`.
+  ⚠️ **`capture_save_dropped` di `/health/detail` harus NOL.** Di atas nol berarti antrean penulis
+  pernah penuh dan janjang yang sudah digrading — sudah dapat pulse PLC, sudah masuk rekap —
+  tidak tersimpan sama sekali: tidak ada gambar, tidak ada sidecar, jadi tidak ada yang bisa
+  ditemukan `BatchUploadWorker._scan()` belakangan. Tidak ada retry (menahan deteksi akan
+  mengembalikan lag ~590 ms yang dihilangkan); yang harus dikejar penyebabnya — disk lambat atau
+  laju grading melewati kemampuan menulis. `capture_save_pending` yang naik terus adalah
+  peringatan dininya.
   ⚠️ `outbox_pending`/`outbox_failed` di `/health/detail` mengukur **jalur realtime ke API lokal**
   saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
   mengatakan apa-apa soal batch upload ke cloud — untuk itu baca log `Batch tick: N item eligible`
@@ -144,7 +152,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/capture_reject` | legacy manual reject capture |
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |
 | POST | `/internal/manual-reject` | ← from api: trigger manual reject (`x-internal-secret`) |
-| WS | `/ws/results` | legacy result push |
+| WS | `/ws/results` | legacy result push. ⚠️ `image_url`-nya dikirim **sebelum** berkasnya ada di disk (deteksi menyerahkan janjang ke `CaptureSaveWorker` lalu lanjut) — jendelanya ratusan milidetik. Tidak ada yang memakai lane ini hari ini (`console.html` tidak membukanya), tapi siapa pun yang menghidupkannya harus menahan gambar sampai 404 pertama lewat. Jalur yang dipakai konsol aman: barisnya ditulis penulis **sesudah** gambarnya jadi |
 | GET | `/captures/...` | static images (mount → `artifacts/`) |
 
 **Konsol (`APP_MODE=console`, port 8000)** — surface yang berbeda total; `main.py` tidak dipakai.
@@ -269,9 +277,9 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    `Unripe` maupun `JK`.
 
 1. **Disk before API** — never POST events directly from a worker; **antrean yang bicara ke
-   jaringan, bukan worker deteksi**. `FrameProcessingWorker` dan `capture_service` menulis WebP +
-   JSON ke `artifacts/results/` lalu **satu baris** ke `outbox.db` (`build_event_payload()` dari
-   `domain/vision_event.py`). Dua konsumen mengirimnya:
+   jaringan, bukan worker deteksi**. `CaptureSaveWorker` (jalur auto) dan `capture_service` (manual)
+   menulis WebP + JSON ke `artifacts/results/` lalu **satu baris** ke `outbox.db`
+   (`build_event_payload()` dari `domain/vision_event.py`). Dua konsumen mengirimnya:
    - `OutboxRetryWorker` → API **lokal** (`BACKEND_URL`), poll 1 detik. Ini yang bikin operator
      lihat Grading History + gambar seketika, dan satu-satunya jalur yang hidup saat internet mati.
    - `BatchUploadWorker` → R2 + API **cloud** (`UPLOAD_API_URL`), tiap jam. Menemukan item lewat
@@ -289,6 +297,53 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    kalau `batch_fatal=True` (jaringan/5xx/429/401/403 — kondisi global) tapi **continue** kalau
    `batch_fatal=False` (HTTP 404 = truck belum sinkron, kondisi per-item — break di situ bikin
    antrean `ORDER BY discovered_at ASC` kelaparan di belakangnya).
+1b. **Thread deteksi tidak pernah menunggu disk** (sejak 2026-09-18). Encode WebP frame sensor penuh
+   memakan **~285 ms per gambar**, dan satu janjang menulis tiga gambar + sidecar + baris outbox —
+   **~590 ms** diukur di PC Lampung 2026-09-17. Selama itu dulu deteksi BERHENTI, dan tiga akibatnya
+   semuanya senyap: `frame_queue` (drop-oldest, nol log) membuang ~12 frame per janjang di kamera 20
+   fps, ByteTrack kehilangan jejak lalu memberi track id baru pada janjang yang sama (tonase dobel),
+   dan layar operator membeku ~1 detik. Sekarang `FrameProcessingWorker` cuma `submit()` satu
+   `SaveJob` ke `CaptureSaveWorker` lalu lanjut ke frame berikutnya.
+   **Yang HARUS tetap di jalur deteksi**, jangan dipindah ke penulis: pulse PLC (piston menyortir
+   buah yang lewat sekarang, bukan buah setengah detik lalu), penandaan `plc_signalled`/`processed`,
+   event ke `event_queue` (angka di layar), dan **penetapan `timestamp`** — nama berkas adalah sumber
+   `event_id` uuid5, dan `BatchUploadWorker` menghitung ulang id yang sama dari nama itu berjam-jam
+   kemudian. Penulis yang menstempel jamnya sendiri memutus idempotensi dan satu janjang terhitung
+   dua kali di angka yang dibayar ke petani.
+   `image_url` untuk layar dihitung di depan lewat `CaptureWriter.annotated_url()` — **rumus yang
+   sama** yang dikembalikan `write_pair()`, jadi tautan yang tampil dan berkas yang ditulis tidak
+   bisa menyimpang (kalau menyimpang: gambar 404 di konsol, nol error di line).
+   Antrean **8 dalam, drop yang terbaru + `logger.error`**: menahan deteksi sampai antrean lega akan
+   mengembalikan persis lag yang dihilangkan. Angkanya dari dua ukuran — beban nyata **300
+   janjang/jam/line** (satu tiap 12 detik, sementara penulis butuh ~0,6 detik, jadi antrean ini
+   untuk **lonjakan**, bukan laju rata-rata) dan biaya memorinya: tiap job menahan dua frame 14,3 MB,
+   jadi 8 dalam = 230 MB per line, 689 MB untuk tiga line dari RAM 31 GB. Antrean yang sering penuh
+   berarti disk/CPU tidak mengimbangi laju grading — itu yang harus dibaca dari log, bukan ditambal
+   dengan antrean lebih dalam lagi. Satu janjang >1 detik diadukan `logger.warning`
+   (`tulis … ms, antre … ms, antrean=N`) — itu alat ukur lapangannya.
+1c. **TP dipasangkan lewat JARAK, bukan urutan waktu** (sejak 2026-09-18,
+   `domain/garis_capture.tp_untuk_janjang`). Saat janjang difoto, TP yang dipakai adalah yang
+   pusatnya paling dekat dan masih dalam `_JANGKAUAN_TP` × setengah diagonal janjang —
+   ambang RELATIF, karena janjang dekat kamera jauh lebih besar daripada yang di ujung frame.
+   TP dikumpulkan di **pra-pindai**, sebelum loop janjang: urutan kotak dalam satu frame tidak
+   dijamin, jadi TP yang disebut sesudah janjangnya akan terlewat kalau dibaca sambil jalan.
+   ⚠️ **Ambang saja tidak cukup**: dua janjang berdempetan bisa sama-sama berada dalam
+   jangkauan TP yang sama, dan yang menang tinggal siapa yang kebetulan diproses lebih dulu.
+   Karena itu TP diberikan hanya kalau janjang itu yang **paling dekat di antara semua**
+   janjang di frame (`janjang_lain`) — tanpa itu janjang B dikreditkan tangkai milik A dan
+   tangkai A yang asli tidak tercatat, dan `tp_confidence > 0.8` itu kriteria Tangkai Panjang
+   yang dibukukan AutoERP. Janjang yang **sudah difoto** ikut jadi saingan: tangkai milik
+   janjang yang baru selesai tidak boleh pindah ke tetangganya.
+   ⚠️ **Alur LAMA yang diganti** (jangan dihidupkan lagi): satu slot `_last_tp` berisi "TP
+   terakhir yang terlihat", diberikan ke janjang berikutnya yang menyentuh garis, tanpa pernah
+   melihat posisi. Dua akibatnya sama-sama salah bayar dan sama-sama senyap: TP milik janjang A
+   menempel ke janjang B yang lewat garis lebih dulu, dan TP yang terlihat sesudah janjangnya
+   difoto menempel ke janjang berikutnya.
+   ⚠️ **TP yang datang SESUDAH janjang terdekatnya difoto memang tidak ikut** — itu harga yang
+   sadar dibayar dari "capture apa adanya". Dihitung di `tp_telat` (`/health/detail`) supaya
+   keputusan menambah jendela tunggu nanti diambil dari angka Lampung, bukan dugaan. Tiga jalan
+   yang sudah ditimbang dan ditunda: tahan simpan ~0,5 dtk, biarkan hilang, atau kirim susulan
+   (yang terakhir menyentuh kontrak ingest idempotent + rekap kunjungan AutoERP).
 2. **`_processed_objects`** — never `discard()` an active track (single-trigger). Trim only IDs that are inactive (gone from `track_history`) **and** stale >300s.
 3. **`state.lock`** around all physical camera access (`FrameCaptureWorker` + `capture_manual_reject`).
 4. **MJPEG** — only `DisplayWorker` writes `state.latest_frame`, via `threading.Condition.notify_all()` (multi-viewer). It renders `last_yolo_frame` (paired with results) and runs at `STREAM_FPS` (default 12), decoupled from `CAMERA_FPS`.
@@ -578,6 +633,33 @@ setelannya sama untuk tiga line, `.env` sudah cukup — jangan bikin override.
 - All paths via `Settings` (`core/config.py`) — never hardcode. New env var → add to `core/config.py` with a sane default.
 - `CAMERA_TYPE`: `hikrobot` (prod) / `opencv` (dev: webcam or video file) / `photo` (test). Switching needs **no code edit**.
 - ROI (`ROI_X1/Y1/X2/Y2`) coordinates are in **stream space** (`STREAM_WIDTH×STREAM_HEIGHT`, default 1280×720), not sensor space.
+- **Garis capture (biru, bertanda `CAPTURE`) menentukan KAPAN janjang difoto; ROI menentukan DI MANA.**
+  Dua hal berbeda, sengaja dipisah sejak 2026-09-18. Janjang difoto saat kotaknya **menyentuh**
+  garis (`domain/garis_capture.menyentuh_garis`) — bukan lagi saat titik tengahnya masuk kotak ROI,
+  yang memfoto janjang saat separuhnya sudah lewat. ROI tetap menyaring wilayah conveyor, dan `TP`
+  tetap dikecualikan dari keduanya.
+  **Disetel dari layar support konsol** (Setelan → Garis capture), satu angka untuk semua line,
+  berlaku tanpa restart lewat `/internal/setelan` — jalur yang sama dengan `CONF_THRESHOLD` dan
+  `MINIMUM_SIZE`. `GARIS_CAPTURE` di `.env` cuma nilai awal. **`0` = tidak ada garis**, dan itu
+  perilaku sebelum fitur ini ada (semua janjang di dalam ROI difoto).
+  ⚠️ Angkanya ruang **stream** (`STREAM_WIDTH`, bawaan 1280), diskalakan ke ruang sensor saat
+  menyaring (`skala_garis_ke_frame`) — melewatkan penskalaan itu bug yang sudah pernah terjadi di
+  ROI (`bdcb300`): garis terlihat benar di layar sementara yang menyaring sepertiga frame.
+  Kalau capture terasa terlalu cepat, **geser garisnya**, jangan sentuh `CONF_THRESHOLD`.
+  **Janjang difoto APA ADANYA begitu menyentuh garis**, ada TP atau tidak (keputusan operator
+  2026-09-18): tidak ada penundaan, tidak ada jendela tunggu. Yang menggerakkan mesin (pulse
+  PLC) dan yang dilihat operator sama-sama seketika.
+  **Arah conveyor** ikut disetel di layar yang sama (`sumbu_garis`): `tegak` = conveyor
+  mendatar, garis vertikal, angka px dari **kiri**; `mendatar` = conveyor menurun, garis
+  horizontal, angka px dari **atas**. Arah gerak DI DALAM satu sumbu tidak perlu disetel —
+  pemicunya perpotongan, jadi conveyor yang membalik arah tetap jalan. ⚠️ Sumbu mendatar
+  diskalakan dengan **tinggi** frame, bukan lebar (`skala_garis`): frame 2448x2048 tidak
+  persegi, jadi memakai lebar meleset ~19% tanpa satu pun error.
+- **Label janjang tidak memuat angka confidence** (permintaan operator 2026-09-18): dari beberapa
+  meter "54%" terbaca seperti "54% matang", padahal itu keyakinan model dan sudah lolos
+  `CONF_THRESHOLD`. Nilainya tetap ditulis ke sidecar dan dikirim ke API.
+  **Saklar `mode_dev`** di layar setelan menghidupkannya lagi — untuk support yang sedang
+  menyetel ambang, bukan untuk operator. Bawaannya mati.
 - **Frame rate hidup di SATU tempat: `config/camera/hikrobot.mfs`.** File itu dikirim ke
   kamera tiap connect, lalu `FrameCaptureWorker.adopt_camera_frame_rate()` menanyakan
   balik laju sebenarnya (`ResultingFrameRate`) dan memakai itu sebagai jeda ambil frame.
