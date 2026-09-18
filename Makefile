@@ -235,6 +235,35 @@ rebuild:
 rebuild-gpu:
 	docker compose --env-file $(ENV_FILE) build --build-arg TORCH_VARIANT=cu126
 
+# Menghapus ISI `artifacts/` dan `state/`, bukan foldernya.
+#
+# ⚠️ Berkasnya milik ROOT di Linux. `Dockerfile` tidak punya `USER`, jadi
+# container jalan sebagai root dan semua foto + SQLite yang ditulisnya jadi milik
+# root; `rm -rf` dari user biasa dijawab "Permission denied" ribuan kali dan
+# target-nya berhenti dengan Error 1 (kejadian di PC Lampung 2026-09-18).
+# Di macOS ini tidak pernah terlihat: Docker Desktop memetakan pemilik ke user
+# yang menjalankan, jadi penghapusan terasa berhasil di laptop dan gagal di
+# pabrik — satu-satunya tempat yang penting.
+#
+# Jadi yang menghapus adalah container yang memang root.
+#
+# `docker run` langsung, BUKAN `docker compose run`: tiap service di compose
+# me-mount `./artifacts/line-N` ke `/app/artifacts`, jadi container line hanya
+# melihat foldernya sendiri dan dua line lain luput. Di sini `$(CURDIR)` di-mount
+# utuh sekali, sehingga satu perintah menjangkau ketiganya plus `state/console`.
+#
+# `busybox` dipakai, bukan image proyek: tugasnya cuma menghapus berkas, dan
+# image ini 4 MB sementara `palmgrade-vision` beberapa GB — tapi kalau busybox
+# belum ada di PC yang offline, `|| true` di bawah membuat kegagalan tarik tidak
+# menghentikan target, dan `rm -rf` host sesudahnya masih menyapu apa yang bisa
+# dia hapus.
+#
+# Isinya saja yang dibuang — foldernya tetap, sehingga kepemilikan dan izin
+# mount-nya tidak berubah. `find -mindepth 1 -delete` dipakai daripada
+# `rm -rf .../*` karena glob shell melewatkan berkas tersembunyi.
+HAPUS_ISI = docker run --rm -v "$(CURDIR)":/kerja busybox \
+	sh -c 'find /kerja/artifacts /kerja/state -mindepth 1 -delete 2>/dev/null; true'
+
 # HAPUS SEMUA DATA AutoGrade di PC ini: foto, JSON, semua SQLite.
 #
 #   make reset-data          lihat dulu: berapa yang akan hilang, tidak menghapus
@@ -282,8 +311,24 @@ reset-data-fresh:
 	@printf "Ketik HAPUS untuk melanjutkan: "
 	@read jawab; [ "$$jawab" = "HAPUS" ] || { echo "Dibatalkan."; exit 1; }
 	docker compose --env-file $(ENV_FILE) down
-	rm -rf artifacts state
+	@echo "Menghapus lewat container (berkasnya milik root di Linux)..."
+	-@$(HAPUS_ISI)
+	@# Jaring kedua: sisa apa pun yang memang milik user ini — dan satu-satunya
+	@# jalan kalau busybox tidak bisa ditarik di PC yang offline. `-` di depan
+	@# supaya "Permission denied" pada sisa milik root tidak menghentikan target,
+	@# karena baris di atas sudah mengurus yang itu.
+	-@rm -rf artifacts/* artifacts/.[!.]* state/* state/.[!.]* 2>/dev/null
 	mkdir -p artifacts state
+	@# Kalau masih ada isinya, penghapusan TIDAK berhasil dan diam saja akan
+	@# membuat orang mengira datanya sudah bersih.
+	@sisa=$$(find artifacts state -mindepth 1 2>/dev/null | wc -l | tr -d ' '); \
+	if [ "$$sisa" != "0" ]; then \
+		echo ""; \
+		echo "GAGAL: masih ada $$sisa berkas tersisa."; \
+		echo "Berkasnya milik root dan container tidak bisa dijalankan."; \
+		echo "Coba: sudo rm -rf artifacts state && mkdir -p artifacts state"; \
+		exit 1; \
+	fi
 	@echo ""
 	@echo "Data dihapus. Jalankan 'make start' — dua akun bawaan dibuat ulang sendiri."
 
