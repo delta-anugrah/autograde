@@ -1031,3 +1031,72 @@ def test_scan_masuk_dan_keluar_tetap_punya_pesan_sendiri():
     assert "pesanScan(" in fn_scan
     fn_keluar = _fungsi("kirimScanKeluar")
     assert "pesanScanKeluar(" in fn_keluar
+
+
+# ---------------------------------------------- layar setelan (2026-09-18)
+
+
+def test_kolom_angka_menolak_huruf_saat_diketik():
+    """Permintaan operator: kolom setelan hanya boleh menerima angka.
+
+    `inputmode` SAJA tidak cukup — itu cuma memilih papan ketik di layar sentuh,
+    dan PC pabrik punya papan ketik fisik. Yang benar-benar menjaga adalah
+    handler `input` yang membersihkan karakter non-angka.
+    """
+    assert 'data-angka="desimal"' in HTML, "kolom ambang keyakinan tidak dijaga"
+    assert HTML.count('data-angka="bulat"') >= 2, "kolom piksel tidak dijaga"
+    assert "function bersihkanAngka" in HTML
+    # Dibersihkan pada `input`, bukan dicegah pada `keydown`: tempel dari papan
+    # klip harus ikut tersaring, dan panah/Home/Ctrl+A tidak boleh ikut diblokir.
+    pasang = _fungsi_atau_blok('querySelectorAll("[data-angka]")')
+    assert 'addEventListener("input"' in pasang, "penjaga tidak terpasang ke kolomnya"
+    assert "bersihkanAngka(el)" in pasang
+
+
+def _fungsi_atau_blok(penanda: str) -> str:
+    """Potongan HTML di sekitar `penanda` — cukup untuk memeriksa tetangganya."""
+    i = HTML.index(penanda)
+    return HTML[i : i + 2000]
+
+
+def test_kolom_angka_bukan_input_number():
+    """`type="number"` punya tiga masalah di layar pabrik: spinner yang gampang
+    tersenggol di layar sentuh, menolak koma desimal papan ketik Indonesia, dan
+    mengosongkan dirinya sendiri kalau isinya dianggap tidak sah — angkanya
+    hilang tanpa operator sadar."""
+    for kolom in ("set-conf", "set-minsize", "set-garis"):
+        blok = _fungsi_atau_blok(f'id="{kolom}"')[:200]
+        assert 'type="number"' not in blok, f"{kolom} memakai input number"
+
+
+def test_tab_setelan_paling_kanan():
+    """Permintaan operator: tab yang paling jarang dibuka dan paling mahal kalau
+    tersenggol duduk paling ujung."""
+    tabs = re.findall(r'<button data-tab="([a-z]+)"', HTML)
+    assert tabs[-1] == "setelan", tabs
+
+
+def test_arah_conveyor_bisa_dipilih_dan_dikirim():
+    """Garis ikut arah conveyor (tegak / mendatar), diminta operator 2026-09-18."""
+    assert 'id="set-sumbu"' in HTML
+    assert 'value="tegak"' in HTML and 'value="mendatar"' in HTML
+    assert 'sumbu_garis: $("set-sumbu").value' in HTML
+
+
+def test_satuan_garis_ikut_arah_conveyor():
+    """"Dari kiri" untuk garis tegak, "dari atas" untuk garis mendatar.
+
+    Label yang tidak ikut berubah menyuruh operator mengukur dari sisi yang
+    salah, dan angkanya akan terlihat masuk akal sampai ada yang mengeceknya.
+    """
+    assert "function labelGaris" in HTML
+    for kunci in ("bantuGarisTegak", "bantuGarisMendatar"):
+        for bahasa in ("id", "en"):
+            assert kunci in _kamus(bahasa), f"{kunci} hilang di bahasa {bahasa}"
+
+
+def test_setiap_kunci_terjemahan_setelan_ada_di_dua_bahasa():
+    """Layar dua bahasa: kunci yang cuma ada di satu sisi tampil sebagai kode."""
+    for kunci in ("labelSumbu", "sumbuTegak", "sumbuMendatar", "bantuSumbu", "labelGaris"):
+        for bahasa in ("id", "en"):
+            assert kunci in _kamus(bahasa), f"{kunci} hilang di bahasa {bahasa}"

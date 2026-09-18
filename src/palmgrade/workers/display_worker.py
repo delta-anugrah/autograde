@@ -79,6 +79,11 @@ class DisplayWorker:
                 if self.state.garis_capture_override is not None
                 else self.settings.garis_capture
             ),
+            sumbu=(
+                self.state.sumbu_garis_override
+                if self.state.sumbu_garis_override is not None
+                else self.settings.sumbu_garis
+            ),
         )
 
         # YOLO inference FPS overlay (from FrameProcessingWorker; drawn in stream space → fixed, always readable)

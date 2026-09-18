@@ -98,10 +98,12 @@ class SetelanGradingRequest(BaseModel):
     # satu PKS yang konsolnya belum di-update akan ditolak 400 dan berhenti
     # menerima SEMUA setelan, termasuk dua yang sudah lama jalan. 0 = garis mati.
     garis_capture: int = 0
+    sumbu_garis: str = "tegak"
 
 
 class SetelanGradingResponse(BaseModel):
     conf_threshold: float
     minimum_size: int
     garis_capture: int = 0
+    sumbu_garis: str = "tegak"
     sumber: str  # "konsol" kalau ditimpa, "env" kalau masih dari .env

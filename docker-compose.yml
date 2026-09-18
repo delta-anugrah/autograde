@@ -47,6 +47,7 @@ services:
       # Garis capture (px, ruang STREAM). 0 = tanpa garis. Nilai awal saja —
       # yang dipakai sehari-hari diatur dari layar support konsol.
       - GARIS_CAPTURE=${GARIS_CAPTURE:-0}
+      - SUMBU_GARIS=${SUMBU_GARIS:-tegak}
       - ROI_X1=${ROI_X1:-0}
       - ROI_Y1=${ROI_Y1:-0}
       - ROI_X2=${ROI_X2:-0}
@@ -164,6 +165,7 @@ services:
       # Garis capture (px, ruang STREAM). 0 = tanpa garis. Nilai awal saja —
       # yang dipakai sehari-hari diatur dari layar support konsol.
       - GARIS_CAPTURE=${GARIS_CAPTURE:-0}
+      - SUMBU_GARIS=${SUMBU_GARIS:-tegak}
       - ROI_X1=${ROI_X1:-0}
       - ROI_Y1=${ROI_Y1:-0}
       - ROI_X2=${ROI_X2:-0}
@@ -281,6 +283,7 @@ services:
       # Garis capture (px, ruang STREAM). 0 = tanpa garis. Nilai awal saja —
       # yang dipakai sehari-hari diatur dari layar support konsol.
       - GARIS_CAPTURE=${GARIS_CAPTURE:-0}
+      - SUMBU_GARIS=${SUMBU_GARIS:-tegak}
       - ROI_X1=${ROI_X1:-0}
       - ROI_Y1=${ROI_Y1:-0}
       - ROI_X2=${ROI_X2:-0}

@@ -475,11 +475,12 @@ class ConsoleService:
             # itu. Dilengkapi di sini, bukan dibiarkan hilang: layar yang
             # menerima `undefined` akan mengirim balik payload cacat saat
             # operator menyimpan setelan lain.
-            return {"garis_capture": 0, **nilai, "sumber": "konsol"}
+            return {"garis_capture": 0, "sumbu_garis": "tegak", **nilai, "sumber": "konsol"}
         return {
             "conf_threshold": self.settings.conf_threshold,
             "minimum_size": self.settings.minimum_size,
             "garis_capture": self.settings.garis_capture,
+            "sumbu_garis": self.settings.sumbu_garis,
             "sumber": "env",
         }
 
@@ -500,9 +501,9 @@ class ConsoleService:
         bersih = bersihkan_setelan(payload)
         self.store.set_state(KUNCI_SETELAN, json.dumps(bersih))
         logger.warning(
-            "Setelan grading diubah oleh %s: conf=%s minimum_size=%s garis_capture=%s",
+            "Setelan grading diubah oleh %s: conf=%s minimum_size=%s garis=%s sumbu=%s",
             diubah_oleh, bersih["conf_threshold"], bersih["minimum_size"],
-            bersih["garis_capture"],
+            bersih["garis_capture"], bersih["sumbu_garis"],
         )
 
         hasil = []

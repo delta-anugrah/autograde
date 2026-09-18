@@ -216,3 +216,37 @@ def test_confidence_is_still_recorded_even_though_it_is_not_drawn():
         image_path="captures/results/x.webp", truck_id=None, assignment_id=None,
     )
     assert payload["ripeness_confidence"] == 0.54
+
+
+# ------------------------------------------------ sumbu mendatar (conveyor menurun)
+
+
+def test_a_horizontal_conveyor_gets_a_horizontal_line(monkeypatch):
+    """Conveyor menurun: garisnya mendatar, dan angkanya px dari ATAS.
+
+    Menggambar garis tegak di sini akan menyuruh operator mengukur dari sisi
+    yang salah, dan angkanya tetap terlihat masuk akal sampai ada yang mengecek.
+    """
+    p = _pipeline(monkeypatch, roi=(0, 0, 0, 0))
+    out = p.draw_roi(_frame(), garis_capture=360, sumbu="mendatar")
+
+    baris = sum(1 for px in out[360, :] if tuple(px) == COLOR_TRIGGER)
+    assert baris > STREAM_W * 0.9, "garis mendatar tidak tergambar"
+    # Dan tidak ada kolom penuh biru: itu akan berarti garisnya masih tegak.
+    kolom_penuh = [
+        x for x in range(STREAM_W)
+        if sum(1 for px in out[:, x] if tuple(px) == COLOR_TRIGGER) > STREAM_H * 0.9
+    ]
+    assert kolom_penuh == [], "garis masih digambar tegak di sumbu mendatar"
+
+
+def test_the_horizontal_line_keeps_its_label_on_screen(monkeypatch):
+    """Label garis mendatar ditulis di atas garis, dan pindah ke bawah kalau
+    garisnya menempel tepi atas — teks yang keluar layar sama saja hilang."""
+    p = _pipeline(monkeypatch, roi=(0, 0, 0, 0))
+    out = p.draw_roi(_frame(), garis_capture=8, sumbu="mendatar")
+
+    bawah = out[12:, :]
+    assert int(((bawah == np.array(COLOR_TRIGGER, dtype=np.uint8)).all(axis=2)).sum()) > 50, (
+        "label tidak pindah ke bawah garis"
+    )

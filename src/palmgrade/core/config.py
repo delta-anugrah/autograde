@@ -216,6 +216,10 @@ class Settings:
     # Ini cuma nilai awal: yang berlaku sehari-hari diatur dari layar support
     # konsol dan dikirim ke line lewat `/internal/setelan` tanpa restart.
     garis_capture: int = field(default_factory=lambda: int(os.getenv("GARIS_CAPTURE", "0")))
+    # Sumbu garis capture: "tegak" (conveyor mendatar, garis vertikal, angka =
+    # px dari kiri) atau "mendatar" (conveyor menurun, garis horizontal, angka
+    # = px dari atas). Sama seperti `garis_capture`, ini cuma nilai awal.
+    sumbu_garis: str = field(default_factory=lambda: os.getenv("SUMBU_GARIS", "tegak"))
 
     # Detection zone — ROI rectangle (pixel coordinates, inclusive).
     # 0,0,0,0 = full frame (all objects eligible).

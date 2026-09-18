@@ -24,6 +24,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .garis_capture import SUMBU, TEGAK
+
 KUNCI_SETELAN = "setelan_grading"
 
 #: field -> (minimum eksklusif, maksimum inklusif). Lihat docstring modul soal
@@ -42,13 +44,18 @@ BATAS: dict[str, tuple[float, float]] = {
     "garis_capture": (0.0, 10_000.0),
 }
 
+#: Field yang nilainya PILIHAN, bukan angka — divalidasi terhadap daftar, bukan
+#: rentang. Satu-satunya anggotanya sejauh ini `sumbu_garis`, yang menentukan
+#: garis capture tegak (conveyor mendatar) atau mendatar (conveyor menurun).
+PILIHAN: dict[str, tuple[str, ...]] = {"sumbu_garis": SUMBU}
+
 #: Field yang boleh tidak ada di payload, beserta nilai bawaannya.
 #:
 #: `garis_capture` ditambahkan belakangan (2026-09-18), dan konsol versi lama
 #: (juga `.env` yang belum tahu field ini) mengirim payload tanpa dia. Menolaknya
 #: 400 akan membuat line berhenti menerima setelan **sama sekali** — termasuk dua
 #: setelan lain yang sudah lama jalan. Bawaan `0` = garis mati = perilaku lama.
-OPSIONAL: dict[str, Any] = {"garis_capture": 0}
+OPSIONAL: dict[str, Any] = {"garis_capture": 0, "sumbu_garis": TEGAK}
 
 #: Field yang batas bawahnya INKLUSIF (`bawah <= nilai`), bukan eksklusif.
 #:
@@ -86,15 +93,28 @@ def bersihkan_setelan(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise SetelanTidakSah("setelan harus objek")
 
-    asing = set(payload) - set(BATAS)
+    dikenal = set(BATAS) | set(PILIHAN)
+    asing = set(payload) - dikenal
     if asing:
         raise SetelanTidakSah(f"field tidak dikenal: {', '.join(sorted(asing))}")
 
-    kurang = set(BATAS) - set(payload) - set(OPSIONAL)
+    kurang = dikenal - set(payload) - set(OPSIONAL)
     if kurang:
         raise SetelanTidakSah(f"field wajib belum diisi: {', '.join(sorted(kurang))}")
 
     bersih: dict[str, Any] = {}
+    for field, sah in PILIHAN.items():
+        nilai = payload.get(field, OPSIONAL[field])
+        if nilai not in sah:
+            # Ditolak DI SINI, bukan di jalur deteksi: gerbang simpan mencegah
+            # nilai cacat sampai ke tiga line sekaligus, sementara jalur deteksi
+            # sengaja memaafkan supaya line yang terlanjur memegang nilai aneh
+            # tidak berhenti menggrading.
+            raise SetelanTidakSah(
+                f"{field} harus salah satu dari: {', '.join(sah)}"
+            )
+        bersih[field] = nilai
+
     for field, (bawah, atas) in BATAS.items():
         if field not in payload:
             bersih[field] = OPSIONAL[field]

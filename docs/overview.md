@@ -122,6 +122,21 @@ Melewatkan penskalaan itu bug yang sudah pernah terjadi di ROI (`bdcb300`).
 janjang cepat tidak pernah difoto, hilang tanpa satu pun pesan.
 `TP` dikecualikan dari garis, sama seperti dari ROI.
 
+**Arah conveyor** (`sumbu_garis`, disetel di layar yang sama sejak 2026-09-18):
+
+| Sumbu | Conveyor | Garis | Angkanya |
+|---|---|---|---|
+| `tegak` (bawaan) | mendatar, buah lewat kiri↔kanan | vertikal | px dari **kiri** |
+| `mendatar` | menurun, buah lewat atas↔bawah | horizontal | px dari **atas** |
+
+Arah gerak DI DALAM satu sumbu tidak perlu disetel: pemicunya perpotongan, berlaku dari sisi
+mana pun, jadi conveyor yang membalik arah tetap jalan tanpa satu pun perubahan.
+⚠️ Sumbu mendatar diskalakan dengan **tinggi** frame, bukan lebar (`skala_garis`) — frame
+2448x2048 tidak persegi, jadi memakai lebar membuat garis meleset ~19% tanpa satu pun error.
+⚠️ Sumbu yang tidak dikenal **tidak melempar** di jalur deteksi (jatuh ke `tegak`): nilainya
+bisa datang dari konsol versi lain, dan satu string asing tidak boleh menghentikan grading.
+Yang menolak nilai aneh adalah jalur SIMPAN, di gerbang, sebelum sampai ke tiga line.
+
 **Label janjang tanpa angka confidence** (2026-09-18, permintaan operator). Angkanya keyakinan
 model, bukan mutu buah, dan dari beberapa meter "54%" terbaca seperti "54% matang"; ambangnya
 sudah diputuskan `CONF_THRESHOLD`, jadi apa pun yang tergambar sudah lolos ambang itu.

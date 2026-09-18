@@ -21,7 +21,11 @@ from __future__ import annotations
 
 import pytest
 
-from palmgrade.domain.garis_capture import menyentuh_garis, skala_garis_ke_frame
+from palmgrade.domain.garis_capture import (
+    menyentuh_garis,
+    menyentuh_kotak,
+    skala_garis_ke_frame,
+)
 
 
 class TestMenyentuhGaris:
@@ -139,3 +143,104 @@ class TestValidasiSetelan:
 
         bersih = bersihkan_setelan({"conf_threshold": 0.5, "minimum_size": 3000})
         assert bersih["garis_capture"] == 0, "tanpa garis = perilaku lama"
+
+
+# ------------------------------------------------------- sumbu garis (arah conveyor)
+
+
+class TestSumbuGaris:
+    """Conveyor bisa dipasang mendatar atau menurun, dan garisnya ikut.
+
+    Diminta operator 2026-09-18: "kalau nanti arah conveyor berubah kiri kanan
+    atau atas bawah". Yang berubah cuma SUMBU-nya — aturan sentuhnya sendiri
+    sudah netral arah (perpotongan berlaku dari sisi mana pun), jadi conveyor
+    yang membalik arah pada sumbu yang sama tidak butuh setelan apa-apa.
+    """
+
+    def test_sumbu_tegak_memakai_koordinat_x(self):
+        """Conveyor mendatar: janjang menyeberang garis tegak."""
+        assert menyentuh_kotak(
+            x1=700, y1=100, x2=900, y2=400, garis=800, sumbu="tegak"
+        ) is True
+        assert menyentuh_kotak(
+            x1=100, y1=100, x2=300, y2=400, garis=800, sumbu="tegak"
+        ) is False
+
+    def test_sumbu_mendatar_memakai_koordinat_y(self):
+        """Conveyor menurun: janjang menyeberang garis mendatar.
+
+        Kalau sumbunya diabaikan dan `x` tetap dipakai, janjang akan difoto di
+        tempat yang sama sekali berbeda — dan tidak ada error di mana pun.
+        """
+        assert menyentuh_kotak(
+            x1=100, y1=700, x2=400, y2=900, garis=800, sumbu="mendatar"
+        ) is True
+        assert menyentuh_kotak(
+            x1=100, y1=100, x2=400, y2=300, garis=800, sumbu="mendatar"
+        ) is False
+
+    def test_sumbu_tidak_dikenal_jatuh_ke_tegak(self):
+        """Nilai asing tidak boleh mematikan grading satu line.
+
+        Sumbu itu data yang bisa berasal dari konsol versi lain; menolaknya
+        dengan melempar akan menghentikan deteksi gara-gara satu string.
+        """
+        assert menyentuh_kotak(
+            x1=700, y1=100, x2=900, y2=400, garis=800, sumbu="miring"
+        ) is True
+
+    def test_garis_mati_meloloskan_semua_di_kedua_sumbu(self):
+        for sumbu in ("tegak", "mendatar"):
+            assert menyentuh_kotak(
+                x1=100, y1=100, x2=200, y2=200, garis=0, sumbu=sumbu
+            ) is True
+
+    def test_penskalaan_mendatar_memakai_TINGGI_frame(self):
+        """Sumbu mendatar diskalakan dengan tinggi, bukan lebar.
+
+        Memakai lebar di sini adalah versi lain dari bug ROI `bdcb300`: frame
+        2448x2048 tidak persegi, jadi garis mendatar akan mendarat ~19% meleset
+        dan tidak ada yang memberi tahu.
+        """
+        from palmgrade.domain.garis_capture import skala_garis
+
+        assert skala_garis(
+            360, sumbu="mendatar", stream_width=1280, stream_height=720,
+            frame_width=2448, frame_height=2048,
+        ) == 1024
+        assert skala_garis(
+            640, sumbu="tegak", stream_width=1280, stream_height=720,
+            frame_width=2448, frame_height=2048,
+        ) == 1224
+
+
+class TestValidasiSumbu:
+    def test_sumbu_masuk_setelan_dan_bawaannya_tegak(self):
+        from palmgrade.domain.setelan_grading import bersihkan_setelan
+
+        bersih = bersihkan_setelan({"conf_threshold": 0.5, "minimum_size": 3000})
+        assert bersih["sumbu_garis"] == "tegak"
+
+    def test_sumbu_mendatar_diterima(self):
+        from palmgrade.domain.setelan_grading import bersihkan_setelan
+
+        bersih = bersihkan_setelan({
+            "conf_threshold": 0.5, "minimum_size": 3000,
+            "garis_capture": 360, "sumbu_garis": "mendatar",
+        })
+        assert bersih["sumbu_garis"] == "mendatar"
+
+    def test_sumbu_asing_ditolak_di_gerbang(self):
+        """Di sini boleh melempar: ini jalur SIMPAN, bukan jalur deteksi.
+
+        Menolak di gerbang membuat nilai cacat tidak pernah sampai ke tiga line;
+        `menyentuh_kotak` tetap memaafkan supaya line yang sudah terlanjur
+        memegang nilai aneh tidak berhenti menggrading.
+        """
+        from palmgrade.domain.setelan_grading import SetelanTidakSah, bersihkan_setelan
+
+        with pytest.raises(SetelanTidakSah):
+            bersihkan_setelan({
+                "conf_threshold": 0.5, "minimum_size": 3000,
+                "garis_capture": 360, "sumbu_garis": "miring",
+            })

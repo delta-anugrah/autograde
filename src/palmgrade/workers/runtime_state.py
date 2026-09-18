@@ -29,6 +29,9 @@ class RuntimeState:
     # Garis capture dalam ruang STREAM (px dari kiri). 0 = tidak ada garis, dan
     # itu perilaku sebelum fitur ini ada: semua janjang di dalam ROI difoto.
     garis_capture_override: int | None = None
+    # Sumbu garis: "tegak" (conveyor mendatar) atau "mendatar" (conveyor
+    # menurun). Menentukan koordinat mana yang dibandingkan dengan garis.
+    sumbu_garis_override: str | None = None
 
     # Thread-safe queues
     frame_queue: Queue[Any] = field(default_factory=lambda: Queue(maxsize=5))

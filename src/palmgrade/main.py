@@ -87,16 +87,18 @@ async def _tarik_setelan_grading(settings, state) -> None:
         bersih = bersihkan_setelan(
             {
                 k: data[k]
-                for k in ("conf_threshold", "minimum_size", "garis_capture")
+                for k in ("conf_threshold", "minimum_size", "garis_capture", "sumbu_garis")
                 if k in data
             }
         )
         state.conf_threshold_override = bersih["conf_threshold"]
         state.minimum_size_override = bersih["minimum_size"]
         state.garis_capture_override = bersih["garis_capture"]
+        state.sumbu_garis_override = bersih["sumbu_garis"]
         logger.info(
-            "Setelan grading diambil dari konsol: conf=%s minimum_size=%s garis_capture=%s",
-            bersih["conf_threshold"], bersih["minimum_size"], bersih["garis_capture"],
+            "Setelan grading diambil dari konsol: conf=%s minimum_size=%s garis=%s sumbu=%s",
+            bersih["conf_threshold"], bersih["minimum_size"],
+            bersih["garis_capture"], bersih["sumbu_garis"],
         )
     except Exception as exc:
         logger.info("Setelan grading tidak bisa diambil (%s) — pakai .env", exc)

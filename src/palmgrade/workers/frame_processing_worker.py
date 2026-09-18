@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from ..core.config import Settings
 from ..domain.grade_class import TP, grade_class_of, is_fruit_class, verdict_for_class
-from ..domain.garis_capture import menyentuh_garis, skala_garis_ke_frame
+from ..domain.garis_capture import menyentuh_kotak, skala_garis
 from ..domain.plc_signal import plc_status_for
 from ..integrations.outbox.outbox_store import OutboxStore
 from ..license.gate import grading_blocked
@@ -278,12 +278,20 @@ class FrameProcessingWorker:
         # janjang di frame ini, dan `skala_garis_ke_frame` dipanggil puluhan kali
         # per detik kalau ditaruh di dalam loop. Dibaca dari `RuntimeState` tiap
         # frame supaya setelan dari konsol berlaku tanpa restart line.
-        garis_capture = skala_garis_ke_frame(
+        sumbu_garis = (
+            self.state.sumbu_garis_override
+            if self.state.sumbu_garis_override is not None
+            else self.settings.sumbu_garis
+        )
+        garis_capture = skala_garis(
             self.state.garis_capture_override
             if self.state.garis_capture_override is not None
             else self.settings.garis_capture,
+            sumbu=sumbu_garis,
             stream_width=self.settings.stream_width,
+            stream_height=self.settings.stream_height,
             frame_width=width,
+            frame_height=height,
         )
 
         results = self.pipeline.track_ripeness(
@@ -383,8 +391,9 @@ class FrameProcessingWorker:
                 # mana pun, termasuk di pinggir frame saat janjangnya belum utuh.
                 # TP dikecualikan seperti pada ROI: dia penanda tangkai, bukan
                 # janjang yang difoto.
-                if grade_class != TP and not menyentuh_garis(
-                    x1=x1, x2=x2, garis_x=garis_capture
+                if grade_class != TP and not menyentuh_kotak(
+                    x1=x1, y1=y1, x2=x2, y2=y2,
+                    garis=garis_capture, sumbu=sumbu_garis,
                 ):
                     continue
 

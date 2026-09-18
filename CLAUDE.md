@@ -623,6 +623,12 @@ setelannya sama untuk tiga line, `.env` sudah cukup — jangan bikin override.
   menyaring (`skala_garis_ke_frame`) — melewatkan penskalaan itu bug yang sudah pernah terjadi di
   ROI (`bdcb300`): garis terlihat benar di layar sementara yang menyaring sepertiga frame.
   Kalau capture terasa terlalu cepat, **geser garisnya**, jangan sentuh `CONF_THRESHOLD`.
+  **Arah conveyor** ikut disetel di layar yang sama (`sumbu_garis`): `tegak` = conveyor
+  mendatar, garis vertikal, angka px dari **kiri**; `mendatar` = conveyor menurun, garis
+  horizontal, angka px dari **atas**. Arah gerak DI DALAM satu sumbu tidak perlu disetel —
+  pemicunya perpotongan, jadi conveyor yang membalik arah tetap jalan. ⚠️ Sumbu mendatar
+  diskalakan dengan **tinggi** frame, bukan lebar (`skala_garis`): frame 2448x2048 tidak
+  persegi, jadi memakai lebar meleset ~19% tanpa satu pun error.
 - **Label janjang tidak memuat angka confidence** (permintaan operator 2026-09-18): dari beberapa
   meter "54%" terbaca seperti "54% matang", padahal itu keyakinan model dan sudah lolos
   `CONF_THRESHOLD`. Nilainya tetap ditulis ke sidecar dan dikirim ke API.

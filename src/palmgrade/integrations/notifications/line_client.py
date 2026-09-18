@@ -156,6 +156,7 @@ class LineClient:
         conf_threshold: float,
         minimum_size: int,
         garis_capture: int = 0,
+        sumbu_garis: str = "tegak",
     ) -> dict[str, Any]:
         """Kirim setelan grading ke satu line. Melempar kalau line tidak menjawab.
 
@@ -172,6 +173,7 @@ class LineClient:
                         "conf_threshold": conf_threshold,
                         "minimum_size": minimum_size,
                         "garis_capture": garis_capture,
+                        "sumbu_garis": sumbu_garis,
                     },
                     headers={"x-internal-secret": self._settings.internal_secret},
                 )

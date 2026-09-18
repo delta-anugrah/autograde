@@ -15,6 +15,7 @@ from ..core.constants import (
     FONT,
     TRIGGER_THICKNESS,
 )
+from ..domain.garis_capture import MENDATAR, TEGAK
 from ..domain.grade_class import TP, grade_class_or_none, verdict_for_class
 from .model_registry import ModelRegistry
 
@@ -100,7 +101,9 @@ class RealtimeInspectionPipeline:
             return None
         return rx1, ry1, rx2, ry2
 
-    def draw_roi(self, frame: np.ndarray, garis_capture: int = 0) -> np.ndarray:
+    def draw_roi(
+        self, frame: np.ndarray, garis_capture: int = 0, sumbu: str = TEGAK
+    ) -> np.ndarray:
         """Kotak ROI (hijau, tipis) + garis capture (biru, tebal, bertanda).
 
         Dua hal berbeda yang sengaja digambar berbeda, karena keduanya menjawab
@@ -130,20 +133,28 @@ class RealtimeInspectionPipeline:
         if garis_capture <= 0:
             return frame
 
-        # Dijepit ke dalam frame: garis di kolom terakhir terpotong separuh oleh
-        # cv2 dan berhimpit dengan bingkai video di browser, jadi praktis tidak
-        # terlihat justru saat operator paling perlu melihatnya.
-        x = max(_TRIGGER_MARGIN, min(garis_capture, w - 1 - _TRIGGER_MARGIN))
-        cv2.line(frame, (x, 0), (x, h), COLOR_TRIGGER, TRIGGER_THICKNESS)
-
-        # Diberi nama: garis berwarna tanpa keterangan cuma memindahkan
-        # pertanyaannya. Ditulis di sisi kiri garis, dan pindah ke kanan kalau
-        # garisnya dekat tepi kiri — teks yang keluar layar sama saja hilang.
         teks = "CAPTURE"
         skala, tebal = 0.6, 2
         (tw, th), _ = cv2.getTextSize(teks, FONT, skala, tebal)
-        tx = x - tw - 8 if x - tw - 8 >= 4 else min(x + 8, w - tw - 4)
-        ty = th + 8
+
+        # Dijepit ke dalam frame: garis di baris/kolom terakhir terpotong separuh
+        # oleh cv2 dan berhimpit dengan bingkai video di browser, jadi praktis
+        # tidak terlihat justru saat operator paling perlu melihatnya.
+        #
+        # Labelnya selalu ditaruh di sisi yang MASIH muat: teks yang keluar layar
+        # sama saja dengan tidak ada label, dan garis berwarna tanpa keterangan
+        # cuma memindahkan pertanyaannya.
+        if sumbu == MENDATAR:
+            y = max(_TRIGGER_MARGIN, min(garis_capture, h - 1 - _TRIGGER_MARGIN))
+            cv2.line(frame, (0, y), (w, y), COLOR_TRIGGER, TRIGGER_THICKNESS)
+            tx = 8
+            ty = y - 8 if y - th - 8 >= 0 else y + th + 8
+        else:
+            x = max(_TRIGGER_MARGIN, min(garis_capture, w - 1 - _TRIGGER_MARGIN))
+            cv2.line(frame, (x, 0), (x, h), COLOR_TRIGGER, TRIGGER_THICKNESS)
+            tx = x - tw - 8 if x - tw - 8 >= 4 else min(x + 8, w - tw - 4)
+            ty = th + 8
+
         cv2.putText(frame, teks, (tx, ty), FONT, skala, (0, 0, 0), tebal + 3, cv2.LINE_AA)
         cv2.putText(frame, teks, (tx, ty), FONT, skala, COLOR_TRIGGER, tebal, cv2.LINE_AA)
         return frame

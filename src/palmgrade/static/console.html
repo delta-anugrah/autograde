@@ -597,12 +597,30 @@
   /* Form setelan: kolom sempit dan label di atas, bukan sebaris. Angkanya
      diketik jarang tapi harus terbaca ulang sebelum Simpan ditekan — ini dua
      nilai yang menggeser tonase. */
-  .setelan-form { display:grid; gap:16px; max-width:28rem; padding:16px; }
+  /* Kartu, bukan kolom mengambang: tanpa bingkai, tiga kolom di layar lebar
+     terbaca seperti tiga hal yang tidak berhubungan, dan tombol Simpan-nya
+     kehilangan induk. */
+  .setelan-form { display:grid; gap:18px; max-width:30rem; padding:20px;
+                  border:1px solid var(--line); border-radius:var(--r);
+                  background:var(--kartu); }
   .setelan-form label { display:grid; gap:6px; }
-  .setelan-form input { padding:10px 12px; font-family:var(--mono); font-size:1.1rem;
-                        border:1px solid var(--line-kuat); border-radius:var(--r);
-                        background:var(--input); color:var(--fg); }
+  .setelan-form label > span:first-child { font-weight:600; }
+  .setelan-form input, .setelan-form select {
+    padding:10px 12px; font-family:var(--mono); font-size:1.1rem;
+    border:1px solid var(--line-kuat); border-radius:var(--r);
+    background:var(--input); color:var(--fg); width:100%; box-sizing:border-box; }
+  .setelan-form select { font-family:inherit; }
+  .setelan-form input:focus-visible, .setelan-form select:focus-visible {
+    outline:2px solid var(--aksen); outline-offset:1px; }
+  /* Angka yang ditolak ditandai DI KOLOMNYA, bukan cuma di banner bawah:
+     operator yang mengetik satu huruf harus tahu kolom mana yang salah tanpa
+     membaca kalimat. */
+  .setelan-form input[aria-invalid="true"] { border-color:var(--rej); }
   .setelan-form small { font-size:.85rem; }
+  /* Tombol dan sumbernya dipisahkan garis: Simpan mengirim ke tiga line
+     sekaligus, jadi dia tidak boleh terbaca sebagai bagian dari kolom terakhir. */
+  .setelan-form .tools { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+                         padding-top:14px; border-top:1px solid var(--line); }
   #set-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
                            background:var(--warn-bg); color:var(--warn); }
   #set-lines:not(:empty) { color:var(--rej); }
@@ -751,8 +769,11 @@
   <button data-tab="diagnostik" data-dev="1" data-t="judulDiagnostik">Diagnostik</button>
   <button data-tab="antrean" data-dev="1" data-t="judulAntrean">Antrean ERP</button>
   <button data-tab="versi" data-dev="1" data-t="judulVersi">Versi</button>
-  <button data-tab="setelan" data-dev="1" data-t="judulSetelan">Setelan</button>
   <button data-tab="plc" data-dev="1" data-t="judulPlc">Uji PLC</button>
+  <!-- Setelan sengaja PALING KANAN (permintaan operator 2026-09-18): tab yang
+       paling jarang dibuka dan yang paling mahal kalau tersenggol — angkanya
+       menggeser tonase yang dibayar. -->
+  <button data-tab="setelan" data-dev="1" data-t="judulSetelan">Setelan</button>
 </nav>
 
 <section id="sec-grading" class="panel" hidden>
@@ -968,20 +989,40 @@
     email yang mengubahnya - angka ini menggeser tonase yang dibayar.
   -->
   <div class="setelan-form">
+    <!--
+      `inputmode` cuma memilih papan ketik di layar sentuh; papan ketik fisik
+      tetap bisa mengetik huruf, dan itu yang terjadi di PC pabrik. Penjaganya
+      `data-angka` + handler di bawah, yang menolak karakter non-angka saat
+      diketik. `type="text"` dipertahankan, BUKAN `type="number"`: yang terakhir
+      punya panah spinner yang gampang tersenggol di layar sentuh, menolak koma
+      desimal papan ketik Indonesia, dan mengosongkan dirinya sendiri kalau
+      isinya dianggap tidak sah — angkanya hilang tanpa operator sadar.
+    -->
     <label>
       <span data-t="labelConf">Ambang keyakinan (0-1)</span>
-      <input id="set-conf" type="text" inputmode="decimal" autocomplete="off">
+      <input id="set-conf" type="text" inputmode="decimal" autocomplete="off"
+             data-angka="desimal" maxlength="6">
       <small class="muted" data-t="bantuConf">Makin tinggi = makin sedikit yang dianggap buah.</small>
     </label>
     <label>
       <span data-t="labelMinSize">Ukuran minimum (piksel)</span>
-      <input id="set-minsize" type="text" inputmode="numeric" autocomplete="off">
+      <input id="set-minsize" type="text" inputmode="numeric" autocomplete="off"
+             data-angka="bulat" maxlength="9">
       <small class="muted" data-t="bantuMinSize">Janjang lebih kecil dari ini otomatis REJ.</small>
     </label>
     <label>
-      <span data-t="labelGaris">Garis capture (piksel dari kiri)</span>
-      <input id="set-garis" type="text" inputmode="numeric" autocomplete="off">
-      <small class="muted" data-t="bantuGaris">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
+      <span data-t="labelSumbu">Arah conveyor</span>
+      <select id="set-sumbu">
+        <option value="tegak" data-t="sumbuTegak">Mendatar (buah lewat kiri-kanan)</option>
+        <option value="mendatar" data-t="sumbuMendatar">Menurun (buah lewat atas-bawah)</option>
+      </select>
+      <small class="muted" data-t="bantuSumbu">Menentukan garis capture tegak atau mendatar.</small>
+    </label>
+    <label>
+      <span data-t="labelGaris">Garis capture (piksel)</span>
+      <input id="set-garis" type="text" inputmode="numeric" autocomplete="off"
+             data-angka="bulat" maxlength="5">
+      <small class="muted" id="set-garis-bantu">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
     </label>
     <div class="tools">
       <button id="set-simpan" class="utama" data-t="btnSimpanSetelan">Simpan</button>
@@ -1114,8 +1155,11 @@ const KAMUS = {
     judulSetelan:"Setelan", labelConf:"Ambang keyakinan (0-1)", labelMinSize:"Ukuran minimum (piksel)",
     bantuConf:"Makin tinggi = makin sedikit yang dianggap buah.",
     bantuMinSize:"Janjang lebih kecil dari ini otomatis REJ.",
-    labelGaris:"Garis capture (piksel dari kiri)",
-    bantuGaris:"Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
+    labelGaris:"Garis capture (piksel)", labelSumbu:"Arah conveyor",
+    sumbuTegak:"Mendatar (buah lewat kiri-kanan)", sumbuMendatar:"Menurun (buah lewat atas-bawah)",
+    bantuSumbu:"Menentukan garis capture tegak atau mendatar.",
+    bantuGarisTegak:"Piksel dari KIRI. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
+    bantuGarisMendatar:"Piksel dari ATAS. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
     btnSimpanSetelan:"Simpan", setelanTersimpan:"Tersimpan dan dikirim ke line.",
     setelanDariEnv:"Sumber: .env (belum pernah diubah dari sini)",
     setelanDariKonsol:"Sumber: konsol",
@@ -1223,8 +1267,11 @@ const KAMUS = {
     judulSetelan:"Settings", labelConf:"Confidence threshold (0-1)", labelMinSize:"Minimum size (pixels)",
     bantuConf:"Higher = fewer things counted as fruit.",
     bantuMinSize:"Bunches smaller than this are auto-REJ.",
-    labelGaris:"Capture line (pixels from left)",
-    bantuGaris:"A bunch is photographed when it touches the blue line. 0 = no line.",
+    labelGaris:"Capture line (pixels)", labelSumbu:"Conveyor direction",
+    sumbuTegak:"Horizontal (fruit crosses left-right)", sumbuMendatar:"Vertical (fruit crosses top-bottom)",
+    bantuSumbu:"Sets whether the capture line is vertical or horizontal.",
+    bantuGarisTegak:"Pixels from the LEFT. A bunch is photographed when it touches the blue line. 0 = no line.",
+    bantuGarisMendatar:"Pixels from the TOP. A bunch is photographed when it touches the blue line. 0 = no line.",
     btnSimpanSetelan:"Save", setelanTersimpan:"Saved and sent to the lines.",
     setelanDariEnv:"Source: .env (never changed from here)",
     setelanDariKonsol:"Source: console",
@@ -2960,6 +3007,53 @@ function isiCoilPlc(kode, data, sibuk) {
 // Dua angka yang menggeser tonase. Nilainya dipegang konsol, bukan line:
 // line yang mati saat diubah akan menerimanya lagi saat konsol mengirim ulang,
 // jadi tidak ada dua sumber kebenaran yang bisa berbeda diam-diam.
+// Kolom angka menolak huruf saat diketik (permintaan operator 2026-09-18).
+// `inputmode` saja tidak cukup: itu cuma memilih papan ketik di layar sentuh,
+// dan PC pabrik punya papan ketik fisik. Dibersihkan pada `input` — bukan
+// dicegah pada `keydown` — supaya tempel dari papan klip ikut tersaring, dan
+// supaya tombol navigasi (panah, Home, Ctrl+A) tidak ikut diblokir.
+//
+// Posisi kursor dipulihkan setelah pembersihan: tanpa itu, mengetik satu huruf
+// di tengah angka melemparkan kursor ke ujung, dan operator mengetik sisanya di
+// tempat yang salah tanpa sadar.
+function bersihkanAngka(el) {
+  const desimal = el.dataset.angka === "desimal";
+  const semula = el.value;
+  const pos = el.selectionStart;
+  // Koma diterima apa adanya (papan ketik Indonesia); server dan pengirim
+  // sama-sama menukarnya jadi titik.
+  let bersih = semula.replace(desimal ? /[^0-9.,]/g : /[^0-9]/g, "");
+  if (desimal) {
+    // Satu pemisah desimal saja: "0.5.5" bukan angka, dan server akan menolaknya
+    // dengan pesan yang tidak menunjuk kolom mana.
+    const pertama = bersih.search(/[.,]/);
+    if (pertama !== -1) {
+      bersih = bersih.slice(0, pertama + 1) + bersih.slice(pertama + 1).replace(/[.,]/g, "");
+    }
+  }
+  if (bersih === semula) return;
+  el.value = bersih;
+  const mundur = semula.length - bersih.length;
+  el.setSelectionRange(Math.max(0, pos - mundur), Math.max(0, pos - mundur));
+}
+
+document.querySelectorAll("[data-angka]").forEach((el) => {
+  el.addEventListener("input", () => {
+    bersihkanAngka(el);
+    el.removeAttribute("aria-invalid");
+  });
+});
+
+// Satuan garis ikut arah conveyor: "dari kiri" untuk garis tegak, "dari atas"
+// untuk garis mendatar. Label yang tidak ikut berubah akan menyuruh operator
+// mengukur dari sisi yang salah.
+function labelGaris() {
+  $("set-garis-bantu").textContent =
+    t($("set-sumbu").value === "mendatar" ? "bantuGarisMendatar" : "bantuGarisTegak");
+}
+
+$("set-sumbu").addEventListener("change", labelGaris);
+
 async function muatSetelan() {
   try {
     const r = await api("/api/console/dev/setelan");
@@ -2969,6 +3063,8 @@ async function muatSetelan() {
     // menukarnya dengan 0 juga — kebetulan benar di sini, tapi salah begitu
     // nilainya berubah makna. Yang dijaga: server lama tanpa field ini.
     $("set-garis").value = r.garis_capture ?? 0;
+    $("set-sumbu").value = r.sumbu_garis ?? "tegak";
+    labelGaris();
     $("set-sumber").textContent = t(r.sumber === "konsol" ? "setelanDariKonsol" : "setelanDariEnv");
     $("set-pesan").textContent = "";
     $("set-lines").textContent = "";
@@ -2988,6 +3084,7 @@ $("set-simpan").addEventListener("click", async () => {
         conf_threshold: $("set-conf").value.replace(",", "."),
         minimum_size: $("set-minsize").value.replace(",", "."),
         garis_capture: $("set-garis").value.replace(",", "."),
+        sumbu_garis: $("set-sumbu").value,
       }),
     });
     $("set-sumber").textContent = t("setelanDariKonsol");
@@ -2999,6 +3096,14 @@ $("set-simpan").addEventListener("click", async () => {
     $("set-lines").textContent = belum.length ? `Belum sampai ke: ${belum.join(", ")}` : "";
   } catch (e) {
     pesan.textContent = e.pesan || e.detail || "gagal";
+    // Server menyebut nama field di pesannya; kolomnya ikut ditandai supaya
+    // operator tidak perlu mencocokkan kalimat dengan kolom sendiri.
+    const teks = String(e.pesan || e.detail || "");
+    for (const [field, id] of Object.entries({
+      conf_threshold: "set-conf", minimum_size: "set-minsize", garis_capture: "set-garis",
+    })) {
+      if (teks.includes(field)) $(id).setAttribute("aria-invalid", "true");
+    }
   }
 });
 

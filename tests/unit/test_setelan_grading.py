@@ -33,6 +33,7 @@ def test_nilai_wajar_diterima_apa_adanya():
         "conf_threshold": 0.5,
         "minimum_size": 3000,
         "garis_capture": 0,
+        "sumbu_garis": "tegak",
     }
 
 
@@ -44,6 +45,7 @@ def test_angka_berbentuk_teks_diterima():
         "conf_threshold": 0.75,
         "minimum_size": 460000,
         "garis_capture": 900,
+        "sumbu_garis": "tegak",
     }
 
 
