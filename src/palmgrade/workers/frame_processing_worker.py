@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING
 from ..core.config import Settings
 from ..domain.grade_class import TP, grade_class_of, is_fruit_class, verdict_for_class
 from ..domain.plc_signal import plc_status_for
-from ..domain.vision_event import build_event_payload
 from ..integrations.outbox.outbox_store import OutboxStore
 from ..license.gate import grading_blocked
 from ..plc import submit_grading
 from ..services.capture_writer import CaptureWriter
+from .capture_save_worker import CaptureSaveWorker, SaveJob
 from .runtime_state import RuntimeState
 
 if TYPE_CHECKING:  # annotations only — these pull in cv2/torch, and the unit
@@ -64,6 +64,7 @@ class FrameProcessingWorker:
         webhook: WebhookClient,
         settings: Settings,
         outbox_store: OutboxStore,
+        capture_saver: CaptureSaveWorker | None = None,
     ) -> None:
         self.pipeline = pipeline
         self.state = state
@@ -72,6 +73,13 @@ class FrameProcessingWorker:
         self.settings = settings
         self.outbox_store = outbox_store
         self.capture_writer = CaptureWriter(settings, storage)
+        # Penulis bukti. Dibuat sendiri kalau tidak disuntikkan, supaya pemanggil
+        # lama (dan tes yang cuma memakai helper simpan) tetap jalan. Thread-nya
+        # dinyalakan `main.py`, bukan di sini: konstruktor yang menyalakan thread
+        # membuat tiap tes ikut menyalakannya.
+        self.capture_saver = capture_saver or CaptureSaveWorker(
+            settings=settings, storage=storage, outbox_store=outbox_store
+        )
 
         # Internal worker state — tidak perlu di RuntimeState karena hanya diakses worker ini
         self._processed_objects: set[int] = set()
@@ -430,30 +438,62 @@ class FrameProcessingWorker:
                     # capture — the training copy costs no second inference.
                     annotated = self.pipeline.draw_boxes(frame.copy(), results)
 
-                    date_folder, timestamp, image_url = self._save_ripeness(
-                        annotated, frame, ripeness_status, ripeness_conf,
-                        self.state.current_truck_id,
-                        {"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
-                        grade_class,
+                    # Identitas janjang lahir DI SINI, bukan di penulis. Nama
+                    # file adalah sumber `event_id` (uuid5), dan
+                    # `BatchUploadWorker` menghitung ulang id yang sama dari nama
+                    # itu berjam-jam kemudian. Penulis yang menstempel jamnya
+                    # sendiri akan membuat dua jalur itu berbeda untuk satu
+                    # janjang, dan idempotensi di API putus.
+                    now = datetime.datetime.now(datetime.timezone.utc)
+                    date_folder = now.strftime("%Y-%m-%d")
+                    timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
+                    event_ts = now.isoformat()
+
+                    # H3: snapshot _last_tp before handing off so the job carries TP data
+                    tp_snapshot = self._last_tp
+                    self._last_tp = None
+
+                    # Encode + tulis disk + outbox pindah ke thread penulis. Ini
+                    # inti perbaikan 2026-09-18: pada frame 2448x2048 rangkaian
+                    # itu memakan ~590 ms, dan selama itu deteksi line ini
+                    # BERHENTI — frame dibuang diam-diam oleh `frame_queue`,
+                    # ByteTrack kehilangan jejak, dan layar membeku. Yang tetap
+                    # di depan cuma yang memang harus seketika: pulse PLC (sudah
+                    # di atas), penandaan track, dan event ke layar.
+                    job = SaveJob(
+                        timestamp=timestamp,
+                        date_folder=date_folder,
+                        truck_folder=self.capture_writer.truck_folder(
+                            assignment_id=self.state.current_assignment_id,
+                            plate=self.state.current_plate,
+                            assigned_at=self.state.current_assigned_at,
+                            now=now,
+                        ),
+                        annotated_frame=annotated,
+                        clean_frame=frame,
+                        ripeness_status=ripeness_status,
+                        ripeness_conf=ripeness_conf,
+                        grade_class=grade_class,
+                        bounding_box={"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
+                        truck_id=self.state.current_truck_id,
+                        assignment_id=self.state.current_assignment_id,
+                        ffb_source=self.state.current_ffb_source,
+                        event_ts=event_ts,
+                        tp=tp_snapshot,
+                    )
+                    self.capture_saver.submit(job)
+
+                    # `image_url` dipakai layar operator, dan penulis belum tentu
+                    # sudah mengerjakannya. Rumusnya SATU — `annotated_url` juga
+                    # yang dikembalikan `write_pair` — jadi tautan yang tampil
+                    # dan berkas yang ditulis tidak bisa menyimpang.
+                    image_url = CaptureWriter.annotated_url(
+                        date_folder=date_folder,
+                        truck_folder=job.truck_folder,
+                        ripeness_status=ripeness_status,
+                        filename=job.filename,
                     )
 
-                    # H3: snapshot _last_tp before clearing so event + webhook carry TP data
-                    tp_snapshot = self._last_tp
-                    if tp_snapshot:
-                        self._save_tp(
-                            tp_snapshot,
-                            self.state.current_truck_id,
-                            {
-                                "x_min": tp_snapshot["bbox"][0],
-                                "y_min": tp_snapshot["bbox"][1],
-                                "x_max": tp_snapshot["bbox"][2],
-                                "y_max": tp_snapshot["bbox"][3],
-                            },
-                            timestamp,
-                        )
-                        self._last_tp = None
-
-                    event_ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
                     event = {
                         "id": timestamp,
                         "ripeness_status": ripeness_status,
@@ -477,40 +517,18 @@ class FrameProcessingWorker:
                         pass
                     self.state.event_queue.put_nowait(event)
 
-                    # Realtime ke API lokal: OutboxRetryWorker mengirim ini dalam
-                    # ~1 detik. Tetap ditulis walau truk belum di-assign — API
-                    # punya TruckResolver.resolveOrStub, dan membuangnya bikin
-                    # deteksi hilang permanen dari Grading History.
-                    outbox_payload = build_event_payload(
-                        machine_id=self.settings.machine_id,
-                        file_ts=timestamp,
-                        timestamp=event_ts,
-                        ripeness_status=ripeness_status,
-                        ripeness_confidence=ripeness_conf,
-                        capture_type="auto",
-                        image_path=image_url,
-                        truck_id=self.state.current_truck_id,
-                        assignment_id=self.state.current_assignment_id,
-                        bounding_box={"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
-                        tp_status=tp_snapshot["tp_status"] if tp_snapshot else None,
-                        tp_confidence=tp_snapshot["tp_confidence"] if tp_snapshot else None,
-                        grade_class=grade_class,
-                    )
-                    try:
-                        self.outbox_store.add_event(
-                            outbox_payload["event_id"], self.settings.machine_id, outbox_payload
-                        )
-                    except Exception as exc:
-                        logger.error(
-                            "Failed to write event %s to outbox: %s",
-                            outbox_payload["event_id"],
-                            exc,
-                        )
+                    # Baris outbox ditulis PENULIS, sesudah gambarnya benar-benar
+                    # ada di disk (`capture_save_worker`). Menulisnya di sini
+                    # akan mengirim ke konsol tautan gambar yang belum tentu
+                    # pernah jadi — dan `OutboxRetryWorker` mengirimnya dalam
+                    # ~1 detik, jauh lebih cepat dari encode 2448x2048.
 
-                    # Tandai `processed` SETELAH file tersimpan (Celah-1 fix): kalau
-                    # crash di tengah blok di atas, track ini BELUM processed → diproses
-                    # ulang next frame → nama file (dan event_id uuid5 yang dihitung
-                    # BatchUploadWorker dari nama itu) sama → idempotent di sisi API.
+                    # Tandai `processed` sesudah janjang diserahkan ke penulis.
+                    # Berbeda dari sebelumnya, yang menandainya sesudah file
+                    # tersimpan: sekarang penyerahan itulah titik yang tidak
+                    # boleh diulang. Nama file (dan `event_id` uuid5 dari nama
+                    # itu) sudah ditetapkan di atas, jadi idempotensi terhadap
+                    # API tetap dipegang oleh nama, bukan oleh urutan ini.
                     # Tanpa truck (truck_id null) tetap ditandai supaya tidak re-trigger.
                     self.state.track_history[track_id]["processed"] = True
                     self._processed_objects.add(track_id)

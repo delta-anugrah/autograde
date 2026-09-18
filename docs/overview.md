@@ -216,10 +216,16 @@ to serve images at `/api/v1/captures/<line_code>/...`. api SSE events after inge
    (single-trigger). Never `discard()` an active track. `run_once` trims only IDs that are gone from
    `track_history` **and** stale >300s (`_processed_times`) — pure memory control, can't re-trigger
    (the fruit left the frame long ago).
-   **Ordering:** `processed` di-set **SETELAH** file tersimpan (bukan sebelum). Kalau crash di
-   tengah blok, track belum processed → frame berikutnya reprocess → nama file (dan `event_id` uuid5
-   `machine_id:timestamp` yang dihitung `BatchUploadWorker` dari nama itu) sama → API idempotent,
-   tidak double count. Track tanpa truck aktif tetap ditandai processed supaya tidak re-trigger.
+   **Ordering:** `processed` di-set **SETELAH janjang diserahkan ke `CaptureSaveWorker`** — sejak
+   2026-09-18 itu titik yang tidak boleh diulang, menggantikan "setelah file tersimpan" yang berlaku
+   selama penulisan masih sinkron. Yang dijaga tidak berubah: nama file (dan `event_id` uuid5
+   `machine_id:timestamp` yang dihitung `BatchUploadWorker` dari nama itu) ditetapkan **di jalur
+   deteksi**, sebelum serah-terima, jadi idempotensi dipegang oleh nama, bukan oleh urutan tulis.
+   Track tanpa truck aktif tetap ditandai processed supaya tidak re-trigger.
+   ⚠️ Konsekuensi yang dibeli sadar: kalau proses mati di antara serah-terima dan penulisan, janjang
+   itu hilang (tidak ada retry — track sudah `processed`). Lifespan karena itu **menguras antrean
+   dulu** saat shutdown. Jendelanya ratusan milidetik, dan harganya adalah hilangnya lag ~590 ms per
+   janjang yang sebelumnya membuang ~12 frame kamera dan memutus jejak ByteTrack.
 2. **`state.lock`** around all physical camera access (`FrameCaptureWorker.run_once` +
    `capture_manual_reject`) — concurrent Hikrobot SDK access can crash.
 3. **MJPEG via `threading.Condition`**, not `result_queue` — the old queue pattern served only one

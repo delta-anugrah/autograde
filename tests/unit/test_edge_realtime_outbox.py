@@ -148,7 +148,12 @@ def _live_lines(path: Path, needle: str) -> list[str]:
 
 @pytest.mark.parametrize(
     "relpath",
-    ["services/capture_service.py", "workers/frame_processing_worker.py"],
+    # Dua penulis outbox, satu per jalur capture. Jalur AUTO pindah ke
+    # `capture_save_worker` pada 2026-09-18 (encode dipindah keluar dari thread
+    # deteksi); yang dijaga tetap sama — baris outbox-nya masih ditulis, dan
+    # masih dibangun `build_event_payload` supaya `event_id` uuid5-nya cocok
+    # dengan yang dihitung ulang `BatchUploadWorker` dari nama file.
+    ["services/capture_service.py", "workers/capture_save_worker.py"],
 )
 def test_kedua_call_site_menulis_ke_outbox(relpath: str) -> None:
     """Regresi 2026-07-10: blok ini pernah dikomentari untuk batch-upload-r2,
@@ -159,6 +164,27 @@ def test_kedua_call_site_menulis_ke_outbox(relpath: str) -> None:
     # Import-nya ikut dijaga: memanggilnya tanpa mengimpor lolos test teks tapi
     # NameError saat runtime — persis yang kejadian waktu fitur ini dipasang.
     assert _live_lines(SRC / relpath, "import build_event_payload")
+
+
+def test_jalur_auto_menyerahkan_janjangnya_ke_penulis() -> None:
+    """Rantai deteksi → penulis → outbox tidak boleh putus di sambungan barunya.
+
+    Guard di atas membuktikan penulis masih menulis ke outbox, tapi penulis yang
+    tidak pernah diberi pekerjaan sama saja dengan jalur yang mati: grading jalan,
+    layar menghitung, dan tidak satu pun janjang tersimpan atau terkirim.
+    """
+    worker = SRC / "workers/frame_processing_worker.py"
+    assert _live_lines(worker, "capture_saver.submit(")
+    assert _live_lines(worker, "import CaptureSaveWorker" ) or _live_lines(
+        worker, "CaptureSaveWorker, SaveJob"
+    )
+
+
+def test_penulis_dinyalakan_di_main() -> None:
+    """Thread penulis yang tidak pernah start = antrean yang diam-diam penuh."""
+    assert _live_lines(SRC / "main.py", '_start_worker("capture_save"') or _live_lines(
+        SRC / "main.py", "capture_saver.start()"
+    )
 
 
 def test_outbox_retry_worker_dinyalakan_di_main() -> None:

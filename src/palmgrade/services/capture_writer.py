@@ -94,6 +94,27 @@ class CaptureWriter:
             tz=zone,
         )
 
+    @staticmethod
+    def annotated_url(
+        *, date_folder: str, truck_folder: str, ripeness_status: str, filename: str
+    ) -> str:
+        """Tautan `captures/` ke salinan bbox — tanpa menulis apa pun.
+
+        Ada supaya jalur deteksi bisa menyebut tautan itu ke layar operator
+        seketika, sementara berkasnya baru ditulis thread penulis beberapa ratus
+        milidetik kemudian. Satu-satunya cara aman melakukan itu adalah memakai
+        rumus yang sama persis dengan `write_pair` di bawah — dua perhitungan
+        terpisah akan menyimpang diam-diam, dan yang terlihat cuma gambar 404 di
+        konsol tanpa satu pun error di line.
+        """
+        return "captures/results/" + image_relative_path(
+            date_folder=date_folder,
+            truck_folder=truck_folder,
+            variant=CaptureVariant.ANNOTATED,
+            ripeness_status=ripeness_status,
+            filename=filename,
+        )
+
     def write_pair(
         self,
         *,
@@ -156,4 +177,9 @@ class CaptureWriter:
             # grading line must not stop because a preview did not fit.
             logger.error("Thumbnail failed (%s): %s", thumb_relative, exc)
 
-        return f"captures/results/{annotated_relative}"
+        return self.annotated_url(
+            date_folder=date_folder,
+            truck_folder=truck_folder,
+            ripeness_status=ripeness_status,
+            filename=filename,
+        )

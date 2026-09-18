@@ -71,7 +71,8 @@ src/palmgrade/
   services/        # business flow (capture, inspection, streaming, truck, health, result)
   repositories/    # file I/O (WebP/JSON) via LocalFileStorage
   pipelines/       # YOLO inference (realtime_inspection_pipeline, model_registry)
-  workers/         # background threads + RuntimeState (capture / display / processing / event_broadcast / outbox_retry / batch_upload)
+  workers/         # background threads + RuntimeState (capture / display / processing / capture_save / event_broadcast / outbox_retry / batch_upload)
+                   # capture_save = penulis bukti (encode WebP + sidecar + outbox) di thread sendiri; deteksi cuma menyerahkan, tidak pernah menunggu disk
                    # konsol pakai asyncio, bukan thread: master_data (tarik supplier + truk) / erp_outbox (kirim ke AutoERP) / visit_resend (kirim ulang kunjungan kemarin) — dirakit di workers/erp_link.py, mati total kalau ERP_URL kosong
   integrations/    # camera/{hikrobot,opencv,photo}, notifications/ (webhook_client → api, line_client → line dari konsol), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
   domain/          # pure rules + entities (no I/O) — termasuk working_day.py (§6.1) & ffb_source.py (§3.5b)
@@ -269,9 +270,9 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    `Unripe` maupun `JK`.
 
 1. **Disk before API** — never POST events directly from a worker; **antrean yang bicara ke
-   jaringan, bukan worker deteksi**. `FrameProcessingWorker` dan `capture_service` menulis WebP +
-   JSON ke `artifacts/results/` lalu **satu baris** ke `outbox.db` (`build_event_payload()` dari
-   `domain/vision_event.py`). Dua konsumen mengirimnya:
+   jaringan, bukan worker deteksi**. `CaptureSaveWorker` (jalur auto) dan `capture_service` (manual)
+   menulis WebP + JSON ke `artifacts/results/` lalu **satu baris** ke `outbox.db`
+   (`build_event_payload()` dari `domain/vision_event.py`). Dua konsumen mengirimnya:
    - `OutboxRetryWorker` → API **lokal** (`BACKEND_URL`), poll 1 detik. Ini yang bikin operator
      lihat Grading History + gambar seketika, dan satu-satunya jalur yang hidup saat internet mati.
    - `BatchUploadWorker` → R2 + API **cloud** (`UPLOAD_API_URL`), tiap jam. Menemukan item lewat
@@ -289,6 +290,26 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    kalau `batch_fatal=True` (jaringan/5xx/429/401/403 — kondisi global) tapi **continue** kalau
    `batch_fatal=False` (HTTP 404 = truck belum sinkron, kondisi per-item — break di situ bikin
    antrean `ORDER BY discovered_at ASC` kelaparan di belakangnya).
+1b. **Thread deteksi tidak pernah menunggu disk** (sejak 2026-09-18). Encode WebP frame sensor penuh
+   memakan **~285 ms per gambar**, dan satu janjang menulis tiga gambar + sidecar + baris outbox —
+   **~590 ms** diukur di PC Lampung 2026-09-17. Selama itu dulu deteksi BERHENTI, dan tiga akibatnya
+   semuanya senyap: `frame_queue` (drop-oldest, nol log) membuang ~12 frame per janjang di kamera 20
+   fps, ByteTrack kehilangan jejak lalu memberi track id baru pada janjang yang sama (tonase dobel),
+   dan layar operator membeku ~1 detik. Sekarang `FrameProcessingWorker` cuma `submit()` satu
+   `SaveJob` ke `CaptureSaveWorker` lalu lanjut ke frame berikutnya.
+   **Yang HARUS tetap di jalur deteksi**, jangan dipindah ke penulis: pulse PLC (piston menyortir
+   buah yang lewat sekarang, bukan buah setengah detik lalu), penandaan `plc_signalled`/`processed`,
+   event ke `event_queue` (angka di layar), dan **penetapan `timestamp`** — nama berkas adalah sumber
+   `event_id` uuid5, dan `BatchUploadWorker` menghitung ulang id yang sama dari nama itu berjam-jam
+   kemudian. Penulis yang menstempel jamnya sendiri memutus idempotensi dan satu janjang terhitung
+   dua kali di angka yang dibayar ke petani.
+   `image_url` untuk layar dihitung di depan lewat `CaptureWriter.annotated_url()` — **rumus yang
+   sama** yang dikembalikan `write_pair()`, jadi tautan yang tampil dan berkas yang ditulis tidak
+   bisa menyimpang (kalau menyimpang: gambar 404 di konsol, nol error di line).
+   Antrean **3 dalam, drop yang terbaru + `logger.error`**: menahan deteksi sampai antrean lega akan
+   mengembalikan persis lag yang dihilangkan. Antrean yang sering penuh berarti disk/CPU tidak
+   mengimbangi laju grading — itu yang harus dibaca dari log, bukan ditambal dengan antrean lebih
+   dalam. Satu janjang >1 detik diadukan `logger.warning` (`tulis … ms, antre … ms`).
 2. **`_processed_objects`** — never `discard()` an active track (single-trigger). Trim only IDs that are inactive (gone from `track_history`) **and** stale >300s.
 3. **`state.lock`** around all physical camera access (`FrameCaptureWorker` + `capture_manual_reject`).
 4. **MJPEG** — only `DisplayWorker` writes `state.latest_frame`, via `threading.Condition.notify_all()` (multi-viewer). It renders `last_yolo_frame` (paired with results) and runs at `STREAM_FPS` (default 12), decoupled from `CAMERA_FPS`.
