@@ -148,13 +148,19 @@ Semua hasil grading hari ini.
 
 ---
 
-### `POST /api/set_truck` (legacy)
+### ~~`POST /api/set_truck`~~ — dihapus
 
-Set truck ID aktif untuk line ini secara langsung ke vision.
+Dihapus 2026-09-20. Rantainya (route + controller + service + schema) sudah mati di
+dua sisi: `useSetTruckId` di palmgrade-frontend tidak pernah di-import satu berkas pun,
+jadi endpoint-nya tidak pernah dipanggil dari mana pun.
 
-- **Request body:** `{ "truck_id": "uuid" }`
-- **Response:** `{ "message": "Truck ID set", "truck_id": "uuid" }`
-- **Side effect:** Menyimpan ke `RuntimeState.current_truck_id`. Masih aktif tapi operator sebaiknya pakai API `/api/v1/grading-console/lines/:id/assign-truck` — API akan push ke `/internal/assignment` yang juga set `current_assignment_id`.
+Penggantinya `POST /api/console/lines/{line}/assign-truck` di konsol, yang meneruskan
+ke `/internal/assignment` — dan itu yang juga menetapkan `current_assignment_id`.
+Jalur lama cuma menyentuh `current_truck_id`, jadi janjang tercatat tanpa assignment.
+
+`RuntimeState.current_truck_id` **tetap ada**: `internal_controller` dan
+`frame_processing_worker` menulis dan membacanya, dan `CaptureService` mengambilnya
+lewat `TruckRepository` yang juga tetap. Yang dibuang jalur HTTP-nya, bukan datanya.
 
 ### `POST /internal/assignment`
 

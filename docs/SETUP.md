@@ -414,12 +414,18 @@ http://localhost:8001/api/video_feed
 Vision jalan dengan `network_mode: host`, jadi port `8001/8002/8003` **terbuka di
 semua interface** PC. Selama PC prod cuma punya NIC ke switch kamera (LAN tertutup),
 ini aman. Tapi begitu PC prod dapat akses internet (mis. NIC#2 / USB-Ethernet buat
-kirim data), port itu jadi ter-ekspos — dan beberapa endpoint (`/api/set_truck`,
-`/api/capture_reject`, `/api/video_feed`) **tidak** punya auth (dipakai langsung
-oleh frontend di LAN).
+kirim data), port itu jadi ter-ekspos — dan dua endpoint (`/api/capture_reject`,
+`/api/video_feed`) **tidak** punya auth.
 
-**Jangan matikan endpoint-nya** (frontend masih pakai). Batasi lewat firewall:
-izinkan port vision **hanya dari IP frontend/api**, tolak dari mana pun.
+⚠️ Paragraf ini dulu menyebut tiga, dan menutupnya dengan "jangan matikan
+endpoint-nya (frontend masih pakai)". `/api/set_truck` **dihapus 2026-09-20**:
+ternyata nol pemanggil — `useSetTruckId` di palmgrade-frontend tidak pernah
+di-import satu berkas pun. Kalimat itu menahan pembersihan selama berbulan-bulan
+atas dasar yang tidak pernah dicek. Dua sisanya **memang** masih dipakai
+(`video_feed` untuk gambar langsung, `capture_reject` untuk tolak manual).
+
+Batasi lewat firewall: izinkan port vision **hanya dari IP frontend/api**, tolak
+dari mana pun.
 
 ```bash
 # Ganti <IP_FRONTEND_API> dengan IP host yang menjalankan palmgrade-frontend + api

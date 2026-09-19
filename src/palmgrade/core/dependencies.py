@@ -16,7 +16,6 @@ from ..services.health_service import HealthService
 from ..services.inspection_service import InspectionService
 from ..services.result_service import ResultService
 from ..services.streaming_service import StreamingService
-from ..services.truck_service import TruckService
 from ..workers.runtime_state import RuntimeState
 from .config import Settings
 
@@ -124,11 +123,6 @@ def get_capture_service() -> CaptureService:
         settings=get_settings(),
         outbox_store=get_outbox_store(),
     )
-
-
-@lru_cache
-def get_truck_service() -> TruckService:
-    return TruckService(truck_repository=get_truck_repository())
 
 
 @lru_cache
