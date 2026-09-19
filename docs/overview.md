@@ -1,4 +1,4 @@
-# palmgrade-vision — Detailed Overview
+# autograde — Detailed Overview
 
 > **The DETAIL doc** (read on-demand). The lean map is `../CLAUDE.md`.
 > Even deeper, specialized docs: `architecture.md` (layer boundaries), `backend-overview.md`
@@ -29,7 +29,8 @@
 | Worker | Kind | Responsibility |
 |---|---|---|
 | `FrameCaptureWorker` | thread | grab frame from camera (under `state.lock`) → `state.latest_raw_frame` + `frame_queue`. Auto-reconnects with `device_index`. |
-| `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); detection → save ke disk → `event_queue` + `outbox.add_event()` |
+| `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); janjang menyentuh garis capture → pulse PLC + `event_queue` + serahkan `SaveJob`, lalu **lanjut**. Sejak 2026-09-18 **tidak menulis ke disk maupun outbox sendiri** |
+| `CaptureSaveWorker` | thread | penulis bukti: encode WebP bbox+clean+thumb, sidecar JSON, dan satu baris `outbox.add_event()`. Antrean 8 dalam, drop yang terbaru + `logger.error` kalau penuh (`capture_save_dropped`). Ikut diawasi watchdog; antreannya dikuras saat shutdown sebelum kamera dilepas |
 | `DisplayWorker` | thread | the **only** writer of `state.latest_frame`: draw boxes → resize → draw ROI → JPEG encode → `frame_condition.notify_all()`. Runs at `STREAM_FPS` (default 12). |
 | `OutboxRetryWorker` | thread | kirim isi `outbox.db` ke API **lokal** (`BACKEND_URL`), poll 1 detik — jalur realtime operator, hidup walau internet mati. Batch upload ke cloud jalan terpisah. |
 | `PlcWorker` | thread | **hanya kalau `PLC_ENABLED=true`** (default mati → nol thread tambahan di cloud & PC dev). Satu-satunya thread yang menyentuh socket Modbus ke coupler ODOT: kuras antrean keputusan → pulse coil OK/NG, toggle bit alive, baca discrete input, tulis coil ERROR. Bangun tiap `PLC_POLL_MS` (default 200ms) **selamanya** — polling reguler inilah yang menahan watchdog ODOT. Sinyal telat = buah salah yang tersortir, jadi kebijakannya **buang dan hitung, jangan pernah tunda**. |
@@ -50,24 +51,47 @@
 
 ## 3. Detection Flow (single-trigger, not voting)
 
-Model `best_3class_v2.pt` detects 3 classes in one pass: `acc`, `rej`, `tp`.
+Model `best.pt` detects 4 classes in one pass: `Ripe`, `Unripe`, `JK`
+(janjang kosong) and `TP` (tangkai panjang).
+
+The class is NOT the verdict. `Ripe` → ACC; `Unripe` and `JK` → REJ; `TP` is not
+a bunch at all and gets no verdict — it rides beside a bunch as `tp_confidence`.
+The mapping lives in one place, `domain/grade_class.py`, because two things
+downstream stayed binary on purpose: the PLC owns exactly two coils (OK and NG —
+a third category would be wiring, not code), and AutoERP books three AI criteria
+(`Mentah` / `Tangkai Panjang` / `Matang`) under a frozen contract. So a row
+carries both: `ripeness_status` is the verdict that fires pistons and is paid on,
+`grade_class` is the detail the console shows.
+
+⚠️ **`JK` is deliberately not sent to AutoERP.** There is no criterion for it
+there, and both near-misses misreport: `Sampah` is *weighed*, not seen by a
+camera, and folding JK into `Mentah` overstates the unripe share the supplier is
+docked for. Its count stays on the edge until a contract change is agreed.
 
 ```
 each YOLO frame (ByteTrack assigns track_id per object):
-  label == "tp"                  → store in _last_tp (candidate, paired later)
-  label in ("acc","rej") AND center inside ROI AND track not processed:
+  pre-scan: kumpulkan kotak semua TP + semua janjang di frame ini
+            (TP butuh track_id sah dan belum dipakai — `kandidat_tp_sah`)
+
+  label in ("Ripe","Unripe","JK") AND center inside ROI AND track not processed
+  AND kotaknya MENYENTUH garis capture:
       area = (x2-x1)*(y2-y1)
       if area < MINIMUM_SIZE (460000) OR >1 fruit in ROI this frame → force "rej"
-      _save_ripeness(): annotated WebP (quality 65) + {ts}_auto_ripeness.json
-      if _last_tp: _save_tp(): {ts}_auto_tp.json (no image, same timestamp) then clear
+      submit_grading() → pulse PLC          # seketika, tidak boleh ditunda
+      tetapkan timestamp                     # sumber event_id uuid5 — WAJIB di sini
+      tp = tp_untuk_janjang(...)             # TP TERDEKAT, dan hanya kalau janjang
+                                             # ini yang terdekat di antara semua
       push event to event_queue (drop-old) for WebSocket
+      capture_saver.submit(SaveJob(...))     # ← encode + disk + outbox pindah ke sini
+      mark track processed                   # sesudah DISERAHKAN, bukan sesudah ditulis
+
+  CaptureSaveWorker (thread lain):
+      write_pair(): WebP bbox + clean + thumb (quality 65 / 60)
+      {ts}_auto_ripeness.json, dan {ts}_auto_tp.json kalau janjang itu bawa TP
       outbox.add_event(build_event_payload(...))  # → API lokal via OutboxRetryWorker
       # Pengiriman ke CLOUD terpisah: BatchUploadWorker men-scan file hasil save
       # di atas (lihat §4) dan menghitung ulang uuid5 yang sama dari machine_id +
       # timestamp nama file — dua jalur, satu event_id, jadi tidak pernah dobel.
-      mark track processed LAST (_processed_objects.add + _processed_times)
-      # processed di-set SETELAH file tersimpan: crash mid-block → track belum
-      # processed → di-reprocess → nama file (dan uuid5-nya) sama → idempotent
 ```
 
 - `ResultRepository.list_today_results()` merges `_ripeness.json` + `_tp.json` per base_name.
@@ -81,7 +105,84 @@ NOT sensor space — operators calibrate from what they see in the browser. Cent
 inside the box. `0,0,0,0` = full frame (X2=0→stream width, Y2=0→stream height); require `X2>X1` & `Y2>Y1`.
 TP is exempt from the ROI check. `draw_roi()` runs in `DisplayWorker` **after** resize.
 
-**DisplayWorker draw order:** `draw_boxes()` (on `last_yolo_frame`) → `cv2.resize()` → `draw_roi()`.
+**Garis capture (biru, bertanda `CAPTURE`)** — sejak 2026-09-18 menggantikan aturan lama "titik
+tengah masuk kotak ROI" sebagai penentu KAPAN janjang difoto. Dua hal yang sengaja dipisah:
+
+| | Menjawab | Aturan |
+|---|---|---|
+| ROI | di mana | titik tengah janjang di dalam kotak = wilayah conveyor |
+| Garis capture | kapan | kotak janjang **menyentuh** garis (`domain/garis_capture`) |
+
+Aturan lama memfoto janjang saat **separuhnya** sudah lewat, dan dengan `ROI_*` bawaan `0,0,0,0`
+(= seluruh layar) itu berarti begitu terdeteksi di mana pun — termasuk di pinggir frame saat
+janjangnya belum utuh. Itu keluhan "capture terlalu cepat" dari PC Lampung.
+
+Disetel dari **layar support konsol**, satu angka untuk semua line, berlaku tanpa restart lewat
+`/internal/setelan` — jalur yang sama persis dengan `CONF_THRESHOLD` dan `MINIMUM_SIZE`
+(`domain/setelan_grading`, `RuntimeState.garis_capture_override`). `GARIS_CAPTURE` di `.env` cuma
+nilai awal. **`0` = tidak ada garis**, dan itu perilaku sebelum fitur ini ada — satu-satunya cara
+PKS yang belum menyetel tidak kehilangan janjang, jadi batas bawahnya inklusif (`BAWAH_INKLUSIF`),
+beda dari dua setelan lain yang `0`-nya justru mematikan grading diam-diam.
+
+⚠️ Angkanya ruang **stream**, diskalakan ke ruang sensor saat menyaring (`skala_garis_ke_frame`).
+Melewatkan penskalaan itu bug yang sudah pernah terjadi di ROI (`bdcb300`).
+⚠️ Pemicunya **perpotongan**, bukan sentuhan persis: garis dievaluasi sekali per frame, dan pada
+8-20 fps janjang bisa melompati garis di antara dua frame — menuntut sentuhan persis membuat
+janjang cepat tidak pernah difoto, hilang tanpa satu pun pesan.
+`TP` dikecualikan dari garis, sama seperti dari ROI.
+
+**Pasangan TP ↔ janjang** (2026-09-18). Janjang difoto **apa adanya** begitu menyentuh garis,
+ada TP atau tidak — tanpa penundaan. TP yang dipakai adalah yang pusatnya **paling dekat** dan
+masih dalam `_JANGKAUAN_TP` × setengah diagonal janjang (`domain/garis_capture`), dikumpulkan
+di pra-pindai supaya urutan kotak dalam satu frame tidak menentukan hasil.
+
+| Urutan | Alur LAMA (`_last_tp`) | Sekarang |
+|---|---|---|
+| TP terlihat, lalu janjangnya menyentuh garis | ikut, kebetulan urutannya cocok | ikut, karena jaraknya dekat |
+| TP milik janjang A, janjang B lewat garis dulu | **salah**: TP menempel ke B | tidak ikut ke B |
+| Janjang difoto, TP-nya baru terlihat | **salah**: menempel ke janjang berikutnya | tidak ikut, dihitung `tp_telat` |
+
+Ambangnya relatif, bukan piksel tetap: janjang di dekat kamera jauh lebih besar daripada yang di
+ujung frame, jadi satu angka piksel akan benar cuma di satu jarak kamera. Setengah diagonal
+dipakai supaya janjang tegak dan janjang rebah menjangkau sama jauhnya.
+⚠️ Yang dipakai **jarak**, bukan irisan kotak: TP bisa terpisah dari kotak janjangnya (jawaban
+operator 2026-09-18), jadi menuntut irisan akan membuang tangkai yang sah.
+⚠️ Yang menang **yang terdekat**, bukan yang paling yakin: confidence mengukur seberapa yakin
+model itu TP, bukan seberapa mungkin TP itu milik janjang ini.
+⚠️ **Terdekat di antara SEMUA janjang di frame**, bukan sekadar dalam ambangnya sendiri
+(`janjang_lain`). Dua janjang berdempetan — 450x450 px berjarak 500 px pada sensor 2448x2048 —
+sama-sama berjangkauan 477 px, jadi satu tangkai di antara keduanya masuk jangkauan dua-duanya
+dan pemenangnya tinggal urutan pemrosesan, yang tidak dijamin. Janjang yang sudah difoto ikut
+jadi saingan, supaya tangkai milik janjang yang baru selesai tidak pindah ke tetangganya.
+⚠️ TP tepat di **tengah sela** dua janjang memang ambigu secara geometri; aturan apa pun cuma
+menebak di situ, dan itu sengaja tidak diuji seolah punya jawaban benar.
+`tp_telat` dihitung dari `_janjang_difoto` (catatan sendiri, umur 300 detik), **bukan**
+`track_history` — tabel itu dibuang 10 frame sesudah janjangnya hilang dari pandangan, jadi TP
+yang muncul sesudahnya tidak pernah terhitung dan angkanya diam-diam terlalu kecil.
+
+**Arah conveyor** (`sumbu_garis`, disetel di layar yang sama sejak 2026-09-18):
+
+| Sumbu | Conveyor | Garis | Angkanya |
+|---|---|---|---|
+| `tegak` (bawaan) | mendatar, buah lewat kiri↔kanan | vertikal | px dari **kiri** |
+| `mendatar` | menurun, buah lewat atas↔bawah | horizontal | px dari **atas** |
+
+Arah gerak DI DALAM satu sumbu tidak perlu disetel: pemicunya perpotongan, berlaku dari sisi
+mana pun, jadi conveyor yang membalik arah tetap jalan tanpa satu pun perubahan.
+⚠️ Sumbu mendatar diskalakan dengan **tinggi** frame, bukan lebar (`skala_garis`) — frame
+2448x2048 tidak persegi, jadi memakai lebar membuat garis meleset ~19% tanpa satu pun error.
+⚠️ Sumbu yang tidak dikenal **tidak melempar** di jalur deteksi (jatuh ke `tegak`): nilainya
+bisa datang dari konsol versi lain, dan satu string asing tidak boleh menghentikan grading.
+Yang menolak nilai aneh adalah jalur SIMPAN, di gerbang, sebelum sampai ke tiga line.
+
+**Label janjang tanpa angka confidence** (2026-09-18, permintaan operator). Angkanya keyakinan
+model, bukan mutu buah, dan dari beberapa meter "54%" terbaca seperti "54% matang"; ambangnya
+sudah diputuskan `CONF_THRESHOLD`, jadi apa pun yang tergambar sudah lolos ambang itu.
+`viewer.html` membuangnya lebih dulu (`abd8f17`). Nilainya **tetap** disimpan di sidecar dan
+dikirim ke API — yang dibuang tampilannya, bukan datanya.
+
+**DisplayWorker draw order:** `draw_boxes()` (on `last_yolo_frame`) → `cv2.resize()` → `draw_roi()`
+(yang juga menggambar **garis capture** biru bertanda `CAPTURE`, sesudah resize, di ruang stream).
 Render boxes over `last_yolo_frame` (paired with results), **never** over `latest_raw_frame` — on CPU,
 inference can take 0.5–2s and the conveyor moves, so boxes would land in the wrong place. Fallback to
 `latest_raw_frame` only before the first YOLO run.
@@ -146,7 +247,7 @@ BatchUploadWorker.run_batch_once()
   "assignment_id": "uuid-or-null",
   "truck_id": "uuid-or-null",
   "timestamp": "ISO-8601 UTC-aware (+00:00)",
-  "image_path": "captures/results/{date}/{ts}_auto.webp",
+  "image_path": "captures/results/{date}/{HHMMSS}_{plat}_{assign8}/bbox/{acc|rej}/{ts}_auto.webp",
   "prediction": "Acc | Rej",
   "ripeness_status": "ACC | REJ",
   "ripeness_confidence": 0.92,
@@ -201,10 +302,16 @@ to serve images at `/api/v1/captures/<line_code>/...`. api SSE events after inge
    (single-trigger). Never `discard()` an active track. `run_once` trims only IDs that are gone from
    `track_history` **and** stale >300s (`_processed_times`) — pure memory control, can't re-trigger
    (the fruit left the frame long ago).
-   **Ordering:** `processed` di-set **SETELAH** file tersimpan (bukan sebelum). Kalau crash di
-   tengah blok, track belum processed → frame berikutnya reprocess → nama file (dan `event_id` uuid5
-   `machine_id:timestamp` yang dihitung `BatchUploadWorker` dari nama itu) sama → API idempotent,
-   tidak double count. Track tanpa truck aktif tetap ditandai processed supaya tidak re-trigger.
+   **Ordering:** `processed` di-set **SETELAH janjang diserahkan ke `CaptureSaveWorker`** — sejak
+   2026-09-18 itu titik yang tidak boleh diulang, menggantikan "setelah file tersimpan" yang berlaku
+   selama penulisan masih sinkron. Yang dijaga tidak berubah: nama file (dan `event_id` uuid5
+   `machine_id:timestamp` yang dihitung `BatchUploadWorker` dari nama itu) ditetapkan **di jalur
+   deteksi**, sebelum serah-terima, jadi idempotensi dipegang oleh nama, bukan oleh urutan tulis.
+   Track tanpa truck aktif tetap ditandai processed supaya tidak re-trigger.
+   ⚠️ Konsekuensi yang dibeli sadar: kalau proses mati di antara serah-terima dan penulisan, janjang
+   itu hilang (tidak ada retry — track sudah `processed`). Lifespan karena itu **menguras antrean
+   dulu** saat shutdown. Jendelanya ratusan milidetik, dan harganya adalah hilangnya lag ~590 ms per
+   janjang yang sebelumnya membuang ~12 frame kamera dan memutus jejak ByteTrack.
 2. **`state.lock`** around all physical camera access (`FrameCaptureWorker.run_once` +
    `capture_manual_reject`) — concurrent Hikrobot SDK access can crash.
 3. **MJPEG via `threading.Condition`**, not `result_queue` — the old queue pattern served only one
@@ -223,7 +330,7 @@ to serve images at `/api/v1/captures/<line_code>/...`. api SSE events after inge
    thread dies silently and the watchdog restarts without a stack trace.
 10. **`FrameCaptureWorker` needs `device_index`** — reconnect calls `camera.connect(index=...)`; a bare
     `connect()` (default 0) makes line-2/3 reconnect to the wrong camera.
-11. **`cv2.imwrite` failure raises `IOError`** in `LocalFileStorage.write_image` — a silent warning
+11. **`cv2.imwrite` failure raises `OSError`** in `LocalFileStorage.write_image` — a silent warning
     would leave orphaned JSON pointing at a missing image — dan karena JSON itulah yang di-scan
     `BatchUploadWorker`, item-nya berakhir `poisoned` saat upload. Auto path: caught by
     `run_loop` (skip 1 frame). Manual path: propagates → 500 to operator.
@@ -292,7 +399,7 @@ needed (not just `libMvCameraControl.so`): `MV_CC_EnumDevices()` dynamically loa
 **Production deployment checklist (new PC — order matters):**
 1. Install NVIDIA Container Toolkit → verify `docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi`.
 2. Install Hikrobot MVS SDK at `/opt/MVS/` (`SETUP.md § 3`).
-3. `mkdir -p models/release` + copy `best_3class_v2.pt`.
+3. `mkdir -p models/release` + copy `best.pt`.
 4. `.env`: `LINE_1/2/3_MACHINE_ID` (real UUIDs), `BACKEND_URL`, `WEBHOOK_SECRET`, `CAMERA_TYPE=hikrobot`, `CAMERA_FPS=15` (samakan dengan Acquisition Frame Rate kamera — `SETUP.md § 6.3`, alasan bandwidth 3 kamera).
 5. `make up`.
 6. Verify `curl :8001/health/detail | grep -E "gpu_available|camera_connected"`.
@@ -308,11 +415,13 @@ needed (not just `libMvCameraControl.so`): `MV_CC_EnumDevices()` dynamically loa
 
 ```
 artifacts/line-N/   (host) ↔ /app/artifacts (container)
-  results/{YYYY-MM-DD}/{ts}_auto.webp + {ts}_auto_ripeness.json [+ {ts}_auto_tp.json]
-                       {ts}_manual.webp + {ts}_manual_ripeness.json   # manual reject
-  captures/                 # legacy — dibuat saat startup, TIDAK ditulis lagi
-  errors/                   # legacy — dibuat saat startup, TIDAK ditulis lagi (REJ via metadata)
-  logs/
+  results/{YYYY-MM-DD}/                        # tanggal = UTC
+    {ts}_auto_ripeness.json [+ {ts}_auto_tp.json]   # sidecar — DATAR di sini, wajib
+    {ts}_manual_ripeness.json                        # manual reject
+    {HHMMSS}_{plat}_{assign8}/                       # satu folder per kunjungan truk
+      bbox/{acc|rej}/{ts}_auto.webp                  # bergambar kotak → image_path, naik R2
+      clean/{acc|rej}/{ts}_auto.webp                 # polos → latih model, TIDAK diupload
+    _belum-assign/                                   # ter-grading sebelum truk dipasang
   outbox.db                 # SQLite — antrean realtime ke API lokal (OutboxRetryWorker)
 
 state/line-N/   (host) ↔ /app/state (container)   # SIBLING artifacts/, DI LUAR mount /captures
@@ -323,8 +432,20 @@ state/line-N/   (host) ↔ /app/state (container)   # SIBLING artifacts/, DI LUA
 `poisoned` sengaja tidak dihapus.
 Gambar disimpan **WebP quality 65** (`JPEG_QUALITY_SAVE` di `core/constants.py` — nama konstanta
 legacy, berlaku untuk WebP juga; `LocalFileStorage.write_image` pilih codec dari ekstensi file).
+⚠️ **Sidecar JSON tidak pernah ikut pindah ke subfolder.** `_scan()` mencarinya dengan
+`glob("*/*_ripeness.json")` — kedalaman dipatok dua, jadi sidecar yang lebih dalam tidak akan
+pernah ketemu dan upload cloud berhenti **tanpa error apa pun**. Yang masuk subfolder cuma
+gambar; letaknya dibaca dari `image_path` di dalam JSON.
+⚠️ **Jam folder truk pakai `FACTORY_TZ`, nama berkas tetap UTC** — nama berkas menurunkan
+`event_id` (uuid5) jadi tidak boleh bergeser, sementara nama folder satu-satunya yang dibaca
+manusia. Dua zona dalam satu pohon disengaja: folder buat manusia, berkas buat mesin.
+Aturan penamaan: `domain/capture_layout.py`. Penulis (satu-satunya, dipakai jalur auto maupun
+manual): `services/capture_writer.py`.
+⚠️ **Salinan `clean/` bikin pemakaian disk dua kali lipat** dan tidak punya baris manifest
+sendiri — `_delete_item_files` menghapusnya lewat `clean_twin_of()`. Menambah gambar ketiga
+tanpa ikut mendaftarkannya di situ = file yang tidak pernah dihapus siapa pun.
 Served by FastAPI `StaticFiles` mount `/captures` → `artifacts/`, so `image_url`
-`captures/results/{date}/{file}` resolves on the vision side. (The api re-serves per line under
+`captures/results/{date}/{truk}/{bbox|clean}/{acc|rej}/{file}` resolves on the vision side. (The api re-serves per line under
 `/api/v1/captures/<line_code>/...`.)
 
 ---
@@ -359,7 +480,8 @@ FastAPI/Starlette — di luar filosofi CI murni-logic); logic-nya tipis dan selu
 
 Layar operator pindah dari `palmgrade-frontend` ke sini. Instance **ke-4 dari image yang sama**,
 port **8000**, halaman di `http://localhost:8000/console`. Rencana & keputusan yang mengunci
-bentuknya: `../docs/runbooks/2026-09-09-rencana-palmos-autograde.md` (§4, §6.1, §6.2, §3.5b).
+bentuknya: runbook `2026-09-09-rencana-palmos-autograde.md` di repo `sawit` (§4, §6.1, §6.2,
+§3.5b). Nama "PalmOS" di judulnya sudah pensiun — kotak ERP sekarang **AutoERP**.
 
 **Kenapa modul ASGI-nya terpisah.** `main.py` menarik `core/dependencies.py` → pipelines →
 ultralytics → torch, dan `core/constants.py` → cv2. Konsol tidak butuh satupun, jadi
@@ -382,7 +504,7 @@ di-serve statis di `/captures/{line_code}/...` — bentuk URL yang sama dengan
 apa yang dilihat operator.
 
 **Batas hari kerja (§6.1).** Pabrik jalan ~20 jam/hari dan **lewat tengah malam**, jadi batas
-hari UTC memotong satu shift jadi dua tanggal. `tanggal_kerja` dihitung **saat ingest** dari
+hari UTC memotong satu shift jadi dua tanggal. `work_date` dihitung **saat ingest** dari
 timestamp event itu sendiri (`domain/working_day.py`, zona `FACTORY_TZ`) lalu **disimpan
 sebagai kolom** — bukan diturunkan ulang saat query, dan tidak pernah dari `now()`, `creation`,
 atau nama folder. Event yang datang telat (outbox menyusul setelah listrik mati) tetap mendarat
@@ -395,51 +517,106 @@ ditambahkan) — tanpa itu `ZoneInfo` gagal dan tanggal diam-diam kembali ke UTC
 (`repositories/console_repository.py`) — konvensinya sama dengan `OutboxStore`: WAL,
 `synchronous=FULL`, satu `threading.Lock`, `INSERT OR IGNORE` dengan kunci `event_id`. Layar
 polling tiap 2 detik lewat `GET /api/console/state`; tidak ada `listdir` di jalur manapun.
-Tabelnya: `inspections` (+ index `(tanggal_kerja, line_code)` dan `(tanggal_kerja, timestamp)`),
+Tabelnya: `inspections` (+ index `(work_date, line_code)` dan `(work_date, timestamp)`),
 `trucks`, `suppliers`, `assignments`, `sync_state`.
 
-**Master data & Sumber TBS (§3.5b).** `MasterDataWorker` menarik
-`GET {UPLOAD_API_URL}{BACKEND_API_VER}/internal/sync/master-data?updated_since=` dengan
-`x-webhook-secret` + `x-license-token` — endpoint, header, dan jendela tumpang tindih 5 detik
-yang sama dengan `edgeSync` di palmgrade-api, respons **JSON telanjang** (tanpa amplop
-`{status,data}`). Nol perubahan di cloud. Kursor hanya maju kalau **semua** baris mendarat;
+**Master data & Sumber TBS (§3.5b).** `MasterDataWorker` menarik dari **AutoERP**, bukan lagi
+dari cloud api: `GET {ERP_URL}/api/resource/Supplier` lalu `.../Truck`, REST bawaan Frappe
+dengan `Authorization: token <key>:<secret>`, `filters=[["modified",">",kursor]]`,
+`order_by=modified asc`, 500 baris per halaman. **Nol kode di sisi ERP.** `ERP_URL` kosong =
+worker mati diam-diam dan konsol jalan dari salinan terakhir.
+
+Tiap DocType punya **kursornya sendiri** (`erp_cursor_supplier`, `erp_cursor_truck`): supplier
+dan truk berubah dengan laju yang jauh berbeda, dan satu kursor bersama akan terus menyeret
+yang sepi melewati baris yang sudah dilihat. Jendela tumpang tindih 5 detik dipertahankan —
+jam edge dan ERP tidak pernah sama persis. Kursor hanya maju kalau **semua** baris mendarat;
 melewati satu baris yang gagal berarti pabrik terjebak di matriks setengah basi, termasuk
-pencabutan truk yang sudah dilakukan cloud. Sumber disimpan **mentah** (tiga nilai: Inti /
-Plasma / Pihak Ketiga) dan cuma dipetakan ke label tampilan Internal/External/`—` oleh
-`domain/ffb_source.py`. **Tidak ada boolean `is_internal` di manapun** — memadatkan tiga nilai
-jadi dua di edge menghapus laporan Plasma vs Pihak Ketiga di cloud secara permanen. Kolom
-`sumber` belum ada di API sampai Fase 1 PalmOS selesai, jadi dibaca defensif: sebelum itu
-nilainya `None` dan layar menampilkan `—`.
+pencabutan truk yang sudah dilakukan ERP.
 
-**Dorong ke PalmOS (§12.5).** Arahnya satu, dan itu bukan selera: PC pabrik cuma bisa
-dihubungi lewat AnyDesk — tidak ada inbound sama sekali — jadi ERP tidak akan pernah bisa
-menarik dari sini. `ErpPushWorker` POST ke metode whitelisted
-`palmos.interfaces.api.terima_event` (`ERP_URL` + `Authorization: token <key>:<secret>`, user
-ber-Role `PalmOS AutoGrade`), payload kontrak §5 yang sama persis dengan yang dipakai api.
+Identitas mengikuti "masing-masing menyimpan id lawannya": id truk lokal tetap uuid5 plat
+ternormalisasi, dan **AutoERP menormalkan plat dengan aturan yang sama**, jadi truk hasil tarik
+mendarat di baris yang sudah diketik operator, bukan baris kembar. `erp_name` (unik, boleh
+NULL) menyimpan docname ERP dan **tidak pernah dihapus** oleh kiriman yang tidak membawanya
+(`COALESCE`), supaya operator yang mengetik ulang plat tidak memutus tautannya.
+Supplier `disabled` di ERP → `status='inactive'`, barisnya tetap ada untuk riwayat. `Truck` di
+AutoERP **tidak punya** field `disabled`, jadi truk hasil tarik selalu `active`.
 
-Antreannya **tabel `inspections` itu sendiri**, bukan tabel kedua: `erp_state IS NULL` = belum
-didorong, `'ok'` = mendarat, `'tolak'` = ditolak permanen. Satu fakta di satu tempat — antrean
-terpisah selalu berakhir beda isi dengan tabel yang dia bayangi. `ORDER BY received_at`, bukan
-`timestamp`: yang dikejar urutan kedatangan, dan event yang nyusul berjam-jam setelah listrik
-balik tidak boleh menyelinap ke depan antrean.
+**Field yang diminta harus persis milik DocType.** Frappe membalas **417 `DataError: Field not
+permitted in query`** untuk satu field yang tidak ada, dan seluruh request gagal. Daftarnya
+disalin dari kontrak (`autoerp/docs/autograde-integration.md` §4.A), dan ERP palsu di
+`test_erp_master_data.py` menolak field asing dengan cara yang sama.
 
-Tiga kelas hasil, dan bedanya yang menentukan:
+**Sumber TBS mengikuti AutoERP, bukan ditebak edge.** AutoERP menurunkannya dari supplier saja
+(`sumber_for_supplier`: punya supplier = External, tidak punya = Internal). `domain/ffb_source.py`
+mencerminkan aturan itu: truk ber-supplier → External; truk yang **sudah ada di ERP** tanpa
+supplier → Internal; truk tanpa supplier yang belum dilihat ERP → `—`. Kelima query store
+memakai satu definisi (`_SOURCE_FACTS`), jadi truk yang sama tidak pernah berlabel beda di tab
+lain. Grup supplier tetap disimpan **mentah** di `suppliers.source_group` — beda Plasma vs agen hidup
+di situ. **Tidak ada boolean `is_internal` di manapun.**
 
-| Balasan | Artinya | Yang dilakukan |
+**Per janjang tidak dikirim ke ERP.** Kontrak AutoERP §2 tegas: *"Not synced: per-bunch rows,
+images"*. Janjang dan gambarnya tetap di edge sebagai bukti; AutoERP menerima **satu pesan per
+kunjungan truk** (`upsert_visit`: timbang masuk → grading selesai → timbang keluar). Karena itu
+`ErpPushWorker` (POST per janjang ke `palmos.interfaces.api.terima_event`, endpoint yang tidak
+ada di autoerp) dihapus. Kolom `inspections.erp_state` dibiarkan tanpa dipakai supaya database
+pabrik tidak perlu dibangun ulang; indeksnya dilepas lewat `_MIGRATE_SQL`.
+
+`prediction`, `tp_status`, dan `tp_confidence` tetap disimpan **apa adanya** dari line: rekap
+per kunjungan butuh `tp_confidence` untuk menghitung tangkai panjang (ACC dengan
+`tp_confidence > 0.8`).
+
+**Antrean kirim ke AutoERP (§5).** Yang dikirim ke ERP tidak pernah langsung dari jalur
+permintaan: `POST /api/console/trucks` menaruh satu baris di `state/erp_outbox.db`, dan
+`ErpOutboxWorker` yang mengirimkannya tiap 30 detik. Antreannya di **edge**, bukan cloud,
+karena di situ mati lampu dan internet putusnya.
+
+Kuncinya `(kind, key)` dengan `key` = kunci alami yang dicocokkan AutoERP (plat ternormalisasi
+untuk truk), jadi satu truk yang diketik dua kali tetap **satu pesan berisi keadaan terbaru** —
+bukan dua. Pesan yang diganti **saat masih di jalan** sengaja tidak ditandai terkirim
+(`mark_sent` mencocokkan payload-nya), supaya keadaan yang lebih baru tidak hilang.
+
+`integrations/erp/client.py` membedakan dua hal, dan pemanggilnya bertindak beda:
+
+| Balasan | Artinya | Yang dilakukan worker |
 |---|---|---|
-| `200` | mendarat (`{"baru": true}`) **atau** sudah pernah mendarat (`{"baru": false}`) | `erp_state='ok'` — dua-duanya sukses; kiriman ulang setelah internet balik memang perilaku yang benar |
-| `417` | `frappe.throw` — ERP menolak isinya | `erp_state='tolak'` + alasannya masuk log. Permanen: payload cacat yang diputar tiap menit selamanya cuma bikin antrean di belakangnya kelaparan |
-| jaringan mati / 5xx / 401 / 403 | kondisi **luar**, bukan salah barisnya | kolomnya **tidak disentuh**, batch berhenti, tick berikutnya mengambil ulang |
+| 2xx | mendarat | handler mencatat jawabannya (mis. `erp_name` truk), baris selesai |
+| **4xx** (`ErpRejected`) | AutoERP **menolak isinya** — diulang pun sama | disimpan **dengan alasan dari Frappe**, batch lanjut ke pesan berikutnya |
+| **jaringan / 5xx** (`ErpUnavailable`) | AutoERP **tidak terjangkau** | batch **berhenti** — sisanya cuma akan membakar backoff-nya sendiri |
 
-Kelas ketiga itu yang paling mudah salah: menandai gagal di situ berarti menghapus janjang dari
-ERP gara-gara internet putus. 401/403 dipisah lognya dan menyebut `ERP_API_KEY`/`ERP_API_SECRET`
-+ Role-nya — tanpa itu kredensial kedaluwarsa tenggelam sebagai "gagal kirim" berhari-hari.
+Backoff 30 detik → 1 jam (kontrak §5). Handler yang gagal mencatat di sisi kita juga menahan
+pesannya: AutoERP sudah menerima, tapi kirim ulang aman (semua handler upsert) sedangkan
+kehilangan jawabannya tidak.
 
-`prediction`, `tp_status`, dan `tp_confidence` disimpan **apa adanya** dari line dan diteruskan
-apa adanya. Aturan Acc/Rej hidup di `domain/vision_event.py`; menurunkannya lagi di konsol
-berarti dua aturan yang bisa berbeda tanpa ada yang tahu. Field kosong juga tidak ditambal —
-ERP menolaknya dengan alasan yang kelihatan, sedangkan tebakan yang salah tidak kelihatan sama
-sekali.
+**Kunjungan truk (§4.C).** Satu pesan per kunjungan, dikirim tiga kali saat kejadian yang
+memang terjadi: **timbang masuk**, **truk dilepas dari line**, dan **timbang keluar**. Plus
+kirim ulang kunjungan kemarin sekali sehari (`VisitResendWorker`, penanda harinya di
+`sync_state`) sebagai jaring pengaman.
+
+`services/erp_queue.py` satu-satunya yang merakit pesan — pemicu langsung dan kirim ulang
+memakai jalan yang sama, jadi keduanya tidak bisa berbeda isi. Payloadnya **dibangun ulang dari
+store tiap kali**, tidak ditambal, sehingga kiriman yang antre di belakang tidak pernah membawa
+keadaan lebih lama daripada barisnya.
+
+| Hal | Aturannya |
+|---|---|
+| `visit_id` | id baris timbangan (uuid5 dari `ref`, atau plat + `waktu_masuk`) |
+| `stage` | **diturunkan** dari keadaan: ada tara → `departed`, ada grading → `grading`, sisanya `gate` |
+| bagian kosong | **tidak dikirim** — tiap kiriman mengganti bagian yang dibawanya, jadi bagian kosong menghapus isi ERP |
+| grading | lewat `weighings.assignment_id`, ditulis **saat truk dilepas**; tanpa itu tiket kedua hari itu mewarisi janjang tiket pertama |
+| kriteria | mentah = REJ, tangkai panjang = ACC dengan `tp_confidence > 0.8`, matang diturunkan AutoERP |
+| `erp_ticket` | nomor Weighbridge Ticket jawaban AutoERP, disimpan balik ke baris timbangan |
+
+⚠️ AutoERP **mengadopsi tiket terbuka milik truk yang sama** dalam jendela ±2 jam. Dua
+kunjungan truk itu di jam yang sama karena itu mendarat di satu tiket — perilaku ERP, bukan bug
+konsol. Dan tiket yang sudah punya berat bersih lalu menerima grading akan **difinalisasi**;
+untuk buah Inti itu butuh Gudang Penerimaan TBS + Akun Pendapatan Transfer di Pengaturan PKS,
+yang di situs demo belum diisi (AutoERP membalas 417 dan antrean menahannya dengan alasannya).
+
+**Truk baru naik (§4.B).** Truk yang diketik operator dikirim ke
+`erpnext.palm_mill.api.upsert_truck` dengan `plate_number` + `autograde_id`; AutoERP membuatnya
+**tanpa pemilik** dan backoffice yang melengkapi. Jawabannya (`name`, dan `supplier` kalau ERP
+sudah mengenal platnya) disimpan lewat `link_truck`, lalu tarikan berikutnya mengadopsinya jadi
+truk ERP biasa. Supplier dan kelas **tidak** ikut dikirim — itu milik AutoERP.
 
 `ERP_URL` kosong = worker pulang saat start dan menulis satu baris log. Itu default: jalur ini
 tidak boleh jadi syarat hidupnya layar operator.
@@ -461,20 +638,33 @@ CDN** (harus tetap terbuka saat internet mati). Stream kamera pakai `<img>` MJPE
 line di port 8001-8003, jadi tiga koneksi video ditanggung browser, bukan proses konsol. ~2200
 baris React di frontend lama **diekspresikan ulang, bukan di-port**.
 
-**Belum termasuk Fase 2** (sengaja): login operator + PIN (§6.5), timbangan brondolan lewat PLC
-(§6.6b, Fase 3), nomor dokumen berprefiks lokal (§6.3), toggle tampil/sembunyi per line, dan
-halaman riwayat/laporan lintas hari (itu urusan cloud — live/hari ini lokal, riwayat cloud).
+**Login (Fase 4, §6.5).** Layar tertutup gerbang **email + sandi** sampai ada yang masuk, dan
+**semua** `/api/console/*` menjawab 401 `belum_masuk` tanpa cookie `konsol_sesi` — kecuali
+`/console` sendiri, daftar akun untuk mengisi kolom email, dan `login`. Akun datang dari dua
+tempat: DocType **`AutoGrade Operator`** di AutoERP (ditarik §4.A) dan akun **lokal** di PC itu
+(bawaan + support, supaya pabrik tanpa internet tetap bisa dibuka). Keduanya diverifikasi di
+pabrik — yang ditarik `password_hash`-nya, bukan sandinya, dan itulah sebabnya field-nya `Data`
+biasa: fieldtype `Password` hidup di `__Auth` yang Frappe sengaja tidak pernah layani lewat REST,
+jadi tidak akan ada yang bisa ditarik. Dua skema berdampingan: `pbkdf2_sha256` milik AutoERP
+(dibaca `hashlib` saja) dan `scrypt` untuk akun lokal. Sesi 12 jam (`sesi`), lockout berlipat dua
+sesudah lima kali salah, dan `requested_by` Reject Manual sekarang nama operator yang masuk —
+bukan lagi string `"operator"`. Akun lokal dibuat dari PC dengan `make operator`; tidak ada lane
+web untuk itu. Rincian aturannya di `CLAUDE.md` invarian 19.
 
-**Tests** (`tests/unit/test_working_day.py`, `test_console_store.py`, murni-logic, tanpa
-FastAPI): batas hari lewat tengah malam WIB vs UTC, timestamp cacat melempar, dedupe event
+**Belum termasuk Fase 2** (sengaja): timbangan brondolan lewat PLC (§6.6b, Fase 3), nomor dokumen
+berprefiks lokal (§6.3), toggle tampil/sembunyi per line, dan halaman riwayat/laporan lintas hari
+(itu urusan cloud — live/hari ini lokal, riwayat cloud).
+
+**Tests** (`tests/unit/test_working_day.py`, `test_console_store.py`, murni-logic; satu-satunya yang
+memakai FastAPI adalah penjaga sesi konsol, lawan app rakitan sendiri): batas hari lewat tengah
+malam WIB vs UTC, timestamp cacat melempar, dedupe event
 kirim-ulang, pemisahan ACC/REJ per line, penugasan yang selamat restart, urutan
-line-dulu-baru-catat, bentuk URL gambar (relatif vs R2 absolut), Sumber TBS tetap tiga nilai,
-`LINE_N_MACHINE_ID` yang benar-benar sampai lewat Settings, dan kursor master data yang tidak
-maju saat ada baris gagal. `test_erp_push_worker.py` mengunci ketiga kelas hasil dorong-ke-ERP
-(kiriman ulang `{"baru": false}` bukan error, 417 permanen dan cuma dicoba sekali, jaringan
-mati/5xx/403 tidak membuang apa pun dan 403 menghentikan seluruh batch) plus tiga hal yang
-diam-diam bisa berubah tanpa ketahuan: bentuk header `token k:s`, URL metode whitelisted-nya
-persis, dan `prediction`/`tp_status`/`image_path` yang lewat apa adanya. Seam-nya kolaborator:
+line-dulu-baru-catat, bentuk URL gambar (relatif vs R2 absolut), Sumber TBS yang sama di kelima
+tampilan, dan `LINE_N_MACHINE_ID` yang benar-benar sampai lewat Settings.
+`test_erp_master_data.py` + `test_ffb_source.py` mengunci tarikan AutoERP: field persis milik
+DocType (ERP palsunya membalas 417 seperti Frappe), adopsi baris manual, `erp_name` yang tidak
+terhapus, kursor per-DocType yang tidak maju saat ada baris gagal, bentuk header `token k:s`, dan
+aturan `sumber_for_supplier`. Seam-nya kolaborator:
 test menukar `LineClient` dengan yang palsu dan jaringan dengan `httpx.MockTransport`,
 bukan menambal method privat service. `test_console_html.py` menjaga dua invarian UI yang tidak
 punya test runner sendiri (tanpa build step, jadi tanpa Vitest): tidak ada handler `on*` inline

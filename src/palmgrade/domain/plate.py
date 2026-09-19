@@ -8,6 +8,8 @@ from __future__ import annotations
 import re
 import uuid
 
+from .operator_error import PLAT_KOSONG, InvalidInput
+
 _BUKAN_ALNUM = re.compile(r"[^A-Za-z0-9]")
 
 
@@ -15,7 +17,7 @@ def normalisasi_plat(plat: str) -> str:
     """`B 1234 xy` → `B1234XY`. ValueError if nothing is left."""
     hasil = _BUKAN_ALNUM.sub("", plat or "").upper()
     if not hasil:
-        raise ValueError("nomor polisi tidak boleh kosong")
+        raise InvalidInput(PLAT_KOSONG, "nomor polisi tidak boleh kosong")
     return hasil
 
 

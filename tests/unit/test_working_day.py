@@ -1,9 +1,9 @@
-"""Batas hari kerja pabrik (§6.1 rencana PalmOS).
+"""Mill working-day boundary (PalmOS plan §6.1).
 
-Pabrik jalan ~20 jam/hari dan LEWAT tengah malam WIB. Jam 00:30 WIB masih shift
-yang sama dengan jam 23:00 sebelumnya, tapi dalam UTC dia sudah pindah tanggal —
-itulah jebakannya. Test ini yang gagal duluan kalau ada yang menghitung tanggal
-dari UTC atau dari `now()` lagi.
+The mill runs ~20 hours/day and ACROSS midnight WIB. 00:30 WIB is still the
+same shift as 23:00 the previous day, but in UTC it has already crossed a
+date — that is the trap. This test is the first thing to fail if anything
+ever computes the date from UTC or from `now()` again.
 """
 from __future__ import annotations
 
@@ -12,42 +12,42 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from palmgrade.domain.working_day import tanggal_kerja_for
+from palmgrade.domain.working_day import work_date_for
 
 WIB = ZoneInfo("Asia/Jakarta")  # UTC+7
 
 
-def test_lewat_tengah_malam_wib_masuk_tanggal_wib_bukan_utc():
-    # 2026-09-09 18:30 UTC = 2026-09-10 01:30 WIB — shift malam, sudah hari baru
-    # di pabrik walau UTC masih 09.
-    assert tanggal_kerja_for("2026-09-09T18:30:00+00:00", WIB) == "2026-09-10"
+def test_past_midnight_wib_lands_on_the_wib_date_not_utc():
+    # 2026-09-09 18:30 UTC = 2026-09-10 01:30 WIB — night shift, already a new
+    # day at the mill even though UTC still reads the 9th.
+    assert work_date_for("2026-09-09T18:30:00+00:00", WIB) == "2026-09-10"
 
 
-def test_sore_wib_belum_ganti_hari_walau_utc_masih_kemarin():
-    # 2026-09-09 16:00 UTC = 2026-09-09 23:00 WIB — masih hari yang sama.
-    assert tanggal_kerja_for("2026-09-09T16:00:00Z", WIB) == "2026-09-09"
+def test_wib_evening_has_not_rolled_over_even_though_utc_is_still_yesterday():
+    # 2026-09-09 16:00 UTC = 2026-09-09 23:00 WIB — still the same day.
+    assert work_date_for("2026-09-09T16:00:00Z", WIB) == "2026-09-09"
 
 
-def test_pagi_wib_masih_hari_kemarin_menurut_utc():
-    # 2026-09-08 22:00 UTC = 2026-09-09 05:00 WIB. Pakai UTC → salah satu hari.
+def test_wib_morning_is_still_yesterday_by_utc():
+    # 2026-09-08 22:00 UTC = 2026-09-09 05:00 WIB. Using UTC would pick the wrong day.
     ts = "2026-09-08T22:00:00+00:00"
-    assert tanggal_kerja_for(ts, WIB) == "2026-09-09"
-    assert tanggal_kerja_for(ts, UTC) == "2026-09-08"
+    assert work_date_for(ts, WIB) == "2026-09-09"
+    assert work_date_for(ts, UTC) == "2026-09-08"
 
 
-def test_timestamp_naif_dianggap_utc():
-    assert tanggal_kerja_for("2026-09-09T18:30:00", WIB) == "2026-09-10"
+def test_a_naive_timestamp_is_read_as_utc():
+    assert work_date_for("2026-09-09T18:30:00", WIB) == "2026-09-10"
 
 
-def test_offset_selain_utc_dihormati():
-    # Line yang mengirim +07:00 langsung tidak boleh digeser dua kali.
-    assert tanggal_kerja_for("2026-09-10T01:30:00+07:00", WIB) == "2026-09-10"
+def test_a_non_utc_offset_is_honoured():
+    # A line that sends +07:00 directly must not be shifted a second time.
+    assert work_date_for("2026-09-10T01:30:00+07:00", WIB) == "2026-09-10"
 
 
-def test_timestamp_cacat_melempar_bukan_jatuh_ke_hari_ini():
-    # Diam-diam memakai now() = tonase mendarat di tanggal yang salah dan tidak
-    # ada yang tahu. Melempar → ingest balas 400 → outbox line menandai gagal.
+def test_a_broken_timestamp_raises_instead_of_falling_back_to_today():
+    # Silently using now() would land tonnage on the wrong date with nobody
+    # the wiser. Raising → ingest answers 400 → the line's outbox marks it failed.
     with pytest.raises(ValueError):
-        tanggal_kerja_for("kemarin sore", WIB)
+        work_date_for("kemarin sore", WIB)
     with pytest.raises(ValueError):
-        tanggal_kerja_for("", WIB)
+        work_date_for("", WIB)

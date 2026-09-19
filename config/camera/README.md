@@ -3,8 +3,19 @@
 Reference snapshots of Hikrobot GigE camera parameters, exported from MVS via
 **Feature Save** (`MV_CC_FeatureSave`). Plain-text GenApi persistence files (`.mfs`).
 
-These are **reference / backup only** — the service does **not** auto-load them.
-To apply on a camera, use MVS (or `MV_CC_FeatureLoad`) manually.
+**This is where the frame rate is set.** `hikrobot.mfs` is pushed to the camera
+on every connect (`MV_CC_FeatureLoad`, see `integrations/camera/hikrobot_camera.py`),
+and the capture worker then asks the camera what rate it ended up with and paces
+itself by that. So the rate lives in exactly one place: `AcquisitionFrameRate` in
+this file. `CAMERA_FPS` is only a fallback for cameras that cannot report a rate
+(a webcam, a video file) and does nothing on a Hikrobot line.
+
+Changing the rate: edit `AcquisitionFrameRate` here, keep `AcquisitionFrameRateEnable`
+at `1`, keep `ExposureTime` under one frame period, and update `EXPECTED_FPS` in
+`tests/unit/test_camera_feature_file.py` plus `docs/camera-spec.md` § 2.2 — the test
+pins the number on purpose, so a drift is caught instead of discovered months later.
+⚠️ Read `docs/camera-spec.md` § 3.1 first: GPU, GigE bandwidth and belt speed each
+cap the useful rate, and they are not the same ceiling.
 
 ## Files
 

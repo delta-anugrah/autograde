@@ -48,6 +48,8 @@ class CaptureService:
             frame=frame,
             truck_id=truck_id,
             assignment_id=self.state.current_assignment_id,
+            plate=self.state.current_plate,
+            assigned_at=self.state.current_assigned_at,
         )
 
         event = {

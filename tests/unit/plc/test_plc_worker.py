@@ -306,7 +306,7 @@ def test_alive_coil_success_clears_stale_failed_retry():
 def test_sustained_overflow_never_raises_error_coil():
     # Overflow adalah steady state yang DIDEKLARASIKAN di bawah beban
     # (docs/plc-integration.md): kamera bisa ~10 keputusan/detik, satu coil muat
-    # ~3,3. Kalau drop menaikkan ERROR, CAM_N_ERROR menyala sepanjang shift dan
+    # ~2,5. Kalau drop menaikkan ERROR, CAM_N_ERROR menyala sepanjang shift dan
     # artinya berubah jadi "line ini jalan normal" — entah menghentikan produksi
     # atau cuma jadi hiasan. ERROR = health check gagal (kamera mati), titik.
     w, client = _worker(health_check=lambda: True)
@@ -317,7 +317,7 @@ def test_sustained_overflow_never_raises_error_coil():
         w.run_once(now=tick * 0.2)
 
     assert w.scheduler.dropped > 0          # benar-benar overflow, terus-menerus
-    assert [v for (addr, v) in client.writes if addr == 5] == [False]
+    assert True not in [v for (addr, v) in client.writes if addr == 5]
 
 
 def test_error_coil_raised_when_health_check_says_unhealthy():
@@ -332,6 +332,23 @@ def test_error_coil_written_once_not_every_tick():
     w.run_once(now=0.2)
     w.run_once(now=0.4)
     assert [v for (addr, v) in client.writes if addr == 5] == [False]
+
+
+def test_error_coil_is_rewritten_after_the_coupler_resets_outputs():
+    # Fault action ODOT me-nol-kan output saat link putus. Level yang cuma ditulis
+    # SAAT BERUBAH tidak akan pernah naik lagi sesudahnya: PLC melihat line sehat
+    # padahal kameranya masih terputus. Karena itu ERROR ditulis ulang tiap detik,
+    # sama seperti bit alive.
+    w, client = _worker(health_check=lambda: False)
+    w.run_once(now=0.0)
+    assert (5, True) in client.writes
+
+    client.writes.clear()
+    w.run_once(now=0.2)
+    assert client.writes == []          # di bawah satu detik: tetap diam
+
+    w.run_once(now=1.0)
+    assert (5, True) in client.writes   # satu detik lewat: level ditegakkan lagi
 
 
 class _DeadClient:
@@ -560,3 +577,47 @@ def test_no_license_callback_means_always_alive():
     w, client = _worker()
     w.run_once(now=100.0)
     assert (11, True) in client.writes
+
+
+# ── fire_test_coil: manual coil test for commissioning ───────────────────────
+
+
+def test_fire_test_coil_queues_a_pulse_written_on_the_next_tick():
+    w, client = _worker()
+    assert w.fire_test_coil(3) is True
+    client.writes.clear()
+    w.run_once(now=0.0)
+    assert (3, True) in client.writes
+
+
+def test_fire_test_coil_does_not_touch_the_coil_by_itself():
+    # enqueue() only schedules — the write happens in run_once, same as a
+    # grading pulse. Calling fire_test_coil() alone must move nothing.
+    w, client = _worker()
+    w.fire_test_coil(3)
+    assert client.writes == []
+
+
+def test_fire_test_coil_returns_false_when_the_pulse_queue_is_full():
+    # queue_max=20 in _worker(); a dedicated tiny scheduler makes "full" reachable
+    # in one call, so the drop path is exercised directly rather than by looping.
+    client = _FakeClient()
+    w = PlcWorker(
+        client=client,
+        scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=1),
+        settings=_Cfg(),
+    )
+    assert w.fire_test_coil(3) is True
+    assert w.fire_test_coil(3) is False    # dropped: queue already holds one pending pulse
+
+
+def test_fire_test_coil_shares_the_scheduler_safely_with_grading_pulses():
+    # fire_test_coil() runs on the HTTP thread while run_once() (submit()'s consumer)
+    # runs on the worker thread — this is the first caller of scheduler.enqueue()
+    # from outside that thread, so the two must not corrupt each other's state.
+    w, client = _worker()
+    w.submit("acc")
+    assert w.fire_test_coil(4) is True
+    w.run_once(now=0.0)
+    assert (3, True) in client.writes    # grading acc -> coil_ok
+    assert (4, True) in client.writes    # manual test -> coil_ng

@@ -4,19 +4,61 @@ import datetime
 import logging
 import queue
 import time
+from typing import TYPE_CHECKING
 
 from ..core.config import Settings
-from ..core.constants import JPEG_QUALITY_SAVE
-from ..domain.vision_event import build_event_payload
-from ..integrations.notifications.webhook_client import WebhookClient
+from ..domain.garis_capture import (
+    kandidat_tp_sah,
+    menyentuh_kotak,
+    skala_garis,
+    tp_untuk_janjang,
+)
+from ..domain.grade_class import TP, grade_class_of, is_fruit_class, verdict_for_class
+from ..domain.plc_signal import plc_status_for
 from ..integrations.outbox.outbox_store import OutboxStore
-from ..integrations.storage.local_file_storage import LocalFileStorage
 from ..license.gate import grading_blocked
-from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
 from ..plc import submit_grading
+from ..services.capture_writer import CaptureWriter
+from .capture_save_worker import CaptureSaveWorker, SaveJob
 from .runtime_state import RuntimeState
 
+if TYPE_CHECKING:  # annotations only — these pull in cv2/torch, and the unit
+    # suite deliberately runs without either (CLAUDE.md § Tests). Importing them
+    # at runtime would keep the save path out of CI for no benefit: every one of
+    # them is injected, so nothing here constructs one.
+    from ..integrations.notifications.webhook_client import WebhookClient
+    from ..integrations.storage.local_file_storage import LocalFileStorage
+    from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
+
 logger = logging.getLogger(__name__)
+
+# Label asing yang sudah pernah diadukan. Loop ini jalan 10-16 fps per line, jadi
+# satu kelas tak dikenal akan menulis puluhan ribu baris log per jam dan menutupi
+# semua yang lain. Diadukan sekali per nama, lalu diam.
+_unknown_labels_seen: set[str] = set()
+
+
+def _grade_class_or_none(label: str | None) -> str | None:
+    """Kelas model yang sudah dinormalkan, atau `None` kalau di luar keempatnya.
+
+    Jalur realtime sengaja TIDAK melempar seperti `grade_class_of`: melempar di
+    tengah loop frame akan mematikan grading satu line gara-gara satu kotak yang
+    aneh. Yang tak dikenal dilewati (tidak digrading, tidak dipulse ke PLC) dan
+    dicatat sekali — cukup buat ketahuan kalau model salah pasang, tanpa membuat
+    line berhenti.
+    """
+    try:
+        return grade_class_of(label)
+    except ValueError:
+        name = str(label)
+        if name not in _unknown_labels_seen:
+            _unknown_labels_seen.add(name)
+            logger.error(
+                "Kelas model tidak dikenal: %r - dilewati, tidak digrading. "
+                "Cek MODEL_FILE menunjuk ke model 4 kelas (Ripe/Unripe/JK/TP).",
+                name,
+            )
+        return None
 
 
 class FrameProcessingWorker:
@@ -28,6 +70,7 @@ class FrameProcessingWorker:
         webhook: WebhookClient,
         settings: Settings,
         outbox_store: OutboxStore,
+        capture_saver: CaptureSaveWorker | None = None,
     ) -> None:
         self.pipeline = pipeline
         self.state = state
@@ -35,11 +78,28 @@ class FrameProcessingWorker:
         self.webhook = webhook
         self.settings = settings
         self.outbox_store = outbox_store
+        self.capture_writer = CaptureWriter(settings, storage)
+        # Penulis bukti. Dibuat sendiri kalau tidak disuntikkan, supaya pemanggil
+        # lama (dan tes yang cuma memakai helper simpan) tetap jalan. Thread-nya
+        # dinyalakan `main.py`, bukan di sini: konstruktor yang menyalakan thread
+        # membuat tiap tes ikut menyalakannya.
+        self.capture_saver = capture_saver or CaptureSaveWorker(
+            settings=settings, storage=storage, outbox_store=outbox_store
+        )
 
         # Internal worker state — tidak perlu di RuntimeState karena hanya diakses worker ini
         self._processed_objects: set[int] = set()
         self._inactive_counter: dict[int, int] = {}
-        self._last_tp: dict | None = None
+        # Track id TP yang sudah dihitung -> jam hitungnya. Supaya satu
+        # tangkai yang terlihat puluhan frame berturut-turut tidak dihitung
+        # puluhan kali, dan supaya entri lamanya bisa dipangkas berkala
+        # (tanpa itu dia tumbuh sepanjang shift 20 jam).
+        self._tp_terhitung: dict[int, float] = {}
+        # Kotak janjang yang sudah difoto, beserta jamnya. Umurnya sama
+        # dengan `_processed_objects` (dipangkas di blok cleanup yang sama),
+        # supaya `tp_telat` tetap terhitung untuk TP yang muncul jauh
+        # sesudah janjangnya lewat.
+        self._janjang_difoto: list[tuple[tuple[int, int, int, int], float]] = []
         self._frame_count: int = 0
         self._last_results = None  # cached YOLO result for skip frames
         self._processed_times: dict[int, float] = {}
@@ -50,47 +110,99 @@ class FrameProcessingWorker:
 
     # ------------------------------------------------------------------ zone helpers
 
-    def _roi_box(self, width: int, height: int) -> tuple[int, int, int, int]:
-        """Effective ROI (x1,y1,x2,y2). Falls back to full frame when all coords are 0."""
-        x1, y1 = self.settings.roi_x1, self.settings.roi_y1
-        x2 = self.settings.roi_x2 if self.settings.roi_x2 > 0 else width
-        y2 = self.settings.roi_y2 if self.settings.roi_y2 > 0 else height
-        return x1, y1, x2, y2
+    @staticmethod
+    def _roi_box_for(
+        settings: Settings, width: int, height: int
+    ) -> tuple[int, int, int, int]:
+        """Effective ROI (x1,y1,x2,y2) in the coordinate space of THIS frame.
 
-    def _is_in_roi(self, cx: int, cy: int, roi: tuple[int, int, int, int]) -> bool:
+        `ROI_*` is written in **stream space** (`STREAM_WIDTH x STREAM_HEIGHT`),
+        because that is the picture the operator calibrates against. Detection,
+        however, runs on the raw camera frame — `frame_queue` is never resized,
+        so on a Hikrobot line that is 2448x2048, not 1280x720. The numbers are
+        scaled here so both ends mean the same rectangle.
+
+        Skipping the scale is what made `ROI=100,100,1180,620` draw a box over
+        ~92% of the screen while filtering only ~11% of the sensor frame: fruit
+        outside that top-left corner was tracked, drawn, then dropped without a
+        word — read as "detection sometimes misses", not as a bad calibration.
+        """
+        x1, y1 = settings.roi_x1, settings.roi_y1
+        x2, y2 = settings.roi_x2, settings.roi_y2
+        if x1 == 0 and y1 == 0 and x2 == 0 and y2 == 0:
+            return 0, 0, width, height
+
+        # Guard against a zero/absent stream size rather than dividing by it.
+        sw = settings.stream_width or width
+        sh = settings.stream_height or height
+        fx = width / sw
+        fy = height / sh
+
+        x2 = x2 if x2 > 0 else sw
+        y2 = y2 if y2 > 0 else sh
+        return round(x1 * fx), round(y1 * fy), round(x2 * fx), round(y2 * fy)
+
+    def _roi_box(self, width: int, height: int) -> tuple[int, int, int, int]:
+        return self._roi_box_for(self.settings, width, height)
+
+    @staticmethod
+    def _is_in_roi_box(cx: int, cy: int, roi: tuple[int, int, int, int]) -> bool:
         """True when object center (cx, cy) falls inside the ROI rectangle."""
         rx1, ry1, rx2, ry2 = roi
         return rx1 <= cx <= rx2 and ry1 <= cy <= ry2
+
+    def _is_in_roi(self, cx: int, cy: int, roi: tuple[int, int, int, int]) -> bool:
+        return self._is_in_roi_box(cx, cy, roi)
 
     # ------------------------------------------------------------------ save
 
     def _save_ripeness(
         self,
         annotated_frame,
+        clean_frame,
         ripeness_status: str,
         ripeness_conf: float,
         truck_id: str | None,
         bounding_box: dict,
+        grade_class: str | None = None,
     ) -> tuple[str, str, str]:
         # Timezone-aware UTC: a naive isoformat() leaves the consumer guessing.
         # palmgrade-api runs TZ=Asia/Jakarta and resolved bare date-times as
         # local, storing every capture 7 hours early. Deriving the filename from
         # the same aware instant keeps names byte-identical (containers run UTC)
         # while making the emitted timestamp unambiguous.
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
         date_folder = now.strftime("%Y-%m-%d")
         timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
 
         results_dir = self.settings.results_dir / date_folder
         img_filename = f"{timestamp}_auto.webp"
-        image_url = f"captures/results/{date_folder}/{img_filename}"
 
-        self.storage.write_image(results_dir / img_filename, annotated_frame, quality=JPEG_QUALITY_SAVE)
+        # Images are filed per truck and per verdict; the sidecar below is NOT
+        # (see `domain/capture_layout`). `image_url` names the annotated copy.
+        truck_folder = self.capture_writer.truck_folder(
+            assignment_id=self.state.current_assignment_id,
+            plate=self.state.current_plate,
+            assigned_at=self.state.current_assigned_at,
+            now=now,
+        )
+        image_url = self.capture_writer.write_pair(
+            date_folder=date_folder,
+            truck_folder=truck_folder,
+            ripeness_status=ripeness_status,
+            filename=img_filename,
+            annotated_frame=annotated_frame,
+            clean_frame=clean_frame,
+        )
 
         meta = {
             "timestamp": now.isoformat(),
             "image_path": image_url,
             "ripeness_status": ripeness_status,
+            # Ikut ditulis ke sidecar supaya jalur batch (yang membacanya dari
+            # disk berjam-jam kemudian, bukan dari memori) membawa kelas yang
+            # sama dengan jalur realtime.
+            "grade_class": grade_class,
             "ripeness_confidence": round(ripeness_conf, 2),
             "tp_status": None,
             "tp_confidence": 0,
@@ -98,6 +210,9 @@ class FrameProcessingWorker:
             "truck_id": truck_id,
             "bounding_box": bounding_box,
             "assignment_id": self.state.current_assignment_id,
+            # Bukti kenapa sebuah janjang REJ tidak dibuang piston. Sumbernya
+            # potret saat truk dipasang, bukan hasil hitung ulang belakangan.
+            "ffb_source": self.state.current_ffb_source,
         }
         self.storage.write_json(results_dir / f"{timestamp}_auto_ripeness.json", meta)
 
@@ -117,7 +232,7 @@ class FrameProcessingWorker:
         results_dir = self.settings.results_dir / date_folder
 
         meta = {
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
             "image_path": None,
             "ripeness_status": None,
             "ripeness_confidence": 0,
@@ -129,6 +244,27 @@ class FrameProcessingWorker:
             "assignment_id": self.state.current_assignment_id,
         }
         self.storage.write_json(results_dir / f"{timestamp}_auto_tp.json", meta)
+
+    def _janjang_terdekat_sudah_difoto(self, x1: int, y1: int, x2: int, y2: int) -> bool:
+        """True kalau TP ini punya janjang di dekatnya yang SUDAH diproses.
+
+        Dipakai hanya untuk menghitung, tidak untuk memutuskan apa pun: TP
+        yang terlambat tetap tidak ikut ke mana pun. Jangkauannya dihitung
+        dari sisi janjang (bukan dari TP) supaya pakai ambang yang sama
+        persis dengan `tp_untuk_janjang` — dua ambang yang berbeda akan
+        membuat angkanya bohong.
+
+        Sumbernya `_janjang_difoto`, BUKAN `state.track_history`: tabel itu
+        dibuang 10 frame sesudah janjangnya hilang dari pandangan (sekitar
+        setengah detik di 20 fps), jadi TP yang muncul sesudah itu tidak
+        menemukan janjang untuk dibandingkan dan tidak pernah terhitung — angka
+        yang diam-diam terlalu kecil justru pada kasus yang paling ingin diukur.
+        """
+        tp = {"bbox": (x1, y1, x2, y2), "tp_confidence": 0.0}
+        return any(
+            tp_untuk_janjang(janjang=bbox, kandidat=[tp]) is not None
+            for bbox, _ in self._janjang_difoto
+        )
 
     def run_once(self) -> None:
         # Gerbang lisensi — paling atas, sebelum frame diambil. Berhenti di sini
@@ -154,7 +290,8 @@ class FrameProcessingWorker:
             self._processed_objects.clear()
             self._inactive_counter.clear()
             self._last_results = None
-            self._last_tp = None
+            self._tp_terhitung.clear()
+            self._janjang_difoto.clear()
             self.state.track_history.clear()
             self.state.rewind_signal = False
             logger.info("Video rewind — ByteTrack and tracking state reset")
@@ -173,8 +310,29 @@ class FrameProcessingWorker:
 
         height, width, _ = frame.shape
         roi = self._roi_box(width, height)
+        # Dihitung sekali per frame, bukan per kotak: nilainya sama untuk semua
+        # janjang di frame ini, dan `skala_garis_ke_frame` dipanggil puluhan kali
+        # per detik kalau ditaruh di dalam loop. Dibaca dari `RuntimeState` tiap
+        # frame supaya setelan dari konsol berlaku tanpa restart line.
+        sumbu_garis = (
+            self.state.sumbu_garis_override
+            if self.state.sumbu_garis_override is not None
+            else self.settings.sumbu_garis
+        )
+        garis_capture = skala_garis(
+            self.state.garis_capture_override
+            if self.state.garis_capture_override is not None
+            else self.settings.garis_capture,
+            sumbu=sumbu_garis,
+            stream_width=self.settings.stream_width,
+            stream_height=self.settings.stream_height,
+            frame_width=width,
+            frame_height=height,
+        )
 
-        results = self.pipeline.track_ripeness(frame)
+        results = self.pipeline.track_ripeness(
+            frame, conf=self.state.conf_threshold_override
+        )
         self._last_results = results
         self.state.last_yolo_frame = frame        # paired: DisplayWorker pakai frame ini untuk draw boxes
         self.state.last_yolo_results = results    # paired: box selalu aligned dengan last_yolo_frame
@@ -210,20 +368,62 @@ class FrameProcessingWorker:
 
         current_active_tracks: set[int] = set()
 
-        # Pre-scan: hitung buah (ACC/REJ) yang belum diproses dan ada di dalam ROI.
-        # Jika > 1 buah sekaligus dalam ROI, semua di-force jadi rej.
+        # Pre-scan: hitung buah (Ripe/Unripe/JK) yang belum diproses dan ada di
+        # dalam ROI. Jika > 1 buah sekaligus dalam ROI, semua di-force jadi rej.
         roi_fruit_count = 0
+        # Kotak semua janjang di frame ini, dipakai `tp_untuk_janjang` untuk
+        # memutuskan TP itu milik siapa. Dikumpulkan di loop yang SUDAH ADA,
+        # bukan loop baru: ini jalan tiap frame pada 8-20 fps per line.
+        janjang_frame_ini: list[tuple[int, int, int, int]] = []
         if results.boxes is not None:
             for _box in results.boxes:
                 _tid = int(_box.id[0].item()) if _box.id is not None else -1
-                _lbl = results.names[int(_box.cls[0].item())]
-                if _tid == -1 or _tid in self._processed_objects or _lbl.lower() not in ("acc", "rej"):
+                _lbl = _grade_class_or_none(results.names[int(_box.cls[0].item())])
+                if not (_lbl is not None and is_fruit_class(_lbl)):
                     continue
                 _bx1, _by1, _bx2, _by2 = map(int, _box.xyxy[0].tolist())
+                # Semua janjang ikut jadi saingan pemilik TP, termasuk yang sudah
+                # diproses: tangkai milik janjang yang baru saja difoto tidak
+                # boleh pindah ke tetangganya hanya karena pemiliknya sudah
+                # selesai. Yang begitu memang tidak ikut ke mana pun (dihitung
+                # `tp_telat`), dan itu jauh lebih jujur daripada salah tempel.
+                janjang_frame_ini.append((_bx1, _by1, _bx2, _by2))
+                if _tid == -1 or _tid in self._processed_objects:
+                    continue
                 _cx, _cy = (_bx1 + _bx2) // 2, (_by1 + _by2) // 2
                 if self._is_in_roi(_cx, _cy, roi):
                     roi_fruit_count += 1
         force_rej_multi = roi_fruit_count > 1
+
+        # Semua TP di frame ini, dikumpulkan SEBELUM janjang diperiksa.
+        #
+        # Dulu yang dipakai satu slot `_last_tp` berisi "TP terakhir yang
+        # terlihat", dan itu tidak pernah melihat posisi — jadi TP milik janjang
+        # A bisa menempel ke janjang B yang kebetulan menyentuh garis lebih
+        # dulu. Dikumpulkan di sini, bukan di dalam loop di bawah, karena urutan
+        # kotak dalam satu frame tidak dijamin: TP yang kebetulan disebut
+        # sesudah janjangnya akan terlewat kalau dibaca sambil jalan.
+        tp_frame_ini: list[dict] = []
+        if results.boxes is not None:
+            for _box in results.boxes:
+                if _grade_class_or_none(results.names[int(_box.cls[0].item())]) != TP:
+                    continue
+                _tid = int(_box.id[0].item()) if _box.id is not None else -1
+                # Gerbang yang sama dengan kode sebelum pasangan-lewat-jarak:
+                # kotak tanpa track id adalah deteksi yang ByteTrack sendiri
+                # belum yakini, dan tangkai yang sudah menempel ke satu janjang
+                # tidak boleh ikut ke janjang berikutnya juga.
+                if not kandidat_tp_sah(
+                    track_id=_tid, sudah_diproses=_tid in self._processed_objects
+                ):
+                    continue
+                _bx1, _by1, _bx2, _by2 = map(int, _box.xyxy[0].tolist())
+                tp_frame_ini.append({
+                    "track_id": _tid,
+                    "tp_status": "PASS",
+                    "tp_confidence": float(_box.conf[0].item()),
+                    "bbox": (_bx1, _by1, _bx2, _by2),
+                })
 
         if results.boxes is not None and len(results.boxes) > 0:
             for box in results.boxes:
@@ -233,7 +433,14 @@ class FrameProcessingWorker:
                 score = float(box.conf[0].item())
                 x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
 
-                area = (x2 - x1) * (y2 - y1) if cls_id in (0, 1) else 0
+                # Kelas dibaca dari NAMA, bukan urutan id. Model yang dilatih ulang
+                # boleh menukar urutan kelasnya; dulu baris ini `cls_id in (0, 1)`
+                # dan penukaran itu membuat `area` selalu 0 untuk buah — penjaga
+                # `minimum_size` berhenti bekerja tanpa satu pun pesan error.
+                grade_class = _grade_class_or_none(label)
+                area = (x2 - x1) * (y2 - y1) if (
+                    grade_class is not None and is_fruit_class(grade_class)
+                ) else 0
 
                 if track_id == -1:
                     continue
@@ -245,8 +452,25 @@ class FrameProcessingWorker:
 
                 cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
 
-                # Objek di luar ROI — skip (kecuali TP boleh dari mana saja)
-                if not self._is_in_roi(cx, cy, roi) and label.lower() != "tp":
+                # Objek di luar ROI — skip (kecuali TP boleh dari mana saja).
+                # ROI menyaring WILAYAH: bagian frame yang memang bukan conveyor.
+                if not self._is_in_roi(cx, cy, roi) and grade_class != TP:
+                    continue
+
+                # Garis capture menentukan WAKTU-nya (2026-09-18). Dua hal yang
+                # berbeda dan sengaja dipisah: ROI menjawab "apakah ini di
+                # conveyor", garis menjawab "apakah sudah waktunya difoto".
+                #
+                # Menggantikan aturan lama yang memakai titik tengah masuk kotak
+                # ROI — itu memfoto janjang saat separuhnya sudah lewat, dan
+                # dengan ROI penuh layar (bawaan) berarti begitu terdeteksi di
+                # mana pun, termasuk di pinggir frame saat janjangnya belum utuh.
+                # TP dikecualikan seperti pada ROI: dia penanda tangkai, bukan
+                # janjang yang difoto.
+                if grade_class != TP and not menyentuh_kotak(
+                    x1=x1, y1=y1, x2=x2, y2=y2,
+                    garis=garis_capture, sumbu=sumbu_garis,
+                ):
                     continue
 
                 self._inactive_counter.pop(track_id, None)
@@ -264,69 +488,174 @@ class FrameProcessingWorker:
                 track["score"] = score
                 track["bbox"] = (x1, y1, x2, y2)
 
-                # Tangkai panjang (TP) → simpan sebagai kandidat terakhir
-                if label.lower() == "tp":
-                    self._last_tp = {
-                        "tp_status": "PASS",
-                        "tp_confidence": score,
-                        "bbox": (x1, y1, x2, y2),
-                    }
+                # Kelas di luar keempatnya: lewati, jangan tebak. Menganggapnya
+                # buah akan memalsukan rekap; menganggapnya REJ akan membuang
+                # janjang yang bagus.
+                if grade_class is None:
                     continue
 
-                # Buah (ACC/REJ) yang sudah masuk zona deteksi
+                # Tangkai panjang (TP) sudah dikumpulkan di pra-pindai
+                # (`tp_frame_ini`) dan dipasangkan lewat jarak saat janjangnya
+                # difoto. Yang tersisa di sini cuma menghitung TP yang datang
+                # TERLAMBAT: janjang terdekatnya sudah difoto, jadi TP ini tidak
+                # akan pernah ikut ke mana pun.
+                #
+                # Dihitung, bukan didiamkan: kalau angkanya ternyata besar di
+                # pabrik, itu alasan terukur untuk menahan penyimpanan sesaat
+                # menunggu TP menyusul — keputusan yang sengaja ditunda sampai
+                # ada datanya (operator memilih capture apa adanya dulu).
+                if grade_class == TP:
+                    if track_id not in self._tp_terhitung:
+                        self._tp_terhitung[track_id] = time.time()
+                        if self._janjang_terdekat_sudah_difoto(x1, y1, x2, y2):
+                            self.state.tp_telat += 1
+                            logger.info(
+                                "TP muncul sesudah janjang terdekatnya difoto "
+                                "(total: %d) — tangkai ini tidak ikut ke mana pun",
+                                self.state.tp_telat,
+                            )
+                    continue
+
+                # Buah (Ripe/Unripe/JK) yang sudah masuk zona deteksi
                 if (
-                    label.lower() in ("acc", "rej")
+                    is_fruit_class(grade_class)
                     and not self.state.track_history[track_id]["processed"]
                     and not self.state.track_history[track_id].get("plc_signalled")
                 ):
-                    # >1 buah dalam ROI sekaligus → force rej (buah bertumpuk)
-                    if force_rej_multi or area < self.settings.minimum_size:
+                    # >1 buah dalam ROI sekaligus → force rej (buah bertumpuk),
+                    # begitu juga buah yang terlalu kecil. Keduanya menimpa
+                    # verdict, TAPI tidak menimpa `grade_class`: kelasnya tetap
+                    # apa yang dilihat model, supaya konsol tidak melaporkan
+                    # janjang matang sebagai Unripe hanya karena bertumpuk.
+                    # Setelan dari konsol menang atas `.env` kalau ada
+                    # (`/internal/setelan`); dibaca tiap frame supaya berlaku
+                    # tanpa restart line.
+                    minimum_size = (
+                        self.state.minimum_size_override
+                        if self.state.minimum_size_override is not None
+                        else self.settings.minimum_size
+                    )
+                    if force_rej_multi or area < minimum_size:
                         ripeness_status = "rej"
                     else:
-                        ripeness_status = label.lower()
+                        ripeness_status = (verdict_for_class(grade_class) or "REJ").lower()
                     ripeness_conf = score
-                    submit_grading(ripeness_status)
+                    # Buah REJ milik truk Internal tetap masuk ramp: tidak ada
+                    # pulse ke PLC, tapi `ripeness_status` di bawah tetap REJ.
+                    sinyal = plc_status_for(ripeness_status, self.state.current_ffb_source)
+                    if sinyal is not None:
+                        submit_grading(sinyal)
                     # Single-trigger TERPISAH dari `processed` di bawah, sengaja.
                     # `processed` baru diset setelah file tersimpan, supaya crash
                     # di tengah blok ini memproses ulang track-nya — aman karena
                     # event_id uuid5-nya sama dan API idempotent. Pulse Modbus
                     # TIDAK punya idempotensi itu: `_save_ripeness` melempar
-                    # IOError kalau cv2.imwrite gagal (Critical Rule #8), track
+                    # OSError kalau cv2.imwrite gagal (Critical Rule #8), track
                     # tetap belum `processed`, dan frame berikutnya masuk lagi ke
                     # blok ini pada 10-16 fps. Satu buah nyangkut akan menjenuhkan
                     # coil-nya tanpa henti dan PLC menghitungnya berpuluh kali.
                     # Flag ini diset SEBELUM tulis disk supaya jalur PLC tidak
-                    # ikut mewarisi semantik retry jalur disk.
+                    # ikut mewarisi semantik retry jalur disk. Diset juga saat
+                    # sinyal ditahan (buah REJ truk Internal): flag ini berarti
+                    # "keputusan PLC sudah diambil", bukan "pulse sudah dikirim".
                     self.state.track_history[track_id]["plc_signalled"] = True
 
+                    # `draw_boxes` gets the copy, so `frame` is still the clean
+                    # capture — the training copy costs no second inference.
                     annotated = self.pipeline.draw_boxes(frame.copy(), results)
 
-                    date_folder, timestamp, image_url = self._save_ripeness(
-                        annotated, ripeness_status, ripeness_conf,
-                        self.state.current_truck_id,
-                        {"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
+                    # Identitas janjang lahir DI SINI, bukan di penulis. Nama
+                    # file adalah sumber `event_id` (uuid5), dan
+                    # `BatchUploadWorker` menghitung ulang id yang sama dari nama
+                    # itu berjam-jam kemudian. Penulis yang menstempel jamnya
+                    # sendiri akan membuat dua jalur itu berbeda untuk satu
+                    # janjang, dan idempotensi di API putus.
+                    now = datetime.datetime.now(datetime.UTC)
+                    date_folder = now.strftime("%Y-%m-%d")
+                    timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
+                    event_ts = now.isoformat()
+
+                    # TP dipasangkan lewat JARAK, dari TP yang ada di frame ini
+                    # juga — bukan dari slot "TP terakhir yang terlihat".
+                    #
+                    # Janjang difoto apa adanya begitu menyentuh garis, ada TP
+                    # atau tidak (keputusan operator 2026-09-18): tidak ada
+                    # penundaan, dan TP yang baru muncul sesudahnya memang tidak
+                    # ikut. Yang dihitung `tp_telat` di bawah, supaya keputusan
+                    # menambah jendela tunggu nanti diambil dari angka nyata,
+                    # bukan dari dugaan.
+                    tp_snapshot = tp_untuk_janjang(
+                        janjang=(x1, y1, x2, y2),
+                        kandidat=tp_frame_ini,
+                        # Janjang lain di frame ini. Tanpa ini, dua janjang yang
+                        # berdempetan sama-sama "dalam jangkauan" TP yang sama,
+                        # dan yang menang tinggal siapa yang kebetulan diproses
+                        # lebih dulu — urutan kotak dalam satu frame tidak
+                        # dijamin. Janjang B dikreditkan tangkai milik A, dan
+                        # tangkai A yang asli tidak tercatat.
+                        janjang_lain=[
+                            b for b in janjang_frame_ini if b != (x1, y1, x2, y2)
+                        ],
+                    )
+                    if tp_snapshot is not None:
+                        # Satu tangkai milik SATU janjang. Ditandai lewat
+                        # `_processed_objects` — set yang sama yang menjaga
+                        # janjang tidak difoto dua kali — supaya tangkai ini
+                        # tidak ikut lagi ke janjang berikutnya yang lewat
+                        # selama dia masih terlihat di frame. Dibuang juga dari
+                        # kandidat frame ini, karena dua janjang bisa menyentuh
+                        # garis pada frame yang sama.
+                        _tid_tp = tp_snapshot.get("track_id", -1)
+                        if _tid_tp != -1:
+                            self._processed_objects.add(_tid_tp)
+                            self._processed_times[_tid_tp] = time.time()
+                        tp_frame_ini = [t for t in tp_frame_ini if t is not tp_snapshot]
+
+                    # Encode + tulis disk + outbox pindah ke thread penulis. Ini
+                    # inti perbaikan 2026-09-18: pada frame 2448x2048 rangkaian
+                    # itu memakan ~590 ms, dan selama itu deteksi line ini
+                    # BERHENTI — frame dibuang diam-diam oleh `frame_queue`,
+                    # ByteTrack kehilangan jejak, dan layar membeku. Yang tetap
+                    # di depan cuma yang memang harus seketika: pulse PLC (sudah
+                    # di atas), penandaan track, dan event ke layar.
+                    job = SaveJob(
+                        timestamp=timestamp,
+                        date_folder=date_folder,
+                        truck_folder=self.capture_writer.truck_folder(
+                            assignment_id=self.state.current_assignment_id,
+                            plate=self.state.current_plate,
+                            assigned_at=self.state.current_assigned_at,
+                            now=now,
+                        ),
+                        annotated_frame=annotated,
+                        clean_frame=frame,
+                        ripeness_status=ripeness_status,
+                        ripeness_conf=ripeness_conf,
+                        grade_class=grade_class,
+                        bounding_box={"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
+                        truck_id=self.state.current_truck_id,
+                        assignment_id=self.state.current_assignment_id,
+                        ffb_source=self.state.current_ffb_source,
+                        event_ts=event_ts,
+                        tp=tp_snapshot,
+                    )
+                    self.capture_saver.submit(job)
+
+                    # `image_url` dipakai layar operator, dan penulis belum tentu
+                    # sudah mengerjakannya. Rumusnya SATU — `annotated_url` juga
+                    # yang dikembalikan `write_pair` — jadi tautan yang tampil
+                    # dan berkas yang ditulis tidak bisa menyimpang.
+                    image_url = CaptureWriter.annotated_url(
+                        date_folder=date_folder,
+                        truck_folder=job.truck_folder,
+                        ripeness_status=ripeness_status,
+                        filename=job.filename,
                     )
 
-                    # H3: snapshot _last_tp before clearing so event + webhook carry TP data
-                    tp_snapshot = self._last_tp
-                    if tp_snapshot:
-                        self._save_tp(
-                            tp_snapshot,
-                            self.state.current_truck_id,
-                            {
-                                "x_min": tp_snapshot["bbox"][0],
-                                "y_min": tp_snapshot["bbox"][1],
-                                "x_max": tp_snapshot["bbox"][2],
-                                "y_max": tp_snapshot["bbox"][3],
-                            },
-                            timestamp,
-                        )
-                        self._last_tp = None
-
-                    event_ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
                     event = {
                         "id": timestamp,
                         "ripeness_status": ripeness_status,
+                        "grade_class": grade_class,
                         "ripeness_confidence": round(ripeness_conf, 2),
                         "tp_status": tp_snapshot["tp_status"] if tp_snapshot else None,
                         "tp_confidence": round(tp_snapshot["tp_confidence"], 2) if tp_snapshot else 0,
@@ -346,43 +675,23 @@ class FrameProcessingWorker:
                         pass
                     self.state.event_queue.put_nowait(event)
 
-                    # Realtime ke API lokal: OutboxRetryWorker mengirim ini dalam
-                    # ~1 detik. Tetap ditulis walau truk belum di-assign — API
-                    # punya TruckResolver.resolveOrStub, dan membuangnya bikin
-                    # deteksi hilang permanen dari Grading History.
-                    outbox_payload = build_event_payload(
-                        machine_id=self.settings.machine_id,
-                        file_ts=timestamp,
-                        timestamp=event_ts,
-                        ripeness_status=ripeness_status,
-                        ripeness_confidence=ripeness_conf,
-                        capture_type="auto",
-                        image_path=image_url,
-                        truck_id=self.state.current_truck_id,
-                        assignment_id=self.state.current_assignment_id,
-                        bounding_box={"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2},
-                        tp_status=tp_snapshot["tp_status"] if tp_snapshot else None,
-                        tp_confidence=tp_snapshot["tp_confidence"] if tp_snapshot else None,
-                    )
-                    try:
-                        self.outbox_store.add_event(
-                            outbox_payload["event_id"], self.settings.machine_id, outbox_payload
-                        )
-                    except Exception as exc:
-                        logger.error(
-                            "Failed to write event %s to outbox: %s",
-                            outbox_payload["event_id"],
-                            exc,
-                        )
+                    # Baris outbox ditulis PENULIS, sesudah gambarnya benar-benar
+                    # ada di disk (`capture_save_worker`). Menulisnya di sini
+                    # akan mengirim ke konsol tautan gambar yang belum tentu
+                    # pernah jadi — dan `OutboxRetryWorker` mengirimnya dalam
+                    # ~1 detik, jauh lebih cepat dari encode 2448x2048.
 
-                    # Tandai `processed` SETELAH file tersimpan (Celah-1 fix): kalau
-                    # crash di tengah blok di atas, track ini BELUM processed → diproses
-                    # ulang next frame → nama file (dan event_id uuid5 yang dihitung
-                    # BatchUploadWorker dari nama itu) sama → idempotent di sisi API.
+                    # Tandai `processed` sesudah janjang diserahkan ke penulis.
+                    # Berbeda dari sebelumnya, yang menandainya sesudah file
+                    # tersimpan: sekarang penyerahan itulah titik yang tidak
+                    # boleh diulang. Nama file (dan `event_id` uuid5 dari nama
+                    # itu) sudah ditetapkan di atas, jadi idempotensi terhadap
+                    # API tetap dipegang oleh nama, bukan oleh urutan ini.
                     # Tanpa truck (truck_id null) tetap ditandai supaya tidak re-trigger.
                     self.state.track_history[track_id]["processed"] = True
                     self._processed_objects.add(track_id)
                     self._processed_times[track_id] = time.time()
+                    self._janjang_difoto.append(((x1, y1, x2, y2), time.time()))
 
         # H6: do NOT discard from _processed_objects on cleanup — prevents re-trigger
         # if ByteTrack reuses the ID or the object re-enters after being marked inactive.
@@ -406,6 +715,18 @@ class FrameProcessingWorker:
             self._processed_objects -= stale
             for tid in stale:
                 self._processed_times.pop(tid, None)
+            # `_tp_terhitung` dipangkas dengan jejak WAKTU, bukan keanggotaan
+            # `track_history`: tabel itu cuma diisi untuk janjang, tidak pernah
+            # untuk TP, jadi menyaring lewat dia akan mengosongkan set ini tiap
+            # kali dan satu tangkai yang bertahan lama terhitung berulang.
+            # Tanpa pemangkasan sama sekali, set ini tumbuh satu int per tangkai
+            # yang pernah lewat sepanjang shift 20 jam.
+            self._tp_terhitung = {
+                tid: t for tid, t in self._tp_terhitung.items() if now - t <= 300
+            }
+            self._janjang_difoto = [
+                (b, t) for b, t in self._janjang_difoto if now - t <= 300
+            ]
 
         # DisplayWorker handles MJPEG rendering — processing worker only does detection.
 

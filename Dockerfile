@@ -22,8 +22,13 @@ ENV PIP_DEFAULT_TIMEOUT=3600 \
 #   cu126 — production dengan NVIDIA GPU, CUDA 12.6 (~2.4GB, dari PyTorch CDN)
 #           Compatible dengan driver >= 525 (host saat ini: 580, CUDA 13.0 ✅)
 ARG TORCH_VARIANT=cpu
+# The CPU pins carry no `+cpu` label on purpose. PyTorch publishes
+# torchvision 0.22.0 for aarch64 (Apple Silicon Docker) without it, so
+# `==0.22.0+cpu` cannot resolve there. A bare `==0.22.0` still matches
+# `0.22.0+cpu` (PEP 440), so x86 installs the exact same wheels as before.
+# The release image and the factory PC use cu126 (the else branch), untouched.
 RUN if [ "${TORCH_VARIANT}" = "cpu" ]; then \
-        pip install torch==2.7.0+cpu torchvision==0.22.0+cpu \
+        pip install torch==2.7.0 torchvision==0.22.0 \
             --index-url https://download.pytorch.org/whl/cpu; \
     else \
         pip install torch==2.7.0+${TORCH_VARIANT} torchvision==0.22.0+${TORCH_VARIANT} \
@@ -70,13 +75,23 @@ RUN pip install -r requirements.txt
 COPY . .
 
 # Folder artifacts dibuat di startup, tapi kita pastiin parent-nya ada
-RUN mkdir -p artifacts/captures artifacts/results artifacts/errors artifacts/logs
+RUN mkdir -p artifacts/results
 
 # Tag rilis di-bake sebagai APP_VERSION supaya GET /health bisa menyebutkan
 # versi image yang benar-benar jalan tanpa SSH ke PC pabrik. Ditaruh paling
 # bawah: nilainya berubah tiap rilis, jadi jangan sampai membatalkan cache pip.
 ARG APP_VERSION=unknown
 ENV APP_VERSION=${APP_VERSION}
+
+# Dua akun bawaan konsol (operator pabrik + support kita). Yang ditanam HASH-nya,
+# bukan sandinya: PC pabrik bisa diakses lewat AnyDesk, dan layer image bisa dibaca
+# siapa pun yang pegang image-nya. Bikin hash-nya dengan `make hash-sandi`.
+# Sandinya beda per PKS, dan `.env` di PC pabrik boleh menimpa nilai ini.
+# Kosong itu normal: pabrik yang semua akunnya dari AutoERP tidak menanam apa pun.
+ARG CONSOLE_DEFAULT_HASH=""
+ARG CONSOLE_SUPPORT_HASH=""
+ENV CONSOLE_DEFAULT_HASH=${CONSOLE_DEFAULT_HASH} \
+    CONSOLE_SUPPORT_HASH=${CONSOLE_SUPPORT_HASH}
 
 # Entrypoint di luar /app supaya tidak tertimpa volume mount .:/app
 COPY entrypoint.sh /entrypoint.sh

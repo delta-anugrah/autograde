@@ -78,10 +78,128 @@ up-3:
 up-console:
 	docker compose --env-file $(ENV_FILE) up -d console
 
+# Operator console WITHOUT Docker — the development path on a Mac, where the
+# Docker targets cannot run (no MVS SDK, no NVIDIA GPU, host networking).
+# Port 8100 because a local AutoERP bench owns 8000. Settings come from .env
+# (console_main.py loads it); only WEBHOOK_SECRET is forced to the dev value the
+# seed script and E2E tests use. Override: make console CONSOLE_PORT=8200
+CONSOLE_PORT ?= 8100
+DEV_WEBHOOK_SECRET ?= devsecret
+console:
+	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) PYTHONPATH=src .venv/bin/uvicorn \
+		palmgrade.console_main:app --host 127.0.0.1 --port $(CONSOLE_PORT)
+
+# Satu line kamera NATIVE tanpa Docker — pasangan `make console` untuk develop di
+# Mac, di mana `make up` memang tidak bisa jalan (butuh MVS SDK, CUDA cu126, dan
+# TensorRT; ketiganya Linux + GPU NVIDIA).
+#
+# Sumber gambarnya dibaca dari `.env` APA ADANYA — target ini sengaja tidak
+# menyetel CAMERA_TYPE sendiri. Setel di `.env`:
+#   CAMERA_TYPE=opencv + CAMERA_VIDEO_PATH=/path/video.mp4   -> file video
+#   CAMERA_TYPE=photo  + CAMERA_PHOTO_PATH=images/x.jpg      -> satu gambar
+#   CAMERA_TYPE=hikrobot                                     -> kamera pabrik
+#
+# Portnya 8001 dan itu TIDAK boleh diubah sembarangan: konsol mencari line-1 di
+# 8001 (`core/config.py` _CONSOLE_LINE_DEFAULTS, dipatok di kode). Line di port
+# lain akan menggrading dengan benar tapi kartunya tetap "Kamera tidak tersambung".
+# N=1|2|3 memilih line mana yang dijalankan. Port DAN machine id ikut berubah
+# bersama: konsol mencocokkan event ke line lewat `machine_id` (bukan port), jadi
+# tiga line yang memakai MACHINE_ID sama dari `.env` akan semuanya mendarat di
+# kartu line-1 dan dua kartu lain tetap kosong.
+# UUID-nya sama persis dengan fallback docker-compose, supaya line native dan
+# line Docker menunjuk baris `machines` yang sama.
+N ?= 1
+LINE_PORT ?= 800$(N)
+LINE_1_ID ?= d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01
+LINE_2_ID ?= a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02
+LINE_3_ID ?= ad5f7bb9-c06d-4e87-8282-ce450ae331ec
+LINE_ID = $(LINE_$(N)_ID)
+# ARTIFACTS_DIR dipisah per line, meniru volume compose
+# (`./artifacts/line-N:/app/artifacts`). Tanpa ini tiga line native menulis ke
+# satu folder yang sama, sementara konsol menyajikan `/captures/{line_code}` dari
+# `artifacts/{line_code}` — gambarnya tersimpan tapi tiap tautan dijawab 404.
+#
+# BACKEND_URL ikut diarahkan ke `make console` (127.0.0.1:$(CONSOLE_PORT)), bukan
+# dibiarkan memakai nilai `.env`. Alasannya: `.env` menunjuk port Docker (8000)
+# karena di pabrik konsol memang di situ, sedangkan `make console` jalan di 8100.
+# Tanpa ini janjangnya TERSIMPAN di disk tapi tiap kiriman dibalas 404 — layar
+# tetap nol dan yang terlihat cuma baris "Outbox delivery failed ... HTTP 404"
+# di log line, jauh dari layar yang sedang ditonton.
+line:
+	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) MACHINE_ID=$(LINE_ID) \
+	BACKEND_URL=http://127.0.0.1:$(CONSOLE_PORT) \
+	ARTIFACTS_DIR=$(CURDIR)/artifacts/line-$(N) PYTHONPATH=src \
+		.venv/bin/uvicorn palmgrade.main:app --host 127.0.0.1 --port $(LINE_PORT)
+
 # Fullscreen on this PC. A page cannot fullscreen itself (requestFullscreen
 # needs a user gesture), so the browser is what gets configured.
 kiosk:
 	./scripts/console-kiosk.sh
+
+# Operator accounts for the console login (Fase 4). Name and PIN are asked for
+# interactively, so the PIN never lands in shell history.
+#   make operator                        add a local account, or reset a forgotten
+#                                         password — role `operator` unless ROLE=support
+#   make operator AKSI=daftar            list the active accounts and where each came from
+#   make operator AKSI=matikan           switch one off (their sessions end at once)
+#   make operator AKSI=role ROLE=support
+#                                         change an EXISTING account's role, without
+#                                         touching its password
+# `operator` is the native console (Mac). `operator-docker` runs inside the console
+# container on the factory PC, against the database that console really reads.
+AKSI ?= tambah
+ROLE ?= operator
+operator:
+	PYTHONPATH=src .venv/bin/python scripts/console-operator.py $(AKSI) $(ROLE)
+
+operator-docker:
+	docker compose --env-file $(ENV_FILE) exec console python scripts/console-operator.py $(AKSI) $(ROLE)
+
+# Data demo untuk showcase ke klien. Truk, kunjungan, janjang, dan dua akun untuk
+# masuk konsol. Platnya sama persis dengan seeder AutoERP (`palm_mill/demo.py`),
+# jadi satu truk adalah truk yang sama di dua layar.
+#   make demo                jalankan (7 hari riwayat)
+#   make demo HARI=3         riwayat lebih pendek
+#   make demo-reset          hapus data demo lama dulu, lalu isi ulang
+#   make demo-off            hapus data demo, berhenti di situ (sesudah demo selesai)
+# `AKSI=reset` masih jalan (dipakai dokumen lama), tapi `make demo-reset` yang dipakai
+# sekarang — namanya sejajar dengan AutoERP, jadi satu nama untuk dua repo.
+# ⚠️ JANGAN di PC pabrik. Skripnya menolak database yang sudah punya data
+# sungguhan; PAKSA=1 melewati penolakan itu — jangan dipakai kecuali yakin.
+HARI ?= 7
+demo:
+	PYTHONPATH=src .venv/bin/python scripts/seed-console-demo.py \
+		--hari $(HARI) $(if $(filter reset,$(AKSI)),--reset,) $(if $(PAKSA),--paksa,)
+
+# Bersihkan data demo sesudah showcase. Menghapus baris milik sepuluh plat demo
+# saja — timbangan dan janjang truk sungguhan tidak disentuh. Wajib dijalankan
+# sebelum uji coba: janjang seeder berstempel sampai ~20 jam ke depan, jadi selama
+# masih ada dia selalu berada di atas baris yang baru saja digrading.
+demo-reset:
+	PYTHONPATH=src .venv/bin/python scripts/seed-console-demo.py --hari $(HARI) --reset
+
+demo-off:
+	PYTHONPATH=src .venv/bin/python scripts/seed-console-demo.py --hapus
+
+demo-docker:
+	docker compose --env-file $(ENV_FILE) exec console python scripts/seed-console-demo.py \
+		--hari $(HARI) $(if $(filter reset,$(AKSI)),--reset,) $(if $(PAKSA),--paksa,)
+
+# Hash untuk dua akun bawaan konsol. Dipakai waktu pasang PC pabrik: sandinya beda
+# per PKS, dan yang masuk ke image atau .env cuma hash-nya, bukan sandi mentah.
+hash-sandi:
+	PYTHONPATH=src .venv/bin/python scripts/hash-sandi.py
+
+# OPS-2: satukan truk kembar di PC pabrik yang SUDAH punya data dari palmgrade-api.
+# Truk lama ber-id acak, AutoGrade menurunkan id dari plat, dan plat tidak punya
+# indeks unik - tanpa ini tarikan pertama membelah tonase satu truk jadi dua baris.
+# Dijalankan sekali saat pasang. PC baru (DB kosong) tidak perlu.
+# Tanpa TULIS=1 cuma melihat; di Docker pakai rekonsiliasi-truk-docker.
+rekonsiliasi-truk:
+	PYTHONPATH=src .venv/bin/python scripts/rekonsiliasi-truk.py $(if $(TULIS),--tulis,)
+
+rekonsiliasi-truk-docker:
+	docker compose --env-file $(ENV_FILE) exec console python scripts/rekonsiliasi-truk.py $(if $(TULIS),--tulis,)
 
 down:
 	docker compose --env-file $(ENV_FILE) down
@@ -116,6 +234,103 @@ rebuild:
 
 rebuild-gpu:
 	docker compose --env-file $(ENV_FILE) build --build-arg TORCH_VARIANT=cu126
+
+# Menghapus ISI `artifacts/` dan `state/`, bukan foldernya.
+#
+# ⚠️ Berkasnya milik ROOT di Linux. `Dockerfile` tidak punya `USER`, jadi
+# container jalan sebagai root dan semua foto + SQLite yang ditulisnya jadi milik
+# root; `rm -rf` dari user biasa dijawab "Permission denied" ribuan kali dan
+# target-nya berhenti dengan Error 1 (kejadian di PC Lampung 2026-09-18).
+# Di macOS ini tidak pernah terlihat: Docker Desktop memetakan pemilik ke user
+# yang menjalankan, jadi penghapusan terasa berhasil di laptop dan gagal di
+# pabrik — satu-satunya tempat yang penting.
+#
+# Jadi yang menghapus adalah container yang memang root.
+#
+# `docker run` langsung, BUKAN `docker compose run`: tiap service di compose
+# me-mount `./artifacts/line-N` ke `/app/artifacts`, jadi container line hanya
+# melihat foldernya sendiri dan dua line lain luput. Di sini `$(CURDIR)` di-mount
+# utuh sekali, sehingga satu perintah menjangkau ketiganya plus `state/console`.
+#
+# `busybox` dipakai, bukan image proyek: tugasnya cuma menghapus berkas, dan
+# image ini 4 MB sementara `palmgrade-vision` beberapa GB — tapi kalau busybox
+# belum ada di PC yang offline, `|| true` di bawah membuat kegagalan tarik tidak
+# menghentikan target, dan `rm -rf` host sesudahnya masih menyapu apa yang bisa
+# dia hapus.
+#
+# Isinya saja yang dibuang — foldernya tetap, sehingga kepemilikan dan izin
+# mount-nya tidak berubah. `find -mindepth 1 -delete` dipakai daripada
+# `rm -rf .../*` karena glob shell melewatkan berkas tersembunyi.
+HAPUS_ISI = docker run --rm -v "$(CURDIR)":/kerja busybox \
+	sh -c 'find /kerja/artifacts /kerja/state -mindepth 1 -delete 2>/dev/null; true'
+
+# HAPUS SEMUA DATA AutoGrade di PC ini: foto, JSON, semua SQLite.
+#
+#   make reset-data          lihat dulu: berapa yang akan hilang, tidak menghapus
+#   make reset-data-fresh    hapus sungguhan (minta konfirmasi ketik)
+#
+# Yang hilang, semuanya PERMANEN dan tanpa backup:
+#   artifacts/       foto bbox+clean+thumb dan sidecar JSON tiap janjang
+#   state/           console.db (grading, truk, timbangan, akun, sesi),
+#                    outbox.db tiap line, erp_outbox.db, log_kejadian.db,
+#                    upload_manifest.db
+#
+# Tiga akibat yang harus disadari sebelum mengetiknya:
+#   1. AKUN LOKAL BUATAN SENDIRI HILANG. Dua akun bawaan image
+#      (`operator@`/`support@autograde.local`) dibuat ulang sendiri saat konsol
+#      start, jadi layar tetap bisa dibuka. Yang TIDAK kembali: akun yang dibuat
+#      `make operator`. Akun milik AutoERP turun lagi saat sinkron berikutnya.
+#   2. ANTREAN YANG BELUM TERKIRIM HILANG. Janjang di `outbox.db` dan kunjungan
+#      truk di `erp_outbox.db` yang belum sampai tidak bisa dikirim ulang.
+#   3. FOTO YANG BELUM NAIK R2 HILANG. Retensi bekerja lewat manifest, jadi
+#      menghapus DB saja akan meninggalkan foto yatim — makanya keduanya
+#      dihapus bersama, bukan salah satu.
+#
+# ⚠️ JANGAN di PC pabrik yang sedang produksi. Ini alat untuk PC uji coba atau
+# PC baru sebelum dipakai sungguhan.
+reset-data:
+	@echo "Akan menghapus PERMANEN (tanpa backup):"
+	@echo "  artifacts/  — $$(find artifacts -type f 2>/dev/null | wc -l | tr -d ' ') berkas foto + JSON"
+	@echo "  state/      — $$(find state -name '*.db' 2>/dev/null | wc -l | tr -d ' ') basis data SQLite"
+	@echo ""
+	@echo "Akun buatan 'make operator', antrean yang belum terkirim, dan foto yang"
+	@echo "belum naik R2 ikut hilang. Tidak ada cara mengembalikannya."
+	@echo "(Dua akun bawaan image dibuat ulang sendiri saat konsol start.)"
+	@echo ""
+	@echo "Kalau memang itu yang diinginkan: make reset-data-fresh"
+
+# Konfirmasi diketik, bukan ditekan. Layar sentuh bisa mendaftarkan sentuhan tak
+# sengaja sebagai klik, dan Enter bisa terkirim dari perintah sebelumnya yang
+# masih di riwayat — tapi tidak ada yang mengetik satu kata tertentu tanpa maksud.
+# Pola yang sama dipakai Uji PLC di konsol, satu-satunya aksi lain yang tidak
+# bisa dibatalkan.
+reset-data-fresh:
+	@echo "SEMUA data AutoGrade di PC ini akan dihapus permanen, tanpa backup."
+	@echo "Jalankan 'make reset-data' dulu kalau ingin melihat rinciannya."
+	@echo ""
+	@printf "Ketik HAPUS untuk melanjutkan: "
+	@read jawab; [ "$$jawab" = "HAPUS" ] || { echo "Dibatalkan."; exit 1; }
+	docker compose --env-file $(ENV_FILE) down
+	@echo "Menghapus lewat container (berkasnya milik root di Linux)..."
+	-@$(HAPUS_ISI)
+	@# Jaring kedua: sisa apa pun yang memang milik user ini — dan satu-satunya
+	@# jalan kalau busybox tidak bisa ditarik di PC yang offline. `-` di depan
+	@# supaya "Permission denied" pada sisa milik root tidak menghentikan target,
+	@# karena baris di atas sudah mengurus yang itu.
+	-@rm -rf artifacts/* artifacts/.[!.]* state/* state/.[!.]* 2>/dev/null
+	mkdir -p artifacts state
+	@# Kalau masih ada isinya, penghapusan TIDAK berhasil dan diam saja akan
+	@# membuat orang mengira datanya sudah bersih.
+	@sisa=$$(find artifacts state -mindepth 1 2>/dev/null | wc -l | tr -d ' '); \
+	if [ "$$sisa" != "0" ]; then \
+		echo ""; \
+		echo "GAGAL: masih ada $$sisa berkas tersisa."; \
+		echo "Berkasnya milik root dan container tidak bisa dijalankan."; \
+		echo "Coba: sudo rm -rf artifacts state && mkdir -p artifacts state"; \
+		exit 1; \
+	fi
+	@echo ""
+	@echo "Data dihapus. Jalankan 'make start' — dua akun bawaan dibuat ulang sendiri."
 
 # Remove all containers (data artifacts are safe — they live in local volumes)
 clean:

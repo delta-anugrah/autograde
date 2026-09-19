@@ -40,10 +40,15 @@ services:
       - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
-      - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
+      - MODEL_FILE=${MODEL_FILE:-best.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
       - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
+      # Garis capture (px, ruang STREAM). 0 = tanpa garis. Nilai awal saja —
+      # yang dipakai sehari-hari diatur dari layar support konsol.
+      - GARIS_CAPTURE=${GARIS_CAPTURE:-0}
+      - SUMBU_GARIS=${SUMBU_GARIS:-tegak}
+      - MODE_DEV=${MODE_DEV:-false}
       - ROI_X1=${ROI_X1:-0}
       - ROI_Y1=${ROI_Y1:-0}
       - ROI_X2=${ROI_X2:-0}
@@ -65,8 +70,12 @@ services:
       - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
-      - CAMERA_FPS=${CAMERA_FPS:-15}
-      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      - CAMERA_FPS=${CAMERA_FPS:-20}
+      # Path DI DALAM container selalu nama tetap ini; yang diisi operator di
+      # `.env` adalah path di komputernya, dan mount di bawah yang menjembatani.
+      # Kosong = tidak pakai file video (mode hikrobot/photo), jadi tetap kosong.
+      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:+/videos/video-in}
+      - CAMERA_VIDEO_LOOP=${CAMERA_VIDEO_LOOP:-false}
       # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
       # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
       - CAMERA_PHOTO_PATH=${CAMERA_PHOTO_PATH:-}
@@ -96,6 +105,9 @@ services:
       - PLC_COIL_BASE=0
       # Coil 9 = HEARTBIT PC, satu-satunya bit alive di skematik ODOT.
       - PLC_COIL_ALIVE=9
+      # Piston manual line 1 — coil 10 (X030A), konfirmasi DI 12 (Y031C).
+      - PLC_COIL_MANUAL=10
+      - PLC_DI_MANUAL=12
       - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-0}
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
@@ -110,7 +122,7 @@ services:
       - ./state/line-1:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
-      - /home/nexio/Desktop/Projects/sawit:/videos:ro
+      - ${CAMERA_VIDEO_PATH:-/dev/null}:/videos/video-in:ro
 
   ripe-line-2:
     image: palmgrade-vision:latest
@@ -147,10 +159,15 @@ services:
       - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
-      - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
+      - MODEL_FILE=${MODEL_FILE:-best.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
       - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
+      # Garis capture (px, ruang STREAM). 0 = tanpa garis. Nilai awal saja —
+      # yang dipakai sehari-hari diatur dari layar support konsol.
+      - GARIS_CAPTURE=${GARIS_CAPTURE:-0}
+      - SUMBU_GARIS=${SUMBU_GARIS:-tegak}
+      - MODE_DEV=${MODE_DEV:-false}
       - ROI_X1=${ROI_X1:-0}
       - ROI_Y1=${ROI_Y1:-0}
       - ROI_X2=${ROI_X2:-0}
@@ -172,8 +189,12 @@ services:
       - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
-      - CAMERA_FPS=${CAMERA_FPS:-15}
-      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      - CAMERA_FPS=${CAMERA_FPS:-20}
+      # Path DI DALAM container selalu nama tetap ini; yang diisi operator di
+      # `.env` adalah path di komputernya, dan mount di bawah yang menjembatani.
+      # Kosong = tidak pakai file video (mode hikrobot/photo), jadi tetap kosong.
+      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:+/videos/video-in}
+      - CAMERA_VIDEO_LOOP=${CAMERA_VIDEO_LOOP:-false}
       # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
       # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
       - CAMERA_PHOTO_PATH=${CAMERA_PHOTO_PATH:-}
@@ -203,6 +224,9 @@ services:
       - PLC_COIL_BASE=3
       # Kosong: coil 11 ditandai SPARE di skematik ODOT.
       - PLC_COIL_ALIVE=
+      # Piston manual line 2 — coil 11, konfirmasi DI 13.
+      - PLC_COIL_MANUAL=11
+      - PLC_DI_MANUAL=13
       - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-0}
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
@@ -217,7 +241,7 @@ services:
       - ./state/line-2:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
-      - /home/nexio/Desktop/Projects/sawit:/videos:ro
+      - ${CAMERA_VIDEO_PATH:-/dev/null}:/videos/video-in:ro
 
   ripe-line-3:
     image: palmgrade-vision:latest
@@ -254,10 +278,15 @@ services:
       - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
-      - MODEL_FILE=${MODEL_FILE:-best_3class_v2.pt}
+      - MODEL_FILE=${MODEL_FILE:-best.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
       - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
+      # Garis capture (px, ruang STREAM). 0 = tanpa garis. Nilai awal saja —
+      # yang dipakai sehari-hari diatur dari layar support konsol.
+      - GARIS_CAPTURE=${GARIS_CAPTURE:-0}
+      - SUMBU_GARIS=${SUMBU_GARIS:-tegak}
+      - MODE_DEV=${MODE_DEV:-false}
       - ROI_X1=${ROI_X1:-0}
       - ROI_Y1=${ROI_Y1:-0}
       - ROI_X2=${ROI_X2:-0}
@@ -279,8 +308,12 @@ services:
       - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
-      - CAMERA_FPS=${CAMERA_FPS:-15}
-      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:-}
+      - CAMERA_FPS=${CAMERA_FPS:-20}
+      # Path DI DALAM container selalu nama tetap ini; yang diisi operator di
+      # `.env` adalah path di komputernya, dan mount di bawah yang menjembatani.
+      # Kosong = tidak pakai file video (mode hikrobot/photo), jadi tetap kosong.
+      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:+/videos/video-in}
+      - CAMERA_VIDEO_LOOP=${CAMERA_VIDEO_LOOP:-false}
       # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
       # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
       - CAMERA_PHOTO_PATH=${CAMERA_PHOTO_PATH:-}
@@ -310,6 +343,9 @@ services:
       - PLC_COIL_BASE=6
       # Kosong: coil 12 ditandai SPARE di skematik ODOT.
       - PLC_COIL_ALIVE=
+      # Piston manual line 3 — coil 12, konfirmasi DI 14.
+      - PLC_COIL_MANUAL=12
+      - PLC_DI_MANUAL=14
       - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-0}
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
@@ -324,7 +360,7 @@ services:
       - ./state/line-3:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
-      - /home/nexio/Desktop/Projects/sawit:/videos:ro
+      - ${CAMERA_VIDEO_PATH:-/dev/null}:/videos/video-in:ro
 
   # Instance ke-4 dari image yang SAMA: konsol operator offline (§4 rencana
   # PalmOS). Tanpa kamera, tanpa GPU, tanpa PLC — supaya satu line kamera yang
@@ -367,17 +403,32 @@ services:
       - FACTORY_TZ=${FACTORY_TZ:-Asia/Jakarta}
       - CONSOLE_SYNC_INTERVAL_S=${CONSOLE_SYNC_INTERVAL_S:-300}
       - CONSOLE_LINE_HOST=${CONSOLE_LINE_HOST:-http://localhost}
-      # Dorong event ke PalmOS. ERP_URL kosong = jalur mati, dan itu default:
-      # layar operator tidak boleh bergantung pada ERP hidup.
+      # Dua akun bawaan (operator@autograde.local + support@autograde.local). Isinya
+      # HASH, bukan sandi — bikin dengan `make hash-sandi`. Default-nya nilai yang
+      # ditanam di image; `.env` menimpanya kalau PKS ini pakai sandi lain.
+      # ⚠️ Compose memakan `$`: tulis `$$` untuk satu `$`, kalau tidak hash-nya
+      # terpotong dan akunnya ditolak (sengaja, dengan pesan error).
+      - CONSOLE_DEFAULT_HASH=${CONSOLE_DEFAULT_HASH:-}
+      - CONSOLE_SUPPORT_HASH=${CONSOLE_SUPPORT_HASH:-}
+      # AutoERP link. Empty ERP_URL switches it off (the default); the operator
+      # screen never depends on AutoERP being up.
       - ERP_URL=${ERP_URL:-}
       - ERP_API_KEY=${ERP_API_KEY:-}
       - ERP_API_SECRET=${ERP_API_SECRET:-}
-      - ERP_PUSH_INTERVAL_S=${ERP_PUSH_INTERVAL_S:-60}
-      - ERP_PUSH_BATCH=${ERP_PUSH_BATCH:-200}
-      # Sumber master data (truk, supplier, Sumber TBS) = API CLOUD, sama
-      # dengan yang dipakai batch upload.
-      - UPLOAD_API_URL=${UPLOAD_API_URL:-}
-      - UPLOAD_API_SECRET=${UPLOAD_API_SECRET:-}
+      # Empty is correct on a single-company site: AutoERP then books against
+      # its own default company.
+      - ERP_COMPANY=${ERP_COMPANY:-}
+      # Peran mana yang boleh datang dari AutoERP. Kosongkan untuk menolak semuanya.
+      - ERP_ALLOWED_ROLES=${ERP_ALLOWED_ROLES:-support}
+      # Berapa lama layar Log (support) menyimpan riwayat ERROR/WARNING.
+      - LOG_RETENSI_HARI=${LOG_RETENSI_HARI:-180}
+      # R2: tempat manifest per truk + viewer.html, bucket yang sama dengan foto
+      # dari tiga line. R2_BUCKET kosong = tidak ada manifest, tidak ada detail_url.
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
+      - R2_BUCKET=${R2_BUCKET:-}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
       - LICENSE_TOKEN=${LICENSE_TOKEN:-}
       # Pemetaan machine_id → line, supaya event tahu dia dari line mana.
       # Nilai default sama persis dengan tiga service di atas.

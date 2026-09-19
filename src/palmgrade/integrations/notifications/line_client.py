@@ -1,15 +1,16 @@
-"""Perintah konsol → line kamera (§4 rencana PalmOS).
+"""Console commands → camera line (PalmOS plan §4).
 
-Arahnya sama persis dengan palmgrade-api → vision, jadi kontraknya dipertahankan
-apa adanya: header `x-internal-secret` dan body yang sama, supaya `routes/internal.py`
-di line tidak perlu diubah sama sekali.
+Same direction as palmgrade-api → vision, so the contract is kept exactly as
+is: the same `x-internal-secret` header and the same body, so the line's own
+`routes/internal.py` needs no change at all.
 
-Dipisah dari `ConsoleService` karena ini satu-satunya bagian yang tahu soal HTTP:
-service cukup tahu "suruh line ini menugaskan truk", tidak tahu URL, header,
-timeout, atau bentuk error httpx. Efek sampingnya yang paling berguna: test bisa
-menukar satu kolaborator, bukan menambal method privat milik service.
+Split out from `ConsoleService` because this is the only part that knows about
+HTTP: the service only needs to know "tell this line to assign a truck", not
+the URL, headers, timeout, or the shape of an httpx error. The most useful
+side effect: a test can swap out one collaborator instead of patching a
+private method on the service.
 
-Pola & lokasinya mengikuti `webhook_client.py` di folder yang sama.
+Pattern and location follow `webhook_client.py` in the same folder.
 """
 from __future__ import annotations
 
@@ -19,22 +20,47 @@ from typing import Any
 import httpx
 
 from ...core.config import LineEndpoint, Settings
+from ...domain.operator_error import LINE_MENOLAK, LINE_TIDAK_MENJAWAB, OperatorError
 
 logger = logging.getLogger(__name__)
 
 _TIMEOUT_S = 10.0
 
 
-class LineUnavailable(RuntimeError):
-    """Line kamera tidak menjawab — operator harus lihat ini, bukan diam."""
+class LineUnavailable(OperatorError, RuntimeError):
+    """Camera line did not answer — the operator must see this, not silence."""
+
+
+class LinePlcTolak(RuntimeError):
+    """Line answered but refused the PLC coil command (409 busy, 422 unknown coil).
+
+    Kept separate from `LineUnavailable`: those two codes are the dev screen's
+    own safety guards echoed back from the line, not "the line is down" —
+    DevService needs the real status_code to answer the console the same way.
+    """
+
+    def __init__(self, status_code: int, detail: str) -> None:
+        super().__init__(detail)
+        self.status_code = status_code
+        self.detail = detail
 
 
 class LineClient:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self, settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None
+    ) -> None:
         self._settings = settings
+        self._transport = transport  # tests swap the network, like ErpClient
 
     async def assign_truck(
-        self, line: LineEndpoint, *, assignment_id: str, truck_id: str, assigned_at: str
+        self,
+        line: LineEndpoint,
+        *,
+        assignment_id: str,
+        truck_id: str,
+        assigned_at: str,
+        ffb_source: str | None = None,
+        plate: str | None = None,
     ) -> None:
         await self._post(
             line,
@@ -44,6 +70,12 @@ class LineClient:
                 "assignment_id": assignment_id,
                 "truck_id": truck_id,
                 "assigned_at": assigned_at,
+                # An old line ignores unknown fields (pydantic extra=ignore), so
+                # it is safe to send this to an image that does not know it yet.
+                "ffb_source": ffb_source,
+                # Label only — names the capture folder. `truck_id` above stays
+                # the key for every number that matters.
+                "plate": plate,
             },
         )
 
@@ -61,19 +93,161 @@ class LineClient:
             },
         )
 
+    async def set_piston(
+        self, line: LineEndpoint, *, open: bool, requested_by: str, requested_at: str
+    ) -> None:
+        await self._post(
+            line,
+            "/internal/piston",
+            {
+                "machine_id": line.machine_id,
+                "open": open,
+                "requested_by": requested_by,
+                "requested_at": requested_at,
+            },
+        )
+
+    async def plc_state(self, line: LineEndpoint) -> dict[str, Any]:
+        """DI snapshot + testable coils for the commissioning test screen.
+
+        Read-only lane; same short timeout as `status()` — this backs a
+        polling screen, not a once-a-shift diagnostic read.
+        """
+        url = f"{self._settings.console_line_host}:{line.port}/internal/plc"
+        try:
+            async with httpx.AsyncClient(timeout=2.0, transport=self._transport) as client:
+                res = await client.get(
+                    url, headers={"x-internal-secret": self._settings.internal_secret}
+                )
+                res.raise_for_status()
+                return res.json()
+        except httpx.HTTPError as exc:
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+            ) from exc
+
+    async def plc_coil(self, line: LineEndpoint, *, coil: int, requested_by: str) -> dict[str, Any]:
+        """Fire one PLC coil on `line` for a wiring test. Raises on 4xx/5xx —
+        the caller (DevService) must see the reason, not a silent no-op."""
+        url = f"{self._settings.console_line_host}:{line.port}/internal/plc/coil"
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
+                res = await client.post(
+                    url,
+                    json={"machine_id": line.machine_id, "coil": coil, "requested_by": requested_by},
+                    headers={"x-internal-secret": self._settings.internal_secret},
+                )
+        except httpx.HTTPError as exc:
+            logger.warning("PLC test coil %s to %s failed: %s", coil, line.line_code, exc)
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+            ) from exc
+        if res.status_code >= 400:
+            # 409 busy / 422 unknown coil are the line's own safety answers, not
+            # "unreachable" — raised distinctly so DevService can echo the same
+            # status back to the console instead of collapsing both into 502.
+            raise LinePlcTolak(res.status_code, res.text[:200])
+        return res.json()
+
+    async def kirim_setelan(
+        self,
+        line: LineEndpoint,
+        *,
+        conf_threshold: float,
+        minimum_size: int,
+        garis_capture: int = 0,
+        sumbu_garis: str = "tegak",
+        mode_dev: bool = False,
+    ) -> dict[str, Any]:
+        """Kirim setelan grading ke satu line. Melempar kalau line tidak menjawab.
+
+        Pemanggil (`ConsoleService`) menangkapnya per line, jadi satu line yang
+        mati tidak membatalkan pengiriman ke dua line lainnya — konsol sudah
+        menyimpan nilainya dan akan mengirim ulang saat line itu kembali.
+        """
+        url = f"{self._settings.console_line_host}:{line.port}/internal/setelan"
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
+                res = await client.post(
+                    url,
+                    json={
+                        "conf_threshold": conf_threshold,
+                        "minimum_size": minimum_size,
+                        "garis_capture": garis_capture,
+                        "sumbu_garis": sumbu_garis,
+                        "mode_dev": mode_dev,
+                    },
+                    headers={"x-internal-secret": self._settings.internal_secret},
+                )
+        except httpx.HTTPError as exc:
+            logger.warning("Kirim setelan ke %s gagal: %s", line.line_code, exc)
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+            ) from exc
+        if res.status_code >= 400:
+            raise LinePlcTolak(res.status_code, res.text[:200])
+        return res.json()
+
+    async def status(self, line: LineEndpoint) -> dict[str, Any]:
+        """Called once a second by LineStatusWorker, so the timeout is short:
+        the operator screen must not be made to wait on a dying line."""
+        url = f"{self._settings.console_line_host}:{line.port}/internal/status"
+        try:
+            async with httpx.AsyncClient(timeout=1.5, transport=self._transport) as client:
+                res = await client.get(
+                    url, headers={"x-internal-secret": self._settings.internal_secret}
+                )
+                res.raise_for_status()
+                return res.json()
+        except httpx.HTTPError as exc:
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+            ) from exc
+
+    async def health_detail(self, line: LineEndpoint) -> dict[str, Any]:
+        """Full `/health/detail` for the support diagnostics screen.
+
+        Longer timeout than `status()`: this is a support-only read, not the
+        once-a-second path, so it can afford to wait a little longer on a
+        struggling line instead of flagging it unreachable too eagerly.
+        """
+        url = f"{self._settings.console_line_host}:{line.port}/health/detail"
+        try:
+            async with httpx.AsyncClient(timeout=5.0, transport=self._transport) as client:
+                res = await client.get(
+                    url, headers={"x-internal-secret": self._settings.internal_secret}
+                )
+                res.raise_for_status()
+                return res.json()
+        except httpx.HTTPError as exc:
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+            ) from exc
+
     async def _post(self, line: LineEndpoint, path: str, body: dict[str, Any]) -> None:
         url = f"{self._settings.console_line_host}:{line.port}{path}"
         try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT_S) as client:
+            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
                 res = await client.post(
                     url,
                     json=body,
                     headers={"x-internal-secret": self._settings.internal_secret},
                 )
         except httpx.HTTPError as exc:
-            raise LineUnavailable(f"{line.line_code} tidak menjawab: {exc}") from exc
-        if res.status_code >= 400:
+            # The screen shows a translated sentence; the httpx cause lives in the log.
+            logger.warning("Command %s to %s failed: %s", path, line.line_code, exc)
             raise LineUnavailable(
-                f"{line.line_code} menolak: HTTP {res.status_code} {res.text[:200]}"
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+            ) from exc
+        if res.status_code >= 400:
+            logger.warning(
+                "Command %s refused by %s: HTTP %s %s",
+                path, line.line_code, res.status_code, res.text[:200],
             )
-        logger.info("Perintah %s diterima %s", path, line.line_code)
+            raise LineUnavailable(
+                LINE_MENOLAK,
+                f"{line.line_code} refused: HTTP {res.status_code} {res.text[:200]}",
+                line=line.name,
+                status=res.status_code,
+            )
+        logger.info("Command %s accepted by %s", path, line.line_code)

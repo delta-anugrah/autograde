@@ -60,7 +60,14 @@ class DisplayWorker:
 
         results = self.state.last_yolo_results
         if use_boxes and results is not None:
-            display = self.pipeline.draw_boxes(display, results)
+            display = self.pipeline.draw_boxes(
+                display, results,
+                tampilkan_confidence=(
+                    self.state.mode_dev_override
+                    if self.state.mode_dev_override is not None
+                    else self.settings.mode_dev
+                ),
+            )
 
         target_w = self.settings.stream_width
         target_h = self.settings.stream_height
@@ -68,7 +75,23 @@ class DisplayWorker:
         if w != target_w or h != target_h:
             display = cv2.resize(display, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
 
-        display = self.pipeline.draw_roi(display)
+        # Garis capture digambar dalam ruang STREAM — sesudah resize, sama
+        # seperti ROI, dan sama seperti ruang tempat operator menyetelnya. Dibaca
+        # dari `RuntimeState` tiap render supaya perubahan dari konsol langsung
+        # terlihat tanpa restart line.
+        display = self.pipeline.draw_roi(
+            display,
+            garis_capture=(
+                self.state.garis_capture_override
+                if self.state.garis_capture_override is not None
+                else self.settings.garis_capture
+            ),
+            sumbu=(
+                self.state.sumbu_garis_override
+                if self.state.sumbu_garis_override is not None
+                else self.settings.sumbu_garis
+            ),
+        )
 
         # YOLO inference FPS overlay (from FrameProcessingWorker; drawn in stream space → fixed, always readable)
         fps_text = f"{self.state.inference_fps:.0f} FPS"

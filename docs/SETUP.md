@@ -15,7 +15,8 @@ Panduan instalasi lengkap dari nol sampai sistem berjalan. Ikuti urutan ini — 
 7. [Siapkan Project](#7-siapkan-project)
 8. [Build & Run Docker](#8-build--run-docker)
 9. [Verifikasi](#9-verifikasi)
-10. [Troubleshooting](#10-troubleshooting)
+10. [Network Hardening (Firewall)](#10-network-hardening-firewall)
+11. [Troubleshooting](#11-troubleshooting)
 
 ---
 
@@ -35,7 +36,7 @@ Panduan instalasi lengkap dari nol sampai sistem berjalan. Ikuti urutan ini — 
 - `make` (GNU Make)
 
 ### File yang dibutuhkan
-- YOLO model: `best_3class_v2.pt` → taruh di `models/release/`
+- YOLO model: `best.pt` → taruh di `models/release/`
 - `.env` → copy dari `.env.example`
 
 ---
@@ -261,8 +262,8 @@ Ulangi 6.2–6.4 untuk setiap kamera.
 ### 7.1 Clone & env
 
 ```bash
-git clone git@github.com:delta-anugrah/palmgrade-vision.git
-cd palmgrade-vision
+git clone git@github.com:delta-anugrah/autograde.git
+cd autograde
 cp .env.example .env
 ```
 
@@ -270,7 +271,7 @@ cp .env.example .env
 
 ```bash
 mkdir -p models/release
-# copy best_3class_v2.pt ke models/release/
+# copy best.pt ke models/release/
 ```
 
 ### 7.3 Edit `.env`
@@ -291,18 +292,28 @@ BACKEND_URL=http://localhost:2500        # atau IP server palmgrade-api
 WEBHOOK_SECRET=your-webhook-secret      # harus sama dengan palmgrade-api
 
 # ── Machine UUIDs ────────────────────────────────────────────
-# UUID dari tabel machines di PostgreSQL (palmgrade-api)
+# Dulu dari tabel machines di PostgreSQL palmgrade-api (pensiun).
+# Sekarang bebas, asal UNIK per line dan tetap sama selamanya —
+# konsol mencocokkan event berdasarkan machine_id. compose sudah bawa bawaan.
 LINE_1_MACHINE_ID=<uuid-dari-db>
 LINE_2_MACHINE_ID=<uuid-dari-db>
 LINE_3_MACHINE_ID=<uuid-dari-db>
 
 # ── Model ────────────────────────────────────────────────────
-MODEL_FILE=best_3class_v2.pt
+MODEL_FILE=best.pt
 CONF_THRESHOLD=0.75
 MINIMUM_SIZE=460000
+# Garis capture: janjang difoto saat kotaknya MENYENTUH garis ini (px, ruang stream).
+# 0 = tanpa garis. Sumbu: tegak (conveyor mendatar, px dari kiri) / mendatar (px dari atas).
+# Mode dev: angka keyakinan ikut digambar di kotak janjang — untuk menyetel ambang.
+# Ketiganya NILAI AWAL saja: yang dipakai sehari-hari diatur dari tab Setelan di konsol,
+# berlaku tanpa restart.
+GARIS_CAPTURE=0
+SUMBU_GARIS=tegak
+MODE_DEV=false
 ```
 
-> **LINE_X_MACHINE_ID** — ambil dari tabel `machines` di database PostgreSQL palmgrade-api. Setiap line harus punya UUID yang unik dan terdaftar di DB.
+> **LINE_X_MACHINE_ID** — sejak `palmgrade-api` pensiun tidak ada lagi PostgreSQL yang harus dibaca; `docker-compose.yml` sudah membawa UUID bawaan per line. Yang wajib: **unik per line dan tidak pernah berubah**. Tiga line dengan `MACHINE_ID` sama akan menumpuk di kartu line-1 di konsol.
 
 ---
 
@@ -373,10 +384,23 @@ Response yang diharapkan:
   "status": "ok",
   "camera_connected": true,
   "gpu_available": true,
-  "workers_running": true,
-  "outbox_pending": 0
+  "workers": [
+    { "name": "capture", "alive": true },
+    { "name": "display", "alive": true },
+    { "name": "processing", "alive": true },
+    { "name": "capture_save", "alive": true }
+  ],
+  "outbox_pending": 0,
+  "capture_save_pending": 0,
+  "capture_save_dropped": 0,
+  "tp_telat": 0
 }
 ```
+
+⚠️ **`capture_save_dropped` dan `tp_telat` harus NOL.** Yang pertama berarti janjang sudah
+dipulse PLC dan masuk rekap tapi **tidak punya gambar maupun sidecar** — hilang permanen, karena
+`BatchUploadWorker._scan()` menemukan pekerjaan lewat berkas di disk. Yang kedua berarti tangkai
+panjang muncul sesudah janjangnya difoto, jadi tidak tercatat.
 
 Cek live stream di browser:
 ```
@@ -385,7 +409,41 @@ http://localhost:8001/api/video_feed
 
 ---
 
-## 10. Troubleshooting
+## 10. Network Hardening (Firewall)
+
+Vision jalan dengan `network_mode: host`, jadi port `8001/8002/8003` **terbuka di
+semua interface** PC. Selama PC prod cuma punya NIC ke switch kamera (LAN tertutup),
+ini aman. Tapi begitu PC prod dapat akses internet (mis. NIC#2 / USB-Ethernet buat
+kirim data), port itu jadi ter-ekspos — dan beberapa endpoint (`/api/set_truck`,
+`/api/capture_reject`, `/api/video_feed`) **tidak** punya auth (dipakai langsung
+oleh frontend di LAN).
+
+**Jangan matikan endpoint-nya** (frontend masih pakai). Batasi lewat firewall:
+izinkan port vision **hanya dari IP frontend/api**, tolak dari mana pun.
+
+```bash
+# Ganti <IP_FRONTEND_API> dengan IP host yang menjalankan palmgrade-frontend + api
+# (biasanya sama dengan PC ini atau 1 host di LAN internal).
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow from <IP_FRONTEND_API> to any port 8001,8002,8003 proto tcp
+# SSH kalau remote (jangan sampai kekunci):
+sudo ufw allow from <SUBNET_ADMIN> to any port 22 proto tcp
+sudo ufw enable
+sudo ufw status verbose
+```
+
+Catatan:
+- Endpoint internal (`/internal/*`) sudah dilindungi `x-internal-secret`, tapi
+  firewall tetap lapisan pertama (defense-in-depth).
+- Kalau frontend/api jalan di **PC yang sama**, cukup blok akses dari interface
+  internet dan izinkan `127.0.0.1` / interface LAN kamera.
+- Verifikasi dari host lain: `curl http://<IP_PROD>:8001/health` harus **timeout/refused**
+  dari luar allowlist, tapi jalan dari IP yang diizinkan.
+
+---
+
+## 11. Troubleshooting
 
 ### Kamera tidak muncul di MVS setelah colok
 
@@ -425,7 +483,9 @@ Normal terjadi jika kamera belum terhubung atau MVS masih buka. App tetap jalan 
 Jika `camera_connected` tetap `false` meski kamera sudah terhubung:
 1. Pastikan MVS sudah di-close (hanya 1 proses yang bisa akses kamera)
 2. Cek koneksi fisik + LED
-3. `curl http://localhost:8001/health/detail` — cek `workers[capture].alive`
+3. `curl http://localhost:8001/health/detail` — cek `workers[capture].alive`.
+   Cek juga `workers[capture_save].alive`: penulis bukti yang mati itu **senyap** — grading
+   jalan, PLC menyortir, angka di layar naik, dan nol gambar tersimpan.
 
 ### `MvImport SDK tidak ditemukan` saat container start
 

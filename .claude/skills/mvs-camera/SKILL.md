@@ -1,12 +1,12 @@
 ---
 name: mvs-camera
-description: Navigate & tune kamera Hikrobot MV-CS050-10GC lewat MVS (Machine Vision Software) untuk palmgrade-vision. Use when the user asks about MVS Feature Tree, setting kamera (exposure/gain/white balance/binning/fps), file .mfs, kamera GigE nggak kedetek / ACCESS_DENIED, fps kamera mentok, atau kalibrasi kamera di pabrik.
+description: Navigate & tune kamera Hikrobot MV-CS050-10GC lewat MVS (Machine Vision Software) untuk autograde. Use when the user asks about MVS Feature Tree, setting kamera (exposure/gain/white balance/binning/fps), file .mfs, kamera GigE nggak kedetek / ACCESS_DENIED, fps kamera mentok, atau kalibrasi kamera di pabrik.
 ---
 
 # MVS — Kamera Hikrobot MV-CS050-10GC (Palmgrade)
 
-Sumber kebenaran nilai & topologi: `palmgrade-vision/docs/camera-spec.md`.
-Checklist kalibrasi lapangan: `docs/camera-field-setup.md`.
+Sumber kebenaran nilai & topologi: `autograde/docs/camera-spec.md`.
+Checklist kalibrasi lapangan: `../docs/camera-field-setup.md` (workspace `sawit`, bukan repo ini).
 Skill ini = peta navigasi MVS + nilai live + jebakan. Jangan duplikat isi 2 dokumen itu.
 
 ## Hardware
@@ -22,7 +22,7 @@ sesudah `MV_CC_OpenDevice`, sebelum `StartGrabbing`. Gagal load = warning, **ngg
 
 Konsekuensi: `CAMERA_FPS` di `.env` cuma target loop capture, **bukan** fps kamera.
 Yang nentuin fps/exposure/gain = `AcquisitionFrameRate` dst di
-`palmgrade-vision/config/camera/hikrobot.mfs`. Mau ubah fps → edit `.mfs`, bukan `.env`.
+`autograde/config/camera/hikrobot.mfs`. Mau ubah fps → edit `.mfs`, bukan `.env`.
 
 Cara bikin `.mfs`: MVS → connect kamera → toolbar **Save Feature** (ekspor semua node
 ke XML). Load balik = **Load Feature**.
@@ -113,4 +113,6 @@ LINE_1_FEATURE_FILE  / LINE_2_ / LINE_3_  # path .mfs → ini yang nentuin fps/e
 CAMERA_FPS                                # target loop capture, BUKAN fps kamera
 STREAM_WIDTH/HEIGHT/FPS                   # preview MJPEG, nggak nyentuh kamera
 ROI_X1/Y1/X2/Y2                           # zona deteksi di software (0,0,0,0 = full frame)
+GARIS_CAPTURE / SUMBU_GARIS               # kapan janjang difoto; sumbu mendatar diskalakan
+                                          # pakai TINGGI frame (sensor 2448x2048 nggak persegi)
 ```

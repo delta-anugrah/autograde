@@ -2,6 +2,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AutoGrade</title>
+<link rel="icon" href="data:image/svg+xml,<svg width=%2232%22 height=%2232%22 viewBox=%220 0 32 32%22 fill=%22none%22 xmlns=%22http://www.w3.org/2000/svg%22> <rect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%230289F7%22/> <path d=%22M16 13.2C14 10 14.2 7.2 16 4.8C17.8 7.2 18 10 16 13.2Z%22 fill=%22white%22/> <path d=%22M16 13.2C18.4 8.6 22.6 6.6 27.4 8.2C24 11.4 20 12.6 16 13.2Z%22 fill=%22white%22/> <path d=%22M16 13.2C13.6 8.6 9.4 6.6 4.6 8.2C8 11.4 12 12.6 16 13.2Z%22 fill=%22white%22/> <path d=%22M16 13.2C20.2 12 25 13.4 27.8 17.6C23.4 16 19.4 14.6 16 13.2Z%22 fill=%22white%22/> <path d=%22M16 13.2C11.8 12 7 13.4 4.2 17.6C8.6 16 12.6 14.6 16 13.2Z%22 fill=%22white%22/> <path d=%22M14.1 28.2C14.4 22.6 15 18.2 15.4 14.6H16.6C17 18.2 17.6 22.6 17.9 28.2Z%22 fill=%22white%22/> <circle cx=%2216%22 cy=%2213.2%22 r=%223.1%22 fill=%22white%22/> </svg>">
 <!--
   One file, no build step, no Node. The console must still open with the
   internet down, so there is no CDN at all. Camera streams are plain MJPEG
@@ -58,6 +59,15 @@
           --input:#ffffff; --hover:#414a57;
           --danger-bg:#fde8e6; --danger-line:#d99a94; --danger-fg:#8c1d18;
           --bayang:rgba(12,19,16,.22);
+          /* One radius scale. Rounding is the only thing softened here: sizes,
+             contrast and the light-by-default rule are set by sunlight and
+             reading distance, not by taste, so they are untouched. */
+          --r-xs:7px; --r-sm:11px; --r-md:16px; --r-lg:20px; --r-pill:999px;
+          /* Depth instead of a second hairline. Kept shallow: a heavy shadow in
+             glare reads as a smudge, and the border is still what defines the
+             edge outdoors. */
+          --tinggi-1:0 1px 2px rgba(12,19,16,.05), 0 3px 10px rgba(12,19,16,.07);
+          --tinggi-2:0 2px 4px rgba(12,19,16,.06), 0 12px 28px rgba(12,19,16,.12);
           --pad:20px;
           --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23414a57%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
   :root[data-theme="dark"] { color-scheme:dark;
@@ -69,6 +79,8 @@
           --input:#222933; --hover:#5b667a;
           --danger-bg:#40211f; --danger-line:#6b312d; --danger-fg:#ffc4bf;
           --bayang:rgba(0,0,0,.55);
+          --tinggi-1:0 1px 2px rgba(0,0,0,.5), 0 3px 10px rgba(0,0,0,.45);
+          --tinggi-2:0 2px 6px rgba(0,0,0,.55), 0 12px 28px rgba(0,0,0,.55);
           --chev:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23a9b3c2%27%20stroke-width%3D%272.2%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M4%206.5l4%204%204-4%27%2F%3E%3C%2Fsvg%3E"); }
   /* One knob for every size; the rest is rem. The operator can still zoom with
      Ctrl + '+' - Chrome remembers that per origin, so this page needs no zoom
@@ -89,54 +101,273 @@
             border-bottom:3px solid var(--acc); }
   h1 { font-size:1rem; margin:0; font-weight:700; letter-spacing:.14em;
        text-transform:uppercase; display:flex; align-items:center; gap:10px; }
-  h1::before { content:""; width:.7rem; height:1rem; background:var(--acc); border-radius:1px; }
+  h1::before { content:""; width:.7rem; height:1rem; background:var(--acc); border-radius:var(--r-pill); }
   #jam { font-family:var(--mono); font-size:1.15rem; font-weight:700; letter-spacing:.01em; }
   .jam { display:flex; align-items:baseline; gap:8px; }
   #topbar .aksi { margin-left:auto; display:flex; gap:8px; }
-  #topbar .aksi button { min-width:5.5rem; min-height:2.6rem; }
+  #topbar .aksi button { min-width:5.5rem; min-height:2.6rem; border-radius:var(--r-pill); }
+  /* Last in the row and in the danger colours: signing out drops a shift's
+     screen back to the login gate, so it must never be the button a gloved
+     hand hits while reaching for the language or theme toggle. */
+  #topbar .aksi #keluar { background:var(--danger-bg); border-color:var(--danger-line);
+                          color:var(--danger-fg); }
+  #topbar .aksi #keluar:hover { border-color:var(--danger-fg); }
 
   #err { display:none; padding:13px var(--pad); font-weight:700;
          background:var(--danger-bg); color:var(--danger-fg);
          border-bottom:1px solid var(--danger-line); border-left:6px solid var(--danger-fg); }
+
+  /* ---- toasts ----
+     `#err` above is wiped by refresh() every 2 s, so a success there is gone
+     before it can be read - the operator taps Tugaskan and sees nothing.
+     Toasts live in their own container, untouched by refresh(), and stay on
+     screen for as long as their kind below says.
+
+     Bottom-right, not a top corner: the top holds the three camera panels and
+     the tally strip (ACC/REJ read from metres away - the whole point of this
+     screen), and the sign-in gate already owns dead centre. Bottom-right is
+     the one spot nothing else claims - #tabs runs its buttons along the top
+     of that area and the table rows sit left-aligned, so a card stacking up
+     from the corner covers neither.
+
+     pointer-events:none on the container + auto only on each card: the empty
+     margin around the stack must stay click-through, or a toast sitting over
+     the tab table would block the very row the operator is trying to tap
+     while it fades. z-index 40 - above the dropdown panels (20) so a toast is
+     never hidden under an open one, below the sign-in gate (50) so a toast
+     can never sit on top of the login screen. */
+  #toasts { position:fixed; z-index:40; right:var(--pad); bottom:var(--pad);
+            display:flex; flex-direction:column-reverse; gap:8px;
+            width:min(24rem, calc(100vw - 2 * var(--pad)));
+            pointer-events:none; }
+  .toast { pointer-events:auto; display:flex; align-items:flex-start; gap:10px;
+           padding:12px 14px; border-radius:var(--r-sm); border:1px solid;
+           box-shadow:var(--tinggi-2); font-weight:600; line-height:1.35;
+           /* Slightly transparent on purpose - it must never fully hide
+              whatever card or feed sits behind it while it is up. Opaque text
+              on a translucent card: the background is see-through, the
+              message is not. */
+          opacity:.94; animation:toast-masuk .2s ease backwards; }
+  @keyframes toast-masuk { from { opacity:0; transform:translateY(6px); } }
+  .toast .pesan { flex:1; }
+  .toast .tutup { flex:none; min-width:2rem; min-height:2rem; padding:0; border:0;
+                   background:transparent; font-size:1.1rem; line-height:1;
+                   color:inherit; opacity:.7; }
+  .toast .tutup:hover { opacity:1; }
+  .toast.sukses { background:var(--acc-bg); border-color:var(--acc); color:var(--acc); }
+  .toast.gagal { background:var(--danger-bg); border-color:var(--danger-line); color:var(--danger-fg); }
+  .toast.peringatan { background:var(--warn-bg); border-color:var(--warn); color:var(--warn); }
+
+  /* ---- sign-in gate (Fase 4) ---- */
+  /* Covers the whole screen on purpose: a console nobody is signed in to shows
+     nothing behind it. Fields are sized for a gloved hand like every other control,
+     and the gate is shown from the first paint so no data flashes past before the
+     session is checked. `display:flex` would beat the UA's [hidden] rule, hence
+     the explicit one. */
+  #gerbang { position:fixed; inset:0; z-index:50; display:flex; align-items:center;
+             justify-content:center; padding:var(--pad); background:var(--bg); overflow:auto; }
+  #gerbang[hidden] { display:none; }
+  .gerbang-kotak { width:min(30rem, 100%); display:flex; flex-direction:column; gap:14px;
+                   padding:22px; background:var(--card); border:1px solid var(--line-kuat);
+                   border-top:5px solid var(--acc); border-radius:var(--r-lg); box-shadow:var(--tinggi-2); }
+  .gerbang-kotak h2 { margin:0; font-size:1.3rem; }
+  /* Known accounts as buttons: they fill the email field, because typing an address
+     on an outdoor touchscreen is slow. The password is still required. */
+  .gerbang-nama { display:flex; flex-wrap:wrap; gap:8px; }
+  .gerbang-op { min-height:3rem; padding:0 16px; border-radius:var(--r-pill); }
+  .gerbang-op[aria-pressed="true"] { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
+  .gerbang-isi { display:flex; flex-direction:column; gap:10px; }
+  .gerbang-isi input { min-height:3.4rem; padding:0 14px; font-size:1.1rem;
+                       font-family:inherit; color:var(--fg); background:var(--bg);
+                       border:1px solid var(--line-kuat); border-radius:var(--r-md); }
+  .gerbang-isi input:focus-visible { outline:3px solid var(--acc); outline-offset:1px; }
+  /* The toggle sits inside the field, where every login screen puts it, and it overlaps
+     no text: the input reserves right padding as wide as the button, so a tap at the end
+     of what was typed still lands on the input. Its face is a word rather than an eye -
+     an eye alone does not say whether it shows or hides. */
+  .sandi-baris { position:relative; display:flex; }
+  .sandi-baris input { flex:1; min-width:0; padding-right:5.5rem; }
+  .sandi-lihat { position:absolute; top:4px; right:4px; bottom:4px; width:5rem;
+                 display:flex; align-items:center; justify-content:center;
+                 padding:0; font-size:.95rem; font-weight:700; color:var(--muted);
+                 background:none; border:0; border-radius:var(--r-xs); cursor:pointer; }
+  .sandi-lihat:hover { color:var(--fg); background:var(--zebra); }
+  .sandi-lihat:focus-visible { outline:3px solid var(--acc); outline-offset:-2px; }
+  .sandi-lihat[aria-pressed="true"] { color:var(--acc); }
+
+  /* ---- pagination ---- */
+  .halaman { display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+             padding:12px 0 0; }
+  .halaman .pilih { flex:0 0 7rem; }
+  /* Pushes the buttons to the far end, so the pair sits where a thumb reaches. */
+  .halaman-tombol { margin-left:auto; display:flex; gap:8px; }
+  .halaman-tombol button { min-height:2.8rem; }
+  .halaman-tombol button:disabled { opacity:.45; cursor:default; }
+  /* Nomor halaman. Lebar minimum dijaga supaya "7" dan "653" sama besar dan deretannya
+     tidak bergeser saat halaman berganti - target yang bergerak sulit ditekan. */
+  .halaman-nomor { display:flex; align-items:center; gap:4px; }
+  .halaman-nomor .halaman-no { min-width:2.8rem; padding:0 8px; font-variant-numeric:tabular-nums; }
+  /* Halaman sekarang: disabled, jadi opacity bawaan akan membuatnya paling pudar
+     justru saat dia yang harus paling jelas. */
+  .halaman-nomor .halaman-no[aria-current="true"] { opacity:1; background:var(--acc);
+     color:var(--on-acc); border-color:var(--acc); }
+  .halaman-celah { padding:0 2px; color:var(--muted); }
+
+  /* Hasil scan, di sebelah kolomnya. Tinggi dipatok supaya baris alat tidak bergeser
+     saat pesannya muncul dan hilang - tombol yang bergerak sulit ditekan. */
+  .scan-pesan { min-height:1.4rem; font-weight:700; color:var(--acc); }
+  /* Dua gerbang dalam satu baris alat, masing-masing berlabel. Labelnya yang membuat
+     dua kolom scan bisa dibedakan sekali lihat - tanpa itu keduanya terbaca sama dan
+     scan keluar mendarat di jalur masuk, membuat tiket kedua untuk satu kunjungan. */
+  .timbang-alat { align-items:flex-start; gap:18px; }
+  /* ⚠️ JANGAN pakai nama `.gerbang-*` di sini: itu milik gerbang login di atas
+     (`.gerbang-isi` = flex column, input 3.4rem). Kelas yang sama membuat kolom scan
+     melar jadi kotak raksasa yang berhamburan - kejadian sekali, terlihat di
+     screenshot operator, dan tidak ada test statis yang bisa menangkapnya. */
+  .timbang-sisi { flex:0 1 auto; min-width:0; display:flex; flex-direction:column; gap:6px; }
+  .timbang-baris { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  /* Lebih sempit dari 13rem bawaan: labelnya sudah mengatakan MASUK atau KELUAR, jadi
+     placeholder cukup "Scan QR" - dan kolom yang lebih sempit membuat dua gerbang tetap
+     satu baris sampai 1024 px. */
+  .timbang-baris input.plat { flex:0 0 10rem; }
+
+  /* ---- kolom tara di gerbang keluar ---- */
+  /* Inline, BUKAN lapisan di atas layar: dialog yang menutup layar menghilangkan kamera
+     line dan strip tally sampai tara selesai diisi, dan di gerbang yang sibuk itu
+     kehilangan pandangan justru saat paling butuh. Dilaporkan operator 2026-09-15. */
+  .tara-grup { display:flex; align-items:center; gap:8px; }
+  .tara-grup[hidden] { display:none; }
+  /* Platnya disebut: operator melihat beberapa truk sehari sambil memegang HP supir,
+     dan kolom tanpa nama truk bisa mendarat di kunjungan yang salah. */
+  .tara-plat { font-family:var(--mono); font-weight:700; font-size:1.05rem;
+               white-space:nowrap; }
+  .tara-grup input { flex:0 0 8rem; font-family:var(--mono); text-align:right; }
+  .tara-grup button { flex:0 0 7rem; }
+  /* Pemisah: dua gerbang itu dua tempat fisik, dan garis ini yang mengatakannya. */
+  .timbang-keluar { padding-left:18px; border-left:1px solid var(--line-kuat); }
+  /* Di layar sempit gerbang keluar turun ke baris kedua, dan garis di KIRI jadi
+     janggal karena tidak ada apa pun di sebelahnya lagi. Pemisahnya pindah ke atas. */
+  @media (max-width:1330px) {
+    .timbang-keluar { padding-left:0; padding-top:12px; border-left:0;
+                      border-top:1px solid var(--line-kuat); width:100%; }
+  }
+  .scan-pesan.salah { color:var(--danger-fg); }
+
+  /* ---- kartu QR truk ---- */
+  #qr-cetak { padding:16px 0; }
+  #qr-cetak[hidden] { display:none; }
+  .qr-kartu { display:flex; flex-wrap:wrap; gap:12px; }
+  .qr-satu { margin:0; padding:10px; text-align:center; background:#fff;
+             border:1px solid var(--line-kuat); border-radius:var(--r-sm); }
+  /* Latar putih dipatok, bukan var(--card): di tema gelap kartunya jadi hitam, dan
+     QR gelap di latar gelap tidak terbaca scanner mana pun. */
+  .qr-satu img { display:block; width:180px; height:180px; background:#fff; }
+  .qr-satu figcaption { margin-top:6px; font-family:var(--mono); font-weight:700;
+                        font-size:1rem; color:#000; }
+
+  /* Yang dicetak cuma kartunya. Tanpa ini, satu halaman berisi kamera, tabel, dan
+     strip tally — puluhan lembar terbuang sebelum kartu pertama muncul. */
+  @media print {
+    body > *:not(#sec-truk) { display:none !important; }
+    #sec-truk > *:not(#qr-cetak) { display:none !important; }
+    #sec-truk { display:block !important; }
+    .qr-satu { break-inside:avoid; border-color:#000; }
+  }
+  #gerbang-masuk { min-height:3.6rem; font-size:1.1rem; border-radius:var(--r-md); }
+  #gerbang-pesan { min-height:1.5rem; margin:0; font-weight:700; color:var(--danger-fg); }
+  #operator-aktif { align-self:center; font-weight:700; }
 
   /* ---- day tally ---- */
   /* The whole yard in one strip, for the glance from ten metres that never
      reaches a single line panel. */
   #tally { display:flex; flex-wrap:wrap; align-items:stretch;
            margin:16px var(--pad) 0; background:var(--card);
-           border:1px solid var(--line-kuat); border-left:5px solid var(--acc); border-radius:3px; }
+           border:1px solid var(--line-kuat); border-left:5px solid var(--acc);
+           border-radius:var(--r-lg); box-shadow:var(--tinggi-1); }
   #tally .hari { display:flex; align-items:center; padding:10px 16px;
                  border-right:1px solid var(--line); }
-  #tally .stat { padding:10px 20px 12px; border-right:1px solid var(--line); min-width:6.5rem; }
+  /* `min-width` turun dari 6,5rem: strip ini sekarang memuat lima angka (empat
+     kelas + Total), bukan tiga. Padding mengecil di layar sempit lewat clamp
+     supaya barisnya tetap muat tanpa menggeser rasio ke baris berikutnya. */
+  #tally .stat { padding:10px clamp(10px, 2.2vw, 20px) 12px; border-right:1px solid var(--line);
+                 min-width:4.6rem; text-align:center; }
   #tally .stat b { display:block; font-family:var(--mono); font-size:2rem; font-weight:700;
                    line-height:1.1; font-variant-numeric:tabular-nums; }
   #tally .stat.acc b { color:var(--acc); }
   #tally .stat.rej b { color:var(--rej); }
+  /* TP tidak hijau dan tidak merah: tangkai panjang itu sifat janjang, bukan
+     lolos/buang. Pakai `--warn` yang sudah ada, jadi tidak ada warna baru yang
+     harus dicek ulang kontrasnya di dua tema. */
+  #tally .stat.tp b { color:var(--warn); }
   #tally .rasio { flex:1 1 12rem; min-width:11rem; padding:12px 16px;
                   display:flex; flex-direction:column; justify-content:center; gap:8px; }
   #tally .rasio-hd { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
   #tally .rasio-hd b { font-family:var(--mono); font-size:1.35rem; font-weight:700;
                        font-variant-numeric:tabular-nums; }
-  #tally .bar { height:12px; border:1px solid var(--line); border-radius:2px;
+  #tally .bar { height:12px; border:1px solid var(--line); border-radius:var(--r-pill);
                 background:var(--rej-bg); overflow:hidden; }
-  #tally .bar span { display:block; height:100%; width:0; background:var(--acc); transition:width .4s ease; }
-  #tally .tata { display:flex; align-items:center; gap:10px; padding:10px 16px;
-                 border-left:1px solid var(--line); }
-  #tally .tata .pilih { flex:0 0 11rem; }
+  #tally .bar span { display:block; height:100%; width:0; border-radius:var(--r-pill); background:var(--acc); transition:width .4s ease; }
+  /* Label above the control, not beside it: beside it the two-word caption set
+     its own width and the strip's last cell came out a different shape from
+     every other cell. Centred and stacked, it lines up with the stat blocks. */
+  #tally .tata { display:flex; flex-direction:column; justify-content:center;
+                 gap:5px; padding:10px 16px; border-left:1px solid var(--line);
+                 text-align:center; }
+  #tally .tata .pilih { width:11rem; }
 
   /* ---- camera panels ---- */
   /* terapkanKolom() overrides this inline; this value holds until JS runs, and
      whenever the operator picks "Auto". */
   #lines { margin-top:14px; display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr));
            gap:16px; padding:0 var(--pad) 6px; }
-  .card { background:var(--card); border:1px solid var(--line-kuat); border-radius:3px;
+  .card { background:var(--card); border:1px solid var(--line-kuat);
+          border-radius:var(--r-md); box-shadow:var(--tinggi-1);
           display:flex; flex-direction:column; }
   .card h2 { font-size:.95rem; font-weight:700; margin:0; padding:5px 7px 5px 13px;
              letter-spacing:.04em; border-bottom:1px solid var(--line);
              display:flex; align-items:center; gap:8px; }
   .card h2 .nama { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .card h2 .ord { display:flex; gap:4px; }
+  /* Without align-items the two buttons stretch to the header's full height,
+     so the glyphs sit high against the ONLINE text beside them. */
+  .card h2 .ord { display:flex; align-items:center; gap:4px; }
   .card h2 button { padding:2px 9px; font-size:.85rem; line-height:1.2; color:var(--muted); }
+
+  /* Diagnostik: one .card per line, same grid rhythm as #lines above. */
+  .kartu-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+  .kartu-grid .card.tidak-terjangkau { border-color:var(--rej); }
+  .kartu-grid dl { margin:0; padding:10px 13px; display:grid; grid-template-columns:auto 1fr;
+                   gap:4px 10px; font-size:.85rem; }
+  .kartu-grid dt { color:var(--muted); }
+  .kartu-grid dd { margin:0; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* Uji PLC: the only card that moves hardware. DI bits are read-only text;
+     coil buttons get the danger tokens piston.terbuka already uses, so the
+     one control in the whole console that fires a physical output stands
+     out even read from several metres away outdoors. */
+  .plc-di { padding:8px 13px; font-size:.8rem; display:flex; flex-wrap:wrap; gap:8px; }
+  .plc-di-bit { white-space:nowrap; }
+  .plc-coil { padding:0 13px 12px; display:flex; flex-wrap:wrap; gap:8px; }
+  button.uji-coil { flex:1; min-width:9rem; min-height:2.6rem; border-color:var(--danger-line);
+                     background:var(--danger-bg); color:var(--danger-fg); font-weight:600; }
+  button.uji-coil:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
+
+  /* Konfirmasi uji PLC: inline, bukan dialog bawaan browser - lihat komentar HTML
+     di #sec-plc. Sama bentuknya dengan .tara-grup, ditempatkan di luar #plc-kartu
+     supaya tidak ikut terhapus saat kartu dibangun ulang oleh polling. */
+  .plc-konfirmasi { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+                     margin:12px var(--pad) 0; padding:11px 13px; border-radius:var(--r-sm);
+                     border:1px solid var(--danger-line); background:var(--danger-bg); }
+  .plc-konfirmasi[hidden] { display:none; }
+  .plc-konfirmasi b { flex:1 1 100%; color:var(--danger-fg); font-weight:600; }
+  .plc-konfirmasi input { flex:0 0 8rem; font-family:var(--mono); text-transform:uppercase; }
+  .plc-konfirmasi button { flex:0 0 7rem; }
+
+  /* Versi: a plain definition list, key left, value right. */
+  .daftar-definisi { background:var(--card); border:1px solid var(--line-kuat);
+                      border-radius:var(--r-md); padding:14px var(--pad); margin:0 var(--pad);
+                      display:grid; grid-template-columns:auto 1fr; gap:8px 16px; max-width:480px; }
+  .daftar-definisi dt { color:var(--muted); }
+  .daftar-definisi dd { margin:0; font-weight:600; }
 
   /* Camera state in a word, not only a colour, and in the title bar where it is
      readable even when the feed itself is a black box. `.putus` lives on the
@@ -156,38 +387,35 @@
   /* Chrome only renders ::after on a BROKEN image. This covers the broken icon
      and its grey border in the gap before cekKamera() marks the box. */
   .feed img::after { content:""; position:absolute; inset:0; background:#000; }
-  /* Live badge, pure CSS off the .putus class - a still frame and a dead line
-     look identical otherwise, and the operator has no other way to tell. */
-  .feed::after { content:"LIVE"; position:absolute; z-index:2; top:8px; left:8px;
-                 padding:5px 9px 4px 21px; border-radius:2px;
-                 font:700 .68rem/1 var(--font); letter-spacing:.14em; color:#fff;
-                 background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.3); }
-  .feed::before { content:""; position:absolute; z-index:3; left:17px; top:15px;
-                  width:7px; height:7px; border-radius:50%; background:#3ddc97;
-                  animation:denyut 2.4s ease-in-out infinite; }
-  @keyframes denyut { 0%,100% { opacity:1; } 50% { opacity:.25; } }
+  /* No LIVE badge: the header already says ONLINE/OFFLINE per line, and the
+     FPS counter the vision service burns into the frame moves on a live feed
+     and freezes on a dead one - so the badge only repeated what was already
+     on screen, over the picture the operator is trying to read. */
   .feed span { position:absolute; inset:0; z-index:4; display:none; place-items:center;
                padding:16px; text-align:center; color:#fff;
                font-size:1.15rem; font-weight:700; background:rgba(0,0,0,.72); }
   .card.putus .feed img { visibility:hidden; }
   .card.putus .feed span { display:grid; }
-  .card.putus .feed::after, .card.putus .feed::before { display:none; }
 
-  /* Three bounded cells, not three numbers on one surface: at distance the
-     tinted block is read before the figure inside it. Equal columns because
-     with flex the spacing follows digit count, so once ACC passes a hundred the
-     figures collide. */
-  .counts { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line);
+  /* Bounded cells, not numbers on one surface: at distance the tinted block is
+     read before the figure inside it. Equal columns because with flex the
+     spacing follows digit count, so once a figure passes a hundred they collide.
+     Lima kolom sejak model jadi 4 kelas (Ripe/Unripe/JK/TP + Total). Angkanya
+     ikut mengecil di aturan `.counts b` di bawah — tetap dua kali tinggi teks
+     biasa, masih terbaca dari seberang area bongkar. */
+  .counts { display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--line);
             border-block:1px solid var(--line); font-variant-numeric:tabular-nums; }
   .counts > span { display:block; background:var(--card); padding:9px 6px 11px; text-align:center; }
   .counts .acc { background:var(--acc-bg); }
   .counts .rej { background:var(--rej-bg); }
   /* The only thing that must be readable from across the unloading area. */
   .counts b { display:block; font-family:var(--mono); font-weight:700; line-height:1;
-              letter-spacing:-.02em; font-size:clamp(2.3rem, 4.4vw, 3.3rem); }
+              letter-spacing:-.02em; font-size:clamp(1.5rem, 2.6vw, 2.2rem); }
   .counts .lb { display:block; margin-bottom:5px; }
+  .counts .tp { background:var(--warn-bg); }
   .counts .acc b, .counts .acc .lb { color:var(--acc); }
   .counts .rej b, .counts .rej .lb { color:var(--rej); }
+  .counts .tp b, .counts .tp .lb { color:var(--warn); }
 
   .body { padding:12px 14px 14px; display:grid; gap:10px; }
   /* isiTruk() builds the inner span, and it carries its own state class - a
@@ -198,7 +426,7 @@
      shared, so both values start at the same x. */
   .truk > span { display:grid; grid-template-columns:auto 1fr; align-items:center;
                  gap:5px 12px; padding:9px 12px; border:1px solid var(--line);
-                 border-radius:3px; background:var(--zebra); }
+                 border-radius:var(--r-sm); background:var(--zebra); }
   .truk .truk-kosong { display:block; background:var(--warn-bg); border-color:var(--warn); }
   .truk .truk-kosong .plat { color:var(--warn); font-size:1.15rem; letter-spacing:.02em; }
   .plat { font-family:var(--mono); font-size:1.4rem; font-weight:700; line-height:1.1;
@@ -214,30 +442,64 @@
   .assign button { flex:0 0 7.5rem; }
 
   button, input { background:var(--input); color:var(--fg); border:1px solid var(--line-kuat);
-                  border-radius:3px; padding:10px 13px; font:inherit; }
+                  border-radius:var(--r-sm); padding:10px 13px; font:inherit; }
   :is(button, input):focus-visible { outline:3px solid var(--acc); outline-offset:2px; }
-  button { cursor:pointer; font-weight:700; }
-  button:hover { border-color:var(--hover); }
-  button:disabled { opacity:.55; cursor:default; }
+  button { cursor:pointer; font-weight:700;
+           transition:background-color .12s ease, border-color .12s ease,
+                      box-shadow .12s ease, transform .12s ease; }
+  /* The lift is the whole point of the press: with gloves on a dusty screen the
+     operator often cannot tell a tap registered. Colour alone does not carry
+     that; a 1px rise plus a shadow does, and it costs no contrast. */
+  button:hover:not(:disabled) { border-color:var(--hover); box-shadow:var(--tinggi-1);
+                                transform:translateY(-1px); }
+  button:active:not(:disabled) { transform:translateY(0); box-shadow:none; }
+  /* A gate, not a fault: the action is waiting for a field, so it is dimmed
+     but keeps its shape and its label legible at distance. */
+  button:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
   /* Assign is the one action with a consequence on the line, so it is the one
      filled button on the card. */
   button.utama { background:var(--acc); border-color:var(--acc); color:var(--on-acc); }
   button.utama:hover { border-color:var(--fg); }
+  /* Release throws away the line's current assignment, so it wears the same
+     palette as the reject button - the two destructive actions on the card look
+     alike, and Assign is the only filled one. */
+  .assign [data-aksi="lepas"] { background:var(--danger-bg); border-color:var(--danger-line);
+                                color:var(--danger-fg); }
+  .assign [data-aksi="lepas"]:hover:not(:disabled) { border-color:var(--danger-fg); }
   button.reject { width:100%; text-transform:uppercase; letter-spacing:.08em;
                   background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
   /* The keyboard hint is printed on the button, so the shortcut never has to be
      remembered - and it follows the panel order the operator arranged. */
   .pintas { margin-left:10px; font-size:.7rem; letter-spacing:.06em; opacity:.8;
-            border:1px solid currentColor; border-radius:2px; padding:2px 6px; }
+            border:1px solid currentColor; border-radius:var(--r-xs); padding:2px 6px; }
   .pintas:empty { display:none; }
   /* Fires from a key, so the screen has to say which panel it landed on. */
   @keyframes kedip { 40% { background:var(--danger-fg); color:var(--danger-bg); } }
   button.reject.kedip { animation:kedip .45s ease; }
+  /* Piston: closed looks like any other action (opening asks first, so the
+     button itself does not need to shout). Open is the state that needs
+     shouting - `.terbuka` swaps to the same danger palette as Reject, because
+     both a piston left open and an unrejected reject are "something is
+     wrong until this is pressed again". Disabled (line unreachable / PLC or
+     coil not configured / waiting for confirmation) keeps its plain shape -
+     button:disabled already dims it, so there is no state to add here. */
+  button.piston { width:100%; text-transform:uppercase; letter-spacing:.08em; margin-top:2px; }
+  button.piston.terbuka { background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
+  button.piston.kedip { animation:kedip .45s ease; }
+  /* Merah penuh, dibaca dari jarak jalan yang sama dengan angka ACC/REJ -
+     bukan status kecil di pojok kartu. Berkedip pelan supaya mata yang lewat
+     ikut tertarik, tapi tidak berhenti (motion-reduce mematikannya di bawah). */
+  .pita-piston { margin:10px 13px 0; padding:11px 13px; border-radius:var(--r-sm);
+                 background:var(--danger-fg); color:var(--danger-bg);
+                 font-size:1rem; font-weight:700; text-align:center;
+                 text-transform:uppercase; letter-spacing:.04em;
+                 animation:denyut-pita 1.6s ease-in-out infinite; }
+  @keyframes denyut-pita { 0%,100% { opacity:1; } 50% { opacity:.72; } }
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
   .assign button, .assign .pilih-tombol, .tools button, .tools input, #tally .pilih-tombol,
-  #tabs button, button.reject { min-height:2.6rem; }
+  #tabs button, button.reject, button.piston { min-height:2.6rem; }
 
   /* ---- dropdown ---- */
   /* A real listbox, not a styled <select>. The native picker draws its rows in
@@ -253,15 +515,24 @@
   .pilih[data-buka="1"] .pilih-tombol { border-color:var(--acc); }
   .pilih-panel { position:absolute; z-index:20; top:calc(100% + 4px); left:0; min-width:100%;
                  max-height:17rem; overflow-y:auto; padding:4px;
-                 background:var(--card); border:1px solid var(--line-kuat); border-radius:3px;
-                 box-shadow:0 12px 28px var(--bayang); }
+                 background:var(--card); border:1px solid var(--line-kuat);
+                 border-radius:var(--r-sm); box-shadow:var(--tinggi-2); }
   .pilih-panel [role="option"] { display:flex; align-items:center; min-height:2.6rem;
-                                 padding:10px 14px; border-radius:2px; cursor:pointer;
+                                 padding:10px 14px; border-radius:var(--r-xs); cursor:pointer;
                                  white-space:nowrap; font-weight:600; }
   .pilih-panel [role="option"]:hover { background:var(--zebra); }
   .pilih-panel [role="option"]:focus { outline:none; background:var(--zebra);
                                        box-shadow:inset 4px 0 0 var(--acc); }
   .pilih-panel [role="option"][aria-selected="true"] { background:var(--acc-bg); color:var(--acc); }
+  /* A panel on a button already flush with the right edge grows off-screen: `left:0`
+     measures from the button's left, and the panel is wider than the button. Anchored
+     to the right edge instead. Not applied to every `.pilih` - the ones on the left
+     would then grow the wrong way - so it is asked for per dropdown. */
+  .pilih-panel--kanan { left:auto; right:0; }
+  /* Opens upward. The rows-per-page control sits at the bottom of a long table,
+     where a panel dropping down lands off the foot of the page and the operator
+     has to scroll to reach an option. Asked for per dropdown, like --kanan. */
+  .pilih-panel--atas { top:auto; bottom:calc(100% + 4px); }
 
   /* ---- tabs ---- */
   #tabs { display:flex; gap:3px; padding:26px var(--pad) 0; }
@@ -272,9 +543,9 @@
      into the page margin on both sides and read as a stray mark. */
   #tabs button { flex:1 1 0; background:var(--zebra); color:var(--muted);
                  border:1px solid var(--line);
-                 border-radius:3px 3px 0 0;
+                 border-radius:var(--r-sm) var(--r-sm) 0 0;
                  font-size:1rem; letter-spacing:.04em; }
-  #tabs button:hover { color:var(--fg); }
+  #tabs button:hover { color:var(--fg); transform:none; box-shadow:none; }
   #tabs button.aktif { background:var(--card); color:var(--fg);
                        border-color:var(--line-kuat);
                        box-shadow:inset 0 4px 0 var(--acc); }
@@ -283,7 +554,7 @@
   .panel { padding:16px var(--pad) 28px; }
   .tools { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:14px;
            background:var(--card); border:1px solid var(--line-kuat); border-bottom:none;
-           border-radius:3px 3px 0 0; }
+           border-radius:var(--r-md) var(--r-md) 0 0; }
   /* `min-width:0`: an input's automatic minimum is its `size` attribute,
      20 characters, which otherwise overrides every basis below. */
   .tools input { flex:1 1 14rem; max-width:22rem; min-width:0; }
@@ -296,11 +567,17 @@
   .tools .catatan { font-size:.78rem; color:var(--muted); }
   .tools .pilih { flex:0 0 16rem; }
   .tools button { flex:0 0 12rem; }
+  /* Level filter: three fixed choices read faster as buttons than a dropdown
+     on a touchscreen read from a few metres away. */
+  .log-level { display:flex; gap:4px; flex:0 0 auto; }
+  .log-level button { flex:0 0 auto; min-width:5rem; background:var(--zebra);
+                       color:var(--muted); border:1px solid var(--line); }
+  .log-level button.aktif { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
      screen, and without this the page itself scrolls sideways. */
   .tabel { overflow-x:auto; background:var(--card);
-           border:1px solid var(--line-kuat); border-radius:3px; }
-  .tools + .tabel { border-top:none; border-radius:0 0 3px 3px; }
+           border:1px solid var(--line-kuat); border-radius:var(--r-md); }
+  .tools + .tabel { border-top:none; border-radius:0 0 var(--r-md) var(--r-md); }
   table { width:100%; border-collapse:collapse; }
   th, td { text-align:left; padding:12px 16px; border-bottom:1px solid var(--line); white-space:nowrap; }
   th { background:var(--zebra); border-bottom:2px solid var(--line-kuat);
@@ -317,15 +594,79 @@
   td.num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
   /* The column heads already say ACC and REJ, so the colour is a second signal
      here, never the only one. */
+  /* Form setelan: kolom sempit dan label di atas, bukan sebaris. Angkanya
+     diketik jarang tapi harus terbaca ulang sebelum Simpan ditekan — ini dua
+     nilai yang menggeser tonase. */
+  /* Kartu, bukan kolom mengambang: tanpa bingkai, tiga kolom di layar lebar
+     terbaca seperti tiga hal yang tidak berhubungan, dan tombol Simpan-nya
+     kehilangan induk. */
+  .setelan-form { display:grid; gap:18px; max-width:30rem; padding:20px;
+                  border:1px solid var(--line); border-radius:var(--r);
+                  background:var(--kartu); }
+  .setelan-form label { display:grid; gap:6px; }
+  .setelan-form label > span:first-child { font-weight:600; }
+  .setelan-form input, .setelan-form select {
+    padding:10px 12px; font-family:var(--mono); font-size:1.1rem;
+    border:1px solid var(--line-kuat); border-radius:var(--r);
+    background:var(--input); color:var(--fg); width:100%; box-sizing:border-box; }
+  .setelan-form select { font-family:inherit; }
+  /* Saklar: kotak centang di kiri, teks di kanan, sejajar atas. `grid` milik
+     label biasa akan menaruh kotaknya selebar kolom. */
+  .setelan-form label.saklar { display:flex; gap:12px; align-items:flex-start; cursor:pointer; }
+  .setelan-form label.saklar input { width:22px; height:22px; margin-top:2px; flex:none; accent-color:var(--aksen); }
+  .setelan-form label.saklar > span { display:grid; gap:4px; }
+  .setelan-form input:focus-visible, .setelan-form select:focus-visible {
+    outline:2px solid var(--aksen); outline-offset:1px; }
+  /* Angka yang ditolak ditandai DI KOLOMNYA, bukan cuma di banner bawah:
+     operator yang mengetik satu huruf harus tahu kolom mana yang salah tanpa
+     membaca kalimat. */
+  .setelan-form input[aria-invalid="true"] { border-color:var(--rej); }
+  .setelan-form small { font-size:.85rem; }
+  /* Tombol dan sumbernya dipisahkan garis: Simpan mengirim ke tiga line
+     sekaligus, jadi dia tidak boleh terbaca sebagai bagian dari kolom terakhir. */
+  .setelan-form .tools { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+                         padding-top:14px; border-top:1px solid var(--line); }
+  #set-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
+                           background:var(--warn-bg); color:var(--warn); }
+  #set-lines:not(:empty) { color:var(--rej); }
+  #rekap td.tp { color:var(--warn); font-weight:700; }
   #rekap td.acc { color:var(--acc); font-weight:700; }
   #rekap td.rej { color:var(--rej); font-weight:700; }
   td.kosong { text-align:center; color:var(--muted); padding:26px 16px; }
-  td img { height:52px; border-radius:2px; border:1px solid var(--line-kuat); display:block; }
+  td img { height:52px; border-radius:var(--r-xs); border:1px solid var(--line-kuat); display:block; }
+  /* Pemicu foto: tombol, bukan tautan — tujuannya membuka lapisan di halaman
+     ini, bukan menavigasi ke mana pun. Dibuat setipis mungkin supaya thumbnail
+     tetap terlihat persis seperti sebelumnya. */
+  button.foto { padding:0; border:0; background:none; cursor:pointer; display:block;
+                border-radius:var(--r-xs); }
+  button.foto:focus-visible { outline:3px solid var(--acc); outline-offset:2px; }
+
+  /* Lapisan foto. Ukurannya dipatok ke viewport, bukan ke ukuran gambar: foto
+     janjang 2448x2048 akan melampaui layar mana pun kalau dibiarkan apa adanya. */
+  #foto-modal { border:0; padding:0; background:var(--card); color:var(--fg);
+                border-radius:var(--r); max-width:min(96vw, 1100px); max-height:92vh;
+                overflow:hidden; }
+  #foto-modal::backdrop { background:rgba(0,0,0,.72); }
+  .foto-kepala { display:flex; align-items:center; justify-content:space-between;
+                 gap:12px; padding:10px 12px; border-bottom:1px solid var(--line);
+                 font-family:var(--mono); font-size:.95rem; }
+  /* Tombol tutup besar: layar sentuh luar ruangan, jempol bersarung tangan. */
+  #foto-tutup { min-width:44px; min-height:44px; font-size:1.6rem; line-height:1;
+                border:1px solid var(--line-kuat); border-radius:var(--r-xs);
+                background:var(--input); color:var(--fg); cursor:pointer; }
+  /* `100%` = lebar dialog, BUKAN lebar layar. Dulu `96vw` di sini sementara
+     dialognya dibatasi `min(96vw, 1100px)`: di layar lebih lebar dari 1100px
+     gambarnya jadi lebih besar daripada wadahnya, dan `overflow:hidden` di atas
+     memotongnya — sisi kanan foto hilang tanpa scrollbar apa pun sebagai
+     petunjuk. Tingginya tetap dipatok ke viewport dikurangi baris judul supaya
+     foto potret tidak mendorong tombol tutup keluar layar. */
+  #foto-besar { display:block; width:100%; max-height:calc(92vh - 64px);
+                object-fit:contain; background:#000; }
   .pill { font:700 .7rem/1 var(--font); letter-spacing:.1em; text-transform:uppercase;
-          padding:5px 9px; border-radius:2px; border:1px solid var(--line-kuat);
+          padding:5px 9px; border-radius:var(--r-pill); border:1px solid var(--line-kuat);
           color:var(--muted); background:var(--card); }
   .tag { display:inline-block; font:700 .78rem/1 var(--font); letter-spacing:.1em;
-         padding:6px 10px; border-radius:2px; border:1px solid; }
+         padding:6px 10px; border-radius:var(--r-pill); border:1px solid; }
   .tag.ok { color:var(--acc); background:var(--acc-bg); border-color:var(--acc); }
   .tag.no { color:var(--rej); background:var(--rej-bg); border-color:var(--rej); }
 
@@ -346,19 +687,57 @@
   <h1>AutoGrade</h1>
   <span class="jam"><b id="jam">-</b> <span id="tz" class="lb"></span></span>
   <span class="aksi">
+    <span id="operator-aktif" hidden></span>
     <button id="bahasa">EN</button>
     <button id="tema">Terang</button>
+    <button id="keluar" hidden data-t="tombolKeluar">Keluar</button>
   </span>
 </header>
 <div id="err"></div>
+<div id="toasts" aria-live="polite"></div>
+
+
+<div id="gerbang">
+  <div class="gerbang-kotak" role="dialog" aria-modal="true" aria-labelledby="gerbang-judul">
+    <h2 id="gerbang-judul" data-t="gerbangJudul">Masuk ke konsol</h2>
+    <span class="lb" data-t="gerbangPilih">Ketik email dan sandi</span>
+    <div id="gerbang-nama" class="gerbang-nama"></div>
+    <div class="gerbang-isi">
+      <!-- autocomplete off: a shared outdoor screen must not offer the last
+           operator's address to whoever stands there next. -->
+      <input id="gerbang-email" type="email" inputmode="email" autocomplete="off"
+             autocapitalize="none" spellcheck="false" data-t-ph="gerbangEmail"
+             placeholder="Email" aria-labelledby="gerbang-judul">
+      <!--
+        Typed blind, often with gloves on, on an outdoor touchscreen. Without a way to
+        see it a single typo reads as "my password is being refused", and the next thing
+        that happens is someone writing the password on the monitor.
+      -->
+      <div class="sandi-baris">
+        <input id="gerbang-sandi" type="password" autocomplete="off"
+               data-t-ph="gerbangSandi" placeholder="Sandi" aria-labelledby="gerbang-judul">
+        <!--
+          No `data-t`: the face alternates between two keys, so `lihatSandi` sets it on
+          load and on every toggle. A `data-t` here would fight that on a language flip.
+        -->
+        <button type="button" id="gerbang-lihat" class="sandi-lihat"
+                aria-pressed="false" data-t-lb="lihatSandi">Lihat</button>
+      </div>
+    </div>
+    <button type="button" id="gerbang-masuk" data-t="gerbangMasuk">Masuk</button>
+    <p id="gerbang-pesan" role="alert"></p>
+  </div>
+</div>
 
 <section id="tally">
   <span class="lb hari" data-t="labelHariIni">Hari ini</span>
-  <div class="stat acc"><span class="lb">ACC</span><b id="tot-acc">0</b></div>
-  <div class="stat rej"><span class="lb">REJ</span><b id="tot-rej">0</b></div>
+  <div class="stat acc"><span class="lb" data-t="clsRipe">Ripe</span><b id="tot-ripe">0</b></div>
+  <div class="stat rej"><span class="lb" data-t="clsUnripe">Unripe</span><b id="tot-unripe">0</b></div>
+  <div class="stat rej"><span class="lb" data-t="clsJk">JK</span><b id="tot-jk">0</b></div>
+  <div class="stat tp"><span class="lb" data-t="clsTp">TP</span><b id="tot-tp">0</b></div>
   <div class="stat"><span class="lb">Total</span><b id="tot-all">0</b></div>
   <div class="rasio">
-    <div class="rasio-hd"><span class="lb" data-t="labelRasio">Rasio ACC</span><b id="tot-rate">-</b></div>
+    <div class="rasio-hd"><span class="lb" data-t="labelRasio">Rasio Ripe</span><b id="tot-rate">-</b></div>
     <div class="bar"><span id="bar-acc"></span></div>
   </div>
   <!--
@@ -374,7 +753,7 @@
       <button type="button" id="kolom-tombol" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
         <span class="pilih-teks">Otomatis</span>
       </button>
-      <div class="pilih-panel" role="listbox" hidden>
+      <div class="pilih-panel pilih-panel--kanan" role="listbox" hidden>
         <div role="option" tabindex="-1" data-nilai="auto" aria-selected="true" data-t="kolomAuto">Otomatis</div>
         <div role="option" tabindex="-1" data-nilai="1" aria-selected="false" data-t="kolom1">1 per baris</div>
         <div role="option" tabindex="-1" data-nilai="2" aria-selected="false" data-t="kolom2">2 per baris</div>
@@ -391,6 +770,15 @@
   <button data-tab="truk" data-t="judulTruk">Truk</button>
   <button data-tab="timbangan" data-t="judulTimbangan">Timbangan</button>
   <button data-tab="rekap" data-t="judulRekap">Rekap</button>
+  <button data-tab="log" data-dev="1" data-t="judulLog">Log</button>
+  <button data-tab="diagnostik" data-dev="1" data-t="judulDiagnostik">Diagnostik</button>
+  <button data-tab="antrean" data-dev="1" data-t="judulAntrean">Antrean ERP</button>
+  <button data-tab="versi" data-dev="1" data-t="judulVersi">Versi</button>
+  <button data-tab="plc" data-dev="1" data-t="judulPlc">Uji PLC</button>
+  <!-- Setelan sengaja PALING KANAN (permintaan operator 2026-09-18): tab yang
+       paling jarang dibuka dan yang paling mahal kalau tersenggol — angkanya
+       menggeser tonase yang dibayar. -->
+  <button data-tab="setelan" data-dev="1" data-t="judulSetelan">Setelan</button>
 </nav>
 
 <section id="sec-grading" class="panel" hidden>
@@ -404,6 +792,36 @@
       <tbody id="recent"></tbody>
     </table>
   </div>
+  <!--
+    A mill grades hundreds of bunches a day, so "the last 20" hides most of the shift.
+    The row count is the operator's choice: the same page is read on a 15" panel by the
+    line and on a desk monitor in the office.
+  -->
+  <div class="halaman">
+    <label class="lb" for="grading-per-tombol" data-t="perHalaman">Baris per halaman</label>
+    <div class="pilih" id="grading-per" data-nilai="25">
+      <button type="button" id="grading-per-tombol" class="pilih-tombol"
+              aria-haspopup="listbox" aria-expanded="false">
+        <span class="pilih-teks">25</span>
+      </button>
+      <div class="pilih-panel pilih-panel--atas" role="listbox" hidden>
+        <div role="option" tabindex="-1" data-nilai="25" aria-selected="true">25</div>
+        <div role="option" tabindex="-1" data-nilai="50" aria-selected="false">50</div>
+        <div role="option" tabindex="-1" data-nilai="100" aria-selected="false">100</div>
+        <div role="option" tabindex="-1" data-nilai="200" aria-selected="false">200</div>
+      </div>
+    </div>
+    <span id="grading-rentang" class="muted"></span>
+    <span class="halaman-tombol">
+      <button type="button" id="grading-prev" data-t="halamanSebelum" disabled>Sebelumnya</button>
+      <!--
+        Nomor halaman, dirakit di JS. 130.506 baris pada 200 per halaman = 653
+        halaman: tanpa ini, halaman 300 berarti 299 kali klik Berikutnya.
+      -->
+      <span id="grading-nomor" class="halaman-nomor"></span>
+      <button type="button" id="grading-next" data-t="halamanBerikut" disabled>Berikutnya</button>
+    </span>
+  </div>
 </section>
 
 <section id="sec-truk" class="panel" hidden>
@@ -415,7 +833,19 @@
   <div class="tools">
     <input id="plat" class="plat" maxlength="11" data-t-ph="phPlat"
            placeholder="KT 2509 ABC" autocomplete="off">
-    <button id="daftar" class="utama" data-t="btnDaftar">Daftar truk manual</button>
+    <button id="daftar" class="utama" data-t="btnDaftar" disabled>Daftar truk manual</button>
+    <!--
+      Kartu QR untuk ditempel di kaca truk atau dikirim ke HP supir. Sekali cetak untuk
+      semua truk: menempel satu per satu berarti membuka halaman ini puluhan kali.
+      Cetaknya lewat dialog print browser — halaman di sandbox tidak bisa memaksa
+      unduhan berkas, jadi tombol "Download PDF" akan diam-diam tidak melakukan apa pun.
+    -->
+    <button id="cetak-qr" data-t="btnCetakQr">Cetak QR truk</button>
+  </div>
+  <!-- Diisi saat tombol ditekan; disembunyikan di luar mode cetak. -->
+  <div id="qr-cetak" hidden>
+    <h2 data-t="qrJudul">Kartu QR truk</h2>
+    <div id="qr-kartu" class="qr-kartu"></div>
   </div>
   <div class="tabel">
     <table>
@@ -437,10 +867,62 @@
     one truck ends up as two tickets. A truck that is not on the list yet gets
     registered in the Trucks tab first.
   -->
-  <div class="tools">
-    <div class="pilih" id="plat-timbang" data-nilai=""></div>
-    <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)" inputmode="decimal" autocomplete="off">
-    <button id="masuk" class="utama" data-t="btnMasuk">Timbang masuk</button>
+  <!--
+    Satu baris alat, dua gerbang, masing-masing berlabel. Ketemu dari screenshot
+    operator: dua kolom bertulisan "Scan QR truk" yang sama, satu di atas satu di
+    bawah, tanpa penanda mana yang mana. Yang kiri MEMBUAT tiket, yang kanan MENUTUP
+    tiket - tertukar berarti tiket dobel untuk satu kunjungan.
+
+    Scanner barcode itu papan ketik: dia mengetik isi QR lalu menekan Enter sendiri,
+    jadi tidak ada driver dan tidak perlu tombol. Kolomnya juga menerima ketikan
+    tangan, yang membuatnya bisa dipakai sebelum scanner datang.
+
+    Dropdown plat TIDAK dihapus: scanner rusak, layar HP retak, atau QR belum dicetak
+    adalah tiga kejadian nyata di gerbang, dan jalan cadangan harus langsung terlihat
+    bukan disembunyikan di balik satu klik lagi.
+  -->
+  <div class="tools timbang-alat">
+    <div class="timbang-sisi">
+      <label class="lb" for="scan-plat" data-t="lbGerbangMasuk">Truk masuk</label>
+      <div class="timbang-baris">
+        <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="QR masuk"
+               autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <div class="pilih" id="plat-timbang" data-nilai=""></div>
+        <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
+               inputmode="decimal" autocomplete="off">
+        <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang masuk</button>
+      </div>
+      <!--
+        Hasil scan punya tempatnya sendiri, bukan banner global `#err`: `refresh()`
+        membersihkan banner itu setiap kali berhasil, jadi pesan scan hilang dalam 2
+        detik dan operator yang sedang memegang HP supir tidak pernah membacanya.
+      -->
+      <span id="scan-pesan" class="scan-pesan" role="status"></span>
+    </div>
+    <div class="timbang-sisi timbang-keluar">
+      <label class="lb" for="scan-keluar" data-t="lbGerbangKeluar">Truk keluar</label>
+      <div class="timbang-baris">
+        <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="QR keluar"
+               autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <!--
+          Kolom tara muncul DI SINI setelah scan berhasil, bukan sebagai lapisan di atas
+          layar: dialog yang menutup seluruh layar menghilangkan kamera line dan strip
+          tally sampai tara selesai diisi, dan di gerbang yang sibuk itu kehilangan
+          pandangan justru saat paling butuh. Dilaporkan operator 2026-09-15.
+
+          Disembunyikan sampai ada truk terpilih: kolom yang bisa diisi tanpa tiket
+          adalah kolom yang tidak tahu harus menulis ke mana.
+        -->
+        <span id="tara-grup" class="tara-grup" hidden>
+          <b id="tara-plat" class="tara-plat"></b>
+          <input id="tara-nilai" class="kg" inputmode="decimal" autocomplete="off"
+                 data-t-ph="phTara" placeholder="Tara (kg)">
+          <button type="button" id="tara-simpan" class="utama" data-t="btnSimpanTara">Simpan</button>
+          <button type="button" id="tara-batal" data-t="btnBatal">Batal</button>
+        </span>
+      </div>
+      <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
+    </div>
     <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
   </div>
   <div class="tabel">
@@ -464,13 +946,209 @@
     <table>
       <thead><tr><th data-t="thTruk">Truk</th><th data-t="thSupplier">Supplier</th>
         <th data-t="thSumber">Sumber</th><th class="num" data-t="thTotal">Total</th>
-        <th class="num" data-t="thAcc">ACC</th><th class="num" data-t="thRej">REJ</th>
-        <th class="num" data-t="thRasio">Rasio ACC</th>
+        <th class="num" data-t="clsRipe">Ripe</th><th class="num" data-t="clsUnripe">Unripe</th>
+        <th class="num" data-t="clsJk">JK</th><th class="num" data-t="clsTp">TP</th>
+        <th class="num" data-t="thRasio">Rasio Ripe</th>
         <th class="num" data-t="thNeto">Neto (kg)</th></tr></thead>
       <tbody id="rekap"></tbody>
     </table>
   </div>
 </section>
+
+<section id="sec-log" class="panel" hidden data-dev="1">
+  <!--
+    Support-only: read via /api/console/dev/log, guarded server-side by
+    require_support. Identical messages are already merged into one row with
+    a count (LogStore's merge window) - this screen just displays that.
+  -->
+  <div class="tools">
+    <span class="log-level" id="log-level" data-nilai="">
+      <button type="button" class="aktif" data-nilai="" data-t="logSemua">Semua</button>
+      <button type="button" data-nilai="ERROR">ERROR</button>
+      <button type="button" data-nilai="WARNING">WARNING</button>
+    </span>
+    <input id="log-cari" data-t-ph="phCariLog" placeholder="Cari pesan atau sumber" autocomplete="off">
+  </div>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thWaktu">Waktu</th><th data-t="thLevel">Level</th>
+        <th data-t="thSumber">Sumber</th><th data-t="thPesan">Pesan</th>
+        <th class="num" data-t="thJumlah">×</th></tr></thead>
+      <tbody id="log-baris"></tbody>
+    </table>
+  </div>
+  <div class="halaman">
+    <span id="log-rentang" class="muted"></span>
+    <span class="halaman-tombol">
+      <button type="button" id="log-prev" data-t="halamanSebelum" disabled>Sebelumnya</button>
+      <button type="button" id="log-next" data-t="halamanBerikut" disabled>Berikutnya</button>
+    </span>
+  </div>
+</section>
+
+<section id="sec-setelan" class="panel" hidden data-dev="1">
+  <!--
+    Support-only: dua angka yang menentukan janjang dibuang atau lolos.
+    Berlaku untuk SEMUA line sekaligus (keputusan operator 2026-09-16) dan
+    langsung dipakai tanpa restart. Tiap perubahan tercatat di tab Log dengan
+    email yang mengubahnya - angka ini menggeser tonase yang dibayar.
+  -->
+  <div class="setelan-form">
+    <!--
+      `inputmode` cuma memilih papan ketik di layar sentuh; papan ketik fisik
+      tetap bisa mengetik huruf, dan itu yang terjadi di PC pabrik. Penjaganya
+      `data-angka` + handler di bawah, yang menolak karakter non-angka saat
+      diketik. `type="text"` dipertahankan, BUKAN `type="number"`: yang terakhir
+      punya panah spinner yang gampang tersenggol di layar sentuh, menolak koma
+      desimal papan ketik Indonesia, dan mengosongkan dirinya sendiri kalau
+      isinya dianggap tidak sah — angkanya hilang tanpa operator sadar.
+    -->
+    <label>
+      <span data-t="labelConf">Ambang keyakinan (0-1)</span>
+      <input id="set-conf" type="text" inputmode="decimal" autocomplete="off"
+             data-angka="desimal" maxlength="6">
+      <small class="muted" data-t="bantuConf">Makin tinggi = makin sedikit yang dianggap buah.</small>
+    </label>
+    <label>
+      <span data-t="labelMinSize">Ukuran minimum (piksel)</span>
+      <input id="set-minsize" type="text" inputmode="numeric" autocomplete="off"
+             data-angka="bulat" maxlength="9">
+      <small class="muted" data-t="bantuMinSize">Janjang lebih kecil dari ini otomatis REJ.</small>
+    </label>
+    <label>
+      <span data-t="labelSumbu">Arah conveyor</span>
+      <select id="set-sumbu">
+        <option value="tegak" data-t="sumbuTegak">Mendatar (buah lewat kiri-kanan)</option>
+        <option value="mendatar" data-t="sumbuMendatar">Menurun (buah lewat atas-bawah)</option>
+      </select>
+      <small class="muted" data-t="bantuSumbu">Menentukan garis capture tegak atau mendatar.</small>
+    </label>
+    <label>
+      <span data-t="labelGaris">Garis capture (piksel)</span>
+      <input id="set-garis" type="text" inputmode="numeric" autocomplete="off"
+             data-angka="bulat" maxlength="5">
+      <small class="muted" id="set-garis-bantu">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
+    </label>
+    <!-- Saklar, bukan kolom: ini ya/tidak, dan kotak centang tidak bisa diisi huruf. -->
+    <label class="saklar">
+      <input id="set-dev" type="checkbox">
+      <span>
+        <span data-t="labelDev">Mode dev</span>
+        <small class="muted" data-t="bantuDev">Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.</small>
+      </span>
+    </label>
+    <div class="tools">
+      <button id="set-simpan" class="utama" data-t="btnSimpanSetelan">Simpan</button>
+      <span id="set-sumber" class="muted"></span>
+    </div>
+    <p id="set-pesan" role="alert"></p>
+    <div id="set-lines" class="muted"></div>
+  </div>
+</section>
+
+<section id="sec-diagnostik" class="panel" hidden data-dev="1">
+  <!--
+    Support-only: /health/detail from each line, gathered concurrently server-side.
+    An unreachable line still gets a card - that is the one worth seeing.
+  -->
+  <div id="diagnostik-kartu" class="kartu-grid"></div>
+</section>
+
+<section id="sec-antrean" class="panel" hidden data-dev="1">
+  <!--
+    Support-only: what is stuck in the ERP outbox, why, and one button to
+    move it all back to pending so the next tick tries again.
+  -->
+  <div class="tools">
+    <span id="antrean-ringkas" class="muted"></span>
+    <button type="button" id="antrean-kirim-ulang" data-t="btnKirimUlang">Kirim Ulang</button>
+  </div>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thJenis">Jenis</th><th data-t="thKunci">Kunci</th>
+        <th data-t="thPesan">Pesan</th><th class="num" data-t="thPercobaan">Percobaan</th>
+        <th data-t="thBerikutnya">Percobaan berikutnya</th></tr></thead>
+      <tbody id="antrean-baris"></tbody>
+    </table>
+  </div>
+  <!--
+    Second row, same screen: the R2 manifest queue (VisitManifestWorker's own
+    ErpOutboxStore, a different file). Manifest not configured (no R2) reads
+    as its own explicit message, never as zeros - 0 pending/0 failed looks
+    identical to a healthy idle queue, and that is exactly the outage this
+    card exists to catch.
+  -->
+  <div class="tools">
+    <strong data-t="judulManifest">Manifest R2</strong>
+    <span id="manifest-ringkas" class="muted"></span>
+  </div>
+  <p id="manifest-nonaktif" hidden class="muted" data-t="manifestNonaktif">R2 belum disetel.</p>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thJenis">Jenis</th><th data-t="thKunci">Kunci</th>
+        <th data-t="thPesan">Pesan</th><th class="num" data-t="thPercobaan">Percobaan</th>
+        <th data-t="thBerikutnya">Percobaan berikutnya</th></tr></thead>
+      <tbody id="manifest-baris"></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="sec-versi" class="panel" hidden data-dev="1">
+  <!-- Support-only. Version, machine id, licence state - never a secret. -->
+  <dl id="versi-daftar" class="daftar-definisi"></dl>
+</section>
+
+<section id="sec-plc" class="panel" hidden data-dev="1">
+  <!--
+    Support-only. The ONLY screen in the console that moves physical hardware -
+    reading (this panel) is always safe to open, firing a coil is not. One
+    card per line (a coil address only means something on its own line's PLC
+    connection - main.py per line, never console_main.py). Coil buttons are
+    disabled while that line is busy, with a visible reason, and confirming a
+    fire always goes through a typed dialog, never a bare click.
+  -->
+  <div id="plc-kartu" class="kartu-grid"></div>
+  <!--
+    Inline, BUKAN kotak dialog bawaan browser: kotaknya kecil untuk jempol bersarung
+    tangan, tidak bisa diatur ukurannya, dan menerima teks apa pun tanpa validasi.
+    Sama seperti tara-grup di tab Timbangan - dialog yang menutup layar
+    menghilangkan kamera line dan strip tally justru saat firing sedang ditunggu.
+
+    Ketikan tetap wajib (bukan tombol klik): klik bisa tersenggol jempol
+    bersarung tangan di layar sentuh, ketikan tidak. Ini satu-satunya layar
+    konsol yang menggerakkan besi sungguhan.
+  -->
+  <div id="plc-konfirmasi" class="plc-konfirmasi" hidden>
+    <b id="plc-konfirmasi-teks"></b>
+    <input id="plc-konfirmasi-nilai" data-t-ph="phUjiPlc" placeholder="UJI"
+           autocomplete="off" autocapitalize="characters" spellcheck="false">
+    <button type="button" id="plc-konfirmasi-jalankan" class="utama" data-t="btnUjiPlcJalankan">Jalankan</button>
+    <button type="button" id="plc-konfirmasi-batal" data-t="btnBatal">Batal</button>
+  </div>
+</section>
+
+<!--
+  Foto satu janjang, dibuka di tempat. Dulu `target="_blank"`: tiap foto yang
+  dilihat meninggalkan satu tab, dan di kiosk Chrome (`--kiosk`) tab baru tidak
+  punya bar alamat maupun tombol tutup — operator kehilangan layarnya sendiri.
+
+  <dialog> bawaan, bukan lapisan buatan sendiri: Esc menutupnya, fokus terkunci
+  di dalam, dan sisa halaman disembunyikan dari pembaca layar tanpa satu baris JS
+  pun. Tidak ada pustaka: konsol harus jalan saat internet putus, dan dua tes
+  menjaga berkas ini tetap nol referensi ke alamat web mana pun.
+
+  Berbeda dari dialog tara yang DITOLAK operator (§ Critical Rules 20): yang itu
+  menutup kamera line justru saat operator sedang butuh melihatnya. Di sini
+  menutup layar memang yang diminta — melihat foto lebih besar, sebentar, lalu
+  kembali.
+-->
+<dialog id="foto-modal" aria-labelledby="foto-judul">
+  <div class="foto-kepala">
+    <span id="foto-judul"></span>
+    <button type="button" id="foto-tutup" aria-label="Tutup">&times;</button>
+  </div>
+  <img id="foto-besar" alt="">
+</dialog>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -486,14 +1164,33 @@ let trucks = [];
 const KAMUS = {
   id: {
     judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan", judulRekap:"Rekap",
-    labelHariIni:"Hari ini", labelRasio:"Rasio ACC",
+    judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", judulPlc:"Uji PLC",
+    judulSetelan:"Setelan", labelConf:"Ambang keyakinan (0-1)", labelMinSize:"Ukuran minimum (piksel)",
+    bantuConf:"Makin tinggi = makin sedikit yang dianggap buah.",
+    bantuMinSize:"Janjang lebih kecil dari ini otomatis REJ.",
+    labelGaris:"Garis capture (piksel)", labelSumbu:"Arah conveyor",
+    sumbuTegak:"Mendatar (buah lewat kiri-kanan)", sumbuMendatar:"Menurun (buah lewat atas-bawah)",
+    bantuSumbu:"Menentukan garis capture tegak atau mendatar.",
+    bantuGarisTegak:"Piksel dari KIRI. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
+    bantuGarisMendatar:"Piksel dari ATAS. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
+    labelDev:"Mode dev", bantuDev:"Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.",
+    btnSimpanSetelan:"Simpan", setelanTersimpan:"Tersimpan dan dikirim ke line.",
+    setelanDariEnv:"Sumber: .env (belum pernah diubah dari sini)",
+    setelanDariKonsol:"Sumber: konsol",
+    labelHariIni:"Hari ini", labelRasio:"Rasio Ripe",
+    // Nama kelas TIDAK diterjemahkan: keempatnya nama kelas model, dan operator
+    // maupun support menyebutnya persis begini saat bicara lewat telepon.
+    clsRipe:"Ripe", clsUnripe:"Unripe", clsJk:"JK", clsTp:"TP",
     labelLayout:"Tata letak", kolomAuto:"Otomatis", statusOnline:"Online", statusOffline:"Offline",
     kolom1:"1 per baris", kolom2:"2 per baris", kolom3:"3 per baris",
     geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
     thNo:"No", thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"Masuk", thKeluar:"Keluar", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
-    phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
+    thLevel:"Level", thPesan:"Pesan", thJumlah:"×",
+    phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan atau sumber",
+    hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
+    logSemua:"Semua", kosongLog:"Belum ada galat tercatat", gagalLog:"Gagal memuat log",
     btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
@@ -501,22 +1198,110 @@ const KAMUS = {
     pilihTruk:"Pilih Truk", lepasTitle:"Truk sudah pergi", spasi:"Spasi",
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
     kosongGrading:"Belum ada grading hari ini", kosongRekap:"Belum ada rekap hari ini",
-    thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio ACC", trukTanpaNama:"Tanpa truk",
-    promptTara:"Tara (kg) untuk", wajibIsi:"Plat dan bruto wajib diisi",
-    gagal:"Gagal", gagalDaftar:"Gagal mendaftarkan truk",
+    thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio Ripe", trukTanpaNama:"Tanpa truk",
+    wajibIsi:"Plat dan bruto wajib diisi",
+    gagalTugaskan:"Gagal menugaskan truk", gagalLepas:"Gagal melepas truk",
+    gagalReject:"Reject manual gagal", gagalDaftar:"Gagal mendaftarkan truk",
     gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
+    toastTutup:"Tutup",
+    sukTugaskan:"Truk ditugaskan di {line}", sukLepas:"Truk dilepas dari {line}",
+    sukReject:"Reject manual tercatat di {line}", sukDaftar:"Truk terdaftar",
+    sukMasuk:"Timbang masuk tercatat", sukTara:"Timbang keluar tercatat",
+    sukScan:"Truk ditemukan",
+    gross_kg:"Bruto", tare_kg:"Tara",
+    err_plat_kosong:"Nomor polisi tidak boleh kosong",
+    err_bukan_plat:"Yang di-scan bukan nomor polisi",
+    err_bukan_angka:"{field} bukan angka: {value}",
+    err_negatif:"{field} tidak boleh negatif",
+    err_di_bawah_minimum:"{field} {value} kg di bawah {minimum} kg - cek pemisah ribuan, mis. 14.820 terbaca 14,82",
+    err_tara_lebih_besar:"Tara {tara} kg lebih besar dari bruto {bruto} kg",
+    err_line_tidak_dikenal:"{line} tidak dikenal konsol",
+    err_line_tidak_menjawab:"{line} tidak menjawab - pastikan layanan kameranya menyala",
+    err_line_menolak:"{line} menolak perintah (HTTP {status})",
+    err_sandi_pendek:"Sandi minimal 8 karakter",
+    err_sandi_salah:"Email atau sandi salah",
+    err_terkunci:"Login terkunci {detik} detik lagi setelah beberapa sandi salah",
+    err_belum_masuk:"Sesi habis - masuk lagi",
+    err_bukan_support:"Menu ini untuk akun support",
+    gerbangJudul:"Masuk ke konsol", gerbangPilih:"Ketik email dan sandi",
+    gerbangEmail:"Email", gerbangSandi:"Sandi",
+    gerbangMasuk:"Masuk", tombolKeluar:"Keluar",
+    lihatSandi:"Lihat sandi", sembunyikanSandi:"Sembunyikan sandi",
+    // Short faces for the button inside the field; the long ones above stay the
+    // aria-label, so a screen reader still hears which password is meant.
+    lihatSingkat:"Lihat", sembunyikanSingkat:"Tutup",
+    perHalaman:"Baris per halaman", halamanSebelum:"Sebelumnya", halamanBerikut:"Berikutnya",
+    keHalaman:"Ke halaman",
+    btnCetakQr:"Cetak QR truk", qrJudul:"Kartu QR truk",
+    lbGerbangMasuk:"Truk masuk", lbGerbangKeluar:"Truk keluar",
+    taraJudul:"Timbang keluar", btnSimpanTara:"Simpan", btnBatal:"Batal",
+    phTara:"Tara (kg)",
+    taraMinimum:"Tara minimal 1.000 kg - cek angkanya",
+    phScan:"QR masuk", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
+    phScanKeluar:"QR keluar", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
+    scanGanda:"Ada 2 tiket terbuka, pilih di tabel bawah untuk",
+    rentangBaris:"{dari}-{sampai} dari {total}",
+    gerbangKosong:"Belum ada operator. Buat dulu di PC ini: make operator",
+    btnPistonBuka:"Buka piston", btnPistonTutup:"Tutup piston",
+    pistonMenunggu:"Menunggu PLC…", pistonMati:"Piston mati",
+    pistonBelumKonfirmasi:"belum dikonfirmasi PLC",
+    pistonTerbuka:"PISTON TERBUKA - hati-hati, besi bergerak",
+    konfirmasiBuka:"Buka piston {line}? Ini menggerakkan besi.",
+    labelInternal:"Internal · REJ tidak dibuang",
+    gagalPiston:"Perintah piston gagal",
+    thSebab:"Sebab", thKamera:"Kamera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
+    thAntreanLokal:"Antrean lokal", lineTidakTerjangkau:"Tidak terjangkau",
+    gagalDiagnostik:"Gagal memuat diagnostik",
+    thJenis:"Jenis", thKunci:"Kunci", thPercobaan:"Percobaan", thBerikutnya:"Percobaan berikutnya",
+    antreanSekarang:"Sekarang",
+    btnKirimUlang:"Kirim Ulang", ringkasAntrean:"{pending} menunggu · {gagal} gagal",
+    kosongAntrean:"Antrean ERP kosong", gagalAntrean:"Gagal memuat antrean",
+    judulManifest:"Manifest R2", ringkasManifest:"{pending} menunggu · {gagal} gagal",
+    kosongManifest:"Antrean manifest kosong", gagalManifest:"Gagal memuat antrean manifest",
+    manifestNonaktif:"R2 belum disetel — halaman detail truk tidak berjalan di PKS ini.",
+    labelVersi:"Versi", labelMachineId:"Machine ID", labelEnvironment:"Environment",
+    labelLisensi:"Lisensi", gagalVersi:"Gagal memuat versi",
+    lisensiAktif:"Aktif", lisensiTanpaToken:"Aktif, token belum terpasang", lisensiMati:"Mati",
+    thDi:"DI", diAktif:"Aktif", diMati:"Mati", plcMati:"PLC mati di line ini",
+    gagalPlc:"Gagal memuat status PLC",
+    btnUjiCoil:"Uji coil {coil}", coilMatiLineSibuk:"Line sedang memproses truk",
+    konfirmasiUjiPlc:"Coil {coil} di {line} akan menyala sesaat - ini menggerakkan barang sungguhan. Ketik UJI untuk lanjut:",
+    phUjiPlc:"Ketik UJI", btnUjiPlcJalankan:"Jalankan",
+    ujiPlcDibatalkan:"Dibatalkan - konfirmasi tidak cocok",
+    ujiPlcBerhasil:"Coil {coil} dipicu", ujiPlcDijatuhkan:"Coil {coil} TIDAK menyala - antrean pulse PLC penuh, coba lagi",
+    gagalUjiPlc:"Gagal memicu coil",
+    err_konfirmasi_kurang:"Ketik UJI persis untuk memicu coil",
+    err_plc_sibuk:"Line sedang memproses truk - coil tidak bisa dipicu",
+    err_coil_tidak_dikenal:"Coil ini tidak dikenal line",
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
-    labelHariIni:"Today", labelRasio:"ACC rate",
+    judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", judulPlc:"PLC Test",
+    judulSetelan:"Settings", labelConf:"Confidence threshold (0-1)", labelMinSize:"Minimum size (pixels)",
+    bantuConf:"Higher = fewer things counted as fruit.",
+    bantuMinSize:"Bunches smaller than this are auto-REJ.",
+    labelGaris:"Capture line (pixels)", labelSumbu:"Conveyor direction",
+    sumbuTegak:"Horizontal (fruit crosses left-right)", sumbuMendatar:"Vertical (fruit crosses top-bottom)",
+    bantuSumbu:"Sets whether the capture line is vertical or horizontal.",
+    bantuGarisTegak:"Pixels from the LEFT. A bunch is photographed when it touches the blue line. 0 = no line.",
+    bantuGarisMendatar:"Pixels from the TOP. A bunch is photographed when it touches the blue line. 0 = no line.",
+    labelDev:"Dev mode", bantuDev:"Show the confidence number on bunch boxes. For tuning the threshold, not for operators.",
+    btnSimpanSetelan:"Save", setelanTersimpan:"Saved and sent to the lines.",
+    setelanDariEnv:"Source: .env (never changed from here)",
+    setelanDariKonsol:"Source: console",
+    labelHariIni:"Today", labelRasio:"Ripe rate",
+    clsRipe:"Ripe", clsUnripe:"Unripe", clsJk:"JK", clsTp:"TP",
     labelLayout:"Layout", kolomAuto:"Auto", statusOnline:"Online", statusOffline:"Offline",
     kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
     geserKiri:"Move left", geserKanan:"Move right",
     thNo:"No", thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"In", thKeluar:"Out", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
-    phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
+    thLevel:"Level", thPesan:"Message", thJumlah:"×",
+    phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message or source",
+    hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
+    logSemua:"All", kosongLog:"No faults logged yet", gagalLog:"Failed to load the log",
     btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
@@ -524,11 +1309,80 @@ const KAMUS = {
     pilihTruk:"Select Truck", lepasTitle:"Truck has left", spasi:"Space",
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
     kosongGrading:"No grading yet today", kosongRekap:"Nothing to recap yet today",
-    thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"ACC rate", trukTanpaNama:"No truck",
-    promptTara:"Tare (kg) for", wajibIsi:"Plate and gross weight are required",
-    gagal:"Failed", gagalDaftar:"Failed to register truck",
+    thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Ripe rate", trukTanpaNama:"No truck",
+    wajibIsi:"Plate and gross weight are required",
+    gagalTugaskan:"Failed to assign truck", gagalLepas:"Failed to release truck",
+    gagalReject:"Manual reject failed", gagalDaftar:"Failed to register truck",
     gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
     gagalKonsol:"Console not responding", kameraPutus:"Camera not connected",
+    toastTutup:"Dismiss",
+    sukTugaskan:"Truck assigned on {line}", sukLepas:"Truck released from {line}",
+    sukReject:"Manual reject recorded on {line}", sukDaftar:"Truck registered",
+    sukMasuk:"Weigh-in recorded", sukTara:"Weigh-out recorded",
+    sukScan:"Truck found",
+    gross_kg:"Gross", tare_kg:"Tare",
+    err_plat_kosong:"Plate number cannot be empty",
+    err_bukan_plat:"What was scanned is not a plate number",
+    err_bukan_angka:"{field} is not a number: {value}",
+    err_negatif:"{field} cannot be negative",
+    err_di_bawah_minimum:"{field} {value} kg is below {minimum} kg - check the thousands separator, e.g. 14.820 is read as 14.82",
+    err_tara_lebih_besar:"Tare {tara} kg is greater than gross {bruto} kg",
+    err_line_tidak_dikenal:"{line} is not known to the console",
+    err_line_tidak_menjawab:"{line} is not responding - check that its camera service is running",
+    err_line_menolak:"{line} refused the command (HTTP {status})",
+    err_sandi_pendek:"The password must be at least 8 characters",
+    err_sandi_salah:"Wrong email or password",
+    err_terkunci:"Sign-in locked for another {detik} s after repeated wrong passwords",
+    err_belum_masuk:"Session ended - sign in again",
+    err_bukan_support:"This menu is for support accounts",
+    gerbangJudul:"Sign in to the console", gerbangPilih:"Type your email and password",
+    gerbangEmail:"Email", gerbangSandi:"Password",
+    gerbangMasuk:"Sign in", tombolKeluar:"Sign out",
+    lihatSandi:"Show password", sembunyikanSandi:"Hide password",
+    lihatSingkat:"Show", sembunyikanSingkat:"Hide",
+    perHalaman:"Rows per page", halamanSebelum:"Previous", halamanBerikut:"Next",
+    keHalaman:"Go to page",
+    btnCetakQr:"Print truck QR", qrJudul:"Truck QR cards",
+    lbGerbangMasuk:"Truck in", lbGerbangKeluar:"Truck out",
+    taraJudul:"Weigh out", btnSimpanTara:"Save", btnBatal:"Cancel",
+    phTara:"Tare (kg)",
+    taraMinimum:"Tare must be at least 1,000 kg - check the figure",
+    phScan:"QR in", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
+    phScanKeluar:"QR out", scanTakAdaTiket:"No open ticket today for",
+    scanGanda:"Two open tickets, pick one in the table below for",
+    rentangBaris:"{dari}-{sampai} of {total}",
+    gerbangKosong:"No operators yet. Create one on this PC: make operator",
+    btnPistonBuka:"Open piston", btnPistonTutup:"Close piston",
+    pistonMenunggu:"Waiting for PLC…", pistonMati:"Piston disabled",
+    pistonBelumKonfirmasi:"not confirmed by PLC",
+    pistonTerbuka:"PISTON OPEN - moving metal, stand clear",
+    konfirmasiBuka:"Open the piston on {line}? This moves metal.",
+    labelInternal:"Internal · REJ not discarded",
+    gagalPiston:"Piston command failed",
+    thSebab:"Reason", thKamera:"Camera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
+    thAntreanLokal:"Local queue", lineTidakTerjangkau:"Unreachable",
+    gagalDiagnostik:"Failed to load diagnostics",
+    thJenis:"Kind", thKunci:"Key", thPercobaan:"Attempts", thBerikutnya:"Next attempt",
+    antreanSekarang:"Now",
+    btnKirimUlang:"Resend", ringkasAntrean:"{pending} pending · {gagal} failed",
+    kosongAntrean:"ERP queue is empty", gagalAntrean:"Failed to load the queue",
+    judulManifest:"R2 manifest", ringkasManifest:"{pending} pending · {gagal} failed",
+    kosongManifest:"Manifest queue is empty", gagalManifest:"Failed to load the manifest queue",
+    manifestNonaktif:"R2 is not configured — the truck detail page is not running on this mill.",
+    labelVersi:"Version", labelMachineId:"Machine ID", labelEnvironment:"Environment",
+    labelLisensi:"Licence", gagalVersi:"Failed to load version",
+    lisensiAktif:"Active", lisensiTanpaToken:"Active, no token installed", lisensiMati:"Inactive",
+    thDi:"DI", diAktif:"On", diMati:"Off", plcMati:"PLC is off on this line",
+    gagalPlc:"Failed to load PLC status",
+    btnUjiCoil:"Test coil {coil}", coilMatiLineSibuk:"Line is processing a truck",
+    konfirmasiUjiPlc:"Coil {coil} on {line} will pulse briefly - this moves real hardware. Type UJI to continue:",
+    phUjiPlc:"Type UJI", btnUjiPlcJalankan:"Fire",
+    ujiPlcDibatalkan:"Cancelled - confirmation did not match",
+    ujiPlcBerhasil:"Coil {coil} fired", ujiPlcDijatuhkan:"Coil {coil} did NOT fire - PLC pulse queue is full, try again",
+    gagalUjiPlc:"Failed to fire coil",
+    err_konfirmasi_kurang:"Type UJI exactly to fire the coil",
+    err_plc_sibuk:"Line is processing a truck - the coil cannot be fired",
+    err_coil_tidak_dikenal:"This coil is not known to the line",
   },
 };
 
@@ -551,8 +1405,17 @@ function terapkanTema() {
 function terapkanBahasa() {
   document.documentElement.lang = bahasa;
   document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
+  // Placeholders are their own channel: a field's hint is not its textContent.
   document.querySelectorAll("[data-t-ph]").forEach((el) => { el.placeholder = t(el.dataset.tPh); });
+  // So are labels read only by a screen reader - a button whose face is an icon says
+  // nothing at all without one.
+  document.querySelectorAll("[data-t-lb]").forEach((el) => {
+    el.setAttribute("aria-label", t(el.dataset.tLb));
+  });
   $("bahasa").textContent = bahasa === "id" ? "EN" : "ID";
+  // Its face alternates between two keys, so it cannot be a plain `data-t`; re-applied
+  // here in whichever state it is currently in.
+  lihatSandi($("gerbang-sandi").type === "text");
   segarkanPilih();
   terapkanTema();
 }
@@ -683,7 +1546,7 @@ document.addEventListener("focusout", (ev) => {
 });
 
 // ── truck / weighbridge tabs ───────────────────────────────────────────
-const TAB_SAH = ["grading", "truk", "timbangan", "rekap"];
+const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "diagnostik", "antrean", "versi", "plc"];
 let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
 
 function terapkanTab() {
@@ -691,8 +1554,25 @@ function terapkanTab() {
     const aktif = b.dataset.tab === tab;
     b.classList.toggle("aktif", aktif);
     b.setAttribute("aria-selected", String(aktif));
-    $("sec-" + b.dataset.tab).hidden = !aktif;
+    const panel = $("sec-" + b.dataset.tab);
+    if (panel) panel.hidden = !aktif;
   });
+}
+
+// Support-only tabs are not part of the 2 s poll (the stores run their own
+// retention/backoff on their own schedule) - loaded on demand instead, same
+// as switching into any of them. Diagnostik alone keeps refreshing while the
+// tab stays open (a line coming back or dying should show up unattended);
+// the timer is started/stopped in `bukaTabDev` below, never left running
+// behind a tab nobody is looking at.
+const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, setelan: muatSetelan };
+
+function bukaTabDev(namaTab) {
+  clearInterval(diagnostikTimer);
+  diagnostikTimer = null;
+  const muat = MUAT_TAB[namaTab] ? MUAT_TAB[namaTab]() : Promise.resolve();
+  if (namaTab === "diagnostik") diagnostikTimer = setInterval(muatDiagnostik, 5000);
+  return muat;
 }
 
 $("tabs").addEventListener("click", (ev) => {
@@ -701,6 +1581,7 @@ $("tabs").addEventListener("click", (ev) => {
   tab = b.dataset.tab;
   simpan("tab", tab);
   terapkanTab();
+  bukaTabDev(tab);
 });
 
 // ── camera layout ──────────────────────────────────────────────────────
@@ -720,6 +1601,115 @@ $("kolom").addEventListener("pilih", () => {
   terapkanKolom();
 });
 
+// ── grading pagination ─────────────────────────────────────────────────
+// The row count is remembered (a preference), the page is not: coming back to the
+// screen should land on what is happening now, not on page 7 of yesterday's reading.
+const PER_SAH = ["25", "50", "100", "200"];
+let gradingPer = PER_SAH.includes(baca("gradingPer", "25")) ? baca("gradingPer", "25") : "25";
+let gradingOffset = 0;
+let gradingTotal = 0;
+
+async function muatGrading() {
+  const per = Number(gradingPer);
+  try {
+    const r = await api(`/api/console/history?limit=${per}&offset=${gradingOffset}`);
+    gradingTotal = r.total;
+    // Deleted rows, or a filter that shrank the day, can leave the offset past the end.
+    // Step back one page rather than showing an empty table with a live Previous button.
+    if (!r.items.length && gradingOffset > 0) {
+      gradingOffset = Math.max(0, gradingOffset - per);
+      return muatGrading();
+    }
+    $("recent").innerHTML = r.items.length
+      ? r.items.map(barisRecent).join("") : barisKosong(7, "kosongGrading");
+    segarkanHalaman();
+  } catch (e) { /* the gate is already up on 401; the screen keeps working */ }
+}
+
+// "51-75 dari 812" - the operator needs to know both where they are and how much
+// there is, because the row numbers restart at 1 on every page.
+function segarkanHalaman() {
+  const per = Number(gradingPer);
+  const dari = gradingTotal ? gradingOffset + 1 : 0;
+  const sampai = Math.min(gradingOffset + per, gradingTotal);
+  $("grading-rentang").textContent = t("rentangBaris")
+    .replace("{dari}", dari).replace("{sampai}", sampai).replace("{total}", gradingTotal);
+  $("grading-prev").disabled = gradingOffset <= 0;
+  $("grading-next").disabled = gradingOffset + per >= gradingTotal;
+  $("grading-nomor").innerHTML = tombolNomorHalaman();
+}
+
+// How many page numbers show on each side of the current page. 653 pages
+// cannot all be printed - the operator screen is read from a few metres away,
+// and a row of buttons that small cannot be pressed wearing gloves.
+const JENDELA_HALAMAN = 2;
+
+function tombolNomorHalaman() {
+  const per = Number(gradingPer);
+  const jumlah = Math.max(1, Math.ceil(gradingTotal / per));
+  if (jumlah <= 1) return "";
+  const kini = Math.floor(gradingOffset / per) + 1;
+
+  // The first and last page are always included: both ends of the list must
+  // be reachable in one tap, from any page.
+  const nomor = new Set([1, jumlah]);
+  for (let n = kini - JENDELA_HALAMAN; n <= kini + JENDELA_HALAMAN; n++) {
+    if (n >= 1 && n <= jumlah) nomor.add(n);
+  }
+
+  const urut = [...nomor].sort((a, b) => a - b);
+  let html = "";
+  urut.forEach((n, i) => {
+    // The gap is marked, not hidden: without a mark, 1 then 298 reads like a
+    // missing page.
+    if (i > 0 && n - urut[i - 1] > 1) html += `<span class="halaman-celah">…</span>`;
+    // aria-label: a bare number tells a screen reader nothing.
+    html += `<button type="button" class="halaman-no" data-halaman="${n}"
+             aria-label="${esc(t("keHalaman"))} ${n}"
+             aria-current="${n === kini}"${n === kini ? " disabled" : ""}>${n}</button>`;
+  });
+  return html;
+}
+
+function gantiHalaman(arah) {
+  const per = Number(gradingPer);
+  keHalaman(Math.floor(gradingOffset / per) + 1 + arah);
+}
+
+// Jump to one page. Used by the number buttons AND Previous/Next, so the
+// range clamping lives in exactly one place.
+function keHalaman(nomor) {
+  const per = Number(gradingPer);
+  const jumlah = Math.max(1, Math.ceil(gradingTotal / per));
+  // Clamped on both sides: a negative offset or one past the end of the list
+  // is answered 422 by the server, and the screen just shows an error with no
+  // visible cause.
+  const aman = Math.max(1, Math.min(nomor, jumlah));
+  const baru = (aman - 1) * per;
+  if (baru === gradingOffset) return;
+  gradingOffset = baru;
+  muatGrading();
+}
+
+// Delegated: the number buttons are rebuilt on every page change, so a
+// per-button listener would disappear along with them.
+$("grading-nomor").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-halaman]");
+  if (tombol) keHalaman(Number(tombol.dataset.halaman));
+});
+
+$("grading-per").addEventListener("pilih", () => {
+  gradingPer = $("grading-per").dataset.nilai;
+  simpan("gradingPer", gradingPer);
+  // Back to the first page: row 300 sits on a different page once the size changes, so
+  // keeping the offset would land somewhere the operator did not ask for.
+  gradingOffset = 0;
+  muatGrading();
+});
+
+$("grading-prev").addEventListener("click", () => gantiHalaman(-1));
+$("grading-next").addEventListener("click", () => gantiHalaman(1));
+
 function selarasUrutan(lines) {
   // Lines gone from the registry are dropped, new ones append at the end -
   // otherwise indexOf() returns -1 and the card jumps to the front.
@@ -733,9 +1723,13 @@ function terapkanUrutan() {
   for (const kartu of $("lines").children) {
     const i = urutan.indexOf(kartu.dataset.line);
     kartu.style.order = i;
-    // The reject shortcut follows what is on screen, so its hint moves with it.
-    const hint = kartu.querySelector(".pintas");
-    if (hint) hint.textContent = i >= 0 && i < 9 ? `${t("spasi")}+${i + 1}` : "";
+    // Both shortcuts follow what is on screen, so their hints move with it -
+    // Reject on Spasi+N, piston on P+N, each printed on its own button.
+    const posisiValid = i >= 0 && i < 9;
+    const hintReject = kartu.querySelector("button.reject .pintas");
+    if (hintReject) hintReject.textContent = posisiValid ? `${t("spasi")}+${i + 1}` : "";
+    const hintPiston = kartu.querySelector("button.piston .pintas");
+    if (hintPiston) hintPiston.textContent = posisiValid ? `P+${i + 1}` : "";
   }
 }
 
@@ -757,16 +1751,88 @@ function waktu(iso) {
 // console stops answering, and it is the clock weigh-in/out timestamps use.
 const detak = () => { $("jam").textContent = waktu(new Date()); };
 
+// The gate's own lanes. Everything else can only answer 401 while the gate is up.
+const LANE_GERBANG = new Set(["/api/console/operators", "/api/console/login", "/api/console/me"]);
+
 async function api(path, opts) {
+  // A signed-out console left on all night would otherwise ask for data every 2 s
+  // and be refused every time. The polls resume the moment someone signs in.
+  if (!$("gerbang").hidden && !LANE_GERBANG.has(path)) {
+    // Carries the same code as the server's 401, so callers have one case to handle
+    // and neither path can raise a "console is down" banner over the gate.
+    const belum = new Error(t("err_belum_masuk"));
+    belum.kode = "belum_masuk";
+    throw belum;
+  }
   const res = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);
+  if (!res.ok) {
+    // Operator routes send {code, params, message}; machine lanes send plain text.
+    const detail = (await res.json().catch(() => ({}))).detail;
+    const err = new Error((typeof detail === "string" ? detail : detail?.message) || `HTTP ${res.status}`);
+    err.kode = detail?.code;
+    err.params = detail?.params || {};
+    // The session is gone (expired, signed out elsewhere, operator switched off):
+    // back to the gate, not a red banner over a screen that silently stopped updating.
+    if (res.status === 401 && err.kode === "belum_masuk") bukaGerbang();
+    throw err;
+  }
   return res.json();
+}
+
+// The sentence is built here from the code, so an error reads in one language.
+// Unknown code (or none) -> the server text, better than nothing.
+function alasan(e) {
+  const pola = e.kode && KAMUS[bahasa]["err_" + e.kode];
+  if (!pola) return e.message;
+  return pola.replace(/\{(\w+)\}/g, (_, k) => {
+    const v = e.params[k];
+    if (typeof v === "number") return v.toLocaleString(lokal());
+    return k === "field" ? t(v) : String(v ?? "");
+  });
 }
 
 function pesan(text) {
   $("err").textContent = text || "";
   $("err").style.display = text ? "block" : "none";
 }
+
+// Toasts vs `pesan()`/`#err`: the banner above is wiped by refresh() every 2 s
+// (see its own comment), so it can carry a standing warning ("session about
+// to expire") but never a one-off confirmation - by the time the operator
+// looks up from the truck it is gone. A toast is a separate DOM node that
+// refresh() never touches, and removes itself on its own clock instead.
+//
+// How long each kind stays is picked by what happens if it is missed, not by
+// how important the action was: a routine success the operator already saw
+// happen (the truck card updates) only needs a quick corner-of-the-eye
+// confirmation. A warning is a "look before you act again" case (borrowed
+// truck, two open tickets) so it gets longer. A failure needs the operator to
+// actually read a sentence and decide what to do next - it does not
+// self-dismiss at all, it waits for the tap on ×.
+const TOAST_DURASI = { sukses: 3000, peringatan: 5000, gagal: 0 };
+// More than this and the stack would climb high enough to cover the tab
+// table underneath it - four is as many as fit in the corner without that,
+// even during a run of rapid manual rejects.
+const TOAST_MAKS = 4;
+
+function toast(kind, text) {
+  if (!text) return;
+  const wadah = $("toasts");
+  while (wadah.children.length >= TOAST_MAKS) wadah.firstElementChild.remove();
+  const el = document.createElement("div");
+  el.className = `toast ${kind}`;
+  el.setAttribute("role", kind === "gagal" ? "alert" : "status");
+  el.innerHTML = `<span class="pesan"></span><button type="button" class="tutup" aria-label="${esc(t("toastTutup"))}">&times;</button>`;
+  el.querySelector(".pesan").textContent = text;
+  const hapus = () => el.remove();
+  el.querySelector(".tutup").addEventListener("click", hapus);
+  const durasi = TOAST_DURASI[kind];
+  if (durasi) setTimeout(hapus, durasi);
+  wadah.append(el);
+}
+const toastSukses = (text) => toast("sukses", text);
+const toastGagal = (text) => toast("gagal", text);
+const toastPeringatan = (text) => toast("peringatan", text);
 
 const barisKosong = (lebar, kunci) => `<tr><td colspan="${lebar}" class="kosong">${esc(t(kunci))}</td></tr>`;
 
@@ -783,8 +1849,40 @@ function isiTruk(a) {
     <b class="plat">${dash(a.plate_number)}</b>
     <span class="lb">${esc(t("supplier"))}</span>
     <span class="sup"><span>${dash(a.supplier_name)}</span>
-      <span class="pill">${dash(a.sumber_label)}</span></span>
+      <span class="pill">${dash(a.source_label)}</span></span>
   </span>`;
+}
+
+// Button state comes from the PLC (l.plc), not from the last click: if the
+// ladder refuses because of an E-stop, the button must not claim the piston
+// is open. Line unreachable OR PLC/coil not configured (piston_requested
+// null/undefined - see plc.piston_state()) is off with a reason, not a guess.
+function tombolPiston(l) {
+  const p = l.plc || {};
+  if (!p.reachable || p.piston_requested === null || p.piston_requested === undefined)
+    return `<button class="piston" data-aksi="piston" disabled title="${esc(t("pistonMati"))}">${esc(t("pistonMati"))}</button>`;
+  const menunggu = p.piston_requested && p.piston_open === false;
+  // piston_open === null with piston_requested true = PLC_DI_MANUAL not set
+  // yet: follow the request (show as open) but say it is not confirmed by
+  // the PLC - never silently pretend the DI already answered.
+  const belumKonfirmasi = p.piston_requested && p.piston_open === null;
+  const terbuka = p.piston_open === true || belumKonfirmasi;
+  const teks = menunggu ? t("pistonMenunggu") : terbuka ? t("btnPistonTutup") : t("btnPistonBuka");
+  const catatan = belumKonfirmasi ? ` (${t("pistonBelumKonfirmasi")})` : "";
+  return `<button class="piston${terbuka ? " terbuka" : ""}" data-aksi="piston"
+     data-buka="${terbuka ? "0" : "1"}"${menunggu ? " disabled" : ""}>${esc(teks)}${esc(catatan)}<span class="pintas"></span></button>`;
+}
+
+// Red, large text: read from a few metres away while the hardware is
+// actually moving. `belumKonfirmasi` uses the same phrase as the button so
+// the banner and the button never say two different things about the same line.
+function pitaPiston(l) {
+  const p = l.plc || {};
+  const belumKonfirmasi = p.piston_requested && p.piston_open === null;
+  const terbuka = p.piston_open === true || belumKonfirmasi;
+  if (!terbuka) return "";
+  const catatan = belumKonfirmasi ? ` (${t("pistonBelumKonfirmasi")})` : "";
+  return `<div class="pita-piston">${esc(t("pistonTerbuka"))}${esc(catatan)}</div>`;
 }
 
 function kartuLine(l) {
@@ -806,54 +1904,99 @@ function kartuLine(l) {
         <button data-aksi="geser" data-arah="1" title="${esc(t("geserKanan"))}">&#9654;</button>
       </span>
     </h2>
+    ${pitaPiston(l)}
     ${feed ? `<div class="feed"><img src="${feed}" alt=""><span>${esc(t("kameraPutus"))}</span></div>` : ""}
     <div class="counts">
-      <span class="acc"><span class="lb">ACC</span><b>${l.acc}</b></span>
-      <span class="rej"><span class="lb">REJ</span><b>${l.rej}</b></span>
-      <span><span class="lb">Total</span><b>${l.total}</b></span>
+      <span class="acc"><span class="lb">${esc(t("clsRipe"))}</span><b data-k="ripe">${l.ripe || 0}</b></span>
+      <span class="rej"><span class="lb">${esc(t("clsUnripe"))}</span><b data-k="unripe">${l.unripe || 0}</b></span>
+      <span class="rej"><span class="lb">${esc(t("clsJk"))}</span><b data-k="jk">${l.jk || 0}</b></span>
+      <span class="tp"><span class="lb">${esc(t("clsTp"))}</span><b data-k="tp">${l.tp || 0}</b></span>
+      <span><span class="lb">Total</span><b data-k="total">${l.total}</b></span>
     </div>
     <div class="body">
       <div class="truk">${isiTruk(l.assignment)}</div>
       <div class="assign">
         ${komponenPilih(opsi, l.assignment ? l.assignment.truck_id : "")}
-        <button class="utama" data-aksi="tugaskan">${esc(t("btnTugaskan"))}</button>
-        <button data-aksi="lepas" title="${esc(t("lepasTitle"))}">${esc(t("btnLepas"))}</button>
+        <button class="utama" data-aksi="tugaskan"${l.assignment ? "" : " disabled"}>${esc(t("btnTugaskan"))}</button>
+        <button data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>
       </div>
-      <button class="reject" data-aksi="tolak">${esc(t("btnReject"))}<span class="pintas"></span></button>
+      <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
+      ${tombolPiston(l)}
     </div>
   </div>`;
 }
 
 const kg = (v) => (v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal()));
 
-// ACC/REJ as a bordered badge, never colour alone: the word is the signal and
-// the colour only speeds it up.
-const tagHasil = (s) =>
-  s ? `<span class="tag ${s === "ACC" ? "ok" : "no"}">${esc(s)}</span>` : KOSONG;
+// Hasil satu janjang sebagai badge berbingkai, tidak pernah warna saja: katanya
+// yang jadi sinyal, warnanya cuma mempercepat.
+//
+// Yang ditampilkan `grade_class` (Ripe/Unripe/JK) kalau ada — itu yang bisa
+// menjawab "kenapa dibuang". Baris yang ditulis sebelum kolom itu ada jatuh
+// kembali ke verdict biner, jadi riwayat lama tetap terbaca apa adanya, bukan
+// jadi strip kosong. Warnanya ikut VERDICT, bukan kelas: hijau = lolos, merah =
+// dibuang, jadi JK dan Unripe sama-sama merah seperti yang dilihat piston.
+// ── Foto satu janjang ──────────────────────────────────────────────────
+// Satu listener di document, bukan per baris: tabel grading digambar ulang tiap
+// kali halaman berpindah dan tiap 2 detik saat polling, jadi listener per <img>
+// akan hilang bersama barisnya.
+document.addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button.foto");
+  if (!tombol) return;
+  const modal = $("foto-modal");
+  // `src` diisi SAAT dibuka, bukan saat baris digambar: foto penuhnya
+  // berukuran megabyte, dan 25 baris per halaman berarti 25 unduhan yang
+  // tidak pernah dilihat siapa pun.
+  $("foto-besar").src = tombol.dataset.foto;
+  $("foto-judul").textContent = tombol.dataset.judul || "";
+  modal.showModal();
+});
+
+$("foto-tutup").addEventListener("click", () => $("foto-modal").close());
+
+// Klik di luar gambar menutup — kebiasaan yang dibawa orang dari aplikasi lain.
+// <dialog> menganggap backdrop bagian dari dirinya, jadi yang dibandingkan
+// targetnya: hanya klik yang mendarat di elemen dialog itu sendiri (= backdrop)
+// yang menutup, bukan klik pada gambar atau judulnya.
+$("foto-modal").addEventListener("click", (ev) => {
+  if (ev.target === ev.currentTarget) ev.currentTarget.close();
+});
+
+// Lepaskan gambarnya setelah ditutup supaya foto besar tidak menetap di memori
+// sepanjang shift. Esc bawaan <dialog> juga lewat sini.
+$("foto-modal").addEventListener("close", () => {
+  $("foto-besar").removeAttribute("src");
+});
+
+const tagHasil = (s, kelas) => {
+  if (!s && !kelas) return KOSONG;
+  const lolos = String(s).toUpperCase() === "ACC";
+  return `<span class="tag ${lolos ? "ok" : "no"}">${esc(kelas || s)}</span>`;
+};
 
 function barisTruk(tr) {
   return `<tr>
     <td class="key">${dash(tr.plate_number)}</td>
     <td>${dash(tr.supplier_name)}</td>
-    <td>${dash(tr.sumber_label)}</td>
+    <td>${dash(tr.source_label)}</td>
     <td>${dash(tr.status)}</td>
   </tr>`;
 }
 
 function barisTimbangan(w) {
   // The row carries the ticket identity so weigh-out resends exactly the same
-  // key (ref, or plate + waktu_masuk) - miss it and one ticket splits into two
+  // key (ref, or plate + entered_at) - miss it and one ticket splits into two
   // rows with its neto gone.
   return `<tr data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
-              data-masuk="${esc(w.waktu_masuk ?? "")}">
-    <td>${w.waktu_masuk ? waktu(w.waktu_masuk) : KOSONG}</td>
-    <td>${w.waktu_keluar ? waktu(w.waktu_keluar) : KOSONG}</td>
+              data-masuk="${esc(w.entered_at ?? "")}">
+    <td>${w.entered_at ? waktu(w.entered_at) : KOSONG}</td>
+    <td>${w.exited_at ? waktu(w.exited_at) : KOSONG}</td>
     <td class="key">${dash(w.plate_number)}</td>
-    <td>${dash(w.sumber_label)}</td>
-    <td class="num">${kg(w.bruto_kg)}</td>
-    <td class="num">${kg(w.tara_kg)}</td>
-    <td class="num">${kg(w.neto_kg)}</td>
-    <td>${w.tara_kg == null ? `<button data-aksi="keluar">${esc(t("btnKeluar"))}</button>` : ""}</td>
+    <td>${dash(w.source_label)}</td>
+    <td class="num">${kg(w.gross_kg)}</td>
+    <td class="num">${kg(w.tare_kg)}</td>
+    <td class="num">${kg(w.net_kg)}</td>
+    <td>${w.tare_kg == null ? `<button data-aksi="keluar">${esc(t("btnKeluar"))}</button>` : ""}</td>
   </tr>`;
 }
 
@@ -863,14 +2006,22 @@ function barisTimbangan(w) {
 // table head and this cell together:
 //   <td class="num">${r.ripeness_confidence == null ? KOSONG : Number(r.ripeness_confidence).toFixed(2)}</td>
 function barisRecent(r, i) {
+  // Page offset + position, not position alone. Found on the factory PC with
+  // 130,506 rows: without the offset every page numbers 1..200 again, so two
+  // different rows carry the same number and the operator cannot call out
+  // "row number 412" to anyone.
   return `<tr>
-    <td class="no">${i + 1}</td>
+    <td class="no">${gradingOffset + i + 1}</td>
     <td>${waktu(r.timestamp)}</td>
     <td>${esc(r.line_code)}</td>
     <td class="key">${dash(r.plate_number)}</td>
-    <td>${dash(r.sumber_label)}</td>
-    <td>${tagHasil(r.ripeness_status)}</td>
-    <td>${r.image_url ? `<a href="${esc(r.image_url)}" target="_blank"><img src="${esc(r.image_url)}" alt=""></a>` : KOSONG}</td>
+    <td>${dash(r.source_label)}</td>
+    <td>${tagHasil(r.ripeness_status, r.grade_class)}</td>
+    <td>${r.image_url
+      ? `<button type="button" class="foto" data-foto="${esc(r.image_url)}" data-judul="${esc(
+          `${waktu(r.timestamp)} · ${r.line_code} · ${r.grade_class || r.ripeness_status || ""}`,
+        )}"><img src="${esc(r.image_url)}" alt="" loading="lazy"></button>`
+      : KOSONG}</td>
   </tr>`;
 }
 
@@ -878,9 +2029,17 @@ function barisRecent(r, i) {
 function isiTally(lines) {
   const jml = (k) => lines.reduce((n, l) => n + (l[k] || 0), 0);
   const acc = jml("acc"), total = jml("total");
-  $("tot-acc").textContent = acc;
-  $("tot-rej").textContent = jml("rej");
+  // Baris lama (sebelum kolom `grade_class` ada) cuma punya ACC/REJ, jadi
+  // keempat angka kelas ini bisa nol padahal `total` tidak. Itu bukan bug:
+  // kelas aslinya memang tidak pernah direkam, dan menebaknya dari verdict
+  // akan mengarang — REJ bisa Unripe atau JK.
+  $("tot-ripe").textContent = jml("ripe");
+  $("tot-unripe").textContent = jml("unripe");
+  $("tot-jk").textContent = jml("jk");
+  $("tot-tp").textContent = jml("tp");
   $("tot-all").textContent = total;
+  // Rasio tetap dihitung dari verdict biner, BUKAN dari `ripe/total`: piston
+  // memang biner, dan baris lama tanpa kelas akan menyeret rasio ke nol.
   const rasio = total ? (acc / total) * 100 : 0;
   $("tot-rate").textContent = total ? Math.round(rasio) + "%" : KOSONG;
   $("bar-acc").style.width = rasio + "%";
@@ -907,22 +2066,52 @@ $("lines").addEventListener("click", async (ev) => {
   }
   tombol.disabled = true;
   try {
+    // Nama line seperti yang tertulis di kartu ("Line 1"), bukan kode internal
+    // `line-1`: operator menekan tombol di salah satu dari tiga panel yang bisa
+    // dia urutkan sendiri, jadi toast tanpa nama line tidak memberi tahu apa pun
+    // yang belum dia tahu — dan reject manual lewat SPASI+angka tidak punya
+    // panel yang berkedip sama sekali.
+    const namaLine = kartu.querySelector(".nama")?.textContent?.trim() || line;
     if (tombol.dataset.aksi === "tugaskan") {
       const truck_id = kartu.querySelector(".pilih").dataset.nilai;
       if (!truck_id) return;
       await api(`/api/console/lines/${encodeURIComponent(line)}/assign-truck`,
                 { method: "POST", body: JSON.stringify({ truck_id }) });
       await refresh();
+      toastSukses(t("sukTugaskan").replace("{line}", namaLine));
     } else if (tombol.dataset.aksi === "lepas") {
       await api(`/api/console/lines/${encodeURIComponent(line)}/release-truck`, { method: "POST" });
       await refresh();
+      toastSukses(t("sukLepas").replace("{line}", namaLine));
+    } else if (tombol.dataset.aksi === "piston") {
+      // Opening moves metal: ask first. Closing is the safe state - it must
+      // never be blocked by a dialog, so the guard below only ever runs when
+      // `buka` is true and returns before touching the network.
+      const buka = tombol.dataset.buka === "1";
+      if (buka && !confirm(t("konfirmasiBuka").replace("{line}", kartu.querySelector(".nama").textContent)))
+        return;
+      await api(`/api/console/lines/${encodeURIComponent(line)}/piston`,
+                { method: "POST", body: JSON.stringify({ open: buka }) });
+      await refresh();
+      // No toast here on purpose: the button itself already reports the
+      // outcome (state now driven by the PLC, `.kedip` flash on click), and
+      // the guard above already interrupted the operator with a dialog for
+      // the one case (opening) that needs their attention. A toast on top
+      // would be a third signal for the same event.
     } else {
+      // No `requested_by`: the server records whoever holds the session (Fase 4). The
+      // page used to send the literal "operator", which the server now ignores — left
+      // in, it would read like the name still comes from here.
       await api(`/api/console/lines/${encodeURIComponent(line)}/manual-reject`,
-                { method: "POST", body: JSON.stringify({ requested_by: "operator" }) });
+                { method: "POST" });
+      toastSukses(t("sukReject").replace("{line}", namaLine));
     }
     pesan("");
   } catch (e) {
-    pesan(t("gagal") + ": " + e.message);
+    const awalan = { tugaskan: "gagalTugaskan", lepas: "gagalLepas", piston: "gagalPiston" }[tombol.dataset.aksi] || "gagalReject";
+    const teks = t(awalan) + ": " + alasan(e);
+    pesan(teks);
+    toastGagal(teks);
   } finally {
     tombol.disabled = false;
   }
@@ -940,6 +2129,8 @@ let spasi = false;
 addEventListener("blur", () => { spasi = false; });
 document.addEventListener("keyup", (ev) => { if (ev.code === "Space") spasi = false; });
 document.addEventListener("keydown", (ev) => {
+  // The gate owns the keyboard while it is up; the server would refuse anyway.
+  if (!$("gerbang").hidden) return;
   // Typing a plate, and picking from a listbox, both own the space bar.
   if (ev.target.closest && ev.target.closest("input, textarea, .pilih")) return;
   if (ev.code === "Space") { spasi = true; ev.preventDefault(); return; }
@@ -958,6 +2149,33 @@ document.addEventListener("keydown", (ev) => {
   tombol.click();
 });
 
+// P + 1..3 = open/close piston panel 1..3, P + 0 = close every open one.
+// A different key from Space so a finger cannot mix it up with Reject. Read
+// from ev.code, so keyboard layout changes nothing. Released on keyup AND on
+// blur: Alt-Tab swallows keyup and the key would otherwise get stuck held.
+let pTahan = false;
+addEventListener("blur", () => { pTahan = false; });
+document.addEventListener("keyup", (ev) => { if (ev.code === "KeyP") pTahan = false; });
+document.addEventListener("keydown", (ev) => {
+  if (ev.target.closest && ev.target.closest("input, textarea, .pilih")) return;
+  if (ev.code === "KeyP") { pTahan = true; return; }
+  if (!pTahan || spasi || ev.ctrlKey || ev.altKey || ev.metaKey) return;
+  const n = Number(ev.key);
+  if (!(n >= 0 && n <= 9)) return;
+  ev.preventDefault();
+  const kode = n === 0 ? urutan : [urutan[n - 1]];
+  for (const line of kode) {
+    if (!line) continue;
+    const tombol = $("lines").querySelector(`.card[data-line="${CSS.escape(line)}"] button.piston`);
+    if (!tombol || tombol.disabled) continue;
+    if (n === 0 && tombol.dataset.buka !== "0") continue;   // P+0 hanya menutup
+    tombol.classList.remove("kedip");
+    void tombol.offsetWidth;
+    tombol.classList.add("kedip");
+    tombol.click();
+  }
+});
+
 $("daftar").addEventListener("click", async () => {
   const plate_number = $("plat").value.trim();
   if (!plate_number) return;
@@ -972,51 +2190,235 @@ $("daftar").addEventListener("click", async () => {
     await muatTrucks();
     await refresh();
     pesan("");
+    toastSukses(t("sukDaftar"));
   } catch (e) {
-    pesan(t("gagalDaftar") + ": " + e.message);
+    const teks = t("gagalDaftar") + ": " + alasan(e);
+    pesan(teks);
+    toastGagal(teks);
   } finally {
-    $("daftar").disabled = false;
+    // Not `disabled = false`: the plate box was just cleared, so the gate - not
+    // the request - decides what happens next.
+    segarkanTombol();
   }
 });
 
 // Weigh-in: bruto now, tara hours later. The time comes from the browser clock
 // - on the mill PC that is the same clock the operator reads, and the server
 // derives the working day from it (§6.1).
+// ── scan QR at the weighbridge gate ─────────────────────────────────────
+// The scanner sends the QR content then Enter. The `/api/console/scan` lane
+// normalises the plate and rejects anything that is not a plate - the screen
+// does not guess on its own, so there is no second rule that could disagree
+// with the server's.
+let scanSibuk = false;
+
+// A scan result does not go through the global banner: `refresh()` clears it
+// on every successful poll, so the message would vanish within 2 seconds.
+// Here it stays until the next scan.
+function pesanScan(teks, salah = false) {
+  const el = $("scan-pesan");
+  el.textContent = teks || "";
+  el.classList.toggle("salah", Boolean(teks) && salah);
+}
+
+async function kirimScan() {
+  const teks = $("scan-plat").value.trim();
+  // The scanner sometimes reads one QR twice within a few hundred ms; without
+  // this guard the second submission would overwrite what was just filled in.
+  if (!teks || scanSibuk) return;
+  scanSibuk = true;
+  try {
+    const hasil = await api("/api/console/scan", {
+      method: "POST", body: JSON.stringify({ qr: teks }),
+    });
+    // Cleared regardless of the outcome: leftover content would run into the
+    // next scan and form one long string matching no plate at all.
+    $("scan-plat").value = "";
+    if (!hasil.ditemukan) {
+      // A borrowed truck. Say what can be done, not just "not found". Yellow,
+      // not red: `scan/` answers 200 for this on purpose (§20) - it is not an
+      // error, it is a truck that needs registering first.
+      pesanScan(`${t("scanBelumAda")} ${hasil.plate_number}`, true);
+      toastPeringatan(`${t("scanBelumAda")} ${hasil.plate_number}`);
+      return;
+    }
+    pesanScan("");
+    pilihNilai($("plat-timbang"), hasil.truck.plate_number);
+    // Cursor straight to the next field: the operator is weighing while
+    // holding the driver's phone, and that one saved screen touch is the
+    // whole point of scanning.
+    $("bruto").focus();
+    segarkanTombol();
+    toastSukses(t("sukScan"));
+  } catch (e) {
+    $("scan-plat").value = "";
+    pesanScan(alasan(e), true);
+    toastGagal(alasan(e));
+  } finally {
+    scanSibuk = false;
+  }
+}
+
+// Exit gate. The tare is still written by `record_weighing` through the same
+// path as the per-row button - the scan only finds the ticket.
+async function kirimScanKeluar() {
+  const teks = $("scan-keluar").value.trim();
+  if (!teks || scanSibuk) return;
+  scanSibuk = true;
+  try {
+    const hasil = await api("/api/console/scan/keluar", {
+      method: "POST", body: JSON.stringify({ qr: teks }),
+    });
+    $("scan-keluar").value = "";
+    if (hasil.ganda) {
+      // Two open tickets: the operator picks. Guessing here can attach the
+      // tare to the wrong visit and mix two visits' tonnage. Yellow: this is
+      // a refusal on purpose (§20), not a failure.
+      pesanScanKeluar(`${t("scanGanda")} ${hasil.plate_number}`, true);
+      toastPeringatan(`${t("scanGanda")} ${hasil.plate_number}`);
+      return;
+    }
+    if (!hasil.ditemukan) {
+      pesanScanKeluar(`${t("scanTakAdaTiket")} ${hasil.plate_number}`, true);
+      toastPeringatan(`${t("scanTakAdaTiket")} ${hasil.plate_number}`);
+      return;
+    }
+    pesanScanKeluar("");
+    // No success toast here: this scan only opens the tare box below (Ganda
+    // check above requires it exists) - `simpanTara()` is the actual weigh-out
+    // and already toasts its own success once the number is saved.
+    tanyaTara(hasil.weighing);
+  } catch (e) {
+    $("scan-keluar").value = "";
+    pesanScanKeluar(alasan(e), true);
+    toastGagal(alasan(e));
+  } finally {
+    scanSibuk = false;
+  }
+}
+
+function pesanScanKeluar(teks, salah = false) {
+  const el = $("scan-keluar-pesan");
+  el.textContent = teks || "";
+  el.classList.toggle("salah", Boolean(teks) && salah);
+}
+
+$("scan-keluar").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  ev.preventDefault();
+  kirimScanKeluar();
+});
+
+$("scan-plat").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  // Enter comes from the scanner, not a person: do not let it submit
+  // anything other than this.
+  ev.preventDefault();
+  kirimScan();
+});
+
 $("masuk").addEventListener("click", async () => {
   const plate_number = $("plat-timbang").dataset.nilai;
-  const bruto_kg = $("bruto").value.trim();
-  if (!plate_number || !bruto_kg) { pesan(t("wajibIsi")); return; }
+  const gross_kg = $("bruto").value.trim();
+  if (!plate_number || !gross_kg) { pesan(t("wajibIsi")); return; }
   $("masuk").disabled = true;
   try {
     await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
-      { plate_number, bruto_kg, waktu_masuk: new Date().toISOString() }) });
+      { plate_number, gross_kg, entered_at: new Date().toISOString() }) });
     pilihNilai($("plat-timbang"), ""); $("bruto").value = "";
     await muatTimbangan();
     pesan("");
+    toastSukses(t("sukMasuk"));
   } catch (e) {
-    pesan(t("gagalTimbang") + ": " + e.message);
+    const teks = t("gagalTimbang") + ": " + alasan(e);
+    pesan(teks);
+    toastGagal(teks);
   } finally {
-    $("masuk").disabled = false;
+    segarkanTombol();
   }
 });
 
-// Tare via prompt(), not an input inside the row: this table is rewritten every
-// 15 s, which would wipe whatever the operator is typing.
+// Tare goes through a dialog, not a column inside its row: this table is
+// rebuilt on every poll, which would wipe out anything the operator is typing.
 $("timbangan").addEventListener("click", async (ev) => {
   const tombol = ev.target.closest("button[data-aksi='keluar']");
   if (!tombol) return;
   const baris = tombol.closest("tr").dataset;
-  const tara_kg = prompt(`${t("promptTara")} ${baris.plat}`);
-  if (!tara_kg) return;
+  tanyaTara({ plate_number: baris.plat, ref: baris.ref, entered_at: baris.masuk });
+});
+
+// One tare path for both the per-row button AND the exit scan result: two
+// copies would drift apart sooner or later, and what they write is the
+// figure the farmer gets paid on.
+// Weight floor, copied from `services/console_service.py`. Deliberately
+// validated here too: a typo is caught on screen, not after a round trip to
+// the server - one second lost at the gate with a truck waiting. The server
+// still has the final say.
+const MINIMUM_BERAT_KG = 1000;
+
+// The ticket currently being asked for its tare. Kept here, not re-read from
+// the table: the table is rebuilt every 2 seconds by polling.
+let taraUntuk = null;
+
+function tanyaTara(w) {
+  taraUntuk = w;
+  $("tara-plat").textContent = w.plate_number || "";
+  $("tara-nilai").value = "";
+  $("tara-grup").hidden = false;
+  $("tara-nilai").focus();
+}
+
+function tutupTara() {
+  $("tara-grup").hidden = true;
+  taraUntuk = null;
+}
+
+async function simpanTara() {
+  if (!taraUntuk) return;
+  // A comma is accepted: an Indonesian keyboard writes decimals with a comma,
+  // and rejecting it would mean the operator retypes a number that was
+  // already correct.
+  const teks = $("tara-nilai").value.trim().replace(",", ".");
+  const angka = Number(teks);
+  if (!teks || !Number.isFinite(angka) || angka < MINIMUM_BERAT_KG) {
+    pesanScanKeluar(t("taraMinimum"), true);
+    $("tara-nilai").focus();
+    return;
+  }
+  const w = taraUntuk;
+  $("tara-simpan").disabled = true;
   try {
     await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
-      plate_number: baris.plat, ref: baris.ref, waktu_masuk: baris.masuk,
-      tara_kg, waktu_keluar: new Date().toISOString() }) });
-    pesan("");
+      plate_number: w.plate_number, ref: w.ref, entered_at: w.entered_at,
+      tare_kg: teks, exited_at: new Date().toISOString() }) });
+    tutupTara();
+    pesanScanKeluar("");
+    // The tare box just closed and took the plate with it, so the toast is
+    // the only confirmation left on screen - unlike weigh-in, there is no
+    // more field nearby that still shows what happened.
+    toastSukses(t("sukTara"));
   } catch (e) {
-    pesan(t("gagalTara") + ": " + e.message);
+    // The field is left open: the number is still there, so the operator can
+    // fix it without retyping from scratch. pesanScanKeluar already puts the
+    // reason right next to the field the operator is looking at; the toast
+    // is a second read of the same failure for anyone glancing at the corner
+    // instead, not a replacement for it.
+    pesanScanKeluar(alasan(e), true);
+    toastGagal(t("gagalTara") + ": " + alasan(e));
+  } finally {
+    $("tara-simpan").disabled = false;
   }
   await muatTimbangan();
+}
+
+$("tara-simpan").addEventListener("click", simpanTara);
+$("tara-batal").addEventListener("click", tutupTara);
+
+$("tara-nilai").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter") { ev.preventDefault(); simpanTara(); }
+  // Esc closes it, like any dialog: a wrongly scanned truck must not force
+  // the operator to save anything.
+  if (ev.key === "Escape") tutupTara();
 });
 
 // ── camera status ──────────────────────────────────────────────────────
@@ -1050,7 +2452,189 @@ async function cekKamera() {
   }));
 }
 
+// An action whose inputs are not filled in is disabled here, rather than left
+// to fail at the server: on this screen a rejected POST surfaces as a red bar
+// the operator has to read, for something the page already knew. Re-applied
+// after every render because the line cards and the weighbridge picker are both
+// rebuilt from scratch on refresh.
+function segarkanTombol() {
+  document.querySelectorAll("#lines .card").forEach((c) => {
+    // Two different conditions, easy to conflate: Assign waits on the PICKER,
+    // while Release and Manual Reject wait on a truck actually being ON the
+    // line. Picking a plate from the list does not arm them - pressing Assign
+    // does. `.truk-isi` is what isiTruk() writes once there is an assignment,
+    // and the refresh rewrites that block, so this needs no state of its own.
+    const adaTruk = !!c.querySelector(".truk .truk-isi");
+    const pilih = c.querySelector(".assign .pilih");
+    const tugaskan = c.querySelector('[data-aksi="tugaskan"]');
+    const lepas = c.querySelector('[data-aksi="lepas"]');
+    const tolak = c.querySelector('[data-aksi="tolak"]');
+    if (pilih && tugaskan) tugaskan.disabled = !pilih.dataset.nilai;
+    if (lepas) lepas.disabled = !adaTruk;
+    // Space+1..3 already bails on a disabled button, so the shortcut goes quiet
+    // with it instead of flashing a panel that cannot act.
+    if (tolak) tolak.disabled = !adaTruk;
+  });
+  $("daftar").disabled = !$("plat").value.trim();
+  const timbang = $("plat-timbang");
+  $("masuk").disabled = !(timbang && timbang.dataset.nilai && $("bruto").value.trim());
+}
+// One pair of listeners for the whole page: dropdowns bubble `pilih`, text
+// boxes bubble `input`, and cards built in JS need no wiring of their own.
+document.addEventListener("pilih", segarkanTombol);
+document.addEventListener("input", segarkanTombol);
+
 // ── load ───────────────────────────────────────────────────────────────
+
+// ── sign-in gate (Fase 4) ──────────────────────────────────────────────
+// The whole screen sits behind it. Known accounts come from /api/console/operators
+// (open on purpose, no hashes) and only fill the email field; email + sandi go to
+// /api/console/login, which sets an HttpOnly cookie this page never touches. Once a
+// session is gone every lane answers 401 `belum_masuk`, and api() sends that here.
+//
+// Accounts are AutoERP's (pulled with the master data) or local to this PC. The screen
+// cannot tell the difference and does not need to: the console verifies either kind
+// offline, which is what keeps the mill working with the internet down.
+let gerbangAktif = false;     // accounts loaded for the gate that is up now
+let gerbangSibuk = false;     // a sign-in is in flight
+
+function tombolOperator(o) {
+  return `<button type="button" class="gerbang-op" data-email="${esc(o.email)}"
+            >${esc(o.full_name)}</button>`;
+}
+
+// Swapping `type` is the whole mechanism on purpose. Rendering the password into a
+// second element would copy it somewhere that can be read, screenshotted, or logged;
+// here it never leaves the field it was typed into.
+function lihatSandi(buka) {
+  $("gerbang-sandi").type = buka ? "text" : "password";
+  $("gerbang-lihat").setAttribute("aria-pressed", String(buka));
+  $("gerbang-lihat").setAttribute("aria-label", t(buka ? "sembunyikanSandi" : "lihatSandi"));
+  // The face is a word, not an icon: it says which way the button goes, where an eye
+  // alone leaves the operator guessing whether it shows or hides. Same choice as the
+  // AutoERP form, so the two screens read alike.
+  $("gerbang-lihat").textContent = t(buka ? "sembunyikanSingkat" : "lihatSingkat");
+}
+
+function tutupSandi() { lihatSandi(false); }
+
+async function bukaGerbang() {
+  $("gerbang").hidden = false;
+  $("operator-aktif").hidden = true;
+  $("keluar").hidden = true;
+  $("gerbang-sandi").value = "";
+  // Never inherited by the next operator: this is a screen several people share, and
+  // the state is deliberately not remembered anywhere.
+  tutupSandi();
+  // The gate replaces whatever the banner was saying. A "console not responding" left
+  // over from the poll that discovered the session was gone would otherwise sit above
+  // the gate for the rest of the shift, since nothing clears the banner until a lane
+  // succeeds again — and none can while the gate is up.
+  pesan("");
+  // Several polls find out the session is gone at the same moment: load once.
+  if (gerbangAktif) return;
+  gerbangAktif = true;
+  try {
+    const items = (await api("/api/console/operators")).items;
+    $("gerbang-nama").innerHTML = items.length
+      ? items.map(tombolOperator).join("")
+      : `<p class="muted">${esc(t("gerbangKosong"))}</p>`;
+    // One account on this mill: fill it in, so only the password is left to type.
+    if (items.length === 1 && !$("gerbang-email").value) {
+      $("gerbang-email").value = items[0].email;
+    }
+  } catch (e) { $("gerbang-pesan").textContent = alasan(e); }
+}
+
+function tutupGerbang(operator) {
+  gerbangAktif = false;
+  $("gerbang").hidden = true;
+  $("gerbang-pesan").textContent = "";
+  $("gerbang-sandi").value = "";
+  tutupSandi();
+  $("operator-aktif").textContent = operator.full_name;
+  $("operator-aktif").hidden = false;
+  $("keluar").hidden = false;
+}
+
+function hapusTabDeveloper(role) {
+  // Removed from the DOM, not hidden: the backend guards access, this is tidiness.
+  if (role === "support") return;
+  document.querySelectorAll('[data-dev="1"]').forEach((el) => el.remove());
+}
+
+async function kirimSandi() {
+  const email = $("gerbang-email").value.trim();
+  const sandi = $("gerbang-sandi").value;
+  if (!(email && sandi) || gerbangSibuk) return;
+  // Locked while in flight: hashing is deliberately slow, and Enter plus the button
+  // would otherwise spend two wrong tries out of the five the lockout allows.
+  gerbangSibuk = true;
+  $("gerbang-masuk").disabled = true;
+  try {
+    const { operator } = await api("/api/console/login", {
+      method: "POST", body: JSON.stringify({ email, sandi }),
+    });
+    tutupGerbang(operator);
+    hapusTabDeveloper(operator.role);
+    dipasang = false;
+    await muatTrucks();
+    await refresh();
+    await muatTimbangan();
+    await muatRekap();
+  } catch (e) {
+    $("gerbang-pesan").textContent = alasan(e);
+    $("gerbang-sandi").value = "";
+    $("gerbang-sandi").focus();
+  } finally {
+    gerbangSibuk = false;
+    $("gerbang-masuk").disabled = false;
+  }
+}
+
+async function cekSesi() {
+  try {
+    const { operator } = await api("/api/console/me");
+    tutupGerbang(operator);
+    hapusTabDeveloper(operator.role);
+  }
+  catch (e) { /* api() has already put the gate up on 401 */ }
+}
+
+$("gerbang").addEventListener("click", (ev) => {
+  // A name only fills the address; the password is still required.
+  const op = ev.target.closest("[data-email]");
+  if (op) {
+    $("gerbang-email").value = op.dataset.email;
+    $("gerbang-pesan").textContent = "";
+    $("gerbang-sandi").focus();
+    return;
+  }
+  if (ev.target.closest("#gerbang-lihat")) {
+    lihatSandi($("gerbang-sandi").type === "password");
+    $("gerbang-sandi").focus();
+    return;
+  }
+  if (ev.target.closest("#gerbang-masuk")) kirimSandi();
+});
+
+// Enter from either field signs in, the way every login screen behaves.
+$("gerbang").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  if (!ev.target.closest("#gerbang-email, #gerbang-sandi")) return;
+  ev.preventDefault();
+  if (ev.target.id === "gerbang-email" && !$("gerbang-sandi").value) {
+    $("gerbang-sandi").focus();
+    return;
+  }
+  kirimSandi();
+});
+
+$("keluar").addEventListener("click", async () => {
+  try { await api("/api/console/logout", { method: "POST" }); }
+  catch (e) { /* already gone - the gate comes up either way */ }
+  bukaGerbang();
+});
 
 // MJPEG streams render once: rewriting innerHTML every 2 s would tear down and
 // reopen three video connections forever.
@@ -1069,15 +2653,43 @@ async function refresh() {
       s.lines.forEach((l, i) => {
         const c = $("lines").children[i];
         if (!c) return;
-        const b = c.querySelectorAll(".counts b");
-        b[0].textContent = l.acc; b[1].textContent = l.rej; b[2].textContent = l.total;
+        // Dicocokkan lewat `data-k`, bukan urutan. Dulu `b[0]/b[1]/b[2]`, dan
+        // menukar urutan markup di `kartuLine` diam-diam menukar angka yang
+        // tampil di layar line — salah yang tidak kelihatan salah.
+        c.querySelectorAll(".counts b[data-k]").forEach((el) => {
+          el.textContent = l[el.dataset.k] || 0;
+        });
         c.querySelector(".truk").innerHTML = isiTruk(l.assignment);
+        // The piston button and banner must follow what the PLC just confirmed,
+        // every poll - not only on the first render. outerHTML (not innerHTML on
+        // a wrapper) so the button's own hint span comes back with it, and
+        // terapkanUrutan() below repaints the P+n hint the same way it already
+        // does for Reject after every redraw.
+        const tombolLama = c.querySelector("button.piston");
+        if (tombolLama) tombolLama.outerHTML = tombolPiston(l);
+        const pitaLama = c.querySelector(".pita-piston");
+        const pitaBaru = pitaPiston(l);
+        if (pitaLama && !pitaBaru) pitaLama.remove();
+        else if (pitaLama) pitaLama.outerHTML = pitaBaru;
+        else if (pitaBaru) c.querySelector("h2").insertAdjacentHTML("afterend", pitaBaru);
       });
+      terapkanUrutan();
     }
-    $("recent").innerHTML = s.recent.length
-      ? s.recent.map(barisRecent).join("") : barisKosong(7, "kosongGrading");
+    // Only the first page follows the live poll. Past it the operator is reading, and a
+    // table replaced every 2 s would throw them back to the newest rows mid-sentence.
+    //
+    // `state` carries the newest 20 and no total, which is enough to keep page 1 live at
+    // the default size but cannot say how many pages exist - so the count comes from
+    // /history, which is also the only source once the operator asks for more than 20.
+    if (gradingOffset === 0) await muatGrading();
+    segarkanTombol();
     pesan("");
-  } catch (e) { pesan(t("gagalKonsol") + ": " + e.message); }
+  } catch (e) {
+    // Not signed in is a normal state, and the gate is already saying so on top of
+    // this screen. Claiming the console is down as well trains the shift to ignore
+    // that banner, which is the one that matters when it really has stopped answering.
+    pesan(e.kode === "belum_masuk" ? "" : t("gagalKonsol") + ": " + alasan(e));
+  }
 }
 
 async function muatTimbangan() {
@@ -1094,12 +2706,14 @@ function barisRekap(r) {
   return `<tr>
     <td class="key">${r.plate_number ? esc(r.plate_number) : `<i>${esc(t("trukTanpaNama"))}</i>`}</td>
     <td>${dash(r.supplier_name)}</td>
-    <td>${dash(r.sumber_label)}</td>
+    <td>${dash(r.source_label)}</td>
     <td class="num">${total}</td>
-    <td class="num acc">${r.acc || 0}</td>
-    <td class="num rej">${r.rej || 0}</td>
+    <td class="num acc">${r.ripe || 0}</td>
+    <td class="num rej">${r.unripe || 0}</td>
+    <td class="num rej">${r.jk || 0}</td>
+    <td class="num tp">${r.tp || 0}</td>
     <td class="num">${rasio}</td>
-    <td class="num">${r.neto_kg == null ? KOSONG : Number(r.neto_kg).toLocaleString("id-ID")}</td>
+    <td class="num">${r.net_kg == null ? KOSONG : Number(r.net_kg).toLocaleString("id-ID")}</td>
   </tr>`;
 }
 
@@ -1107,9 +2721,43 @@ async function muatRekap() {
   try {
     const items = (await api("/api/console/recap")).items;
     $("rekap").innerHTML = items.length
-      ? items.map(barisRekap).join("") : barisKosong(8, "kosongRekap");
+      // 10 kolom, bukan 8: Ripe/Unripe/JK/TP menggantikan ACC/REJ. Colspan yang
+      // ketinggalan bikin baris "belum ada data" berhenti di tengah tabel.
+      ? items.map(barisRekap).join("") : barisKosong(10, "kosongRekap");
   } catch (e) { /* nothing graded yet - the screen keeps working */ }
 }
+
+// One QR card: the image comes from the server (no CDN library — this screen
+// has to stay open while the internet is down), and the plate is also
+// printed as text so a dirty or damaged card can still be typed manually by
+// the operator.
+function kartuQr(tr) {
+  const plat = tr.plate_number || "";
+  // encodeURIComponent: a plate with a space would cut off the URL and the
+  // image would never load.
+  const src = `/api/console/trucks/${encodeURIComponent(plat)}/qr.png`;
+  return `<figure class="qr-satu">
+    <img src="${esc(src)}" alt="${esc(plat)}" width="180" height="180">
+    <figcaption>${esc(plat)}</figcaption>
+  </figure>`;
+}
+
+$("cetak-qr").addEventListener("click", () => {
+  // Built when pressed, not on every poll: dozens of <img> rebuilt every 60
+  // seconds would re-request every image.
+  $("qr-kartu").innerHTML = trucks.filter((tr) => tr.plate_number).map(kartuQr).join("");
+  $("qr-cetak").hidden = false;
+  // Wait for the images to load first: calling print() too early prints
+  // empty boxes, and that is a stack of wasted paper only noticed afterwards.
+  const gambar = [...$("qr-kartu").querySelectorAll("img")];
+  Promise.all(gambar.map((g) => g.complete ? null : new Promise((r) => {
+    g.onload = g.onerror = r;
+  }))).then(() => window.print());
+});
+
+// Once the print dialog closes, the cards are hidden again: a whole screen
+// full of QR codes would make the Trucks tab unusable.
+window.addEventListener("afterprint", () => { $("qr-cetak").hidden = true; });
 
 function isiTrucks() {
   $("trucks").innerHTML = trucks.length
@@ -1120,6 +2768,7 @@ function isiTrucks() {
   const opsi = [{ v: "", teks: t("pilihTruk") }]
     .concat(trucks.map((tr) => ({ v: tr.plate_number, teks: tr.plate_number || KOSONG })));
   pilih.outerHTML = komponenPilih(opsi, pilih.dataset.nilai, "plat-timbang");
+  segarkanTombol();
 }
 
 async function muatTrucks() {
@@ -1128,14 +2777,463 @@ async function muatTrucks() {
   isiTrucks();
 }
 
+// ── developer: fault log (support only) ─────────────────────────────────
+let logLevel = "";
+let logCari = "";
+let logOffset = 0;
+let logTotal = 0;
+const LOG_PER = 50;
+
+function barisLog(r) {
+  // last_seen_at is a Unix epoch (seconds, from LogStore) - not an ISO string,
+  // so it needs ×1000 before Date() rather than going through waktu() as-is.
+  return `<tr>
+    <td>${waktu(r.last_seen_at * 1000)}</td>
+    <td class="key">${esc(r.level)}</td>
+    <td>${esc(r.source)}</td>
+    <td>${esc(r.message)}</td>
+    <td class="num">${r.count > 1 ? "×" + r.count : ""}</td>
+  </tr>`;
+}
+
+function segarkanHalamanLog() {
+  const dari = logTotal ? logOffset + 1 : 0;
+  const sampai = Math.min(logOffset + LOG_PER, logTotal);
+  $("log-rentang").textContent = t("rentangBaris")
+    .replace("{dari}", dari).replace("{sampai}", sampai).replace("{total}", logTotal);
+  $("log-prev").disabled = logOffset === 0;
+  // `logTotal`, not items.length on the page just drawn - the same pagination
+  // trap the grading screen hit before (total comes from the server response).
+  $("log-next").disabled = logOffset + LOG_PER >= logTotal;
+}
+
+async function muatLog() {
+  try {
+    const qs = new URLSearchParams({ limit: String(LOG_PER), offset: String(logOffset) });
+    if (logLevel) qs.set("level", logLevel);
+    if (logCari) qs.set("cari", logCari);
+    const r = await api(`/api/console/dev/log?${qs}`);
+    logTotal = r.total;
+    $("log-baris").innerHTML = r.items.length
+      ? r.items.map(barisLog).join("") : barisKosong(5, "kosongLog");
+    segarkanHalamanLog();
+  } catch (e) {
+    // Support-only lane: a plain operator who somehow lands here (shared PC,
+    // stale localStorage tab) gets a quiet empty table, not a red banner.
+    if (e.kode !== "belum_masuk") $("log-baris").innerHTML = barisKosong(5, "gagalLog");
+  }
+}
+
+$("log-level").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-nilai]");
+  if (!b) return;
+  logLevel = b.dataset.nilai;
+  logOffset = 0;
+  $("log-level").querySelectorAll("button").forEach((x) => x.classList.toggle("aktif", x === b));
+  muatLog();
+});
+
+let logCariTimer = null;
+$("log-cari").addEventListener("input", () => {
+  // Debounced: a search box wired straight to fetch would fire once per
+  // keystroke on a shared touchscreen keyboard.
+  clearTimeout(logCariTimer);
+  logCariTimer = setTimeout(() => {
+    logCari = $("log-cari").value.trim();
+    logOffset = 0;
+    muatLog();
+  }, 300);
+});
+
+$("log-prev").addEventListener("click", () => {
+  logOffset = Math.max(0, logOffset - LOG_PER);
+  muatLog();
+});
+$("log-next").addEventListener("click", () => {
+  if (logOffset + LOG_PER < logTotal) logOffset += LOG_PER;
+  muatLog();
+});
+
+// ── developer: diagnostik (support only) ────────────────────────────────
+// The 5 s auto-refresh timer itself lives in `bukaTabDev` above.
+let diagnostikTimer = null;
+
+// Dynamic markup, generated fresh on every poll: static labels are resolved
+// with t() inline here, not via data-t - that attribute is only ever scanned
+// once, over the page's static HTML (see terapkanBahasa).
+function kartuDiagnostik(kode, d) {
+  if (!d.terjangkau) {
+    return `<div class="card tidak-terjangkau" data-line="${esc(kode)}">
+      <h2><span class="nama">${esc(kode)}</span></h2>
+      <dl><dt>${esc(t("thStatus"))}</dt><dd>${esc(t("lineTidakTerjangkau"))}</dd>
+        <dt>${esc(t("thSebab"))}</dt><dd title="${esc(d.sebab)}">${esc(d.sebab)}</dd></dl>
+    </div>`;
+  }
+  const w = (d.workers || []).map((x) => `${esc(x.name)}:${x.alive ? "✓" : "✗"}`).join(" ");
+  const plc = d.plc ? "✓" : KOSONG;
+  return `<div class="card" data-line="${esc(kode)}">
+    <h2><span class="nama">${esc(kode)}</span></h2>
+    <dl>
+      <dt>${esc(t("thKamera"))}</dt><dd>${d.camera_connected ? "✓" : "✗"}</dd>
+      <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : (d.gpu_available ? "✓" : "✗")}</dd>
+      <dt>${esc(t("thPlc"))}</dt><dd>${plc}</dd>
+      <dt>${esc(t("thWorkers"))}</dt><dd title="${esc(w)}">${esc(w) || KOSONG}</dd>
+      <dt>${esc(t("thAntreanLokal"))}</dt><dd>${dash(d.outbox_pending)} / ${dash(d.outbox_failed)}</dd>
+    </dl>
+  </div>`;
+}
+
+async function muatDiagnostik() {
+  try {
+    const r = await api("/api/console/dev/diagnostik");
+    $("diagnostik-kartu").innerHTML = Object.entries(r.lines)
+      .map(([kode, d]) => kartuDiagnostik(kode, d)).join("");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("diagnostik-kartu").innerHTML = `<p class="muted">${esc(t("gagalDiagnostik"))}</p>`;
+  }
+}
+
+// ── developer: antrean ERP (support only) ───────────────────────────────
+// next_attempt_at is a Unix epoch in seconds (ErpOutboxStore's own clock),
+// same as LogStore's terakhir_at - needs the same ×1000 before waktu().
+// A row already past its next attempt reads as due now rather than a stale
+// timestamp: that is exactly the state kirim_ulang() just put every row in.
+function jadwalAntrean(nextAttemptAt) {
+  return nextAttemptAt * 1000 <= Date.now() ? t("antreanSekarang") : waktu(nextAttemptAt * 1000);
+}
+
+function barisAntrean(r) {
+  return `<tr>
+    <td>${esc(r.kind)}</td>
+    <td>${esc(r.key)}</td>
+    <td title="${esc(r.last_error || "")}">${esc(r.last_error || KOSONG)}</td>
+    <td class="num">${dash(r.attempts)}</td>
+    <td>${jadwalAntrean(r.next_attempt_at)}</td>
+  </tr>`;
+}
+
+async function muatAntrean() {
+  try {
+    const r = await api("/api/console/dev/antrean");
+    $("antrean-ringkas").textContent = t("ringkasAntrean")
+      .replace("{pending}", r.pending).replace("{gagal}", r.gagal);
+    $("antrean-baris").innerHTML = r.items.length
+      ? r.items.map(barisAntrean).join("") : barisKosong(5, "kosongAntrean");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("antrean-baris").innerHTML = barisKosong(5, "gagalAntrean");
+  }
+  await muatManifest();
+}
+
+// Second row, same screen: the R2 manifest queue. Row shape is the same
+// ErpOutboxStore.failed_rows() as the ERP outbox above, so barisAntrean() and
+// jadwalAntrean() are reused as-is.
+//
+// `aktif: false` (R2 not configured) is handled as its OWN branch, not as an
+// empty queue: the whole point of this card is that a stalled/never-started
+// queue must not read the same as a healthy empty one, which "0 pending / 0
+// gagal" alone would.
+async function muatManifest() {
+  try {
+    const r = await api("/api/console/dev/antrean/manifest");
+    if (!r.aktif) {
+      $("manifest-nonaktif").hidden = false;
+      $("manifest-ringkas").textContent = "";
+      $("manifest-baris").innerHTML = "";
+      return;
+    }
+    $("manifest-nonaktif").hidden = true;
+    $("manifest-ringkas").textContent = t("ringkasManifest")
+      .replace("{pending}", r.pending).replace("{gagal}", r.gagal);
+    $("manifest-baris").innerHTML = r.items.length
+      ? r.items.map(barisAntrean).join("") : barisKosong(5, "kosongManifest");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") {
+      $("manifest-nonaktif").hidden = true;
+      $("manifest-baris").innerHTML = barisKosong(5, "gagalManifest");
+    }
+  }
+}
+
+$("antrean-kirim-ulang").addEventListener("click", async () => {
+  $("antrean-kirim-ulang").disabled = true;
+  try {
+    await api("/api/console/dev/antrean/kirim-ulang", { method: "POST" });
+    await muatAntrean();
+  } catch (e) {
+    // Same element the summary normally lives in - the next successful
+    // muatAntrean() overwrites it, so nothing needs clearing by hand.
+    if (e.kode !== "belum_masuk") $("antrean-ringkas").textContent = alasan(e);
+  } finally {
+    $("antrean-kirim-ulang").disabled = false;
+  }
+});
+
+// ── developer: versi & lisensi (support only) ───────────────────────────
+function barisVersi(label, nilai) {
+  return `<dt>${esc(label)}</dt><dd>${esc(nilai)}</dd>`;
+}
+
+async function muatVersi() {
+  try {
+    const r = await api("/api/console/dev/versi");
+    const lisensi = r.lisensi.aktif
+      ? (r.lisensi.token_terpasang ? t("lisensiAktif") : t("lisensiTanpaToken"))
+      : t("lisensiMati");
+    $("versi-daftar").innerHTML = [
+      barisVersi(t("labelVersi"), r.versi),
+      barisVersi(t("labelMachineId"), r.machine_id),
+      barisVersi(t("labelEnvironment"), r.environment),
+      barisVersi(t("labelLisensi"), lisensi),
+    ].join("");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("versi-daftar").innerHTML = `<dt>${esc(t("gagalVersi"))}</dt><dd></dd>`;
+  }
+}
+
+// ── developer: uji PLC (support only) ───────────────────────────────────
+// The only lane in the whole console that moves physical hardware. One card
+// per line (a coil only means something on that line's own PLC connection),
+// each fetched independently so one dead line does not blank the others -
+// same shape as diagnostik's per-line cards.
+function kartuPlc(kode, sibuk) {
+  return `<div class="card" data-line="${esc(kode)}" data-plc-sibuk="${sibuk ? "1" : "0"}">
+    <h2><span class="nama">${esc(kode)}</span></h2>
+    <div class="plc-di" data-plc-di></div>
+    <div class="plc-coil" data-plc-coil></div>
+  </div>`;
+}
+
+function isiDiPlc(inputs) {
+  if (!inputs || !inputs.length) return `<span class="muted">${esc(t("plcMati"))}</span>`;
+  return inputs.map((on, i) => `<span class="plc-di-bit">${i}:${on ? esc(t("diAktif")) : esc(t("diMati"))}</span>`).join(" ");
+}
+
+function isiCoilPlc(kode, data, sibuk) {
+  if (!data.enabled) return `<span class="muted">${esc(t("plcMati"))}</span>`;
+  return (data.testable_coils || []).map((coil) => `
+    <button type="button" class="uji-coil" data-line="${esc(kode)}" data-coil="${coil}"
+      ${sibuk ? `disabled title="${esc(t("coilMatiLineSibuk"))}"` : ""}>
+      ${esc(t("btnUjiCoil").replace("{coil}", coil))}
+    </button>`).join("");
+}
+
+// ── Setelan grading (support only) ─────────────────────────────────────
+// Dua angka yang menggeser tonase. Nilainya dipegang konsol, bukan line:
+// line yang mati saat diubah akan menerimanya lagi saat konsol mengirim ulang,
+// jadi tidak ada dua sumber kebenaran yang bisa berbeda diam-diam.
+// Kolom angka menolak huruf saat diketik (permintaan operator 2026-09-18).
+// `inputmode` saja tidak cukup: itu cuma memilih papan ketik di layar sentuh,
+// dan PC pabrik punya papan ketik fisik. Dibersihkan pada `input` — bukan
+// dicegah pada `keydown` — supaya tempel dari papan klip ikut tersaring, dan
+// supaya tombol navigasi (panah, Home, Ctrl+A) tidak ikut diblokir.
+//
+// Posisi kursor dipulihkan setelah pembersihan: tanpa itu, mengetik satu huruf
+// di tengah angka melemparkan kursor ke ujung, dan operator mengetik sisanya di
+// tempat yang salah tanpa sadar.
+function bersihkanAngka(el) {
+  const desimal = el.dataset.angka === "desimal";
+  const semula = el.value;
+  const pos = el.selectionStart;
+  // Koma diterima apa adanya (papan ketik Indonesia); server dan pengirim
+  // sama-sama menukarnya jadi titik.
+  let bersih = semula.replace(desimal ? /[^0-9.,]/g : /[^0-9]/g, "");
+  if (desimal) {
+    // Satu pemisah desimal saja: "0.5.5" bukan angka, dan server akan menolaknya
+    // dengan pesan yang tidak menunjuk kolom mana.
+    const pertama = bersih.search(/[.,]/);
+    if (pertama !== -1) {
+      bersih = bersih.slice(0, pertama + 1) + bersih.slice(pertama + 1).replace(/[.,]/g, "");
+    }
+  }
+  if (bersih === semula) return;
+  el.value = bersih;
+  const mundur = semula.length - bersih.length;
+  el.setSelectionRange(Math.max(0, pos - mundur), Math.max(0, pos - mundur));
+}
+
+document.querySelectorAll("[data-angka]").forEach((el) => {
+  el.addEventListener("input", () => {
+    bersihkanAngka(el);
+    el.removeAttribute("aria-invalid");
+  });
+});
+
+// Satuan garis ikut arah conveyor: "dari kiri" untuk garis tegak, "dari atas"
+// untuk garis mendatar. Label yang tidak ikut berubah akan menyuruh operator
+// mengukur dari sisi yang salah.
+function labelGaris() {
+  $("set-garis-bantu").textContent =
+    t($("set-sumbu").value === "mendatar" ? "bantuGarisMendatar" : "bantuGarisTegak");
+}
+
+$("set-sumbu").addEventListener("change", labelGaris);
+
+async function muatSetelan() {
+  try {
+    const r = await api("/api/console/dev/setelan");
+    $("set-conf").value = r.conf_threshold;
+    $("set-minsize").value = r.minimum_size;
+    // `?? 0` bukan `|| 0`: 0 itu nilai yang sah (garis mati), dan `||` akan
+    // menukarnya dengan 0 juga — kebetulan benar di sini, tapi salah begitu
+    // nilainya berubah makna. Yang dijaga: server lama tanpa field ini.
+    $("set-garis").value = r.garis_capture ?? 0;
+    $("set-sumbu").value = r.sumbu_garis ?? "tegak";
+    $("set-dev").checked = Boolean(r.mode_dev);
+    labelGaris();
+    $("set-sumber").textContent = t(r.sumber === "konsol" ? "setelanDariKonsol" : "setelanDariEnv");
+    $("set-pesan").textContent = "";
+    $("set-lines").textContent = "";
+  } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = e.pesan || "gagal"; }
+}
+
+$("set-simpan").addEventListener("click", async () => {
+  const pesan = $("set-pesan");
+  pesan.textContent = "";
+  try {
+    // Koma -> titik di sini juga, bukan cuma di server: papan ketik Indonesia
+    // menulis `0,8`, dan menunggu bolak-balik jaringan untuk hal yang terlihat
+    // di tempat itu satu detik yang hilang.
+    const r = await api("/api/console/dev/setelan", {
+      method: "POST",
+      body: JSON.stringify({
+        conf_threshold: $("set-conf").value.replace(",", "."),
+        minimum_size: $("set-minsize").value.replace(",", "."),
+        garis_capture: $("set-garis").value.replace(",", "."),
+        sumbu_garis: $("set-sumbu").value,
+        mode_dev: $("set-dev").checked,
+      }),
+    });
+    $("set-sumber").textContent = t("setelanDariKonsol");
+    pesan.textContent = t("setelanTersimpan");
+    // Line yang tidak menjawab disebut apa adanya: nilainya SUDAH tersimpan,
+    // line itu saja yang belum menerimanya. Menyembunyikannya membuat operator
+    // mengira semua line sudah berubah.
+    const belum = (r.lines || []).filter((l) => !l.terkirim).map((l) => l.line_code);
+    $("set-lines").textContent = belum.length ? `Belum sampai ke: ${belum.join(", ")}` : "";
+  } catch (e) {
+    pesan.textContent = e.pesan || e.detail || "gagal";
+    // Server menyebut nama field di pesannya; kolomnya ikut ditandai supaya
+    // operator tidak perlu mencocokkan kalimat dengan kolom sendiri.
+    const teks = String(e.pesan || e.detail || "");
+    for (const [field, id] of Object.entries({
+      conf_threshold: "set-conf", minimum_size: "set-minsize", garis_capture: "set-garis",
+    })) {
+      if (teks.includes(field)) $(id).setAttribute("aria-invalid", "true");
+    }
+  }
+});
+
+async function muatPlc() {
+  try {
+    // Line codes come from diagnostik (already fetched by support screens
+    // elsewhere) rather than a hardcoded list here, so a line rename needs
+    // no edit to this file.
+    const diag = await api("/api/console/dev/diagnostik");
+    const kodeLine = Object.keys(diag.lines);
+    $("plc-kartu").innerHTML = kodeLine
+      .map((kode) => kartuPlc(kode, diag.lines[kode].terjangkau && diag.lines[kode].current_assignment_id))
+      .join("");
+    await Promise.all(kodeLine.map((kode) => muatPlcSatuLine(kode)));
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("plc-kartu").innerHTML = `<p class="muted">${esc(t("gagalPlc"))}</p>`;
+  }
+}
+
+async function muatPlcSatuLine(kode) {
+  const kartu = $("plc-kartu").querySelector(`.card[data-line="${CSS.escape(kode)}"]`);
+  if (!kartu) return;
+  const sibuk = kartu.dataset.plcSibuk === "1";
+  try {
+    const data = await api(`/api/console/dev/plc/${encodeURIComponent(kode)}`);
+    kartu.querySelector("[data-plc-di]").innerHTML = isiDiPlc(data.inputs);
+    kartu.querySelector("[data-plc-coil]").innerHTML = isiCoilPlc(kode, data, sibuk);
+  } catch (e) {
+    if (e.kode === "belum_masuk") return;
+    kartu.querySelector("[data-plc-di]").innerHTML = `<span class="muted">${esc(alasan(e))}</span>`;
+    kartu.querySelector("[data-plc-coil]").innerHTML = "";
+  }
+}
+
+// The coil test is confirmed inline, not via the browser's built-in dialog -
+// see the HTML comment at #sec-plc. One shared group for every line card
+// (not one per card): the operator only tests one coil at a time, and cards
+// are rebuilt on every poll, which would make a group living inside one
+// simply vanish.
+//
+// The coil and line currently being confirmed. Kept here, not re-read from
+// the button: the button that triggered it may already have been replaced
+// when the card is rebuilt by muatPlcSatuLine/muatPlc before the operator
+// finishes typing.
+let ujiUntuk = null;
+
+function tanyaUjiPlc(line_code, coil) {
+  ujiUntuk = { line_code, coil };
+  $("plc-konfirmasi-teks").textContent = t("konfirmasiUjiPlc").replace("{coil}", coil).replace("{line}", line_code);
+  $("plc-konfirmasi-nilai").value = "";
+  $("plc-konfirmasi").hidden = false;
+  $("plc-konfirmasi-nilai").focus();
+}
+
+function tutupUjiPlc() {
+  $("plc-konfirmasi").hidden = true;
+  ujiUntuk = null;
+}
+
+async function jalankanUjiPlc() {
+  if (!ujiUntuk) return;
+  // Typing is still required - unlike the tare field, this is not a number
+  // check but a one-time password: a mere click (even through the browser's
+  // built-in confirm dialog) can be brushed by a gloved thumb on a
+  // touchscreen, typing cannot.
+  if ($("plc-konfirmasi-nilai").value.trim() !== "UJI") {
+    pesan(t("ujiPlcDibatalkan"));
+    tutupUjiPlc();
+    return;
+  }
+  const { line_code, coil } = ujiUntuk;
+  tutupUjiPlc();
+  try {
+    const hasil = await api(`/api/console/dev/plc/${encodeURIComponent(line_code)}/coil`, {
+      method: "POST",
+      body: JSON.stringify({ coil, konfirmasi: "UJI" }),
+    });
+    pesan(hasil.fired ? t("ujiPlcBerhasil").replace("{coil}", coil) : t("ujiPlcDijatuhkan").replace("{coil}", coil));
+  } catch (e) {
+    if (e.kode !== "belum_masuk") pesan(t("gagalUjiPlc") + ": " + alasan(e));
+  } finally {
+    await muatPlcSatuLine(line_code);          // re-enables the button if the line is still idle
+  }
+}
+
+$("plc-konfirmasi-jalankan").addEventListener("click", jalankanUjiPlc);
+$("plc-konfirmasi-batal").addEventListener("click", tutupUjiPlc);
+
+$("plc-konfirmasi-nilai").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter") { ev.preventDefault(); jalankanUjiPlc(); }
+  // Esc closes it, like any dialog: a wrongly selected coil must not force
+  // the operator to fire anything.
+  if (ev.key === "Escape") tutupUjiPlc();
+});
+
+$("plc-kartu").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button.uji-coil");
+  if (!tombol || tombol.disabled) return;
+  tanyaUjiPlc(tombol.dataset.line, Number(tombol.dataset.coil));
+});
+
 (async () => {
   terapkanBahasa();
   terapkanTab();
   pilihNilai($("kolom"), kolom);
+  pilihNilai($("grading-per"), gradingPer);
   terapkanKolom();
   detak();
   setInterval(detak, 1000);
   setInterval(cekKamera, 5000);
+  // Still signed in (cookie valid): the name goes in the bar and the gate comes down.
+  // If not, the gate stays up — before four polls each find that out on their own.
+  await cekSesi();
   await muatTrucks();
   await refresh();
   await muatTimbangan();
@@ -1146,5 +3244,9 @@ async function muatTrucks() {
   setInterval(muatTimbangan, 15000);
   await muatRekap();
   setInterval(muatRekap, 15000);
+  // A remembered developer tab from a previous support sign-in on this shared PC:
+  // cekSesi() above has already run hapusTabDeveloper(), so the button (and
+  // this check) only survive for an account that is still support.
+  if (MUAT_TAB[tab] && $(`button[data-tab="${tab}"]`)) await bukaTabDev(tab);
 })();
 </script>

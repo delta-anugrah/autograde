@@ -6,20 +6,30 @@ Deliberately a SEPARATE module from `main.py`: that one pulls
 is what keeps the operator screen alive - and booting in seconds - when a
 camera line is down (plan §4).
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from .core.log_sink import install_log_sink
+from .repositories.log_repository import LogStore
 from .routes.console import get_console_service, ingest_router
 from .routes.console import router as console_router
-from .workers.erp_push_worker import ErpPushWorker
-from .workers.master_data_worker import MasterDataWorker
+from .services.akun_bawaan import seed_default_accounts
+from .workers.erp_link import build_erp_workers
+from .workers.line_status_worker import LineStatusWorker
+
+# Same bootstrap as main.py, and for the same reason: settings are read when the
+# app is built, below. `override=False` keeps a real environment variable ahead
+# of the file, so docker-compose and systemd stay authoritative.
+load_dotenv(override=False)
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +37,62 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     service = get_console_service()  # ZoneInfo(FACTORY_TZ) is validated here
-    # Two separate directions: master data is pulled from the cloud, events are
-    # pushed to the ERP. Either may die without taking the operator screen with
-    # it - that is the whole point of phase 2.
-    tasks = [
-        asyncio.create_task(MasterDataWorker(service.settings, service.store).run_loop()),
-        asyncio.create_task(ErpPushWorker(service.settings, service.store).run_loop()),
-    ]
-    logger.info("Konsol siap — hari kerja %s (%s)", service.today(), service.settings.factory_tz)
+    # Own SQLite file, own logging handler: a fault must survive a restart, and
+    # must not touch console.db to get there (see log_db_path).
+    log_store = LogStore(service.settings.log_db_path, retention_days=service.settings.log_retention_days)
+    install_log_sink(log_store)
+    # Before anything else: a mill installed before it ever reached the internet has no
+    # AutoERP accounts yet, and a console nobody can sign into is useless on exactly the
+    # day it is needed. Existing accounts are never touched (see akun_bawaan).
+    seed_default_accounts(
+        service.store,
+        hash_bawaan=service.settings.console_default_hash,
+        hash_support=service.settings.console_support_hash,
+    )
+    # An empty hash is skipped in silence on purpose (a mill whose accounts all come
+    # from AutoERP seeds nothing). But with ERP_URL empty too there is no account
+    # source at all, and the first sign of it is an operator who cannot sign in on
+    # install day. Said once, at the only moment anybody is watching the log.
+    if not (
+        service.settings.console_default_hash
+        or service.settings.console_support_hash
+        or service.settings.erp_url
+        or service.store.operators()
+    ):
+        logger.warning(
+            "No account source: CONSOLE_DEFAULT_HASH/CONSOLE_SUPPORT_HASH are empty and "
+            "ERP_URL is empty, so nobody can sign into the console. Set a hash in .env "
+            "(make one with `make hash-sandi`, write $$ for one literal $), or set ERP_URL."
+        )
+    # A mill whose .env predates this build, or whose accounts came only from
+    # `make operator` before it could set a role, can end up with every account on
+    # `operator` — locking out the developer screens with no account able to open
+    # them back up. Said once, at the only moment anybody is watching the log.
+    if not service.store.has_support_account():
+        logger.warning(
+            "No account has the support role: this console's developer screens cannot "
+            "be opened by anyone. Run `make operator AKSI=role ROLE=support` on this PC "
+            "(use `make operator-docker` if the console runs in Docker) to promote an "
+            "existing account, or `make operator ROLE=support` for a new one."
+        )
+    # The AutoERP link is optional by design: with ERP_URL empty there are no
+    # workers at all, and any of them may die without taking the screen down.
+    workers = build_erp_workers(service.settings, service.store, service.erp_queue)
+    tasks = [asyncio.create_task(worker.run_loop()) for worker in workers]
+
+    # Independent of the AutoERP link above: the manifest worker exists whenever
+    # R2 is configured (get_console_service), regardless of ERP_URL. Logged once
+    # already, in get_console_service, when it is off.
+    if service.manifest_queue is not None:
+        tasks.append(asyncio.create_task(service.manifest_queue.run_loop()))
+
+    # Separate from the ERP workers above: the piston button must survive an
+    # empty ERP_URL, so it cannot depend on build_erp_workers().
+    status_worker = LineStatusWorker(service.lines, service.line_client)
+    service.line_status = status_worker.snapshot
+    tasks.append(asyncio.create_task(status_worker.run_loop()))
+
+    logger.info("Console ready, working day %s (%s)", service.today(), service.settings.factory_tz)
     yield
     for task in tasks:
         task.cancel()

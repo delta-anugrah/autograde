@@ -1,6 +1,6 @@
-# Backend Overview — palmgrade-vision
+# Backend Overview — autograde
 
-Rangkuman teknis `palmgrade-vision` — Python AI camera service untuk sistem grading kelapa sawit.
+Rangkuman teknis `autograde` — Python AI camera service untuk sistem grading kelapa sawit.
 
 ## Tujuan Project
 
@@ -34,7 +34,7 @@ Dijalankan sebagai **3 container terpisah** (line 1/2/3), masing-masing satu por
 ## Folder Structure
 
 ```
-palmgrade-vision/
+autograde/
   src/
     palmgrade/
       main.py                  # FastAPI app factory + middleware + lifecycle
@@ -57,7 +57,7 @@ palmgrade-vision/
       core/                    # Config, logging, constants, DI wiring
       license/                 # License guard (Ed25519 JWS, optional)
 
-  cli/                         # Script CLI offline (training, predict)
+  images/                      # sample_sawit.jpg — gambar contoh untuk CAMERA_TYPE=photo
   models/
     release/                   # Model .pt produksi — tidak di-commit ke git
   artifacts/                   # Output runtime — tidak di-commit ke git
@@ -87,17 +87,22 @@ palmgrade-vision/
 
 ## Detection Model
 
-1 model (`best_3class_v2.pt`) mendeteksi 3 kelas sekaligus:
+1 model (`best.pt`) mendeteksi 3 kelas sekaligus:
 - `acc` — buah matang / diterima
 - `rej` — buah tidak matang / ditolak
 - `tp` — tangkai panjang (long stalk)
 
 **Single-trigger detection** (bukan vote):
 - Track setiap buah via ByteTrack `track_id`
-- Saat pusat bounding box buah berada di dalam ROI box → simpan langsung (satu kali per track_id)
+- Saat kotak buah **MENYENTUH garis capture** → simpan langsung (satu kali per track_id).
+  ⚠️ Sejak 2026-09-18, menggantikan "pusat bounding box masuk ROI box": aturan lama memfoto
+  janjang saat **separuhnya sudah lewat**, dan dengan ROI bawaan `0,0,0,0` (= seluruh layar)
+  berarti begitu terdeteksi di mana pun. ROI tetap menyaring **wilayah**, garis menentukan **waktu**
 - `MINIMUM_SIZE = 460000 px²` — buah < threshold → auto `rej`
-- TP yang terdeteksi disimpan sebagai JSON terpisah, dipasangkan dengan buah via timestamp
-- TP tidak dicek ROI — selalu diterima dari posisi manapun
+- TP dipasangkan ke janjang **terdekat** (`domain/garis_capture.tp_untuk_janjang`), bukan via
+  timestamp. ⚠️ Aturan lama (satu slot "TP terakhir terlihat" → janjang berikutnya yang lewat
+  garis) menempelkan tangkai milik janjang A ke janjang B; keduanya salah bayar dan senyap
+- TP tidak dicek ROI maupun garis — selalu diterima dari posisi manapun
 
 **ROI Box Detection Zone:**
 - Dikontrol via env var: `ROI_X1`, `ROI_Y1`, `ROI_X2`, `ROI_Y2` (semua dalam pixel)
@@ -132,7 +137,7 @@ Semua hasil grading hari ini.
       "tp_status": "PASS",
       "tp_confidence": 0.88,
       "timestamp": "2026-05-18T10:30:00.123456",
-      "image_url": "captures/results/2026-05-18/2026-05-18_103000_auto.webp",
+      "image_url": "captures/results/2026-05-18/083000_B1234XY_a3f9c201/bbox/rej/2026-05-18_103000_auto.webp",
       "capture_type": "auto",
       "truck_id": "uuid-or-null",
       "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 }
@@ -155,9 +160,10 @@ Set truck ID aktif untuk line ini secara langsung ke vision.
 
 Terima assignment dari palmgrade-api. Protected by `x-internal-secret: WEBHOOK_SECRET`.
 
-- **Request body:** `{ "machine_id", "assignment_id", "truck_id", "assigned_at" }`
+- **Request body:** `{ "machine_id", "assignment_id", "truck_id", "assigned_at", "ffb_source"?, "plate"? }`
 - **Response:** `{ "accepted": true, "machine_id", "truck_id", "assignment_id" }`
-- **Side effect:** Set `state.current_truck_id` + `state.current_assignment_id` — semua event selanjutnya punya `assignment_id` ini.
+- **Side effect:** Set `state.current_truck_id` + `state.current_assignment_id` — semua event selanjutnya punya `assignment_id` ini. `plate` + `assigned_at` juga disimpan, dipakai buat **menamai folder capture** truk itu (`domain/capture_layout.py`).
+- ⚠️ `plate` itu **label, bukan identitas** — `truck_id` tetap kunci semua angka. Opsional: konsol lama tidak mengirimnya, dan line yang menolak payload tanpa `plate` akan menghentikan penugasan saat upgrade separuh jalan. Dikirim karena `truck_id` itu uuid5 **dari** plat dan tidak bisa dibalik.
 
 ### `POST /internal/manual-reject`
 
@@ -216,10 +222,14 @@ Status operasional container.
     "workers": [
       { "name": "capture", "alive": true },
       { "name": "display", "alive": true },
-      { "name": "processing", "alive": true }
+      { "name": "processing", "alive": true },
+      { "name": "capture_save", "alive": true }
     ],
     "outbox_pending": 0,
     "outbox_failed": 0,
+    "capture_save_pending": 0,
+    "capture_save_dropped": 0,
+    "tp_telat": 0,
     "current_assignment_id": "uuid-or-null",
     "last_successful_api_push": null
   }
@@ -230,6 +240,9 @@ Status operasional container.
 > | Field | Artinya |
 > |---|---|
 > | `outbox_pending` / `outbox_failed` | backlog ke **API lokal** (`BACKEND_URL`). Naik terus = API lokal tidak menjawab. **Bukan** indikator backlog upload cloud |
+> | `capture_save_pending` | janjang yang menunggu ditulis `CaptureSaveWorker` (antrean 8 dalam). Naik terus = disk/CPU tidak mengimbangi laju grading |
+> | `capture_save_dropped` | **harus NOL.** Janjang yang dibuang karena antrean penuh: sudah dapat pulse PLC dan sudah masuk rekap, tapi **tidak punya gambar maupun sidecar** — jadi `BatchUploadWorker._scan()` tidak akan pernah menemukannya. Tidak ada retry (menahan deteksi mengembalikan lag ~590 ms yang dihilangkan); yang dikejar penyebabnya |
+> | `tp_telat` | **harus NOL.** TP yang muncul sesudah janjang terdekatnya difoto, jadi tangkainya tidak ikut ke mana pun. Angka yang naik = alasan terukur untuk menahan penyimpanan sesaat menunggu TP menyusul |
 > | `last_successful_api_push` | waktu POST terakhir yang sukses ke API lokal; `null` = belum pernah ada yang terkirim sejak start |
 > | `workers[]` | memuat `outbox_retry` dan `plc` (kalau aktif), tapi **tidak** `BatchUploadWorker` — batch upload itu job APScheduler, bukan thread ter-register, jadi **watchdog `_watchdog` tidak memantaunya** |
 > | `plc` | `null` kalau `PLC_ENABLED=false` (normal di cloud & PC dev). Kalau terisi: `inputs` (index 0-9 motor fault, index 10 E-stop), plus dua counter drop yang **naik monoton** — yang berarti selisih antar-polling, bukan nilai absolut. Detail: `docs/plc-integration.md` |
@@ -249,6 +262,25 @@ Push event realtime ke client saat ada detection baru. Legacy endpoint — masih
 
 ---
 
+## Console Dev Lanes (`APP_MODE=console`, Task 14)
+
+Surface terpisah dari tabel di atas — berjalan sebagai konsol (`routes/console.py`), bukan `main.py`. Sembilan lane ini melayani enam layar developer (Log, Diagnostik, Antrean ERP, Versi, Setelan, Uji PLC); semuanya lewat `require_support` dan dijawab **403** kalau operator yang masuk bukan `role='support'`. Detail rasionalnya: CLAUDE.md, Critical Rule 21.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/console/dev/ping` | cek akses masih hidup, tanpa membaca apa pun |
+| GET | `/api/console/dev/log` | `event_log` — filter `level`/`cari`, `limit`+`offset` |
+| GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu jawaban |
+| GET | `/api/console/dev/antrean` | `erp_outbox` — jumlah pending/gagal + daftar gagal |
+| GET | `/api/console/dev/antrean/manifest` | antrean manifest R2 (DB terpisah dari `erp_outbox`, supaya R2 mati tidak menahan pesan AutoERP) |
+| POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox`. **`attempts` sengaja tidak di-reset** — itu yang membedakan "macet selamanya" dari "gangguan sesaat" |
+| GET | `/api/console/dev/versi` | versi image + status lisensi |
+| GET / POST | `/api/console/dev/setelan` | lima setelan grading dari layar Setelan: `conf_threshold`, `minimum_size`, `garis_capture`, `sumbu_garis`, `mode_dev`. Tersimpan di konsol, disebar ke tiga line, berlaku tanpa restart |
+| GET | `/api/console/dev/plc/{line_code}` | snapshot DI + coil yang boleh diuji — baca saja |
+| POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil — satu-satunya lane yang menggerakkan hardware; tiga pengaman (assignment line, konfirmasi ketik, WARNING tiap percobaan) |
+
+---
+
 ## Realtime Processing Flow
 
 ```
@@ -260,8 +292,8 @@ Hikrobot Camera (GigE via RJ45 LAN)
 frame_queue                      state.latest_raw_frame
   ↓                                       ↓
   ↓ [FrameProcessingWorker]    [DisplayWorker — sole MJPEG writer]
-  ├── YOLO track() → detect     ├── draw_boxes() + zone lines
-  ├── direction-aware zone       ├── resize to STREAM_WIDTH×STREAM_HEIGHT
+  ├── YOLO track() → detect     ├── draw_boxes() + kotak ROI + garis capture biru
+  ├── garis capture (kotak janjang menyentuh garis; ROI menyaring wilayah)       ├── resize to STREAM_WIDTH×STREAM_HEIGHT
   ├── _processed_objects check   └── imencode → state.latest_frame
   ├── Single-trigger save:            + frame_condition.notify_all()
   │     ├── write_image() WebP
@@ -273,7 +305,7 @@ frame_queue                      state.latest_raw_frame
   ↓ [EventBroadcastWorker — asyncio task]
 WebSocket clients
 
-results/{date}/*.webp + *_ripeness.json   ← hasil save di atas
+results/{date}/{truk}/{bbox|clean}/{acc|rej}/*.webp + results/{date}/*_ripeness.json   ← hasil save di atas
   ↓ [UploadScheduler — APScheduler cron, tiap jam pada menit UPLOAD_MINUTE]
 BatchUploadWorker.run_batch_once()
   ├── _scan() → UploadManifest (state/upload_manifest.db)
@@ -312,14 +344,12 @@ Keduanya **wajib** acquire `state.lock` sebelum memanggil `camera.grab_frame()`.
 artifacts/
   results/
     {YYYY-MM-DD}/
-      {timestamp}_auto.webp             # Annotated frame buah (WebP, quality 65)
+      {HHMMSS}_{plat}_{assign8}/bbox/{acc|rej}/{timestamp}_auto.webp   # bergambar kotak
+      {HHMMSS}_{plat}_{assign8}/clean/{acc|rej}/{timestamp}_auto.webp  # polos, buat latihan
       {timestamp}_auto_ripeness.json    # Metadata grading
       {timestamp}_auto_tp.json          # Metadata TP (jika ada)
       {timestamp}_manual.webp           # Manual capture
       {timestamp}_manual_ripeness.json  # suffix _ripeness wajib — dibaca oleh list_today_results()
-  captures/                             # legacy — tidak ditulis lagi
-  errors/                               # legacy — tidak ditulis lagi (REJ ditemukan via metadata ripeness_status)
-  logs/
   outbox.db                             # antrean realtime ke API lokal
 
 state/line-N/  ↔ /app/state             # SIBLING artifacts/, sengaja DI LUAR mount /captures
@@ -330,7 +360,9 @@ state/line-N/  ↔ /app/state             # SIBLING artifacts/, sengaja DI LUAR 
 `UPLOAD_RETENTION_DAYS` (default 7). Setelah itu satu-satunya salinan gambar ada di R2
 (`captures.smagri.id`). Item `poisoned` sengaja tidak ikut dihapus.
 
-`image_url` di response: `captures/results/{date}/{timestamp}_auto.webp`
+`image_url` di response: `captures/results/{date}/{HHMMSS}_{plat}_{assign8}/{bbox|clean}/{acc|rej}/{timestamp}_auto.webp`
+⚠️ Sidecar JSON-nya **tidak** ikut ke subfolder — `BatchUploadWorker._scan()` memakai
+`glob("*/*_ripeness.json")` (kedalaman dipatok dua). Lihat `domain/capture_layout.py`.
 
 FastAPI mount static: `app.mount("/captures", StaticFiles(directory="artifacts"))`
 
@@ -340,19 +372,18 @@ FE akses via: `${LINE_N_URL}/captures/results/{date}/{filename}`
 
 ## Event Delivery ke palmgrade-api (dua jalur)
 
-- **Realtime → API lokal.** `OutboxStore.add_event()` dipanggil di jalur deteksi; `OutboxRetryWorker`
+- **Realtime → API lokal.** `OutboxStore.add_event()` dipanggil `CaptureSaveWorker` (sesudah gambarnya benar-benar ada di disk), bukan di jalur deteksi; `OutboxRetryWorker`
   mem-poll tiap 1 detik dan POST ke `BACKEND_URL`. Ini yang dilihat operator di PC pabrik, dan
   satu-satunya jalur yang hidup saat internet mati. `image_path` tetap relatif — api meng-serve
   gambarnya dari mount `artifacts/` read-only.
-- **Batch → cloud.** Sejak spec batch-upload-r2
-  (`docs/superpowers/specs/2026-07-10-batch-upload-r2-design.md`), **file hasil deteksi di disk ITU
-  antriannya**; `BatchUploadWorker` men-scan tiap jam, `PUT` gambar ke R2, lalu POST ke
+- **Batch → cloud.** **File hasil deteksi di disk ITU antriannya** (rincian alur dan kelas
+  kegagalannya di `docs/overview.md` §4); `BatchUploadWorker` men-scan tiap jam, `PUT` gambar ke R2, lalu POST ke
   `UPLOAD_API_URL`. Lag ke cloud sampai ~1 jam — itu memang desainnya.
 
 `event_id` identik di kedua jalur, jadi tidak ada risiko dobel.
 
 ```
-FrameProcessingWorker / CaptureService
+CaptureSaveWorker (jalur auto) / CaptureService (jalur manual)
     → tulis WebP + {ts}_*_ripeness.json ke artifacts/results/{date}/     ← antriannya
         ↓ [UploadScheduler — APScheduler cron, tiap jam @ UPLOAD_MINUTE]
     BatchUploadWorker.run_batch_once()
@@ -429,12 +460,16 @@ FrameProcessingWorker / CaptureService
 | `BACKEND_URL` | `http://localhost:2500` | palmgrade-api base URL |
 | `BACKEND_API_VER` | `/api/v1` | Prefix versi API untuk canonical events URL |
 | `WEBHOOK_SECRET` | — | Shared secret header, harus cocok dengan palmgrade-api |
-| `MODEL_FILE` | `best_3class_v2.pt` | Nama file model di `models/release/` |
+| `MODEL_FILE` | `best.pt` | Nama file model di `models/release/` |
 | `CONF_THRESHOLD` | `0.75` | Minimum confidence YOLO |
 | `MINIMUM_SIZE` | `460000` | Minimum area bounding box (px²) — di bawah ini auto rej |
+| `GARIS_CAPTURE` | `0` | Garis capture (px, ruang **stream**). Janjang difoto saat kotaknya menyentuh garis ini. `0` = tanpa garis. **Nilai awal saja** — yang dipakai diatur dari layar support konsol |
+| `SUMBU_GARIS` | `tegak` | Sumbu garis: `tegak` (conveyor mendatar, px dari **kiri**) / `mendatar` (conveyor menurun, px dari **atas**). Nilai awal saja |
+| `MODE_DEV` | `false` | `true` = angka keyakinan ikut digambar di kotak janjang. Untuk support yang menyetel ambang, **bukan** untuk operator. Nilai awal saja |
 | `CAMERA_TYPE` | `hikrobot` | Sumber kamera: `hikrobot` / `opencv` (webcam atau video file) / `photo` |
 | `CAMERA_DEVICE_INDEX` | `0` | Index device webcam (dipakai kalau `CAMERA_TYPE=opencv` tanpa `CAMERA_VIDEO_PATH`). Di-set docker-compose per line (`0/1/2`) — nilai di `.env` hanya berlaku saat run lokal tanpa Docker |
 | `CAMERA_VIDEO_PATH` | — | Path video file di dalam container (dipakai kalau `CAMERA_TYPE=opencv`) |
+| `CAMERA_VIDEO_LOOP` | `false` | `true` = video diulang terus sampai line di-stop (uji performa); tiap putaran baru me-reset ByteTrack. `false` = diputar sekali lalu capture diam. Tidak berefek ke kamera Hikrobot |
 | `CAMERA_PHOTO_PATH` | — | Path image statis di dalam container (wajib kalau `CAMERA_TYPE=photo`). Kosong → `PhotoCamera` raise saat connect |
 | `MACHINE_ID` | — | UUID dari tabel `machines` di PostgreSQL — berbeda per container. Di-set docker-compose dari `LINE_{1,2,3}_MACHINE_ID` (fallback UUID seed); `MACHINE_ID` di `.env` hanya untuk run lokal tanpa Docker |
 | `ROI_X1` | `0` | Batas kiri area deteksi (px) |
@@ -473,6 +508,8 @@ FrameProcessingWorker / CaptureService
 | `PLC_QUEUE_MAX` | `1` | Berapa banyak pulse boleh terutang per coil = **berapa lama sinyal boleh basi** (`queue_max × (pulse+gap)`), bukan kapasitas. Penuh → drop + hitung (`PulseScheduler.dropped`) |
 | `PLC_POLL_MS` | `200` | Interval polling `PlcWorker` — sekaligus keepalive watchdog ODOT |
 | `PLC_DI_COUNT` | `16` | Jumlah discrete input yang dibaca tiap poll |
+| `ERP_ALLOWED_ROLES` | `support` | **Konsol saja.** Peran mana yang boleh datang dari AutoERP (`domain/role.py`, `filter_erp_role`). Kosong = tolak semua akun ERP dari lane developer — satu-satunya rem sisi pabrik, tanpa menyentuh AutoERP |
+| `LOG_RETENSI_HARI` | `180` | **Konsol saja.** Berapa lama baris `log_kejadian` (ERROR/WARNING, layar Log support) disimpan sebelum dibuang |
 
 > Detail lengkap (coil map, hardware part number, throughput ceiling, open hardware questions): `docs/plc-integration.md`.
 
@@ -482,7 +519,7 @@ FrameProcessingWorker / CaptureService
 
 | File | Keterangan |
 |---|---|
-| `models/release/best_3class_v2.pt` | Model utama — deteksi 3 kelas: acc, rej, tp. v2: dataset 2x lebih besar, TP conf lebih stabil |
+| `models/release/best.pt` | Model utama — deteksi 3 kelas: acc, rej, tp. v2: dataset 2x lebih besar, TP conf lebih stabil |
 
 Model di-load saat startup. Jika file tidak ditemukan, server gagal start.
 Model tidak di-commit ke git (ada di `.gitignore` via `*.pt`).

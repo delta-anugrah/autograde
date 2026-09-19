@@ -26,7 +26,9 @@ from typing import Any
 import httpx
 
 from ..core.config import Settings
-from ..domain.vision_event import event_id_for
+from ..domain.capture_layout import thumb_key_of, thumb_twin_of, twins_of
+from ..domain.grade_class import grade_class_or_none
+from ..domain.vision_event import event_id_for, prediction_for, verdict_of
 from ..integrations.upload.r2_uploader import R2Uploader, build_r2_key
 from ..integrations.upload.upload_manifest import UploadManifest
 
@@ -163,6 +165,15 @@ class BatchUploadWorker:
         ripeness_status = meta.get("ripeness_status")
         if not ripeness_status:
             raise _PoisonError(f"ripeness_status hilang: {json_path}")
+        # Divalidasi pakai kosakata yang sama dengan jalur realtime. Dulu baris
+        # ini `"Acc" if ... == "acc" else "Rej"`: verdict asing diam-diam jadi
+        # Rej, jadi satu sidecar cacat mengirim janjang bagus ke cloud sebagai
+        # REJ tanpa sepatah pun peringatan. `_PoisonError`, bukan ValueError
+        # telanjang — satu berkas busuk tidak boleh menyandera seluruh batch.
+        try:
+            verdict = verdict_of(ripeness_status)
+        except ValueError as exc:
+            raise _PoisonError(f"{exc}: {json_path}") from exc
 
         image_ref = self._image_ref(meta)
         if not image_ref:
@@ -183,8 +194,11 @@ class BatchUploadWorker:
             "event_id": item["event_id"],
             "machine_id": self.settings.machine_id,
             "timestamp": meta.get("timestamp"),
-            "prediction": "Acc" if str(ripeness_status).lower() == "acc" else "Rej",
-            "ripeness_status": str(ripeness_status).upper(),
+            "prediction": prediction_for(verdict),
+            "ripeness_status": verdict,
+            # Sama dengan jalur realtime; dibaca dari sidecar. Baris lama tidak
+            # punya kunci ini dan tetap sah — nilainya None.
+            "grade_class": grade_class_or_none(meta.get("grade_class")),
             "ripeness_confidence": meta.get("ripeness_confidence", 0),
             "tp_status": tp_status,
             "tp_confidence": tp_confidence,
@@ -240,8 +254,33 @@ class BatchUploadWorker:
                 raise _PoisonError(f"file gambar hilang: {local}") from exc
             except Exception as exc:
                 raise _RequeueError(f"PUT R2 gagal: {exc}") from exc
+
+            thumb_local = thumb_twin_of(local)
+            thumb_key = thumb_key_of(item["r2_key"])
+            if thumb_local is not None and thumb_local.exists() and thumb_key is not None:
+                try:
+                    self.uploader.put(thumb_local, thumb_key)
+                except Exception as exc:  # noqa: BLE001 — a preview must not hold the queue
+                    # Never fatal, and never a poison: the annotated image — the
+                    # evidence — is already in R2, so a picture the viewer can do
+                    # without must not hold back every image and event queued
+                    # behind it (batch-fatal is reserved for global conditions,
+                    # the docstring above). This item is not requeued for the
+                    # thumbnail alone, and nothing else revisits this PUT, so a
+                    # failure here is not a delay — the thumbnail is permanently
+                    # missing for this bunch. The viewer falls back to the full
+                    # image when the thumbnail is absent (static/viewer.html).
+                    logger.warning("PUT thumb R2 gagal (%s): %s", thumb_key, exc)
+
             self.manifest.mark_image_uploaded(item["id"])
             item["status"] = "image_uploaded"
+
+        if not self.settings.upload_events_url:
+            # No text receiver: the image is the upload. An item with no image at
+            # all (an orphan tp sidecar) has nothing to send — done, so retention
+            # can clean it up rather than poison holding the file forever.
+            self.manifest.mark_done(item["id"])
+            return
 
         payload = self._build_payload(item)  # bisa raise _PoisonError
         headers = {
@@ -275,9 +314,15 @@ class BatchUploadWorker:
         if json_path.name.endswith("_auto_ripeness.json"):
             targets.append(json_path.with_name(json_path.name.replace("_auto_ripeness.json", _TP_SUFFIX)))
         if item["image_path"]:
-            targets.append(
+            annotated = (
                 self.settings.artifacts_dir / item["image_path"].lstrip("/").removeprefix("captures/")
             )
+            targets.append(annotated)
+            # The clean and thumb twins are deleted here or by nothing at all: they
+            # have no manifest row of their own, so both age-based retention and the
+            # disk guard would sweep `done` items while freeing only part of the
+            # bytes — until the disk fills and `write_image` stops grading (Rule #8/#9).
+            targets.extend(twins_of(annotated))
         for t in targets:
             t.unlink(missing_ok=True)
         self.manifest.delete_item(item["id"])

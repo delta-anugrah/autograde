@@ -13,6 +13,31 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+ACC = "ACC"
+REJ = "REJ"
+VERDICTS = (ACC, REJ)
+
+
+def verdict_of(ripeness_status: str | None) -> str:
+    """Verdict satu janjang, dinormalkan. ValueError kalau di luar `VERDICTS`.
+
+    The vocabulary lives here because both ends of the wire need it: the line
+    writes this field, and the console sums ACC and REJ out of it into the
+    figures AutoERP books. Case is not part of the value — a manual capture is
+    written lower case (`core/constants.py`).
+    """
+    verdict = str(ripeness_status or "").strip().upper()
+    if verdict not in VERDICTS:
+        raise ValueError(
+            f"ripeness_status tidak dikenal: {ripeness_status!r} - harus {' atau '.join(VERDICTS)}"
+        )
+    return verdict
+
+
+def prediction_for(verdict: str) -> str:
+    """AutoERP's spelling of the same verdict; it refuses anything else."""
+    return "Acc" if verdict == ACC else "Rej"
+
 
 def event_id_for(machine_id: str, file_ts: str) -> str:
     """Identitas event = machine + timestamp file (unik per detik per line).
@@ -39,6 +64,7 @@ def build_event_payload(
     bounding_box: dict[str, Any] | None = None,
     tp_status: str | None = None,
     tp_confidence: float | None = None,
+    grade_class: str | None = None,
 ) -> dict[str, Any]:
     """`image_path` HARUS relatif (`captures/results/<tgl>/<file>.webp`).
 
@@ -48,13 +74,18 @@ def build_event_payload(
     hanya dipakai jalur batch upload ke cloud.
     """
     status = ripeness_status.upper()
+    # `grade_class` menemani verdict, tidak menggantikannya: `prediction` dan
+    # `ripeness_status` tetap biner karena piston dan buku besar AutoERP memang
+    # biner. Field ini opsional supaya event lama (dan capture manual, yang tidak
+    # lewat model) tetap sah tanpa menebak kelasnya.
     return {
         "event_id": event_id_for(machine_id, file_ts),
+        "grade_class": grade_class,
         "machine_id": machine_id,
         "assignment_id": assignment_id,
         "truck_id": truck_id,
         "timestamp": timestamp,
-        "prediction": "Acc" if status == "ACC" else "Rej",
+        "prediction": prediction_for(status),
         "ripeness_status": status,
         "ripeness_confidence": round(ripeness_confidence, 2),
         "tp_status": tp_status,

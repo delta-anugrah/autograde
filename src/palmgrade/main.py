@@ -5,6 +5,7 @@ import logging
 import threading
 from contextlib import asynccontextmanager
 
+import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,10 +32,12 @@ from .license.gate import grading_blocked
 from .license.guard import LicenseGuardMiddleware
 from .license.local_repo import LicenseLocalRepo
 from .license.manager import LicenseManager
+from .domain.setelan_grading import bersihkan_setelan
 from .integrations.scheduler.upload_scheduler import UploadScheduler
 from .integrations.upload.r2_uploader import R2Uploader
 from .integrations.upload.upload_manifest import UploadManifest
 from .workers.batch_upload_worker import BatchUploadWorker
+from .workers.capture_save_worker import CaptureSaveWorker
 from .routes.capture import router as capture_router
 from .routes.health import router as health_router
 from .routes.inspection import router as inspection_router
@@ -49,6 +52,57 @@ from .plc import shutdown_plc_worker, start_plc_worker
 load_dotenv(override=False)
 
 logger = logging.getLogger(__name__)
+
+
+async def _tarik_setelan_grading(settings, state) -> None:
+    """Tanya konsol berapa setelan grading yang berlaku, sekali saat start.
+
+    Override di `RuntimeState` hilang bersama prosesnya, jadi container line yang
+    dibuat ulang akan kembali memakai `.env` — padahal konsol masih memegang
+    angka yang sudah disetujui. Tanpa tarikan ini, satu `docker compose up` di
+    tengah shift diam-diam mengembalikan ambang lama dan tidak ada yang tahu
+    sampai tonase harian terlihat aneh.
+
+    Gagal = diam dan pakai `.env`. Konsol yang belum hidup saat line start itu
+    kejadian normal (urutan start container tidak dijamin), dan line yang menolak
+    start gara-gara itu jauh lebih buruk daripada line yang jalan dengan nilai
+    `.env` sampai setelan berikutnya disimpan.
+    """
+    url = f"{settings.backend_url}{settings.backend_api_ver}/internal/setelan"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.get(
+                url, headers={"x-webhook-secret": settings.webhook_secret}
+            )
+        if res.status_code != 200:
+            logger.info("Setelan grading tidak diambil (HTTP %s) — pakai .env", res.status_code)
+            return
+        data = res.json()
+        if data.get("sumber") != "konsol":
+            # Konsol belum pernah diubah dari layar: nilainya memang .env, dan
+            # menimpanya dengan angka yang sama cuma bikin log membingungkan.
+            return
+        # `garis_capture` ikut kalau konsolnya sudah tahu field itu; konsol lama
+        # tidak mengirimnya, dan `bersihkan_setelan` mengisinya 0 (garis mati).
+        bersih = bersihkan_setelan(
+            {
+                k: data[k]
+                for k in ("conf_threshold", "minimum_size", "garis_capture", "sumbu_garis", "mode_dev")
+                if k in data
+            }
+        )
+        state.conf_threshold_override = bersih["conf_threshold"]
+        state.minimum_size_override = bersih["minimum_size"]
+        state.garis_capture_override = bersih["garis_capture"]
+        state.sumbu_garis_override = bersih["sumbu_garis"]
+        state.mode_dev_override = bersih["mode_dev"]
+        logger.info(
+            "Setelan grading diambil dari konsol: conf=%s minimum_size=%s garis=%s sumbu=%s",
+            bersih["conf_threshold"], bersih["minimum_size"],
+            bersih["garis_capture"], bersih["sumbu_garis"],
+        )
+    except Exception as exc:
+        logger.info("Setelan grading tidak bisa diambil (%s) — pakai .env", exc)
 
 
 def create_app() -> FastAPI:
@@ -66,8 +120,9 @@ def create_app() -> FastAPI:
             await _lic_manager.init()
             asyncio.create_task(_lic_manager.run_clock_ratchet())
 
-        for folder in [settings.captures_dir, settings.results_dir, settings.errors_dir, settings.logs_dir]:
-            folder.mkdir(parents=True, exist_ok=True)
+        # Only `results/`. Nothing writes to the others: REJ images are found
+        # through `ripeness_status` metadata, and logs go to stdout for Docker.
+        settings.results_dir.mkdir(parents=True, exist_ok=True)
 
         # Fail-fast kalau secret masih default di production (dev tetap boleh,
         # cuma warning). Lihat Settings.validate_for_runtime().
@@ -88,6 +143,7 @@ def create_app() -> FastAPI:
                 height=settings.camera_height,
                 fps=settings.camera_fps,
                 is_video_file=bool(settings.camera_video_path),
+                loop=settings.camera_video_loop,
             )
         elif camera_type == "photo":
             camera = PhotoCamera(path=settings.camera_photo_path)
@@ -105,6 +161,10 @@ def create_app() -> FastAPI:
 
         state = get_runtime_state()
         state.main_loop = asyncio.get_running_loop()
+
+        # Sesudah `state` ada, sebelum worker deteksi menyala: setelan yang
+        # dipegang konsol harus sudah terpasang saat janjang pertama lewat.
+        await _tarik_setelan_grading(settings, state)
 
         # Gerbang lisensi untuk thread grading. Fail CLOSED: token yang tidak
         # bisa diverifikasi meninggalkan license_exp = 0, dan 0 berarti kamera
@@ -139,6 +199,15 @@ def create_app() -> FastAPI:
             settings=settings,
             target_fps=settings.stream_fps or 12,
         )
+        # Penulis bukti, thread sendiri. Encode WebP frame sensor penuh memakan
+        # ~285 ms per gambar (diukur di PC Lampung 2026-09-17), dan selama itu
+        # dulu deteksi BERHENTI — frame dibuang diam-diam, ByteTrack kehilangan
+        # jejak, layar membeku. Dipisah supaya biaya itu dipikul core lain.
+        capture_saver = CaptureSaveWorker(
+            settings=settings,
+            storage=storage_instance,
+            outbox_store=get_outbox_store(),
+        )
         processing_worker = FrameProcessingWorker(
             pipeline=pipeline,
             state=state,
@@ -146,12 +215,17 @@ def create_app() -> FastAPI:
             webhook=webhook,
             settings=settings,
             outbox_store=get_outbox_store(),
+            capture_saver=capture_saver,
         )
 
         state.worker_threads = [
             ("capture", _start_worker("capture", capture_worker.run_loop), capture_worker),
             ("display", _start_worker("display", display_worker.run_loop), display_worker),
             ("processing", _start_worker("processing", processing_worker.run_loop), processing_worker),
+            # Didaftarkan seperti worker lain supaya ikut diawasi watchdog 10
+            # detik: penulis yang mati tanpa pengganti berarti grading jalan,
+            # PLC menyortir, layar menghitung — dan nol bukti tersimpan.
+            ("capture_save", _start_worker("capture_save", capture_saver.run_loop), capture_saver),
         ]
 
         # OutboxRetryWorker — kirim event ke API di BACKEND_URL, poll 1 detik.
@@ -227,17 +301,32 @@ def create_app() -> FastAPI:
 
         from .core.dependencies import get_camera
 
-        # PLC didahulukan: saat SIGTERM tiba, coil OK/NG punya peluang ~2 dari 3
-        # sedang ON di tengah pulse (200ms ON dalam siklus 300ms). Kontrak coil
-        # itu "satu pulse = satu buah" — dibiarkan ON sampai watchdog ODOT
-        # menyerah (masih 30 detik) berarti PLC menyortir banyak buah dengan
-        # keputusan basi. Digarap best-effort: gagal di sini tidak boleh
-        # menghalangi sisa shutdown.
+        # PLC didahulukan: saat SIGTERM tiba, coil OK/NG punya peluang kira-kira
+        # 1 dari 2 sedang ON di tengah pulse (200ms ON dalam siklus 400 ms, 2
+        # tick). Kontrak coil itu "satu pulse = satu buah" — dibiarkan ON sampai
+        # watchdog ODOT menyerah (masih 30 detik) berarti PLC menyortir banyak
+        # buah dengan keputusan basi. Digarap best-effort: gagal di sini tidak
+        # boleh menghalangi sisa shutdown.
         try:
             plc_thread = next((t for name, t, _ in state.worker_threads if name == "plc"), None)
             shutdown_plc_worker(plc_thread)
         except Exception:
             logger.exception("Shutdown PLC gagal — shutdown lain tetap dilanjutkan")
+
+        # Janjang yang sudah digrading (dan sudah dapat pulse PLC) tapi belum
+        # sempat ditulis akan hilang bersama proses ini. Beri penulis kesempatan
+        # menghabiskan antreannya dulu — beberapa ratus milidetik per janjang,
+        # dan antreannya cuma tiga dalam. Best-effort: gagal di sini tidak boleh
+        # menahan sisa shutdown.
+        try:
+            if not capture_saver.tunggu_kosong(timeout=5.0):
+                logger.warning(
+                    "Shutdown: %d janjang masih di antrean simpan dan tidak sempat ditulis",
+                    capture_saver.antrean,
+                )
+            capture_saver.stop(timeout=2.0)
+        except Exception:
+            logger.exception("Menguras antrean simpan gagal — shutdown dilanjutkan")
 
         try:
             camera = get_camera()

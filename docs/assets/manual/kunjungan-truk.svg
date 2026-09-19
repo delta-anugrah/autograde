@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 606" font-family="'Noto Sans','Helvetica Neue',Helvetica,Arial,sans-serif" role="img" aria-label="Alur truk sawit: timbang masuk, sortir, timbang keluar, pembayaran">
+  <defs>
+    <marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#134e5e"/>
+    </marker>
+  </defs>
+  <text x="490.0" y="34" text-anchor="middle" font-size="15.5" font-weight="700" fill="#134e5e">Perjalanan satu truk sawit, dari masuk pabrik sampai pemasok dibayar</text>
+  <text x="490.0" y="55" text-anchor="middle" font-size="11" font-weight="400" fill="#5a6670">Lima langkah. Angkanya dicatat sendiri oleh sistem, tidak ditulis ulang di kertas.</text>
+  <rect x="30" y="190.0" width="168" height="92" rx="7" fill="#fdf3e3" stroke="#c98a2b" stroke-width="1.4"/>
+  <text x="114.0" y="208.4" text-anchor="middle" font-size="12.5" font-weight="700" fill="#7a4f0e">1 · Truk masuk</text>
+  <text x="114.0" y="223.9" text-anchor="middle" font-size="12.5" font-weight="700" fill="#7a4f0e">ditimbang</text>
+  <text x="114.0" y="239.9" text-anchor="middle" font-size="9.8" fill="#8a6a3a">Petugas catat nomor</text>
+  <text x="114.0" y="252.2" text-anchor="middle" font-size="9.8" fill="#8a6a3a">polisi truk, lalu</text>
+  <text x="114.0" y="264.5" text-anchor="middle" font-size="9.8" fill="#8a6a3a">truk ditimbang</text>
+  <text x="114.0" y="276.8" text-anchor="middle" font-size="9.8" fill="#8a6a3a">bersama muatannya</text>
+  <rect x="222" y="190.0" width="168" height="92" rx="7" fill="#eef5f6" stroke="#1f7a8c" stroke-width="1.4"/>
+  <text x="306.0" y="208.4" text-anchor="middle" font-size="12.5" font-weight="700" fill="#134e5e">2 · Buah dituang,</text>
+  <text x="306.0" y="223.9" text-anchor="middle" font-size="12.5" font-weight="700" fill="#134e5e">kamera menilai</text>
+  <text x="306.0" y="239.9" text-anchor="middle" font-size="9.8" fill="#5a6670">Buah lewat di bawah</text>
+  <text x="306.0" y="252.2" text-anchor="middle" font-size="9.8" fill="#5a6670">kamera. Yang jelek</text>
+  <text x="306.0" y="264.5" text-anchor="middle" font-size="9.8" fill="#5a6670">disingkirkan otomatis</text>
+  <text x="306.0" y="276.8" text-anchor="middle" font-size="9.8" fill="#5a6670">dan naik lagi ke truk</text>
+  <rect x="414" y="190.0" width="168" height="92" rx="7" fill="#fdf3e3" stroke="#c98a2b" stroke-width="1.4"/>
+  <text x="498.0" y="208.4" text-anchor="middle" font-size="12.5" font-weight="700" fill="#7a4f0e">3 · Truk keluar</text>
+  <text x="498.0" y="223.9" text-anchor="middle" font-size="12.5" font-weight="700" fill="#7a4f0e">ditimbang lagi</text>
+  <text x="498.0" y="239.9" text-anchor="middle" font-size="9.8" fill="#8a6a3a">Buah jelek masih di</text>
+  <text x="498.0" y="252.2" text-anchor="middle" font-size="9.8" fill="#8a6a3a">atas truk, jadi yang</text>
+  <text x="498.0" y="264.5" text-anchor="middle" font-size="9.8" fill="#8a6a3a">dibayar hanya buah</text>
+  <text x="498.0" y="276.8" text-anchor="middle" font-size="9.8" fill="#8a6a3a">yang tinggal di pabrik</text>
+  <rect x="606" y="190.0" width="168" height="92" rx="7" fill="#134e5e" stroke="#134e5e" stroke-width="1.4"/>
+  <text x="690.0" y="208.4" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">4 · Kantor hitung</text>
+  <text x="690.0" y="223.9" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">otomatis</text>
+  <text x="690.0" y="239.9" text-anchor="middle" font-size="9.8" fill="#cfe3e8">Berat bersih, jumlah</text>
+  <text x="690.0" y="252.2" text-anchor="middle" font-size="9.8" fill="#cfe3e8">buah jelek, dan harga</text>
+  <text x="690.0" y="264.5" text-anchor="middle" font-size="9.8" fill="#cfe3e8">hari itu dihitung</text>
+  <text x="690.0" y="276.8" text-anchor="middle" font-size="9.8" fill="#cfe3e8">jadi nilai rupiah</text>
+  <rect x="798" y="190.0" width="168" height="92" rx="7" fill="#134e5e" stroke="#134e5e" stroke-width="1.4"/>
+  <text x="882.0" y="214.6" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">5 · Buah masuk gudang,</text>
+  <text x="882.0" y="230.1" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">pemasok dibayar</text>
+  <text x="882.0" y="246.1" text-anchor="middle" font-size="9.8" fill="#cfe3e8">Catatan gudang dan</text>
+  <text x="882.0" y="258.4" text-anchor="middle" font-size="9.8" fill="#cfe3e8">tagihan dibuat sendiri</text>
+  <text x="882.0" y="270.7" text-anchor="middle" font-size="9.8" fill="#cfe3e8">dari hitungan tadi</text>
+  <path d="M198,236 L219,236" fill="none" stroke="#134e5e" stroke-width="1.6" marker-end="url(#fa)"/>
+  <path d="M390,236 L411,236" fill="none" stroke="#134e5e" stroke-width="1.6" marker-end="url(#fa)"/>
+  <path d="M582,236 L603,236" fill="none" stroke="#134e5e" stroke-width="1.6" marker-end="url(#fa)"/>
+  <path d="M774,236 L795,236" fill="none" stroke="#134e5e" stroke-width="1.6" marker-end="url(#fa)"/>
+  <rect x="30" y="114.0" width="360" height="52" rx="7" fill="#ffffff" stroke="#8a949c" stroke-width="1.4" stroke-dasharray="5 3"/>
+  <text x="210.0" y="138.1" text-anchor="middle" font-size="11.5" font-weight="700" fill="#5a6670">Di pabrik — petugas timbangan dan operator</text>
+  <text x="210.0" y="153.1" text-anchor="middle" font-size="9.8" fill="#5a6670">orang yang menimbang, menuang buah, dan menekan tombol</text>
+  <rect x="414" y="114.0" width="168" height="52" rx="7" fill="#ffffff" stroke="#8a949c" stroke-width="1.4" stroke-dasharray="5 3"/>
+  <text x="498.0" y="131.9" text-anchor="middle" font-size="11.5" font-weight="700" fill="#5a6670">Kamera + komputer pabrik</text>
+  <text x="498.0" y="146.9" text-anchor="middle" font-size="9.8" fill="#5a6670">menilai buah, tidak</text>
+  <text x="498.0" y="159.2" text-anchor="middle" font-size="9.8" fill="#5a6670">perlu internet</text>
+  <rect x="606" y="114.0" width="360" height="52" rx="7" fill="#ffffff" stroke="#8a949c" stroke-width="1.4" stroke-dasharray="5 3"/>
+  <text x="786.0" y="138.1" text-anchor="middle" font-size="11.5" font-weight="700" fill="#5a6670">Di kantor — sistem pembukuan</text>
+  <text x="786.0" y="153.1" text-anchor="middle" font-size="9.8" fill="#5a6670">harga, potongan, stok gudang, dan pembayaran</text>
+  <rect x="30" y="328.0" width="552" height="100" rx="7" fill="#eef5f6" stroke="#1f7a8c" stroke-width="1.4"/>
+  <text x="306.0" y="357.4" text-anchor="middle" font-size="12.5" font-weight="700" fill="#134e5e">Yang dikirim pabrik ke kantor</text>
+  <text x="306.0" y="373.4" text-anchor="middle" font-size="10.2" fill="#5a6670">• nomor polisi truk</text>
+  <text x="306.0" y="386.1" text-anchor="middle" font-size="10.2" fill="#5a6670">• berat masuk dan berat keluar</text>
+  <text x="306.0" y="398.8" text-anchor="middle" font-size="10.2" fill="#5a6670">• jumlah buah bagus dan buah jelek</text>
+  <text x="306.0" y="411.4" text-anchor="middle" font-size="10.2" fill="#5a6670">Terkirim sendiri, tiga kali selama truk ada di pabrik.</text>
+  <rect x="606" y="328.0" width="360" height="100" rx="7" fill="#ffffff" stroke="#8a949c" stroke-width="1.4"/>
+  <text x="786.0" y="363.7" text-anchor="middle" font-size="12.5" font-weight="700" fill="#5a6670">Yang TIDAK dikirim ke kantor</text>
+  <text x="786.0" y="379.7" text-anchor="middle" font-size="10.2" fill="#5a6670">• foto tiap buah satu per satu</text>
+  <text x="786.0" y="392.4" text-anchor="middle" font-size="10.2" fill="#5a6670">  (tetap disimpan di pabrik sebagai bukti)</text>
+  <text x="786.0" y="405.1" text-anchor="middle" font-size="10.2" fill="#5a6670">Kantor cukup terima ringkasannya, bukan ribuan foto.</text>
+  <path d="M306.0,282.0 L306.0,325.0" fill="none" stroke="#134e5e" stroke-width="1.6" marker-end="url(#fa)"/>
+  <rect x="30" y="444.0" width="360" height="86" rx="7" fill="#ffffff" stroke="#8a949c" stroke-width="1.4" stroke-dasharray="5 3"/>
+  <text x="210.0" y="472.4" text-anchor="middle" font-size="12" font-weight="700" fill="#5a6670">Kalau internet putus?</text>
+  <text x="210.0" y="487.9" text-anchor="middle" font-size="10.2" fill="#5a6670">Timbangan dan kamera tetap jalan.</text>
+  <text x="210.0" y="500.6" text-anchor="middle" font-size="10.2" fill="#5a6670">Data menunggu di pabrik dan terkirim</text>
+  <text x="210.0" y="513.4" text-anchor="middle" font-size="10.2" fill="#5a6670">sendiri begitu internet nyambung lagi.</text>
+  <rect x="414" y="444.0" width="360" height="86" rx="7" fill="#ffffff" stroke="#8a949c" stroke-width="1.4" stroke-dasharray="5 3"/>
+  <text x="594.0" y="472.4" text-anchor="middle" font-size="12" font-weight="700" fill="#5a6670">Kalau truknya belum terdaftar?</text>
+  <text x="594.0" y="487.9" text-anchor="middle" font-size="10.2" fill="#5a6670">Petugas cukup ketik nomor polisinya.</text>
+  <text x="594.0" y="500.6" text-anchor="middle" font-size="10.2" fill="#5a6670">Truk langsung bisa dilayani; data pemilik</text>
+  <text x="594.0" y="513.4" text-anchor="middle" font-size="10.2" fill="#5a6670">dilengkapi orang kantor belakangan.</text>
+  <rect x="798" y="444.0" width="168" height="86" rx="7" fill="#ffffff" stroke="#8a949c" stroke-width="1.4" stroke-dasharray="5 3"/>
+  <text x="882.0" y="459.8" text-anchor="middle" font-size="12" font-weight="700" fill="#5a6670">Kenapa begini?</text>
+  <text x="882.0" y="475.2" text-anchor="middle" font-size="10.2" fill="#5a6670">Angka tidak</text>
+  <text x="882.0" y="487.9" text-anchor="middle" font-size="10.2" fill="#5a6670">dicatat ulang</text>
+  <text x="882.0" y="500.6" text-anchor="middle" font-size="10.2" fill="#5a6670">manual, jadi</text>
+  <text x="882.0" y="513.4" text-anchor="middle" font-size="10.2" fill="#5a6670">tidak bisa keliru</text>
+  <text x="882.0" y="526.1" text-anchor="middle" font-size="10.2" fill="#5a6670">atau hilang.</text>
+  <text x="490.0" y="590" text-anchor="middle" font-size="9.5" font-weight="400" fill="#8a949c" font-style="italic">Sistem kamera di pabrik (AutoGrade) mengirim ke sistem pembukuan kantor (AutoERP) · 16 September 2026</text>
+</svg>

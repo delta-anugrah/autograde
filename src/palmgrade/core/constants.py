@@ -1,4 +1,7 @@
-import cv2
+# cv2 is imported lazily, below `FONT`. Importing it at module level made every
+# constant here cost an OpenCV import, which kept the capture path out of the
+# unit suite (it runs without cv2 on purpose — CLAUDE.md § Tests). Only drawing
+# code needs `FONT`, and that code already imports cv2 itself.
 
 # Capture
 MANUAL_CAPTURE_PREDICTION = "rej"
@@ -10,10 +13,23 @@ AUTO_CAPTURE_SUFFIX = "auto"
 # Bounding box colors (BGR)
 COLOR_PASS = (0, 255, 0)   # hijau
 COLOR_FAIL = (0, 0, 255)   # merah
+# Tangkai panjang: kuning, sengaja bukan hijau maupun merah. TP bukan janjang
+# dan tidak punya verdict — menggambarnya hijau membuatnya terbaca "lolos",
+# merah membuatnya terbaca "dibuang", dan dua-duanya bohong.
+COLOR_TP = (0, 215, 255)   # kuning-amber (BGR)
 
-# Annotation font
-FONT = cv2.FONT_HERSHEY_SIMPLEX
+# Annotation font. Resolved on first access (PEP 562) rather than at import, so
+# that importing any other constant here does not require OpenCV. Its value is
+# unchanged: `cv2.FONT_HERSHEY_SIMPLEX`.
 FONT_COLOR = (255, 255, 255)  # putih
+
+
+def __getattr__(name: str):
+    if name == "FONT":
+        import cv2
+
+        return cv2.FONT_HERSHEY_SIMPLEX
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # Streaming
 JPEG_QUALITY_STREAM = 42
@@ -32,3 +48,9 @@ REF_LINE_THICKNESS = 7
 # ROI detection zone highlight (overlay semi-transparan di antara entry/exit line)
 COLOR_ROI = (0, 200, 0)    # hijau (BGR)
 ROI_ALPHA = 0.25             # opacity 25%
+
+# Garis pemicu capture — BIRU (BGR), diminta operator 2026-09-18.
+# Sengaja biru, bukan hijau: hijau sudah dipakai kotak ROI dan bbox janjang yang
+# lolos, dan operator perlu bisa menunjuk satu garis tanpa mengira itu bbox.
+COLOR_TRIGGER = (255, 120, 0)   # biru terang
+TRIGGER_THICKNESS = 3

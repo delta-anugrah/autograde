@@ -45,3 +45,11 @@ def test_put_propagates_client_error(tmp_path):
         raise AssertionError("harus raise")
     except ConnectionError:
         pass  # retry = urusan manifest, bukan uploader
+
+
+def test_put_bytes_with_a_content_type():
+    fake = Mock()
+    up = R2Uploader(account_id="a", access_key_id="k", secret_access_key="s", bucket="b", client=fake)
+    up.put_bytes(b'{"a":1}', "visits/v-1.json", content_type="application/json")
+    kwargs = fake.put_object.call_args.kwargs
+    assert (kwargs["Key"], kwargs["ContentType"], kwargs["Body"]) == ("visits/v-1.json", "application/json", b'{"a":1}')

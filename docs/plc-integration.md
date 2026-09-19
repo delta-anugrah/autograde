@@ -7,7 +7,9 @@ Teknologi Otomasi), yang tidak ada di repo — tabel alamat di bawah disalin apa
 sana, plus percakapan dengan pak Ocit (PLC engineer).
 
 Seluruh logika terkurung di paket `src/palmgrade/plc/`. Kode di luar paket ini hanya boleh
-menyentuh tiga fungsi: `start_plc_worker`, `submit_grading`, `inputs`.
+menyentuh fungsi yang diekspor `__init__.py`: `start_plc_worker`, `shutdown_plc_worker`,
+`submit_grading`, `inputs`, `diagnostics`, `request_piston`, `piston_state`, `picu_coil`,
+`testable_coils`.
 
 ---
 
@@ -59,14 +61,22 @@ minta pak Ocit mengalokasikan spare, jangan pakai diam-diam.
 
 ## Discrete input / DI — vision membaca (zero-based)
 
-| DI    | Alamat PLC  | Arti             |
-| ----- | ----------- | ---------------- |
-| 0–9   | Y0310–Y0319 | MOTOR 1–10 FAULT |
-| 10    | Y031A       | EMERGENCY STOP   |
-| 11–15 | Y031B–Y031F | SPARE            |
+| DI    | Alamat PLC  | Arti                                  |
+| ----- | ----------- | ------------------------------------- |
+| 0–10  | Y0310–Y031A | MOTOR 1–11 FAULT                      |
+| 11    | Y031B       | EMERGENCY STOP                        |
+| 12    | Y031C       | LINE 1: piston terbuka (konfirmasi)   |
+| 13    | Y031D       | LINE 2: piston terbuka (konfirmasi)   |
+| 14    | Y031E       | LINE 3: piston terbuka (konfirmasi)   |
+| 15    | Y031F       | SPARE                                 |
 
 Modbus function code `02` (read discrete inputs). Semua tiga line membaca discrete input yang
 sama — itu status bersama conveyor, bukan per-line.
+
+⚠️ **Digeser satu pada 2026-09-15: motor jadi 11, bukan 10.** Dulu motor di DI 0–9 dan E-stop di
+DI 10. Aplikasi sendiri **tidak pernah menafsirkan index mana pun kecuali `PLC_DI_MANUAL`** —
+`run_once` membaca blok 16 DI mentah dan menyimpannya apa adanya, jadi pergeseran ini murni
+perubahan env + dokumen, nol perubahan logika. Sisa spare tinggal satu.
 
 ---
 
@@ -139,11 +149,14 @@ Satu coil hanya bisa membawa satu pulse pada satu waktu. Dengan default `PLC_PUL
 `PLC_PULSE_GAP_MS=100`, kapasitas satu coil adalah:
 
 ```
-1 / (pulse_s + gap_s) = 1 / (0.2 + 0.1) ≈ 3.3 sinyal/detik
+Satu tick = PLC_POLL_MS. Pulse butuh 1 tick ON, jeda butuh 1 tick penuh
+(gap 100 ms dibulatkan ke atas), jadi satu siklus = 2 tick = 400 ms:
+
+  1 / (2 × 0,200 dtk) = 2,5 sinyal/detik
 ```
 
 Kamera always-ON bisa menghasilkan sampai **~10 keputusan grading/detik** per line. Itu jauh
-di atas 3,3/detik yang muat di satu coil OK atau NG. Konsekuensinya: **overflow adalah kondisi
+di atas 2,5/detik yang muat di satu coil OK atau NG. Konsekuensinya: **overflow adalah kondisi
 normal di bawah beban, bukan sesuatu yang salah.**
 
 Kebijakannya **DROP dan hitung — tidak pernah nge-lag**. Menahan sinyal di antrean supaya
@@ -157,12 +170,13 @@ diketahui (lihat "Belum diputuskan").
 
 ### `PLC_QUEUE_MAX` = harga staleness, bukan kapasitas
 
-`PulseScheduler` menguras satu pulse terutang tiap `pulse_s + gap_s` (default 300ms). Jadi
-antrean yang penuh berarti **setiap pulse yang diterima PLC mewakili keputusan dari
-`queue_max × 300ms` yang lalu**. Dengan `queue_max=20` itu 6 detik — pada belt berjalan, sinyal
-itu mendarat di buah yang benar-benar berbeda, terus-menerus, selama produksi normal.
+`PulseScheduler` menguras satu pulse terutang tiap satu siklus tick (400 ms — lihat "Throughput
+ceiling" di atas). Jadi antrean yang penuh berarti **setiap pulse yang diterima PLC mewakili
+keputusan dari `queue_max × 400 ms` yang lalu**. Dengan `queue_max=20` itu 8 detik — pada
+belt berjalan, sinyal itu mendarat di buah yang benar-benar berbeda, terus-menerus, selama
+produksi normal.
 
-Karena itu defaultnya **1**: paling banyak satu pulse terutang ⇒ staleness ≤ 300ms secara
+Karena itu defaultnya **1**: paling banyak satu pulse terutang ⇒ staleness ≤ 400 ms secara
 struktural, tanpa perlu state timestamp/discard tambahan. Menaikkan angka ini **tidak** membuat
 sinyal lebih andal — ia menukar drop (jujur, terhitung) dengan sinyal basi (diam-diam salah).
 
@@ -211,8 +225,8 @@ selama itu — pulse telat menempel ke buah yang salah.
 ## Shutdown — coil dimatikan, bukan ditinggal ON
 
 `make restart` adalah langkah deploy **dan** langkah tuning lapangan, jadi SIGTERM di tengah
-produksi itu rutin. Dengan `PLC_PULSE_MS=200` dalam siklus 300ms, peluang sebuah coil sedang ON
-saat sinyal itu tiba kira-kira 2 dari 3.
+produksi itu rutin. Dengan `PLC_PULSE_MS=200` dalam siklus 400 ms (2 tick), peluang sebuah coil
+sedang ON saat sinyal itu tiba kira-kira 1 dari 2.
 
 `shutdown_plc_worker()` (dipanggil `lifespan` sesudah `yield`) menjalankan, berurutan:
 
@@ -242,7 +256,7 @@ pada sinyal keselamatan.
 
 **Overflow sengaja TIDAK menaikkan ERROR.** Drop adalah steady state yang dideklarasikan di
 bawah beban (lihat "Throughput ceiling" di atas): kamera bisa ~10 keputusan/detik, satu coil muat
-~3,3. Kalau drop menggerakkan coil ini, `drop_total` naik hampir tiap tick di bawah beban dan
+~2,5. Kalau drop menggerakkan coil ini, `drop_total` naik hampir tiap tick di bawah beban dan
 CAM_N_ERROR menyala sepanjang shift — artinya berubah jadi "line ini jalan normal", yang entah
 menghentikan produksi atau bikin coil itu jadi hiasan yang diabaikan operator. `PLC_QUEUE_MAX=1`
 justru membuat drop makin sering, jadi menggabungkannya cuma memperparah.
@@ -263,7 +277,7 @@ disengaja:
 | `plc_signalled` | tepat setelah `submit_grading()`, **sebelum** tulis disk | Pulse Modbus tidak punya idempotensi |
 | `processed` | setelah file WebP + JSON tersimpan | Diproses ulang itu aman: `event_id` uuid5-nya sama, API membalas `already_processed` |
 
-`_save_ripeness()` melempar `IOError` kalau `cv2.imwrite` gagal — itu perilaku by-design
+`_save_ripeness()` melempar `OSError` kalau `cv2.imwrite` gagal — itu perilaku by-design
 (Critical Rule #8), pada disk yang repo ini sendiri jalankan retensi untuknya. Kalau kedua
 kepentingan itu digabung ke satu flag, kegagalan tulis disk membuat track tetap belum
 `processed`, lalu track yang sama masuk lagi ke blok deteksi pada frame berikutnya — 10–16 kali
@@ -313,9 +327,10 @@ tests/unit/plc/
 └── test_plc_worker.py
 ```
 
-Kode di luar paket ini hanya boleh menyentuh **lima fungsi** yang diekspor `__init__.py`:
+Kode di luar paket ini hanya boleh menyentuh fungsi yang diekspor `__init__.py`:
 `start_plc_worker(settings, health_check=None)`, `shutdown_plc_worker(thread=None)`,
-`submit_grading(status)`, `inputs()`, `diagnostics()`. Semua
+`submit_grading(status)`, `inputs()`, `diagnostics()`, `request_piston(open)`,
+`piston_state()`, `picu_coil(coil)`, `testable_coils(settings)`. Semua
 yang lain (`ModbusPlcClient`, `PlcWorker`, `PulseScheduler`) di-ekspor juga, tapi hanya untuk
 pemanggil yang perlu merakit worker-nya sendiri (mis. test).
 
@@ -350,12 +365,12 @@ plafon throughput, bukan bug. Baca ulang bagian `PLC_QUEUE_MAX`.
 
 ## Belum diputuskan (open hardware questions)
 
-Empat hal ini ada di sisi pak Ocit (PLC engineer) dan butuh kerja panel + ladder. Vision sudah
+Hal-hal ini ada di sisi pak Ocit (PLC engineer) dan butuh kerja panel + ladder. Vision sudah
 punya default yang masuk akal untuk semuanya, jadi ini bukan blocker untuk mulai — tapi wajib
 dikonfirmasi sebelum commissioning:
 
 1. **Lebar pulse (`PLC_PULSE_MS`) dan jeda (`PLC_PULSE_GAP_MS`) belum dikonfirmasi terhadap
-   kecepatan belt sesungguhnya.** Default 200ms/100ms (~3,3 sinyal/detik) adalah patokan, bukan
+   kecepatan belt sesungguhnya.** Default 200ms/100ms (~2,5 sinyal/detik) adalah patokan, bukan
    angka final — perlu tahu apakah sinyal OK/NG itu pulse atau level, satu sinyal = satu buah
    atau status batch, dan cycle time actuator penyortir yang sebenarnya.
 2. **Watchdog coupler ODOT perlu diturunkan dari 30 detik ke 2–3 detik.** PC polling tiap
@@ -366,6 +381,49 @@ dikonfirmasi sebelum commissioning:
    ODOT saat ini (`Fault Action for Input: Cleaning Input Value`) membuat **kabel putus terbaca
    persis sama dengan "aman"**. Perlu bit ON selama kondisi normal dan OFF saat E-stop ditekan,
    supaya kabel putus jatuh ke sisi aman, bukan sisi berbahaya.
-4. **IP address ODOT dan NIC yang dipakainya belum disuplai.** NIC PC pabrik sudah dipakai tiga
-   kamera GigE — perlu tahu ODOT nyambung ke switch yang mana dan IP-nya berapa untuk mengisi
-   `PLC_HOST`.
+4. **IP address ODOT dan NIC yang dipakainya belum dikonfirmasi.** Usulan dari sisi aplikasi
+   sudah dipasang di `.env.example`: `PLC_HOST=192.168.100.50` statis, subnet `255.255.255.0`,
+   kabel masuk ke switch gigabit yang sama dengan tiga kamera. Dipilih supaya tidak bentrok
+   dengan kamera (`.10`/`.11`/`.12`) maupun NIC komputer (`.100`); boleh diganti ke `.51`–`.99`
+   asal tetap `192.168.100.x`. **Paling menghambat** — tanpa ini aplikasi tidak bisa nyambung.
+5. **Buah yang lewat tanpa sinyal apa pun — aktuatornya default ngapain?** Sebagian keputusan
+   memang dibuang saat antrean penuh (lihat *Throughput ceiling* di atas), jadi pasti ada buah
+   yang lewat tanpa pulse. Jawabannya menentukan ke arah mana kesalahan sistem ini condong:
+   buah tak tersinyal diloloskan atau dibuang.
+6. **Saat E-stop ditekan, kamera ikut berhenti menilai atau tidak?** Sekarang tidak. Kalau
+   seharusnya iya, akan ada hasil penilaian yang tercatat padahal line sedang berhenti darurat.
+
+### Yang belum terbukti
+
+- **Belum pernah diuji ke coupler fisik** — semua tes memakai simulasi.
+- **"Satu buah = satu pulse walau simpan gambar gagal" belum punya tes otomatis.** Bagian itu
+  memuat pustaka kamera dan AI yang sengaja tidak dimuat unit test; perbaikannya baru diperiksa
+  manual.
+- **Celah lama yang belum ditutup:** simpan gambar gagal → buah keluar area pantau → nomor track
+  dipakai ulang untuk buah fisik yang sama → secara teori muncul pulse dobel. Perlu diamati saat
+  produksi.
+- **Hitungan 2,5 vs 10 sinyal per detik** bergantung pada lebar pulse di butir 1. Lebar pulse
+  berubah, seluruh hitungan itu ikut berubah.
+
+## Urutan commissioning
+
+Disarikan dari catatan serah terima Agustus 2026. Kalau waktu mepet, yang **tidak boleh
+dilewat** cuma langkah 3, 4, dan 7.
+
+1. Isi IP coupler, pastikan komputer bisa nyambung.
+2. Nyalakan line 1 saja; line 2 dan 3 mati — supaya sumber keanehan kelihatan.
+3. Picu satu pulse, lalu **pastikan bersama bahwa coil 0 di aplikasi = X0300 di PLC.** Beda satu
+   alamat saja, CAM 1 OK jatuh ke CAM 1 NG.
+4. **Ukur lebar pulse yang benar-benar sampai di PLC** (scope atau monitor bit GX Works). Angka
+   200 ms harus dibuktikan, bukan dipercaya.
+5. Cek coil 9 (HEARTBIT PC) ON. Matikan proses line 1 → coil 9 padam. Matikan line 2 atau 3 →
+   coil 9 tetap ON; memang begitu (cuma line 1 yang memegangnya).
+6. Picu satu motor fault dari panel, pastikan bit yang berubah di aplikasi nomor motor yang sama.
+7. **Cabut kabel E-stop**, lihat pembacaan aplikasi berubah atau tidak. Tidak berubah = bukti
+   masalah polaritas di butir 3 di atas — jangan diterima hanya karena bit-nya terbaca aman.
+8. Cabut kabel LAN coupler ±10 detik lalu colok lagi: coil 9 harus padam lewat *fault action*
+   coupler, lalu ON lagi sendiri tanpa ada yang di-restart.
+9. Restart proses line 1 saat pulse sedang jalan — tidak boleh ada coil yang tertinggal ON.
+10. Produksi sungguhan ±15 menit di satu line, lalu baca jumlah sinyal terbuang di
+    `GET /health/detail`. Angka itu dasar menyetel ulang lebar pulse.
+11. Baru nyalakan line 2 dan 3.

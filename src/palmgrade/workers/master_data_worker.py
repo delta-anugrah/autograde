@@ -1,93 +1,136 @@
-"""Tarik master data (truk + supplier + Sumber TBS) dari cloud ke konsol.
+"""Pull suppliers and trucks from AutoERP into the console (contract §4.A).
 
-Satu arah, cloud selalu menang (§3.4). Kontrak & header-nya persis yang dipakai
-`palmgrade-api/src/services/edgeSync/edgeSync.service.impl.ts` — endpoint yang
-sama, jendela tumpang tindih yang sama, dan respons JSON telanjang (tanpa
-amplop `{status,data}`). Nol perubahan di sisi cloud.
+AutoERP owns master data and always wins. Frappe's built-in REST is the whole
+server side of this; `integrations/erp/client.py` is what speaks it.
 
-`sumber` dibaca defensif: kolomnya baru ada setelah Fase 1 di PalmOS. Sebelum
-itu nilainya None dan konsol menampilkan "—". Edge TIDAK PERNAH menentukan
-sumber, cuma menampilkannya (§3.5b).
+Each DocType keeps its own cursor. They change at very different rates, and one
+shared cursor would drag the quiet one back over rows it has already seen.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
-import httpx
-
-from ..core.config import Settings
+from ..domain.erp_master import operator_row, supplier_row, truck_row
+from ..integrations.erp.client import ErpClient
 from ..repositories.console_repository import ConsoleStore
-from ..services.console_service import MASTER_CURSOR_KEY
 
 logger = logging.getLogger(__name__)
 
-_REQUEST_TIMEOUT = 15
-# Jam edge dan cloud tidak pernah sinkron sempurna; tanpa tumpang tindih, baris
-# yang ditulis persis di detik batas tidak akan pernah ikut tarikan berikutnya.
+# Clocks never agree to the millisecond, so re-read a little behind the cursor.
 _PULL_OVERLAP = timedelta(seconds=5)
+_PAGE = 500
+_ERP_TIME = "%Y-%m-%d %H:%M:%S.%f"
+_INTERVAL_S = 300
+
+SUPPLIER_CURSOR_KEY = "erp_cursor_supplier"
+TRUCK_CURSOR_KEY = "erp_cursor_truck"
+OPERATOR_CURSOR_KEY = "erp_cursor_operator"
+
+
+@dataclass(frozen=True)
+class _Resource:
+    doctype: str
+    # Exactly the contract's list: Frappe answers 417 for a field the DocType lacks.
+    fields: tuple[str, ...]
+    cursor_key: str
+    to_row: Callable[[dict[str, Any]], dict[str, Any]]
+    save: Callable[[ConsoleStore, dict[str, Any]], None]
+
+
+# Suppliers first, so a truck never arrives before its owner.
+_RESOURCES = (
+    _Resource(
+        doctype="Supplier",
+        fields=("name", "supplier_name", "supplier_group", "disabled", "modified"),
+        cursor_key=SUPPLIER_CURSOR_KEY,
+        to_row=supplier_row,
+        save=ConsoleStore.upsert_supplier,
+    ),
+    _Resource(
+        doctype="Truck",
+        fields=("name", "plate_number", "plate_normalized", "supplier", "vehicle_class", "modified"),
+        cursor_key=TRUCK_CURSOR_KEY,
+        to_row=truck_row,
+        save=ConsoleStore.upsert_truck,
+    ),
+    # Sign-in accounts. `password_hash` is pulled with them: the console verifies it
+    # here, offline, because the operator has to get in while the internet is down.
+    # It is readable over REST on purpose — a `Password` field would live in `__Auth`,
+    # which Frappe deliberately never serves, leaving nothing to pull.
+    _Resource(
+        doctype="AutoGrade Operator",
+        fields=("name", "email", "full_name", "active", "password_hash", "role", "modified"),
+        cursor_key=OPERATOR_CURSOR_KEY,
+        to_row=operator_row,
+        save=ConsoleStore.upsert_operator_erp,
+    ),
+)
+
+
+def _rewind(cursor: str) -> str:
+    """Cursor minus the overlap. An unparsable cursor is used as is."""
+    for fmt in (_ERP_TIME, "%Y-%m-%d %H:%M:%S"):
+        try:
+            return (datetime.strptime(cursor, fmt) - _PULL_OVERLAP).strftime(_ERP_TIME)
+        except ValueError:
+            continue
+    return cursor
 
 
 class MasterDataWorker:
-    def __init__(self, settings: Settings, store: ConsoleStore) -> None:
-        self.settings = settings
+    def __init__(
+        self, store: ConsoleStore, client: ErpClient, *, interval_s: int = _INTERVAL_S
+    ) -> None:
         self.store = store
+        self._client = client
+        self._interval_s = interval_s
 
     async def run_loop(self) -> None:
-        if not self.settings.upload_api_url:
-            logger.info("MasterDataWorker off — UPLOAD_API_URL kosong")
-            return
-        logger.info("MasterDataWorker started — target: %s", self.settings.master_data_url)
+        logger.info("MasterDataWorker started, every %ss", self._interval_s)
         while True:
             try:
                 await self.pull_once()
             except Exception:
-                logger.exception("MasterDataWorker pull gagal — coba lagi tick berikutnya")
-            await asyncio.sleep(self.settings.console_sync_interval_s)
+                logger.exception("Master data pull failed; retrying next tick")
+            await asyncio.sleep(self._interval_s)
 
     async def pull_once(self) -> int:
-        cursor = self.store.get_state(MASTER_CURSOR_KEY)
-        params = {}
-        if cursor:
-            params["updated_since"] = (
-                datetime.fromisoformat(cursor.replace("Z", "+00:00")) - _PULL_OVERLAP
-            ).isoformat()
-
-        headers = {"x-webhook-secret": self.settings.upload_api_secret}
-        if self.settings.lic_token:
-            # Identitas pabrik. Tanpa ini cloud menahan sebagian payload.
-            headers["x-license-token"] = self.settings.lic_token
-
-        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
-            res = await client.get(self.settings.master_data_url, params=params, headers=headers)
-        res.raise_for_status()
-        return self.apply(res.json())
-
-    def apply(self, data: dict) -> int:
-        """Terapkan satu respons master-data. Return jumlah baris yang mendarat."""
+        """Pull each DocType once. Returns how many rows landed."""
         applied = 0
-        failed = False
-        for supplier in data.get("suppliers") or []:
-            try:
-                self.store.upsert_supplier(supplier)
-                applied += 1
-            except Exception:
-                logger.exception("Supplier gagal disimpan: %s", supplier.get("id"))
-                failed = True
-        for truck in data.get("trucks") or []:
-            try:
-                self.store.upsert_truck(truck)
-                applied += 1
-            except Exception:
-                logger.exception("Truk gagal disimpan: %s", truck.get("id"))
-                failed = True
+        for resource in _RESOURCES:
+            applied += await self._pull(resource)
+        logger.info("Master data: %s rows applied", applied)
+        return applied
 
-        # Kursor hanya maju kalau SEMUA baris mendarat. Melewati satu baris yang
-        # gagal berarti pabrik terjebak selamanya di matriks setengah basi —
-        # termasuk pencabutan truk yang sudah dilakukan cloud.
-        server_time = data.get("server_time")
-        if not failed and server_time:
-            self.store.set_state(MASTER_CURSOR_KEY, server_time)
-        logger.info("Master data: %s baris diterapkan (failed=%s)", applied, failed)
+    async def _pull(self, resource: _Resource) -> int:
+        cursor = self.store.get_state(resource.cursor_key)
+        docs = await self._client.list_modified_since(
+            resource.doctype,
+            resource.fields,
+            _rewind(cursor) if cursor else None,
+            limit=_PAGE,
+        )
+
+        applied, failed, newest = 0, False, cursor
+        for doc in docs:
+            try:
+                resource.save(self.store, resource.to_row(doc))
+            except Exception:
+                logger.exception("%s %s failed to save", resource.doctype, doc.get("name"))
+                failed = True
+                continue
+            applied += 1
+            modified = doc.get("modified")
+            if modified and (newest is None or modified > newest):
+                newest = modified
+
+        # Advance only when every row landed; stepping over a failed one would
+        # leave the mill half-stale for good.
+        if not failed and newest and newest != cursor:
+            self.store.set_state(resource.cursor_key, newest)
         return applied
