@@ -183,28 +183,15 @@ Terima command manual reject dari palmgrade-api. Protected by `x-internal-secret
 
 ---
 
-### `POST /api/capture_reject`
+### ~~`POST /api/capture_reject`~~ — dihapus
 
-Capture frame saat ini secara manual, langsung mark sebagai `rej`.
+Dihapus 2026-09-20 (#123), alasan sama dengan `/api/set_truck`: nol pemanggil.
+`useCaptureReject` di palmgrade-frontend tidak di-import satu berkas pun.
 
-- **Request body:** tidak ada
-- **Response:**
-  ```json
-  {
-    "message": "Manual capture saved",
-    "ripeness_status": "rej",
-    "ripeness_confidence": 1.0,
-    "tp_status": null,
-    "tp_confidence": null,
-    "timestamp": "...",
-    "image_url": "captures/results/2026-05-18/..._manual.webp",
-    "capture_type": "manual",
-    "truck_id": "uuid-or-null"
-  }
-  ```
-- **Side effect:** Simpan WebP + metadata JSON ke `results/{date}/` (inilah yang jadi antrian upload cloud), push ke `event_queue` untuk WebSocket broadcast, dan tulis satu baris ke OutboxStore (antrian realtime ke API lokal).
-
----
+Tolak manual **tidak hilang** — konsol memakai `POST /internal/manual-reject`,
+yang meminta `x-internal-secret`. Keduanya memanggil
+`CaptureService.capture_manual_reject()` yang sama; yang dibuang cuma pintu
+publiknya yang tanpa auth.
 
 ### `GET /health/detail`
 

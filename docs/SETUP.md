@@ -414,25 +414,30 @@ http://localhost:8001/api/video_feed
 Vision jalan dengan `network_mode: host`, jadi port `8001/8002/8003` **terbuka di
 semua interface** PC. Selama PC prod cuma punya NIC ke switch kamera (LAN tertutup),
 ini aman. Tapi begitu PC prod dapat akses internet (mis. NIC#2 / USB-Ethernet buat
-kirim data), port itu jadi ter-ekspos — dan dua endpoint (`/api/capture_reject`,
-`/api/video_feed`) **tidak** punya auth.
+kirim data), port itu jadi ter-ekspos — dan **satu** endpoint masih tanpa auth:
+`/api/video_feed`.
 
-⚠️ Paragraf ini dulu menyebut tiga, dan menutupnya dengan "jangan matikan
-endpoint-nya (frontend masih pakai)". `/api/set_truck` **dihapus 2026-09-20**:
-ternyata nol pemanggil — `useSetTruckId` di palmgrade-frontend tidak pernah
-di-import satu berkas pun. Kalimat itu menahan pembersihan selama berbulan-bulan
-atas dasar yang tidak pernah dicek. Dua sisanya **memang** masih dipakai
-(`video_feed` untuk gambar langsung, `capture_reject` untuk tolak manual).
+⚠️ Paragraf ini dulu menyebut **tiga**, dan menutupnya dengan "jangan matikan
+endpoint-nya (frontend masih pakai)". Kalimat itu menahan pembersihan
+berbulan-bulan atas dasar yang tidak pernah dicek. Diperiksa 2026-09-20: dua di
+antaranya **nol pemanggil** dan sudah dihapus — `/api/set_truck` (#122) dan
+`/api/capture_reject` (#123). Tolak manual tidak hilang: konsol memakai
+`/internal/manual-reject`, yang meminta webhook secret.
 
-Batasi lewat firewall: izinkan port vision **hanya dari IP frontend/api**, tolak
-dari mana pun.
+Yang tersisa `/api/video_feed`, dan itu **tidak bisa** diberi auth semudah yang
+lain: `<img src>` di `console.html` tidak mengirim header, dan gambarnya harus
+tetap muncul saat internet putus. Jadi firewall yang menjaganya, bukan kode.
+
+⚠️ **Jangan batasi ke "IP frontend/api" saja.** `video_feed` dipanggil dari
+**browser operator**, bukan dari server — aturan itu akan mematikan gambar di
+konsol. Izinkan dari subnet operator.
 
 ```bash
-# Ganti <IP_FRONTEND_API> dengan IP host yang menjalankan palmgrade-frontend + api
-# (biasanya sama dengan PC ini atau 1 host di LAN internal).
+# <SUBNET_OPERATOR> = subnet tempat browser operator berada (bukan IP server:
+# `video_feed` dimuat oleh <img src> di browser, lihat peringatan di atas).
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
-sudo ufw allow from <IP_FRONTEND_API> to any port 8001,8002,8003 proto tcp
+sudo ufw allow from <SUBNET_OPERATOR> to any port 8001,8002,8003 proto tcp
 # SSH kalau remote (jangan sampai kekunci):
 sudo ufw allow from <SUBNET_ADMIN> to any port 22 proto tcp
 sudo ufw enable
