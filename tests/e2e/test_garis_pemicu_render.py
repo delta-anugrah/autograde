@@ -12,6 +12,11 @@ import pytest
 
 np = pytest.importorskip("numpy")
 cv2 = pytest.importorskip("cv2")
+# `realtime_inspection_pipeline` imports ultralytics, which imports torch. CI installs
+# neither on purpose -- the rule is "no torch, no cv2, no SDK in CI", and cv2 was only
+# added because the PLC lane tests need it. Guarding here keeps this one file skipping
+# cleanly instead of failing collection for the whole e2e run.
+pytest.importorskip("torch")
 
 from palmgrade.core.config import Settings  # noqa: E402
 from palmgrade.core.constants import COLOR_TRIGGER  # noqa: E402

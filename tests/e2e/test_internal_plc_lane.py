@@ -6,10 +6,17 @@ check can't be bypassed by a stale cross-process read.
 
 In `tests/e2e/`, not `tests/unit/`: `internal_controller.py` imports
 `CaptureService` at module scope (for `manual_reject_command`), which chains
-to `core/constants.py` -> `cv2` — importing it from `tests/unit/` would break
-CI collection there (CI's `pip install` list has no opencv-python; see
-`ci.yml` and CLAUDE.md's "jangan seret hardware, torch, atau cv2 ke CI").
-`tests/e2e/` is not CI-gated, so it can afford the real import.
+to `core/constants.py` -> `cv2`, and on through `core/dependencies.py` to
+torch. Neither belongs in `tests/unit/`, whose whole point is that it runs
+without them.
+
+⚠️ `tests/e2e/` **is** CI-gated now (since the `Pytest (e2e)` step was added),
+so the sentence that used to be here — "e2e is not CI-gated, so it can afford
+the real import" — is no longer true. CI installs `opencv-python-headless`
+but deliberately still has no torch, so this file guards on torch below and
+skips there rather than failing collection for the whole run. It still runs
+in full on any machine with the real dependencies, which is where the guard
+it protects actually matters.
 
 Exercises the real `palmgrade.plc` module functions (`fire_test_coil`,
 `testable_coils`) against a real `PlcWorker` + fake Modbus client, the same
@@ -21,13 +28,16 @@ silently removed the `state.current_assignment_id` check would fail this.
 from __future__ import annotations
 
 import pytest
-from fastapi import HTTPException
 
-from palmgrade.controllers.internal_controller import plc_coil_command, plc_state
-from palmgrade.plc.pulse import PulseScheduler
-from palmgrade.plc.worker import PlcWorker
-from palmgrade.schemas.internal_schema import PlcCoilCommandRequest
-from palmgrade.workers.runtime_state import RuntimeState
+pytest.importorskip("torch")  # see the ⚠️ in the docstring above
+
+from fastapi import HTTPException  # noqa: E402
+
+from palmgrade.controllers.internal_controller import plc_coil_command, plc_state  # noqa: E402
+from palmgrade.plc.pulse import PulseScheduler  # noqa: E402
+from palmgrade.plc.worker import PlcWorker  # noqa: E402
+from palmgrade.schemas.internal_schema import PlcCoilCommandRequest  # noqa: E402
+from palmgrade.workers.runtime_state import RuntimeState  # noqa: E402
 
 
 class _FakeClient:
