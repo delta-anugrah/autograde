@@ -27,7 +27,13 @@ jobs:
         # Still no torch, cv2 or SDK — those stay out of CI.
         # python-dotenv comes in with `console_main`, which the lifespan test imports
         # to prove the startup warnings fire. Still no torch, cv2 or SDK.
-        run: pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi segno python-dotenv
+        # opencv-python-headless arrived with the e2e step below. Eight PLC lane tests
+        # reach `internal_controller` -> `core/constants.py` -> `cv2`; their own
+        # docstrings say they live in tests/e2e/ because that folder "is not CI-gated,
+        # so it can afford the real import". Now that it is gated, the import has to
+        # resolve. `headless` is the no-GUI wheel (~35 MB, no X11) and it does NOT pull
+        # torch -- the line that must not change is still "no torch, no SDK in CI".
+        run: pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi segno python-dotenv opencv-python-headless
 
       # Lint covers only modules already cleaned up; widen it one module at a time.
       - name: Ruff (lint)
