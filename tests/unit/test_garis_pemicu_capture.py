@@ -25,10 +25,17 @@ def _pipeline(monkeypatch: pytest.MonkeyPatch, roi: tuple[int, int, int, int]):
     monkeypatch.setenv("STREAM_WIDTH", str(STREAM_W))
     monkeypatch.setenv("STREAM_HEIGHT", str(STREAM_H))
 
-    # Diimpor di dalam fungsi: modulnya menarik cv2 di level atas, dan tes ini
-    # cuma memakai satu method yang murni aritmetika. `importorskip` membuat CI
-    # ringan melewatinya alih-alih gagal koleksi.
+    # Diimpor di dalam fungsi: modulnya menarik cv2 DAN torch (lewat ultralytics)
+    # di level atas, sementara tes ini cuma memakai satu method yang murni
+    # aritmetika. `importorskip` membuat CI ringan melewatinya alih-alih gagal
+    # koleksi.
+    #
+    # ⚠️ Dua-duanya harus disebut. Dulu cuma `cv2`, dan itu cukup selama CI tidak
+    # memasang keduanya. Begitu `opencv-python-headless` masuk (untuk langkah
+    # e2e), penjaga cv2 berhenti menahan apa pun dan tes ini gagal di torch --
+    # merah di langkah unit, gara-gara perubahan di langkah lain.
     pytest.importorskip("cv2")
+    pytest.importorskip("torch")
     from palmgrade.pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
 
     class _Registry:
