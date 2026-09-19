@@ -1,4 +1,7 @@
-"""Penjaga: jalur legacy `/api/set_truck` tidak boleh kembali.
+"""Penjaga: jalur HTTP legacy tanpa auth tidak boleh kembali.
+
+Dua rantai, dibuang dengan alasan yang sama dan dijaga bersama: `/api/set_truck`
+(2026-09-20) dan `/api/capture_reject` (2026-09-20).
 
 Dihapus 2026-09-20 sesudah dibuktikan mati di dua sisi: `useSetTruckId` di
 palmgrade-frontend tidak pernah di-import satu berkas pun, jadi endpoint-nya tidak
@@ -31,16 +34,24 @@ SRC = Path(__file__).resolve().parents[2] / "src" / "palmgrade"
 
 # Berkas yang dibuang. Ada lagi salah satunya = rantainya dirakit ulang.
 BERKAS_DIBUANG = (
+    # /api/set_truck
     SRC / "routes" / "truck.py",
     SRC / "controllers" / "truck_controller.py",
     SRC / "services" / "truck_service.py",
     SRC / "schemas" / "truck_schema.py",
+    # /api/capture_reject — pola identik: nol pemanggil, dan `internal_controller`
+    # sudah memanggil `CaptureService.capture_manual_reject()` langsung lewat
+    # `/internal/manual-reject`, yang pakai webhook secret.
+    SRC / "routes" / "capture.py",
+    SRC / "controllers" / "capture_controller.py",
+    SRC / "schemas" / "capture_schema.py",
 )
 
 # Yang HARUS tetap ada — supaya tes ini tidak terbaca seperti izin membuang semuanya.
 BERKAS_TETAP = (
     SRC / "repositories" / "truck_repository.py",  # dipakai CaptureService
     SRC / "workers" / "runtime_state.py",  # menyimpan current_truck_id
+    SRC / "services" / "capture_service.py",  # capture_manual_reject dipakai /internal
 )
 
 
@@ -58,13 +69,14 @@ def test_yang_dipakai_jalur_aktif_tetap_ada(berkas: Path):
     assert berkas.exists(), f"{berkas.name} ikut terbuang; jalur aktif memakainya"
 
 
-def test_tidak_ada_rute_set_truck_di_seluruh_kode():
+def test_tidak_ada_rute_publik_tanpa_auth_yang_dihidupkan_lagi():
     """Menangkap endpoint yang dihidupkan lagi di berkas lain, dengan nama lain."""
     bocor = []
     for py in SRC.rglob("*.py"):
         if "__pycache__" in py.parts:
             continue
-        if re.search(r"""["']/?api/set_truck|set_truck_route""", py.read_text(encoding="utf-8")):
+        pola = r"""["']/?api/(set_truck|capture_reject)|set_truck_route|capture_reject_route"""
+        if re.search(pola, py.read_text(encoding="utf-8")):
             bocor.append(str(py.relative_to(SRC)))
 
     assert not bocor, f"rute set_truck muncul lagi di: {bocor}"
@@ -82,3 +94,14 @@ def test_current_truck_id_masih_ditulis_jalur_internal():
     assert "current_assignment_id" in internal, (
         "assignment id hilang — ini yang membedakan jalur baru dari yang dibuang"
     )
+
+
+def test_manual_reject_tetap_ada_lewat_jalur_internal():
+    """Yang dibuang rute publiknya, bukan kemampuannya.
+
+    Tolak manual tetap bisa dipicu — lewat `/internal/manual-reject`, yang meminta
+    webhook secret. Kalau ini merah, operator kehilangan tombol Tolak.
+    """
+    internal = (SRC / "controllers" / "internal_controller.py").read_text(encoding="utf-8")
+
+    assert "capture_manual_reject" in internal, "jalur tolak manual ikut terbuang"

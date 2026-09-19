@@ -155,7 +155,6 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/health`, `/health/detail` | detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending`/`outbox_failed`, always `0` — outbox disabled) |
 | GET | `/api/video_feed` | MJPEG live (multi-viewer) |
 | GET | `/api/results_today` | today's results (read from disk) |
-| POST | `/api/capture_reject` | legacy manual reject capture |
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |
 | POST | `/internal/manual-reject` | ← from api: trigger manual reject (`x-internal-secret`) |
 | WS | `/ws/results` | legacy result push. ⚠️ `image_url`-nya dikirim **sebelum** berkasnya ada di disk (deteksi menyerahkan janjang ke `CaptureSaveWorker` lalu lanjut) — jendelanya ratusan milidetik. Tidak ada yang memakai lane ini hari ini (`console.html` tidak membukanya), tapi siapa pun yang menghidupkannya harus menahan gambar sampai 404 pertama lewat. Jalur yang dipakai konsol aman: barisnya ditulis penulis **sesudah** gambarnya jadi |

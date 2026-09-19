@@ -38,7 +38,6 @@ from .integrations.upload.r2_uploader import R2Uploader
 from .integrations.upload.upload_manifest import UploadManifest
 from .workers.batch_upload_worker import BatchUploadWorker
 from .workers.capture_save_worker import CaptureSaveWorker
-from .routes.capture import router as capture_router
 from .routes.health import router as health_router
 from .routes.inspection import router as inspection_router
 from .routes.streaming import router as streaming_router
@@ -358,7 +357,6 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(inspection_router)
     app.include_router(streaming_router)
-    app.include_router(capture_router)
     app.include_router(internal_router)
 
     @app.websocket("/ws/results")
