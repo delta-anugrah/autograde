@@ -2,7 +2,7 @@
 
 AI camera service for the **Palmgrade** palm oil ripeness grading system.
 
-Runs as **3 camera containers** (one per line, each on its own Hikrobot industrial camera) plus a **4th container dari image yang sama**: konsol operator offline (`APP_MODE=console`, port **8000**). Line melakukan deteksi ripeness YOLO real-time, menulis tiap hasil ke disk, lalu mengirimkannya lewat **dua jalur paralel**: realtime ke konsol/API lokal (poll 1 detik) dan **batch tiap jam** ke Cloudflare R2 + API cloud.
+Runs as **3 camera containers** (one per line, each on its own Hikrobot industrial camera) plus a **4th container dari image yang sama**: konsol operator offline (`APP_MODE=console`, port **8100** di PC pabrik). Line melakukan deteksi ripeness YOLO real-time, menulis tiap hasil ke disk, lalu mengirimkannya lewat **dua jalur paralel**: realtime ke konsol/API lokal (poll 1 detik) dan **batch tiap jam** ke Cloudflare R2 + API cloud.
 
 > **Baru pertama kali buka repo ini?** Baca [`docs/ONBOARDING.md`](docs/ONBOARDING.md) dulu —
 > bahasa Indonesia, ±20 menit: sistem ini ngapain, perjalanan satu janjang dari kamera sampai ERP,
@@ -73,14 +73,15 @@ memakai skrip `palmgrade` di host, bukan `make` — lihat `sawit/docs/runbooks/`
 | Repo | Role | Port |
 |---|---|---|
 | **`autograde`** | AI camera + inference (per line) | 8001 / 8002 / 8003 |
-| **`autograde`** (`APP_MODE=console`) | Konsol operator offline — grading + timbangan | 8000 |
+| **`autograde`** (`APP_MODE=console`) | Konsol operator offline — grading + timbangan | **8100** di PC pabrik & `make console`; 8000 di compose dev |
 | `palmgrade-api` | Business logic, auth, SSE broker — **pensiun**, diganti AutoERP | 2500 |
 | `palmgrade-frontend` | Operator dashboard UI — **pensiun**, konsol pindah ke sini | 3050 |
 
 > Sejak Fase 2 (rencana yang dulu bernama PalmOS, sekarang AutoERP) konsol menggantikan
 > peran `palmgrade_api` lokal di PC pabrik:
-> tiga line menyetel `BACKEND_URL=http://localhost:8000` dan mengirim event ke konsol
-> dengan kontrak yang sama persis (7 → 4 container). **Nol perubahan di kode line.**
+> tiga line menyetel `BACKEND_URL` ke konsol (`http://console:8000` di dalam Docker,
+> `http://localhost:8100` kalau konsolnya native) dan mengirim event dengan kontrak yang
+> sama persis (7 → 4 container). **Nol perubahan di kode line.**
 
 > Full system architecture: see [`ARCHITECTURE.md`](../ARCHITECTURE.md)
 
@@ -98,7 +99,7 @@ Camera (Hikrobot / OpenCV / Photo)
     → CaptureSaveWorker (thread, antrean 8)     ← sejak 2026-09-18
         → encode WebP bbox + clean + thumb, tulis JSON sidecar, satu baris outbox
         → file di disk ITU antriannya untuk jalur cloud
-    → OutboxRetryWorker (poll 1 dtk) → POST BACKEND_URL = konsol lokal :8000
+    → OutboxRetryWorker (poll 1 dtk) → POST BACKEND_URL = konsol lokal
     → BatchUploadWorker (tiap jam, jalur terpisah ke cloud)
         → _scan() → UploadManifest (SQLite, state/upload_manifest.db)
         → PUT image ke Cloudflare R2
@@ -196,7 +197,7 @@ autograde/
 ├── scripts/                     # console-kiosk.sh + palmgrade-console.desktop
 ├── Makefile
 ├── Dockerfile
-├── docker-compose.yml           # 4 services: line-1..3 (8001-8003) + console (8000)
+├── docker-compose.yml           # 4 services: line-1..3 (8001-8003) + console (8000; prod menimpanya jadi 8100)
 ├── requirements.txt
 ├── .env                         # Local env (copy from .env.example)
 └── .env.example
@@ -266,18 +267,42 @@ Install Hikrobot MVS SDK di host (`/opt/MVS/`). `make up` akan otomatis copy **s
 
 ## Production Deployment (Pindah ke PC Baru)
 
-Checklist lengkap sebelum `make up` di PC produksi. Urutan ini penting.
+Checklist ini menyiapkan mesinnya: GPU, SDK kamera, model, `.env`. **Tapi PC
+pabrik tidak menjalankan `make up`** — di sana tidak ada source code sama
+sekali. Yang jalan adalah image GHCR
+`ghcr.io/delta-anugrah/autograde:vX.Y.Z` lewat launcher di `/opt/palmgrade/`,
+dengan tiga berkas compose (`base` + `prod` + `factory`) yang hidup di host,
+bukan di repo.
 
-Cloud integration status (2026-07-10):
+Langkah pemasangan sebenarnya: `sawit/docs/runbooks/2026-08-21-checklist-pasang-pc-pabrik.md`
+dan skill `install-factory-pc`.
 
-- `autograde` tetap jalan di PC pabrik/on-prem; tidak ikut deploy ke DigitalOcean.
-- Cloud API production: `https://api.smagri.id`.
-- Cloud app production: `https://app.smagri.id`.
-- Set `BACKEND_URL=https://api.smagri.id` dan pastikan `WEBHOOK_SECRET` sama persis dengan
-  `palmgrade-api` production.
-- Known limitations by design: capture image URL dari cloud bisa 404, MJPEG live view dari
-  cloud bisa kosong, dan api-to-vision push bersifat best-effort/non-fatal. Yang wajib jalan:
-  vision-to-api event delivery via outbound HTTPS.
+⚠️ **Konsol operator di PC pabrik ada di port `8100`, bukan `8000`** —
+`docker-compose.prod.yml` menimpanya karena 8000 adalah port bench Frappe, dan
+PC yang kelak juga menjalankan ERP lokal akan bentrok diam-diam. Tiga konteks,
+tiga angka: `make console` native **8100**, compose dev **8000**, compose prod
+(PC pabrik) **8100**.
+
+⚠️ **Override Compose MENGGANTI blok dasar sebuah service, bukan menambahinya.**
+Begitu `prod` menyebut `environment:`, seluruh `environment:` di base dibuang —
+`network_mode` dan `container_name` ikut hilang. Terbukti di Lampung (Compose
+v2.40.3): 18 variabel konsol jadi 4. Karena itu blok konsol di `prod` ditulis
+**utuh**, dan menambah variabel konsol berarti menambahnya di situ juga.
+`docker compose config` di Mac (Compose v5.x) menggabungkan dengan benar, jadi
+tidak bisa dipakai membuktikan apa pun soal ini.
+
+Status integrasi (2026-09-20):
+
+- `autograde` tetap di PC pabrik/on-prem; tidak ikut deploy ke DigitalOcean.
+- **PC Lampung menjalankan AutoGrade saja** sejak 2026-09-20. `palmgrade-api`
+  dan `palmgrade-frontend` di-`stop` di mesin itu (bukan `down -v` — volumenya
+  utuh), dan `ENABLE_WEBHOOK=false`.
+- Hasil grading **tidak hilang** selama tidak ada penerima: `OutboxRetryWorker`
+  menyimpannya di SQLite dan tidak pernah membuangnya. Antrean mengendap sampai
+  `ERP_URL` diisi — yang menunggu AutoERP di-deploy, dan **OPS-2 rekonsiliasi
+  truk wajib dijalankan lebih dulu**.
+- ⚠️ `BACKEND_URL=https://api.smagri.id` (pola lama, api cloud) **sudah tidak
+  dipakai**. Di PC pabrik `BACKEND_URL` menunjuk konsol lokal.
 
 ### 1. Install NVIDIA Container Toolkit
 
@@ -872,8 +897,8 @@ variabel mati padahal bukan — jangan dihapus karena `grep os.getenv` tidak men
 | `FRONTEND_URL` | `http://localhost:3050` | CORS allowed origin |
 | `BACKEND_URL` | `http://localhost:2500` | palmgrade-api base URL |
 | `BACKEND_API_VER` | `/api/v1` | Prefix versi API untuk canonical events URL |
-| `WEBHOOK_SECRET` | — | Shared secret header value — must match palmgrade-api |
-| `ENABLE_WEBHOOK` | `true` | Toggle webhook posting |
+| `WEBHOOK_SECRET` | — | Shared secret header value — sama persis di tiga line **dan** konsol (dipakai dua arah: memverifikasi event masuk, dan meneruskan perintah ke line) |
+| `ENABLE_WEBHOOK` | `true` | Toggle webhook posting. **Set `false` kalau tidak ada penerima** (mis. api sudah di-stop dan `ERP_URL` belum diisi): `OutboxRetryWorker` retry **tiap 1 detik tanpa backoff**, jadi `true` ke alamat mati berarti log penuh selamanya. Hasil grading tetap aman — outbox menyimpannya di SQLite dan tidak pernah membuangnya |
 | `MODEL_FILE` | `best.pt` | YOLO model filename in `models/release/` |
 | `CONF_THRESHOLD` | `0.75` | YOLO confidence threshold |
 | `GARIS_CAPTURE` | `0` | Capture line (px, **stream** space). A bunch is photographed when its box touches it. `0` = no line. Initial value only — the live one is set from the console support screen, no restart |
