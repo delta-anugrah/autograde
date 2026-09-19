@@ -127,20 +127,21 @@ program timbangan → POST .../scale/weighing  ├→ index SQLite state/console
             stream kamera = <img> MJPEG langsung ke :8001/8002/8003, bukan lewat konsol
 ```
 
-**Detection model**: `best.pt` — 4 classes: `Ripe`, `Unripe`, `JK` (janjang
-kosong / empty bunch), `TP` (tangkai panjang / long stalk).
+**Model deteksi**: `best.pt` — 4 kelas: `Ripe`, `Unripe`, `JK` (janjang
+kosong), `TP` (tangkai panjang).
 
-The verdict is derived from the class, not equal to it (`domain/grade_class.py`):
-`Ripe` → ACC, `Unripe` and `JK` → REJ, `TP` → no verdict. The PLC has two coils
-and AutoERP three criteria, so the binary `ripeness_status` stays the thing that
-fires pistons and gets booked; `grade_class` is the 4-way detail on screen.
-**Minimum size**: 460,000 px² — objects below this area are forced to `rej`
-**Tracking**: ByteTrack — each fruit gets a unique `track_id`, saved only once (single-trigger)
-**Detection zone**: ROI box (`ROI_X1/Y1/X2/Y2`) — only objects whose center falls inside the box are counted. Default `0,0,0,0` = full frame. TP class is exempt from ROI check.
-**Capture point**: a bunch is photographed when its box **touches** the capture line (`GARIS_CAPTURE`, set from the console support screen). ROI answers *where* (this is the conveyor), the line answers *when*. Since 2026-09-18 this replaced "centre enters the ROI box", which fired once half the bunch was already past — and with the default full-screen ROI, the moment a bunch was detected anywhere. `0` = no line, previous behaviour. `SUMBU_GARIS` picks a vertical line (horizontal conveyor, px from the left) or a horizontal one (vertical conveyor, px from the top).
-**Long stalks (TP)**: paired to the **nearest** bunch within 1.5 × half its box diagonal, and only when no other bunch in the frame is nearer (`domain/garis_capture.tp_untuk_janjang`). A bunch is photographed as-is whether or not it has a stalk; a TP that appears afterwards is counted in `tp_telat` on `/health/detail`.
-**Multi-fruit rule**: >1 buah (belum diproses) berada dalam ROI di frame yang sama → semuanya di-force `rej` (buah bertumpuk).
-**Box labels**: class only (`Ripe` / `Unripe` / …), no confidence percentage — from a few metres "54%" reads as ripeness. The `mode_dev` switch on the settings screen puts it back for threshold tuning.
+Putusannya **diturunkan** dari kelas, bukan sama dengan kelasnya
+(`domain/grade_class.py`): `Ripe` → ACC, `Unripe` dan `JK` → REJ, `TP` → tanpa
+putusan. PLC punya dua coil dan AutoERP tiga kriteria, jadi `ripeness_status`
+yang biner tetap menjadi hal yang memicu piston dan yang dibukukan;
+`grade_class` adalah rincian 4 arah yang tampil di layar.
+**Ukuran minimum**: 460.000 px² — objek di bawah luas ini dipaksa jadi `rej`
+**Pelacakan**: ByteTrack — tiap buah dapat `track_id` unik, disimpan sekali saja (single-trigger)
+**Zona deteksi**: kotak ROI (`ROI_X1/Y1/X2/Y2`) — cuma objek yang titik tengahnya jatuh di dalam kotak yang dihitung. Bawaannya `0,0,0,0` = satu frame penuh. Kelas TP dikecualikan dari pemeriksaan ROI.
+**Titik ambil foto**: satu janjang difoto ketika kotaknya **menyentuh** garis capture (`GARIS_CAPTURE`, diatur dari layar support di konsol). ROI menjawab *di mana* (ini konveyornya), garis menjawab *kapan*. Sejak 2026-09-18 ini menggantikan "titik tengah masuk kotak ROI", yang baru memicu waktu separuh janjang sudah lewat — dan dengan ROI bawaan satu layar penuh, memicu begitu janjang terdeteksi di mana pun. `0` = tanpa garis, perilaku lama. `SUMBU_GARIS` memilih garis tegak (konveyor mendatar, px dari kiri) atau garis mendatar (konveyor tegak, px dari atas).
+**Tangkai panjang (TP)**: dipasangkan ke janjang **terdekat** dalam jarak 1,5 × setengah diagonal kotaknya, dan cuma kalau tidak ada janjang lain di frame itu yang lebih dekat (`domain/garis_capture.tp_untuk_janjang`). Satu janjang difoto apa adanya, punya tangkai atau tidak; TP yang muncul belakangan dihitung di `tp_telat` pada `/health/detail`.
+**Aturan buah bertumpuk**: >1 buah (belum diproses) berada dalam ROI di frame yang sama → semuanya di-force `rej`.
+**Label kotak**: kelasnya saja (`Ripe` / `Unripe` / …), tanpa persentase keyakinan — dari jarak beberapa meter "54%" terbaca sebagai tingkat kematangan. Saklar `mode_dev` di layar setelan mengembalikannya untuk menyetel ambang batas.
 
 ---
 
@@ -562,7 +563,7 @@ operator disimpan di `localStorage`.
 
 ### Camera type (dikontrol via env var `CAMERA_TYPE`)
 
-| `CAMERA_TYPE` | Source | Dikontrol oleh |
+| `CAMERA_TYPE` | Sumber | Dikontrol oleh |
 |---|---|---|
 | `hikrobot` | Kamera industrial Hikrobot via **RJ45 LAN** (GigE Vision) | `CAMERA_DEVICE_INDEX` |
 | `opencv` | Webcam **atau** video file | `CAMERA_VIDEO_PATH` (jika diisi) → video file; jika kosong → webcam via `CAMERA_DEVICE_INDEX` |
@@ -584,16 +585,16 @@ operator disimpan di `localStorage`.
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/health` | Health check (always allowed) |
-| `GET` | `/health/detail` | Detailed status: camera, GPU, workers, current_assignment_id. Sejak 2026-09-18 juga `capture_save_pending` / `capture_save_dropped` (antrean penulis bukti — **`dropped` harus NOL**: di atas nol berarti janjang yang sudah dipulse PLC tidak punya gambar maupun sidecar sama sekali) dan `tp_telat` (**harus NOL**: TP yang muncul sesudah janjangnya difoto). ⚠️ `outbox_pending`/`outbox_failed` mengukur jalur realtime ke API lokal, **bukan** backlog upload cloud — untuk itu cek `state/upload_manifest.db` atau log |
-| `GET` | `/api/video_feed` | MJPEG live stream (multi-viewer) |
-| `POST` | `/api/set_truck` | Set active truck ID (legacy — pakai konsol `/api/console/lines/{line}/assign-truck`) |
-| `POST` | `/api/capture_reject` | Trigger manual reject capture (legacy) |
-| `GET` | `/api/results_today` | Today's grading results (model/device info ada di `/health/detail`) |
-| `POST` | `/internal/assignment` | Receive truck assignment from palmgrade-api (protected by x-internal-secret) |
-| `POST` | `/internal/manual-reject` | Receive manual reject command from palmgrade-api (protected by x-internal-secret) |
-| `WS` | `/ws/results` | WebSocket result push (legacy) |
-| `GET` | `/captures/results/...` | Static files — saved result images |
+| `GET` | `/health` | Cek kesehatan (selalu diizinkan) |
+| `GET` | `/health/detail` | Status rinci: kamera, GPU, worker, current_assignment_id. Sejak 2026-09-18 juga `capture_save_pending` / `capture_save_dropped` (antrean penulis bukti — **`dropped` harus NOL**: di atas nol berarti janjang yang sudah dipulse PLC tidak punya gambar maupun sidecar sama sekali) dan `tp_telat` (**harus NOL**: TP yang muncul sesudah janjangnya difoto). ⚠️ `outbox_pending`/`outbox_failed` mengukur jalur realtime ke API lokal, **bukan** backlog upload cloud — untuk itu cek `state/upload_manifest.db` atau log |
+| `GET` | `/api/video_feed` | Stream langsung MJPEG (banyak penonton) |
+| `POST` | `/api/set_truck` | Setel ID truk aktif (warisan — pakai konsol `/api/console/lines/{line}/assign-truck`) |
+| `POST` | `/api/capture_reject` | Picu capture reject manual (warisan) |
+| `GET` | `/api/results_today` | Hasil grading hari ini (info model/device ada di `/health/detail`) |
+| `POST` | `/internal/assignment` | Terima penugasan truk dari palmgrade-api (dijaga x-internal-secret) |
+| `POST` | `/internal/manual-reject` | Terima perintah reject manual dari palmgrade-api (dijaga x-internal-secret) |
+| `WS` | `/ws/results` | Dorongan hasil lewat WebSocket (warisan) |
+| `GET` | `/captures/results/...` | Berkas statis — gambar hasil yang tersimpan |
 
 ```bash
 # Health check
@@ -815,12 +816,12 @@ LICENSE_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\nMCow...\n-----END PUBLIC KEY-----
 LICENSE_TOKEN=<token from the cloud API>
 ```
 
-When enabled, all routes (except `/health`, `/api/video_feed`, `/captures`) are blocked for expired
-licenses, **and** `FrameProcessingWorker` stops running inference — HTTP-only blocking would leave the
-cameras grading and the PLC sorting fruit. The PLC alive coil is dropped too, so an expired
-subscription is visible on the factory floor.
+Kalau dinyalakan, semua rute (kecuali `/health`, `/api/video_feed`, `/captures`) diblokir untuk
+lisensi yang kedaluwarsa, **dan** `FrameProcessingWorker` berhenti menjalankan inferensi —
+pemblokiran di HTTP saja akan membiarkan kamera tetap grading dan PLC tetap menyortir buah. Coil
+alive PLC ikut dijatuhkan, jadi langganan yang kedaluwarsa kelihatan dari lantai pabrik.
 
-The token is installed offline with `palmgrade license <token>`; there is no license server to call.
+Token dipasang offline dengan `palmgrade license <token>`; tidak ada server lisensi yang dihubungi.
 
 ---
 
@@ -896,14 +897,14 @@ variabel mati padahal bukan — jangan dihapus karena `grep os.getenv` tidak men
 | `APP_PORT` | `8000` | Internal container port |
 | `FRONTEND_URL` | `http://localhost:3050` | CORS allowed origin |
 | `BACKEND_URL` | `http://localhost:2500` | palmgrade-api base URL |
-| `BACKEND_API_VER` | `/api/v1` | Prefix versi API untuk canonical events URL |
+| `BACKEND_API_VER` | `/api/v1` | Prefix versi API untuk URL canonical events |
 | `WEBHOOK_SECRET` | — | Shared secret header value — sama persis di tiga line **dan** konsol (dipakai dua arah: memverifikasi event masuk, dan meneruskan perintah ke line) |
 | `ENABLE_WEBHOOK` | `true` | Toggle webhook posting. **Set `false` kalau tidak ada penerima** (mis. api sudah di-stop dan `ERP_URL` belum diisi): `OutboxRetryWorker` retry **tiap 1 detik tanpa backoff**, jadi `true` ke alamat mati berarti log penuh selamanya. Hasil grading tetap aman — outbox menyimpannya di SQLite dan tidak pernah membuangnya |
-| `MODEL_FILE` | `best.pt` | YOLO model filename in `models/release/` |
-| `CONF_THRESHOLD` | `0.75` | YOLO confidence threshold |
-| `GARIS_CAPTURE` | `0` | Capture line (px, **stream** space). A bunch is photographed when its box touches it. `0` = no line. Initial value only — the live one is set from the console support screen, no restart |
-| `SUMBU_GARIS` | `tegak` | Line axis: `tegak` (horizontal conveyor, px from the **left**) / `mendatar` (vertical conveyor, px from the **top**). Initial value only |
-| `MODE_DEV` | `false` | `true` = draw the confidence number on bunch boxes. For support tuning the threshold, not for operators. Initial value only |
+| `MODEL_FILE` | `best.pt` | Nama berkas model YOLO di `models/release/` |
+| `CONF_THRESHOLD` | `0.75` | Ambang keyakinan YOLO |
+| `GARIS_CAPTURE` | `0` | Garis capture (px, ruang **stream**). Satu janjang difoto ketika kotaknya menyentuh garis ini. `0` = tanpa garis. Nilai awal saja — yang dipakai saat jalan diatur dari layar support konsol, tanpa restart |
+| `SUMBU_GARIS` | `tegak` | Sumbu garis: `tegak` (konveyor mendatar, px dari **kiri**) / `mendatar` (konveyor tegak, px dari **atas**). Nilai awal saja |
+| `MODE_DEV` | `false` | `true` = gambarkan angka keyakinan di kotak janjang. Untuk support menyetel ambang batas, bukan untuk operator. Nilai awal saja |
 | `MINIMUM_SIZE` | `460000` | Min bounding box area in px² |
 | `CAMERA_TYPE` | `hikrobot` | `hikrobot` / `opencv` / `photo` |
 | `CAMERA_DEVICE_INDEX` | `0` | Camera index (0/1/2 per line) |
