@@ -48,8 +48,13 @@ services:
     # adanya, dan 8000 adalah port bench Frappe — satu PC yang kelak juga
     # menjalankan ERP lokal akan bentrok diam-diam: yang kalah start hanya
     # gagal mengikat port, dan operator melihat layar yang tidak pernah terbuka.
+    # Bentuk LIST, bukan map. `docker-compose.yml` menulis environment konsol
+    # sebagai list (`- APP_MODE=console`), dan Compose lama tidak menggabungkan
+    # dua bentuk yang berbeda: map MENGGANTIKAN seluruh list, bukan menambahinya.
+    # Akibatnya `APP_MODE` hilang, entrypoint jatuh ke `main.py` (jalur line),
+    # dan konsol mati mencari model YOLO yang memang tidak dipasang untuknya.
     environment:
-      APP_PORT: "8100"
+      - APP_PORT=8100
     volumes: !override
       - ./state/console:/app/state
       - ./artifacts/line-1:/app/artifacts/line-1:ro
