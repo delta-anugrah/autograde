@@ -42,7 +42,6 @@ from .routes.capture import router as capture_router
 from .routes.health import router as health_router
 from .routes.inspection import router as inspection_router
 from .routes.streaming import router as streaming_router
-from .routes.truck import router as truck_router
 from .workers.display_worker import DisplayWorker
 from .workers.event_broadcast_worker import EventBroadcastWorker
 from .workers.frame_capture_worker import FrameCaptureWorker
@@ -360,7 +359,6 @@ def create_app() -> FastAPI:
     app.include_router(inspection_router)
     app.include_router(streaming_router)
     app.include_router(capture_router)
-    app.include_router(truck_router)
     app.include_router(internal_router)
 
     @app.websocket("/ws/results")
