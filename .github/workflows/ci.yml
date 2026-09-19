@@ -35,3 +35,19 @@ jobs:
 
       - name: Pytest (unit)
         run: pytest tests/unit/
+
+      # The e2e suite guards the paths that move money and metal: the ERP sync, the
+      # gate QR scan, truck reconciliation and the PLC coil trigger. It was written
+      # but never wired into CI, so a regression in any of them reached `staging`
+      # with every check green -- which is exactly what happened to the weigh-out
+      # lane, red for a full day before anyone noticed (fixed in #96).
+      #
+      # It needs no GPU, no camera and no SDK: the tests that require a live ERP or
+      # a docker image skip themselves. Measured on this suite, 129 pass and 12 skip
+      # in about 40 seconds, so nothing here slows a PR down meaningfully.
+      #
+      # `-rs` prints why each test skipped. Without it a suite that silently stopped
+      # running anything would still report success, which is the failure this whole
+      # step exists to prevent.
+      - name: Pytest (e2e)
+        run: pytest tests/e2e/ -rs
