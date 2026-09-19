@@ -37,6 +37,19 @@ services:
       - ./engines:/app/engines
 
   console:
+    # Image dari GHCR, bukan build lokal. `docker-compose.yml` menyebut
+    # `palmgrade-vision:latest` + sebuah blok `build:` karena di laptop
+    # developer konsol memang dibangun dari working tree. PC pabrik tidak punya
+    # source code sama sekali, jadi tanpa baris ini compose mencoba MEM-BUILD
+    # dan mati dengan "Dockerfile not found" — persis jebakan yang sudah
+    # tercatat untuk tiga line.
+    image: ${PALMGRADE_AUTOGRADE_IMAGE:-palmgrade-vision:latest}
+    # 8100, bukan 8000. Dengan `network_mode: host` port itu milik host apa
+    # adanya, dan 8000 adalah port bench Frappe — satu PC yang kelak juga
+    # menjalankan ERP lokal akan bentrok diam-diam: yang kalah start hanya
+    # gagal mengikat port, dan operator melihat layar yang tidak pernah terbuka.
+    environment:
+      APP_PORT: "8100"
     volumes: !override
       - ./state/console:/app/state
       - ./artifacts/line-1:/app/artifacts/line-1:ro
