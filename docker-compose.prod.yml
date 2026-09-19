@@ -37,24 +37,64 @@ services:
       - ./engines:/app/engines
 
   console:
-    # Image dari GHCR, bukan build lokal. `docker-compose.yml` menyebut
-    # `palmgrade-vision:latest` + sebuah blok `build:` karena di laptop
-    # developer konsol memang dibangun dari working tree. PC pabrik tidak punya
-    # source code sama sekali, jadi tanpa baris ini compose mencoba MEM-BUILD
-    # dan mati dengan "Dockerfile not found" — persis jebakan yang sudah
-    # tercatat untuk tiga line.
+    # Semua yang konsol butuhkan ditulis ULANG di sini, bukan ditambahkan.
+    #
+    # Compose 2.x membuang seluruh blok dasar sebuah service begitu override
+    # menyebut kunci yang sama — bukan menggabungkannya. Ini terbukti di PC
+    # Lampung (Compose v2.40.3): dari 18 variabel environment yang ada di
+    # `docker-compose.yml`, hanya 4 yang sampai ke container, dan yang 4 itu
+    # persis yang ditulis di override. `network_mode` dan `container_name` ikut
+    # hilang dengan cara yang sama.
+    #
+    # Empat kegagalan yang lahir dari satu sebab ini, semuanya senyap:
+    #   1. `APP_MODE` hilang  → entrypoint jatuh ke `main.py` (jalur line) dan
+    #      konsol mati mencari model YOLO yang memang tidak dipasang untuknya.
+    #   2. `network_mode: host` hilang → uvicorn bind 8100 DI DALAM container;
+    #      dari host port itu tidak ada sama sekali, dan browser operator cuma
+    #      dapat "Unable to connect".
+    #   3. `CONSOLE_*_HASH` hilang → layar login bilang "Belum ada operator"
+    #      walaupun hash-nya sudah benar di `.env`.
+    #   4. `container_name` hilang → container jadi `<project>-console-1`.
+    #
+    # Tidak terlihat di MacBook karena Compose di sana v5.5.1 menggabungkan
+    # keduanya dengan benar: `docker compose config` di mesin dev tetap
+    # memunculkan `APP_MODE: console` untuk versi yang rusak sekalipun.
+    #
+    # ⚠️ Menambah environment konsol berarti menambahnya DI SINI juga, kalau
+    # tidak variabel itu tidak akan pernah sampai ke PC pabrik.
     image: ${PALMGRADE_AUTOGRADE_IMAGE:-palmgrade-vision:latest}
+    container_name: palmgrade_console
+    network_mode: host
     # 8100, bukan 8000. Dengan `network_mode: host` port itu milik host apa
     # adanya, dan 8000 adalah port bench Frappe — satu PC yang kelak juga
-    # menjalankan ERP lokal akan bentrok diam-diam: yang kalah start hanya
-    # gagal mengikat port, dan operator melihat layar yang tidak pernah terbuka.
-    # Bentuk LIST, bukan map. `docker-compose.yml` menulis environment konsol
-    # sebagai list (`- APP_MODE=console`), dan Compose lama tidak menggabungkan
-    # dua bentuk yang berbeda: map MENGGANTIKAN seluruh list, bukan menambahinya.
-    # Akibatnya `APP_MODE` hilang, entrypoint jatuh ke `main.py` (jalur line),
-    # dan konsol mati mencari model YOLO yang memang tidak dipasang untuknya.
+    # menjalankan ERP lokal akan bentrok diam-diam.
     environment:
+      - APP_MODE=console
       - APP_PORT=8100
+      - APP_ENV=${APP_ENV:-production}
+      - APP_VERSION=${APP_VERSION:-unknown}
+      - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
+      - FACTORY_TZ=${FACTORY_TZ:-Asia/Jakarta}
+      - CONSOLE_SYNC_INTERVAL_S=${CONSOLE_SYNC_INTERVAL_S:-300}
+      - CONSOLE_LINE_HOST=${CONSOLE_LINE_HOST:-http://localhost}
+      - CONSOLE_DEFAULT_HASH=${CONSOLE_DEFAULT_HASH:-}
+      - CONSOLE_SUPPORT_HASH=${CONSOLE_SUPPORT_HASH:-}
+      - ERP_URL=${ERP_URL:-}
+      - ERP_API_KEY=${ERP_API_KEY:-}
+      - ERP_API_SECRET=${ERP_API_SECRET:-}
+      - ERP_COMPANY=${ERP_COMPANY:-}
+      - ERP_ALLOWED_ROLES=${ERP_ALLOWED_ROLES:-support}
+      - LOG_RETENSI_HARI=${LOG_RETENSI_HARI:-180}
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
+      - R2_BUCKET=${R2_BUCKET:-}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
+      - LICENSE_TOKEN=${LICENSE_TOKEN:-}
+      - LINE_1_MACHINE_ID=${LINE_1_MACHINE_ID:-d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01}
+      - LINE_2_MACHINE_ID=${LINE_2_MACHINE_ID:-a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02}
+      - LINE_3_MACHINE_ID=${LINE_3_MACHINE_ID:-ad5f7bb9-c06d-4e87-8282-ce450ae331ec}
     volumes: !override
       - ./state/console:/app/state
       - ./artifacts/line-1:/app/artifacts/line-1:ro
