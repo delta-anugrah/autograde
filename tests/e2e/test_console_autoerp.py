@@ -83,7 +83,7 @@ def test_a_signed_in_console_reads_and_signing_out_shuts_it_again():
     with httpx.Client(base_url=ENV["E2E_CONSOLE_URL"], timeout=15) as client:
         _sign_in(client)
         assert client.get("/api/console/state").status_code == 200
-        assert client.get("/api/console/me").json()["operator"]["nama"]
+        assert client.get("/api/console/me").json()["operator"]["full_name"]
 
         client.post("/api/console/logout").raise_for_status()
         assert client.get("/api/console/state").status_code == 401
@@ -197,8 +197,8 @@ def _secret() -> dict[str, str]:
 def test_trucks_from_autoerp_reach_the_console_with_its_source_rule(pulled, plates):
     owned, ownerless = pulled[plates["owned"]], pulled[plates["ownerless"]]
 
-    assert (owned["supplier_name"], owned["sumber_label"], owned["status"]) == (SUPPLIER, "External", "active")
-    assert (ownerless["supplier_name"], ownerless["sumber_label"], ownerless["status"]) == (None, "Internal", "active")
+    assert (owned["supplier_name"], owned["source_label"], owned["status"]) == (SUPPLIER, "External", "active")
+    assert (ownerless["supplier_name"], ownerless["source_label"], ownerless["status"]) == (None, "Internal", "active")
 
 
 def test_a_graded_bunch_shows_its_trucks_source(console, pulled, plates):
@@ -225,7 +225,7 @@ def test_a_graded_bunch_shows_its_trucks_source(console, pulled, plates):
 
     history = console.get("/api/console/history", params={"work_date": res.json()["work_date"]})
     [row] = [r for r in history.json()["items"] if r["event_id"] == event_id]
-    assert (row["plate_number"], row["sumber_label"]) == (plates["owned"], "External")
+    assert (row["plate_number"], row["source_label"]) == (plates["owned"], "External")
 
 
 def test_a_weighing_shows_its_trucks_source(console, pulled, plates):
@@ -245,7 +245,7 @@ def test_a_weighing_shows_its_trucks_source(console, pulled, plates):
 
     weighings = console.get("/api/console/weighings", params={"work_date": ticket["work_date"]})
     [row] = [w for w in weighings.json()["items"] if w["id"] == ticket["id"]]
-    assert (row["net_kg"], row["sumber_label"]) == (9160, "Internal")
+    assert (row["net_kg"], row["source_label"]) == (9160, "Internal")
 
 
 def test_a_truck_typed_at_the_mill_reaches_autoerp(console, erp, mill_plate):
@@ -266,7 +266,7 @@ def test_a_truck_typed_at_the_mill_reaches_autoerp(console, erp, mill_plate):
         _console_trucks(console).get(mill_plate, {}).get("status") == "active" else None,
         f"console never adopted {mill_plate} back from AutoERP",
     )
-    assert adopted["sumber_label"] == "Internal"  # ownerless until the backoffice fills it in
+    assert adopted["source_label"] == "Internal"  # ownerless until the backoffice fills it in
 
 
 def test_retyping_a_plate_autoerp_owns_keeps_its_owner(console, pulled, plates):
@@ -274,7 +274,7 @@ def test_retyping_a_plate_autoerp_owns_keeps_its_owner(console, pulled, plates):
     assert res.status_code == 201, res.text
 
     owned = _console_trucks(console)[plates["owned"]]
-    assert (owned["supplier_name"], owned["sumber_label"]) == (SUPPLIER, "External")
+    assert (owned["supplier_name"], owned["source_label"]) == (SUPPLIER, "External")
 
 
 # ------------------------------------------------- the visit (contract §4.C)
