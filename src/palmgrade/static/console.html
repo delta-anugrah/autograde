@@ -927,7 +927,7 @@
   </div>
   <div class="tabel">
     <table>
-      <thead><tr><th data-t="thMasuk">Masuk</th><th data-t="thKeluar">Keluar</th><th data-t="thTruk">Truk</th>
+      <thead><tr><th data-t="thMasuk">Masuk</th><th data-t="thKeluar">Keluar</th><th data-t="thLama">Lama</th><th data-t="thTruk">Truk</th>
         <th data-t="thSumber">Sumber</th><th class="num" data-t="thBruto">Bruto (kg)</th>
         <th class="num" data-t="thTara">Tara (kg)</th><th class="num" data-t="thNeto">Neto (kg)</th>
         <th></th></tr></thead>
@@ -1186,7 +1186,7 @@ const KAMUS = {
     geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
     thNo:"No", thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
-    thMasuk:"Masuk", thKeluar:"Keluar", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
+    thMasuk:"Masuk", thKeluar:"Keluar", thLama:"Lama", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
     thLevel:"Level", thPesan:"Pesan", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan atau sumber",
     hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
@@ -1297,7 +1297,7 @@ const KAMUS = {
     geserKiri:"Move left", geserKanan:"Move right",
     thNo:"No", thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
-    thMasuk:"In", thKeluar:"Out", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
+    thMasuk:"In", thKeluar:"Out", thLama:"Duration", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
     thLevel:"Level", thPesan:"Message", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message or source",
     hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
@@ -1747,6 +1747,27 @@ function waktu(iso) {
        + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+// Berapa lama truk diproses: dari timbang masuk sampai timbang keluar.
+// Dihitung di layar dari dua kolom yang MEMANG sudah ada (`entered_at` /
+// `exited_at`), bukan disimpan sebagai kolom ketiga di SQLite. Alasannya satu:
+// nilai turunan yang ikut disimpan bisa berbeda dari selisihnya sendiri begitu
+// salah satu jam dikoreksi, dan yang dipercaya operator jadi tidak jelas yang
+// mana. Tiket yang belum timbang keluar memulangkan null - barisnya masih
+// berjalan, bukan nol menit.
+function lamaProses(masuk, keluar) {
+  if (!masuk || !keluar) return null;
+  const a = new Date(masuk), b = new Date(keluar);
+  if (isNaN(a) || isNaN(b)) return null;
+  const menit = Math.round((b - a) / 60000);
+  // Jam mundur (koreksi manual, NTP menyentak) memberi selisih negatif. Itu
+  // bukan durasi dan tidak boleh tampil sebagai "-12 mnt" - baris itu diam.
+  if (menit < 0) return null;
+  if (menit < 60) return `${menit} mnt`;
+  const jam = Math.floor(menit / 60);
+  const sisa = menit % 60;
+  return sisa ? `${jam} j ${sisa} mnt` : `${jam} j`;
+}
+
 // Wall clock from the browser, not the server: it keeps ticking when the
 // console stops answering, and it is the clock weigh-in/out timestamps use.
 const detak = () => { $("jam").textContent = waktu(new Date()); };
@@ -1991,6 +2012,7 @@ function barisTimbangan(w) {
               data-masuk="${esc(w.entered_at ?? "")}">
     <td>${w.entered_at ? waktu(w.entered_at) : KOSONG}</td>
     <td>${w.exited_at ? waktu(w.exited_at) : KOSONG}</td>
+    <td>${dash(lamaProses(w.entered_at, w.exited_at))}</td>
     <td class="key">${dash(w.plate_number)}</td>
     <td>${dash(w.source_label)}</td>
     <td class="num">${kg(w.gross_kg)}</td>
@@ -2696,7 +2718,7 @@ async function muatTimbangan() {
   try {
     const items = (await api("/api/console/weighings")).items;
     $("timbangan").innerHTML = items.length
-      ? items.map(barisTimbangan).join("") : barisKosong(8, "kosongTiket");
+      ? items.map(barisTimbangan).join("") : barisKosong(9, "kosongTiket");
   } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
 }
 

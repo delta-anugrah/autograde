@@ -131,10 +131,24 @@ program timbangan → POST .../scale/weighing  ├→ index SQLite state/console
 kosong), `TP` (tangkai panjang).
 
 Putusannya **diturunkan** dari kelas, bukan sama dengan kelasnya
-(`domain/grade_class.py`): `Ripe` → ACC, `Unripe` dan `JK` → REJ, `TP` → tanpa
-putusan. PLC punya dua coil dan AutoERP tiga kriteria, jadi `ripeness_status`
-yang biner tetap menjadi hal yang memicu piston dan yang dibukukan;
-`grade_class` adalah rincian 4 arah yang tampil di layar.
+(`domain/grade_class.py`). PLC punya dua coil dan AutoERP tiga kriteria, jadi
+`ripeness_status` yang biner tetap menjadi hal yang memicu piston dan yang
+dibukukan; `grade_class` adalah rincian 4 arah yang tampil di layar:
+
+| Kelas model | Verdict | Coil | Piston |
+|---|---|---|---|
+| `Ripe` | ACC | `PLC_COIL_BASE + 0` | tidak |
+| `Unripe` | REJ | `PLC_COIL_BASE + 1` | ya |
+| `JK` | REJ | `PLC_COIL_BASE + 1` | ya |
+| `TP` | tidak ada | tidak ada pulse | tidak |
+
+`PLC_COIL_BASE` per line: line 1 = 0, line 2 = 3, line 3 = 6. `Unripe` dan `JK`
+menembak coil yang sama — panel tidak bisa membedakannya, dan memisahkannya
+butuh piston ketiga. `TP` tidak pernah menyentuh PLC: dia properti sebuah
+janjang, bukan janjang. Satu pengecualian lagi: janjang REJ milik truk
+**Internal** sengaja tidak dipulse sama sekali (`domain/plc_signal.py`) karena
+tetap masuk ramp — jadi penghitung NG di PLC memang lebih kecil dari angka REJ
+di konsol saat truk internal lewat.
 **Ukuran minimum**: 460.000 px² — objek di bawah luas ini dipaksa jadi `rej`
 **Pelacakan**: ByteTrack — tiap buah dapat `track_id` unik, disimpan sekali saja (single-trigger)
 **Zona deteksi**: kotak ROI (`ROI_X1/Y1/X2/Y2`) — cuma objek yang titik tengahnya jatuh di dalam kotak yang dihitung. Bawaannya `0,0,0,0` = satu frame penuh. Kelas TP dikecualikan dari pemeriksaan ROI.
