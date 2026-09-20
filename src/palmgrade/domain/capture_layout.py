@@ -3,8 +3,8 @@
     artifacts/results/2026-09-08/
       2026-09-08_021432_781225_auto_ripeness.json   <- stays FLAT, see below
       091432_B1234XY_a3f9c201/
-        bbox/acc/    bbox/rej/                      <- annotated, the evidence
-        clean/acc/   clean/rej/                     <- unannotated, for training
+        bbox/Ripe/   bbox/Ripe/TP/   bbox/Unripe/   bbox/JK/   <- annotated, the evidence
+        clean/Ripe/  clean/Ripe/TP/  clean/Unripe/  clean/JK/  <- unannotated, for training
       _belum-assign/                                <- graded before a truck was set
 
 Three rules hold this shape together, and each has already cost us something:
@@ -20,8 +20,11 @@ Three rules hold this shape together, and each has already cost us something:
    and a 16:00 WIB truck filed as `090000` defeats the point of having them.
    Two zones in one tree is deliberate: folders for people, filenames for machines.
 
-3. **The verdict is a folder, not a field.** `clean/acc` and `clean/rej` are a
-   labelled training set that needs no JSON parsing.
+3. **The class is a folder, not a field.** `clean/Ripe` and `clean/Unripe` are a
+   labelled training set that needs no JSON parsing. Class, not verdict, since
+   2026-09-20: `acc`/`rej` folders re-merged Unripe and JK, discarding exactly
+   what the 4-class retrain bought. `Ripe/TP/` sits one level deeper, so no
+   reader may assume a fixed depth — see `_twin`.
 """
 from __future__ import annotations
 
@@ -30,7 +33,13 @@ import enum
 import re
 from pathlib import Path
 
+from .grade_class import RIPE
 from .plate import normalisasi_plat
+
+# Sub-folder for a Ripe bunch that carries a long stalk. A folder rather than a
+# filename marker so that "show me every TP result" is one folder, which is the
+# reason it exists at all (decided 2026-09-20).
+TP_FOLDER = "TP"
 
 # Named so it cannot be mistaken for a truck: if this folder has contents,
 # someone graded bunches before assigning a truck. A truck folder always starts
@@ -102,17 +111,30 @@ def image_relative_path(
     date_folder: str,
     truck_folder: str,
     variant: CaptureVariant,
-    ripeness_status: str,
+    grade_class: str | None,
     filename: str,
+    tp: bool = False,
 ) -> str:
     """Path of one image relative to `results/`, e.g.
-    `2026-09-08/091432_B1234XY_a3f9c201/bbox/rej/<ts>_auto.webp`.
+    `2026-09-08/091432_B1234XY_a3f9c201/bbox/Unripe/<ts>_auto.webp`.
 
-    An unrecognised verdict gets its own folder rather than being dropped: a new
-    model class must not cost us the image.
+    The folder is the model CLASS, not the binary verdict (changed 2026-09-20).
+    `clean/` is a training set, and `Unripe` and `JK` — which the model already
+    tells apart — used to be melted back into one `rej/` folder, throwing away
+    the very distinction the 4-class model was retrained for.
+
+    A `Ripe` bunch with a long stalk goes one level deeper, into `Ripe/TP/`: the
+    whole point of the sub-folder is that finding every TP result is opening one
+    folder. `tp` is ignored for every other class — TP is only looked for on Ripe
+    (decided 2026-09-20), so a `tp=True` on a REJ class is a mistaken caller, and
+    filing the image anyway beats losing it over a caller's bug.
+
+    An unusable class gets `unknown/` rather than being dropped: a manual capture
+    never went through the model, so it genuinely has no class.
     """
-    verdict = _sanitise(ripeness_status).lower() or "unknown"
-    return f"{date_folder}/{truck_folder}/{variant.value}/{verdict}/{filename}"
+    kelas = _sanitise(grade_class or "") or "unknown"
+    ekor = f"/{TP_FOLDER}" if tp and kelas == RIPE else ""
+    return f"{date_folder}/{truck_folder}/{variant.value}/{kelas}{ekor}/{filename}"
 
 
 def build_r2_key(machine_id: str, image_path: str) -> str:
@@ -122,9 +144,25 @@ def build_r2_key(machine_id: str, image_path: str) -> str:
 
 
 def _twin(annotated: Path, variant: CaptureVariant) -> Path | None:
-    if annotated.parent.parent.name != CaptureVariant.ANNOTATED.value:
+    """Swap the `bbox` segment for another variant's, keeping everything after it.
+
+    Depth-agnostic on purpose: `bbox/Ripe/TP/x.webp` is one level deeper than
+    `bbox/Unripe/x.webp`, and the old rule — "the verdict sits exactly one level
+    under bbox" — returned None for the deeper one. That failure is silent and
+    expensive: the clean and thumb copies have no manifest row of their own, so a
+    twin that is not found is a twin nothing else will ever delete, and the disk
+    fills until `write_image` raises and grading stops saving (Rule #8/#9).
+
+    Matches `thumb_key_of`, which already worked this way on the R2 key. Two
+    rules for one pairing meant the remote key could name a file the local side
+    never uploaded.
+    """
+    parts = annotated.parts
+    try:
+        i = len(parts) - 1 - parts[::-1].index(CaptureVariant.ANNOTATED.value)
+    except ValueError:
         return None  # written before this layout existed (flat in the day folder)
-    return annotated.parent.parent.parent / variant.value / annotated.parent.name / annotated.name
+    return Path(*parts[:i], variant.value, *parts[i + 1 :])
 
 
 def twins_of(annotated: Path) -> list[Path]:

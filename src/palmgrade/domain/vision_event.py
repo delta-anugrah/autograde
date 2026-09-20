@@ -50,6 +50,13 @@ def event_id_for(machine_id: str, file_ts: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{machine_id}:{file_ts}"))
 
 
+#: What `tp_status` looks like ON THE WIRE. The api DTO validates this field
+#: with `@IsIn(["PASS"])`, so it stays a string here even though the sidecar on
+#: our own disk carries a plain boolean since 2026-09-20. One constant, so the
+#: two vocabularies never drift into three.
+TP_PASS = "PASS"
+
+
 def build_event_payload(
     *,
     machine_id: str,

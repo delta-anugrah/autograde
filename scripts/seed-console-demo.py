@@ -42,9 +42,11 @@ from palmgrade.domain.capture_layout import (  # noqa: E402
     image_relative_path,
     truck_folder_name,
 )
+from palmgrade.domain.grade_class import JK, RIPE, UNRIPE  # noqa: E402
 from palmgrade.domain.operator_auth import hash_password, operator_id_for  # noqa: E402
 from palmgrade.domain.plate import normalisasi_plat, truck_id_for  # noqa: E402
 from palmgrade.domain.role import ROLE_OPERATOR, ROLE_SUPPORT  # noqa: E402
+from palmgrade.domain.vision_event import TP_PASS  # noqa: E402
 from palmgrade.domain.working_day import work_date_for  # noqa: E402
 from palmgrade.repositories.console_repository import ConsoleStore  # noqa: E402
 
@@ -85,6 +87,10 @@ TARE_RANGE = (4000, 8000)
 # filled; a screen where JK is always zero hides a miswired class.
 REJ_SHARE = (0.03, 0.14)
 JK_SHARE_OF_REJ = 0.2
+# Berapa bagian janjang diterima yang bertangkai panjang. Di atas ambang rekap
+# (`tp_confidence > 0.8`), supaya kolom Tangkai Panjang di layar demo terisi —
+# nol di situ terbaca seperti fitur yang rusak, bukan seperti data demo.
+TP_SHARE_OF_ACC = 0.08
 
 DEMO_TAG = "demo:"  # every seeded id is uuid5 of a string starting with this
 
@@ -171,17 +177,37 @@ def kumpulkan_capture_nyata(artifacts_dir: Path) -> dict[str, list[Path]]:
     `clean/` adalah calon data latih dan tidak pernah jadi bukti di layar, dan
     `thumb/` terlalu kecil untuk lapisan foto.
 
-    ACC dan REJ dipisah karena verdict adalah folder, bukan field
+    ACC dan REJ dipisah karena kelas adalah folder, bukan field
     (`capture_layout` aturan 3). Foto REJ yang dipakai untuk baris ACC membuat
     demo menceritakan hal yang salah tentang mesinnya sendiri.
+
+    Dua tata letak dibaca sekaligus: folder kelas (`bbox/Ripe/`, sejak
+    2026-09-20, termasuk `bbox/Ripe/TP/` yang satu level lebih dalam) dan folder
+    verdict lama (`bbox/acc/`). PC pabrik punya keduanya selama satu periode
+    retensi, dan glob berkedalaman tetap yang cuma mengenal satu di antaranya
+    pulang dengan tangan kosong — demo diam-diam jatuh ke gambar sintetis, tanpa
+    satu pun pesan yang mengatakannya.
     """
     per_verdict: dict[str, list[Path]] = {"acc": [], "rej": []}
     if not artifacts_dir.exists():
         return per_verdict
-    for verdict in per_verdict:
-        # <line>/results/<hari>/<truk>/bbox/<verdict>/<berkas>.webp
-        ditemukan = sorted(artifacts_dir.glob(f"*/results/*/*/bbox/{verdict}/*.webp"))
-        per_verdict[verdict] = [p for p in ditemukan if p.stat().st_size > 0]
+    # Nama folder → verdict yang diwakilinya. `unknown` (capture manual) tidak
+    # ikut: verdict-nya tidak pernah dilihat model.
+    dari_folder = {
+        RIPE: "acc", UNRIPE: "rej", JK: "rej",  # tata letak kelas
+        "acc": "acc", "rej": "rej",             # tata letak verdict lama
+    }
+    # `**` menyeberangi `Ripe/TP/` tanpa mematok kedalaman.
+    for berkas in sorted(artifacts_dir.glob("*/results/*/*/bbox/**/*.webp")):
+        # Folder kelas/verdict = yang tepat di bawah `bbox`, apa pun sisanya.
+        bagian = berkas.relative_to(artifacts_dir).parts
+        try:
+            kelas = bagian[bagian.index("bbox") + 1]
+        except (ValueError, IndexError):
+            continue
+        verdict = dari_folder.get(kelas)
+        if verdict and berkas.stat().st_size > 0:
+            per_verdict[verdict].append(berkas)
     return per_verdict
 
 
@@ -442,12 +468,18 @@ def _seed_one_visit(
         # Layout resmi, lewat `capture_layout` — bukan path rakitan sendiri. Baris
         # demo yang tersimpan flat di folder hari akan luput dari retensi dan dari
         # pemindai batch-upload, yang keduanya mengandalkan kedalaman folder.
+        # Tangkai panjang cuma dinilai pada buah yang diterima (sejak
+        # 2026-09-20): janjang REJ dibuang piston, jadi tangkainya tidak dibayar
+        # dan tidak dicari. Dipakai dua kali di bawah — folder dan kolomnya harus
+        # menceritakan hal yang sama.
+        tangkai_panjang = not rejected and rng.random() < TP_SHARE_OF_ACC
         image_path = "captures/results/" + image_relative_path(
             date_folder=work_date,
             truck_folder=truck_folder,
             variant=CaptureVariant.ANNOTATED,
-            ripeness_status="REJ" if rejected else "ACC",
+            grade_class=grade_class,
             filename=f"{ts:%Y-%m-%d_%H%M%S}_{j:06d}_auto.webp",
+            tp=tangkai_panjang,
         )
         store.add_inspection(
             {
@@ -460,10 +492,14 @@ def _seed_one_visit(
                 "ripeness_status": "REJ" if rejected else "ACC",
                 "grade_class": grade_class,
                 "ripeness_confidence": round(rng.uniform(0.70, 0.79 if rejected else 0.98), 2),
-                # Long stalks are only judged on fruit that was accepted; a rejected
-                # bunch never reaches that check, so the column stays empty for it.
-                "tp_status": None if rejected else ("FAIL" if rng.random() < 0.06 else "PASS"),
-                "tp_confidence": None,
+                # `"PASS"`/None, kosakata kawat yang sama dengan jalur sungguhan
+                # (`domain/vision_event.TP_PASS`) — `"FAIL"` dulu ditulis di sini
+                # dan tidak pernah diproduksi kode produksi mana pun.
+                "tp_status": TP_PASS if tangkai_panjang else None,
+                # Angka, bukan None: rekap menghitung tangkai panjang dengan
+                # `tp_confidence > 0.8`, jadi None membuat demo melaporkan NOL
+                # tangkai panjang betapa pun banyak barisnya berkata "PASS".
+                "tp_confidence": round(rng.uniform(0.85, 0.97), 2) if tangkai_panjang else 0,
                 "capture_type": "manual" if j == 3 else "auto",
                 "image_path": image_path,
                 "truck_id": truck_id,

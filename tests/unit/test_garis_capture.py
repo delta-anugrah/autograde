@@ -404,3 +404,37 @@ class TestTpTidakDirebutTetangga:
             kandidat=[{"bbox": self.TP_MILIK_A}],
             janjang_lain=[(2000, 1700, 2400, 2000)],
         ) is not None
+
+    def test_hanya_janjang_yang_bisa_memiliki_tp_yang_boleh_menghalangi(self):
+        """Saingan yang tidak ikut lomba tidak boleh memenangkannya untuk siapa pun.
+
+        Sejak TP cuma dicari untuk janjang ACC (2026-09-20), janjang REJ tidak
+        pernah mengambil TP — tapi kotaknya tetap ikut ke `janjang_lain`. Kalau
+        REJ itu kebetulan lebih dekat ke tangkainya, dia membatalkan klaim
+        janjang ACC di sebelahnya sambil tidak mengambilnya sendiri: tangkainya
+        hilang ke mana-mana, tidak terhitung `tp_telat`, tanpa satu pun log.
+        Yang hilang itu `tangkai_panjang` yang dibayarkan ke pemasok.
+
+        Di sini B (REJ) yang paling dekat ke tangkainya, A (ACC) yang kedua.
+        Kalau B ikut menghalangi, A pulang kosong dan tangkainya lenyap.
+        """
+        tp = {"bbox": self.TP_MILIK_A}
+        # Pusatnya (1260, 1150): 361 px dari A dan 347 px dari B, sementara
+        # ambang A 477 px. Jadi tangkainya BENAR-BENAR dalam jangkauan A —
+        # yang membatalkannya cuma kehadiran B, bukan jaraknya.
+        tp_dekat_b = {"bbox": (1230, 1120, 1290, 1180)}
+
+        # B tidak ikut lomba, jadi dia tidak boleh masuk daftar saingan A.
+        assert tp_untuk_janjang(
+            janjang=self.A, kandidat=[tp_dekat_b], janjang_lain=[]
+        ) is not None, "tangkai dalam jangkauan A hilang padahal tak ada saingan sah"
+
+        # Dan yang memang ikut lomba tetap menghalangi, seperti sebelumnya.
+        assert tp_untuk_janjang(
+            janjang=self.A, kandidat=[tp_dekat_b], janjang_lain=[self.B]
+        ) is None, "saingan sah berhenti menghalangi — aturan pemilik tunggal rusak"
+
+        # Kewarasan: pasangan A yang asli tetap milik A.
+        assert tp_untuk_janjang(
+            janjang=self.A, kandidat=[tp], janjang_lain=[self.B]
+        ) is not None

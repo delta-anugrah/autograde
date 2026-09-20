@@ -150,8 +150,8 @@ def test_the_writer_writes_the_same_three_images_and_the_sidecar(worker):
 
     assert len(storage.images) == 2, "bbox + clean"
     assert len(storage.thumbs) == 1
-    assert any("/bbox/rej/" in p for p in storage.images)
-    assert any("/clean/rej/" in p for p in storage.images)
+    assert any("/bbox/Ripe/" in p for p in storage.images)
+    assert any("/clean/Ripe/" in p for p in storage.images)
     (sidecar,) = storage.json
     assert sidecar.endswith("_auto_ripeness.json")
 
@@ -177,20 +177,84 @@ def test_the_writer_enqueues_the_event_for_the_local_api(worker):
     assert payload["event_id"] == event_id
     assert payload["ripeness_status"] == "REJ"
     assert payload["grade_class"] == "Ripe"
-    assert "/bbox/rej/" in payload["image_path"]
+    assert "/bbox/Ripe/" in payload["image_path"]
 
 
-def test_a_tp_alongside_the_bunch_is_saved_with_the_same_timestamp(worker):
-    """TP menempel pada janjang yang memicunya; dua sidecar, satu nama dasar."""
+def test_tp_menumpang_di_sidecar_janjangnya_bukan_berkas_kedua(worker):
+    """Satu janjang = satu sidecar, TP atau tidak (2026-09-20).
+
+    Dulu TP jadi `_auto_tp.json` terpisah, dan memasangkannya kembali butuh tiga
+    blok khusus di `BatchUploadWorker` plus satu kelas galat untuk TP yatim —
+    sidecar TP yang pasangannya tidak ada tidak bisa dikirim sama sekali.
+    """
     w, storage, _ = worker
 
-    w.run_once(_job(tp={"tp_status": "PASS", "tp_confidence": 0.8, "bbox": (1, 2, 3, 4)}))
+    w.run_once(_job(
+        grade_class="Ripe",
+        tp={"tp_status": True, "tp_confidence": 0.8, "bbox": (5, 6, 7, 8)},
+    ))
 
     names = sorted(Path(p).name for p in storage.json)
-    assert names == [
-        "2026-09-08_091432_123456_auto_ripeness.json",
-        "2026-09-08_091432_123456_auto_tp.json",
-    ]
+    assert names == ["2026-09-08_091432_123456_auto_ripeness.json"]
+
+    (meta,) = storage.json.values()
+    assert meta["tp_status"] is True
+    assert meta["tp_confidence"] == 0.8
+    assert meta["tp_bounding_box"] == {"x_min": 5, "y_min": 6, "x_max": 7, "y_max": 8}
+    # Kotak janjangnya sendiri tidak boleh tertimpa kotak tangkainya.
+    assert meta["bounding_box"] == {"x_min": 1, "y_min": 2, "x_max": 3, "y_max": 4}
+
+
+def test_janjang_tanpa_tp_tetap_membawa_ketiga_field_tp(worker):
+    """Field-nya selalu ada, isinya yang kosong.
+
+    Pembaca sidecar tidak boleh perlu bertanya "field-nya ada tidak ya" — yang
+    kadang ada kadang tidak memaksa tiap pembaca berjaga sendiri, dan cepat atau
+    lambat ada satu yang lupa.
+    """
+    w, storage, _ = worker
+
+    w.run_once(_job())
+
+    (meta,) = storage.json.values()
+    assert meta["tp_status"] is False
+    assert meta["tp_confidence"] == 0
+    assert meta["tp_bounding_box"] is None
+
+
+def test_ripe_bertangkai_panjang_difiling_di_subfolder_tp(worker):
+    """Mencari hasil TP = membuka satu folder."""
+    w, storage, _ = worker
+
+    w.run_once(_job(
+        grade_class="Ripe",
+        tp={"tp_status": True, "tp_confidence": 0.9, "bbox": (1, 1, 2, 2)},
+    ))
+
+    assert any("/bbox/Ripe/TP/" in p for p in storage.images)
+    assert any("/clean/Ripe/TP/" in p for p in storage.images)
+    (thumb,) = storage.thumbs
+    assert "/thumb/Ripe/TP/" in thumb
+    # Tautan yang dikirim ke layar harus menunjuk berkas yang benar-benar ditulis.
+    (meta,) = storage.json.values()
+    assert "/bbox/Ripe/TP/" in meta["image_path"]
+
+
+def test_machine_id_ikut_di_sidecar(worker, settings):
+    """Tiga line menulis ke pohon yang sama; tanpa ini foto satu line tidak bisa
+    dipisahkan dari line lain tanpa membuka basis data.
+
+    `machine_id`, bukan `line_code`: proses line cuma mengenal id mesinnya
+    sendiri, dan pemetaan ke `line-1`/`line-2` hidup di konsol. Menulis kode line
+    di sini berarti membuat pemetaan kedua yang bisa berbeda dari yang dipakai
+    mengelompokkan rekap.
+    """
+    w, storage, _ = worker
+
+    w.run_once(_job())
+
+    (meta,) = storage.json.values()
+    assert meta["machine_id"] == settings.machine_id
 
 
 # ------------------------------------------------- identitas lahir di depan

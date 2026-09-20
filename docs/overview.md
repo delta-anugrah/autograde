@@ -87,7 +87,7 @@ each YOLO frame (ByteTrack assigns track_id per object):
 
   CaptureSaveWorker (thread lain):
       write_pair(): WebP bbox + clean + thumb (quality 65 / 60)
-      {ts}_auto_ripeness.json, dan {ts}_auto_tp.json kalau janjang itu bawa TP
+      {ts}_auto_ripeness.json — SATU sidecar per janjang, TP ikut di dalamnya
       outbox.add_event(build_event_payload(...))  # → API lokal via OutboxRetryWorker
       # Pengiriman ke CLOUD terpisah: BatchUploadWorker men-scan file hasil save
       # di atas (lihat §4) dan menghitung ulang uuid5 yang sama dari machine_id +
@@ -247,7 +247,7 @@ BatchUploadWorker.run_batch_once()
   "assignment_id": "uuid-or-null",
   "truck_id": "uuid-or-null",
   "timestamp": "ISO-8601 UTC-aware (+00:00)",
-  "image_path": "captures/results/{date}/{HHMMSS}_{plat}_{assign8}/bbox/{acc|rej}/{ts}_auto.webp",
+  "image_path": "captures/results/{date}/{HHMMSS}_{plat}_{assign8}/bbox/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp",
   "prediction": "Acc | Rej",
   "ripeness_status": "ACC | REJ",
   "ripeness_confidence": 0.92,
@@ -416,10 +416,10 @@ needed (not just `libMvCameraControl.so`): `MV_CC_EnumDevices()` dynamically loa
 ```
 artifacts/line-N/   (host) ↔ /app/artifacts (container)
   results/{YYYY-MM-DD}/                        # tanggal = UTC
-    {ts}_auto_ripeness.json [+ {ts}_auto_tp.json]   # sidecar — DATAR di sini, wajib
+    {ts}_auto_ripeness.json                        # sidecar — DATAR di sini, wajib
     {ts}_manual_ripeness.json                        # manual reject
     {HHMMSS}_{plat}_{assign8}/                       # satu folder per kunjungan truk
-      bbox/{acc|rej}/{ts}_auto.webp                  # bergambar kotak → image_path, naik R2
+      bbox/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp      # bergambar kotak → image_path, naik R2
       clean/{acc|rej}/{ts}_auto.webp                 # polos → latih model, TIDAK diupload
     _belum-assign/                                   # ter-grading sebelum truk dipasang
   outbox.db                 # SQLite — antrean realtime ke API lokal (OutboxRetryWorker)

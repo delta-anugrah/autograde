@@ -2,8 +2,9 @@
 
 The layout exists to be read by people: an operator asked for "the truck that
 tipped around 9 this morning" must find it without opening the console, and the
-folder is the label an AI training run consumes (`acc/` and `rej/` are the
-classes). Everything asserted here protects one of those two readers.
+folder is the label an AI training run consumes (`Ripe/`, `Unripe/`, `JK/` are
+the classes, with `Ripe/TP/` one level deeper). Everything asserted here
+protects one of those two readers.
 
 The JSON sidecar is deliberately NOT covered by this module — it stays flat in
 the day folder because `BatchUploadWorker._scan()` globs `*/*_ripeness.json`,
@@ -143,23 +144,23 @@ def test_the_unassigned_folder_never_collides_with_a_truck() -> None:
 
 
 @pytest.mark.parametrize(
-    "variant,status,expected",
+    "variant,grade_class,expected",
     [
-        (CaptureVariant.ANNOTATED, "acc", "bbox/acc"),
-        (CaptureVariant.ANNOTATED, "rej", "bbox/rej"),
-        (CaptureVariant.CLEAN, "acc", "clean/acc"),
-        (CaptureVariant.CLEAN, "rej", "clean/rej"),
+        (CaptureVariant.ANNOTATED, "Ripe", "bbox/Ripe"),
+        (CaptureVariant.ANNOTATED, "Unripe", "bbox/Unripe"),
+        (CaptureVariant.CLEAN, "JK", "clean/JK"),
+        (CaptureVariant.CLEAN, "Unripe", "clean/Unripe"),
     ],
 )
-def test_variant_and_verdict_each_get_a_folder(
-    variant: CaptureVariant, status: str, expected: str
+def test_variant_and_class_each_get_a_folder(
+    variant: CaptureVariant, grade_class: str, expected: str
 ) -> None:
-    """`clean/acc` is a ready-made training set: no JSON parsing needed."""
+    """`clean/Unripe` is a ready-made training set: no JSON parsing needed."""
     path = image_relative_path(
         date_folder="2026-09-08",
         truck_folder="091432_B1234XY_a3f9c201",
         variant=variant,
-        ripeness_status=status,
+        grade_class=grade_class,
         filename="2026-09-08_021432_781225_auto.webp",
     )
 
@@ -169,37 +170,32 @@ def test_variant_and_verdict_each_get_a_folder(
     )
 
 
-def test_the_verdict_folder_is_case_insensitive() -> None:
-    """The auto path lowercases its status, the manual path does not."""
-    lower = image_relative_path(
+def test_the_class_folder_keeps_the_model_casing() -> None:
+    """`Ripe`, not `ripe`. The folder must match `grade_class` in the sidecar and
+    in SQLite exactly, or a training run that trusts the folder and a recap that
+    trusts the field disagree about the same bunch — and neither says so."""
+    path = image_relative_path(
         date_folder="2026-09-08",
         truck_folder="t",
         variant=CaptureVariant.CLEAN,
-        ripeness_status="rej",
-        filename="f.webp",
-    )
-    upper = image_relative_path(
-        date_folder="2026-09-08",
-        truck_folder="t",
-        variant=CaptureVariant.CLEAN,
-        ripeness_status="REJ",
+        grade_class="Ripe",
         filename="f.webp",
     )
 
-    assert lower == upper
+    assert path == "2026-09-08/t/clean/Ripe/f.webp"
 
 
-def test_an_unknown_verdict_is_filed_rather_than_dropped() -> None:
+def test_an_unknown_class_is_filed_rather_than_dropped() -> None:
     """A new model class must not cost us the image."""
     path = image_relative_path(
         date_folder="2026-09-08",
         truck_folder="t",
         variant=CaptureVariant.ANNOTATED,
-        ripeness_status="unripe",
+        grade_class="Sesuatu",
         filename="f.webp",
     )
 
-    assert path == "2026-09-08/t/bbox/unripe/f.webp"
+    assert path == "2026-09-08/t/bbox/Sesuatu/f.webp"
 
 
 def test_both_variants_share_one_filename() -> None:
@@ -209,7 +205,7 @@ def test_both_variants_share_one_filename() -> None:
     common = dict(
         date_folder="2026-09-08",
         truck_folder="091432_B1234XY_a3f9c201",
-        ripeness_status="acc",
+        grade_class="Ripe",
         filename="2026-09-08_021432_781225_auto.webp",
     )
 
@@ -246,3 +242,100 @@ def test_thumb_key_swaps_only_the_variant_segment() -> None:
 
 def test_r2_key_is_machine_then_path_without_captures_prefix() -> None:
     assert build_r2_key("M1", "captures/results/2026-09-08/T/bbox/acc/x.webp") == "M1/results/2026-09-08/T/bbox/acc/x.webp"
+
+
+# ------------------------------------------------- folder kelas + subfolder TP
+#
+# Sejak model 4 kelas, folder verdict (`acc`/`rej`) diganti folder KELAS
+# (`Ripe`/`Unripe`/`JK`): `clean/` adalah training set, dan Unripe vs JK yang
+# sudah bisa dibedakan model tidak boleh dilebur lagi jadi satu folder `rej/`.
+# Ripe yang bertangkai panjang turun satu level lagi ke `Ripe/TP/`, supaya
+# mencari hasil TP cukup membuka satu folder.
+
+
+def test_kelas_model_jadi_nama_folder() -> None:
+    """`Ripe`/`Unripe`/`JK`, bukan lagi `acc`/`rej`."""
+    path = image_relative_path(
+        date_folder="2026-09-08",
+        truck_folder="091432_B1234XY_a3f9c201",
+        variant=CaptureVariant.CLEAN,
+        grade_class="Unripe",
+        filename="f.webp",
+    )
+
+    assert path == "2026-09-08/091432_B1234XY_a3f9c201/clean/Unripe/f.webp"
+
+
+def test_ripe_bertangkai_panjang_turun_ke_subfolder_tp() -> None:
+    """Satu folder untuk semua hasil TP — itu seluruh alasan sub-folder ini ada."""
+    path = image_relative_path(
+        date_folder="2026-09-08",
+        truck_folder="t",
+        variant=CaptureVariant.ANNOTATED,
+        grade_class="Ripe",
+        tp=True,
+        filename="f.webp",
+    )
+
+    assert path == "2026-09-08/t/bbox/Ripe/TP/f.webp"
+
+
+def test_kelas_selain_ripe_tidak_pernah_punya_subfolder_tp() -> None:
+    """TP cuma dicek untuk Ripe (keputusan 2026-09-20): REJ dibuang piston, jadi
+    tangkainya tidak dibayar dan tidak perlu dicatat. `tp=True` pada kelas REJ
+    adalah pemanggil yang keliru — path-nya tetap tanpa `TP/`, bukan dilempar,
+    supaya satu pemanggil salah tidak membuang gambarnya."""
+    path = image_relative_path(
+        date_folder="2026-09-08",
+        truck_folder="t",
+        variant=CaptureVariant.CLEAN,
+        grade_class="Unripe",
+        tp=True,
+        filename="f.webp",
+    )
+
+    assert path == "2026-09-08/t/clean/Unripe/f.webp"
+
+
+def test_kelas_kosong_tetap_difiling_bukan_dibuang() -> None:
+    """Capture manual tidak pernah lewat model, jadi kelasnya memang tidak ada.
+    Gambarnya tetap harus punya tempat — aturan yang sama dengan verdict asing
+    sebelum perubahan ini."""
+    path = image_relative_path(
+        date_folder="2026-09-08",
+        truck_folder="t",
+        variant=CaptureVariant.ANNOTATED,
+        grade_class=None,
+        filename="f.webp",
+    )
+
+    assert path == "2026-09-08/t/bbox/unknown/f.webp"
+
+
+# Kembaran harus tetap ketemu walau path-nya satu level lebih dalam. Ini yang
+# paling mahal kalau salah: clean & thumb tidak punya baris manifest sendiri,
+# jadi kembaran yang tidak ketemu berarti tidak ada apa pun lagi yang
+# menghapusnya — disk penuh diam-diam, lalu grading berhenti menyimpan.
+
+TP_ANNOTATED = Path("/r/2026-09-08/091432_B1234XY_a3f9c201/bbox/Ripe/TP/x.webp")
+
+
+def test_kembaran_tp_ketemu_walau_satu_level_lebih_dalam() -> None:
+    root = Path("/r/2026-09-08/091432_B1234XY_a3f9c201")
+    assert twins_of(TP_ANNOTATED) == [
+        root / "clean/Ripe/TP/x.webp",
+        root / "thumb/Ripe/TP/x.webp",
+    ]
+    assert thumb_twin_of(TP_ANNOTATED) == root / "thumb/Ripe/TP/x.webp"
+
+
+def test_kunci_thumb_r2_dan_kembaran_lokal_sepakat_untuk_tp() -> None:
+    """Dua fungsi, satu jawaban. `thumb_key_of` (kunci R2) memakai substring dan
+    sudah benar untuk TP; kalau `thumb_twin_of` (berkas lokal) memakai aturan
+    lain, yang satu menunjuk berkas yang tidak pernah diunggah yang lain."""
+    key = build_r2_key("M1", "captures/results/2026-09-08/T/bbox/Ripe/TP/x.webp")
+
+    assert thumb_key_of(key) == "M1/results/2026-09-08/T/thumb/Ripe/TP/x.webp"
+    assert thumb_twin_of(Path("/r/2026-09-08/T/bbox/Ripe/TP/x.webp")) == Path(
+        "/r/2026-09-08/T/thumb/Ripe/TP/x.webp"
+    )

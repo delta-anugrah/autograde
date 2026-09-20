@@ -163,7 +163,13 @@ def test_kedua_call_site_menulis_ke_outbox(relpath: str) -> None:
     assert _live_lines(SRC / relpath, "build_event_payload(")
     # Import-nya ikut dijaga: memanggilnya tanpa mengimpor lolos test teks tapi
     # NameError saat runtime — persis yang kejadian waktu fitur ini dipasang.
-    assert _live_lines(SRC / relpath, "import build_event_payload")
+    # Dicocokkan per NAMA, bukan `"import build_event_payload"` utuh: satu simbol
+    # lain yang ikut diimpor dari modul yang sama menggeser namanya dari ujung
+    # baris, dan penjaga yang pecah karena itu melaporkan hilangnya import yang
+    # sebenarnya ada — kesalahan yang menyita perhatian tanpa ada yang rusak.
+    impor = _live_lines(SRC / relpath, "from ..domain.vision_event import")
+    assert impor, "import dari domain.vision_event hilang"
+    assert any("build_event_payload" in baris for baris in impor)
 
 
 def test_jalur_auto_menyerahkan_janjangnya_ke_penulis() -> None:
