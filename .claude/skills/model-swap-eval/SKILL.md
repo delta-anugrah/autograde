@@ -10,9 +10,42 @@ description: Evaluasi, ganti, dan rollback model deteksi YOLO di autograde — p
 `MODEL_FILE` di `.env` (default `best.pt`) → dibaca
 `Settings.ripeness_model_path` → **selalu dari `models/release/`**, bukan `models/`.
 
-3 kelas: `ACC` / `Rej` / `TP`. `submit_grading()` cuma memetakan `acc` → coil OK
-dan `rej` → coil NG (`plc/worker.py::_coil_for`); status lain diabaikan diam-diam.
-**Ganti nama kelas = putusin sinyal PLC.** Cek `plc-coil-map` sebelum ngutak-ngatik nama kelas.
+**4 kelas** sejak 2026-09-16: `Ripe` / `Unripe` / `JK` / `TP`. Diverifikasi
+langsung dari checkpoint, bukan dari dokumen:
+
+| | `best.pt` (terpasang) | `best_3class_v2.pt` (lama, disimpan) |
+|---|---|---|
+| Kelas | `{0: JK, 1: Ripe, 2: TP, 3: Unripe}` | `{0: ACC, 1: Rej, 2: TP}` |
+| Backbone | yolov8m | yolov8x |
+| Parameter | 25,9 juta | 68,2 juta |
+| Ukuran | 49,6 MB | 130,4 MB |
+| mAP50 | 0,982 | 0,981 |
+| mAP50-95 | 0,813 | 0,846 |
+| Precision / Recall | 0,967 / 0,981 | 0,965 / 0,974 |
+| Dataset val | `nxt-pg-001-v1i` (Roboflow) | `sawit-dataset3class_v2` |
+| Tanggal | 2026-09-16 | 2025-09-21 |
+
+⚠️ **mAP dua baris itu TIDAK bisa dibandingkan** — val set-nya beda dan jumlah
+kelasnya beda, jadi angka model lama yang terlihat lebih tinggi 0,033 itu
+membandingkan dua ujian yang soalnya beda. Yang membuat model 4 kelas tetap
+pilihan benar bukan mAP-nya, tapi: dia bisa memisahkan `Unripe` dari `JK`
+(model lama cuma bisa bilang "Rej"), dan 2,6x lebih ringan — kerasa langsung di
+FPS RTX 3060 yang menarik 3 line sekaligus.
+
+Kalau memang perlu perbandingan jujur: siapkan satu val set 4 kelas, ukur
+dua-duanya di situ, model lama dipetakan `Rej` = `Unripe` + `JK`. Dataset lama
+sudah tidak ada di repo maupun MacBook.
+
+`submit_grading()` cuma memetakan `acc` → coil OK dan `rej` → coil NG
+(`plc/worker.py::_coil_for`); status lain diabaikan diam-diam. Kelas → verdict
+diputuskan di `domain/grade_class.py`: `Ripe` → ACC, `Unripe` dan `JK` → REJ,
+`TP` → tanpa verdict (tidak pernah ke PLC). **Ganti nama kelas = putusin sinyal
+PLC.** Cek `plc-coil-map` sebelum ngutak-ngatik nama kelas.
+
+⚠️ Pencocokan nama kelas **case-insensitive** (`grade_class.py:_BY_LOWER`).
+Ini disengaja: model lama mengirim `{ACC, Rej, TP}` — tiga gaya kapital di tiga
+kelas. Mengunci kapital persis adalah cara retrain berikutnya mematikan grading
+tanpa satu pun error: semua janjang gagal dicocokkan dan tidak ada yang dihitung.
 
 ## Layout folder
 
