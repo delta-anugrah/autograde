@@ -47,7 +47,16 @@ class ResultRepository:
                 grouped[base_name]["ripeness_status"] = meta.get("ripeness_status")
                 grouped[base_name]["ripeness_confidence"] = meta.get("ripeness_confidence", 0)
                 grouped[base_name]["image_url"] = meta.get("image_path") or meta.get("image_url")
+                # Sejak 2026-09-20 nilai TP menumpang di sidecar janjangnya, dan
+                # `_auto_tp.json` tidak ditulis lagi. Tanpa dua baris ini setiap
+                # janjang dilaporkan tanpa tangkai panjang — salah, dan senyap.
+                grouped[base_name]["tp_status"] = meta.get("tp_status")
+                grouped[base_name]["tp_confidence"] = meta.get("tp_confidence", 0)
             elif "_tp" in filename:
+                # Berkas TP lama yang masih ada di disk pabrik. Menang atas nilai
+                # di atas: sidecar sebelum perubahan itu selalu menulis
+                # `tp_status: None`, jadi yang benar ada di berkas kedua sampai
+                # retensi membuangnya.
                 grouped[base_name]["tp_status"] = meta.get("tp_status")
                 grouped[base_name]["tp_confidence"] = meta.get("tp_confidence", 0)
             else:

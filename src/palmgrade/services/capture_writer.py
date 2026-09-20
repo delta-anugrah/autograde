@@ -96,7 +96,12 @@ class CaptureWriter:
 
     @staticmethod
     def annotated_url(
-        *, date_folder: str, truck_folder: str, ripeness_status: str, filename: str
+        *,
+        date_folder: str,
+        truck_folder: str,
+        grade_class: str | None,
+        filename: str,
+        tp: bool = False,
     ) -> str:
         """Tautan `captures/` ke salinan bbox — tanpa menulis apa pun.
 
@@ -111,8 +116,9 @@ class CaptureWriter:
             date_folder=date_folder,
             truck_folder=truck_folder,
             variant=CaptureVariant.ANNOTATED,
-            ripeness_status=ripeness_status,
+            grade_class=grade_class,
             filename=filename,
+            tp=tp,
         )
 
     def write_pair(
@@ -120,10 +126,11 @@ class CaptureWriter:
         *,
         date_folder: str,
         truck_folder: str,
-        ripeness_status: str,
+        grade_class: str | None,
         filename: str,
         annotated_frame: Any,
         clean_frame: Any,
+        tp: bool = False,
     ) -> str:
         """Write both variants and return the annotated one's `captures/` path.
 
@@ -136,8 +143,9 @@ class CaptureWriter:
             date_folder=date_folder,
             truck_folder=truck_folder,
             variant=CaptureVariant.ANNOTATED,
-            ripeness_status=ripeness_status,
+            grade_class=grade_class,
             filename=filename,
+            tp=tp,
         )
         self._storage.write_image(
             self._settings.results_dir / annotated_relative,
@@ -149,8 +157,9 @@ class CaptureWriter:
             date_folder=date_folder,
             truck_folder=truck_folder,
             variant=CaptureVariant.CLEAN,
-            ripeness_status=ripeness_status,
+            grade_class=grade_class,
             filename=filename,
+            tp=tp,
         )
         try:
             self._storage.write_image(
@@ -165,7 +174,7 @@ class CaptureWriter:
 
         thumb_relative = image_relative_path(
             date_folder=date_folder, truck_folder=truck_folder,
-            variant=CaptureVariant.THUMB, ripeness_status=ripeness_status, filename=filename,
+            variant=CaptureVariant.THUMB, grade_class=grade_class, filename=filename, tp=tp,
         )
         try:
             self._storage.write_thumbnail(
@@ -180,6 +189,7 @@ class CaptureWriter:
         return self.annotated_url(
             date_folder=date_folder,
             truck_folder=truck_folder,
-            ripeness_status=ripeness_status,
+            grade_class=grade_class,
             filename=filename,
+            tp=tp,
         )

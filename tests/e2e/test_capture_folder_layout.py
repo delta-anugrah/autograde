@@ -92,11 +92,14 @@ def test_a_capture_writes_three_real_images_under_its_truck(settings, frame):
     for image in images:
         assert image.stat().st_size > 0, "cv2 wrote an empty file"
 
+    # `unknown/`: capture manual tidak pernah lewat model, jadi kelasnya memang
+    # tidak ada. Meminjam kelas yang tak pernah diberikan akan mencemari folder
+    # latih dengan gambar berlabel karangan.
     truck = _day_folder(settings) / "091432_B1234XY_a3f9c201"
-    assert (truck / "bbox" / "rej").is_dir()
-    assert (truck / "clean" / "rej").is_dir()
-    assert (truck / "thumb" / "rej").is_dir()
-    assert "/091432_B1234XY_a3f9c201/bbox/rej/" in result["image_url"]
+    assert (truck / "bbox" / "unknown").is_dir()
+    assert (truck / "clean" / "unknown").is_dir()
+    assert (truck / "thumb" / "unknown").is_dir()
+    assert "/091432_B1234XY_a3f9c201/bbox/unknown/" in result["image_url"]
 
 
 def test_the_thumbnail_is_really_smaller_than_the_evidence(settings, frame):
@@ -106,8 +109,8 @@ def test_the_thumbnail_is_really_smaller_than_the_evidence(settings, frame):
     """
     _save_one(settings, frame)
     truck = _day_folder(settings) / "091432_B1234XY_a3f9c201"
-    (annotated,) = (truck / "bbox" / "rej").glob("*.webp")
-    (thumb,) = (truck / "thumb" / "rej").glob("*.webp")
+    (annotated,) = (truck / "bbox" / "unknown").glob("*.webp")
+    (thumb,) = (truck / "thumb" / "unknown").glob("*.webp")
 
     width, height = cv2.imread(str(thumb)).shape[1], cv2.imread(str(thumb)).shape[0]
     assert width == 400, "thumbnail was not resized to _THUMB_WIDTH"

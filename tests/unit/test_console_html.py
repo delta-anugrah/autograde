@@ -1113,3 +1113,51 @@ def test_label_mode_dev_ada_di_dua_bahasa():
     for kunci in ("labelDev", "bantuDev"):
         for bahasa in ("id", "en"):
             assert kunci in _kamus(bahasa), f"{kunci} hilang di bahasa {bahasa}"
+
+
+# ---------------------------------------------- kolom QR disembunyikan (2026-09-20)
+
+
+def _baris_input(elemen_id: str) -> str:
+    """Tag `<input>` beserta atribut lanjutannya, sebagai satu string."""
+    mulai = HTML.index(f'<input id="{elemen_id}"')
+    return HTML[mulai : HTML.index(">", mulai) + 1]
+
+
+def test_kedua_kolom_qr_disembunyikan_selama_scanner_belum_ada():
+    """Kolom yang tidak bisa dipakai siapa pun cuma membuat operator bertanya-
+    tanya apa yang salah dengan alat yang tidak ada."""
+    for elemen_id in ("scan-plat", "scan-keluar"):
+        assert " hidden" in _baris_input(elemen_id), (
+            f"#{elemen_id} tidak lagi hidden — kalau scanner-nya memang sudah "
+            "dibeli, hapus test ini bersama atributnya"
+        )
+
+
+def test_jalur_scan_tidak_ikut_dihapus():
+    """Disembunyikan, bukan dibuang: scanner-nya akan dibeli.
+
+    Kalau jalur ini ikut terhapus, menghidupkan gerbang QR nanti berarti menulis
+    ulang endpoint, penangan, dan penjaga bacaan-ganda dari nol — padahal ketiga
+    keputusan di dalamnya sudah dibayar dengan sesi lapangan (§20).
+    """
+    for jejak in (
+        "/api/console/scan",          # gerbang masuk
+        "/api/console/scan/keluar",   # gerbang keluar
+        "kirimScan(",                 # penangan masuk
+        "kirimScanKeluar(",           # penangan keluar
+        "scanSibuk",                  # penjaga bacaan ganda scanner
+    ):
+        assert jejak in HTML, f"jalur scan hilang: {jejak}"
+
+
+def test_ada_jalan_lain_ke_setiap_gerbang_tanpa_scan():
+    """Menyembunyikan scan tidak boleh membuntukan gerbang.
+
+    Masuk tetap lewat dropdown plat, keluar lewat tombol per baris di tabel
+    timbangan — dua-duanya sudah ada sebelum ini dan tidak bergantung scanner.
+    """
+    assert 'id="plat-timbang"' in HTML, "dropdown plat gerbang masuk hilang"
+    assert "data-aksi='keluar'" in HTML, "tombol keluar per baris hilang"
+    # Keduanya bermuara ke satu penulis tara, bukan salinan kedua.
+    assert HTML.count("function tanyaTara(") == 1

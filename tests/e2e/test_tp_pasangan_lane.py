@@ -167,3 +167,43 @@ def test_tetangga_tidak_merebut_tangkai_milik_janjang_lain():
 
     assert tp_untuk_janjang(janjang=A, kandidat=[tp], janjang_lain=[B]) is tp
     assert tp_untuk_janjang(janjang=B, kandidat=[tp], janjang_lain=[A]) is None
+
+
+def test_janjang_rej_tidak_menelan_tangkai_milik_tetangga_acc():
+    """Saingan yang tidak ikut lomba tidak boleh memenangkannya untuk siapa pun.
+
+    Skenario nyata di conveyor padat: satu janjang Ripe (ACC) dan satu janjang
+    Unripe/JK (REJ) berdempetan, dengan satu tangkai di antaranya yang lebih
+    dekat ke yang REJ.
+
+    Sejak TP cuma dicari untuk janjang ACC (2026-09-20), yang REJ tidak pernah
+    mengambil tangkai itu. Kalau dia TETAP dihitung sebagai saingan, dia
+    membatalkan klaim tetangga ACC-nya sambil tidak mengambilnya sendiri:
+    tangkainya lenyap ke mana-mana — bukan milik siapa pun, tidak terhitung
+    `tp_telat`, tanpa satu pun baris log. Dan yang hilang itu `tangkai_panjang`
+    yang dibayarkan ke pemasok, jadi hilangnya berarti kurang bayar.
+
+    Meniru pra-pindai `FrameProcessingWorker`: `janjang_frame_ini` cuma diisi
+    janjang yang verdict kelasnya ACC.
+    """
+    from palmgrade.domain.grade_class import verdict_for_class
+
+    ripe = (775, 675, 1225, 1125)     # ACC — satu-satunya yang boleh punya tangkai
+    unripe = (1275, 675, 1725, 1125)  # REJ — dibuang piston, tangkainya tak dibayar
+    # Pusat (1260, 1150): 361 px dari Ripe (ambang 477) tapi 347 px dari Unripe.
+    tp = {"tp_status": "PASS", "tp_confidence": 0.9, "bbox": (1230, 1120, 1290, 1180)}
+
+    # Pra-pindai seperti di worker: hanya kelas ACC yang jadi saingan.
+    frame = [(ripe, "Ripe"), (unripe, "Unripe")]
+    saingan = [b for b, kelas in frame if verdict_for_class(kelas) == "ACC"]
+
+    terpasang = tp_untuk_janjang(
+        janjang=ripe,
+        kandidat=[tp],
+        janjang_lain=[b for b in saingan if b != ripe],
+    )
+
+    assert terpasang is tp, (
+        "tangkai hilang: janjang REJ menghalangi klaim janjang ACC tanpa "
+        "mengambilnya sendiri — kurang bayar tangkai panjang, tanpa jejak"
+    )

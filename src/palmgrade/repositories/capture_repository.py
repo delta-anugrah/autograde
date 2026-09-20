@@ -51,10 +51,13 @@ class CaptureRepository:
         # Written anyway: `bbox/` is where every consumer looks for the image a
         # record points at, and `clean/` is where a training run collects them —
         # a gap in either would have to be special-cased by both.
+        # No class: a manual reject never went through the model, so it lands in
+        # `unknown/` rather than borrowing a class it was never given. TP is not
+        # looked for either, for the same reason.
         image_url = self.writer.write_pair(
             date_folder=date_folder,
             truck_folder=truck_folder,
-            ripeness_status=MANUAL_CAPTURE_STATUS,
+            grade_class=None,
             filename=img_filename,
             annotated_frame=frame,
             clean_frame=frame,
@@ -67,8 +70,11 @@ class CaptureRepository:
             "id": timestamp,
             "ripeness_status": MANUAL_CAPTURE_STATUS,
             "ripeness_confidence": MANUAL_CAPTURE_CONFIDENCE,
-            "tp_status": None,
+            # Same three TP fields as the auto sidecar, always present and empty
+            # here: one shape for every reader (`capture_save_worker.run_once`).
+            "tp_status": False,
             "tp_confidence": 0,
+            "tp_bounding_box": None,
             "title": "FAIL Detected (Manual)",
             "description": f"Manual reject capture (truck_id={truck_id})",
             "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),

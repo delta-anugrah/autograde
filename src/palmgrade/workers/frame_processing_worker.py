@@ -154,97 +154,6 @@ class FrameProcessingWorker:
     def _is_in_roi(self, cx: int, cy: int, roi: tuple[int, int, int, int]) -> bool:
         return self._is_in_roi_box(cx, cy, roi)
 
-    # ------------------------------------------------------------------ save
-
-    def _save_ripeness(
-        self,
-        annotated_frame,
-        clean_frame,
-        ripeness_status: str,
-        ripeness_conf: float,
-        truck_id: str | None,
-        bounding_box: dict,
-        grade_class: str | None = None,
-    ) -> tuple[str, str, str]:
-        # Timezone-aware UTC: a naive isoformat() leaves the consumer guessing.
-        # palmgrade-api runs TZ=Asia/Jakarta and resolved bare date-times as
-        # local, storing every capture 7 hours early. Deriving the filename from
-        # the same aware instant keeps names byte-identical (containers run UTC)
-        # while making the emitted timestamp unambiguous.
-        now = datetime.datetime.now(datetime.UTC)
-        date_folder = now.strftime("%Y-%m-%d")
-        timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
-
-        results_dir = self.settings.results_dir / date_folder
-        img_filename = f"{timestamp}_auto.webp"
-
-        # Images are filed per truck and per verdict; the sidecar below is NOT
-        # (see `domain/capture_layout`). `image_url` names the annotated copy.
-        truck_folder = self.capture_writer.truck_folder(
-            assignment_id=self.state.current_assignment_id,
-            plate=self.state.current_plate,
-            assigned_at=self.state.current_assigned_at,
-            now=now,
-        )
-        image_url = self.capture_writer.write_pair(
-            date_folder=date_folder,
-            truck_folder=truck_folder,
-            ripeness_status=ripeness_status,
-            filename=img_filename,
-            annotated_frame=annotated_frame,
-            clean_frame=clean_frame,
-        )
-
-        meta = {
-            "timestamp": now.isoformat(),
-            "image_path": image_url,
-            "ripeness_status": ripeness_status,
-            # Ikut ditulis ke sidecar supaya jalur batch (yang membacanya dari
-            # disk berjam-jam kemudian, bukan dari memori) membawa kelas yang
-            # sama dengan jalur realtime.
-            "grade_class": grade_class,
-            "ripeness_confidence": round(ripeness_conf, 2),
-            "tp_status": None,
-            "tp_confidence": 0,
-            "capture_type": "auto",
-            "truck_id": truck_id,
-            "bounding_box": bounding_box,
-            "assignment_id": self.state.current_assignment_id,
-            # Bukti kenapa sebuah janjang REJ tidak dibuang piston. Sumbernya
-            # potret saat truk dipasang, bukan hasil hitung ulang belakangan.
-            "ffb_source": self.state.current_ffb_source,
-        }
-        self.storage.write_json(results_dir / f"{timestamp}_auto_ripeness.json", meta)
-
-        # results/ adalah satu-satunya sumber kebenaran; foto REJ ditemukan lewat
-        # metadata (ripeness_status == "REJ"), bukan folder errors/ terpisah.
-        return date_folder, timestamp, image_url
-
-    def _save_tp(
-        self,
-        last_tp: dict,
-        truck_id: str | None,
-        bounding_box: dict,
-        timestamp: str,
-    ) -> None:
-        # H5: parse date_folder from timestamp param so midnight-split never mismatches
-        date_folder = timestamp[:10]  # "YYYY-MM-DD_HHmmss_ffffff" → "YYYY-MM-DD"
-        results_dir = self.settings.results_dir / date_folder
-
-        meta = {
-            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
-            "image_path": None,
-            "ripeness_status": None,
-            "ripeness_confidence": 0,
-            "tp_status": last_tp["tp_status"],
-            "tp_confidence": round(last_tp["tp_confidence"], 2),
-            "capture_type": "auto",
-            "truck_id": truck_id,
-            "bounding_box": bounding_box,
-            "assignment_id": self.state.current_assignment_id,
-        }
-        self.storage.write_json(results_dir / f"{timestamp}_auto_tp.json", meta)
-
     def _janjang_terdekat_sudah_difoto(self, x1: int, y1: int, x2: int, y2: int) -> bool:
         """True kalau TP ini punya janjang di dekatnya yang SUDAH diproses.
 
@@ -382,12 +291,22 @@ class FrameProcessingWorker:
                 if not (_lbl is not None and is_fruit_class(_lbl)):
                     continue
                 _bx1, _by1, _bx2, _by2 = map(int, _box.xyxy[0].tolist())
-                # Semua janjang ikut jadi saingan pemilik TP, termasuk yang sudah
-                # diproses: tangkai milik janjang yang baru saja difoto tidak
-                # boleh pindah ke tetangganya hanya karena pemiliknya sudah
-                # selesai. Yang begitu memang tidak ikut ke mana pun (dihitung
-                # `tp_telat`), dan itu jauh lebih jujur daripada salah tempel.
-                janjang_frame_ini.append((_bx1, _by1, _bx2, _by2))
+                # Saingan pemilik TP: janjang yang BISA memiliki tangkai, yaitu
+                # yang kelasnya ACC. Yang sudah diproses ikut — tangkai milik
+                # janjang yang baru saja difoto tidak boleh pindah ke tetangganya
+                # hanya karena pemiliknya sudah selesai; yang begitu memang tidak
+                # ikut ke mana pun (dihitung `tp_telat`), dan itu jauh lebih jujur
+                # daripada salah tempel.
+                #
+                # ⚠️ Kelas REJ sengaja TIDAK masuk sini. Sejak TP cuma dicari
+                # untuk janjang ACC (2026-09-20), janjang Unripe/JK tidak pernah
+                # mengambil tangkai — tapi kalau dia tetap ikut jadi saingan dan
+                # kebetulan lebih dekat, dia membatalkan klaim janjang ACC di
+                # sebelahnya sambil tidak mengambilnya sendiri. Tangkainya lenyap
+                # ke mana-mana: tidak terhitung `tp_telat`, tidak ada log, dan
+                # yang hilang itu `tangkai_panjang` yang dibayarkan ke pemasok.
+                if verdict_for_class(_lbl) == "ACC":
+                    janjang_frame_ini.append((_bx1, _by1, _bx2, _by2))
                 if _tid == -1 or _tid in self._processed_objects:
                     continue
                 _cx, _cy = (_bx1 + _bx2) // 2, (_by1 + _by2) // 2
@@ -549,7 +468,7 @@ class FrameProcessingWorker:
                     # `processed` baru diset setelah file tersimpan, supaya crash
                     # di tengah blok ini memproses ulang track-nya — aman karena
                     # event_id uuid5-nya sama dan API idempotent. Pulse Modbus
-                    # TIDAK punya idempotensi itu: `_save_ripeness` melempar
+                    # TIDAK punya idempotensi itu: `write_pair` melempar
                     # OSError kalau cv2.imwrite gagal (Critical Rule #8), track
                     # tetap belum `processed`, dan frame berikutnya masuk lagi ke
                     # blok ini pada 10-16 fps. Satu buah nyangkut akan menjenuhkan
@@ -584,15 +503,27 @@ class FrameProcessingWorker:
                     # ikut. Yang dihitung `tp_telat` di bawah, supaya keputusan
                     # menambah jendela tunggu nanti diambil dari angka nyata,
                     # bukan dari dugaan.
+                    # TP dicari HANYA untuk Ripe (keputusan 2026-09-20). Unripe
+                    # dan JK dibuang piston, jadi tangkainya tidak dibayar dan
+                    # tidak perlu dicatat — dan `Ripe/TP/` memang cuma ada di
+                    # bawah Ripe. Dibandingkan dengan verdict, bukan kelas:
+                    # janjang matang yang di-REJ paksa (bertumpuk, atau di bawah
+                    # `MINIMUM_SIZE`) tetap dibuang piston seperti Unripe.
+                    #
+                    # ⚠️ Angka TP hari ini karena itu lebih kecil daripada
+                    # sebelum tanggal itu: dulu tangkai pada janjang REJ ikut
+                    # terhitung. Turunnya disengaja, bukan regresi.
+                    cari_tp = ripeness_status.upper() == "ACC"
                     tp_snapshot = tp_untuk_janjang(
                         janjang=(x1, y1, x2, y2),
-                        kandidat=tp_frame_ini,
-                        # Janjang lain di frame ini. Tanpa ini, dua janjang yang
-                        # berdempetan sama-sama "dalam jangkauan" TP yang sama,
-                        # dan yang menang tinggal siapa yang kebetulan diproses
-                        # lebih dulu — urutan kotak dalam satu frame tidak
-                        # dijamin. Janjang B dikreditkan tangkai milik A, dan
-                        # tangkai A yang asli tidak tercatat.
+                        kandidat=tp_frame_ini if cari_tp else [],
+                        # Janjang ACC lain di frame ini (lihat pra-pindai di
+                        # atas). Tanpa ini, dua janjang yang berdempetan
+                        # sama-sama "dalam jangkauan" TP yang sama, dan yang
+                        # menang tinggal siapa yang kebetulan diproses lebih
+                        # dulu — urutan kotak dalam satu frame tidak dijamin.
+                        # Janjang B dikreditkan tangkai milik A, dan tangkai A
+                        # yang asli tidak tercatat.
                         janjang_lain=[
                             b for b in janjang_frame_ini if b != (x1, y1, x2, y2)
                         ],
@@ -645,11 +576,17 @@ class FrameProcessingWorker:
                     # sudah mengerjakannya. Rumusnya SATU — `annotated_url` juga
                     # yang dikembalikan `write_pair` — jadi tautan yang tampil
                     # dan berkas yang ditulis tidak bisa menyimpang.
+                    # `tp` ikut, persis seperti yang diserahkan ke `SaveJob`:
+                    # janjang ber-TP ditulis satu level lebih dalam
+                    # (`Ripe/TP/`), jadi melewatkan flag ini di sini membuat
+                    # tautan menunjuk folder yang tidak pernah ditulis — gambar
+                    # 404 di konsol, nol error di line.
                     image_url = CaptureWriter.annotated_url(
                         date_folder=date_folder,
                         truck_folder=job.truck_folder,
-                        ripeness_status=ripeness_status,
+                        grade_class=grade_class,
                         filename=job.filename,
+                        tp=job.tp is not None,
                     )
 
                     event = {

@@ -886,7 +886,7 @@
       <label class="lb" for="scan-plat" data-t="lbGerbangMasuk">Truk masuk</label>
       <div class="timbang-baris">
         <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="QR masuk"
-               autocomplete="off" autocapitalize="characters" spellcheck="false">
+               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
         <div class="pilih" id="plat-timbang" data-nilai=""></div>
         <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
                inputmode="decimal" autocomplete="off">
@@ -903,7 +903,7 @@
       <label class="lb" for="scan-keluar" data-t="lbGerbangKeluar">Truk keluar</label>
       <div class="timbang-baris">
         <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="QR keluar"
-               autocomplete="off" autocapitalize="characters" spellcheck="false">
+               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
         <!--
           Kolom tara muncul DI SINI setelah scan berhasil, bukan sebagai lapisan di atas
           layar: dialog yang menutup seluruh layar menghilangkan kamera line dan strip
@@ -921,6 +921,14 @@
           <button type="button" id="tara-batal" data-t="btnBatal">Batal</button>
         </span>
       </div>
+      <!--
+        Selama kolom QR disembunyikan (scanner belum dibeli), sisi ini kosong
+        sampai operator menekan Keluar di baris tiket. Label "Truk keluar" di
+        atas ruang kosong terbaca seperti alat yang rusak, jadi petunjuk ini
+        yang menunjukkan ke mana harus pergi. Hapus bersama `hidden` di
+        `#scan-keluar` begitu scanner datang.
+      -->
+      <span id="petunjuk-keluar" class="catatan" data-t="hintGerbangKeluar">Tekan Keluar di baris truknya pada tabel di bawah</span>
       <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
     </div>
     <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
@@ -1190,6 +1198,7 @@ const KAMUS = {
     thLevel:"Level", thPesan:"Pesan", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan atau sumber",
     hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
+    hintGerbangKeluar:"Tekan Keluar di baris truknya pada tabel di bawah",
     logSemua:"Semua", kosongLog:"Belum ada galat tercatat", gagalLog:"Gagal memuat log",
     btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
@@ -1301,6 +1310,7 @@ const KAMUS = {
     thLevel:"Level", thPesan:"Message", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message or source",
     hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
+    hintGerbangKeluar:"Press Out on the truck's row in the table below",
     logSemua:"All", kosongLog:"No faults logged yet", gagalLog:"Failed to load the log",
     btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",

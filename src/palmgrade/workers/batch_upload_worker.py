@@ -28,7 +28,7 @@ import httpx
 from ..core.config import Settings
 from ..domain.capture_layout import thumb_key_of, thumb_twin_of, twins_of
 from ..domain.grade_class import grade_class_or_none
-from ..domain.vision_event import event_id_for, prediction_for, verdict_of
+from ..domain.vision_event import TP_PASS, event_id_for, prediction_for, verdict_of
 from ..integrations.upload.r2_uploader import R2Uploader, build_r2_key
 from ..integrations.upload.upload_manifest import UploadManifest
 
@@ -37,6 +37,11 @@ logger = logging.getLogger(__name__)
 _REQUEST_TIMEOUT = 30  # payload teks kecil; 30s aman utk link pabrik lambat
 
 _RIPENESS_SUFFIXES = ("_auto_ripeness.json", "_manual_ripeness.json")
+# Sidecar TP terpisah TIDAK ditulis lagi sejak 2026-09-20 — nilai TP menumpang
+# di sidecar janjangnya. Nama ini tetap dikenali karena berkas lama masih ada di
+# disk pabrik, dan retensi adalah satu-satunya yang membersihkannya: berhenti
+# mengenalinya berarti berkas itu jadi yatim abadi sampai disk penuh, dan disk
+# penuh menghentikan grading menyimpan (Critical Rule #8/#9).
 _TP_SUFFIX = "_auto_tp.json"
 
 # Berapa item dihapus sebelum sisa disk diukur ulang. statvfs itu murah tapi
@@ -151,7 +156,9 @@ class BatchUploadWorker:
         json_path = artifacts / item["item_key"]
 
         if json_path.name.endswith(_TP_SUFFIX):
-            # Item tp yatim: coba pasangan ripeness yang muncul belakangan.
+            # Sidecar TP lama dari sebelum penggabungan. Pasangannya membawa
+            # seluruh payload termasuk nilai TP-nya, jadi yatim atau tidak,
+            # berkas ini tidak punya apa pun untuk dikirim sendiri.
             sibling = json_path.with_name(
                 json_path.name.replace(_TP_SUFFIX, "_auto_ripeness.json")
             )
@@ -180,6 +187,9 @@ class BatchUploadWorker:
             raise _PoisonError(f"image_path hilang: {json_path}")
         r2_key = item["r2_key"] or build_r2_key(self.settings.machine_id, image_ref)
 
+        # Sidecar sejak 2026-09-20 membawa nilai TP-nya sendiri. Berkas TP
+        # terpisah hanya ada untuk janjang yang digrading sebelum itu, dan di
+        # situ `tp_status` sidecar selalu None — jadi yang lama menang.
         tp_status = meta.get("tp_status")
         tp_confidence = meta.get("tp_confidence", 0)
         tp_path = json_path.with_name(
@@ -189,6 +199,9 @@ class BatchUploadWorker:
             tp_meta = self._read_meta(tp_path)
             tp_status = tp_meta.get("tp_status") or tp_status
             tp_confidence = tp_meta.get("tp_confidence", tp_confidence)
+        # `"PASS"`/`null` di kawat: DTO api memvalidasinya `@IsIn(["PASS"])`,
+        # sementara sidecar kita sendiri menyimpan boolean.
+        tp_status = TP_PASS if tp_status else None
 
         payload: dict[str, Any] = {
             "event_id": item["event_id"],

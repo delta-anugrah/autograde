@@ -134,17 +134,19 @@ Semua hasil grading hari ini.
       "id": "2026-05-18_103000_123456",
       "ripeness_status": "acc",
       "ripeness_confidence": 0.92,
-      "tp_status": "PASS",
+      "tp_status": true,
       "tp_confidence": 0.88,
       "timestamp": "2026-05-18T10:30:00.123456",
-      "image_url": "captures/results/2026-05-18/083000_B1234XY_a3f9c201/bbox/rej/2026-05-18_103000_auto.webp",
+      "image_url": "captures/results/2026-05-18/083000_B1234XY_a3f9c201/bbox/Ripe/TP/2026-05-18_103000_auto.webp",
       "capture_type": "auto",
       "truck_id": "uuid-or-null",
       "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 }
     }
   ]
   ```
-- Data dibaca dari `_ripeness.json` dan `_tp.json` di `artifacts/results/{YYYY-MM-DD}/`.
+- Data dibaca dari `_ripeness.json` di `artifacts/results/{YYYY-MM-DD}/` — satu sidecar
+  per janjang, nilai TP ikut di dalamnya. `_tp.json` masih dibaca kalau ada, untuk
+  janjang yang digrading sebelum penggabungan 2026-09-20.
 
 ---
 
@@ -337,10 +339,10 @@ Keduanya **wajib** acquire `state.lock` sebelum memanggil `camera.grab_frame()`.
 artifacts/
   results/
     {YYYY-MM-DD}/
-      {HHMMSS}_{plat}_{assign8}/bbox/{acc|rej}/{timestamp}_auto.webp   # bergambar kotak
+      {HHMMSS}_{plat}_{assign8}/bbox/{Ripe|Unripe|JK}[/TP]/{timestamp}_auto.webp  # bergambar kotak
       {HHMMSS}_{plat}_{assign8}/clean/{acc|rej}/{timestamp}_auto.webp  # polos, buat latihan
       {timestamp}_auto_ripeness.json    # Metadata grading
-      {timestamp}_auto_tp.json          # Metadata TP (jika ada)
+      (TP menumpang di sidecar di atas sejak 2026-09-20 — tidak ada berkas kedua)
       {timestamp}_manual.webp           # Manual capture
       {timestamp}_manual_ripeness.json  # suffix _ripeness wajib — dibaca oleh list_today_results()
   outbox.db                             # antrean realtime ke API lokal
