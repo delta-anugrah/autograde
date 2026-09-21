@@ -183,7 +183,11 @@ def _jadwalkan_keluar(jeda: float) -> None:
     """
     def keluar() -> None:
         time.sleep(jeda)
-        logger.warning("Keluar atas permintaan konsol — Docker akan menyalakan ulang")
+        # Tidak menyebut "Docker": di pabrik memang `restart: unless-stopped`
+        # yang menyalakan ulang, tapi jalur native dinyalakan loop `make line`.
+        # Pesan yang menyebut Docker di terminal `make line` membuat orang
+        # mencari container yang tidak ada.
+        logger.warning("Keluar atas permintaan konsol — menunggu dinyalakan ulang")
         os._exit(0)  # noqa: SLF001 — disengaja, lihat docstring
 
     threading.Thread(target=keluar, daemon=True, name="restart").start()

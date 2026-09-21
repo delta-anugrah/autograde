@@ -629,18 +629,41 @@
   #set-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
                            background:var(--warn-bg); color:var(--warn); }
   #set-lines:not(:empty) { color:var(--rej); }
-  /* Sumber kamera: satu kartu per line, sama seperti kartu setelan - baris
-     berkas di dalamnya cuma terlihat untuk Video/Foto (lihat perbaruiTampakSumber). */
-  #sumber-kamera-panel { display:grid; gap:16px; max-width:34rem; }
-  .sumber-baris { display:grid; gap:10px; padding:16px 20px;
+  /* Sumber kamera: tiga kartu SEJAJAR (bukan ditumpuk) supaya layar lebar pabrik
+     tidak kosong di kanan sementara Simpan terdorong jauh ke bawah. `.tools`
+     ada DI LUAR baris kartu (lihat markup) supaya dia tetap satu blok penuh di
+     bawah ketiganya, bukan ikut jadi kartu keempat yang menyempit. */
+  #sumber-kamera-panel { display:grid; gap:16px; }
+  .sumber-baris-baris { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; }
+  /* `flex:1 1 18rem` + wrap: tiga kartu sejajar kalau muat, turun ke bawah satu
+     per satu kalau tidak (AnyDesk/laptop sempit) - lebar minimum menahan supaya
+     kartu tidak memepet sampai tulisan dan radio ikut mengecil. */
+  .sumber-baris { flex:1 1 18rem; min-width:18rem; display:grid; gap:10px; padding:16px 20px;
                   border:1px solid var(--line); border-radius:var(--r); background:var(--kartu); }
   .sumber-baris label { display:flex; align-items:center; gap:8px; cursor:pointer; }
   .sumber-berkas { display:grid; gap:10px; padding-top:10px; margin-top:4px;
                    border-top:1px solid var(--line); }
-  .sumber-berkas select { padding:8px 10px; font-family:inherit; font-size:1rem;
+  /* Tanpa baris ini `[hidden]` kalah lawan `display:grid` di atas (spesifisitas
+     sama, aturan ini datang belakangan) - baris Berkas tetap terlihat di bawah
+     Hikrobot/Webcam walau JS sudah menandainya hidden. Pola sama seperti #gerbang. */
+  .sumber-berkas[hidden] { display:none; }
+  /* `width:100%` + `min-width:0` WAJIB dua-duanya. Kolom grid bawaannya
+     `minmax(auto, …)`, jadi `<select>` menciut ke lebar isi terpendeknya dan
+     nama berkas panjang terpotong habis - di layar terbaca sebagai dropdown
+     kosong, seolah folder media memang tidak berisi. `min-width:0` mencabut
+     lantai itu, `width:100%` menyuruhnya mengisi kartunya. */
+  .sumber-berkas select { width:100%; min-width:0; padding:8px 10px;
+                          font-family:inherit; font-size:1rem;
                           border:1px solid var(--line-kuat); border-radius:var(--r);
                           background:var(--input); color:var(--fg); }
+  /* Label pembungkusnya sudah flex (lihat `.sumber-baris label`); dropdown
+     memakan sisa lebar di sebelah kata "Berkas". */
+  .sumber-berkas label select { flex:1 1 auto; }
   #sumber-kamera-panel .tools { padding-top:6px; }
+  /* Simpan membentang penuh di bawah ketiga kartu, bukan 12rem seperti tombol
+     `.tools` lain di berkas ini - dia mengirim ketiga line sekaligus, jadi
+     lebarnya harus terbaca sebagai milik semuanya, bukan milik kartu terakhir. */
+  #sumber-kamera-panel .tools button { flex:1 1 100%; }
   #rekap td.tp { color:var(--warn); font-weight:700; }
   #rekap td.acc { color:var(--acc); font-weight:700; }
   #rekap td.rej { color:var(--rej); font-weight:700; }
@@ -1163,39 +1186,41 @@
       Menyimpan akan <strong>merestart</strong> line yang setelannya berubah (sekitar 10 detik) — grading di line itu berhenti sebentar.
     </p>
 
-    <div data-sumber-line="line-1" class="sumber-baris">
-      <strong data-t="sumberLabelLine1">Line 1</strong>
-      <label><input type="radio" name="sumber-line-1" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
-      <label><input type="radio" name="sumber-line-1" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
-      <label><input type="radio" name="sumber-line-1" value="video"> <span data-t="sumberVideo">Video</span></label>
-      <label><input type="radio" name="sumber-line-1" value="foto"> <span data-t="sumberFoto">Foto</span></label>
-      <div class="sumber-berkas" hidden>
-        <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-1"></select></label>
-        <label><input type="checkbox" data-ulang="line-1"> <span data-t="sumberUlang">Ulang terus</span></label>
+    <div class="sumber-baris-baris">
+      <div data-sumber-line="line-1" class="sumber-baris">
+        <strong data-t="sumberLabelLine1">Line 1</strong>
+        <label><input type="radio" name="sumber-line-1" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
+        <label><input type="radio" name="sumber-line-1" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
+        <label><input type="radio" name="sumber-line-1" value="video"> <span data-t="sumberVideo">Video</span></label>
+        <label><input type="radio" name="sumber-line-1" value="foto"> <span data-t="sumberFoto">Foto</span></label>
+        <div class="sumber-berkas" hidden>
+          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-1"></select></label>
+          <label><input type="checkbox" data-ulang="line-1"> <span data-t="sumberUlang">Ulang terus</span></label>
+        </div>
       </div>
-    </div>
 
-    <div data-sumber-line="line-2" class="sumber-baris">
-      <strong data-t="sumberLabelLine2">Line 2</strong>
-      <label><input type="radio" name="sumber-line-2" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
-      <label><input type="radio" name="sumber-line-2" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
-      <label><input type="radio" name="sumber-line-2" value="video"> <span data-t="sumberVideo">Video</span></label>
-      <label><input type="radio" name="sumber-line-2" value="foto"> <span data-t="sumberFoto">Foto</span></label>
-      <div class="sumber-berkas" hidden>
-        <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-2"></select></label>
-        <label><input type="checkbox" data-ulang="line-2"> <span data-t="sumberUlang">Ulang terus</span></label>
+      <div data-sumber-line="line-2" class="sumber-baris">
+        <strong data-t="sumberLabelLine2">Line 2</strong>
+        <label><input type="radio" name="sumber-line-2" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
+        <label><input type="radio" name="sumber-line-2" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
+        <label><input type="radio" name="sumber-line-2" value="video"> <span data-t="sumberVideo">Video</span></label>
+        <label><input type="radio" name="sumber-line-2" value="foto"> <span data-t="sumberFoto">Foto</span></label>
+        <div class="sumber-berkas" hidden>
+          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-2"></select></label>
+          <label><input type="checkbox" data-ulang="line-2"> <span data-t="sumberUlang">Ulang terus</span></label>
+        </div>
       </div>
-    </div>
 
-    <div data-sumber-line="line-3" class="sumber-baris">
-      <strong data-t="sumberLabelLine3">Line 3</strong>
-      <label><input type="radio" name="sumber-line-3" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
-      <label><input type="radio" name="sumber-line-3" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
-      <label><input type="radio" name="sumber-line-3" value="video"> <span data-t="sumberVideo">Video</span></label>
-      <label><input type="radio" name="sumber-line-3" value="foto"> <span data-t="sumberFoto">Foto</span></label>
-      <div class="sumber-berkas" hidden>
-        <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-3"></select></label>
-        <label><input type="checkbox" data-ulang="line-3"> <span data-t="sumberUlang">Ulang terus</span></label>
+      <div data-sumber-line="line-3" class="sumber-baris">
+        <strong data-t="sumberLabelLine3">Line 3</strong>
+        <label><input type="radio" name="sumber-line-3" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
+        <label><input type="radio" name="sumber-line-3" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
+        <label><input type="radio" name="sumber-line-3" value="video"> <span data-t="sumberVideo">Video</span></label>
+        <label><input type="radio" name="sumber-line-3" value="foto"> <span data-t="sumberFoto">Foto</span></label>
+        <div class="sumber-berkas" hidden>
+          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-3"></select></label>
+          <label><input type="checkbox" data-ulang="line-3"> <span data-t="sumberUlang">Ulang terus</span></label>
+        </div>
       </div>
     </div>
 
@@ -2683,6 +2708,13 @@ function tutupGerbang(operator) {
 
 function hapusTabDeveloper(role) {
   // Removed from the DOM, not hidden: the backend guards access, this is tidiness.
+  // `role` yang bukan string (misal undefined, kalau ada pemanggil baru lupa
+  // mengisinya) tetap dianggap "bukan support" dan tab tetap dibuang — kosmetik
+  // ini tidak boleh pernah jadi jalan menampilkan tab ke yang bukan support.
+  // Satu-satunya beda: dicatat ke console supaya kelalaian itu tidak senyap.
+  if (typeof role !== "string") {
+    console.error("hapusTabDeveloper: role tidak terisi, tab developer tetap dibuang");
+  }
   if (role === "support") return;
   document.querySelectorAll('[data-dev="1"]').forEach((el) => el.remove());
 }
@@ -2706,6 +2738,22 @@ async function kirimSandi() {
     await refresh();
     await muatTimbangan();
     await muatRekap();
+    // Tab developer yang sudah AKTIF sebelum login (dipulihkan dari localStorage
+    // oleh init di bawah) sempat mencoba memuat datanya saat gerbang masih
+    // tertutup, dan ditolak 401 — diam-diam, karena `belum_masuk` memang bukan
+    // galat untuk dilaporkan. Empat pemuatan di atas tidak menyentuh tab itu,
+    // jadi tanpa baris ini layarnya tetap kosong sesudah login sampai tab-nya
+    // diklik ulang: dropdown berkas tanpa isi DAN tanpa keterangan, karena
+    // `isiBerkasSumber` pulang lebih dulu begitu melihat data belum pernah
+    // datang. Terbaca persis seperti fitur yang rusak. Rumus yang sama dengan
+    // pemulihan tab di init — satu sumber kebenaran untuk "tab dev mana yang
+    // sedang terbuka", supaya keduanya tidak bisa menyimpang.
+    //
+    // `document.querySelector`, BUKAN `$(...)`: `$` di berkas ini adalah
+    // getElementById, dan diberi selector CSS ia selalu memulangkan null — jadi
+    // kondisi ini diam-diam tidak pernah benar. Itu yang membuat baris di init
+    // mati sejak ditulis, dan salinannya di sini ikut mati (2026-09-21).
+    if (MUAT_TAB[tab] && document.querySelector(`button[data-tab="${tab}"]`)) await bukaTabDev(tab);
   } catch (e) {
     $("gerbang-pesan").textContent = alasan(e);
     $("gerbang-sandi").value = "";
@@ -3509,6 +3557,10 @@ $("plc-kartu").addEventListener("click", (ev) => {
   // A remembered developer tab from a previous support sign-in on this shared PC:
   // cekSesi() above has already run hapusTabDeveloper(), so the button (and
   // this check) only survive for an account that is still support.
-  if (MUAT_TAB[tab] && $(`button[data-tab="${tab}"]`)) await bukaTabDev(tab);
+  // `document.querySelector`, BUKAN `$(...)`: `$` adalah getElementById, dan
+  // diberi selector CSS ia selalu null. Dengan `$` baris ini tidak pernah jalan
+  // — tab dev yang dipulihkan dari localStorage tampil tapi tidak pernah memuat
+  // datanya, sampai diklik ulang. Ketahuan 2026-09-21 di layar Sumber Kamera.
+  if (MUAT_TAB[tab] && document.querySelector(`button[data-tab="${tab}"]`)) await bukaTabDev(tab);
 })();
 </script>

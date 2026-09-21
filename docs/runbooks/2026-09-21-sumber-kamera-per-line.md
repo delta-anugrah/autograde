@@ -54,6 +54,36 @@ Jadi kalau layar bilang "Line 2 tidak menjawab": setelan Line 2 sudah aman
 tersimpan. Begitu Line 2 hidup lagi (kabel dicolok ulang, container
 direstart manual, dsb), dia otomatis memakai sumber yang baru dipilih tadi.
 
+## Mencobanya di MacBook (tanpa Docker)
+
+Layar ini bisa dipakai penuh di laptop — kamera Hikrobot memang tidak bisa
+(MVS SDK Linux), tapi Video dan Foto jalan lewat jalur native.
+
+```bash
+cd autograde
+make console        # tab 1 — layar operator di :8100
+make line N=2       # tab 2 — line 2, ikut pilihan Line 2 di layar
+```
+
+Taruh berkasnya di `autograde/media/`. `make line` membaca `media.env`, jadi
+pilihan per-line di layar berlaku di sini juga — bukan cuma di Docker.
+
+⚠️ **`make line` berputar sampai Ctrl-C, dan itu memang perlu.** Restart dari
+layar bekerja dengan menyuruh proses line KELUAR; di pabrik `restart:
+unless-stopped` milik Docker yang menyalakannya lagi. Jalur native tidak punya
+siapa-siapa, jadi loop itu yang menggantikannya. Sesudah Simpan & Restart,
+terminalnya mencetak:
+
+```
+line-2 keluar atas permintaan konsol — menyalakan ulang dengan setelan baru
+```
+
+lalu sekitar 20 detik kemudian kartunya ONLINE lagi dengan sumber baru.
+
+Keluar yang TIDAK normal (berkas media rusak, port dipakai) menghentikan loop
+dan mencetak exit code-nya — supaya satu salah setelan tidak jadi gagal-nyala
+yang memenuhi layar.
+
 ## Jebakan
 
 ⚠️ **Jangan menyunting `media.env` dengan tangan saat konsol jalan.** Layar

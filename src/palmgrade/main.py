@@ -132,8 +132,16 @@ def create_app() -> FastAPI:
         # dan diteruskan Compose lewat `media.env`. Pemetaannya hidup di
         # `domain/sumber_kamera_resolver` supaya bisa diuji tanpa menyalakan
         # aplikasi; di sini tinggal membangun apa yang direncanakan.
+        # `settings.media_dir` diteruskan, BUKAN dibiarkan memakai konstanta
+        # `/media` bawaan resolver: yang terakhir itu path di dalam container,
+        # dan jalur native (`make line`) menunjuk `media/` di repo. Tanpa ini
+        # line native mati saat start dengan "File tidak ditemukan: /media/..."
+        # walau berkasnya ada dan layar sudah memilihnya.
         rencana = rencana_kamera(
-            settings.sumber_kamera(), settings.media_file, settings.camera_video_loop
+            settings.sumber_kamera(),
+            settings.media_file,
+            settings.camera_video_loop,
+            media_dir=settings.media_dir,
         )
         # `.env` lama menulis PATH penuh di CAMERA_VIDEO_PATH/CAMERA_PHOTO_PATH,
         # bukan nama berkas. Selama berkas itu masih dipakai (PC yang belum
