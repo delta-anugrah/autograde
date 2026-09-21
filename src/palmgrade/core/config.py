@@ -186,14 +186,8 @@ class Settings:
     # keduanya masih dibaca supaya `.env` lama tetap jalan.
     media_file: str = field(default_factory=lambda: os.getenv("MEDIA_FILE", ""))
 
-    # Folder media yang di-mount dari host, read-only bagi line dan konsol.
-    media_dir: str = field(default_factory=lambda: os.getenv("MEDIA_DIR", "/media"))
-    # Berkas setelan sumber kamera. Dibaca Compose lewat `env_file`, ditulis
-    # konsol. TERPISAH dari `.env`, yang memuat rahasia dan tidak pernah ditulis
-    # kode mana pun.
-    media_env_path: str = field(
-        default_factory=lambda: os.getenv("MEDIA_ENV_PATH", "/config/media.env")
-    )
+    # Folder media dan berkas setelannya — lihat `media_dir` / `media_env_path`
+    # di bawah, yang menurunkan bawaannya dari `repo_root` saat env kosong.
 
     # Stream display resolution — only affects MJPEG stream, not saved captures
     stream_width: int = field(default_factory=lambda: int(os.getenv("STREAM_WIDTH", "1280")))
@@ -423,6 +417,35 @@ class Settings:
         """
         dari_env = os.getenv("ARTIFACTS_DIR", "").strip()
         return Path(dari_env) if dari_env else self.repo_root / "artifacts"
+
+    @property
+    def media_dir(self) -> str:
+        """Folder berkas video/foto yang boleh dipilih layar Sumber Kamera.
+
+        Di Docker `MEDIA_DIR` diisi compose dan menunjuk `/media`, hasil mount
+        `./media:/media`. Di jalur NATIVE tidak ada mount itu, jadi bawaannya
+        turun ke `media/` di repo — bukan `/media`, yang tidak ada di macOS.
+
+        Kenapa bawaan absolut itu berbahaya: `MediaLibrary` sengaja memulangkan
+        daftar KOSONG untuk folder yang tidak ada (layar kosong bisa dibaca,
+        layar gagal-muat tidak). Jadi menatap folder yang salah terlihat persis
+        seperti folder yang memang belum diisi — nol galat, nol petunjuk. Sudah
+        memakan waktu sekali, 2026-09-21.
+        """
+        dari_env = os.getenv("MEDIA_DIR", "").strip()
+        return dari_env if dari_env else str(self.repo_root / "media")
+
+    @property
+    def media_env_path(self) -> str:
+        """Berkas setelan sumber kamera per line, ditulis konsol.
+
+        TERPISAH dari `.env`, yang memuat `LICENSE_TOKEN` / `R2_SECRET_ACCESS_KEY`
+        / `WEBHOOK_SECRET` dan tidak pernah ditulis kode mana pun. Bawaannya
+        mengikuti `media_dir`: `/config/media.env` di container, `media.env` di
+        repo untuk jalur native.
+        """
+        dari_env = os.getenv("MEDIA_ENV_PATH", "").strip()
+        return dari_env if dari_env else str(self.repo_root / "media.env")
 
     @property
     def state_dir(self) -> Path:

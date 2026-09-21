@@ -34,9 +34,9 @@ def service(tmp_path):
 
 
 def _weigh(service, **overrides):
-    return service.record_weighing(
+    return asyncio.run(service.record_weighing(
         {"plate_number": "B 1234 XY", "ref": "T-1", "entered_at": "2026-09-14T08:00:00+07:00", **overrides}
-    )
+    ))
 
 
 def _fails(func) -> OperatorError:

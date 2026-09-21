@@ -194,6 +194,10 @@ class ConsoleService:
             "timezone": self.settings.factory_tz,
             "lines": lines,
             "recent": self.history(work_date, limit=20),
+            # Line yang dilepas oleh timbang keluar, bukan oleh operator (G5).
+            # Ditampilkan supaya pelepasannya terlihat: kalau bongkar ternyata
+            # belum habis, operator masih bisa meng-assign ulang.
+            "auto_releases": self.store.auto_releases_terbaru(),
         }
 
     def history(
@@ -312,7 +316,7 @@ class ConsoleService:
 
     # --------------------------------------------------------- scale (§3.5c)
 
-    def record_weighing(self, payload: dict[str, Any]) -> dict[str, Any]:
+    async def record_weighing(self, payload: dict[str, Any]) -> dict[str, Any]:
         """One payload from the scale program. Returns the merged row.
 
         The shape the boss asked for: weight before unloading (gross), weight
@@ -375,10 +379,45 @@ class ConsoleService:
                 "exited_at": exited_at,
             }
         )
+        # Timbang keluar = truk sudah pergi. Line yang masih memegangnya akan
+        # menstempel janjang truk BERIKUTNYA dengan truk ini (G5), jadi dilepas
+        # di sini alih-alih menunggu operator ingat.
+        if tare is not None or exited_at:
+            await self._lepas_line_truk_yang_keluar(truck_id_for(plate))
         self._queue_visit(weighing_id)
         return self.store.weighing(weighing_id) or {}
 
     # ------------------------------------------------------ send to AutoERP
+
+    async def _lepas_line_truk_yang_keluar(self, truck_id: str) -> None:
+        """Truk sudah timbang keluar: lepaskan setiap line yang masih memegangnya.
+
+        Tanpa ini, `Release` yang terlewat membuat line terus menstempel truk yang
+        sudah pulang ke janjang truk berikutnya — tonase yang dibayar ke petani,
+        mendarat di baris yang salah, tanpa apa pun di layar. Timeout 6 jam di
+        AutoERP tetap memfinalisasi tiketnya, jadi kegagalannya tidak pernah
+        terlihat sebagai kegagalan: angkanya saja yang salah.
+
+        Semua line, bukan yang pertama: satu truk boleh dibongkar paralel.
+        """
+        for pegangan in self.store.assignments_for_truck(truck_id):
+            line_code = pegangan["line_code"]
+            try:
+                await self.release_truck(line_code)
+            except Exception:
+                # Line tidak menjawab. Jangan gagalkan penimbangannya — berat itu
+                # angka yang dibayar dan harus tetap tersimpan. Yang hilang hanya
+                # pelepasan otomatisnya; operator masih bisa menekan Release, dan
+                # barisnya sengaja tidak ditulis supaya layar tidak menjanjikan
+                # sesuatu yang tidak terjadi.
+                logger.exception("Auto-release gagal untuk %s", line_code)
+                continue
+            self.store.record_auto_release(
+                line_code=line_code,
+                truck_id=truck_id,
+                plate_number=pegangan.get("plate_number"),
+                assignment_id=pegangan.get("assignment_id"),
+            )
 
     def _queue_visit(self, weighing_id: str) -> None:
         """A weighbridge row moved: AutoERP gets the whole visit as it stands."""

@@ -1,6 +1,8 @@
 """Settings menurunkan pilihan layar, dan main.py membangun kamera dari rencana."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from palmgrade.core.config import Settings
@@ -66,3 +68,38 @@ def test_env_lama_video_path_masih_jalan(monkeypatch):
     monkeypatch.setenv("CAMERA_TYPE", "opencv")
     monkeypatch.setenv("CAMERA_VIDEO_PATH", "/videos/video-in")
     assert Settings().sumber_kamera() == "video"
+
+
+def test_media_dir_jatuh_ke_folder_repo_tanpa_env(monkeypatch):
+    """Tanpa `MEDIA_DIR`, bawaannya `media/` di repo — bukan `/media`.
+
+    `/media` itu path DI DALAM container, hasil mount `./media:/media` di
+    compose. Jalur native (`make console`, atau `uvicorn` langsung) tidak punya
+    mount itu, jadi bawaan absolut membuat konsol menatap folder yang tidak ada
+    di macOS.
+
+    Gejalanya menipu: `MediaLibrary` sengaja memulangkan daftar KOSONG untuk
+    folder yang tidak ada (layar kosong bisa dibaca, layar gagal-muat tidak),
+    jadi folder yang salah terlihat persis seperti folder yang memang belum
+    diisi — nol galat, nol petunjuk di log. Terjadi 2026-09-21.
+    """
+    monkeypatch.delenv("MEDIA_DIR", raising=False)
+    s = Settings()
+    assert s.media_dir.endswith("/media")
+    assert s.media_dir != "/media", "bawaan absolut container bocor ke jalur native"
+    assert Path(s.media_dir) == s.repo_root / "media"
+
+
+def test_media_env_path_jatuh_ke_repo_tanpa_env(monkeypatch):
+    monkeypatch.delenv("MEDIA_ENV_PATH", raising=False)
+    s = Settings()
+    assert Path(s.media_env_path) == s.repo_root / "media.env"
+
+
+def test_env_tetap_menang_untuk_docker(monkeypatch):
+    # Compose mengisi keduanya; jalur Docker tidak boleh ikut jatuh ke repo.
+    monkeypatch.setenv("MEDIA_DIR", "/media")
+    monkeypatch.setenv("MEDIA_ENV_PATH", "/config/media.env")
+    s = Settings()
+    assert s.media_dir == "/media"
+    assert s.media_env_path == "/config/media.env"

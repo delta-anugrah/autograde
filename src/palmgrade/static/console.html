@@ -2760,6 +2760,23 @@ $("keluar").addEventListener("click", async () => {
   bukaGerbang();
 });
 
+// Line yang dilepas oleh timbang keluar, bukan oleh operator (G5). Diumumkan
+// sekali per pelepasan: state di-poll tiap 2 detik, dan toast yang sama muncul
+// berulang selama satu jam adalah cara tercepat mengajari operator mengabaikan
+// kotak peringatan.
+const pelepasanSudahDiumumkan = new Set();
+function umumkanPelepasanOtomatis(daftar) {
+  (daftar || []).forEach((r) => {
+    if (pelepasanSudahDiumumkan.has(r.id)) return;
+    pelepasanSudahDiumumkan.add(r.id);
+    const truk = r.plate_number || r.truck_id;
+    toastPeringatan(
+      `${r.line_code} dilepas otomatis — ${truk} sudah timbang keluar. ` +
+      "Assign ulang kalau bongkarnya belum habis."
+    );
+  });
+}
+
 // MJPEG streams render once: rewriting innerHTML every 2 s would tear down and
 // reopen three video connections forever.
 let dipasang = false;
@@ -2767,6 +2784,7 @@ async function refresh() {
   try {
     const s = await api("/api/console/state");
     $("tz").textContent = "(" + s.timezone + ")";
+    umumkanPelepasanOtomatis(s.auto_releases);
     selarasUrutan(s.lines);
     isiTally(s.lines);
     if (!dipasang) {
