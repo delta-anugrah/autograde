@@ -227,11 +227,11 @@ def test_rekap_per_truk_menjumlah_neto_bukan_mengalikan_janjang(service):
     for i, hasil in enumerate(("ACC", "ACC", "REJ")):
         service.ingest(_event(service, event_id=f"ev-{i}", truck_id=truk, ripeness_status=hasil))
     for ref, bruto in (("TKT-1", 12000), ("TKT-2", 11000)):
-        service.record_weighing({
+        asyncio.run(service.record_weighing({
             "ref": ref, "plate_number": "B 1234 XY",
             "entered_at": "2026-09-09T18:30:00+00:00",
             "gross_kg": bruto, "tare_kg": 5000,
-        })
+        }))
 
     (baris,) = service.recap("2026-09-10")
     assert (baris["total"], baris["acc"], baris["rej"]) == (3, 2, 1)
@@ -304,29 +304,29 @@ def test_bruto_seratus_kilo_ditolak(service):
     100.0 dan perbandingannya `<`. Truk kosong saja belasan ton — 100 kg itu salah
     ketik, dan neto yang lahir darinya dibayar ke petani."""
     with pytest.raises(OperatorError) as kena:
-        service.record_weighing({
+        asyncio.run(service.record_weighing({
             "plate_number": "BE 4412 OFL", "gross_kg": 100,
             "entered_at": "2026-09-15T08:00:00+07:00",
-        })
+        }))
     assert kena.value.code == DI_BAWAH_MINIMUM
 
 
 def test_berat_setengah_ton_masih_ditolak(service):
     """500 kg pun bukan truk. Lantai yang terlalu rendah cuma menangkap nol."""
     with pytest.raises(OperatorError):
-        service.record_weighing({
+        asyncio.run(service.record_weighing({
             "plate_number": "BE 4412 OFL", "gross_kg": 500,
             "entered_at": "2026-09-15T08:00:00+07:00",
-        })
+        }))
 
 
 def test_truk_kosong_paling_ringan_tetap_diterima(service):
     """Colt Diesel kosong sekitar 2,5 ton. Lantai tidak boleh menolak truk sungguhan
     yang paling ringan — itu menghalangi pekerjaan, bukan menjaganya."""
-    hasil = service.record_weighing({
+    hasil = asyncio.run(service.record_weighing({
         "plate_number": "BE 4412 OFL", "gross_kg": 2500,
         "entered_at": "2026-09-15T08:00:00+07:00",
-    })
+    }))
     assert hasil["gross_kg"] == 2500.0
 
 

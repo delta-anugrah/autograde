@@ -376,7 +376,7 @@ async def record_weighing_manual(
     program's format is unknown (docs/PERTANYAAN-TERBUKA.md X1).
     """
     try:
-        return service.record_weighing(payload)
+        return await service.record_weighing(payload)
     except ValueError as exc:
         raise _operator_error(400, exc) from exc
 
@@ -631,6 +631,6 @@ async def ingest_weighing(
     if x_webhook_secret != service.settings.webhook_secret:
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
     try:
-        return service.record_weighing(payload)
+        return await service.record_weighing(payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
