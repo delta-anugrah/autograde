@@ -66,26 +66,25 @@ def test_mount_video_compose_tidak_dipatok_ke_mesin_siapa_pun():
 
 
 def test_satu_env_saja_untuk_video():
-    """Operator mengisi SATU baris (path di komputernya); compose me-mount berkas
-    itu sendiri dan menerjemahkan pathnya jadi nama tetap di dalam container.
-
-    Dua variabel (folder + path container) pernah dicoba dan ditolak: yang kedua
-    harus ditulis dengan awalan yang tidak ada di komputer mana pun, dan salah
-    menulisnya berakhir sebagai line yang mati saat start."""
+    """Bind-mount per berkas (`CAMERA_VIDEO_PATH` → `/videos/video-in`) DIBUANG
+    di Task 11: ia memilih berkasnya saat container DIBUAT, yang membuat memilih
+    dari layar Support mustahil. Diganti mount folder `media/` utuh — nama
+    berkasnya sekarang datang dari `media.env` (`MEDIA_FILE`, per line),
+    dibaca ulang tiap request, bukan dipatok saat container dibuat."""
     compose = (AKAR / "docker-compose.yml").read_text(encoding="utf-8")
     assert "VIDEOS_DIR" not in compose, "variabel kedua kembali masuk"
-    # `:-/dev/null` supaya mode hikrobot/photo (path kosong) tidak membuat
-    # compose menolak spec-nya: ":/videos/video-in: empty section between colons".
-    assert compose.count("${CAMERA_VIDEO_PATH:-/dev/null}:/videos/video-in:ro") == 3
-    # `:+` = kirim ke container HANYA kalau operator mengisinya; kosong tetap
-    # kosong, bukan path palsu yang membuat OpenCV mencoba membuka /dev/null.
-    assert compose.count("CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:+/videos/video-in}") == 3
+    assert "/videos/video-in" not in compose, "bind-mount per berkas lama kembali masuk"
+    assert "CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH" not in compose, "path per mesin lama kembali masuk"
+    # 3 line + konsol = 4.
+    assert compose.count("./media:/media:ro") == 4, "keempat service wajib mount folder media"
 
 
 def test_env_example_tidak_lagi_menyuruh_menulis_path_container():
     contoh = (AKAR / ".env.example").read_text(encoding="utf-8")
     assert "VIDEOS_DIR" not in contoh
-    assert "DI KOMPUTER INI" in contoh
+    assert "CAMERA_VIDEO_PATH=" not in contoh, "operator tidak lagi mengisi path di sini"
+    # Sejak Task 11 penunjuknya ke media.env.example, bukan lagi path per mesin.
+    assert "media.env.example" in contoh
 
 
 def test_setiap_line_punya_volume_artifacts_sendiri_di_docker():

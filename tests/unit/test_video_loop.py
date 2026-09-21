@@ -163,10 +163,14 @@ def test_looping_is_off_unless_asked(monkeypatch):
 
 def test_the_loop_setting_reaches_every_line_and_the_camera():
     repo = Path(__file__).resolve().parents[2]
+    # Sejak Task 11 tiap line membaca fallback-nya sendiri (LINE_N_VIDEO_LOOP,
+    # ditulis media.env dari layar Support), bukan satu CAMERA_VIDEO_LOOP untuk
+    # ketiganya — tapi bawaannya harus tetap `false` di ketiga line.
     compose = re.findall(
-        r"CAMERA_VIDEO_LOOP=\$\{CAMERA_VIDEO_LOOP:-(\w+)\}", (repo / "docker-compose.yml").read_text()
+        r"CAMERA_VIDEO_LOOP=\$\{LINE_(\d)_VIDEO_LOOP:-(\w+)\}", (repo / "docker-compose.yml").read_text()
     )
-    assert compose == ["false"] * 3, "every line must carry the setting, off by default"
+    assert sorted(n for n, _ in compose) == ["1", "2", "3"], "every line must carry the setting"
+    assert [v for _, v in compose] == ["false"] * 3, "off by default"
     assert "\nCAMERA_VIDEO_LOOP=false\n" in (repo / ".env.example").read_text()
     # main.py imports torch, so it cannot be run here; the wiring is read instead.
     # The setting no longer reaches OpenCVCamera directly — it now flows through
