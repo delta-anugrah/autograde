@@ -83,3 +83,43 @@ def test_dropdown_berkas_punya_lebar_dan_boleh_menciut():
     aturan = blok[1].split("}", 1)[0]
     assert "width:100%" in aturan
     assert "min-width:0" in aturan
+
+
+def test_login_memuat_ulang_tab_dev_yang_sudah_terbuka():
+    """Sesudah login, tab developer yang sudah aktif harus dimuat ulang.
+
+    Tab dipulihkan dari localStorage saat halaman dibuka — SEBELUM login. Saat
+    itu pemuatannya ditolak 401 dan ditelan diam-diam (`belum_masuk` bukan
+    galat untuk dilaporkan). `kirimSandi` lalu cuma memuat Trucks / refresh /
+    Timbangan / Rekap, tidak tab yang sedang terbuka, jadi layar dev itu tetap
+    kosong sampai diklik ulang. Di Sumber Kamera gejalanya dropdown berkas
+    tanpa isi DAN tanpa keterangan — persis seperti fitur rusak. Direproduksi
+    2026-09-21 lewat Playwright: `sumberKameraTerakhir` tetap null sesudah
+    login, nol panggilan API.
+
+    Dijaga sebagai teks karena konsol tidak punya test runner JS: yang bisa
+    dipastikan adalah baris pemuatan ulang itu ada DI DALAM `kirimSandi`, bukan
+    cuma di init — dua tempat yang keduanya harus memakai rumus yang sama.
+    """
+    awal = HTML.find("async function kirimSandi")
+    assert awal != -1, "kirimSandi tidak ditemukan"
+    # Badan fungsi berakhir di `}` pertama pada kolom nol sesudahnya.
+    akhir = HTML.find("\n}\n", awal)
+    kirim_sandi = HTML[awal:akhir]
+    assert "bukaTabDev(tab)" in kirim_sandi, (
+        "login tidak memuat ulang tab dev yang sedang terbuka — layar dev yang "
+        "dipulihkan sebelum login tetap kosong sesudahnya"
+    )
+    # Rumusnya harus SAMA dengan pemulihan tab di init, bukan varian sendiri.
+    rumus = (
+        'if (MUAT_TAB[tab] && document.querySelector(`button[data-tab="${tab}"]`)) '
+        "await bukaTabDev(tab);"
+    )
+    assert rumus in kirim_sandi
+    assert HTML.count(rumus) >= 2, "init dan kirimSandi harus memakai rumus yang sama"
+    # `$` di berkas ini adalah getElementById; diberi selector CSS ia selalu null,
+    # jadi bentuk lama ini adalah kondisi yang diam-diam tidak pernah benar.
+    assert '$(`button[data-tab=' not in HTML, (
+        "pemulihan tab memakai $() dengan selector CSS — selalu null, tab dev "
+        "tidak pernah memuat data saat dipulihkan"
+    )

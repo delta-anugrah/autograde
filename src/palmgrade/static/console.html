@@ -2738,6 +2738,22 @@ async function kirimSandi() {
     await refresh();
     await muatTimbangan();
     await muatRekap();
+    // Tab developer yang sudah AKTIF sebelum login (dipulihkan dari localStorage
+    // oleh init di bawah) sempat mencoba memuat datanya saat gerbang masih
+    // tertutup, dan ditolak 401 — diam-diam, karena `belum_masuk` memang bukan
+    // galat untuk dilaporkan. Empat pemuatan di atas tidak menyentuh tab itu,
+    // jadi tanpa baris ini layarnya tetap kosong sesudah login sampai tab-nya
+    // diklik ulang: dropdown berkas tanpa isi DAN tanpa keterangan, karena
+    // `isiBerkasSumber` pulang lebih dulu begitu melihat data belum pernah
+    // datang. Terbaca persis seperti fitur yang rusak. Rumus yang sama dengan
+    // pemulihan tab di init — satu sumber kebenaran untuk "tab dev mana yang
+    // sedang terbuka", supaya keduanya tidak bisa menyimpang.
+    //
+    // `document.querySelector`, BUKAN `$(...)`: `$` di berkas ini adalah
+    // getElementById, dan diberi selector CSS ia selalu memulangkan null — jadi
+    // kondisi ini diam-diam tidak pernah benar. Itu yang membuat baris di init
+    // mati sejak ditulis, dan salinannya di sini ikut mati (2026-09-21).
+    if (MUAT_TAB[tab] && document.querySelector(`button[data-tab="${tab}"]`)) await bukaTabDev(tab);
   } catch (e) {
     $("gerbang-pesan").textContent = alasan(e);
     $("gerbang-sandi").value = "";
@@ -3541,6 +3557,10 @@ $("plc-kartu").addEventListener("click", (ev) => {
   // A remembered developer tab from a previous support sign-in on this shared PC:
   // cekSesi() above has already run hapusTabDeveloper(), so the button (and
   // this check) only survive for an account that is still support.
-  if (MUAT_TAB[tab] && $(`button[data-tab="${tab}"]`)) await bukaTabDev(tab);
+  // `document.querySelector`, BUKAN `$(...)`: `$` adalah getElementById, dan
+  // diberi selector CSS ia selalu null. Dengan `$` baris ini tidak pernah jalan
+  // — tab dev yang dipulihkan dari localStorage tampil tapi tidak pernah memuat
+  // datanya, sampai diklik ulang. Ketahuan 2026-09-21 di layar Sumber Kamera.
+  if (MUAT_TAB[tab] && document.querySelector(`button[data-tab="${tab}"]`)) await bukaTabDev(tab);
 })();
 </script>
