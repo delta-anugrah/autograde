@@ -265,7 +265,14 @@ Ulangi 6.2–6.4 untuk setiap kamera.
 git clone git@github.com:delta-anugrah/autograde.git
 cd autograde
 cp .env.example .env
+cp media.env.example media.env   # sumber kamera per line — wajib, tidak ikut git
+mkdir -p media                    # tempat video/foto sumber kamera ditaruh
 ```
+
+⚠️ **`media.env` tidak ikut git.** Tanpa `cp` di atas, ketiga line jatuh ke
+bawaan `hikrobot` — yang memang benar untuk pabrik, jadi baru ketahuan kalau
+lupa saat ada yang mencoba mode Video/Foto dari layar Support. Detail lengkap:
+`docs/runbooks/2026-09-21-sumber-kamera-per-line.md`.
 
 ### 7.2 Taruh model
 
@@ -280,9 +287,9 @@ Bagian yang **wajib** diisi:
 
 ```env
 # ── Kamera ───────────────────────────────────────────────────
-CAMERA_TYPE=hikrobot
+# CAMERA_TYPE / CAMERA_VIDEO_PATH / CAMERA_PHOTO_PATH pindah ke `media.env`,
+# diatur per line dari layar Support di konsol (lihat 7.1 dan runbook di atas).
 CAMERA_DEVICE_INDEX=0       # 0 = kamera pertama yang ditemukan
-CAMERA_VIDEO_PATH=          # kosongkan untuk hikrobot
 CAMERA_WIDTH=2448
 CAMERA_HEIGHT=2048
 CAMERA_FPS=15

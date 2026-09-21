@@ -130,7 +130,19 @@ All via **`make`** (Docker only). From `autograde/`:
 
 - **TensorRT (GPU speedup, akurasi sama)**: engine FP16 (`engines/<model>.sm<cc>.engine`) **hardware-locked** (compute capability + versi TensorRT) → tidak di-commit, tidak di-bake ke image, dibangun **sekali per GPU** on-machine via `make build-engine` (~5–15 mnt, tidak butuh kamera). Engine tidak ada / tidak cocok → runtime **fallback ke `.pt`** otomatis (`pipelines/model_registry.py`), jadi kegagalan build bukan outage. Install TensorRT-nya ikut `Dockerfile` (`pypi.nvidia.com` — **wajib**, index PyPI publik cuma punya source stub yang bikin pip hang). Detail: `docs/overview.md` § Docker/SDK/GPU.
 - **`make up` cuma perlu** kalau dependency / `Dockerfile` / SDK berubah; untuk ubah kode pakai `make restart`.
-- **Dev without a camera**: `.env` → `CAMERA_TYPE=opencv` + `CAMERA_VIDEO_PATH=/videos/<file>.mp4` (host `sawit/` is mounted at `/videos`). `CAMERA_VIDEO_LOOP=true` replays it until the line is stopped (default plays once). ⚠️ `CAMERA_TYPE`/`CAMERA_VIDEO_*` are shared by all 3 lines — to put a video on ONE line only, override that service in `docker-compose.override.yml`.
+- **Dev without a camera — pilih dari layar, per line**: konsol → login **support** → tab
+  **Sumber Kamera**. Taruh berkas di `media/` (host), pilih Video/Foto untuk line yang mau
+  diganti, Simpan. Tiap line berdiri sendiri: line 1 boleh video sementara line 2–3 tetap
+  kamera. Setelannya mendarat di **`media.env`** (di-`.gitignore`, keadaan per-mesin;
+  `make` membuatnya dari `media.env.example` kalau belum ada). Cara pakainya:
+  `docs/runbooks/2026-09-21-sumber-kamera-per-line.md`.
+  ⚠️ **`media.env` wajib lewat `--env-file`, bukan `env_file:`** — Compose menyelesaikan
+  `${LINE_1_CAMERA_TYPE}` dari shell + `--env-file` saja, sementara `env_file:` menyuntik
+  environment container **sesudah** interpolasi. Dengan `env_file:` ketiga line selalu
+  `hikrobot` tanpa satu pun error. `Makefile` sudah membawa kedua flag lewat `$(COMPOSE)`;
+  pemanggil di luar Makefile harus membawanya sendiri.
+  ⚠️ **Jalur lama sudah tidak ada**: mount `/videos` dicabut, dan `CAMERA_VIDEO_PATH` +
+  `docker-compose.override.yml` bukan lagi cara menyetel video per line.
 - **Verify**: `curl :8001/health`; `curl :8001/health/detail` (camera_connected, gpu_available, workers, current_assignment_id, `plc` = `null` kalau PLC mati); stream at `http://localhost:8001/api/video_feed`.
   ⚠️ **`capture_save_dropped` di `/health/detail` harus NOL.** Di atas nol berarti antrean penulis
   pernah penuh dan janjang yang sudah digrading — sudah dapat pulse PLC, sudah masuk rekap —
@@ -640,9 +652,9 @@ pabrik), `opencv` (file video lewat `CAMERA_VIDEO_PATH`, atau webcam), `photo`
 
 **`docker-compose.override.yml` tidak ada di repo dan tidak wajib** — dia
 `.gitignore`, berkas pribadi per mesin. Compose membacanya otomatis kalau ada dan
-menimpa `docker-compose.yml`. Gunanya cuma satu: menyetel **satu line berbeda
-dari dua lainnya** (mis. line 1 pakai video, line 2-3 tetap kamera). Kalau
-setelannya sama untuk tiga line, `.env` sudah cukup — jangan bikin override.
+menimpa `docker-compose.yml`. ⚠️ **Bukan lagi cara menyetel sumber per line** — itu
+sekarang layar Sumber Kamera + `media.env`. Sisakan override untuk hal lain yang
+memang khas satu mesin.
 
 
 - `snake_case` files/functions, `PascalCase` classes, `UPPER_SNAKE` constants (`core/constants.py`) & env vars.

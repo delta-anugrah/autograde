@@ -629,6 +629,18 @@
   #set-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
                            background:var(--warn-bg); color:var(--warn); }
   #set-lines:not(:empty) { color:var(--rej); }
+  /* Sumber kamera: satu kartu per line, sama seperti kartu setelan - baris
+     berkas di dalamnya cuma terlihat untuk Video/Foto (lihat perbaruiTampakSumber). */
+  #sumber-kamera-panel { display:grid; gap:16px; max-width:34rem; }
+  .sumber-baris { display:grid; gap:10px; padding:16px 20px;
+                  border:1px solid var(--line); border-radius:var(--r); background:var(--kartu); }
+  .sumber-baris label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .sumber-berkas { display:grid; gap:10px; padding-top:10px; margin-top:4px;
+                   border-top:1px solid var(--line); }
+  .sumber-berkas select { padding:8px 10px; font-family:inherit; font-size:1rem;
+                          border:1px solid var(--line-kuat); border-radius:var(--r);
+                          background:var(--input); color:var(--fg); }
+  #sumber-kamera-panel .tools { padding-top:6px; }
   #rekap td.tp { color:var(--warn); font-weight:700; }
   #rekap td.acc { color:var(--acc); font-weight:700; }
   #rekap td.rej { color:var(--rej); font-weight:700; }
@@ -775,6 +787,7 @@
   <button data-tab="antrean" data-dev="1" data-t="judulAntrean">Antrean ERP</button>
   <button data-tab="versi" data-dev="1" data-t="judulVersi">Versi</button>
   <button data-tab="plc" data-dev="1" data-t="judulPlc">Uji PLC</button>
+  <button data-tab="sumber-kamera" data-dev="1" data-t="judulSumberKamera">Sumber Kamera</button>
   <!-- Setelan sengaja PALING KANAN (permintaan operator 2026-09-18): tab yang
        paling jarang dibuka dan yang paling mahal kalau tersenggol — angkanya
        menggeser tonase yang dibayar. -->
@@ -1135,6 +1148,63 @@
   </div>
 </section>
 
+<section id="sec-sumber-kamera" class="panel" hidden data-dev="1">
+  <!--
+    Support-only. Tiap line memilih sumber gambarnya sendiri (kamera Hikrobot,
+    webcam, berkas video, atau foto diam) — dulu cuma bisa lewat AnyDesk +
+    edit .env + restart manual. Simpan menulis `media.env` lalu me-restart
+    HANYA line yang setelannya berubah (`services/console_service.py
+    simpan_sumber_kamera`); line yang tidak menjawab restart TETAP tersimpan,
+    dia membaca setelan baru sendiri saat hidup lagi — itu sebabnya pesan hasil
+    di bawah tidak boleh dibaca sebagai "gagal simpan".
+  -->
+  <div id="sumber-kamera-panel">
+    <p class="muted" data-t="sumberPeringatan">
+      Menyimpan akan <strong>merestart</strong> line yang setelannya berubah (sekitar 10 detik) — grading di line itu berhenti sebentar.
+    </p>
+
+    <div data-sumber-line="line-1" class="sumber-baris">
+      <strong data-t="sumberLabelLine1">Line 1</strong>
+      <label><input type="radio" name="sumber-line-1" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
+      <label><input type="radio" name="sumber-line-1" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
+      <label><input type="radio" name="sumber-line-1" value="video"> <span data-t="sumberVideo">Video</span></label>
+      <label><input type="radio" name="sumber-line-1" value="foto"> <span data-t="sumberFoto">Foto</span></label>
+      <div class="sumber-berkas" hidden>
+        <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-1"></select></label>
+        <label><input type="checkbox" data-ulang="line-1"> <span data-t="sumberUlang">Ulang terus</span></label>
+      </div>
+    </div>
+
+    <div data-sumber-line="line-2" class="sumber-baris">
+      <strong data-t="sumberLabelLine2">Line 2</strong>
+      <label><input type="radio" name="sumber-line-2" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
+      <label><input type="radio" name="sumber-line-2" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
+      <label><input type="radio" name="sumber-line-2" value="video"> <span data-t="sumberVideo">Video</span></label>
+      <label><input type="radio" name="sumber-line-2" value="foto"> <span data-t="sumberFoto">Foto</span></label>
+      <div class="sumber-berkas" hidden>
+        <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-2"></select></label>
+        <label><input type="checkbox" data-ulang="line-2"> <span data-t="sumberUlang">Ulang terus</span></label>
+      </div>
+    </div>
+
+    <div data-sumber-line="line-3" class="sumber-baris">
+      <strong data-t="sumberLabelLine3">Line 3</strong>
+      <label><input type="radio" name="sumber-line-3" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
+      <label><input type="radio" name="sumber-line-3" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
+      <label><input type="radio" name="sumber-line-3" value="video"> <span data-t="sumberVideo">Video</span></label>
+      <label><input type="radio" name="sumber-line-3" value="foto"> <span data-t="sumberFoto">Foto</span></label>
+      <div class="sumber-berkas" hidden>
+        <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-3"></select></label>
+        <label><input type="checkbox" data-ulang="line-3"> <span data-t="sumberUlang">Ulang terus</span></label>
+      </div>
+    </div>
+
+    <div class="tools">
+      <button type="button" id="sumber-simpan" class="utama" data-t="btnSumberSimpan">Simpan &amp; Restart</button>
+    </div>
+  </div>
+</section>
+
 <!--
   Foto satu janjang, dibuka di tempat. Dulu `target="_blank"`: tiap foto yang
   dilihat meninggalkan satu tab, dan di kiosk Chrome (`--kiosk`) tab baru tidak
@@ -1283,6 +1353,17 @@ const KAMUS = {
     err_konfirmasi_kurang:"Ketik UJI persis untuk memicu coil",
     err_plc_sibuk:"Line sedang memproses truk - coil tidak bisa dipicu",
     err_coil_tidak_dikenal:"Coil ini tidak dikenal line",
+    judulSumberKamera:"Sumber Kamera",
+    sumberPeringatan:"Menyimpan akan merestart line yang setelannya berubah (sekitar 10 detik) — grading di line itu berhenti sebentar.",
+    sumberLabelLine1:"Line 1", sumberLabelLine2:"Line 2", sumberLabelLine3:"Line 3",
+    sumberHikrobot:"Kamera Hikrobot", sumberWebcam:"Webcam", sumberVideo:"Video", sumberFoto:"Foto",
+    sumberBerkas:"Berkas", sumberUlang:"Ulang terus",
+    sumberBerkasKosong:"belum ada berkas di folder media",
+    btnSumberSimpan:"Simpan & Restart",
+    gagalSumberKamera:"Gagal memuat sumber kamera",
+    sumberTersimpanSemua:"Tersimpan. Line yang berubah sedang restart.",
+    sumberTersimpanSebagian:"Tersimpan. {daftar} tidak menjawab — setelan tetap berlaku dan akan dipakai saat line itu hidup lagi.",
+    gagalSumberSimpan:"Gagal menyimpan sumber kamera",
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
@@ -1393,6 +1474,17 @@ const KAMUS = {
     err_konfirmasi_kurang:"Type UJI exactly to fire the coil",
     err_plc_sibuk:"Line is processing a truck - the coil cannot be fired",
     err_coil_tidak_dikenal:"This coil is not known to the line",
+    judulSumberKamera:"Camera Source",
+    sumberPeringatan:"Saving restarts any line whose setting changed (about 10 seconds) — grading on that line pauses briefly.",
+    sumberLabelLine1:"Line 1", sumberLabelLine2:"Line 2", sumberLabelLine3:"Line 3",
+    sumberHikrobot:"Hikrobot camera", sumberWebcam:"Webcam", sumberVideo:"Video", sumberFoto:"Photo",
+    sumberBerkas:"File", sumberUlang:"Loop",
+    sumberBerkasKosong:"no files in the media folder yet",
+    btnSumberSimpan:"Save & Restart",
+    gagalSumberKamera:"Failed to load camera source",
+    sumberTersimpanSemua:"Saved. Lines that changed are restarting.",
+    sumberTersimpanSebagian:"Saved. {daftar} did not respond — the setting still applies and will take effect once that line is back.",
+    gagalSumberSimpan:"Failed to save camera source",
   },
 };
 
@@ -1556,7 +1648,7 @@ document.addEventListener("focusout", (ev) => {
 });
 
 // ── truck / weighbridge tabs ───────────────────────────────────────────
-const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "diagnostik", "antrean", "versi", "plc"];
+const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "diagnostik", "antrean", "versi", "plc", "sumber-kamera", "setelan"];
 let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
 
 function terapkanTab() {
@@ -1575,7 +1667,7 @@ function terapkanTab() {
 // tab stays open (a line coming back or dying should show up unattended);
 // the timer is started/stopped in `bukaTabDev` below, never left running
 // behind a tab nobody is looking at.
-const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, setelan: muatSetelan };
+const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, "sumber-kamera": muatSumberKamera, setelan: muatSetelan };
 
 function bukaTabDev(namaTab) {
   clearInterval(diagnostikTimer);
@@ -3153,6 +3245,126 @@ $("set-simpan").addEventListener("click", async () => {
     })) {
       if (teks.includes(field)) $(id).setAttribute("aria-invalid", "true");
     }
+  }
+});
+
+// ── Sumber kamera per line (support only) ──────────────────────────────
+// Empat pilihan layar, tapi berkas cuma berlaku untuk Video dan Foto -
+// `domain/sumber_kamera.BUTUH_BERKAS` menolak berkas untuk hikrobot/webcam
+// di server, jadi menampilkan dropdown aktif untuk keduanya di sini adalah
+// bohong: pilihannya tidak pernah bisa dikirim.
+const SUMBER_KODE_LINE = ["line-1", "line-2", "line-3"];
+const SUMBER_BUTUH_BERKAS = new Set(["video", "foto"]);
+
+// Daftar video/foto disalin dari jawaban terakhir, bukan ditarik ulang tiap
+// ganti pilihan radio - satu GET yang sama melayani ketiga line sekaligus,
+// dan menyimpan hasilnya di sini menghindari tiga permintaan jaringan untuk
+// data yang sudah ada di tangan.
+let sumberKameraTerakhir = null;
+
+function isiBerkasSumber(kode, sumber, terpilih) {
+  const pilih = document.querySelector(`[data-berkas="${kode}"]`);
+  if (!pilih || !sumberKameraTerakhir) return;
+  const daftar = sumber === "foto" ? sumberKameraTerakhir.foto : sumberKameraTerakhir.video;
+  pilih.innerHTML = "";
+  for (const nama of daftar || []) {
+    const opt = document.createElement("option");
+    opt.value = nama;
+    opt.textContent = nama;
+    if (nama === terpilih) opt.selected = true;
+    pilih.appendChild(opt);
+  }
+  if (!daftar || !daftar.length) {
+    // Folder kosong dikatakan, bukan dibiarkan kosong tanpa keterangan -
+    // dropdown yang kosong begitu saja terbaca seperti layar belum termuat.
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = t("sumberBerkasKosong");
+    pilih.appendChild(opt);
+  }
+}
+
+function perbaruiTampakSumber(kode) {
+  const blok = document.querySelector(`[data-sumber-line="${kode}"]`);
+  if (!blok) return;
+  const sumber = blok.querySelector("input[type=radio]:checked")?.value;
+  // Baris berkas cuma untuk video dan foto - hikrobot/webcam menolak berkas
+  // di server, jadi dropdown yang tetap terlihat aktif untuk keduanya
+  // adalah pilihan yang tidak pernah bisa disimpan.
+  blok.querySelector(".sumber-berkas").hidden = !SUMBER_BUTUH_BERKAS.has(sumber);
+}
+
+async function muatSumberKamera() {
+  try {
+    const data = await api("/api/console/dev/sumber-kamera");
+    sumberKameraTerakhir = data;
+    for (const kode of SUMBER_KODE_LINE) {
+      const satu = data.lines[kode];
+      if (!satu) continue;
+      const blok = document.querySelector(`[data-sumber-line="${kode}"]`);
+      if (!blok) continue;
+      const radio = blok.querySelector(`input[value="${satu.sumber}"]`);
+      if (radio) radio.checked = true;
+      const ulang = blok.querySelector(`[data-ulang="${kode}"]`);
+      if (ulang) ulang.checked = Boolean(satu.ulang);
+      isiBerkasSumber(kode, satu.sumber, satu.berkas);
+      perbaruiTampakSumber(kode);
+    }
+  } catch (e) {
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e) || t("gagalSumberKamera"));
+  }
+}
+
+document.querySelectorAll("[data-sumber-line] input[type=radio]").forEach((el) => {
+  el.addEventListener("change", () => {
+    const kode = el.closest("[data-sumber-line]").dataset.sumberLine;
+    perbaruiTampakSumber(kode);
+    // Daftar berkas berbeda antara video dan foto (dua folder terpisah), jadi
+    // diisi ulang dari jawaban GET yang sudah ada - tanpa berkas terpilih,
+    // karena pindah sumber tidak mewarisi pilihan sumber sebelumnya.
+    isiBerkasSumber(kode, el.value, "");
+  });
+});
+
+$("sumber-simpan").addEventListener("click", async () => {
+  const payload = {};
+  for (const kode of SUMBER_KODE_LINE) {
+    const blok = document.querySelector(`[data-sumber-line="${kode}"]`);
+    const sumber = blok.querySelector("input[type=radio]:checked")?.value || "hikrobot";
+    const pakaiBerkas = SUMBER_BUTUH_BERKAS.has(sumber);
+    payload[kode] = {
+      sumber,
+      berkas: pakaiBerkas ? (blok.querySelector(`[data-berkas="${kode}"]`).value || "") : "",
+      ulang: sumber === "video" && Boolean(blok.querySelector(`[data-ulang="${kode}"]`).checked),
+    };
+  }
+  try {
+    const data = await api("/api/console/dev/sumber-kamera", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    sumberKameraTerakhir = data;
+    // `berubah && !direstart` = setelan SUDAH tersimpan tapi line itu tidak
+    // menjawab restart - bukan simpan yang gagal (services/console_service.py
+    // simpan_sumber_kamera). Menyebutnya "gagal" di sini akan membuat support
+    // menekan Simpan berulang-ulang untuk sesuatu yang sudah beres.
+    const tidakJawab = (data.lines || []).filter((b) => b.berubah && !b.direstart);
+    if (tidakJawab.length) {
+      toastPeringatan(
+        t("sumberTersimpanSebagian").replace(
+          "{daftar}",
+          tidakJawab.map((b) => b.line_code).join(", ")
+        )
+      );
+    } else {
+      toastSukses(t("sumberTersimpanSemua"));
+    }
+    // Balasan POST membawa daftar berkas terbaru (video/foto), tapi bukan
+    // setelan tersimpan per line (itu array hasil restart, bukan dict sumber)
+    // - GET ulang supaya layar menunjukkan persis apa yang ada di media.env.
+    await muatSumberKamera();
+  } catch (e) {
+    toastGagal(alasan(e) || t("gagalSumberSimpan"));
   }
 });
 

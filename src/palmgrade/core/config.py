@@ -180,6 +180,21 @@ class Settings:
     )
     camera_photo_path: str = field(default_factory=lambda: os.getenv("CAMERA_PHOTO_PATH", ""))
 
+    # Nama berkas media (BUKAN path) yang dipilih layar Support, di-join ke
+    # `/media` oleh `domain/sumber_kamera_resolver`. Menggantikan
+    # CAMERA_VIDEO_PATH/CAMERA_PHOTO_PATH sebagai jalur yang dipakai layar;
+    # keduanya masih dibaca supaya `.env` lama tetap jalan.
+    media_file: str = field(default_factory=lambda: os.getenv("MEDIA_FILE", ""))
+
+    # Folder media yang di-mount dari host, read-only bagi line dan konsol.
+    media_dir: str = field(default_factory=lambda: os.getenv("MEDIA_DIR", "/media"))
+    # Berkas setelan sumber kamera. Dibaca Compose lewat `env_file`, ditulis
+    # konsol. TERPISAH dari `.env`, yang memuat rahasia dan tidak pernah ditulis
+    # kode mana pun.
+    media_env_path: str = field(
+        default_factory=lambda: os.getenv("MEDIA_ENV_PATH", "/config/media.env")
+    )
+
     # Stream display resolution — only affects MJPEG stream, not saved captures
     stream_width: int = field(default_factory=lambda: int(os.getenv("STREAM_WIDTH", "1280")))
     stream_height: int = field(default_factory=lambda: int(os.getenv("STREAM_HEIGHT", "720")))
@@ -341,6 +356,30 @@ class Settings:
     # DI confirmation from the PLC: this line's piston is actually open. Empty =
     # the screen can only show the request, marked "not confirmed by PLC".
     plc_di_manual: int | None = field(default_factory=lambda: _plc_opt_int("PLC_DI_MANUAL"))
+
+    # ------------------------------------------------------------------ sumber kamera
+
+    def sumber_kamera(self) -> str:
+        """Pilihan layar yang setara dengan `CAMERA_TYPE` + `MEDIA_FILE`.
+
+        Kebalikan dari pemetaan di `domain/sumber_kamera`: `opencv` memetakan ke
+        dua pilihan layar, dan berkaslah yang membedakan webcam dari video.
+
+        Nilai `CAMERA_TYPE` asing jatuh ke `hikrobot`, tidak melempar: berkas
+        yang disunting tangan dengan nilai ngawur harus tetap membuat line boot
+        memakai kamera sungguhan. Yang rewel gerbang simpan di konsol.
+
+        Ditulis di sini, bukan diimpor dari `services/media_env_service`:
+        `config.py` dibaca setiap proses termasuk line, dan tidak boleh
+        bergantung pada lapis service.
+        """
+        camera_type = self.camera_type.strip().lower()
+        berkas = (self.media_file or self.camera_video_path or self.camera_photo_path).strip()
+        if camera_type == "photo":
+            return "foto"
+        if camera_type == "opencv":
+            return "video" if berkas else "webcam"
+        return "hikrobot"
 
     # ------------------------------------------------------------------ validation
 

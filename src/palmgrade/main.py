@@ -4,6 +4,7 @@ import asyncio
 import logging
 import threading
 from contextlib import asynccontextmanager
+from dataclasses import replace
 
 import httpx
 from dotenv import load_dotenv
@@ -33,6 +34,7 @@ from .license.guard import LicenseGuardMiddleware
 from .license.local_repo import LicenseLocalRepo
 from .license.manager import LicenseManager
 from .domain.setelan_grading import bersihkan_setelan
+from .domain.sumber_kamera_resolver import rencana_kamera
 from .integrations.scheduler.upload_scheduler import UploadScheduler
 from .integrations.upload.r2_uploader import R2Uploader
 from .integrations.upload.upload_manifest import UploadManifest
@@ -126,25 +128,35 @@ def create_app() -> FastAPI:
         # cuma warning). Lihat Settings.validate_for_runtime().
         settings.validate_for_runtime()
 
-        # Init kamera — dikontrol lewat env var CAMERA_TYPE
-        # hikrobot (default) = Hikrobot industrial camera (butuh SDK + hardware)
-        # opencv              = Webcam atau video file via OpenCV
-        # photo               = Single image untuk testing (frame dikembalikan terus)
-        camera_type = settings.camera_type.lower()
+        # Sumber kamera — `CAMERA_TYPE` + `MEDIA_FILE`, disusun layar Support
+        # dan diteruskan Compose lewat `media.env`. Pemetaannya hidup di
+        # `domain/sumber_kamera_resolver` supaya bisa diuji tanpa menyalakan
+        # aplikasi; di sini tinggal membangun apa yang direncanakan.
+        rencana = rencana_kamera(
+            settings.sumber_kamera(), settings.media_file, settings.camera_video_loop
+        )
+        # `.env` lama menulis PATH penuh di CAMERA_VIDEO_PATH/CAMERA_PHOTO_PATH,
+        # bukan nama berkas. Selama berkas itu masih dipakai (PC yang belum
+        # pindah ke media.env), path aslinya menang atas hasil join ke /media.
+        if not settings.media_file:
+            if settings.camera_video_path:
+                rencana = replace(rencana, video_path=settings.camera_video_path)
+            if settings.camera_photo_path:
+                rencana = replace(rencana, photo_path=settings.camera_photo_path)
+        camera_type = rencana.camera_type
         if camera_type == "opencv":
-            opencv_source: int | str = (
-                settings.camera_video_path if settings.camera_video_path else settings.camera_device_index
-            )
+            # `video_path` kosong = webcam lewat device index.
+            opencv_source: int | str = rencana.video_path or settings.camera_device_index
             camera: CameraSource = OpenCVCamera(
                 source=opencv_source,
                 width=settings.camera_width,
                 height=settings.camera_height,
                 fps=settings.camera_fps,
-                is_video_file=bool(settings.camera_video_path),
-                loop=settings.camera_video_loop,
+                is_video_file=bool(rencana.video_path),
+                loop=rencana.loop,
             )
         elif camera_type == "photo":
-            camera = PhotoCamera(path=settings.camera_photo_path)
+            camera = PhotoCamera(path=rencana.photo_path)
         else:
             camera = HikrobotCamera()
 

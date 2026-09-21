@@ -21,6 +21,7 @@ from ..domain.operator_auth import SESSION_TTL_S
 from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
 from ..domain.role import ROLE_SUPPORT, parse_allowed_roles
 from ..domain.setelan_grading import SetelanTidakSah
+from ..domain.sumber_kamera import SumberTidakSah
 from ..domain.visit_manifest import detail_url_for
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
@@ -500,6 +501,29 @@ async def dev_setelan_simpan(
             payload, diubah_oleh=operator["email"]
         )
     except SetelanTidakSah as exc:
+        raise _operator_error(400, exc) from exc
+
+
+@router.get("/api/console/dev/sumber-kamera")
+async def dev_sumber_kamera_baca(service: Service, operator: Support) -> dict:
+    """Sumber tiap line + daftar berkas yang boleh dipilih."""
+    return service.sumber_kamera()
+
+
+@router.post("/api/console/dev/sumber-kamera")
+async def dev_sumber_kamera_simpan(
+    service: Service, operator: Support, payload: Annotated[dict, Body()]
+) -> dict:
+    """Ubah sumber kamera per line, lalu restart line yang berubah.
+
+    `role=support` saja: salah pilih membuat line berhenti grading. Tiap
+    perubahan dicatat WARNING menyebut siapa yang mengubah.
+    """
+    try:
+        return await service.simpan_sumber_kamera(
+            payload, diubah_oleh=operator["email"]
+        )
+    except SumberTidakSah as exc:
         raise _operator_error(400, exc) from exc
 
 

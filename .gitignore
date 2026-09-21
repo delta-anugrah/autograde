@@ -244,3 +244,9 @@ docker-compose.override.yaml
 # tidak berarti apa-apa di Linux maupun di image, dan berubah tiap kali folder
 # dibuka sehingga muncul terus di `git status`.
 .DS_Store
+
+# Setelan sumber kamera — per mesin, ditulis konsol.
+media.env
+# Berkas video/foto uji; foldernya sendiri dipertahankan .gitkeep.
+media/*
+!media/.gitkeep
