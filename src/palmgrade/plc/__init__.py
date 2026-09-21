@@ -1,11 +1,18 @@
-"""PLC integration through an ODOT CN-8031 coupler (Modbus-TCP).
+"""PLC integration — MC Protocol straight to the CPU, or Modbus via a coupler.
+
+The mill talks to a Mitsubishi Q03UDECPU over its built-in Ethernet port since
+2026-09-21 (`PLC_PROTOCOL=mc`, the default). The older path through an ODOT
+CN-8031 coupler is still selectable with `PLC_PROTOCOL=modbus` for sites wired
+that way; everything above the client — pulses, heartbeat, piston, the internal
+fruit rule — is shared and untouched by the choice.
 
 Code outside this package normally needs the functions in `__all__` below
 (`start_plc_worker`, `shutdown_plc_worker`, `submit_grading`, `inputs`,
 `diagnostics`, `request_piston`, `piston_state`, `fire_test_coil`, `testable_coils`).
-With PLC_ENABLED=false they are all no-ops and no thread runs. `ModbusPlcClient`,
-`PlcWorker` and `PulseScheduler` are exported too, for callers that assemble a
-worker themselves (tests, mainly). Full coil map: docs/plc-integration.md.
+With PLC_ENABLED=false they are all no-ops and no thread runs. The client
+classes, `PlcWorker` and `PulseScheduler` are exported too, for callers that
+assemble a worker themselves (tests, mainly). Full address map:
+docs/plc-integration.md.
 """
 
 from __future__ import annotations
@@ -14,12 +21,15 @@ import logging
 import threading
 from collections.abc import Callable
 
+from .mc_client import McProtocolPlcClient
 from .modbus_client import ModbusPlcClient
 from .pulse import PulseScheduler
 from .worker import PlcWorker
 
 __all__ = [
+    "McProtocolPlcClient",
     "ModbusPlcClient",
+    "build_plc_client",
     "PlcWorker",
     "PulseScheduler",
     "diagnostics",
@@ -81,11 +91,7 @@ def start_plc_worker(
         )
 
     _worker = PlcWorker(
-        client=ModbusPlcClient(
-            host=settings.plc_host,
-            port=settings.plc_port,
-            unit_id=settings.plc_unit_id,
-        ),
+        client=build_plc_client(settings),
         scheduler=PulseScheduler(
             pulse_s=settings.plc_pulse_ms / 1000.0,
             gap_s=settings.plc_pulse_gap_ms / 1000.0,
@@ -96,15 +102,45 @@ def start_plc_worker(
         license_ok=license_ok,
     )
     logger.info(
-        "PLC on: %s:%s, coil OK/NG/ERROR = %s/%s/%s, alive = %s",
+        "PLC on (%s): %s:%s, %s OK/NG/ERROR = %s/%s/%s, alive = %s, read from %s",
+        settings.plc_protocol,
         settings.plc_host,
         settings.plc_port,
+        _address_label(settings),
         settings.plc_coil_ok,
         settings.plc_coil_ng,
         settings.plc_coil_error,
         settings.plc_coil_alive or "(off)",
+        settings.plc_di_base,
     )
     return _worker
+
+
+def _address_label(settings) -> str:
+    """"M" for MC Protocol, "coil" for Modbus — so the log line reads the way
+    the person holding the ladder printout thinks about the address."""
+    return settings.plc_device_prefix if settings.plc_protocol == "mc" else "coil"
+
+
+def build_plc_client(settings):
+    """The one place that turns `PLC_PROTOCOL` into a client object.
+
+    Both clients expose exactly `write_coil` / `read_discrete_inputs` / `close`,
+    so `PlcWorker` never learns which one it got. Keeping the choice here and
+    not in the worker is what stopped the MC Protocol move from touching pulse,
+    heartbeat, piston or the internal-fruit rule at all.
+    """
+    if settings.plc_protocol == "modbus":
+        return ModbusPlcClient(
+            host=settings.plc_host,
+            port=settings.plc_port,
+            unit_id=settings.plc_unit_id,
+        )
+    return McProtocolPlcClient(
+        host=settings.plc_host,
+        port=settings.plc_port,
+        device_prefix=settings.plc_device_prefix,
+    )
 
 
 def submit_grading(status: str) -> None:
@@ -171,11 +207,14 @@ def fire_test_coil(coil: int) -> bool:
 def diagnostics() -> dict | None:
     """PLC snapshot for /health/detail. None when the PLC is off or not started.
 
-    This is the only way to read the E-stop (`inputs[11]` since the panel grew to
-    11 motors on 2026-09-15; it was `inputs[10]`) and watch both drop
-    counters from outside the container. Both are diagnostics only — nothing
-    decides anything from them — so `None` while the PLC is off is the right
-    answer, not an error.
+    This is the only way to read the E-stop and watch both drop counters from
+    outside the container. Both are diagnostics only — nothing decides anything
+    from them — so `None` while the PLC is off is the right answer, not an error.
+
+    `inputs` is the raw block starting at `PLC_DI_BASE`, so its index is an
+    OFFSET, not an address: under MC Protocol with base 200, the E-stop at M211
+    is `inputs[11]`. It reads the same as the old Modbus numbering by
+    coincidence, not by design — do not hard-code either.
 
     `inputs` is copied: a caller must not be able to mutate worker state.
     """

@@ -239,6 +239,9 @@ def test_start_plc_worker_called_twice_returns_none_and_builds_one_client(monkey
         plc_coil_ng = 4
         plc_coil_error = 5
         plc_coil_alive = (11,)
+        plc_protocol = "modbus"
+        plc_device_prefix = "M"
+        plc_di_base = 0
 
     settings = _Settings()
     first = plc.start_plc_worker(settings)
@@ -509,6 +512,9 @@ class _StartCfg:
     plc_coil_ng = 4
     plc_coil_error = 5
     plc_coil_alive = (11,)
+    plc_protocol = "modbus"
+    plc_device_prefix = "M"
+    plc_di_base = 0
 
 
 def _patch_start(monkeypatch):

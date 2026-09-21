@@ -116,25 +116,34 @@ services:
       - LICENSE_ENABLED=${LICENSE_ENABLED:-false}
       - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY:-}
       - LICENSE_TOKEN=${LICENSE_TOKEN:-}
-      # PLC / ODOT CN-8031 (Modbus-TCP) — mati default, cuma PC pabrik yang menyalakan.
+      # PLC — MC Protocol langsung ke CPU Mitsubishi. Mati default, cuma PC pabrik.
       - PLC_ENABLED=${PLC_ENABLED:-false}
       - PLC_HOST=${PLC_HOST:-}
-      - PLC_PORT=${PLC_PORT:-502}
+      # "mc" = langsung ke CPU (jalur hidup). "modbus" = lewat coupler ODOT (lama).
+      - PLC_PROTOCOL=${PLC_PROTOCOL:-mc}
+      # Kosong = ikut protokol (mc 1025, modbus 502).
+      - PLC_PORT=${PLC_PORT:-}
       - PLC_UNIT_ID=${PLC_UNIT_ID:-1}
-      # Properti fisik line ini (coil map skematik) — sengaja literal, bukan dari
+      - PLC_DEVICE_PREFIX=${PLC_DEVICE_PREFIX:-M}
+      # Properti fisik line ini (peta alamat panel) — sengaja literal, bukan dari
       # env, karena tidak boleh berbeda antar PC.
-      - PLC_COIL_BASE=0
-      # Coil 9 = HEARTBIT PC, satu-satunya bit alive di skematik ODOT.
-      - PLC_COIL_ALIVE=9
-      # Piston manual line 1 — coil 10 (X030A), konfirmasi DI 12 (Y031C).
-      - PLC_COIL_MANUAL=10
-      - PLC_DI_MANUAL=12
-      - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-0}
+      # Line 1: M100 OK, M101 NG, M102 ERROR.
+      - PLC_COIL_BASE=100
+      # M110 = heartbeat PC, satu-satunya bit alive (dipegang line 1).
+      - PLC_COIL_ALIVE=110
+      # Piston manual line 1 — M103, konfirmasi M212.
+      - PLC_COIL_MANUAL=103
+      - PLC_DI_MANUAL=212
+      # Blok yang DIBACA dari PLC: M200..M219 (motor fault, E-stop, konfirmasi piston).
+      - PLC_DI_BASE=${PLC_DI_BASE:-200}
+      - PLC_DI_COUNT=${PLC_DI_COUNT:-20}
+      # Kosong = ikut protokol: mc berkedip 500 ms (tidak ada watchdog coupler
+      # lagi), modbus tetap level statis.
+      - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-}
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
       - PLC_QUEUE_MAX=${PLC_QUEUE_MAX:-1}
       - PLC_POLL_MS=${PLC_POLL_MS:-200}
-      - PLC_DI_COUNT=${PLC_DI_COUNT:-16}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
@@ -235,25 +244,34 @@ services:
       - LICENSE_ENABLED=${LICENSE_ENABLED:-false}
       - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY:-}
       - LICENSE_TOKEN=${LICENSE_TOKEN:-}
-      # PLC / ODOT CN-8031 (Modbus-TCP) — mati default, cuma PC pabrik yang menyalakan.
+      # PLC — MC Protocol langsung ke CPU Mitsubishi. Mati default, cuma PC pabrik.
       - PLC_ENABLED=${PLC_ENABLED:-false}
       - PLC_HOST=${PLC_HOST:-}
-      - PLC_PORT=${PLC_PORT:-502}
+      # "mc" = langsung ke CPU (jalur hidup). "modbus" = lewat coupler ODOT (lama).
+      - PLC_PROTOCOL=${PLC_PROTOCOL:-mc}
+      # Kosong = ikut protokol (mc 1025, modbus 502).
+      - PLC_PORT=${PLC_PORT:-}
       - PLC_UNIT_ID=${PLC_UNIT_ID:-1}
-      # Properti fisik line ini (coil map skematik) — sengaja literal, bukan dari
+      - PLC_DEVICE_PREFIX=${PLC_DEVICE_PREFIX:-M}
+      # Properti fisik line ini (peta alamat panel) — sengaja literal, bukan dari
       # env, karena tidak boleh berbeda antar PC.
-      - PLC_COIL_BASE=3
-      # Kosong: coil 11 ditandai SPARE di skematik ODOT.
+      # Line 2: M120 OK, M121 NG, M122 ERROR.
+      - PLC_COIL_BASE=120
+      # Line ini tidak memegang heartbeat — cuma line 1 yang punya.
       - PLC_COIL_ALIVE=
-      # Piston manual line 2 — coil 11, konfirmasi DI 13.
-      - PLC_COIL_MANUAL=11
-      - PLC_DI_MANUAL=13
-      - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-0}
+      # Piston manual line 2 — M123, konfirmasi M213.
+      - PLC_COIL_MANUAL=123
+      - PLC_DI_MANUAL=213
+      # Blok yang DIBACA dari PLC: M200..M219 (motor fault, E-stop, konfirmasi piston).
+      - PLC_DI_BASE=${PLC_DI_BASE:-200}
+      - PLC_DI_COUNT=${PLC_DI_COUNT:-20}
+      # Kosong = ikut protokol: mc berkedip 500 ms (tidak ada watchdog coupler
+      # lagi), modbus tetap level statis.
+      - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-}
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
       - PLC_QUEUE_MAX=${PLC_QUEUE_MAX:-1}
       - PLC_POLL_MS=${PLC_POLL_MS:-200}
-      - PLC_DI_COUNT=${PLC_DI_COUNT:-16}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
@@ -354,25 +372,34 @@ services:
       - LICENSE_ENABLED=${LICENSE_ENABLED:-false}
       - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY:-}
       - LICENSE_TOKEN=${LICENSE_TOKEN:-}
-      # PLC / ODOT CN-8031 (Modbus-TCP) — mati default, cuma PC pabrik yang menyalakan.
+      # PLC — MC Protocol langsung ke CPU Mitsubishi. Mati default, cuma PC pabrik.
       - PLC_ENABLED=${PLC_ENABLED:-false}
       - PLC_HOST=${PLC_HOST:-}
-      - PLC_PORT=${PLC_PORT:-502}
+      # "mc" = langsung ke CPU (jalur hidup). "modbus" = lewat coupler ODOT (lama).
+      - PLC_PROTOCOL=${PLC_PROTOCOL:-mc}
+      # Kosong = ikut protokol (mc 1025, modbus 502).
+      - PLC_PORT=${PLC_PORT:-}
       - PLC_UNIT_ID=${PLC_UNIT_ID:-1}
-      # Properti fisik line ini (coil map skematik) — sengaja literal, bukan dari
+      - PLC_DEVICE_PREFIX=${PLC_DEVICE_PREFIX:-M}
+      # Properti fisik line ini (peta alamat panel) — sengaja literal, bukan dari
       # env, karena tidak boleh berbeda antar PC.
-      - PLC_COIL_BASE=6
-      # Kosong: coil 12 ditandai SPARE di skematik ODOT.
+      # Line 3: M140 OK, M141 NG, M142 ERROR.
+      - PLC_COIL_BASE=140
+      # Line ini tidak memegang heartbeat — cuma line 1 yang punya.
       - PLC_COIL_ALIVE=
-      # Piston manual line 3 — coil 12, konfirmasi DI 14.
-      - PLC_COIL_MANUAL=12
-      - PLC_DI_MANUAL=14
-      - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-0}
+      # Piston manual line 3 — M143, konfirmasi M214.
+      - PLC_COIL_MANUAL=143
+      - PLC_DI_MANUAL=214
+      # Blok yang DIBACA dari PLC: M200..M219 (motor fault, E-stop, konfirmasi piston).
+      - PLC_DI_BASE=${PLC_DI_BASE:-200}
+      - PLC_DI_COUNT=${PLC_DI_COUNT:-20}
+      # Kosong = ikut protokol: mc berkedip 500 ms (tidak ada watchdog coupler
+      # lagi), modbus tetap level statis.
+      - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-}
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
       - PLC_QUEUE_MAX=${PLC_QUEUE_MAX:-1}
       - PLC_POLL_MS=${PLC_POLL_MS:-200}
-      - PLC_DI_COUNT=${PLC_DI_COUNT:-16}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
