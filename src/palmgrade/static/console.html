@@ -647,9 +647,18 @@
      sama, aturan ini datang belakangan) - baris Berkas tetap terlihat di bawah
      Hikrobot/Webcam walau JS sudah menandainya hidden. Pola sama seperti #gerbang. */
   .sumber-berkas[hidden] { display:none; }
-  .sumber-berkas select { padding:8px 10px; font-family:inherit; font-size:1rem;
+  /* `width:100%` + `min-width:0` WAJIB dua-duanya. Kolom grid bawaannya
+     `minmax(auto, …)`, jadi `<select>` menciut ke lebar isi terpendeknya dan
+     nama berkas panjang terpotong habis - di layar terbaca sebagai dropdown
+     kosong, seolah folder media memang tidak berisi. `min-width:0` mencabut
+     lantai itu, `width:100%` menyuruhnya mengisi kartunya. */
+  .sumber-berkas select { width:100%; min-width:0; padding:8px 10px;
+                          font-family:inherit; font-size:1rem;
                           border:1px solid var(--line-kuat); border-radius:var(--r);
                           background:var(--input); color:var(--fg); }
+  /* Label pembungkusnya sudah flex (lihat `.sumber-baris label`); dropdown
+     memakan sisa lebar di sebelah kata "Berkas". */
+  .sumber-berkas label select { flex:1 1 auto; }
   #sumber-kamera-panel .tools { padding-top:6px; }
   /* Simpan membentang penuh di bawah ketiga kartu, bukan 12rem seperti tombol
      `.tools` lain di berkas ini - dia mengirim ketiga line sekaligus, jadi
