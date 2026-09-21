@@ -2174,6 +2174,18 @@ def test_konsol_tahu_letak_media():
     assert env["MEDIA_ENV_PATH"] == "${MEDIA_ENV_PATH:-/config/media.env}"
 ```
 
+Dan tambahkan `"MEDIA_"` ke daftar prefix di
+`tests/unit/test_console_compose_env.py`:
+
+```python
+CONSOLE_PREFIXES = ("ERP_", "CONSOLE_", "LOG_", "R2_", "MEDIA_")
+```
+
+Penjaga itu memastikan setelan yang dibaca `Settings` benar-benar diteruskan
+compose ke service `console`; tanpa `MEDIA_` di daftarnya, lupa meneruskan
+setelan `MEDIA_*` berikutnya lolos tanpa satu pun test merah — persis cara
+`ERP_COMPANY` dulu terkirim tanpa pernah terbaca.
+
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/unit/test_compose_sumber_kamera.py -q`
