@@ -67,7 +67,19 @@ def test_hikrobot_dengan_berkas_ditolak():
 
 @pytest.mark.parametrize(
     "nama",
-    ["../rahasia.env", "/etc/passwd", "sub/dir.mp4", "..", "a\\b.mp4"],
+    [
+        "../rahasia.env",
+        "/etc/passwd",
+        "sub/dir.mp4",
+        "..",
+        "a\\b.mp4",
+        # Newline DI TENGAH nama: `tulis()` menulis nama apa adanya, jadi ini
+        # menyuntikkan baris kedua ke `media.env` dan menggandakan kuncinya.
+        # Harus di tengah, bukan di ujung — ujungnya sudah dimakan `.strip()`,
+        # jadi kasus itu tidak membuktikan penyaringnya bekerja.
+        "a.mp4\nLINE_1_CAMERA_TYPE=photo",
+        "a.mp4\rLINE_1_MEDIA_FILE=/etc/passwd",
+    ],
 )
 def test_nama_berkas_berbahaya_ditolak(nama):
     with pytest.raises(SumberTidakSah, match="nama berkas"):

@@ -43,8 +43,13 @@ CAMERA_TYPE_UNTUK: dict[str, str] = {
     "foto": "photo",
 }
 
-#: Karakter yang membuat nama berkas bisa menunjuk keluar dari `media/`.
-_BERBAHAYA = ("/", "\\", "..", "\x00")
+#: Karakter yang membuat nama berkas bisa menunjuk keluar dari `media/` — atau
+#: keluar dari BARISNYA SENDIRI di `media.env`. `tulis()` menulis nama berkas
+#: apa adanya sebagai `LINE_1_MEDIA_FILE=<nama>`, jadi satu `\n` di dalam nama
+#: menyelundupkan baris kedua ke berkas setelan: `a.mp4\nLINE_1_CAMERA_TYPE=...`
+#: menghasilkan kunci dobel, dan yang menang bukan yang ditulis layar. `\r`
+#: ikut karena parser env memangkasnya dan CRLF dari berkas Windows sudah cukup.
+_BERBAHAYA = ("/", "\\", "..", "\x00", "\n", "\r")
 
 _FIELD = frozenset({"sumber", "berkas", "ulang"})
 
