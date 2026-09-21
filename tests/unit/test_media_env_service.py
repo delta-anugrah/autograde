@@ -119,3 +119,45 @@ def test_tulis_membuat_folder_induk(tmp_path):
     path = tmp_path / "config" / "media.env"
     MediaEnvService(path).tulis({kode: dict(BAWAAN) for kode in LINE_CODES})
     assert path.exists()
+
+
+def test_berkas_utf8_cacat_jatuh_ke_bawaan(tmp_path):
+    # Berkas yang terkorupsi dengan invalid UTF-8 tidak boleh mematikan line.
+    # UnicodeDecodeError subclasses ValueError, bukan OSError — wajib ditangkap
+    # eksplisit agar tidak lolos lewat handler lama.
+    path = tmp_path / "media.env"
+    path.write_bytes(b"LINE_1_CAMERA_TYPE=\xff\xfe\n")
+    hasil = MediaEnvService(path).baca()
+    assert hasil == {kode: dict(BAWAAN) for kode in LINE_CODES}
+
+
+def test_tulis_gagal_saat_fsync_tidak_meninggalkan_file_separo(tmp_path, monkeypatch):
+    # Kegagalan SAAT menulis (bukan di os.replace) juga harus membersihkan
+    # berkas sementara, dan file asli tetap tidak berubah.
+    import os
+
+    path = tmp_path / "media.env"
+    MediaEnvService(path).tulis({kode: dict(BAWAAN) for kode in LINE_CODES})
+    asli = path.read_text(encoding="utf-8")
+
+    def fsync_gagal(fileno):
+        raise OSError("disk penuh")
+
+    monkeypatch.setattr(os, "fsync", fsync_gagal)
+    try:
+        MediaEnvService(path).tulis(
+            {
+                "line-1": {"sumber": "video", "berkas": "c.mp4", "ulang": False},
+                "line-2": dict(BAWAAN),
+                "line-3": dict(BAWAAN),
+            }
+        )
+    except OSError:
+        pass
+
+    # File asli tidak berubah.
+    assert path.read_text(encoding="utf-8") == asli
+
+    # Tidak ada file sementara tersisa di folder.
+    tmp_files = list(tmp_path.glob(".media.env.*.tmp"))
+    assert len(tmp_files) == 0
