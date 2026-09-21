@@ -47,6 +47,13 @@ class MediaLibrary:
         except OSError as exc:
             logger.warning("Folder media tidak terbaca (%s)", exc)
             return []
-        return sorted(
-            p.name for p in isi if p.is_file() and p.suffix.lower() in ekstensi
-        )
+
+        hasil: list[str] = []
+        for p in isi:
+            try:
+                if p.is_file() and p.suffix.lower() in ekstensi:
+                    hasil.append(p.name)
+            except OSError as exc:
+                logger.warning("Berkas media tidak terbaca (%s: %s)", p.name, exc)
+                continue
+        return sorted(hasil)

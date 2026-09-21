@@ -1,6 +1,9 @@
 """Isi folder /media, untuk mengisi dropdown layar."""
 from __future__ import annotations
 
+import os
+from unittest.mock import patch
+
 from palmgrade.services.media_library import (
     EKSTENSI_FOTO,
     EKSTENSI_VIDEO,
@@ -65,3 +68,28 @@ def test_ada_menolak_nama_berbahaya(tmp_path):
     lib = MediaLibrary(tmp_path)
     assert lib.ada("../rahasia.env") is False
     assert lib.ada("/etc/passwd") is False
+
+
+def test_stat_permission_error_pada_satu_berkas(tmp_path):
+    # Berkas yang stat-nya ditolak PermissionError tidak menutup seluruh layar;
+    # berkas lain tetap dikembalikan. Ini kasus nyata di PC pabrik: root-owned
+    # files atau Docker volume dengan UID berbeda.
+    (tmp_path / "a.mp4").touch()
+    (tmp_path / "b.mp4").touch()
+    lib = MediaLibrary(tmp_path)
+
+    # Patch os.stat untuk menolak akses "b.mp4"
+    real_stat = os.stat
+
+    def stat_side_effect(path, **kwargs):
+        if "b.mp4" in str(path):
+            raise PermissionError(f"Permission denied: {path}")
+        return real_stat(path)
+
+    with patch("os.stat", side_effect=stat_side_effect):
+        # Hanya "a.mp4" dikembalikan; "b.mp4" yang ditolak dihilangkan
+        assert lib.daftar_video() == ["a.mp4"]
+        # ada() mewariskan fault-tolerance dari _daftar(): "b.mp4" tidak ada
+        # dalam listing, jadi ditolak
+        assert lib.ada("a.mp4") is True
+        assert lib.ada("b.mp4") is False
