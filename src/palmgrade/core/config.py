@@ -186,6 +186,15 @@ class Settings:
     # keduanya masih dibaca supaya `.env` lama tetap jalan.
     media_file: str = field(default_factory=lambda: os.getenv("MEDIA_FILE", ""))
 
+    # Folder media yang di-mount dari host, read-only bagi line dan konsol.
+    media_dir: str = field(default_factory=lambda: os.getenv("MEDIA_DIR", "/media"))
+    # Berkas setelan sumber kamera. Dibaca Compose lewat `env_file`, ditulis
+    # konsol. TERPISAH dari `.env`, yang memuat rahasia dan tidak pernah ditulis
+    # kode mana pun.
+    media_env_path: str = field(
+        default_factory=lambda: os.getenv("MEDIA_ENV_PATH", "/config/media.env")
+    )
+
     # Stream display resolution — only affects MJPEG stream, not saved captures
     stream_width: int = field(default_factory=lambda: int(os.getenv("STREAM_WIDTH", "1280")))
     stream_height: int = field(default_factory=lambda: int(os.getenv("STREAM_HEIGHT", "720")))
