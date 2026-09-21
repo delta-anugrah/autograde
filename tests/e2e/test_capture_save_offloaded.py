@@ -20,6 +20,7 @@ encode WebP, ~590 ms untuk satu janjang penuh.
 """
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -110,12 +111,48 @@ def test_one_bunch_still_lands_as_three_images_and_a_flat_sidecar(settings, fram
         assert image.stat().st_size > 0, "cv2 menulis berkas kosong"
 
     truck = settings.results_dir / DATE_FOLDER / TRUCK_FOLDER
-    assert (truck / "bbox" / "rej").is_dir()
-    assert (truck / "clean" / "rej").is_dir()
-    assert (truck / "thumb" / "rej").is_dir()
+    assert (truck / "bbox" / "Unripe").is_dir()
+    assert (truck / "clean" / "Unripe").is_dir()
+    assert (truck / "thumb" / "Unripe").is_dir()
 
     # Pola literal dari `BatchUploadWorker._scan()`.
     assert len(list(settings.results_dir.glob("*/*_ripeness.json"))) == 1
+
+
+def test_ripe_bertangkai_panjang_turun_ke_subfolder_dan_kembarannya_tetap_ketemu(
+    settings, frame, saver
+):
+    """Janjang TP ditulis satu level lebih dalam — dan retensi harus tetap
+    menemukan kembarannya di situ.
+
+    Ini yang paling mahal kalau salah, dan paling senyap: `clean/` dan `thumb/`
+    tidak punya baris manifest sendiri, jadi kembaran yang tidak ketemu adalah
+    kembaran yang tidak akan pernah dihapus siapa pun — disk pelan-pelan penuh,
+    lalu `write_image` melempar dan grading berhenti menyimpan sama sekali.
+    Dibuktikan lawan disk sungguhan, bukan storage yang di-stub.
+    """
+    from palmgrade.domain.capture_layout import twins_of
+
+    saver.submit(_job(frame, grade_class="Ripe", ripeness_status="acc",
+                      tp={"tp_status": True, "tp_confidence": 0.9, "bbox": (1, 2, 3, 4)}))
+    assert saver.tunggu_kosong(timeout=30)
+
+    truck = settings.results_dir / DATE_FOLDER / TRUCK_FOLDER
+    assert (truck / "bbox" / "Ripe" / "TP").is_dir()
+    assert (truck / "clean" / "Ripe" / "TP").is_dir()
+
+    (annotated,) = (truck / "bbox" / "Ripe" / "TP").glob("*.webp")
+    kembaran = twins_of(annotated)
+    assert kembaran, "kembaran tidak ketemu — retensi tidak akan pernah menghapusnya"
+    for berkas in kembaran:
+        assert berkas.exists(), f"{berkas} ditunjuk retensi tapi tidak ada di disk"
+
+    # Sidecar tetap SATU dan tetap datar, walau gambarnya turun satu level.
+    (sidecar,) = settings.results_dir.glob("*/*_ripeness.json")
+    meta = json.loads(sidecar.read_text())
+    assert meta["tp_status"] is True
+    assert meta["tp_bounding_box"] == {"x_min": 1, "y_min": 2, "x_max": 3, "y_max": 4}
+    assert "/bbox/Ripe/TP/" in meta["image_path"]
 
 
 def test_handing_a_bunch_over_is_far_cheaper_than_writing_it(settings, frame):
@@ -199,7 +236,7 @@ def test_the_url_shown_on_screen_is_the_file_the_writer_writes(settings, frame, 
     url_di_layar = CaptureWriter.annotated_url(
         date_folder=DATE_FOLDER,
         truck_folder=TRUCK_FOLDER,
-        ripeness_status="rej",
+        grade_class="Unripe",
         filename=f"{TIMESTAMP}_auto.webp",
     )
 

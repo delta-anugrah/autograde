@@ -31,7 +31,6 @@ ringan — CLAUDE.md § Tests.
 """
 from __future__ import annotations
 
-import datetime
 import logging
 import queue
 import threading
@@ -40,7 +39,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..core.config import Settings
-from ..domain.vision_event import build_event_payload
+from ..domain.vision_event import TP_PASS, build_event_payload
 from ..services.capture_writer import CaptureWriter
 
 logger = logging.getLogger(__name__)
@@ -70,6 +69,16 @@ _POLL_TIMEOUT = 0.5
 # Diadukan supaya regresi seperti 2026-09-17 kelihatan dari log, bukan dari
 # menghitung mikrodetik nama file di lapangan.
 _SLOW_SAVE_S = 1.0
+
+
+def _kotak(bbox: tuple[int, int, int, int]) -> dict[str, int]:
+    """Tuple dari pipeline → bentuk yang sama dengan `bounding_box` janjang.
+
+    Satu bentuk untuk dua kotak: pembaca sidecar yang sudah bisa membaca kotak
+    janjang tidak perlu aturan kedua untuk kotak tangkainya.
+    """
+    x1, y1, x2, y2 = bbox
+    return {"x_min": x1, "y_min": y1, "x_max": x2, "y_max": y2}
 
 
 @dataclass
@@ -234,24 +243,40 @@ class CaptureSaveWorker:
         image_url = self.capture_writer.write_pair(
             date_folder=job.date_folder,
             truck_folder=job.truck_folder,
-            ripeness_status=job.ripeness_status,
+            grade_class=job.grade_class,
             filename=job.filename,
             annotated_frame=job.annotated_frame,
             clean_frame=job.clean_frame,
+            tp=job.tp is not None,
         )
 
         results_dir = self.settings.results_dir / job.date_folder
-        now_iso = datetime.datetime.now(datetime.UTC).isoformat()
         self.storage.write_json(
             results_dir / f"{job.timestamp}_auto_ripeness.json",
             {
                 "timestamp": job.event_ts,
                 "image_path": image_url,
+                # Which line took the picture. Three lines write into one tree,
+                # and without this a line whose camera is dirty cannot be told
+                # from the others without opening the database — which is the
+                # one moment the pictures on disk are what you have.
+                #
+                # `machine_id`, not `line_code`: a line process only ever knows
+                # its own machine id (`LINE_N_MACHINE_ID`); the mapping to
+                # `line-1`/`line-2` lives in the console and the api. Writing a
+                # line code here would mean inventing a second mapping that can
+                # disagree with the one the recap is grouped by.
+                "machine_id": self.settings.machine_id,
                 "ripeness_status": job.ripeness_status,
                 "grade_class": job.grade_class,
                 "ripeness_confidence": round(job.ripeness_conf, 2),
-                "tp_status": None,
-                "tp_confidence": 0,
+                # One sidecar per bunch, TP or no TP (2026-09-20). The three TP
+                # fields are always present and empty when there is none: a key
+                # that is sometimes absent makes every reader guard for itself,
+                # and sooner or later one of them forgets.
+                "tp_status": job.tp is not None,
+                "tp_confidence": round(job.tp["tp_confidence"], 2) if job.tp else 0,
+                "tp_bounding_box": _kotak(job.tp["bbox"]) if job.tp else None,
                 "capture_type": "auto",
                 "truck_id": job.truck_id,
                 "bounding_box": job.bounding_box,
@@ -259,27 +284,6 @@ class CaptureSaveWorker:
                 "ffb_source": job.ffb_source,
             },
         )
-
-        if job.tp:
-            bbox = job.tp["bbox"]
-            self.storage.write_json(
-                results_dir / f"{job.timestamp}_auto_tp.json",
-                {
-                    "timestamp": now_iso,
-                    "image_path": None,
-                    "ripeness_status": None,
-                    "ripeness_confidence": 0,
-                    "tp_status": job.tp["tp_status"],
-                    "tp_confidence": round(job.tp["tp_confidence"], 2),
-                    "capture_type": "auto",
-                    "truck_id": job.truck_id,
-                    "bounding_box": {
-                        "x_min": bbox[0], "y_min": bbox[1],
-                        "x_max": bbox[2], "y_max": bbox[3],
-                    },
-                    "assignment_id": job.assignment_id,
-                },
-            )
 
         payload = build_event_payload(
             machine_id=self.settings.machine_id,
@@ -292,7 +296,11 @@ class CaptureSaveWorker:
             truck_id=job.truck_id,
             assignment_id=job.assignment_id,
             bounding_box=job.bounding_box,
-            tp_status=job.tp["tp_status"] if job.tp else None,
+            # `"PASS"`/`null` on the wire, not the sidecar's boolean: the api
+            # DTO validates this field with `@IsIn(["PASS"])` and that contract
+            # is frozen. The two vocabularies are derived from one fact — the
+            # presence of `job.tp` — so they cannot drift.
+            tp_status=TP_PASS if job.tp else None,
             tp_confidence=job.tp["tp_confidence"] if job.tp else None,
             grade_class=job.grade_class,
         )

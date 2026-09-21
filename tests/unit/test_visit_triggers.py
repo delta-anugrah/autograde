@@ -107,7 +107,7 @@ def _weigh(service: ConsoleService, **over) -> dict:
         "entered_at": _now(),
         "gross_kg": 14560,
     } | over
-    return service.record_weighing(payload)
+    return asyncio.run(service.record_weighing(payload))
 
 
 def _visits(outbox: ErpOutboxStore) -> list:

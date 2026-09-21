@@ -134,27 +134,35 @@ Semua hasil grading hari ini.
       "id": "2026-05-18_103000_123456",
       "ripeness_status": "acc",
       "ripeness_confidence": 0.92,
-      "tp_status": "PASS",
+      "tp_status": true,
       "tp_confidence": 0.88,
       "timestamp": "2026-05-18T10:30:00.123456",
-      "image_url": "captures/results/2026-05-18/083000_B1234XY_a3f9c201/bbox/rej/2026-05-18_103000_auto.webp",
+      "image_url": "captures/results/2026-05-18/083000_B1234XY_a3f9c201/bbox/Ripe/TP/2026-05-18_103000_auto.webp",
       "capture_type": "auto",
       "truck_id": "uuid-or-null",
       "bounding_box": { "x_min": 100, "y_min": 80, "x_max": 420, "y_max": 380 }
     }
   ]
   ```
-- Data dibaca dari `_ripeness.json` dan `_tp.json` di `artifacts/results/{YYYY-MM-DD}/`.
+- Data dibaca dari `_ripeness.json` di `artifacts/results/{YYYY-MM-DD}/` — satu sidecar
+  per janjang, nilai TP ikut di dalamnya. `_tp.json` masih dibaca kalau ada, untuk
+  janjang yang digrading sebelum penggabungan 2026-09-20.
 
 ---
 
-### `POST /api/set_truck` (legacy)
+### ~~`POST /api/set_truck`~~ — dihapus
 
-Set truck ID aktif untuk line ini secara langsung ke vision.
+Dihapus 2026-09-20. Rantainya (route + controller + service + schema) sudah mati di
+dua sisi: `useSetTruckId` di palmgrade-frontend tidak pernah di-import satu berkas pun,
+jadi endpoint-nya tidak pernah dipanggil dari mana pun.
 
-- **Request body:** `{ "truck_id": "uuid" }`
-- **Response:** `{ "message": "Truck ID set", "truck_id": "uuid" }`
-- **Side effect:** Menyimpan ke `RuntimeState.current_truck_id`. Masih aktif tapi operator sebaiknya pakai API `/api/v1/grading-console/lines/:id/assign-truck` — API akan push ke `/internal/assignment` yang juga set `current_assignment_id`.
+Penggantinya `POST /api/console/lines/{line}/assign-truck` di konsol, yang meneruskan
+ke `/internal/assignment` — dan itu yang juga menetapkan `current_assignment_id`.
+Jalur lama cuma menyentuh `current_truck_id`, jadi janjang tercatat tanpa assignment.
+
+`RuntimeState.current_truck_id` **tetap ada**: `internal_controller` dan
+`frame_processing_worker` menulis dan membacanya, dan `CaptureService` mengambilnya
+lewat `TruckRepository` yang juga tetap. Yang dibuang jalur HTTP-nya, bukan datanya.
 
 ### `POST /internal/assignment`
 
@@ -177,28 +185,15 @@ Terima command manual reject dari palmgrade-api. Protected by `x-internal-secret
 
 ---
 
-### `POST /api/capture_reject`
+### ~~`POST /api/capture_reject`~~ — dihapus
 
-Capture frame saat ini secara manual, langsung mark sebagai `rej`.
+Dihapus 2026-09-20 (#123), alasan sama dengan `/api/set_truck`: nol pemanggil.
+`useCaptureReject` di palmgrade-frontend tidak di-import satu berkas pun.
 
-- **Request body:** tidak ada
-- **Response:**
-  ```json
-  {
-    "message": "Manual capture saved",
-    "ripeness_status": "rej",
-    "ripeness_confidence": 1.0,
-    "tp_status": null,
-    "tp_confidence": null,
-    "timestamp": "...",
-    "image_url": "captures/results/2026-05-18/..._manual.webp",
-    "capture_type": "manual",
-    "truck_id": "uuid-or-null"
-  }
-  ```
-- **Side effect:** Simpan WebP + metadata JSON ke `results/{date}/` (inilah yang jadi antrian upload cloud), push ke `event_queue` untuk WebSocket broadcast, dan tulis satu baris ke OutboxStore (antrian realtime ke API lokal).
-
----
+Tolak manual **tidak hilang** — konsol memakai `POST /internal/manual-reject`,
+yang meminta `x-internal-secret`. Keduanya memanggil
+`CaptureService.capture_manual_reject()` yang sama; yang dibuang cuma pintu
+publiknya yang tanpa auth.
 
 ### `GET /health/detail`
 
@@ -344,10 +339,10 @@ Keduanya **wajib** acquire `state.lock` sebelum memanggil `camera.grab_frame()`.
 artifacts/
   results/
     {YYYY-MM-DD}/
-      {HHMMSS}_{plat}_{assign8}/bbox/{acc|rej}/{timestamp}_auto.webp   # bergambar kotak
+      {HHMMSS}_{plat}_{assign8}/bbox/{Ripe|Unripe|JK}[/TP]/{timestamp}_auto.webp  # bergambar kotak
       {HHMMSS}_{plat}_{assign8}/clean/{acc|rej}/{timestamp}_auto.webp  # polos, buat latihan
       {timestamp}_auto_ripeness.json    # Metadata grading
-      {timestamp}_auto_tp.json          # Metadata TP (jika ada)
+      (TP menumpang di sidecar di atas sejak 2026-09-20 — tidak ada berkas kedua)
       {timestamp}_manual.webp           # Manual capture
       {timestamp}_manual_ripeness.json  # suffix _ripeness wajib — dibaca oleh list_today_results()
   outbox.db                             # antrean realtime ke API lokal

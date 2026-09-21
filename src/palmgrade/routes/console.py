@@ -21,6 +21,7 @@ from ..domain.operator_auth import SESSION_TTL_S
 from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
 from ..domain.role import ROLE_SUPPORT, parse_allowed_roles
 from ..domain.setelan_grading import SetelanTidakSah
+from ..domain.sumber_kamera import SumberTidakSah
 from ..domain.visit_manifest import detail_url_for
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
@@ -375,7 +376,7 @@ async def record_weighing_manual(
     program's format is unknown (docs/PERTANYAAN-TERBUKA.md X1).
     """
     try:
-        return service.record_weighing(payload)
+        return await service.record_weighing(payload)
     except ValueError as exc:
         raise _operator_error(400, exc) from exc
 
@@ -503,6 +504,29 @@ async def dev_setelan_simpan(
         raise _operator_error(400, exc) from exc
 
 
+@router.get("/api/console/dev/sumber-kamera")
+async def dev_sumber_kamera_baca(service: Service, operator: Support) -> dict:
+    """Sumber tiap line + daftar berkas yang boleh dipilih."""
+    return service.sumber_kamera()
+
+
+@router.post("/api/console/dev/sumber-kamera")
+async def dev_sumber_kamera_simpan(
+    service: Service, operator: Support, payload: Annotated[dict, Body()]
+) -> dict:
+    """Ubah sumber kamera per line, lalu restart line yang berubah.
+
+    `role=support` saja: salah pilih membuat line berhenti grading. Tiap
+    perubahan dicatat WARNING menyebut siapa yang mengubah.
+    """
+    try:
+        return await service.simpan_sumber_kamera(
+            payload, diubah_oleh=operator["email"]
+        )
+    except SumberTidakSah as exc:
+        raise _operator_error(400, exc) from exc
+
+
 @router.get("/api/console/dev/plc/{line_code}")
 async def dev_plc(dev: Dev, operator: Support, line_code: str) -> dict:
     """DI snapshot + testable coils for one line. Read-only — safe to open anytime,
@@ -607,6 +631,6 @@ async def ingest_weighing(
     if x_webhook_secret != service.settings.webhook_secret:
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
     try:
-        return service.record_weighing(payload)
+        return await service.record_weighing(payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

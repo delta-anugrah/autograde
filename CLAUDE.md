@@ -113,7 +113,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | `make restart` | **code-only change** — kode di-bind-mount (`.:/app`), jadi **tidak perlu rebuild** |
 | `make start` / `make up-1\|2\|3` | start without rebuild (all / single line) |
 | `make up-console` / `make logs-console` | konsol operator saja (port 8000, `/console`) — aman di-restart tanpa mengganggu line |
-| `make line` | satu line kamera **native tanpa Docker**, pasangan `make console` untuk develop di Mac (`make up` tidak bisa: butuh MVS SDK + CUDA + TensorRT). `make line N=2` untuk line kedua — **port DAN `MACHINE_ID` ikut berubah bersama**, karena konsol mencocokkan event lewat `machine_id`, bukan port: tiga line yang memakai `MACHINE_ID` sama dari `.env` semuanya mendarat di kartu line-1. Sumber gambar dibaca dari `.env` (`CAMERA_TYPE`); yang ditimpa target ini cuma `MACHINE_ID` dan `BACKEND_URL` (ke `make console`, bukan port Docker 8000 di `.env` — tanpa itu janjangnya tersimpan tapi tiap kiriman dibalas **404** dan layar tetap nol) |
+| `make line` | satu line kamera **native tanpa Docker**, pasangan `make console` untuk develop di Mac (`make up` tidak bisa: butuh MVS SDK + CUDA + TensorRT). `make line N=2` untuk line kedua — **port DAN `MACHINE_ID` ikut berubah bersama**, karena konsol mencocokkan event lewat `machine_id`, bukan port: tiga line yang memakai `MACHINE_ID` sama dari `.env` semuanya mendarat di kartu line-1. **Sumber gambar dibaca dari `media.env`** (`LINE_N_CAMERA_TYPE`/`MEDIA_FILE`/`VIDEO_LOOP`), berkas yang ditulis layar Sumber Kamera — jadi pilihan per-line di layar berlaku di jalur native juga, bukan cuma di Docker. Tanpa `media.env` tidak ada yang ditimpa dan `.env` lama tetap jalan. **Target ini BERPUTAR sampai Ctrl-C**, meniru `restart: unless-stopped` Docker: layar merestart line dengan menyuruh prosesnya keluar, dan tanpa loop itu Simpan & Restart mematikan line tanpa pernah menghidupkannya (layar bilang tersimpan, kartu jadi OFFLINE, nol galat). `media.env` dibaca **ulang tiap putaran** — setelan baru itulah alasan prosesnya keluar. Yang ditimpa target ini juga `MACHINE_ID` dan `BACKEND_URL` (ke `make console`, bukan port Docker 8000 di `.env` — tanpa itu janjangnya tersimpan tapi tiap kiriman dibalas **404** dan layar tetap nol) |
 | `make console` | konsol **native tanpa Docker** di `127.0.0.1:8100` — jalur develop di Mac (baca `.env`, `WEBHOOK_SECRET=devsecret`); target Docker tetap jalur Linux/pabrik |
 | `make kiosk` | konsol layar penuh di PC ini (`scripts/console-kiosk.sh`) |
 | `make operator` | akun **lokal** untuk login konsol: tambah / reset sandi (email + sandi). `AKSI=daftar\|matikan`. Akun milik AutoERP diurus di AutoERP. Di PC pabrik pakai `make operator-docker` (konsolnya di Docker, DB-nya beda berkas) |
@@ -130,7 +130,19 @@ All via **`make`** (Docker only). From `autograde/`:
 
 - **TensorRT (GPU speedup, akurasi sama)**: engine FP16 (`engines/<model>.sm<cc>.engine`) **hardware-locked** (compute capability + versi TensorRT) → tidak di-commit, tidak di-bake ke image, dibangun **sekali per GPU** on-machine via `make build-engine` (~5–15 mnt, tidak butuh kamera). Engine tidak ada / tidak cocok → runtime **fallback ke `.pt`** otomatis (`pipelines/model_registry.py`), jadi kegagalan build bukan outage. Install TensorRT-nya ikut `Dockerfile` (`pypi.nvidia.com` — **wajib**, index PyPI publik cuma punya source stub yang bikin pip hang). Detail: `docs/overview.md` § Docker/SDK/GPU.
 - **`make up` cuma perlu** kalau dependency / `Dockerfile` / SDK berubah; untuk ubah kode pakai `make restart`.
-- **Dev without a camera**: `.env` → `CAMERA_TYPE=opencv` + `CAMERA_VIDEO_PATH=/videos/<file>.mp4` (host `sawit/` is mounted at `/videos`). `CAMERA_VIDEO_LOOP=true` replays it until the line is stopped (default plays once). ⚠️ `CAMERA_TYPE`/`CAMERA_VIDEO_*` are shared by all 3 lines — to put a video on ONE line only, override that service in `docker-compose.override.yml`.
+- **Dev without a camera — pilih dari layar, per line**: konsol → login **support** → tab
+  **Sumber Kamera**. Taruh berkas di `media/` (host), pilih Video/Foto untuk line yang mau
+  diganti, Simpan. Tiap line berdiri sendiri: line 1 boleh video sementara line 2–3 tetap
+  kamera. Setelannya mendarat di **`media.env`** (di-`.gitignore`, keadaan per-mesin;
+  `make` membuatnya dari `media.env.example` kalau belum ada). Cara pakainya:
+  `docs/runbooks/2026-09-21-sumber-kamera-per-line.md`.
+  ⚠️ **`media.env` wajib lewat `--env-file`, bukan `env_file:`** — Compose menyelesaikan
+  `${LINE_1_CAMERA_TYPE}` dari shell + `--env-file` saja, sementara `env_file:` menyuntik
+  environment container **sesudah** interpolasi. Dengan `env_file:` ketiga line selalu
+  `hikrobot` tanpa satu pun error. `Makefile` sudah membawa kedua flag lewat `$(COMPOSE)`;
+  pemanggil di luar Makefile harus membawanya sendiri.
+  ⚠️ **Jalur lama sudah tidak ada**: mount `/videos` dicabut, dan `CAMERA_VIDEO_PATH` +
+  `docker-compose.override.yml` bukan lagi cara menyetel video per line.
 - **Verify**: `curl :8001/health`; `curl :8001/health/detail` (camera_connected, gpu_available, workers, current_assignment_id, `plc` = `null` kalau PLC mati); stream at `http://localhost:8001/api/video_feed`.
   ⚠️ **`capture_save_dropped` di `/health/detail` harus NOL.** Di atas nol berarti antrean penulis
   pernah penuh dan janjang yang sudah digrading — sudah dapat pulse PLC, sudah masuk rekap —
@@ -155,8 +167,6 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/health`, `/health/detail` | detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending`/`outbox_failed`, always `0` — outbox disabled) |
 | GET | `/api/video_feed` | MJPEG live (multi-viewer) |
 | GET | `/api/results_today` | today's results (read from disk) |
-| POST | `/api/set_truck` | legacy set active truck |
-| POST | `/api/capture_reject` | legacy manual reject capture |
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |
 | POST | `/internal/manual-reject` | ← from api: trigger manual reject (`x-internal-secret`) |
 | WS | `/ws/results` | legacy result push. ⚠️ `image_url`-nya dikirim **sebelum** berkasnya ada di disk (deteksi menyerahkan janjang ke `CaptureSaveWorker` lalu lanjut) — jendelanya ratusan milidetik. Tidak ada yang memakai lane ini hari ini (`console.html` tidak membukanya), tapi siapa pun yang menghidupkannya harus menahan gambar sampai 404 pertama lewat. Jalur yang dipakai konsol aman: barisnya ditulis penulis **sesudah** gambarnya jadi |
@@ -356,7 +366,18 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 4. **MJPEG** — only `DisplayWorker` writes `state.latest_frame`, via `threading.Condition.notify_all()` (multi-viewer). It renders `last_yolo_frame` (paired with results) and runs at `STREAM_FPS` (default 12), decoupled from `CAMERA_FPS`.
 5. **DI** (`core/dependencies.py`) — `@lru_cache` singletons **except** `get_capture_service()` / `get_health_service()` (camera injected at startup). `get_outbox_store()` may cache (SQLite singleton).
 6. **Lifespan** (not `@app.on_event`); `repo_root = parents[3]`; every worker `run_loop` wraps `run_once` in `try/except`; `FrameCaptureWorker` needs `device_index` (so line-2/3 reconnect to the correct camera).
-7. **`tp_status` = `"PASS"`** (not `"TP"`). **`image_url` = `captures/results/{date}/{HHMMSS}_{plat}_{assign8}/bbox/{acc|rej}/{ts}_auto.webp`** (consistent with `/captures` mount) — satu folder per truk, **tiga berkas per janjang**: `bbox/` (bergambar kotak, ini yang ditunjuk `image_path` dan yang naik R2), `clean/` (polos, buat latih model ulang; **tidak** diupload), dan `thumb/` (sejak 2026-09-16: 400px WebP q60 dari frame `bbox/`, naik ke R2 berdampingan dengan `bbox/` — apa yang dimuat grid `viewer.html`). Jam folder pakai `FACTORY_TZ`, **bukan** UTC — folder dibaca manusia, nama berkas dibaca mesin. Truk belum di-assign → `_belum-assign/`. **JSON sidecar-nya TETAP datar di folder tanggal**: `BatchUploadWorker._scan()` mencarinya dengan `glob("*/*_ripeness.json")` (kedalaman dipatok dua), jadi sidecar yang ikut masuk subfolder bikin upload cloud berhenti **tanpa error**. Aturannya di `domain/capture_layout.py` (`CaptureVariant.THUMB`, `twins_of()`), penulisnya `services/capture_writer.py` (satu-satunya yang menulis gambar, dipakai jalur auto maupun manual). Gambar disimpan **WebP** quality 65 (`JPEG_QUALITY_SAVE`), thumbnail quality 60; folder `errors/`, `captures/`, dan `logs/` **sudah tidak ada** — dulu dibuat saat startup tapi tidak pernah ditulis (REJ ditemukan via metadata `ripeness_status`, log ke stdout). Startup cuma membuat `results/`, dijaga `tests/unit/test_artifact_dirs.py`.
+7. **`tp_status`: boolean di sidecar, `"PASS"`/`null` di kawat.** Dua kosakata, satu
+   fakta (`domain/vision_event.TP_PASS`): DTO palmgrade-api memvalidasi field ini
+   dengan `@IsIn(["PASS"])` dan kontrak itu beku, sementara sidecar di disk kita
+   sendiri menyimpan `true`/`false`. **Satu janjang = SATU sidecar** (sejak
+   2026-09-20): nilai TP — termasuk `tp_bounding_box`, kotak tangkainya — menumpang
+   di berkas ripeness-nya, dan `_auto_tp.json` tidak ditulis lagi. Nama lama masih
+   dikenali retensi karena berkasnya masih ada di disk pabrik; berhenti mengenalinya
+   membuat berkas itu yatim abadi sampai disk penuh.
+   ⚠️ **TP cuma dicari untuk janjang ACC.** Unripe dan JK dibuang piston, jadi
+   tangkainya tidak dibayar dan tidak dicatat — angka TP karena itu lebih kecil
+   daripada sebelum tanggal itu, dan turunnya disengaja.
+   **`image_url` = `captures/results/{date}/{HHMMSS}_{plat}_{assign8}/bbox/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp`** (consistent with `/captures` mount) — folder KELAS, bukan verdict (sejak 2026-09-20: `acc`/`rej` melebur Unripe dan JK, membuang persis yang dibeli retrain 4 kelas), dan janjang Ripe bertangkai panjang turun satu level lagi ke `Ripe/TP/` supaya mencari hasil TP cukup membuka satu folder. Capture manual → `unknown/` (tidak pernah lewat model). ⚠️ **Tidak ada pembaca yang boleh mematok kedalaman folder** — `Ripe/TP/` satu level lebih dalam, dan `_twin()` yang dulu menganggap verdict tepat di bawah `bbox` mengembalikan `None` untuknya: kembaran yang tidak ketemu adalah kembaran yang tidak dihapus siapa pun, karena `clean/` dan `thumb/` tidak punya baris manifest sendiri. Satu folder per truk, **tiga berkas per janjang**: `bbox/` (bergambar kotak, ini yang ditunjuk `image_path` dan yang naik R2), `clean/` (polos, buat latih model ulang; **tidak** diupload), dan `thumb/` (sejak 2026-09-16: 400px WebP q60 dari frame `bbox/`, naik ke R2 berdampingan dengan `bbox/` — apa yang dimuat grid `viewer.html`). Jam folder pakai `FACTORY_TZ`, **bukan** UTC — folder dibaca manusia, nama berkas dibaca mesin. Truk belum di-assign → `_belum-assign/`. **JSON sidecar-nya TETAP datar di folder tanggal**: `BatchUploadWorker._scan()` mencarinya dengan `glob("*/*_ripeness.json")` (kedalaman dipatok dua), jadi sidecar yang ikut masuk subfolder bikin upload cloud berhenti **tanpa error**. Aturannya di `domain/capture_layout.py` (`CaptureVariant.THUMB`, `twins_of()`), penulisnya `services/capture_writer.py` (satu-satunya yang menulis gambar, dipakai jalur auto maupun manual). Gambar disimpan **WebP** quality 65 (`JPEG_QUALITY_SAVE`), thumbnail quality 60; folder `errors/`, `captures/`, dan `logs/` **sudah tidak ada** — dulu dibuat saat startup tapi tidak pernah ditulis (REJ ditemukan via metadata `ripeness_status`, log ke stdout). Startup cuma membuat `results/`, dijaga `tests/unit/test_artifact_dirs.py`.
 8. **`cv2.imwrite` failure → `LocalFileStorage.write_image` raises `OSError`** (no orphaned JSON records pointing at an image that was never written). Kegagalan menulis **`thumb/`** khusus TIDAK melempar — janjang tetap tersimpan tanpa thumbnail, `logger.error` saja (lihat rule 7).
    **Nama folder TANGGAL selalu UTC** (`FrameProcessingWorker._save_ripeness`,
    `capture_repository`) — pembacanya wajib UTC juga. ⚠️ Yang pakai `FACTORY_TZ`
@@ -631,9 +652,9 @@ pabrik), `opencv` (file video lewat `CAMERA_VIDEO_PATH`, atau webcam), `photo`
 
 **`docker-compose.override.yml` tidak ada di repo dan tidak wajib** — dia
 `.gitignore`, berkas pribadi per mesin. Compose membacanya otomatis kalau ada dan
-menimpa `docker-compose.yml`. Gunanya cuma satu: menyetel **satu line berbeda
-dari dua lainnya** (mis. line 1 pakai video, line 2-3 tetap kamera). Kalau
-setelannya sama untuk tiga line, `.env` sudah cukup — jangan bikin override.
+menimpa `docker-compose.yml`. ⚠️ **Bukan lagi cara menyetel sumber per line** — itu
+sekarang layar Sumber Kamera + `media.env`. Sisakan override untuk hal lain yang
+memang khas satu mesin.
 
 
 - `snake_case` files/functions, `PascalCase` classes, `UPPER_SNAKE` constants (`core/constants.py`) & env vars.

@@ -1,3 +1,26 @@
+# ⚠️ Setelan sumber kamera per line datang dari `media.env`, dan berkas itu
+# HARUS diberikan sebagai `--env-file`, bukan `env_file:` di service.
+#
+#   docker compose --env-file .env --env-file media.env ...
+#
+# Alasannya satu dan tidak bisa ditawar: Compose menyelesaikan `${LINE_1_...}`
+# di bawah HANYA dari environment shell dan berkas `--env-file`. `env_file:`
+# menyuntik environment CONTAINER, dan itu terjadi SESUDAH interpolasi — jadi
+# `env_file: media.env` membuat `${LINE_1_CAMERA_TYPE:-hikrobot}` selalu jatuh
+# ke `hikrobot` betapapun benar isi berkasnya. Terbukti di sini (Compose
+# v5.5.1): media.env berisi `LINE_1_CAMERA_TYPE=opencv`, `docker compose config`
+# tetap menjawab `CAMERA_TYPE: hikrobot`. Ini BUKAN beda versi Compose —
+# urutannya sama di v2.x.
+#
+# `LINE_*_` itu leak yang menyesatkan: nama-nama itu tetap muncul di environment
+# container walau mekanismenya rusak (mereka ikut dari `env_file`), jadi yang
+# membuktikan benar-tidaknya cuma `CAMERA_TYPE` / `MEDIA_FILE` /
+# `CAMERA_VIDEO_LOOP` — variabel yang sungguh dibaca `core/config.py`.
+#
+# `Makefile` sudah merutekan semuanya lewat `$(COMPOSE)`, yang membawa kedua
+# flag dan membuat `media.env` kalau belum ada. Pemanggil di luar Makefile
+# (skrip launcher PC pabrik) harus membawa kedua flag itu sendiri.
+
 services:
 
   ripe-line-1:
@@ -67,18 +90,16 @@ services:
       # Auto-load setting kamera (.mfs dari MVS) saat connect. Non-fatal kalau gagal.
       - CAMERA_FEATURE_FILE=${LINE_1_FEATURE_FILE:-config/camera/hikrobot.mfs}
       - MACHINE_ID=${LINE_1_MACHINE_ID:-d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01}
-      - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
+      # Sumber kamera line ini, disusun layar Support dan ditulis ke media.env.
+      # Per line, bukan satu untuk semua: satu PC bisa menguji video di satu
+      # line sementara dua lainnya memakai kamera sungguhan.
+      - CAMERA_TYPE=${LINE_1_CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-20}
-      # Path DI DALAM container selalu nama tetap ini; yang diisi operator di
-      # `.env` adalah path di komputernya, dan mount di bawah yang menjembatani.
-      # Kosong = tidak pakai file video (mode hikrobot/photo), jadi tetap kosong.
-      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:+/videos/video-in}
-      - CAMERA_VIDEO_LOOP=${CAMERA_VIDEO_LOOP:-false}
-      # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
-      # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
-      - CAMERA_PHOTO_PATH=${CAMERA_PHOTO_PATH:-}
+      # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
+      - MEDIA_FILE=${LINE_1_MEDIA_FILE:-}
+      - CAMERA_VIDEO_LOOP=${LINE_1_VIDEO_LOOP:-false}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
       - UPLOAD_RETENTION_DAYS=${UPLOAD_RETENTION_DAYS:-7}
@@ -122,7 +143,9 @@ services:
       - ./state/line-1:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
-      - ${CAMERA_VIDEO_PATH:-/dev/null}:/videos/video-in:ro
+      # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
+      # ganti berkas cukup restart, bukan `docker compose up` ulang.
+      - ./media:/media:ro
 
   ripe-line-2:
     image: palmgrade-vision:latest
@@ -186,18 +209,16 @@ services:
       # Auto-load setting kamera (.mfs dari MVS) saat connect. Non-fatal kalau gagal.
       - CAMERA_FEATURE_FILE=${LINE_2_FEATURE_FILE:-config/camera/hikrobot.mfs}
       - MACHINE_ID=${LINE_2_MACHINE_ID:-a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02}
-      - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
+      # Sumber kamera line ini, disusun layar Support dan ditulis ke media.env.
+      # Per line, bukan satu untuk semua: satu PC bisa menguji video di satu
+      # line sementara dua lainnya memakai kamera sungguhan.
+      - CAMERA_TYPE=${LINE_2_CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-20}
-      # Path DI DALAM container selalu nama tetap ini; yang diisi operator di
-      # `.env` adalah path di komputernya, dan mount di bawah yang menjembatani.
-      # Kosong = tidak pakai file video (mode hikrobot/photo), jadi tetap kosong.
-      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:+/videos/video-in}
-      - CAMERA_VIDEO_LOOP=${CAMERA_VIDEO_LOOP:-false}
-      # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
-      # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
-      - CAMERA_PHOTO_PATH=${CAMERA_PHOTO_PATH:-}
+      # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
+      - MEDIA_FILE=${LINE_2_MEDIA_FILE:-}
+      - CAMERA_VIDEO_LOOP=${LINE_2_VIDEO_LOOP:-false}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
       - UPLOAD_RETENTION_DAYS=${UPLOAD_RETENTION_DAYS:-7}
@@ -241,7 +262,9 @@ services:
       - ./state/line-2:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
-      - ${CAMERA_VIDEO_PATH:-/dev/null}:/videos/video-in:ro
+      # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
+      # ganti berkas cukup restart, bukan `docker compose up` ulang.
+      - ./media:/media:ro
 
   ripe-line-3:
     image: palmgrade-vision:latest
@@ -305,18 +328,16 @@ services:
       # Auto-load setting kamera (.mfs dari MVS) saat connect. Non-fatal kalau gagal.
       - CAMERA_FEATURE_FILE=${LINE_3_FEATURE_FILE:-config/camera/hikrobot.mfs}
       - MACHINE_ID=${LINE_3_MACHINE_ID:-ad5f7bb9-c06d-4e87-8282-ce450ae331ec}
-      - CAMERA_TYPE=${CAMERA_TYPE:-hikrobot}
+      # Sumber kamera line ini, disusun layar Support dan ditulis ke media.env.
+      # Per line, bukan satu untuk semua: satu PC bisa menguji video di satu
+      # line sementara dua lainnya memakai kamera sungguhan.
+      - CAMERA_TYPE=${LINE_3_CAMERA_TYPE:-hikrobot}
       - CAMERA_WIDTH=${CAMERA_WIDTH:-2448}
       - CAMERA_HEIGHT=${CAMERA_HEIGHT:-2048}
       - CAMERA_FPS=${CAMERA_FPS:-20}
-      # Path DI DALAM container selalu nama tetap ini; yang diisi operator di
-      # `.env` adalah path di komputernya, dan mount di bawah yang menjembatani.
-      # Kosong = tidak pakai file video (mode hikrobot/photo), jadi tetap kosong.
-      - CAMERA_VIDEO_PATH=${CAMERA_VIDEO_PATH:+/videos/video-in}
-      - CAMERA_VIDEO_LOOP=${CAMERA_VIDEO_LOOP:-false}
-      # Dipakai hanya kalau CAMERA_TYPE=photo. Kosong + CAMERA_TYPE=photo → PhotoCamera
-      # raise "File tidak ditemukan" saat connect (fail-fast, bukan diam-diam).
-      - CAMERA_PHOTO_PATH=${CAMERA_PHOTO_PATH:-}
+      # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
+      - MEDIA_FILE=${LINE_3_MEDIA_FILE:-}
+      - CAMERA_VIDEO_LOOP=${LINE_3_VIDEO_LOOP:-false}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
       - UPLOAD_RETENTION_DAYS=${UPLOAD_RETENTION_DAYS:-7}
@@ -360,7 +381,9 @@ services:
       - ./state/line-3:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
-      - ${CAMERA_VIDEO_PATH:-/dev/null}:/videos/video-in:ro
+      # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
+      # ganti berkas cukup restart, bukan `docker compose up` ulang.
+      - ./media:/media:ro
 
   # Instance ke-4 dari image yang SAMA: konsol operator offline (§4 rencana
   # PalmOS). Tanpa kamera, tanpa GPU, tanpa PLC — supaya satu line kamera yang
@@ -435,6 +458,10 @@ services:
       - LINE_1_MACHINE_ID=${LINE_1_MACHINE_ID:-d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01}
       - LINE_2_MACHINE_ID=${LINE_2_MACHINE_ID:-a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02}
       - LINE_3_MACHINE_ID=${LINE_3_MACHINE_ID:-ad5f7bb9-c06d-4e87-8282-ce450ae331ec}
+      # Folder media + berkas setelan yang ditulis layar Support (media_env_service.py).
+      - MEDIA_DIR=${MEDIA_DIR:-/media}
+      - MEDIA_ENV_PATH=${MEDIA_ENV_PATH:-/config/media.env}
+      - MEDIA_FILE=${MEDIA_FILE:-}
     volumes:
       - .:/app
       - /app/.venv
@@ -443,3 +470,7 @@ services:
       - ./artifacts/line-1:/app/artifacts/line-1:ro
       - ./artifacts/line-2:/app/artifacts/line-2:ro
       - ./artifacts/line-3:/app/artifacts/line-3:ro
+      - ./media:/media:ro
+      # Satu-satunya berkas host yang konsol boleh tulis. `.env` sengaja TIDAK
+      # di-mount: ia memuat lisensi, R2, dan webhook secret.
+      - ./media.env:/config/media.env

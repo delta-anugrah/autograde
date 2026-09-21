@@ -4,6 +4,7 @@ import asyncio
 import logging
 import threading
 from contextlib import asynccontextmanager
+from dataclasses import replace
 
 import httpx
 from dotenv import load_dotenv
@@ -33,16 +34,15 @@ from .license.guard import LicenseGuardMiddleware
 from .license.local_repo import LicenseLocalRepo
 from .license.manager import LicenseManager
 from .domain.setelan_grading import bersihkan_setelan
+from .domain.sumber_kamera_resolver import rencana_kamera
 from .integrations.scheduler.upload_scheduler import UploadScheduler
 from .integrations.upload.r2_uploader import R2Uploader
 from .integrations.upload.upload_manifest import UploadManifest
 from .workers.batch_upload_worker import BatchUploadWorker
 from .workers.capture_save_worker import CaptureSaveWorker
-from .routes.capture import router as capture_router
 from .routes.health import router as health_router
 from .routes.inspection import router as inspection_router
 from .routes.streaming import router as streaming_router
-from .routes.truck import router as truck_router
 from .workers.display_worker import DisplayWorker
 from .workers.event_broadcast_worker import EventBroadcastWorker
 from .workers.frame_capture_worker import FrameCaptureWorker
@@ -128,25 +128,43 @@ def create_app() -> FastAPI:
         # cuma warning). Lihat Settings.validate_for_runtime().
         settings.validate_for_runtime()
 
-        # Init kamera — dikontrol lewat env var CAMERA_TYPE
-        # hikrobot (default) = Hikrobot industrial camera (butuh SDK + hardware)
-        # opencv              = Webcam atau video file via OpenCV
-        # photo               = Single image untuk testing (frame dikembalikan terus)
-        camera_type = settings.camera_type.lower()
+        # Sumber kamera — `CAMERA_TYPE` + `MEDIA_FILE`, disusun layar Support
+        # dan diteruskan Compose lewat `media.env`. Pemetaannya hidup di
+        # `domain/sumber_kamera_resolver` supaya bisa diuji tanpa menyalakan
+        # aplikasi; di sini tinggal membangun apa yang direncanakan.
+        # `settings.media_dir` diteruskan, BUKAN dibiarkan memakai konstanta
+        # `/media` bawaan resolver: yang terakhir itu path di dalam container,
+        # dan jalur native (`make line`) menunjuk `media/` di repo. Tanpa ini
+        # line native mati saat start dengan "File tidak ditemukan: /media/..."
+        # walau berkasnya ada dan layar sudah memilihnya.
+        rencana = rencana_kamera(
+            settings.sumber_kamera(),
+            settings.media_file,
+            settings.camera_video_loop,
+            media_dir=settings.media_dir,
+        )
+        # `.env` lama menulis PATH penuh di CAMERA_VIDEO_PATH/CAMERA_PHOTO_PATH,
+        # bukan nama berkas. Selama berkas itu masih dipakai (PC yang belum
+        # pindah ke media.env), path aslinya menang atas hasil join ke /media.
+        if not settings.media_file:
+            if settings.camera_video_path:
+                rencana = replace(rencana, video_path=settings.camera_video_path)
+            if settings.camera_photo_path:
+                rencana = replace(rencana, photo_path=settings.camera_photo_path)
+        camera_type = rencana.camera_type
         if camera_type == "opencv":
-            opencv_source: int | str = (
-                settings.camera_video_path if settings.camera_video_path else settings.camera_device_index
-            )
+            # `video_path` kosong = webcam lewat device index.
+            opencv_source: int | str = rencana.video_path or settings.camera_device_index
             camera: CameraSource = OpenCVCamera(
                 source=opencv_source,
                 width=settings.camera_width,
                 height=settings.camera_height,
                 fps=settings.camera_fps,
-                is_video_file=bool(settings.camera_video_path),
-                loop=settings.camera_video_loop,
+                is_video_file=bool(rencana.video_path),
+                loop=rencana.loop,
             )
         elif camera_type == "photo":
-            camera = PhotoCamera(path=settings.camera_photo_path)
+            camera = PhotoCamera(path=rencana.photo_path)
         else:
             camera = HikrobotCamera()
 
@@ -359,8 +377,6 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(inspection_router)
     app.include_router(streaming_router)
-    app.include_router(capture_router)
-    app.include_router(truck_router)
     app.include_router(internal_router)
 
     @app.websocket("/ws/results")

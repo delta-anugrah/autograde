@@ -6,6 +6,7 @@ plate written differently stays one truck.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 
 import pytest
@@ -57,7 +58,7 @@ def test_truk_manual_diketik_ulang_tidak_jadi_baris_kembar(service):
 
 
 def test_neto_dihitung_dan_masuk_hari_kerja_wib(service):
-    row = service.record_weighing(_kiriman())
+    row = asyncio.run(service.record_weighing(_kiriman()))
     assert row["net_kg"] == 7500
     # Weighed 01:30 local — still yesterday's shift? No: the working day comes
     # from the payload's own timestamp in the mill's zone, not the receive date.
@@ -66,38 +67,38 @@ def test_neto_dihitung_dan_masuk_hari_kerja_wib(service):
 
 
 def test_neto_kiriman_yang_tidak_cocok_ditolak(service):
-    service.record_weighing(_kiriman(net_kg=7500.4))  # within tolerance, passes
+    asyncio.run(service.record_weighing(_kiriman(net_kg=7500.4)))  # within tolerance, passes
     with pytest.raises(ValueError):
-        service.record_weighing(_kiriman(net_kg=9000))
+        asyncio.run(service.record_weighing(_kiriman(net_kg=9000)))
 
 
 def test_tara_lebih_besar_dari_bruto_ditolak(service):
     with pytest.raises(ValueError):
-        service.record_weighing(_kiriman(gross_kg=5000, tare_kg=12500))
+        asyncio.run(service.record_weighing(_kiriman(gross_kg=5000, tare_kg=12500)))
 
 
 def test_timbang_keluar_menggabung_bukan_menimpa(service):
     # Weigh-in only has gross, weigh-out only has tare. Without COALESCE the
     # second payload wipes gross and net goes with it.
-    masuk = service.record_weighing(_kiriman(tare_kg=None))
+    masuk = asyncio.run(service.record_weighing(_kiriman(tare_kg=None)))
     assert masuk["gross_kg"] == 12500 and masuk["net_kg"] is None
-    keluar = service.record_weighing(
+    keluar = asyncio.run(service.record_weighing(
         _kiriman(gross_kg=None, tare_kg=5000, exited_at="2026-09-09T21:00:00+00:00")
-    )
+    ))
     assert keluar["id"] == masuk["id"]
     assert (keluar["gross_kg"], keluar["tare_kg"], keluar["net_kg"]) == (12500, 5000, 7500)
     assert len(service.weighings("2026-09-10")) == 1
 
 
 def test_kiriman_sama_dua_kali_tidak_jadi_dua_tiket(service):
-    service.record_weighing(_kiriman())
-    service.record_weighing(_kiriman())
+    asyncio.run(service.record_weighing(_kiriman()))
+    asyncio.run(service.record_weighing(_kiriman()))
     assert len(service.weighings("2026-09-10")) == 1
 
 
 def test_ref_jadi_kunci_kalau_ada(service):
-    a = service.record_weighing(_kiriman(ref="TKT-9"))
-    b = service.record_weighing(_kiriman(ref="TKT-9", entered_at="2026-09-09T19:00:00+00:00"))
+    a = asyncio.run(service.record_weighing(_kiriman(ref="TKT-9")))
+    b = asyncio.run(service.record_weighing(_kiriman(ref="TKT-9", entered_at="2026-09-09T19:00:00+00:00")))
     assert a["id"] == b["id"]
 
 
@@ -105,40 +106,40 @@ def test_tanpa_ref_dan_tanpa_waktu_masuk_ditolak(service):
     # If this were allowed, weigh-out could not find its row and one ticket
     # would split into two.
     with pytest.raises(ValueError):
-        service.record_weighing(_kiriman(entered_at=None, exited_at="2026-09-09T21:00:00+00:00"))
+        asyncio.run(service.record_weighing(_kiriman(entered_at=None, exited_at="2026-09-09T21:00:00+00:00")))
 
 
 def test_berat_ngawur_ditolak(service):
     with pytest.raises(ValueError):
-        service.record_weighing(_kiriman(gross_kg="dua belas ton"))
+        asyncio.run(service.record_weighing(_kiriman(gross_kg="dua belas ton")))
     with pytest.raises(ValueError):
-        service.record_weighing(_kiriman(gross_kg=-1))
+        asyncio.run(service.record_weighing(_kiriman(gross_kg=-1)))
 
 
 def test_ref_kosong_dari_layar_tidak_bikin_tiket_kembar(service):
     # The operator screen ALWAYS sends `ref`; it is empty when the ticket was
     # born in the console, not in the scale program. If "" is not treated as
     # absent, the key changes and weigh-out spawns a second row.
-    masuk = service.record_weighing(_kiriman(tare_kg=None))
-    keluar = service.record_weighing(_kiriman(ref="", gross_kg=None, tare_kg=5000))
+    masuk = asyncio.run(service.record_weighing(_kiriman(tare_kg=None)))
+    keluar = asyncio.run(service.record_weighing(_kiriman(ref="", gross_kg=None, tare_kg=5000)))
     assert keluar["id"] == masuk["id"]
     assert keluar["net_kg"] == 7500
     assert len(service.weighings("2026-09-10")) == 1
 
 
 def test_koma_dibaca_sebagai_desimal(service):
-    row = service.record_weighing(_kiriman(gross_kg="12500,5", tare_kg="5000,5"))
+    row = asyncio.run(service.record_weighing(_kiriman(gross_kg="12500,5", tare_kg="5000,5")))
     assert row["gross_kg"] == 12500.5
     assert row["net_kg"] == 7500.0
 
 
 def test_pemisah_ribuan_ditolak_bukan_diam_diam_jadi_kecil(service):
     with pytest.raises(ValueError):
-        service.record_weighing(_kiriman(gross_kg="12.500,5"))
+        asyncio.run(service.record_weighing(_kiriman(gross_kg="12.500,5")))
 
 
 def test_pemisah_ribuan_tanpa_desimal_ketahuan_lewat_lantai_berat(service):
     # "14.820" typed for fourteen tonnes parses cleanly as 14.82 kg - the only
     # thing that catches it is the floor.
     with pytest.raises(ValueError):
-        service.record_weighing(_kiriman(gross_kg="14.820", tare_kg=None))
+        asyncio.run(service.record_weighing(_kiriman(gross_kg="14.820", tare_kg=None)))

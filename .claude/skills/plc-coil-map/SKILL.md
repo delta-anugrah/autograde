@@ -10,6 +10,33 @@ Referensi lengkap (hardware, wiring, rasional tiap keputusan) ada di
 (+ PDF-nya) — itu yang jadi sumber kebenaran alamat kalau dokumen dan skill beda.
 File ini peta cepat + prosedur lapangan.
 
+## Kelas model → sinyal PLC
+
+Model mendeteksi **4 kelas**, PLC cuma punya **2 coil**. Ini peta lengkapnya —
+pertanyaan "kelas X ngirim sinyal apa" dijawab di sini, bukan dengan membaca
+kode:
+
+| Kelas model | Verdict | Coil yang dipulse | Piston |
+|---|---|---|---|
+| `Ripe` | ACC | `PLC_COIL_BASE + 0` | tidak |
+| `Unripe` | REJ | `PLC_COIL_BASE + 1` | ya |
+| `JK` (janjang kosong) | REJ | `PLC_COIL_BASE + 1` | ya |
+| `TP` (tangkai panjang) | **tidak ada** | **tidak ada pulse** | tidak |
+
+⚠️ **`Unripe` dan `JK` tidak bisa dibedakan oleh PLC** — dua-duanya menembak
+coil NG yang sama persis. Pistonnya cuma dua (OK/NG), jadi kelas ketiga akan
+butuh piston, wiring, dan perubahan ODOT: hardware, bukan software. Bedanya
+tetap tersimpan di SQLite dan tampil di konsol, cuma tidak sampai ke panel.
+
+⚠️ **`TP` bukan janjang.** Dia properti dari sebuah janjang (tangkai yang
+panjang), jadi tidak punya verdict dan tidak pernah menyentuh PLC. Memulse coil
+untuk TP akan membuat PLC menghitungnya sebagai buah.
+
+Sumbernya `domain/grade_class.py` (kelas → verdict) dan `plc/worker.py:_coil_for`
+(verdict → coil). Dua jalur yang bisa menimpa kelas sebelum sampai ke sini:
+bbox lebih kecil dari `minimum_size`, dan `force_rej_multi` — dua-duanya
+memaksa REJ walaupun model bilang `Ripe`.
+
 ## Peta coil (DO) — vision yang nulis, zero-based
 
 | Coil | Alamat PLC | Arti | Ditulis |

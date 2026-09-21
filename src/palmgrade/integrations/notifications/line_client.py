@@ -188,6 +188,19 @@ class LineClient:
             raise LinePlcTolak(res.status_code, res.text[:200])
         return res.json()
 
+    async def restart(self, line: LineEndpoint) -> None:
+        """Suruh satu line mematikan diri supaya Docker menyalakannya ulang.
+
+        Dipakai sesudah `media.env` ditulis: line membaca sumber kameranya dari
+        environment saat boot, jadi setelan baru tidak berlaku sampai prosesnya
+        benar-benar mati.
+
+        Melempar kalau line tidak menjawab. Pemanggil TIDAK membatalkan
+        penyimpanan karena itu: berkasnya sudah sah, tinggal line itu yang belum
+        membacanya — dan ia akan membacanya sendiri saat hidup lagi.
+        """
+        await self._post(line, "/internal/restart", {})
+
     async def status(self, line: LineEndpoint) -> dict[str, Any]:
         """Called once a second by LineStatusWorker, so the timeout is short:
         the operator screen must not be made to wait on a dying line."""

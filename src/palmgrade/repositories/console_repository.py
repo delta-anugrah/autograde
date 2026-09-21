@@ -80,6 +80,20 @@ CREATE TABLE IF NOT EXISTS assignments (
     started_at    REAL NOT NULL
 );
 
+-- Line yang dilepas OLEH TIMBANG KELUAR, bukan oleh operator (G5). Dicatat
+-- supaya pelepasannya terlihat: operator yang menimbang keluar terlalu cepat
+-- (antrean jembatan timbang, bongkar belum habis) harus tahu line-nya baru saja
+-- lepas, supaya bisa meng-assign ulang. Pelepasan senyap hanya menukar satu
+-- kegagalan diam dengan kegagalan diam yang lain.
+CREATE TABLE IF NOT EXISTS auto_releases (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    line_code     TEXT NOT NULL,
+    truck_id      TEXT NOT NULL,
+    plate_number  TEXT,
+    assignment_id TEXT,
+    released_at   REAL NOT NULL
+);
+
 -- Weighbridge (§3.5c). Filled by the scale program via
 -- POST /internal/scale/weighing; its format is unknown (X1), so the lane is
 -- built in OUR shape and only an adapter is added later.
@@ -679,6 +693,48 @@ class ConsoleStore:
                           tp_status, tp_confidence
                    FROM inspections WHERE assignment_id = ? ORDER BY timestamp""",
                 (assignment_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def assignments_for_truck(self, truck_id: str) -> list[dict[str, Any]]:
+        """Line mana saja yang sedang memegang truk ini.
+
+        Bisa lebih dari satu: `assignments` berkunci `line_code`, karena satu truk
+        memang boleh dibongkar paralel di beberapa line. Melepas hanya line pertama
+        meninggalkan sisanya tetap menstempel truk yang sudah pulang.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT a.*, t.plate_number
+                   FROM assignments a
+                   LEFT JOIN trucks t ON t.id = a.truck_id
+                   WHERE a.truck_id = ?""",
+                (truck_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def record_auto_release(
+        self, *, line_code: str, truck_id: str, plate_number: str | None, assignment_id: str | None
+    ) -> None:
+        """Jejak bahwa timbang keluar yang melepas line ini, bukan operator."""
+        with self._lock, self._db:
+            self._db.execute(
+                """INSERT INTO auto_releases
+                       (line_code, truck_id, plate_number, assignment_id, released_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (line_code, truck_id, plate_number, assignment_id, time.time()),
+            )
+
+    def auto_releases_terbaru(self, *, sejak_detik: float = 3600.0) -> list[dict[str, Any]]:
+        """Pelepasan otomatis yang masih layak ditampilkan di layar operator.
+
+        Dibatasi waktu, bukan jumlah: peringatan kemarin yang masih menempel hari
+        ini mengajari operator mengabaikan kotak merah itu.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT * FROM auto_releases WHERE released_at >= ? ORDER BY released_at DESC",
+                (time.time() - sejak_detik,),
             ).fetchall()
         return [dict(r) for r in rows]
 

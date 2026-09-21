@@ -18,6 +18,7 @@ import logging
 import uuid
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -34,12 +35,15 @@ from ..domain.operator_error import (
 )
 from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.setelan_grading import KUNCI_SETELAN, bersihkan_setelan
+from ..domain.sumber_kamera import SumberTidakSah, bersihkan_sumber
 from ..domain.vision_event import prediction_for, verdict_of
 from ..domain.working_day import work_date_for
 from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
 from ..workers.visit_manifest_worker import VisitManifestWorker
 from .erp_queue import ErpQueue
+from .media_env_service import LINE_CODES, MediaEnvService
+from .media_library import MediaLibrary
 
 logger = logging.getLogger(__name__)
 
@@ -190,6 +194,10 @@ class ConsoleService:
             "timezone": self.settings.factory_tz,
             "lines": lines,
             "recent": self.history(work_date, limit=20),
+            # Line yang dilepas oleh timbang keluar, bukan oleh operator (G5).
+            # Ditampilkan supaya pelepasannya terlihat: kalau bongkar ternyata
+            # belum habis, operator masih bisa meng-assign ulang.
+            "auto_releases": self.store.auto_releases_terbaru(),
         }
 
     def history(
@@ -308,7 +316,7 @@ class ConsoleService:
 
     # --------------------------------------------------------- scale (§3.5c)
 
-    def record_weighing(self, payload: dict[str, Any]) -> dict[str, Any]:
+    async def record_weighing(self, payload: dict[str, Any]) -> dict[str, Any]:
         """One payload from the scale program. Returns the merged row.
 
         The shape the boss asked for: weight before unloading (gross), weight
@@ -371,10 +379,45 @@ class ConsoleService:
                 "exited_at": exited_at,
             }
         )
+        # Timbang keluar = truk sudah pergi. Line yang masih memegangnya akan
+        # menstempel janjang truk BERIKUTNYA dengan truk ini (G5), jadi dilepas
+        # di sini alih-alih menunggu operator ingat.
+        if tare is not None or exited_at:
+            await self._lepas_line_truk_yang_keluar(truck_id_for(plate))
         self._queue_visit(weighing_id)
         return self.store.weighing(weighing_id) or {}
 
     # ------------------------------------------------------ send to AutoERP
+
+    async def _lepas_line_truk_yang_keluar(self, truck_id: str) -> None:
+        """Truk sudah timbang keluar: lepaskan setiap line yang masih memegangnya.
+
+        Tanpa ini, `Release` yang terlewat membuat line terus menstempel truk yang
+        sudah pulang ke janjang truk berikutnya — tonase yang dibayar ke petani,
+        mendarat di baris yang salah, tanpa apa pun di layar. Timeout 6 jam di
+        AutoERP tetap memfinalisasi tiketnya, jadi kegagalannya tidak pernah
+        terlihat sebagai kegagalan: angkanya saja yang salah.
+
+        Semua line, bukan yang pertama: satu truk boleh dibongkar paralel.
+        """
+        for pegangan in self.store.assignments_for_truck(truck_id):
+            line_code = pegangan["line_code"]
+            try:
+                await self.release_truck(line_code)
+            except Exception:
+                # Line tidak menjawab. Jangan gagalkan penimbangannya — berat itu
+                # angka yang dibayar dan harus tetap tersimpan. Yang hilang hanya
+                # pelepasan otomatisnya; operator masih bisa menekan Release, dan
+                # barisnya sengaja tidak ditulis supaya layar tidak menjanjikan
+                # sesuatu yang tidak terjadi.
+                logger.exception("Auto-release gagal untuk %s", line_code)
+                continue
+            self.store.record_auto_release(
+                line_code=line_code,
+                truck_id=truck_id,
+                plate_number=pegangan.get("plate_number"),
+                assignment_id=pegangan.get("assignment_id"),
+            )
 
     def _queue_visit(self, weighing_id: str) -> None:
         """A weighbridge row moved: AutoERP gets the whole visit as it stands."""
@@ -518,6 +561,113 @@ class ConsoleService:
                     {"line_code": line.line_code, "terkirim": False, "alasan": str(exc)[:200]}
                 )
         return {**bersih, "sumber": "konsol", "lines": hasil}
+
+    # ────────────────────────────────────── sumber kamera (layar Support) ───
+
+    def _media_env(self) -> MediaEnvService:
+        return MediaEnvService(Path(self.settings.media_env_path))
+
+    def _media_library(self) -> MediaLibrary:
+        return MediaLibrary(Path(self.settings.media_dir))
+
+    def sumber_kamera(self) -> dict[str, Any]:
+        """Setelan ketiga line + daftar berkas yang boleh dipilih."""
+        pustaka = self._media_library()
+        return {
+            "lines": self._media_env().baca(),
+            "video": pustaka.daftar_video(),
+            "foto": pustaka.daftar_foto(),
+        }
+
+    def _buktikan_berkas(self, sumber: str, berkas: str) -> None:
+        """Buktikan berkasnya benar-benar bisa dibuka, sebelum menyimpannya.
+
+        `OpenCVCamera` dan `PhotoCamera` sengaja `raise` saat berkasnya tidak
+        terbaca. Tanpa pembuktian di sini, memilih berkas rusak berarti: line
+        boot, gagal, mati, `restart: unless-stopped` menyalakannya lagi, gagal
+        lagi — selamanya, dan satu-satunya jalan keluar AnyDesk.
+
+        Ada-tidaknya berkas sudah dicek pemanggil; yang dibuktikan di sini
+        isinya.
+        """
+        import cv2  # lokal: konsol tidak mengimpornya di jalur boot
+
+        path = str(Path(self.settings.media_dir) / berkas)
+        if sumber == "foto":
+            if cv2.imread(path) is None:
+                raise SumberTidakSah(f"{berkas} tidak bisa dibaca sebagai gambar")
+            return
+
+        cap = cv2.VideoCapture(path)
+        try:
+            terbaca, _ = cap.read() if cap.isOpened() else (False, None)
+        finally:
+            cap.release()
+        if not terbaca:
+            raise SumberTidakSah(f"{berkas} tidak bisa dibaca sebagai video")
+
+    async def simpan_sumber_kamera(
+        self, payload: dict[str, Any], *, diubah_oleh: str
+    ) -> dict[str, Any]:
+        """Validasi, buktikan berkas, tulis, lalu restart line yang berubah.
+
+        Gagal validasi atau pembuktian TIDAK menulis apa pun: setelan lama tetap
+        berlaku. Gagal restart sebaliknya dibiarkan — berkasnya sudah sah, dan
+        line yang tidak menjawab akan membacanya sendiri saat hidup lagi.
+        Rollback berarti menulis dan merestart lagi, dua langkah yang bisa gagal
+        dengan cara yang sama dan meninggalkan keadaan yang lebih sulit dibaca.
+        """
+        if not isinstance(payload, dict):
+            raise SumberTidakSah("payload harus objek")
+        asing = set(payload) - set(LINE_CODES)
+        if asing:
+            raise SumberTidakSah(f"line tidak dikenal: {', '.join(sorted(asing))}")
+        kurang = set(LINE_CODES) - set(payload)
+        if kurang:
+            raise SumberTidakSah(f"line belum diisi: {', '.join(sorted(kurang))}")
+
+        bersih = {kode: bersihkan_sumber(payload[kode]) for kode in LINE_CODES}
+
+        pustaka = self._media_library()
+        for kode, satu in bersih.items():
+            if not satu["berkas"]:
+                continue
+            if not pustaka.ada(satu["berkas"]):
+                raise SumberTidakSah(
+                    f"{kode}: {satu['berkas']} tidak ada di folder media"
+                )
+            self._buktikan_berkas(satu["sumber"], satu["berkas"])
+
+        env = self._media_env()
+        sebelum = env.baca()
+        env.tulis(bersih)
+        logger.warning(
+            "Sumber kamera diubah oleh %s: %s",
+            diubah_oleh,
+            ", ".join(f"{k}={v['sumber']}:{v['berkas'] or '-'}" for k, v in bersih.items()),
+        )
+
+        hasil = []
+        for line in self.lines:
+            kode = line.line_code
+            if sebelum.get(kode) == bersih[kode]:
+                hasil.append({"line_code": kode, "direstart": False, "berubah": False})
+                continue
+            try:
+                await self.line_client.restart(line)
+                hasil.append({"line_code": kode, "direstart": True, "berubah": True})
+            except Exception as exc:  # LineUnavailable / apa pun
+                logger.warning("Restart %s gagal: %s", kode, exc)
+                hasil.append(
+                    {
+                        "line_code": kode,
+                        "direstart": False,
+                        "berubah": True,
+                        "alasan": str(exc)[:200],
+                    }
+                )
+        pustaka = self._media_library()
+        return {"lines": hasil, "video": pustaka.daftar_video(), "foto": pustaka.daftar_foto()}
 
     async def manual_reject(self, line_code: str, requested_by: str) -> dict[str, Any]:
         line = self._require_line(line_code)

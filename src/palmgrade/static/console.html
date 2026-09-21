@@ -629,6 +629,41 @@
   #set-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
                            background:var(--warn-bg); color:var(--warn); }
   #set-lines:not(:empty) { color:var(--rej); }
+  /* Sumber kamera: tiga kartu SEJAJAR (bukan ditumpuk) supaya layar lebar pabrik
+     tidak kosong di kanan sementara Simpan terdorong jauh ke bawah. `.tools`
+     ada DI LUAR baris kartu (lihat markup) supaya dia tetap satu blok penuh di
+     bawah ketiganya, bukan ikut jadi kartu keempat yang menyempit. */
+  #sumber-kamera-panel { display:grid; gap:16px; }
+  .sumber-baris-baris { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; }
+  /* `flex:1 1 18rem` + wrap: tiga kartu sejajar kalau muat, turun ke bawah satu
+     per satu kalau tidak (AnyDesk/laptop sempit) - lebar minimum menahan supaya
+     kartu tidak memepet sampai tulisan dan radio ikut mengecil. */
+  .sumber-baris { flex:1 1 18rem; min-width:18rem; display:grid; gap:10px; padding:16px 20px;
+                  border:1px solid var(--line); border-radius:var(--r); background:var(--kartu); }
+  .sumber-baris label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .sumber-berkas { display:grid; gap:10px; padding-top:10px; margin-top:4px;
+                   border-top:1px solid var(--line); }
+  /* Tanpa baris ini `[hidden]` kalah lawan `display:grid` di atas (spesifisitas
+     sama, aturan ini datang belakangan) - baris Berkas tetap terlihat di bawah
+     Hikrobot/Webcam walau JS sudah menandainya hidden. Pola sama seperti #gerbang. */
+  .sumber-berkas[hidden] { display:none; }
+  /* `width:100%` + `min-width:0` WAJIB dua-duanya. Kolom grid bawaannya
+     `minmax(auto, …)`, jadi `<select>` menciut ke lebar isi terpendeknya dan
+     nama berkas panjang terpotong habis - di layar terbaca sebagai dropdown
+     kosong, seolah folder media memang tidak berisi. `min-width:0` mencabut
+     lantai itu, `width:100%` menyuruhnya mengisi kartunya. */
+  .sumber-berkas select { width:100%; min-width:0; padding:8px 10px;
+                          font-family:inherit; font-size:1rem;
+                          border:1px solid var(--line-kuat); border-radius:var(--r);
+                          background:var(--input); color:var(--fg); }
+  /* Label pembungkusnya sudah flex (lihat `.sumber-baris label`); dropdown
+     memakan sisa lebar di sebelah kata "Berkas". */
+  .sumber-berkas label select { flex:1 1 auto; }
+  #sumber-kamera-panel .tools { padding-top:6px; }
+  /* Simpan membentang penuh di bawah ketiga kartu, bukan 12rem seperti tombol
+     `.tools` lain di berkas ini - dia mengirim ketiga line sekaligus, jadi
+     lebarnya harus terbaca sebagai milik semuanya, bukan milik kartu terakhir. */
+  #sumber-kamera-panel .tools button { flex:1 1 100%; }
   #rekap td.tp { color:var(--warn); font-weight:700; }
   #rekap td.acc { color:var(--acc); font-weight:700; }
   #rekap td.rej { color:var(--rej); font-weight:700; }
@@ -775,6 +810,7 @@
   <button data-tab="antrean" data-dev="1" data-t="judulAntrean">Antrean ERP</button>
   <button data-tab="versi" data-dev="1" data-t="judulVersi">Versi</button>
   <button data-tab="plc" data-dev="1" data-t="judulPlc">Uji PLC</button>
+  <button data-tab="sumber-kamera" data-dev="1" data-t="judulSumberKamera">Sumber Kamera</button>
   <!-- Setelan sengaja PALING KANAN (permintaan operator 2026-09-18): tab yang
        paling jarang dibuka dan yang paling mahal kalau tersenggol — angkanya
        menggeser tonase yang dibayar. -->
@@ -886,7 +922,7 @@
       <label class="lb" for="scan-plat" data-t="lbGerbangMasuk">Truk masuk</label>
       <div class="timbang-baris">
         <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="QR masuk"
-               autocomplete="off" autocapitalize="characters" spellcheck="false">
+               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
         <div class="pilih" id="plat-timbang" data-nilai=""></div>
         <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
                inputmode="decimal" autocomplete="off">
@@ -903,7 +939,7 @@
       <label class="lb" for="scan-keluar" data-t="lbGerbangKeluar">Truk keluar</label>
       <div class="timbang-baris">
         <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="QR keluar"
-               autocomplete="off" autocapitalize="characters" spellcheck="false">
+               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
         <!--
           Kolom tara muncul DI SINI setelah scan berhasil, bukan sebagai lapisan di atas
           layar: dialog yang menutup seluruh layar menghilangkan kamera line dan strip
@@ -921,13 +957,21 @@
           <button type="button" id="tara-batal" data-t="btnBatal">Batal</button>
         </span>
       </div>
+      <!--
+        Selama kolom QR disembunyikan (scanner belum dibeli), sisi ini kosong
+        sampai operator menekan Keluar di baris tiket. Label "Truk keluar" di
+        atas ruang kosong terbaca seperti alat yang rusak, jadi petunjuk ini
+        yang menunjukkan ke mana harus pergi. Hapus bersama `hidden` di
+        `#scan-keluar` begitu scanner datang.
+      -->
+      <span id="petunjuk-keluar" class="catatan" data-t="hintGerbangKeluar">Tekan Keluar di baris truknya pada tabel di bawah</span>
       <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
     </div>
     <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
   </div>
   <div class="tabel">
     <table>
-      <thead><tr><th data-t="thMasuk">Masuk</th><th data-t="thKeluar">Keluar</th><th data-t="thTruk">Truk</th>
+      <thead><tr><th data-t="thMasuk">Masuk</th><th data-t="thKeluar">Keluar</th><th data-t="thLama">Lama</th><th data-t="thTruk">Truk</th>
         <th data-t="thSumber">Sumber</th><th class="num" data-t="thBruto">Bruto (kg)</th>
         <th class="num" data-t="thTara">Tara (kg)</th><th class="num" data-t="thNeto">Neto (kg)</th>
         <th></th></tr></thead>
@@ -1127,6 +1171,65 @@
   </div>
 </section>
 
+<section id="sec-sumber-kamera" class="panel" hidden data-dev="1">
+  <!--
+    Support-only. Tiap line memilih sumber gambarnya sendiri (kamera Hikrobot,
+    webcam, berkas video, atau foto diam) — dulu cuma bisa lewat AnyDesk +
+    edit .env + restart manual. Simpan menulis `media.env` lalu me-restart
+    HANYA line yang setelannya berubah (`services/console_service.py
+    simpan_sumber_kamera`); line yang tidak menjawab restart TETAP tersimpan,
+    dia membaca setelan baru sendiri saat hidup lagi — itu sebabnya pesan hasil
+    di bawah tidak boleh dibaca sebagai "gagal simpan".
+  -->
+  <div id="sumber-kamera-panel">
+    <p class="muted" data-t="sumberPeringatan">
+      Menyimpan akan <strong>merestart</strong> line yang setelannya berubah (sekitar 10 detik) — grading di line itu berhenti sebentar.
+    </p>
+
+    <div class="sumber-baris-baris">
+      <div data-sumber-line="line-1" class="sumber-baris">
+        <strong data-t="sumberLabelLine1">Line 1</strong>
+        <label><input type="radio" name="sumber-line-1" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
+        <label><input type="radio" name="sumber-line-1" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
+        <label><input type="radio" name="sumber-line-1" value="video"> <span data-t="sumberVideo">Video</span></label>
+        <label><input type="radio" name="sumber-line-1" value="foto"> <span data-t="sumberFoto">Foto</span></label>
+        <div class="sumber-berkas" hidden>
+          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-1"></select></label>
+          <label><input type="checkbox" data-ulang="line-1"> <span data-t="sumberUlang">Ulang terus</span></label>
+        </div>
+      </div>
+
+      <div data-sumber-line="line-2" class="sumber-baris">
+        <strong data-t="sumberLabelLine2">Line 2</strong>
+        <label><input type="radio" name="sumber-line-2" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
+        <label><input type="radio" name="sumber-line-2" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
+        <label><input type="radio" name="sumber-line-2" value="video"> <span data-t="sumberVideo">Video</span></label>
+        <label><input type="radio" name="sumber-line-2" value="foto"> <span data-t="sumberFoto">Foto</span></label>
+        <div class="sumber-berkas" hidden>
+          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-2"></select></label>
+          <label><input type="checkbox" data-ulang="line-2"> <span data-t="sumberUlang">Ulang terus</span></label>
+        </div>
+      </div>
+
+      <div data-sumber-line="line-3" class="sumber-baris">
+        <strong data-t="sumberLabelLine3">Line 3</strong>
+        <label><input type="radio" name="sumber-line-3" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
+        <label><input type="radio" name="sumber-line-3" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
+        <label><input type="radio" name="sumber-line-3" value="video"> <span data-t="sumberVideo">Video</span></label>
+        <label><input type="radio" name="sumber-line-3" value="foto"> <span data-t="sumberFoto">Foto</span></label>
+        <div class="sumber-berkas" hidden>
+          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-3"></select></label>
+          <label><input type="checkbox" data-ulang="line-3"> <span data-t="sumberUlang">Ulang terus</span></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="tools">
+      <button type="button" id="sumber-simpan" class="utama" data-t="btnSumberSimpan">Simpan &amp; Restart</button>
+    </div>
+  </div>
+</section>
+
 <!--
   Foto satu janjang, dibuka di tempat. Dulu `target="_blank"`: tiap foto yang
   dilihat meninggalkan satu tab, dan di kiosk Chrome (`--kiosk`) tab baru tidak
@@ -1186,10 +1289,11 @@ const KAMUS = {
     geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
     thNo:"No", thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
-    thMasuk:"Masuk", thKeluar:"Keluar", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
+    thMasuk:"Masuk", thKeluar:"Keluar", thLama:"Lama", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
     thLevel:"Level", thPesan:"Pesan", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan atau sumber",
     hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
+    hintGerbangKeluar:"Tekan Keluar di baris truknya pada tabel di bawah",
     logSemua:"Semua", kosongLog:"Belum ada galat tercatat", gagalLog:"Gagal memuat log",
     btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
@@ -1274,6 +1378,17 @@ const KAMUS = {
     err_konfirmasi_kurang:"Ketik UJI persis untuk memicu coil",
     err_plc_sibuk:"Line sedang memproses truk - coil tidak bisa dipicu",
     err_coil_tidak_dikenal:"Coil ini tidak dikenal line",
+    judulSumberKamera:"Sumber Kamera",
+    sumberPeringatan:"Menyimpan akan merestart line yang setelannya berubah (sekitar 10 detik) — grading di line itu berhenti sebentar.",
+    sumberLabelLine1:"Line 1", sumberLabelLine2:"Line 2", sumberLabelLine3:"Line 3",
+    sumberHikrobot:"Kamera Hikrobot", sumberWebcam:"Webcam", sumberVideo:"Video", sumberFoto:"Foto",
+    sumberBerkas:"Berkas", sumberUlang:"Ulang terus",
+    sumberBerkasKosong:"belum ada berkas di folder media",
+    btnSumberSimpan:"Simpan & Restart",
+    gagalSumberKamera:"Gagal memuat sumber kamera",
+    sumberTersimpanSemua:"Tersimpan. Line yang berubah sedang restart.",
+    sumberTersimpanSebagian:"Tersimpan. {daftar} tidak menjawab — setelan tetap berlaku dan akan dipakai saat line itu hidup lagi.",
+    gagalSumberSimpan:"Gagal menyimpan sumber kamera",
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
@@ -1297,10 +1412,11 @@ const KAMUS = {
     geserKiri:"Move left", geserKanan:"Move right",
     thNo:"No", thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
-    thMasuk:"In", thKeluar:"Out", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
+    thMasuk:"In", thKeluar:"Out", thLama:"Duration", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
     thLevel:"Level", thPesan:"Message", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message or source",
     hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
+    hintGerbangKeluar:"Press Out on the truck's row in the table below",
     logSemua:"All", kosongLog:"No faults logged yet", gagalLog:"Failed to load the log",
     btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
@@ -1383,6 +1499,17 @@ const KAMUS = {
     err_konfirmasi_kurang:"Type UJI exactly to fire the coil",
     err_plc_sibuk:"Line is processing a truck - the coil cannot be fired",
     err_coil_tidak_dikenal:"This coil is not known to the line",
+    judulSumberKamera:"Camera Source",
+    sumberPeringatan:"Saving restarts any line whose setting changed (about 10 seconds) — grading on that line pauses briefly.",
+    sumberLabelLine1:"Line 1", sumberLabelLine2:"Line 2", sumberLabelLine3:"Line 3",
+    sumberHikrobot:"Hikrobot camera", sumberWebcam:"Webcam", sumberVideo:"Video", sumberFoto:"Photo",
+    sumberBerkas:"File", sumberUlang:"Loop",
+    sumberBerkasKosong:"no files in the media folder yet",
+    btnSumberSimpan:"Save & Restart",
+    gagalSumberKamera:"Failed to load camera source",
+    sumberTersimpanSemua:"Saved. Lines that changed are restarting.",
+    sumberTersimpanSebagian:"Saved. {daftar} did not respond — the setting still applies and will take effect once that line is back.",
+    gagalSumberSimpan:"Failed to save camera source",
   },
 };
 
@@ -1546,7 +1673,7 @@ document.addEventListener("focusout", (ev) => {
 });
 
 // ── truck / weighbridge tabs ───────────────────────────────────────────
-const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "diagnostik", "antrean", "versi", "plc"];
+const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "diagnostik", "antrean", "versi", "plc", "sumber-kamera", "setelan"];
 let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
 
 function terapkanTab() {
@@ -1565,7 +1692,7 @@ function terapkanTab() {
 // tab stays open (a line coming back or dying should show up unattended);
 // the timer is started/stopped in `bukaTabDev` below, never left running
 // behind a tab nobody is looking at.
-const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, setelan: muatSetelan };
+const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, "sumber-kamera": muatSumberKamera, setelan: muatSetelan };
 
 function bukaTabDev(namaTab) {
   clearInterval(diagnostikTimer);
@@ -1745,6 +1872,27 @@ function waktu(iso) {
   const p = (n) => String(n).padStart(2, "0");
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} `
        + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+// Berapa lama truk diproses: dari timbang masuk sampai timbang keluar.
+// Dihitung di layar dari dua kolom yang MEMANG sudah ada (`entered_at` /
+// `exited_at`), bukan disimpan sebagai kolom ketiga di SQLite. Alasannya satu:
+// nilai turunan yang ikut disimpan bisa berbeda dari selisihnya sendiri begitu
+// salah satu jam dikoreksi, dan yang dipercaya operator jadi tidak jelas yang
+// mana. Tiket yang belum timbang keluar memulangkan null - barisnya masih
+// berjalan, bukan nol menit.
+function lamaProses(masuk, keluar) {
+  if (!masuk || !keluar) return null;
+  const a = new Date(masuk), b = new Date(keluar);
+  if (isNaN(a) || isNaN(b)) return null;
+  const menit = Math.round((b - a) / 60000);
+  // Jam mundur (koreksi manual, NTP menyentak) memberi selisih negatif. Itu
+  // bukan durasi dan tidak boleh tampil sebagai "-12 mnt" - baris itu diam.
+  if (menit < 0) return null;
+  if (menit < 60) return `${menit} mnt`;
+  const jam = Math.floor(menit / 60);
+  const sisa = menit % 60;
+  return sisa ? `${jam} j ${sisa} mnt` : `${jam} j`;
 }
 
 // Wall clock from the browser, not the server: it keeps ticking when the
@@ -1991,6 +2139,7 @@ function barisTimbangan(w) {
               data-masuk="${esc(w.entered_at ?? "")}">
     <td>${w.entered_at ? waktu(w.entered_at) : KOSONG}</td>
     <td>${w.exited_at ? waktu(w.exited_at) : KOSONG}</td>
+    <td>${dash(lamaProses(w.entered_at, w.exited_at))}</td>
     <td class="key">${dash(w.plate_number)}</td>
     <td>${dash(w.source_label)}</td>
     <td class="num">${kg(w.gross_kg)}</td>
@@ -2559,6 +2708,13 @@ function tutupGerbang(operator) {
 
 function hapusTabDeveloper(role) {
   // Removed from the DOM, not hidden: the backend guards access, this is tidiness.
+  // `role` yang bukan string (misal undefined, kalau ada pemanggil baru lupa
+  // mengisinya) tetap dianggap "bukan support" dan tab tetap dibuang — kosmetik
+  // ini tidak boleh pernah jadi jalan menampilkan tab ke yang bukan support.
+  // Satu-satunya beda: dicatat ke console supaya kelalaian itu tidak senyap.
+  if (typeof role !== "string") {
+    console.error("hapusTabDeveloper: role tidak terisi, tab developer tetap dibuang");
+  }
   if (role === "support") return;
   document.querySelectorAll('[data-dev="1"]').forEach((el) => el.remove());
 }
@@ -2582,6 +2738,22 @@ async function kirimSandi() {
     await refresh();
     await muatTimbangan();
     await muatRekap();
+    // Tab developer yang sudah AKTIF sebelum login (dipulihkan dari localStorage
+    // oleh init di bawah) sempat mencoba memuat datanya saat gerbang masih
+    // tertutup, dan ditolak 401 — diam-diam, karena `belum_masuk` memang bukan
+    // galat untuk dilaporkan. Empat pemuatan di atas tidak menyentuh tab itu,
+    // jadi tanpa baris ini layarnya tetap kosong sesudah login sampai tab-nya
+    // diklik ulang: dropdown berkas tanpa isi DAN tanpa keterangan, karena
+    // `isiBerkasSumber` pulang lebih dulu begitu melihat data belum pernah
+    // datang. Terbaca persis seperti fitur yang rusak. Rumus yang sama dengan
+    // pemulihan tab di init — satu sumber kebenaran untuk "tab dev mana yang
+    // sedang terbuka", supaya keduanya tidak bisa menyimpang.
+    //
+    // `document.querySelector`, BUKAN `$(...)`: `$` di berkas ini adalah
+    // getElementById, dan diberi selector CSS ia selalu memulangkan null — jadi
+    // kondisi ini diam-diam tidak pernah benar. Itu yang membuat baris di init
+    // mati sejak ditulis, dan salinannya di sini ikut mati (2026-09-21).
+    if (MUAT_TAB[tab] && document.querySelector(`button[data-tab="${tab}"]`)) await bukaTabDev(tab);
   } catch (e) {
     $("gerbang-pesan").textContent = alasan(e);
     $("gerbang-sandi").value = "";
@@ -2636,6 +2808,23 @@ $("keluar").addEventListener("click", async () => {
   bukaGerbang();
 });
 
+// Line yang dilepas oleh timbang keluar, bukan oleh operator (G5). Diumumkan
+// sekali per pelepasan: state di-poll tiap 2 detik, dan toast yang sama muncul
+// berulang selama satu jam adalah cara tercepat mengajari operator mengabaikan
+// kotak peringatan.
+const pelepasanSudahDiumumkan = new Set();
+function umumkanPelepasanOtomatis(daftar) {
+  (daftar || []).forEach((r) => {
+    if (pelepasanSudahDiumumkan.has(r.id)) return;
+    pelepasanSudahDiumumkan.add(r.id);
+    const truk = r.plate_number || r.truck_id;
+    toastPeringatan(
+      `${r.line_code} dilepas otomatis — ${truk} sudah timbang keluar. ` +
+      "Assign ulang kalau bongkarnya belum habis."
+    );
+  });
+}
+
 // MJPEG streams render once: rewriting innerHTML every 2 s would tear down and
 // reopen three video connections forever.
 let dipasang = false;
@@ -2643,6 +2832,7 @@ async function refresh() {
   try {
     const s = await api("/api/console/state");
     $("tz").textContent = "(" + s.timezone + ")";
+    umumkanPelepasanOtomatis(s.auto_releases);
     selarasUrutan(s.lines);
     isiTally(s.lines);
     if (!dipasang) {
@@ -2696,7 +2886,7 @@ async function muatTimbangan() {
   try {
     const items = (await api("/api/console/weighings")).items;
     $("timbangan").innerHTML = items.length
-      ? items.map(barisTimbangan).join("") : barisKosong(8, "kosongTiket");
+      ? items.map(barisTimbangan).join("") : barisKosong(9, "kosongTiket");
   } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
 }
 
@@ -3124,6 +3314,126 @@ $("set-simpan").addEventListener("click", async () => {
   }
 });
 
+// ── Sumber kamera per line (support only) ──────────────────────────────
+// Empat pilihan layar, tapi berkas cuma berlaku untuk Video dan Foto -
+// `domain/sumber_kamera.BUTUH_BERKAS` menolak berkas untuk hikrobot/webcam
+// di server, jadi menampilkan dropdown aktif untuk keduanya di sini adalah
+// bohong: pilihannya tidak pernah bisa dikirim.
+const SUMBER_KODE_LINE = ["line-1", "line-2", "line-3"];
+const SUMBER_BUTUH_BERKAS = new Set(["video", "foto"]);
+
+// Daftar video/foto disalin dari jawaban terakhir, bukan ditarik ulang tiap
+// ganti pilihan radio - satu GET yang sama melayani ketiga line sekaligus,
+// dan menyimpan hasilnya di sini menghindari tiga permintaan jaringan untuk
+// data yang sudah ada di tangan.
+let sumberKameraTerakhir = null;
+
+function isiBerkasSumber(kode, sumber, terpilih) {
+  const pilih = document.querySelector(`[data-berkas="${kode}"]`);
+  if (!pilih || !sumberKameraTerakhir) return;
+  const daftar = sumber === "foto" ? sumberKameraTerakhir.foto : sumberKameraTerakhir.video;
+  pilih.innerHTML = "";
+  for (const nama of daftar || []) {
+    const opt = document.createElement("option");
+    opt.value = nama;
+    opt.textContent = nama;
+    if (nama === terpilih) opt.selected = true;
+    pilih.appendChild(opt);
+  }
+  if (!daftar || !daftar.length) {
+    // Folder kosong dikatakan, bukan dibiarkan kosong tanpa keterangan -
+    // dropdown yang kosong begitu saja terbaca seperti layar belum termuat.
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = t("sumberBerkasKosong");
+    pilih.appendChild(opt);
+  }
+}
+
+function perbaruiTampakSumber(kode) {
+  const blok = document.querySelector(`[data-sumber-line="${kode}"]`);
+  if (!blok) return;
+  const sumber = blok.querySelector("input[type=radio]:checked")?.value;
+  // Baris berkas cuma untuk video dan foto - hikrobot/webcam menolak berkas
+  // di server, jadi dropdown yang tetap terlihat aktif untuk keduanya
+  // adalah pilihan yang tidak pernah bisa disimpan.
+  blok.querySelector(".sumber-berkas").hidden = !SUMBER_BUTUH_BERKAS.has(sumber);
+}
+
+async function muatSumberKamera() {
+  try {
+    const data = await api("/api/console/dev/sumber-kamera");
+    sumberKameraTerakhir = data;
+    for (const kode of SUMBER_KODE_LINE) {
+      const satu = data.lines[kode];
+      if (!satu) continue;
+      const blok = document.querySelector(`[data-sumber-line="${kode}"]`);
+      if (!blok) continue;
+      const radio = blok.querySelector(`input[value="${satu.sumber}"]`);
+      if (radio) radio.checked = true;
+      const ulang = blok.querySelector(`[data-ulang="${kode}"]`);
+      if (ulang) ulang.checked = Boolean(satu.ulang);
+      isiBerkasSumber(kode, satu.sumber, satu.berkas);
+      perbaruiTampakSumber(kode);
+    }
+  } catch (e) {
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e) || t("gagalSumberKamera"));
+  }
+}
+
+document.querySelectorAll("[data-sumber-line] input[type=radio]").forEach((el) => {
+  el.addEventListener("change", () => {
+    const kode = el.closest("[data-sumber-line]").dataset.sumberLine;
+    perbaruiTampakSumber(kode);
+    // Daftar berkas berbeda antara video dan foto (dua folder terpisah), jadi
+    // diisi ulang dari jawaban GET yang sudah ada - tanpa berkas terpilih,
+    // karena pindah sumber tidak mewarisi pilihan sumber sebelumnya.
+    isiBerkasSumber(kode, el.value, "");
+  });
+});
+
+$("sumber-simpan").addEventListener("click", async () => {
+  const payload = {};
+  for (const kode of SUMBER_KODE_LINE) {
+    const blok = document.querySelector(`[data-sumber-line="${kode}"]`);
+    const sumber = blok.querySelector("input[type=radio]:checked")?.value || "hikrobot";
+    const pakaiBerkas = SUMBER_BUTUH_BERKAS.has(sumber);
+    payload[kode] = {
+      sumber,
+      berkas: pakaiBerkas ? (blok.querySelector(`[data-berkas="${kode}"]`).value || "") : "",
+      ulang: sumber === "video" && Boolean(blok.querySelector(`[data-ulang="${kode}"]`).checked),
+    };
+  }
+  try {
+    const data = await api("/api/console/dev/sumber-kamera", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    sumberKameraTerakhir = data;
+    // `berubah && !direstart` = setelan SUDAH tersimpan tapi line itu tidak
+    // menjawab restart - bukan simpan yang gagal (services/console_service.py
+    // simpan_sumber_kamera). Menyebutnya "gagal" di sini akan membuat support
+    // menekan Simpan berulang-ulang untuk sesuatu yang sudah beres.
+    const tidakJawab = (data.lines || []).filter((b) => b.berubah && !b.direstart);
+    if (tidakJawab.length) {
+      toastPeringatan(
+        t("sumberTersimpanSebagian").replace(
+          "{daftar}",
+          tidakJawab.map((b) => b.line_code).join(", ")
+        )
+      );
+    } else {
+      toastSukses(t("sumberTersimpanSemua"));
+    }
+    // Balasan POST membawa daftar berkas terbaru (video/foto), tapi bukan
+    // setelan tersimpan per line (itu array hasil restart, bukan dict sumber)
+    // - GET ulang supaya layar menunjukkan persis apa yang ada di media.env.
+    await muatSumberKamera();
+  } catch (e) {
+    toastGagal(alasan(e) || t("gagalSumberSimpan"));
+  }
+});
+
 async function muatPlc() {
   try {
     // Line codes come from diagnostik (already fetched by support screens
@@ -3247,6 +3557,10 @@ $("plc-kartu").addEventListener("click", (ev) => {
   // A remembered developer tab from a previous support sign-in on this shared PC:
   // cekSesi() above has already run hapusTabDeveloper(), so the button (and
   // this check) only survive for an account that is still support.
-  if (MUAT_TAB[tab] && $(`button[data-tab="${tab}"]`)) await bukaTabDev(tab);
+  // `document.querySelector`, BUKAN `$(...)`: `$` adalah getElementById, dan
+  // diberi selector CSS ia selalu null. Dengan `$` baris ini tidak pernah jalan
+  // — tab dev yang dipulihkan dari localStorage tampil tapi tidak pernah memuat
+  // datanya, sampai diklik ulang. Ketahuan 2026-09-21 di layar Sumber Kamera.
+  if (MUAT_TAB[tab] && document.querySelector(`button[data-tab="${tab}"]`)) await bukaTabDev(tab);
 })();
 </script>

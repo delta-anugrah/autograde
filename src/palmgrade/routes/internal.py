@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import logging
+import os
+import threading
+import time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -13,13 +16,13 @@ from ..controllers.internal_controller import (
     plc_state,
     sync_assignment,
 )
+from ..core.config import Settings
 from ..core.dependencies import (
     get_capture_service,
     get_outbox_store,
     get_runtime_state,
     get_settings,
 )
-from ..core.config import Settings
 from ..domain.setelan_grading import bersihkan_setelan
 from ..integrations.outbox.outbox_store import OutboxStore
 from ..schemas.internal_schema import (
@@ -33,6 +36,7 @@ from ..schemas.internal_schema import (
     PlcCoilCommandRequest,
     PlcCoilCommandResponse,
     PlcStateResponse,
+    RestartResponse,
     SetelanGradingRequest,
     SetelanGradingResponse,
 )
@@ -161,3 +165,46 @@ async def plc_coil(
     state: Annotated[RuntimeState, Depends(get_runtime_state)],
 ) -> PlcCoilCommandResponse:
     return await plc_coil_command(request, state)
+
+
+#: Jeda antara menjawab dan keluar. Cukup bagi respons untuk sampai ke konsol
+#: melalui loop event, tidak cukup lama untuk membuat layar terasa menggantung.
+_JEDA_KELUAR_DETIK = 1.0
+
+
+def _jadwalkan_keluar(jeda: float) -> None:
+    """Keluar `jeda` detik dari sekarang, di thread terpisah.
+
+    `os._exit` dan bukan `sys.exit`: yang dituju adalah container berhenti
+    supaya `restart: unless-stopped` menyalakannya lagi dengan environment yang
+    Compose baca ulang. `sys.exit` dari thread non-utama hanya menghentikan
+    thread itu — proses tetap hidup dan setelan baru tidak pernah berlaku,
+    tanpa satu pun galat yang terlihat.
+    """
+    def keluar() -> None:
+        time.sleep(jeda)
+        # Tidak menyebut "Docker": di pabrik memang `restart: unless-stopped`
+        # yang menyalakan ulang, tapi jalur native dinyalakan loop `make line`.
+        # Pesan yang menyebut Docker di terminal `make line` membuat orang
+        # mencari container yang tidak ada.
+        logger.warning("Keluar atas permintaan konsol — menunggu dinyalakan ulang")
+        os._exit(0)  # noqa: SLF001 — disengaja, lihat docstring
+
+    threading.Thread(target=keluar, daemon=True, name="restart").start()
+
+
+@router.post("/restart", response_model=RestartResponse)
+async def restart() -> RestartResponse:
+    """Matikan diri supaya Docker menyalakan ulang dengan setelan baru.
+
+    Dipanggil konsol sesudah `media.env` ditulis. Line membaca sumber kameranya
+    dari environment saat boot, jadi setelan baru baru berlaku setelah proses
+    ini benar-benar mati dan `restart: unless-stopped` membangunnya kembali.
+
+    Menjawab lebih dulu, keluar belakangan: konsol yang melihat koneksi putus
+    akan melaporkannya sebagai gagal padahal berhasil, dan support akan menekan
+    Simpan lagi.
+    """
+    logger.warning("Permintaan restart diterima dari konsol")
+    _jadwalkan_keluar(_JEDA_KELUAR_DETIK)
+    return RestartResponse(status="restarting", jeda_detik=_JEDA_KELUAR_DETIK)

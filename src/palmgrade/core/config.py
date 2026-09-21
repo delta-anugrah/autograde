@@ -180,6 +180,15 @@ class Settings:
     )
     camera_photo_path: str = field(default_factory=lambda: os.getenv("CAMERA_PHOTO_PATH", ""))
 
+    # Nama berkas media (BUKAN path) yang dipilih layar Support, di-join ke
+    # `/media` oleh `domain/sumber_kamera_resolver`. Menggantikan
+    # CAMERA_VIDEO_PATH/CAMERA_PHOTO_PATH sebagai jalur yang dipakai layar;
+    # keduanya masih dibaca supaya `.env` lama tetap jalan.
+    media_file: str = field(default_factory=lambda: os.getenv("MEDIA_FILE", ""))
+
+    # Folder media dan berkas setelannya — lihat `media_dir` / `media_env_path`
+    # di bawah, yang menurunkan bawaannya dari `repo_root` saat env kosong.
+
     # Stream display resolution — only affects MJPEG stream, not saved captures
     stream_width: int = field(default_factory=lambda: int(os.getenv("STREAM_WIDTH", "1280")))
     stream_height: int = field(default_factory=lambda: int(os.getenv("STREAM_HEIGHT", "720")))
@@ -342,6 +351,30 @@ class Settings:
     # the screen can only show the request, marked "not confirmed by PLC".
     plc_di_manual: int | None = field(default_factory=lambda: _plc_opt_int("PLC_DI_MANUAL"))
 
+    # ------------------------------------------------------------------ sumber kamera
+
+    def sumber_kamera(self) -> str:
+        """Pilihan layar yang setara dengan `CAMERA_TYPE` + `MEDIA_FILE`.
+
+        Kebalikan dari pemetaan di `domain/sumber_kamera`: `opencv` memetakan ke
+        dua pilihan layar, dan berkaslah yang membedakan webcam dari video.
+
+        Nilai `CAMERA_TYPE` asing jatuh ke `hikrobot`, tidak melempar: berkas
+        yang disunting tangan dengan nilai ngawur harus tetap membuat line boot
+        memakai kamera sungguhan. Yang rewel gerbang simpan di konsol.
+
+        Ditulis di sini, bukan diimpor dari `services/media_env_service`:
+        `config.py` dibaca setiap proses termasuk line, dan tidak boleh
+        bergantung pada lapis service.
+        """
+        camera_type = self.camera_type.strip().lower()
+        berkas = (self.media_file or self.camera_video_path or self.camera_photo_path).strip()
+        if camera_type == "photo":
+            return "foto"
+        if camera_type == "opencv":
+            return "video" if berkas else "webcam"
+        return "hikrobot"
+
     # ------------------------------------------------------------------ validation
 
     def validate_for_runtime(self) -> None:
@@ -384,6 +417,35 @@ class Settings:
         """
         dari_env = os.getenv("ARTIFACTS_DIR", "").strip()
         return Path(dari_env) if dari_env else self.repo_root / "artifacts"
+
+    @property
+    def media_dir(self) -> str:
+        """Folder berkas video/foto yang boleh dipilih layar Sumber Kamera.
+
+        Di Docker `MEDIA_DIR` diisi compose dan menunjuk `/media`, hasil mount
+        `./media:/media`. Di jalur NATIVE tidak ada mount itu, jadi bawaannya
+        turun ke `media/` di repo — bukan `/media`, yang tidak ada di macOS.
+
+        Kenapa bawaan absolut itu berbahaya: `MediaLibrary` sengaja memulangkan
+        daftar KOSONG untuk folder yang tidak ada (layar kosong bisa dibaca,
+        layar gagal-muat tidak). Jadi menatap folder yang salah terlihat persis
+        seperti folder yang memang belum diisi — nol galat, nol petunjuk. Sudah
+        memakan waktu sekali, 2026-09-21.
+        """
+        dari_env = os.getenv("MEDIA_DIR", "").strip()
+        return dari_env if dari_env else str(self.repo_root / "media")
+
+    @property
+    def media_env_path(self) -> str:
+        """Berkas setelan sumber kamera per line, ditulis konsol.
+
+        TERPISAH dari `.env`, yang memuat `LICENSE_TOKEN` / `R2_SECRET_ACCESS_KEY`
+        / `WEBHOOK_SECRET` dan tidak pernah ditulis kode mana pun. Bawaannya
+        mengikuti `media_dir`: `/config/media.env` di container, `media.env` di
+        repo untuk jalur native.
+        """
+        dari_env = os.getenv("MEDIA_ENV_PATH", "").strip()
+        return dari_env if dari_env else str(self.repo_root / "media.env")
 
     @property
     def state_dir(self) -> Path:

@@ -128,16 +128,39 @@ def _twin_plates(db: Path) -> int:
         con.close()
 
 
+def _isi(db: Path) -> dict[str, list]:
+    """Every row of every table, which is what "writes nothing" has to mean here.
+
+    Not the raw bytes. `ConsoleStore` sets `PRAGMA journal_mode=WAL` on open, and on
+    a database that is not yet in WAL mode that rewrites 4 bytes of the file header
+    before a single statement runs — measured, on a table with no rows. Comparing
+    bytes therefore fails on a machine whose fixture file starts in rollback mode
+    even though the data is untouched, which is exactly what it did the first time
+    this suite ran in CI.
+    """
+    con = sqlite3.connect(db)
+    try:
+        tabel = [
+            r[0]
+            for r in con.execute(
+                "select name from sqlite_master where type='table' and name not like 'sqlite_%'"
+            )
+        ]
+        return {t: con.execute(f"select * from {t} order by 1").fetchall() for t in tabel}
+    finally:
+        con.close()
+
+
 def test_dry_run_does_not_touch_the_file(factory_db):
     """Run first to read before deciding. If this mode also wrote, there would be
     no safe way to check the result before changing the mill's data."""
-    before = factory_db.read_bytes()
+    before = _isi(factory_db)
 
     result = _run(factory_db)
 
     assert result.returncode == 0, result.stderr
     assert "lihat saja" in result.stdout
-    assert factory_db.read_bytes() == before, "the file changed even though this is dry-run mode"
+    assert _isi(factory_db) == before, "the data changed even though this is dry-run mode"
 
 
 def test_the_report_names_plates_so_a_person_can_match_them(factory_db):

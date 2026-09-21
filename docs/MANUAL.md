@@ -149,6 +149,13 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 | 5 | Timbang keluar | Scan QR di kolom **Truk keluar** → isi tara. Dua tiket terbuka → konsol menolak menebak, pilih di tabel | tahap `departed`: tara + jam keluar |
 | 6 | AutoERP | — | neto = bruto − tara, potongan, harga, Purchase Receipt |
 
+Tabel Timbangan memakai kolom **Lama**: berapa lama truk itu diproses, dihitung
+dari jam timbang masuk ke jam timbang keluar (`25 mnt`, `1 j 45 mnt`). Tiket
+yang belum timbang keluar tampil `-`, bukan nol — truknya masih di pabrik. Angka
+ini tidak disimpan di mana pun, selalu dihitung ulang dari dua jam timbangan,
+supaya tidak pernah ada dua angka yang bisa berbeda kalau salah satu jam
+dikoreksi.
+
 Aturan angka yang dijaga konsol:
 
 - **Neto dihitung, tidak pernah dipercaya** dari pengirim. Beda lebih dari 1 kg → ditolak.
