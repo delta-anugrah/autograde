@@ -169,4 +169,12 @@ def test_the_loop_setting_reaches_every_line_and_the_camera():
     assert compose == ["false"] * 3, "every line must carry the setting, off by default"
     assert "\nCAMERA_VIDEO_LOOP=false\n" in (repo / ".env.example").read_text()
     # main.py imports torch, so it cannot be run here; the wiring is read instead.
-    assert "loop=settings.camera_video_loop" in (repo / "src/palmgrade/main.py").read_text()
+    # The setting no longer reaches OpenCVCamera directly — it now flows through
+    # the sumber-kamera resolver (settings.camera_video_loop -> rencana_kamera(...)
+    # -> RencanaKamera.loop -> OpenCVCamera(loop=...)). Asserting both links keeps
+    # this test honest about the real chain instead of pinning one literal that
+    # happens to appear in the source.
+    main_py = (repo / "src/palmgrade/main.py").read_text()
+    assert "settings.camera_video_loop" in main_py, "the env setting must still feed the resolver"
+    assert "rencana_kamera(" in main_py, "camera build must go through the resolver"
+    assert "loop=rencana.loop" in main_py, "the resolver's plan must be what reaches the camera"
