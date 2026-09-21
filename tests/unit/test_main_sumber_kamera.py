@@ -8,6 +8,8 @@ import pytest
 from palmgrade.core.config import Settings
 from palmgrade.domain.sumber_kamera_resolver import rencana_kamera
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 
 @pytest.fixture(autouse=True)
 def _bersihkan_env(monkeypatch):
@@ -103,3 +105,22 @@ def test_env_tetap_menang_untuk_docker(monkeypatch):
     s = Settings()
     assert s.media_dir == "/media"
     assert s.media_env_path == "/config/media.env"
+
+
+def test_main_meneruskan_media_dir_ke_resolver():
+    """`main.py` harus mengirim `media_dir=settings.media_dir` ke resolver.
+
+    `rencana_kamera` punya bawaan `MEDIA_DIR = "/media"` — path di dalam
+    container. Tanpa argumen ini, jalur native memakai bawaan itu dan line mati
+    saat start: "File tidak ditemukan: /media/sample_sawit.jpg", walau berkasnya
+    ada di `media/` repo dan layar sudah memilihnya. Terjadi 2026-09-21, bentuk
+    yang sama dengan bug `Settings.media_dir` sebelumnya: satu tempat sudah
+    benar, pemanggilnya masih memakai bawaan.
+    """
+    sumber = (REPO_ROOT / "src" / "palmgrade" / "main.py").read_text(encoding="utf-8")
+    awal = sumber.find("rencana_kamera(")
+    assert awal != -1, "panggilan rencana_kamera tidak ditemukan di main.py"
+    # Sampai `)` yang menutup panggilan, bukan `)` pertama — argumen pertamanya
+    # sendiri sebuah panggilan (`settings.sumber_kamera()`).
+    panggilan = sumber[awal : sumber.find("\n        )", awal)]
+    assert "media_dir=settings.media_dir" in panggilan

@@ -153,6 +153,20 @@ LINE_PORT ?= 800$(N)
 LINE_1_ID ?= d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01
 LINE_2_ID ?= a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02
 LINE_3_ID ?= ad5f7bb9-c06d-4e87-8282-ce450ae331ec
+
+# Sumber kamera line ini, dibaca dari `media.env` — berkas yang ditulis layar
+# Sumber Kamera di konsol. Di Docker, compose yang meneruskan `LINE_N_*` lewat
+# `--env-file`; jalur native tidak lewat compose sama sekali, jadi tanpa tiga
+# baris ini `make line` jatuh ke `CAMERA_TYPE` di `.env` — SATU nilai untuk
+# ketiga line, dan pilihan per-line di layar diam-diam tidak berlaku. Gejalanya:
+# pilih Foto di Line 2, jalankan `make line N=2`, yang muncul video dari `.env`.
+# Nol galat, karena `.env` memang berisi setelan yang sah.
+# `:=` bukan `?=`: nilainya dihitung sekali di sini, dan `?=` dengan `$(shell)`
+# akan menunda pengembangan sampai dipakai — di dalam resep `$(if ...)` itu
+# terbaca kosong.
+LINE_CAMERA_TYPE := $(shell sed -n 's/^LINE_$(N)_CAMERA_TYPE=//p' $(MEDIA_ENV) 2>/dev/null)
+LINE_MEDIA_FILE := $(shell sed -n 's/^LINE_$(N)_MEDIA_FILE=//p' $(MEDIA_ENV) 2>/dev/null)
+LINE_VIDEO_LOOP := $(shell sed -n 's/^LINE_$(N)_VIDEO_LOOP=//p' $(MEDIA_ENV) 2>/dev/null)
 LINE_ID = $(LINE_$(N)_ID)
 # ARTIFACTS_DIR dipisah per line, meniru volume compose
 # (`./artifacts/line-N:/app/artifacts`). Tanpa ini tiga line native menulis ke
@@ -168,7 +182,13 @@ LINE_ID = $(LINE_$(N)_ID)
 line:
 	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) MACHINE_ID=$(LINE_ID) \
 	BACKEND_URL=http://127.0.0.1:$(CONSOLE_PORT) \
-	ARTIFACTS_DIR=$(CURDIR)/artifacts/line-$(N) PYTHONPATH=src \
+	ARTIFACTS_DIR=$(CURDIR)/artifacts/line-$(N) \
+	MEDIA_DIR=$(CURDIR)/media \
+	$(if $(LINE_CAMERA_TYPE),CAMERA_TYPE=$(LINE_CAMERA_TYPE)) \
+	$(if $(LINE_CAMERA_TYPE),MEDIA_FILE=$(LINE_MEDIA_FILE)) \
+	$(if $(LINE_CAMERA_TYPE),CAMERA_VIDEO_PATH= CAMERA_PHOTO_PATH=) \
+	$(if $(LINE_VIDEO_LOOP),CAMERA_VIDEO_LOOP=$(LINE_VIDEO_LOOP)) \
+	PYTHONPATH=src \
 		.venv/bin/uvicorn palmgrade.main:app --host 127.0.0.1 --port $(LINE_PORT)
 
 # Fullscreen on this PC. A page cannot fullscreen itself (requestFullscreen
