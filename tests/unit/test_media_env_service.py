@@ -1,0 +1,121 @@
+"""Baca & tulis media.env — satu-satunya yang tahu bentuk berkas itu."""
+from __future__ import annotations
+
+from palmgrade.services.media_env_service import (
+    BAWAAN,
+    LINE_CODES,
+    MediaEnvService,
+)
+
+
+def test_line_codes_tiga():
+    assert LINE_CODES == ("line-1", "line-2", "line-3")
+
+
+def test_berkas_belum_ada_memberi_bawaan(tmp_path):
+    svc = MediaEnvService(tmp_path / "media.env")
+    hasil = svc.baca()
+    assert hasil == {kode: dict(BAWAAN) for kode in LINE_CODES}
+
+
+def test_bawaan_hikrobot(tmp_path):
+    # PC pabrik yang belum punya media.env harus tetap memakai kamera sungguhan.
+    svc = MediaEnvService(tmp_path / "media.env")
+    assert svc.baca()["line-1"]["sumber"] == "hikrobot"
+
+
+def test_tulis_lalu_baca_bolak_balik(tmp_path):
+    svc = MediaEnvService(tmp_path / "media.env")
+    setelan = {
+        "line-1": {"sumber": "hikrobot", "berkas": "", "ulang": False},
+        "line-2": {"sumber": "video", "berkas": "konveyor.mp4", "ulang": True},
+        "line-3": {"sumber": "foto", "berkas": "sawit.jpg", "ulang": False},
+    }
+    svc.tulis(setelan)
+    assert svc.baca() == setelan
+
+
+def test_isi_berkas_bentuk_env(tmp_path):
+    path = tmp_path / "media.env"
+    MediaEnvService(path).tulis(
+        {
+            "line-1": {"sumber": "video", "berkas": "a.mp4", "ulang": True},
+            "line-2": {"sumber": "hikrobot", "berkas": "", "ulang": False},
+            "line-3": {"sumber": "hikrobot", "berkas": "", "ulang": False},
+        }
+    )
+    isi = path.read_text(encoding="utf-8")
+    assert "LINE_1_CAMERA_TYPE=opencv" in isi
+    assert "LINE_1_MEDIA_FILE=a.mp4" in isi
+    assert "LINE_1_VIDEO_LOOP=true" in isi
+    assert "LINE_2_CAMERA_TYPE=hikrobot" in isi
+    assert "LINE_2_MEDIA_FILE=" in isi
+
+
+def test_baris_tak_dikenal_diabaikan(tmp_path):
+    # Berkas yang ditulis versi lebih baru tidak boleh mematikan versi lama.
+    path = tmp_path / "media.env"
+    path.write_text(
+        "LINE_1_CAMERA_TYPE=photo\n"
+        "LINE_1_MEDIA_FILE=sawit.jpg\n"
+        "LINE_9_WARNA=merah\n"
+        "BUKAN_BARIS_ENV\n"
+        "# komentar\n"
+        "\n",
+        encoding="utf-8",
+    )
+    hasil = MediaEnvService(path).baca()
+    assert hasil["line-1"] == {"sumber": "foto", "berkas": "sawit.jpg", "ulang": False}
+    assert hasil["line-2"] == dict(BAWAAN)
+
+
+def test_camera_type_asing_jatuh_ke_bawaan(tmp_path):
+    # Berkas disunting tangan dengan nilai ngawur: line tetap boot memakai
+    # kamera sungguhan, bukan gagal.
+    path = tmp_path / "media.env"
+    path.write_text("LINE_1_CAMERA_TYPE=gopro\n", encoding="utf-8")
+    assert MediaEnvService(path).baca()["line-1"] == dict(BAWAAN)
+
+
+def test_opencv_tanpa_berkas_terbaca_webcam(tmp_path):
+    path = tmp_path / "media.env"
+    path.write_text("LINE_1_CAMERA_TYPE=opencv\nLINE_1_MEDIA_FILE=\n", encoding="utf-8")
+    assert MediaEnvService(path).baca()["line-1"]["sumber"] == "webcam"
+
+
+def test_opencv_dengan_berkas_terbaca_video(tmp_path):
+    path = tmp_path / "media.env"
+    path.write_text("LINE_1_CAMERA_TYPE=opencv\nLINE_1_MEDIA_FILE=a.mp4\n", encoding="utf-8")
+    assert MediaEnvService(path).baca()["line-1"]["sumber"] == "video"
+
+
+def test_tulis_tidak_meninggalkan_berkas_separo(tmp_path, monkeypatch):
+    # Menulis lewat berkas sementara + os.replace: berkas setengah tertulis
+    # membuat ketiga line gagal boot.
+    import os
+
+    path = tmp_path / "media.env"
+    MediaEnvService(path).tulis({kode: dict(BAWAAN) for kode in LINE_CODES})
+    asli = path.read_text(encoding="utf-8")
+
+    def replace_gagal(src, dst):
+        raise OSError("disk penuh")
+
+    monkeypatch.setattr(os, "replace", replace_gagal)
+    try:
+        MediaEnvService(path).tulis(
+            {
+                "line-1": {"sumber": "video", "berkas": "b.mp4", "ulang": False},
+                "line-2": dict(BAWAAN),
+                "line-3": dict(BAWAAN),
+            }
+        )
+    except OSError:
+        pass
+    assert path.read_text(encoding="utf-8") == asli
+
+
+def test_tulis_membuat_folder_induk(tmp_path):
+    path = tmp_path / "config" / "media.env"
+    MediaEnvService(path).tulis({kode: dict(BAWAAN) for kode in LINE_CODES})
+    assert path.exists()
