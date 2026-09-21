@@ -204,6 +204,25 @@ def test_makefile_membawa_kedua_env_file():
     assert not nakal, f"pemanggil tanpa media.env: {nakal}"
 
 
+def test_console_native_menunjuk_folder_media_repo():
+    """`make console` (native, tanpa Docker) harus menimpa MEDIA_DIR.
+
+    Bawaan `Settings` adalah `/media` dan `/config/media.env` — path DI DALAM
+    container, yang di compose datang dari mount `./media:/media`. Jalur native
+    tidak punya mount itu, jadi tanpa penimpaan ini `MediaLibrary` menatap
+    folder yang tidak ada dan memulangkan daftar KOSONG tanpa galat (folder
+    hilang = kosong, itu memang perilakunya). Gejalanya: layar Sumber Kamera
+    bilang "belum ada berkas" walau `media/` di repo berisi — terbaca seperti
+    fitur rusak. Sudah terjadi sekali, 2026-09-21.
+    """
+    teks = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
+    resep = teks.split("\nconsole:\n", 1)
+    assert len(resep) == 2, "target `console:` tidak ditemukan di Makefile"
+    badan = resep[1].split("\n\n", 1)[0]
+    assert "MEDIA_DIR=$(CURDIR)/media" in badan
+    assert "MEDIA_ENV_PATH=$(CURDIR)/$(MEDIA_ENV)" in badan
+
+
 def test_makefile_membuat_media_env_kalau_hilang():
     # C2: `--env-file` yang berkasnya tidak ada = exit 1 untuk SEMUA target.
     teks = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
