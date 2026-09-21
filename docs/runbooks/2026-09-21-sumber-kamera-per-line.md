@@ -61,51 +61,116 @@ Sumber Kamera yang menulis berkas ini; simpan berikutnya dari layar akan
 menimpa **seluruh isi berkas**, termasuk perubahan tangan yang baru saja
 dibuat.
 
-⚠️ **`media.env` tidak ikut git.** PC baru (atau checkout bersih) butuh:
+⚠️ **`media.env` tidak ikut git, dan `make` yang membuatkannya.** Berkas ini
+keadaan per-mesin, jadi clone bersih dan PC pabrik yang baru `git pull` tidak
+punya. Target `make` apa pun (`up`, `restart`, `logs`, `down`, …) membuatnya
+dari `media.env.example` kalau belum ada — ketiga line `hikrobot`, bawaan yang
+benar untuk pabrik. **Tidak ada langkah manual.**
+
+Kenapa penjaga itu ada: Compose menolak `--env-file` yang berkasnya tidak ada
+(exit 1, `couldn't find env file`), persis seperti `env_file:`. Tanpa penjaga,
+satu `git pull` di PC pabrik membuat **semua** perintah `make` mati sekaligus —
+termasuk `make down` dan `make logs`, yaitu perintah yang dipakai orang untuk
+mencari tahu ada apa.
+
+⚠️ **`media.env` diberikan lewat `--env-file`, BUKAN `env_file:` di compose.**
+Ini satu-satunya bentuk yang bekerja, dan kenapa penting dipahami sebelum ada
+yang "merapikannya" kembali:
+
+Compose menyelesaikan `${LINE_1_CAMERA_TYPE}` di `docker-compose.yml` dari
+**environment shell + berkas `--env-file` saja**. `env_file:` menyuntik
+environment **container**, dan itu terjadi **sesudah** interpolasi selesai. Jadi
+`env_file: media.env` membuat `${LINE_1_CAMERA_TYPE:-hikrobot}` selalu jatuh ke
+`hikrobot` betapapun benar isi berkasnya — seluruh fitur ini mati, tanpa satu
+pun error, dengan layar yang tetap menerima pilihan dan menyimpannya.
+
+⚠️ **Yang membuktikannya `CAMERA_TYPE`, bukan `LINE_1_CAMERA_TYPE`.** Nama
+`LINE_*_` tetap muncul di environment container walau mekanismenya rusak (ikut
+terbawa `env_file`), dan itulah yang dulu membuat versi rusak terlihat sehat.
+Yang dibaca `core/config.py` cuma `CAMERA_TYPE` / `MEDIA_FILE` /
+`CAMERA_VIDEO_LOOP`.
+
+⚠️ **`docker-compose.prod.yml` harus ikut diubah setiap kali.** Berkas itu
+memakai `volumes: !override` (MENGGANTI daftar mount, bukan menambah) dan
+menulis ulang seluruh blok `environment:` konsol, karena Compose v2.40.3 di PC
+Lampung membuang blok dasar begitu override menyebut kunci yang sama
+(autograde#120). Mount `./media:/media:ro`, `./media.env:/config/media.env`, dan
+variabel `MEDIA_DIR`/`MEDIA_ENV_PATH`/`MEDIA_FILE` **semuanya harus ada di
+override itu juga** — kalau tidak, layar Sumber Kamera di pabrik tampil,
+menerima pilihan, dan tidak melakukan apa pun: daftar berkasnya kosong
+selamanya.
+
+## 🔴 Skrip launcher PC pabrik HARUS diedit tangan
+
+`/opt/palmgrade/autograde.sh` dan `/opt/palmgrade/palmgrade.sh` **hidup di host
+PC pabrik, di luar repo ini**, dan mesin itu tidak punya SSH masuk — editnya
+lewat AnyDesk. Skrip itu memanggil `docker compose` sendiri, **tidak** lewat
+`Makefile`, jadi perbaikan di repo ini **tidak menjangkaunya**.
+
+Selama skrip itu belum diedit, layar Sumber Kamera di Lampung akan tersimpan
+tapi tidak berefek — gejalanya sama persis dengan bug yang baru diperbaiki.
+
+Dua perubahan, di **setiap** pemanggilan `docker compose` di kedua skrip:
+
+1. **Tambahkan flag kedua.** Setiap
+   `docker compose --env-file "$ENV_FILE" …`
+   jadi
+   `docker compose --env-file "$ENV_FILE" --env-file "$MEDIA_ENV" …`
+   dengan `MEDIA_ENV=/opt/palmgrade/autograde/media.env`.
+
+2. **Buat berkasnya kalau belum ada**, sekali di dekat awal skrip — kalau tidak
+   setiap perintah mati dengan `couldn't find env file`:
+
+   ```bash
+   MEDIA_ENV=/opt/palmgrade/autograde/media.env
+   [ -f "$MEDIA_ENV" ] || cp /opt/palmgrade/autograde/media.env.example "$MEDIA_ENV"
+   ```
+
+   (`media.env.example` ikut image/checkout; kalau di PC itu belum ada, tulis
+   sembilan barisnya tangan — isinya ada di `media.env.example` repo ini.)
+
+Cara memastikan sudah benar, di PC itu, **sebelum** dianggap selesai:
 
 ```bash
-cp media.env.example media.env
+cd /opt/palmgrade/autograde
+docker compose --env-file .env --env-file media.env \
+  -f docker-compose.yml -f docker-compose.prod.yml config \
+  | grep -E 'CAMERA_TYPE|MEDIA_FILE'
 ```
-
-sekali saat pemasangan. Tanpa langkah ini ketiga line jatuh ke bawaan
-`hikrobot` — yang **benar** untuk pabrik, jadi kelalaiannya tidak terlihat
-sampai ada yang mencoba mode Video atau Foto dan bingung kenapa pilihannya
-tidak tersimpan / tidak berefek.
-
-⚠️ **`docker compose config` di MacBook tidak membuktikan apa pun** soal
-Compose di PC pabrik. Versi Compose beda jauh (MacBook ini v5.5.1, PC pabrik
-v2.40.3), dan berkas yang sebenarnya rusak untuk pabrik bisa terlihat sehat
-sempurna di MacBook — sudah pernah kejadian (autograde#120, soal blok
-`environment:` konsol yang tertimpa `docker-compose.prod.yml`). Kalau perlu
-membuktikan urusan `env_file`/`media.env` tergabung dengan benar, buktikan di
-mesin Linux dengan Compose seumur pabrik, bukan di laptop.
 
 ## Terbukti di
 
-⏸️ **Belum dijalankan.** Langkah ini butuh mesin Linux dengan Docker Compose
-v2.x (seumur pabrik) — MacBook ini tidak punya Compose v2.x, jadi pembuktian
-di bawah **belum dieksekusi** dan masih pending. Jangan dianggap sudah lolos
-sampai ada yang benar-benar menjalankannya dan mencatat hasilnya di sini.
+✅ **MacBook, 2026-09-21, Docker Compose v5.5.1.** Yang dibuktikan di sini
+adalah **mekanismenya** — `--env-file` ikut interpolasi, `env_file:` tidak —
+dan itu berlaku sama di v2.x karena urutannya (interpolasi dulu, environment
+container kemudian) tidak berubah antar versi.
 
-Langkah yang harus dijalankan, dari clone bersih di mesin Linux itu:
+Sebelum perbaikan, dengan `env_file: media.env` dan `LINE_1_CAMERA_TYPE=opencv`
+di berkasnya:
 
-```bash
-docker compose version   # pastikan v2.x, bukan v1 legacy
-cp media.env.example media.env
-printf 'LINE_2_CAMERA_TYPE=photo\nLINE_2_MEDIA_FILE=sawit.jpg\n' >> media.env
-docker compose config | grep -A2 'CAMERA_TYPE'
+```
+ripe-line-1:  CAMERA_TYPE: hikrobot      <-- salah, setelan diabaikan
+ripe-line-2:  CAMERA_TYPE: hikrobot
+ripe-line-3:  CAMERA_TYPE: hikrobot
 ```
 
-Yang dianggap **berhasil**: output menunjukkan `ripe-line-2` memakai
-`CAMERA_TYPE=photo`, sementara `ripe-line-1` dan `ripe-line-3` tetap
-`CAMERA_TYPE=hikrobot`. Itu artinya `env_file: media.env` per service
-tergabung dengan benar oleh Compose v2.x, sesuai yang diasumsikan Task 11.
+Sesudah perbaikan (`--env-file .env --env-file media.env`), line-1 video,
+line-2 foto, line-3 kamera:
 
-Kalau hasilnya **berbeda** dari itu — misalnya `env_file` tidak tergabung
-sama sekali, atau ketiga line memakai nilai yang sama — **berhenti dan
-laporkan**: berarti seluruh pendekatan `media.env` terpisah perlu bentuk lain
-(menulis nilai langsung ke `.env` utama, bukan berkas `env_file` terpisah).
+```
+ripe-line-1:  CAMERA_TYPE: opencv   MEDIA_FILE: konveyor.mp4  CAMERA_VIDEO_LOOP: "true"
+ripe-line-2:  CAMERA_TYPE: photo    MEDIA_FILE: sawit.jpg
+ripe-line-3:  CAMERA_TYPE: hikrobot MEDIA_FILE: ""
+```
 
-Begitu langkah ini dijalankan, catat di sini: tanggal, versi
-`docker compose version` yang dipakai, dan hasil `grep`-nya (tempel output
-sebenarnya, bukan ringkasan).
+Merged dengan `docker-compose.prod.yml` hasilnya sama, dan keempat service
+tetap memegang mount `/media` (konsol plus `/config/media.env`).
+
+Dijaga otomatis oleh `tests/unit/test_compose_sumber_kamera.py`, yang merender
+`docker compose config` sungguhan dan membaca nilainya (di-skip kalau `docker`
+tidak ada).
+
+⏸️ **Yang MASIH belum dijalankan di mesin pabrik:** edit dua skrip launcher di
+atas, lalu `grep` pembuktian di PC Lampung sendiri. Sampai itu dilakukan,
+fiturnya bekerja di repo tapi belum bekerja di Lampung. Catat di sini tanggal,
+`docker compose version` PC itu, dan output `grep`-nya yang sebenarnya.
