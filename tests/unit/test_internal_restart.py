@@ -8,8 +8,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+# `routes/internal` menarik pipeline, dan pipeline menarik torch. CI vision
+# sengaja tidak memasangnya (lihat test_edge_realtime_outbox.py), jadi tanpa
+# penjaga ini berkasnya error di collection — bukan gagal karena apa yang
+# diperiksanya, melainkan karena tidak bisa dimuat sama sekali.
 @pytest.fixture
 def client(monkeypatch):
+    pytest.importorskip("torch")
     monkeypatch.setenv("WEBHOOK_SECRET", "rahasia-tes")
     monkeypatch.setenv("APP_MODE", "line")
     from palmgrade.core.config import Settings
