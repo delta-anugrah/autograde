@@ -203,7 +203,8 @@ autograde/
 │   └── release/
 │       └── best.pt    # YOLO model — required, not committed to git
 ├── images/
-│   └── sample_sawit.jpg         # gambar contoh untuk CAMERA_TYPE=photo
+│   └── sample_sawit.jpg         # gambar contoh lama untuk CAMERA_TYPE=photo — lihat media/ untuk jalur baru
+├── media/                       # Video/foto sumber kamera per line, dipilih dari layar Support — not committed to git
 ├── artifacts/                   # Runtime output — not committed to git
 │   ├── line-1/
 │   ├── line-2/
@@ -215,7 +216,9 @@ autograde/
 ├── docker-compose.yml           # 4 services: line-1..3 (8001-8003) + console (8000; prod menimpanya jadi 8100)
 ├── requirements.txt
 ├── .env                         # Local env (copy from .env.example)
-└── .env.example
+├── .env.example
+├── media.env                    # Sumber kamera per line (Docker), ditulis layar Support — not committed to git
+└── media.env.example
 ```
 
 ---
@@ -235,10 +238,10 @@ cp .env.example .env
 Key variables to fill in:
 
 ```env
-# Kamera — pilih sesuai environment
-CAMERA_TYPE=hikrobot        # hikrobot | opencv | photo
-CAMERA_VIDEO_PATH=          # isi path video kalau CAMERA_TYPE=opencv dan mau pakai video file
-CAMERA_PHOTO_PATH=          # wajib kalau CAMERA_TYPE=photo
+# Sumber kamera pindah ke `media.env` (per line, diatur layar Support).
+# Salin contohnya sekali saat pemasangan:
+cp media.env.example media.env
+# Berkas video/foto ditaruh di folder `media/`.
 
 # Backend — ke mana line mengirim event.
 # Di PC pabrik ini adalah KONSOL, bukan palmgrade-api (yang sudah pensiun):

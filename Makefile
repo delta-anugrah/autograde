@@ -94,7 +94,10 @@ console:
 # TensorRT; ketiganya Linux + GPU NVIDIA).
 #
 # Sumber gambarnya dibaca dari `.env` APA ADANYA — target ini sengaja tidak
-# menyetel CAMERA_TYPE sendiri. Setel di `.env`:
+# menyetel CAMERA_TYPE sendiri. ⚠️ Ini BEDA dengan jalur Docker (make up /
+# up-dev / prod pabrik), yang sumbernya diatur per line dari layar Support
+# lewat `media.env` — `make line` TIDAK membaca `media.env` sama sekali.
+# Setel di `.env`:
 #   CAMERA_TYPE=opencv + CAMERA_VIDEO_PATH=/path/video.mp4   -> file video
 #   CAMERA_TYPE=photo  + CAMERA_PHOTO_PATH=images/x.jpg      -> satu gambar
 #   CAMERA_TYPE=hikrobot                                     -> kamera pabrik
