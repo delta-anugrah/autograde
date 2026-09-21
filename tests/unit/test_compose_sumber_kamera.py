@@ -49,8 +49,17 @@ LINE_3_MEDIA_FILE=
 LINE_3_VIDEO_LOOP=false
 """
 
+# `docker compose config` di bawah menuntut `--env-file .env`, dan `.env` itu
+# keadaan per-mesin yang di-`.gitignore` — runner CI tidak pernah punya. Menanyakan
+# `docker` saja tidak cukup: runner GitHub PUNYA docker, jadi skip-nya tidak kena
+# dan test gagal dengan "couldn't find env file" yang tidak ada hubungannya dengan
+# apa yang diperiksa. Sudah terjadi: PR #128 membuat `staging` merah karena ini.
 _ADA_DOCKER = shutil.which("docker") is not None
-butuh_docker = pytest.mark.skipif(_ADA_DOCKER is False, reason="docker tidak ada")
+_ADA_ENV = (REPO_ROOT / ".env").exists()
+butuh_docker = pytest.mark.skipif(
+    not (_ADA_DOCKER and _ADA_ENV),
+    reason="butuh docker + .env (keduanya tidak ada di runner CI)",
+)
 
 
 def _render(berkas_prod: bool) -> dict:
