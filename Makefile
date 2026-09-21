@@ -156,17 +156,15 @@ LINE_3_ID ?= ad5f7bb9-c06d-4e87-8282-ce450ae331ec
 
 # Sumber kamera line ini, dibaca dari `media.env` — berkas yang ditulis layar
 # Sumber Kamera di konsol. Di Docker, compose yang meneruskan `LINE_N_*` lewat
-# `--env-file`; jalur native tidak lewat compose sama sekali, jadi tanpa tiga
-# baris ini `make line` jatuh ke `CAMERA_TYPE` di `.env` — SATU nilai untuk
-# ketiga line, dan pilihan per-line di layar diam-diam tidak berlaku. Gejalanya:
-# pilih Foto di Line 2, jalankan `make line N=2`, yang muncul video dari `.env`.
-# Nol galat, karena `.env` memang berisi setelan yang sah.
-# `:=` bukan `?=`: nilainya dihitung sekali di sini, dan `?=` dengan `$(shell)`
-# akan menunda pengembangan sampai dipakai — di dalam resep `$(if ...)` itu
-# terbaca kosong.
-LINE_CAMERA_TYPE := $(shell sed -n 's/^LINE_$(N)_CAMERA_TYPE=//p' $(MEDIA_ENV) 2>/dev/null)
-LINE_MEDIA_FILE := $(shell sed -n 's/^LINE_$(N)_MEDIA_FILE=//p' $(MEDIA_ENV) 2>/dev/null)
-LINE_VIDEO_LOOP := $(shell sed -n 's/^LINE_$(N)_VIDEO_LOOP=//p' $(MEDIA_ENV) 2>/dev/null)
+# `--env-file`; jalur native tidak lewat compose sama sekali, jadi tanpa itu
+# `make line` jatuh ke `CAMERA_TYPE` di `.env` — SATU nilai untuk ketiga line,
+# dan pilihan per-line di layar diam-diam tidak berlaku. Gejalanya: pilih Foto
+# di Line 2, jalankan `make line N=2`, yang muncul video dari `.env`. Nol galat,
+# karena `.env` memang berisi setelan yang sah.
+#
+# Pembacaannya ada DI DALAM resep `line`, bukan di sini sebagai variabel make:
+# resep itu berputar, dan tiap putaran harus membaca ulang berkasnya — setelan
+# baru itulah alasan line-nya keluar.
 LINE_ID = $(LINE_$(N)_ID)
 # ARTIFACTS_DIR dipisah per line, meniru volume compose
 # (`./artifacts/line-N:/app/artifacts`). Tanpa ini tiga line native menulis ke
@@ -179,17 +177,42 @@ LINE_ID = $(LINE_$(N)_ID)
 # Tanpa ini janjangnya TERSIMPAN di disk tapi tiap kiriman dibalas 404 — layar
 # tetap nol dan yang terlihat cuma baris "Outbox delivery failed ... HTTP 404"
 # di log line, jauh dari layar yang sedang ditonton.
+# ⚠️ Berputar sampai Ctrl-C, meniru `restart: unless-stopped` milik Docker.
+# Layar Sumber Kamera merestart line dengan menyuruh prosesnya KELUAR
+# (`POST /internal/restart`) — di pabrik Docker yang menyalakannya lagi dengan
+# environment yang dibaca ulang. Jalur native tidak punya siapa-siapa, jadi
+# tanpa loop ini "Simpan & Restart" mematikan line dan tidak pernah
+# menghidupkannya: layar bilang tersimpan, kartunya berubah OFFLINE, dan
+# tidak ada satu pun galat yang menjelaskan.
+#
+# `media.env` dibaca ULANG di tiap putaran, bukan dipakai dari variabel make
+# yang dihitung sekali saat start — justru setelan BARU itu alasan line-nya
+# keluar. Keluar bersih (exit 0) tetap berputar; Ctrl-C (130) dan kegagalan
+# start (mis. berkas media rusak) berhenti, supaya salah setelan tidak jadi
+# loop gagal-nyala yang memenuhi layar.
 line:
-	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) MACHINE_ID=$(LINE_ID) \
-	BACKEND_URL=http://127.0.0.1:$(CONSOLE_PORT) \
-	ARTIFACTS_DIR=$(CURDIR)/artifacts/line-$(N) \
-	MEDIA_DIR=$(CURDIR)/media \
-	$(if $(LINE_CAMERA_TYPE),CAMERA_TYPE=$(LINE_CAMERA_TYPE)) \
-	$(if $(LINE_CAMERA_TYPE),MEDIA_FILE=$(LINE_MEDIA_FILE)) \
-	$(if $(LINE_CAMERA_TYPE),CAMERA_VIDEO_PATH= CAMERA_PHOTO_PATH=) \
-	$(if $(LINE_VIDEO_LOOP),CAMERA_VIDEO_LOOP=$(LINE_VIDEO_LOOP)) \
-	PYTHONPATH=src \
-		.venv/bin/uvicorn palmgrade.main:app --host 127.0.0.1 --port $(LINE_PORT)
+	@while true; do \
+		TYPE=$$(sed -n 's/^LINE_$(N)_CAMERA_TYPE=//p' $(MEDIA_ENV) 2>/dev/null); \
+		FILE=$$(sed -n 's/^LINE_$(N)_MEDIA_FILE=//p' $(MEDIA_ENV) 2>/dev/null); \
+		LOOP=$$(sed -n 's/^LINE_$(N)_VIDEO_LOOP=//p' $(MEDIA_ENV) 2>/dev/null); \
+		env WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) MACHINE_ID=$(LINE_ID) \
+			BACKEND_URL=http://127.0.0.1:$(CONSOLE_PORT) \
+			ARTIFACTS_DIR=$(CURDIR)/artifacts/line-$(N) \
+			MEDIA_DIR=$(CURDIR)/media \
+			$${TYPE:+CAMERA_TYPE=$$TYPE} \
+			$${TYPE:+MEDIA_FILE=$$FILE} \
+			$${TYPE:+CAMERA_VIDEO_PATH=} $${TYPE:+CAMERA_PHOTO_PATH=} \
+			$${LOOP:+CAMERA_VIDEO_LOOP=$$LOOP} \
+			PYTHONPATH=src \
+			.venv/bin/uvicorn palmgrade.main:app --host 127.0.0.1 --port $(LINE_PORT); \
+		RC=$$?; \
+		if [ $$RC -ne 0 ]; then \
+			echo "line-$(N) berhenti (exit $$RC) — tidak dinyalakan ulang"; \
+			exit $$RC; \
+		fi; \
+		echo "line-$(N) keluar atas permintaan konsol — menyalakan ulang dengan setelan baru"; \
+		sleep 1; \
+	done
 
 # Fullscreen on this PC. A page cannot fullscreen itself (requestFullscreen
 # needs a user gesture), so the browser is what gets configured.

@@ -254,3 +254,43 @@ def test_konsol_tidak_memount_dotenv():
     # `.env` memuat lisensi, R2, dan webhook secret.
     vols = COMPOSE["services"]["console"].get("volumes", [])
     assert not any(v.startswith("./.env") for v in vols)
+
+
+def test_make_line_menyalakan_ulang_dan_membaca_media_env_tiap_putaran():
+    """`make line` harus berputar dan membaca `media.env` ulang tiap putaran.
+
+    Layar Sumber Kamera merestart line dengan menyuruh prosesnya KELUAR
+    (`POST /internal/restart`). Di pabrik `restart: unless-stopped` milik Docker
+    yang menyalakannya lagi; jalur native tidak punya siapa-siapa. Tanpa loop,
+    "Simpan & Restart" mematikan line dan tidak pernah menghidupkannya — layar
+    bilang tersimpan, kartunya jadi OFFLINE, nol galat yang menjelaskan.
+    Terjadi 2026-09-21.
+
+    Pembacaan `media.env` harus di DALAM loop: setelan baru itulah alasan
+    prosesnya keluar, jadi nilai yang dihitung sekali saat start akan
+    menyalakannya kembali dengan sumber yang lama.
+    """
+    teks = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
+    awal = teks.find("\nline:\n")
+    assert awal != -1, "target `line:` tidak ditemukan"
+    resep = teks[awal : teks.find("\n\n", awal + 1)]
+    assert "while true" in resep, "make line tidak berputar — restart dari layar mematikannya"
+    assert "$(MEDIA_ENV)" in resep, "media.env tidak dibaca di dalam loop"
+    assert "LINE_$(N)_CAMERA_TYPE" in resep
+    # Keluar tidak normal harus MENGHENTIKAN loop, bukan jadi gagal-nyala terus.
+    assert "exit $$RC" in resep
+
+
+def test_restart_tidak_menjanjikan_docker():
+    """Pesan keluar tidak boleh menyebut Docker.
+
+    Jalur native dinyalakan ulang loop `make line`, bukan Docker. Pesan yang
+    menyebut Docker di terminal itu membuat orang mencari container yang tidak
+    ada — sudah terjadi 2026-09-21.
+    """
+    sumber = (REPO_ROOT / "src" / "palmgrade" / "routes" / "internal.py").read_text(
+        encoding="utf-8"
+    )
+    awal = sumber.find("def _jadwalkan_keluar")
+    assert awal != -1
+    assert "Docker akan menyalakan ulang" not in sumber[awal:]
