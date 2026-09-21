@@ -110,10 +110,20 @@ up-console:
 # Port 8100 because a local AutoERP bench owns 8000. Settings come from .env
 # (console_main.py loads it); only WEBHOOK_SECRET is forced to the dev value the
 # seed script and E2E tests use. Override: make console CONSOLE_PORT=8200
+#
+# ⚠️ `MEDIA_DIR`/`MEDIA_ENV_PATH` WAJIB ditimpa di sini. Bawaannya `/media` dan
+# `/config/media.env` — path DI DALAM container, yang di compose datang dari
+# mount `./media:/media`. Tanpa mount itu (jalur native ini) keduanya menunjuk
+# folder yang tidak ada di macOS, dan `MediaLibrary` memulangkan daftar KOSONG
+# tanpa satu pun galat (folder hilang = kosong, itu memang perilakunya). Layar
+# Sumber Kamera lalu bilang "belum ada berkas" walau `media/` di repo berisi —
+# terbaca seperti fitur rusak, padahal cuma menatap folder yang salah.
 CONSOLE_PORT ?= 8100
 DEV_WEBHOOK_SECRET ?= devsecret
 console:
-	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) PYTHONPATH=src .venv/bin/uvicorn \
+	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) \
+	MEDIA_DIR=$(CURDIR)/media MEDIA_ENV_PATH=$(CURDIR)/$(MEDIA_ENV) \
+	PYTHONPATH=src .venv/bin/uvicorn \
 		palmgrade.console_main:app --host 127.0.0.1 --port $(CONSOLE_PORT)
 
 # Satu line kamera NATIVE tanpa Docker — pasangan `make console` untuk develop di
