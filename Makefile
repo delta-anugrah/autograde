@@ -2,17 +2,44 @@ ENV_FILE=.env
 # Production override: immutable image (no bind-mount of .:/app & /videos).
 PROD_FILES=-f docker-compose.yml -f docker-compose.prod.yml
 
+# Sumber kamera per line. `media.env` WAJIB lewat `--env-file`, tidak bisa lewat
+# `env_file:` di compose: Compose menyelesaikan `${LINE_1_CAMERA_TYPE}` dari
+# environment shell + berkas `--env-file` SAJA, sementara `env_file:` menyuntik
+# environment container SESUDAH interpolasi selesai. Dengan `env_file:` seluruh
+# fitur ini mati diam-diam — `docker compose config` menjawab `hikrobot` untuk
+# ketiga line betapapun benar isi `media.env`.
+#
+# Dua flag, bukan satu: `--env-file` yang kedua MENAMBAH, tidak menggantikan,
+# jadi `.env` tetap terbaca dan `media.env` cuma menimpa kunci `LINE_*_` miliknya.
+MEDIA_ENV=media.env
+
+# ⚠️ Compose menolak `--env-file` yang berkasnya tidak ada — persis seperti
+# `env_file:`. `media.env` itu keadaan per-mesin dan sengaja di-`.gitignore`,
+# jadi clone bersih dan PC pabrik yang baru `git pull` TIDAK punya berkas itu,
+# dan tanpa penjaga ini `make up` / `restart` / `logs` / `down` semuanya mati
+# dengan "env file not found". Dibuat dari contohnya (ketiga line `hikrobot`,
+# bawaan yang benar untuk pabrik) supaya nol langkah manual.
+#
+# Order-only prerequisite (`| $(MEDIA_ENV)`) tidak dipakai: yang perlu dijamin
+# cuma "berkasnya ada", bukan urutan build, dan target-target di bawah ini sudah
+# terlanjur banyak. Satu baris `@test -f || cp` di `$(COMPOSE)` menjangkau
+# SEMUA pemanggil sekaligus, termasuk yang ditambah nanti.
+COMPOSE = $(shell test -f $(MEDIA_ENV) || cp media.env.example $(MEDIA_ENV)) \
+	docker compose --env-file $(ENV_FILE) --env-file $(MEDIA_ENV)
+COMPOSE_PROD = $(shell test -f $(MEDIA_ENV) || cp media.env.example $(MEDIA_ENV)) \
+	docker compose $(PROD_FILES) --env-file $(ENV_FILE) --env-file $(MEDIA_ENV)
+
 # Production — copy SDK, build GPU+SDK, build the TensorRT engine, start all lines.
 # NOTE: for CODE changes alone `make restart` is enough — code is bind-mounted
 # (.:/app), so NO rebuild is needed. `make up` is only for dependency /
 # Dockerfile / SDK changes.
 up: sync-sdk
-	-docker compose --env-file $(ENV_FILE) down
-	docker compose --env-file $(ENV_FILE) build \
+	-$(COMPOSE) down
+	$(COMPOSE) build \
 		--build-arg TORCH_VARIANT=cu126 \
 		--build-arg WITH_SDK=true
 	$(MAKE) build-engine
-	docker compose --env-file $(ENV_FILE) up -d
+	$(COMPOSE) up -d
 	-docker image prune -f
 
 # Production IMMUTABLE — like `up` but with the docker-compose.prod.yml override,
@@ -20,11 +47,11 @@ up: sync-sdk
 # image, not the working tree. Use this on the prod PC. Since code is NOT mounted,
 # a code change in prod needs `make up-prod` again, not `make restart`.
 up-prod: sync-sdk
-	-docker compose $(PROD_FILES) --env-file $(ENV_FILE) down
-	docker compose $(PROD_FILES) --env-file $(ENV_FILE) build \
+	-$(COMPOSE_PROD) down
+	$(COMPOSE_PROD) build \
 		--build-arg TORCH_VARIANT=cu126 \
 		--build-arg WITH_SDK=true
-	docker compose $(PROD_FILES) --env-file $(ENV_FILE) up -d
+	$(COMPOSE_PROD) up -d
 	-docker image prune -f
 
 # Copy the Hikrobot MVS SDK from the host into the build context. The SDK is
@@ -42,41 +69,41 @@ sync-sdk:
 # one). Runs as a single one-shot container → no race between the 3 lines.
 # First run per PC takes 5-15 min; after that it is instant (cached in ./engines).
 build-engine:
-	docker compose --env-file $(ENV_FILE) run --rm --no-deps \
+	$(COMPOSE) run --rm --no-deps \
 		--entrypoint python ripe-line-1 scripts/build_engine.py
 
 # Full clean rebuild (use ONLY when the cache is suspect — slow, no-cache).
 rebuild-clean: sync-sdk
-	-docker compose --env-file $(ENV_FILE) down
+	-$(COMPOSE) down
 	-docker image rm palmgrade-vision:latest 2>/dev/null || true
-	docker compose --env-file $(ENV_FILE) build --no-cache \
+	$(COMPOSE) build --no-cache \
 		--build-arg TORCH_VARIANT=cu126 \
 		--build-arg WITH_SDK=true
 
 # Development — build without the SDK, CPU torch, then start all lines
 up-dev:
-	docker compose --env-file $(ENV_FILE) build \
+	$(COMPOSE) build \
 		--build-arg TORCH_VARIANT=cpu
-	docker compose --env-file $(ENV_FILE) up -d
+	$(COMPOSE) up -d
 
 # Start all lines without rebuilding (uses the existing image)
 start:
-	docker compose --env-file $(ENV_FILE) up -d
+	$(COMPOSE) up -d
 
 # Start just one line, no rebuild
 up-1:
-	docker compose --env-file $(ENV_FILE) up -d ripe-line-1
+	$(COMPOSE) up -d ripe-line-1
 
 up-2:
-	docker compose --env-file $(ENV_FILE) up -d ripe-line-2
+	$(COMPOSE) up -d ripe-line-2
 
 up-3:
-	docker compose --env-file $(ENV_FILE) up -d ripe-line-3
+	$(COMPOSE) up -d ripe-line-3
 
 # Operator console only (APP_MODE=console, port 8000) — screen at /console.
 # No camera/GPU, so it is safe to restart on its own without touching the lines.
 up-console:
-	docker compose --env-file $(ENV_FILE) up -d console
+	$(COMPOSE) up -d console
 
 # Operator console WITHOUT Docker — the development path on a Mac, where the
 # Docker targets cannot run (no MVS SDK, no NVIDIA GPU, host networking).
@@ -156,7 +183,7 @@ operator:
 	PYTHONPATH=src .venv/bin/python scripts/console-operator.py $(AKSI) $(ROLE)
 
 operator-docker:
-	docker compose --env-file $(ENV_FILE) exec console python scripts/console-operator.py $(AKSI) $(ROLE)
+	$(COMPOSE) exec console python scripts/console-operator.py $(AKSI) $(ROLE)
 
 # Data demo untuk showcase ke klien. Truk, kunjungan, janjang, dan dua akun untuk
 # masuk konsol. Platnya sama persis dengan seeder AutoERP (`palm_mill/demo.py`),
@@ -185,7 +212,7 @@ demo-off:
 	PYTHONPATH=src .venv/bin/python scripts/seed-console-demo.py --hapus
 
 demo-docker:
-	docker compose --env-file $(ENV_FILE) exec console python scripts/seed-console-demo.py \
+	$(COMPOSE) exec console python scripts/seed-console-demo.py \
 		--hari $(HARI) $(if $(filter reset,$(AKSI)),--reset,) $(if $(PAKSA),--paksa,)
 
 # Hash untuk dua akun bawaan konsol. Dipakai waktu pasang PC pabrik: sandinya beda
@@ -202,41 +229,41 @@ rekonsiliasi-truk:
 	PYTHONPATH=src .venv/bin/python scripts/rekonsiliasi-truk.py $(if $(TULIS),--tulis,)
 
 rekonsiliasi-truk-docker:
-	docker compose --env-file $(ENV_FILE) exec console python scripts/rekonsiliasi-truk.py $(if $(TULIS),--tulis,)
+	$(COMPOSE) exec console python scripts/rekonsiliasi-truk.py $(if $(TULIS),--tulis,)
 
 down:
-	docker compose --env-file $(ENV_FILE) down
+	$(COMPOSE) down
 
 restart:
-	docker compose --env-file $(ENV_FILE) restart
+	$(COMPOSE) restart
 
 # Logs per line
 logs-1:
-	docker compose --env-file $(ENV_FILE) logs -f ripe-line-1
+	$(COMPOSE) logs -f ripe-line-1
 
 logs-2:
-	docker compose --env-file $(ENV_FILE) logs -f ripe-line-2
+	$(COMPOSE) logs -f ripe-line-2
 
 logs-3:
-	docker compose --env-file $(ENV_FILE) logs -f ripe-line-3
+	$(COMPOSE) logs -f ripe-line-3
 
 logs-console:
-	docker compose --env-file $(ENV_FILE) logs -f console
+	$(COMPOSE) logs -f console
 
 # Combined logs for all lines (prefixed with the container name)
 logs:
-	docker compose --env-file $(ENV_FILE) logs -f
+	$(COMPOSE) logs -f
 
 ps:
-	docker compose --env-file $(ENV_FILE) ps
+	$(COMPOSE) ps
 
 # Rebuild the image — CUDA torch (production with an NVIDIA GPU, ~2.4GB from the
 # PyTorch CDN). TORCH_VARIANT=cu126 → needs driver >= 525 (host 580 ✅)
 rebuild:
-	docker compose --env-file $(ENV_FILE) build --build-arg TORCH_VARIANT=cu126
+	$(COMPOSE) build --build-arg TORCH_VARIANT=cu126
 
 rebuild-gpu:
-	docker compose --env-file $(ENV_FILE) build --build-arg TORCH_VARIANT=cu126
+	$(COMPOSE) build --build-arg TORCH_VARIANT=cu126
 
 # Menghapus ISI `artifacts/` dan `state/`, bukan foldernya.
 #
@@ -313,7 +340,7 @@ reset-data-fresh:
 	@echo ""
 	@printf "Ketik HAPUS untuk melanjutkan: "
 	@read jawab; [ "$$jawab" = "HAPUS" ] || { echo "Dibatalkan."; exit 1; }
-	docker compose --env-file $(ENV_FILE) down
+	$(COMPOSE) down
 	@echo "Menghapus lewat container (berkasnya milik root di Linux)..."
 	-@$(HAPUS_ISI)
 	@# Jaring kedua: sisa apa pun yang memang milik user ini — dan satu-satunya
@@ -337,7 +364,7 @@ reset-data-fresh:
 
 # Remove all containers (data artifacts are safe — they live in local volumes)
 clean:
-	docker compose --env-file $(ENV_FILE) down --rmi local
+	$(COMPOSE) down --rmi local
 
 # Run line-1 locally without Docker (needs an active Python env).
 # MACHINE_ID is deliberately NOT overridden here: main.py calls load_dotenv(), so
@@ -353,4 +380,4 @@ dev:
 # it is restarted. `up -d console` does NOT do this - it is a no-op when the
 # container already runs.
 restart-console:
-	docker compose --env-file $(ENV_FILE) restart console
+	$(COMPOSE) restart console

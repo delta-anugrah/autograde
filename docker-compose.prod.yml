@@ -21,6 +21,9 @@ services:
       - ./state/line-1:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
+      # Berkas video/foto yang dipilih layar Support. `!override` MENGGANTI
+      # daftar, jadi mount ini hilang di pabrik kalau tidak ditulis ulang di sini.
+      - ./media:/media:ro
 
   ripe-line-2:
     volumes: !override
@@ -28,6 +31,9 @@ services:
       - ./state/line-2:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
+      # Berkas video/foto yang dipilih layar Support. `!override` MENGGANTI
+      # daftar, jadi mount ini hilang di pabrik kalau tidak ditulis ulang di sini.
+      - ./media:/media:ro
 
   ripe-line-3:
     volumes: !override
@@ -35,6 +41,9 @@ services:
       - ./state/line-3:/app/state
       - ./models:/app/models:ro
       - ./engines:/app/engines
+      # Berkas video/foto yang dipilih layar Support. `!override` MENGGANTI
+      # daftar, jadi mount ini hilang di pabrik kalau tidak ditulis ulang di sini.
+      - ./media:/media:ro
 
   console:
     # Semua yang konsol butuhkan ditulis ULANG di sini, bukan ditambahkan.
@@ -95,8 +104,20 @@ services:
       - LINE_1_MACHINE_ID=${LINE_1_MACHINE_ID:-d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01}
       - LINE_2_MACHINE_ID=${LINE_2_MACHINE_ID:-a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02}
       - LINE_3_MACHINE_ID=${LINE_3_MACHINE_ID:-ad5f7bb9-c06d-4e87-8282-ce450ae331ec}
+      # Folder media + berkas setelan yang ditulis layar Support. Tanpa ketiganya
+      # layar Sumber Kamera tampil, menerima pilihan, dan tidak melakukan apa pun:
+      # daftar berkasnya kosong selamanya dan simpannya menulis ke path yang tidak
+      # ada di dalam container.
+      - MEDIA_DIR=${MEDIA_DIR:-/media}
+      - MEDIA_ENV_PATH=${MEDIA_ENV_PATH:-/config/media.env}
+      - MEDIA_FILE=${MEDIA_FILE:-}
     volumes: !override
       - ./state/console:/app/state
       - ./artifacts/line-1:/app/artifacts/line-1:ro
       - ./artifacts/line-2:/app/artifacts/line-2:ro
       - ./artifacts/line-3:/app/artifacts/line-3:ro
+      # Daftar berkas yang layar Sumber Kamera tawarkan.
+      - ./media:/media:ro
+      # Satu-satunya berkas host yang konsol boleh TULIS. `.env` sengaja tidak
+      # di-mount: ia memuat lisensi, R2, dan webhook secret.
+      - ./media.env:/config/media.env

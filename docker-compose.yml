@@ -1,3 +1,26 @@
+# ⚠️ Setelan sumber kamera per line datang dari `media.env`, dan berkas itu
+# HARUS diberikan sebagai `--env-file`, bukan `env_file:` di service.
+#
+#   docker compose --env-file .env --env-file media.env ...
+#
+# Alasannya satu dan tidak bisa ditawar: Compose menyelesaikan `${LINE_1_...}`
+# di bawah HANYA dari environment shell dan berkas `--env-file`. `env_file:`
+# menyuntik environment CONTAINER, dan itu terjadi SESUDAH interpolasi — jadi
+# `env_file: media.env` membuat `${LINE_1_CAMERA_TYPE:-hikrobot}` selalu jatuh
+# ke `hikrobot` betapapun benar isi berkasnya. Terbukti di sini (Compose
+# v5.5.1): media.env berisi `LINE_1_CAMERA_TYPE=opencv`, `docker compose config`
+# tetap menjawab `CAMERA_TYPE: hikrobot`. Ini BUKAN beda versi Compose —
+# urutannya sama di v2.x.
+#
+# `LINE_*_` itu leak yang menyesatkan: nama-nama itu tetap muncul di environment
+# container walau mekanismenya rusak (mereka ikut dari `env_file`), jadi yang
+# membuktikan benar-tidaknya cuma `CAMERA_TYPE` / `MEDIA_FILE` /
+# `CAMERA_VIDEO_LOOP` — variabel yang sungguh dibaca `core/config.py`.
+#
+# `Makefile` sudah merutekan semuanya lewat `$(COMPOSE)`, yang membawa kedua
+# flag dan membuat `media.env` kalau belum ada. Pemanggil di luar Makefile
+# (skrip launcher PC pabrik) harus membawa kedua flag itu sendiri.
+
 services:
 
   ripe-line-1:
@@ -113,8 +136,6 @@ services:
       - PLC_POLL_MS=${PLC_POLL_MS:-200}
       - PLC_DI_COUNT=${PLC_DI_COUNT:-16}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
-    env_file:
-      - media.env
     volumes:
       - .:/app
       - /app/.venv
@@ -234,8 +255,6 @@ services:
       - PLC_POLL_MS=${PLC_POLL_MS:-200}
       - PLC_DI_COUNT=${PLC_DI_COUNT:-16}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
-    env_file:
-      - media.env
     volumes:
       - .:/app
       - /app/.venv
@@ -355,8 +374,6 @@ services:
       - PLC_POLL_MS=${PLC_POLL_MS:-200}
       - PLC_DI_COUNT=${PLC_DI_COUNT:-16}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
-    env_file:
-      - media.env
     volumes:
       - .:/app
       - /app/.venv
@@ -445,8 +462,6 @@ services:
       - MEDIA_DIR=${MEDIA_DIR:-/media}
       - MEDIA_ENV_PATH=${MEDIA_ENV_PATH:-/config/media.env}
       - MEDIA_FILE=${MEDIA_FILE:-}
-    env_file:
-      - media.env
     volumes:
       - .:/app
       - /app/.venv
