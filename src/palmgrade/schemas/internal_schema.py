@@ -109,3 +109,10 @@ class SetelanGradingResponse(BaseModel):
     sumbu_garis: str = "tegak"
     mode_dev: bool = False
     sumber: str  # "konsol" kalau ditimpa, "env" kalau masih dari .env
+
+
+class RestartResponse(BaseModel):
+    """Jawaban `POST /internal/restart`, dikirim SEBELUM proses keluar."""
+
+    status: str
+    jeda_detik: float
