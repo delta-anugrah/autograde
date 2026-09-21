@@ -83,7 +83,16 @@ class AuthService:
         # One sweep per sign-in, and nowhere else: enough to keep the table from growing
         # for the life of a factory PC, without a worker of its own.
         self._store.purge_sessions(now=now)
-        return token, {"id": operator_id, "email": row["email"], "full_name": row["full_name"]}
+        # `role` ikut dari sini juga (bukan cuma `current()`/`/me`): layar developer
+        # ditentukan dari field ini persis sesudah login, dan yang hilang di sini
+        # dulu cuma tersembunyi lagi lewat F5 — dua endpoint yang menggambarkan
+        # operator yang sama tidak boleh berbeda bentuk.
+        return token, {
+            "id": operator_id,
+            "email": row["email"],
+            "full_name": row["full_name"],
+            "role": row["role"],
+        }
 
     @staticmethod
     def _password_plausible(password: object) -> bool:

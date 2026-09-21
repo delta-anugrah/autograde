@@ -15,6 +15,7 @@ import pytest
 
 from palmgrade.domain.operator_auth import hash_password, operator_id_for
 from palmgrade.domain.operator_error import SANDI_SALAH, TERKUNCI, OperatorError
+from palmgrade.domain.role import ROLE_SUPPORT
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.services.auth_service import AuthService
 
@@ -48,7 +49,32 @@ def test_the_right_password_opens_a_session_that_names_its_operator(tmp_path):
     token, operator = auth.login(EMAIL, SANDI)
 
     assert (operator["full_name"], operator["email"]) == (NAMA, EMAIL)
-    assert auth.current(token)["full_name"] == NAMA
+
+
+def test_login_returns_role_for_a_plain_operator_and_a_support_account(tmp_path):
+    """`current()`/`/me` sudah membawa `role`; `login()` dulu tidak — celah itu yang
+    membuat tab developer sempat hilang persis sesudah login sampai F5 menariknya
+    ulang lewat `/me`. Dicek untuk keduanya supaya perbaikannya tidak diam-diam cuma
+    benar untuk satu peran."""
+    store = ConsoleStore(tmp_path / "console.db")
+    store.upsert_operator_manual(
+        {"email": EMAIL, "full_name": NAMA, "password_hash": hash_password(SANDI)}
+    )
+    store.upsert_operator_manual(
+        {
+            "email": "support@pks.test",
+            "full_name": "Akun Support",
+            "password_hash": hash_password(SANDI),
+            "role": ROLE_SUPPORT,
+        }
+    )
+    auth = AuthService(store)
+
+    _, operator = auth.login(EMAIL, SANDI)
+    _, support = auth.login("support@pks.test", SANDI)
+
+    assert operator["role"] == "operator"
+    assert support["role"] == ROLE_SUPPORT
 
 
 def test_an_account_pulled_from_autoerp_signs_in_without_asking_autoerp(tmp_path):

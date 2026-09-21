@@ -94,6 +94,19 @@ def test_the_right_password_opens_every_lane(console):
     assert client.get("/api/console/me").json()["operator"]["full_name"] == NAMA
 
 
+def test_the_login_response_carries_role_like_me_does(console):
+    """`login()` used to omit `role` while `/me` included it, so the screen removed
+    every developer tab right after sign-in and only saw them again once the client
+    refetched `/me` on F5 (nodes are `.remove()`d, not hidden — nothing else restores
+    them). Both endpoints describe the same operator and must agree on its shape."""
+    client, _, _ = console
+
+    login_role = _sign_in(client).json()["operator"]["role"]
+    me_role = client.get("/api/console/me").json()["operator"]["role"]
+
+    assert login_role == me_role == "operator"
+
+
 def test_the_session_cookie_cannot_be_read_by_a_script_on_the_page(console):
     """A console tab left open all shift is the likeliest place a token leaks from."""
     client, _, _ = console
