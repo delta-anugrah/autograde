@@ -382,10 +382,18 @@
   .plc-konfirmasi input { flex:0 0 8rem; font-family:var(--mono); text-transform:uppercase; }
   .plc-konfirmasi button { flex:0 0 7rem; }
 
-  /* Versi: a plain definition list, key left, value right. */
+  /* Versi: a plain definition list, key left, value right.
+
+     Lebarnya mengikuti layar (dulu dipatok 480 px). Di layar lebar pasangannya
+     menyebar jadi beberapa kolom lewat `auto-fit`, jadi versi + machine id +
+     lisensi terbaca sekali pandang, bukan sebagai daftar sempit di pojok. */
   .daftar-definisi { background:var(--card); border:1px solid var(--line-kuat);
                       border-radius:var(--r-md); padding:14px var(--pad); margin:0 var(--pad);
-                      display:grid; grid-template-columns:auto 1fr; gap:8px 16px; max-width:480px; }
+                      display:grid; gap:8px 16px;
+                      grid-template-columns:repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); }
+  /* Tiap pasangan jadi satu sel: tanpa ini `auto-fit` memecah dt dan dd ke
+     kolom berbeda dan nilainya tidak lagi bersebelahan dengan namanya. */
+  .daftar-definisi > div { display:grid; grid-template-columns:auto 1fr; gap:8px 16px; }
   .daftar-definisi dt { color:var(--muted); }
   .daftar-definisi dd { margin:0; font-weight:600; }
 
@@ -619,11 +627,36 @@
      nilai yang menggeser tonase. */
   /* Kartu, bukan kolom mengambang: tanpa bingkai, tiga kolom di layar lebar
      terbaca seperti tiga hal yang tidak berhubungan, dan tombol Simpan-nya
-     kehilangan induk. */
-  .setelan-form { display:grid; gap:18px; max-width:30rem; padding:20px;
+     kehilangan induk.
+
+     Lebarnya mengikuti layar (dulu dipatok 30rem): di monitor pabrik 1900 px
+     kartu selebar 480 px menyisakan dua pertiga layar kosong, dan kolomnya
+     berdesak di kiri justru saat support membaca dari jarak beberapa meter. */
+  .setelan-form { display:grid; gap:18px; padding:20px;
                   border:1px solid var(--line); border-radius:var(--r);
-                  background:var(--kartu); }
-  .setelan-form label { display:grid; gap:6px; }
+                  background:var(--kartu); margin:0 var(--pad); }
+
+  /* Accordion: satu kelompok terbuka pada satu waktu sudah cukup untuk
+     menyetel, dan yang tertutup tidak ikut menarik mata. `<details>` dipakai
+     apa adanya — buka/tutupnya ditangani browser, jadi tidak ada state JS yang
+     bisa melenceng dari yang terlihat. */
+  .setelan-grup { border:1px solid var(--line); border-radius:var(--r);
+                  background:var(--bg); }
+  .setelan-grup > summary { cursor:pointer; padding:12px 16px; font-weight:600;
+                            user-select:none; list-style:revert; }
+  .setelan-grup > summary:hover { background:var(--kartu); }
+  .setelan-grup[open] > summary { border-bottom:1px solid var(--line); }
+  /* Isi kelompok menyebar jadi beberapa kolom di layar lebar, satu kolom di
+     layar sempit. `minmax(0,…)` wajib: tanpanya kolom grid menolak menyusut di
+     bawah lebar isinya dan layar ikut melebar ke samping. */
+  .setelan-grup-isi { display:grid; gap:18px; padding:16px;
+                      grid-template-columns:repeat(auto-fit, minmax(min(22rem, 100%), 1fr)); }
+  .setelan-form label { display:grid; gap:6px; align-content:start; }
+  /* Kolomnya ikut melebar bersama kartunya kalau tidak dibatasi: kotak selebar
+     863 px untuk mengetik "0.5" terbaca seperti kolom yang salah, dan angkanya
+     terlempar jauh dari labelnya. Yang melebar kartunya, bukan kotaknya. */
+  .setelan-grup-isi input[type="text"],
+  .setelan-grup-isi select { max-width:22rem; }
   .setelan-form label > span:first-child { font-weight:600; }
   .setelan-form input, .setelan-form select {
     padding:10px 12px; font-family:var(--mono); font-size:1.1rem;
@@ -1066,48 +1099,75 @@
   -->
   <div class="setelan-form">
     <!--
-      `inputmode` cuma memilih papan ketik di layar sentuh; papan ketik fisik
-      tetap bisa mengetik huruf, dan itu yang terjadi di PC pabrik. Penjaganya
-      `data-angka` + handler di bawah, yang menolak karakter non-angka saat
-      diketik. `type="text"` dipertahankan, BUKAN `type="number"`: yang terakhir
-      punya panah spinner yang gampang tersenggol di layar sentuh, menolak koma
-      desimal papan ketik Indonesia, dan mengosongkan dirinya sendiri kalau
-      isinya dianggap tidak sah — angkanya hilang tanpa operator sadar.
+      Dibagi tiga kelompok, bukan satu daftar panjang: yang diubah sehari-hari
+      cuma dua angka grading, sisanya disetel sekali saat pemasangan. Yang
+      pertama terbuka supaya layar tidak terbaca kosong saat dibuka.
+
+      Tombol Simpan sengaja DI LUAR ketiganya — satu tombol menyimpan semua
+      kelompok, dan menaruhnya di dalam salah satunya membuatnya ikut
+      tersembunyi saat kelompok itu ditutup.
     -->
-    <label>
-      <span data-t="labelConf">Ambang keyakinan (0-1)</span>
-      <input id="set-conf" type="text" inputmode="decimal" autocomplete="off"
-             data-angka="desimal" maxlength="6">
-      <small class="muted" data-t="bantuConf">Makin tinggi = makin sedikit yang dianggap buah.</small>
-    </label>
-    <label>
-      <span data-t="labelMinSize">Ukuran minimum (piksel)</span>
-      <input id="set-minsize" type="text" inputmode="numeric" autocomplete="off"
-             data-angka="bulat" maxlength="9">
-      <small class="muted" data-t="bantuMinSize">Janjang lebih kecil dari ini otomatis REJ.</small>
-    </label>
-    <label>
-      <span data-t="labelSumbu">Arah conveyor</span>
-      <select id="set-sumbu">
-        <option value="tegak" data-t="sumbuTegak">Mendatar (buah lewat kiri-kanan)</option>
-        <option value="mendatar" data-t="sumbuMendatar">Menurun (buah lewat atas-bawah)</option>
-      </select>
-      <small class="muted" data-t="bantuSumbu">Menentukan garis capture tegak atau mendatar.</small>
-    </label>
-    <label>
-      <span data-t="labelGaris">Garis capture (piksel)</span>
-      <input id="set-garis" type="text" inputmode="numeric" autocomplete="off"
-             data-angka="bulat" maxlength="5">
-      <small class="muted" id="set-garis-bantu">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
-    </label>
-    <!-- Saklar, bukan kolom: ini ya/tidak, dan kotak centang tidak bisa diisi huruf. -->
-    <label class="saklar">
-      <input id="set-dev" type="checkbox">
-      <span>
-        <span data-t="labelDev">Mode dev</span>
-        <small class="muted" data-t="bantuDev">Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.</small>
-      </span>
-    </label>
+    <details class="setelan-grup" data-setelan-grup="grading" open>
+      <summary data-t="grupGrading">Grading</summary>
+      <div class="setelan-grup-isi">
+        <!--
+          `inputmode` cuma memilih papan ketik di layar sentuh; papan ketik fisik
+          tetap bisa mengetik huruf, dan itu yang terjadi di PC pabrik. Penjaganya
+          `data-angka` + handler di bawah, yang menolak karakter non-angka saat
+          diketik. `type="text"` dipertahankan, BUKAN `type="number"`: yang terakhir
+          punya panah spinner yang gampang tersenggol di layar sentuh, menolak koma
+          desimal papan ketik Indonesia, dan mengosongkan dirinya sendiri kalau
+          isinya dianggap tidak sah — angkanya hilang tanpa operator sadar.
+        -->
+        <label>
+          <span data-t="labelConf">Ambang keyakinan (0-1)</span>
+          <input id="set-conf" type="text" inputmode="decimal" autocomplete="off"
+                 data-angka="desimal" maxlength="6">
+          <small class="muted" data-t="bantuConf">Makin tinggi = makin sedikit yang dianggap buah.</small>
+        </label>
+        <label>
+          <span data-t="labelMinSize">Ukuran minimum (piksel)</span>
+          <input id="set-minsize" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="9">
+          <small class="muted" data-t="bantuMinSize">Janjang lebih kecil dari ini otomatis REJ.</small>
+        </label>
+      </div>
+    </details>
+
+    <details class="setelan-grup" data-setelan-grup="kamera">
+      <summary data-t="grupKamera">Kamera &amp; Conveyor</summary>
+      <div class="setelan-grup-isi">
+        <label>
+          <span data-t="labelSumbu">Arah conveyor</span>
+          <select id="set-sumbu">
+            <option value="tegak" data-t="sumbuTegak">Mendatar (buah lewat kiri-kanan)</option>
+            <option value="mendatar" data-t="sumbuMendatar">Menurun (buah lewat atas-bawah)</option>
+          </select>
+          <small class="muted" data-t="bantuSumbu">Menentukan garis capture tegak atau mendatar.</small>
+        </label>
+        <label>
+          <span data-t="labelGaris">Garis capture (piksel)</span>
+          <input id="set-garis" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="5">
+          <small class="muted" id="set-garis-bantu">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
+        </label>
+      </div>
+    </details>
+
+    <details class="setelan-grup" data-setelan-grup="dev">
+      <summary data-t="grupDev">Mode Developer</summary>
+      <div class="setelan-grup-isi">
+        <!-- Saklar, bukan kolom: ini ya/tidak, dan kotak centang tidak bisa diisi huruf. -->
+        <label class="saklar">
+          <input id="set-dev" type="checkbox">
+          <span>
+            <span data-t="labelDev">Mode dev</span>
+            <small class="muted" data-t="bantuDev">Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.</small>
+          </span>
+        </label>
+      </div>
+    </details>
+
     <div class="tools">
       <button id="set-simpan" class="utama" data-t="btnSimpanSetelan">Simpan</button>
       <span id="set-sumber" class="muted"></span>
@@ -1296,6 +1356,7 @@ const KAMUS = {
     judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan", judulRekap:"Rekap",
     judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", judulPlc:"Uji PLC",
     judulSetelan:"Setelan", labelConf:"Ambang keyakinan (0-1)", labelMinSize:"Ukuran minimum (piksel)",
+    grupGrading:"Grading", grupKamera:"Kamera & Conveyor", grupDev:"Mode Developer",
     bantuConf:"Makin tinggi = makin sedikit yang dianggap buah.",
     bantuMinSize:"Janjang lebih kecil dari ini otomatis REJ.",
     labelGaris:"Garis capture (piksel)", labelSumbu:"Arah conveyor",
@@ -1393,6 +1454,7 @@ const KAMUS = {
     manifestNonaktif:"R2 belum disetel — halaman detail truk tidak berjalan di PKS ini.",
     labelVersi:"Versi", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Lisensi", gagalVersi:"Gagal memuat versi",
+    versiDariSource:"dev (dari source)",
     lisensiAktif:"Aktif", lisensiTanpaToken:"Aktif, token belum terpasang", lisensiMati:"Mati",
     labelAktifSampai:"Aktif sampai", labelTenggangSampai:"Tenggang sampai",
     labelPerusahaan:"Perusahaan", lisensiSisaHari:"{hari} hari lagi",
@@ -1427,6 +1489,7 @@ const KAMUS = {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
     judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", judulPlc:"PLC Test",
     judulSetelan:"Settings", labelConf:"Confidence threshold (0-1)", labelMinSize:"Minimum size (pixels)",
+    grupGrading:"Grading", grupKamera:"Camera & Conveyor", grupDev:"Developer Mode",
     bantuConf:"Higher = fewer things counted as fruit.",
     bantuMinSize:"Bunches smaller than this are auto-REJ.",
     labelGaris:"Capture line (pixels)", labelSumbu:"Conveyor direction",
@@ -1520,6 +1583,7 @@ const KAMUS = {
     manifestNonaktif:"R2 is not configured — the truck detail page is not running on this mill.",
     labelVersi:"Version", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Licence", gagalVersi:"Failed to load version",
+    versiDariSource:"dev (from source)",
     lisensiAktif:"Active", lisensiTanpaToken:"Active, no token installed", lisensiMati:"Inactive",
     labelAktifSampai:"Active until", labelTenggangSampai:"Grace until",
     labelPerusahaan:"Company", lisensiSisaHari:"{hari} days left",
@@ -3234,8 +3298,11 @@ $("antrean-kirim-ulang").addEventListener("click", async () => {
 });
 
 // ── developer: versi & lisensi (support only) ───────────────────────────
+// Tiap pasangan dibungkus satu `<div>`: `.daftar-definisi` menyebar jadi
+// beberapa kolom di layar lebar, dan tanpa pembungkus ini `auto-fit` memecah
+// dt dan dd ke kolom berbeda — namanya di satu kolom, nilainya di kolom lain.
 function barisVersi(label, nilai) {
-  return `<dt>${esc(label)}</dt><dd>${esc(nilai)}</dd>`;
+  return `<div><dt>${esc(label)}</dt><dd>${esc(nilai)}</dd></div>`;
 }
 
 // Tanggal saja, tanpa jam: langganan berakhir di ujung hari, dan jam 23:59:59
@@ -3264,7 +3331,11 @@ async function muatVersi() {
     const r = await api("/api/console/dev/versi");
     const l = r.lisensi;
     const baris = [
-      barisVersi(t("labelVersi"), r.versi),
+      // `unknown` adalah nilai bawaan APP_VERSION saat konsol dijalankan dari
+      // source, bukan dari image rilis — bukan kerusakan. Ditulis apa adanya,
+      // kata itu terbaca support seperti ada yang salah dan memancing
+      // penelusuran yang tidak perlu.
+      barisVersi(t("labelVersi"), r.versi === "unknown" ? t("versiDariSource") : r.versi),
       barisVersi(t("labelMachineId"), r.machine_id),
       barisVersi(t("labelEnvironment"), r.environment),
       barisVersi(t("labelLisensi"), ringkasLisensi(l)),

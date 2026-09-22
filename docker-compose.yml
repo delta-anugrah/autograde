@@ -415,7 +415,12 @@ services:
       - APP_MODE=console
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8000
-      - APP_VERSION=${APP_VERSION:-unknown}
+      # APP_VERSION sengaja TIDAK disebut di sini: Dockerfile sudah mem-bake tag
+      # rilis ke image (`ENV APP_VERSION`), dan menyetelnya di compose akan
+      # menimpanya. Di PC pabrik `.env` tidak memuat variabel itu — tidak ada
+      # yang mengisinya — jadi `${APP_VERSION:-unknown}` membuat layar Versi
+      # menjawab "unknown" selamanya, persis saat support menanyakannya lewat
+      # AnyDesk. Dijaga `tests/unit/test_compose_app_version.py`.
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       # Dipakai dua arah: memverifikasi event masuk dari line (x-webhook-secret)
       # dan meneruskan perintah ke line (x-internal-secret). Satu nilai, sama

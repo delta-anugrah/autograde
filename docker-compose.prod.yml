@@ -81,7 +81,9 @@ services:
       - APP_MODE=console
       - APP_PORT=8100
       - APP_ENV=${APP_ENV:-production}
-      - APP_VERSION=${APP_VERSION:-unknown}
+      # APP_VERSION sengaja TIDAK disebut — lihat alasan lengkapnya di
+      # docker-compose.yml. Harus dibuang di KEDUA berkas: override mengganti
+      # seluruh blok `environment:`, bukan menambahinya.
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
       - FACTORY_TZ=${FACTORY_TZ:-Asia/Jakarta}
