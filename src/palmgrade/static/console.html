@@ -117,6 +117,26 @@
          background:var(--danger-bg); color:var(--danger-fg);
          border-bottom:1px solid var(--danger-line); border-left:6px solid var(--danger-fg); }
 
+  /* ---- banner langganan ----
+     Dibaca dari beberapa meter di luar ruangan, jadi setebal #err dan bukan
+     teks kecil di pojok. Tiga tingkat, satu elemen: `data-tingkat` yang
+     menentukan warnanya, bukan kelas yang ditambah-hapus (satu sumber
+     kebenaran, dan tidak bisa menyangkut dua warna sekaligus).
+
+     Yang TIDAK ditampilkan di sini: nomor token dan nama perusahaan. Layar ini
+     terbuka untuk operator biasa; tanggal cukup untuk menjelaskan kenapa
+     kamera berhenti, dan sisanya urusan tab Support. */
+  #lisensi-banner { display:none; padding:13px var(--pad); font-weight:700; }
+  #lisensi-banner[data-tingkat="warning"] { display:block;
+         background:var(--warn-bg); color:var(--warn);
+         border-bottom:1px solid var(--warn); border-left:6px solid var(--warn); }
+  #lisensi-banner[data-tingkat="grace"] { display:block;
+         background:var(--warn-bg); color:var(--warn);
+         border-bottom:1px solid var(--warn); border-left:6px solid var(--danger-fg); }
+  #lisensi-banner[data-tingkat="blocked"] { display:block;
+         background:var(--danger-bg); color:var(--danger-fg);
+         border-bottom:1px solid var(--danger-line); border-left:6px solid var(--danger-fg); }
+
   /* ---- toasts ----
      `#err` above is wiped by refresh() every 2 s, so a success there is gone
      before it can be read - the operator taps Tugaskan and sees nothing.
@@ -729,6 +749,13 @@
   </span>
 </header>
 <div id="err"></div>
+<!--
+  Langganan. Kosong dan tidak memakan tinggi selama sehat (`data-tingkat` tidak
+  diisi), jadi layar operator tidak kehilangan satu piksel pun di hari biasa.
+  `role="status"` bukan `alert`: ini keadaan yang berlangsung berhari-hari,
+  bukan kejadian mendadak, dan `alert` akan memotong pembacaan layar tiap 2 detik.
+-->
+<div id="lisensi-banner" role="status"></div>
 <div id="toasts" aria-live="polite"></div>
 
 
@@ -1367,6 +1394,12 @@ const KAMUS = {
     labelVersi:"Versi", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Lisensi", gagalVersi:"Gagal memuat versi",
     lisensiAktif:"Aktif", lisensiTanpaToken:"Aktif, token belum terpasang", lisensiMati:"Mati",
+    labelAktifSampai:"Aktif sampai", labelTenggangSampai:"Tenggang sampai",
+    labelPerusahaan:"Perusahaan", lisensiSisaHari:"{hari} hari lagi",
+    lisensiTokenRusak:"Token tidak terbaca",
+    bannerLisensiWarning:"Langganan AutoGrade habis {hari} hari lagi ({tanggal}). Hubungi penyedia untuk memperpanjang.",
+    bannerLisensiGrace:"Langganan AutoGrade sudah habis. Grading berhenti {hari} hari lagi ({tanggal}). Segera perpanjang.",
+    bannerLisensiBlocked:"Langganan AutoGrade habis - grading dihentikan. Pasang token baru untuk melanjutkan.",
     thDi:"DI", diAktif:"Aktif", diMati:"Mati", plcMati:"PLC mati di line ini",
     gagalPlc:"Gagal memuat status PLC",
     btnUjiCoil:"Uji coil {coil}", coilMatiLineSibuk:"Line sedang memproses truk",
@@ -1488,6 +1521,12 @@ const KAMUS = {
     labelVersi:"Version", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Licence", gagalVersi:"Failed to load version",
     lisensiAktif:"Active", lisensiTanpaToken:"Active, no token installed", lisensiMati:"Inactive",
+    labelAktifSampai:"Active until", labelTenggangSampai:"Grace until",
+    labelPerusahaan:"Company", lisensiSisaHari:"{hari} days left",
+    lisensiTokenRusak:"Token unreadable",
+    bannerLisensiWarning:"The AutoGrade subscription expires in {hari} days ({tanggal}). Contact your provider to renew.",
+    bannerLisensiGrace:"The AutoGrade subscription has expired. Grading stops in {hari} days ({tanggal}). Renew now.",
+    bannerLisensiBlocked:"The AutoGrade subscription has expired - grading has stopped. Install a new token to continue.",
     thDi:"DI", diAktif:"On", diMati:"Off", plcMati:"PLC is off on this line",
     gagalPlc:"Failed to load PLC status",
     btnUjiCoil:"Test coil {coil}", coilMatiLineSibuk:"Line is processing a truck",
@@ -2825,6 +2864,40 @@ function umumkanPelepasanOtomatis(daftar) {
   });
 }
 
+// ── banner langganan ────────────────────────────────────────────────────
+// Kenapa ini ada sama sekali: sebelumnya, saat langganan habis, kamera berhenti
+// grading dan konsol TIDAK BILANG APA-APA. Operator melihat line diam tanpa satu
+// pun penjelasan, dan yang pertama dia lakukan adalah memanggil teknisi untuk
+// kerusakan yang tidak ada.
+//
+// Tingkatnya datang dari server (`severity`), tidak dihitung ulang di sini:
+// aturannya harus sama persis dengan yang menghentikan kamera, dan satu-satunya
+// cara menjamin itu adalah tidak punya salinan kedua.
+function gambarBannerLisensi(l) {
+  const el = $("lisensi-banner");
+  if (!el) return;
+
+  // `lisensi` tidak ada = konsol lama bicara ke server baru, atau sebaliknya.
+  // Diam, jangan menebak: banner palsu lebih buruk daripada tidak ada banner.
+  if (!l || !l.severity || l.severity === "none") {
+    el.removeAttribute("data-tingkat");
+    el.textContent = "";
+    return;
+  }
+
+  const hari = l.sisa_hari === null || l.sisa_hari === undefined ? "?" : l.sisa_hari;
+  const tanggal = l.severity === "grace"
+    ? tanggalLisensi(l.tenggang_sampai)
+    : tanggalLisensi(l.aktif_sampai);
+
+  const kunci = { warning:"bannerLisensiWarning", grace:"bannerLisensiGrace",
+                  blocked:"bannerLisensiBlocked" }[l.severity];
+  if (!kunci) { el.removeAttribute("data-tingkat"); el.textContent = ""; return; }
+
+  el.dataset.tingkat = l.severity;
+  el.textContent = t(kunci).replace("{hari}", hari).replace("{tanggal}", tanggal);
+}
+
 // MJPEG streams render once: rewriting innerHTML every 2 s would tear down and
 // reopen three video connections forever.
 let dipasang = false;
@@ -2832,6 +2905,7 @@ async function refresh() {
   try {
     const s = await api("/api/console/state");
     $("tz").textContent = "(" + s.timezone + ")";
+    gambarBannerLisensi(s.lisensi);
     umumkanPelepasanOtomatis(s.auto_releases);
     selarasUrutan(s.lines);
     isiTally(s.lines);
@@ -3164,18 +3238,45 @@ function barisVersi(label, nilai) {
   return `<dt>${esc(label)}</dt><dd>${esc(nilai)}</dd>`;
 }
 
+// Tanggal saja, tanpa jam: langganan berakhir di ujung hari, dan jam 23:59:59
+// di layar terbaca seperti ketelitian yang tidak berarti apa-apa bagi operator.
+function tanggalLisensi(epoch) {
+  if (!epoch) return KOSONG;
+  const d = new Date(epoch * 1000);
+  if (isNaN(d)) return KOSONG;
+  return d.toLocaleDateString(lokal(), { day: "numeric", month: "long", year: "numeric" });
+}
+
+// Satu kata untuk keadaan langganan, dipakai kartu Support.
+// `blocked` dibedakan jadi dua: token yang TIDAK TERBACA dan langganan yang
+// HABIS sama-sama menghentikan kamera, tapi yang harus dikerjakan berbeda -
+// yang pertama salah pasang, yang kedua perlu token baru.
+function ringkasLisensi(l) {
+  if (!l.aktif) return t("lisensiMati");
+  if (!l.token_terpasang) return t("lisensiTanpaToken");
+  if (l.severity === "blocked" && !l.aktif_sampai) return t("lisensiTokenRusak");
+  if (l.sisa_hari === null || l.sisa_hari === undefined) return t("lisensiAktif");
+  return t("lisensiSisaHari").replace("{hari}", l.sisa_hari);
+}
+
 async function muatVersi() {
   try {
     const r = await api("/api/console/dev/versi");
-    const lisensi = r.lisensi.aktif
-      ? (r.lisensi.token_terpasang ? t("lisensiAktif") : t("lisensiTanpaToken"))
-      : t("lisensiMati");
-    $("versi-daftar").innerHTML = [
+    const l = r.lisensi;
+    const baris = [
       barisVersi(t("labelVersi"), r.versi),
       barisVersi(t("labelMachineId"), r.machine_id),
       barisVersi(t("labelEnvironment"), r.environment),
-      barisVersi(t("labelLisensi"), lisensi),
-    ].join("");
+      barisVersi(t("labelLisensi"), ringkasLisensi(l)),
+    ];
+    // Tanggal cuma ditampilkan kalau memang ada tokennya. Baris "-" berjejer
+    // di PC dev terbaca seperti sesuatu yang rusak, padahal fiturnya memang mati.
+    if (l.aktif && l.aktif_sampai) {
+      if (l.perusahaan) baris.push(barisVersi(t("labelPerusahaan"), l.perusahaan));
+      baris.push(barisVersi(t("labelAktifSampai"), tanggalLisensi(l.aktif_sampai)));
+      baris.push(barisVersi(t("labelTenggangSampai"), tanggalLisensi(l.tenggang_sampai)));
+    }
+    $("versi-daftar").innerHTML = baris.join("");
   } catch (e) {
     if (e.kode !== "belum_masuk") $("versi-daftar").innerHTML = `<dt>${esc(t("gagalVersi"))}</dt><dd></dd>`;
   }
