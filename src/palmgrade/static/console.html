@@ -771,7 +771,12 @@
      `REJ`, label model yang dilatih ulang) tetap muat, tidak terpotong. */
   .tag { display:inline-block; font:700 .78rem/1 var(--font); letter-spacing:.1em;
          padding:6px 10px; border-radius:var(--r-pill); border:1px solid;
-         min-width:5.5rem; text-align:center; box-sizing:border-box; }
+         min-width:6rem; text-align:center; box-sizing:border-box;
+         /* Kapital lewat tampilan, bukan dengan mengubah nilainya:
+            `grade_class` adalah label yang datang dari model dan dicocokkan
+            case-insensitive di `domain/grade_class.py`, jadi yang menyalin
+            teksnya dari layar tetap harus mendapat nilai aslinya. */
+         text-transform:uppercase; }
   /* `line-1` ditulis `LINE-1` di layar. Lewat CSS, BUKAN dengan mengubah
      nilainya: `line_code` adalah kunci yang dicocokkan ke `machine_id` dan
      dipakai di jalur berkas (`artifacts/line-1`), jadi yang menyalin teksnya

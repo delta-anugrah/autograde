@@ -74,3 +74,13 @@ def test_judul_modal_foto_ikut_kapital():
     sementara foto yang dibuka dari baris yang sama menulis `line-1`."""
     blok = HTML[HTML.index("data-judul="):][:420]
     assert "toUpperCase()" in blok, blok[:200]
+
+
+def test_badge_ditulis_kapital():
+    """`Ripe`/`Unripe` ditulis `RIPE`/`UNRIPE`.
+
+    Lewat CSS, bukan mengubah nilainya: `grade_class` itu label yang datang
+    dari model dan dicocokkan case-insensitive di `domain/grade_class.py` —
+    yang menyalin teksnya dari layar tetap harus mendapat nilai aslinya.
+    """
+    assert "text-transform:uppercase" in _blok_css(".tag")
