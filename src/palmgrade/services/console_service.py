@@ -641,6 +641,12 @@ class ConsoleService:
             "lines": baris,
             "setelan": self.setelan_rekam(),
             "disk_bebas_gb": self._disk_bebas_gb(),
+            # Jalur PENUH, bukan "videos/" relatif: yang membacanya membuka PC
+            # pabrik lewat AnyDesk dan perlu tahu ke mana harus pergi. Jalurnya
+            # juga berbeda per mesin (`/opt/palmgrade/autograde/videos` di
+            # pabrik, `<repo>/videos` di jalur native), jadi layar tidak boleh
+            # mengarangnya sendiri.
+            "folder": self.settings.videos_dir_tampil,
         }
 
     def _disk_bebas_gb(self) -> float | None:

@@ -136,6 +136,11 @@ services:
       # ada di dalam container.
       - MEDIA_DIR=${MEDIA_DIR:-/media}
       - MEDIA_ENV_PATH=${MEDIA_ENV_PATH:-/config/media.env}
+      # Jalur rekaman yang DITAMPILKAN di layar Rekam Video — jalur HOST, bukan
+      # `/app/videos` yang cuma ada di dalam container line. Override MENGGANTI
+      # seluruh blok environment, jadi tanpa baris ini variabelnya hilang di
+      # pabrik dan layar menyebut tempat yang tidak bisa dibuka siapa pun.
+      - REKAMAN_TAMPIL=${REKAMAN_TAMPIL:-/opt/palmgrade/autograde/videos}
       - MEDIA_FILE=${MEDIA_FILE:-}
     volumes: !override
       - ./state/console:/app/state

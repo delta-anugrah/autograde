@@ -492,6 +492,12 @@ services:
       # Folder media + berkas setelan yang ditulis layar Support (media_env_service.py).
       - MEDIA_DIR=${MEDIA_DIR:-/media}
       - MEDIA_ENV_PATH=${MEDIA_ENV_PATH:-/config/media.env}
+      # Jalur rekaman yang DITAMPILKAN di layar Rekam Video. Konsol tidak
+      # menulis rekaman (itu urusan line) dan tidak mem-mount foldernya —
+      # ia cuma perlu menyebutkan tempatnya. Yang berguna bagi teknisi yang
+      # membuka PC pabrik lewat AnyDesk adalah jalur HOST, bukan `/app/videos`
+      # yang cuma ada di dalam container line.
+      - REKAMAN_TAMPIL=${REKAMAN_TAMPIL:-/opt/palmgrade/autograde/videos}
       - MEDIA_FILE=${MEDIA_FILE:-}
     volumes:
       - .:/app

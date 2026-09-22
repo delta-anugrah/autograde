@@ -169,7 +169,12 @@
               message is not. */
           opacity:.94; animation:toast-masuk .2s ease backwards; }
   @keyframes toast-masuk { from { opacity:0; transform:translateY(6px); } }
-  .toast .pesan { flex:1; }
+  /* `min-width:0` wajib: item flex menolak menyusut di bawah lebar isinya,
+     jadi satu kata panjang — jalur berkas rekaman, misalnya — mendorong toast
+     melewati tepi layar dan bagian yang paling perlu dibaca justru terpotong.
+     `overflow-wrap` memutus kata itu sendiri, karena jalur tidak punya spasi
+     untuk dijadikan titik potong. */
+  .toast .pesan { flex:1; min-width:0; overflow-wrap:anywhere; }
   .toast .tutup { flex:none; min-width:2rem; min-height:2rem; padding:0; border:0;
                    background:transparent; font-size:1.1rem; line-height:1;
                    color:inherit; opacity:.7; }
@@ -667,6 +672,63 @@
   #sec-rekam .setelan-grup-isi {
     grid-template-columns:repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); }
   #sec-rekam .setelan-grup-isi input { max-width:16rem; }
+
+  /* Tabel rekaman: yang dibaca dari jarak beberapa meter itu KOLOM STATUS,
+     jadi dia yang dapat warna. Kata-katanya tetap yang membawa arti (sebagian
+     teknisi buta warna, dan layar pabrik kena matahari langsung) — warnanya
+     mempercepat, bukan menggantikan. */
+  /* Teks yang cuma dibaca pembaca layar. Header kolom tombol tidak perlu
+     terlihat — lebarnya terbatas dan isinya sudah jelas dari tombolnya — tapi
+     header tabel yang benar-benar kosong membuat pembaca layar menyebut
+     "kolom 5" alih-alih namanya. */
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+             overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+
+  .rekam-status { display:inline-flex; align-items:center; gap:8px;
+                  font-weight:600; }
+  /* Titik, bukan latar penuh: satu baris tabel yang seluruhnya berwarna
+     menarik mata lebih kuat daripada angka di sebelahnya. */
+  .rekam-status::before { content:""; width:9px; height:9px; border-radius:50%;
+                          background:currentColor; flex:none; }
+  .rekam-merekam { color:var(--acc); }
+  .rekam-mati    { color:var(--muted); }
+  .rekam-putus   { color:var(--warn); }
+  /* Titik yang berkedip saat merekam: itu satu-satunya keadaan yang BERUBAH
+     sendiri, dan layar ini sering ditinggal terbuka. */
+  .rekam-merekam::before { animation:rekam-kedip 1.6s ease-in-out infinite; }
+  @keyframes rekam-kedip { 50% { opacity:.25; } }
+  @media (prefers-reduced-motion:reduce) {
+    .rekam-merekam::before { animation:none; }
+  }
+
+  /* Durasi dan jumlah terekam: angka yang dibandingkan antar baris, jadi
+     tabular-nums supaya digitnya sejajar dan tidak bergoyang tiap detik. */
+  #sec-rekam td.rekam-angka { font-family:var(--mono);
+                              font-variant-numeric:tabular-nums; }
+  /* Kolom tombol dipatok selebar isinya supaya Record dan Stop tidak berganti
+     lebar saat status berubah — tombol yang melompat sulit ditekan. */
+  /* Rata KIRI, bukan kanan: kolomnya sudah sesempit isinya, jadi rata kanan
+     cuma menambah jarak kosong antara angka dan tombol yang menjelaskannya. */
+  #sec-rekam td.rekam-aksi, #sec-rekam th.rekam-aksi { width:1%; text-align:left; }
+  #sec-rekam td.rekam-aksi button { min-width:7.5rem; }
+
+  /* Tabel ini cuma tiga baris dengan isi pendek. Dibiarkan `width:100%` seperti
+     tabel lain, kolom Status melar sampai 549 px untuk satu kata dan angkanya
+     terlempar jauh dari judul kolomnya — terbaca seperti data yang tidak
+     berhubungan. Kolomnya dipadatkan ke lebar isinya, dan satu kolom kosong di
+     kanan yang menyerap sisa ruang. */
+  #sec-rekam table { width:auto; min-width:min(48rem, 100%); }
+  #sec-rekam th, #sec-rekam td { width:1%; }
+  /* Kolom penyerap: tanpa ini kolom terakhir yang melar, dan tombolnya
+     terdorong ke tepi layar menjauhi angkanya. */
+  #sec-rekam th.rekam-sisa, #sec-rekam td.rekam-sisa { width:auto; padding:0; }
+
+  /* Baris catatan di atas tabel + sisa disk di bawahnya: keduanya keterangan,
+     jadi diberi jarak yang sama dengan panel lain, bukan menempel di tepi. */
+  #sec-rekam .rekam-catatan { margin:0 var(--pad) 12px; }
+  #sec-rekam .tabel { margin:0 var(--pad); }
+  #sec-rekam .rekam-kaki { display:flex; flex-wrap:wrap; gap:12px 24px;
+                           align-items:center; margin:12px var(--pad) 0; }
   .setelan-form label > span:first-child { font-weight:600; }
   .setelan-form input, .setelan-form select {
     padding:10px 12px; font-family:var(--mono); font-size:1.1rem;
@@ -1112,7 +1174,7 @@
     buruk daripada disk yang penuh perlahan. Karena itu catatannya ditulis
     besar di layar, dan rekaman berhenti sendiri kalau disk menipis.
   -->
-  <p class="muted" data-t="rekamCatatanRetensi">Rekaman tidak dihapus otomatis. Hapus sendiri dari folder videos/ di PC pabrik.</p>
+  <p class="muted rekam-catatan" data-t="rekamCatatanRetensi">Rekaman tidak dihapus otomatis. Hapus sendiri dari folder videos/ di PC pabrik.</p>
 
   <div class="tabel">
     <table>
@@ -1120,9 +1182,11 @@
         <tr>
           <th data-t="thLine">Line</th>
           <th data-t="thStatus">Status</th>
-          <th data-t="thLama">Lama</th>
+          <th class="num" data-t="thLama">Lama</th>
           <th class="num" data-t="thMajuRekam">Terekam</th>
-          <th></th>
+          <th class="rekam-aksi"><span class="sr-only" data-t="thAksi">Aksi</span></th>
+          <!-- Kolom penyerap sisa lebar; lihat CSS `.rekam-sisa`. -->
+          <th class="rekam-sisa" aria-hidden="true"></th>
         </tr>
       </thead>
       <tbody id="rekam-baris"></tbody>
@@ -1158,8 +1222,18 @@
     </details>
     <div class="tools">
       <button type="button" id="rekam-simpan" class="utama" data-t="rekamSimpanSetelan">Simpan setelan</button>
-      <span id="rekam-disk" class="muted"></span>
     </div>
+  </div>
+
+  <!--
+    Jalur folder ditulis di layar, bukan cuma di toast: toast hilang sesudah
+    beberapa detik, dan yang mencari berkasnya sering baru membuka AnyDesk
+    setengah jam kemudian. Jalurnya datang dari backend — berbeda per mesin,
+    jadi layar tidak boleh mengarangnya.
+  -->
+  <div class="rekam-kaki">
+    <span class="muted"><span data-t="rekamDisimpanDi">Disimpan di</span>: <code id="rekam-folder">—</code></span>
+    <span id="rekam-disk" class="muted"></span>
   </div>
 </section>
 
@@ -1549,6 +1623,8 @@ const KAMUS = {
     judulSumberKamera:"Sumber Kamera",
     judulRekamVideo:"Rekam Video", kosongLine:"Belum ada line", thMajuRekam:"Terekam",
     rekamMenunggu:"Menunggu…",
+    rekamSelesai:"Rekaman tersimpan di folder videos/ —",
+    rekamDisimpanDi:"Disimpan di", thAksi:"Aksi",
     rekam_keadaan_berubah:"Keadaan line sudah berubah — layar disegarkan",
     rekam_disk_mepet:"Disk PC pabrik menipis — rekaman tidak dimulai",
     rekam_ditolak:"Line menolak perintah rekam",
@@ -1692,6 +1768,8 @@ const KAMUS = {
     judulSumberKamera:"Camera Source",
     judulRekamVideo:"Record Video", kosongLine:"No lines yet", thMajuRekam:"Recorded",
     rekamMenunggu:"Working…",
+    rekamSelesai:"Recording saved in the videos/ folder —",
+    rekamDisimpanDi:"Saved in", thAksi:"Action",
     rekam_keadaan_berubah:"The line's state changed — screen refreshed",
     rekam_disk_mepet:"The mill PC is low on disk — recording not started",
     rekam_ditolak:"The line refused the recording command",
@@ -3600,6 +3678,9 @@ $("set-simpan").addEventListener("click", async () => {
 // "restart container = rekaman mati" jadi sifat, bukan kode tambahan).
 
 let rekamTimer = null;
+//: Jalur folder rekaman menurut backend. Disimpan supaya toast "selesai" bisa
+//: menyebutnya tanpa menunggu tarikan berikutnya.
+let rekamFolder = "";
 
 function lamaRekam(mulaiEpoch) {
   if (!mulaiEpoch) return KOSONG;
@@ -3632,18 +3713,22 @@ function barisRekam(b) {
   // artinya "belum tahu" (line sedang restart), yang kedua "tahu, dan tidak
   // merekam". Tombolnya dimatikan untuk yang pertama — menekan Rekam ke line
   // yang tidak menjawab cuma menghasilkan pesan gagal.
-  const status = !b.terbaca
-    ? t("rekamTakTerbaca")
-    : (b.merekam ? t("rekamSedangMerekam") : t("rekamMati"));
+  //
+  // Warnanya mempercepat, bukan menggantikan: kata-katanya tetap yang membawa
+  // arti (sebagian teknisi buta warna, layar pabrik kena matahari langsung).
+  const [kunci, kelas] = !b.terbaca
+    ? ["rekamTakTerbaca", "rekam-putus"]
+    : (b.merekam ? ["rekamSedangMerekam", "rekam-merekam"] : ["rekamMati", "rekam-mati"]);
   const tombol = b.merekam
     ? `<button type="button" data-rekam-stop="${esc(b.line_code)}">${esc(t("rekamStop"))}</button>`
     : `<button type="button" class="utama" data-rekam-mulai="${esc(b.line_code)}"${b.terbaca ? "" : " disabled"}>${esc(t("rekamMulai"))}</button>`;
   return `<tr>
     <td>${esc(b.line_code)}</td>
-    <td>${esc(status)}</td>
-    <td>${esc(b.merekam ? lamaRekam(b.mulai_epoch) : KOSONG)}</td>
-    <td class="num">${esc(b.merekam ? majuRekam(b) : KOSONG)}</td>
-    <td>${tombol}</td>
+    <td><span class="rekam-status ${kelas}">${esc(t(kunci))}</span></td>
+    <td class="num rekam-angka">${esc(b.merekam ? lamaRekam(b.mulai_epoch) : KOSONG)}</td>
+    <td class="num rekam-angka">${esc(b.merekam ? majuRekam(b) : KOSONG)}</td>
+    <td class="rekam-aksi">${tombol}</td>
+    <td class="rekam-sisa"></td>
   </tr>`;
 }
 
@@ -3651,7 +3736,7 @@ async function muatRekam() {
   try {
     const data = await api("/api/console/dev/rekam");
     $("rekam-baris").innerHTML = data.lines.length
-      ? data.lines.map(barisRekam).join("") : barisKosong(5, "kosongLine");
+      ? data.lines.map(barisRekam).join("") : barisKosong(6, "kosongLine");
 
     // Kolom setelan TIDAK ditimpa selama sedang diketik: polling tiap 3 detik
     // akan menghapus angka di bawah jari support.
@@ -3664,6 +3749,11 @@ async function muatRekam() {
 
     $("rekam-disk").textContent = data.disk_bebas_gb === null || data.disk_bebas_gb === undefined
       ? "" : `${t("rekamDiskBebas")}: ${data.disk_bebas_gb} GB`;
+    // Jalurnya datang dari backend, tidak dirakit di layar: berbeda per mesin
+    // (`/opt/palmgrade/autograde/videos` di pabrik, `<repo>/videos` di jalur
+    // native), dan jalur yang salah lebih buruk daripada tidak ada jalur.
+    rekamFolder = data.folder || "";
+    $("rekam-folder").textContent = rekamFolder || KOSONG;
   } catch (e) {
     if (e.kode !== "belum_masuk") toastGagal(alasan(e) || t("gagalRekam"));
   }
@@ -3696,6 +3786,14 @@ $("rekam-baris").addEventListener("click", async (ev) => {
     if (hasil && hasil.line_code) {
       const baris = $("rekam-baris").querySelector(`[data-rekam-mulai="${kode}"], [data-rekam-stop="${kode}"]`)?.closest("tr");
       if (baris) baris.outerHTML = barisRekam({ ...hasil, terbaca: true });
+    }
+    // Berhenti merekam tanpa memberi tahu di mana berkasnya membuat support
+    // menebak — folder `videos/` tidak muncul di layar operator mana pun, dan
+    // yang mencarinya membuka PC pabrik lewat AnyDesk. Disebut sekali di toast
+    // (terbaca saat itu juga) dan permanen di kaki layar.
+    if (stop && hasil && hasil.berkas) {
+      const lokasi = rekamFolder ? `${rekamFolder}/${hasil.berkas}` : hasil.berkas;
+      toastSukses(`${t("rekamSelesai")} ${lokasi}`);
     }
     await muatRekam();
   } catch (e) {
