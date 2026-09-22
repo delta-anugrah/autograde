@@ -11,7 +11,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PY = REPO_ROOT / "src" / "palmgrade" / "core" / "config.py"
 COMPOSE = REPO_ROOT / "docker-compose.yml"
