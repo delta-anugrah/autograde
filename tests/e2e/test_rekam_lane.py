@@ -11,15 +11,24 @@ App-nya dirakit sendiri di sini dengan dependensi di-override, bukan
 """
 from __future__ import annotations
 
-import numpy as np
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
-from palmgrade.core.config import Settings
-from palmgrade.core.dependencies import get_runtime_state, get_settings
-from palmgrade.routes import internal as internal_routes
-from palmgrade.workers.runtime_state import RuntimeState
+# `routes/internal` menarik controller yang menarik torch, dan CI sengaja tidak
+# memasangnya (runner ringan, tanpa GPU). Guard-nya di atas import berat itu,
+# bukan cuma di atas cv2: tanpa ini seluruh modul gagal dikoleksi dan CI merah
+# padahal lokal hijau — yang punya torch terpasang. Pola yang sama dengan
+# `test_capture_save_offloaded.py`.
+np = pytest.importorskip("numpy")
+pytest.importorskip("cv2")
+pytest.importorskip("torch")
+
+from fastapi import FastAPI  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from palmgrade.core.config import Settings  # noqa: E402
+from palmgrade.core.dependencies import get_runtime_state, get_settings  # noqa: E402
+from palmgrade.routes import internal as internal_routes  # noqa: E402
+from palmgrade.workers.runtime_state import RuntimeState  # noqa: E402
 
 SECRET = "e2e-internal-secret"
 HEADER = {"x-internal-secret": SECRET}
