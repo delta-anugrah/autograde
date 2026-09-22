@@ -64,7 +64,7 @@ ditanya.
   Kuning = habis N hari lagi; oranye = sudah lewat tanggal tapi masih masa tenggang
   (grading **tetap jalan**); merah = tenggang habis dan **grading dihentikan**. Tanggal
   lengkapnya di tab **Versi** (support). Token baru diterbitkan di **AutoERP** oleh
-  Administrator, lalu dipasang `autograde.sh licence <token>` di PC pabrik — token baru
+  Administrator, lalu dipasang `autograde licence <token>` di PC pabrik — token baru
   cuma berlaku setelah container dibuat ulang, **reboot saja tidak cukup**. Data grading
   dan antrean ERP **tidak hilang** selama lisensi mati.
 - **fps:** untuk Hikrobot diatur `config/camera/hikrobot.mfs`, `CAMERA_FPS` diabaikan.
