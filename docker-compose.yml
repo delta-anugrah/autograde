@@ -99,6 +99,10 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_1_MEDIA_FILE:-}
+      # Folder rekaman video developer (layar Rekam Video). Di luar
+      # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
+      # retensi otomatis — dihapus manual oleh yang merekam.
+      - REKAMAN_DIR=/app/videos
       - CAMERA_VIDEO_LOOP=${LINE_1_VIDEO_LOOP:-false}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
@@ -155,6 +159,8 @@ services:
       # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
       # ganti berkas cukup restart, bukan `docker compose up` ulang.
       - ./media:/media:ro
+      # Rekaman video developer. BUKAN :ro — line yang menulis ke sini.
+      - ./videos:/app/videos
 
   ripe-line-2:
     image: palmgrade-vision:latest
@@ -227,6 +233,10 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_2_MEDIA_FILE:-}
+      # Folder rekaman video developer (layar Rekam Video). Di luar
+      # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
+      # retensi otomatis — dihapus manual oleh yang merekam.
+      - REKAMAN_DIR=/app/videos
       - CAMERA_VIDEO_LOOP=${LINE_2_VIDEO_LOOP:-false}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
@@ -283,6 +293,8 @@ services:
       # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
       # ganti berkas cukup restart, bukan `docker compose up` ulang.
       - ./media:/media:ro
+      # Rekaman video developer. BUKAN :ro — line yang menulis ke sini.
+      - ./videos:/app/videos
 
   ripe-line-3:
     image: palmgrade-vision:latest
@@ -355,6 +367,10 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_3_MEDIA_FILE:-}
+      # Folder rekaman video developer (layar Rekam Video). Di luar
+      # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
+      # retensi otomatis — dihapus manual oleh yang merekam.
+      - REKAMAN_DIR=/app/videos
       - CAMERA_VIDEO_LOOP=${LINE_3_VIDEO_LOOP:-false}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
@@ -411,6 +427,8 @@ services:
       # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
       # ganti berkas cukup restart, bukan `docker compose up` ulang.
       - ./media:/media:ro
+      # Rekaman video developer. BUKAN :ro — line yang menulis ke sini.
+      - ./videos:/app/videos
 
   # Instance ke-4 dari image yang SAMA: konsol operator offline (§4 rencana
   # PalmOS). Tanpa kamera, tanpa GPU, tanpa PLC — supaya satu line kamera yang
@@ -442,7 +460,12 @@ services:
       - APP_MODE=console
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8000
-      - APP_VERSION=${APP_VERSION:-unknown}
+      # APP_VERSION sengaja TIDAK disebut di sini: Dockerfile sudah mem-bake tag
+      # rilis ke image (`ENV APP_VERSION`), dan menyetelnya di compose akan
+      # menimpanya. Di PC pabrik `.env` tidak memuat variabel itu — tidak ada
+      # yang mengisinya — jadi `${APP_VERSION:-unknown}` membuat layar Versi
+      # menjawab "unknown" selamanya, persis saat support menanyakannya lewat
+      # AnyDesk. Dijaga `tests/unit/test_compose_app_version.py`.
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       # Dipakai dua arah: memverifikasi event masuk dari line (x-webhook-secret)
       # dan meneruskan perintah ke line (x-internal-secret). Satu nilai, sama
@@ -480,6 +503,14 @@ services:
       - R2_BUCKET=${R2_BUCKET:-}
       - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
       - LICENSE_TOKEN=${LICENSE_TOKEN:-}
+      # ⚠️ Saklar dan kunci publik WAJIB ikut, bukan cuma tokennya. Konsol
+      # membaca `LICENSE_ENABLED` untuk memutuskan gerbang lisensi menyala, dan
+      # `LICENSE_PUBLIC_KEY` untuk memeriksa tanda tangannya. Token sampai tanpa
+      # saklar = layar melapor "Lisensi: Mati" walau langganannya sah, dan banner
+      # tidak pernah muncul untuk operator. Nol error. Terjadi di Lampung
+      # 2026-09-22. `LICENSE_PUBLIC_KEY` boleh kosong — ada kunci bawaan image.
+      - LICENSE_ENABLED=${LICENSE_ENABLED:-false}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY:-}
       # Pemetaan machine_id → line, supaya event tahu dia dari line mana.
       # Nilai default sama persis dengan tiga service di atas.
       - LINE_1_MACHINE_ID=${LINE_1_MACHINE_ID:-d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01}

@@ -21,11 +21,13 @@ from ..domain.operator_auth import SESSION_TTL_S
 from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
 from ..domain.role import ROLE_SUPPORT, parse_allowed_roles
 from ..domain.setelan_grading import SetelanTidakSah
+from ..domain.setelan_rekam import SetelanRekamTidakSah
 from ..domain.sumber_kamera import SumberTidakSah
 from ..domain.visit_manifest import detail_url_for
 from ..integrations.erp.outbox_store import ErpOutboxStore
-from ..integrations.notifications.line_client import LineClient, LineUnavailable
+from ..integrations.notifications.line_client import LineClient, LinePlcTolak, LineUnavailable
 from ..integrations.upload.r2_uploader import R2Uploader
+from ..license.manager import LicenseManager
 from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
 from ..services.auth_service import AuthService
@@ -123,7 +125,28 @@ def get_dev_service() -> DevService:
             service.manifest_queue.outbox if service.manifest_queue is not None else None
         ),
         settings=settings,
+        license_manager=_build_license_manager(settings),
     )
+
+
+def _build_license_manager(settings) -> LicenseManager | None:
+    """The console's own verifier, or None if the feature is off.
+
+    No `LicenseLocalRepo`: the clock ratchet belongs to the processes that can
+    actually stop grading. A console with its own ratchet file would race the
+    lines over the same SQLite for a number it only displays.
+
+    A public key that will not load is swallowed to None rather than raised —
+    this is wired at console startup, and a mill whose key is misconfigured
+    needs a screen saying so, not a console that refuses to boot.
+    """
+    if not settings.lic_enabled:
+        return None
+    try:
+        return LicenseManager(settings.lic_pubkey_pem, None, settings.lic_token)
+    except Exception as exc:  # noqa: BLE001 — see docstring
+        logger.warning("Kunci publik lisensi tidak bisa dibaca: %s", exc)
+        return None
 
 
 Service = Annotated[ConsoleService, Depends(get_console_service)]
@@ -236,8 +259,17 @@ async def console_me(operator: Operator) -> dict:
 
 
 @router.get("/api/console/state")
-async def console_state(service: Service, operator: Operator) -> dict:
-    return service.state()
+async def console_state(service: Service, dev: Dev, operator: Operator) -> dict:
+    """Ringkasan hari kerja, plus keadaan langganan untuk banner operator.
+
+    Menumpang di sini, bukan endpoint sendiri: layar sudah memanggil ini tiap 2
+    detik, jadi banner ikut hidup tanpa satu pun request tambahan.
+
+    Sengaja **bukan** lewat `/api/console/dev/*`: banner ini untuk operator
+    biasa, yang justru orang yang akan melihat kamera berhenti. Yang dikirim di
+    sini cuma tanggal dan tingkat keparahan — nomor token tetap support-only.
+    """
+    return {**service.state(), "lisensi": await dev.license_state()}
 
 
 @router.get("/api/console/history")
@@ -477,7 +509,7 @@ async def dev_manifest_queue(dev: Dev, operator: Support) -> dict:
 
 @router.get("/api/console/dev/versi")
 async def dev_version(dev: Dev, operator: Support) -> dict:
-    return dev.version()
+    return await dev.version()
 
 
 @router.get("/api/console/dev/setelan")
@@ -502,6 +534,74 @@ async def dev_setelan_simpan(
         )
     except SetelanTidakSah as exc:
         raise _operator_error(400, exc) from exc
+
+
+#: Kode yang line pakai untuk menolak perintah rekam, dan pesan yang dibaca
+#: support untuk masing-masing. Keduanya butuh tindakan berbeda, jadi TIDAK
+#: diratakan jadi satu "gagal": 409 berarti keadaan sudah berubah (dua tab
+#: terbuka, atau rekaman sudah berhenti sendiri), 507 berarti disk pabrik
+#: menipis dan itu harus ditangani sekarang.
+_REKAM_TOLAK = {
+    409: "rekam_keadaan_berubah",
+    507: "rekam_disk_mepet",
+}
+
+
+def _rekam_ditolak(exc: LinePlcTolak):
+    """Terjemahkan penolakan line jadi jawaban yang bisa dibaca layar.
+
+    Tanpa ini `LinePlcTolak` naik apa adanya dan FastAPI menjawab **500** —
+    terbaca seperti konsol rusak, padahal yang terjadi cuma "line itu memang
+    tidak sedang merekam". Ditemukan di browser 2026-09-22.
+    """
+    kode = _REKAM_TOLAK.get(exc.status_code, "rekam_ditolak")
+    return _operator_error(
+        exc.status_code if exc.status_code in _REKAM_TOLAK else 502,
+        OperatorError(kode, str(exc)[:200]),
+    )
+
+
+@router.get("/api/console/dev/rekam")
+async def dev_rekam_status(service: Service, operator: Support) -> dict:
+    """Status rekaman tiap line, setelan yang berlaku, dan sisa disk."""
+    return await service.rekam_status_semua()
+
+
+@router.post("/api/console/dev/rekam/setelan")
+async def dev_rekam_setelan(
+    service: Service, operator: Support, payload: Annotated[dict, Body()]
+) -> dict:
+    """Ubah resolusi/fps/bitrate rekaman. Berlaku untuk rekaman BERIKUTNYA.
+
+    Sengaja tidak menyentuh rekaman yang sedang jalan: mengubah resolusi di
+    tengah berkas MP4 menghasilkan berkas rusak.
+    """
+    try:
+        return await service.simpan_setelan_rekam(payload, diubah_oleh=operator["email"])
+    except SetelanRekamTidakSah as exc:
+        raise _operator_error(400, exc) from exc
+
+
+@router.post("/api/console/dev/rekam/{line_code}/mulai")
+async def dev_rekam_mulai(line_code: str, service: Service, operator: Support) -> dict:
+    """Mulai merekam satu line. Tiap penekanan dicatat WARNING menyebut siapa —
+    rekaman menulis ke disk pabrik, jadi harus ada jejaknya."""
+    try:
+        return await service.rekam_mulai(line_code, diubah_oleh=operator["email"])
+    except ValueError as exc:
+        raise _operator_error(404, exc) from exc
+    except LinePlcTolak as exc:
+        raise _rekam_ditolak(exc) from exc
+
+
+@router.post("/api/console/dev/rekam/{line_code}/stop")
+async def dev_rekam_stop(line_code: str, service: Service, operator: Support) -> dict:
+    try:
+        return await service.rekam_stop(line_code, diubah_oleh=operator["email"])
+    except ValueError as exc:
+        raise _operator_error(404, exc) from exc
+    except LinePlcTolak as exc:
+        raise _rekam_ditolak(exc) from exc
 
 
 @router.get("/api/console/dev/sumber-kamera")

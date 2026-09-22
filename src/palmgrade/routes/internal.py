@@ -24,6 +24,7 @@ from ..core.dependencies import (
     get_settings,
 )
 from ..domain.setelan_grading import bersihkan_setelan
+from ..domain.setelan_rekam import SetelanRekamTidakSah, bersihkan_setelan_rekam
 from ..integrations.outbox.outbox_store import OutboxStore
 from ..schemas.internal_schema import (
     AssignmentSyncRequest,
@@ -208,3 +209,78 @@ async def restart() -> RestartResponse:
     logger.warning("Permintaan restart diterima dari konsol")
     _jadwalkan_keluar(_JEDA_KELUAR_DETIK)
     return RestartResponse(status="restarting", jeda_detik=_JEDA_KELUAR_DETIK)
+
+
+# ── rekam video developer ───────────────────────────────────────────────────
+#
+# Konsol yang memegang tombolnya; line yang merekam. Setelan dikirim konsol tiap
+# kali mulai dan TIDAK disimpan di sini — itu yang membuat "restart container =
+# rekaman mati" (keputusan 2026-09-22) jadi sifat, bukan sesuatu yang harus
+# dijaga kode tambahan.
+
+_recorder_lock = threading.Lock()
+
+
+def _recorder(state: RuntimeState, settings: Settings):
+    """Recorder line ini, dibuat saat pertama dibutuhkan.
+
+    Dibuat malas supaya line yang tidak pernah merekam tidak menyentuh folder
+    `videos/` sama sekali. Di balik lock: dua permintaan yang datang bersamaan
+    akan membuat dua recorder, dan yang kedua menimpa yang pertama di
+    `state.video_recorder` — rekaman pertama jalan terus tanpa ada yang bisa
+    menghentikannya.
+    """
+    from ..services.video_recorder import VideoRecorder
+
+    with _recorder_lock:
+        if state.video_recorder is None:
+            state.video_recorder = VideoRecorder(
+                videos_dir=settings.videos_dir,
+                line_code=settings.line_code,
+                disk_min_free_gb=settings.upload_disk_min_free_gb,
+            )
+        return state.video_recorder
+
+
+@router.post("/rekam/mulai")
+async def rekam_mulai(
+    state: Annotated[RuntimeState, Depends(get_runtime_state)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    request: dict | None = None,
+) -> dict:
+    """Mulai merekam line ini dengan setelan yang dikirim konsol."""
+    from ..services.video_recorder import DiskMepet, RekamSedangJalan
+
+    try:
+        bersih = bersihkan_setelan_rekam(request or {})
+    except SetelanRekamTidakSah as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        return _recorder(state, settings).mulai(bersih)
+    except RekamSedangJalan as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except DiskMepet as exc:
+        # 507 Insufficient Storage: bukan salah pemanggil, dan bukan kerusakan.
+        raise HTTPException(status_code=507, detail=str(exc)) from exc
+
+
+@router.post("/rekam/stop")
+async def rekam_stop(
+    state: Annotated[RuntimeState, Depends(get_runtime_state)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict:
+    from ..services.video_recorder import RekamTidakJalan
+
+    try:
+        return _recorder(state, settings).stop()
+    except RekamTidakJalan as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/rekam/status")
+async def rekam_status(
+    state: Annotated[RuntimeState, Depends(get_runtime_state)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict:
+    return _recorder(state, settings).status()

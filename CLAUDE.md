@@ -83,7 +83,8 @@ src/palmgrade/
   domain/          # pure rules + entities (no I/O) — termasuk working_day.py (§6.1) & ffb_source.py (§3.5b)
   plc/             # PLC/ODOT Modbus-TCP integration, entirely self-contained — public surface is 5 functions (start_plc_worker/shutdown_plc_worker/submit_grading/inputs/diagnostics)
   schemas/         # Pydantic request/response models
-  license/         # optional Ed25519 license guard
+  license/         # Ed25519 license guard (opsional) — `manager` memverifikasi, `gate` menghentikan
+                   # grading, `summary` membentuk angka untuk layar. Tokennya DITERBITKAN di AutoERP.
 docs/              # overview.md (DETAIL), architecture.md, backend-overview.md, SETUP.md
 tests/unit/        # unit test murni-logic (pytest, no torch/cv2)
 models/release/    # best.pt (required, NOT committed)
@@ -183,7 +184,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/login` | `{email, sandi}` → cookie `konsol_sesi` HttpOnly, 12 jam. Sandi salah 401, login terkunci 429 |
 | POST | `/api/console/logout` | akhiri sesi ini saja |
 | GET | `/api/console/me` | operator yang sedang masuk |
-| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
+| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator — **bukan** lane support, karena operator biasa yang melihat kamera berhenti |
 | GET | `/api/console/history` | filter `work_date` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas |
 | GET | `/api/console/trucks` | master truk + supplier + `source_label` |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
@@ -201,9 +202,13 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu layar |
 | GET | `/api/console/dev/antrean` | isi `erp_outbox` — jumlah pending/gagal + daftar yang gagal |
 | POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox` |
-| GET | `/api/console/dev/versi` | versi image + status lisensi berjalan |
+| GET | `/api/console/dev/versi` | versi image + lisensi berjalan lengkap dengan nama perusahaan dan tanggal |
 | GET | `/api/console/dev/plc/{line_code}` | snapshot DI + daftar coil yang boleh diuji untuk satu line — baca saja, aman dibuka kapan pun |
 | POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil PLC line itu — **satu-satunya aksi konsol yang menggerakkan hardware fisik**, lihat Critical Rules |
+| GET | `/api/console/dev/rekam` | status rekaman tiap line + setelan yang berlaku + sisa disk. Line yang tidak menjawab dilaporkan `terbaca:false`, bukan menjatuhkan seluruh jawaban |
+| POST | `/api/console/dev/rekam/setelan` | ubah resolusi/fps/bitrate rekaman. Berlaku untuk rekaman **berikutnya** — mengubah resolusi di tengah berkas MP4 menghasilkannya rusak |
+| POST | `/api/console/dev/rekam/{line_code}/mulai` | mulai merekam satu line. 409 kalau sudah merekam, **507 kalau disk mepet** (dua hal yang butuh tindakan berbeda, jadi tidak diratakan) |
+| POST | `/api/console/dev/rekam/{line_code}/stop` | hentikan dan tutup berkasnya. Menahan ~2 detik: line menunggu encoder menutup berkas dengan rapi |
 | POST | `{BACKEND_API_VER}/internal/vision/events` | ← dari tiga line (`x-webhook-secret`), kontrak §5 |
 | POST | `{BACKEND_API_VER}/internal/scale/weighing` | ← dari program timbangan (`x-webhook-secret`), bentuk sementara kita |
 | GET | `/captures/{line_code}/...` | gambar line, mount read-only, bentuk URL = `resolveCaptureUrl` api |
@@ -633,6 +638,62 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     bukan cuma tab yang hilang, seluruh menunya buntu di 403. Lifespan konsol memeriksa
     ini saat startup dan `logger.warning` kalau kosong, supaya yang pasang PC tahu
     sebelum AnyDesk pertama yang butuh layar ini datang.
+22. **Lisensi: pabrik MEMERIKSA, AutoERP yang MENERBITKAN** (2026-09-22).
+    Token JWS Ed25519 dicetak DocType `AutoGrade Licence` di AutoERP (dulu
+    palmgrade-api, yang mati 2026-09-20) dan dipasang teknisi dengan
+    `autograde.sh licence <token>`. Repo ini **tidak berubah sedikit pun** di sisi
+    verifikasi: kunci publik yang sama, `LicenseManager` yang sama, nol HTTP.
+    ⚠️ **Fail closed di tiga titik**, dan ketiganya harus tetap ada: worker deteksi
+    (`grading_blocked`, gerbang sesungguhnya), heartbeat PLC (`license_ok`), dan
+    middleware HTTP line. Gate login saja tidak cukup — grading jalan di thread
+    background yang tidak lewat HTTP, jadi dashboard mati sementara kamera tetap
+    menyortir buah.
+    **Konsol memverifikasi tokennya SENDIRI**, tidak bertanya ke line: konsol proses
+    terpisah tapi memakai `.env` dan image yang sama, jadi sumbernya satu — dan line
+    yang sedang restart tidak boleh membuat langganan terlihat rusak.
+    `license/summary.py` sengaja modul sendiri dan murni (alasan yang sama dengan
+    `gate.py`): aturan yang memutuskan apa yang dibaca operator saat pabrik berhenti
+    harus punya test yang benar-benar jalan di CI.
+    ⚠️ **Banner operator menumpang `/api/console/state`, BUKAN `/api/console/dev/*`.**
+    Yang melihat kamera berhenti itu operator biasa, dan lane dev menjawab 403 untuk
+    mereka — layar akan diam persis di saat penjelasan paling dibutuhkan. Yang ikut ke
+    operator cuma tingkat keparahan dan tanggal; nomor token tetap support-only, dan
+    ada test yang menjaganya.
+    ⚠️ **Token yang tidak terbaca diperlakukan sama dengan habis.** Kebalikannya
+    berarti token rusak = gratis.
+
+23. **Rekam video developer: grading tidak pernah melambat karenanya** (2026-09-22).
+    Layar **Rekam Video** (`role=support`) merekam frame kamera ke MP4, satu tombol
+    per line, jalan sampai ditekan Stop. Titik sadapnya `FrameCaptureWorker` —
+    **sebelum** inference — jadi yang terekam **clean tanpa bbox** tanpa kerja
+    tambahan, dan itu memang yang berguna (bbox adalah prediksi model sendiri).
+    ⚠️ **Encode WAJIB di thread sendiri, dan antrean penuh MEMBUANG frame.**
+    `VideoRecorder.tulis()` dipanggil tiap frame dari thread capture dan harus
+    kembali seketika; menahannya akan mengembalikan persis lag ~590 ms yang
+    dihilangkan autograde#112. Yang dikorbankan videonya (bolong), bukan
+    deteksinya — `frame_dibuang` di layar adalah alat ukurnya. Diukur 2026-09-22:
+    fps deteksi **+0,1%** dengan rekaman jalan, `frame_dibuang` nol
+    (`docs/runbooks/2026-09-22-ukur-biaya-encode-rekam.md`).
+    ⚠️ **Recorder yang rusak tidak boleh menjatuhkan line**: panggilannya
+    dibungkus `try` di capture worker. Fitur developer tidak boleh bisa
+    mematikan produksi.
+    **Codec `avc1` (H.264), fallback `mp4v`** — diukur 5x lebih kecil (0,48 vs
+    2,40 GB/jam pada 1280x1024 @ 5 fps). Fallback-nya bukan hiasan: `avc1` tidak
+    ada di setiap build OpenCV, dan `VideoWriter` yang gagal membuka **tidak
+    melempar** — tanpa pemeriksaan `isOpened()` hasilnya berkas 0 byte yang baru
+    ketahuan berjam-jam kemudian.
+    **Setelan (resolusi/fps/bitrate) hidup di konsol**, satu baris `sync_state`,
+    pola yang sama dengan `setelan_grading` — dan dikirim ulang tiap kali mulai.
+    Itu yang membuat **restart container = rekaman mati** jadi sifat, bukan kode
+    tambahan. Setelan baru sengaja **tidak** menyentuh rekaman yang sedang jalan:
+    mengubah resolusi di tengah berkas MP4 menghasilkan berkas rusak.
+    ⚠️ **`videos/` di luar `artifacts/` dan TIDAK ikut retensi otomatis.**
+    `BatchUploadWorker._retention()` menyapu `artifacts/`; rekaman yang duduk di
+    sana akan terhapus diam-diam di tengah penelusuran masalah. Harganya:
+    berkasnya menumpuk sampai ada yang menghapusnya — karena itu layar
+    mengatakannya, dan rekaman berhenti sendiri di bawah
+    `UPLOAD_DISK_MIN_FREE_GB` (20 GB). Disk penuh berarti grading berhenti
+    menulis, yaitu pabrik berhenti.
 
 ---
 

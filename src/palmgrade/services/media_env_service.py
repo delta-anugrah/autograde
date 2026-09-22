@@ -14,8 +14,10 @@ bawaan, karena berkas yang disunting tangan atau ditulis versi lebih baru tidak
 boleh membuat line gagal boot. Yang rewel adalah gerbang simpan di
 `domain/sumber_kamera`, sebelum nilainya sampai ke sini.
 """
+
 from __future__ import annotations
 
+import errno
 import logging
 import os
 import tempfile
@@ -126,15 +128,35 @@ class MediaEnvService:
         isi = "".join(bagian)
 
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        fd, sementara = tempfile.mkstemp(
-            dir=self._path.parent, prefix=".media.env.", suffix=".tmp"
-        )
+        fd, sementara = tempfile.mkstemp(dir=self._path.parent, prefix=".media.env.", suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(isi)
                 f.flush()
                 os.fsync(f.fileno())
-            os.replace(sementara, self._path)
+            try:
+                os.replace(sementara, self._path)
+            except OSError as e:
+                # Berkas yang di-bind-mount Docker (`./media.env:/config/media.env`
+                # di docker-compose) adalah MOUNT POINT, dan `os.replace` ke mount
+                # point selalu gagal EBUSY -- betapapun benar izinnya. Gejalanya di
+                # PC pabrik: layar Sumber Kamera menjawab HTTP 500 tiap kali
+                # disimpan, sementara `touch` ke berkas yang sama berhasil, jadi
+                # tidak ada pemeriksaan izin yang bisa menemukannya.
+                #
+                # Di situ berkasnya ditulis di tempat. Itu MELEPAS atomisitas, yang
+                # memang tidak bisa didapat pada mount point: menukar nama berkas
+                # yang menjadi mount point bukan operasi yang diizinkan kernel.
+                # Jendela kerusakannya (mati listrik tepat saat menulis ~200 byte)
+                # jauh lebih kecil daripada kerugian pasti "sumber kamera tidak
+                # bisa diubah sama sekali di setiap pemasangan Docker".
+                if e.errno not in (errno.EBUSY, errno.EXDEV, errno.EINVAL):
+                    raise
+                with open(self._path, "w", encoding="utf-8") as f:
+                    f.write(isi)
+                    f.flush()
+                    os.fsync(f.fileno())
+                Path(sementara).unlink(missing_ok=True)
         except BaseException:
             Path(sementara).unlink(missing_ok=True)
             raise

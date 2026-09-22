@@ -1161,3 +1161,79 @@ def test_ada_jalan_lain_ke_setiap_gerbang_tanpa_scan():
     assert "data-aksi='keluar'" in HTML, "tombol keluar per baris hilang"
     # Keduanya bermuara ke satu penulis tara, bukan salinan kedua.
     assert HTML.count("function tanyaTara(") == 1
+
+
+# ── banner langganan ────────────────────────────────────────────────────
+# Sebelum ini ada, langganan yang habis menghentikan kamera sementara konsol
+# tidak bilang apa-apa: operator melihat line diam tanpa satu pun penjelasan.
+
+
+def test_layar_punya_banner_langganan():
+    assert 'id="lisensi-banner"' in HTML, "banner langganan hilang dari layar"
+
+
+def test_banner_digambar_tiap_refresh():
+    """Menumpang di `/api/console/state` yang memang sudah dipolling 2 detik —
+    kalau panggilannya hilang, banner membeku di keadaan pertama yang terlihat."""
+    assert "gambarBannerLisensi(s.lisensi)" in _fungsi("refresh")
+
+
+def test_banner_tidak_menghitung_ulang_tingkat_keparahan():
+    """Aturannya harus sama persis dengan yang menghentikan kamera. Satu-satunya
+    cara menjamin itu adalah tidak punya salinan kedua di layar."""
+    fn = _fungsi("gambarBannerLisensi")
+    for dilarang in ("Date.now()", "sisa_hari <", "sisa_hari >", "tenggang_sampai <"):
+        assert dilarang not in fn, f"banner menghitung sendiri lewat {dilarang}"
+
+
+def test_banner_diam_saat_langganan_sehat():
+    """Baris kosong yang memakan tinggi mendorong kartu line turun setiap hari
+    untuk sesuatu yang tidak perlu dibaca."""
+    fn = _fungsi("gambarBannerLisensi")
+    assert 'severity === "none"' in fn
+    assert "removeAttribute" in fn
+
+
+def test_banner_diam_kalau_server_tidak_mengirim_lisensi():
+    """Konsol lama bicara ke server baru (atau sebaliknya) saat upgrade separuh
+    jalan. Banner palsu lebih buruk daripada tidak ada banner."""
+    assert "!l || !l.severity" in _fungsi("gambarBannerLisensi")
+
+
+def test_banner_memakai_textContent_bukan_innerHTML():
+    """Nama perusahaan di token datang dari luar layar ini."""
+    fn = _fungsi("gambarBannerLisensi")
+    assert "innerHTML" not in fn
+    assert "textContent" in fn
+
+
+def test_ketiga_tingkat_banner_diterjemahkan_di_kedua_bahasa():
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("bannerLisensiWarning", "bannerLisensiGrace", "bannerLisensiBlocked"):
+            assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+
+
+def test_ketiga_tingkat_banner_punya_warna():
+    """Tanpa aturan CSS-nya, `data-tingkat` terpasang tapi banner tetap tidak
+    terlihat — gagal yang paling senyap dari semuanya."""
+    for tingkat in ("warning", "grace", "blocked"):
+        assert f'#lisensi-banner[data-tingkat="{tingkat}"]' in HTML
+
+
+def test_banner_tidak_menampilkan_token():
+    """Layar operator terbuka untuk semua akun; nomor token support-only."""
+    fn = _fungsi("gambarBannerLisensi")
+    assert "token" not in fn.lower()
+
+
+def test_kartu_support_menampilkan_tanggal_langganan():
+    fn = _fungsi("muatVersi")
+    assert "labelAktifSampai" in fn and "labelTenggangSampai" in fn
+
+
+def test_tanggal_langganan_tidak_menampilkan_jam():
+    """Langganan berakhir di ujung hari; 23:59:59 di layar terbaca seperti
+    ketelitian yang tidak berarti apa-apa bagi operator."""
+    fn = _fungsi("tanggalLisensi")
+    assert "hour" not in fn and "minute" not in fn

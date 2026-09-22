@@ -60,6 +60,13 @@ ditanya.
 - **`capture_save_dropped` / `tp_telat` di `/health/detail` harus NOL.** Yang pertama =
   janjang sudah dipulse PLC tapi tidak punya gambar maupun sidecar (disk/CPU kalah cepat);
   yang kedua = tangkai panjang muncul sesudah janjangnya difoto, jadi tidak tercatat.
+- **Banner langganan / kamera berhenti tanpa sebab:** cek banner di atas layar konsol.
+  Kuning = habis N hari lagi; oranye = sudah lewat tanggal tapi masih masa tenggang
+  (grading **tetap jalan**); merah = tenggang habis dan **grading dihentikan**. Tanggal
+  lengkapnya di tab **Versi** (support). Token baru diterbitkan di **AutoERP** oleh
+  Administrator, lalu dipasang `autograde licence <token>` di PC pabrik — token baru
+  cuma berlaku setelah container dibuat ulang, **reboot saja tidak cukup**. Data grading
+  dan antrean ERP **tidak hilang** selama lisensi mati.
 - **fps:** untuk Hikrobot diatur `config/camera/hikrobot.mfs`, `CAMERA_FPS` diabaikan.
 - **Berat:** neto dihitung konsol, bruto/tara < 1.000 kg ditolak, `14.820` terbaca 14,82.
 

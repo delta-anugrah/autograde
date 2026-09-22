@@ -27,6 +27,9 @@ from ..domain.operator_error import (
 )
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LinePlcTolak, LineUnavailable
+from ..license.manager import LicenseManager
+from ..license.summary import license_summary
+from ..license.types import EffectiveLicense
 from ..repositories.log_repository import LogStore
 
 logger = logging.getLogger(__name__)
@@ -73,6 +76,7 @@ class DevService:
         erp_outbox: ErpOutboxStore | None = None,
         manifest_outbox: ErpOutboxStore | None = None,
         settings: Settings | None = None,
+        license_manager: LicenseManager | None = None,
     ) -> None:
         self._log = log_store
         self._last_purge = 0.0
@@ -84,6 +88,10 @@ class DevService:
         # this is a separate field instead of folding into `_erp_outbox`.
         self._manifest_outbox = manifest_outbox
         self._settings = settings
+        # Built by the caller, not here: the console is a separate process from
+        # the three camera lines, so it verifies the same `LICENSE_TOKEN` itself
+        # rather than asking a line that may be down for an unrelated reason.
+        self._license_manager = license_manager
 
     def log(
         self, *, level: str | None, search: str | None, limit: int, offset: int
@@ -213,18 +221,48 @@ class DevService:
                 return line
         raise InvalidInput(LINE_TIDAK_DIKENAL, f"unknown line: {line_code}", line=line_code)
 
-    def version(self) -> dict[str, Any]:
+    async def version(self) -> dict[str, Any]:
         """Version, machine id, environment, licence state.
 
         Never the webhook secret, the ERP key, or a password hash — this
-        screen is read over AnyDesk, not a place for credentials.
+        screen is read over AnyDesk, not a place for credentials. The licence
+        dates are safe here for the same reason they are printed on the
+        subscription card: they are what the mill is entitled to, not a secret.
         """
         return {
             "versi": self._settings.app_version,
             "machine_id": self._settings.machine_id,
             "environment": self._settings.environment,
-            "lisensi": {
-                "aktif": self._settings.lic_enabled,
-                "token_terpasang": bool(self._settings.lic_token),
-            },
+            "lisensi": await self.license_state(),
         }
+
+    async def license_state(self) -> dict[str, Any]:
+        """Subscription dates for the console.
+
+        Verified here rather than fetched from a line: the console runs from the
+        same image with the same `.env`, so it holds the same token, and asking
+        a line would make the banner disappear whenever a camera is restarting.
+
+        A manager that raises is treated as "no licence" rather than allowed to
+        reach the operator as a 500 — the screen exists to explain why grading
+        stopped, so it must survive the case where the licence itself is broken.
+        """
+        enabled = bool(self._settings.lic_enabled)
+        installed = bool(self._settings.lic_token)
+
+        if self._license_manager is None:
+            return license_summary(
+                EffectiveLicense(status="EXPIRED", reason="no manager", payload=None, warning=None),
+                enabled=enabled,
+                token_installed=installed,
+            )
+
+        try:
+            effective = await self._license_manager.get_effective_license()
+        except Exception as exc:  # noqa: BLE001 — see docstring
+            logger.warning("Gagal membaca lisensi untuk layar konsol: %s", exc)
+            effective = EffectiveLicense(
+                status="EXPIRED", reason=f"unreadable: {exc}", payload=None, warning=None
+            )
+
+        return license_summary(effective, enabled=enabled, token_installed=installed)
