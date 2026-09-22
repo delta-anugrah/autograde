@@ -83,7 +83,8 @@ src/palmgrade/
   domain/          # pure rules + entities (no I/O) — termasuk working_day.py (§6.1) & ffb_source.py (§3.5b)
   plc/             # PLC/ODOT Modbus-TCP integration, entirely self-contained — public surface is 5 functions (start_plc_worker/shutdown_plc_worker/submit_grading/inputs/diagnostics)
   schemas/         # Pydantic request/response models
-  license/         # optional Ed25519 license guard
+  license/         # Ed25519 license guard (opsional) — `manager` memverifikasi, `gate` menghentikan
+                   # grading, `summary` membentuk angka untuk layar. Tokennya DITERBITKAN di AutoERP.
 docs/              # overview.md (DETAIL), architecture.md, backend-overview.md, SETUP.md
 tests/unit/        # unit test murni-logic (pytest, no torch/cv2)
 models/release/    # best.pt (required, NOT committed)
@@ -183,7 +184,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/login` | `{email, sandi}` → cookie `konsol_sesi` HttpOnly, 12 jam. Sandi salah 401, login terkunci 429 |
 | POST | `/api/console/logout` | akhiri sesi ini saja |
 | GET | `/api/console/me` | operator yang sedang masuk |
-| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
+| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator — **bukan** lane support, karena operator biasa yang melihat kamera berhenti |
 | GET | `/api/console/history` | filter `work_date` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas |
 | GET | `/api/console/trucks` | master truk + supplier + `source_label` |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
@@ -201,7 +202,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu layar |
 | GET | `/api/console/dev/antrean` | isi `erp_outbox` — jumlah pending/gagal + daftar yang gagal |
 | POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox` |
-| GET | `/api/console/dev/versi` | versi image + status lisensi berjalan |
+| GET | `/api/console/dev/versi` | versi image + lisensi berjalan lengkap dengan nama perusahaan dan tanggal |
 | GET | `/api/console/dev/plc/{line_code}` | snapshot DI + daftar coil yang boleh diuji untuk satu line — baca saja, aman dibuka kapan pun |
 | POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil PLC line itu — **satu-satunya aksi konsol yang menggerakkan hardware fisik**, lihat Critical Rules |
 | POST | `{BACKEND_API_VER}/internal/vision/events` | ← dari tiga line (`x-webhook-secret`), kontrak §5 |
@@ -633,6 +634,29 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     bukan cuma tab yang hilang, seluruh menunya buntu di 403. Lifespan konsol memeriksa
     ini saat startup dan `logger.warning` kalau kosong, supaya yang pasang PC tahu
     sebelum AnyDesk pertama yang butuh layar ini datang.
+22. **Lisensi: pabrik MEMERIKSA, AutoERP yang MENERBITKAN** (2026-09-22).
+    Token JWS Ed25519 dicetak DocType `AutoGrade Licence` di AutoERP (dulu
+    palmgrade-api, yang mati 2026-09-20) dan dipasang teknisi dengan
+    `autograde.sh licence <token>`. Repo ini **tidak berubah sedikit pun** di sisi
+    verifikasi: kunci publik yang sama, `LicenseManager` yang sama, nol HTTP.
+    ⚠️ **Fail closed di tiga titik**, dan ketiganya harus tetap ada: worker deteksi
+    (`grading_blocked`, gerbang sesungguhnya), heartbeat PLC (`license_ok`), dan
+    middleware HTTP line. Gate login saja tidak cukup — grading jalan di thread
+    background yang tidak lewat HTTP, jadi dashboard mati sementara kamera tetap
+    menyortir buah.
+    **Konsol memverifikasi tokennya SENDIRI**, tidak bertanya ke line: konsol proses
+    terpisah tapi memakai `.env` dan image yang sama, jadi sumbernya satu — dan line
+    yang sedang restart tidak boleh membuat langganan terlihat rusak.
+    `license/summary.py` sengaja modul sendiri dan murni (alasan yang sama dengan
+    `gate.py`): aturan yang memutuskan apa yang dibaca operator saat pabrik berhenti
+    harus punya test yang benar-benar jalan di CI.
+    ⚠️ **Banner operator menumpang `/api/console/state`, BUKAN `/api/console/dev/*`.**
+    Yang melihat kamera berhenti itu operator biasa, dan lane dev menjawab 403 untuk
+    mereka — layar akan diam persis di saat penjelasan paling dibutuhkan. Yang ikut ke
+    operator cuma tingkat keparahan dan tanggal; nomor token tetap support-only, dan
+    ada test yang menjaganya.
+    ⚠️ **Token yang tidak terbaca diperlakukan sama dengan habis.** Kebalikannya
+    berarti token rusak = gratis.
 
 ---
 
