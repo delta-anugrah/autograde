@@ -1,0 +1,42 @@
+# Paket yang dipasang CI — SENGAJA terpisah dari `requirements.txt`.
+#
+# Yang ini ringan dan pure-python (plus satu wheel opencv tanpa GUI), supaya
+# runner CI tidak butuh GPU, kamera, atau SDK Hikrobot. Aturan yang tidak boleh
+# berubah: **tidak ada torch, tidak ada SDK di CI.**
+#
+# Berkas tersendiri karena `actions/setup-python` dengan `cache: pip` butuh
+# sesuatu yang bisa di-hash sebagai kunci cache. Daftar yang cuma hidup di
+# baris `run:` workflow tidak bisa dipakai — dan tanpa cache, tiap run
+# mengunduh ulang ~14 wheel termasuk opencv (~35 MB).
+#
+# ⚠️ Menambah paket di sini berarti memeriksa dulu apakah ia menarik torch.
+# `requirements.txt` (runtime) tetap sumber kebenaran untuk yang jalan di
+# pabrik; ini cuma untuk menjalankan test.
+
+ruff
+pytest
+
+# Dipakai kode yang diuji.
+cryptography
+aiosqlite
+psutil
+httpx
+boto3
+pydantic
+segno
+
+# `python-dotenv` ikut lewat `console_main`, yang diimpor test lifespan untuk
+# membuktikan peringatan startup benar-benar muncul.
+python-dotenv
+
+# Khusus test:
+#  - `pyyaml` membaca balik berkas compose dan mencocokkannya dengan Settings.
+#  - `fastapi` untuk penjaga sesi konsol, yang cuma bisa dibuktikan lawan app
+#    sungguhan.
+pyyaml
+fastapi
+
+# Delapan test lane PLC menyentuh `internal_controller` -> `core/constants.py`
+# -> `cv2`. `headless` adalah wheel tanpa GUI (~35 MB, tanpa X11) dan TIDAK
+# menarik torch.
+opencv-python-headless

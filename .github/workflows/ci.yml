@@ -3,8 +3,20 @@ name: CI
 on:
   pull_request:
     branches: [staging, main]
+  # `push` HANYA di `main`, bukan staging. Tiap perubahan sudah diuji sebagai
+  # PR; menjalankannya lagi saat merge ke staging menguji commit yang sama
+  # persis dan membayar dua kali — 10 dari 26 run CI terakhir adalah itu.
+  #
+  # `main` tetap dijaga karena itu yang menuju pabrik, dan merge ke sana bisa
+  # membawa penyelesaian konflik yang belum pernah diuji sebagai satu kesatuan
+  # (terjadi di #139).
+  #
+  # ⚠️ TIDAK ada `paths-ignore` di sini, walau terlihat seperti penghematan
+  # gratis: `tests/unit/test_doc_links.py` membaca seluruh `docs/**/*.md`, dan
+  # delapan dokumen lain punya test isinya sendiri. PR yang cuma menyunting
+  # dokumen justru satu-satunya yang bisa memerahkan test itu.
   push:
-    branches: [staging, main]
+    branches: [main]
 
 jobs:
   lint-and-test:
@@ -16,24 +28,19 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          # Tanpa ini tiap run mengunduh ulang ~14 wheel, termasuk opencv
+          # (~35 MB). Kuncinya hash `requirements-ci.txt`, jadi cache-nya
+          # gugur sendiri begitu daftarnya berubah.
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
 
       # No torch/opencv/SDK on purpose: unit tests are pure logic, so CI stays
       # fast and needs no GPU. The rest are light pure-python wheels.
+      # Daftarnya hidup di `requirements-ci.txt` supaya bisa di-hash jadi kunci
+      # cache. Alasan tiap paket ada di sana. Yang tidak berubah: **tidak ada
+      # torch, tidak ada SDK di CI.**
       - name: Install tooling
-        # pyyaml is test-only, like ruff and pytest: it is how the compose file
-        # is read back and checked against the settings the console reads.
-        # fastapi is here for one guard (Fase 4): every operator lane must refuse a
-        # request without a session, and that can only be proven against a real app.
-        # Still no torch, cv2 or SDK — those stay out of CI.
-        # python-dotenv comes in with `console_main`, which the lifespan test imports
-        # to prove the startup warnings fire. Still no torch, cv2 or SDK.
-        # opencv-python-headless arrived with the e2e step below. Eight PLC lane tests
-        # reach `internal_controller` -> `core/constants.py` -> `cv2`; their own
-        # docstrings say they live in tests/e2e/ because that folder "is not CI-gated,
-        # so it can afford the real import". Now that it is gated, the import has to
-        # resolve. `headless` is the no-GUI wheel (~35 MB, no X11) and it does NOT pull
-        # torch -- the line that must not change is still "no torch, no SDK in CI".
-        run: pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi segno python-dotenv opencv-python-headless
+        run: pip install -r requirements-ci.txt
 
       # Lint covers only modules already cleaned up; widen it one module at a time.
       - name: Ruff (lint)
