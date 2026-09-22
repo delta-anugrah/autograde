@@ -2244,7 +2244,12 @@ function pesan(text) {
 // truck, two open tickets) so it gets longer. A failure needs the operator to
 // actually read a sentence and decide what to do next - it does not
 // self-dismiss at all, it waits for the tap on ×.
-const TOAST_DURASI = { sukses: 3000, peringatan: 5000, gagal: 0 };
+// `sukses` 5 detik, sama dengan `peringatan`: tiga detik cukup untuk pesan
+// yang dikenali sekilas ("Line 1 ditugaskan"), tapi tidak untuk yang harus
+// DIBACA — toast rekaman membawa jalur berkas sepanjang puluhan karakter, dan
+// yang membacanya sering sambil memegang hal lain. `gagal` tetap 0: kegagalan
+// menunggu ditutup, bukan menunggu tenggat habis di tengah orang membacanya.
+const TOAST_DURASI = { sukses: 5000, peringatan: 5000, gagal: 0 };
 // More than this and the stack would climb high enough to cover the tab
 // table underneath it - four is as many as fit in the corner without that,
 // even during a run of rapid manual rejects.

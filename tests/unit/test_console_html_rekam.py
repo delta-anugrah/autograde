@@ -147,3 +147,21 @@ def test_kolom_penyerap_disembunyikan_dari_pembaca_layar():
     """Kolom itu murni tata letak; disebutkan pembaca layar cuma menambah
     kebisingan di tabel yang isinya sudah jelas."""
     assert 'class="rekam-sisa" aria-hidden="true"' in HTML
+
+
+def test_toast_sukses_bertahan_lima_detik():
+    """Tiga detik terlalu singkat untuk pesan yang isinya jalur berkas.
+
+    Toast rekaman membawa jalur penuh — puluhan karakter yang harus dibaca,
+    bukan dikenali sekilas seperti "Line 1 ditugaskan". Disamakan dengan
+    `peringatan`, yang sudah 5 detik dengan alasan yang sama.
+    """
+    blok = HTML.split("const TOAST_DURASI", 1)[1].split("\n", 1)[0]
+    assert "sukses: 5000" in blok, blok
+
+
+def test_toast_gagal_tetap_menunggu_ditutup():
+    """Kontrol negatif: menaikkan durasi sukses tidak boleh ikut memberi
+    tenggat pada kegagalan, yang harus bertahan sampai operator menutupnya."""
+    blok = HTML.split("const TOAST_DURASI", 1)[1].split("\n", 1)[0]
+    assert "gagal: 0" in blok, blok
