@@ -93,7 +93,9 @@ services:
       - APP_MODE=console
       - APP_PORT=8100
       - APP_ENV=${APP_ENV:-production}
-      - APP_VERSION=${APP_VERSION:-unknown}
+      # APP_VERSION sengaja TIDAK disebut — lihat alasan lengkapnya di
+      # docker-compose.yml. Harus dibuang di KEDUA berkas: override mengganti
+      # seluruh blok `environment:`, bukan menambahinya.
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
       - FACTORY_TZ=${FACTORY_TZ:-Asia/Jakarta}
@@ -113,6 +115,18 @@ services:
       - R2_BUCKET=${R2_BUCKET:-}
       - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
       - LICENSE_TOKEN=${LICENSE_TOKEN:-}
+      # ⚠️ Saklarnya WAJIB ikut, bukan cuma tokennya. Konsol membaca
+      # `LICENSE_ENABLED` untuk memutuskan apakah gerbang lisensi menyala; tanpa
+      # itu ia melapor "Lisensi: Mati" walau token yang sah sudah terpasang, dan
+      # banner langganan tidak pernah muncul untuk operator. Token sampai,
+      # saklarnya tidak — nol error, dan layar terbaca seperti pabrik tanpa
+      # langganan. Terjadi di Lampung 2026-09-22.
+      - LICENSE_ENABLED=${LICENSE_ENABLED:-false}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY:-}
+      # Konsol punya identitasnya sendiri; `LINE_N_MACHINE_ID` di bawah dipakai
+      # untuk mencocokkan event dari tiga line, bukan untuk kartu Versi. Tanpa
+      # ini kolom Machine ID di layar Support kosong.
+      - MACHINE_ID=${CONSOLE_MACHINE_ID:-konsol}
       - LINE_1_MACHINE_ID=${LINE_1_MACHINE_ID:-d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01}
       - LINE_2_MACHINE_ID=${LINE_2_MACHINE_ID:-a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02}
       - LINE_3_MACHINE_ID=${LINE_3_MACHINE_ID:-ad5f7bb9-c06d-4e87-8282-ce450ae331ec}
