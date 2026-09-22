@@ -99,6 +99,10 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_1_MEDIA_FILE:-}
+      # Folder rekaman video developer (layar Rekam Video). Di luar
+      # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
+      # retensi otomatis — dihapus manual oleh yang merekam.
+      - REKAMAN_DIR=/app/videos
       - CAMERA_VIDEO_LOOP=${LINE_1_VIDEO_LOOP:-false}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
@@ -146,6 +150,8 @@ services:
       # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
       # ganti berkas cukup restart, bukan `docker compose up` ulang.
       - ./media:/media:ro
+      # Rekaman video developer. BUKAN :ro — line yang menulis ke sini.
+      - ./videos:/app/videos
 
   ripe-line-2:
     image: palmgrade-vision:latest
@@ -218,6 +224,10 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_2_MEDIA_FILE:-}
+      # Folder rekaman video developer (layar Rekam Video). Di luar
+      # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
+      # retensi otomatis — dihapus manual oleh yang merekam.
+      - REKAMAN_DIR=/app/videos
       - CAMERA_VIDEO_LOOP=${LINE_2_VIDEO_LOOP:-false}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
@@ -265,6 +275,8 @@ services:
       # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
       # ganti berkas cukup restart, bukan `docker compose up` ulang.
       - ./media:/media:ro
+      # Rekaman video developer. BUKAN :ro — line yang menulis ke sini.
+      - ./videos:/app/videos
 
   ripe-line-3:
     image: palmgrade-vision:latest
@@ -337,6 +349,10 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_3_MEDIA_FILE:-}
+      # Folder rekaman video developer (layar Rekam Video). Di luar
+      # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
+      # retensi otomatis — dihapus manual oleh yang merekam.
+      - REKAMAN_DIR=/app/videos
       - CAMERA_VIDEO_LOOP=${LINE_3_VIDEO_LOOP:-false}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
@@ -384,6 +400,8 @@ services:
       # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
       # ganti berkas cukup restart, bukan `docker compose up` ulang.
       - ./media:/media:ro
+      # Rekaman video developer. BUKAN :ro — line yang menulis ke sini.
+      - ./videos:/app/videos
 
   # Instance ke-4 dari image yang SAMA: konsol operator offline (§4 rencana
   # PalmOS). Tanpa kamera, tanpa GPU, tanpa PLC — supaya satu line kamera yang

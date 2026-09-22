@@ -237,6 +237,76 @@ class LineClient:
                 LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
             ) from exc
 
+    # ── rekam video developer ───────────────────────────────────────────────
+
+    async def rekam_mulai(
+        self, line: LineEndpoint, setelan: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Suruh satu line mulai merekam dengan setelan ini.
+
+        Setelan dikirim tiap kali mulai dan tidak disimpan line — itu yang
+        membuat "restart container = rekaman mati" jadi sifat, bukan sesuatu
+        yang harus dijaga kode tambahan.
+        """
+        return await self._post_json(line, "/internal/rekam/mulai", setelan)
+
+    async def rekam_stop(self, line: LineEndpoint) -> dict[str, Any]:
+        return await self._post_json(line, "/internal/rekam/stop", {})
+
+    async def rekam_status(self, line: LineEndpoint) -> dict[str, Any]:
+        """Dipanggil layar tiap beberapa detik selama tab rekam terbuka.
+
+        Timeout `_TIMEOUT_S`, bukan 1,5 detik seperti `status()`: line yang
+        sedang menjalankan inference kadang butuh lebih dari dua detik untuk
+        menjawab, dan layar yang menyerah terlalu cepat menulis "Tak terbaca"
+        untuk line yang sebenarnya sehat — terbaca persis seperti line mati.
+        Ini layar support yang dibuka sesekali, bukan strip status yang
+        dipolling tiap detik, jadi menunggu sedikit lebih lama tidak
+        memperlambat apa pun yang dilihat operator.
+        """
+        url = f"{self._settings.console_line_host}:{line.port}/internal/rekam/status"
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
+                res = await client.get(
+                    url, headers={"x-internal-secret": self._settings.internal_secret}
+                )
+                res.raise_for_status()
+                return res.json()
+        except httpx.HTTPError as exc:
+            logger.warning("Status rekam dari %s gagal: %s", line.line_code, exc)
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+            ) from exc
+
+    async def _post_json(
+        self, line: LineEndpoint, path: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Seperti `_post`, tapi memulangkan jawaban line.
+
+        Dipakai rekam video: layar butuh nama berkas dan hitungan frame, dan
+        kode status line (409 sudah merekam, 507 disk penuh) harus sampai ke
+        layar sebagai pesan yang berbeda — bukan satu "gagal" untuk semuanya.
+        """
+        url = f"{self._settings.console_line_host}:{line.port}{path}"
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
+                res = await client.post(
+                    url,
+                    json=body,
+                    headers={"x-internal-secret": self._settings.internal_secret},
+                )
+        except httpx.HTTPError as exc:
+            logger.warning("Perintah %s ke %s gagal: %s", path, line.line_code, exc)
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+            ) from exc
+        if res.status_code >= 400:
+            # Pesan line diteruskan apa adanya: "sudah merekam" dan "disk
+            # penuh" butuh tindakan yang berbeda, dan meratakannya jadi satu
+            # kalimat membuat support menebak.
+            raise LinePlcTolak(res.status_code, res.text[:200])
+        return res.json()
+
     async def _post(self, line: LineEndpoint, path: str, body: dict[str, Any]) -> None:
         url = f"{self._settings.console_line_host}:{line.port}{path}"
         try:

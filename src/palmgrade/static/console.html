@@ -657,6 +657,16 @@
      terlempar jauh dari labelnya. Yang melebar kartunya, bukan kotaknya. */
   .setelan-grup-isi input[type="text"],
   .setelan-grup-isi select { max-width:22rem; }
+
+  /* Layar Rekam Video memakai ulang `.setelan-form`, tapi kolomnya empat dan
+     berdampingan dengan tabel selebar layar. Kolomnya dibuat lebih sempit dari
+     Setelan: yang diketik di sini angka pendek ("5", "1280"), bukan ambang
+     desimal. `minmax(0,…)` wajib — tanpa itu kolom grid menolak menyusut di
+     bawah lebar isinya dan halaman melebar ke samping di layar sempit. */
+  #sec-rekam .setelan-form { grid-template-columns:minmax(0, 1fr); }
+  #sec-rekam .setelan-grup-isi {
+    grid-template-columns:repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); }
+  #sec-rekam .setelan-grup-isi input { max-width:16rem; }
   .setelan-form label > span:first-child { font-weight:600; }
   .setelan-form input, .setelan-form select {
     padding:10px 12px; font-family:var(--mono); font-size:1.1rem;
@@ -871,6 +881,7 @@
   <button data-tab="versi" data-dev="1" data-t="judulVersi">Versi</button>
   <button data-tab="plc" data-dev="1" data-t="judulPlc">Uji PLC</button>
   <button data-tab="sumber-kamera" data-dev="1" data-t="judulSumberKamera">Sumber Kamera</button>
+  <button data-tab="rekam" data-dev="1" data-t="judulRekamVideo">Rekam Video</button>
   <!-- Setelan sengaja PALING KANAN (permintaan operator 2026-09-18): tab yang
        paling jarang dibuka dan yang paling mahal kalau tersenggol — angkanya
        menggeser tonase yang dibayar. -->
@@ -1087,6 +1098,68 @@
       <button type="button" id="log-prev" data-t="halamanSebelum" disabled>Sebelumnya</button>
       <button type="button" id="log-next" data-t="halamanBerikut" disabled>Berikutnya</button>
     </span>
+  </div>
+</section>
+
+<section id="sec-rekam" class="panel" hidden data-dev="1">
+  <!--
+    Support-only. Merekam frame kamera APA ADANYA (clean, tanpa bbox) ke MP4,
+    untuk menelusuri masalah line. Satu tombol per line, jalan terus sampai
+    ditekan Stop.
+
+    Rekaman TIDAK dihapus otomatis — sengaja, karena yang merekam sedang
+    menelusuri masalah dan retensi yang menyapu berkasnya di tengah jalan lebih
+    buruk daripada disk yang penuh perlahan. Karena itu catatannya ditulis
+    besar di layar, dan rekaman berhenti sendiri kalau disk menipis.
+  -->
+  <p class="muted" data-t="rekamCatatanRetensi">Rekaman tidak dihapus otomatis. Hapus sendiri dari folder videos/ di PC pabrik.</p>
+
+  <div class="tabel">
+    <table>
+      <thead>
+        <tr>
+          <th data-t="thLine">Line</th>
+          <th data-t="thStatus">Status</th>
+          <th data-t="thLama">Lama</th>
+          <th class="num" data-t="thMajuRekam">Terekam</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="rekam-baris"></tbody>
+    </table>
+  </div>
+
+  <div class="setelan-form">
+    <details class="setelan-grup" data-rekam-grup="setelan">
+      <summary data-t="rekamSetelanJudul">Setelan rekaman</summary>
+      <div class="setelan-grup-isi">
+        <label>
+          <span data-t="rekamLebar">Lebar (piksel)</span>
+          <input id="rekam-width" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="5">
+        </label>
+        <label>
+          <span data-t="rekamTinggi">Tinggi (piksel)</span>
+          <input id="rekam-height" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="5">
+        </label>
+        <label>
+          <span data-t="rekamFps">FPS</span>
+          <input id="rekam-fps" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="2">
+          <small class="muted" data-t="rekamBantuFps">Makin tinggi = makin halus, makin besar berkasnya.</small>
+        </label>
+        <label>
+          <span data-t="rekamBitrate">Bitrate (kbps)</span>
+          <input id="rekam-bitrate" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="5">
+        </label>
+      </div>
+    </details>
+    <div class="tools">
+      <button type="button" id="rekam-simpan" class="utama" data-t="rekamSimpanSetelan">Simpan setelan</button>
+      <span id="rekam-disk" class="muted"></span>
+    </div>
   </div>
 </section>
 
@@ -1474,6 +1547,20 @@ const KAMUS = {
     err_plc_sibuk:"Line sedang memproses truk - coil tidak bisa dipicu",
     err_coil_tidak_dikenal:"Coil ini tidak dikenal line",
     judulSumberKamera:"Sumber Kamera",
+    judulRekamVideo:"Rekam Video", kosongLine:"Belum ada line", thMajuRekam:"Terekam",
+    rekamMenunggu:"Menunggu…",
+    rekam_keadaan_berubah:"Keadaan line sudah berubah — layar disegarkan",
+    rekam_disk_mepet:"Disk PC pabrik menipis — rekaman tidak dimulai",
+    rekam_ditolak:"Line menolak perintah rekam",
+    rekamMulai:"Rekam", rekamStop:"Stop",
+    rekamSedangMerekam:"Merekam", rekamMati:"Mati", rekamTakTerbaca:"Tak terbaca",
+    rekamDiskBebas:"Disk bebas", rekamSetelanJudul:"Setelan rekaman",
+    rekamLebar:"Lebar (piksel)", rekamTinggi:"Tinggi (piksel)", rekamFps:"FPS",
+    rekamBitrate:"Bitrate (kbps)", rekamSimpanSetelan:"Simpan setelan",
+    rekamBantuFps:"Makin tinggi = makin halus, makin besar berkasnya.",
+    rekamSetelanTersimpan:"Setelan tersimpan — berlaku untuk rekaman berikutnya",
+    rekamCatatanRetensi:"Rekaman tidak dihapus otomatis. Hapus sendiri dari folder videos/ di PC pabrik.",
+    gagalRekam:"Gagal memuat status rekaman",
     sumberPeringatan:"Menyimpan akan merestart line yang setelannya berubah (sekitar 10 detik) — grading di line itu berhenti sebentar.",
     sumberLabelLine1:"Line 1", sumberLabelLine2:"Line 2", sumberLabelLine3:"Line 3",
     sumberHikrobot:"Kamera Hikrobot", sumberWebcam:"Webcam", sumberVideo:"Video", sumberFoto:"Foto",
@@ -1603,6 +1690,20 @@ const KAMUS = {
     err_plc_sibuk:"Line is processing a truck - the coil cannot be fired",
     err_coil_tidak_dikenal:"This coil is not known to the line",
     judulSumberKamera:"Camera Source",
+    judulRekamVideo:"Record Video", kosongLine:"No lines yet", thMajuRekam:"Recorded",
+    rekamMenunggu:"Working…",
+    rekam_keadaan_berubah:"The line's state changed — screen refreshed",
+    rekam_disk_mepet:"The mill PC is low on disk — recording not started",
+    rekam_ditolak:"The line refused the recording command",
+    rekamMulai:"Record", rekamStop:"Stop",
+    rekamSedangMerekam:"Recording", rekamMati:"Off", rekamTakTerbaca:"Unreachable",
+    rekamDiskBebas:"Free disk", rekamSetelanJudul:"Recording settings",
+    rekamLebar:"Width (pixels)", rekamTinggi:"Height (pixels)", rekamFps:"FPS",
+    rekamBitrate:"Bitrate (kbps)", rekamSimpanSetelan:"Save settings",
+    rekamBantuFps:"Higher = smoother, and a bigger file.",
+    rekamSetelanTersimpan:"Saved — applies to the next recording",
+    rekamCatatanRetensi:"Recordings are never deleted automatically. Clear the videos/ folder on the mill PC yourself.",
+    gagalRekam:"Failed to load recording status",
     sumberPeringatan:"Saving restarts any line whose setting changed (about 10 seconds) — grading on that line pauses briefly.",
     sumberLabelLine1:"Line 1", sumberLabelLine2:"Line 2", sumberLabelLine3:"Line 3",
     sumberHikrobot:"Hikrobot camera", sumberWebcam:"Webcam", sumberVideo:"Video", sumberFoto:"Photo",
@@ -1795,13 +1896,18 @@ function terapkanTab() {
 // tab stays open (a line coming back or dying should show up unattended);
 // the timer is started/stopped in `bukaTabDev` below, never left running
 // behind a tab nobody is looking at.
-const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, "sumber-kamera": muatSumberKamera, setelan: muatSetelan };
+const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, "sumber-kamera": muatSumberKamera, setelan: muatSetelan, rekam: muatRekam };
 
 function bukaTabDev(namaTab) {
   clearInterval(diagnostikTimer);
   diagnostikTimer = null;
+  // Polling rekam dihentikan begitu tabnya ditutup: menanyai tiga line tiap 3
+  // detik dari tab lain membebani line tanpa ada yang melihat hasilnya.
+  clearInterval(rekamTimer);
+  rekamTimer = null;
   const muat = MUAT_TAB[namaTab] ? MUAT_TAB[namaTab]() : Promise.resolve();
   if (namaTab === "diagnostik") diagnostikTimer = setInterval(muatDiagnostik, 5000);
+  if (namaTab === "rekam") rekamTimer = setInterval(muatRekam, 3000);
   return muat;
 }
 
@@ -3483,6 +3589,146 @@ $("set-simpan").addEventListener("click", async () => {
     })) {
       if (teks.includes(field)) $(id).setAttribute("aria-invalid", "true");
     }
+  }
+});
+
+// ── Rekam video per line (support only) ────────────────────────────────
+//
+// Merekam frame CLEAN (tanpa bbox) ke MP4 di PC line. Satu tombol per line,
+// jalan terus sampai ditekan Stop. Konsol cuma mengirim perintah — yang
+// merekam line, dan setelannya dikirim ulang tiap kali mulai (itu yang membuat
+// "restart container = rekaman mati" jadi sifat, bukan kode tambahan).
+
+let rekamTimer = null;
+
+function lamaRekam(mulaiEpoch) {
+  if (!mulaiEpoch) return KOSONG;
+  const detik = Math.max(0, Math.floor(Date.now() / 1000 - mulaiEpoch));
+  const j = Math.floor(detik / 3600);
+  const m = Math.floor((detik % 3600) / 60);
+  const d = detik % 60;
+  const dua = (n) => String(n).padStart(2, "0");
+  return j > 0 ? `${j}:${dua(m)}:${dua(d)}` : `${m}:${dua(d)}`;
+}
+
+function ukuranRekam(bytes) {
+  if (!bytes) return KOSONG;
+  const mb = bytes / 1e6;
+  return mb >= 1000 ? `${(mb / 1000).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+}
+
+// Bukti bahwa rekaman benar-benar berjalan. Ukuran berkas TIDAK cukup:
+// `VideoWriter` menyangga di memori dan baru menulis ke disk sesekali, jadi
+// kolom byte diam di "-" selama belasan detik pertama dan terbaca persis
+// seperti rekaman yang macet. Hitungan frame naik seketika.
+function majuRekam(b) {
+  const frame = `${b.frame_ditulis ?? 0} frame`;
+  const ukuran = ukuranRekam(b.bytes);
+  return ukuran === KOSONG ? frame : `${frame} · ${ukuran}`;
+}
+
+function barisRekam(b) {
+  // Line yang tidak menjawab dibedakan dari line yang mati: yang pertama
+  // artinya "belum tahu" (line sedang restart), yang kedua "tahu, dan tidak
+  // merekam". Tombolnya dimatikan untuk yang pertama — menekan Rekam ke line
+  // yang tidak menjawab cuma menghasilkan pesan gagal.
+  const status = !b.terbaca
+    ? t("rekamTakTerbaca")
+    : (b.merekam ? t("rekamSedangMerekam") : t("rekamMati"));
+  const tombol = b.merekam
+    ? `<button type="button" data-rekam-stop="${esc(b.line_code)}">${esc(t("rekamStop"))}</button>`
+    : `<button type="button" class="utama" data-rekam-mulai="${esc(b.line_code)}"${b.terbaca ? "" : " disabled"}>${esc(t("rekamMulai"))}</button>`;
+  return `<tr>
+    <td>${esc(b.line_code)}</td>
+    <td>${esc(status)}</td>
+    <td>${esc(b.merekam ? lamaRekam(b.mulai_epoch) : KOSONG)}</td>
+    <td class="num">${esc(b.merekam ? majuRekam(b) : KOSONG)}</td>
+    <td>${tombol}</td>
+  </tr>`;
+}
+
+async function muatRekam() {
+  try {
+    const data = await api("/api/console/dev/rekam");
+    $("rekam-baris").innerHTML = data.lines.length
+      ? data.lines.map(barisRekam).join("") : barisKosong(5, "kosongLine");
+
+    // Kolom setelan TIDAK ditimpa selama sedang diketik: polling tiap 3 detik
+    // akan menghapus angka di bawah jari support.
+    const setelan = data.setelan || {};
+    for (const [id, kunci] of [["rekam-width", "width"], ["rekam-height", "height"],
+                               ["rekam-fps", "fps"], ["rekam-bitrate", "bitrate_kbps"]]) {
+      const el = $(id);
+      if (el && document.activeElement !== el) el.value = setelan[kunci] ?? "";
+    }
+
+    $("rekam-disk").textContent = data.disk_bebas_gb === null || data.disk_bebas_gb === undefined
+      ? "" : `${t("rekamDiskBebas")}: ${data.disk_bebas_gb} GB`;
+  } catch (e) {
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e) || t("gagalRekam"));
+  }
+}
+
+$("rekam-baris").addEventListener("click", async (ev) => {
+  const mulai = ev.target.closest("[data-rekam-mulai]");
+  const stop = ev.target.closest("[data-rekam-stop]");
+  if (!mulai && !stop) return;
+  const el = mulai || stop;
+  const kode = mulai ? mulai.dataset.rekamMulai : stop.dataset.rekamStop;
+  // Dimatikan selama permintaan di jalan: dua klik beruntun di layar sentuh
+  // mengirim dua perintah, dan yang kedua dijawab 409.
+  //
+  // Stop menahan ~2 detik (diukur 1,9 dtk): line menunggu encoder menutup
+  // berkasnya dengan rapi sebelum menjawab, karena berkas yang ditutup
+  // setengah jalan terbaca rusak. Tanpa tulisan yang berubah, jeda itu
+  // terbaca persis seperti tombol yang tidak bereaksi — dan support akan
+  // menekannya lagi.
+  el.disabled = true;
+  const tulisanAsli = el.textContent;
+  el.textContent = t("rekamMenunggu");
+  try {
+    const hasil = await api(`/api/console/dev/rekam/${encodeURIComponent(kode)}/${mulai ? "mulai" : "stop"}`,
+                            { method: "POST" });
+    // Baris itu digambar ulang dari jawaban perintahnya sendiri, bukan
+    // menunggu polling berikutnya: Stop menahan sampai encoder benar-benar
+    // menutup berkas, jadi tarikan status yang sedang di jalan saat itu
+    // menjawab dengan keadaan LAMA dan layar terlihat mengabaikan klik.
+    if (hasil && hasil.line_code) {
+      const baris = $("rekam-baris").querySelector(`[data-rekam-mulai="${kode}"], [data-rekam-stop="${kode}"]`)?.closest("tr");
+      if (baris) baris.outerHTML = barisRekam({ ...hasil, terbaca: true });
+    }
+    await muatRekam();
+  } catch (e) {
+    toastGagal(alasan(e) || t("gagalRekam"));
+    el.disabled = false;
+    el.textContent = tulisanAsli;
+    // Keadaan line sudah berbeda dari yang digambar layar (dua tab terbuka,
+    // atau rekaman berhenti sendiri karena disk). Menyegarkan di sini membuat
+    // tombol berikutnya menekan hal yang benar — tanpa itu support menekan
+    // Stop berulang kali ke line yang sudah berhenti.
+    await muatRekam();
+  }
+});
+
+$("rekam-simpan").addEventListener("click", async () => {
+  try {
+    // `api()` meneruskan opts ke fetch apa adanya, jadi body WAJIB string.
+    // Objek telanjang dikirim sebagai "[object Object]" dan dijawab 422 —
+    // toast merah muncul, tapi yang terbaca "gagal menyimpan", bukan "salah
+    // bentuk". Ketemu di browser 2026-09-22.
+    await api("/api/console/dev/rekam/setelan", {
+      method: "POST",
+      body: JSON.stringify({
+        width: $("rekam-width").value,
+        height: $("rekam-height").value,
+        fps: $("rekam-fps").value,
+        bitrate_kbps: $("rekam-bitrate").value,
+      }),
+    });
+    toastSukses(t("rekamSetelanTersimpan"));
+    await muatRekam();
+  } catch (e) {
+    toastGagal(alasan(e) || t("gagalRekam"));
   }
 });
 

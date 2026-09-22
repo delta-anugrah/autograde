@@ -106,6 +106,21 @@ class FrameCaptureWorker:
         self._reconnect_backoff = _RECONNECT_BACKOFF_BASE
         self.state.latest_raw_frame = frame
 
+        # Rekaman developer, kalau menyala. Frame di sini masih CLEAN — bbox
+        # digambar jauh di hilir — jadi rekamannya otomatis polos tanpa kerja
+        # tambahan.
+        #
+        # Dibungkus try: recorder rusak tidak boleh menjatuhkan capture worker,
+        # karena itu berarti mematikan line demi fitur yang cuma dipakai saat
+        # menelusuri masalah. `tulis()` sendiri tidak pernah blocking — antrean
+        # penuh membuang frame, bukan menahan deteksi (lihat video_recorder).
+        recorder = self.state.video_recorder
+        if recorder is not None:
+            try:
+                recorder.tulis(frame)
+            except Exception:
+                logger.exception("Recorder video menolak frame — rekaman diabaikan")
+
         self._fps_counter += 1
         if self._fps_timer == 0.0:
             self._fps_timer = time.time()
