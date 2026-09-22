@@ -1,4 +1,5 @@
 """Baca & tulis media.env — satu-satunya yang tahu bentuk berkas itu."""
+
 from __future__ import annotations
 
 from palmgrade.services.media_env_service import (
@@ -56,12 +57,7 @@ def test_baris_tak_dikenal_diabaikan(tmp_path):
     # Berkas yang ditulis versi lebih baru tidak boleh mematikan versi lama.
     path = tmp_path / "media.env"
     path.write_text(
-        "LINE_1_CAMERA_TYPE=photo\n"
-        "LINE_1_MEDIA_FILE=sawit.jpg\n"
-        "LINE_9_WARNA=merah\n"
-        "BUKAN_BARIS_ENV\n"
-        "# komentar\n"
-        "\n",
+        "LINE_1_CAMERA_TYPE=photo\nLINE_1_MEDIA_FILE=sawit.jpg\nLINE_9_WARNA=merah\nBUKAN_BARIS_ENV\n# komentar\n\n",
         encoding="utf-8",
     )
     hasil = MediaEnvService(path).baca()
@@ -161,3 +157,66 @@ def test_tulis_gagal_saat_fsync_tidak_meninggalkan_file_separo(tmp_path, monkeyp
     # Tidak ada file sementara tersisa di folder.
     tmp_files = list(tmp_path.glob(".media.env.*.tmp"))
     assert len(tmp_files) == 0
+
+
+def test_tulis_berhasil_walau_berkas_bind_mount(tmp_path, monkeypatch):
+    """Berkas yang di-bind-mount Docker tidak bisa di-`os.replace`.
+
+    `docker-compose.yml` memasang `./media.env:/config/media.env` — sebuah
+    BERKAS, bukan folder. Di dalam container berkas itu jadi mount point, dan
+    `os.replace` ke mount point selalu gagal `EBUSY`, betapapun benar izinnya.
+
+    Terjadi di PC Lampung 2026-09-22: layar Sumber Kamera menjawab HTTP 500
+    dengan `OSError: [Errno 16] Device or resource busy` setiap kali disimpan,
+    sementara `touch` ke berkas yang sama berhasil — jadi ini bukan soal izin
+    dan tidak terlihat dari pemeriksaan izin mana pun.
+
+    Kena SETIAP pemasangan Docker, bukan cuma Lampung: baris mount yang sama
+    ada di `docker-compose.yml` dan `docker-compose.prod.yml` di repo ini.
+    """
+    import errno
+    import os
+
+    path = tmp_path / "media.env"
+    MediaEnvService(path).tulis({kode: dict(BAWAAN) for kode in LINE_CODES})
+
+    replace_asli = os.replace
+
+    def replace_ebusy(src, dst):
+        # Persis yang dilakukan kernel pada mount point, apa pun izinnya.
+        if str(dst) == str(path):
+            raise OSError(errno.EBUSY, "Device or resource busy")
+        return replace_asli(src, dst)
+
+    monkeypatch.setattr(os, "replace", replace_ebusy)
+    MediaEnvService(path).tulis(
+        {
+            "line-1": {"sumber": "foto", "berkas": "sawit.jpg", "ulang": False},
+            "line-2": dict(BAWAAN),
+            "line-3": dict(BAWAAN),
+        }
+    )
+
+    hasil = MediaEnvService(path).baca()
+    assert hasil["line-1"]["sumber"] == "foto"
+    assert hasil["line-1"]["berkas"] == "sawit.jpg"
+
+
+def test_tulis_bind_mount_tidak_meninggalkan_berkas_sementara(tmp_path, monkeypatch):
+    """Jalur cadangan tetap harus bersih-bersih sesudah dirinya."""
+    import errno
+    import os
+
+    path = tmp_path / "media.env"
+    replace_asli = os.replace
+
+    def replace_ebusy(src, dst):
+        if str(dst) == str(path):
+            raise OSError(errno.EBUSY, "Device or resource busy")
+        return replace_asli(src, dst)
+
+    monkeypatch.setattr(os, "replace", replace_ebusy)
+    MediaEnvService(path).tulis({kode: dict(BAWAAN) for kode in LINE_CODES})
+
+    sisa = [p.name for p in tmp_path.iterdir() if p.name.startswith(".media.env.")]
+    assert sisa == [], f"berkas sementara tertinggal: {sisa}"
