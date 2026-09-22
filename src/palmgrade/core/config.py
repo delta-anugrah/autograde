@@ -419,6 +419,48 @@ class Settings:
         return Path(dari_env) if dari_env else self.repo_root / "artifacts"
 
     @property
+    def line_code(self) -> str:
+        """Kode line ini (`line-1`…) untuk dibaca manusia.
+
+        Diturunkan dari `MACHINE_ID` lewat peta yang SUDAH ada, bukan env baru:
+        sebuah `LINE_CODE` tersendiri akan jadi sumber kebenaran kedua yang bisa
+        berbeda dari `machine_id` tanpa ada yang sadar — dan `machine_id` itu
+        yang dipakai konsol mencocokkan event, jadi yang menang bukan yang
+        tertulis di nama berkas.
+
+        Line yang `MACHINE_ID`-nya tidak dikenal (PKS dengan id sendiri) tetap
+        dapat nama yang bisa dibedakan, bukan gagal: ini cuma label.
+        """
+        for kode, _nama, _port, mid in _CONSOLE_LINE_DEFAULTS:
+            if mid == self.machine_id:
+                return kode
+        return f"line-{self.machine_id[:8]}" if self.machine_id else "line"
+
+    @property
+    def videos_dir(self) -> Path:
+        """Folder rekaman video developer (layar Rekam Video, `role=support`).
+
+        SENGAJA di luar `artifacts/`: rekaman ini bukan bukti grading dan TIDAK
+        ikut retensi otomatis — dihapus manual oleh yang merekam. Menaruhnya di
+        `artifacts/` membuat `BatchUploadWorker._retention()` menyapunya
+        diam-diam, dan itu terjadi justru di tengah penelusuran masalah.
+
+        Ini satu-satunya bagian fitur rekam yang tetap di `.env`, karena
+        jalurnya berbeda antara container dan host dan karena itu harus bisa
+        di-mount. Resolusi, fps, dan bitrate diatur dari layar developer.
+
+        ⚠️ **Namanya `REKAMAN_DIR`, BUKAN `VIDEOS_DIR`** — jangan "dirapikan".
+        `VIDEOS_DIR` pernah ada dan artinya **kebalikannya**: folder video
+        **sumber** yang jadi masukan kamera (autograde#104), dibuang saat
+        diganti `media/`. Ada test yang menjaga nama itu tidak kembali
+        (`test_artifacts_per_line.py::test_satu_env_saja_untuk_video`), dan
+        memakainya lagi untuk folder KELUARAN membuat dua hal berlawanan
+        memakai satu nama di berkas `.env` yang sama.
+        """
+        dari_env = os.getenv("REKAMAN_DIR", "").strip()
+        return Path(dari_env) if dari_env else self.repo_root / "videos"
+
+    @property
     def media_dir(self) -> str:
         """Folder berkas video/foto yang boleh dipilih layar Sumber Kamera.
 

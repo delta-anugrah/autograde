@@ -36,6 +36,12 @@ class RuntimeState:
     # yang menyetel ambang; operator tidak butuh dan salah membacanya.
     mode_dev_override: bool | None = None
 
+    # Recorder video developer (layar Rekam Video), kalau sedang merekam.
+    # `None` selama tidak ada yang merekam — line yang tidak pernah dipakai
+    # merekam tidak menyentuh modul rekam sama sekali. Tipenya `Any` supaya
+    # modul ini tidak mengimpor `services.video_recorder`, yang menarik cv2.
+    video_recorder: Any = None
+
     # Thread-safe queues
     frame_queue: Queue[Any] = field(default_factory=lambda: Queue(maxsize=5))
     event_queue: Queue[Any] = field(default_factory=lambda: Queue(maxsize=10))

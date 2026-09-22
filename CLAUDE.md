@@ -205,6 +205,10 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/console/dev/versi` | versi image + lisensi berjalan lengkap dengan nama perusahaan dan tanggal |
 | GET | `/api/console/dev/plc/{line_code}` | snapshot DI + daftar coil yang boleh diuji untuk satu line — baca saja, aman dibuka kapan pun |
 | POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil PLC line itu — **satu-satunya aksi konsol yang menggerakkan hardware fisik**, lihat Critical Rules |
+| GET | `/api/console/dev/rekam` | status rekaman tiap line + setelan yang berlaku + sisa disk. Line yang tidak menjawab dilaporkan `terbaca:false`, bukan menjatuhkan seluruh jawaban |
+| POST | `/api/console/dev/rekam/setelan` | ubah resolusi/fps/bitrate rekaman. Berlaku untuk rekaman **berikutnya** — mengubah resolusi di tengah berkas MP4 menghasilkannya rusak |
+| POST | `/api/console/dev/rekam/{line_code}/mulai` | mulai merekam satu line. 409 kalau sudah merekam, **507 kalau disk mepet** (dua hal yang butuh tindakan berbeda, jadi tidak diratakan) |
+| POST | `/api/console/dev/rekam/{line_code}/stop` | hentikan dan tutup berkasnya. Menahan ~2 detik: line menunggu encoder menutup berkas dengan rapi |
 | POST | `{BACKEND_API_VER}/internal/vision/events` | ← dari tiga line (`x-webhook-secret`), kontrak §5 |
 | POST | `{BACKEND_API_VER}/internal/scale/weighing` | ← dari program timbangan (`x-webhook-secret`), bentuk sementara kita |
 | GET | `/captures/{line_code}/...` | gambar line, mount read-only, bentuk URL = `resolveCaptureUrl` api |
@@ -657,6 +661,39 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     ada test yang menjaganya.
     ⚠️ **Token yang tidak terbaca diperlakukan sama dengan habis.** Kebalikannya
     berarti token rusak = gratis.
+
+23. **Rekam video developer: grading tidak pernah melambat karenanya** (2026-09-22).
+    Layar **Rekam Video** (`role=support`) merekam frame kamera ke MP4, satu tombol
+    per line, jalan sampai ditekan Stop. Titik sadapnya `FrameCaptureWorker` —
+    **sebelum** inference — jadi yang terekam **clean tanpa bbox** tanpa kerja
+    tambahan, dan itu memang yang berguna (bbox adalah prediksi model sendiri).
+    ⚠️ **Encode WAJIB di thread sendiri, dan antrean penuh MEMBUANG frame.**
+    `VideoRecorder.tulis()` dipanggil tiap frame dari thread capture dan harus
+    kembali seketika; menahannya akan mengembalikan persis lag ~590 ms yang
+    dihilangkan autograde#112. Yang dikorbankan videonya (bolong), bukan
+    deteksinya — `frame_dibuang` di layar adalah alat ukurnya. Diukur 2026-09-22:
+    fps deteksi **+0,1%** dengan rekaman jalan, `frame_dibuang` nol
+    (`docs/runbooks/2026-09-22-ukur-biaya-encode-rekam.md`).
+    ⚠️ **Recorder yang rusak tidak boleh menjatuhkan line**: panggilannya
+    dibungkus `try` di capture worker. Fitur developer tidak boleh bisa
+    mematikan produksi.
+    **Codec `avc1` (H.264), fallback `mp4v`** — diukur 5x lebih kecil (0,48 vs
+    2,40 GB/jam pada 1280x1024 @ 5 fps). Fallback-nya bukan hiasan: `avc1` tidak
+    ada di setiap build OpenCV, dan `VideoWriter` yang gagal membuka **tidak
+    melempar** — tanpa pemeriksaan `isOpened()` hasilnya berkas 0 byte yang baru
+    ketahuan berjam-jam kemudian.
+    **Setelan (resolusi/fps/bitrate) hidup di konsol**, satu baris `sync_state`,
+    pola yang sama dengan `setelan_grading` — dan dikirim ulang tiap kali mulai.
+    Itu yang membuat **restart container = rekaman mati** jadi sifat, bukan kode
+    tambahan. Setelan baru sengaja **tidak** menyentuh rekaman yang sedang jalan:
+    mengubah resolusi di tengah berkas MP4 menghasilkan berkas rusak.
+    ⚠️ **`videos/` di luar `artifacts/` dan TIDAK ikut retensi otomatis.**
+    `BatchUploadWorker._retention()` menyapu `artifacts/`; rekaman yang duduk di
+    sana akan terhapus diam-diam di tengah penelusuran masalah. Harganya:
+    berkasnya menumpuk sampai ada yang menghapusnya — karena itu layar
+    mengatakannya, dan rekaman berhenti sendiri di bawah
+    `UPLOAD_DISK_MIN_FREE_GB` (20 GB). Disk penuh berarti grading berhenti
+    menulis, yaitu pabrik berhenti.
 
 ---
 

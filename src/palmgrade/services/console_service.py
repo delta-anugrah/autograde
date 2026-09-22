@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import uuid
 from collections.abc import Callable
 from datetime import datetime
@@ -35,6 +36,13 @@ from ..domain.operator_error import (
 )
 from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.setelan_grading import KUNCI_SETELAN, bersihkan_setelan
+from ..domain.setelan_rekam import (
+    BAWAAN as REKAM_BAWAAN,
+)
+from ..domain.setelan_rekam import (
+    KUNCI_SETELAN_REKAM,
+    bersihkan_setelan_rekam,
+)
 from ..domain.sumber_kamera import SumberTidakSah, bersihkan_sumber
 from ..domain.vision_event import prediction_for, verdict_of
 from ..domain.working_day import work_date_for
@@ -561,6 +569,93 @@ class ConsoleService:
                     {"line_code": line.line_code, "terkirim": False, "alasan": str(exc)[:200]}
                 )
         return {**bersih, "sumber": "konsol", "lines": hasil}
+
+    # ──────────────────────────────────────── rekam video (layar Support) ───
+
+    def setelan_rekam(self) -> dict[str, Any]:
+        """Setelan rekam yang berlaku. Konsol pemegang kebenarannya; line cuma
+        menerima salinannya tiap kali diminta mulai."""
+        tersimpan = self.store.get_state(KUNCI_SETELAN_REKAM)
+        if tersimpan:
+            # Digabung dengan BAWAAN supaya baris yang disimpan sebelum sebuah
+            # field ada tidak mengembalikan payload cacat ke layar.
+            return {**REKAM_BAWAAN, **json.loads(tersimpan)}
+        return dict(REKAM_BAWAAN)
+
+    async def simpan_setelan_rekam(
+        self, payload: dict[str, Any], *, diubah_oleh: str
+    ) -> dict[str, Any]:
+        """Simpan setelan rekam.
+
+        TIDAK menyentuh rekaman yang sedang jalan: mengubah resolusi di tengah
+        berkas MP4 menghasilkan berkas rusak. Setelan baru berlaku pada rekaman
+        BERIKUTNYA, dan layar mengatakan itu.
+        """
+        bersih = bersihkan_setelan_rekam(payload)
+        self.store.set_state(KUNCI_SETELAN_REKAM, json.dumps(bersih))
+        logger.warning(
+            "Setelan rekam diubah oleh %s: %dx%d @ %d fps, %d kbps",
+            diubah_oleh, bersih["width"], bersih["height"],
+            bersih["fps"], bersih["bitrate_kbps"],
+        )
+        return bersih
+
+    async def rekam_mulai(self, line_code: str, *, diubah_oleh: str) -> dict[str, Any]:
+        """Suruh satu line mulai merekam dengan setelan yang tersimpan."""
+        line = self._require_line(line_code)
+        setelan = self.setelan_rekam()
+        logger.warning(
+            "Rekam video %s dimulai oleh %s (%dx%d @ %d fps)",
+            line_code, diubah_oleh, setelan["width"], setelan["height"], setelan["fps"],
+        )
+        return await self.line_client.rekam_mulai(line, setelan)
+
+    async def rekam_stop(self, line_code: str, *, diubah_oleh: str) -> dict[str, Any]:
+        line = self._require_line(line_code)
+        logger.warning("Rekam video %s dihentikan oleh %s", line_code, diubah_oleh)
+        return await self.line_client.rekam_stop(line)
+
+    async def rekam_status_semua(self) -> dict[str, Any]:
+        """Status tiap line + setelan yang berlaku + sisa disk.
+
+        Line yang tidak menjawab dilaporkan `terbaca: False`, bukan menjatuhkan
+        seluruh jawaban — satu line mati tidak boleh mengosongkan layar, dan
+        line yang sedang restart adalah kejadian normal.
+        """
+        baris = []
+        for line in self.lines:
+            try:
+                status = await self.line_client.rekam_status(line)
+                baris.append({**status, "line_code": line.line_code, "terbaca": True})
+            except Exception as exc:  # LineUnavailable / LinePlcTolak / apa pun
+                logger.warning(
+                    "Status rekam belum terbaca dari %s: %s", line.line_code, exc
+                )
+                baris.append({
+                    "line_code": line.line_code,
+                    "terbaca": False,
+                    "merekam": False,
+                    "alasan": str(exc)[:200],
+                })
+        return {
+            "lines": baris,
+            "setelan": self.setelan_rekam(),
+            "disk_bebas_gb": self._disk_bebas_gb(),
+        }
+
+    def _disk_bebas_gb(self) -> float | None:
+        """Sisa disk tempat rekaman ditulis, untuk ditampilkan di layar.
+
+        `None` kalau tidak terbaca — layar menuliskan tanda hubung, bukan nol
+        yang terbaca seperti disk penuh.
+        """
+        folder = self.settings.videos_dir
+        target = folder if folder.exists() else folder.parent
+        try:
+            return round(shutil.disk_usage(target).free / 1e9, 1)
+        except OSError:
+            logger.warning("Sisa disk tidak terbaca untuk %s", target)
+            return None
 
     # ────────────────────────────────────── sumber kamera (layar Support) ───
 

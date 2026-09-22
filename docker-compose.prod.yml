@@ -24,6 +24,10 @@ services:
       # Berkas video/foto yang dipilih layar Support. `!override` MENGGANTI
       # daftar, jadi mount ini hilang di pabrik kalau tidak ditulis ulang di sini.
       - ./media:/media:ro
+      # Rekaman video developer (layar Rekam Video). `!override` MENGGANTI
+      # daftar volumes, jadi mount ini hilang di pabrik kalau tidak ditulis
+      # ulang di sini. BUKAN :ro — line yang menulis rekamannya.
+      - ./videos:/app/videos
 
   ripe-line-2:
     volumes: !override
@@ -34,6 +38,10 @@ services:
       # Berkas video/foto yang dipilih layar Support. `!override` MENGGANTI
       # daftar, jadi mount ini hilang di pabrik kalau tidak ditulis ulang di sini.
       - ./media:/media:ro
+      # Rekaman video developer (layar Rekam Video). `!override` MENGGANTI
+      # daftar volumes, jadi mount ini hilang di pabrik kalau tidak ditulis
+      # ulang di sini. BUKAN :ro — line yang menulis rekamannya.
+      - ./videos:/app/videos
 
   ripe-line-3:
     volumes: !override
@@ -44,6 +52,10 @@ services:
       # Berkas video/foto yang dipilih layar Support. `!override` MENGGANTI
       # daftar, jadi mount ini hilang di pabrik kalau tidak ditulis ulang di sini.
       - ./media:/media:ro
+      # Rekaman video developer (layar Rekam Video). `!override` MENGGANTI
+      # daftar volumes, jadi mount ini hilang di pabrik kalau tidak ditulis
+      # ulang di sini. BUKAN :ro — line yang menulis rekamannya.
+      - ./videos:/app/videos
 
   console:
     # Semua yang konsol butuhkan ditulis ULANG di sini, bukan ditambahkan.
