@@ -26,6 +26,7 @@ from ..domain.visit_manifest import detail_url_for
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LineUnavailable
 from ..integrations.upload.r2_uploader import R2Uploader
+from ..license.manager import LicenseManager
 from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
 from ..services.auth_service import AuthService
@@ -123,7 +124,28 @@ def get_dev_service() -> DevService:
             service.manifest_queue.outbox if service.manifest_queue is not None else None
         ),
         settings=settings,
+        license_manager=_build_license_manager(settings),
     )
+
+
+def _build_license_manager(settings) -> LicenseManager | None:
+    """The console's own verifier, or None if the feature is off.
+
+    No `LicenseLocalRepo`: the clock ratchet belongs to the processes that can
+    actually stop grading. A console with its own ratchet file would race the
+    lines over the same SQLite for a number it only displays.
+
+    A public key that will not load is swallowed to None rather than raised —
+    this is wired at console startup, and a mill whose key is misconfigured
+    needs a screen saying so, not a console that refuses to boot.
+    """
+    if not settings.lic_enabled:
+        return None
+    try:
+        return LicenseManager(settings.lic_pubkey_pem, None, settings.lic_token)
+    except Exception as exc:  # noqa: BLE001 — see docstring
+        logger.warning("Kunci publik lisensi tidak bisa dibaca: %s", exc)
+        return None
 
 
 Service = Annotated[ConsoleService, Depends(get_console_service)]
@@ -236,8 +258,17 @@ async def console_me(operator: Operator) -> dict:
 
 
 @router.get("/api/console/state")
-async def console_state(service: Service, operator: Operator) -> dict:
-    return service.state()
+async def console_state(service: Service, dev: Dev, operator: Operator) -> dict:
+    """Ringkasan hari kerja, plus keadaan langganan untuk banner operator.
+
+    Menumpang di sini, bukan endpoint sendiri: layar sudah memanggil ini tiap 2
+    detik, jadi banner ikut hidup tanpa satu pun request tambahan.
+
+    Sengaja **bukan** lewat `/api/console/dev/*`: banner ini untuk operator
+    biasa, yang justru orang yang akan melihat kamera berhenti. Yang dikirim di
+    sini cuma tanggal dan tingkat keparahan — nomor token tetap support-only.
+    """
+    return {**service.state(), "lisensi": await dev.license_state()}
 
 
 @router.get("/api/console/history")
@@ -477,7 +508,7 @@ async def dev_manifest_queue(dev: Dev, operator: Support) -> dict:
 
 @router.get("/api/console/dev/versi")
 async def dev_version(dev: Dev, operator: Support) -> dict:
-    return dev.version()
+    return await dev.version()
 
 
 @router.get("/api/console/dev/setelan")
