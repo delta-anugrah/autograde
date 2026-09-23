@@ -224,7 +224,7 @@ class _CfgBerbasis200:
     """
 
     plc_enabled = True
-    plc_host = "192.168.3.39"
+    plc_host = "192.168.0.14"
     plc_port = 1025
     plc_unit_id = 1
     plc_protocol = "mc"

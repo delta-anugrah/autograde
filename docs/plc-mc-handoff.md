@@ -2,7 +2,7 @@
 judul: AutoGrade ↔ PLC Mitsubishi
 subjudul: Peta alamat M, sinyal yang dikirim PC, dan yang diminta dari sisi PLC — untuk commissioning MC Protocol.
 label: Internal · Tim Engineering
-versi: "1.2"
+versi: "1.3"
 tanggal: 23 September 2026
 klasifikasi: Internal — untuk tim PLC dan tim engineering
 pemilik: Tim Engineering AutoGrade
@@ -28,7 +28,7 @@ Sisi aplikasi **sudah selesai dan teruji**. Yang ditunggu ada di bab 5.
 | Hal | Nilai |
 |---|---|
 | Protokol | MC Protocol 3E, biner |
-| IP PLC | `192.168.3.39` (dari program uji Mas Viki) |
+| IP PLC | `192.168.0.14` (dari tim PLC, 23 Sep) |
 | Port | `1025` |
 | Device | Internal relay `M` |
 | Jumlah koneksi | **3** — satu per line kamera |
@@ -164,9 +164,9 @@ aktuatornya justru membuang, hasilnya terbalik total. Lihat bab 5.
 
 Peta alamat **sudah selesai** — daftar 23 September dipakai apa adanya.
 
-Catatan jaringan: PLC berada di `192.168.3.x`, sedangkan tiga kamera GigE di
-`192.168.100.x`. PC pabrik perlu jalan ke keduanya — entah PLC ikut subnet kamera, atau
-PC diberi rute tambahan. Mohon dipastikan sebelum pemasangan.
+Catatan jaringan: `192.168.0.14` **satu segmen dengan NIC kamera PC pabrik**
+(`192.168.0.10/24`), jadi PLC cukup dicolok ke switch gigabit kamera — tidak perlu rute
+tambahan. Mohon pastikan `.14` tidak dipakai salah satu kamera.
 
 Catatan izin tulis: pastikan **"Enable online change (FTP, MC Protocol)"** tercentang di
 Open Setting. Tanpa itu, baca berhasil tapi tulis ditolak — gejalanya mudah disalahartikan
