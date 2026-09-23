@@ -109,7 +109,7 @@ Semua field dideklarasikan di `core/config.py` (satu blok berlabel `# ── PLC
 | --- | --- | --- |
 | `PLC_ENABLED` | `false` | Saklar fitur. `false` = default, dipakai cloud dan semua PC dev — lihat "Mati secara default" di bawah |
 | `PLC_PROTOCOL` | `mc` | `mc` = MC Protocol langsung ke CPU (jalur hidup). `modbus` = lewat coupler ODOT. Nilai asing → jatuh ke `mc` + warning, bukan crash |
-| `PLC_HOST` | (kosong) | IP PLC (mc: `192.168.3.39` dari uji tim PLC; modbus: IP coupler). Kosong + `PLC_ENABLED=true` → worker tidak dijalankan, warning di log |
+| `PLC_HOST` | (kosong) | IP PLC (mc: `192.168.0.14` di Lampung, satu segmen dengan NIC kamera; modbus: IP coupler). Kosong + `PLC_ENABLED=true` → worker tidak dijalankan, warning di log |
 | `PLC_PORT` | ikut protokol | Kosong = `1025` untuk mc (port Open Setting GX Works2), `502` untuk modbus |
 | `PLC_UNIT_ID` | `1` | **[modbus saja]** unit/slave ID. MC Protocol menyapa CPU-nya langsung |
 | `PLC_DEVICE_PREFIX` | `M` | **[mc saja]** huruf device yang dipakai semua alamat di bawah. Panel memberi B/Y → ganti ini saja |

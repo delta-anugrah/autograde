@@ -275,7 +275,7 @@ resolve DNS saat build.
 |---|---|
 | NIC PC (kamera) | `192.168.100.100/24` |
 | Kamera line 1 / 2 / 3 | `192.168.100.10` / `.11` / `.12` |
-| PLC Mitsubishi (kalau ada) | `192.168.3.39` — beda subnet dari kamera, PC butuh rute ke keduanya |
+| PLC Mitsubishi (kalau ada) | `192.168.0.14` — satu segmen dengan NIC kamera PC (`192.168.0.10`), dicolok ke switch kamera |
 
 Minta IT pabrik mengunci IP NIC internet di DHCP reservation, supaya alamat konsol tidak
 berpindah.
@@ -406,7 +406,7 @@ hanya diterima untuk peran di `ERP_ALLOWED_ROLES` (bawaan `support`).
 
 ### 5.9 PLC (Mitsubishi Q03UDECPU, MC Protocol)
 
-`PLC_ENABLED=true`, `PLC_HOST=192.168.3.39`, lalu `make start`. PC bicara langsung ke port
+`PLC_ENABLED=true`, `PLC_HOST=192.168.0.14`, lalu `make start`. PC bicara langsung ke port
 Ethernet bawaan CPU (coupler ODOT dibatalkan 2026-09-21). Alamat M per line dipatok di
 `docker-compose.yml` mengikuti daftar pak Ocit: camera 1 = M1000–M1002 + heartbeat M1009,
 camera 2 = M1003–M1005, camera 3 = M1006–M1008; yang dibaca M1100–M1115 (motor fault, E-stop

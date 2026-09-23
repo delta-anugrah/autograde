@@ -65,7 +65,7 @@ class _FakeInner:
 
 def _client(inner, **kwargs):
     return McProtocolPlcClient(
-        host="192.168.3.39", port=1025, _client_factory=lambda: inner, **kwargs
+        host="192.168.0.14", port=1025, _client_factory=lambda: inner, **kwargs
     )
 
 
