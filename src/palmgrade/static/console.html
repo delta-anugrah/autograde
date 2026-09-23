@@ -528,6 +528,16 @@
                  text-transform:uppercase; letter-spacing:.04em;
                  animation:denyut-pita 1.6s ease-in-out infinite; }
   @keyframes denyut-pita { 0%,100% { opacity:1; } 50% { opacity:.72; } }
+  /* Alarm PLC (motor fault / E-stop): satu pita untuk seluruh layar, bukan per
+     kartu - ketiga line membaca blok M yang sama dari satu PLC, jadi ini
+     keadaan pabrik. Palet dan denyut sama dengan pita piston supaya dua hal
+     "bahaya" di layar ini tidak punya dua bahasa visual. */
+  #pita-alarm { margin:10px 13px 0; padding:11px 13px; border-radius:var(--r-sm);
+                background:var(--danger-fg); color:var(--danger-bg);
+                font-size:1.15rem; font-weight:700; text-align:center;
+                text-transform:uppercase; letter-spacing:.04em;
+                animation:denyut-pita 1.6s ease-in-out infinite; }
+  #pita-alarm span { display:inline-block; margin:0 .6em; }
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
@@ -953,6 +963,7 @@
   </div>
 </section>
 
+<div id="pita-alarm" hidden></div>
 <div id="lines"></div>
 
 <nav id="tabs">
@@ -1607,6 +1618,7 @@ const KAMUS = {
     pistonMenunggu:"Menunggu PLC…", pistonMati:"Piston mati",
     pistonBelumKonfirmasi:"belum dikonfirmasi PLC",
     pistonTerbuka:"PISTON TERBUKA - hati-hati, besi bergerak",
+    alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP DITEKAN - line berhenti darurat",
     konfirmasiBuka:"Buka piston {line}? Ini menggerakkan besi.",
     labelInternal:"Internal · REJ tidak dibuang",
     gagalPiston:"Perintah piston gagal",
@@ -1752,6 +1764,7 @@ const KAMUS = {
     pistonMenunggu:"Waiting for PLC…", pistonMati:"Piston disabled",
     pistonBelumKonfirmasi:"not confirmed by PLC",
     pistonTerbuka:"PISTON OPEN - moving metal, stand clear",
+    alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP PRESSED - emergency stop active",
     konfirmasiBuka:"Open the piston on {line}? This moves metal.",
     labelInternal:"Internal · REJ not discarded",
     gagalPiston:"Piston command failed",
@@ -2344,6 +2357,40 @@ function pitaPiston(l) {
   if (!terbuka) return "";
   const catatan = belumKonfirmasi ? ` (${t("pistonBelumKonfirmasi")})` : "";
   return `<div class="pita-piston">${esc(t("pistonTerbuka"))}${esc(catatan)}</div>`;
+}
+
+// Alarm PLC (motor fault / E-stop) dari blok M yang dibaca tiap line. Semua
+// line membaca blok yang sama, jadi daftarnya digabung dan dideduplikasi;
+// line yang mati tidak menyumbang apa-apa (l.plc.alarms undefined). Kunci
+// dedup memakai kode+nomor supaya "MOTOR 3" dari line 1 dan line 2 tampil sekali.
+function gabungAlarm(lines) {
+  const seen = new Set();
+  const hasil = [];
+  for (const l of lines || []) {
+    for (const a of ((l.plc || {}).alarms || [])) {
+      const kunci = a.code + ":" + (a.n === undefined ? "" : a.n);
+      if (seen.has(kunci)) continue;
+      seen.add(kunci);
+      hasil.push(a);
+    }
+  }
+  return hasil;
+}
+
+// Satu pita di atas semua kartu. Teks lewat t() dengan kunci "alarm_<code>",
+// dan {n} diganti nomor motor. Kode yang tidak dikenal KAMUS tampil apa adanya
+// lewat t() (`KAMUS[bahasa][k] ?? k`) - lebih baik "alarm_xyz" terlihat
+// daripada alarm hilang diam-diam.
+function gambarPitaAlarm(lines) {
+  const el = $("pita-alarm");
+  if (!el) return;
+  const alarms = gabungAlarm(lines);
+  if (!alarms.length) { el.hidden = true; el.textContent = ""; return; }
+  el.innerHTML = alarms.map((a) => {
+    const teks = t("alarm_" + a.code).replace("{n}", a.n === undefined ? "" : String(a.n));
+    return `<span>${esc(teks)}</span>`;
+  }).join("");
+  el.hidden = false;
 }
 
 function kartuLine(l) {
@@ -3186,6 +3233,7 @@ async function refresh() {
     umumkanPelepasanOtomatis(s.auto_releases);
     selarasUrutan(s.lines);
     isiTally(s.lines);
+    gambarPitaAlarm(s.lines);
     if (!dipasang) {
       $("lines").innerHTML = s.lines.map(kartuLine).join("");
       dipasang = true;
