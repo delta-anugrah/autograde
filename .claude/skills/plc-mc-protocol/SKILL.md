@@ -157,6 +157,10 @@ keduanya — PLC ikut subnet kamera, atau PC diberi rute tambahan. Belum diputus
 | `tests/unit/plc/test_plc_config.py` | pilihan protokol, port & heartbeat turunan, env kosong diam |
 | `tests/unit/plc/test_plc_piston.py` | alamat absolut vs indeks blok |
 | `tests/e2e/test_mc_protocol_lane.py` | worker → klien → pustaka asli → socket: bingkai yang benar-benar keluar |
+| `tests/unit/test_plc_alarm.py` | bit → alarm: motor dinomori dari 1, E-stop offset 11, bit belum dialokasikan diabaikan |
+| `tests/e2e/test_internal_status_alarm.py` | `/internal/status` membawa `alarms`; PLC mati = `[]`, bukan error |
+| `tests/unit/test_line_status_alarm.py` | worker menyimpan `alarms`; line versi lama tanpa field = `[]`; line mati tidak punya alarm palsu |
+| `tests/unit/test_console_html_alarm.py` | pita ada & digambar tiap refresh, terjemahan dua bahasa, **dedup `gabungAlarm` dijalankan lewat node** |
 | `tests/unit/test_plc_docs_match_compose.py` | dokumen tim PLC ≡ `docker-compose.yml` |
 
 ⚠️ Test terakhir membaca komentar `<!-- plc-map: ... -->` di `docs/plc-mc-handoff.md`.

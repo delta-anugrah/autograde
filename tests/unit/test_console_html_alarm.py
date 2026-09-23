@@ -1,14 +1,25 @@
-"""Penjaga statis pita alarm PLC di console.html (tidak ada test runner JS).
+"""Pita alarm PLC di console.html, dua lapis — pola yang sama dengan
+`test_console_lama_proses.py`:
 
-Yang dijaga: pita ada di HTML, fungsinya dipanggil dari refresh(), dan tiap
-kode alarm dari domain punya terjemahan di KEDUA bahasa — satu kode tanpa
-terjemahan tampil sebagai kunci mentah "alarm_estop" di layar pabrik.
+- **invarian teks**, selalu jalan (juga di CI tanpa node): pita ada di HTML,
+  digambar tiap refresh, tiap kode alarm dari domain punya terjemahan di KEDUA
+  bahasa. Satu kode tanpa terjemahan tampil sebagai kunci mentah "alarm_estop"
+  di layar pabrik.
+- **perilaku `gabungAlarm`**, dijalankan sungguhan lewat node kalau ada. Dedup
+  adalah satu-satunya logika non-sepele di jalur ini dan rusaknya senyap:
+  ketiga line membaca blok M yang SAMA, jadi tanpa dedup satu motor fault
+  tampil tiga kali dan operator mengira ada tiga motor mati.
 """
 
 from __future__ import annotations
 
+import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 from palmgrade.domain.plc_alarm import ALARM_CODES
 
@@ -50,3 +61,70 @@ def test_uji_plc_memberi_nama_bit():
         isi = _kamus(bahasa)
         for kunci in ("diMotor:", "diEstop:", "diKosong:"):
             assert kunci in isi, f"KAMUS.{bahasa} tanpa {kunci}"
+
+
+# ── perilaku gabungAlarm: butuh node, skip di CI ───────────────────────────
+
+NODE = shutil.which("node")
+butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada (image CI)")
+
+
+def _fungsi(nama: str) -> str:
+    """Body of one top-level function, up to the first line that closes it."""
+    awal = HTML.index(f"function {nama}(")
+    return HTML[awal : HTML.index("\n}", awal) + 2]
+
+
+def _gabung(lines) -> list:
+    """Jalankan `gabungAlarm` yang SUNGGUHAN dari console.html, bukan salinannya.
+
+    Disalin ke test, fungsinya akan terus lulus setelah yang di layar diubah.
+    """
+    skrip = _fungsi("gabungAlarm") + f"\nconsole.log(JSON.stringify(gabungAlarm({json.dumps(lines)})));"
+    keluaran = subprocess.run(
+        [NODE, "-e", skrip], capture_output=True, text=True, check=True, timeout=30
+    ).stdout.strip()
+    return json.loads(keluaran)
+
+
+@butuh_node
+def test_alarm_yang_sama_dari_tiga_line_tampil_sekali():
+    """Inti dedup. Ketiga line membaca blok M yang SAMA dari satu PLC, jadi
+    MOTOR 3 fault muncul di ketiga jawaban. Tanpa dedup, operator membaca
+    "MOTOR 3 FAULT MOTOR 3 FAULT MOTOR 3 FAULT" dan mengira tiga motor mati."""
+    satu = {"plc": {"alarms": [{"code": "motor_fault", "n": 3}]}}
+    assert _gabung([satu, satu, satu]) == [{"code": "motor_fault", "n": 3}]
+
+
+@butuh_node
+def test_motor_berbeda_tidak_ikut_didedup():
+    # Kunci dedup memakai kode+nomor. Kalau cuma kode, MOTOR 5 hilang ditelan MOTOR 3.
+    lines = [
+        {"plc": {"alarms": [{"code": "motor_fault", "n": 3}]}},
+        {"plc": {"alarms": [{"code": "motor_fault", "n": 5}]}},
+    ]
+    assert _gabung(lines) == [{"code": "motor_fault", "n": 3}, {"code": "motor_fault", "n": 5}]
+
+
+@butuh_node
+def test_estop_tanpa_nomor_tetap_terdedup():
+    # `n` undefined - kunci dedup tidak boleh jadi "undefined" yang berbeda tiap kali.
+    satu = {"plc": {"alarms": [{"code": "estop"}]}}
+    assert _gabung([satu, satu]) == [{"code": "estop"}]
+
+
+@butuh_node
+def test_line_mati_dan_line_tanpa_plc_tidak_menyumbang_alarm():
+    """`reachable:false` tidak punya `alarms`, dan line asing tidak punya `plc`
+    sama sekali. Keduanya harus terbaca tenang, bukan melempar."""
+    assert _gabung([{"plc": {"reachable": False}}, {}, {"plc": {"alarms": []}}]) == []
+
+
+@butuh_node
+def test_daftar_line_kosong_atau_null_aman():
+    assert _gabung([]) == []
+    skrip = _fungsi("gabungAlarm") + "\nconsole.log(JSON.stringify(gabungAlarm(null)));"
+    keluar = subprocess.run(
+        [NODE, "-e", skrip], capture_output=True, text=True, check=True, timeout=30
+    ).stdout.strip()
+    assert json.loads(keluar) == []
