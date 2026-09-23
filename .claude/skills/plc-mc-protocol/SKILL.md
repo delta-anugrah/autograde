@@ -151,6 +151,23 @@ berubah") → `for n in 1 2 3; do docker logs --since 30s ripe_line_$n 2>&1 | gr
 "connect|0x0055|coil write failed" | tail -1; done` — ketiganya **kosong** = tersambung.
 
 **Uji tanpa kamera:** tab **Uji PLC** di konsol (akun support) memicu satu pulse per bit.
+Tombolnya dua baris — peran + alamat ("Kamera 1 OK" / "M1000"), **hijau untuk OK, merah
+untuk NG dan ERROR** — dan daftar bit menyebut alamat M-nya (`M1102 MOTOR 3 = Aktif`).
+Di bawahnya ada peta alamat lengkap (HTML statis: dokumen kesepakatan panel, bukan keadaan).
+
+⚠️ Peran dan warna diturunkan dari **offset** `coil_base`, nomor kameranya dari **kode
+line** (`line-2` → 2). Keduanya sengaja tidak ditebak dari nomor alamat: base milik panel
+dan sudah berubah sekali, dan menghitung nomor kamera dari jaraknya ke 1000 membuat
+ketiga line menulis "Kamera 1" begitu basenya bukan 1000-an (kejadian di konsol dev).
+`/internal/plc` karena itu ikut membawa `coil_base`, `di_base`, dan `device_prefix`.
+
+⚠️ **Ketikan UJI dicabut 2026-09-24** atas permintaan pengguna — layar ini milik
+developer/teknisi saat commissioning, dan mengetik kata yang sama sebelum tiap coil
+memperlambat pekerjaan yang berulang. Dua penjaga yang benar-benar menahan kecelakaan
+TETAP, dan keduanya di sisi **line**, bukan layar: ditolak 409 selama line memproses truk
+(dicek di proses yang memegang `RuntimeState`-nya), dan tiap percobaan — dipicu maupun
+ditolak — meninggalkan baris WARNING di `event_log`. Field `konfirmasi` masih diterima
+tanpa diperiksa supaya konsol yang belum dimuat ulang tidak mendadak 422.
 Sejak 2026-09-23 malam yang bisa diuji: **OK, NG, dan ERROR** per line
 (1000/1001/**1002**, 1003/1004/**1005**, 1006/1007/**1008**) + piston kalau dialokasikan.
 Heartbeat **tidak pernah** masuk daftar — memicunya bikin panel mengira PC mati.
@@ -174,6 +191,8 @@ jadi `PlcWorker` tidak tahu mana yang terpasang — pola yang sama dengan `build
 
 Peta alamat **sudah beres** (daftar Ocit 2026-09-23). Sisanya:
 
+0. ⚠️ **Coil ERROR (M1002/M1005/M1008) belum pernah kena PLC sungguhan** — tombolnya baru
+   ada sejak 2026-09-24. Sisanya (M1000, M1001, M1111, heartbeat) sudah terbukti 23 Sep.
 1. **Watchdog heartbeat di ladder** (pantau M1009 berkedip) — satu-satunya pekerjaan panel
    yang tersisa; paling mudah terlewat, paling mahal kalau lupa.
 1b. **Mode tahan dipakai atau tidak di produksi?** Opsinya sudah ada (`PLC_HOLD_MS`), tapi
@@ -202,7 +221,9 @@ bukan Lampung. Pastikan `.14` tidak dipakai kamera (IP kamera Lampung belum terc
 | `tests/unit/test_plc_alarm.py` | bit → alarm: motor dinomori dari 1, E-stop offset 11, bit belum dialokasikan diabaikan |
 | `tests/e2e/test_internal_status_alarm.py` | `/internal/status` membawa `alarms`; PLC mati = `[]`, bukan error |
 | `tests/unit/test_line_status_alarm.py` | worker menyimpan `alarms`; line versi lama tanpa field = `[]`; line mati tidak punya alarm palsu |
-| `tests/unit/test_console_html_alarm.py` | pita ada & digambar tiap refresh, terjemahan dua bahasa, **dedup `gabungAlarm` dijalankan lewat node** |
+| `tests/unit/test_console_html_alarm.py` | pita ada & digambar tiap refresh, terjemahan dua bahasa, **dedup `gabungAlarm` + `peranCoil` + `kelasCoil` dijalankan lewat node**, tabel peta alamat, timer tab PLC |
+| `tests/unit/plc/test_plc_hold.py` | mode tahan: memperpanjang bukan mengantre, tidak pernah membuang |
+| `tests/e2e/test_mc_protocol_lane.py` (lanjutan) | **ACC→M1000 / REJ→M1001 dibuktikan dari bingkai yang keluar di socket**, termasuk rantai kelas model → verdict → coil |
 | `tests/unit/test_plc_docs_match_compose.py` | dokumen tim PLC ≡ `docker-compose.yml` |
 
 ⚠️ Test terakhir membaca komentar `<!-- plc-map: ... -->` di `docs/plc-mc-handoff.md`.
