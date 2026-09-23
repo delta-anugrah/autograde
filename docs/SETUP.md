@@ -295,8 +295,8 @@ CAMERA_HEIGHT=2048
 CAMERA_FPS=15
 
 # ── Backend ──────────────────────────────────────────────────
-BACKEND_URL=http://localhost:2500        # atau IP server palmgrade-api
-WEBHOOK_SECRET=your-webhook-secret      # harus sama dengan palmgrade-api
+BACKEND_URL=http://localhost:8100        # KONSOL di mesin yang sama
+WEBHOOK_SECRET=your-webhook-secret      # harus sama dengan yang dipakai konsol
 
 # ── Machine UUIDs ────────────────────────────────────────────
 # Dulu dari tabel machines di PostgreSQL palmgrade-api (pensiun).

@@ -105,6 +105,53 @@ async def _tarik_setelan_grading(settings, state) -> None:
         logger.info("Setelan grading tidak bisa diambil (%s) — pakai .env", exc)
 
 
+async def _tarik_penugasan(settings, state) -> None:
+    """Tanya konsol truk mana yang sedang dibongkar di line ini, sekali saat start.
+
+    Pasangan `_tarik_setelan_grading`, untuk hal yang sama-sama hidup di
+    `RuntimeState`: penugasan truk hilang bersama proses, dan konsol cuma
+    mendorongnya saat operator menekan Tugaskan/Lepas. Tanpa tarikan ini,
+    `autograde restart` di tengah shift membuat line lupa truknya sementara layar
+    konsol tetap menampilkan platnya — janjang berikutnya tersimpan dengan
+    `assignment_id` kosong dan tidak pernah masuk rekap yang dibayar. Terbukti di
+    PC Lampung 2026-09-23, tanpa satu pun error.
+
+    Gagal = diam dan jalan tanpa truk, seperti sebelum ada fitur ini. Konsol yang
+    belum hidup saat line start itu kejadian normal (urutan start container tidak
+    dijamin), dan operator tetap bisa menugaskan dari layar.
+    """
+    url = f"{settings.backend_url}{settings.backend_api_ver}/internal/penugasan"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.get(
+                url,
+                params={"machine_id": settings.machine_id},
+                headers={"x-webhook-secret": settings.webhook_secret},
+            )
+        if res.status_code != 200:
+            logger.info("Penugasan tidak diambil (HTTP %s) — line start tanpa truk", res.status_code)
+            return
+        data = res.json()
+        assignment_id = str(data.get("assignment_id") or "").strip()
+        truck_id = str(data.get("truck_id") or "").strip()
+        # Keduanya wajib. Memasang satu tanpa yang lain memberi line truk hantu:
+        # `truck_folder` menamai folder capture dengan potongan kosong, dan
+        # janjang satu truk menumpuk di folder yang bukan miliknya.
+        if not (assignment_id and truck_id):
+            return
+        state.current_assignment_id = assignment_id
+        state.current_truck_id = truck_id
+        state.current_ffb_source = data.get("ffb_source")
+        state.current_plate = data.get("plate")
+        state.current_assigned_at = data.get("assigned_at")
+        logger.info(
+            "Penugasan dipulihkan dari konsol: truck=%s assignment=%s plate=%s ffb_source=%s",
+            truck_id, assignment_id, data.get("plate"), data.get("ffb_source"),
+        )
+    except Exception as exc:
+        logger.info("Penugasan tidak bisa diambil (%s) — line start tanpa truk", exc)
+
+
 def create_app() -> FastAPI:
     configure_logging()
     settings = get_settings()
@@ -183,6 +230,7 @@ def create_app() -> FastAPI:
         # Sesudah `state` ada, sebelum worker deteksi menyala: setelan yang
         # dipegang konsol harus sudah terpasang saat janjang pertama lewat.
         await _tarik_setelan_grading(settings, state)
+        await _tarik_penugasan(settings, state)
 
         # Gerbang lisensi untuk thread grading. Fail CLOSED: token yang tidak
         # bisa diverifikasi meninggalkan license_exp = 0, dan 0 berarti kamera
