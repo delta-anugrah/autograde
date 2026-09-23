@@ -28,6 +28,8 @@ from typing import Any
 import cv2
 import numpy as np
 
+from ..domain.setelan_rekam import bersihkan_setelan_rekam
+
 logger = logging.getLogger(__name__)
 
 #: Berapa sering encoder memeriksa sisa disk, dalam frame. Memeriksa tiap frame
@@ -90,12 +92,30 @@ class VideoRecorder:
 
     # ----------------------------------------------------------------- publik
 
-    def mulai(self, setelan: dict[str, int]) -> dict[str, Any]:
-        """Mulai merekam. Raise kalau sudah jalan atau disk mepet."""
+    def mulai(
+        self, setelan: dict[str, int], *, fps_kamera: float = 0.0
+    ) -> dict[str, Any]:
+        """Mulai merekam. Raise kalau sudah jalan atau disk mepet.
+
+        `fps_kamera` adalah laju yang BENAR-BENAR dikirim kamera. Kalau ada, ia
+        menang atas angka setelan, karena keduanya harus sama agar durasi video
+        sama dengan durasi kejadian.
+
+        Diukur di Lampung 2026-09-23: kamera mengirim 20 fps, berkas ditandai
+        "5 fps" karena itu yang tertulis di layar, dan 19 detik rekaman jadi 77
+        detik tontonan — gerakannya melambat 4x. Yang diminta operator justru
+        "apa yang terlihat di layar line adalah apa yang terekam".
+
+        Angka setelan tetap dipakai untuk sumber yang tidak bisa melapor
+        (berkas video, webcam), dan untuk lebar/tinggi yang tidak ada
+        hubungannya dengan laju.
+        """
         with self._lock:
             if self._merekam:
                 raise RekamSedangJalan(f"{self._line_code} sudah merekam")
             self._pastikan_disk_cukup()
+
+            setelan = self._fps_efektif(setelan, fps_kamera)
 
             self._videos_dir.mkdir(parents=True, exist_ok=True)
             berkas = self._nama_berkas_baru()
@@ -199,6 +219,19 @@ class VideoRecorder:
         }
 
     # ---------------------------------------------------------------- privat
+
+    @staticmethod
+    def _fps_efektif(setelan: dict[str, int], fps_kamera: float) -> dict[str, int]:
+        """Laju kamera menang atas angka setelan, kalau kamera bisa melapor.
+
+        Dibulatkan: header MP4 menyimpan laju sebagai pecahan, tapi kamera
+        melapor 19,97 dan pembulatan membuat angka di layar cocok dengan angka
+        di berkas. Tetap lewat `bersihkan_setelan_rekam` supaya kamera yang
+        salah setel tidak menyelundupkan nilai di luar batas ke encoder.
+        """
+        if fps_kamera <= 0:
+            return setelan
+        return bersihkan_setelan_rekam({**setelan, "fps": round(fps_kamera)})
 
     def _nama_berkas_baru(self) -> str:
         """Nama yang belum dipakai, berstempel detik.

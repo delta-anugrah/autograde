@@ -209,3 +209,14 @@ def test_tombol_record_di_kolom_paling_kanan():
     (line → status → angka) dan berakhir pada aksinya."""
     blok = _blok_css("#sec-rekam td.rekam-aksi, #sec-rekam th.rekam-aksi")
     assert "text-align:right" in blok, blok
+
+
+def test_bantuan_fps_menyebut_kamera_yang_menentukan():
+    """Angka FPS di layar diabaikan kalau kamera bisa melapor lajunya sendiri.
+
+    Teks lama ("makin tinggi = makin halus") membuat support menyetelnya lalu
+    heran kenapa berkasnya tidak berubah — persis jenis setelan mandul yang
+    dulu membuat `CAMERA_FPS` terbaca sebagai bug selama berbulan-bulan.
+    """
+    ind = HTML[HTML.index("rekamBantuFps:"):][:180]
+    assert "Kamera yang menentukan" in ind, ind[:120]

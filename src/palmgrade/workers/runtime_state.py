@@ -36,6 +36,15 @@ class RuntimeState:
     # yang menyetel ambang; operator tidak butuh dan salah membacanya.
     mode_dev_override: bool | None = None
 
+    # Laju yang BENAR-BENAR dikirim kamera, diisi `adopt_camera_frame_rate()`
+    # tiap connect. `0` = sumber tidak bisa melapor (berkas video, webcam).
+    #
+    # Ada di sini karena endpoint `/internal/rekam/mulai` tidak punya akses ke
+    # capture worker, sementara rekaman HARUS ditulis pada laju yang sama
+    # dengan kejadiannya — kalau tidak, videonya melambat atau mempercepat
+    # tanpa ada yang tahu (terjadi di Lampung 2026-09-23: 19 detik jadi 77).
+    camera_fps_terukur: float = 0.0
+
     # Recorder video developer (layar Rekam Video), kalau sedang merekam.
     # `None` selama tidak ada yang merekam — line yang tidak pernah dipakai
     # merekam tidak menyentuh modul rekam sama sekali. Tipenya `Any` supaya
