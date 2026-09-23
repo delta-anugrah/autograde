@@ -58,7 +58,7 @@ Semuanya baru berganti di **Fase 5**, saat PC pabrik memang dapat compose baru.
 - **httpx** (cloud upload + realtime push), **APScheduler** (hourly batch upload), **SQLite**
   (`outbox.db` = antrean realtime ke API lokal; `UploadManifest` = state per-item batch R2), **boto3** (R2)
 - **Hikrobot MVS SDK** (GigE industrial camera — prod only)
-- **pymodbus** (Modbus-TCP client — PLC/ODOT integration, PC pabrik only, mati default)
+- **pymcprotocol** (MC Protocol ke CPU Mitsubishi — PLC integration, jalur hidup) + **pymodbus** (Modbus-TCP, jalur coupler ODOT lama, `PLC_PROTOCOL=modbus`); PC pabrik only, mati default
 - **Docker-only** (no host venv). Deps pinned in `requirements.txt` (torch installed separately in Dockerfile).
 
 ---
@@ -81,7 +81,7 @@ src/palmgrade/
                    # konsol pakai asyncio, bukan thread: master_data (tarik supplier + truk) / erp_outbox (kirim ke AutoERP) / visit_resend (kirim ulang kunjungan kemarin) — dirakit di workers/erp_link.py, mati total kalau ERP_URL kosong
   integrations/    # camera/{hikrobot,opencv,photo}, notifications/ (webhook_client → api, line_client → line dari konsol), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
   domain/          # pure rules + entities (no I/O) — termasuk working_day.py (§6.1) & ffb_source.py (§3.5b)
-  plc/             # PLC/ODOT Modbus-TCP integration, entirely self-contained — public surface is 5 functions (start_plc_worker/shutdown_plc_worker/submit_grading/inputs/diagnostics)
+  plc/             # PLC integration (MC Protocol ke CPU Mitsubishi; Modbus/ODOT dipertahankan via PLC_PROTOCOL), self-contained — mc_client.py + modbus_client.py isi lubang yang sama, build_plc_client memilih
   schemas/         # Pydantic request/response models
   license/         # Ed25519 license guard (opsional) — `manager` memverifikasi, `gate` menghentikan
                    # grading, `summary` membentuk angka untuk layar. Tokennya DITERBITKAN di AutoERP.
@@ -781,6 +781,6 @@ memang khas satu mesin.
 - **`docs/overview.md`** — deep flows, ASCII diagrams, all invariants with rationale, worker/state model, Docker/SDK/GPU internals, prod deployment checklist, edge cases.
 - `docs/architecture.md` — layer boundaries (final design; don't change without discussion).
 - `docs/backend-overview.md` — full endpoint + event + env-var tables.
-- `docs/plc-integration.md` — PLC/ODOT CN-8031 coil map, env vars, throughput ceiling, open hardware questions.
+- `docs/plc-integration.md` — referensi teknis PLC (env vars, pulse, throughput, commissioning); `docs/plc-mc-handoff.md` — dokumen tim PLC, peta alamat M final (Ocit 2026-09-23); skill `plc-mc-protocol`.
 - `docs/SETUP.md` — from-zero prod setup (NVIDIA toolkit, MVS, camera IP, Docker build).
 - `../ARCHITECTURE.md` — 3-repo system architecture.

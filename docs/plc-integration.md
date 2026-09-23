@@ -1,10 +1,27 @@
-# PLC Integration — ODOT CN-8031 (Modbus-TCP)
+# PLC Integration — Mitsubishi Q03UDECPU (MC Protocol) · ODOT (arsip)
 
-Vision mengirim hasil grading tiap line (ACC / REJ / ERROR) ke PLC Mitsubishi lewat remote
-IO **ODOT CN-8031** via Modbus-TCP, dan membaca balik motor fault + E-stop. Dokumen ini
-menggantikan skematik PDF *"REMOTE IO — CONVEYOR SAWIT"* (DW.26/07/27 hal. 19–20, PT Nexio
-Teknologi Otomasi), yang tidak ada di repo — tabel alamat di bawah disalin apa adanya dari
-sana, plus percakapan dengan pak Ocit (PLC engineer).
+> **Status 2026-09-23.** Jalur yang hidup adalah **MC Protocol langsung ke CPU** (`PLC_PROTOCOL=mc`,
+> bawaan): PC bicara ke port Ethernet bawaan Q03UDECPU lewat `pymcprotocol`, device **M**, alamat
+> dari daftar pak Ocit — camera 1/2/3 base **M1000/M1003/M1006** (+0 OK, +1 NG, +2 ERROR),
+> heartbeat **M1009**, blok baca **M1100–M1115** (motor 1–11 fault, **M1111** E-stop). Coupler
+> **ODOT CN-8031 dibatalkan** 2026-09-21; jalurnya masih bisa dipilih dengan `PLC_PROTOCOL=modbus`
+> untuk site yang terlanjur dikabel begitu. Dokumen untuk tim PLC: **`docs/plc-mc-handoff.md`**
+> (+ PDF); skill: `plc-mc-protocol`.
+>
+> Yang berubah cuma lapisan klien (`plc/mc_client.py` vs `plc/modbus_client.py`, dipilih
+> `build_plc_client`). Semua di bawah ini — pulse, antrean, ERROR, piston, buah internal,
+> throughput — berlaku untuk **kedua** jalur. Yang khusus coupler ditandai **[modbus saja]**.
+>
+> **Dua beda yang penting di jalur mc:** (1) tidak ada *fault action* coupler yang mereset output
+> saat link putus, jadi heartbeat **wajib berkedip** (`PLC_ALIVE_TOGGLE_MS` bawaan 500) dan
+> ladder menghitung PERUBAHAN; (2) `pymcprotocol` mengembalikan **bit nol** — bukan error — saat
+> socket tertutup di tengah pembacaan, jadi `McProtocolPlcClient` memeriksa panjang balasan
+> mentah sendiri (kalau tidak, E-stop yang ditekan terbaca lepas).
+
+Vision mengirim hasil grading tiap line (ACC / REJ / ERROR) ke PLC Mitsubishi dan membaca
+balik motor fault + E-stop. Bagian hardware dan alamat coil di bawah menyalin skematik PDF
+*"REMOTE IO — CONVEYOR SAWIT"* (DW.26/07/27 hal. 19–20, PT Nexio Teknologi Otomasi) untuk
+jalur ODOT, plus percakapan dengan pak Ocit (PLC engineer).
 
 Seluruh logika terkurung di paket `src/palmgrade/plc/`. Kode di luar paket ini hanya boleh
 menyentuh fungsi yang diekspor `__init__.py`: `start_plc_worker`, `shutdown_plc_worker`,
@@ -13,7 +30,10 @@ menyentuh fungsi yang diekspor `__init__.py`: `start_plc_worker`, `shutdown_plc_
 
 ---
 
-## Hardware
+## Hardware **[modbus saja]**
+
+Di jalur mc tidak ada satu pun modul di bawah: kabel Ethernet dari NIC PC langsung ke port
+bawaan CPU. Tabel ini tinggal untuk site yang masih lewat coupler.
 
 | Part number | Peran |
 | --- | --- |
@@ -88,17 +108,20 @@ Semua field dideklarasikan di `core/config.py` (satu blok berlabel `# ── PLC
 | Variable | Default | Arti |
 | --- | --- | --- |
 | `PLC_ENABLED` | `false` | Saklar fitur. `false` = default, dipakai cloud dan semua PC dev — lihat "Mati secara default" di bawah |
-| `PLC_HOST` | (kosong) | IP coupler ODOT. Kosong + `PLC_ENABLED=true` → worker tidak dijalankan, warning di log |
-| `PLC_PORT` | `502` | Port Modbus-TCP standar |
-| `PLC_UNIT_ID` | `1` | Modbus unit/slave ID |
-| `PLC_COIL_BASE` | `0` | **Literal per line, bukan dari `.env`** — properti fisik line, bukan setelan yang boleh beda antar PC. Line 1 = `0`, line 2 = `3`, line 3 = `6` |
-| `PLC_COIL_ALIVE` | (kosong) | **Literal per line.** Daftar coil dipisah koma yang ditahan ON. Line 1 = `9` (HEARTBIT PC ON); line 2 dan 3 **kosong** — coil 10–15 SPARE di skematik. Kosong = fitur alive mati |
-| `PLC_ALIVE_TOGGLE_MS` | `0` | `0` = ON statis, sesuai skematik dan ladder pak Ocit ("coil OFF berarti PC mati"). `> 0` = toggle tiap sekian ms; **hanya kalau ladder-nya menghitung PERUBAHAN**, kalau tidak alarm PC-mati menyala tiap setengah periode |
+| `PLC_PROTOCOL` | `mc` | `mc` = MC Protocol langsung ke CPU (jalur hidup). `modbus` = lewat coupler ODOT. Nilai asing → jatuh ke `mc` + warning, bukan crash |
+| `PLC_HOST` | (kosong) | IP PLC (mc: `192.168.3.39` dari uji tim PLC; modbus: IP coupler). Kosong + `PLC_ENABLED=true` → worker tidak dijalankan, warning di log |
+| `PLC_PORT` | ikut protokol | Kosong = `1025` untuk mc (port Open Setting GX Works2), `502` untuk modbus |
+| `PLC_UNIT_ID` | `1` | **[modbus saja]** unit/slave ID. MC Protocol menyapa CPU-nya langsung |
+| `PLC_DEVICE_PREFIX` | `M` | **[mc saja]** huruf device yang dipakai semua alamat di bawah. Panel memberi B/Y → ganti ini saja |
+| `PLC_COIL_BASE` | `0` | **Literal per line, bukan dari `.env`** — properti fisik line, bukan setelan yang boleh beda antar PC. mc (daftar Ocit): camera 1 = `1000`, 2 = `1003`, 3 = `1006`. modbus: `0` / `3` / `6` |
+| `PLC_COIL_ALIVE` | (kosong) | **Literal per line.** Bit heartbeat, dipegang line 1 saja: mc = `1009`, modbus = `9`. Line 2 dan 3 **kosong**. Kosong = fitur alive mati |
+| `PLC_ALIVE_TOGGLE_MS` | ikut protokol | Kosong = **`500` untuk mc** (wajib berkedip: tidak ada coupler yang mereset output saat PC mati, kedipan ini satu-satunya yang bisa dipantau ladder — dan ladder harus menghitung PERUBAHAN), **`0` untuk modbus** (ON statis, ladder membaca level; toggle di sini = alarm PC-mati tiap setengah periode, kejadian v1.3.0) |
+| `PLC_DI_BASE` | `0` | Awal blok yang dibaca. mc: `1100` (M1100–M1115). modbus: `0` |
 | `PLC_PULSE_MS` | `200` | Lebar pulse ON untuk satu keputusan OK/NG. **Wajib >= `PLC_POLL_MS`** (lihat di bawah). **Belum dikonfirmasi pak Ocit** — lihat "Belum diputuskan" |
 | `PLC_PULSE_GAP_MS` | `100` | Jeda OFF wajib sebelum pulse berikutnya pada coil yang sama, supaya PLC melihat tepi naik terpisah |
 | `PLC_QUEUE_MAX` | `1` | **Berapa banyak keterlambatan yang mau kamu beli**, bukan kapasitas/keandalan. Jumlah pulse yang boleh terutang per coil; tiap slot = `(pulse+gap)` ms sinyal jadi lebih basi. Penuh → drop + hitung, bukan tunggu |
-| `PLC_POLL_MS` | `200` | Interval `PlcWorker.run_once()` — sekaligus keepalive watchdog ODOT, **dan resolusi waktu semua timing di atas** |
-| `PLC_DI_COUNT` | `16` | Jumlah discrete input yang dibaca tiap poll |
+| `PLC_POLL_MS` | `200` | Interval `PlcWorker.run_once()` — **resolusi waktu semua timing di atas** (dan, di jalur modbus, keepalive watchdog coupler) |
+| `PLC_DI_COUNT` | `16` | Jumlah bit yang dibaca tiap poll mulai `PLC_DI_BASE`. Bit ke-11 = E-stop di kedua jalur (M1111 / DI 11) |
 
 ### `PLC_POLL_MS` adalah resolusi waktu, bukan sekadar keepalive
 
@@ -365,6 +388,12 @@ plafon throughput, bukan bug. Baca ulang bagian `PLC_QUEUE_MAX`.
 
 ## Belum diputuskan (open hardware questions)
 
+**Per 2026-09-23, jalur mc.** Yang masih ditunggu dari tim PLC: (a) **tiga koneksi** MC Protocol
+di Open Setting GX Works2 — satu port satu koneksi; (b) **watchdog heartbeat di ladder** (M1009
+tidak berubah 2–3 dtk → matikan M1000–M1008); (c) butir 5 di bawah; (d) tidak mendesak: piston
+manual dialokasikan (usulan M1010–M1012 / M1112–M1114) atau ditiadakan — sekarang **kosong =
+fitur mati**. Butir 2 dan 4 di bawah **[modbus saja]**; butir 1, 3, 5, 6 berlaku dua jalur.
+
 Hal-hal ini ada di sisi pak Ocit (PLC engineer) dan butuh kerja panel + ladder. Vision sudah
 punya default yang masuk akal untuk semuanya, jadi ini bukan blocker untuk mulai — tapi wajib
 dikonfirmasi sebelum commissioning:
@@ -407,7 +436,11 @@ dikonfirmasi sebelum commissioning:
 
 ## Urutan commissioning
 
-Disarikan dari catatan serah terima Agustus 2026. Kalau waktu mepet, yang **tidak boleh
+Disarikan dari catatan serah terima Agustus 2026, ditulis untuk coupler. Di jalur mc bacanya:
+"coil 0" = **M1000**, "coil 9" = **M1009**, "IP coupler" = IP CPU, dan langkah 8 berubah
+maknanya — tidak ada *fault action*, jadi yang diuji adalah **ladder** mematikan M1000–M1008
+sendiri saat M1009 berhenti berkedip. Pastikan juga *Enable online change (FTP, MC Protocol)*
+tercentang: tanpa itu baca jalan, tulis ditolak. Kalau waktu mepet, yang **tidak boleh
 dilewat** cuma langkah 3, 4, dan 7.
 
 1. Isi IP coupler, pastikan komputer bisa nyambung.
