@@ -21,10 +21,16 @@ ENV_CONTOH = (AKAR / ".env.example").read_text(encoding="utf-8")
 
 #: Titik awal yang wajar di conveyor mana pun: cukup jauh dari tepi kiri supaya
 #: janjang sudah sepenuhnya masuk frame saat menyentuhnya.
-BAWAAN = 200
+#:
+#: Dinaikkan 200 → 300 (2026-09-23) setelah diukur di PC Lampung: pada line 2,
+#: janjang bergerak kanan→kiri dan bbox-nya menyempit di tepi kiri (tepi kiri
+#: mentok di 0 beberapa frame terakhir = janjang sudah separuh keluar frame),
+#: sementara keyakinan model paling tinggi dan stabil saat janjang lebih ke
+#: tengah. Garis yang terlalu dekat tepi memberi lebih sedikit frame bagus.
+BAWAAN = 300
 
 
-def test_settings_bawaan_dua_ratus(monkeypatch):
+def test_settings_bawaan_tiga_ratus(monkeypatch):
     monkeypatch.delenv("GARIS_CAPTURE", raising=False)
     assert Settings().garis_capture == BAWAAN
 

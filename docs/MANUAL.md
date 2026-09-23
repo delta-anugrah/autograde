@@ -259,7 +259,7 @@ dengan tangkapan layar MVS ada di `docs/SETUP.md`; ini urutan ringkasnya.
 - [ ] PC dengan GPU NVIDIA; `nvidia-smi` sudah keluar tabel. Disk sisa ≥ 30 GB.
 - [ ] **Dua NIC**: satu untuk kamera (switch gigabit khusus), satu untuk internet (USB ethernet boleh).
 - [ ] Switch gigabit yang mendukung jumbo frame (MTU 9000). **Splitter bukan switch.**
-- [ ] Berkas model `best.pt` (±130 MB). **Tidak ada di repositori.**
+- [ ] Berkas model `best.pt` 4 kelas (±50 MB; yang 130 MB itu model lama 3 kelas, tidak dikenali kode). **Tidak ada di repositori.**
 - [ ] Serial tiga kamera Hikrobot.
 - [ ] Empat nilai `R2_*` Cloudflare kalau foto mau diarsipkan ke cloud.
 - [ ] Kunci integrasi AutoERP (`ERP_API_KEY`/`ERP_API_SECRET`) kalau langsung disambung. Boleh belakangan.
@@ -340,7 +340,7 @@ Baris yang wajib disentuh. Sisanya biarkan bawaan.
 | `FACTORY_TZ` | `Asia/Jakarta` (sesuaikan) | batas tanggal kerja |
 | `CONSOLE_DEFAULT_HASH`, `CONSOLE_SUPPORT_HASH` | keluaran `make hash-sandi` | dua sandi **berbeda**, catat di catatan internal. Tulis `$$` untuk tiap `$` (compose memakan `$`) |
 | `CONF_THRESHOLD`, `MINIMUM_SIZE`, `ROI_*` | nilai pabrik | Lampung: 0.5, 3000, ROI 100/100/1180/620. Bisa diubah dari tab Setelan |
-| `GARIS_CAPTURE`, `SUMBU_GARIS`, `MODE_DEV` | `0`, `tegak`, `false` | **nilai awal saja** — yang dipakai sehari-hari diatur dari tab Setelan, berlaku tanpa restart. Garis `0` = tanpa garis |
+| `GARIS_CAPTURE`, `SUMBU_GARIS`, `MODE_DEV` | `300`, `tegak`, `false` | **nilai awal saja** — yang dipakai sehari-hari diatur dari tab Setelan, berlaku tanpa restart. Garis `0` = tanpa garis |
 | `BORDER_THICKNESS`, `FONT_SCALE`, `FONT_THICKNESS` | 8, 2.5, 5 | frame 2448×2048 butuh angka besar |
 | `R2_ACCOUNT_ID` … `R2_PUBLIC_URL` | dari Cloudflare, atau kosong | kosong = foto tidak diunggah, tidak ada `detail_url` di tiket ERP |
 | `UPLOAD_API_URL`, `UPLOAD_API_SECRET` | **kosong** | penerima teks per janjang sudah pensiun |

@@ -27,7 +27,7 @@ Tanyain sekaligus di awal. Kalau ada yang belum ada, instalasi bakal ngadat di
 tengah dan operator nunggu.
 
 - PAT GitHub scope `read:packages`
-- File model `best_3class_v2.pt` (±130 MB) — **nggak ada di repo**, harus dibawa
+- File model `best.pt` **4 kelas** (±50 MB, kelas `JK/Ripe/TP/Unripe`) — **nggak ada di repo**, harus dibawa. Yang 130 MB (`best_3class_v2.pt`) model lama: kode nggak kenal kelasnya, line jalan tapi nol hitungan
 - Serial 3 kamera Hikrobot
 - `WEBHOOK_SECRET` dari droplet produksi (jadi kunci B)
 - 4 nilai `R2_*` Cloudflare
