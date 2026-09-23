@@ -24,31 +24,37 @@ dari `PLC_PROTOCOL`.
 `domain/grade_class.py`, aturan buah internal, piston manual, layar Uji PLC. Worker tidak
 pernah tahu protokol mana yang sedang dipakai — itu yang membuat perpindahan ini kecil.
 
-## Peta alamat M
+## Peta alamat M — daftar pak Ocit, 2026-09-23, SUDAH dipasang
+
+Polanya persis skema ODOT lama (coil 0–9, DI 0–11) dipindah ke M1000 / M1100.
 
 **PC menulis:**
 
 | Alamat | Arti | Bentuk |
 |---|---|---|
-| M100 / M101 / M102 | LINE 1 ACC / REJ / ERROR | pulse / pulse / level |
-| M103 | LINE 1 piston manual | level |
-| **M110** | **HEARTBEAT PC** | **berkedip 500 ms** |
-| M120–M123 | LINE 2 (ACC/REJ/ERROR/piston) | sama |
-| M140–M143 | LINE 3 (ACC/REJ/ERROR/piston) | sama |
+| M1000 / M1001 / M1002 | CAMERA 1 OK / NG / ERROR | pulse / pulse / level |
+| M1003 / M1004 / M1005 | CAMERA 2 OK / NG / ERROR | sama |
+| M1006 / M1007 / M1008 | CAMERA 3 OK / NG / ERROR | sama |
+| **M1009** | **HEARTBIT PC** | **berkedip 500 ms** |
 
-**PC membaca** — satu blok M200–M219 tiap 200 ms:
+**PC membaca** — satu blok M1100–M1115 tiap 200 ms:
 
 | Alamat | Arti |
 |---|---|
-| M200–M210 | MOTOR 1–11 fault |
-| M211 | EMERGENCY STOP |
-| M212 / M213 / M214 | konfirmasi piston line 1 / 2 / 3 terbuka |
-| M215–M219 | SPARE |
+| M1100–M1110 | MOTOR 1–11 FAULT |
+| M1111 | E-STOP OP PANEL (`inputs[11]`) |
+| M1112–M1115 | belum dialokasikan |
 
-`PLC_COIL_BASE` = 100 / 120 / 140 per line; offset +0 ACC, +1 REJ, +2 ERROR — struktur
+`PLC_COIL_BASE` = 1000 / 1003 / 1006 per line; offset +0 OK, +1 NG, +2 ERROR — struktur
 yang sama dengan jalur Modbus, cuma angkanya pindah.
 
-⚠️ **Alamat di compose dan dokumen semuanya ABSOLUT** (M212, bukan "offset 12").
+⚠️ **Piston manual TIDAK ada di daftar Ocit** (di ODOT dulu juga "menunggu alokasi").
+`PLC_COIL_MANUAL` / `PLC_DI_MANUAL` di compose sengaja **kosong** = fitur mati, tombolnya
+tidak muncul, grading jalan terus. Usulan yang mengikuti pola daftarnya kalau nanti
+dialokasikan: M1010/M1011/M1012 (minta buka) + M1112/M1113/M1114 (konfirmasi). Jangan isi
+sendiri — bit yang belum dialokasikan panel bisa milik orang lain di ladder.
+
+⚠️ **Alamat di compose dan dokumen semuanya ABSOLUT** (M1111, bukan "offset 11").
 `PlcWorker._input_at()` yang mengurangi `PLC_DI_BASE` supaya jadi indeks blok. Kalau
 suatu saat ada yang mengindeks `self.inputs` langsung dengan `plc_di_manual`, konfirmasi
 piston berhenti datang **tanpa satu pun error** — itu bug nyata yang sempat ada dan
@@ -63,9 +69,9 @@ terus.
 Jadi:
 - `PLC_ALIVE_TOGGLE_MS` bawaannya **500 di jalur mc**, **0 di jalur modbus** — diturunkan
   dari protokol di `config.py`, bukan angka tetap.
-- Ladder wajib menghitung **PERUBAHAN** M110, bukan level, lalu mematikan semua bit dari
+- Ladder wajib menghitung **PERUBAHAN** M1009, bukan level, lalu mematikan semua bit dari
   PC kalau tidak berubah 2–3 detik.
-- ⚠️ Ladder yang membaca M110 sebagai **level** akan menyalakan alarm "PC mati" tiap
+- ⚠️ Ladder yang membaca M1009 sebagai **level** akan menyalakan alarm "PC mati" tiap
   setengah periode. Ini pernah terjadi di `v1.3.0`.
 
 ## Jebakan pustaka: balasan terpotong = "semua input mati"
@@ -95,8 +101,8 @@ benar, justru itu masalahnya.
 | `PLC_PROTOCOL` | `mc` | `modbus` untuk site yang terlanjur dikabel lewat coupler |
 | `PLC_PORT` | ikut protokol | mc 1025, modbus 502. Kosongkan supaya ikut |
 | `PLC_DEVICE_PREFIX` | `M` | kalau panel memberi B atau Y, ganti ini saja |
-| `PLC_DI_BASE` | `200` | awal blok yang dibaca |
-| `PLC_DI_COUNT` | `20` | |
+| `PLC_DI_BASE` | `1100` | awal blok yang dibaca |
+| `PLC_DI_COUNT` | `16` | |
 | `PLC_ALIVE_TOGGLE_MS` | ikut protokol | mc 500, modbus 0. Kosongkan supaya ikut |
 
 ⚠️ Env PLC yang **kosong** berarti "ikut bawaan", bukan nilai rusak — `_plc_int` sengaja
@@ -123,12 +129,14 @@ dengan konfirmasi ketik karena benar-benar menggerakkan hardware.
 
 ## Yang masih ditunggu dari tim PLC
 
-1. **Persetujuan peta alamat M** — angka di atas masih usulan kita.
-2. **Tiga koneksi MC Protocol** di Open Setting.
-3. **Watchdog heartbeat di ladder** — paling mudah terlewat, paling mahal kalau lupa.
-4. **Buah tanpa sinyal itu LOLOS atau DIBUANG?** Menentukan aturan buah internal benar
+Peta alamat **sudah beres** (daftar Ocit 2026-09-23). Sisanya:
+
+1. **Tiga koneksi MC Protocol** di Open Setting.
+2. **Watchdog heartbeat di ladder** — paling mudah terlewat, paling mahal kalau lupa.
+3. **Buah tanpa sinyal itu LOLOS atau DIBUANG?** Menentukan aturan buah internal benar
    atau terbalik total. Pertanyaan ini sudah menggantung sejak era ODOT dan **belum
    terjawab**.
+4. (tidak mendesak) Piston manual dialokasikan atau ditiadakan?
 
 Jaringan: PLC di `192.168.3.x`, kamera GigE di `192.168.100.x`. PC butuh jalan ke
 keduanya — PLC ikut subnet kamera, atau PC diberi rute tambahan. Belum diputuskan.

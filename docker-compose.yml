@@ -131,16 +131,18 @@ services:
       - PLC_DEVICE_PREFIX=${PLC_DEVICE_PREFIX:-M}
       # Properti fisik line ini (peta alamat panel) — sengaja literal, bukan dari
       # env, karena tidak boleh berbeda antar PC.
-      # Line 1: M100 OK, M101 NG, M102 ERROR.
-      - PLC_COIL_BASE=100
-      # M110 = heartbeat PC, satu-satunya bit alive (dipegang line 1).
-      - PLC_COIL_ALIVE=110
-      # Piston manual line 1 — M103, konfirmasi M212.
-      - PLC_COIL_MANUAL=103
-      - PLC_DI_MANUAL=212
-      # Blok yang DIBACA dari PLC: M200..M219 (motor fault, E-stop, konfirmasi piston).
-      - PLC_DI_BASE=${PLC_DI_BASE:-200}
-      - PLC_DI_COUNT=${PLC_DI_COUNT:-20}
+      # Line 1: M1000 OK, M1001 NG, M1002 ERROR (daftar pak Ocit, 2026-09-23).
+      - PLC_COIL_BASE=1000
+      # M1009 = HEARTBIT PC, satu-satunya bit alive (dipegang line 1).
+      - PLC_COIL_ALIVE=1009
+      # Piston manual line 1 — BELUM dialokasikan panel. Kosong = fitur mati,
+      # grading jalan terus. Usulan ke pak Ocit: M1010, konfirmasi M1112.
+      - PLC_COIL_MANUAL=
+      - PLC_DI_MANUAL=
+      # Blok yang DIBACA dari PLC: M1100..M1115 — motor 1-11 fault (1100-1110),
+      # E-stop panel (1111), sisanya cadangan untuk konfirmasi piston.
+      - PLC_DI_BASE=${PLC_DI_BASE:-1100}
+      - PLC_DI_COUNT=${PLC_DI_COUNT:-16}
       # Kosong = ikut protokol: mc berkedip 500 ms (tidak ada watchdog coupler
       # lagi), modbus tetap level statis.
       - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-}
@@ -265,16 +267,17 @@ services:
       - PLC_DEVICE_PREFIX=${PLC_DEVICE_PREFIX:-M}
       # Properti fisik line ini (peta alamat panel) — sengaja literal, bukan dari
       # env, karena tidak boleh berbeda antar PC.
-      # Line 2: M120 OK, M121 NG, M122 ERROR.
-      - PLC_COIL_BASE=120
+      # Line 2: M1003 OK, M1004 NG, M1005 ERROR (daftar pak Ocit, 2026-09-23).
+      - PLC_COIL_BASE=1003
       # Line ini tidak memegang heartbeat — cuma line 1 yang punya.
       - PLC_COIL_ALIVE=
-      # Piston manual line 2 — M123, konfirmasi M213.
-      - PLC_COIL_MANUAL=123
-      - PLC_DI_MANUAL=213
-      # Blok yang DIBACA dari PLC: M200..M219 (motor fault, E-stop, konfirmasi piston).
-      - PLC_DI_BASE=${PLC_DI_BASE:-200}
-      - PLC_DI_COUNT=${PLC_DI_COUNT:-20}
+      # Piston manual line 2 — BELUM dialokasikan panel (usulan M1011 / M1113).
+      - PLC_COIL_MANUAL=
+      - PLC_DI_MANUAL=
+      # Blok yang DIBACA dari PLC: M1100..M1115 — motor 1-11 fault (1100-1110),
+      # E-stop panel (1111), sisanya cadangan untuk konfirmasi piston.
+      - PLC_DI_BASE=${PLC_DI_BASE:-1100}
+      - PLC_DI_COUNT=${PLC_DI_COUNT:-16}
       # Kosong = ikut protokol: mc berkedip 500 ms (tidak ada watchdog coupler
       # lagi), modbus tetap level statis.
       - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-}
@@ -399,16 +402,17 @@ services:
       - PLC_DEVICE_PREFIX=${PLC_DEVICE_PREFIX:-M}
       # Properti fisik line ini (peta alamat panel) — sengaja literal, bukan dari
       # env, karena tidak boleh berbeda antar PC.
-      # Line 3: M140 OK, M141 NG, M142 ERROR.
-      - PLC_COIL_BASE=140
+      # Line 3: M1006 OK, M1007 NG, M1008 ERROR (daftar pak Ocit, 2026-09-23).
+      - PLC_COIL_BASE=1006
       # Line ini tidak memegang heartbeat — cuma line 1 yang punya.
       - PLC_COIL_ALIVE=
-      # Piston manual line 3 — M143, konfirmasi M214.
-      - PLC_COIL_MANUAL=143
-      - PLC_DI_MANUAL=214
-      # Blok yang DIBACA dari PLC: M200..M219 (motor fault, E-stop, konfirmasi piston).
-      - PLC_DI_BASE=${PLC_DI_BASE:-200}
-      - PLC_DI_COUNT=${PLC_DI_COUNT:-20}
+      # Piston manual line 3 — BELUM dialokasikan panel (usulan M1012 / M1114).
+      - PLC_COIL_MANUAL=
+      - PLC_DI_MANUAL=
+      # Blok yang DIBACA dari PLC: M1100..M1115 — motor 1-11 fault (1100-1110),
+      # E-stop panel (1111), sisanya cadangan untuk konfirmasi piston.
+      - PLC_DI_BASE=${PLC_DI_BASE:-1100}
+      - PLC_DI_COUNT=${PLC_DI_COUNT:-16}
       # Kosong = ikut protokol: mc berkedip 500 ms (tidak ada watchdog coupler
       # lagi), modbus tetap level statis.
       - PLC_ALIVE_TOGGLE_MS=${PLC_ALIVE_TOGGLE_MS:-}

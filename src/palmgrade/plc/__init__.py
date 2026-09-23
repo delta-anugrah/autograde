@@ -212,7 +212,7 @@ def diagnostics() -> dict | None:
     from them — so `None` while the PLC is off is the right answer, not an error.
 
     `inputs` is the raw block starting at `PLC_DI_BASE`, so its index is an
-    OFFSET, not an address: under MC Protocol with base 200, the E-stop at M211
+    OFFSET, not an address: under MC Protocol with base 1100, the E-stop at M1111
     is `inputs[11]`. It reads the same as the old Modbus numbering by
     coincidence, not by design — do not hard-code either.
 

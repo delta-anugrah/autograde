@@ -90,7 +90,7 @@ class PlcWorker:
     def _input_at(self, address: int | None) -> bool | None:
         """One bit of the block we read, addressed the way the panel writes it.
 
-        Every address in compose and in the panel document is ABSOLUTE (M212),
+        Every address in compose and in the panel document is ABSOLUTE (M1111),
         while `self.inputs` is just the block that was read, starting at
         `PLC_DI_BASE`. Doing the subtraction here is what lets the MC Protocol
         block start at 200 without any caller learning about it — under Modbus,

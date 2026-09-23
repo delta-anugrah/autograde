@@ -364,7 +364,7 @@ class Settings:
         default_factory=lambda: (os.getenv("PLC_DEVICE_PREFIX") or "M").strip().upper() or "M"
     )
     # Where the block we READ starts. Modbus discrete inputs start at 0; an M
-    # block starts wherever the panel allocated it (proposal: 200).
+    # block starts wherever the panel allocated it (Pak Ocit's list: 1100).
     plc_di_base: int = field(default_factory=lambda: _plc_int("PLC_DI_BASE", 0))
     plc_coil_base: int = field(default_factory=lambda: _plc_int("PLC_COIL_BASE", 0))
     # The "alive" bit PlcWorker holds ON. Per the ODOT schematic there is only
