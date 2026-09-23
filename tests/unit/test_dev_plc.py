@@ -159,36 +159,44 @@ def test_picu_coil_ditolak_saat_line_memproses_truk(tmp_path):
     """Piston bergerak saat janjang lewat itu bahaya, bukan cuma berantakan."""
     app, store, plc = _app_plc(tmp_path, assignment_id="a-1")
     r = _client_support(app, store).post(
-        "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
+        "/api/console/dev/plc/line-1/coil", json={"coil": 11}
     )
     assert r.status_code == 409
     assert plc.coil_ditulis == []
 
 
-def test_picu_coil_ditolak_tanpa_konfirmasi_ketik(tmp_path):
-    """Klik bisa kesenggol; ketikan tidak."""
+def test_picu_coil_tidak_lagi_minta_konfirmasi_ketik(tmp_path):
+    """Ketikan dicabut 2026-09-24 atas permintaan pengguna: layar ini dipakai
+    developer/teknisi saat commissioning, dan mengetik UJI tiap coil memperlambat
+    pekerjaan yang memang berulang.
+
+    Dua penjaga lain TETAP dan itu yang sebenarnya menahan kecelakaan: ditolak
+    selama line memproses truk (test di atas), dan tiap percobaan meninggalkan
+    baris WARNING di event_log (test di bawah). Field `konfirmasi` yang masih
+    dikirim konsol versi lama diterima tanpa diperiksa."""
     app, store, plc = _app_plc(tmp_path)
     r = _client_support(app, store).post(
-        "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": ""}
+        "/api/console/dev/plc/line-1/coil", json={"coil": 11}
     )
-    assert r.status_code == 400
-    assert plc.coil_ditulis == []
+    assert r.status_code == 200
+    assert plc.coil_ditulis == [11]
 
 
-def test_picu_coil_ditolak_konfirmasi_salah_ketik(tmp_path):
-    """Bukan cuma "tidak kosong" — harus persis kata yang diminta layar."""
+def test_konfirmasi_lama_dari_konsol_versi_lama_tidak_menggagalkan(tmp_path):
+    # Konsol yang belum di-refresh masih mengirim field ini; menolaknya berarti
+    # layar lama mendadak buntu 422 sesudah image di-update.
     app, store, plc = _app_plc(tmp_path)
     r = _client_support(app, store).post(
-        "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "uji coba"}
+        "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "apa saja"}
     )
-    assert r.status_code == 400
-    assert plc.coil_ditulis == []
+    assert r.status_code == 200
+    assert plc.coil_ditulis == [11]
 
 
 def test_picu_coil_jalan_saat_line_menganggur(tmp_path):
     app, store, plc = _app_plc(tmp_path, assignment_id=None)
     r = _client_support(app, store).post(
-        "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
+        "/api/console/dev/plc/line-1/coil", json={"coil": 11}
     )
     assert r.status_code == 200
     assert plc.coil_ditulis == [11]
@@ -216,7 +224,7 @@ def test_penekanan_meninggalkan_jejak_di_log(tmp_path):
             log_store, line_client=line_client, lines=(LINE_1,), erp_outbox=erp_outbox, settings=_FakeSettings()
         )
         _client_support(app, store, email="s@b.c").post(
-            "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
+            "/api/console/dev/plc/line-1/coil", json={"coil": 11}
         )
         items = log_store.read(level="WARNING", search="coil", limit=10, offset=0)["items"]
         assert len(items) == 1
@@ -238,7 +246,7 @@ def test_penolakan_juga_meninggalkan_jejak_di_log(tmp_path):
     try:
         app, store, _ = _app_plc(tmp_path, assignment_id="a-1")
         _client_support(app, store, email="s@b.c").post(
-            "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
+            "/api/console/dev/plc/line-1/coil", json={"coil": 11}
         )
         items = log_store.read(level="WARNING", search="coil", limit=10, offset=0)["items"]
         assert len(items) == 1
@@ -260,7 +268,7 @@ def test_coil_di_luar_daftar_ditolak(tmp_path):
 def test_picu_line_tidak_dikenal_404(tmp_path):
     app, store, _ = _app_plc(tmp_path)
     r = _client_support(app, store).post(
-        "/api/console/dev/plc/line-9/coil", json={"coil": 11, "konfirmasi": "UJI"}
+        "/api/console/dev/plc/line-9/coil", json={"coil": 11}
     )
     assert r.status_code == 404
 
@@ -278,7 +286,7 @@ def test_picu_line_tidak_menjawab_502(tmp_path):
         erp_outbox=erp_outbox, settings=_FakeSettings(),
     )
     r = _client_support(app, store).post(
-        "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
+        "/api/console/dev/plc/line-1/coil", json={"coil": 11}
     )
     assert r.status_code == 502
 
@@ -310,7 +318,7 @@ def test_line_tidak_terjangkau_juga_meninggalkan_jejak_di_log(tmp_path):
             erp_outbox=erp_outbox, settings=_FakeSettings(),
         )
         r = _client_support(app, store, email="s@b.c").post(
-            "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
+            "/api/console/dev/plc/line-1/coil", json={"coil": 11}
         )
         assert r.status_code == 502
 
@@ -331,7 +339,7 @@ def test_uji_plc_menolak_operator_biasa(tmp_path):
 def test_uji_plc_coil_menolak_operator_biasa(tmp_path):
     app, store, _ = _app_plc(tmp_path)
     r = _client_operator(app, store).post(
-        "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
+        "/api/console/dev/plc/line-1/coil", json={"coil": 11}
     )
     assert r.status_code == 403
 

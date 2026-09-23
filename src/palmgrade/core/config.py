@@ -399,13 +399,17 @@ class Settings:
     )
     # Where the block we READ starts. Modbus discrete inputs start at 0; an M
     # block starts wherever the panel allocated it (Pak Ocit's list: 1100).
-    plc_di_base: int = field(default_factory=lambda: _plc_int("PLC_DI_BASE", 0))
-    plc_coil_base: int = field(default_factory=lambda: _plc_int("PLC_COIL_BASE", 0))
+    plc_di_base: int = field(default_factory=lambda: _plc_int("PLC_DI_BASE", 1100))
+    # Bawaan = peta pak Ocit (camera 1). Compose tetap mematoknya per line
+    # (1000/1003/1006), tapi line yang jalan DI LUAR Docker — `make line` di
+    # laptop — tidak membaca compose, dan bawaan `0` warisan ODOT membuat layar
+    # menampilkan M0/M1/M2: alamat yang tidak ada di daftar panel mana pun.
+    plc_coil_base: int = field(default_factory=lambda: _plc_int("PLC_COIL_BASE", 1000))
     # The "alive" bit PlcWorker holds ON. Per the ODOT schematic there is only
     # ONE for the whole PC — coil 9 (HEARTBIT PC ON), owned by line 1. Lines 2
     # and 3 stay empty: coils 10-15 are marked SPARE there, not ours to use.
     plc_coil_alive: tuple[int, ...] = field(
-        default_factory=lambda: parse_coil_list(os.getenv("PLC_COIL_ALIVE"))
+        default_factory=lambda: parse_coil_list(os.getenv("PLC_COIL_ALIVE") or "1009")
     )
     # How the PLC is told the PC is still alive. The correct answer DEPENDS ON
     # THE PROTOCOL, which is why the default is derived rather than fixed:

@@ -32,7 +32,7 @@ from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
 from ..services.auth_service import AuthService
 from ..services.console_service import ConsoleService
-from ..services.dev_service import CoilTidakDikenal, DevService, KonfirmasiKurang, PlcSibuk
+from ..services.dev_service import CoilTidakDikenal, DevService, PlcSibuk
 from ..services.erp_queue import ErpQueue
 from ..services.qr_cetak import png_qr
 from ..services.scan_service import ScanService
@@ -646,13 +646,15 @@ async def dev_plc_coil(
     operator: Support,
     line_code: str,
     coil: Annotated[int, Body()],
-    konfirmasi: Annotated[str, Body()],
+    # Sisa penjaga ketik yang dicabut 2026-09-24 — tetap diterima (tanpa
+    # diperiksa) supaya konsol yang belum dimuat ulang tidak mendadak 422.
+    konfirmasi: Annotated[str, Body()] = "",
 ) -> dict:
     """The only lane in this whole console that moves physical hardware.
 
-    Three guards: typed confirmation, refused while the line is processing a
-    truck (409, checked on the line — see DevService.plc_fire), and every
-    attempt — fired or refused — leaves a WARNING row in event_log.
+    Two guards: refused while the line is processing a truck (409, checked on
+    the line — see DevService.plc_fire), and every attempt — fired or refused —
+    leaves a WARNING row in event_log.
     """
     try:
         return await dev.plc_fire(
@@ -661,8 +663,6 @@ async def dev_plc_coil(
             konfirmasi=konfirmasi,
             operator_email=operator["email"],
         )
-    except KonfirmasiKurang as exc:
-        raise _operator_error(400, exc) from exc
     except PlcSibuk as exc:
         raise _operator_error(409, exc) from exc
     except CoilTidakDikenal as exc:
@@ -670,9 +670,9 @@ async def dev_plc_coil(
     except LineUnavailable as exc:
         raise _operator_error(502, exc) from exc
     except ValueError as exc:
-        # Must come AFTER KonfirmasiKurang/CoilTidakDikenal above — both are
-        # ALSO ValueError (via OperatorError, ValueError), and a bare catch
-        # placed first would swallow them into the wrong status code.
+        # Must come AFTER CoilTidakDikenal above — it is ALSO a ValueError
+        # (via OperatorError, ValueError), and a bare catch placed first would
+        # swallow it into the wrong status code.
         raise _operator_error(404, exc) from exc
 
 

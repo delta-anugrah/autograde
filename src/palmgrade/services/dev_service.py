@@ -19,7 +19,6 @@ from typing import Any
 from ..core.config import LineEndpoint, Settings
 from ..domain.operator_error import (
     COIL_TIDAK_DIKENAL,
-    KONFIRMASI_KURANG,
     LINE_TIDAK_DIKENAL,
     PLC_SIBUK,
     InvalidInput,
@@ -37,19 +36,6 @@ logger = logging.getLogger(__name__)
 # Purge at most this often. A worker of its own would be one more thread a
 # factory PC has to pay for, for a table that grows a few hundred rows a day.
 _PURGE_INTERVAL_S = 3600.0
-
-# Typed exactly, not just "non-empty": the PLC test screen is the only one
-# that moves physical hardware, and a stray character landing in the field
-# (autocomplete, a brushed key) must not read as a deliberate confirmation.
-# Value is a console.html contract ("Type UJI to continue") — do not change it.
-_PLC_TEST_CONFIRMATION = "UJI"
-
-
-class KonfirmasiKurang(OperatorError, ValueError):
-    """Typed confirmation did not match — the coil must not fire."""
-
-    def __init__(self, message: str) -> None:
-        super().__init__(KONFIRMASI_KURANG, message)
 
 
 class PlcSibuk(OperatorError, RuntimeError):
@@ -165,20 +151,24 @@ class DevService:
         return await self._line_client.plc_state(line)
 
     async def plc_fire(
-        self, *, line_code: str, coil: int, konfirmasi: str, operator_email: str
+        self, *, line_code: str, coil: int, operator_email: str, konfirmasi: str = ""
     ) -> dict[str, Any]:
         """Fire one PLC coil on `line_code` to tell a wiring fault from a program
         fault at commissioning — the only console action that moves real hardware.
 
-        Three guards, all mandatory: typed confirmation (not a click, which a
-        touchscreen can register from a brush), refused while that line is
-        processing a truck (checked on the line itself — this process does not
-        own its RuntimeState), and every attempt logged WARNING regardless of
-        outcome, so an incident always has a trail naming who pressed what.
+        Two guards, both mandatory: refused while that line is processing a truck
+        (checked on the line itself — this process does not own its RuntimeState),
+        and every attempt logged WARNING regardless of outcome, so an incident
+        always has a trail naming who pressed what.
+
+        ⚠️ The typed confirmation was dropped on 2026-09-24 at the user's request:
+        this screen belongs to whoever is commissioning the panel, and typing the
+        word before every coil slows down work that is repetitive by nature. The
+        busy-line guard is the one that actually prevents an accident — a piston
+        moving under a passing bunch — and it stays. `konfirmasi` is still
+        accepted, unchecked, so a console that has not been reloaded keeps working.
         """
         line = self._require_line(line_code)
-        if konfirmasi.strip() != _PLC_TEST_CONFIRMATION:
-            raise KonfirmasiKurang(f"type '{_PLC_TEST_CONFIRMATION}' before firing the coil")
         try:
             result = await self._line_client.plc_coil(
                 line, coil=coil, requested_by=operator_email

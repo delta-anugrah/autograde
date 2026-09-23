@@ -1446,14 +1446,15 @@
     Sama seperti tara-grup di tab Timbangan - dialog yang menutup layar
     menghilangkan kamera line dan strip tally justru saat firing sedang ditunggu.
 
-    Ketikan tetap wajib (bukan tombol klik): klik bisa tersenggol jempol
-    bersarung tangan di layar sentuh, ketikan tidak. Ini satu-satunya layar
-    konsol yang menggerakkan besi sungguhan.
+    Ketikan UJI dicabut 2026-09-24 atas permintaan pengguna: layar ini dipakai
+    developer/teknisi saat commissioning, dan mengetik kata yang sama sebelum
+    tiap coil memperlambat pekerjaan yang memang berulang. Yang benar-benar
+    menahan kecelakaan tetap ada dan ada di sisi LINE, bukan di layar: coil
+    ditolak selama line itu memproses truk, dan tiap percobaan meninggalkan
+    baris WARNING di event_log.
   -->
   <div id="plc-konfirmasi" class="plc-konfirmasi" hidden>
     <b id="plc-konfirmasi-teks"></b>
-    <input id="plc-konfirmasi-nilai" data-t-ph="phUjiPlc" placeholder="UJI"
-           autocomplete="off" autocapitalize="characters" spellcheck="false">
     <button type="button" id="plc-konfirmasi-jalankan" class="utama" data-t="btnUjiPlcJalankan">Jalankan</button>
     <button type="button" id="plc-konfirmasi-batal" data-t="btnBatal">Batal</button>
   </div>
@@ -1716,8 +1717,8 @@ const KAMUS = {
     coilOk:"Kamera {n} OK", coilNg:"Kamera {n} NG", coilError:"Kamera {n} Error",
     coilPiston:"Piston manual", petaJudul:"Peta alamat PLC (daftar tim PLC, 23 Sep 2026)",
     petaDariPc:"PC menulis → PLC membaca", petaKePc:"PLC menulis → PC membaca",
-    konfirmasiUjiPlc:"Coil {coil} di {line} akan menyala sesaat - ini menggerakkan barang sungguhan. Ketik UJI untuk lanjut:",
-    phUjiPlc:"Ketik UJI", btnUjiPlcJalankan:"Jalankan",
+    konfirmasiUjiPlc:"Coil {coil} di {line} akan menyala sesaat - ini menggerakkan barang sungguhan.",
+    btnUjiPlcJalankan:"Jalankan",
     ujiPlcDibatalkan:"Dibatalkan - konfirmasi tidak cocok",
     ujiPlcBerhasil:"Coil {coil} dipicu", ujiPlcDijatuhkan:"Coil {coil} TIDAK menyala - antrean pulse PLC penuh, coba lagi",
     gagalUjiPlc:"Gagal memicu coil",
@@ -1866,8 +1867,8 @@ const KAMUS = {
     coilOk:"Camera {n} OK", coilNg:"Camera {n} NG", coilError:"Camera {n} Error",
     coilPiston:"Manual piston", petaJudul:"PLC address map (PLC team list, 23 Sep 2026)",
     petaDariPc:"PC writes → PLC reads", petaKePc:"PLC writes → PC reads",
-    konfirmasiUjiPlc:"Coil {coil} on {line} will pulse briefly - this moves real hardware. Type UJI to continue:",
-    phUjiPlc:"Type UJI", btnUjiPlcJalankan:"Fire",
+    konfirmasiUjiPlc:"Coil {coil} on {line} will pulse briefly - this moves real hardware.",
+    btnUjiPlcJalankan:"Fire",
     ujiPlcDibatalkan:"Cancelled - confirmation did not match",
     ujiPlcBerhasil:"Coil {coil} fired", ujiPlcDijatuhkan:"Coil {coil} did NOT fire - PLC pulse queue is full, try again",
     gagalUjiPlc:"Failed to fire coil",
@@ -4201,9 +4202,8 @@ let ujiUntuk = null;
 function tanyaUjiPlc(line_code, coil) {
   ujiUntuk = { line_code, coil };
   $("plc-konfirmasi-teks").textContent = t("konfirmasiUjiPlc").replace("{coil}", coil).replace("{line}", line_code);
-  $("plc-konfirmasi-nilai").value = "";
   $("plc-konfirmasi").hidden = false;
-  $("plc-konfirmasi-nilai").focus();
+  $("plc-konfirmasi-jalankan").focus();
 }
 
 function tutupUjiPlc() {
@@ -4213,21 +4213,12 @@ function tutupUjiPlc() {
 
 async function jalankanUjiPlc() {
   if (!ujiUntuk) return;
-  // Typing is still required - unlike the tare field, this is not a number
-  // check but a one-time password: a mere click (even through the browser's
-  // built-in confirm dialog) can be brushed by a gloved thumb on a
-  // touchscreen, typing cannot.
-  if ($("plc-konfirmasi-nilai").value.trim() !== "UJI") {
-    pesan(t("ujiPlcDibatalkan"));
-    tutupUjiPlc();
-    return;
-  }
   const { line_code, coil } = ujiUntuk;
   tutupUjiPlc();
   try {
     const hasil = await api(`/api/console/dev/plc/${encodeURIComponent(line_code)}/coil`, {
       method: "POST",
-      body: JSON.stringify({ coil, konfirmasi: "UJI" }),
+      body: JSON.stringify({ coil }),
     });
     pesan(hasil.fired ? t("ujiPlcBerhasil").replace("{coil}", coil) : t("ujiPlcDijatuhkan").replace("{coil}", coil));
   } catch (e) {
@@ -4240,11 +4231,10 @@ async function jalankanUjiPlc() {
 $("plc-konfirmasi-jalankan").addEventListener("click", jalankanUjiPlc);
 $("plc-konfirmasi-batal").addEventListener("click", tutupUjiPlc);
 
-$("plc-konfirmasi-nilai").addEventListener("keydown", (ev) => {
-  if (ev.key === "Enter") { ev.preventDefault(); jalankanUjiPlc(); }
-  // Esc closes it, like any dialog: a wrongly selected coil must not force
-  // the operator to fire anything.
-  if (ev.key === "Escape") tutupUjiPlc();
+// Esc menutup, seperti dialog mana pun: coil yang salah dipilih tidak boleh
+// memaksa siapa pun menekan Jalankan.
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && !$("plc-konfirmasi").hidden) tutupUjiPlc();
 });
 
 $("plc-kartu").addEventListener("click", (ev) => {
