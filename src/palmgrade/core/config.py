@@ -461,6 +461,22 @@ class Settings:
         return Path(dari_env) if dari_env else self.repo_root / "videos"
 
     @property
+    def videos_dir_tampil(self) -> str:
+        """Jalur rekaman yang DITAMPILKAN ke manusia, bukan yang ditulisi.
+
+        Di dalam container `videos_dir` menunjuk `/app/videos` — benar untuk
+        menulis, tidak ada artinya bagi teknisi yang membuka PC pabrik lewat
+        AnyDesk dan mencarinya di Finder/Explorer. `REKAMAN_TAMPIL` menyimpan
+        jalur HOST-nya (`/opt/palmgrade/autograde/videos`) supaya layar
+        menyebutkan tempat yang benar-benar bisa dibuka.
+
+        Tanpa env itu keduanya sama — jalur native (`make console`) tidak punya
+        container, jadi tidak ada yang perlu disetel.
+        """
+        dari_env = os.getenv("REKAMAN_TAMPIL", "").strip()
+        return dari_env if dari_env else str(self.videos_dir)
+
+    @property
     def media_dir(self) -> str:
         """Folder berkas video/foto yang boleh dipilih layar Sumber Kamera.
 

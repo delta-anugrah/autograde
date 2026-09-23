@@ -89,3 +89,79 @@ def test_tombol_menunjukkan_sedang_bekerja():
     tulisan yang berubah, jeda itu terbaca seperti tombol yang tidak bereaksi."""
     assert HTML.count("rekamMenunggu:") == 2
     assert 'el.textContent = t("rekamMenunggu")' in HTML
+
+
+# ── UI: status berwarna dan toast lokasi berkas ─────────────────────────────
+
+
+def test_status_punya_kelas_warna_sendiri():
+    """Tiga keadaan yang butuh tindakan berbeda harus bisa dibedakan dari jauh.
+
+    Layar ini dibaca support lewat AnyDesk, sering sambil mengerjakan hal lain:
+    teks abu seragam membuat "sedang merekam" dan "line mati" terlihat sama.
+    """
+    for kelas in ("rekam-merekam", "rekam-mati", "rekam-putus"):
+        assert f'"{kelas}"' in HTML or f".{kelas}" in HTML, kelas
+
+
+def test_status_ditulis_kata_bukan_cuma_warna():
+    """Warna saja tidak cukup: sebagian teknisi buta warna, dan layar pabrik
+    kena matahari langsung. Kata-katanya tetap yang membawa artinya."""
+    for kunci in ("rekamSedangMerekam", "rekamMati", "rekamTakTerbaca"):
+        assert HTML.count(f"{kunci}:") == 2, kunci
+
+
+def test_toast_selesai_menyebut_lokasi_berkas():
+    """Selesai merekam tanpa memberi tahu di mana berkasnya membuat support
+    menebak — dan folder `videos/` tidak muncul di layar mana pun."""
+    assert HTML.count("rekamSelesai:") == 2
+
+
+def test_toast_selesai_menyebut_nama_folder():
+    """Nama foldernya harus tertulis, bukan cuma nama berkas: yang membuka
+    lewat AnyDesk perlu tahu ke mana harus pergi."""
+    ind = HTML[HTML.index("rekamSelesai:"):][:220]
+    assert "videos/" in ind
+
+
+def test_toast_selesai_dipakai_saat_stop():
+    assert 't("rekamSelesai")' in HTML
+
+
+def test_folder_rekaman_ikut_dikirim_backend():
+    """Layar tidak boleh mengarang jalurnya: di PC pabrik folder itu
+    `/opt/palmgrade/autograde/videos/`, bukan `videos/` relatif."""
+    assert "folder" in HTML[HTML.index('"/api/console/dev/rekam"'):][:2000]
+
+
+def test_baris_kosong_selebar_jumlah_kolom():
+    """`colspan` yang tertinggal saat kolom bertambah membuat baris "belum ada
+    line" kependekan — tabelnya terlihat rusak, tanpa satu pun galat. Jebakan
+    yang sudah pernah kena di repo ini (kolom Lama di tab Timbangan)."""
+    kepala = HTML[HTML.index('<tbody id="rekam-baris">') - 900:HTML.index('<tbody id="rekam-baris">')]
+    jumlah_th = kepala.count("<th")
+    assert f'barisKosong({jumlah_th},' in HTML, f"kepala punya {jumlah_th} kolom"
+
+
+def test_kolom_penyerap_disembunyikan_dari_pembaca_layar():
+    """Kolom itu murni tata letak; disebutkan pembaca layar cuma menambah
+    kebisingan di tabel yang isinya sudah jelas."""
+    assert 'class="rekam-sisa" aria-hidden="true"' in HTML
+
+
+def test_toast_sukses_bertahan_lima_detik():
+    """Tiga detik terlalu singkat untuk pesan yang isinya jalur berkas.
+
+    Toast rekaman membawa jalur penuh — puluhan karakter yang harus dibaca,
+    bukan dikenali sekilas seperti "Line 1 ditugaskan". Disamakan dengan
+    `peringatan`, yang sudah 5 detik dengan alasan yang sama.
+    """
+    blok = HTML.split("const TOAST_DURASI", 1)[1].split("\n", 1)[0]
+    assert "sukses: 5000" in blok, blok
+
+
+def test_toast_gagal_tetap_menunggu_ditutup():
+    """Kontrol negatif: menaikkan durasi sukses tidak boleh ikut memberi
+    tenggat pada kegagalan, yang harus bertahan sampai operator menutupnya."""
+    blok = HTML.split("const TOAST_DURASI", 1)[1].split("\n", 1)[0]
+    assert "gagal: 0" in blok, blok
