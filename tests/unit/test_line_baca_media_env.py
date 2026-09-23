@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.palmgrade.core.config import Settings
+from palmgrade.core.config import Settings
 
 ISI = """\
 LINE_1_CAMERA_TYPE=opencv
