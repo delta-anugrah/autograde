@@ -716,6 +716,27 @@ async def setelan_untuk_line(
     return service.setelan_grading()
 
 
+@ingest_router.get("/internal/penugasan")
+async def penugasan_untuk_line(
+    service: Service,
+    machine_id: str,
+    x_webhook_secret: Annotated[str | None, Header()] = None,
+) -> dict:
+    """Penugasan truk yang berlaku untuk satu line, diambil LINE saat dia start.
+
+    Lane mesin (`x-webhook-secret`), bukan lane operator: line tidak punya sesi.
+    Sepasang dengan `/internal/setelan` — keduanya memulihkan hal yang hidup di
+    `RuntimeState` dan karena itu hilang saat container line dibuat ulang.
+
+    `machine_id` wajib: konsol memegang penugasan tiga line, dan menjawab tanpa
+    tahu siapa yang bertanya akan mengirimkan truk line lain — tonase mendarat di
+    truk yang salah, tanpa satu pun pesan.
+    """
+    if x_webhook_secret != service.settings.webhook_secret:
+        raise HTTPException(status_code=401, detail="Invalid webhook secret")
+    return service.penugasan_untuk_mesin(machine_id)
+
+
 @ingest_router.post("/internal/scale/weighing", status_code=201)
 async def ingest_weighing(
     service: Service,
