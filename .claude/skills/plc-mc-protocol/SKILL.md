@@ -123,28 +123,51 @@ menambah env PLC baru di kode, compose di PC pabrik WAJIB ikut diperbarui. Cek d
 
 ## Prosedur lapangan
 
-**Sebelum menyalakan:**
-1. `ping -c3 192.168.0.14` dari PC pabrik.
-2. Pastikan **"Enable online change (FTP, MC Protocol)"** tercentang di Open Setting
-   GX Works2. Tanpa itu baca berhasil tapi tulis ditolak — gejalanya mudah disalahartikan
-   sebagai masalah jaringan.
-3. Pastikan ada **3 koneksi** di Open Setting (satu per line).
-4. `sed -i 's|^PLC_ENABLED=.*|PLC_ENABLED=true|' .env` → `autograde.sh restart`.
-5. `docker exec ripe_line_1 env | grep PLC_ENABLED` untuk membuktikan env-nya sampai.
+**TERSAMBUNG di Lampung 2026-09-23** — 3 line, M1000/M1001 (PC→PLC) dan M1111 (PLC→PC)
+terbukti. Runbook lengkapnya `docs/runbooks/2026-09-23-commissioning-plc-lampung.md`.
+Ringkasan yang harus diingat, urut seperti kejadiannya:
 
-**Uji tanpa kamera:** tab **Uji PLC** di konsol (akun support) memicu satu pulse per bit,
-dengan konfirmasi ketik karena benar-benar menggerakkan hardware.
+1. 🔴 **`docker-compose.yml` hidup di HOST PC pabrik, bukan di image.** `autograde.sh pull`
+   menaikkan kode tapi tidak menyentuh variabel container. Gejala: image `v1.15.0` tapi
+   `docker exec env` masih `PLC_PORT=502`, `PLC_COIL_BASE=0`, **nol `PLC_PROTOCOL`** ⇒
+   layar "PLC is off on this line". Blok PLC ketiga service harus ditukar tangan (skrip di
+   runbook, idempoten, bikin cadangan).
+2. ⚠️ **`.env` MENANG atas compose.** `PLC_PORT=502` sisa ODOT di `.env` menimpa default yang
+   benar. Sisakan cuma `PLC_ENABLED` dan `PLC_HOST` di `.env`.
+3. ⚠️ Tombol Uji PLC **abu-abu selama line punya truk** — Release dulu. Kata kuncinya **`UJI`**,
+   bukan `TES` (sempat dikira "pulse terkirim tapi PLC diam").
+4. 🔴 **Baca jalan, tulis ditolak `mc protocol error 0x0055`** = *Enable online change (FTP,
+   MC Protocol)* belum dicentang. Izin baca/tulis **terpisah**. Perlu Write to PLC + **reset
+   CPU**. Retry 200 ms membanjiri log — `PLC_ENABLED=false` sementara kalau menunggu lama.
+5. 🔴 **Satu Open Setting = SATU koneksi TCP.** Tiga line di port 1025 ⇒ satu line dapat,
+   dua lainnya `connect timed out`. Sekarang **port literal per line: 1025/1026/1027**
+   (compose + dokumen + test pengikat). `Connection refused` sesudah Ocit "menambah port" =
+   **belum reset CPU**.
+6. Sesudah PLC beres, PC **tidak perlu restart** — tiap line reconnect sendiri tiap tick.
+
+**Menyalakan di PC baru:** `PLC_ENABLED=true` + `PLC_HOST` di `.env` → `autograde.sh stop`
+lalu start (bukan `restart`: yang ini kadang melewati container yang dianggap "tidak
+berubah") → `for n in 1 2 3; do docker logs --since 30s ripe_line_$n 2>&1 | grep -iE
+"connect|0x0055|coil write failed" | tail -1; done` — ketiganya **kosong** = tersambung.
+
+**Uji tanpa kamera:** tab **Uji PLC** di konsol (akun support) memicu satu pulse per bit
+(M1000/1001, 1003/1004, 1006/1007). Pulse 200 ms — pantau dari **monitor bit GX Works2**,
+lampu panel terlalu cepat. Untuk terlihat mata: `PLC_PULSE_MS=10000` sementara di `.env`,
+**hapus lagi sesudahnya**.
 
 ## Yang masih ditunggu dari tim PLC
 
 Peta alamat **sudah beres** (daftar Ocit 2026-09-23). Sisanya:
 
-1. **Tiga koneksi MC Protocol** di Open Setting.
-2. **Watchdog heartbeat di ladder** — paling mudah terlewat, paling mahal kalau lupa.
-3. **Buah tanpa sinyal itu LOLOS atau DIBUANG?** Menentukan aturan buah internal benar
-   atau terbalik total. Pertanyaan ini sudah menggantung sejak era ODOT dan **belum
-   terjawab**.
-4. (tidak mendesak) Piston manual dialokasikan atau ditiadakan?
+1. **Watchdog heartbeat di ladder** (pantau M1009 berkedip) — satu-satunya pekerjaan panel
+   yang tersisa; paling mudah terlewat, paling mahal kalau lupa.
+2. **Polaritas E-stop**: layar menampilkan `M1111 = On` sepanjang uji 23 Sep — **belum
+   ditanyakan** apakah panelnya memang ditekan. Kalau tidak, ladder terbalik (NC).
+3. **Saat E-stop, kamera berhenti menilai?** Sekarang cuma pita.
+4. **Buah tanpa sinyal itu LOLOS atau DIBUANG?** Menggantung sejak era ODOT, **belum terjawab**.
+5. **"OK/NG ditahan terus"** yang diminta Ocit: buat tes boleh (`PLC_PULSE_MS`), buat produksi
+   **tidak** — latch di ladder. Belum diputuskan bersama.
+6. (tidak mendesak) Piston manual dialokasikan atau ditiadakan?
 
 Jaringan: PLC `192.168.0.14` **satu segmen dengan NIC kamera PC Lampung**
 (`enp3s0` = `192.168.0.10/24`, skill `spek-pc-pabrik`) — dicolok ke switch kamera, tanpa

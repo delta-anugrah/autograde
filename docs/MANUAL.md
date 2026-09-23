@@ -406,7 +406,8 @@ hanya diterima untuk peran di `ERP_ALLOWED_ROLES` (bawaan `support`).
 
 ### 5.9 PLC (Mitsubishi Q03UDECPU, MC Protocol)
 
-`PLC_ENABLED=true`, `PLC_HOST=192.168.0.14`, lalu `make start`. PC bicara langsung ke port
+`PLC_ENABLED=true`, `PLC_HOST=192.168.0.14`, lalu `make start` (port per line 1025/1026/1027 sudah
+dipatok di compose — satu Open Setting PLC per koneksi). PC bicara langsung ke port
 Ethernet bawaan CPU (coupler ODOT dibatalkan 2026-09-21). Alamat M per line dipatok di
 `docker-compose.yml` mengikuti daftar pak Ocit: camera 1 = M1000–M1002 + heartbeat M1009,
 camera 2 = M1003–M1005, camera 3 = M1006–M1008; yang dibaca M1100–M1115 (motor fault, E-stop

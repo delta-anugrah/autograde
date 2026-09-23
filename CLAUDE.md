@@ -733,6 +733,11 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     `namaBitPlc()` di tab Uji PLC sengaja **cermin** dari modul domain, bukan dikirim
     server: layar itu dipakai support saat commissioning, dan offset mentah tetap
     ditampilkan di depan nama supaya bisa dicocokkan ke GX Works.
+    **Tersambung di Lampung 2026-09-23** (3 line, M1000/M1001/M1111 terbukti). Tiga
+    jebakan yang memakan sore itu, semuanya di luar kode: `docker-compose.yml` hidup di
+    HOST (pull tidak menyentuhnya), `.env` menang atas compose, dan **satu Open Setting
+    PLC = satu koneksi** — karena itu `PLC_PORT` literal per line 1025/1026/1027, dijaga
+    `test_plc_docs_match_compose`. Runbook: `docs/runbooks/2026-09-23-commissioning-plc-lampung.md`.
 
 ---
 
