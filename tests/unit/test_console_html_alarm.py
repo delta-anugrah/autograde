@@ -41,3 +41,12 @@ def test_setiap_kode_alarm_diterjemahkan_di_kedua_bahasa():
 def test_pita_alarm_memakai_esc_bukan_innerhtml_mentah():
     fn = HTML.split("function gambarPitaAlarm(", 1)[1].split("\n}\n", 1)[0]
     assert "esc(" in fn
+
+
+def test_uji_plc_memberi_nama_bit():
+    fn = HTML.split("function isiDiPlc(", 1)[1].split("\n}\n", 1)[0]
+    assert "namaBitPlc(" in fn
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("diMotor:", "diEstop:", "diKosong:"):
+            assert kunci in isi, f"KAMUS.{bahasa} tanpa {kunci}"

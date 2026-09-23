@@ -371,6 +371,7 @@
      out even read from several metres away outdoors. */
   .plc-di { padding:8px 13px; font-size:.8rem; display:flex; flex-wrap:wrap; gap:8px; }
   .plc-di-bit { white-space:nowrap; }
+  .plc-di-bit.aktif { color:var(--danger-fg); font-weight:700; }
   .plc-coil { padding:0 13px 12px; display:flex; flex-wrap:wrap; gap:8px; }
   button.uji-coil { flex:1; min-width:9rem; min-height:2.6rem; border-color:var(--danger-line);
                      background:var(--danger-bg); color:var(--danger-fg); font-weight:600; }
@@ -1643,6 +1644,7 @@ const KAMUS = {
     bannerLisensiGrace:"Langganan AutoGrade sudah habis. Grading berhenti {hari} hari lagi ({tanggal}). Segera perpanjang.",
     bannerLisensiBlocked:"Langganan AutoGrade habis - grading dihentikan. Pasang token baru untuk melanjutkan.",
     thDi:"DI", diAktif:"Aktif", diMati:"Mati", plcMati:"PLC mati di line ini",
+    diMotor:"MOTOR {n}", diEstop:"E-STOP", diKosong:"-",
     gagalPlc:"Gagal memuat status PLC",
     btnUjiCoil:"Uji coil {coil}", coilMatiLineSibuk:"Line sedang memproses truk",
     konfirmasiUjiPlc:"Coil {coil} di {line} akan menyala sesaat - ini menggerakkan barang sungguhan. Ketik UJI untuk lanjut:",
@@ -1789,6 +1791,7 @@ const KAMUS = {
     bannerLisensiGrace:"The AutoGrade subscription has expired. Grading stops in {hari} days ({tanggal}). Renew now.",
     bannerLisensiBlocked:"The AutoGrade subscription has expired - grading has stopped. Install a new token to continue.",
     thDi:"DI", diAktif:"On", diMati:"Off", plcMati:"PLC is off on this line",
+    diMotor:"MOTOR {n}", diEstop:"E-STOP", diKosong:"-",
     gagalPlc:"Failed to load PLC status",
     btnUjiCoil:"Test coil {coil}", coilMatiLineSibuk:"Line is processing a truck",
     konfirmasiUjiPlc:"Coil {coil} on {line} will pulse briefly - this moves real hardware. Type UJI to continue:",
@@ -3627,9 +3630,22 @@ function kartuPlc(kode, sibuk) {
   </div>`;
 }
 
+// Nama bit mengikuti daftar pak Ocit 2026-09-23 (offset dalam blok
+// PLC_DI_BASE): 0-10 motor 1-11, 11 E-stop, sisanya belum dialokasikan.
+// Sengaja cermin dari domain/plc_alarm.py, bukan dikirim server: layar Uji
+// PLC dipakai support saat commissioning, dan angka offset mentah tetap
+// ditampilkan di depan nama supaya bisa dicocokkan ke GX Works.
+function namaBitPlc(i) {
+  if (i < 11) return t("diMotor").replace("{n}", String(i + 1));
+  if (i === 11) return t("diEstop");
+  return t("diKosong");
+}
+
 function isiDiPlc(inputs) {
   if (!inputs || !inputs.length) return `<span class="muted">${esc(t("plcMati"))}</span>`;
-  return inputs.map((on, i) => `<span class="plc-di-bit">${i}:${on ? esc(t("diAktif")) : esc(t("diMati"))}</span>`).join(" ");
+  return inputs.map((on, i) =>
+    `<span class="plc-di-bit${on ? " aktif" : ""}">${i}: ${esc(namaBitPlc(i))} = ${on ? esc(t("diAktif")) : esc(t("diMati"))}</span>`
+  ).join(" ");
 }
 
 function isiCoilPlc(kode, data, sibuk) {
