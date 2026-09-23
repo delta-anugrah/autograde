@@ -188,7 +188,7 @@ Kode disusun berlapis, dan urutan lapisannya **tidak boleh dilompati**:
 | `integrations/` | sistem luar | `camera/`, `erp/`, `notifications/`, `storage/`, `upload/`, `outbox/`, `scheduler/` |
 | `domain/` | aturan murni tanpa I/O | `working_day.py`, `ffb_source.py`, `vision_event.py`, `plate.py` |
 | `schemas/` | bentuk request dan response (Pydantic) | `internal_schema.py` |
-| `plc/` | Modbus-TCP ke PLC; berdiri sendiri, nonaktif secara bawaan | — |
+| `plc/` | MC Protocol ke CPU Mitsubishi (Modbus ke coupler masih bisa dipilih); berdiri sendiri, nonaktif secara bawaan | — |
 | `license/` | penjaga langganan (Ed25519), opsional | `manager.py`, `guard.py` |
 | `static/` | `console.html` — layar operator dalam **satu berkas**, tanpa build dan tanpa CDN | — |
 
@@ -298,7 +298,7 @@ Setiap butir berikut pernah menyebabkan kehilangan waktu berjam-jam.
 | Daftar endpoint, event, dan variabel lingkungan | `docs/backend-overview.md` |
 | Pemasangan dari nol di PC pabrik | `docs/SETUP.md` |
 | Spesifikasi dan setelan kamera | `docs/camera-spec.md` |
-| Integrasi PLC / ODOT dan urutan commissioning | `docs/plc-integration.md` |
+| Integrasi PLC dan urutan commissioning | `docs/plc-mc-handoff.md`, `docs/plc-integration.md` |
 | Kontrak integrasi dengan AutoERP | `../autoerp/docs/autograde-integration.md` |
 | Status pekerjaan terkini | `../docs/PROGRESS-AUTOGRADE-AUTOERP.md` |
 | Membuat ulang PDF dokumen ini | `scripts/md_to_pdf.py` |

@@ -87,12 +87,29 @@ class PlcWorker:
         with self._piston_lock:
             self._piston_requested = bool(open)
 
+    def _input_at(self, address: int | None) -> bool | None:
+        """One bit of the block we read, addressed the way the panel writes it.
+
+        Every address in compose and in the panel document is ABSOLUTE (M1111),
+        while `self.inputs` is just the block that was read, starting at
+        `PLC_DI_BASE`. Doing the subtraction here is what lets the MC Protocol
+        block start at 200 without any caller learning about it — under Modbus,
+        where the base is 0, this is a no-op.
+
+        None = that address is not inside the block we read, which means "not
+        known", never "off": reporting a piston closed because nobody told us
+        is exactly the lie that gets a hand under it.
+        """
+        if address is None:
+            return None
+        offset = address - getattr(self.settings, "plc_di_base", 0)
+        if offset < 0 or offset >= len(self.inputs):
+            return None
+        return bool(self.inputs[offset])
+
     def piston_state(self) -> dict:
         """Status for the operator screen. `confirmed_open=None` = DI not set."""
-        coil = getattr(self.settings, "plc_di_manual", None)
-        confirmed = None
-        if coil is not None and coil < len(self.inputs):
-            confirmed = bool(self.inputs[coil])
+        confirmed = self._input_at(getattr(self.settings, "plc_di_manual", None))
         with self._piston_lock:
             return {"requested": self._piston_requested, "confirmed_open": confirmed}
 
@@ -210,8 +227,10 @@ class PlcWorker:
                 # The ladder did not confirm within the deadline: E-stop, motor
                 # fault, or manual mode refused. Drop the request so the next
                 # click becomes a fresh rising edge (ladder rule #3).
-                confirmed_open = di_manual < len(self.inputs) and self.inputs[di_manual]
-                if not confirmed_open:
+                # `is True` — an address outside the block reads None ("not
+                # known"), and that must cancel the request just like an
+                # explicit off would, not sail through as truthy.
+                if self._input_at(di_manual) is not True:
                     with self._piston_lock:
                         self._piston_requested = requested = False
                     logger.warning("PLC did not confirm piston open — request cancelled")
@@ -230,7 +249,9 @@ class PlcWorker:
         #    round-trip that can hang until the socket times out (1 second),
         #    and placing it before the write would delay the pulse by that
         #    much — a late pulse means the wrong bunch gets tagged.
-        bits = self.client.read_discrete_inputs(0, self.settings.plc_di_count)
+        bits = self.client.read_discrete_inputs(
+            getattr(self.settings, "plc_di_base", 0), self.settings.plc_di_count
+        )
         if bits is not None:
             self.inputs = bits
         else:

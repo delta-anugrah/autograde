@@ -22,7 +22,12 @@ segno==1.6.6
 httpx==0.28.1
 boto3==1.43.45
 
-# ── PLC / Modbus-TCP ─────────────────────────────────────────
+# ── PLC ──────────────────────────────────────────────────────
+# MC Protocol: bicara langsung ke CPU Mitsubishi lewat port Ethernet bawaannya
+# (jalur hidup sejak 2026-09-21, PLC_PROTOCOL=mc).
+pymcprotocol==0.3.0
+# Modbus-TCP: jalur lama lewat coupler ODOT CN-8031 (PLC_PROTOCOL=modbus).
+# Dipertahankan untuk site yang terlanjur dikabel begitu.
 pymodbus==3.6.9
 
 # ── Data Validation ──────────────────────────────────────────

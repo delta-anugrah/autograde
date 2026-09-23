@@ -60,9 +60,13 @@ def test_the_worker_stores_line_status_and_state_uses_it(service):
     service.line_status = worker.snapshot
 
     card = next(k for k in service.state()["lines"] if k["line_code"] == service.lines[0].line_code)
+    # Dicocokkan utuh, bukan per kunci: kartu line meneruskan dict ini apa
+    # adanya ke layar, jadi field yang diam-diam hilang atau bertambah harus
+    # terlihat di sini. `alarms` kosong karena FakeLine tidak mengirimnya —
+    # line versi lama berperilaku persis begitu.
     assert card["plc"] == {
         "reachable": True, "ffb_source": "Internal",
-        "piston_requested": True, "piston_open": True,
+        "piston_requested": True, "piston_open": True, "alarms": [],
     }
 
 

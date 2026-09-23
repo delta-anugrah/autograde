@@ -1,11 +1,11 @@
-"""Alamat coil di dokumen PLC wajib sama dengan literal docker-compose.
+"""Alamat M di dokumen PLC wajib sama dengan literal docker-compose.
 
 Dokumen ini dibaca orang yang memasang ladder: satu angka yang basi di situ
-berarti CAM 1 OK jatuh di alamat CAM 1 NG. Dokumen dan compose karena itu
+berarti LINE 1 OK jatuh di alamat LINE 1 NG. Dokumen dan compose karena itu
 diikat di sini, bukan lewat niat baik.
 
 Sumber angka di dokumen adalah komentar HTML `<!-- plc-map: ... -->` yang
-tidak ikut tercetak di PDF, ditaruh tepat di bawah tabel coil.
+tidak ikut tercetak di PDF, ditaruh tepat di bawah tabel alamat.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[2]
 COMPOSE = REPO / "docker-compose.yml"
-DOCS = [REPO / "docs/plc-handoff-commissioning.md"]
+DOCS = [REPO / "docs/plc-mc-handoff.md"]
 
 
 def _compose_map() -> dict[str, list[int]]:
@@ -24,11 +24,21 @@ def _compose_map() -> dict[str, list[int]]:
     lines = [services[f"ripe-line-{n}"] for n in (1, 2, 3)]
     env = [dict(item.split("=", 1) for item in svc["environment"]) for svc in lines]
     angka = lambda nilai: [int(p) for p in nilai.split(",") if p.strip()]  # noqa: E731
+
+    def bawaan(kunci: str) -> str:
+        """`${PLC_DI_BASE:-200}` -> `200`. Nilai ini diturunkan dari default
+        compose, bukan dari environment mesin yang kebetulan menjalankan test."""
+        nilai = env[0].get(kunci, "")
+        cocok = re.fullmatch(r"\$\{[A-Z_]+:-([^}]*)\}", nilai.strip())
+        return cocok.group(1) if cocok else nilai
+
     return {
-        "coil_base": [int(e["PLC_COIL_BASE"]) for e in env],
-        "coil_alive": sorted({n for e in env for n in angka(e.get("PLC_COIL_ALIVE", ""))}),
-        "coil_manual": sorted({n for e in env for n in angka(e.get("PLC_COIL_MANUAL", ""))}),
+        "base": [int(e["PLC_COIL_BASE"]) for e in env],
+        "alive": sorted({n for e in env for n in angka(e.get("PLC_COIL_ALIVE", ""))}),
+        "manual": sorted({n for e in env for n in angka(e.get("PLC_COIL_MANUAL", ""))}),
         "di_manual": sorted({n for e in env for n in angka(e.get("PLC_DI_MANUAL", ""))}),
+        "di_base": [int(bawaan("PLC_DI_BASE"))],
+        "di_count": [int(bawaan("PLC_DI_COUNT"))],
     }
 
 

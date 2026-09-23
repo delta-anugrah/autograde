@@ -58,7 +58,7 @@ Semuanya baru berganti di **Fase 5**, saat PC pabrik memang dapat compose baru.
 - **httpx** (cloud upload + realtime push), **APScheduler** (hourly batch upload), **SQLite**
   (`outbox.db` = antrean realtime ke API lokal; `UploadManifest` = state per-item batch R2), **boto3** (R2)
 - **Hikrobot MVS SDK** (GigE industrial camera — prod only)
-- **pymodbus** (Modbus-TCP client — PLC/ODOT integration, PC pabrik only, mati default)
+- **pymcprotocol** (MC Protocol ke CPU Mitsubishi — PLC integration, jalur hidup) + **pymodbus** (Modbus-TCP, jalur coupler ODOT lama, `PLC_PROTOCOL=modbus`); PC pabrik only, mati default
 - **Docker-only** (no host venv). Deps pinned in `requirements.txt` (torch installed separately in Dockerfile).
 
 ---
@@ -81,7 +81,7 @@ src/palmgrade/
                    # konsol pakai asyncio, bukan thread: master_data (tarik supplier + truk) / erp_outbox (kirim ke AutoERP) / visit_resend (kirim ulang kunjungan kemarin) — dirakit di workers/erp_link.py, mati total kalau ERP_URL kosong
   integrations/    # camera/{hikrobot,opencv,photo}, notifications/ (webhook_client → api, line_client → line dari konsol), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
   domain/          # pure rules + entities (no I/O) — termasuk working_day.py (§6.1) & ffb_source.py (§3.5b)
-  plc/             # PLC/ODOT Modbus-TCP integration, entirely self-contained — public surface is 5 functions (start_plc_worker/shutdown_plc_worker/submit_grading/inputs/diagnostics)
+  plc/             # PLC integration (MC Protocol ke CPU Mitsubishi; Modbus/ODOT dipertahankan via PLC_PROTOCOL), self-contained — mc_client.py + modbus_client.py isi lubang yang sama, build_plc_client memilih
   schemas/         # Pydantic request/response models
   license/         # Ed25519 license guard (opsional) — `manager` memverifikasi, `gate` menghentikan
                    # grading, `summary` membentuk angka untuk layar. Tokennya DITERBITKAN di AutoERP.
@@ -184,7 +184,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/login` | `{email, sandi}` → cookie `konsol_sesi` HttpOnly, 12 jam. Sandi salah 401, login terkunci 429 |
 | POST | `/api/console/logout` | akhiri sesi ini saja |
 | GET | `/api/console/me` | operator yang sedang masuk |
-| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator — **bukan** lane support, karena operator biasa yang melihat kamera berhenti |
+| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator — **bukan** lane support, karena operator biasa yang melihat kamera berhenti Membawa `plc.alarms` per line (motor fault / E-stop) untuk pita alarm — alasan yang sama |
 | GET | `/api/console/history` | filter `work_date` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas |
 | GET | `/api/console/trucks` | master truk + supplier + `source_label` |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar) — id = uuid5 plat ternormalisasi |
@@ -708,6 +708,32 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     `UPLOAD_DISK_MIN_FREE_GB` (20 GB). Disk penuh berarti grading berhenti
     menulis, yaitu pabrik berhenti.
 
+24. **Alarm PLC: satu pita untuk seluruh layar, bukan per kartu** (2026-09-23).
+    Bit yang dibaca dari PLC (M1100–M1111: motor 1–11 fault, E-stop) dulu berhenti
+    di tab **Uji PLC** yang support-only dan di `/health/detail` — **layar operator
+    nol**. Sekarang jalurnya `domain/plc_alarm.py` (bit → kode alarm, logika murni)
+    → `/internal/status.alarms` → `LineStatusWorker` → `/api/console/state` →
+    `gambarPitaAlarm()`.
+    ⚠️ **Satu pita global, dideduplikasi.** Ketiga proses line membaca **blok M yang
+    sama** dari satu PLC, jadi motor fault itu keadaan pabrik, bukan keadaan line —
+    tanpa dedup satu motor mati terbaca "MOTOR 3 FAULT" tiga kali dan operator
+    mengira tiga motor mati. Kunci dedup kode **+ nomor**: kode saja membuat MOTOR 5
+    ditelan MOTOR 3.
+    **Menumpang `/internal/status`** yang sudah di-poll tiap 1 detik untuk piston —
+    nol endpoint baru, nol worker baru. Alasan yang sama dengan banner lisensi
+    (aturan 22): yang melihat motor mati itu operator biasa, dan lane `dev/*`
+    menjawab 403 untuk mereka.
+    **E-stop = TANDA SAJA; grading tidak dihentikan** (keputusan 2026-09-23).
+    Menghentikan kamera saat E-stop adalah keputusan keselamatan yang butuh
+    konfirmasi tim PLC — tercatat sebagai butir 5 di `docs/plc-mc-handoff.md` bab 5.
+    ⚠️ **Polaritas diasumsikan bit ON = fault/ditekan, BELUM dikonfirmasi.** Kalau
+    ladder menulis kebalikannya (NC), pita menyala terus saat pabrik sehat. Sengaja
+    **tidak** dikompensasi di kode: menebak berarti memilih antara alarm palsu terus
+    -menerus atau diam saat E-stop benar-benar ditekan.
+    `namaBitPlc()` di tab Uji PLC sengaja **cermin** dari modul domain, bukan dikirim
+    server: layar itu dipakai support saat commissioning, dan offset mentah tetap
+    ditampilkan di depan nama supaya bisa dicocokkan ke GX Works.
+
 ---
 
 ## Conventions
@@ -795,6 +821,6 @@ memang khas satu mesin.
 - **`docs/overview.md`** — deep flows, ASCII diagrams, all invariants with rationale, worker/state model, Docker/SDK/GPU internals, prod deployment checklist, edge cases.
 - `docs/architecture.md` — layer boundaries (final design; don't change without discussion).
 - `docs/backend-overview.md` — full endpoint + event + env-var tables.
-- `docs/plc-integration.md` — PLC/ODOT CN-8031 coil map, env vars, throughput ceiling, open hardware questions.
+- `docs/plc-integration.md` — referensi teknis PLC (env vars, pulse, throughput, commissioning); `docs/plc-mc-handoff.md` — dokumen tim PLC, peta alamat M final (Ocit 2026-09-23); skill `plc-mc-protocol`.
 - `docs/SETUP.md` — from-zero prod setup (NVIDIA toolkit, MVS, camera IP, Docker build).
 - `../ARCHITECTURE.md` — 3-repo system architecture.

@@ -209,3 +209,69 @@ def test_fire_test_coil_modul_meneruskan_penolakan_antrean_penuh():
         assert plc.fire_test_coil(0) is False   # antrean penuh -> tidak dipicu, bukan error
     finally:
         plc._worker = None
+
+
+# ── alamat absolut vs indeks blok (MC Protocol: blok tidak mulai dari 0) ─────
+
+
+class _CfgBerbasis200:
+    """Panel MC Protocol: blok yang dibaca mulai di M200, bukan 0.
+
+    `PLC_DI_MANUAL` ditulis sebagai alamat ABSOLUT (M212) di compose dan di
+    dokumen panel — sama seperti semua alamat lain. Kalau worker memperlakukan
+    angka itu sebagai indeks ke dalam blok, ia membaca bit ke-212 dari blok
+    20-bit dan konfirmasi piston tidak pernah datang, tanpa satu pun error.
+    """
+
+    plc_enabled = True
+    plc_host = "192.168.3.39"
+    plc_port = 1025
+    plc_unit_id = 1
+    plc_protocol = "mc"
+    plc_device_prefix = "M"
+    plc_pulse_ms = 200
+    plc_pulse_gap_ms = 100
+    plc_poll_ms = 200
+    plc_queue_max = 1
+    plc_coil_ok = 100
+    plc_coil_ng = 101
+    plc_coil_error = 102
+    plc_coil_alive = ()
+    plc_alive_toggle_ms = 0
+    plc_coil_manual = 103
+    plc_di_base = 200
+    plc_di_count = 20
+    plc_di_manual = 212     # absolut: M212 = konfirmasi piston line 1
+
+
+def test_konfirmasi_piston_dibaca_dari_alamat_absolut_bukan_indeks():
+    from palmgrade.plc.pulse import PulseScheduler
+    from palmgrade.plc.worker import PlcWorker
+
+    w = PlcWorker(
+        client=object(),
+        scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=1),
+        settings=_CfgBerbasis200(),
+    )
+    # Blok M200..M219; yang menyala cuma M212 = offset 12 di dalam blok.
+    w.inputs = [False] * 20
+    w.inputs[12] = True
+
+    assert w.piston_state()["confirmed_open"] is True
+
+
+def test_konfirmasi_piston_alamat_di_luar_blok_terbaca_tidak_diketahui():
+    from palmgrade.plc.pulse import PulseScheduler
+    from palmgrade.plc.worker import PlcWorker
+
+    cfg = _CfgBerbasis200()
+    cfg.plc_di_manual = 999     # jauh di luar M200..M219
+    w = PlcWorker(
+        client=object(),
+        scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=1),
+        settings=cfg,
+    )
+    w.inputs = [True] * 20
+    # Bukan True: alamat itu tidak ada di blok yang dibaca, jadi jawabannya
+    # "tidak tahu", bukan "terbuka".
+    assert w.piston_state()["confirmed_open"] is None

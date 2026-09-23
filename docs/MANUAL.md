@@ -275,7 +275,7 @@ resolve DNS saat build.
 |---|---|
 | NIC PC (kamera) | `192.168.100.100/24` |
 | Kamera line 1 / 2 / 3 | `192.168.100.10` / `.11` / `.12` |
-| PLC ODOT (kalau ada) | `192.168.100.50` |
+| PLC Mitsubishi (kalau ada) | `192.168.3.39` — beda subnet dari kamera, PC butuh rute ke keduanya |
 
 Minta IT pabrik mengunci IP NIC internet di DHCP reservation, supaya alamat konsol tidak
 berpindah.
@@ -404,12 +404,17 @@ dan supplier dari ERP, tab Antrean ERP kosong.
 Konsol yang memanggil AutoERP, tidak pernah sebaliknya. PC pabrik nol inbound. Akun dari ERP
 hanya diterima untuk peran di `ERP_ALLOWED_ROLES` (bawaan `support`).
 
-### 5.9 PLC (ODOT CN-8031, Modbus-TCP)
+### 5.9 PLC (Mitsubishi Q03UDECPU, MC Protocol)
 
-`PLC_ENABLED=true`, `PLC_HOST=192.168.100.50`, lalu `make start`. Alamat coil per line dipatok
-di `docker-compose.yml` (line 1 = coil 0–2 + heartbeat 9, line 2 = 3–5, line 3 = 6–8, piston
-manual 10–12). Urutan commissioning, lebar pulse, dan wiring: `docs/plc-integration.md` dan
-`docs/plc-handoff-commissioning.pdf` (yang dipegang tim panel). Uji dari tab **Uji PLC**.
+`PLC_ENABLED=true`, `PLC_HOST=192.168.3.39`, lalu `make start`. PC bicara langsung ke port
+Ethernet bawaan CPU (coupler ODOT dibatalkan 2026-09-21). Alamat M per line dipatok di
+`docker-compose.yml` mengikuti daftar pak Ocit: camera 1 = M1000–M1002 + heartbeat M1009,
+camera 2 = M1003–M1005, camera 3 = M1006–M1008; yang dibaca M1100–M1115 (motor fault, E-stop
+M1111). Piston manual **belum dialokasikan** — fiturnya mati sampai panel memberi bitnya.
+Dokumen tim PLC: `docs/plc-mc-handoff.pdf`; referensi teknis: `docs/plc-integration.md`. Uji
+dari tab **Uji PLC**, yang kini menamai tiap bit (`2: MOTOR 3 = Aktif`). Motor fault dan
+E-stop dari PLC tampil sebagai pita merah di atas kartu line; E-stop tidak menghentikan
+grading.
 
 ### 5.10 Lisensi
 
@@ -552,7 +557,7 @@ Kalau gejalanya tidak ada di tabel: tab Log dulu, lalu `make logs-<line>`, lalu 
 | Daftar endpoint, event, variabel lingkungan | `docs/backend-overview.md`, `README.md` |
 | Pasang PC pabrik, langkah panjang dengan MVS | `docs/SETUP.md` |
 | Spesifikasi dan setelan kamera, kenapa `.mfs` menang | `docs/camera-spec.md` |
-| PLC / ODOT: coil, wiring, commissioning | `docs/plc-integration.md`, `docs/plc-handoff-commissioning.pdf`, skill `plc-coil-map` |
+| PLC: alamat M, heartbeat, commissioning | `docs/plc-mc-handoff.pdf`, `docs/plc-integration.md`, skill `plc-mc-protocol` |
 | Spek terukur PC Lampung | skill `spek-pc-pabrik` |
 | Kontrak dengan AutoERP (yang harus dicocokkan dulu) | `../autoerp/docs/autograde-integration.md` |
 | Rekonsiliasi truk OPS-2, checklist PC pabrik | `../docs/runbooks/` di workspace `sawit` |
@@ -560,7 +565,7 @@ Kalau gejalanya tidak ada di tabel: tab Log dulu, lalu `make logs-<line>`, lalu 
 
 Struktur kode di `src/palmgrade/`: `routes/` (HTTP) → `controllers/` → `services/` (logika) →
 `repositories/` (I/O berkas dan SQLite); `domain/` aturan murni tanpa I/O; `pipelines/` YOLO;
-`workers/` thread dan task latar; `integrations/` kamera, R2, ERP, outbox; `plc/` Modbus;
+`workers/` thread dan task latar; `integrations/` kamera, R2, ERP, outbox; `plc/` MC Protocol/Modbus;
 `license/`; `static/console.html` layar operator.
 
 ## 10. Glosarium

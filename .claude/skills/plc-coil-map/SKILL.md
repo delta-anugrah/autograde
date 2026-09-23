@@ -1,9 +1,16 @@
 ---
 name: plc-coil-map
-description: Peta coil & discrete input ODOT CN-8031 (Modbus-TCP) buat autograde — alamat OK/NG/ERROR per line, heartbeat PC, piston manual, motor fault, E-stop. Pakai kalau sinyal PLC nggak keluar pas grading, alarm "PC mati" nyala terus, coil nyangkut ON, tombol piston nggak jalan, buah internal kebuang padahal harusnya nggak, lagi commissioning line baru, atau mau ganti/nambah alamat coil.
+description: ARSIP — jalur ODOT dibatalkan 2026-09-21, pakai skill plc-mc-protocol. Peta coil & discrete input ODOT CN-8031 (Modbus-TCP) buat autograde — alamat OK/NG/ERROR per line, heartbeat PC, piston manual, motor fault, E-stop. Pakai kalau sinyal PLC nggak keluar pas grading, alarm "PC mati" nyala terus, coil nyangkut ON, tombol piston nggak jalan, buah internal kebuang padahal harusnya nggak, lagi commissioning line baru, atau mau ganti/nambah alamat coil.
 ---
 
-# Peta Coil PLC — ODOT CN-8031
+# Peta Coil PLC — ODOT CN-8031 (ARSIP)
+
+> ⚠️ **Jalur ini DIBATALKAN 21 September 2026.** Coupler ODOT tidak jadi dipakai;
+> PC sekarang bicara langsung ke CPU Mitsubishi lewat MC Protocol.
+> **Skill yang berlaku: `plc-mc-protocol`.** Alamat coil di bawah **tidak lagi**
+> cocok dengan `docker-compose.yml`. Berkas ini disimpan sebagai riwayat
+> keputusan dan untuk site yang terlanjur dikabel lewat coupler
+> (`PLC_PROTOCOL=modbus`).
 
 Referensi lengkap (hardware, wiring, rasional tiap keputusan) ada di
 `docs/plc-integration.md`. Yang dikasih ke tim panel: `docs/plc-handoff-commissioning.md`

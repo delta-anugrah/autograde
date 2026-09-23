@@ -492,16 +492,19 @@ CaptureSaveWorker (jalur auto) / CaptureService (jalur manual)
 | `LICENSE_ENABLED` | `false` | Aktifkan license guard + gerbang grading |
 | `LICENSE_PUBLIC_KEY` | — | Public key Ed25519 untuk verifikasi JWS (nama sama dengan palmgrade-api) |
 | `LICENSE_TOKEN` | — | Token langganan; dipasang `palmgrade license <token>`, nempel saat container dibuat ulang |
-| `PLC_ENABLED` | `false` | Aktifkan integrasi PLC/ODOT CN-8031. `false` = default, dipakai cloud + semua PC dev — nol thread tambahan, `submit_grading()` langsung `return` |
-| `PLC_HOST` | — | IP coupler ODOT. Kosong + `PLC_ENABLED=true` → worker tidak jalan, warning di log |
-| `PLC_PORT` | `502` | Port Modbus-TCP |
-| `PLC_UNIT_ID` | `1` | Modbus unit/slave ID |
+| `PLC_ENABLED` | `false` | Aktifkan integrasi PLC. `false` = default, dipakai cloud + semua PC dev — nol thread tambahan, `submit_grading()` langsung `return` |
+| `PLC_PROTOCOL` | `mc` | `mc` = MC Protocol langsung ke CPU Mitsubishi (jalur hidup); `modbus` = coupler ODOT lama |
+| `PLC_HOST` | — | IP PLC. Kosong + `PLC_ENABLED=true` → worker tidak jalan, warning di log |
+| `PLC_PORT` | ikut protokol | mc `1025`, modbus `502` |
+| `PLC_UNIT_ID` | `1` | Modbus saja |
+| `PLC_DEVICE_PREFIX` | `M` | mc saja — huruf device semua alamat |
+| `PLC_DI_BASE` | `0` | Awal blok yang dibaca (mc: `1100`) |
 | `PLC_COIL_BASE` | `0` | Literal per line di `docker-compose.yml`, bukan dari `.env` — properti fisik line. Line 1 = `0`, line 2 = `3`, line 3 = `6` |
 | `PLC_COIL_ALIVE` | — | Literal per line. Daftar coil dipisah koma yang ditoggle tiap detik. Line 1 = `9,10` (9 = HEARTBEAT PC bersama), line 2 = `11`, line 3 = `12` |
 | `PLC_PULSE_MS` | `200` | Lebar pulse ON per keputusan OK/NG — knob tuning lapangan, belum dikonfirmasi PLC engineer |
 | `PLC_PULSE_GAP_MS` | `100` | Jeda OFF wajib antar dua pulse pada coil yang sama |
 | `PLC_QUEUE_MAX` | `1` | Berapa banyak pulse boleh terutang per coil = **berapa lama sinyal boleh basi** (`queue_max × (pulse+gap)`), bukan kapasitas. Penuh → drop + hitung (`PulseScheduler.dropped`) |
-| `PLC_POLL_MS` | `200` | Interval polling `PlcWorker` — sekaligus keepalive watchdog ODOT |
+| `PLC_POLL_MS` | `200` | Interval polling `PlcWorker` — resolusi waktu semua timing PLC |
 | `PLC_DI_COUNT` | `16` | Jumlah discrete input yang dibaca tiap poll |
 | `ERP_ALLOWED_ROLES` | `support` | **Konsol saja.** Peran mana yang boleh datang dari AutoERP (`domain/role.py`, `filter_erp_role`). Kosong = tolak semua akun ERP dari lane developer — satu-satunya rem sisi pabrik, tanpa menyentuh AutoERP |
 | `LOG_RETENSI_HARI` | `180` | **Konsol saja.** Berapa lama baris `log_kejadian` (ERROR/WARNING, layar Log support) disimpan sebelum dibuang |
