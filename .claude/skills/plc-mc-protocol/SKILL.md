@@ -124,7 +124,7 @@ menambah env PLC baru di kode, compose di PC pabrik WAJIB ikut diperbarui. Cek d
 ## Prosedur lapangan
 
 **Sebelum menyalakan:**
-1. `ping -c3 192.168.3.39` dari PC pabrik.
+1. `ping -c3 192.168.0.14` dari PC pabrik.
 2. Pastikan **"Enable online change (FTP, MC Protocol)"** tercentang di Open Setting
    GX Works2. Tanpa itu baca berhasil tapi tulis ditolak — gejalanya mudah disalahartikan
    sebagai masalah jaringan.
@@ -146,8 +146,10 @@ Peta alamat **sudah beres** (daftar Ocit 2026-09-23). Sisanya:
    terjawab**.
 4. (tidak mendesak) Piston manual dialokasikan atau ditiadakan?
 
-Jaringan: PLC di `192.168.3.x`, kamera GigE di `192.168.100.x`. PC butuh jalan ke
-keduanya — PLC ikut subnet kamera, atau PC diberi rute tambahan. Belum diputuskan.
+Jaringan: PLC `192.168.0.14` **satu segmen dengan NIC kamera PC Lampung**
+(`enp3s0` = `192.168.0.10/24`, skill `spek-pc-pabrik`) — dicolok ke switch kamera, tanpa
+rute tambahan. ⚠️ `docs/SETUP.md` menulis `192.168.100.x`; itu template pasang-dari-nol,
+bukan Lampung. Pastikan `.14` tidak dipakai kamera (IP kamera Lampung belum tercatat).
 
 ## Test yang menjaga jalur ini
 
