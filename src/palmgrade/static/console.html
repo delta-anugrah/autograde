@@ -825,8 +825,26 @@
   .pill { font:700 .7rem/1 var(--font); letter-spacing:.1em; text-transform:uppercase;
           padding:5px 9px; border-radius:var(--r-pill); border:1px solid var(--line-kuat);
           color:var(--muted); background:var(--card); }
+  /* Lebarnya dipatok, bukan mengikuti teks: `Unripe` (6 huruf) di sebelah `JK`
+     (2) membuat tepi kolom bergerigi. Kolom itu dibaca MENURUN untuk mencari
+     REJ di antara puluhan baris, dan tepi yang rata membuat mata bisa
+     menyusurinya — lebar yang berubah tiap baris memaksa membaca satu per satu.
+     `min-width`, bukan `width`: nilai tak terduga dari baris lama (`ACC`,
+     `REJ`, label model yang dilatih ulang) tetap muat, tidak terpotong. */
   .tag { display:inline-block; font:700 .78rem/1 var(--font); letter-spacing:.1em;
-         padding:6px 10px; border-radius:var(--r-pill); border:1px solid; }
+         padding:6px 10px; border-radius:var(--r-pill); border:1px solid;
+         min-width:6rem; text-align:center; box-sizing:border-box;
+         /* Kapital lewat tampilan, bukan dengan mengubah nilainya:
+            `grade_class` adalah label yang datang dari model dan dicocokkan
+            case-insensitive di `domain/grade_class.py`, jadi yang menyalin
+            teksnya dari layar tetap harus mendapat nilai aslinya. */
+         text-transform:uppercase; }
+  /* `line-1` ditulis `LINE-1` di layar. Lewat CSS, BUKAN dengan mengubah
+     nilainya: `line_code` adalah kunci yang dicocokkan ke `machine_id` dan
+     dipakai di jalur berkas (`artifacts/line-1`), jadi yang menyalin teksnya
+     dari layar tetap harus mendapat nilai yang sesungguhnya. */
+  .kode-line { text-transform:uppercase; letter-spacing:.06em; }
+
   .tag.ok { color:var(--acc); background:var(--acc-bg); border-color:var(--acc); }
   .tag.no { color:var(--rej); background:var(--rej-bg); border-color:var(--rej); }
 
@@ -2454,13 +2472,16 @@ function barisRecent(r, i) {
   return `<tr>
     <td class="no">${gradingOffset + i + 1}</td>
     <td>${waktu(r.timestamp)}</td>
-    <td>${esc(r.line_code)}</td>
+    <td class="kode-line">${esc(r.line_code)}</td>
     <td class="key">${dash(r.plate_number)}</td>
     <td>${dash(r.source_label)}</td>
     <td>${tagHasil(r.ripeness_status, r.grade_class)}</td>
     <td>${r.image_url
       ? `<button type="button" class="foto" data-foto="${esc(r.image_url)}" data-judul="${esc(
-          `${waktu(r.timestamp)} · ${r.line_code} · ${r.grade_class || r.ripeness_status || ""}`,
+          // `toUpperCase()` di sini, bukan CSS: judulnya string di dalam
+          // atribut `data-judul`, dan `text-transform` tidak menjangkau teks
+          // yang belum jadi elemen. Yang dikapitalkan cuma yang tampil.
+          `${waktu(r.timestamp)} · ${String(r.line_code || "").toUpperCase()} · ${r.grade_class || r.ripeness_status || ""}`,
         )}"><img src="${esc(r.image_url)}" alt="" loading="lazy"></button>`
       : KOSONG}</td>
   </tr>`;
