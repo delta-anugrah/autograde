@@ -1,6 +1,9 @@
 # Project-specific
 artifacts/
 state/
+# Rekaman video developer (layar Rekam Video). Berkasnya ratusan MB dan isinya
+# conveyor pabrik pelanggan — tidak pernah boleh ikut ke repo.
+videos/
 models/release/
 models/experiments/
 *.pt

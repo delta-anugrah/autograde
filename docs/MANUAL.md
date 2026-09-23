@@ -119,7 +119,7 @@ Dua akun bawaan ada di tiap PC: `operator@autograde.local` (pabrik) dan `support
 (kita, lewat AnyDesk). Sandinya beda tiap PKS, dibuat saat pasang PC (§5.5). Login tetap jalan
 tanpa internet karena hash sandi tersimpan lokal.
 
-Dua peran: **operator** (4 tab) dan **support** (10 tab, lihat §3.5). Yang menjaga adalah backend:
+Dua peran: **operator** (4 tab) dan **support** (12 tab, lihat §3.5). Yang menjaga adalah backend:
 endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 
 ### 3.2 Layar utama
@@ -182,7 +182,7 @@ Aturan angka yang dijaga konsol:
 Rekap menyandingkan dua sumber terpisah (grading dan timbangan). Neto dijumlah per truk; satu
 truk boleh punya lebih dari satu tiket sehari.
 
-### 3.5 Enam tab support
+### 3.5 Delapan tab support
 
 Muncul hanya untuk akun berperan `support`. Tujuannya: memeriksa PC pabrik dari layar, tanpa
 `docker logs` yang hilang tiap restart.
@@ -194,6 +194,8 @@ Muncul hanya untuk akun berperan `support`. Tujuannya: memeriksa PC pabrik dari 
 | **Antrean ERP** | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang**. Plus antrean manifest R2 |
 | **Versi** | versi, machine id, environment, status lisensi (tanpa token) |
 | **Uji PLC** | status coil/DI per line dan tombol uji coil. Mati saat line memproses truk; konfirmasi ketik `UJI`; coil 9 (heartbeat) sengaja tidak ada |
+| **Sumber Kamera** | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik) |
+| **Rekam Video** | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi/fps/bitrate diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya** — mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari folder yang tertulis di kaki layar (`Disimpan di …`, di PC pabrik `/opt/palmgrade/autograde/videos/`). Sesudah menekan Stop, jalur lengkap berkasnya juga muncul sekali di notifikasi hijau. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
 | **Setelan** | ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`. Tab paling kanan |
 
 ### 3.6 Layar penuh di PC pabrik

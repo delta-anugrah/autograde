@@ -94,14 +94,29 @@ jobs:
             exit 1
           fi
 
-      # No build cache: the CUDA layers alone are larger than the 10 GB GitHub
-      # Actions cache, so caching them would evict itself every run and buy
-      # nothing. Vision ships rarely; a cold build is the cheaper trade.
+      # Cache ke REGISTRY, bukan ke cache GitHub Actions.
+      #
+      # Alasan lama masih berlaku: layer CUDA + torch sendirian lebih besar
+      # dari batas 10 GB cache GHA, jadi `type=gha` akan mengusir dirinya
+      # sendiri tiap run dan tidak membeli apa pun. Ada test yang menjaga
+      # `type=gha` tidak kembali (`tests/unit/test_ci_hemat.py`).
+      #
+      # GHCR tidak punya batas itu — layernya duduk di registry yang sama
+      # dengan image-nya. Yang di-cache justru yang paling mahal dan paling
+      # jarang berubah: torch, CUDA, SDK. Build biasanya ~10 menit; dengan
+      # layer itu dipakai ulang, yang tersisa cuma menyalin kode.
+      #
+      # `mode=max` menyimpan layer perantara juga, bukan cuma yang terakhir —
+      # tanpa itu build multi-tahap seperti ini hampir tidak dapat manfaat.
+      # Tag `buildcache` terpisah dari tag rilis, jadi tidak pernah tertukar
+      # dengan image yang ditarik pabrik.
       - name: Build and push versioned image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
           build-args: |
             TORCH_VARIANT=cu126
             WITH_SDK=true

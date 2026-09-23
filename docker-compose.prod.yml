@@ -24,6 +24,10 @@ services:
       # Berkas video/foto yang dipilih layar Support. `!override` MENGGANTI
       # daftar, jadi mount ini hilang di pabrik kalau tidak ditulis ulang di sini.
       - ./media:/media:ro
+      # Rekaman video developer (layar Rekam Video). `!override` MENGGANTI
+      # daftar volumes, jadi mount ini hilang di pabrik kalau tidak ditulis
+      # ulang di sini. BUKAN :ro — line yang menulis rekamannya.
+      - ./videos:/app/videos
 
   ripe-line-2:
     volumes: !override
@@ -34,6 +38,10 @@ services:
       # Berkas video/foto yang dipilih layar Support. `!override` MENGGANTI
       # daftar, jadi mount ini hilang di pabrik kalau tidak ditulis ulang di sini.
       - ./media:/media:ro
+      # Rekaman video developer (layar Rekam Video). `!override` MENGGANTI
+      # daftar volumes, jadi mount ini hilang di pabrik kalau tidak ditulis
+      # ulang di sini. BUKAN :ro — line yang menulis rekamannya.
+      - ./videos:/app/videos
 
   ripe-line-3:
     volumes: !override
@@ -44,6 +52,10 @@ services:
       # Berkas video/foto yang dipilih layar Support. `!override` MENGGANTI
       # daftar, jadi mount ini hilang di pabrik kalau tidak ditulis ulang di sini.
       - ./media:/media:ro
+      # Rekaman video developer (layar Rekam Video). `!override` MENGGANTI
+      # daftar volumes, jadi mount ini hilang di pabrik kalau tidak ditulis
+      # ulang di sini. BUKAN :ro — line yang menulis rekamannya.
+      - ./videos:/app/videos
 
   console:
     # Semua yang konsol butuhkan ditulis ULANG di sini, bukan ditambahkan.
@@ -81,7 +93,9 @@ services:
       - APP_MODE=console
       - APP_PORT=8100
       - APP_ENV=${APP_ENV:-production}
-      - APP_VERSION=${APP_VERSION:-unknown}
+      # APP_VERSION sengaja TIDAK disebut — lihat alasan lengkapnya di
+      # docker-compose.yml. Harus dibuang di KEDUA berkas: override mengganti
+      # seluruh blok `environment:`, bukan menambahinya.
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
       - FACTORY_TZ=${FACTORY_TZ:-Asia/Jakarta}
@@ -122,6 +136,11 @@ services:
       # ada di dalam container.
       - MEDIA_DIR=${MEDIA_DIR:-/media}
       - MEDIA_ENV_PATH=${MEDIA_ENV_PATH:-/config/media.env}
+      # Jalur rekaman yang DITAMPILKAN di layar Rekam Video — jalur HOST, bukan
+      # `/app/videos` yang cuma ada di dalam container line. Override MENGGANTI
+      # seluruh blok environment, jadi tanpa baris ini variabelnya hilang di
+      # pabrik dan layar menyebut tempat yang tidak bisa dibuka siapa pun.
+      - REKAMAN_TAMPIL=${REKAMAN_TAMPIL:-/opt/palmgrade/autograde/videos}
       - MEDIA_FILE=${MEDIA_FILE:-}
     volumes: !override
       - ./state/console:/app/state

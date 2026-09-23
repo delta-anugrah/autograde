@@ -99,6 +99,10 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_1_MEDIA_FILE:-}
+      # Folder rekaman video developer (layar Rekam Video). Di luar
+      # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
+      # retensi otomatis — dihapus manual oleh yang merekam.
+      - REKAMAN_DIR=/app/videos
       - CAMERA_VIDEO_LOOP=${LINE_1_VIDEO_LOOP:-false}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
@@ -146,6 +150,8 @@ services:
       # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
       # ganti berkas cukup restart, bukan `docker compose up` ulang.
       - ./media:/media:ro
+      # Rekaman video developer. BUKAN :ro — line yang menulis ke sini.
+      - ./videos:/app/videos
 
   ripe-line-2:
     image: palmgrade-vision:latest
@@ -218,6 +224,10 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_2_MEDIA_FILE:-}
+      # Folder rekaman video developer (layar Rekam Video). Di luar
+      # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
+      # retensi otomatis — dihapus manual oleh yang merekam.
+      - REKAMAN_DIR=/app/videos
       - CAMERA_VIDEO_LOOP=${LINE_2_VIDEO_LOOP:-false}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
@@ -265,6 +275,8 @@ services:
       # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
       # ganti berkas cukup restart, bukan `docker compose up` ulang.
       - ./media:/media:ro
+      # Rekaman video developer. BUKAN :ro — line yang menulis ke sini.
+      - ./videos:/app/videos
 
   ripe-line-3:
     image: palmgrade-vision:latest
@@ -337,6 +349,10 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_3_MEDIA_FILE:-}
+      # Folder rekaman video developer (layar Rekam Video). Di luar
+      # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
+      # retensi otomatis — dihapus manual oleh yang merekam.
+      - REKAMAN_DIR=/app/videos
       - CAMERA_VIDEO_LOOP=${LINE_3_VIDEO_LOOP:-false}
       - UPLOAD_MINUTE=${UPLOAD_MINUTE:-0}
       - UPLOAD_MAX_ITEMS_PER_TICK=${UPLOAD_MAX_ITEMS_PER_TICK:-2000}
@@ -384,6 +400,8 @@ services:
       # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
       # ganti berkas cukup restart, bukan `docker compose up` ulang.
       - ./media:/media:ro
+      # Rekaman video developer. BUKAN :ro — line yang menulis ke sini.
+      - ./videos:/app/videos
 
   # Instance ke-4 dari image yang SAMA: konsol operator offline (§4 rencana
   # PalmOS). Tanpa kamera, tanpa GPU, tanpa PLC — supaya satu line kamera yang
@@ -415,7 +433,12 @@ services:
       - APP_MODE=console
       - APP_ENV=${APP_ENV:-production}
       - APP_PORT=8000
-      - APP_VERSION=${APP_VERSION:-unknown}
+      # APP_VERSION sengaja TIDAK disebut di sini: Dockerfile sudah mem-bake tag
+      # rilis ke image (`ENV APP_VERSION`), dan menyetelnya di compose akan
+      # menimpanya. Di PC pabrik `.env` tidak memuat variabel itu — tidak ada
+      # yang mengisinya — jadi `${APP_VERSION:-unknown}` membuat layar Versi
+      # menjawab "unknown" selamanya, persis saat support menanyakannya lewat
+      # AnyDesk. Dijaga `tests/unit/test_compose_app_version.py`.
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       # Dipakai dua arah: memverifikasi event masuk dari line (x-webhook-secret)
       # dan meneruskan perintah ke line (x-internal-secret). Satu nilai, sama
@@ -469,6 +492,12 @@ services:
       # Folder media + berkas setelan yang ditulis layar Support (media_env_service.py).
       - MEDIA_DIR=${MEDIA_DIR:-/media}
       - MEDIA_ENV_PATH=${MEDIA_ENV_PATH:-/config/media.env}
+      # Jalur rekaman yang DITAMPILKAN di layar Rekam Video. Konsol tidak
+      # menulis rekaman (itu urusan line) dan tidak mem-mount foldernya —
+      # ia cuma perlu menyebutkan tempatnya. Yang berguna bagi teknisi yang
+      # membuka PC pabrik lewat AnyDesk adalah jalur HOST, bukan `/app/videos`
+      # yang cuma ada di dalam container line.
+      - REKAMAN_TAMPIL=${REKAMAN_TAMPIL:-/opt/palmgrade/autograde/videos}
       - MEDIA_FILE=${MEDIA_FILE:-}
     volumes:
       - .:/app

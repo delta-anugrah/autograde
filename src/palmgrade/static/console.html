@@ -169,7 +169,12 @@
               message is not. */
           opacity:.94; animation:toast-masuk .2s ease backwards; }
   @keyframes toast-masuk { from { opacity:0; transform:translateY(6px); } }
-  .toast .pesan { flex:1; }
+  /* `min-width:0` wajib: item flex menolak menyusut di bawah lebar isinya,
+     jadi satu kata panjang — jalur berkas rekaman, misalnya — mendorong toast
+     melewati tepi layar dan bagian yang paling perlu dibaca justru terpotong.
+     `overflow-wrap` memutus kata itu sendiri, karena jalur tidak punya spasi
+     untuk dijadikan titik potong. */
+  .toast .pesan { flex:1; min-width:0; overflow-wrap:anywhere; }
   .toast .tutup { flex:none; min-width:2rem; min-height:2rem; padding:0; border:0;
                    background:transparent; font-size:1.1rem; line-height:1;
                    color:inherit; opacity:.7; }
@@ -382,10 +387,18 @@
   .plc-konfirmasi input { flex:0 0 8rem; font-family:var(--mono); text-transform:uppercase; }
   .plc-konfirmasi button { flex:0 0 7rem; }
 
-  /* Versi: a plain definition list, key left, value right. */
+  /* Versi: a plain definition list, key left, value right.
+
+     Lebarnya mengikuti layar (dulu dipatok 480 px). Di layar lebar pasangannya
+     menyebar jadi beberapa kolom lewat `auto-fit`, jadi versi + machine id +
+     lisensi terbaca sekali pandang, bukan sebagai daftar sempit di pojok. */
   .daftar-definisi { background:var(--card); border:1px solid var(--line-kuat);
                       border-radius:var(--r-md); padding:14px var(--pad); margin:0 var(--pad);
-                      display:grid; grid-template-columns:auto 1fr; gap:8px 16px; max-width:480px; }
+                      display:grid; gap:8px 16px;
+                      grid-template-columns:repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); }
+  /* Tiap pasangan jadi satu sel: tanpa ini `auto-fit` memecah dt dan dd ke
+     kolom berbeda dan nilainya tidak lagi bersebelahan dengan namanya. */
+  .daftar-definisi > div { display:grid; grid-template-columns:auto 1fr; gap:8px 16px; }
   .daftar-definisi dt { color:var(--muted); }
   .daftar-definisi dd { margin:0; font-weight:600; }
 
@@ -619,11 +632,108 @@
      nilai yang menggeser tonase. */
   /* Kartu, bukan kolom mengambang: tanpa bingkai, tiga kolom di layar lebar
      terbaca seperti tiga hal yang tidak berhubungan, dan tombol Simpan-nya
-     kehilangan induk. */
-  .setelan-form { display:grid; gap:18px; max-width:30rem; padding:20px;
+     kehilangan induk.
+
+     Lebarnya mengikuti layar (dulu dipatok 30rem): di monitor pabrik 1900 px
+     kartu selebar 480 px menyisakan dua pertiga layar kosong, dan kolomnya
+     berdesak di kiri justru saat support membaca dari jarak beberapa meter. */
+  .setelan-form { display:grid; gap:18px; padding:20px;
                   border:1px solid var(--line); border-radius:var(--r);
-                  background:var(--kartu); }
-  .setelan-form label { display:grid; gap:6px; }
+                  background:var(--kartu); margin:0 var(--pad); }
+
+  /* Accordion: satu kelompok terbuka pada satu waktu sudah cukup untuk
+     menyetel, dan yang tertutup tidak ikut menarik mata. `<details>` dipakai
+     apa adanya — buka/tutupnya ditangani browser, jadi tidak ada state JS yang
+     bisa melenceng dari yang terlihat. */
+  .setelan-grup { border:1px solid var(--line); border-radius:var(--r);
+                  background:var(--bg); }
+  .setelan-grup > summary { cursor:pointer; padding:12px 16px; font-weight:600;
+                            user-select:none; list-style:revert; }
+  .setelan-grup > summary:hover { background:var(--kartu); }
+  .setelan-grup[open] > summary { border-bottom:1px solid var(--line); }
+  /* Isi kelompok menyebar jadi beberapa kolom di layar lebar, satu kolom di
+     layar sempit. `minmax(0,…)` wajib: tanpanya kolom grid menolak menyusut di
+     bawah lebar isinya dan layar ikut melebar ke samping. */
+  .setelan-grup-isi { display:grid; gap:18px; padding:16px;
+                      grid-template-columns:repeat(auto-fit, minmax(min(22rem, 100%), 1fr)); }
+  .setelan-form label { display:grid; gap:6px; align-content:start; }
+  /* Kolomnya ikut melebar bersama kartunya kalau tidak dibatasi: kotak selebar
+     863 px untuk mengetik "0.5" terbaca seperti kolom yang salah, dan angkanya
+     terlempar jauh dari labelnya. Yang melebar kartunya, bukan kotaknya. */
+  .setelan-grup-isi input[type="text"],
+  .setelan-grup-isi select { max-width:22rem; }
+
+  /* Layar Rekam Video memakai ulang `.setelan-form`, tapi kolomnya empat dan
+     berdampingan dengan tabel selebar layar. Kolomnya dibuat lebih sempit dari
+     Setelan: yang diketik di sini angka pendek ("5", "1280"), bukan ambang
+     desimal. `minmax(0,…)` wajib — tanpa itu kolom grid menolak menyusut di
+     bawah lebar isinya dan halaman melebar ke samping di layar sempit. */
+  #sec-rekam .setelan-form { grid-template-columns:minmax(0, 1fr); }
+  #sec-rekam .setelan-grup-isi {
+    grid-template-columns:repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); }
+  #sec-rekam .setelan-grup-isi input { max-width:16rem; }
+
+  /* Tabel rekaman: yang dibaca dari jarak beberapa meter itu KOLOM STATUS,
+     jadi dia yang dapat warna. Kata-katanya tetap yang membawa arti (sebagian
+     teknisi buta warna, dan layar pabrik kena matahari langsung) — warnanya
+     mempercepat, bukan menggantikan. */
+  /* Teks yang cuma dibaca pembaca layar. Header kolom tombol tidak perlu
+     terlihat — lebarnya terbatas dan isinya sudah jelas dari tombolnya — tapi
+     header tabel yang benar-benar kosong membuat pembaca layar menyebut
+     "kolom 5" alih-alih namanya. */
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+             overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+
+  .rekam-status { display:inline-flex; align-items:center; gap:8px;
+                  font-weight:600; }
+  /* Titik, bukan latar penuh: satu baris tabel yang seluruhnya berwarna
+     menarik mata lebih kuat daripada angka di sebelahnya. */
+  .rekam-status::before { content:""; width:9px; height:9px; border-radius:50%;
+                          background:currentColor; flex:none; }
+  .rekam-merekam { color:var(--acc); }
+  .rekam-mati    { color:var(--muted); }
+  .rekam-putus   { color:var(--warn); }
+  /* Titik yang berkedip saat merekam: itu satu-satunya keadaan yang BERUBAH
+     sendiri, dan layar ini sering ditinggal terbuka. */
+  .rekam-merekam::before { animation:rekam-kedip 1.6s ease-in-out infinite; }
+  @keyframes rekam-kedip { 50% { opacity:.25; } }
+  @media (prefers-reduced-motion:reduce) {
+    .rekam-merekam::before { animation:none; }
+  }
+
+  /* Durasi dan jumlah terekam: angka yang dibandingkan antar baris, jadi
+     tabular-nums supaya digitnya sejajar dan tidak bergoyang tiap detik. */
+  #sec-rekam td.rekam-angka { font-family:var(--mono);
+                              font-variant-numeric:tabular-nums; }
+  /* Tombol di kolom PALING KANAN, rata kanan: mata menyusuri baris dari kiri
+     (line → status → angka) dan berakhir pada aksinya. Lebarnya dipatok supaya
+     Record dan Stop tidak berganti ukuran saat status berubah — tombol yang
+     melompat sulit ditekan. */
+  /* Kolom aksi dipatok selebar tombolnya; tanpa itu DIA yang menyerap sisa
+     lebar dan tombolnya melayang jauh dari angka yang dijelaskannya. Yang
+     menyerap sisa adalah kolom Terekam, yang isinya memang bisa panjang
+     ("47 frame · 12,3 MB"). */
+  #sec-rekam td.rekam-aksi, #sec-rekam th.rekam-aksi { width:1%; text-align:right; }
+  #sec-rekam td.rekam-aksi button { min-width:7.5rem; }
+
+  /* Tabel selebar panelnya, seperti tabel lain.
+     `width:auto` pernah dicoba untuk memadatkan kolom, dan memindahkan
+     masalahnya, bukan menyelesaikannya: tabelnya menciut ke kiri dan
+     menyisakan dua pertiga layar kosong.
+     Yang dipadatkan sekarang kolomnya satu per satu — tiga kolom kiri
+     secukupnya, dan kolom Terekam yang menyerap sisa lebar sambil tetap
+     memegang angkanya di dekat judul. */
+  #sec-rekam table { width:100%; }
+  #sec-rekam th.rekam-line, #sec-rekam td.rekam-line { width:8rem; }
+  #sec-rekam th.rekam-stat, #sec-rekam td.rekam-stat { width:12rem; }
+  #sec-rekam th.rekam-lama, #sec-rekam td.rekam-lama { width:8rem; }
+
+  /* Baris catatan di atas tabel + sisa disk di bawahnya: keduanya keterangan,
+     jadi diberi jarak yang sama dengan panel lain, bukan menempel di tepi. */
+  #sec-rekam .rekam-catatan { margin:0 var(--pad) 12px; }
+  #sec-rekam .tabel { margin:0 var(--pad); }
+  #sec-rekam .rekam-kaki { display:flex; flex-wrap:wrap; gap:12px 24px;
+                           align-items:center; margin:12px var(--pad) 0; }
   .setelan-form label > span:first-child { font-weight:600; }
   .setelan-form input, .setelan-form select {
     padding:10px 12px; font-family:var(--mono); font-size:1.1rem;
@@ -720,8 +830,26 @@
   .pill { font:700 .7rem/1 var(--font); letter-spacing:.1em; text-transform:uppercase;
           padding:5px 9px; border-radius:var(--r-pill); border:1px solid var(--line-kuat);
           color:var(--muted); background:var(--card); }
+  /* Lebarnya dipatok, bukan mengikuti teks: `Unripe` (6 huruf) di sebelah `JK`
+     (2) membuat tepi kolom bergerigi. Kolom itu dibaca MENURUN untuk mencari
+     REJ di antara puluhan baris, dan tepi yang rata membuat mata bisa
+     menyusurinya — lebar yang berubah tiap baris memaksa membaca satu per satu.
+     `min-width`, bukan `width`: nilai tak terduga dari baris lama (`ACC`,
+     `REJ`, label model yang dilatih ulang) tetap muat, tidak terpotong. */
   .tag { display:inline-block; font:700 .78rem/1 var(--font); letter-spacing:.1em;
-         padding:6px 10px; border-radius:var(--r-pill); border:1px solid; }
+         padding:6px 10px; border-radius:var(--r-pill); border:1px solid;
+         min-width:6rem; text-align:center; box-sizing:border-box;
+         /* Kapital lewat tampilan, bukan dengan mengubah nilainya:
+            `grade_class` adalah label yang datang dari model dan dicocokkan
+            case-insensitive di `domain/grade_class.py`, jadi yang menyalin
+            teksnya dari layar tetap harus mendapat nilai aslinya. */
+         text-transform:uppercase; }
+  /* `line-1` ditulis `LINE-1` di layar. Lewat CSS, BUKAN dengan mengubah
+     nilainya: `line_code` adalah kunci yang dicocokkan ke `machine_id` dan
+     dipakai di jalur berkas (`artifacts/line-1`), jadi yang menyalin teksnya
+     dari layar tetap harus mendapat nilai yang sesungguhnya. */
+  .kode-line { text-transform:uppercase; letter-spacing:.06em; }
+
   .tag.ok { color:var(--acc); background:var(--acc-bg); border-color:var(--acc); }
   .tag.no { color:var(--rej); background:var(--rej-bg); border-color:var(--rej); }
 
@@ -838,6 +966,7 @@
   <button data-tab="versi" data-dev="1" data-t="judulVersi">Versi</button>
   <button data-tab="plc" data-dev="1" data-t="judulPlc">Uji PLC</button>
   <button data-tab="sumber-kamera" data-dev="1" data-t="judulSumberKamera">Sumber Kamera</button>
+  <button data-tab="rekam" data-dev="1" data-t="judulRekamVideo">Rekam Video</button>
   <!-- Setelan sengaja PALING KANAN (permintaan operator 2026-09-18): tab yang
        paling jarang dibuka dan yang paling mahal kalau tersenggol — angkanya
        menggeser tonase yang dibayar. -->
@@ -1057,6 +1186,78 @@
   </div>
 </section>
 
+<section id="sec-rekam" class="panel" hidden data-dev="1">
+  <!--
+    Support-only. Merekam frame kamera APA ADANYA (clean, tanpa bbox) ke MP4,
+    untuk menelusuri masalah line. Satu tombol per line, jalan terus sampai
+    ditekan Stop.
+
+    Rekaman TIDAK dihapus otomatis — sengaja, karena yang merekam sedang
+    menelusuri masalah dan retensi yang menyapu berkasnya di tengah jalan lebih
+    buruk daripada disk yang penuh perlahan. Karena itu catatannya ditulis
+    besar di layar, dan rekaman berhenti sendiri kalau disk menipis.
+  -->
+  <p class="muted rekam-catatan" data-t="rekamCatatanRetensi">Rekaman tidak dihapus otomatis. Hapus sendiri dari folder videos/ di PC pabrik.</p>
+
+  <div class="tabel">
+    <table>
+      <thead>
+        <tr>
+          <th class="rekam-line" data-t="thLine">Line</th>
+          <th class="rekam-stat" data-t="thStatus">Status</th>
+          <th class="num rekam-lama" data-t="thLama">Lama</th>
+          <th class="num" data-t="thMajuRekam">Terekam</th>
+          <th class="rekam-aksi"><span class="sr-only" data-t="thAksi">Aksi</span></th>
+        </tr>
+      </thead>
+      <tbody id="rekam-baris"></tbody>
+    </table>
+  </div>
+
+  <div class="setelan-form">
+    <details class="setelan-grup" data-rekam-grup="setelan">
+      <summary data-t="rekamSetelanJudul">Setelan rekaman</summary>
+      <div class="setelan-grup-isi">
+        <label>
+          <span data-t="rekamLebar">Lebar (piksel)</span>
+          <input id="rekam-width" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="5">
+        </label>
+        <label>
+          <span data-t="rekamTinggi">Tinggi (piksel)</span>
+          <input id="rekam-height" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="5">
+        </label>
+        <label>
+          <span data-t="rekamFps">FPS</span>
+          <input id="rekam-fps" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="2">
+          <small class="muted" data-t="rekamBantuFps">Makin tinggi = makin halus, makin besar berkasnya.</small>
+        </label>
+        <label>
+          <span data-t="rekamBitrate">Bitrate (kbps)</span>
+          <input id="rekam-bitrate" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="5">
+        </label>
+      </div>
+    </details>
+    <div class="tools">
+      <button type="button" id="rekam-simpan" class="utama" data-t="rekamSimpanSetelan">Simpan setelan</button>
+    </div>
+  </div>
+
+  <!--
+    Jalur folder ditulis di layar, bukan cuma di toast: toast hilang sesudah
+    beberapa detik, dan yang mencari berkasnya sering baru membuka AnyDesk
+    setengah jam kemudian. Jalurnya datang dari backend — berbeda per mesin,
+    jadi layar tidak boleh mengarangnya.
+  -->
+  <div class="rekam-kaki">
+    <span class="muted"><span data-t="rekamDisimpanDi">Disimpan di</span>: <code id="rekam-folder">—</code></span>
+    <span id="rekam-disk" class="muted"></span>
+  </div>
+</section>
+
 <section id="sec-setelan" class="panel" hidden data-dev="1">
   <!--
     Support-only: dua angka yang menentukan janjang dibuang atau lolos.
@@ -1066,48 +1267,75 @@
   -->
   <div class="setelan-form">
     <!--
-      `inputmode` cuma memilih papan ketik di layar sentuh; papan ketik fisik
-      tetap bisa mengetik huruf, dan itu yang terjadi di PC pabrik. Penjaganya
-      `data-angka` + handler di bawah, yang menolak karakter non-angka saat
-      diketik. `type="text"` dipertahankan, BUKAN `type="number"`: yang terakhir
-      punya panah spinner yang gampang tersenggol di layar sentuh, menolak koma
-      desimal papan ketik Indonesia, dan mengosongkan dirinya sendiri kalau
-      isinya dianggap tidak sah — angkanya hilang tanpa operator sadar.
+      Dibagi tiga kelompok, bukan satu daftar panjang: yang diubah sehari-hari
+      cuma dua angka grading, sisanya disetel sekali saat pemasangan. Yang
+      pertama terbuka supaya layar tidak terbaca kosong saat dibuka.
+
+      Tombol Simpan sengaja DI LUAR ketiganya — satu tombol menyimpan semua
+      kelompok, dan menaruhnya di dalam salah satunya membuatnya ikut
+      tersembunyi saat kelompok itu ditutup.
     -->
-    <label>
-      <span data-t="labelConf">Ambang keyakinan (0-1)</span>
-      <input id="set-conf" type="text" inputmode="decimal" autocomplete="off"
-             data-angka="desimal" maxlength="6">
-      <small class="muted" data-t="bantuConf">Makin tinggi = makin sedikit yang dianggap buah.</small>
-    </label>
-    <label>
-      <span data-t="labelMinSize">Ukuran minimum (piksel)</span>
-      <input id="set-minsize" type="text" inputmode="numeric" autocomplete="off"
-             data-angka="bulat" maxlength="9">
-      <small class="muted" data-t="bantuMinSize">Janjang lebih kecil dari ini otomatis REJ.</small>
-    </label>
-    <label>
-      <span data-t="labelSumbu">Arah conveyor</span>
-      <select id="set-sumbu">
-        <option value="tegak" data-t="sumbuTegak">Mendatar (buah lewat kiri-kanan)</option>
-        <option value="mendatar" data-t="sumbuMendatar">Menurun (buah lewat atas-bawah)</option>
-      </select>
-      <small class="muted" data-t="bantuSumbu">Menentukan garis capture tegak atau mendatar.</small>
-    </label>
-    <label>
-      <span data-t="labelGaris">Garis capture (piksel)</span>
-      <input id="set-garis" type="text" inputmode="numeric" autocomplete="off"
-             data-angka="bulat" maxlength="5">
-      <small class="muted" id="set-garis-bantu">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
-    </label>
-    <!-- Saklar, bukan kolom: ini ya/tidak, dan kotak centang tidak bisa diisi huruf. -->
-    <label class="saklar">
-      <input id="set-dev" type="checkbox">
-      <span>
-        <span data-t="labelDev">Mode dev</span>
-        <small class="muted" data-t="bantuDev">Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.</small>
-      </span>
-    </label>
+    <details class="setelan-grup" data-setelan-grup="grading" open>
+      <summary data-t="grupGrading">Grading</summary>
+      <div class="setelan-grup-isi">
+        <!--
+          `inputmode` cuma memilih papan ketik di layar sentuh; papan ketik fisik
+          tetap bisa mengetik huruf, dan itu yang terjadi di PC pabrik. Penjaganya
+          `data-angka` + handler di bawah, yang menolak karakter non-angka saat
+          diketik. `type="text"` dipertahankan, BUKAN `type="number"`: yang terakhir
+          punya panah spinner yang gampang tersenggol di layar sentuh, menolak koma
+          desimal papan ketik Indonesia, dan mengosongkan dirinya sendiri kalau
+          isinya dianggap tidak sah — angkanya hilang tanpa operator sadar.
+        -->
+        <label>
+          <span data-t="labelConf">Ambang keyakinan (0-1)</span>
+          <input id="set-conf" type="text" inputmode="decimal" autocomplete="off"
+                 data-angka="desimal" maxlength="6">
+          <small class="muted" data-t="bantuConf">Makin tinggi = makin sedikit yang dianggap buah.</small>
+        </label>
+        <label>
+          <span data-t="labelMinSize">Ukuran minimum (piksel)</span>
+          <input id="set-minsize" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="9">
+          <small class="muted" data-t="bantuMinSize">Janjang lebih kecil dari ini otomatis REJ.</small>
+        </label>
+      </div>
+    </details>
+
+    <details class="setelan-grup" data-setelan-grup="kamera">
+      <summary data-t="grupKamera">Kamera &amp; Conveyor</summary>
+      <div class="setelan-grup-isi">
+        <label>
+          <span data-t="labelSumbu">Arah conveyor</span>
+          <select id="set-sumbu">
+            <option value="tegak" data-t="sumbuTegak">Mendatar (buah lewat kiri-kanan)</option>
+            <option value="mendatar" data-t="sumbuMendatar">Menurun (buah lewat atas-bawah)</option>
+          </select>
+          <small class="muted" data-t="bantuSumbu">Menentukan garis capture tegak atau mendatar.</small>
+        </label>
+        <label>
+          <span data-t="labelGaris">Garis capture (piksel)</span>
+          <input id="set-garis" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="5">
+          <small class="muted" id="set-garis-bantu">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
+        </label>
+      </div>
+    </details>
+
+    <details class="setelan-grup" data-setelan-grup="dev">
+      <summary data-t="grupDev">Mode Developer</summary>
+      <div class="setelan-grup-isi">
+        <!-- Saklar, bukan kolom: ini ya/tidak, dan kotak centang tidak bisa diisi huruf. -->
+        <label class="saklar">
+          <input id="set-dev" type="checkbox">
+          <span>
+            <span data-t="labelDev">Mode dev</span>
+            <small class="muted" data-t="bantuDev">Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.</small>
+          </span>
+        </label>
+      </div>
+    </details>
+
     <div class="tools">
       <button id="set-simpan" class="utama" data-t="btnSimpanSetelan">Simpan</button>
       <span id="set-sumber" class="muted"></span>
@@ -1296,6 +1524,7 @@ const KAMUS = {
     judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan", judulRekap:"Rekap",
     judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", judulPlc:"Uji PLC",
     judulSetelan:"Setelan", labelConf:"Ambang keyakinan (0-1)", labelMinSize:"Ukuran minimum (piksel)",
+    grupGrading:"Grading", grupKamera:"Kamera & Conveyor", grupDev:"Mode Developer",
     bantuConf:"Makin tinggi = makin sedikit yang dianggap buah.",
     bantuMinSize:"Janjang lebih kecil dari ini otomatis REJ.",
     labelGaris:"Garis capture (piksel)", labelSumbu:"Arah conveyor",
@@ -1393,6 +1622,7 @@ const KAMUS = {
     manifestNonaktif:"R2 belum disetel — halaman detail truk tidak berjalan di PKS ini.",
     labelVersi:"Versi", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Lisensi", gagalVersi:"Gagal memuat versi",
+    versiDariSource:"dev (dari source)",
     lisensiAktif:"Aktif", lisensiTanpaToken:"Aktif, token belum terpasang", lisensiMati:"Mati",
     labelAktifSampai:"Aktif sampai", labelTenggangSampai:"Tenggang sampai",
     labelPerusahaan:"Perusahaan", lisensiSisaHari:"{hari} hari lagi",
@@ -1412,6 +1642,22 @@ const KAMUS = {
     err_plc_sibuk:"Line sedang memproses truk - coil tidak bisa dipicu",
     err_coil_tidak_dikenal:"Coil ini tidak dikenal line",
     judulSumberKamera:"Sumber Kamera",
+    judulRekamVideo:"Rekam Video", kosongLine:"Belum ada line", thMajuRekam:"Terekam",
+    rekamMenunggu:"Menunggu…",
+    rekamSelesai:"Rekaman tersimpan di folder videos/ —",
+    rekamDisimpanDi:"Disimpan di", thAksi:"Aksi",
+    rekam_keadaan_berubah:"Keadaan line sudah berubah — layar disegarkan",
+    rekam_disk_mepet:"Disk PC pabrik menipis — rekaman tidak dimulai",
+    rekam_ditolak:"Line menolak perintah rekam",
+    rekamMulai:"Rekam", rekamStop:"Stop",
+    rekamSedangMerekam:"Merekam", rekamMati:"Mati", rekamTakTerbaca:"Tak terbaca",
+    rekamDiskBebas:"Disk bebas", rekamSetelanJudul:"Setelan rekaman",
+    rekamLebar:"Lebar (piksel)", rekamTinggi:"Tinggi (piksel)", rekamFps:"FPS",
+    rekamBitrate:"Bitrate (kbps)", rekamSimpanSetelan:"Simpan setelan",
+    rekamBantuFps:"Makin tinggi = makin halus, makin besar berkasnya.",
+    rekamSetelanTersimpan:"Setelan tersimpan — berlaku untuk rekaman berikutnya",
+    rekamCatatanRetensi:"Rekaman tidak dihapus otomatis. Hapus sendiri dari folder videos/ di PC pabrik.",
+    gagalRekam:"Gagal memuat status rekaman",
     sumberPeringatan:"Menyimpan akan merestart line yang setelannya berubah (sekitar 10 detik) — grading di line itu berhenti sebentar.",
     sumberLabelLine1:"Line 1", sumberLabelLine2:"Line 2", sumberLabelLine3:"Line 3",
     sumberHikrobot:"Kamera Hikrobot", sumberWebcam:"Webcam", sumberVideo:"Video", sumberFoto:"Foto",
@@ -1427,6 +1673,7 @@ const KAMUS = {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
     judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", judulPlc:"PLC Test",
     judulSetelan:"Settings", labelConf:"Confidence threshold (0-1)", labelMinSize:"Minimum size (pixels)",
+    grupGrading:"Grading", grupKamera:"Camera & Conveyor", grupDev:"Developer Mode",
     bantuConf:"Higher = fewer things counted as fruit.",
     bantuMinSize:"Bunches smaller than this are auto-REJ.",
     labelGaris:"Capture line (pixels)", labelSumbu:"Conveyor direction",
@@ -1520,6 +1767,7 @@ const KAMUS = {
     manifestNonaktif:"R2 is not configured — the truck detail page is not running on this mill.",
     labelVersi:"Version", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Licence", gagalVersi:"Failed to load version",
+    versiDariSource:"dev (from source)",
     lisensiAktif:"Active", lisensiTanpaToken:"Active, no token installed", lisensiMati:"Inactive",
     labelAktifSampai:"Active until", labelTenggangSampai:"Grace until",
     labelPerusahaan:"Company", lisensiSisaHari:"{hari} days left",
@@ -1539,6 +1787,22 @@ const KAMUS = {
     err_plc_sibuk:"Line is processing a truck - the coil cannot be fired",
     err_coil_tidak_dikenal:"This coil is not known to the line",
     judulSumberKamera:"Camera Source",
+    judulRekamVideo:"Record Video", kosongLine:"No lines yet", thMajuRekam:"Recorded",
+    rekamMenunggu:"Working…",
+    rekamSelesai:"Recording saved in the videos/ folder —",
+    rekamDisimpanDi:"Saved in", thAksi:"Action",
+    rekam_keadaan_berubah:"The line's state changed — screen refreshed",
+    rekam_disk_mepet:"The mill PC is low on disk — recording not started",
+    rekam_ditolak:"The line refused the recording command",
+    rekamMulai:"Record", rekamStop:"Stop",
+    rekamSedangMerekam:"Recording", rekamMati:"Off", rekamTakTerbaca:"Unreachable",
+    rekamDiskBebas:"Free disk", rekamSetelanJudul:"Recording settings",
+    rekamLebar:"Width (pixels)", rekamTinggi:"Height (pixels)", rekamFps:"FPS",
+    rekamBitrate:"Bitrate (kbps)", rekamSimpanSetelan:"Save settings",
+    rekamBantuFps:"Higher = smoother, and a bigger file.",
+    rekamSetelanTersimpan:"Saved — applies to the next recording",
+    rekamCatatanRetensi:"Recordings are never deleted automatically. Clear the videos/ folder on the mill PC yourself.",
+    gagalRekam:"Failed to load recording status",
     sumberPeringatan:"Saving restarts any line whose setting changed (about 10 seconds) — grading on that line pauses briefly.",
     sumberLabelLine1:"Line 1", sumberLabelLine2:"Line 2", sumberLabelLine3:"Line 3",
     sumberHikrobot:"Hikrobot camera", sumberWebcam:"Webcam", sumberVideo:"Video", sumberFoto:"Photo",
@@ -1731,13 +1995,18 @@ function terapkanTab() {
 // tab stays open (a line coming back or dying should show up unattended);
 // the timer is started/stopped in `bukaTabDev` below, never left running
 // behind a tab nobody is looking at.
-const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, "sumber-kamera": muatSumberKamera, setelan: muatSetelan };
+const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, "sumber-kamera": muatSumberKamera, setelan: muatSetelan, rekam: muatRekam };
 
 function bukaTabDev(namaTab) {
   clearInterval(diagnostikTimer);
   diagnostikTimer = null;
+  // Polling rekam dihentikan begitu tabnya ditutup: menanyai tiga line tiap 3
+  // detik dari tab lain membebani line tanpa ada yang melihat hasilnya.
+  clearInterval(rekamTimer);
+  rekamTimer = null;
   const muat = MUAT_TAB[namaTab] ? MUAT_TAB[namaTab]() : Promise.resolve();
   if (namaTab === "diagnostik") diagnostikTimer = setInterval(muatDiagnostik, 5000);
+  if (namaTab === "rekam") rekamTimer = setInterval(muatRekam, 3000);
   return muat;
 }
 
@@ -1996,7 +2265,12 @@ function pesan(text) {
 // truck, two open tickets) so it gets longer. A failure needs the operator to
 // actually read a sentence and decide what to do next - it does not
 // self-dismiss at all, it waits for the tap on ×.
-const TOAST_DURASI = { sukses: 3000, peringatan: 5000, gagal: 0 };
+// `sukses` 5 detik, sama dengan `peringatan`: tiga detik cukup untuk pesan
+// yang dikenali sekilas ("Line 1 ditugaskan"), tapi tidak untuk yang harus
+// DIBACA — toast rekaman membawa jalur berkas sepanjang puluhan karakter, dan
+// yang membacanya sering sambil memegang hal lain. `gagal` tetap 0: kegagalan
+// menunggu ditutup, bukan menunggu tenggat habis di tengah orang membacanya.
+const TOAST_DURASI = { sukses: 5000, peringatan: 5000, gagal: 0 };
 // More than this and the stack would climb high enough to cover the tab
 // table underneath it - four is as many as fit in the corner without that,
 // even during a run of rapid manual rejects.
@@ -2201,13 +2475,16 @@ function barisRecent(r, i) {
   return `<tr>
     <td class="no">${gradingOffset + i + 1}</td>
     <td>${waktu(r.timestamp)}</td>
-    <td>${esc(r.line_code)}</td>
+    <td class="kode-line">${esc(r.line_code)}</td>
     <td class="key">${dash(r.plate_number)}</td>
     <td>${dash(r.source_label)}</td>
     <td>${tagHasil(r.ripeness_status, r.grade_class)}</td>
     <td>${r.image_url
       ? `<button type="button" class="foto" data-foto="${esc(r.image_url)}" data-judul="${esc(
-          `${waktu(r.timestamp)} · ${r.line_code} · ${r.grade_class || r.ripeness_status || ""}`,
+          // `toUpperCase()` di sini, bukan CSS: judulnya string di dalam
+          // atribut `data-judul`, dan `text-transform` tidak menjangkau teks
+          // yang belum jadi elemen. Yang dikapitalkan cuma yang tampil.
+          `${waktu(r.timestamp)} · ${String(r.line_code || "").toUpperCase()} · ${r.grade_class || r.ripeness_status || ""}`,
         )}"><img src="${esc(r.image_url)}" alt="" loading="lazy"></button>`
       : KOSONG}</td>
   </tr>`;
@@ -3234,8 +3511,11 @@ $("antrean-kirim-ulang").addEventListener("click", async () => {
 });
 
 // ── developer: versi & lisensi (support only) ───────────────────────────
+// Tiap pasangan dibungkus satu `<div>`: `.daftar-definisi` menyebar jadi
+// beberapa kolom di layar lebar, dan tanpa pembungkus ini `auto-fit` memecah
+// dt dan dd ke kolom berbeda — namanya di satu kolom, nilainya di kolom lain.
 function barisVersi(label, nilai) {
-  return `<dt>${esc(label)}</dt><dd>${esc(nilai)}</dd>`;
+  return `<div><dt>${esc(label)}</dt><dd>${esc(nilai)}</dd></div>`;
 }
 
 // Tanggal saja, tanpa jam: langganan berakhir di ujung hari, dan jam 23:59:59
@@ -3264,7 +3544,11 @@ async function muatVersi() {
     const r = await api("/api/console/dev/versi");
     const l = r.lisensi;
     const baris = [
-      barisVersi(t("labelVersi"), r.versi),
+      // `unknown` adalah nilai bawaan APP_VERSION saat konsol dijalankan dari
+      // source, bukan dari image rilis — bukan kerusakan. Ditulis apa adanya,
+      // kata itu terbaca support seperti ada yang salah dan memancing
+      // penelusuran yang tidak perlu.
+      barisVersi(t("labelVersi"), r.versi === "unknown" ? t("versiDariSource") : r.versi),
       barisVersi(t("labelMachineId"), r.machine_id),
       barisVersi(t("labelEnvironment"), r.environment),
       barisVersi(t("labelLisensi"), ringkasLisensi(l)),
@@ -3412,6 +3696,165 @@ $("set-simpan").addEventListener("click", async () => {
     })) {
       if (teks.includes(field)) $(id).setAttribute("aria-invalid", "true");
     }
+  }
+});
+
+// ── Rekam video per line (support only) ────────────────────────────────
+//
+// Merekam frame CLEAN (tanpa bbox) ke MP4 di PC line. Satu tombol per line,
+// jalan terus sampai ditekan Stop. Konsol cuma mengirim perintah — yang
+// merekam line, dan setelannya dikirim ulang tiap kali mulai (itu yang membuat
+// "restart container = rekaman mati" jadi sifat, bukan kode tambahan).
+
+let rekamTimer = null;
+//: Jalur folder rekaman menurut backend. Disimpan supaya toast "selesai" bisa
+//: menyebutnya tanpa menunggu tarikan berikutnya.
+let rekamFolder = "";
+
+function lamaRekam(mulaiEpoch) {
+  if (!mulaiEpoch) return KOSONG;
+  const detik = Math.max(0, Math.floor(Date.now() / 1000 - mulaiEpoch));
+  const j = Math.floor(detik / 3600);
+  const m = Math.floor((detik % 3600) / 60);
+  const d = detik % 60;
+  const dua = (n) => String(n).padStart(2, "0");
+  return j > 0 ? `${j}:${dua(m)}:${dua(d)}` : `${m}:${dua(d)}`;
+}
+
+function ukuranRekam(bytes) {
+  if (!bytes) return KOSONG;
+  const mb = bytes / 1e6;
+  return mb >= 1000 ? `${(mb / 1000).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+}
+
+// Bukti bahwa rekaman benar-benar berjalan. Ukuran berkas TIDAK cukup:
+// `VideoWriter` menyangga di memori dan baru menulis ke disk sesekali, jadi
+// kolom byte diam di "-" selama belasan detik pertama dan terbaca persis
+// seperti rekaman yang macet. Hitungan frame naik seketika.
+function majuRekam(b) {
+  const frame = `${b.frame_ditulis ?? 0} frame`;
+  const ukuran = ukuranRekam(b.bytes);
+  return ukuran === KOSONG ? frame : `${frame} · ${ukuran}`;
+}
+
+function barisRekam(b) {
+  // Line yang tidak menjawab dibedakan dari line yang mati: yang pertama
+  // artinya "belum tahu" (line sedang restart), yang kedua "tahu, dan tidak
+  // merekam". Tombolnya dimatikan untuk yang pertama — menekan Rekam ke line
+  // yang tidak menjawab cuma menghasilkan pesan gagal.
+  //
+  // Warnanya mempercepat, bukan menggantikan: kata-katanya tetap yang membawa
+  // arti (sebagian teknisi buta warna, layar pabrik kena matahari langsung).
+  const [kunci, kelas] = !b.terbaca
+    ? ["rekamTakTerbaca", "rekam-putus"]
+    : (b.merekam ? ["rekamSedangMerekam", "rekam-merekam"] : ["rekamMati", "rekam-mati"]);
+  const tombol = b.merekam
+    ? `<button type="button" data-rekam-stop="${esc(b.line_code)}">${esc(t("rekamStop"))}</button>`
+    : `<button type="button" class="utama" data-rekam-mulai="${esc(b.line_code)}"${b.terbaca ? "" : " disabled"}>${esc(t("rekamMulai"))}</button>`;
+  return `<tr>
+    <td class="rekam-line kode-line">${esc(b.line_code)}</td>
+    <td class="rekam-stat"><span class="rekam-status ${kelas}">${esc(t(kunci))}</span></td>
+    <td class="num rekam-angka rekam-lama">${esc(b.merekam ? lamaRekam(b.mulai_epoch) : KOSONG)}</td>
+    <td class="num rekam-angka">${esc(b.merekam ? majuRekam(b) : KOSONG)}</td>
+    <td class="rekam-aksi">${tombol}</td>
+  </tr>`;
+}
+
+async function muatRekam() {
+  try {
+    const data = await api("/api/console/dev/rekam");
+    $("rekam-baris").innerHTML = data.lines.length
+      ? data.lines.map(barisRekam).join("") : barisKosong(5, "kosongLine");
+
+    // Kolom setelan TIDAK ditimpa selama sedang diketik: polling tiap 3 detik
+    // akan menghapus angka di bawah jari support.
+    const setelan = data.setelan || {};
+    for (const [id, kunci] of [["rekam-width", "width"], ["rekam-height", "height"],
+                               ["rekam-fps", "fps"], ["rekam-bitrate", "bitrate_kbps"]]) {
+      const el = $(id);
+      if (el && document.activeElement !== el) el.value = setelan[kunci] ?? "";
+    }
+
+    $("rekam-disk").textContent = data.disk_bebas_gb === null || data.disk_bebas_gb === undefined
+      ? "" : `${t("rekamDiskBebas")}: ${data.disk_bebas_gb} GB`;
+    // Jalurnya datang dari backend, tidak dirakit di layar: berbeda per mesin
+    // (`/opt/palmgrade/autograde/videos` di pabrik, `<repo>/videos` di jalur
+    // native), dan jalur yang salah lebih buruk daripada tidak ada jalur.
+    rekamFolder = data.folder || "";
+    $("rekam-folder").textContent = rekamFolder || KOSONG;
+  } catch (e) {
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e) || t("gagalRekam"));
+  }
+}
+
+$("rekam-baris").addEventListener("click", async (ev) => {
+  const mulai = ev.target.closest("[data-rekam-mulai]");
+  const stop = ev.target.closest("[data-rekam-stop]");
+  if (!mulai && !stop) return;
+  const el = mulai || stop;
+  const kode = mulai ? mulai.dataset.rekamMulai : stop.dataset.rekamStop;
+  // Dimatikan selama permintaan di jalan: dua klik beruntun di layar sentuh
+  // mengirim dua perintah, dan yang kedua dijawab 409.
+  //
+  // Stop menahan ~2 detik (diukur 1,9 dtk): line menunggu encoder menutup
+  // berkasnya dengan rapi sebelum menjawab, karena berkas yang ditutup
+  // setengah jalan terbaca rusak. Tanpa tulisan yang berubah, jeda itu
+  // terbaca persis seperti tombol yang tidak bereaksi — dan support akan
+  // menekannya lagi.
+  el.disabled = true;
+  const tulisanAsli = el.textContent;
+  el.textContent = t("rekamMenunggu");
+  try {
+    const hasil = await api(`/api/console/dev/rekam/${encodeURIComponent(kode)}/${mulai ? "mulai" : "stop"}`,
+                            { method: "POST" });
+    // Baris itu digambar ulang dari jawaban perintahnya sendiri, bukan
+    // menunggu polling berikutnya: Stop menahan sampai encoder benar-benar
+    // menutup berkas, jadi tarikan status yang sedang di jalan saat itu
+    // menjawab dengan keadaan LAMA dan layar terlihat mengabaikan klik.
+    if (hasil && hasil.line_code) {
+      const baris = $("rekam-baris").querySelector(`[data-rekam-mulai="${kode}"], [data-rekam-stop="${kode}"]`)?.closest("tr");
+      if (baris) baris.outerHTML = barisRekam({ ...hasil, terbaca: true });
+    }
+    // Berhenti merekam tanpa memberi tahu di mana berkasnya membuat support
+    // menebak — folder `videos/` tidak muncul di layar operator mana pun, dan
+    // yang mencarinya membuka PC pabrik lewat AnyDesk. Disebut sekali di toast
+    // (terbaca saat itu juga) dan permanen di kaki layar.
+    if (stop && hasil && hasil.berkas) {
+      const lokasi = rekamFolder ? `${rekamFolder}/${hasil.berkas}` : hasil.berkas;
+      toastSukses(`${t("rekamSelesai")} ${lokasi}`);
+    }
+    await muatRekam();
+  } catch (e) {
+    toastGagal(alasan(e) || t("gagalRekam"));
+    el.disabled = false;
+    el.textContent = tulisanAsli;
+    // Keadaan line sudah berbeda dari yang digambar layar (dua tab terbuka,
+    // atau rekaman berhenti sendiri karena disk). Menyegarkan di sini membuat
+    // tombol berikutnya menekan hal yang benar — tanpa itu support menekan
+    // Stop berulang kali ke line yang sudah berhenti.
+    await muatRekam();
+  }
+});
+
+$("rekam-simpan").addEventListener("click", async () => {
+  try {
+    // `api()` meneruskan opts ke fetch apa adanya, jadi body WAJIB string.
+    // Objek telanjang dikirim sebagai "[object Object]" dan dijawab 422 —
+    // toast merah muncul, tapi yang terbaca "gagal menyimpan", bukan "salah
+    // bentuk". Ketemu di browser 2026-09-22.
+    await api("/api/console/dev/rekam/setelan", {
+      method: "POST",
+      body: JSON.stringify({
+        width: $("rekam-width").value,
+        height: $("rekam-height").value,
+        fps: $("rekam-fps").value,
+        bitrate_kbps: $("rekam-bitrate").value,
+      }),
+    });
+    toastSukses(t("rekamSetelanTersimpan"));
+    await muatRekam();
+  } catch (e) {
+    toastGagal(alasan(e) || t("gagalRekam"));
   }
 });
 
