@@ -22,6 +22,13 @@ from ..workers.runtime_state import RuntimeState
 logger = logging.getLogger(__name__)
 
 
+def _plc_inputs() -> list[bool]:
+    """Dibungkus supaya test bisa menyuntik bit tanpa menjalankan PlcWorker."""
+    from ..plc import inputs
+
+    return inputs()
+
+
 async def sync_assignment(request: AssignmentSyncRequest, state: RuntimeState) -> AssignmentSyncResponse:
     state.current_truck_id = request.truck_id
     state.current_assignment_id = request.assignment_id
@@ -117,6 +124,7 @@ async def plc_coil_command(request: PlcCoilCommandRequest, state: RuntimeState) 
 
 async def line_status(state: RuntimeState) -> LineStatusResponse:
     from ..core.dependencies import get_settings
+    from ..domain.plc_alarm import alarms_from_inputs
     from ..plc import piston_state
 
     return LineStatusResponse(
@@ -124,4 +132,5 @@ async def line_status(state: RuntimeState) -> LineStatusResponse:
         truck_id=state.current_truck_id,
         ffb_source=state.current_ffb_source,
         piston=piston_state(),
+        alarms=alarms_from_inputs(_plc_inputs()),
     )

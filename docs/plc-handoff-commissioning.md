@@ -11,6 +11,15 @@ sorotan: Berjalan = Coil 0–9, DI 0–11; Siap di aplikasi = Piston manual coil
 
 # Panduan Integrasi AutoGrade ↔ PLC
 
+> ⚠️ **ARSIP — jalur ini dibatalkan 21 September 2026.**
+> Coupler ODOT CN-8031 tidak jadi dipakai; PC sekarang bicara langsung ke CPU
+> Mitsubishi lewat MC Protocol. Dokumen yang berlaku:
+> **`docs/plc-mc-handoff.md`**. Berkas ini disimpan hanya sebagai riwayat
+> keputusan dan untuk site yang terlanjur dikabel lewat coupler
+> (`PLC_PROTOCOL=modbus`). Alamat coil di sini **tidak lagi** cocok dengan
+> `docker-compose.yml`.
+
+
 ## 1. Ringkasan
 
 **Status bab: Berjalan sekarang, plus piston manual — siap di aplikasi, alokasi menunggu panel.**

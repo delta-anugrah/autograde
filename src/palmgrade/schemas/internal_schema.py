@@ -67,6 +67,10 @@ class LineStatusResponse(BaseModel):
     truck_id: str | None
     ffb_source: str | None
     piston: dict | None
+    # Alarm dari blok M yang dibaca line ini (motor fault, E-stop). Kosong =
+    # tidak ada alarm ATAU PLC mati; konsol memperlakukan keduanya sama.
+    # Default [] supaya konsol lama yang tidak mengenal field ini tetap jalan.
+    alarms: list[dict] = []
 
 
 class PlcCoilCommandRequest(BaseModel):

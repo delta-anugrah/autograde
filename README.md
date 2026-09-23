@@ -196,7 +196,7 @@ autograde/
 │   │   └── scheduler/           # UploadScheduler — APScheduler cron, hourly @ UPLOAD_MINUTE
 │   ├── domain/                  # Pure business rules (no I/O) — working_day, ffb_source, plate,
 │   │                            #   erp_master (dokumen ERP → baris konsol), erp_messages (§4.B/§4.C)
-│   ├── plc/                     # PLC/ODOT Modbus-TCP, self-contained, mati by default
+│   ├── plc/                     # PLC: MC Protocol ke CPU Mitsubishi (Modbus/ODOT lama masih bisa dipilih), mati by default
 │   ├── schemas/                 # Pydantic request/response models
 │   └── license/                 # License guard (Ed25519 JWS, optional)
 ├── models/
@@ -882,7 +882,7 @@ pytest tests/unit/
 | **Detail grading per truk (R2)** | `test_capture_layout.py`, `test_visit_manifest.py`, `test_console_store.py` (`bunches_for_assignment`), `test_visit_manifest_worker.py`, `test_viewer_html.py`, `test_console_compose_env.py` | Varian `thumb` + pasangan/kunci R2 (`twins_of`, `thumb_key_of`); bentuk JSON manifest murni tanpa I/O; janjang satu assignment urut waktu; antrean manifest sendiri (`manifest_outbox.db`) — R2 mati menahan baris, viewer diunggah sekali per proses; invarian statis `viewer.html` (nol dependensi eksternal, manifest dibaca relatif); env `R2_*` konsol wajib ada di `docker-compose.yml` |
 | **End-to-end** | `tests/e2e/test_console_autoerp.py` | Konsol + AutoERP sungguhan: truk dibuat di ERP lalu ditarik konsol, truk diketik di konsol lalu muncul di ERP, timbangan jadi Weighbridge Ticket, grading mendarat di tiket saat truk dilepas dari line. Di-skip tanpa variabel `E2E_*` |
 | Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |
-| PLC | `tests/unit/plc/` | Coil map ODOT + state machine Modbus-TCP |
+| PLC | `tests/unit/plc/`, `tests/e2e/test_mc_protocol_lane.py` | Klien MC Protocol + Modbus, state machine pulse/heartbeat/piston, alamat M ≡ compose |
 | Config | `test_config_validation.py` | Fail-fast saat secret masih default di `APP_ENV=production` |
 | Camera selector | `test_device_selector.py` | Pilih kamera by-serial (enum GigE tidak deterministik) |
 | Streaming | `test_streaming_service.py` | MJPEG keep-alive multi-viewer |

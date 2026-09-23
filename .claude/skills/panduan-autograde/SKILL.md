@@ -41,8 +41,19 @@ ditanya.
   (`make operator-docker` di pabrik; `AKSI=daftar|matikan|role ROLE=support`).
   Akun dari AutoERP direset di AutoERP. Bawaan: `operator@autograde.local`,
   `support@autograde.local`, sandi beda per PKS (`make hash-sandi`, tulis `$$`).
-- **Tab support** (Log, Diagnostik, Antrean ERP, Versi, Uji PLC, Setelan) hanya untuk
-  peran `support`; 403 untuk operator, 401 kalau belum masuk.
+- **Tab support** (Log, Diagnostik, Antrean ERP, Versi, Uji PLC, Sumber Kamera,
+  Rekam Video, Setelan) hanya untuk peran `support`; 403 untuk operator, 401 kalau
+  belum masuk.
+- **Rekam video** (v1.13.x): satu tombol per line, jalan sampai ditekan Stop. Yang
+  terekam frame **clean tanpa bbox** — disadap di `FrameCaptureWorker`, sebelum
+  inference. Berkasnya di `videos/` (jalurnya tertulis di kaki layar), **tidak pernah
+  dihapus otomatis** dan berhenti sendiri di bawah `UPLOAD_DISK_MIN_FREE_GB`.
+  ⚠️ **Laju video mengikuti SUMBERNYA, bukan angka FPS di layar**: berkas video
+  memakai laju aslinya, kamera yang tidak bisa melapor memakai `CAMERA_FPS`. Angka
+  di layar cuma berlaku kalau tidak ada keduanya. Kalau durasi berkas tidak sama
+  dengan lama menekan Record, baca `Rekam video MULAI` di log line — ia menyebut laju
+  yang benar-benar dipakai encoder.
+  ⚠️ **~2 GB/jam per line** pada 20 fps; disk pabrik 232 GB ≈ 4 hari rekam terus.
 - **Kartu "Kamera tidak tersambung" padahal container jalan:** itu teks fallback saat
   **browser** gagal memuat `http://<host konsol>:800N/api/video_feed` — port line
   harus terjangkau dari PC yang membuka konsol. Status kamera sesungguhnya ada di tab

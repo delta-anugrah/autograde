@@ -72,7 +72,10 @@ def _plc_int(name: str, default: int) -> int:
     Non-PLC fields stay fail-fast on purpose: there, bad config must stop boot.
     """
     raw = os.getenv(name)
-    if raw is None:
+    # Empty string = "not set". docker-compose writes `${PLC_PORT:-}` so the
+    # value can be derived from the protocol, and three containers shouting a
+    # warning about that on every start would bury the real typos.
+    if raw is None or not raw.strip():
         return default
     try:
         return int(raw)
@@ -95,6 +98,34 @@ def _plc_opt_int(name: str) -> int | None:
     except ValueError:
         logger.warning("%s=%r is not a number — manual piston disabled", name, raw)
         return None
+
+
+#: Protocols this build can speak. "mc" is the live path since the ODOT
+#: coupler was dropped; "modbus" stays for sites still wired through one.
+PLC_PROTOCOLS = ("mc", "modbus")
+
+#: Default TCP port per protocol. 1025 is the MC Protocol connection opened in
+#: the CPU's Open Setting; 502 is Modbus-TCP.
+_PLC_DEFAULT_PORT = {"mc": 1025, "modbus": 502}
+
+
+def _plc_protocol() -> str:
+    """`PLC_PROTOCOL`, normalised. Unknown or empty -> "mc" plus a warning."""
+    raw = (os.getenv("PLC_PROTOCOL") or "").strip().lower()
+    if not raw:
+        return PLC_PROTOCOLS[0]
+    if raw not in PLC_PROTOCOLS:
+        logger.warning(
+            "PLC_PROTOCOL=%r is not one of %s — falling back to %r",
+            raw, ", ".join(PLC_PROTOCOLS), PLC_PROTOCOLS[0],
+        )
+        return PLC_PROTOCOLS[0]
+    return raw
+
+
+def _plc_port() -> int:
+    """`PLC_PORT`, defaulting to whatever the chosen protocol listens on."""
+    return _plc_int("PLC_PORT", _PLC_DEFAULT_PORT[_plc_protocol()])
 
 
 def parse_coil_list(value: str | None) -> tuple[int, ...]:
@@ -343,14 +374,32 @@ class Settings:
         default_factory=lambda: os.getenv("ERP_ALLOWED_ROLES", "support")
     )
 
-    # ── PLC / ODOT CN-8031 (Modbus-TCP) ──────────────────────────
-    # Logic lives in src/palmgrade/plc/; the full coil map is in
+    # ── PLC (Mitsubishi MC Protocol, dulu ODOT CN-8031/Modbus) ───
+    # Logic lives in src/palmgrade/plc/; the full address map is in
     # docs/plc-integration.md. Off by default — only a factory PC turns it on.
-    # plc_coil_base is 0/3/6 per line, set by docker-compose.
+    # plc_coil_base is set per line by docker-compose.
     plc_enabled: bool = field(default_factory=lambda: _as_bool(os.getenv("PLC_ENABLED"), False))
     plc_host: str = field(default_factory=lambda: os.getenv("PLC_HOST", ""))
-    plc_port: int = field(default_factory=lambda: _plc_int("PLC_PORT", 502))
+    # "mc" = straight to the CPU's built-in Ethernet port (the ODOT coupler was
+    # dropped on 2026-09-21). "modbus" keeps the old coupler path alive for any
+    # site still wired that way. An unknown value falls back to "mc" rather than
+    # raising: same reason as _plc_int, a typo at 2am must not stop grading.
+    plc_protocol: str = field(default_factory=lambda: _plc_protocol())
+    # No single correct default: 1025 is the MC Protocol port opened in GX
+    # Works2, 502 is Modbus. Deriving it from the protocol is what stops a
+    # half-edited .env from dialling a port nobody is listening on.
+    plc_port: int = field(default_factory=lambda: _plc_port())
+    # Modbus only. MC Protocol addresses the CPU itself, so there is no unit id.
     plc_unit_id: int = field(default_factory=lambda: _plc_int("PLC_UNIT_ID", 1))
+    # MC Protocol device letter the addresses below belong to. "M" (internal
+    # relay) is what the panel allocates; a site that gets B or Y instead
+    # changes this one value, not the callers.
+    plc_device_prefix: str = field(
+        default_factory=lambda: (os.getenv("PLC_DEVICE_PREFIX") or "M").strip().upper() or "M"
+    )
+    # Where the block we READ starts. Modbus discrete inputs start at 0; an M
+    # block starts wherever the panel allocated it (Pak Ocit's list: 1100).
+    plc_di_base: int = field(default_factory=lambda: _plc_int("PLC_DI_BASE", 0))
     plc_coil_base: int = field(default_factory=lambda: _plc_int("PLC_COIL_BASE", 0))
     # The "alive" bit PlcWorker holds ON. Per the ODOT schematic there is only
     # ONE for the whole PC — coil 9 (HEARTBIT PC ON), owned by line 1. Lines 2
@@ -358,14 +407,24 @@ class Settings:
     plc_coil_alive: tuple[int, ...] = field(
         default_factory=lambda: parse_coil_list(os.getenv("PLC_COIL_ALIVE"))
     )
-    # 0 = held ON statically, matching the schematic and Pak Ocit's ladder
-    # ("coil OFF means the PC is down, the error shows on the seven segment").
-    # A dead PC or a cut LAN still shows up, through the coupler's fault action
-    # resetting the outputs. > 0 toggles every N ms, which ALSO catches a hung
-    # process whose socket is still open — but then the ladder must count
-    # CHANGES, not level, or the "PC down" alarm fires every half period.
+    # How the PLC is told the PC is still alive. The correct answer DEPENDS ON
+    # THE PROTOCOL, which is why the default is derived rather than fixed:
+    #
+    # - modbus (ODOT coupler): 0, held ON statically. That matches the
+    #   schematic and Pak Ocit's ladder ("coil OFF means the PC is down"). A
+    #   dead PC or cut LAN still shows up because the coupler's own fault
+    #   action resets its outputs. Toggling here fires the "PC down" alarm
+    #   every half period unless the ladder counts changes — that shipped once,
+    #   in v1.3.0, and the mill saw the alarm all day.
+    #
+    # - mc (straight to the CPU): must BLINK. There is no coupler left to reset
+    #   anything, so a bit left ON when the PC dies stays ON and its piston
+    #   keeps firing. A blinking bit is the only thing the ladder can watch to
+    #   notice we are gone — and there the ladder must count CHANGES, not level.
     plc_alive_toggle_ms: int = field(
-        default_factory=lambda: _plc_int("PLC_ALIVE_TOGGLE_MS", 0)
+        default_factory=lambda: _plc_int(
+            "PLC_ALIVE_TOGGLE_MS", 500 if _plc_protocol() == "mc" else 0
+        )
     )
     plc_pulse_ms: int = field(default_factory=lambda: _plc_int("PLC_PULSE_MS", 200))
     plc_pulse_gap_ms: int = field(default_factory=lambda: _plc_int("PLC_PULSE_GAP_MS", 100))
