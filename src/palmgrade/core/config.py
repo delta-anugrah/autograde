@@ -34,6 +34,33 @@ def _as_bool(value: str | None, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _baca_media_env(path: str) -> dict[str, str]:
+    """Isi `media.env` sebagai dict, atau kosong kalau tidak terbaca.
+
+    Sengaja tidak memakai parser env pihak ketiga: `config.py` dibaca setiap
+    proses termasuk line, dan berkas ini bentuknya `KUNCI=nilai` saja — ditulis
+    mesin oleh `MediaEnvService`, bukan tangan.
+
+    **Tidak pernah melempar.** Line yang gagal boot akan dinyalakan ulang terus
+    oleh `restart: unless-stopped`, jadi satu berkas rusak bisa menghentikan
+    pabrik. Berkas yang tidak ada adalah keadaan NORMAL: jalur native
+    (`make line`) dan PC yang belum memakai layar Sumber Kamera tidak punya.
+    """
+    try:
+        isi = Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return {}
+
+    hasil: dict[str, str] = {}
+    for baris in isi.splitlines():
+        baris = baris.strip()
+        if not baris or baris.startswith("#") or "=" not in baris:
+            continue
+        kunci, _, nilai = baris.partition("=")
+        hasil[kunci.strip()] = nilai.strip()
+    return hasil
+
+
 def _plc_int(name: str, default: int) -> int:
     """Forgiving `int(os.getenv(...))` — PLC fields ONLY, never anything else.
 
@@ -220,11 +247,18 @@ class Settings:
     yolo_skip_frames: int = field(default_factory=lambda: int(os.getenv("YOLO_SKIP_FRAMES", "1")))
     # Garis capture: x (px) dalam ruang STREAM (`STREAM_WIDTH`), bukan ruang
     # sensor. Janjang difoto saat kotaknya MENYENTUH garis ini — beda dari ROI,
-    # yang menyaring wilayah dan memakai titik tengah. `0` = tidak ada garis,
-    # dan itu perilaku sebelum fitur ini ada.
+    # yang menyaring wilayah dan memakai titik tengah.
+    #
+    # Bawaannya 200, bukan 0. `0` berarti **tidak ada garis** — semua janjang
+    # di dalam ROI difoto, perilaku sebelum fitur ini ada — dan itu titik awal
+    # yang salah untuk PKS baru: garis capture justru yang membuat janjang
+    # difoto pada saat yang tepat, bukan saat separuhnya sudah lewat.
+    # ⚠️ `0` tetap sah dan tetap berarti "tanpa garis"; yang berubah cuma nilai
+    # awalnya, jadi PKS yang memang menginginkannya harus menuliskannya.
+    #
     # Ini cuma nilai awal: yang berlaku sehari-hari diatur dari layar support
     # konsol dan dikirim ke line lewat `/internal/setelan` tanpa restart.
-    garis_capture: int = field(default_factory=lambda: int(os.getenv("GARIS_CAPTURE", "0")))
+    garis_capture: int = field(default_factory=lambda: int(os.getenv("GARIS_CAPTURE", "200")))
     # Sumbu garis capture: "tegak" (conveyor mendatar, garis vertikal, angka =
     # px dari kiri) atau "mendatar" (conveyor menurun, garis horizontal, angka
     # = px dari atas). Sama seperti `garis_capture`, ini cuma nilai awal.
@@ -352,6 +386,47 @@ class Settings:
     plc_di_manual: int | None = field(default_factory=lambda: _plc_opt_int("PLC_DI_MANUAL"))
 
     # ------------------------------------------------------------------ sumber kamera
+
+    def __post_init__(self) -> None:
+        """Setelan sumber kamera dari `media.env` MENANG atas environment.
+
+        Environment sebuah container BEKU sejak container dibuat. Tombol
+        "Simpan & Restart" menyuruh proses line keluar dan `restart:
+        unless-stopped` menyalakannya lagi — tapi container-nya sama, jadi
+        environment-nya sama pula. Tanpa membaca berkasnya sendiri, setelan
+        baru tidak akan pernah terbaca. Terbukti di Lampung 2026-09-23: layar
+        dipindah ke Video, `media.env` berubah, line restart, gambar tetap foto.
+
+        Konsol tidak bisa membuat container baru dan memang tidak boleh bisa —
+        memberinya akses Docker socket berarti konsol menguasai seluruh Docker
+        di PC pabrik.
+
+        ⚠️ Berkas yang MENANG, bukan environment. Compose selalu mengisi
+        `CAMERA_TYPE` dari nilai cadangannya (`hikrobot`) dan tidak pernah
+        membiarkannya kosong, jadi "environment menang kalau ada isinya" sama
+        saja dengan mematikan fitur ini.
+        """
+        nilai = _baca_media_env(self.media_env_path)
+        if not nilai:
+            return
+
+        awalan = f"LINE_{self.line_code.removeprefix('line-')}_"
+        camera_type = nilai.get(f"{awalan}CAMERA_TYPE")
+        if camera_type is None:
+            # Berkas ada tapi tidak memuat baris line INI: jangan menebak dari
+            # baris line lain — dua line dengan sumber yang sama tanpa ada yang
+            # meminta jauh lebih membingungkan daripada tetap memakai env.
+            return
+
+        # `object.__setattr__` karena `Settings` beku. Beku itu disengaja —
+        # setelan yang bisa diubah di tengah jalan berarti dua bagian kode
+        # melihat nilai berbeda. Di sini masih sah: ini konstruksi, bukan
+        # perubahan setelah dipakai.
+        object.__setattr__(self, "camera_type", camera_type)
+        object.__setattr__(self, "media_file", nilai.get(f"{awalan}MEDIA_FILE", ""))
+        object.__setattr__(
+            self, "camera_video_loop", _as_bool(nilai.get(f"{awalan}VIDEO_LOOP"), False)
+        )
 
     def sumber_kamera(self) -> str:
         """Pilihan layar yang setara dengan `CAMERA_TYPE` + `MEDIA_FILE`.

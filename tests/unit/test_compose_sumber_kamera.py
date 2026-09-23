@@ -294,3 +294,89 @@ def test_restart_tidak_menjanjikan_docker():
     awal = sumber.find("def _jadwalkan_keluar")
     assert awal != -1
     assert "Docker akan menyalakan ulang" not in sumber[awal:]
+
+
+# --------------------------------------------------- MEDIA_DIR di TIAP line
+
+
+@butuh_docker
+@pytest.mark.parametrize("service", LINES)
+def test_tiap_line_dapat_media_dir(dirender, service):
+    """`MEDIA_DIR` wajib sampai ke tiap line, bukan cuma ke konsol.
+
+    Tanpa ini `core/config.media_dir` turun ke bawaannya `repo_root/media` —
+    folder yang di dalam container tidak ada. Untuk `video` akibatnya
+    `rencana_kamera()` menunjuk berkas yang tidak terbuka, `main.py` jatuh ke
+    `CAMERA_DEVICE_INDEX`, dan line mencari webcam yang tidak terpasang:
+    `RuntimeError: Tidak bisa buka camera source: 2`. Karena line memakai
+    `restart: unless-stopped`, itu jadi crash-loop selamanya.
+
+    Terbukti di Lampung 2026-09-23, dan tidak terlihat dari layar: setelannya
+    benar, `media.env` benar, berkasnya ada di mount.
+    """
+    assert _env(dirender, service).get("MEDIA_DIR") == "/media"
+
+
+@butuh_docker
+@pytest.mark.parametrize("service", LINES)
+def test_media_dir_menunjuk_mount_yang_benar(dirender, service):
+    """`MEDIA_DIR` harus menunjuk folder yang BENAR-BENAR di-mount.
+
+    Kontrol negatif untuk test di atas: `/media` yang benar tapi tidak
+    di-mount akan memulangkan daftar kosong tanpa galat — `MediaLibrary`
+    sengaja begitu — jadi nilainya saja tidak membuktikan apa-apa.
+    """
+    assert _env(dirender, service)["MEDIA_DIR"] in _target_mount(dirender, service)
+
+
+@butuh_docker
+@pytest.mark.parametrize("service", LINES)
+def test_media_dir_selamat_dari_override_prod(dirender_prod, service):
+    """Override `prod` MENGGANTI blok `environment:`, bukan menambahinya.
+
+    Hari ini `prod` cuma menimpa `console`, jadi line aman. Test ini yang
+    memberi tahu kalau suatu hari `prod` mulai menyebut `environment:` untuk
+    line — gejalanya kalau tidak dijaga: line kembali crash-loop dan tidak ada
+    satu pun galat yang menunjuk ke compose.
+    """
+    assert _env(dirender_prod, service).get("MEDIA_DIR") == "/media"
+
+
+# ------------------------------------------- media.env sampai ke TIAP line
+
+
+@butuh_docker
+@pytest.mark.parametrize("service", LINES)
+def test_tiap_line_memount_media_env(dirender, service):
+    """Line membaca `media.env` sendiri, jadi berkasnya harus ada di dalamnya.
+
+    Environment container BEKU sejak container dibuat. Tombol "Simpan &
+    Restart" cuma menyuruh proses line keluar; `restart: unless-stopped`
+    menyalakan container yang SAMA dengan environment yang sama. Tanpa mount
+    ini setelan baru tidak pernah sampai — layar bilang Video, gambarnya tetap
+    foto. Terbukti di Lampung 2026-09-23.
+    """
+    assert "/config/media.env" in _target_mount(dirender, service)
+
+
+@butuh_docker
+@pytest.mark.parametrize("service", LINES)
+def test_line_tahu_di_mana_media_env(dirender, service):
+    """Mount saja tidak cukup: line membacanya lewat `MEDIA_ENV_PATH`.
+
+    Kontrol negatif untuk test di atas — berkas yang ter-mount tapi tidak
+    pernah dicari sama saja dengan tidak ada, dan tidak ada galat yang muncul.
+    """
+    assert _env(dirender, service).get("MEDIA_ENV_PATH") == "/config/media.env"
+
+
+@butuh_docker
+@pytest.mark.parametrize("service", LINES)
+def test_mount_media_env_selamat_dari_override_prod(dirender_prod, service):
+    """`prod` memakai `volumes: !override`, yang MENGGANTI daftar volumes.
+
+    Ini yang paling gampang hilang: menambah mount di compose dasar saja
+    membuatnya lenyap di pabrik tanpa satu pun galat — gejalanya persis seperti
+    fitur yang tidak pernah bekerja.
+    """
+    assert "/config/media.env" in _target_mount(dirender_prod, service)

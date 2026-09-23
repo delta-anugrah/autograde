@@ -315,7 +315,7 @@ MINIMUM_SIZE=460000
 # Mode dev: angka keyakinan ikut digambar di kotak janjang — untuk menyetel ambang.
 # Ketiganya NILAI AWAL saja: yang dipakai sehari-hari diatur dari tab Setelan di konsol,
 # berlaku tanpa restart.
-GARIS_CAPTURE=0
+GARIS_CAPTURE=200
 SUMBU_GARIS=tegak
 MODE_DEV=false
 ```

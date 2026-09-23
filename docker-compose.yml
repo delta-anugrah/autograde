@@ -69,7 +69,7 @@ services:
       - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
       # Garis capture (px, ruang STREAM). 0 = tanpa garis. Nilai awal saja —
       # yang dipakai sehari-hari diatur dari layar support konsol.
-      - GARIS_CAPTURE=${GARIS_CAPTURE:-0}
+      - GARIS_CAPTURE=${GARIS_CAPTURE:-200}
       - SUMBU_GARIS=${SUMBU_GARIS:-tegak}
       - MODE_DEV=${MODE_DEV:-false}
       - ROI_X1=${ROI_X1:-0}
@@ -99,6 +99,15 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_1_MEDIA_FILE:-}
+      # Folder tempat MEDIA_FILE dicari. WAJIB ada di tiap line, bukan
+      # cuma di konsol: tanpa ini `media_dir` turun ke `repo_root/media`,
+      # yang di dalam container tidak ada. Untuk `video` akibatnya line
+      # gagal buka berkas lalu jatuh ke CAMERA_DEVICE_INDEX — mencari
+      # webcam yang tidak terpasang, mati, dan `restart: unless-stopped`
+      # menyalakannya lagi selamanya. Terbukti di Lampung 2026-09-23:
+      # `RuntimeError: Tidak bisa buka camera source: 2`.
+      - MEDIA_DIR=${MEDIA_DIR:-/media}
+      - MEDIA_ENV_PATH=${MEDIA_ENV_PATH:-/config/media.env}
       # Folder rekaman video developer (layar Rekam Video). Di luar
       # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
       # retensi otomatis — dihapus manual oleh yang merekam.
@@ -150,6 +159,11 @@ services:
       # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
       # ganti berkas cukup restart, bukan `docker compose up` ulang.
       - ./media:/media:ro
+      # Setelan sumber kamera, dibaca line SENDIRI saat boot. Environment
+      # container beku sejak container dibuat, jadi tombol Simpan & Restart
+      # (yang cuma menyuruh proses keluar) tidak akan pernah menurunkan
+      # setelan baru lewat environment. `:ro` — line membaca, konsol menulis.
+      - ./media.env:/config/media.env:ro
       # Rekaman video developer. BUKAN :ro — line yang menulis ke sini.
       - ./videos:/app/videos
 
@@ -194,7 +208,7 @@ services:
       - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
       # Garis capture (px, ruang STREAM). 0 = tanpa garis. Nilai awal saja —
       # yang dipakai sehari-hari diatur dari layar support konsol.
-      - GARIS_CAPTURE=${GARIS_CAPTURE:-0}
+      - GARIS_CAPTURE=${GARIS_CAPTURE:-200}
       - SUMBU_GARIS=${SUMBU_GARIS:-tegak}
       - MODE_DEV=${MODE_DEV:-false}
       - ROI_X1=${ROI_X1:-0}
@@ -224,6 +238,15 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_2_MEDIA_FILE:-}
+      # Folder tempat MEDIA_FILE dicari. WAJIB ada di tiap line, bukan
+      # cuma di konsol: tanpa ini `media_dir` turun ke `repo_root/media`,
+      # yang di dalam container tidak ada. Untuk `video` akibatnya line
+      # gagal buka berkas lalu jatuh ke CAMERA_DEVICE_INDEX — mencari
+      # webcam yang tidak terpasang, mati, dan `restart: unless-stopped`
+      # menyalakannya lagi selamanya. Terbukti di Lampung 2026-09-23:
+      # `RuntimeError: Tidak bisa buka camera source: 2`.
+      - MEDIA_DIR=${MEDIA_DIR:-/media}
+      - MEDIA_ENV_PATH=${MEDIA_ENV_PATH:-/config/media.env}
       # Folder rekaman video developer (layar Rekam Video). Di luar
       # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
       # retensi otomatis — dihapus manual oleh yang merekam.
@@ -275,6 +298,11 @@ services:
       # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
       # ganti berkas cukup restart, bukan `docker compose up` ulang.
       - ./media:/media:ro
+      # Setelan sumber kamera, dibaca line SENDIRI saat boot. Environment
+      # container beku sejak container dibuat, jadi tombol Simpan & Restart
+      # (yang cuma menyuruh proses keluar) tidak akan pernah menurunkan
+      # setelan baru lewat environment. `:ro` — line membaca, konsol menulis.
+      - ./media.env:/config/media.env:ro
       # Rekaman video developer. BUKAN :ro — line yang menulis ke sini.
       - ./videos:/app/videos
 
@@ -319,7 +347,7 @@ services:
       - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
       # Garis capture (px, ruang STREAM). 0 = tanpa garis. Nilai awal saja —
       # yang dipakai sehari-hari diatur dari layar support konsol.
-      - GARIS_CAPTURE=${GARIS_CAPTURE:-0}
+      - GARIS_CAPTURE=${GARIS_CAPTURE:-200}
       - SUMBU_GARIS=${SUMBU_GARIS:-tegak}
       - MODE_DEV=${MODE_DEV:-false}
       - ROI_X1=${ROI_X1:-0}
@@ -349,6 +377,15 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_3_MEDIA_FILE:-}
+      # Folder tempat MEDIA_FILE dicari. WAJIB ada di tiap line, bukan
+      # cuma di konsol: tanpa ini `media_dir` turun ke `repo_root/media`,
+      # yang di dalam container tidak ada. Untuk `video` akibatnya line
+      # gagal buka berkas lalu jatuh ke CAMERA_DEVICE_INDEX — mencari
+      # webcam yang tidak terpasang, mati, dan `restart: unless-stopped`
+      # menyalakannya lagi selamanya. Terbukti di Lampung 2026-09-23:
+      # `RuntimeError: Tidak bisa buka camera source: 2`.
+      - MEDIA_DIR=${MEDIA_DIR:-/media}
+      - MEDIA_ENV_PATH=${MEDIA_ENV_PATH:-/config/media.env}
       # Folder rekaman video developer (layar Rekam Video). Di luar
       # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
       # retensi otomatis — dihapus manual oleh yang merekam.
@@ -400,6 +437,11 @@ services:
       # Folder media utuh, bukan bind-mount per berkas: itulah yang membuat
       # ganti berkas cukup restart, bukan `docker compose up` ulang.
       - ./media:/media:ro
+      # Setelan sumber kamera, dibaca line SENDIRI saat boot. Environment
+      # container beku sejak container dibuat, jadi tombol Simpan & Restart
+      # (yang cuma menyuruh proses keluar) tidak akan pernah menurunkan
+      # setelan baru lewat environment. `:ro` — line membaca, konsol menulis.
+      - ./media.env:/config/media.env:ro
       # Rekaman video developer. BUKAN :ro — line yang menulis ke sini.
       - ./videos:/app/videos
 
