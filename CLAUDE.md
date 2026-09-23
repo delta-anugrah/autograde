@@ -682,11 +682,24 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     ada di setiap build OpenCV, dan `VideoWriter` yang gagal membuka **tidak
     melempar** — tanpa pemeriksaan `isOpened()` hasilnya berkas 0 byte yang baru
     ketahuan berjam-jam kemudian.
-    **Setelan (resolusi/fps/bitrate) hidup di konsol**, satu baris `sync_state`,
+    **Setelan (resolusi/bitrate) hidup di konsol**, satu baris `sync_state`,
     pola yang sama dengan `setelan_grading` — dan dikirim ulang tiap kali mulai.
     Itu yang membuat **restart container = rekaman mati** jadi sifat, bukan kode
     tambahan. Setelan baru sengaja **tidak** menyentuh rekaman yang sedang jalan:
     mengubah resolusi di tengah berkas MP4 menghasilkan berkas rusak.
+    ⚠️ **FPS TIDAK datang dari setelan layar** (sejak v1.13.2). Ia datang dari
+    laju yang BENAR-BENAR dipakai mengambil frame, dipublikasikan worker ke
+    `RuntimeState.camera_fps_terukur`: berkas video memakai laju aslinya
+    (`CAMERA_FPS` diabaikan untuk berkas — menyetel `CAP_PROP_FPS` pada berkas
+    cuma membuat `get_fps()` membalas angka yang dipaksakan), kamera yang tidak
+    bisa melapor memakai `CAMERA_FPS`. Angka layar cuma berlaku kalau keduanya
+    tidak ada. Dua kali salah di sini menghasilkan gejala yang sama dan tidak
+    pernah melempar galat: berkas ada, terbuka, isinya lengkap — cuma jamnya
+    salah, jadi terbaca seperti kamera lambat, bukan header yang keliru
+    (19 detik kejadian jadi berkas 77 detik, Lampung 2026-09-23).
+    ⚠️ Dibaca dari `RuntimeState`, **bukan** `_target_fps` milik worker:
+    `adopt_camera_frame_rate()` cuma memperbarui `_frame_interval`, jadi
+    `_target_fps` tetap nilai `.env` pada kamera yang melapor.
     ⚠️ **`videos/` di luar `artifacts/` dan TIDAK ikut retensi otomatis.**
     `BatchUploadWorker._retention()` menyapu `artifacts/`; rekaman yang duduk di
     sana akan terhapus diam-diam di tengah penelusuran masalah. Harganya:
