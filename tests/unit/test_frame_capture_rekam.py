@@ -105,3 +105,35 @@ def test_frame_kosong_tidak_diteruskan():
 def test_bawaan_runtime_state_tanpa_recorder():
     # Line yang tidak pernah merekam tidak boleh menyentuh modul rekam.
     assert RuntimeState().video_recorder is None
+
+
+# ── fps kamera dipublikasikan ke state ──────────────────────────────────────
+
+
+def test_worker_menulis_fps_kamera_ke_state():
+    """Endpoint `/internal/rekam/mulai` tidak punya akses ke worker, jadi laju
+    kamera dilewatkan lewat `RuntimeState` — satu tempat yang memang untuk
+    keadaan yang dibagi antar lapisan."""
+    state = RuntimeState()
+    kamera = KameraPalsu([])
+    kamera.get_fps = lambda: 20.0
+    w = FrameCaptureWorker(camera=kamera, state=state, target_fps=5)
+
+    w.adopt_camera_frame_rate()
+
+    assert state.camera_fps_terukur == 20.0
+
+
+def test_kamera_tanpa_laporan_menulis_nol():
+    """Berkas video dan webcam tidak bisa melapor; `0` berarti "pakai angka
+    setelan", bukan "20 fps" yang ditebak."""
+    state = RuntimeState()
+    w = FrameCaptureWorker(camera=KameraPalsu([]), state=state, target_fps=5)
+
+    w.adopt_camera_frame_rate()
+
+    assert state.camera_fps_terukur == 0.0
+
+
+def test_bawaan_state_nol():
+    assert RuntimeState().camera_fps_terukur == 0.0

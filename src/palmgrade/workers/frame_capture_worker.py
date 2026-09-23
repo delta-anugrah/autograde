@@ -48,6 +48,11 @@ class FrameCaptureWorker:
         a webcam or a video file.
         """
         detected = self.camera.get_fps()
+        # Dipublikasikan apa adanya (0 kalau sumbernya tidak bisa melapor):
+        # layar Rekam Video memakainya supaya durasi video sama dengan durasi
+        # kejadian. `_target_fps` TIDAK ikut diperbarui di sini, jadi ia bukan
+        # tempat yang benar untuk membacanya.
+        self.state.camera_fps_terukur = float(detected) if detected > 0 else 0.0
         if detected > 0:
             self._frame_interval = 1.0 / detected
             logger.info("Capture paced by the camera: %.2f fps", detected)

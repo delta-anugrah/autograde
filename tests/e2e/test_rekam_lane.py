@@ -162,3 +162,29 @@ def test_rekaman_tidak_menyentuh_folder_artifacts(line, tmp_path):
     assert list(videos.glob("*.mp4")), "rekaman tidak mendarat di videos/"
     artifacts = tmp_path / "artifacts"
     assert not artifacts.exists() or not list(artifacts.rglob("*.mp4"))
+
+
+def test_fps_kamera_menang_atas_setelan(line):
+    """Rantai penuh: worker menulis laju kamera ke state, endpoint
+    meneruskannya, encoder memakainya. Putus di mana pun, videonya melambat
+    atau mempercepat tanpa satu pun galat."""
+    c, state, _dir = line
+    state.camera_fps_terukur = 20.0
+
+    res = c.post("/internal/rekam/mulai", json={**SETELAN, "fps": 5}, headers=HEADER)
+
+    assert res.status_code == 200, res.text
+    assert res.json()["setelan"]["fps"] == 20
+    c.post("/internal/rekam/stop", headers=HEADER)
+
+
+def test_tanpa_laporan_kamera_pakai_setelan(line):
+    """Kontrol negatif: sumber yang tidak bisa melapor tetap memakai angka
+    setelan — itu memang gunanya angka itu ada."""
+    c, state, _dir = line
+    state.camera_fps_terukur = 0.0
+
+    res = c.post("/internal/rekam/mulai", json={**SETELAN, "fps": 5}, headers=HEADER)
+
+    assert res.json()["setelan"]["fps"] == 5
+    c.post("/internal/rekam/stop", headers=HEADER)

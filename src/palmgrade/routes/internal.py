@@ -257,7 +257,12 @@ async def rekam_mulai(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
-        return _recorder(state, settings).mulai(bersih)
+        # Laju kamera menang atas angka setelan: video harus berjalan pada
+        # laju yang sama dengan kejadiannya. `0` (berkas video, webcam) berarti
+        # angka setelan yang dipakai.
+        return _recorder(state, settings).mulai(
+            bersih, fps_kamera=state.camera_fps_terukur
+        )
     except RekamSedangJalan as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except DiskMepet as exc:

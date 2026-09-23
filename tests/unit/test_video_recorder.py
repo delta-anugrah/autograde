@@ -241,3 +241,71 @@ def test_ukuran_berkas_terbaca_sesudah_stop(rekaman, tmp_path):
 
     assert (tmp_path / hasil_mulai["berkas"]).stat().st_size > 0
     assert rekaman.status()["bytes"] > 0
+
+
+# ── fps video = fps kamera ──────────────────────────────────────────────────
+
+
+def test_fps_video_mengikuti_kamera_bukan_setelan(tmp_path):
+    """Video ditulis pada laju kamera yang SEBENARNYA, bukan angka setelan.
+
+    Kamera Hikrobot di Lampung mengirim 20 fps. Encoder menulis semua 20, tapi
+    menandai berkasnya "5 fps" — hasilnya video 4x lebih lambat dari kejadian
+    aslinya: 19 detik rekaman jadi 77 detik tontonan (diukur di pabrik
+    2026-09-23). Yang diminta operator justru sebaliknya: apa yang terlihat di
+    layar line adalah apa yang terekam.
+    """
+    r = VideoRecorder(videos_dir=tmp_path, line_code="line1", disk_min_free_gb=0.0)
+    r.mulai({**SETELAN, "fps": 5}, fps_kamera=20.0)
+    try:
+        assert r.status()["setelan"]["fps"] == 20
+    finally:
+        r.stop()
+
+
+def test_fps_kamera_nol_jatuh_ke_setelan(tmp_path):
+    """Sumber yang tidak bisa melapor (berkas video, webcam) tetap memakai
+    angka setelan — itu memang gunanya angka itu ada."""
+    r = VideoRecorder(videos_dir=tmp_path, line_code="line1", disk_min_free_gb=0.0)
+    r.mulai({**SETELAN, "fps": 5}, fps_kamera=0.0)
+    try:
+        assert r.status()["setelan"]["fps"] == 5
+    finally:
+        r.stop()
+
+
+def test_fps_kamera_dibulatkan_dan_dibatasi(tmp_path):
+    """Kamera melaporkan pecahan (19,97). Dibulatkan supaya header MP4 utuh,
+    dan tetap lewat batas `setelan_rekam` supaya nilai ngawur dari kamera yang
+    salah setel tidak lolos ke encoder."""
+    r = VideoRecorder(videos_dir=tmp_path, line_code="line1", disk_min_free_gb=0.0)
+    r.mulai({**SETELAN, "fps": 5}, fps_kamera=19.97)
+    try:
+        assert r.status()["setelan"]["fps"] == 20
+    finally:
+        r.stop()
+
+
+def test_durasi_video_sama_dengan_durasi_rekam(tmp_path):
+    """Bukti yang sesungguhnya: 2 detik merekam pada 10 fps menghasilkan
+    berkas berdurasi ~2 detik, bukan 4 atau 0,5."""
+    import cv2
+
+    r = VideoRecorder(videos_dir=tmp_path, line_code="line1", disk_min_free_gb=0.0)
+    hasil = r.mulai({**SETELAN, "fps": 5}, fps_kamera=10.0)
+    try:
+        # 20 frame diserahkan pada laju 10 fps = 2 detik kejadian.
+        for _ in range(20):
+            r.tulis(_frame())
+        assert _tunggu(lambda: r.status()["frame_ditulis"] == 20)
+    finally:
+        r.stop()
+
+    cap = cv2.VideoCapture(str(tmp_path / hasil["berkas"]))
+    try:
+        n = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        assert fps == 10, fps
+        assert abs(n / fps - 2.0) < 0.3, f"{n} frame @ {fps} fps"
+    finally:
+        cap.release()
