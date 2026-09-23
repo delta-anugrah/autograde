@@ -16,6 +16,14 @@ HTML = (REPO_ROOT / "src" / "palmgrade" / "static" / "console.html").read_text(
 )
 
 
+def _blok_css(selector: str) -> str:
+    """Isi satu blok CSS, tanpa spasi — supaya perbandingannya tidak goyah
+    karena pembungkusan baris."""
+    cocok = re.search(rf"{re.escape(selector)}\s*\{{[^}}]*\}}", HTML, re.S)
+    assert cocok is not None, f"blok {selector} tidak ketemu"
+    return cocok.group(0).replace(" ", "").replace("\n", "")
+
+
 def test_tab_rekam_ada_dan_ditandai_dev():
     assert 'data-tab="rekam"' in HTML
     baris = [b for b in HTML.splitlines() if 'data-tab="rekam"' in b][0]
@@ -135,18 +143,28 @@ def test_folder_rekaman_ikut_dikirim_backend():
 
 
 def test_baris_kosong_selebar_jumlah_kolom():
-    """`colspan` yang tertinggal saat kolom bertambah membuat baris "belum ada
+    """`colspan` yang tertinggal saat kolom berubah membuat baris "belum ada
     line" kependekan — tabelnya terlihat rusak, tanpa satu pun galat. Jebakan
-    yang sudah pernah kena di repo ini (kolom Lama di tab Timbangan)."""
-    kepala = HTML[HTML.index('<tbody id="rekam-baris">') - 900:HTML.index('<tbody id="rekam-baris">')]
-    jumlah_th = kepala.count("<th")
-    assert f'barisKosong({jumlah_th},' in HTML, f"kepala punya {jumlah_th} kolom"
+    yang sudah pernah kena di repo ini (kolom Lama di tab Timbangan).
+
+    Dihitung dari `<thead>` panel rekam saja: jendela karakter sebelum
+    `<tbody>` ikut menangkap `<th>` milik tabel tetangga, dan test yang salah
+    hitung lebih buruk daripada tidak ada test.
+    """
+    panel = HTML[HTML.index('id="sec-rekam"'):]
+    kepala = panel[panel.index("<thead>"):panel.index("</thead>")]
+    # `"<th"` juga cocok dengan `<thead>` sendiri — dihitung `"<th "` dan
+    # `"<th>"` supaya yang terhitung benar-benar sel kepala.
+    jumlah_th = kepala.count("<th ") + kepala.count("<th>")
+    assert jumlah_th == 5, f"kepala punya {jumlah_th} kolom, harap perbarui colspan"
+    assert f'barisKosong({jumlah_th},' in HTML
 
 
-def test_kolom_penyerap_disembunyikan_dari_pembaca_layar():
-    """Kolom itu murni tata letak; disebutkan pembaca layar cuma menambah
-    kebisingan di tabel yang isinya sudah jelas."""
-    assert 'class="rekam-sisa" aria-hidden="true"' in HTML
+def test_header_aksi_punya_nama_untuk_pembaca_layar():
+    """Header kolom tombol tidak perlu terlihat, tapi header tabel yang
+    benar-benar kosong membuat pembaca layar menyebut "kolom 5" alih-alih
+    namanya."""
+    assert '<span class="sr-only" data-t="thAksi">' in HTML
 
 
 def test_toast_sukses_bertahan_lima_detik():
@@ -165,3 +183,29 @@ def test_toast_gagal_tetap_menunggu_ditutup():
     tenggat pada kegagalan, yang harus bertahan sampai operator menutupnya."""
     blok = HTML.split("const TOAST_DURASI", 1)[1].split("\n", 1)[0]
     assert "gagal: 0" in blok, blok
+
+
+# ── tabel selebar layar, tombol di kanan ────────────────────────────────────
+
+
+def test_tabel_rekam_selebar_panelnya():
+    """`width:auto` membuat tabel menciut ke kiri dan menyisakan dua pertiga
+    layar kosong — persis keluhan yang membuat kolomnya dipadatkan dulu, cuma
+    berpindah sisi. Lebar penuh, dengan kolom yang diatur satu per satu.
+    """
+    blok = _blok_css("#sec-rekam table")
+    assert "width:100%" in blok, blok
+
+
+def test_kolom_penyerap_sudah_tidak_dipakai():
+    """Kolom kosong di kanan itu cara menahan tabel `width:auto`. Begitu
+    tabelnya selebar panel, ia cuma jadi sel hantu yang membuat `colspan` dan
+    pembaca layar ikut salah hitung."""
+    assert "rekam-sisa" not in HTML
+
+
+def test_tombol_record_di_kolom_paling_kanan():
+    """Tombolnya rata KANAN di kolom terakhir: mata menyusuri baris dari kiri
+    (line → status → angka) dan berakhir pada aksinya."""
+    blok = _blok_css("#sec-rekam td.rekam-aksi, #sec-rekam th.rekam-aksi")
+    assert "text-align:right" in blok, blok

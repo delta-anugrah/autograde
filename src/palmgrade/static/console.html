@@ -705,23 +705,28 @@
      tabular-nums supaya digitnya sejajar dan tidak bergoyang tiap detik. */
   #sec-rekam td.rekam-angka { font-family:var(--mono);
                               font-variant-numeric:tabular-nums; }
-  /* Kolom tombol dipatok selebar isinya supaya Record dan Stop tidak berganti
-     lebar saat status berubah — tombol yang melompat sulit ditekan. */
-  /* Rata KIRI, bukan kanan: kolomnya sudah sesempit isinya, jadi rata kanan
-     cuma menambah jarak kosong antara angka dan tombol yang menjelaskannya. */
-  #sec-rekam td.rekam-aksi, #sec-rekam th.rekam-aksi { width:1%; text-align:left; }
+  /* Tombol di kolom PALING KANAN, rata kanan: mata menyusuri baris dari kiri
+     (line → status → angka) dan berakhir pada aksinya. Lebarnya dipatok supaya
+     Record dan Stop tidak berganti ukuran saat status berubah — tombol yang
+     melompat sulit ditekan. */
+  /* Kolom aksi dipatok selebar tombolnya; tanpa itu DIA yang menyerap sisa
+     lebar dan tombolnya melayang jauh dari angka yang dijelaskannya. Yang
+     menyerap sisa adalah kolom Terekam, yang isinya memang bisa panjang
+     ("47 frame · 12,3 MB"). */
+  #sec-rekam td.rekam-aksi, #sec-rekam th.rekam-aksi { width:1%; text-align:right; }
   #sec-rekam td.rekam-aksi button { min-width:7.5rem; }
 
-  /* Tabel ini cuma tiga baris dengan isi pendek. Dibiarkan `width:100%` seperti
-     tabel lain, kolom Status melar sampai 549 px untuk satu kata dan angkanya
-     terlempar jauh dari judul kolomnya — terbaca seperti data yang tidak
-     berhubungan. Kolomnya dipadatkan ke lebar isinya, dan satu kolom kosong di
-     kanan yang menyerap sisa ruang. */
-  #sec-rekam table { width:auto; min-width:min(48rem, 100%); }
-  #sec-rekam th, #sec-rekam td { width:1%; }
-  /* Kolom penyerap: tanpa ini kolom terakhir yang melar, dan tombolnya
-     terdorong ke tepi layar menjauhi angkanya. */
-  #sec-rekam th.rekam-sisa, #sec-rekam td.rekam-sisa { width:auto; padding:0; }
+  /* Tabel selebar panelnya, seperti tabel lain.
+     `width:auto` pernah dicoba untuk memadatkan kolom, dan memindahkan
+     masalahnya, bukan menyelesaikannya: tabelnya menciut ke kiri dan
+     menyisakan dua pertiga layar kosong.
+     Yang dipadatkan sekarang kolomnya satu per satu — tiga kolom kiri
+     secukupnya, dan kolom Terekam yang menyerap sisa lebar sambil tetap
+     memegang angkanya di dekat judul. */
+  #sec-rekam table { width:100%; }
+  #sec-rekam th.rekam-line, #sec-rekam td.rekam-line { width:8rem; }
+  #sec-rekam th.rekam-stat, #sec-rekam td.rekam-stat { width:12rem; }
+  #sec-rekam th.rekam-lama, #sec-rekam td.rekam-lama { width:8rem; }
 
   /* Baris catatan di atas tabel + sisa disk di bawahnya: keduanya keterangan,
      jadi diberi jarak yang sama dengan panel lain, bukan menempel di tepi. */
@@ -1198,13 +1203,11 @@
     <table>
       <thead>
         <tr>
-          <th data-t="thLine">Line</th>
-          <th data-t="thStatus">Status</th>
-          <th class="num" data-t="thLama">Lama</th>
+          <th class="rekam-line" data-t="thLine">Line</th>
+          <th class="rekam-stat" data-t="thStatus">Status</th>
+          <th class="num rekam-lama" data-t="thLama">Lama</th>
           <th class="num" data-t="thMajuRekam">Terekam</th>
           <th class="rekam-aksi"><span class="sr-only" data-t="thAksi">Aksi</span></th>
-          <!-- Kolom penyerap sisa lebar; lihat CSS `.rekam-sisa`. -->
-          <th class="rekam-sisa" aria-hidden="true"></th>
         </tr>
       </thead>
       <tbody id="rekam-baris"></tbody>
@@ -3749,12 +3752,11 @@ function barisRekam(b) {
     ? `<button type="button" data-rekam-stop="${esc(b.line_code)}">${esc(t("rekamStop"))}</button>`
     : `<button type="button" class="utama" data-rekam-mulai="${esc(b.line_code)}"${b.terbaca ? "" : " disabled"}>${esc(t("rekamMulai"))}</button>`;
   return `<tr>
-    <td>${esc(b.line_code)}</td>
-    <td><span class="rekam-status ${kelas}">${esc(t(kunci))}</span></td>
-    <td class="num rekam-angka">${esc(b.merekam ? lamaRekam(b.mulai_epoch) : KOSONG)}</td>
+    <td class="rekam-line kode-line">${esc(b.line_code)}</td>
+    <td class="rekam-stat"><span class="rekam-status ${kelas}">${esc(t(kunci))}</span></td>
+    <td class="num rekam-angka rekam-lama">${esc(b.merekam ? lamaRekam(b.mulai_epoch) : KOSONG)}</td>
     <td class="num rekam-angka">${esc(b.merekam ? majuRekam(b) : KOSONG)}</td>
     <td class="rekam-aksi">${tombol}</td>
-    <td class="rekam-sisa"></td>
   </tr>`;
 }
 
@@ -3762,7 +3764,7 @@ async function muatRekam() {
   try {
     const data = await api("/api/console/dev/rekam");
     $("rekam-baris").innerHTML = data.lines.length
-      ? data.lines.map(barisRekam).join("") : barisKosong(6, "kosongLine");
+      ? data.lines.map(barisRekam).join("") : barisKosong(5, "kosongLine");
 
     // Kolom setelan TIDAK ditimpa selama sedang diketik: polling tiap 3 detik
     // akan menghapus angka di bawah jari support.
