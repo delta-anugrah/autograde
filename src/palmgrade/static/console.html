@@ -375,6 +375,10 @@
   .plc-coil { padding:0 13px 12px; display:flex; flex-wrap:wrap; gap:8px; }
   button.uji-coil { flex:1; min-width:9rem; min-height:2.6rem; border-color:var(--danger-line);
                      background:var(--danger-bg); color:var(--danger-fg); font-weight:600; }
+  /* Hijau = OK, merah = NG/Error. Warna dibaca lebih cepat daripada tulisan
+     saat tangan sedang di panel dan mata bolak-balik ke GX Works2. Merah tetap
+     bawaan tombol ini karena dua dari tiga memang "buang"/"rusak". */
+  button.uji-coil.ok { border-color:var(--acc); background:var(--acc-bg); color:var(--acc); }
   button.uji-coil:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
   /* Dua baris: peran yang dibaca manusia di atas, alamat M yang dicocokkan ke
      GX Works2 di bawah. Keduanya perlu — nama saja tidak bisa dicocokkan ke
@@ -3761,11 +3765,18 @@ function alamatPlc(nomor, prefiks) {
   return `${prefiks || "M"}${nomor}`;
 }
 
+// Kelas warna satu coil, dari OFFSET-nya (base+0 = OK) — bukan dari nomor
+// alamat. Base milik panel dan pernah berubah sekali; mencocokkan angka di
+// sini berarti warnanya salah diam-diam pada perubahan berikutnya.
+function kelasCoil(coil, base) {
+  return coil - base === 0 ? "ok" : "";
+}
+
 function isiCoilPlc(kode, data, sibuk) {
   if (!data.enabled) return `<span class="muted">${esc(t("plcMati"))}</span>`;
   const base = data.coil_base || 0;
   return (data.testable_coils || []).map((coil) => `
-    <button type="button" class="uji-coil" data-line="${esc(kode)}" data-coil="${coil}"
+    <button type="button" class="uji-coil ${kelasCoil(coil, base)}" data-line="${esc(kode)}" data-coil="${coil}"
       ${sibuk ? `disabled title="${esc(t("coilMatiLineSibuk"))}"` : ""}>
       <b>${esc(peranCoil(coil, base, kode))}</b><span class="alamat">${esc(alamatPlc(coil, data.device_prefix))}</span>
     </button>`).join("");

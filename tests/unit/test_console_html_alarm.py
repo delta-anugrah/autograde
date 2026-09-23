@@ -212,3 +212,34 @@ def test_tabel_alamat_ada_di_bawah_konfirmasi():
 def test_tabel_alamat_menyebut_arah_pc_dan_plc():
     peta = HTML.split('id="plc-peta"', 1)[1].split("</section>", 1)[0]
     assert "M1008" in peta and "M1110" in peta, "tabel alamat tidak lengkap"
+
+
+# ── warna tombol: hijau OK, merah NG/Error ─────────────────────────────────
+
+
+def test_tombol_ok_diberi_kelas_hijau_ng_dan_error_merah():
+    """Warna dibaca lebih cepat daripada tulisan saat tangan sedang di panel.
+    Kelasnya diturunkan dari OFFSET (base+0 = OK), bukan dari nomor alamat."""
+    fn = HTML.split("function isiCoilPlc(", 1)[1].split("\n}\n", 1)[0]
+    assert "kelasCoil(" in fn, "tombol tidak memakai kelasCoil()"
+    assert ".uji-coil.ok" in HTML, "CSS untuk tombol OK (hijau) tidak ada"
+
+
+@butuh_node
+def test_kelas_warna_mengikuti_offset_bukan_nomor_alamat():
+    fn = _fungsi("kelasCoil")
+    skrip = fn + (
+        "\nconsole.log(JSON.stringify(["
+        # Lampung: 1000 OK, 1001 NG, 1002 ERROR
+        "kelasCoil(1000,1000), kelasCoil(1001,1000), kelasCoil(1002,1000),"
+        # camera 2: 1003 OK walau angkanya ganjil
+        "kelasCoil(1003,1003), kelasCoil(1004,1003),"
+        # base dev: 0 tetap OK
+        "kelasCoil(0,0), kelasCoil(1,0),"
+        # piston / di luar tiga offset
+        "kelasCoil(1010,1000)]));"
+    )
+    hasil = json.loads(subprocess.run(
+        [NODE, "-e", skrip], capture_output=True, text=True, check=True, timeout=30
+    ).stdout.strip())
+    assert hasil == ["ok", "", "", "ok", "", "ok", "", ""]

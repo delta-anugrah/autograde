@@ -367,3 +367,92 @@ def test_build_plc_client_masih_bisa_modbus(plc):
     cfg.plc_port = plc.port
     cfg.plc_protocol = "modbus"
     assert isinstance(build_plc_client(cfg), ModbusPlcClient)
+
+
+# ── ACC/REJ hasil grading mendarat di coil yang BENAR ────────────────────────
+
+
+def _coil_yang_ditulis_on(plc) -> list[int]:
+    """Alamat yang benar-benar dinyalakan (level 1), urut kejadian."""
+    hasil = []
+    for paket in plc.paket:
+        if int.from_bytes(paket[11:13], "little") == 0x0401:
+            continue
+        hasil += [a for a, n in _device_yang_ditulis(paket) if n == 1]
+    return hasil
+
+
+def test_verdict_acc_mendarat_di_M1000_lewat_submit_grading(plc):
+    """Jalur yang SUNGGUHAN dipakai grading: `submit_grading("acc")` — fungsi
+    yang sama yang dipanggil frame_processing_worker — sampai ke M1000.
+
+    Dites lewat worker asli + pymcprotocol asli + socket, bukan dengan membaca
+    `_coil_for`: yang menentukan janjang matang menggerakkan piston yang benar
+    adalah bingkai yang keluar di kabel, bukan niat di kode.
+    """
+    w = _worker(plc)
+    w.submit("acc")
+    w.run_once(now=1000.0)
+
+    assert 1000 in _coil_yang_ditulis_on(plc)
+    assert 1001 not in _coil_yang_ditulis_on(plc), "REJ ikut menyala untuk janjang ACC"
+
+
+def test_verdict_rej_mendarat_di_M1001(plc):
+    w = _worker(plc)
+    w.submit("rej")
+    w.run_once(now=1000.0)
+
+    assert 1001 in _coil_yang_ditulis_on(plc)
+    assert 1000 not in _coil_yang_ditulis_on(plc), "OK ikut menyala untuk janjang REJ"
+
+
+def test_huruf_besar_kecil_verdict_tidak_mengubah_coil(plc):
+    """`verdict_for_class` mengembalikan "ACC"/"REJ" huruf besar, worker
+    menerimanya lewat `.lower()`. Kalau suatu saat ada pemanggil yang lupa
+    menurunkan hurufnya, janjang itu TIDAK BOLEH diam-diam tidak dipulse."""
+    w = _worker(plc)
+    w.submit("ACC")
+    w.submit("Rej")
+    w.run_once(now=1000.0)
+
+    dinyalakan = _coil_yang_ditulis_on(plc)
+    assert 1000 in dinyalakan and 1001 in dinyalakan
+
+
+def test_verdict_asing_tidak_menggerakkan_coil_mana_pun(plc):
+    # Nilai di luar acc/rej harus diam, bukan menebak salah satu piston.
+    w = _worker(plc)
+    w.submit("matang")
+    w.run_once(now=1000.0)
+
+    assert [c for c in _coil_yang_ditulis_on(plc) if c in (1000, 1001)] == []
+
+
+def test_kelas_model_sampai_coil_tanpa_ada_yang_tertukar(plc):
+    """Rantai penuh: kelas yang dilihat model -> verdict -> coil di kabel.
+
+    Dipisah dari test di atas karena inilah yang menjawab "sinyalnya sesuai
+    tidak": `Ripe` HARUS menggerakkan piston OK, `Unripe` dan `JK` piston NG.
+    Memakai `verdict_for_class` yang sungguhan, jadi retrain yang menukar
+    pemetaan kelas akan menjatuhkan test ini, bukan diam-diam menyortir buah
+    matang ke ramp buangan.
+    """
+    from palmgrade.domain.grade_class import JK, RIPE, TP, UNRIPE, verdict_for_class
+
+    harapan = {RIPE: 1000, UNRIPE: 1001, JK: 1001}
+    for kelas, coil_seharusnya in harapan.items():
+        palsu = _PlcPalsu()
+        try:
+            w = _worker(palsu)
+            w.submit((verdict_for_class(kelas) or "REJ").lower())
+            w.run_once(now=1000.0)
+            dinyalakan = _coil_yang_ditulis_on(palsu)
+            assert coil_seharusnya in dinyalakan, f"{kelas} tidak menyalakan M{coil_seharusnya}"
+            lawan = 1001 if coil_seharusnya == 1000 else 1000
+            assert lawan not in dinyalakan, f"{kelas} ikut menyalakan M{lawan}"
+        finally:
+            palsu.close()
+
+    # TP bukan janjang: tidak punya verdict, jadi tidak pernah menyentuh PLC.
+    assert verdict_for_class(TP) is None
