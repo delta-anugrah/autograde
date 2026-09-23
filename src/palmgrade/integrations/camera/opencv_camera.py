@@ -42,13 +42,29 @@ class OpenCVCamera(CameraSource):
             self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         if self.height:
             self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        if self.fps:
+        # Sebuah BERKAS punya lajunya sendiri, dan itu yang menang — selalu.
+        # Menyetel `CAP_PROP_FPS` pada berkas tidak mengubah isinya; ia cuma
+        # membuat `get_fps()` membalas angka yang dipaksakan, jadi laju asli
+        # hilang tanpa jejak dan pemutaran ikut melambat. Terjadi di PC pabrik:
+        # `CAMERA_FPS=20` membuat berkas 30 fps diputar 20 fps, dan rekamannya
+        # ikut salah durasi.
+        #
+        # Untuk perangkat sungguhan (webcam) menyetelnya tetap bermakna — itu
+        # perintah ke driver, bukan pembacaan.
+        terbaca = self._cap.get(cv2.CAP_PROP_FPS)
+        if self._is_video_file and terbaca and terbaca > 0:
+            if self.fps and abs(float(self.fps) - terbaca) > 0.01:
+                logger.info(
+                    "Berkas video berjalan pada lajunya sendiri: %.2f fps "
+                    "(CAMERA_FPS=%s diabaikan untuk berkas)",
+                    terbaca, self.fps,
+                )
+            self.fps = terbaca
+        elif self.fps:
             self._cap.set(cv2.CAP_PROP_FPS, self.fps)
-        else:
-            detected = self._cap.get(cv2.CAP_PROP_FPS)
-            if detected and detected > 0:
-                self.fps = detected
-                logger.info("OpenCV camera: auto-detected FPS=%.2f", self.fps)
+        elif terbaca and terbaca > 0:
+            self.fps = terbaca
+            logger.info("OpenCV camera: auto-detected FPS=%.2f", self.fps)
         self.connected = True
         self._exhausted = False
         logger.info("OpenCV camera connected: %s", self.source)
