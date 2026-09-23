@@ -89,10 +89,13 @@ async def plc_state() -> PlcStateResponse:
     snapshot = diagnostics()
     if snapshot is None:
         return PlcStateResponse(enabled=False)
+    settings = get_settings()
     return PlcStateResponse(
         enabled=True,
         inputs=snapshot["inputs"],
-        testable_coils=sorted(testable_coils(get_settings())),
+        testable_coils=sorted(testable_coils(settings)),
+        coil_base=settings.plc_coil_base,
+        di_base=getattr(settings, "plc_di_base", 0),
     )
 
 

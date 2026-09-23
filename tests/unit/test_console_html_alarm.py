@@ -152,3 +152,56 @@ def test_timer_uji_plc_lebih_rapat_dari_diagnostik():
     plc = int(re.search(r"plcTimer = setInterval\(muatPlc, (\d+)\)", blok).group(1))
     diag = int(re.search(r"diagnostikTimer = setInterval\(muatDiagnostik, (\d+)\)", blok).group(1))
     assert plc < diag, f"timer PLC ({plc} ms) tidak lebih rapat dari diagnostik ({diag} ms)"
+
+
+# ── layar Uji PLC: nama jelas di tombol + tabel alamat ──────────────────────
+
+
+def test_tombol_uji_coil_menyebut_peran_bukan_cuma_nomor():
+    """"Test coil 1000" tidak mengatakan apa-apa ke orang yang memegang panel.
+    Yang dibaca harus "CAMERA 1 OK" + alamat M-nya, supaya cocok dengan daftar
+    yang dipegang tim PLC tanpa perlu membuka dokumen."""
+    fn = HTML.split("function isiCoilPlc(", 1)[1].split("\n}\n", 1)[0]
+    assert "peranCoil(" in fn, "tombol tidak memakai peranCoil()"
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("coilOk:", "coilNg:", "coilError:", "coilPiston:"):
+            assert kunci in isi, f"KAMUS.{bahasa} tanpa {kunci}"
+
+
+@butuh_node
+def test_peran_coil_diturunkan_dari_base_bukan_angka_mati():
+    """Offset +0/+1/+2 relatif base line. Dijalankan sungguhan lewat node:
+    versi regex-nya cuma bisa menebak, sementara yang penting adalah line 2
+    dan 3 ikut benar saat panel memberi blok alamat lain."""
+    fn = _fungsi("peranCoil")
+    skrip = (
+        "const KAMUS={id:{coilOk:'Kamera {n} OK',coilNg:'Kamera {n} NG',"
+        "coilError:'Kamera {n} Error',coilPiston:'Piston manual'}};"
+        "let bahasa='id'; const t=(k)=>KAMUS[bahasa][k] ?? k;\n" + fn +
+        "\nconsole.log(JSON.stringify(["
+        "peranCoil(1000,1000), peranCoil(1001,1000), peranCoil(1002,1000),"
+        "peranCoil(1003,1003), peranCoil(1005,1003),"
+        "peranCoil(1006,1006), peranCoil(1008,1006), peranCoil(1010,1000)]));"
+    )
+    hasil = json.loads(subprocess.run(
+        [NODE, "-e", skrip], capture_output=True, text=True, check=True, timeout=30
+    ).stdout.strip())
+    assert hasil == [
+        "Kamera 1 OK", "Kamera 1 NG", "Kamera 1 Error",
+        "Kamera 2 OK", "Kamera 2 Error",
+        "Kamera 3 OK", "Kamera 3 Error",
+        "Piston manual",
+    ]
+
+
+def test_tabel_alamat_ada_di_bawah_konfirmasi():
+    # Referensi untuk developer/teknisi: seluruh peta M dalam satu layar.
+    assert HTML.index('id="plc-peta"') > HTML.index('id="plc-konfirmasi"')
+    for alamat in ("M1000", "M1009", "M1100", "M1111"):
+        assert alamat in HTML, f"{alamat} tidak ada di tabel alamat"
+
+
+def test_tabel_alamat_menyebut_arah_pc_dan_plc():
+    peta = HTML.split('id="plc-peta"', 1)[1].split("</section>", 1)[0]
+    assert "M1008" in peta and "M1110" in peta, "tabel alamat tidak lengkap"

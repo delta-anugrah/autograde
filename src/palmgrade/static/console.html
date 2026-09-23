@@ -376,6 +376,27 @@
   button.uji-coil { flex:1; min-width:9rem; min-height:2.6rem; border-color:var(--danger-line);
                      background:var(--danger-bg); color:var(--danger-fg); font-weight:600; }
   button.uji-coil:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
+  /* Dua baris: peran yang dibaca manusia di atas, alamat M yang dicocokkan ke
+     GX Works2 di bawah. Keduanya perlu — nama saja tidak bisa dicocokkan ke
+     ladder, angka saja tidak berarti apa-apa buat yang memegang panel. */
+  button.uji-coil { display:flex; flex-direction:column; align-items:center; justify-content:center;
+                    gap:2px; line-height:1.25; padding:6px 10px; }
+  button.uji-coil .alamat { display:block; font-family:var(--mono); font-size:.76rem;
+                            font-weight:400; opacity:.7; letter-spacing:.02em; }
+  /* Peta alamat: referensi diam, dibaca developer/teknisi, bukan tombol. */
+  #plc-peta { margin:14px 13px 0; }
+  #plc-peta h3 { margin:0 0 6px; font-size:.82rem; letter-spacing:.06em;
+                 text-transform:uppercase; color:var(--muted); }
+  /* Dua tabel berdampingan selama muat; menumpuk sendiri di layar sempit.
+     `width:auto` + `max-content` supaya kolom keterangan tidak melar mengisi
+     sisa baris — daftar alamat dibaca dengan menyapu mata ke bawah. */
+  #plc-peta .peta-grid { display:flex; flex-wrap:wrap; gap:14px 36px; align-items:flex-start; }
+  #plc-peta table { border-collapse:collapse; font-size:.8rem; width:max-content; }
+  #plc-peta caption { text-align:left; padding:0 0 5px; font-weight:600;
+                      color:var(--muted); font-size:.78rem; }
+  #plc-peta tbody tr:nth-child(even) { background:var(--bg-lembut, rgba(127,127,127,.06)); }
+  #plc-peta td { padding:2px 0; white-space:nowrap; }
+  #plc-peta td:first-child { font-family:var(--mono); font-weight:700; padding-right:16px; }
 
   /* Konfirmasi uji PLC: inline, bukan dialog bawaan browser - lihat komentar HTML
      di #sec-plc. Sama bentuknya dengan .tara-grup, ditempatkan di luar #plc-kartu
@@ -1436,6 +1457,51 @@
     <button type="button" id="plc-konfirmasi-jalankan" class="utama" data-t="btnUjiPlcJalankan">Jalankan</button>
     <button type="button" id="plc-konfirmasi-batal" data-t="btnBatal">Batal</button>
   </div>
+  <!--
+    Peta alamat, statis: daftar yang dipegang tim PLC (23 Sep 2026), ditaruh di
+    layar yang sama dengan tombolnya supaya teknisi tidak perlu membuka PDF
+    sambil berdiri di depan panel. Sengaja HTML mati, bukan dirender dari
+    server: ini dokumen kesepakatan dengan panel, bukan keadaan yang berubah.
+    Sumber kebenaran alamat tetap docker-compose.yml, diikat ke dokumen lewat
+    test_plc_docs_match_compose.
+  -->
+  <div id="plc-peta">
+    <h3 data-t="petaJudul">Peta alamat PLC</h3>
+    <div class="peta-grid">
+    <table>
+      <caption data-t="petaDariPc"></caption>
+      <tbody>
+      <tr><td>M1000</td><td>CAMERA 1 ADJUGMEN OK</td></tr>
+      <tr><td>M1001</td><td>CAMERA 1 ADJUGMEN NG</td></tr>
+      <tr><td>M1002</td><td>CAMERA 1 ERROR</td></tr>
+      <tr><td>M1003</td><td>CAMERA 2 ADJUGMEN OK</td></tr>
+      <tr><td>M1004</td><td>CAMERA 2 ADJUGMEN NG</td></tr>
+      <tr><td>M1005</td><td>CAMERA 2 ERROR</td></tr>
+      <tr><td>M1006</td><td>CAMERA 3 ADJUGMEN OK</td></tr>
+      <tr><td>M1007</td><td>CAMERA 3 ADJUGMEN NG</td></tr>
+      <tr><td>M1008</td><td>CAMERA 3 ERROR</td></tr>
+      <tr><td>M1009</td><td>HEARTBIT PC</td></tr>
+      </tbody>
+    </table>
+    <table>
+      <caption data-t="petaKePc"></caption>
+      <tbody>
+      <tr><td>M1100</td><td>MOTOR 1 FAULT</td></tr>
+      <tr><td>M1101</td><td>MOTOR 2 FAULT</td></tr>
+      <tr><td>M1102</td><td>MOTOR 3 FAULT</td></tr>
+      <tr><td>M1103</td><td>MOTOR 4 FAULT</td></tr>
+      <tr><td>M1104</td><td>MOTOR 5 FAULT</td></tr>
+      <tr><td>M1105</td><td>MOTOR 6 FAULT</td></tr>
+      <tr><td>M1106</td><td>MOTOR 7 FAULT</td></tr>
+      <tr><td>M1107</td><td>MOTOR 8 FAULT</td></tr>
+      <tr><td>M1108</td><td>MOTOR 9 FAULT</td></tr>
+      <tr><td>M1109</td><td>MOTOR 10 FAULT</td></tr>
+      <tr><td>M1110</td><td>MOTOR 11 FAULT</td></tr>
+      <tr><td>M1111</td><td>E-STOP OP PANEL</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
 </section>
 
 <section id="sec-sumber-kamera" class="panel" hidden data-dev="1">
@@ -1647,6 +1713,9 @@ const KAMUS = {
     diMotor:"MOTOR {n}", diEstop:"E-STOP", diKosong:"-",
     gagalPlc:"Gagal memuat status PLC",
     btnUjiCoil:"Uji coil {coil}", coilMatiLineSibuk:"Line sedang memproses truk",
+    coilOk:"Kamera {n} OK", coilNg:"Kamera {n} NG", coilError:"Kamera {n} Error",
+    coilPiston:"Piston manual", petaJudul:"Peta alamat PLC (daftar tim PLC, 23 Sep 2026)",
+    petaDariPc:"PC menulis → PLC membaca", petaKePc:"PLC menulis → PC membaca",
     konfirmasiUjiPlc:"Coil {coil} di {line} akan menyala sesaat - ini menggerakkan barang sungguhan. Ketik UJI untuk lanjut:",
     phUjiPlc:"Ketik UJI", btnUjiPlcJalankan:"Jalankan",
     ujiPlcDibatalkan:"Dibatalkan - konfirmasi tidak cocok",
@@ -1794,6 +1863,9 @@ const KAMUS = {
     diMotor:"MOTOR {n}", diEstop:"E-STOP", diKosong:"-",
     gagalPlc:"Failed to load PLC status",
     btnUjiCoil:"Test coil {coil}", coilMatiLineSibuk:"Line is processing a truck",
+    coilOk:"Camera {n} OK", coilNg:"Camera {n} NG", coilError:"Camera {n} Error",
+    coilPiston:"Manual piston", petaJudul:"PLC address map (PLC team list, 23 Sep 2026)",
+    petaDariPc:"PC writes → PLC reads", petaKePc:"PLC writes → PC reads",
     konfirmasiUjiPlc:"Coil {coil} on {line} will pulse briefly - this moves real hardware. Type UJI to continue:",
     phUjiPlc:"Type UJI", btnUjiPlcJalankan:"Fire",
     ujiPlcDibatalkan:"Cancelled - confirmation did not match",
@@ -3653,19 +3725,39 @@ function namaBitPlc(i) {
   return t("diKosong");
 }
 
-function isiDiPlc(inputs) {
+function isiDiPlc(inputs, diBase) {
   if (!inputs || !inputs.length) return `<span class="muted">${esc(t("plcMati"))}</span>`;
+  // Alamat M di depan nama, bukan offset mentah: yang dipegang tim PLC daftar
+  // M1100.., dan menerjemahkan offset ke alamat di kepala adalah cara paling
+  // mudah salah saat commissioning.
+  const base = diBase || 0;
   return inputs.map((on, i) =>
-    `<span class="plc-di-bit${on ? " aktif" : ""}">${i}: ${esc(namaBitPlc(i))} = ${on ? esc(t("diAktif")) : esc(t("diMati"))}</span>`
+    `<span class="plc-di-bit${on ? " aktif" : ""}">M${base + i} ${esc(namaBitPlc(i))} = ${on ? esc(t("diAktif")) : esc(t("diMati"))}</span>`
   ).join(" ");
+}
+
+// Peran satu coil, diturunkan dari `coil_base` line itu — BUKAN dari angkanya.
+// Blok alamat milik panel dan sudah pernah berubah sekali (coil 0/3/6 jadi
+// M1000/1003/1006); memaku angka di sini membuat line 2 dan 3 salah label
+// diam-diam pada perubahan berikutnya. Nomor kamera dihitung dari jarak base
+// ke base line 1 (tiap line tiga alamat), jadi 1003 -> kamera 2.
+function peranCoil(coil, base) {
+  const d = coil - base;
+  if (d === 0 || d === 1 || d === 2) {
+    const n = Math.floor((base - 1000) / 3) + 1;
+    const kunci = d === 0 ? "coilOk" : d === 1 ? "coilNg" : "coilError";
+    return t(kunci).replace("{n}", String(n > 0 ? n : 1));
+  }
+  return t("coilPiston");
 }
 
 function isiCoilPlc(kode, data, sibuk) {
   if (!data.enabled) return `<span class="muted">${esc(t("plcMati"))}</span>`;
+  const base = data.coil_base || 0;
   return (data.testable_coils || []).map((coil) => `
     <button type="button" class="uji-coil" data-line="${esc(kode)}" data-coil="${coil}"
       ${sibuk ? `disabled title="${esc(t("coilMatiLineSibuk"))}"` : ""}>
-      ${esc(t("btnUjiCoil").replace("{coil}", coil))}
+      <b>${esc(peranCoil(coil, base))}</b><span class="alamat">M${coil}</span>
     </button>`).join("");
 }
 
@@ -4076,7 +4168,7 @@ async function muatPlcSatuLine(kode) {
   const sibuk = kartu.dataset.plcSibuk === "1";
   try {
     const data = await api(`/api/console/dev/plc/${encodeURIComponent(kode)}`);
-    kartu.querySelector("[data-plc-di]").innerHTML = isiDiPlc(data.inputs);
+    kartu.querySelector("[data-plc-di]").innerHTML = isiDiPlc(data.inputs, data.di_base);
     kartu.querySelector("[data-plc-coil]").innerHTML = isiCoilPlc(kode, data, sibuk);
   } catch (e) {
     if (e.kode === "belum_masuk") return;
