@@ -340,3 +340,43 @@ def test_media_dir_selamat_dari_override_prod(dirender_prod, service):
     satu pun galat yang menunjuk ke compose.
     """
     assert _env(dirender_prod, service).get("MEDIA_DIR") == "/media"
+
+
+# ------------------------------------------- media.env sampai ke TIAP line
+
+
+@butuh_docker
+@pytest.mark.parametrize("service", LINES)
+def test_tiap_line_memount_media_env(dirender, service):
+    """Line membaca `media.env` sendiri, jadi berkasnya harus ada di dalamnya.
+
+    Environment container BEKU sejak container dibuat. Tombol "Simpan &
+    Restart" cuma menyuruh proses line keluar; `restart: unless-stopped`
+    menyalakan container yang SAMA dengan environment yang sama. Tanpa mount
+    ini setelan baru tidak pernah sampai — layar bilang Video, gambarnya tetap
+    foto. Terbukti di Lampung 2026-09-23.
+    """
+    assert "/config/media.env" in _target_mount(dirender, service)
+
+
+@butuh_docker
+@pytest.mark.parametrize("service", LINES)
+def test_line_tahu_di_mana_media_env(dirender, service):
+    """Mount saja tidak cukup: line membacanya lewat `MEDIA_ENV_PATH`.
+
+    Kontrol negatif untuk test di atas — berkas yang ter-mount tapi tidak
+    pernah dicari sama saja dengan tidak ada, dan tidak ada galat yang muncul.
+    """
+    assert _env(dirender, service).get("MEDIA_ENV_PATH") == "/config/media.env"
+
+
+@butuh_docker
+@pytest.mark.parametrize("service", LINES)
+def test_mount_media_env_selamat_dari_override_prod(dirender_prod, service):
+    """`prod` memakai `volumes: !override`, yang MENGGANTI daftar volumes.
+
+    Ini yang paling gampang hilang: menambah mount di compose dasar saja
+    membuatnya lenyap di pabrik tanpa satu pun galat — gejalanya persis seperti
+    fitur yang tidak pernah bekerja.
+    """
+    assert "/config/media.env" in _target_mount(dirender_prod, service)
