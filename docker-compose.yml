@@ -99,6 +99,14 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_1_MEDIA_FILE:-}
+      # Folder tempat MEDIA_FILE dicari. WAJIB ada di tiap line, bukan
+      # cuma di konsol: tanpa ini `media_dir` turun ke `repo_root/media`,
+      # yang di dalam container tidak ada. Untuk `video` akibatnya line
+      # gagal buka berkas lalu jatuh ke CAMERA_DEVICE_INDEX — mencari
+      # webcam yang tidak terpasang, mati, dan `restart: unless-stopped`
+      # menyalakannya lagi selamanya. Terbukti di Lampung 2026-09-23:
+      # `RuntimeError: Tidak bisa buka camera source: 2`.
+      - MEDIA_DIR=${MEDIA_DIR:-/media}
       # Folder rekaman video developer (layar Rekam Video). Di luar
       # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
       # retensi otomatis — dihapus manual oleh yang merekam.
@@ -224,6 +232,14 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_2_MEDIA_FILE:-}
+      # Folder tempat MEDIA_FILE dicari. WAJIB ada di tiap line, bukan
+      # cuma di konsol: tanpa ini `media_dir` turun ke `repo_root/media`,
+      # yang di dalam container tidak ada. Untuk `video` akibatnya line
+      # gagal buka berkas lalu jatuh ke CAMERA_DEVICE_INDEX — mencari
+      # webcam yang tidak terpasang, mati, dan `restart: unless-stopped`
+      # menyalakannya lagi selamanya. Terbukti di Lampung 2026-09-23:
+      # `RuntimeError: Tidak bisa buka camera source: 2`.
+      - MEDIA_DIR=${MEDIA_DIR:-/media}
       # Folder rekaman video developer (layar Rekam Video). Di luar
       # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
       # retensi otomatis — dihapus manual oleh yang merekam.
@@ -349,6 +365,14 @@ services:
       - CAMERA_FPS=${CAMERA_FPS:-20}
       # NAMA berkas di folder media, bukan path. Kode yang menggabungkannya.
       - MEDIA_FILE=${LINE_3_MEDIA_FILE:-}
+      # Folder tempat MEDIA_FILE dicari. WAJIB ada di tiap line, bukan
+      # cuma di konsol: tanpa ini `media_dir` turun ke `repo_root/media`,
+      # yang di dalam container tidak ada. Untuk `video` akibatnya line
+      # gagal buka berkas lalu jatuh ke CAMERA_DEVICE_INDEX — mencari
+      # webcam yang tidak terpasang, mati, dan `restart: unless-stopped`
+      # menyalakannya lagi selamanya. Terbukti di Lampung 2026-09-23:
+      # `RuntimeError: Tidak bisa buka camera source: 2`.
+      - MEDIA_DIR=${MEDIA_DIR:-/media}
       # Folder rekaman video developer (layar Rekam Video). Di luar
       # artifacts/ dengan sengaja: rekaman bukan bukti grading dan TIDAK ikut
       # retensi otomatis — dihapus manual oleh yang merekam.
