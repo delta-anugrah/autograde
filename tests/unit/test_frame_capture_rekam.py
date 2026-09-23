@@ -124,15 +124,25 @@ def test_worker_menulis_fps_kamera_ke_state():
     assert state.camera_fps_terukur == 20.0
 
 
-def test_kamera_tanpa_laporan_menulis_nol():
-    """Berkas video dan webcam tidak bisa melapor; `0` berarti "pakai angka
-    setelan", bukan "20 fps" yang ditebak."""
+def test_kamera_tanpa_laporan_memakai_camera_fps():
+    """Kamera yang tidak melapor tetap punya laju — `CAMERA_FPS`, yang memang
+    dipakai worker untuk memacu dirinya.
+
+    ⚠️ Test ini dulu menuntut `0`, dan itu salah. Docstring-nya sendiri
+    menyebut 20 sebagai "ditebak", padahal `CAMERA_FPS` justru laju yang
+    SEBENARNYA dipakai mengambil frame. Akibatnya terlihat di Lampung: Hikrobot
+    tidak melaporkan lajunya, state ditulis `0`, dan rekaman jatuh ke angka
+    layar — 19 detik kejadian jadi berkas 77 detik.
+
+    `0` disisakan untuk kasus yang benar-benar tanpa laju; lihat
+    `test_fps_ikut_sumber.py`.
+    """
     state = RuntimeState()
     w = FrameCaptureWorker(camera=KameraPalsu([]), state=state, target_fps=5)
 
     w.adopt_camera_frame_rate()
 
-    assert state.camera_fps_terukur == 0.0
+    assert state.camera_fps_terukur == 5.0
 
 
 def test_bawaan_state_nol():
