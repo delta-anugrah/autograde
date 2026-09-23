@@ -259,7 +259,7 @@ dengan tangkapan layar MVS ada di `docs/SETUP.md`; ini urutan ringkasnya.
 - [ ] PC dengan GPU NVIDIA; `nvidia-smi` sudah keluar tabel. Disk sisa ≥ 30 GB.
 - [ ] **Dua NIC**: satu untuk kamera (switch gigabit khusus), satu untuk internet (USB ethernet boleh).
 - [ ] Switch gigabit yang mendukung jumbo frame (MTU 9000). **Splitter bukan switch.**
-- [ ] Berkas model `best.pt` (±130 MB). **Tidak ada di repositori.**
+- [ ] Berkas model `best.pt` 4 kelas (±50 MB; yang 130 MB itu model lama 3 kelas, tidak dikenali kode). **Tidak ada di repositori.**
 - [ ] Serial tiga kamera Hikrobot.
 - [ ] Empat nilai `R2_*` Cloudflare kalau foto mau diarsipkan ke cloud.
 - [ ] Kunci integrasi AutoERP (`ERP_API_KEY`/`ERP_API_SECRET`) kalau langsung disambung. Boleh belakangan.

@@ -18,7 +18,7 @@ langsung dari checkpoint, bukan dari dokumen:
 | Kelas | `{0: JK, 1: Ripe, 2: TP, 3: Unripe}` | `{0: ACC, 1: Rej, 2: TP}` |
 | Backbone | yolov8m | yolov8x |
 | Parameter | 25,9 juta | 68,2 juta |
-| Ukuran | 49,6 MB | 130,4 MB |
+| Ukuran | 52,0 MB (52.040.274 byte, md5 `2dc72ada…`) | 130,4 MB |
 | mAP50 | 0,982 | 0,981 |
 | mAP50-95 | 0,813 | 0,846 |
 | Precision / Recall | 0,967 / 0,981 | 0,965 / 0,974 |
@@ -96,16 +96,20 @@ make build-engine
 ```
 
 **PC pabrik — `make build-engine` NGGAK BISA** (target Makefile nge-build dari
-source yang nggak ada di situ). Wajib tiga `-f`:
+source yang nggak ada di situ). Folder service-nya `autograde/` sejak 2026-09-18
+(dulu `vision/`), dan launchernya `autograde`, bukan `palmgrade`. Matikan line
+dulu supaya build nggak berebut VRAM dengan 3 line yang lagi jalan:
 ```bash
 cd /opt/palmgrade
-docker compose --project-directory vision \
-  -f vision/docker-compose.yml \
-  -f vision/docker-compose.prod.yml \
-  -f vision/docker-compose.factory.yml \
-  run --rm --entrypoint python ripe-line-1 scripts/build_engine.py
-palmgrade restart
+autograde stop
+F=(-f autograde/docker-compose.yml -f autograde/docker-compose.prod.yml)
+[ -f autograde/docker-compose.factory.yml ] && F+=(-f autograde/docker-compose.factory.yml)
+docker compose --project-directory autograde "${F[@]}" \
+  run --rm --no-deps --entrypoint python ripe-line-1 scripts/build_engine.py
+ls -la autograde/engines/        # harus muncul <stem>.sm86.engine (RTX 3060)
+autograde
 ```
+Terbukti di Lampung 2026-09-23: `best.sm86.engine` 45 MB jadi dalam ±4 menit.
 File `prod` itu yang bawa mount `./engines:/app/engines`. Tanpa dia, engine
 ditulis ke container sekali-pakai dan **hilang** begitu perintah selesai.
 
@@ -162,3 +166,35 @@ Model produksi datang dari tim AI, **bukan dari repo ini** — nggak ada kode
 training maupun dataset di sini. Arsip kandidat + `results.csv` +
 `confusion_matrix.png` ada di workspace (`Model baru/`), di luar git dan cuma di
 laptop developer. Kalau butuh reproduksi training, itu ke tim AI.
+
+## Gejala model salah pasang (terbukti Lampung 2026-09-23)
+
+`MODEL_FILE` di `.env` PC Lampung masih `best_3class_v2.pt` selama seminggu
+sesudah kode pindah ke 4 kelas (PR #100), karena **berkas model nggak ikut image**
+(`.dockerignore`) dan `autograde pull` nggak pernah menyentuh `models/`. Tiga
+gejala, satu penyebab:
+
+- label bbox `ACC` / `Rej` (nama kelas model lama), bukan `Ripe/Unripe/JK/TP`
+- `Rej` berwarna **hijau**: warna ikut verdict kelas yang dikenal, kelas asing
+  verdict-nya kosong dan jatuh ke warna PASS (`realtime_inspection_pipeline.draw_boxes`)
+- janjang lewat garis capture **nggak dihitung, nggak ke PLC** — kelas asing
+  dianggap bukan buah (`frame_processing_worker._grade_class_or_none`), dan
+  log `ERROR Kelas model tidak dikenal` cuma keluar **sekali per label per line**
+
+Cara buktiin, semuanya read-only:
+```bash
+grep MODEL_FILE /opt/palmgrade/autograde/.env
+docker logs ripe_line_2 2>&1 | grep -i "kelas model"      # terverifikasi vs tidak dikenal
+docker exec ripe_line_1 python -c "from ultralytics import YOLO; print(YOLO('/app/models/release/best.pt').names)"
+```
+Yang benar: `{0: 'JK', 1: 'Ripe', 2: 'TP', 3: 'Unripe'}`.
+
+⚠️ `best.pt` yang terpasang di Lampung (40.526.060 byte, md5 `9423c4c4…`,
+berkas 18 Sep) **bukan** berkas yang sama dengan di MacBook (52.040.274 byte,
+md5 `2dc72ada…`, 16 Sep). Kelasnya identik dan jalan; asalnya belum tercatat.
+Kalau membandingkan hasil dua mesin, cek md5 dulu.
+
+⚠️ `model_registry` memilih engine **cuma dari nama berkas** (`<stem>.sm<cc>.engine`
+ada atau nggak). Mengganti isi `best.pt` tanpa ganti nama = engine lama tetap
+dipakai, tanpa error. Ganti nama berkas atau hapus engine-nya.
+
