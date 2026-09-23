@@ -40,6 +40,9 @@ class LineStatusWorker:
                 "ffb_source": jawab.get("ffb_source"),
                 "piston_requested": piston.get("requested"),
                 "piston_open": piston.get("confirmed_open"),
+                # `or []`: line versi lama tidak mengirim field ini, dan None
+                # di layar akan membuat pita alarm gagal merender.
+                "alarms": jawab.get("alarms") or [],
             }
 
     async def run_loop(self) -> None:
