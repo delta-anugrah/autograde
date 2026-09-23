@@ -105,3 +105,45 @@ def test_frame_kosong_tidak_diteruskan():
 def test_bawaan_runtime_state_tanpa_recorder():
     # Line yang tidak pernah merekam tidak boleh menyentuh modul rekam.
     assert RuntimeState().video_recorder is None
+
+
+# ── fps kamera dipublikasikan ke state ──────────────────────────────────────
+
+
+def test_worker_menulis_fps_kamera_ke_state():
+    """Endpoint `/internal/rekam/mulai` tidak punya akses ke worker, jadi laju
+    kamera dilewatkan lewat `RuntimeState` — satu tempat yang memang untuk
+    keadaan yang dibagi antar lapisan."""
+    state = RuntimeState()
+    kamera = KameraPalsu([])
+    kamera.get_fps = lambda: 20.0
+    w = FrameCaptureWorker(camera=kamera, state=state, target_fps=5)
+
+    w.adopt_camera_frame_rate()
+
+    assert state.camera_fps_terukur == 20.0
+
+
+def test_kamera_tanpa_laporan_memakai_camera_fps():
+    """Kamera yang tidak melapor tetap punya laju — `CAMERA_FPS`, yang memang
+    dipakai worker untuk memacu dirinya.
+
+    ⚠️ Test ini dulu menuntut `0`, dan itu salah. Docstring-nya sendiri
+    menyebut 20 sebagai "ditebak", padahal `CAMERA_FPS` justru laju yang
+    SEBENARNYA dipakai mengambil frame. Akibatnya terlihat di Lampung: Hikrobot
+    tidak melaporkan lajunya, state ditulis `0`, dan rekaman jatuh ke angka
+    layar — 19 detik kejadian jadi berkas 77 detik.
+
+    `0` disisakan untuk kasus yang benar-benar tanpa laju; lihat
+    `test_fps_ikut_sumber.py`.
+    """
+    state = RuntimeState()
+    w = FrameCaptureWorker(camera=KameraPalsu([]), state=state, target_fps=5)
+
+    w.adopt_camera_frame_rate()
+
+    assert state.camera_fps_terukur == 5.0
+
+
+def test_bawaan_state_nol():
+    assert RuntimeState().camera_fps_terukur == 0.0

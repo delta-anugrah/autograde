@@ -514,6 +514,47 @@ class ConsoleService:
         self._queue_grading(closing)
         return {"line_code": line_code, "truck_id": None}
 
+    def penugasan_untuk_mesin(self, machine_id: str) -> dict[str, Any]:
+        """Penugasan yang tersimpan untuk satu line, supaya LINE bisa menariknya
+        saat dia start.
+
+        Pasangan `assign_truck`, arah sebaliknya. `assign_truck` mendorong saat
+        operator menekan tombol; ini menjawab saat line yang bertanya. Dua-duanya
+        perlu: konsol tidak tahu kapan sebuah line selesai boot, dan line tidak
+        tahu truk mana yang sedang dibongkar.
+
+        Tanpa ini, container line yang dibuat ulang di tengah shift kehilangan
+        truknya diam-diam — layar tetap menampilkan platnya (konsol membaca DB),
+        tapi janjang berikutnya tersimpan dengan `assignment_id` kosong dan tidak
+        pernah masuk rekap yang dibayar. Terbukti di Lampung 2026-09-23.
+
+        Line yang tidak dikenal dan line yang truknya sudah Lepas sama-sama
+        menjawab penugasan kosong, bukan error: "tidak ada truk" itu jawaban yang
+        sah, dan line yang menolak start gara-gara belum ditugaskan akan membuat
+        pabrik berhenti karena keadaan yang normal.
+        """
+        line = self._by_machine.get(machine_id)
+        kosong = {"assignment_id": "", "truck_id": "", "ffb_source": None, "plate": None}
+        if line is None:
+            return kosong
+        row = self.store.assignments().get(line.line_code) or {}
+        assignment_id = str(row.get("assignment_id") or "")
+        truck_id = str(row.get("truck_id") or "")
+        if not (assignment_id and truck_id):
+            return kosong
+        return {
+            "assignment_id": assignment_id,
+            "truck_id": truck_id,
+            "ffb_source": self._ffb_source(truck_id),
+            "plate": self._plate(truck_id),
+            # Jam penugasan ASLI, bukan jam line start: folder capture dinamai
+            # sekali per truk, jadi menyegarkannya akan memecah satu truk jadi
+            # dua folder di tengah pembongkaran.
+            "assigned_at": datetime.fromtimestamp(
+                float(row.get("started_at") or 0), self.tz
+            ).isoformat() if row.get("started_at") else None,
+        }
+
     # ------------------------------------------------------ setelan grading
 
     def setelan_grading(self) -> dict[str, Any]:
@@ -641,6 +682,12 @@ class ConsoleService:
             "lines": baris,
             "setelan": self.setelan_rekam(),
             "disk_bebas_gb": self._disk_bebas_gb(),
+            # Jalur PENUH, bukan "videos/" relatif: yang membacanya membuka PC
+            # pabrik lewat AnyDesk dan perlu tahu ke mana harus pergi. Jalurnya
+            # juga berbeda per mesin (`/opt/palmgrade/autograde/videos` di
+            # pabrik, `<repo>/videos` di jalur native), jadi layar tidak boleh
+            # mengarangnya sendiri.
+            "folder": self.settings.videos_dir_tampil,
         }
 
     def _disk_bebas_gb(self) -> float | None:

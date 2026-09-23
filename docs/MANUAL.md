@@ -195,7 +195,7 @@ Muncul hanya untuk akun berperan `support`. Tujuannya: memeriksa PC pabrik dari 
 | **Versi** | versi, machine id, environment, status lisensi (tanpa token) |
 | **Uji PLC** | status coil/DI per line dan tombol uji coil. Mati saat line memproses truk; konfirmasi ketik `UJI`; coil 9 (heartbeat) sengaja tidak ada |
 | **Sumber Kamera** | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik) |
-| **Rekam Video** | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi/fps/bitrate diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya** — mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari `/opt/palmgrade/autograde/videos/`. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
+| **Rekam Video** | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi dan bitrate diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya** — mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **FPS mengikuti sumbernya, bukan angka di layar**: berkas video memakai laju aslinya, kamera Hikrobot memakai `CAMERA_FPS`. Angka FPS di layar cuma dipakai kalau tidak ada keduanya. Itu yang membuat durasi rekaman sama dengan lama menekan Record. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari folder yang tertulis di kaki layar (`Disimpan di …`, di PC pabrik `/opt/palmgrade/autograde/videos/`). Sesudah menekan Stop, jalur lengkap berkasnya juga muncul sekali di notifikasi hijau. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
 | **Setelan** | ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`. Tab paling kanan |
 
 ### 3.6 Layar penuh di PC pabrik
@@ -259,7 +259,7 @@ dengan tangkapan layar MVS ada di `docs/SETUP.md`; ini urutan ringkasnya.
 - [ ] PC dengan GPU NVIDIA; `nvidia-smi` sudah keluar tabel. Disk sisa ≥ 30 GB.
 - [ ] **Dua NIC**: satu untuk kamera (switch gigabit khusus), satu untuk internet (USB ethernet boleh).
 - [ ] Switch gigabit yang mendukung jumbo frame (MTU 9000). **Splitter bukan switch.**
-- [ ] Berkas model `best.pt` (±130 MB). **Tidak ada di repositori.**
+- [ ] Berkas model `best.pt` 4 kelas (±50 MB; yang 130 MB itu model lama 3 kelas, tidak dikenali kode). **Tidak ada di repositori.**
 - [ ] Serial tiga kamera Hikrobot.
 - [ ] Empat nilai `R2_*` Cloudflare kalau foto mau diarsipkan ke cloud.
 - [ ] Kunci integrasi AutoERP (`ERP_API_KEY`/`ERP_API_SECRET`) kalau langsung disambung. Boleh belakangan.
@@ -340,7 +340,7 @@ Baris yang wajib disentuh. Sisanya biarkan bawaan.
 | `FACTORY_TZ` | `Asia/Jakarta` (sesuaikan) | batas tanggal kerja |
 | `CONSOLE_DEFAULT_HASH`, `CONSOLE_SUPPORT_HASH` | keluaran `make hash-sandi` | dua sandi **berbeda**, catat di catatan internal. Tulis `$$` untuk tiap `$` (compose memakan `$`) |
 | `CONF_THRESHOLD`, `MINIMUM_SIZE`, `ROI_*` | nilai pabrik | Lampung: 0.5, 3000, ROI 100/100/1180/620. Bisa diubah dari tab Setelan |
-| `GARIS_CAPTURE`, `SUMBU_GARIS`, `MODE_DEV` | `0`, `tegak`, `false` | **nilai awal saja** — yang dipakai sehari-hari diatur dari tab Setelan, berlaku tanpa restart. Garis `0` = tanpa garis |
+| `GARIS_CAPTURE`, `SUMBU_GARIS`, `MODE_DEV` | `300`, `tegak`, `false` | **nilai awal saja** — yang dipakai sehari-hari diatur dari tab Setelan, berlaku tanpa restart. Garis `0` = tanpa garis |
 | `BORDER_THICKNESS`, `FONT_SCALE`, `FONT_THICKNESS` | 8, 2.5, 5 | frame 2448×2048 butuh angka besar |
 | `R2_ACCOUNT_ID` … `R2_PUBLIC_URL` | dari Cloudflare, atau kosong | kosong = foto tidak diunggah, tidak ada `detail_url` di tiket ERP |
 | `UPLOAD_API_URL`, `UPLOAD_API_SECRET` | **kosong** | penerima teks per janjang sudah pensiun |

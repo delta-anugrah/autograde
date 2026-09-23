@@ -48,6 +48,23 @@ class FrameCaptureWorker:
         a webcam or a video file.
         """
         detected = self.camera.get_fps()
+        # Yang dipublikasikan adalah laju yang BENAR-BENAR dipakai mengambil
+        # frame, bukan cuma laju yang dilaporkan kamera. Dipakai layar Rekam
+        # Video supaya durasi video sama dengan durasi kejadian.
+        #
+        # ⚠️ Kamera Hikrobot TIDAK melaporkan lajunya (`Camera reports no frame
+        # rate` di log Lampung) — tapi saat itu worker memacu dirinya pada
+        # `CAMERA_FPS`, jadi angka itulah lajunya. Menulis `0` di sini membuang
+        # keterangan yang ada di tangan, dan rekaman jatuh ke angka layar:
+        # 19 detik kejadian jadi berkas 77 detik.
+        #
+        # `0` disisakan untuk kasus yang benar-benar tidak punya laju
+        # (`CAMERA_FPS=0`), dan di situ angka layar memang yang dipakai.
+        self.state.camera_fps_terukur = (
+            float(detected) if detected > 0
+            else float(self._target_fps) if self._target_fps > 0
+            else 0.0
+        )
         if detected > 0:
             self._frame_interval = 1.0 / detected
             logger.info("Capture paced by the camera: %.2f fps", detected)
