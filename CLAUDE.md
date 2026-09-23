@@ -729,8 +729,9 @@ memang khas satu mesin.
   tetap dikecualikan dari keduanya.
   **Disetel dari layar support konsol** (Setelan → Garis capture), satu angka untuk semua line,
   berlaku tanpa restart lewat `/internal/setelan` — jalur yang sama dengan `CONF_THRESHOLD` dan
-  `MINIMUM_SIZE`. `GARIS_CAPTURE` di `.env` cuma nilai awal. **`0` = tidak ada garis**, dan itu
-  perilaku sebelum fitur ini ada (semua janjang di dalam ROI difoto).
+  `MINIMUM_SIZE`. `GARIS_CAPTURE` di `.env` cuma nilai awal, bawaannya **200**. **`0` = tidak ada
+  garis**, dan itu perilaku sebelum fitur ini ada (semua janjang di dalam ROI difoto) —
+  tetap sah, tapi harus ditulis sendiri sejak bawaannya bukan lagi 0.
   ⚠️ Angkanya ruang **stream** (`STREAM_WIDTH`, bawaan 1280), diskalakan ke ruang sensor saat
   menyaring (`skala_garis_ke_frame`) — melewatkan penskalaan itu bug yang sudah pernah terjadi di
   ROI (`bdcb300`): garis terlihat benar di layar sementara yang menyaring sepertiga frame.

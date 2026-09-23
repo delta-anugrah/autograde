@@ -220,11 +220,18 @@ class Settings:
     yolo_skip_frames: int = field(default_factory=lambda: int(os.getenv("YOLO_SKIP_FRAMES", "1")))
     # Garis capture: x (px) dalam ruang STREAM (`STREAM_WIDTH`), bukan ruang
     # sensor. Janjang difoto saat kotaknya MENYENTUH garis ini — beda dari ROI,
-    # yang menyaring wilayah dan memakai titik tengah. `0` = tidak ada garis,
-    # dan itu perilaku sebelum fitur ini ada.
+    # yang menyaring wilayah dan memakai titik tengah.
+    #
+    # Bawaannya 200, bukan 0. `0` berarti **tidak ada garis** — semua janjang
+    # di dalam ROI difoto, perilaku sebelum fitur ini ada — dan itu titik awal
+    # yang salah untuk PKS baru: garis capture justru yang membuat janjang
+    # difoto pada saat yang tepat, bukan saat separuhnya sudah lewat.
+    # ⚠️ `0` tetap sah dan tetap berarti "tanpa garis"; yang berubah cuma nilai
+    # awalnya, jadi PKS yang memang menginginkannya harus menuliskannya.
+    #
     # Ini cuma nilai awal: yang berlaku sehari-hari diatur dari layar support
     # konsol dan dikirim ke line lewat `/internal/setelan` tanpa restart.
-    garis_capture: int = field(default_factory=lambda: int(os.getenv("GARIS_CAPTURE", "0")))
+    garis_capture: int = field(default_factory=lambda: int(os.getenv("GARIS_CAPTURE", "200")))
     # Sumbu garis capture: "tegak" (conveyor mendatar, garis vertikal, angka =
     # px dari kiri) atau "mendatar" (conveyor menurun, garis horizontal, angka
     # = px dari atas). Sama seperti `garis_capture`, ini cuma nilai awal.

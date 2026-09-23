@@ -102,17 +102,24 @@ def test_the_setting_survives_a_line_restart(konsol):
     assert res.json()["sumber"] == "konsol"
 
 
-def test_a_console_that_never_set_it_answers_zero(konsol):
-    """PKS yang belum menyetel harus dapat 0, bukan `null` atau field hilang.
+def test_a_console_that_never_set_it_answers_a_number(konsol):
+    """PKS yang belum menyetel harus dapat ANGKA, bukan `null` atau field hilang.
 
     `bersihkan_setelan` di sisi line akan menolak `null`, dan line yang menolak
     setelan berhenti menerima dua setelan lain yang sudah lama jalan.
+
+    Angkanya sendiri datang dari `Settings.garis_capture` — dulu 0, sekarang
+    200 (lihat `tests/unit/test_garis_capture_default.py`). Yang dijaga di sini
+    bentuk jawabannya, bukan nilainya: mengunci angka tertentu membuat test ini
+    merah tiap kali bawaan digeser, tanpa ada yang benar-benar rusak.
     """
-    c, _service, _line = konsol
+    c, service, _line = konsol
 
     res = c.get("/api/v1/internal/setelan", headers={"x-webhook-secret": SECRET})
 
-    assert res.json()["garis_capture"] == 0
+    nilai = res.json()["garis_capture"]
+    assert isinstance(nilai, int), nilai
+    assert nilai == service.settings.garis_capture
 
 
 def test_an_out_of_range_line_is_refused_before_it_reaches_the_lines(konsol):
