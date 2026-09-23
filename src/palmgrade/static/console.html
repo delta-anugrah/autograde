@@ -3725,30 +3725,39 @@ function namaBitPlc(i) {
   return t("diKosong");
 }
 
-function isiDiPlc(inputs, diBase) {
+function isiDiPlc(inputs, diBase, prefiks) {
   if (!inputs || !inputs.length) return `<span class="muted">${esc(t("plcMati"))}</span>`;
   // Alamat M di depan nama, bukan offset mentah: yang dipegang tim PLC daftar
   // M1100.., dan menerjemahkan offset ke alamat di kepala adalah cara paling
   // mudah salah saat commissioning.
   const base = diBase || 0;
   return inputs.map((on, i) =>
-    `<span class="plc-di-bit${on ? " aktif" : ""}">M${base + i} ${esc(namaBitPlc(i))} = ${on ? esc(t("diAktif")) : esc(t("diMati"))}</span>`
+    `<span class="plc-di-bit${on ? " aktif" : ""}">${esc(alamatPlc(base + i, prefiks))} ${esc(namaBitPlc(i))} = ${on ? esc(t("diAktif")) : esc(t("diMati"))}</span>`
   ).join(" ");
 }
 
-// Peran satu coil, diturunkan dari `coil_base` line itu — BUKAN dari angkanya.
-// Blok alamat milik panel dan sudah pernah berubah sekali (coil 0/3/6 jadi
-// M1000/1003/1006); memaku angka di sini membuat line 2 dan 3 salah label
-// diam-diam pada perubahan berikutnya. Nomor kamera dihitung dari jarak base
-// ke base line 1 (tiap line tiga alamat), jadi 1003 -> kamera 2.
-function peranCoil(coil, base) {
+// Peran satu coil: OFFSET dari `coil_base` line itu menentukan OK/NG/ERROR,
+// dan NOMOR kameranya datang dari kode line ("line-2" -> 2).
+//
+// Dua-duanya sengaja tidak ditebak dari alamat. Blok alamat milik panel dan
+// sudah pernah berubah sekali (coil 0/3/6 jadi M1000/1003/1006), jadi
+// menghitung nomor kamera dari jaraknya ke 1000 membuat ketiga line menulis
+// "Kamera 1" begitu basenya bukan 1000-an — persis yang terjadi di konsol dev.
+// Kode line sudah ada di tangan konsol; tidak ada alasan menebaknya.
+function peranCoil(coil, base, kodeLine) {
   const d = coil - base;
-  if (d === 0 || d === 1 || d === 2) {
-    const n = Math.floor((base - 1000) / 3) + 1;
-    const kunci = d === 0 ? "coilOk" : d === 1 ? "coilNg" : "coilError";
-    return t(kunci).replace("{n}", String(n > 0 ? n : 1));
-  }
-  return t("coilPiston");
+  if (d !== 0 && d !== 1 && d !== 2) return t("coilPiston");
+  const cocok = /(\d+)\s*$/.exec(kodeLine || "");
+  const n = cocok ? cocok[1] : "1";
+  const kunci = d === 0 ? "coilOk" : d === 1 ? "coilNg" : "coilError";
+  return t(kunci).replace("{n}", n);
+}
+
+// Alamat sebagaimana ditulis di GX Works2: prefiks device datang dari line,
+// bukan dipatok "M" di layar — panel boleh memberi B atau Y, dan alamat yang
+// salah huruf tidak bisa dicocokkan ke ladder.
+function alamatPlc(nomor, prefiks) {
+  return `${prefiks || "M"}${nomor}`;
 }
 
 function isiCoilPlc(kode, data, sibuk) {
@@ -3757,7 +3766,7 @@ function isiCoilPlc(kode, data, sibuk) {
   return (data.testable_coils || []).map((coil) => `
     <button type="button" class="uji-coil" data-line="${esc(kode)}" data-coil="${coil}"
       ${sibuk ? `disabled title="${esc(t("coilMatiLineSibuk"))}"` : ""}>
-      <b>${esc(peranCoil(coil, base))}</b><span class="alamat">M${coil}</span>
+      <b>${esc(peranCoil(coil, base, kode))}</b><span class="alamat">${esc(alamatPlc(coil, data.device_prefix))}</span>
     </button>`).join("");
 }
 
@@ -4168,7 +4177,7 @@ async function muatPlcSatuLine(kode) {
   const sibuk = kartu.dataset.plcSibuk === "1";
   try {
     const data = await api(`/api/console/dev/plc/${encodeURIComponent(kode)}`);
-    kartu.querySelector("[data-plc-di]").innerHTML = isiDiPlc(data.inputs, data.di_base);
+    kartu.querySelector("[data-plc-di]").innerHTML = isiDiPlc(data.inputs, data.di_base, data.device_prefix);
     kartu.querySelector("[data-plc-coil]").innerHTML = isiCoilPlc(kode, data, sibuk);
   } catch (e) {
     if (e.kode === "belum_masuk") return;

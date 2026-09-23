@@ -96,6 +96,7 @@ async def plc_state() -> PlcStateResponse:
         testable_coils=sorted(testable_coils(settings)),
         coil_base=settings.plc_coil_base,
         di_base=getattr(settings, "plc_di_base", 0),
+        device_prefix=getattr(settings, "plc_device_prefix", "M"),
     )
 
 

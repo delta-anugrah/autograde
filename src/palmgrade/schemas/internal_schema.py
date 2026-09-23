@@ -96,6 +96,10 @@ class PlcStateResponse(BaseModel):
     coil_base: int = 0
     # Awal blok yang DIBACA, supaya layar bisa menyebut alamat M tiap bit.
     di_base: int = 0
+    # Huruf device MC Protocol (M / B / Y). Layar menulis alamat persis seperti
+    # yang diketik di GX Works2 — alamat yang salah huruf tidak bisa dicocokkan
+    # ke ladder. Bawaan "M" supaya konsol versi lama tetap masuk akal.
+    device_prefix: str = "M"
 
 
 class SetelanGradingRequest(BaseModel):

@@ -170,28 +170,35 @@ def test_tombol_uji_coil_menyebut_peran_bukan_cuma_nomor():
 
 
 @butuh_node
-def test_peran_coil_diturunkan_dari_base_bukan_angka_mati():
-    """Offset +0/+1/+2 relatif base line. Dijalankan sungguhan lewat node:
-    versi regex-nya cuma bisa menebak, sementara yang penting adalah line 2
-    dan 3 ikut benar saat panel memberi blok alamat lain."""
+def test_nomor_kamera_dari_KODE_LINE_bukan_dihitung_dari_alamat():
+    """Nomor kamera datang dari `line-2`, bukan dari jarak base ke 1000.
+
+    Menghitungnya dari alamat membuat label ikut salah begitu blok alamat
+    bukan 1000-an — persis yang terjadi di konsol dev (base 0): ketiga line
+    menulis "Camera 1". Kode line sudah ada di tangan konsol; tidak ada
+    alasan menebaknya dari angka yang dimiliki panel.
+    """
     fn = _fungsi("peranCoil")
     skrip = (
         "const KAMUS={id:{coilOk:'Kamera {n} OK',coilNg:'Kamera {n} NG',"
         "coilError:'Kamera {n} Error',coilPiston:'Piston manual'}};"
         "let bahasa='id'; const t=(k)=>KAMUS[bahasa][k] ?? k;\n" + fn +
         "\nconsole.log(JSON.stringify(["
-        "peranCoil(1000,1000), peranCoil(1001,1000), peranCoil(1002,1000),"
-        "peranCoil(1003,1003), peranCoil(1005,1003),"
-        "peranCoil(1006,1006), peranCoil(1008,1006), peranCoil(1010,1000)]));"
+        # alamat Lampung
+        "peranCoil(1000,1000,'line-1'), peranCoil(1004,1003,'line-2'),"
+        "peranCoil(1008,1006,'line-3'),"
+        # base dev (0/3/6) — nomornya harus TETAP ikut kode line
+        "peranCoil(0,0,'line-1'), peranCoil(4,3,'line-2'), peranCoil(8,6,'line-3'),"
+        # line asing / piston
+        "peranCoil(9,0,'line-1'), peranCoil(0,0,'mesin-aneh')]));"
     )
     hasil = json.loads(subprocess.run(
         [NODE, "-e", skrip], capture_output=True, text=True, check=True, timeout=30
     ).stdout.strip())
     assert hasil == [
-        "Kamera 1 OK", "Kamera 1 NG", "Kamera 1 Error",
-        "Kamera 2 OK", "Kamera 2 Error",
-        "Kamera 3 OK", "Kamera 3 Error",
-        "Piston manual",
+        "Kamera 1 OK", "Kamera 2 NG", "Kamera 3 Error",
+        "Kamera 1 OK", "Kamera 2 NG", "Kamera 3 Error",
+        "Piston manual", "Kamera 1 OK",
     ]
 
 
