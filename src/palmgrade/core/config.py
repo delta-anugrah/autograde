@@ -258,7 +258,7 @@ class Settings:
     #
     # Ini cuma nilai awal: yang berlaku sehari-hari diatur dari layar support
     # konsol dan dikirim ke line lewat `/internal/setelan` tanpa restart.
-    garis_capture: int = field(default_factory=lambda: int(os.getenv("GARIS_CAPTURE", "200")))
+    garis_capture: int = field(default_factory=lambda: int(os.getenv("GARIS_CAPTURE", "300")))
     # Sumbu garis capture: "tegak" (conveyor mendatar, garis vertikal, angka =
     # px dari kiri) atau "mendatar" (conveyor menurun, garis horizontal, angka
     # = px dari atas). Sama seperti `garis_capture`, ini cuma nilai awal.

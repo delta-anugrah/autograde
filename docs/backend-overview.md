@@ -458,7 +458,7 @@ CaptureSaveWorker (jalur auto) / CaptureService (jalur manual)
 | `MODEL_FILE` | `best.pt` | Nama file model di `models/release/` |
 | `CONF_THRESHOLD` | `0.75` | Minimum confidence YOLO |
 | `MINIMUM_SIZE` | `460000` | Minimum area bounding box (px²) — di bawah ini auto rej |
-| `GARIS_CAPTURE` | `0` | Garis capture (px, ruang **stream**). Janjang difoto saat kotaknya menyentuh garis ini. `0` = tanpa garis. **Nilai awal saja** — yang dipakai diatur dari layar support konsol |
+| `GARIS_CAPTURE` | `300` | Garis capture (px, ruang **stream**). Janjang difoto saat kotaknya menyentuh garis ini. `0` = tanpa garis. **Nilai awal saja** — yang dipakai diatur dari layar support konsol |
 | `SUMBU_GARIS` | `tegak` | Sumbu garis: `tegak` (conveyor mendatar, px dari **kiri**) / `mendatar` (conveyor menurun, px dari **atas**). Nilai awal saja |
 | `MODE_DEV` | `false` | `true` = angka keyakinan ikut digambar di kotak janjang. Untuk support yang menyetel ambang, **bukan** untuk operator. Nilai awal saja |
 | `CAMERA_TYPE` | `hikrobot` | Sumber kamera: `hikrobot` / `opencv` (webcam atau video file) / `photo` |

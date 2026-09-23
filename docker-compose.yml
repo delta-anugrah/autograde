@@ -69,7 +69,7 @@ services:
       - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
       # Garis capture (px, ruang STREAM). 0 = tanpa garis. Nilai awal saja —
       # yang dipakai sehari-hari diatur dari layar support konsol.
-      - GARIS_CAPTURE=${GARIS_CAPTURE:-200}
+      - GARIS_CAPTURE=${GARIS_CAPTURE:-300}
       - SUMBU_GARIS=${SUMBU_GARIS:-tegak}
       - MODE_DEV=${MODE_DEV:-false}
       - ROI_X1=${ROI_X1:-0}
@@ -208,7 +208,7 @@ services:
       - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
       # Garis capture (px, ruang STREAM). 0 = tanpa garis. Nilai awal saja —
       # yang dipakai sehari-hari diatur dari layar support konsol.
-      - GARIS_CAPTURE=${GARIS_CAPTURE:-200}
+      - GARIS_CAPTURE=${GARIS_CAPTURE:-300}
       - SUMBU_GARIS=${SUMBU_GARIS:-tegak}
       - MODE_DEV=${MODE_DEV:-false}
       - ROI_X1=${ROI_X1:-0}
@@ -347,7 +347,7 @@ services:
       - YOLO_SKIP_FRAMES=${YOLO_SKIP_FRAMES:-1}
       # Garis capture (px, ruang STREAM). 0 = tanpa garis. Nilai awal saja —
       # yang dipakai sehari-hari diatur dari layar support konsol.
-      - GARIS_CAPTURE=${GARIS_CAPTURE:-200}
+      - GARIS_CAPTURE=${GARIS_CAPTURE:-300}
       - SUMBU_GARIS=${SUMBU_GARIS:-tegak}
       - MODE_DEV=${MODE_DEV:-false}
       - ROI_X1=${ROI_X1:-0}
