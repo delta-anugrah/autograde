@@ -2,11 +2,11 @@
 judul: AutoGrade ↔ PLC Mitsubishi
 subjudul: Peta alamat M, sinyal yang dikirim PC, dan yang diminta dari sisi PLC — untuk commissioning MC Protocol.
 label: Internal · Tim Engineering
-versi: "1.1"
+versi: "1.2"
 tanggal: 23 September 2026
 klasifikasi: Internal — untuk tim PLC dan tim engineering
 pemilik: Tim Engineering AutoGrade
-sorotan: Alamat = daftar pak Ocit 23 Sep, sudah dipasang; Ditunggu dari PLC = 3 butir; Wajib = watchdog heartbeat
+sorotan: Alamat = daftar pak Ocit 23 Sep, sudah dipasang; Ditunggu dari PLC = 5 butir; Wajib = watchdog heartbeat
 ---
 
 # AutoGrade ↔ PLC Mitsubishi
@@ -76,6 +76,15 @@ Dibaca sebagai satu blok **M1100–M1115** sekali tiap 200 ms.
 
 Bit yang kami baca dipakai untuk **tampilan dan diagnosa**, bukan untuk mengambil
 keputusan grading.
+
+Yang dilihat operator: begitu salah satu bit M1100–M1111 ON, layar konsol menampilkan
+**pita merah besar** di atas kartu line — "MOTOR 3 FAULT", "E-STOP DITEKAN" — dan hilang
+sendiri saat bitnya OFF. Grading **tidak dihentikan** oleh E-stop; kamera tetap menilai
+(lihat bab 5, butir konfirmasi).
+
+⚠️ **Polaritas diasumsikan bit ON = fault / ditekan.** Kalau ladder menulis kebalikannya
+(ON = normal, OFF = fault, seperti kabel NC), mohon kabari — sisi aplikasi tinggal membalik
+satu tempat.
 
 ---
 
@@ -149,6 +158,8 @@ aktuatornya justru membuang, hasilnya terbalik total. Lihat bab 5.
 | 1 | **Tiga koneksi MC Protocol** di Open Setting GX Works2 | Tiap camera membuka socket sendiri; satu port hanya melayani satu koneksi |
 | 2 | **Watchdog heartbeat di ladder** (bab 3) | Tanpa ini, bit bisa nyangkut ON saat PC mati |
 | 3 | **Konfirmasi: buah tanpa sinyal LOLOS atau DIBUANG?** | Menentukan aturan buah internal benar atau terbalik |
+| 4 | **Polaritas M1100–M1111: ON = fault/ditekan?** | Pita alarm operator dibaca dari bit ini apa adanya; kalau terbalik, pita menyala terus saat pabrik sehat |
+| 5 | **Saat E-stop, kamera ikut berhenti menilai?** Sekarang tidak — cuma pita. | Kalau harus berhenti, ada hasil grading yang tercatat selama line berhenti darurat |
 | — | Piston manual: mau dialokasikan (usulan bab 2) atau ditiadakan? | Tidak mendesak; fiturnya sudah mati dengan aman |
 
 Peta alamat **sudah selesai** — daftar 23 September dipakai apa adanya.
@@ -182,7 +193,7 @@ menjalankan kamera atau melewatkan buah. Tombolnya meminta konfirmasi ketik kare
 bit ERROR, heartbeat berkedip, piston manual, aturan buah internal, layar uji, dan
 seluruh unit test-nya.
 
-**Yang ditunggu dari sisi PLC:** tiga butir di bab 5.
+**Yang ditunggu dari sisi PLC:** lima butir di bab 5 (dua terakhir konfirmasi, bukan pekerjaan).
 
 **Yang paling mudah terlewat:** watchdog heartbeat di bab 3. Tanpa itu, sistem tetap
 terlihat normal sampai hari PC mati di tengah shift.

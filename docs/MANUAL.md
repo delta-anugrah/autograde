@@ -412,7 +412,9 @@ Ethernet bawaan CPU (coupler ODOT dibatalkan 2026-09-21). Alamat M per line dipa
 camera 2 = M1003–M1005, camera 3 = M1006–M1008; yang dibaca M1100–M1115 (motor fault, E-stop
 M1111). Piston manual **belum dialokasikan** — fiturnya mati sampai panel memberi bitnya.
 Dokumen tim PLC: `docs/plc-mc-handoff.pdf`; referensi teknis: `docs/plc-integration.md`. Uji
-dari tab **Uji PLC**.
+dari tab **Uji PLC**, yang kini menamai tiap bit (`2: MOTOR 3 = Aktif`). Motor fault dan
+E-stop dari PLC tampil sebagai pita merah di atas kartu line; E-stop tidak menghentikan
+grading.
 
 ### 5.10 Lisensi
 

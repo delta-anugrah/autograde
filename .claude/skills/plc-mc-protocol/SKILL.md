@@ -45,6 +45,14 @@ Polanya persis skema ODOT lama (coil 0–9, DI 0–11) dipindah ke M1000 / M1100
 | M1111 | E-STOP OP PANEL (`inputs[11]`) |
 | M1112–M1115 | belum dialokasikan |
 
+Bit ini sampai ke operator lewat `domain/plc_alarm.py` → `/internal/status.alarms` →
+`LineStatusWorker` → `/api/console/state` → `gambarPitaAlarm()` (satu pita global, bukan
+per kartu — semua line membaca blok yang sama, jadi daftarnya digabung dan dideduplikasi).
+Tab Uji PLC menamai tiap bit lewat `namaBitPlc()`, cermin dari modul domain yang sama.
+E-stop = **tanda saja**, grading tidak berhenti (keputusan 2026-09-23; menghentikan butuh
+konfirmasi Ocit). ⚠️ Polaritas diasumsikan **ON = fault** — belum dikonfirmasi; kalau
+ladder menulis kebalikannya, pita menyala terus saat pabrik sehat.
+
 `PLC_COIL_BASE` = 1000 / 1003 / 1006 per line; offset +0 OK, +1 NG, +2 ERROR — struktur
 yang sama dengan jalur Modbus, cuma angkanya pindah.
 
