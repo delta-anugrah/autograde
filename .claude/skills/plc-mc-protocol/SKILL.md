@@ -150,10 +150,25 @@ lalu start (bukan `restart`: yang ini kadang melewati container yang dianggap "t
 berubah") → `for n in 1 2 3; do docker logs --since 30s ripe_line_$n 2>&1 | grep -iE
 "connect|0x0055|coil write failed" | tail -1; done` — ketiganya **kosong** = tersambung.
 
-**Uji tanpa kamera:** tab **Uji PLC** di konsol (akun support) memicu satu pulse per bit
-(M1000/1001, 1003/1004, 1006/1007). Pulse 200 ms — pantau dari **monitor bit GX Works2**,
-lampu panel terlalu cepat. Untuk terlihat mata: `PLC_PULSE_MS=10000` sementara di `.env`,
-**hapus lagi sesudahnya**.
+**Uji tanpa kamera:** tab **Uji PLC** di konsol (akun support) memicu satu pulse per bit.
+Sejak 2026-09-23 malam yang bisa diuji: **OK, NG, dan ERROR** per line
+(1000/1001/**1002**, 1003/1004/**1005**, 1006/1007/**1008**) + piston kalau dialokasikan.
+Heartbeat **tidak pernah** masuk daftar — memicunya bikin panel mengira PC mati.
+
+⚠️ ERROR itu **level** yang dikemudikan `health_check()`, bukan pulse. `PlcWorker`
+melewati penulisan levelnya selama pulse uji berjalan (`_scheduler_is_active`) — tanpa itu
+pulse naik lalu ditimpa level sehat pada tick yang sama, coil bergerak beberapa milidetik
+dan tidak ada yang melihatnya di panel. Levelnya pulih sendiri di tick sesudahnya;
+`_error_level` sengaja tidak diperbarui saat dilewati.
+
+Pulse 200 ms — pantau dari **monitor bit GX Works2**, lampu panel terlalu cepat.
+
+**Mode TAHAN (`PLC_HOLD_MS`, bawaan 0 = pulse).** > 0 menukar `PulseScheduler` dengan
+`HoldScheduler` lewat `build_scheduler()`: coil OK/NG dipegang ON sekian ms dan
+**diperpanjang** tiap janjang berikutnya, tidak pernah membuang. Diminta tim PLC untuk uji
+di panel. ⚠️ **PLC tidak bisa menghitung janjang di mode ini** — dua janjang berurutan jadi
+satu sinyal panjang. Keduanya berbagi antarmuka (`enqueue`/`tick`/`dropped`/`is_active`),
+jadi `PlcWorker` tidak tahu mana yang terpasang — pola yang sama dengan `build_plc_client`.
 
 ## Yang masih ditunggu dari tim PLC
 
@@ -161,6 +176,8 @@ Peta alamat **sudah beres** (daftar Ocit 2026-09-23). Sisanya:
 
 1. **Watchdog heartbeat di ladder** (pantau M1009 berkedip) — satu-satunya pekerjaan panel
    yang tersisa; paling mudah terlewat, paling mahal kalau lupa.
+1b. **Mode tahan dipakai atau tidak di produksi?** Opsinya sudah ada (`PLC_HOLD_MS`), tapi
+   saran kami tetap pulse + latch di ladder. Belum diputuskan bersama.
 2. **Polaritas E-stop**: layar menampilkan `M1111 = On` sepanjang uji 23 Sep — **belum
    ditanyakan** apakah panelnya memang ditekan. Kalau tidak, ladder terbalik (NC).
 3. **Saat E-stop, kamera berhenti menilai?** Sekarang cuma pita.

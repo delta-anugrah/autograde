@@ -21,12 +21,14 @@ import logging
 import threading
 from collections.abc import Callable
 
+from .hold import HoldScheduler
 from .mc_client import McProtocolPlcClient
 from .modbus_client import ModbusPlcClient
 from .pulse import PulseScheduler
 from .worker import PlcWorker
 
 __all__ = [
+    "HoldScheduler",
     "McProtocolPlcClient",
     "ModbusPlcClient",
     "build_plc_client",
@@ -92,11 +94,7 @@ def start_plc_worker(
 
     _worker = PlcWorker(
         client=build_plc_client(settings),
-        scheduler=PulseScheduler(
-            pulse_s=settings.plc_pulse_ms / 1000.0,
-            gap_s=settings.plc_pulse_gap_ms / 1000.0,
-            queue_max=settings.plc_queue_max,
-        ),
+        scheduler=build_scheduler(settings),
         settings=settings,
         health_check=health_check,
         license_ok=license_ok,
@@ -114,6 +112,28 @@ def start_plc_worker(
         settings.plc_di_base,
     )
     return _worker
+
+
+def build_scheduler(settings):
+    """Pulse (bawaan) atau tahan, dari `PLC_HOLD_MS`.
+
+    Keduanya punya `enqueue` / `tick` / `dropped` / `is_active` yang sama, jadi
+    `PlcWorker` tidak tahu mana yang dipakai — persis pola `build_plc_client`.
+    `PLC_HOLD_MS=0` mengembalikan jalur pulse yang terbukti di lapangan, tanpa
+    satu baris pun berubah untuknya.
+    """
+    if settings.plc_hold_ms > 0:
+        logger.warning(
+            "PLC mode TAHAN %s ms — coil OK/NG dipegang ON, bukan pulse. PLC tidak bisa "
+            "menghitung janjang di mode ini (dua janjang berurutan = satu sinyal panjang).",
+            settings.plc_hold_ms,
+        )
+        return HoldScheduler(hold_s=settings.plc_hold_ms / 1000.0)
+    return PulseScheduler(
+        pulse_s=settings.plc_pulse_ms / 1000.0,
+        gap_s=settings.plc_pulse_gap_ms / 1000.0,
+        queue_max=settings.plc_queue_max,
+    )
 
 
 def _address_label(settings) -> str:
@@ -178,13 +198,20 @@ def piston_state() -> dict | None:
 def testable_coils(settings) -> frozenset[int]:
     """Coils safe to pulse by hand from the commissioning test screen.
 
-    OK/NG/manual-piston only, and only the ones actually configured (may be
-    None). `plc_coil_alive` (coil 9, "HEARTBIT PC ON") is deliberately NOT
+    OK / NG / ERROR / manual-piston, and only the ones actually configured
+    (manual may be None). `plc_coil_alive` (HEARTBIT PC) is deliberately NOT
     here: firing it by hand can make the panel believe the PC died and raise
-    a seven-segment alarm. `plc_coil_error` is excluded too — it is a level
-    driven by health_check(), not something a hand pulse should perturb.
+    a seven-segment alarm.
+
+    ⚠️ `plc_coil_error` WAS excluded until 2026-09-23, because it is a level
+    driven by `health_check()` rather than a pulse. The PLC team needs to
+    prove M1002/M1005/M1008 are wired, and they have no other way to make
+    them move — a healthy line never raises ERROR on purpose. `PlcWorker`
+    leaves the level alone while a hand pulse is in flight (`is_active`), so
+    the two no longer fight; the very next tick after the pulse restores
+    whatever health_check() says.
     """
-    coils = {settings.plc_coil_ok, settings.plc_coil_ng}
+    coils = {settings.plc_coil_ok, settings.plc_coil_ng, settings.plc_coil_error}
     manual = getattr(settings, "plc_coil_manual", None)
     if manual is not None:
         coils.add(manual)

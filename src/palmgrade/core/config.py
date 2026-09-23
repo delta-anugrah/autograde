@@ -433,6 +433,11 @@ class Settings:
     # (pulse+gap) ms of lateness, and a late signal lands on the wrong bunch.
     # 1 = at most one pulse owed, so staleness stays <= (pulse+gap).
     plc_queue_max: int = field(default_factory=lambda: _plc_int("PLC_QUEUE_MAX", 1))
+    # 0 = pulse (bawaan, jalur yang terbukti di Lampung). > 0 = coil OK/NG
+    # DITAHAN ON sekian ms, diperpanjang tiap janjang berikutnya — diminta tim
+    # PLC 2026-09-23 untuk uji di panel. ⚠️ Di mode tahan, PLC TIDAK bisa
+    # menghitung janjang: dua janjang berurutan jadi satu sinyal panjang.
+    plc_hold_ms: int = field(default_factory=lambda: _plc_int("PLC_HOLD_MS", 0))
     plc_poll_ms: int = field(default_factory=lambda: _plc_int("PLC_POLL_MS", 200))
     plc_di_count: int = field(default_factory=lambda: _plc_int("PLC_DI_COUNT", 16))
 

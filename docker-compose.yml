@@ -159,6 +159,9 @@ services:
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
       - PLC_QUEUE_MAX=${PLC_QUEUE_MAX:-1}
+      # 0 = pulse (bawaan). > 0 = coil OK/NG DITAHAN sekian ms, diperpanjang tiap
+      # janjang. Untuk uji di panel; PLC tidak bisa menghitung janjang di mode ini.
+      - PLC_HOLD_MS=${PLC_HOLD_MS:-0}
       - PLC_POLL_MS=${PLC_POLL_MS:-200}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
@@ -309,6 +312,9 @@ services:
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
       - PLC_QUEUE_MAX=${PLC_QUEUE_MAX:-1}
+      # 0 = pulse (bawaan). > 0 = coil OK/NG DITAHAN sekian ms, diperpanjang tiap
+      # janjang. Untuk uji di panel; PLC tidak bisa menghitung janjang di mode ini.
+      - PLC_HOLD_MS=${PLC_HOLD_MS:-0}
       - PLC_POLL_MS=${PLC_POLL_MS:-200}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
@@ -459,6 +465,9 @@ services:
       - PLC_PULSE_MS=${PLC_PULSE_MS:-200}
       - PLC_PULSE_GAP_MS=${PLC_PULSE_GAP_MS:-100}
       - PLC_QUEUE_MAX=${PLC_QUEUE_MAX:-1}
+      # 0 = pulse (bawaan). > 0 = coil OK/NG DITAHAN sekian ms, diperpanjang tiap
+      # janjang. Untuk uji di panel; PLC tidak bisa menghitung janjang di mode ini.
+      - PLC_HOLD_MS=${PLC_HOLD_MS:-0}
       - PLC_POLL_MS=${PLC_POLL_MS:-200}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:

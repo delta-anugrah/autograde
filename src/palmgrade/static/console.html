@@ -2020,9 +2020,15 @@ function bukaTabDev(namaTab) {
   // detik dari tab lain membebani line tanpa ada yang melihat hasilnya.
   clearInterval(rekamTimer);
   rekamTimer = null;
+  clearInterval(plcTimer);
+  plcTimer = null;
   const muat = MUAT_TAB[namaTab] ? MUAT_TAB[namaTab]() : Promise.resolve();
   if (namaTab === "diagnostik") diagnostikTimer = setInterval(muatDiagnostik, 5000);
   if (namaTab === "rekam") rekamTimer = setInterval(muatRekam, 3000);
+  // 1 detik: lebih rapat dari diagnostik (5 s) karena di sini orang menunggu
+  // jawaban tombol yang baru saja ditekan. Tiap tick = satu GET ringan per line,
+  // dan tabnya cuma terbuka saat commissioning — bukan sepanjang shift.
+  if (namaTab === "plc") plcTimer = setInterval(muatPlc, 1000);
   return muat;
 }
 
@@ -3449,6 +3455,12 @@ $("log-next").addEventListener("click", () => {
 // ── developer: diagnostik (support only) ────────────────────────────────
 // The 5 s auto-refresh timer itself lives in `bukaTabDev` above.
 let diagnostikTimer = null;
+// Layar Uji PLC dipakai saat commissioning, sambil orang lain menekan tombol di
+// panel — tanpa timer, `muatPlc()` cuma jalan sekali saat tab dibuka dan bit
+// motor/E-stop jadi foto lama sampai operator pindah tab lalu kembali. Terbaca
+// di pabrik sebagai "PLC-nya delay" (Lampung 2026-09-23), padahal PlcWorker
+// sudah membaca blok M tiap 200 ms.
+let plcTimer = null;
 
 // Dynamic markup, generated fresh on every poll: static labels are resolved
 // with t() inline here, not via data-t - that attribute is only ever scanned

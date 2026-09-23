@@ -196,3 +196,21 @@ def test_env_plc_salah_ketik_tetap_berteriak(monkeypatch, caplog):
     with caplog.at_level(logging.WARNING):
         Settings()
     assert "PLC_PORT" in caplog.text
+
+
+# ── mode tahan (PLC_HOLD_MS) ─────────────────────────────────────────────────
+
+
+def test_hold_ms_bawaan_nol_berarti_pulse(monkeypatch):
+    monkeypatch.delenv("PLC_HOLD_MS", raising=False)
+    assert Settings().plc_hold_ms == 0
+
+
+def test_hold_ms_dibaca_dari_env(monkeypatch):
+    monkeypatch.setenv("PLC_HOLD_MS", "7000")
+    assert Settings().plc_hold_ms == 7000
+
+
+def test_hold_ms_rusak_jatuh_ke_pulse_bukan_crash(monkeypatch):
+    monkeypatch.setenv("PLC_HOLD_MS", "lima detik")
+    assert Settings().plc_hold_ms == 0

@@ -128,3 +128,27 @@ def test_daftar_line_kosong_atau_null_aman():
         [NODE, "-e", skrip], capture_output=True, text=True, check=True, timeout=30
     ).stdout.strip()
     assert json.loads(keluar) == []
+
+
+# ── tab Uji PLC ikut memuat ulang sendiri ───────────────────────────────────
+
+
+def test_tab_uji_plc_punya_timer_muat_ulang():
+    """Tanpa timer, `muatPlc()` cuma jalan sekali saat tab dibuka: bit motor
+    dan E-stop di layar jadi foto lama sampai operator pindah tab dan kembali.
+    Terbaca di pabrik sebagai "PLC-nya delay" (Lampung 2026-09-23), padahal
+    PlcWorker sudah membaca blok M tiap 200 ms.
+    """
+    blok = HTML.split("function bukaTabDev(", 1)[1].split("\n}\n", 1)[0]
+    assert "plcTimer = setInterval(muatPlc" in blok, "tab PLC tidak punya timer"
+    assert "clearInterval(plcTimer)" in blok, "timer PLC tidak dihentikan saat pindah tab"
+
+
+def test_timer_uji_plc_lebih_rapat_dari_diagnostik():
+    """Diagnostik 5 s karena isinya keadaan yang berubah pelan. Layar PLC dipakai
+    saat commissioning sambil orang menekan tombol di panel — jeda 5 detik di situ
+    terasa seperti sinyalnya tidak sampai."""
+    blok = HTML.split("function bukaTabDev(", 1)[1].split("\n}\n", 1)[0]
+    plc = int(re.search(r"plcTimer = setInterval\(muatPlc, (\d+)\)", blok).group(1))
+    diag = int(re.search(r"diagnostikTimer = setInterval\(muatDiagnostik, (\d+)\)", blok).group(1))
+    assert plc < diag, f"timer PLC ({plc} ms) tidak lebih rapat dari diagnostik ({diag} ms)"
