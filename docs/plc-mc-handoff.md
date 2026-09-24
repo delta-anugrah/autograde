@@ -2,7 +2,7 @@
 judul: AutoGrade ↔ PLC Mitsubishi
 subjudul: Peta alamat M, sinyal yang dikirim PC, dan yang diminta dari sisi PLC — untuk commissioning MC Protocol.
 label: Internal · Tim Engineering
-versi: "1.6"
+versi: "1.7"
 tanggal: 23 September 2026
 klasifikasi: Internal — untuk tim PLC dan tim engineering
 pemilik: Tim Engineering AutoGrade
@@ -213,8 +213,6 @@ sebagai masalah jaringan.
 
 Di layar konsol AutoGrade ada tab **"Uji PLC"** (khusus akun support). Isinya:
 
-- daftar bit yang sedang dibaca dari PLC, **dengan alamat M-nya** — mis.
-  `M1102 MOTOR 3 = Aktif`, jadi bisa langsung dicocokkan ke monitor bit GX Works2;
 - satu tombol per coil, **diberi nama dan alamat**: "Kamera 1 OK / M1000" (hijau),
   "Kamera 1 NG / M1001" dan "Kamera 1 Error / M1002" (merah). Termasuk **coil ERROR**,
   yang sebelumnya tidak bisa diuji sama sekali — line yang sehat tidak pernah
