@@ -235,6 +235,7 @@ def test_start_plc_worker_called_twice_returns_none_and_builds_one_client(monkey
         plc_pulse_gap_ms = 100
         plc_poll_ms = 200
         plc_queue_max = 20
+        plc_hold_ms = 0
         plc_coil_ok = 3
         plc_coil_ng = 4
         plc_coil_error = 5
@@ -508,6 +509,7 @@ class _StartCfg:
     plc_pulse_gap_ms = 100
     plc_poll_ms = 200
     plc_queue_max = 1
+    plc_hold_ms = 0
     plc_coil_ok = 3
     plc_coil_ng = 4
     plc_coil_error = 5
@@ -627,3 +629,56 @@ def test_fire_test_coil_shares_the_scheduler_safely_with_grading_pulses():
     w.run_once(now=0.0)
     assert (3, True) in client.writes    # grading acc -> coil_ok
     assert (4, True) in client.writes    # manual test -> coil_ng
+
+
+# ── coil ERROR boleh diuji tangan tanpa dipadamkan blok level ────────────────
+
+
+def test_pulse_uji_pada_coil_error_tidak_dipadamkan_tick_berikutnya():
+    """Tim PLC perlu membuktikan M1002/M1005/M1008 terpasang, dan line yang
+    sehat tidak pernah menaikkan ERROR dengan sendirinya.
+
+    Blok ERROR menulis ulang levelnya tiap detik. Tanpa penjaga `is_active`,
+    pulse uji naik lalu langsung ditimpa `False` di tick yang sama — coil
+    bergerak beberapa milidetik dan tidak ada yang melihatnya di panel.
+    """
+    w, client = _worker(health_check=lambda: True)   # sehat: ERROR seharusnya False
+    err = w.settings.plc_coil_error
+
+    w.run_once(now=0.0)            # level awal ditulis
+    client.writes.clear()
+    w.fire_test_coil(err)
+    w.run_once(now=1.0)            # blok ERROR jatuh tempo di detik yang sama
+
+    assert (err, True) in client.writes, "pulse uji tidak sampai ke coil ERROR"
+    assert (err, False) not in client.writes, "blok ERROR menimpa pulse uji"
+
+
+def test_level_error_pulih_sendiri_sesudah_pulse_uji_selesai():
+    # Penjaga di atas cuma boleh menahan selama pulse berjalan; sesudah itu
+    # level kesehatan harus kembali berkuasa, kalau tidak ERROR bisa nyangkut.
+    w, client = _worker(health_check=lambda: True)
+    err = w.settings.plc_coil_error
+
+    w.run_once(now=0.0)
+    w.fire_test_coil(err)
+    w.run_once(now=1.0)            # pulse ON
+    client.writes.clear()
+    w.run_once(now=1.2)            # pulse selesai -> scheduler menurunkannya
+    w.run_once(now=2.5)            # blok ERROR menegaskan lagi
+
+    assert (err, False) in client.writes
+    assert w._error_level is False
+
+
+def test_line_sakit_tetap_menaikkan_error_walau_pernah_diuji():
+    w, client = _worker(health_check=lambda: False)  # tidak sehat -> ERROR True
+    err = w.settings.plc_coil_error
+
+    w.fire_test_coil(err)
+    w.run_once(now=0.0)
+    client.writes.clear()
+    w.run_once(now=0.4)            # pulse uji sudah selesai
+    w.run_once(now=1.5)
+
+    assert (err, True) in client.writes

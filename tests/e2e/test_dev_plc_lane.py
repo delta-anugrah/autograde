@@ -142,7 +142,7 @@ def test_operator_biasa_ditolak_403(gerbang):
 
     baca = client.get("/api/console/dev/plc/line-1")
     picu = client.post(
-        "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
+        "/api/console/dev/plc/line-1/coil", json={"coil": 11}
     )
 
     assert baca.status_code == 403
@@ -150,17 +150,21 @@ def test_operator_biasa_ditolak_403(gerbang):
     assert picu.status_code == 403
 
 
-def test_picu_tanpa_konfirmasi_ditolak(gerbang):
-    """A click alone — empty confirmation text — must never fire a coil."""
+def test_picu_tanpa_konfirmasi_ketik_tetap_jalan(gerbang):
+    """Ketikan UJI dicabut 2026-09-24 atas permintaan pengguna: layar ini milik
+    developer/teknisi saat commissioning, dan mengetik kata yang sama sebelum
+    tiap coil memperlambat pekerjaan yang memang berulang.
+
+    Dua penjaga yang benar-benar menahan kecelakaan TETAP, dan keduanya diuji
+    di berkas ini: ditolak 409 selama line memproses truk, dan tiap percobaan
+    meninggalkan baris WARNING di event_log."""
     client, _, _, line_client = gerbang
     _masuk(client, "support@pks.test")
 
-    jawab = client.post(
-        "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": ""}
-    )
+    jawab = client.post("/api/console/dev/plc/line-1/coil", json={"coil": 11})
 
-    assert jawab.status_code == 400
-    assert line_client.writes == []
+    assert jawab.status_code == 200
+    assert line_client.writes == [11]
 
 
 def test_picu_saat_line_sibuk_ditolak(gerbang):
@@ -171,7 +175,7 @@ def test_picu_saat_line_sibuk_ditolak(gerbang):
     _masuk(client, "support@pks.test")
 
     jawab = client.post(
-        "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
+        "/api/console/dev/plc/line-1/coil", json={"coil": 11}
     )
 
     assert jawab.status_code == 409
@@ -193,7 +197,7 @@ def test_picu_berhasil_meninggalkan_baris_warning_di_log(gerbang):
         _masuk(client, "support@pks.test")
 
         jawab = client.post(
-            "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
+            "/api/console/dev/plc/line-1/coil", json={"coil": 11}
         )
 
         assert jawab.status_code == 200
@@ -227,7 +231,7 @@ def test_line_tidak_terjangkau_juga_meninggalkan_jejak_di_log(gerbang):
         _masuk(client, "support@pks.test")
 
         jawab = client.post(
-            "/api/console/dev/plc/line-1/coil", json={"coil": 11, "konfirmasi": "UJI"}
+            "/api/console/dev/plc/line-1/coil", json={"coil": 11}
         )
 
         assert jawab.status_code == 502

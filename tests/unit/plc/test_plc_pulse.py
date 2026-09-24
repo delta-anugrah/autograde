@@ -50,3 +50,21 @@ def test_overflow_drops_and_counts():
 
 def test_idle_scheduler_reports_no_changes():
     assert _sched().tick(now=1.0) == {}
+
+
+# ── is_active: dipakai worker untuk tidak menimpa coil ERROR yang sedang diuji ──
+
+
+def test_is_active_true_sejak_diminta_sampai_pulse_selesai():
+    s = _sched()
+    assert s.is_active(2) is False
+    s.enqueue(2)
+    assert s.is_active(2) is True         # pending, belum di-tick
+    s.tick(now=0.0)
+    assert s.is_active(2) is True         # ON
+    s.tick(now=0.2)
+    assert s.is_active(2) is False        # OFF, tidak ada yang tersisa
+
+
+def test_is_active_untuk_coil_yang_tidak_pernah_disentuh():
+    assert _sched().is_active(1234) is False

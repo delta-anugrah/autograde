@@ -30,6 +30,10 @@ BELUM_MASUK = "belum_masuk"
 # Signed in, but not a `support` account.
 BUKAN_SUPPORT = "bukan_support"
 # PLC test screen (support only) — the only console lane that moves hardware.
+# ⚠️ `konfirmasi_kurang` dipensiunkan 2026-09-24 (ketikan UJI dicabut): tidak ada
+# lagi yang melemparkannya. Kodenya sengaja TIDAK dihapus — konsol yang belum
+# dimuat ulang masih bisa menerimanya dari server versi lama, dan kode tanpa
+# terjemahan tampil mentah di layar operator.
 KONFIRMASI_KURANG = "konfirmasi_kurang"
 PLC_SIBUK = "plc_sibuk"
 COIL_TIDAK_DIKENAL = "coil_tidak_dikenal"

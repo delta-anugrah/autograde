@@ -738,6 +738,17 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     HOST (pull tidak menyentuhnya), `.env` menang atas compose, dan **satu Open Setting
     PLC = satu koneksi** — karena itu `PLC_PORT` literal per line 1025/1026/1027, dijaga
     `test_plc_docs_match_compose`. Runbook: `docs/runbooks/2026-09-23-commissioning-plc-lampung.md`.
+    ⚠️ **Tiga tambahan 2026-09-23 malam, semuanya tanpa menyentuh jalur yang sudah
+    terbukti** (permintaan tim PLC): (a) **`PLC_HOLD_MS`** — 0 = pulse (bawaan),
+    > 0 menukar scheduler dengan `HoldScheduler` lewat `build_scheduler()`, coil OK/NG
+    ditahan ON dan diperpanjang tiap janjang; **PLC tidak bisa menghitung janjang di mode
+    ini**, jadi untuk produksi tetap pulse + latch di ladder. (b) **coil ERROR masuk
+    `testable_coils`** supaya M1002/M1005/M1008 bisa dibuktikan terpasang — `PlcWorker`
+    melewati penulisan level ERROR selama pulse uji berjalan (`_scheduler_is_active`),
+    kalau tidak pulse langsung ditimpa level sehat di tick yang sama. (c) **tab Uji PLC
+    punya timer 1 detik** — sebelumnya `muatPlc()` cuma jalan sekali saat tab dibuka, jadi
+    bit motor/E-stop di layar adalah foto lama; terbaca di pabrik sebagai "PLC-nya delay"
+    padahal `PlcWorker` membaca blok M tiap 200 ms.
 
 ---
 

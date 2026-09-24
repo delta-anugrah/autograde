@@ -2,7 +2,7 @@
 judul: AutoGrade ↔ PLC Mitsubishi
 subjudul: Peta alamat M, sinyal yang dikirim PC, dan yang diminta dari sisi PLC — untuk commissioning MC Protocol.
 label: Internal · Tim Engineering
-versi: "1.4"
+versi: "1.6"
 tanggal: 23 September 2026
 klasifikasi: Internal — untuk tim PLC dan tim engineering
 pemilik: Tim Engineering AutoGrade
@@ -48,7 +48,7 @@ DI 0–11 — dipindah ke M1000 dan M1100.
 |---|---|---|
 | **M1000** | CAMERA 1: janjang **OK** (diterima) | pulse 200 ms |
 | **M1001** | CAMERA 1: janjang **NG** (ditolak) | pulse 200 ms |
-| **M1002** | CAMERA 1: **ERROR** | level, 1 = bermasalah |
+| **M1002** | CAMERA 1: **ERROR** | level, 1 = bermasalah — **bisa diuji dari layar** |
 | **M1003** | CAMERA 2: janjang OK | pulse 200 ms |
 | **M1004** | CAMERA 2: janjang NG | pulse 200 ms |
 | **M1005** | CAMERA 2: ERROR | level |
@@ -153,6 +153,11 @@ aktuatornya justru membuang, hasilnya terbalik total. Lihat bab 5.
 
 ## 5. Hasil uji lapangan 23 September 2026 — TERSAMBUNG
 
+**Tambahan 23 Sep malam (menyusul permintaan Pak Ocit):** coil **ERROR** (M1002 / M1005 /
+M1008) kini bisa dipicu dari layar Uji PLC, supaya ketiganya bisa dibuktikan terpasang —
+line yang sehat tidak pernah menaikkan ERROR dengan sendirinya. Sesudah pulse uji selesai,
+levelnya kembali mengikuti kesehatan line di tick berikutnya.
+
 | Yang diuji | Hasil |
 |---|---|
 | Koneksi 3 line ke `192.168.0.14` port 1025/1026/1027 | ✅ ketiganya tersambung |
@@ -177,12 +182,20 @@ Dua hal yang sempat menghambat, dan jawabannya, supaya tidak terulang di panel l
 | 4 | **Konfirmasi: buah tanpa sinyal LOLOS atau DIBUANG?** | Menentukan aturan buah internal benar atau terbalik |
 | — | Piston manual: mau dialokasikan (usulan bab 2) atau ditiadakan? | Tidak mendesak; fiturnya sudah mati dengan aman |
 
-Soal permintaan **"OK/NG ditahan terus"**: untuk uji di panel bisa (lebar pulse dinaikkan
-sementara), tetapi untuk produksi **tidak** — satu janjang = satu tepi naik. Kalau ditahan,
-dua janjang berurutan terbaca satu sinyal panjang dan PLC tidak bisa menghitung. Yang
-disarankan: ladder **latch di tepi naik → timer sendiri → reset**. Berapa lama piston
-terbuka itu urusan kecepatan belt, yang PLC tahu dan PC tidak. Kalau 200 ms terlalu
-pendek untuk scan time ladder, lebar pulse bisa dinaikkan (mis. 500 ms) — bukan ditahan.
+### Permintaan "OK/NG ditahan terus" — sudah disiapkan sebagai **opsi**
+
+Bawaannya tetap **pulse 200 ms** (jalur yang sudah terbukti 23 Sep). Untuk uji di panel,
+sisi kami bisa mengubahnya jadi **tahan 5–10 detik** lewat satu setelan (`PLC_HOLD_MS`),
+tanpa mengubah alamat atau apa pun yang sudah jalan. Sementara ditahan, janjang berikutnya
+**memperpanjang** tahanannya — jadi selama buah masih lewat, sinyalnya tetap ada.
+
+⚠️ **Di mode tahan, PLC tidak bisa menghitung janjang.** Dua janjang berurutan menjadi
+satu sinyal panjang: tidak ada tepi turun di antaranya. Jadi untuk produksi kami
+menyarankan tetap pulse, dan ladder yang **latch di tepi naik → timer sendiri → reset** —
+berapa lama piston terbuka itu urusan kecepatan belt, yang PLC tahu dan PC tidak.
+
+Kalau 200 ms terlalu pendek untuk scan time ladder, lebar pulse-nya juga bisa dinaikkan
+(mis. 500 ms) tanpa masuk mode tahan. Tinggal bilang angkanya.
 
 Peta alamat **sudah selesai** — daftar 23 September dipakai apa adanya.
 
@@ -200,12 +213,21 @@ sebagai masalah jaringan.
 
 Di layar konsol AutoGrade ada tab **"Uji PLC"** (khusus akun support). Isinya:
 
-- daftar bit yang sedang dibaca dari PLC, per line;
-- tombol untuk **memicu satu pulse** pada bit ACC / REJ / piston, satu per satu.
+- daftar bit yang sedang dibaca dari PLC, **dengan alamat M-nya** — mis.
+  `M1102 MOTOR 3 = Aktif`, jadi bisa langsung dicocokkan ke monitor bit GX Works2;
+- satu tombol per coil, **diberi nama dan alamat**: "Kamera 1 OK / M1000" (hijau),
+  "Kamera 1 NG / M1001" dan "Kamera 1 Error / M1002" (merah). Termasuk **coil ERROR**,
+  yang sebelumnya tidak bisa diuji sama sekali — line yang sehat tidak pernah
+  menaikkannya sendiri, jadi tidak ada cara lain membuktikan M1002/M1005/M1008 terpasang;
+- **peta alamat lengkap** di bagian bawah layar, supaya tidak perlu membuka PDF ini
+  sambil berdiri di depan panel.
 
 Ini dipakai saat commissioning untuk memastikan kabel dan ladder sudah benar, tanpa perlu
-menjalankan kamera atau melewatkan buah. Tombolnya meminta konfirmasi ketik karena
-**benar-benar menggerakkan hardware**.
+menjalankan kamera atau melewatkan buah.
+
+⚠️ Pulse-nya **200 ms** — terlalu cepat untuk dilihat mata di lampu panel. Pantau dari
+**monitor bit GX Works2**. Kalau perlu terlihat mata, kami bisa memperpanjangnya sementara
+(bab 5, mode tahan).
 
 ---
 

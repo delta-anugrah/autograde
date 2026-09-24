@@ -768,13 +768,17 @@ def test_kolom_konfirmasi_plc_ada_dan_disembunyikan_sampai_diminta():
     assert "plc-konfirmasi" in _fungsi("tanyaUjiPlc"), "tombol uji coil tidak membuka grup inline"
 
 
-def test_konfirmasi_plc_tetap_wajib_ketik_uji():
-    """Beda dari tara: kolom ini bukan validasi angka tapi kata sandi sekali pakai
-    untuk memicu hardware sungguhan. Klik saja - bahkan lewat confirm() - bisa
-    tersenggol jempol bersarung tangan di layar sentuh; ketikan tidak."""
+def test_konfirmasi_plc_tidak_lagi_minta_ketikan():
+    """Ketikan UJI dicabut 2026-09-24 atas permintaan pengguna: layar ini milik
+    developer/teknisi saat commissioning, dan mengetik kata yang sama sebelum
+    tiap coil memperlambat pekerjaan yang memang berulang.
+
+    Yang menahan kecelakaan tetap ada, dan ada di sisi LINE bukan di layar:
+    coil ditolak selama line memproses truk, dan tiap percobaan meninggalkan
+    baris WARNING di event_log (dijaga tests/unit/test_dev_plc.py)."""
+    assert "plc-konfirmasi-nilai" not in HTML, "kolom ketik UJI masih ada di layar"
     fn = _fungsi("jalankanUjiPlc")
-    assert '!== "UJI"' in fn, "konfirmasi uji PLC tidak lagi memvalidasi ketikan UJI"
-    assert "konfirmasi: \"UJI\"" in fn, "body POST tidak lagi mengirim konfirmasi: UJI"
+    assert '!== "UJI"' not in fn, "layar masih memvalidasi ketikan UJI"
 
 
 def test_batal_konfirmasi_plc_tidak_mengirim_apa_pun():
@@ -797,7 +801,8 @@ def test_konfirmasi_plc_menyebut_coil_dan_line():
 def test_label_konfirmasi_plc_diterjemahkan():
     for bahasa in ("id", "en"):
         isi = _kamus(bahasa)
-        for kunci in ("phUjiPlc", "btnUjiPlcJalankan", "konfirmasiUjiPlc", "ujiPlcDibatalkan"):
+        # `phUjiPlc` (placeholder kolom ketik) hilang bersama kolomnya, 2026-09-24.
+        for kunci in ("btnUjiPlcJalankan", "konfirmasiUjiPlc", "ujiPlcDibatalkan"):
             assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
 
 
