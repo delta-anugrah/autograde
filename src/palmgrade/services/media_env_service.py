@@ -1,13 +1,21 @@
-"""Baca & tulis `media.env` — berkas setelan sumber kamera per line.
+"""Baca & tulis `media.env` — setelan sumber kamera dan model deteksi per line.
 
 Berkas TERPISAH dari `.env`, sengaja. `.env` memuat `LICENSE_TOKEN`,
 `R2_SECRET_ACCESS_KEY`, dan `WEBHOOK_SECRET`; me-mount berkas itu writable ke
 konsol berarti satu bug penulisan bisa merusak kredensial produksi. `media.env`
 paling jauh rusak berarti ketiga line kembali ke bawaan `hikrobot`.
 
-Bentuk berkasnya cuma diketahui modul ini. Compose membacanya lewat `env_file`,
-line membacanya sebagai environment biasa — tidak ada yang mem-parsing-nya lagi
-di tempat lain.
+Bentuk berkasnya cuma diketahui modul ini, dengan satu pengecualian sadar:
+proses line membacanya sendiri di `Settings.__post_init__` (environment
+container beku sejak dibuat, jadi restart saja tidak pernah melihat setelan
+baru). Compose membacanya lewat `--env-file`, BUKAN `env_file:` — lihat kepala
+`docker-compose.yml`.
+
+**Dua layar, satu berkas.** Sumber Kamera menulis `CAMERA_TYPE`/`MEDIA_FILE`/
+`VIDEO_LOOP`, Model Deteksi menulis `MODEL_FILE`. Masing-masing WAJIB
+mempertahankan kunci milik yang lain: `tulis()` dulu menulis ulang berkas
+dengan kunci kamera saja, dan menyimpan Sumber Kamera akan diam-diam
+mengembalikan ketiga line ke model bawaan.
 
 `baca()` MEMAAFKAN, `tulis()` tidak. Baris tak dikenal dan nilai ngawur jatuh ke
 bawaan, karena berkas yang disunting tangan atau ditulis versi lebih baru tidak
@@ -36,7 +44,7 @@ BAWAAN: dict[str, Any] = {"sumber": "hikrobot", "berkas": "", "ulang": False}
 _NOMOR = {kode: str(i + 1) for i, kode in enumerate(LINE_CODES)}
 
 _KEPALA = (
-    "# Sumber kamera per line — ditulis layar Support di konsol.\n"
+    "# Sumber kamera + model deteksi per line — ditulis layar Support di konsol.\n"
     "# JANGAN disunting tangan saat konsol jalan: simpan berikutnya menimpanya.\n"
     "# Rahasia (lisensi, R2, webhook) TIDAK ada di sini; itu di .env.\n"
 )
@@ -83,6 +91,25 @@ class MediaEnvService:
             }
         return hasil
 
+    def baca_model(self) -> dict[str, str]:
+        """Model pilihan ketiga line. `""` = bawaan PC (`MODEL_FILE` di `.env`).
+
+        Nama yang tidak lolos saringan (disunting tangan) dibaca kosong, bukan
+        melempar — aturan memaafkan yang sama dengan `baca()`.
+        """
+        from ..domain.pilihan_model import ModelTidakSah, bersihkan_nama_model
+
+        mentah = self._baris()
+        hasil: dict[str, str] = {}
+        for kode in LINE_CODES:
+            nilai = mentah.get(f"LINE_{_NOMOR[kode]}_MODEL_FILE", "")
+            try:
+                hasil[kode] = bersihkan_nama_model(nilai)
+            except ModelTidakSah:
+                logger.warning("media.env: model %s untuk %s diabaikan", nilai[:80], kode)
+                hasil[kode] = ""
+        return hasil
+
     def _baris(self) -> dict[str, str]:
         """`KUNCI=nilai` dari berkas. Berkas tidak ada / tak terbaca -> kosong."""
         try:
@@ -108,7 +135,23 @@ class MediaEnvService:
     # ----------------------------------------------------------------- tulis
 
     def tulis(self, setelan: dict[str, dict[str, Any]]) -> None:
-        """Timpa seluruh berkas dengan setelan ketiga line.
+        """Ganti sumber kamera ketiga line; pilihan model tetap seperti adanya."""
+        self._tulis_isi(setelan, self.baca_model())
+
+    def tulis_model(self, pilihan: dict[str, str]) -> None:
+        """Ganti model ketiga line; sumber kamera tetap seperti adanya.
+
+        Nama disaring lagi di sini walau gerbang simpan konsol sudah
+        menyaringnya: nama ini ditulis apa adanya sebagai satu baris, dan satu
+        `\n` yang lolos menyelundupkan baris kedua ke berkas setelan.
+        """
+        from ..domain.pilihan_model import bersihkan_nama_model
+
+        bersih = {kode: bersihkan_nama_model(pilihan.get(kode, "")) for kode in LINE_CODES}
+        self._tulis_isi(self.baca(), bersih)
+
+    def _tulis_isi(self, setelan: dict[str, dict[str, Any]], model: dict[str, str]) -> None:
+        """Timpa seluruh berkas dengan setelan kamera + model ketiga line.
 
         Lewat berkas sementara di folder yang sama lalu `os.replace`, yang
         atomik di POSIX: berkas setengah tertulis akibat mati listrik akan
@@ -124,6 +167,7 @@ class MediaEnvService:
                 f"LINE_{n}_CAMERA_TYPE={CAMERA_TYPE_UNTUK[satu['sumber']]}\n"
                 f"LINE_{n}_MEDIA_FILE={satu['berkas']}\n"
                 f"LINE_{n}_VIDEO_LOOP={'true' if satu['ulang'] else 'false'}\n"
+                f"LINE_{n}_MODEL_FILE={model.get(kode, '')}\n"
             )
         isi = "".join(bagian)
 

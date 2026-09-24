@@ -220,3 +220,79 @@ def test_tulis_bind_mount_tidak_meninggalkan_berkas_sementara(tmp_path, monkeypa
 
     sisa = [p.name for p in tmp_path.iterdir() if p.name.startswith(".media.env.")]
     assert sisa == [], f"berkas sementara tertinggal: {sisa}"
+
+
+# ───────────────────────────── model deteksi per line (sejak 2026-09-24)
+
+import pytest  # noqa: E402
+
+from palmgrade.domain.pilihan_model import LINE_MODEL, ModelTidakSah  # noqa: E402
+
+KAMERA_VIDEO = {
+    "line-1": dict(BAWAAN),
+    "line-2": {"sumber": "video", "berkas": "konveyor.mp4", "ulang": True},
+    "line-3": dict(BAWAAN),
+}
+
+
+def test_line_codes_sama_dengan_domain_model():
+    # Domain menyalin tuple ini supaya tidak bergantung pada service.
+    assert LINE_MODEL == LINE_CODES
+
+
+def test_baca_model_bawaan_kosong(tmp_path):
+    assert MediaEnvService(tmp_path / "media.env").baca_model() == {k: "" for k in LINE_CODES}
+
+
+def test_tulis_model_lalu_baca(tmp_path):
+    path = tmp_path / "media.env"
+    svc = MediaEnvService(path)
+    svc.tulis_model({"line-1": "", "line-2": "coba.pt", "line-3": "best.pt"})
+    assert svc.baca_model() == {"line-1": "", "line-2": "coba.pt", "line-3": "best.pt"}
+    isi = path.read_text(encoding="utf-8")
+    assert "LINE_2_MODEL_FILE=coba.pt" in isi
+    assert "LINE_1_MODEL_FILE=\n" in isi
+
+
+def test_tulis_model_mempertahankan_sumber_kamera(tmp_path):
+    svc = MediaEnvService(tmp_path / "media.env")
+    svc.tulis(KAMERA_VIDEO)
+    svc.tulis_model({"line-1": "", "line-2": "coba.pt", "line-3": ""})
+    assert svc.baca() == KAMERA_VIDEO
+
+
+def test_simpan_sumber_kamera_tidak_menghapus_model(tmp_path):
+    # Dua layar menulis berkas yang sama. `tulis()` dulu menulis ulang seluruh
+    # berkas dengan kunci kamera saja, jadi tanpa penjaga ini menyimpan Sumber
+    # Kamera diam-diam mengembalikan ketiga line ke model bawaan.
+    svc = MediaEnvService(tmp_path / "media.env")
+    svc.tulis_model({"line-1": "coba.pt", "line-2": "", "line-3": "best.pt"})
+    svc.tulis(KAMERA_VIDEO)
+    assert svc.baca_model() == {"line-1": "coba.pt", "line-2": "", "line-3": "best.pt"}
+
+
+def test_model_disunting_tangan_berbahaya_dibaca_kosong(tmp_path):
+    path = tmp_path / "media.env"
+    path.write_text(
+        "LINE_1_MODEL_FILE=../../etc/x.pt\nLINE_2_MODEL_FILE=bukan-pt\nLINE_3_MODEL_FILE= best.pt \n",
+        encoding="utf-8",
+    )
+    assert MediaEnvService(path).baca_model() == {"line-1": "", "line-2": "", "line-3": "best.pt"}
+
+
+def test_tulis_model_menolak_nama_yang_menyelundupkan_baris(tmp_path):
+    path = tmp_path / "media.env"
+    with pytest.raises(ModelTidakSah):
+        MediaEnvService(path).tulis_model(
+            {"line-1": "a.pt\nLINE_1_CAMERA_TYPE=photo", "line-2": "", "line-3": ""}
+        )
+    assert not path.exists()
+
+
+def test_berkas_lama_tanpa_baris_model_tetap_terbaca(tmp_path):
+    # media.env dari versi sebelum layar Model Deteksi ada.
+    path = tmp_path / "media.env"
+    path.write_text("LINE_1_CAMERA_TYPE=photo\nLINE_1_MEDIA_FILE=sawit.jpg\n", encoding="utf-8")
+    svc = MediaEnvService(path)
+    assert svc.baca_model() == {k: "" for k in LINE_CODES}
+    assert svc.baca()["line-1"]["sumber"] == "foto"
