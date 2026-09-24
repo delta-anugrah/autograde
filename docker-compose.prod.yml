@@ -164,6 +164,10 @@ services:
       - ./artifacts/line-3:/app/artifacts/line-3:ro
       # Daftar berkas yang layar Sumber Kamera tawarkan.
       - ./media:/media:ro
+      # Layar Model Deteksi membaca kelas tiap model dan engine per GPU.
+      # Read-only: konsol memilih model, tidak pernah menulisnya.
+      - ./models:/app/models:ro
+      - ./engines:/app/engines:ro
       # Satu-satunya berkas host yang konsol boleh TULIS. `.env` sengaja tidak
       # di-mount: ia memuat lisensi, R2, dan webhook secret.
       - ./media.env:/config/media.env
