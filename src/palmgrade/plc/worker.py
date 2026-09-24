@@ -201,9 +201,18 @@ class PlcWorker:
         # d. ERROR coil — a level, not a pulse. Written on change, AND
         #    re-asserted every second so it survives the coupler's own output
         #    reset.
+        #    ⚠️ Dilewati selama ada pulse uji tangan di coil ini (sejak
+        #    2026-09-23, saat coil ERROR masuk daftar yang boleh diuji): tanpa
+        #    ini pulse naik lalu langsung ditimpa level sehat pada tick yang
+        #    sama, coil bergerak beberapa milidetik dan tidak ada yang melihat
+        #    di panel. Levelnya kembali berkuasa di tick sesudah pulse selesai
+        #    — `_error_level` sengaja TIDAK diperbarui di sini, jadi
+        #    perbandingan `desired != self._error_level` yang memulihkannya.
+        err_coil = self.settings.plc_coil_error
         desired = self._is_unhealthy()
-        if desired != self._error_level or now >= self._next_error_write:
-            writes[self.settings.plc_coil_error] = desired
+        sedang_diuji = self._scheduler_is_active(err_coil)
+        if not sedang_diuji and (desired != self._error_level or now >= self._next_error_write):
+            writes[err_coil] = desired
             self._error_level = desired
             self._next_error_write = now + 1.0
 
@@ -256,6 +265,16 @@ class PlcWorker:
             self.inputs = bits
         else:
             logger.warning("PLC discrete input read failed — keeping the last input state")
+
+    def _scheduler_is_active(self, coil: int) -> bool:
+        """Scheduler sedang memegang coil ini (pulse berjalan / tahanan ON).
+
+        `getattr` supaya scheduler pihak ketiga di test lama — yang tidak punya
+        `is_active` — tetap jalan seperti sebelumnya, bukan meledak.
+        """
+        with self._scheduler_lock:
+            cek = getattr(self.scheduler, "is_active", None)
+            return bool(cek and cek(coil))
 
     def _is_unhealthy(self) -> bool:
         # Overflow is DELIBERATELY not part of this. Drops are the declared

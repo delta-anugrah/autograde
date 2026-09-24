@@ -131,10 +131,12 @@ def test_prefix_device_bisa_diganti_dan_dinormalkan(monkeypatch):
     assert Settings().plc_device_prefix == "B"
 
 
-def test_di_base_bawaan_nol_dan_bisa_digeser(monkeypatch):
-    # Modbus membaca discrete input mulai 0. MC Protocol membaca blok M yang
-    # dialokasikan panel, jadi awalnya harus bisa digeser.
-    monkeypatch.delenv("PLC_DI_BASE", raising=False)
+def test_di_base_bisa_digeser(monkeypatch):
+    # Blok yang dibaca dialokasikan panel, jadi harus bisa digeser. Bawaannya
+    # M1100 (peta yang berlaku) — dijaga test_di_base_bawaan_m1100_bukan_nol.
+    # ⚠️ Jalur modbus/ODOT membaca discrete input mulai 0; site yang masih
+    # memakainya wajib menulis PLC_DI_BASE=0 sendiri.
+    monkeypatch.setenv("PLC_DI_BASE", "0")
     assert Settings().plc_di_base == 0
     monkeypatch.setenv("PLC_DI_BASE", "200")
     assert Settings().plc_di_base == 200
@@ -196,3 +198,42 @@ def test_env_plc_salah_ketik_tetap_berteriak(monkeypatch, caplog):
     with caplog.at_level(logging.WARNING):
         Settings()
     assert "PLC_PORT" in caplog.text
+
+
+# ── mode tahan (PLC_HOLD_MS) ─────────────────────────────────────────────────
+
+
+def test_hold_ms_bawaan_nol_berarti_pulse(monkeypatch):
+    monkeypatch.delenv("PLC_HOLD_MS", raising=False)
+    assert Settings().plc_hold_ms == 0
+
+
+def test_hold_ms_dibaca_dari_env(monkeypatch):
+    monkeypatch.setenv("PLC_HOLD_MS", "7000")
+    assert Settings().plc_hold_ms == 7000
+
+
+def test_hold_ms_rusak_jatuh_ke_pulse_bukan_crash(monkeypatch):
+    monkeypatch.setenv("PLC_HOLD_MS", "lima detik")
+    assert Settings().plc_hold_ms == 0
+
+
+# ── bawaan alamat = peta yang berlaku, bukan warisan ODOT ───────────────────
+
+
+def test_coil_base_bawaan_m1000_bukan_nol(monkeypatch):
+    """`0` itu base zaman ODOT. Compose memang mematoknya per line, tapi line
+    yang jalan DI LUAR Docker (`make line` di laptop) tidak membacanya — dan
+    layar lalu menampilkan M0/M1/M2, alamat yang tidak ada di daftar panel."""
+    monkeypatch.delenv("PLC_COIL_BASE", raising=False)
+    assert Settings().plc_coil_base == 1000
+
+
+def test_di_base_bawaan_m1100_bukan_nol(monkeypatch):
+    monkeypatch.delenv("PLC_DI_BASE", raising=False)
+    assert Settings().plc_di_base == 1100
+
+
+def test_coil_alive_bawaan_m1009(monkeypatch):
+    monkeypatch.delenv("PLC_COIL_ALIVE", raising=False)
+    assert Settings().plc_coil_alive == (1009,)

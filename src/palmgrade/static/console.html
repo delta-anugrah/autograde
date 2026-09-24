@@ -375,7 +375,32 @@
   .plc-coil { padding:0 13px 12px; display:flex; flex-wrap:wrap; gap:8px; }
   button.uji-coil { flex:1; min-width:9rem; min-height:2.6rem; border-color:var(--danger-line);
                      background:var(--danger-bg); color:var(--danger-fg); font-weight:600; }
+  /* Hijau = OK, merah = NG/Error. Warna dibaca lebih cepat daripada tulisan
+     saat tangan sedang di panel dan mata bolak-balik ke GX Works2. Merah tetap
+     bawaan tombol ini karena dua dari tiga memang "buang"/"rusak". */
+  button.uji-coil.ok { border-color:var(--acc); background:var(--acc-bg); color:var(--acc); }
   button.uji-coil:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
+  /* Dua baris: peran yang dibaca manusia di atas, alamat M yang dicocokkan ke
+     GX Works2 di bawah. Keduanya perlu — nama saja tidak bisa dicocokkan ke
+     ladder, angka saja tidak berarti apa-apa buat yang memegang panel. */
+  button.uji-coil { display:flex; flex-direction:column; align-items:center; justify-content:center;
+                    gap:2px; line-height:1.25; padding:6px 10px; }
+  button.uji-coil .alamat { display:block; font-family:var(--mono); font-size:.76rem;
+                            font-weight:400; opacity:.7; letter-spacing:.02em; }
+  /* Peta alamat: referensi diam, dibaca developer/teknisi, bukan tombol. */
+  #plc-peta { margin:14px 13px 0; }
+  #plc-peta h3 { margin:0 0 6px; font-size:.82rem; letter-spacing:.06em;
+                 text-transform:uppercase; color:var(--muted); }
+  /* Dua tabel berdampingan selama muat; menumpuk sendiri di layar sempit.
+     `width:auto` + `max-content` supaya kolom keterangan tidak melar mengisi
+     sisa baris — daftar alamat dibaca dengan menyapu mata ke bawah. */
+  #plc-peta .peta-grid { display:flex; flex-wrap:wrap; gap:14px 36px; align-items:flex-start; }
+  #plc-peta table { border-collapse:collapse; font-size:.8rem; width:max-content; }
+  #plc-peta caption { text-align:left; padding:0 0 5px; font-weight:600;
+                      color:var(--muted); font-size:.78rem; }
+  #plc-peta tbody tr:nth-child(even) { background:var(--bg-lembut, rgba(127,127,127,.06)); }
+  #plc-peta td { padding:2px 0; white-space:nowrap; }
+  #plc-peta td:first-child { font-family:var(--mono); font-weight:700; padding-right:16px; }
 
   /* Konfirmasi uji PLC: inline, bukan dialog bawaan browser - lihat komentar HTML
      di #sec-plc. Sama bentuknya dengan .tara-grup, ditempatkan di luar #plc-kartu
@@ -1425,16 +1450,62 @@
     Sama seperti tara-grup di tab Timbangan - dialog yang menutup layar
     menghilangkan kamera line dan strip tally justru saat firing sedang ditunggu.
 
-    Ketikan tetap wajib (bukan tombol klik): klik bisa tersenggol jempol
-    bersarung tangan di layar sentuh, ketikan tidak. Ini satu-satunya layar
-    konsol yang menggerakkan besi sungguhan.
+    Ketikan UJI dicabut 2026-09-24 atas permintaan pengguna: layar ini dipakai
+    developer/teknisi saat commissioning, dan mengetik kata yang sama sebelum
+    tiap coil memperlambat pekerjaan yang memang berulang. Yang benar-benar
+    menahan kecelakaan tetap ada dan ada di sisi LINE, bukan di layar: coil
+    ditolak selama line itu memproses truk, dan tiap percobaan meninggalkan
+    baris WARNING di event_log.
   -->
   <div id="plc-konfirmasi" class="plc-konfirmasi" hidden>
     <b id="plc-konfirmasi-teks"></b>
-    <input id="plc-konfirmasi-nilai" data-t-ph="phUjiPlc" placeholder="UJI"
-           autocomplete="off" autocapitalize="characters" spellcheck="false">
     <button type="button" id="plc-konfirmasi-jalankan" class="utama" data-t="btnUjiPlcJalankan">Jalankan</button>
     <button type="button" id="plc-konfirmasi-batal" data-t="btnBatal">Batal</button>
+  </div>
+  <!--
+    Peta alamat, statis: daftar yang dipegang tim PLC (23 Sep 2026), ditaruh di
+    layar yang sama dengan tombolnya supaya teknisi tidak perlu membuka PDF
+    sambil berdiri di depan panel. Sengaja HTML mati, bukan dirender dari
+    server: ini dokumen kesepakatan dengan panel, bukan keadaan yang berubah.
+    Sumber kebenaran alamat tetap docker-compose.yml, diikat ke dokumen lewat
+    test_plc_docs_match_compose.
+  -->
+  <div id="plc-peta">
+    <h3 data-t="petaJudul">Peta alamat PLC</h3>
+    <div class="peta-grid">
+    <table>
+      <caption data-t="petaDariPc"></caption>
+      <tbody>
+      <tr><td>M1000</td><td>CAMERA 1 ADJUGMEN OK</td></tr>
+      <tr><td>M1001</td><td>CAMERA 1 ADJUGMEN NG</td></tr>
+      <tr><td>M1002</td><td>CAMERA 1 ERROR</td></tr>
+      <tr><td>M1003</td><td>CAMERA 2 ADJUGMEN OK</td></tr>
+      <tr><td>M1004</td><td>CAMERA 2 ADJUGMEN NG</td></tr>
+      <tr><td>M1005</td><td>CAMERA 2 ERROR</td></tr>
+      <tr><td>M1006</td><td>CAMERA 3 ADJUGMEN OK</td></tr>
+      <tr><td>M1007</td><td>CAMERA 3 ADJUGMEN NG</td></tr>
+      <tr><td>M1008</td><td>CAMERA 3 ERROR</td></tr>
+      <tr><td>M1009</td><td>HEARTBIT PC</td></tr>
+      </tbody>
+    </table>
+    <table>
+      <caption data-t="petaKePc"></caption>
+      <tbody>
+      <tr><td>M1100</td><td>MOTOR 1 FAULT</td></tr>
+      <tr><td>M1101</td><td>MOTOR 2 FAULT</td></tr>
+      <tr><td>M1102</td><td>MOTOR 3 FAULT</td></tr>
+      <tr><td>M1103</td><td>MOTOR 4 FAULT</td></tr>
+      <tr><td>M1104</td><td>MOTOR 5 FAULT</td></tr>
+      <tr><td>M1105</td><td>MOTOR 6 FAULT</td></tr>
+      <tr><td>M1106</td><td>MOTOR 7 FAULT</td></tr>
+      <tr><td>M1107</td><td>MOTOR 8 FAULT</td></tr>
+      <tr><td>M1108</td><td>MOTOR 9 FAULT</td></tr>
+      <tr><td>M1109</td><td>MOTOR 10 FAULT</td></tr>
+      <tr><td>M1110</td><td>MOTOR 11 FAULT</td></tr>
+      <tr><td>M1111</td><td>E-STOP OP PANEL</td></tr>
+      </tbody>
+    </table>
+    </div>
   </div>
 </section>
 
@@ -1647,8 +1718,11 @@ const KAMUS = {
     diMotor:"MOTOR {n}", diEstop:"E-STOP", diKosong:"-",
     gagalPlc:"Gagal memuat status PLC",
     btnUjiCoil:"Uji coil {coil}", coilMatiLineSibuk:"Line sedang memproses truk",
-    konfirmasiUjiPlc:"Coil {coil} di {line} akan menyala sesaat - ini menggerakkan barang sungguhan. Ketik UJI untuk lanjut:",
-    phUjiPlc:"Ketik UJI", btnUjiPlcJalankan:"Jalankan",
+    coilOk:"Kamera {n} OK", coilNg:"Kamera {n} NG", coilError:"Kamera {n} Error",
+    coilPiston:"Piston manual", petaJudul:"Peta alamat PLC (daftar tim PLC, 23 Sep 2026)",
+    petaDariPc:"PC menulis → PLC membaca", petaKePc:"PLC menulis → PC membaca",
+    konfirmasiUjiPlc:"Coil {coil} di {line} akan menyala sesaat - ini menggerakkan barang sungguhan.",
+    btnUjiPlcJalankan:"Jalankan",
     ujiPlcDibatalkan:"Dibatalkan - konfirmasi tidak cocok",
     ujiPlcBerhasil:"Coil {coil} dipicu", ujiPlcDijatuhkan:"Coil {coil} TIDAK menyala - antrean pulse PLC penuh, coba lagi",
     gagalUjiPlc:"Gagal memicu coil",
@@ -1794,8 +1868,11 @@ const KAMUS = {
     diMotor:"MOTOR {n}", diEstop:"E-STOP", diKosong:"-",
     gagalPlc:"Failed to load PLC status",
     btnUjiCoil:"Test coil {coil}", coilMatiLineSibuk:"Line is processing a truck",
-    konfirmasiUjiPlc:"Coil {coil} on {line} will pulse briefly - this moves real hardware. Type UJI to continue:",
-    phUjiPlc:"Type UJI", btnUjiPlcJalankan:"Fire",
+    coilOk:"Camera {n} OK", coilNg:"Camera {n} NG", coilError:"Camera {n} Error",
+    coilPiston:"Manual piston", petaJudul:"PLC address map (PLC team list, 23 Sep 2026)",
+    petaDariPc:"PC writes → PLC reads", petaKePc:"PLC writes → PC reads",
+    konfirmasiUjiPlc:"Coil {coil} on {line} will pulse briefly - this moves real hardware.",
+    btnUjiPlcJalankan:"Fire",
     ujiPlcDibatalkan:"Cancelled - confirmation did not match",
     ujiPlcBerhasil:"Coil {coil} fired", ujiPlcDijatuhkan:"Coil {coil} did NOT fire - PLC pulse queue is full, try again",
     gagalUjiPlc:"Failed to fire coil",
@@ -2020,9 +2097,15 @@ function bukaTabDev(namaTab) {
   // detik dari tab lain membebani line tanpa ada yang melihat hasilnya.
   clearInterval(rekamTimer);
   rekamTimer = null;
+  clearInterval(plcTimer);
+  plcTimer = null;
   const muat = MUAT_TAB[namaTab] ? MUAT_TAB[namaTab]() : Promise.resolve();
   if (namaTab === "diagnostik") diagnostikTimer = setInterval(muatDiagnostik, 5000);
   if (namaTab === "rekam") rekamTimer = setInterval(muatRekam, 3000);
+  // 1 detik: lebih rapat dari diagnostik (5 s) karena di sini orang menunggu
+  // jawaban tombol yang baru saja ditekan. Tiap tick = satu GET ringan per line,
+  // dan tabnya cuma terbuka saat commissioning — bukan sepanjang shift.
+  if (namaTab === "plc") plcTimer = setInterval(muatPlc, 1000);
   return muat;
 }
 
@@ -3449,6 +3532,12 @@ $("log-next").addEventListener("click", () => {
 // ── developer: diagnostik (support only) ────────────────────────────────
 // The 5 s auto-refresh timer itself lives in `bukaTabDev` above.
 let diagnostikTimer = null;
+// Layar Uji PLC dipakai saat commissioning, sambil orang lain menekan tombol di
+// panel — tanpa timer, `muatPlc()` cuma jalan sekali saat tab dibuka dan bit
+// motor/E-stop jadi foto lama sampai operator pindah tab lalu kembali. Terbaca
+// di pabrik sebagai "PLC-nya delay" (Lampung 2026-09-23), padahal PlcWorker
+// sudah membaca blok M tiap 200 ms.
+let plcTimer = null;
 
 // Dynamic markup, generated fresh on every poll: static labels are resolved
 // with t() inline here, not via data-t - that attribute is only ever scanned
@@ -3641,19 +3730,55 @@ function namaBitPlc(i) {
   return t("diKosong");
 }
 
-function isiDiPlc(inputs) {
+function isiDiPlc(inputs, diBase, prefiks) {
   if (!inputs || !inputs.length) return `<span class="muted">${esc(t("plcMati"))}</span>`;
+  // Alamat M di depan nama, bukan offset mentah: yang dipegang tim PLC daftar
+  // M1100.., dan menerjemahkan offset ke alamat di kepala adalah cara paling
+  // mudah salah saat commissioning.
+  const base = diBase || 0;
   return inputs.map((on, i) =>
-    `<span class="plc-di-bit${on ? " aktif" : ""}">${i}: ${esc(namaBitPlc(i))} = ${on ? esc(t("diAktif")) : esc(t("diMati"))}</span>`
+    `<span class="plc-di-bit${on ? " aktif" : ""}">${esc(alamatPlc(base + i, prefiks))} ${esc(namaBitPlc(i))} = ${on ? esc(t("diAktif")) : esc(t("diMati"))}</span>`
   ).join(" ");
+}
+
+// Peran satu coil: OFFSET dari `coil_base` line itu menentukan OK/NG/ERROR,
+// dan NOMOR kameranya datang dari kode line ("line-2" -> 2).
+//
+// Dua-duanya sengaja tidak ditebak dari alamat. Blok alamat milik panel dan
+// sudah pernah berubah sekali (coil 0/3/6 jadi M1000/1003/1006), jadi
+// menghitung nomor kamera dari jaraknya ke 1000 membuat ketiga line menulis
+// "Kamera 1" begitu basenya bukan 1000-an — persis yang terjadi di konsol dev.
+// Kode line sudah ada di tangan konsol; tidak ada alasan menebaknya.
+function peranCoil(coil, base, kodeLine) {
+  const d = coil - base;
+  if (d !== 0 && d !== 1 && d !== 2) return t("coilPiston");
+  const cocok = /(\d+)\s*$/.exec(kodeLine || "");
+  const n = cocok ? cocok[1] : "1";
+  const kunci = d === 0 ? "coilOk" : d === 1 ? "coilNg" : "coilError";
+  return t(kunci).replace("{n}", n);
+}
+
+// Alamat sebagaimana ditulis di GX Works2: prefiks device datang dari line,
+// bukan dipatok "M" di layar — panel boleh memberi B atau Y, dan alamat yang
+// salah huruf tidak bisa dicocokkan ke ladder.
+function alamatPlc(nomor, prefiks) {
+  return `${prefiks || "M"}${nomor}`;
+}
+
+// Kelas warna satu coil, dari OFFSET-nya (base+0 = OK) — bukan dari nomor
+// alamat. Base milik panel dan pernah berubah sekali; mencocokkan angka di
+// sini berarti warnanya salah diam-diam pada perubahan berikutnya.
+function kelasCoil(coil, base) {
+  return coil - base === 0 ? "ok" : "";
 }
 
 function isiCoilPlc(kode, data, sibuk) {
   if (!data.enabled) return `<span class="muted">${esc(t("plcMati"))}</span>`;
+  const base = data.coil_base || 0;
   return (data.testable_coils || []).map((coil) => `
-    <button type="button" class="uji-coil" data-line="${esc(kode)}" data-coil="${coil}"
+    <button type="button" class="uji-coil ${kelasCoil(coil, base)}" data-line="${esc(kode)}" data-coil="${coil}"
       ${sibuk ? `disabled title="${esc(t("coilMatiLineSibuk"))}"` : ""}>
-      ${esc(t("btnUjiCoil").replace("{coil}", coil))}
+      <b>${esc(peranCoil(coil, base, kode))}</b><span class="alamat">${esc(alamatPlc(coil, data.device_prefix))}</span>
     </button>`).join("");
 }
 
@@ -4064,7 +4189,7 @@ async function muatPlcSatuLine(kode) {
   const sibuk = kartu.dataset.plcSibuk === "1";
   try {
     const data = await api(`/api/console/dev/plc/${encodeURIComponent(kode)}`);
-    kartu.querySelector("[data-plc-di]").innerHTML = isiDiPlc(data.inputs);
+    kartu.querySelector("[data-plc-di]").innerHTML = isiDiPlc(data.inputs, data.di_base, data.device_prefix);
     kartu.querySelector("[data-plc-coil]").innerHTML = isiCoilPlc(kode, data, sibuk);
   } catch (e) {
     if (e.kode === "belum_masuk") return;
@@ -4088,9 +4213,8 @@ let ujiUntuk = null;
 function tanyaUjiPlc(line_code, coil) {
   ujiUntuk = { line_code, coil };
   $("plc-konfirmasi-teks").textContent = t("konfirmasiUjiPlc").replace("{coil}", coil).replace("{line}", line_code);
-  $("plc-konfirmasi-nilai").value = "";
   $("plc-konfirmasi").hidden = false;
-  $("plc-konfirmasi-nilai").focus();
+  $("plc-konfirmasi-jalankan").focus();
 }
 
 function tutupUjiPlc() {
@@ -4100,21 +4224,12 @@ function tutupUjiPlc() {
 
 async function jalankanUjiPlc() {
   if (!ujiUntuk) return;
-  // Typing is still required - unlike the tare field, this is not a number
-  // check but a one-time password: a mere click (even through the browser's
-  // built-in confirm dialog) can be brushed by a gloved thumb on a
-  // touchscreen, typing cannot.
-  if ($("plc-konfirmasi-nilai").value.trim() !== "UJI") {
-    pesan(t("ujiPlcDibatalkan"));
-    tutupUjiPlc();
-    return;
-  }
   const { line_code, coil } = ujiUntuk;
   tutupUjiPlc();
   try {
     const hasil = await api(`/api/console/dev/plc/${encodeURIComponent(line_code)}/coil`, {
       method: "POST",
-      body: JSON.stringify({ coil, konfirmasi: "UJI" }),
+      body: JSON.stringify({ coil }),
     });
     pesan(hasil.fired ? t("ujiPlcBerhasil").replace("{coil}", coil) : t("ujiPlcDijatuhkan").replace("{coil}", coil));
   } catch (e) {
@@ -4127,11 +4242,10 @@ async function jalankanUjiPlc() {
 $("plc-konfirmasi-jalankan").addEventListener("click", jalankanUjiPlc);
 $("plc-konfirmasi-batal").addEventListener("click", tutupUjiPlc);
 
-$("plc-konfirmasi-nilai").addEventListener("keydown", (ev) => {
-  if (ev.key === "Enter") { ev.preventDefault(); jalankanUjiPlc(); }
-  // Esc closes it, like any dialog: a wrongly selected coil must not force
-  // the operator to fire anything.
-  if (ev.key === "Escape") tutupUjiPlc();
+// Esc menutup, seperti dialog mana pun: coil yang salah dipilih tidak boleh
+// memaksa siapa pun menekan Jalankan.
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && !$("plc-konfirmasi").hidden) tutupUjiPlc();
 });
 
 $("plc-kartu").addEventListener("click", (ev) => {

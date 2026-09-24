@@ -149,11 +149,14 @@ def test_permintaan_piston_ditolak_kalau_plc_mati():
 # ── fire_test_coil / testable_coils: layar uji PLC untuk commissioning ──────────
 
 
-def test_testable_coils_mengecualikan_alive_dan_error():
+def test_testable_coils_memuat_ok_ng_error_dan_piston():
     from palmgrade import plc
 
     # _Cfg default: plc_coil_manual=10, plc_coil_base=0 -> ok=0, ng=1, error=2.
-    assert plc.testable_coils(_Cfg()) == frozenset({0, 1, 10})   # bukan 2 (error) atau alive
+    # ERROR (2) ikut sejak 2026-09-23: tim PLC perlu membuktikan M1002/M1005/M1008
+    # terpasang, dan line sehat tidak pernah menaikkannya sendiri. Coil alive
+    # tetap di luar (lihat test berikutnya).
+    assert plc.testable_coils(_Cfg()) == frozenset({0, 1, 2, 10})
 
 
 def test_testable_coils_mengecualikan_coil_alive_walau_dikonfigurasi():
@@ -173,7 +176,7 @@ def test_testable_coils_tanpa_piston_manual_dikonfigurasi():
     class _CfgTanpaManual(_Cfg):
         plc_coil_manual = None
 
-    assert plc.testable_coils(_CfgTanpaManual()) == frozenset({0, 1})
+    assert plc.testable_coils(_CfgTanpaManual()) == frozenset({0, 1, 2})
 
 
 def test_fire_test_coil_modul_ditolak_kalau_plc_mati():

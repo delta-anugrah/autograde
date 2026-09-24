@@ -128,3 +128,118 @@ def test_daftar_line_kosong_atau_null_aman():
         [NODE, "-e", skrip], capture_output=True, text=True, check=True, timeout=30
     ).stdout.strip()
     assert json.loads(keluar) == []
+
+
+# ── tab Uji PLC ikut memuat ulang sendiri ───────────────────────────────────
+
+
+def test_tab_uji_plc_punya_timer_muat_ulang():
+    """Tanpa timer, `muatPlc()` cuma jalan sekali saat tab dibuka: bit motor
+    dan E-stop di layar jadi foto lama sampai operator pindah tab dan kembali.
+    Terbaca di pabrik sebagai "PLC-nya delay" (Lampung 2026-09-23), padahal
+    PlcWorker sudah membaca blok M tiap 200 ms.
+    """
+    blok = HTML.split("function bukaTabDev(", 1)[1].split("\n}\n", 1)[0]
+    assert "plcTimer = setInterval(muatPlc" in blok, "tab PLC tidak punya timer"
+    assert "clearInterval(plcTimer)" in blok, "timer PLC tidak dihentikan saat pindah tab"
+
+
+def test_timer_uji_plc_lebih_rapat_dari_diagnostik():
+    """Diagnostik 5 s karena isinya keadaan yang berubah pelan. Layar PLC dipakai
+    saat commissioning sambil orang menekan tombol di panel — jeda 5 detik di situ
+    terasa seperti sinyalnya tidak sampai."""
+    blok = HTML.split("function bukaTabDev(", 1)[1].split("\n}\n", 1)[0]
+    plc = int(re.search(r"plcTimer = setInterval\(muatPlc, (\d+)\)", blok).group(1))
+    diag = int(re.search(r"diagnostikTimer = setInterval\(muatDiagnostik, (\d+)\)", blok).group(1))
+    assert plc < diag, f"timer PLC ({plc} ms) tidak lebih rapat dari diagnostik ({diag} ms)"
+
+
+# ── layar Uji PLC: nama jelas di tombol + tabel alamat ──────────────────────
+
+
+def test_tombol_uji_coil_menyebut_peran_bukan_cuma_nomor():
+    """"Test coil 1000" tidak mengatakan apa-apa ke orang yang memegang panel.
+    Yang dibaca harus "CAMERA 1 OK" + alamat M-nya, supaya cocok dengan daftar
+    yang dipegang tim PLC tanpa perlu membuka dokumen."""
+    fn = HTML.split("function isiCoilPlc(", 1)[1].split("\n}\n", 1)[0]
+    assert "peranCoil(" in fn, "tombol tidak memakai peranCoil()"
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("coilOk:", "coilNg:", "coilError:", "coilPiston:"):
+            assert kunci in isi, f"KAMUS.{bahasa} tanpa {kunci}"
+
+
+@butuh_node
+def test_nomor_kamera_dari_KODE_LINE_bukan_dihitung_dari_alamat():
+    """Nomor kamera datang dari `line-2`, bukan dari jarak base ke 1000.
+
+    Menghitungnya dari alamat membuat label ikut salah begitu blok alamat
+    bukan 1000-an — persis yang terjadi di konsol dev (base 0): ketiga line
+    menulis "Camera 1". Kode line sudah ada di tangan konsol; tidak ada
+    alasan menebaknya dari angka yang dimiliki panel.
+    """
+    fn = _fungsi("peranCoil")
+    skrip = (
+        "const KAMUS={id:{coilOk:'Kamera {n} OK',coilNg:'Kamera {n} NG',"
+        "coilError:'Kamera {n} Error',coilPiston:'Piston manual'}};"
+        "let bahasa='id'; const t=(k)=>KAMUS[bahasa][k] ?? k;\n" + fn +
+        "\nconsole.log(JSON.stringify(["
+        # alamat Lampung
+        "peranCoil(1000,1000,'line-1'), peranCoil(1004,1003,'line-2'),"
+        "peranCoil(1008,1006,'line-3'),"
+        # base dev (0/3/6) — nomornya harus TETAP ikut kode line
+        "peranCoil(0,0,'line-1'), peranCoil(4,3,'line-2'), peranCoil(8,6,'line-3'),"
+        # line asing / piston
+        "peranCoil(9,0,'line-1'), peranCoil(0,0,'mesin-aneh')]));"
+    )
+    hasil = json.loads(subprocess.run(
+        [NODE, "-e", skrip], capture_output=True, text=True, check=True, timeout=30
+    ).stdout.strip())
+    assert hasil == [
+        "Kamera 1 OK", "Kamera 2 NG", "Kamera 3 Error",
+        "Kamera 1 OK", "Kamera 2 NG", "Kamera 3 Error",
+        "Piston manual", "Kamera 1 OK",
+    ]
+
+
+def test_tabel_alamat_ada_di_bawah_konfirmasi():
+    # Referensi untuk developer/teknisi: seluruh peta M dalam satu layar.
+    assert HTML.index('id="plc-peta"') > HTML.index('id="plc-konfirmasi"')
+    for alamat in ("M1000", "M1009", "M1100", "M1111"):
+        assert alamat in HTML, f"{alamat} tidak ada di tabel alamat"
+
+
+def test_tabel_alamat_menyebut_arah_pc_dan_plc():
+    peta = HTML.split('id="plc-peta"', 1)[1].split("</section>", 1)[0]
+    assert "M1008" in peta and "M1110" in peta, "tabel alamat tidak lengkap"
+
+
+# ── warna tombol: hijau OK, merah NG/Error ─────────────────────────────────
+
+
+def test_tombol_ok_diberi_kelas_hijau_ng_dan_error_merah():
+    """Warna dibaca lebih cepat daripada tulisan saat tangan sedang di panel.
+    Kelasnya diturunkan dari OFFSET (base+0 = OK), bukan dari nomor alamat."""
+    fn = HTML.split("function isiCoilPlc(", 1)[1].split("\n}\n", 1)[0]
+    assert "kelasCoil(" in fn, "tombol tidak memakai kelasCoil()"
+    assert ".uji-coil.ok" in HTML, "CSS untuk tombol OK (hijau) tidak ada"
+
+
+@butuh_node
+def test_kelas_warna_mengikuti_offset_bukan_nomor_alamat():
+    fn = _fungsi("kelasCoil")
+    skrip = fn + (
+        "\nconsole.log(JSON.stringify(["
+        # Lampung: 1000 OK, 1001 NG, 1002 ERROR
+        "kelasCoil(1000,1000), kelasCoil(1001,1000), kelasCoil(1002,1000),"
+        # camera 2: 1003 OK walau angkanya ganjil
+        "kelasCoil(1003,1003), kelasCoil(1004,1003),"
+        # base dev: 0 tetap OK
+        "kelasCoil(0,0), kelasCoil(1,0),"
+        # piston / di luar tiga offset
+        "kelasCoil(1010,1000)]));"
+    )
+    hasil = json.loads(subprocess.run(
+        [NODE, "-e", skrip], capture_output=True, text=True, check=True, timeout=30
+    ).stdout.strip())
+    assert hasil == ["ok", "", "", "ok", "", "ok", "", ""]

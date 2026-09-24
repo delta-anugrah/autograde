@@ -90,6 +90,16 @@ class PlcStateResponse(BaseModel):
     enabled: bool
     inputs: list[bool] = []
     testable_coils: list[int] = []
+    # Alamat dasar line ini (OK = base, NG = +1, ERROR = +2). Dikirim supaya
+    # layar bisa menamai tiap tombol tanpa memaku angka: blok alamat milik
+    # panel, dan sudah pernah berubah sekali (coil 0/3/6 -> M1000/1003/1006).
+    coil_base: int = 0
+    # Awal blok yang DIBACA, supaya layar bisa menyebut alamat M tiap bit.
+    di_base: int = 0
+    # Huruf device MC Protocol (M / B / Y). Layar menulis alamat persis seperti
+    # yang diketik di GX Works2 — alamat yang salah huruf tidak bisa dicocokkan
+    # ke ladder. Bawaan "M" supaya konsol versi lama tetap masuk akal.
+    device_prefix: str = "M"
 
 
 class SetelanGradingRequest(BaseModel):

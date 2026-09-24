@@ -123,28 +123,87 @@ menambah env PLC baru di kode, compose di PC pabrik WAJIB ikut diperbarui. Cek d
 
 ## Prosedur lapangan
 
-**Sebelum menyalakan:**
-1. `ping -c3 192.168.0.14` dari PC pabrik.
-2. Pastikan **"Enable online change (FTP, MC Protocol)"** tercentang di Open Setting
-   GX Works2. Tanpa itu baca berhasil tapi tulis ditolak — gejalanya mudah disalahartikan
-   sebagai masalah jaringan.
-3. Pastikan ada **3 koneksi** di Open Setting (satu per line).
-4. `sed -i 's|^PLC_ENABLED=.*|PLC_ENABLED=true|' .env` → `autograde.sh restart`.
-5. `docker exec ripe_line_1 env | grep PLC_ENABLED` untuk membuktikan env-nya sampai.
+**TERSAMBUNG di Lampung 2026-09-23** — 3 line, M1000/M1001 (PC→PLC) dan M1111 (PLC→PC)
+terbukti. Runbook lengkapnya `docs/runbooks/2026-09-23-commissioning-plc-lampung.md`.
+Ringkasan yang harus diingat, urut seperti kejadiannya:
 
-**Uji tanpa kamera:** tab **Uji PLC** di konsol (akun support) memicu satu pulse per bit,
-dengan konfirmasi ketik karena benar-benar menggerakkan hardware.
+1. 🔴 **`docker-compose.yml` hidup di HOST PC pabrik, bukan di image.** `autograde.sh pull`
+   menaikkan kode tapi tidak menyentuh variabel container. Gejala: image `v1.15.0` tapi
+   `docker exec env` masih `PLC_PORT=502`, `PLC_COIL_BASE=0`, **nol `PLC_PROTOCOL`** ⇒
+   layar "PLC is off on this line". Blok PLC ketiga service harus ditukar tangan (skrip di
+   runbook, idempoten, bikin cadangan).
+2. ⚠️ **`.env` MENANG atas compose.** `PLC_PORT=502` sisa ODOT di `.env` menimpa default yang
+   benar. Sisakan cuma `PLC_ENABLED` dan `PLC_HOST` di `.env`.
+3. ⚠️ Tombol Uji PLC **abu-abu selama line punya truk** — Release dulu. Kata kuncinya **`UJI`**,
+   bukan `TES` (sempat dikira "pulse terkirim tapi PLC diam").
+4. 🔴 **Baca jalan, tulis ditolak `mc protocol error 0x0055`** = *Enable online change (FTP,
+   MC Protocol)* belum dicentang. Izin baca/tulis **terpisah**. Perlu Write to PLC + **reset
+   CPU**. Retry 200 ms membanjiri log — `PLC_ENABLED=false` sementara kalau menunggu lama.
+5. 🔴 **Satu Open Setting = SATU koneksi TCP.** Tiga line di port 1025 ⇒ satu line dapat,
+   dua lainnya `connect timed out`. Sekarang **port literal per line: 1025/1026/1027**
+   (compose + dokumen + test pengikat). `Connection refused` sesudah Ocit "menambah port" =
+   **belum reset CPU**.
+6. Sesudah PLC beres, PC **tidak perlu restart** — tiap line reconnect sendiri tiap tick.
+
+**Menyalakan di PC baru:** `PLC_ENABLED=true` + `PLC_HOST` di `.env` → `autograde.sh stop`
+lalu start (bukan `restart`: yang ini kadang melewati container yang dianggap "tidak
+berubah") → `for n in 1 2 3; do docker logs --since 30s ripe_line_$n 2>&1 | grep -iE
+"connect|0x0055|coil write failed" | tail -1; done` — ketiganya **kosong** = tersambung.
+
+**Uji tanpa kamera:** tab **Uji PLC** di konsol (akun support) memicu satu pulse per bit.
+Tombolnya dua baris — peran + alamat ("Kamera 1 OK" / "M1000"), **hijau untuk OK, merah
+untuk NG dan ERROR** — dan daftar bit menyebut alamat M-nya (`M1102 MOTOR 3 = Aktif`).
+Di bawahnya ada peta alamat lengkap (HTML statis: dokumen kesepakatan panel, bukan keadaan).
+
+⚠️ Peran dan warna diturunkan dari **offset** `coil_base`, nomor kameranya dari **kode
+line** (`line-2` → 2). Keduanya sengaja tidak ditebak dari nomor alamat: base milik panel
+dan sudah berubah sekali, dan menghitung nomor kamera dari jaraknya ke 1000 membuat
+ketiga line menulis "Kamera 1" begitu basenya bukan 1000-an (kejadian di konsol dev).
+`/internal/plc` karena itu ikut membawa `coil_base`, `di_base`, dan `device_prefix`.
+
+⚠️ **Ketikan UJI dicabut 2026-09-24** atas permintaan pengguna — layar ini milik
+developer/teknisi saat commissioning, dan mengetik kata yang sama sebelum tiap coil
+memperlambat pekerjaan yang berulang. Dua penjaga yang benar-benar menahan kecelakaan
+TETAP, dan keduanya di sisi **line**, bukan layar: ditolak 409 selama line memproses truk
+(dicek di proses yang memegang `RuntimeState`-nya), dan tiap percobaan — dipicu maupun
+ditolak — meninggalkan baris WARNING di `event_log`. Field `konfirmasi` masih diterima
+tanpa diperiksa supaya konsol yang belum dimuat ulang tidak mendadak 422.
+Sejak 2026-09-23 malam yang bisa diuji: **OK, NG, dan ERROR** per line
+(1000/1001/**1002**, 1003/1004/**1005**, 1006/1007/**1008**) + piston kalau dialokasikan.
+Heartbeat **tidak pernah** masuk daftar — memicunya bikin panel mengira PC mati.
+
+⚠️ ERROR itu **level** yang dikemudikan `health_check()`, bukan pulse. `PlcWorker`
+melewati penulisan levelnya selama pulse uji berjalan (`_scheduler_is_active`) — tanpa itu
+pulse naik lalu ditimpa level sehat pada tick yang sama, coil bergerak beberapa milidetik
+dan tidak ada yang melihatnya di panel. Levelnya pulih sendiri di tick sesudahnya;
+`_error_level` sengaja tidak diperbarui saat dilewati.
+
+Pulse 200 ms — pantau dari **monitor bit GX Works2**, lampu panel terlalu cepat.
+
+**Mode TAHAN (`PLC_HOLD_MS`, bawaan 0 = pulse).** > 0 menukar `PulseScheduler` dengan
+`HoldScheduler` lewat `build_scheduler()`: coil OK/NG dipegang ON sekian ms dan
+**diperpanjang** tiap janjang berikutnya, tidak pernah membuang. Diminta tim PLC untuk uji
+di panel. ⚠️ **PLC tidak bisa menghitung janjang di mode ini** — dua janjang berurutan jadi
+satu sinyal panjang. Keduanya berbagi antarmuka (`enqueue`/`tick`/`dropped`/`is_active`),
+jadi `PlcWorker` tidak tahu mana yang terpasang — pola yang sama dengan `build_plc_client`.
 
 ## Yang masih ditunggu dari tim PLC
 
 Peta alamat **sudah beres** (daftar Ocit 2026-09-23). Sisanya:
 
-1. **Tiga koneksi MC Protocol** di Open Setting.
-2. **Watchdog heartbeat di ladder** — paling mudah terlewat, paling mahal kalau lupa.
-3. **Buah tanpa sinyal itu LOLOS atau DIBUANG?** Menentukan aturan buah internal benar
-   atau terbalik total. Pertanyaan ini sudah menggantung sejak era ODOT dan **belum
-   terjawab**.
-4. (tidak mendesak) Piston manual dialokasikan atau ditiadakan?
+0. ⚠️ **Coil ERROR (M1002/M1005/M1008) belum pernah kena PLC sungguhan** — tombolnya baru
+   ada sejak 2026-09-24. Sisanya (M1000, M1001, M1111, heartbeat) sudah terbukti 23 Sep.
+1. **Watchdog heartbeat di ladder** (pantau M1009 berkedip) — satu-satunya pekerjaan panel
+   yang tersisa; paling mudah terlewat, paling mahal kalau lupa.
+1b. **Mode tahan dipakai atau tidak di produksi?** Opsinya sudah ada (`PLC_HOLD_MS`), tapi
+   saran kami tetap pulse + latch di ladder. Belum diputuskan bersama.
+2. **Polaritas E-stop**: layar menampilkan `M1111 = On` sepanjang uji 23 Sep — **belum
+   ditanyakan** apakah panelnya memang ditekan. Kalau tidak, ladder terbalik (NC).
+3. **Saat E-stop, kamera berhenti menilai?** Sekarang cuma pita.
+4. **Buah tanpa sinyal itu LOLOS atau DIBUANG?** Menggantung sejak era ODOT, **belum terjawab**.
+5. **"OK/NG ditahan terus"** yang diminta Ocit: buat tes boleh (`PLC_PULSE_MS`), buat produksi
+   **tidak** — latch di ladder. Belum diputuskan bersama.
+6. (tidak mendesak) Piston manual dialokasikan atau ditiadakan?
 
 Jaringan: PLC `192.168.0.14` **satu segmen dengan NIC kamera PC Lampung**
 (`enp3s0` = `192.168.0.10/24`, skill `spek-pc-pabrik`) — dicolok ke switch kamera, tanpa
@@ -162,7 +221,9 @@ bukan Lampung. Pastikan `.14` tidak dipakai kamera (IP kamera Lampung belum terc
 | `tests/unit/test_plc_alarm.py` | bit → alarm: motor dinomori dari 1, E-stop offset 11, bit belum dialokasikan diabaikan |
 | `tests/e2e/test_internal_status_alarm.py` | `/internal/status` membawa `alarms`; PLC mati = `[]`, bukan error |
 | `tests/unit/test_line_status_alarm.py` | worker menyimpan `alarms`; line versi lama tanpa field = `[]`; line mati tidak punya alarm palsu |
-| `tests/unit/test_console_html_alarm.py` | pita ada & digambar tiap refresh, terjemahan dua bahasa, **dedup `gabungAlarm` dijalankan lewat node** |
+| `tests/unit/test_console_html_alarm.py` | pita ada & digambar tiap refresh, terjemahan dua bahasa, **dedup `gabungAlarm` + `peranCoil` + `kelasCoil` dijalankan lewat node**, tabel peta alamat, timer tab PLC |
+| `tests/unit/plc/test_plc_hold.py` | mode tahan: memperpanjang bukan mengantre, tidak pernah membuang |
+| `tests/e2e/test_mc_protocol_lane.py` (lanjutan) | **ACC→M1000 / REJ→M1001 dibuktikan dari bingkai yang keluar di socket**, termasuk rantai kelas model → verdict → coil |
 | `tests/unit/test_plc_docs_match_compose.py` | dokumen tim PLC ≡ `docker-compose.yml` |
 
 ⚠️ Test terakhir membaca komentar `<!-- plc-map: ... -->` di `docs/plc-mc-handoff.md`.

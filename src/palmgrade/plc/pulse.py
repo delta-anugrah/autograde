@@ -42,6 +42,16 @@ class PulseScheduler:
         st.pending += 1
         return True
 
+    def is_active(self, coil: int) -> bool:
+        """Coil ini punya pulse yang belum selesai (sedang ON atau masih ngutang).
+
+        Dipakai `PlcWorker` untuk tidak menimpa coil yang sedang diuji tangan —
+        blok ERROR menulis ulang levelnya tiap detik, dan tanpa ini pulse uji
+        pada coil ERROR akan dipadamkan di tick berikutnya.
+        """
+        st = self._coils.get(coil)
+        return bool(st and (st.on_until or st.pending))
+
     def tick(self, now: float) -> dict[int, bool]:
         """Kembalikan {coil: level} HANYA untuk coil yang levelnya berubah pada tick ini.
         Perlu: `now` dari time.monotonic() (bukan time.time()), karena epsilon 1e-9 scale-dependent."""

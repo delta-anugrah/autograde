@@ -2,11 +2,11 @@
 judul: AutoGrade ↔ PLC Mitsubishi
 subjudul: Peta alamat M, sinyal yang dikirim PC, dan yang diminta dari sisi PLC — untuk commissioning MC Protocol.
 label: Internal · Tim Engineering
-versi: "1.3"
+versi: "1.6"
 tanggal: 23 September 2026
 klasifikasi: Internal — untuk tim PLC dan tim engineering
 pemilik: Tim Engineering AutoGrade
-sorotan: Alamat = daftar pak Ocit 23 Sep, sudah dipasang; Ditunggu dari PLC = 5 butir; Wajib = watchdog heartbeat
+sorotan: TERSAMBUNG 23 Sep = 3 line, M1000/M1001/M1111 terbukti; Ditunggu dari PLC = 4 butir; Wajib = watchdog heartbeat
 ---
 
 # AutoGrade ↔ PLC Mitsubishi
@@ -29,7 +29,7 @@ Sisi aplikasi **sudah selesai dan teruji**. Yang ditunggu ada di bab 5.
 |---|---|
 | Protokol | MC Protocol 3E, biner |
 | IP PLC | `192.168.0.14` (dari tim PLC, 23 Sep) |
-| Port | `1025` |
+| Port | **`1025` / `1026` / `1027`** — camera 1 / 2 / 3, satu Open Setting per koneksi |
 | Device | Internal relay `M` |
 | Jumlah koneksi | **3** — satu per line kamera |
 | Perioda polling PC | 200 ms |
@@ -48,7 +48,7 @@ DI 0–11 — dipindah ke M1000 dan M1100.
 |---|---|---|
 | **M1000** | CAMERA 1: janjang **OK** (diterima) | pulse 200 ms |
 | **M1001** | CAMERA 1: janjang **NG** (ditolak) | pulse 200 ms |
-| **M1002** | CAMERA 1: **ERROR** | level, 1 = bermasalah |
+| **M1002** | CAMERA 1: **ERROR** | level, 1 = bermasalah — **bisa diuji dari layar** |
 | **M1003** | CAMERA 2: janjang OK | pulse 200 ms |
 | **M1004** | CAMERA 2: janjang NG | pulse 200 ms |
 | **M1005** | CAMERA 2: ERROR | level |
@@ -57,7 +57,7 @@ DI 0–11 — dipindah ke M1000 dan M1100.
 | **M1008** | CAMERA 3: ERROR | level |
 | **M1009** | **HEARTBIT PC** — lihat bab 3 | **berkedip 500 ms** |
 
-<!-- plc-map: base=1000,1003,1006; alive=1009; manual=; di_manual=; di_base=1100; di_count=16 -->
+<!-- plc-map: base=1000,1003,1006; alive=1009; manual=; di_manual=; di_base=1100; di_count=16; port=1025,1026,1027 -->
 
 **Piston manual belum ada di daftar** — sama seperti di skema ODOT dulu. Fiturnya di
 aplikasi **dimatikan** sampai panel mengalokasikan bitnya; grading tidak terpengaruh.
@@ -151,16 +151,51 @@ aktuatornya justru membuang, hasilnya terbalik total. Lihat bab 5.
 
 ---
 
-## 5. Yang kami tunggu dari sisi PLC
+## 5. Hasil uji lapangan 23 September 2026 — TERSAMBUNG
+
+**Tambahan 23 Sep malam (menyusul permintaan Pak Ocit):** coil **ERROR** (M1002 / M1005 /
+M1008) kini bisa dipicu dari layar Uji PLC, supaya ketiganya bisa dibuktikan terpasang —
+line yang sehat tidak pernah menaikkan ERROR dengan sendirinya. Sesudah pulse uji selesai,
+levelnya kembali mengikuti kesehatan line di tick berikutnya.
+
+| Yang diuji | Hasil |
+|---|---|
+| Koneksi 3 line ke `192.168.0.14` port 1025/1026/1027 | ✅ ketiganya tersambung |
+| PC → PLC: pulse **M1000** dan **M1001** dari layar Uji PLC | ✅ terbaca di GX Works2 |
+| PLC → PC: **M1111** (E-stop) | ✅ tampil di layar konsol |
+| Heartbeat **M1009** berkedip 500 ms | jalan sejak tersambung — **belum dipantau** di GX Works2 |
+
+Dua hal yang sempat menghambat, dan jawabannya, supaya tidak terulang di panel lain:
+
+- **Tulis ditolak `0x0055` padahal baca jalan** → *Enable online change (FTP, MC Protocol)*
+  belum tercentang. Izin baca dan tulis di MC Protocol **terpisah**.
+- **Port 1026/1027 `connection refused` padahal sudah ditambah** → parameter belum
+  **Write to PLC + reset CPU**. Open Setting baru berlaku sesudah reset.
+
+### Yang masih kami tunggu
 
 | # | Butir | Kenapa perlu |
 |---|---|---|
-| 1 | **Tiga koneksi MC Protocol** di Open Setting GX Works2 | Tiap camera membuka socket sendiri; satu port hanya melayani satu koneksi |
-| 2 | **Watchdog heartbeat di ladder** (bab 3) | Tanpa ini, bit bisa nyangkut ON saat PC mati |
-| 3 | **Konfirmasi: buah tanpa sinyal LOLOS atau DIBUANG?** | Menentukan aturan buah internal benar atau terbalik |
-| 4 | **Polaritas M1100–M1111: ON = fault/ditekan?** | Pita alarm operator dibaca dari bit ini apa adanya; kalau terbalik, pita menyala terus saat pabrik sehat |
-| 5 | **Saat E-stop, kamera ikut berhenti menilai?** Sekarang tidak — cuma pita. | Kalau harus berhenti, ada hasil grading yang tercatat selama line berhenti darurat |
+| 1 | **Watchdog heartbeat di ladder** (bab 3) — pantau M1009 berkedip | Tanpa ini, bit bisa nyangkut ON saat PC mati. Ini satu-satunya pekerjaan panel yang tersisa |
+| 2 | **Polaritas M1100–M1111: ON = fault/ditekan?** Layar menampilkan `E-STOP = On` sepanjang uji — panelnya memang ditekan? | Kalau terbalik, pita alarm menyala terus saat pabrik sehat |
+| 3 | **Saat E-stop, kamera ikut berhenti menilai?** Sekarang tidak — cuma pita. | Kalau harus berhenti, ada hasil grading yang tercatat selama line berhenti darurat |
+| 4 | **Konfirmasi: buah tanpa sinyal LOLOS atau DIBUANG?** | Menentukan aturan buah internal benar atau terbalik |
 | — | Piston manual: mau dialokasikan (usulan bab 2) atau ditiadakan? | Tidak mendesak; fiturnya sudah mati dengan aman |
+
+### Permintaan "OK/NG ditahan terus" — sudah disiapkan sebagai **opsi**
+
+Bawaannya tetap **pulse 200 ms** (jalur yang sudah terbukti 23 Sep). Untuk uji di panel,
+sisi kami bisa mengubahnya jadi **tahan 5–10 detik** lewat satu setelan (`PLC_HOLD_MS`),
+tanpa mengubah alamat atau apa pun yang sudah jalan. Sementara ditahan, janjang berikutnya
+**memperpanjang** tahanannya — jadi selama buah masih lewat, sinyalnya tetap ada.
+
+⚠️ **Di mode tahan, PLC tidak bisa menghitung janjang.** Dua janjang berurutan menjadi
+satu sinyal panjang: tidak ada tepi turun di antaranya. Jadi untuk produksi kami
+menyarankan tetap pulse, dan ladder yang **latch di tepi naik → timer sendiri → reset** —
+berapa lama piston terbuka itu urusan kecepatan belt, yang PLC tahu dan PC tidak.
+
+Kalau 200 ms terlalu pendek untuk scan time ladder, lebar pulse-nya juga bisa dinaikkan
+(mis. 500 ms) tanpa masuk mode tahan. Tinggal bilang angkanya.
 
 Peta alamat **sudah selesai** — daftar 23 September dipakai apa adanya.
 
@@ -178,12 +213,21 @@ sebagai masalah jaringan.
 
 Di layar konsol AutoGrade ada tab **"Uji PLC"** (khusus akun support). Isinya:
 
-- daftar bit yang sedang dibaca dari PLC, per line;
-- tombol untuk **memicu satu pulse** pada bit ACC / REJ / piston, satu per satu.
+- daftar bit yang sedang dibaca dari PLC, **dengan alamat M-nya** — mis.
+  `M1102 MOTOR 3 = Aktif`, jadi bisa langsung dicocokkan ke monitor bit GX Works2;
+- satu tombol per coil, **diberi nama dan alamat**: "Kamera 1 OK / M1000" (hijau),
+  "Kamera 1 NG / M1001" dan "Kamera 1 Error / M1002" (merah). Termasuk **coil ERROR**,
+  yang sebelumnya tidak bisa diuji sama sekali — line yang sehat tidak pernah
+  menaikkannya sendiri, jadi tidak ada cara lain membuktikan M1002/M1005/M1008 terpasang;
+- **peta alamat lengkap** di bagian bawah layar, supaya tidak perlu membuka PDF ini
+  sambil berdiri di depan panel.
 
 Ini dipakai saat commissioning untuk memastikan kabel dan ladder sudah benar, tanpa perlu
-menjalankan kamera atau melewatkan buah. Tombolnya meminta konfirmasi ketik karena
-**benar-benar menggerakkan hardware**.
+menjalankan kamera atau melewatkan buah.
+
+⚠️ Pulse-nya **200 ms** — terlalu cepat untuk dilihat mata di lampu panel. Pantau dari
+**monitor bit GX Works2**. Kalau perlu terlihat mata, kami bisa memperpanjangnya sementara
+(bab 5, mode tahan).
 
 ---
 
@@ -193,7 +237,7 @@ menjalankan kamera atau melewatkan buah. Tombolnya meminta konfirmasi ketik kare
 bit ERROR, heartbeat berkedip, piston manual, aturan buah internal, layar uji, dan
 seluruh unit test-nya.
 
-**Yang ditunggu dari sisi PLC:** lima butir di bab 5 (dua terakhir konfirmasi, bukan pekerjaan).
+**Yang ditunggu dari sisi PLC:** empat butir di bab 5 — satu pekerjaan (watchdog), tiga konfirmasi.
 
 **Yang paling mudah terlewat:** watchdog heartbeat di bab 3. Tanpa itu, sistem tetap
 terlihat normal sampai hari PC mati di tengah shift.
