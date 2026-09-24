@@ -39,6 +39,8 @@ def _compose_map() -> dict[str, list[int]]:
         "di_manual": sorted({n for e in env for n in angka(e.get("PLC_DI_MANUAL", ""))}),
         "di_base": [int(bawaan("PLC_DI_BASE"))],
         "di_count": [int(bawaan("PLC_DI_COUNT"))],
+        # Literal per line sejak 2026-09-23: satu Open Setting = satu koneksi.
+        "port": [int(e["PLC_PORT"]) for e in env],
     }
 
 
