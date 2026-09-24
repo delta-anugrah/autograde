@@ -87,6 +87,7 @@ def test_model_tidak_cocok_tidak_bisa_dipilih():
         "modelModalRestart", "modelSibuk", "modelTersimpanSemua",
         "modelTersimpanSebagian", "gagalModelDeteksi", "gagalModelSimpan",
         "modelTanpaEngine", "modelEngineBasi", "modelTidakAdaPerubahan",
+        "modelJalanKelasAsing", "modelFolderTakTerbaca",
     ],
 )
 def test_kamus_dua_bahasa(kunci):
@@ -121,3 +122,40 @@ def test_alasan_dan_engine_di_tabel_boleh_membungkus():
     awal = HTML.find("function barisModel")
     blok = HTML[awal : HTML.find("\n}\n", awal)]
     assert blok.count('class="bungkus"') >= 2
+
+
+def test_kartu_sedang_jalan_menampilkan_kelas_dan_alarmnya():
+    """Kelas model yang BENAR-BENAR dimuat, dari /health/detail line itu.
+
+    Skenario Lampung: isi `best.pt` diganti, engine lama bernama sama tetap
+    dipakai. Nama + backend di kartu terlihat sehat; cuma kelasnya yang
+    membuka kebohongan itu (review 2026-09-24).
+    """
+    awal = HTML.find("function tulisJalan")
+    blok = HTML[awal : HTML.find("\n}\n", awal)]
+    assert "chipKelas(d.model_kelas" in blok
+    assert "d.model_kelas_cocok === false" in blok
+
+
+def test_folder_tak_terbaca_punya_pesannya_sendiri():
+    awal = HTML.find("async function muatModelDeteksi")
+    blok = HTML[awal : HTML.find("\n}\n", awal)]
+    assert "folder" in blok and "terbaca" in blok
+    assert "modelFolderTakTerbaca" in blok
+
+
+def test_sesudah_simpan_layar_menanyai_line_sampai_model_baru_terbaca():
+    """Satu tanya-ulang di detik ke-15 tidak cukup: line ber-engine TensorRT +
+    kamera Hikrobot bisa butuh lebih lama untuk kembali, dan kartunya
+    tertinggal "Tidak terjangkau" sampai tab dibuka ulang (review 2026-09-24).
+    """
+    awal = HTML.find('$("model-modal-jalankan").addEventListener')
+    blok = HTML[awal : HTML.find("\n});\n", awal)]
+    assert "pantauSesudahSimpan(" in blok
+    assert "setTimeout(" not in blok
+    f_awal = HTML.find("function pantauSesudahSimpan")
+    assert f_awal != -1
+    fungsi = HTML[f_awal : HTML.find("\n}\n", f_awal)]
+    assert "setInterval" in fungsi and "clearInterval" in fungsi
+    assert "60000" in fungsi, "pemantauan harus punya batas atas"
+    assert 'tab !== "model-deteksi"' in fungsi, "berhenti saat tab ditinggalkan"

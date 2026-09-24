@@ -831,10 +831,19 @@ class ConsoleService:
         return ModelLibrary(self.settings.models_release_dir, self.settings.engines_dir)
 
     def model_deteksi(self) -> dict[str, Any]:
-        """Pilihan model ketiga line (`""` = bawaan PC) + semua model beserta kelasnya."""
+        """Pilihan model ketiga line (`""` = bawaan PC) + semua model beserta kelasnya.
+
+        `folder.terbaca` membedakan folder kosong dari folder yang tidak bisa
+        dibuka konsol (mount `./models` belum ada di compose host).
+        """
+        pustaka = self._model_library()
         return {
             "lines": self._media_env().baca_model(),
-            "model": self._model_library().daftar(),
+            "model": pustaka.daftar(),
+            "folder": {
+                "path": str(self.settings.models_release_dir),
+                "terbaca": pustaka.terbaca(),
+            },
         }
 
     async def simpan_model_deteksi(

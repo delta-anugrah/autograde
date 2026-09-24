@@ -69,6 +69,10 @@ def test_engine_berkelas_asing_diadukan_error(registry_palsu, monkeypatch, caplo
     assert reg.backend == "tensorrt"
     assert FakeYolo.dimuat == [str(engines / "coba.sm86.engine")]
     assert "Kelas model tidak seperti yang diharapkan" in caplog.text
+    # Alarm yang sama sampai ke layar lewat /health/detail — skenario Lampung:
+    # nama berkas benar, engine lama, line jalan tanpa menghitung.
+    assert reg.ringkasan()["model_kelas_cocok"] is False
+    assert reg.ringkasan()["model_kelas"] == ["ACC", "Rej", "TP"]
 
 
 def test_ringkasan_menyebut_berkas_backend_dan_kelas(registry_palsu, monkeypatch):
@@ -82,6 +86,7 @@ def test_ringkasan_menyebut_berkas_backend_dan_kelas(registry_palsu, monkeypatch
         "model_file": "coba.pt",
         "model_backend": "tensorrt",
         "model_kelas": ["JK", "Ripe", "TP", "Unripe"],
+        "model_kelas_cocok": True,
     }
 
 

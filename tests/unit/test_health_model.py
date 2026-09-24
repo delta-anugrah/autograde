@@ -20,6 +20,7 @@ class FakeModel:
             "model_file": "coba.pt",
             "model_backend": "tensorrt",
             "model_kelas": ["JK", "Ripe", "TP", "Unripe"],
+            "model_kelas_cocok": True,
         }
 
 
@@ -37,6 +38,7 @@ def test_tanpa_registry_ringkasan_kosong():
         "model_file": None,
         "model_backend": None,
         "model_kelas": [],
+        "model_kelas_cocok": None,
     }
 
 
@@ -69,3 +71,24 @@ def test_skema_bawaan_tanpa_model():
     )
     assert detail.model_file is None
     assert detail.model_kelas == []
+    # None = tidak diketahui (registry belum dimuat / line versi lama), BUKAN
+    # "tidak cocok": layar tidak boleh menyalakan alarm kelas untuk itu.
+    assert detail.model_kelas_cocok is None
+
+
+def test_skema_membawa_alarm_kelas():
+    detail = HealthDetailSchema(
+        status="ok",
+        environment="test",
+        camera_type="opencv",
+        camera_connected=True,
+        gpu_available=False,
+        gpu_device=None,
+        machine_id="m",
+        workers=[],
+        model_file="best.pt",
+        model_backend="tensorrt",
+        model_kelas=["ACC", "Rej", "TP"],
+        model_kelas_cocok=False,
+    )
+    assert detail.model_dump()["model_kelas_cocok"] is False

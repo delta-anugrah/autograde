@@ -1862,6 +1862,7 @@ const KAMUS = {
     modelRinciBawaan:"Memakai MODEL_FILE di .env PC ini.",
     modelJalan:"Sedang jalan", modelJalanMemuat:"Menanyai line…",
     modelJalanTidakDilapor:"tidak dilaporkan (versi line lama)",
+    modelJalanKelasAsing:"Kelas model yang sedang jalan bukan Ripe/Unripe/JK/TP — line ini TIDAK menghitung janjang. Pilih model lain, atau build ulang engine-nya.",
     modelBelumBerlaku:"Pilihan tersimpan belum berlaku — line belum restart atau gagal memuatnya.",
     modelTidakBisa:"tidak bisa dipakai", modelHilang:"Berkas ini sudah tidak ada di models/release.",
     modelKelasTakTerbaca:"kelas tidak terbaca",
@@ -1872,6 +1873,7 @@ const KAMUS = {
     thModelBerkas:"Berkas", thModelUkuran:"Ukuran", thModelKelas:"Kelas",
     thModelEngine:"Engine TensorRT", thModelStatus:"Status",
     modelKosong:"Belum ada berkas .pt di models/release",
+    modelFolderTakTerbaca:"Folder {path} tidak bisa dibuka konsol — kemungkinan belum di-mount. Tambahkan ./models:/app/models:ro ke service console di compose (runbook Model Deteksi).",
     btnModelSimpan:"Simpan & Restart", btnModelJalankan:"Ganti & Restart",
     modelModalJudul:"Ganti model dan restart line?",
     modelModalRestart:"Line di atas akan restart sekitar 10 detik. Janjang yang lewat selama itu tidak dihitung.",
@@ -2036,6 +2038,7 @@ const KAMUS = {
     modelRinciBawaan:"Uses MODEL_FILE from this PC's .env.",
     modelJalan:"Running now", modelJalanMemuat:"Asking the line…",
     modelJalanTidakDilapor:"not reported (older line version)",
+    modelJalanKelasAsing:"The running model's classes are not Ripe/Unripe/JK/TP — this line counts NO bunches. Pick another model, or rebuild its engine.",
     modelBelumBerlaku:"The saved choice is not active yet — the line has not restarted or failed to load it.",
     modelTidakBisa:"cannot be used", modelHilang:"This file is no longer in models/release.",
     modelKelasTakTerbaca:"classes unreadable",
@@ -2046,6 +2049,7 @@ const KAMUS = {
     thModelBerkas:"File", thModelUkuran:"Size", thModelKelas:"Classes",
     thModelEngine:"TensorRT engine", thModelStatus:"Status",
     modelKosong:"No .pt files in models/release yet",
+    modelFolderTakTerbaca:"The console cannot open {path} — probably not mounted. Add ./models:/app/models:ro to the console service in compose (Model Deteksi runbook).",
     btnModelSimpan:"Save & Restart", btnModelJalankan:"Change & Restart",
     modelModalJudul:"Change the model and restart the line?",
     modelModalRestart:"The lines above restart for about 10 seconds. Bunches passing during that time are not counted.",
@@ -4373,7 +4377,13 @@ function tulisJalan(kode) {
   // .env line, dan konsol tidak membaca .env.
   const belum = tersimpan && tersimpan !== d.model_file
     ? `<div class="model-awas">${esc(t("modelBelumBerlaku"))}</div>` : "";
-  el.innerHTML = `<div>${label} <b>${esc(d.model_file)}</b> · ${esc(backend || KOSONG)}</div>${belum}`;
+  // Kelas yang BENAR-BENAR dimuat, bukan kelas berkas yang dipilih. Nama dan
+  // backend bisa terlihat sehat sementara engine lama bernama sama yang jalan
+  // (Lampung 2026-09-23) — cuma kelasnya yang membuka itu.
+  const kelas = (d.model_kelas || []).length ? `<div>${chipKelas(d.model_kelas)}</div>` : "";
+  const asing = d.model_kelas_cocok === false
+    ? `<div class="model-tolak">${esc(t("modelJalanKelasAsing"))}</div>` : "";
+  el.innerHTML = `<div>${label} <b>${esc(d.model_file)}</b> · ${esc(backend || KOSONG)}</div>${kelas}${asing}${belum}`;
 }
 
 function barisModel(m) {
@@ -4409,8 +4419,15 @@ async function muatModelDeteksi() {
       rinciModel(kode);
       tulisJalan(kode);
     }
+    // Folder yang tidak bisa dibuka BUKAN folder kosong: di PC pabrik itu
+    // hampir selalu mount `./models` yang belum ditambah ke compose host.
+    const folder = modelTerakhir.folder || {};
     $("model-baris").innerHTML = modelTerakhir.model.length
-      ? modelTerakhir.model.map(barisModel).join("") : barisKosong(5, "modelKosong");
+      ? modelTerakhir.model.map(barisModel).join("")
+      : folder.terbaca === false
+        ? `<tr><td colspan="5" class="kosong"><span class="model-tolak">${esc(
+            t("modelFolderTakTerbaca").replace("{path}", folder.path || "models/release"))}</span></td></tr>`
+        : barisKosong(5, "modelKosong");
   } catch (e) {
     if (e.kode !== "belum_masuk") toastGagal(alasan(e) || t("gagalModelDeteksi"));
     return;
@@ -4421,6 +4438,40 @@ async function muatModelDeteksi() {
 document.querySelectorAll("[data-model]").forEach((el) => {
   el.addEventListener("change", () => rinciModel(el.dataset.model));
 });
+
+// Sesudah simpan: tanyai line tiap 5 detik sampai tiap line yang berubah
+// menjawab dengan model pilihannya, paling lama 1 menit. Satu tanya-ulang
+// saja tidak cukup — line ber-engine TensorRT + kamera Hikrobot bisa butuh
+// lebih dari 15 detik untuk kembali, dan kartunya tertinggal "Tidak
+// terjangkau" sampai tab dibuka ulang (review 2026-09-24).
+let modelPantauTimer = null;
+function pantauSesudahSimpan(pilihan, berubah) {
+  clearInterval(modelPantauTimer);
+  const mulai = Date.now();
+  let sedang = false;
+  modelPantauTimer = setInterval(async () => {
+    if (tab !== "model-deteksi" || Date.now() - mulai > 60000) {
+      clearInterval(modelPantauTimer);
+      modelPantauTimer = null;
+      return;
+    }
+    // /dev/diagnostik bisa menunggu sampai 5 detik per line yang mati;
+    // tick berikutnya tidak menumpuk di atas yang belum selesai.
+    if (sedang) return;
+    sedang = true;
+    try { await muatJalanModel(); } finally { sedang = false; }
+    // Pilihan Bawaan PC tidak bisa dicocokkan dengan nama (konsol tidak
+    // membaca .env line), jadi cukup line itu menjawab lagi.
+    const beres = berubah.every((k) => {
+      const d = modelJalan[k];
+      return d && d.terjangkau && (!pilihan[k] || d.model_file === pilihan[k]);
+    });
+    if (beres) {
+      clearInterval(modelPantauTimer);
+      modelPantauTimer = null;
+    }
+  }, 5000);
+}
 
 $("model-simpan").addEventListener("click", async () => {
   if (!modelTerakhir || modelSibukKirim) return;
@@ -4481,9 +4532,8 @@ $("model-modal-jalankan").addEventListener("click", async () => {
       toastSukses(t("modelTersimpanSemua"));
     }
     await muatModelDeteksi();
-    // Line butuh ±10 detik untuk kembali; tanyai sekali lagi sesudahnya supaya
-    // "Sedang jalan" menunjukkan model baru tanpa perlu membuka ulang tab.
-    setTimeout(() => { if (tab === "model-deteksi") muatJalanModel(); }, 15000);
+    const berubah = (data.lines || []).filter((b) => b.berubah).map((b) => b.line_code);
+    if (berubah.length) pantauSesudahSimpan(pilihan, berubah);
   } catch (e) {
     toastGagal(alasan(e) || t("gagalModelSimpan"));
   } finally {

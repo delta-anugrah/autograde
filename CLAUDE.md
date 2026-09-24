@@ -148,7 +148,8 @@ All via **`make`** (Docker only). From `autograde/`:
   **Model Deteksi**. Menulis `LINE_N_MODEL_FILE` ke `media.env` yang sama; kosong = `MODEL_FILE`
   di `.env` (bawaan PC). Layar menampilkan kelas tiap model (dibaca **tanpa torch**,
   `services/model_library.py`), status engine per GPU, dan model yang **benar-benar** dimuat
-  tiap line (`/health/detail` → `model_file`/`model_backend`/`model_kelas`). Model yang kelasnya
+  tiap line (`/health/detail` → `model_file`/`model_backend`/`model_kelas`/`model_kelas_cocok`,
+  yang terakhir `false` = line tidak menghitung, ditulis merah). Model yang kelasnya
   bukan tepat `Ripe/Unripe/JK/TP` **tidak bisa dipilih** (400 di server). Simpan lewat modal
   konfirmasi, lalu cuma line yang berubah yang restart. ⚠️ Konsol butuh mount
   `./models:/app/models:ro` + `./engines:/app/engines:ro` — sudah di kedua compose repo, tapi
@@ -176,7 +177,7 @@ All via **`make`** (Docker only). From `autograde/`:
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/health`, `/health/detail` | detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending`/`outbox_failed`, always `0` — outbox disabled) + `model_file`/`model_backend`/`model_kelas` = model yang benar-benar dimuat |
+| GET | `/health`, `/health/detail` | detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending`/`outbox_failed`, always `0` — outbox disabled) + `model_file`/`model_backend`/`model_kelas`/`model_kelas_cocok` = model yang benar-benar dimuat |
 | GET | `/api/video_feed` | MJPEG live (multi-viewer) |
 | GET | `/api/results_today` | today's results (read from disk) |
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |

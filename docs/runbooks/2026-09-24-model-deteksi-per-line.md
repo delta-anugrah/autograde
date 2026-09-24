@@ -17,9 +17,12 @@ TensorRT, dan model apa yang **benar-benar** sedang jalan di tiap line.
 ## Cara pakai
 
 1. Login konsol dengan akun **support**, buka tab **Model Deteksi**.
-2. Tiap kartu line menunjukkan **Sedang jalan**: nama model + backend
-   (`TensorRT` atau `.pt`). Angka ini dilaporkan line sendiri lewat
-   `/health/detail`, bukan disalin dari pilihan yang tersimpan.
+2. Tiap kartu line menunjukkan **Sedang jalan**: nama model, backend
+   (`TensorRT` atau `.pt`), dan **kelas model yang benar-benar dimuat**. Semuanya
+   dilaporkan line sendiri lewat `/health/detail`, bukan disalin dari pilihan
+   yang tersimpan. Kelas yang bukan tepat `Ripe/Unripe/JK/TP` menyalakan tulisan
+   merah: line itu tidak menghitung janjang. Itu satu-satunya tanda kalau engine
+   lama bernama sama yang dimuat.
 3. Pilih model di dropdown. Di bawahnya muncul kelas model itu dan status
    engine-nya.
 4. Tekan **Simpan & Restart**. Modal muncul menyebut line yang akan restart,
@@ -27,8 +30,9 @@ TensorRT, dan model apa yang **benar-benar** sedang jalan di tiap line.
 5. **Ganti & Restart** menyimpan lalu merestart line yang berubah saja. **Batal**,
    Esc, atau klik di luar kotak membatalkan tanpa menulis apa pun.
 
-Sekitar 15 detik sesudahnya layar menanyai line lagi. Kalau **Sedang jalan**
-sudah menyebut model baru, pilihan itu berlaku.
+Sesudahnya layar menanyai line tiap 5 detik, paling lama 1 menit, sampai tiap
+line yang berubah menjawab dengan model barunya. Kalau **Sedang jalan** sudah
+menyebut model baru, pilihan itu berlaku.
 
 **Bawaan PC** berarti line memakai `MODEL_FILE` di `.env`. Itu juga cara
 rollback: pilih Bawaan PC, simpan.
@@ -56,6 +60,12 @@ LINE_2_MODEL_FILE=coba.pt      # kosong = MODEL_FILE di .env
 | Kelas lain, misalnya model lama `ACC`, `Rej`, `TP` | ya, dengan alasannya | **tidak** |
 | Berkas rusak atau bukan checkpoint YOLO | ya, "kelas tidak terbaca" | **tidak** |
 | Tersimpan tapi berkasnya sudah dihapus dari folder | ya, ditandai | **tidak** |
+| Nama berawalan kutip, atau berisi `$` / `` ` `` | ya, "nama berkas: …" | **tidak** |
+
+Aturan nama yang terakhir melindungi Compose: nama ditulis mentah ke `media.env`,
+dan launcher pabrik memberi berkas itu ke setiap perintah compose lewat
+`--env-file`. Kutip tanpa penutup atau `${` tanpa `}` membuat seluruh stack
+menolak start. Ganti nama berkasnya.
 
 Server menolak hal yang sama dengan **400**, jadi payload buatan tangan tidak
 bisa melewatinya.
@@ -118,8 +128,8 @@ hapus engine-nya sendiri lalu build ulang.
          - ./engines:/app/engines:ro
    ```
 
-   Tanpa itu tabel model kosong ("Belum ada berkas .pt") walau folder host
-   penuh. Cek sesudah `autograde restart`:
+   Tanpa itu tabel menulis merah "Folder /app/models/release tidak bisa dibuka
+   konsol", walau folder host penuh. Cek sesudah `autograde restart`:
 
    ```bash
    docker exec palmgrade_console ls /app/models/release /app/engines
@@ -142,7 +152,11 @@ hapus engine-nya sendiri lalu build ulang.
   line itu; ia memakai model baru begitu hidup lagi. Jangan tekan Simpan
   berulang-ulang.
 - **Kelas model tetap diperiksa line saat boot, untuk dua backend.** Kalau ada
-  yang lolos, log line menulis `Kelas model tidak seperti yang diharapkan`.
+  yang lolos, log line menulis `Kelas model tidak seperti yang diharapkan` dan
+  kartu line di layar ini menulisnya merah.
+- **Jangan hapus berkas model yang sedang dipilih sebuah line.** Line itu gagal
+  boot (`Model tidak ditemukan`) dan berputar restart. Pilih model lain atau
+  Bawaan PC dulu, baru hapus berkasnya.
 
 ## Verifikasi dari terminal
 
@@ -152,5 +166,6 @@ docker logs ripe_line_2 2>&1 | grep -iE "kelas model|backend="
 curl -s localhost:8002/health/detail | python3 -m json.tool | grep model_
 ```
 
-Yang benar: `Kelas model terverifikasi: ['JK', 'Ripe', 'TP', 'Unripe']` dan
-`model_backend` = `tensorrt` kalau engine-nya ada.
+Yang benar: `Kelas model terverifikasi: ['JK', 'Ripe', 'TP', 'Unripe']`,
+`model_kelas_cocok` = `true`, dan `model_backend` = `tensorrt` kalau
+engine-nya ada.

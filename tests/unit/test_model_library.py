@@ -241,3 +241,24 @@ def test_model_asli_di_mesin_ini(berkas, kelas):
     if not path.exists():
         pytest.skip(f"{berkas} tidak ada di mesin ini")
     assert baca_kelas_pt(path) == kelas
+
+
+def test_nama_berkas_tak_didukung_tampil_tapi_tidak_cocok(folder):
+    # Kelasnya benar, namanya yang tidak bisa ditulis ke media.env. Tampil
+    # dengan alasannya, bukan lolos ke dropdown lalu ditolak 400 saat simpan.
+    release, engines = folder
+    buat_pt(release / "a$b.pt", EMPAT)
+    [satu] = ModelLibrary(release, engines).daftar()
+    assert satu["kelas"] == ["JK", "Ripe", "TP", "Unripe"]
+    assert satu["cocok"] is False
+    assert "nama" in satu["alasan"]
+
+
+def test_folder_tidak_ada_tidak_terbaca(tmp_path):
+    # Konsol pabrik tanpa mount ./models: folder tidak ada di container.
+    assert ModelLibrary(tmp_path / "tidak-ada", tmp_path / "engines").terbaca() is False
+
+
+def test_folder_kosong_tetap_terbaca(folder):
+    release, engines = folder
+    assert ModelLibrary(release, engines).terbaca() is True

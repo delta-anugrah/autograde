@@ -127,3 +127,22 @@ def test_simpan_model_tidak_menyentuh_sumber_kamera(svc):
     sebelum = svc.sumber_kamera()["lines"]
     _simpan(svc, line_1="coba.pt")
     assert svc.sumber_kamera()["lines"] == sebelum
+
+
+def test_baca_menyebut_folder_dan_bahwa_ia_terbaca(svc, tmp_path):
+    folder = svc.model_deteksi()["folder"]
+    assert folder == {"path": str(tmp_path / "models" / "release"), "terbaca": True}
+
+
+def test_folder_tak_termount_dibedakan_dari_folder_kosong(svc, tmp_path):
+    """Compose PC pabrik hidup di host; lupa menambah mount = folder tidak ada.
+
+    Tanpa pembeda, layar bilang "belum ada berkas .pt" — mengundang orang
+    menyalin model lagi, padahal yang kurang mount-nya (review 2026-09-24).
+    """
+    import shutil
+
+    shutil.rmtree(tmp_path / "models")
+    hasil = svc.model_deteksi()
+    assert hasil["model"] == []
+    assert hasil["folder"]["terbaca"] is False

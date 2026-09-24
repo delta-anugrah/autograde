@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Any
 
 from ..domain.grade_class import periksa_kelas
+from ..domain.pilihan_model import ModelTidakSah, bersihkan_nama_model
 
 logger = logging.getLogger(__name__)
 
@@ -210,6 +211,20 @@ class ModelLibrary:
             return []
         return [self._satu(p) for p in berkas]
 
+    def terbaca(self) -> bool:
+        """Folder model bisa dibuka. False = tidak ada / tidak ter-mount / izin.
+
+        Beda dari folder KOSONG, dan bedanya penting: `daftar()` memulangkan
+        `[]` untuk keduanya. Di PC pabrik compose hidup di host, jadi lupa
+        menambah mount `./models` ke konsol adalah kegagalan pertama yang akan
+        ditemui — dan "belum ada model" mengundang orang menyalin model lagi.
+        """
+        try:
+            next(iter(self._release.iterdir()), None)
+        except OSError:
+            return False
+        return True
+
     def cari(self, nama: str) -> dict[str, Any] | None:
         return next((m for m in self.daftar() if m["berkas"] == nama), None)
 
@@ -218,7 +233,14 @@ class ModelLibrary:
         # Lewat atribut modul, bukan nama lokal, supaya tes bisa menghitung
         # berapa kali berkas benar-benar dibaca.
         kelas = _tercache("pt", pt, lambda p: baca_kelas_pt(p))
-        alasan = _alasan(kelas)
+        # Nama diperiksa dengan aturan yang sama dengan gerbang simpan: berkas
+        # yang namanya tidak bisa ditulis ke media.env tampil dengan alasannya,
+        # bukan lolos ke dropdown lalu ditolak 400 saat disimpan.
+        try:
+            bersihkan_nama_model(pt.name)
+            alasan = _alasan(kelas)
+        except ModelTidakSah as exc:
+            alasan = f"nama berkas: {exc}"
         return {
             "berkas": pt.name,
             "ukuran_mb": round(st.st_size / 1_000_000, 1),

@@ -67,3 +67,18 @@ def test_payload_bukan_objek_ditolak():
 def test_nama_berbahaya_di_dalam_payload_menyebut_line():
     with pytest.raises(ModelTidakSah, match="line-3"):
         bersihkan_pilihan_model({"line-1": "", "line-2": "", "line-3": "../x.pt"})
+
+
+@pytest.mark.parametrize("nama", ["'best.pt", '"best.pt', "a$b.pt", "a${B.pt", "a`b.pt"])
+def test_nama_yang_merusak_env_file_compose_ditolak(nama):
+    """Nama ini ditulis MENTAH ke `media.env`, dan launcher pabrik memberi
+    berkas itu ke SETIAP perintah compose lewat `--env-file`. Kutip di awal
+    tanpa penutup atau `${` tanpa `}` membuat Compose menolak berkas itu, jadi
+    seluruh stack gagal start — dari satu pilihan dropdown."""
+    with pytest.raises(ModelTidakSah):
+        bersihkan_nama_model(nama)
+
+
+@pytest.mark.parametrize("nama", ["best (1).pt", "yolov8m-sawit_v3.pt", "model 2026.09.24.pt"])
+def test_nama_wajar_tetap_diterima(nama):
+    assert bersihkan_nama_model(nama) == nama

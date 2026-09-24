@@ -23,7 +23,12 @@ class HealthService:
 
     def ringkasan_model(self) -> dict[str, Any]:
         if self.model is None:
-            return {"model_file": None, "model_backend": None, "model_kelas": []}
+            return {
+                "model_file": None,
+                "model_backend": None,
+                "model_kelas": [],
+                "model_kelas_cocok": None,
+            }
         return self.model.ringkasan()
 
     def get_health(self) -> dict[str, str]:

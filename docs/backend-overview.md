@@ -236,12 +236,15 @@ Status operasional container.
     "last_successful_api_push": null,
     "model_file": "best.pt",
     "model_backend": "tensorrt",
-    "model_kelas": ["JK", "Ripe", "TP", "Unripe"]
+    "model_kelas": ["JK", "Ripe", "TP", "Unripe"],
+    "model_kelas_cocok": true
   }
   ```
 
   `model_*` = model yang **benar-benar dimuat** line ini, bukan pilihan yang tersimpan di
-  `media.env`. `null`/kosong kalau registry model belum dimuat.
+  `media.env`. `null`/kosong kalau registry model belum dimuat. `model_kelas_cocok: false`
+  = kelasnya bukan tepat empat kelas yang dikenal, dan line ini **tidak menghitung janjang**;
+  layar Model Deteksi menulisnya merah. `null` = tidak diketahui, bukan alarm.
 
 > ⚠️ **Endpoint ini bicara soal jalur realtime lokal saja, bukan cloud:**
 >
@@ -286,7 +289,7 @@ Surface terpisah dari tabel di atas — berjalan sebagai konsol (`routes/console
 | GET / POST | `/api/console/dev/setelan` | lima setelan grading dari layar Setelan: `conf_threshold`, `minimum_size`, `garis_capture`, `sumbu_garis`, `mode_dev`. Tersimpan di konsol, disebar ke tiga line, berlaku tanpa restart |
 | GET | `/api/console/dev/plc/{line_code}` | snapshot DI + coil yang boleh diuji — baca saja |
 | POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil — satu-satunya lane yang menggerakkan hardware; tiga pengaman (assignment line, konfirmasi ketik, WARNING tiap percobaan) |
-| GET | `/api/console/dev/model-deteksi` | pilihan model tiap line (`""` = bawaan PC) + semua `.pt` di `models/release` beserta kelas, ukuran, engine per GPU, dan `cocok`/`alasan` |
+| GET | `/api/console/dev/model-deteksi` | pilihan model tiap line (`""` = bawaan PC) + semua `.pt` di `models/release` beserta kelas, ukuran, engine per GPU, dan `cocok`/`alasan`. `folder.terbaca: false` = folder tidak bisa dibuka konsol (mount `./models` belum ada), beda dari folder kosong |
 | POST | `/api/console/dev/model-deteksi` | `{"line-1": "...", "line-2": "...", "line-3": "..."}` — tulis `LINE_N_MODEL_FILE` di `media.env`, restart line yang berubah saja. **400** untuk model yang tidak ada atau kelasnya bukan empat kelas yang dikenal; tidak menulis apa pun |
 
 ---

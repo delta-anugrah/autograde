@@ -28,6 +28,13 @@ LINE_MODEL: tuple[str, ...] = ("line-1", "line-2", "line-3")
 
 _BERBAHAYA = ("/", "\\", "..", "\x00", "\n", "\r")
 
+#: Karakter yang aman bagi parser kita tapi TIDAK bagi Compose. Nama ini ditulis
+#: mentah ke `media.env`, dan launcher pabrik memberi berkas itu ke SETIAP
+#: perintah compose lewat `--env-file`: kutip di awal tanpa penutup atau `${`
+#: tanpa `}` membuat Compose menolak berkasnya, dan seluruh stack gagal start.
+_KUTIP_AWAL = ("'", '"')
+_ASING_COMPOSE = ("$", "`")
+
 
 class ModelTidakSah(ValueError):
     """Nilai di luar batas. Route menerjemahkannya jadi 400."""
@@ -46,6 +53,11 @@ def bersihkan_nama_model(nama: Any) -> str:
         return ""
     if any(b in nama for b in _BERBAHAYA):
         raise ModelTidakSah(f"nama model tidak sah: {nama!r}")
+    if nama.startswith(_KUTIP_AWAL) or any(c in nama for c in _ASING_COMPOSE):
+        raise ModelTidakSah(
+            f"{nama}: nama memuat karakter yang tidak bisa ditulis ke media.env "
+            "(kutip di awal, $ atau `) — ganti nama berkasnya"
+        )
     if not nama.endswith(".pt") or nama == ".pt":
         raise ModelTidakSah(f"{nama}: harus berkas .pt")
     return nama

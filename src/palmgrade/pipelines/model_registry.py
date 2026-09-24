@@ -33,6 +33,8 @@ class ModelRegistry:
         # memuat engine hasil model lama tanpa satu pun ERROR. Nama kelas
         # engine datang dari metadata yang dibaca Ultralytics saat warm-up.
         self.kelas = _nama_kelas(self.model)
+        asing, hilang = periksa_kelas(self.kelas)
+        self.kelas_cocok = bool(self.kelas) and not asing and not hilang
         _warn_on_unexpected_classes(self.kelas, logger)
 
     def ringkasan(self) -> dict:
@@ -41,6 +43,9 @@ class ModelRegistry:
             "model_file": self.settings.model_file,
             "model_backend": self.backend,
             "model_kelas": list(self.kelas),
+            # Alarm yang layar tampilkan merah. Log ERROR di atas cuma terbaca
+            # lewat AnyDesk; ini yang terbaca dari konsol.
+            "model_kelas_cocok": self.kelas_cocok,
         }
 
     def _load_model(self, settings: Settings, logger: logging.Logger) -> YOLO:

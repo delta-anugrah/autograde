@@ -17,8 +17,10 @@ dibaca `Settings.model_file` → `ripeness_model_path` → **selalu dari
 
 Layar yang sama menunjukkan **kelas tiap model** (dibaca tanpa torch),
 **status engine** per GPU, dan model yang **sedang jalan** menurut line sendiri
-(`/health/detail` → `model_file`, `model_backend`, `model_kelas`). Model yang
-kelasnya bukan tepat empat kelas di bawah tampil tapi tidak bisa dipilih.
+(`/health/detail` → `model_file`, `model_backend`, `model_kelas`,
+`model_kelas_cocok`). Kartu line menulis merah kalau kelas yang **jalan** bukan
+empat kelas di bawah — satu-satunya tanda engine lama bernama sama yang dimuat.
+Model yang kelasnya bukan tepat empat kelas itu tampil tapi tidak bisa dipilih.
 
 **4 kelas** sejak 2026-09-16: `Ripe` / `Unripe` / `JK` / `TP`. Diverifikasi
 langsung dari checkpoint, bukan dari dokumen:
