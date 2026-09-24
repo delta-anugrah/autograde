@@ -827,6 +827,39 @@
      `.tools` lain di berkas ini - dia mengirim ketiga line sekaligus, jadi
      lebarnya harus terbaca sebagai milik semuanya, bukan milik kartu terakhir. */
   #sumber-kamera-panel .tools button { flex:1 1 100%; }
+  /* Model Deteksi meminjam kartu Sumber Kamera (`.sumber-baris`), jadi tiga
+     line tetap sejajar di layar lebar dan turun satu-satu di layar sempit. */
+  #model-deteksi-panel { display:grid; gap:16px; }
+  #model-deteksi-panel > .tools { padding-top:6px; }
+  #model-deteksi-panel > .tools button { flex:1 1 100%; }
+  /* Sama dengan dropdown berkas Sumber Kamera: tanpa `min-width:0` nama model
+     yang panjang memotong dropdown sampai terbaca kosong. */
+  .model-baris select { flex:1 1 auto; width:100%; min-width:0; padding:8px 10px;
+                        font-family:inherit; font-size:1rem;
+                        border:1px solid var(--line-kuat); border-radius:var(--r);
+                        background:var(--input); color:var(--fg); }
+  .model-jalan, .model-rinci { display:grid; gap:6px; font-size:.95rem; }
+  .model-rinci { padding-top:10px; border-top:1px solid var(--line); }
+  .kelas-chip { display:inline-block; padding:2px 8px; margin:0 4px 4px 0; border-radius:999px;
+                border:1px solid var(--line-kuat); font-family:var(--mono); font-size:.85rem; }
+  .model-awas { color:var(--warn); }
+  .model-tolak { color:var(--rej); }
+  .model-ok { color:var(--acc); }
+  /* Modal konfirmasi: pola `<dialog>` yang sama dengan lapisan foto. Menutup
+     layar di sini memang yang diminta — ini keputusan yang merestart line,
+     bukan pekerjaan gerbang yang butuh kamera tetap terlihat (aturan 20). */
+  #model-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:20px 24px;
+                 background:var(--card); color:var(--fg); max-width:min(92vw, 36rem); }
+  #model-modal::backdrop { background:rgba(0,0,0,.72); }
+  #model-modal h2 { margin:0 0 12px; font-size:1.25rem; }
+  #model-modal ul { margin:0 0 12px; padding-left:1.2rem; display:grid; gap:8px; }
+  /* `.tools` global adalah kepala tabel berbingkai; di sini cuma baris tombol. */
+  #model-modal .tools { padding:16px 0 0; justify-content:flex-end;
+                        background:none; border:0; border-radius:0; }
+  /* `th, td` global menahan satu baris. Kalimat alasan dan status engine di
+     tabel model panjang, dan terpotong di kanan kalau tidak boleh membungkus. */
+  #model-baris td.bungkus { white-space:normal; min-width:14rem; }
+  #model-modal .tools button { flex:0 0 auto; min-height:44px; min-width:9rem; }
   #rekap td.tp { color:var(--warn); font-weight:700; }
   #rekap td.acc { color:var(--acc); font-weight:700; }
   #rekap td.rej { color:var(--rej); font-weight:700; }
@@ -1000,6 +1033,7 @@
   <button data-tab="versi" data-dev="1" data-t="judulVersi">Versi</button>
   <button data-tab="plc" data-dev="1" data-t="judulPlc">Uji PLC</button>
   <button data-tab="sumber-kamera" data-dev="1" data-t="judulSumberKamera">Sumber Kamera</button>
+  <button data-tab="model-deteksi" data-dev="1" data-t="judulModelDeteksi">Model Deteksi</button>
   <button data-tab="rekam" data-dev="1" data-t="judulRekamVideo">Rekam Video</button>
   <!-- Setelan sengaja PALING KANAN (permintaan operator 2026-09-18): tab yang
        paling jarang dibuka dan yang paling mahal kalau tersenggol — angkanya
@@ -1565,6 +1599,76 @@
   </div>
 </section>
 
+<section id="sec-model-deteksi" class="panel" hidden data-dev="1">
+  <!--
+    Support-only. Model YOLO dipilih per line dari berkas yang SUDAH ada di
+    `models/release/` PC ini (layar ini tidak mengunduh apa pun). Simpan menulis
+    `LINE_N_MODEL_FILE` di `media.env` lalu me-restart line yang berubah —
+    lewat modal konfirmasi dulu, karena restart menghentikan grading ±10 detik.
+    Model yang kelasnya bukan tepat Ripe/Unripe/JK/TP tampil tapi tidak bisa
+    dipilih: line yang memuatnya tetap jalan dan tidak menghitung apa pun
+    (Lampung, seminggu, 2026-09-23). "Sedang jalan" dibaca dari line sendiri
+    (`/health/detail`), bukan dari pilihan yang tersimpan.
+  -->
+  <div id="model-deteksi-panel">
+    <p class="muted" data-t="modelPeringatan">
+      Mengganti model akan <strong>merestart</strong> line itu (sekitar 10 detik) — janjang yang lewat selama restart tidak dihitung.
+    </p>
+
+    <div class="sumber-baris-baris">
+      <div data-model-line="line-1" class="sumber-baris model-baris">
+        <strong data-t="sumberLabelLine1">Line 1</strong>
+        <div class="model-jalan" data-model-jalan="line-1"></div>
+        <label><span data-t="modelPilih">Model</span> <select data-model="line-1"></select></label>
+        <div class="model-rinci" data-model-rinci="line-1"></div>
+      </div>
+      <div data-model-line="line-2" class="sumber-baris model-baris">
+        <strong data-t="sumberLabelLine2">Line 2</strong>
+        <div class="model-jalan" data-model-jalan="line-2"></div>
+        <label><span data-t="modelPilih">Model</span> <select data-model="line-2"></select></label>
+        <div class="model-rinci" data-model-rinci="line-2"></div>
+      </div>
+      <div data-model-line="line-3" class="sumber-baris model-baris">
+        <strong data-t="sumberLabelLine3">Line 3</strong>
+        <div class="model-jalan" data-model-jalan="line-3"></div>
+        <label><span data-t="modelPilih">Model</span> <select data-model="line-3"></select></label>
+        <div class="model-rinci" data-model-rinci="line-3"></div>
+      </div>
+    </div>
+
+    <div class="tools">
+      <button type="button" id="model-simpan" class="utama" data-t="btnModelSimpan">Simpan &amp; Restart</button>
+    </div>
+
+    <strong data-t="modelSemuaJudul">Semua model di PC ini</strong>
+    <div class="tabel">
+      <table>
+        <thead><tr><th data-t="thModelBerkas">Berkas</th><th class="num" data-t="thModelUkuran">Ukuran</th>
+          <th data-t="thModelKelas">Kelas</th><th data-t="thModelEngine">Engine TensorRT</th>
+          <th data-t="thModelStatus">Status</th></tr></thead>
+        <tbody id="model-baris"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!--
+  Konfirmasi ganti model. Tombol Simpan cuma MEMBUKA ini; POST dikirim dari
+  tombol Ganti & Restart di dalamnya (permintaan user 2026-09-24: "sebelum
+  restart kasih semacam modal info"). Batal sengaja tombol pertama, jadi fokus
+  awal `showModal()` jatuh di situ — Enter yang tidak disengaja membatalkan,
+  bukan merestart. Esc dan klik di luar kotak juga membatalkan.
+-->
+<dialog id="model-modal" aria-labelledby="model-modal-judul" data-dev="1">
+  <h2 id="model-modal-judul" data-t="modelModalJudul">Ganti model dan restart line?</h2>
+  <ul id="model-modal-daftar"></ul>
+  <p class="muted" data-t="modelModalRestart">Line di atas akan restart sekitar 10 detik. Janjang yang lewat selama itu tidak dihitung.</p>
+  <div class="tools">
+    <button type="button" id="model-modal-batal" data-t="btnBatal">Batal</button>
+    <button type="button" id="model-modal-jalankan" class="utama" data-t="btnModelJalankan">Ganti &amp; Restart</button>
+  </div>
+</dialog>
+
 <!--
   Foto satu janjang, dibuka di tempat. Dulu `target="_blank"`: tiap foto yang
   dilihat meninggalkan satu tab, dan di kiosk Chrome (`--kiosk`) tab baru tidak
@@ -1752,6 +1856,31 @@ const KAMUS = {
     sumberTersimpanSemua:"Tersimpan. Line yang berubah sedang restart.",
     sumberTersimpanSebagian:"Tersimpan. {daftar} tidak menjawab — setelan tetap berlaku dan akan dipakai saat line itu hidup lagi.",
     gagalSumberSimpan:"Gagal menyimpan sumber kamera",
+    judulModelDeteksi:"Model Deteksi",
+    modelPeringatan:"Mengganti model akan merestart line itu (sekitar 10 detik) — janjang yang lewat selama restart tidak dihitung.",
+    modelPilih:"Model", modelBawaan:"Bawaan PC", modelBawaanPanjang:"Bawaan PC (MODEL_FILE di .env)",
+    modelRinciBawaan:"Memakai MODEL_FILE di .env PC ini.",
+    modelJalan:"Sedang jalan", modelJalanMemuat:"Menanyai line…",
+    modelJalanTidakDilapor:"tidak dilaporkan (versi line lama)",
+    modelBelumBerlaku:"Pilihan tersimpan belum berlaku — line belum restart atau gagal memuatnya.",
+    modelTidakBisa:"tidak bisa dipakai", modelHilang:"Berkas ini sudah tidak ada di models/release.",
+    modelKelasTakTerbaca:"kelas tidak terbaca",
+    modelTanpaEngine:"Belum ada engine TensorRT — line jalan di .pt, sekitar 2x lebih lambat.",
+    modelEngineBasi:"basi, build ulang", modelEngineOk:"siap",
+    modelCocok:"Bisa dipakai",
+    modelSemuaJudul:"Semua model di PC ini",
+    thModelBerkas:"Berkas", thModelUkuran:"Ukuran", thModelKelas:"Kelas",
+    thModelEngine:"Engine TensorRT", thModelStatus:"Status",
+    modelKosong:"Belum ada berkas .pt di models/release",
+    btnModelSimpan:"Simpan & Restart", btnModelJalankan:"Ganti & Restart",
+    modelModalJudul:"Ganti model dan restart line?",
+    modelModalRestart:"Line di atas akan restart sekitar 10 detik. Janjang yang lewat selama itu tidak dihitung.",
+    modelSibuk:"Sedang memproses truk {plat} — hasil truk ini akan campuran dua model.",
+    modelTidakAdaPerubahan:"Tidak ada yang berubah",
+    modelTersimpanSemua:"Tersimpan. Line yang berubah sedang restart.",
+    modelTersimpanSebagian:"Tersimpan. {daftar} tidak menjawab — model baru dipakai saat line itu hidup lagi.",
+    gagalModelDeteksi:"Gagal memuat model deteksi",
+    gagalModelSimpan:"Gagal menyimpan model deteksi",
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
@@ -1901,6 +2030,31 @@ const KAMUS = {
     sumberTersimpanSemua:"Saved. Lines that changed are restarting.",
     sumberTersimpanSebagian:"Saved. {daftar} did not respond — the setting still applies and will take effect once that line is back.",
     gagalSumberSimpan:"Failed to save camera source",
+    judulModelDeteksi:"Detection Model",
+    modelPeringatan:"Changing the model restarts that line (about 10 seconds) — bunches passing during the restart are not counted.",
+    modelPilih:"Model", modelBawaan:"PC default", modelBawaanPanjang:"PC default (MODEL_FILE in .env)",
+    modelRinciBawaan:"Uses MODEL_FILE from this PC's .env.",
+    modelJalan:"Running now", modelJalanMemuat:"Asking the line…",
+    modelJalanTidakDilapor:"not reported (older line version)",
+    modelBelumBerlaku:"The saved choice is not active yet — the line has not restarted or failed to load it.",
+    modelTidakBisa:"cannot be used", modelHilang:"This file is no longer in models/release.",
+    modelKelasTakTerbaca:"classes unreadable",
+    modelTanpaEngine:"No TensorRT engine yet — the line runs the .pt, about 2x slower.",
+    modelEngineBasi:"stale, rebuild", modelEngineOk:"ready",
+    modelCocok:"Usable",
+    modelSemuaJudul:"All models on this PC",
+    thModelBerkas:"File", thModelUkuran:"Size", thModelKelas:"Classes",
+    thModelEngine:"TensorRT engine", thModelStatus:"Status",
+    modelKosong:"No .pt files in models/release yet",
+    btnModelSimpan:"Save & Restart", btnModelJalankan:"Change & Restart",
+    modelModalJudul:"Change the model and restart the line?",
+    modelModalRestart:"The lines above restart for about 10 seconds. Bunches passing during that time are not counted.",
+    modelSibuk:"Processing truck {plat} — this truck's results will mix two models.",
+    modelTidakAdaPerubahan:"Nothing changed",
+    modelTersimpanSemua:"Saved. Lines that changed are restarting.",
+    modelTersimpanSebagian:"Saved. {daftar} did not respond — the new model is used once that line is back.",
+    gagalModelDeteksi:"Failed to load detection models",
+    gagalModelSimpan:"Failed to save detection model",
   },
 };
 
@@ -2064,7 +2218,7 @@ document.addEventListener("focusout", (ev) => {
 });
 
 // ── truck / weighbridge tabs ───────────────────────────────────────────
-const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "diagnostik", "antrean", "versi", "plc", "sumber-kamera", "setelan"];
+const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "diagnostik", "antrean", "versi", "plc", "sumber-kamera", "model-deteksi", "setelan"];
 let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
 
 function terapkanTab() {
@@ -2083,7 +2237,7 @@ function terapkanTab() {
 // tab stays open (a line coming back or dying should show up unattended);
 // the timer is started/stopped in `bukaTabDev` below, never left running
 // behind a tab nobody is looking at.
-const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, "sumber-kamera": muatSumberKamera, setelan: muatSetelan, rekam: muatRekam };
+const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, "sumber-kamera": muatSumberKamera, "model-deteksi": muatModelDeteksi, setelan: muatSetelan, rekam: muatRekam };
 
 function bukaTabDev(namaTab) {
   clearInterval(diagnostikTimer);
@@ -4136,6 +4290,205 @@ $("sumber-simpan").addEventListener("click", async () => {
     await muatSumberKamera();
   } catch (e) {
     toastGagal(alasan(e) || t("gagalSumberSimpan"));
+  }
+});
+
+// ── Model deteksi per line (support only) ──────────────────────────────
+// Pilihan disimpan konsol di media.env; yang BENAR-BENAR dimuat dilaporkan
+// line sendiri lewat /health/detail. Dua-duanya ditampilkan berdampingan,
+// karena "sudah dipilih" bukan "sudah berlaku" — kebutaan itu yang membuat
+// Lampung seminggu memakai model lama tanpa ada yang tahu (2026-09-23).
+const MODEL_KODE_LINE = ["line-1", "line-2", "line-3"];
+let modelTerakhir = null;       // jawaban GET terakhir: {lines, model}
+let modelJalan = {};            // kode -> /health/detail line itu (dari diagnostik)
+let modelPilihanTertunda = null; // pilihan yang menunggu konfirmasi di modal
+let modelSibukKirim = false;
+
+const labelLineModel = (kode) => t("sumberLabelLine" + kode.slice(-1));
+const namaModel = (nama) => nama || t("modelBawaan");
+const chipKelas = (kelas) => kelas
+  ? kelas.map((k) => `<span class="kelas-chip">${esc(k)}</span>`).join("")
+  : `<span class="model-tolak">${esc(t("modelKelasTakTerbaca"))}</span>`;
+
+function statusEngine(m) {
+  if (!m.engine || !m.engine.length) return `<span class="model-awas">${esc(t("modelTanpaEngine"))}</span>`;
+  return m.engine.map((e) => e.basi
+    ? `<span class="model-awas">sm${esc(e.sm)}: ${esc(t("modelEngineBasi"))}</span>`
+    : `<span class="model-ok">sm${esc(e.sm)}: ${esc(t("modelEngineOk"))}</span>`).join(" · ");
+}
+
+function opsiModel(kode, terpilih) {
+  const pilih = document.querySelector(`[data-model="${kode}"]`);
+  if (!pilih || !modelTerakhir) return;
+  pilih.innerHTML = "";
+  pilih.append(new Option(t("modelBawaanPanjang"), ""));
+  for (const m of modelTerakhir.model) {
+    const opt = new Option(m.cocok ? m.berkas : `${m.berkas} — ${t("modelTidakBisa")}`, m.berkas);
+    // Tampil tapi tidak bisa dipilih, dengan alasannya: menyembunyikan model
+    // lama membuat orang mengira berkasnya hilang lalu menyalinnya lagi.
+    opt.disabled = !m.cocok;
+    opt.title = m.alasan || "";
+    pilih.append(opt);
+  }
+  if (terpilih && !modelTerakhir.model.some((m) => m.berkas === terpilih)) {
+    // Tersimpan tapi berkasnya sudah dihapus dari folder. Ditampilkan apa
+    // adanya, bukan diam-diam jatuh ke Bawaan: menyimpan layar ini tanpa
+    // sadar akan mengganti model line itu.
+    const hilang = new Option(`${terpilih} — ${t("modelTidakBisa")}`, terpilih);
+    hilang.disabled = true;
+    pilih.append(hilang);
+  }
+  pilih.value = terpilih || "";
+}
+
+function rinciModel(kode) {
+  const wadah = document.querySelector(`[data-model-rinci="${kode}"]`);
+  const nama = document.querySelector(`[data-model="${kode}"]`)?.value || "";
+  if (!wadah || !modelTerakhir) return;
+  if (!nama) {
+    wadah.innerHTML = `<span class="muted">${esc(t("modelRinciBawaan"))}</span>`;
+    return;
+  }
+  const m = modelTerakhir.model.find((x) => x.berkas === nama);
+  if (!m) {
+    wadah.innerHTML = `<span class="model-tolak">${esc(t("modelHilang"))}</span>`;
+    return;
+  }
+  wadah.innerHTML = `<div>${chipKelas(m.kelas)}</div>
+    <div>${statusEngine(m)}</div>
+    ${m.cocok ? "" : `<div class="model-tolak">${esc(m.alasan)}</div>`}`;
+}
+
+function tulisJalan(kode) {
+  const el = document.querySelector(`[data-model-jalan="${kode}"]`);
+  if (!el) return;
+  const d = modelJalan[kode];
+  const label = `<span class="muted">${esc(t("modelJalan"))}:</span>`;
+  if (!d) { el.innerHTML = `${label} ${esc(t("modelJalanMemuat"))}`; return; }
+  if (!d.terjangkau) { el.innerHTML = `${label} ${esc(t("lineTidakTerjangkau"))}`; return; }
+  if (!d.model_file) { el.innerHTML = `${label} ${esc(t("modelJalanTidakDilapor"))}`; return; }
+  const backend = d.model_backend === "tensorrt" ? "TensorRT" : (d.model_backend === "pytorch" ? ".pt" : d.model_backend);
+  const tersimpan = modelTerakhir?.lines?.[kode] || "";
+  // Cuma bisa dibandingkan kalau pilihannya bukan Bawaan: nama bawaan hidup di
+  // .env line, dan konsol tidak membaca .env.
+  const belum = tersimpan && tersimpan !== d.model_file
+    ? `<div class="model-awas">${esc(t("modelBelumBerlaku"))}</div>` : "";
+  el.innerHTML = `<div>${label} <b>${esc(d.model_file)}</b> · ${esc(backend || KOSONG)}</div>${belum}`;
+}
+
+function barisModel(m) {
+  const status = m.cocok
+    ? `<span class="model-ok">${esc(t("modelCocok"))}</span>`
+    : `<span class="model-tolak">${esc(m.alasan)}</span>`;
+  return `<tr>
+    <td>${esc(m.berkas)}</td>
+    <td class="num">${esc(m.ukuran_mb)} MB</td>
+    <td>${chipKelas(m.kelas)}</td>
+    <td class="bungkus">${statusEngine(m)}</td>
+    <td class="bungkus">${status}</td>
+  </tr>`;
+}
+
+// Terpisah dari muatModelDeteksi: /dev/diagnostik menunggu sampai 5 detik per
+// line yang mati. Daftar model tidak boleh ikut menunggu itu.
+async function muatJalanModel() {
+  try {
+    const r = await api("/api/console/dev/diagnostik");
+    modelJalan = r.lines || {};
+  } catch (e) {
+    modelJalan = {};
+  }
+  MODEL_KODE_LINE.forEach(tulisJalan);
+}
+
+async function muatModelDeteksi() {
+  try {
+    modelTerakhir = await api("/api/console/dev/model-deteksi");
+    for (const kode of MODEL_KODE_LINE) {
+      opsiModel(kode, modelTerakhir.lines[kode] || "");
+      rinciModel(kode);
+      tulisJalan(kode);
+    }
+    $("model-baris").innerHTML = modelTerakhir.model.length
+      ? modelTerakhir.model.map(barisModel).join("") : barisKosong(5, "modelKosong");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e) || t("gagalModelDeteksi"));
+    return;
+  }
+  await muatJalanModel();
+}
+
+document.querySelectorAll("[data-model]").forEach((el) => {
+  el.addEventListener("change", () => rinciModel(el.dataset.model));
+});
+
+$("model-simpan").addEventListener("click", async () => {
+  if (!modelTerakhir || modelSibukKirim) return;
+  const pilihan = {};
+  for (const kode of MODEL_KODE_LINE) {
+    pilihan[kode] = document.querySelector(`[data-model="${kode}"]`).value || "";
+  }
+  const berubah = MODEL_KODE_LINE.filter((k) => (modelTerakhir.lines[k] || "") !== pilihan[k]);
+  if (!berubah.length) {
+    toastPeringatan(t("modelTidakAdaPerubahan"));
+    return;
+  }
+  // Truk yang sedang dibongkar di line yang akan restart: ganti model tetap
+  // boleh (keputusan user 2026-09-24, untuk development), tapi disebut, karena
+  // hasil truk itu jadi campuran dua model. Gagal membaca keadaan tidak
+  // menghalangi modal — cuma peringatan truknya yang hilang.
+  const sibuk = {};
+  try {
+    const s = await api("/api/console/state");
+    for (const l of s.lines || []) {
+      if (l.assignment) sibuk[l.line_code] = l.assignment.plate_number || l.assignment.truck_id;
+    }
+  } catch (e) { /* tanpa info truk */ }
+  $("model-modal-daftar").innerHTML = berubah.map((k) => {
+    const truk = sibuk[k]
+      ? `<div class="model-awas">${esc(t("modelSibuk").replace("{plat}", sibuk[k]))}</div>` : "";
+    return `<li><b>${esc(labelLineModel(k))}</b>: ${esc(namaModel(modelTerakhir.lines[k]))} → <b>${esc(namaModel(pilihan[k]))}</b>${truk}</li>`;
+  }).join("");
+  modelPilihanTertunda = pilihan;
+  $("model-modal").showModal();
+});
+
+$("model-modal-batal").addEventListener("click", () => $("model-modal").close());
+// Klik di backdrop = batal, seperti lapisan foto.
+$("model-modal").addEventListener("click", (ev) => {
+  if (ev.target === ev.currentTarget) ev.currentTarget.close();
+});
+
+$("model-modal-jalankan").addEventListener("click", async () => {
+  const pilihan = modelPilihanTertunda;
+  modelPilihanTertunda = null;
+  $("model-modal").close();
+  if (!pilihan) return;
+  modelSibukKirim = true;
+  $("model-simpan").disabled = true;
+  try {
+    const data = await api("/api/console/dev/model-deteksi", {
+      method: "POST",
+      body: JSON.stringify(pilihan),
+    });
+    // Sama dengan Sumber Kamera: `berubah && !direstart` = SUDAH tersimpan,
+    // line itu saja yang tidak menjawab. Bukan simpan yang gagal.
+    const tidakJawab = (data.lines || []).filter((b) => b.berubah && !b.direstart);
+    if (tidakJawab.length) {
+      toastPeringatan(t("modelTersimpanSebagian").replace(
+        "{daftar}", tidakJawab.map((b) => labelLineModel(b.line_code)).join(", ")));
+    } else {
+      toastSukses(t("modelTersimpanSemua"));
+    }
+    await muatModelDeteksi();
+    // Line butuh ±10 detik untuk kembali; tanyai sekali lagi sesudahnya supaya
+    // "Sedang jalan" menunjukkan model baru tanpa perlu membuka ulang tab.
+    setTimeout(() => { if (tab === "model-deteksi") muatJalanModel(); }, 15000);
+  } catch (e) {
+    toastGagal(alasan(e) || t("gagalModelSimpan"));
+  } finally {
+    modelSibukKirim = false;
+    $("model-simpan").disabled = false;
   }
 });
 
