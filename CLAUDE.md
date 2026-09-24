@@ -144,6 +144,17 @@ All via **`make`** (Docker only). From `autograde/`:
   pemanggil di luar Makefile harus membawanya sendiri.
   ⚠️ **Jalur lama sudah tidak ada**: mount `/videos` dicabut, dan `CAMERA_VIDEO_PATH` +
   `docker-compose.override.yml` bukan lagi cara menyetel video per line.
+- **Model per line — juga dari layar** (sejak 2026-09-24): konsol → **support** → tab
+  **Model Deteksi**. Menulis `LINE_N_MODEL_FILE` ke `media.env` yang sama; kosong = `MODEL_FILE`
+  di `.env` (bawaan PC). Layar menampilkan kelas tiap model (dibaca **tanpa torch**,
+  `services/model_library.py`), status engine per GPU, dan model yang **benar-benar** dimuat
+  tiap line (`/health/detail` → `model_file`/`model_backend`/`model_kelas`). Model yang kelasnya
+  bukan tepat `Ripe/Unripe/JK/TP` **tidak bisa dipilih** (400 di server). Simpan lewat modal
+  konfirmasi, lalu cuma line yang berubah yang restart. ⚠️ Konsol butuh mount
+  `./models:/app/models:ro` + `./engines:/app/engines:ro` — sudah di kedua compose repo, tapi
+  compose di PC pabrik hidup di host dan harus ditambah tangan. Engine dibangun per model lewat
+  service line yang memakainya (`run ... ripe-line-N scripts/build_engine.py`).
+  Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md`.
 - **Verify**: `curl :8001/health`; `curl :8001/health/detail` (camera_connected, gpu_available, workers, current_assignment_id, `plc` = `null` kalau PLC mati); stream at `http://localhost:8001/api/video_feed`.
   ⚠️ **`capture_save_dropped` di `/health/detail` harus NOL.** Di atas nol berarti antrean penulis
   pernah penuh dan janjang yang sudah digrading — sudah dapat pulse PLC, sudah masuk rekap —
@@ -165,7 +176,7 @@ All via **`make`** (Docker only). From `autograde/`:
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/health`, `/health/detail` | detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending`/`outbox_failed`, always `0` — outbox disabled) |
+| GET | `/health`, `/health/detail` | detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending`/`outbox_failed`, always `0` — outbox disabled) + `model_file`/`model_backend`/`model_kelas` = model yang benar-benar dimuat |
 | GET | `/api/video_feed` | MJPEG live (multi-viewer) |
 | GET | `/api/results_today` | today's results (read from disk) |
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |
@@ -197,7 +208,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line |
 | POST | `/api/console/lines/{line}/release-truck` | truk pergi → `/internal/assignment` line dengan truk kosong |
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
-| GET | `/api/console/dev/ping` | lane developer paling ringan — dipakai layar untuk memastikan akses masih hidup. **Semua tujuh baris di bawah ini butuh `role='support'`, dijawab 403 kalau bukan** |
+| GET | `/api/console/dev/ping` | lane developer paling ringan — dipakai layar untuk memastikan akses masih hidup. **Semua baris `/dev/*` di bawah ini butuh `role='support'`, dijawab 403 kalau bukan** |
 | GET | `/api/console/dev/log` | isi `event_log` — filter `level`/`cari`, pagination `limit`+`offset` |
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu layar |
 | GET | `/api/console/dev/antrean` | isi `erp_outbox` — jumlah pending/gagal + daftar yang gagal |
@@ -209,6 +220,8 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/dev/rekam/setelan` | ubah resolusi/fps/bitrate rekaman. Berlaku untuk rekaman **berikutnya** — mengubah resolusi di tengah berkas MP4 menghasilkannya rusak |
 | POST | `/api/console/dev/rekam/{line_code}/mulai` | mulai merekam satu line. 409 kalau sudah merekam, **507 kalau disk mepet** (dua hal yang butuh tindakan berbeda, jadi tidak diratakan) |
 | POST | `/api/console/dev/rekam/{line_code}/stop` | hentikan dan tutup berkasnya. Menahan ~2 detik: line menunggu encoder menutup berkas dengan rapi |
+| GET | `/api/console/dev/model-deteksi` | pilihan model tiap line + semua `.pt` di `models/release` dengan kelas, engine per GPU, `cocok`/`alasan` |
+| POST | `/api/console/dev/model-deteksi` | ganti model per line (`LINE_N_MODEL_FILE` di `media.env`), restart line yang berubah. **400** untuk model yang tidak ada atau kelasnya asing, tanpa menulis apa pun |
 | POST | `{BACKEND_API_VER}/internal/vision/events` | ← dari tiga line (`x-webhook-secret`), kontrak §5 |
 | POST | `{BACKEND_API_VER}/internal/scale/weighing` | ← dari program timbangan (`x-webhook-secret`), bentuk sementara kita |
 | GET | `/captures/{line_code}/...` | gambar line, mount read-only, bentuk URL = `resolveCaptureUrl` api |
