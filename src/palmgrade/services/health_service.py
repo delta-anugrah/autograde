@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from ..core.config import Settings
 from ..integrations.camera.base import CameraSource
@@ -16,6 +17,14 @@ class HealthService:
     state: RuntimeState
     camera: CameraSource
     outbox: OutboxStore
+    # `ModelRegistry`, atau None kalau belum dimuat. Diketik `Any` supaya modul
+    # ini tidak menarik torch lewat `model_registry`.
+    model: Any = None
+
+    def ringkasan_model(self) -> dict[str, Any]:
+        if self.model is None:
+            return {"model_file": None, "model_backend": None, "model_kelas": []}
+        return self.model.ringkasan()
 
     def get_health(self) -> dict[str, str]:
         return {
@@ -65,4 +74,5 @@ class HealthService:
             tp_telat=self.state.tp_telat,
             current_assignment_id=self.state.current_assignment_id,
             last_successful_api_push=self.state.last_successful_api_push,
+            **self.ringkasan_model(),
         )

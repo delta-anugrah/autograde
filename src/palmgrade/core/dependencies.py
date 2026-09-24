@@ -89,11 +89,16 @@ def get_truck_repository() -> TruckRepository:
 
 
 def get_health_service() -> HealthService:
+    # Registry diteruskan HANYA kalau sudah dimuat (lifespan memuatnya sebelum
+    # server melayani request). Jalur health tidak boleh jadi yang memicu
+    # pemuatan model 50–140 MB ke GPU.
+    model = get_model_registry() if get_model_registry.cache_info().currsize else None
     return HealthService(
         settings=get_settings(),
         state=get_runtime_state(),
         camera=get_camera(),
         outbox=get_outbox_store(),
+        model=model,
     )
 
 
