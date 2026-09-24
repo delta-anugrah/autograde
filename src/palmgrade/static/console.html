@@ -4425,7 +4425,7 @@ async function muatModelDeteksi() {
     $("model-baris").innerHTML = modelTerakhir.model.length
       ? modelTerakhir.model.map(barisModel).join("")
       : folder.terbaca === false
-        ? `<tr><td colspan="5" class="kosong"><span class="model-tolak">${esc(
+        ? `<tr><td colspan="5" class="kosong bungkus"><span class="model-tolak">${esc(
             t("modelFolderTakTerbaca").replace("{path}", folder.path || "models/release"))}</span></td></tr>`
         : barisKosong(5, "modelKosong");
   } catch (e) {

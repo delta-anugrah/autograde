@@ -142,6 +142,9 @@ def test_folder_tak_terbaca_punya_pesannya_sendiri():
     blok = HTML[awal : HTML.find("\n}\n", awal)]
     assert "folder" in blok and "terbaca" in blok
     assert "modelFolderTakTerbaca" in blok
+    # Pesannya panjang (path + petunjuk mount). Sel tabel global `nowrap`
+    # memotongnya di kanan — terlihat di browser 2026-09-24.
+    assert '<td colspan="5" class="kosong bungkus">' in blok
 
 
 def test_sesudah_simpan_layar_menanyai_line_sampai_model_baru_terbaca():
