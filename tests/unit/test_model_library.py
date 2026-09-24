@@ -262,3 +262,36 @@ def test_folder_tidak_ada_tidak_terbaca(tmp_path):
 def test_folder_kosong_tetap_terbaca(folder):
     release, engines = folder
     assert ModelLibrary(release, engines).terbaca() is True
+
+
+def test_model_yang_hilang_saat_didaftar_dilewati(folder, monkeypatch):
+    # Berkas dihapus di antara iterdir() dan stat(): dulu 500 (minor #7 review).
+    release, engines = folder
+    buat_pt(release / "a.pt", EMPAT)
+    buat_pt(release / "b.pt", EMPAT)
+    asli = ModelLibrary._satu
+
+    def hapus_dulu(self, pt):
+        if pt.name == "a.pt":
+            pt.unlink()
+        return asli(self, pt)
+
+    monkeypatch.setattr(ModelLibrary, "_satu", hapus_dulu)
+    assert [m["berkas"] for m in ModelLibrary(release, engines).daftar()] == ["b.pt"]
+
+
+def test_engine_yang_hilang_saat_didaftar_dilewati(folder, monkeypatch):
+    release, engines = folder
+    buat_pt(release / "best.pt", EMPAT)
+    buat_engine(engines / "best.sm86.engine", EMPAT)
+    buat_engine(engines / "best.sm75.engine", EMPAT)
+    asli = model_library._tercache
+
+    def hapus_dulu(jenis, path, baca):
+        if jenis == "engine" and path.name == "best.sm75.engine":
+            path.unlink()
+        return asli(jenis, path, baca)
+
+    monkeypatch.setattr(model_library, "_tercache", hapus_dulu)
+    [m] = ModelLibrary(release, engines).daftar()
+    assert [e["sm"] for e in m["engine"]] == ["86"]

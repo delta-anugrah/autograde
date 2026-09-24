@@ -28,6 +28,7 @@ class HealthService:
                 "model_backend": None,
                 "model_kelas": [],
                 "model_kelas_cocok": None,
+                "gpu_sm": None,
             }
         return self.model.ringkasan()
 

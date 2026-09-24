@@ -917,7 +917,7 @@ variabel mati padahal bukan — jangan dihapus karena `grep os.getenv` tidak men
 | `BACKEND_API_VER` | `/api/v1` | Prefix versi API untuk URL canonical events |
 | `WEBHOOK_SECRET` | — | Shared secret header value — sama persis di tiga line **dan** konsol (dipakai dua arah: memverifikasi event masuk, dan meneruskan perintah ke line) |
 | `ENABLE_WEBHOOK` | `true` | Toggle webhook posting. **Set `false` kalau tidak ada penerima** (mis. api sudah di-stop dan `ERP_URL` belum diisi): `OutboxRetryWorker` retry **tiap 1 detik tanpa backoff**, jadi `true` ke alamat mati berarti log penuh selamanya. Hasil grading tetap aman — outbox menyimpannya di SQLite dan tidak pernah membuangnya |
-| `MODEL_FILE` | `best.pt` | Nama berkas model YOLO di `models/release/` |
+| `MODEL_FILE` | `best.pt` | Nama berkas model YOLO di `models/release/` — **bawaan PC**. Per line bisa ditimpa dari layar Support > Model Deteksi (`LINE_N_MODEL_FILE` di `media.env`) |
 | `CONF_THRESHOLD` | `0.75` | Ambang keyakinan YOLO |
 | `GARIS_CAPTURE` | `0` | Garis capture (px, ruang **stream**). Satu janjang difoto ketika kotaknya menyentuh garis ini. `0` = tanpa garis. Nilai awal saja — yang dipakai saat jalan diatur dari layar support konsol, tanpa restart |
 | `SUMBU_GARIS` | `tegak` | Sumbu garis: `tegak` (konveyor mendatar, px dari **kiri**) / `mendatar` (konveyor tegak, px dari **atas**). Nilai awal saja |

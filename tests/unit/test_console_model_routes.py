@@ -32,3 +32,10 @@ def test_simpan_menerjemahkan_model_tidak_sah_jadi_400():
     assert blok
     assert "ModelTidakSah" in blok.group(0)
     assert "400" in blok.group(0)
+
+
+def test_baca_tidak_membaca_zip_di_event_loop():
+    isi = _sumber()
+    blok = re.search(r"async def dev_model_deteksi_baca.*?(?=\n@router|\Z)", isi, re.S)
+    assert blok
+    assert "model_deteksi_async" in blok.group(0)

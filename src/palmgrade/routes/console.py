@@ -631,7 +631,7 @@ async def dev_sumber_kamera_simpan(
 @router.get("/api/console/dev/model-deteksi")
 async def dev_model_deteksi_baca(service: Service, operator: Support) -> dict:
     """Model pilihan tiap line + semua model di `models/release` beserta kelasnya."""
-    return service.model_deteksi()
+    return await service.model_deteksi_async()
 
 
 @router.post("/api/console/dev/model-deteksi")

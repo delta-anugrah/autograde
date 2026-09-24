@@ -37,6 +37,9 @@ class HealthDetailSchema(BaseModel):
     # False = model yang jalan bukan tepat Ripe/Unripe/JK/TP: line ini tidak
     # menghitung janjang. None = tidak diketahui, BUKAN alarm.
     model_kelas_cocok: bool | None = None
+    # Compute capability GPU line ("86"). Konsol mencocokkannya dengan nama
+    # engine `<model>.sm<cc>.engine`. None = CPU / belum dimuat.
+    gpu_sm: str | None = None
     outbox_pending: int = 0
     outbox_failed: int = 0
     # Antrean penulis bukti (`CaptureSaveWorker`). `capture_save_dropped` naik

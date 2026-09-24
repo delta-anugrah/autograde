@@ -87,6 +87,9 @@ def test_ringkasan_menyebut_berkas_backend_dan_kelas(registry_palsu, monkeypatch
         "model_backend": "tensorrt",
         "model_kelas": ["JK", "Ripe", "TP", "Unripe"],
         "model_kelas_cocok": True,
+        # Compute capability GPU line ini: konsol memakainya untuk tahu engine
+        # mana yang benar-benar bisa dipakai line (minor #9 review).
+        "gpu_sm": "86",
     }
 
 

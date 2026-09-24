@@ -848,8 +848,12 @@
   /* Modal konfirmasi: pola `<dialog>` yang sama dengan lapisan foto. Menutup
      layar di sini memang yang diminta — ini keputusan yang merestart line,
      bukan pekerjaan gerbang yang butuh kamera tetap terlihat (aturan 20). */
-  #model-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:20px 24px;
+  /* Padding 0 di <dialog>, padding di pembungkus isinya: klik yang target-nya
+     dialog itu sendiri cuma bisa datang dari backdrop, jadi klik di tepi kotak
+     tidak ikut membatalkan. */
+  #model-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
                  background:var(--card); color:var(--fg); max-width:min(92vw, 36rem); }
+  .model-modal-isi { padding:20px 24px; }
   #model-modal::backdrop { background:rgba(0,0,0,.72); }
   #model-modal h2 { margin:0 0 12px; font-size:1.25rem; }
   #model-modal ul { margin:0 0 12px; padding-left:1.2rem; display:grid; gap:8px; }
@@ -1660,12 +1664,14 @@
   bukan merestart. Esc dan klik di luar kotak juga membatalkan.
 -->
 <dialog id="model-modal" aria-labelledby="model-modal-judul" data-dev="1">
-  <h2 id="model-modal-judul" data-t="modelModalJudul">Ganti model dan restart line?</h2>
-  <ul id="model-modal-daftar"></ul>
-  <p class="muted" data-t="modelModalRestart">Line di atas akan restart sekitar 10 detik. Janjang yang lewat selama itu tidak dihitung.</p>
-  <div class="tools">
-    <button type="button" id="model-modal-batal" data-t="btnBatal">Batal</button>
-    <button type="button" id="model-modal-jalankan" class="utama" data-t="btnModelJalankan">Ganti &amp; Restart</button>
+  <div class="model-modal-isi">
+    <h2 id="model-modal-judul" data-t="modelModalJudul">Ganti model dan restart line?</h2>
+    <ul id="model-modal-daftar"></ul>
+    <p class="muted" data-t="modelModalRestart">Line di atas akan restart sekitar 10 detik. Janjang yang lewat selama itu tidak dihitung.</p>
+    <div class="tools">
+      <button type="button" id="model-modal-batal" data-t="btnBatal">Batal</button>
+      <button type="button" id="model-modal-jalankan" class="utama" data-t="btnModelJalankan">Ganti &amp; Restart</button>
+    </div>
   </div>
 </dialog>
 
@@ -1868,6 +1874,8 @@ const KAMUS = {
     modelKelasTakTerbaca:"kelas tidak terbaca",
     modelTanpaEngine:"Belum ada engine TensorRT — line jalan di .pt, sekitar 2x lebih lambat.",
     modelEngineBasi:"basi, build ulang", modelEngineOk:"siap",
+    modelEngineGpuLain:"untuk GPU lain",
+    modelTanpaEngineGpuIni:"Belum ada engine untuk GPU line ini ({sm}) — line jalan di .pt, sekitar 2x lebih lambat.",
     modelCocok:"Bisa dipakai",
     modelSemuaJudul:"Semua model di PC ini",
     thModelBerkas:"Berkas", thModelUkuran:"Ukuran", thModelKelas:"Kelas",
@@ -2044,6 +2052,8 @@ const KAMUS = {
     modelKelasTakTerbaca:"classes unreadable",
     modelTanpaEngine:"No TensorRT engine yet — the line runs the .pt, about 2x slower.",
     modelEngineBasi:"stale, rebuild", modelEngineOk:"ready",
+    modelEngineGpuLain:"for another GPU",
+    modelTanpaEngineGpuIni:"No engine for this line's GPU ({sm}) yet — the line runs the .pt, about 2x slower.",
     modelCocok:"Usable",
     modelSemuaJudul:"All models on this PC",
     thModelBerkas:"File", thModelUkuran:"Size", thModelKelas:"Classes",
@@ -4314,11 +4324,32 @@ const chipKelas = (kelas) => kelas
   ? kelas.map((k) => `<span class="kelas-chip">${esc(k)}</span>`).join("")
   : `<span class="model-tolak">${esc(t("modelKelasTakTerbaca"))}</span>`;
 
+// GPU yang dilaporkan line (`gpu_sm` di /health/detail). Kosong = belum tahu:
+// line belum menjawab, versi lama, atau CPU — engine lalu ditulis apa adanya.
+function smLineDikenal() {
+  return new Set(Object.values(modelJalan)
+    .filter((d) => d && d.terjangkau && d.gpu_sm)
+    .map((d) => String(d.gpu_sm)));
+}
+
 function statusEngine(m) {
-  if (!m.engine || !m.engine.length) return `<span class="model-awas">${esc(t("modelTanpaEngine"))}</span>`;
-  return m.engine.map((e) => e.basi
-    ? `<span class="model-awas">sm${esc(e.sm)}: ${esc(t("modelEngineBasi"))}</span>`
-    : `<span class="model-ok">sm${esc(e.sm)}: ${esc(t("modelEngineOk"))}</span>`).join(" · ");
+  const engine = m.engine || [];
+  if (!engine.length) return `<span class="model-awas">${esc(t("modelTanpaEngine"))}</span>`;
+  // Engine terkunci ke GPU. Engine untuk GPU lain tidak berguna bagi line
+  // ini, jadi tidak boleh ditulis "siap" sementara line jalan di .pt.
+  const smLine = smLineDikenal();
+  if (smLine.size && !engine.some((e) => smLine.has(String(e.sm)))) {
+    const daftarSm = [...smLine].map((sm) => "sm" + sm).join(", ");
+    return `<span class="model-awas">${esc(t("modelTanpaEngineGpuIni").replace("{sm}", daftarSm))}</span>`;
+  }
+  return engine.map((e) => {
+    if (smLine.size && !smLine.has(String(e.sm))) {
+      return `<span class="muted">sm${esc(e.sm)}: ${esc(t("modelEngineGpuLain"))}</span>`;
+    }
+    return e.basi
+      ? `<span class="model-awas">sm${esc(e.sm)}: ${esc(t("modelEngineBasi"))}</span>`
+      : `<span class="model-ok">sm${esc(e.sm)}: ${esc(t("modelEngineOk"))}</span>`;
+  }).join(" · ");
 }
 
 function opsiModel(kode, terpilih) {
@@ -4399,6 +4430,19 @@ function barisModel(m) {
   </tr>`;
 }
 
+// Isi tabel "Semua model di PC ini". Folder yang tidak bisa dibuka BUKAN
+// folder kosong: di PC pabrik itu hampir selalu mount `./models` yang belum
+// ditambah ke compose host.
+function isiTabelModel() {
+  if (!modelTerakhir) return "";
+  if (modelTerakhir.model.length) return modelTerakhir.model.map(barisModel).join("");
+  const folder = modelTerakhir.folder || {};
+  return folder.terbaca === false
+    ? `<tr><td colspan="5" class="kosong bungkus"><span class="model-tolak">${esc(
+        t("modelFolderTakTerbaca").replace("{path}", folder.path || "models/release"))}</span></td></tr>`
+    : barisKosong(5, "modelKosong");
+}
+
 // Terpisah dari muatModelDeteksi: /dev/diagnostik menunggu sampai 5 detik per
 // line yang mati. Daftar model tidak boleh ikut menunggu itu.
 async function muatJalanModel() {
@@ -4409,6 +4453,12 @@ async function muatJalanModel() {
     modelJalan = {};
   }
   MODEL_KODE_LINE.forEach(tulisJalan);
+  // Status engine bergantung pada `gpu_sm` yang baru datang dari line, jadi
+  // rincian dan tabel digambar ulang.
+  if (modelTerakhir) {
+    MODEL_KODE_LINE.forEach(rinciModel);
+    $("model-baris").innerHTML = isiTabelModel();
+  }
 }
 
 async function muatModelDeteksi() {
@@ -4419,15 +4469,7 @@ async function muatModelDeteksi() {
       rinciModel(kode);
       tulisJalan(kode);
     }
-    // Folder yang tidak bisa dibuka BUKAN folder kosong: di PC pabrik itu
-    // hampir selalu mount `./models` yang belum ditambah ke compose host.
-    const folder = modelTerakhir.folder || {};
-    $("model-baris").innerHTML = modelTerakhir.model.length
-      ? modelTerakhir.model.map(barisModel).join("")
-      : folder.terbaca === false
-        ? `<tr><td colspan="5" class="kosong bungkus"><span class="model-tolak">${esc(
-            t("modelFolderTakTerbaca").replace("{path}", folder.path || "models/release"))}</span></td></tr>`
-        : barisKosong(5, "modelKosong");
+    $("model-baris").innerHTML = isiTabelModel();
   } catch (e) {
     if (e.kode !== "belum_masuk") toastGagal(alasan(e) || t("gagalModelDeteksi"));
     return;

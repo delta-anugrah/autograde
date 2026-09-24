@@ -13,6 +13,7 @@ directory scanning anywhere (§6.2).
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import shutil
@@ -846,6 +847,12 @@ class ConsoleService:
             },
         }
 
+    async def model_deteksi_async(self) -> dict[str, Any]:
+        """`model_deteksi()` di thread terpisah: membaca zip model memblok, dan di
+        event loop konsol itu menahan semua request lain, termasuk polling
+        layar operator tiap 2 detik."""
+        return await asyncio.to_thread(self.model_deteksi)
+
     async def simpan_model_deteksi(
         self, payload: dict[str, Any], *, diubah_oleh: str
     ) -> dict[str, Any]:
@@ -857,10 +864,16 @@ class ConsoleService:
         (Lampung, seminggu, 2026-09-23). Gagal validasi tidak menulis apa pun.
         """
         bersih = bersihkan_pilihan_model(payload)
+        env = self._media_env()
+        sebelum = env.baca_model()
 
-        semua = {m["berkas"]: m for m in self._model_library().daftar()}
+        daftar = await asyncio.to_thread(self._model_library().daftar)
+        semua = {m["berkas"]: m for m in daftar}
         for kode, nama in bersih.items():
-            if not nama:
+            # Cuma pilihan yang BERUBAH yang diperiksa. Line yang masih menunjuk
+            # model yang sudah dihapus tidak boleh menahan simpan line lain;
+            # keadaannya tidak memburuk karena simpan ini.
+            if not nama or nama == sebelum.get(kode):
                 continue
             info = semua.get(nama)
             if info is None:
@@ -868,8 +881,6 @@ class ConsoleService:
             if not info["cocok"]:
                 raise ModelTidakSah(f"{kode}: {nama} tidak bisa dipakai — {info['alasan']}")
 
-        env = self._media_env()
-        sebelum = env.baca_model()
         env.tulis_model(bersih)
         logger.warning(
             "Model deteksi diubah oleh %s: %s",

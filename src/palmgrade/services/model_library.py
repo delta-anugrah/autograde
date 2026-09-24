@@ -209,7 +209,16 @@ class ModelLibrary:
             )
         except OSError:
             return []
-        return [self._satu(p) for p in berkas]
+        hasil = []
+        for p in berkas:
+            try:
+                hasil.append(self._satu(p))
+            except OSError:
+                # Dihapus (atau dipindah) di antara iterdir() dan stat(). Model
+                # yang sudah tidak ada memang tidak boleh tampil; 500 untuk
+                # seluruh layar jauh lebih buruk.
+                continue
+        return hasil
 
     def terbaca(self) -> bool:
         """Folder model bisa dibuka. False = tidak ada / tidak ter-mount / izin.
@@ -264,9 +273,12 @@ class ModelLibrary:
             cocok = pola.match(engine.name)
             if not cocok or not engine.is_file():
                 continue
-            meta = _tercache("engine", engine, baca_meta_engine)
+            try:
+                meta = _tercache("engine", engine, baca_meta_engine)
+                mtime = engine.stat().st_mtime
+            except OSError:
+                continue  # dihapus di tengah jalan, alasan yang sama dengan daftar()
             kelas = meta["kelas"] if meta else None
-            mtime = engine.stat().st_mtime
             beda_kelas = kelas is not None and kelas_pt is not None and kelas != kelas_pt
             hasil.append(
                 {

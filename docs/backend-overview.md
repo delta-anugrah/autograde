@@ -237,14 +237,16 @@ Status operasional container.
     "model_file": "best.pt",
     "model_backend": "tensorrt",
     "model_kelas": ["JK", "Ripe", "TP", "Unripe"],
-    "model_kelas_cocok": true
+    "model_kelas_cocok": true,
+    "gpu_sm": "86"
   }
   ```
 
   `model_*` = model yang **benar-benar dimuat** line ini, bukan pilihan yang tersimpan di
   `media.env`. `null`/kosong kalau registry model belum dimuat. `model_kelas_cocok: false`
   = kelasnya bukan tepat empat kelas yang dikenal, dan line ini **tidak menghitung janjang**;
-  layar Model Deteksi menulisnya merah. `null` = tidak diketahui, bukan alarm.
+  layar Model Deteksi menulisnya merah. `null` = tidak diketahui, bukan alarm. `gpu_sm` =
+  compute capability GPU line (nama engine `<model>.sm<cc>.engine`), `null` di CPU.
 
 > ⚠️ **Endpoint ini bicara soal jalur realtime lokal saja, bukan cloud:**
 >

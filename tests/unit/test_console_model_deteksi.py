@@ -146,3 +146,42 @@ def test_folder_tak_termount_dibedakan_dari_folder_kosong(svc, tmp_path):
     hasil = svc.model_deteksi()
     assert hasil["model"] == []
     assert hasil["folder"]["terbaca"] is False
+
+
+def test_line_yang_tidak_berubah_tidak_ikut_divalidasi(svc, tmp_path):
+    # line-2 masih menunjuk model yang sudah dihapus dari folder. Mengganti
+    # line-1 tidak boleh ditolak gara-gara line-2 (minor #3 review).
+    _simpan(svc, line_2="coba.pt")
+    (tmp_path / "models" / "release" / "coba.pt").unlink()
+    svc.line_client.restarted.clear()
+
+    _simpan(svc, line_1="best.pt", line_2="coba.pt")
+
+    assert svc.line_client.restarted == ["line-1"]
+    assert svc.model_deteksi()["lines"] == {"line-1": "best.pt", "line-2": "coba.pt", "line-3": ""}
+
+
+def test_daftar_model_dibaca_di_luar_event_loop(svc, monkeypatch):
+    # Membaca zip model memblok; di event loop konsol itu menahan SEMUA request
+    # lain, termasuk polling layar operator (minor #5 review).
+    import threading
+
+    asli = model_library.ModelLibrary.daftar
+    utas: list[int] = []
+
+    def catat(self):
+        utas.append(threading.get_ident())
+        return asli(self)
+
+    monkeypatch.setattr(model_library.ModelLibrary, "daftar", catat)
+
+    async def jalan() -> int:
+        await svc.simpan_model_deteksi(
+            {"line-1": "", "line-2": "coba.pt", "line-3": ""}, diubah_oleh="x"
+        )
+        await svc.model_deteksi_async()
+        return threading.get_ident()
+
+    utas_loop = asyncio.run(jalan())
+    assert len(utas) == 2
+    assert all(u != utas_loop for u in utas)

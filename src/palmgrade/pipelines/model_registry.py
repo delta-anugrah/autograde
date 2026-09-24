@@ -21,6 +21,16 @@ class ModelRegistry:
         logger.info("Using device: %s", self.device)
 
         self.backend = "pytorch"
+        # Compute capability GPU ini ("86" = RTX 3060). Menentukan engine mana
+        # yang dipakai, dan dilaporkan supaya konsol tahu engine mana yang
+        # benar-benar berguna bagi line ini. None = CPU / tidak terbaca.
+        self.gpu_sm: str | None = None
+        if self.device == "cuda":
+            try:
+                cc_major, cc_minor = torch.cuda.get_device_capability(0)
+                self.gpu_sm = f"{cc_major}{cc_minor}"
+            except Exception:
+                self.gpu_sm = None
         self.model: YOLO = self._load_model(settings, logger)
 
         # Warm-up: dummy inference pakai resolusi kamera asli agar tidak ada jitter di frame pertama
@@ -46,16 +56,13 @@ class ModelRegistry:
             # Alarm yang layar tampilkan merah. Log ERROR di atas cuma terbaca
             # lewat AnyDesk; ini yang terbaca dari konsol.
             "model_kelas_cocok": self.kelas_cocok,
+            "gpu_sm": self.gpu_sm,
         }
 
     def _load_model(self, settings: Settings, logger: logging.Logger) -> YOLO:
         # Prefer TensorRT engine kalau sudah ada untuk GPU ini (lebih cepat, akurasi sama).
         if self.device == "cuda":
-            try:
-                cc_major, cc_minor = torch.cuda.get_device_capability(0)
-                engine_path = settings.engine_path_for_gpu(f"{cc_major}{cc_minor}")
-            except Exception:
-                engine_path = None
+            engine_path = settings.engine_path_for_gpu(self.gpu_sm) if self.gpu_sm else None
 
             if engine_path is not None and engine_path.exists():
                 try:

@@ -88,6 +88,7 @@ def test_model_tidak_cocok_tidak_bisa_dipilih():
         "modelTersimpanSebagian", "gagalModelDeteksi", "gagalModelSimpan",
         "modelTanpaEngine", "modelEngineBasi", "modelTidakAdaPerubahan",
         "modelJalanKelasAsing", "modelFolderTakTerbaca",
+        "modelEngineGpuLain", "modelTanpaEngineGpuIni",
     ],
 )
 def test_kamus_dua_bahasa(kunci):
@@ -138,7 +139,7 @@ def test_kartu_sedang_jalan_menampilkan_kelas_dan_alarmnya():
 
 
 def test_folder_tak_terbaca_punya_pesannya_sendiri():
-    awal = HTML.find("async function muatModelDeteksi")
+    awal = HTML.find("function isiTabelModel")
     blok = HTML[awal : HTML.find("\n}\n", awal)]
     assert "folder" in blok and "terbaca" in blok
     assert "modelFolderTakTerbaca" in blok
@@ -162,3 +163,26 @@ def test_sesudah_simpan_layar_menanyai_line_sampai_model_baru_terbaca():
     assert "setInterval" in fungsi and "clearInterval" in fungsi
     assert "60000" in fungsi, "pemantauan harus punya batas atas"
     assert 'tab !== "model-deteksi"' in fungsi, "berhenti saat tab ditinggalkan"
+
+
+def test_engine_gpu_lain_tidak_ditulis_siap():
+    """Konsol tidak tahu GPU line kecuali line melaporkannya (`gpu_sm`).
+    Engine untuk GPU lain dulu tetap tertulis "siap" sementara line jalan di
+    .pt (minor #9 review)."""
+    awal = HTML.find("function statusEngine")
+    blok = HTML[awal : HTML.find("\n}\n", awal)]
+    assert "smLine" in blok
+    assert "modelEngineGpuLain" in blok and "modelTanpaEngineGpuIni" in blok
+    awal = HTML.find("async function muatJalanModel")
+    blok = HTML[awal : HTML.find("\n}\n", awal)]
+    assert "gpu_sm" in blok
+    # Status engine bergantung jawaban line, jadi digambar ulang sesudahnya.
+    assert "rinciModel" in blok and "model-baris" in blok
+
+
+def test_klik_di_padding_dialog_tidak_membatalkan():
+    """Padding milik pembungkus isi, bukan <dialog>: klik yang target-nya
+    dialog itu sendiri cuma bisa datang dari backdrop (minor #10 review)."""
+    assert '<div class="model-modal-isi">' in HTML
+    assert "padding:0" in _aturan_css("#model-modal")
+    assert "padding:20px 24px" in _aturan_css(".model-modal-isi")

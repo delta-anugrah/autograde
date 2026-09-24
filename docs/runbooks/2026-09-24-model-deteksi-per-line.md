@@ -68,7 +68,8 @@ dan launcher pabrik memberi berkas itu ke setiap perintah compose lewat
 menolak start. Ganti nama berkasnya.
 
 Server menolak hal yang sama dengan **400**, jadi payload buatan tangan tidak
-bisa melewatinya.
+bisa melewatinya. Yang diperiksa cuma line yang pilihannya **berubah**: line yang
+masih menunjuk model yang sudah dihapus tidak menahan simpan line lain.
 
 Kelas dibaca konsol **tanpa torch**: dari `data.pkl` di dalam zip `.pt` dengan
 unpickler yang tidak pernah menjalankan kode dari berkas, dan dari header JSON
@@ -106,6 +107,11 @@ autograde
 
 Ganti `ripe-line-2` dengan line yang memakai model itu. Di laptop pengembang:
 `make build-engine` membangun untuk line 1.
+
+Layar mencocokkan engine dengan GPU yang dilaporkan line (`gpu_sm` di
+`/health/detail`, misalnya `86` untuk RTX 3060). Engine untuk GPU lain ditulis
+abu-abu "untuk GPU lain". Kalau tidak ada engine untuk GPU line, layar menulis
+kuning "Belum ada engine untuk GPU line ini".
 
 **Engine basi** ditandai kuning di layar. Dua tanda yang dipakai: engine lebih
 tua dari berkas `.pt`-nya, atau kelas engine berbeda dari kelas `.pt`.

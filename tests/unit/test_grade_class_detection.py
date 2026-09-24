@@ -122,3 +122,16 @@ def test_label_asing_dilewati_bukan_dilempar():
     assert _grade_class_or_none("Overripe") is None
     assert _grade_class_or_none("") is None
     assert _grade_class_or_none(None) is None
+
+
+def test_log_kelas_asing_menunjuk_layar_model_deteksi(caplog):
+    """Sejak model dipilih per line, `MODEL_FILE` bukan lagi satu-satunya
+    tempat yang harus dicek (minor #8 review)."""
+    import logging
+
+    from palmgrade.workers import frame_processing_worker as fpw
+
+    fpw._unknown_labels_seen.discard("KelasAneh")
+    with caplog.at_level(logging.ERROR, logger=fpw.__name__):
+        assert fpw._grade_class_or_none("KelasAneh") is None
+    assert "Model Deteksi" in caplog.text

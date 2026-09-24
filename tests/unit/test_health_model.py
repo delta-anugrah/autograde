@@ -21,6 +21,7 @@ class FakeModel:
             "model_backend": "tensorrt",
             "model_kelas": ["JK", "Ripe", "TP", "Unripe"],
             "model_kelas_cocok": True,
+            "gpu_sm": "86",
         }
 
 
@@ -39,6 +40,7 @@ def test_tanpa_registry_ringkasan_kosong():
         "model_backend": None,
         "model_kelas": [],
         "model_kelas_cocok": None,
+        "gpu_sm": None,
     }
 
 
@@ -74,6 +76,7 @@ def test_skema_bawaan_tanpa_model():
     # None = tidak diketahui (registry belum dimuat / line versi lama), BUKAN
     # "tidak cocok": layar tidak boleh menyalakan alarm kelas untuk itu.
     assert detail.model_kelas_cocok is None
+    assert detail.gpu_sm is None
 
 
 def test_skema_membawa_alarm_kelas():
