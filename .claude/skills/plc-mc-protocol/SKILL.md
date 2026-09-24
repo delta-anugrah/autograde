@@ -48,7 +48,7 @@ Polanya persis skema ODOT lama (coil 0–9, DI 0–11) dipindah ke M1000 / M1100
 Bit ini sampai ke operator lewat `domain/plc_alarm.py` → `/internal/status.alarms` →
 `LineStatusWorker` → `/api/console/state` → `gambarPitaAlarm()` (satu pita global, bukan
 per kartu — semua line membaca blok yang sama, jadi daftarnya digabung dan dideduplikasi).
-Tab Uji PLC menamai tiap bit lewat `namaBitPlc()`, cermin dari modul domain yang sama.
+Tab Uji PLC **tidak** menampilkan bit ini (dicabut 2026-09-24) — cuma tombol coil + peta alamat.
 E-stop = **tanda saja**, grading tidak berhenti (keputusan 2026-09-23; menghentikan butuh
 konfirmasi Ocit). ⚠️ Polaritas diasumsikan **ON = fault** — belum dikonfirmasi; kalau
 ladder menulis kebalikannya, pita menyala terus saat pabrik sehat.

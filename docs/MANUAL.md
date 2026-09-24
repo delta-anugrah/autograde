@@ -193,7 +193,7 @@ Muncul hanya untuk akun berperan `support`. Tujuannya: memeriksa PC pabrik dari 
 | **Diagnostik** | tiga kartu line: worker, kamera, fps, GPU, PLC, antrean lokal. Line mati tetap tampil dengan sebabnya. ⚠️ `capture_save_dropped` dan `tp_telat` **harus nol** — di atas nol berarti ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat |
 | **Antrean ERP** | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang**. Plus antrean manifest R2 |
 | **Versi** | versi, machine id, environment, status lisensi (tanpa token) |
-| **Uji PLC** | status coil/DI per line dan tombol uji coil. Mati saat line memproses truk; konfirmasi ketik `UJI`; coil 9 (heartbeat) sengaja tidak ada |
+| **Uji PLC** | tombol uji coil per line (OK hijau, NG/Error merah, alamat M di tiap tombol) + peta alamat PLC di bawahnya. Mati saat line memproses truk; konfirmasi tombol Jalankan/Batal; heartbeat (M1009) sengaja tidak ada |
 | **Sumber Kamera** | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik) |
 | **Rekam Video** | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi dan bitrate diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya** — mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **FPS mengikuti sumbernya, bukan angka di layar**: berkas video memakai laju aslinya, kamera Hikrobot memakai `CAMERA_FPS`. Angka FPS di layar cuma dipakai kalau tidak ada keduanya. Itu yang membuat durasi rekaman sama dengan lama menekan Record. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari folder yang tertulis di kaki layar (`Disimpan di …`, di PC pabrik `/opt/palmgrade/autograde/videos/`). Sesudah menekan Stop, jalur lengkap berkasnya juga muncul sekali di notifikasi hijau. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
 | **Setelan** | ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`. Tab paling kanan |
@@ -413,9 +413,9 @@ Ethernet bawaan CPU (coupler ODOT dibatalkan 2026-09-21). Alamat M per line dipa
 camera 2 = M1003–M1005, camera 3 = M1006–M1008; yang dibaca M1100–M1115 (motor fault, E-stop
 M1111). Piston manual **belum dialokasikan** — fiturnya mati sampai panel memberi bitnya.
 Dokumen tim PLC: `docs/plc-mc-handoff.pdf`; referensi teknis: `docs/plc-integration.md`. Uji
-dari tab **Uji PLC**, yang kini menamai tiap bit (`2: MOTOR 3 = Aktif`). Motor fault dan
-E-stop dari PLC tampil sebagai pita merah di atas kartu line; E-stop tidak menghentikan
-grading.
+dari tab **Uji PLC**: tombol per coil bernama ("Kamera 1 OK / M1000") dan peta alamat
+lengkap di bawahnya. Motor fault dan E-stop dari PLC tampil sebagai pita merah di atas
+kartu line (bukan di tab Uji PLC); E-stop tidak menghentikan grading.
 
 ### 5.10 Lisensi
 

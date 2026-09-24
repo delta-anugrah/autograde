@@ -369,9 +369,6 @@
      coil buttons get the danger tokens piston.terbuka already uses, so the
      one control in the whole console that fires a physical output stands
      out even read from several metres away outdoors. */
-  .plc-di { padding:8px 13px; font-size:.8rem; display:flex; flex-wrap:wrap; gap:8px; }
-  .plc-di-bit { white-space:nowrap; }
-  .plc-di-bit.aktif { color:var(--danger-fg); font-weight:700; }
   .plc-coil { padding:0 13px 12px; display:flex; flex-wrap:wrap; gap:8px; }
   button.uji-coil { flex:1; min-width:9rem; min-height:2.6rem; border-color:var(--danger-line);
                      background:var(--danger-bg); color:var(--danger-fg); font-weight:600; }
@@ -1714,8 +1711,7 @@ const KAMUS = {
     bannerLisensiWarning:"Langganan AutoGrade habis {hari} hari lagi ({tanggal}). Hubungi penyedia untuk memperpanjang.",
     bannerLisensiGrace:"Langganan AutoGrade sudah habis. Grading berhenti {hari} hari lagi ({tanggal}). Segera perpanjang.",
     bannerLisensiBlocked:"Langganan AutoGrade habis - grading dihentikan. Pasang token baru untuk melanjutkan.",
-    thDi:"DI", diAktif:"Aktif", diMati:"Mati", plcMati:"PLC mati di line ini",
-    diMotor:"MOTOR {n}", diEstop:"E-STOP", diKosong:"-",
+    plcMati:"PLC mati di line ini",
     gagalPlc:"Gagal memuat status PLC",
     btnUjiCoil:"Uji coil {coil}", coilMatiLineSibuk:"Line sedang memproses truk",
     coilOk:"Kamera {n} OK", coilNg:"Kamera {n} NG", coilError:"Kamera {n} Error",
@@ -1864,8 +1860,7 @@ const KAMUS = {
     bannerLisensiWarning:"The AutoGrade subscription expires in {hari} days ({tanggal}). Contact your provider to renew.",
     bannerLisensiGrace:"The AutoGrade subscription has expired. Grading stops in {hari} days ({tanggal}). Renew now.",
     bannerLisensiBlocked:"The AutoGrade subscription has expired - grading has stopped. Install a new token to continue.",
-    thDi:"DI", diAktif:"On", diMati:"Off", plcMati:"PLC is off on this line",
-    diMotor:"MOTOR {n}", diEstop:"E-STOP", diKosong:"-",
+    plcMati:"PLC is off on this line",
     gagalPlc:"Failed to load PLC status",
     btnUjiCoil:"Test coil {coil}", coilMatiLineSibuk:"Line is processing a truck",
     coilOk:"Camera {n} OK", coilNg:"Camera {n} NG", coilError:"Camera {n} Error",
@@ -2105,7 +2100,7 @@ function bukaTabDev(namaTab) {
   // 1 detik: lebih rapat dari diagnostik (5 s) karena di sini orang menunggu
   // jawaban tombol yang baru saja ditekan. Tiap tick = satu GET ringan per line,
   // dan tabnya cuma terbuka saat commissioning — bukan sepanjang shift.
-  if (namaTab === "plc") plcTimer = setInterval(muatPlc, 1000);
+  if (namaTab === "plc") plcTimer = setInterval(segarkanPlc, 1000);
   return muat;
 }
 
@@ -3714,31 +3709,8 @@ async function muatVersi() {
 function kartuPlc(kode, sibuk) {
   return `<div class="card" data-line="${esc(kode)}" data-plc-sibuk="${sibuk ? "1" : "0"}">
     <h2><span class="nama">${esc(kode)}</span></h2>
-    <div class="plc-di" data-plc-di></div>
     <div class="plc-coil" data-plc-coil></div>
   </div>`;
-}
-
-// Nama bit mengikuti daftar pak Ocit 2026-09-23 (offset dalam blok
-// PLC_DI_BASE): 0-10 motor 1-11, 11 E-stop, sisanya belum dialokasikan.
-// Sengaja cermin dari domain/plc_alarm.py, bukan dikirim server: layar Uji
-// PLC dipakai support saat commissioning, dan angka offset mentah tetap
-// ditampilkan di depan nama supaya bisa dicocokkan ke GX Works.
-function namaBitPlc(i) {
-  if (i < 11) return t("diMotor").replace("{n}", String(i + 1));
-  if (i === 11) return t("diEstop");
-  return t("diKosong");
-}
-
-function isiDiPlc(inputs, diBase, prefiks) {
-  if (!inputs || !inputs.length) return `<span class="muted">${esc(t("plcMati"))}</span>`;
-  // Alamat M di depan nama, bukan offset mentah: yang dipegang tim PLC daftar
-  // M1100.., dan menerjemahkan offset ke alamat di kepala adalah cara paling
-  // mudah salah saat commissioning.
-  const base = diBase || 0;
-  return inputs.map((on, i) =>
-    `<span class="plc-di-bit${on ? " aktif" : ""}">${esc(alamatPlc(base + i, prefiks))} ${esc(namaBitPlc(i))} = ${on ? esc(t("diAktif")) : esc(t("diMati"))}</span>`
-  ).join(" ");
 }
 
 // Peran satu coil: OFFSET dari `coil_base` line itu menentukan OK/NG/ERROR,
@@ -4167,6 +4139,14 @@ $("sumber-simpan").addEventListener("click", async () => {
   }
 });
 
+// Dua jalur, sengaja dipisah (Lampung 2026-09-24: "tab PLC Test berkedip"):
+// `muatPlc()` membangun kartu dari nol saat tab dibuka, `segarkanPlc()`
+// dipanggil timer tiap detik dan HANYA menyegarkan isi kartu yang sudah ada.
+// Versi sebelumnya memanggil muatPlc() dari timer: `innerHTML` seluruh
+// kartu ditulis ulang tiap detik, tombolnya kosong sepersekian detik sampai
+// jawaban /dev/plc datang, lalu muncul lagi - itulah kedipnya. Daftar line
+// tetap dibaca ulang dari diagnostik (truk terpasang ⇒ tombol dikunci),
+// tapi kartu hanya dibangun ulang kalau daftar line-nya berubah.
 async function muatPlc() {
   try {
     // Line codes come from diagnostik (already fetched by support screens
@@ -4174,13 +4154,45 @@ async function muatPlc() {
     // no edit to this file.
     const diag = await api("/api/console/dev/diagnostik");
     const kodeLine = Object.keys(diag.lines);
-    $("plc-kartu").innerHTML = kodeLine
-      .map((kode) => kartuPlc(kode, diag.lines[kode].terjangkau && diag.lines[kode].current_assignment_id))
-      .join("");
+    $("plc-kartu").innerHTML = kodeLine.map((kode) => kartuPlc(kode, lineSibukPlc(diag, kode))).join("");
     await Promise.all(kodeLine.map((kode) => muatPlcSatuLine(kode)));
   } catch (e) {
     if (e.kode !== "belum_masuk") $("plc-kartu").innerHTML = `<p class="muted">${esc(t("gagalPlc"))}</p>`;
   }
+}
+
+function lineSibukPlc(diag, kode) {
+  return Boolean(diag.lines[kode].terjangkau && diag.lines[kode].current_assignment_id);
+}
+
+async function segarkanPlc() {
+  let diag;
+  try {
+    diag = await api("/api/console/dev/diagnostik");
+  } catch (e) {
+    return; // jaringan/sesi bermasalah: biarkan kartu lama, jangan dikosongkan
+  }
+  const kodeLine = Object.keys(diag.lines);
+  const kartuAda = [...$("plc-kartu").querySelectorAll(".card[data-line]")].map((k) => k.dataset.line);
+  if (kodeLine.join("\n") !== kartuAda.join("\n")) return muatPlc();
+  for (const kode of kodeLine) {
+    const kartu = $("plc-kartu").querySelector(`.card[data-line="${CSS.escape(kode)}"]`);
+    kartu.dataset.plcSibuk = lineSibukPlc(diag, kode) ? "1" : "0";
+  }
+  await Promise.all(kodeLine.map((kode) => muatPlcSatuLine(kode)));
+}
+
+// Tulis DOM hanya kalau isinya beda: menulis ulang string yang sama tetap
+// membuat browser membuang dan membangun tombolnya lagi (fokus hilang, hover
+// putus, terlihat berkedip). Pembandingnya string yang TERAKHIR DITULIS,
+// bukan `el.innerHTML`: browser menyerialkan ulang DOM (spasi dan atribut
+// dirapikan), jadi innerHTML tidak pernah sama persis dengan template
+// aslinya dan pembandingan lewat innerHTML menulis ulang tiap detik -
+// terukur 15 penggantian tombol per 5 detik saat dicoba.
+function tulisKalauBeda(el, html) {
+  if (el._terakhirDitulis === html) return;
+  el._terakhirDitulis = html;
+  el.innerHTML = html;
 }
 
 async function muatPlcSatuLine(kode) {
@@ -4189,12 +4201,10 @@ async function muatPlcSatuLine(kode) {
   const sibuk = kartu.dataset.plcSibuk === "1";
   try {
     const data = await api(`/api/console/dev/plc/${encodeURIComponent(kode)}`);
-    kartu.querySelector("[data-plc-di]").innerHTML = isiDiPlc(data.inputs, data.di_base, data.device_prefix);
-    kartu.querySelector("[data-plc-coil]").innerHTML = isiCoilPlc(kode, data, sibuk);
+    tulisKalauBeda(kartu.querySelector("[data-plc-coil]"), isiCoilPlc(kode, data, sibuk));
   } catch (e) {
     if (e.kode === "belum_masuk") return;
-    kartu.querySelector("[data-plc-di]").innerHTML = `<span class="muted">${esc(alasan(e))}</span>`;
-    kartu.querySelector("[data-plc-coil]").innerHTML = "";
+    tulisKalauBeda(kartu.querySelector("[data-plc-coil]"), `<span class="muted">${esc(alasan(e))}</span>`);
   }
 }
 

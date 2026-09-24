@@ -54,13 +54,16 @@ def test_pita_alarm_memakai_esc_bukan_innerhtml_mentah():
     assert "esc(" in fn
 
 
-def test_uji_plc_memberi_nama_bit():
-    fn = HTML.split("function isiDiPlc(", 1)[1].split("\n}\n", 1)[0]
-    assert "namaBitPlc(" in fn
-    for bahasa in ("id", "en"):
-        isi = _kamus(bahasa)
-        for kunci in ("diMotor:", "diEstop:", "diKosong:"):
-            assert kunci in isi, f"KAMUS.{bahasa} tanpa {kunci}"
+def test_kartu_uji_plc_tanpa_daftar_bit():
+    """Daftar `M1100 MOTOR 1 = Off ...` di tiap kartu line dicabut (permintaan
+    2026-09-24): tiga kartu memuat 16 baris yang sama persis, dan tabel alamat di
+    bawah tombol sudah menyebut peran tiap M. Yang boleh hidup di kartu cuma
+    tombol coil."""
+    fn = HTML.split("function kartuPlc(", 1)[1].split("\n}\n", 1)[0]
+    assert "data-plc-di" not in fn
+    assert "data-plc-coil" in fn
+    assert "function isiDiPlc(" not in HTML
+    assert "function namaBitPlc(" not in HTML
 
 
 # ── perilaku gabungAlarm: butuh node, skip di CI ───────────────────────────
@@ -140,8 +143,30 @@ def test_tab_uji_plc_punya_timer_muat_ulang():
     PlcWorker sudah membaca blok M tiap 200 ms.
     """
     blok = HTML.split("function bukaTabDev(", 1)[1].split("\n}\n", 1)[0]
-    assert "plcTimer = setInterval(muatPlc" in blok, "tab PLC tidak punya timer"
+    assert "plcTimer = setInterval(segarkanPlc" in blok, "tab PLC tidak punya timer"
     assert "clearInterval(plcTimer)" in blok, "timer PLC tidak dihentikan saat pindah tab"
+
+
+def test_timer_uji_plc_tidak_membangun_ulang_kartu():
+    """Lampung 2026-09-24: tab PLC Test "berkedip". Sebabnya timer memanggil
+    `muatPlc()` yang menulis ulang innerHTML seluruh kartu tiap detik: tombol
+    kosong sampai jawaban /dev/plc datang, lalu muncul lagi. Timer harus lewat
+    `segarkanPlc()`, yang tidak menyentuh `$("plc-kartu").innerHTML` selama daftar
+    line-nya sama, dan hanya menulis isi kartu kalau berubah."""
+    blok = HTML.split("function bukaTabDev(", 1)[1].split("\n}\n", 1)[0]
+    assert "setInterval(muatPlc" not in blok
+    segar = HTML.split("async function segarkanPlc(", 1)[1].split("\n}\n", 1)[0]
+    assert '$("plc-kartu").innerHTML' not in segar
+    assert "return muatPlc()" in segar, "daftar line berubah harus tetap membangun ulang"
+    satu = HTML.split("async function muatPlcSatuLine(", 1)[1].split("\n}\n", 1)[0]
+    assert "tulisKalauBeda(" in satu
+    assert ".innerHTML =" not in satu
+    # Pembandingnya string terakhir yang ditulis, BUKAN el.innerHTML: browser
+    # menyerialkan ulang DOM sehingga innerHTML tak pernah sama dengan template
+    # dan tombol tetap diganti tiap detik (terukur 15 kali / 5 detik).
+    tulis = HTML.split("function tulisKalauBeda(", 1)[1].split("\n}\n", 1)[0]
+    assert "el.innerHTML !==" not in tulis and "el.innerHTML ===" not in tulis
+    assert "_terakhirDitulis" in tulis
 
 
 def test_timer_uji_plc_lebih_rapat_dari_diagnostik():
@@ -149,7 +174,7 @@ def test_timer_uji_plc_lebih_rapat_dari_diagnostik():
     saat commissioning sambil orang menekan tombol di panel — jeda 5 detik di situ
     terasa seperti sinyalnya tidak sampai."""
     blok = HTML.split("function bukaTabDev(", 1)[1].split("\n}\n", 1)[0]
-    plc = int(re.search(r"plcTimer = setInterval\(muatPlc, (\d+)\)", blok).group(1))
+    plc = int(re.search(r"plcTimer = setInterval\(segarkanPlc, (\d+)\)", blok).group(1))
     diag = int(re.search(r"diagnostikTimer = setInterval\(muatDiagnostik, (\d+)\)", blok).group(1))
     assert plc < diag, f"timer PLC ({plc} ms) tidak lebih rapat dari diagnostik ({diag} ms)"
 

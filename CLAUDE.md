@@ -730,9 +730,10 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     ladder menulis kebalikannya (NC), pita menyala terus saat pabrik sehat. Sengaja
     **tidak** dikompensasi di kode: menebak berarti memilih antara alarm palsu terus
     -menerus atau diam saat E-stop benar-benar ditekan.
-    `namaBitPlc()` di tab Uji PLC sengaja **cermin** dari modul domain, bukan dikirim
-    server: layar itu dipakai support saat commissioning, dan offset mentah tetap
-    ditampilkan di depan nama supaya bisa dicocokkan ke GX Works.
+    Tab Uji PLC **tidak** menampilkan bit yang dibaca (daftar `M1100 MOTOR 1 = Off`
+    per kartu dicabut 2026-09-24: tiga kartu memuat 16 baris yang sama); bit itu
+    hanya hidup di pita alarm operator dan `/health/detail`. Yang di tab: tombol coil
+    + peta alamat statis di bawahnya.
     **Tersambung di Lampung 2026-09-23** (3 line, M1000/M1001/M1111 terbukti). Tiga
     jebakan yang memakan sore itu, semuanya di luar kode: `docker-compose.yml` hidup di
     HOST (pull tidak menyentuhnya), `.env` menang atas compose, dan **satu Open Setting
@@ -748,7 +749,14 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     kalau tidak pulse langsung ditimpa level sehat di tick yang sama. (c) **tab Uji PLC
     punya timer 1 detik** — sebelumnya `muatPlc()` cuma jalan sekali saat tab dibuka, jadi
     bit motor/E-stop di layar adalah foto lama; terbaca di pabrik sebagai "PLC-nya delay"
-    padahal `PlcWorker` membaca blok M tiap 200 ms.
+    padahal `PlcWorker` membaca blok M tiap 200 ms. (d) **Timer itu memanggil
+    `segarkanPlc()`, bukan `muatPlc()`** (Lampung 2026-09-24: "tab PLC Test berkedip").
+    `muatPlc()` menulis ulang innerHTML seluruh kartu, jadi tombol kosong sepersekian
+    detik tiap detik sampai `/dev/plc` menjawab. `segarkanPlc()` hanya menyegarkan isi
+    kartu yang ada lewat `tulisKalauBeda()`, yang membandingkan dengan **string terakhir
+    yang ditulis** — bukan `el.innerHTML`, karena browser menyerialkan ulang DOM sehingga
+    innerHTML tak pernah sama dengan template dan tombol tetap diganti tiap detik
+    (terukur 15×/5 s sebelum diperbaiki, 0× sesudahnya).
 
 ---
 
