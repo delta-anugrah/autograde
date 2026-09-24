@@ -34,6 +34,7 @@ from ..domain.operator_error import (
     TARA_LEBIH_BESAR,
     InvalidInput,
 )
+from ..domain.pilihan_model import ModelTidakSah, bersihkan_pilihan_model
 from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.setelan_grading import KUNCI_SETELAN, bersihkan_setelan
 from ..domain.setelan_rekam import (
@@ -52,6 +53,7 @@ from ..workers.visit_manifest_worker import VisitManifestWorker
 from .erp_queue import ErpQueue
 from .media_env_service import LINE_CODES, MediaEnvService
 from .media_library import MediaLibrary
+from .model_library import ModelLibrary
 
 logger = logging.getLogger(__name__)
 
@@ -789,10 +791,23 @@ class ConsoleService:
             ", ".join(f"{k}={v['sumber']}:{v['berkas'] or '-'}" for k, v in bersih.items()),
         )
 
+        hasil = await self._restart_yang_berubah(sebelum, bersih)
+        pustaka = self._media_library()
+        return {"lines": hasil, "video": pustaka.daftar_video(), "foto": pustaka.daftar_foto()}
+
+    async def _restart_yang_berubah(
+        self, sebelum: dict[str, Any], sesudah: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Restart hanya line yang setelannya berubah; line diam dicatat, bukan dilempar.
+
+        Dipakai Sumber Kamera dan Model Deteksi — dua layar, satu aturan: berkas
+        sudah sah dan tersimpan, jadi line yang tidak menjawab akan membacanya
+        sendiri saat hidup lagi. Tidak ada rollback (lihat `simpan_sumber_kamera`).
+        """
         hasil = []
         for line in self.lines:
             kode = line.line_code
-            if sebelum.get(kode) == bersih[kode]:
+            if sebelum.get(kode) == sesudah[kode]:
                 hasil.append({"line_code": kode, "direstart": False, "berubah": False})
                 continue
             try:
@@ -808,8 +823,53 @@ class ConsoleService:
                         "alasan": str(exc)[:200],
                     }
                 )
-        pustaka = self._media_library()
-        return {"lines": hasil, "video": pustaka.daftar_video(), "foto": pustaka.daftar_foto()}
+        return hasil
+
+    # ────────────────────────────────────── model deteksi (layar Support) ───
+
+    def _model_library(self) -> ModelLibrary:
+        return ModelLibrary(self.settings.models_release_dir, self.settings.engines_dir)
+
+    def model_deteksi(self) -> dict[str, Any]:
+        """Pilihan model ketiga line (`""` = bawaan PC) + semua model beserta kelasnya."""
+        return {
+            "lines": self._media_env().baca_model(),
+            "model": self._model_library().daftar(),
+        }
+
+    async def simpan_model_deteksi(
+        self, payload: dict[str, Any], *, diubah_oleh: str
+    ) -> dict[str, Any]:
+        """Validasi, pastikan model ada dan kelasnya cocok, tulis, restart yang berubah.
+
+        Model yang kelasnya bukan tepat empat kelas yang dikenal DITOLAK di sini,
+        bukan dipasang lalu gagal: line yang memuatnya tetap jalan dan tidak
+        menghitung apa pun, tanpa satu pun error yang terlihat operator
+        (Lampung, seminggu, 2026-09-23). Gagal validasi tidak menulis apa pun.
+        """
+        bersih = bersihkan_pilihan_model(payload)
+
+        semua = {m["berkas"]: m for m in self._model_library().daftar()}
+        for kode, nama in bersih.items():
+            if not nama:
+                continue
+            info = semua.get(nama)
+            if info is None:
+                raise ModelTidakSah(f"{kode}: {nama} tidak ada di models/release")
+            if not info["cocok"]:
+                raise ModelTidakSah(f"{kode}: {nama} tidak bisa dipakai — {info['alasan']}")
+
+        env = self._media_env()
+        sebelum = env.baca_model()
+        env.tulis_model(bersih)
+        logger.warning(
+            "Model deteksi diubah oleh %s: %s",
+            diubah_oleh,
+            ", ".join(f"{k}={v or 'bawaan'}" for k, v in bersih.items()),
+        )
+
+        hasil = await self._restart_yang_berubah(sebelum, bersih)
+        return {"lines": hasil, "model": list(semua.values())}
 
     async def manual_reject(self, line_code: str, requested_by: str) -> dict[str, Any]:
         line = self._require_line(line_code)
