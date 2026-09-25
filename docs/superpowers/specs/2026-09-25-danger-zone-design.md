@@ -1,6 +1,6 @@
 # Danger Zone di layar Setelan — rancangan
 
-Tanggal: 2026-09-25 · Repo: autograde · Status: **menunggu review user**
+Tanggal: 2026-09-25 · Repo: autograde · Status: **disetujui user 2026-09-25** ("langsung lanjut") · Rencana: `docs/superpowers/plans/2026-09-25-danger-zone.md`
 
 ## 1. Tujuan
 
@@ -92,7 +92,11 @@ Diperiksa dua kali: di layar saat panel dibuka (supaya support tahu), dan
 
 **Peringatan — boleh lanjut:**
 
-- Foto yang belum naik ke R2 (angka baru di `/health/detail`: `upload_pending`).
+- Foto yang belum naik ke R2 ikut terhapus — ditulis sebagai peringatan tetap,
+  tanpa angka. Menghitungnya dengan benar berarti menyisir seluruh `results/`
+  (ratusan ribu berkas di Lampung), karena foto baru belum masuk manifest upload
+  sampai tick jam berikutnya; angka dari manifest saja akan terbaca "0" padahal
+  belum.
 - Kiriman AutoERP yang sudah **gagal** (ditolak ERP) ikut terhapus.
 - `ERP_URL` kosong: antrean tidak pernah terkirim ke mana pun, N baris ikut terhapus.
 - Khusus "semua": semua orang keluar, termasuk layar operator di PC pabrik;
@@ -177,14 +181,16 @@ Konsol (semua lewat `require_support`, 401/403 seperti lane dev lain):
 400 kalau `konfirmasi` bukan persis `HAPUS` atau `mode` asing; 409 dengan daftar
 kode hambatan kalau diblokir.
 
-Line (lane mesin, `x-internal-secret`, sama dengan `/internal/restart`):
+Line (lane mesin, `x-internal-secret`, sama dengan `/internal/restart`). Ketiganya
+di router baru `routes/internal_bahaya.py` yang dirakit lewat fungsi pabrik dan
+tidak mengimpor torch — `routes/internal.py` menarik torch, jadi test untuknya
+dilewati di CI, dan fitur yang menghapus data tidak boleh diuji cuma di laptop:
 
 | Method | Path | Isi |
 |---|---|---|
 | POST | `/internal/hapus-data` | tulis penanda lalu restart; 409 kalau line sedang dipasangi truk |
 | POST | `/internal/rekam/hapus` | hapus rekaman **milik line ini** (`{line_code}_*.mp4`); 409 kalau sedang merekam |
-| GET | `/internal/rekam/status` | ditambah jumlah + ukuran rekaman milik line ini |
-| GET | `/health/detail` | ditambah `upload_pending` (foto yang belum naik R2) |
+| GET | `/internal/rekam/berkas` | jumlah + ukuran rekaman milik line ini, dan apakah sedang merekam |
 
 Tiap line menghapus rekamannya sendiri berdasarkan nama berkas yang ditulis
 `VideoRecorder` (`{line_code}_{stempel}.mp4`), jadi tetap benar walau folder
