@@ -893,7 +893,7 @@ class ConsoleService:
             if info is None:
                 raise ModelTidakSah(f"{kode}: {nama} tidak ada di models/release")
             if not info["cocok"]:
-                raise ModelTidakSah(f"{kode}: {nama} tidak bisa dipakai — {info['alasan']}")
+                raise ModelTidakSah(f"{kode}: {nama} tidak bisa dipakai ({info['alasan']})")
 
         env.tulis_model(bersih)
         logger.warning(

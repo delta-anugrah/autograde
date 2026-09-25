@@ -110,7 +110,7 @@ class HapusBerjalan(OperatorError):
     """
 
     def __init__(self) -> None:
-        super().__init__(HAPUS_BERJALAN, "Danger Zone sedang menghapus data — tunggu sebentar")
+        super().__init__(HAPUS_BERJALAN, "Danger Zone sedang menghapus data. Tunggu sebentar")
 
 
 def konfirmasi_sah(teks: str | None) -> bool:
