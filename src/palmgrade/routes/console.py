@@ -127,6 +127,7 @@ def get_dev_service() -> DevService:
         ),
         settings=settings,
         license_manager=_build_license_manager(settings),
+        console_store=service.store,
     )
 
 
@@ -511,6 +512,16 @@ async def dev_manifest_queue(dev: Dev, operator: Support) -> dict:
 @router.get("/api/console/dev/versi")
 async def dev_version(dev: Dev, operator: Support) -> dict:
     return await dev.version()
+
+
+@router.get("/api/console/dev/akun")
+async def dev_akun(dev: Dev, operator: Support) -> dict:
+    """Akun yang bisa masuk konsol di PC ini — baca saja, tanpa hash sandi.
+
+    Tidak ada pasangan POST-nya, dan memang tidak boleh ada: akun lokal dibuat di
+    PC itu (`scripts/console-operator.py`), akun AutoERP di AutoERP (aturan 19).
+    """
+    return dev.akun()
 
 
 @router.get("/api/console/dev/setelan")

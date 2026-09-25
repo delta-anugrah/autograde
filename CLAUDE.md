@@ -216,6 +216,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/console/dev/antrean` | isi `erp_outbox` — jumlah pending/gagal + daftar yang gagal |
 | POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox` |
 | GET | `/api/console/dev/versi` | versi image + lisensi berjalan lengkap dengan nama perusahaan dan tanggal |
+| GET | `/api/console/dev/akun` | semua akun yang bisa masuk konsol di PC ini (aktif, mati, terkunci; asal `lokal`/`erp`; sedang masuk atau tidak). **Baca saja, tanpa hash sandi** — kolomnya disebut satu per satu (`domain/daftar_akun.py`), tidak ada pasangan POST (aturan 19) |
 | GET | `/api/console/dev/plc/{line_code}` | snapshot DI + daftar coil yang boleh diuji untuk satu line — baca saja, aman dibuka kapan pun |
 | POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil PLC line itu — **satu-satunya aksi konsol yang menggerakkan hardware fisik**, lihat Critical Rules |
 | GET | `/api/console/dev/rekam` | status rekaman tiap line + setelan yang berlaku + sisa disk. Line yang tidak menjawab dilaporkan `terbaca:false`, bukan menjatuhkan seluruh jawaban |

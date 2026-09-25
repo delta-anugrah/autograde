@@ -1019,6 +1019,27 @@ class ConsoleStore:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def akun_untuk_support(self, *, now: float) -> list[dict[str, Any]]:
+        """Every account on this PC — active or not — for the support Accounts screen.
+
+        Columns are named one by one, never `SELECT *`: this list leaves the process
+        as JSON, and neither the password hash nor a column added to `operators`
+        later may ride along unseen. `sesi_aktif` counts sessions that still work
+        (`expires_at > now`), not rows `purge_sessions` has not reached yet.
+        Active accounts first, so the ones that can sign in are at the top.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT o.email, o.full_name, o.role, o.origin, o.status, o.created_at,
+                          o.fail_count, o.last_failed_at,
+                          (SELECT COUNT(*) FROM sesi s
+                            WHERE s.operator_id = o.id AND s.expires_at > ?) AS sesi_aktif
+                     FROM operators o
+                    ORDER BY o.status = 'active' DESC, o.full_name COLLATE NOCASE, o.email""",
+                (now,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def has_support_account(self) -> bool:
         """Whether any active account can reach the developer screens.
 

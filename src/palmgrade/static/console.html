@@ -443,6 +443,9 @@
   .daftar-definisi dt { color:var(--muted); }
   .daftar-definisi dd { margin:0; font-weight:600; }
 
+  /* Akun: catatan sandi di atas tabel, selebar tabelnya. */
+  #sec-akun .akun-catatan { margin:0 var(--pad) 12px; }
+
   /* Camera state in a word, not only a colour, and in the title bar where it is
      readable even when the feed itself is a black box. `.putus` lives on the
      card so one class drives both the header and the feed. */
@@ -1064,6 +1067,7 @@
   <button data-tab="diagnostik" data-dev="1" data-t="judulDiagnostik">Diagnostik</button>
   <button data-tab="antrean" data-dev="1" data-t="judulAntrean">Antrean ERP</button>
   <button data-tab="versi" data-dev="1" data-t="judulVersi">Versi</button>
+  <button data-tab="akun" data-dev="1" data-t="judulAkun">Akun</button>
   <button data-tab="plc" data-dev="1" data-t="judulPlc">Uji PLC</button>
   <button data-tab="sumber-kamera" data-dev="1" data-t="judulSumberKamera">Sumber Kamera</button>
   <button data-tab="model-deteksi" data-dev="1" data-t="judulModelDeteksi">Model Deteksi</button>
@@ -1491,6 +1495,27 @@
   <dl id="versi-daftar" class="daftar-definisi"></dl>
 </section>
 
+<section id="sec-akun" class="panel" hidden data-dev="1">
+  <!--
+    Support-only, BACA SAJA: semua akun yang bisa masuk konsol di PC ini, aktif
+    atau tidak (/api/console/dev/akun). Sengaja tanpa tombol apa pun — akun lokal
+    dibuat di PC itu (scripts/console-operator.py), akun AutoERP di AutoERP
+    (aturan 19 CLAUDE.md: tidak ada lane web untuk mengubah akun).
+    Sandi tidak ditampilkan karena memang tidak disimpan: yang ada cuma hash-nya,
+    dan hash itu pun tidak dikirim ke layar.
+  -->
+  <p class="muted akun-catatan" data-t="akunCatatanSandi">Sandi tidak bisa dilihat.</p>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thNama">Nama</th><th data-t="thEmail">Email</th>
+        <th data-t="thRole">Role</th><th data-t="thAsal">Asal</th>
+        <th data-t="thStatus">Status</th><th data-t="thSedangMasuk">Sedang masuk</th>
+        <th data-t="thDibuat">Dibuat</th></tr></thead>
+      <tbody id="akun-baris"></tbody>
+    </table>
+  </div>
+</section>
+
 <section id="sec-plc" class="panel" hidden data-dev="1">
   <!--
     Support-only. The ONLY screen in the console that moves physical hardware -
@@ -1831,6 +1856,11 @@ const KAMUS = {
     thSebab:"Sebab", thKamera:"Kamera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Antrean lokal", lineTidakTerjangkau:"Tidak terjangkau",
     gagalDiagnostik:"Gagal memuat diagnostik",
+    judulAkun:"Akun", thNama:"Nama", thEmail:"Email", thRole:"Role", thAsal:"Asal",
+    thSedangMasuk:"Sedang masuk", thDibuat:"Dibuat",
+    akunAktif:"Aktif", akunMati:"Mati", akunTerkunci:"Terkunci {menit} mnt", akunYa:"Ya",
+    asalLokal:"Lokal", asalErp:"AutoERP", kosongAkun:"Belum ada akun", gagalAkun:"Gagal memuat akun",
+    akunCatatanSandi:"Sandi tidak bisa dilihat — yang disimpan cuma hash-nya. Lupa sandi: akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ini paling lama ±5 menit); akun Lokal lewat terminal PC ini dengan scripts/console-operator.py.",
     thJenis:"Jenis", thKunci:"Kunci", thPercobaan:"Percobaan", thBerikutnya:"Percobaan berikutnya",
     antreanSekarang:"Sekarang",
     btnKirimUlang:"Kirim Ulang", ringkasAntrean:"{pending} menunggu · {gagal} gagal",
@@ -2011,6 +2041,11 @@ const KAMUS = {
     thSebab:"Reason", thKamera:"Camera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Local queue", lineTidakTerjangkau:"Unreachable",
     gagalDiagnostik:"Failed to load diagnostics",
+    judulAkun:"Users", thNama:"Name", thEmail:"Email", thRole:"Role", thAsal:"Source",
+    thSedangMasuk:"Signed in", thDibuat:"Created",
+    akunAktif:"Active", akunMati:"Off", akunTerkunci:"Locked {menit} min", akunYa:"Yes",
+    asalLokal:"Local", asalErp:"AutoERP", kosongAkun:"No accounts yet", gagalAkun:"Failed to load accounts",
+    akunCatatanSandi:"Passwords cannot be shown — only their hash is stored. Forgotten password: AutoERP accounts are reset in AutoERP (AutoGrade Operator → New Password, reaches this PC within about 5 minutes); Local accounts from this PC's terminal with scripts/console-operator.py.",
     thJenis:"Kind", thKunci:"Key", thPercobaan:"Attempts", thBerikutnya:"Next attempt",
     antreanSekarang:"Now",
     btnKirimUlang:"Resend", ringkasAntrean:"{pending} pending · {gagal} failed",
@@ -2280,7 +2315,7 @@ function terapkanTab() {
 // tab stays open (a line coming back or dying should show up unattended);
 // the timer is started/stopped in `bukaTabDev` below, never left running
 // behind a tab nobody is looking at.
-const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, "sumber-kamera": muatSumberKamera, "model-deteksi": muatModelDeteksi, setelan: muatSetelan, rekam: muatRekam };
+const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, akun: muatAkun, plc: muatPlc, "sumber-kamera": muatSumberKamera, "model-deteksi": muatModelDeteksi, setelan: muatSetelan, rekam: muatRekam };
 
 function bukaTabDev(namaTab) {
   clearInterval(diagnostikTimer);
@@ -3938,6 +3973,46 @@ async function muatVersi() {
     $("versi-daftar").innerHTML = baris.join("");
   } catch (e) {
     if (e.kode !== "belum_masuk") $("versi-daftar").innerHTML = `<dt>${esc(t("gagalVersi"))}</dt><dd></dd>`;
+  }
+}
+
+// ── developer: akun (support only, BACA SAJA) ──────────────────────────
+// Tanggal saja, tanpa jam: yang membuka layar ini mencari siapa yang bisa
+// masuk, bukan detik akunnya dibuat.
+function tanggalAkun(epoch) {
+  if (!epoch) return KOSONG;
+  const d = new Date(epoch * 1000);
+  if (isNaN(d)) return KOSONG;
+  return d.toLocaleDateString(lokal(), { day: "numeric", month: "short", year: "numeric" });
+}
+
+// Keadaan ditulis kata DAN warna: layar ini dibaca lewat AnyDesk, dan sebagian
+// teknisi buta warna. Terkunci memakai aturan kunci yang sama dengan layar
+// login (`domain/daftar_akun.py`), dibulatkan ke atas ke menit.
+function barisAkun(a) {
+  const menit = Math.max(1, Math.ceil((a.terkunci_detik || 0) / 60));
+  const keadaan = a.keadaan === "aktif"
+    ? `<span class="tag ok">${esc(t("akunAktif"))}</span>`
+    : a.keadaan === "terkunci"
+      ? `<span class="tag no">${esc(t("akunTerkunci").replace("{menit}", menit))}</span>`
+      : `<span class="tag">${esc(t("akunMati"))}</span>`;
+  const role = { support: "Support", operator: "Operator" }[a.role] || a.role;
+  return `<tr>
+    <td>${esc(a.nama)}</td><td>${esc(a.email)}</td><td>${esc(role)}</td>
+    <td>${esc(t(a.asal === "erp" ? "asalErp" : "asalLokal"))}</td>
+    <td>${keadaan}</td>
+    <td>${a.sedang_masuk ? esc(t("akunYa")) : KOSONG}</td>
+    <td>${esc(tanggalAkun(a.dibuat))}</td>
+  </tr>`;
+}
+
+async function muatAkun() {
+  try {
+    const r = await api("/api/console/dev/akun");
+    $("akun-baris").innerHTML = r.akun.length
+      ? r.akun.map(barisAkun).join("") : barisKosong(7, "kosongAkun");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("akun-baris").innerHTML = barisKosong(7, "gagalAkun");
   }
 }
 
