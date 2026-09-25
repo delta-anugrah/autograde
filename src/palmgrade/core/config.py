@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple
 
+from ..domain.pilihan_model import ModelTidakSah, bersihkan_nama_model
+
 logger = logging.getLogger(__name__)
 
 
@@ -244,6 +246,14 @@ class Settings:
     # keduanya masih dibaca supaya `.env` lama tetap jalan.
     media_file: str = field(default_factory=lambda: os.getenv("MEDIA_FILE", ""))
 
+    # Nama berkas model di `models/release/`. `MODEL_FILE` di `.env` = bawaan PC;
+    # `LINE_N_MODEL_FILE` di `media.env` (layar Support > Model Deteksi) menimpanya
+    # per line di `__post_init__`. Engine TensorRT ikut nama ini
+    # (`engine_path_for_gpu`), jadi model per line = engine per line.
+    model_file: str = field(
+        default_factory=lambda: os.getenv("MODEL_FILE", "best.pt").strip() or "best.pt"
+    )
+
     # Folder media dan berkas setelannya — lihat `media_dir` / `media_env_path`
     # di bawah, yang menurunkan bawaannya dari `repo_root` saat env kosong.
 
@@ -479,6 +489,10 @@ class Settings:
             return
 
         awalan = f"LINE_{self.line_code.removeprefix('line-')}_"
+        # Model dulu, SEBELUM pulang-awal di bawah: berkas yang cuma memuat
+        # pilihan model (tanpa baris kamera line ini) tetap harus berlaku.
+        self._pakai_model_dari(nilai.get(f"{awalan}MODEL_FILE", ""))
+
         camera_type = nilai.get(f"{awalan}CAMERA_TYPE")
         if camera_type is None:
             # Berkas ada tapi tidak memuat baris line INI: jangan menebak dari
@@ -495,6 +509,25 @@ class Settings:
         object.__setattr__(
             self, "camera_video_loop", _as_bool(nilai.get(f"{awalan}VIDEO_LOOP"), False)
         )
+
+    def _pakai_model_dari(self, nilai: str) -> None:
+        """Pakai model pilihan layar untuk line ini, kalau namanya sah.
+
+        Kosong = bawaan PC (`MODEL_FILE`). Nama yang tidak lolos saringan
+        (`media.env` disunting tangan, misalnya `../../x.pt`) DIABAIKAN dengan
+        WARNING, bukan melempar: line harus tetap boot memakai model bawaan,
+        dan path di luar `models/release/` tidak boleh pernah dibuka.
+        """
+        try:
+            nama = bersihkan_nama_model(nilai)
+        except ModelTidakSah as exc:
+            logger.warning(
+                "media.env: model untuk %s diabaikan (%s) — memakai %s",
+                self.line_code, exc, self.model_file,
+            )
+            return
+        if nama:
+            object.__setattr__(self, "model_file", nama)
 
     def sumber_kamera(self) -> str:
         """Pilihan layar yang setara dengan `CAMERA_TYPE` + `MEDIA_FILE`.
@@ -668,8 +701,7 @@ class Settings:
 
     @property
     def ripeness_model_path(self) -> Path:
-        model_file = os.getenv("MODEL_FILE", "best.pt")
-        return self.models_release_dir / model_file
+        return self.models_release_dir / self.model_file
 
     @property
     def engines_dir(self) -> Path:
@@ -683,7 +715,7 @@ class Settings:
         `best.sm75.engine` for a GTX 1660). This makes the cache
         safe across machines without overwriting each other.
         """
-        stem = Path(os.getenv("MODEL_FILE", "best.pt")).stem
+        stem = Path(self.model_file).stem
         return self.engines_dir / f"{stem}.sm{compute_capability}.engine"
 
     @property

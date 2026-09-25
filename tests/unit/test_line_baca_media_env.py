@@ -52,7 +52,7 @@ def media_env(tmp_path):
 
 def _settings(monkeypatch, media_env, line: str, **env) -> Settings:
     for k in ("CAMERA_TYPE", "MEDIA_FILE", "CAMERA_VIDEO_LOOP",
-              "CAMERA_VIDEO_PATH", "CAMERA_PHOTO_PATH"):
+              "CAMERA_VIDEO_PATH", "CAMERA_PHOTO_PATH", "MODEL_FILE"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("MEDIA_ENV_PATH", str(media_env))
     monkeypatch.setenv("MACHINE_ID", MID[line])
@@ -139,3 +139,57 @@ def test_berkas_rusak_tidak_menghentikan_boot(monkeypatch, tmp_path):
                   MEDIA_FILE="dari-env.jpg")
     assert s.sumber_kamera() == "foto"
     assert s.media_file == "dari-env.jpg"
+
+
+# ───────────────────────────── model deteksi per line (sejak 2026-09-24)
+
+
+def _dengan_model(tmp_path, baris_model: str):
+    berkas = tmp_path / "media.env"
+    berkas.write_text(ISI + baris_model, encoding="utf-8")
+    return berkas
+
+
+def test_model_dari_media_env_menang_atas_env(monkeypatch, tmp_path):
+    berkas = _dengan_model(tmp_path, "LINE_2_MODEL_FILE=coba.pt\n")
+    s = _settings(monkeypatch, berkas, "line-2", MODEL_FILE="best.pt")
+    assert s.model_file == "coba.pt"
+    assert s.ripeness_model_path == s.models_release_dir / "coba.pt"
+    # Engine dipilih dari nama model — model per line berarti engine per line.
+    assert s.engine_path_for_gpu("86").name == "coba.sm86.engine"
+
+
+def test_model_line_lain_tidak_bocor(monkeypatch, tmp_path):
+    berkas = _dengan_model(tmp_path, "LINE_2_MODEL_FILE=coba.pt\n")
+    s = _settings(monkeypatch, berkas, "line-1", MODEL_FILE="best.pt")
+    assert s.model_file == "best.pt"
+
+
+def test_model_kosong_pakai_env(monkeypatch, tmp_path):
+    berkas = _dengan_model(tmp_path, "LINE_2_MODEL_FILE=\n")
+    s = _settings(monkeypatch, berkas, "line-2", MODEL_FILE="lama.pt")
+    assert s.model_file == "lama.pt"
+
+
+def test_tanpa_env_model_bawaan_best(monkeypatch, media_env):
+    s = _settings(monkeypatch, media_env, "line-1")
+    assert s.model_file == "best.pt"
+    assert s.engine_path_for_gpu("75").name == "best.sm75.engine"
+
+
+def test_model_berbahaya_diabaikan(monkeypatch, tmp_path):
+    # media.env disunting tangan. Line tidak boleh membuka path di luar
+    # models/release; jatuh ke bawaan PC, bukan gagal boot.
+    berkas = _dengan_model(tmp_path, "LINE_2_MODEL_FILE=../../etc/x.pt\n")
+    s = _settings(monkeypatch, berkas, "line-2", MODEL_FILE="best.pt")
+    assert s.model_file == "best.pt"
+    assert s.ripeness_model_path.parent == s.models_release_dir
+
+
+def test_model_tetap_terbaca_tanpa_baris_kamera(monkeypatch, tmp_path):
+    # Berkas cuma berisi pilihan model: sumber kamera tetap dari environment.
+    berkas = tmp_path / "media.env"
+    berkas.write_text("LINE_1_MODEL_FILE=coba.pt\n", encoding="utf-8")
+    s = _settings(monkeypatch, berkas, "line-1", CAMERA_TYPE="opencv", MODEL_FILE="best.pt")
+    assert s.model_file == "coba.pt"
+    assert s.camera_type == "opencv"

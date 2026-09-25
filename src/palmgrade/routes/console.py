@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse
 from ..core.config import Settings
 from ..domain.operator_auth import SESSION_TTL_S
 from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
+from ..domain.pilihan_model import ModelTidakSah
 from ..domain.role import ROLE_SUPPORT, parse_allowed_roles
 from ..domain.setelan_grading import SetelanTidakSah
 from ..domain.setelan_rekam import SetelanRekamTidakSah
@@ -624,6 +625,27 @@ async def dev_sumber_kamera_simpan(
             payload, diubah_oleh=operator["email"]
         )
     except SumberTidakSah as exc:
+        raise _operator_error(400, exc) from exc
+
+
+@router.get("/api/console/dev/model-deteksi")
+async def dev_model_deteksi_baca(service: Service, operator: Support) -> dict:
+    """Model pilihan tiap line + semua model di `models/release` beserta kelasnya."""
+    return await service.model_deteksi_async()
+
+
+@router.post("/api/console/dev/model-deteksi")
+async def dev_model_deteksi_simpan(
+    service: Service, operator: Support, payload: Annotated[dict, Body()]
+) -> dict:
+    """Ganti model per line, lalu restart line yang berubah.
+
+    `role=support` saja: model yang salah membuat line jalan tanpa menghitung.
+    Tiap perubahan dicatat WARNING menyebut siapa yang mengubah.
+    """
+    try:
+        return await service.simpan_model_deteksi(payload, diubah_oleh=operator["email"])
+    except ModelTidakSah as exc:
         raise _operator_error(400, exc) from exc
 
 

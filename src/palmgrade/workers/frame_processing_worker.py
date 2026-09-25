@@ -55,7 +55,8 @@ def _grade_class_or_none(label: str | None) -> str | None:
             _unknown_labels_seen.add(name)
             logger.error(
                 "Kelas model tidak dikenal: %r - dilewati, tidak digrading. "
-                "Cek MODEL_FILE menunjuk ke model 4 kelas (Ripe/Unripe/JK/TP).",
+                "Cek model line ini di layar Support > Model Deteksi (atau MODEL_FILE "
+                "di .env untuk bawaan PC): harus model 4 kelas (Ripe/Unripe/JK/TP).",
                 name,
             )
         return None

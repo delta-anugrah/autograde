@@ -13,6 +13,7 @@ directory scanning anywhere (§6.2).
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import shutil
@@ -34,6 +35,7 @@ from ..domain.operator_error import (
     TARA_LEBIH_BESAR,
     InvalidInput,
 )
+from ..domain.pilihan_model import ModelTidakSah, bersihkan_pilihan_model
 from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.setelan_grading import KUNCI_SETELAN, bersihkan_setelan
 from ..domain.setelan_rekam import (
@@ -52,6 +54,7 @@ from ..workers.visit_manifest_worker import VisitManifestWorker
 from .erp_queue import ErpQueue
 from .media_env_service import LINE_CODES, MediaEnvService
 from .media_library import MediaLibrary
+from .model_library import ModelLibrary
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +205,10 @@ class ConsoleService:
             "timezone": self.settings.factory_tz,
             "lines": lines,
             "recent": self.history(work_date, limit=20),
+            # Ringkasan timbangan hari kerja ini untuk strip "Hari ini". Dari
+            # tabel yang sama dengan tab Timbangan, jadi begitu program timbangan
+            # tersambung angkanya ikut tanpa perubahan layar.
+            "timbangan": self.store.ringkasan_timbangan(work_date),
             # Line yang dilepas oleh timbang keluar, bukan oleh operator (G5).
             # Ditampilkan supaya pelepasannya terlihat: kalau bongkar ternyata
             # belum habis, operator masih bisa meng-assign ulang.
@@ -789,10 +796,23 @@ class ConsoleService:
             ", ".join(f"{k}={v['sumber']}:{v['berkas'] or '-'}" for k, v in bersih.items()),
         )
 
+        hasil = await self._restart_yang_berubah(sebelum, bersih)
+        pustaka = self._media_library()
+        return {"lines": hasil, "video": pustaka.daftar_video(), "foto": pustaka.daftar_foto()}
+
+    async def _restart_yang_berubah(
+        self, sebelum: dict[str, Any], sesudah: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Restart hanya line yang setelannya berubah; line diam dicatat, bukan dilempar.
+
+        Dipakai Sumber Kamera dan Model Deteksi — dua layar, satu aturan: berkas
+        sudah sah dan tersimpan, jadi line yang tidak menjawab akan membacanya
+        sendiri saat hidup lagi. Tidak ada rollback (lihat `simpan_sumber_kamera`).
+        """
         hasil = []
         for line in self.lines:
             kode = line.line_code
-            if sebelum.get(kode) == bersih[kode]:
+            if sebelum.get(kode) == sesudah[kode]:
                 hasil.append({"line_code": kode, "direstart": False, "berubah": False})
                 continue
             try:
@@ -808,8 +828,72 @@ class ConsoleService:
                         "alasan": str(exc)[:200],
                     }
                 )
-        pustaka = self._media_library()
-        return {"lines": hasil, "video": pustaka.daftar_video(), "foto": pustaka.daftar_foto()}
+        return hasil
+
+    # ────────────────────────────────────── model deteksi (layar Support) ───
+
+    def _model_library(self) -> ModelLibrary:
+        return ModelLibrary(self.settings.models_release_dir, self.settings.engines_dir)
+
+    def model_deteksi(self) -> dict[str, Any]:
+        """Pilihan model ketiga line (`""` = bawaan PC) + semua model beserta kelasnya.
+
+        `folder.terbaca` membedakan folder kosong dari folder yang tidak bisa
+        dibuka konsol (mount `./models` belum ada di compose host).
+        """
+        pustaka = self._model_library()
+        return {
+            "lines": self._media_env().baca_model(),
+            "model": pustaka.daftar(),
+            "folder": {
+                "path": str(self.settings.models_release_dir),
+                "terbaca": pustaka.terbaca(),
+            },
+        }
+
+    async def model_deteksi_async(self) -> dict[str, Any]:
+        """`model_deteksi()` di thread terpisah: membaca zip model memblok, dan di
+        event loop konsol itu menahan semua request lain, termasuk polling
+        layar operator tiap 2 detik."""
+        return await asyncio.to_thread(self.model_deteksi)
+
+    async def simpan_model_deteksi(
+        self, payload: dict[str, Any], *, diubah_oleh: str
+    ) -> dict[str, Any]:
+        """Validasi, pastikan model ada dan kelasnya cocok, tulis, restart yang berubah.
+
+        Model yang kelasnya bukan tepat empat kelas yang dikenal DITOLAK di sini,
+        bukan dipasang lalu gagal: line yang memuatnya tetap jalan dan tidak
+        menghitung apa pun, tanpa satu pun error yang terlihat operator
+        (Lampung, seminggu, 2026-09-23). Gagal validasi tidak menulis apa pun.
+        """
+        bersih = bersihkan_pilihan_model(payload)
+        env = self._media_env()
+        sebelum = env.baca_model()
+
+        daftar = await asyncio.to_thread(self._model_library().daftar)
+        semua = {m["berkas"]: m for m in daftar}
+        for kode, nama in bersih.items():
+            # Cuma pilihan yang BERUBAH yang diperiksa. Line yang masih menunjuk
+            # model yang sudah dihapus tidak boleh menahan simpan line lain;
+            # keadaannya tidak memburuk karena simpan ini.
+            if not nama or nama == sebelum.get(kode):
+                continue
+            info = semua.get(nama)
+            if info is None:
+                raise ModelTidakSah(f"{kode}: {nama} tidak ada di models/release")
+            if not info["cocok"]:
+                raise ModelTidakSah(f"{kode}: {nama} tidak bisa dipakai — {info['alasan']}")
+
+        env.tulis_model(bersih)
+        logger.warning(
+            "Model deteksi diubah oleh %s: %s",
+            diubah_oleh,
+            ", ".join(f"{k}={v or 'bawaan'}" for k, v in bersih.items()),
+        )
+
+        hasil = await self._restart_yang_berubah(sebelum, bersih)
+        return {"lines": hasil, "model": list(semua.values())}
 
     async def manual_reject(self, line_code: str, requested_by: str) -> dict[str, Any]:
         line = self._require_line(line_code)

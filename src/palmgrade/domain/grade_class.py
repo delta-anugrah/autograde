@@ -98,3 +98,20 @@ def grade_class_or_none(label: str | None) -> str | None:
         return grade_class_of(label)
     except ValueError:
         return None
+
+
+def periksa_kelas(names) -> tuple[list[str], list[str]]:
+    """(tidak dikenal, hilang) dari nama kelas sebuah model. Dua-duanya kosong = cocok.
+
+    Satu aturan untuk dua pemakai: line memeriksa model yang BARU dimuatnya
+    (`model_registry`), konsol memeriksa berkas SEBELUM boleh dipilih di layar
+    Model Deteksi. Tanpa aturan bersama, dua tempat itu bisa berbeda pendapat
+    soal model yang sama — dan yang kalah selalu yang di pabrik.
+
+    Pencocokan ikut `grade_class_or_none`, jadi tidak peduli huruf besar-kecil.
+    """
+    names = [str(n) for n in names]
+    dikenal = {grade_class_or_none(n) for n in names}
+    asing = sorted(n for n in names if grade_class_or_none(n) is None)
+    hilang = sorted(c for c in GRADE_CLASSES if c not in dikenal)
+    return asing, hilang

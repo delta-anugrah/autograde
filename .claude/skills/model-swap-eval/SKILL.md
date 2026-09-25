@@ -1,14 +1,26 @@
 ---
 name: model-swap-eval
-description: Evaluasi, ganti, dan rollback model deteksi YOLO di autograde — pilih kandidat dari hasil training, pasang ke models/release/, rebuild TensorRT engine, verifikasi. Pakai kalau ada model baru dari tim AI, mau bandingin model, ganti MODEL_FILE, deteksi tiba-tiba meleset, atau rebuild engine setelah ganti GPU.
+description: Evaluasi, ganti, dan rollback model deteksi YOLO di autograde — pilih kandidat dari hasil training, pasang ke models/release/, pilih per line dari layar Support > Model Deteksi, rebuild TensorRT engine, verifikasi. Pakai kalau ada model baru dari tim AI, mau bandingin model, ganti model satu line, ganti MODEL_FILE, deteksi tiba-tiba meleset, atau rebuild engine setelah ganti GPU.
 ---
 
 # Ganti & Evaluasi Model
 
 ## Yang lagi jalan
 
-`MODEL_FILE` di `.env` (default `best.pt`) → dibaca
-`Settings.ripeness_model_path` → **selalu dari `models/release/`**, bukan `models/`.
+**Sejak 2026-09-24 model dipilih PER LINE dari konsol**: login support → tab
+**Model Deteksi**. Pilihan disimpan sebagai `LINE_N_MODEL_FILE` di `media.env`;
+kosong = **bawaan PC** = `MODEL_FILE` di `.env` (default `best.pt`). Keduanya
+dibaca `Settings.model_file` → `ripeness_model_path` → **selalu dari
+`models/release/`**, bukan `models/`. Cara pakai, prasyarat PC pabrik (mount
+`models`/`engines` ke konsol di compose host), dan jebakannya:
+`docs/runbooks/2026-09-24-model-deteksi-per-line.md`.
+
+Layar yang sama menunjukkan **kelas tiap model** (dibaca tanpa torch),
+**status engine** per GPU, dan model yang **sedang jalan** menurut line sendiri
+(`/health/detail` → `model_file`, `model_backend`, `model_kelas`,
+`model_kelas_cocok`). Kartu line menulis merah kalau kelas yang **jalan** bukan
+empat kelas di bawah — satu-satunya tanda engine lama bernama sama yang dimuat.
+Model yang kelasnya bukan tepat empat kelas itu tampil tapi tidak bisa dipilih.
 
 **4 kelas** sejak 2026-09-16: `Ripe` / `Unripe` / `JK` / `TP`. Diverifikasi
 langsung dari checkpoint, bukan dari dokumen:
@@ -80,15 +92,26 @@ Tiap run training ninggalin `results.csv` + `confusion_matrix.png`. Urutan bacan
 
 ```bash
 cp <kandidat>.pt models/release/
-# .env:  MODEL_FILE=<kandidat>.pt
 ```
+
+Lalu pilih di konsol: Support → **Model Deteksi** → line yang mau dicoba →
+Simpan & Restart → konfirmasi di modal. Cuma line itu yang restart.
+
+Cara lama tetap sah untuk mengganti bawaan ketiga line sekaligus:
+`MODEL_FILE=<kandidat>.pt` di `.env`, lalu `autograde restart`. Pilihan per
+line di `media.env` **menang** atas `.env` untuk line yang memilikinya.
 
 ### 2. Rebuild TensorRT engine
 
 Nama engine diturunin dari **stem nama model**
 (`best.pt` → `best.sm75.engine`, lihat `engine_path_for_gpu`).
-Jadi begitu `MODEL_FILE` ganti, engine lama otomatis nggak kepilih dan runtime
+Jadi begitu model ganti, engine lama otomatis nggak kepilih dan runtime
 **diam-diam turun ke `.pt`** — jalan, tapi ±2x lebih lambat. Nggak ada error.
+Layar Model Deteksi menulisnya kuning ("Belum ada engine TensorRT").
+
+`build_engine.py` membangun engine untuk model milik **service line yang
+menjalankannya** (pilihan `media.env` line itu ikut terbaca). Model yang cuma
+dipakai line 2 → jalankan lewat `ripe-line-2`, bukan `ripe-line-1`.
 
 Dev / laptop:
 ```bash
@@ -127,8 +150,9 @@ lambat; `model_registry.py` sengaja fallback, bukan mati.
 
 ### 4. Rollback
 
-Balikin `MODEL_FILE` ke nilai lama, restart. Engine lama masih di `engines/`
-(nama beda), jadi langsung kepakai lagi — nggak perlu rebuild.
+Per line: pilih **Bawaan PC** (atau model lama) di layar Model Deteksi, simpan.
+Bawaan: balikin `MODEL_FILE` ke nilai lama, restart. Engine lama masih di
+`engines/` (nama beda), jadi langsung kepakai lagi — nggak perlu rebuild.
 
 ## Jebakan
 
@@ -196,5 +220,9 @@ Kalau membandingkan hasil dua mesin, cek md5 dulu.
 
 ⚠️ `model_registry` memilih engine **cuma dari nama berkas** (`<stem>.sm<cc>.engine`
 ada atau nggak). Mengganti isi `best.pt` tanpa ganti nama = engine lama tetap
-dipakai, tanpa error. Ganti nama berkas atau hapus engine-nya.
+dipakai, tanpa error. Ganti nama berkas atau hapus engine-nya. Sejak 2026-09-24
+layar Model Deteksi menandai engine **basi** kalau lebih tua dari `.pt`-nya atau
+kelasnya beda — tapi berkas baru berkelas sama yang disalin `cp -p` (mtime lama)
+tetap lolos. Dan kelas model sekarang diperiksa saat boot untuk **dua** backend
+(dulu cuma jalur `.pt`, jadi engine model lama dimuat tanpa ERROR).
 

@@ -5,7 +5,7 @@ Rangkuman teknis `autograde` — Python AI camera service untuk sistem grading k
 ## Tujuan Project
 
 Menerima feed kamera industri Hikrobot, menjalankan model YOLO secara realtime,
-mengklasifikasi kematangan buah sawit (3 kelas), menyimpan hasil inspeksi ke file,
+mengklasifikasi kematangan buah sawit (4 kelas), menyimpan hasil inspeksi ke file,
 dan mengirimkan event ke `palmgrade-api` lewat **dua jalur**: realtime ke API lokal
 (`OutboxRetryWorker`, poll 1 detik) dan **batch tiap jam** ke cloud (`BatchUploadWorker`:
 gambar ke Cloudflare R2, teks ke API cloud).
@@ -87,10 +87,17 @@ autograde/
 
 ## Detection Model
 
-1 model (`best.pt`) mendeteksi 3 kelas sekaligus:
-- `acc` — buah matang / diterima
-- `rej` — buah tidak matang / ditolak
-- `tp` — tangkai panjang (long stalk)
+1 model per line (bawaan `best.pt`) mendeteksi 4 kelas sekaligus. Pemetaan kelas → verdict
+hidup di satu tempat, `domain/grade_class.py`:
+- `Ripe` — matang → ACC
+- `Unripe` — mentah → REJ
+- `JK` — janjang kosong → REJ
+- `TP` — tangkai panjang, bukan janjang → tanpa verdict (menempel di `tp_confidence`)
+
+Model dipilih per line dari layar Support > **Model Deteksi** (`LINE_N_MODEL_FILE` di
+`media.env`; kosong = `MODEL_FILE` di `.env`). Model yang kelasnya bukan tepat empat kelas
+itu tidak bisa dipilih. Kelas diperiksa lagi oleh line saat boot, untuk jalur `.pt` maupun
+engine TensorRT. Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md`.
 
 **Single-trigger detection** (bukan vote):
 - Track setiap buah via ByteTrack `track_id`
@@ -226,9 +233,20 @@ Status operasional container.
     "capture_save_dropped": 0,
     "tp_telat": 0,
     "current_assignment_id": "uuid-or-null",
-    "last_successful_api_push": null
+    "last_successful_api_push": null,
+    "model_file": "best.pt",
+    "model_backend": "tensorrt",
+    "model_kelas": ["JK", "Ripe", "TP", "Unripe"],
+    "model_kelas_cocok": true,
+    "gpu_sm": "86"
   }
   ```
+
+  `model_*` = model yang **benar-benar dimuat** line ini, bukan pilihan yang tersimpan di
+  `media.env`. `null`/kosong kalau registry model belum dimuat. `model_kelas_cocok: false`
+  = kelasnya bukan tepat empat kelas yang dikenal, dan line ini **tidak menghitung janjang**;
+  layar Model Deteksi menulisnya merah. `null` = tidak diketahui, bukan alarm. `gpu_sm` =
+  compute capability GPU line (nama engine `<model>.sm<cc>.engine`), `null` di CPU.
 
 > ⚠️ **Endpoint ini bicara soal jalur realtime lokal saja, bukan cloud:**
 >
@@ -259,7 +277,7 @@ Push event realtime ke client saat ada detection baru. Legacy endpoint — masih
 
 ## Console Dev Lanes (`APP_MODE=console`, Task 14)
 
-Surface terpisah dari tabel di atas — berjalan sebagai konsol (`routes/console.py`), bukan `main.py`. Sembilan lane ini melayani enam layar developer (Log, Diagnostik, Antrean ERP, Versi, Setelan, Uji PLC); semuanya lewat `require_support` dan dijawab **403** kalau operator yang masuk bukan `role='support'`. Detail rasionalnya: CLAUDE.md, Critical Rule 21.
+Surface terpisah dari tabel di atas — berjalan sebagai konsol (`routes/console.py`), bukan `main.py`. Lane di bawah melayani layar developer (Log, Diagnostik, Antrean ERP, Versi, Setelan, Uji PLC, Model Deteksi); semuanya lewat `require_support` dan dijawab **403** kalau operator yang masuk bukan `role='support'`. Detail rasionalnya: CLAUDE.md, Critical Rule 21.
 
 | Method | Path | Notes |
 |---|---|---|
@@ -273,6 +291,8 @@ Surface terpisah dari tabel di atas — berjalan sebagai konsol (`routes/console
 | GET / POST | `/api/console/dev/setelan` | lima setelan grading dari layar Setelan: `conf_threshold`, `minimum_size`, `garis_capture`, `sumbu_garis`, `mode_dev`. Tersimpan di konsol, disebar ke tiga line, berlaku tanpa restart |
 | GET | `/api/console/dev/plc/{line_code}` | snapshot DI + coil yang boleh diuji — baca saja |
 | POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil — satu-satunya lane yang menggerakkan hardware; tiga pengaman (assignment line, konfirmasi ketik, WARNING tiap percobaan) |
+| GET | `/api/console/dev/model-deteksi` | pilihan model tiap line (`""` = bawaan PC) + semua `.pt` di `models/release` beserta kelas, ukuran, engine per GPU, dan `cocok`/`alasan`. `folder.terbaca: false` = folder tidak bisa dibuka konsol (mount `./models` belum ada), beda dari folder kosong |
+| POST | `/api/console/dev/model-deteksi` | `{"line-1": "...", "line-2": "...", "line-3": "..."}` — tulis `LINE_N_MODEL_FILE` di `media.env`, restart line yang berubah saja. **400** untuk model yang tidak ada atau kelasnya bukan empat kelas yang dikenal; tidak menulis apa pun |
 
 ---
 
@@ -455,7 +475,8 @@ CaptureSaveWorker (jalur auto) / CaptureService (jalur manual)
 | `BACKEND_URL` | `http://localhost:2500` | palmgrade-api base URL |
 | `BACKEND_API_VER` | `/api/v1` | Prefix versi API untuk canonical events URL |
 | `WEBHOOK_SECRET` | — | Shared secret header, harus cocok dengan palmgrade-api |
-| `MODEL_FILE` | `best.pt` | Nama file model di `models/release/` |
+| `MODEL_FILE` | `best.pt` | Nama file model di `models/release/` — **bawaan PC** untuk ketiga line |
+| `LINE_N_MODEL_FILE` (di `media.env`) | kosong | Model line N, ditulis layar Model Deteksi. Menang atas `MODEL_FILE` untuk line itu; kosong = bawaan PC |
 | `CONF_THRESHOLD` | `0.75` | Minimum confidence YOLO |
 | `MINIMUM_SIZE` | `460000` | Minimum area bounding box (px²) — di bawah ini auto rej |
 | `GARIS_CAPTURE` | `300` | Garis capture (px, ruang **stream**). Janjang difoto saat kotaknya menyentuh garis ini. `0` = tanpa garis. **Nilai awal saja** — yang dipakai diatur dari layar support konsol |
@@ -517,7 +538,8 @@ CaptureSaveWorker (jalur auto) / CaptureService (jalur manual)
 
 | File | Keterangan |
 |---|---|
-| `models/release/best.pt` | Model utama — deteksi 3 kelas: acc, rej, tp. v2: dataset 2x lebih besar, TP conf lebih stabil |
+| `models/release/best.pt` | Model utama — 4 kelas: `Ripe`, `Unripe`, `JK`, `TP` (sejak 2026-09-16) |
+| `models/release/best_3class_v2.pt` | Model lama 3 kelas (`ACC`, `Rej`, `TP`). Disimpan, **tidak bisa dipilih** di layar Model Deteksi |
 
 Model di-load saat startup. Jika file tidak ditemukan, server gagal start.
 Model tidak di-commit ke git (ada di `.gitignore` via `*.pt`).
