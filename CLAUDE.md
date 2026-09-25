@@ -886,6 +886,12 @@ memang khas satu mesin.
   pemicunya perpotongan, jadi conveyor yang membalik arah tetap jalan. ⚠️ Sumbu mendatar
   diskalakan dengan **tinggi** frame, bukan lebar (`skala_garis`): frame 2448x2048 tidak
   persegi, jadi memakai lebar meleset ~19% tanpa satu pun error.
+- **Teks layar tanpa em dash (—) dan tanpa " - " sebagai jeda kalimat** (permintaan user
+  2026-09-26: terasa ditulis mesin). Pecah kalimat dengan titik, koma, titik dua, atau kurung.
+  Berlaku untuk kamus dua bahasa di `console.html`, teks statis HTML, string JS, dan pesan
+  exception (ada yang tampil apa adanya di layar, ada yang dibaca teknisi di terminal).
+  Dijaga `tests/unit/test_console_copy.py`; komentar, docstring, dan log bebas. Kata kerja
+  mengikuti label tombol yang dilihat orang ("Tugaskan" truk, bukan "pasang").
 - **Label janjang tidak memuat angka confidence** (permintaan operator 2026-09-18): dari beberapa
   meter "54%" terbaca seperti "54% matang", padahal itu keyakinan model dan sudah lolos
   `CONF_THRESHOLD`. Nilainya tetap ditulis ke sidecar dan dikirim ke API.
