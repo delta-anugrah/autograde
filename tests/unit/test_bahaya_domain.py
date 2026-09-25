@@ -18,6 +18,7 @@ from palmgrade.domain.bahaya import (
     KeadaanKonsol,
     KeadaanLine,
     hambatan_hapus_data,
+    hambatan_mode_semua,
     konfirmasi_sah,
     kunci_state_dihapus,
     peringatan_hapus_data,
@@ -238,3 +239,23 @@ def test_semua_tabel_konsol_digolongkan(tmp_path):
     }
     db.close()
     assert tabel == set(GOLONGAN_TABEL_KONSOL)
+
+
+# ── mode semua: jangan sampai tidak ada yang bisa masuk lagi ────────────────
+
+
+def test_mode_semua_tanpa_akun_bawaan_dan_tanpa_erp_menghambat():
+    """Mode semua menghapus SEMUA akun. Tanpa hash akun bawaan di `.env` dan
+    tanpa AutoERP, tidak ada satu akun pun yang bisa kembali — konsol terkunci
+    sampai teknisi datang dengan terminal."""
+    konsol = KeadaanKonsol(erp_aktif=False, akun_bawaan=False)
+    assert hambatan_mode_semua(konsol) == [{"kode": "tanpa_sumber_akun"}]
+
+
+def test_mode_semua_dengan_akun_bawaan_boleh():
+    assert hambatan_mode_semua(KeadaanKonsol(erp_aktif=False, akun_bawaan=True)) == []
+
+
+def test_mode_semua_dengan_erp_boleh():
+    """Akun AutoERP turun lagi lewat tarikan master data."""
+    assert hambatan_mode_semua(KeadaanKonsol(erp_aktif=True, akun_bawaan=False)) == []

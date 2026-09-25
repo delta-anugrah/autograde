@@ -72,6 +72,9 @@ class KeadaanKonsol:
     erp_aktif: bool
     erp_pending: int = 0
     erp_gagal: int = 0
+    #: Ada hash akun bawaan (`CONSOLE_DEFAULT_HASH`/`CONSOLE_SUPPORT_HASH`) yang
+    #: bisa dibuat ulang sesudah mode semua menghapus seluruh akun.
+    akun_bawaan: bool = True
 
 
 def konfirmasi_sah(teks: str | None) -> bool:
@@ -106,6 +109,18 @@ def hambatan_hapus_data(lines: list[KeadaanLine], konsol: KeadaanKonsol) -> list
     if konsol.erp_aktif and konsol.erp_pending > 0:
         hambatan.append({"kode": "antrean_erp", "jumlah": konsol.erp_pending})
     return hambatan
+
+
+def hambatan_mode_semua(konsol: KeadaanKonsol) -> list[dict]:
+    """Tambahan khusus mode semua, yang menghapus SELURUH akun.
+
+    Sesudahnya yang bisa masuk cuma akun bawaan (dibuat ulang dari hash di
+    `.env`) dan akun AutoERP (turun lewat tarikan). Tanpa keduanya konsol
+    terkunci sampai teknisi datang membawa terminal.
+    """
+    if not konsol.akun_bawaan and not konsol.erp_aktif:
+        return [{"kode": "tanpa_sumber_akun"}]
+    return []
 
 
 def peringatan_hapus_data(
