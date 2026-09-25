@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ..domain.bahaya import kunci_state_dihapus, tabel_dihapus
 from ..domain.operator_auth import normalise_email, normalise_nama, operator_id_for
 from ..domain.role import ROLE_SUPPORT, filter_erp_role, sanitize_role
 
@@ -1099,3 +1100,48 @@ class ConsoleStore:
         with self._lock, self._db:
             cursor = self._db.execute("DELETE FROM sesi WHERE expires_at <= ?", (now,))
         return cursor.rowcount
+
+    # ── Danger Zone (layar Setelan, support) ────────────────────────────────
+
+    def hapus_data(self, mode: str) -> dict[str, int]:
+        """Kosongkan data konsol menurut mode, dalam SATU transaksi.
+
+        Tabel dan kunci `sync_state` yang dihapus diputuskan `domain/bahaya.py`,
+        bukan di sini: `setelan_*` tidak pernah dihapus, kursor tarik AutoERP
+        cuma di mode semua. Mode asing ditolak SEBELUM apa pun tersentuh.
+        Kembalikan jumlah baris yang hilang per tabel.
+        """
+        tabel = tabel_dihapus(mode)
+        hasil: dict[str, int] = {}
+        with self._lock, self._db:
+            for nama in tabel:
+                # Nama tabel datang dari daftar tetap di domain/bahaya.py, tidak
+                # pernah dari luar — identifier SQL tidak bisa jadi parameter.
+                hasil[nama] = self._db.execute(f"DELETE FROM {nama}").rowcount
+            kunci = [row["key"] for row in self._db.execute("SELECT key FROM sync_state")]
+            buang = [k for k in kunci if kunci_state_dihapus(k, mode)]
+            for k in buang:
+                self._db.execute("DELETE FROM sync_state WHERE key = ?", (k,))
+            hasil["sync_state"] = len(buang)
+        return hasil
+
+    def hapus_semua_sesi(self) -> int:
+        """Logout paksa: semua sesi, termasuk milik yang menekan tombolnya."""
+        with self._lock, self._db:
+            return self._db.execute("DELETE FROM sesi").rowcount
+
+    def ringkas_data(self, *, now: float) -> dict[str, int]:
+        """Angka untuk panel Danger Zone: apa yang akan hilang."""
+
+        def hitung(sql: str, *args: Any) -> int:
+            return self._db.execute(sql, args).fetchone()[0]
+
+        with self._lock:
+            return {
+                "janjang": hitung("SELECT COUNT(*) FROM inspections"),
+                "tiket": hitung("SELECT COUNT(*) FROM weighings"),
+                "truk": hitung("SELECT COUNT(*) FROM trucks"),
+                "akun": hitung("SELECT COUNT(*) FROM operators"),
+                "akun_lokal": hitung("SELECT COUNT(*) FROM operators WHERE origin = 'lokal'"),
+                "sesi_aktif": hitung("SELECT COUNT(*) FROM sesi WHERE expires_at > ?", now),
+            }

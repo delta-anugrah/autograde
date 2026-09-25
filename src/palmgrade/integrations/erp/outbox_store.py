@@ -120,6 +120,15 @@ class ErpOutboxStore:
                 (attempts, error[:_ERROR_CHARS], self._clock() + backoff, message.kind, message.key),
             )
 
+    def hapus_semua(self) -> int:
+        """Danger Zone: kosongkan antrean, terkirim atau belum. Kembalikan jumlahnya.
+
+        Pemanggil yang memutuskan boleh atau tidak (`domain/bahaya.py`): kiriman
+        `pending` saat AutoERP disetel menolak penghapusan lebih dulu.
+        """
+        with self._lock, self._db:
+            return self._db.execute("DELETE FROM erp_outbox").rowcount
+
     def pending_count(self) -> int:
         with self._lock:
             row = self._db.execute(
