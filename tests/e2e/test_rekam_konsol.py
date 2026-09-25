@@ -262,3 +262,36 @@ def test_disk_penuh_diteruskan_sebagai_507(tmp_path, monkeypatch):
     membuat support menebak mana yang sedang terjadi."""
     with _konsol_dengan(_LineMenolak(507, "disk mepet"), tmp_path, monkeypatch) as c:
         assert c.post("/api/console/dev/rekam/line-1/mulai").status_code == 507
+
+
+# ── field yang dicabut 2026-09-25 (FPS & Bitrate dari layar) ────────────────
+
+
+def test_setelan_lama_berbitrate_tidak_ikut_keluar(konsol):
+    """PC pabrik yang pernah menyimpan setelan dari layar lama masih punya
+    `bitrate_kbps` di `sync_state`. Angka itu tidak boleh muncul lagi di layar
+    maupun terkirim ke line — dua-duanya sudah tidak punya tempat untuknya."""
+    import json as _json
+
+    c, service, line = konsol
+    service.store.set_state(
+        "setelan_rekam",
+        _json.dumps({"width": 800, "height": 600, "fps": 7, "bitrate_kbps": 2000}),
+    )
+
+    setelan = c.get("/api/console/dev/rekam").json()["setelan"]
+    assert setelan == {"width": 800, "height": 600, "fps": 7}
+
+    assert c.post("/api/console/dev/rekam/line-1/mulai").status_code == 200
+    assert line.mulai[-1]["setelan"] == {"width": 800, "height": 600, "fps": 7}
+
+
+def test_layar_baru_cuma_mengirim_lebar_dan_tinggi(konsol):
+    """Layar sesudah 2026-09-25 mengirim dua field; fps kembali ke cadangan
+    bawaan (5), yang cuma dipakai kalau kamera tidak melapor dan CAMERA_FPS=0."""
+    c, _service, _line = konsol
+    res = c.post("/api/console/dev/rekam/setelan", json={"width": 640, "height": 480})
+    assert res.status_code == 200, res.text
+    assert c.get("/api/console/dev/rekam").json()["setelan"] == {
+        "width": 640, "height": 480, "fps": 5,
+    }

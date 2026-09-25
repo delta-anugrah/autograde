@@ -844,7 +844,7 @@ Token dipasang offline dengan `palmgrade license <token>`; tidak ada server lise
 
 ## Testing
 
-Unit test di sini **sengaja murni-logic** — tidak butuh torch / OpenCV / MVS SDK / GPU, jadi cepat dan jalan di runner CI ringan. Pengujian yang butuh hardware/model asli (inference YOLO, kamera fisik) adalah ranah **integration test** di Docker (`tests/integration/`, masih `.gitkeep`), bukan unit test.
+Unit test di sini **sengaja murni-logic** — tidak butuh torch / OpenCV / MVS SDK / GPU, jadi cepat dan jalan di runner CI ringan. Pengujian yang butuh hardware/model asli (inference YOLO, kamera fisik) tetap di luar CI. `tests/integration/` berisi rangkaian komponen sungguhan tanpa hardware (konsol ↔ line lewat transport ASGI, berkas di folder sementara, render layar lewat node) dan jalan di CI.
 
 ### Menjalankan test
 
