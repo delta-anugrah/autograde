@@ -404,8 +404,11 @@
      Satu kartu selebar grid kartu line di atasnya. */
   #plc-peta { margin-top:16px; }
   /* Dua tabel dibagi rata selebar kartu; menumpuk sendiri di layar sempit.
-     Kolom alamat dipatok lebarnya supaya dua tabel sejajar baris per baris. */
-  #plc-peta .peta-grid { display:grid; gap:12px 28px; padding:10px 13px 13px;
+     Kolom alamat dipatok lebarnya supaya dua tabel sejajar baris per baris.
+     `align-items:start` wajib: tanpa itu tabel 10 baris ditarik setinggi
+     tabel 12 baris di sebelahnya, barisnya melar, dan M1003 tidak lagi
+     sejajar dengan M1103. */
+  #plc-peta .peta-grid { display:grid; gap:12px 28px; padding:10px 13px 13px; align-items:start;
                          grid-template-columns:repeat(auto-fit, minmax(min(22rem, 100%), 1fr)); }
   #plc-peta table { border-collapse:collapse; font-size:.82rem; width:100%; }
   #plc-peta caption { text-align:left; padding:0 0 6px; font-weight:600; color:var(--muted);

@@ -205,6 +205,13 @@ def test_dua_tabel_peta_mengisi_lebar_kartu():
     assert "display:grid" in _blok_css("#plc-peta .peta-grid")
 
 
+def test_tabel_pendek_tidak_ditarik_setinggi_tetangganya():
+    """Grid menarik anaknya setinggi sel terpanjang; tabel 10 baris di samping
+    tabel 12 baris jadi punya baris yang melar dan tidak sejajar lagi.
+    Ketemu di screenshot 2026-09-25."""
+    assert "align-items:start" in _blok_css("#plc-peta .peta-grid")
+
+
 def test_judul_peta_tetap_ikut_bahasa():
     peta = HTML.split('id="plc-peta"', 1)[1].split("</section>", 1)[0]
     assert 'data-t="petaJudul"' in peta
