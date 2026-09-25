@@ -143,3 +143,30 @@ def test_pemisah_ribuan_tanpa_desimal_ketahuan_lewat_lantai_berat(service):
     # thing that catches it is the floor.
     with pytest.raises(ValueError):
         asyncio.run(service.record_weighing(_kiriman(gross_kg="14.820", tare_kg=None)))
+
+
+# ── ringkasan timbangan di strip "Hari ini" (sejak 2026-09-25) ───────────
+
+
+def test_state_membawa_ringkasan_timbangan_hari_ini(service):
+    service.today = lambda: "2026-09-10"
+    asyncio.run(service.record_weighing(_kiriman()))  # 12.500 - 5.000 = 7.500 neto
+    asyncio.run(
+        service.record_weighing(
+            _kiriman(plate_number="B 9876 ZZ", gross_kg=20000, tare_kg=None)
+        )
+    )  # baru timbang masuk: menunggu tara, belum punya neto
+
+    assert service.state()["timbangan"] == {"tiket": 2, "menunggu_tara": 1, "neto_kg": 7500}
+
+
+def test_state_timbangan_kosong_nol_bukan_hilang(service):
+    # Layar membedakan "belum ada tiket" dari "tidak tahu"; field-nya selalu ada.
+    service.today = lambda: "2026-09-10"
+    assert service.state()["timbangan"] == {"tiket": 0, "menunggu_tara": 0, "neto_kg": 0}
+
+
+def test_state_timbangan_cuma_hari_kerja_ini(service):
+    service.today = lambda: "2026-09-11"
+    asyncio.run(service.record_weighing(_kiriman()))  # hari kerja 2026-09-10
+    assert service.state()["timbangan"]["tiket"] == 0

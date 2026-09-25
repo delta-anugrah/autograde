@@ -810,6 +810,29 @@ class ConsoleStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def ringkasan_timbangan(self, work_date: str) -> dict[str, Any]:
+        """Tiket, yang menunggu tara, dan total neto satu hari kerja.
+
+        Untuk strip "Hari ini" di layar operator, yang dipolling tiap 2 detik:
+        satu query agregat, bukan menjumlah `weighings()` yang membawa join
+        supplier dan batas 100 baris. Menunggu tara = sudah ada bruto, tara
+        belum; neto cuma dijumlah dari tiket yang sudah lengkap.
+        """
+        with self._lock:
+            row = self._db.execute(
+                """SELECT COUNT(*) AS tiket,
+                          COALESCE(SUM(CASE WHEN gross_kg IS NOT NULL AND tare_kg IS NULL
+                                            THEN 1 ELSE 0 END), 0) AS menunggu_tara,
+                          COALESCE(SUM(net_kg), 0) AS neto_kg
+                   FROM weighings WHERE work_date = ?""",
+                (work_date,),
+            ).fetchone()
+        return {
+            "tiket": row["tiket"],
+            "menunggu_tara": row["menunggu_tara"],
+            "neto_kg": row["neto_kg"],
+        }
+
     def open_weighings_for_truck(self, truck_id: str, work_date: str) -> list[dict[str, Any]]:
         """This truck's tickets not yet weighed out, for that working day only.
 

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ApiMessage(BaseModel):
@@ -28,6 +28,18 @@ class HealthDetailSchema(BaseModel):
     gpu_device: str | None
     machine_id: str
     workers: list[WorkerStatus]
+    # Model yang BENAR-BENAR dimuat line (bukan yang dipilih di `media.env`):
+    # layar Model Deteksi menyandingkan keduanya. `None`/kosong = registry belum
+    # dimuat, dan jalur health sengaja tidak memuatnya.
+    model_file: str | None = None
+    model_backend: str | None = None
+    model_kelas: list[str] = Field(default_factory=list)
+    # False = model yang jalan bukan tepat Ripe/Unripe/JK/TP: line ini tidak
+    # menghitung janjang. None = tidak diketahui, BUKAN alarm.
+    model_kelas_cocok: bool | None = None
+    # Compute capability GPU line ("86"). Konsol mencocokkannya dengan nama
+    # engine `<model>.sm<cc>.engine`. None = CPU / belum dimuat.
+    gpu_sm: str | None = None
     outbox_pending: int = 0
     outbox_failed: int = 0
     # Antrean penulis bukti (`CaptureSaveWorker`). `capture_save_dropped` naik
