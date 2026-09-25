@@ -1,4 +1,4 @@
-# Model Deteksi per line — layar Support
+# Model Deteksi per line: layar Support
 
 Dibuat 2026-09-24. Untuk: support dan teknisi yang mengganti model YOLO di satu
 line, di laptop pengembang maupun di PC pabrik.

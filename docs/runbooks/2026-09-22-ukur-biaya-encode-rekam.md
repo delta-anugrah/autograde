@@ -4,7 +4,7 @@
 pertanyaan harus dijawab angka dan bukan dugaan: **apakah merekam memperlambat
 grading?**
 
-Kalau iya, fitur ini tidak boleh dipasang — janjang yang terlewat karena fps
+Kalau iya, fitur ini tidak boleh dipasang, janjang yang terlewat karena fps
 turun adalah tonase yang salah dibayar, dan itu jauh lebih mahal daripada tidak
 punya video.
 
@@ -18,7 +18,7 @@ sumber, rekaman 1280x1024 @ 5 fps dan 640x480 @ 8 fps, 8 jendela rekaman.
 | **Tanpa** rekaman | 187 | **7,44** | 6,8 | 7,8 |
 | **Saat** merekam | 15 | **7,45** | 7,3 | 7,6 |
 
-Selisih **+0,1%** — di dalam derau pengukuran. `frame_dibuang` **nol** di setiap
+Selisih **+0,1%**: di dalam derau pengukuran. `frame_dibuang` **nol** di setiap
 rekaman.
 
 Angka itu memang yang diharapkan dari rancangannya: encode jalan di thread
@@ -36,7 +36,7 @@ Diukur pada resolusi target, bukan diekstrapolasi dari resolusi lain:
 | `mp4v` | 6,68 MB | 2,40 GB |
 
 **`avc1` 5x lebih kecil**, dan itu yang dipakai (`mp4v` cuma cadangan kalau
-build OpenCV di suatu PC tidak punya H.264 — lihat `_CODEC` di
+build OpenCV di suatu PC tidak punya H.264, lihat `_CODEC` di
 `services/video_recorder.py`).
 
 ⚠️ Angka di atas dari **noise acak**, yang merupakan kasus **terburuk** untuk
@@ -58,7 +58,7 @@ Di PC pabrik, dengan line sungguhan:
 docker logs ripe_line_1 2>&1 | grep '\[FPS\]' | tail -40
 ```
 
-`frame_dibuang` di atas nol berarti encoder tidak mengejar laju kamera —
+`frame_dibuang` di atas nol berarti encoder tidak mengejar laju kamera,
 videonya bolong, tapi **grading tetap utuh**. Turunkan fps atau resolusi dari
 layar; jangan memperdalam antrean.
 

@@ -1,6 +1,6 @@
-# Palmgrade Vision — Setup Guide
+# Palmgrade Vision: Setup Guide
 
-Panduan instalasi lengkap dari nol sampai sistem berjalan. Ikuti urutan ini — setiap section bergantung pada section sebelumnya.
+Panduan instalasi lengkap dari nol sampai sistem berjalan. Ikuti urutan ini: setiap section bergantung pada section sebelumnya.
 
 ---
 
@@ -26,7 +26,7 @@ Panduan instalasi lengkap dari nol sampai sistem berjalan. Ikuti urutan ini — 
 - PC dengan NVIDIA GPU (CUDA-capable)
 - Kamera **Hikrobot MV-CS050-10GC** (GigE, 5MP, global shutter)
 - Kabel **CAT6** (1 per kamera)
-- **Gigabit switch** (wajib support Jumbo Frame / MTU 9000) untuk 3 kamera — untuk 1 kamera, bisa langsung ke NIC tanpa switch
+- **Gigabit switch** (wajib support Jumbo Frame / MTU 9000) untuk 3 kamera, untuk 1 kamera, bisa langsung ke NIC tanpa switch
 
 ### Software
 - Ubuntu 22.04 LTS
@@ -75,7 +75,7 @@ docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi
 | Machine Vision Software MVS V5.0.0 | Linux x86_64 |
 | Machine Vision Industrial Camera SDK V4.7.0 Runtime Package | Linux x86_64 |
 
-Download dari [Hikrobot Download Center](https://www.hikrobotics.com/en/machinevision/service/download) — pilih **Type: All**, **System: Linux**.
+Download dari [Hikrobot Download Center](https://www.hikrobotics.com/en/machinevision/service/download): pilih **Type: All**, **System: Linux**.
 
 ### Persyaratan Sistem
 
@@ -155,7 +155,7 @@ ls /opt/MVS/lib/64/libMvCameraControl.so*
 [Camera 3] ──CAT6──┘
 ```
 
-> Switch **wajib** support Jumbo Frame (MTU 9000). Switch murah umumnya tidak support — cek spesifikasi.
+> Switch **wajib** support Jumbo Frame (MTU 9000). Switch murah umumnya tidak support, cek spesifikasi.
 
 Setelah kabel terpasang, LED di NIC PC dan di kamera harus menyala (link aktif 1000 Mb/s).
 
@@ -182,7 +182,7 @@ Koneksi direct kamera-ke-PC tidak punya DHCP server, jadi NIC perlu IP statis ag
 6. Scroll ke bawah, centang **"Use this connection only for resources on its network"**
 7. Klik **Apply**
 
-> **Wajib centang opsi ini.** Tanpa opsi ini, interface kamera ikut jadi default route sehingga Docker tidak bisa resolve DNS saat build — menyebabkan error `getaddrinfo EAI_AGAIN` atau `Temporary failure in name resolution`.
+> **Wajib centang opsi ini.** Tanpa opsi ini, interface kamera ikut jadi default route sehingga Docker tidak bisa resolve DNS saat build, menyebabkan error `getaddrinfo EAI_AGAIN` atau `Temporary failure in name resolution`.
 
 ### Cara via Terminal (langsung aktif, tidak persist setelah reboot)
 
@@ -218,7 +218,7 @@ sudo ip link set enp55s0 mtu 9000
 | Line 2 | `192.168.100.11`  | `255.255.255.0` | `192.168.100.254` |
 | Line 3 | `192.168.100.12`  | `255.255.255.0` | `192.168.100.254` |
 
-5. Klik **OK** — kamera reboot sebentar lalu muncul kembali dengan IP baru
+5. Klik **OK**: kamera reboot sebentar lalu muncul kembali dengan IP baru
 
 > Jika tidak otomatis pop-up: klik kanan nama kamera → **Modify IP Address**
 
@@ -226,7 +226,7 @@ sudo ip link set enp55s0 mtu 9000
 
 1. Klik kanan kamera → **Open Device** (atau double-click)
 2. Klik tombol **▶ Play** (Start Live) di toolbar atas
-3. Pastikan feed kamera tampil — cek tidak ada error di status bar bawah
+3. Pastikan feed kamera tampil: cek tidak ada error di status bar bawah
 
 ### 6.3 Set Frame Rate & Pixel Format
 
@@ -239,7 +239,7 @@ Di panel **Feature Tree** (kanan):
    - Ruangan gelap / conveyor: `20000`–`30000`
 4. **Image Format Control** → **Pixel Format** → pilih `BayerRG8`
 
-> **Mengapa 10 fps?** Kamera 5MP di full resolution (2448×2048) mengonsumsi ~400 Mbps per kamera. Dengan 3 kamera, total ~1.2 Gbps melebihi kapasitas uplink GigE (1 Gbps). Dengan 10 fps, total bandwidth ~400 Mbps — aman untuk 1 uplink.
+> **Mengapa 10 fps?** Kamera 5MP di full resolution (2448×2048) mengonsumsi ~400 Mbps per kamera. Dengan 3 kamera, total ~1.2 Gbps melebihi kapasitas uplink GigE (1 Gbps). Dengan 10 fps, total bandwidth ~400 Mbps, aman untuk 1 uplink.
 
 > Spesifikasi lengkap kamera, setting runtime yang aktif, dan kenapa `.mfs` menang
 > atas `.env`: [camera-spec.md](camera-spec.md).
@@ -270,7 +270,7 @@ mkdir -p media                    # tempat video/foto sumber kamera ditaruh
 ```
 
 ⚠️ **`media.env` tidak ikut git.** Tanpa `cp` di atas, ketiga line jatuh ke
-bawaan `hikrobot` — yang memang benar untuk pabrik, jadi baru ketahuan kalau
+bawaan `hikrobot`: yang memang benar untuk pabrik, jadi baru ketahuan kalau
 lupa saat ada yang mencoba mode Video/Foto dari layar Support. Detail lengkap:
 `docs/runbooks/2026-09-21-sumber-kamera-per-line.md`.
 
@@ -320,7 +320,7 @@ SUMBU_GARIS=tegak
 MODE_DEV=false
 ```
 
-> **LINE_X_MACHINE_ID** — sejak `palmgrade-api` pensiun tidak ada lagi PostgreSQL yang harus dibaca; `docker-compose.yml` sudah membawa UUID bawaan per line. Yang wajib: **unik per line dan tidak pernah berubah**. Tiga line dengan `MACHINE_ID` sama akan menumpuk di kartu line-1 di konsol.
+> **LINE_X_MACHINE_ID**: sejak `palmgrade-api` pensiun tidak ada lagi PostgreSQL yang harus dibaca; `docker-compose.yml` sudah membawa UUID bawaan per line. Yang wajib: **unik per line dan tidak pernah berubah**. Tiga line dengan `MACHINE_ID` sama akan menumpuk di kartu line-1 di konsol.
 
 ---
 
@@ -328,7 +328,7 @@ MODE_DEV=false
 
 ### 8.1 Tutup MVS sebelum build
 
-MVS dan Docker **tidak bisa connect ke kamera yang sama bersamaan** — SDK hanya bisa diakses 1 proses sekaligus. Pastikan MVS sudah di-close sebelum lanjut.
+MVS dan Docker **tidak bisa connect ke kamera yang sama bersamaan**, SDK hanya bisa diakses 1 proses sekaligus. Pastikan MVS sudah di-close sebelum lanjut.
 
 ### 8.2 Build pertama kali
 
@@ -368,10 +368,10 @@ make logs       # tail logs semua line
 ```
 
 > **`make up` vs `make start`:**
-> - `make up` — rebuild image lalu start. Gunakan saat: setup pertama, setelah update kode, atau setelah `make clean`.
-> - `make start` — start tanpa rebuild. Gunakan untuk restart harian.
+> - `make up`: rebuild image lalu start. Gunakan saat: setup pertama, setelah update kode, atau setelah `make clean`.
+> - `make start`: start tanpa rebuild. Gunakan untuk restart harian.
 
-> **Kenapa `network_mode: host`?** Kamera Hikrobot (GigE Vision) menggunakan UDP broadcast untuk discovery. Docker bridge network memblok UDP broadcast ini sehingga kamera tidak terdeteksi di dalam container. `network_mode: host` membuat container langsung pakai network stack host — kamera langsung terjangkau.
+> **Kenapa `network_mode: host`?** Kamera Hikrobot (GigE Vision) menggunakan UDP broadcast untuk discovery. Docker bridge network memblok UDP broadcast ini sehingga kamera tidak terdeteksi di dalam container. `network_mode: host` membuat container langsung pakai network stack host, kamera langsung terjangkau.
 
 ---
 
@@ -405,7 +405,7 @@ Response yang diharapkan:
 ```
 
 ⚠️ **`capture_save_dropped` dan `tp_telat` harus NOL.** Yang pertama berarti janjang sudah
-dipulse PLC dan masuk rekap tapi **tidak punya gambar maupun sidecar** — hilang permanen, karena
+dipulse PLC dan masuk rekap tapi **tidak punya gambar maupun sidecar**, hilang permanen, karena
 `BatchUploadWorker._scan()` menemukan pekerjaan lewat berkas di disk. Yang kedua berarti tangkai
 panjang muncul sesudah janjangnya difoto, jadi tidak tercatat.
 
@@ -421,13 +421,13 @@ http://localhost:8001/api/video_feed
 Vision jalan dengan `network_mode: host`, jadi port `8001/8002/8003` **terbuka di
 semua interface** PC. Selama PC prod cuma punya NIC ke switch kamera (LAN tertutup),
 ini aman. Tapi begitu PC prod dapat akses internet (mis. NIC#2 / USB-Ethernet buat
-kirim data), port itu jadi ter-ekspos — dan **satu** endpoint masih tanpa auth:
+kirim data), port itu jadi ter-ekspos, dan **satu** endpoint masih tanpa auth:
 `/api/video_feed`.
 
 ⚠️ Paragraf ini dulu menyebut **tiga**, dan menutupnya dengan "jangan matikan
 endpoint-nya (frontend masih pakai)". Kalimat itu menahan pembersihan
 berbulan-bulan atas dasar yang tidak pernah dicek. Diperiksa 2026-09-20: dua di
-antaranya **nol pemanggil** dan sudah dihapus — `/api/set_truck` (#122) dan
+antaranya **nol pemanggil** dan sudah dihapus, `/api/set_truck` (#122) dan
 `/api/capture_reject` (#123). Tolak manual tidak hilang: konsol memakai
 `/internal/manual-reject`, yang meminta webhook secret.
 
@@ -436,7 +436,7 @@ lain: `<img src>` di `console.html` tidak mengirim header, dan gambarnya harus
 tetap muncul saat internet putus. Jadi firewall yang menjaganya, bukan kode.
 
 ⚠️ **Jangan batasi ke "IP frontend/api" saja.** `video_feed` dipanggil dari
-**browser operator**, bukan dari server — aturan itu akan mematikan gambar di
+**browser operator**, bukan dari server, aturan itu akan mematikan gambar di
 konsol. Izinkan dari subnet operator.
 
 ```bash
@@ -465,10 +465,10 @@ Catatan:
 
 ### Kamera tidak muncul di MVS setelah colok
 
-1. Pastikan NIC PC sudah punya IP statis (`192.168.100.100`) — cek di **Settings → Network → Wired**
-2. Cek LED di kamera dan NIC — harus menyala (link aktif)
+1. Pastikan NIC PC sudah punya IP statis (`192.168.100.100`): cek di **Settings → Network → Wired**
+2. Cek LED di kamera dan NIC, harus menyala (link aktif)
 3. Tekan **F5** di MVS untuk refresh
-4. Coba `ping 192.168.100.10` dari terminal — jika tidak reply, masalah di koneksi fisik atau IP
+4. Coba `ping 192.168.100.10` dari terminal: jika tidak reply, masalah di koneksi fisik atau IP
 
 ### `gpu_available: false` di health check
 
@@ -479,13 +479,13 @@ Catatan:
 ### Kamera terconnect di MVS tapi tidak muncul di Docker
 
 - Pastikan `CAMERA_TYPE=hikrobot` di `.env`
-- Container jalan dengan `network_mode: host` — cek `docker-compose.yml`
-- Pastikan MVS sudah di-close saat Docker jalan (SDK hanya bisa diakses 1 proses sekaligus — MVS dan Docker tidak bisa connect ke kamera yang sama bersamaan)
+- Container jalan dengan `network_mode: host`, cek `docker-compose.yml`
+- Pastikan MVS sudah di-close saat Docker jalan (SDK hanya bisa diakses 1 proses sekaligus, MVS dan Docker tidak bisa connect ke kamera yang sama bersamaan)
 
 ### Bandwidth terlalu tinggi (packet lost)
 
 - Pastikan **Acquisition Frame Rate Enable = True** di MVS sebelum save UserSet1
-- Cek **Resulting Frame Rate** di MVS — harus sekitar 10 fps, bukan 23 fps
+- Cek **Resulting Frame Rate** di MVS, harus sekitar 10 fps, bukan 23 fps
 - Set Jumbo Frame di NIC: `sudo ip link set enp55s0 mtu 9000`
 
 ### Gambar gelap
@@ -496,13 +496,13 @@ Catatan:
 
 ### `camera_connected: false` setelah `make start`
 
-Normal terjadi jika kamera belum terhubung atau MVS masih buka. App tetap jalan dan workers aktif — `FrameCaptureWorker` otomatis retry setiap beberapa detik. Begitu kamera terhubung, `camera_connected` berubah jadi `true` tanpa restart.
+Normal terjadi jika kamera belum terhubung atau MVS masih buka. App tetap jalan dan workers aktif, `FrameCaptureWorker` otomatis retry setiap beberapa detik. Begitu kamera terhubung, `camera_connected` berubah jadi `true` tanpa restart.
 
 Jika `camera_connected` tetap `false` meski kamera sudah terhubung:
 1. Pastikan MVS sudah di-close (hanya 1 proses yang bisa akses kamera)
 2. Cek koneksi fisik + LED
-3. `curl http://localhost:8001/health/detail` — cek `workers[capture].alive`.
-   Cek juga `workers[capture_save].alive`: penulis bukti yang mati itu **senyap** — grading
+3. `curl http://localhost:8001/health/detail`: cek `workers[capture].alive`.
+   Cek juga `workers[capture_save].alive`: penulis bukti yang mati itu **senyap**, grading
    jalan, PLC menyortir, angka di layar naik, dan nol gambar tersimpan.
 
 ### `MvImport SDK tidak ditemukan` saat container start

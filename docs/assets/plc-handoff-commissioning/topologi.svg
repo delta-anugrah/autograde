@@ -13,9 +13,9 @@
   <text x="26" y="56" font-size="10" font-weight="700" letter-spacing="1.3" fill="#1f7a8c">PC PABRIK</text>
   <text x="26" y="80" font-size="16" font-weight="700" fill="#134e5e">AutoGrade</text>
   <g font-size="11.5" fill="#1b1f1d">
-    <text x="26" y="108">Proses line 1 — coil 0, 1, 2</text>
-    <text x="26" y="130">Proses line 2 — coil 3, 4, 5</text>
-    <text x="26" y="152">Proses line 3 — coil 6, 7, 8</text>
+    <text x="26" y="108">Proses line 1: coil 0, 1, 2</text>
+    <text x="26" y="130">Proses line 2: coil 3, 4, 5</text>
+    <text x="26" y="152">Proses line 3: coil 6, 7, 8</text>
   </g>
   <text x="26" y="180" font-size="10.5" fill="#5a6670">Tiga koneksi Modbus terpisah,</text>
   <text x="26" y="196" font-size="10.5" fill="#5a6670">satu per proses.</text>
@@ -25,9 +25,9 @@
   <text x="284" y="56" font-size="10" font-weight="700" letter-spacing="1.3" fill="#134e5e">REMOTE IO</text>
   <text x="284" y="80" font-size="16" font-weight="700" fill="#134e5e">ODOT CN-8031</text>
   <g font-size="11.5" fill="#1b1f1d">
-    <text x="284" y="108">CT-222F — output</text>
-    <text x="284" y="130">CT-122F — input</text>
-    <text x="284" y="152">CT-5801 — catu daya</text>
+    <text x="284" y="108">CT-222F: output</text>
+    <text x="284" y="130">CT-122F: input</text>
+    <text x="284" y="152">CT-5801: catu daya</text>
   </g>
   <text x="284" y="180" font-size="10.5" fill="#5a6670">Maksimum 5 client</text>
   <text x="284" y="196" font-size="10.5" fill="#5a6670">Modbus bersamaan.</text>
@@ -37,9 +37,9 @@
   <text x="502" y="56" font-size="10" font-weight="700" letter-spacing="1.3" fill="#1f7a8c">PANEL</text>
   <text x="502" y="80" font-size="16" font-weight="700" fill="#134e5e">PLC Mitsubishi</text>
   <g font-size="11.5" fill="#1b1f1d">
-    <text x="502" y="108">AJ65SBTB1-16D1 — input</text>
+    <text x="502" y="108">AJ65SBTB1-16D1: input</text>
     <text x="502" y="130">X0300 – X030F</text>
-    <text x="502" y="152">AJ65SBTB1-16T1 — output</text>
+    <text x="502" y="152">AJ65SBTB1-16T1: output</text>
     <text x="502" y="174">Y0310 – Y031F</text>
   </g>
   <text x="502" y="200" font-size="10.5" fill="#5a6670">Ladder dan pengaman.</text>

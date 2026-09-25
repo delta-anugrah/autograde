@@ -1,14 +1,14 @@
-# Rekam Video Per Line — Implementation Plan
+# Rekam Video Per Line: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Tombol rekam video per line di layar developer (`role=support`), merekam frame clean (tanpa bbox) ke folder `videos/`, dengan resolusi/fps/bitrate yang diatur dari UI — bukan `.env`.
+**Goal:** Tombol rekam video per line di layar developer (`role=support`), merekam frame clean (tanpa bbox) ke folder `videos/`, dengan resolusi/fps/bitrate yang diatur dari UI, bukan `.env`.
 
-**Architecture:** Konsol memegang setelan dan tombol; line yang merekam. Konsol menyimpan setelan di `sync_state` (satu baris, semua line) dan menembak `/internal/rekam/*` ke tiap line — pola yang sama persis dengan `setelan_grading` dan Uji PLC. Di line, `FrameCaptureWorker` melempar frame yang **sudah ada** ke antrean recorder; thread encoder terpisah menulis MP4. Antrean penuh = frame dibuang, tidak pernah mengerem deteksi.
+**Architecture:** Konsol memegang setelan dan tombol; line yang merekam. Konsol menyimpan setelan di `sync_state` (satu baris, semua line) dan menembak `/internal/rekam/*` ke tiap line, pola yang sama persis dengan `setelan_grading` dan Uji PLC. Di line, `FrameCaptureWorker` melempar frame yang **sudah ada** ke antrean recorder; thread encoder terpisah menulis MP4. Antrean penuh = frame dibuang, tidak pernah mengerem deteksi.
 
 **Tech Stack:** Python 3.12, FastAPI, OpenCV (`cv2.VideoWriter`), SQLite (`sync_state`), vanilla JS (console.html).
 
-**Spec:** Tidak ada dokumen spec terpisah — keputusan diambil dalam diskusi 2026-09-22 dan diringkas di bagian "Keputusan Yang Sudah Dikunci" di bawah.
+**Spec:** Tidak ada dokumen spec terpisah, keputusan diambil dalam diskusi 2026-09-22 dan diringkas di bagian "Keputusan Yang Sudah Dikunci" di bawah.
 
 > **Status: SELESAI dikerjakan 2026-09-22.** Dokumen ini disimpan sebagai
 > catatan rancangan, bukan petunjuk yang masih berlaku. Tiga hal berubah saat
@@ -20,7 +20,7 @@
 >   `docs/runbooks/2026-09-22-ukur-biaya-encode-rekam.md`.
 > - **Pemecahan berkas per jam tidak dibuat.** Tidak ada yang membuktikan itu
 >   perlu, dan berkas yang dipecah menyulitkan menonton satu kejadian utuh.
-> - **`_require_line` dipakai ulang**, bukan helper baru — kodenya sudah
+> - **`_require_line` dipakai ulang**, bukan helper baru, kodenya sudah
 >   terlokalisasi untuk layar.
 > - **Env-nya `REKAMAN_DIR`, bukan `VIDEOS_DIR`** seperti tertulis di bawah.
 >   `VIDEOS_DIR` pernah ada dengan arti **kebalikannya** (folder video sumber,
@@ -30,12 +30,12 @@
 
 Diputuskan bersama user 2026-09-22. **Jangan ditanya ulang, jangan diubah sepihak:**
 
-1. **Rekam terus-menerus** sampai dihentikan manual — bukan per truk, bukan ring buffer.
+1. **Rekam terus-menerus** sampai dihentikan manual, bukan per truk, bukan ring buffer.
 2. **Satu tombol per line**, nyala/mati sendiri-sendiri.
 3. **Restart container = rekaman mati.** Tidak dilanjutkan otomatis.
 4. **Folder `videos/` sendiri**, TIDAK ikut retensi otomatis. Dihapus manual.
-5. **Clean tanpa bbox** — diambil di `FrameCaptureWorker`, sebelum inference.
-6. **Pengaturan di UI, bukan `.env`** — resolusi, fps, bitrate diatur dari layar developer.
+5. **Clean tanpa bbox**: diambil di `FrameCaptureWorker`, sebelum inference.
+6. **Pengaturan di UI, bukan `.env`**: resolusi, fps, bitrate diatur dari layar developer.
 7. **Support-only** (`role=support`), sama seperti tab dev lain.
 
 ## Global Constraints
@@ -60,16 +60,16 @@ Diputuskan bersama user 2026-09-22. **Jangan ditanya ulang, jangan diubah sepiha
 
 | File | Tanggung jawab |
 |---|---|
-| `src/palmgrade/domain/setelan_rekam.py` | **baru** — validasi & batas setelan video (murni, tanpa I/O) |
-| `src/palmgrade/services/video_recorder.py` | **baru** — antrean + thread encoder + tulis MP4 + rem disk |
-| `src/palmgrade/workers/frame_capture_worker.py` | modifikasi — 1 baris: lempar frame ke recorder |
-| `src/palmgrade/workers/runtime_state.py` | modifikasi — pegang instance recorder |
-| `src/palmgrade/routes/internal.py` | modifikasi — 3 endpoint di line: mulai/stop/status |
-| `src/palmgrade/integrations/notifications/line_client.py` | modifikasi — 3 fungsi proxy konsol→line |
-| `src/palmgrade/services/console_service.py` | modifikasi — simpan setelan, sebar perintah, kumpulkan status |
-| `src/palmgrade/routes/console.py` | modifikasi — 4 endpoint konsol (`/api/console/dev/rekam*`) |
-| `src/palmgrade/static/console.html` | modifikasi — tab "Rekam Video" + i18n |
-| `src/palmgrade/core/config.py` | modifikasi — `videos_dir` saja (setelan lain dari UI) |
+| `src/palmgrade/domain/setelan_rekam.py` | **baru**: validasi & batas setelan video (murni, tanpa I/O) |
+| `src/palmgrade/services/video_recorder.py` | **baru**: antrean + thread encoder + tulis MP4 + rem disk |
+| `src/palmgrade/workers/frame_capture_worker.py` | modifikasi: 1 baris: lempar frame ke recorder |
+| `src/palmgrade/workers/runtime_state.py` | modifikasi: pegang instance recorder |
+| `src/palmgrade/routes/internal.py` | modifikasi: 3 endpoint di line: mulai/stop/status |
+| `src/palmgrade/integrations/notifications/line_client.py` | modifikasi: 3 fungsi proxy konsol→line |
+| `src/palmgrade/services/console_service.py` | modifikasi: simpan setelan, sebar perintah, kumpulkan status |
+| `src/palmgrade/routes/console.py` | modifikasi: 4 endpoint konsol (`/api/console/dev/rekam*`) |
+| `src/palmgrade/static/console.html` | modifikasi: tab "Rekam Video" + i18n |
+| `src/palmgrade/core/config.py` | modifikasi: `videos_dir` saja (setelan lain dari UI) |
 
 **Urutan tugas** sengaja dari dalam ke luar: domain murni → recorder → sambungan line
 → sambungan konsol → UI. Tiap tugas bisa diuji sendiri tanpa menunggu tugas berikutnya.
@@ -78,7 +78,7 @@ Diputuskan bersama user 2026-09-22. **Jangan ditanya ulang, jangan diubah sepiha
 
 ### Task 1: Domain setelan rekam (validasi murni)
 
-Modul murni tanpa I/O — batas kewarasan untuk resolusi/fps/bitrate. Mengikuti pola
+Modul murni tanpa I/O: batas kewarasan untuk resolusi/fps/bitrate. Mengikuti pola
 `domain/setelan_grading.py` yang sudah ada.
 
 **Files:**
@@ -86,10 +86,10 @@ Modul murni tanpa I/O — batas kewarasan untuk resolusi/fps/bitrate. Mengikuti 
 - Test: `tests/unit/domain/test_setelan_rekam.py`
 
 **Interfaces:**
-- Consumes: (tidak ada — tugas pertama)
+- Consumes: (tidak ada: tugas pertama)
 - Produces:
   - `KUNCI_SETELAN_REKAM: str = "setelan_rekam"`
-  - `BAWAAN: dict[str, int]` — `{"width": 1280, "height": 1024, "fps": 5, "bitrate_kbps": 2000}`
+  - `BAWAAN: dict[str, int]`: `{"width": 1280, "height": 1024, "fps": 5, "bitrate_kbps": 2000}`
   - `class SetelanRekamTidakSah(ValueError)`
   - `bersihkan_setelan_rekam(payload: dict[str, Any]) -> dict[str, int]`
 
@@ -164,7 +164,7 @@ def test_lebar_ganjil_dibulatkan_ke_bawah():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/pytest tests/unit/domain/test_setelan_rekam.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'palmgrade.domain.setelan_rekam'`
+Expected: FAIL: `ModuleNotFoundError: No module named 'palmgrade.domain.setelan_rekam'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -277,7 +277,7 @@ git commit -m "feat(rekam): batas setelan video yang diatur dari layar developer
 
 ### Task 2: `videos_dir` di config
 
-Satu-satunya setelan yang tetap di `.env` — **letak folder**, bukan isi setelan.
+Satu-satunya setelan yang tetap di `.env`, **letak folder**, bukan isi setelan.
 Alasannya: jalurnya berbeda antara container dan host, jadi harus bisa di-mount.
 
 **Files:**
@@ -313,7 +313,7 @@ def test_videos_dir_bisa_ditimpa_env(monkeypatch):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/pytest tests/unit/core/test_config_videos_dir.py -v`
-Expected: FAIL — `AttributeError: 'Settings' object has no attribute 'videos_dir'`
+Expected: FAIL: `AttributeError: 'Settings' object has no attribute 'videos_dir'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -343,7 +343,7 @@ Lalu tambahkan property (letakkan di dekat property folder lain, mis. sesudah
 ```
 
 CATATAN untuk implementer: periksa nama field state yang sebenarnya di
-`config.py` (`state_db_path` atau serupa) dan sesuaikan — jangan asal salin
+`config.py` (`state_db_path` atau serupa) dan sesuaikan, jangan asal salin
 kalau namanya beda.
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -361,7 +361,7 @@ git commit -m "feat(rekam): folder videos/ di luar artifacts supaya lepas dari r
 
 ---
 
-### Task 3: `VideoRecorder` — antrean, drop policy, rem disk
+### Task 3: `VideoRecorder`: antrean, drop policy, rem disk
 
 Inti fitur. Thread encoder terpisah; antrean penuh = frame dibuang.
 
@@ -374,10 +374,10 @@ Inti fitur. Thread encoder terpisah; antrean penuh = frame dibuang.
 - Produces:
   - `class VideoRecorder`
   - `VideoRecorder(videos_dir: Path, line_code: str, disk_min_free_gb: float = 20.0, ukuran_antrean: int = 30)`
-  - `.mulai(setelan: dict[str, int]) -> dict[str, Any]` — raise `RekamSedangJalan` kalau sudah jalan
+  - `.mulai(setelan: dict[str, int]) -> dict[str, Any]`: raise `RekamSedangJalan` kalau sudah jalan
   - `.stop() -> dict[str, Any]`
-  - `.tulis(frame) -> None` — dipanggil dari thread capture, TIDAK PERNAH blocking
-  - `.status() -> dict[str, Any]` — `{"merekam", "berkas", "mulai_epoch", "frame_ditulis", "frame_dibuang", "bytes", "alasan_berhenti"}`
+  - `.tulis(frame) -> None`: dipanggil dari thread capture, TIDAK PERNAH blocking
+  - `.status() -> dict[str, Any]`: `{"merekam", "berkas", "mulai_epoch", "frame_ditulis", "frame_dibuang", "bytes", "alasan_berhenti"}`
   - `class RekamSedangJalan(RuntimeError)`
   - `class RekamTidakJalan(RuntimeError)`
   - `class DiskMepet(RuntimeError)`
@@ -526,7 +526,7 @@ def test_frame_ukuran_beda_diresize_bukan_menjatuhkan_rekaman(rekaman):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/pytest tests/unit/services/test_video_recorder.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'palmgrade.services.video_recorder'`
+Expected: FAIL: `ModuleNotFoundError: No module named 'palmgrade.services.video_recorder'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -793,7 +793,7 @@ Run: `.venv/bin/pytest tests/unit/services/test_video_recorder.py -v`
 Expected: PASS (semua test)
 
 CATATAN: kalau `test_disk_mepet_di_tengah_rekaman_menghentikan_sendiri` flaky,
-JANGAN menaikkan `sleep` sampai hijau — periksa dulu bahwa pemeriksaan disk
+JANGAN menaikkan `sleep` sampai hijau, periksa dulu bahwa pemeriksaan disk
 benar-benar berjalan (turunkan `_PERIKSA_DISK_TIAP` lewat monkeypatch di test).
 
 - [ ] **Step 5: Lint dan commit**
@@ -899,13 +899,13 @@ def test_recorder_meledak_tidak_menjatuhkan_capture(runtime_state_kosong):
 
 CATATAN untuk implementer: `runtime_state_kosong` mungkin belum ada sebagai
 fixture. Periksa `tests/unit/workers/conftest.py`; kalau belum ada, buat fixture
-yang mengembalikan `RuntimeState` kosong sesuai konstruktor aslinya — jangan
+yang mengembalikan `RuntimeState` kosong sesuai konstruktor aslinya, jangan
 mengarang field.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/pytest tests/unit/workers/test_frame_capture_rekam.py -v`
-Expected: FAIL — `AttributeError: 'RuntimeState' object has no attribute 'video_recorder'`
+Expected: FAIL: `AttributeError: 'RuntimeState' object has no attribute 'video_recorder'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -1009,12 +1009,12 @@ def test_stop_mengembalikan_nama_berkas(client_line):
 ```
 
 CATATAN: pakai fixture client line yang sudah ada di `tests/e2e/conftest.py`
-(cari yang dipakai test `/internal/setelan`) — jangan membuat app baru.
+(cari yang dipakai test `/internal/setelan`), jangan membuat app baru.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/pytest tests/e2e/test_internal_rekam.py -v`
-Expected: FAIL — 404 pada semua endpoint
+Expected: FAIL: 404 pada semua endpoint
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -1067,7 +1067,7 @@ async def rekam_status() -> dict:
 ```
 
 CATATAN untuk implementer: `state` dan `settings` di `internal.py` diperoleh
-lewat dependency/closure yang sudah ada di file itu — **ikuti pola endpoint
+lewat dependency/closure yang sudah ada di file itu, **ikuti pola endpoint
 tetangga**, jangan menyalin `state, settings` sebagai variabel global.
 `settings.line_code` mungkin bernama lain; periksa `config.py`.
 
@@ -1134,12 +1134,12 @@ async def test_rekam_status_menembak_url_line(line_client, line_satu, httpx_mock
 
 CATATAN: ikuti fixture dan cara mock HTTP yang sudah dipakai test `line_client`
 lain di repo (`kirim_setelan`). Kalau `httpx_mock` tidak dipakai di sana, pakai
-cara yang sama dengan test tetangga — jangan memperkenalkan library baru.
+cara yang sama dengan test tetangga, jangan memperkenalkan library baru.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/pytest tests/unit/integrations/test_line_client_rekam.py -v`
-Expected: FAIL — `AttributeError: 'LineClient' object has no attribute 'rekam_mulai'`
+Expected: FAIL: `AttributeError: 'LineClient' object has no attribute 'rekam_mulai'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -1162,7 +1162,7 @@ Di `src/palmgrade/integrations/notifications/line_client.py`, mengikuti pola
 ```
 
 CATATAN: nama helper (`self._post` / `self._get`) harus disesuaikan dengan yang
-benar-benar ada di file itu — baca `kirim_setelan` dan tiru persis, termasuk cara
+benar-benar ada di file itu, baca `kirim_setelan` dan tiru persis, termasuk cara
 menangani error dan timeout.
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1180,7 +1180,7 @@ git commit -m "feat(rekam): proxy konsol ke line untuk mulai/stop/status"
 
 ---
 
-### Task 7: Service konsol — simpan setelan, sebar perintah
+### Task 7: Service konsol: simpan setelan, sebar perintah
 
 **Files:**
 - Modify: `src/palmgrade/services/console_service.py`
@@ -1191,7 +1191,7 @@ git commit -m "feat(rekam): proxy konsol ke line untuk mulai/stop/status"
 - Produces:
   - `ConsoleService.setelan_rekam() -> dict`
   - `ConsoleService.simpan_setelan_rekam(payload, *, diubah_oleh) -> dict`
-  - `ConsoleService.rekam_status_semua() -> dict` — `{"lines": [...], "setelan": {...}, "disk_bebas_gb": float}`
+  - `ConsoleService.rekam_status_semua() -> dict`: `{"lines": [...], "setelan": {...}, "disk_bebas_gb": float}`
   - `ConsoleService.rekam_mulai(line_code, *, diubah_oleh) -> dict`
   - `ConsoleService.rekam_stop(line_code, *, diubah_oleh) -> dict`
 
@@ -1261,13 +1261,13 @@ async def test_line_mati_tidak_menjatuhkan_status_semua(
 ```
 
 CATATAN: pakai fixture `console_service` yang sudah ada di repo (dipakai test
-`setelan_grading`). `line_client_palsu` kemungkinan perlu dibuat — modelkan dari
+`setelan_grading`). `line_client_palsu` kemungkinan perlu dibuat: modelkan dari
 fake yang sudah dipakai test konsol lain.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/pytest tests/unit/services/test_console_rekam.py -v`
-Expected: FAIL — `AttributeError: ... has no attribute 'setelan_rekam'`
+Expected: FAIL: `AttributeError: ... has no attribute 'setelan_rekam'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -1376,8 +1376,8 @@ git commit -m "feat(rekam): setelan tersimpan di konsol dan sebar perintah ke li
 **Interfaces:**
 - Consumes: Task 7
 - Produces:
-  - `GET /api/console/dev/rekam` — status semua line + setelan + disk
-  - `POST /api/console/dev/rekam/setelan` — simpan setelan
+  - `GET /api/console/dev/rekam`: status semua line + setelan + disk
+  - `POST /api/console/dev/rekam/setelan`: simpan setelan
   - `POST /api/console/dev/rekam/{line_code}/mulai`
   - `POST /api/console/dev/rekam/{line_code}/stop`
 
@@ -1433,13 +1433,13 @@ def test_line_tak_dikenal_jawab_404(client_konsol, sesi_support):
     assert r.status_code == 404
 ```
 
-CATATAN: pakai fixture sesi yang sudah ada (`sesi_support` / `sesi_operator`) —
+CATATAN: pakai fixture sesi yang sudah ada (`sesi_support` / `sesi_operator`),
 cari di `tests/e2e/conftest.py` yang dipakai test `dev/setelan`.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/pytest tests/e2e/test_console_rekam_routes.py -v`
-Expected: FAIL — 404 pada semua
+Expected: FAIL: 404 pada semua
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -1489,7 +1489,7 @@ async def dev_rekam_stop(
 Tambahkan import `SetelanRekamTidakSah` dari `..domain.setelan_rekam`.
 
 CATATAN: error dari line (409 sudah merekam, 507 disk mepet) diteruskan apa
-adanya oleh `line_client` — periksa bagaimana `kirim_setelan` menangani error
+adanya oleh `line_client`: periksa bagaimana `kirim_setelan` menangani error
 HTTP line dan ikuti pola yang sama supaya pesannya sampai ke layar.
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1552,7 +1552,7 @@ def test_tidak_ada_referensi_https():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/pytest tests/e2e/test_console_html_rekam.py -v`
-Expected: FAIL — `data-tab="rekam"` tidak ada
+Expected: FAIL: `data-tab="rekam"` tidak ada
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -1604,18 +1604,18 @@ sekitar 1486):
     rekamCatatan:"Recordings are never deleted automatically. Clear the videos/ folder yourself.",
 ```
 
-**3c.** Panel tab — ikuti struktur panel `sumber-kamera` yang sudah ada
+**3c.** Panel tab: ikuti struktur panel `sumber-kamera` yang sudah ada
 (console.html:3418). Isi: tabel per line (status, durasi, ukuran, tombol),
 form setelan, sisa disk, dan catatan retensi manual.
 
 **3d.** Daftarkan pemuat tab di `MUAT_TAB` (dipakai baris ~2795) supaya tab
 memuat datanya saat dibuka, dan pasang polling tiap ~3 detik **hanya saat tab
-rekam sedang terbuka** — polling terus-menerus di tab lain membebani line tanpa
+rekam sedang terbuka**: polling terus-menerus di tab lain membebani line tanpa
 guna.
 
 ⚠️ **Jebakan dari PR #130:** `<select>`/tombol di dalam `display:grid` bisa
-menciut jadi 0 px tanpa error. Setelah layar jadi, **buka di browser dan lihat**
-— jangan percaya "kodenya ada" saja.
+menciut jadi 0 px tanpa error. Setelah layar jadi, **buka di browser dan lihat**,
+jangan percaya "kodenya ada" saja.
 
 ⚠️ **Jebakan kedua dari PR #130:** `$()` di berkas ini mengambil **id**, bukan
 selector CSS. Periksa definisinya sebelum memakai.
@@ -1688,13 +1688,13 @@ def test_prod_juga_memount_videos():
             assert any("videos" in str(v) for v in mounts), svc
 ```
 
-CATATAN: nama service (`line1`…) mungkin beda di repo — periksa dulu
+CATATAN: nama service (`line1`…) mungkin beda di repo, periksa dulu
 `docker-compose.yml` dan pakai nama yang sebenarnya.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/pytest tests/e2e/test_compose_videos_mount.py -v`
-Expected: FAIL — tidak ada mount `videos`
+Expected: FAIL: tidak ada mount `videos`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -1707,7 +1707,7 @@ Di `docker-compose.yml`, tambahkan pada tiap service line:
 dan env `VIDEOS_DIR=/app/videos`.
 
 Di `docker-compose.prod.yml`, **tulis ulang seluruh daftar `volumes:`** untuk
-tiap line kalau blok itu disebut di sana — override mengganti, bukan menambah.
+tiap line kalau blok itu disebut di sana, override mengganti, bukan menambah.
 
 Di `docs/MANUAL.md`, tambahkan di bagian tab support: apa itu tab Rekam Video,
 bahwa rekaman **tidak dihapus otomatis**, dan di mana berkasnya di PC pabrik
@@ -1749,7 +1749,7 @@ aman dipakai di pabrik.
 ```
 
 Expected: nol merah. Kalau ada yang merah dan **sudah merah sebelum kerjaan ini**,
-catat di runbook — jangan diperbaiki diam-diam di PR ini.
+catat di runbook: jangan diperbaiki diam-diam di PR ini.
 
 - [ ] **Step 2: Ukur fps deteksi TANPA rekaman**
 
@@ -1772,7 +1772,7 @@ Catat di `docs/runbooks/2026-09-22-ukur-biaya-encode-rekam.md`:
 - berapa frame dibuang
 - **kesimpulan: aman atau tidak dipakai di 3 line sekaligus di PC Lampung**
 
-⚠️ Mac ini CPU-only dan jauh lebih lambat dari RTX 3060 di Lampung — angka di
+⚠️ Mac ini CPU-only dan jauh lebih lambat dari RTX 3060 di Lampung, angka di
 sini **batas bawah**, bukan ramalan. Kalau di Mac saja fps deteksi turun tajam,
 itu sinyal kuat untuk berhenti dan lapor sebelum ini masuk pabrik.
 
@@ -1787,6 +1787,6 @@ git commit -m "docs(rekam): hasil ukur biaya encode terhadap fps deteksi"
 
 ## Sesudah Semua Task
 
-1. Jalankan `.venv/bin/pytest tests/unit tests/e2e -q` sekali lagi — semua hijau.
+1. Jalankan `.venv/bin/pytest tests/unit tests/e2e -q` sekali lagi: semua hijau.
 2. Buka PR ke `staging` (bukan `main`), sebutkan hasil ukur dari Task 11.
 3. **Jangan tag rilis** sebelum user membaca hasil ukur dan setuju.
