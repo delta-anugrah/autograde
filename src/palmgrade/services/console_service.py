@@ -205,6 +205,10 @@ class ConsoleService:
             "timezone": self.settings.factory_tz,
             "lines": lines,
             "recent": self.history(work_date, limit=20),
+            # Ringkasan timbangan hari kerja ini untuk strip "Hari ini". Dari
+            # tabel yang sama dengan tab Timbangan, jadi begitu program timbangan
+            # tersambung angkanya ikut tanpa perubahan layar.
+            "timbangan": self.store.ringkasan_timbangan(work_date),
             # Line yang dilepas oleh timbang keluar, bukan oleh operator (G5).
             # Ditampilkan supaya pelepasannya terlihat: kalau bongkar ternyata
             # belum habis, operator masih bisa meng-assign ulang.

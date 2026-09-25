@@ -332,6 +332,13 @@
   #tally .bar { height:12px; border:1px solid var(--line); border-radius:var(--r-pill);
                 background:var(--rej-bg); overflow:hidden; }
   #tally .bar span { display:block; height:100%; width:0; border-radius:var(--r-pill); background:var(--acc); transition:width .4s ease; }
+  /* Neto timbangan hari ini, di kanan rasio. Angkanya seukuran persen rasio
+     supaya dua angka ringkasan itu terbaca setara dari jauh. */
+  #tally .timbang { display:flex; flex-direction:column; justify-content:center; gap:4px;
+                    padding:10px 16px; border-left:1px solid var(--line); min-width:10rem; }
+  #tally .timbang b { font-family:var(--mono); font-size:1.35rem; font-weight:700;
+                      font-variant-numeric:tabular-nums; }
+  #tally .timbang-sub { font-size:.8rem; color:var(--muted); }
   /* Label above the control, not beside it: beside it the two-word caption set
      its own width and the strip's last cell came out a different shape from
      every other cell. Centred and stacked, it lines up with the stat blocks. */
@@ -999,6 +1006,17 @@
   <div class="rasio">
     <div class="rasio-hd"><span class="lb" data-t="labelRasio">Rasio Ripe</span><b id="tot-rate">-</b></div>
     <div class="bar"><span id="bar-acc"></span></div>
+  </div>
+  <!--
+    Timbangan hari kerja ini, di kanan rasio (permintaan 2026-09-25): neto adalah
+    angka yang dibayar, dan strip ini yang terbaca dari jauh sepanjang shift.
+    Dari tabel `weighings` yang sama dengan tab Timbangan, jadi begitu program
+    timbangan tersambung angkanya ikut tanpa perubahan layar.
+  -->
+  <div class="timbang">
+    <span class="lb" data-t="labelNetoTimbangan">Neto timbangan</span>
+    <b id="tot-neto">-</b>
+    <span class="timbang-sub" id="tot-tiket"></span>
   </div>
   <!--
     The operator sets the camera layout, it is not forced from here: every mill
@@ -1731,6 +1749,8 @@ const KAMUS = {
     setelanDariEnv:"Sumber: .env (belum pernah diubah dari sini)",
     setelanDariKonsol:"Sumber: konsol",
     labelHariIni:"Hari ini", labelRasio:"Rasio Ripe",
+    labelNetoTimbangan:"Neto timbangan", timbangTiket:"{tiket} tiket · {tara} menunggu tara",
+    timbangBelumAda:"Belum ada tiket",
     // Nama kelas TIDAK diterjemahkan: keempatnya nama kelas model, dan operator
     // maupun support menyebutnya persis begini saat bicara lewat telepon.
     clsRipe:"Ripe", clsUnripe:"Unripe", clsJk:"JK", clsTp:"TP",
@@ -1913,6 +1933,8 @@ const KAMUS = {
     setelanDariEnv:"Source: .env (never changed from here)",
     setelanDariKonsol:"Source: console",
     labelHariIni:"Today", labelRasio:"Ripe rate",
+    labelNetoTimbangan:"Weighed net", timbangTiket:"{tiket} tickets · {tara} awaiting tare",
+    timbangBelumAda:"No tickets yet",
     clsRipe:"Ripe", clsUnripe:"Unripe", clsJk:"JK", clsTp:"TP",
     labelLayout:"Layout", kolomAuto:"Auto", statusOnline:"Online", statusOffline:"Offline",
     kolom1:"1 per row", kolom2:"2 per row", kolom3:"3 per row",
@@ -2810,6 +2832,19 @@ function isiTally(lines) {
   $("bar-acc").style.width = rasio + "%";
 }
 
+// Kotak timbangan di strip "Hari ini". Tanpa tiket: tanda kosong, bukan
+// "0 kg" — nol kilo terbaca seperti truk yang ditimbang kosong.
+function isiTallyTimbangan(tb) {
+  if (!tb || !tb.tiket) {
+    $("tot-neto").textContent = KOSONG;
+    $("tot-tiket").textContent = t("timbangBelumAda");
+    return;
+  }
+  $("tot-neto").textContent = `${kg(tb.neto_kg)} kg`;
+  $("tot-tiket").textContent = t("timbangTiket")
+    .replace("{tiket}", tb.tiket).replace("{tara}", tb.menunggu_tara || 0);
+}
+
 // ── actions ────────────────────────────────────────────────────────────
 
 // Delegation: one listener for every card, surviving re-renders. No global
@@ -3486,6 +3521,7 @@ async function refresh() {
     umumkanPelepasanOtomatis(s.auto_releases);
     selarasUrutan(s.lines);
     isiTally(s.lines);
+    isiTallyTimbangan(s.timbangan);
     gambarPitaAlarm(s.lines);
     if (!dipasang) {
       $("lines").innerHTML = s.lines.map(kartuLine).join("");
