@@ -48,9 +48,10 @@ ditanya.
   terekam frame **clean tanpa bbox** — disadap di `FrameCaptureWorker`, sebelum
   inference. Berkasnya di `videos/` (jalurnya tertulis di kaki layar), **tidak pernah
   dihapus otomatis** dan berhenti sendiri di bawah `UPLOAD_DISK_MIN_FREE_GB`.
-  ⚠️ **Laju video mengikuti SUMBERNYA, bukan angka FPS di layar**: berkas video
-  memakai laju aslinya, kamera yang tidak bisa melapor memakai `CAMERA_FPS`. Angka
-  di layar cuma berlaku kalau tidak ada keduanya. Kalau durasi berkas tidak sama
+  ⚠️ **Laju video mengikuti SUMBERNYA**: berkas video memakai laju aslinya, kamera
+  yang tidak bisa melapor memakai `CAMERA_FPS`. Kolom FPS dan Bitrate di layar
+  dicabut 2026-09-25 — keduanya tidak pernah sampai ke berkas; yang bisa disetel
+  tinggal lebar × tinggi. Kalau durasi berkas tidak sama
   dengan lama menekan Record, baca `Rekam video MULAI` di log line — ia menyebut laju
   yang benar-benar dipakai encoder.
   ⚠️ **~2 GB/jam per line** pada 20 fps; disk pabrik 232 GB ≈ 4 hari rekam terus.

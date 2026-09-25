@@ -64,3 +64,11 @@ jobs:
       # step exists to prevent.
       - name: Pytest (e2e)
         run: pytest tests/e2e/ -rs
+
+      # Integrasi: beberapa komponen SUNGGUHAN dirangkai tanpa Docker/hardware —
+      # konsol ↔ line lewat transport ASGI in-process, berkas di folder sementara,
+      # dan render layar lewat node. Paket yang dibutuhkan sama dengan unit/e2e.
+      # `-rs` untuk alasan yang sama dengan e2e: suite yang diam-diam berhenti
+      # menjalankan apa pun tetap terbaca hijau tanpanya.
+      - name: Pytest (integration)
+        run: pytest tests/integration/ -rs

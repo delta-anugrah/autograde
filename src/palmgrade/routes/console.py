@@ -572,7 +572,7 @@ async def dev_rekam_status(service: Service, operator: Support) -> dict:
 async def dev_rekam_setelan(
     service: Service, operator: Support, payload: Annotated[dict, Body()]
 ) -> dict:
-    """Ubah resolusi/fps/bitrate rekaman. Berlaku untuk rekaman BERIKUTNYA.
+    """Ubah resolusi rekaman. Berlaku untuk rekaman BERIKUTNYA.
 
     Sengaja tidak menyentuh rekaman yang sedang jalan: mengubah resolusi di
     tengah berkas MP4 menghasilkan berkas rusak.

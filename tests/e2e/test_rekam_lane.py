@@ -32,7 +32,7 @@ from palmgrade.workers.runtime_state import RuntimeState  # noqa: E402
 
 SECRET = "e2e-internal-secret"
 HEADER = {"x-internal-secret": SECRET}
-SETELAN = {"width": 320, "height": 240, "fps": 5, "bitrate_kbps": 500}
+SETELAN = {"width": 320, "height": 240, "fps": 5}
 
 
 @pytest.fixture()
@@ -81,12 +81,10 @@ def test_setelan_konsol_benar_benar_dipakai(line):
     c, _state, _dir = line
     res = c.post(
         "/internal/rekam/mulai",
-        json={"width": 640, "height": 480, "fps": 10, "bitrate_kbps": 1000},
+        json={"width": 640, "height": 480, "fps": 10},
         headers=HEADER,
     )
-    assert res.json()["setelan"] == {
-        "width": 640, "height": 480, "fps": 10, "bitrate_kbps": 1000
-    }
+    assert res.json()["setelan"] == {"width": 640, "height": 480, "fps": 10}
     c.post("/internal/rekam/stop", headers=HEADER)
 
 

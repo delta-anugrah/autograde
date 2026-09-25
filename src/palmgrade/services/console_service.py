@@ -626,8 +626,11 @@ class ConsoleService:
         tersimpan = self.store.get_state(KUNCI_SETELAN_REKAM)
         if tersimpan:
             # Digabung dengan BAWAAN supaya baris yang disimpan sebelum sebuah
-            # field ada tidak mengembalikan payload cacat ke layar.
-            return {**REKAM_BAWAAN, **json.loads(tersimpan)}
+            # field ada tidak mengembalikan payload cacat ke layar — dan disaring
+            # ke kunci BAWAAN supaya field yang sudah dicabut (`bitrate_kbps`,
+            # 2026-09-25) tidak terus ikut dari baris lama.
+            lama = json.loads(tersimpan)
+            return {**REKAM_BAWAAN, **{k: v for k, v in lama.items() if k in REKAM_BAWAAN}}
         return dict(REKAM_BAWAAN)
 
     async def simpan_setelan_rekam(
@@ -642,9 +645,8 @@ class ConsoleService:
         bersih = bersihkan_setelan_rekam(payload)
         self.store.set_state(KUNCI_SETELAN_REKAM, json.dumps(bersih))
         logger.warning(
-            "Setelan rekam diubah oleh %s: %dx%d @ %d fps, %d kbps",
+            "Setelan rekam diubah oleh %s: %dx%d",
             diubah_oleh, bersih["width"], bersih["height"],
-            bersih["fps"], bersih["bitrate_kbps"],
         )
         return bersih
 
@@ -652,9 +654,12 @@ class ConsoleService:
         """Suruh satu line mulai merekam dengan setelan yang tersimpan."""
         line = self._require_line(line_code)
         setelan = self.setelan_rekam()
+        # Tanpa fps: yang dipakai laju kamera, dan line sendiri yang mencatatnya
+        # ("Rekam video MULAI ... @ N fps"). Angka tersimpan di sini cuma cadangan
+        # dan akan terbaca seperti laju berkasnya.
         logger.warning(
-            "Rekam video %s dimulai oleh %s (%dx%d @ %d fps)",
-            line_code, diubah_oleh, setelan["width"], setelan["height"], setelan["fps"],
+            "Rekam video %s dimulai oleh %s (%dx%d)",
+            line_code, diubah_oleh, setelan["width"], setelan["height"],
         )
         return await self.line_client.rekam_mulai(line, setelan)
 
