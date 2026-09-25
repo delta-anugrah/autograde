@@ -205,6 +205,37 @@ Muncul hanya untuk akun berperan `support`. Tujuannya: memeriksa PC pabrik dari 
 pasang `scripts/palmgrade-console.desktop`. Skrip itu menunggu konsol menjawab dulu, karena
 setelah listrik padam desktop sering login sebelum Docker siap.
 
+
+### 3.7 Danger Zone (tab Setelan, support)
+
+Kotak merah di paling bawah tab **Setelan**, tertutup saat tab dibuka. Isinya lima aksi, dari
+yang paling ringan:
+
+| Aksi | Yang terjadi | Konfirmasi |
+|---|---|---|
+| **Restart semua line** | tiga line mati ±10 detik lalu hidup lagi | Batal / Jalankan |
+| **Logout paksa semua akun** | semua sesi dihapus, termasuk layar operator di PC pabrik dan akunmu | Batal / Jalankan |
+| **Hapus rekaman video** | semua MP4 di `videos/` hilang; line yang sedang merekam dilewati | ketik `HAPUS` |
+| **Hapus data transaksi** | grading, foto, timbangan, antrean, log hilang; truk, akun, setelan **tetap** | ketik `HAPUS` |
+| **Hapus semua data** | yang di atas + akun buatan sendiri + truk & supplier; setelan **tetap**, dua akun bawaan dibuat ulang, akun AutoERP turun lagi | ketik `HAPUS` |
+
+Tiap tombol membuka panel di bawah barisnya: apa yang akan hilang (dengan angka), **hambatan**
+merah (kalau ada, tombol eksekusinya tidak muncul), dan **peringatan** kuning. `HAPUS` harus
+huruf besar.
+
+**Kapan ditolak:** ada line yang tidak menjawab, ada line yang sedang dipasangi truk, masih ada
+janjang yang belum sampai ke konsol, atau masih ada kiriman yang belum sampai ke AutoERP (tunggu
+tab Antrean ERP kosong). "Hapus semua data" juga ditolak kalau `.env` tidak punya hash akun
+bawaan dan AutoERP tidak disetel — sesudahnya tidak ada yang bisa masuk.
+
+**Yang tidak pernah tersentuh:** data yang sudah masuk AutoERP, foto yang sudah di R2, setelan
+grading, `.env`, `media.env`, dan `license.db`. Foto yang **belum** naik ke R2 ikut hilang.
+
+Cara kerjanya: tiap line menulis penanda lalu restart, dan menghapus datanya sendiri saat
+menyala lagi — itu sebabnya line hilang ±10 detik sesudah menekan. Siapa menekan apa tercatat
+di tab **Log** (`[Danger Zone] … oleh <email>`). Di terminal, padanannya
+`autograde reset-data-fresh` — yang itu menghapus **semuanya**, termasuk setelan dan lisensi.
+
 ## 4. Setup dari Nol: Laptop Developer
 
 Untuk mengembangkan atau mencoba konsol **tanpa kamera dan tanpa GPU**. Jalan di Mac atau Linux.

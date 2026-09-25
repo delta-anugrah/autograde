@@ -78,6 +78,11 @@ ditanya.
   Administrator, lalu dipasang `autograde licence <token>` di PC pabrik — token baru
   cuma berlaku setelah container dibuat ulang, **reboot saja tidak cukup**. Data grading
   dan antrean ERP **tidak hilang** selama lisensi mati.
+- **Hapus data / restart / logout massal tanpa terminal:** tab **Setelan → Danger Zone**
+  (support). Hapus wajib ketik `HAPUS` dan ditolak kalau ada line mati, truk terpasang,
+  atau antrean belum terkirim. Line menghapus datanya sendiri saat boot
+  (`state/.hapus-data`); setelan grading dan `license.db` selamat — beda dengan
+  `autograde reset-data-fresh` yang menghapus semuanya. Aturan 25 di `CLAUDE.md`.
 - **fps:** untuk Hikrobot diatur `config/camera/hikrobot.mfs`, `CAMERA_FPS` diabaikan.
 - **Berat:** neto dihitung konsol, bruto/tara < 1.000 kg ditolak, `14.820` terbaca 14,82.
 

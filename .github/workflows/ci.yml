@@ -44,7 +44,7 @@ jobs:
 
       # Lint covers only modules already cleaned up; widen it one module at a time.
       - name: Ruff (lint)
-        run: ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/erp/ src/palmgrade/integrations/outbox/ src/palmgrade/integrations/upload/ src/palmgrade/license/ src/palmgrade/plc/ src/palmgrade/workers/batch_upload_worker.py src/palmgrade/workers/master_data_worker.py src/palmgrade/workers/erp_outbox_worker.py src/palmgrade/workers/erp_link.py src/palmgrade/workers/visit_resend_worker.py src/palmgrade/services/erp_queue.py src/palmgrade/services/auth_service.py src/palmgrade/services/operator_admin.py src/palmgrade/integrations/notifications/line_client.py src/palmgrade/repositories/console_repository.py src/palmgrade/services/capture_writer.py src/palmgrade/services/console_service.py src/palmgrade/routes/console.py src/palmgrade/console_main.py
+        run: ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/erp/ src/palmgrade/integrations/outbox/ src/palmgrade/integrations/upload/ src/palmgrade/license/ src/palmgrade/plc/ src/palmgrade/workers/batch_upload_worker.py src/palmgrade/workers/master_data_worker.py src/palmgrade/workers/erp_outbox_worker.py src/palmgrade/workers/erp_link.py src/palmgrade/workers/visit_resend_worker.py src/palmgrade/services/erp_queue.py src/palmgrade/services/auth_service.py src/palmgrade/services/operator_admin.py src/palmgrade/integrations/notifications/line_client.py src/palmgrade/repositories/console_repository.py src/palmgrade/services/capture_writer.py src/palmgrade/services/console_service.py src/palmgrade/routes/console.py src/palmgrade/console_main.py src/palmgrade/services/bahaya_service.py src/palmgrade/services/hapus_data_line.py src/palmgrade/routes/internal_bahaya.py
 
       - name: Pytest (unit)
         run: pytest tests/unit/
@@ -64,3 +64,11 @@ jobs:
       # step exists to prevent.
       - name: Pytest (e2e)
         run: pytest tests/e2e/ -rs
+
+      # Integrasi: beberapa komponen SUNGGUHAN dirangkai tanpa Docker/hardware —
+      # konsol ↔ line lewat transport ASGI in-process, berkas di folder sementara,
+      # dan render layar lewat node. Paket yang dibutuhkan sama dengan unit/e2e.
+      # `-rs` untuk alasan yang sama dengan e2e: suite yang diam-diam berhenti
+      # menjalankan apa pun tetap terbaca hijau tanpanya.
+      - name: Pytest (integration)
+        run: pytest tests/integration/ -rs
