@@ -17,6 +17,7 @@ import time
 from typing import Any
 
 from ..core.config import LineEndpoint, Settings
+from ..domain.daftar_akun import ringkas_akun
 from ..domain.operator_error import (
     COIL_TIDAK_DIKENAL,
     LINE_TIDAK_DIKENAL,
@@ -29,6 +30,7 @@ from ..integrations.notifications.line_client import LineClient, LinePlcTolak, L
 from ..license.manager import LicenseManager
 from ..license.summary import license_summary
 from ..license.types import EffectiveLicense
+from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
 
 logger = logging.getLogger(__name__)
@@ -63,6 +65,7 @@ class DevService:
         manifest_outbox: ErpOutboxStore | None = None,
         settings: Settings | None = None,
         license_manager: LicenseManager | None = None,
+        console_store: ConsoleStore | None = None,
     ) -> None:
         self._log = log_store
         self._last_purge = 0.0
@@ -78,6 +81,27 @@ class DevService:
         # the three camera lines, so it verifies the same `LICENSE_TOKEN` itself
         # rather than asking a line that may be down for an unrelated reason.
         self._license_manager = license_manager
+        # The console's own `console.db`, shared with the console service (one
+        # file, one lock). Only the Accounts screen reads it here.
+        self._console_store = console_store
+
+    def akun(self, *, now: float | None = None) -> dict[str, Any]:
+        """Accounts that can sign in to this console, for the support screen.
+
+        Read-only, and never a hash (`domain/daftar_akun.ringkas_akun` names every
+        column it sends). Local accounts are made on the PC with
+        `scripts/console-operator.py`, AutoERP accounts in AutoERP — there is no web
+        lane for changing an account (CLAUDE.md rule 19).
+        """
+        if self._console_store is None:
+            return {"akun": []}
+        saat = time.time() if now is None else now
+        return {
+            "akun": [
+                ringkas_akun(baris, now=saat)
+                for baris in self._console_store.akun_untuk_support(now=saat)
+            ]
+        }
 
     def log(
         self, *, level: str | None, search: str | None, limit: int, offset: int
