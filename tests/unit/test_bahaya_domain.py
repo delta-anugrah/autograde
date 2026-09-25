@@ -12,6 +12,8 @@ import pytest
 
 from palmgrade.domain.bahaya import (
     GOLONGAN_TABEL_KONSOL,
+    KODE_HAMBATAN,
+    KODE_PERINGATAN,
     KONFIRMASI_HAPUS,
     MODE_SEMUA,
     MODE_TRANSAKSI,
@@ -259,3 +261,44 @@ def test_mode_semua_dengan_akun_bawaan_boleh():
 def test_mode_semua_dengan_erp_boleh():
     """Akun AutoERP turun lagi lewat tarikan master data."""
     assert hambatan_mode_semua(KeadaanKonsol(erp_aktif=True, akun_bawaan=False)) == []
+
+
+# ── daftar kode: jembatan ke terjemahan di layar ────────────────────────────
+
+
+def _semua_keluaran() -> tuple[set[str], set[str]]:
+    """Setiap kode yang bisa dikeluarkan fungsi-fungsi di atas, dari keadaan
+    yang menyalakan semuanya sekaligus."""
+    lines = [
+        KeadaanLine("line-1", terjangkau=False),
+        _sehat("line-2", truk_terpasang=True, merekam=True),
+        _sehat("line-3", outbox_pending=None),
+        _sehat("line-4", merekam=True),
+    ]
+    aktif = KeadaanKonsol(erp_aktif=True, erp_pending=2, erp_gagal=1, akun_bawaan=False)
+    mati = KeadaanKonsol(erp_aktif=False, erp_pending=2, erp_gagal=1, akun_bawaan=False)
+    hambatan = {
+        *_kode(hambatan_hapus_data(lines, aktif)),
+        *_kode(hambatan_hapus_data([], aktif)),
+        *_kode(hambatan_mode_semua(mati)),
+    }
+    peringatan = {
+        *_kode(peringatan_hapus_data(lines, aktif, MODE_SEMUA)),
+        *_kode(peringatan_hapus_data(lines, mati, MODE_SEMUA)),
+        *_kode(peringatan_restart(lines)),
+        *_kode(peringatan_hapus_rekaman(lines)),
+    }
+    return hambatan, peringatan
+
+
+def test_daftar_kode_hambatan_lengkap_dan_tidak_berlebih():
+    """Layar menerjemahkan tiap kode (`hambatan_<kode>` di KAMUS). Kode yang
+    lolos dari daftar ini tampil mentah ke support; `test_console_html_bahaya`
+    memeriksa daftar ini lawan kamus kedua bahasa."""
+    hambatan, _ = _semua_keluaran()
+    assert hambatan == set(KODE_HAMBATAN)
+
+
+def test_daftar_kode_peringatan_lengkap_dan_tidak_berlebih():
+    _, peringatan = _semua_keluaran()
+    assert peringatan == set(KODE_PERINGATAN)

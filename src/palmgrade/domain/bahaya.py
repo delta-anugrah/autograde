@@ -20,6 +20,19 @@ MODE_TRANSAKSI = "transaksi"
 MODE_SEMUA = "semua"
 MODE_HAPUS = (MODE_TRANSAKSI, MODE_SEMUA)
 
+#: Semua kode yang bisa dikeluarkan fungsi di modul ini. Layar menerjemahkan
+#: tiap kode lewat `hambatan_<kode>` / `peringatan_<kode>` di KAMUS kedua bahasa,
+#: dan `test_console_html_bahaya` memeriksanya — kode baru tanpa terjemahan
+#: akan tampil mentah ke support.
+KODE_HAMBATAN = (
+    "tanpa_line", "line_mati", "truk_terpasang", "antrean_line", "antrean_erp",
+    "tanpa_sumber_akun",
+)
+KODE_PERINGATAN = (
+    "foto_belum_r2", "kiriman_gagal", "erp_mati", "semua_keluar",
+    "line_mati", "truk_terpasang", "line_merekam",
+)
+
 # Golongan tabel console.db.
 _TRANSAKSI = "transaksi"  # dihapus di kedua mode
 _SEMUA = "semua"  # dihapus di mode semua saja
