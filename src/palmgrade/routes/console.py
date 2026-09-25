@@ -17,6 +17,7 @@ from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Que
 from fastapi.responses import FileResponse
 
 from ..core.config import Settings
+from ..domain.bahaya import HapusBerjalan
 from ..domain.operator_auth import SESSION_TTL_S
 from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
 from ..domain.pilihan_model import ModelTidakSah
@@ -25,6 +26,7 @@ from ..domain.setelan_grading import SetelanTidakSah
 from ..domain.setelan_rekam import SetelanRekamTidakSah
 from ..domain.sumber_kamera import SumberTidakSah
 from ..domain.visit_manifest import detail_url_for
+from ..integrations.erp.client import ErpClient
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LinePlcTolak, LineUnavailable
 from ..integrations.upload.r2_uploader import R2Uploader
@@ -32,11 +34,18 @@ from ..license.manager import LicenseManager
 from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
 from ..services.auth_service import AuthService
+from ..services.bahaya_service import (
+    BahayaDitolak,
+    BahayaSemuaMenolak,
+    BahayaService,
+    BahayaTidakSah,
+)
 from ..services.console_service import ConsoleService
 from ..services.dev_service import CoilTidakDikenal, DevService, PlcSibuk
 from ..services.erp_queue import ErpQueue
 from ..services.qr_cetak import png_qr
 from ..services.scan_service import ScanService
+from ..workers.master_data_worker import MasterDataWorker
 from ..workers.visit_manifest_worker import VisitManifestWorker
 
 logger = logging.getLogger(__name__)
@@ -151,10 +160,45 @@ def _build_license_manager(settings) -> LicenseManager | None:
         return None
 
 
+@lru_cache
+def get_bahaya_service() -> BahayaService:
+    """Danger Zone (tab Setelan, support). Store, klien line, dan antrean milik
+    konsol — satu koneksi masing-masing, bukan dua. Log store berkasnya sama
+    dengan tab Log.
+
+    Tarikan master data dirakit di sini, bukan meminjam worker yang sedang
+    jalan: `build_erp_workers()` tidak menyimpan rujukan ke worker-nya. Dua
+    tarikan bersamaan aman — upsert idempotent lewat lock store yang sama.
+    """
+    service = get_console_service()
+    settings = service.settings
+    tarik = None
+    if settings.erp_url:
+        klien = ErpClient(settings.erp_url, settings.erp_api_key, settings.erp_api_secret)
+        tarik = MasterDataWorker(
+            service.store, klien, interval_s=settings.console_sync_interval_s
+        ).pull_once
+    return BahayaService(
+        service.store,
+        LogStore(settings.log_db_path, retention_days=settings.log_retention_days),
+        service.line_client,
+        service.lines,
+        service.erp_queue.outbox,
+        service.manifest_queue.outbox if service.manifest_queue is not None else None,
+        erp_aktif=bool(settings.erp_url),
+        hash_bawaan=settings.console_default_hash,
+        hash_support=settings.console_support_hash,
+        # Hari kerja yang sama dengan strip "Hari ini" dan tab Timbangan.
+        hari_kerja=service.today,
+        tarik_master=tarik,
+    )
+
+
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
 Scan = Annotated[ScanService, Depends(get_scan_service)]
 Dev = Annotated[DevService, Depends(get_dev_service)]
+Bahaya = Annotated[BahayaService, Depends(get_bahaya_service)]
 
 
 def require_operator(
@@ -424,6 +468,8 @@ async def assign_truck(
 ) -> dict:
     try:
         return await service.assign_truck(line_code, truck_id)
+    except HapusBerjalan as exc:
+        raise _operator_error(409, exc) from exc
     except ValueError as exc:
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
@@ -658,6 +704,64 @@ async def dev_model_deteksi_simpan(
         return await service.simpan_model_deteksi(payload, diubah_oleh=operator["email"])
     except ModelTidakSah as exc:
         raise _operator_error(400, exc) from exc
+
+
+# ── Danger Zone (tab Setelan, support) ─────────────────────────────────
+# Lima aksi berbahaya. Semua lewat `require_support`, dan yang menghapus
+# memeriksa ulang keadaan pabrik di server — layar cuma menjelaskan.
+# Rancangan: docs/superpowers/specs/2026-09-25-danger-zone-design.md.
+
+
+@router.get("/api/console/dev/bahaya")
+async def dev_bahaya(bahaya: Bahaya, operator: Support) -> dict:
+    """Angka, hambatan, dan peringatan untuk kelima panel Danger Zone."""
+    return await bahaya.ringkasan()
+
+
+@router.post("/api/console/dev/bahaya/restart-line")
+async def dev_bahaya_restart(bahaya: Bahaya, operator: Support) -> dict:
+    return await bahaya.restart_semua(oleh=operator["email"])
+
+
+@router.post("/api/console/dev/bahaya/logout-semua")
+async def dev_bahaya_logout(bahaya: Bahaya, operator: Support) -> dict:
+    """Semua sesi, termasuk milik yang menekan — jawaban ini yang terakhir
+    diterimanya sebelum layar kembali ke gerbang login."""
+    return bahaya.logout_semua(oleh=operator["email"])
+
+
+@router.post("/api/console/dev/bahaya/hapus-rekaman")
+async def dev_bahaya_hapus_rekaman(
+    bahaya: Bahaya,
+    operator: Support,
+    konfirmasi: Annotated[str, Body(embed=True)] = "",
+) -> dict:
+    try:
+        return await bahaya.hapus_rekaman(konfirmasi=konfirmasi, oleh=operator["email"])
+    except BahayaTidakSah as exc:
+        raise _operator_error(400, exc) from exc
+
+
+@router.post("/api/console/dev/bahaya/hapus-data")
+async def dev_bahaya_hapus_data(
+    bahaya: Bahaya,
+    operator: Support,
+    mode: Annotated[str, Body()] = "",
+    konfirmasi: Annotated[str, Body()] = "",
+) -> dict:
+    """Hapus data transaksi (`mode=transaksi`) atau semua data (`mode=semua`).
+
+    400 = konfirmasi salah / mode asing; 409 `bahaya_ditolak` = keadaan pabrik
+    belum aman (`params.hambatan` berisi kodenya); 409 `semua_line_menolak` =
+    tidak satu line pun menerima perintahnya (`params.lines`). Ketiganya tidak
+    mengubah apa pun.
+    """
+    try:
+        return await bahaya.hapus_data(mode=mode, konfirmasi=konfirmasi, oleh=operator["email"])
+    except BahayaTidakSah as exc:
+        raise _operator_error(400, exc) from exc
+    except (BahayaDitolak, BahayaSemuaMenolak) as exc:
+        raise _operator_error(409, exc) from exc
 
 
 @router.get("/api/console/dev/plc/{line_code}")

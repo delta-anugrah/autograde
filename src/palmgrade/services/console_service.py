@@ -25,6 +25,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint, Settings
+from ..domain.bahaya import HapusBerjalan
 from ..domain.ffb_source import ffb_source_label
 from ..domain.grade_class import grade_class_or_none
 from ..domain.operator_error import (
@@ -481,6 +482,10 @@ class ConsoleService:
 
     async def assign_truck(self, line_code: str, truck_id: str) -> dict[str, Any]:
         line = self._require_line(line_code)
+        if self.store.hapus_berjalan:
+            # Danger Zone sedang mengosongkan data: penugasan yang dicatat sekarang
+            # ikut terhapus, dan janjangnya tidak pernah tertaut ke tiket.
+            raise HapusBerjalan()
         assignment_id = str(uuid.uuid4())
         # Line first, then store. If the line does not answer, DO NOT record:
         # a screen showing a truck assigned while the line knows nothing makes

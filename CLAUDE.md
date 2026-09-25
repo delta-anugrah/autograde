@@ -126,7 +126,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | `make build-engine` | build TensorRT FP16 engine **once per GPU** (one-shot, auto-skip kalau sudah ada) |
 | `make logs` / `make logs-1` | tail logs (combined / per line) |
 | `make reset-data` | **lihat dulu**: berapa foto dan basis data yang akan hilang. Tidak menghapus apa pun |
-| `make reset-data-fresh` | **HAPUS SEMUA DATA** di PC ini: isi `artifacts/` (foto + sidecar) dan `state/` (semua SQLite). Minta **konfirmasi ketik `HAPUS`**. ⚠️ Menghapus lewat **container**, karena berkasnya **milik root** di Linux (`Dockerfile` tanpa `USER`) — `rm -rf` dari user biasa dijawab "Permission denied" ribuan kali. Di macOS ini tidak terlihat: Docker Desktop memetakan pemilik, jadi gagalnya cuma muncul di PC pabrik. Sisa yang tidak terhapus dilaporkan, bukan didiamkan. **Tanpa backup, tidak bisa dikembalikan.** ⚠️ Akun buatan `make operator`, antrean yang belum terkirim, dan foto yang belum naik R2 ikut hilang; **dua akun bawaan image dibuat ulang sendiri** saat konsol start, jadi cukup `make start` sesudahnya. ⚠️ Jangan di PC pabrik yang sedang produksi |
+| `make reset-data-fresh` | Dari layar tanpa terminal: **Setelan → Danger Zone** (support; aturan 25) — menyisakan setelan grading dan `license.db`, dan menolak saat ada line mati / truk terpasang / truk belum timbang keluar / antrean belum terkirim. Target ini sendiri: **HAPUS SEMUA DATA** di PC ini: isi `artifacts/` (foto + sidecar) dan `state/` (semua SQLite). Minta **konfirmasi ketik `HAPUS`**. ⚠️ Menghapus lewat **container**, karena berkasnya **milik root** di Linux (`Dockerfile` tanpa `USER`) — `rm -rf` dari user biasa dijawab "Permission denied" ribuan kali. Di macOS ini tidak terlihat: Docker Desktop memetakan pemilik, jadi gagalnya cuma muncul di PC pabrik. Sisa yang tidak terhapus dilaporkan, bukan didiamkan. **Tanpa backup, tidak bisa dikembalikan.** ⚠️ Akun buatan `make operator`, antrean yang belum terkirim, dan foto yang belum naik R2 ikut hilang; **dua akun bawaan image dibuat ulang sendiri** saat konsol start, jadi cukup `make start` sesudahnya. ⚠️ Jangan di PC pabrik yang sedang produksi |
 | `make down` / `make ps` / `make rebuild` / `make rebuild-clean` / `make clean` | stop / status / rebuild / clean rebuild (`--no-cache`) / cleanup |
 
 - **TensorRT (GPU speedup, akurasi sama)**: engine FP16 (`engines/<model>.sm<cc>.engine`) **hardware-locked** (compute capability + versi TensorRT) → tidak di-commit, tidak di-bake ke image, dibangun **sekali per GPU** on-machine via `make build-engine` (~5–15 mnt, tidak butuh kamera). Engine tidak ada / tidak cocok → runtime **fallback ke `.pt`** otomatis (`pipelines/model_registry.py`), jadi kegagalan build bukan outage. Install TensorRT-nya ikut `Dockerfile` (`pypi.nvidia.com` — **wajib**, index PyPI publik cuma punya source stub yang bikin pip hang). Detail: `docs/overview.md` § Docker/SDK/GPU.
@@ -183,6 +183,8 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/results_today` | today's results (read from disk) |
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |
 | POST | `/internal/manual-reject` | ← from api: trigger manual reject (`x-internal-secret`) |
+| POST | `/internal/hapus-data` | ← dari konsol (Danger Zone): tulis penanda `artifacts/.hapus-data` lalu keluar; data line dihapus **saat boot berikutnya**, sebelum store mana pun membuka berkasnya. **409** kalau line sedang dipasangi truk. Selama penandanya ada, `/internal/assignment` menolak truk baru (**409** `hapus_berjalan`). Router `routes/internal_bahaya.py` — **tanpa torch**, jadi teruji di CI |
+| GET / POST | `/internal/rekam/berkas`, `/internal/rekam/hapus` | ← dari konsol (Danger Zone): hitung / hapus rekaman **milik line ini** (`{line_code}_*.mp4`, folder `videos/` dipakai bersama). Hapus **409** selama merekam |
 | WS | `/ws/results` | legacy result push. ⚠️ `image_url`-nya dikirim **sebelum** berkasnya ada di disk (deteksi menyerahkan janjang ke `CaptureSaveWorker` lalu lanjut) — jendelanya ratusan milidetik. Tidak ada yang memakai lane ini hari ini (`console.html` tidak membukanya), tapi siapa pun yang menghidupkannya harus menahan gambar sampai 404 pertama lewat. Jalur yang dipakai konsol aman: barisnya ditulis penulis **sesudah** gambarnya jadi |
 | GET | `/captures/...` | static images (mount → `artifacts/`) |
 
@@ -207,7 +209,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto) |
 | POST | `/api/console/weighings` | operator mengetik bruto/tara sendiri — payload identik dengan kiriman program timbangan |
 | GET | `/api/console/recap` | rekap per truk satu hari kerja (janjang, ACC/REJ, neto) — `?work_date=` opsional |
-| POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line |
+| POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line. **409** `hapus_berjalan` selama Danger Zone menghapus data (line tidak disentuh) |
 | POST | `/api/console/lines/{line}/release-truck` | truk pergi → `/internal/assignment` line dengan truk kosong |
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
 | GET | `/api/console/dev/ping` | lane developer paling ringan — dipakai layar untuk memastikan akses masih hidup. **Semua baris `/dev/*` di bawah ini butuh `role='support'`, dijawab 403 kalau bukan** |
@@ -225,6 +227,10 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/dev/rekam/{line_code}/stop` | hentikan dan tutup berkasnya. Menahan ~2 detik: line menunggu encoder menutup berkas dengan rapi |
 | GET | `/api/console/dev/model-deteksi` | pilihan model tiap line + semua `.pt` di `models/release` dengan kelas, engine per GPU, `cocok`/`alasan` |
 | POST | `/api/console/dev/model-deteksi` | ganti model per line (`LINE_N_MODEL_FILE` di `media.env`), restart line yang berubah. **400** untuk model yang tidak ada atau kelasnya asing, tanpa menulis apa pun |
+| GET | `/api/console/dev/bahaya` | Danger Zone: angka (janjang, tiket, truk, akun, sesi, rekaman) + hambatan + peringatan untuk kelima aksi, dari keadaan line saat itu |
+| POST | `/api/console/dev/bahaya/restart-line` · `/logout-semua` | restart ketiga line · hapus semua sesi (termasuk yang menekan). Tidak diblokir; hasil per line |
+| POST | `/api/console/dev/bahaya/hapus-rekaman` | `{konfirmasi:"HAPUS"}` — tiap line menghapus rekamannya; yang merekam/mati dilewati dan disebut |
+| POST | `/api/console/dev/bahaya/hapus-data` | `{mode:"transaksi"\|"semua", konfirmasi:"HAPUS"}`. **400** konfirmasi/mode salah, **409** `bahaya_ditolak` (+`params.hambatan`), **409** `semua_line_menolak` (+`params.lines`, mis. `line-1:lisensi`) — ketiganya tidak mengubah apa pun. **200** membawa hasil per line; `ok:true` + `kode:"belum_mati"` = diterima tapi line belum restart. Lihat aturan 25 |
 | POST | `{BACKEND_API_VER}/internal/vision/events` | ← dari tiga line (`x-webhook-secret`), kontrak §5 |
 | POST | `{BACKEND_API_VER}/internal/scale/weighing` | ← dari program timbangan (`x-webhook-secret`), bentuk sementara kita |
 | GET | `/captures/{line_code}/...` | gambar line, mount read-only, bentuk URL = `resolveCaptureUrl` api |
@@ -775,6 +781,60 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     yang ditulis** — bukan `el.innerHTML`, karena browser menyerialkan ulang DOM sehingga
     innerHTML tak pernah sama dengan template dan tombol tetap diganti tiap detik
     (terukur 15×/5 s sebelum diperbaiki, 0× sesudahnya).
+
+25. **Danger Zone: line menghapus datanya SENDIRI, saat BOOT; setelan & lisensi selamat** (2026-09-25).
+    Kotak di bawah tab **Setelan** (support): restart semua line, logout paksa, hapus
+    rekaman, hapus data transaksi, hapus semua data. Keputusan boleh/tidak di
+    `domain/bahaya.py` (layar dan server memakai hasil yang sama), urutan kerjanya di
+    `services/bahaya_service.py`. Rancangan: `docs/superpowers/specs/2026-09-25-danger-zone-design.md`.
+    ⚠️ **Konsol tidak bisa menghapus foto line** — `artifacts/line-N` di-mount read-only ke
+    konsol. Line menulis penanda `artifacts/.hapus-data`, keluar (`os._exit`), dan **awal
+    lifespan `main.py`** menghapus isi `artifacts/` (kecuali `license.db*`) + berkas
+    **milik line** di `state/` (`MILIK_LINE_DI_STATE`, hari ini `upload_manifest.db*`)
+    SEBELUM store mana pun membuka berkasnya (SQLite yang sedang dibuka tidak boleh
+    dihapus dari bawah prosesnya). Penanda dihapus **paling akhir** dan hanya kalau
+    semuanya berhasil — boot yang terputus mengulang, bukan meninggalkan separuh data.
+    ⚠️ **Penanda di `artifacts/`, dan `state/` TIDAK dikosongkan seluruhnya**: di jalur
+    native (`make line` + `make console`) `state/` dipakai BERSAMA konsol dan ketiga line —
+    menghapus seluruhnya menghapus `console.db` yang sedang dibuka, dan penanda bersama
+    dimakan line pertama yang boot. `artifacts/` selalu milik satu line. Berkas line baru
+    di `state/` wajib masuk `MILIK_LINE_DI_STATE` (`test_semua_berkas_db_di_state_digolongkan`).
+    ⚠️ **Perintah ke tiga line dikirim BERSAMAAN, dan tidak satu pun menerima = BERHENTI**
+    (409 `semua_line_menolak`, konsol tidak disentuh): foto semua line masih utuh, jadi
+    index konsol tidak boleh hilang. Konsol cuma dikosongkan kalau **minimal satu** line
+    menerima; line yang menolak disebut per line (`versi_lama` = 404, image tanpa rute
+    ini; `lisensi` = 403, middleware lisensi line menutup semua `/internal/*`; atau kode
+    dari badan 409-nya), dan tombolnya **ditekan lagi** sesudah line itu beres.
+    ⚠️ **Konsol MENUNGGU line mati** sebelum mengosongkan datanya sendiri: diam dulu
+    selama `jeda_detik` yang dijawab line, lalu `/health` sampai **dua kali berturut-turut**
+    tidak menjawab (sekali lewat tenggat = line sibuk menulis foto, bukan mati), maks 5 dtk.
+    Line keluar 1 detik sesudah menjawab, dan janjang yang lewat di detik itu masih dikirim
+    ke konsol — tanpa menunggu, baris grading yang fotonya sudah hilang tertinggal. Line
+    yang tidak kunjung mati dilaporkan `ok:true, kode:"belum_mati"`.
+    ⚠️ **Truk tidak bisa dipasang selama penghapusan** — dua penjaga, satu per jendela:
+    line menolak `/internal/assignment` selama penandanya ada, dan konsol menolak
+    `assign-truck` selama `store.hapus_berjalan` (409 `hapus_berjalan`, dipasang SEBELUM
+    pemeriksaan ulang). Truk yang lolos digrading ke penugasan yang barisnya ikut terhapus.
+    **Yang TIDAK pernah dihapus tombol ini** (beda dengan `autograde reset-data-fresh`):
+    `license.db*` (penjaga jam lisensi — menghapusnya membuat jam bisa dimundurkan) dan
+    kunci `sync_state` berawalan `setelan_` (setelan grading yang diam-diam kembali ke
+    `.env` menggeser angka yang dibayar). Mode transaksi juga menyisakan truk, supplier,
+    akun, sesi, dan kursor tarik AutoERP. Tabel console.db digolongkan di
+    `GOLONGAN_TABEL_KONSOL`; tabel baru membuat `test_semua_tabel_konsol_digolongkan` merah.
+    **Hambatan (409)**: line mati, truk terpasang, outbox line belum kosong (tak terbaca =
+    belum kosong), antrean AutoERP `pending` kalau `ERP_URL` terisi, **tiket timbang
+    terbuka hari kerja berjalan** (bruto ada, tara belum = truk di tengah kunjungan, dan
+    bruto itu yang dibayar), dan — mode semua — tidak ada hash akun **support** yang
+    terbaca (`hash_is_usable`, aturan yang sama dengan seed akun bawaan) DAN tidak ada
+    AutoERP: tanpa akun support, Danger Zone dan seluruh lane developer terkunci. Line juga
+    memeriksa truknya sendiri (409) — truk bisa dipasang di antara keduanya.
+    **Peringatan (tidak menghambat)**: tiket terbuka dari hari lain (sisa uji coba),
+    janjang yang ditolak konsol (`outbox_failed`), kiriman AutoERP yang gagal, foto yang
+    belum naik R2.
+    Konfirmasi hapus **diketik** (`HAPUS`, huruf besar), walau Uji PLC sudah membuangnya:
+    hapus data jarang dipakai dan tidak bisa dibatalkan. Tiap aksi meninggalkan satu
+    WARNING `[Danger Zone] … oleh <email>`; untuk hapus data ditulis SESUDAH log
+    dikosongkan, jadi ia baris pertama log baru.
 
 ---
 

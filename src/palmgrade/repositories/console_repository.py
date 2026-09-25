@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ..domain.bahaya import kunci_state_dihapus, tabel_dihapus
 from ..domain.operator_auth import normalise_email, normalise_nama, operator_id_for
 from ..domain.role import ROLE_SUPPORT, filter_erp_role, sanitize_role
 
@@ -185,6 +186,10 @@ class ConsoleStore:
         self._db.row_factory = sqlite3.Row
         # ERP-pull role allow-list, read by `_upsert_operator`.
         self._erp_allowed_roles = erp_allowed_roles or frozenset()
+        #: Danger Zone sedang menghapus data (`BahayaService.hapus_data`); selama
+        #: benar, `ConsoleService.assign_truck` menolak truk baru. Di memori, bukan
+        #: di disk: konsol yang restart di tengah jalan tidak sedang menghapus apa pun.
+        self.hapus_berjalan = False
         with self._lock, self._db:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
@@ -1120,3 +1125,61 @@ class ConsoleStore:
         with self._lock, self._db:
             cursor = self._db.execute("DELETE FROM sesi WHERE expires_at <= ?", (now,))
         return cursor.rowcount
+
+    # ── Danger Zone (layar Setelan, support) ────────────────────────────────
+
+    def hapus_data(self, mode: str) -> dict[str, int]:
+        """Kosongkan data konsol menurut mode, dalam SATU transaksi.
+
+        Tabel dan kunci `sync_state` yang dihapus diputuskan `domain/bahaya.py`,
+        bukan di sini: `setelan_*` tidak pernah dihapus, kursor tarik AutoERP
+        cuma di mode semua. Mode asing ditolak SEBELUM apa pun tersentuh.
+        Kembalikan jumlah baris yang hilang per tabel.
+        """
+        tabel = tabel_dihapus(mode)
+        hasil: dict[str, int] = {}
+        with self._lock, self._db:
+            for nama in tabel:
+                # Nama tabel datang dari daftar tetap di domain/bahaya.py, tidak
+                # pernah dari luar — identifier SQL tidak bisa jadi parameter.
+                hasil[nama] = self._db.execute(f"DELETE FROM {nama}").rowcount
+            kunci = [row["key"] for row in self._db.execute("SELECT key FROM sync_state")]
+            buang = [k for k in kunci if kunci_state_dihapus(k, mode)]
+            for k in buang:
+                self._db.execute("DELETE FROM sync_state WHERE key = ?", (k,))
+            hasil["sync_state"] = len(buang)
+        return hasil
+
+    def tiket_terbuka(self, hari_kerja: str) -> dict[str, int]:
+        """Tiket yang sudah timbang masuk tapi belum keluar (bruto ada, tara belum):
+        `hari_ini` = hari kerja berjalan — truk di tengah kunjungan; `lama` = hari
+        lain, hampir pasti sisa uji coba yang taranya tidak pernah diisi."""
+        with self._lock:
+            row = self._db.execute(
+                """SELECT COALESCE(SUM(work_date = ?), 0) AS hari_ini,
+                          COALESCE(SUM(work_date <> ?), 0) AS lama
+                   FROM weighings WHERE gross_kg IS NOT NULL AND tare_kg IS NULL""",
+                (hari_kerja, hari_kerja),
+            ).fetchone()
+        return {"hari_ini": row["hari_ini"], "lama": row["lama"]}
+
+    def hapus_semua_sesi(self) -> int:
+        """Logout paksa: semua sesi, termasuk milik yang menekan tombolnya."""
+        with self._lock, self._db:
+            return self._db.execute("DELETE FROM sesi").rowcount
+
+    def ringkas_data(self, *, now: float) -> dict[str, int]:
+        """Angka untuk panel Danger Zone: apa yang akan hilang."""
+
+        def hitung(sql: str, *args: Any) -> int:
+            return self._db.execute(sql, args).fetchone()[0]
+
+        with self._lock:
+            return {
+                "janjang": hitung("SELECT COUNT(*) FROM inspections"),
+                "tiket": hitung("SELECT COUNT(*) FROM weighings"),
+                "truk": hitung("SELECT COUNT(*) FROM trucks"),
+                "akun": hitung("SELECT COUNT(*) FROM operators"),
+                "akun_lokal": hitung("SELECT COUNT(*) FROM operators WHERE origin = 'lokal'"),
+                "sesi_aktif": hitung("SELECT COUNT(*) FROM sesi WHERE expires_at > ?", now),
+            }

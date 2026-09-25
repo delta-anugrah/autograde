@@ -427,6 +427,13 @@ make reset-data-fresh # HAPUS SEMUA DATA (artifacts/ + state/) — minta ketik H
 > masih membukanya meninggalkan basis data separuh jadi, bukan basis data kosong.
 > Jangan di PC pabrik yang sedang produksi. AutoERP punya dua target nama sama
 > (`bench reinstall`, bukan `drop-site`).
+>
+> **Tanpa terminal:** konsol → login support → tab **Setelan** → **Danger Zone**. Ada dua
+> tombol hapus — **data transaksi** (grading, foto, timbangan, antrean, log; truk/akun tetap)
+> dan **semua data** — plus restart semua line, logout paksa, dan hapus rekaman video.
+> Bedanya dengan target di atas: setelan grading dan `license.db` tidak ikut terhapus, dan
+> tombolnya menolak kalau ada line mati, truk terpasang, truk yang belum timbang keluar
+> hari ini, atau antrean yang belum terkirim.
 
 > **Satu image, tiga container** — hanya line-1 yang punya `build:` di docker-compose. Line-2 dan line-3 reuse image `palmgrade-vision:latest`. Jadi `make rebuild` cukup untuk update semua line (tinggal `make start` setelahnya).
 >

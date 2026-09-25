@@ -724,6 +724,35 @@
   .setelan-grup-isi input[type="text"],
   .setelan-grup-isi select { max-width:22rem; }
 
+  /* Danger Zone: bingkai merah di bawah kartu Setelan, tertutup saat tab
+     dibuka. Token bahaya yang sama dengan tombol Uji PLC — satu bahasa warna
+     untuk "ini bisa merusak". */
+  .bahaya { margin:18px var(--pad) 0; border:1px solid var(--danger-line);
+            border-radius:var(--r); background:var(--kartu); }
+  .bahaya > summary { cursor:pointer; padding:12px 16px; font-weight:700; user-select:none;
+                      color:var(--danger-fg); letter-spacing:.04em; list-style:revert; }
+  .bahaya[open] > summary { border-bottom:1px solid var(--danger-line); }
+  .bahaya-baris { display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+                  padding:12px 16px; border-top:1px solid var(--line); }
+  .bahaya-isi > .bahaya-baris:first-child { border-top:none; }
+  .bahaya-teks { flex:1 1 20rem; display:grid; gap:3px; min-width:0; }
+  button.bahaya-buka { flex:0 0 auto; min-width:12rem; font-weight:600;
+                       border-color:var(--danger-line); background:var(--danger-bg);
+                       color:var(--danger-fg); }
+  .bahaya-panel { margin:0 16px 12px; padding:12px 14px; border-radius:var(--r-sm);
+                  border:1px solid var(--danger-line); background:var(--danger-bg); }
+  .bahaya-panel[hidden] { display:none; }
+  .bahaya-akibat { margin:0 0 6px; font-weight:600; }
+  .bahaya-panel ul { margin:6px 0; padding-left:1.2rem; }
+  .bahaya-hambatan li { color:var(--rej); font-weight:600; }
+  .bahaya-peringatan li { color:var(--warn); }
+  .bahaya-tombol { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+  /* Sengaja TANPA text-transform: "hapus" yang terlihat seperti "HAPUS" padahal
+     tombolnya tetap mati akan terbaca seperti layar yang rusak. */
+  .bahaya-tombol input { flex:0 0 11rem; font-family:var(--mono); }
+  button.bahaya-jalankan { border-color:var(--rej); background:var(--rej); color:#fff; font-weight:700; }
+  button.bahaya-jalankan:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
+
   /* Layar Rekam Video memakai ulang `.setelan-form`, tapi kolomnya empat dan
      berdampingan dengan tabel selebar layar. Kolomnya dibuat lebih sempit dari
      Setelan: yang diketik di sini angka pendek ("5", "1280"), bukan ambang
@@ -1439,6 +1468,67 @@
     <p id="set-pesan" role="alert"></p>
     <div id="set-lines" class="muted"></div>
   </div>
+
+  <!--
+    Danger Zone (2026-09-25): aksi yang berbahaya atau tidak bisa dibatalkan,
+    dikumpulkan di satu tempat supaya teknisi tidak perlu AnyDesk + terminal.
+    TERTUTUP saat tab dibuka — layar ini dipakai sehari-hari untuk angka
+    grading, dan kotak bahaya tidak boleh ikut terbuka. Urut dari yang paling
+    ringan ke paling berat.
+
+    Tombol tiap baris MEMBUKA panel di bawahnya, bukan dialog yang menutup
+    layar (kamera line dan strip tally tidak boleh hilang dari pandangan —
+    alasan yang sama dengan tara di Timbangan). Panel menyebut akibatnya dengan
+    angka, hambatan (merah: tidak ada tombol eksekusi sama sekali), dan
+    peringatan (kuning). Aksi hapus wajib mengetik HAPUS. Server memeriksa
+    ulang semuanya — layar cuma menjelaskan.
+    Rancangan: docs/superpowers/specs/2026-09-25-danger-zone-design.md
+  -->
+  <details id="bahaya" class="bahaya">
+    <summary data-t="bahayaJudul">Danger Zone</summary>
+    <div class="bahaya-isi">
+      <div class="bahaya-baris" data-bahaya="restart">
+        <div class="bahaya-teks">
+          <b data-t="bahayaRestartJudul">Restart semua line</b>
+          <small class="muted" data-t="bahayaRestartTeks">Tiga line mati ±10 detik lalu hidup lagi. Janjang yang lewat selama itu tidak dihitung.</small>
+        </div>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="restart" data-t="bahayaRestartTombol">Restart…</button>
+      </div>
+      <div class="bahaya-panel" data-bahaya-panel="restart" hidden></div>
+      <div class="bahaya-baris" data-bahaya="logout">
+        <div class="bahaya-teks">
+          <b data-t="bahayaLogoutJudul">Logout paksa semua akun</b>
+          <small class="muted" data-t="bahayaLogoutTeks">Semua sesi dihapus — termasuk layar operator di PC pabrik dan akunmu sendiri.</small>
+        </div>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="logout" data-t="bahayaLogoutTombol">Logout semua…</button>
+      </div>
+      <div class="bahaya-panel" data-bahaya-panel="logout" hidden></div>
+      <div class="bahaya-baris" data-bahaya="rekaman">
+        <div class="bahaya-teks">
+          <b data-t="bahayaRekamanJudul">Hapus rekaman video</b>
+          <small class="muted" data-t="bahayaRekamanTeks">Rekaman video ketiga line di folder videos/ hilang permanen. Line yang sedang merekam atau mati dilewati.</small>
+        </div>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="rekaman" data-t="bahayaRekamanTombol">Hapus rekaman…</button>
+      </div>
+      <div class="bahaya-panel" data-bahaya-panel="rekaman" hidden></div>
+      <div class="bahaya-baris" data-bahaya="transaksi">
+        <div class="bahaya-teks">
+          <b data-t="bahayaTransaksiJudul">Hapus data transaksi</b>
+          <small class="muted" data-t="bahayaTransaksiTeks">Grading, foto, timbangan, antrean, dan log hilang permanen. Truk, akun, dan setelan tetap.</small>
+        </div>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="transaksi" data-t="bahayaTransaksiTombol">Hapus data transaksi…</button>
+      </div>
+      <div class="bahaya-panel" data-bahaya-panel="transaksi" hidden></div>
+      <div class="bahaya-baris" data-bahaya="semua">
+        <div class="bahaya-teks">
+          <b data-t="bahayaSemuaJudul">Hapus semua data</b>
+          <small class="muted" data-t="bahayaSemuaTeks">Data transaksi + akun buatan sendiri + truk & supplier. Setelan tetap.</small>
+        </div>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="semua" data-t="bahayaSemuaTombol">Hapus semua data…</button>
+      </div>
+      <div class="bahaya-panel" data-bahaya-panel="semua" hidden></div>
+    </div>
+  </details>
 </section>
 
 <section id="sec-diagnostik" class="panel" hidden data-dev="1">
@@ -1774,6 +1864,59 @@ const KAMUS = {
     bantuGarisMendatar:"Piksel dari ATAS. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
     labelDev:"Mode dev", bantuDev:"Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.",
     btnSimpanSetelan:"Simpan", setelanTersimpan:"Tersimpan dan dikirim ke line.",
+    bahayaJudul:"Danger Zone",
+    bahayaRestartJudul:"Restart semua line",
+    bahayaRestartTeks:"Tiga line mati ±10 detik lalu hidup lagi. Janjang yang lewat selama itu tidak dihitung.",
+    bahayaRestartTombol:"Restart…",
+    bahayaLogoutJudul:"Logout paksa semua akun",
+    bahayaLogoutTeks:"Semua sesi dihapus — termasuk layar operator di PC pabrik dan akunmu sendiri.",
+    bahayaLogoutTombol:"Logout semua…",
+    bahayaRekamanJudul:"Hapus rekaman video",
+    bahayaRekamanTeks:"Rekaman video ketiga line di folder videos/ hilang permanen. Line yang sedang merekam atau mati dilewati.",
+    bahayaRekamanTombol:"Hapus rekaman…",
+    bahayaTransaksiJudul:"Hapus data transaksi",
+    bahayaTransaksiTeks:"Grading, foto, timbangan, antrean, dan log hilang permanen. Truk, akun, dan setelan tetap.",
+    bahayaTransaksiTombol:"Hapus data transaksi…",
+    bahayaSemuaJudul:"Hapus semua data",
+    bahayaSemuaTeks:"Data transaksi + akun buatan sendiri + truk & supplier. Setelan tetap.",
+    bahayaSemuaTombol:"Hapus semua data…",
+    bahayaMemeriksa:"Memeriksa keadaan line…", bahayaKetikHapus:"Ketik HAPUS",
+    bahayaMenunggu:"Menunggu…",
+    bahayaJalankan_restart:"Restart sekarang", bahayaJalankan_logout:"Logout semua",
+    bahayaJalankan_rekaman:"Hapus rekaman", bahayaJalankan_transaksi:"Hapus permanen",
+    bahayaJalankan_semua:"Hapus semua permanen",
+    bahayaAkibatRestart:"Ketiga line restart ±10 detik. Janjang yang lewat selama itu tidak dihitung.",
+    bahayaAkibatLogout:"{n} sesi aktif dihapus. Semua orang harus masuk lagi, termasuk kamu.",
+    bahayaAkibatRekaman:"{n} berkas rekaman ({gb} GB) dihapus permanen.",
+    bahayaAkibatTransaksi:"Dihapus permanen: {janjang} janjang beserta fotonya, {tiket} tiket timbang, antrean, dan log. Truk, akun, dan setelan tetap.",
+    bahayaAkibatSemua:"Dihapus permanen: {janjang} janjang beserta fotonya, {tiket} tiket, {truk} truk & suppliernya, {akun} akun, antrean, dan log. Setelan tetap; dua akun bawaan dibuat ulang, akun AutoERP turun lagi.",
+    bahayaTidakTersentuh:"Data yang sudah masuk AutoERP dan foto yang sudah di R2 tidak ikut terhapus.",
+    bahayaHasilRestart:"Restart dikirim ke {ok} dari {n} line.",
+    bahayaHasilLogout:"{n} sesi dihapus.",
+    bahayaHasilRekaman:"{n} rekaman ({gb} GB) dihapus.",
+    bahayaHasilHapus:"Data konsol dihapus. Tiap line menghapus fotonya sendiri saat restart — bisa beberapa menit kalau fotonya banyak; kartunya OFFLINE selama itu.",
+    bahayaHasilGagal:"Gagal di", bahayaHasilCatatan:"Perlu dicek", gagalBahaya:"Gagal memuat Danger Zone",
+    hambatan_tanpa_line:"Konsol tidak mengenal satu line pun.",
+    hambatan_line_mati:"{line} tidak menjawab — nyalakan dulu.",
+    hambatan_truk_terpasang:"{line} sedang dipasangi truk — lepas truknya dulu.",
+    hambatan_antrean_line:"{line} masih punya {jumlah} janjang yang belum sampai ke konsol — tunggu sebentar.",
+    hambatan_antrean_erp:"{jumlah} kiriman belum sampai ke AutoERP — tunggu antreannya habis (tab Antrean ERP).",
+    hambatan_tiket_terbuka:"{jumlah} truk sudah timbang masuk hari ini tapi belum timbang keluar — tunggu tiketnya lengkap.",
+    hambatan_tanpa_sumber_akun:"Tidak ada hash akun support (CONSOLE_SUPPORT_HASH) yang terbaca di .env dan AutoERP tidak disetel — sesudah ini tidak ada yang bisa membuka menu support.",
+    peringatan_foto_belum_r2:"Foto yang belum naik ke R2 ikut hilang.",
+    peringatan_kiriman_gagal:"{jumlah} kiriman AutoERP yang gagal ikut terhapus.",
+    peringatan_antrean_line_gagal:"{line}: {jumlah} janjang ditolak konsol dan tidak akan terkirim lagi — ikut terhapus.",
+    peringatan_tiket_lama_terbuka:"{jumlah} tiket dari hari sebelumnya tidak pernah timbang keluar — ikut terhapus.",
+    peringatan_erp_mati:"AutoERP tidak disetel: {jumlah} baris antrean yang tidak pernah terkirim ikut terhapus.",
+    peringatan_semua_keluar:"Semua orang keluar, termasuk layar operator di PC pabrik dan kamu.",
+    peringatan_line_mati:"{line} tidak menjawab — dilewati.",
+    peringatan_truk_terpasang:"{line} sedang memproses truk — janjang yang lewat selama restart tidak dihitung.",
+    peringatan_line_merekam:"{line} sedang merekam — rekamannya berhenti saat restart.",
+    peringatan_rekaman_line_merekam:"{line} sedang merekam — rekamannya tidak ikut dihapus.",
+    lineHasil_truk_terpasang:"truk terpasang", lineHasil_sedang_merekam:"sedang merekam",
+    lineHasil_line_mati:"tidak menjawab", lineHasil_ditolak:"ditolak", lineHasil_gagal:"gagal",
+    lineHasil_versi_lama:"versi line lama — perbarui dulu", lineHasil_lisensi:"lisensi line habis",
+    lineHasil_belum_mati:"diterima, belum restart — datanya terhapus saat line restart",
     setelanDariEnv:"Sumber: .env (belum pernah diubah dari sini)",
     setelanDariKonsol:"Sumber: konsol",
     labelHariIni:"Hari ini", labelRasio:"Rasio Ripe",
@@ -1825,6 +1968,10 @@ const KAMUS = {
     err_sandi_salah:"Email atau sandi salah",
     err_terkunci:"Login terkunci {detik} detik lagi setelah beberapa sandi salah",
     err_belum_masuk:"Sesi habis - masuk lagi",
+    err_bahaya_ditolak:"Ditolak — keadaan line berubah. Lihat alasannya di panel.",
+    err_konfirmasi_salah:"Ketik HAPUS dengan huruf besar untuk melanjutkan.",
+    err_mode_asing:"Jenis penghapusan tidak dikenal.",
+    err_semua_line_menolak:"Tidak ada line yang menerima perintah, jadi tidak ada data yang dihapus: {lines}",
     err_bukan_support:"Menu ini untuk akun support",
     gerbangJudul:"Masuk ke konsol", gerbangPilih:"Ketik email dan sandi",
     gerbangEmail:"Email", gerbangSandi:"Sandi",
@@ -1893,6 +2040,7 @@ const KAMUS = {
     err_konfirmasi_kurang:"Ketik UJI persis untuk memicu coil",
     err_plc_sibuk:"Line sedang memproses truk - coil tidak bisa dipicu",
     err_coil_tidak_dikenal:"Coil ini tidak dikenal line",
+    err_hapus_berjalan:"Data sedang dihapus dari menu support (Danger Zone) — tunggu sebentar lalu pasang truk lagi.",
     judulSumberKamera:"Sumber Kamera",
     judulRekamVideo:"Rekam Video", kosongLine:"Belum ada line", thMajuRekam:"Terekam",
     rekamMenunggu:"Menunggu…",
@@ -1963,6 +2111,59 @@ const KAMUS = {
     bantuGarisMendatar:"Pixels from the TOP. A bunch is photographed when it touches the blue line. 0 = no line.",
     labelDev:"Dev mode", bantuDev:"Show the confidence number on bunch boxes. For tuning the threshold, not for operators.",
     btnSimpanSetelan:"Save", setelanTersimpan:"Saved and sent to the lines.",
+    bahayaJudul:"Danger Zone",
+    bahayaRestartJudul:"Restart all lines",
+    bahayaRestartTeks:"All three lines stop for about 10 seconds and come back. Bunches passing meanwhile are not counted.",
+    bahayaRestartTombol:"Restart…",
+    bahayaLogoutJudul:"Sign everyone out",
+    bahayaLogoutTeks:"Every session is deleted — including the operator screen on the factory PC and your own.",
+    bahayaLogoutTombol:"Sign everyone out…",
+    bahayaRekamanJudul:"Delete video recordings",
+    bahayaRekamanTeks:"The three lines' video recordings in the videos/ folder are gone for good. A line that is recording or down is skipped.",
+    bahayaRekamanTombol:"Delete recordings…",
+    bahayaTransaksiJudul:"Delete transaction data",
+    bahayaTransaksiTeks:"Grading, photos, weighings, queues and the log are gone for good. Trucks, accounts and settings stay.",
+    bahayaTransaksiTombol:"Delete transaction data…",
+    bahayaSemuaJudul:"Delete all data",
+    bahayaSemuaTeks:"Transaction data + hand-made accounts + trucks & suppliers. Settings stay.",
+    bahayaSemuaTombol:"Delete all data…",
+    bahayaMemeriksa:"Checking the lines…", bahayaKetikHapus:"Type HAPUS",
+    bahayaMenunggu:"Working…",
+    bahayaJalankan_restart:"Restart now", bahayaJalankan_logout:"Sign everyone out",
+    bahayaJalankan_rekaman:"Delete recordings", bahayaJalankan_transaksi:"Delete for good",
+    bahayaJalankan_semua:"Delete everything for good",
+    bahayaAkibatRestart:"All three lines restart for about 10 seconds. Bunches passing meanwhile are not counted.",
+    bahayaAkibatLogout:"{n} active sessions are deleted. Everyone has to sign in again, including you.",
+    bahayaAkibatRekaman:"{n} recording files ({gb} GB) are deleted for good.",
+    bahayaAkibatTransaksi:"Deleted for good: {janjang} bunches with their photos, {tiket} weighbridge tickets, queues and the log. Trucks, accounts and settings stay.",
+    bahayaAkibatSemua:"Deleted for good: {janjang} bunches with their photos, {tiket} tickets, {truk} trucks & their suppliers, {akun} accounts, queues and the log. Settings stay; the two built-in accounts are recreated, AutoERP accounts come back.",
+    bahayaTidakTersentuh:"Data already in AutoERP and photos already in R2 are not touched.",
+    bahayaHasilRestart:"Restart sent to {ok} of {n} lines.",
+    bahayaHasilLogout:"{n} sessions deleted.",
+    bahayaHasilRekaman:"{n} recordings ({gb} GB) deleted.",
+    bahayaHasilHapus:"Console data deleted. Each line deletes its own photos as it restarts — this can take minutes with many photos; its card shows OFFLINE meanwhile.",
+    bahayaHasilGagal:"Failed on", bahayaHasilCatatan:"Check", gagalBahaya:"Could not load the Danger Zone",
+    hambatan_tanpa_line:"The console knows no line at all.",
+    hambatan_line_mati:"{line} is not answering — start it first.",
+    hambatan_truk_terpasang:"{line} has a truck assigned — release the truck first.",
+    hambatan_antrean_line:"{line} still has {jumlah} bunches not yet delivered to the console — wait a moment.",
+    hambatan_antrean_erp:"{jumlah} messages have not reached AutoERP yet — wait for the queue to empty (ERP Queue tab).",
+    hambatan_tiket_terbuka:"{jumlah} trucks weighed in today but have not weighed out — wait for their tickets to be completed.",
+    hambatan_tanpa_sumber_akun:"No readable support account hash (CONSOLE_SUPPORT_HASH) in .env and AutoERP is not configured — nobody could open the support menu afterwards.",
+    peringatan_foto_belum_r2:"Photos not yet uploaded to R2 are lost too.",
+    peringatan_kiriman_gagal:"{jumlah} failed AutoERP messages are deleted too.",
+    peringatan_antrean_line_gagal:"{line}: {jumlah} bunches were refused by the console and will never be sent — deleted too.",
+    peringatan_tiket_lama_terbuka:"{jumlah} tickets from earlier days never weighed out — deleted too.",
+    peringatan_erp_mati:"AutoERP is not configured: {jumlah} queued messages that were never sent are deleted too.",
+    peringatan_semua_keluar:"Everyone is signed out, including the operator screen on the factory PC and you.",
+    peringatan_line_mati:"{line} is not answering — skipped.",
+    peringatan_truk_terpasang:"{line} is processing a truck — bunches passing during the restart are not counted.",
+    peringatan_line_merekam:"{line} is recording — the recording stops on restart.",
+    peringatan_rekaman_line_merekam:"{line} is recording — its recordings are not deleted.",
+    lineHasil_truk_terpasang:"truck assigned", lineHasil_sedang_merekam:"recording",
+    lineHasil_line_mati:"not answering", lineHasil_ditolak:"refused", lineHasil_gagal:"failed",
+    lineHasil_versi_lama:"old line version — update it first", lineHasil_lisensi:"line licence expired",
+    lineHasil_belum_mati:"accepted, not restarted yet — its data is deleted when it restarts",
     setelanDariEnv:"Source: .env (never changed from here)",
     setelanDariKonsol:"Source: console",
     labelHariIni:"Today", labelRasio:"Ripe rate",
@@ -2012,6 +2213,10 @@ const KAMUS = {
     err_sandi_salah:"Wrong email or password",
     err_terkunci:"Sign-in locked for another {detik} s after repeated wrong passwords",
     err_belum_masuk:"Session ended - sign in again",
+    err_bahaya_ditolak:"Refused — the lines changed. See the reasons in the panel.",
+    err_konfirmasi_salah:"Type HAPUS in capital letters to continue.",
+    err_mode_asing:"Unknown kind of deletion.",
+    err_semua_line_menolak:"No line accepted the command, so nothing was deleted: {lines}",
     err_bukan_support:"This menu is for support accounts",
     gerbangJudul:"Sign in to the console", gerbangPilih:"Type your email and password",
     gerbangEmail:"Email", gerbangSandi:"Password",
@@ -2078,6 +2283,7 @@ const KAMUS = {
     err_konfirmasi_kurang:"Type UJI exactly to fire the coil",
     err_plc_sibuk:"Line is processing a truck - the coil cannot be fired",
     err_coil_tidak_dikenal:"This coil is not known to the line",
+    err_hapus_berjalan:"Data is being deleted from the support menu (Danger Zone) — wait a moment, then assign the truck again.",
     judulSumberKamera:"Camera Source",
     judulRekamVideo:"Record Video", kosongLine:"No lines yet", thMajuRekam:"Recorded",
     rekamMenunggu:"Working…",
@@ -2602,7 +2808,9 @@ const TOAST_DURASI = { sukses: 5000, peringatan: 5000, gagal: 0 };
 // even during a run of rapid manual rejects.
 const TOAST_MAKS = 4;
 
-function toast(kind, text) {
+// `durasi` 0 = tetap sampai ditutup, apa pun jenisnya (hasil Danger Zone yang
+// harus diulang di satu line tidak boleh lewat saat support melihat ke line).
+function toast(kind, text, durasi = TOAST_DURASI[kind]) {
   if (!text) return;
   const wadah = $("toasts");
   while (wadah.children.length >= TOAST_MAKS) wadah.firstElementChild.remove();
@@ -2613,7 +2821,6 @@ function toast(kind, text) {
   el.querySelector(".pesan").textContent = text;
   const hapus = () => el.remove();
   el.querySelector(".tutup").addEventListener("click", hapus);
-  const durasi = TOAST_DURASI[kind];
   if (durasi) setTimeout(hapus, durasi);
   wadah.append(el);
 }
@@ -3421,6 +3628,7 @@ async function kirimSandi() {
       method: "POST", body: JSON.stringify({ email, sandi }),
     });
     tutupGerbang(operator);
+    tampilkanHasilTertunda();
     hapusTabDeveloper(operator.role);
     dipasang = false;
     await muatTrucks();
@@ -4122,6 +4330,11 @@ function labelGaris() {
 $("set-sumbu").addEventListener("change", labelGaris);
 
 async function muatSetelan() {
+  // Kotak Danger Zone selalu tertutup saat tab dibuka (spec §2): panel yang
+  // tertinggal terbuka membawa angka lama dan mengundang tombol ditekan tanpa
+  // dibaca ulang.
+  $("bahaya").open = false;
+  tutupPanelBahaya();
   try {
     const r = await api("/api/console/dev/setelan");
     $("set-conf").value = r.conf_threshold;
@@ -4174,6 +4387,220 @@ $("set-simpan").addEventListener("click", async () => {
       if (teks.includes(field)) $(id).setAttribute("aria-invalid", "true");
     }
   }
+});
+
+// ── Danger Zone (tab Setelan, support only) ────────────────────────────
+// Lima aksi berbahaya. Panel dibuka dengan data SEGAR tiap kali (bukan dari
+// tarikan sebelumnya): keadaan line bisa berubah sejak tab dibuka. Server
+// memeriksa ulang semuanya; 409 menggambar ulang panel dengan alasan terbaru.
+const BAHAYA_HAPUS = new Set(["rekaman", "transaksi", "semua"]);
+const BAHAYA_URL = {
+  restart: "restart-line", logout: "logout-semua", rekaman: "hapus-rekaman",
+  transaksi: "hapus-data", semua: "hapus-data",
+};
+
+// Persis HAPUS, spasi di tepi dibuang, huruf besar-kecil dibedakan — aturan
+// yang sama dengan server (`domain/bahaya.konfirmasi_sah`).
+function hapusSah(teks) {
+  return String(teks ?? "").trim() === "HAPUS";
+}
+
+// Byte -> GB, dua desimal, pemisah mengikuti bahasa layar.
+function gbBahaya(bytes) {
+  return (Math.round((Number(bytes) || 0) / 1e7) / 100).toLocaleString(lokal());
+}
+
+// Kalimat untuk satu kode hambatan/peringatan dari server.
+function teksKode(awalan, item) {
+  return t(awalan + item.kode)
+    .replace("{line}", item.line ?? "")
+    .replace("{jumlah}", item.jumlah ?? "?");
+}
+
+function akibatBahaya(aksi, r) {
+  const d = r.data || {};
+  if (aksi === "restart") return t("bahayaAkibatRestart");
+  if (aksi === "logout") return t("bahayaAkibatLogout").replace("{n}", r.aksi.logout.sesi_aktif);
+  if (aksi === "rekaman") {
+    return t("bahayaAkibatRekaman")
+      .replace("{n}", r.aksi.rekaman.berkas).replace("{gb}", gbBahaya(r.aksi.rekaman.bytes));
+  }
+  return t(aksi === "semua" ? "bahayaAkibatSemua" : "bahayaAkibatTransaksi")
+    .replace("{janjang}", d.janjang ?? 0).replace("{tiket}", d.tiket ?? 0)
+    .replace("{truk}", d.truk ?? 0).replace("{akun}", d.akun ?? 0);
+}
+
+// Isi satu panel. Batal SELALU lebih dulu: fokus awal jatuh di situ, jadi Enter
+// yang tidak disengaja membatalkan. Ada hambatan = tidak ada tombol eksekusi
+// sama sekali, bukan tombol mati — tombol mati mengundang dicoba terus.
+function panelBahaya(aksi, r) {
+  const info = (r.aksi || {})[aksi] || {};
+  const hambatan = info.hambatan || [];
+  const peringatan = info.peringatan || [];
+  const awalanPeringatan = (item) =>
+    aksi === "rekaman" && item.kode === "line_merekam" ? "peringatan_rekaman_" : "peringatan_";
+  const daftar = (items, kelas, awalan) => items.length
+    ? `<ul class="${kelas}">${items.map((i) => `<li>${esc(teksKode(awalan(i), i))}</li>`).join("")}</ul>`
+    : "";
+  const ketik = BAHAYA_HAPUS.has(aksi);
+  let tombol = `<button type="button" data-bahaya-batal>${esc(t("btnBatal"))}</button>`;
+  if (!hambatan.length) {
+    if (ketik) {
+      tombol += `<input data-bahaya-ketik autocomplete="off" autocapitalize="characters"
+        spellcheck="false" placeholder="${esc(t("bahayaKetikHapus"))}" aria-label="${esc(t("bahayaKetikHapus"))}">`;
+    }
+    tombol += `<button type="button" class="bahaya-jalankan" data-bahaya-jalankan="${esc(aksi)}"${ketik ? " disabled" : ""}>${esc(t("bahayaJalankan_" + aksi))}</button>`;
+  }
+  return `<p class="bahaya-akibat">${esc(akibatBahaya(aksi, r))}</p>`
+    + (aksi === "transaksi" || aksi === "semua" ? `<p class="muted">${esc(t("bahayaTidakTersentuh"))}</p>` : "")
+    + daftar(hambatan, "bahaya-hambatan", () => "hambatan_")
+    + daftar(peringatan, "bahaya-peringatan", awalanPeringatan)
+    + `<div class="bahaya-tombol">${tombol}</div>`;
+}
+
+function tutupPanelBahaya() {
+  document.querySelectorAll("[data-bahaya-panel]").forEach((p) => {
+    p.hidden = true;
+    p.innerHTML = "";
+  });
+}
+
+async function bukaPanelBahaya(aksi) {
+  tutupPanelBahaya();
+  const panel = document.querySelector(`[data-bahaya-panel="${aksi}"]`);
+  if (!panel) return;
+  panel.hidden = false;
+  panel.innerHTML = `<p class="muted">${esc(t("bahayaMemeriksa"))}</p>`;
+  try {
+    const r = await api("/api/console/dev/bahaya");
+    if (panel.hidden) return; // ditutup selama menunggu
+    panel.innerHTML = panelBahaya(aksi, r);
+    panel.querySelector("[data-bahaya-batal]")?.focus();
+  } catch (e) {
+    // Sesi habis: gerbang login sudah terbuka; panel yang tertinggal di
+    // "Memeriksa…" di belakangnya terbaca macet sesudah login.
+    if (e.kode === "belum_masuk") return tutupPanelBahaya();
+    panel.innerHTML = `<p class="bahaya-akibat">${esc(alasan(e) || t("gagalBahaya"))}</p>`
+      + `<div class="bahaya-tombol"><button type="button" data-bahaya-batal>${esc(t("btnBatal"))}</button></div>`;
+  }
+}
+
+// Ringkasan hasil untuk toast. Line yang GAGAL (harus diulang) dan line yang
+// menerima tapi PERLU DICEK (`belum_mati`: datanya baru terhapus saat ia
+// restart) disebut terpisah — dua-duanya bukan "sukses" yang boleh dilewati.
+function hasilBahaya(aksi, h) {
+  if (aksi === "logout") return t("bahayaHasilLogout").replace("{n}", h.sesi_dihapus);
+  const lines = h.lines || [];
+  let teks;
+  if (aksi === "restart") {
+    teks = t("bahayaHasilRestart")
+      .replace("{ok}", lines.filter((r) => r.ok).length).replace("{n}", lines.length);
+  } else if (aksi === "rekaman") {
+    teks = t("bahayaHasilRekaman").replace("{n}", h.berkas).replace("{gb}", gbBahaya(h.bytes));
+  } else {
+    teks = t("bahayaHasilHapus");
+  }
+  const sebut = (r) => `${r.line_code} (${t("lineHasil_" + (r.kode || "gagal"))})`;
+  const gagal = lines.filter((r) => !r.ok).map(sebut);
+  const cek = lines.filter((r) => r.ok && r.kode).map(sebut);
+  if (gagal.length) teks += ` ${t("bahayaHasilGagal")}: ${gagal.join(", ")}.`;
+  if (cek.length) teks += ` ${t("bahayaHasilCatatan")}: ${cek.join(", ")}.`;
+  return teks;
+}
+
+// Ada line yang gagal atau perlu dicek: toast-nya tetap sampai ditutup.
+function hasilPerluDibaca(h) {
+  return (h.lines || []).some((r) => !r.ok || Boolean(r.kode));
+}
+
+// "line-1:versi_lama,line-2:lisensi" (params `semua_line_menolak`) -> kalimat
+// dalam bahasa layar.
+function daftarLineHasil(teks) {
+  return String(teks || "").split(",").filter(Boolean).map((pasang) => {
+    const [line, kode] = pasang.split(":");
+    return `${line} (${t("lineHasil_" + (kode || "gagal"))})`;
+  }).join(", ");
+}
+
+function alasanBahaya(e) {
+  if (e.kode === "semua_line_menolak") {
+    return t("err_semua_line_menolak").replace("{lines}", daftarLineHasil(e.params?.lines));
+  }
+  return alasan(e) || t("gagalBahaya");
+}
+
+function tampilHasilBahaya(aksi, hasil) {
+  const teks = hasilBahaya(aksi, hasil);
+  if (hasilPerluDibaca(hasil)) toast("peringatan", teks, 0);
+  else toastSukses(teks);
+}
+
+// Logout paksa dan hapus semua mengakhiri sesi yang menekan juga: gerbang login
+// langsung menutup layar beserta toast hasilnya. Hasilnya dititipkan ke
+// sessionStorage (tab ini saja) dan ditampilkan sesudah login berikutnya —
+// kecuali sudah basi, supaya tidak muncul untuk orang lain berjam-jam kemudian.
+const HASIL_TERTUNDA = "bahayaHasilTertunda";
+const TENGGAT_HASIL_MS = 10 * 60 * 1000;
+
+function titipHasilBahaya(aksi, hasil) {
+  try {
+    sessionStorage.setItem(HASIL_TERTUNDA, JSON.stringify({ aksi, hasil, pada: Date.now() }));
+  } catch (e) { /* tanpa sessionStorage hasilnya cuma di toast yang tertutup gerbang */ }
+}
+
+function tampilkanHasilTertunda() {
+  let titipan = null;
+  try {
+    titipan = JSON.parse(sessionStorage.getItem(HASIL_TERTUNDA) || "null");
+    sessionStorage.removeItem(HASIL_TERTUNDA);
+  } catch (e) { return; }
+  if (titipan && Date.now() - titipan.pada < TENGGAT_HASIL_MS) {
+    tampilHasilBahaya(titipan.aksi, titipan.hasil);
+  }
+}
+
+async function jalankanBahaya(aksi, tombol) {
+  const panel = tombol.closest(".bahaya-panel");
+  const ketik = panel.querySelector("[data-bahaya-ketik]");
+  const body = {};
+  if (BAHAYA_HAPUS.has(aksi)) body.konfirmasi = ketik ? ketik.value : "";
+  if (aksi === "transaksi" || aksi === "semua") body.mode = aksi;
+  tombol.disabled = true;
+  tombol.textContent = t("bahayaMenunggu");
+  try {
+    // `api()` meneruskan opts ke fetch apa adanya, jadi body WAJIB string —
+    // objek telanjang terkirim sebagai "[object Object]" dan dijawab 422.
+    const hasil = await api(`/api/console/dev/bahaya/${BAHAYA_URL[aksi]}`, {
+      method: "POST", body: JSON.stringify(body),
+    });
+    tampilHasilBahaya(aksi, hasil);
+    tutupPanelBahaya();
+    // Logout & hapus semua mengakhiri sesi ini juga: polling berikutnya
+    // dijawab 401 dan `api()` membuka gerbang login sendiri.
+    if (aksi === "logout" || aksi === "semua") titipHasilBahaya(aksi, hasil);
+  } catch (e) {
+    toastGagal(alasanBahaya(e));
+    if (e.kode === "bahaya_ditolak") return bukaPanelBahaya(aksi);
+    tombol.disabled = false;
+    tombol.textContent = t("bahayaJalankan_" + aksi);
+  }
+}
+
+$("bahaya").addEventListener("toggle", () => {
+  if (!$("bahaya").open) tutupPanelBahaya();
+});
+$("bahaya").addEventListener("click", (ev) => {
+  const buka = ev.target.closest("[data-bahaya-buka]");
+  if (buka) return bukaPanelBahaya(buka.dataset.bahayaBuka);
+  if (ev.target.closest("[data-bahaya-batal]")) return tutupPanelBahaya();
+  const jalan = ev.target.closest("[data-bahaya-jalankan]");
+  if (jalan && !jalan.disabled) return jalankanBahaya(jalan.dataset.bahayaJalankan, jalan);
+});
+$("bahaya").addEventListener("input", (ev) => {
+  const ketik = ev.target.closest("[data-bahaya-ketik]");
+  if (!ketik) return;
+  const tombol = ketik.closest(".bahaya-panel").querySelector("[data-bahaya-jalankan]");
+  if (tombol) tombol.disabled = !hapusSah(ketik.value);
 });
 
 // ── Rekam video per line (support only) ────────────────────────────────

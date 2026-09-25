@@ -294,6 +294,11 @@ Surface terpisah dari tabel di atas — berjalan sebagai konsol (`routes/console
 | POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil — satu-satunya lane yang menggerakkan hardware; tiga pengaman (assignment line, konfirmasi ketik, WARNING tiap percobaan) |
 | GET | `/api/console/dev/model-deteksi` | pilihan model tiap line (`""` = bawaan PC) + semua `.pt` di `models/release` beserta kelas, ukuran, engine per GPU, dan `cocok`/`alasan`. `folder.terbaca: false` = folder tidak bisa dibuka konsol (mount `./models` belum ada), beda dari folder kosong |
 | POST | `/api/console/dev/model-deteksi` | `{"line-1": "...", "line-2": "...", "line-3": "..."}` — tulis `LINE_N_MODEL_FILE` di `media.env`, restart line yang berubah saja. **400** untuk model yang tidak ada atau kelasnya bukan empat kelas yang dikenal; tidak menulis apa pun |
+| GET | `/api/console/dev/bahaya` | Danger Zone: `{lines, data, antrean_erp, aksi:{restart, logout, rekaman, transaksi, semua}}` — tiap aksi membawa `hambatan`/`peringatan` (daftar `{kode, line?, jumlah?}`) |
+| POST | `/api/console/dev/bahaya/restart-line` | restart ketiga line → `{lines:[{line_code, ok, alasan?}]}` |
+| POST | `/api/console/dev/bahaya/logout-semua` | hapus semua sesi → `{sesi_dihapus}` |
+| POST | `/api/console/dev/bahaya/hapus-rekaman` | `{konfirmasi}` → `{lines, berkas, bytes}`; 400 konfirmasi salah |
+| POST | `/api/console/dev/bahaya/hapus-data` | `{mode, konfirmasi}` → `{mode, lines, konsol}`; 400 konfirmasi/mode salah, 409 `bahaya_ditolak` dengan `params.hambatan`, 409 `semua_line_menolak` dengan `params.lines` (`line-1:lisensi,…`) — tidak ada yang dihapus. Tiap baris `lines` = `{line_code, ok, kode?}`; `kode` pada `ok:true` = `belum_mati` (diterima, line belum restart), pada `ok:false` = `line_mati` / `versi_lama` (404) / `lisensi` (403) / kode dari badan 409 line |
 
 ---
 
