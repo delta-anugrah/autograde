@@ -22,7 +22,10 @@ from .core.dependencies import (
     set_camera,
 )
 from .integrations.outbox.outbox_store import OutboxStore
+from .routes.internal import _jadwalkan_keluar
 from .routes.internal import router as internal_router
+from .routes.internal_bahaya import buat_router as buat_router_bahaya
+from .services.hapus_data_line import hapus_kalau_diminta
 from .workers.outbox_retry_worker import OutboxRetryWorker
 from .core.logging import configure_logging
 from .integrations.camera.base import CameraSource
@@ -163,6 +166,19 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        # Danger Zone: data line ini dihapus SEKARANG, sebelum satu pun store
+        # (lisensi, outbox, manifest upload) membuka berkasnya — SQLite yang
+        # sedang dibuka tidak boleh dihapus dari bawah proses yang memakainya.
+        # Tanpa penanda (keadaan normal) ini tidak melakukan apa pun.
+        # `license.db` selamat; lihat services/hapus_data_line.py.
+        hasil_hapus = hapus_kalau_diminta(settings.artifacts_dir, settings.state_dir)
+        if hasil_hapus is not None:
+            logger.warning(
+                "Data line dihapus saat boot (mode %s, diminta %s): %d berkas, %d gagal",
+                hasil_hapus["mode"], hasil_hapus["diminta_oleh"],
+                hasil_hapus["dihapus"], hasil_hapus["gagal"],
+            )
+
         if _lic_manager:
             await _lic_manager.init()
             asyncio.create_task(_lic_manager.run_clock_ratchet())
@@ -426,6 +442,13 @@ def create_app() -> FastAPI:
     app.include_router(inspection_router)
     app.include_router(streaming_router)
     app.include_router(internal_router)
+    # Lane Danger Zone (hapus data, rekaman). Dependensinya SAMA dengan router
+    # internal di atas — Settings lain berarti folder lain yang dihapus.
+    app.include_router(
+        buat_router_bahaya(
+            settings=get_settings, state=get_runtime_state, keluar=_jadwalkan_keluar
+        )
+    )
 
     @app.websocket("/ws/results")
     async def websocket_endpoint(websocket: WebSocket) -> None:
