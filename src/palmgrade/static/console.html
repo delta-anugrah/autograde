@@ -644,6 +644,13 @@
   .tabel { overflow-x:auto; background:var(--card);
            border:1px solid var(--line-kuat); border-radius:var(--r-md); }
   .tools + .tabel { border-top:none; border-radius:0 0 var(--r-md) var(--r-md); }
+  /* Bar simpan yang BERDIRI SENDIRI, bukan kepala tabel. Kotak `.tools` di atas
+     sengaja tanpa garis bawah karena menempel ke `.tabel`; tanpa tabel, kotaknya
+     menggantung dengan bawah terbuka (keluhan 2026-09-25). Di sini kotaknya
+     dibuang, dan tombol simpan membentang selebar panel: ia menyimpan seluruh
+     isi panel, jadi lebarnya harus terbaca milik semuanya. */
+  .tools.lepas { background:none; border:0; border-radius:0; padding:6px 0 0; }
+  .tools.lepas button.utama { flex:1 1 100%; }
   table { width:100%; border-collapse:collapse; }
   th, td { text-align:left; padding:12px 16px; border-bottom:1px solid var(--line); white-space:nowrap; }
   th { background:var(--zebra); border-bottom:2px solid var(--line-kuat);
@@ -822,16 +829,9 @@
   /* Label pembungkusnya sudah flex (lihat `.sumber-baris label`); dropdown
      memakan sisa lebar di sebelah kata "Berkas". */
   .sumber-berkas label select { flex:1 1 auto; }
-  #sumber-kamera-panel .tools { padding-top:6px; }
-  /* Simpan membentang penuh di bawah ketiga kartu, bukan 12rem seperti tombol
-     `.tools` lain di berkas ini - dia mengirim ketiga line sekaligus, jadi
-     lebarnya harus terbaca sebagai milik semuanya, bukan milik kartu terakhir. */
-  #sumber-kamera-panel .tools button { flex:1 1 100%; }
   /* Model Deteksi meminjam kartu Sumber Kamera (`.sumber-baris`), jadi tiga
      line tetap sejajar di layar lebar dan turun satu-satu di layar sempit. */
   #model-deteksi-panel { display:grid; gap:16px; }
-  #model-deteksi-panel > .tools { padding-top:6px; }
-  #model-deteksi-panel > .tools button { flex:1 1 100%; }
   /* Sama dengan dropdown berkas Sumber Kamera: tanpa `min-width:0` nama model
      yang panjang memotong dropdown sampai terbaca kosong. */
   .model-baris select { flex:1 1 auto; width:100%; min-width:0; padding:8px 10px;
@@ -1106,17 +1106,19 @@
     -->
     <button id="cetak-qr" data-t="btnCetakQr">Cetak QR truk</button>
   </div>
-  <!-- Diisi saat tombol ditekan; disembunyikan di luar mode cetak. -->
-  <div id="qr-cetak" hidden>
-    <h2 data-t="qrJudul">Kartu QR truk</h2>
-    <div id="qr-kartu" class="qr-kartu"></div>
-  </div>
   <div class="tabel">
     <table>
       <thead><tr><th data-t="thPlat">Plat</th><th data-t="thSupplier">Supplier</th>
         <th data-t="thSumber">Sumber</th><th data-t="thStatus">Status</th></tr></thead>
       <tbody id="trucks"></tbody>
     </table>
+  </div>
+  <!-- Diisi saat tombol ditekan; disembunyikan di luar mode cetak. Duduk SESUDAH
+       tabel, bukan di antara kepala tabel dan tabelnya: di situ ia memutus
+       `.tools + .tabel` dan kotak kepala tabel menggantung. -->
+  <div id="qr-cetak" hidden>
+    <h2 data-t="qrJudul">Kartu QR truk</h2>
+    <div id="qr-kartu" class="qr-kartu"></div>
   </div>
 </section>
 
@@ -1313,7 +1315,7 @@
         </label>
       </div>
     </details>
-    <div class="tools">
+    <div class="tools lepas">
       <button type="button" id="rekam-simpan" class="utama" data-t="rekamSimpanSetelan">Simpan setelan</button>
     </div>
   </div>
@@ -1408,7 +1410,7 @@
       </div>
     </details>
 
-    <div class="tools">
+    <div class="tools lepas">
       <button id="set-simpan" class="utama" data-t="btnSimpanSetelan">Simpan</button>
       <span id="set-sumber" class="muted"></span>
     </div>
@@ -1449,11 +1451,13 @@
     identical to a healthy idle queue, and that is exactly the outage this
     card exists to catch.
   -->
+  <!-- Pesan nonaktif di ATAS kepala tabel: di antara keduanya ia memutus
+       `.tools + .tabel` dan kepala tabelnya menggantung. -->
+  <p id="manifest-nonaktif" hidden class="muted" data-t="manifestNonaktif">R2 belum disetel.</p>
   <div class="tools">
     <strong data-t="judulManifest">Manifest R2</strong>
     <span id="manifest-ringkas" class="muted"></span>
   </div>
-  <p id="manifest-nonaktif" hidden class="muted" data-t="manifestNonaktif">R2 belum disetel.</p>
   <div class="tabel">
     <table>
       <thead><tr><th data-t="thJenis">Jenis</th><th data-t="thKunci">Kunci</th>
@@ -1597,7 +1601,7 @@
       </div>
     </div>
 
-    <div class="tools">
+    <div class="tools lepas">
       <button type="button" id="sumber-simpan" class="utama" data-t="btnSumberSimpan">Simpan &amp; Restart</button>
     </div>
   </div>
@@ -1640,7 +1644,7 @@
       </div>
     </div>
 
-    <div class="tools">
+    <div class="tools lepas">
       <button type="button" id="model-simpan" class="utama" data-t="btnModelSimpan">Simpan &amp; Restart</button>
     </div>
 
