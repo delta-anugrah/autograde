@@ -41,9 +41,11 @@ ditanya.
   (`make operator-docker` di pabrik; `AKSI=daftar|matikan|role ROLE=support`).
   Akun dari AutoERP direset di AutoERP. Bawaan: `operator@autograde.local`,
   `support@autograde.local`, sandi beda per PKS (`make hash-sandi`, tulis `$$`).
-- **Tab support** (Log, Diagnostik, Antrean ERP, Versi, Uji PLC, Sumber Kamera,
-  Rekam Video, Setelan) hanya untuk peran `support`; 403 untuk operator, 401 kalau
-  belum masuk.
+- **Tab support** (Log, Diagnostik, Antrean ERP, Versi, Akun, Uji PLC, Sumber Kamera,
+  Model Deteksi, Rekam Video, Setelan) hanya untuk peran `support`; 403 untuk operator,
+  401 kalau belum masuk. **Akun** = daftar akun PC ini (asal Lokal/AutoERP, aktif/mati/
+  terkunci), baca saja — sandi tidak bisa dilihat (cuma hash yang disimpan); lupa sandi:
+  akun AutoERP diganti di AutoERP, akun lokal lewat `scripts/console-operator.py`.
 - **Rekam video** (v1.13.x): satu tombol per line, jalan sampai ditekan Stop. Yang
   terekam frame **clean tanpa bbox** — disadap di `FrameCaptureWorker`, sebelum
   inference. Berkasnya di `videos/` (jalurnya tertulis di kaki layar), **tidak pernah

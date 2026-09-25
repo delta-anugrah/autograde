@@ -288,6 +288,7 @@ Surface terpisah dari tabel di atas — berjalan sebagai konsol (`routes/console
 | GET | `/api/console/dev/antrean/manifest` | antrean manifest R2 (DB terpisah dari `erp_outbox`, supaya R2 mati tidak menahan pesan AutoERP) |
 | POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox`. **`attempts` sengaja tidak di-reset** — itu yang membedakan "macet selamanya" dari "gangguan sesaat" |
 | GET | `/api/console/dev/versi` | versi image + status lisensi |
+| GET | `/api/console/dev/akun` | `{akun:[{email, nama, role, asal: "lokal"\|"erp", keadaan: "aktif"\|"mati"\|"terkunci", terkunci_detik, sedang_masuk, dibuat}]}` — semua akun di PC ini, aktif dulu. **Tanpa hash sandi** (kolomnya disebut satu per satu); baca saja, tidak ada POST |
 | GET / POST | `/api/console/dev/setelan` | lima setelan grading dari layar Setelan: `conf_threshold`, `minimum_size`, `garis_capture`, `sumbu_garis`, `mode_dev`. Tersimpan di konsol, disebar ke tiga line, berlaku tanpa restart |
 | GET | `/api/console/dev/plc/{line_code}` | snapshot DI + coil yang boleh diuji — baca saja |
 | POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil — satu-satunya lane yang menggerakkan hardware; tiga pengaman (assignment line, konfirmasi ketik, WARNING tiap percobaan) |
