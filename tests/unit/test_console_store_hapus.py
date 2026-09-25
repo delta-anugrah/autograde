@@ -136,3 +136,23 @@ def test_log_hapus_semua(tmp_path):
 
     assert log.hapus_semua() == 2
     assert log.read(level=None, search=None, limit=10, offset=0)["total"] == 0
+
+
+def test_db_antrean_dan_log_konsol_cuma_berisi_tabel_yang_dikosongkan(tmp_path):
+    """M-9: `hapus_semua()` mengosongkan SATU tabel per berkas. Tabel kedua di
+    salah satu berkas ini akan selamat diam-diam dari "hapus semua data"."""
+    import sqlite3
+
+    def tabel(db) -> set[str]:
+        con = sqlite3.connect(db)
+        try:
+            return {r[0] for r in con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            )}
+        finally:
+            con.close()
+
+    ErpOutboxStore(tmp_path / "erp_outbox.db")
+    LogStore(tmp_path / "log.db")
+    assert tabel(tmp_path / "erp_outbox.db") == {"erp_outbox"}
+    assert tabel(tmp_path / "log.db") == {"event_log"}

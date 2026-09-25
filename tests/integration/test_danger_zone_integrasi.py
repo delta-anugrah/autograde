@@ -159,7 +159,7 @@ def test_hapus_transaksi_dari_konsol_sampai_boot_tiap_line(pabrik):
     for line in lines.values():
         # Perintah sampai lewat HTTP dengan secret yang benar: penanda ada,
         # line diminta keluar, dan konsol MENUNGGU line mati sebelum lanjut.
-        assert (line.settings.state_dir / PENANDA).exists()
+        assert (line.settings.artifacts_dir / PENANDA).exists()
         assert line.keluar_diminta == [1.0]
     assert _hitung(store, "inspections") == 0
     assert _hitung(store, "trucks") == 1
@@ -196,7 +196,7 @@ def test_truk_terpasang_ditolak_konsol_tidak_ada_yang_tersentuh(pabrik):
     assert exc.value.hambatan == [{"kode": "truk_terpasang", "line": "line-2"}]
     assert _hitung(store, "inspections") == 1
     for line in lines.values():
-        assert not (line.settings.state_dir / PENANDA).exists()
+        assert not (line.settings.artifacts_dir / PENANDA).exists()
         assert line.keluar_diminta == []
         assert "outbox.db" in line.isi_artifacts()
 
@@ -212,7 +212,7 @@ def test_truk_dipasang_sesudah_konsol_memeriksa_ditolak_line_itu_sendiri(pabrik)
 
     per_line = {r["line_code"]: r for r in hasil["lines"]}
     assert per_line["line-2"] == {"line_code": "line-2", "ok": False, "kode": "truk_terpasang"}
-    assert not (lines[8002].settings.state_dir / PENANDA).exists()
+    assert not (lines[8002].settings.artifacts_dir / PENANDA).exists()
     assert lines[8002].boot() is None
     assert "outbox.db" in lines[8002].isi_artifacts()
     for port in (8001, 8003):
@@ -230,7 +230,7 @@ def test_secret_salah_ditolak_line(pabrik):
     with pytest.raises(LinePlcTolak) as exc:
         asyncio.run(klien_salah.hapus_data(LINES[0], mode=MODE_TRANSAKSI, diminta_oleh="x"))
     assert exc.value.status_code == 401
-    assert not (lines[8001].settings.state_dir / PENANDA).exists()
+    assert not (lines[8001].settings.artifacts_dir / PENANDA).exists()
 
 
 def test_ringkasan_membaca_line_sungguhan(pabrik):

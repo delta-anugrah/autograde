@@ -2,8 +2,8 @@
 
 Unit test membuktikan potongannya satu-satu. Yang dibuktikan di sini rantainya
 dengan Settings dan RuntimeState SUNGGUHAN dan folder yang bentuknya sama dengan
-PC pabrik: perintah → penanda di `state/` → boot berikutnya mengosongkan
-`artifacts/` dan `state/` → `license.db` tetap.
+PC pabrik: perintah → penanda di `artifacts/` → boot berikutnya mengosongkan
+`artifacts/` dan berkas milik line di `state/` → `license.db` tetap.
 
 Tanpa torch, jadi jalan di CI — kecuali test terakhir, yang memeriksa rute ini
 benar-benar terpasang di app line asli (`main.create_app`, butuh torch).
@@ -93,7 +93,7 @@ def test_truk_terpasang_tidak_meninggalkan_penanda(line):
     )
 
     assert res.status_code == 409
-    assert not (settings.state_dir / PENANDA).exists()
+    assert not (settings.artifacts_dir / PENANDA).exists()
     assert hapus_kalau_diminta(settings.artifacts_dir, settings.state_dir) is None
     assert keluar == []
 

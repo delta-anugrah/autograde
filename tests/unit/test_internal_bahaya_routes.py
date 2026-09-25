@@ -54,7 +54,7 @@ def test_tanpa_secret_401(line):
     client, settings, _state, keluar = line
     res = client.post("/internal/hapus-data", json={"mode": "transaksi", "diminta_oleh": "s"})
     assert res.status_code == 401
-    assert not (settings.state_dir / PENANDA).exists()
+    assert not (settings.artifacts_dir / PENANDA).exists()
     assert keluar == []
 
 
@@ -73,7 +73,7 @@ def test_hapus_data_menulis_penanda_lalu_keluar(line):
     )
     assert res.status_code == 200, res.text
     assert res.json() == {"status": "menghapus", "jeda_detik": 1.0}
-    assert (settings.state_dir / PENANDA).exists()
+    assert (settings.artifacts_dir / PENANDA).exists()
     assert keluar == [1.0]
 
 
@@ -90,7 +90,7 @@ def test_hapus_data_ditolak_saat_truk_terpasang(line):
 
     assert res.status_code == 409
     assert res.json()["detail"]["kode"] == "truk_terpasang"
-    assert not (settings.state_dir / PENANDA).exists()
+    assert not (settings.artifacts_dir / PENANDA).exists()
     assert keluar == []
 
 
@@ -101,7 +101,7 @@ def test_mode_asing_400(line):
     )
     assert res.status_code == 400
     assert res.json()["detail"]["kode"] == "mode_asing"
-    assert not (settings.state_dir / PENANDA).exists()
+    assert not (settings.artifacts_dir / PENANDA).exists()
     assert keluar == []
 
 

@@ -36,3 +36,12 @@ def test_router_bahaya_dipasang_dengan_dependensi_yang_sama():
     assert "settings=get_settings" in blok
     assert "state=get_runtime_state" in blok
     assert "keluar=_jadwalkan_keluar" in blok
+
+
+def test_penugasan_menolak_truk_baru_selama_hapus_menunggu():
+    """I-3b: dijaga sebagai teks karena router internal menarik torch (test
+    perilakunya: `tests/e2e/test_internal_assignment_hapus.py`, lokal)."""
+    internal = (Path(__file__).resolve().parents[2] / "src/palmgrade/routes/internal.py").read_text()
+    fn = internal.split("async def assignment_sync(", 1)[1].split("\n@router", 1)[0]
+    assert "hapus_diminta(" in fn
+    assert "409" in fn
