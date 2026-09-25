@@ -44,7 +44,7 @@ PENANDA = ".hapus-data"
 
 #: Berkas MILIK LINE di `state/` (awalan: ikut `-wal`/`-shm`). Selain ini tidak
 #: pernah disentuh — di jalur native folder itu juga berisi basis data konsol.
-#: `test_semua_berkas_db_line_digolongkan` menjaga daftar ini lengkap.
+#: `test_semua_berkas_db_di_state_digolongkan` menjaga daftar ini lengkap.
 MILIK_LINE_DI_STATE = ("upload_manifest.db",)
 
 #: Awalan berkas di `artifacts/` yang selamat: `license.db` beserta `-wal`,

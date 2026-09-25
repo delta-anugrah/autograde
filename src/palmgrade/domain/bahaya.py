@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .operator_error import HAPUS_BERJALAN, OperatorError
+
 #: Kata yang harus diketik untuk aksi hapus. Diketik, bukan diklik: layar sentuh
 #: bisa mendaftarkan sentuhan tak sengaja sebagai klik, tapi tidak ada yang
 #: mengetik satu kata tertentu tanpa maksud. Sama dengan `autograde reset-data-fresh`.
@@ -26,11 +28,12 @@ MODE_HAPUS = (MODE_TRANSAKSI, MODE_SEMUA)
 #: akan tampil mentah ke support.
 KODE_HAMBATAN = (
     "tanpa_line", "line_mati", "truk_terpasang", "antrean_line", "antrean_erp",
-    "tanpa_sumber_akun",
+    "tiket_terbuka", "tanpa_sumber_akun",
 )
 KODE_PERINGATAN = (
     "foto_belum_r2", "kiriman_gagal", "erp_mati", "semua_keluar",
-    "line_mati", "truk_terpasang", "line_merekam",
+    "line_mati", "truk_terpasang", "line_merekam", "antrean_line_gagal",
+    "tiket_lama_terbuka",
 )
 
 # Golongan tabel console.db.
@@ -75,6 +78,8 @@ class KeadaanLine:
     terjangkau: bool
     truk_terpasang: bool = False
     outbox_pending: int | None = None
+    #: Janjang yang DITOLAK konsol sesudah percobaan maksimum (`outbox_failed`).
+    outbox_gagal: int | None = None
     merekam: bool = False
     rekaman_berkas: int = 0
     rekaman_bytes: int = 0
@@ -85,9 +90,27 @@ class KeadaanKonsol:
     erp_aktif: bool
     erp_pending: int = 0
     erp_gagal: int = 0
-    #: Ada hash akun bawaan (`CONSOLE_DEFAULT_HASH`/`CONSOLE_SUPPORT_HASH`) yang
-    #: bisa dibuat ulang sesudah mode semua menghapus seluruh akun.
-    akun_bawaan: bool = True
+    #: Akun SUPPORT bawaan (`CONSOLE_SUPPORT_HASH` yang terbaca) bisa dibuat ulang
+    #: sesudah mode semua menghapus seluruh akun. Akun operator saja tidak cukup:
+    #: tanpa akun support, Danger Zone dan seluruh lane developer terkunci.
+    akun_support_bawaan: bool = True
+    #: Tiket timbang terbuka (bruto ada, tara belum) di hari kerja BERJALAN —
+    #: truk yang sedang di tengah kunjungan.
+    tiket_terbuka: int = 0
+    #: Tiket terbuka dari hari kerja yang sudah lewat — hampir pasti sisa uji coba.
+    tiket_lama_terbuka: int = 0
+
+
+class HapusBerjalan(OperatorError):
+    """Penugasan truk ditolak selama Danger Zone sedang menghapus data.
+
+    Truk yang dipasang di tengah penghapusan digrading ke penugasan yang barisnya
+    ikut terhapus — `lepas` sesudahnya tidak menemukan apa pun dan janjangnya
+    tidak pernah tertaut ke tiket.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(HAPUS_BERJALAN, "Danger Zone sedang menghapus data — tunggu sebentar")
 
 
 def konfirmasi_sah(teks: str | None) -> bool:
@@ -121,6 +144,11 @@ def hambatan_hapus_data(lines: list[KeadaanLine], konsol: KeadaanKonsol) -> list
     # tombolnya tidak bisa dipakai selamanya, jadi cukup diperingatkan.
     if konsol.erp_aktif and konsol.erp_pending > 0:
         hambatan.append({"kode": "antrean_erp", "jumlah": konsol.erp_pending})
+    # Truk di tengah kunjungan hari ini: bruto-nya sudah ditimbang dan itu yang
+    # dibayar. Menghapusnya membuat neto truk itu tidak pernah bisa dihitung,
+    # dan scan di gerbang keluar tidak menemukan tiketnya.
+    if konsol.tiket_terbuka > 0:
+        hambatan.append({"kode": "tiket_terbuka", "jumlah": konsol.tiket_terbuka})
     return hambatan
 
 
@@ -128,10 +156,12 @@ def hambatan_mode_semua(konsol: KeadaanKonsol) -> list[dict]:
     """Tambahan khusus mode semua, yang menghapus SELURUH akun.
 
     Sesudahnya yang bisa masuk cuma akun bawaan (dibuat ulang dari hash di
-    `.env`) dan akun AutoERP (turun lewat tarikan). Tanpa keduanya konsol
-    terkunci sampai teknisi datang membawa terminal.
+    `.env`) dan akun AutoERP (turun lewat tarikan). Yang dihitung akun SUPPORT
+    bawaan, bukan sembarang akun bawaan: tanpa akun support dan tanpa AutoERP,
+    Danger Zone dan seluruh lane developer terkunci sampai teknisi datang
+    membawa terminal.
     """
-    if not konsol.akun_bawaan and not konsol.erp_aktif:
+    if not konsol.akun_support_bawaan and not konsol.erp_aktif:
         return [{"kode": "tanpa_sumber_akun"}]
     return []
 
@@ -143,6 +173,13 @@ def peringatan_hapus_data(
     # Tanpa angka, sengaja: foto baru belum masuk manifest upload sampai tick jam
     # berikutnya, jadi angka dari manifest terbaca "0" padahal belum.
     peringatan: list[dict] = [{"kode": "foto_belum_r2"}]
+    for line in lines:
+        if line.terjangkau and (line.outbox_gagal or 0) > 0:
+            peringatan.append(
+                {"kode": "antrean_line_gagal", "line": line.line_code, "jumlah": line.outbox_gagal}
+            )
+    if konsol.tiket_lama_terbuka > 0:
+        peringatan.append({"kode": "tiket_lama_terbuka", "jumlah": konsol.tiket_lama_terbuka})
     if konsol.erp_aktif and konsol.erp_gagal > 0:
         peringatan.append({"kode": "kiriman_gagal", "jumlah": konsol.erp_gagal})
     tertahan = konsol.erp_pending + konsol.erp_gagal

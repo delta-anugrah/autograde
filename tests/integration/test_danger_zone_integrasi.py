@@ -9,8 +9,9 @@ Yang dirangkai tanpa tiruan di tengahnya:
 - `hapus_kalau_diminta` yang ASLI sebagai "boot berikutnya".
 
 Yang tiruan cuma `/health` dan `/health/detail` line (aslinya menarik torch),
-dan "restart" (proses sungguhan keluar lewat `os._exit`; di sini line ditandai
-mati lalu boot-nya dijalankan tangan).
+"restart" (proses sungguhan keluar lewat `os._exit`; di sini line ditandai
+mati lalu boot-nya dijalankan tangan), dan pemeriksa lisensi di belakang
+middleware lisensi yang ASLI (`license/guard.py`).
 """
 from __future__ import annotations
 
@@ -27,10 +28,12 @@ from palmgrade.domain.bahaya import MODE_SEMUA, MODE_TRANSAKSI
 from palmgrade.domain.operator_auth import hash_password
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.integrations.notifications.line_client import LineClient, LinePlcTolak
+from palmgrade.license.guard import LicenseGuardMiddleware
+from palmgrade.license.types import EffectiveLicense
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.repositories.log_repository import LogStore
 from palmgrade.routes.internal_bahaya import buat_router
-from palmgrade.services.bahaya_service import BahayaDitolak, BahayaService
+from palmgrade.services.bahaya_service import BahayaDitolak, BahayaSemuaMenolak, BahayaService
 from palmgrade.services.hapus_data_line import PENANDA, hapus_kalau_diminta
 from palmgrade.workers.runtime_state import RuntimeState
 
@@ -41,6 +44,17 @@ MESIN = {
     3: "ad5f7bb9-c06d-4e87-8282-ce450ae331ec",
 }
 LINES = tuple(LineEndpoint(f"line-{n}", f"Line {n}", 8000 + n, MESIN[n]) for n in (1, 2, 3))
+
+
+class _Lisensi:
+    """Pengganti `LicenseManager` di belakang middleware lisensi yang asli."""
+
+    def __init__(self) -> None:
+        self.habis = False
+
+    async def get_effective_license(self) -> EffectiveLicense:
+        status = "EXPIRED" if self.habis else "ACTIVE"
+        return EffectiveLicense(status=status, reason="uji", payload=None, warning=None)
 
 
 class Line:
@@ -56,21 +70,36 @@ class Line:
         # Yang dilaporkan /health/detail — biasanya sama dengan state, kecuali
         # test ingin meniru truk yang dipasang SESUDAH konsol memeriksa.
         self.laporan_truk: str | None = None
+        self.lisensi = _Lisensi()
         self._isi()
-        self.app = FastAPI()
-        self.app.include_router(
-            buat_router(settings=lambda: self.settings, state=lambda: self.state, keluar=self._keluar)
-        )
+        self.app = self._buat_app(dengan_danger_zone=True)
 
-        @self.app.get("/health")
+    def _buat_app(self, *, dengan_danger_zone: bool) -> FastAPI:
+        app = FastAPI()
+        if dengan_danger_zone:
+            app.include_router(
+                buat_router(
+                    settings=lambda: self.settings, state=lambda: self.state, keluar=self._keluar
+                )
+            )
+        # Seperti main.py dengan LICENSE_ENABLED: semua kecuali /health* tertutup.
+        app.add_middleware(LicenseGuardMiddleware, manager=self.lisensi)
+
+        @app.get("/health")
         def health():
             return Response(status_code=503) if self.mati else {"status": "ok"}
 
-        @self.app.get("/health/detail")
+        @app.get("/health/detail")
         def detail():
             if self.mati:
                 return Response(status_code=503)
             return {"status": "ok", "outbox_pending": 0, "current_assignment_id": self.laporan_truk}
+
+        return app
+
+    def jadi_versi_lama(self) -> None:
+        """Image sebelum Danger Zone: sehat, tapi rutenya tidak ada."""
+        self.app = self._buat_app(dengan_danger_zone=False)
 
     def _keluar(self, jeda: float) -> None:
         self.keluar_diminta.append(jeda)
@@ -101,10 +130,12 @@ class _PerPort(httpx.AsyncBaseTransport):
     """Satu transport untuk tiga line: permintaan diarahkan menurut port-nya."""
 
     def __init__(self, lines: dict[int, Line]) -> None:
-        self._t = {port: httpx.ASGITransport(app=ln.app) for port, ln in lines.items()}
+        self._lines = lines
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        return await self._t[request.url.port].handle_async_request(request)
+        # Dirakit per permintaan: test boleh menukar app satu line (versi lama).
+        app = self._lines[request.url.port].app
+        return await httpx.ASGITransport(app=app).handle_async_request(request)
 
 
 @pytest.fixture
@@ -137,6 +168,7 @@ def pabrik(tmp_path, monkeypatch):
         erp_aktif=True,
         hash_bawaan=hash_password("sandi-bawaan-1"),
         hash_support=hash_password("sandi-bawaan-1"),
+        hari_kerja=lambda: "2026-09-25",
         tunggu_mati_s=2.0,
         jeda_cek_s=0.0,
     )
@@ -218,6 +250,42 @@ def test_truk_dipasang_sesudah_konsol_memeriksa_ditolak_line_itu_sendiri(pabrik)
     for port in (8001, 8003):
         lines[port].boot()
         assert lines[port].isi_artifacts() == ["license.db"]
+
+
+def test_line_versi_lama_dan_lisensi_habis_disebut_line_lain_tetap_jalan(pabrik):
+    """404 dari app tanpa rute Danger Zone (image lama) dan 403 dari middleware
+    lisensi yang ASLI sampai sebagai dua alasan berbeda; line ketiga tetap dibersihkan."""
+    bahaya, store, lines = pabrik
+    lines[8001].jadi_versi_lama()
+    lines[8002].lisensi.habis = True
+
+    hasil = asyncio.run(bahaya.hapus_data(mode=MODE_TRANSAKSI, konfirmasi="HAPUS", oleh="s"))
+
+    per_line = {r["line_code"]: r for r in hasil["lines"]}
+    assert per_line["line-1"] == {"line_code": "line-1", "ok": False, "kode": "versi_lama"}
+    assert per_line["line-2"] == {"line_code": "line-2", "ok": False, "kode": "lisensi"}
+    assert per_line["line-3"] == {"line_code": "line-3", "ok": True}
+    assert not (lines[8002].settings.artifacts_dir / PENANDA).exists()
+    lines[8003].boot()
+    assert lines[8003].isi_artifacts() == ["license.db"]
+
+
+def test_semua_line_menolak_tidak_ada_yang_tersentuh(pabrik):
+    """Lisensi ketiga line habis: tidak satu foto pun terhapus, jadi index konsol
+    yang menunjuk ke foto-foto itu juga tidak boleh hilang."""
+    bahaya, store, lines = pabrik
+    for line in lines.values():
+        line.lisensi.habis = True
+
+    with pytest.raises(BahayaSemuaMenolak) as exc:
+        asyncio.run(bahaya.hapus_data(mode=MODE_TRANSAKSI, konfirmasi="HAPUS", oleh="s"))
+
+    assert exc.value.params == {"lines": "line-1:lisensi,line-2:lisensi,line-3:lisensi"}
+    assert _hitung(store, "inspections") == 1
+    for line in lines.values():
+        assert not (line.settings.artifacts_dir / PENANDA).exists()
+        assert line.keluar_diminta == []
+        assert "outbox.db" in line.isi_artifacts()
 
 
 def test_secret_salah_ditolak_line(pabrik):

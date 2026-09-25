@@ -34,7 +34,7 @@ def app(tmp_path):
     svc = BahayaService(
         store, LogStore(tmp_path / "log.db"), line, LINES,
         ErpOutboxStore(tmp_path / "erp_outbox.db"), None,
-        erp_aktif=True, hash_bawaan=HASH, hash_support=HASH,
+        erp_aktif=True, hash_bawaan=HASH, hash_support=HASH, hari_kerja=lambda: "2026-09-25",
         tunggu_mati_s=1.0, jeda_cek_s=0.0,
     )
     aplikasi = FastAPI()
@@ -120,6 +120,24 @@ def test_hapus_data_ditolak_409_membawa_kode_hambatan(app):
     assert detail["code"] == "bahaya_ditolak"
     assert detail["params"]["hambatan"] == "truk_terpasang"
     assert line.perintah == []
+
+
+def test_hapus_data_semua_line_menolak_409(app):
+    """Tidak satu line pun menerima: 409 dengan alasan per line, konsol utuh."""
+    aplikasi, store, line = app
+    support = _masuk(aplikasi, store, "sp@pks.test", "support")
+    isi_data(store)
+    line.status_hapus = {ln.line_code: (404, '{"detail":"Not Found"}') for ln in LINES}
+
+    res = support.post(
+        "/api/console/dev/bahaya/hapus-data", json={"mode": "transaksi", "konfirmasi": "HAPUS"}
+    )
+
+    assert res.status_code == 409
+    detail = res.json()["detail"]
+    assert detail["code"] == "semua_line_menolak"
+    assert detail["params"]["lines"] == "line-1:versi_lama,line-2:versi_lama,line-3:versi_lama"
+    assert hitung(store, "inspections") == 1
 
 
 def test_hapus_data_transaksi_200(app):

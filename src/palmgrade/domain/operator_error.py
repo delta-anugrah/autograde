@@ -37,6 +37,9 @@ BUKAN_SUPPORT = "bukan_support"
 KONFIRMASI_KURANG = "konfirmasi_kurang"
 PLC_SIBUK = "plc_sibuk"
 COIL_TIDAK_DIKENAL = "coil_tidak_dikenal"
+# Danger Zone (support) sedang menghapus data; yang membacanya operator gerbang
+# yang menekan Pasang truk di detik itu, jadi kodenya ikut daftar ini.
+HAPUS_BERJALAN = "hapus_berjalan"
 
 CODES = (
     PLAT_KOSONG,
@@ -56,6 +59,7 @@ CODES = (
     KONFIRMASI_KURANG,
     PLC_SIBUK,
     COIL_TIDAK_DIKENAL,
+    HAPUS_BERJALAN,
 )
 
 

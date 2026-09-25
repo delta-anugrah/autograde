@@ -39,6 +39,7 @@ const lokal = () => "id-ID";
 # angkanya ikut teruji.
 _T = """
 const POLA = {
+  err_semua_line_menolak: "tolak: {lines}",
   bahayaAkibatRekaman: "{n} berkas {gb} GB",
   bahayaAkibatTransaksi: "{janjang} janjang {tiket} tiket",
   bahayaAkibatSemua: "{janjang} janjang {tiket} tiket {truk} truk {akun} akun",
@@ -65,14 +66,19 @@ def _kamus(bahasa: str) -> str:
     return blok.group(1)
 
 
-def _jalankan(ekspresi: str):
+_FUNGSI = (
+    "hapusSah", "gbBahaya", "teksKode", "akibatBahaya", "panelBahaya",
+    "hasilBahaya", "hasilPerluDibaca", "daftarLineHasil", "alasanBahaya",
+)
+
+
+def _jalankan(ekspresi: str, *, stub: str = "", fungsi: tuple[str, ...] = ()):
     skrip = (
         _STUB
         + _T
+        + stub
         + _konstanta("BAHAYA_HAPUS")
-        + "\n".join(
-            _fungsi(n) for n in ("hapusSah", "gbBahaya", "teksKode", "akibatBahaya", "panelBahaya")
-        )
+        + "\n".join(_fungsi(n) for n in _FUNGSI + fungsi)
         + f"\nconsole.log(JSON.stringify({ekspresi}));"
     )
     hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
@@ -134,9 +140,22 @@ def test_kunci_layar_ada_di_dua_bahasa(bahasa):
     ]
     kunci += [f"bahayaJalankan_{a}" for a in URUTAN]
     kunci += [f"bahayaAkibat{a.capitalize()}" for a in URUTAN]
-    kunci += [f"lineHasil_{k}" for k in ("truk_terpasang", "sedang_merekam", "line_mati", "ditolak", "gagal")]
+    kunci += ["err_semua_line_menolak", "bahayaHasilCatatan"]
+    kunci += [
+        f"lineHasil_{k}"
+        for k in (
+            "truk_terpasang", "sedang_merekam", "line_mati", "ditolak", "gagal",
+            "versi_lama", "lisensi", "belum_mati",
+        )
+    ]
     hilang = [k for k in kunci if f"{k}:" not in isi]
     assert not hilang, f"KAMUS.{bahasa} kurang {hilang}"
+
+
+def test_daftar_line_menolak_ada_tempatnya_di_kalimat():
+    for bahasa in ("id", "en"):
+        teks = re.search(r'err_semua_line_menolak:"([^"]+)"', _kamus(bahasa)).group(1)
+        assert "{lines}" in teks, bahasa
 
 
 def test_catatan_data_luar_tidak_tersentuh_menyebut_autoerp_dan_r2():
@@ -165,6 +184,36 @@ def test_tanpa_dialog_bawaan_browser():
     for nama in ("bukaPanelBahaya", "jalankanBahaya", "panelBahaya"):
         fn = _fungsi(nama)
         assert "confirm(" not in fn and "prompt(" not in fn and "alert(" not in fn, nama
+
+
+def test_membuka_tab_setelan_menutup_kotak_danger_zone():
+    """Kotaknya tertutup tiap kali tab dibuka (spec §2): panel yang tertinggal
+    terbuka dengan angka lama mengundang tombol ditekan tanpa dibaca ulang."""
+    fn = _fungsi("muatSetelan")
+    assert '$("bahaya").open = false' in fn
+    assert "tutupPanelBahaya()" in fn
+
+
+def test_sesi_habis_saat_membuka_panel_menutup_panelnya():
+    """Tanpa ini panel tersangkut di "Memeriksa…" di belakang gerbang login."""
+    assert 'if (e.kode === "belum_masuk") return tutupPanelBahaya();' in _fungsi("bukaPanelBahaya")
+
+
+def test_hasil_ditampilkan_lewat_satu_pintu():
+    fn = _fungsi("jalankanBahaya")
+    assert "tampilHasilBahaya(aksi, hasil)" in fn
+    assert "alasanBahaya(e)" in fn
+    # Toast bisa ditahan sampai ditutup (durasi 0), bukan cuma per jenisnya.
+    assert "durasi = TOAST_DURASI[kind]" in _fungsi("toast")
+
+
+def test_logout_dan_hapus_semua_menitipkan_hasil_ke_login_berikutnya():
+    """Dua aksi itu mengakhiri sesi yang menekan: gerbang login menutup toast
+    hasilnya, jadi hasilnya ditampilkan sesudah masuk lagi."""
+    fn = _fungsi("jalankanBahaya")
+    assert 'aksi === "logout" || aksi === "semua"' in fn and "titipHasilBahaya(aksi, hasil)" in fn
+    masuk = _fungsi("kirimSandi")
+    assert masuk.index("tutupGerbang(operator)") < masuk.index("tampilkanHasilTertunda()")
 
 
 def test_ditolak_server_membuka_ulang_panel():
@@ -239,3 +288,89 @@ def test_akibat_menyebut_angka():
     assert _jalankan(f"akibatBahaya('transaksi', {r})") == "12 janjang 3 tiket"
     assert _jalankan(f"akibatBahaya('semua', {r})") == "12 janjang 3 tiket 5 truk 4 akun"
     assert _jalankan(f"akibatBahaya('logout', {r})") == "2 sesi"
+
+
+_HASIL = {
+    "lines": [
+        {"line_code": "line-1", "ok": True},
+        {"line_code": "line-2", "ok": True, "kode": "belum_mati"},
+        {"line_code": "line-3", "ok": False, "kode": "lisensi"},
+    ]
+}
+
+
+@butuh_node
+def test_hasil_memisahkan_line_gagal_dari_yang_perlu_dicek():
+    """Line yang menerima tapi belum restart bukan kegagalan — datanya terhapus
+    saat ia restart — tapi harus disebut, bukan hilang di antara yang sukses."""
+    teks = _jalankan(f"hasilBahaya('transaksi', {json.dumps(_HASIL)})")
+    assert teks.startswith("bahayaHasilHapus")
+    assert "bahayaHasilGagal: line-3 (lineHasil_lisensi)" in teks
+    assert "bahayaHasilCatatan: line-2 (lineHasil_belum_mati)" in teks
+    assert "line-1" not in teks
+
+
+@butuh_node
+def test_hasil_yang_perlu_dibaca():
+    assert _jalankan("hasilPerluDibaca({lines: [{line_code: 'line-1', ok: true}]})") is False
+    assert _jalankan(f"hasilPerluDibaca({json.dumps(_HASIL)})") is True
+    assert _jalankan("hasilPerluDibaca({lines: [{ok: true, kode: 'belum_mati'}]})") is True
+    assert _jalankan("hasilPerluDibaca({sesi_dihapus: 3})") is False
+
+
+@butuh_node
+def test_hasil_yang_perlu_dibaca_tidak_hilang_sendiri():
+    """Toast 5 detik lewat saat support sedang melihat ke line — line yang harus
+    diulang tetap di layar sampai ditutup."""
+    stub = """
+const dipanggil = [];
+const toast = (jenis, teks, durasi) => dipanggil.push([jenis, durasi]);
+const toastSukses = (teks) => dipanggil.push(["sukses", null]);
+"""
+    panggil = _jalankan(
+        "(tampilHasilBahaya('transaksi', " + json.dumps(_HASIL) + "),"
+        " tampilHasilBahaya('restart', {lines: [{line_code: 'line-1', ok: true}]}), dipanggil)",
+        stub=stub, fungsi=("tampilHasilBahaya",),
+    )
+    assert panggil == [["peringatan", 0], ["sukses", None]]
+
+
+@butuh_node
+def test_hasil_dititipkan_sekali_dan_kedaluwarsa():
+    stub = """
+const tersimpan = new Map();
+const sessionStorage = {
+  setItem: (k, v) => tersimpan.set(k, String(v)),
+  getItem: (k) => (tersimpan.has(k) ? tersimpan.get(k) : null),
+  removeItem: (k) => tersimpan.delete(k),
+};
+const tampil = [];
+const tampilHasilBahaya = (aksi) => tampil.push(aksi);
+"""
+    fungsi = ("titipHasilBahaya", "tampilkanHasilTertunda")
+    konstanta = _konstanta("HASIL_TERTUNDA") + _konstanta("TENGGAT_HASIL_MS")
+    tampil = _jalankan(
+        "(titipHasilBahaya('semua', {lines: []}), tampilkanHasilTertunda(),"
+        " tampilkanHasilTertunda(), tampil)",
+        stub=stub + konstanta, fungsi=fungsi,
+    )
+    assert tampil == ["semua"]  # sekali saja
+    basi = _jalankan(
+        "(sessionStorage.setItem(HASIL_TERTUNDA, JSON.stringify("
+        "{aksi: 'logout', hasil: {}, pada: Date.now() - TENGGAT_HASIL_MS - 1})),"
+        " tampilkanHasilTertunda(), tampil)",
+        stub=stub + konstanta, fungsi=fungsi,
+    )
+    assert basi == []
+
+
+@butuh_node
+def test_semua_line_menolak_menyebut_alasan_tiap_line_dalam_bahasa_layar():
+    stub = 'const alasan = (e) => "alasan:" + e.kode;'
+    assert _jalankan(
+        "alasanBahaya({kode: 'semua_line_menolak', params: {lines: 'line-1:versi_lama,line-2:lisensi'}})",
+        stub=stub,
+    ) == "tolak: line-1 (lineHasil_versi_lama), line-2 (lineHasil_lisensi)"
+    assert _jalankan("alasanBahaya({kode: 'bahaya_ditolak', params: {}})", stub=stub) == (
+        "alasan:bahaya_ditolak"
+    )

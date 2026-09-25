@@ -186,6 +186,10 @@ class ConsoleStore:
         self._db.row_factory = sqlite3.Row
         # ERP-pull role allow-list, read by `_upsert_operator`.
         self._erp_allowed_roles = erp_allowed_roles or frozenset()
+        #: Danger Zone sedang menghapus data (`BahayaService.hapus_data`); selama
+        #: benar, `ConsoleService.assign_truck` menolak truk baru. Di memori, bukan
+        #: di disk: konsol yang restart di tengah jalan tidak sedang menghapus apa pun.
+        self.hapus_berjalan = False
         with self._lock, self._db:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
@@ -1124,6 +1128,19 @@ class ConsoleStore:
                 self._db.execute("DELETE FROM sync_state WHERE key = ?", (k,))
             hasil["sync_state"] = len(buang)
         return hasil
+
+    def tiket_terbuka(self, hari_kerja: str) -> dict[str, int]:
+        """Tiket yang sudah timbang masuk tapi belum keluar (bruto ada, tara belum):
+        `hari_ini` = hari kerja berjalan — truk di tengah kunjungan; `lama` = hari
+        lain, hampir pasti sisa uji coba yang taranya tidak pernah diisi."""
+        with self._lock:
+            row = self._db.execute(
+                """SELECT COALESCE(SUM(work_date = ?), 0) AS hari_ini,
+                          COALESCE(SUM(work_date <> ?), 0) AS lama
+                   FROM weighings WHERE gross_kg IS NOT NULL AND tare_kg IS NULL""",
+                (hari_kerja, hari_kerja),
+            ).fetchone()
+        return {"hari_ini": row["hari_ini"], "lama": row["lama"]}
 
     def hapus_semua_sesi(self) -> int:
         """Logout paksa: semua sesi, termasuk milik yang menekan tombolnya."""

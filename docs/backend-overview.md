@@ -297,7 +297,7 @@ Surface terpisah dari tabel di atas — berjalan sebagai konsol (`routes/console
 | POST | `/api/console/dev/bahaya/restart-line` | restart ketiga line → `{lines:[{line_code, ok, alasan?}]}` |
 | POST | `/api/console/dev/bahaya/logout-semua` | hapus semua sesi → `{sesi_dihapus}` |
 | POST | `/api/console/dev/bahaya/hapus-rekaman` | `{konfirmasi}` → `{lines, berkas, bytes}`; 400 konfirmasi salah |
-| POST | `/api/console/dev/bahaya/hapus-data` | `{mode, konfirmasi}` → `{mode, lines, konsol}`; 400 konfirmasi/mode salah, 409 `bahaya_ditolak` dengan `params.hambatan` |
+| POST | `/api/console/dev/bahaya/hapus-data` | `{mode, konfirmasi}` → `{mode, lines, konsol}`; 400 konfirmasi/mode salah, 409 `bahaya_ditolak` dengan `params.hambatan`, 409 `semua_line_menolak` dengan `params.lines` (`line-1:lisensi,…`) — tidak ada yang dihapus. Tiap baris `lines` = `{line_code, ok, kode?}`; `kode` pada `ok:true` = `belum_mati` (diterima, line belum restart), pada `ok:false` = `line_mati` / `versi_lama` (404) / `lisensi` (403) / kode dari badan 409 line |
 
 ---
 

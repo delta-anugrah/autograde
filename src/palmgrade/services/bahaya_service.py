@@ -4,9 +4,11 @@ Restart semua line, logout paksa semua akun, hapus rekaman video, hapus data
 transaksi, hapus semua data. Keputusan boleh/tidak hidup di `domain/bahaya.py`;
 di sini urutan kerjanya, dan urutan itu yang membuat penghapusan aman:
 
-1. periksa ulang hambatan di server (layar tidak pernah dipercaya);
-2. suruh tiap line menghapus datanya sendiri (penanda + keluar; dihapus saat
-   boot — foto line di-mount read-only ke konsol);
+1. kunci penugasan truk (`store.hapus_berjalan`), lalu periksa ulang hambatan
+   di server (layar tidak pernah dipercaya);
+2. suruh ketiga line BERSAMAAN menghapus datanya sendiri (penanda + keluar;
+   dihapus saat boot — foto line di-mount read-only ke konsol). Tidak satu
+   line pun menerima = berhenti di sini, tidak ada yang dihapus;
 3. TUNGGU line benar-benar mati: line keluar 1 detik sesudah menjawab, dan
    janjang yang lewat di detik itu masih dikirim ke konsol;
 4. baru hapus data konsol, di tempat, lewat store yang sudah terbuka;
@@ -46,7 +48,7 @@ from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LinePlcTolak, LineUnavailable
 from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
-from .akun_bawaan import seed_default_accounts
+from .akun_bawaan import hash_is_usable, seed_default_accounts
 
 logger = logging.getLogger(__name__)
 
@@ -64,15 +66,38 @@ class BahayaDitolak(OperatorError):
         self.hambatan = hambatan
 
 
+class BahayaSemuaMenolak(OperatorError):
+    """409 — tidak satu line pun menerima perintah hapus. Tidak ada yang berubah."""
+
+    def __init__(self, hasil_line: list[dict]) -> None:
+        ringkas = ",".join(f"{r['line_code']}:{r.get('kode', 'ok')}" for r in hasil_line)
+        super().__init__("semua_line_menolak", f"semua line menolak: {ringkas}", lines=ringkas)
+        self.lines = hasil_line
+
+
+#: Penolakan line yang tidak membawa kode sendiri, dibaca dari status HTTP-nya.
+_KODE_STATUS = {
+    # Line versi lama: rute Danger Zone belum ada di image-nya.
+    404: "versi_lama",
+    # Middleware lisensi line menolak SEMUA `/internal/*` begitu langganan habis.
+    403: "lisensi",
+}
+
+
 def _kode_tolak(exc: LinePlcTolak) -> str:
-    """Kode penolakan line (`truk_terpasang`, `sedang_merekam`) dari badan 409-nya."""
+    """Kode penolakan line: dari badan jawabannya (`truk_terpasang`,
+    `sedang_merekam`), kalau tidak ada dari status HTTP-nya."""
     try:
         detail = json.loads(exc.detail).get("detail", {})
         if isinstance(detail, dict) and detail.get("kode"):
             return str(detail["kode"])
     except (ValueError, AttributeError):
         pass
-    return "ditolak"
+    return _KODE_STATUS.get(exc.status_code, "ditolak")
+
+
+def _ringkas_hasil(hasil: list[dict]) -> str:
+    return ", ".join(f"{r['line_code']}={r.get('kode', 'ok')}" for r in hasil)
 
 
 class BahayaService:
@@ -88,6 +113,7 @@ class BahayaService:
         erp_aktif: bool,
         hash_bawaan: str = "",
         hash_support: str = "",
+        hari_kerja: Callable[[], str],
         tarik_master: Callable[[], Awaitable[Any]] | None = None,
         tunggu_mati_s: float = 5.0,
         jeda_cek_s: float = 0.25,
@@ -102,6 +128,7 @@ class BahayaService:
         self._erp_aktif = erp_aktif
         self._hash_bawaan = hash_bawaan
         self._hash_support = hash_support
+        self._hari_kerja = hari_kerja
         self._tarik_master = tarik_master
         self._tunggu_mati_s = tunggu_mati_s
         self._jeda_cek_s = jeda_cek_s
@@ -123,11 +150,13 @@ class BahayaService:
             # itu tidak boleh membuat line terbaca mati.
             rekam = {}
         pending = detail.get("outbox_pending")
+        gagal = detail.get("outbox_failed")
         return KeadaanLine(
             line.line_code,
             terjangkau=True,
             truk_terpasang=bool(detail.get("current_assignment_id")),
             outbox_pending=pending if isinstance(pending, int) else None,
+            outbox_gagal=gagal if isinstance(gagal, int) else None,
             merekam=bool(rekam.get("merekam")),
             rekaman_berkas=int(rekam.get("berkas") or 0),
             rekaman_bytes=int(rekam.get("bytes") or 0),
@@ -137,11 +166,16 @@ class BahayaService:
         return list(await asyncio.gather(*(self._satu_line(ln) for ln in self._lines)))
 
     def _keadaan_konsol(self) -> KeadaanKonsol:
+        tiket = self._store.tiket_terbuka(self._hari_kerja())
         return KeadaanKonsol(
             erp_aktif=self._erp_aktif,
             erp_pending=self._erp_outbox.pending_count(),
             erp_gagal=self._erp_outbox.failed_count(),
-            akun_bawaan=bool(self._hash_bawaan or self._hash_support),
+            # Aturan yang sama dengan `seed_default_accounts`: hash yang tidak
+            # terbaca tidak pernah jadi akun, jadi tidak dihitung sebagai jalan kembali.
+            akun_support_bawaan=hash_is_usable(self._hash_support),
+            tiket_terbuka=tiket["hari_ini"],
+            tiket_lama_terbuka=tiket["lama"],
         )
 
     def _hambatan(self, mode: str, lines: list[KeadaanLine], konsol: KeadaanKonsol) -> list[dict]:
@@ -229,8 +263,7 @@ class BahayaService:
             total = sum(r.get("bytes", 0) for r in hasil)
             logger.warning(
                 "[Danger Zone] Rekaman video dihapus oleh %s: %d berkas, %.2f GB (%s)",
-                oleh, berkas, total / 1e9,
-                ", ".join(f"{r['line_code']}={'ok' if r['ok'] else r['kode']}" for r in hasil),
+                oleh, berkas, total / 1e9, _ringkas_hasil(hasil),
             )
             return {"lines": hasil, "berkas": berkas, "bytes": total}
 
@@ -241,59 +274,103 @@ class BahayaService:
         if not konfirmasi_sah(konfirmasi):
             raise BahayaTidakSah("konfirmasi_salah", "ketik HAPUS untuk melanjutkan")
         async with self._kunci:
-            lines = await self._keadaan_lines()
-            hambatan = self._hambatan(mode, lines, self._keadaan_konsol())
-            if hambatan:
-                logger.warning(
-                    "[Danger Zone] Hapus data %s oleh %s DITOLAK: %s",
-                    mode, oleh, ", ".join(h["kode"] for h in hambatan),
-                )
-                raise BahayaDitolak(hambatan)
+            # Dikunci SEBELUM pemeriksaan ulang: truk yang dipasang di antara
+            # pemeriksaan dan perintah tidak terlihat oleh keduanya.
+            self._store.hapus_berjalan = True
+            try:
+                return await self._hapus_data(mode, oleh)
+            finally:
+                self._store.hapus_berjalan = False
 
-            hasil_line = []
-            for line in self._lines:
-                try:
-                    await self._line_client.hapus_data(line, mode=mode, diminta_oleh=oleh)
-                    hasil_line.append({"line_code": line.line_code, "ok": True})
-                except LinePlcTolak as exc:
-                    hasil_line.append({"line_code": line.line_code, "ok": False, "kode": _kode_tolak(exc)})
-                except LineUnavailable:
-                    hasil_line.append({"line_code": line.line_code, "ok": False, "kode": "line_mati"})
-
-            diterima = [ln for ln, r in zip(self._lines, hasil_line, strict=True) if r["ok"]]
-            await self._tunggu_mati(diterima)
-
-            # Konsol tetap dikosongkan walau ada line yang gagal: layar yang
-            # masih menampilkan data yang separuhnya sudah dihapus lebih buruk
-            # daripada satu line yang disebut gagal dan tinggal diulang.
-            konsol = self._store.hapus_data(mode)
-            antrean = self._erp_outbox.hapus_semua()
-            if self._manifest_outbox is not None:
-                antrean += self._manifest_outbox.hapus_semua()
-            self._log.hapus_semua()
-            if mode == MODE_SEMUA:
-                seed_default_accounts(
-                    self._store, hash_bawaan=self._hash_bawaan, hash_support=self._hash_support
-                )
-                await self._tarik_master_sekarang()
-
+    async def _hapus_data(self, mode: str, oleh: str) -> dict[str, Any]:
+        lines = await self._keadaan_lines()
+        hambatan = self._hambatan(mode, lines, self._keadaan_konsol())
+        if hambatan:
             logger.warning(
-                "[Danger Zone] Data %s dihapus oleh %s: %d janjang, %d tiket, %d antrean; line %s",
-                mode, oleh, konsol.get("inspections", 0), konsol.get("weighings", 0), antrean,
-                ", ".join(f"{r['line_code']}={'ok' if r['ok'] else r['kode']}" for r in hasil_line),
+                "[Danger Zone] Hapus data %s oleh %s DITOLAK: %s",
+                mode, oleh, ", ".join(h["kode"] for h in hambatan),
             )
-            return {"mode": mode, "lines": hasil_line, "konsol": {**konsol, "antrean": antrean}}
+            raise BahayaDitolak(hambatan)
+
+        # Bersamaan, bukan berurutan: satu line yang lambat menjawab tidak boleh
+        # membuat line lain sudah restart sementara yang terakhir belum ditanya.
+        jawaban = await asyncio.gather(
+            *(self._perintah_hapus(line, mode, oleh) for line in self._lines)
+        )
+        hasil_line = [hasil for hasil, _jeda in jawaban]
+        diterima = [ln for ln, r in zip(self._lines, hasil_line, strict=True) if r["ok"]]
+        if not diterima:
+            # Foto semua line masih utuh: mengosongkan konsol sekarang membuang
+            # index yang menunjuk ke sana, tanpa satu berkas pun berkurang.
+            logger.warning(
+                "[Danger Zone] Hapus data %s oleh %s GAGAL: tidak ada line yang menerima (%s)"
+                " — tidak ada yang dihapus", mode, oleh, _ringkas_hasil(hasil_line),
+            )
+            raise BahayaSemuaMenolak(hasil_line)
+
+        belum_mati = await self._tunggu_mati(diterima, jeda=max(j for _hasil, j in jawaban))
+        for r in hasil_line:
+            if r["line_code"] in belum_mati:
+                r["kode"] = "belum_mati"
+
+        # Konsol tetap dikosongkan walau ada line yang gagal: layar yang masih
+        # menampilkan data yang separuhnya sudah dihapus lebih buruk daripada
+        # satu line yang disebut gagal dan tinggal diulang.
+        konsol = self._store.hapus_data(mode)
+        antrean = self._erp_outbox.hapus_semua()
+        if self._manifest_outbox is not None:
+            antrean += self._manifest_outbox.hapus_semua()
+        self._log.hapus_semua()
+        if mode == MODE_SEMUA:
+            seed_default_accounts(
+                self._store, hash_bawaan=self._hash_bawaan, hash_support=self._hash_support
+            )
+            await self._tarik_master_sekarang()
+
+        logger.warning(
+            "[Danger Zone] Data %s dihapus oleh %s: %d janjang, %d tiket, %d antrean; line %s",
+            mode, oleh, konsol.get("inspections", 0), konsol.get("weighings", 0), antrean,
+            _ringkas_hasil(hasil_line),
+        )
+        return {"mode": mode, "lines": hasil_line, "konsol": {**konsol, "antrean": antrean}}
 
     # ── privat ──────────────────────────────────────────────────────────────
 
-    async def _tunggu_mati(self, lines: list[LineEndpoint]) -> None:
+    async def _perintah_hapus(
+        self, line: LineEndpoint, mode: str, oleh: str
+    ) -> tuple[dict[str, Any], float]:
+        """Hasil satu line + berapa detik ia masih hidup sesudah menjawab."""
+        try:
+            jawaban = await self._line_client.hapus_data(line, mode=mode, diminta_oleh=oleh)
+        except LinePlcTolak as exc:
+            return {"line_code": line.line_code, "ok": False, "kode": _kode_tolak(exc)}, 0.0
+        except LineUnavailable:
+            return {"line_code": line.line_code, "ok": False, "kode": "line_mati"}, 0.0
+        jeda = jawaban.get("jeda_detik") if isinstance(jawaban, dict) else None
+        return {"line_code": line.line_code, "ok": True}, float(jeda or 0)
+
+    async def _tunggu_mati(self, lines: list[LineEndpoint], *, jeda: float) -> set[str]:
+        """Tunggu sampai tiap line DUA KALI berturut-turut tidak menjawab `/health`.
+
+        Kembalikan kode line yang belum mati sampai batas waktu: perintahnya sudah
+        diterima (penanda tertulis, datanya dihapus saat line itu restart), tapi
+        janjang yang lewat sementara itu masih bisa mendarat di konsol.
+        """
         if not lines or self._tunggu_mati_s <= 0:
-            return
+            return set()
         batas = time.monotonic() + self._tunggu_mati_s
+        # Line masih hidup `jeda` detik sesudah menjawab (pola `/internal/restart`):
+        # bertanya selama itu cuma membuang pertanyaan.
+        await asyncio.sleep(min(max(jeda, 0.0), self._tunggu_mati_s))
+        diam = {ln.line_code: 0 for ln in lines}
         sisa = list(lines)
         while sisa and time.monotonic() < batas:
             hidup = await asyncio.gather(*(self._line_client.hidup(ln) for ln in sisa))
-            sisa = [ln for ln, h in zip(sisa, hidup, strict=True) if h]
+            for ln, h in zip(sisa, hidup, strict=True):
+                diam[ln.line_code] = 0 if h else diam[ln.line_code] + 1
+            # Dua kali berturut-turut: satu tenggat yang lewat (line sibuk menulis
+            # foto) bukan line yang mati.
+            sisa = [ln for ln in sisa if diam[ln.line_code] < 2]
             if sisa:
                 await asyncio.sleep(self._jeda_cek_s)
         if sisa:
@@ -301,6 +378,7 @@ class BahayaService:
                 "[Danger Zone] %s belum mati sesudah %.0f detik — data konsol tetap dihapus",
                 ", ".join(ln.line_code for ln in sisa), self._tunggu_mati_s,
             )
+        return {ln.line_code for ln in sisa}
 
     async def _tarik_master_sekarang(self) -> None:
         """Truk, supplier, dan akun AutoERP turun lagi sekarang, bukan menunggu

@@ -17,6 +17,7 @@ from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Que
 from fastapi.responses import FileResponse
 
 from ..core.config import Settings
+from ..domain.bahaya import HapusBerjalan
 from ..domain.operator_auth import SESSION_TTL_S
 from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
 from ..domain.pilihan_model import ModelTidakSah
@@ -33,7 +34,12 @@ from ..license.manager import LicenseManager
 from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
 from ..services.auth_service import AuthService
-from ..services.bahaya_service import BahayaDitolak, BahayaService, BahayaTidakSah
+from ..services.bahaya_service import (
+    BahayaDitolak,
+    BahayaSemuaMenolak,
+    BahayaService,
+    BahayaTidakSah,
+)
 from ..services.console_service import ConsoleService
 from ..services.dev_service import CoilTidakDikenal, DevService, PlcSibuk
 from ..services.erp_queue import ErpQueue
@@ -181,6 +187,8 @@ def get_bahaya_service() -> BahayaService:
         erp_aktif=bool(settings.erp_url),
         hash_bawaan=settings.console_default_hash,
         hash_support=settings.console_support_hash,
+        # Hari kerja yang sama dengan strip "Hari ini" dan tab Timbangan.
+        hari_kerja=service.today,
         tarik_master=tarik,
     )
 
@@ -459,6 +467,8 @@ async def assign_truck(
 ) -> dict:
     try:
         return await service.assign_truck(line_code, truck_id)
+    except HapusBerjalan as exc:
+        raise _operator_error(409, exc) from exc
     except ValueError as exc:
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
@@ -730,14 +740,16 @@ async def dev_bahaya_hapus_data(
 ) -> dict:
     """Hapus data transaksi (`mode=transaksi`) atau semua data (`mode=semua`).
 
-    400 = konfirmasi salah / mode asing; 409 = keadaan pabrik belum aman
-    (`params.hambatan` berisi kodenya). Keduanya tidak mengubah apa pun.
+    400 = konfirmasi salah / mode asing; 409 `bahaya_ditolak` = keadaan pabrik
+    belum aman (`params.hambatan` berisi kodenya); 409 `semua_line_menolak` =
+    tidak satu line pun menerima perintahnya (`params.lines`). Ketiganya tidak
+    mengubah apa pun.
     """
     try:
         return await bahaya.hapus_data(mode=mode, konfirmasi=konfirmasi, oleh=operator["email"])
     except BahayaTidakSah as exc:
         raise _operator_error(400, exc) from exc
-    except BahayaDitolak as exc:
+    except (BahayaDitolak, BahayaSemuaMenolak) as exc:
         raise _operator_error(409, exc) from exc
 
 

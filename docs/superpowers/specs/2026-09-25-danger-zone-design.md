@@ -89,6 +89,12 @@ Diperiksa dua kali: di layar saat panel dibuka (supaya support tahu), dan
 4. `ERP_URL` terisi **dan** antrean konsol → AutoERP masih punya kiriman
    `pending`: kunjungan yang belum masuk buku AutoERP akan hilang dari
    pembukuan.
+5. *(ditambah sesudah review)* Ada tiket timbang terbuka di hari kerja berjalan
+   (bruto ada, tara belum): truk di tengah kunjungan, dan bruto itu yang
+   dibayar. Tiket terbuka dari hari lain cuma diperingatkan (sisa uji coba).
+6. *(ditambah sesudah review)* Khusus "semua": tidak ada hash akun **support**
+   yang terbaca dan AutoERP tidak disetel — sesudahnya tidak ada yang bisa
+   membuka menu support, termasuk kotak ini.
 
 **Peringatan — boleh lanjut:**
 
@@ -98,6 +104,8 @@ Diperiksa dua kali: di layar saat panel dibuka (supaya support tahu), dan
   sampai tick jam berikutnya; angka dari manifest saja akan terbaca "0" padahal
   belum.
 - Kiriman AutoERP yang sudah **gagal** (ditolak ERP) ikut terhapus.
+- Janjang yang ditolak konsol berkali-kali (`outbox_failed` line) ikut hilang
+  bersama `outbox.db`.
 - `ERP_URL` kosong: antrean tidak pernah terkirim ke mana pun, N baris ikut terhapus.
 - Khusus "semua": semua orang keluar, termasuk layar operator di PC pabrik;
   akun AutoERP baru bisa dipakai lagi setelah tarikan berikutnya.
@@ -120,16 +128,23 @@ ke konsol. Dan SQLite yang sedang dibuka tidak boleh dihapus dari bawah proses
 yang memakainya (proses tetap menulis ke berkas yang sudah di-unlink, layar
 masih menampilkan data lama sampai restart).
 
-Jadi line menerima perintah, menulis **penanda** `state/.hapus-data`, lalu
+Jadi line menerima perintah, menulis **penanda** `artifacts/.hapus-data`, lalu
 restart dengan mekanisme yang sudah terbukti di Sumber Kamera/Model Deteksi
 (`/internal/restart` → `os._exit(0)` → `restart: unless-stopped`). Saat boot,
 **sebelum** satu pun store atau worker membuka berkas, line melihat penanda itu:
 
 1. hapus isi `artifacts/` **kecuali `license.db*`** (foto, sidecar, `outbox.db`);
-2. hapus isi `state/` kecuali penandanya (`upload_manifest.db`);
+2. hapus berkas **milik line** di `state/` (`upload_manifest.db*`) — bukan
+   seluruh isinya;
 3. hapus penanda **paling akhir** — boot yang terputus di tengah menghapus
    ulang saat boot berikutnya, bukan meninggalkan separuh data;
 4. `logger.warning` siapa yang meminta dan mode apa.
+
+*Revisi sesudah review (2026-09-25):* penanda semula di `state/` dan langkah 2
+menghapus seluruh `state/`. Di jalur native (`make line` + `make console`)
+folder itu dipakai BERSAMA konsol dan ketiga line: boot line pertama menghapus
+`console.db` yang sedang dibuka konsol dan memakan penanda milik dua line lain.
+`artifacts/` selalu milik satu line, di Docker maupun native.
 
 Kedua mode sama persis di sisi line: line cuma memegang data transaksi.
 
@@ -152,19 +167,26 @@ membuat test merah, bukan diam-diam tertinggal atau ikut terhapus.
 
 ### Urutan eksekusi hapus data
 
-1. Periksa ulang hambatan (bagian 4). Ada satu → 409, selesai.
-2. Kirim `POST /internal/hapus-data` ke ketiga line. Line memeriksa lagi
-   penugasan truknya sendiri (yang tahu pasti keadaan line adalah proses line,
-   pola yang sama dengan Uji PLC).
-3. Tunggu ketiga line benar-benar mati (`/health` tidak menjawab, dicek tiap
-   ¼ detik, paling lama 5 detik). Line keluar 1 detik sesudah menjawab, dan
-   janjang yang lewat di detik itu masih dikirim ke konsol — menghapus data
-   konsol lebih cepat dari itu meninggalkan baris grading yang fotonya sudah
-   hilang.
-4. Hapus data konsol — **tetap dijalankan** walau ada line yang gagal di
-   langkah 2. Line yang gagal disebut di hasil; menekan tombol lagi setelah
-   line itu hidup menyelesaikannya (kedua sisi aman diulang).
-5. Tulis jejak, jawab dengan hasil per line + jumlah yang dihapus.
+1. Kunci penugasan truk di konsol (`assign-truck` → 409 `hapus_berjalan`),
+   lalu periksa ulang hambatan (bagian 4). Ada satu → 409, selesai.
+2. Kirim `POST /internal/hapus-data` ke ketiga line **bersamaan**. Line
+   memeriksa lagi penugasan truknya sendiri (yang tahu pasti keadaan line
+   adalah proses line, pola yang sama dengan Uji PLC), dan sejak penandanya
+   tertulis menolak truk baru. **Tidak satu line pun menerima → 409
+   `semua_line_menolak`, tidak ada yang dihapus** (foto semua line masih utuh).
+3. Tunggu line yang menerima benar-benar mati: diam dulu selama `jeda_detik`
+   yang dijawab line, lalu `/health` tiap ¼ detik sampai **dua kali
+   berturut-turut** tidak menjawab, paling lama 5 detik. Line keluar 1 detik
+   sesudah menjawab, dan janjang yang lewat di detik itu masih dikirim ke
+   konsol — menghapus data konsol lebih cepat dari itu meninggalkan baris
+   grading yang fotonya sudah hilang. Line yang tidak kunjung mati disebut
+   `belum_mati` (perintahnya tetap diterima).
+4. Hapus data konsol — dijalankan kalau **minimal satu** line menerima. Line
+   yang gagal disebut di hasil (`line_mati`, `versi_lama` = 404, `lisensi` =
+   403, atau kode dari badan 409-nya); menekan tombol lagi setelah line itu
+   beres menyelesaikannya (kedua sisi aman diulang).
+5. Tulis jejak, jawab dengan hasil per line + jumlah yang dihapus. Buka lagi
+   kunci penugasan (juga saat ditolak).
 
 ### Endpoint
 
@@ -179,7 +201,8 @@ Konsol (semua lewat `require_support`, 401/403 seperti lane dev lain):
 | POST | `/api/console/dev/bahaya/hapus-data` | `{mode:"transaksi"\|"semua", konfirmasi:"HAPUS"}` |
 
 400 kalau `konfirmasi` bukan persis `HAPUS` atau `mode` asing; 409 dengan daftar
-kode hambatan kalau diblokir.
+kode hambatan kalau diblokir; 409 `semua_line_menolak` kalau tidak satu line pun
+menerima.
 
 Line (lane mesin, `x-internal-secret`, sama dengan `/internal/restart`). Ketiganya
 di router baru `routes/internal_bahaya.py` yang dirakit lewat fungsi pabrik dan

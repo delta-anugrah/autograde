@@ -250,17 +250,17 @@ def test_mode_semua_tanpa_akun_bawaan_dan_tanpa_erp_menghambat():
     """Mode semua menghapus SEMUA akun. Tanpa hash akun bawaan di `.env` dan
     tanpa AutoERP, tidak ada satu akun pun yang bisa kembali — konsol terkunci
     sampai teknisi datang dengan terminal."""
-    konsol = KeadaanKonsol(erp_aktif=False, akun_bawaan=False)
+    konsol = KeadaanKonsol(erp_aktif=False, akun_support_bawaan=False)
     assert hambatan_mode_semua(konsol) == [{"kode": "tanpa_sumber_akun"}]
 
 
 def test_mode_semua_dengan_akun_bawaan_boleh():
-    assert hambatan_mode_semua(KeadaanKonsol(erp_aktif=False, akun_bawaan=True)) == []
+    assert hambatan_mode_semua(KeadaanKonsol(erp_aktif=False, akun_support_bawaan=True)) == []
 
 
 def test_mode_semua_dengan_erp_boleh():
     """Akun AutoERP turun lagi lewat tarikan master data."""
-    assert hambatan_mode_semua(KeadaanKonsol(erp_aktif=True, akun_bawaan=False)) == []
+    assert hambatan_mode_semua(KeadaanKonsol(erp_aktif=True, akun_support_bawaan=False)) == []
 
 
 # ── daftar kode: jembatan ke terjemahan di layar ────────────────────────────
@@ -273,10 +273,16 @@ def _semua_keluaran() -> tuple[set[str], set[str]]:
         KeadaanLine("line-1", terjangkau=False),
         _sehat("line-2", truk_terpasang=True, merekam=True),
         _sehat("line-3", outbox_pending=None),
-        _sehat("line-4", merekam=True),
+        _sehat("line-4", merekam=True, outbox_gagal=2),
     ]
-    aktif = KeadaanKonsol(erp_aktif=True, erp_pending=2, erp_gagal=1, akun_bawaan=False)
-    mati = KeadaanKonsol(erp_aktif=False, erp_pending=2, erp_gagal=1, akun_bawaan=False)
+    aktif = KeadaanKonsol(
+        erp_aktif=True, erp_pending=2, erp_gagal=1, akun_support_bawaan=False,
+        tiket_terbuka=1, tiket_lama_terbuka=1,
+    )
+    mati = KeadaanKonsol(
+        erp_aktif=False, erp_pending=2, erp_gagal=1, akun_support_bawaan=False,
+        tiket_terbuka=1, tiket_lama_terbuka=1,
+    )
     hambatan = {
         *_kode(hambatan_hapus_data(lines, aktif)),
         *_kode(hambatan_hapus_data([], aktif)),
@@ -302,3 +308,74 @@ def test_daftar_kode_hambatan_lengkap_dan_tidak_berlebih():
 def test_daftar_kode_peringatan_lengkap_dan_tidak_berlebih():
     _, peringatan = _semua_keluaran()
     assert peringatan == set(KODE_PERINGATAN)
+
+
+# ── fix pass review 2026-09-25 ──────────────────────────────────────────────
+
+
+def test_tiket_terbuka_hari_ini_menghambat():
+    """I-3a: tiket yang sudah timbang masuk tapi belum keluar HARI INI = truk di
+    tengah kunjungan. Bruto-nya yang dibayar; menghapusnya membuat neto truk
+    itu tidak pernah bisa dihitung."""
+    konsol = KeadaanKonsol(erp_aktif=True, tiket_terbuka=2)
+    assert hambatan_hapus_data(TIGA_SEHAT, konsol) == [{"kode": "tiket_terbuka", "jumlah": 2}]
+
+
+def test_tiket_terbuka_hari_lama_cuma_diperingatkan():
+    """Tiket terbuka dari hari kerja yang sudah lewat hampir pasti sisa uji
+    coba; menghambat karenanya membuat reset tidak pernah bisa dipakai."""
+    konsol = KeadaanKonsol(erp_aktif=True, tiket_lama_terbuka=5)
+    assert hambatan_hapus_data(TIGA_SEHAT, konsol) == []
+    assert {"kode": "tiket_lama_terbuka", "jumlah": 5} in peringatan_hapus_data(
+        TIGA_SEHAT, konsol, MODE_TRANSAKSI
+    )
+
+
+def test_antrean_line_gagal_diperingatkan():
+    """M-5: janjang yang ditolak konsol sesudah percobaan maksimum ikut hilang."""
+    lines = [_sehat("line-1"), _sehat("line-2", outbox_gagal=3), _sehat("line-3")]
+    assert {"kode": "antrean_line_gagal", "line": "line-2", "jumlah": 3} in peringatan_hapus_data(
+        lines, KONSOL_BERSIH, MODE_TRANSAKSI
+    )
+
+
+def test_mode_semua_butuh_akun_support_bukan_sekadar_akun_bawaan():
+    """M-3: hash akun operator saja tidak cukup — sesudah mode semua tidak ada
+    akun support, dan Danger Zone beserta seluruh lane developer terkunci."""
+    konsol = KeadaanKonsol(erp_aktif=False, akun_support_bawaan=False)
+    assert hambatan_mode_semua(konsol) == [{"kode": "tanpa_sumber_akun"}]
+
+
+def test_setiap_kunci_sync_state_di_kode_sudah_digolongkan():
+    """M-4: `kunci_state_dihapus` memutuskan per awalan, dan kunci tak dikenal
+    ikut terhapus. Setelan baru yang disimpan tanpa awalan `setelan_` akan
+    hilang diam-diam — test ini merah begitu ada pemanggil `set_state` baru
+    yang belum diputuskan golongannya."""
+    import re
+    from pathlib import Path
+
+    from palmgrade.domain.setelan_grading import KUNCI_SETELAN
+    from palmgrade.domain.setelan_rekam import KUNCI_SETELAN_REKAM
+    from palmgrade.workers.master_data_worker import (
+        OPERATOR_CURSOR_KEY,
+        SUPPLIER_CURSOR_KEY,
+        TRUCK_CURSOR_KEY,
+    )
+    from palmgrade.workers.visit_resend_worker import RESEND_DAY_KEY
+
+    src = Path(__file__).resolve().parents[2] / "src/palmgrade"
+    pemanggil = {
+        m.group(1)
+        for f in src.rglob("*.py")
+        for m in re.finditer(r"\.set_state\(\s*([A-Za-z_.]+)", f.read_text())
+    }
+    assert pemanggil == {
+        "KUNCI_SETELAN", "KUNCI_SETELAN_REKAM", "RESEND_DAY_KEY", "resource.cursor_key",
+    }, pemanggil
+    for kunci in (KUNCI_SETELAN, KUNCI_SETELAN_REKAM):
+        assert not kunci_state_dihapus(kunci, MODE_SEMUA), kunci
+    for kunci in (SUPPLIER_CURSOR_KEY, TRUCK_CURSOR_KEY, OPERATOR_CURSOR_KEY):
+        assert not kunci_state_dihapus(kunci, MODE_TRANSAKSI), kunci
+        assert kunci_state_dihapus(kunci, MODE_SEMUA), kunci
+    assert kunci_state_dihapus(RESEND_DAY_KEY, MODE_TRANSAKSI)
+
