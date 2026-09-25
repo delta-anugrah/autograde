@@ -622,7 +622,11 @@
   .pilih-panel--atas { top:auto; bottom:calc(100% + 4px); }
 
   /* ---- tabs ---- */
-  #tabs { display:flex; gap:3px; padding:26px var(--pad) 0; }
+  /* flex-wrap: tab turun ke baris kedua HANYA kalau tidak muat. Tiap tab tidak
+     bisa menyusut di bawah lebar labelnya, jadi tanpa wrap 14 tab support di layar
+     1024 px meluap 1338 px dan seluruh halaman bergeser ke samping (2026-09-26).
+     Di layar lebar tetap satu baris. */
+  #tabs { display:flex; flex-wrap:wrap; gap:3px; padding:26px var(--pad) 0; }
   /* flex:1 1 0 - widths split evenly instead of following text length, so a long
      label does not shove the others when the language flips. Inactive tabs stay
      recessed rather than invisible: bare words on the page background do not

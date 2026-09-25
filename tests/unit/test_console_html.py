@@ -1242,3 +1242,12 @@ def test_tanggal_langganan_tidak_menampilkan_jam():
     ketelitian yang tidak berarti apa-apa bagi operator."""
     fn = _fungsi("tanggalLisensi")
     assert "hour" not in fn and "minute" not in fn
+
+
+def test_deretan_tab_turun_baris_bukan_meluap():
+    """14 tab support tidak muat di layar 1024 px. Tanpa flex-wrap tiap tab
+    tidak bisa menyusut di bawah lebar labelnya, dan seluruh halaman bergeser
+    ke samping (terukur 1338 px di layar 1024, 2026-09-26). Dengan wrap, tab
+    baru turun baris kalau memang tidak muat, jadi layar lebar tetap satu baris."""
+    aturan = re.search(r"#tabs\s*\{([^}]*)\}", HTML).group(1)
+    assert "flex-wrap:wrap" in aturan.replace(" ", "")
