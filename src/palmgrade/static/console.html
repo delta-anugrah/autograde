@@ -371,6 +371,13 @@
                    gap:4px 10px; font-size:.85rem; }
   .kartu-grid dt { color:var(--muted); }
   .kartu-grid dd { margin:0; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Worker satu per baris di bawah judul Workers, menjorok supaya terbaca
+     sebagai anak judul itu, bukan baris diagnostik yang setara. */
+  .kartu-grid dt.diag-worker { padding-left:14px; font-family:var(--mono); font-size:.8rem; }
+  /* ✓/✗ berwarna. Token tema, bukan hex: terang dan gelap punya hijau-merah
+     sendiri, dan hex yang dipatok cuma terbaca di salah satunya. */
+  .tanda-ok { color:var(--acc); font-weight:700; }
+  .tanda-gagal { color:var(--rej); font-weight:700; }
 
   /* Uji PLC: the only card that moves hardware. DI bits are read-only text;
      coil buttons get the danger tokens piston.terbuka already uses, so the
@@ -379,10 +386,12 @@
   .plc-coil { padding:0 13px 12px; display:flex; flex-wrap:wrap; gap:8px; }
   button.uji-coil { flex:1; min-width:9rem; min-height:2.6rem; border-color:var(--danger-line);
                      background:var(--danger-bg); color:var(--danger-fg); font-weight:600; }
-  /* Hijau = OK, merah = NG/Error. Warna dibaca lebih cepat daripada tulisan
-     saat tangan sedang di panel dan mata bolak-balik ke GX Works2. Merah tetap
-     bawaan tombol ini karena dua dari tiga memang "buang"/"rusak". */
+  /* Hijau = OK, merah = NG, kuning = Error. Warna dibaca lebih cepat daripada
+     tulisan saat tangan sedang di panel dan mata bolak-balik ke GX Works2.
+     Error kuning sejak 2026-09-25: dulu merah seperti NG, dan dua tombol merah
+     berdampingan terbaca kembar. */
   button.uji-coil.ok { border-color:var(--acc); background:var(--acc-bg); color:var(--acc); }
+  button.uji-coil.error { border-color:var(--warn); background:var(--warn-bg); color:var(--warn); }
   button.uji-coil:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
   /* Dua baris: peran yang dibaca manusia di atas, alamat M yang dicocokkan ke
      GX Works2 di bawah. Keduanya perlu — nama saja tidak bisa dicocokkan ke
@@ -391,20 +400,19 @@
                     gap:2px; line-height:1.25; padding:6px 10px; }
   button.uji-coil .alamat { display:block; font-family:var(--mono); font-size:.76rem;
                             font-weight:400; opacity:.7; letter-spacing:.02em; }
-  /* Peta alamat: referensi diam, dibaca developer/teknisi, bukan tombol. */
-  #plc-peta { margin:14px 13px 0; }
-  #plc-peta h3 { margin:0 0 6px; font-size:.82rem; letter-spacing:.06em;
-                 text-transform:uppercase; color:var(--muted); }
-  /* Dua tabel berdampingan selama muat; menumpuk sendiri di layar sempit.
-     `width:auto` + `max-content` supaya kolom keterangan tidak melar mengisi
-     sisa baris — daftar alamat dibaca dengan menyapu mata ke bawah. */
-  #plc-peta .peta-grid { display:flex; flex-wrap:wrap; gap:14px 36px; align-items:flex-start; }
-  #plc-peta table { border-collapse:collapse; font-size:.8rem; width:max-content; }
-  #plc-peta caption { text-align:left; padding:0 0 5px; font-weight:600;
-                      color:var(--muted); font-size:.78rem; }
-  #plc-peta tbody tr:nth-child(even) { background:var(--bg-lembut, rgba(127,127,127,.06)); }
-  #plc-peta td { padding:2px 0; white-space:nowrap; }
-  #plc-peta td:first-child { font-family:var(--mono); font-weight:700; padding-right:16px; }
+  /* Peta alamat: referensi diam, dibaca developer/teknisi, bukan tombol.
+     Satu kartu selebar grid kartu line di atasnya. */
+  #plc-peta { margin-top:16px; }
+  /* Dua tabel dibagi rata selebar kartu; menumpuk sendiri di layar sempit.
+     Kolom alamat dipatok lebarnya supaya dua tabel sejajar baris per baris. */
+  #plc-peta .peta-grid { display:grid; gap:12px 28px; padding:10px 13px 13px;
+                         grid-template-columns:repeat(auto-fit, minmax(min(22rem, 100%), 1fr)); }
+  #plc-peta table { border-collapse:collapse; font-size:.82rem; width:100%; }
+  #plc-peta caption { text-align:left; padding:0 0 6px; font-weight:600; color:var(--muted);
+                      font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; }
+  #plc-peta tbody tr:nth-child(even) { background:var(--zebra); }
+  #plc-peta td { padding:5px 8px; white-space:nowrap; border-top:1px solid var(--line); }
+  #plc-peta td:first-child { font-family:var(--mono); font-weight:700; width:5.5rem; }
 
   /* Konfirmasi uji PLC: inline, bukan dialog bawaan browser - lihat komentar HTML
      di #sec-plc. Sama bentuknya dengan .tara-grup, ditempatkan di luar #plc-kartu
@@ -1320,17 +1328,6 @@
           <input id="rekam-height" type="text" inputmode="numeric" autocomplete="off"
                  data-angka="bulat" maxlength="5">
         </label>
-        <label>
-          <span data-t="rekamFps">FPS</span>
-          <input id="rekam-fps" type="text" inputmode="numeric" autocomplete="off"
-                 data-angka="bulat" maxlength="2">
-          <small class="muted" data-t="rekamBantuFps">Makin tinggi = makin halus, makin besar berkasnya.</small>
-        </label>
-        <label>
-          <span data-t="rekamBitrate">Bitrate (kbps)</span>
-          <input id="rekam-bitrate" type="text" inputmode="numeric" autocomplete="off"
-                 data-angka="bulat" maxlength="5">
-        </label>
       </div>
     </details>
     <div class="tools lepas">
@@ -1526,9 +1523,12 @@
     server: ini dokumen kesepakatan dengan panel, bukan keadaan yang berubah.
     Sumber kebenaran alamat tetap docker-compose.yml, diikat ke dokumen lewat
     test_plc_docs_match_compose.
+
+    Satu kartu, gaya yang sama dengan kartu line di atasnya (2026-09-25): dulu
+    teks lepas di pojok kiri dengan sisa layar kosong.
   -->
-  <div id="plc-peta">
-    <h3 data-t="petaJudul">Peta alamat PLC</h3>
+  <div id="plc-peta" class="card">
+    <h2><span class="nama" data-t="petaJudul">Peta alamat PLC</span></h2>
     <div class="peta-grid">
     <table>
       <caption data-t="petaDariPc"></caption>
@@ -1839,6 +1839,7 @@ const KAMUS = {
     labelLisensi:"Lisensi", gagalVersi:"Gagal memuat versi",
     versiDariSource:"dev (dari source)",
     lisensiAktif:"Aktif", lisensiTanpaToken:"Aktif, token belum terpasang", lisensiMati:"Mati",
+    lisensiSaklarMati:"Mati — token ada, tapi LICENSE_ENABLED tidak menyala di konsol",
     labelAktifSampai:"Aktif sampai", labelTenggangSampai:"Tenggang sampai",
     labelPerusahaan:"Perusahaan", lisensiSisaHari:"{hari} hari lagi",
     lisensiTokenRusak:"Token tidak terbaca",
@@ -1870,9 +1871,8 @@ const KAMUS = {
     rekamMulai:"Rekam", rekamStop:"Stop",
     rekamSedangMerekam:"Merekam", rekamMati:"Mati", rekamTakTerbaca:"Tak terbaca",
     rekamDiskBebas:"Disk bebas", rekamSetelanJudul:"Setelan rekaman",
-    rekamLebar:"Lebar (piksel)", rekamTinggi:"Tinggi (piksel)", rekamFps:"FPS",
-    rekamBitrate:"Bitrate (kbps)", rekamSimpanSetelan:"Simpan setelan",
-    rekamBantuFps:"Kamera yang menentukan kalau ia bisa melapor. Angka ini dipakai untuk berkas video dan webcam.",
+    rekamLebar:"Lebar (piksel)", rekamTinggi:"Tinggi (piksel)",
+    rekamSimpanSetelan:"Simpan setelan",
     rekamSetelanTersimpan:"Setelan tersimpan — berlaku untuk rekaman berikutnya",
     rekamCatatanRetensi:"Rekaman tidak dihapus otomatis. Hapus sendiri dari folder videos/ di PC pabrik.",
     gagalRekam:"Gagal memuat status rekaman",
@@ -2019,6 +2019,7 @@ const KAMUS = {
     labelLisensi:"Licence", gagalVersi:"Failed to load version",
     versiDariSource:"dev (from source)",
     lisensiAktif:"Active", lisensiTanpaToken:"Active, no token installed", lisensiMati:"Inactive",
+    lisensiSaklarMati:"Inactive — token installed, but LICENSE_ENABLED is off for the console",
     labelAktifSampai:"Active until", labelTenggangSampai:"Grace until",
     labelPerusahaan:"Company", lisensiSisaHari:"{hari} days left",
     lisensiTokenRusak:"Token unreadable",
@@ -2050,9 +2051,8 @@ const KAMUS = {
     rekamMulai:"Record", rekamStop:"Stop",
     rekamSedangMerekam:"Recording", rekamMati:"Off", rekamTakTerbaca:"Unreachable",
     rekamDiskBebas:"Free disk", rekamSetelanJudul:"Recording settings",
-    rekamLebar:"Width (pixels)", rekamTinggi:"Height (pixels)", rekamFps:"FPS",
-    rekamBitrate:"Bitrate (kbps)", rekamSimpanSetelan:"Save settings",
-    rekamBantuFps:"The camera decides when it can report its rate. This number is used for video files and webcams.",
+    rekamLebar:"Width (pixels)", rekamTinggi:"Height (pixels)",
+    rekamSimpanSetelan:"Save settings",
     rekamSetelanTersimpan:"Saved — applies to the next recording",
     rekamCatatanRetensi:"Recordings are never deleted automatically. Clear the videos/ folder on the mill PC yourself.",
     gagalRekam:"Failed to load recording status",
@@ -3742,6 +3742,13 @@ let diagnostikTimer = null;
 // sudah membaca blok M tiap 200 ms.
 let plcTimer = null;
 
+// ✓ hijau / ✗ merah. Simbolnya tetap yang membawa arti, warnanya cuma
+// mempercepat membaca: layar ini dilihat lewat AnyDesk, dan sebagian teknisi
+// buta warna.
+function tanda(ok) {
+  return ok ? `<span class="tanda-ok">✓</span>` : `<span class="tanda-gagal">✗</span>`;
+}
+
 // Dynamic markup, generated fresh on every poll: static labels are resolved
 // with t() inline here, not via data-t - that attribute is only ever scanned
 // once, over the page's static HTML (see terapkanBahasa).
@@ -3753,16 +3760,30 @@ function kartuDiagnostik(kode, d) {
         <dt>${esc(t("thSebab"))}</dt><dd title="${esc(d.sebab)}">${esc(d.sebab)}</dd></dl>
     </div>`;
   }
-  const w = (d.workers || []).map((x) => `${esc(x.name)}:${x.alive ? "✓" : "✗"}`).join(" ");
-  const plc = d.plc ? "✓" : KOSONG;
+  // Satu baris per worker, di bawah, bukan satu kalimat "capture:✓ display:✓
+  // ..." (permintaan 2026-09-25): enam worker sebaris terpotong `…` di kartu
+  // selebar 280 px, dan worker yang mati justru yang paling mungkin jatuh di
+  // bagian yang terpotong. Baris judulnya memberi hitungan supaya satu worker
+  // mati terbaca dari jauh tanpa menyisir daftarnya.
+  const workers = d.workers || [];
+  const hidup = workers.filter((x) => x.alive).length;
+  const ringkasWorker = workers.length
+    ? `<span class="${hidup === workers.length ? "tanda-ok" : "tanda-gagal"}">${hidup}/${workers.length}</span>`
+    : KOSONG;
+  const barisWorker = workers
+    .map((x) => `<dt class="diag-worker">${esc(x.name)}</dt><dd>${tanda(x.alive)}</dd>`)
+    .join("");
+  // `plc: null` = PLC dimatikan di line itu, bukan rusak: strip, bukan silang
+  // merah yang akan dikejar teknisi sebagai kerusakan.
+  const plc = d.plc ? tanda(true) : KOSONG;
   return `<div class="card" data-line="${esc(kode)}">
     <h2><span class="nama">${esc(kode)}</span></h2>
     <dl>
-      <dt>${esc(t("thKamera"))}</dt><dd>${d.camera_connected ? "✓" : "✗"}</dd>
-      <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : (d.gpu_available ? "✓" : "✗")}</dd>
+      <dt>${esc(t("thKamera"))}</dt><dd>${tanda(d.camera_connected)}</dd>
+      <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : tanda(d.gpu_available)}</dd>
       <dt>${esc(t("thPlc"))}</dt><dd>${plc}</dd>
-      <dt>${esc(t("thWorkers"))}</dt><dd title="${esc(w)}">${esc(w) || KOSONG}</dd>
       <dt>${esc(t("thAntreanLokal"))}</dt><dd>${dash(d.outbox_pending)} / ${dash(d.outbox_failed)}</dd>
+      <dt>${esc(t("thWorkers"))}</dt><dd>${ringkasWorker}</dd>${barisWorker}
     </dl>
   </div>`;
 }
@@ -3874,8 +3895,13 @@ function tanggalLisensi(epoch) {
 // `blocked` dibedakan jadi dua: token yang TIDAK TERBACA dan langganan yang
 // HABIS sama-sama menghentikan kamera, tapi yang harus dikerjakan berbeda -
 // yang pertama salah pasang, yang kedua perlu token baru.
+//
+// Mati DENGAN token terpasang disebut terpisah: token sampai ke konsol tapi
+// `LICENSE_ENABLED` tidak. Itu gejala Lampung 2026-09-22 (blok konsol di
+// compose cuma mengirim tokennya), dan "Mati" saja terbaca seperti pabrik
+// tanpa langganan, padahal yang salah satu baris compose.
 function ringkasLisensi(l) {
-  if (!l.aktif) return t("lisensiMati");
+  if (!l.aktif) return t(l.token_terpasang ? "lisensiSaklarMati" : "lisensiMati");
   if (!l.token_terpasang) return t("lisensiTanpaToken");
   if (l.severity === "blocked" && !l.aktif_sampai) return t("lisensiTokenRusak");
   if (l.sisa_hari === null || l.sisa_hari === undefined) return t("lisensiAktif");
@@ -3892,7 +3918,10 @@ async function muatVersi() {
       // kata itu terbaca support seperti ada yang salah dan memancing
       // penelusuran yang tidak perlu.
       barisVersi(t("labelVersi"), r.versi === "unknown" ? t("versiDariSource") : r.versi),
-      barisVersi(t("labelMachineId"), r.machine_id),
+      // Machine ID disembunyikan dulu (permintaan 2026-09-25) — kolomnya kosong
+      // di konsol Lampung dan terbaca seperti kerusakan. Hidupkan lagi dengan
+      // membuang `//` di bawah; backend tetap mengirim `machine_id`.
+      // barisVersi(t("labelMachineId"), r.machine_id),
       barisVersi(t("labelEnvironment"), r.environment),
       barisVersi(t("labelLisensi"), ringkasLisensi(l)),
     ];
@@ -3945,11 +3974,12 @@ function alamatPlc(nomor, prefiks) {
   return `${prefiks || "M"}${nomor}`;
 }
 
-// Kelas warna satu coil, dari OFFSET-nya (base+0 = OK) — bukan dari nomor
+// Kelas warna satu coil, dari OFFSET-nya (base+0 = OK, +2 = Error) — bukan dari nomor
 // alamat. Base milik panel dan pernah berubah sekali; mencocokkan angka di
 // sini berarti warnanya salah diam-diam pada perubahan berikutnya.
 function kelasCoil(coil, base) {
-  return coil - base === 0 ? "ok" : "";
+  const d = coil - base;
+  return d === 0 ? "ok" : d === 2 ? "error" : "";
 }
 
 function isiCoilPlc(kode, data, sibuk) {
@@ -4138,8 +4168,10 @@ async function muatRekam() {
     // Kolom setelan TIDAK ditimpa selama sedang diketik: polling tiap 3 detik
     // akan menghapus angka di bawah jari support.
     const setelan = data.setelan || {};
-    for (const [id, kunci] of [["rekam-width", "width"], ["rekam-height", "height"],
-                               ["rekam-fps", "fps"], ["rekam-bitrate", "bitrate_kbps"]]) {
+    //
+    // FPS dan Bitrate tidak ada di sini (dicabut 2026-09-25): FPS ikut laju
+    // kamera, dan bitrate tidak pernah diteruskan ke encoder.
+    for (const [id, kunci] of [["rekam-width", "width"], ["rekam-height", "height"]]) {
       const el = $(id);
       if (el && document.activeElement !== el) el.value = setelan[kunci] ?? "";
     }
@@ -4216,8 +4248,6 @@ $("rekam-simpan").addEventListener("click", async () => {
       body: JSON.stringify({
         width: $("rekam-width").value,
         height: $("rekam-height").value,
-        fps: $("rekam-fps").value,
-        bitrate_kbps: $("rekam-bitrate").value,
       }),
     });
     toastSukses(t("rekamSetelanTersimpan"));

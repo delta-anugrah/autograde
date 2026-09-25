@@ -219,7 +219,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/console/dev/plc/{line_code}` | snapshot DI + daftar coil yang boleh diuji untuk satu line — baca saja, aman dibuka kapan pun |
 | POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil PLC line itu — **satu-satunya aksi konsol yang menggerakkan hardware fisik**, lihat Critical Rules |
 | GET | `/api/console/dev/rekam` | status rekaman tiap line + setelan yang berlaku + sisa disk. Line yang tidak menjawab dilaporkan `terbaca:false`, bukan menjatuhkan seluruh jawaban |
-| POST | `/api/console/dev/rekam/setelan` | ubah resolusi/fps/bitrate rekaman. Berlaku untuk rekaman **berikutnya** — mengubah resolusi di tengah berkas MP4 menghasilkannya rusak |
+| POST | `/api/console/dev/rekam/setelan` | ubah resolusi rekaman. Berlaku untuk rekaman **berikutnya** — mengubah resolusi di tengah berkas MP4 menghasilkannya rusak. `bitrate_kbps` dicabut 2026-09-25 (tidak pernah sampai ke `cv2.VideoWriter`); kiriman yang masih membawanya diabaikan |
 | POST | `/api/console/dev/rekam/{line_code}/mulai` | mulai merekam satu line. 409 kalau sudah merekam, **507 kalau disk mepet** (dua hal yang butuh tindakan berbeda, jadi tidak diratakan) |
 | POST | `/api/console/dev/rekam/{line_code}/stop` | hentikan dan tutup berkasnya. Menahan ~2 detik: line menunggu encoder menutup berkas dengan rapi |
 | GET | `/api/console/dev/model-deteksi` | pilihan model tiap line + semua `.pt` di `models/release` dengan kelas, engine per GPU, `cocok`/`alasan` |
@@ -697,7 +697,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     ada di setiap build OpenCV, dan `VideoWriter` yang gagal membuka **tidak
     melempar** — tanpa pemeriksaan `isOpened()` hasilnya berkas 0 byte yang baru
     ketahuan berjam-jam kemudian.
-    **Setelan (resolusi/bitrate) hidup di konsol**, satu baris `sync_state`,
+    **Setelan (resolusi) hidup di konsol**, satu baris `sync_state`,
     pola yang sama dengan `setelan_grading` — dan dikirim ulang tiap kali mulai.
     Itu yang membuat **restart container = rekaman mati** jadi sifat, bukan kode
     tambahan. Setelan baru sengaja **tidak** menyentuh rekaman yang sedang jalan:
@@ -707,8 +707,10 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     `RuntimeState.camera_fps_terukur`: berkas video memakai laju aslinya
     (`CAMERA_FPS` diabaikan untuk berkas — menyetel `CAP_PROP_FPS` pada berkas
     cuma membuat `get_fps()` membalas angka yang dipaksakan), kamera yang tidak
-    bisa melapor memakai `CAMERA_FPS`. Angka layar cuma berlaku kalau keduanya
-    tidak ada. Dua kali salah di sini menghasilkan gejala yang sama dan tidak
+    bisa melapor memakai `CAMERA_FPS`. Kolom FPS di layar **dicabut 2026-09-25**
+    (bersama Bitrate, yang tidak pernah diteruskan ke encoder): `fps` di
+    `setelan_rekam.BAWAAN` tinggal cadangan terakhir kalau keduanya tidak ada
+    (`CAMERA_FPS=0`). Dua kali salah di sini menghasilkan gejala yang sama dan tidak
     pernah melempar galat: berkas ada, terbuka, isinya lengkap — cuma jamnya
     salah, jadi terbaca seperti kamera lambat, bukan header yang keliru
     (19 detik kejadian jadi berkas 77 detik, Lampung 2026-09-23).

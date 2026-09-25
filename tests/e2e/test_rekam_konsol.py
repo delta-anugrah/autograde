@@ -85,7 +85,7 @@ def test_simpan_setelan_lalu_terbaca(konsol):
     c, _service, _line = konsol
     c.post(
         "/api/console/dev/rekam/setelan",
-        json={"width": 640, "height": 480, "fps": 10, "bitrate_kbps": 1000},
+        json={"width": 640, "height": 480},
     )
     assert c.get("/api/console/dev/rekam").json()["setelan"]["width"] == 640
 

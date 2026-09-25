@@ -623,7 +623,7 @@ class Settings:
 
         Ini satu-satunya bagian fitur rekam yang tetap di `.env`, karena
         jalurnya berbeda antara container dan host dan karena itu harus bisa
-        di-mount. Resolusi, fps, dan bitrate diatur dari layar developer.
+        di-mount. Resolusi diatur dari layar developer; fps ikut laju kamera.
 
         ⚠️ **Namanya `REKAMAN_DIR`, BUKAN `VIDEOS_DIR`** — jangan "dirapikan".
         `VIDEOS_DIR` pernah ada dan artinya **kebalikannya**: folder video
