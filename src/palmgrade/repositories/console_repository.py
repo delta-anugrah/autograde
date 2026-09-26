@@ -175,7 +175,7 @@ DROP INDEX IF EXISTS idx_inspections_erp;
 
 # What the FFB source label needs from a truck (`domain/ffb_source.py`). One
 # definition, so every screen labels the same truck the same way.
-_SOURCE_FACTS = "t.supplier_id IS NOT NULL AS has_supplier, t.erp_name IS NOT NULL AS in_erp"
+SOURCE_FACTS = "t.supplier_id IS NOT NULL AS has_supplier, t.erp_name IS NOT NULL AS in_erp"
 
 
 class ConsoleStore:
@@ -417,7 +417,7 @@ class ConsoleStore:
         params += [limit, offset]
         with self._lock:
             rows = self._db.execute(
-                f"""SELECT i.*, t.plate_number, s.name AS supplier_name, {_SOURCE_FACTS}
+                f"""SELECT i.*, t.plate_number, s.name AS supplier_name, {SOURCE_FACTS}
                     FROM inspections i
                     LEFT JOIN trucks t ON t.id = i.truck_id
                     LEFT JOIN suppliers s ON s.id = t.supplier_id
@@ -439,7 +439,7 @@ class ConsoleStore:
                 f"""SELECT i.truck_id,
                           t.plate_number,
                           s.name AS supplier_name,
-                          {_SOURCE_FACTS},
+                          {SOURCE_FACTS},
                           COUNT(*) AS total,
                           SUM(CASE WHEN i.ripeness_status = 'ACC' THEN 1 ELSE 0 END) AS acc,
                           SUM(CASE WHEN i.ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej,
@@ -598,7 +598,7 @@ class ConsoleStore:
         with self._lock:
             rows = self._db.execute(
                 f"""SELECT t.id, t.plate_number, t.capacity, t.status,
-                          s.name AS supplier_name, {_SOURCE_FACTS}
+                          s.name AS supplier_name, {SOURCE_FACTS}
                    FROM trucks t LEFT JOIN suppliers s ON s.id = t.supplier_id
                    WHERE t.status IS NULL OR t.status != 'inactive'
                    ORDER BY t.rowid DESC"""
@@ -805,7 +805,7 @@ class ConsoleStore:
         # until the ERP lane is live — see docs/PERTANYAAN-TERBUKA.md S1-S3.
         with self._lock:
             rows = self._db.execute(
-                f"""SELECT w.*, s.name AS supplier_name, {_SOURCE_FACTS}
+                f"""SELECT w.*, s.name AS supplier_name, {SOURCE_FACTS}
                    FROM weighings w
                    LEFT JOIN trucks t ON t.id = w.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id
@@ -873,7 +873,7 @@ class ConsoleStore:
     def assignments(self) -> dict[str, dict[str, Any]]:
         with self._lock:
             rows = self._db.execute(
-                f"""SELECT a.*, t.plate_number, s.name AS supplier_name, {_SOURCE_FACTS}
+                f"""SELECT a.*, t.plate_number, s.name AS supplier_name, {SOURCE_FACTS}
                    FROM assignments a
                    LEFT JOIN trucks t ON t.id = a.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id"""

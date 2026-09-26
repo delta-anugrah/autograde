@@ -653,8 +653,9 @@ bukan lagi string `"operator"`. Akun lokal dibuat dari PC dengan `make operator`
 invarian 19.
 
 **Belum termasuk Fase 2** (sengaja): timbangan brondolan lewat PLC (§6.6b, Fase 3), nomor dokumen
-berprefiks lokal (§6.3), toggle tampil/sembunyi per line, dan halaman riwayat/laporan lintas hari
-(itu urusan cloud: live/hari ini lokal, riwayat cloud).
+berprefiks lokal (§6.3), dan toggle tampil/sembunyi per line. Riwayat lintas hari dulu juga di
+daftar ini ("urusan cloud"); sejak 2026-09-26 ada tab **Riwayat** di konsol (maks 31 hari per
+tampilan, CLAUDE.md invarian 26), karena cloud lama sudah mati dan AutoERP cuma menerima rekap per truk.
 
 **Tests** (`tests/unit/test_working_day.py`, `test_console_store.py`, murni-logic; satu-satunya yang
 memakai FastAPI adalah penjaga sesi konsol, lawan app rakitan sendiri): batas hari lewat tengah

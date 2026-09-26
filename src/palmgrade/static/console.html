@@ -238,6 +238,52 @@
      color:var(--on-acc); border-color:var(--acc); }
   .halaman-celah { padding:0 2px; color:var(--muted); }
 
+  /* ---- tab Riwayat ---- */
+  /* Kotak saringan berdiri sendiri, bukan `.tools`: kotak itu dirancang menempel ke
+     tabel di bawahnya, dan di sini di bawahnya ringkasan. */
+  .riwayat-saring { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 16px;
+                    padding:14px 16px; background:var(--card); border:1px solid var(--line-kuat);
+                    border-radius:var(--r-md); }
+  .riwayat-isian { display:grid; gap:6px; }
+  /* `display` di atas dan milik `.halaman` mengalahkan `[hidden]` bawaan browser:
+     tanpa dua baris ini saringan Hasil dan pager tetap tampil di Per hari. */
+  #riwayat-hasil-grup[hidden], #riwayat-halaman[hidden] { display:none; }
+  .riwayat-isian input { min-height:2.6rem; }
+  .riwayat-isian input[type="date"] { font-family:var(--mono); }
+  .riwayat-isian input.plat { width:11rem; text-transform:uppercase; }
+  .riwayat-isian input.plat::placeholder { text-transform:none; font-family:inherit; font-weight:400; }
+  .riwayat-isian .pilih { width:11rem; }
+  .riwayat-isian .pilih-tombol { min-height:2.6rem; }
+  .riwayat-cepat { display:flex; flex-wrap:wrap; gap:6px; }
+  .riwayat-cepat button { min-height:2.6rem; padding:8px 12px; font-size:.85rem; }
+  .riwayat-aksi { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
+  .riwayat-aksi button { min-height:2.6rem; min-width:9rem; }
+  .riwayat-maks { flex:1 1 100%; }
+  .riwayat-pesan { flex:1 1 100%; margin:0; padding:8px 10px; border-radius:var(--r);
+                   background:var(--warn-bg); color:var(--warn); font-weight:700; }
+  .riwayat-pesan:empty { display:none; }
+  /* Angka periode, gaya yang sama dengan strip "Hari ini": dibaca sekali pandang. */
+  .riwayat-ringkasan { display:flex; flex-wrap:wrap; margin:12px 0 0; background:var(--card);
+                       border:1px solid var(--line-kuat); border-left:5px solid var(--acc);
+                       border-radius:var(--r-lg); }
+  .riwayat-ringkasan:empty { display:none; }
+  .riwayat-ringkasan .stat { padding:10px clamp(10px, 2vw, 18px) 12px; min-width:5rem;
+                             border-right:1px solid var(--line); text-align:center; }
+  .riwayat-ringkasan .stat b { display:block; font-family:var(--mono); font-size:1.5rem;
+                               font-weight:700; line-height:1.15; font-variant-numeric:tabular-nums; }
+  .riwayat-ringkasan .stat small { display:block; max-width:9rem; margin:2px auto 0;
+                                   font-size:.7rem; color:var(--muted); }
+  .riwayat-ringkasan .stat.acc b { color:var(--acc); }
+  .riwayat-ringkasan .stat.rej b { color:var(--rej); }
+  .riwayat-ringkasan .stat.tp b { color:var(--warn); }
+  .riwayat-kepala-tabel { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px;
+                          margin:14px 0 8px; }
+  button.riwayat-lihat { padding:5px 10px; font-size:.85rem; }
+  /* Lebih rapat dari tabel lain: Per hari punya 10 kolom, dan di layar 1024 px tombol
+     Lihat truk di ujung kanan terdorong keluar sampai tabelnya harus digeser. */
+  #sec-riwayat th, #sec-riwayat td { padding:10px 10px; }
+  .riwayat-catatan { margin:10px 0 0; }
+
   /* Hasil scan, di sebelah kolomnya. Tinggi dipatok supaya baris alat tidak bergeser
      saat pesannya muncul dan hilang - tombol yang bergerak sulit ditekan. */
   .scan-pesan { min-height:1.4rem; font-weight:700; color:var(--acc); }
@@ -1151,6 +1197,7 @@
   <button data-tab="truk" data-t="judulTruk">Truk</button>
   <button data-tab="timbangan" data-t="judulTimbangan">Timbangan</button>
   <button data-tab="rekap" data-t="judulRekap">Rekap</button>
+  <button data-tab="riwayat" data-t="judulRiwayat">Riwayat</button>
   <button data-tab="log" data-dev="1" data-t="judulLog">Log</button>
   <button data-tab="diagnostik" data-dev="1" data-t="judulDiagnostik">Diagnostik</button>
   <button data-tab="antrean" data-dev="1" data-t="judulAntrean">Antrean ERP</button>
@@ -1348,6 +1395,94 @@
       <tbody id="rekap"></tbody>
     </table>
   </div>
+</section>
+
+<section id="sec-riwayat" class="panel" hidden>
+  <!--
+    Grading hari-hari sebelumnya (2026-09-26): tab Grading dan Rekap cuma hari ini.
+    Rentang paling panjang 31 hari (dijaga server, domain/riwayat.py), filter line /
+    plat / hasil, ringkasan periode, tiga tampilan, dan unduh CSV. Untuk SEMUA operator,
+    bukan tab support: "kemarin berapa janjang" ditanyakan orang kantor dan operator.
+    Per hari dan per truk datang utuh lalu dibagi halaman DI SINI; per janjang dibagi
+    halaman di server, karena sebulan bisa jutaan baris.
+  -->
+  <div class="riwayat-saring">
+    <label class="riwayat-isian"><span class="lb" data-t="riwayatDari">Dari</span>
+      <input type="date" id="riwayat-dari"></label>
+    <label class="riwayat-isian"><span class="lb" data-t="riwayatSampai">Sampai</span>
+      <input type="date" id="riwayat-sampai"></label>
+    <div class="riwayat-cepat">
+      <button type="button" data-cepat="kemarin" data-t="riwayatKemarin">Kemarin</button>
+      <button type="button" data-cepat="7hari" data-t="riwayat7Hari">7 hari</button>
+      <button type="button" data-cepat="bulanini" data-t="riwayatBulanIni">Bulan ini</button>
+      <button type="button" data-cepat="bulanlalu" data-t="riwayatBulanLalu">Bulan lalu</button>
+    </div>
+    <div class="riwayat-isian"><span class="lb" data-t="thLine">Line</span>
+      <!-- Pilihannya dirakit dari line yang sedang tampil (siapkanLineRiwayat). -->
+      <div class="pilih" id="riwayat-line" data-nilai=""></div>
+    </div>
+    <label class="riwayat-isian"><span class="lb" data-t="riwayatPlat">Plat</span>
+      <input id="riwayat-plat" class="plat" data-t-ph="riwayatPlatPh" placeholder="Semua truk"
+             autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+    <!-- Cuma tampil di Per janjang: per hari dan per truk menghitung semua janjang. -->
+    <div class="riwayat-isian" id="riwayat-hasil-grup" hidden><span class="lb" data-t="thHasil">Hasil</span>
+      <div class="pilih" id="riwayat-hasil" data-nilai="">
+        <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
+          <span class="pilih-teks">Semua hasil</span>
+        </button>
+        <div class="pilih-panel" role="listbox" hidden>
+          <div role="option" tabindex="-1" data-nilai="" aria-selected="true" data-t="riwayatSemuaHasil">Semua hasil</div>
+          <div role="option" tabindex="-1" data-nilai="ripe" aria-selected="false" data-t="clsRipe">Ripe</div>
+          <div role="option" tabindex="-1" data-nilai="unripe" aria-selected="false" data-t="clsUnripe">Unripe</div>
+          <div role="option" tabindex="-1" data-nilai="jk" aria-selected="false" data-t="clsJk">JK</div>
+          <div role="option" tabindex="-1" data-nilai="tp" aria-selected="false" data-t="clsTp">TP</div>
+        </div>
+      </div>
+    </div>
+    <div class="riwayat-aksi">
+      <button type="button" id="riwayat-tampilkan" class="utama" data-t="riwayatTampilkan">Tampilkan</button>
+      <button type="button" id="riwayat-csv" data-t="riwayatCsv">Unduh CSV</button>
+    </div>
+    <small class="muted riwayat-maks" data-t="riwayatMaks">Paling panjang 31 hari</small>
+    <p id="riwayat-pesan" class="riwayat-pesan" role="alert"></p>
+  </div>
+  <div id="riwayat-ringkasan" class="riwayat-ringkasan"></div>
+  <div class="riwayat-kepala-tabel">
+    <div class="log-level riwayat-tampilan" role="group">
+      <button type="button" data-tampilan="hari" data-t="riwayatPerHari">Per hari</button>
+      <button type="button" data-tampilan="truk" data-t="riwayatPerTruk">Per truk</button>
+      <button type="button" data-tampilan="janjang" data-t="riwayatPerJanjang">Per janjang</button>
+    </div>
+    <span id="riwayat-judul-rentang" class="muted"></span>
+  </div>
+  <div class="tabel">
+    <table>
+      <thead id="riwayat-kepala"></thead>
+      <tbody id="riwayat-baris"></tbody>
+    </table>
+  </div>
+  <div class="halaman" id="riwayat-halaman" hidden>
+    <label class="lb" for="riwayat-per-tombol" data-t="perHalaman">Baris per halaman</label>
+    <div class="pilih" id="riwayat-per" data-nilai="25">
+      <button type="button" id="riwayat-per-tombol" class="pilih-tombol"
+              aria-haspopup="listbox" aria-expanded="false">
+        <span class="pilih-teks">25</span>
+      </button>
+      <div class="pilih-panel pilih-panel--atas" role="listbox" hidden>
+        <div role="option" tabindex="-1" data-nilai="25" aria-selected="true">25</div>
+        <div role="option" tabindex="-1" data-nilai="50" aria-selected="false">50</div>
+        <div role="option" tabindex="-1" data-nilai="100" aria-selected="false">100</div>
+        <div role="option" tabindex="-1" data-nilai="200" aria-selected="false">200</div>
+      </div>
+    </div>
+    <span id="riwayat-rentang" class="muted"></span>
+    <span class="halaman-tombol">
+      <button type="button" id="riwayat-prev" data-t="halamanSebelum" disabled>Sebelumnya</button>
+      <span id="riwayat-nomor" class="halaman-nomor"></span>
+      <button type="button" id="riwayat-next" data-t="halamanBerikut" disabled>Berikutnya</button>
+    </span>
+  </div>
+  <p class="muted riwayat-catatan" data-t="riwayatCatatanFoto">Tanggal di tab ini tanggal kerja, sama dengan tab Grading dan Rekap.</p>
 </section>
 
 <section id="sec-log" class="panel" hidden data-dev="1">
@@ -1943,6 +2078,18 @@ let trucks = [];
 const KAMUS = {
   id: {
     judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan", judulRekap:"Rekap",
+    judulRiwayat:"Riwayat", riwayatDari:"Dari", riwayatSampai:"Sampai",
+    riwayatKemarin:"Kemarin", riwayat7Hari:"7 hari", riwayatBulanIni:"Bulan ini", riwayatBulanLalu:"Bulan lalu",
+    riwayatSemuaLine:"Semua line", riwayatPlat:"Plat", riwayatPlatPh:"Semua truk",
+    riwayatSemuaHasil:"Semua hasil", riwayatTampilkan:"Tampilkan", riwayatCsv:"Unduh CSV",
+    riwayatPerHari:"Per hari", riwayatPerTruk:"Per truk", riwayatPerJanjang:"Per janjang",
+    riwayatLihatTruk:"Lihat truk", riwayatLihatJanjang:"Lihat janjang",
+    thTanggal:"Tanggal", thJanjang:"Janjang", riwayatJumlahTruk:"Jumlah truk", riwayatHari:"Hari",
+    riwayatKosong:"Tidak ada grading di rentang ini", riwayatGagal:"Gagal memuat riwayat",
+    riwayatMaks:"Paling panjang 31 hari. Tanggal di sini tanggal kerja, sama dengan tab Grading dan Rekap.",
+    riwayatRentang:"{dari} s.d. {sampai}", riwayatNetoLine:"Tidak dihitung per line",
+    riwayatFotoHilang:"Foto sudah terhapus dari PC",
+    riwayatCatatanFoto:"Foto disimpan di PC ini selama masa simpannya (180 hari di Lampung). Foto yang lebih tua sudah terhapus dari PC; barisnya tetap ada. CSV berisi semua baris filter ini, bukan cuma halaman yang tampil.",
     judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", judulPlc:"Uji PLC",
     judulSetelan:"Setelan", labelConf:"Ambang keyakinan (0-1)", labelMinSize:"Ukuran minimum (piksel)",
     grupGrading:"Grading", grupKamera:"Kamera & Conveyor", grupDev:"Mode Developer",
@@ -2156,6 +2303,9 @@ const KAMUS = {
     err_akun_milik_erp:"{email} akun AutoERP. Ubah di AutoERP, bukan di PC ini.",
     err_akun_tidak_ada:"Akun {email} tidak ada. Muat ulang tab Akun.",
     err_akun_diri_sendiri:"Akunmu sendiri tidak bisa dimatikan atau diubah role-nya. Minta tolong akun support lain.",
+    err_riwayat_tanggal_tidak_sah:"Tanggal {tanggal} tidak sah. Pilih tanggal dari kalender.",
+    err_riwayat_rentang_terbalik:"Tanggal Dari harus sama dengan atau sebelum tanggal Sampai.",
+    err_riwayat_rentang_panjang:"Rentang paling panjang {maks} hari. Persempit tanggalnya, atau unduh per bulan.",
     judulSumberKamera:"Sumber Kamera",
     judulRekamVideo:"Rekam Video", kosongLine:"Belum ada line", thMajuRekam:"Terekam",
     rekamMenunggu:"Menunggu…",
@@ -2214,6 +2364,18 @@ const KAMUS = {
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
+    judulRiwayat:"History", riwayatDari:"From", riwayatSampai:"To",
+    riwayatKemarin:"Yesterday", riwayat7Hari:"7 days", riwayatBulanIni:"This month", riwayatBulanLalu:"Last month",
+    riwayatSemuaLine:"All lines", riwayatPlat:"Plate", riwayatPlatPh:"All trucks",
+    riwayatSemuaHasil:"All results", riwayatTampilkan:"Show", riwayatCsv:"Download CSV",
+    riwayatPerHari:"Per day", riwayatPerTruk:"Per truck", riwayatPerJanjang:"Per bunch",
+    riwayatLihatTruk:"See trucks", riwayatLihatJanjang:"See bunches",
+    thTanggal:"Date", thJanjang:"Bunches", riwayatJumlahTruk:"Trucks", riwayatHari:"Days",
+    riwayatKosong:"No grading in this range", riwayatGagal:"Failed to load history",
+    riwayatMaks:"At most 31 days. Dates here are working days, the same as the Grading and Recap tabs.",
+    riwayatRentang:"{dari} to {sampai}", riwayatNetoLine:"Not split by line",
+    riwayatFotoHilang:"Photo no longer on this PC",
+    riwayatCatatanFoto:"Photos stay on this PC for its retention period (180 days in Lampung). Older photos are already deleted from the PC; their rows stay. The CSV holds every row of this filter, not only the page on screen.",
     judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", judulPlc:"PLC Test",
     judulSetelan:"Settings", labelConf:"Confidence threshold (0-1)", labelMinSize:"Minimum size (pixels)",
     grupGrading:"Grading", grupKamera:"Camera & Conveyor", grupDev:"Developer Mode",
@@ -2423,6 +2585,9 @@ const KAMUS = {
     err_akun_milik_erp:"{email} is an AutoERP account. Change it in AutoERP, not on this PC.",
     err_akun_tidak_ada:"Account {email} does not exist. Reload the Users tab.",
     err_akun_diri_sendiri:"Your own account cannot be switched off or have its role changed. Ask another support account.",
+    err_riwayat_tanggal_tidak_sah:"The date {tanggal} is not valid. Pick a date from the calendar.",
+    err_riwayat_rentang_terbalik:"The From date must be on or before the To date.",
+    err_riwayat_rentang_panjang:"The range can be at most {maks} days. Narrow the dates, or download one month at a time.",
     judulSumberKamera:"Camera Source",
     judulRekamVideo:"Record Video", kosongLine:"No lines yet", thMajuRekam:"Recorded",
     rekamMenunggu:"Working…",
@@ -2523,6 +2688,7 @@ $("bahasa").addEventListener("click", async () => {
   // reconnect once - the price of one deliberate click, not of every 2 s poll.
   dipasang = false;
   isiTrucks();
+  gambarUlangRiwayat();
   await refresh();
   await muatTimbangan();
 });
@@ -2641,7 +2807,7 @@ document.addEventListener("focusout", (ev) => {
 });
 
 // ── truck / weighbridge tabs ───────────────────────────────────────────
-const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "diagnostik", "antrean", "versi", "plc", "sumber-kamera", "model-deteksi", "setelan"];
+const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "riwayat", "log", "diagnostik", "antrean", "versi", "plc", "sumber-kamera", "model-deteksi", "setelan"];
 let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
 
 function terapkanTab() {
@@ -2660,7 +2826,7 @@ function terapkanTab() {
 // tab stays open (a line coming back or dying should show up unattended);
 // the timer is started/stopped in `bukaTabDev` below, never left running
 // behind a tab nobody is looking at.
-const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, akun: muatAkun, plc: muatPlc, "sumber-kamera": muatSumberKamera, "model-deteksi": muatModelDeteksi, setelan: muatSetelan, rekam: muatRekam };
+const MUAT_TAB = { riwayat: muatRiwayat, log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, akun: muatAkun, plc: muatPlc, "sumber-kamera": muatSumberKamera, "model-deteksi": muatModelDeteksi, setelan: muatSetelan, rekam: muatRekam };
 
 function bukaTabDev(namaTab) {
   clearInterval(diagnostikTimer);
@@ -2750,11 +2916,11 @@ function segarkanHalaman() {
 // and a row of buttons that small cannot be pressed wearing gloves.
 const JENDELA_HALAMAN = 2;
 
-function tombolNomorHalaman() {
-  const per = Number(gradingPer);
-  const jumlah = Math.max(1, Math.ceil(gradingTotal / per));
+// Tanpa argumen = pager tab Grading; tab Riwayat memberi angkanya sendiri.
+function tombolNomorHalaman(total = gradingTotal, per = Number(gradingPer), offset = gradingOffset) {
+  const jumlah = Math.max(1, Math.ceil(total / per));
   if (jumlah <= 1) return "";
-  const kini = Math.floor(gradingOffset / per) + 1;
+  const kini = Math.floor(offset / per) + 1;
 
   // The first and last page are always included: both ends of the list must
   // be reachable in one tap, from any page.
@@ -4015,6 +4181,398 @@ async function muatRekap() {
       ? items.map(barisRekap).join("") : barisKosong(10, "kosongRekap");
   } catch (e) { /* nothing graded yet - the screen keeps working */ }
 }
+
+// ── tab Riwayat ────────────────────────────────────────────────────────
+// Grading hari-hari sebelumnya. Filter yang DITERAPKAN (`riwayatFilter`) terpisah
+// dari isian di layar: pindah tampilan atau halaman memakai filter yang sedang
+// ditampilkan, bukan tanggal yang baru diketik tapi belum ditekan Tampilkan,
+// supaya ringkasan dan tabel selalu bicara soal periode yang sama.
+const TAMPILAN_RIWAYAT = ["hari", "truk", "janjang"];
+let riwayatTampilan = TAMPILAN_RIWAYAT.includes(baca("riwayatTampilan", "hari"))
+  ? baca("riwayatTampilan", "hari") : "hari";
+let riwayatPer = PER_SAH.includes(baca("riwayatPer", "25")) ? baca("riwayatPer", "25") : "25";
+let riwayatOffset = 0;
+let riwayatTotal = 0;
+let riwayatFilter = null;
+let riwayatHariIni = "";
+let riwayatItems = null;
+let riwayatRingkasan = null;
+// Nomor permintaan terakhir. Klik Per truk lalu Per janjang dengan cepat: jawaban
+// pertama boleh datang terakhir, dan tidak boleh menimpa tabel yang kedua.
+let riwayatMinta = 0;
+
+function tambahHari(iso, n) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+// Tombol rentang cepat, dihitung dari hari kerja yang dijawab SERVER, bukan jam
+// browser: PC kantor yang jamnya meleset tidak boleh menggeser "kemarin".
+function rentangCepat(kunci, hariIni) {
+  const awalBulan = `${hariIni.slice(0, 7)}-01`;
+  if (kunci === "kemarin") {
+    const kemarin = tambahHari(hariIni, -1);
+    return [kemarin, kemarin];
+  }
+  if (kunci === "7hari") return [tambahHari(hariIni, -6), hariIni];
+  if (kunci === "bulanini") return [awalBulan, hariIni];
+  const akhirBulanLalu = tambahHari(awalBulan, -1);
+  return [`${akhirBulanLalu.slice(0, 7)}-01`, akhirBulanLalu];
+}
+
+// "Kam, 24 Sep 2026". Dari tanggal kerja apa adanya (UTC di sini cuma alat hitung):
+// tanggal kerja bukan waktu, dan zona browser tidak boleh menggesernya sehari.
+function tanggalRiwayat(iso) {
+  const [y, m, d] = String(iso || "").split("-").map(Number);
+  if (!y || !m || !d) return String(iso || "");
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(lokal(), {
+    weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+  });
+}
+
+// Dari verdict, sama dengan kartu line dan tab Rekap (baris lama tanpa kelas
+// tidak boleh menyeret rasio ke nol).
+function rasioRiwayat(acc, total) {
+  return total ? Math.round(((acc || 0) / total) * 100) + "%" : KOSONG;
+}
+
+function barisRiwayatHari(r) {
+  const lihat = r.total
+    ? `<button type="button" class="riwayat-lihat" data-lihat="truk"
+         data-tanggal="${esc(r.work_date)}">${esc(t("riwayatLihatTruk"))}</button>` : "";
+  return `<tr>
+    <td class="key">${esc(tanggalRiwayat(r.work_date))}</td>
+    <td class="num">${kg(r.total)}</td>
+    <td class="num acc">${kg(r.ripe)}</td>
+    <td class="num rej">${kg(r.unripe)}</td>
+    <td class="num rej">${kg(r.jk)}</td>
+    <td class="num tp">${kg(r.tp)}</td>
+    <td class="num">${rasioRiwayat(r.acc, r.total)}</td>
+    <td class="num">${kg(r.truk)}</td>
+    <td class="num">${kg(r.neto_kg)}</td>
+    <td>${lihat}</td>
+  </tr>`;
+}
+
+function barisRiwayatTruk(r) {
+  const plat = r.plate_number ? esc(r.plate_number) : `<i>${esc(t("trukTanpaNama"))}</i>`;
+  const lihat = r.truck_id && r.plate_number
+    ? `<button type="button" class="riwayat-lihat" data-lihat="janjang"
+         data-tanggal="${esc(r.work_date)}" data-plat="${esc(r.plate_number)}">${esc(t("riwayatLihatJanjang"))}</button>` : "";
+  return `<tr>
+    <td>${esc(tanggalRiwayat(r.work_date))}</td>
+    <td class="key">${plat}</td>
+    <td>${dash(r.supplier_name)}</td>
+    <td>${dash(r.source_label)}</td>
+    <td class="num">${kg(r.total)}</td>
+    <td class="num acc">${kg(r.ripe)}</td>
+    <td class="num rej">${kg(r.unripe)}</td>
+    <td class="num rej">${kg(r.jk)}</td>
+    <td class="num tp">${kg(r.tp)}</td>
+    <td class="num">${rasioRiwayat(r.acc, r.total)}</td>
+    <td class="num">${kg(r.neto_kg)}</td>
+    <td>${lihat}</td>
+  </tr>`;
+}
+
+// Sama dengan baris tab Grading, dengan nomor yang melanjutkan halaman.
+function barisRiwayatJanjang(r, i) {
+  const judul = `${waktu(r.timestamp)} · ${String(r.line_code || "").toUpperCase()} · ${r.grade_class || r.ripeness_status || ""}`;
+  return `<tr>
+    <td class="no">${riwayatOffset + i + 1}</td>
+    <td>${waktu(r.timestamp)}</td>
+    <td class="kode-line">${esc(r.line_code)}</td>
+    <td class="key">${dash(r.plate_number)}</td>
+    <td>${dash(r.source_label)}</td>
+    <td>${tagHasil(r.ripeness_status, r.grade_class)}</td>
+    <td>${r.image_url
+      ? `<button type="button" class="foto" data-foto="${esc(r.image_url)}" data-judul="${esc(judul)}"><img src="${esc(r.image_url)}" alt="" loading="lazy"></button>`
+      : KOSONG}</td>
+  </tr>`;
+}
+
+// Kepala tabel memakai `data-t`, jadi ganti bahasa menerjemahkannya di tempat.
+const KEPALA_RIWAYAT = {
+  hari: [["thTanggal", ""], ["thJanjang", "num"], ["clsRipe", "num"], ["clsUnripe", "num"],
+    ["clsJk", "num"], ["clsTp", "num"], ["thRasio", "num"], ["riwayatJumlahTruk", "num"],
+    ["thNeto", "num"], ["thAksi", "aksi"]],
+  truk: [["thTanggal", ""], ["thTruk", ""], ["thSupplier", ""], ["thSumber", ""],
+    ["thJanjang", "num"], ["clsRipe", "num"], ["clsUnripe", "num"], ["clsJk", "num"],
+    ["clsTp", "num"], ["thRasio", "num"], ["thNeto", "num"], ["thAksi", "aksi"]],
+  janjang: [["thNo", "no"], ["thWaktu", ""], ["thLine", ""], ["thTruk", ""], ["thSumber", ""],
+    ["thHasil", ""], ["thFoto", ""]],
+};
+
+function kepalaRiwayat(tampilan) {
+  return "<tr>" + KEPALA_RIWAYAT[tampilan].map(([kunci, kelas]) => kelas === "aksi"
+    // Kolom tombol: judulnya cuma untuk pembaca layar, tombolnya sudah jelas sendiri.
+    ? `<th><span class="sr-only" data-t="${kunci}">${esc(t(kunci))}</span></th>`
+    : `<th${kelas ? ` class="${kelas}"` : ""} data-t="${kunci}">${esc(t(kunci))}</th>`).join("") + "</tr>";
+}
+
+function isiRingkasanRiwayat(r) {
+  const kotak = (kelas, kunci, nilai, catatan) => `<div class="stat ${kelas}">
+    <span class="lb" data-t="${kunci}">${esc(t(kunci))}</span><b>${nilai}</b>${catatan
+      ? `<small data-t="${catatan}">${esc(t(catatan))}</small>` : ""}</div>`;
+  const perLine = Boolean(riwayatFilter && riwayatFilter.line_code);
+  $("riwayat-ringkasan").innerHTML = [
+    kotak("", "thJanjang", kg(r.total)),
+    kotak("acc", "clsRipe", kg(r.ripe)),
+    kotak("rej", "clsUnripe", kg(r.unripe)),
+    kotak("rej", "clsJk", kg(r.jk)),
+    kotak("tp", "clsTp", kg(r.tp)),
+    kotak("", "thRasio", rasioRiwayat(r.acc, r.total)),
+    kotak("", "riwayatJumlahTruk", kg(r.truk)),
+    kotak("", "riwayatHari", kg(r.hari)),
+    // Neto itu berat truk, bukan milik satu line: disaring per line, tidak dihitung.
+    kotak("", "thNeto", kg(r.neto_kg), perLine ? "riwayatNetoLine" : ""),
+  ].join("");
+}
+
+function segarkanTampilanRiwayat() {
+  document.querySelectorAll(".riwayat-tampilan button").forEach((b) => {
+    b.classList.toggle("aktif", b.dataset.tampilan === riwayatTampilan);
+    b.setAttribute("aria-pressed", String(b.dataset.tampilan === riwayatTampilan));
+  });
+  $("riwayat-hasil-grup").hidden = riwayatTampilan !== "janjang";
+  // Per hari paling banyak 31 baris: semuanya tampil, tanpa halaman.
+  $("riwayat-halaman").hidden = riwayatTampilan === "hari";
+  const per = Number(riwayatPer);
+  const total = riwayatTotal;
+  const dari = total ? riwayatOffset + 1 : 0;
+  $("riwayat-rentang").textContent = t("rentangBaris").replace("{dari}", dari)
+    .replace("{sampai}", Math.min(riwayatOffset + per, total)).replace("{total}", total);
+  $("riwayat-prev").disabled = riwayatOffset <= 0;
+  $("riwayat-next").disabled = riwayatOffset + per >= total;
+  $("riwayat-nomor").innerHTML = tombolNomorHalaman(total, per, riwayatOffset);
+  if (riwayatFilter && riwayatFilter.dari) {
+    $("riwayat-judul-rentang").textContent = t("riwayatRentang")
+      .replace("{dari}", tanggalRiwayat(riwayatFilter.dari))
+      .replace("{sampai}", tanggalRiwayat(riwayatFilter.sampai));
+  }
+}
+
+function gambarRiwayat(items) {
+  riwayatItems = items;
+  $("riwayat-kepala").innerHTML = kepalaRiwayat(riwayatTampilan);
+  let baris;
+  if (riwayatTampilan === "hari") {
+    riwayatTotal = items.length;
+    baris = items.map(barisRiwayatHari);
+  } else if (riwayatTampilan === "truk") {
+    // Per truk datang utuh (paling banyak beberapa ribu baris sebulan): halaman
+    // dipotong di sini, jadi pindah halaman tidak menunggu server.
+    riwayatTotal = items.length;
+    baris = items.slice(riwayatOffset, riwayatOffset + Number(riwayatPer)).map(barisRiwayatTruk);
+  } else {
+    baris = items.map((r, i) => barisRiwayatJanjang(r, i));
+  }
+  $("riwayat-baris").innerHTML = baris.length
+    ? baris.join("") : barisKosong(KEPALA_RIWAYAT[riwayatTampilan].length, "riwayatKosong");
+  segarkanTampilanRiwayat();
+}
+
+// Ganti bahasa: tanggal, tombol, dan ringkasan digambar ulang dari data yang
+// sudah ada, tanpa bertanya ke server lagi.
+function gambarUlangRiwayat() {
+  if (riwayatRingkasan) isiRingkasanRiwayat(riwayatRingkasan);
+  if (riwayatItems) gambarRiwayat(riwayatItems);
+}
+
+// Pilihan line dirakit dari line yang sedang tampil di layar (`urutan`), bukan
+// dipatok: tiap PKS punya jumlah line sendiri.
+function siapkanLineRiwayat() {
+  const root = $("riwayat-line");
+  const kode = [...urutan].sort();
+  if (root.dataset.kode === kode.join(",") && root.children.length) return;
+  const terpilih = kode.includes(root.dataset.nilai) ? root.dataset.nilai : "";
+  root.dataset.kode = kode.join(",");
+  const opsi = [`<div role="option" tabindex="-1" data-nilai="" aria-selected="${terpilih === ""}"
+      data-t="riwayatSemuaLine">${esc(t("riwayatSemuaLine"))}</div>`]
+    .concat(kode.map((k) => `<div role="option" tabindex="-1" data-nilai="${esc(k)}"
+      aria-selected="${k === terpilih}">${esc(k)}</div>`));
+  root.innerHTML = `<button type="button" class="pilih-tombol" aria-haspopup="listbox"
+      aria-expanded="false"><span class="pilih-teks"></span></button>
+    <div class="pilih-panel" role="listbox" hidden>${opsi.join("")}</div>`;
+  const aktif = root.querySelector('[role="option"][aria-selected="true"]');
+  root.dataset.nilai = aktif.dataset.nilai;
+  root.querySelector(".pilih-teks").textContent = aktif.textContent;
+}
+
+function paramRiwayat(tambahan) {
+  const q = new URLSearchParams();
+  Object.entries(riwayatFilter || {}).forEach(([k, v]) => { if (v) q.set(k, v); });
+  Object.entries(tambahan).forEach(([k, v]) => q.set(k, v));
+  return q;
+}
+
+// `ringkasan` bawaan true (tab baru dibuka, filter baru); pindah tampilan atau
+// halaman memintanya false: angkanya tidak berubah, dan menghitungnya ulang
+// berarti memindai rentang itu sekali lagi.
+async function muatRiwayat({ ringkasan = true } = {}) {
+  siapkanLineRiwayat();
+  const nomor = ++riwayatMinta;
+  const q = paramRiwayat({ tampilan: riwayatTampilan, ringkasan: String(ringkasan) });
+  if (riwayatTampilan === "janjang") {
+    q.set("limit", riwayatPer);
+    q.set("offset", String(riwayatOffset));
+  }
+  try {
+    const r = await api(`/api/console/riwayat?${q}`);
+    if (nomor !== riwayatMinta) return;
+    riwayatHariIni = r.hari_ini;
+    riwayatFilter = { ...(riwayatFilter || {}), dari: r.dari, sampai: r.sampai };
+    $("riwayat-dari").value = r.dari;
+    $("riwayat-sampai").value = r.sampai;
+    $("riwayat-pesan").textContent = "";
+    if (r.ringkasan) {
+      riwayatRingkasan = r.ringkasan;
+      isiRingkasanRiwayat(r.ringkasan);
+    }
+    if (riwayatTampilan === "janjang") riwayatTotal = r.total;
+    gambarRiwayat(r.items);
+  } catch (e) {
+    if (nomor !== riwayatMinta || e.kode === "belum_masuk") return;
+    $("riwayat-pesan").textContent = alasan(e);
+  }
+}
+
+function bacaFilterRiwayat() {
+  return {
+    dari: $("riwayat-dari").value,
+    sampai: $("riwayat-sampai").value,
+    line_code: $("riwayat-line").dataset.nilai || "",
+    plat: $("riwayat-plat").value.trim(),
+    hasil: $("riwayat-hasil").dataset.nilai || "",
+  };
+}
+
+// Menerapkan isian layar sebagai filter baru, lalu memuat ulang beserta ringkasannya.
+async function tampilkanRiwayat(tombol) {
+  riwayatFilter = bacaFilterRiwayat();
+  riwayatOffset = 0;
+  return denganSibuk(tombol, () => muatRiwayat({ ringkasan: true }));
+}
+
+// Lewat fetch + blob, bukan tautan biasa: tombolnya bisa berputar sampai berkasnya
+// siap (sebulan janjang bisa belasan detik), dan penolakan server (rentang
+// terlalu panjang) tampil sebagai kalimat, bukan halaman JSON di browser.
+async function unduhRiwayat(tombol) {
+  return denganSibuk(tombol, async () => {
+    $("riwayat-pesan").textContent = "";
+    try {
+      const res = await fetch(`/api/console/riwayat/csv?${paramRiwayat({ tampilan: riwayatTampilan, bahasa })}`);
+      if (!res.ok) {
+        const detail = (await res.json().catch(() => ({}))).detail;
+        const err = new Error((typeof detail === "string" ? detail : detail?.message) || `HTTP ${res.status}`);
+        err.kode = detail?.code;
+        err.params = detail?.params || {};
+        if (res.status === 401 && err.kode === "belum_masuk") bukaGerbang();
+        throw err;
+      }
+      const nama = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") || "")?.[1]
+        || "riwayat-grading.csv";
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nama;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      if (e.kode !== "belum_masuk") $("riwayat-pesan").textContent = alasan(e);
+    }
+  });
+}
+
+function keHalamanRiwayat(nomor, tombol) {
+  const per = Number(riwayatPer);
+  const jumlah = Math.max(1, Math.ceil(riwayatTotal / per));
+  const baru = (Math.max(1, Math.min(nomor, jumlah)) - 1) * per;
+  if (baru === riwayatOffset) return undefined;
+  riwayatOffset = baru;
+  if (riwayatTampilan === "truk") {
+    gambarRiwayat(riwayatItems || []);
+    return undefined;
+  }
+  return denganSibuk(tombol, () => muatRiwayat({ ringkasan: false }));
+}
+
+$("riwayat-tampilkan").addEventListener("click", (ev) => tampilkanRiwayat(ev.currentTarget));
+$("riwayat-csv").addEventListener("click", (ev) => unduhRiwayat(ev.currentTarget));
+$("riwayat-plat").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  ev.preventDefault();
+  tampilkanRiwayat($("riwayat-tampilkan"));
+});
+
+document.querySelector(".riwayat-cepat").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-cepat]");
+  if (!tombol) return;
+  const hariIni = riwayatHariIni || new Date().toLocaleDateString("sv-SE");
+  const [dari, sampai] = rentangCepat(tombol.dataset.cepat, hariIni);
+  $("riwayat-dari").value = dari;
+  $("riwayat-sampai").value = sampai;
+  tampilkanRiwayat(tombol);
+});
+
+document.querySelector(".riwayat-tampilan").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-tampilan]");
+  if (!tombol || tombol.dataset.tampilan === riwayatTampilan) return;
+  riwayatTampilan = tombol.dataset.tampilan;
+  simpan("riwayatTampilan", riwayatTampilan);
+  riwayatOffset = 0;
+  denganSibuk(tombol, () => muatRiwayat({ ringkasan: false }));
+});
+
+// Saringan hasil langsung berlaku: dia milik tampilan Per janjang saja dan tidak
+// mengubah ringkasan periode.
+$("riwayat-hasil").addEventListener("pilih", () => {
+  riwayatFilter = { ...(riwayatFilter || {}), hasil: $("riwayat-hasil").dataset.nilai || "" };
+  riwayatOffset = 0;
+  denganSibuk($("riwayat-hasil").querySelector(".pilih-tombol"), () => muatRiwayat({ ringkasan: false }));
+});
+
+$("riwayat-per").addEventListener("pilih", () => {
+  riwayatPer = $("riwayat-per").dataset.nilai;
+  simpan("riwayatPer", riwayatPer);
+  riwayatOffset = 0;
+  if (riwayatTampilan === "truk") gambarRiwayat(riwayatItems || []);
+  else if (riwayatTampilan === "janjang") muatRiwayat({ ringkasan: false });
+});
+
+$("riwayat-prev").addEventListener("click", (ev) =>
+  keHalamanRiwayat(Math.floor(riwayatOffset / Number(riwayatPer)), ev.currentTarget));
+$("riwayat-next").addEventListener("click", (ev) =>
+  keHalamanRiwayat(Math.floor(riwayatOffset / Number(riwayatPer)) + 2, ev.currentTarget));
+$("riwayat-nomor").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-halaman]");
+  if (tombol) keHalamanRiwayat(Number(tombol.dataset.halaman), tombol);
+});
+
+// Turun satu tingkat: hari → truk hari itu → janjang truk itu hari itu.
+$("riwayat-baris").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-lihat]");
+  if (!tombol) return;
+  $("riwayat-dari").value = tombol.dataset.tanggal;
+  $("riwayat-sampai").value = tombol.dataset.tanggal;
+  if (tombol.dataset.plat) $("riwayat-plat").value = tombol.dataset.plat;
+  riwayatTampilan = tombol.dataset.lihat;
+  simpan("riwayatTampilan", riwayatTampilan);
+  tampilkanRiwayat(tombol);
+});
+
+// Foto yang umurnya lewat masa simpan PC sudah dihapus dari disk line (retensi
+// `UPLOAD_RETENTION_DAYS`, 180 hari di Lampung). Barisnya tetap ada; gambar yang
+// gagal dimuat diganti tulisan, bukan dibiarkan jadi ikon pecah. `error` tidak
+// menggelembung, jadi ditangkap di fase capture.
+$("riwayat-baris").addEventListener("error", (ev) => {
+  const gambar = ev.target;
+  if (gambar.tagName !== "IMG") return;
+  const tombol = gambar.closest("button.foto");
+  if (tombol) tombol.outerHTML = `<span class="muted">${esc(t("riwayatFotoHilang"))}</span>`;
+}, true);
 
 // One QR card: the image comes from the server (no CDN library — this screen
 // has to stay open while the internet is down), and the plate is also

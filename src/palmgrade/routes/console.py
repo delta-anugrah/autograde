@@ -10,11 +10,11 @@ import logging
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Query, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from ..core.config import Settings
 from ..domain.bahaya import HapusBerjalan
@@ -42,6 +42,7 @@ from ..integrations.upload.r2_uploader import R2Uploader
 from ..license.manager import LicenseManager
 from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
+from ..repositories.riwayat_repository import RiwayatStore
 from ..services.auth_service import AuthService
 from ..services.bahaya_service import (
     BahayaDitolak,
@@ -54,6 +55,7 @@ from ..services.dev_service import CoilTidakDikenal, DevService, PlcSibuk
 from ..services.erp_queue import ErpQueue
 from ..services.operator_admin import OperatorAdmin
 from ..services.qr_cetak import png_qr
+from ..services.riwayat_service import RiwayatService
 from ..services.scan_service import ScanService
 from ..workers.master_data_worker import MasterDataWorker
 from ..workers.visit_manifest_worker import VisitManifestWorker
@@ -211,12 +213,27 @@ def get_operator_admin() -> OperatorAdmin:
     return OperatorAdmin(get_console_service().store)
 
 
+@lru_cache
+def get_riwayat_service() -> RiwayatService:
+    """Tab Riwayat. Membaca `console.db` yang sama lewat koneksi baca-saja sendiri,
+    bukan store konsol: query sebulan tidak boleh antre di lock yang dipakai
+    menulis janjang dari line (`repositories/riwayat_repository.py`)."""
+    service = get_console_service()
+    return RiwayatService(
+        RiwayatStore(service.settings.console_db_path),
+        # Hari kerja yang sama dengan strip "Hari ini" dan tab Grading.
+        hari_ini=service.today,
+        zona=service.settings.factory_tz,
+    )
+
+
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
 Scan = Annotated[ScanService, Depends(get_scan_service)]
 Dev = Annotated[DevService, Depends(get_dev_service)]
 Bahaya = Annotated[BahayaService, Depends(get_bahaya_service)]
 Admin = Annotated[OperatorAdmin, Depends(get_operator_admin)]
+Riwayat = Annotated[RiwayatService, Depends(get_riwayat_service)]
 
 
 def require_operator(
@@ -353,6 +370,70 @@ async def console_history(
         resolved_date, line_code=line_code, truck_id=truck_id, limit=limit, offset=offset
     )
     return {"work_date": resolved_date, **page}
+
+
+# ── tab Riwayat (2026-09-26) ────────────────────────────────────────────
+# Grading hari-hari sebelumnya, untuk operator biasa (bukan lane support), sama
+# dengan tab Grading dan Rekap. Keduanya `def`, bukan `async def`: query sebulan
+# memakan detik, dan di thread pool itu tidak menahan loop yang melayani layar
+# lain dan kiriman janjang dari line.
+TampilanRiwayat = Literal["hari", "truk", "janjang"]
+HasilRiwayat = Literal["", "ripe", "unripe", "jk", "tp"]
+
+
+def _filter_riwayat(riwayat: RiwayatService, **isian: str | None):
+    try:
+        return riwayat.filter(**isian)
+    except ValueError as exc:
+        raise _operator_error(400, exc) from exc
+
+
+@router.get("/api/console/riwayat")
+def console_riwayat(
+    riwayat: Riwayat,
+    operator: Operator,
+    dari: str | None = None,
+    sampai: str | None = None,
+    line_code: str | None = None,
+    plat: str | None = None,
+    hasil: HasilRiwayat = "",
+    tampilan: TampilanRiwayat = "hari",
+    limit: int = Query(25, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    ringkasan: bool = True,
+) -> dict:
+    """Satu tampilan (per hari / per truk / per janjang) untuk rentang maks 31 hari.
+
+    Per hari dan per truk dikirim utuh dan dibagi halaman di layar; `limit` dan
+    `offset` cuma berlaku untuk per janjang. `ringkasan=false` saat layar cuma
+    pindah halaman atau tampilan: angkanya tidak berubah, dan menghitungnya ulang
+    berarti memindai rentang itu lagi.
+    """
+    f = _filter_riwayat(riwayat, dari=dari, sampai=sampai, line_code=line_code, plat=plat, hasil=hasil)
+    return riwayat.halaman(f, tampilan=tampilan, limit=limit, offset=offset, ringkasan=ringkasan)
+
+
+@router.get("/api/console/riwayat/csv")
+def console_riwayat_csv(
+    riwayat: Riwayat,
+    operator: Operator,
+    dari: str | None = None,
+    sampai: str | None = None,
+    line_code: str | None = None,
+    plat: str | None = None,
+    hasil: HasilRiwayat = "",
+    tampilan: TampilanRiwayat = "hari",
+    bahasa: Literal["id", "en"] = "id",
+) -> StreamingResponse:
+    """Semua baris filter itu sebagai CSV (bukan cuma halaman yang terlihat),
+    dialirkan per potongan: sebulan janjang tidak pernah utuh di memori."""
+    f = _filter_riwayat(riwayat, dari=dari, sampai=sampai, line_code=line_code, plat=plat, hasil=hasil)
+    nama, isi = riwayat.csv(f, tampilan=tampilan, bahasa=bahasa)
+    return StreamingResponse(
+        isi,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{nama}"', "Cache-Control": "no-store"},
+    )
 
 
 @router.get("/api/console/trucks")
