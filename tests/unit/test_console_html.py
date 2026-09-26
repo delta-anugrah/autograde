@@ -1263,3 +1263,13 @@ def test_reject_dan_piston_berdampingan_sama_lebar():
     assert "display:flex" in baris
     tombol = re.search(r"\.aksi-line\s*>\s*button\s*\{([^}]*)\}", HTML).group(1).replace(" ", "")
     assert "flex:110" in tombol
+
+
+def test_kamus_tanpa_kunci_ganda():
+    """Kunci yang ditulis dua kali di satu bahasa: yang terakhir menang tanpa peringatan,
+    jadi teks yang diubah di tempat pertama tidak pernah tampil. Ketemu 2026-09-26
+    (`thAksi` ditambah lagi untuk tab Akun padahal sudah ada untuk Rekam Video)."""
+    for bahasa in ("id", "en"):
+        kunci = re.findall(r'(?:^|[\s,{])([A-Za-z_][A-Za-z0-9_]*):"', _kamus(bahasa))
+        ganda = sorted({k for k in kunci if kunci.count(k) > 1})
+        assert not ganda, f"KAMUS.{bahasa} punya kunci ganda: {ganda}"

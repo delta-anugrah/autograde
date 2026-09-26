@@ -445,6 +445,37 @@
 
   /* Akun: catatan sandi di atas tabel, selebar tabelnya. */
   #sec-akun .akun-catatan { margin:0 var(--pad) 12px; }
+  /* Tombol Tambah akun berdiri sendiri di atas, tanpa kotak `.tools`: kotak itu
+     dirancang menempel ke tabel di bawahnya, dan di sini yang di bawahnya form. */
+  .akun-alat { display:flex; gap:8px; flex-wrap:wrap; margin:0 var(--pad) 12px; }
+  .akun-alat button { flex:0 0 auto; min-width:12rem; min-height:2.6rem; }
+  #akun-tambah { margin-bottom:12px; }
+  /* `.setelan-form` memakai display:grid, yang mengalahkan `[hidden]` bawaan browser:
+     tanpa baris ini form tidak pernah tertutup (ketemu di browser 2026-09-26). */
+  #akun-tambah[hidden] { display:none; }
+  #akun-tambah .setelan-grup-isi { padding:0; }
+  #akun-tambah input, #akun-tambah select { max-width:22rem; }
+  .akun-form-tombol { display:flex; gap:8px; flex-wrap:wrap; }
+  .akun-form-tombol button { flex:0 0 10rem; min-height:2.6rem; }
+  .akun-form-catatan { margin:0; }
+  .akun-pesan { margin:0; padding:8px 10px; border-radius:var(--r);
+                background:var(--warn-bg); color:var(--warn); }
+  .akun-pesan:empty { display:none; }
+  /* Tombol per baris dibuat kecil: tabel ini dibaca, tombolnya jarang ditekan,
+     dan tiga tombol ukuran penuh akan membuat tiap baris dua kali lebih tinggi. */
+  .akun-tombol { display:inline-flex; gap:6px; flex-wrap:wrap; }
+  .akun-tombol button { padding:5px 10px; font-size:.85rem; }
+  .akun-tombol + .muted { margin-left:6px; }
+  /* Konfirmasi satu baris akun, dibuka di bawah barisnya sendiri. */
+  #akun-baris tr.akun-panel-baris > td { padding:0; white-space:normal; background:var(--bg); }
+  .akun-panel { display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+                padding:12px 16px; border-left:4px solid var(--acc); }
+  .akun-panel.awas { border-left-color:var(--rej); }
+  .akun-panel p { flex:1 1 100%; margin:0; }
+  .akun-panel input { flex:0 1 14rem; min-width:0; }
+  .akun-panel button { flex:0 0 auto; min-width:8rem; }
+  .akun-panel.awas button[data-akun-jalankan] { background:var(--rej); border-color:var(--rej);
+                                                 color:#fff; }
 
   /* Camera state in a word, not only a colour, and in the title bar where it is
      readable even when the feed itself is a black box. `.putus` lives on the
@@ -1615,20 +1646,52 @@
 
 <section id="sec-akun" class="panel" hidden data-dev="1">
   <!--
-    Support-only, BACA SAJA: semua akun yang bisa masuk konsol di PC ini, aktif
-    atau tidak (/api/console/dev/akun). Sengaja tanpa tombol apa pun — akun lokal
-    dibuat di PC itu (scripts/console-operator.py), akun AutoERP di AutoERP
-    (aturan 19 CLAUDE.md: tidak ada lane web untuk mengubah akun).
+    Support-only. Semua akun yang bisa masuk konsol di PC ini, aktif atau tidak
+    (/api/console/dev/akun). Sejak 2026-09-26 akun LOKAL juga dibuat dan diurus
+    dari sini (tambah, ganti sandi, matikan/aktifkan, ubah role), supaya support
+    tidak perlu AnyDesk + terminal. Akun AutoERP tetap baca saja: yang punya
+    AutoERP, dan tarikan berikutnya akan membatalkan perubahan apa pun.
     Sandi tidak ditampilkan karena memang tidak disimpan: yang ada cuma hash-nya,
     dan hash itu pun tidak dikirim ke layar.
+    Konfirmasi dibuka DI BAWAH barisnya, bukan dialog yang menutup layar (pola
+    yang sama dengan Danger Zone). Server yang menjaga (`require_support`,
+    `OperatorAdmin`); layar cuma tidak menawarkan tombol yang pasti ditolak.
   -->
+  <div class="akun-alat">
+    <button type="button" id="akun-tambah-buka" class="utama" data-t="akunTambahTombol">Tambah akun</button>
+  </div>
+  <!-- `novalidate`: salah isian dijawab server sebagai kode yang diterjemahkan
+       layar, bukan tooltip browser dalam bahasa sistem. -->
+  <form id="akun-tambah" class="setelan-form" hidden novalidate>
+    <div class="setelan-grup-isi">
+      <label><span data-t="thNama">Nama</span>
+        <input type="text" id="akun-nama" maxlength="100" autocomplete="off"></label>
+      <label><span data-t="thEmail">Email</span>
+        <input type="email" id="akun-email" maxlength="254" autocomplete="off"
+               autocapitalize="none" spellcheck="false"></label>
+      <label><span data-t="thRole">Role</span>
+        <select id="akun-role"><option value="operator">Operator</option><option value="support">Support</option></select></label>
+      <!-- new-password: tanpa ini Firefox menawarkan sandi support yang sedang
+           masuk untuk akun orang lain. -->
+      <label><span data-t="lbSandi">Sandi</span>
+        <input type="password" id="akun-sandi" autocomplete="new-password"></label>
+      <label><span data-t="lbSandiUlang">Ulangi sandi</span>
+        <input type="password" id="akun-sandi-ulang" autocomplete="new-password"></label>
+    </div>
+    <p class="muted akun-form-catatan" data-t="akunTambahCatatan">Akun ini cuma ada di PC ini dan tidak masuk ke AutoERP. Sandi minimal 8 karakter.</p>
+    <div class="akun-form-tombol">
+      <button type="submit" id="akun-tambah-simpan" class="utama" data-t="akunSimpan">Simpan</button>
+      <button type="button" id="akun-tambah-batal" data-t="btnBatal">Batal</button>
+    </div>
+    <p id="akun-tambah-pesan" class="akun-pesan" role="alert"></p>
+  </form>
   <p class="muted akun-catatan" data-t="akunCatatanSandi">Sandi tidak bisa dilihat.</p>
   <div class="tabel">
     <table>
       <thead><tr><th data-t="thNama">Nama</th><th data-t="thEmail">Email</th>
         <th data-t="thRole">Role</th><th data-t="thAsal">Asal</th>
         <th data-t="thStatus">Status</th><th data-t="thSedangMasuk">Sedang masuk</th>
-        <th data-t="thDibuat">Dibuat</th></tr></thead>
+        <th data-t="thDibuat">Dibuat</th><th data-t="thAksi">Aksi</th></tr></thead>
       <tbody id="akun-baris"></tbody>
     </table>
   </div>
@@ -2035,7 +2098,24 @@ const KAMUS = {
     thSedangMasuk:"Sedang masuk", thDibuat:"Dibuat",
     akunAktif:"Aktif", akunMati:"Mati", akunTerkunci:"Terkunci {menit} mnt", akunYa:"Ya",
     asalLokal:"Lokal", asalErp:"AutoERP", kosongAkun:"Belum ada akun", gagalAkun:"Gagal memuat akun",
-    akunCatatanSandi:"Sandi tidak bisa dilihat karena yang disimpan cuma hash-nya. Kalau lupa sandi, akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ini paling lama sekitar 5 menit). Akun Lokal diganti lewat terminal PC ini dengan scripts/console-operator.py.",
+    akunCatatanSandi:"Sandi tidak bisa dilihat karena yang disimpan cuma hash-nya. Kalau lupa sandi, akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ini paling lama sekitar 5 menit). Akun Lokal diganti dengan tombol Ganti sandi di tabel ini.",
+    akunTambahTombol:"Tambah akun", akunSimpan:"Simpan",
+    akunTambahCatatan:"Akun ini cuma ada di PC ini dan tidak masuk ke AutoERP. Sandi minimal 8 karakter.",
+    lbSandi:"Sandi", lbSandiUlang:"Ulangi sandi",
+    akunGantiSandi:"Ganti sandi", akunMatikan:"Matikan", akunAktifkan:"Aktifkan",
+    akunJadikanSupport:"Jadikan support", akunJadikanOperator:"Jadikan operator",
+    akunDiaturErp:"Diatur di AutoERP", akunSaya:"Akun kamu",
+    akunSandiJudul:"Sandi baru untuk {email}. Semua sesi akun ini langsung berakhir.",
+    akunSandiDiriSendiri:"Ini akunmu sendiri. Sesudah disimpan kamu keluar dan perlu masuk lagi dengan sandi baru.",
+    akunMatikanTanya:"Matikan akun {nama}? Orang ini langsung keluar dan tidak bisa masuk sampai akunnya diaktifkan lagi.",
+    akunAktifkanTanya:"Aktifkan lagi akun {nama}? Orang ini bisa masuk lagi dengan sandinya yang terakhir.",
+    akunSupportTanya:"Jadikan {nama} support? Akun support bisa membuka semua menu support, termasuk Danger Zone.",
+    akunOperatorTanya:"Jadikan {nama} operator? Menu support hilang dari akun itu mulai klik berikutnya.",
+    akunYaMatikan:"Ya, matikan", akunYaAktifkan:"Ya, aktifkan", akunYaUbah:"Ya, ubah",
+    akunDibuat:"Akun {email} dibuat.", akunSandiDiganti:"Sandi {email} diganti.",
+    akunSandiDigantiSendiri:"Sandi diganti. Masuk lagi dengan sandi baru.",
+    akunDimatikan:"Akun {email} dimatikan.", akunDiaktifkan:"Akun {email} aktif lagi.",
+    akunRoleDiubah:"{email} sekarang {role}.",
     thJenis:"Jenis", thKunci:"Kunci", thPercobaan:"Percobaan", thBerikutnya:"Percobaan berikutnya",
     antreanSekarang:"Sekarang",
     btnKirimUlang:"Kirim Ulang", ringkasAntrean:"{pending} menunggu · {gagal} gagal",
@@ -2069,6 +2149,13 @@ const KAMUS = {
     err_plc_sibuk:"Line sedang memproses truk, jadi coil tidak bisa dipicu",
     err_coil_tidak_dikenal:"Coil ini tidak dikenal line",
     err_hapus_berjalan:"Data sedang dihapus dari menu support (Danger Zone). Tunggu sebentar, lalu tugaskan truknya lagi.",
+    err_akun_email_tidak_sah:"Email tidak valid. Contoh: budi@pabrik.id",
+    err_akun_nama_kosong:"Nama tidak boleh kosong",
+    err_akun_sandi_beda:"Sandi kedua tidak sama dengan yang pertama",
+    err_akun_sudah_ada:"{email} sudah dipakai akun lain di PC ini. Kalau lupa sandinya, pakai Ganti sandi di baris akun itu.",
+    err_akun_milik_erp:"{email} akun AutoERP. Ubah di AutoERP, bukan di PC ini.",
+    err_akun_tidak_ada:"Akun {email} tidak ada. Muat ulang tab Akun.",
+    err_akun_diri_sendiri:"Akunmu sendiri tidak bisa dimatikan atau diubah role-nya. Minta tolong akun support lain.",
     judulSumberKamera:"Sumber Kamera",
     judulRekamVideo:"Rekam Video", kosongLine:"Belum ada line", thMajuRekam:"Terekam",
     rekamMenunggu:"Menunggu…",
@@ -2278,7 +2365,24 @@ const KAMUS = {
     thSedangMasuk:"Signed in", thDibuat:"Created",
     akunAktif:"Active", akunMati:"Off", akunTerkunci:"Locked {menit} min", akunYa:"Yes",
     asalLokal:"Local", asalErp:"AutoERP", kosongAkun:"No accounts yet", gagalAkun:"Failed to load accounts",
-    akunCatatanSandi:"Passwords cannot be shown because only their hash is stored. For a forgotten password, AutoERP accounts are reset in AutoERP (AutoGrade Operator → New Password, reaches this PC within about 5 minutes). Local accounts are reset from this PC's terminal with scripts/console-operator.py.",
+    akunCatatanSandi:"Passwords cannot be shown because only their hash is stored. For a forgotten password, AutoERP accounts are reset in AutoERP (AutoGrade Operator → New Password, reaches this PC within about 5 minutes). Local accounts are reset with the Change password button in this table.",
+    akunTambahTombol:"Add account", akunSimpan:"Save",
+    akunTambahCatatan:"This account exists only on this PC and is not sent to AutoERP. Passwords need at least 8 characters.",
+    lbSandi:"Password", lbSandiUlang:"Repeat password",
+    akunGantiSandi:"Change password", akunMatikan:"Switch off", akunAktifkan:"Switch on",
+    akunJadikanSupport:"Make support", akunJadikanOperator:"Make operator",
+    akunDiaturErp:"Managed in AutoERP", akunSaya:"Your account",
+    akunSandiJudul:"New password for {email}. Every session of this account ends right away.",
+    akunSandiDiriSendiri:"This is your own account. After saving you are signed out and sign in again with the new password.",
+    akunMatikanTanya:"Switch off the account of {nama}? They are signed out right away and cannot sign in until the account is switched on again.",
+    akunAktifkanTanya:"Switch the account of {nama} back on? They can sign in again with their last password.",
+    akunSupportTanya:"Make {nama} support? Support accounts can open every support menu, including the Danger Zone.",
+    akunOperatorTanya:"Make {nama} an operator? The support menus disappear from that account from its next click.",
+    akunYaMatikan:"Yes, switch off", akunYaAktifkan:"Yes, switch on", akunYaUbah:"Yes, change",
+    akunDibuat:"Account {email} created.", akunSandiDiganti:"Password for {email} changed.",
+    akunSandiDigantiSendiri:"Password changed. Sign in again with the new password.",
+    akunDimatikan:"Account {email} switched off.", akunDiaktifkan:"Account {email} is on again.",
+    akunRoleDiubah:"{email} is now {role}.",
     thJenis:"Kind", thKunci:"Key", thPercobaan:"Attempts", thBerikutnya:"Next attempt",
     antreanSekarang:"Now",
     btnKirimUlang:"Resend", ringkasAntrean:"{pending} pending · {gagal} failed",
@@ -2312,6 +2416,13 @@ const KAMUS = {
     err_plc_sibuk:"The line is processing a truck, so the coil cannot be fired",
     err_coil_tidak_dikenal:"This coil is not known to the line",
     err_hapus_berjalan:"Data is being deleted from the support menu (Danger Zone). Wait a moment, then assign the truck again.",
+    err_akun_email_tidak_sah:"That email is not valid. Example: budi@mill.id",
+    err_akun_nama_kosong:"The name cannot be empty",
+    err_akun_sandi_beda:"The second password does not match the first",
+    err_akun_sudah_ada:"{email} is already used by another account on this PC. For a forgotten password, use Change password on that account's row.",
+    err_akun_milik_erp:"{email} is an AutoERP account. Change it in AutoERP, not on this PC.",
+    err_akun_tidak_ada:"Account {email} does not exist. Reload the Users tab.",
+    err_akun_diri_sendiri:"Your own account cannot be switched off or have its role changed. Ask another support account.",
     judulSumberKamera:"Camera Source",
     judulRekamVideo:"Record Video", kosongLine:"No lines yet", thMajuRekam:"Recorded",
     rekamMenunggu:"Working…",
@@ -3641,7 +3752,12 @@ async function bukaGerbang() {
   } catch (e) { $("gerbang-pesan").textContent = alasan(e); }
 }
 
+// Email akun yang sedang masuk, huruf kecil. Tab Akun memakainya supaya tidak
+// menawarkan Matikan / Ubah role di baris sendiri (server juga menolaknya).
+let emailSaya = "";
+
 function tutupGerbang(operator) {
+  emailSaya = String(operator.email || "").toLowerCase();
   gerbangAktif = false;
   $("gerbang").hidden = true;
   $("gerbang-pesan").textContent = "";
@@ -4233,7 +4349,7 @@ async function muatVersi() {
   }
 }
 
-// ── developer: akun (support only, BACA SAJA) ──────────────────────────
+// ── developer: akun (support only) ─────────────────────────────────────
 // Tanggal saja, tanpa jam: yang membuka layar ini mencari siapa yang bisa
 // masuk, bukan detik akunnya dibuat.
 function tanggalAkun(epoch) {
@@ -4260,18 +4376,203 @@ function barisAkun(a) {
     <td>${keadaan}</td>
     <td>${a.sedang_masuk ? esc(t("akunYa")) : KOSONG}</td>
     <td>${esc(tanggalAkun(a.dibuat))}</td>
+    <td>${aksiAkun(a)}</td>
   </tr>`;
 }
+
+// Tombol per baris. Akun AutoERP tidak diberi tombol: yang punya AutoERP, dan
+// tarikan berikutnya akan membatalkan perubahan apa pun (server juga menolak,
+// `OperatorAdmin._akun_lokal`). Baris sendiri cuma bisa ganti sandi: mematikan
+// atau menurunkan akun sendiri bisa meninggalkan PC ini tanpa support, dan
+// server menolaknya juga.
+function aksiAkun(a) {
+  if (a.asal !== "lokal") return `<span class="muted">${esc(t("akunDiaturErp"))}</span>`;
+  const saya = String(a.email || "").toLowerCase() === emailSaya;
+  const tombol = (aksi, kunci) => `<button type="button" data-akun-aksi="${aksi}"
+      data-email="${esc(a.email)}">${esc(t(kunci))}</button>`;
+  const isi = [tombol("sandi", "akunGantiSandi")];
+  if (!saya) {
+    isi.push(tombol("status", a.keadaan === "mati" ? "akunAktifkan" : "akunMatikan"));
+    isi.push(tombol("role", a.role === "support" ? "akunJadikanOperator" : "akunJadikanSupport"));
+  }
+  return `<span class="akun-tombol">${isi.join("")}</span>`
+    + (saya ? `<span class="muted">${esc(t("akunSaya"))}</span>` : "");
+}
+
+// Baris terakhir yang dimuat, per email: panel konfirmasi membaca nama, role,
+// dan keadaan dari sini, bukan dari teks sel yang sudah diterjemahkan.
+let akunData = new Map();
 
 async function muatAkun() {
   try {
     const r = await api("/api/console/dev/akun");
+    akunData = new Map(r.akun.map((a) => [a.email, a]));
     $("akun-baris").innerHTML = r.akun.length
-      ? r.akun.map(barisAkun).join("") : barisKosong(7, "kosongAkun");
+      ? r.akun.map(barisAkun).join("") : barisKosong(8, "kosongAkun");
   } catch (e) {
-    if (e.kode !== "belum_masuk") $("akun-baris").innerHTML = barisKosong(7, "gagalAkun");
+    if (e.kode !== "belum_masuk") $("akun-baris").innerHTML = barisKosong(8, "gagalAkun");
   }
 }
+
+// Satu jalan kirim untuk semua aksi tab Akun, dan kuncinya ikut di sini: klik
+// kedua selama permintaan pertama jalan tidak mengirim apa pun (pulang undefined).
+async function kirimAkun(tombol, path, isi) {
+  return denganSibuk(tombol, () => api(path, { method: "POST", body: JSON.stringify(isi) }));
+}
+
+$("akun-tambah-buka").addEventListener("click", () => {
+  const form = $("akun-tambah");
+  form.hidden = !form.hidden;
+  if (!form.hidden) $("akun-nama").focus();
+});
+
+function tutupFormAkun() {
+  $("akun-tambah").reset();
+  $("akun-tambah").hidden = true;
+  $("akun-tambah-pesan").textContent = "";
+}
+
+$("akun-tambah-batal").addEventListener("click", tutupFormAkun);
+
+// `submit`, bukan klik tombol: Enter di kolom sandi terakhir juga menyimpan.
+$("akun-tambah").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  $("akun-tambah-pesan").textContent = "";
+  const isi = {
+    nama: $("akun-nama").value, email: $("akun-email").value, role: $("akun-role").value,
+    sandi: $("akun-sandi").value, sandi_ulang: $("akun-sandi-ulang").value,
+  };
+  try {
+    const hasil = await kirimAkun($("akun-tambah-simpan"), "/api/console/dev/akun", isi);
+    if (hasil === undefined) return;
+    toastSukses(t("akunDibuat").replace("{email}", hasil.akun.email));
+    tutupFormAkun();
+    await muatAkun();
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("akun-tambah-pesan").textContent = alasan(e);
+  }
+});
+
+function tutupPanelAkun() {
+  document.querySelectorAll("#akun-baris tr.akun-panel-baris").forEach((tr) => tr.remove());
+}
+
+// Isi konfirmasi satu aksi. Menyebut akibatnya dalam kalimat, dan tombol
+// eksekusinya merah untuk yang mengurangi akses orang (matikan) atau menambah
+// kuasa (jadikan support).
+function panelAkun(aksi, a) {
+  const nama = a.nama || a.email;
+  const batal = `<button type="button" data-akun-batal>${esc(t("btnBatal"))}</button>`;
+  const pesan = `<p class="akun-pesan" role="alert"></p>`;
+  if (aksi === "sandi") {
+    const saya = String(a.email || "").toLowerCase() === emailSaya;
+    const judul = t("akunSandiJudul").replace("{email}", a.email)
+      + (saya ? " " + t("akunSandiDiriSendiri") : "");
+    return `<div class="akun-panel">
+      <p>${esc(judul)}</p>
+      <input type="password" data-akun-sandi autocomplete="new-password"
+             placeholder="${esc(t("lbSandi"))}" aria-label="${esc(t("lbSandi"))}">
+      <input type="password" data-akun-sandi-ulang autocomplete="new-password"
+             placeholder="${esc(t("lbSandiUlang"))}" aria-label="${esc(t("lbSandiUlang"))}">
+      <button type="button" class="utama" data-akun-jalankan>${esc(t("akunSimpan"))}</button>
+      ${batal}${pesan}
+    </div>`;
+  }
+  const [tanya, ya, awas] = aksi === "status"
+    ? (a.keadaan === "mati"
+      ? ["akunAktifkanTanya", "akunYaAktifkan", false]
+      : ["akunMatikanTanya", "akunYaMatikan", true])
+    : (a.role === "support"
+      ? ["akunOperatorTanya", "akunYaUbah", false]
+      : ["akunSupportTanya", "akunYaUbah", true]);
+  return `<div class="akun-panel${awas ? " awas" : ""}">
+    <p>${esc(t(tanya).replace("{nama}", nama))}</p>
+    <button type="button" class="utama" data-akun-jalankan>${esc(t(ya))}</button>
+    ${batal}${pesan}
+  </div>`;
+}
+
+// Isi permintaan dan kalimat suksesnya, dari aksi + baris akun.
+function permintaanAkun(aksi, a, panel) {
+  if (aksi === "sandi") {
+    const saya = String(a.email || "").toLowerCase() === emailSaya;
+    return {
+      path: "/api/console/dev/akun/sandi",
+      isi: { email: a.email, sandi: panel.querySelector("[data-akun-sandi]").value,
+             sandi_ulang: panel.querySelector("[data-akun-sandi-ulang]").value },
+      sukses: saya ? t("akunSandiDigantiSendiri") : t("akunSandiDiganti").replace("{email}", a.email),
+    };
+  }
+  if (aksi === "status") {
+    const aktif = a.keadaan === "mati";
+    return {
+      path: "/api/console/dev/akun/status",
+      isi: { email: a.email, aktif },
+      sukses: t(aktif ? "akunDiaktifkan" : "akunDimatikan").replace("{email}", a.email),
+    };
+  }
+  const role = a.role === "support" ? "operator" : "support";
+  return {
+    path: "/api/console/dev/akun/role",
+    isi: { email: a.email, role },
+    sukses: t("akunRoleDiubah").replace("{email}", a.email)
+      .replace("{role}", role === "support" ? "Support" : "Operator"),
+  };
+}
+
+async function jalankanAksiAkun(tombol) {
+  const baris = tombol.closest("tr.akun-panel-baris");
+  const a = akunData.get(baris.dataset.email);
+  if (!a) return;
+  const pesan = baris.querySelector(".akun-pesan");
+  pesan.textContent = "";
+  const { path, isi, sukses } = permintaanAkun(baris.dataset.aksi, a, baris);
+  try {
+    const hasil = await kirimAkun(tombol, path, isi);
+    if (hasil === undefined) return;
+    toastSukses(sukses);
+    // Ganti sandi akun sendiri mengakhiri sesi ini juga: muat ulang menjawab 401
+    // dan gerbang login terbuka, persis yang dijanjikan kalimat suksesnya.
+    await muatAkun();
+  } catch (e) {
+    if (e.kode !== "belum_masuk") pesan.textContent = alasan(e);
+  }
+}
+
+// Didelegasikan ke tbody: barisnya dibangun ulang tiap muat.
+$("akun-baris").addEventListener("click", (ev) => {
+  const buka = ev.target.closest("button[data-akun-aksi]");
+  if (buka) {
+    const a = akunData.get(buka.dataset.email);
+    if (!a) return;
+    const baris = buka.closest("tr");
+    const aksi = buka.dataset.akunAksi;
+    const terbuka = baris.nextElementSibling;
+    // Tombol yang sama ditekan lagi = tutup panelnya.
+    const sama = terbuka && terbuka.classList.contains("akun-panel-baris")
+      && terbuka.dataset.aksi === aksi;
+    tutupPanelAkun();
+    if (sama) return;
+    baris.insertAdjacentHTML("afterend", `<tr class="akun-panel-baris" data-aksi="${esc(aksi)}"
+        data-email="${esc(a.email)}"><td colspan="8">${panelAkun(aksi, a)}</td></tr>`);
+    const panel = baris.nextElementSibling;
+    (panel.querySelector("input") || panel.querySelector("[data-akun-jalankan]")).focus();
+    return;
+  }
+  if (ev.target.closest("button[data-akun-batal]")) {
+    tutupPanelAkun();
+    return;
+  }
+  const jalankan = ev.target.closest("button[data-akun-jalankan]");
+  if (jalankan) jalankanAksiAkun(jalankan);
+});
+
+// Enter di kolom sandi baru = tekan Simpan, sama dengan form tambah.
+$("akun-baris").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter" || !ev.target.matches("tr.akun-panel-baris input")) return;
+  ev.preventDefault();
+  ev.target.closest(".akun-panel").querySelector("[data-akun-jalankan]").click();
+});
 
 // ── developer: uji PLC (support only) ───────────────────────────────────
 // The only lane in the whole console that moves physical hardware. One card
