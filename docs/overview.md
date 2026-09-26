@@ -648,8 +648,9 @@ biasa: fieldtype `Password` hidup di `__Auth` yang Frappe sengaja tidak pernah l
 jadi tidak akan ada yang bisa ditarik. Dua skema berdampingan: `pbkdf2_sha256` milik AutoERP
 (dibaca `hashlib` saja) dan `scrypt` untuk akun lokal. Sesi 12 jam (`sesi`), lockout berlipat dua
 sesudah lima kali salah, dan `requested_by` Reject Manual sekarang nama operator yang masuk,
-bukan lagi string `"operator"`. Akun lokal dibuat dari PC dengan `make operator`; tidak ada lane
-web untuk itu. Rincian aturannya di `CLAUDE.md` invarian 19.
+bukan lagi string `"operator"`. Akun lokal dibuat dari PC dengan `make operator`, dan sejak
+2026-09-26 juga dari tab Akun (support) dengan aturan yang sama. Rincian aturannya di `CLAUDE.md`
+invarian 19.
 
 **Belum termasuk Fase 2** (sengaja): timbangan brondolan lewat PLC (§6.6b, Fase 3), nomor dokumen
 berprefiks lokal (§6.3), toggle tampil/sembunyi per line, dan halaman riwayat/laporan lintas hari
