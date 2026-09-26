@@ -521,6 +521,16 @@
   button, input { background:var(--input); color:var(--fg); border:1px solid var(--line-kuat);
                   border-radius:var(--r-sm); padding:10px 13px; font:inherit; }
   :is(button, input):focus-visible { outline:3px solid var(--acc); outline-offset:2px; }
+  /* Sibuk: tombol yang sedang menunggu server (denganSibuk). Klik berikutnya
+     ditolak dan spinner kecil di depan label memberi tahu bahwa klik pertama
+     sudah diterima. `disabled` sengaja tidak dipakai: layar yang mengatur kapan
+     tombol boleh ditekan, dan helper yang memulihkannya akan menimpa keputusan itu. */
+  button.sibuk { pointer-events:none; cursor:progress; opacity:.75; }
+  button.sibuk::before { content:""; display:inline-block; flex:none; width:.85em; height:.85em;
+                         margin-right:.45em; vertical-align:-.1em; border:2px solid currentColor;
+                         border-right-color:transparent; border-radius:50%;
+                         animation:putar-sibuk .7s linear infinite; }
+  @keyframes putar-sibuk { to { transform:rotate(360deg); } }
   button { cursor:pointer; font-weight:700;
            transition:background-color .12s ease, border-color .12s ease,
                       box-shadow .12s ease, transform .12s ease; }
@@ -548,7 +558,8 @@
      `min-width:0` supaya label panjang turun baris di dalam tombolnya sendiri,
      bukan mendorong tombol tetangganya. */
   .aksi-line { display:flex; gap:8px; }
-  .aksi-line > button { flex:1 1 0; min-width:0; padding-left:8px; padding-right:8px; }
+  .aksi-line > button { flex:1 1 0; min-width:0; padding-left:8px; padding-right:8px;
+                        display:flex; align-items:center; justify-content:center; }
   /* Setengah kartu itu sempit: spasi huruf dan petunjuk pintas dibuat lebih
      rapat supaya "REJECT MANUAL" + pintasnya masih satu baris di layar 1680 px
      ke atas. Di layar lebih sempit labelnya turun baris di dalam tombolnya. */
@@ -2657,7 +2668,7 @@ function tombolNomorHalaman() {
 
 function gantiHalaman(arah) {
   const per = Number(gradingPer);
-  keHalaman(Math.floor(gradingOffset / per) + 1 + arah);
+  return keHalaman(Math.floor(gradingOffset / per) + 1 + arah);
 }
 
 // Jump to one page. Used by the number buttons AND Previous/Next, so the
@@ -2670,16 +2681,16 @@ function keHalaman(nomor) {
   // visible cause.
   const aman = Math.max(1, Math.min(nomor, jumlah));
   const baru = (aman - 1) * per;
-  if (baru === gradingOffset) return;
+  if (baru === gradingOffset) return undefined;
   gradingOffset = baru;
-  muatGrading();
+  return muatGrading();
 }
 
 // Delegated: the number buttons are rebuilt on every page change, so a
 // per-button listener would disappear along with them.
 $("grading-nomor").addEventListener("click", (ev) => {
   const tombol = ev.target.closest("button[data-halaman]");
-  if (tombol) keHalaman(Number(tombol.dataset.halaman));
+  if (tombol) denganSibuk(tombol, () => keHalaman(Number(tombol.dataset.halaman)));
 });
 
 $("grading-per").addEventListener("pilih", () => {
@@ -2691,8 +2702,8 @@ $("grading-per").addEventListener("pilih", () => {
   muatGrading();
 });
 
-$("grading-prev").addEventListener("click", () => gantiHalaman(-1));
-$("grading-next").addEventListener("click", () => gantiHalaman(1));
+$("grading-prev").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, () => gantiHalaman(-1)));
+$("grading-next").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, () => gantiHalaman(1)));
 
 function selarasUrutan(lines) {
   // Lines gone from the registry are dropped, new ones append at the end -
@@ -2844,6 +2855,22 @@ function toast(kind, text, durasi = TOAST_DURASI[kind]) {
 const toastSukses = (text) => toast("sukses", text);
 const toastGagal = (text) => toast("gagal", text);
 const toastPeringatan = (text) => toast("peringatan", text);
+
+// Tombol yang memanggil server dikunci sampai jawabannya datang: klik kedua di
+// tengah proses tidak menjalankan pekerjaan kedua, dan spinner di tombolnya
+// memberi tahu bahwa klik pertama sudah diterima. `disabled` tidak disentuh.
+async function denganSibuk(tombol, kerja) {
+  if (!tombol) return kerja();
+  if (tombol.classList.contains("sibuk")) return undefined;
+  tombol.classList.add("sibuk");
+  tombol.setAttribute("aria-busy", "true");
+  try {
+    return await kerja();
+  } finally {
+    tombol.classList.remove("sibuk");
+    tombol.removeAttribute("aria-busy");
+  }
+}
 
 const barisKosong = (lebar, kunci) => `<tr><td colspan="${lebar}" class="kosong">${esc(t(kunci))}</td></tr>`;
 
@@ -3129,6 +3156,7 @@ $("lines").addEventListener("click", async (ev) => {
     return;
   }
   tombol.disabled = true;
+  tombol.classList.add("sibuk");
   try {
     // Nama line seperti yang tertulis di kartu ("Line 1"), bukan kode internal
     // `line-1`: operator menekan tombol di salah satu dari tiga panel yang bisa
@@ -3178,6 +3206,7 @@ $("lines").addEventListener("click", async (ev) => {
     toastGagal(teks);
   } finally {
     tombol.disabled = false;
+    tombol.classList.remove("sibuk");
   }
 });
 
@@ -3240,7 +3269,7 @@ document.addEventListener("keydown", (ev) => {
   }
 });
 
-$("daftar").addEventListener("click", async () => {
+$("daftar").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   const plate_number = $("plat").value.trim();
   if (!plate_number) return;
   $("daftar").disabled = true;
@@ -3264,7 +3293,7 @@ $("daftar").addEventListener("click", async () => {
     // the request - decides what happens next.
     segarkanTombol();
   }
-});
+}));
 
 // Weigh-in: bruto now, tara hours later. The time comes from the browser clock
 // - on the mill PC that is the same clock the operator reads, and the server
@@ -3381,7 +3410,7 @@ $("scan-plat").addEventListener("keydown", (ev) => {
   kirimScan();
 });
 
-$("masuk").addEventListener("click", async () => {
+$("masuk").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   const plate_number = $("plat-timbang").dataset.nilai;
   const gross_kg = $("bruto").value.trim();
   if (!plate_number || !gross_kg) { pesan(t("wajibIsi")); return; }
@@ -3400,7 +3429,7 @@ $("masuk").addEventListener("click", async () => {
   } finally {
     segarkanTombol();
   }
-});
+}));
 
 // Tare goes through a dialog, not a column inside its row: this table is
 // rebuilt on every poll, which would wipe out anything the operator is typing.
@@ -3451,6 +3480,7 @@ async function simpanTara() {
   }
   const w = taraUntuk;
   $("tara-simpan").disabled = true;
+  $("tara-simpan").classList.add("sibuk");
   try {
     await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
       plate_number: w.plate_number, ref: w.ref, entered_at: w.entered_at,
@@ -3471,6 +3501,7 @@ async function simpanTara() {
     toastGagal(t("gagalTara") + ": " + alasan(e));
   } finally {
     $("tara-simpan").disabled = false;
+    $("tara-simpan").classList.remove("sibuk");
   }
   await muatTimbangan();
 }
@@ -3642,6 +3673,7 @@ async function kirimSandi() {
   // would otherwise spend two wrong tries out of the five the lockout allows.
   gerbangSibuk = true;
   $("gerbang-masuk").disabled = true;
+  $("gerbang-masuk").classList.add("sibuk");
   try {
     const { operator } = await api("/api/console/login", {
       method: "POST", body: JSON.stringify({ email, sandi }),
@@ -3677,6 +3709,7 @@ async function kirimSandi() {
   } finally {
     gerbangSibuk = false;
     $("gerbang-masuk").disabled = false;
+    $("gerbang-masuk").classList.remove("sibuk");
   }
 }
 
@@ -3718,11 +3751,11 @@ $("gerbang").addEventListener("keydown", (ev) => {
   kirimSandi();
 });
 
-$("keluar").addEventListener("click", async () => {
+$("keluar").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   try { await api("/api/console/logout", { method: "POST" }); }
   catch (e) { /* already gone - the gate comes up either way */ }
   bukaGerbang();
-});
+}));
 
 // Line yang dilepas oleh timbang keluar, bukan oleh operator (G5). Diumumkan
 // sekali per pelepasan: state di-poll tiap 2 detik, dan toast yang sama muncul
@@ -3882,7 +3915,7 @@ function kartuQr(tr) {
   </figure>`;
 }
 
-$("cetak-qr").addEventListener("click", () => {
+$("cetak-qr").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, () => {
   // Built when pressed, not on every poll: dozens of <img> rebuilt every 60
   // seconds would re-request every image.
   $("qr-kartu").innerHTML = trucks.filter((tr) => tr.plate_number).map(kartuQr).join("");
@@ -3890,10 +3923,10 @@ $("cetak-qr").addEventListener("click", () => {
   // Wait for the images to load first: calling print() too early prints
   // empty boxes, and that is a stack of wasted paper only noticed afterwards.
   const gambar = [...$("qr-kartu").querySelectorAll("img")];
-  Promise.all(gambar.map((g) => g.complete ? null : new Promise((r) => {
+  return Promise.all(gambar.map((g) => g.complete ? null : new Promise((r) => {
     g.onload = g.onerror = r;
   }))).then(() => window.print());
-});
+}));
 
 // Once the print dialog closes, the cards are hidden again: a whole screen
 // full of QR codes would make the Trucks tab unusable.
@@ -3985,14 +4018,14 @@ $("log-cari").addEventListener("input", () => {
   }, 300);
 });
 
-$("log-prev").addEventListener("click", () => {
+$("log-prev").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, () => {
   logOffset = Math.max(0, logOffset - LOG_PER);
-  muatLog();
-});
-$("log-next").addEventListener("click", () => {
+  return muatLog();
+}));
+$("log-next").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, () => {
   if (logOffset + LOG_PER < logTotal) logOffset += LOG_PER;
-  muatLog();
-});
+  return muatLog();
+}));
 
 // ── developer: diagnostik (support only) ────────────────────────────────
 // The 5 s auto-refresh timer itself lives in `bukaTabDev` above.
@@ -4122,7 +4155,7 @@ async function muatManifest() {
   }
 }
 
-$("antrean-kirim-ulang").addEventListener("click", async () => {
+$("antrean-kirim-ulang").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   $("antrean-kirim-ulang").disabled = true;
   try {
     await api("/api/console/dev/antrean/kirim-ulang", { method: "POST" });
@@ -4134,7 +4167,7 @@ $("antrean-kirim-ulang").addEventListener("click", async () => {
   } finally {
     $("antrean-kirim-ulang").disabled = false;
   }
-});
+}));
 
 // ── developer: versi & lisensi (support only) ───────────────────────────
 // Tiap pasangan dibungkus satu `<div>`: `.daftar-definisi` menyebar jadi
@@ -4368,7 +4401,7 @@ async function muatSetelan() {
   } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = e.pesan || "gagal"; }
 }
 
-$("set-simpan").addEventListener("click", async () => {
+$("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   const pesan = $("set-pesan");
   pesan.textContent = "";
   try {
@@ -4403,7 +4436,7 @@ $("set-simpan").addEventListener("click", async () => {
       if (teks.includes(field)) $(id).setAttribute("aria-invalid", "true");
     }
   }
-});
+}));
 
 // ── Danger Zone (tab Setelan, support only) ────────────────────────────
 // Lima aksi berbahaya. Panel dibuka dengan data SEGAR tiap kali (bukan dari
@@ -4582,6 +4615,7 @@ async function jalankanBahaya(aksi, tombol) {
   if (BAHAYA_HAPUS.has(aksi)) body.konfirmasi = ketik ? ketik.value : "";
   if (aksi === "transaksi" || aksi === "semua") body.mode = aksi;
   tombol.disabled = true;
+  tombol.classList.add("sibuk");
   tombol.textContent = t("bahayaMenunggu");
   try {
     // `api()` meneruskan opts ke fetch apa adanya, jadi body WAJIB string —
@@ -4598,6 +4632,7 @@ async function jalankanBahaya(aksi, tombol) {
     toastGagal(alasanBahaya(e));
     if (e.kode === "bahaya_ditolak") return bukaPanelBahaya(aksi);
     tombol.disabled = false;
+    tombol.classList.remove("sibuk");
     tombol.textContent = t("bahayaJalankan_" + aksi);
   }
 }
@@ -4607,7 +4642,7 @@ $("bahaya").addEventListener("toggle", () => {
 });
 $("bahaya").addEventListener("click", (ev) => {
   const buka = ev.target.closest("[data-bahaya-buka]");
-  if (buka) return bukaPanelBahaya(buka.dataset.bahayaBuka);
+  if (buka) return denganSibuk(buka, () => bukaPanelBahaya(buka.dataset.bahayaBuka));
   if (ev.target.closest("[data-bahaya-batal]")) return tutupPanelBahaya();
   const jalan = ev.target.closest("[data-bahaya-jalankan]");
   if (jalan && !jalan.disabled) return jalankanBahaya(jalan.dataset.bahayaJalankan, jalan);
@@ -4724,6 +4759,7 @@ $("rekam-baris").addEventListener("click", async (ev) => {
   // terbaca persis seperti tombol yang tidak bereaksi — dan support akan
   // menekannya lagi.
   el.disabled = true;
+  el.classList.add("sibuk");
   const tulisanAsli = el.textContent;
   el.textContent = t("rekamMenunggu");
   try {
@@ -4749,6 +4785,7 @@ $("rekam-baris").addEventListener("click", async (ev) => {
   } catch (e) {
     toastGagal(alasan(e) || t("gagalRekam"));
     el.disabled = false;
+    el.classList.remove("sibuk");
     el.textContent = tulisanAsli;
     // Keadaan line sudah berbeda dari yang digambar layar (dua tab terbuka,
     // atau rekaman berhenti sendiri karena disk). Menyegarkan di sini membuat
@@ -4758,7 +4795,7 @@ $("rekam-baris").addEventListener("click", async (ev) => {
   }
 });
 
-$("rekam-simpan").addEventListener("click", async () => {
+$("rekam-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   try {
     // `api()` meneruskan opts ke fetch apa adanya, jadi body WAJIB string.
     // Objek telanjang dikirim sebagai "[object Object]" dan dijawab 422 —
@@ -4776,7 +4813,7 @@ $("rekam-simpan").addEventListener("click", async () => {
   } catch (e) {
     toastGagal(alasan(e) || t("gagalRekam"));
   }
-});
+}));
 
 // ── Sumber kamera per line (support only) ──────────────────────────────
 // Empat pilihan layar, tapi berkas cuma berlaku untuk Video dan Foto -
@@ -4856,7 +4893,7 @@ document.querySelectorAll("[data-sumber-line] input[type=radio]").forEach((el) =
   });
 });
 
-$("sumber-simpan").addEventListener("click", async () => {
+$("sumber-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   const payload = {};
   for (const kode of SUMBER_KODE_LINE) {
     const blok = document.querySelector(`[data-sumber-line="${kode}"]`);
@@ -4896,7 +4933,7 @@ $("sumber-simpan").addEventListener("click", async () => {
   } catch (e) {
     toastGagal(alasan(e) || t("gagalSumberSimpan"));
   }
-});
+}));
 
 // ── Model deteksi per line (support only) ──────────────────────────────
 // Pilihan disimpan konsol di media.env; yang BENAR-BENAR dimuat dilaporkan
@@ -5106,7 +5143,7 @@ function pantauSesudahSimpan(pilihan, berubah) {
   }, 5000);
 }
 
-$("model-simpan").addEventListener("click", async () => {
+$("model-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   if (!modelTerakhir || modelSibukKirim) return;
   const pilihan = {};
   for (const kode of MODEL_KODE_LINE) {
@@ -5135,7 +5172,7 @@ $("model-simpan").addEventListener("click", async () => {
   }).join("");
   modelPilihanTertunda = pilihan;
   $("model-modal").showModal();
-});
+}));
 
 $("model-modal-batal").addEventListener("click", () => $("model-modal").close());
 // Klik di backdrop = batal, seperti lapisan foto.
@@ -5143,7 +5180,7 @@ $("model-modal").addEventListener("click", (ev) => {
   if (ev.target === ev.currentTarget) ev.currentTarget.close();
 });
 
-$("model-modal-jalankan").addEventListener("click", async () => {
+$("model-modal-jalankan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   const pilihan = modelPilihanTertunda;
   modelPilihanTertunda = null;
   $("model-modal").close();
@@ -5173,7 +5210,7 @@ $("model-modal-jalankan").addEventListener("click", async () => {
     modelSibukKirim = false;
     $("model-simpan").disabled = false;
   }
-});
+}));
 
 // Dua jalur, sengaja dipisah (Lampung 2026-09-24: "tab PLC Test berkedip"):
 // `muatPlc()` membangun kartu dari nol saat tab dibuka, `segarkanPlc()`
@@ -5273,10 +5310,12 @@ async function jalankanUjiPlc() {
   const { line_code, coil } = ujiUntuk;
   tutupUjiPlc();
   try {
-    const hasil = await api(`/api/console/dev/plc/${encodeURIComponent(line_code)}/coil`, {
+    const coilTombol = $("plc-kartu").querySelector(
+      `button.uji-coil[data-line="${CSS.escape(line_code)}"][data-coil="${coil}"]`);
+    const hasil = await denganSibuk(coilTombol, () => api(`/api/console/dev/plc/${encodeURIComponent(line_code)}/coil`, {
       method: "POST",
       body: JSON.stringify({ coil }),
-    });
+    }));
     pesan(hasil.fired ? t("ujiPlcBerhasil").replace("{coil}", coil) : t("ujiPlcDijatuhkan").replace("{coil}", coil));
   } catch (e) {
     if (e.kode !== "belum_masuk") pesan(t("gagalUjiPlc") + ": " + alasan(e));
