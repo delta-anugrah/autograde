@@ -543,7 +543,17 @@
   .assign [data-aksi="lepas"] { background:var(--danger-bg); border-color:var(--danger-line);
                                 color:var(--danger-fg); }
   .assign [data-aksi="lepas"]:hover:not(:disabled) { border-color:var(--danger-fg); }
-  button.reject { width:100%; text-transform:uppercase; letter-spacing:.08em;
+  /* Reject manual dan piston satu baris, lebar dibagi dua (permintaan
+     2026-09-26): satu baris tombol, bukan dua, jadi kartu line lebih pendek.
+     `min-width:0` supaya label panjang turun baris di dalam tombolnya sendiri,
+     bukan mendorong tombol tetangganya. */
+  .aksi-line { display:flex; gap:8px; }
+  .aksi-line > button { flex:1 1 0; min-width:0; padding-left:8px; padding-right:8px; }
+  /* Setengah kartu itu sempit: spasi huruf dan petunjuk pintas dibuat lebih
+     rapat supaya "REJECT MANUAL" + pintasnya masih satu baris di layar 1680 px
+     ke atas. Di layar lebih sempit labelnya turun baris di dalam tombolnya. */
+  .aksi-line .pintas { margin-left:6px; padding:1px 4px; font-size:.62rem; }
+  button.reject { text-transform:uppercase; letter-spacing:.03em;
                   background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
   /* The keyboard hint is printed on the button, so the shortcut never has to be
      remembered - and it follows the panel order the operator arranged. */
@@ -560,7 +570,7 @@
      wrong until this is pressed again". Disabled (line unreachable / PLC or
      coil not configured / waiting for confirmation) keeps its plain shape -
      button:disabled already dims it, so there is no state to add here. */
-  button.piston { width:100%; text-transform:uppercase; letter-spacing:.08em; margin-top:2px; }
+  button.piston { text-transform:uppercase; letter-spacing:.03em; }
   button.piston.terbuka { background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
   button.piston.kedip { animation:kedip .45s ease; }
   /* Merah penuh, dibaca dari jarak jalan yang sama dengan angka ACC/REJ -
@@ -1499,7 +1509,7 @@
           <b data-t="bahayaRestartJudul">Restart semua line</b>
           <small class="muted" data-t="bahayaRestartTeks">Ketiga line mati sekitar 10 detik, lalu hidup lagi. Janjang yang lewat selama itu tidak dihitung.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="restart" data-t="bahayaRestartTombol">Restart…</button>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="restart" data-t="bahayaRestartTombol">Restart</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="restart" hidden></div>
       <div class="bahaya-baris" data-bahaya="logout">
@@ -1507,7 +1517,7 @@
           <b data-t="bahayaLogoutJudul">Logout paksa semua akun</b>
           <small class="muted" data-t="bahayaLogoutTeks">Semua sesi dihapus, termasuk layar operator di PC pabrik dan akunmu sendiri.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="logout" data-t="bahayaLogoutTombol">Logout semua…</button>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="logout" data-t="bahayaLogoutTombol">Logout semua</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="logout" hidden></div>
       <div class="bahaya-baris" data-bahaya="rekaman">
@@ -1515,7 +1525,7 @@
           <b data-t="bahayaRekamanJudul">Hapus rekaman video</b>
           <small class="muted" data-t="bahayaRekamanTeks">Rekaman video ketiga line di folder videos/ hilang permanen. Line yang sedang merekam atau mati dilewati.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="rekaman" data-t="bahayaRekamanTombol">Hapus rekaman…</button>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="rekaman" data-t="bahayaRekamanTombol">Hapus rekaman</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="rekaman" hidden></div>
       <div class="bahaya-baris" data-bahaya="transaksi">
@@ -1523,7 +1533,7 @@
           <b data-t="bahayaTransaksiJudul">Hapus data transaksi</b>
           <small class="muted" data-t="bahayaTransaksiTeks">Grading, foto, timbangan, antrean, dan log hilang permanen. Truk, akun, dan setelan tetap.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="transaksi" data-t="bahayaTransaksiTombol">Hapus data transaksi…</button>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="transaksi" data-t="bahayaTransaksiTombol">Hapus data transaksi</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="transaksi" hidden></div>
       <div class="bahaya-baris" data-bahaya="semua">
@@ -1531,7 +1541,7 @@
           <b data-t="bahayaSemuaJudul">Hapus semua data</b>
           <small class="muted" data-t="bahayaSemuaTeks">Data transaksi, akun yang dibuat di PC ini, truk, dan supplier hilang permanen. Setelan tetap.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="semua" data-t="bahayaSemuaTombol">Hapus semua data…</button>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="semua" data-t="bahayaSemuaTombol">Hapus semua data</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="semua" hidden></div>
     </div>
@@ -1874,19 +1884,19 @@ const KAMUS = {
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart semua line",
     bahayaRestartTeks:"Ketiga line mati sekitar 10 detik, lalu hidup lagi. Janjang yang lewat selama itu tidak dihitung.",
-    bahayaRestartTombol:"Restart…",
+    bahayaRestartTombol:"Restart",
     bahayaLogoutJudul:"Logout paksa semua akun",
     bahayaLogoutTeks:"Semua sesi dihapus, termasuk layar operator di PC pabrik dan akunmu sendiri.",
-    bahayaLogoutTombol:"Logout semua…",
+    bahayaLogoutTombol:"Logout semua",
     bahayaRekamanJudul:"Hapus rekaman video",
     bahayaRekamanTeks:"Rekaman video ketiga line di folder videos/ hilang permanen. Line yang sedang merekam atau mati dilewati.",
-    bahayaRekamanTombol:"Hapus rekaman…",
+    bahayaRekamanTombol:"Hapus rekaman",
     bahayaTransaksiJudul:"Hapus data transaksi",
     bahayaTransaksiTeks:"Grading, foto, timbangan, antrean, dan log hilang permanen. Truk, akun, dan setelan tetap.",
-    bahayaTransaksiTombol:"Hapus data transaksi…",
+    bahayaTransaksiTombol:"Hapus data transaksi",
     bahayaSemuaJudul:"Hapus semua data",
     bahayaSemuaTeks:"Data transaksi, akun yang dibuat di PC ini, truk, dan supplier hilang permanen. Setelan tetap.",
-    bahayaSemuaTombol:"Hapus semua data…",
+    bahayaSemuaTombol:"Hapus semua data",
     bahayaMemeriksa:"Memeriksa keadaan line…", bahayaKetikHapus:"Ketik HAPUS",
     bahayaMenunggu:"Menunggu…",
     bahayaJalankan_restart:"Restart sekarang", bahayaJalankan_logout:"Logout semua",
@@ -2121,19 +2131,19 @@ const KAMUS = {
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart all lines",
     bahayaRestartTeks:"All three lines stop for about 10 seconds, then come back. Bunches that pass during that time are not counted.",
-    bahayaRestartTombol:"Restart…",
+    bahayaRestartTombol:"Restart",
     bahayaLogoutJudul:"Sign everyone out",
     bahayaLogoutTeks:"Every session is deleted, including the operator screen on the factory PC and your own.",
-    bahayaLogoutTombol:"Sign everyone out…",
+    bahayaLogoutTombol:"Sign everyone out",
     bahayaRekamanJudul:"Delete video recordings",
     bahayaRekamanTeks:"Video recordings from all three lines in the videos/ folder are deleted permanently. A line that is recording or down is skipped.",
-    bahayaRekamanTombol:"Delete recordings…",
+    bahayaRekamanTombol:"Delete recordings",
     bahayaTransaksiJudul:"Delete transaction data",
     bahayaTransaksiTeks:"Grading, photos, weighings, queues and the log are deleted permanently. Trucks, accounts and settings are kept.",
-    bahayaTransaksiTombol:"Delete transaction data…",
+    bahayaTransaksiTombol:"Delete transaction data",
     bahayaSemuaJudul:"Delete all data",
     bahayaSemuaTeks:"Transaction data, accounts created on this PC, trucks and suppliers are deleted permanently. Settings are kept.",
-    bahayaSemuaTombol:"Delete all data…",
+    bahayaSemuaTombol:"Delete all data",
     bahayaMemeriksa:"Checking the lines…", bahayaKetikHapus:"Type HAPUS",
     bahayaMenunggu:"Working…",
     bahayaJalankan_restart:"Restart now", bahayaJalankan_logout:"Sign everyone out",
@@ -2955,8 +2965,10 @@ function kartuLine(l) {
         <button class="utama" data-aksi="tugaskan"${l.assignment ? "" : " disabled"}>${esc(t("btnTugaskan"))}</button>
         <button data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>
       </div>
-      <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
-      ${tombolPiston(l)}
+      <div class="aksi-line">
+        <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
+        ${tombolPiston(l)}
+      </div>
     </div>
   </div>`;
 }
