@@ -52,7 +52,7 @@ sudah tidak ada di repo maupun MacBook.
 (`plc/worker.py::_coil_for`); status lain diabaikan diam-diam. Kelas → verdict
 diputuskan di `domain/grade_class.py`: `Ripe` → ACC, `Unripe` dan `JK` → REJ,
 `TP` → tanpa verdict (tidak pernah ke PLC). **Ganti nama kelas = putusin sinyal
-PLC.** Cek `plc-coil-map` sebelum ngutak-ngatik nama kelas.
+PLC.** Cek skill `plc-mc-protocol` sebelum ngutak-ngatik nama kelas.
 
 ⚠️ Pencocokan nama kelas **case-insensitive** (`grade_class.py:_BY_LOWER`).
 Ini disengaja: model lama mengirim `{ACC, Rej, TP}`: tiga gaya kapital di tiga

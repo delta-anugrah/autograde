@@ -77,4 +77,4 @@ Keduanya harus diukur sekali di Lampung sebelum fitur ini dianggap aman untuk
 tiga line sekaligus. Merekam **satu** line di sana sudah aman berdasarkan
 pengukuran ini.
 
-Terkait: `docs/superpowers/plans/2026-09-22-rekam-video-per-line.md`.
+Terkait: CLAUDE.md aturan 23 (rekam video developer).

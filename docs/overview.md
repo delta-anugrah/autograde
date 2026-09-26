@@ -384,7 +384,7 @@ Butuh ~5–15 mnt sekali per GPU, **tidak butuh kamera**.
 apa adanya: target itu memakai `docker-compose.yml` polos yang `image: palmgrade-vision:latest` + punya
 `build:`, jadi Docker akan mem-build ulang dari source alih-alih memakai image yang sudah di-pull.
 Di sana jalankan `docker compose run` dengan file override yang sama seperti stack-nya, sehingga
-`${PALMGRADE_VISION_IMAGE}` dan mount `./engines:/app/engines` ikut terpakai, tanpa mount itu engine
+`${PALMGRADE_AUTOGRADE_IMAGE}` dan mount `./engines:/app/engines` ikut terpakai, tanpa mount itu engine
 ditulis ke dalam container sekali pakai dan hilang begitu container keluar.
 
 PENTING: TensorRT wajib di-install dari index NVIDIA (`https://pypi.nvidia.com`, wheel binary),

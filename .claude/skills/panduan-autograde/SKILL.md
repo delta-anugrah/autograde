@@ -22,7 +22,7 @@ ditanya.
 | Aturan yang tidak boleh dilanggar dan alasannya | `CLAUDE.md` § Critical Rules, `docs/overview.md` |
 | Variabel `.env` | `.env.example` (tiap baris berkomentar) |
 | Kontrak ke AutoERP (cocokkan ini dulu sebelum menulis kode integrasi) | `../autoerp/docs/autograde-integration.md` |
-| PLC / coil, spek PC Lampung | skill `plc-coil-map`, skill `spek-pc-pabrik` |
+| PLC / coil, spek PC Lampung | skill `plc-mc-protocol`, skill `spek-pc-pabrik` |
 | Rekonsiliasi truk OPS-2, checklist pasang PC | `../docs/runbooks/` di workspace `sawit` |
 
 ## Jawaban cepat

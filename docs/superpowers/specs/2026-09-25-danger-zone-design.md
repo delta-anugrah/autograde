@@ -1,6 +1,6 @@
 # Danger Zone di layar Setelan: rancangan
 
-Tanggal: 2026-09-25 · Repo: autograde · Status: **disetujui user 2026-09-25** ("langsung lanjut") · Rencana: `docs/superpowers/plans/2026-09-25-danger-zone.md`
+Tanggal: 2026-09-25 · Repo: autograde · Status: **disetujui user 2026-09-25** ("langsung lanjut") · Sudah dibangun: autograde #173 (rencana implementasinya dihapus sesudah selesai; kodenya yang berlaku)
 
 ## 1. Tujuan
 

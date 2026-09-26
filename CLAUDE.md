@@ -36,17 +36,16 @@ ke org `delta-anugrah`). Yang **sengaja tidak ikut berubah**, jangan "dirapikan"
 
 - **Nama image GHCR `ghcr.io/delta-anugrah/autograde`**, satu nama, tanpa warisan (keputusan
   2026-09-18: semuanya pindah ke AutoGrade, PC Lampung ikut; `palmgrade-vision` **dicabut**).
-  Dipatok di `deploy.yml` dan dijaga `tests/unit/test_deploy_image_name.py`.
-  ⚠️ **Urutan rilis pertama tidak boleh dibalik: `.env` PC Lampung dulu, tag kemudian.**
-  Mesin itu tidak punya SSH masuk, `PALMGRADE_VISION_IMAGE` di `/opt/palmgrade/vision/.env`
-  diedit tangan lewat AnyDesk ke nama baru. Menerbitkan tag lebih dulu membuat
-  `palmgrade pull vision` menjawab "sudah terbaru" **selamanya**: nol error, pabrik berhenti
-  menerima pembaruan, dan baru ketahuan saat ada yang bertanya kenapa versinya tidak naik.
+  Dipatok di `deploy.yml` dan dijaga `tests/unit/test_deploy_image_name.py`. Di PC Lampung
+  image itu dipilih `PALMGRADE_AUTOGRADE_IMAGE` di `/opt/palmgrade/autograde/.env` (folder dan
+  variabel diganti dari `vision` 2026-09-18), dan dipasang dengan `autograde pull` atau
+  `autograde use vX.Y.Z`, tidak pernah dengan mengedit variabel itu tangan.
 - **Tag image lokal** `palmgrade-vision:latest` di `docker-compose.yml` + `Makefile`.
-- **Paket Python** `src/palmgrade/`, **nama container** (`ripe_line_*`, `palmgrade_console`),
-  dan path `/opt/palmgrade/vision/` di PC pabrik.
+- **Paket Python** `src/palmgrade/` dan **nama container** di compose repo (`ripe_line_*`,
+  `palmgrade_console`).
 
-Semuanya baru berganti di **Fase 5**, saat PC pabrik memang dapat compose baru.
+Yang dua terakhir baru berganti kalau memang ada alasan kuat: mengganti nama container membuat
+Docker menganggapnya container baru dan bentrok dengan yang lama di PC pabrik.
 
 ---
 
