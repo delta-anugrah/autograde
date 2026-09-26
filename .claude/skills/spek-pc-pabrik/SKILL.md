@@ -45,7 +45,7 @@ Yang memakan 213 GB sekarang **bukan gambar**, artifacts cuma ~2,7 MB total
 | Docker images | **71,2 GB** (14 image, 14,9 GB bisa dibuang) |
 | Build cache | **20,1 GB** (1,6 GB reclaimable) |
 | Volume lokal | 446 MB |
-| `/opt/palmgrade/vision` | 449 MB (kode + model, bukan gambar) |
+| `/opt/palmgrade/vision` (sejak 2026-09-18 `/opt/palmgrade/autograde`) | 449 MB (kode + model, bukan gambar) |
 
 ➡️ **Ruang aman untuk gambar ≈ 232 GB sisa − 20 GB lantai penjaga disk ≈ 210 GB.**
 Bisa ditambah ~35 GB gratis dengan `docker system prune` (image lama + build cache).
@@ -120,7 +120,7 @@ echo; echo "=== CPU ==="; lscpu | grep -E "Model name|^CPU\(s\)|Thread|Core"
 echo; echo "=== RAM ==="; free -h
 echo; echo "=== DISK ==="; df -h; echo "--- fisik ---"; lsblk -d -o NAME,SIZE,ROTA,MODEL
 echo; echo "=== PALMGRADE MAKAN BERAPA ==="; sudo du -sh /opt/palmgrade/* 2>/dev/null
-echo; echo "=== ARTIFACTS PER LINE ==="; sudo du -sh /opt/palmgrade/vision/artifacts/* 2>/dev/null
+echo; echo "=== ARTIFACTS PER LINE ==="; sudo du -sh /opt/palmgrade/autograde/artifacts/* 2>/dev/null
 echo; echo "=== GPU ==="; nvidia-smi
 echo; echo "=== DOCKER ==="; docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}'; docker system df
 echo; echo "=== KAMERA ==="; ip -br addr
@@ -130,7 +130,7 @@ echo; echo "=== KAMERA ==="; ip -br addr
 Throughput nyata (janjang/jam): tidak ada di spek mesin, hitung dari file yang ada:
 
 ```bash
-sudo find /opt/palmgrade/vision/artifacts -name "*_ripeness.json" | \
+sudo find /opt/palmgrade/autograde/artifacts -name "*_ripeness.json" | \
   sed 's/.*\///; s/_[0-9]*_auto.*//' | cut -c1-13 | sort | uniq -c | tail -30
 ```
 

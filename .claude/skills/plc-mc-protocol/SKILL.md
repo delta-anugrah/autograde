@@ -10,8 +10,8 @@ Ethernet bawaannya. Coupler ODOT CN-8031 **dibatalkan**: keputusan tim PLC (Mas 
 bukan kegagalan teknis.
 
 Dokumen untuk tim PLC: `docs/plc-mc-handoff.md` (+ PDF). Itu sumber kebenaran alamat
-kalau dokumen dan skill ini berbeda. Jalur ODOT lama diarsipkan di
-`docs/plc-handoff-commissioning.md`: jangan dipakai untuk alamat.
+kalau dokumen dan skill ini berbeda. Dokumen jalur ODOT lama sudah dihapus
+(2026-09-26); kode Modbus-nya masih ada di balik `PLC_PROTOCOL=modbus`.
 
 ## Yang berubah dan yang TIDAK
 
@@ -230,5 +230,5 @@ bukan Lampung. Pastikan `.14` tidak dipakai kamera (IP kamera Lampung belum terc
 Ganti alamat di compose tanpa mengganti dokumen = test merah. Itu disengaja: dokumen yang
 dipegang tim panel tidak boleh diam-diam berbeda dari yang dipakai aplikasi.
 
-Terkait: skill `plc-coil-map` (jalur ODOT lama, arsip), `spek-pc-pabrik`,
+Terkait: skill `spek-pc-pabrik`,
 `install-factory-pc`.
