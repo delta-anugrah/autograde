@@ -143,7 +143,8 @@ def test_baris_layar_dari_jawaban_sungguhan(konsol):
         'const esc = (s) => String(s ?? "").replace(/[&<>"\'`]/g, (c) =>'
         ' ({ "&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;","\'":"&#39;","`":"&#96;" }[c]));\n'
         'const KOSONG = "-"; const t = (k) => k; const lokal = () => "id-ID";\n'
-        + fungsi("tanggalAkun") + "\n" + fungsi("barisAkun")
+        'let emailSaya = "support@pks.test";\n'
+        + fungsi("tanggalAkun") + "\n" + fungsi("aksiAkun") + "\n" + fungsi("barisAkun")
         + f"\nconsole.log(JSON.stringify({json.dumps(dev.akun()['akun'])}.map(barisAkun)));"
     )
     hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
@@ -152,3 +153,7 @@ def test_baris_layar_dari_jawaban_sungguhan(konsol):
 
     assert "asalErp" in baris["budi@pks.test"] and 'class="tag ok"' in baris["budi@pks.test"]
     assert "akunTerkunci" in baris["ani@pks.test"] and 'class="tag no"' in baris["ani@pks.test"]
+    # Akun AutoERP tanpa tombol ubah; akun lokal orang lain dapat ketiganya.
+    assert "akunDiaturErp" in baris["budi@pks.test"]
+    assert "data-akun-aksi" not in baris["budi@pks.test"]
+    assert baris["ani@pks.test"].count("data-akun-aksi") == 3

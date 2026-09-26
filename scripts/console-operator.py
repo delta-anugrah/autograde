@@ -11,6 +11,10 @@
                                           change an EXISTING account's role, without
                                           touching its password
 
+The same rules also run from the console's Users tab (support only) since 2026-09-26:
+add, change password, switch off/on, change role. This command stays for a PC whose
+screen cannot be reached, and for switching off an AutoERP account before the next pull.
+
 Only **local** accounts are managed here — the built-in one and the support account,
 which exist so a mill that has never reached the internet can still be opened. The real
 accounts come from AutoERP (`AutoGrade Operator`) and are reset there; this command

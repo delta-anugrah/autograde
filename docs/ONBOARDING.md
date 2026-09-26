@@ -85,7 +85,8 @@ tertutup gerbang dan seluruh API konsol menjawab 401. Akun datang dari dua tempa
 AutoERP (DocType `AutoGrade Operator`, ikut turun bareng master data) atau dibuat lokal di PC itu
 dengan `make operator`: akun bawaan dan akun support, supaya pabrik yang belum pernah dapat
 internet tetap bisa dibuka. Keduanya diperiksa di pabrik, jadi login tetap jalan saat internet
-mati: yang ikut turun itu hash sandinya, bukan sandinya. Tidak ada halaman web untuk membuat akun.
+mati: yang ikut turun itu hash sandinya, bukan sandinya. Sejak 2026-09-26 akun lokal juga bisa
+dibuat dari tab **Akun** (khusus support); akun itu cuma ada di PC tersebut, tidak naik ke AutoERP.
 
 ## 4. Alur Data: Satu Janjang
 

@@ -117,7 +117,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | `make line` | satu line kamera **native tanpa Docker**, pasangan `make console` untuk develop di Mac (`make up` tidak bisa: butuh MVS SDK + CUDA + TensorRT). `make line N=2` untuk line kedua: **port DAN `MACHINE_ID` ikut berubah bersama**, karena konsol mencocokkan event lewat `machine_id`, bukan port: tiga line yang memakai `MACHINE_ID` sama dari `.env` semuanya mendarat di kartu line-1. **Sumber gambar dibaca dari `media.env`** (`LINE_N_CAMERA_TYPE`/`MEDIA_FILE`/`VIDEO_LOOP`), berkas yang ditulis layar Sumber Kamera, jadi pilihan per-line di layar berlaku di jalur native juga, bukan cuma di Docker. Tanpa `media.env` tidak ada yang ditimpa dan `.env` lama tetap jalan. **Target ini BERPUTAR sampai Ctrl-C**, meniru `restart: unless-stopped` Docker: layar merestart line dengan menyuruh prosesnya keluar, dan tanpa loop itu Simpan & Restart mematikan line tanpa pernah menghidupkannya (layar bilang tersimpan, kartu jadi OFFLINE, nol galat). `media.env` dibaca **ulang tiap putaran** (setelan baru itulah alasan prosesnya keluar. Yang ditimpa target ini juga `MACHINE_ID` dan `BACKEND_URL` (ke `make console`, bukan port Docker 8000 di `.env`) tanpa itu janjangnya tersimpan tapi tiap kiriman dibalas **404** dan layar tetap nol) |
 | `make console` | konsol **native tanpa Docker** di `127.0.0.1:8100`, jalur develop di Mac (baca `.env`, `WEBHOOK_SECRET=devsecret`); target Docker tetap jalur Linux/pabrik |
 | `make kiosk` | konsol layar penuh di PC ini (`scripts/console-kiosk.sh`) |
-| `make operator` | akun **lokal** untuk login konsol: tambah / reset sandi (email + sandi). `AKSI=daftar\|matikan`. Akun milik AutoERP diurus di AutoERP. Di PC pabrik pakai `make operator-docker` (konsolnya di Docker, DB-nya beda berkas) |
+| `make operator` | akun **lokal** untuk login konsol: tambah / reset sandi (email + sandi). `AKSI=daftar\|matikan`. Akun milik AutoERP diurus di AutoERP. Di PC pabrik pakai `make operator-docker` (konsolnya di Docker, DB-nya beda berkas). Sejak 2026-09-26 hal yang sama bisa dari layar: tab **Akun** (support), aturan 19 |
 | `make demo` | **data demo untuk showcase**: 10 truk, seminggu kunjungan, ratusan janjang, dua akun (`operator@`/`support@demo.autoerp.test`, sandi `sawit2026`). `HARI=3` memperpendek. Platnya **sama persis** dengan seeder AutoERP (`palm_mill/demo.py`): satu truk = truk yang sama di dua layar. Menolak DB yang sudah punya data sungguhan. Di Docker: `make demo-docker`. ⚠️ jangan di PC pabrik |
 | `make demo-reset` | hapus data demo lalu isi ulang bersih (`AKSI=reset` juga masih jalan, ini cuma nama yang dipakai sekarang, sama seperti AutoERP) |
 | `make demo-off` | hapus data demo (sepuluh plat `PLATES`) dan **berhenti** di situ, beda dari `demo-reset` yang langsung mengisi ulang. Data sungguhan tidak disentuh (`wipe()` menyaring per plat). Jalankan sesudah showcase, **sebelum** uji coba sungguhan: janjang demo berstempel sampai mendekati jam sekarang, jadi selama masih ada dia menutupi baris yang baru digrading. AutoERP punya perintah nama sama (`make demo`/`demo-reset`/`demo-off`) |
@@ -126,7 +126,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | `make build-engine` | build TensorRT FP16 engine **once per GPU** (one-shot, auto-skip kalau sudah ada) |
 | `make logs` / `make logs-1` | tail logs (combined / per line) |
 | `make reset-data` | **lihat dulu**: berapa foto dan basis data yang akan hilang. Tidak menghapus apa pun |
-| `make reset-data-fresh` | Dari layar tanpa terminal: **Setelan → Danger Zone** (support; aturan 25). Tombol itu menyisakan setelan grading dan `license.db`, dan menolak saat ada line mati / truk terpasang / truk belum timbang keluar / antrean belum terkirim. Target ini sendiri: **HAPUS SEMUA DATA** di PC ini: isi `artifacts/` (foto + sidecar) dan `state/` (semua SQLite). Minta **konfirmasi ketik `HAPUS`**. ⚠️ Menghapus lewat **container**, karena berkasnya **milik root** di Linux (`Dockerfile` tanpa `USER`): `rm -rf` dari user biasa dijawab "Permission denied" ribuan kali. Di macOS ini tidak terlihat: Docker Desktop memetakan pemilik, jadi gagalnya cuma muncul di PC pabrik. Sisa yang tidak terhapus dilaporkan, bukan didiamkan. **Tanpa backup, tidak bisa dikembalikan.** ⚠️ Akun buatan `make operator`, antrean yang belum terkirim, dan foto yang belum naik R2 ikut hilang; **dua akun bawaan image dibuat ulang sendiri** saat konsol start, jadi cukup `make start` sesudahnya. ⚠️ Jangan di PC pabrik yang sedang produksi |
+| `make reset-data-fresh` | Dari layar tanpa terminal: **Setelan → Danger Zone** (support; aturan 25). Tombol itu menyisakan setelan grading dan `license.db`, dan menolak saat ada line mati / truk terpasang / truk belum timbang keluar / antrean belum terkirim. Target ini sendiri: **HAPUS SEMUA DATA** di PC ini: isi `artifacts/` (foto + sidecar) dan `state/` (semua SQLite). Minta **konfirmasi ketik `HAPUS`**. ⚠️ Menghapus lewat **container**, karena berkasnya **milik root** di Linux (`Dockerfile` tanpa `USER`): `rm -rf` dari user biasa dijawab "Permission denied" ribuan kali. Di macOS ini tidak terlihat: Docker Desktop memetakan pemilik, jadi gagalnya cuma muncul di PC pabrik. Sisa yang tidak terhapus dilaporkan, bukan didiamkan. **Tanpa backup, tidak bisa dikembalikan.** ⚠️ Akun lokal (buatan `make operator` atau tab Akun), antrean yang belum terkirim, dan foto yang belum naik R2 ikut hilang; **dua akun bawaan image dibuat ulang sendiri** saat konsol start, jadi cukup `make start` sesudahnya. ⚠️ Jangan di PC pabrik yang sedang produksi |
 | `make down` / `make ps` / `make rebuild` / `make rebuild-clean` / `make clean` | stop / status / rebuild / clean rebuild (`--no-cache`) / cleanup |
 
 - **TensorRT (GPU speedup, akurasi sama)**: engine FP16 (`engines/<model>.sm<cc>.engine`) **hardware-locked** (compute capability + versi TensorRT) → tidak di-commit, tidak di-bake ke image, dibangun **sekali per GPU** on-machine via `make build-engine` (~5–15 mnt, tidak butuh kamera). Engine tidak ada / tidak cocok → runtime **fallback ke `.pt`** otomatis (`pipelines/model_registry.py`), jadi kegagalan build bukan outage. Install TensorRT-nya ikut `Dockerfile` (`pypi.nvidia.com`: **wajib**, index PyPI publik cuma punya source stub yang bikin pip hang). Detail: `docs/overview.md` § Docker/SDK/GPU.
@@ -218,7 +218,9 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/console/dev/antrean` | isi `erp_outbox`: jumlah pending/gagal + daftar yang gagal |
 | POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox` |
 | GET | `/api/console/dev/versi` | versi image + lisensi berjalan lengkap dengan nama perusahaan dan tanggal |
-| GET | `/api/console/dev/akun` | semua akun yang bisa masuk konsol di PC ini (aktif, mati, terkunci; asal `lokal`/`erp`; sedang masuk atau tidak). **Baca saja, tanpa hash sandi**, kolomnya disebut satu per satu (`domain/daftar_akun.py`), tidak ada pasangan POST (aturan 19) |
+| GET | `/api/console/dev/akun` | semua akun yang bisa masuk konsol di PC ini (aktif, mati, terkunci; asal `lokal`/`erp`; sedang masuk atau tidak). **Tanpa hash sandi**, kolomnya disebut satu per satu (`domain/daftar_akun.py`) |
+| POST | `/api/console/dev/akun` | `{email, nama, sandi, sandi_ulang, role}` → **201** akun **lokal** baru. Email yang sudah ada **409** `akun_sudah_ada` (tidak diganti sandinya), email milik AutoERP **409** `akun_milik_erp`, isian salah **400**. Aturan 19 |
+| POST | `/api/console/dev/akun/sandi` · `/status` · `/role` | ganti sandi (semua sesi akun itu berakhir; status tetap) · `{email, aktif}` matikan/aktifkan (`aktif` wajib boolean, teks bebas 422) · ubah role. **Akun lokal saja** (409 `akun_milik_erp`); matikan dan ubah role **bukan untuk akun sendiri** (409 `akun_diri_sendiri`); email tak dikenal 404 `akun_tidak_ada`. Tiap perubahan satu WARNING menyebut pelakunya |
 | GET | `/api/console/dev/plc/{line_code}` | snapshot DI + daftar coil yang boleh diuji untuk satu line, baca saja, aman dibuka kapan pun |
 | POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil PLC line itu, **satu-satunya aksi konsol yang menggerakkan hardware fisik**, lihat Critical Rules |
 | GET | `/api/console/dev/rekam` | status rekaman tiap line + setelan yang berlaku + sisa disk. Line yang tidak menjawab dilaporkan `terbaca:false`, bukan menjatuhkan seluruh jawaban |
@@ -614,8 +616,24 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     token lama begitu akun diaktifkan lagi. Satu jawaban untuk sandi salah / akun tidak ada /
     akun mati, supaya layar bersama tidak bisa dipakai memetakan siapa yang punya akun.
     Sandi minimal 8 karakter, tanpa aturan jenis karakter (aturan yang memaksa simbol di
-    layar sentuh luar ruangan berakhir jadi tulisan di monitor). **Tidak ada lane web untuk
-    membuat akun**: `make operator` di PC itu sendiri, dan itu cuma mengurus akun `lokal`.
+    layar sentuh luar ruangan berakhir jadi tulisan di monitor).
+    **Akun `lokal` diurus dari DUA jalan, dengan aturan yang sama** (`services/operator_admin.py`):
+    `make operator` di PC itu, dan sejak 2026-09-26 tab **Akun** (support): tambah, ganti sandi,
+    matikan/aktifkan, ubah role. Dulu aturannya "tidak ada lane web untuk membuat akun" (akun
+    yang bisa dibuat dari layar = akun yang bisa dibuat siapa pun di LAN pabrik); dibalik atas
+    permintaan user supaya support tidak perlu AnyDesk + terminal. Pengamannya: `require_support`
+    di keempat rute, dan tiap perubahan satu WARNING menyebut email pelakunya (muncul di tab
+    Log, tanpa sandi). Beda layar dengan terminal, sengaja: **Tambah menolak email yang sudah
+    ada** (di terminal itu berarti reset; form "akun baru" yang diam-diam mengganti sandi orang
+    lain adalah kejutan buruk), **ganti sandi tidak menghidupkan akun yang dimatikan** (di layar
+    itu tombol sendiri), dan **akun sendiri tidak bisa dimatikan atau diturunkan role-nya**
+    (satu klik salah bisa meninggalkan PC tanpa support). Akun `erp` **tidak disentuh sama
+    sekali** dari layar, bahkan matikan (terminal masih bisa, untuk mengusir orang yang keluar
+    sebelum tarikan berikutnya).
+    ⚠️ **Akun lokal tidak pernah naik ke AutoERP**: arah akun cuma AutoERP → PC. Dan karena
+    tarikan tidak menimpa akun lokal, email yang kelak dibuatkan akun di AutoERP tetap memakai
+    akun lokalnya di PC ini (sandi lokal, role lokal) sampai akun lokal itu diurus; tidak ada
+    pesan apa pun. Pakai email yang tidak dipakai di AutoERP.
     **Dua akun bawaan di tiap image** (`services/akun_bawaan.py`, dipanggil di lifespan
     konsol): `operator@autograde.local` + `support@autograde.local`. Alasannya PC yang baru
     dipasang belum pernah dapat internet, jadi akun AutoERP belum turun, tanpa ini
@@ -638,7 +656,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     dari AutoERP (`domain/role.py`, `filter_erp_role`): **satu-satunya rem sisi
     pabrik**: kosongkan lalu restart, dan tidak ada akun ERP yang bisa membuka layar
     developer lagi, tanpa perlu menyentuh AutoERP sama sekali. Akun `lokal` (dibuat
-    `make operator`) tidak lewat penyaring ini.
+    `make operator` atau tab Akun) tidak lewat penyaring ini.
     **`event_log` cuma menyimpan ERROR dan WARNING**, retensi 180 hari
     (`LOG_RETENSI_HARI`). Pesan identik yang datang dalam 60 detik **digabung** jadi satu
     baris dengan hitungan naik, bukan baris baru per kejadian, tanpa itu satu loop yang

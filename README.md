@@ -480,11 +480,15 @@ operator disimpan di `localStorage`.
   yang tertanam **hash**-nya, sandi mentah tidak pernah masuk image atau `.env`. Akun cuma
   dibuat kalau email-nya belum ada, jadi **sandi yang sudah diganti pabrik tidak ketimpa
   restart**, dan akun yang sudah dimatikan tidak dihidupkan lagi.
-  Akun lokal dibuat dari PC ini: `make operator`, atau `make operator-docker` kalau konsolnya di
+  Akun lokal dibuat dari layar: login **support** → tab **Akun** → **Tambah akun** (sejak
+  2026-09-26). Di tabel yang sama ada **Ganti sandi**, **Matikan/Aktifkan**, dan **Jadikan
+  support/operator** untuk akun lokal; akun sendiri cuma bisa ganti sandi. Akun lokal **tidak
+  masuk ke AutoERP**: cuma ada di PC ini.
+  Dari terminal masih bisa: `make operator`, atau `make operator-docker` kalau konsolnya di
   Docker. `AKSI=daftar` melihat daftar beserta asal tiap akun, `AKSI=matikan` mematikan satu
   akun: sesinya langsung berakhir. Reset sandi lokal = `make operator` lagi dengan email yang
-  sama; sandi akun milik AutoERP direset **di AutoERP** (CLI-nya menolak, karena tarikan
-  berikutnya akan membatalkannya).
+  sama; sandi akun milik AutoERP direset **di AutoERP** (layar dan CLI-nya menolak, karena
+  tarikan berikutnya akan membatalkannya).
 
 ⚠️ **Memasang AutoGrade di PC yang SUDAH jalan dengan palmgrade-api butuh satu langkah
   tambahan: `make rekonsiliasi-truk` (OPS-2), dikerjakan SEBELUM `ERP_URL` diisi.** Truk

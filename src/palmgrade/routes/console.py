@@ -19,7 +19,16 @@ from fastapi.responses import FileResponse
 from ..core.config import Settings
 from ..domain.bahaya import HapusBerjalan
 from ..domain.operator_auth import SESSION_TTL_S
-from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
+from ..domain.operator_error import (
+    AKUN_DIRI_SENDIRI,
+    AKUN_MILIK_ERP,
+    AKUN_SUDAH_ADA,
+    AKUN_TIDAK_ADA,
+    BELUM_MASUK,
+    BUKAN_SUPPORT,
+    TERKUNCI,
+    OperatorError,
+)
 from ..domain.pilihan_model import ModelTidakSah
 from ..domain.role import ROLE_SUPPORT, parse_allowed_roles
 from ..domain.setelan_grading import SetelanTidakSah
@@ -43,6 +52,7 @@ from ..services.bahaya_service import (
 from ..services.console_service import ConsoleService
 from ..services.dev_service import CoilTidakDikenal, DevService, PlcSibuk
 from ..services.erp_queue import ErpQueue
+from ..services.operator_admin import OperatorAdmin
 from ..services.qr_cetak import png_qr
 from ..services.scan_service import ScanService
 from ..workers.master_data_worker import MasterDataWorker
@@ -194,11 +204,19 @@ def get_bahaya_service() -> BahayaService:
     )
 
 
+@lru_cache
+def get_operator_admin() -> OperatorAdmin:
+    """Tab Akun (support). Store yang sama dengan login: satu berkas SQLite, satu lock,
+    jadi akun yang baru dibuat langsung bisa dipakai masuk di gerbang."""
+    return OperatorAdmin(get_console_service().store)
+
+
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
 Scan = Annotated[ScanService, Depends(get_scan_service)]
 Dev = Annotated[DevService, Depends(get_dev_service)]
 Bahaya = Annotated[BahayaService, Depends(get_bahaya_service)]
+Admin = Annotated[OperatorAdmin, Depends(get_operator_admin)]
 
 
 def require_operator(
@@ -562,12 +580,94 @@ async def dev_version(dev: Dev, operator: Support) -> dict:
 
 @router.get("/api/console/dev/akun")
 async def dev_akun(dev: Dev, operator: Support) -> dict:
-    """Akun yang bisa masuk konsol di PC ini — baca saja, tanpa hash sandi.
-
-    Tidak ada pasangan POST-nya, dan memang tidak boleh ada: akun lokal dibuat di
-    PC itu (`scripts/console-operator.py`), akun AutoERP di AutoERP (aturan 19).
-    """
+    """Akun yang bisa masuk konsol di PC ini, tanpa hash sandi."""
     return dev.akun()
+
+
+#: Penolakan tab Akun yang bukan salah isian. Sisanya 400: email, nama, atau sandi
+#: yang tidak lolos aturan.
+_AKUN_STATUS = {
+    AKUN_TIDAK_ADA: 404,
+    AKUN_SUDAH_ADA: 409,
+    AKUN_MILIK_ERP: 409,
+    AKUN_DIRI_SENDIRI: 409,
+}
+
+
+def _akun_ditolak(exc: OperatorError) -> HTTPException:
+    return _operator_error(_AKUN_STATUS.get(exc.code, 400), exc)
+
+
+# Empat aksi tab Akun (2026-09-26, membalik "tidak ada lane web" di aturan 19).
+# Semuanya `def`, bukan `async def`: sandi di-hash dengan scrypt yang sengaja
+# lambat, dan di thread pool itu tidak menahan loop yang melayani layar lain dan
+# kiriman janjang dari line. Yang menjaga tetap `require_support`; akun AutoERP
+# ditolak di `OperatorAdmin`, bukan cuma disembunyikan tombolnya.
+@router.post("/api/console/dev/akun", status_code=201)
+def dev_akun_tambah(
+    admin: Admin,
+    operator: Support,
+    email: Annotated[str, Body()] = "",
+    nama: Annotated[str, Body()] = "",
+    sandi: Annotated[str, Body()] = "",
+    sandi_ulang: Annotated[str, Body()] = "",
+    role: Annotated[str, Body()] = "",
+) -> dict:
+    """Akun LOKAL baru. Email yang sudah ada ditolak, tidak diganti sandinya."""
+    try:
+        akun = admin.tambah(email, nama, sandi, sandi_ulang, role, oleh=operator["email"])
+    except OperatorError as exc:
+        raise _akun_ditolak(exc) from exc
+    return {"akun": akun}
+
+
+@router.post("/api/console/dev/akun/sandi")
+def dev_akun_sandi(
+    admin: Admin,
+    operator: Support,
+    email: Annotated[str, Body()] = "",
+    sandi: Annotated[str, Body()] = "",
+    sandi_ulang: Annotated[str, Body()] = "",
+) -> dict:
+    """Sandi baru untuk akun lokal. Semua sesi akun itu berakhir saat itu juga."""
+    try:
+        admin.ganti_sandi(email, sandi, sandi_ulang, oleh=operator["email"])
+    except OperatorError as exc:
+        raise _akun_ditolak(exc) from exc
+    return {"status": "ok"}
+
+
+@router.post("/api/console/dev/akun/status")
+def dev_akun_status(
+    admin: Admin,
+    operator: Support,
+    aktif: Annotated[bool, Body()],
+    email: Annotated[str, Body()] = "",
+) -> dict:
+    """Matikan (sesinya berakhir) atau hidupkan lagi akun lokal. Bukan akun sendiri.
+
+    `aktif` wajib boolean: `bool("false")` bernilai True, jadi teks bebas ditolak
+    422 alih-alih ditebak jadi "aktifkan".
+    """
+    try:
+        return {"status": admin.atur_status(email, aktif, oleh=operator["email"])}
+    except OperatorError as exc:
+        raise _akun_ditolak(exc) from exc
+
+
+@router.post("/api/console/dev/akun/role")
+def dev_akun_role(
+    admin: Admin,
+    operator: Support,
+    email: Annotated[str, Body()] = "",
+    role: Annotated[str, Body()] = "",
+) -> dict:
+    """Ubah role akun lokal. Bukan akun sendiri: support yang menurunkan dirinya
+    kehilangan layar ini di klik berikutnya."""
+    try:
+        return {"role": admin.atur_role(email, role, oleh=operator["email"])}
+    except OperatorError as exc:
+        raise _akun_ditolak(exc) from exc
 
 
 @router.get("/api/console/dev/setelan")
