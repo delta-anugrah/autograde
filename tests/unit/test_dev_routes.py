@@ -78,6 +78,7 @@ def _app_dev(tmp_path, *, line_client=None, lines=(LINE_1, LINE_2), manifest_out
         erp_outbox=erp_outbox,
         manifest_outbox=manifest_outbox,
         settings=_FakeSettings(),
+        console_store=store,
     )
     return app, store, log_store, erp_outbox, manifest_outbox
 
@@ -401,3 +402,46 @@ def test_semua_lane_dev_menolak_operator_biasa(dev):
 
     for jalur in ("log", "diagnostik", "antrean", "versi"):
         assert client.get(f"/api/console/dev/{jalur}").status_code == 403
+
+
+# ── layar Akun: daftar akun di PC ini, support saja, TANPA hash ─────────────
+
+
+def test_akun_butuh_peran_support(dev):
+    app, store, _, _, _ = dev
+    store.upsert_operator_manual(
+        {"email": "o@b.c", "nama": "O", "password_hash": hash_password(SANDI)}
+    )
+    client = TestClient(app)
+    client.post("/api/console/login", json={"email": "o@b.c", "sandi": SANDI})
+
+    assert client.get("/api/console/dev/akun").status_code == 403
+
+
+def test_akun_tanpa_sesi_401(dev):
+    app, _, _, _, _ = dev
+
+    assert TestClient(app).get("/api/console/dev/akun").status_code == 401
+
+
+def test_akun_mendaftar_semua_akun_tanpa_hash(dev):
+    app, store, _, _, _ = dev
+    store.upsert_operator_manual(
+        {"email": "o@b.c", "full_name": "Operator Satu", "password_hash": hash_password(SANDI)}
+    )
+    client = _client_support(app, store)
+
+    response = client.get("/api/console/dev/akun")
+
+    assert response.status_code == 200
+    akun = {a["email"]: a for a in response.json()["akun"]}
+    assert set(akun) == {"o@b.c", "s@b.c"}
+    assert akun["s@b.c"]["role"] == "support"
+    # Yang sedang memanggil ini memang sedang masuk — sesinya baru dibuat.
+    assert akun["s@b.c"]["sedang_masuk"] is True
+    assert akun["o@b.c"]["sedang_masuk"] is False
+    # Hash tidak boleh ada di jawaban, dalam bentuk apa pun.
+    assert "password_hash" not in response.text
+    assert "scrypt$" not in response.text
+    assert "pbkdf2" not in response.text
+

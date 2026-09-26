@@ -37,6 +37,22 @@ BUKAN_SUPPORT = "bukan_support"
 KONFIRMASI_KURANG = "konfirmasi_kurang"
 PLC_SIBUK = "plc_sibuk"
 COIL_TIDAK_DIKENAL = "coil_tidak_dikenal"
+# Danger Zone (support) sedang menghapus data; yang membacanya operator gerbang
+# yang menekan Pasang truk di detik itu, jadi kodenya ikut daftar ini.
+HAPUS_BERJALAN = "hapus_berjalan"
+# Tab Akun (support): mengurus akun lokal dari layar (2026-09-26). Isian yang
+# salah 400, akun yang tidak ada 404, sisanya 409 (keadaannya yang menolak).
+AKUN_EMAIL_TIDAK_SAH = "akun_email_tidak_sah"
+AKUN_NAMA_KOSONG = "akun_nama_kosong"
+AKUN_SANDI_BEDA = "akun_sandi_beda"
+AKUN_SUDAH_ADA = "akun_sudah_ada"
+AKUN_MILIK_ERP = "akun_milik_erp"
+AKUN_TIDAK_ADA = "akun_tidak_ada"
+AKUN_DIRI_SENDIRI = "akun_diri_sendiri"
+# Tab Riwayat (2026-09-26): filter tanggal yang ditolak, semuanya 400.
+RIWAYAT_TANGGAL_TIDAK_SAH = "riwayat_tanggal_tidak_sah"
+RIWAYAT_RENTANG_TERBALIK = "riwayat_rentang_terbalik"
+RIWAYAT_RENTANG_PANJANG = "riwayat_rentang_panjang"
 
 CODES = (
     PLAT_KOSONG,
@@ -56,6 +72,17 @@ CODES = (
     KONFIRMASI_KURANG,
     PLC_SIBUK,
     COIL_TIDAK_DIKENAL,
+    HAPUS_BERJALAN,
+    AKUN_EMAIL_TIDAK_SAH,
+    AKUN_NAMA_KOSONG,
+    AKUN_SANDI_BEDA,
+    AKUN_SUDAH_ADA,
+    AKUN_MILIK_ERP,
+    AKUN_TIDAK_ADA,
+    AKUN_DIRI_SENDIRI,
+    RIWAYAT_TANGGAL_TIDAK_SAH,
+    RIWAYAT_RENTANG_TERBALIK,
+    RIWAYAT_RENTANG_PANJANG,
 )
 
 

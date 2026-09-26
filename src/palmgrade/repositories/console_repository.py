@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ..domain.bahaya import kunci_state_dihapus, tabel_dihapus
 from ..domain.operator_auth import normalise_email, normalise_nama, operator_id_for
 from ..domain.role import ROLE_SUPPORT, filter_erp_role, sanitize_role
 
@@ -174,7 +175,7 @@ DROP INDEX IF EXISTS idx_inspections_erp;
 
 # What the FFB source label needs from a truck (`domain/ffb_source.py`). One
 # definition, so every screen labels the same truck the same way.
-_SOURCE_FACTS = "t.supplier_id IS NOT NULL AS has_supplier, t.erp_name IS NOT NULL AS in_erp"
+SOURCE_FACTS = "t.supplier_id IS NOT NULL AS has_supplier, t.erp_name IS NOT NULL AS in_erp"
 
 
 class ConsoleStore:
@@ -185,6 +186,10 @@ class ConsoleStore:
         self._db.row_factory = sqlite3.Row
         # ERP-pull role allow-list, read by `_upsert_operator`.
         self._erp_allowed_roles = erp_allowed_roles or frozenset()
+        #: Danger Zone sedang menghapus data (`BahayaService.hapus_data`); selama
+        #: benar, `ConsoleService.assign_truck` menolak truk baru. Di memori, bukan
+        #: di disk: konsol yang restart di tengah jalan tidak sedang menghapus apa pun.
+        self.hapus_berjalan = False
         with self._lock, self._db:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
@@ -412,7 +417,7 @@ class ConsoleStore:
         params += [limit, offset]
         with self._lock:
             rows = self._db.execute(
-                f"""SELECT i.*, t.plate_number, s.name AS supplier_name, {_SOURCE_FACTS}
+                f"""SELECT i.*, t.plate_number, s.name AS supplier_name, {SOURCE_FACTS}
                     FROM inspections i
                     LEFT JOIN trucks t ON t.id = i.truck_id
                     LEFT JOIN suppliers s ON s.id = t.supplier_id
@@ -434,7 +439,7 @@ class ConsoleStore:
                 f"""SELECT i.truck_id,
                           t.plate_number,
                           s.name AS supplier_name,
-                          {_SOURCE_FACTS},
+                          {SOURCE_FACTS},
                           COUNT(*) AS total,
                           SUM(CASE WHEN i.ripeness_status = 'ACC' THEN 1 ELSE 0 END) AS acc,
                           SUM(CASE WHEN i.ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej,
@@ -593,7 +598,7 @@ class ConsoleStore:
         with self._lock:
             rows = self._db.execute(
                 f"""SELECT t.id, t.plate_number, t.capacity, t.status,
-                          s.name AS supplier_name, {_SOURCE_FACTS}
+                          s.name AS supplier_name, {SOURCE_FACTS}
                    FROM trucks t LEFT JOIN suppliers s ON s.id = t.supplier_id
                    WHERE t.status IS NULL OR t.status != 'inactive'
                    ORDER BY t.rowid DESC"""
@@ -800,7 +805,7 @@ class ConsoleStore:
         # until the ERP lane is live — see docs/PERTANYAAN-TERBUKA.md S1-S3.
         with self._lock:
             rows = self._db.execute(
-                f"""SELECT w.*, s.name AS supplier_name, {_SOURCE_FACTS}
+                f"""SELECT w.*, s.name AS supplier_name, {SOURCE_FACTS}
                    FROM weighings w
                    LEFT JOIN trucks t ON t.id = w.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id
@@ -868,7 +873,7 @@ class ConsoleStore:
     def assignments(self) -> dict[str, dict[str, Any]]:
         with self._lock:
             rows = self._db.execute(
-                f"""SELECT a.*, t.plate_number, s.name AS supplier_name, {_SOURCE_FACTS}
+                f"""SELECT a.*, t.plate_number, s.name AS supplier_name, {SOURCE_FACTS}
                    FROM assignments a
                    LEFT JOIN trucks t ON t.id = a.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id"""
@@ -1019,6 +1024,27 @@ class ConsoleStore:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def akun_untuk_support(self, *, now: float) -> list[dict[str, Any]]:
+        """Every account on this PC — active or not — for the support Accounts screen.
+
+        Columns are named one by one, never `SELECT *`: this list leaves the process
+        as JSON, and neither the password hash nor a column added to `operators`
+        later may ride along unseen. `sesi_aktif` counts sessions that still work
+        (`expires_at > now`), not rows `purge_sessions` has not reached yet.
+        Active accounts first, so the ones that can sign in are at the top.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT o.email, o.full_name, o.role, o.origin, o.status, o.created_at,
+                          o.fail_count, o.last_failed_at,
+                          (SELECT COUNT(*) FROM sesi s
+                            WHERE s.operator_id = o.id AND s.expires_at > ?) AS sesi_aktif
+                     FROM operators o
+                    ORDER BY o.status = 'active' DESC, o.full_name COLLATE NOCASE, o.email""",
+                (now,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def has_support_account(self) -> bool:
         """Whether any active account can reach the developer screens.
 
@@ -1099,3 +1125,61 @@ class ConsoleStore:
         with self._lock, self._db:
             cursor = self._db.execute("DELETE FROM sesi WHERE expires_at <= ?", (now,))
         return cursor.rowcount
+
+    # ── Danger Zone (layar Setelan, support) ────────────────────────────────
+
+    def hapus_data(self, mode: str) -> dict[str, int]:
+        """Kosongkan data konsol menurut mode, dalam SATU transaksi.
+
+        Tabel dan kunci `sync_state` yang dihapus diputuskan `domain/bahaya.py`,
+        bukan di sini: `setelan_*` tidak pernah dihapus, kursor tarik AutoERP
+        cuma di mode semua. Mode asing ditolak SEBELUM apa pun tersentuh.
+        Kembalikan jumlah baris yang hilang per tabel.
+        """
+        tabel = tabel_dihapus(mode)
+        hasil: dict[str, int] = {}
+        with self._lock, self._db:
+            for nama in tabel:
+                # Nama tabel datang dari daftar tetap di domain/bahaya.py, tidak
+                # pernah dari luar — identifier SQL tidak bisa jadi parameter.
+                hasil[nama] = self._db.execute(f"DELETE FROM {nama}").rowcount
+            kunci = [row["key"] for row in self._db.execute("SELECT key FROM sync_state")]
+            buang = [k for k in kunci if kunci_state_dihapus(k, mode)]
+            for k in buang:
+                self._db.execute("DELETE FROM sync_state WHERE key = ?", (k,))
+            hasil["sync_state"] = len(buang)
+        return hasil
+
+    def tiket_terbuka(self, hari_kerja: str) -> dict[str, int]:
+        """Tiket yang sudah timbang masuk tapi belum keluar (bruto ada, tara belum):
+        `hari_ini` = hari kerja berjalan — truk di tengah kunjungan; `lama` = hari
+        lain, hampir pasti sisa uji coba yang taranya tidak pernah diisi."""
+        with self._lock:
+            row = self._db.execute(
+                """SELECT COALESCE(SUM(work_date = ?), 0) AS hari_ini,
+                          COALESCE(SUM(work_date <> ?), 0) AS lama
+                   FROM weighings WHERE gross_kg IS NOT NULL AND tare_kg IS NULL""",
+                (hari_kerja, hari_kerja),
+            ).fetchone()
+        return {"hari_ini": row["hari_ini"], "lama": row["lama"]}
+
+    def hapus_semua_sesi(self) -> int:
+        """Logout paksa: semua sesi, termasuk milik yang menekan tombolnya."""
+        with self._lock, self._db:
+            return self._db.execute("DELETE FROM sesi").rowcount
+
+    def ringkas_data(self, *, now: float) -> dict[str, int]:
+        """Angka untuk panel Danger Zone: apa yang akan hilang."""
+
+        def hitung(sql: str, *args: Any) -> int:
+            return self._db.execute(sql, args).fetchone()[0]
+
+        with self._lock:
+            return {
+                "janjang": hitung("SELECT COUNT(*) FROM inspections"),
+                "tiket": hitung("SELECT COUNT(*) FROM weighings"),
+                "truk": hitung("SELECT COUNT(*) FROM trucks"),
+                "akun": hitung("SELECT COUNT(*) FROM operators"),
+                "akun_lokal": hitung("SELECT COUNT(*) FROM operators WHERE origin = 'lokal'"),
+                "sesi_aktif": hitung("SELECT COUNT(*) FROM sesi WHERE expires_at > ?", now),
+            }

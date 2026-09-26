@@ -25,6 +25,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint, Settings
+from ..domain.bahaya import HapusBerjalan
 from ..domain.ffb_source import ffb_source_label
 from ..domain.grade_class import grade_class_or_none
 from ..domain.operator_error import (
@@ -481,6 +482,10 @@ class ConsoleService:
 
     async def assign_truck(self, line_code: str, truck_id: str) -> dict[str, Any]:
         line = self._require_line(line_code)
+        if self.store.hapus_berjalan:
+            # Danger Zone sedang mengosongkan data: penugasan yang dicatat sekarang
+            # ikut terhapus, dan janjangnya tidak pernah tertaut ke tiket.
+            raise HapusBerjalan()
         assignment_id = str(uuid.uuid4())
         # Line first, then store. If the line does not answer, DO NOT record:
         # a screen showing a truck assigned while the line knows nothing makes
@@ -626,8 +631,11 @@ class ConsoleService:
         tersimpan = self.store.get_state(KUNCI_SETELAN_REKAM)
         if tersimpan:
             # Digabung dengan BAWAAN supaya baris yang disimpan sebelum sebuah
-            # field ada tidak mengembalikan payload cacat ke layar.
-            return {**REKAM_BAWAAN, **json.loads(tersimpan)}
+            # field ada tidak mengembalikan payload cacat ke layar — dan disaring
+            # ke kunci BAWAAN supaya field yang sudah dicabut (`bitrate_kbps`,
+            # 2026-09-25) tidak terus ikut dari baris lama.
+            lama = json.loads(tersimpan)
+            return {**REKAM_BAWAAN, **{k: v for k, v in lama.items() if k in REKAM_BAWAAN}}
         return dict(REKAM_BAWAAN)
 
     async def simpan_setelan_rekam(
@@ -642,9 +650,8 @@ class ConsoleService:
         bersih = bersihkan_setelan_rekam(payload)
         self.store.set_state(KUNCI_SETELAN_REKAM, json.dumps(bersih))
         logger.warning(
-            "Setelan rekam diubah oleh %s: %dx%d @ %d fps, %d kbps",
+            "Setelan rekam diubah oleh %s: %dx%d",
             diubah_oleh, bersih["width"], bersih["height"],
-            bersih["fps"], bersih["bitrate_kbps"],
         )
         return bersih
 
@@ -652,9 +659,12 @@ class ConsoleService:
         """Suruh satu line mulai merekam dengan setelan yang tersimpan."""
         line = self._require_line(line_code)
         setelan = self.setelan_rekam()
+        # Tanpa fps: yang dipakai laju kamera, dan line sendiri yang mencatatnya
+        # ("Rekam video MULAI ... @ N fps"). Angka tersimpan di sini cuma cadangan
+        # dan akan terbaca seperti laju berkasnya.
         logger.warning(
-            "Rekam video %s dimulai oleh %s (%dx%d @ %d fps)",
-            line_code, diubah_oleh, setelan["width"], setelan["height"], setelan["fps"],
+            "Rekam video %s dimulai oleh %s (%dx%d)",
+            line_code, diubah_oleh, setelan["width"], setelan["height"],
         )
         return await self.line_client.rekam_mulai(line, setelan)
 
@@ -883,7 +893,7 @@ class ConsoleService:
             if info is None:
                 raise ModelTidakSah(f"{kode}: {nama} tidak ada di models/release")
             if not info["cocok"]:
-                raise ModelTidakSah(f"{kode}: {nama} tidak bisa dipakai — {info['alasan']}")
+                raise ModelTidakSah(f"{kode}: {nama} tidak bisa dipakai ({info['alasan']})")
 
         env.tulis_model(bersih)
         logger.warning(

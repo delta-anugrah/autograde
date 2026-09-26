@@ -238,6 +238,52 @@
      color:var(--on-acc); border-color:var(--acc); }
   .halaman-celah { padding:0 2px; color:var(--muted); }
 
+  /* ---- tab Riwayat ---- */
+  /* Kotak saringan berdiri sendiri, bukan `.tools`: kotak itu dirancang menempel ke
+     tabel di bawahnya, dan di sini di bawahnya ringkasan. */
+  .riwayat-saring { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 16px;
+                    padding:14px 16px; background:var(--card); border:1px solid var(--line-kuat);
+                    border-radius:var(--r-md); }
+  .riwayat-isian { display:grid; gap:6px; }
+  /* `display` di atas dan milik `.halaman` mengalahkan `[hidden]` bawaan browser:
+     tanpa dua baris ini saringan Hasil dan pager tetap tampil di Per hari. */
+  #riwayat-hasil-grup[hidden], #riwayat-halaman[hidden] { display:none; }
+  .riwayat-isian input { min-height:2.6rem; }
+  .riwayat-isian input[type="date"] { font-family:var(--mono); }
+  .riwayat-isian input.plat { width:11rem; text-transform:uppercase; }
+  .riwayat-isian input.plat::placeholder { text-transform:none; font-family:inherit; font-weight:400; }
+  .riwayat-isian .pilih { width:11rem; }
+  .riwayat-isian .pilih-tombol { min-height:2.6rem; }
+  .riwayat-cepat { display:flex; flex-wrap:wrap; gap:6px; }
+  .riwayat-cepat button { min-height:2.6rem; padding:8px 12px; font-size:.85rem; }
+  .riwayat-aksi { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
+  .riwayat-aksi button { min-height:2.6rem; min-width:9rem; }
+  .riwayat-maks { flex:1 1 100%; }
+  .riwayat-pesan { flex:1 1 100%; margin:0; padding:8px 10px; border-radius:var(--r);
+                   background:var(--warn-bg); color:var(--warn); font-weight:700; }
+  .riwayat-pesan:empty { display:none; }
+  /* Angka periode, gaya yang sama dengan strip "Hari ini": dibaca sekali pandang. */
+  .riwayat-ringkasan { display:flex; flex-wrap:wrap; margin:12px 0 0; background:var(--card);
+                       border:1px solid var(--line-kuat); border-left:5px solid var(--acc);
+                       border-radius:var(--r-lg); }
+  .riwayat-ringkasan:empty { display:none; }
+  .riwayat-ringkasan .stat { padding:10px clamp(10px, 2vw, 18px) 12px; min-width:5rem;
+                             border-right:1px solid var(--line); text-align:center; }
+  .riwayat-ringkasan .stat b { display:block; font-family:var(--mono); font-size:1.5rem;
+                               font-weight:700; line-height:1.15; font-variant-numeric:tabular-nums; }
+  .riwayat-ringkasan .stat small { display:block; max-width:9rem; margin:2px auto 0;
+                                   font-size:.7rem; color:var(--muted); }
+  .riwayat-ringkasan .stat.acc b { color:var(--acc); }
+  .riwayat-ringkasan .stat.rej b { color:var(--rej); }
+  .riwayat-ringkasan .stat.tp b { color:var(--warn); }
+  .riwayat-kepala-tabel { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px;
+                          margin:14px 0 8px; }
+  button.riwayat-lihat { padding:5px 10px; font-size:.85rem; }
+  /* Lebih rapat dari tabel lain: Per hari punya 10 kolom, dan di layar 1024 px tombol
+     Lihat truk di ujung kanan terdorong keluar sampai tabelnya harus digeser. */
+  #sec-riwayat th, #sec-riwayat td { padding:10px 10px; }
+  .riwayat-catatan { margin:10px 0 0; }
+
   /* Hasil scan, di sebelah kolomnya. Tinggi dipatok supaya baris alat tidak bergeser
      saat pesannya muncul dan hilang - tombol yang bergerak sulit ditekan. */
   .scan-pesan { min-height:1.4rem; font-weight:700; color:var(--acc); }
@@ -371,6 +417,13 @@
                    gap:4px 10px; font-size:.85rem; }
   .kartu-grid dt { color:var(--muted); }
   .kartu-grid dd { margin:0; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Worker satu per baris di bawah judul Workers, menjorok supaya terbaca
+     sebagai anak judul itu, bukan baris diagnostik yang setara. */
+  .kartu-grid dt.diag-worker { padding-left:14px; font-family:var(--mono); font-size:.8rem; }
+  /* ✓/✗ berwarna. Token tema, bukan hex: terang dan gelap punya hijau-merah
+     sendiri, dan hex yang dipatok cuma terbaca di salah satunya. */
+  .tanda-ok { color:var(--acc); font-weight:700; }
+  .tanda-gagal { color:var(--rej); font-weight:700; }
 
   /* Uji PLC: the only card that moves hardware. DI bits are read-only text;
      coil buttons get the danger tokens piston.terbuka already uses, so the
@@ -379,10 +432,12 @@
   .plc-coil { padding:0 13px 12px; display:flex; flex-wrap:wrap; gap:8px; }
   button.uji-coil { flex:1; min-width:9rem; min-height:2.6rem; border-color:var(--danger-line);
                      background:var(--danger-bg); color:var(--danger-fg); font-weight:600; }
-  /* Hijau = OK, merah = NG/Error. Warna dibaca lebih cepat daripada tulisan
-     saat tangan sedang di panel dan mata bolak-balik ke GX Works2. Merah tetap
-     bawaan tombol ini karena dua dari tiga memang "buang"/"rusak". */
+  /* Hijau = OK, merah = NG, kuning = Error. Warna dibaca lebih cepat daripada
+     tulisan saat tangan sedang di panel dan mata bolak-balik ke GX Works2.
+     Error kuning sejak 2026-09-25: dulu merah seperti NG, dan dua tombol merah
+     berdampingan terbaca kembar. */
   button.uji-coil.ok { border-color:var(--acc); background:var(--acc-bg); color:var(--acc); }
+  button.uji-coil.error { border-color:var(--warn); background:var(--warn-bg); color:var(--warn); }
   button.uji-coil:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
   /* Dua baris: peran yang dibaca manusia di atas, alamat M yang dicocokkan ke
      GX Works2 di bawah. Keduanya perlu — nama saja tidak bisa dicocokkan ke
@@ -391,20 +446,22 @@
                     gap:2px; line-height:1.25; padding:6px 10px; }
   button.uji-coil .alamat { display:block; font-family:var(--mono); font-size:.76rem;
                             font-weight:400; opacity:.7; letter-spacing:.02em; }
-  /* Peta alamat: referensi diam, dibaca developer/teknisi, bukan tombol. */
-  #plc-peta { margin:14px 13px 0; }
-  #plc-peta h3 { margin:0 0 6px; font-size:.82rem; letter-spacing:.06em;
-                 text-transform:uppercase; color:var(--muted); }
-  /* Dua tabel berdampingan selama muat; menumpuk sendiri di layar sempit.
-     `width:auto` + `max-content` supaya kolom keterangan tidak melar mengisi
-     sisa baris — daftar alamat dibaca dengan menyapu mata ke bawah. */
-  #plc-peta .peta-grid { display:flex; flex-wrap:wrap; gap:14px 36px; align-items:flex-start; }
-  #plc-peta table { border-collapse:collapse; font-size:.8rem; width:max-content; }
-  #plc-peta caption { text-align:left; padding:0 0 5px; font-weight:600;
-                      color:var(--muted); font-size:.78rem; }
-  #plc-peta tbody tr:nth-child(even) { background:var(--bg-lembut, rgba(127,127,127,.06)); }
-  #plc-peta td { padding:2px 0; white-space:nowrap; }
-  #plc-peta td:first-child { font-family:var(--mono); font-weight:700; padding-right:16px; }
+  /* Peta alamat: referensi diam, dibaca developer/teknisi, bukan tombol.
+     Satu kartu selebar grid kartu line di atasnya. */
+  #plc-peta { margin-top:16px; }
+  /* Dua tabel dibagi rata selebar kartu; menumpuk sendiri di layar sempit.
+     Kolom alamat dipatok lebarnya supaya dua tabel sejajar baris per baris.
+     `align-items:start` wajib: tanpa itu tabel 10 baris ditarik setinggi
+     tabel 12 baris di sebelahnya, barisnya melar, dan M1003 tidak lagi
+     sejajar dengan M1103. */
+  #plc-peta .peta-grid { display:grid; gap:12px 28px; padding:10px 13px 13px; align-items:start;
+                         grid-template-columns:repeat(auto-fit, minmax(min(22rem, 100%), 1fr)); }
+  #plc-peta table { border-collapse:collapse; font-size:.82rem; width:100%; }
+  #plc-peta caption { text-align:left; padding:0 0 6px; font-weight:600; color:var(--muted);
+                      font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; }
+  #plc-peta tbody tr:nth-child(even) { background:var(--zebra); }
+  #plc-peta td { padding:5px 8px; white-space:nowrap; border-top:1px solid var(--line); }
+  #plc-peta td:first-child { font-family:var(--mono); font-weight:700; width:5.5rem; }
 
   /* Konfirmasi uji PLC: inline, bukan dialog bawaan browser - lihat komentar HTML
      di #sec-plc. Sama bentuknya dengan .tara-grup, ditempatkan di luar #plc-kartu
@@ -431,6 +488,40 @@
   .daftar-definisi > div { display:grid; grid-template-columns:auto 1fr; gap:8px 16px; }
   .daftar-definisi dt { color:var(--muted); }
   .daftar-definisi dd { margin:0; font-weight:600; }
+
+  /* Akun: catatan sandi di atas tabel, selebar tabelnya. */
+  #sec-akun .akun-catatan { margin:0 var(--pad) 12px; }
+  /* Tombol Tambah akun berdiri sendiri di atas, tanpa kotak `.tools`: kotak itu
+     dirancang menempel ke tabel di bawahnya, dan di sini yang di bawahnya form. */
+  .akun-alat { display:flex; gap:8px; flex-wrap:wrap; margin:0 var(--pad) 12px; }
+  .akun-alat button { flex:0 0 auto; min-width:12rem; min-height:2.6rem; }
+  #akun-tambah { margin-bottom:12px; }
+  /* `.setelan-form` memakai display:grid, yang mengalahkan `[hidden]` bawaan browser:
+     tanpa baris ini form tidak pernah tertutup (ketemu di browser 2026-09-26). */
+  #akun-tambah[hidden] { display:none; }
+  #akun-tambah .setelan-grup-isi { padding:0; }
+  #akun-tambah input, #akun-tambah select { max-width:22rem; }
+  .akun-form-tombol { display:flex; gap:8px; flex-wrap:wrap; }
+  .akun-form-tombol button { flex:0 0 10rem; min-height:2.6rem; }
+  .akun-form-catatan { margin:0; }
+  .akun-pesan { margin:0; padding:8px 10px; border-radius:var(--r);
+                background:var(--warn-bg); color:var(--warn); }
+  .akun-pesan:empty { display:none; }
+  /* Tombol per baris dibuat kecil: tabel ini dibaca, tombolnya jarang ditekan,
+     dan tiga tombol ukuran penuh akan membuat tiap baris dua kali lebih tinggi. */
+  .akun-tombol { display:inline-flex; gap:6px; flex-wrap:wrap; }
+  .akun-tombol button { padding:5px 10px; font-size:.85rem; }
+  .akun-tombol + .muted { margin-left:6px; }
+  /* Konfirmasi satu baris akun, dibuka di bawah barisnya sendiri. */
+  #akun-baris tr.akun-panel-baris > td { padding:0; white-space:normal; background:var(--bg); }
+  .akun-panel { display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+                padding:12px 16px; border-left:4px solid var(--acc); }
+  .akun-panel.awas { border-left-color:var(--rej); }
+  .akun-panel p { flex:1 1 100%; margin:0; }
+  .akun-panel input { flex:0 1 14rem; min-width:0; }
+  .akun-panel button { flex:0 0 auto; min-width:8rem; }
+  .akun-panel.awas button[data-akun-jalankan] { background:var(--rej); border-color:var(--rej);
+                                                 color:#fff; }
 
   /* Camera state in a word, not only a colour, and in the title bar where it is
      readable even when the feed itself is a black box. `.putus` lives on the
@@ -507,6 +598,16 @@
   button, input { background:var(--input); color:var(--fg); border:1px solid var(--line-kuat);
                   border-radius:var(--r-sm); padding:10px 13px; font:inherit; }
   :is(button, input):focus-visible { outline:3px solid var(--acc); outline-offset:2px; }
+  /* Sibuk: tombol yang sedang menunggu server (denganSibuk). Klik berikutnya
+     ditolak dan spinner kecil di depan label memberi tahu bahwa klik pertama
+     sudah diterima. `disabled` sengaja tidak dipakai: layar yang mengatur kapan
+     tombol boleh ditekan, dan helper yang memulihkannya akan menimpa keputusan itu. */
+  button.sibuk { pointer-events:none; cursor:progress; opacity:.75; }
+  button.sibuk::before { content:""; display:inline-block; flex:none; width:.85em; height:.85em;
+                         margin-right:.45em; vertical-align:-.1em; border:2px solid currentColor;
+                         border-right-color:transparent; border-radius:50%;
+                         animation:putar-sibuk .7s linear infinite; }
+  @keyframes putar-sibuk { to { transform:rotate(360deg); } }
   button { cursor:pointer; font-weight:700;
            transition:background-color .12s ease, border-color .12s ease,
                       box-shadow .12s ease, transform .12s ease; }
@@ -529,7 +630,18 @@
   .assign [data-aksi="lepas"] { background:var(--danger-bg); border-color:var(--danger-line);
                                 color:var(--danger-fg); }
   .assign [data-aksi="lepas"]:hover:not(:disabled) { border-color:var(--danger-fg); }
-  button.reject { width:100%; text-transform:uppercase; letter-spacing:.08em;
+  /* Reject manual dan piston satu baris, lebar dibagi dua (permintaan
+     2026-09-26): satu baris tombol, bukan dua, jadi kartu line lebih pendek.
+     `min-width:0` supaya label panjang turun baris di dalam tombolnya sendiri,
+     bukan mendorong tombol tetangganya. */
+  .aksi-line { display:flex; gap:8px; }
+  .aksi-line > button { flex:1 1 0; min-width:0; padding-left:8px; padding-right:8px;
+                        display:flex; align-items:center; justify-content:center; }
+  /* Setengah kartu itu sempit: spasi huruf dan petunjuk pintas dibuat lebih
+     rapat supaya "REJECT MANUAL" + pintasnya masih satu baris di layar 1680 px
+     ke atas. Di layar lebih sempit labelnya turun baris di dalam tombolnya. */
+  .aksi-line .pintas { margin-left:6px; padding:1px 4px; font-size:.62rem; }
+  button.reject { text-transform:uppercase; letter-spacing:.03em;
                   background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
   /* The keyboard hint is printed on the button, so the shortcut never has to be
      remembered - and it follows the panel order the operator arranged. */
@@ -546,7 +658,7 @@
      wrong until this is pressed again". Disabled (line unreachable / PLC or
      coil not configured / waiting for confirmation) keeps its plain shape -
      button:disabled already dims it, so there is no state to add here. */
-  button.piston { width:100%; text-transform:uppercase; letter-spacing:.08em; margin-top:2px; }
+  button.piston { text-transform:uppercase; letter-spacing:.03em; }
   button.piston.terbuka { background:var(--danger-bg); border-color:var(--danger-fg); color:var(--danger-fg); }
   button.piston.kedip { animation:kedip .45s ease; }
   /* Merah penuh, dibaca dari jarak jalan yang sama dengan angka ACC/REJ -
@@ -608,7 +720,11 @@
   .pilih-panel--atas { top:auto; bottom:calc(100% + 4px); }
 
   /* ---- tabs ---- */
-  #tabs { display:flex; gap:3px; padding:26px var(--pad) 0; }
+  /* flex-wrap: tab turun ke baris kedua HANYA kalau tidak muat. Tiap tab tidak
+     bisa menyusut di bawah lebar labelnya, jadi tanpa wrap 14 tab support di layar
+     1024 px meluap 1338 px dan seluruh halaman bergeser ke samping (2026-09-26).
+     Di layar lebar tetap satu baris. */
+  #tabs { display:flex; flex-wrap:wrap; gap:3px; padding:26px var(--pad) 0; }
   /* flex:1 1 0 - widths split evenly instead of following text length, so a long
      label does not shove the others when the language flips. Inactive tabs stay
      recessed rather than invisible: bare words on the page background do not
@@ -709,6 +825,38 @@
      terlempar jauh dari labelnya. Yang melebar kartunya, bukan kotaknya. */
   .setelan-grup-isi input[type="text"],
   .setelan-grup-isi select { max-width:22rem; }
+
+  /* Danger Zone: bingkai merah di bawah kartu Setelan, tertutup saat tab
+     dibuka. Token bahaya yang sama dengan tombol Uji PLC — satu bahasa warna
+     untuk "ini bisa merusak". */
+  .bahaya { margin:18px var(--pad) 0; border:1px solid var(--danger-line);
+            border-radius:var(--r); background:var(--kartu); }
+  .bahaya > summary { cursor:pointer; padding:12px 16px; font-weight:700; user-select:none;
+                      color:var(--danger-fg); letter-spacing:.04em; list-style:revert; }
+  .bahaya[open] > summary { border-bottom:1px solid var(--danger-line); }
+  .bahaya-baris { display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+                  padding:12px 16px; border-top:1px solid var(--line); }
+  .bahaya-isi > .bahaya-baris:first-child { border-top:none; }
+  .bahaya-teks { flex:1 1 20rem; display:grid; gap:3px; min-width:0; }
+  /* Lebar TETAP, sama untuk kelima tombol (permintaan 2026-09-26): muat label
+     terpanjang dua bahasa ("Delete transaction data…"); label yang lebih
+     panjang nanti turun ke baris kedua, lebarnya tetap. */
+  button.bahaya-buka { flex:0 0 15rem; width:15rem; white-space:normal; font-weight:600;
+                       border-color:var(--danger-line); background:var(--danger-bg);
+                       color:var(--danger-fg); }
+  .bahaya-panel { margin:0 16px 12px; padding:12px 14px; border-radius:var(--r-sm);
+                  border:1px solid var(--danger-line); background:var(--danger-bg); }
+  .bahaya-panel[hidden] { display:none; }
+  .bahaya-akibat { margin:0 0 6px; font-weight:600; }
+  .bahaya-panel ul { margin:6px 0; padding-left:1.2rem; }
+  .bahaya-hambatan li { color:var(--rej); font-weight:600; }
+  .bahaya-peringatan li { color:var(--warn); }
+  .bahaya-tombol { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+  /* Sengaja TANPA text-transform: "hapus" yang terlihat seperti "HAPUS" padahal
+     tombolnya tetap mati akan terbaca seperti layar yang rusak. */
+  .bahaya-tombol input { flex:0 0 11rem; font-family:var(--mono); }
+  button.bahaya-jalankan { border-color:var(--rej); background:var(--rej); color:#fff; font-weight:700; }
+  button.bahaya-jalankan:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
 
   /* Layar Rekam Video memakai ulang `.setelan-form`, tapi kolomnya empat dan
      berdampingan dengan tabel selebar layar. Kolomnya dibuat lebih sempit dari
@@ -1049,10 +1197,12 @@
   <button data-tab="truk" data-t="judulTruk">Truk</button>
   <button data-tab="timbangan" data-t="judulTimbangan">Timbangan</button>
   <button data-tab="rekap" data-t="judulRekap">Rekap</button>
+  <button data-tab="riwayat" data-t="judulRiwayat">Riwayat</button>
   <button data-tab="log" data-dev="1" data-t="judulLog">Log</button>
   <button data-tab="diagnostik" data-dev="1" data-t="judulDiagnostik">Diagnostik</button>
   <button data-tab="antrean" data-dev="1" data-t="judulAntrean">Antrean ERP</button>
   <button data-tab="versi" data-dev="1" data-t="judulVersi">Versi</button>
+  <button data-tab="akun" data-dev="1" data-t="judulAkun">Akun</button>
   <button data-tab="plc" data-dev="1" data-t="judulPlc">Uji PLC</button>
   <button data-tab="sumber-kamera" data-dev="1" data-t="judulSumberKamera">Sumber Kamera</button>
   <button data-tab="model-deteksi" data-dev="1" data-t="judulModelDeteksi">Model Deteksi</button>
@@ -1247,6 +1397,94 @@
   </div>
 </section>
 
+<section id="sec-riwayat" class="panel" hidden>
+  <!--
+    Grading hari-hari sebelumnya (2026-09-26): tab Grading dan Rekap cuma hari ini.
+    Rentang paling panjang 31 hari (dijaga server, domain/riwayat.py), filter line /
+    plat / hasil, ringkasan periode, tiga tampilan, dan unduh CSV. Untuk SEMUA operator,
+    bukan tab support: "kemarin berapa janjang" ditanyakan orang kantor dan operator.
+    Per hari dan per truk datang utuh lalu dibagi halaman DI SINI; per janjang dibagi
+    halaman di server, karena sebulan bisa jutaan baris.
+  -->
+  <div class="riwayat-saring">
+    <label class="riwayat-isian"><span class="lb" data-t="riwayatDari">Dari</span>
+      <input type="date" id="riwayat-dari"></label>
+    <label class="riwayat-isian"><span class="lb" data-t="riwayatSampai">Sampai</span>
+      <input type="date" id="riwayat-sampai"></label>
+    <div class="riwayat-cepat">
+      <button type="button" data-cepat="kemarin" data-t="riwayatKemarin">Kemarin</button>
+      <button type="button" data-cepat="7hari" data-t="riwayat7Hari">7 hari</button>
+      <button type="button" data-cepat="bulanini" data-t="riwayatBulanIni">Bulan ini</button>
+      <button type="button" data-cepat="bulanlalu" data-t="riwayatBulanLalu">Bulan lalu</button>
+    </div>
+    <div class="riwayat-isian"><span class="lb" data-t="thLine">Line</span>
+      <!-- Pilihannya dirakit dari line yang sedang tampil (siapkanLineRiwayat). -->
+      <div class="pilih" id="riwayat-line" data-nilai=""></div>
+    </div>
+    <label class="riwayat-isian"><span class="lb" data-t="riwayatPlat">Plat</span>
+      <input id="riwayat-plat" class="plat" data-t-ph="riwayatPlatPh" placeholder="Semua truk"
+             autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+    <!-- Cuma tampil di Per janjang: per hari dan per truk menghitung semua janjang. -->
+    <div class="riwayat-isian" id="riwayat-hasil-grup" hidden><span class="lb" data-t="thHasil">Hasil</span>
+      <div class="pilih" id="riwayat-hasil" data-nilai="">
+        <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
+          <span class="pilih-teks">Semua hasil</span>
+        </button>
+        <div class="pilih-panel" role="listbox" hidden>
+          <div role="option" tabindex="-1" data-nilai="" aria-selected="true" data-t="riwayatSemuaHasil">Semua hasil</div>
+          <div role="option" tabindex="-1" data-nilai="ripe" aria-selected="false" data-t="clsRipe">Ripe</div>
+          <div role="option" tabindex="-1" data-nilai="unripe" aria-selected="false" data-t="clsUnripe">Unripe</div>
+          <div role="option" tabindex="-1" data-nilai="jk" aria-selected="false" data-t="clsJk">JK</div>
+          <div role="option" tabindex="-1" data-nilai="tp" aria-selected="false" data-t="clsTp">TP</div>
+        </div>
+      </div>
+    </div>
+    <div class="riwayat-aksi">
+      <button type="button" id="riwayat-tampilkan" class="utama" data-t="riwayatTampilkan">Tampilkan</button>
+      <button type="button" id="riwayat-csv" data-t="riwayatCsv">Unduh CSV</button>
+    </div>
+    <small class="muted riwayat-maks" data-t="riwayatMaks">Paling panjang 31 hari</small>
+    <p id="riwayat-pesan" class="riwayat-pesan" role="alert"></p>
+  </div>
+  <div id="riwayat-ringkasan" class="riwayat-ringkasan"></div>
+  <div class="riwayat-kepala-tabel">
+    <div class="log-level riwayat-tampilan" role="group">
+      <button type="button" data-tampilan="hari" data-t="riwayatPerHari">Per hari</button>
+      <button type="button" data-tampilan="truk" data-t="riwayatPerTruk">Per truk</button>
+      <button type="button" data-tampilan="janjang" data-t="riwayatPerJanjang">Per janjang</button>
+    </div>
+    <span id="riwayat-judul-rentang" class="muted"></span>
+  </div>
+  <div class="tabel">
+    <table>
+      <thead id="riwayat-kepala"></thead>
+      <tbody id="riwayat-baris"></tbody>
+    </table>
+  </div>
+  <div class="halaman" id="riwayat-halaman" hidden>
+    <label class="lb" for="riwayat-per-tombol" data-t="perHalaman">Baris per halaman</label>
+    <div class="pilih" id="riwayat-per" data-nilai="25">
+      <button type="button" id="riwayat-per-tombol" class="pilih-tombol"
+              aria-haspopup="listbox" aria-expanded="false">
+        <span class="pilih-teks">25</span>
+      </button>
+      <div class="pilih-panel pilih-panel--atas" role="listbox" hidden>
+        <div role="option" tabindex="-1" data-nilai="25" aria-selected="true">25</div>
+        <div role="option" tabindex="-1" data-nilai="50" aria-selected="false">50</div>
+        <div role="option" tabindex="-1" data-nilai="100" aria-selected="false">100</div>
+        <div role="option" tabindex="-1" data-nilai="200" aria-selected="false">200</div>
+      </div>
+    </div>
+    <span id="riwayat-rentang" class="muted"></span>
+    <span class="halaman-tombol">
+      <button type="button" id="riwayat-prev" data-t="halamanSebelum" disabled>Sebelumnya</button>
+      <span id="riwayat-nomor" class="halaman-nomor"></span>
+      <button type="button" id="riwayat-next" data-t="halamanBerikut" disabled>Berikutnya</button>
+    </span>
+  </div>
+  <p class="muted riwayat-catatan" data-t="riwayatCatatanFoto">Tanggal di tab ini tanggal kerja, sama dengan tab Grading dan Rekap.</p>
+</section>
+
 <section id="sec-log" class="panel" hidden data-dev="1">
   <!--
     Support-only: read via /api/console/dev/log, guarded server-side by
@@ -1320,17 +1558,6 @@
           <input id="rekam-height" type="text" inputmode="numeric" autocomplete="off"
                  data-angka="bulat" maxlength="5">
         </label>
-        <label>
-          <span data-t="rekamFps">FPS</span>
-          <input id="rekam-fps" type="text" inputmode="numeric" autocomplete="off"
-                 data-angka="bulat" maxlength="2">
-          <small class="muted" data-t="rekamBantuFps">Makin tinggi = makin halus, makin besar berkasnya.</small>
-        </label>
-        <label>
-          <span data-t="rekamBitrate">Bitrate (kbps)</span>
-          <input id="rekam-bitrate" type="text" inputmode="numeric" autocomplete="off"
-                 data-angka="bulat" maxlength="5">
-        </label>
       </div>
     </details>
     <div class="tools lepas">
@@ -1345,7 +1572,7 @@
     jadi layar tidak boleh mengarangnya.
   -->
   <div class="rekam-kaki">
-    <span class="muted"><span data-t="rekamDisimpanDi">Disimpan di</span>: <code id="rekam-folder">—</code></span>
+    <span class="muted"><span data-t="rekamDisimpanDi">Disimpan di</span>: <code id="rekam-folder">-</code></span>
     <span id="rekam-disk" class="muted"></span>
   </div>
 </section>
@@ -1435,6 +1662,67 @@
     <p id="set-pesan" role="alert"></p>
     <div id="set-lines" class="muted"></div>
   </div>
+
+  <!--
+    Danger Zone (2026-09-25): aksi yang berbahaya atau tidak bisa dibatalkan,
+    dikumpulkan di satu tempat supaya teknisi tidak perlu AnyDesk + terminal.
+    TERTUTUP saat tab dibuka — layar ini dipakai sehari-hari untuk angka
+    grading, dan kotak bahaya tidak boleh ikut terbuka. Urut dari yang paling
+    ringan ke paling berat.
+
+    Tombol tiap baris MEMBUKA panel di bawahnya, bukan dialog yang menutup
+    layar (kamera line dan strip tally tidak boleh hilang dari pandangan —
+    alasan yang sama dengan tara di Timbangan). Panel menyebut akibatnya dengan
+    angka, hambatan (merah: tidak ada tombol eksekusi sama sekali), dan
+    peringatan (kuning). Aksi hapus wajib mengetik HAPUS. Server memeriksa
+    ulang semuanya — layar cuma menjelaskan.
+    Rancangan: docs/superpowers/specs/2026-09-25-danger-zone-design.md
+  -->
+  <details id="bahaya" class="bahaya">
+    <summary data-t="bahayaJudul">Danger Zone</summary>
+    <div class="bahaya-isi">
+      <div class="bahaya-baris" data-bahaya="restart">
+        <div class="bahaya-teks">
+          <b data-t="bahayaRestartJudul">Restart semua line</b>
+          <small class="muted" data-t="bahayaRestartTeks">Ketiga line mati sekitar 10 detik, lalu hidup lagi. Janjang yang lewat selama itu tidak dihitung.</small>
+        </div>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="restart" data-t="bahayaRestartTombol">Restart</button>
+      </div>
+      <div class="bahaya-panel" data-bahaya-panel="restart" hidden></div>
+      <div class="bahaya-baris" data-bahaya="logout">
+        <div class="bahaya-teks">
+          <b data-t="bahayaLogoutJudul">Logout paksa semua akun</b>
+          <small class="muted" data-t="bahayaLogoutTeks">Semua sesi dihapus, termasuk layar operator di PC pabrik dan akunmu sendiri.</small>
+        </div>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="logout" data-t="bahayaLogoutTombol">Logout semua</button>
+      </div>
+      <div class="bahaya-panel" data-bahaya-panel="logout" hidden></div>
+      <div class="bahaya-baris" data-bahaya="rekaman">
+        <div class="bahaya-teks">
+          <b data-t="bahayaRekamanJudul">Hapus rekaman video</b>
+          <small class="muted" data-t="bahayaRekamanTeks">Rekaman video ketiga line di folder videos/ hilang permanen. Line yang sedang merekam atau mati dilewati.</small>
+        </div>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="rekaman" data-t="bahayaRekamanTombol">Hapus rekaman</button>
+      </div>
+      <div class="bahaya-panel" data-bahaya-panel="rekaman" hidden></div>
+      <div class="bahaya-baris" data-bahaya="transaksi">
+        <div class="bahaya-teks">
+          <b data-t="bahayaTransaksiJudul">Hapus data transaksi</b>
+          <small class="muted" data-t="bahayaTransaksiTeks">Grading, foto, timbangan, antrean, dan log hilang permanen. Truk, akun, dan setelan tetap.</small>
+        </div>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="transaksi" data-t="bahayaTransaksiTombol">Hapus data transaksi</button>
+      </div>
+      <div class="bahaya-panel" data-bahaya-panel="transaksi" hidden></div>
+      <div class="bahaya-baris" data-bahaya="semua">
+        <div class="bahaya-teks">
+          <b data-t="bahayaSemuaJudul">Hapus semua data</b>
+          <small class="muted" data-t="bahayaSemuaTeks">Data transaksi, akun yang dibuat di PC ini, truk, dan supplier hilang permanen. Setelan tetap.</small>
+        </div>
+        <button type="button" class="bahaya-buka" data-bahaya-buka="semua" data-t="bahayaSemuaTombol">Hapus semua data</button>
+      </div>
+      <div class="bahaya-panel" data-bahaya-panel="semua" hidden></div>
+    </div>
+  </details>
 </section>
 
 <section id="sec-diagnostik" class="panel" hidden data-dev="1">
@@ -1491,6 +1779,59 @@
   <dl id="versi-daftar" class="daftar-definisi"></dl>
 </section>
 
+<section id="sec-akun" class="panel" hidden data-dev="1">
+  <!--
+    Support-only. Semua akun yang bisa masuk konsol di PC ini, aktif atau tidak
+    (/api/console/dev/akun). Sejak 2026-09-26 akun LOKAL juga dibuat dan diurus
+    dari sini (tambah, ganti sandi, matikan/aktifkan, ubah role), supaya support
+    tidak perlu AnyDesk + terminal. Akun AutoERP tetap baca saja: yang punya
+    AutoERP, dan tarikan berikutnya akan membatalkan perubahan apa pun.
+    Sandi tidak ditampilkan karena memang tidak disimpan: yang ada cuma hash-nya,
+    dan hash itu pun tidak dikirim ke layar.
+    Konfirmasi dibuka DI BAWAH barisnya, bukan dialog yang menutup layar (pola
+    yang sama dengan Danger Zone). Server yang menjaga (`require_support`,
+    `OperatorAdmin`); layar cuma tidak menawarkan tombol yang pasti ditolak.
+  -->
+  <div class="akun-alat">
+    <button type="button" id="akun-tambah-buka" class="utama" data-t="akunTambahTombol">Tambah akun</button>
+  </div>
+  <!-- `novalidate`: salah isian dijawab server sebagai kode yang diterjemahkan
+       layar, bukan tooltip browser dalam bahasa sistem. -->
+  <form id="akun-tambah" class="setelan-form" hidden novalidate>
+    <div class="setelan-grup-isi">
+      <label><span data-t="thNama">Nama</span>
+        <input type="text" id="akun-nama" maxlength="100" autocomplete="off"></label>
+      <label><span data-t="thEmail">Email</span>
+        <input type="email" id="akun-email" maxlength="254" autocomplete="off"
+               autocapitalize="none" spellcheck="false"></label>
+      <label><span data-t="thRole">Role</span>
+        <select id="akun-role"><option value="operator">Operator</option><option value="support">Support</option></select></label>
+      <!-- new-password: tanpa ini Firefox menawarkan sandi support yang sedang
+           masuk untuk akun orang lain. -->
+      <label><span data-t="lbSandi">Sandi</span>
+        <input type="password" id="akun-sandi" autocomplete="new-password"></label>
+      <label><span data-t="lbSandiUlang">Ulangi sandi</span>
+        <input type="password" id="akun-sandi-ulang" autocomplete="new-password"></label>
+    </div>
+    <p class="muted akun-form-catatan" data-t="akunTambahCatatan">Akun ini cuma ada di PC ini dan tidak masuk ke AutoERP. Sandi minimal 8 karakter.</p>
+    <div class="akun-form-tombol">
+      <button type="submit" id="akun-tambah-simpan" class="utama" data-t="akunSimpan">Simpan</button>
+      <button type="button" id="akun-tambah-batal" data-t="btnBatal">Batal</button>
+    </div>
+    <p id="akun-tambah-pesan" class="akun-pesan" role="alert"></p>
+  </form>
+  <p class="muted akun-catatan" data-t="akunCatatanSandi">Sandi tidak bisa dilihat.</p>
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thNama">Nama</th><th data-t="thEmail">Email</th>
+        <th data-t="thRole">Role</th><th data-t="thAsal">Asal</th>
+        <th data-t="thStatus">Status</th><th data-t="thSedangMasuk">Sedang masuk</th>
+        <th data-t="thDibuat">Dibuat</th><th data-t="thAksi">Aksi</th></tr></thead>
+      <tbody id="akun-baris"></tbody>
+    </table>
+  </div>
+</section>
+
 <section id="sec-plc" class="panel" hidden data-dev="1">
   <!--
     Support-only. The ONLY screen in the console that moves physical hardware -
@@ -1526,9 +1867,12 @@
     server: ini dokumen kesepakatan dengan panel, bukan keadaan yang berubah.
     Sumber kebenaran alamat tetap docker-compose.yml, diikat ke dokumen lewat
     test_plc_docs_match_compose.
+
+    Satu kartu, gaya yang sama dengan kartu line di atasnya (2026-09-25): dulu
+    teks lepas di pojok kiri dengan sisa layar kosong.
   -->
-  <div id="plc-peta">
-    <h3 data-t="petaJudul">Peta alamat PLC</h3>
+  <div id="plc-peta" class="card">
+    <h2><span class="nama" data-t="petaJudul">Peta alamat PLC</span></h2>
     <div class="peta-grid">
     <table>
       <caption data-t="petaDariPc"></caption>
@@ -1578,7 +1922,7 @@
   -->
   <div id="sumber-kamera-panel">
     <p class="muted" data-t="sumberPeringatan">
-      Menyimpan akan <strong>merestart</strong> line yang setelannya berubah (sekitar 10 detik) — grading di line itu berhenti sebentar.
+      Menyimpan akan <strong>merestart</strong> line yang setelannya berubah (sekitar 10 detik). Grading di line itu berhenti sebentar.
     </p>
 
     <div class="sumber-baris-baris">
@@ -1638,7 +1982,7 @@
   -->
   <div id="model-deteksi-panel">
     <p class="muted" data-t="modelPeringatan">
-      Mengganti model akan <strong>merestart</strong> line itu (sekitar 10 detik) — janjang yang lewat selama restart tidak dihitung.
+      Mengganti model akan <strong>merestart</strong> line itu (sekitar 10 detik). Janjang yang lewat selama restart tidak dihitung.
     </p>
 
     <div class="sumber-baris-baris">
@@ -1734,6 +2078,18 @@ let trucks = [];
 const KAMUS = {
   id: {
     judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan", judulRekap:"Rekap",
+    judulRiwayat:"Riwayat", riwayatDari:"Dari", riwayatSampai:"Sampai",
+    riwayatKemarin:"Kemarin", riwayat7Hari:"7 hari", riwayatBulanIni:"Bulan ini", riwayatBulanLalu:"Bulan lalu",
+    riwayatSemuaLine:"Semua line", riwayatPlat:"Plat", riwayatPlatPh:"Semua truk",
+    riwayatSemuaHasil:"Semua hasil", riwayatTampilkan:"Tampilkan", riwayatCsv:"Unduh CSV",
+    riwayatPerHari:"Per hari", riwayatPerTruk:"Per truk", riwayatPerJanjang:"Per janjang",
+    riwayatLihatTruk:"Lihat truk", riwayatLihatJanjang:"Lihat janjang",
+    thTanggal:"Tanggal", thJanjang:"Janjang", riwayatJumlahTruk:"Jumlah truk", riwayatHari:"Hari",
+    riwayatKosong:"Tidak ada grading di rentang ini", riwayatGagal:"Gagal memuat riwayat",
+    riwayatMaks:"Paling panjang 31 hari. Tanggal di sini tanggal kerja, sama dengan tab Grading dan Rekap.",
+    riwayatRentang:"{dari} s.d. {sampai}", riwayatNetoLine:"Tidak dihitung per line",
+    riwayatFotoHilang:"Foto sudah terhapus dari PC",
+    riwayatCatatanFoto:"Foto disimpan di PC ini selama masa simpannya (180 hari di Lampung). Foto yang lebih tua sudah terhapus dari PC; barisnya tetap ada. CSV berisi semua baris filter ini, bukan cuma halaman yang tampil.",
     judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", judulPlc:"Uji PLC",
     judulSetelan:"Setelan", labelConf:"Ambang keyakinan (0-1)", labelMinSize:"Ukuran minimum (piksel)",
     grupGrading:"Grading", grupKamera:"Kamera & Conveyor", grupDev:"Mode Developer",
@@ -1746,6 +2102,59 @@ const KAMUS = {
     bantuGarisMendatar:"Piksel dari ATAS. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
     labelDev:"Mode dev", bantuDev:"Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.",
     btnSimpanSetelan:"Simpan", setelanTersimpan:"Tersimpan dan dikirim ke line.",
+    bahayaJudul:"Danger Zone",
+    bahayaRestartJudul:"Restart semua line",
+    bahayaRestartTeks:"Ketiga line mati sekitar 10 detik, lalu hidup lagi. Janjang yang lewat selama itu tidak dihitung.",
+    bahayaRestartTombol:"Restart",
+    bahayaLogoutJudul:"Logout paksa semua akun",
+    bahayaLogoutTeks:"Semua sesi dihapus, termasuk layar operator di PC pabrik dan akunmu sendiri.",
+    bahayaLogoutTombol:"Logout semua",
+    bahayaRekamanJudul:"Hapus rekaman video",
+    bahayaRekamanTeks:"Rekaman video ketiga line di folder videos/ hilang permanen. Line yang sedang merekam atau mati dilewati.",
+    bahayaRekamanTombol:"Hapus rekaman",
+    bahayaTransaksiJudul:"Hapus data transaksi",
+    bahayaTransaksiTeks:"Grading, foto, timbangan, antrean, dan log hilang permanen. Truk, akun, dan setelan tetap.",
+    bahayaTransaksiTombol:"Hapus data transaksi",
+    bahayaSemuaJudul:"Hapus semua data",
+    bahayaSemuaTeks:"Data transaksi, akun yang dibuat di PC ini, truk, dan supplier hilang permanen. Setelan tetap.",
+    bahayaSemuaTombol:"Hapus semua data",
+    bahayaMemeriksa:"Memeriksa keadaan line…", bahayaKetikHapus:"Ketik HAPUS",
+    bahayaMenunggu:"Menunggu…",
+    bahayaJalankan_restart:"Restart sekarang", bahayaJalankan_logout:"Logout semua",
+    bahayaJalankan_rekaman:"Hapus rekaman", bahayaJalankan_transaksi:"Hapus permanen",
+    bahayaJalankan_semua:"Hapus semua permanen",
+    bahayaAkibatRestart:"Ketiga line restart sekitar 10 detik. Janjang yang lewat selama itu tidak dihitung.",
+    bahayaAkibatLogout:"{n} sesi aktif dihapus. Semua orang harus masuk lagi, termasuk kamu.",
+    bahayaAkibatRekaman:"{n} berkas rekaman ({gb} GB) dihapus permanen.",
+    bahayaAkibatTransaksi:"Dihapus permanen: {janjang} janjang beserta fotonya, {tiket} tiket timbang, antrean, dan log. Truk, akun, dan setelan tetap.",
+    bahayaAkibatSemua:"Dihapus permanen: {janjang} janjang beserta fotonya, {tiket} tiket, {truk} truk beserta suppliernya, {akun} akun, antrean, dan log. Setelan tetap. Dua akun bawaan dibuat ulang dan akun AutoERP ditarik lagi.",
+    bahayaTidakTersentuh:"Data yang sudah masuk AutoERP dan foto yang sudah di R2 tidak ikut terhapus.",
+    bahayaHasilRestart:"Restart dikirim ke {ok} dari {n} line.",
+    bahayaHasilLogout:"{n} sesi dihapus.",
+    bahayaHasilRekaman:"{n} rekaman ({gb} GB) dihapus.",
+    bahayaHasilHapus:"Data konsol sudah dihapus. Tiap line menghapus fotonya sendiri saat restart. Kalau fotonya banyak, ini bisa makan beberapa menit dan kartu line tampil OFFLINE selama itu.",
+    bahayaHasilGagal:"Gagal di", bahayaHasilCatatan:"Perlu dicek", gagalBahaya:"Gagal memuat Danger Zone",
+    hambatan_tanpa_line:"Konsol tidak mengenal satu line pun.",
+    hambatan_line_mati:"{line} tidak menjawab. Nyalakan dulu.",
+    hambatan_truk_terpasang:"{line} masih punya truk yang ditugaskan. Lepas dulu truknya.",
+    hambatan_antrean_line:"{line} masih punya {jumlah} janjang yang belum sampai ke konsol. Tunggu sebentar.",
+    hambatan_antrean_erp:"{jumlah} kiriman belum sampai ke AutoERP. Tunggu sampai antreannya kosong (tab Antrean ERP).",
+    hambatan_tiket_terbuka:"{jumlah} truk sudah timbang masuk hari ini tapi belum timbang keluar. Tunggu sampai tiketnya lengkap.",
+    hambatan_tanpa_sumber_akun:"Hash akun support (CONSOLE_SUPPORT_HASH) di .env tidak terbaca dan AutoERP tidak disetel. Sesudah ini tidak ada yang bisa membuka menu support.",
+    peringatan_foto_belum_r2:"Foto yang belum naik ke R2 ikut hilang.",
+    peringatan_kiriman_gagal:"{jumlah} kiriman AutoERP yang gagal ikut terhapus.",
+    peringatan_antrean_line_gagal:"{line} punya {jumlah} janjang yang ditolak konsol dan tidak akan terkirim lagi. Janjang itu ikut terhapus.",
+    peringatan_tiket_lama_terbuka:"{jumlah} tiket dari hari sebelumnya tidak pernah timbang keluar dan ikut terhapus.",
+    peringatan_erp_mati:"AutoERP tidak disetel: {jumlah} baris antrean yang tidak pernah terkirim ikut terhapus.",
+    peringatan_semua_keluar:"Semua orang keluar, termasuk layar operator di PC pabrik dan kamu.",
+    peringatan_line_mati:"{line} tidak menjawab, jadi dilewati.",
+    peringatan_truk_terpasang:"{line} sedang memproses truk. Janjang yang lewat selama restart tidak dihitung.",
+    peringatan_line_merekam:"{line} sedang merekam. Rekamannya berhenti saat restart.",
+    peringatan_rekaman_line_merekam:"{line} sedang merekam, jadi rekamannya tidak ikut dihapus.",
+    lineHasil_truk_terpasang:"truk terpasang", lineHasil_sedang_merekam:"sedang merekam",
+    lineHasil_line_mati:"tidak menjawab", lineHasil_ditolak:"ditolak", lineHasil_gagal:"gagal",
+    lineHasil_versi_lama:"versi line lama, perbarui dulu", lineHasil_lisensi:"lisensi line habis",
+    lineHasil_belum_mati:"diterima tapi belum restart, datanya terhapus saat line restart",
     setelanDariEnv:"Sumber: .env (belum pernah diubah dari sini)",
     setelanDariKonsol:"Sumber: konsol",
     labelHariIni:"Hari ini", labelRasio:"Rasio Ripe",
@@ -1779,7 +2188,7 @@ const KAMUS = {
     gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
     toastTutup:"Tutup",
-    sukTugaskan:"Truk ditugaskan di {line}", sukLepas:"Truk dilepas dari {line}",
+    sukTugaskan:"Truk ditugaskan di {line}", pelepasanOtomatis:"{line} dilepas otomatis karena {truk} sudah timbang keluar. Tugaskan lagi kalau bongkarnya belum selesai.", sukLepas:"Truk dilepas dari {line}",
     sukReject:"Reject manual tercatat di {line}", sukDaftar:"Truk terdaftar",
     sukMasuk:"Timbang masuk tercatat", sukTara:"Timbang keluar tercatat",
     sukScan:"Truk ditemukan",
@@ -1788,15 +2197,19 @@ const KAMUS = {
     err_bukan_plat:"Yang di-scan bukan nomor polisi",
     err_bukan_angka:"{field} bukan angka: {value}",
     err_negatif:"{field} tidak boleh negatif",
-    err_di_bawah_minimum:"{field} {value} kg di bawah {minimum} kg - cek pemisah ribuan, mis. 14.820 terbaca 14,82",
+    err_di_bawah_minimum:"{field} {value} kg di bawah {minimum} kg. Cek pemisah ribuan, misalnya 14.820 terbaca 14,82",
     err_tara_lebih_besar:"Tara {tara} kg lebih besar dari bruto {bruto} kg",
     err_line_tidak_dikenal:"{line} tidak dikenal konsol",
-    err_line_tidak_menjawab:"{line} tidak menjawab - pastikan layanan kameranya menyala",
+    err_line_tidak_menjawab:"{line} tidak menjawab. Pastikan layanan kameranya menyala",
     err_line_menolak:"{line} menolak perintah (HTTP {status})",
     err_sandi_pendek:"Sandi minimal 8 karakter",
     err_sandi_salah:"Email atau sandi salah",
     err_terkunci:"Login terkunci {detik} detik lagi setelah beberapa sandi salah",
-    err_belum_masuk:"Sesi habis - masuk lagi",
+    err_belum_masuk:"Sesi habis, silakan masuk lagi",
+    err_bahaya_ditolak:"Ditolak karena keadaan line berubah. Lihat alasannya di panel.",
+    err_konfirmasi_salah:"Ketik HAPUS dengan huruf besar untuk melanjutkan.",
+    err_mode_asing:"Jenis penghapusan tidak dikenal.",
+    err_semua_line_menolak:"Tidak ada line yang menerima perintah, jadi tidak ada data yang dihapus: {lines}",
     err_bukan_support:"Menu ini untuk akun support",
     gerbangJudul:"Masuk ke konsol", gerbangPilih:"Ketik email dan sandi",
     gerbangEmail:"Email", gerbangSandi:"Sandi",
@@ -1811,7 +2224,7 @@ const KAMUS = {
     lbGerbangMasuk:"Truk masuk", lbGerbangKeluar:"Truk keluar",
     taraJudul:"Timbang keluar", btnSimpanTara:"Simpan", btnBatal:"Batal",
     phTara:"Tara (kg)",
-    taraMinimum:"Tara minimal 1.000 kg - cek angkanya",
+    taraMinimum:"Tara minimal 1.000 kg, cek lagi angkanya",
     phScan:"QR masuk", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
     phScanKeluar:"QR keluar", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
     scanGanda:"Ada 2 tiket terbuka, pilih di tabel bawah untuk",
@@ -1820,63 +2233,96 @@ const KAMUS = {
     btnPistonBuka:"Buka piston", btnPistonTutup:"Tutup piston",
     pistonMenunggu:"Menunggu PLC…", pistonMati:"Piston mati",
     pistonBelumKonfirmasi:"belum dikonfirmasi PLC",
-    pistonTerbuka:"PISTON TERBUKA - hati-hati, besi bergerak",
-    alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP DITEKAN - line berhenti darurat",
+    pistonTerbuka:"PISTON TERBUKA. Hati-hati, besi bergerak",
+    alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP DITEKAN: line berhenti darurat",
     konfirmasiBuka:"Buka piston {line}? Ini menggerakkan besi.",
     labelInternal:"Internal · REJ tidak dibuang",
     gagalPiston:"Perintah piston gagal",
     thSebab:"Sebab", thKamera:"Kamera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Antrean lokal", lineTidakTerjangkau:"Tidak terjangkau",
     gagalDiagnostik:"Gagal memuat diagnostik",
+    judulAkun:"Akun", thNama:"Nama", thEmail:"Email", thRole:"Role", thAsal:"Asal",
+    thSedangMasuk:"Sedang masuk", thDibuat:"Dibuat",
+    akunAktif:"Aktif", akunMati:"Mati", akunTerkunci:"Terkunci {menit} mnt", akunYa:"Ya",
+    asalLokal:"Lokal", asalErp:"AutoERP", kosongAkun:"Belum ada akun", gagalAkun:"Gagal memuat akun",
+    akunCatatanSandi:"Sandi tidak bisa dilihat karena yang disimpan cuma hash-nya. Kalau lupa sandi, akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ini paling lama sekitar 5 menit). Akun Lokal diganti dengan tombol Ganti sandi di tabel ini.",
+    akunTambahTombol:"Tambah akun", akunSimpan:"Simpan",
+    akunTambahCatatan:"Akun ini cuma ada di PC ini dan tidak masuk ke AutoERP. Sandi minimal 8 karakter.",
+    lbSandi:"Sandi", lbSandiUlang:"Ulangi sandi",
+    akunGantiSandi:"Ganti sandi", akunMatikan:"Matikan", akunAktifkan:"Aktifkan",
+    akunJadikanSupport:"Jadikan support", akunJadikanOperator:"Jadikan operator",
+    akunDiaturErp:"Diatur di AutoERP", akunSaya:"Akun kamu",
+    akunSandiJudul:"Sandi baru untuk {email}. Semua sesi akun ini langsung berakhir.",
+    akunSandiDiriSendiri:"Ini akunmu sendiri. Sesudah disimpan kamu keluar dan perlu masuk lagi dengan sandi baru.",
+    akunMatikanTanya:"Matikan akun {nama}? Orang ini langsung keluar dan tidak bisa masuk sampai akunnya diaktifkan lagi.",
+    akunAktifkanTanya:"Aktifkan lagi akun {nama}? Orang ini bisa masuk lagi dengan sandinya yang terakhir.",
+    akunSupportTanya:"Jadikan {nama} support? Akun support bisa membuka semua menu support, termasuk Danger Zone.",
+    akunOperatorTanya:"Jadikan {nama} operator? Menu support hilang dari akun itu mulai klik berikutnya.",
+    akunYaMatikan:"Ya, matikan", akunYaAktifkan:"Ya, aktifkan", akunYaUbah:"Ya, ubah",
+    akunDibuat:"Akun {email} dibuat.", akunSandiDiganti:"Sandi {email} diganti.",
+    akunSandiDigantiSendiri:"Sandi diganti. Masuk lagi dengan sandi baru.",
+    akunDimatikan:"Akun {email} dimatikan.", akunDiaktifkan:"Akun {email} aktif lagi.",
+    akunRoleDiubah:"{email} sekarang {role}.",
     thJenis:"Jenis", thKunci:"Kunci", thPercobaan:"Percobaan", thBerikutnya:"Percobaan berikutnya",
     antreanSekarang:"Sekarang",
     btnKirimUlang:"Kirim Ulang", ringkasAntrean:"{pending} menunggu · {gagal} gagal",
     kosongAntrean:"Antrean ERP kosong", gagalAntrean:"Gagal memuat antrean",
     judulManifest:"Manifest R2", ringkasManifest:"{pending} menunggu · {gagal} gagal",
     kosongManifest:"Antrean manifest kosong", gagalManifest:"Gagal memuat antrean manifest",
-    manifestNonaktif:"R2 belum disetel — halaman detail truk tidak berjalan di PKS ini.",
+    manifestNonaktif:"R2 belum disetel, jadi halaman detail truk tidak jalan di PKS ini.",
     labelVersi:"Versi", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Lisensi", gagalVersi:"Gagal memuat versi",
     versiDariSource:"dev (dari source)",
     lisensiAktif:"Aktif", lisensiTanpaToken:"Aktif, token belum terpasang", lisensiMati:"Mati",
+    lisensiSaklarMati:"Mati. Token ada, tapi LICENSE_ENABLED tidak menyala di konsol",
     labelAktifSampai:"Aktif sampai", labelTenggangSampai:"Tenggang sampai",
     labelPerusahaan:"Perusahaan", lisensiSisaHari:"{hari} hari lagi",
     lisensiTokenRusak:"Token tidak terbaca",
     bannerLisensiWarning:"Langganan AutoGrade habis {hari} hari lagi ({tanggal}). Hubungi penyedia untuk memperpanjang.",
     bannerLisensiGrace:"Langganan AutoGrade sudah habis. Grading berhenti {hari} hari lagi ({tanggal}). Segera perpanjang.",
-    bannerLisensiBlocked:"Langganan AutoGrade habis - grading dihentikan. Pasang token baru untuk melanjutkan.",
+    bannerLisensiBlocked:"Langganan AutoGrade habis, grading dihentikan. Pasang token baru untuk melanjutkan.",
     plcMati:"PLC mati di line ini",
     gagalPlc:"Gagal memuat status PLC",
     btnUjiCoil:"Uji coil {coil}", coilMatiLineSibuk:"Line sedang memproses truk",
     coilOk:"Kamera {n} OK", coilNg:"Kamera {n} NG", coilError:"Kamera {n} Error",
     coilPiston:"Piston manual", petaJudul:"Peta alamat PLC (daftar tim PLC, 23 Sep 2026)",
     petaDariPc:"PC menulis → PLC membaca", petaKePc:"PLC menulis → PC membaca",
-    konfirmasiUjiPlc:"Coil {coil} di {line} akan menyala sesaat - ini menggerakkan barang sungguhan.",
+    konfirmasiUjiPlc:"Coil {coil} di {line} akan menyala sesaat dan menggerakkan barang sungguhan.",
     btnUjiPlcJalankan:"Jalankan",
-    ujiPlcDibatalkan:"Dibatalkan - konfirmasi tidak cocok",
-    ujiPlcBerhasil:"Coil {coil} dipicu", ujiPlcDijatuhkan:"Coil {coil} TIDAK menyala - antrean pulse PLC penuh, coba lagi",
+    ujiPlcDibatalkan:"Dibatalkan, konfirmasi tidak cocok",
+    ujiPlcBerhasil:"Coil {coil} dipicu", ujiPlcDijatuhkan:"Coil {coil} TIDAK menyala karena antrean pulse PLC penuh. Coba lagi",
     gagalUjiPlc:"Gagal memicu coil",
     err_konfirmasi_kurang:"Ketik UJI persis untuk memicu coil",
-    err_plc_sibuk:"Line sedang memproses truk - coil tidak bisa dipicu",
+    err_plc_sibuk:"Line sedang memproses truk, jadi coil tidak bisa dipicu",
     err_coil_tidak_dikenal:"Coil ini tidak dikenal line",
+    err_hapus_berjalan:"Data sedang dihapus dari menu support (Danger Zone). Tunggu sebentar, lalu tugaskan truknya lagi.",
+    err_akun_email_tidak_sah:"Email tidak valid. Contoh: budi@pabrik.id",
+    err_akun_nama_kosong:"Nama tidak boleh kosong",
+    err_akun_sandi_beda:"Sandi kedua tidak sama dengan yang pertama",
+    err_akun_sudah_ada:"{email} sudah dipakai akun lain di PC ini. Kalau lupa sandinya, pakai Ganti sandi di baris akun itu.",
+    err_akun_milik_erp:"{email} akun AutoERP. Ubah di AutoERP, bukan di PC ini.",
+    err_akun_tidak_ada:"Akun {email} tidak ada. Muat ulang tab Akun.",
+    err_akun_diri_sendiri:"Akunmu sendiri tidak bisa dimatikan atau diubah role-nya. Minta tolong akun support lain.",
+    err_riwayat_tanggal_tidak_sah:"Tanggal {tanggal} tidak sah. Pilih tanggal dari kalender.",
+    err_riwayat_rentang_terbalik:"Tanggal Dari harus sama dengan atau sebelum tanggal Sampai.",
+    err_riwayat_rentang_panjang:"Rentang paling panjang {maks} hari. Persempit tanggalnya, atau unduh per bulan.",
     judulSumberKamera:"Sumber Kamera",
     judulRekamVideo:"Rekam Video", kosongLine:"Belum ada line", thMajuRekam:"Terekam",
     rekamMenunggu:"Menunggu…",
-    rekamSelesai:"Rekaman tersimpan di folder videos/ —",
+    rekamSelesai:"Rekaman tersimpan di folder videos/:",
     rekamDisimpanDi:"Disimpan di", thAksi:"Aksi",
-    rekam_keadaan_berubah:"Keadaan line sudah berubah — layar disegarkan",
-    rekam_disk_mepet:"Disk PC pabrik menipis — rekaman tidak dimulai",
+    rekam_keadaan_berubah:"Keadaan line sudah berubah, layar disegarkan",
+    rekam_disk_mepet:"Disk PC pabrik hampir penuh, rekaman tidak dimulai",
     rekam_ditolak:"Line menolak perintah rekam",
     rekamMulai:"Rekam", rekamStop:"Stop",
     rekamSedangMerekam:"Merekam", rekamMati:"Mati", rekamTakTerbaca:"Tak terbaca",
     rekamDiskBebas:"Disk bebas", rekamSetelanJudul:"Setelan rekaman",
-    rekamLebar:"Lebar (piksel)", rekamTinggi:"Tinggi (piksel)", rekamFps:"FPS",
-    rekamBitrate:"Bitrate (kbps)", rekamSimpanSetelan:"Simpan setelan",
-    rekamBantuFps:"Kamera yang menentukan kalau ia bisa melapor. Angka ini dipakai untuk berkas video dan webcam.",
-    rekamSetelanTersimpan:"Setelan tersimpan — berlaku untuk rekaman berikutnya",
+    rekamLebar:"Lebar (piksel)", rekamTinggi:"Tinggi (piksel)",
+    rekamSimpanSetelan:"Simpan setelan",
+    rekamSetelanTersimpan:"Setelan tersimpan dan berlaku untuk rekaman berikutnya",
     rekamCatatanRetensi:"Rekaman tidak dihapus otomatis. Hapus sendiri dari folder videos/ di PC pabrik.",
     gagalRekam:"Gagal memuat status rekaman",
-    sumberPeringatan:"Menyimpan akan merestart line yang setelannya berubah (sekitar 10 detik) — grading di line itu berhenti sebentar.",
+    sumberPeringatan:"Menyimpan akan merestart line yang setelannya berubah (sekitar 10 detik). Grading di line itu berhenti sebentar.",
     sumberLabelLine1:"Line 1", sumberLabelLine2:"Line 2", sumberLabelLine3:"Line 3",
     sumberHikrobot:"Kamera Hikrobot", sumberWebcam:"Webcam", sumberVideo:"Video", sumberFoto:"Foto",
     sumberBerkas:"Berkas", sumberUlang:"Ulang terus",
@@ -1884,40 +2330,52 @@ const KAMUS = {
     btnSumberSimpan:"Simpan & Restart",
     gagalSumberKamera:"Gagal memuat sumber kamera",
     sumberTersimpanSemua:"Tersimpan. Line yang berubah sedang restart.",
-    sumberTersimpanSebagian:"Tersimpan. {daftar} tidak menjawab — setelan tetap berlaku dan akan dipakai saat line itu hidup lagi.",
+    sumberTersimpanSebagian:"Tersimpan. {daftar} tidak menjawab, tapi setelannya tetap berlaku dan dipakai begitu line itu hidup lagi.",
     gagalSumberSimpan:"Gagal menyimpan sumber kamera",
     judulModelDeteksi:"Model Deteksi",
-    modelPeringatan:"Mengganti model akan merestart line itu (sekitar 10 detik) — janjang yang lewat selama restart tidak dihitung.",
+    modelPeringatan:"Mengganti model akan merestart line itu (sekitar 10 detik). Janjang yang lewat selama restart tidak dihitung.",
     modelPilih:"Model", modelBawaan:"Bawaan PC", modelBawaanPanjang:"Bawaan PC (MODEL_FILE di .env)",
     modelRinciBawaan:"Memakai MODEL_FILE di .env PC ini.",
     modelJalan:"Sedang jalan", modelJalanMemuat:"Menanyai line…",
     modelJalanTidakDilapor:"tidak dilaporkan (versi line lama)",
-    modelJalanKelasAsing:"Kelas model yang sedang jalan bukan Ripe/Unripe/JK/TP — line ini TIDAK menghitung janjang. Pilih model lain, atau build ulang engine-nya.",
-    modelBelumBerlaku:"Pilihan tersimpan belum berlaku — line belum restart atau gagal memuatnya.",
+    modelJalanKelasAsing:"Kelas model yang sedang jalan bukan Ripe/Unripe/JK/TP, jadi line ini TIDAK menghitung janjang. Pilih model lain, atau build ulang engine-nya.",
+    modelBelumBerlaku:"Pilihan sudah tersimpan tapi belum berlaku. Line belum restart atau gagal memuatnya.",
     modelTidakBisa:"tidak bisa dipakai", modelHilang:"Berkas ini sudah tidak ada di models/release.",
     modelKelasTakTerbaca:"kelas tidak terbaca",
-    modelTanpaEngine:"Belum ada engine TensorRT — line jalan di .pt, sekitar 2x lebih lambat.",
+    modelTanpaEngine:"Belum ada engine TensorRT, jadi line jalan di .pt (sekitar 2x lebih lambat).",
     modelEngineBasi:"basi, build ulang", modelEngineOk:"siap",
     modelEngineGpuLain:"untuk GPU lain",
-    modelTanpaEngineGpuIni:"Belum ada engine untuk GPU line ini ({sm}) — line jalan di .pt, sekitar 2x lebih lambat.",
+    modelTanpaEngineGpuIni:"Belum ada engine untuk GPU line ini ({sm}), jadi line jalan di .pt (sekitar 2x lebih lambat).",
     modelCocok:"Bisa dipakai",
     modelSemuaJudul:"Semua model di PC ini",
     thModelBerkas:"Berkas", thModelUkuran:"Ukuran", thModelKelas:"Kelas",
     thModelEngine:"Engine TensorRT", thModelStatus:"Status",
     modelKosong:"Belum ada berkas .pt di models/release",
-    modelFolderTakTerbaca:"Folder {path} tidak bisa dibuka konsol — kemungkinan belum di-mount. Tambahkan ./models:/app/models:ro ke service console di compose (runbook Model Deteksi).",
+    modelFolderTakTerbaca:"Folder {path} tidak bisa dibuka konsol, kemungkinan belum di-mount. Tambahkan ./models:/app/models:ro ke service console di compose (runbook Model Deteksi).",
     btnModelSimpan:"Simpan & Restart", btnModelJalankan:"Ganti & Restart",
     modelModalJudul:"Ganti model dan restart line?",
     modelModalRestart:"Line di atas akan restart sekitar 10 detik. Janjang yang lewat selama itu tidak dihitung.",
-    modelSibuk:"Sedang memproses truk {plat} — hasil truk ini akan campuran dua model.",
+    modelSibuk:"Sedang memproses truk {plat}. Hasil truk ini akan campuran dua model.",
     modelTidakAdaPerubahan:"Tidak ada yang berubah",
     modelTersimpanSemua:"Tersimpan. Line yang berubah sedang restart.",
-    modelTersimpanSebagian:"Tersimpan. {daftar} tidak menjawab — model baru dipakai saat line itu hidup lagi.",
+    modelTersimpanSebagian:"Tersimpan. {daftar} tidak menjawab, model baru dipakai begitu line itu hidup lagi.",
     gagalModelDeteksi:"Gagal memuat model deteksi",
     gagalModelSimpan:"Gagal menyimpan model deteksi",
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
+    judulRiwayat:"History", riwayatDari:"From", riwayatSampai:"To",
+    riwayatKemarin:"Yesterday", riwayat7Hari:"7 days", riwayatBulanIni:"This month", riwayatBulanLalu:"Last month",
+    riwayatSemuaLine:"All lines", riwayatPlat:"Plate", riwayatPlatPh:"All trucks",
+    riwayatSemuaHasil:"All results", riwayatTampilkan:"Show", riwayatCsv:"Download CSV",
+    riwayatPerHari:"Per day", riwayatPerTruk:"Per truck", riwayatPerJanjang:"Per bunch",
+    riwayatLihatTruk:"See trucks", riwayatLihatJanjang:"See bunches",
+    thTanggal:"Date", thJanjang:"Bunches", riwayatJumlahTruk:"Trucks", riwayatHari:"Days",
+    riwayatKosong:"No grading in this range", riwayatGagal:"Failed to load history",
+    riwayatMaks:"At most 31 days. Dates here are working days, the same as the Grading and Recap tabs.",
+    riwayatRentang:"{dari} to {sampai}", riwayatNetoLine:"Not split by line",
+    riwayatFotoHilang:"Photo no longer on this PC",
+    riwayatCatatanFoto:"Photos stay on this PC for its retention period (180 days in Lampung). Older photos are already deleted from the PC; their rows stay. The CSV holds every row of this filter, not only the page on screen.",
     judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", judulPlc:"PLC Test",
     judulSetelan:"Settings", labelConf:"Confidence threshold (0-1)", labelMinSize:"Minimum size (pixels)",
     grupGrading:"Grading", grupKamera:"Camera & Conveyor", grupDev:"Developer Mode",
@@ -1930,6 +2388,59 @@ const KAMUS = {
     bantuGarisMendatar:"Pixels from the TOP. A bunch is photographed when it touches the blue line. 0 = no line.",
     labelDev:"Dev mode", bantuDev:"Show the confidence number on bunch boxes. For tuning the threshold, not for operators.",
     btnSimpanSetelan:"Save", setelanTersimpan:"Saved and sent to the lines.",
+    bahayaJudul:"Danger Zone",
+    bahayaRestartJudul:"Restart all lines",
+    bahayaRestartTeks:"All three lines stop for about 10 seconds, then come back. Bunches that pass during that time are not counted.",
+    bahayaRestartTombol:"Restart",
+    bahayaLogoutJudul:"Sign everyone out",
+    bahayaLogoutTeks:"Every session is deleted, including the operator screen on the factory PC and your own.",
+    bahayaLogoutTombol:"Sign everyone out",
+    bahayaRekamanJudul:"Delete video recordings",
+    bahayaRekamanTeks:"Video recordings from all three lines in the videos/ folder are deleted permanently. A line that is recording or down is skipped.",
+    bahayaRekamanTombol:"Delete recordings",
+    bahayaTransaksiJudul:"Delete transaction data",
+    bahayaTransaksiTeks:"Grading, photos, weighings, queues and the log are deleted permanently. Trucks, accounts and settings are kept.",
+    bahayaTransaksiTombol:"Delete transaction data",
+    bahayaSemuaJudul:"Delete all data",
+    bahayaSemuaTeks:"Transaction data, accounts created on this PC, trucks and suppliers are deleted permanently. Settings are kept.",
+    bahayaSemuaTombol:"Delete all data",
+    bahayaMemeriksa:"Checking the lines…", bahayaKetikHapus:"Type HAPUS",
+    bahayaMenunggu:"Working…",
+    bahayaJalankan_restart:"Restart now", bahayaJalankan_logout:"Sign everyone out",
+    bahayaJalankan_rekaman:"Delete recordings", bahayaJalankan_transaksi:"Delete permanently",
+    bahayaJalankan_semua:"Delete everything permanently",
+    bahayaAkibatRestart:"All three lines restart for about 10 seconds. Bunches that pass during that time are not counted.",
+    bahayaAkibatLogout:"{n} active sessions are deleted. Everyone has to sign in again, including you.",
+    bahayaAkibatRekaman:"{n} recording files ({gb} GB) are deleted permanently.",
+    bahayaAkibatTransaksi:"Deleted permanently: {janjang} bunches with their photos, {tiket} weighbridge tickets, queues and the log. Trucks, accounts and settings are kept.",
+    bahayaAkibatSemua:"Deleted permanently: {janjang} bunches with their photos, {tiket} tickets, {truk} trucks with their suppliers, {akun} accounts, queues and the log. Settings are kept. The two built-in accounts are recreated and AutoERP accounts are pulled again.",
+    bahayaTidakTersentuh:"Data already in AutoERP and photos already in R2 are not touched.",
+    bahayaHasilRestart:"Restart sent to {ok} of {n} lines.",
+    bahayaHasilLogout:"{n} sessions deleted.",
+    bahayaHasilRekaman:"{n} recordings ({gb} GB) deleted.",
+    bahayaHasilHapus:"Console data deleted. Each line deletes its own photos when it restarts. With many photos this can take a few minutes, and the line's card shows OFFLINE until it is done.",
+    bahayaHasilGagal:"Failed on", bahayaHasilCatatan:"Needs checking", gagalBahaya:"Could not load the Danger Zone",
+    hambatan_tanpa_line:"The console does not know any line.",
+    hambatan_line_mati:"{line} is not answering. Start it first.",
+    hambatan_truk_terpasang:"{line} still has a truck assigned. Release the truck first.",
+    hambatan_antrean_line:"{line} still has {jumlah} bunches that have not reached the console. Wait a moment.",
+    hambatan_antrean_erp:"{jumlah} messages have not reached AutoERP yet. Wait until the queue is empty (ERP Queue tab).",
+    hambatan_tiket_terbuka:"{jumlah} trucks weighed in today but have not weighed out yet. Wait until their tickets are complete.",
+    hambatan_tanpa_sumber_akun:"There is no readable support account hash (CONSOLE_SUPPORT_HASH) in .env and AutoERP is not configured. Afterwards nobody could open the support menu.",
+    peringatan_foto_belum_r2:"Photos not yet uploaded to R2 are lost too.",
+    peringatan_kiriman_gagal:"{jumlah} failed AutoERP messages are deleted too.",
+    peringatan_antrean_line_gagal:"{line} has {jumlah} bunches the console refused. They will never be sent and are deleted too.",
+    peringatan_tiket_lama_terbuka:"{jumlah} tickets from earlier days never weighed out and are deleted too.",
+    peringatan_erp_mati:"AutoERP is not configured: {jumlah} queued messages that were never sent are deleted too.",
+    peringatan_semua_keluar:"Everyone is signed out, including the operator screen on the factory PC and you.",
+    peringatan_line_mati:"{line} is not answering, so it is skipped.",
+    peringatan_truk_terpasang:"{line} is processing a truck. Bunches that pass during the restart are not counted.",
+    peringatan_line_merekam:"{line} is recording. The recording stops when it restarts.",
+    peringatan_rekaman_line_merekam:"{line} is recording, so its recordings are not deleted.",
+    lineHasil_truk_terpasang:"truck assigned", lineHasil_sedang_merekam:"recording",
+    lineHasil_line_mati:"not answering", lineHasil_ditolak:"refused", lineHasil_gagal:"failed",
+    lineHasil_versi_lama:"old line version, update it first", lineHasil_lisensi:"line licence expired",
+    lineHasil_belum_mati:"accepted but not restarted yet, its data is deleted when it restarts",
     setelanDariEnv:"Source: .env (never changed from here)",
     setelanDariKonsol:"Source: console",
     labelHariIni:"Today", labelRasio:"Ripe rate",
@@ -1961,7 +2472,7 @@ const KAMUS = {
     gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
     gagalKonsol:"Console not responding", kameraPutus:"Camera not connected",
     toastTutup:"Dismiss",
-    sukTugaskan:"Truck assigned on {line}", sukLepas:"Truck released from {line}",
+    sukTugaskan:"Truck assigned on {line}", pelepasanOtomatis:"{line} was released automatically because {truk} has weighed out. Assign it again if unloading is not finished.", sukLepas:"Truck released from {line}",
     sukReject:"Manual reject recorded on {line}", sukDaftar:"Truck registered",
     sukMasuk:"Weigh-in recorded", sukTara:"Weigh-out recorded",
     sukScan:"Truck found",
@@ -1970,15 +2481,19 @@ const KAMUS = {
     err_bukan_plat:"What was scanned is not a plate number",
     err_bukan_angka:"{field} is not a number: {value}",
     err_negatif:"{field} cannot be negative",
-    err_di_bawah_minimum:"{field} {value} kg is below {minimum} kg - check the thousands separator, e.g. 14.820 is read as 14.82",
+    err_di_bawah_minimum:"{field} {value} kg is below {minimum} kg. Check the thousands separator, e.g. 14.820 is read as 14.82",
     err_tara_lebih_besar:"Tare {tara} kg is greater than gross {bruto} kg",
     err_line_tidak_dikenal:"{line} is not known to the console",
-    err_line_tidak_menjawab:"{line} is not responding - check that its camera service is running",
+    err_line_tidak_menjawab:"{line} is not responding. Check that its camera service is running",
     err_line_menolak:"{line} refused the command (HTTP {status})",
     err_sandi_pendek:"The password must be at least 8 characters",
     err_sandi_salah:"Wrong email or password",
     err_terkunci:"Sign-in locked for another {detik} s after repeated wrong passwords",
-    err_belum_masuk:"Session ended - sign in again",
+    err_belum_masuk:"Session ended, please sign in again",
+    err_bahaya_ditolak:"Refused because the lines changed. See the reasons in the panel.",
+    err_konfirmasi_salah:"Type HAPUS in capital letters to continue.",
+    err_mode_asing:"Unknown kind of deletion.",
+    err_semua_line_menolak:"No line accepted the command, so nothing was deleted: {lines}",
     err_bukan_support:"This menu is for support accounts",
     gerbangJudul:"Sign in to the console", gerbangPilih:"Type your email and password",
     gerbangEmail:"Email", gerbangSandi:"Password",
@@ -1991,7 +2506,7 @@ const KAMUS = {
     lbGerbangMasuk:"Truck in", lbGerbangKeluar:"Truck out",
     taraJudul:"Weigh out", btnSimpanTara:"Save", btnBatal:"Cancel",
     phTara:"Tare (kg)",
-    taraMinimum:"Tare must be at least 1,000 kg - check the figure",
+    taraMinimum:"Tare must be at least 1,000 kg, check the figure",
     phScan:"QR in", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
     phScanKeluar:"QR out", scanTakAdaTiket:"No open ticket today for",
     scanGanda:"Two open tickets, pick one in the table below for",
@@ -2000,63 +2515,96 @@ const KAMUS = {
     btnPistonBuka:"Open piston", btnPistonTutup:"Close piston",
     pistonMenunggu:"Waiting for PLC…", pistonMati:"Piston disabled",
     pistonBelumKonfirmasi:"not confirmed by PLC",
-    pistonTerbuka:"PISTON OPEN - moving metal, stand clear",
-    alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP PRESSED - emergency stop active",
+    pistonTerbuka:"PISTON OPEN. Moving metal, stand clear",
+    alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP PRESSED: emergency stop active",
     konfirmasiBuka:"Open the piston on {line}? This moves metal.",
     labelInternal:"Internal · REJ not discarded",
     gagalPiston:"Piston command failed",
     thSebab:"Reason", thKamera:"Camera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Local queue", lineTidakTerjangkau:"Unreachable",
     gagalDiagnostik:"Failed to load diagnostics",
+    judulAkun:"Users", thNama:"Name", thEmail:"Email", thRole:"Role", thAsal:"Source",
+    thSedangMasuk:"Signed in", thDibuat:"Created",
+    akunAktif:"Active", akunMati:"Off", akunTerkunci:"Locked {menit} min", akunYa:"Yes",
+    asalLokal:"Local", asalErp:"AutoERP", kosongAkun:"No accounts yet", gagalAkun:"Failed to load accounts",
+    akunCatatanSandi:"Passwords cannot be shown because only their hash is stored. For a forgotten password, AutoERP accounts are reset in AutoERP (AutoGrade Operator → New Password, reaches this PC within about 5 minutes). Local accounts are reset with the Change password button in this table.",
+    akunTambahTombol:"Add account", akunSimpan:"Save",
+    akunTambahCatatan:"This account exists only on this PC and is not sent to AutoERP. Passwords need at least 8 characters.",
+    lbSandi:"Password", lbSandiUlang:"Repeat password",
+    akunGantiSandi:"Change password", akunMatikan:"Switch off", akunAktifkan:"Switch on",
+    akunJadikanSupport:"Make support", akunJadikanOperator:"Make operator",
+    akunDiaturErp:"Managed in AutoERP", akunSaya:"Your account",
+    akunSandiJudul:"New password for {email}. Every session of this account ends right away.",
+    akunSandiDiriSendiri:"This is your own account. After saving you are signed out and sign in again with the new password.",
+    akunMatikanTanya:"Switch off the account of {nama}? They are signed out right away and cannot sign in until the account is switched on again.",
+    akunAktifkanTanya:"Switch the account of {nama} back on? They can sign in again with their last password.",
+    akunSupportTanya:"Make {nama} support? Support accounts can open every support menu, including the Danger Zone.",
+    akunOperatorTanya:"Make {nama} an operator? The support menus disappear from that account from its next click.",
+    akunYaMatikan:"Yes, switch off", akunYaAktifkan:"Yes, switch on", akunYaUbah:"Yes, change",
+    akunDibuat:"Account {email} created.", akunSandiDiganti:"Password for {email} changed.",
+    akunSandiDigantiSendiri:"Password changed. Sign in again with the new password.",
+    akunDimatikan:"Account {email} switched off.", akunDiaktifkan:"Account {email} is on again.",
+    akunRoleDiubah:"{email} is now {role}.",
     thJenis:"Kind", thKunci:"Key", thPercobaan:"Attempts", thBerikutnya:"Next attempt",
     antreanSekarang:"Now",
     btnKirimUlang:"Resend", ringkasAntrean:"{pending} pending · {gagal} failed",
     kosongAntrean:"ERP queue is empty", gagalAntrean:"Failed to load the queue",
     judulManifest:"R2 manifest", ringkasManifest:"{pending} pending · {gagal} failed",
     kosongManifest:"Manifest queue is empty", gagalManifest:"Failed to load the manifest queue",
-    manifestNonaktif:"R2 is not configured — the truck detail page is not running on this mill.",
+    manifestNonaktif:"R2 is not configured, so the truck detail page does not work at this mill.",
     labelVersi:"Version", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Licence", gagalVersi:"Failed to load version",
     versiDariSource:"dev (from source)",
     lisensiAktif:"Active", lisensiTanpaToken:"Active, no token installed", lisensiMati:"Inactive",
+    lisensiSaklarMati:"Inactive. A token is installed, but LICENSE_ENABLED is off for the console",
     labelAktifSampai:"Active until", labelTenggangSampai:"Grace until",
     labelPerusahaan:"Company", lisensiSisaHari:"{hari} days left",
     lisensiTokenRusak:"Token unreadable",
     bannerLisensiWarning:"The AutoGrade subscription expires in {hari} days ({tanggal}). Contact your provider to renew.",
     bannerLisensiGrace:"The AutoGrade subscription has expired. Grading stops in {hari} days ({tanggal}). Renew now.",
-    bannerLisensiBlocked:"The AutoGrade subscription has expired - grading has stopped. Install a new token to continue.",
+    bannerLisensiBlocked:"The AutoGrade subscription has expired, so grading has stopped. Install a new token to continue.",
     plcMati:"PLC is off on this line",
     gagalPlc:"Failed to load PLC status",
     btnUjiCoil:"Test coil {coil}", coilMatiLineSibuk:"Line is processing a truck",
     coilOk:"Camera {n} OK", coilNg:"Camera {n} NG", coilError:"Camera {n} Error",
     coilPiston:"Manual piston", petaJudul:"PLC address map (PLC team list, 23 Sep 2026)",
     petaDariPc:"PC writes → PLC reads", petaKePc:"PLC writes → PC reads",
-    konfirmasiUjiPlc:"Coil {coil} on {line} will pulse briefly - this moves real hardware.",
+    konfirmasiUjiPlc:"Coil {coil} on {line} will pulse briefly and move real hardware.",
     btnUjiPlcJalankan:"Fire",
-    ujiPlcDibatalkan:"Cancelled - confirmation did not match",
-    ujiPlcBerhasil:"Coil {coil} fired", ujiPlcDijatuhkan:"Coil {coil} did NOT fire - PLC pulse queue is full, try again",
+    ujiPlcDibatalkan:"Cancelled, the confirmation did not match",
+    ujiPlcBerhasil:"Coil {coil} fired", ujiPlcDijatuhkan:"Coil {coil} did NOT fire because the PLC pulse queue is full. Try again",
     gagalUjiPlc:"Failed to fire coil",
     err_konfirmasi_kurang:"Type UJI exactly to fire the coil",
-    err_plc_sibuk:"Line is processing a truck - the coil cannot be fired",
+    err_plc_sibuk:"The line is processing a truck, so the coil cannot be fired",
     err_coil_tidak_dikenal:"This coil is not known to the line",
+    err_hapus_berjalan:"Data is being deleted from the support menu (Danger Zone). Wait a moment, then assign the truck again.",
+    err_akun_email_tidak_sah:"That email is not valid. Example: budi@mill.id",
+    err_akun_nama_kosong:"The name cannot be empty",
+    err_akun_sandi_beda:"The second password does not match the first",
+    err_akun_sudah_ada:"{email} is already used by another account on this PC. For a forgotten password, use Change password on that account's row.",
+    err_akun_milik_erp:"{email} is an AutoERP account. Change it in AutoERP, not on this PC.",
+    err_akun_tidak_ada:"Account {email} does not exist. Reload the Users tab.",
+    err_akun_diri_sendiri:"Your own account cannot be switched off or have its role changed. Ask another support account.",
+    err_riwayat_tanggal_tidak_sah:"The date {tanggal} is not valid. Pick a date from the calendar.",
+    err_riwayat_rentang_terbalik:"The From date must be on or before the To date.",
+    err_riwayat_rentang_panjang:"The range can be at most {maks} days. Narrow the dates, or download one month at a time.",
     judulSumberKamera:"Camera Source",
     judulRekamVideo:"Record Video", kosongLine:"No lines yet", thMajuRekam:"Recorded",
     rekamMenunggu:"Working…",
-    rekamSelesai:"Recording saved in the videos/ folder —",
+    rekamSelesai:"Recording saved in the videos/ folder:",
     rekamDisimpanDi:"Saved in", thAksi:"Action",
-    rekam_keadaan_berubah:"The line's state changed — screen refreshed",
-    rekam_disk_mepet:"The mill PC is low on disk — recording not started",
+    rekam_keadaan_berubah:"The line's state changed, so the screen was refreshed",
+    rekam_disk_mepet:"The mill PC is low on disk, so recording did not start",
     rekam_ditolak:"The line refused the recording command",
     rekamMulai:"Record", rekamStop:"Stop",
     rekamSedangMerekam:"Recording", rekamMati:"Off", rekamTakTerbaca:"Unreachable",
     rekamDiskBebas:"Free disk", rekamSetelanJudul:"Recording settings",
-    rekamLebar:"Width (pixels)", rekamTinggi:"Height (pixels)", rekamFps:"FPS",
-    rekamBitrate:"Bitrate (kbps)", rekamSimpanSetelan:"Save settings",
-    rekamBantuFps:"The camera decides when it can report its rate. This number is used for video files and webcams.",
-    rekamSetelanTersimpan:"Saved — applies to the next recording",
+    rekamLebar:"Width (pixels)", rekamTinggi:"Height (pixels)",
+    rekamSimpanSetelan:"Save settings",
+    rekamSetelanTersimpan:"Saved. Applies to the next recording",
     rekamCatatanRetensi:"Recordings are never deleted automatically. Clear the videos/ folder on the mill PC yourself.",
     gagalRekam:"Failed to load recording status",
-    sumberPeringatan:"Saving restarts any line whose setting changed (about 10 seconds) — grading on that line pauses briefly.",
+    sumberPeringatan:"Saving restarts any line whose setting changed (about 10 seconds). Grading on that line pauses briefly.",
     sumberLabelLine1:"Line 1", sumberLabelLine2:"Line 2", sumberLabelLine3:"Line 3",
     sumberHikrobot:"Hikrobot camera", sumberWebcam:"Webcam", sumberVideo:"Video", sumberFoto:"Photo",
     sumberBerkas:"File", sumberUlang:"Loop",
@@ -2064,35 +2612,35 @@ const KAMUS = {
     btnSumberSimpan:"Save & Restart",
     gagalSumberKamera:"Failed to load camera source",
     sumberTersimpanSemua:"Saved. Lines that changed are restarting.",
-    sumberTersimpanSebagian:"Saved. {daftar} did not respond — the setting still applies and will take effect once that line is back.",
+    sumberTersimpanSebagian:"Saved. {daftar} did not respond, but the setting is kept and takes effect once that line is back.",
     gagalSumberSimpan:"Failed to save camera source",
     judulModelDeteksi:"Detection Model",
-    modelPeringatan:"Changing the model restarts that line (about 10 seconds) — bunches passing during the restart are not counted.",
+    modelPeringatan:"Changing the model restarts that line (about 10 seconds). Bunches that pass during the restart are not counted.",
     modelPilih:"Model", modelBawaan:"PC default", modelBawaanPanjang:"PC default (MODEL_FILE in .env)",
     modelRinciBawaan:"Uses MODEL_FILE from this PC's .env.",
     modelJalan:"Running now", modelJalanMemuat:"Asking the line…",
     modelJalanTidakDilapor:"not reported (older line version)",
-    modelJalanKelasAsing:"The running model's classes are not Ripe/Unripe/JK/TP — this line counts NO bunches. Pick another model, or rebuild its engine.",
-    modelBelumBerlaku:"The saved choice is not active yet — the line has not restarted or failed to load it.",
+    modelJalanKelasAsing:"The running model's classes are not Ripe/Unripe/JK/TP, so this line counts NO bunches. Pick another model, or rebuild its engine.",
+    modelBelumBerlaku:"The saved choice is not active yet. The line has not restarted or failed to load it.",
     modelTidakBisa:"cannot be used", modelHilang:"This file is no longer in models/release.",
     modelKelasTakTerbaca:"classes unreadable",
-    modelTanpaEngine:"No TensorRT engine yet — the line runs the .pt, about 2x slower.",
+    modelTanpaEngine:"No TensorRT engine yet, so the line runs the .pt (about 2x slower).",
     modelEngineBasi:"stale, rebuild", modelEngineOk:"ready",
     modelEngineGpuLain:"for another GPU",
-    modelTanpaEngineGpuIni:"No engine for this line's GPU ({sm}) yet — the line runs the .pt, about 2x slower.",
+    modelTanpaEngineGpuIni:"No engine for this line's GPU ({sm}) yet, so the line runs the .pt (about 2x slower).",
     modelCocok:"Usable",
     modelSemuaJudul:"All models on this PC",
     thModelBerkas:"File", thModelUkuran:"Size", thModelKelas:"Classes",
     thModelEngine:"TensorRT engine", thModelStatus:"Status",
     modelKosong:"No .pt files in models/release yet",
-    modelFolderTakTerbaca:"The console cannot open {path} — probably not mounted. Add ./models:/app/models:ro to the console service in compose (Model Deteksi runbook).",
+    modelFolderTakTerbaca:"The console cannot open {path}, probably because it is not mounted. Add ./models:/app/models:ro to the console service in compose (Model Deteksi runbook).",
     btnModelSimpan:"Save & Restart", btnModelJalankan:"Change & Restart",
     modelModalJudul:"Change the model and restart the line?",
     modelModalRestart:"The lines above restart for about 10 seconds. Bunches passing during that time are not counted.",
-    modelSibuk:"Processing truck {plat} — this truck's results will mix two models.",
+    modelSibuk:"Processing truck {plat}. This truck's results will mix two models.",
     modelTidakAdaPerubahan:"Nothing changed",
     modelTersimpanSemua:"Saved. Lines that changed are restarting.",
-    modelTersimpanSebagian:"Saved. {daftar} did not respond — the new model is used once that line is back.",
+    modelTersimpanSebagian:"Saved. {daftar} did not respond. The new model is used once that line is back.",
     gagalModelDeteksi:"Failed to load detection models",
     gagalModelSimpan:"Failed to save detection model",
   },
@@ -2140,6 +2688,7 @@ $("bahasa").addEventListener("click", async () => {
   // reconnect once - the price of one deliberate click, not of every 2 s poll.
   dipasang = false;
   isiTrucks();
+  gambarUlangRiwayat();
   await refresh();
   await muatTimbangan();
 });
@@ -2258,7 +2807,7 @@ document.addEventListener("focusout", (ev) => {
 });
 
 // ── truck / weighbridge tabs ───────────────────────────────────────────
-const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "diagnostik", "antrean", "versi", "plc", "sumber-kamera", "model-deteksi", "setelan"];
+const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "riwayat", "log", "diagnostik", "antrean", "versi", "plc", "sumber-kamera", "model-deteksi", "setelan"];
 let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
 
 function terapkanTab() {
@@ -2277,7 +2826,7 @@ function terapkanTab() {
 // tab stays open (a line coming back or dying should show up unattended);
 // the timer is started/stopped in `bukaTabDev` below, never left running
 // behind a tab nobody is looking at.
-const MUAT_TAB = { log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, plc: muatPlc, "sumber-kamera": muatSumberKamera, "model-deteksi": muatModelDeteksi, setelan: muatSetelan, rekam: muatRekam };
+const MUAT_TAB = { riwayat: muatRiwayat, log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, akun: muatAkun, plc: muatPlc, "sumber-kamera": muatSumberKamera, "model-deteksi": muatModelDeteksi, setelan: muatSetelan, rekam: muatRekam };
 
 function bukaTabDev(namaTab) {
   clearInterval(diagnostikTimer);
@@ -2367,11 +2916,11 @@ function segarkanHalaman() {
 // and a row of buttons that small cannot be pressed wearing gloves.
 const JENDELA_HALAMAN = 2;
 
-function tombolNomorHalaman() {
-  const per = Number(gradingPer);
-  const jumlah = Math.max(1, Math.ceil(gradingTotal / per));
+// Tanpa argumen = pager tab Grading; tab Riwayat memberi angkanya sendiri.
+function tombolNomorHalaman(total = gradingTotal, per = Number(gradingPer), offset = gradingOffset) {
+  const jumlah = Math.max(1, Math.ceil(total / per));
   if (jumlah <= 1) return "";
-  const kini = Math.floor(gradingOffset / per) + 1;
+  const kini = Math.floor(offset / per) + 1;
 
   // The first and last page are always included: both ends of the list must
   // be reachable in one tap, from any page.
@@ -2396,7 +2945,7 @@ function tombolNomorHalaman() {
 
 function gantiHalaman(arah) {
   const per = Number(gradingPer);
-  keHalaman(Math.floor(gradingOffset / per) + 1 + arah);
+  return keHalaman(Math.floor(gradingOffset / per) + 1 + arah);
 }
 
 // Jump to one page. Used by the number buttons AND Previous/Next, so the
@@ -2409,16 +2958,16 @@ function keHalaman(nomor) {
   // visible cause.
   const aman = Math.max(1, Math.min(nomor, jumlah));
   const baru = (aman - 1) * per;
-  if (baru === gradingOffset) return;
+  if (baru === gradingOffset) return undefined;
   gradingOffset = baru;
-  muatGrading();
+  return muatGrading();
 }
 
 // Delegated: the number buttons are rebuilt on every page change, so a
 // per-button listener would disappear along with them.
 $("grading-nomor").addEventListener("click", (ev) => {
   const tombol = ev.target.closest("button[data-halaman]");
-  if (tombol) keHalaman(Number(tombol.dataset.halaman));
+  if (tombol) denganSibuk(tombol, () => keHalaman(Number(tombol.dataset.halaman)));
 });
 
 $("grading-per").addEventListener("pilih", () => {
@@ -2430,8 +2979,8 @@ $("grading-per").addEventListener("pilih", () => {
   muatGrading();
 });
 
-$("grading-prev").addEventListener("click", () => gantiHalaman(-1));
-$("grading-next").addEventListener("click", () => gantiHalaman(1));
+$("grading-prev").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, () => gantiHalaman(-1)));
+$("grading-next").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, () => gantiHalaman(1)));
 
 function selarasUrutan(lines) {
   // Lines gone from the registry are dropped, new ones append at the end -
@@ -2564,7 +3113,9 @@ const TOAST_DURASI = { sukses: 5000, peringatan: 5000, gagal: 0 };
 // even during a run of rapid manual rejects.
 const TOAST_MAKS = 4;
 
-function toast(kind, text) {
+// `durasi` 0 = tetap sampai ditutup, apa pun jenisnya (hasil Danger Zone yang
+// harus diulang di satu line tidak boleh lewat saat support melihat ke line).
+function toast(kind, text, durasi = TOAST_DURASI[kind]) {
   if (!text) return;
   const wadah = $("toasts");
   while (wadah.children.length >= TOAST_MAKS) wadah.firstElementChild.remove();
@@ -2575,13 +3126,28 @@ function toast(kind, text) {
   el.querySelector(".pesan").textContent = text;
   const hapus = () => el.remove();
   el.querySelector(".tutup").addEventListener("click", hapus);
-  const durasi = TOAST_DURASI[kind];
   if (durasi) setTimeout(hapus, durasi);
   wadah.append(el);
 }
 const toastSukses = (text) => toast("sukses", text);
 const toastGagal = (text) => toast("gagal", text);
 const toastPeringatan = (text) => toast("peringatan", text);
+
+// Tombol yang memanggil server dikunci sampai jawabannya datang: klik kedua di
+// tengah proses tidak menjalankan pekerjaan kedua, dan spinner di tombolnya
+// memberi tahu bahwa klik pertama sudah diterima. `disabled` tidak disentuh.
+async function denganSibuk(tombol, kerja) {
+  if (!tombol) return kerja();
+  if (tombol.classList.contains("sibuk")) return undefined;
+  tombol.classList.add("sibuk");
+  tombol.setAttribute("aria-busy", "true");
+  try {
+    return await kerja();
+  } finally {
+    tombol.classList.remove("sibuk");
+    tombol.removeAttribute("aria-busy");
+  }
+}
 
 const barisKosong = (lebar, kunci) => `<tr><td colspan="${lebar}" class="kosong">${esc(t(kunci))}</td></tr>`;
 
@@ -2703,8 +3269,10 @@ function kartuLine(l) {
         <button class="utama" data-aksi="tugaskan"${l.assignment ? "" : " disabled"}>${esc(t("btnTugaskan"))}</button>
         <button data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>
       </div>
-      <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
-      ${tombolPiston(l)}
+      <div class="aksi-line">
+        <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
+        ${tombolPiston(l)}
+      </div>
     </div>
   </div>`;
 }
@@ -2865,6 +3433,7 @@ $("lines").addEventListener("click", async (ev) => {
     return;
   }
   tombol.disabled = true;
+  tombol.classList.add("sibuk");
   try {
     // Nama line seperti yang tertulis di kartu ("Line 1"), bukan kode internal
     // `line-1`: operator menekan tombol di salah satu dari tiga panel yang bisa
@@ -2914,6 +3483,7 @@ $("lines").addEventListener("click", async (ev) => {
     toastGagal(teks);
   } finally {
     tombol.disabled = false;
+    tombol.classList.remove("sibuk");
   }
 });
 
@@ -2976,7 +3546,7 @@ document.addEventListener("keydown", (ev) => {
   }
 });
 
-$("daftar").addEventListener("click", async () => {
+$("daftar").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   const plate_number = $("plat").value.trim();
   if (!plate_number) return;
   $("daftar").disabled = true;
@@ -3000,7 +3570,7 @@ $("daftar").addEventListener("click", async () => {
     // the request - decides what happens next.
     segarkanTombol();
   }
-});
+}));
 
 // Weigh-in: bruto now, tara hours later. The time comes from the browser clock
 // - on the mill PC that is the same clock the operator reads, and the server
@@ -3117,7 +3687,7 @@ $("scan-plat").addEventListener("keydown", (ev) => {
   kirimScan();
 });
 
-$("masuk").addEventListener("click", async () => {
+$("masuk").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   const plate_number = $("plat-timbang").dataset.nilai;
   const gross_kg = $("bruto").value.trim();
   if (!plate_number || !gross_kg) { pesan(t("wajibIsi")); return; }
@@ -3136,7 +3706,7 @@ $("masuk").addEventListener("click", async () => {
   } finally {
     segarkanTombol();
   }
-});
+}));
 
 // Tare goes through a dialog, not a column inside its row: this table is
 // rebuilt on every poll, which would wipe out anything the operator is typing.
@@ -3187,6 +3757,7 @@ async function simpanTara() {
   }
   const w = taraUntuk;
   $("tara-simpan").disabled = true;
+  $("tara-simpan").classList.add("sibuk");
   try {
     await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
       plate_number: w.plate_number, ref: w.ref, entered_at: w.entered_at,
@@ -3207,6 +3778,7 @@ async function simpanTara() {
     toastGagal(t("gagalTara") + ": " + alasan(e));
   } finally {
     $("tara-simpan").disabled = false;
+    $("tara-simpan").classList.remove("sibuk");
   }
   await muatTimbangan();
 }
@@ -3346,7 +3918,12 @@ async function bukaGerbang() {
   } catch (e) { $("gerbang-pesan").textContent = alasan(e); }
 }
 
+// Email akun yang sedang masuk, huruf kecil. Tab Akun memakainya supaya tidak
+// menawarkan Matikan / Ubah role di baris sendiri (server juga menolaknya).
+let emailSaya = "";
+
 function tutupGerbang(operator) {
+  emailSaya = String(operator.email || "").toLowerCase();
   gerbangAktif = false;
   $("gerbang").hidden = true;
   $("gerbang-pesan").textContent = "";
@@ -3378,11 +3955,13 @@ async function kirimSandi() {
   // would otherwise spend two wrong tries out of the five the lockout allows.
   gerbangSibuk = true;
   $("gerbang-masuk").disabled = true;
+  $("gerbang-masuk").classList.add("sibuk");
   try {
     const { operator } = await api("/api/console/login", {
       method: "POST", body: JSON.stringify({ email, sandi }),
     });
     tutupGerbang(operator);
+    tampilkanHasilTertunda();
     hapusTabDeveloper(operator.role);
     dipasang = false;
     await muatTrucks();
@@ -3412,6 +3991,7 @@ async function kirimSandi() {
   } finally {
     gerbangSibuk = false;
     $("gerbang-masuk").disabled = false;
+    $("gerbang-masuk").classList.remove("sibuk");
   }
 }
 
@@ -3453,11 +4033,11 @@ $("gerbang").addEventListener("keydown", (ev) => {
   kirimSandi();
 });
 
-$("keluar").addEventListener("click", async () => {
+$("keluar").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   try { await api("/api/console/logout", { method: "POST" }); }
   catch (e) { /* already gone - the gate comes up either way */ }
   bukaGerbang();
-});
+}));
 
 // Line yang dilepas oleh timbang keluar, bukan oleh operator (G5). Diumumkan
 // sekali per pelepasan: state di-poll tiap 2 detik, dan toast yang sama muncul
@@ -3469,10 +4049,7 @@ function umumkanPelepasanOtomatis(daftar) {
     if (pelepasanSudahDiumumkan.has(r.id)) return;
     pelepasanSudahDiumumkan.add(r.id);
     const truk = r.plate_number || r.truck_id;
-    toastPeringatan(
-      `${r.line_code} dilepas otomatis — ${truk} sudah timbang keluar. ` +
-      "Assign ulang kalau bongkarnya belum habis."
-    );
+    toastPeringatan(t("pelepasanOtomatis").replace("{line}", r.line_code).replace("{truk}", truk));
   });
 }
 
@@ -3605,6 +4182,398 @@ async function muatRekap() {
   } catch (e) { /* nothing graded yet - the screen keeps working */ }
 }
 
+// ── tab Riwayat ────────────────────────────────────────────────────────
+// Grading hari-hari sebelumnya. Filter yang DITERAPKAN (`riwayatFilter`) terpisah
+// dari isian di layar: pindah tampilan atau halaman memakai filter yang sedang
+// ditampilkan, bukan tanggal yang baru diketik tapi belum ditekan Tampilkan,
+// supaya ringkasan dan tabel selalu bicara soal periode yang sama.
+const TAMPILAN_RIWAYAT = ["hari", "truk", "janjang"];
+let riwayatTampilan = TAMPILAN_RIWAYAT.includes(baca("riwayatTampilan", "hari"))
+  ? baca("riwayatTampilan", "hari") : "hari";
+let riwayatPer = PER_SAH.includes(baca("riwayatPer", "25")) ? baca("riwayatPer", "25") : "25";
+let riwayatOffset = 0;
+let riwayatTotal = 0;
+let riwayatFilter = null;
+let riwayatHariIni = "";
+let riwayatItems = null;
+let riwayatRingkasan = null;
+// Nomor permintaan terakhir. Klik Per truk lalu Per janjang dengan cepat: jawaban
+// pertama boleh datang terakhir, dan tidak boleh menimpa tabel yang kedua.
+let riwayatMinta = 0;
+
+function tambahHari(iso, n) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+// Tombol rentang cepat, dihitung dari hari kerja yang dijawab SERVER, bukan jam
+// browser: PC kantor yang jamnya meleset tidak boleh menggeser "kemarin".
+function rentangCepat(kunci, hariIni) {
+  const awalBulan = `${hariIni.slice(0, 7)}-01`;
+  if (kunci === "kemarin") {
+    const kemarin = tambahHari(hariIni, -1);
+    return [kemarin, kemarin];
+  }
+  if (kunci === "7hari") return [tambahHari(hariIni, -6), hariIni];
+  if (kunci === "bulanini") return [awalBulan, hariIni];
+  const akhirBulanLalu = tambahHari(awalBulan, -1);
+  return [`${akhirBulanLalu.slice(0, 7)}-01`, akhirBulanLalu];
+}
+
+// "Kam, 24 Sep 2026". Dari tanggal kerja apa adanya (UTC di sini cuma alat hitung):
+// tanggal kerja bukan waktu, dan zona browser tidak boleh menggesernya sehari.
+function tanggalRiwayat(iso) {
+  const [y, m, d] = String(iso || "").split("-").map(Number);
+  if (!y || !m || !d) return String(iso || "");
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(lokal(), {
+    weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+  });
+}
+
+// Dari verdict, sama dengan kartu line dan tab Rekap (baris lama tanpa kelas
+// tidak boleh menyeret rasio ke nol).
+function rasioRiwayat(acc, total) {
+  return total ? Math.round(((acc || 0) / total) * 100) + "%" : KOSONG;
+}
+
+function barisRiwayatHari(r) {
+  const lihat = r.total
+    ? `<button type="button" class="riwayat-lihat" data-lihat="truk"
+         data-tanggal="${esc(r.work_date)}">${esc(t("riwayatLihatTruk"))}</button>` : "";
+  return `<tr>
+    <td class="key">${esc(tanggalRiwayat(r.work_date))}</td>
+    <td class="num">${kg(r.total)}</td>
+    <td class="num acc">${kg(r.ripe)}</td>
+    <td class="num rej">${kg(r.unripe)}</td>
+    <td class="num rej">${kg(r.jk)}</td>
+    <td class="num tp">${kg(r.tp)}</td>
+    <td class="num">${rasioRiwayat(r.acc, r.total)}</td>
+    <td class="num">${kg(r.truk)}</td>
+    <td class="num">${kg(r.neto_kg)}</td>
+    <td>${lihat}</td>
+  </tr>`;
+}
+
+function barisRiwayatTruk(r) {
+  const plat = r.plate_number ? esc(r.plate_number) : `<i>${esc(t("trukTanpaNama"))}</i>`;
+  const lihat = r.truck_id && r.plate_number
+    ? `<button type="button" class="riwayat-lihat" data-lihat="janjang"
+         data-tanggal="${esc(r.work_date)}" data-plat="${esc(r.plate_number)}">${esc(t("riwayatLihatJanjang"))}</button>` : "";
+  return `<tr>
+    <td>${esc(tanggalRiwayat(r.work_date))}</td>
+    <td class="key">${plat}</td>
+    <td>${dash(r.supplier_name)}</td>
+    <td>${dash(r.source_label)}</td>
+    <td class="num">${kg(r.total)}</td>
+    <td class="num acc">${kg(r.ripe)}</td>
+    <td class="num rej">${kg(r.unripe)}</td>
+    <td class="num rej">${kg(r.jk)}</td>
+    <td class="num tp">${kg(r.tp)}</td>
+    <td class="num">${rasioRiwayat(r.acc, r.total)}</td>
+    <td class="num">${kg(r.neto_kg)}</td>
+    <td>${lihat}</td>
+  </tr>`;
+}
+
+// Sama dengan baris tab Grading, dengan nomor yang melanjutkan halaman.
+function barisRiwayatJanjang(r, i) {
+  const judul = `${waktu(r.timestamp)} · ${String(r.line_code || "").toUpperCase()} · ${r.grade_class || r.ripeness_status || ""}`;
+  return `<tr>
+    <td class="no">${riwayatOffset + i + 1}</td>
+    <td>${waktu(r.timestamp)}</td>
+    <td class="kode-line">${esc(r.line_code)}</td>
+    <td class="key">${dash(r.plate_number)}</td>
+    <td>${dash(r.source_label)}</td>
+    <td>${tagHasil(r.ripeness_status, r.grade_class)}</td>
+    <td>${r.image_url
+      ? `<button type="button" class="foto" data-foto="${esc(r.image_url)}" data-judul="${esc(judul)}"><img src="${esc(r.image_url)}" alt="" loading="lazy"></button>`
+      : KOSONG}</td>
+  </tr>`;
+}
+
+// Kepala tabel memakai `data-t`, jadi ganti bahasa menerjemahkannya di tempat.
+const KEPALA_RIWAYAT = {
+  hari: [["thTanggal", ""], ["thJanjang", "num"], ["clsRipe", "num"], ["clsUnripe", "num"],
+    ["clsJk", "num"], ["clsTp", "num"], ["thRasio", "num"], ["riwayatJumlahTruk", "num"],
+    ["thNeto", "num"], ["thAksi", "aksi"]],
+  truk: [["thTanggal", ""], ["thTruk", ""], ["thSupplier", ""], ["thSumber", ""],
+    ["thJanjang", "num"], ["clsRipe", "num"], ["clsUnripe", "num"], ["clsJk", "num"],
+    ["clsTp", "num"], ["thRasio", "num"], ["thNeto", "num"], ["thAksi", "aksi"]],
+  janjang: [["thNo", "no"], ["thWaktu", ""], ["thLine", ""], ["thTruk", ""], ["thSumber", ""],
+    ["thHasil", ""], ["thFoto", ""]],
+};
+
+function kepalaRiwayat(tampilan) {
+  return "<tr>" + KEPALA_RIWAYAT[tampilan].map(([kunci, kelas]) => kelas === "aksi"
+    // Kolom tombol: judulnya cuma untuk pembaca layar, tombolnya sudah jelas sendiri.
+    ? `<th><span class="sr-only" data-t="${kunci}">${esc(t(kunci))}</span></th>`
+    : `<th${kelas ? ` class="${kelas}"` : ""} data-t="${kunci}">${esc(t(kunci))}</th>`).join("") + "</tr>";
+}
+
+function isiRingkasanRiwayat(r) {
+  const kotak = (kelas, kunci, nilai, catatan) => `<div class="stat ${kelas}">
+    <span class="lb" data-t="${kunci}">${esc(t(kunci))}</span><b>${nilai}</b>${catatan
+      ? `<small data-t="${catatan}">${esc(t(catatan))}</small>` : ""}</div>`;
+  const perLine = Boolean(riwayatFilter && riwayatFilter.line_code);
+  $("riwayat-ringkasan").innerHTML = [
+    kotak("", "thJanjang", kg(r.total)),
+    kotak("acc", "clsRipe", kg(r.ripe)),
+    kotak("rej", "clsUnripe", kg(r.unripe)),
+    kotak("rej", "clsJk", kg(r.jk)),
+    kotak("tp", "clsTp", kg(r.tp)),
+    kotak("", "thRasio", rasioRiwayat(r.acc, r.total)),
+    kotak("", "riwayatJumlahTruk", kg(r.truk)),
+    kotak("", "riwayatHari", kg(r.hari)),
+    // Neto itu berat truk, bukan milik satu line: disaring per line, tidak dihitung.
+    kotak("", "thNeto", kg(r.neto_kg), perLine ? "riwayatNetoLine" : ""),
+  ].join("");
+}
+
+function segarkanTampilanRiwayat() {
+  document.querySelectorAll(".riwayat-tampilan button").forEach((b) => {
+    b.classList.toggle("aktif", b.dataset.tampilan === riwayatTampilan);
+    b.setAttribute("aria-pressed", String(b.dataset.tampilan === riwayatTampilan));
+  });
+  $("riwayat-hasil-grup").hidden = riwayatTampilan !== "janjang";
+  // Per hari paling banyak 31 baris: semuanya tampil, tanpa halaman.
+  $("riwayat-halaman").hidden = riwayatTampilan === "hari";
+  const per = Number(riwayatPer);
+  const total = riwayatTotal;
+  const dari = total ? riwayatOffset + 1 : 0;
+  $("riwayat-rentang").textContent = t("rentangBaris").replace("{dari}", dari)
+    .replace("{sampai}", Math.min(riwayatOffset + per, total)).replace("{total}", total);
+  $("riwayat-prev").disabled = riwayatOffset <= 0;
+  $("riwayat-next").disabled = riwayatOffset + per >= total;
+  $("riwayat-nomor").innerHTML = tombolNomorHalaman(total, per, riwayatOffset);
+  if (riwayatFilter && riwayatFilter.dari) {
+    $("riwayat-judul-rentang").textContent = t("riwayatRentang")
+      .replace("{dari}", tanggalRiwayat(riwayatFilter.dari))
+      .replace("{sampai}", tanggalRiwayat(riwayatFilter.sampai));
+  }
+}
+
+function gambarRiwayat(items) {
+  riwayatItems = items;
+  $("riwayat-kepala").innerHTML = kepalaRiwayat(riwayatTampilan);
+  let baris;
+  if (riwayatTampilan === "hari") {
+    riwayatTotal = items.length;
+    baris = items.map(barisRiwayatHari);
+  } else if (riwayatTampilan === "truk") {
+    // Per truk datang utuh (paling banyak beberapa ribu baris sebulan): halaman
+    // dipotong di sini, jadi pindah halaman tidak menunggu server.
+    riwayatTotal = items.length;
+    baris = items.slice(riwayatOffset, riwayatOffset + Number(riwayatPer)).map(barisRiwayatTruk);
+  } else {
+    baris = items.map((r, i) => barisRiwayatJanjang(r, i));
+  }
+  $("riwayat-baris").innerHTML = baris.length
+    ? baris.join("") : barisKosong(KEPALA_RIWAYAT[riwayatTampilan].length, "riwayatKosong");
+  segarkanTampilanRiwayat();
+}
+
+// Ganti bahasa: tanggal, tombol, dan ringkasan digambar ulang dari data yang
+// sudah ada, tanpa bertanya ke server lagi.
+function gambarUlangRiwayat() {
+  if (riwayatRingkasan) isiRingkasanRiwayat(riwayatRingkasan);
+  if (riwayatItems) gambarRiwayat(riwayatItems);
+}
+
+// Pilihan line dirakit dari line yang sedang tampil di layar (`urutan`), bukan
+// dipatok: tiap PKS punya jumlah line sendiri.
+function siapkanLineRiwayat() {
+  const root = $("riwayat-line");
+  const kode = [...urutan].sort();
+  if (root.dataset.kode === kode.join(",") && root.children.length) return;
+  const terpilih = kode.includes(root.dataset.nilai) ? root.dataset.nilai : "";
+  root.dataset.kode = kode.join(",");
+  const opsi = [`<div role="option" tabindex="-1" data-nilai="" aria-selected="${terpilih === ""}"
+      data-t="riwayatSemuaLine">${esc(t("riwayatSemuaLine"))}</div>`]
+    .concat(kode.map((k) => `<div role="option" tabindex="-1" data-nilai="${esc(k)}"
+      aria-selected="${k === terpilih}">${esc(k)}</div>`));
+  root.innerHTML = `<button type="button" class="pilih-tombol" aria-haspopup="listbox"
+      aria-expanded="false"><span class="pilih-teks"></span></button>
+    <div class="pilih-panel" role="listbox" hidden>${opsi.join("")}</div>`;
+  const aktif = root.querySelector('[role="option"][aria-selected="true"]');
+  root.dataset.nilai = aktif.dataset.nilai;
+  root.querySelector(".pilih-teks").textContent = aktif.textContent;
+}
+
+function paramRiwayat(tambahan) {
+  const q = new URLSearchParams();
+  Object.entries(riwayatFilter || {}).forEach(([k, v]) => { if (v) q.set(k, v); });
+  Object.entries(tambahan).forEach(([k, v]) => q.set(k, v));
+  return q;
+}
+
+// `ringkasan` bawaan true (tab baru dibuka, filter baru); pindah tampilan atau
+// halaman memintanya false: angkanya tidak berubah, dan menghitungnya ulang
+// berarti memindai rentang itu sekali lagi.
+async function muatRiwayat({ ringkasan = true } = {}) {
+  siapkanLineRiwayat();
+  const nomor = ++riwayatMinta;
+  const q = paramRiwayat({ tampilan: riwayatTampilan, ringkasan: String(ringkasan) });
+  if (riwayatTampilan === "janjang") {
+    q.set("limit", riwayatPer);
+    q.set("offset", String(riwayatOffset));
+  }
+  try {
+    const r = await api(`/api/console/riwayat?${q}`);
+    if (nomor !== riwayatMinta) return;
+    riwayatHariIni = r.hari_ini;
+    riwayatFilter = { ...(riwayatFilter || {}), dari: r.dari, sampai: r.sampai };
+    $("riwayat-dari").value = r.dari;
+    $("riwayat-sampai").value = r.sampai;
+    $("riwayat-pesan").textContent = "";
+    if (r.ringkasan) {
+      riwayatRingkasan = r.ringkasan;
+      isiRingkasanRiwayat(r.ringkasan);
+    }
+    if (riwayatTampilan === "janjang") riwayatTotal = r.total;
+    gambarRiwayat(r.items);
+  } catch (e) {
+    if (nomor !== riwayatMinta || e.kode === "belum_masuk") return;
+    $("riwayat-pesan").textContent = alasan(e);
+  }
+}
+
+function bacaFilterRiwayat() {
+  return {
+    dari: $("riwayat-dari").value,
+    sampai: $("riwayat-sampai").value,
+    line_code: $("riwayat-line").dataset.nilai || "",
+    plat: $("riwayat-plat").value.trim(),
+    hasil: $("riwayat-hasil").dataset.nilai || "",
+  };
+}
+
+// Menerapkan isian layar sebagai filter baru, lalu memuat ulang beserta ringkasannya.
+async function tampilkanRiwayat(tombol) {
+  riwayatFilter = bacaFilterRiwayat();
+  riwayatOffset = 0;
+  return denganSibuk(tombol, () => muatRiwayat({ ringkasan: true }));
+}
+
+// Lewat fetch + blob, bukan tautan biasa: tombolnya bisa berputar sampai berkasnya
+// siap (sebulan janjang bisa belasan detik), dan penolakan server (rentang
+// terlalu panjang) tampil sebagai kalimat, bukan halaman JSON di browser.
+async function unduhRiwayat(tombol) {
+  return denganSibuk(tombol, async () => {
+    $("riwayat-pesan").textContent = "";
+    try {
+      const res = await fetch(`/api/console/riwayat/csv?${paramRiwayat({ tampilan: riwayatTampilan, bahasa })}`);
+      if (!res.ok) {
+        const detail = (await res.json().catch(() => ({}))).detail;
+        const err = new Error((typeof detail === "string" ? detail : detail?.message) || `HTTP ${res.status}`);
+        err.kode = detail?.code;
+        err.params = detail?.params || {};
+        if (res.status === 401 && err.kode === "belum_masuk") bukaGerbang();
+        throw err;
+      }
+      const nama = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") || "")?.[1]
+        || "riwayat-grading.csv";
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nama;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      if (e.kode !== "belum_masuk") $("riwayat-pesan").textContent = alasan(e);
+    }
+  });
+}
+
+function keHalamanRiwayat(nomor, tombol) {
+  const per = Number(riwayatPer);
+  const jumlah = Math.max(1, Math.ceil(riwayatTotal / per));
+  const baru = (Math.max(1, Math.min(nomor, jumlah)) - 1) * per;
+  if (baru === riwayatOffset) return undefined;
+  riwayatOffset = baru;
+  if (riwayatTampilan === "truk") {
+    gambarRiwayat(riwayatItems || []);
+    return undefined;
+  }
+  return denganSibuk(tombol, () => muatRiwayat({ ringkasan: false }));
+}
+
+$("riwayat-tampilkan").addEventListener("click", (ev) => tampilkanRiwayat(ev.currentTarget));
+$("riwayat-csv").addEventListener("click", (ev) => unduhRiwayat(ev.currentTarget));
+$("riwayat-plat").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  ev.preventDefault();
+  tampilkanRiwayat($("riwayat-tampilkan"));
+});
+
+document.querySelector(".riwayat-cepat").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-cepat]");
+  if (!tombol) return;
+  const hariIni = riwayatHariIni || new Date().toLocaleDateString("sv-SE");
+  const [dari, sampai] = rentangCepat(tombol.dataset.cepat, hariIni);
+  $("riwayat-dari").value = dari;
+  $("riwayat-sampai").value = sampai;
+  tampilkanRiwayat(tombol);
+});
+
+document.querySelector(".riwayat-tampilan").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-tampilan]");
+  if (!tombol || tombol.dataset.tampilan === riwayatTampilan) return;
+  riwayatTampilan = tombol.dataset.tampilan;
+  simpan("riwayatTampilan", riwayatTampilan);
+  riwayatOffset = 0;
+  denganSibuk(tombol, () => muatRiwayat({ ringkasan: false }));
+});
+
+// Saringan hasil langsung berlaku: dia milik tampilan Per janjang saja dan tidak
+// mengubah ringkasan periode.
+$("riwayat-hasil").addEventListener("pilih", () => {
+  riwayatFilter = { ...(riwayatFilter || {}), hasil: $("riwayat-hasil").dataset.nilai || "" };
+  riwayatOffset = 0;
+  denganSibuk($("riwayat-hasil").querySelector(".pilih-tombol"), () => muatRiwayat({ ringkasan: false }));
+});
+
+$("riwayat-per").addEventListener("pilih", () => {
+  riwayatPer = $("riwayat-per").dataset.nilai;
+  simpan("riwayatPer", riwayatPer);
+  riwayatOffset = 0;
+  if (riwayatTampilan === "truk") gambarRiwayat(riwayatItems || []);
+  else if (riwayatTampilan === "janjang") muatRiwayat({ ringkasan: false });
+});
+
+$("riwayat-prev").addEventListener("click", (ev) =>
+  keHalamanRiwayat(Math.floor(riwayatOffset / Number(riwayatPer)), ev.currentTarget));
+$("riwayat-next").addEventListener("click", (ev) =>
+  keHalamanRiwayat(Math.floor(riwayatOffset / Number(riwayatPer)) + 2, ev.currentTarget));
+$("riwayat-nomor").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-halaman]");
+  if (tombol) keHalamanRiwayat(Number(tombol.dataset.halaman), tombol);
+});
+
+// Turun satu tingkat: hari → truk hari itu → janjang truk itu hari itu.
+$("riwayat-baris").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-lihat]");
+  if (!tombol) return;
+  $("riwayat-dari").value = tombol.dataset.tanggal;
+  $("riwayat-sampai").value = tombol.dataset.tanggal;
+  if (tombol.dataset.plat) $("riwayat-plat").value = tombol.dataset.plat;
+  riwayatTampilan = tombol.dataset.lihat;
+  simpan("riwayatTampilan", riwayatTampilan);
+  tampilkanRiwayat(tombol);
+});
+
+// Foto yang umurnya lewat masa simpan PC sudah dihapus dari disk line (retensi
+// `UPLOAD_RETENTION_DAYS`, 180 hari di Lampung). Barisnya tetap ada; gambar yang
+// gagal dimuat diganti tulisan, bukan dibiarkan jadi ikon pecah. `error` tidak
+// menggelembung, jadi ditangkap di fase capture.
+$("riwayat-baris").addEventListener("error", (ev) => {
+  const gambar = ev.target;
+  if (gambar.tagName !== "IMG") return;
+  const tombol = gambar.closest("button.foto");
+  if (tombol) tombol.outerHTML = `<span class="muted">${esc(t("riwayatFotoHilang"))}</span>`;
+}, true);
+
 // One QR card: the image comes from the server (no CDN library — this screen
 // has to stay open while the internet is down), and the plate is also
 // printed as text so a dirty or damaged card can still be typed manually by
@@ -3620,7 +4589,7 @@ function kartuQr(tr) {
   </figure>`;
 }
 
-$("cetak-qr").addEventListener("click", () => {
+$("cetak-qr").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, () => {
   // Built when pressed, not on every poll: dozens of <img> rebuilt every 60
   // seconds would re-request every image.
   $("qr-kartu").innerHTML = trucks.filter((tr) => tr.plate_number).map(kartuQr).join("");
@@ -3628,10 +4597,10 @@ $("cetak-qr").addEventListener("click", () => {
   // Wait for the images to load first: calling print() too early prints
   // empty boxes, and that is a stack of wasted paper only noticed afterwards.
   const gambar = [...$("qr-kartu").querySelectorAll("img")];
-  Promise.all(gambar.map((g) => g.complete ? null : new Promise((r) => {
+  return Promise.all(gambar.map((g) => g.complete ? null : new Promise((r) => {
     g.onload = g.onerror = r;
   }))).then(() => window.print());
-});
+}));
 
 // Once the print dialog closes, the cards are hidden again: a whole screen
 // full of QR codes would make the Trucks tab unusable.
@@ -3723,14 +4692,14 @@ $("log-cari").addEventListener("input", () => {
   }, 300);
 });
 
-$("log-prev").addEventListener("click", () => {
+$("log-prev").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, () => {
   logOffset = Math.max(0, logOffset - LOG_PER);
-  muatLog();
-});
-$("log-next").addEventListener("click", () => {
+  return muatLog();
+}));
+$("log-next").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, () => {
   if (logOffset + LOG_PER < logTotal) logOffset += LOG_PER;
-  muatLog();
-});
+  return muatLog();
+}));
 
 // ── developer: diagnostik (support only) ────────────────────────────────
 // The 5 s auto-refresh timer itself lives in `bukaTabDev` above.
@@ -3741,6 +4710,13 @@ let diagnostikTimer = null;
 // di pabrik sebagai "PLC-nya delay" (Lampung 2026-09-23), padahal PlcWorker
 // sudah membaca blok M tiap 200 ms.
 let plcTimer = null;
+
+// ✓ hijau / ✗ merah. Simbolnya tetap yang membawa arti, warnanya cuma
+// mempercepat membaca: layar ini dilihat lewat AnyDesk, dan sebagian teknisi
+// buta warna.
+function tanda(ok) {
+  return ok ? `<span class="tanda-ok">✓</span>` : `<span class="tanda-gagal">✗</span>`;
+}
 
 // Dynamic markup, generated fresh on every poll: static labels are resolved
 // with t() inline here, not via data-t - that attribute is only ever scanned
@@ -3753,16 +4729,30 @@ function kartuDiagnostik(kode, d) {
         <dt>${esc(t("thSebab"))}</dt><dd title="${esc(d.sebab)}">${esc(d.sebab)}</dd></dl>
     </div>`;
   }
-  const w = (d.workers || []).map((x) => `${esc(x.name)}:${x.alive ? "✓" : "✗"}`).join(" ");
-  const plc = d.plc ? "✓" : KOSONG;
+  // Satu baris per worker, di bawah, bukan satu kalimat "capture:✓ display:✓
+  // ..." (permintaan 2026-09-25): enam worker sebaris terpotong `…` di kartu
+  // selebar 280 px, dan worker yang mati justru yang paling mungkin jatuh di
+  // bagian yang terpotong. Baris judulnya memberi hitungan supaya satu worker
+  // mati terbaca dari jauh tanpa menyisir daftarnya.
+  const workers = d.workers || [];
+  const hidup = workers.filter((x) => x.alive).length;
+  const ringkasWorker = workers.length
+    ? `<span class="${hidup === workers.length ? "tanda-ok" : "tanda-gagal"}">${hidup}/${workers.length}</span>`
+    : KOSONG;
+  const barisWorker = workers
+    .map((x) => `<dt class="diag-worker">${esc(x.name)}</dt><dd>${tanda(x.alive)}</dd>`)
+    .join("");
+  // `plc: null` = PLC dimatikan di line itu, bukan rusak: strip, bukan silang
+  // merah yang akan dikejar teknisi sebagai kerusakan.
+  const plc = d.plc ? tanda(true) : KOSONG;
   return `<div class="card" data-line="${esc(kode)}">
     <h2><span class="nama">${esc(kode)}</span></h2>
     <dl>
-      <dt>${esc(t("thKamera"))}</dt><dd>${d.camera_connected ? "✓" : "✗"}</dd>
-      <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : (d.gpu_available ? "✓" : "✗")}</dd>
+      <dt>${esc(t("thKamera"))}</dt><dd>${tanda(d.camera_connected)}</dd>
+      <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : tanda(d.gpu_available)}</dd>
       <dt>${esc(t("thPlc"))}</dt><dd>${plc}</dd>
-      <dt>${esc(t("thWorkers"))}</dt><dd title="${esc(w)}">${esc(w) || KOSONG}</dd>
       <dt>${esc(t("thAntreanLokal"))}</dt><dd>${dash(d.outbox_pending)} / ${dash(d.outbox_failed)}</dd>
+      <dt>${esc(t("thWorkers"))}</dt><dd>${ringkasWorker}</dd>${barisWorker}
     </dl>
   </div>`;
 }
@@ -3839,7 +4829,7 @@ async function muatManifest() {
   }
 }
 
-$("antrean-kirim-ulang").addEventListener("click", async () => {
+$("antrean-kirim-ulang").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   $("antrean-kirim-ulang").disabled = true;
   try {
     await api("/api/console/dev/antrean/kirim-ulang", { method: "POST" });
@@ -3851,7 +4841,7 @@ $("antrean-kirim-ulang").addEventListener("click", async () => {
   } finally {
     $("antrean-kirim-ulang").disabled = false;
   }
-});
+}));
 
 // ── developer: versi & lisensi (support only) ───────────────────────────
 // Tiap pasangan dibungkus satu `<div>`: `.daftar-definisi` menyebar jadi
@@ -3874,8 +4864,13 @@ function tanggalLisensi(epoch) {
 // `blocked` dibedakan jadi dua: token yang TIDAK TERBACA dan langganan yang
 // HABIS sama-sama menghentikan kamera, tapi yang harus dikerjakan berbeda -
 // yang pertama salah pasang, yang kedua perlu token baru.
+//
+// Mati DENGAN token terpasang disebut terpisah: token sampai ke konsol tapi
+// `LICENSE_ENABLED` tidak. Itu gejala Lampung 2026-09-22 (blok konsol di
+// compose cuma mengirim tokennya), dan "Mati" saja terbaca seperti pabrik
+// tanpa langganan, padahal yang salah satu baris compose.
 function ringkasLisensi(l) {
-  if (!l.aktif) return t("lisensiMati");
+  if (!l.aktif) return t(l.token_terpasang ? "lisensiSaklarMati" : "lisensiMati");
   if (!l.token_terpasang) return t("lisensiTanpaToken");
   if (l.severity === "blocked" && !l.aktif_sampai) return t("lisensiTokenRusak");
   if (l.sisa_hari === null || l.sisa_hari === undefined) return t("lisensiAktif");
@@ -3892,7 +4887,10 @@ async function muatVersi() {
       // kata itu terbaca support seperti ada yang salah dan memancing
       // penelusuran yang tidak perlu.
       barisVersi(t("labelVersi"), r.versi === "unknown" ? t("versiDariSource") : r.versi),
-      barisVersi(t("labelMachineId"), r.machine_id),
+      // Machine ID disembunyikan dulu (permintaan 2026-09-25) — kolomnya kosong
+      // di konsol Lampung dan terbaca seperti kerusakan. Hidupkan lagi dengan
+      // membuang `//` di bawah; backend tetap mengirim `machine_id`.
+      // barisVersi(t("labelMachineId"), r.machine_id),
       barisVersi(t("labelEnvironment"), r.environment),
       barisVersi(t("labelLisensi"), ringkasLisensi(l)),
     ];
@@ -3908,6 +4906,231 @@ async function muatVersi() {
     if (e.kode !== "belum_masuk") $("versi-daftar").innerHTML = `<dt>${esc(t("gagalVersi"))}</dt><dd></dd>`;
   }
 }
+
+// ── developer: akun (support only) ─────────────────────────────────────
+// Tanggal saja, tanpa jam: yang membuka layar ini mencari siapa yang bisa
+// masuk, bukan detik akunnya dibuat.
+function tanggalAkun(epoch) {
+  if (!epoch) return KOSONG;
+  const d = new Date(epoch * 1000);
+  if (isNaN(d)) return KOSONG;
+  return d.toLocaleDateString(lokal(), { day: "numeric", month: "short", year: "numeric" });
+}
+
+// Keadaan ditulis kata DAN warna: layar ini dibaca lewat AnyDesk, dan sebagian
+// teknisi buta warna. Terkunci memakai aturan kunci yang sama dengan layar
+// login (`domain/daftar_akun.py`), dibulatkan ke atas ke menit.
+function barisAkun(a) {
+  const menit = Math.max(1, Math.ceil((a.terkunci_detik || 0) / 60));
+  const keadaan = a.keadaan === "aktif"
+    ? `<span class="tag ok">${esc(t("akunAktif"))}</span>`
+    : a.keadaan === "terkunci"
+      ? `<span class="tag no">${esc(t("akunTerkunci").replace("{menit}", menit))}</span>`
+      : `<span class="tag">${esc(t("akunMati"))}</span>`;
+  const role = { support: "Support", operator: "Operator" }[a.role] || a.role;
+  return `<tr>
+    <td>${esc(a.nama)}</td><td>${esc(a.email)}</td><td>${esc(role)}</td>
+    <td>${esc(t(a.asal === "erp" ? "asalErp" : "asalLokal"))}</td>
+    <td>${keadaan}</td>
+    <td>${a.sedang_masuk ? esc(t("akunYa")) : KOSONG}</td>
+    <td>${esc(tanggalAkun(a.dibuat))}</td>
+    <td>${aksiAkun(a)}</td>
+  </tr>`;
+}
+
+// Tombol per baris. Akun AutoERP tidak diberi tombol: yang punya AutoERP, dan
+// tarikan berikutnya akan membatalkan perubahan apa pun (server juga menolak,
+// `OperatorAdmin._akun_lokal`). Baris sendiri cuma bisa ganti sandi: mematikan
+// atau menurunkan akun sendiri bisa meninggalkan PC ini tanpa support, dan
+// server menolaknya juga.
+function aksiAkun(a) {
+  if (a.asal !== "lokal") return `<span class="muted">${esc(t("akunDiaturErp"))}</span>`;
+  const saya = String(a.email || "").toLowerCase() === emailSaya;
+  const tombol = (aksi, kunci) => `<button type="button" data-akun-aksi="${aksi}"
+      data-email="${esc(a.email)}">${esc(t(kunci))}</button>`;
+  const isi = [tombol("sandi", "akunGantiSandi")];
+  if (!saya) {
+    isi.push(tombol("status", a.keadaan === "mati" ? "akunAktifkan" : "akunMatikan"));
+    isi.push(tombol("role", a.role === "support" ? "akunJadikanOperator" : "akunJadikanSupport"));
+  }
+  return `<span class="akun-tombol">${isi.join("")}</span>`
+    + (saya ? `<span class="muted">${esc(t("akunSaya"))}</span>` : "");
+}
+
+// Baris terakhir yang dimuat, per email: panel konfirmasi membaca nama, role,
+// dan keadaan dari sini, bukan dari teks sel yang sudah diterjemahkan.
+let akunData = new Map();
+
+async function muatAkun() {
+  try {
+    const r = await api("/api/console/dev/akun");
+    akunData = new Map(r.akun.map((a) => [a.email, a]));
+    $("akun-baris").innerHTML = r.akun.length
+      ? r.akun.map(barisAkun).join("") : barisKosong(8, "kosongAkun");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("akun-baris").innerHTML = barisKosong(8, "gagalAkun");
+  }
+}
+
+// Satu jalan kirim untuk semua aksi tab Akun, dan kuncinya ikut di sini: klik
+// kedua selama permintaan pertama jalan tidak mengirim apa pun (pulang undefined).
+async function kirimAkun(tombol, path, isi) {
+  return denganSibuk(tombol, () => api(path, { method: "POST", body: JSON.stringify(isi) }));
+}
+
+$("akun-tambah-buka").addEventListener("click", () => {
+  const form = $("akun-tambah");
+  form.hidden = !form.hidden;
+  if (!form.hidden) $("akun-nama").focus();
+});
+
+function tutupFormAkun() {
+  $("akun-tambah").reset();
+  $("akun-tambah").hidden = true;
+  $("akun-tambah-pesan").textContent = "";
+}
+
+$("akun-tambah-batal").addEventListener("click", tutupFormAkun);
+
+// `submit`, bukan klik tombol: Enter di kolom sandi terakhir juga menyimpan.
+$("akun-tambah").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  $("akun-tambah-pesan").textContent = "";
+  const isi = {
+    nama: $("akun-nama").value, email: $("akun-email").value, role: $("akun-role").value,
+    sandi: $("akun-sandi").value, sandi_ulang: $("akun-sandi-ulang").value,
+  };
+  try {
+    const hasil = await kirimAkun($("akun-tambah-simpan"), "/api/console/dev/akun", isi);
+    if (hasil === undefined) return;
+    toastSukses(t("akunDibuat").replace("{email}", hasil.akun.email));
+    tutupFormAkun();
+    await muatAkun();
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("akun-tambah-pesan").textContent = alasan(e);
+  }
+});
+
+function tutupPanelAkun() {
+  document.querySelectorAll("#akun-baris tr.akun-panel-baris").forEach((tr) => tr.remove());
+}
+
+// Isi konfirmasi satu aksi. Menyebut akibatnya dalam kalimat, dan tombol
+// eksekusinya merah untuk yang mengurangi akses orang (matikan) atau menambah
+// kuasa (jadikan support).
+function panelAkun(aksi, a) {
+  const nama = a.nama || a.email;
+  const batal = `<button type="button" data-akun-batal>${esc(t("btnBatal"))}</button>`;
+  const pesan = `<p class="akun-pesan" role="alert"></p>`;
+  if (aksi === "sandi") {
+    const saya = String(a.email || "").toLowerCase() === emailSaya;
+    const judul = t("akunSandiJudul").replace("{email}", a.email)
+      + (saya ? " " + t("akunSandiDiriSendiri") : "");
+    return `<div class="akun-panel">
+      <p>${esc(judul)}</p>
+      <input type="password" data-akun-sandi autocomplete="new-password"
+             placeholder="${esc(t("lbSandi"))}" aria-label="${esc(t("lbSandi"))}">
+      <input type="password" data-akun-sandi-ulang autocomplete="new-password"
+             placeholder="${esc(t("lbSandiUlang"))}" aria-label="${esc(t("lbSandiUlang"))}">
+      <button type="button" class="utama" data-akun-jalankan>${esc(t("akunSimpan"))}</button>
+      ${batal}${pesan}
+    </div>`;
+  }
+  const [tanya, ya, awas] = aksi === "status"
+    ? (a.keadaan === "mati"
+      ? ["akunAktifkanTanya", "akunYaAktifkan", false]
+      : ["akunMatikanTanya", "akunYaMatikan", true])
+    : (a.role === "support"
+      ? ["akunOperatorTanya", "akunYaUbah", false]
+      : ["akunSupportTanya", "akunYaUbah", true]);
+  return `<div class="akun-panel${awas ? " awas" : ""}">
+    <p>${esc(t(tanya).replace("{nama}", nama))}</p>
+    <button type="button" class="utama" data-akun-jalankan>${esc(t(ya))}</button>
+    ${batal}${pesan}
+  </div>`;
+}
+
+// Isi permintaan dan kalimat suksesnya, dari aksi + baris akun.
+function permintaanAkun(aksi, a, panel) {
+  if (aksi === "sandi") {
+    const saya = String(a.email || "").toLowerCase() === emailSaya;
+    return {
+      path: "/api/console/dev/akun/sandi",
+      isi: { email: a.email, sandi: panel.querySelector("[data-akun-sandi]").value,
+             sandi_ulang: panel.querySelector("[data-akun-sandi-ulang]").value },
+      sukses: saya ? t("akunSandiDigantiSendiri") : t("akunSandiDiganti").replace("{email}", a.email),
+    };
+  }
+  if (aksi === "status") {
+    const aktif = a.keadaan === "mati";
+    return {
+      path: "/api/console/dev/akun/status",
+      isi: { email: a.email, aktif },
+      sukses: t(aktif ? "akunDiaktifkan" : "akunDimatikan").replace("{email}", a.email),
+    };
+  }
+  const role = a.role === "support" ? "operator" : "support";
+  return {
+    path: "/api/console/dev/akun/role",
+    isi: { email: a.email, role },
+    sukses: t("akunRoleDiubah").replace("{email}", a.email)
+      .replace("{role}", role === "support" ? "Support" : "Operator"),
+  };
+}
+
+async function jalankanAksiAkun(tombol) {
+  const baris = tombol.closest("tr.akun-panel-baris");
+  const a = akunData.get(baris.dataset.email);
+  if (!a) return;
+  const pesan = baris.querySelector(".akun-pesan");
+  pesan.textContent = "";
+  const { path, isi, sukses } = permintaanAkun(baris.dataset.aksi, a, baris);
+  try {
+    const hasil = await kirimAkun(tombol, path, isi);
+    if (hasil === undefined) return;
+    toastSukses(sukses);
+    // Ganti sandi akun sendiri mengakhiri sesi ini juga: muat ulang menjawab 401
+    // dan gerbang login terbuka, persis yang dijanjikan kalimat suksesnya.
+    await muatAkun();
+  } catch (e) {
+    if (e.kode !== "belum_masuk") pesan.textContent = alasan(e);
+  }
+}
+
+// Didelegasikan ke tbody: barisnya dibangun ulang tiap muat.
+$("akun-baris").addEventListener("click", (ev) => {
+  const buka = ev.target.closest("button[data-akun-aksi]");
+  if (buka) {
+    const a = akunData.get(buka.dataset.email);
+    if (!a) return;
+    const baris = buka.closest("tr");
+    const aksi = buka.dataset.akunAksi;
+    const terbuka = baris.nextElementSibling;
+    // Tombol yang sama ditekan lagi = tutup panelnya.
+    const sama = terbuka && terbuka.classList.contains("akun-panel-baris")
+      && terbuka.dataset.aksi === aksi;
+    tutupPanelAkun();
+    if (sama) return;
+    baris.insertAdjacentHTML("afterend", `<tr class="akun-panel-baris" data-aksi="${esc(aksi)}"
+        data-email="${esc(a.email)}"><td colspan="8">${panelAkun(aksi, a)}</td></tr>`);
+    const panel = baris.nextElementSibling;
+    (panel.querySelector("input") || panel.querySelector("[data-akun-jalankan]")).focus();
+    return;
+  }
+  if (ev.target.closest("button[data-akun-batal]")) {
+    tutupPanelAkun();
+    return;
+  }
+  const jalankan = ev.target.closest("button[data-akun-jalankan]");
+  if (jalankan) jalankanAksiAkun(jalankan);
+});
+
+// Enter di kolom sandi baru = tekan Simpan, sama dengan form tambah.
+$("akun-baris").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter" || !ev.target.matches("tr.akun-panel-baris input")) return;
+  ev.preventDefault();
+  ev.target.closest(".akun-panel").querySelector("[data-akun-jalankan]").click();
+});
 
 // ── developer: uji PLC (support only) ───────────────────────────────────
 // The only lane in the whole console that moves physical hardware. One card
@@ -3945,11 +5168,12 @@ function alamatPlc(nomor, prefiks) {
   return `${prefiks || "M"}${nomor}`;
 }
 
-// Kelas warna satu coil, dari OFFSET-nya (base+0 = OK) — bukan dari nomor
+// Kelas warna satu coil, dari OFFSET-nya (base+0 = OK, +2 = Error) — bukan dari nomor
 // alamat. Base milik panel dan pernah berubah sekali; mencocokkan angka di
 // sini berarti warnanya salah diam-diam pada perubahan berikutnya.
 function kelasCoil(coil, base) {
-  return coil - base === 0 ? "ok" : "";
+  const d = coil - base;
+  return d === 0 ? "ok" : d === 2 ? "error" : "";
 }
 
 function isiCoilPlc(kode, data, sibuk) {
@@ -4014,6 +5238,11 @@ function labelGaris() {
 $("set-sumbu").addEventListener("change", labelGaris);
 
 async function muatSetelan() {
+  // Kotak Danger Zone selalu tertutup saat tab dibuka (spec §2): panel yang
+  // tertinggal terbuka membawa angka lama dan mengundang tombol ditekan tanpa
+  // dibaca ulang.
+  $("bahaya").open = false;
+  tutupPanelBahaya();
   try {
     const r = await api("/api/console/dev/setelan");
     $("set-conf").value = r.conf_threshold;
@@ -4031,7 +5260,7 @@ async function muatSetelan() {
   } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = e.pesan || "gagal"; }
 }
 
-$("set-simpan").addEventListener("click", async () => {
+$("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   const pesan = $("set-pesan");
   pesan.textContent = "";
   try {
@@ -4066,6 +5295,222 @@ $("set-simpan").addEventListener("click", async () => {
       if (teks.includes(field)) $(id).setAttribute("aria-invalid", "true");
     }
   }
+}));
+
+// ── Danger Zone (tab Setelan, support only) ────────────────────────────
+// Lima aksi berbahaya. Panel dibuka dengan data SEGAR tiap kali (bukan dari
+// tarikan sebelumnya): keadaan line bisa berubah sejak tab dibuka. Server
+// memeriksa ulang semuanya; 409 menggambar ulang panel dengan alasan terbaru.
+const BAHAYA_HAPUS = new Set(["rekaman", "transaksi", "semua"]);
+const BAHAYA_URL = {
+  restart: "restart-line", logout: "logout-semua", rekaman: "hapus-rekaman",
+  transaksi: "hapus-data", semua: "hapus-data",
+};
+
+// Persis HAPUS, spasi di tepi dibuang, huruf besar-kecil dibedakan — aturan
+// yang sama dengan server (`domain/bahaya.konfirmasi_sah`).
+function hapusSah(teks) {
+  return String(teks ?? "").trim() === "HAPUS";
+}
+
+// Byte -> GB, dua desimal, pemisah mengikuti bahasa layar.
+function gbBahaya(bytes) {
+  return (Math.round((Number(bytes) || 0) / 1e7) / 100).toLocaleString(lokal());
+}
+
+// Kalimat untuk satu kode hambatan/peringatan dari server.
+function teksKode(awalan, item) {
+  return t(awalan + item.kode)
+    .replace("{line}", item.line ?? "")
+    .replace("{jumlah}", item.jumlah ?? "?");
+}
+
+function akibatBahaya(aksi, r) {
+  const d = r.data || {};
+  if (aksi === "restart") return t("bahayaAkibatRestart");
+  if (aksi === "logout") return t("bahayaAkibatLogout").replace("{n}", r.aksi.logout.sesi_aktif);
+  if (aksi === "rekaman") {
+    return t("bahayaAkibatRekaman")
+      .replace("{n}", r.aksi.rekaman.berkas).replace("{gb}", gbBahaya(r.aksi.rekaman.bytes));
+  }
+  return t(aksi === "semua" ? "bahayaAkibatSemua" : "bahayaAkibatTransaksi")
+    .replace("{janjang}", d.janjang ?? 0).replace("{tiket}", d.tiket ?? 0)
+    .replace("{truk}", d.truk ?? 0).replace("{akun}", d.akun ?? 0);
+}
+
+// Isi satu panel. Batal SELALU lebih dulu: fokus awal jatuh di situ, jadi Enter
+// yang tidak disengaja membatalkan. Ada hambatan = tidak ada tombol eksekusi
+// sama sekali, bukan tombol mati — tombol mati mengundang dicoba terus.
+function panelBahaya(aksi, r) {
+  const info = (r.aksi || {})[aksi] || {};
+  const hambatan = info.hambatan || [];
+  const peringatan = info.peringatan || [];
+  const awalanPeringatan = (item) =>
+    aksi === "rekaman" && item.kode === "line_merekam" ? "peringatan_rekaman_" : "peringatan_";
+  const daftar = (items, kelas, awalan) => items.length
+    ? `<ul class="${kelas}">${items.map((i) => `<li>${esc(teksKode(awalan(i), i))}</li>`).join("")}</ul>`
+    : "";
+  const ketik = BAHAYA_HAPUS.has(aksi);
+  let tombol = `<button type="button" data-bahaya-batal>${esc(t("btnBatal"))}</button>`;
+  if (!hambatan.length) {
+    if (ketik) {
+      tombol += `<input data-bahaya-ketik autocomplete="off" autocapitalize="characters"
+        spellcheck="false" placeholder="${esc(t("bahayaKetikHapus"))}" aria-label="${esc(t("bahayaKetikHapus"))}">`;
+    }
+    tombol += `<button type="button" class="bahaya-jalankan" data-bahaya-jalankan="${esc(aksi)}"${ketik ? " disabled" : ""}>${esc(t("bahayaJalankan_" + aksi))}</button>`;
+  }
+  return `<p class="bahaya-akibat">${esc(akibatBahaya(aksi, r))}</p>`
+    + (aksi === "transaksi" || aksi === "semua" ? `<p class="muted">${esc(t("bahayaTidakTersentuh"))}</p>` : "")
+    + daftar(hambatan, "bahaya-hambatan", () => "hambatan_")
+    + daftar(peringatan, "bahaya-peringatan", awalanPeringatan)
+    + `<div class="bahaya-tombol">${tombol}</div>`;
+}
+
+function tutupPanelBahaya() {
+  document.querySelectorAll("[data-bahaya-panel]").forEach((p) => {
+    p.hidden = true;
+    p.innerHTML = "";
+  });
+}
+
+async function bukaPanelBahaya(aksi) {
+  tutupPanelBahaya();
+  const panel = document.querySelector(`[data-bahaya-panel="${aksi}"]`);
+  if (!panel) return;
+  panel.hidden = false;
+  panel.innerHTML = `<p class="muted">${esc(t("bahayaMemeriksa"))}</p>`;
+  try {
+    const r = await api("/api/console/dev/bahaya");
+    if (panel.hidden) return; // ditutup selama menunggu
+    panel.innerHTML = panelBahaya(aksi, r);
+    panel.querySelector("[data-bahaya-batal]")?.focus();
+  } catch (e) {
+    // Sesi habis: gerbang login sudah terbuka; panel yang tertinggal di
+    // "Memeriksa…" di belakangnya terbaca macet sesudah login.
+    if (e.kode === "belum_masuk") return tutupPanelBahaya();
+    panel.innerHTML = `<p class="bahaya-akibat">${esc(alasan(e) || t("gagalBahaya"))}</p>`
+      + `<div class="bahaya-tombol"><button type="button" data-bahaya-batal>${esc(t("btnBatal"))}</button></div>`;
+  }
+}
+
+// Ringkasan hasil untuk toast. Line yang GAGAL (harus diulang) dan line yang
+// menerima tapi PERLU DICEK (`belum_mati`: datanya baru terhapus saat ia
+// restart) disebut terpisah — dua-duanya bukan "sukses" yang boleh dilewati.
+function hasilBahaya(aksi, h) {
+  if (aksi === "logout") return t("bahayaHasilLogout").replace("{n}", h.sesi_dihapus);
+  const lines = h.lines || [];
+  let teks;
+  if (aksi === "restart") {
+    teks = t("bahayaHasilRestart")
+      .replace("{ok}", lines.filter((r) => r.ok).length).replace("{n}", lines.length);
+  } else if (aksi === "rekaman") {
+    teks = t("bahayaHasilRekaman").replace("{n}", h.berkas).replace("{gb}", gbBahaya(h.bytes));
+  } else {
+    teks = t("bahayaHasilHapus");
+  }
+  const sebut = (r) => `${r.line_code} (${t("lineHasil_" + (r.kode || "gagal"))})`;
+  const gagal = lines.filter((r) => !r.ok).map(sebut);
+  const cek = lines.filter((r) => r.ok && r.kode).map(sebut);
+  if (gagal.length) teks += ` ${t("bahayaHasilGagal")}: ${gagal.join(", ")}.`;
+  if (cek.length) teks += ` ${t("bahayaHasilCatatan")}: ${cek.join(", ")}.`;
+  return teks;
+}
+
+// Ada line yang gagal atau perlu dicek: toast-nya tetap sampai ditutup.
+function hasilPerluDibaca(h) {
+  return (h.lines || []).some((r) => !r.ok || Boolean(r.kode));
+}
+
+// "line-1:versi_lama,line-2:lisensi" (params `semua_line_menolak`) -> kalimat
+// dalam bahasa layar.
+function daftarLineHasil(teks) {
+  return String(teks || "").split(",").filter(Boolean).map((pasang) => {
+    const [line, kode] = pasang.split(":");
+    return `${line} (${t("lineHasil_" + (kode || "gagal"))})`;
+  }).join(", ");
+}
+
+function alasanBahaya(e) {
+  if (e.kode === "semua_line_menolak") {
+    return t("err_semua_line_menolak").replace("{lines}", daftarLineHasil(e.params?.lines));
+  }
+  return alasan(e) || t("gagalBahaya");
+}
+
+function tampilHasilBahaya(aksi, hasil) {
+  const teks = hasilBahaya(aksi, hasil);
+  if (hasilPerluDibaca(hasil)) toast("peringatan", teks, 0);
+  else toastSukses(teks);
+}
+
+// Logout paksa dan hapus semua mengakhiri sesi yang menekan juga: gerbang login
+// langsung menutup layar beserta toast hasilnya. Hasilnya dititipkan ke
+// sessionStorage (tab ini saja) dan ditampilkan sesudah login berikutnya —
+// kecuali sudah basi, supaya tidak muncul untuk orang lain berjam-jam kemudian.
+const HASIL_TERTUNDA = "bahayaHasilTertunda";
+const TENGGAT_HASIL_MS = 10 * 60 * 1000;
+
+function titipHasilBahaya(aksi, hasil) {
+  try {
+    sessionStorage.setItem(HASIL_TERTUNDA, JSON.stringify({ aksi, hasil, pada: Date.now() }));
+  } catch (e) { /* tanpa sessionStorage hasilnya cuma di toast yang tertutup gerbang */ }
+}
+
+function tampilkanHasilTertunda() {
+  let titipan = null;
+  try {
+    titipan = JSON.parse(sessionStorage.getItem(HASIL_TERTUNDA) || "null");
+    sessionStorage.removeItem(HASIL_TERTUNDA);
+  } catch (e) { return; }
+  if (titipan && Date.now() - titipan.pada < TENGGAT_HASIL_MS) {
+    tampilHasilBahaya(titipan.aksi, titipan.hasil);
+  }
+}
+
+async function jalankanBahaya(aksi, tombol) {
+  const panel = tombol.closest(".bahaya-panel");
+  const ketik = panel.querySelector("[data-bahaya-ketik]");
+  const body = {};
+  if (BAHAYA_HAPUS.has(aksi)) body.konfirmasi = ketik ? ketik.value : "";
+  if (aksi === "transaksi" || aksi === "semua") body.mode = aksi;
+  tombol.disabled = true;
+  tombol.classList.add("sibuk");
+  tombol.textContent = t("bahayaMenunggu");
+  try {
+    // `api()` meneruskan opts ke fetch apa adanya, jadi body WAJIB string —
+    // objek telanjang terkirim sebagai "[object Object]" dan dijawab 422.
+    const hasil = await api(`/api/console/dev/bahaya/${BAHAYA_URL[aksi]}`, {
+      method: "POST", body: JSON.stringify(body),
+    });
+    tampilHasilBahaya(aksi, hasil);
+    tutupPanelBahaya();
+    // Logout & hapus semua mengakhiri sesi ini juga: polling berikutnya
+    // dijawab 401 dan `api()` membuka gerbang login sendiri.
+    if (aksi === "logout" || aksi === "semua") titipHasilBahaya(aksi, hasil);
+  } catch (e) {
+    toastGagal(alasanBahaya(e));
+    if (e.kode === "bahaya_ditolak") return bukaPanelBahaya(aksi);
+    tombol.disabled = false;
+    tombol.classList.remove("sibuk");
+    tombol.textContent = t("bahayaJalankan_" + aksi);
+  }
+}
+
+$("bahaya").addEventListener("toggle", () => {
+  if (!$("bahaya").open) tutupPanelBahaya();
+});
+$("bahaya").addEventListener("click", (ev) => {
+  const buka = ev.target.closest("[data-bahaya-buka]");
+  if (buka) return denganSibuk(buka, () => bukaPanelBahaya(buka.dataset.bahayaBuka));
+  if (ev.target.closest("[data-bahaya-batal]")) return tutupPanelBahaya();
+  const jalan = ev.target.closest("[data-bahaya-jalankan]");
+  if (jalan && !jalan.disabled) return jalankanBahaya(jalan.dataset.bahayaJalankan, jalan);
+});
+$("bahaya").addEventListener("input", (ev) => {
+  const ketik = ev.target.closest("[data-bahaya-ketik]");
+  if (!ketik) return;
+  const tombol = ketik.closest(".bahaya-panel").querySelector("[data-bahaya-jalankan]");
+  if (tombol) tombol.disabled = !hapusSah(ketik.value);
 });
 
 // ── Rekam video per line (support only) ────────────────────────────────
@@ -4138,8 +5583,10 @@ async function muatRekam() {
     // Kolom setelan TIDAK ditimpa selama sedang diketik: polling tiap 3 detik
     // akan menghapus angka di bawah jari support.
     const setelan = data.setelan || {};
-    for (const [id, kunci] of [["rekam-width", "width"], ["rekam-height", "height"],
-                               ["rekam-fps", "fps"], ["rekam-bitrate", "bitrate_kbps"]]) {
+    //
+    // FPS dan Bitrate tidak ada di sini (dicabut 2026-09-25): FPS ikut laju
+    // kamera, dan bitrate tidak pernah diteruskan ke encoder.
+    for (const [id, kunci] of [["rekam-width", "width"], ["rekam-height", "height"]]) {
       const el = $(id);
       if (el && document.activeElement !== el) el.value = setelan[kunci] ?? "";
     }
@@ -4171,6 +5618,7 @@ $("rekam-baris").addEventListener("click", async (ev) => {
   // terbaca persis seperti tombol yang tidak bereaksi — dan support akan
   // menekannya lagi.
   el.disabled = true;
+  el.classList.add("sibuk");
   const tulisanAsli = el.textContent;
   el.textContent = t("rekamMenunggu");
   try {
@@ -4196,6 +5644,7 @@ $("rekam-baris").addEventListener("click", async (ev) => {
   } catch (e) {
     toastGagal(alasan(e) || t("gagalRekam"));
     el.disabled = false;
+    el.classList.remove("sibuk");
     el.textContent = tulisanAsli;
     // Keadaan line sudah berbeda dari yang digambar layar (dua tab terbuka,
     // atau rekaman berhenti sendiri karena disk). Menyegarkan di sini membuat
@@ -4205,7 +5654,7 @@ $("rekam-baris").addEventListener("click", async (ev) => {
   }
 });
 
-$("rekam-simpan").addEventListener("click", async () => {
+$("rekam-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   try {
     // `api()` meneruskan opts ke fetch apa adanya, jadi body WAJIB string.
     // Objek telanjang dikirim sebagai "[object Object]" dan dijawab 422 —
@@ -4216,8 +5665,6 @@ $("rekam-simpan").addEventListener("click", async () => {
       body: JSON.stringify({
         width: $("rekam-width").value,
         height: $("rekam-height").value,
-        fps: $("rekam-fps").value,
-        bitrate_kbps: $("rekam-bitrate").value,
       }),
     });
     toastSukses(t("rekamSetelanTersimpan"));
@@ -4225,7 +5672,7 @@ $("rekam-simpan").addEventListener("click", async () => {
   } catch (e) {
     toastGagal(alasan(e) || t("gagalRekam"));
   }
-});
+}));
 
 // ── Sumber kamera per line (support only) ──────────────────────────────
 // Empat pilihan layar, tapi berkas cuma berlaku untuk Video dan Foto -
@@ -4305,7 +5752,7 @@ document.querySelectorAll("[data-sumber-line] input[type=radio]").forEach((el) =
   });
 });
 
-$("sumber-simpan").addEventListener("click", async () => {
+$("sumber-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   const payload = {};
   for (const kode of SUMBER_KODE_LINE) {
     const blok = document.querySelector(`[data-sumber-line="${kode}"]`);
@@ -4345,7 +5792,7 @@ $("sumber-simpan").addEventListener("click", async () => {
   } catch (e) {
     toastGagal(alasan(e) || t("gagalSumberSimpan"));
   }
-});
+}));
 
 // ── Model deteksi per line (support only) ──────────────────────────────
 // Pilihan disimpan konsol di media.env; yang BENAR-BENAR dimuat dilaporkan
@@ -4398,7 +5845,7 @@ function opsiModel(kode, terpilih) {
   pilih.innerHTML = "";
   pilih.append(new Option(t("modelBawaanPanjang"), ""));
   for (const m of modelTerakhir.model) {
-    const opt = new Option(m.cocok ? m.berkas : `${m.berkas} — ${t("modelTidakBisa")}`, m.berkas);
+    const opt = new Option(m.cocok ? m.berkas : `${m.berkas} (${t("modelTidakBisa")})`, m.berkas);
     // Tampil tapi tidak bisa dipilih, dengan alasannya: menyembunyikan model
     // lama membuat orang mengira berkasnya hilang lalu menyalinnya lagi.
     opt.disabled = !m.cocok;
@@ -4409,7 +5856,7 @@ function opsiModel(kode, terpilih) {
     // Tersimpan tapi berkasnya sudah dihapus dari folder. Ditampilkan apa
     // adanya, bukan diam-diam jatuh ke Bawaan: menyimpan layar ini tanpa
     // sadar akan mengganti model line itu.
-    const hilang = new Option(`${terpilih} — ${t("modelTidakBisa")}`, terpilih);
+    const hilang = new Option(`${terpilih} (${t("modelTidakBisa")})`, terpilih);
     hilang.disabled = true;
     pilih.append(hilang);
   }
@@ -4555,7 +6002,7 @@ function pantauSesudahSimpan(pilihan, berubah) {
   }, 5000);
 }
 
-$("model-simpan").addEventListener("click", async () => {
+$("model-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   if (!modelTerakhir || modelSibukKirim) return;
   const pilihan = {};
   for (const kode of MODEL_KODE_LINE) {
@@ -4584,7 +6031,7 @@ $("model-simpan").addEventListener("click", async () => {
   }).join("");
   modelPilihanTertunda = pilihan;
   $("model-modal").showModal();
-});
+}));
 
 $("model-modal-batal").addEventListener("click", () => $("model-modal").close());
 // Klik di backdrop = batal, seperti lapisan foto.
@@ -4592,7 +6039,7 @@ $("model-modal").addEventListener("click", (ev) => {
   if (ev.target === ev.currentTarget) ev.currentTarget.close();
 });
 
-$("model-modal-jalankan").addEventListener("click", async () => {
+$("model-modal-jalankan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   const pilihan = modelPilihanTertunda;
   modelPilihanTertunda = null;
   $("model-modal").close();
@@ -4622,7 +6069,7 @@ $("model-modal-jalankan").addEventListener("click", async () => {
     modelSibukKirim = false;
     $("model-simpan").disabled = false;
   }
-});
+}));
 
 // Dua jalur, sengaja dipisah (Lampung 2026-09-24: "tab PLC Test berkedip"):
 // `muatPlc()` membangun kartu dari nol saat tab dibuka, `segarkanPlc()`
@@ -4722,10 +6169,12 @@ async function jalankanUjiPlc() {
   const { line_code, coil } = ujiUntuk;
   tutupUjiPlc();
   try {
-    const hasil = await api(`/api/console/dev/plc/${encodeURIComponent(line_code)}/coil`, {
+    const coilTombol = $("plc-kartu").querySelector(
+      `button.uji-coil[data-line="${CSS.escape(line_code)}"][data-coil="${coil}"]`);
+    const hasil = await denganSibuk(coilTombol, () => api(`/api/console/dev/plc/${encodeURIComponent(line_code)}/coil`, {
       method: "POST",
       body: JSON.stringify({ coil }),
-    });
+    }));
     pesan(hasil.fired ? t("ujiPlcBerhasil").replace("{coil}", coil) : t("ujiPlcDijatuhkan").replace("{coil}", coil));
   } catch (e) {
     if (e.kode !== "belum_masuk") pesan(t("gagalUjiPlc") + ": " + alasan(e));

@@ -93,6 +93,16 @@ def _create_if_missing(
     return True
 
 
+def hash_is_usable(password_hash: str) -> bool:
+    """Would `seed_default_accounts` create an account from this hash?
+
+    The Danger Zone asks before "delete all data" wipes every account: with no usable
+    support hash (and no AutoERP to pull accounts from) the console would come back with
+    nobody able to open the developer lanes, the Danger Zone included.
+    """
+    return bool(password_hash) and _hash_is_readable(password_hash)
+
+
 def _hash_is_readable(password_hash: str) -> bool:
     """Only the two shapes this build can verify are accepted.
 

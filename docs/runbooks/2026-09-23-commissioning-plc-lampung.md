@@ -1,4 +1,4 @@
-# Commissioning PLC di Lampung — 23 September 2026
+# Commissioning PLC di Lampung: 23 September 2026
 
 Hari pertama AutoGrade bicara ke CPU Mitsubishi Q03UDECPU sungguhan lewat MC Protocol.
 Hasil akhir: **tiga line tersambung, M1000/M1001 (PC → PLC) dan M1111 (PLC → PC)
@@ -9,8 +9,8 @@ Yang dipegang tim PLC: `docs/plc-mc-handoff.md` (v1.4). Peta teknis: skill `plc-
 
 ## Keadaan awal
 
-- PC Lampung `v1.14.0` → ditarik ke `v1.15.0` (`autograde.sh pull`), PLC di `192.168.0.14`
-  — satu segmen dengan NIC kamera (`enp3s0` `192.168.0.10/24`), tanpa rute tambahan.
+- PC Lampung `v1.14.0` → ditarik ke `v1.15.0` (`autograde.sh pull`), PLC di `192.168.0.14`,
+  satu segmen dengan NIC kamera (`enp3s0` `192.168.0.10/24`), tanpa rute tambahan.
 - Ocit sudah membuka port 1025 (MC Protocol, TCP) dan program uji Viki sudah bisa
   nulis/baca M dari laptop.
 
@@ -35,7 +35,7 @@ cd /opt/palmgrade/autograde && python3 /tmp/plc-mc.py   # isi skrip: lampiran A
 
 ### 2. `.env` menimpa compose
 
-`.env` masih memuat `PLC_PORT=502`, `PLC_COIL_BASE=0`, dst. dari era ODOT — dan `.env`
+`.env` masih memuat `PLC_PORT=502`, `PLC_COIL_BASE=0`, dst. dari era ODOT: dan `.env`
 **menang** atas default compose. Dibersihkan sampai tersisa dua baris:
 
 ```bash
@@ -50,18 +50,18 @@ dan tombol berbunyi "Test coil 1000/1001". **Jalur baca hidup.**
 ### 3. Tombol abu-abu walau PLC hidup
 
 Pengaman yang disengaja: uji coil **ditolak selama line punya truk terpasang**. Tekan
-**Release** dulu. Kata konfirmasinya **`UJI`** — sempat diketik `TES`, dan selama beberapa
+**Release** dulu. Kata konfirmasinya **`UJI`**: sempat diketik `TES`, dan selama beberapa
 menit dikira "pulse terkirim tapi PLC diam", padahal belum pernah terkirim.
 
 ### 4. Baca jalan, tulis ditolak: `mc protocol error: error code 0x0055`
 
-Setiap tulis — M1000, M1002, M1009 — ditolak dengan kode yang sama, tiap 200 ms, sementara
+Setiap tulis (M1000, M1002, M1009) ditolak dengan kode yang sama, tiap 200 ms, sementara
 bit motor tetap terbaca mulus. `0x0055` = *write not allowed*: PLC menerima paketnya,
 mengerti, lalu menolak. **Bukan** jaringan (baca jalan), **bukan** alamat (kodenya akan
 device error).
 
 **Sebab:** *Enable online change (FTP, MC Protocol)* belum tercentang di Open Setting.
-Izin baca dan tulis di MC Protocol **terpisah** — inilah alasan butir itu ada di daftar
+Izin baca dan tulis di MC Protocol **terpisah**, inilah alasan butir itu ada di daftar
 tunggu sejak awal. **Jawab:** centang → Write to PLC → **reset CPU**.
 
 Retry 200 ms membanjiri log; sementara menunggu: `PLC_ENABLED=false` + restart, grading
@@ -70,7 +70,7 @@ nol terpengaruh.
 ### 5. Sesudah reset CPU: satu line tersambung, dua lainnya `connect timed out`
 
 Log line 1: `PLC connect ke 192.168.0.14:1025 gagal: timed out` tiap ~2 s. Line 3 bersih
-dan membaca bit. `0x0055` hilang — centang Ocit **berhasil**, tapi sekarang cuma satu line
+dan membaca bit. `0x0055` hilang: centang Ocit **berhasil**, tapi sekarang cuma satu line
 yang dapat koneksi.
 
 **Sebab:** **satu Open Setting = satu koneksi TCP.** Tiga line di port 1025 berebut satu
@@ -79,7 +79,7 @@ di daftar tunggu.
 
 **Jawab (dua sisi):**
 
-- PC: port literal per line — 1025 / 1026 / 1027 (skrip lampiran B). Sesudah ini
+- PC: port literal per line: 1025 / 1026 / 1027 (skrip lampiran B). Sesudah ini
   `PLC_PORT` **tidak boleh** diisi di `.env`.
 - PLC: Ocit menambah dua Open Setting (TCP, MC Protocol, 1026 dan 1027).
 
@@ -87,7 +87,7 @@ di daftar tunggu.
 
 `refused` (bukan `timed out`) = PLC menjawab tegas "port ini tidak ada". Ocit **belum
 reset CPU** sesudah Write to PLC. Sesudah reset: ketiga line bersih dalam ~30 detik,
-**tanpa** restart apa pun di PC — tiap line reconnect sendiri tiap tick.
+**tanpa** restart apa pun di PC, tiap line reconnect sendiri tiap tick.
 
 Cara memastikan, dari luar aplikasi:
 
@@ -108,11 +108,11 @@ done
 
 ## Yang masih terbuka sesudah hari ini
 
-1. **Watchdog heartbeat di ladder** — pantau M1009; diam 2–3 detik ⇒ matikan M1000–M1008.
-2. **Polaritas E-stop** — layar menampilkan `On` sepanjang sore. Panelnya memang ditekan?
+1. **Watchdog heartbeat di ladder**: pantau M1009; diam 2–3 detik ⇒ matikan M1000–M1008.
+2. **Polaritas E-stop**: layar menampilkan `On` sepanjang sore. Panelnya memang ditekan?
    Belum ditanyakan. Kalau tidak, ladder NC dan pita alarm akan menyala terus.
-3. **"Ditahan terus"** — Ocit minta OK/NG ditahan. Buat tes: `PLC_PULSE_MS=10000` sementara.
-   Buat produksi: **jangan** — latch di ladder; PC tidak tahu kecepatan belt.
+3. **"Ditahan terus"**: Ocit minta OK/NG ditahan. Buat tes: `PLC_PULSE_MS=10000` sementara.
+   Buat produksi: **jangan**: latch di ladder; PC tidak tahu kecepatan belt.
 4. E-stop menghentikan kamera atau cukup pita? Buah tanpa sinyal lolos atau dibuang?
 
 ## Perintah yang sering dipakai hari ini
@@ -127,7 +127,7 @@ for n in 1 2 3; do echo "== line $n =="; docker logs --since 30s ripe_line_$n 2>
 `autograde.sh restart` sempat melewati satu container yang dianggap "tidak berubah"
 (`PLC_ENABLED` di line 2 tidak ikut turun). `stop` lalu start penuh yang meyakinkan.
 
-## Lampiran A — tukar blok PLC di compose (host PC)
+## Lampiran A: tukar blok PLC di compose (host PC)
 
 ```python
 import re, shutil, sys
@@ -183,7 +183,7 @@ p.write_text("".join(keluar), encoding="utf-8")
 print(f"OK — 3 blok diganti: {', '.join(diganti)}\nCadangan: {cad}")
 ```
 
-## Lampiran B — cuma port per line (kalau blok sudah versi MC)
+## Lampiran B: cuma port per line (kalau blok sudah versi MC)
 
 ```python
 import re

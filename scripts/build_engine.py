@@ -32,7 +32,7 @@ IMGSZ = 640
 
 def main() -> int:
     if not torch.cuda.is_available():
-        print("[build_engine] CUDA tidak tersedia — TensorRT butuh GPU. Lewati.")
+        print("[build_engine] CUDA tidak tersedia, padahal TensorRT butuh GPU. Lewati.")
         return 0
 
     settings = Settings()
@@ -50,13 +50,13 @@ def main() -> int:
     if (cc_major, cc_minor) < (7, 5):
         print(
             f"[build_engine] {gpu_name} (sm{cc}) tidak didukung TensorRT 10.x "
-            "— minimal sm75 (Turing). Lewati; runtime pakai .pt."
+            "(minimal sm75, Turing). Lewati, runtime pakai .pt."
         )
         return 0
 
     target = settings.engine_path_for_gpu(cc)
     if target.exists():
-        print(f"[build_engine] Engine sudah ada untuk {gpu_name} (sm{cc}): {target} — skip.")
+        print(f"[build_engine] Engine sudah ada untuk {gpu_name} (sm{cc}): {target}, skip.")
         return 0
 
     pt_path = settings.ripeness_model_path

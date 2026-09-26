@@ -1,7 +1,7 @@
 # Mengganti sumber kamera satu line
 
 Untuk teknisi di lapangan (AnyDesk ke PC pabrik) yang perlu mengganti sumber
-gambar satu line kamera — misalnya kamera lepas kabel dan sementara mau diuji
+gambar satu line kamera: misalnya kamera lepas kabel dan sementara mau diuji
 pakai video rekaman, atau sedang training pakai foto diam.
 
 Layar: konsol → login **support** (bukan operator biasa) → tab **Sumber Kamera**.
@@ -10,18 +10,18 @@ Layar: konsol → login **support** (bukan operator biasa) → tab **Sumber Kame
 
 | Pilihan | Dipakai untuk | Butuh berkas |
 |---|---|---|
-| Kamera Hikrobot | produksi | tidak — malah **ditolak** kalau diisi |
-| Webcam | dev di laptop | tidak — malah **ditolak** kalau diisi |
+| Kamera Hikrobot | produksi | tidak: malah **ditolak** kalau diisi |
+| Webcam | dev di laptop | tidak: malah **ditolak** kalau diisi |
 | Video | uji ulang rekaman | ya |
 | Foto | uji satu frame diam | ya |
 
 Video dan Foto **wajib** pilih berkas dari dropdown. Kamera Hikrobot dan
-Webcam **tidak boleh** punya berkas — layar menolak kombinasi yang salah
+Webcam **tidak boleh** punya berkas, layar menolak kombinasi yang salah
 sebelum sempat disimpan.
 
 ## Menaruh berkas
 
-Berkas video/foto **tidak diunggah dari layar** — sengaja tidak ada tombol
+Berkas video/foto **tidak diunggah dari layar**, sengaja tidak ada tombol
 upload. Taruh berkasnya langsung ke folder `media/` di host lewat AnyDesk atau
 USB:
 
@@ -29,14 +29,14 @@ USB:
 - PC pabrik: `/opt/palmgrade/autograde/media/`
 
 Begitu berkas ada di folder itu, dia langsung muncul di dropdown **tanpa
-restart apa pun** — daftarnya dibaca ulang tiap kali layar Sumber Kamera
+restart apa pun**: daftarnya dibaca ulang tiap kali layar Sumber Kamera
 dibuka.
 
 ## Menyimpan
 
 Pilih sumber untuk line yang mau diganti, lalu tekan **Simpan & Restart**.
 
-**Hanya line yang setelannya berubah yang direstart** — line lain yang tidak
+**Hanya line yang setelannya berubah yang direstart**: line lain yang tidak
 disentuh terus grading seperti biasa. Restart satu line makan waktu sekitar
 10 detik; selama itu line tersebut berhenti sebentar.
 
@@ -47,7 +47,7 @@ menekan Simpan berulang-ulang tanpa guna.
 
 **Setelan tetap tersimpan** walau line-nya sedang mati atau tidak menjawab
 restart. Layar akan bilang line mana yang belum kena. Line itu akan
-**membaca setelan barunya sendiri saat hidup lagi** — tidak perlu menyimpan
+**membaca setelan barunya sendiri saat hidup lagi**: tidak perlu menyimpan
 ulang, dan tidak perlu menunggu line itu hidup dulu baru menyimpan.
 
 Jadi kalau layar bilang "Line 2 tidak menjawab": setelan Line 2 sudah aman
@@ -56,7 +56,7 @@ direstart manual, dsb), dia otomatis memakai sumber yang baru dipilih tadi.
 
 ## Mencobanya di MacBook (tanpa Docker)
 
-Layar ini bisa dipakai penuh di laptop — kamera Hikrobot memang tidak bisa
+Layar ini bisa dipakai penuh di laptop, kamera Hikrobot memang tidak bisa
 (MVS SDK Linux), tapi Video dan Foto jalan lewat jalur native.
 
 ```bash
@@ -66,7 +66,7 @@ make line N=2       # tab 2 — line 2, ikut pilihan Line 2 di layar
 ```
 
 Taruh berkasnya di `autograde/media/`. `make line` membaca `media.env`, jadi
-pilihan per-line di layar berlaku di sini juga — bukan cuma di Docker.
+pilihan per-line di layar berlaku di sini juga, bukan cuma di Docker.
 
 ⚠️ **`make line` berputar sampai Ctrl-C, dan itu memang perlu.** Restart dari
 layar bekerja dengan menyuruh proses line KELUAR; di pabrik `restart:
@@ -81,7 +81,7 @@ line-2 keluar atas permintaan konsol — menyalakan ulang dengan setelan baru
 lalu sekitar 20 detik kemudian kartunya ONLINE lagi dengan sumber baru.
 
 Keluar yang TIDAK normal (berkas media rusak, port dipakai) menghentikan loop
-dan mencetak exit code-nya — supaya satu salah setelan tidak jadi gagal-nyala
+dan mencetak exit code-nya: supaya satu salah setelan tidak jadi gagal-nyala
 yang memenuhi layar.
 
 ## Jebakan
@@ -94,12 +94,12 @@ dibuat.
 ⚠️ **`media.env` tidak ikut git, dan `make` yang membuatkannya.** Berkas ini
 keadaan per-mesin, jadi clone bersih dan PC pabrik yang baru `git pull` tidak
 punya. Target `make` apa pun (`up`, `restart`, `logs`, `down`, …) membuatnya
-dari `media.env.example` kalau belum ada — ketiga line `hikrobot`, bawaan yang
+dari `media.env.example` kalau belum ada, ketiga line `hikrobot`, bawaan yang
 benar untuk pabrik. **Tidak ada langkah manual.**
 
 Kenapa penjaga itu ada: Compose menolak `--env-file` yang berkasnya tidak ada
 (exit 1, `couldn't find env file`), persis seperti `env_file:`. Tanpa penjaga,
-satu `git pull` di PC pabrik membuat **semua** perintah `make` mati sekaligus —
+satu `git pull` di PC pabrik membuat **semua** perintah `make` mati sekaligus,
 termasuk `make down` dan `make logs`, yaitu perintah yang dipakai orang untuk
 mencari tahu ada apa.
 
@@ -111,7 +111,7 @@ Compose menyelesaikan `${LINE_1_CAMERA_TYPE}` di `docker-compose.yml` dari
 **environment shell + berkas `--env-file` saja**. `env_file:` menyuntik
 environment **container**, dan itu terjadi **sesudah** interpolasi selesai. Jadi
 `env_file: media.env` membuat `${LINE_1_CAMERA_TYPE:-hikrobot}` selalu jatuh ke
-`hikrobot` betapapun benar isi berkasnya — seluruh fitur ini mati, tanpa satu
+`hikrobot` betapapun benar isi berkasnya, seluruh fitur ini mati, tanpa satu
 pun error, dengan layar yang tetap menerima pilihan dan menyimpannya.
 
 ⚠️ **Yang membuktikannya `CAMERA_TYPE`, bukan `LINE_1_CAMERA_TYPE`.** Nama
@@ -126,19 +126,19 @@ menulis ulang seluruh blok `environment:` konsol, karena Compose v2.40.3 di PC
 Lampung membuang blok dasar begitu override menyebut kunci yang sama
 (autograde#120). Mount `./media:/media:ro`, `./media.env:/config/media.env`, dan
 variabel `MEDIA_DIR`/`MEDIA_ENV_PATH`/`MEDIA_FILE` **semuanya harus ada di
-override itu juga** — kalau tidak, layar Sumber Kamera di pabrik tampil,
+override itu juga**: kalau tidak, layar Sumber Kamera di pabrik tampil,
 menerima pilihan, dan tidak melakukan apa pun: daftar berkasnya kosong
 selamanya.
 
 ## 🔴 Skrip launcher PC pabrik HARUS diedit tangan
 
 `/opt/palmgrade/autograde.sh` dan `/opt/palmgrade/palmgrade.sh` **hidup di host
-PC pabrik, di luar repo ini**, dan mesin itu tidak punya SSH masuk — editnya
+PC pabrik, di luar repo ini**, dan mesin itu tidak punya SSH masuk, editnya
 lewat AnyDesk. Skrip itu memanggil `docker compose` sendiri, **tidak** lewat
 `Makefile`, jadi perbaikan di repo ini **tidak menjangkaunya**.
 
 Selama skrip itu belum diedit, layar Sumber Kamera di Lampung akan tersimpan
-tapi tidak berefek — gejalanya sama persis dengan bug yang baru diperbaiki.
+tapi tidak berefek: gejalanya sama persis dengan bug yang baru diperbaiki.
 
 Dua perubahan, di **setiap** pemanggilan `docker compose` di kedua skrip:
 
@@ -148,7 +148,7 @@ Dua perubahan, di **setiap** pemanggilan `docker compose` di kedua skrip:
    `docker compose --env-file "$ENV_FILE" --env-file "$MEDIA_ENV" …`
    dengan `MEDIA_ENV=/opt/palmgrade/autograde/media.env`.
 
-2. **Buat berkasnya kalau belum ada**, sekali di dekat awal skrip — kalau tidak
+2. **Buat berkasnya kalau belum ada**, sekali di dekat awal skrip, kalau tidak
    setiap perintah mati dengan `couldn't find env file`:
 
    ```bash
@@ -157,7 +157,7 @@ Dua perubahan, di **setiap** pemanggilan `docker compose` di kedua skrip:
    ```
 
    (`media.env.example` ikut image/checkout; kalau di PC itu belum ada, tulis
-   sembilan barisnya tangan — isinya ada di `media.env.example` repo ini.)
+   sembilan barisnya tangan: isinya ada di `media.env.example` repo ini.)
 
 Cara memastikan sudah benar, di PC itu, **sebelum** dianggap selesai:
 
@@ -171,7 +171,7 @@ docker compose --env-file .env --env-file media.env \
 ## Terbukti di
 
 ✅ **MacBook, 2026-09-21, Docker Compose v5.5.1.** Yang dibuktikan di sini
-adalah **mekanismenya** — `--env-file` ikut interpolasi, `env_file:` tidak —
+adalah **mekanismenya**: `--env-file` ikut interpolasi, `env_file:` tidak,
 dan itu berlaku sama di v2.x karena urutannya (interpolasi dulu, environment
 container kemudian) tidak berubah antar versi.
 

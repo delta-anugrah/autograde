@@ -12,7 +12,7 @@ this file. `CAMERA_FPS` is only a fallback for cameras that cannot report a rate
 
 Changing the rate: edit `AcquisitionFrameRate` here, keep `AcquisitionFrameRateEnable`
 at `1`, keep `ExposureTime` under one frame period, and update `EXPECTED_FPS` in
-`tests/unit/test_camera_feature_file.py` plus `docs/camera-spec.md` § 2.2 — the test
+`tests/unit/test_camera_feature_file.py` plus `docs/camera-spec.md` § 2.2, the test
 pins the number on purpose, so a drift is caught instead of discovered months later.
 ⚠️ Read `docs/camera-spec.md` § 3.1 first: GPU, GigE bandwidth and belt speed each
 cap the useful rate, and they are not the same ceiling.
@@ -21,7 +21,7 @@ cap the useful rate, and they are not the same ceiling.
 
 | File | Source camera | Notes |
 |---|---|---|
-| `hikrobot.mfs` | HIKROBOT GigE Vision (device v1.2.0) | re-exported 2026-06-29 from `SAWIT-latest` MVS Feature Save (adds Decimation params; white balance masih Continuous — locking ke Once di-track terpisah) |
+| `hikrobot.mfs` | HIKROBOT GigE Vision (device v1.2.0) | re-exported 2026-06-29 from `SAWIT-latest` MVS Feature Save (adds Decimation params; white balance masih Continuous: locking ke Once di-track terpisah) |
 
 ## Apply via MVS
 

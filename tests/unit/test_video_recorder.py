@@ -19,7 +19,7 @@ from palmgrade.services.video_recorder import (
     VideoRecorder,
 )
 
-SETELAN = {"width": 320, "height": 240, "fps": 5, "bitrate_kbps": 500}
+SETELAN = {"width": 320, "height": 240, "fps": 5}
 
 
 def _frame(h: int = 240, w: int = 320):

@@ -10,33 +10,54 @@ import logging
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Query, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from ..core.config import Settings
+from ..domain.bahaya import HapusBerjalan
 from ..domain.operator_auth import SESSION_TTL_S
-from ..domain.operator_error import BELUM_MASUK, BUKAN_SUPPORT, TERKUNCI, OperatorError
+from ..domain.operator_error import (
+    AKUN_DIRI_SENDIRI,
+    AKUN_MILIK_ERP,
+    AKUN_SUDAH_ADA,
+    AKUN_TIDAK_ADA,
+    BELUM_MASUK,
+    BUKAN_SUPPORT,
+    TERKUNCI,
+    OperatorError,
+)
 from ..domain.pilihan_model import ModelTidakSah
 from ..domain.role import ROLE_SUPPORT, parse_allowed_roles
 from ..domain.setelan_grading import SetelanTidakSah
 from ..domain.setelan_rekam import SetelanRekamTidakSah
 from ..domain.sumber_kamera import SumberTidakSah
 from ..domain.visit_manifest import detail_url_for
+from ..integrations.erp.client import ErpClient
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LineClient, LinePlcTolak, LineUnavailable
 from ..integrations.upload.r2_uploader import R2Uploader
 from ..license.manager import LicenseManager
 from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
+from ..repositories.riwayat_repository import RiwayatStore
 from ..services.auth_service import AuthService
+from ..services.bahaya_service import (
+    BahayaDitolak,
+    BahayaSemuaMenolak,
+    BahayaService,
+    BahayaTidakSah,
+)
 from ..services.console_service import ConsoleService
 from ..services.dev_service import CoilTidakDikenal, DevService, PlcSibuk
 from ..services.erp_queue import ErpQueue
+from ..services.operator_admin import OperatorAdmin
 from ..services.qr_cetak import png_qr
+from ..services.riwayat_service import RiwayatService
 from ..services.scan_service import ScanService
+from ..workers.master_data_worker import MasterDataWorker
 from ..workers.visit_manifest_worker import VisitManifestWorker
 
 logger = logging.getLogger(__name__)
@@ -127,6 +148,7 @@ def get_dev_service() -> DevService:
         ),
         settings=settings,
         license_manager=_build_license_manager(settings),
+        console_store=service.store,
     )
 
 
@@ -150,10 +172,68 @@ def _build_license_manager(settings) -> LicenseManager | None:
         return None
 
 
+@lru_cache
+def get_bahaya_service() -> BahayaService:
+    """Danger Zone (tab Setelan, support). Store, klien line, dan antrean milik
+    konsol — satu koneksi masing-masing, bukan dua. Log store berkasnya sama
+    dengan tab Log.
+
+    Tarikan master data dirakit di sini, bukan meminjam worker yang sedang
+    jalan: `build_erp_workers()` tidak menyimpan rujukan ke worker-nya. Dua
+    tarikan bersamaan aman — upsert idempotent lewat lock store yang sama.
+    """
+    service = get_console_service()
+    settings = service.settings
+    tarik = None
+    if settings.erp_url:
+        klien = ErpClient(settings.erp_url, settings.erp_api_key, settings.erp_api_secret)
+        tarik = MasterDataWorker(
+            service.store, klien, interval_s=settings.console_sync_interval_s
+        ).pull_once
+    return BahayaService(
+        service.store,
+        LogStore(settings.log_db_path, retention_days=settings.log_retention_days),
+        service.line_client,
+        service.lines,
+        service.erp_queue.outbox,
+        service.manifest_queue.outbox if service.manifest_queue is not None else None,
+        erp_aktif=bool(settings.erp_url),
+        hash_bawaan=settings.console_default_hash,
+        hash_support=settings.console_support_hash,
+        # Hari kerja yang sama dengan strip "Hari ini" dan tab Timbangan.
+        hari_kerja=service.today,
+        tarik_master=tarik,
+    )
+
+
+@lru_cache
+def get_operator_admin() -> OperatorAdmin:
+    """Tab Akun (support). Store yang sama dengan login: satu berkas SQLite, satu lock,
+    jadi akun yang baru dibuat langsung bisa dipakai masuk di gerbang."""
+    return OperatorAdmin(get_console_service().store)
+
+
+@lru_cache
+def get_riwayat_service() -> RiwayatService:
+    """Tab Riwayat. Membaca `console.db` yang sama lewat koneksi baca-saja sendiri,
+    bukan store konsol: query sebulan tidak boleh antre di lock yang dipakai
+    menulis janjang dari line (`repositories/riwayat_repository.py`)."""
+    service = get_console_service()
+    return RiwayatService(
+        RiwayatStore(service.settings.console_db_path),
+        # Hari kerja yang sama dengan strip "Hari ini" dan tab Grading.
+        hari_ini=service.today,
+        zona=service.settings.factory_tz,
+    )
+
+
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
 Scan = Annotated[ScanService, Depends(get_scan_service)]
 Dev = Annotated[DevService, Depends(get_dev_service)]
+Bahaya = Annotated[BahayaService, Depends(get_bahaya_service)]
+Admin = Annotated[OperatorAdmin, Depends(get_operator_admin)]
+Riwayat = Annotated[RiwayatService, Depends(get_riwayat_service)]
 
 
 def require_operator(
@@ -292,6 +372,70 @@ async def console_history(
     return {"work_date": resolved_date, **page}
 
 
+# ── tab Riwayat (2026-09-26) ────────────────────────────────────────────
+# Grading hari-hari sebelumnya, untuk operator biasa (bukan lane support), sama
+# dengan tab Grading dan Rekap. Keduanya `def`, bukan `async def`: query sebulan
+# memakan detik, dan di thread pool itu tidak menahan loop yang melayani layar
+# lain dan kiriman janjang dari line.
+TampilanRiwayat = Literal["hari", "truk", "janjang"]
+HasilRiwayat = Literal["", "ripe", "unripe", "jk", "tp"]
+
+
+def _filter_riwayat(riwayat: RiwayatService, **isian: str | None):
+    try:
+        return riwayat.filter(**isian)
+    except ValueError as exc:
+        raise _operator_error(400, exc) from exc
+
+
+@router.get("/api/console/riwayat")
+def console_riwayat(
+    riwayat: Riwayat,
+    operator: Operator,
+    dari: str | None = None,
+    sampai: str | None = None,
+    line_code: str | None = None,
+    plat: str | None = None,
+    hasil: HasilRiwayat = "",
+    tampilan: TampilanRiwayat = "hari",
+    limit: int = Query(25, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    ringkasan: bool = True,
+) -> dict:
+    """Satu tampilan (per hari / per truk / per janjang) untuk rentang maks 31 hari.
+
+    Per hari dan per truk dikirim utuh dan dibagi halaman di layar; `limit` dan
+    `offset` cuma berlaku untuk per janjang. `ringkasan=false` saat layar cuma
+    pindah halaman atau tampilan: angkanya tidak berubah, dan menghitungnya ulang
+    berarti memindai rentang itu lagi.
+    """
+    f = _filter_riwayat(riwayat, dari=dari, sampai=sampai, line_code=line_code, plat=plat, hasil=hasil)
+    return riwayat.halaman(f, tampilan=tampilan, limit=limit, offset=offset, ringkasan=ringkasan)
+
+
+@router.get("/api/console/riwayat/csv")
+def console_riwayat_csv(
+    riwayat: Riwayat,
+    operator: Operator,
+    dari: str | None = None,
+    sampai: str | None = None,
+    line_code: str | None = None,
+    plat: str | None = None,
+    hasil: HasilRiwayat = "",
+    tampilan: TampilanRiwayat = "hari",
+    bahasa: Literal["id", "en"] = "id",
+) -> StreamingResponse:
+    """Semua baris filter itu sebagai CSV (bukan cuma halaman yang terlihat),
+    dialirkan per potongan: sebulan janjang tidak pernah utuh di memori."""
+    f = _filter_riwayat(riwayat, dari=dari, sampai=sampai, line_code=line_code, plat=plat, hasil=hasil)
+    nama, isi = riwayat.csv(f, tampilan=tampilan, bahasa=bahasa)
+    return StreamingResponse(
+        isi,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{nama}"', "Cache-Control": "no-store"},
+    )
+
+
 @router.get("/api/console/trucks")
 async def console_trucks(service: Service, operator: Operator) -> dict:
     return {"items": service.trucks()}
@@ -423,6 +567,8 @@ async def assign_truck(
 ) -> dict:
     try:
         return await service.assign_truck(line_code, truck_id)
+    except HapusBerjalan as exc:
+        raise _operator_error(409, exc) from exc
     except ValueError as exc:
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
@@ -513,6 +659,98 @@ async def dev_version(dev: Dev, operator: Support) -> dict:
     return await dev.version()
 
 
+@router.get("/api/console/dev/akun")
+async def dev_akun(dev: Dev, operator: Support) -> dict:
+    """Akun yang bisa masuk konsol di PC ini, tanpa hash sandi."""
+    return dev.akun()
+
+
+#: Penolakan tab Akun yang bukan salah isian. Sisanya 400: email, nama, atau sandi
+#: yang tidak lolos aturan.
+_AKUN_STATUS = {
+    AKUN_TIDAK_ADA: 404,
+    AKUN_SUDAH_ADA: 409,
+    AKUN_MILIK_ERP: 409,
+    AKUN_DIRI_SENDIRI: 409,
+}
+
+
+def _akun_ditolak(exc: OperatorError) -> HTTPException:
+    return _operator_error(_AKUN_STATUS.get(exc.code, 400), exc)
+
+
+# Empat aksi tab Akun (2026-09-26, membalik "tidak ada lane web" di aturan 19).
+# Semuanya `def`, bukan `async def`: sandi di-hash dengan scrypt yang sengaja
+# lambat, dan di thread pool itu tidak menahan loop yang melayani layar lain dan
+# kiriman janjang dari line. Yang menjaga tetap `require_support`; akun AutoERP
+# ditolak di `OperatorAdmin`, bukan cuma disembunyikan tombolnya.
+@router.post("/api/console/dev/akun", status_code=201)
+def dev_akun_tambah(
+    admin: Admin,
+    operator: Support,
+    email: Annotated[str, Body()] = "",
+    nama: Annotated[str, Body()] = "",
+    sandi: Annotated[str, Body()] = "",
+    sandi_ulang: Annotated[str, Body()] = "",
+    role: Annotated[str, Body()] = "",
+) -> dict:
+    """Akun LOKAL baru. Email yang sudah ada ditolak, tidak diganti sandinya."""
+    try:
+        akun = admin.tambah(email, nama, sandi, sandi_ulang, role, oleh=operator["email"])
+    except OperatorError as exc:
+        raise _akun_ditolak(exc) from exc
+    return {"akun": akun}
+
+
+@router.post("/api/console/dev/akun/sandi")
+def dev_akun_sandi(
+    admin: Admin,
+    operator: Support,
+    email: Annotated[str, Body()] = "",
+    sandi: Annotated[str, Body()] = "",
+    sandi_ulang: Annotated[str, Body()] = "",
+) -> dict:
+    """Sandi baru untuk akun lokal. Semua sesi akun itu berakhir saat itu juga."""
+    try:
+        admin.ganti_sandi(email, sandi, sandi_ulang, oleh=operator["email"])
+    except OperatorError as exc:
+        raise _akun_ditolak(exc) from exc
+    return {"status": "ok"}
+
+
+@router.post("/api/console/dev/akun/status")
+def dev_akun_status(
+    admin: Admin,
+    operator: Support,
+    aktif: Annotated[bool, Body()],
+    email: Annotated[str, Body()] = "",
+) -> dict:
+    """Matikan (sesinya berakhir) atau hidupkan lagi akun lokal. Bukan akun sendiri.
+
+    `aktif` wajib boolean: `bool("false")` bernilai True, jadi teks bebas ditolak
+    422 alih-alih ditebak jadi "aktifkan".
+    """
+    try:
+        return {"status": admin.atur_status(email, aktif, oleh=operator["email"])}
+    except OperatorError as exc:
+        raise _akun_ditolak(exc) from exc
+
+
+@router.post("/api/console/dev/akun/role")
+def dev_akun_role(
+    admin: Admin,
+    operator: Support,
+    email: Annotated[str, Body()] = "",
+    role: Annotated[str, Body()] = "",
+) -> dict:
+    """Ubah role akun lokal. Bukan akun sendiri: support yang menurunkan dirinya
+    kehilangan layar ini di klik berikutnya."""
+    try:
+        return {"role": admin.atur_role(email, role, oleh=operator["email"])}
+    except OperatorError as exc:
+        raise _akun_ditolak(exc) from exc
+
+
 @router.get("/api/console/dev/setelan")
 async def dev_setelan_baca(service: Service, operator: Support) -> dict:
     """Setelan grading yang sedang berlaku, menurut konsol."""
@@ -572,7 +810,7 @@ async def dev_rekam_status(service: Service, operator: Support) -> dict:
 async def dev_rekam_setelan(
     service: Service, operator: Support, payload: Annotated[dict, Body()]
 ) -> dict:
-    """Ubah resolusi/fps/bitrate rekaman. Berlaku untuk rekaman BERIKUTNYA.
+    """Ubah resolusi rekaman. Berlaku untuk rekaman BERIKUTNYA.
 
     Sengaja tidak menyentuh rekaman yang sedang jalan: mengubah resolusi di
     tengah berkas MP4 menghasilkan berkas rusak.
@@ -647,6 +885,64 @@ async def dev_model_deteksi_simpan(
         return await service.simpan_model_deteksi(payload, diubah_oleh=operator["email"])
     except ModelTidakSah as exc:
         raise _operator_error(400, exc) from exc
+
+
+# ── Danger Zone (tab Setelan, support) ─────────────────────────────────
+# Lima aksi berbahaya. Semua lewat `require_support`, dan yang menghapus
+# memeriksa ulang keadaan pabrik di server — layar cuma menjelaskan.
+# Rancangan: docs/superpowers/specs/2026-09-25-danger-zone-design.md.
+
+
+@router.get("/api/console/dev/bahaya")
+async def dev_bahaya(bahaya: Bahaya, operator: Support) -> dict:
+    """Angka, hambatan, dan peringatan untuk kelima panel Danger Zone."""
+    return await bahaya.ringkasan()
+
+
+@router.post("/api/console/dev/bahaya/restart-line")
+async def dev_bahaya_restart(bahaya: Bahaya, operator: Support) -> dict:
+    return await bahaya.restart_semua(oleh=operator["email"])
+
+
+@router.post("/api/console/dev/bahaya/logout-semua")
+async def dev_bahaya_logout(bahaya: Bahaya, operator: Support) -> dict:
+    """Semua sesi, termasuk milik yang menekan — jawaban ini yang terakhir
+    diterimanya sebelum layar kembali ke gerbang login."""
+    return bahaya.logout_semua(oleh=operator["email"])
+
+
+@router.post("/api/console/dev/bahaya/hapus-rekaman")
+async def dev_bahaya_hapus_rekaman(
+    bahaya: Bahaya,
+    operator: Support,
+    konfirmasi: Annotated[str, Body(embed=True)] = "",
+) -> dict:
+    try:
+        return await bahaya.hapus_rekaman(konfirmasi=konfirmasi, oleh=operator["email"])
+    except BahayaTidakSah as exc:
+        raise _operator_error(400, exc) from exc
+
+
+@router.post("/api/console/dev/bahaya/hapus-data")
+async def dev_bahaya_hapus_data(
+    bahaya: Bahaya,
+    operator: Support,
+    mode: Annotated[str, Body()] = "",
+    konfirmasi: Annotated[str, Body()] = "",
+) -> dict:
+    """Hapus data transaksi (`mode=transaksi`) atau semua data (`mode=semua`).
+
+    400 = konfirmasi salah / mode asing; 409 `bahaya_ditolak` = keadaan pabrik
+    belum aman (`params.hambatan` berisi kodenya); 409 `semua_line_menolak` =
+    tidak satu line pun menerima perintahnya (`params.lines`). Ketiganya tidak
+    mengubah apa pun.
+    """
+    try:
+        return await bahaya.hapus_data(mode=mode, konfirmasi=konfirmasi, oleh=operator["email"])
+    except BahayaTidakSah as exc:
+        raise _operator_error(400, exc) from exc
+    except (BahayaDitolak, BahayaSemuaMenolak) as exc:
+        raise _operator_error(409, exc) from exc
 
 
 @router.get("/api/console/dev/plc/{line_code}")

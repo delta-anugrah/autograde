@@ -30,7 +30,7 @@ class PulseScheduler:
             raise ValueError("pulse_s harus > 0")
         if self.gap_s <= 0:
             raise ValueError(
-                "gap_s harus > 0 — tanpa jeda, dua pulse menyatu dan PLC menghitungnya satu"
+                "gap_s harus > 0. Tanpa jeda, dua pulse menyatu dan PLC menghitungnya satu"
             )
 
     def enqueue(self, coil: int) -> bool:
