@@ -113,6 +113,18 @@ def test_tombol_danger_zone_sama_lebar():
     assert re.search(rf"flex:\s*0 0 {re.escape(lebar.group(1).strip())}\s*;", aturan), aturan
 
 
+def test_label_tombol_tanpa_titik_tiga():
+    """Titik tiga di label terbaca seperti teks yang terpotong (2026-09-26);
+    panel konfirmasinya sendiri sudah cukup jadi pengaman."""
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for aksi in ("Restart", "Logout", "Rekaman", "Transaksi", "Semua"):
+            teks = re.search(rf'bahaya{aksi}Tombol:"([^"]+)"', isi).group(1)
+            assert not teks.endswith(("…", "...")), (bahasa, teks)
+    kotak = SETELAN.split('<details id="bahaya"', 1)[1].split("</details>", 1)[0]
+    assert "…" not in kotak and "..." not in kotak
+
+
 def test_tiap_aksi_punya_panel_tersembunyi_sendiri():
     for aksi in URUTAN:
         tag = re.search(rf'<div class="bahaya-panel" data-bahaya-panel="{aksi}"[^>]*>', SETELAN)

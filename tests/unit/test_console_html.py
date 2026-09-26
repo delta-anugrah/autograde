@@ -1251,3 +1251,15 @@ def test_deretan_tab_turun_baris_bukan_meluap():
     baru turun baris kalau memang tidak muat, jadi layar lebar tetap satu baris."""
     aturan = re.search(r"#tabs\s*\{([^}]*)\}", HTML).group(1)
     assert "flex-wrap:wrap" in aturan.replace(" ", "")
+
+
+def test_reject_dan_piston_berdampingan_sama_lebar():
+    """Reject manual dan piston dalam satu baris, lebar dibagi dua (permintaan
+    2026-09-26): satu baris tombol, bukan dua, jadi kartu line lebih pendek."""
+    awal = HTML.index('<div class="aksi-line">')
+    kartu = HTML[awal:HTML.index("</div>", awal)]
+    assert 'class="reject"' in kartu and "${tombolPiston(l)}" in kartu
+    baris = re.search(r"\.aksi-line\s*\{([^}]*)\}", HTML).group(1).replace(" ", "")
+    assert "display:flex" in baris
+    tombol = re.search(r"\.aksi-line\s*>\s*button\s*\{([^}]*)\}", HTML).group(1).replace(" ", "")
+    assert "flex:110" in tombol
