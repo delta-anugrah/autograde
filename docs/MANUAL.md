@@ -2,8 +2,8 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "1.0"
-tanggal: 17 September 2026
+versi: "1.1"
+tanggal: 27 September 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
 sorotan: Isi = Fitur · Setup · Operasional · Troubleshooting; Pembaca = Pemegang baru AutoGrade; Bentuk = Ringkas, tabel, perintah siap tempel
@@ -170,14 +170,14 @@ Aturan angka yang dijaga konsol:
 | Tab | Isi | Yang bisa dilakukan |
 |---|---|---|
 | **Grading** | riwayat janjang: waktu, line, truk, sumber, hasil, kelas, confidence, foto | filter per line/truk, pagination, klik foto → tampilan besar |
+| **Truk** | master truk + supplier + asal data (ERP / manual) | **Daftar truk manual**, **Cetak QR truk** (kartu QR berisi plat, dibuat di server) |
+| **Timbangan** | tiket hari kerja: masuk, keluar, bruto, tara, neto | **Timbang masuk**, isi tara lewat scan keluar |
+| **Rekap** | satu baris per truk per hari kerja: janjang, ACC, REJ, rasio, neto | ini yang diserahkan ke supplier; baris **Tanpa truk** = janjang ter-grading sebelum truk ditugaskan |
+| **Riwayat** | grading hari-hari sebelumnya (paling panjang 31 hari): ringkasan periode, per hari, per truk, per janjang | **Unduh CSV**; rinciannya di bawah |
 
 > Angka keyakinan ada di tabel Grading, tapi **tidak** digambar di kotak janjang pada layar
 > line: dari beberapa meter "54%" terbaca seperti "54% matang". Saklar **Mode dev** di tab
 > Setelan mengembalikannya, untuk yang sedang menyetel ambang.
-
-| **Truk** | master truk + supplier + asal data (ERP / manual) | **Daftar truk manual**, **Cetak QR truk** (kartu QR berisi plat, dibuat di server) |
-| **Timbangan** | tiket hari kerja: masuk, keluar, bruto, tara, neto | **Timbang masuk**, isi tara lewat scan keluar |
-| **Rekap** | satu baris per truk per hari kerja: janjang, ACC, REJ, rasio, neto | ini yang diserahkan ke supplier; baris **Tanpa truk** = janjang ter-grading sebelum truk ditugaskan |
 
 Rekap menyandingkan dua sumber terpisah (grading dan timbangan). Neto dijumlah per truk; satu
 truk boleh punya lebih dari satu tiket sehari.
@@ -661,4 +661,5 @@ Struktur kode di `src/palmgrade/`: `routes/` (HTTP) → `controllers/` → `serv
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 1.1 | 27 September 2026 | Tab **Riwayat** (grading hari sebelumnya, maks 31 hari, CSV), tab **Akun** yang bisa menambah dan mengurus akun lokal, **Danger Zone** di tab Setelan, tombol yang terkunci selama menunggu server, dan path PC Lampung `/opt/palmgrade/autograde`. Dicocokkan dengan kode `staging` sesudah autograde #180. |
 | 1.0 | 17 September 2026 | Terbitan pertama. Dicocokkan dengan kode `staging` (`a559427`): konsol dengan login email+sandi, lima tab support, scan QR dua gerbang, Setelan grading, seeder demo, detail grading via R2. |
