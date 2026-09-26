@@ -275,6 +275,17 @@ Push event realtime ke client saat ada detection baru. Legacy endpoint: masih ak
 
 ---
 
+## Console: tab Riwayat (`APP_MODE=console`, 2026-09-26)
+
+Lane operator biasa (butuh sesi, **bukan** `require_support`). Rinciannya: CLAUDE.md, Critical Rule 26.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/console/riwayat` | `dari`, `sampai` (tanggal kerja `YYYY-MM-DD`, maks 31 hari; kosong = 7 hari terakhir), `line_code`, `plat` (potongan), `hasil` (`""`\|`ripe`\|`unripe`\|`jk`\|`tp`), `tampilan` (`hari`\|`truk`\|`janjang`), `ringkasan` (bool), `limit`/`offset` (Per janjang saja) → `{dari, sampai, hari_ini, maks_hari, tampilan, items, total, ringkasan?}`. Ringkasan: `total, acc, rej, ripe, unripe, jk, tanpa_kelas, tp, hari, truk, neto_kg` (`neto_kg` null kalau disaring per line). 400 `riwayat_tanggal_tidak_sah` / `riwayat_rentang_terbalik` / `riwayat_rentang_panjang` |
+| GET | `/api/console/riwayat/csv` | filter yang sama + `bahasa` (`id`\|`en`) → `text/csv` lampiran `riwayat-grading-<tampilan>-<dari>_<sampai>.csv`, semua baris (bukan satu halaman) |
+
+---
+
 ## Console Dev Lanes (`APP_MODE=console`, Task 14)
 
 Surface terpisah dari tabel di atas, berjalan sebagai konsol (`routes/console.py`), bukan `main.py`. Lane di bawah melayani layar developer (Log, Diagnostik, Antrean ERP, Versi, Setelan, Uji PLC, Model Deteksi); semuanya lewat `require_support` dan dijawab **403** kalau operator yang masuk bukan `role='support'`. Detail rasionalnya: CLAUDE.md, Critical Rule 21.

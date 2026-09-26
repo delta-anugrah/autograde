@@ -458,9 +458,11 @@ make reset-data-fresh # HAPUS SEMUA DATA (artifacts/ + state/) — minta ketik H
 
 Layar di **`http://localhost:8000/console`**. Satu berkas HTML statis: vanilla JS, **tanpa
 build step, tanpa Node, tanpa CDN, tanpa webfont**, harus tetap kebuka saat internet mati.
-Isinya strip total hari kerja, kartu kamera per line (assign/lepas truk + reject manual), dan
-4 tab: Grading, Truk, Timbangan, Rekap. Dwibahasa ID/EN, tema terang (default) / gelap, pilihan
-operator disimpan di `localStorage`.
+Isinya strip total hari kerja, kartu kamera per line (assign/lepas truk, reject manual, piston),
+dan 5 tab operator: Grading, Truk, Timbangan, Rekap, **Riwayat** (grading hari-hari sebelumnya,
+maks 31 hari, ringkasan periode + unduh CSV). Akun support melihat 10 tab tambahan (Log sampai
+Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disimpan di
+`localStorage`.
 
 - **Login (Fase 4).** Layar tertutup gerbang sampai ada yang masuk: operator mengetik **email
   dan sandi** (tombol nama yang ada cuma mengisi kolom email, sandinya tetap wajib), dan topbar

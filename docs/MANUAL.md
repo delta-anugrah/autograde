@@ -119,7 +119,7 @@ Dua akun bawaan ada di tiap PC: `operator@autograde.local` (pabrik) dan `support
 (kita, lewat AnyDesk). Sandinya beda tiap PKS, dibuat saat pasang PC (§5.5). Login tetap jalan
 tanpa internet karena hash sandi tersimpan lokal.
 
-Dua peran: **operator** (4 tab) dan **support** (12 tab, lihat §3.5). Yang menjaga adalah backend:
+Dua peran: **operator** (5 tab) dan **support** (15 tab: lima tab operator + sepuluh tab support, lihat §3.5). Yang menjaga adalah backend:
 endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 
 ### 3.2 Layar utama
@@ -165,7 +165,7 @@ Aturan angka yang dijaga konsol:
   tengah malam; ini yang mencegah satu shift terbelah jadi dua hari.
 - Buah REJ dinaikkan lagi ke truk dan ikut ditimbang saat keluar, jadi otomatis tidak dibayar.
 
-### 3.4 Empat tab operator
+### 3.4 Lima tab operator
 
 | Tab | Isi | Yang bisa dilakukan |
 |---|---|---|
@@ -182,7 +182,21 @@ Aturan angka yang dijaga konsol:
 Rekap menyandingkan dua sumber terpisah (grading dan timbangan). Neto dijumlah per truk; satu
 truk boleh punya lebih dari satu tiket sehari.
 
-### 3.5 Delapan tab support
+**Riwayat** (sejak 2026-09-26) membuka grading hari-hari sebelumnya. Tab Grading dan Rekap
+cuma hari ini.
+
+| Bagian | Isi |
+|---|---|
+| Saringan | **Dari / Sampai** (tanggal kerja, paling panjang 31 hari; tanpa tanggal = 7 hari terakhir), tombol cepat **Kemarin / 7 hari / Bulan ini / Bulan lalu**, **Line**, **Plat** (cukup sebagian, mis. `1234`), lalu **Tampilkan** |
+| Ringkasan | janjang, Ripe, Unripe, JK, TP, rasio Ripe, jumlah truk, jumlah hari, dan neto periode itu. Neto tidak dihitung kalau disaring per line (neto itu berat truk) |
+| Tiga tampilan | **Per hari** (satu baris per hari kerja, tombol **Lihat truk**), **Per truk** (satu baris per truk per hari, seperti Rekap, tombol **Lihat janjang**), **Per janjang** (seperti tab Grading, dengan foto dan saringan **Hasil**: Ripe/Unripe/JK/TP) |
+| **Unduh CSV** | semua baris tampilan dan saringan yang sedang aktif, bukan cuma halaman yang terlihat; kepala kolom mengikuti bahasa layar, jam dalam jam pabrik. Dibuka langsung di Excel/LibreOffice. Kalau Excel dengan setelan wilayah Indonesia menaruh semuanya di satu kolom, buka lewat **Data → From Text/CSV** dan pilih pemisah koma |
+
+Angka satu hari di Riwayat sama dengan tab Rekap hari itu. Foto yang lebih tua dari masa simpan
+PC (180 hari di Lampung) sudah terhapus dari PC; barisnya tetap ada, fotonya tertulis
+"Foto sudah terhapus dari PC".
+
+### 3.5 Sepuluh tab support
 
 Muncul hanya untuk akun berperan `support`. Tujuannya: memeriksa PC pabrik dari layar, tanpa
 `docker logs` yang hilang tiap restart.

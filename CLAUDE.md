@@ -208,6 +208,8 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto) |
 | POST | `/api/console/weighings` | operator mengetik bruto/tara sendiri: payload identik dengan kiriman program timbangan |
 | GET | `/api/console/recap` | rekap per truk satu hari kerja (janjang, ACC/REJ, neto): `?work_date=` opsional |
+| GET | `/api/console/riwayat` | tab **Riwayat** (operator biasa, bukan support): `dari`/`sampai` (tanggal kerja, maks **31 hari**, tanpa tanggal = 7 hari terakhir), `line_code`, `plat` (potongan plat), `hasil` (`ripe`/`unripe`/`jk`/`tp`, Per janjang saja), `tampilan=hari\|truk\|janjang`, `ringkasan=true\|false`. Per hari & per truk dikirim utuh, per janjang `limit`+`offset`. **400** kode `riwayat_*` untuk tanggal yang salah, **422** untuk tampilan/hasil asing. Aturan 26 |
+| GET | `/api/console/riwayat/csv` | filter yang sama + `bahasa=id\|en` → lampiran CSV (BOM UTF-8, jam pabrik), **semua** baris filter itu, dialirkan per potongan |
 | POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line. **409** `hapus_berjalan` selama Danger Zone menghapus data (line tidak disentuh) |
 | POST | `/api/console/lines/{line}/release-truck` | truk pergi → `/internal/assignment` line dengan truk kosong |
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
@@ -445,7 +447,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     menurunkannya dari supplier saja (`sumber_for_supplier`: punya supplier = External, tidak
     punya = Internal). `domain/ffb_source.py` mencerminkannya persis: truk ber-supplier →
     External; truk yang **sudah ada di ERP** tanpa supplier → Internal; truk tanpa supplier yang
-    belum dilihat ERP → `—`. Kelima query store memakai satu `_SOURCE_FACTS`, jadi tidak ada tab
+    belum dilihat ERP → `—`. Semua query store (dan `riwayat_repository`) memakai satu `SOURCE_FACTS`, jadi tidak ada tab
     yang berlabel beda. **Jangan** menurunkan sumber dari nama grup supplier. Grup tetap disimpan
     **mentah** di `suppliers.source_group` karena beda Plasma vs agen hidup di sana; **jangan pernah**
     bikin boolean `is_internal`.
@@ -852,6 +854,31 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     hapus data jarang dipakai dan tidak bisa dibatalkan. Tiap aksi meninggalkan satu
     WARNING `[Danger Zone] … oleh <email>`; untuk hapus data ditulis SESUDAH log
     dikosongkan, jadi ia baris pertama log baru.
+
+26. **Tab Riwayat: grading lintas hari, baca saja, di koneksi SQLite sendiri** (2026-09-26).
+    Untuk semua operator, bukan support: rentang tanggal kerja **maks 31 hari**
+    (`domain/riwayat.py`, satu aturan untuk layar dan CSV), filter line, plat (potongan plat
+    ternormalisasi, aturan `normalisasi_plat` yang sama dengan timbangan), dan hasil (Per janjang
+    saja), ringkasan periode, tiga tampilan (per hari, per truk, per janjang), dan unduh CSV.
+    ⚠️ **Query-nya di `repositories/riwayat_repository.py`, BUKAN `ConsoleStore`**: koneksi
+    baca-saja baru per panggilan (WAL: pembaca tidak menahan penulis) dan rute `def` (thread
+    pool). Lewat store konsol, query sebulan akan antre di lock yang dipakai ingest janjang dari
+    tiga line. **Hitungannya sama persis dengan Rekap** (verdict dari `ripeness_status`, kelas
+    dari `grade_class`, TP `tp_confidence > 0.8`): satu hari di Riwayat = tab Rekap hari itu,
+    dijaga `test_satu_hari_di_riwayat_sama_dengan_tab_rekap`. Neto dijumlah di query sendiri
+    lalu disandingkan (aturan 17), **tidak dihitung saat disaring per line** (neto itu berat
+    truk), dan hari dengan tiket tapi nol janjang tetap satu baris (kamera mati seharian harus
+    terlihat). Per hari (maks 31 baris) dan per truk (ribuan baris sebulan) dikirim utuh dan
+    dibagi halaman **di layar**; per janjang dibagi halaman di server, urut `work_date DESC,
+    timestamp DESC` supaya indeks `(work_date, …)` terpakai. Per truk **dikelompokkan dulu, baru
+    digabung** ke truk/supplier. Terukur di 620 ribu janjang (31 hari × 20 ribu): per janjang
+    0,09 dtk, per hari 0,7 dtk, per truk 2 dtk, CSV janjang sebulan ~6 dtk; 7 hari: 0,15 dan
+    0,4 dtk. `ringkasan=false` saat layar cuma pindah halaman/tampilan. CSV: BOM UTF-8, jam
+    pabrik (`FACTORY_TZ`), sel berawalan `= + - @` diberi `'` (nama supplier bisa jadi rumus
+    Excel), rasio dibulatkan seperti `Math.round` (bukan pembulatan bankir `round()`). Foto
+    yang lewat retensi PC (aturan 9) sudah hilang dari disk: barisnya tetap, gambarnya diganti
+    tulisan. Dulu "riwayat lintas hari = urusan cloud"; dibalik atas permintaan user karena
+    cloud lama (palmgrade-api) sudah mati dan AutoERP cuma menerima rekap per truk.
 
 ---
 
