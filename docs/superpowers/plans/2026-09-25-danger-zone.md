@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Kotak "Danger Zone" di tab Setelan (support saja) berisi lima aksi — restart semua line, logout paksa semua akun, hapus rekaman video, hapus data transaksi, hapus semua data — dengan pengaman di server.
+**Goal:** Kotak "Danger Zone" di tab Setelan (support saja) berisi lima aksi (restart semua line, logout paksa semua akun, hapus rekaman video, hapus data transaksi, hapus semua data) dengan pengaman di server.
 
 **Architecture:** Logika keputusan (hambatan/peringatan, tabel per mode) murni di `domain/bahaya.py`. Line menghapus datanya sendiri **saat boot** lewat penanda `state/.hapus-data` (`services/hapus_data_line.py`, tanpa torch), lewat router internal baru yang dirakit dengan fungsi pabrik supaya bisa diuji di CI tanpa torch. Konsol menghapus miliknya di tempat (`DELETE` dalam transaksi) lewat `BahayaService`.
 
@@ -22,38 +22,38 @@
 
 ## Review Focus
 
-1. **Tabel baru di `console.db` yang belum digolongkan** — harus membuat test merah, bukan diam-diam tertinggal/ikut terhapus. → Task 1 (`test_semua_tabel_konsol_digolongkan`).
-2. **Boot terputus di tengah hapus** (listrik mati) — penanda tetap ada, boot berikutnya mengulang; berkas yang gagal dihapus tidak menghapus penanda. → Task 2.
-3. **`line-1` menghapus rekaman `line-10`** (glob awalan) — tidak boleh. → Task 2.
-4. **Kondisi berubah antara panel dibuka dan tombol ditekan** (truk baru dipasang) — server menolak 409 walau layar bilang aman. → Task 5/6.
-5. **Janjang yang lewat di detik terakhir sebelum line mati** masuk ke DB konsol sesudah dikosongkan — konsol menunggu line mati dulu. → Task 5 (`test_menunggu_line_mati_sebelum_menghapus_konsol`).
+1. **Tabel baru di `console.db` yang belum digolongkan**: harus membuat test merah, bukan diam-diam tertinggal/ikut terhapus. → Task 1 (`test_semua_tabel_konsol_digolongkan`).
+2. **Boot terputus di tengah hapus** (listrik mati): penanda tetap ada, boot berikutnya mengulang; berkas yang gagal dihapus tidak menghapus penanda. → Task 2.
+3. **`line-1` menghapus rekaman `line-10`** (glob awalan): tidak boleh. → Task 2.
+4. **Kondisi berubah antara panel dibuka dan tombol ditekan** (truk baru dipasang): server menolak 409 walau layar bilang aman. → Task 5/6.
+5. **Janjang yang lewat di detik terakhir sebelum line mati** masuk ke DB konsol sesudah dikosongkan, konsol menunggu line mati dulu. → Task 5 (`test_menunggu_line_mati_sebelum_menghapus_konsol`).
 
 ---
 
-### Task 1: Aturan murni — `domain/bahaya.py`
+### Task 1: Aturan murni: `domain/bahaya.py`
 
 **Files:** Create `src/palmgrade/domain/bahaya.py`; Test `tests/unit/test_bahaya_domain.py`
 
-**Interfaces — Produces:**
+**Interfaces: Produces:**
 - `KONFIRMASI_HAPUS = "HAPUS"`, `MODE_TRANSAKSI = "transaksi"`, `MODE_SEMUA = "semua"`, `MODE_HAPUS = (MODE_TRANSAKSI, MODE_SEMUA)`
 - `konfirmasi_sah(teks: str | None) -> bool`
 - `@dataclass(frozen=True) KeadaanLine(line_code: str, terjangkau: bool, truk_terpasang: bool = False, outbox_pending: int | None = None, merekam: bool = False, rekaman_berkas: int = 0, rekaman_bytes: int = 0)`
 - `@dataclass(frozen=True) KeadaanKonsol(erp_aktif: bool, erp_pending: int = 0, erp_gagal: int = 0)`
-- `hambatan_hapus_data(lines, konsol) -> list[dict]` — kode `line_mati`, `truk_terpasang`, `antrean_line`, `antrean_erp`; tiap item `{"kode", "line"?, "jumlah"?}`
-- `peringatan_hapus_data(lines, konsol, mode) -> list[dict]` — `foto_belum_r2` (selalu), `kiriman_gagal`, `erp_mati`, `semua_keluar` (mode semua)
-- `peringatan_restart(lines) -> list[dict]` — `line_mati`, `truk_terpasang`, `line_merekam`
-- `peringatan_hapus_rekaman(lines) -> list[dict]` — `line_mati`, `line_merekam`
-- `GOLONGAN_TABEL_KONSOL: dict[str, str]` — tiap tabel `console.db` → `"transaksi" | "semua" | "sebagian"`
+- `hambatan_hapus_data(lines, konsol) -> list[dict]`: kode `line_mati`, `truk_terpasang`, `antrean_line`, `antrean_erp`; tiap item `{"kode", "line"?, "jumlah"?}`
+- `peringatan_hapus_data(lines, konsol, mode) -> list[dict]`: `foto_belum_r2` (selalu), `kiriman_gagal`, `erp_mati`, `semua_keluar` (mode semua)
+- `peringatan_restart(lines) -> list[dict]`: `line_mati`, `truk_terpasang`, `line_merekam`
+- `peringatan_hapus_rekaman(lines) -> list[dict]`: `line_mati`, `line_merekam`
+- `GOLONGAN_TABEL_KONSOL: dict[str, str]`: tiap tabel `console.db` → `"transaksi" | "semua" | "sebagian"`
 - `tabel_dihapus(mode) -> tuple[str, ...]`, `kunci_state_dihapus(kunci, mode) -> bool`
 
 - [ ] Test: konfirmasi (`HAPUS`, ` HAPUS `, `hapus`, `""`, `None`); tiap kode hambatan muncul untuk keadaan yang tepat dan tidak untuk line sehat; `antrean_erp` hanya kalau `erp_aktif`; `erp_mati` peringatan saat `erp_aktif=False` dan ada baris; `tabel_dihapus` per mode; `kunci_state_dihapus` (`setelan_grading` tidak pernah, `erp_cursor_truck` hanya mode semua, `erp_visit_resend_day` selalu); **`test_semua_tabel_konsol_digolongkan`**: `sqlite_master` dari `ConsoleStore` baru == kunci `GOLONGAN_TABEL_KONSOL`.
 - [ ] Jalankan → merah (modul belum ada). Implementasi. Jalankan → hijau. Commit.
 
-### Task 2: Hapus sisi line — `services/hapus_data_line.py`
+### Task 2: Hapus sisi line: `services/hapus_data_line.py`
 
 **Files:** Create `src/palmgrade/services/hapus_data_line.py`; Test `tests/unit/test_hapus_data_line.py`
 
-**Interfaces — Produces:**
+**Interfaces: Produces:**
 - `PENANDA = ".hapus-data"`
 - `tulis_penanda(state_dir: Path, *, mode: str, diminta_oleh: str, now: float) -> Path`
 - `hapus_kalau_diminta(artifacts_dir: Path, state_dir: Path) -> dict | None` → `{"mode", "diminta_oleh", "dihapus": int, "gagal": int}`; `None` tanpa penanda
@@ -84,16 +84,16 @@ def hapus_kalau_diminta(artifacts_dir, state_dir):
     return {**info, "dihapus": dihapus, "gagal": gagal}
 ```
 
-Rekaman: cocokkan `f"{line_code}_"` + akhiran `.mp4` — `line-1_…` tidak cocok dengan `line-10_…`.
+Rekaman: cocokkan `f"{line_code}_"` + akhiran `.mp4`, `line-1_…` tidak cocok dengan `line-10_…`.
 
 - [ ] Test: tanpa penanda → `None`, tidak ada yang tersentuh; dengan penanda → isi `artifacts/` (results bersarang, `outbox.db`, `-wal`) hilang, `license.db`/`license.db-wal` tetap, isi `state/` hilang, penanda hilang; berkas yang gagal dihapus (monkeypatch `_hapus`) → penanda **tetap**, panggilan kedua menghapus; penanda JSON rusak tetap diproses; folder tidak ada → tidak error; rekaman: hanya milik line itu (`line-1_…mp4`, `line-1_…-2.mp4`) terhapus, `line-10_…`, `line-2_…`, `.txt` tetap; ringkasan menjumlah byte.
 - [ ] Merah → implementasi → hijau → commit.
 
-### Task 3: Router internal line tanpa torch — `routes/internal_bahaya.py` + `main.py`
+### Task 3: Router internal line tanpa torch: `routes/internal_bahaya.py` + `main.py`
 
 **Files:** Create `src/palmgrade/routes/internal_bahaya.py`; Modify `src/palmgrade/main.py` (awal lifespan + include router); Test `tests/unit/test_internal_bahaya_routes.py`, `tests/e2e/test_internal_bahaya_lane.py`
 
-**Interfaces — Consumes:** Task 2. **Produces:**
+**Interfaces: Consumes:** Task 2. **Produces:**
 - `buat_router(*, settings: Callable[[], Settings], state: Callable[[], RuntimeState], keluar: Callable[[float], None]) -> APIRouter` (prefix `/internal`)
 - `POST /internal/hapus-data` body `{"mode", "diminta_oleh"}` → 200 `{"status": "menghapus", "jeda_detik": 1.0}`; 409 `{"detail": {"kode": "truk_terpasang"}}` bila `state.current_assignment_id`; 400 mode asing
 - `POST /internal/rekam/hapus` → 200 `{"line_code", "berkas", "bytes"}`; 409 `{"detail": {"kode": "sedang_merekam"}}`
@@ -134,7 +134,7 @@ Rekaman: cocokkan `f"{line_code}_"` + akhiran `.mp4` — `line-1_…` tidak coco
 - [ ] Test: 401 tanpa sesi, 403 operator, 400 konfirmasi salah, 409 dengan `code=bahaya_ditolak`, 200; e2e: login sungguhan → hapus data semua → sesi yang menekan ikut mati (401 berikutnya) dan akun bawaan ada lagi.
 - [ ] Merah → implementasi → hijau → commit.
 
-### Task 7: Layar — kotak Danger Zone di tab Setelan
+### Task 7: Layar: kotak Danger Zone di tab Setelan
 
 **Files:** Modify `src/palmgrade/static/console.html`; Test `tests/unit/test_console_html_bahaya.py`
 

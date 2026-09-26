@@ -56,7 +56,7 @@ class OperatorAdmin:
         if owner is not None and owner["origin"] == "erp":
             # Refused loudly: silently doing nothing would read as success.
             raise ValueError(
-                f"{email} milik AutoERP — ubah sandinya di AutoERP, bukan di PC ini"
+                f"{email} milik AutoERP. Ubah sandinya di AutoERP, bukan di PC ini"
             )
         operator_id = self._store.upsert_operator_manual(
             {

@@ -1,6 +1,6 @@
 ---
 name: install-factory-pc
-description: Pasang PC pabrik Palmgrade baru dari nol — jaringan kamera, docker, GPU, image GHCR, .env, lisensi. Pakai kalau user bilang "pasang PC pabrik baru", "install dari 0", "setup PC Lampung/site baru", "PC baru mau dipasang", atau lagi debug instalasi pabrik yang gagal di tengah jalan.
+description: Pasang PC pabrik Palmgrade baru dari nol, jaringan kamera, docker, GPU, image GHCR, .env, lisensi. Pakai kalau user bilang "pasang PC pabrik baru", "install dari 0", "setup PC Lampung/site baru", "PC baru mau dipasang", atau lagi debug instalasi pabrik yang gagal di tengah jalan.
 ---
 
 # Pasang PC pabrik Palmgrade dari nol
@@ -8,7 +8,7 @@ description: Pasang PC pabrik Palmgrade baru dari nol — jaringan kamera, docke
 ⚠️ Dua berkas di bawah ada di repo **`sawit`** (workspace internal), bukan di repo ini:
 `../docs/runbooks/2026-08-21-checklist-pasang-pc-pabrik.md` (checklist ringkas buat operator)
 dan `../docs/runbooks/2026-08-15-factory-pc-install-ringkas.md` (detail panjang + template
-`.env` lengkap). Tanpa akses ke sana, mintalah `.env` contoh ke yang memegang repo itu —
+`.env` lengkap). Tanpa akses ke sana, mintalah `.env` contoh ke yang memegang repo itu,
 sisanya di skill ini sudah cukup untuk memandu pemasangan.
 
 Skill ini isinya yang **nggak** ada di dua file itu: cara mandu sesinya, gerbang
@@ -18,7 +18,7 @@ mana yang nggak boleh dilewat, dan jebakan yang bikin instalasi gagal diam-diam.
 
 Guided/manual. **Kamu nggak megang PC pabrik.** Operator yang ngetik, terus
 paste output, kamu yang baca. Kasih satu blok perintah, tunggu hasilnya, baru
-lanjut. Jangan kasih 5 langkah sekaligus — kalau nomor 2 gagal, nomor 3-5
+lanjut. Jangan kasih 5 langkah sekaligus, kalau nomor 2 gagal, nomor 3-5
 jalan di atas puing dan diagnosisnya jadi kabur.
 
 ## Sebelum mulai: kumpulin ini dulu
@@ -27,12 +27,12 @@ Tanyain sekaligus di awal. Kalau ada yang belum ada, instalasi bakal ngadat di
 tengah dan operator nunggu.
 
 - PAT GitHub scope `read:packages`
-- File model `best.pt` **4 kelas** (±50 MB, kelas `JK/Ripe/TP/Unripe`) — **nggak ada di repo**, harus dibawa. Yang 130 MB (`best_3class_v2.pt`) model lama: kode nggak kenal kelasnya, line jalan tapi nol hitungan
+- File model `best.pt` **4 kelas** (±50 MB, kelas `JK/Ripe/TP/Unripe`): **nggak ada di repo**, harus dibawa. Yang 130 MB (`best_3class_v2.pt`) model lama: kode nggak kenal kelasnya, line jalan tapi nol hitungan
 - Serial 3 kamera Hikrobot
 - `WEBHOOK_SECRET` dari droplet produksi (jadi kunci B)
 - 4 nilai `R2_*` Cloudflare
 - Kode site (huruf kecil, unik per pabrik)
-- Di cloud: company-nya udah dibikin dan **Valid Until** udah diisi — kalau
+- Di cloud: company-nya udah dibikin dan **Valid Until** udah diisi, kalau
   belum, `Cetak Token` bakal 400 dan langkah 14 mentok
 
 ## Versi image: jangan pernah hardcode
@@ -47,15 +47,15 @@ for r in palmgrade-api palmgrade-frontend autograde; do
 done
 ```
 
-Frontend **nggak punya** tag `latest` polos — cuma `latest-edge`. Tapi `?ref=`
+Frontend **nggak punya** tag `latest` polos, cuma `latest-edge`. Tapi `?ref=`
 git-nya pakai `v1.5.3` **tanpa** `-edge`; akhiran itu cuma ada di tag image.
 
-## Gerbang keras — berhenti kalau gagal
+## Gerbang keras: berhenti kalau gagal
 
 Tiga titik ini nggak boleh dilewat "nanti aja". Lanjut tanpa ini bikin gagal
 5 langkah kemudian dengan pesan yang nggak nyambung ke sebabnya.
 
-1. **`newgrp docker` doang nggak cukup** — operator wajib logout terus login
+1. **`newgrp docker` doang nggak cukup**: operator wajib logout terus login
    lagi. Kalau nggak, ikon Start di desktop gagal nanti, pesannya soal socket.
 2. **`docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi`
    harus ngeluarin tabel GPU.** Nggak keluar = vision nggak bakal jalan, semua
@@ -73,12 +73,12 @@ Ini semua pernah kejadian beneran. Nggak ada yang ngasih error jelas.
   verifikasi token pakai kunci lama.
 - **Folder `api/` dan `frontend/` cuma boleh punya `prod` + `factory`.**
   `docker-compose.yml` polos itu compose DEV (`adminer`, `mongo-express`,
-  `build:`) — kalau ikut ketarik, start gagal. **Vision butuh tiga-tiganya.**
+  `build:`): kalau ikut ketarik, start gagal. **Vision butuh tiga-tiganya.**
 - **`NODE_ENV: development` di `api/docker-compose.factory.yml` itu disengaja.**
   Di `production`, cookie login dapat flag `Secure` yang butuh HTTPS. LAN pabrik
   HTTP polos → browser buang cookie diam-diam → operator muter di halaman login
   **tanpa satu pun pesan error**. Jangan "diperbaiki".
-- **`ports: !override` ke `0.0.0.0` wajib.** Bawaan bind `127.0.0.1` — bener
+- **`ports: !override` ke `0.0.0.0` wajib.** Bawaan bind `127.0.0.1`, bener
   buat droplet yang ada nginx di depan, di pabrik bikin dashboard nggak
   kejangkau dari PC lain.
 - **Jangan nyalin `docker-compose.factory.yml` vision dari laptop developer.**
@@ -86,9 +86,9 @@ Ini semua pernah kejadian beneran. Nggak ada yang ngasih error jelas.
   diam-diam nggak nyala.
 - **Model wajib di `models/release/`**, bukan `models/`. Salah folder =
   container mati.
-- **Jangan pernah nyalin isi `engines/` dari mesin lain** — terkunci ke compute
+- **Jangan pernah nyalin isi `engines/` dari mesin lain**: terkunci ke compute
   capability GPU tertentu. Build ulang di PC itu, ±10 menit.
-- **`make build-engine` nggak bisa dipakai di pabrik** — target Makefile-nya
+- **`make build-engine` nggak bisa dipakai di pabrik**: target Makefile-nya
   nge-build dari source yang nggak ada di situ. Pakai `docker compose ... run`
   tiga-`-f` (lihat langkah 13 checklist); yang `prod` itu yang bawa mount
   `./engines`, tanpa itu engine ilang begitu perintah selesai.
@@ -115,7 +115,7 @@ Ambil satu doang = login gagal total.
 
 **`LICENSE_PRIVATE_KEY` JANGAN PERNAH nyampe PC pabrik.** Operator ada di grup
 `docker` ≈ root, jadi siapa pun yang pegang keyboard bisa baca semua `.env`.
-Pabrik cuma butuh kunci publik, dan itu **udah ditanam di dalam image** — nol
+Pabrik cuma butuh kunci publik, dan itu **udah ditanam di dalam image**, nol
 langkah manual.
 
 Kunci publik lisensi ditanam di **tiga** tempat, wajib sama semua:
@@ -132,13 +132,13 @@ aman dipaste.
   `palmgrade`. Perintah mentah bikin file override pabrik nggak kebaca.
   Pengecualian resmi cuma dua: build engine TensorRT (langkah 13) dan wipe
   volume waktu reset DB.
-- `palmgrade license <token>` verifikasi dulu baru nulis — token salah = error,
+- `palmgrade license <token>` verifikasi dulu baru nulis, token salah = error,
   nol perubahan. Dia stop lalu start ulang seluruh stack sendiri (±30 detik),
   karena `.env` baru cuma nempel waktu container **dibuat ulang**; reboot aja
   nggak cukup. Jangan dijalanin tengah shift.
 - Ganti token kapan aja tinggal ulang perintah yang sama. Nggak ada mode
   "cek status".
-- Reboot **nggak** nerapin `.env` baru — wajib `palmgrade restart`.
+- Reboot **nggak** nerapin `.env` baru, wajib `palmgrade restart`.
 
 ## Bukti selesai
 

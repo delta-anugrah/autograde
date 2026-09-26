@@ -164,7 +164,7 @@ class BatchUploadWorker:
             )
             if not sibling.exists():
                 raise _PoisonError(
-                    f"tp tanpa pasangan ripeness — payload tak bisa direkonstruksi: {json_path}"
+                    f"tp tanpa pasangan ripeness, payload tak bisa direkonstruksi: {json_path}"
                 )
             json_path = sibling  # merge penuh; event_id sama → already_processed
 

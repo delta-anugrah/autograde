@@ -1,9 +1,9 @@
 ---
 name: panduan-autograde
-description: Use when working on or operating AutoGrade (repo autograde) as someone new to it — setting up the console on a laptop, installing or updating the factory PC, answering "how do I use / what does this screen do / which make command", diagnosing a console or camera-line symptom, connecting to AutoERP, or before running anything on a factory PC. Also use when the user asks what AutoGrade is, how a truck visit flows, or where a topic is documented.
+description: Use when working on or operating AutoGrade (repo autograde) as someone new to it, setting up the console on a laptop, installing or updating the factory PC, answering "how do I use / what does this screen do / which make command", diagnosing a console or camera-line symptom, connecting to AutoERP, or before running anything on a factory PC. Also use when the user asks what AutoGrade is, how a truck visit flows, or where a topic is documented.
 ---
 
-# Panduan AutoGrade — peta untuk pemegang baru
+# Panduan AutoGrade: peta untuk pemegang baru
 
 Sumber utama: **`docs/MANUAL.md`** (Bahasa Indonesia, ±20 halaman; PDF di sampingnya).
 Baca bagian yang relevan dari situ dulu, bukan menyusun ulang dari kode. Skill ini
@@ -33,7 +33,7 @@ ditanya.
   itu normal. `make up` gagal "MVS SDK not found" di Mac itu normal.
 - **PC pabrik (Linux + GPU):** `make up` menjalankan 4 container: line di 8001–8003,
   konsol di **8000**. Ubah kode → `make restart` (konsol saja: `make restart-console`);
-  ubah `.env` → `make start` (satu service saja: `make up-N` / `make up-console`) —
+  ubah `.env` → `make start` (satu service saja: `make up-N` / `make up-console`),
   `restart` dan reboot **tidak** membaca ulang `.env`; ubah deps/Dockerfile → `make up`.
   Setelan "tidak berlaku" padahal `.env` benar → env var proses menang atas `.env`
   (`load_dotenv(override=False)`), lihat nilai efektifnya di `/health/detail`.
@@ -44,31 +44,31 @@ ditanya.
 - **Tab support** (Log, Diagnostik, Antrean ERP, Versi, Akun, Uji PLC, Sumber Kamera,
   Model Deteksi, Rekam Video, Setelan) hanya untuk peran `support`; 403 untuk operator,
   401 kalau belum masuk. **Akun** = daftar akun PC ini (asal Lokal/AutoERP, aktif/mati/
-  terkunci), baca saja — sandi tidak bisa dilihat (cuma hash yang disimpan); lupa sandi:
+  terkunci), baca saja: sandi tidak bisa dilihat (cuma hash yang disimpan); lupa sandi:
   akun AutoERP diganti di AutoERP, akun lokal lewat `scripts/console-operator.py`.
 - **Rekam video** (v1.13.x): satu tombol per line, jalan sampai ditekan Stop. Yang
-  terekam frame **clean tanpa bbox** — disadap di `FrameCaptureWorker`, sebelum
+  terekam frame **clean tanpa bbox**, disadap di `FrameCaptureWorker`, sebelum
   inference. Berkasnya di `videos/` (jalurnya tertulis di kaki layar), **tidak pernah
   dihapus otomatis** dan berhenti sendiri di bawah `UPLOAD_DISK_MIN_FREE_GB`.
   ⚠️ **Laju video mengikuti SUMBERNYA**: berkas video memakai laju aslinya, kamera
   yang tidak bisa melapor memakai `CAMERA_FPS`. Kolom FPS dan Bitrate di layar
-  dicabut 2026-09-25 — keduanya tidak pernah sampai ke berkas; yang bisa disetel
+  dicabut 2026-09-25: keduanya tidak pernah sampai ke berkas; yang bisa disetel
   tinggal lebar × tinggi. Kalau durasi berkas tidak sama
-  dengan lama menekan Record, baca `Rekam video MULAI` di log line — ia menyebut laju
+  dengan lama menekan Record, baca `Rekam video MULAI` di log line, ia menyebut laju
   yang benar-benar dipakai encoder.
   ⚠️ **~2 GB/jam per line** pada 20 fps; disk pabrik 232 GB ≈ 4 hari rekam terus.
 - **Kartu "Kamera tidak tersambung" padahal container jalan:** itu teks fallback saat
-  **browser** gagal memuat `http://<host konsol>:800N/api/video_feed` — port line
+  **browser** gagal memuat `http://<host konsol>:800N/api/video_feed`: port line
   harus terjangkau dari PC yang membuka konsol. Status kamera sesungguhnya ada di tab
   Diagnostik / `:800N/health/detail` (`camera_connected`). Janjang nyasar ke kartu
   lain = `LINE_N_MACHINE_ID` kembar (konsol mencocokkan lewat `machine_id`, bukan port).
 - **Layar nol + log "Outbox delivery failed HTTP 404":** `BACKEND_URL` salah port.
-- **Janjang difoto di titik mana:** saat kotaknya **menyentuh garis capture** — garis biru
+- **Janjang difoto di titik mana:** saat kotaknya **menyentuh garis capture**, garis biru
   bertanda `CAPTURE`, diatur dari tab **Setelan** (piksel, ruang stream; `0` = tanpa garis,
   janjang difoto begitu masuk ROI). ROI menjawab *di mana*, garis menjawab *kapan*. Arah
   conveyor (`tegak`/`mendatar`) menentukan garisnya tegak atau melintang. Berlaku tanpa
   restart. "Capture terlalu cepat" → **geser garisnya**, jangan sentuh `CONF_THRESHOLD`.
-- **Angka keyakinan hilang dari kotak janjang:** disengaja — dari beberapa meter "54%"
+- **Angka keyakinan hilang dari kotak janjang:** disengaja, dari beberapa meter "54%"
   terbaca seperti "54% matang". Saklar **Mode dev** di tab Setelan mengembalikannya.
   Nilainya tetap tersimpan di sidecar dan tabel Grading.
 - **`capture_save_dropped` / `tp_telat` di `/health/detail` harus NOL.** Yang pertama =
@@ -78,23 +78,23 @@ ditanya.
   Kuning = habis N hari lagi; oranye = sudah lewat tanggal tapi masih masa tenggang
   (grading **tetap jalan**); merah = tenggang habis dan **grading dihentikan**. Tanggal
   lengkapnya di tab **Versi** (support). Token baru diterbitkan di **AutoERP** oleh
-  Administrator, lalu dipasang `autograde licence <token>` di PC pabrik — token baru
+  Administrator, lalu dipasang `autograde licence <token>` di PC pabrik, token baru
   cuma berlaku setelah container dibuat ulang, **reboot saja tidak cukup**. Data grading
   dan antrean ERP **tidak hilang** selama lisensi mati.
 - **Hapus data / restart / logout massal tanpa terminal:** tab **Setelan → Danger Zone**
   (support). Hapus wajib ketik `HAPUS` dan ditolak kalau ada line mati, truk terpasang,
   truk yang belum timbang keluar hari ini, atau antrean belum terkirim. Line menghapus
   datanya sendiri saat boot (penanda `artifacts/.hapus-data`); setelan grading dan
-  `license.db` selamat — beda dengan `autograde reset-data-fresh` yang menghapus
+  `license.db` selamat: beda dengan `autograde reset-data-fresh` yang menghapus
   semuanya. Tidak satu line pun menerima (mis. lisensi line habis) = tidak ada yang
   dihapus; sebagian gagal = tekan lagi sesudah line itu beres. Aturan 25 di `CLAUDE.md`.
 - **fps:** untuk Hikrobot diatur `config/camera/hikrobot.mfs`, `CAMERA_FPS` diabaikan.
 - **Berat:** neto dihitung konsol, bruto/tara < 1.000 kg ditolak, `14.820` terbaca 14,82.
 
-## Jangan — hentikan dan sebutkan alasannya
+## Jangan: hentikan dan sebutkan alasannya
 
 - **`make demo` di PC pabrik.** Menulis ke database operator; hanya laptop/demo. Skripnya
-  menolak DB berisi data sungguhan, tapi `PAKSA=1` melewatinya — penolakan itu jaring, bukan izin.
+  menolak DB berisi data sungguhan, tapi `PAKSA=1` melewatinya, penolakan itu jaring, bukan izin.
 - **Mengisi `ERP_URL` di PC yang punya data truk lama** sebelum OPS-2
   (`make rekonsiliasi-truk[-docker]`, lihat dulu tanpa `TULIS=1`). Tonase terbelah dua tanpa pesan.
 - **Menjalankan ulang `create_integration_user` di AutoERP** hanya untuk melihat kunci:

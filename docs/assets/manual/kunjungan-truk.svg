@@ -45,14 +45,14 @@
   <path d="M582,236 L603,236" fill="none" stroke="#134e5e" stroke-width="1.6" marker-end="url(#fa)"/>
   <path d="M774,236 L795,236" fill="none" stroke="#134e5e" stroke-width="1.6" marker-end="url(#fa)"/>
   <rect x="30" y="114.0" width="360" height="52" rx="7" fill="#ffffff" stroke="#8a949c" stroke-width="1.4" stroke-dasharray="5 3"/>
-  <text x="210.0" y="138.1" text-anchor="middle" font-size="11.5" font-weight="700" fill="#5a6670">Di pabrik — petugas timbangan dan operator</text>
+  <text x="210.0" y="138.1" text-anchor="middle" font-size="11.5" font-weight="700" fill="#5a6670">Di pabrik: petugas timbangan dan operator</text>
   <text x="210.0" y="153.1" text-anchor="middle" font-size="9.8" fill="#5a6670">orang yang menimbang, menuang buah, dan menekan tombol</text>
   <rect x="414" y="114.0" width="168" height="52" rx="7" fill="#ffffff" stroke="#8a949c" stroke-width="1.4" stroke-dasharray="5 3"/>
   <text x="498.0" y="131.9" text-anchor="middle" font-size="11.5" font-weight="700" fill="#5a6670">Kamera + komputer pabrik</text>
   <text x="498.0" y="146.9" text-anchor="middle" font-size="9.8" fill="#5a6670">menilai buah, tidak</text>
   <text x="498.0" y="159.2" text-anchor="middle" font-size="9.8" fill="#5a6670">perlu internet</text>
   <rect x="606" y="114.0" width="360" height="52" rx="7" fill="#ffffff" stroke="#8a949c" stroke-width="1.4" stroke-dasharray="5 3"/>
-  <text x="786.0" y="138.1" text-anchor="middle" font-size="11.5" font-weight="700" fill="#5a6670">Di kantor — sistem pembukuan</text>
+  <text x="786.0" y="138.1" text-anchor="middle" font-size="11.5" font-weight="700" fill="#5a6670">Di kantor: sistem pembukuan</text>
   <text x="786.0" y="153.1" text-anchor="middle" font-size="9.8" fill="#5a6670">harga, potongan, stok gudang, dan pembayaran</text>
   <rect x="30" y="328.0" width="552" height="100" rx="7" fill="#eef5f6" stroke="#1f7a8c" stroke-width="1.4"/>
   <text x="306.0" y="357.4" text-anchor="middle" font-size="12.5" font-weight="700" fill="#134e5e">Yang dikirim pabrik ke kantor</text>

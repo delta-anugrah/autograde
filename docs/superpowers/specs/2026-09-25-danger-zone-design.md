@@ -1,4 +1,4 @@
-# Danger Zone di layar Setelan — rancangan
+# Danger Zone di layar Setelan: rancangan
 
 Tanggal: 2026-09-25 · Repo: autograde · Status: **disetujui user 2026-09-25** ("langsung lanjut") · Rencana: `docs/superpowers/plans/2026-09-25-danger-zone.md`
 
@@ -39,8 +39,8 @@ line dan strip tally tidak boleh hilang dari pandangan). Cuma satu panel terbuka
 dalam satu waktu. Panelnya berisi:
 
 - apa yang akan terjadi, dengan angka (mis. "1.234 janjang, 56 tiket, 18.402 foto");
-- **hambatan** (merah) — kalau ada, tidak ada tombol eksekusi sama sekali;
-- **peringatan** (kuning) — boleh lanjut, tapi dibaca dulu;
+- **hambatan** (merah): kalau ada, tidak ada tombol eksekusi sama sekali;
+- **peringatan** (kuning): boleh lanjut, tapi dibaca dulu;
 - tombol **Batal lebih dulu** (fokus awal jatuh di Batal, jadi Enter tak sengaja
   membatalkan), lalu tombol eksekusi. Untuk aksi 3–5 tombol eksekusi mati sampai
   kolom berisi persis `HAPUS`.
@@ -69,7 +69,7 @@ sedangkan hapus data dipakai sekali-sekali dan tidak bisa dibatalkan.
 
 Beda dengan `autograde reset-data-fresh` di terminal: CLI menghapus seluruh
 `state/` dan `artifacts/`, termasuk setelan grading dan `license.db`. Tombol ini
-sengaja menyisakan keduanya — setelan grading yang diam-diam kembali ke `.env`
+sengaja menyisakan keduanya: setelan grading yang diam-diam kembali ke `.env`
 mengubah angka yang dibayar tanpa ada yang sadar, dan `license.db` adalah
 penjaga agar jam PC tidak bisa dimundurkan untuk memperpanjang langganan.
 
@@ -78,12 +78,12 @@ penjaga agar jam PC tidak bisa dimundurkan untuk memperpanjang langganan.
 Diperiksa dua kali: di layar saat panel dibuka (supaya support tahu), dan
 **di server saat eksekusi** (layar tidak pernah dipercaya).
 
-**Hambatan — menolak (409), tidak ada yang berubah:**
+**Hambatan: menolak (409), tidak ada yang berubah:**
 
 1. Ada line yang tidak menjawab. Line yang mati tidak bisa menghapus datanya
    sendiri, dan line mati justru yang paling mungkin masih memegang grading
    (pelajaran yang sama dengan `antrean_tertunda()` di `autograde.sh`).
-2. Ada line yang sedang dipasangi truk — grading sedang berjalan.
+2. Ada line yang sedang dipasangi truk, grading sedang berjalan.
 3. Antrean line → konsol belum kosong (`outbox_pending > 0`): ada janjang yang
    belum sampai ke konsol.
 4. `ERP_URL` terisi **dan** antrean konsol → AutoERP masih punya kiriman
@@ -93,12 +93,12 @@ Diperiksa dua kali: di layar saat panel dibuka (supaya support tahu), dan
    (bruto ada, tara belum): truk di tengah kunjungan, dan bruto itu yang
    dibayar. Tiket terbuka dari hari lain cuma diperingatkan (sisa uji coba).
 6. *(ditambah sesudah review)* Khusus "semua": tidak ada hash akun **support**
-   yang terbaca dan AutoERP tidak disetel — sesudahnya tidak ada yang bisa
+   yang terbaca dan AutoERP tidak disetel, sesudahnya tidak ada yang bisa
    membuka menu support, termasuk kotak ini.
 
-**Peringatan — boleh lanjut:**
+**Peringatan: boleh lanjut:**
 
-- Foto yang belum naik ke R2 ikut terhapus — ditulis sebagai peringatan tetap,
+- Foto yang belum naik ke R2 ikut terhapus, ditulis sebagai peringatan tetap,
   tanpa angka. Menghitungnya dengan benar berarti menyisir seluruh `results/`
   (ratusan ribu berkas di Lampung), karena foto baru belum masuk manifest upload
   sampai tick jam berikutnya; angka dari manifest saja akan terbaca "0" padahal
@@ -114,8 +114,8 @@ Diperiksa dua kali: di layar saat panel dibuka (supaya support tahu), dan
 ditulis); line yang tidak menjawab dilewati dan disebut di hasil.
 
 **Restart (1) dan logout (2):** tanpa hambatan. Restart memberi peringatan kalau
-ada truk terpasang ("janjang yang lewat selama ±10 detik tidak dihitung") —
-sama dengan keputusan Model Deteksi: diperingatkan, tidak diblokir — dan kalau
+ada truk terpasang ("janjang yang lewat selama ±10 detik tidak dihitung"),
+sama dengan keputusan Model Deteksi: diperingatkan, tidak diblokir: dan kalau
 ada line yang sedang merekam (restart container = rekaman berhenti; berkasnya
 tetap ada sampai detik itu).
 
@@ -134,9 +134,9 @@ restart dengan mekanisme yang sudah terbukti di Sumber Kamera/Model Deteksi
 **sebelum** satu pun store atau worker membuka berkas, line melihat penanda itu:
 
 1. hapus isi `artifacts/` **kecuali `license.db*`** (foto, sidecar, `outbox.db`);
-2. hapus berkas **milik line** di `state/` (`upload_manifest.db*`) — bukan
+2. hapus berkas **milik line** di `state/` (`upload_manifest.db*`): bukan
    seluruh isinya;
-3. hapus penanda **paling akhir** — boot yang terputus di tengah menghapus
+3. hapus penanda **paling akhir**: boot yang terputus di tengah menghapus
    ulang saat boot berikutnya, bukan meninggalkan separuh data;
 4. `logger.warning` siapa yang meminta dan mode apa.
 
@@ -178,10 +178,10 @@ membuat test merah, bukan diam-diam tertinggal atau ikut terhapus.
    yang dijawab line, lalu `/health` tiap ¼ detik sampai **dua kali
    berturut-turut** tidak menjawab, paling lama 5 detik. Line keluar 1 detik
    sesudah menjawab, dan janjang yang lewat di detik itu masih dikirim ke
-   konsol — menghapus data konsol lebih cepat dari itu meninggalkan baris
+   konsol: menghapus data konsol lebih cepat dari itu meninggalkan baris
    grading yang fotonya sudah hilang. Line yang tidak kunjung mati disebut
    `belum_mati` (perintahnya tetap diterima).
-4. Hapus data konsol — dijalankan kalau **minimal satu** line menerima. Line
+4. Hapus data konsol: dijalankan kalau **minimal satu** line menerima. Line
    yang gagal disebut di hasil (`line_mati`, `versi_lama` = 404, `lisensi` =
    403, atau kode dari badan 409-nya); menekan tombol lagi setelah line itu
    beres menyelesaikannya (kedua sisi aman diulang).
@@ -206,7 +206,7 @@ menerima.
 
 Line (lane mesin, `x-internal-secret`, sama dengan `/internal/restart`). Ketiganya
 di router baru `routes/internal_bahaya.py` yang dirakit lewat fungsi pabrik dan
-tidak mengimpor torch — `routes/internal.py` menarik torch, jadi test untuknya
+tidak mengimpor torch: `routes/internal.py` menarik torch, jadi test untuknya
 dilewati di CI, dan fitur yang menghapus data tidak boleh diuji cuma di laptop:
 
 | Method | Path | Isi |
@@ -233,16 +233,16 @@ yang baru. Line juga mencatat penghapusannya sendiri saat boot.
 - Backup otomatis sebelum menghapus (CLI juga tidak).
 - Undo. Tidak ada.
 - Mengubah `autograde reset-data` / `make reset-data`.
-- Menyunting akun (tambah, ganti sandi, matikan) — aturan 19.
+- Menyunting akun (tambah, ganti sandi, matikan): aturan 19.
 
 ## 8. Pengujian
 
 - **Murni:** penilaian hambatan/peringatan dari keadaan line + antrean; cek
   konfirmasi; daftar tabel per mode lawan `sqlite_master`.
-- **Store:** hapus mode transaksi dan semua di DB sementara — yang harus tetap
+- **Store:** hapus mode transaksi dan semua di DB sementara, yang harus tetap
   benar-benar tetap (setelan, akun/truk di mode transaksi), akun bawaan dibuat
   ulang di mode semua.
-- **Line:** hapus-saat-boot di folder sementara — `license.db` selamat, penanda
+- **Line:** hapus-saat-boot di folder sementara, `license.db` selamat, penanda
   dihapus terakhir, boot yang terputus mengulang dengan benar.
 - **Route:** 401/403, 400 konfirmasi salah, 409 dengan kode hambatan, 200 dengan
   line palsu yang mencatat panggilan.
@@ -254,5 +254,5 @@ yang baru. Line juga mencatat penghapusannya sendiri saat boot.
 
 Konsol dan line harus versi yang sama (endpoint internal baru). Keduanya satu
 image dan `autograde use <tag>` memasang keempatnya sekaligus, jadi ini hanya
-masalah kalau ada line yang ditahan di versi lama — line seperti itu menjawab
+masalah kalau ada line yang ditahan di versi lama, line seperti itu menjawab
 404 dan disebut gagal di hasil. Tidak ada perubahan compose atau `.env`.

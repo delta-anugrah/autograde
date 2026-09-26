@@ -103,6 +103,16 @@ def test_lima_aksi_urut_dari_ringan_ke_berat():
     assert re.findall(r'data-bahaya="([a-z]+)"', SETELAN) == URUTAN
 
 
+def test_tombol_danger_zone_sama_lebar():
+    """Lima tombol di kanan baris sama lebar (permintaan 2026-09-26): lebar
+    tetap, bukan `min-width` yang membiarkan label panjang melebar sendiri."""
+    aturan = re.search(r"button\.bahaya-buka\s*\{([^}]*)\}", HTML).group(1)
+    assert "min-width" not in aturan
+    lebar = re.search(r"(?:^|[;\s])width:\s*([^;]+);", aturan)
+    assert lebar, aturan
+    assert re.search(rf"flex:\s*0 0 {re.escape(lebar.group(1).strip())}\s*;", aturan), aturan
+
+
 def test_tiap_aksi_punya_panel_tersembunyi_sendiri():
     for aksi in URUTAN:
         tag = re.search(rf'<div class="bahaya-panel" data-bahaya-panel="{aksi}"[^>]*>', SETELAN)

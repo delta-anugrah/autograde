@@ -39,17 +39,17 @@
   <!-- Terbuka -> Tertutup (klik Tutup), jalur bawah -->
   <path d="M600,150 L600,186 L64,186 L64,150" fill="none" stroke="#134e5e" stroke-width="2" marker-end="url(#piston-panah)"/>
   <rect x="246" y="176" width="172" height="18" fill="#ffffff"/>
-  <text x="332" y="190" text-anchor="middle" font-size="10.5" font-weight="700" fill="#134e5e">klik Tutup — coil 1 → 0</text>
+  <text x="332" y="190" text-anchor="middle" font-size="10.5" font-weight="700" fill="#134e5e">klik Tutup: coil 1 → 0</text>
 
   <!-- Menunggu -> Tertutup (ditolak), jalur bawah kedua -->
   <path d="M350,150 L350,218 L136,218 L136,150" fill="none" stroke="#5a6670" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#piston-panah)"/>
-  <text x="356" y="236" text-anchor="middle" font-size="10.5" fill="#5a6670">DI tetap 0 lebih dari ±2 detik — AutoGrade menurunkan coil sendiri</text>
+  <text x="356" y="236" text-anchor="middle" font-size="10.5" fill="#5a6670">DI tetap 0 lebih dari ±2 detik, AutoGrade menurunkan coil sendiri</text>
 
   <!-- E-stop -->
   <path d="M684,105 L696,105 L696,272 L100,272 L100,232" fill="none" stroke="#b3462f" stroke-width="2" marker-end="url(#piston-panah-merah)"/>
-  <text x="400" y="290" text-anchor="middle" font-size="11.5" font-weight="700" fill="#b3462f">E-stop ditekan — piston tutup seketika</text>
+  <text x="400" y="290" text-anchor="middle" font-size="11.5" font-weight="700" fill="#b3462f">E-stop ditekan: piston tutup seketika</text>
   <text x="400" y="308" text-anchor="middle" font-size="11" fill="#b3462f">Setelah E-stop dilepas piston TETAP tertutup, sampai ada perubahan 0 → 1 baru dari operator.</text>
   <text x="400" y="326" text-anchor="middle" font-size="10.5" fill="#5a6670">Aturan terpenting: tanpa ini, melepas E-stop membuat piston bergerak sendiri.</text>
 
-  <text x="16" y="30" font-size="10" font-weight="700" letter-spacing="1.3" fill="#b3462f">SIAP DI APLIKASI — ALOKASI COIL/DI MENUNGGU PANEL</text>
+  <text x="16" y="30" font-size="10" font-weight="700" letter-spacing="1.3" fill="#b3462f">SIAP DI APLIKASI, ALOKASI COIL/DI MENUNGGU PANEL</text>
 </svg>

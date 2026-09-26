@@ -1,4 +1,4 @@
-# Model Deteksi per Line — Implementation Plan
+# Model Deteksi per Line: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -28,15 +28,15 @@
 
 ## Review Focus
 
-1. **Simpan Sumber Kamera sesudah memilih model** — model harus tetap tersimpan. Diuji di Task 3.
-2. **`media.env` disunting tangan dengan `LINE_2_MODEL_FILE=../../etc/x.pt`** — line harus mengabaikannya dan memakai bawaan, bukan membuka path itu. Diuji di Task 4.
-3. **`.pt` rusak / bukan zip / berkas 0 byte di `models/release`** — daftar tetap tampil, model itu `kelas: null`, tidak bisa dipilih, konsol tidak 500. Diuji di Task 2.
-4. **Engine ada tapi lebih tua dari `.pt`-nya** (isi `best.pt` diganti, nama sama) — tampil "engine basi". Diuji di Task 2.
-5. **Line mati saat simpan** — berkas tetap tersimpan, respons menandai line itu tidak direstart. Diuji di Task 5.
+1. **Simpan Sumber Kamera sesudah memilih model**: model harus tetap tersimpan. Diuji di Task 3.
+2. **`media.env` disunting tangan dengan `LINE_2_MODEL_FILE=../../etc/x.pt`**: line harus mengabaikannya dan memakai bawaan, bukan membuka path itu. Diuji di Task 4.
+3. **`.pt` rusak / bukan zip / berkas 0 byte di `models/release`**: daftar tetap tampil, model itu `kelas: null`, tidak bisa dipilih, konsol tidak 500. Diuji di Task 2.
+4. **Engine ada tapi lebih tua dari `.pt`-nya** (isi `best.pt` diganti, nama sama), tampil "engine basi". Diuji di Task 2.
+5. **Line mati saat simpan**: berkas tetap tersimpan, respons menandai line itu tidak direstart. Diuji di Task 5.
 
 ---
 
-### Task 1: Aturan domain — kelas model dan pilihan model
+### Task 1: Aturan domain: kelas model dan pilihan model
 
 **Files:**
 - Modify: `src/palmgrade/domain/grade_class.py` (tambah `periksa_kelas`)
@@ -77,7 +77,7 @@ def test_line_kurang_atau_asing_ditolak():
         bersihkan_pilihan_model({"line-1": "", "line-2": "", "line-3": "", "line-9": ""})
 ```
 
-- [ ] **Step 2: Jalankan, pastikan gagal** — `.venv/bin/pytest tests/unit/test_pilihan_model.py -q` → ImportError.
+- [ ] **Step 2: Jalankan, pastikan gagal**: `.venv/bin/pytest tests/unit/test_pilihan_model.py -q` → ImportError.
 
 - [ ] **Step 3: Implementasi**
 
@@ -92,7 +92,7 @@ def periksa_kelas(names) -> tuple[list[str], list[str]]:
     return asing, hilang
 ```
 
-`pilihan_model.py`: `LINE_CODES` diimpor dari `services.media_env_service`? **Tidak** — domain tidak boleh bergantung pada service. Salin tuple `("line-1","line-2","line-3")` sebagai `LINE_MODEL`, dan tes di Task 3 memastikan sama dengan `LINE_CODES`.
+`pilihan_model.py`: `LINE_CODES` diimpor dari `services.media_env_service`? **Tidak**, domain tidak boleh bergantung pada service. Salin tuple `("line-1","line-2","line-3")` sebagai `LINE_MODEL`, dan tes di Task 3 memastikan sama dengan `LINE_CODES`.
 ```python
 _BERBAHAYA = ("/", "\\", "..", "\x00", "\n", "\r")
 class ModelTidakSah(ValueError): ...
@@ -107,10 +107,10 @@ def bersihkan_pilihan_model(payload) -> dict[str, str]:
     # objek, kunci tepat LINE_MODEL, tiap nilai lewat bersihkan_nama_model
 ```
 
-- [ ] **Step 4: Tes lulus** — perintah yang sama → PASS.
-- [ ] **Step 5: Commit** — `feat(model): aturan domain pilihan model per line`
+- [ ] **Step 4: Tes lulus**: perintah yang sama → PASS.
+- [ ] **Step 5: Commit**: `feat(model): aturan domain pilihan model per line`
 
-### Task 2: Pustaka model — baca kelas tanpa torch
+### Task 2: Pustaka model: baca kelas tanpa torch
 
 **Files:**
 - Create: `src/palmgrade/services/model_library.py`
@@ -138,7 +138,7 @@ def test_model_asli_kalau_ada(): # skip kalau models/release/best.pt tidak ada; 
 ```
 
 - [ ] **Step 2: Jalankan, pastikan gagal.**
-- [ ] **Step 3: Implementasi** — unpickler yang terbukti di prototipe 2026-09-24 (9 ms per model, dua model asli terbaca):
+- [ ] **Step 3: Implementasi**: unpickler yang terbukti di prototipe 2026-09-24 (9 ms per model, dua model asli terbaca):
 
 ```python
 class _Stub(dict):
@@ -161,7 +161,7 @@ class _PembacaAman(pickle.Unpickler):
 `baca_meta_engine`: baca 4 byte `int.from_bytes(..., "little", signed=True)`, tolak `<=0` atau `>1_000_000`, `json.loads`, `names` → list terurut kunci int.
 `ModelLibrary.daftar()`: `*.pt` di `release_dir` terurut; cache per `(nama, st_size, st_mtime_ns)`; engine = `engines_dir.glob(f"{stem}.sm*.engine")`; `basi = dibuat < mtime pt` (engine tanpa `date` → pakai mtime engine).
 - [ ] **Step 4: Tes lulus.**
-- [ ] **Step 5: Commit** — `feat(model): baca kelas model .pt dan engine tanpa torch`
+- [ ] **Step 5: Commit**: `feat(model): baca kelas model .pt dan engine tanpa torch`
 
 ### Task 3: `media.env` memuat pilihan model
 
@@ -181,9 +181,9 @@ def test_baca_model_bawaan_kosong(tmp_path): assert svc.baca_model() == {"line-1
 def test_line_codes_domain_sama(): assert LINE_MODEL == LINE_CODES
 ```
 - [ ] **Step 2: Gagal.**
-- [ ] **Step 3: Implementasi** — pisahkan penulisan atomik yang sudah ada ke `_tulis_isi(kamera, model)`; blok per line ditambah `LINE_{n}_MODEL_FILE={model}`. `tulis(setelan)` = `_tulis_isi(setelan, self.baca_model())`; `tulis_model(p)` = `_tulis_isi(self.baca(), p)`. Kepala berkas menyebut "sumber kamera dan model deteksi". Perbaiki docstring usang ("lewat `env_file`" → `--env-file`). `media.env.example` tambah `LINE_N_MODEL_FILE=` dengan komentar "kosong = MODEL_FILE di .env".
+- [ ] **Step 3: Implementasi**: pisahkan penulisan atomik yang sudah ada ke `_tulis_isi(kamera, model)`; blok per line ditambah `LINE_{n}_MODEL_FILE={model}`. `tulis(setelan)` = `_tulis_isi(setelan, self.baca_model())`; `tulis_model(p)` = `_tulis_isi(self.baca(), p)`. Kepala berkas menyebut "sumber kamera dan model deteksi". Perbaiki docstring usang ("lewat `env_file`" → `--env-file`). `media.env.example` tambah `LINE_N_MODEL_FILE=` dengan komentar "kosong = MODEL_FILE di .env".
 - [ ] **Step 4: Lulus** (termasuk seluruh `test_media_env_service.py` lama).
-- [ ] **Step 5: Commit** — `feat(model): media.env menyimpan model per line`
+- [ ] **Step 5: Commit**: `feat(model): media.env menyimpan model per line`
 
 ### Task 4: Line memuat model pilihannya dan melaporkannya
 
@@ -206,12 +206,12 @@ def test_model_tetap_terbaca_tanpa_baris_kamera(...)  # berkas cuma berisi LINE_
 - [ ] **Step 2: Gagal.**
 - [ ] **Step 3: Implementasi**
   - Field: `model_file: str = field(default_factory=lambda: os.getenv("MODEL_FILE", "best.pt").strip() or "best.pt")`.
-  - `__post_init__`: baca `LINE_N_MODEL_FILE` **sebelum** cek `CAMERA_TYPE`; berlaku kalau `bersihkan_nama_model` lolos dan tidak kosong, selain itu log WARNING dan abaikan. Import dari `domain.pilihan_model` (domain, bukan service — aturan `config.py`).
+  - `__post_init__`: baca `LINE_N_MODEL_FILE` **sebelum** cek `CAMERA_TYPE`; berlaku kalau `bersihkan_nama_model` lolos dan tidak kosong, selain itu log WARNING dan abaikan. Import dari `domain.pilihan_model` (domain, bukan service: aturan `config.py`).
   - `ripeness_model_path` / `engine_path_for_gpu` memakai `self.model_file`.
   - `ModelRegistry.__init__`: `_warn_on_unexpected_classes(self.model, logger)` dipindah ke **sesudah warm-up**, sehingga jalan juga untuk engine. `_warn_on_unexpected_classes` memakai `periksa_kelas`. `ringkasan()` memulangkan `model_file`, `backend`, kelas terurut.
   - `HealthService` dapat field opsional `model: ModelRegistry | None = None`; `get_health_service()` mengisinya dengan `get_model_registry()`.
-- [ ] **Step 4: Lulus** — `tests/unit/test_line_baca_media_env.py`, `test_grade_class_detection.py`, seluruh `tests/unit` yang menyentuh health.
-- [ ] **Step 5: Commit** — `feat(model): line memuat model per line dan melaporkannya di health`
+- [ ] **Step 4: Lulus**: `tests/unit/test_line_baca_media_env.py`, `test_grade_class_detection.py`, seluruh `tests/unit` yang menyentuh health.
+- [ ] **Step 5: Commit**: `feat(model): line memuat model per line dan melaporkannya di health`
 
 ### Task 5: Service + route konsol
 
@@ -223,7 +223,7 @@ def test_model_tetap_terbaca_tanpa_baris_kamera(...)  # berkas cuma berisi LINE_
 - Produces: `GET /api/console/dev/model-deteksi` → `{"lines": {"line-1": "best.pt"|"" ...}, "model": [item Task 2]}`.
 - Produces: `POST /api/console/dev/model-deteksi` body `{"line-1": "...", "line-2": "...", "line-3": "..."}` → `{"lines": [{"line_code", "berubah", "direstart", "alasan"?}], ...GET}`; 400 `ModelTidakSah`; 403 bukan support.
 
-- [ ] **Step 1: Tes gagal** — `FakeLine` sama dengan tes Sumber Kamera; `svc` fixture menaruh `models/release` palsu di `tmp_path` dan `replace(Settings(), repo_root=tmp_path)`.
+- [ ] **Step 1: Tes gagal**: `FakeLine` sama dengan tes Sumber Kamera; `svc` fixture menaruh `models/release` palsu di `tmp_path` dan `replace(Settings(), repo_root=tmp_path)`.
 ```python
 def test_baca_daftar_dan_pilihan(svc)
 def test_simpan_menulis_dan_merestart_yang_berubah(svc)
@@ -234,14 +234,14 @@ def test_line_mati_tidak_membatalkan_simpan(svc)   # Review Focus 5
 ```
 e2e: simpan lewat HTTP → berkas tertulis + restart; operator 403; model asing 400.
 - [ ] **Step 2: Gagal.**
-- [ ] **Step 3: Implementasi** — `_model_library()` → `ModelLibrary(settings.models_release_dir, settings.engines_dir)`; `simpan_model_deteksi(payload, diubah_oleh)`: bersihkan → tiap nama tak kosong wajib `cari()` ada + `cocok` → `sebelum = baca_model()` → `tulis_model` → WARNING siapa → restart yang berubah (salin loop Sumber Kamera). Route menyalin pasangan Sumber Kamera, `ModelTidakSah` → 400.
+- [ ] **Step 3: Implementasi**: `_model_library()` → `ModelLibrary(settings.models_release_dir, settings.engines_dir)`; `simpan_model_deteksi(payload, diubah_oleh)`: bersihkan → tiap nama tak kosong wajib `cari()` ada + `cocok` → `sebelum = baca_model()` → `tulis_model` → WARNING siapa → restart yang berubah (salin loop Sumber Kamera). Route menyalin pasangan Sumber Kamera, `ModelTidakSah` → 400.
 - [ ] **Step 4: Lulus.**
-- [ ] **Step 5: Commit** — `feat(model): endpoint Support untuk memilih model per line`
+- [ ] **Step 5: Commit**: `feat(model): endpoint Support untuk memilih model per line`
 
 ### Task 6: Konsol di prod bisa melihat folder model
 
 **Files:**
-- Modify: `docker-compose.prod.yml` (volume konsol `./models:/app/models:ro`, `./engines:/app/engines:ro`), `docker-compose.yml` (sama, walau `.:/app` sudah mencakup — eksplisit supaya prod dan dev tidak bercabang diam-diam)
+- Modify: `docker-compose.prod.yml` (volume konsol `./models:/app/models:ro`, `./engines:/app/engines:ro`), `docker-compose.yml` (sama, walau `.:/app` sudah mencakup, eksplisit supaya prod dan dev tidak bercabang diam-diam)
 - Test: `tests/unit/test_compose_model_deteksi.py` (teks: blok volume konsol di dua berkas memuat kedua mount)
 
 - [ ] Tes gagal → tambah mount → lulus → commit `feat(model): konsol me-mount models dan engines read-only`
@@ -260,10 +260,10 @@ e2e: simpan lewat HTTP → berkas tertulis + restart; operator 403; model asing 
 - Sesudah POST: toast seperti Sumber Kamera (sukses / sebagian tidak menjawab), lalu muat ulang tab.
 - i18n `KAMUS` id + en untuk semua teks baru.
 
-- [ ] **Step 1: Tes teks gagal** — id elemen, endpoint dua-duanya, `TAB_SAH`/`MUAT_TAB`, `showModal`, nol `https://`.
+- [ ] **Step 1: Tes teks gagal**: id elemen, endpoint dua-duanya, `TAB_SAH`/`MUAT_TAB`, `showModal`, nol `https://`.
 - [ ] **Step 2-4: Implementasi, lulus.**
-- [ ] **Step 5: Verifikasi di browser** — konsol native + tiga line palsu (pola verifikasi tab PLC 2026-09-24): login support, pilih `best_3class_v2.pt` harus disabled dengan alasan, pilih `best.pt` di line-2, modal muncul menyebut line-2, konfirmasi, `media.env` berisi `LINE_2_MODEL_FILE=best.pt`. Screenshot.
-- [ ] **Step 6: Commit** — `feat(console): layar Model Deteksi per line dengan modal restart`
+- [ ] **Step 5: Verifikasi di browser**: konsol native + tiga line palsu (pola verifikasi tab PLC 2026-09-24): login support, pilih `best_3class_v2.pt` harus disabled dengan alasan, pilih `best.pt` di line-2, modal muncul menyebut line-2, konfirmasi, `media.env` berisi `LINE_2_MODEL_FILE=best.pt`. Screenshot.
+- [ ] **Step 6: Commit**: `feat(console): layar Model Deteksi per line dengan modal restart`
 
 ### Task 8: Dokumen
 

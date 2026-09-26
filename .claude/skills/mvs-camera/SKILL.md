@@ -3,7 +3,7 @@ name: mvs-camera
 description: Navigate & tune kamera Hikrobot MV-CS050-10GC lewat MVS (Machine Vision Software) untuk autograde. Use when the user asks about MVS Feature Tree, setting kamera (exposure/gain/white balance/binning/fps), file .mfs, kamera GigE nggak kedetek / ACCESS_DENIED, fps kamera mentok, atau kalibrasi kamera di pabrik.
 ---
 
-# MVS — Kamera Hikrobot MV-CS050-10GC (Palmgrade)
+# MVS: Kamera Hikrobot MV-CS050-10GC (Palmgrade)
 
 Sumber kebenaran nilai & topologi: `autograde/docs/camera-spec.md`.
 Checklist kalibrasi lapangan: `../docs/camera-field-setup.md` (workspace `sawit`, bukan repo ini).
@@ -12,7 +12,7 @@ Skill ini = peta navigasi MVS + nilai live + jebakan. Jangan duplikat isi 2 doku
 ## Hardware
 
 3 unit MV-CS050-10GC (1 per line). 5 MP 2448×2048, Sony IMX264 global shutter,
-color (Bayer), GigE Vision, **DC power — BUKAN PoE**. Serial contoh live: `DA9070001`, `DA7538184`.
+color (Bayer), GigE Vision, **DC power, BUKAN PoE**. Serial contoh live: `DA9070001`, `DA7538184`.
 
 ## Aturan emas: `.mfs` MENANG atas `.env`
 
@@ -42,7 +42,7 @@ ke XML). Load balik = **Load Feature**.
 | Simpan setting ke firmware | **User Set Control** |
 
 Shortcut MVS: panel **Common Features** (Basic / ISP / Transport) isinya node yang sama,
-cuma dikurasi — cukup buat 90% tuning harian.
+cuma dikurasi: cukup buat 90% tuning harian.
 
 ## Nilai live (terverifikasi di PC Lampung 2026-08-21, cocok 1:1 sama `hikrobot.mfs`)
 
@@ -73,7 +73,7 @@ Binning 2×2 → ~100 Mbps/kamera ≈ **300 Mbps** total. Aman.
 Jumbo frame `8164` cuma jalan kalau **MTU 9000 diset di switch DAN NIC host**.
 MTU salah = frame putus / `MV_E_...` timeout. Cek: `ip link show <nic>` harus `mtu 9000`.
 
-## Persistensi — 2 lapis, lapis 1 BELUM dipakai
+## Persistensi: 2 lapis, lapis 1 BELUM dipakai
 
 1. **Firmware UserSet** (User Set Control → Save ke UserSet1 + set *User Set Default* = UserSet1).
    Live sekarang: `User Set Selector = Default`, `User Set Default = Default` → **belum disimpan**.
@@ -94,7 +94,7 @@ Simpan UserSet = jaring pengaman. Tes: simpan → cabut listrik kamera → nyala
 - **fps kamera diatur `.mfs`, bukan `.env`.** `hikrobot.mfs` ngunci
   `AcquisitionFrameRate` (sekarang 15) dan di-load tiap connect, jadi `CAMERA_FPS`
   di `.env` cuma target loop capture. ⚠️ Nge-comment `LINE_n_FEATURE_FILE` **nggak**
-  mematikan auto-load — default `:-` di `docker-compose.yml` tetap nyuntik
+  mematikan auto-load: default `:-` di `docker-compose.yml` tetap nyuntik
   `config/camera/hikrobot.mfs`. Plafon lain lihat `docs/camera-spec.md § 5.4`.
 - **Jaringan di docs beda sama live.** Live Lampung: NIC `enp3s0` `192.168.0.10`,
   kamera `192.168.0.13`, gateway `192.168.0.254`, `GEV SCDA/MCDA = 192.168.0.10`.

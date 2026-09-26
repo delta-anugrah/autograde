@@ -1,8 +1,8 @@
-# Pita Alarm PLC (motor fault + E-stop) di Layar Operator — Implementation Plan
+# Pita Alarm PLC (motor fault + E-stop) di Layar Operator: Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Kalau PLC melaporkan motor fault atau E-stop (bit M1100–M1111 dari daftar pak Ocit), operator melihat pita merah besar di tab operator konsol — bukan cuma angka mentah di tab support.
+**Goal:** Kalau PLC melaporkan motor fault atau E-stop (bit M1100–M1111 dari daftar pak Ocit), operator melihat pita merah besar di tab operator konsol, bukan cuma angka mentah di tab support.
 
 **Architecture:** Bit PLC sudah dibaca tiap 200 ms oleh `PlcWorker` di tiap proses line dan tersedia lewat `plc.inputs()`. Yang belum ada: penerjemahan bit → nama alarm, dan jalur ke layar operator. Kita tambah satu modul domain murni (`plc_alarm.py`) yang memetakan offset bit ke kode alarm, ikutkan daftar kode itu di `/internal/status` (yang sudah di-poll `LineStatusWorker` tiap 1 detik), dan gambar **satu** pita global di atas kartu line. Satu pita, bukan per kartu: ketiga proses line membaca **blok M yang sama** dari satu PLC, jadi motor fault itu keadaan pabrik, bukan keadaan line.
 
@@ -12,17 +12,17 @@
 
 ## Global Constraints
 
-- Kerja di worktree `.claude/worktrees/plc-sync`, branch `feat/plc-mc-protocol`. Jangan `cd` ke checkout utama (sesi lain memakainya). Salin `.env` repo utama ke worktree dulu kalau belum ada — tanpa itu 2 unit test merah palsu (`tests/conftest.py` membaca daftar kunci dari `.env` root).
+- Kerja di worktree `.claude/worktrees/plc-sync`, branch `feat/plc-mc-protocol`. Jangan `cd` ke checkout utama (sesi lain memakainya). Salin `.env` repo utama ke worktree dulu kalau belum ada, tanpa itu 2 unit test merah palsu (`tests/conftest.py` membaca daftar kunci dari `.env` root).
 - Python: `/Users/nexiomacbookpro/Desktop/Projects/sawit/autograde/.venv/bin/python` (worktree tidak punya venv).
-- Offset bit dalam blok (`PLC_DI_BASE=1100`, `PLC_DI_COUNT=16`): **0–10 = MOTOR 1–11 FAULT, 11 = E-STOP OP PANEL**, 12–15 belum dialokasikan. Kode tidak boleh tahu angka 1100 — dia cuma melihat `inputs[i]`.
+- Offset bit dalam blok (`PLC_DI_BASE=1100`, `PLC_DI_COUNT=16`): **0–10 = MOTOR 1–11 FAULT, 11 = E-STOP OP PANEL**, 12–15 belum dialokasikan. Kode tidak boleh tahu angka 1100, dia cuma melihat `inputs[i]`.
 - **Asumsi polaritas: bit ON (True) = fault / E-stop ditekan.** Daftar Ocit tidak menyebut polaritas; catat di dokumen sebagai butir yang harus dikonfirmasi. Jangan dikompensasi di kode.
-- Kode alarm bahasa-netral (`motor_fault`, `estop`); teks manusia hanya di `KAMUS` konsol, dua bahasa (`id`, `en`) — dijaga test.
+- Kode alarm bahasa-netral (`motor_fault`, `estop`); teks manusia hanya di `KAMUS` konsol, dua bahasa (`id`, `en`): dijaga test.
 - `console.html`: nol `https://`, nol handler inline `on*=`, semua nilai server lewat `esc()`. Test `tests/unit/test_console_html.py` menjaga ini.
 - Commit message bahasa Indonesia, tanpa baris co-author. Jangan `git stash`.
 
 ---
 
-### Task 1: Modul domain `plc_alarm` — bit → kode alarm
+### Task 1: Modul domain `plc_alarm`: bit → kode alarm
 
 **Files:**
 - Create: `src/palmgrade/domain/plc_alarm.py`
@@ -177,7 +177,7 @@ git commit -m "feat(plc): domain plc_alarm — bit M1100.. jadi daftar alarm mot
 
 **Interfaces:**
 - Consumes: `alarms_from_inputs` (Task 1); `palmgrade.plc.inputs()` → `list[bool]` (sudah ada, `[]` saat PLC mati).
-- Produces: field `alarms: list[dict]` di JSON `/internal/status`, mis. `"alarms": [{"code": "motor_fault", "n": 3}]`. Kosong = tidak ada alarm ATAU PLC mati — konsol tidak perlu membedakan.
+- Produces: field `alarms: list[dict]` di JSON `/internal/status`, mis. `"alarms": [{"code": "motor_fault", "n": 3}]`. Kosong = tidak ada alarm ATAU PLC mati, konsol tidak perlu membedakan.
 
 - [ ] **Step 1: Tulis test yang gagal**
 
@@ -221,7 +221,7 @@ def test_plc_mati_berarti_alarms_kosong_bukan_error(monkeypatch):
 - [ ] **Step 2: Jalankan, pastikan gagal**
 
 Run: `../../.venv/bin/python -m pytest tests/e2e/test_internal_status_alarm.py -q`
-Expected: FAIL — `AttributeError: 'LineStatusResponse' object has no attribute 'alarms'` (atau `_plc_inputs` tidak ada; keduanya benar untuk merah pertama).
+Expected: FAIL: `AttributeError: 'LineStatusResponse' object has no attribute 'alarms'` (atau `_plc_inputs` tidak ada; keduanya benar untuk merah pertama).
 
 - [ ] **Step 3: Implementasi**
 
@@ -269,7 +269,7 @@ async def line_status(state: RuntimeState) -> LineStatusResponse:
 - [ ] **Step 4: Jalankan, pastikan lulus (plus lane lama tidak pecah)**
 
 Run: `../../.venv/bin/python -m pytest tests/e2e/test_internal_status_alarm.py tests/e2e/test_internal_plc_lane.py -q`
-Expected: semua passed (atau skipped kalau torch tidak ada — di MacBook ini torch ada).
+Expected: semua passed (atau skipped kalau torch tidak ada, di MacBook ini torch ada).
 
 - [ ] **Step 5: Commit**
 
@@ -288,7 +288,7 @@ git commit -m "feat(plc): /internal/status membawa alarms dari bit PLC"
 
 **Interfaces:**
 - Consumes: JSON `/internal/status` dengan `alarms` (Task 2).
-- Produces: `worker.snapshot()[line_code]["alarms"]` → `list[dict]`; `[]` kalau line tidak menjawab atau field tidak ada (line versi lama). `ConsoleService.state()` sudah meneruskan seluruh dict ini sebagai `lines[i]["plc"]` — **tidak perlu diubah**.
+- Produces: `worker.snapshot()[line_code]["alarms"]` → `list[dict]`; `[]` kalau line tidak menjawab atau field tidak ada (line versi lama). `ConsoleService.state()` sudah meneruskan seluruh dict ini sebagai `lines[i]["plc"]`, **tidak perlu diubah**.
 
 - [ ] **Step 1: Tulis test yang gagal**
 
@@ -385,7 +385,7 @@ git commit -m "feat(konsol): worker status line ikut menyimpan alarm PLC"
 ### Task 4: Pita alarm global di tab operator
 
 **Files:**
-- Modify: `src/palmgrade/static/console.html` — CSS dekat `.pita-piston` (±baris 520), markup sebelum `<div id="lines"></div>` (baris 871), KAMUS `id` (dekat baris 1514) dan `en` (dekat 1657), fungsi baru dekat `pitaPiston` (baris 2236), pemanggilan di `refresh()` (baris ~3079).
+- Modify: `src/palmgrade/static/console.html`: CSS dekat `.pita-piston` (±baris 520), markup sebelum `<div id="lines"></div>` (baris 871), KAMUS `id` (dekat baris 1514) dan `en` (dekat 1657), fungsi baru dekat `pitaPiston` (baris 2236), pemanggilan di `refresh()` (baris ~3079).
 - Test: `tests/unit/test_console_html_alarm.py`
 
 **Interfaces:**
@@ -446,7 +446,7 @@ Expected: 4 FAILED (`id="pita-alarm"` tidak ada, dst).
 
 - [ ] **Step 3: Implementasi di `console.html`**
 
-**(a) CSS** — tepat setelah blok `@keyframes denyut-pita { ... }`:
+**(a) CSS**: tepat setelah blok `@keyframes denyut-pita { ... }`:
 
 ```css
   /* Alarm PLC (motor fault / E-stop): satu pita untuk seluruh layar, bukan per
@@ -461,14 +461,14 @@ Expected: 4 FAILED (`id="pita-alarm"` tidak ada, dst).
   #pita-alarm span { display:inline-block; margin:0 .6em; }
 ```
 
-**(b) Markup** — ganti `<div id="lines"></div>` dengan:
+**(b) Markup**: ganti `<div id="lines"></div>` dengan:
 
 ```html
 <div id="pita-alarm" hidden></div>
 <div id="lines"></div>
 ```
 
-**(c) KAMUS** — di blok `id`, tepat setelah baris `pistonTerbuka:"PISTON TERBUKA - hati-hati, besi bergerak",`:
+**(c) KAMUS**: di blok `id`, tepat setelah baris `pistonTerbuka:"PISTON TERBUKA - hati-hati, besi bergerak",`:
 
 ```js
     alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP DITEKAN - line berhenti darurat",
@@ -480,7 +480,7 @@ di blok `en`, tepat setelah `pistonTerbuka:"PISTON OPEN - moving metal, stand cl
     alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP PRESSED - emergency stop active",
 ```
 
-**(d) Fungsi** — tepat setelah fungsi `pitaPiston(l)`:
+**(d) Fungsi**: tepat setelah fungsi `pitaPiston(l)`:
 
 ```js
 // Alarm PLC (motor fault / E-stop) dari blok M yang dibaca tiap line. Semua
@@ -517,9 +517,9 @@ function gambarPitaAlarm(lines) {
 }
 ```
 
-`t()` di berkas ini adalah `const t = (k) => KAMUS[bahasa][k] ?? k;` (baris ±1727) — kunci yang tidak ada kembali apa adanya, jadi komentar di atas benar, tidak perlu pembungkus.
+`t()` di berkas ini adalah `const t = (k) => KAMUS[bahasa][k] ?? k;` (baris ±1727): kunci yang tidak ada kembali apa adanya, jadi komentar di atas benar, tidak perlu pembungkus.
 
-**(e) Panggilan** — di `async function refresh()`, tepat setelah baris `isiTally(s.lines);`:
+**(e) Panggilan**: di `async function refresh()`, tepat setelah baris `isiTally(s.lines);`:
 
 ```js
     gambarPitaAlarm(s.lines);
@@ -552,7 +552,7 @@ git commit -m "feat(konsol): pita alarm PLC — motor fault dan E-stop terbaca o
 ### Task 5: Tab Uji PLC menampilkan nama bit, bukan cuma nomor
 
 **Files:**
-- Modify: `src/palmgrade/static/console.html` — fungsi `isiDiPlc(inputs)` (±baris 3475) dan KAMUS (dekat kunci `diAktif`, baris 1538 dan 1681).
+- Modify: `src/palmgrade/static/console.html`: fungsi `isiDiPlc(inputs)` (±baris 3475) dan KAMUS (dekat kunci `diAktif`, baris 1538 dan 1681).
 - Test: tambah ke `tests/unit/test_console_html_alarm.py`
 
 **Interfaces:**
@@ -636,7 +636,7 @@ git commit -m "feat(konsol): tab Uji PLC menamai tiap bit (MOTOR n / E-STOP)"
 
 **Files:**
 - Modify: `docs/plc-mc-handoff.md` bab 2.2 (tabel "PLC menulis, PC membaca") dan bab 5 (yang ditunggu)
-- Modify: `.claude/skills/plc-mc-protocol/SKILL.md` — bagian "PC membaca"
+- Modify: `.claude/skills/plc-mc-protocol/SKILL.md`: bagian "PC membaca"
 - Modify: `docs/MANUAL.md` §5.9 (satu kalimat)
 - Regenerate: `docs/plc-mc-handoff.pdf`, `docs/MANUAL.pdf`
 
@@ -665,7 +665,7 @@ Di tabel bab 5, tambah baris sebelum baris piston:
 
 dan ubah kalimat "Peta alamat **sudah selesai**" tetap; ubah "**Yang ditunggu dari sisi PLC:** tiga butir di bab 5." di bab 7 menjadi "lima butir di bab 5 (dua terakhir konfirmasi, bukan pekerjaan)". Naikkan `versi: "1.2"`, `tanggal: 23 September 2026`.
 
-- [ ] **Step 2: Skill** — di `SKILL.md`, setelah tabel "PC membaca", tambah:
+- [ ] **Step 2: Skill**: di `SKILL.md`, setelah tabel "PC membaca", tambah:
 
 ```markdown
 Bit ini sampai ke operator lewat `domain/plc_alarm.py` → `/internal/status.alarms` →
@@ -675,7 +675,7 @@ berhenti (keputusan 2026-09-23; menghentikan butuh konfirmasi Ocit). Polaritas
 diasumsikan ON = fault — belum dikonfirmasi.
 ```
 
-- [ ] **Step 3: MANUAL §5.9** — tambahkan kalimat terakhir: `Motor fault dan E-stop dari PLC tampil sebagai pita merah di atas kartu line.`
+- [ ] **Step 3: MANUAL §5.9**: tambahkan kalimat terakhir: `Motor fault dan E-stop dari PLC tampil sebagai pita merah di atas kartu line.`
 
 - [ ] **Step 4: PDF**
 
@@ -706,7 +706,7 @@ Expected: `All checks passed!`
 - [ ] **Step 2: Suite penuh**
 
 Run: `../../.venv/bin/python -m pytest tests/unit tests/integration -q 2>&1 | tail -2` lalu `../../.venv/bin/python -m pytest tests/e2e -q 2>&1 | tail -2`
-Expected: 0 failed. (`test_onboarding_pdf` bisa error kalau Chrome rebutan dengan pytest lain — jalankan sendirian untuk membuktikan lulus.)
+Expected: 0 failed. (`test_onboarding_pdf` bisa error kalau Chrome rebutan dengan pytest lain, jalankan sendirian untuk membuktikan lulus.)
 
 - [ ] **Step 3: Push**
 

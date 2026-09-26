@@ -5,7 +5,7 @@ description: Cut a release tag for palmgrade-api, palmgrade-frontend, or autogra
 
 # Tag a palmgrade production release
 
-Pushing a `vX.Y.Z` tag **is** the production deploy — there is no staging
+Pushing a `vX.Y.Z` tag **is** the production deploy, there is no staging
 environment in palmgrade. `staging` is a branch, nothing more. Treat every tag
 push as "this goes live now".
 
@@ -15,11 +15,11 @@ Two independently versioned repos:
 |---|---|---|
 | `delta-anugrah/palmgrade-api` | build + deploy to prod | `https://api.smagri.id/health` |
 | `delta-anugrah/palmgrade-frontend` | build + deploy to prod | `https://app.smagri.id/api/health` |
-| `delta-anugrah/autograde` | **build only** — pushes to GHCR, deploys nowhere | GHCR tags (below) |
+| `delta-anugrah/autograde` | **build only**: pushes to GHCR, deploys nowhere | GHCR tags (below) |
 
 All three trigger on `push: tags: v*.*.*` (`.github/workflows/deploy.yml`), but
 vision's workflow has no SSH job: there is no cloud vision, it runs on the
-factory PC. Its tag matters anyway, because it publishes `:latest` — the marker
+factory PC. Its tag matters anyway, because it publishes `:latest`, the marker
 `palmgrade.sh` pulls in the background on the factory PC. Confirm both tags
 landed:
 
@@ -42,7 +42,7 @@ happened (2026-08-14): the commit adding the `latest` marker landed four hours
 
 ### 1. Resolve the repo
 
-A bare PR number is ambiguous — all three repos number from 1. Probe them:
+A bare PR number is ambiguous, all three repos number from 1. Probe them:
 
 ```bash
 for r in palmgrade-api palmgrade-frontend autograde; do
@@ -56,7 +56,7 @@ Exists in more than one → ask which. Never guess from the title.
 
 ### 2. Validate the PR
 
-Hard requirements — any miss is a **stop**, not a warning:
+Hard requirements: any miss is a **stop**, not a warning:
 
 - `state == "MERGED"` (an open PR has no merge commit to tag)
 - `baseRefName == "main"`
@@ -75,7 +75,7 @@ gh api repos/delta-anugrah/<repo>/commits/main --jq .sha
 Take the SHA from `gh api`, **never** from local `git log`. A stale local
 checkout is exactly how `v1.3.0` got burned (2026-07-20): the tag landed on an
 old commit, the run was cancelled, but the GHCR image had already been pushed,
-so the immutable guard rejected every retry and the number was lost for good —
+so the immutable guard rejected every retry and the number was lost for good,
 the release had to jump to `v1.3.1`.
 
 The workflow re-checks ancestry itself (`git merge-base --is-ancestor`), but
@@ -95,7 +95,7 @@ Read the PR body and file list, then propose:
 - breaking API contract → **major**
 
 Show the current tag, the proposed tag, and one line of why. Wait for the
-user's answer. If the number they pick already exists on the remote, refuse —
+user's answer. If the number they pick already exists on the remote, refuse,
 tags are immutable and the GHCR image blocks reuse anyway.
 
 ### 5. Migration gate (API only)
@@ -119,7 +119,7 @@ aborts the boot on purpose, so the deploy health gate rolls back and `/health`
 keeps echoing the old tag. `/health` echoing the new tag **is** the proof.
 
 **What still needs your eyes** is the SQL's meaning, because nothing else will
-catch it — not CI, not the health gate, not the tests:
+catch it: not CI, not the health gate, not the tests:
 
 - A migration that touches `users` rows can lock people out while succeeding
   perfectly. Before tagging, check who actually uses the rows you are about to
@@ -132,7 +132,7 @@ catch it — not CI, not the health gate, not the tests:
   ```
 
   This is not hypothetical. On 2026-08-19 `028_rename_seed_users.sql` would
-  have renamed three accounts that were in active use — `superadmin@`,
+  have renamed three accounts that were in active use, `superadmin@`,
   `office@`, `site@`, two of them logged in ten days earlier. Its `NOT EXISTS`
   guard looked protective but held nothing back: the destination emails did not
   exist in prod, so every rename would have fired. All 317 tests passed, because
@@ -142,12 +142,12 @@ catch it — not CI, not the health gate, not the tests:
 
   Note the invocation: it reads the container's own `$POSTGRES_USER` /
   `$POSTGRES_DB`, so nobody needs to know the password. Enumerate the emails
-  explicitly — a `LIKE '%@gmail.com'` both misses seed accounts on other domains
+  explicitly: a `LIKE '%@gmail.com'` both misses seed accounts on other domains
   and sweeps in real users.
 
 - An **edit to an already-applied file** is not a migration. The ledger keys on
   the filename, so the edit is ignored everywhere the file already ran, and
-  takes effect only on a fresh volume — a new factory PC. That divergence is
+  takes effect only on a fresh volume, a new factory PC. That divergence is
   intended sometimes (`005`/`019` in `v1.9.0`), but say it out loud in the
   release notes, because the seeded accounts on the next factory install will
   not match the ones documented for the existing sites.
@@ -156,7 +156,7 @@ catch it — not CI, not the health gate, not the tests:
 
 When both repos have an unreleased `staging`→`main` merge, **API ships first**.
 The frontend's `PermissionGuard` reads `GET /permissions/me`; against an older
-API that endpoint 404s, the matrix stays `null`, and `null` means deny — every
+API that endpoint 404s, the matrix stays `null`, and `null` means deny, every
 `/dashboard/*` page bounces to `/unauthorized`, including the operator's own.
 
 Before tagging the frontend, confirm the API is actually live:
@@ -165,7 +165,7 @@ Before tagging the frontend, confirm the API is actually live:
 curl -s https://api.smagri.id/health
 ```
 
-It must already echo the new API version. Not "the tag was pushed" — echoed.
+It must already echo the new API version. Not "the tag was pushed", echoed.
 
 ### 7. Tag and push
 
@@ -183,7 +183,7 @@ git push origin vX.Y.Z
 
 `--ff-only` is load-bearing, not a stylistic choice. It turns a failed or
 diverged pull into a hard error instead of silently leaving local `main` on an
-old commit — which is precisely how `v1.3.0` got tagged onto stale history.
+old commit: which is precisely how `v1.3.0` got tagged onto stale history.
 
 Then cross-check before pushing, since the tag lands on `HEAD`:
 
@@ -194,7 +194,7 @@ gh api repos/delta-anugrah/<repo>/commits/main --jq .sha    # this
 
 Mismatch → **stop**, do not push. Re-pull and re-check.
 
-This cross-check is the only one that counts — do not substitute `git status`
+This cross-check is the only one that counts, do not substitute `git status`
 for it. In `autograde`, local `main` tracks `origin/init`, so
 `git status -sb` reports `## main...origin/init [ahead 155]` on a checkout that
 is in fact exactly level with `origin/main`. Trust `rev-parse` against the API,
@@ -237,11 +237,11 @@ EOF
 
 `--generate-notes` appends GitHub's auto commit list **below** the hand-written
 notes, so both survive. Write the notes from the PR diff and the test output
-you actually saw — never from the PR title alone.
+you actually saw: never from the PR title alone.
 
 House style for `## Changes`, taken from prior releases: each bullet is a full
 sentence carrying the reasoning, not a changelog fragment. "Both ship with
-churn support: Revealera reports `track_churn: true` for Linear (id 1109)" —
+churn support: Revealera reports `track_churn: true` for Linear (id 1109)",
 not "added churn support". Name the trap when there is one (a paraphrased
 vendor name returns zero rows instead of erroring, so the bug looks like a dead
 feature, not a failure).
@@ -263,7 +263,7 @@ curl -s https://api.smagri.id/health        # or app.smagri.id/api/health
 ```
 
 Report the actual `version` string. If it still shows the old tag, the deploy
-did not land — say so plainly, do not call it done.
+did not land: say so plainly, do not call it done.
 
 ### 10. If it fails
 
@@ -277,4 +277,4 @@ rolling back the table is not.
 - Never `git push --force`, never `git tag -f`, never delete a remote tag.
 - Never touch the droplet directly. Hand the operator the exact command and
   read the output they paste back.
-- Never tag both repos in the same breath — API, verify live, then frontend.
+- Never tag both repos in the same breath, API, verify live, then frontend.

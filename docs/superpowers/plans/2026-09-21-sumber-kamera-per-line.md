@@ -35,7 +35,7 @@
 - Produces:
   - `SUMBER: tuple[str, ...]` = `("hikrobot", "webcam", "video", "foto")`
   - `BUTUH_BERKAS: frozenset[str]` = `{"video", "foto"}`
-  - `CAMERA_TYPE_UNTUK: dict[str, str]` — pilihan layar → nilai `CAMERA_TYPE`
+  - `CAMERA_TYPE_UNTUK: dict[str, str]`: pilihan layar → nilai `CAMERA_TYPE`
   - `SumberTidakSah(ValueError)`
   - `bersihkan_sumber(payload: dict) -> dict` → `{"sumber": str, "berkas": str, "ulang": bool}`
 
@@ -147,7 +147,7 @@ def test_butuh_berkas_isinya_video_dan_foto():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/unit/test_sumber_kamera.py -q`
-Expected: FAIL — `ModuleNotFoundError: No module named 'palmgrade.domain.sumber_kamera'`
+Expected: FAIL: `ModuleNotFoundError: No module named 'palmgrade.domain.sumber_kamera'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -280,7 +280,7 @@ Nama berkas disaring, bukan di-escape."
 - Consumes: `CAMERA_TYPE_UNTUK`, `SUMBER` dari Task 1
 - Produces:
   - `MEDIA_DIR: str` = `"/media"`
-  - `RencanaKamera` — dataclass beku: `camera_type: str`, `video_path: str`, `photo_path: str`, `loop: bool`
+  - `RencanaKamera`: dataclass beku: `camera_type: str`, `video_path: str`, `photo_path: str`, `loop: bool`
   - `rencana_kamera(sumber: str, berkas: str, ulang: bool, media_dir: str = MEDIA_DIR) -> RencanaKamera`
 
 - [ ] **Step 1: Write the failing test**
@@ -354,7 +354,7 @@ def test_rencana_beku():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/unit/test_sumber_kamera_resolver.py -q`
-Expected: FAIL — `ModuleNotFoundError: No module named 'palmgrade.domain.sumber_kamera_resolver'`
+Expected: FAIL: `ModuleNotFoundError: No module named 'palmgrade.domain.sumber_kamera_resolver'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -453,7 +453,7 @@ video, supaya tidak ada nilai tersimpan yang tidak pernah dibaca."
 - Consumes: `SUMBER` dari Task 1 (untuk bawaan)
 - Produces:
   - `MediaEnvService(path: Path)`
-  - `.baca() -> dict[str, dict]` — kunci `"line-1"`/`"line-2"`/`"line-3"`, nilai `{"sumber","berkas","ulang"}`
+  - `.baca() -> dict[str, dict]`: kunci `"line-1"`/`"line-2"`/`"line-3"`, nilai `{"sumber","berkas","ulang"}`
   - `.tulis(setelan: dict[str, dict]) -> None`
   - `LINE_CODES: tuple[str, ...]` = `("line-1", "line-2", "line-3")`
   - `BAWAAN: dict` = `{"sumber": "hikrobot", "berkas": "", "ulang": False}`
@@ -588,7 +588,7 @@ def test_tulis_membuat_folder_induk(tmp_path):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/unit/test_media_env_service.py -q`
-Expected: FAIL — `ModuleNotFoundError: No module named 'palmgrade.services.media_env_service'`
+Expected: FAIL: `ModuleNotFoundError: No module named 'palmgrade.services.media_env_service'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -767,7 +767,7 @@ yang rewel."
 - Consumes: tidak ada
 - Produces:
   - `MediaLibrary(folder: Path)`
-  - `.daftar_video() -> list[str]` — nama berkas saja, terurut
+  - `.daftar_video() -> list[str]`: nama berkas saja, terurut
   - `.daftar_foto() -> list[str]`
   - `.ada(nama: str) -> bool`
   - `EKSTENSI_VIDEO: frozenset[str]`, `EKSTENSI_FOTO: frozenset[str]`
@@ -848,7 +848,7 @@ def test_ada_menolak_nama_berbahaya(tmp_path):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/unit/test_media_library.py -q`
-Expected: FAIL — `ModuleNotFoundError: No module named 'palmgrade.services.media_library'`
+Expected: FAIL: `ModuleNotFoundError: No module named 'palmgrade.services.media_library'`
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -939,10 +939,10 @@ yang gagal dimuat tidak."
 - Test: `tests/unit/test_main_sumber_kamera.py`
 
 **Interfaces:**
-- Consumes: `rencana_kamera`, `RencanaKamera`, `MEDIA_DIR` dari Task 2; `_sumber_dari` logika dari Task 3 (ditulis ulang di `Settings`, bukan diimpor — `config.py` tidak boleh bergantung pada `services/`)
+- Consumes: `rencana_kamera`, `RencanaKamera`, `MEDIA_DIR` dari Task 2; `_sumber_dari` logika dari Task 3 (ditulis ulang di `Settings`, bukan diimpor, `config.py` tidak boleh bergantung pada `services/`)
 - Produces:
-  - `Settings.media_file: str` — env `MEDIA_FILE`
-  - `Settings.sumber_kamera() -> str` — pilihan layar dari `camera_type` + `media_file`
+  - `Settings.media_file: str`: env `MEDIA_FILE`
+  - `Settings.sumber_kamera() -> str`: pilihan layar dari `camera_type` + `media_file`
   - `main.py` membangun kamera dari `rencana_kamera(...)`
 
 - [ ] **Step 1: Write the failing test**
@@ -1014,7 +1014,7 @@ def test_rencana_dari_settings(monkeypatch):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/unit/test_main_sumber_kamera.py -q`
-Expected: FAIL — `AttributeError: 'Settings' object has no attribute 'media_file'`
+Expected: FAIL: `AttributeError: 'Settings' object has no attribute 'media_file'`
 
 - [ ] **Step 3a: Tambah `media_file` dan `sumber_kamera()` di `Settings`**
 
@@ -1220,7 +1220,7 @@ def test_jeda_disebut_di_jawaban(client):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/unit/test_internal_restart.py -q`
-Expected: FAIL — 404 pada `/internal/restart`
+Expected: FAIL: 404 pada `/internal/restart`
 
 - [ ] **Step 3a: Tambah schema**
 
@@ -1295,7 +1295,7 @@ Expected: PASS, 3 passed
 - [ ] **Step 5: Lint**
 
 Run: `.venv/bin/ruff check src/palmgrade/routes/internal.py src/palmgrade/schemas/internal_schema.py tests/unit/test_internal_restart.py`
-Expected: `All checks passed!` (kalau ruff mengeluh soal `os._exit`, tambahkan `# noqa: SLF001` — akses itu disengaja dan dijelaskan di docstring)
+Expected: `All checks passed!` (kalau ruff mengeluh soal `os._exit`, tambahkan `# noqa: SLF001`, akses itu disengaja dan dijelaskan di docstring)
 
 - [ ] **Step 6: Commit**
 
@@ -1319,7 +1319,7 @@ baru tidak pernah berlaku."
 
 **Interfaces:**
 - Consumes: `LineEndpoint`, `_post` (sudah ada di `line_client.py`)
-- Produces: `LineClient.restart(line: LineEndpoint) -> None` — melempar kalau line tidak menjawab
+- Produces: `LineClient.restart(line: LineEndpoint) -> None`: melempar kalau line tidak menjawab
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1366,7 +1366,7 @@ async def test_restart_melempar_saat_line_diam(line):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/unit/test_line_client_restart.py -q`
-Expected: FAIL — `AttributeError: 'LineClient' object has no attribute 'restart'`
+Expected: FAIL: `AttributeError: 'LineClient' object has no attribute 'restart'`
 
 - [ ] **Step 3: Write implementation**
 
@@ -1412,7 +1412,7 @@ dan line itu membacanya sendiri saat hidup lagi."
 
 ---
 
-### Task 8: Service konsol — validasi, pembuktian berkas, simpan, restart
+### Task 8: Service konsol: validasi, pembuktian berkas, simpan, restart
 
 **Files:**
 - Modify: `src/palmgrade/services/console_service.py`
@@ -1424,9 +1424,9 @@ dan line itu membacanya sendiri saat hidup lagi."
 - Produces:
   - `Settings.media_dir: str` (env `MEDIA_DIR`, bawaan `/media`)
   - `Settings.media_env_path: str` (env `MEDIA_ENV_PATH`, bawaan `/config/media.env`)
-  - `ConsoleService.sumber_kamera() -> dict` — `{"lines": {...}, "video": [...], "foto": [...]}`
+  - `ConsoleService.sumber_kamera() -> dict`: `{"lines": {...}, "video": [...], "foto": [...]}`
   - `ConsoleService.simpan_sumber_kamera(payload, *, diubah_oleh) -> dict`
-  - `ConsoleService._buktikan_berkas(sumber, berkas) -> None` — melempar `SumberTidakSah`
+  - `ConsoleService._buktikan_berkas(sumber, berkas) -> None`: melempar `SumberTidakSah`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1580,7 +1580,7 @@ async def test_line_diam_tidak_membatalkan_simpan(svc):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/unit/test_console_sumber_kamera.py -q`
-Expected: FAIL — `AttributeError: 'ConsoleService' object has no attribute 'sumber_kamera'`
+Expected: FAIL: `AttributeError: 'ConsoleService' object has no attribute 'sumber_kamera'`
 
 - [ ] **Step 3a: Tambah dua setelan path di `Settings`**
 
@@ -1800,7 +1800,7 @@ def test_simpan_menerjemahkan_sumber_tidak_sah_jadi_400():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/unit/test_console_sumber_routes.py -q`
-Expected: FAIL — rute belum ada
+Expected: FAIL: rute belum ada
 
 - [ ] **Step 3: Write implementation**
 
@@ -1837,7 +1837,7 @@ async def dev_sumber_kamera_simpan(
 ```
 
 Kalau `dev_setelan_simpan` membungkus galatnya dengan bentuk lain (mis.
-`OperatorError`), ikuti bentuk yang sama supaya layar menanganinya seragam —
+`OperatorError`), ikuti bentuk yang sama supaya layar menanganinya seragam,
 baca blok itu dulu sebelum menulis.
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1920,12 +1920,12 @@ def test_tombol_simpan_ada():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/unit/test_console_html_sumber.py -q`
-Expected: FAIL — `assert 'id="sumber-kamera-panel"' in HTML`
+Expected: FAIL: `assert 'id="sumber-kamera-panel"' in HTML`
 
 - [ ] **Step 3: Write implementation**
 
 Buka `src/palmgrade/static/console.html`. Cari panel lane dev yang sudah ada
-(cari `dev/setelan`) dan tiru bentuknya — kelas CSS, cara memanggil `fetch`,
+(cari `dev/setelan`) dan tiru bentuknya, kelas CSS, cara memanggil `fetch`,
 cara menampilkan toast. Tambahkan panel baru:
 
 ```html
@@ -2183,13 +2183,13 @@ CONSOLE_PREFIXES = ("ERP_", "CONSOLE_", "LOG_", "R2_", "MEDIA_")
 
 Penjaga itu memastikan setelan yang dibaca `Settings` benar-benar diteruskan
 compose ke service `console`; tanpa `MEDIA_` di daftarnya, lupa meneruskan
-setelan `MEDIA_*` berikutnya lolos tanpa satu pun test merah — persis cara
+setelan `MEDIA_*` berikutnya lolos tanpa satu pun test merah, persis cara
 `ERP_COMPANY` dulu terkirim tanpa pernah terbaca.
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/unit/test_compose_sumber_kamera.py -q`
-Expected: FAIL — `CAMERA_TYPE` masih `${CAMERA_TYPE:-hikrobot}` tanpa prefix line
+Expected: FAIL: `CAMERA_TYPE` masih `${CAMERA_TYPE:-hikrobot}` tanpa prefix line
 
 - [ ] **Step 3a: Ubah tiap blok line di `docker-compose.yml`**
 
@@ -2325,7 +2325,7 @@ berkas cukup restart. .env tidak pernah di-mount ke konsol."
 
 ---
 
-### Task 12: E2E — alur simpan lengkap
+### Task 12: E2E: alur simpan lengkap
 
 **Files:**
 - Create: `tests/e2e/test_sumber_kamera_lane.py`
@@ -2480,13 +2480,13 @@ def test_operator_biasa_ditolak_403(lane):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/bin/python -m pytest tests/e2e/test_sumber_kamera_lane.py -q`
-Expected: FAIL — rute `/api/console/dev/sumber-kamera` belum lengkap atau
+Expected: FAIL: rute `/api/console/dev/sumber-kamera` belum lengkap atau
 `upsert_operator_manual` bernama lain
 
 - [ ] **Step 3: Sesuaikan sampai hijau**
 
 Kalau ada nama yang meleset (`upsert_operator_manual`, `get_auth_service`),
-baca `tests/e2e/test_dev_lane_role.py` dan tiru persis — berkas itu sudah
+baca `tests/e2e/test_dev_lane_role.py` dan tiru persis, berkas itu sudah
 merakit konsol nyata dengan cara yang benar.
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -2606,7 +2606,7 @@ Expected: `ripe-line-2` memakai `photo`, dua line lain `hikrobot`.
 
 Catat hasilnya di runbook, bagian baru "Terbukti di", menyebut versi Compose dan
 tanggal. Kalau `env_file` ternyata TIDAK digabung seperti yang diharapkan di
-versi itu, **berhenti** dan laporkan — seluruh Task 11 perlu bentuk lain
+versi itu, **berhenti** dan laporkan, seluruh Task 11 perlu bentuk lain
 (menulis nilai langsung ke `.env` alih-alih berkas terpisah).
 
 - [ ] **Step 5: Run full verification**
@@ -2633,9 +2633,9 @@ di MacBook tidak membuktikan apa pun soal Compose pabrik."
 
 ## Verifikasi akhir sebelum PR
 
-- [ ] `.venv/bin/ruff check src tests` — bersih
-- [ ] `.venv/bin/python -m pytest tests/unit -q` — hijau
-- [ ] `.venv/bin/python -m pytest tests/e2e -q` — hijau
+- [ ] `.venv/bin/ruff check src tests`: bersih
+- [ ] `.venv/bin/python -m pytest tests/unit -q`: hijau
+- [ ] `.venv/bin/python -m pytest tests/e2e -q`: hijau
 - [ ] `docker compose config` sah dengan `media.env` tersalin
 - [ ] Task 13 Step 4 sudah dijalankan **di Linux** dan hasilnya dicatat
 - [ ] Layar dibuka dengan mata: `make console`, tab Sumber Kamera, ganti satu line
