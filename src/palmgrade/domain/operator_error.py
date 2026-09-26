@@ -49,6 +49,10 @@ AKUN_SUDAH_ADA = "akun_sudah_ada"
 AKUN_MILIK_ERP = "akun_milik_erp"
 AKUN_TIDAK_ADA = "akun_tidak_ada"
 AKUN_DIRI_SENDIRI = "akun_diri_sendiri"
+# Tab Riwayat (2026-09-26): filter tanggal yang ditolak, semuanya 400.
+RIWAYAT_TANGGAL_TIDAK_SAH = "riwayat_tanggal_tidak_sah"
+RIWAYAT_RENTANG_TERBALIK = "riwayat_rentang_terbalik"
+RIWAYAT_RENTANG_PANJANG = "riwayat_rentang_panjang"
 
 CODES = (
     PLAT_KOSONG,
@@ -76,6 +80,9 @@ CODES = (
     AKUN_MILIK_ERP,
     AKUN_TIDAK_ADA,
     AKUN_DIRI_SENDIRI,
+    RIWAYAT_TANGGAL_TIDAK_SAH,
+    RIWAYAT_RENTANG_TERBALIK,
+    RIWAYAT_RENTANG_PANJANG,
 )
 
 
