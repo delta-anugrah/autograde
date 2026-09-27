@@ -71,6 +71,9 @@ class LineStatusResponse(BaseModel):
     # tidak ada alarm ATAU PLC mati; konsol memperlakukan keduanya sama.
     # Default [] supaya konsol lama yang tidak mengenal field ini tetap jalan.
     alarms: list[dict] = []
+    # Ringkasan upload foto ke R2 untuk Last Sync konsol (Cloud Photo). None =
+    # line belum punya worker upload; konsol lama mengabaikan field ini.
+    unggah: dict | None = None
 
 
 class PlcCoilCommandRequest(BaseModel):

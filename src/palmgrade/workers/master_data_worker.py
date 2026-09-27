@@ -16,8 +16,9 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from ..domain.erp_master import operator_row, supplier_row, truck_row
-from ..integrations.erp.client import ErpClient
+from ..integrations.erp.client import ErpClient, galat_jaringan
 from ..repositories.console_repository import ConsoleStore
+from ..services.status_sinkron import StatusSinkron
 
 logger = logging.getLogger(__name__)
 
@@ -84,20 +85,40 @@ def _rewind(cursor: str) -> str:
 
 class MasterDataWorker:
     def __init__(
-        self, store: ConsoleStore, client: ErpClient, *, interval_s: int = _INTERVAL_S
+        self,
+        store: ConsoleStore,
+        client: ErpClient,
+        *,
+        interval_s: int = _INTERVAL_S,
+        status: StatusSinkron | None = None,
     ) -> None:
         self.store = store
         self._client = client
         self._interval_s = interval_s
+        self._status = status
 
     async def run_loop(self) -> None:
         logger.info("MasterDataWorker started, every %ss", self._interval_s)
         while True:
+            # Aturan 6: loop tidak boleh mati. Worker yang mati diam-diam berhenti menarik
+            # truk dan akun sampai restart, sementara titik Last Sync tetap hijau.
             try:
-                await self.pull_once()
+                await self.run_once()
             except Exception:
-                logger.exception("Master data pull failed; retrying next tick")
+                logger.exception("Master data tick failed; retrying next tick")
             await asyncio.sleep(self._interval_s)
+
+    async def run_once(self) -> None:
+        """Satu tarikan, hasilnya dicatat untuk Last Sync. Tidak pernah melempar."""
+        try:
+            await self.pull_once()
+        except Exception as exc:
+            logger.exception("Master data pull failed; retrying next tick")
+            if self._status is not None:
+                self._status.gagal("erp", "tarik", str(exc), jaringan=galat_jaringan(exc))
+            return
+        if self._status is not None:
+            self._status.berhasil("erp", "tarik", sinkron=True)
 
     async def pull_once(self) -> int:
         """Pull each DocType once. Returns how many rows landed."""

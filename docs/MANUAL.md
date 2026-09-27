@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "1.1"
+versi: "1.2"
 tanggal: 27 September 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -124,7 +124,14 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 
 ### 3.2 Layar utama
 
-- **Strip total hari kerja**: total janjang, ACC, REJ, rasio Ripe.
+- **Strip "Hari ini"**: jumlah janjang per kelas (Ripe, Unripe, JK, TP) dan total, rasio Ripe,
+  neto timbangan, dan **Last Sync**.
+- **Last Sync**: dua baris, **AutoERP** dan **Cloud Photo** (foto di R2). Jamnya = kapan data
+  terakhir masuk ke sana. Titik **hijau** = tersambung; titik **kuning** = terputus, dengan
+  keterangan seperti "Terputus sejak 13.40 · 5 menunggu". Foto naik tiap jam, jadi jam Cloud
+  Photo yang tertinggal sampai satu jam itu normal selama titiknya hijau. Arahkan kursor ke
+  baris untuk rinciannya (Cloud Photo: jam upload tiap line). Selama terputus tidak ada data
+  yang hilang: semuanya menunggu di antrean dan terkirim sendiri begitu sambungan pulih.
 - **Tiga kartu line**, satu per kamera, dengan stream langsung, status **ONLINE / OFFLINE** di
   judul, tombol **Tugaskan** (pilih truk), **Lepas** (truk pergi), dan **Reject Manual**.
 - **Reject manual tanpa mouse**: tahan `Spasi` lalu tekan `1` / `2` / `3` sesuai line.
@@ -588,6 +595,8 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Akun bawaan ditolak saat start | hash di `.env` terpotong karena `$` | tulis `$$` untuk tiap `$` |
 | Tab Antrean ERP menumpuk, sebab 4xx | pesan **ditolak** ERP (field tidak dikenal, versi ERP lama, 417) | betulkan di ERP, lalu **Kirim Ulang** |
 | Tab Antrean ERP menumpuk, sebab jaringan/5xx | ERP **tidak terjangkau**; backoff 30 dtk → 1 jam | tunggu, atau Kirim Ulang setelah ERP pulih |
+| Last Sync: **AutoERP** kuning (terputus) | internet PC pabrik putus, AutoERP sedang mati, atau `ERP_URL` / kunci salah | tab Log, baris "AutoERP terputus: …" menyebut alasannya; data menunggu di tab Antrean ERP dan terkirim sendiri saat pulih |
+| Last Sync: **Cloud Photo** kuning (terputus) | internet putus, kredensial `R2_*` salah, atau `UPLOAD_API_URL` masih menunjuk api lama yang mati | arahkan kursor ke baris untuk melihat line mana; tab Log "Cloud Photo line-N terputus: …"; kosongkan `UPLOAD_API_URL` lalu `make start` (PC pabrik: `autograde restart`) |
 | Plat yang sama muncul dua baris di tab Truk | `ERP_URL` diisi sebelum OPS-2 | jalankan checklist OPS-2 (§5.8) |
 | Unggah ke R2 berhenti tanpa error | `R2_BUCKET` kosong, atau JSON sidecar dipindah ke subfolder | isi R2; JSON wajib datar di folder tanggal |
 | Disk penuh, grading berhenti tersimpan | penjaga disk mati (`UPLOAD_DISK_MIN_FREE_GB=0`) atau Docker menumpuk image lama | `docker system prune`; kembalikan penjaga ke 20 |
@@ -661,5 +670,6 @@ Struktur kode di `src/palmgrade/`: `routes/` (HTTP) → `controllers/` → `serv
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 1.2 | 27 September 2026 | **Last Sync** di strip "Hari ini" (AutoERP dan Cloud Photo: jam sinkron terakhir + status sambungan) dan dua baris penanganan masalahnya di §7. |
 | 1.1 | 27 September 2026 | Tab **Riwayat** (grading hari sebelumnya, maks 31 hari, CSV), tab **Akun** yang bisa menambah dan mengurus akun lokal, **Danger Zone** di tab Setelan, tombol yang terkunci selama menunggu server, dan path PC Lampung `/opt/palmgrade/autograde`. Dicocokkan dengan kode `staging` sesudah autograde #180. |
 | 1.0 | 17 September 2026 | Terbitan pertama. Dicocokkan dengan kode `staging` (`a559427`): konsol dengan login email+sandi, lima tab support, scan QR dua gerbang, Setelan grading, seeder demo, detail grading via R2. |

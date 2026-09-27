@@ -376,6 +376,8 @@ def create_app() -> FastAPI:
         batch_worker = BatchUploadWorker(
             settings=settings, manifest=upload_manifest, uploader=r2_uploader
         )
+        # Last Sync di konsol membaca ringkasan upload lewat /internal/status.
+        state.status_unggah = batch_worker.status_unggah
         upload_scheduler = UploadScheduler(settings=settings, run_batch=batch_worker.run_batch_once)
         upload_scheduler.start()
 

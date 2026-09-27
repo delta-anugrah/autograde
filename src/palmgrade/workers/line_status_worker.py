@@ -22,6 +22,9 @@ class LineStatusWorker:
         self._client = line_client
         self._interval_s = interval_s
         self._state: dict[str, dict[str, Any]] = {}
+        # Sejak kapan upload foto tiap line gagal, menurut putaran terakhir. Hanya
+        # untuk mencatat putus/pulih sekali masing-masing ke tab Log.
+        self._unggah_putus: dict[str, float | None] = {}
 
     def snapshot(self) -> dict[str, dict[str, Any]]:
         return dict(self._state)
@@ -43,7 +46,30 @@ class LineStatusWorker:
                 # `or []`: line versi lama tidak mengirim field ini, dan None
                 # di layar akan membuat pita alarm gagal merender.
                 "alarms": jawab.get("alarms") or [],
+                # Cloud Photo di Last Sync. None dari line versi lama: konsol
+                # menulisnya "tidak terbaca", bukan menganggapnya putus.
+                "unggah": jawab.get("unggah"),
             }
+            self._catat_unggah(line.line_code, jawab.get("unggah"))
+
+    def _catat_unggah(self, kode: str, unggah: dict[str, Any] | None) -> None:
+        """Upload foto line putus/pulih → satu WARNING, supaya masuk tab Log.
+
+        Line tidak memasang log_sink, jadi tanpa ini alasan gagalnya cuma ada di
+        `docker logs` line. Pulih baru dicatat kalau jam unggah melewati awal putus:
+        line yang restart melupakan status gagalnya sampai batch berikutnya, dan itu
+        bukan bukti fotonya sudah naik.
+        """
+        if not unggah:
+            return
+        sejak = unggah.get("gagal_sejak")
+        lama = self._unggah_putus.get(kode)
+        if sejak and not lama:
+            logger.warning("Cloud Photo %s terputus: %s", kode, unggah.get("pesan") or "tanpa keterangan")
+            self._unggah_putus[kode] = sejak
+        elif lama and not sejak and (unggah.get("terakhir") or 0) >= lama:
+            logger.warning("Cloud Photo %s tersambung lagi", kode)
+            self._unggah_putus[kode] = None
 
     async def run_loop(self) -> None:
         while True:

@@ -16,12 +16,21 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from ..integrations.erp.client import ErpClient, ErpRejected, ErpUnavailable
+from ..integrations.erp.client import (
+    ErpClient,
+    ErpError,
+    ErpRejected,
+    ErpUnavailable,
+    galat_jaringan,
+)
 from ..integrations.erp.outbox_store import ErpOutboxStore
+from ..services.status_sinkron import StatusSinkron
 
 logger = logging.getLogger(__name__)
 
 _INTERVAL_S = 30
+# Kunci AutoERP ditolak: tidak ada kiriman yang akan sampai, apa pun isinya.
+_KUNCI_DITOLAK = (401, 403)
 _BATCH = 50
 
 
@@ -42,12 +51,14 @@ class ErpOutboxWorker:
         *,
         interval_s: int = _INTERVAL_S,
         batch: int = _BATCH,
+        status: StatusSinkron | None = None,
     ) -> None:
         self._outbox = outbox
         self._client = client
         self._handlers = handlers
         self._interval_s = interval_s
         self._batch = batch
+        self._status = status
 
     async def run_loop(self) -> None:
         logger.info("ErpOutboxWorker started, every %ss", self._interval_s)
@@ -57,6 +68,24 @@ class ErpOutboxWorker:
             except Exception:
                 logger.exception("Outbox drain failed; retrying next tick")
             await asyncio.sleep(self._interval_s)
+
+    def _catat_galat(self, exc: ErpError) -> None:
+        """Last Sync: apa arti galat satu kiriman untuk sambungannya.
+
+        - jaringan (tanpa jawaban, gateway mati): putus, sampai ada jawaban dari mana pun;
+        - 401/403: kunci AutoERP ditolak, tidak ada yang akan sampai: putus;
+        - sisanya (417, 404, 500, ...): AutoERP menjawab, ISI pesan ini yang ditolak atau
+          memicu galat. Pesannya terlihat di tab Antrean ERP, bukan di warna sambungan;
+          server yang benar-benar rusak ketahuan dari ping tiap menit.
+        """
+        if self._status is None:
+            return
+        if galat_jaringan(exc):
+            self._status.gagal("erp", "kirim", str(exc), jaringan=True)
+        elif exc.status in _KUNCI_DITOLAK:
+            self._status.gagal("erp", "kirim", str(exc))
+        else:
+            self._status.berhasil("erp", "kirim", sinkron=False)
 
     async def drain_once(self) -> int:
         """One batch. Returns how many messages AutoERP accepted."""
@@ -74,10 +103,12 @@ class ErpOutboxWorker:
             except ErpUnavailable as exc:
                 logger.warning("AutoERP unreachable, holding the batch: %s", exc)
                 self._outbox.mark_error(message, str(exc))
+                self._catat_galat(exc)
                 break
             except ErpRejected as exc:
                 logger.error("AutoERP refused %s %s: %s", message.kind, message.key, exc)
                 self._outbox.mark_error(message, str(exc))
+                self._catat_galat(exc)
                 continue
 
             try:
@@ -91,6 +122,8 @@ class ErpOutboxWorker:
 
             self._outbox.mark_sent(message)
             delivered += 1
+            if self._status is not None:
+                self._status.berhasil("erp", "kirim", sinkron=True)
 
         if delivered:
             logger.info("AutoERP outbox: %s message(s) delivered", delivered)

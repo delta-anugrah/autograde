@@ -18,6 +18,7 @@ from ..domain.plate import truck_id_for
 from ..integrations.erp.client import ErpClient
 from ..repositories.console_repository import ConsoleStore
 from ..services.erp_queue import ErpQueue
+from ..services.status_sinkron import StatusSinkron
 from .erp_outbox_worker import ErpOutboxWorker, OutboxHandler
 from .master_data_worker import MasterDataWorker
 from .visit_resend_worker import VisitResendWorker
@@ -80,7 +81,13 @@ def visit_recorded(store: ConsoleStore) -> Callable[[str, Any], None]:
     return record
 
 
-def build_erp_workers(settings: Settings, store: ConsoleStore, queue: ErpQueue) -> list[Worker]:
+def build_erp_workers(
+    settings: Settings,
+    store: ConsoleStore,
+    queue: ErpQueue,
+    *,
+    status: StatusSinkron | None = None,
+) -> list[Worker]:
     """Every background task that talks to AutoERP, or none at all."""
     if not settings.erp_url:
         logger.info("AutoERP link off: ERP_URL is empty")
@@ -92,7 +99,7 @@ def build_erp_workers(settings: Settings, store: ConsoleStore, queue: ErpQueue) 
         erp_messages.VISIT: OutboxHandler(method=UPSERT_VISIT, on_sent=visit_recorded(store)),
     }
     return [
-        MasterDataWorker(store, client, interval_s=settings.console_sync_interval_s),
-        ErpOutboxWorker(queue.outbox, client, handlers),
+        MasterDataWorker(store, client, interval_s=settings.console_sync_interval_s, status=status),
+        ErpOutboxWorker(queue.outbox, client, handlers, status=status),
         VisitResendWorker(queue, store, ZoneInfo(settings.factory_tz)),
     ]

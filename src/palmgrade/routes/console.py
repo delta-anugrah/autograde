@@ -57,6 +57,7 @@ from ..services.operator_admin import OperatorAdmin
 from ..services.qr_cetak import png_qr
 from ..services.riwayat_service import RiwayatService
 from ..services.scan_service import ScanService
+from ..services.status_sinkron import StatusSinkron
 from ..workers.master_data_worker import MasterDataWorker
 from ..workers.visit_manifest_worker import VisitManifestWorker
 
@@ -73,6 +74,10 @@ def get_console_service() -> ConsoleService:
     store = ConsoleStore(
         settings.console_db_path,
         erp_allowed_roles=parse_allowed_roles(settings.erp_allowed_roles_raw),
+    )
+    # Last Sync: SATU pencatat untuk semua worker dan layar (workers/cek_sinkron_worker.py).
+    status_sinkron = StatusSinkron(
+        store, erp_aktif=bool(settings.erp_url), r2_aktif=bool(settings.r2_bucket)
     )
     # The detail page does not depend on the AutoERP link: it exists whenever R2
     # is configured, regardless of whether ERP_URL is also set.
@@ -93,6 +98,7 @@ def get_console_service() -> ConsoleService:
             # `generated_at` in the manifest reads the mill's own clock, same as
             # every other FACTORY_TZ use here (§6.1) — not the container's UTC.
             clock=lambda: datetime.now(ZoneInfo(settings.factory_tz)).isoformat(),
+            status=status_sinkron,
         )
     else:
         logger.info("Visit manifests off: R2_BUCKET or R2_PUBLIC_URL is empty")
@@ -107,7 +113,12 @@ def get_console_service() -> ConsoleService:
         ),
     )
     return ConsoleService(
-        settings, store, LineClient(settings), erp_queue=queue, manifest_queue=manifest_worker
+        settings,
+        store,
+        LineClient(settings),
+        erp_queue=queue,
+        manifest_queue=manifest_worker,
+        status_sinkron=status_sinkron,
     )
 
 

@@ -12,6 +12,8 @@ from typing import Any
 
 import httpx
 
+from ...domain.sinkron import galat_jaringan_http
+
 _TIMEOUT_S = 15.0
 _REASON_CHARS = 300
 
@@ -64,6 +66,14 @@ class ErpClient:
         body = await self._request("GET", f"/api/resource/{doctype}", params=params)
         return body.get("data") or []
 
+    async def ping(self) -> None:
+        """Cek ringan untuk Last Sync: `frappe.handler.ping` menjawab "pong".
+
+        Lewat `_request` yang sama, jadi token yang salah terbaca gagal di sini juga,
+        bukan baru ketahuan saat kunjungan pertama ditolak.
+        """
+        await self._request("GET", "/api/method/ping")
+
     async def call_method(self, method: str, payload: dict[str, Any]) -> Any:
         """POST one whitelisted method and return what it answered."""
         body = await self._request("POST", f"/api/method/{method}", json=payload)
@@ -107,3 +117,8 @@ def _reason(response: httpx.Response) -> str:
     body = _body(response)
     detail = body.get("exception") or body.get("message") or response.text
     return f"HTTP {response.status_code}: {str(detail)[:_REASON_CHARS]}"
+
+
+def galat_jaringan(exc: BaseException) -> bool:
+    """Last Sync: AutoERP tidak terjangkau, bukan menjawab dengan penolakan."""
+    return isinstance(exc, ErpError) and galat_jaringan_http(exc.status)

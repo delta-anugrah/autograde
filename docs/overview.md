@@ -638,6 +638,14 @@ CDN** (harus tetap terbuka saat internet mati). Stream kamera pakai `<img>` MJPE
 line di port 8001-8003, jadi tiga koneksi video ditanggung browser, bukan proses konsol. ~2200
 baris React di frontend lama **diekspresikan ulang, bukan di-port**.
 
+**Last Sync (2026-09-27).** Satu bagian di strip "Hari ini" dengan dua baris, **AutoERP** dan
+**Cloud Photo**: jam = kapan data terakhir benar-benar tersinkron, warna = apakah sambungannya
+hidup sekarang. Tidak ada endpoint baru: ringkasannya menumpang `/api/console/state` (field
+`sinkron`), dan blok `unggah` tiap line menumpang `/internal/status` yang sudah di-poll tiap
+detik. Semua worker yang bicara ke luar mencatat hasilnya ke satu `StatusSinkron`, dan
+`CekSinkronWorker` mengecek AutoERP (`ping`) dan R2 (`head_object`) tiap 60 detik supaya warnanya
+tetap segar saat tidak ada data yang lewat. Aturan lengkapnya `CLAUDE.md` aturan 27.
+
 **Login (Fase 4, §6.5).** Layar tertutup gerbang **email + sandi** sampai ada yang masuk, dan
 **semua** `/api/console/*` menjawab 401 `belum_masuk` tanpa cookie `konsol_sesi`, kecuali
 `/console` sendiri, daftar akun untuk mengisi kolom email, dan `login`. Akun datang dari dua

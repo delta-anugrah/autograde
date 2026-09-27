@@ -142,6 +142,13 @@ class UploadManifest:
         with self._lock, self._db:
             self._db.execute("DELETE FROM upload_items WHERE id=?", (item_id,))
 
+    def terakhir_unggah(self) -> float | None:
+        """Jam item terakhir yang selesai naik, untuk Last Sync sesudah line restart.
+        Sekali saat worker dibuat, jadi pindaian tanpa indeks di sini tidak mahal."""
+        with self._lock:
+            row = self._db.execute("SELECT MAX(uploaded_at) AS t FROM upload_items").fetchone()
+        return float(row["t"]) if row and row["t"] else None
+
     def counts(self) -> dict[str, int]:
         base = {"pending": 0, "image_uploaded": 0, "done": 0, "poisoned": 0}
         with self._lock:
