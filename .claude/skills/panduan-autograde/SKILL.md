@@ -56,7 +56,9 @@ ditanya.
   401 kalau belum masuk. **Akun** = daftar akun PC ini (asal Lokal/AutoERP, aktif/mati/
   terkunci) + tombol untuk akun lokal (akun AutoERP tanpa tombol; akun sendiri cuma ganti
   sandi): sandi tidak bisa dilihat (cuma hash yang disimpan); lupa sandi: akun AutoERP
-  diganti di AutoERP, akun lokal dengan tombol Ganti sandi.
+  diganti di AutoERP, akun lokal dengan tombol Ganti sandi. **Impor CSV** di tab Riwayat juga
+  support saja (unduh CSV untuk semua): CSV Per janjang, periksa dulu, hari ini tidak diimpor,
+  bisa dibatalkan per impor (aturan 26).
 - **Rekam video** (v1.13.x): satu tombol per line, jalan sampai ditekan Stop. Yang
   terekam frame **clean tanpa bbox**, disadap di `FrameCaptureWorker`, sebelum
   inference. Berkasnya di `videos/` (jalurnya tertulis di kaki layar), **tidak pernah

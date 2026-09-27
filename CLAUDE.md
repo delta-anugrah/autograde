@@ -211,6 +211,10 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/console/recap` | rekap per truk satu hari kerja (janjang, ACC/REJ, neto): `?work_date=` opsional |
 | GET | `/api/console/riwayat` | tab **Riwayat** (operator biasa, bukan support): `dari`/`sampai` (tanggal kerja, maks **31 hari**, tanpa tanggal = 7 hari terakhir), `line_code`, `plat` (potongan plat), `hasil` (`ripe`/`unripe`/`jk`/`tp`, Per janjang saja), `tampilan=hari\|truk\|janjang`, `ringkasan=true\|false`. Per hari & per truk dikirim utuh, per janjang `limit`+`offset`. **400** kode `riwayat_*` untuk tanggal yang salah, **422** untuk tampilan/hasil asing. Aturan 26 |
 | GET | `/api/console/riwayat/csv` | filter yang sama + `bahasa=id\|en` → lampiran CSV (BOM UTF-8, jam pabrik), **semua** baris filter itu, dialirkan per potongan |
+| POST | `/api/console/dev/riwayat/impor/periksa` | **support**: badan = CSV Per janjang apa adanya (bukan multipart), `?nama=` → hitungan baru / sudah ada / hari berjalan / ganda / salah + `sidik` sha256. Tidak menyimpan apa pun. **400** kode `impor_*` untuk berkas yang ditolak, **413** lebih dari 50 MB |
+| POST | `/api/console/dev/riwayat/impor` | **support**: berkas yang SAMA + `?sidik=` hasil periksa → **201** `{batch}`. **409** kalau berkas berubah, ada baris salah, tidak ada yang baru, impor lain berjalan, atau Danger Zone sedang menghapus |
+| GET | `/api/console/dev/riwayat/impor` | **support**: 20 impor terakhir |
+| POST | `/api/console/dev/riwayat/impor/{id}/batal` | **support**: hapus janjang satu impor. **404** tidak ada, **409** sudah dibatalkan |
 | POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line. **409** `hapus_berjalan` selama Danger Zone menghapus data (line tidak disentuh) |
 | POST | `/api/console/lines/{line}/release-truck` | truk pergi → `/internal/assignment` line dengan truk kosong |
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
@@ -861,6 +865,21 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     (`domain/riwayat.py`, satu aturan untuk layar dan CSV), filter line, plat (potongan plat
     ternormalisasi, aturan `normalisasi_plat` yang sama dengan timbangan), dan hasil (Per janjang
     saja), ringkasan periode, tiga tampilan (per hari, per truk, per janjang), dan unduh CSV.
+    **Impor CSV (2026-09-27): SUPPORT saja**, unduh tetap untuk semua operator. Yang diterima cuma
+    CSV Per janjang buatan konsol sendiri (`KEPALA_CSV` di `domain/riwayat.py`, satu definisi untuk
+    ekspor dan impor; id atau en, BOM, `'` pengaman rumus dilepas). Ringkasan per hari/per truk dan
+    berkas yang disimpan ulang Excel (pemisah `;`, tanggal diubah, detik hilang) DITOLAK, tidak
+    ditebak. Dua langkah: **Periksa** (tidak menyimpan apa pun) lalu **Impor** berkas yang SAMA
+    (sidik sha256); satu baris salah menolak seluruh berkas. Janjang **hari ini dan sesudahnya tidak
+    diimpor** (masih berjalan dan ikut kunjungan ke AutoERP); janjang impor tidak punya
+    `assignment_id`, jadi tidak pernah masuk pesan kunjungan. Dedup per `event_id` (`INSERT OR
+    IGNORE`), ditandai `inspections.import_batch`, ditulis per 500 janjang (lock konsol dilepas di
+    antaranya), dan satu impor bisa **dibatalkan utuh**. Truk yang belum ada dibuat sebagai truk
+    manual (tidak dikirim ke AutoERP, tidak dihapus saat batal); truk warisan ber-id acak dipakai,
+    bukan dikembari. Catatannya di tabel `grading_imports` (ikut terhapus saat hapus transaksi).
+    ⚠️ TP di CSV cuma "ya": disimpan `tp_confidence = 1.0` supaya hitungan TP sama (> 0,8).
+    ⚠️ **Ripe + REJ itu SAH**: line memaksa REJ untuk buah bertumpuk atau terlalu kecil tanpa
+    mengubah kelasnya. Yang ditolak cuma Unripe/JK + ACC (tidak pernah ditulis line).
     ⚠️ **Query-nya di `repositories/riwayat_repository.py`, BUKAN `ConsoleStore`**: koneksi
     baca-saja baru per panggilan (WAL: pembaca tidak menahan penulis) dan rute `def` (thread
     pool). Lewat store konsol, query sebulan akan antre di lock yang dipakai ingest janjang dari

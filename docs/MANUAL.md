@@ -180,7 +180,7 @@ Aturan angka yang dijaga konsol:
 | **Truk** | master truk + supplier + asal data (ERP / manual) | **Daftar truk manual**, **Cetak QR truk** (kartu QR berisi plat, dibuat di server) |
 | **Timbangan** | tiket hari kerja: masuk, keluar, bruto, tara, neto | **Timbang masuk**, isi tara lewat scan keluar |
 | **Rekap** | satu baris per truk per hari kerja: janjang, ACC, REJ, rasio, neto | ini yang diserahkan ke supplier; baris **Tanpa truk** = janjang ter-grading sebelum truk ditugaskan |
-| **Riwayat** | grading hari-hari sebelumnya (paling panjang 31 hari): ringkasan periode, per hari, per truk, per janjang | **Unduh CSV**; rinciannya di bawah |
+| **Riwayat** | grading hari-hari sebelumnya (paling panjang 31 hari): ringkasan periode, per hari, per truk, per janjang | **Unduh CSV**; **Impor CSV** untuk akun support; rinciannya di bawah |
 
 > Angka keyakinan ada di tabel Grading, tapi **tidak** digambar di kotak janjang pada layar
 > line: dari beberapa meter "54%" terbaca seperti "54% matang". Saklar **Mode dev** di tab
@@ -202,6 +202,22 @@ cuma hari ini.
 Angka satu hari di Riwayat sama dengan tab Rekap hari itu. Foto yang lebih tua dari masa simpan
 PC (180 hari di Lampung) sudah terhapus dari PC; barisnya tetap ada, fotonya tertulis
 "Foto sudah terhapus dari PC".
+
+**Impor CSV** (akun support saja, sejak 2026-09-27) memasukkan kembali CSV **Per janjang** hasil
+Unduh CSV, dari PC ini atau PC lain. Dipakai untuk memindahkan riwayat ke PC baru, atau memulihkan
+hari-hari yang terhapus.
+
+1. Tab Riwayat, **Impor CSV**, pilih berkasnya, **Periksa**. Belum ada yang disimpan: layar menulis
+   berapa janjang baru, berapa yang sudah ada (dilewati), berapa yang jatuh hari ini atau sesudahnya
+   (tidak diimpor, datanya masih berjalan), dan baris yang salah beserta nomornya.
+2. Kalau tidak ada baris salah, tekan **Impor N janjang**. Satu baris salah menolak seluruh berkas:
+   perbaiki, atau unduh ulang dari tab Riwayat.
+3. Salah impor? Di daftar **Impor sebelumnya**, **Batalkan** (dua kali klik) menghapus janjang
+   impor itu saja. Truk yang ditambahkannya tetap ada.
+
+Pakai berkas asli hasil Unduh CSV. Berkas yang disimpan ulang dari Excel ditolak: Excel mengganti
+pemisah dan format tanggal, dan membuang detik. Janjang hasil impor diberi label **IMPOR** di
+tampilan Per janjang, dan tidak pernah dikirim ke AutoERP.
 
 ### 3.5 Sepuluh tab support
 
@@ -599,6 +615,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Last Sync: **Cloud Photo** kuning (terputus) | internet putus, kredensial `R2_*` salah, atau `UPLOAD_API_URL` masih menunjuk api lama yang mati | arahkan kursor ke baris untuk melihat line mana; tab Log "Cloud Photo line-N terputus: …"; kosongkan `UPLOAD_API_URL` lalu `make start` (PC pabrik: `autograde restart`) |
 | Plat yang sama muncul dua baris di tab Truk | `ERP_URL` diisi sebelum OPS-2 | jalankan checklist OPS-2 (§5.8) |
 | Unggah ke R2 berhenti tanpa error | `R2_BUCKET` kosong, atau JSON sidecar dipindah ke subfolder | isi R2; JSON wajib datar di folder tanggal |
+| Impor CSV ditolak "bukan CSV Per janjang" | berkas ringkasan (Per hari / Per truk), atau disimpan ulang dari Excel | di tab Riwayat pilih **Per janjang**, **Unduh CSV**, impor berkas itu tanpa dibuka di Excel |
 | Disk penuh, grading berhenti tersimpan | penjaga disk mati (`UPLOAD_DISK_MIN_FREE_GB=0`) atau Docker menumpuk image lama | `docker system prune`; kembalikan penjaga ke 20 |
 | Laptop: `make console` terasa memakai kode lama | port 8100 masih dipegang proses lama | cari pid-nya dengan `lsof -ti:8100`, matikan, jalankan ulang |
 | Laptop: `make up` gagal "MVS SDK not found" | memang, target Docker untuk Linux + GPU | pakai `make console` / `make line` |
@@ -670,6 +687,6 @@ Struktur kode di `src/palmgrade/`: `routes/` (HTTP) → `controllers/` → `serv
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
-| 1.2 | 27 September 2026 | **Last Sync** di strip "Hari ini" (AutoERP dan Cloud Photo: jam sinkron terakhir + status sambungan) dan dua baris penanganan masalahnya di §7. |
+| 1.2 | 27 September 2026 | **Last Sync** di strip "Hari ini" (AutoERP dan Cloud Photo: jam sinkron terakhir + status sambungan) dan **Impor CSV** di tab Riwayat (akun support: periksa dulu, impor berkas yang sama, batalkan per impor), plus tiga baris penanganan masalahnya di §7. |
 | 1.1 | 27 September 2026 | Tab **Riwayat** (grading hari sebelumnya, maks 31 hari, CSV), tab **Akun** yang bisa menambah dan mengurus akun lokal, **Danger Zone** di tab Setelan, tombol yang terkunci selama menunggu server, dan path PC Lampung `/opt/palmgrade/autograde`. Dicocokkan dengan kode `staging` sesudah autograde #180. |
 | 1.0 | 17 September 2026 | Terbitan pertama. Dicocokkan dengan kode `staging` (`a559427`): konsol dengan login email+sandi, lima tab support, scan QR dua gerbang, Setelan grading, seeder demo, detail grading via R2. |
