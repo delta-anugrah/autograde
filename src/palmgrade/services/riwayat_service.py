@@ -17,7 +17,10 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..domain.riwayat import (
+    JENIS_CAPTURE,
+    KEPALA_CSV,
     MAKS_HARI,
+    TP_YA,
     FilterRiwayat,
     aman_untuk_csv,
     buat_filter,
@@ -27,30 +30,6 @@ from ..domain.riwayat import (
 from ..repositories.riwayat_repository import RiwayatStore
 from .console_service import _capture_url, _with_source_label
 
-# Kepala kolom CSV per bahasa layar. Urutannya = urutan nilai di `_baris_*`.
-_KEPALA = {
-    "hari": {
-        "id": ["Tanggal kerja", "Janjang", "Ripe", "Unripe", "JK", "TP", "Tanpa kelas", "ACC",
-               "REJ", "Rasio Ripe (%)", "Truk", "Neto (kg)"],
-        "en": ["Work date", "Bunches", "Ripe", "Unripe", "JK", "TP", "No class", "ACC", "REJ",
-               "Ripe ratio (%)", "Trucks", "Net (kg)"],
-    },
-    "truk": {
-        "id": ["Tanggal kerja", "Plat", "Supplier", "Sumber", "Janjang", "Ripe", "Unripe", "JK",
-               "TP", "Tanpa kelas", "ACC", "REJ", "Rasio Ripe (%)", "Neto (kg)", "Mulai",
-               "Selesai"],
-        "en": ["Work date", "Plate", "Supplier", "Source", "Bunches", "Ripe", "Unripe", "JK",
-               "TP", "No class", "ACC", "REJ", "Ripe ratio (%)", "Net (kg)", "First", "Last"],
-    },
-    "janjang": {
-        "id": ["Tanggal kerja", "Waktu", "Line", "Plat", "Supplier", "Sumber", "Kelas", "Hasil",
-               "TP", "Jenis", "Foto", "Event ID"],
-        "en": ["Work date", "Time", "Line", "Plate", "Supplier", "Source", "Class", "Result",
-               "TP", "Capture", "Photo", "Event ID"],
-    },
-}
-_YA = {"id": "ya", "en": "yes"}
-_JENIS = {"id": {"auto": "otomatis", "manual": "manual"}, "en": {"auto": "auto", "manual": "manual"}}
 _TANPA_TRUK = {"id": "Tanpa truk", "en": "No truck"}
 
 # Baris per potongan yang dialirkan. Kecil cukup supaya unduhan sebulan tidak
@@ -137,7 +116,7 @@ class RiwayatService:
         # BOM: tanpa itu Excel membaca berkas UTF-8 sebagai ANSI, dan nama supplier
         # beraksen jadi huruf acak.
         yield "﻿".encode()
-        penulis.writerow(_KEPALA[tampilan][bahasa])
+        penulis.writerow(KEPALA_CSV[tampilan][bahasa])
         for nomor, baris in enumerate(sumber, start=1):
             penulis.writerow([aman_untuk_csv(v) for v in baris])
             if nomor % _BARIS_PER_POTONG == 0:
@@ -169,8 +148,8 @@ class RiwayatService:
         return [
             r["work_date"], self._waktu(r["timestamp"]), r["line_code"], r.get("plate_number"),
             r.get("supplier_name"), r.get("source_label"), r.get("grade_class"),
-            r["ripeness_status"], _YA[bahasa] if tp is not None and tp > 0.8 else "",
-            _JENIS[bahasa].get(r.get("capture_type"), r.get("capture_type")),
+            r["ripeness_status"], TP_YA[bahasa] if tp is not None and tp > 0.8 else "",
+            JENIS_CAPTURE[bahasa].get(r.get("capture_type"), r.get("capture_type")),
             _capture_url(r.get("line_code"), r.get("image_path")), r["event_id"],
         ]
 

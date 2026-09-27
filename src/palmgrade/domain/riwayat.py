@@ -33,6 +33,34 @@ HASIL = ("ripe", "unripe", "jk", "tp")
 _AWALAN_RUMUS = ("=", "+", "-", "@", "\t", "\r")
 
 
+# Kepala kolom CSV per bahasa layar. Urutannya = urutan nilai di `RiwayatService._baris_*`.
+# Di sini, bukan di service: impor CSV (`domain/impor_grading.py`) membaca berkas yang
+# sama, jadi kolom yang ditulis dan kolom yang dibaca tidak bisa berbeda.
+KEPALA_CSV = {
+    "hari": {
+        "id": ["Tanggal kerja", "Janjang", "Ripe", "Unripe", "JK", "TP", "Tanpa kelas", "ACC",
+               "REJ", "Rasio Ripe (%)", "Truk", "Neto (kg)"],
+        "en": ["Work date", "Bunches", "Ripe", "Unripe", "JK", "TP", "No class", "ACC", "REJ",
+               "Ripe ratio (%)", "Trucks", "Net (kg)"],
+    },
+    "truk": {
+        "id": ["Tanggal kerja", "Plat", "Supplier", "Sumber", "Janjang", "Ripe", "Unripe", "JK",
+               "TP", "Tanpa kelas", "ACC", "REJ", "Rasio Ripe (%)", "Neto (kg)", "Mulai",
+               "Selesai"],
+        "en": ["Work date", "Plate", "Supplier", "Source", "Bunches", "Ripe", "Unripe", "JK",
+               "TP", "No class", "ACC", "REJ", "Ripe ratio (%)", "Net (kg)", "First", "Last"],
+    },
+    "janjang": {
+        "id": ["Tanggal kerja", "Waktu", "Line", "Plat", "Supplier", "Sumber", "Kelas", "Hasil",
+               "TP", "Jenis", "Foto", "Event ID"],
+        "en": ["Work date", "Time", "Line", "Plate", "Supplier", "Source", "Class", "Result",
+               "TP", "Capture", "Photo", "Event ID"],
+    },
+}
+TP_YA = {"id": "ya", "en": "yes"}
+JENIS_CAPTURE = {"id": {"auto": "otomatis", "manual": "manual"}, "en": {"auto": "auto", "manual": "manual"}}
+
+
 @dataclass(frozen=True)
 class FilterRiwayat:
     """Tanggal kerja `YYYY-MM-DD`, inklusif di kedua ujung.
