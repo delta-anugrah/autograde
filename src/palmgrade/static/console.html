@@ -385,6 +385,21 @@
   #tally .timbang b { font-family:var(--mono); font-size:1.35rem; font-weight:700;
                       font-variant-numeric:tabular-nums; }
   #tally .timbang-sub { font-size:.8rem; color:var(--muted); }
+  /* Last Sync: dua baris kecil, titik + nama + jam; keterangan putus di bawahnya.
+     Lebar minimum = keterangan terpanjang, supaya strip tidak bergeser tiap kali
+     status berganti. */
+  #tally .sinkron { display:flex; flex-direction:column; justify-content:center; gap:5px;
+                    min-width:16.5rem; padding:10px 16px; border-right:1px solid var(--line); }
+  .sinkron-baris { display:grid; grid-template-columns:auto auto 1fr; align-items:center;
+                   column-gap:8px; font-size:.85rem; white-space:nowrap; }
+  .sinkron-baris .titik { width:.6rem; height:.6rem; border-radius:50%; background:var(--muted); }
+  .sinkron-baris.tersambung .titik { background:var(--acc); }
+  .sinkron-baris.terputus .titik { background:var(--warn); }
+  .sinkron-baris b { font-weight:600; }
+  .sinkron-baris .jam { font-family:var(--mono); font-weight:700; justify-self:end; }
+  .sinkron-baris.tidak_dipakai .jam, .sinkron-baris.memeriksa .jam { font-family:inherit;
+                                                                    font-weight:400; color:var(--muted); }
+  .sinkron-baris .ket { grid-column:2 / -1; color:var(--warn); font-size:.75rem; font-weight:600; }
   /* Label above the control, not beside it: beside it the two-word caption set
      its own width and the strip's last cell came out a different shape from
      every other cell. Centred and stacked, it lines up with the stat blocks. */
@@ -1165,6 +1180,28 @@
     <span class="lb" data-t="labelNetoTimbangan">Neto timbangan</span>
     <b id="tot-neto">-</b>
     <span class="timbang-sub" id="tot-tiket"></span>
+  </div>
+  <!--
+    Last Sync (permintaan 2026-09-27): satu bagian, dua baris. Titik = keadaan
+    sambungan SEKARANG (dicek tiap menit), jam = sinkron terakhir yang berhasil.
+    Foto naik ke cloud tiap jam, jadi jam Cloud Photo yang tertinggal sampai
+    satu jam itu normal selama titiknya hijau. Kata ikut ditulis di samping
+    warna: layar ini dibaca lewat AnyDesk dan tidak semua orang membedakan warna.
+  -->
+  <div class="sinkron" id="sinkron">
+    <span class="lb" data-t="lastSync">Last Sync</span>
+    <div class="sinkron-baris memeriksa" id="sinkron-erp">
+      <span class="titik" aria-hidden="true"></span>
+      <b data-t="sinkronErp">AutoERP</b>
+      <span class="jam">-</span>
+      <small class="ket" hidden></small>
+    </div>
+    <div class="sinkron-baris memeriksa" id="sinkron-cloud">
+      <span class="titik" aria-hidden="true"></span>
+      <b data-t="sinkronCloud">Cloud Photo</b>
+      <span class="jam">-</span>
+      <small class="ket" hidden></small>
+    </div>
   </div>
   <!--
     The operator sets the camera layout, it is not forced from here: every mill
@@ -2158,6 +2195,10 @@ const KAMUS = {
     setelanDariEnv:"Sumber: .env (belum pernah diubah dari sini)",
     setelanDariKonsol:"Sumber: konsol",
     labelHariIni:"Hari ini", labelRasio:"Rasio Ripe",
+    lastSync:"Last Sync", sinkronErp:"AutoERP", sinkronCloud:"Cloud Photo",
+    sinkronTersambung:"Tersambung", sinkronTerputus:"Terputus sejak {jam}", sinkronMenunggu:"{n} menunggu",
+    sinkronTidakDipakai:"Tidak dipakai", sinkronMemeriksa:"Memeriksa", sinkronBelum:"Belum pernah",
+    sinkronTakTerbaca:"tidak terbaca", sinkronTerakhir:"Sinkron terakhir",
     labelNetoTimbangan:"Neto timbangan", timbangTiket:"{tiket} tiket · {tara} menunggu tara",
     timbangBelumAda:"Belum ada tiket",
     // Nama kelas TIDAK diterjemahkan: keempatnya nama kelas model, dan operator
@@ -2444,6 +2485,10 @@ const KAMUS = {
     setelanDariEnv:"Source: .env (never changed from here)",
     setelanDariKonsol:"Source: console",
     labelHariIni:"Today", labelRasio:"Ripe rate",
+    lastSync:"Last Sync", sinkronErp:"AutoERP", sinkronCloud:"Cloud Photo",
+    sinkronTersambung:"Connected", sinkronTerputus:"Disconnected since {jam}", sinkronMenunggu:"{n} waiting",
+    sinkronTidakDipakai:"Not used", sinkronMemeriksa:"Checking", sinkronBelum:"Never",
+    sinkronTakTerbaca:"not readable", sinkronTerakhir:"Last synced",
     labelNetoTimbangan:"Weighed net", timbangTiket:"{tiket} tickets · {tara} awaiting tare",
     timbangBelumAda:"No tickets yet",
     clsRipe:"Ripe", clsUnripe:"Unripe", clsJk:"JK", clsTp:"TP",
@@ -3400,6 +3445,74 @@ function isiTally(lines) {
   $("bar-acc").style.width = rasio + "%";
 }
 
+// ── Last Sync ──────────────────────────────────────────────────────────
+// Dua baris di strip "Hari ini": AutoERP dan Cloud Photo (permintaan 2026-09-27).
+// Warna dari keadaan sambungan SEKARANG, jam dari sinkron terakhir yang berhasil
+// (domain/sinkron.py). Datanya menumpang /api/console/state, polling 2 detik.
+
+// Jam hari ini cukup jamnya; hari lain ikut tanggal, supaya "08.10" kemarin tidak
+// terbaca seperti pagi ini.
+function jamSinkron(epoch, sekarang) {
+  if (!epoch) return null;
+  const d = new Date(epoch * 1000);
+  const jam = d.toLocaleTimeString(lokal(), { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === new Date(sekarang * 1000).toDateString()) return jam;
+  return `${d.toLocaleDateString(lokal(), { day: "numeric", month: "short" })} ${jam}`;
+}
+
+// Isi satu baris sebagai data, bukan HTML: kelas CSS cuma dari daftar yang sah,
+// jadi keadaan asing dari server tidak pernah masuk ke atribut.
+function barisSinkron(r, sekarang) {
+  const sah = ["tersambung", "terputus", "tidak_dipakai", "memeriksa"];
+  const kelas = r && sah.includes(r.keadaan) ? r.keadaan : "memeriksa";
+  const jam = kelas === "tidak_dipakai"
+    ? t("sinkronTidakDipakai")
+    : (jamSinkron(r && r.terakhir, sekarang) || t("sinkronBelum"));
+  let ket = "";
+  if (kelas === "terputus") {
+    ket = t("sinkronTerputus").replace("{jam}", jamSinkron(r.sejak, sekarang) || KOSONG);
+    if (r.antre) ket += " · " + t("sinkronMenunggu").replace("{n}", Number(r.antre).toLocaleString(lokal()));
+  }
+  return { kelas, jam, ket };
+}
+
+// Keterangan saat kursor diam di atas baris: keadaan, jam sinkron, antrean, dan
+// untuk Cloud Photo, jam upload tiap line.
+function judulSinkron(r, sekarang) {
+  if (!r) return "";
+  const kunci = { tersambung: "sinkronTersambung", terputus: "sinkronTerputus",
+    tidak_dipakai: "sinkronTidakDipakai" }[r.keadaan] || "sinkronMemeriksa";
+  const baris = [t(kunci).replace("{jam}", jamSinkron(r.sejak, sekarang) || KOSONG),
+    `${t("sinkronTerakhir")}: ${jamSinkron(r.terakhir, sekarang) || t("sinkronBelum")}`];
+  if (r.antre) baris.push(t("sinkronMenunggu").replace("{n}", Number(r.antre).toLocaleString(lokal())));
+  // Satu line yang putus cukup membuat Cloud Photo merah; di sini kelihatan line yang mana.
+  (r.per_line || []).forEach((l) => {
+    let isi;
+    if (!l.terbaca) isi = t("sinkronTakTerbaca");
+    else if (l.aktif === false) isi = t("sinkronTidakDipakai");
+    else if (l.sejak) isi = t("sinkronTerputus").replace("{jam}", jamSinkron(l.sejak, sekarang) || KOSONG);
+    else isi = jamSinkron(l.terakhir, sekarang) || t("sinkronBelum");
+    if (l.terbaca && l.antre) isi += ` · ${t("sinkronMenunggu").replace("{n}", Number(l.antre).toLocaleString(lokal()))}`;
+    baris.push(`${l.line_code}: ${isi}`);
+  });
+  return baris.join("\n");
+}
+
+function isiSinkron(s) {
+  if (!s) return;
+  const sekarang = Date.now() / 1000;
+  [["sinkron-erp", s.autoerp], ["sinkron-cloud", s.cloud]].forEach(([id, data]) => {
+    const el = $(id);
+    const b = barisSinkron(data, sekarang);
+    el.className = `sinkron-baris ${b.kelas}`;
+    el.querySelector(".jam").textContent = b.jam;
+    const ket = el.querySelector(".ket");
+    ket.textContent = b.ket;
+    ket.hidden = !b.ket;
+    el.title = judulSinkron(data, sekarang);
+  });
+}
+
 // Kotak timbangan di strip "Hari ini". Tanpa tiket: tanda kosong, bukan
 // "0 kg" — nol kilo terbaca seperti truk yang ditimbang kosong.
 function isiTallyTimbangan(tb) {
@@ -4099,6 +4212,7 @@ async function refresh() {
     selarasUrutan(s.lines);
     isiTally(s.lines);
     isiTallyTimbangan(s.timbangan);
+    isiSinkron(s.sinkron);
     gambarPitaAlarm(s.lines);
     if (!dipasang) {
       $("lines").innerHTML = s.lines.map(kartuLine).join("");

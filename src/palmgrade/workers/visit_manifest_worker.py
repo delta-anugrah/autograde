@@ -20,7 +20,9 @@ from typing import Any, Protocol
 
 from ..domain.visit_manifest import MANIFEST_KIND, VIEWER_KEY, build_manifest, manifest_key
 from ..integrations.erp.outbox_store import ErpOutboxStore
+from ..integrations.upload.r2_uploader import galat_jaringan
 from ..repositories.console_repository import ConsoleStore
+from ..services.status_sinkron import StatusSinkron
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,7 @@ class VisitManifestWorker:
         viewer_html: Path,
         clock: Callable[[], str],
         interval_s: int = _INTERVAL_S,
+        status: StatusSinkron | None = None,
     ) -> None:
         self._store = store
         self.outbox = outbox
@@ -52,6 +55,7 @@ class VisitManifestWorker:
         self._clock = clock
         self._interval_s = interval_s
         self._viewer_uploaded = False
+        self._status = status
 
     def enqueue(self, weighing_id: str, assignment_id: str) -> None:
         self.outbox.enqueue(MANIFEST_KIND, weighing_id, {"assignment_id": assignment_id})
@@ -82,9 +86,13 @@ class VisitManifestWorker:
             except Exception as exc:  # noqa: BLE001 — any transport failure: keep the row
                 logger.warning("R2 unreachable, holding manifests: %s", exc)
                 self.outbox.mark_error(message, str(exc))
+                if self._status is not None:
+                    self._status.gagal("r2", "manifest", str(exc), jaringan=galat_jaringan(exc))
                 break
             self.outbox.mark_sent(message)
             uploaded += 1
+            if self._status is not None:
+                self._status.berhasil("r2", "manifest", sinkron=True)
         return uploaded
 
     def _build(self, weighing_id: str, payload: dict[str, Any]) -> bytes | None:

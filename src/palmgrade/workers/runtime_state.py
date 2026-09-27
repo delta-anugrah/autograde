@@ -70,6 +70,8 @@ class RuntimeState:
     # tangkai; angka yang naik terus adalah alasan terukur untuk menahan
     # penyimpanan sesaat menunggu TP menyusul.
     tp_telat: int = 0
+    # Last Sync (Cloud Photo): `BatchUploadWorker.status_unggah`, dipasang main.py.
+    status_unggah: Any = None
     inference_fps: float = 0.0            # YOLO inference FPS — ditulis FrameProcessingWorker, dibaca DisplayWorker overlay
 
     track_history: dict[int, Any] = field(default_factory=dict)

@@ -64,6 +64,9 @@ _AWALAN_SETELAN = "setelan_"
 #: Kursor tarik AutoERP. Ikut dihapus hanya kalau datanya (truk, supplier,
 #: akun) juga dihapus — itu yang membuat tarikan berikutnya mengambil semuanya.
 _AWALAN_KURSOR_ERP = "erp_cursor_"
+#: Jam Last Sync (`services/status_sinkron.py`). Sama dengan kursor: jam sambungan
+#: bukan data transaksi, tapi PC yang dikosongkan total mulai dari "belum pernah".
+_AWALAN_SINKRON = "sinkron_"
 
 
 @dataclass(frozen=True)
@@ -235,6 +238,6 @@ def kunci_state_dihapus(kunci: str, mode: str) -> bool:
     _mode_sah(mode)
     if kunci.startswith(_AWALAN_SETELAN):
         return False
-    if kunci.startswith(_AWALAN_KURSOR_ERP):
+    if kunci.startswith((_AWALAN_KURSOR_ERP, _AWALAN_SINKRON)):
         return mode == MODE_SEMUA
     return True
