@@ -46,8 +46,9 @@ _HITUNG = """COUNT(*) AS total,
 
 # Kolom janjang yang dibaca layar dan CSV, disebut satu per satu: `erp_state`
 # dan kolom yang kelak ditambah tidak ikut keluar sebagai JSON tanpa sengaja.
+# `import_batch`: janjang dari impor CSV (support) diberi label di layar.
 _KOLOM_JANJANG = """i.event_id, i.line_code, i.work_date, i.timestamp, i.ripeness_status,
-    i.grade_class, i.tp_confidence, i.capture_type, i.image_path, i.truck_id,
+    i.grade_class, i.tp_confidence, i.capture_type, i.image_path, i.truck_id, i.import_batch,
     t.plate_number, s.name AS supplier_name, """ + SOURCE_FACTS
 
 _JOIN_TRUK = """LEFT JOIN trucks t ON t.id = i.truck_id

@@ -512,6 +512,10 @@ Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disim
   grading (satu truk bisa punya lebih dari satu tiket sehari, dan join itu akan mengalikan
   jumlah janjang dengan jumlah tiket). Janjang yang ter-grading sebelum truk dipasang muncul
   sebagai baris **Tanpa truk**: dibuang justru menyembunyikan yang perlu dilihat operator.
+- **Tab Riwayat** = grading hari-hari sebelumnya (maks 31 hari) + **Unduh CSV** untuk semua
+  operator. **Impor CSV** untuk akun support saja: CSV Per janjang hasil unduhan (PC ini atau PC
+  lain) diperiksa dulu, lalu diimpor utuh atau ditolak utuh; janjang hari ini tidak diimpor, yang
+  sudah ada dilewati, dan satu impor bisa dibatalkan (`CLAUDE.md` aturan 26).
 - **Coba di lokal tanpa kamera**: `make up-console` lalu buka
   <http://localhost:8000/console>. DB-nya kosong, jadi keempat tab masih polos,
   isi dengan **`make demo`**: 10 truk, ~6 kunjungan per hari selama seminggu, ratusan

@@ -13,10 +13,12 @@ from pathlib import Path
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Query, Response
+from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, StreamingResponse
+from starlette.concurrency import run_in_threadpool
 
 from ..core.config import Settings
+from ..domain import impor_grading
 from ..domain.bahaya import HapusBerjalan
 from ..domain.operator_auth import SESSION_TTL_S
 from ..domain.operator_error import (
@@ -26,7 +28,9 @@ from ..domain.operator_error import (
     AKUN_TIDAK_ADA,
     BELUM_MASUK,
     BUKAN_SUPPORT,
+    IMPOR_TERLALU_BESAR,
     TERKUNCI,
+    InvalidInput,
     OperatorError,
 )
 from ..domain.pilihan_model import ModelTidakSah
@@ -53,6 +57,7 @@ from ..services.bahaya_service import (
 from ..services.console_service import ConsoleService
 from ..services.dev_service import CoilTidakDikenal, DevService, PlcSibuk
 from ..services.erp_queue import ErpQueue
+from ..services.impor_grading_service import ImporDitolak, ImporGradingService, ImporTidakAda
 from ..services.operator_admin import OperatorAdmin
 from ..services.qr_cetak import png_qr
 from ..services.riwayat_service import RiwayatService
@@ -238,6 +243,21 @@ def get_riwayat_service() -> RiwayatService:
     )
 
 
+
+@lru_cache
+def get_impor_grading_service() -> ImporGradingService:
+    """Impor CSV Per janjang (tab Riwayat, support). Menulis lewat store konsol yang
+    sama dengan ingest, per potongan, jadi kiriman janjang dari line tidak menunggu
+    satu impor besar selesai."""
+    service = get_console_service()
+    return ImporGradingService(
+        service.store,
+        lines=service.lines,
+        zona=service.settings.factory_tz,
+        # Hari kerja yang sama dengan strip "Hari ini": janjang hari ini tidak diimpor.
+        hari_ini=service.today,
+    )
+
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
 Scan = Annotated[ScanService, Depends(get_scan_service)]
@@ -245,6 +265,7 @@ Dev = Annotated[DevService, Depends(get_dev_service)]
 Bahaya = Annotated[BahayaService, Depends(get_bahaya_service)]
 Admin = Annotated[OperatorAdmin, Depends(get_operator_admin)]
 Riwayat = Annotated[RiwayatService, Depends(get_riwayat_service)]
+Impor = Annotated[ImporGradingService, Depends(get_impor_grading_service)]
 
 
 def require_operator(
@@ -954,6 +975,90 @@ async def dev_bahaya_hapus_data(
         raise _operator_error(400, exc) from exc
     except (BahayaDitolak, BahayaSemuaMenolak) as exc:
         raise _operator_error(409, exc) from exc
+
+
+# ── impor grading dari CSV (tab Riwayat, support) ────────────────────────
+# Unduh CSV untuk semua operator; impor cuma support (keputusan user 2026-09-27).
+# Berkasnya dikirim apa adanya sebagai badan permintaan, tanpa multipart, dan
+# ukurannya dibatasi SEBELUM dibaca utuh. Pembacaannya di thread pool: sebulan
+# janjang bisa ratusan ribu baris, dan loop yang melayani layar tidak boleh diam.
+
+
+async def _baca_berkas(request: Request) -> bytes:
+    maks = impor_grading.MAKS_BYTE
+    panjang = request.headers.get("content-length", "")
+    if panjang.isdigit() and int(panjang) > maks:
+        raise _berkas_terlalu_besar(maks)
+    potongan: list[bytes] = []
+    total = 0
+    async for bagian in request.stream():
+        total += len(bagian)
+        if total > maks:
+            raise _berkas_terlalu_besar(maks)
+        potongan.append(bagian)
+    return b"".join(potongan)
+
+
+def _berkas_terlalu_besar(maks: int) -> HTTPException:
+    return _operator_error(
+        413, InvalidInput(IMPOR_TERLALU_BESAR, "berkas terlalu besar", maks_mb=maks // (1024 * 1024))
+    )
+
+
+def _impor_ditolak(exc: OperatorError) -> HTTPException:
+    """404 batch tidak ada, 409 keadaan yang menolak, 413 terlalu besar, sisanya 400."""
+    if isinstance(exc, ImporTidakAda):
+        return _operator_error(404, exc)
+    if isinstance(exc, ImporDitolak):
+        return _operator_error(409, exc)
+    return _operator_error(413 if exc.code == IMPOR_TERLALU_BESAR else 400, exc)
+
+
+@router.post("/api/console/dev/riwayat/impor/periksa")
+async def dev_impor_periksa(
+    request: Request, impor: Impor, operator: Support, nama: str = Query("", max_length=200)
+) -> dict:
+    """Apa yang akan terjadi kalau berkas ini diimpor. Tidak menyimpan apa pun."""
+    isi = await _baca_berkas(request)
+    try:
+        return await run_in_threadpool(impor.periksa, isi, nama_berkas=nama)
+    except OperatorError as exc:
+        raise _impor_ditolak(exc) from exc
+
+
+@router.post("/api/console/dev/riwayat/impor", status_code=201)
+async def dev_impor(
+    request: Request,
+    impor: Impor,
+    operator: Support,
+    nama: str = Query("", max_length=200),
+    sidik: str = Query("", max_length=64),
+) -> dict:
+    """Simpan berkas yang SAMA dengan yang diperiksa (`sidik`). Ditolak utuh kalau
+    ada satu baris salah; janjang hari ini dan sesudahnya tidak diimpor."""
+    isi = await _baca_berkas(request)
+    try:
+        batch = await run_in_threadpool(
+            impor.impor, isi, nama_berkas=nama, sidik=sidik, oleh=operator["email"]
+        )
+    except OperatorError as exc:
+        raise _impor_ditolak(exc) from exc
+    return {"batch": batch}
+
+
+@router.get("/api/console/dev/riwayat/impor")
+def dev_impor_daftar(impor: Impor, operator: Support) -> dict:
+    """Dua puluh impor terakhir, yang terbaru dulu."""
+    return impor.daftar()
+
+
+@router.post("/api/console/dev/riwayat/impor/{batch_id}/batal")
+def dev_impor_batal(batch_id: str, impor: Impor, operator: Support) -> dict:
+    """Hapus semua janjang satu impor. Truk yang dibuatnya tetap ada."""
+    try:
+        return {"batch": impor.batalkan(batch_id, oleh=operator["email"])}
+    except OperatorError as exc:
+        raise _impor_ditolak(exc) from exc
 
 
 @router.get("/api/console/dev/plc/{line_code}")

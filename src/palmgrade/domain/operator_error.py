@@ -53,6 +53,20 @@ AKUN_DIRI_SENDIRI = "akun_diri_sendiri"
 RIWAYAT_TANGGAL_TIDAK_SAH = "riwayat_tanggal_tidak_sah"
 RIWAYAT_RENTANG_TERBALIK = "riwayat_rentang_terbalik"
 RIWAYAT_RENTANG_PANJANG = "riwayat_rentang_panjang"
+# Impor grading dari CSV Per janjang (2026-09-27, support saja). Berkasnya yang
+# ditolak 400 (413 kalau terlalu besar); keadaannya yang menolak 409; batch tak ada 404.
+IMPOR_KOSONG = "impor_kosong"
+IMPOR_BUKAN_UTF8 = "impor_bukan_utf8"
+IMPOR_BUKAN_JANJANG = "impor_bukan_janjang"
+IMPOR_RUSAK = "impor_rusak"
+IMPOR_TERLALU_BESAR = "impor_terlalu_besar"
+IMPOR_SIDIK_BEDA = "impor_sidik_beda"
+IMPOR_ADA_SALAH = "impor_ada_salah"
+IMPOR_TIDAK_ADA_BARU = "impor_tidak_ada_baru"
+IMPOR_BERJALAN = "impor_berjalan"
+IMPOR_TIDAK_ADA = "impor_tidak_ada"
+IMPOR_SUDAH_DIBATALKAN = "impor_sudah_dibatalkan"
+IMPOR_HAPUS_BERJALAN = "impor_hapus_berjalan"
 
 CODES = (
     PLAT_KOSONG,
@@ -83,6 +97,18 @@ CODES = (
     RIWAYAT_TANGGAL_TIDAK_SAH,
     RIWAYAT_RENTANG_TERBALIK,
     RIWAYAT_RENTANG_PANJANG,
+    IMPOR_KOSONG,
+    IMPOR_BUKAN_UTF8,
+    IMPOR_BUKAN_JANJANG,
+    IMPOR_RUSAK,
+    IMPOR_TERLALU_BESAR,
+    IMPOR_SIDIK_BEDA,
+    IMPOR_ADA_SALAH,
+    IMPOR_TIDAK_ADA_BARU,
+    IMPOR_BERJALAN,
+    IMPOR_TIDAK_ADA,
+    IMPOR_SUDAH_DIBATALKAN,
+    IMPOR_HAPUS_BERJALAN,
 )
 
 

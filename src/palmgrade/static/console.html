@@ -1034,6 +1034,37 @@
      tabel model panjang, dan terpotong di kanan kalau tidak boleh membungkus. */
   #model-baris td.bungkus { white-space:normal; min-width:14rem; }
   #model-modal .tools button { flex:0 0 auto; min-height:44px; min-width:9rem; }
+  /* Impor CSV (tab Riwayat, support). Padding di pembungkus isi, bukan di <dialog>,
+     dengan alasan yang sama dengan model-modal. */
+  #impor-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
+                 background:var(--card); color:var(--fg); width:min(92vw, 44rem); }
+  #impor-modal::backdrop { background:rgba(0,0,0,.72); }
+  .impor-isi { padding:20px 24px; display:grid; gap:12px; }
+  #impor-modal h2 { margin:0; font-size:1.25rem; }
+  #impor-modal h3 { margin:8px 0 0; font-size:1rem; }
+  #impor-modal p { margin:0; }
+  .impor-pilih { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .impor-pilih button { min-height:2.6rem; min-width:9rem; }
+  .impor-angka { display:grid; grid-template-columns:1fr auto; gap:4px 16px; margin:0; }
+  .impor-angka dt { color:var(--muted); }
+  .impor-angka dd { margin:0; text-align:right; font-weight:700; font-variant-numeric:tabular-nums; }
+  .impor-angka dd.salah { color:var(--rej); }
+  .impor-salah { margin:8px 0 0; padding-left:1.2rem; color:var(--rej); max-height:12rem; overflow:auto; }
+  .impor-catatan { margin-top:8px; color:var(--warn); font-weight:600; }
+  #impor-modal .tools { padding:4px 0 0; justify-content:flex-end;
+                        background:none; border:0; border-radius:0; }
+  #impor-modal .tools button { flex:0 0 auto; min-height:44px; min-width:9rem; }
+  .impor-daftar { display:grid; gap:8px; max-height:16rem; overflow:auto; }
+  .impor-batch { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; padding:8px 10px;
+                 border:1px solid var(--line); border-radius:var(--r); }
+  .impor-batch .muted { font-size:.85rem; }
+  .impor-batch button { margin-left:auto; min-height:2.4rem; min-width:7rem; }
+  .impor-batch button.yakin { color:var(--rej); border-color:var(--rej); }
+  .impor-batch[data-status="undone"] { opacity:.7; }
+  /* Janjang dari impor CSV, di tampilan Per janjang tab Riwayat. */
+  .label-impor { display:inline-block; margin-left:6px; padding:2px 6px; border:1px solid var(--line-kuat);
+                 border-radius:var(--r-pill); font-size:.7rem; font-weight:700; color:var(--muted);
+                 letter-spacing:.06em; vertical-align:middle; }
   #rekap td.tp { color:var(--warn); font-weight:700; }
   #rekap td.acc { color:var(--acc); font-weight:700; }
   #rekap td.rej { color:var(--rej); font-weight:700; }
@@ -1479,6 +1510,9 @@
     <div class="riwayat-aksi">
       <button type="button" id="riwayat-tampilkan" class="utama" data-t="riwayatTampilkan">Tampilkan</button>
       <button type="button" id="riwayat-csv" data-t="riwayatCsv">Unduh CSV</button>
+      <!-- Support saja: dibuang dari halaman untuk akun lain (hapusTabDeveloper);
+           yang menjaga tetap server (403). Unduh CSV tetap untuk semua operator. -->
+      <button type="button" id="riwayat-impor" data-dev="1" data-t="riwayatImpor">Impor CSV</button>
     </div>
     <small class="muted riwayat-maks" data-t="riwayatMaks">Paling panjang 31 hari</small>
     <p id="riwayat-pesan" class="riwayat-pesan" role="alert"></p>
@@ -2079,6 +2113,31 @@
 </dialog>
 
 <!--
+  Impor grading dari CSV Per janjang (tab Riwayat, support, 2026-09-27). Dua langkah:
+  Periksa tidak menyimpan apa pun; Impor mengirim berkas yang SAMA (sidiknya dicocokkan
+  server). Batalkan di daftar bawah menghapus janjang satu impor, dengan dua klik.
+-->
+<dialog id="impor-modal" aria-labelledby="impor-judul" data-dev="1">
+  <div class="impor-isi">
+    <h2 id="impor-judul" data-t="imporJudul">Impor grading dari CSV</h2>
+    <p class="muted" data-t="imporPenjelasan">Pakai CSV Per janjang dari Unduh CSV, dari PC ini atau PC lain. Janjang yang sudah ada dilewati. Tanggal hari ini dan sesudahnya tidak diimpor karena masih berjalan.</p>
+    <div class="impor-pilih">
+      <input type="file" id="impor-berkas" accept=".csv,text/csv">
+      <button type="button" id="impor-periksa" data-t="imporPeriksa">Periksa</button>
+    </div>
+    <p id="impor-pesan" class="riwayat-pesan" role="alert"></p>
+    <div id="impor-hasil" hidden></div>
+    <div class="tools">
+      <button type="button" id="impor-tutup" data-t="btnTutup">Tutup</button>
+      <button type="button" id="impor-jalankan" class="utama" hidden>Impor</button>
+    </div>
+    <h3 data-t="imporDaftar">Impor sebelumnya</h3>
+    <p class="muted" data-t="imporCatatanBatal">Batalkan menghapus janjang impor itu saja. Truk yang ditambahkannya tetap ada.</p>
+    <div id="impor-daftar" class="impor-daftar"></div>
+  </div>
+</dialog>
+
+<!--
   Foto satu janjang, dibuka di tempat. Dulu `target="_blank"`: tiap foto yang
   dilihat meninggalkan satu tab, dan di kiosk Chrome (`--kiosk`) tab baru tidak
   punya bar alamat maupun tombol tutup — operator kehilangan layarnya sendiri.
@@ -2126,6 +2185,32 @@ const KAMUS = {
     riwayatMaks:"Paling panjang 31 hari. Tanggal di sini tanggal kerja, sama dengan tab Grading dan Rekap.",
     riwayatRentang:"{dari} s.d. {sampai}", riwayatNetoLine:"Tidak dihitung per line",
     riwayatFotoHilang:"Foto sudah terhapus dari PC",
+    riwayatImpor:"Impor CSV", btnTutup:"Tutup", imporJudul:"Impor grading dari CSV",
+    imporPenjelasan:"Pakai CSV Per janjang dari Unduh CSV, dari PC ini atau PC lain. Janjang yang sudah ada dilewati. Tanggal hari ini dan sesudahnya tidak diimpor karena masih berjalan.",
+    imporPeriksa:"Periksa", imporJalankan:"Impor {n} janjang", imporPilihDulu:"Pilih berkas CSV dulu.",
+    imporBaris:"Baris di berkas", imporBaru:"Baru, akan ditambahkan", imporSudahAda:"Sudah ada, dilewati",
+    imporHariBerjalan:"Hari ini atau sesudahnya, dilewati", imporGanda:"Ganda di berkas, dilewati",
+    imporSalah:"Baris salah", imporRentang:"Tanggal kerja", imporLineAsing:"tidak dikenal di konsol ini",
+    imporTrukBaru:"Truk baru (jadi truk manual)", imporBarisKe:"Baris {n}",
+    imporPerbaiki:"Impor ditolak selama ada baris salah. Perbaiki atau unduh ulang berkasnya, lalu periksa lagi.",
+    imporTidakAdaBaru:"Tidak ada janjang baru untuk diimpor.", imporSelesai:"{n} janjang diimpor.",
+    imporDaftar:"Impor sebelumnya", imporBelumAda:"Belum ada impor.", imporDitambah:"{n} janjang",
+    imporCatatanBatal:"Batalkan menghapus janjang impor itu saja. Truk yang ditambahkannya tetap ada.",
+    imporBatal:"Batalkan", imporYakinBatal:"Yakin? Klik lagi", imporDibatalkan:"Impor dibatalkan: {n} janjang dihapus.",
+    imporDibatalkanOleh:"oleh {oleh}", imporStatus_done:"Selesai", imporStatus_interrupted:"Terputus",
+    imporStatus_undone:"Dibatalkan", imporStatus_running:"Berjalan",
+    imporLabel:"impor", imporLabelJudul:"Dari impor CSV (tab Riwayat, support)",
+    imporSalah_event_id_kosong:"Event ID kosong", imporSalah_event_id_tidak_sah:"Event ID {nilai} tidak sah",
+    imporSalah_tanggal_tidak_sah:"Tanggal kerja {nilai} harus berbentuk TTTT-BB-HH",
+    imporSalah_waktu_tidak_sah:"Waktu {nilai} harus berbentuk TTTT-BB-HH JJ:MM:DD",
+    imporSalah_waktu_beda_tanggal:"Waktu {nilai} tidak jatuh di tanggal kerja {tanggal}",
+    imporSalah_line_kosong:"Line kosong", imporSalah_line_tidak_sah:"Line {nilai} tidak sah",
+    imporSalah_hasil_tidak_sah:"Hasil {nilai} harus ACC atau REJ",
+    imporSalah_kelas_tidak_sah:"Kelas {nilai} tidak dikenal (Ripe, Unripe, JK, TP)",
+    imporSalah_kelas_bertentangan:"Kelas {kelas} tidak cocok dengan hasil {hasil}",
+    imporSalah_tp_tidak_sah:"TP {nilai} harus kosong atau ya",
+    imporSalah_jenis_tidak_sah:"Jenis {nilai} harus otomatis atau manual",
+    imporSalah_foto_tidak_sah:"Alamat foto {nilai} tidak sah", imporSalah_plat_tidak_sah:"Plat {nilai} tidak sah",
     riwayatCatatanFoto:"Foto disimpan di PC ini selama masa simpannya (180 hari di Lampung). Foto yang lebih tua sudah terhapus dari PC; barisnya tetap ada. CSV berisi semua baris filter ini, bukan cuma halaman yang tampil.",
     judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", judulPlc:"Uji PLC",
     judulSetelan:"Setelan", labelConf:"Ambang keyakinan (0-1)", labelMinSize:"Ukuran minimum (piksel)",
@@ -2347,6 +2432,18 @@ const KAMUS = {
     err_riwayat_tanggal_tidak_sah:"Tanggal {tanggal} tidak sah. Pilih tanggal dari kalender.",
     err_riwayat_rentang_terbalik:"Tanggal Dari harus sama dengan atau sebelum tanggal Sampai.",
     err_riwayat_rentang_panjang:"Rentang paling panjang {maks} hari. Persempit tanggalnya, atau unduh per bulan.",
+    err_impor_kosong:"Berkas kosong atau tanpa baris data.",
+    err_impor_bukan_utf8:"Berkas bukan teks UTF-8. Pakai berkas asli hasil Unduh CSV, bukan yang disimpan ulang dari Excel.",
+    err_impor_bukan_janjang:"Ini bukan CSV Per janjang. Di tab Riwayat pilih Per janjang, lalu Unduh CSV. Berkas yang disimpan ulang dari Excel juga ditolak.",
+    err_impor_terlalu_besar:"Berkas lebih dari {maks_mb} MB. Unduh per rentang tanggal yang lebih pendek.",
+    err_impor_rusak:"Berkas rusak mulai baris {nomor} (tanda kutip tidak tertutup atau sejenisnya). Unduh ulang dari tab Riwayat.",
+    err_impor_sidik_beda:"Berkasnya berubah sejak diperiksa. Periksa lagi.",
+    err_impor_ada_salah:"{jumlah} baris salah. Perbaiki atau unduh ulang berkasnya, lalu periksa lagi.",
+    err_impor_tidak_ada_baru:"Tidak ada janjang baru: semuanya sudah ada, atau jatuh hari ini dan sesudahnya.",
+    err_impor_berjalan:"Impor lain sedang berjalan. Tunggu sampai selesai.",
+    err_impor_tidak_ada:"Impor itu tidak ditemukan.",
+    err_impor_sudah_dibatalkan:"Impor itu sudah dibatalkan.",
+    err_impor_hapus_berjalan:"Data sedang dihapus dari Danger Zone. Tunggu sampai selesai, lalu coba lagi.",
     judulSumberKamera:"Sumber Kamera",
     judulRekamVideo:"Rekam Video", kosongLine:"Belum ada line", thMajuRekam:"Terekam",
     rekamMenunggu:"Menunggu…",
@@ -2416,6 +2513,32 @@ const KAMUS = {
     riwayatMaks:"At most 31 days. Dates here are working days, the same as the Grading and Recap tabs.",
     riwayatRentang:"{dari} to {sampai}", riwayatNetoLine:"Not split by line",
     riwayatFotoHilang:"Photo no longer on this PC",
+    riwayatImpor:"Import CSV", btnTutup:"Close", imporJudul:"Import grading from CSV",
+    imporPenjelasan:"Use a Per bunch CSV from Download CSV, from this PC or another. Bunches already here are skipped. Today and later are not imported because they are still running.",
+    imporPeriksa:"Check", imporJalankan:"Import {n} bunches", imporPilihDulu:"Choose a CSV file first.",
+    imporBaris:"Rows in the file", imporBaru:"New, will be added", imporSudahAda:"Already here, skipped",
+    imporHariBerjalan:"Today or later, skipped", imporGanda:"Duplicated in the file, skipped",
+    imporSalah:"Rows with errors", imporRentang:"Working days", imporLineAsing:"unknown on this console",
+    imporTrukBaru:"New trucks (added as manual trucks)", imporBarisKe:"Row {n}",
+    imporPerbaiki:"Import is refused while any row has an error. Fix the file or download it again, then check it again.",
+    imporTidakAdaBaru:"No new bunches to import.", imporSelesai:"{n} bunches imported.",
+    imporDaftar:"Earlier imports", imporBelumAda:"No imports yet.", imporDitambah:"{n} bunches",
+    imporCatatanBatal:"Undo removes that import's bunches only. Trucks it added stay.",
+    imporBatal:"Undo", imporYakinBatal:"Sure? Click again", imporDibatalkan:"Import undone: {n} bunches removed.",
+    imporDibatalkanOleh:"by {oleh}", imporStatus_done:"Done", imporStatus_interrupted:"Interrupted",
+    imporStatus_undone:"Undone", imporStatus_running:"Running",
+    imporLabel:"import", imporLabelJudul:"From a CSV import (History tab, support)",
+    imporSalah_event_id_kosong:"Event ID is empty", imporSalah_event_id_tidak_sah:"Event ID {nilai} is not valid",
+    imporSalah_tanggal_tidak_sah:"Work date {nilai} must look like YYYY-MM-DD",
+    imporSalah_waktu_tidak_sah:"Time {nilai} must look like YYYY-MM-DD HH:MM:SS",
+    imporSalah_waktu_beda_tanggal:"Time {nilai} is not on work date {tanggal}",
+    imporSalah_line_kosong:"Line is empty", imporSalah_line_tidak_sah:"Line {nilai} is not valid",
+    imporSalah_hasil_tidak_sah:"Result {nilai} must be ACC or REJ",
+    imporSalah_kelas_tidak_sah:"Class {nilai} is unknown (Ripe, Unripe, JK, TP)",
+    imporSalah_kelas_bertentangan:"Class {kelas} does not match result {hasil}",
+    imporSalah_tp_tidak_sah:"TP {nilai} must be empty or yes",
+    imporSalah_jenis_tidak_sah:"Capture {nilai} must be auto or manual",
+    imporSalah_foto_tidak_sah:"Photo address {nilai} is not valid", imporSalah_plat_tidak_sah:"Plate {nilai} is not valid",
     riwayatCatatanFoto:"Photos stay on this PC for its retention period (180 days in Lampung). Older photos are already deleted from the PC; their rows stay. The CSV holds every row of this filter, not only the page on screen.",
     judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", judulPlc:"PLC Test",
     judulSetelan:"Settings", labelConf:"Confidence threshold (0-1)", labelMinSize:"Minimum size (pixels)",
@@ -2633,6 +2756,18 @@ const KAMUS = {
     err_riwayat_tanggal_tidak_sah:"The date {tanggal} is not valid. Pick a date from the calendar.",
     err_riwayat_rentang_terbalik:"The From date must be on or before the To date.",
     err_riwayat_rentang_panjang:"The range can be at most {maks} days. Narrow the dates, or download one month at a time.",
+    err_impor_kosong:"The file is empty or has no data rows.",
+    err_impor_bukan_utf8:"The file is not UTF-8 text. Use the original file from Download CSV, not one saved again from Excel.",
+    err_impor_bukan_janjang:"This is not a Per bunch CSV. In the History tab choose Per bunch, then Download CSV. A file saved again from Excel is refused too.",
+    err_impor_terlalu_besar:"The file is over {maks_mb} MB. Download a shorter date range.",
+    err_impor_rusak:"The file is damaged from row {nomor} on (an unclosed quote or similar). Download it again from the History tab.",
+    err_impor_sidik_beda:"The file changed since it was checked. Check it again.",
+    err_impor_ada_salah:"{jumlah} rows have errors. Fix the file or download it again, then check it again.",
+    err_impor_tidak_ada_baru:"No new bunches: all are already here, or fall on today or later.",
+    err_impor_berjalan:"Another import is running. Wait until it finishes.",
+    err_impor_tidak_ada:"That import was not found.",
+    err_impor_sudah_dibatalkan:"That import was already undone.",
+    err_impor_hapus_berjalan:"Data is being deleted from the Danger Zone. Wait until it finishes, then try again.",
     judulSumberKamera:"Camera Source",
     judulRekamVideo:"Record Video", kosongLine:"No lines yet", thMajuRekam:"Recorded",
     rekamMenunggu:"Working…",
@@ -4395,7 +4530,8 @@ function barisRiwayatJanjang(r, i) {
   return `<tr>
     <td class="no">${riwayatOffset + i + 1}</td>
     <td>${waktu(r.timestamp)}</td>
-    <td class="kode-line">${esc(r.line_code)}</td>
+    <td class="kode-line">${esc(r.line_code)}${r.import_batch
+      ? `<span class="label-impor" title="${esc(t("imporLabelJudul"))}">${esc(t("imporLabel"))}</span>` : ""}</td>
     <td class="key">${dash(r.plate_number)}</td>
     <td>${dash(r.source_label)}</td>
     <td>${tagHasil(r.ripeness_status, r.grade_class)}</td>
@@ -4615,6 +4751,170 @@ function keHalamanRiwayat(nomor, tombol) {
 
 $("riwayat-tampilkan").addEventListener("click", (ev) => tampilkanRiwayat(ev.currentTarget));
 $("riwayat-csv").addEventListener("click", (ev) => unduhRiwayat(ev.currentTarget));
+
+// ── Impor CSV (tab Riwayat, support) ──────────────────────────────────────
+// Berkas yang sudah diperiksa dan sidiknya: Impor mengirim berkas yang SAMA, dan
+// server menolaknya kalau isinya berubah sejak diperiksa.
+let imporBerkas = null;
+let imporSidik = null;
+
+function pesanSalahImpor(s) {
+  const pola = KAMUS[bahasa]["imporSalah_" + s.kode] || s.kode;
+  const isi = pola.replace(/\{(\w+)\}/g, (_, k) => String((s.params || {})[k] ?? ""));
+  return `${t("imporBarisKe").replace("{n}", Number(s.nomor).toLocaleString(lokal()))}: ${isi}`;
+}
+
+function rentangImpor(dari, sampai) {
+  if (!dari) return KOSONG;
+  return dari === sampai ? dari : t("riwayatRentang").replace("{dari}", dari).replace("{sampai}", sampai);
+}
+
+// Hasil Periksa, sebagai HTML. Angka nol yang tidak penting tidak ditulis.
+function ringkasImpor(p) {
+  const angka = (n) => Number(n || 0).toLocaleString(lokal());
+  const baris = [
+    ["imporBaris", p.baris, true], ["imporBaru", p.baru, true], ["imporSudahAda", p.sudah_ada],
+    ["imporHariBerjalan", p.hari_berjalan], ["imporGanda", p.ganda], ["imporSalah", p.salah],
+  ].filter(([, n, selalu]) => selalu || n)
+    .map(([k, n]) => `<dt>${esc(t(k))}</dt><dd${k === "imporSalah" ? ' class="salah"' : ""}>${angka(n)}</dd>`);
+  if (p.dari) baris.push(`<dt>${esc(t("imporRentang"))}</dt><dd>${esc(rentangImpor(p.dari, p.sampai))}</dd>`);
+  const line = (p.per_line || []).map((l) => `${esc(l.line_code)} ${angka(l.jumlah)}`
+    + (l.dikenal ? "" : ` (${esc(t("imporLineAsing"))})`)).join(", ");
+  if (line) baris.push(`<dt>${esc(t("thLine"))}</dt><dd>${line}</dd>`);
+  if (p.truk_baru_jumlah) baris.push(`<dt>${esc(t("imporTrukBaru"))}</dt><dd>${angka(p.truk_baru_jumlah)}</dd>`);
+  const salah = (p.contoh_salah || []).length
+    ? `<ul class="impor-salah">${p.contoh_salah.map((s) => `<li>${esc(pesanSalahImpor(s))}</li>`).join("")}</ul>`
+    : "";
+  const catatan = p.bisa_impor ? ""
+    : `<p class="impor-catatan">${esc(t(p.salah ? "imporPerbaiki" : "imporTidakAdaBaru"))}</p>`;
+  return `<dl class="impor-angka">${baris.join("")}</dl>${salah}${catatan}`;
+}
+
+// Satu impor di daftar. Batalkan cuma untuk yang selesai atau terputus.
+function barisImpor(b) {
+  const status = KAMUS[bahasa]["imporStatus_" + b.status] || b.status;
+  const mulai = b.started_at ? waktu(new Date(b.started_at * 1000).toISOString()) : KOSONG;
+  // Di luar label status: label itu huruf kapital, dan email jadi sulit dibaca.
+  const batal = b.status === "undone" && b.undone_by
+    ? `<span class="muted">${esc(t("imporDibatalkanOleh").replace("{oleh}", b.undone_by))}</span>` : "";
+  const bisaBatal = b.status === "done" || b.status === "interrupted";
+  const jumlah = t("imporDitambah").replace("{n}", Number(b.added || 0).toLocaleString(lokal()));
+  return `<div class="impor-batch" data-status="${esc(b.status)}">
+    <b>${esc(b.file_name || KOSONG)}</b>
+    <span class="muted">${esc(mulai)} · ${esc(b.imported_by)}</span>
+    <span>${esc(jumlah)} · ${esc(rentangImpor(b.date_from, b.date_to))}</span>
+    <span class="pill">${esc(status)}</span>${batal}
+    ${bisaBatal ? `<button type="button" data-batal="${esc(b.id)}">${esc(t("imporBatal"))}</button>` : ""}
+  </div>`;
+}
+
+function bersihkanPeriksaImpor() {
+  imporBerkas = null;
+  imporSidik = null;
+  $("impor-pesan").textContent = "";
+  $("impor-hasil").hidden = true;
+  $("impor-jalankan").hidden = true;
+}
+
+async function muatDaftarImpor() {
+  try {
+    const { items } = await api("/api/console/dev/riwayat/impor");
+    $("impor-daftar").innerHTML = items.length
+      ? items.map(barisImpor).join("") : `<p class="muted">${esc(t("imporBelumAda"))}</p>`;
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("impor-daftar").innerHTML = `<p class="muted">${esc(alasan(e))}</p>`;
+  }
+}
+
+function bukaImpor() {
+  $("impor-berkas").value = "";
+  bersihkanPeriksaImpor();
+  $("impor-modal").showModal();
+  muatDaftarImpor();
+}
+
+async function periksaImpor(tombol) {
+  return denganSibuk(tombol, async () => {
+    const berkas = $("impor-berkas").files[0];
+    bersihkanPeriksaImpor();
+    if (!berkas) {
+      $("impor-pesan").textContent = t("imporPilihDulu");
+      return;
+    }
+    try {
+      const p = await api(`/api/console/dev/riwayat/impor/periksa?nama=${encodeURIComponent(berkas.name)}`,
+        { method: "POST", headers: { "content-type": "text/csv" }, body: berkas });
+      imporBerkas = berkas;
+      imporSidik = p.sidik;
+      $("impor-hasil").innerHTML = ringkasImpor(p);
+      $("impor-hasil").hidden = false;
+      $("impor-jalankan").textContent = t("imporJalankan").replace("{n}", Number(p.baru).toLocaleString(lokal()));
+      $("impor-jalankan").hidden = !p.bisa_impor;
+    } catch (e) {
+      if (e.kode !== "belum_masuk") $("impor-pesan").textContent = alasan(e);
+    }
+  });
+}
+
+async function jalankanImpor(tombol) {
+  return denganSibuk(tombol, async () => {
+    if (!imporBerkas || !imporSidik) return;
+    $("impor-pesan").textContent = "";
+    try {
+      const nama = encodeURIComponent(imporBerkas.name);
+      const { batch } = await api(`/api/console/dev/riwayat/impor?nama=${nama}&sidik=${encodeURIComponent(imporSidik)}`,
+        { method: "POST", headers: { "content-type": "text/csv" }, body: imporBerkas });
+      toastSukses(t("imporSelesai").replace("{n}", Number(batch.added || 0).toLocaleString(lokal())));
+      $("impor-berkas").value = "";
+      bersihkanPeriksaImpor();
+      await muatDaftarImpor();
+      muatRiwayat();
+    } catch (e) {
+      if (e.kode !== "belum_masuk") $("impor-pesan").textContent = alasan(e);
+    }
+  });
+}
+
+// Dua klik: yang pertama cuma bertanya. Batal menghapus janjang, jadi satu klik yang
+// meleset tidak boleh cukup; pertanyaannya hilang sendiri sesudah 5 detik.
+async function batalkanImpor(tombol) {
+  if (!tombol.classList.contains("yakin")) {
+    tombol.classList.add("yakin");
+    tombol.textContent = t("imporYakinBatal");
+    setTimeout(() => {
+      if (!tombol.isConnected || tombol.classList.contains("sibuk")) return;
+      tombol.classList.remove("yakin");
+      tombol.textContent = t("imporBatal");
+    }, 5000);
+    return undefined;
+  }
+  return denganSibuk(tombol, async () => {
+    try {
+      const { batch } = await api(`/api/console/dev/riwayat/impor/${encodeURIComponent(tombol.dataset.batal)}/batal`,
+        { method: "POST" });
+      toastSukses(t("imporDibatalkan").replace("{n}", Number(batch.removed || 0).toLocaleString(lokal())));
+      await muatDaftarImpor();
+      muatRiwayat();
+    } catch (e) {
+      if (e.kode !== "belum_masuk") toastGagal(alasan(e));
+    }
+  });
+}
+
+// Elemen ini dibuang untuk akun non-support sesudah masuk; saat halaman dimuat semuanya
+// masih ada, jadi pemasangannya aman di sini.
+$("riwayat-impor").addEventListener("click", bukaImpor);
+$("impor-periksa").addEventListener("click", (ev) => periksaImpor(ev.currentTarget));
+$("impor-jalankan").addEventListener("click", (ev) => jalankanImpor(ev.currentTarget));
+$("impor-berkas").addEventListener("change", bersihkanPeriksaImpor);
+$("impor-tutup").addEventListener("click", () => $("impor-modal").close());
+$("impor-modal").addEventListener("click", (ev) => {
+  if (ev.target === ev.currentTarget) ev.currentTarget.close();
+});
+$("impor-daftar").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-batal]");
+  if (tombol) batalkanImpor(tombol);
+});
 $("riwayat-plat").addEventListener("keydown", (ev) => {
   if (ev.key !== "Enter") return;
   ev.preventDefault();

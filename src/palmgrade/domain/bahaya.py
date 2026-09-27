@@ -49,6 +49,8 @@ GOLONGAN_TABEL_KONSOL: dict[str, str] = {
     "assignments": _TRANSAKSI,
     "auto_releases": _TRANSAKSI,
     "weighings": _TRANSAKSI,
+    # Catatan impor CSV: janjangnya ikut terhapus bersama `inspections`.
+    "grading_imports": _TRANSAKSI,
     "trucks": _SEMUA,
     "suppliers": _SEMUA,
     "operators": _SEMUA,

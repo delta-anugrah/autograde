@@ -660,6 +660,13 @@ bukan lagi string `"operator"`. Akun lokal dibuat dari PC dengan `make operator`
 2026-09-26 juga dari tab Akun (support) dengan aturan yang sama. Rincian aturannya di `CLAUDE.md`
 invarian 19.
 
+**Impor grading dari CSV (2026-09-27, support).** Kebalikan Unduh CSV di tab Riwayat: CSV Per janjang
+dari konsol ini atau PC lain dibaca ulang jadi janjang (misalnya memindahkan riwayat ke PC baru, atau
+memulihkan hari-hari yang terhapus Danger Zone). Periksa dulu, lalu impor berkas yang sama; janjang
+hari ini tidak diimpor, yang sudah ada dilewati, dan satu impor bisa dibatalkan utuh. Janjang impor
+tidak punya penugasan, jadi tidak pernah ikut pesan kunjungan ke AutoERP. Aturannya `CLAUDE.md`
+aturan 26.
+
 **Belum termasuk Fase 2** (sengaja): timbangan brondolan lewat PLC (§6.6b, Fase 3), nomor dokumen
 berprefiks lokal (§6.3), dan toggle tampil/sembunyi per line. Riwayat lintas hari dulu juga di
 daftar ini ("urusan cloud"); sejak 2026-09-26 ada tab **Riwayat** di konsol (maks 31 hari per

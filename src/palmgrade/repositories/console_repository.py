@@ -19,6 +19,7 @@ from typing import Any
 
 from ..domain.bahaya import kunci_state_dihapus, tabel_dihapus
 from ..domain.operator_auth import normalise_email, normalise_nama, operator_id_for
+from ..domain.plate import normalisasi_plat
 from ..domain.role import ROLE_SUPPORT, filter_erp_role, sanitize_role
 
 _CREATE_SQL = """
@@ -160,6 +161,32 @@ CREATE TABLE IF NOT EXISTS sesi (
     expires_at     REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sesi_kedaluwarsa ON sesi (expires_at);
+
+-- Impor grading dari CSV Per janjang (tab Riwayat, support saja). Satu baris per
+-- impor; janjangnya di `inspections` dengan `import_batch` = `id` di sini, jadi satu
+-- impor bisa dibatalkan utuh tanpa menyentuh janjang asli pabrik.
+-- `status`: running (sedang ditulis) / done / interrupted (konsol mati di tengah) /
+-- undone (dibatalkan).
+CREATE TABLE IF NOT EXISTS grading_imports (
+    id               TEXT PRIMARY KEY,
+    file_name        TEXT,
+    fingerprint      TEXT NOT NULL,
+    imported_by      TEXT NOT NULL,
+    started_at       REAL NOT NULL,
+    finished_at      REAL,
+    status           TEXT NOT NULL DEFAULT 'running',
+    rows_total       INTEGER NOT NULL DEFAULT 0,
+    added            INTEGER NOT NULL DEFAULT 0,
+    skipped_existing INTEGER NOT NULL DEFAULT 0,
+    skipped_today    INTEGER NOT NULL DEFAULT 0,
+    duplicates       INTEGER NOT NULL DEFAULT 0,
+    date_from        TEXT,
+    date_to          TEXT,
+    new_trucks       INTEGER NOT NULL DEFAULT 0,
+    undone_at        REAL,
+    undone_by        TEXT,
+    removed          INTEGER NOT NULL DEFAULT 0
+);
 """
 
 
@@ -171,6 +198,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_suppliers_erp ON suppliers (erp_name);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_trucks_erp ON trucks (erp_name);
 -- Served only the dropped per-bunch push; it cost a write on every event.
 DROP INDEX IF EXISTS idx_inspections_erp;
+-- Batal impor menghapus per batch. Parsial: janjang asli (NULL) tidak ikut diindeks,
+-- jadi ingest dari line tidak membayar apa pun untuk indeks ini.
+CREATE INDEX IF NOT EXISTS idx_inspections_impor ON inspections (import_batch)
+    WHERE import_batch IS NOT NULL;
 """
 
 # What the FFB source label needs from a truck (`domain/ffb_source.py`). One
@@ -190,6 +221,10 @@ class ConsoleStore:
         #: benar, `ConsoleService.assign_truck` menolak truk baru. Di memori, bukan
         #: di disk: konsol yang restart di tengah jalan tidak sedang menghapus apa pun.
         self.hapus_berjalan = False
+        #: Berapa kali `hapus_data` sudah jalan sejak konsol menyala. Impor CSV mencatatnya
+        #: di awal: penghapusan yang mulai DAN selesai selama berkas diperiksa (bisa lebih dari
+        #: 10 detik) tetap ketahuan, walau `hapus_berjalan` sudah kembali False.
+        self.jumlah_hapus = 0
         with self._lock, self._db:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
@@ -222,6 +257,8 @@ class ConsoleStore:
             # aslinya memang tidak pernah direkam dan menebaknya dari
             # `ripeness_status` akan mengarang: REJ bisa Unripe atau JK.
             ("inspections", "grade_class"),
+            # Batch impor CSV (support). NULL untuk semua janjang dari line.
+            ("inspections", "import_batch"),
         ):
             columns = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
             if column not in columns:
@@ -1128,6 +1165,139 @@ class ConsoleStore:
 
     # ── Danger Zone (layar Setelan, support) ────────────────────────────────
 
+    # ------------------------------------------------------ impor grading
+
+    def event_sudah_ada(self, event_ids: list[str]) -> set[str]:
+        """Yang sudah tersimpan dari satu potongan id (pemanggil memotong per ratusan)."""
+        if not event_ids:
+            return set()
+        tanda = ",".join("?" * len(event_ids))
+        with self._lock:
+            rows = self._db.execute(
+                f"SELECT event_id FROM inspections WHERE event_id IN ({tanda})", event_ids
+            ).fetchall()
+        return {r["event_id"] for r in rows}
+
+    def peta_truk_per_plat(self) -> dict[str, str]:
+        """Plat ternormalisasi → id truk, untuk SEMUA baris truk.
+
+        Termasuk truk warisan ber-id acak (sebelum OPS-2): impor memakai baris yang
+        ada, bukan membuat kembaran ber-id plat yang membelah tonase satu truk.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT id, plate_number FROM trucks ORDER BY erp_name IS NULL, id"
+            ).fetchall()
+        peta: dict[str, str] = {}
+        for r in rows:
+            try:
+                kunci = normalisasi_plat(r["plate_number"] or "")
+            except ValueError:
+                continue
+            peta.setdefault(kunci, r["id"])
+        return peta
+
+    def supplier_per_nama(self) -> dict[str, str | None]:
+        """Nama supplier (huruf kecil, tanpa spasi tepi) → id; None kalau namanya
+        dipakai lebih dari satu supplier, karena menebak di situ memberi truk
+        pemilik yang salah."""
+        with self._lock:
+            rows = self._db.execute("SELECT id, name FROM suppliers").fetchall()
+        peta: dict[str, str | None] = {}
+        for r in rows:
+            nama = (r["name"] or "").strip().lower()
+            if nama:
+                peta[nama] = None if nama in peta else r["id"]
+        return peta
+
+    def mulai_impor(self, batch: dict[str, Any]) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                """INSERT INTO grading_imports (id, file_name, fingerprint, imported_by,
+                       started_at, rows_total, status)
+                   VALUES (:id, :file_name, :fingerprint, :imported_by, :started_at,
+                           :rows_total, 'running')""",
+                batch,
+            )
+
+    def simpan_potongan_impor(
+        self, batch_id: str, janjang: list[dict[str, Any]], truk: list[dict[str, Any]]
+    ) -> tuple[int, int]:
+        """Satu potongan dalam SATU transaksi: truk yang belum ada, lalu janjangnya.
+
+        `INSERT OR IGNORE` di keduanya: janjang yang event_id-nya sudah ada tidak
+        disentuh, dan truk yang sudah ada (milik AutoERP atau diketik operator) tidak
+        diubah. Kembalikan (janjang ditambah, truk dibuat).
+        """
+        with self._lock, self._db:
+            dibuat = 0
+            for t in truk:
+                dibuat += self._db.execute(
+                    """INSERT OR IGNORE INTO trucks (id, plate_number, supplier_id, status)
+                       VALUES (?, ?, ?, 'manual')""",
+                    (t["id"], t["plate_number"], t.get("supplier_id")),
+                ).rowcount
+            ditambah = self._db.executemany(
+                """INSERT OR IGNORE INTO inspections (
+                       event_id, machine_id, line_code, work_date, timestamp,
+                       ripeness_status, ripeness_confidence, capture_type, image_path,
+                       truck_id, assignment_id, received_at, prediction, grade_class,
+                       tp_status, tp_confidence, import_batch)
+                   VALUES (:event_id, :machine_id, :line_code, :work_date, :timestamp,
+                           :ripeness_status, :ripeness_confidence, :capture_type, :image_path,
+                           :truck_id, :assignment_id, :received_at, :prediction, :grade_class,
+                           :tp_status, :tp_confidence, :import_batch)""",
+                [{**j, "import_batch": batch_id} for j in janjang],
+            ).rowcount
+        return max(ditambah, 0), dibuat
+
+    def selesai_impor(self, batch_id: str, **hasil: Any) -> None:
+        kolom = ("status", "finished_at", "added", "skipped_existing", "skipped_today",
+                 "duplicates", "date_from", "date_to", "new_trucks")
+        with self._lock, self._db:
+            self._db.execute(
+                f"UPDATE grading_imports SET {', '.join(f'{k} = :{k}' for k in kolom)} WHERE id = :id",
+                {**{k: hasil.get(k) for k in kolom}, "id": batch_id},
+            )
+
+    def impor_grading(self, batch_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._db.execute("SELECT * FROM grading_imports WHERE id = ?", (batch_id,)).fetchone()
+        return dict(row) if row else None
+
+    def daftar_impor(self, limit: int = 20) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT * FROM grading_imports ORDER BY started_at DESC, rowid DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def hapus_potongan_impor(self, batch_id: str, *, batas: int = 5000) -> int:
+        """Hapus paling banyak `batas` janjang satu batch. Dipanggil berulang sampai 0:
+        tiap potongan transaksi sendiri, jadi ingest dari line tidak menunggu satu
+        penghapusan besar selesai."""
+        with self._lock, self._db:
+            return self._db.execute(
+                """DELETE FROM inspections WHERE rowid IN (
+                       SELECT rowid FROM inspections WHERE import_batch = ? LIMIT ?)""",
+                (batch_id, batas),
+            ).rowcount
+
+    def tandai_impor_dibatalkan(self, batch_id: str, *, oleh: str, now: float, removed: int) -> None:
+        with self._lock, self._db:
+            self._db.execute(
+                """UPDATE grading_imports SET status = 'undone', undone_at = ?, undone_by = ?,
+                       removed = removed + ? WHERE id = ?""",
+                (now, oleh, removed, batch_id),
+            )
+
+    def tandai_impor_terputus(self) -> int:
+        """Saat konsol menyala: impor yang masih `running` pasti terputus di tengah."""
+        with self._lock, self._db:
+            return self._db.execute(
+                "UPDATE grading_imports SET status = 'interrupted' WHERE status = 'running'"
+            ).rowcount
+
     def hapus_data(self, mode: str) -> dict[str, int]:
         """Kosongkan data konsol menurut mode, dalam SATU transaksi.
 
@@ -1148,6 +1318,7 @@ class ConsoleStore:
             for k in buang:
                 self._db.execute("DELETE FROM sync_state WHERE key = ?", (k,))
             hasil["sync_state"] = len(buang)
+        self.jumlah_hapus += 1
         return hasil
 
     def tiket_terbuka(self, hari_kerja: str) -> dict[str, int]:

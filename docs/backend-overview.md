@@ -294,6 +294,12 @@ Lane operator biasa (butuh sesi, **bukan** `require_support`). Rinciannya: CLAUD
 |---|---|---|
 | GET | `/api/console/riwayat` | `dari`, `sampai` (tanggal kerja `YYYY-MM-DD`, maks 31 hari; kosong = 7 hari terakhir), `line_code`, `plat` (potongan), `hasil` (`""`\|`ripe`\|`unripe`\|`jk`\|`tp`), `tampilan` (`hari`\|`truk`\|`janjang`), `ringkasan` (bool), `limit`/`offset` (Per janjang saja) → `{dari, sampai, hari_ini, maks_hari, tampilan, items, total, ringkasan?}`. Ringkasan: `total, acc, rej, ripe, unripe, jk, tanpa_kelas, tp, hari, truk, neto_kg` (`neto_kg` null kalau disaring per line). 400 `riwayat_tanggal_tidak_sah` / `riwayat_rentang_terbalik` / `riwayat_rentang_panjang` |
 | GET | `/api/console/riwayat/csv` | filter yang sama + `bahasa` (`id`\|`en`) → `text/csv` lampiran `riwayat-grading-<tampilan>-<dari>_<sampai>.csv`, semua baris (bukan satu halaman) |
+| POST | `/api/console/dev/riwayat/impor/periksa` | **support**, badan = CSV Per janjang mentah (`content-type: text/csv`), `nama` → `{sidik, baris, baru, sudah_ada, ganda, hari_berjalan, salah, contoh_salah[{nomor, kode, params}], dari, sampai, per_line[{line_code, jumlah, dikenal}], truk_baru, truk_baru_jumlah, bisa_impor}`. 400 `impor_kosong` / `impor_bukan_utf8` / `impor_bukan_janjang` / `impor_rusak`, 413 `impor_terlalu_besar` |
+| POST | `/api/console/dev/riwayat/impor` | **support**, berkas yang sama + `nama`, `sidik` → 201 `{batch}` (`grading_imports`: `added`, `skipped_existing`, `skipped_today`, `duplicates`, `date_from`, `date_to`, `new_trucks`, `status`). 409 `impor_sidik_beda` / `impor_ada_salah` / `impor_tidak_ada_baru` / `impor_berjalan` / `impor_hapus_berjalan` |
+| GET | `/api/console/dev/riwayat/impor` | **support** → `{items}`: 20 impor terakhir, terbaru dulu |
+| POST | `/api/console/dev/riwayat/impor/{id}/batal` | **support** → `{batch}` berstatus `undone`, `removed` = janjang yang dihapus. 404 `impor_tidak_ada`, 409 `impor_sudah_dibatalkan` |
+
+Impor CSV: `domain/impor_grading.py` (baca + aturan per baris, murni), `services/impor_grading_service.py` (periksa, impor per potongan, batal), tabel `grading_imports` + kolom `inspections.import_batch` di `ConsoleStore`. Janjang per janjang di layar membawa `import_batch` untuk label "impor".
 
 ---
 
