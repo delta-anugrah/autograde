@@ -46,6 +46,11 @@ ditanya.
 - **Tab operator** (Grading, Truk, Timbangan, Rekap, Riwayat). **Riwayat** = grading hari
   sebelumnya, maks 31 hari per tampilan, per hari / per truk / per janjang + CSV; satu hari di
   sana = tab Rekap hari itu. Query-nya koneksi SQLite baca-saja sendiri (aturan 26).
+- **Last Sync** (strip "Hari ini", semua operator): baris **AutoERP** dan **Cloud Photo**.
+  Jam = data terakhir yang benar-benar lewat; titik hijau/kuning = sambungan hidup/putus
+  SEKARANG (cek tiap 60 detik), bukan umur jam: foto naik tiap jam. Kuning → tab Log
+  ("AutoERP terputus: …" / "Cloud Photo line-N terputus: …"); data menunggu di antrean,
+  tidak hilang. Line mati atau versi lama tidak membuat Cloud Photo kuning (aturan 27).
 - **Tab support** (Log, Diagnostik, Antrean ERP, Versi, Akun, Uji PLC, Sumber Kamera,
   Model Deteksi, Rekam Video, Setelan) hanya untuk peran `support`; 403 untuk operator,
   401 kalau belum masuk. **Akun** = daftar akun PC ini (asal Lokal/AutoERP, aktif/mati/

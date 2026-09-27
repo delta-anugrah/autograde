@@ -458,7 +458,8 @@ make reset-data-fresh # HAPUS SEMUA DATA (artifacts/ + state/) — minta ketik H
 
 Layar di **`http://localhost:8000/console`**. Satu berkas HTML statis: vanilla JS, **tanpa
 build step, tanpa Node, tanpa CDN, tanpa webfont**, harus tetap kebuka saat internet mati.
-Isinya strip total hari kerja, kartu kamera per line (assign/lepas truk, reject manual, piston),
+Isinya strip total hari kerja (dengan **Last Sync**: jam sinkron terakhir dan status sambungan ke
+AutoERP dan Cloud Photo), kartu kamera per line (assign/lepas truk, reject manual, piston),
 dan 5 tab operator: Grading, Truk, Timbangan, Rekap, **Riwayat** (grading hari-hari sebelumnya,
 maks 31 hari, ringkasan periode + unduh CSV). Akun support melihat 10 tab tambahan (Log sampai
 Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disimpan di
@@ -649,7 +650,7 @@ sengaja terbuka, karena gerbang login sendiri perlu bisa digambar dan dipakai ma
 | `POST` | `/api/console/login` | `{email, sandi}` → cookie `konsol_sesi` HttpOnly 12 jam. Sandi salah 401, login terkunci 429 |
 | `POST` | `/api/console/logout` | Akhiri sesi ini saja |
 | `GET` | `/api/console/me` | Operator yang sedang masuk |
-| `GET` | `/api/console/state` | Ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) |
+| `GET` | `/api/console/state` | Ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik), plus banner lisensi, alarm PLC, dan `sinkron` untuk Last Sync (AutoERP + Cloud Photo) |
 | `GET` | `/api/console/history` | Filter `work_date` / `line_code` / `truck_id`. Pagination lewat `limit` (maks 200) + `offset`; balasannya juga berisi `total` = jumlah baris yang cocok filter di seluruh hari, dipakai layar untuk menghitung jumlah halaman |
 | `POST` | `/api/console/scan` | `{qr}` hasil scan di gerbang masuk → truk yang sudah ada. Truk belum terdaftar dijawab **200 `ditemukan:false`** (truk pinjaman itu kasus normal; 404 terbaca seperti kerusakan), yang bukan plat **400**. **Tidak pernah membuat truk dan tidak pernah menulis berat** |
 | `POST` | `/api/console/scan/keluar` | `{qr}` di gerbang keluar → tiket yang menunggu tara. **Dua tiket terbuka ditolak, tidak ditebak**: menebak bisa memasangkan tara ke kunjungan yang salah dan mencampur tonase dua kunjungan. Dibatasi hari kerja |

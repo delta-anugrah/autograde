@@ -181,6 +181,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | GET | `/api/video_feed` | MJPEG live (multi-viewer) |
 | GET | `/api/results_today` | today's results (read from disk) |
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |
+| GET | `/internal/status` | ← dari konsol tiap 1 detik (`LineStatusWorker`): truk, piston, `alarms` PLC (aturan 24), dan `unggah` = ringkasan upload foto ke R2 untuk Last Sync (`aktif`/`terakhir`/`gagal_sejak`/`antre`, aturan 27). `unggah` dihitung **sekali per batch**, bukan per panggilan; `null` di line tanpa worker upload. `x-internal-secret` |
 | POST | `/internal/manual-reject` | ← from api: trigger manual reject (`x-internal-secret`) |
 | POST | `/internal/hapus-data` | ← dari konsol (Danger Zone): tulis penanda `artifacts/.hapus-data` lalu keluar; data line dihapus **saat boot berikutnya**, sebelum store mana pun membuka berkasnya. **409** kalau line sedang dipasangi truk. Selama penandanya ada, `/internal/assignment` menolak truk baru (**409** `hapus_berjalan`). Router `routes/internal_bahaya.py`: **tanpa torch**, jadi teruji di CI |
 | GET / POST | `/internal/rekam/berkas`, `/internal/rekam/hapus` | ← dari konsol (Danger Zone): hitung / hapus rekaman **milik line ini** (`{line_code}_*.mp4`, folder `videos/` dipakai bersama). Hapus **409** selama merekam |
@@ -198,7 +199,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/login` | `{email, sandi}` → cookie `konsol_sesi` HttpOnly, 12 jam. Sandi salah 401, login terkunci 429 |
 | POST | `/api/console/logout` | akhiri sesi ini saja |
 | GET | `/api/console/me` | operator yang sedang masuk |
-| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator (**bukan** lane support, karena operator biasa yang melihat kamera berhenti Membawa `plc.alarms` per line (motor fault / E-stop) untuk pita alarm) alasan yang sama |
+| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator + `plc.alarms` per line (motor fault / E-stop) untuk pita alarm + `sinkron` untuk **Last Sync** (`autoerp` dan `cloud`: `keadaan`/`terakhir`/`sejak`/`antre`, aturan 27). Semuanya di sini, **bukan** lane support: yang melihat kamera berhenti, motor mati, atau sambungan putus itu operator biasa |
 | GET | `/api/console/history` | filter `work_date` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas |
 | GET | `/api/console/trucks` | master truk + supplier + `source_label` |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar), id = uuid5 plat ternormalisasi |
@@ -879,6 +880,41 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     yang lewat retensi PC (aturan 9) sudah hilang dari disk: barisnya tetap, gambarnya diganti
     tulisan. Dulu "riwayat lintas hari = urusan cloud"; dibalik atas permintaan user karena
     cloud lama (palmgrade-api) sudah mati dan AutoERP cuma menerima rekap per truk.
+
+27. **Last Sync: satu bagian, dua baris (AutoERP dan Cloud Photo), untuk semua operator** (2026-09-27).
+    Di ujung strip "Hari ini". Tiap baris menjawab dua hal yang sengaja dipisah: **jam** = kapan
+    data terakhir benar-benar tersinkron, **warna** = apakah sambungannya hidup SEKARANG. Foto naik
+    ke R2 tiap jam, jadi "13.05" pada pukul 13.50 itu normal; warna **tidak pernah** dihitung dari
+    umur jam. Aturannya murni di `domain/sinkron.py`; pencatatnya SATU `StatusSinkron`
+    (`services/status_sinkron.py`) yang dibagi semua worker dan layar (`get_console_service`).
+    **Yang mencatat, masing-masing sebagai SUMBER sendiri:** `tarik` (data master, 5 menit) dan
+    `kirim` (antrean ke AutoERP), `manifest` (R2), dan `cek` dari `CekSinkronWorker` tiap 60 detik
+    (`GET /api/method/ping`; `head_object` R2 dengan **404 = tersambung**: kuncinya diterima,
+    objeknya saja belum ada). Cek cuma menggerakkan warna, **tidak menggeser jam**. Sambungan putus
+    kalau SATU sumbernya sedang gagal, dan tiap sumber pulih sendiri: dulu satu catatan untuk semua
+    membuat titiknya berkedip merah-hijau tiap menit (ping 401 = putus, kiriman 401 = "AutoERP
+    menjawab"). Galat jaringan (tanpa jawaban, 502/503/504) dicatat di sumber `jaringan` yang
+    dibersihkan jawaban apa pun dari server: kiriman yang gagal diulang sampai sejam kemudian, dan
+    titiknya tidak boleh merah selama itu. **Kiriman yang ditolak (417, 404) atau memicu 500 =
+    tersambung**: isi pesan itu yang bermasalah, terlihat di tab Antrean ERP; **401/403 = putus**
+    (kunci ditolak, tidak ada yang akan sampai). **Tarikan data yang gagal = putus** sampai tarikan
+    berikutnya berhasil (data tidak mengalir walau server hidup).
+    **Cloud Photo = cek R2 konsol + blok `unggah` tiap line** (lewat `/internal/status`). Satu
+    sumber gagal cukup untuk merah, `sejak` = yang paling awal. **Line mati atau versi lama TIDAK
+    membuat merah**: kartunya sudah menulis OFFLINE, dan baris ini bicara soal cloud. "Menunggu"
+    cuma foto `pending`; yang `image_uploaded` sudah aman di R2.
+    Jam sinkron disimpan di `sync_state` (`sinkron_autoerp_terakhir`, `sinkron_r2_terakhir`) dan
+    dibaca dari sana tiap polling: sesudah restart jamnya tetap, statusnya "memeriksa" sampai cek
+    pertama (jam R2 yang tersimpan bukan bukti hidup), dan "hapus semua" di Danger Zone langsung
+    mengosongkannya. Jam Cloud Photo tiap line cuma bergerak kalau batch itu benar-benar menaikkan
+    foto, bukan karena batch-nya jalan. **Putus dan pulih =
+    masing-masing SATU WARNING** di tab Log, termasuk upload foto tiap line (line tidak memasang
+    log_sink, jadi `LineStatusWorker` konsol yang mencatat alasannya). **Pesan galat mentah tidak
+    dikirim ke layar.** ⚠️ Line yang restart melupakan status gagalnya sampai batch jam berikutnya;
+    pulih baru dicatat kalau jam unggahnya benar-benar bergerak. ⚠️ **`UPLOAD_API_URL` yang masih
+    menunjuk api lama yang mati** membuat Cloud Photo merah (`POST gagal`): batch berhenti di POST
+    pertama yang gagal, jadi foto di belakangnya juga tidak naik ke R2. Kosongkan (Lampung sudah,
+    2026-09-23).
 
 ---
 

@@ -180,6 +180,17 @@ Terima assignment dari palmgrade-api. Protected by `x-internal-secret: WEBHOOK_S
 - **Side effect:** Set `state.current_truck_id` + `state.current_assignment_id`, semua event selanjutnya punya `assignment_id` ini. `plate` + `assigned_at` juga disimpan, dipakai buat **menamai folder capture** truk itu (`domain/capture_layout.py`).
 - ⚠️ `plate` itu **label, bukan identitas**, `truck_id` tetap kunci semua angka. Opsional: konsol lama tidak mengirimnya, dan line yang menolak payload tanpa `plate` akan menghentikan penugasan saat upgrade separuh jalan. Dikirim karena `truck_id` itu uuid5 **dari** plat dan tidak bisa dibalik.
 
+### `GET /internal/status`
+
+Dipanggil konsol tiap 1 detik (`LineStatusWorker`). Protected by `x-internal-secret: WEBHOOK_SECRET`.
+
+- **Response:** `{ "machine_id", "truck_id", "ffb_source", "piston", "alarms": [...], "unggah": {...} | null }`
+- `unggah` = ringkasan upload foto ke R2 untuk **Last Sync** di konsol: `aktif`, `terakhir`
+  (epoch upload terakhir yang berhasil), `gagal_sejak`, `pesan`, `antre` (foto `pending`),
+  `rusak`. Dihitung `BatchUploadWorker` **sekali per batch** lalu diganti utuh, jadi endpoint
+  ini tidak pernah menanyai `upload_manifest.db`. `null` sebelum worker upload ada; konsol
+  menulisnya "tidak terbaca", bukan terputus. `pesan` tidak diteruskan ke layar.
+
 ### `POST /internal/manual-reject`
 
 Terima command manual reject dari palmgrade-api. Protected by `x-internal-secret: WEBHOOK_SECRET`.
@@ -283,6 +294,34 @@ Lane operator biasa (butuh sesi, **bukan** `require_support`). Rinciannya: CLAUD
 |---|---|---|
 | GET | `/api/console/riwayat` | `dari`, `sampai` (tanggal kerja `YYYY-MM-DD`, maks 31 hari; kosong = 7 hari terakhir), `line_code`, `plat` (potongan), `hasil` (`""`\|`ripe`\|`unripe`\|`jk`\|`tp`), `tampilan` (`hari`\|`truk`\|`janjang`), `ringkasan` (bool), `limit`/`offset` (Per janjang saja) → `{dari, sampai, hari_ini, maks_hari, tampilan, items, total, ringkasan?}`. Ringkasan: `total, acc, rej, ripe, unripe, jk, tanpa_kelas, tp, hari, truk, neto_kg` (`neto_kg` null kalau disaring per line). 400 `riwayat_tanggal_tidak_sah` / `riwayat_rentang_terbalik` / `riwayat_rentang_panjang` |
 | GET | `/api/console/riwayat/csv` | filter yang sama + `bahasa` (`id`\|`en`) → `text/csv` lampiran `riwayat-grading-<tampilan>-<dari>_<sampai>.csv`, semua baris (bukan satu halaman) |
+
+---
+
+## Console: Last Sync (`APP_MODE=console`, 2026-09-27)
+
+Tidak ada endpoint baru: `GET /api/console/state` membawa `sinkron` untuk semua operator.
+Rinciannya: CLAUDE.md, Critical Rule 27.
+
+```json
+"sinkron": {
+  "autoerp": {"keadaan": "tersambung", "terakhir": 1790492400.0, "sejak": null, "antre": 0},
+  "cloud":   {"keadaan": "terputus", "terakhir": 1790488800.0, "sejak": 1790490600.0, "antre": 5,
+              "per_line": [{"line_code": "line-1", "terbaca": true, "aktif": true,
+                            "terakhir": 1790488800.0, "sejak": null, "antre": 0}]}
+}
+```
+
+`keadaan`: `tersambung` | `terputus` | `tidak_dipakai` (`ERP_URL` / `R2_BUCKET` kosong) |
+`memeriksa` (baru menyala, belum ada kontak). `terakhir` = data terakhir yang benar-benar lewat
+(epoch, disimpan di `sync_state`), `sejak` = awal deretan gagal, `antre` = yang menunggu dikirim.
+
+| Komponen | Peran |
+|---|---|
+| `domain/sinkron.py` | aturan murni: `Jejak`, `keadaan`, `ringkas`, `gabung_cloud` |
+| `services/status_sinkron.py` | `StatusSinkron`: satu pencatat bersama, per sumber (`cek`/`tarik`/`kirim`/`manifest`, plus `jaringan`), jam di `sync_state`, satu WARNING per putus/pulih |
+| `workers/cek_sinkron_worker.py` | tiap 60 detik: `ErpClient.ping()` + `R2Uploader.cek()` (`head_object viewer.html`, 404 = tersambung) |
+| `MasterDataWorker`, `ErpOutboxWorker`, `VisitManifestWorker` | mencatat hasil kirim/tarik (`berhasil` / `gagal`) |
+| `LineStatusWorker` | membawa blok `unggah` tiap line + mencatat putus/pulih upload foto line ke tab Log |
 
 ---
 
