@@ -94,4 +94,11 @@ def test_setiap_line_punya_volume_artifacts_sendiri_di_docker():
         assert f"./artifacts/line-{n}:/app/artifacts" in compose
 
 
+def test_mount_captures_memakai_kelas_yang_menyaring():
+    konsol = (AKAR / "src" / "palmgrade" / "console_main.py").read_text(encoding="utf-8")
+    line = (AKAR / "src" / "palmgrade" / "main.py").read_text(encoding="utf-8")
+    assert "CapturesBersesi(" in konsol and "StaticFiles(" not in konsol
+    assert 'app.mount("/captures", StaticTanpaDb(' in line and "StaticFiles(" not in line
+
+
 

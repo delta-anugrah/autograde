@@ -10,7 +10,6 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from .core.dependencies import (
     get_capture_repository,
@@ -22,6 +21,7 @@ from .core.dependencies import (
     set_camera,
 )
 from .integrations.outbox.outbox_store import OutboxStore
+from .routes.captures import StaticTanpaDb
 from .routes.internal import _jadwalkan_keluar
 from .routes.internal import router as internal_router
 from .routes.internal_bahaya import buat_router as buat_router_bahaya
@@ -436,9 +436,10 @@ def create_app() -> FastAPI:
 
     # Static files — path /captures/... → artifacts/ directory
     # image_url format: "captures/results/{date}/{timestamp}.webp"
+    # Batch 1.2: never a database or hidden file, wherever the DB files live.
     artifacts_dir = settings.artifacts_dir
     artifacts_dir.mkdir(parents=True, exist_ok=True)
-    app.mount("/captures", StaticFiles(directory=str(artifacts_dir)), name="captures")
+    app.mount("/captures", StaticTanpaDb(directory=str(artifacts_dir)), name="captures")
 
     app.include_router(health_router)
     app.include_router(inspection_router)
