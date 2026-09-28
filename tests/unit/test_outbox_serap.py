@@ -11,6 +11,7 @@ import sqlite3
 
 import pytest
 
+from palmgrade.integrations.outbox import outbox_store
 from palmgrade.integrations.outbox.outbox_store import OutboxStore
 
 
@@ -80,6 +81,58 @@ def test_baris_yang_cuma_ada_di_wal_ikut_terserap(tmp_path):
 
     assert baru.serap(mati / "outbox.db") == 3
     assert sorted(r["event_id"] for r in baru.get_pending(limit=10)) == ["w1", "w2", "w3"]
+
+
+def test_antrean_besar_diserap_per_potongan(tmp_path, monkeypatch):
+    """Antrean lama bisa berbulan-bulan (line tanpa konsol). Dibaca per potongan,
+    bukan `fetchall()` sekaligus: `MemoryError` di sini membuat berkas lama
+    tertinggal tanpa pernah terkirim."""
+    monkeypatch.setattr(outbox_store, "_POTONGAN_SERAP", 2)
+    _lama(tmp_path, "e1", "e2", "e3", "e4", "e5")._db.close()
+    baru = OutboxStore(tmp_path / "state" / "outbox.db")
+    baru.add_event("e3", "m-1", {"event_id": "e3"})
+
+    assert baru.serap(tmp_path / "lama" / "outbox.db") == 4
+    assert sorted(r["event_id"] for r in baru.get_pending(limit=10)) == ["e1", "e2", "e3", "e4", "e5"]
+
+
+class _GagalDiPotonganKedua:
+    """Koneksi tujuan yang gagal menulis potongan kedua (disk penuh)."""
+
+    def __init__(self, db: sqlite3.Connection) -> None:
+        self._db = db
+        self.tulis = 0
+
+    def __getattr__(self, nama):
+        return getattr(self._db, nama)
+
+    def __enter__(self):
+        return self._db.__enter__()
+
+    def __exit__(self, *exc):
+        return self._db.__exit__(*exc)
+
+    def executemany(self, sql, baris):
+        self.tulis += 1
+        if self.tulis == 2:
+            raise sqlite3.OperationalError("database or disk is full")
+        return self._db.executemany(sql, baris)
+
+
+def test_gagal_di_tengah_tidak_ada_potongan_yang_tercommit(tmp_path, monkeypatch):
+    """Satu commit untuk seluruh antrean: potongan pertama tidak boleh tersimpan
+    sendirian lalu berkas lama dihapus seolah semuanya sudah pindah."""
+    monkeypatch.setattr(outbox_store, "_POTONGAN_SERAP", 2)
+    _lama(tmp_path, "e1", "e2", "e3", "e4")._db.close()
+    baru = OutboxStore(tmp_path / "state" / "outbox.db")
+    asli = baru._db
+    baru._db = _GagalDiPotonganKedua(asli)
+
+    with pytest.raises(sqlite3.OperationalError):
+        baru.serap(tmp_path / "lama" / "outbox.db")
+
+    baru._db = asli
+    assert baru.pending_count() == 0
 
 
 def _baris_di_berkas_utama_saja(db) -> int:
