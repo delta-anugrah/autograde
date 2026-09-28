@@ -8,12 +8,26 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import sqlite3
+from dataclasses import replace
 from pathlib import Path
 
+import httpx
+import pytest
+from fastapi import FastAPI
+
+from palmgrade.core.config import LineEndpoint, Settings
+from palmgrade.domain.bahaya import MODE_TRANSAKSI
+from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
+from palmgrade.integrations.notifications.line_client import LineClient
 from palmgrade.integrations.outbox.outbox_store import OutboxStore
 from palmgrade.license.local_repo import LicenseLocalRepo
+from palmgrade.repositories.console_repository import ConsoleStore
+from palmgrade.repositories.log_repository import LogStore
 from palmgrade.services import pindah_db_line
+from palmgrade.services.bahaya_service import BahayaDitolak, BahayaService
 from palmgrade.services.hapus_data_line import hapus_kalau_diminta, tulis_penanda
+from palmgrade.services.health_service import HealthService
 from palmgrade.services.pindah_db_line import folder_db_line, pindahkan_db_lama
 
 
@@ -33,7 +47,7 @@ def _lisensi(path, nilai):
 
 def _boot(artifacts, folder_db):
     """Yang dijalankan awal lifespan main.py, dalam urutan yang sama."""
-    hapus_kalau_diminta(artifacts, folder_db)
+    hapus_kalau_diminta(artifacts, folder_db, folder_db=folder_db)
     outbox = OutboxStore(folder_db / "outbox.db")
     lisensi = LicenseLocalRepo(folder_db / "license.db")
     asyncio.run(pindahkan_db_lama(artifacts, folder_db, outbox=outbox, lisensi=lisensi))
@@ -151,3 +165,85 @@ def test_container_tanpa_mount_state_db_tetap_di_artifacts(tmp_path):
     assert _event_ids(outbox) == ["e1", "e2"]
     assert asyncio.run(lisensi.read_max_seen()) == 900
     assert not state.exists()
+
+
+# ── serapan yang gagal: terlihat, menahan Danger Zone, tidak terhapus ─────────
+
+SECRET = "kunci-perintah-palsu"
+
+
+def _serap_meledak(self, lama):
+    raise MemoryError("antrean lama terlalu besar")
+
+
+def _baris_di(berkas: Path) -> list[str]:
+    db = sqlite3.connect(berkas)
+    try:
+        return sorted(r[0] for r in db.execute("SELECT event_id FROM outbox_events"))
+    finally:
+        db.close()
+
+
+def _danger_zone(tmp_path, kesehatan: HealthService) -> BahayaService:
+    """Konsol sungguhan membaca `/health/detail` line lewat HTTP (ASGI)."""
+    line_app = FastAPI()
+
+    @line_app.get("/health/detail")
+    def detail() -> dict:
+        return {"status": "ok", "current_assignment_id": None, **kesehatan.ringkasan_outbox()}
+
+    konsol = tmp_path / "konsol"
+    return BahayaService(
+        ConsoleStore(konsol / "console.db"),
+        LogStore(konsol / "log.db"),
+        LineClient(
+            replace(Settings(), console_line_host="http://line", internal_secret=SECRET),
+            transport=httpx.ASGITransport(app=line_app),
+        ),
+        (LineEndpoint("line-1", "Line 1", 8001, "m-1"),),
+        ErpOutboxStore(konsol / "erp_outbox.db"),
+        erp_aktif=False,
+        hari_kerja=lambda: "2026-09-28",
+        tunggu_mati_s=0.0,
+    )
+
+
+def test_serap_gagal_terlihat_menahan_danger_zone_dan_tidak_terhapus(tmp_path, monkeypatch):
+    """Final review Important 1. Dulu: serapan gagal, `/health/detail` melapor 0,
+    Danger Zone mengizinkan, dan boot berikutnya menghapus `artifacts/outbox.db`
+    beserta janjang yang belum pernah sampai ke konsol."""
+    settings = replace(Settings(), repo_root=tmp_path / "line-1")
+    artifacts, state = settings.artifacts_dir, settings.state_dir
+    _outbox(artifacts / "outbox.db", "e1", "e2")._db.close()
+    _lisensi(artifacts / "license.db", 500)
+    monkeypatch.setattr(OutboxStore, "serap", _serap_meledak)
+
+    outbox, _ = _boot(artifacts, state)
+
+    # 1. Terlihat: bukan nol palsu.
+    kesehatan = HealthService(
+        settings=settings, state=None, camera=None, outbox=outbox, folder_db=state
+    )
+    assert kesehatan.ringkasan_outbox() == {
+        "outbox_pending": None, "outbox_failed": 0, "outbox_lama_tertinggal": True,
+    }
+    # 2. Danger Zone menahan dengan alasannya.
+    with pytest.raises(BahayaDitolak) as exc:
+        asyncio.run(_danger_zone(tmp_path, kesehatan).hapus_data(
+            mode=MODE_TRANSAKSI, konfirmasi="HAPUS", oleh="s@pks.id"
+        ))
+    assert exc.value.hambatan == [{"kode": "outbox_lama", "line": "line-1"}]
+
+    # 3. Penanda tetap tertulis (mis. dari versi konsol lama), serapan masih
+    #    gagal saat boot itu: berkas lama dan isinya tetap ada.
+    outbox._db.close()
+    tulis_penanda(artifacts, mode="semua", diminta_oleh="s@pks.id", now=1.0)
+    outbox, _ = _boot(artifacts, state)
+    outbox._db.close()
+    assert _baris_di(artifacts / "outbox.db") == ["e1", "e2"]
+
+    # 4. Boot sesudah penyebabnya beres: barisnya pindah, sisa hilang.
+    monkeypatch.undo()
+    outbox, _ = _boot(artifacts, state)
+    assert _event_ids(outbox) == ["e1", "e2"]
+    assert _db_tersisa(artifacts) == []

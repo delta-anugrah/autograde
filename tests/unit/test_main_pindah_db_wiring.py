@@ -31,3 +31,11 @@ def test_outbox_dan_lisensi_satu_folder_db():
 def test_tidak_ada_lagi_db_line_yang_dibuka_di_artifacts():
     for berkas in SRC.rglob("*.py"):
         assert not re.search(r'artifacts_dir\s*/\s*"[a-z_]+\.db"', berkas.read_text(encoding="utf-8")), berkas
+
+
+def test_health_membandingkan_folder_db_yang_sama():
+    """`/health/detail` mencari sisa `artifacts/outbox.db` terhadap folder DB yang
+    SAMA dengan yang dipakai outbox; folder lain = sisa yang tidak terlihat."""
+    deps = (SRC / "core" / "dependencies.py").read_text(encoding="utf-8")
+    blok = deps.split("def get_health_service()", 1)[1].split("\ndef ", 1)[0]
+    assert "folder_db=get_folder_db_line()" in blok

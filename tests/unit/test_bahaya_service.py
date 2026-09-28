@@ -473,3 +473,21 @@ def test_hapus_rekaman_melewati_line_yang_merekam_dan_mati(rakit):
     assert per_line["line-3"] == {"line_code": "line-3", "ok": False, "kode": "line_mati"}
     assert hasil["berkas"] == 2
     assert hasil["bytes"] == 1000
+
+
+def test_outbox_lama_tertinggal_di_line_menolak_hapus(rakit):
+    """`/health/detail` line melapor antrean lama yang gagal dipindah: jumlah
+    pending tidak diketahui, dan yang dihapus nanti bisa janjang yang belum
+    pernah sampai ke konsol."""
+    svc, store, _log, _o, _m, line = rakit()
+    isi_data(store)
+    line.detail["line-3"].update({"outbox_pending": None, "outbox_lama_tertinggal": True})
+
+    ringkas = asyncio.run(svc.ringkasan())
+    assert {"kode": "outbox_lama", "line": "line-3"} in ringkas["aksi"]["transaksi"]["hambatan"]
+    with pytest.raises(BahayaDitolak) as exc:
+        asyncio.run(svc.hapus_data(mode=MODE_SEMUA, konfirmasi="HAPUS", oleh="s"))
+
+    assert exc.value.hambatan == [{"kode": "outbox_lama", "line": "line-3"}]
+    assert line.perintah == []
+    assert hitung(store, "inspections") == 1

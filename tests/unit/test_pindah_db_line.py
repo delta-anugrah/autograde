@@ -7,7 +7,12 @@ from pathlib import Path
 import pytest
 
 from palmgrade.services import pindah_db_line
-from palmgrade.services.pindah_db_line import ada_mount, folder_db_line, pindahkan_db_lama
+from palmgrade.services.pindah_db_line import (
+    ada_mount,
+    folder_db_line,
+    outbox_lama_tertinggal,
+    pindahkan_db_lama,
+)
 
 AKAR_CONTAINER = "790 1 0:50 / / rw,relatime - overlay overlay rw,lowerdir=/x\n"
 MOUNT_STATE = "812 790 8:2 /opt/palmgrade/autograde/state/line-1 /app/state rw,relatime - ext4 /dev/sda2 rw\n"
@@ -153,3 +158,19 @@ def test_folder_db_sama_dengan_artifacts_tidak_menyentuh_apa_pun(lama):
     hasil = asyncio.run(pindahkan_db_lama(artifacts, artifacts, outbox=outbox, lisensi=_Lisensi()))
     assert hasil == {"outbox.db": "tetap", "license.db": "tetap"}
     assert outbox.diserap == [] and (artifacts / "outbox.db").exists()
+
+
+def test_outbox_lama_tertinggal_kalau_masih_ada_di_artifacts(tmp_path):
+    artifacts, state = tmp_path / "artifacts", tmp_path / "state"
+    artifacts.mkdir()
+    assert outbox_lama_tertinggal(artifacts, state) is False
+    (artifacts / "outbox.db").write_bytes(b"db")
+    assert outbox_lama_tertinggal(artifacts, state) is True
+
+
+def test_outbox_di_artifacts_bukan_sisa_kalau_folder_db_memang_artifacts(tmp_path):
+    """Tanpa mount state/ outbox tinggal di artifacts/: itu antrean hidup."""
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "outbox.db").write_bytes(b"db")
+    assert outbox_lama_tertinggal(artifacts, artifacts) is False

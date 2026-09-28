@@ -174,8 +174,11 @@ def create_app() -> FastAPI:
         # sedang dibuka tidak boleh dihapus dari bawah proses yang memakainya.
         # Tanpa penanda (keadaan normal) ini tidak melakukan apa pun.
         # `license.db` selamat (di state/, atau di artifacts/ pada PC yang belum
-        # pindah); lihat services/hapus_data_line.py.
-        hasil_hapus = hapus_kalau_diminta(settings.artifacts_dir, settings.state_dir)
+        # pindah), begitu juga sisa `artifacts/outbox.db` yang gagal diserap
+        # kalau folder DB sudah state/; lihat services/hapus_data_line.py.
+        hasil_hapus = hapus_kalau_diminta(
+            settings.artifacts_dir, settings.state_dir, folder_db=get_folder_db_line()
+        )
         if hasil_hapus is not None:
             logger.warning(
                 "Data line dihapus saat boot (mode %s, diminta %s): %d berkas, %d gagal",

@@ -21,6 +21,11 @@ Kenapa saat boot: SQLite yang sedang dibuka tidak boleh dihapus dari bawah
 proses yang memakainya — proses itu tetap menulis ke berkas yang sudah
 di-unlink, dan layar terus menampilkan data lama sampai restart.
 
+`outbox.db*` di `artifacts/` juga TIDAK dihapus kalau folder DB line sudah
+`state/`: di situ ia sisa antrean yang gagal diserap (`services/pindah_db_line.py`),
+berisi janjang yang belum pernah sampai ke konsol, dan boot berikutnya mencoba
+menyerapnya lagi.
+
 `license.db*` (di `state/`, atau di `artifacts/` pada PC yang belum pindah) TIDAK pernah dihapus: itu penjaga jam lisensi,
 bukan data transaksi. Menghapusnya membuat jam PC bisa dimundurkan untuk
 memperpanjang langganan. `autograde reset-data-fresh` di terminal memang
@@ -37,6 +42,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from .pindah_db_line import db_sudah_pindah, outbox_lama_tertinggal
+
 logger = logging.getLogger(__name__)
 
 #: Nama berkas penanda di folder `artifacts/` line.
@@ -52,7 +59,9 @@ SELAMAT_DI_STATE = ("license.db",)
 
 #: Awalan berkas di `artifacts/` yang selamat: `license.db` beserta `-wal`,
 #: `-shm`, dan `-journal`-nya.
-_AWALAN_SIMPAN = "license.db"
+_AWALAN_SIMPAN = ("license.db",)
+#: Ikut selamat kalau folder DB line sudah `state/`: sisa yang gagal diserap.
+_AWALAN_SISA_SERAPAN = ("outbox.db",)
 
 _AKHIRAN_REKAMAN = ".mp4"
 
@@ -90,8 +99,14 @@ def hapus_diminta(artifacts_dir: Path) -> bool:
     return (artifacts_dir / PENANDA).exists()
 
 
-def hapus_kalau_diminta(artifacts_dir: Path, state_dir: Path) -> dict[str, Any] | None:
+def hapus_kalau_diminta(
+    artifacts_dir: Path, state_dir: Path, *, folder_db: Path
+) -> dict[str, Any] | None:
     """Kosongkan data line ini kalau ada penanda di `artifacts/`. `None` kalau tidak ada.
+
+    `folder_db` = folder DB line yang dipakai proses ini (`get_folder_db_line()`),
+    wajib disebut: kalau bukan `artifacts/`, `outbox.db*` di `artifacts/` adalah
+    sisa yang gagal diserap dan dibiarkan.
 
     `dihapus` = jumlah item tingkat atas yang hilang (folder dihitung satu).
 
@@ -109,9 +124,17 @@ def hapus_kalau_diminta(artifacts_dir: Path, state_dir: Path) -> dict[str, Any] 
         "Penanda hapus data ditemukan — mulai menghapus data line ini (mode %s, diminta %s). "
         "Bisa beberapa menit kalau fotonya banyak.", info["mode"], info["diminta_oleh"],
     )
+    simpan = _AWALAN_SIMPAN
+    if db_sudah_pindah(artifacts_dir, folder_db):
+        simpan += _AWALAN_SISA_SERAPAN
+        if outbox_lama_tertinggal(artifacts_dir, folder_db):
+            logger.warning(
+                "outbox.db lama di %s belum terserap ke %s; dibiarkan, isinya belum terkirim",
+                artifacts_dir, folder_db,
+            )
     dihapus = gagal = 0
     for anak in _isi(artifacts_dir):
-        if anak.name.startswith(_AWALAN_SIMPAN) or anak.name in (PENANDA, f"{PENANDA}.tmp"):
+        if anak.name.startswith(simpan) or anak.name in (PENANDA, f"{PENANDA}.tmp"):
             continue
         ok = _hapus(anak)
         dihapus += 1 if ok else 0

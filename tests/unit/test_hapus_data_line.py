@@ -55,7 +55,7 @@ def test_tanpa_penanda_tidak_menyentuh_apa_pun(tmp_path):
     artifacts, state = _isi_line(tmp_path)
     sebelum = _sisa(tmp_path)
 
-    assert hapus_kalau_diminta(artifacts, state) is None
+    assert hapus_kalau_diminta(artifacts, state, folder_db=artifacts) is None
 
     assert _sisa(tmp_path) == sebelum
 
@@ -64,7 +64,7 @@ def test_penanda_menghapus_semua_kecuali_lisensi(tmp_path):
     artifacts, state = _isi_line(tmp_path)
     tulis_penanda(artifacts, mode="transaksi", diminta_oleh="support@pks.id", now=1000.0)
 
-    hasil = hapus_kalau_diminta(artifacts, state)
+    hasil = hapus_kalau_diminta(artifacts, state, folder_db=artifacts)
 
     assert _sisa(artifacts) == {"license.db", "license.db-wal"}
     assert _sisa(state) == set()
@@ -81,7 +81,7 @@ def test_isi_lisensi_tidak_berubah(tmp_path):
     artifacts, state = _isi_line(tmp_path)
     tulis_penanda(artifacts, mode="semua", diminta_oleh="s", now=1.0)
 
-    hapus_kalau_diminta(artifacts, state)
+    hapus_kalau_diminta(artifacts, state, folder_db=artifacts)
 
     assert (artifacts / "license.db").read_bytes() == b"lic"
 
@@ -113,7 +113,7 @@ def test_penanda_dihapus_paling_akhir(tmp_path, monkeypatch):
         return asli(jalur)
 
     monkeypatch.setattr(hapus_data_line, "_hapus", catat)
-    hapus_kalau_diminta(artifacts, state)
+    hapus_kalau_diminta(artifacts, state, folder_db=artifacts)
 
     assert penanda_ada_saat_menghapus, "tidak ada yang dihapus sama sekali"
     assert all(penanda_ada_saat_menghapus)
@@ -133,7 +133,7 @@ def test_yang_gagal_dihapus_menahan_penanda(tmp_path, monkeypatch):
         return asli(jalur)
 
     monkeypatch.setattr(hapus_data_line, "_hapus", gagal_sekali)
-    hasil = hapus_kalau_diminta(artifacts, state)
+    hasil = hapus_kalau_diminta(artifacts, state, folder_db=artifacts)
 
     assert hasil["gagal"] == 1
     assert (artifacts / PENANDA).exists()
@@ -141,7 +141,7 @@ def test_yang_gagal_dihapus_menahan_penanda(tmp_path, monkeypatch):
 
     # Boot berikutnya, penghalangnya sudah hilang: tuntas, penanda ikut hilang.
     monkeypatch.setattr(hapus_data_line, "_hapus", asli)
-    hasil = hapus_kalau_diminta(artifacts, state)
+    hasil = hapus_kalau_diminta(artifacts, state, folder_db=artifacts)
     assert hasil["gagal"] == 0
     assert _sisa(artifacts) == {"license.db", "license.db-wal"}
     assert not (artifacts / PENANDA).exists()
@@ -154,7 +154,7 @@ def test_penanda_rusak_tetap_diproses(tmp_path):
     artifacts, state = _isi_line(tmp_path)
     (artifacts / PENANDA).write_text("{bukan json")
 
-    hasil = hapus_kalau_diminta(artifacts, state)
+    hasil = hapus_kalau_diminta(artifacts, state, folder_db=artifacts)
 
     assert hasil["mode"] == "?"
     assert _sisa(artifacts) == {"license.db", "license.db-wal"}
@@ -164,7 +164,7 @@ def test_folder_state_belum_ada_tidak_error(tmp_path):
     artifacts = tmp_path / "artifacts"
     tulis_penanda(artifacts, mode="transaksi", diminta_oleh="s", now=1.0)
 
-    hasil = hapus_kalau_diminta(artifacts, tmp_path / "belum-ada")
+    hasil = hapus_kalau_diminta(artifacts, tmp_path / "belum-ada", folder_db=artifacts)
 
     assert hasil["gagal"] == 0
     assert not (artifacts / PENANDA).exists()
@@ -230,7 +230,7 @@ def test_state_bersama_konsol_tidak_pernah_disentuh(tmp_path):
     (state / "upload_manifest.db-wal").write_bytes(b"m")
     tulis_penanda(artifacts, mode="transaksi", diminta_oleh="s", now=1.0)
 
-    hapus_kalau_diminta(artifacts, state)
+    hapus_kalau_diminta(artifacts, state, folder_db=artifacts)
 
     assert _sisa(state) == {
         "console.db", "console.db-wal", "erp_outbox.db", "log_kejadian.db", "manifest_outbox.db",
@@ -253,7 +253,7 @@ def test_tiga_line_native_berbagi_state_masing_masing_tetap_terhapus(tmp_path):
         lines.append(artifacts)
 
     for artifacts in lines:
-        hasil = hapus_kalau_diminta(artifacts, state)
+        hasil = hapus_kalau_diminta(artifacts, state, folder_db=state)
         assert hasil is not None
         assert _sisa(artifacts) == {"license.db"}
     assert _sisa(state) == {"console.db"}
@@ -289,7 +289,7 @@ def test_mulai_hapus_dicatat_sebelum_menghapus(tmp_path, caplog):
     tulis_penanda(artifacts, mode="semua", diminta_oleh="s@pks.id", now=1.0)
 
     with caplog.at_level("WARNING"):
-        hapus_kalau_diminta(artifacts, state)
+        hapus_kalau_diminta(artifacts, state, folder_db=artifacts)
 
     assert any("mulai" in r.getMessage().lower() for r in caplog.records)
 
@@ -335,6 +335,37 @@ def test_hapus_data_di_state_menyisakan_lisensi(tmp_path):
         (state / nama).write_bytes(b"x")
     tulis_penanda(artifacts, mode="semua", diminta_oleh="s@pks.id", now=1.0)
 
-    hapus_kalau_diminta(artifacts, state)
+    hapus_kalau_diminta(artifacts, state, folder_db=state)
 
     assert sorted(p.name for p in state.iterdir()) == ["license.db"]
+
+
+# ── sisa outbox lama yang gagal diserap (batch 1.2) ─────────────────────────
+
+
+def test_outbox_lama_yang_belum_terserap_tidak_ikut_terhapus(tmp_path):
+    """DB line sudah di state/, tapi `artifacts/outbox.db` masih ada: itu sisa
+    yang GAGAL diserap (berkas rusak, disk penuh), berisi janjang yang belum
+    pernah sampai ke konsol. Hapus data tidak boleh membuangnya; boot
+    berikutnya mencoba menyerapnya lagi."""
+    artifacts, state = _isi_line(tmp_path)
+    tulis_penanda(artifacts, mode="semua", diminta_oleh="s@pks.id", now=1.0)
+
+    hasil = hapus_kalau_diminta(artifacts, state, folder_db=state)
+
+    assert _sisa(artifacts) == {"license.db", "license.db-wal", "outbox.db", "outbox.db-wal"}
+    assert (artifacts / "outbox.db").read_bytes() == b"db"
+    assert hasil["gagal"] == 0
+    assert not (artifacts / PENANDA).exists()
+
+
+def test_tanpa_mount_state_outbox_di_artifacts_itu_antrean_hidup_dan_ikut_terhapus(tmp_path):
+    """Folder DB = artifacts/ (compose host tanpa `./state/line-N`): outbox di
+    sana antrean yang sedang dipakai, bukan sisa; Danger Zone sudah memastikan
+    kosong sebelum menyuruh line menghapus."""
+    artifacts, state = _isi_line(tmp_path)
+    tulis_penanda(artifacts, mode="transaksi", diminta_oleh="s", now=1.0)
+
+    hapus_kalau_diminta(artifacts, state, folder_db=artifacts)
+
+    assert _sisa(artifacts) == {"license.db", "license.db-wal"}

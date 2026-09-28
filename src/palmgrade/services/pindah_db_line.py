@@ -13,6 +13,11 @@ Sekarang tempatnya `state/`, di luar mount itu.
   rilis; kalau `/app/state` tidak berada di mount dari host, isinya hilang tiap
   container dibuat ulang. Dalam keadaan itu DB tetap di `artifacts/` (tetap
   tidak tersaji, lihat routes/captures.py) dan alasannya dicatat ERROR.
+- Serapan yang GAGAL meninggalkan `artifacts/outbox.db` yang tidak dihitung
+  `pending_count()`. Sisa itu harus tetap terlihat (`outbox_lama_tertinggal`:
+  `/health/detail`, lalu hambatan Danger Zone) dan tidak boleh ikut terhapus
+  hapus-data (`services/hapus_data_line.py`): isinya janjang yang belum pernah
+  sampai ke konsol.
 """
 from __future__ import annotations
 
@@ -26,8 +31,10 @@ from typing import Protocol
 
 logger = logging.getLogger(__name__)
 
+#: Antrean janjang ke konsol, satu-satunya DB line yang isinya belum ada di tempat lain.
+OUTBOX_DB = "outbox.db"
 #: Berkas DB milik satu proses line.
-BERKAS_DB_LINE = ("outbox.db", "license.db")
+BERKAS_DB_LINE = (OUTBOX_DB, "license.db")
 _PENDAMPING = ("-wal", "-shm", "-journal")
 _MOUNTINFO = Path("/proc/self/mountinfo")
 _PENANDA_DOCKER = Path("/.dockerenv")
@@ -88,6 +95,20 @@ def folder_db_line(
     return artifacts_dir
 
 
+def db_sudah_pindah(artifacts_dir: Path, folder_db: Path) -> bool:
+    """Folder DB line bukan `artifacts/`: berkas DB line di `artifacts/` itu sisa lama."""
+    return folder_db.resolve() != artifacts_dir.resolve()
+
+
+def outbox_lama_tertinggal(artifacts_dir: Path, folder_db: Path) -> bool:
+    """`artifacts/outbox.db` masih ada padahal antrean sudah di `folder_db`.
+
+    Artinya penyerapannya gagal: barisnya belum terkirim dan tidak terhitung di
+    `outbox_pending`. Boot berikutnya mencoba lagi.
+    """
+    return db_sudah_pindah(artifacts_dir, folder_db) and (artifacts_dir / OUTBOX_DB).is_file()
+
+
 async def pindahkan_db_lama(
     artifacts_dir: Path, folder_db: Path, *, outbox: _SerapOutbox, lisensi: _SerapLisensi
 ) -> dict[str, str]:
@@ -97,10 +118,10 @@ async def pindahkan_db_lama(
     tersaji, boot berikutnya mencoba lagi); line yang menolak start karenanya
     menghentikan grading.
     """
-    if folder_db.resolve() == artifacts_dir.resolve():
+    if not db_sudah_pindah(artifacts_dir, folder_db):
         return {nama: "tetap" for nama in BERKAS_DB_LINE}
     penyerap: dict[str, Callable[[Path], Awaitable[int]]] = {
-        "outbox.db": lambda p: asyncio.to_thread(outbox.serap, p),
+        OUTBOX_DB: lambda p: asyncio.to_thread(outbox.serap, p),
         "license.db": lisensi.serap,
     }
     hasil: dict[str, str] = {}

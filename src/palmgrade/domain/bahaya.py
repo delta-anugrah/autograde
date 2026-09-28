@@ -27,7 +27,7 @@ MODE_HAPUS = (MODE_TRANSAKSI, MODE_SEMUA)
 #: dan `test_console_html_bahaya` memeriksanya — kode baru tanpa terjemahan
 #: akan tampil mentah ke support.
 KODE_HAMBATAN = (
-    "tanpa_line", "line_mati", "truk_terpasang", "antrean_line", "antrean_erp",
+    "tanpa_line", "line_mati", "truk_terpasang", "outbox_lama", "antrean_line", "antrean_erp",
     "tiket_terbuka", "tanpa_sumber_akun",
 )
 KODE_PERINGATAN = (
@@ -85,6 +85,9 @@ class KeadaanLine:
     outbox_pending: int | None = None
     #: Janjang yang DITOLAK konsol sesudah percobaan maksimum (`outbox_failed`).
     outbox_gagal: int | None = None
+    #: Sisa `artifacts/outbox.db` yang gagal diserap ke `state/` (batch 1.2):
+    #: janjangnya belum terkirim dan tidak terhitung di `outbox_pending`.
+    outbox_lama_tertinggal: bool = False
     merekam: bool = False
     rekaman_berkas: int = 0
     rekaman_bytes: int = 0
@@ -139,6 +142,9 @@ def hambatan_hapus_data(lines: list[KeadaanLine], konsol: KeadaanKonsol) -> list
             hambatan.append({"kode": "line_mati", "line": line.line_code})
         elif line.truk_terpasang:
             hambatan.append({"kode": "truk_terpasang", "line": line.line_code})
+        elif line.outbox_lama_tertinggal:
+            # Sebelum `antrean_line`: antrean ini tidak habis dengan ditunggu.
+            hambatan.append({"kode": "outbox_lama", "line": line.line_code})
         elif line.outbox_pending is None or line.outbox_pending > 0:
             item = {"kode": "antrean_line", "line": line.line_code}
             if line.outbox_pending is not None:

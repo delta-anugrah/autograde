@@ -40,8 +40,13 @@ class HealthDetailSchema(BaseModel):
     # Compute capability GPU line ("86"). Konsol mencocokkannya dengan nama
     # engine `<model>.sm<cc>.engine`. None = CPU / belum dimuat.
     gpu_sm: str | None = None
-    outbox_pending: int = 0
+    # None = tidak diketahui: `outbox_lama_tertinggal` (sisa `artifacts/outbox.db`
+    # yang gagal diserap, barisnya tidak terhitung di sini). Pembaca yang
+    # menunggu angka (Danger Zone, `autograde reset-data`) menganggapnya belum
+    # kosong.
+    outbox_pending: int | None = 0
     outbox_failed: int = 0
+    outbox_lama_tertinggal: bool = False
     # Antrean penulis bukti (`CaptureSaveWorker`). `capture_save_dropped` naik
     # berarti janjang yang SUDAH digrading dan sudah dapat pulse PLC tidak
     # tersimpan sama sekali — tidak ada gambar, tidak ada sidecar, jadi tidak ada

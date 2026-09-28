@@ -106,9 +106,14 @@ class Line:
         self.mati = True  # os._exit di pabrik
 
     def boot(self) -> dict | None:
-        """Boot berikutnya: yang dijalankan awal lifespan main.py."""
+        """Boot berikutnya: yang dijalankan awal lifespan main.py.
+
+        Folder DB = artifacts/ (compose host tanpa `./state/line-N`): `_isi()`
+        menaruh outbox di sana sebagai antrean hidup."""
         self.mati = False
-        return hapus_kalau_diminta(self.settings.artifacts_dir, self.settings.state_dir)
+        return hapus_kalau_diminta(
+            self.settings.artifacts_dir, self.settings.state_dir, folder_db=self.settings.artifacts_dir
+        )
 
     def _isi(self) -> None:
         s = self.settings

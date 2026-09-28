@@ -101,6 +101,7 @@ def get_health_service() -> HealthService:
         camera=get_camera(),
         outbox=get_outbox_store(),
         model=model,
+        folder_db=get_folder_db_line(),
     )
 
 
