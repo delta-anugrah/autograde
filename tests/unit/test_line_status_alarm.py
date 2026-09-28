@@ -48,4 +48,9 @@ def test_line_mati_tidak_punya_alarms_palsu():
     w = _worker(_Line(down=True))
     asyncio.run(w.run_once())
     (status,) = w.snapshot().values()
-    assert status == {"reachable": False}
+    # `kode`/`status` sejak batch 1 keamanan LAN: LineUnavailable selalu
+    # OperatorError, jadi line mati sungguhan (LINE_TIDAK_MENJAWAB) ikut
+    # membawanya juga, dibedakan dari kunci ditolak (LINE_MENOLAK) lewat
+    # `kode`-nya sendiri, bukan lewat ada/tidaknya field ini.
+    assert status == {"reachable": False, "kode": LINE_TIDAK_MENJAWAB, "status": None}
+    assert "alarms" not in status

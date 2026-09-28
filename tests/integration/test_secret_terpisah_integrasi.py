@@ -11,6 +11,7 @@ import pytest
 from fastapi import FastAPI
 
 from palmgrade.core.config import LineEndpoint, Settings
+from palmgrade.domain.operator_error import LINE_MENOLAK, LINE_TIDAK_MENJAWAB
 from palmgrade.integrations.notifications.line_client import (
     LineClient,
     LinePlcTolak,
@@ -55,7 +56,18 @@ def test_kunci_program_timbangan_tidak_bisa_menghapus_data_line(line):
 
 
 def test_konsol_dan_line_tidak_sepakat_terlihat_sebagai_galat(line):
-    """Review Focus 3: .env diedit, compose host cuma meneruskan ke sebagian container."""
+    """Review Focus 3: .env diedit, compose host cuma meneruskan ke sebagian container.
+
+    `LineUnavailable` saja tidak cukup dibuktikan: sebuah line yang MATI SUNGGUHAN
+    juga melempar itu (LINE_TIDAK_MENJAWAB), dan tab Log yang cuma menulis DEBUG
+    untuk keduanya tidak bisa membedakan "kunci beda" dari "line mati" (Important
+    #1 review). `rekam_berkas` di sini menjawab HTTP dengan kode `LINE_MENOLAK` dan
+    `status=401`, bukan generik: layar dan Danger Zone bisa membedakan line yang
+    hidup tapi menolak kuncinya dari line yang benar-benar tidak menjawab.
+    """
     app, _ = line
-    with pytest.raises(LineUnavailable):
+    with pytest.raises(LineUnavailable) as info:
         asyncio.run(_konsol(app, "nilai-lama-di-konsol").rekam_berkas(LINE))
+    assert info.value.code == LINE_MENOLAK
+    assert info.value.code != LINE_TIDAK_MENJAWAB
+    assert info.value.params.get("status") == 401

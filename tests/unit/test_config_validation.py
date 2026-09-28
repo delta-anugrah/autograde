@@ -72,6 +72,18 @@ def test_internal_secret_diisi_terpisah_dan_dipangkas(monkeypatch):
     assert s.internal_secret_terpisah is True
 
 
+def test_internal_secret_sama_dengan_webhook_secret_bukan_terpisah(monkeypatch):
+    """Teknisi boleh mengisi INTERNAL_SECRET dengan nilai yang sama persis dengan
+    WEBHOOK_SECRET (tidak salah, cuma tidak menambah proteksi). Task 6
+    (validate_secrets) memakai `internal_secret_terpisah` untuk memutuskan kapan
+    memberi peringatan, jadi kasus ini harus tetap False, bukan True."""
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-sama")
+    monkeypatch.setenv("INTERNAL_SECRET", "kunci-sama")
+    s = Settings()
+    assert s.internal_secret == s.webhook_secret == "kunci-sama"
+    assert s.internal_secret_terpisah is False
+
+
 def test_batch_upload_defaults(monkeypatch):
     for var in ("R2_ACCOUNT_ID", "R2_BUCKET", "R2_PUBLIC_URL", "UPLOAD_API_URL",
                 "UPLOAD_MAX_ITEMS_PER_TICK", "UPLOAD_RETENTION_DAYS"):
