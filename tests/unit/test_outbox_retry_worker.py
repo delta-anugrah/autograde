@@ -19,6 +19,7 @@ import pytest
 
 from palmgrade.core.config import Settings
 from palmgrade.domain.kirim_antrean_line import (
+    GAGAL_BERUNTUN_PUTUS,
     JEDA_SAMBUNGAN_DASAR_S,
     JEDA_SAMBUNGAN_MAKS_S,
     SEBAB_ALAMAT_SALAH,
@@ -230,6 +231,65 @@ def test_baris_racun_500_mundur_sendiri_tanpa_memutus_sambungan(rakit, monkeypat
     assert sorted(konsol.diterima) == sorted(janjang)
     assert store.pending_count() == 1
     assert worker.status()["tersambung"] is True
+
+
+def _warning_sambungan(caplog) -> list[str]:
+    return [
+        r.getMessage() for r in caplog.records
+        if r.levelno >= logging.WARNING and ("tidak bisa dikirimi" in r.getMessage() or "tersambung lagi" in r.getMessage())
+    ]
+
+
+def test_dua_baris_racun_berturut_turut_tidak_membuat_sambungan_berkedip(rakit, monkeypatch, caplog):
+    """Dua janjang racun yang selalu berurutan di pengurasan: di bawah batas beruntun,
+    jadi tetap masalah baris, bukan putus-sambung tiap janjang baru."""
+    worker, store, konsol, jam = rakit()
+    monkeypatch.setattr(modul_outbox_store, "time", SimpleNamespace(time=jam))
+    for racun in ("racun1", "racun2"):
+        store.add_event(racun, "m-1", {"event_id": racun, "timestamp": "2026-09-20T03:00:00+00:00"})
+        konsol.jawab[racun] = 500
+    janjang = []
+
+    with caplog.at_level(logging.DEBUG, logger=outbox_retry_worker.__name__):
+        for detik in range(3600):
+            if detik % 12 == 0:
+                janjang.append(f"b{len(janjang)}")
+                store.add_event(janjang[-1], "m-1", {"event_id": janjang[-1], "timestamp": "2026-09-20T03:00:00+00:00"})
+            worker._flush_pending()
+            jam.maju(1)
+
+    assert len(_warning_sambungan(caplog)) <= 2, _warning_sambungan(caplog)
+    assert konsol.diminta.count("racun1") <= 15
+    assert konsol.diminta.count("racun2") <= 15
+    assert sorted(konsol.diterima) == sorted(janjang)
+    assert store.pending_count() == 2
+    assert worker.status()["tersambung"] is True
+
+
+def test_konsol_500_untuk_semua_sesudah_satu_2xx_putus_setelah_tiga(rakit, monkeypatch, caplog):
+    """Konsol menerima satu janjang lalu menjawab 500 untuk semuanya (disk penuh).
+    Tanpa pemutus beruntun ini menguras 2000 baris sekaligus, satu WARNING per baris
+    (terukur di fix round 1: 2000 POST dan 1995 WARNING di putaran pertama)."""
+    worker, store, konsol, jam = rakit()
+    monkeypatch.setattr(modul_outbox_store, "time", SimpleNamespace(time=jam))
+    _isi(store, 2000)
+    konsol.bawaan = 500
+    konsol.jawab["e0"] = 201
+
+    with caplog.at_level(logging.DEBUG, logger=outbox_retry_worker.__name__):
+        worker._flush_pending()
+        putaran_pertama = konsol.permintaan
+        for _ in range(3600):
+            jam.maju(1)
+            worker._flush_pending()
+
+    assert putaran_pertama == 1 + GAGAL_BERUNTUN_PUTUS
+    assert worker.status()["tersambung"] is False
+    assert konsol.permintaan < 1000
+    assert len(_warning_sambungan(caplog)) <= 2, _warning_sambungan(caplog)
+    baris = [r for r in caplog.records if r.levelno >= logging.WARNING and "menolak janjang" in r.getMessage()]
+    assert len(baris) <= 3
+    assert store.pending_count() == 1999
 
 
 def test_baris_ditolak_dicatat_warning_sekali_saja(rakit, caplog):

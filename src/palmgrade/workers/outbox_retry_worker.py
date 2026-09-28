@@ -14,15 +14,16 @@ dibedakan (`domain/kirim_antrean_line.py`):
 - BARIS itu ditolak (400): konsol sehat, baris lain jalan terus; baris itu
   mundur sendiri sampai 10 menit dan dicoba terus.
 
-Jawaban "konsol bermasalah" (5xx, kunci, alamat) SESUDAH konsol menerima janjang
-lain (2xx) di sambungan yang sama dibaca sebagai masalah BARIS itu, bukan
-sambungan: barisnya mundur sendiri, pengurasan lanjut, sambungan tidak diputus,
-dan tidak ada WARNING putus. Tanpa itu satu janjang racun yang selalu memicu 500
-memutus sambungan, janjang baru berikutnya menyambungkannya lagi, dan sambung
-lagi menjadwalkan si racun sekarang juga (review Task 3: 511 POST dan 601
-WARNING per jam). Hanya jawaban seperti itu SEBELUM ada 2xx di sambungan ini
-(percobaan sambungan, atau kiriman pertama sesudah pulih) yang memutus. Galat
-jaringan dan timeout selalu memutus.
+Jawaban "konsol bermasalah" (5xx, kunci, alamat) memutus sambungan kalau belum
+ada 2xx di sambungan ini (percobaan sambungan, atau kiriman pertama sesudah
+pulih) atau kalau itu yang ke-`GAGAL_BERUNTUN_PUTUS` (3) berturut-turut tanpa 2xx
+di antaranya. Selain itu dia masalah BARIS itu: barisnya mundur sendiri,
+pengurasan lanjut, tidak ada WARNING putus (`akibat_jawaban`). Satu atau dua
+janjang racun tidak lagi membuat sambungan putus-sambung tiap janjang baru
+(review Task 3: 511 POST dan 601 WARNING per jam), dan konsol yang menjawab 500
+untuk semuanya (disk penuh) diputus sesudah tiga, bukan dikuras ribuan baris
+(fix round 1: 2000 POST dan 1995 WARNING sekaligus). Galat jaringan dan timeout
+selalu memutus.
 
 Kontak pertama sesudah boot dan transisi putus ke tersambung menjadwalkan SEMUA
 baris untuk dikirim sekarang (`kirim_ulang_sekarang`), lalu antrean dikuras
@@ -44,8 +45,11 @@ from ..core.config import Settings
 from ..domain.kirim_antrean_line import (
     JEDA_SAMBUNGAN_MAKS_S,
     SEBAB_TAK_TERJANGKAU,
+    Akibat,
     Nasib,
     SambunganKonsol,
+    akibat_jawaban,
+    gagal_beruntun_sesudah,
     nilai_jawaban,
 )
 from ..integrations.outbox.outbox_store import OutboxStore
@@ -97,8 +101,9 @@ class OutboxRetryWorker:
         self._galat_at: float | None = None
         self._bangun_ke = 0
         self._bangun_awal_putaran = 0
-        #: Konsol sudah menerima (2xx) sejak sambungan ini hidup; lihat docstring modul.
+        #: Dua masukan `akibat_jawaban`, keduanya milik sambungan yang sedang hidup.
         self._terkirim_di_sambungan_ini = False
+        self._gagal_beruntun = 0
         #: event_id yang penolakannya sudah di-WARNING di proses ini (sesudahnya DEBUG).
         self._sudah_diperingatkan: set[str] = set()
 
@@ -173,7 +178,11 @@ class OutboxRetryWorker:
             self._konsol_bermasalah(row, SEBAB_TAK_TERJANGKAU, f"{type(exc).__name__}: {exc}")
             return False
         putusan = nilai_jawaban(res.status_code, res.text)
-        if putusan.nasib is Nasib.TERKIRIM:
+        akibat = akibat_jawaban(
+            putusan, gagal_beruntun=self._gagal_beruntun, sudah_terkirim=self._terkirim_di_sambungan_ini
+        )
+        self._gagal_beruntun = gagal_beruntun_sesudah(putusan, self._gagal_beruntun)
+        if akibat is Akibat.TERKIRIM:
             self.outbox.mark_delivered(row["id"])
             self._sudah_diperingatkan.discard(row["event_id"])
             self.state.last_successful_api_push = datetime.datetime.now(datetime.UTC).isoformat()
@@ -181,12 +190,9 @@ class OutboxRetryWorker:
             self._terkirim_di_sambungan_ini = True
             return True
         galat = f"HTTP {res.status_code}: {res.text[:200]}"
-        if putusan.nasib is Nasib.DITOLAK:
-            self._konsol_menjawab()
-            self._baris_ditolak(row, galat)
-            return True
-        if self._terkirim_di_sambungan_ini:
-            # Konsol baru saja menerima janjang lain: yang bermasalah baris ini.
+        if akibat is Akibat.BARIS_GAGAL:
+            if putusan.nasib is Nasib.DITOLAK:
+                self._konsol_menjawab()
             self._baris_ditolak(row, galat)
             return True
         self._konsol_bermasalah(row, putusan.sebab or SEBAB_TAK_TERJANGKAU, galat)
@@ -218,6 +224,7 @@ class OutboxRetryWorker:
             if self._bangun_ke != self._bangun_awal_putaran:
                 self._sambungan.bangunkan()  # Kirim Ulang ditekan selama percobaan ini
         self._terkirim_di_sambungan_ini = False
+        self._gagal_beruntun = 0
         self._catat_galat(galat)
         self.outbox.mark_failed_attempt(row["id"], galat)
         if kabar_baru:

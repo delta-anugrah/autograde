@@ -7,6 +7,7 @@ import time
 import pytest
 
 from palmgrade.domain.kirim_antrean_line import (
+    GAGAL_BERUNTUN_PUTUS,
     JEDA_BARIS_DASAR_S,
     JEDA_BARIS_MAKS_S,
     JEDA_SAMBUNGAN_DASAR_S,
@@ -15,8 +16,12 @@ from palmgrade.domain.kirim_antrean_line import (
     SEBAB_KONSOL_GALAT,
     SEBAB_KUNCI_DITOLAK,
     SEBAB_TAK_TERJANGKAU,
+    Akibat,
     Nasib,
+    Putusan,
     SambunganKonsol,
+    akibat_jawaban,
+    gagal_beruntun_sesudah,
     jeda_mundur,
     nilai_jawaban,
     waktu_janjang,
@@ -148,3 +153,53 @@ def test_bangunkan_membatalkan_jeda_tanpa_melupakan_putus():
     s.bangunkan()
     assert s.boleh_coba(50.0)
     assert (s.tersambung, s.putus_sejak) == (False, 50.0)
+
+
+# ── akibat satu jawaban: baris gagal atau sambungan putus ───────────────
+
+_TERKIRIM = Putusan(Nasib.TERKIRIM)
+_DITOLAK = Putusan(Nasib.DITOLAK)
+_GALAT = Putusan(Nasib.KONSOL_BERMASALAH, SEBAB_KONSOL_GALAT)
+
+
+def test_batas_beruntun_tiga():
+    assert GAGAL_BERUNTUN_PUTUS == 3
+
+
+@pytest.mark.parametrize("sudah_terkirim", [False, True])
+@pytest.mark.parametrize("beruntun", [0, 2, 99])
+def test_terkirim_selalu_terkirim(sudah_terkirim, beruntun):
+    assert akibat_jawaban(_TERKIRIM, gagal_beruntun=beruntun, sudah_terkirim=sudah_terkirim) is Akibat.TERKIRIM
+
+
+@pytest.mark.parametrize("sudah_terkirim", [False, True])
+@pytest.mark.parametrize("beruntun", [0, 2, 99])
+def test_baris_ditolak_selalu_masalah_baris(sudah_terkirim, beruntun):
+    assert akibat_jawaban(_DITOLAK, gagal_beruntun=beruntun, sudah_terkirim=sudah_terkirim) is Akibat.BARIS_GAGAL
+
+
+@pytest.mark.parametrize("sebab", [SEBAB_KONSOL_GALAT, SEBAB_KUNCI_DITOLAK, SEBAB_ALAMAT_SALAH])
+def test_konsol_bermasalah_sebelum_ada_2xx_memutus(sebab):
+    """(a) percobaan sambungan, atau kiriman pertama sesudah pulih."""
+    putusan = Putusan(Nasib.KONSOL_BERMASALAH, sebab)
+    assert akibat_jawaban(putusan, gagal_beruntun=0, sudah_terkirim=False) is Akibat.SAMBUNGAN_PUTUS
+
+
+def test_konsol_bermasalah_sesudah_2xx_di_bawah_batas_masalah_baris():
+    """Satu atau dua baris racun berturut-turut di konsol yang baru menerima janjang lain."""
+    for sebelumnya in range(GAGAL_BERUNTUN_PUTUS - 1):
+        assert akibat_jawaban(_GALAT, gagal_beruntun=sebelumnya, sudah_terkirim=True) is Akibat.BARIS_GAGAL
+
+
+def test_konsol_bermasalah_ketiga_beruntun_memutus():
+    """(b) konsol yang menjawab 500 untuk semuanya (disk penuh) tidak dikuras baris per baris."""
+    sebelumnya = GAGAL_BERUNTUN_PUTUS - 1
+    assert akibat_jawaban(_GALAT, gagal_beruntun=sebelumnya, sudah_terkirim=True) is Akibat.SAMBUNGAN_PUTUS
+    assert akibat_jawaban(_GALAT, gagal_beruntun=sebelumnya + 5, sudah_terkirim=True) is Akibat.SAMBUNGAN_PUTUS
+
+
+def test_hitungan_beruntun_2xx_mengosongkan_ditolak_tidak_mengubah_bermasalah_menambah():
+    assert gagal_beruntun_sesudah(_TERKIRIM, 2) == 0
+    assert gagal_beruntun_sesudah(_DITOLAK, 2) == 2
+    assert gagal_beruntun_sesudah(_GALAT, 2) == 3
+    assert gagal_beruntun_sesudah(_GALAT, 0) == 1
