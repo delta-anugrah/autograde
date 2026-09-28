@@ -81,6 +81,18 @@ def visit_recorded(store: ConsoleStore) -> Callable[[str, Any], None]:
     return record
 
 
+def outbox_handlers(store: ConsoleStore) -> dict[str, OutboxHandler]:
+    """What each kind of message is POSTed to, and who records the answer.
+
+    One definition shared by `build_erp_workers` and the tests that drive the real
+    worker, so a test cannot wire a handler the console does not.
+    """
+    return {
+        erp_messages.TRUCK: OutboxHandler(method=UPSERT_TRUCK, on_sent=truck_linked(store)),
+        erp_messages.VISIT: OutboxHandler(method=UPSERT_VISIT, on_sent=visit_recorded(store)),
+    }
+
+
 def build_erp_workers(
     settings: Settings,
     store: ConsoleStore,
@@ -94,12 +106,8 @@ def build_erp_workers(
         return []
 
     client = ErpClient(settings.erp_url, settings.erp_api_key, settings.erp_api_secret)
-    handlers = {
-        erp_messages.TRUCK: OutboxHandler(method=UPSERT_TRUCK, on_sent=truck_linked(store)),
-        erp_messages.VISIT: OutboxHandler(method=UPSERT_VISIT, on_sent=visit_recorded(store)),
-    }
     return [
         MasterDataWorker(store, client, interval_s=settings.console_sync_interval_s, status=status),
-        ErpOutboxWorker(queue.outbox, client, handlers, status=status),
+        ErpOutboxWorker(queue.outbox, client, outbox_handlers(store), status=status),
         VisitResendWorker(queue, store, ZoneInfo(settings.factory_tz)),
     ]

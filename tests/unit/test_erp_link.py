@@ -13,7 +13,7 @@ from palmgrade.domain.plate import truck_id_for
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.services.erp_queue import ErpQueue
-from palmgrade.workers.erp_link import build_erp_workers, truck_linked, visit_recorded
+from palmgrade.workers.erp_link import build_erp_workers, outbox_handlers, truck_linked, visit_recorded
 from palmgrade.workers.erp_outbox_worker import ErpOutboxWorker
 from palmgrade.workers.master_data_worker import MasterDataWorker
 from palmgrade.workers.visit_resend_worker import VisitResendWorker
@@ -136,3 +136,14 @@ def test_an_answer_for_a_weighing_we_no_longer_have_is_harmless(tmp_path):
     store, _ = _parts(tmp_path)
 
     visit_recorded(store)("w1", {"note": "ticket cancelled; visit ignored"})
+
+
+def test_the_worker_and_the_tests_share_one_handler_map(tmp_path):
+    store, _ = _parts(tmp_path)
+
+    handlers = outbox_handlers(store)
+
+    assert {kind: h.method for kind, h in handlers.items()} == {
+        "truck": "erpnext.palm_mill.api.upsert_truck",
+        "visit": "erpnext.palm_mill.api.upsert_visit",
+    }

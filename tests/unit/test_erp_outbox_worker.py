@@ -131,3 +131,99 @@ def test_a_handler_that_fails_locally_keeps_the_message(tmp_path):
     clock.now += 30
     [held] = outbox.due()
     assert "database is locked" in held.last_error
+
+
+# ── batch 2.7: one message's failure is that message's problem ───────────────
+
+
+def test_a_frappe_500_on_one_payload_does_not_hold_the_others(tmp_path):
+    """A handler that crashes on ONE payload used to read as "AutoERP is down" and
+    held the whole batch, with Frappe's reason thrown away."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if b"RACUN" in request.content:
+            return httpx.Response(500, json={"exc_type": "KeyError", "exception": "KeyError: 'counts'"})
+        return httpx.Response(200, json={"message": {"name": "ok"}})
+
+    worker, outbox, clock, delivered = _worker(tmp_path, handler)
+    outbox.enqueue("truck", "RACUN", {"plate_number": "RACUN"})
+    clock.now += 1
+    outbox.enqueue("truck", "BE2BB", {"plate_number": "BE 2 BB"})
+    clock.now += 1
+    outbox.enqueue("truck", "BE3CC", {"plate_number": "BE 3 CC"})
+
+    assert asyncio.run(worker.drain_once()) == 2
+    assert [key for key, _ in delivered] == ["BE2BB", "BE3CC"]
+    [held] = outbox.failed_rows()
+    assert (held["key"], held["attempts"]) == ("RACUN", 1)
+    assert "KeyError: 'counts'" in held["last_error"]
+
+
+def test_a_500_page_that_is_not_frappes_still_holds_the_batch(tmp_path):
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(500, text="<html><center>nginx</center></html>")
+
+    worker, outbox, clock, _ = _worker(tmp_path, handler)
+    outbox.enqueue("truck", "A", {"plate_number": "A"})
+    clock.now += 1
+    outbox.enqueue("truck", "B", {"plate_number": "B"})
+
+    assert asyncio.run(worker.drain_once()) == 0
+    assert len(calls) == 1
+    assert [m.key for m in outbox.due()] == ["B"]
+
+
+def test_a_200_that_is_not_json_is_recorded_and_backs_off(tmp_path):
+    """The reproduced bug: the oldest row was tried first on EVERY tick, never recorded,
+    never backed off, and the row behind it never moved. Now every try is recorded, the
+    head row backs off 30 s, 60 s, 120 s, and the second row gets its turns."""
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(200, text="<html><body>Login hotspot</body></html>")
+
+    worker, outbox, clock, _ = _worker(tmp_path, handler)
+    outbox.enqueue("truck", "A", {"plate_number": "A"})
+    clock.now += 1
+    outbox.enqueue("truck", "B", {"plate_number": "B"})
+
+    for _ in range(5):                      # five ticks, 30 s apart
+        assert asyncio.run(worker.drain_once()) == 0
+        clock.now += 30
+
+    tries = {row["key"]: row["attempts"] for row in outbox.failed_rows()}
+    assert tries == {"A": 3, "B": 2}
+    assert len(calls) == 5
+    assert all("HTTP 200" in row["last_error"] for row in outbox.failed_rows())
+
+
+class _BrokenClient:
+    """A bug on our side of the wire for one payload: not an ErpError at all."""
+
+    async def call_method(self, method, payload):
+        if payload["plate_number"] == "A":
+            raise RuntimeError("client bug")
+        return {"name": payload["plate_number"]}
+
+
+def test_an_unexpected_error_for_one_message_is_recorded_and_the_batch_goes_on(tmp_path):
+    clock = Clock()
+    outbox = ErpOutboxStore(tmp_path / "erp_outbox.db", clock=clock)
+    delivered: list[str] = []
+    worker = ErpOutboxWorker(
+        outbox, _BrokenClient(),
+        {"truck": OutboxHandler(method=METHOD, on_sent=lambda key, answer: delivered.append(key))},
+    )
+    outbox.enqueue("truck", "A", {"plate_number": "A"})
+    clock.now += 1
+    outbox.enqueue("truck", "B", {"plate_number": "B"})
+
+    assert asyncio.run(worker.drain_once()) == 1
+    assert delivered == ["B"]
+    [held] = outbox.failed_rows()
+    assert (held["key"], held["attempts"]) == ("A", 1)
+    assert "RuntimeError: client bug" in held["last_error"]

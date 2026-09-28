@@ -1,12 +1,17 @@
 """Drains the AutoERP outbox (contract §5, backlog AG-4).
 
-Three outcomes, and the difference between them is what keeps the queue honest:
+Four outcomes, and the difference between them is what keeps the queue honest:
 
-- **delivered** — the handler records AutoERP's answer, the row is done.
-- **refused** — kept with AutoERP's reason and retried on the backoff. One bad
+- **delivered**: the handler records AutoERP's answer, the row is done.
+- **refused or crashed on this payload** (4xx, or a 5xx carrying Frappe's error
+  envelope): kept with AutoERP's reason and retried on the backoff. One bad
   payload must never starve the messages queued behind it.
-- **unreachable** — the batch stops. The rest would only burn their backoff
-  against an ERP that is down, and they are all still queued.
+- **unreachable** (network, gateway, anything that is not Frappe answering): the
+  batch stops. The rest would only burn their backoff against an ERP that is
+  down, and they are all still queued.
+- **anything else raised for one message**: recorded and backed off like a
+  refusal (batch 2.7). Letting it escape `drain_once` retried that same oldest
+  row first on every tick, with no backoff, while nothing behind it moved.
 """
 from __future__ import annotations
 
@@ -20,6 +25,7 @@ from ..integrations.erp.client import (
     ErpClient,
     ErpError,
     ErpRejected,
+    ErpServerError,
     ErpUnavailable,
     galat_jaringan,
 )
@@ -88,7 +94,7 @@ class ErpOutboxWorker:
             self._status.berhasil("erp", "kirim", sinkron=False)
 
     async def drain_once(self) -> int:
-        """One batch. Returns how many messages AutoERP accepted."""
+        """One batch. Returns how many messages AutoERP accepted. Never raises for one message."""
         delivered = 0
         for message in self._outbox.due(self._batch):
             handler = self._handlers.get(message.kind)
@@ -105,10 +111,14 @@ class ErpOutboxWorker:
                 self._outbox.mark_error(message, str(exc))
                 self._catat_galat(exc)
                 break
-            except ErpRejected as exc:
-                logger.error("AutoERP refused %s %s: %s", message.kind, message.key, exc)
+            except (ErpRejected, ErpServerError) as exc:
+                logger.error("AutoERP refused or failed on %s %s: %s", message.kind, message.key, exc)
                 self._outbox.mark_error(message, str(exc))
                 self._catat_galat(exc)
+                continue
+            except Exception as exc:
+                logger.exception("Sending %s %s failed", message.kind, message.key)
+                self._outbox.mark_error(message, f"{type(exc).__name__}: {exc}")
                 continue
 
             try:
