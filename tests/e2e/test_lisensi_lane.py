@@ -168,6 +168,14 @@ def test_operator_biasa_mendapat_keadaan_langganan(sehat):
     assert jawab.json()["lisensi"]["severity"] == "none"
 
 
+def test_operator_biasa_mendapat_versi_untuk_header(sehat):
+    """Versi di bawah tulisan AUTOGRADE untuk semua akun (permintaan 2026-09-28).
+    Dulu cuma ada di tab Versi yang support-only."""
+    _masuk(sehat, "operator@pks.test")
+
+    assert sehat.get("/api/console/state").json()["versi"] == "9.9.9-e2e"
+
+
 def test_operator_biasa_melihat_peringatan_mendekati_habis(hampir_habis):
     _masuk(hampir_habis, "operator@pks.test")
 

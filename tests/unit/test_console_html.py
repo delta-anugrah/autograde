@@ -1233,8 +1233,10 @@ def test_banner_tidak_menampilkan_token():
 
 
 def test_kartu_support_menampilkan_tanggal_langganan():
-    fn = _fungsi("muatVersi")
+    """Baris tanggal hidup di `barisLisensi`, dipakai bersama kotak detail header."""
+    fn = _fungsi("barisLisensi")
     assert "labelAktifSampai" in fn and "labelTenggangSampai" in fn
+    assert "barisLisensi(l)" in _fungsi("muatVersi")
 
 
 def test_tanggal_langganan_tidak_menampilkan_jam():

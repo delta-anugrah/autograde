@@ -199,7 +199,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/login` | `{email, sandi}` → cookie `konsol_sesi` HttpOnly, 12 jam. Sandi salah 401, login terkunci 429 |
 | POST | `/api/console/logout` | akhiri sesi ini saja |
 | GET | `/api/console/me` | operator yang sedang masuk |
-| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator + `plc.alarms` per line (motor fault / E-stop) untuk pita alarm + `sinkron` untuk **Last Sync** (`autoerp` dan `cloud`: `keadaan`/`terakhir`/`sejak`/`antre`, aturan 27). Semuanya di sini, **bukan** lane support: yang melihat kamera berhenti, motor mati, atau sambungan putus itu operator biasa |
+| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator + `plc.alarms` per line (motor fault / E-stop) untuk pita alarm + `sinkron` untuk **Last Sync** (`autoerp` dan `cloud`: `keadaan`/`terakhir`/`sejak`/`antre`, aturan 27). + `versi` image, untuk baris versi + lisensi di bawah tulisan AUTOGRADE (semua akun, 2026-09-28). Semuanya di sini, **bukan** lane support: yang melihat kamera berhenti, motor mati, atau sambungan putus itu operator biasa |
 | GET | `/api/console/history` | filter `work_date` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas |
 | GET | `/api/console/trucks` | master truk + supplier + `source_label` |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar), id = uuid5 plat ternormalisasi |
@@ -707,8 +707,13 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     ⚠️ **Banner operator menumpang `/api/console/state`, BUKAN `/api/console/dev/*`.**
     Yang melihat kamera berhenti itu operator biasa, dan lane dev menjawab 403 untuk
     mereka: layar akan diam persis di saat penjelasan paling dibutuhkan. Yang ikut ke
-    operator cuma tingkat keparahan dan tanggal; nomor token tetap support-only, dan
+    operator cuma tingkat keparahan, tanggal, dan nama perusahaan; nomor token tetap support-only, dan
     ada test yang menjaganya.
+    Data yang sama ditulis **di bawah tulisan AUTOGRADE untuk semua akun** (2026-09-28,
+    `teksInfoSistem`): versi + "Lisensi s/d …", warnanya dari `severity` server, bukan
+    dihitung ulang. Klik membuka kotak detail (`barisInfoSistem`), yang berbagi
+    `barisLisensi` dengan tab Versi. Fitur lisensi mati = versi saja, supaya kata "mati"
+    tidak terbaca sebagai kerusakan di layar operator.
     ⚠️ **Token yang tidak terbaca diperlakukan sama dengan habis.** Kebalikannya
     berarti token rusak = gratis.
 
