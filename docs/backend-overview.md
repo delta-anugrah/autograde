@@ -154,7 +154,8 @@ per `track_id`): `docs/overview.md` §3.
 | Field | Artinya |
 |---|---|
 | `camera_type` | sumber yang **benar-benar** dipakai line (dari `media.env`), bukan `printenv` container |
-| `outbox_pending` / `outbox_failed` | backlog jalur realtime ke **konsol** (`BACKEND_URL`). Naik terus = konsol tidak menjawab. **Bukan** backlog upload R2 |
+| `outbox_pending` / `outbox_failed` | backlog jalur realtime ke **konsol** (`BACKEND_URL`). Naik terus = konsol tidak menjawab. **Bukan** backlog upload R2. `outbox_pending` `null` = tidak diketahui (lihat baris berikut) |
+| `outbox_lama_tertinggal` | `true` = `artifacts/outbox.db` dari sebelum batch 1 gagal diserap ke `state/` (berkas rusak, disk penuh): barisnya belum terkirim dan tidak terhitung, jadi `outbox_pending` dilapor `null`. Danger Zone menahan hapus data (`outbox_lama`); restart line itu untuk mencoba lagi, lalu baca log line-nya |
 | `capture_save_pending` | janjang yang menunggu ditulis `CaptureSaveWorker` (antrean 8 dalam). Naik terus = disk/CPU tidak mengimbangi laju grading |
 | `capture_save_dropped` | **harus NOL.** Janjang yang dibuang karena antrean penuh: sudah dapat pulse PLC dan sudah masuk rekap, tapi **tidak punya gambar maupun sidecar**, jadi `BatchUploadWorker._scan()` tidak akan pernah menemukannya |
 | `tp_telat` | **harus NOL.** TP yang muncul sesudah janjang terdekatnya difoto, jadi tangkainya tidak ikut ke mana pun |

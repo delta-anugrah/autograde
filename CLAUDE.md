@@ -884,7 +884,8 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     `.env` menggeser angka yang dibayar). Mode transaksi juga menyisakan truk, supplier,
     akun, sesi, dan kursor tarik AutoERP. Tabel console.db digolongkan di
     `GOLONGAN_TABEL_KONSOL`; tabel baru membuat `test_semua_tabel_konsol_digolongkan` merah.
-    **Hambatan (409)**: line mati, truk terpasang, outbox line belum kosong (tak terbaca =
+    **Hambatan (409)**: line mati, truk terpasang, antrean lama line yang gagal dipindah ke
+    `state/` (`outbox_lama`, aturan 28), outbox line belum kosong (tak terbaca =
     belum kosong), antrean AutoERP `pending` kalau `ERP_URL` terisi, **tiket timbang
     terbuka hari kerja berjalan** (bruto ada, tara belum = truk di tengah kunjungan, dan
     bruto itu yang dibayar), dan (mode semua) tidak ada hash akun **support** yang
@@ -1013,6 +1014,15 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     mencatat alasannya, bukan menghentikan line. `hapus-data` (Danger Zone) menghapus
     `state/outbox.db*` sebagai berkas milik line (`MILIK_LINE_DI_STATE`, aturan 25) dan tetap
     menyisakan `license.db*` di `state/`, sama dengan bawaan di `artifacts/`.
+    ⚠️ **Serapan yang GAGAL tidak boleh terbaca "antrean kosong"** (berkas lama rusak, disk
+    `state/` penuh, `MemoryError`; antrean lama dibaca per potongan, `_POTONGAN_SERAP`, satu
+    commit): `artifacts/outbox.db` tertinggal dan barisnya tidak dihitung `pending_count()`.
+    Tiga penjaga: `/health/detail` melapor `outbox_lama_tertinggal: true` dan `outbox_pending:
+    null` (tidak diketahui; `autograde reset-data` di host cuma mengenali angka, jadi ikut
+    menolak), Danger Zone menahan dengan hambatan `outbox_lama` yang menyebut line-nya, dan
+    hapus-data saat boot tidak menghapus `artifacts/outbox.db*` selama folder DB line bukan
+    `artifacts/` (`hapus_kalau_diminta(..., folder_db=get_folder_db_line())`). Boot berikutnya
+    menyerap lagi; yang harus dikejar penyebabnya, lewat log line itu.
 
 ---
 

@@ -439,7 +439,7 @@ artifacts/line-N/   (host) ↔ /app/artifacts (container)
 state/line-N/   (host) ↔ /app/state (container)   # SIBLING artifacts/, DI LUAR mount /captures
   upload_manifest.db        # progres BatchUploadWorker (WAL + synchronous=FULL)
   outbox.db                 # SQLite: antrean realtime ke konsol (OutboxRetryWorker)
-  license.db                # penjaga jam lisensi (hash-chain), kalau LICENSE_ENABLED
+  license.db                # penjaga jam lisensi (satu penanda jam tertinggi), kalau LICENSE_ENABLED
 ```
 
 ⚠️ **`outbox.db` dan `license.db` pindah ke `state/` sejak batch 1 keamanan (2026-09-28)**,
@@ -450,6 +450,15 @@ keadaan itu keduanya tetap di `artifacts/`, tetap tidak tersaji (lihat aturan be
 dan `logger.error` mencatat kenapa. Isi berkas lama **diserap** ke lokasi baru saat boot pertama
 (`pindahkan_db_lama()`), bukan dipindah mentah: `os.replace` gagal lintas bind mount Docker
 (EXDEV), dan penyerapan berdasarkan kunci alami membuat boot yang terputus di tengah aman diulang.
+⚠️ **Serapan yang gagal** (berkas lama rusak, disk `state/` penuh, `MemoryError`) meninggalkan
+`artifacts/outbox.db` yang barisnya tidak terhitung `pending_count()`. Supaya tidak terbaca
+"antrean kosong": `/health/detail` melapor `outbox_lama_tertinggal: true` dan `outbox_pending:
+null` (tidak diketahui, bukan 0), Danger Zone menahan hapus data dengan hambatan `outbox_lama`
+(menyebut line-nya dan menyuruh restart line itu, lalu tab Log + teknisi kalau masih muncul),
+dan hapus-data saat boot (`hapus_kalau_diminta(..., folder_db=...)`) **tidak** menghapus
+`artifacts/outbox.db*` selama folder DB line bukan `artifacts/`. Boot berikutnya mencoba
+menyerapnya lagi. `autograde reset-data` di host hanya mengenali angka di `outbox_pending`, jadi
+`null` terbaca "tidak diketahui" dan ikut menolak.
 ⚠️ `results/` **bukan arsip permanen**: `_retention()` menghapus WebP + JSON yang `done` dan lewat
 `UPLOAD_RETENTION_DAYS` (default 7): setelah itu satu-satunya salinan gambar ada di R2. Item
 `poisoned` sengaja tidak dihapus.

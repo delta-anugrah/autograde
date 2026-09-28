@@ -92,7 +92,9 @@ Urutannya, kalau memang mau dikerjakan sekalian:
 2. **Rilis** (`autograde pull` / `use`). Boot pertama tiap line mencatat `outbox.db dipindah ...`
    dan `license.db dipindah ...`. Cek `/health/detail` `outbox_pending` sama dengan sebelum
    upgrade, `ls artifacts/line-1/*.db` kosong, `ls state/line-1/` memuat kedua berkas, dan foto
-   konsol tetap tampil sesudah login.
+   konsol tetap tampil sesudah login. `outbox_lama_tertinggal: true` (dengan `outbox_pending:
+   null`) = antrean lama gagal diserap: jangan hapus data apa pun, restart line itu, lalu baca
+   log line-nya (`gagal diserap`).
 3. **Belakangan, terpisah**: `INTERNAL_SECRET=<nilai baru>` di `.env`, **dan** tambahkan
    `- INTERNAL_SECRET=${INTERNAL_SECRET:-}` ke tiga blok line `docker-compose.yml` **serta** blok
    konsol `docker-compose.prod.yml` (backup dulu), lalu `autograde restart`. Verifikasi

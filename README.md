@@ -641,13 +641,16 @@ artifacts/line-1/
 state/line-1/                  # SIBLING artifacts/, sengaja di LUAR mount statis /captures
 ├── upload_manifest.db         # state per-item BatchUploadWorker (pending/image_uploaded/done/poisoned)
 ├── outbox.db                  # antrean realtime ke BACKEND_URL (OutboxRetryWorker, poll 1 dtk)
-└── license.db                 # penjaga jam lisensi (hash-chain), kalau LICENSE_ENABLED
+└── license.db                 # penjaga jam lisensi (satu penanda jam tertinggi), kalau LICENSE_ENABLED
 ```
 
 > Sejak batch 1 keamanan (2026-09-28) `outbox.db` dan `license.db` hidup di `state/`, bukan
 > `artifacts/`: keduanya dulu ikut tersaji lewat mount statis `/captures` (aturan berkas DB /
 > tersembunyi 404 baru ditambahkan belakangan). PC yang sedang upgrade menyerap isi berkas lama
 > ke lokasi baru saat boot pertama (`services/pindah_db_line.py`), bukan memindah berkasnya.
+> Serapan yang gagal tidak disembunyikan: `/health/detail` melapor `outbox_lama_tertinggal: true`
+> dengan `outbox_pending: null`, Danger Zone menahan hapus data (hambatan `outbox_lama`), dan
+> hapus data tidak membuang `artifacts/outbox.db` itu. Boot berikutnya mencoba menyerapnya lagi.
 
 > ⚠️ **Sidecar JSON WAJIB tetap datar di folder tanggal.** `BatchUploadWorker._scan()`
 > mencarinya dengan `glob("*/*_ripeness.json")`: kedalaman dipatok dua. Sidecar yang ikut
