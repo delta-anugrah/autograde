@@ -37,7 +37,7 @@ def _fungsi_tarik() -> str:
 def _sumber_route_konsol() -> str:
     berkas = (
         pathlib.Path(__file__).resolve().parents[2]
-        / "src" / "palmgrade" / "routes" / "console.py"
+        / "src" / "palmgrade" / "routes" / "console_ingest.py"
     )
     return berkas.read_text(encoding="utf-8")
 

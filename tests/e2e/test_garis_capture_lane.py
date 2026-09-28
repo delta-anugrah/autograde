@@ -27,6 +27,7 @@ from palmgrade.core.config import Settings
 from palmgrade.domain.garis_capture import menyentuh_garis, skala_garis_ke_frame
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.routes import console as console_routes
+from palmgrade.routes.console_ingest import ingest_router
 from palmgrade.services.console_service import ConsoleService
 
 SECRET = "e2e-secret"
@@ -57,7 +58,7 @@ def konsol(tmp_path, monkeypatch):
 
     app = FastAPI()
     app.include_router(console_routes.router)
-    app.include_router(console_routes.ingest_router, prefix=settings.backend_api_ver)
+    app.include_router(ingest_router, prefix=settings.backend_api_ver)
     app.dependency_overrides[console_routes.get_console_service] = lambda: service
     # Layar setelan cuma untuk `support`; yang diuji di sini rantai datanya,
     # bukan penjaganya (itu punya test sendiri).
