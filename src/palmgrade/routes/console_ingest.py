@@ -10,6 +10,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Header, HTTPException
 
+from ..domain.rahasia import rahasia_cocok
 from .console_deps import Service
 
 # ── event receiver for the three lines (frozen contract §5) ─────────────
@@ -24,7 +25,7 @@ async def ingest_event(
     payload: Annotated[dict, Body()],
     x_webhook_secret: Annotated[str | None, Header()] = None,
 ) -> dict:
-    if x_webhook_secret != service.settings.webhook_secret:
+    if not rahasia_cocok(x_webhook_secret, service.settings.webhook_secret):
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
     try:
         work_date = service.ingest(payload)
@@ -47,7 +48,7 @@ async def setelan_untuk_line(
     di `RuntimeState` hilang bersama prosesnya, jadi line menanyakannya lagi.
     Konsol tetap satu-satunya pemegang kebenaran; line cuma menyalin.
     """
-    if x_webhook_secret != service.settings.webhook_secret:
+    if not rahasia_cocok(x_webhook_secret, service.settings.webhook_secret):
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
     return service.setelan_grading()
 
@@ -68,7 +69,7 @@ async def penugasan_untuk_line(
     tahu siapa yang bertanya akan mengirimkan truk line lain — tonase mendarat di
     truk yang salah, tanpa satu pun pesan.
     """
-    if x_webhook_secret != service.settings.webhook_secret:
+    if not rahasia_cocok(x_webhook_secret, service.settings.webhook_secret):
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
     return service.penugasan_untuk_mesin(machine_id)
 
@@ -85,7 +86,7 @@ async def ingest_weighing(
     here is our shape — `plate_number`, `gross_kg`, `tare_kg`, `entered_at`,
     `exited_at`, optional `ref`. An adapter follows once the format lands.
     """
-    if x_webhook_secret != service.settings.webhook_secret:
+    if not rahasia_cocok(x_webhook_secret, service.settings.webhook_secret):
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
     try:
         return await service.record_weighing(payload)

@@ -13,18 +13,18 @@ Aturannya: CLAUDE.md aturan 25 (Danger Zone).
 """
 from __future__ import annotations
 
-import hmac
 import logging
 import time
 from collections.abc import Callable
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 
 from ..core.config import Settings
 from ..domain.bahaya import MODE_HAPUS
 from ..services.hapus_data_line import hapus_rekaman, ringkas_rekaman, tulis_penanda
 from ..workers.runtime_state import RuntimeState
+from .penjaga_rahasia import penjaga_internal
 
 logger = logging.getLogger(__name__)
 
@@ -46,14 +46,11 @@ def buat_router(
 ) -> APIRouter:
     """Router `/internal/...` Danger Zone untuk satu proses line."""
 
-    async def verifikasi(x_internal_secret: Annotated[str | None, Header()] = None) -> None:
-        # Pembanding waktu-tetap: secret ini membuka perintah yang menghapus data.
-        if not hmac.compare_digest(
-            (x_internal_secret or "").encode(), settings().internal_secret.encode()
-        ):
-            raise HTTPException(status_code=401, detail="Invalid internal secret")
-
-    router = APIRouter(prefix="/internal", tags=["internal"], dependencies=[Depends(verifikasi)])
+    router = APIRouter(
+        prefix="/internal",
+        tags=["internal"],
+        dependencies=[Depends(penjaga_internal(settings))],
+    )
 
     @router.post("/hapus-data")
     async def hapus_data(

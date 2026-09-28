@@ -94,7 +94,7 @@ def test_endpoint_konsol_ada_di_lane_mesin():
     (lane `x-webhook-secret`), bukan di router yang butuh login."""
     s = _sumber_route_konsol()
     assert "/internal/penugasan" in s
-    blok = s.split("/internal/penugasan")[1][:800]
+    blok = s.split("/internal/penugasan")[1][:900]
     assert "x_webhook_secret" in blok
     assert "401" in blok
 
@@ -103,4 +103,4 @@ def test_endpoint_konsol_menolak_secret_salah():
     """Tanpa ini siapa pun di LAN pabrik bisa menanyakan truk mana di line mana."""
     s = _sumber_route_konsol()
     blok = s.split("/internal/penugasan")[1][:800]
-    assert "!= service.settings.webhook_secret" in blok
+    assert "rahasia_cocok(x_webhook_secret, service.settings.webhook_secret)" in blok
