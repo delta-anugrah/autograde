@@ -1127,5 +1127,9 @@ memang khas satu mesin.
 - `docs/runbooks/`: sumber kamera per line, model deteksi per line, commissioning PLC Lampung.
 - Skill `compose-host-pabrik`: compose dan launcher di host PC pabrik tidak ikut `autograde pull`; cek sebelum PR yang menambah env var atau mount.
 - Skill `konsol-autograde`: peta tab konsol, test per tab, aturan teks layar.
+- `deploy/demo/` + `docs/runbooks/2026-09-28-konsol-demo-droplet.md`: konsol demo internet
+  (`demo-autograde.smagri.id`) di droplet AutoERP, perintah `demo-autograde`. Image-nya
+  `vX.Y.Z-cpu` dari `demo-image.yml` (tanpa CUDA/SDK; image pabrik 18,2 GB memenuhi disk
+  droplet), dan workflow itu **tidak pernah menulis `latest`**: itu penanda updater pabrik.
 - Pasang PC pabrik (image produksi), rilis, deploy: skill `install-factory-pc`, `tag-release`, `deploy-production` di workspace `sawit` (bukan di repo ini).
 - `../ARCHITECTURE.md`: system architecture.
