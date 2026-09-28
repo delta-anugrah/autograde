@@ -380,9 +380,16 @@ async def console_state(service: Service, dev: Dev, operator: Operator) -> dict:
 
     Sengaja **bukan** lewat `/api/console/dev/*`: banner ini untuk operator
     biasa, yang justru orang yang akan melihat kamera berhenti. Yang dikirim di
-    sini cuma tanggal dan tingkat keparahan — nomor token tetap support-only.
+    sini cuma tanggal, tingkat keparahan, dan nama perusahaan — nomor token tetap
+    support-only. `versi` ikut untuk baris di bawah tulisan AUTOGRADE (2026-09-28):
+    dibaca tiap polling, jadi sesudah `autograde pull` layar yang terbuka ikut
+    menampilkan versi baru tanpa dimuat ulang.
     """
-    return {**service.state(), "lisensi": await dev.license_state()}
+    return {
+        **service.state(),
+        "lisensi": await dev.license_state(),
+        "versi": dev.app_version(),
+    }
 
 
 @router.get("/api/console/history")

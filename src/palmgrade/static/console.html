@@ -102,6 +102,26 @@
   h1 { font-size:1rem; margin:0; font-weight:700; letter-spacing:.14em;
        text-transform:uppercase; display:flex; align-items:center; gap:10px; }
   h1::before { content:""; width:.7rem; height:1rem; background:var(--acc); border-radius:var(--r-pill); }
+  .merek { display:flex; flex-direction:column; gap:1px; }
+  /* Menjorok sejajar huruf pertama AUTOGRADE (pil hijau .7rem + jarak 10px). */
+  #info-sistem { align-self:flex-start; min-height:0; padding:0 0 0 calc(.7rem + 10px);
+                 background:none; border:0; border-radius:0; text-align:left;
+                 font-family:var(--mono); font-size:.74rem; font-weight:600; color:var(--muted); }
+  #info-sistem:hover { color:var(--fg); text-decoration:underline; }
+  /* Tingkat dari server, sama dengan banner langganan. */
+  #info-sistem[data-tingkat="warning"] { color:var(--warn); }
+  #info-sistem[data-tingkat="grace"] { color:var(--rej); }
+  #info-sistem[data-tingkat="blocked"] { color:var(--rej); }
+  #info-sistem-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
+                       background:var(--card); color:var(--fg); width:min(92vw, 30rem); }
+  #info-sistem-modal::backdrop { background:rgba(0,0,0,.72); }
+  .info-sistem-isi { padding:20px 24px; }
+  #info-sistem-modal h2 { margin:0 0 12px; font-size:1.25rem; }
+  #info-sistem-daftar { margin:0; grid-template-columns:1fr; }
+  #info-sistem-daftar > div { grid-template-columns:9rem 1fr; }
+  #info-sistem-modal .tools { padding:16px 0 0; justify-content:flex-end;
+                              background:none; border:0; border-radius:0; }
+  #info-sistem-modal .tools button { min-height:44px; min-width:9rem; }
   #jam { font-family:var(--mono); font-size:1.15rem; font-weight:700; letter-spacing:.01em; }
   .jam { display:flex; align-items:baseline; gap:8px; }
   #topbar .aksi { margin-left:auto; display:flex; gap:8px; }
@@ -1152,7 +1172,13 @@
 </style>
 
 <header id="topbar">
-  <h1>AutoGrade</h1>
+  <!-- Versi + lisensi di bawah tulisan AUTOGRADE, untuk SEMUA akun (2026-09-28): dulu
+       cuma di tab Versi yang support-only, jadi operator tidak tahu langganan PC-nya
+       sampai kapan. Klik membuka kotak detail. Diisi tiap polling `/api/console/state`. -->
+  <div class="merek">
+    <h1>AutoGrade</h1>
+    <button type="button" id="info-sistem" hidden aria-haspopup="dialog"></button>
+  </div>
   <span class="jam"><b id="jam">-</b> <span id="tz" class="lb"></span></span>
   <span class="aksi">
     <span id="operator-aktif" hidden></span>
@@ -2170,6 +2196,15 @@
   menutup layar memang yang diminta — melihat foto lebih besar, sebentar, lalu
   kembali.
 -->
+<dialog id="info-sistem-modal" aria-labelledby="info-sistem-judul">
+  <div class="info-sistem-isi">
+    <h2 id="info-sistem-judul" data-t="judulInfoSistem">Versi &amp; lisensi</h2>
+    <dl id="info-sistem-daftar" class="daftar-definisi"></dl>
+    <div class="tools">
+      <button type="button" id="info-sistem-tutup" data-t="btnTutup">Tutup</button>
+    </div>
+  </div>
+</dialog>
 <dialog id="foto-modal" aria-labelledby="foto-judul">
   <div class="foto-kepala">
     <span id="foto-judul"></span>
@@ -2187,6 +2222,10 @@ const esc = (s) => String(s ?? "").replace(/[&<>"'`]/g, (c) =>
 const KOSONG = "-";
 const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));
 let trucks = [];
+// Versi + lisensi terakhir dari `/api/console/state`, untuk menggambar ulang header saat
+// bahasa diganti tanpa menunggu polling berikutnya.
+let infoVersi;
+let infoLisensi;
 
 // ── language & theme ───────────────────────────────────────────────────
 const KAMUS = {
@@ -2416,6 +2455,9 @@ const KAMUS = {
     manifestNonaktif:"R2 belum disetel, jadi halaman detail truk tidak jalan di PKS ini.",
     labelVersi:"Versi", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Lisensi", gagalVersi:"Gagal memuat versi",
+    judulInfoSistem:"Versi & lisensi", infoLisensiSampai:"Lisensi s/d {tanggal}",
+    infoTenggangSampai:"Tenggang s/d {tanggal}", infoLisensiHabis:"Lisensi habis",
+    infoTanpaToken:"Token lisensi belum dipasang", infoLisensiAktif:"Lisensi aktif",
     versiDariSource:"dev (dari source)",
     lisensiAktif:"Aktif", lisensiTanpaToken:"Aktif, token belum terpasang", lisensiMati:"Mati",
     lisensiSaklarMati:"Mati. Token ada, tapi LICENSE_ENABLED tidak menyala di konsol",
@@ -2740,6 +2782,9 @@ const KAMUS = {
     manifestNonaktif:"R2 is not configured, so the truck detail page does not work at this mill.",
     labelVersi:"Version", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Licence", gagalVersi:"Failed to load version",
+    judulInfoSistem:"Version & licence", infoLisensiSampai:"Licence until {tanggal}",
+    infoTenggangSampai:"Grace until {tanggal}", infoLisensiHabis:"Licence expired",
+    infoTanpaToken:"No licence token installed", infoLisensiAktif:"Licence active",
     versiDariSource:"dev (from source)",
     lisensiAktif:"Active", lisensiTanpaToken:"Active, no token installed", lisensiMati:"Inactive",
     lisensiSaklarMati:"Inactive. A token is installed, but LICENSE_ENABLED is off for the console",
@@ -2875,6 +2920,7 @@ function terapkanBahasa() {
   // here in whichever state it is currently in.
   lihatSandi($("gerbang-sandi").type === "text");
   tutupLihatSandi(document);
+  gambarInfoSistem(infoVersi, infoLisensi);
   segarkanPilih();
   terapkanTema();
 }
@@ -4391,6 +4437,7 @@ async function refresh() {
     const s = await api("/api/console/state");
     $("tz").textContent = "(" + s.timezone + ")";
     gambarBannerLisensi(s.lisensi);
+    gambarInfoSistem(s.versi, s.lisensi);
     umumkanPelepasanOtomatis(s.auto_releases);
     selarasUrutan(s.lines);
     isiTally(s.lines);
@@ -5367,6 +5414,91 @@ function ringkasLisensi(l) {
   return t("lisensiSisaHari").replace("{hari}", l.sisa_hari);
 }
 
+// Baris lisensi, dipakai tab Versi dan kotak detail di header.
+function barisLisensi(l) {
+  const baris = [barisVersi(t("labelLisensi"), ringkasLisensi(l))];
+  // Tanggal cuma ditampilkan kalau memang ada tokennya. Baris "-" berjejer
+  // di PC dev terbaca seperti sesuatu yang rusak, padahal fiturnya memang mati.
+  if (l.aktif && l.aktif_sampai) {
+    if (l.perusahaan) baris.push(barisVersi(t("labelPerusahaan"), l.perusahaan));
+    baris.push(barisVersi(t("labelAktifSampai"), tanggalLisensi(l.aktif_sampai)));
+    baris.push(barisVersi(t("labelTenggangSampai"), tanggalLisensi(l.tenggang_sampai)));
+  }
+  return baris;
+}
+
+// ── versi + lisensi di header (semua akun, 2026-09-28) ──────────────────
+// "30 Sep 2027": baris header sempit, jadi bulannya disingkat. Kotak detail tetap
+// memakai tanggalLisensi (nama bulan penuh).
+function tanggalPendek(epoch) {
+  if (!epoch) return KOSONG;
+  const d = new Date(epoch * 1000);
+  if (isNaN(d)) return KOSONG;
+  return d.toLocaleDateString(lokal(), { day: "numeric", month: "short", year: "numeric" });
+}
+
+// Teks dan tingkat baris di bawah AUTOGRADE. Tingkatnya dari server (`severity`), sama
+// dengan banner: aturan yang menghentikan kamera tidak boleh punya salinan kedua di sini.
+// Fitur lisensi mati (PC dev, pabrik tanpa langganan) = versi saja: kata "mati" di header
+// terbaca seperti kerusakan, dan keterangannya tetap ada di kotak detail.
+function teksInfoSistem(versi, l) {
+  const bagian = [];
+  if (versi) bagian.push(versi === "unknown" ? t("versiDariSource") : versi);
+  let tingkat = "none";
+  if (l && l.aktif) {
+    let kata;
+    if (!l.token_terpasang) {
+      kata = t("infoTanpaToken");
+      tingkat = "blocked";
+    } else if (l.severity === "blocked") {
+      kata = t(l.aktif_sampai ? "infoLisensiHabis" : "lisensiTokenRusak");
+      tingkat = "blocked";
+    } else if (l.severity === "grace") {
+      kata = t("infoTenggangSampai").replace("{tanggal}", tanggalPendek(l.tenggang_sampai));
+      tingkat = "grace";
+    } else if (l.aktif_sampai) {
+      kata = t("infoLisensiSampai").replace("{tanggal}", tanggalPendek(l.aktif_sampai));
+      if (l.severity === "warning") tingkat = "warning";
+    } else {
+      kata = t("infoLisensiAktif");
+    }
+    bagian.push(kata);
+  }
+  return { teks: bagian.join(" · "), tingkat };
+}
+
+// Isi kotak detail: baris yang sama dengan tab Versi, tanpa environment. Tidak ada nomor
+// token: yang ikut ke operator cuma tanggal, tingkat, dan nama perusahaan.
+function barisInfoSistem(versi, l) {
+  const baris = [];
+  if (versi) baris.push(barisVersi(t("labelVersi"), versi === "unknown" ? t("versiDariSource") : versi));
+  if (l) baris.push(...barisLisensi(l));
+  return baris.join("");
+}
+
+function gambarInfoSistem(versi, l) {
+  infoVersi = versi;
+  infoLisensi = l;
+  const el = $("info-sistem");
+  if (!el) return;
+  const { teks, tingkat } = teksInfoSistem(versi, l);
+  if (el.textContent !== teks) el.textContent = teks;
+  el.hidden = !teks;
+  if (tingkat === "none") el.removeAttribute("data-tingkat");
+  else el.dataset.tingkat = tingkat;
+  if ($("info-sistem-modal").open) tulisKalauBeda($("info-sistem-daftar"), barisInfoSistem(versi, l));
+}
+
+$("info-sistem").addEventListener("click", () => {
+  tulisKalauBeda($("info-sistem-daftar"), barisInfoSistem(infoVersi, infoLisensi));
+  $("info-sistem-modal").showModal();
+});
+$("info-sistem-tutup").addEventListener("click", () => $("info-sistem-modal").close());
+// Klik di backdrop menutup, pola yang sama dengan lapisan foto.
+$("info-sistem-modal").addEventListener("click", (ev) => {
+  if (ev.target === ev.currentTarget) ev.currentTarget.close();
+});
+
 async function muatVersi() {
   try {
     const r = await api("/api/console/dev/versi");
@@ -5382,15 +5514,8 @@ async function muatVersi() {
       // membuang `//` di bawah; backend tetap mengirim `machine_id`.
       // barisVersi(t("labelMachineId"), r.machine_id),
       barisVersi(t("labelEnvironment"), r.environment),
-      barisVersi(t("labelLisensi"), ringkasLisensi(l)),
+      ...barisLisensi(l),
     ];
-    // Tanggal cuma ditampilkan kalau memang ada tokennya. Baris "-" berjejer
-    // di PC dev terbaca seperti sesuatu yang rusak, padahal fiturnya memang mati.
-    if (l.aktif && l.aktif_sampai) {
-      if (l.perusahaan) baris.push(barisVersi(t("labelPerusahaan"), l.perusahaan));
-      baris.push(barisVersi(t("labelAktifSampai"), tanggalLisensi(l.aktif_sampai)));
-      baris.push(barisVersi(t("labelTenggangSampai"), tanggalLisensi(l.tenggang_sampai)));
-    }
     $("versi-daftar").innerHTML = baris.join("");
   } catch (e) {
     if (e.kode !== "belum_masuk") $("versi-daftar").innerHTML = `<dt>${esc(t("gagalVersi"))}</dt><dd></dd>`;

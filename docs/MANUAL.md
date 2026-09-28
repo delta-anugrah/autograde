@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "1.3"
+versi: "1.4"
 tanggal: 28 September 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -124,6 +124,10 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 
 ### 3.2 Layar utama
 
+- **Di bawah tulisan AUTOGRADE** (semua akun): versi dan sampai kapan lisensi PC ini berlaku,
+  misalnya `v1.18.0 · Lisensi s/d 30 Sep 2027`. Kuning saat langganan tinggal sebentar, merah
+  saat masa tenggang atau habis. Klik untuk melihat perusahaan, tanggal aktif, dan masa
+  tenggang. PC tanpa lisensi cuma menampilkan versinya.
 - **Strip "Hari ini"**: jumlah janjang per kelas (Ripe, Unripe, JK, TP) dan total, rasio Ripe,
   neto timbangan, dan **Last Sync**.
 - **Last Sync**: dua baris, **AutoERP** dan **Cloud Photo** (foto di R2). Jamnya = kapan data
@@ -517,7 +521,7 @@ kartu line (bukan di tab Uji PLC); E-stop tidak menghentikan grading.
 Bawaan mati. Kalau dinyalakan (`LICENSE_ENABLED=true`, `LICENSE_TOKEN=<token dari cloud>`),
 lisensi kedaluwarsa menghentikan inferensi dan menjatuhkan heartbeat PLC, jadi terlihat di lantai
 pabrik. Kunci publik sudah tertanam di image; `LICENSE_PRIVATE_KEY` **tidak boleh** ada di PC
-pabrik. Status terlihat di tab Versi.
+pabrik. Status terlihat di bawah tulisan AUTOGRADE (semua akun) dan di tab Versi (support).
 
 ### 5.11 Catatan PC Lampung (per 17 September 2026)
 
@@ -687,6 +691,7 @@ Struktur kode di `src/palmgrade/`: `routes/` (HTTP) → `controllers/` → `serv
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 1.4 | 28 September 2026 | Versi dan lisensi PC ditampilkan di bawah tulisan AUTOGRADE untuk semua akun, termasuk operator; klik untuk rinciannya. |
 | 1.3 | 28 September 2026 | Umpan balik tes staging: tombol cepat Riwayat menandai rentang yang dipakai, tombol **Lihat** di kolom sandi form akun, tombol aksi tab Akun berwarna, Last Sync menulis `-` untuk yang belum pernah sinkron, dan tab tetap benar saat berganti akun tanpa memuat ulang halaman. |
 | 1.2 | 27 September 2026 | **Last Sync** di strip "Hari ini" (AutoERP dan Cloud Photo: jam sinkron terakhir + status sambungan) dan **Impor CSV** di tab Riwayat (akun support: periksa dulu, impor berkas yang sama, batalkan per impor), plus tiga baris penanganan masalahnya di §7. |
 | 1.1 | 27 September 2026 | Tab **Riwayat** (grading hari sebelumnya, maks 31 hari, CSV), tab **Akun** yang bisa menambah dan mengurus akun lokal, **Danger Zone** di tab Setelan, tombol yang terkunci selama menunggu server, dan path PC Lampung `/opt/palmgrade/autograde`. Dicocokkan dengan kode `staging` sesudah autograde #180. |
