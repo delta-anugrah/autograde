@@ -166,9 +166,10 @@ per `track_id`): `docs/overview.md` §3.
 Backlog upload R2 tidak ada di sini: lihat blok `unggah` di `GET /internal/status`, atau query
 `state/upload_manifest.db` (`SELECT status, COUNT(*) FROM upload_items GROUP BY status`).
 
-### `/internal/*` (header `x-internal-secret` = `WEBHOOK_SECRET`)
+### `/internal/*` (header `x-internal-secret` = `INTERNAL_SECRET`, kosong = `WEBHOOK_SECRET`)
 
-Dipanggil konsol, tidak pernah oleh browser.
+Dipanggil konsol, tidak pernah oleh browser. Perbandingan constant-time dan fail closed:
+secret yang dikonfigurasi kosong tidak pernah membuka lane (`domain/penjaga_rahasia.py`).
 
 | Method | Path | Notes |
 |---|---|---|
@@ -373,7 +374,9 @@ seperti variabel mati padahal bukan: jangan dihapus karena `grep os.getenv` tida
 | `ENABLE_WEBHOOK` | `true` | Saklar jalur realtime ke konsol. `false` = hasil mengendap di `outbox.db` sampai dinyalakan |
 | `BACKEND_URL` | `http://localhost:2500` | Konsol penerima event. Bawaan kode dan compose = alamat palmgrade-api yang sudah mati, **wajib diisi**: `http://localhost:8100` di PC pabrik (`.env.example`) |
 | `BACKEND_API_VER` | `/api/v1` | Prefiks URL event |
-| `WEBHOOK_SECRET` | `supersecret123` | Secret bersama line ↔ konsol (`x-webhook-secret` ke konsol, `x-internal-secret` dari konsol) |
+| `WEBHOOK_SECRET` | `supersecret123` | Secret bersama line ↔ konsol (`x-webhook-secret`, dua arah) dan program timbangan. Perintah konsol → line memakai `x-internal-secret`: lihat `INTERNAL_SECRET` di baris berikut |
+| `INTERNAL_SECRET` | kosong | Kunci perintah konsol → line (`x-internal-secret`), terpisah dari `WEBHOOK_SECRET` sejak batch 1 keamanan (2026-09-28). Kosong atau sama dengan `WEBHOOK_SECRET` = perintah konsol masih memakai kunci yang juga dipegang program timbangan (`.env` lama tetap jalan); diisi beda di `.env` **dan** compose host (empat blok: tiga line + konsol) = terpisah. Dibaca line dan konsol sekaligus (`Settings.internal_secret`) |
+| `STATE_DIR` | `<repo>/state` | SQLite di LUAR mount statis `/captures`: `console.db` (konsol) dan `outbox.db`/`license.db` (line, sejak batch 1 keamanan; dulu di `artifacts/`). Compose: `./state/line-N:/app/state` per line, `./state/console:/app/state` konsol. Jalur native (`make line N=`) memberi tiap line foldernya sendiri, tanpa itu line berbagi satu `outbox.db` |
 | `MACHINE_ID` | - | Identitas line, unik dan tetap. Di-set compose dari `LINE_N_MACHINE_ID` (bawaan UUID di compose) |
 | `LINE_1/2/3_MACHINE_ID` | UUID bawaan di compose | Dipetakan compose jadi `MACHINE_ID` tiap line; konsol memakai yang sama untuk mengenali line pengirim. Harus sama di line dan konsol |
 | `APP_VERSION` | `unknown` | Versi image, diisi build (`deploy.yml`) dan launcher dari tag. `unknown` = dijalankan dari source. Tampil di header konsol |

@@ -272,13 +272,24 @@ header `x-webhook-secret`:
   → sets `state.current_truck_id` + `state.current_assignment_id`.
 - `POST /internal/manual-reject` `{machine_id, assignment_id, requested_by, requested_at}`
   → `capture_manual_reject()` via executor.
+- `POST /internal/piston` `{open, requested_by, requested_at}`: dipanggil lewat
+  `POST /api/console/lines/{line}/piston`, yang sejak batch 1 keamanan (2026-09-28) butuh sesi
+  operator seperti lane operator lain (dulu tanpa sesi).
 - `GET /internal/status` tiap detik, `POST /internal/setelan`, `POST /internal/restart`, dan
   lane support lainnya: daftar lengkap di `backend-overview.md`.
 
-**Shared:** satu `WEBHOOK_SECRET` untuk dua arah line ↔ konsol. Jalur **batch ke cloud** pakai
+**Shared, tapi dua secret sejak batch 1**: `WEBHOOK_SECRET` tetap satu untuk line ↔ konsol
+(`x-webhook-secret`, dua arah §5) dan program timbangan pihak ketiga. `INTERNAL_SECRET`
+memisahkan header `x-internal-secret` (konsol → line) dari kunci itu: kosong atau sama dengan
+`WEBHOOK_SECRET` = perintah konsol masih memakai kunci lama (`.env` yang dipasang sebelum batch 1
+tetap jalan), diisi beda = terpisah. Perbandingan constant-time dan fail closed di kedua secret
+(`domain/rahasia.py`, `domain/penjaga_rahasia.py`): nilai kosong yang dikonfigurasi tidak pernah
+membuka lane. Line dan konsol sama-sama menolak boot di `APP_ENV=production` kalau salah satu
+secret masih bawaan atau kosong (`Settings.validate_secrets()`). Jalur **batch ke cloud** pakai
 pasangan sendiri, `UPLOAD_API_URL` + `UPLOAD_API_SECRET`, yang di pabrik sekarang kosong.
 `LINE_1/2/3_MACHINE_ID` = identitas tiga line (compose membawa bawaan UUID); konsol memetakan
-`machine_id → line_code` dan menyajikan gambar di `/captures/<line_code>/...`.
+`machine_id → line_code` dan menyajikan gambar di `/captures/<line_code>/...` (butuh sesi
+operator sejak batch 1; `/captures` line sendiri tetap terbuka, tanpa konsep sesi).
 
 > Day-boundary note: **event** `timestamp` UTC-aware (`datetime.now(timezone.utc)`). File JSON di
 > disk masih pakai naive local time (nama folder tanggal + `results_today` mengikuti jam lokal
@@ -422,11 +433,21 @@ artifacts/line-N/   (host) ↔ /app/artifacts (container)
       thumb/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp     # bbox 400 px → naik R2 (grid backoffice)
       clean/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp     # polos → latih model, TIDAK diupload
     _belum-assign/                                   # ter-grading sebelum truk dipasang
-  outbox.db                 # SQLite: antrean realtime ke konsol (OutboxRetryWorker)
 
 state/line-N/   (host) ↔ /app/state (container)   # SIBLING artifacts/, DI LUAR mount /captures
   upload_manifest.db        # progres BatchUploadWorker (WAL + synchronous=FULL)
+  outbox.db                 # SQLite: antrean realtime ke konsol (OutboxRetryWorker)
+  license.db                # penjaga jam lisensi (hash-chain), kalau LICENSE_ENABLED
 ```
+
+⚠️ **`outbox.db` dan `license.db` pindah ke `state/` sejak batch 1 keamanan (2026-09-28)**,
+sebelumnya keduanya duduk di `artifacts/` dan ikut tersaji apa adanya lewat mount `/captures`.
+`folder_db_line()` (`services/pindah_db_line.py`) memilih `state_dir` kecuali `/app/state` bukan
+mount dari host (PC yang belum ditambah `./state/line-N:/app/state` di compose host): dalam
+keadaan itu keduanya tetap di `artifacts/`, tetap tidak tersaji (lihat aturan berkas DB di bawah),
+dan `logger.error` mencatat kenapa. Isi berkas lama **diserap** ke lokasi baru saat boot pertama
+(`pindahkan_db_lama()`), bukan dipindah mentah: `os.replace` gagal lintas bind mount Docker
+(EXDEV), dan penyerapan berdasarkan kunci alami membuat boot yang terputus di tengah aman diulang.
 ⚠️ `results/` **bukan arsip permanen**: `_retention()` menghapus WebP + JSON yang `done` dan lewat
 `UPLOAD_RETENTION_DAYS` (default 7): setelah itu satu-satunya salinan gambar ada di R2. Item
 `poisoned` sengaja tidak dihapus.
@@ -445,8 +466,12 @@ manual): `services/capture_writer.py`.
 lewat `twins_of()` (`domain/capture_layout.py`). Menambah varian gambar baru tanpa ikut
 mendaftarkannya di situ = file yang tidak pernah dihapus siapa pun.
 Served by FastAPI `StaticFiles` mount `/captures` → `artifacts/`, so `image_url`
-`captures/results/{date}/{truk}/bbox/{Ripe|Unripe|JK}[/TP]/{file}` resolves on the line side. The
-console re-serves each line read-only under `/captures/<line_code>/...`.
+`captures/results/{date}/{truk}/bbox/{Ripe|Unripe|JK}[/TP]/{file}` resolves on the line side.
+`.db`/`.sqlite`/hidden files are always 404 (`domain/berkas_captures.py`, `StaticTanpaDb`), on
+the line as on the console. The console re-serves each line read-only under
+`/captures/<line_code>/...`, and since batch 1 keamanan (2026-09-28) that mount also requires an
+operator session (`CapturesBersesi`): no `konsol_sesi` cookie → 401 `belum_masuk`. The line's own
+`/captures` stays open (it has no session concept and other LAN consumers rely on it).
 
 ---
 
@@ -499,7 +524,8 @@ persis sama dengan palmgrade-api dulu, lalu tiap line cukup menunjuk `BACKEND_UR
 backoff, dan dedupe uuid5 saat konsol restart. Nol perubahan di kode line.
 
 Gambar tetap milik line-nya: tiga `artifacts/line-N` di-mount **read-only** ke konsol dan
-di-serve statis di `/captures/{line_code}/...`.
+di-serve statis di `/captures/{line_code}/...`, di belakang sesi operator sejak batch 1 keamanan
+(2026-09-28, `CapturesBersesi`): browser tanpa cookie `konsol_sesi` dijawab 401.
 
 **Batas hari kerja (§6.1).** Pabrik jalan ~20 jam/hari dan **lewat tengah malam**, jadi batas
 hari UTC memotong satu shift jadi dua tanggal. `work_date` dihitung **saat ingest** dari
@@ -620,7 +646,8 @@ truk ERP biasa. Supplier dan kelas **tidak** ikut dikirim, itu milik AutoERP.
 tidak boleh jadi syarat hidupnya layar operator.
 
 **Perintah ke line.** Konsol meneruskan ke endpoint line yang **sudah ada**
-(`POST /internal/assignment`, `POST /internal/manual-reject`, header `x-internal-secret`).
+(`POST /internal/assignment`, `POST /internal/manual-reject`, `POST /internal/piston`, header
+`x-internal-secret`: `INTERNAL_SECRET`, kosong = `WEBHOOK_SECRET`, lihat §5).
 HTTP-nya duduk di `integrations/notifications/line_client.py`: satu-satunya bagian konsol yang
 tahu soal httpx: dan `ConsoleService` menerimanya lewat konstruktor bersama `ConsoleStore`
 (composition root: `get_console_service()` di `routes/console.py`). Line yang tidak menjawab

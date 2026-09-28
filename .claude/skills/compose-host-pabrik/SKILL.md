@@ -40,6 +40,18 @@ PC pabrik tidak punya source code. Yang ada di `/opt/palmgrade/autograde/`: `doc
 - Mengubah launcher? Ubah salinan di repo `sawit` (`docs/runbooks/files/`) dan beri langkah
   salin ke `/opt/palmgrade/`.
 - Tidak ada yang di atas? Tulis "No host-side change" di PR, seperti rilis `v1.18.0`.
+- **`INTERNAL_SECRET`** (batch 1 keamanan, 2026-09-28): kosong = perintah konsol → line ikut
+  `WEBHOOK_SECRET`, jadi rilisnya sendiri backward compatible, tapi meneruskannya butuh
+  menyentuh **empat blok** di compose host: tiga blok line di `docker-compose.yml`
+  (`- INTERNAL_SECRET=${INTERNAL_SECRET:-}`) **dan** blok `console:` di
+  `docker-compose.prod.yml`. Nilainya harus **sama persis** di keempat, kalau tidak line yang
+  bedanya jadi menolak perintah konsol (kartunya menulis "kunci ditolak", bukan mati).
+- **`state/` di-mount dari host**, bukan sekadar ada di image: outbox line dan penjaga jam
+  lisensi (`outbox.db`, `license.db`) sejak batch 1 hidup di `state/line-N`, bukan lagi
+  `artifacts/line-N`. Cek read-only: `docker inspect ripe_line_1 --format
+  '{{range .Mounts}}{{println .Destination}}{{end}}'` harus memuat `/app/state`. Kalau tidak,
+  DB itu tetap di `artifacts/` (masih aman, tidak tersaji `/captures`) dan `logger.error`
+  mencatatnya tiap boot, bukan gagal start.
 
 ## Memeriksa apa yang benar-benar diterima container
 
@@ -64,6 +76,31 @@ Kosong di container padahal ada di `.env` = blok compose host tidak menyebutnya 
 3. `autograde restart` (grading jeda sekitar 10 detik), lalu ulangi pemeriksaan di atas.
 4. Catat di TODO `sawit` bagian P3 (berkas host tidak ikut rilis) supaya kejadian berikutnya
    tidak dianggap baru.
+
+## Urutan pasang batch 1 keamanan LAN di Lampung
+
+Rilisnya sendiri **backward compatible**: tidak butuh sentuh `.env` atau compose host lebih dulu.
+Urutannya, kalau memang mau dikerjakan sekalian:
+
+1. **Sebelum tag**, baca saja lewat AnyDesk: `docker inspect ripe_line_1 --format
+   '{{range .Mounts}}{{println .Destination}}{{end}}'` (ulangi untuk line 2 dan 3) harus memuat
+   `/app/state`; dan `docker exec autograde-console-1 printenv WEBHOOK_SECRET` **bukan** default
+   publik (`supersecret123`), karena konsol sekarang ikut menolak boot di produksi dengan secret
+   bawaan seperti line. `/app/state` yang tidak ada bukan penghalang: DB line tetap di
+   `artifacts/` (aman, tidak tersaji `/captures`), cuma `logger.error` tiap boot, bukan gagal
+   start; beri tahu user kalau ketemu.
+2. **Rilis** (`autograde pull` / `use`). Boot pertama tiap line mencatat `outbox.db dipindah ...`
+   dan `license.db dipindah ...`. Cek `/health/detail` `outbox_pending` sama dengan sebelum
+   upgrade, `ls artifacts/line-1/*.db` kosong, `ls state/line-1/` memuat kedua berkas, dan foto
+   konsol tetap tampil sesudah login.
+3. **Belakangan, terpisah**: `INTERNAL_SECRET=<nilai baru>` di `.env`, **dan** tambahkan
+   `- INTERNAL_SECRET=${INTERNAL_SECRET:-}` ke tiga blok line `docker-compose.yml` **serta** blok
+   konsol `docker-compose.prod.yml` (backup dulu), lalu `autograde restart`. Verifikasi
+   `docker exec <keempatnya> printenv INTERNAL_SECRET` sama persis. Sebagian tersentuh kelihatan
+   sebagai line menolak perintah konsol (401 di log konsol, kartu line gagal), **bukan** data
+   hilang senyap: kiriman janjang tetap sampai lewat `WEBHOOK_SECRET`, yang tidak berubah.
+4. **Rollback** (`autograde use <versi lama>`) aman: image lama membuat ulang `artifacts/*.db`
+   kosong; naik lagi menyerap isi dari dua tempat sekaligus.
 
 Terkait: skill `install-factory-pc` dan `spek-pc-pabrik`, runbook `docs/runbooks/` di repo ini
 dan di `sawit`.
