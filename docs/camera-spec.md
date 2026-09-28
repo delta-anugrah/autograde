@@ -1,11 +1,11 @@
-# Spesifikasi Kamera — Palmgrade Vision
+# Spesifikasi Kamera: Palmgrade Vision
 
 Dokumen ini merangkum spesifikasi kamera yang dipakai Palmgrade Vision, setting
 runtime yang aktif, dan alasan di balik setiap keputusan. Untuk langkah instalasi
 dari nol, lihat [SETUP.md](SETUP.md).
 
 Sumber kebenaran setting kamera adalah [`config/camera/hikrobot.mfs`](../config/camera/hikrobot.mfs)
-— file itu di-load ke kamera saat connect, jadi nilainya menang atas ekspektasi
+file itu di-load ke kamera saat connect, jadi nilainya menang atas ekspektasi
 apa pun di `.env`.
 
 ---
@@ -17,11 +17,11 @@ Palmgrade memakai **3 unit Hikrobot MV-CS050-10GC**, satu kamera per camera line
 | Item | Nilai |
 |---|---|
 | Model | Hikrobot MV-CS050-10GC |
-| Resolusi native | 5 MP — 2448 × 2048 |
+| Resolusi native | 5 MP: 2448 × 2048 |
 | Sensor | Sony IMX264, global shutter |
 | Tipe | Color (Bayer) |
 | Interface | GigE Vision (1000BASE-T) |
-| Power | Adaptor DC via I/O connector — **bukan PoE** |
+| Power | Adaptor DC via I/O connector, **bukan PoE** |
 
 Global shutter penting karena objek bergerak di conveyor: rolling shutter akan
 menghasilkan distorsi geometri (skew) pada objek bergerak.
@@ -62,11 +62,11 @@ over-exposed, ganti ke `Average`.
 | Parameter | Nilai | Keterangan |
 |---|---|---|
 | `AcquisitionMode` | `Continuous` | free-run, bukan trigger |
-| `AcquisitionFrameRate` | `15` | fps — lihat § 3.1 kenapa 15, bukan 24 |
+| `AcquisitionFrameRate` | `15` | fps: lihat § 3.1 kenapa 15, bukan 24 |
 | `AcquisitionFrameRateEnable` | `1` | limiter aktif |
 | `TriggerMode` | `Off` | tidak ada hardware trigger |
 | `ExposureMode` | `Timed` | |
-| `ExposureTime` | `22000` | µs (22 ms) — tuning conveyor |
+| `ExposureTime` | `22000` | µs (22 ms): tuning conveyor |
 | `ExposureAuto` | `Off` | tetap, agar frame konsisten |
 | `Gain` | `0` | |
 | `GainAuto` | `Off` | |
@@ -84,7 +84,7 @@ konsisten lebih menguntungkan untuk inference.
 
 | Parameter | Nilai | Keterangan |
 |---|---|---|
-| `GevSCPSPacketSize` | `8164` | jumbo frame — butuh MTU 9000 |
+| `GevSCPSPacketSize` | `8164` | jumbo frame: butuh MTU 9000 |
 | `GevSCPD` | `400` | inter-packet delay |
 | `BandwidthReserve` | `2` | % |
 | `GevHeartbeatTimeout` | `3000` | ms |
@@ -102,7 +102,7 @@ tidak saling tabrakan di uplink yang sama.
 
 Ini kendala desain utama dari keseluruhan setup kamera.
 
-**Tanpa mitigasi — tidak muat:**
+**Tanpa mitigasi: tidak muat:**
 
 ```
 2448 × 2048 × 1 byte (BayerRG8) × 10 fps ≈ 401 Mbps per kamera
@@ -112,21 +112,21 @@ Ini kendala desain utama dari keseluruhan setup kamera.
 Uplink GigE hanya 1 Gbps. Konfigurasi ini **melebihi kapasitas** dan menghasilkan
 frame drop serta disconnect.
 
-**Dengan binning 2×2 — muat:**
+**Dengan binning 2×2: muat:**
 
 ```
 1224 × 1024 × 1 byte × 15 fps ≈ 150 Mbps per kamera
 150 Mbps × 3 kamera           ≈ 451 Mbps
 ```
 
-Sekitar 45% dari kapasitas uplink — masih lega, termasuk untuk overhead protokol.
+Sekitar 45% dari kapasitas uplink, masih lega, termasuk untuk overhead protokol.
 Model ini terverifikasi di lapangan: di 10 fps rumusnya memprediksi 301 Mbps dan
 `enp3s0` terukur 302 Mbps.
 
 Dua pengaman bekerja berdampingan: **binning 2×2** menurunkan byte per frame, dan
 **frame rate limiter** di `.mfs` menahan jumlah frame per detik. Keduanya diperlukan.
 
-### 3.1 Tiga plafon fps — jangan ketuker jadi satu
+### 3.1 Tiga plafon fps: jangan ketuker jadi satu
 
 Naikin fps kena tiga batas yang beda sifatnya. Per 2026-09-13, dengan RTX 3060 12GB
 dan TensorRT engine `sm86`:
@@ -143,18 +143,18 @@ yang di-track, jadi menaikkan fps tidak menambah tekanan ke PLC
 
 **Kenapa 15 dan bukan 24:** jumlah keputusan grading dibatasi jumlah tandan di
 belt, bukan fps. Yang didapat dari fps lebih tinggi adalah **lebih banyak frame per
-tandan** — ByteTrack lebih stabil megang ID, vote klasifikasi lebih banyak. 15 fps
+tandan**: ByteTrack lebih stabil megang ID, vote klasifikasi lebih banyak. 15 fps
 memberi +50% frame per tandan dibanding 10 sambil menyisakan setengah kapasitas GPU
 dan setengah bandwidth sebagai margin. Naik ke 24 menghabiskan margin itu tanpa
 menambah keputusan grading.
 
 ⚠️ **Motion blur tidak diatur fps, tapi `ExposureTime`** (22 ms). Naikin fps tidak
 membuat frame lebih tajam. Kalau blur jadi masalah, turunkan exposure dan tambah
-cahaya — tapi ingat exposure 22 ms masih muat di periode 15 fps (66,7 ms), jadi fps
+cahaya: tapi ingat exposure 22 ms masih muat di periode 15 fps (66,7 ms), jadi fps
 bukan penghalangnya.
 
 ⚠️ Kalau habis naik fps muncul frame tidak lengkap atau reconnect, knob-nya
-**`GevSCPD`** (§ 2.3) — dinaikkan untuk memberi jeda antar paket, bukan diturunkan.
+**`GevSCPD`** (§ 2.3): dinaikkan untuk memberi jeda antar paket, bukan diturunkan.
 
 **Kenapa 1224×1024 tidak merugikan akurasi:** pipeline inference beroperasi di
 bawah resolusi itu, dan 1224×1024 masih di atas 720p. Detail yang tersedia untuk
@@ -183,7 +183,7 @@ Kamera 3 (192.168.100.12) ─┘      (MTU 9000)         enp55s0
 keluar dari pabrik dengan IP default yang sama, jadi menghubungkan semuanya
 sekaligus menyebabkan konflik IP.
 
-### Wajib switch — bukan splitter
+### Wajib switch: bukan splitter
 
 Pernah terjadi gejala "kamera 2 LAN disconnect / drop ke 100 Mbps". Akar
 masalahnya adalah pemakaian **RJ45 splitter pasif**. Splitter membagi 8 kawat
@@ -193,7 +193,7 @@ menyelesaikan masalah.
 
 **Splitter ≠ switch.** Jangan pakai splitter.
 
-Hindari juga kabel CCA (copper-clad aluminium) — pakai pure copper.
+Hindari juga kabel CCA (copper-clad aluminium): pakai pure copper.
 
 ---
 
@@ -217,13 +217,13 @@ Operasi ini **non-fatal**: kalau load gagal, line tetap jalan memakai setting
 firmware yang tersimpan di kamera, dan kegagalan hanya tercatat sebagai warning.
 
 > **Implikasi penting:** karena `.mfs` di-load setiap connect,
-> **`AcquisitionFrameRate = 15` di file inilah** yang menentukan fps runtime —
+> **`AcquisitionFrameRate = 15` di file inilah** yang menentukan fps runtime,
 > bukan `CAMERA_FPS` di `.env`. Untuk mengubah frame rate secara permanen, edit
 > `.mfs` (atau simpan ulang dari MVS), jangan hanya `.env`.
 
 > ⚠️ **Nge-comment `LINE_<n>_FEATURE_FILE` tidak mematikan auto-load.**
 > `docker-compose.yml` memakai `${LINE_1_FEATURE_FILE:-config/camera/hikrobot.mfs}`,
-> dan `:-` berlaku untuk *unset maupun kosong* — jadi meng-comment variabel itu
+> dan `:-` berlaku untuk *unset maupun kosong*, jadi meng-comment variabel itu
 > justru **mengaktifkan default**. Akibatnya nilai yang di-set manual lewat MVS
 > ditiban dalam hitungan detik setelah container connect. Untuk memakai `.mfs`
 > lain, isi variabelnya dengan path file itu; untuk benar-benar melewati auto-load,
@@ -233,7 +233,7 @@ firmware yang tersimpan di kamera, dan kegagalan hanya tercatat sebagai warning.
 
 ## 6. Konfigurasi Aplikasi
 
-### 6.1 Pemilihan kamera — by serial, bukan index
+### 6.1 Pemilihan kamera: by serial, bukan index
 
 Setiap line memilih kamera fisiknya lewat **serial number**:
 
@@ -244,7 +244,7 @@ LINE_3_CAMERA_SERIAL=<serial-kamera-3>
 ```
 
 Sebelumnya line memakai `CAMERA_DEVICE_INDEX` (= posisi di array hasil enumerate).
-Urutan enumerasi GigE **tidak deterministik** — bergantung timing balasan discovery
+Urutan enumerasi GigE **tidak deterministik**, bergantung timing balasan discovery
 jaringan. Saat 3 container start bersamaan, mereka bisa saling rebut kamera dan
 line yang kalah mendapat `MV_E_ACCESS_DENIED` (`0x80000203`) karena device sudah
 dibuka exclusive oleh line lain. Gejalanya: Line 3 kosong.
@@ -255,7 +255,7 @@ Lihat [device_selector.py](../src/palmgrade/integrations/camera/device_selector.
 `CAMERA_DEVICE_INDEX` masih ada sebagai fallback, tapi jangan dipakai untuk
 produksi multi-line.
 
-Cara mendapatkan serial: buka MVS, atau baca log startup — aplikasi mencatat
+Cara mendapatkan serial: buka MVS, atau baca log startup, aplikasi mencatat
 `Camera selected by serial <serial> (enum index N)`.
 
 ### 6.2 Variabel `.env` terkait kamera
@@ -297,12 +297,12 @@ Perbedaan hardware antara dev dan produksi memengaruhi kamera secara tidak langs
 | Laptop dev | RTX 4050 Laptop | 6 GB |
 | PC produksi | GTX 1650 | 4 GB |
 
-Frame rate 10 fps bukan hanya soal bandwidth jaringan — angka itu juga hasil
+Frame rate 10 fps bukan hanya soal bandwidth jaringan, angka itu juga hasil
 tuning terhadap kemampuan **GTX 1650** memproses tiga stream secara bersamaan
 dalam 4 GB VRAM.
 
 Engine TensorRT **terkunci per hardware GPU** dan tidak di-commit ke repo. Engine
-yang di-build di laptop tidak bisa dipakai di PC produksi — harus
+yang di-build di laptop tidak bisa dipakai di PC produksi, harus
 `make build-engine` ulang di mesin produksi. Runtime akan fallback ke `.pt` kalau
 engine belum tersedia.
 
@@ -316,7 +316,7 @@ engine belum tersedia.
 | Drop frame / stream gagal | MTU bukan 9000 di switch atau NIC (§2.3) |
 | Link turun ke 100 Mbps, disconnect | RJ45 splitter pasif dipakai, bukan switch (§4) |
 | Setting hilang setelah restart kamera | UserSet belum disimpan ke firmware (§5.1) |
-| fps tidak sesuai `.env` | `.mfs` menang — `AcquisitionFrameRate` (§5.2) |
+| fps tidak sesuai `.env` | `.mfs` menang: `AcquisitionFrameRate` (§5.2) |
 | Gambar over-exposed | `BinningMode Sum` → ganti `Average` (§2.1) |
 | Konflik IP saat pertama pasang | kamera di-assign bersamaan, bukan satu per satu (§4) |
 
@@ -324,7 +324,7 @@ engine belum tersedia.
 
 ## Referensi
 
-- [SETUP.md](SETUP.md) — panduan instalasi lengkap
-- [`config/camera/hikrobot.mfs`](../config/camera/hikrobot.mfs) — sumber kebenaran setting
-- [hikrobot_camera.py](../src/palmgrade/integrations/camera/hikrobot_camera.py) — driver
-- [device_selector.py](../src/palmgrade/integrations/camera/device_selector.py) — pemilihan by-serial
+- [SETUP.md](SETUP.md): panduan instalasi lengkap
+- [`config/camera/hikrobot.mfs`](../config/camera/hikrobot.mfs): sumber kebenaran setting
+- [hikrobot_camera.py](../src/palmgrade/integrations/camera/hikrobot_camera.py): driver
+- [device_selector.py](../src/palmgrade/integrations/camera/device_selector.py): pemilihan by-serial

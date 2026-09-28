@@ -1,7 +1,10 @@
 <!--
-WRITE IN ENGLISH. Title, body, and review comments. Commit messages may stay
-Indonesian; the PR is the part people read months later, and the MacBook and
-the agents both read English.
+WRITE IN ENGLISH. Title, body, review comments, AND commit messages. The repo
+squash-merges with the commit messages as the body of the commit on staging, so
+an Indonesian commit lands in the history even when the PR itself is English.
+The PR is the part people read months later, and the MacBook and the agents
+both read English. No em dashes: split sentences with a period, comma, colon or
+parentheses.
 
 TITLE: <type>(<scope>): <what changed, imperative, no trailing period>
   type  = feat | fix | perf | refactor | docs | test | chore | release

@@ -1,13 +1,13 @@
-# Architecture — autograde
+# Architecture: autograde
 
 Dokumen ini adalah acuan desain arsitektur `autograde`.
-Struktur ini sudah diimplementasikan — bukan target, ini adalah kondisi saat ini.
+Struktur ini sudah diimplementasikan: bukan target, ini adalah kondisi saat ini.
 
 ---
 
 ## Prinsip Desain
 
-- Struktur flat per layer — familiar bagi tim yang kenal Express.js
+- Struktur flat per layer, familiar bagi tim yang kenal Express.js
 - Setiap layer punya boundary ketat: tidak boleh ada logic yang salah lapisan
 - Cocok untuk project CV/ML realtime tanpa over-engineering
 - Mudah untuk onboarding dan maintenance
@@ -130,7 +130,7 @@ Terima request, panggil service, return response.
 
 ### `services/`
 
-Orchestration layer — menggabungkan repository, pipeline, dan integration.
+Orchestration layer: menggabungkan repository, pipeline, dan integration.
 
 - Boleh: gabungkan repo + pipeline + integration, jalankan business flow
 - Dilarang: SQL, detail SDK vendor, akses file langsung, return HTTP response
@@ -139,7 +139,7 @@ Orchestration layer — menggabungkan repository, pipeline, dan integration.
 
 ### `repositories/`
 
-Persistence layer — baca/tulis file JSON dan WebP.
+Persistence layer: baca/tulis file JSON dan WebP.
 
 - Boleh: baca/tulis file via `LocalFileStorage`
 - Dilarang: rule PASS/FAIL, logic HTTP, logic model inference
@@ -159,10 +159,10 @@ YOLO inference dan frame processing.
 
 Koneksi ke sistem eksternal.
 
-- `camera/` — Hikrobot SDK / OpenCV / Photo (dev mode)
-- `notifications/` — webhook httpx client
-- `storage/` — local file read/write
-- `scheduler/` — APScheduler daily cron
+- `camera/`: Hikrobot SDK / OpenCV / Photo (dev mode)
+- `notifications/`: webhook httpx client
+- `storage/`: local file read/write
+- `scheduler/`: APScheduler daily cron
 
 ---
 
@@ -177,7 +177,7 @@ Background loop dan shared runtime state.
 
 ### `domain/`
 
-Business rule murni — zero I/O.
+Business rule murni: zero I/O.
 
 - Boleh: pure function, pure dataclass
 - Dilarang: import `cv2`, `fastapi`, `httpx`; baca/tulis file
@@ -186,13 +186,13 @@ Business rule murni — zero I/O.
 
 ### `license/`
 
-License guard — opsional. Hanya aktif jika `LICENSE_ENABLED=true`.
+License guard: opsional. Hanya aktif jika `LICENSE_ENABLED=true`.
 
-- `guard.py` — `BaseHTTPMiddleware`, registered di `create_app()`
-- `gate.py` — aturan murni yang menghentikan thread grading (yang sebenarnya menghentikan pabrik)
-- `manager.py` — Ed25519 JWS verify `LICENSE_TOKEN` + state machine
-- `local_repo.py` — penanda batas atas jam (anti tanggal mundur), SQLite
-- `sync_client.py` — httpx POST ke license server
+- `guard.py`: `BaseHTTPMiddleware`, registered di `create_app()`
+- `gate.py`: aturan murni yang menghentikan thread grading (yang sebenarnya menghentikan pabrik)
+- `manager.py`: Ed25519 JWS verify `LICENSE_TOKEN` + state machine
+- `local_repo.py`: penanda batas atas jam (anti tanggal mundur), SQLite
+- `sync_client.py`: httpx POST ke license server
 
 ---
 

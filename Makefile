@@ -373,8 +373,8 @@ HAPUS_ISI = docker run --rm -v "$(CURDIR)":/kerja busybox \
 # PC baru sebelum dipakai sungguhan.
 reset-data:
 	@echo "Akan menghapus PERMANEN (tanpa backup):"
-	@echo "  artifacts/  — $$(find artifacts -type f 2>/dev/null | wc -l | tr -d ' ') berkas foto + JSON"
-	@echo "  state/      — $$(find state -name '*.db' 2>/dev/null | wc -l | tr -d ' ') basis data SQLite"
+	@echo "  artifacts/:  $$(find artifacts -type f 2>/dev/null | wc -l | tr -d ' ') berkas foto + JSON"
+	@echo "  state/:      $$(find state -name '*.db' 2>/dev/null | wc -l | tr -d ' ') basis data SQLite"
 	@echo ""
 	@echo "Akun buatan 'make operator', antrean yang belum terkirim, dan foto yang"
 	@echo "belum naik R2 ikut hilang. Tidak ada cara mengembalikannya."
@@ -413,7 +413,7 @@ reset-data-fresh:
 		exit 1; \
 	fi
 	@echo ""
-	@echo "Data dihapus. Jalankan 'make start' — dua akun bawaan dibuat ulang sendiri."
+	@echo "Data dihapus. Jalankan 'make start', dua akun bawaan dibuat ulang sendiri."
 
 # Remove all containers (data artifacts are safe — they live in local volumes)
 clean:

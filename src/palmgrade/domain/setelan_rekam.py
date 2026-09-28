@@ -18,14 +18,20 @@ from typing import Any
 
 KUNCI_SETELAN_REKAM = "setelan_rekam"
 
-#: Nilai awal sebelum siapa pun menyimpan setelan. 1280x1024 @ 5 fps ≈ 1,3
-#: GB/jam/line — cukup untuk mata manusia melihat gerakan janjang, dan jauh di
-#: bawah resolusi sensor (2448x2048) yang dipakai model.
+#: Nilai awal sebelum siapa pun menyimpan setelan. 1280x1024 — cukup untuk mata
+#: manusia melihat gerakan janjang, dan jauh di bawah resolusi sensor (2448x2048)
+#: yang dipakai model.
+#:
+#: `fps` bukan lagi setelan layar (kolomnya dicabut 2026-09-25): rekaman memakai
+#: laju yang benar-benar dikirim kamera (`VideoRecorder._fps_efektif`), dan angka
+#: ini cuma cadangan terakhir kalau kamera tidak melapor DAN `CAMERA_FPS=0`.
+#: `bitrate_kbps` dicabut sama sekali — `cv2.VideoWriter` tidak menerima bitrate,
+#: jadi angkanya tidak pernah sampai ke berkas. Kiriman lama yang masih
+#: membawanya diabaikan seperti field asing lain.
 BAWAAN: dict[str, int] = {
     "width": 1280,
     "height": 1024,
     "fps": 5,
-    "bitrate_kbps": 2000,
 }
 
 #: field -> (minimum inklusif, maksimum inklusif).
@@ -37,9 +43,6 @@ BATAS: dict[str, tuple[int, int]] = {
     # Di atas 60 fps tidak ada kamera di pabrik yang bisa memberi frame sebanyak
     # itu; 0 berarti video tanpa waktu.
     "fps": (1, 60),
-    # Di bawah 100 kbps gambarnya hancur sampai tidak berguna; di atas 50 Mbps
-    # ukurannya melewati rekaman mentah tanpa manfaat.
-    "bitrate_kbps": (100, 50_000),
 }
 
 #: Dimensi yang dipakai H.264 harus genap. Dibulatkan ke bawah, bukan ditolak:

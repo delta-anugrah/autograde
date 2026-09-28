@@ -184,7 +184,7 @@ def _iso(detik: float) -> str:
 
 def _alasan(kelas: list[str] | None) -> str:
     if kelas is None:
-        return "kelas tidak terbaca — bukan checkpoint YOLO?"
+        return "kelas tidak terbaca, mungkin bukan checkpoint YOLO"
     asing, hilang = periksa_kelas(kelas)
     bagian = []
     if asing:

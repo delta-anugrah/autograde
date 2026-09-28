@@ -23,6 +23,7 @@ from .repositories.log_repository import LogStore
 from .routes.console import get_console_service, ingest_router
 from .routes.console import router as console_router
 from .services.akun_bawaan import seed_default_accounts
+from .workers.cek_sinkron_worker import build_cek_sinkron
 from .workers.erp_link import build_erp_workers
 from .workers.line_status_worker import LineStatusWorker
 
@@ -77,8 +78,16 @@ async def lifespan(app: FastAPI):
         )
     # The AutoERP link is optional by design: with ERP_URL empty there are no
     # workers at all, and any of them may die without taking the screen down.
-    workers = build_erp_workers(service.settings, service.store, service.erp_queue)
+    workers = build_erp_workers(
+        service.settings, service.store, service.erp_queue, status=service.status_sinkron
+    )
     tasks = [asyncio.create_task(worker.run_loop()) for worker in workers]
+
+    # Last Sync: cek ringan tiap menit ke AutoERP dan R2 yang dipakai, supaya warna
+    # statusnya tetap segar saat tidak ada data yang lewat. None kalau keduanya kosong.
+    cek_sinkron = build_cek_sinkron(service.settings, service.status_sinkron)
+    if cek_sinkron is not None:
+        tasks.append(asyncio.create_task(cek_sinkron.run_loop()))
 
     # Independent of the AutoERP link above: the manifest worker exists whenever
     # R2 is configured (get_console_service), regardless of ERP_URL. Logged once

@@ -59,9 +59,31 @@ def test_kunci_i18n_ada_di_dua_bahasa():
         assert HTML.count(f"{kunci}:") == 2, kunci
 
 
-def test_empat_kolom_setelan_ada():
-    for el in ("rekam-width", "rekam-height", "rekam-fps", "rekam-bitrate"):
+def test_kolom_setelan_cuma_lebar_dan_tinggi():
+    """FPS dan Bitrate dibuang dari layar 2026-09-25 — dua-duanya tidak pernah
+    sampai ke berkas. FPS ikut laju kamera sejak v1.13.2 (angka layar cuma
+    dipakai kalau `CAMERA_FPS=0`), dan bitrate tidak pernah diteruskan ke
+    `cv2.VideoWriter`, yang memang tidak menerima bitrate. Kolom yang diisi
+    tanpa efek apa pun lebih buruk daripada tidak ada kolom — support
+    menyetelnya lalu heran kenapa berkasnya tidak berubah, jenis setelan mandul
+    yang dulu membuat `CAMERA_FPS` terbaca sebagai bug berbulan-bulan."""
+    for el in ("rekam-width", "rekam-height"):
         assert f'id="{el}"' in HTML, el
+    for el in ("rekam-fps", "rekam-bitrate"):
+        assert f'id="{el}"' not in HTML, el
+        assert f'$("{el}")' not in HTML, el
+
+
+def test_kunci_i18n_fps_dan_bitrate_ikut_dibuang():
+    for kunci in ("rekamFps", "rekamBitrate", "rekamBantuFps"):
+        assert f"{kunci}:" not in HTML, kunci
+
+
+def test_simpan_cuma_mengirim_lebar_dan_tinggi():
+    blok = HTML[HTML.index('"/api/console/dev/rekam/setelan"'):][:600]
+    assert "width:" in blok and "height:" in blok
+    assert "fps:" not in blok
+    assert "bitrate_kbps:" not in blok
 
 
 def test_peringatan_retensi_manual_disebut():
@@ -209,14 +231,3 @@ def test_tombol_record_di_kolom_paling_kanan():
     (line → status → angka) dan berakhir pada aksinya."""
     blok = _blok_css("#sec-rekam td.rekam-aksi, #sec-rekam th.rekam-aksi")
     assert "text-align:right" in blok, blok
-
-
-def test_bantuan_fps_menyebut_kamera_yang_menentukan():
-    """Angka FPS di layar diabaikan kalau kamera bisa melapor lajunya sendiri.
-
-    Teks lama ("makin tinggi = makin halus") membuat support menyetelnya lalu
-    heran kenapa berkasnya tidak berubah — persis jenis setelan mandul yang
-    dulu membuat `CAMERA_FPS` terbaca sebagai bug selama berbulan-bulan.
-    """
-    ind = HTML[HTML.index("rekamBantuFps:"):][:180]
-    assert "Kamera yang menentukan" in ind, ind[:120]

@@ -56,7 +56,7 @@ def bersihkan_nama_model(nama: Any) -> str:
     if nama.startswith(_KUTIP_AWAL) or any(c in nama for c in _ASING_COMPOSE):
         raise ModelTidakSah(
             f"{nama}: nama memuat karakter yang tidak bisa ditulis ke media.env "
-            "(kutip di awal, $ atau `) — ganti nama berkasnya"
+            "(kutip di awal, $ atau `). Ganti nama berkasnya"
         )
     if not nama.endswith(".pt") or nama == ".pt":
         raise ModelTidakSah(f"{nama}: harus berkas .pt")

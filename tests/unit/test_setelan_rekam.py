@@ -20,10 +20,16 @@ def test_payload_kosong_memakai_nilai_bawaan():
 
 
 def test_nilai_sah_dipakai_apa_adanya():
-    hasil = bersihkan_setelan_rekam(
-        {"width": 1920, "height": 1080, "fps": 10, "bitrate_kbps": 4000}
-    )
-    assert hasil == {"width": 1920, "height": 1080, "fps": 10, "bitrate_kbps": 4000}
+    hasil = bersihkan_setelan_rekam({"width": 1920, "height": 1080, "fps": 10})
+    assert hasil == {"width": 1920, "height": 1080, "fps": 10}
+
+
+def test_bitrate_tidak_lagi_disetel():
+    """`cv2.VideoWriter` tidak menerima bitrate, jadi angka ini tidak pernah
+    sampai ke berkas. Dicabut 2026-09-25; kiriman lama yang masih membawanya
+    (setelan tersimpan, layar versi lama) diabaikan, bukan ditolak."""
+    assert "bitrate_kbps" not in BAWAAN
+    assert "bitrate_kbps" not in bersihkan_setelan_rekam({"bitrate_kbps": 4000})
 
 
 def test_field_yang_hilang_diisi_bawaan():
@@ -54,8 +60,6 @@ def test_none_dianggap_tidak_diisi():
         {"width": 10_002},
         {"height": 0},
         {"height": 10_002},
-        {"bitrate_kbps": 99},
-        {"bitrate_kbps": 50_001},
     ],
 )
 def test_nilai_di_luar_batas_ditolak(payload):

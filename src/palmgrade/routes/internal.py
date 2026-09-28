@@ -42,6 +42,7 @@ from ..schemas.internal_schema import (
     SetelanGradingResponse,
 )
 from ..services.capture_service import CaptureService
+from ..services.hapus_data_line import hapus_diminta
 from ..workers.runtime_state import RuntimeState
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,17 @@ router = APIRouter(
 async def assignment_sync(
     request: AssignmentSyncRequest,
     state: Annotated[RuntimeState, Depends(get_runtime_state)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> AssignmentSyncResponse:
+    # Danger Zone: line ini sudah menerima perintah hapus dan akan keluar dalam
+    # sedetik. Truk baru yang dipasang sekarang digrading ke penugasan yang baris
+    # konsolnya segera dihapus — `lepas` sesudahnya tidak menemukan apa pun.
+    # Melepas (truck_id kosong) tetap boleh: tidak ada yang bisa rusak karenanya.
+    if request.truck_id and hapus_diminta(settings.artifacts_dir):
+        raise HTTPException(
+            status_code=409,
+            detail={"kode": "hapus_berjalan", "pesan": "line sedang menunggu hapus data"},
+        )
     return await sync_assignment(request, state)
 
 

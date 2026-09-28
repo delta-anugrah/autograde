@@ -278,6 +278,52 @@ class LineClient:
                 LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
             ) from exc
 
+    # ── Danger Zone (layar Setelan, support) ────────────────────────────────
+
+    async def hapus_data(
+        self, line: LineEndpoint, *, mode: str, diminta_oleh: str
+    ) -> dict[str, Any]:
+        """Suruh line menghapus datanya sendiri: menulis penanda lalu keluar,
+        dihapus saat boot berikutnya. 409 (truk terpasang) sampai sebagai
+        `LinePlcTolak` membawa kode statusnya, bukan "line mati"."""
+        return await self._post_json(
+            line, "/internal/hapus-data", {"mode": mode, "diminta_oleh": diminta_oleh}
+        )
+
+    async def rekam_hapus(self, line: LineEndpoint) -> dict[str, Any]:
+        """Hapus rekaman milik line itu. 409 = sedang merekam."""
+        return await self._post_json(line, "/internal/rekam/hapus", {})
+
+    async def rekam_berkas(self, line: LineEndpoint) -> dict[str, Any]:
+        """Jumlah + ukuran rekaman milik line itu, dan apakah sedang merekam."""
+        url = f"{self._settings.console_line_host}:{line.port}/internal/rekam/berkas"
+        try:
+            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
+                res = await client.get(
+                    url, headers={"x-internal-secret": self._settings.internal_secret}
+                )
+                res.raise_for_status()
+                return res.json()
+        except httpx.HTTPError as exc:
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+            ) from exc
+
+    async def hidup(self, line: LineEndpoint) -> bool:
+        """Apakah proses line menjawab `/health` saat ini. Tidak pernah melempar.
+
+        Dipakai berulang (tiap ¼ detik) saat konsol menunggu line keluar sesudah
+        perintah hapus, jadi timeout-nya pendek: line yang sedang mati memang
+        diharapkan tidak menjawab.
+        """
+        url = f"{self._settings.console_line_host}:{line.port}/health"
+        try:
+            async with httpx.AsyncClient(timeout=0.5, transport=self._transport) as client:
+                res = await client.get(url)
+            return res.status_code == 200
+        except httpx.HTTPError:
+            return False
+
     async def _post_json(
         self, line: LineEndpoint, path: str, body: dict[str, Any]
     ) -> dict[str, Any]:

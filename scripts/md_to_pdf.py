@@ -130,7 +130,9 @@ def _css_string(value: str) -> str:
 
 
 def _short_classification(fields: dict[str, str]) -> str:
-    return fields["klasifikasi"].split("—")[0].strip().upper()
+    # Kata sebelum pemisah pertama: "Internal, tidak untuk dibagikan" -> INTERNAL.
+    # Em dash tetap diterima untuk dokumen lama yang belum disapu.
+    return re.split(r"[,—]", fields["klasifikasi"])[0].strip().upper()
 
 
 def stylesheet(fields: dict[str, str]) -> str:
@@ -209,7 +211,7 @@ def document(fields, source, body_html, headings, pages) -> str:
 {front_page(fields, source, headings, pages)}
 <main class="body">
 {body_html}
-<p class="end">— Akhir dokumen —</p>
+<p class="end">Akhir dokumen</p>
 </main>
 </body></html>"""
 
@@ -223,7 +225,7 @@ def chrome_binary() -> str:
     for name in ("google-chrome", "chromium", "chromium-browser"):
         if found := shutil.which(name):
             return found
-    sys.exit("Chrome/Chromium tidak ditemukan — itu yang mencetak PDF-nya.")
+    sys.exit("Chrome/Chromium tidak ditemukan, padahal itu yang mencetak PDF-nya.")
 
 
 def print_pdf(chrome: str, page: Path, out: Path) -> None:

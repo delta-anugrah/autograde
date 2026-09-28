@@ -20,6 +20,7 @@ import json
 import logging
 import shutil
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -87,12 +88,47 @@ class BatchUploadWorker:
         manifest: UploadManifest,
         uploader: R2Uploader | None,
         http_client: httpx.Client | None = None,
+        jam: Callable[[], float] = time.time,
     ) -> None:
         self.settings = settings
         self.manifest = manifest
         self.uploader = uploader
         self._client = http_client or httpx.Client(timeout=_REQUEST_TIMEOUT)
         self._warned_noop = False
+        self._jam = jam
+        # Cloud Photo di Last Sync konsol (lewat /internal/status, dibaca tiap detik).
+        # Dihitung sekali per batch dan diganti utuh, jadi pembaca tidak pernah
+        # menanyai manifest dan tidak pernah melihat separuh-diperbarui. Jam terakhir
+        # dibaca ulang dari manifest supaya restart line tidak menulis "belum pernah".
+        self._unggah: dict[str, Any] = {
+            "aktif": bool(settings.r2_bucket),
+            "terakhir": manifest.terakhir_unggah(),
+            "gagal_sejak": None,
+            "pesan": None,
+            "antre": 0,
+            "rusak": 0,
+        }
+
+    def status_unggah(self) -> dict[str, Any]:
+        """Ringkasan upload terakhir untuk `/internal/status`. Tanpa I/O."""
+        return dict(self._unggah)
+
+    def _catat_batch(self, fatal: str | None, naik: int) -> None:
+        """Satu batch selesai. `fatal` = sebab batch berhenti karena R2 atau API
+        tidak terjangkau; None = semua yang bisa naik sudah naik. `naik` = foto yang
+        sampai R2 di batch ini: jam terakhir cuma bergerak karenanya."""
+        lama = self._unggah
+        now = self._jam()
+        hitung = self.manifest.counts()
+        self._unggah = {
+            "aktif": True,
+            "terakhir": now if naik else lama["terakhir"],
+            "gagal_sejak": (lama["gagal_sejak"] or now) if fatal else None,
+            "pesan": " ".join(fatal.split())[:200] if fatal else None,
+            # Cuma foto yang belum sampai R2. `image_uploaded` sudah aman di cloud.
+            "antre": hitung.get("pending", 0),
+            "rusak": hitung.get("poisoned", 0),
+        }
 
     # ---------------------------------------------------------------- discovery
 
@@ -164,7 +200,7 @@ class BatchUploadWorker:
             )
             if not sibling.exists():
                 raise _PoisonError(
-                    f"tp tanpa pasangan ripeness — payload tak bisa direkonstruksi: {json_path}"
+                    f"tp tanpa pasangan ripeness, payload tak bisa direkonstruksi: {json_path}"
                 )
             json_path = sibling  # merge penuh; event_id sama → already_processed
 
@@ -235,26 +271,46 @@ class BatchUploadWorker:
                 self._warned_noop = True
             return
 
-        self._scan()
-        items = self.manifest.get_uploadable(limit=self.settings.upload_max_items_per_tick)
-        logger.info("Batch tick: %d item eligible (%s)", len(items), self.manifest.counts())
+        fatal: str | None = None
+        # Foto yang benar-benar sampai R2 di batch ini: jam Cloud Photo cuma bergerak
+        # karenanya, bukan karena batch-nya jalan.
+        naik = 0
+        try:
+            self._scan()
+            items = self.manifest.get_uploadable(limit=self.settings.upload_max_items_per_tick)
+            logger.info("Batch tick: %d item eligible (%s)", len(items), self.manifest.counts())
 
-        for item in items:
+            for item in items:
+                sebelum = item["status"]
+                try:
+                    self._process_item(item)
+                except _PoisonError as exc:
+                    logger.error("Item poisoned %s: %s", item["item_key"], exc)
+                    self.manifest.mark_poisoned(item["id"], str(exc))
+                    continue  # satu item busuk tidak menyandera batch
+                except _RequeueError as exc:
+                    self.manifest.requeue(item["id"], str(exc))
+                    if exc.batch_fatal:
+                        logger.warning("Item requeued %s: %s — batch break", item["item_key"], exc)
+                        fatal = str(exc)
+                        break  # kondisi eksternal rusak — sisa antrean nunggu tick berikut
+                    logger.warning("Item requeued %s: %s — batch continue", item["item_key"], exc)
+                    continue  # kondisi per-item — item lain di belakangnya tetap diproses
+                finally:
+                    # Juga saat POST teks gagal SESUDAH fotonya sampai R2.
+                    if sebelum == "pending" and item["status"] != "pending":
+                        naik += 1
+
+            self._retention()
+        except Exception as exc:
+            # Tanpa ini status Last Sync line membeku di nilai terakhirnya, mungkin hijau.
+            # Pencatatannya sendiri boleh gagal (disk penuh), tapi tidak menutupi galat aslinya.
             try:
-                self._process_item(item)
-            except _PoisonError as exc:
-                logger.error("Item poisoned %s: %s", item["item_key"], exc)
-                self.manifest.mark_poisoned(item["id"], str(exc))
-                continue  # satu item busuk tidak menyandera batch
-            except _RequeueError as exc:
-                self.manifest.requeue(item["id"], str(exc))
-                if exc.batch_fatal:
-                    logger.warning("Item requeued %s: %s — batch break", item["item_key"], exc)
-                    break  # kondisi eksternal rusak — sisa antrean nunggu tick berikut
-                logger.warning("Item requeued %s: %s — batch continue", item["item_key"], exc)
-                continue  # kondisi per-item — item lain di belakangnya tetap diproses
-
-        self._retention()
+                self._catat_batch(f"batch gagal: {exc}", naik)
+            except Exception:
+                logger.exception("Status unggah untuk Last Sync tidak tercatat")
+            raise
+        self._catat_batch(fatal, naik)
 
     def _process_item(self, item: dict[str, Any]) -> None:
         if item["status"] == "pending" and item["image_path"]:

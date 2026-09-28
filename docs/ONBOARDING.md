@@ -1,10 +1,10 @@
 ---
 judul: Panduan Onboarding AutoGrade
-subjudul: Gambaran sistem, alur data, struktur repositori, dan aturan kerja bagi anggota tim baru — manusia maupun AI agent.
+subjudul: Gambaran sistem, alur data, struktur repositori, dan aturan kerja bagi anggota tim baru, manusia maupun AI agent.
 label: Internal · Tim Engineering
 versi: "1.1"
 tanggal: 15 September 2026
-klasifikasi: Internal — tidak untuk dibagikan ke pihak luar
+klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
 sorotan: Sistem = Kamera · AI · Konsol operator; Integrasi = AutoERP · PLC · Timbangan; Pembaca = Developer · AI / Vision · IoT
 ---
@@ -12,7 +12,7 @@ sorotan: Sistem = Kamera · AI · Konsol operator; Integrasi = AutoERP · PLC ·
 # Panduan Onboarding AutoGrade
 
 Dokumen ini ditujukan bagi anggota tim yang baru pertama kali bekerja dengan repositori
-`autograde`. Setelah membacanya — sekitar 20 menit — pembaca diharapkan memahami apa yang
+`autograde`. Setelah membacanya (sekitar 20 menit) pembaca diharapkan memahami apa yang
 dikerjakan sistem ini, di mana setiap bagian kodenya berada, dan aturan mana yang tidak boleh
 dilanggar.
 
@@ -25,7 +25,7 @@ dilanggar.
 AutoGrade adalah sistem penilaian mutu tandan buah segar (TBS) kelapa sawit berbasis kamera dan
 kecerdasan buatan, yang dipasang di pabrik kelapa sawit (PKS).
 
-Truk pemasok membawa buah sawit — disebut **janjang** atau tandan — ke pabrik. Buah dituang ke
+Truk pemasok membawa buah sawit (disebut **janjang** atau tandan) ke pabrik. Buah dituang ke
 conveyor dan melintas di bawah kamera. Kamera dan model AI menilai setiap janjang: layak diterima
 (**ACC**) atau ditolak (**REJ**). Hasil penilaian ini menjadi dasar pembayaran kepada pemasok.
 
@@ -83,9 +83,10 @@ torch maupun OpenCV. Tujuannya satu: gangguan pada kamera tidak boleh mematikan 
 **Layar operator terkunci.** Sampai ada yang masuk dengan **email dan sandi**, seluruh layar
 tertutup gerbang dan seluruh API konsol menjawab 401. Akun datang dari dua tempat: dibuat di
 AutoERP (DocType `AutoGrade Operator`, ikut turun bareng master data) atau dibuat lokal di PC itu
-dengan `make operator` — akun bawaan dan akun support, supaya pabrik yang belum pernah dapat
+dengan `make operator`: akun bawaan dan akun support, supaya pabrik yang belum pernah dapat
 internet tetap bisa dibuka. Keduanya diperiksa di pabrik, jadi login tetap jalan saat internet
-mati: yang ikut turun itu hash sandinya, bukan sandinya. Tidak ada halaman web untuk membuat akun.
+mati: yang ikut turun itu hash sandinya, bukan sandinya. Sejak 2026-09-26 akun lokal juga bisa
+dibuat dari tab **Akun** (khusus support); akun itu cuma ada di PC tersebut, tidak naik ke AutoERP.
 
 ## 4. Alur Data: Satu Janjang
 
@@ -108,7 +109,7 @@ kamera → FrameCaptureWorker → antrean → FrameProcessingWorker → CaptureS
    frame terlama** saat penuh, sehingga model selalu memproses gambar terbaru.
 2. **Penilaian.** `FrameProcessingWorker` menjalankan YOLO dan ByteTrack. ByteTrack memastikan satu
    janjang yang terlihat di banyak frame berturut-turut **dihitung satu kali**. Janjang dihitung
-   ketika kotaknya **menyentuh garis capture** — satu garis lurus yang diatur dari layar setelan.
+   ketika kotaknya **menyentuh garis capture**, satu garis lurus yang diatur dari layar setelan.
    Area ROI menentukan *di mana* (bagian gambar yang dianggap conveyor); garisnya menentukan
    *kapan*.
 3. **Simpan ke disk sebelum mengirim.** Ini aturan terpenting di repositori ini. Worker penilaian
@@ -117,7 +118,7 @@ kamera → FrameCaptureWorker → antrean → FrameProcessingWorker → CaptureS
    berikutnya. Penulis itulah yang menulis gambar WebP dan JSON ke `artifacts/results/`, lalu
    menambahkan satu baris ke `outbox.db`.
    Alasannya terukur: satu janjang memakan ~590 ms untuk disimpan pada frame 2448×2048, dan selama
-   itu penilaian **berhenti** — frame dibuang diam-diam, jejak ByteTrack putus, layar membeku.
+   itu penilaian **berhenti**: frame dibuang diam-diam, jejak ByteTrack putus, layar membeku.
 4. **Pengiriman lewat antrean.** `OutboxRetryWorker` memeriksa `outbox.db` setiap detik dan
    mengirimnya ke konsol. Bila konsol sedang tidak aktif, data menunggu di antrean tanpa hilang.
 5. **Pencatatan di konsol.** Konsol menyimpan data ke `state/console.db` (SQLite). Layar operator
@@ -145,7 +146,7 @@ Data per janjang adalah rincian. Yang masuk ke pembukuan adalah **kunjungan truk
 
 **Satu kunjungan dikirim sebagai satu pesan `upsert_visit`, sebanyak tiga kali** sesuai tahapannya.
 Setiap kiriman **menggantikan** bagian yang dibawanya. Karena itu bagian yang belum tersedia **tidak
-dikirim sama sekali** — bagian kosong akan menghapus data yang sudah ada di AutoERP.
+dikirim sama sekali**: bagian kosong akan menghapus data yang sudah ada di AutoERP.
 
 Janjang yang ditolak dinaikkan kembali ke truk dan ikut ditimbang saat truk keluar. Beratnya masuk
 ke tara, sehingga otomatis tidak ikut dibayar.
@@ -157,10 +158,10 @@ ke tara, sehingga otomatis tidak ikut dibayar.
 | Folder | Isi | Kapan dibuka |
 |---|---|---|
 | `src/palmgrade/` | seluruh kode Python | setiap perubahan perilaku |
-| `tests/` | unit, e2e, integration | setiap perubahan perilaku — test ditulis **lebih dulu** |
+| `tests/` | unit, e2e, integration | setiap perubahan perilaku: test ditulis **lebih dulu** |
 | `docs/` | dokumen teknis, termasuk dokumen ini | saat membutuhkan rincian |
 | `scripts/` | kiosk, data contoh, build engine, smoke test, pembuat PDF | sesekali |
-| `config/camera/` | `hikrobot.mfs` — setelan kamera, termasuk **fps** | saat mengubah fps atau exposure |
+| `config/camera/` | `hikrobot.mfs`: setelan kamera, termasuk **fps** | saat mengubah fps atau exposure |
 | `sdk/` | SDK kamera Hikrobot (MVS), disertakan agar build Docker tidak butuh internet | hampir tidak pernah |
 | `models/release/` | berkas model YOLO (`.pt`) | saat mengganti model |
 | `engines/` | engine TensorRT hasil build per GPU | tidak diubah manual; diisi `make build-engine` |
@@ -188,15 +189,15 @@ Kode disusun berlapis, dan urutan lapisannya **tidak boleh dilompati**:
 | `integrations/` | sistem luar | `camera/`, `erp/`, `notifications/`, `storage/`, `upload/`, `outbox/`, `scheduler/` |
 | `domain/` | aturan murni tanpa I/O | `working_day.py`, `ffb_source.py`, `vision_event.py`, `plate.py` |
 | `schemas/` | bentuk request dan response (Pydantic) | `internal_schema.py` |
-| `plc/` | MC Protocol ke CPU Mitsubishi (Modbus ke coupler masih bisa dipilih); berdiri sendiri, nonaktif secara bawaan | — |
+| `plc/` | MC Protocol ke CPU Mitsubishi (Modbus ke coupler masih bisa dipilih); berdiri sendiri, nonaktif secara bawaan | - |
 | `license/` | penjaga langganan (Ed25519), opsional | `manager.py`, `guard.py` |
-| `static/` | `console.html` — layar operator dalam **satu berkas**, tanpa build dan tanpa CDN | — |
+| `static/` | `console.html`: layar operator dalam **satu berkas**, tanpa build dan tanpa CDN | - |
 
 Dua folder yang sering disalahpahami:
 
 - **`domain/` berisi aturan yang harus benar tanpa bergantung pada apa pun.** Isinya fungsi murni:
   menerima nilai dan mengembalikan nilai, tanpa akses disk maupun HTTP. Bagian ini paling mudah
-  diuji sekaligus paling mahal bila keliru — contohnya `working_day.py`, yang menentukan satu shift
+  diuji sekaligus paling mahal bila keliru, contohnya `working_day.py`, yang menentukan satu shift
   malam masuk ke tanggal kerja yang mana.
 - **`console.html` sengaja dibuat satu berkas tanpa framework.** Layar ini harus tetap berfungsi
   saat internet terputus; halaman yang memuat library dari CDN akan kosong tepat pada saat paling
@@ -206,7 +207,7 @@ Dua folder yang sering disalahpahami:
 
 | Berkas | Fungsi |
 |---|---|
-| `Makefile` | **seluruh perintah dijalankan lewat sini** — `make up`, `make restart`, `make logs-1`, `make console` |
+| `Makefile` | **seluruh perintah dijalankan lewat sini**: `make up`, `make restart`, `make logs-1`, `make console` |
 | `Dockerfile` | resep image (torch CPU untuk pengembangan, CUDA untuk pabrik) |
 | `docker-compose.yml` | empat service: tiga line dan konsol |
 | `docker-compose.override.yml` | penyesuaian khusus satu mesin; dibaca compose **otomatis** dan tidak masuk git |
@@ -217,7 +218,7 @@ Dua folder yang sering disalahpahami:
 
 ## 7. Menjalankan Sistem
 
-### Di Mac — pengembangan konsol
+### Di Mac: pengembangan konsol
 
 ```bash
 cd autograde
@@ -225,7 +226,7 @@ make operator         # sekali: akun lokal (tanya email + nama + sandi)
 make console          # http://127.0.0.1:8100/console
 ```
 
-Konsol berjalan native, tanpa Docker, di port 8100 — port 8000 dipakai AutoERP lokal. Target
+Konsol berjalan native, tanpa Docker, di port 8100, port 8000 dipakai AutoERP lokal. Target
 `make up` dan `make up-dev` **tidak** dipakai di Mac karena membutuhkan SDK kamera dan GPU NVIDIA.
 
 Menjalankan test:
@@ -235,7 +236,7 @@ Menjalankan test:
 .venv/bin/ruff check <daftar berkas di .github/workflows/ci.yml>
 ```
 
-### Di PC pabrik — Linux dengan GPU
+### Di PC pabrik: Linux dengan GPU
 
 ```bash
 make up              # build image, bangun engine TensorRT, jalankan tiga line dan konsol
@@ -283,7 +284,7 @@ Setiap butir berikut pernah menyebabkan kehilangan waktu berjam-jam.
   kodenya. Test yang tidak pernah gagal tidak membuktikan apa pun.
 - **Unit test tidak boleh memuat torch, OpenCV, atau hardware.** CI berjalan tanpa GPU; pengujian
   yang membutuhkan komponen berat ditempatkan di `tests/e2e/`.
-- **Komentar kode ditulis dalam bahasa Inggris, singkat, dan menjelaskan alasan** — bukan mengulang
+- **Komentar kode ditulis dalam bahasa Inggris, singkat, dan menjelaskan alasan**: bukan mengulang
   apa yang sudah terbaca dari kodenya.
 - **Commit tidak mencantumkan `Co-Authored-By` atau referensi AI apa pun.**
 - **Selama Opsi B berjalan tidak ada deploy dan tidak ada tag rilis `vX.Y.Z`.**
@@ -307,11 +308,11 @@ Setiap butir berikut pernah menyebabkan kehilangan waktu berjam-jam.
 
 | Istilah | Arti |
 |---|---|
-| **TBS** | Tandan Buah Segar — buah sawit yang baru dipanen |
+| **TBS** | Tandan Buah Segar: buah sawit yang baru dipanen |
 | **Janjang / tandan** | satu buah sawit utuh; satuan yang dinilai kamera |
 | **PKS** | Pabrik Kelapa Sawit |
 | **ACC / REJ** | diterima / ditolak; hasil penilaian AI |
-| **Tangkai panjang** | buah diterima tetapi tangkainya terlalu panjang — menambah berat tanpa menambah minyak |
+| **Tangkai panjang** | buah diterima tetapi tangkainya terlalu panjang, menambah berat tanpa menambah minyak |
 | **Mentah** | buah belum matang dengan kandungan minyak rendah |
 | **Brondolan** | buah lepasan yang rontok dari tandan |
 | **Line** | satu conveyor dengan satu kamera; terdapat tiga line |
@@ -327,11 +328,11 @@ Setiap butir berikut pernah menyebabkan kehilangan waktu berjam-jam.
 1. Baca bagian **Critical Rules** di `CLAUDE.md`.
 2. Buat operator dengan `make operator`, jalankan `make console`, lalu masuk dengan email dan
    sandi itu dan coba layar operator.
-3. Buka `src/palmgrade/workers/frame_processing_worker.py` — di sinilah janjang diubah menjadi angka.
-4. Buka `src/palmgrade/domain/working_day.py` — contoh aturan murni yang ringkas di `domain/`.
+3. Buka `src/palmgrade/workers/frame_processing_worker.py`: di sinilah janjang diubah menjadi angka.
+4. Buka `src/palmgrade/domain/working_day.py`: contoh aturan murni yang ringkas di `domain/`.
 5. Jalankan `.venv/bin/pytest tests/unit` dan pastikan seluruhnya lolos sebelum mulai mengubah kode.
 
-Bila menemukan hal yang membingungkan atau tampak keliru, **catat sebagai temuan** — jangan
+Bila menemukan hal yang membingungkan atau tampak keliru, **catat sebagai temuan**, jangan
 dianggap "memang begitu".
 
 ## Riwayat Revisi

@@ -82,3 +82,24 @@ def test_plc_state_membawa_coil_base_supaya_layar_bisa_menamai(monkeypatch):
 
     assert hasil.coil_base == 1003
     assert sorted(hasil.testable_coils) == [1003, 1004, 1005]
+
+
+# ── Last Sync: ringkasan upload foto ikut /internal/status ──────────────────
+
+
+def test_status_membawa_ringkasan_upload_foto_untuk_last_sync(monkeypatch):
+    """Konsol membaca Cloud Photo tiap line dari sini, bukan jalur baru."""
+    ringkasan = {"aktif": True, "terakhir": 1_790_000_000.0, "gagal_sejak": None,
+                 "pesan": None, "antre": 2, "rusak": 0}
+    state = RuntimeState()
+    state.status_unggah = lambda: dict(ringkasan)
+    monkeypatch.setattr(internal_controller, "_plc_inputs", lambda: [], raising=False)
+
+    jawab = asyncio.run(internal_controller.line_status(state))
+
+    assert jawab.unggah == ringkasan
+
+
+def test_line_tanpa_worker_upload_mengirim_unggah_none(monkeypatch):
+    """None, bukan blok kosong: konsol menulisnya "tidak terbaca", bukan putus."""
+    assert _status(monkeypatch, []).unggah is None

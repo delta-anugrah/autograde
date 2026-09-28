@@ -455,7 +455,7 @@ class Settings:
     plc_poll_ms: int = field(default_factory=lambda: _plc_int("PLC_POLL_MS", 200))
     plc_di_count: int = field(default_factory=lambda: _plc_int("PLC_DI_COUNT", 16))
 
-    # Manual piston (panel proposal; see docs/plc-handoff-commissioning.md).
+    # Manual piston (not allocated by the panel yet; docs/plc-mc-handoff.md §4.3).
     # Coil level per line: 1 = request piston open. Empty = feature off, which is
     # the correct state until Pak Ocit allocates coil 10/11/12.
     plc_coil_manual: int | None = field(default_factory=lambda: _plc_opt_int("PLC_COIL_MANUAL"))
@@ -623,7 +623,7 @@ class Settings:
 
         Ini satu-satunya bagian fitur rekam yang tetap di `.env`, karena
         jalurnya berbeda antara container dan host dan karena itu harus bisa
-        di-mount. Resolusi, fps, dan bitrate diatur dari layar developer.
+        di-mount. Resolusi diatur dari layar developer; fps ikut laju kamera.
 
         ⚠️ **Namanya `REKAMAN_DIR`, BUKAN `VIDEOS_DIR`** — jangan "dirapikan".
         `VIDEOS_DIR` pernah ada dan artinya **kebalikannya**: folder video

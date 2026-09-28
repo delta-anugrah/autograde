@@ -239,15 +239,18 @@ def test_tabel_alamat_menyebut_arah_pc_dan_plc():
     assert "M1008" in peta and "M1110" in peta, "tabel alamat tidak lengkap"
 
 
-# ── warna tombol: hijau OK, merah NG/Error ─────────────────────────────────
+# ── warna tombol: hijau OK, merah NG, kuning Error ─────────────────────────
 
 
-def test_tombol_ok_diberi_kelas_hijau_ng_dan_error_merah():
+def test_tombol_ok_hijau_ng_merah_error_kuning():
     """Warna dibaca lebih cepat daripada tulisan saat tangan sedang di panel.
-    Kelasnya diturunkan dari OFFSET (base+0 = OK), bukan dari nomor alamat."""
+    Kelasnya diturunkan dari OFFSET (base+0 = OK, +2 = Error), bukan dari nomor
+    alamat. Error kuning sejak 2026-09-25: NG dan Error dulu sama-sama merah dan
+    berdampingan, terbaca seperti dua tombol kembar."""
     fn = HTML.split("function isiCoilPlc(", 1)[1].split("\n}\n", 1)[0]
     assert "kelasCoil(" in fn, "tombol tidak memakai kelasCoil()"
     assert ".uji-coil.ok" in HTML, "CSS untuk tombol OK (hijau) tidak ada"
+    assert ".uji-coil.error" in HTML, "CSS untuk tombol Error (kuning) tidak ada"
 
 
 @butuh_node
@@ -267,4 +270,4 @@ def test_kelas_warna_mengikuti_offset_bukan_nomor_alamat():
     hasil = json.loads(subprocess.run(
         [NODE, "-e", skrip], capture_output=True, text=True, check=True, timeout=30
     ).stdout.strip())
-    assert hasil == ["ok", "", "", "ok", "", "ok", "", ""]
+    assert hasil == ["ok", "", "error", "ok", "", "ok", "", ""]

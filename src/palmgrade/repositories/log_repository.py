@@ -141,6 +141,12 @@ class LogStore:
             ).fetchall()
         return {"items": [dict(r) for r in rows], "total": total}
 
+    def hapus_semua(self) -> int:
+        """Danger Zone: kosongkan log. Jejak siapa yang menghapus ditulis SESUDAH
+        ini oleh pemanggil, jadi ia jadi baris pertama di log yang baru."""
+        with self._lock, self._db:
+            return self._db.execute("DELETE FROM event_log").rowcount
+
     def purge_expired(self, *, now: float) -> int:
         """Delete rows past the retention window. Return how many were removed.
 

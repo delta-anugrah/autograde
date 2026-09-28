@@ -129,6 +129,7 @@ async def plc_coil_command(request: PlcCoilCommandRequest, state: RuntimeState) 
 async def line_status(state: RuntimeState) -> LineStatusResponse:
     from ..core.dependencies import get_settings
     from ..domain.plc_alarm import alarms_from_inputs
+    from ..domain.sinkron import unggah_dari_state
     from ..plc import piston_state
 
     return LineStatusResponse(
@@ -137,4 +138,5 @@ async def line_status(state: RuntimeState) -> LineStatusResponse:
         ffb_source=state.current_ffb_source,
         piston=piston_state(),
         alarms=alarms_from_inputs(_plc_inputs()),
+        unggah=unggah_dari_state(state),
     )

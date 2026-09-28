@@ -25,6 +25,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint, Settings
+from ..domain.bahaya import HapusBerjalan
 from ..domain.ffb_source import ffb_source_label
 from ..domain.grade_class import grade_class_or_none
 from ..domain.operator_error import (
@@ -45,6 +46,7 @@ from ..domain.setelan_rekam import (
     KUNCI_SETELAN_REKAM,
     bersihkan_setelan_rekam,
 )
+from ..domain.sinkron import gabung_cloud
 from ..domain.sumber_kamera import SumberTidakSah, bersihkan_sumber
 from ..domain.vision_event import prediction_for, verdict_of
 from ..domain.working_day import work_date_for
@@ -55,6 +57,7 @@ from .erp_queue import ErpQueue
 from .media_env_service import LINE_CODES, MediaEnvService
 from .media_library import MediaLibrary
 from .model_library import ModelLibrary
+from .status_sinkron import StatusSinkron
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +84,7 @@ class ConsoleService:
         *,
         erp_queue: ErpQueue | None = None,
         manifest_queue: VisitManifestWorker | None = None,
+        status_sinkron: StatusSinkron | None = None,
     ) -> None:
         self.settings = settings
         self.store = store
@@ -93,6 +97,11 @@ class ConsoleService:
         # `detail_url` in what erp_queue sends — but the AutoERP link (if any)
         # still works. See _queue_grading: the two are independent.
         self.manifest_queue = manifest_queue
+        # Last Sync (2026-09-27). Dibuat di sini kalau pemanggil tidak memberi, supaya
+        # test lama yang merakit ConsoleService sendiri tetap mendapat bagian ini.
+        self.status_sinkron = status_sinkron or StatusSinkron(
+            store, erp_aktif=bool(settings.erp_url), r2_aktif=bool(settings.r2_bucket)
+        )
         # Wired to `LineStatusWorker.snapshot` by console_main.py's lifespan.
         # Default (empty dict) keeps old tests, which never touch the worker,
         # working — every line just shows unreachable instead of crashing.
@@ -189,7 +198,12 @@ class ConsoleService:
                     for k in ("ripe", "unripe", "jk", "tp", "tanpa_kelas")
                 },
                 "assignment": _assignment_view(assignments.get(ln.line_code)),
-                "plc": status_line.get(ln.line_code, {"reachable": False}),
+                # Tanpa `unggah`: kartu tidak memakainya, dan blok itu membawa `pesan`
+                # galat mentah. Ringkasannya sampai ke layar lewat `sinkron`.
+                "plc": {
+                    k: v for k, v in status_line.get(ln.line_code, {"reachable": False}).items()
+                    if k != "unggah"
+                },
             }
             for ln in self.lines
         ]
@@ -213,6 +227,43 @@ class ConsoleService:
             # Ditampilkan supaya pelepasannya terlihat: kalau bongkar ternyata
             # belum habis, operator masih bisa meng-assign ulang.
             "auto_releases": self.store.auto_releases_terbaru(),
+            # Menumpang polling 2 detik ini, bukan endpoint sendiri: yang melihat
+            # sambungan putus itu operator biasa (alasan sama dengan banner lisensi).
+            "sinkron": self._sinkron_aman(),
+        }
+
+    def _sinkron_aman(self) -> dict[str, Any] | None:
+        """Last Sync yang gagal dibaca cukup kosong di layar (`isiSinkron` melewatinya):
+        polling ini melayani seluruh layar operator, bukan cuma bagian itu."""
+        try:
+            return self.sinkron()
+        except Exception:
+            logger.exception("Last Sync tidak terbaca; bagian itu dikosongkan di layar")
+            return None
+
+    def sinkron(self) -> dict[str, Any]:
+        """Last Sync: AutoERP dan Cloud Photo, siap digambar layar (`domain/sinkron.py`).
+
+        Antrean AutoERP = pesan yang belum terkirim + yang gagal dan menunggu giliran
+        ulang. Cloud Photo menggabungkan cek R2 dan manifest dari konsol dengan blok
+        `unggah` yang dilaporkan tiap line lewat `/internal/status`.
+        """
+        antre_erp = 0
+        if self.settings.erp_url and self.erp_queue is not None:
+            antre_erp = self.erp_queue.outbox.pending_count() + self.erp_queue.outbox.failed_count()
+        antre_manifest = 0
+        if self.manifest_queue is not None:
+            antre_manifest = (
+                self.manifest_queue.outbox.pending_count() + self.manifest_queue.outbox.failed_count()
+            )
+        lines = {
+            ln.line_code: (st.get("unggah") if st.get("reachable") else None)
+            for ln in self.lines
+            for st in [self.line_status().get(ln.line_code) or {}]
+        }
+        return {
+            "autoerp": self.status_sinkron.ringkas("erp", antre=antre_erp),
+            "cloud": gabung_cloud(self.status_sinkron.ringkas("r2", antre=antre_manifest), lines),
         }
 
     def history(
@@ -481,6 +532,10 @@ class ConsoleService:
 
     async def assign_truck(self, line_code: str, truck_id: str) -> dict[str, Any]:
         line = self._require_line(line_code)
+        if self.store.hapus_berjalan:
+            # Danger Zone sedang mengosongkan data: penugasan yang dicatat sekarang
+            # ikut terhapus, dan janjangnya tidak pernah tertaut ke tiket.
+            raise HapusBerjalan()
         assignment_id = str(uuid.uuid4())
         # Line first, then store. If the line does not answer, DO NOT record:
         # a screen showing a truck assigned while the line knows nothing makes
@@ -626,8 +681,11 @@ class ConsoleService:
         tersimpan = self.store.get_state(KUNCI_SETELAN_REKAM)
         if tersimpan:
             # Digabung dengan BAWAAN supaya baris yang disimpan sebelum sebuah
-            # field ada tidak mengembalikan payload cacat ke layar.
-            return {**REKAM_BAWAAN, **json.loads(tersimpan)}
+            # field ada tidak mengembalikan payload cacat ke layar — dan disaring
+            # ke kunci BAWAAN supaya field yang sudah dicabut (`bitrate_kbps`,
+            # 2026-09-25) tidak terus ikut dari baris lama.
+            lama = json.loads(tersimpan)
+            return {**REKAM_BAWAAN, **{k: v for k, v in lama.items() if k in REKAM_BAWAAN}}
         return dict(REKAM_BAWAAN)
 
     async def simpan_setelan_rekam(
@@ -642,9 +700,8 @@ class ConsoleService:
         bersih = bersihkan_setelan_rekam(payload)
         self.store.set_state(KUNCI_SETELAN_REKAM, json.dumps(bersih))
         logger.warning(
-            "Setelan rekam diubah oleh %s: %dx%d @ %d fps, %d kbps",
+            "Setelan rekam diubah oleh %s: %dx%d",
             diubah_oleh, bersih["width"], bersih["height"],
-            bersih["fps"], bersih["bitrate_kbps"],
         )
         return bersih
 
@@ -652,9 +709,12 @@ class ConsoleService:
         """Suruh satu line mulai merekam dengan setelan yang tersimpan."""
         line = self._require_line(line_code)
         setelan = self.setelan_rekam()
+        # Tanpa fps: yang dipakai laju kamera, dan line sendiri yang mencatatnya
+        # ("Rekam video MULAI ... @ N fps"). Angka tersimpan di sini cuma cadangan
+        # dan akan terbaca seperti laju berkasnya.
         logger.warning(
-            "Rekam video %s dimulai oleh %s (%dx%d @ %d fps)",
-            line_code, diubah_oleh, setelan["width"], setelan["height"], setelan["fps"],
+            "Rekam video %s dimulai oleh %s (%dx%d)",
+            line_code, diubah_oleh, setelan["width"], setelan["height"],
         )
         return await self.line_client.rekam_mulai(line, setelan)
 
@@ -883,7 +943,7 @@ class ConsoleService:
             if info is None:
                 raise ModelTidakSah(f"{kode}: {nama} tidak ada di models/release")
             if not info["cocok"]:
-                raise ModelTidakSah(f"{kode}: {nama} tidak bisa dipakai — {info['alasan']}")
+                raise ModelTidakSah(f"{kode}: {nama} tidak bisa dipakai ({info['alasan']})")
 
         env.tulis_model(bersih)
         logger.warning(
