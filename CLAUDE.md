@@ -306,11 +306,13 @@ PLC uji, piston, dsb.) dari kunci yang dipegang pihak ketiga: kosong atau sama d
 `WEBHOOK_SECRET` = perintah konsol masih memakai kunci lama (`.env` PC yang dipasang sebelum
 batch 1 tetap jalan tanpa diubah), beda = terpisah. Perbandingan **constant-time**
 (`domain/rahasia.py`) dan **fail closed**: secret yang dikonfigurasi kosong tidak pernah membuka
-lane, di line maupun di konsol (`domain/penjaga_rahasia.py`).
+lane, di line maupun di konsol (`routes/penjaga_rahasia.py`).
 **Fail-fast:** `Settings.validate_secrets()` (dipanggil line **dan** konsol) raise saat
-`APP_ENV=production` & `WEBHOOK_SECRET` masih bawaan (`supersecret123`) **atau** kosong;
-`INTERNAL_SECRET` yang diisi ikut aturan yang sama, container menolak start. `LINE_1/2/3_MACHINE_ID`
-harus sama di line dan di konsol; compose membawa UUID bawaan kalau kosong.
+`APP_ENV=production` & `WEBHOOK_SECRET` masih bawaan (`supersecret123`) **atau** kosong.
+`INTERNAL_SECRET` **kosong atau tidak diisi cuma warning** (jatuh ke `WEBHOOK_SECRET`, `.env` lama
+tetap jalan); kalau **diisi**, nilainya ikut aturan yang sama (bawaan atau kosong-setelah-dipangkas
+= menolak start). `LINE_1/2/3_MACHINE_ID` harus sama di line dan di konsol; compose membawa UUID
+bawaan kalau kosong.
 
 Full endpoint / payload / env tables: `docs/backend-overview.md`.
 
@@ -978,7 +980,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     manual-reject; tiap penekanan dicatat WARNING menyebut pelakunya di tab Log, dipicu atau
     ditolak (aturan yang sama dengan Uji PLC di aturan 21).
     **Semua pemeriksaan secret mesin constant-time dan fail closed**
-    (`domain/rahasia.py`/`domain/penjaga_rahasia.py`): secret yang dikonfigurasi kosong tidak
+    (`domain/rahasia.py`/`routes/penjaga_rahasia.py`): secret yang dikonfigurasi kosong tidak
     pernah membuka lane, baik `x-webhook-secret` (line → konsol, timbangan → konsol) maupun
     `x-internal-secret` (konsol → line).
     **`INTERNAL_SECRET` terpisah dari `WEBHOOK_SECRET`** (lihat § Integration Contracts): kosong
@@ -988,8 +990,11 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     ditolak" (`LINE_MENOLAK`), bukan OFFLINE: line hidup dan menjawab, cuma menolak headernya.
     Danger Zone belum ikut membedakannya (masih terbaca "line mati" kalau ditolak saat hapus
     data), follow-up yang sengaja ditunda.
-    **Line dan konsol menolak boot di `APP_ENV=production`** dengan secret bawaan (`supersecret123`)
-    ATAU kosong (`Settings.validate_secrets()`, dipanggil keduanya): dulu cuma line yang menolak.
+    **Line dan konsol menolak boot di `APP_ENV=production`** kalau `WEBHOOK_SECRET` bawaan
+    (`supersecret123`) ATAU kosong (`Settings.validate_secrets()`, dipanggil keduanya: dulu cuma
+    line yang menolak). `INTERNAL_SECRET` beda aturannya: **kosong atau tidak diisi cuma warning**
+    (jatuh ke `WEBHOOK_SECRET`, itulah yang membuat rilis ini backward compatible), tapi kalau
+    **diisi** dan nilainya bawaan atau kosong-sesudah-dipangkas, ikut menolak boot juga.
     **`/captures` di konsol butuh sesi operator** (`CapturesBersesi`, `routes/captures.py`): tanpa
     cookie `konsol_sesi` dijawab 401 `belum_masuk`, sama dengan lane operator lain. `/captures`
     di **line** (port 8001-8003) tetap terbuka seperti sebelumnya, line tidak punya konsep sesi

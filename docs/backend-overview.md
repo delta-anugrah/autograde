@@ -169,7 +169,7 @@ Backlog upload R2 tidak ada di sini: lihat blok `unggah` di `GET /internal/statu
 ### `/internal/*` (header `x-internal-secret` = `INTERNAL_SECRET`, kosong = `WEBHOOK_SECRET`)
 
 Dipanggil konsol, tidak pernah oleh browser. Perbandingan constant-time dan fail closed:
-secret yang dikonfigurasi kosong tidak pernah membuka lane (`domain/penjaga_rahasia.py`).
+secret yang dikonfigurasi kosong tidak pernah membuka lane (`routes/penjaga_rahasia.py`).
 
 | Method | Path | Notes |
 |---|---|---|

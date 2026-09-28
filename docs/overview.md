@@ -283,9 +283,11 @@ header `x-webhook-secret`:
 memisahkan header `x-internal-secret` (konsol → line) dari kunci itu: kosong atau sama dengan
 `WEBHOOK_SECRET` = perintah konsol masih memakai kunci lama (`.env` yang dipasang sebelum batch 1
 tetap jalan), diisi beda = terpisah. Perbandingan constant-time dan fail closed di kedua secret
-(`domain/rahasia.py`, `domain/penjaga_rahasia.py`): nilai kosong yang dikonfigurasi tidak pernah
-membuka lane. Line dan konsol sama-sama menolak boot di `APP_ENV=production` kalau salah satu
-secret masih bawaan atau kosong (`Settings.validate_secrets()`). Jalur **batch ke cloud** pakai
+(`domain/rahasia.py`, `routes/penjaga_rahasia.py`): nilai kosong yang dikonfigurasi tidak pernah
+membuka lane. Line dan konsol sama-sama menolak boot di `APP_ENV=production` kalau `WEBHOOK_SECRET`
+masih bawaan atau kosong (`Settings.validate_secrets()`); `INTERNAL_SECRET` kosong/tidak diisi cuma
+warning (jatuh ke `WEBHOOK_SECRET`, itu yang membuat rilis backward compatible), tapi kalau diisi
+ikut aturan menolak-boot yang sama. Jalur **batch ke cloud** pakai
 pasangan sendiri, `UPLOAD_API_URL` + `UPLOAD_API_SECRET`, yang di pabrik sekarang kosong.
 `LINE_1/2/3_MACHINE_ID` = identitas tiga line (compose membawa bawaan UUID); konsol memetakan
 `machine_id → line_code` dan menyajikan gambar di `/captures/<line_code>/...` (butuh sesi
