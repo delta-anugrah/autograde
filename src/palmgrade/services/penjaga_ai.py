@@ -44,7 +44,7 @@ class PenjagaAi:
         self._mati_tercatat = False
 
     def nilai(self) -> PenilaianAi:
-        return self._nilai_pada(self._state.jam())
+        return self._nilai_sekarang()[1]
 
     def sehat_untuk_plc(self) -> bool:
         """`health_check` untuk `PlcWorker`: False = naikkan coil ERROR."""
@@ -52,9 +52,9 @@ class PenjagaAi:
 
     def ringkas(self) -> dict[str, Any]:
         """Blok `ai` untuk `/health` dan `/internal/status` (sampai ke operator)."""
-        sekarang = self._state.jam()
+        sekarang, penilaian = self._nilai_sekarang()
         return ke_kawat(
-            self._nilai_pada(sekarang),
+            penilaian,
             ambang_detik=self._settings.ai_mati_detik,
             sekarang=sekarang,
             jam_dinding=self._jam_dinding(),
@@ -68,28 +68,34 @@ class PenjagaAi:
             "galat_at": self._state.ai_galat_at or None,
         }
 
-    def _nilai_pada(self, sekarang: float) -> PenilaianAi:
+    def _nilai_sekarang(self) -> tuple[float, PenilaianAi]:
+        """Baca jam, nilai, dan bandingkan dengan transisi terakhir dalam SATU
+        kunci. Kalau jam dibaca di luar kunci, penilaian yang dihitung lebih
+        dulu bisa tiba sesudah yang lebih baru dan membalik transisinya
+        (PLC tiap 200 ms dan HTTP membaca bersamaan): satu kejadian jadi tiga
+        baris log. Semuanya murni dan cuma mikrodetik; log tetap di luar."""
         s = self._state
-        penilaian = nilai_ai(
-            FaktaAi(
-                sekarang=sekarang,
-                ambang_detik=self._settings.ai_mati_detik,
-                kamera_tersambung=bool(getattr(self._kamera, "connected", False)),
-                grading_diblokir=grading_blocked(self._settings.lic_enabled, s.license_exp),
-                dimulai_at=s.ai_dimulai_at,
-                frame_terakhir_at=s.frame_terakhir_at,
-                aliran_frame_sejak=s.aliran_frame_sejak,
-                inferensi_selesai_at=s.inferensi_selesai_at,
+        with self._kunci:
+            sekarang = s.jam()
+            penilaian = nilai_ai(
+                FaktaAi(
+                    sekarang=sekarang,
+                    ambang_detik=self._settings.ai_mati_detik,
+                    kamera_tersambung=bool(getattr(self._kamera, "connected", False)),
+                    grading_diblokir=grading_blocked(self._settings.lic_enabled, s.license_exp),
+                    dimulai_at=s.ai_dimulai_at,
+                    frame_terakhir_at=s.frame_terakhir_at,
+                    aliran_frame_sejak=s.aliran_frame_sejak,
+                    inferensi_selesai_at=s.inferensi_selesai_at,
+                )
             )
-        )
-        self._catat_transisi(penilaian)
-        return penilaian
+            berubah = penilaian.mati != self._mati_tercatat
+            self._mati_tercatat = penilaian.mati
+        if berubah:
+            self._catat_transisi(penilaian)
+        return sekarang, penilaian
 
     def _catat_transisi(self, p: PenilaianAi) -> None:
-        with self._kunci:
-            if p.mati == self._mati_tercatat:
-                return
-            self._mati_tercatat = p.mati
         if p.mati:
             logger.error(
                 "AI %s berhenti memproses (kode AI_MATI): kamera mengirim gambar tapi tidak "
@@ -99,8 +105,11 @@ class PenjagaAi:
                 self._state.ai_galat_terakhir or "tidak ada (loop macet atau tidak menerima frame)",
             )
         else:
+            # Bukan "memproses lagi": keluar dari ai_mati bisa juga ke kamera_putus,
+            # lisensi, atau sumber_diam, dan di sana AI tetap tidak memproses.
             logger.warning(
-                "AI %s memproses lagi (keadaan %s)", self._settings.line_code, p.keadaan.value
+                "AI %s tidak lagi dinilai mati (keadaan %s)",
+                self._settings.line_code, p.keadaan.value,
             )
 
 

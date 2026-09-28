@@ -10,10 +10,12 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
+import threading
 from dataclasses import replace
 from pathlib import Path
 
 from palmgrade.core.config import Settings
+from palmgrade.services import penjaga_ai
 from palmgrade.services.penjaga_ai import PenjagaAi, ringkas_ai_dari_state
 from palmgrade.workers.runtime_state import RuntimeState
 
@@ -112,7 +114,58 @@ def test_transisi_dicatat_sekali_masing_masing(caplog):
     error = [r for r in caplog.records if r.levelno == logging.ERROR]
     pulih = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(error) == 1 and "AI_MATI" in error[0].getMessage()
-    assert len(pulih) == 1 and "memproses lagi" in pulih[0].getMessage()
+    assert len(pulih) == 1 and "tidak lagi dinilai mati" in pulih[0].getMessage()
+
+
+def test_keluar_dari_ai_mati_ke_kamera_putus_tidak_mengaku_memproses(caplog):
+    penjaga, state, kamera, jam = _rakit()
+    caplog.set_level(logging.WARNING, logger="palmgrade.services.penjaga_ai")
+    _gambar_mengalir_tanpa_selesai(state, jam, 31)
+    state.catat_frame_masuk()
+    assert penjaga.nilai().mati
+    kamera.connected = False
+    penjaga.sehat_untuk_plc()
+
+    pulih = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(pulih) == 1
+    assert "memproses lagi" not in pulih[0]
+    assert "kamera_putus" in pulih[0]
+
+
+def test_penilaian_basi_yang_tiba_belakangan_tidak_membalik_transisi(caplog, monkeypatch):
+    """Pembaca A (tick PLC) menilai tepat di ambang (`memulai`); sebelum A sempat
+    mencatat, 0,5 detik lewat dan pembaca B (HTTP) menilai `ai_mati`. Kalau A
+    boleh mencatat sesudah B, satu transisi nyata tercatat tiga baris
+    (ERROR, WARNING, ERROR)."""
+    penjaga, state, _, jam = _rakit()
+    caplog.set_level(logging.WARNING, logger="palmgrade.services.penjaga_ai")
+    _gambar_mengalir_tanpa_selesai(state, jam, 30)
+    state.catat_frame_masuk()                 # jam 1030: tepat di ambang, belum mati
+
+    asli = penjaga_ai.nilai_ai
+    b: list[threading.Thread] = []
+
+    def nilai_ai_a(fakta):
+        hasil = asli(fakta)
+        if not b:                             # hanya pembaca A yang disela
+            jam.sekarang += 0.5
+            b.append(threading.Thread(target=penjaga.sehat_untuk_plc))
+            b[0].start()
+            b[0].join(timeout=0.5)            # tanpa kunci, B selesai di sini
+        return hasil
+
+    monkeypatch.setattr(penjaga_ai, "nilai_ai", nilai_ai_a)
+    penjaga.sehat_untuk_plc()                 # pembaca A
+    b[0].join(timeout=5)
+    assert not b[0].is_alive()
+    monkeypatch.setattr(penjaga_ai, "nilai_ai", asli)
+    for _ in range(5):
+        penjaga.sehat_untuk_plc()
+
+    error = [r for r in caplog.records if r.levelno == logging.ERROR]
+    pulih = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(error) == 1 and "AI_MATI" in error[0].getMessage()
+    assert pulih == []
 
 
 def test_ringkas_dari_state_tanpa_penjaga_adalah_none():
