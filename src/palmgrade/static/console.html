@@ -256,6 +256,8 @@
   .riwayat-isian .pilih-tombol { min-height:2.6rem; }
   .riwayat-cepat { display:flex; flex-wrap:wrap; gap:6px; }
   .riwayat-cepat button { min-height:2.6rem; padding:8px 12px; font-size:.85rem; }
+  /* Rentang yang sedang dipakai, dengan warna yang sama dengan Per hari / Per truk. */
+  .riwayat-cepat button.aktif { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
   .riwayat-aksi { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
   .riwayat-aksi button { min-height:2.6rem; min-width:9rem; }
   .riwayat-maks { flex:1 1 100%; }
@@ -389,7 +391,8 @@
      Lebar minimum = keterangan terpanjang, supaya strip tidak bergeser tiap kali
      status berganti. */
   #tally .sinkron { display:flex; flex-direction:column; justify-content:center; gap:5px;
-                    min-width:16.5rem; padding:10px 16px; border-right:1px solid var(--line); }
+                    min-width:16.5rem; padding:10px 16px; border-left:1px solid var(--line);
+                    border-right:1px solid var(--line); }
   .sinkron-baris { display:grid; grid-template-columns:auto auto 1fr; align-items:center;
                    column-gap:8px; font-size:.85rem; white-space:nowrap; }
   .sinkron-baris .titik { width:.6rem; height:.6rem; border-radius:50%; background:var(--muted); }
@@ -525,7 +528,17 @@
   /* Tombol per baris dibuat kecil: tabel ini dibaca, tombolnya jarang ditekan,
      dan tiga tombol ukuran penuh akan membuat tiap baris dua kali lebih tinggi. */
   .akun-tombol { display:inline-flex; gap:6px; flex-wrap:wrap; }
-  .akun-tombol button { padding:5px 10px; font-size:.85rem; }
+  .akun-tombol button { padding:6px 12px; font-size:.85rem; }
+  /* Warna menurut akibatnya, supaya terbaca sebagai tombol dan bedanya terlihat sekilas
+     (tes staging 2026-09-28: tombol abu-abu menyatu dengan tabel). */
+  .akun-tombol button.aksi-sandi { background:var(--acc-bg); color:var(--acc); border-color:var(--acc); }
+  .akun-tombol button.aksi-matikan { background:var(--rej-bg); color:var(--rej); border-color:var(--rej); }
+  .akun-tombol button.aksi-aktifkan { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
+  .akun-tombol button.aksi-role { background:var(--warn-bg); color:var(--warn); border-color:var(--warn); }
+  /* Kolom sandi berikut tombol Lihat (form Tambah akun dan panel Ganti sandi). */
+  #akun-tambah .sandi-baris { max-width:22rem; }
+  .akun-panel .sandi-baris { flex:0 1 17rem; }
+  .akun-panel .sandi-baris input { flex:1; }
   .akun-tombol + .muted { margin-left:6px; }
   /* Konfirmasi satu baris akun, dibuka di bawah barisnya sendiri. */
   #akun-baris tr.akun-panel-baris > td { padding:0; white-space:normal; background:var(--bg); }
@@ -535,6 +548,7 @@
   .akun-panel p { flex:1 1 100%; margin:0; }
   .akun-panel input { flex:0 1 14rem; min-width:0; }
   .akun-panel button { flex:0 0 auto; min-width:8rem; }
+  .akun-panel .sandi-lihat { min-width:0; }
   .akun-panel.awas button[data-akun-jalankan] { background:var(--rej); border-color:var(--rej);
                                                  color:#fff; }
 
@@ -1510,7 +1524,7 @@
     <div class="riwayat-aksi">
       <button type="button" id="riwayat-tampilkan" class="utama" data-t="riwayatTampilkan">Tampilkan</button>
       <button type="button" id="riwayat-csv" data-t="riwayatCsv">Unduh CSV</button>
-      <!-- Support saja: dibuang dari halaman untuk akun lain (hapusTabDeveloper);
+      <!-- Support saja: dibuang dari halaman untuk akun lain (aturTabDeveloper);
            yang menjaga tetap server (403). Unduh CSV tetap untuk semua operator. -->
       <button type="button" id="riwayat-impor" data-dev="1" data-t="riwayatImpor">Impor CSV</button>
     </div>
@@ -1880,9 +1894,13 @@
       <!-- new-password: tanpa ini Firefox menawarkan sandi support yang sedang
            masuk untuk akun orang lain. -->
       <label><span data-t="lbSandi">Sandi</span>
-        <input type="password" id="akun-sandi" autocomplete="new-password"></label>
+        <span class="sandi-baris"><input type="password" id="akun-sandi" autocomplete="new-password">
+          <button type="button" class="sandi-lihat" data-lihat-sandi aria-pressed="false"
+                  data-t="lihatSingkat" data-t-lb="lihatSandi">Lihat</button></span></label>
       <label><span data-t="lbSandiUlang">Ulangi sandi</span>
-        <input type="password" id="akun-sandi-ulang" autocomplete="new-password"></label>
+        <span class="sandi-baris"><input type="password" id="akun-sandi-ulang" autocomplete="new-password">
+          <button type="button" class="sandi-lihat" data-lihat-sandi aria-pressed="false"
+                  data-t="lihatSingkat" data-t-lb="lihatSandi">Lihat</button></span></label>
     </div>
     <p class="muted akun-form-catatan" data-t="akunTambahCatatan">Akun ini cuma ada di PC ini dan tidak masuk ke AutoERP. Sandi minimal 8 karakter.</p>
     <div class="akun-form-tombol">
@@ -2856,6 +2874,7 @@ function terapkanBahasa() {
   // Its face alternates between two keys, so it cannot be a plain `data-t`; re-applied
   // here in whichever state it is currently in.
   lihatSandi($("gerbang-sandi").type === "text");
+  tutupLihatSandi(document);
   segarkanPilih();
   terapkanTema();
 }
@@ -3602,7 +3621,7 @@ function barisSinkron(r, sekarang) {
   const kelas = r && sah.includes(r.keadaan) ? r.keadaan : "memeriksa";
   const jam = kelas === "tidak_dipakai"
     ? t("sinkronTidakDipakai")
-    : (jamSinkron(r && r.terakhir, sekarang) || t("sinkronBelum"));
+    : (jamSinkron(r && r.terakhir, sekarang) || KOSONG);
   let ket = "";
   if (kelas === "terputus") {
     ket = t("sinkronTerputus").replace("{jam}", jamSinkron(r.sejak, sekarang) || KOSONG);
@@ -4182,17 +4201,44 @@ function tutupGerbang(operator) {
   $("keluar").hidden = false;
 }
 
-function hapusTabDeveloper(role) {
+// Elemen developer yang dibuang untuk akun non-support, beserta tempatnya. Akun support
+// yang masuk sesudahnya di halaman yang sama mendapatkannya kembali; dulu cuma dibuang,
+// dan support harus memuat ulang halaman supaya tab-nya muncul (tes staging 2026-09-28).
+let devDisimpan = [];
+
+function aturTabDeveloper(role) {
   // Removed from the DOM, not hidden: the backend guards access, this is tidiness.
   // `role` yang bukan string (misal undefined, kalau ada pemanggil baru lupa
-  // mengisinya) tetap dianggap "bukan support" dan tab tetap dibuang — kosmetik
+  // mengisinya) tetap dianggap "bukan support" dan tab tetap dibuang: kosmetik
   // ini tidak boleh pernah jadi jalan menampilkan tab ke yang bukan support.
   // Satu-satunya beda: dicatat ke console supaya kelalaian itu tidak senyap.
   if (typeof role !== "string") {
-    console.error("hapusTabDeveloper: role tidak terisi, tab developer tetap dibuang");
+    console.error("aturTabDeveloper: role tidak terisi, tab developer tetap dibuang");
   }
-  if (role === "support") return;
-  document.querySelectorAll('[data-dev="1"]').forEach((el) => el.remove());
+  if (role === "support") {
+    // Dari belakang: tetangga sesudahnya (bisa juga elemen developer) sudah kembali lebih dulu.
+    for (let i = devDisimpan.length - 1; i >= 0; i -= 1) {
+      const { el, induk, sesudah } = devDisimpan[i];
+      induk.insertBefore(el, sesudah);
+    }
+    devDisimpan = [];
+    return;
+  }
+  document.querySelectorAll('[data-dev="1"]').forEach((el) => {
+    devDisimpan.push({ el, induk: el.parentNode, sesudah: el.nextSibling });
+    el.remove();
+  });
+}
+
+// Tab yang diingat bisa tab support yang baru saja dibuang untuk akun operator: tanpa ini
+// tidak ada tab aktif dan layarnya kosong. Selalu diterapkan ulang, karena panel yang baru
+// dikembalikan membawa keadaan `hidden` lamanya.
+function pastikanTabTersedia() {
+  if (!document.querySelector(`#tabs button[data-tab="${tab}"]`)) {
+    tab = "grading";
+    simpan("tab", tab);
+  }
+  terapkanTab();
 }
 
 async function kirimSandi() {
@@ -4210,7 +4256,8 @@ async function kirimSandi() {
     });
     tutupGerbang(operator);
     tampilkanHasilTertunda();
-    hapusTabDeveloper(operator.role);
+    aturTabDeveloper(operator.role);
+    pastikanTabTersedia();
     dipasang = false;
     await muatTrucks();
     await refresh();
@@ -4247,7 +4294,8 @@ async function cekSesi() {
   try {
     const { operator } = await api("/api/console/me");
     tutupGerbang(operator);
-    hapusTabDeveloper(operator.role);
+    aturTabDeveloper(operator.role);
+    pastikanTabTersedia();
   }
   catch (e) { /* api() has already put the gate up on 401 */ }
 }
@@ -4444,6 +4492,8 @@ let riwayatOffset = 0;
 let riwayatTotal = 0;
 let riwayatFilter = null;
 let riwayatHariIni = "";
+// Tombol cepat yang terakhir diklik: pemenang kalau dua tombol kebetulan sama rentangnya.
+let riwayatCepat = null;
 let riwayatItems = null;
 let riwayatRingkasan = null;
 // Nomor permintaan terakhir. Klik Per truk lalu Per janjang dengan cepat: jawaban
@@ -4467,6 +4517,27 @@ function rentangCepat(kunci, hariIni) {
   if (kunci === "bulanini") return [awalBulan, hariIni];
   const akhirBulanLalu = tambahHari(awalBulan, -1);
   return [`${akhirBulanLalu.slice(0, 7)}-01`, akhirBulanLalu];
+}
+
+// Tombol cepat yang rentangnya sama dengan tanggal di kotak (tes staging 2026-09-28: user
+// tidak tahu rentang mana yang sedang dipakai). Dihitung dari tanggalnya, jadi rentang bawaan
+// dari server dan tanggal yang diketik tangan ikut benar. Tanggal 7: "7 hari" = "Bulan ini",
+// dan yang terakhir diklik yang ditandai.
+function cepatAktif(dari, sampai, hariIni, dipilih) {
+  const cocok = ["kemarin", "7hari", "bulanini", "bulanlalu"].filter((k) => {
+    const [d, s] = rentangCepat(k, hariIni);
+    return d === dari && s === sampai;
+  });
+  return cocok.includes(dipilih) ? dipilih : (cocok[0] || null);
+}
+
+function tandaiCepat() {
+  const hariIni = riwayatHariIni || new Date().toLocaleDateString("sv-SE");
+  const aktif = cepatAktif($("riwayat-dari").value, $("riwayat-sampai").value, hariIni, riwayatCepat);
+  document.querySelectorAll(".riwayat-cepat button[data-cepat]").forEach((b) => {
+    b.classList.toggle("aktif", b.dataset.cepat === aktif);
+    b.setAttribute("aria-pressed", String(b.dataset.cepat === aktif));
+  });
 }
 
 // "Kam, 24 Sep 2026". Dari tanggal kerja apa adanya (UTC di sini cuma alat hitung):
@@ -4674,6 +4745,7 @@ async function muatRiwayat({ ringkasan = true } = {}) {
     riwayatFilter = { ...(riwayatFilter || {}), dari: r.dari, sampai: r.sampai };
     $("riwayat-dari").value = r.dari;
     $("riwayat-sampai").value = r.sampai;
+    tandaiCepat();
     $("riwayat-pesan").textContent = "";
     if (r.ringkasan) {
       riwayatRingkasan = r.ringkasan;
@@ -4926,10 +4998,14 @@ document.querySelector(".riwayat-cepat").addEventListener("click", (ev) => {
   if (!tombol) return;
   const hariIni = riwayatHariIni || new Date().toLocaleDateString("sv-SE");
   const [dari, sampai] = rentangCepat(tombol.dataset.cepat, hariIni);
+  riwayatCepat = tombol.dataset.cepat;
   $("riwayat-dari").value = dari;
   $("riwayat-sampai").value = sampai;
+  tandaiCepat();
   tampilkanRiwayat(tombol);
 });
+$("riwayat-dari").addEventListener("input", tandaiCepat);
+$("riwayat-sampai").addEventListener("input", tandaiCepat);
 
 document.querySelector(".riwayat-tampilan").addEventListener("click", (ev) => {
   const tombol = ev.target.closest("button[data-tampilan]");
@@ -5360,12 +5436,14 @@ function barisAkun(a) {
 function aksiAkun(a) {
   if (a.asal !== "lokal") return `<span class="muted">${esc(t("akunDiaturErp"))}</span>`;
   const saya = String(a.email || "").toLowerCase() === emailSaya;
-  const tombol = (aksi, kunci) => `<button type="button" data-akun-aksi="${aksi}"
+  // Kelasnya memberi warna menurut akibatnya (gaya `.akun-tombol button.aksi-*`).
+  const tombol = (aksi, kunci, kelas) => `<button type="button" class="${kelas}" data-akun-aksi="${aksi}"
       data-email="${esc(a.email)}">${esc(t(kunci))}</button>`;
-  const isi = [tombol("sandi", "akunGantiSandi")];
+  const isi = [tombol("sandi", "akunGantiSandi", "aksi-sandi")];
   if (!saya) {
-    isi.push(tombol("status", a.keadaan === "mati" ? "akunAktifkan" : "akunMatikan"));
-    isi.push(tombol("role", a.role === "support" ? "akunJadikanOperator" : "akunJadikanSupport"));
+    const mati = a.keadaan === "mati";
+    isi.push(tombol("status", mati ? "akunAktifkan" : "akunMatikan", mati ? "aksi-aktifkan" : "aksi-matikan"));
+    isi.push(tombol("role", a.role === "support" ? "akunJadikanOperator" : "akunJadikanSupport", "aksi-role"));
   }
   return `<span class="akun-tombol">${isi.join("")}</span>`
     + (saya ? `<span class="muted">${esc(t("akunSaya"))}</span>` : "");
@@ -5398,7 +5476,34 @@ $("akun-tambah-buka").addEventListener("click", () => {
   if (!form.hidden) $("akun-nama").focus();
 });
 
+// Tombol "Lihat" di kolom sandi form akun (Tambah akun dan Ganti sandi). Mekanismenya sama
+// dengan gerbang login: cuma `type` yang dibalik, sandinya tidak pernah disalin ke elemen lain.
+function balikLihatSandi(tombol, kolom) {
+  const buka = kolom.type === "password";
+  kolom.type = buka ? "text" : "password";
+  tombol.setAttribute("aria-pressed", String(buka));
+  tombol.setAttribute("aria-label", t(buka ? "sembunyikanSandi" : "lihatSandi"));
+  tombol.textContent = t(buka ? "sembunyikanSingkat" : "lihatSingkat");
+}
+
+// Sandi yang sedang terlihat ditutup lagi: saat form ditutup atau disimpan, dan saat bahasa
+// diganti (teks tombolnya kembali ke "Lihat", jadi kolomnya ikut tertutup).
+function tutupLihatSandi(akar) {
+  akar.querySelectorAll('[data-lihat-sandi][aria-pressed="true"]').forEach((tombol) => {
+    const kolom = tombol.parentElement.querySelector("input");
+    if (kolom) balikLihatSandi(tombol, kolom);
+  });
+}
+
+document.addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("[data-lihat-sandi]");
+  if (!tombol) return;
+  const kolom = tombol.parentElement.querySelector("input");
+  if (kolom) balikLihatSandi(tombol, kolom);
+});
+
 function tutupFormAkun() {
+  tutupLihatSandi($("akun-tambah"));
   $("akun-tambah").reset();
   $("akun-tambah").hidden = true;
   $("akun-tambah-pesan").textContent = "";
@@ -5435,6 +5540,8 @@ function tutupPanelAkun() {
 function panelAkun(aksi, a) {
   const nama = a.nama || a.email;
   const batal = `<button type="button" data-akun-batal>${esc(t("btnBatal"))}</button>`;
+  const lihat = `<button type="button" class="sandi-lihat" data-lihat-sandi aria-pressed="false"
+      aria-label="${esc(t("lihatSandi"))}">${esc(t("lihatSingkat"))}</button>`;
   const pesan = `<p class="akun-pesan" role="alert"></p>`;
   if (aksi === "sandi") {
     const saya = String(a.email || "").toLowerCase() === emailSaya;
@@ -5442,10 +5549,10 @@ function panelAkun(aksi, a) {
       + (saya ? " " + t("akunSandiDiriSendiri") : "");
     return `<div class="akun-panel">
       <p>${esc(judul)}</p>
-      <input type="password" data-akun-sandi autocomplete="new-password"
-             placeholder="${esc(t("lbSandi"))}" aria-label="${esc(t("lbSandi"))}">
-      <input type="password" data-akun-sandi-ulang autocomplete="new-password"
-             placeholder="${esc(t("lbSandiUlang"))}" aria-label="${esc(t("lbSandiUlang"))}">
+      <span class="sandi-baris"><input type="password" data-akun-sandi autocomplete="new-password"
+             placeholder="${esc(t("lbSandi"))}" aria-label="${esc(t("lbSandi"))}">${lihat}</span>
+      <span class="sandi-baris"><input type="password" data-akun-sandi-ulang autocomplete="new-password"
+             placeholder="${esc(t("lbSandiUlang"))}" aria-label="${esc(t("lbSandiUlang"))}">${lihat}</span>
       <button type="button" class="utama" data-akun-jalankan>${esc(t("akunSimpan"))}</button>
       ${batal}${pesan}
     </div>`;
@@ -6635,7 +6742,7 @@ $("plc-kartu").addEventListener("click", (ev) => {
   await muatRekap();
   setInterval(muatRekap, 15000);
   // A remembered developer tab from a previous support sign-in on this shared PC:
-  // cekSesi() above has already run hapusTabDeveloper(), so the button (and
+  // cekSesi() above has already run aturTabDeveloper(), so the button (and
   // this check) only survive for an account that is still support.
   // `document.querySelector`, BUKAN `$(...)`: `$` adalah getElementById, dan
   // diberi selector CSS ia selalu null. Dengan `$` baris ini tidak pernah jalan

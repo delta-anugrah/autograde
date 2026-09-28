@@ -113,7 +113,20 @@ def test_baris_tidak_dipakai_dan_belum_pernah():
     baru = _node(f'barisSinkron({{keadaan: "memeriksa", terakhir: null, sejak: null, antre: 0}}, {_SEKARANG})')
 
     assert (mati["kelas"], mati["jam"]) == ("tidak_dipakai", "sinkronTidakDipakai")
-    assert (baru["kelas"], baru["jam"]) == ("memeriksa", "sinkronBelum")
+    # "-" di baris, bukan "Belum pernah" (umpan balik 2026-09-28); kalimatnya tetap di tooltip.
+    assert (baru["kelas"], baru["jam"]) == ("memeriksa", "-")
+
+
+@butuh_node
+def test_tersambung_tanpa_jam_juga_strip():
+    r = _node(f'barisSinkron({{keadaan: "tersambung", terakhir: null, sejak: null, antre: 0}}, {_SEKARANG})')
+
+    assert r["jam"] == "-"
+
+
+def test_last_sync_dipisah_garis_dari_neto_timbangan():
+    aturan = re.search(r"#tally \.sinkron\s*\{([^}]*)\}", HTML)
+    assert aturan and "border-left" in aturan.group(1)
 
 
 @butuh_node

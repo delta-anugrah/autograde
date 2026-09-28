@@ -2,8 +2,8 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "1.2"
-tanggal: 27 September 2026
+versi: "1.3"
+tanggal: 28 September 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
 sorotan: Isi = Fitur · Setup · Operasional · Troubleshooting; Pembaca = Pemegang baru AutoGrade; Bentuk = Ringkas, tabel, perintah siap tempel
@@ -127,7 +127,7 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 - **Strip "Hari ini"**: jumlah janjang per kelas (Ripe, Unripe, JK, TP) dan total, rasio Ripe,
   neto timbangan, dan **Last Sync**.
 - **Last Sync**: dua baris, **AutoERP** dan **Cloud Photo** (foto di R2). Jamnya = kapan data
-  terakhir masuk ke sana. Titik **hijau** = tersambung; titik **kuning** = terputus, dengan
+  terakhir masuk ke sana; `-` berarti belum pernah ada yang masuk. Titik **hijau** = tersambung; titik **kuning** = terputus, dengan
   keterangan seperti "Terputus sejak 13.40 · 5 menunggu". Foto naik tiap jam, jadi jam Cloud
   Photo yang tertinggal sampai satu jam itu normal selama titiknya hijau. Arahkan kursor ke
   baris untuk rinciannya (Cloud Photo: jam upload tiap line). Selama terputus tidak ada data
@@ -687,6 +687,7 @@ Struktur kode di `src/palmgrade/`: `routes/` (HTTP) → `controllers/` → `serv
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 1.3 | 28 September 2026 | Umpan balik tes staging: tombol cepat Riwayat menandai rentang yang dipakai, tombol **Lihat** di kolom sandi form akun, tombol aksi tab Akun berwarna, Last Sync menulis `-` untuk yang belum pernah sinkron, dan tab tetap benar saat berganti akun tanpa memuat ulang halaman. |
 | 1.2 | 27 September 2026 | **Last Sync** di strip "Hari ini" (AutoERP dan Cloud Photo: jam sinkron terakhir + status sambungan) dan **Impor CSV** di tab Riwayat (akun support: periksa dulu, impor berkas yang sama, batalkan per impor), plus tiga baris penanganan masalahnya di §7. |
 | 1.1 | 27 September 2026 | Tab **Riwayat** (grading hari sebelumnya, maks 31 hari, CSV), tab **Akun** yang bisa menambah dan mengurus akun lokal, **Danger Zone** di tab Setelan, tombol yang terkunci selama menunggu server, dan path PC Lampung `/opt/palmgrade/autograde`. Dicocokkan dengan kode `staging` sesudah autograde #180. |
 | 1.0 | 17 September 2026 | Terbitan pertama. Dicocokkan dengan kode `staging` (`a559427`): konsol dengan login email+sandi, lima tab support, scan QR dua gerbang, Setelan grading, seeder demo, detail grading via R2. |
