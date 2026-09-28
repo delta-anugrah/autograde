@@ -50,6 +50,10 @@ def _health() -> dict | None:
         return None
 
 
+def _compose(root: Path) -> list[str]:
+    return ["docker", "compose", "--project-directory", str(root), "-f", str(root / "docker-compose.yml")]
+
+
 @pytest.fixture(scope="module")
 def demo_dir(tmp_path_factory):
     root = tmp_path_factory.mktemp("autograde-demo")
@@ -66,7 +70,7 @@ def demo_dir(tmp_path_factory):
     ):
         (root / sub).mkdir(parents=True)
     (root / "media.env").touch()
-    compose = ["docker", "compose", "--project-directory", str(root)]
+    compose = _compose(root)
     subprocess.run([*compose, "up", "-d"], check=True, capture_output=True, timeout=300)
     try:
         deadline = time.monotonic() + 120
@@ -87,19 +91,7 @@ def test_boots_in_console_mode(demo_dir):
 
 def test_seeded_demo_account_signs_in_and_sees_the_ten_trucks(demo_dir):
     seed = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "--project-directory",
-            str(demo_dir),
-            "exec",
-            "-T",
-            "console",
-            "python",
-            "scripts/seed-console-demo.py",
-            "--hari",
-            "3",
-        ],
+        [*_compose(demo_dir), "exec", "-T", "console", "python", "scripts/seed-console-demo.py", "--hari", "3"],
         capture_output=True,
         text=True,
         timeout=600,
