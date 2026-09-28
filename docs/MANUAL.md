@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "1.4"
+versi: "1.5"
 tanggal: 28 September 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -69,7 +69,7 @@ Dua buah bertumpuk dalam ROI di satu frame → semuanya REJ.
 `CAPTURE` di layar line, diatur dari tab Setelan. ROI menjawab *di mana* (bagian gambar yang
 dianggap conveyor), garis menjawab *kapan*. Janjang difoto apa adanya, ada tangkai panjang atau
 tidak. Tangkai panjang dipasangkan ke janjang **terdekat**; tangkai yang baru muncul sesudah
-janjangnya difoto tidak ikut, dan jumlahnya terbaca di tab Diagnostik sebagai `tp_telat`.
+janjangnya difoto tidak ikut, dan jumlahnya terbaca di tab Status (bagian Diagnostik) sebagai `tp_telat`.
 Garis `0` = tanpa garis, janjang difoto begitu masuk ROI (perilaku sebelum September 2026).
 
 ```diagram:alur-janjang Perjalanan satu janjang dari kamera sampai AutoERP
@@ -119,7 +119,7 @@ Dua akun bawaan ada di tiap PC: `operator@autograde.local` (pabrik) dan `support
 (kita, lewat AnyDesk). Sandinya beda tiap PKS, dibuat saat pasang PC (§5.5). Login tetap jalan
 tanpa internet karena hash sandi tersimpan lokal.
 
-Dua peran: **operator** (5 tab) dan **support** (15 tab: lima tab operator + sepuluh tab support, lihat §3.5). Yang menjaga adalah backend:
+Dua peran: **operator** (4 tab) dan **support** (9 tab: empat tab operator + lima tab support, lihat §3.5). Yang menjaga adalah backend:
 endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 
 ### 3.2 Layar utama
@@ -176,46 +176,44 @@ Aturan angka yang dijaga konsol:
   tengah malam; ini yang mencegah satu shift terbelah jadi dua hari.
 - Buah REJ dinaikkan lagi ke truk dan ikut ditimbang saat keluar, jadi otomatis tidak dibayar.
 
-### 3.4 Lima tab operator
+### 3.4 Empat tab operator
 
 | Tab | Isi | Yang bisa dilakukan |
 |---|---|---|
 | **Grading** | riwayat janjang: waktu, line, truk, sumber, hasil, kelas, confidence, foto | filter per line/truk, pagination, klik foto → tampilan besar |
 | **Truk** | master truk + supplier + asal data (ERP / manual) | **Daftar truk manual**, **Cetak QR truk** (kartu QR berisi plat, dibuat di server) |
 | **Timbangan** | tiket hari kerja: masuk, keluar, bruto, tara, neto | **Timbang masuk**, isi tara lewat scan keluar |
-| **Rekap** | satu baris per truk per hari kerja: janjang, ACC, REJ, rasio, neto | ini yang diserahkan ke supplier; baris **Tanpa truk** = janjang ter-grading sebelum truk ditugaskan |
-| **Riwayat** | grading hari-hari sebelumnya (paling panjang 31 hari): ringkasan periode, per hari, per truk, per janjang | **Unduh CSV**; **Impor CSV** untuk akun support; rinciannya di bawah |
+| **Rekap** | grading per truk dan per hari, untuk hari ini atau hari-hari sebelumnya (paling panjang 31 hari). Dibuka di **Hari ini, Per truk**: satu baris per truk, ini yang diserahkan ke supplier | ganti tanggal untuk hari sebelumnya, **Unduh CSV**, **Impor CSV** untuk akun support; rinciannya di bawah |
 
 > Angka keyakinan ada di tabel Grading, tapi **tidak** digambar di kotak janjang pada layar
 > line: dari beberapa meter "54%" terbaca seperti "54% matang". Saklar **Mode dev** di tab
 > Setelan mengembalikannya, untuk yang sedang menyetel ambang.
 
-Rekap menyandingkan dua sumber terpisah (grading dan timbangan). Neto dijumlah per truk; satu
-truk boleh punya lebih dari satu tiket sehari.
-
-**Riwayat** (sejak 2026-09-26) membuka grading hari-hari sebelumnya. Tab Grading dan Rekap
-cuma hari ini.
+**Rekap** (sejak 2026-09-28 Rekap dan Riwayat jadi satu tab) dibuka di **Hari ini, Per truk**,
+sama seperti tab Rekap dulu, dan menyegarkan diri tiap 15 detik selama rentangnya memuat hari ini.
+Ganti tanggal untuk melihat hari-hari sebelumnya. Rekap menyandingkan dua sumber terpisah (grading
+dan timbangan): neto dijumlah per truk, dan satu truk boleh punya lebih dari satu tiket sehari.
+Baris **Tanpa truk** = janjang ter-grading sebelum truk ditugaskan.
 
 | Bagian | Isi |
 |---|---|
-| Saringan | **Dari / Sampai** (tanggal kerja, paling panjang 31 hari; tanpa tanggal = 7 hari terakhir), tombol cepat **Kemarin / 7 hari / Bulan ini / Bulan lalu**, **Line**, **Plat** (cukup sebagian, mis. `1234`), lalu **Tampilkan** |
+| Saringan | **Dari / Sampai** (tanggal kerja, paling panjang 31 hari), tombol cepat **Hari ini / Kemarin / 7 hari / Bulan ini / Bulan lalu** (yang sedang dipakai menyala hijau), **Line**, **Plat** (cukup sebagian, mis. `1234`), lalu **Tampilkan** |
 | Ringkasan | janjang, Ripe, Unripe, JK, TP, rasio Ripe, jumlah truk, jumlah hari, dan neto periode itu. Neto tidak dihitung kalau disaring per line (neto itu berat truk) |
-| Tiga tampilan | **Per hari** (satu baris per hari kerja, tombol **Lihat truk**), **Per truk** (satu baris per truk per hari, seperti Rekap, tombol **Lihat janjang**), **Per janjang** (seperti tab Grading, dengan foto dan saringan **Hasil**: Ripe/Unripe/JK/TP) |
+| Tiga tampilan | **Per hari** (satu baris per hari kerja, tombol **Lihat truk**), **Per truk** (tampilan bawaan: satu baris per truk per hari, tombol **Lihat janjang**), **Per janjang** (seperti tab Grading, dengan foto dan saringan **Hasil**: Ripe/Unripe/JK/TP) |
 | **Unduh CSV** | semua baris tampilan dan saringan yang sedang aktif, bukan cuma halaman yang terlihat; kepala kolom mengikuti bahasa layar, jam dalam jam pabrik. Dibuka langsung di Excel/LibreOffice. Kalau Excel dengan setelan wilayah Indonesia menaruh semuanya di satu kolom, buka lewat **Data → From Text/CSV** dan pilih pemisah koma |
 
-Angka satu hari di Riwayat sama dengan tab Rekap hari itu. Foto yang lebih tua dari masa simpan
-PC (180 hari di Lampung) sudah terhapus dari PC; barisnya tetap ada, fotonya tertulis
-"Foto sudah terhapus dari PC".
+Foto yang lebih tua dari masa simpan PC (180 hari di Lampung) sudah terhapus dari PC; barisnya
+tetap ada, fotonya tertulis "Foto sudah terhapus dari PC".
 
 **Impor CSV** (akun support saja, sejak 2026-09-27) memasukkan kembali CSV **Per janjang** hasil
 Unduh CSV, dari PC ini atau PC lain. Dipakai untuk memindahkan riwayat ke PC baru, atau memulihkan
 hari-hari yang terhapus.
 
-1. Tab Riwayat, **Impor CSV**, pilih berkasnya, **Periksa**. Belum ada yang disimpan: layar menulis
+1. Tab Rekap, **Impor CSV**, pilih berkasnya, **Periksa**. Belum ada yang disimpan: layar menulis
    berapa janjang baru, berapa yang sudah ada (dilewati), berapa yang jatuh hari ini atau sesudahnya
    (tidak diimpor, datanya masih berjalan), dan baris yang salah beserta nomornya.
 2. Kalau tidak ada baris salah, tekan **Impor N janjang**. Satu baris salah menolak seluruh berkas:
-   perbaiki, atau unduh ulang dari tab Riwayat.
+   perbaiki, atau unduh ulang dari tab Rekap.
 3. Salah impor? Di daftar **Impor sebelumnya**, **Batalkan** (dua kali klik) menghapus janjang
    impor itu saja. Truk yang ditambahkannya tetap ada.
 
@@ -223,23 +221,28 @@ Pakai berkas asli hasil Unduh CSV. Berkas yang disimpan ulang dari Excel ditolak
 pemisah dan format tanggal, dan membuang detik. Janjang hasil impor diberi label **IMPOR** di
 tampilan Per janjang, dan tidak pernah dikirim ke AutoERP.
 
-### 3.5 Sepuluh tab support
+### 3.5 Lima tab support
 
 Muncul hanya untuk akun berperan `support`. Tujuannya: memeriksa PC pabrik dari layar, tanpa
 `docker logs` yang hilang tiap restart.
 
+Sejak 2026-09-28 tab-tabnya digabung (dulu sepuluh). Nama lama yang mungkin masih tertulis di
+runbook: **Diagnostik, Antrean ERP, Versi** → tab **Status**; **Sumber Kamera, Model Deteksi,
+Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riwayat** → tab
+**Rekap** (operator). Tab lama yang masih diingat browser dibuka di tempat barunya.
+
 | Tab | Isi |
 |---|---|
 | **Log** | ERROR/WARNING 180 hari terakhir, selamat dari restart; pesan berulang digabung `×N`; sandi/token tertulis `«ditutup»` |
-| **Diagnostik** | tiga kartu line: kamera, GPU, PLC, antrean lokal, lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ `capture_save_dropped` dan `tp_telat` **harus nol**, di atas nol berarti ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat |
-| **Antrean ERP** | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang**. Plus antrean manifest R2 |
-| **Versi** | versi, environment, status lisensi (tanpa token). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati: token ada, tapi LICENSE_ENABLED tidak menyala** berarti tokennya sampai ke konsol tapi saklarnya tidak: periksa blok konsol di compose host, bukan tokennya |
-| **Uji PLC** | tombol uji coil per line (OK hijau, NG merah, Error kuning, alamat M di tiap tombol) + kartu peta alamat PLC di bawahnya. Mati saat line memproses truk; konfirmasi tombol Jalankan/Batal; heartbeat (M1009) sengaja tidak ada |
-| **Sumber Kamera** | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik) |
-| **Model Deteksi** | pilih model YOLO tiap line dari berkas di `models/release/`. Tiap model menampilkan **kelasnya** dan status engine TensorRT; model yang kelasnya bukan `Ripe/Unripe/JK/TP` tampil tapi tidak bisa dipilih. Kartu line menunjukkan model yang **sedang jalan** menurut line itu sendiri, beserta kelasnya, **merah** kalau bukan empat kelas itu, artinya line tidak menghitung janjang. Simpan membuka **modal konfirmasi** yang menyebut line yang akan restart (~10 detik) dan truk yang sedang diproses di situ. Bawaan PC = `MODEL_FILE` di `.env`. Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md` |
-| **Rekam Video** | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi (lebar × tinggi) diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya**, mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **FPS mengikuti sumbernya, tidak diatur dari layar** (kolom FPS dan Bitrate dicabut 2026-09-25, dua-duanya tidak pernah sampai ke berkas): berkas video memakai laju aslinya, kamera Hikrobot memakai `CAMERA_FPS`. Itu yang membuat durasi rekaman sama dengan lama menekan Record. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari folder yang tertulis di kaki layar (`Disimpan di …`, di PC pabrik `/opt/palmgrade/autograde/videos/`). Sesudah menekan Stop, jalur lengkap berkasnya juga muncul sekali di notifikasi hijau. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
-| **Setelan** | ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`. Tab paling kanan |
+| **Status**, bagian Versi | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah tulisan AUTOGRADE untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati: token ada, tapi LICENSE_ENABLED tidak menyala** berarti tokennya sampai ke konsol tapi saklarnya tidak: periksa blok konsol di compose host, bukan tokennya |
+| **Status**, bagian Diagnostik | tiga kartu line: kamera, GPU, PLC, antrean lokal, lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ `capture_save_dropped` dan `tp_telat` **harus nol**, di atas nol berarti ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat Disegarkan tiap 5 detik selama tab Status terbuka |
+| **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang**. Plus antrean manifest R2 |
 | **Akun** | semua akun yang bisa masuk konsol di PC ini: nama, email, role, asal (**Lokal** / **AutoERP**), status (Aktif / Mati / Terkunci), sedang masuk atau tidak. **Tambah akun** membuat akun **Lokal** baru (nama, email, role, sandi minimal 8 karakter); akun ini cuma ada di PC ini dan **tidak masuk ke AutoERP**. Tiap akun Lokal punya tombol **Ganti sandi** (semua sesinya langsung berakhir), **Matikan / Aktifkan**, dan **Jadikan support / operator**; di baris akunmu sendiri cuma Ganti sandi. Akun AutoERP tidak punya tombol: diurus di AutoERP. **Sandi tidak bisa dilihat**: yang disimpan cuma hash-nya. Lupa sandi: akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ±5 menit), akun Lokal dengan Ganti sandi. Tiap perubahan tercatat di tab Log beserta siapa yang mengubah |
+| **Line** → Sumber Kamera | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik) |
+| **Line** → Model Deteksi | pilih model YOLO tiap line dari berkas di `models/release/`. Tiap model menampilkan **kelasnya** dan status engine TensorRT; model yang kelasnya bukan `Ripe/Unripe/JK/TP` tampil tapi tidak bisa dipilih. Kartu line menunjukkan model yang **sedang jalan** menurut line itu sendiri, beserta kelasnya, **merah** kalau bukan empat kelas itu, artinya line tidak menghitung janjang. Simpan membuka **modal konfirmasi** yang menyebut line yang akan restart (~10 detik) dan truk yang sedang diproses di situ. Bawaan PC = `MODEL_FILE` di `.env`. Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md` |
+| **Line** → Uji PLC | tombol uji coil per line (OK hijau, NG merah, Error kuning, alamat M di tiap tombol) + kartu peta alamat PLC di bawahnya. Mati saat line memproses truk; konfirmasi tombol Jalankan/Batal; heartbeat (M1009) sengaja tidak ada |
+| **Line** → Rekam Video | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi (lebar × tinggi) diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya**, mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **FPS mengikuti sumbernya, tidak diatur dari layar** (kolom FPS dan Bitrate dicabut 2026-09-25, dua-duanya tidak pernah sampai ke berkas): berkas video memakai laju aslinya, kamera Hikrobot memakai `CAMERA_FPS`. Itu yang membuat durasi rekaman sama dengan lama menekan Record. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari folder yang tertulis di kaki layar (`Disimpan di …`, di PC pabrik `/opt/palmgrade/autograde/videos/`). Sesudah menekan Stop, jalur lengkap berkasnya juga muncul sekali di notifikasi hijau. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
+| **Setelan** | ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`. Tab paling kanan |
 
 ### 3.6 Layar penuh di PC pabrik
 
@@ -268,7 +271,7 @@ huruf besar.
 **Kapan ditolak:** ada line yang tidak menjawab, ada line yang sedang dipasangi truk, masih ada
 janjang yang belum sampai ke konsol, ada truk yang sudah timbang masuk **hari ini** tapi belum
 timbang keluar (bruto-nya yang dibayar, jadi tunggu tiketnya lengkap), atau masih ada kiriman
-yang belum sampai ke AutoERP (tunggu tab Antrean ERP kosong). "Hapus semua data" juga ditolak
+yang belum sampai ke AutoERP (tunggu Antrean ERP di tab Status kosong). "Hapus semua data" juga ditolak
 kalau `.env` tidak punya hash akun **support** yang terbaca (`CONSOLE_SUPPORT_HASH`) dan AutoERP
 tidak disetel, karena sesudahnya tidak ada yang bisa membuka menu support. Tiket terbuka dari hari-hari
 sebelumnya cuma diperingatkan: itu hampir pasti sisa uji coba.
@@ -498,7 +501,7 @@ Kalau kuncinya sudah pernah dibuat, minta nilainya ke pemegang server; di bench 
 (kosong = company bawaan site) di `.env`, lalu `make up-console` (bukan `restart`: `docker
 compose restart` tidak membaca ulang `.env`, `up -d` membuat ulang container yang setelannya
 berubah). Tunggu satu siklus tarikan (`CONSOLE_SYNC_INTERVAL_S`, 5 menit): tab Truk terisi truk
-dan supplier dari ERP, tab Antrean ERP kosong.
+dan supplier dari ERP, Antrean ERP di tab Status kosong.
 
 Konsol yang memanggil AutoERP, tidak pernah sebaliknya. PC pabrik nol inbound. Akun dari ERP
 hanya diterima untuk peran di `ERP_ALLOWED_ROLES` (bawaan `support`).
@@ -512,16 +515,16 @@ Ethernet bawaan CPU (coupler ODOT dibatalkan 2026-09-21). Alamat M per line dipa
 camera 2 = M1003–M1005, camera 3 = M1006–M1008; yang dibaca M1100–M1115 (motor fault, E-stop
 M1111). Piston manual **belum dialokasikan**: fiturnya mati sampai panel memberi bitnya.
 Dokumen tim PLC: `docs/plc-mc-handoff.pdf`; referensi teknis: `docs/plc-integration.md`. Uji
-dari tab **Uji PLC**: tombol per coil bernama ("Kamera 1 OK / M1000") dan peta alamat
+dari tab **Line → Uji PLC**: tombol per coil bernama ("Kamera 1 OK / M1000") dan peta alamat
 lengkap di bawahnya. Motor fault dan E-stop dari PLC tampil sebagai pita merah di atas
-kartu line (bukan di tab Uji PLC); E-stop tidak menghentikan grading.
+kartu line (bukan di Uji PLC); E-stop tidak menghentikan grading.
 
 ### 5.10 Lisensi
 
 Bawaan mati. Kalau dinyalakan (`LICENSE_ENABLED=true`, `LICENSE_TOKEN=<token dari cloud>`),
 lisensi kedaluwarsa menghentikan inferensi dan menjatuhkan heartbeat PLC, jadi terlihat di lantai
 pabrik. Kunci publik sudah tertanam di image; `LICENSE_PRIVATE_KEY` **tidak boleh** ada di PC
-pabrik. Status terlihat di bawah tulisan AUTOGRADE (semua akun) dan di tab Versi (support).
+pabrik. Status terlihat di bawah tulisan AUTOGRADE (semua akun) dan di tab Status (support).
 
 ### 5.11 Catatan PC Lampung (per 17 September 2026)
 
@@ -579,9 +582,9 @@ membuat ulang container supaya versinya benar-benar terpasang.
 
 | Cara | Yang dilihat |
 |---|---|
-| tab **Diagnostik** (support) | worker, kamera, fps, GPU, PLC per line |
+| tab **Status**, bagian Diagnostik (support) | worker, kamera, fps, GPU, PLC per line |
 | `curl localhost:8001/health/detail` | `camera_connected`, `gpu_available`, `current_assignment_id`, `outbox_pending`, dan **`capture_save_dropped` + `tp_telat` yang harus NOL** |
-| tab **Antrean ERP** | pesan yang belum sampai ke AutoERP dan sebabnya |
+| tab **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP dan sebabnya |
 | tab **Log** | ERROR/WARNING 180 hari, bertahan lewat restart |
 | `docker logs ripe_line_1 \| grep 'Batch tick'` | progres unggah ke R2 (tidak ada di `/health`) |
 
@@ -601,7 +604,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 
 | Gejala | Sebab yang biasa | Tindakan |
 |---|---|---|
-| Kartu line "Kamera tidak tersambung" padahal line jalan | tulisan itu muncul kalau **browser** gagal memuat stream `http://<host konsol>:800N/api/video_feed`; sebabnya line di port lain, stream mati, atau port line tidak terjangkau dari PC yang membuka konsol | buka `http://<host>:800N/health/detail` dari browser yang sama; `make line N=…` (bukan port bebas); tab Diagnostik untuk status kamera sesungguhnya |
+| Kartu line "Kamera tidak tersambung" padahal line jalan | tulisan itu muncul kalau **browser** gagal memuat stream `http://<host konsol>:800N/api/video_feed`; sebabnya line di port lain, stream mati, atau port line tidak terjangkau dari PC yang membuka konsol | buka `http://<host>:800N/health/detail` dari browser yang sama; `make line N=…` (bukan port bebas); tab Status (bagian Diagnostik) untuk status kamera sesungguhnya |
 | Janjang line 2 mendarat di kartu line 1 | konsol mencocokkan event lewat `machine_id`, bukan port; `MACHINE_ID` kembar | cek `LINE_N_MACHINE_ID` berbeda per line (`make line N=2` sudah mengaturnya) |
 | Layar nol, log line "Outbox delivery failed … HTTP 404" | `BACKEND_URL` menunjuk port yang salah (8000 vs 8100) | betulkan `.env`, `make start` |
 | Line `OFFLINE`, `camera_connected: false` | MVS masih membuka kamera; kabel/switch; IP kamera bukan `.10/.11/.12` | tutup MVS; cek LED link; `ip -br addr`; kamera dicoba ulang otomatis tanpa restart |
@@ -613,13 +616,13 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | 403 "menu ini untuk akun support" | akun berperan operator membuka tab support | akun support lain: tab Akun → **Jadikan support**; atau `make operator-docker AKSI=role ROLE=support` |
 | Log konsol: "Tidak ada akun dengan peran support" | `.env` dibuat sebelum fitur peran ada | perintah yang sama di atas |
 | Akun bawaan ditolak saat start | hash di `.env` terpotong karena `$` | tulis `$$` untuk tiap `$` |
-| Tab Antrean ERP menumpuk, sebab 4xx | pesan **ditolak** ERP (field tidak dikenal, versi ERP lama, 417) | betulkan di ERP, lalu **Kirim Ulang** |
-| Tab Antrean ERP menumpuk, sebab jaringan/5xx | ERP **tidak terjangkau**; backoff 30 dtk → 1 jam | tunggu, atau Kirim Ulang setelah ERP pulih |
-| Last Sync: **AutoERP** kuning (terputus) | internet PC pabrik putus, AutoERP sedang mati, atau `ERP_URL` / kunci salah | tab Log, baris "AutoERP terputus: …" menyebut alasannya; data menunggu di tab Antrean ERP dan terkirim sendiri saat pulih |
+| Antrean ERP (tab Status) menumpuk, sebab 4xx | pesan **ditolak** ERP (field tidak dikenal, versi ERP lama, 417) | betulkan di ERP, lalu **Kirim Ulang** |
+| Antrean ERP (tab Status) menumpuk, sebab jaringan/5xx | ERP **tidak terjangkau**; backoff 30 dtk → 1 jam | tunggu, atau Kirim Ulang setelah ERP pulih |
+| Last Sync: **AutoERP** kuning (terputus) | internet PC pabrik putus, AutoERP sedang mati, atau `ERP_URL` / kunci salah | tab Log, baris "AutoERP terputus: …" menyebut alasannya; data menunggu di Antrean ERP di tab Status dan terkirim sendiri saat pulih |
 | Last Sync: **Cloud Photo** kuning (terputus) | internet putus, kredensial `R2_*` salah, atau `UPLOAD_API_URL` masih menunjuk api lama yang mati | arahkan kursor ke baris untuk melihat line mana; tab Log "Cloud Photo line-N terputus: …"; kosongkan `UPLOAD_API_URL` lalu `make start` (PC pabrik: `autograde restart`) |
 | Plat yang sama muncul dua baris di tab Truk | `ERP_URL` diisi sebelum OPS-2 | jalankan checklist OPS-2 (§5.8) |
 | Unggah ke R2 berhenti tanpa error | `R2_BUCKET` kosong, atau JSON sidecar dipindah ke subfolder | isi R2; JSON wajib datar di folder tanggal |
-| Impor CSV ditolak "bukan CSV Per janjang" | berkas ringkasan (Per hari / Per truk), atau disimpan ulang dari Excel | di tab Riwayat pilih **Per janjang**, **Unduh CSV**, impor berkas itu tanpa dibuka di Excel |
+| Impor CSV ditolak "bukan CSV Per janjang" | berkas ringkasan (Per hari / Per truk), atau disimpan ulang dari Excel | di tab Rekap pilih **Per janjang**, **Unduh CSV**, impor berkas itu tanpa dibuka di Excel |
 | Disk penuh, grading berhenti tersimpan | penjaga disk mati (`UPLOAD_DISK_MIN_FREE_GB=0`) atau Docker menumpuk image lama | `docker system prune`; kembalikan penjaga ke 20 |
 | Laptop: `make console` terasa memakai kode lama | port 8100 masih dipegang proses lama | cari pid-nya dengan `lsof -ti:8100`, matikan, jalankan ulang |
 | Laptop: `make up` gagal "MVS SDK not found" | memang, target Docker untuk Linux + GPU | pakai `make console` / `make line` |
@@ -691,6 +694,7 @@ Struktur kode di `src/palmgrade/`: `routes/` (HTTP) → `controllers/` → `serv
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 1.5 | 28 September 2026 | Tab digabung dari 15 jadi 9: **Rekap** = Rekap + Riwayat (dibuka di Hari ini, Per truk), **Status** = Versi + Diagnostik + Antrean ERP, **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video. §3.4 dan §3.5 ditulis ulang. |
 | 1.4 | 28 September 2026 | Versi dan lisensi PC ditampilkan di bawah tulisan AUTOGRADE untuk semua akun, termasuk operator; klik untuk rinciannya. |
 | 1.3 | 28 September 2026 | Umpan balik tes staging: tombol cepat Riwayat menandai rentang yang dipakai, tombol **Lihat** di kolom sandi form akun, tombol aksi tab Akun berwarna, Last Sync menulis `-` untuk yang belum pernah sinkron, dan tab tetap benar saat berganti akun tanpa memuat ulang halaman. |
 | 1.2 | 27 September 2026 | **Last Sync** di strip "Hari ini" (AutoERP dan Cloud Photo: jam sinkron terakhir + status sambungan) dan **Impor CSV** di tab Riwayat (akun support: periksa dulu, impor berkas yang sama, batalkan per impor), plus tiga baris penanganan masalahnya di §7. |

@@ -131,7 +131,7 @@ All via **`make`** (Docker only). From `autograde/`:
 - **TensorRT (GPU speedup, akurasi sama)**: engine FP16 (`engines/<model>.sm<cc>.engine`) **hardware-locked** (compute capability + versi TensorRT) → tidak di-commit, tidak di-bake ke image, dibangun **sekali per GPU** on-machine via `make build-engine` (~5–15 mnt, tidak butuh kamera). Engine tidak ada / tidak cocok → runtime **fallback ke `.pt`** otomatis (`pipelines/model_registry.py`), jadi kegagalan build bukan outage. Install TensorRT-nya ikut `Dockerfile` (`pypi.nvidia.com`: **wajib**, index PyPI publik cuma punya source stub yang bikin pip hang). Detail: `docs/overview.md` § Docker/SDK/GPU.
 - **`make up` cuma perlu** kalau dependency / `Dockerfile` / SDK berubah; untuk ubah kode pakai `make restart`.
 - **Dev without a camera, pilih dari layar, per line**: konsol → login **support** → tab
-  **Sumber Kamera**. Taruh berkas di `media/` (host), pilih Video/Foto untuk line yang mau
+  **Line → Sumber Kamera**. Taruh berkas di `media/` (host), pilih Video/Foto untuk line yang mau
   diganti, Simpan. Tiap line berdiri sendiri: line 1 boleh video sementara line 2–3 tetap
   kamera. Setelannya mendarat di **`media.env`** (di-`.gitignore`, keadaan per-mesin;
   `make` membuatnya dari `media.env.example` kalau belum ada). Cara pakainya:
@@ -144,7 +144,7 @@ All via **`make`** (Docker only). From `autograde/`:
   ⚠️ **Jalur lama sudah tidak ada**: mount `/videos` dicabut, dan `CAMERA_VIDEO_PATH` +
   `docker-compose.override.yml` bukan lagi cara menyetel video per line.
 - **Model per line: juga dari layar** (sejak 2026-09-24): konsol → **support** → tab
-  **Model Deteksi**. Menulis `LINE_N_MODEL_FILE` ke `media.env` yang sama; kosong = `MODEL_FILE`
+  **Line → Model Deteksi**. Menulis `LINE_N_MODEL_FILE` ke `media.env` yang sama; kosong = `MODEL_FILE`
   di `.env` (bawaan PC). Layar menampilkan kelas tiap model (dibaca **tanpa torch**,
   `services/model_library.py`), status engine per GPU, dan model yang **benar-benar** dimuat
   tiap line (`/health/detail` → `model_file`/`model_backend`/`model_kelas`/`model_kelas_cocok`,
@@ -208,8 +208,8 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/scan` | `{qr}` hasil scan di gerbang timbangan → truk yang sudah ada. Truk belum terdaftar dijawab **200 `ditemukan:false`** (truk pinjaman itu kasus normal, 404 terbaca seperti kerusakan); yang bukan plat **400**. **Tidak pernah membuat truk dan tidak pernah menulis berat** |
 | GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto) |
 | POST | `/api/console/weighings` | operator mengetik bruto/tara sendiri: payload identik dengan kiriman program timbangan |
-| GET | `/api/console/recap` | rekap per truk satu hari kerja (janjang, ACC/REJ, neto): `?work_date=` opsional |
-| GET | `/api/console/riwayat` | tab **Riwayat** (operator biasa, bukan support): `dari`/`sampai` (tanggal kerja, maks **31 hari**, tanpa tanggal = 7 hari terakhir), `line_code`, `plat` (potongan plat), `hasil` (`ripe`/`unripe`/`jk`/`tp`, Per janjang saja), `tampilan=hari\|truk\|janjang`, `ringkasan=true\|false`. Per hari & per truk dikirim utuh, per janjang `limit`+`offset`. **400** kode `riwayat_*` untuk tanggal yang salah, **422** untuk tampilan/hasil asing. Aturan 26 |
+| GET | `/api/console/recap` | rekap per truk satu hari kerja (janjang, ACC/REJ, neto): `?work_date=` opsional. **Tidak dipakai layar lagi** sejak tab Rekap = Riwayat (2026-09-28) |
+| GET | `/api/console/riwayat` | tab **Rekap** (dulu Riwayat; operator biasa, bukan support): `dari`/`sampai` (tanggal kerja, maks **31 hari**, tanpa tanggal = 7 hari terakhir), `line_code`, `plat` (potongan plat), `hasil` (`ripe`/`unripe`/`jk`/`tp`, Per janjang saja), `tampilan=hari\|truk\|janjang`, `ringkasan=true\|false`. Per hari & per truk dikirim utuh, per janjang `limit`+`offset`. **400** kode `riwayat_*` untuk tanggal yang salah, **422** untuk tampilan/hasil asing. Aturan 26 |
 | GET | `/api/console/riwayat/csv` | filter yang sama + `bahasa=id\|en` → lampiran CSV (BOM UTF-8, jam pabrik), **semua** baris filter itu, dialirkan per potongan |
 | POST | `/api/console/dev/riwayat/impor/periksa` | **support**: badan = CSV Per janjang apa adanya (bukan multipart), `?nama=` → hitungan baru / sudah ada / hari berjalan / ganda / salah + `sidik` sha256. Tidak menyimpan apa pun. **400** kode `impor_*` untuk berkas yang ditolak, **413** lebih dari 50 MB |
 | POST | `/api/console/dev/riwayat/impor` | **support**: berkas yang SAMA + `?sidik=` hasil periksa → **201** `{batch}`. **409** kalau berkas berubah, ada baris salah, tidak ada yang baru, impor lain berjalan, atau Danger Zone sedang menghapus |
@@ -662,6 +662,14 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     yang sama (`aturTabDeveloper`); tab yang diingat tapi sudah dibuang jatuh ke Grading
     (`pastikanTabTersedia`). Dulu cuma dibuang: operator yang mewarisi tab Setelan dapat
     layar kosong, dan support sesudahnya harus memuat ulang halaman (tes staging 2026-09-28).
+    **Sembilan tab sejak 2026-09-28** (dulu 15, "tab kebanyakan"): **Rekap** = Rekap + Riwayat
+    (dibuka di Hari ini, Per truk), **Status** = Versi + Diagnostik + Antrean ERP bertumpuk,
+    **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video sebagai empat tombol
+    pilihan (`SUB_LINE`, diingat di localStorage `subLine`, panel `sub-*`). Nama tab lama yang
+    masih tersimpan dipetakan `tabDariSimpanan`/`TAB_LAMA`, bukan jatuh ke Grading. Timer ikut
+    yang terlihat (`bukaTabDev`): diagnostik 5 s di Status, PLC 1 s dan rekam 3 s cuma di
+    pilihan Line-nya, Rekap 15 s (`segarkanRekap`) hanya kalau rentangnya memuat hari ini dan
+    tanggal di kotak belum diubah (yang sedang diketik tidak boleh tertimpa).
     **`ERP_ALLOWED_ROLES`** (bawaan `support`) membatasi role mana yang boleh datang
     dari AutoERP (`domain/role.py`, `filter_erp_role`): **satu-satunya rem sisi
     pabrik**: kosongkan lalu restart, dan tidak ada akun ERP yang bisa membuka layar
@@ -712,7 +720,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     Data yang sama ditulis **di bawah tulisan AUTOGRADE untuk semua akun** (2026-09-28,
     `teksInfoSistem`): versi + "Lisensi s/d …", warnanya dari `severity` server, bukan
     dihitung ulang. Klik membuka kotak detail (`barisInfoSistem`), yang berbagi
-    `barisLisensi` dengan tab Versi. Fitur lisensi mati = versi saja, supaya kata "mati"
+    `barisLisensi` dengan tab Status (bagian Versi). Fitur lisensi mati = versi saja, supaya kata "mati"
     tidak terbaca sebagai kerusakan di layar operator.
     ⚠️ **Token yang tidak terbaca diperlakukan sama dengan habis.** Kebalikannya
     berarti token rusak = gratis.
@@ -767,7 +775,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
 
 24. **Alarm PLC: satu pita untuk seluruh layar, bukan per kartu** (2026-09-23).
     Bit yang dibaca dari PLC (M1100–M1111: motor 1–11 fault, E-stop) dulu berhenti
-    di tab **Uji PLC** yang support-only dan di `/health/detail`, **layar operator
+    di **Uji PLC** (tab Line) yang support-only dan di `/health/detail`, **layar operator
     nol**. Sekarang jalurnya `domain/plc_alarm.py` (bit → kode alarm, logika murni)
     → `/internal/status.alarms` → `LineStatusWorker` → `/api/console/state` →
     `gambarPitaAlarm()`.
@@ -787,7 +795,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     ladder menulis kebalikannya (NC), pita menyala terus saat pabrik sehat. Sengaja
     **tidak** dikompensasi di kode: menebak berarti memilih antara alarm palsu terus
     -menerus atau diam saat E-stop benar-benar ditekan.
-    Tab Uji PLC **tidak** menampilkan bit yang dibaca (daftar `M1100 MOTOR 1 = Off`
+    Uji PLC **tidak** menampilkan bit yang dibaca (daftar `M1100 MOTOR 1 = Off`
     per kartu dicabut 2026-09-24: tiga kartu memuat 16 baris yang sama); bit itu
     hanya hidup di pita alarm operator dan `/health/detail`. Yang di tab: tombol coil
     + peta alamat statis di bawahnya.
@@ -803,7 +811,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     ini**, jadi untuk produksi tetap pulse + latch di ladder. (b) **coil ERROR masuk
     `testable_coils`** supaya M1002/M1005/M1008 bisa dibuktikan terpasang, `PlcWorker`
     melewati penulisan level ERROR selama pulse uji berjalan (`_scheduler_is_active`),
-    kalau tidak pulse langsung ditimpa level sehat di tick yang sama. (c) **tab Uji PLC
+    kalau tidak pulse langsung ditimpa level sehat di tick yang sama. (c) **Uji PLC
     punya timer 1 detik**: sebelumnya `muatPlc()` cuma jalan sekali saat tab dibuka, jadi
     bit motor/E-stop di layar adalah foto lama; terbaca di pabrik sebagai "PLC-nya delay"
     padahal `PlcWorker` membaca blok M tiap 200 ms. (d) **Timer itu memanggil
@@ -869,7 +877,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     WARNING `[Danger Zone] … oleh <email>`; untuk hapus data ditulis SESUDAH log
     dikosongkan, jadi ia baris pertama log baru.
 
-26. **Tab Riwayat: grading lintas hari, baca saja, di koneksi SQLite sendiri** (2026-09-26).
+26. **Riwayat (tab Rekap sejak 2026-09-28): grading lintas hari, baca saja, di koneksi SQLite sendiri** (2026-09-26).
     Untuk semua operator, bukan support: rentang tanggal kerja **maks 31 hari**
     (`domain/riwayat.py`, satu aturan untuk layar dan CSV), filter line, plat (potongan plat
     ternormalisasi, aturan `normalisasi_plat` yang sama dengan timbangan), dan hasil (Per janjang
@@ -893,7 +901,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     baca-saja baru per panggilan (WAL: pembaca tidak menahan penulis) dan rute `def` (thread
     pool). Lewat store konsol, query sebulan akan antre di lock yang dipakai ingest janjang dari
     tiga line. **Hitungannya sama persis dengan Rekap** (verdict dari `ripeness_status`, kelas
-    dari `grade_class`, TP `tp_confidence > 0.8`): satu hari di Riwayat = tab Rekap hari itu,
+    dari `grade_class`, TP `tp_confidence > 0.8`): satu hari di Riwayat = hitungan `/api/console/recap` hari itu,
     dijaga `test_satu_hari_di_riwayat_sama_dengan_tab_rekap`. Neto dijumlah di query sendiri
     lalu disandingkan (aturan 17), **tidak dihitung saat disaring per line** (neto itu berat
     truk), dan hari dengan tiket tapi nol janjang tetap satu baris (kamera mati seharian harus
@@ -924,7 +932,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     menjawab"). Galat jaringan (tanpa jawaban, 502/503/504) dicatat di sumber `jaringan` yang
     dibersihkan jawaban apa pun dari server: kiriman yang gagal diulang sampai sejam kemudian, dan
     titiknya tidak boleh merah selama itu. **Kiriman yang ditolak (417, 404) atau memicu 500 =
-    tersambung**: isi pesan itu yang bermasalah, terlihat di tab Antrean ERP; **401/403 = putus**
+    tersambung**: isi pesan itu yang bermasalah, terlihat di Antrean ERP (tab Status); **401/403 = putus**
     (kunci ditolak, tidak ada yang akan sampai). **Tarikan data yang gagal = putus** sampai tarikan
     berikutnya berhasil (data tidak mengalir walau server hidup).
     **Cloud Photo = cek R2 konsol + blok `unggah` tiap line** (lewat `/internal/status`). Satu
@@ -963,7 +971,7 @@ pabrik), `opencv` (file video lewat `CAMERA_VIDEO_PATH`, atau webcam), `photo`
 **`docker-compose.override.yml` tidak ada di repo dan tidak wajib**: dia
 `.gitignore`, berkas pribadi per mesin. Compose membacanya otomatis kalau ada dan
 menimpa `docker-compose.yml`. ⚠️ **Bukan lagi cara menyetel sumber per line**, itu
-sekarang layar Sumber Kamera + `media.env`. Sisakan override untuk hal lain yang
+sekarang layar Line → Sumber Kamera + `media.env`. Sisakan override untuk hal lain yang
 memang khas satu mesin.
 
 

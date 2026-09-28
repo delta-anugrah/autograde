@@ -25,16 +25,16 @@ def _blok_css(selector: str) -> str:
 
 
 def test_tab_rekam_ada_dan_ditandai_dev():
-    assert 'data-tab="rekam"' in HTML
-    baris = [b for b in HTML.splitlines() if 'data-tab="rekam"' in b][0]
-    # `data-dev="1"` yang membuat tab ini hilang untuk operator. Kerapian, bukan
-    # pengaman — backend yang menolak — tapi tanpa itu operator melihat menu
-    # yang selalu dijawab 403.
+    # Sejak 2026-09-28 Rekam Video adalah pilihan di tab Line. `data-dev="1"` di tab
+    # Line yang membuatnya hilang untuk operator. Kerapian, bukan pengaman (backend
+    # yang menolak), tapi tanpa itu operator melihat menu yang selalu dijawab 403.
+    assert 'data-sub="rekam"' in HTML
+    baris = [b for b in HTML.splitlines() if 'data-tab="line"' in b][0]
     assert 'data-dev="1"' in baris
 
 
 def test_panel_rekam_ada():
-    assert 'id="sec-rekam"' in HTML
+    assert 'id="sub-rekam"' in HTML
 
 
 def test_endpoint_rekam_dipanggil():
@@ -173,7 +173,7 @@ def test_baris_kosong_selebar_jumlah_kolom():
     `<tbody>` ikut menangkap `<th>` milik tabel tetangga, dan test yang salah
     hitung lebih buruk daripada tidak ada test.
     """
-    panel = HTML[HTML.index('id="sec-rekam"'):]
+    panel = HTML[HTML.index('id="sub-rekam"'):]
     kepala = panel[panel.index("<thead>"):panel.index("</thead>")]
     # `"<th"` juga cocok dengan `<thead>` sendiri — dihitung `"<th "` dan
     # `"<th>"` supaya yang terhitung benar-benar sel kepala.
@@ -215,7 +215,7 @@ def test_tabel_rekam_selebar_panelnya():
     layar kosong — persis keluhan yang membuat kolomnya dipadatkan dulu, cuma
     berpindah sisi. Lebar penuh, dengan kolom yang diatur satu per satu.
     """
-    blok = _blok_css("#sec-rekam table")
+    blok = _blok_css("#sub-rekam table")
     assert "width:100%" in blok, blok
 
 
@@ -229,5 +229,5 @@ def test_kolom_penyerap_sudah_tidak_dipakai():
 def test_tombol_record_di_kolom_paling_kanan():
     """Tombolnya rata KANAN di kolom terakhir: mata menyusuri baris dari kiri
     (line → status → angka) dan berakhir pada aksinya."""
-    blok = _blok_css("#sec-rekam td.rekam-aksi, #sec-rekam th.rekam-aksi")
+    blok = _blok_css("#sub-rekam td.rekam-aksi, #sub-rekam th.rekam-aksi")
     assert "text-align:right" in blok, blok

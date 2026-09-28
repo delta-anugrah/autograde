@@ -303,7 +303,7 @@
   button.riwayat-lihat { padding:5px 10px; font-size:.85rem; }
   /* Lebih rapat dari tabel lain: Per hari punya 10 kolom, dan di layar 1024 px tombol
      Lihat truk di ujung kanan terdorong keluar sampai tabelnya harus digeser. */
-  #sec-riwayat th, #sec-riwayat td { padding:10px 10px; }
+  #sec-rekap th, #sec-rekap td { padding:10px 10px; }
   .riwayat-catatan { margin:10px 0 0; }
 
   /* Hasil scan, di sebelah kolomnya. Tinggi dipatok supaya baris alat tidak bergeser
@@ -502,7 +502,7 @@
   #plc-peta td:first-child { font-family:var(--mono); font-weight:700; width:5.5rem; }
 
   /* Konfirmasi uji PLC: inline, bukan dialog bawaan browser - lihat komentar HTML
-     di #sec-plc. Sama bentuknya dengan .tara-grup, ditempatkan di luar #plc-kartu
+     di #sub-plc. Sama bentuknya dengan .tara-grup, ditempatkan di luar #plc-kartu
      supaya tidak ikut terhapus saat kartu dibangun ulang oleh polling. */
   .plc-konfirmasi { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
                      margin:12px var(--pad) 0; padding:11px 13px; border-radius:var(--r-sm);
@@ -810,6 +810,12 @@
   .log-level { display:flex; gap:4px; flex:0 0 auto; }
   .log-level button { flex:0 0 auto; min-width:5rem; background:var(--zebra);
                        color:var(--muted); border:1px solid var(--line); }
+  /* Tab Status (2026-09-28): tiga bagian bertumpuk, masing-masing diberi judul kecil. */
+  .status-judul { margin:18px var(--pad) 8px; font-size:.8rem; font-weight:700;
+                  letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  .status-judul:first-of-type { margin-top:4px; }
+  /* Pilihan di dalam tab Line (2026-09-28). */
+  .line-sub-bar { display:flex; flex-wrap:wrap; gap:8px; padding:0 var(--pad) 14px; }
   .log-level button.aktif { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
      screen, and without this the page itself scrolls sideways. */
@@ -912,10 +918,10 @@
      Setelan: yang diketik di sini angka pendek ("5", "1280"), bukan ambang
      desimal. `minmax(0,…)` wajib — tanpa itu kolom grid menolak menyusut di
      bawah lebar isinya dan halaman melebar ke samping di layar sempit. */
-  #sec-rekam .setelan-form { grid-template-columns:minmax(0, 1fr); }
-  #sec-rekam .setelan-grup-isi {
+  #sub-rekam .setelan-form { grid-template-columns:minmax(0, 1fr); }
+  #sub-rekam .setelan-grup-isi {
     grid-template-columns:repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); }
-  #sec-rekam .setelan-grup-isi input { max-width:16rem; }
+  #sub-rekam .setelan-grup-isi input { max-width:16rem; }
 
   /* Tabel rekaman: yang dibaca dari jarak beberapa meter itu KOLOM STATUS,
      jadi dia yang dapat warna. Kata-katanya tetap yang membawa arti (sebagian
@@ -947,7 +953,7 @@
 
   /* Durasi dan jumlah terekam: angka yang dibandingkan antar baris, jadi
      tabular-nums supaya digitnya sejajar dan tidak bergoyang tiap detik. */
-  #sec-rekam td.rekam-angka { font-family:var(--mono);
+  #sub-rekam td.rekam-angka { font-family:var(--mono);
                               font-variant-numeric:tabular-nums; }
   /* Tombol di kolom PALING KANAN, rata kanan: mata menyusuri baris dari kiri
      (line → status → angka) dan berakhir pada aksinya. Lebarnya dipatok supaya
@@ -957,8 +963,8 @@
      lebar dan tombolnya melayang jauh dari angka yang dijelaskannya. Yang
      menyerap sisa adalah kolom Terekam, yang isinya memang bisa panjang
      ("47 frame · 12,3 MB"). */
-  #sec-rekam td.rekam-aksi, #sec-rekam th.rekam-aksi { width:1%; text-align:right; }
-  #sec-rekam td.rekam-aksi button { min-width:7.5rem; }
+  #sub-rekam td.rekam-aksi, #sub-rekam th.rekam-aksi { width:1%; text-align:right; }
+  #sub-rekam td.rekam-aksi button { min-width:7.5rem; }
 
   /* Tabel selebar panelnya, seperti tabel lain.
      `width:auto` pernah dicoba untuk memadatkan kolom, dan memindahkan
@@ -967,16 +973,16 @@
      Yang dipadatkan sekarang kolomnya satu per satu — tiga kolom kiri
      secukupnya, dan kolom Terekam yang menyerap sisa lebar sambil tetap
      memegang angkanya di dekat judul. */
-  #sec-rekam table { width:100%; }
-  #sec-rekam th.rekam-line, #sec-rekam td.rekam-line { width:8rem; }
-  #sec-rekam th.rekam-stat, #sec-rekam td.rekam-stat { width:12rem; }
-  #sec-rekam th.rekam-lama, #sec-rekam td.rekam-lama { width:8rem; }
+  #sub-rekam table { width:100%; }
+  #sub-rekam th.rekam-line, #sub-rekam td.rekam-line { width:8rem; }
+  #sub-rekam th.rekam-stat, #sub-rekam td.rekam-stat { width:12rem; }
+  #sub-rekam th.rekam-lama, #sub-rekam td.rekam-lama { width:8rem; }
 
   /* Baris catatan di atas tabel + sisa disk di bawahnya: keduanya keterangan,
      jadi diberi jarak yang sama dengan panel lain, bukan menempel di tepi. */
-  #sec-rekam .rekam-catatan { margin:0 var(--pad) 12px; }
-  #sec-rekam .tabel { margin:0 var(--pad); }
-  #sec-rekam .rekam-kaki { display:flex; flex-wrap:wrap; gap:12px 24px;
+  #sub-rekam .rekam-catatan { margin:0 var(--pad) 12px; }
+  #sub-rekam .tabel { margin:0 var(--pad); }
+  #sub-rekam .rekam-kaki { display:flex; flex-wrap:wrap; gap:12px 24px;
                            align-items:center; margin:12px var(--pad) 0; }
   .setelan-form label > span:first-child { font-weight:600; }
   .setelan-form input, .setelan-form select {
@@ -1304,17 +1310,12 @@
   <button data-tab="grading" data-t="judulGrading">Grading</button>
   <button data-tab="truk" data-t="judulTruk">Truk</button>
   <button data-tab="timbangan" data-t="judulTimbangan">Timbangan</button>
+  <!-- Rekap = Riwayat sejak 2026-09-28: dibuka di "Hari ini, per truk" seperti Rekap lama. -->
   <button data-tab="rekap" data-t="judulRekap">Rekap</button>
-  <button data-tab="riwayat" data-t="judulRiwayat">Riwayat</button>
   <button data-tab="log" data-dev="1" data-t="judulLog">Log</button>
-  <button data-tab="diagnostik" data-dev="1" data-t="judulDiagnostik">Diagnostik</button>
-  <button data-tab="antrean" data-dev="1" data-t="judulAntrean">Antrean ERP</button>
-  <button data-tab="versi" data-dev="1" data-t="judulVersi">Versi</button>
+  <button data-tab="status" data-dev="1" data-t="judulStatus">Status</button>
   <button data-tab="akun" data-dev="1" data-t="judulAkun">Akun</button>
-  <button data-tab="plc" data-dev="1" data-t="judulPlc">Uji PLC</button>
-  <button data-tab="sumber-kamera" data-dev="1" data-t="judulSumberKamera">Sumber Kamera</button>
-  <button data-tab="model-deteksi" data-dev="1" data-t="judulModelDeteksi">Model Deteksi</button>
-  <button data-tab="rekam" data-dev="1" data-t="judulRekamVideo">Rekam Video</button>
+  <button data-tab="line" data-dev="1" data-t="judulLine">Line</button>
   <!-- Setelan sengaja PALING KANAN (permintaan operator 2026-09-18): tab yang
        paling jarang dibuka dan yang paling mahal kalau tersenggol — angkanya
        menggeser tonase yang dibayar. -->
@@ -1488,25 +1489,6 @@
 
 <section id="sec-rekap" class="panel" hidden>
   <!--
-    One row per truck for today: what the supplier is handed. Grading and the
-    weighbridge are two different sources, so they are counted separately and
-    only laid side by side here - neto stays blank until the ticket is closed.
-  -->
-  <div class="tabel">
-    <table>
-      <thead><tr><th data-t="thTruk">Truk</th><th data-t="thSupplier">Supplier</th>
-        <th data-t="thSumber">Sumber</th><th class="num" data-t="thTotal">Total</th>
-        <th class="num" data-t="clsRipe">Ripe</th><th class="num" data-t="clsUnripe">Unripe</th>
-        <th class="num" data-t="clsJk">JK</th><th class="num" data-t="clsTp">TP</th>
-        <th class="num" data-t="thRasio">Rasio Ripe</th>
-        <th class="num" data-t="thNeto">Neto (kg)</th></tr></thead>
-      <tbody id="rekap"></tbody>
-    </table>
-  </div>
-</section>
-
-<section id="sec-riwayat" class="panel" hidden>
-  <!--
     Grading hari-hari sebelumnya (2026-09-26): tab Grading dan Rekap cuma hari ini.
     Rentang paling panjang 31 hari (dijaga server, domain/riwayat.py), filter line /
     plat / hasil, ringkasan periode, tiga tampilan, dan unduh CSV. Untuk SEMUA operator,
@@ -1520,6 +1502,7 @@
     <label class="riwayat-isian"><span class="lb" data-t="riwayatSampai">Sampai</span>
       <input type="date" id="riwayat-sampai"></label>
     <div class="riwayat-cepat">
+      <button type="button" data-cepat="hariini" data-t="riwayatHariIni">Hari ini</button>
       <button type="button" data-cepat="kemarin" data-t="riwayatKemarin">Kemarin</button>
       <button type="button" data-cepat="7hari" data-t="riwayat7Hari">7 hari</button>
       <button type="button" data-cepat="bulanini" data-t="riwayatBulanIni">Bulan ini</button>
@@ -1593,7 +1576,7 @@
       <button type="button" id="riwayat-next" data-t="halamanBerikut" disabled>Berikutnya</button>
     </span>
   </div>
-  <p class="muted riwayat-catatan" data-t="riwayatCatatanFoto">Tanggal di tab ini tanggal kerja, sama dengan tab Grading dan Rekap.</p>
+  <p class="muted riwayat-catatan" data-t="riwayatCatatanFoto">Tanggal di tab ini tanggal kerja, sama dengan tab Grading.</p>
 </section>
 
 <section id="sec-log" class="panel" hidden data-dev="1">
@@ -1624,67 +1607,6 @@
       <button type="button" id="log-prev" data-t="halamanSebelum" disabled>Sebelumnya</button>
       <button type="button" id="log-next" data-t="halamanBerikut" disabled>Berikutnya</button>
     </span>
-  </div>
-</section>
-
-<section id="sec-rekam" class="panel" hidden data-dev="1">
-  <!--
-    Support-only. Merekam frame kamera APA ADANYA (clean, tanpa bbox) ke MP4,
-    untuk menelusuri masalah line. Satu tombol per line, jalan terus sampai
-    ditekan Stop.
-
-    Rekaman TIDAK dihapus otomatis — sengaja, karena yang merekam sedang
-    menelusuri masalah dan retensi yang menyapu berkasnya di tengah jalan lebih
-    buruk daripada disk yang penuh perlahan. Karena itu catatannya ditulis
-    besar di layar, dan rekaman berhenti sendiri kalau disk menipis.
-  -->
-  <p class="muted rekam-catatan" data-t="rekamCatatanRetensi">Rekaman tidak dihapus otomatis. Hapus sendiri dari folder videos/ di PC pabrik.</p>
-
-  <div class="tabel">
-    <table>
-      <thead>
-        <tr>
-          <th class="rekam-line" data-t="thLine">Line</th>
-          <th class="rekam-stat" data-t="thStatus">Status</th>
-          <th class="num rekam-lama" data-t="thLama">Lama</th>
-          <th class="num" data-t="thMajuRekam">Terekam</th>
-          <th class="rekam-aksi"><span class="sr-only" data-t="thAksi">Aksi</span></th>
-        </tr>
-      </thead>
-      <tbody id="rekam-baris"></tbody>
-    </table>
-  </div>
-
-  <div class="setelan-form">
-    <details class="setelan-grup" data-rekam-grup="setelan">
-      <summary data-t="rekamSetelanJudul">Setelan rekaman</summary>
-      <div class="setelan-grup-isi">
-        <label>
-          <span data-t="rekamLebar">Lebar (piksel)</span>
-          <input id="rekam-width" type="text" inputmode="numeric" autocomplete="off"
-                 data-angka="bulat" maxlength="5">
-        </label>
-        <label>
-          <span data-t="rekamTinggi">Tinggi (piksel)</span>
-          <input id="rekam-height" type="text" inputmode="numeric" autocomplete="off"
-                 data-angka="bulat" maxlength="5">
-        </label>
-      </div>
-    </details>
-    <div class="tools lepas">
-      <button type="button" id="rekam-simpan" class="utama" data-t="rekamSimpanSetelan">Simpan setelan</button>
-    </div>
-  </div>
-
-  <!--
-    Jalur folder ditulis di layar, bukan cuma di toast: toast hilang sesudah
-    beberapa detik, dan yang mencari berkasnya sering baru membuka AnyDesk
-    setengah jam kemudian. Jalurnya datang dari backend — berbeda per mesin,
-    jadi layar tidak boleh mengarangnya.
-  -->
-  <div class="rekam-kaki">
-    <span class="muted"><span data-t="rekamDisimpanDi">Disimpan di</span>: <code id="rekam-folder">-</code></span>
-    <span id="rekam-disk" class="muted"></span>
   </div>
 </section>
 
@@ -1836,15 +1758,22 @@
   </details>
 </section>
 
-<section id="sec-diagnostik" class="panel" hidden data-dev="1">
+<section id="sec-status" class="panel" hidden data-dev="1">
+  <!--
+    Support-only. Digabung 2026-09-28 dari tab Versi, Diagnostik, dan Antrean ERP: tiga-tiganya
+    menjawab satu pertanyaan, "sistemnya sehat?". Diagnostik tetap disegarkan tiap 5 detik
+    selama tab ini terbuka (`bukaTabDev`).
+  -->
+  <h2 class="status-judul" data-t="judulVersi">Versi</h2>
+  <!-- Support-only. Version, machine id, licence state - never a secret. -->
+  <dl id="versi-daftar" class="daftar-definisi"></dl>
+  <h2 class="status-judul" data-t="judulDiagnostik">Diagnostik</h2>
   <!--
     Support-only: /health/detail from each line, gathered concurrently server-side.
     An unreachable line still gets a card - that is the one worth seeing.
   -->
   <div id="diagnostik-kartu" class="kartu-grid"></div>
-</section>
-
-<section id="sec-antrean" class="panel" hidden data-dev="1">
+  <h2 class="status-judul" data-t="judulAntrean">Antrean ERP</h2>
   <!--
     Support-only: what is stuck in the ERP outbox, why, and one button to
     move it all back to pending so the next tick tries again.
@@ -1883,11 +1812,6 @@
       <tbody id="manifest-baris"></tbody>
     </table>
   </div>
-</section>
-
-<section id="sec-versi" class="panel" hidden data-dev="1">
-  <!-- Support-only. Version, machine id, licence state - never a secret. -->
-  <dl id="versi-daftar" class="daftar-definisi"></dl>
 </section>
 
 <section id="sec-akun" class="panel" hidden data-dev="1">
@@ -1947,7 +1871,131 @@
   </div>
 </section>
 
-<section id="sec-plc" class="panel" hidden data-dev="1">
+<section id="sec-line" class="panel" hidden data-dev="1">
+  <!--
+    Support-only. Digabung 2026-09-28 dari Sumber Kamera, Model Deteksi, Uji PLC, dan Rekam
+    Video: semuanya urusan per line kamera. Satu pilihan tampil sekaligus, dan timer PLC
+    dan rekam cuma jalan untuk pilihan yang sedang dilihat (`bukaTabDev`).
+  -->
+  <div class="line-sub-bar">
+    <div class="log-level" id="line-sub" role="group">
+      <button type="button" data-sub="sumber-kamera" data-t="judulSumberKamera">Sumber Kamera</button>
+      <button type="button" data-sub="model-deteksi" data-t="judulModelDeteksi">Model Deteksi</button>
+      <button type="button" data-sub="plc" data-t="judulPlc">Uji PLC</button>
+      <button type="button" data-sub="rekam" data-t="judulRekamVideo">Rekam Video</button>
+    </div>
+  </div>
+  <div id="sub-sumber-kamera" class="sub-line" hidden>
+  <!--
+    Support-only. Tiap line memilih sumber gambarnya sendiri (kamera Hikrobot,
+    webcam, berkas video, atau foto diam) — dulu cuma bisa lewat AnyDesk +
+    edit .env + restart manual. Simpan menulis `media.env` lalu me-restart
+    HANYA line yang setelannya berubah (`services/console_service.py
+    simpan_sumber_kamera`); line yang tidak menjawab restart TETAP tersimpan,
+    dia membaca setelan baru sendiri saat hidup lagi — itu sebabnya pesan hasil
+    di bawah tidak boleh dibaca sebagai "gagal simpan".
+  -->
+  <div id="sumber-kamera-panel">
+    <p class="muted" data-t="sumberPeringatan">
+      Menyimpan akan <strong>merestart</strong> line yang setelannya berubah (sekitar 10 detik). Grading di line itu berhenti sebentar.
+    </p>
+
+    <div class="sumber-baris-baris">
+      <div data-sumber-line="line-1" class="sumber-baris">
+        <strong data-t="sumberLabelLine1">Line 1</strong>
+        <label><input type="radio" name="sumber-line-1" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
+        <label><input type="radio" name="sumber-line-1" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
+        <label><input type="radio" name="sumber-line-1" value="video"> <span data-t="sumberVideo">Video</span></label>
+        <label><input type="radio" name="sumber-line-1" value="foto"> <span data-t="sumberFoto">Foto</span></label>
+        <div class="sumber-berkas" hidden>
+          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-1"></select></label>
+          <label><input type="checkbox" data-ulang="line-1"> <span data-t="sumberUlang">Ulang terus</span></label>
+        </div>
+      </div>
+
+      <div data-sumber-line="line-2" class="sumber-baris">
+        <strong data-t="sumberLabelLine2">Line 2</strong>
+        <label><input type="radio" name="sumber-line-2" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
+        <label><input type="radio" name="sumber-line-2" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
+        <label><input type="radio" name="sumber-line-2" value="video"> <span data-t="sumberVideo">Video</span></label>
+        <label><input type="radio" name="sumber-line-2" value="foto"> <span data-t="sumberFoto">Foto</span></label>
+        <div class="sumber-berkas" hidden>
+          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-2"></select></label>
+          <label><input type="checkbox" data-ulang="line-2"> <span data-t="sumberUlang">Ulang terus</span></label>
+        </div>
+      </div>
+
+      <div data-sumber-line="line-3" class="sumber-baris">
+        <strong data-t="sumberLabelLine3">Line 3</strong>
+        <label><input type="radio" name="sumber-line-3" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
+        <label><input type="radio" name="sumber-line-3" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
+        <label><input type="radio" name="sumber-line-3" value="video"> <span data-t="sumberVideo">Video</span></label>
+        <label><input type="radio" name="sumber-line-3" value="foto"> <span data-t="sumberFoto">Foto</span></label>
+        <div class="sumber-berkas" hidden>
+          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-3"></select></label>
+          <label><input type="checkbox" data-ulang="line-3"> <span data-t="sumberUlang">Ulang terus</span></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="tools lepas">
+      <button type="button" id="sumber-simpan" class="utama" data-t="btnSumberSimpan">Simpan &amp; Restart</button>
+    </div>
+  </div>
+  </div>
+  <div id="sub-model-deteksi" class="sub-line" hidden>
+  <!--
+    Support-only. Model YOLO dipilih per line dari berkas yang SUDAH ada di
+    `models/release/` PC ini (layar ini tidak mengunduh apa pun). Simpan menulis
+    `LINE_N_MODEL_FILE` di `media.env` lalu me-restart line yang berubah —
+    lewat modal konfirmasi dulu, karena restart menghentikan grading ±10 detik.
+    Model yang kelasnya bukan tepat Ripe/Unripe/JK/TP tampil tapi tidak bisa
+    dipilih: line yang memuatnya tetap jalan dan tidak menghitung apa pun
+    (Lampung, seminggu, 2026-09-23). "Sedang jalan" dibaca dari line sendiri
+    (`/health/detail`), bukan dari pilihan yang tersimpan.
+  -->
+  <div id="model-deteksi-panel">
+    <p class="muted" data-t="modelPeringatan">
+      Mengganti model akan <strong>merestart</strong> line itu (sekitar 10 detik). Janjang yang lewat selama restart tidak dihitung.
+    </p>
+
+    <div class="sumber-baris-baris">
+      <div data-model-line="line-1" class="sumber-baris model-baris">
+        <strong data-t="sumberLabelLine1">Line 1</strong>
+        <div class="model-jalan" data-model-jalan="line-1"></div>
+        <label><span data-t="modelPilih">Model</span> <select data-model="line-1"></select></label>
+        <div class="model-rinci" data-model-rinci="line-1"></div>
+      </div>
+      <div data-model-line="line-2" class="sumber-baris model-baris">
+        <strong data-t="sumberLabelLine2">Line 2</strong>
+        <div class="model-jalan" data-model-jalan="line-2"></div>
+        <label><span data-t="modelPilih">Model</span> <select data-model="line-2"></select></label>
+        <div class="model-rinci" data-model-rinci="line-2"></div>
+      </div>
+      <div data-model-line="line-3" class="sumber-baris model-baris">
+        <strong data-t="sumberLabelLine3">Line 3</strong>
+        <div class="model-jalan" data-model-jalan="line-3"></div>
+        <label><span data-t="modelPilih">Model</span> <select data-model="line-3"></select></label>
+        <div class="model-rinci" data-model-rinci="line-3"></div>
+      </div>
+    </div>
+
+    <div class="tools lepas">
+      <button type="button" id="model-simpan" class="utama" data-t="btnModelSimpan">Simpan &amp; Restart</button>
+    </div>
+
+    <strong data-t="modelSemuaJudul">Semua model di PC ini</strong>
+    <div class="tabel">
+      <table>
+        <thead><tr><th data-t="thModelBerkas">Berkas</th><th class="num" data-t="thModelUkuran">Ukuran</th>
+          <th data-t="thModelKelas">Kelas</th><th data-t="thModelEngine">Engine TensorRT</th>
+          <th data-t="thModelStatus">Status</th></tr></thead>
+        <tbody id="model-baris"></tbody>
+      </table>
+    </div>
+  </div>
+  </div>
+  <div id="sub-plc" class="sub-line" hidden>
   <!--
     Support-only. The ONLY screen in the console that moves physical hardware -
     reading (this panel) is always safe to open, firing a coil is not. One
@@ -2023,117 +2071,66 @@
     </table>
     </div>
   </div>
-</section>
-
-<section id="sec-sumber-kamera" class="panel" hidden data-dev="1">
+  </div>
+  <div id="sub-rekam" class="sub-line" hidden>
   <!--
-    Support-only. Tiap line memilih sumber gambarnya sendiri (kamera Hikrobot,
-    webcam, berkas video, atau foto diam) — dulu cuma bisa lewat AnyDesk +
-    edit .env + restart manual. Simpan menulis `media.env` lalu me-restart
-    HANYA line yang setelannya berubah (`services/console_service.py
-    simpan_sumber_kamera`); line yang tidak menjawab restart TETAP tersimpan,
-    dia membaca setelan baru sendiri saat hidup lagi — itu sebabnya pesan hasil
-    di bawah tidak boleh dibaca sebagai "gagal simpan".
+    Support-only. Merekam frame kamera APA ADANYA (clean, tanpa bbox) ke MP4,
+    untuk menelusuri masalah line. Satu tombol per line, jalan terus sampai
+    ditekan Stop.
+
+    Rekaman TIDAK dihapus otomatis — sengaja, karena yang merekam sedang
+    menelusuri masalah dan retensi yang menyapu berkasnya di tengah jalan lebih
+    buruk daripada disk yang penuh perlahan. Karena itu catatannya ditulis
+    besar di layar, dan rekaman berhenti sendiri kalau disk menipis.
   -->
-  <div id="sumber-kamera-panel">
-    <p class="muted" data-t="sumberPeringatan">
-      Menyimpan akan <strong>merestart</strong> line yang setelannya berubah (sekitar 10 detik). Grading di line itu berhenti sebentar.
-    </p>
+  <p class="muted rekam-catatan" data-t="rekamCatatanRetensi">Rekaman tidak dihapus otomatis. Hapus sendiri dari folder videos/ di PC pabrik.</p>
 
-    <div class="sumber-baris-baris">
-      <div data-sumber-line="line-1" class="sumber-baris">
-        <strong data-t="sumberLabelLine1">Line 1</strong>
-        <label><input type="radio" name="sumber-line-1" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
-        <label><input type="radio" name="sumber-line-1" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
-        <label><input type="radio" name="sumber-line-1" value="video"> <span data-t="sumberVideo">Video</span></label>
-        <label><input type="radio" name="sumber-line-1" value="foto"> <span data-t="sumberFoto">Foto</span></label>
-        <div class="sumber-berkas" hidden>
-          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-1"></select></label>
-          <label><input type="checkbox" data-ulang="line-1"> <span data-t="sumberUlang">Ulang terus</span></label>
-        </div>
+  <div class="tabel">
+    <table>
+      <thead>
+        <tr>
+          <th class="rekam-line" data-t="thLine">Line</th>
+          <th class="rekam-stat" data-t="thStatus">Status</th>
+          <th class="num rekam-lama" data-t="thLama">Lama</th>
+          <th class="num" data-t="thMajuRekam">Terekam</th>
+          <th class="rekam-aksi"><span class="sr-only" data-t="thAksi">Aksi</span></th>
+        </tr>
+      </thead>
+      <tbody id="rekam-baris"></tbody>
+    </table>
+  </div>
+
+  <div class="setelan-form">
+    <details class="setelan-grup" data-rekam-grup="setelan">
+      <summary data-t="rekamSetelanJudul">Setelan rekaman</summary>
+      <div class="setelan-grup-isi">
+        <label>
+          <span data-t="rekamLebar">Lebar (piksel)</span>
+          <input id="rekam-width" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="5">
+        </label>
+        <label>
+          <span data-t="rekamTinggi">Tinggi (piksel)</span>
+          <input id="rekam-height" type="text" inputmode="numeric" autocomplete="off"
+                 data-angka="bulat" maxlength="5">
+        </label>
       </div>
-
-      <div data-sumber-line="line-2" class="sumber-baris">
-        <strong data-t="sumberLabelLine2">Line 2</strong>
-        <label><input type="radio" name="sumber-line-2" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
-        <label><input type="radio" name="sumber-line-2" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
-        <label><input type="radio" name="sumber-line-2" value="video"> <span data-t="sumberVideo">Video</span></label>
-        <label><input type="radio" name="sumber-line-2" value="foto"> <span data-t="sumberFoto">Foto</span></label>
-        <div class="sumber-berkas" hidden>
-          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-2"></select></label>
-          <label><input type="checkbox" data-ulang="line-2"> <span data-t="sumberUlang">Ulang terus</span></label>
-        </div>
-      </div>
-
-      <div data-sumber-line="line-3" class="sumber-baris">
-        <strong data-t="sumberLabelLine3">Line 3</strong>
-        <label><input type="radio" name="sumber-line-3" value="hikrobot"> <span data-t="sumberHikrobot">Kamera Hikrobot</span></label>
-        <label><input type="radio" name="sumber-line-3" value="webcam"> <span data-t="sumberWebcam">Webcam</span></label>
-        <label><input type="radio" name="sumber-line-3" value="video"> <span data-t="sumberVideo">Video</span></label>
-        <label><input type="radio" name="sumber-line-3" value="foto"> <span data-t="sumberFoto">Foto</span></label>
-        <div class="sumber-berkas" hidden>
-          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-3"></select></label>
-          <label><input type="checkbox" data-ulang="line-3"> <span data-t="sumberUlang">Ulang terus</span></label>
-        </div>
-      </div>
-    </div>
-
+    </details>
     <div class="tools lepas">
-      <button type="button" id="sumber-simpan" class="utama" data-t="btnSumberSimpan">Simpan &amp; Restart</button>
+      <button type="button" id="rekam-simpan" class="utama" data-t="rekamSimpanSetelan">Simpan setelan</button>
     </div>
   </div>
-</section>
 
-<section id="sec-model-deteksi" class="panel" hidden data-dev="1">
   <!--
-    Support-only. Model YOLO dipilih per line dari berkas yang SUDAH ada di
-    `models/release/` PC ini (layar ini tidak mengunduh apa pun). Simpan menulis
-    `LINE_N_MODEL_FILE` di `media.env` lalu me-restart line yang berubah —
-    lewat modal konfirmasi dulu, karena restart menghentikan grading ±10 detik.
-    Model yang kelasnya bukan tepat Ripe/Unripe/JK/TP tampil tapi tidak bisa
-    dipilih: line yang memuatnya tetap jalan dan tidak menghitung apa pun
-    (Lampung, seminggu, 2026-09-23). "Sedang jalan" dibaca dari line sendiri
-    (`/health/detail`), bukan dari pilihan yang tersimpan.
+    Jalur folder ditulis di layar, bukan cuma di toast: toast hilang sesudah
+    beberapa detik, dan yang mencari berkasnya sering baru membuka AnyDesk
+    setengah jam kemudian. Jalurnya datang dari backend — berbeda per mesin,
+    jadi layar tidak boleh mengarangnya.
   -->
-  <div id="model-deteksi-panel">
-    <p class="muted" data-t="modelPeringatan">
-      Mengganti model akan <strong>merestart</strong> line itu (sekitar 10 detik). Janjang yang lewat selama restart tidak dihitung.
-    </p>
-
-    <div class="sumber-baris-baris">
-      <div data-model-line="line-1" class="sumber-baris model-baris">
-        <strong data-t="sumberLabelLine1">Line 1</strong>
-        <div class="model-jalan" data-model-jalan="line-1"></div>
-        <label><span data-t="modelPilih">Model</span> <select data-model="line-1"></select></label>
-        <div class="model-rinci" data-model-rinci="line-1"></div>
-      </div>
-      <div data-model-line="line-2" class="sumber-baris model-baris">
-        <strong data-t="sumberLabelLine2">Line 2</strong>
-        <div class="model-jalan" data-model-jalan="line-2"></div>
-        <label><span data-t="modelPilih">Model</span> <select data-model="line-2"></select></label>
-        <div class="model-rinci" data-model-rinci="line-2"></div>
-      </div>
-      <div data-model-line="line-3" class="sumber-baris model-baris">
-        <strong data-t="sumberLabelLine3">Line 3</strong>
-        <div class="model-jalan" data-model-jalan="line-3"></div>
-        <label><span data-t="modelPilih">Model</span> <select data-model="line-3"></select></label>
-        <div class="model-rinci" data-model-rinci="line-3"></div>
-      </div>
-    </div>
-
-    <div class="tools lepas">
-      <button type="button" id="model-simpan" class="utama" data-t="btnModelSimpan">Simpan &amp; Restart</button>
-    </div>
-
-    <strong data-t="modelSemuaJudul">Semua model di PC ini</strong>
-    <div class="tabel">
-      <table>
-        <thead><tr><th data-t="thModelBerkas">Berkas</th><th class="num" data-t="thModelUkuran">Ukuran</th>
-          <th data-t="thModelKelas">Kelas</th><th data-t="thModelEngine">Engine TensorRT</th>
-          <th data-t="thModelStatus">Status</th></tr></thead>
-        <tbody id="model-baris"></tbody>
-      </table>
-    </div>
+  <div class="rekam-kaki">
+    <span class="muted"><span data-t="rekamDisimpanDi">Disimpan di</span>: <code id="rekam-folder">-</code></span>
+    <span id="rekam-disk" class="muted"></span>
+  </div>
   </div>
 </section>
 
@@ -2231,7 +2228,8 @@ let infoLisensi;
 const KAMUS = {
   id: {
     judulGrading:"Grading", judulTruk:"Truk", judulTimbangan:"Timbangan", judulRekap:"Rekap",
-    judulRiwayat:"Riwayat", riwayatDari:"Dari", riwayatSampai:"Sampai",
+    riwayatHariIni:"Hari ini", judulStatus:"Status", judulLine:"Line",
+    riwayatDari:"Dari", riwayatSampai:"Sampai",
     riwayatKemarin:"Kemarin", riwayat7Hari:"7 hari", riwayatBulanIni:"Bulan ini", riwayatBulanLalu:"Bulan lalu",
     riwayatSemuaLine:"Semua line", riwayatPlat:"Plat", riwayatPlatPh:"Semua truk",
     riwayatSemuaHasil:"Semua hasil", riwayatTampilkan:"Tampilkan", riwayatCsv:"Unduh CSV",
@@ -2239,7 +2237,7 @@ const KAMUS = {
     riwayatLihatTruk:"Lihat truk", riwayatLihatJanjang:"Lihat janjang",
     thTanggal:"Tanggal", thJanjang:"Janjang", riwayatJumlahTruk:"Jumlah truk", riwayatHari:"Hari",
     riwayatKosong:"Tidak ada grading di rentang ini", riwayatGagal:"Gagal memuat riwayat",
-    riwayatMaks:"Paling panjang 31 hari. Tanggal di sini tanggal kerja, sama dengan tab Grading dan Rekap.",
+    riwayatMaks:"Paling panjang 31 hari. Tanggal di sini tanggal kerja, sama dengan tab Grading.",
     riwayatRentang:"{dari} s.d. {sampai}", riwayatNetoLine:"Tidak dihitung per line",
     riwayatFotoHilang:"Foto sudah terhapus dari PC",
     riwayatImpor:"Impor CSV", btnTutup:"Tutup", imporJudul:"Impor grading dari CSV",
@@ -2256,7 +2254,7 @@ const KAMUS = {
     imporBatal:"Batalkan", imporYakinBatal:"Yakin? Klik lagi", imporDibatalkan:"Impor dibatalkan: {n} janjang dihapus.",
     imporDibatalkanOleh:"oleh {oleh}", imporStatus_done:"Selesai", imporStatus_interrupted:"Terputus",
     imporStatus_undone:"Dibatalkan", imporStatus_running:"Berjalan",
-    imporLabel:"impor", imporLabelJudul:"Dari impor CSV (tab Riwayat, support)",
+    imporLabel:"impor", imporLabelJudul:"Dari impor CSV (tab Rekap, support)",
     imporSalah_event_id_kosong:"Event ID kosong", imporSalah_event_id_tidak_sah:"Event ID {nilai} tidak sah",
     imporSalah_tanggal_tidak_sah:"Tanggal kerja {nilai} harus berbentuk TTTT-BB-HH",
     imporSalah_waktu_tidak_sah:"Waktu {nilai} harus berbentuk TTTT-BB-HH JJ:MM:DD",
@@ -2363,7 +2361,7 @@ const KAMUS = {
     truk:"Truk", supplier:"Supplier", trukBelum:"Truk belum dipilih",
     pilihTruk:"Pilih Truk", lepasTitle:"Truk sudah pergi", spasi:"Spasi",
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
-    kosongGrading:"Belum ada grading hari ini", kosongRekap:"Belum ada rekap hari ini",
+    kosongGrading:"Belum ada grading hari ini",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio Ripe", trukTanpaNama:"Tanpa truk",
     wajibIsi:"Plat dan bruto wajib diisi",
     gagalTugaskan:"Gagal menugaskan truk", gagalLepas:"Gagal melepas truk",
@@ -2494,9 +2492,9 @@ const KAMUS = {
     err_riwayat_rentang_panjang:"Rentang paling panjang {maks} hari. Persempit tanggalnya, atau unduh per bulan.",
     err_impor_kosong:"Berkas kosong atau tanpa baris data.",
     err_impor_bukan_utf8:"Berkas bukan teks UTF-8. Pakai berkas asli hasil Unduh CSV, bukan yang disimpan ulang dari Excel.",
-    err_impor_bukan_janjang:"Ini bukan CSV Per janjang. Di tab Riwayat pilih Per janjang, lalu Unduh CSV. Berkas yang disimpan ulang dari Excel juga ditolak.",
+    err_impor_bukan_janjang:"Ini bukan CSV Per janjang. Di tab Rekap pilih Per janjang, lalu Unduh CSV. Berkas yang disimpan ulang dari Excel juga ditolak.",
     err_impor_terlalu_besar:"Berkas lebih dari {maks_mb} MB. Unduh per rentang tanggal yang lebih pendek.",
-    err_impor_rusak:"Berkas rusak mulai baris {nomor} (tanda kutip tidak tertutup atau sejenisnya). Unduh ulang dari tab Riwayat.",
+    err_impor_rusak:"Berkas rusak mulai baris {nomor} (tanda kutip tidak tertutup atau sejenisnya). Unduh ulang dari tab Rekap.",
     err_impor_sidik_beda:"Berkasnya berubah sejak diperiksa. Periksa lagi.",
     err_impor_ada_salah:"{jumlah} baris salah. Perbaiki atau unduh ulang berkasnya, lalu periksa lagi.",
     err_impor_tidak_ada_baru:"Tidak ada janjang baru: semuanya sudah ada, atau jatuh hari ini dan sesudahnya.",
@@ -2562,7 +2560,8 @@ const KAMUS = {
   },
   en: {
     judulGrading:"Grading", judulTruk:"Trucks", judulTimbangan:"Weighbridge", judulRekap:"Recap",
-    judulRiwayat:"History", riwayatDari:"From", riwayatSampai:"To",
+    riwayatHariIni:"Today", judulStatus:"Status", judulLine:"Line",
+    riwayatDari:"From", riwayatSampai:"To",
     riwayatKemarin:"Yesterday", riwayat7Hari:"7 days", riwayatBulanIni:"This month", riwayatBulanLalu:"Last month",
     riwayatSemuaLine:"All lines", riwayatPlat:"Plate", riwayatPlatPh:"All trucks",
     riwayatSemuaHasil:"All results", riwayatTampilkan:"Show", riwayatCsv:"Download CSV",
@@ -2570,7 +2569,7 @@ const KAMUS = {
     riwayatLihatTruk:"See trucks", riwayatLihatJanjang:"See bunches",
     thTanggal:"Date", thJanjang:"Bunches", riwayatJumlahTruk:"Trucks", riwayatHari:"Days",
     riwayatKosong:"No grading in this range", riwayatGagal:"Failed to load history",
-    riwayatMaks:"At most 31 days. Dates here are working days, the same as the Grading and Recap tabs.",
+    riwayatMaks:"At most 31 days. Dates here are working days, the same as the Grading tab.",
     riwayatRentang:"{dari} to {sampai}", riwayatNetoLine:"Not split by line",
     riwayatFotoHilang:"Photo no longer on this PC",
     riwayatImpor:"Import CSV", btnTutup:"Close", imporJudul:"Import grading from CSV",
@@ -2587,7 +2586,7 @@ const KAMUS = {
     imporBatal:"Undo", imporYakinBatal:"Sure? Click again", imporDibatalkan:"Import undone: {n} bunches removed.",
     imporDibatalkanOleh:"by {oleh}", imporStatus_done:"Done", imporStatus_interrupted:"Interrupted",
     imporStatus_undone:"Undone", imporStatus_running:"Running",
-    imporLabel:"import", imporLabelJudul:"From a CSV import (History tab, support)",
+    imporLabel:"import", imporLabelJudul:"From a CSV import (Recap tab, support)",
     imporSalah_event_id_kosong:"Event ID is empty", imporSalah_event_id_tidak_sah:"Event ID {nilai} is not valid",
     imporSalah_tanggal_tidak_sah:"Work date {nilai} must look like YYYY-MM-DD",
     imporSalah_waktu_tidak_sah:"Time {nilai} must look like YYYY-MM-DD HH:MM:SS",
@@ -2692,7 +2691,7 @@ const KAMUS = {
     truk:"Truck", supplier:"Supplier", trukBelum:"No truck selected",
     pilihTruk:"Select Truck", lepasTitle:"Truck has left", spasi:"Space",
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
-    kosongGrading:"No grading yet today", kosongRekap:"Nothing to recap yet today",
+    kosongGrading:"No grading yet today",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Ripe rate", trukTanpaNama:"No truck",
     wajibIsi:"Plate and gross weight are required",
     gagalTugaskan:"Failed to assign truck", gagalLepas:"Failed to release truck",
@@ -2821,9 +2820,9 @@ const KAMUS = {
     err_riwayat_rentang_panjang:"The range can be at most {maks} days. Narrow the dates, or download one month at a time.",
     err_impor_kosong:"The file is empty or has no data rows.",
     err_impor_bukan_utf8:"The file is not UTF-8 text. Use the original file from Download CSV, not one saved again from Excel.",
-    err_impor_bukan_janjang:"This is not a Per bunch CSV. In the History tab choose Per bunch, then Download CSV. A file saved again from Excel is refused too.",
+    err_impor_bukan_janjang:"This is not a Per bunch CSV. In the Recap tab choose Per bunch, then Download CSV. A file saved again from Excel is refused too.",
     err_impor_terlalu_besar:"The file is over {maks_mb} MB. Download a shorter date range.",
-    err_impor_rusak:"The file is damaged from row {nomor} on (an unclosed quote or similar). Download it again from the History tab.",
+    err_impor_rusak:"The file is damaged from row {nomor} on (an unclosed quote or similar). Download it again from the Recap tab.",
     err_impor_sidik_beda:"The file changed since it was checked. Check it again.",
     err_impor_ada_salah:"{jumlah} rows have errors. Fix the file or download it again, then check it again.",
     err_impor_tidak_ada_baru:"No new bunches: all are already here, or fall on today or later.",
@@ -3052,8 +3051,34 @@ document.addEventListener("focusout", (ev) => {
 });
 
 // ── truck / weighbridge tabs ───────────────────────────────────────────
-const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "riwayat", "log", "diagnostik", "antrean", "versi", "plc", "sumber-kamera", "model-deteksi", "setelan"];
-let tab = TAB_SAH.includes(baca("tab", "grading")) ? baca("tab", "grading") : "grading";
+// Sembilan tab sejak 2026-09-28 (dulu 15, "tab kebanyakan"): Rekap = Rekap + Riwayat, Status =
+// Versi + Diagnostik + Antrean ERP, Line = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video.
+const TAB_SAH = ["grading", "truk", "timbangan", "rekap", "log", "status", "akun", "line", "setelan"];
+// Pilihan di dalam tab Line.
+const SUB_LINE = ["sumber-kamera", "model-deteksi", "plc", "rekam"];
+// Tab lama yang masih tersimpan di browser dibuka di tempat barunya, bukan jatuh ke Grading.
+const TAB_LAMA = { riwayat: "rekap", diagnostik: "status", antrean: "status", versi: "status" };
+
+function tabDariSimpanan(nama) {
+  if (SUB_LINE.includes(nama)) return { tab: "line", sub: nama };
+  const baru = TAB_LAMA[nama] || nama;
+  return { tab: TAB_SAH.includes(baru) ? baru : "grading", sub: null };
+}
+
+const tabAwal = tabDariSimpanan(baca("tab", "grading"));
+let tab = tabAwal.tab;
+let subLine = tabAwal.sub
+  || (SUB_LINE.includes(baca("subLine", "sumber-kamera")) ? baca("subLine", "sumber-kamera") : "sumber-kamera");
+
+function terapkanSubLine() {
+  document.querySelectorAll("#line-sub button[data-sub]").forEach((b) => {
+    const aktif = b.dataset.sub === subLine;
+    b.classList.toggle("aktif", aktif);
+    b.setAttribute("aria-pressed", String(aktif));
+    const panel = $("sub-" + b.dataset.sub);
+    if (panel) panel.hidden = !aktif;
+  });
+}
 
 function terapkanTab() {
   document.querySelectorAll("#tabs button").forEach((b) => {
@@ -3071,7 +3096,16 @@ function terapkanTab() {
 // tab stays open (a line coming back or dying should show up unattended);
 // the timer is started/stopped in `bukaTabDev` below, never left running
 // behind a tab nobody is looking at.
-const MUAT_TAB = { riwayat: muatRiwayat, log: muatLog, diagnostik: muatDiagnostik, antrean: muatAntrean, versi: muatVersi, akun: muatAkun, plc: muatPlc, "sumber-kamera": muatSumberKamera, "model-deteksi": muatModelDeteksi, setelan: muatSetelan, rekam: muatRekam };
+const MUAT_TAB = { rekap: muatRiwayat, log: muatLog, status: muatStatus, akun: muatAkun, line: muatLine, setelan: muatSetelan };
+const MUAT_SUB_LINE = { "sumber-kamera": muatSumberKamera, "model-deteksi": muatModelDeteksi, plc: muatPlc, rekam: muatRekam };
+
+function muatStatus() {
+  return Promise.all([muatVersi(), muatDiagnostik(), muatAntrean()]);
+}
+
+function muatLine() {
+  return MUAT_SUB_LINE[subLine]();
+}
 
 function bukaTabDev(namaTab) {
   clearInterval(diagnostikTimer);
@@ -3082,13 +3116,18 @@ function bukaTabDev(namaTab) {
   rekamTimer = null;
   clearInterval(plcTimer);
   plcTimer = null;
+  clearInterval(rekapTimer);
+  rekapTimer = null;
   const muat = MUAT_TAB[namaTab] ? MUAT_TAB[namaTab]() : Promise.resolve();
-  if (namaTab === "diagnostik") diagnostikTimer = setInterval(muatDiagnostik, 5000);
-  if (namaTab === "rekam") rekamTimer = setInterval(muatRekam, 3000);
+  if (namaTab === "status") diagnostikTimer = setInterval(muatDiagnostik, 5000);
+  if (namaTab === "line" && subLine === "rekam") rekamTimer = setInterval(muatRekam, 3000);
   // 1 detik: lebih rapat dari diagnostik (5 s) karena di sini orang menunggu
   // jawaban tombol yang baru saja ditekan. Tiap tick = satu GET ringan per line,
   // dan tabnya cuma terbuka saat commissioning — bukan sepanjang shift.
-  if (namaTab === "plc") plcTimer = setInterval(segarkanPlc, 1000);
+  if (namaTab === "line" && subLine === "plc") plcTimer = setInterval(segarkanPlc, 1000);
+  // Rekap hari ini segar sendiri seperti tab Rekap lama (15 s); segarkanRekap yang
+  // memutuskan apakah rentangnya memang memuat hari ini.
+  if (namaTab === "rekap") rekapTimer = setInterval(segarkanRekap, 15000);
   return muat;
 }
 
@@ -3099,6 +3138,16 @@ $("tabs").addEventListener("click", (ev) => {
   simpan("tab", tab);
   terapkanTab();
   bukaTabDev(tab);
+});
+
+terapkanSubLine();
+$("line-sub").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-sub]");
+  if (!b || b.dataset.sub === subLine) return;
+  subLine = b.dataset.sub;
+  simpan("subLine", subLine);
+  terapkanSubLine();
+  bukaTabDev("line");
 });
 
 // ── camera layout ──────────────────────────────────────────────────────
@@ -4308,7 +4357,6 @@ async function kirimSandi() {
     await muatTrucks();
     await refresh();
     await muatTimbangan();
-    await muatRekap();
     // Tab developer yang sudah AKTIF sebelum login (dipulihkan dari localStorage
     // oleh init di bawah) sempat mencoba memuat datanya saat gerbang masih
     // tertutup, dan ditolak 401 — diam-diam, karena `belum_masuk` memang bukan
@@ -4436,6 +4484,7 @@ async function refresh() {
   try {
     const s = await api("/api/console/state");
     $("tz").textContent = "(" + s.timezone + ")";
+    if (s.work_date) hariKerja = s.work_date;
     gambarBannerLisensi(s.lisensi);
     gambarInfoSistem(s.versi, s.lisensi);
     umumkanPelepasanOtomatis(s.auto_releases);
@@ -4499,46 +4548,24 @@ async function muatTimbangan() {
   } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
 }
 
-function barisRekap(r) {
-  const total = r.total || 0;
-  const rasio = total ? Math.round(((r.acc || 0) / total) * 100) + "%" : KOSONG;
-  return `<tr>
-    <td class="key">${r.plate_number ? esc(r.plate_number) : `<i>${esc(t("trukTanpaNama"))}</i>`}</td>
-    <td>${dash(r.supplier_name)}</td>
-    <td>${dash(r.source_label)}</td>
-    <td class="num">${total}</td>
-    <td class="num acc">${r.ripe || 0}</td>
-    <td class="num rej">${r.unripe || 0}</td>
-    <td class="num rej">${r.jk || 0}</td>
-    <td class="num tp">${r.tp || 0}</td>
-    <td class="num">${rasio}</td>
-    <td class="num">${r.net_kg == null ? KOSONG : Number(r.net_kg).toLocaleString("id-ID")}</td>
-  </tr>`;
-}
-
-async function muatRekap() {
-  try {
-    const items = (await api("/api/console/recap")).items;
-    $("rekap").innerHTML = items.length
-      // 10 kolom, bukan 8: Ripe/Unripe/JK/TP menggantikan ACC/REJ. Colspan yang
-      // ketinggalan bikin baris "belum ada data" berhenti di tengah tabel.
-      ? items.map(barisRekap).join("") : barisKosong(10, "kosongRekap");
-  } catch (e) { /* nothing graded yet - the screen keeps working */ }
-}
-
 // ── tab Riwayat ────────────────────────────────────────────────────────
 // Grading hari-hari sebelumnya. Filter yang DITERAPKAN (`riwayatFilter`) terpisah
 // dari isian di layar: pindah tampilan atau halaman memakai filter yang sedang
 // ditampilkan, bukan tanggal yang baru diketik tapi belum ditekan Tampilkan,
 // supaya ringkasan dan tabel selalu bicara soal periode yang sama.
 const TAMPILAN_RIWAYAT = ["hari", "truk", "janjang"];
-let riwayatTampilan = TAMPILAN_RIWAYAT.includes(baca("riwayatTampilan", "hari"))
-  ? baca("riwayatTampilan", "hari") : "hari";
+// Rekap dibuka "per truk" tiap kali halaman dimuat, seperti tab Rekap lama (2026-09-28).
+// Pilihan tampilan sengaja tidak diingat lintas muat ulang.
+let riwayatTampilan = "truk";
 let riwayatPer = PER_SAH.includes(baca("riwayatPer", "25")) ? baca("riwayatPer", "25") : "25";
 let riwayatOffset = 0;
 let riwayatTotal = 0;
 let riwayatFilter = null;
 let riwayatHariIni = "";
+// Hari kerja dari polling state (`refresh`): Rekap dibuka di "Hari ini" tanpa menunggu
+// jawaban pertama /riwayat, yang tanpa tanggal memberi 7 hari.
+let hariKerja = "";
+let rekapTimer = null;
 // Tombol cepat yang terakhir diklik: pemenang kalau dua tombol kebetulan sama rentangnya.
 let riwayatCepat = null;
 let riwayatItems = null;
@@ -4556,6 +4583,7 @@ function tambahHari(iso, n) {
 // browser: PC kantor yang jamnya meleset tidak boleh menggeser "kemarin".
 function rentangCepat(kunci, hariIni) {
   const awalBulan = `${hariIni.slice(0, 7)}-01`;
+  if (kunci === "hariini") return [hariIni, hariIni];
   if (kunci === "kemarin") {
     const kemarin = tambahHari(hariIni, -1);
     return [kemarin, kemarin];
@@ -4571,7 +4599,7 @@ function rentangCepat(kunci, hariIni) {
 // dari server dan tanggal yang diketik tangan ikut benar. Tanggal 7: "7 hari" = "Bulan ini",
 // dan yang terakhir diklik yang ditandai.
 function cepatAktif(dari, sampai, hariIni, dipilih) {
-  const cocok = ["kemarin", "7hari", "bulanini", "bulanlalu"].filter((k) => {
+  const cocok = ["hariini", "kemarin", "7hari", "bulanini", "bulanlalu"].filter((k) => {
     const [d, s] = rentangCepat(k, hariIni);
     return d === dari && s === sampai;
   });
@@ -4778,6 +4806,7 @@ function paramRiwayat(tambahan) {
 // halaman memintanya false: angkanya tidak berubah, dan menghitungnya ulang
 // berarti memindai rentang itu sekali lagi.
 async function muatRiwayat({ ringkasan = true } = {}) {
+  if (!riwayatFilter && hariKerja) riwayatFilter = { dari: hariKerja, sampai: hariKerja };
   siapkanLineRiwayat();
   const nomor = ++riwayatMinta;
   const q = paramRiwayat({ tampilan: riwayatTampilan, ringkasan: String(ringkasan) });
@@ -4817,6 +4846,17 @@ function bacaFilterRiwayat() {
 }
 
 // Menerapkan isian layar sebagai filter baru, lalu memuat ulang beserta ringkasannya.
+// Rentang yang memuat hari ini ikut segar tiap 15 detik selama tab Rekap terbuka, seperti
+// tab Rekap lama: truk yang baru selesai muncul tanpa menekan Tampilkan. Tanggal yang
+// sedang diketik (belum diterapkan) tidak boleh tertimpa, jadi ditunda sampai diterapkan.
+function segarkanRekap() {
+  if (tab !== "rekap" || !riwayatFilter || !riwayatHariIni) return;
+  if (riwayatFilter.sampai < riwayatHariIni) return;
+  if ($("riwayat-dari").value !== riwayatFilter.dari
+      || $("riwayat-sampai").value !== riwayatFilter.sampai) return;
+  muatRiwayat({ ringkasan: true });
+}
+
 async function tampilkanRiwayat(tombol) {
   riwayatFilter = bacaFilterRiwayat();
   riwayatOffset = 0;
@@ -5058,7 +5098,6 @@ document.querySelector(".riwayat-tampilan").addEventListener("click", (ev) => {
   const tombol = ev.target.closest("button[data-tampilan]");
   if (!tombol || tombol.dataset.tampilan === riwayatTampilan) return;
   riwayatTampilan = tombol.dataset.tampilan;
-  simpan("riwayatTampilan", riwayatTampilan);
   riwayatOffset = 0;
   denganSibuk(tombol, () => muatRiwayat({ ringkasan: false }));
 });
@@ -5096,7 +5135,6 @@ $("riwayat-baris").addEventListener("click", (ev) => {
   $("riwayat-sampai").value = tombol.dataset.tanggal;
   if (tombol.dataset.plat) $("riwayat-plat").value = tombol.dataset.plat;
   riwayatTampilan = tombol.dataset.lihat;
-  simpan("riwayatTampilan", riwayatTampilan);
   tampilkanRiwayat(tombol);
 });
 
@@ -6625,7 +6663,7 @@ function pantauSesudahSimpan(pilihan, berubah) {
   const mulai = Date.now();
   let sedang = false;
   modelPantauTimer = setInterval(async () => {
-    if (tab !== "model-deteksi" || Date.now() - mulai > 60000) {
+    if (tab !== "line" || subLine !== "model-deteksi" || Date.now() - mulai > 60000) {
       clearInterval(modelPantauTimer);
       modelPantauTimer = null;
       return;
@@ -6787,7 +6825,7 @@ async function muatPlcSatuLine(kode) {
 }
 
 // The coil test is confirmed inline, not via the browser's built-in dialog -
-// see the HTML comment at #sec-plc. One shared group for every line card
+// see the HTML comment at #sub-plc. One shared group for every line card
 // (not one per card): the operator only tests one coil at a time, and cards
 // are rebuilt on every poll, which would make a group living inside one
 // simply vanish.
@@ -6864,8 +6902,6 @@ $("plc-kartu").addEventListener("click", (ev) => {
   // Weighing is far sparser than grading (two payloads per truck), so 2 s would
   // only burn queries.
   setInterval(muatTimbangan, 15000);
-  await muatRekap();
-  setInterval(muatRekap, 15000);
   // A remembered developer tab from a previous support sign-in on this shared PC:
   // cekSesi() above has already run aturTabDeveloper(), so the button (and
   // this check) only survive for an account that is still support.
