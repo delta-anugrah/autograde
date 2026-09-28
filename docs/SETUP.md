@@ -1,6 +1,9 @@
-# Palmgrade Vision: Setup Guide
+# AutoGrade: Setup Host dan Kamera
 
-Panduan instalasi lengkap dari nol sampai sistem berjalan. Ikuti urutan ini: setiap section bergantung pada section sebelumnya.
+Menyiapkan PC Linux dan kamera Hikrobot: NVIDIA Container Toolkit, MVS, jaringan kamera,
+setelan kamera, dan firewall. Urutan pasang PC pabrik yang lengkap (`.env`, image,
+launcher, AutoERP, PLC) ada di [MANUAL.md](MANUAL.md) §5; laptop developer di
+[README](../README.md).
 
 ---
 
@@ -12,8 +15,8 @@ Panduan instalasi lengkap dari nol sampai sistem berjalan. Ikuti urutan ini: set
 4. [Koneksi Fisik Kamera](#4-koneksi-fisik-kamera)
 5. [Setup IP di PC (NIC Wired)](#5-setup-ip-di-pc-nic-wired)
 6. [Konfigurasi Kamera di MVS](#6-konfigurasi-kamera-di-mvs)
-7. [Siapkan Project](#7-siapkan-project)
-8. [Build & Run Docker](#8-build--run-docker)
+7. [Project dan `.env`](#7-project-dan-env)
+8. [Menyalakan](#8-menyalakan)
 9. [Verifikasi](#9-verifikasi)
 10. [Network Hardening (Firewall)](#10-network-hardening-firewall)
 11. [Troubleshooting](#11-troubleshooting)
@@ -26,14 +29,14 @@ Panduan instalasi lengkap dari nol sampai sistem berjalan. Ikuti urutan ini: set
 - PC dengan NVIDIA GPU (CUDA-capable)
 - Kamera **Hikrobot MV-CS050-10GC** (GigE, 5MP, global shutter)
 - Kabel **CAT6** (1 per kamera)
-- **Gigabit switch** (wajib support Jumbo Frame / MTU 9000) untuk 3 kamera, untuk 1 kamera, bisa langsung ke NIC tanpa switch
+- **Gigabit switch** (wajib support Jumbo Frame / MTU 9000) untuk 3 kamera; 1 kamera boleh langsung ke NIC tanpa switch
 
 ### Software
-- Ubuntu 22.04 LTS
+- Ubuntu 22.04 LTS atau turunannya (PC Lampung: Linux Mint 22)
 - Docker + Docker Compose
 - NVIDIA Driver (>= 525)
-- Hikrobot MVS Software (sudah terinstall di `/opt/MVS/`)
-- `make` (GNU Make)
+- Hikrobot MVS Software (terpasang di `/opt/MVS/`)
+- `make` (GNU Make), hanya untuk mesin yang build dari source
 
 ### File yang dibutuhkan
 - YOLO model: `best.pt` → taruh di `models/release/`
@@ -55,13 +58,14 @@ curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-contai
   sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
 sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+sudo nvidia-ctk runtime configure --runtime=docker
 sudo systemctl restart docker
 ```
 
 Verifikasi:
 ```bash
 docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi
-# Harus muncul tabel GPU info — kalau error, cek driver NVIDIA di host
+# Harus muncul tabel GPU. Kalau error: cek driver NVIDIA di host
 ```
 
 ---
@@ -137,7 +141,9 @@ ls /opt/MVS/lib/64/libMvCameraControl.so*
 # Harus muncul: libMvCameraControl.so  libMvCameraControl.so.X.X.X.X
 ```
 
-> `make up` otomatis copy SDK dari `/opt/MVS/` ke `sdk/` dan include ke Docker image. Tidak perlu copy manual.
+> SDK sudah ikut di image (`sdk/` dilacak git). MVS di host dipakai untuk menyetel kamera
+> dan membaca serial. Build dari source (`make up`) menyalin ulang `/opt/MVS/lib/64` ke
+> `sdk/` lewat `make sync-sdk`.
 
 ---
 
@@ -165,6 +171,10 @@ Setelah kabel terpasang, LED di NIC PC dan di kamera harus menyala (link aktif 1
 
 Koneksi direct kamera-ke-PC tidak punya DHCP server, jadi NIC perlu IP statis agar bisa berkomunikasi dengan kamera.
 
+> Alamat `192.168.100.x` di bawah adalah **contoh template**. PC Lampung memakai segmen
+> `192.168.0.x`: NIC kamera `enp3s0` = `192.168.0.10/24`, PLC `192.168.0.14` di switch yang
+> sama. Rinciannya: [camera-spec.md](camera-spec.md) §4.
+
 ### Cara via GUI (GNOME Network Manager)
 
 1. Buka **Settings → Network**
@@ -191,7 +201,7 @@ sudo ip addr add 192.168.100.100/24 dev enp55s0
 sudo ip link set enp55s0 up
 ```
 
-> Ganti `enp55s0` dengan nama interface NIC yang terhubung ke kamera. Cek dengan `ip link show`.
+> Ganti `enp55s0` dengan nama interface NIC yang terhubung ke kamera (Lampung: `enp3s0`). Cek dengan `ip link show`.
 
 ### Set Jumbo Frame (opsional tapi direkomendasikan untuk 3 kamera)
 
@@ -210,13 +220,13 @@ sudo ip link set enp55s0 mtu 9000
 3. Kamera muncul di bawah `GigE → enp55s0[192.168.100.100]`
    - Jika kamera baru pertama kali, IP-nya akan `169.254.x.x` atau `192.168.26.x` (dari pabrik)
    - MVS biasanya langsung pop-up **"Modify IP Address"**
-4. Set IP statis per kamera:
+4. Set IP statis per kamera, satu per satu, di segmen yang sama dengan NIC (§5):
 
-| Kamera | IP Address        | Subnet Mask     | Gateway           |
-|--------|-------------------|-----------------|-------------------|
-| Line 1 | `192.168.100.10`  | `255.255.255.0` | `192.168.100.254` |
-| Line 2 | `192.168.100.11`  | `255.255.255.0` | `192.168.100.254` |
-| Line 3 | `192.168.100.12`  | `255.255.255.0` | `192.168.100.254` |
+| Kamera | IP Address (contoh) | Subnet Mask     | Gateway           |
+|--------|---------------------|-----------------|-------------------|
+| Line 1 | `192.168.100.10`    | `255.255.255.0` | `192.168.100.254` |
+| Line 2 | `192.168.100.11`    | `255.255.255.0` | `192.168.100.254` |
+| Line 3 | `192.168.100.12`    | `255.255.255.0` | `192.168.100.254` |
 
 5. Klik **OK**: kamera reboot sebentar lalu muncul kembali dengan IP baru
 
@@ -228,21 +238,20 @@ sudo ip link set enp55s0 mtu 9000
 2. Klik tombol **▶ Play** (Start Live) di toolbar atas
 3. Pastikan feed kamera tampil: cek tidak ada error di status bar bawah
 
-### 6.3 Set Frame Rate & Pixel Format
+### 6.3 Samakan setelan dengan `.mfs`
 
-Di panel **Feature Tree** (kanan):
+Line memuat [`config/camera/hikrobot.mfs`](../config/camera/hikrobot.mfs) ke kamera setiap kali
+connect, jadi nilai di berkas itu yang berlaku saat produksi. Di MVS cukup samakan, supaya uji di
+MVS dan isi UserSet (§6.4) tidak berbeda dari produksi:
 
-1. **Acquisition Control** → **Acquisition Frame Rate Enable** → **True** (toggle ON)
-2. **Acquisition Frame Rate** → set `10`
-3. **Acquisition Control** → **Exposure Time (us)** → sesuaikan dengan kondisi cahaya:
-   - Ruangan terang: `5000`–`10000`
-   - Ruangan gelap / conveyor: `20000`–`30000`
-4. **Image Format Control** → **Pixel Format** → pilih `BayerRG8`
+1. **Acquisition Control** → **Acquisition Frame Rate Enable** → **True**
+2. **Acquisition Frame Rate** → `15`
+3. **Exposure Time (us)**: `.mfs` memakai `22000`. Ruangan terang `5000`–`10000`, gelap / conveyor `20000`–`30000`
+4. **Image Format Control** → **Pixel Format** `BayerRG8`, binning 2×2 (`Sum`)
 
-> **Mengapa 10 fps?** Kamera 5MP di full resolution (2448×2048) mengonsumsi ~400 Mbps per kamera. Dengan 3 kamera, total ~1.2 Gbps melebihi kapasitas uplink GigE (1 Gbps). Dengan 10 fps, total bandwidth ~400 Mbps, aman untuk 1 uplink.
-
-> Spesifikasi lengkap kamera, setting runtime yang aktif, dan kenapa `.mfs` menang
-> atas `.env`: [camera-spec.md](camera-spec.md).
+Kenapa 15 fps dan binning 2×2 (bandwidth tiga kamera di satu uplink GigE): [camera-spec.md](camera-spec.md) §2–3.
+Mengubah fps secara permanen berarti mengubah `.mfs`. `CAMERA_FPS` di `.env` cuma cadangan
+untuk sumber yang tidak bisa melaporkan lajunya sendiri (webcam, berkas video).
 
 ### 6.4 Simpan ke Kamera (UserSet1)
 
@@ -257,194 +266,86 @@ Ulangi 6.2–6.4 untuk setiap kamera.
 
 ---
 
-## 7. Siapkan Project
+## 7. Project dan `.env`
 
-### 7.1 Clone & env
+- **PC pabrik** tidak memakai checkout: yang jalan image GHCR `ghcr.io/delta-anugrah/autograde`
+  dengan compose + `.env` di `/opt/palmgrade/autograde/`. Isi `.env` dan urutannya:
+  [MANUAL.md](MANUAL.md) §5.
+- **Mesin yang build dari source**: `cp .env.example .env`, lalu taruh `best.pt` di
+  `models/release/`. Arti tiap variabel: `.env.example` dan
+  [backend-overview.md](backend-overview.md) §Environment Variables.
 
-```bash
-git clone git@github.com:delta-anugrah/autograde.git
-cd autograde
-cp .env.example .env
-cp media.env.example media.env   # sumber kamera per line — wajib, tidak ikut git
-mkdir -p media                    # tempat video/foto sumber kamera ditaruh
-```
+Yang paling sering salah:
 
-⚠️ **`media.env` tidak ikut git.** Tanpa `cp` di atas, ketiga line jatuh ke
-bawaan `hikrobot`: yang memang benar untuk pabrik, jadi baru ketahuan kalau
-lupa saat ada yang mencoba mode Video/Foto dari layar Support. Detail lengkap:
-`docs/runbooks/2026-09-21-sumber-kamera-per-line.md`.
-
-### 7.2 Taruh model
-
-```bash
-mkdir -p models/release
-# copy best.pt ke models/release/
-```
-
-### 7.3 Edit `.env`
-
-Bagian yang **wajib** diisi:
-
-```env
-# ── Kamera ───────────────────────────────────────────────────
-# CAMERA_TYPE / CAMERA_VIDEO_PATH / CAMERA_PHOTO_PATH pindah ke `media.env`,
-# diatur per line dari layar Support di konsol (lihat 7.1 dan runbook di atas).
-CAMERA_DEVICE_INDEX=0       # 0 = kamera pertama yang ditemukan
-CAMERA_WIDTH=2448
-CAMERA_HEIGHT=2048
-CAMERA_FPS=15
-
-# ── Backend ──────────────────────────────────────────────────
-BACKEND_URL=http://localhost:8100        # KONSOL di mesin yang sama
-WEBHOOK_SECRET=your-webhook-secret      # harus sama dengan yang dipakai konsol
-
-# ── Machine UUIDs ────────────────────────────────────────────
-# Dulu dari tabel machines di PostgreSQL palmgrade-api (pensiun).
-# Sekarang bebas, asal UNIK per line dan tetap sama selamanya —
-# konsol mencocokkan event berdasarkan machine_id. compose sudah bawa bawaan.
-LINE_1_MACHINE_ID=<uuid-dari-db>
-LINE_2_MACHINE_ID=<uuid-dari-db>
-LINE_3_MACHINE_ID=<uuid-dari-db>
-
-# ── Model ────────────────────────────────────────────────────
-MODEL_FILE=best.pt
-CONF_THRESHOLD=0.75
-MINIMUM_SIZE=460000
-# Garis capture: janjang difoto saat kotaknya MENYENTUH garis ini (px, ruang stream).
-# 0 = tanpa garis. Sumbu: tegak (conveyor mendatar, px dari kiri) / mendatar (px dari atas).
-# Mode dev: angka keyakinan ikut digambar di kotak janjang — untuk menyetel ambang.
-# Ketiganya NILAI AWAL saja: yang dipakai sehari-hari diatur dari tab Setelan di konsol,
-# berlaku tanpa restart.
-GARIS_CAPTURE=300
-SUMBU_GARIS=tegak
-MODE_DEV=false
-```
-
-> **LINE_X_MACHINE_ID**: sejak `palmgrade-api` pensiun tidak ada lagi PostgreSQL yang harus dibaca; `docker-compose.yml` sudah membawa UUID bawaan per line. Yang wajib: **unik per line dan tidak pernah berubah**. Tiga line dengan `MACHINE_ID` sama akan menumpuk di kartu line-1 di konsol.
+- `BACKEND_URL` menunjuk **konsol** di mesin yang sama (`http://localhost:8100` di PC pabrik),
+  bukan palmgrade-api yang sudah pensiun.
+- `LINE_N_CAMERA_SERIAL` wajib diisi di pabrik, supaya tiap line selalu membuka kamera fisik
+  yang sama ([camera-spec.md](camera-spec.md) §6.1).
+- `LINE_N_MACHINE_ID` unik per line dan tidak pernah berubah. Compose sudah membawa bawaan;
+  tiga line dengan id sama menumpuk di kartu line-1 di konsol.
+- Sumber kamera per line (Hikrobot, video, foto) tidak diatur di `.env`, tapi di `media.env`
+  lewat konsol tab **Line → Sumber Kamera**
+  ([runbook](runbooks/2026-09-21-sumber-kamera-per-line.md)).
 
 ---
 
-## 8. Build & Run Docker
+## 8. Menyalakan
 
-### 8.1 Tutup MVS sebelum build
+Tutup MVS dulu. SDK hanya bisa membuka kamera dari satu proses, jadi MVS dan line tidak bisa
+memegang kamera yang sama bersamaan.
 
-MVS dan Docker **tidak bisa connect ke kamera yang sama bersamaan**, SDK hanya bisa diakses 1 proses sekaligus. Pastikan MVS sudah di-close sebelum lanjut.
+- **PC pabrik** tidak menjalankan `make up`. Launcher host `autograde` menyalakan tiga line +
+  konsol; `autograde pull` atau `autograde use vX.Y.Z` memasang versi; `autograde restart`
+  membuat ulang container sesudah `.env` diubah (reboot saja tidak cukup). Engine TensorRT
+  dibangun sekali per GPU:
+  [runbook Model Deteksi](runbooks/2026-09-24-model-deteksi-per-line.md) §Engine TensorRT per model.
+- **Build dari source:** `make up` (salin SDK, build image GPU, build engine TensorRT, start
+  semua). Build pertama ±15–30 menit (unduh PyTorch CUDA ±2,4 GB). Sesudahnya `make start` /
+  `make down` / `make restart`, per line `make up-1` / `make logs-1`. Daftar lengkap:
+  [README](../README.md).
 
-### 8.2 Build pertama kali
-
-```bash
-make down   # pastikan tidak ada container lama yang jalan
-make up     # copy SDK + build GPU image + start semua line
-```
-
-Build pertama membutuhkan waktu **~15–30 menit** (download PyTorch CUDA ~2.4 GB).
-
-> **Jika error `getaddrinfo EAI_AGAIN` atau `name resolution` saat build:**
-> Opsi "Use this connection only for resources on its network" di step 5 belum aktif, atau perlu tambah DNS manual ke Docker:
-> ```bash
-> sudo bash -c 'echo "{\"dns\": [\"8.8.8.8\", \"8.8.4.4\"]}" > /etc/docker/daemon.json'
-> sudo systemctl restart docker
-> make down && make up
-> ```
-
-### 8.3 Penggunaan sehari-hari (setelah build selesai)
-
-```bash
-make start      # start semua line (tanpa rebuild)
-make down       # stop semua
-make restart    # restart semua container tanpa rebuild
-```
-
-### 8.4 Per-line
-
-```bash
-make up-1       # start line-1 saja
-make up-2       # start line-2 saja
-make up-3       # start line-3 saja
-make logs-1     # tail logs line-1
-make logs-2     # tail logs line-2
-make logs-3     # tail logs line-3
-make logs       # tail logs semua line
-```
-
-> **`make up` vs `make start`:**
-> - `make up`: rebuild image lalu start. Gunakan saat: setup pertama, setelah update kode, atau setelah `make clean`.
-> - `make start`: start tanpa rebuild. Gunakan untuk restart harian.
-
-> **Kenapa `network_mode: host`?** Kamera Hikrobot (GigE Vision) menggunakan UDP broadcast untuk discovery. Docker bridge network memblok UDP broadcast ini sehingga kamera tidak terdeteksi di dalam container. `network_mode: host` membuat container langsung pakai network stack host, kamera langsung terjangkau.
+Line memakai `network_mode: host`: discovery GigE Vision memakai UDP broadcast yang diblok
+bridge network Docker.
 
 ---
 
 ## 9. Verifikasi
 
 ```bash
-# Health check dasar
-curl http://localhost:8001/health
-
-# Detail: GPU, kamera, worker status
-curl http://localhost:8001/health/detail
+curl http://localhost:8001/health/detail     # line 1; line 2 dan 3 di 8002 / 8003
 ```
 
-Response yang diharapkan:
-```json
-{
-  "status": "ok",
-  "camera_connected": true,
-  "gpu_available": true,
-  "workers": [
-    { "name": "capture", "alive": true },
-    { "name": "display", "alive": true },
-    { "name": "processing", "alive": true },
-    { "name": "capture_save", "alive": true }
-  ],
-  "outbox_pending": 0,
-  "capture_save_pending": 0,
-  "capture_save_dropped": 0,
-  "tp_telat": 0
-}
-```
+Yang harus terlihat: `camera_connected: true`, `gpu_available: true`, `model_backend:
+"tensorrt"` (sesudah engine dibangun), dan **`capture_save_dropped` serta `tp_telat` NOL**.
+Arti tiap field: [backend-overview.md](backend-overview.md) §`GET /health/detail`.
 
-⚠️ **`capture_save_dropped` dan `tp_telat` harus NOL.** Yang pertama berarti janjang sudah
-dipulse PLC dan masuk rekap tapi **tidak punya gambar maupun sidecar**, hilang permanen, karena
-`BatchUploadWorker._scan()` menemukan pekerjaan lewat berkas di disk. Yang kedua berarti tangkai
-panjang muncul sesudah janjangnya difoto, jadi tidak tercatat.
-
-Cek live stream di browser:
-```
-http://localhost:8001/api/video_feed
-```
+Stream langsung: `http://localhost:8001/api/video_feed`. Ringkasan ketiga line ada di konsol
+(`http://localhost:8100/console`, akun support) tab **Status**, bagian Diagnostik.
 
 ---
 
 ## 10. Network Hardening (Firewall)
 
-Vision jalan dengan `network_mode: host`, jadi port `8001/8002/8003` **terbuka di
-semua interface** PC. Selama PC prod cuma punya NIC ke switch kamera (LAN tertutup),
-ini aman. Tapi begitu PC prod dapat akses internet (mis. NIC#2 / USB-Ethernet buat
-kirim data), port itu jadi ter-ekspos, dan **satu** endpoint masih tanpa auth:
-`/api/video_feed`.
+Line dan konsol jalan dengan `network_mode: host`, jadi port `8001/8002/8003` (line) dan `8100`
+(konsol) **terbuka di semua interface** PC. Selama PC cuma punya NIC ke switch kamera (LAN
+tertutup), ini aman. Begitu PC dapat NIC internet, port itu ikut terekspos.
 
-⚠️ Paragraf ini dulu menyebut **tiga**, dan menutupnya dengan "jangan matikan
-endpoint-nya (frontend masih pakai)". Kalimat itu menahan pembersihan
-berbulan-bulan atas dasar yang tidak pernah dicek. Diperiksa 2026-09-20: dua di
-antaranya **nol pemanggil** dan sudah dihapus, `/api/set_truck` (#122) dan
-`/api/capture_reject` (#123). Tolak manual tidak hilang: konsol memakai
-`/internal/manual-reject`, yang meminta webhook secret.
+Endpoint line yang masih tanpa auth tinggal satu: `/api/video_feed`. `/api/set_truck` (#122) dan
+`/api/capture_reject` (#123) sudah dihapus 2026-09-20 karena nol pemanggil; tolak manual tetap
+ada lewat `/internal/manual-reject`, yang meminta secret.
 
-Yang tersisa `/api/video_feed`, dan itu **tidak bisa** diberi auth semudah yang
-lain: `<img src>` di `console.html` tidak mengirim header, dan gambarnya harus
-tetap muncul saat internet putus. Jadi firewall yang menjaganya, bukan kode.
+`/api/video_feed` **tidak bisa** diberi auth semudah itu: `<img src>` di `console.html` tidak
+mengirim header, dan gambarnya harus tetap muncul saat internet putus. Jadi firewall yang
+menjaganya, bukan kode.
 
-⚠️ **Jangan batasi ke "IP frontend/api" saja.** `video_feed` dipanggil dari
-**browser operator**, bukan dari server, aturan itu akan mematikan gambar di
-konsol. Izinkan dari subnet operator.
+⚠️ `video_feed` dimuat **browser yang membuka konsol**, bukan server. Batasi ke subnet
+operator, bukan ke satu IP server, atau gambar di konsol mati.
 
 ```bash
-# <SUBNET_OPERATOR> = subnet tempat browser operator berada (bukan IP server:
-# `video_feed` dimuat oleh <img src> di browser, lihat peringatan di atas).
+# <SUBNET_OPERATOR> = subnet tempat browser operator berada.
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
-sudo ufw allow from <SUBNET_OPERATOR> to any port 8001,8002,8003 proto tcp
+sudo ufw allow from <SUBNET_OPERATOR> to any port 8001,8002,8003,8100 proto tcp
 # SSH kalau remote (jangan sampai kekunci):
 sudo ufw allow from <SUBNET_ADMIN> to any port 22 proto tcp
 sudo ufw enable
@@ -452,9 +353,9 @@ sudo ufw status verbose
 ```
 
 Catatan:
-- Endpoint internal (`/internal/*`) sudah dilindungi `x-internal-secret`, tapi
-  firewall tetap lapisan pertama (defense-in-depth).
-- Kalau frontend/api jalan di **PC yang sama**, cukup blok akses dari interface
+- Endpoint `/internal/*` di line sudah dilindungi `x-internal-secret`, tapi firewall tetap
+  lapisan pertama (defense-in-depth).
+- Kalau konsol hanya dibuka di PC itu sendiri (kiosk), cukup blok akses dari interface
   internet dan izinkan `127.0.0.1` / interface LAN kamera.
 - Verifikasi dari host lain: `curl http://<IP_PROD>:8001/health` harus **timeout/refused**
   dari luar allowlist, tapi jalan dari IP yang diizinkan.
@@ -465,10 +366,10 @@ Catatan:
 
 ### Kamera tidak muncul di MVS setelah colok
 
-1. Pastikan NIC PC sudah punya IP statis (`192.168.100.100`): cek di **Settings → Network → Wired**
+1. Pastikan NIC PC sudah punya IP statis (§5): cek di **Settings → Network → Wired**
 2. Cek LED di kamera dan NIC, harus menyala (link aktif)
 3. Tekan **F5** di MVS untuk refresh
-4. Coba `ping 192.168.100.10` dari terminal: jika tidak reply, masalah di koneksi fisik atau IP
+4. `ping <IP kamera>` dari terminal: tidak ada balasan = masalah di koneksi fisik atau IP
 
 ### `gpu_available: false` di health check
 
@@ -476,25 +377,25 @@ Catatan:
 2. Cek docker restart setelah install: `sudo systemctl restart docker`
 3. Verifikasi: `docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi`
 
-### Kamera terconnect di MVS tapi tidak muncul di Docker
+### Kamera terconnect di MVS tapi tidak muncul di line
 
-- Pastikan `CAMERA_TYPE=hikrobot` di `.env`
+- Pastikan sumber line itu **Kamera Hikrobot** (konsol tab Line → Sumber Kamera; tersimpan sebagai `LINE_N_CAMERA_TYPE=hikrobot` di `media.env`)
 - Container jalan dengan `network_mode: host`, cek `docker-compose.yml`
-- Pastikan MVS sudah di-close saat Docker jalan (SDK hanya bisa diakses 1 proses sekaligus, MVS dan Docker tidak bisa connect ke kamera yang sama bersamaan)
+- Pastikan MVS sudah di-close (SDK hanya bisa diakses 1 proses sekaligus)
 
 ### Bandwidth terlalu tinggi (packet lost)
 
 - Pastikan **Acquisition Frame Rate Enable = True** di MVS sebelum save UserSet1
-- Cek **Resulting Frame Rate** di MVS, harus sekitar 10 fps, bukan 23 fps
+- Cek **Resulting Frame Rate** di MVS, harus sekitar 15 fps (nilai `.mfs`)
 - Set Jumbo Frame di NIC: `sudo ip link set enp55s0 mtu 9000`
 
 ### Gambar gelap
 
 - Naikkan **Exposure Time** di MVS → **Acquisition Control** → **Exposure Time (us)**
 - Mulai dari `20000`, sesuaikan sampai gambar cukup terang
-- Jangan lupa save ulang ke **UserSet1** setelah ubah exposure
+- Simpan ulang ke **UserSet1**, dan samakan `ExposureTime` di `.mfs`: berkas itu dimuat ulang tiap connect
 
-### `camera_connected: false` setelah `make start`
+### `camera_connected: false` setelah line menyala
 
 Normal terjadi jika kamera belum terhubung atau MVS masih buka. App tetap jalan dan workers aktif, `FrameCaptureWorker` otomatis retry setiap beberapa detik. Begitu kamera terhubung, `camera_connected` berubah jadi `true` tanpa restart.
 
@@ -505,9 +406,9 @@ Jika `camera_connected` tetap `false` meski kamera sudah terhubung:
    Cek juga `workers[capture_save].alive`: penulis bukti yang mati itu **senyap**, grading
    jalan, PLC menyortir, angka di layar naik, dan nol gambar tersimpan.
 
-### `MvImport SDK tidak ditemukan` saat container start
+### `MvImport SDK tidak ditemukan` saat container start (build dari source)
 
-Image dibuilid tanpa SDK (`WITH_SDK=false`). Terjadi jika `make up` gagal di tengah jalan atau image lama dipakai. Fix:
+Image dibuild tanpa SDK (`WITH_SDK=false`). Terjadi jika `make up` gagal di tengah jalan atau image lama dipakai. Fix:
 
 ```bash
 make down
@@ -529,7 +430,6 @@ make down && make up
 
 ### Kamera tertukar line (Line 1 menampilkan feed kamera fisik Line 2)
 
-Urutan kamera di `CAMERA_DEVICE_INDEX` bergantung pada urutan enumeration SDK. Jika tertukar:
-1. Matikan semua container: `make down`
-2. Tukar nilai `CAMERA_DEVICE_INDEX` di `docker-compose.yml` untuk line yang tertukar
-3. `make start`
+Line memilih kamera lewat serial, bukan urutan enumerasi. Isi atau tukar `LINE_N_CAMERA_SERIAL`
+di `.env` untuk line yang tertukar ([camera-spec.md](camera-spec.md) §6.1), lalu buat ulang
+container: `autograde restart` di PC pabrik, `make start` di mesin build.

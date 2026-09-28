@@ -1,6 +1,6 @@
 ---
 name: model-swap-eval
-description: Evaluasi, ganti, dan rollback model deteksi YOLO di autograde, pilih kandidat dari hasil training, pasang ke models/release/, pilih per line dari layar Support > Model Deteksi, rebuild TensorRT engine, verifikasi. Pakai kalau ada model baru dari tim AI, mau bandingin model, ganti model satu line, ganti MODEL_FILE, deteksi tiba-tiba meleset, atau rebuild engine setelah ganti GPU.
+description: Evaluasi, ganti, dan rollback model deteksi YOLO di autograde, pilih kandidat dari hasil training, pasang ke models/release/, pilih per line dari layar Support > Line > Model Deteksi, rebuild TensorRT engine, verifikasi. Pakai kalau ada model baru dari tim AI, mau bandingin model, ganti model satu line, ganti MODEL_FILE, deteksi tiba-tiba meleset, atau rebuild engine setelah ganti GPU.
 ---
 
 # Ganti & Evaluasi Model
@@ -8,7 +8,7 @@ description: Evaluasi, ganti, dan rollback model deteksi YOLO di autograde, pili
 ## Yang lagi jalan
 
 **Sejak 2026-09-24 model dipilih PER LINE dari konsol**: login support → tab
-**Model Deteksi**. Pilihan disimpan sebagai `LINE_N_MODEL_FILE` di `media.env`;
+**Line → Model Deteksi**. Pilihan disimpan sebagai `LINE_N_MODEL_FILE` di `media.env`;
 kosong = **bawaan PC** = `MODEL_FILE` di `.env` (default `best.pt`). Keduanya
 dibaca `Settings.model_file` → `ripeness_model_path` → **selalu dari
 `models/release/`**, bukan `models/`. Cara pakai, prasyarat PC pabrik (mount
@@ -94,7 +94,7 @@ Tiap run training ninggalin `results.csv` + `confusion_matrix.png`. Urutan bacan
 cp <kandidat>.pt models/release/
 ```
 
-Lalu pilih di konsol: Support → **Model Deteksi** → line yang mau dicoba →
+Lalu pilih di konsol: Support → **Line → Model Deteksi** → line yang mau dicoba →
 Simpan & Restart → konfirmasi di modal. Cuma line itu yang restart.
 
 Cara lama tetap sah untuk mengganti bawaan ketiga line sekaligus:
@@ -179,7 +179,7 @@ Coba ini dulu sebelum minta model baru, tiga-tiganya lebih murah dan bisa dibali
 |---|---|---|
 | `CONF_THRESHOLD` | `0.75` | Naik = false positive turun, kelewat naik. Turun = sebaliknya |
 | `ROI_X1/Y1/X2/Y2` | `0` (mati) | Crop area kerja. Ini yang **matiin FP background secara struktural**, bukan nebak threshold |
-| `GARIS_CAPTURE` | `0` (mati) | Titik janjang difoto (px, ruang stream). Ini knob buat "kefoto kecepetan/kelambatan", **bukan** `CONF_THRESHOLD`. Diatur dari tab Setelan konsol, tanpa restart |
+| `GARIS_CAPTURE` | `300` (`0` = tanpa garis) | Titik janjang difoto (px, ruang stream). Ini knob buat "kefoto kecepetan/kelambatan", **bukan** `CONF_THRESHOLD`. Diatur dari tab Setelan konsol, tanpa restart |
 | `SUMBU_GARIS` | `tegak` | Arah conveyor: `tegak` (px dari kiri) / `mendatar` (px dari atas) |
 | `MODE_DEV` | `false` | Nyalain buat lihat **angka confidence di kotak janjang**, satu-satunya cara melihatnya di layar sejak angkanya dibuang dari label. Wajib dinyalain waktu nyetel `CONF_THRESHOLD` |
 | `DEBUG_MODEL_OUTPUT` | kosong | Nyalain buat lihat output mentah per frame di log |

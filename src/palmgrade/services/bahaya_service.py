@@ -17,7 +17,7 @@ di sini urutan kerjanya, dan urutan itu yang membuat penghapusan aman:
 Jejak ditulis lewat `logger.warning`, bukan `LogStore.write` langsung, supaya
 lewat `SqliteLogHandler` yang sama dengan semua log lain (termasuk `redact()`).
 
-Rancangan: `docs/superpowers/specs/2026-09-25-danger-zone-design.md`.
+Aturannya: CLAUDE.md aturan 25 (Danger Zone).
 """
 from __future__ import annotations
 

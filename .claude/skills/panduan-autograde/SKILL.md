@@ -31,8 +31,10 @@ ditanya.
   *tanpa* torch (daftar pip di README Quick Start) → `make operator` → `make console`
   → `http://127.0.0.1:8100/console`. Port **8100**, bukan 8000. Kartu kamera OFFLINE
   itu normal. `make up` gagal "MVS SDK not found" di Mac itu normal.
-- **PC pabrik (Linux + GPU):** `make up` menjalankan 4 container: line di 8001–8003,
-  konsol di **8000**. Ubah kode → `make restart` (konsol saja: `make restart-console`);
+- **PC pabrik (Linux + GPU):** Lampung memakai **image produksi** + launcher `autograde`
+  (`autograde pull` / `use vX.Y.Z` / `restart` / `status`), konsol di **8100**, compose di host
+  `/opt/palmgrade/autograde` yang **tidak ikut** `pull` (skill `compose-host-pabrik`). Dari
+  source, `make up` menjalankan 4 container: line di 8001–8003, konsol di **8000**. Ubah kode → `make restart` (konsol saja: `make restart-console`);
   ubah `.env` → `make start` (satu service saja: `make up-N` / `make up-console`),
   `restart` dan reboot **tidak** membaca ulang `.env`; ubah deps/Dockerfile → `make up`.
   Setelan "tidak berlaku" padahal `.env` benar → env var proses menang atas `.env`
@@ -116,12 +118,13 @@ ditanya.
   itu merotasi secret. Kunci yang sedang dipakai ada di `.env` PC pabrik; bench lokal
   punya `make key-show` di repo `autoerp`; server → minta ke pemegangnya.
 - **`BACKEND_URL` ke API cloud.** Selalu konsol lokal.
-- **Mengganti nama image `palmgrade-vision`**, label selain ACC/REJ, memindai folder
+- **Menghidupkan lagi nama image `palmgrade-vision`** (sekarang `ghcr.io/delta-anugrah/autograde`, dijaga test), label selain ACC/REJ, memindai folder
   dari konsol, referensi `https://` di `console.html`, torch/cv2 di unit test.
 - **Mengirim data per janjang ke AutoERP.** Hanya rekap per kunjungan.
-- **Menjalankan `palmgrade` (stack lama) bersamaan AutoGrade** di PC Lampung: rebutan kamera dan nama container.
-- **Deploy / tag `vX.Y.Z`** selama Opsi B. Update pabrik = `git pull` manual
-  (`git checkout config/camera/hikrobot.mfs` dulu).
+- **Menyalakan lagi api/frontend lama** di PC Lampung (di-stop sejak 2026-09-20): rebutan kamera dan nama container.
+- **Tag `vX.Y.Z` tanpa "ya" eksplisit** dari pemilik. Rilis: PR merge commit `staging` → `main`,
+  tag, GitHub Release (skill `tag-release` di workspace `sawit`); pabrik menarik sendiri lewat
+  `autograde pull`.
 - **Menyimpan sandi mentah atau `LICENSE_PRIVATE_KEY`** di `.env`/image.
 
 ## Mode kerja di PC pabrik
@@ -132,6 +135,7 @@ minta hasilnya ditempel, baru lanjut. Gerbang keras saat pasang: `docker run --g
 
 ## Alur kode
 
-Branch baru → PR **squash** ke `staging` → PR **merge commit** ke `main`. Judul + isi PR
-bahasa Inggris, commit boleh Indonesia, tanpa `Co-Authored-By`. Test dulu
+Branch baru → PR **squash** ke `staging` → PR **merge commit** ke `main`. Judul, isi PR,
+**dan pesan commit** bahasa Inggris (repo squash memakai pesan commit), tanpa `Co-Authored-By`,
+tanpa em dash. Test dulu
 (`.venv/bin/pytest tests/unit`), murni logic tanpa hardware.

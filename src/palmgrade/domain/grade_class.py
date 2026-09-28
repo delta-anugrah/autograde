@@ -19,12 +19,12 @@ So this module keeps the two vocabularies apart rather than widening either:
 
 `ripeness_status` stays the verdict that fires pistons and is paid on;
 `grade_class` is the detail the console shows. JK rides with REJ (decided
-2026-09-16): an empty bunch is discarded like an unripe one. Its count is kept
-on the edge and deliberately NOT sent to AutoERP — there is no `JK` criterion
-there, and the two candidates both misreport: `Sampah` is *weighed*, not seen by
-a camera (Samuel, 2026-09-16), and folding JK into `Mentah` would overstate the
-unripe share the supplier is docked for. Sending it needs a contract change
-agreed with Samuel first.
+2026-09-16): an empty bunch is discarded like an unripe one. There is no `JK`
+criterion in AutoERP, so the JK count itself is not sent; but because the visit
+message books `Mentah` from the REJ count, JK bunches ARE inside `Mentah` today.
+The 2026-09-16 design wanted them kept out (`Sampah` is weighed, not seen by a
+camera, and JK in `Mentah` overstates the share the supplier is docked for).
+Which one is intended is undecided (found 2026-09-28): see CLAUDE.md rule 0.
 
 TP is not a bunch. It is a property of one — a long stalk on an otherwise
 accepted bunch — so it has no verdict and never reaches the PLC.

@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "1.5"
+versi: "1.6"
 tanggal: 28 September 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -55,7 +55,7 @@ Satu image Docker dijalankan **empat kali** dengan peran berbeda:
 | `ripe_line_1` | 8001 | kamera + AI line 1 | line 1 berhenti menilai, line lain jalan |
 | `ripe_line_2` | 8002 | kamera + AI line 2 | sama |
 | `ripe_line_3` | 8003 | kamera + AI line 3 | sama |
-| `palmgrade_console` | 8000 | layar operator `/console` | layar mati; line tetap menilai dan menyimpan, kiriman menunggu di antrean |
+| konsol (`palmgrade_console`; di Lampung `autograde-console-1`) | 8100 image produksi, 8000 kalau dipasang dari source (`make up`) | layar operator `/console` | layar mati; line tetap menilai dan menyimpan, kiriman menunggu di antrean |
 
 Line memakai `main.py` (memuat torch, OpenCV, driver kamera). Konsol memakai `console_main.py`
 yang **tidak** memuat keduanya, supaya gangguan kamera tidak mematikan layar operator.
@@ -101,7 +101,7 @@ Listrik padam, internet putus, container restart: semuanya cuma bikin **terlamba
 
 ## 3. Cara Pakai Konsol Operator
 
-Layar: `http://localhost:8000/console` di PC pabrik (`:8100` di laptop developer). Satu berkas
+Layar: `http://localhost:8100/console` di PC pabrik yang memakai image produksi (Lampung) dan di laptop developer (`make console`); `:8000` kalau PC dipasang dari source dengan `make up`. Satu berkas
 HTML tanpa CDN dan tanpa webfont, jadi tetap terbuka saat internet mati. Dwibahasa ID/EN, tema
 terang/gelap, pilihan tersimpan di browser.
 
@@ -354,7 +354,14 @@ Yang perlu diketahui:
 ## 5. Setup dari Nol: PC Pabrik
 
 Linux (dipakai Linux Mint 22 di Lampung), GPU NVIDIA, tiga kamera Hikrobot GigE. Panduan panjang
-dengan tangkapan layar MVS ada di `docs/SETUP.md`; ini urutan ringkasnya.
+MVS, NVIDIA, dan firewall ada di `docs/SETUP.md`; ini urutan ringkasnya.
+
+Ada **dua cara** memasang. Bagian ini cara **dari source** (`git clone` + `make up`, konsol di port
+8000). PC Lampung memakai cara **image produksi**: tanpa source code, cuma compose + `.env` + data di
+`/opt/palmgrade/autograde`, dijalankan launcher `autograde` (`autograde pull`, `autograde use vX.Y.Z`),
+konsol di port 8100. Langkah cara itu ada di workspace `sawit`: skill `install-factory-pc` dan
+`../docs/runbooks/2026-08-21-checklist-pasang-pc-pabrik.md`. Jebakan compose host-nya di skill
+`compose-host-pabrik`.
 
 ### 5.1 Bawa sebelum berangkat
 
@@ -437,7 +444,7 @@ Baris yang wajib disentuh. Sisanya biarkan bawaan.
 | `APP_ENV` | `production` | fail-fast kalau secret masih bawaan |
 | `CAMERA_TYPE` | `hikrobot` | |
 | `LINE_1_CAMERA_SERIAL` … `LINE_3` | serial dari MVS | pilih kamera by-serial; tanpa ini urutan kamera bisa tertukar |
-| `BACKEND_URL` | `http://localhost:8000` | tiga line mengirim ke **konsol lokal**. Jangan pernah ke API cloud |
+| `BACKEND_URL` | `http://localhost:8100` (image produksi) atau `:8000` (dari source) | tiga line mengirim ke **konsol lokal**. Jangan pernah ke API cloud |
 | `WEBHOOK_SECRET` | `openssl rand -hex 32` | dipakai line ↔ konsol di PC ini |
 | `FACTORY_TZ` | `Asia/Jakarta` (sesuaikan) | batas tanggal kerja |
 | `CONSOLE_DEFAULT_HASH`, `CONSOLE_SUPPORT_HASH` | keluaran `make hash-sandi` | dua sandi **berbeda**, catat di catatan internal. Tulis `$$` untuk tiap `$` (compose memakan `$`) |
@@ -463,8 +470,8 @@ curl -s localhost:8001/health/detail | grep -E 'camera_connected|gpu_available' 
 docker logs ripe_line_1 2>&1 | grep backend=       # backend=tensorrt
 ```
 
-Buka `http://localhost:8000/console`, masuk dengan `support@autograde.local`, cek tab
-**Diagnostik**: tiga kartu line harus hijau dengan fps terbaca.
+Buka konsol (port di §2), masuk dengan `support@autograde.local`, cek tab
+**Status** (bagian Diagnostik): tiga kartu line harus hijau dengan fps terbaca.
 
 `make up` menjalankan container dengan kode di-bind-mount (`.:/app`), jadi perubahan kode cukup
 `make restart`. Kalau mau image immutable (yang jalan = image yang dibuild, `git pull` tidak
@@ -526,13 +533,15 @@ lisensi kedaluwarsa menghentikan inferensi dan menjatuhkan heartbeat PLC, jadi t
 pabrik. Kunci publik sudah tertanam di image; `LICENSE_PRIVATE_KEY` **tidak boleh** ada di PC
 pabrik. Status terlihat di bawah tulisan AUTOGRADE (semua akun) dan di tab Status (support).
 
-### 5.11 Catatan PC Lampung (per 17 September 2026)
+### 5.11 Catatan PC Lampung (per 28 September 2026)
 
-PC Lampung masih menjalankan stack lama (`palmgrade-api` + frontend + vision) lewat skrip
-`palmgrade`, dan AutoGrade diuji dari checkout `~/autograde-test` lewat `make`. Keduanya memakai
-nama container yang sama dan berebut kamera: **jangan jalankan `palmgrade` selagi AutoGrade
-jalan**. Spek terukur (disk, GPU, NIC) ada di skill `.claude/skills/spek-pc-pabrik/`. Akses
-hanya lewat AnyDesk, tidak ada SSH masuk.
+Sejak 2026-09-20 PC Lampung menjalankan **AutoGrade saja** (api dan frontend lama di-stop, volumenya
+utuh) dengan image `ghcr.io/delta-anugrah/autograde`, compose di host `/opt/palmgrade/autograde`, dan
+launcher `autograde`. Layar operator konsol `:8100/console`, dibuka sebagai kiosk. ⚠️ **Compose host
+tidak ikut `autograde pull`**: variabel atau mount konsol yang baru harus ditambah tangan di sana
+(2026-09-28: `LICENSE_ENABLED` hilang dari blok konsol, lisensi terbaca "Inactive"). Spek terukur
+(disk, GPU, NIC) ada di skill `.claude/skills/spek-pc-pabrik/`. Akses hanya lewat AnyDesk, tidak ada
+SSH masuk.
 
 ## 6. Operasional Harian
 
@@ -645,32 +654,63 @@ Kalau gejalanya tidak ada di tabel: tab Log dulu, lalu `make logs-<line>`, lalu 
 6. **`console.html` nol referensi `https://`**, tanpa CDN, tanpa build step. Harus terbuka saat internet mati.
 7. **Per janjang tetap di pabrik.** Yang ke AutoERP hanya rekap per kunjungan; tautan detail (`detail_url`) boleh, foto ribuan tidak.
 8. **`make demo` jangan pernah di PC pabrik.** Dia menulis ke database yang sama dengan milik operator.
-9. **Nama image GHCR tetap `palmgrade-vision`.** Mengganti nama membuat PC pabrik berhenti update tanpa pesan.
+9. **Nama image GHCR `ghcr.io/delta-anugrah/autograde`**, satu nama sejak 2026-09-18, dijaga test. Tag rilis pertama di nama baru ditarik manual karena lebih tua dari versi terpasang.
 10. **`.mfs` dilacak git.** `git checkout config/camera/hikrobot.mfs` sebelum `git pull`.
 11. **Unit test tidak boleh memuat torch, OpenCV, atau hardware.** CI jalan tanpa GPU.
-12. **Alur kode:** branch baru → PR squash ke `staging` → PR merge commit ke `main`. Judul dan isi PR bahasa Inggris; commit boleh Indonesia; tanpa `Co-Authored-By`. Tidak ada tag rilis selama Opsi B.
+12. **Alur kode:** branch baru → PR squash ke `staging` → PR merge commit ke `main` → tag `vX.Y.Z` (image ke GHCR). Judul, isi PR, **dan pesan commit** bahasa Inggris (repo squash memakai pesan commit); tanpa `Co-Authored-By`; tanpa em dash.
+13. **Port 8000 di Mac milik AutoERP lokal.** Konsol di Mac selalu 8100 (`make console`).
 
 ## 9. Peta Repositori dan Dokumen
 
 | Butuh | Lihat |
 |---|---|
 | Peta aturan padat untuk AI agent | `CLAUDE.md` (= `AGENTS.md`) |
-| Pengantar 20 menit untuk orang baru | `docs/ONBOARDING.md` (+ PDF) |
 | Alur rinci, worker, invariant beserta alasannya | `docs/overview.md` |
-| Batas antar lapisan kode | `docs/architecture.md` |
-| Daftar endpoint, event, variabel lingkungan | `docs/backend-overview.md`, `README.md` |
-| Pasang PC pabrik, langkah panjang dengan MVS | `docs/SETUP.md` |
-| Spesifikasi dan setelan kamera, kenapa `.mfs` menang | `docs/camera-spec.md` |
+| Daftar lengkap endpoint, event, variabel lingkungan | `docs/backend-overview.md` |
+| Pasang dari nol: MVS, NVIDIA, firewall, IP kamera | `docs/SETUP.md` |
+| Spesifikasi dan setelan kamera, kenapa `.mfs` menang | `docs/camera-spec.md`, skill `mvs-camera` |
 | PLC: alamat M, heartbeat, commissioning | `docs/plc-mc-handoff.pdf`, `docs/plc-integration.md`, skill `plc-mc-protocol` |
+| Runbook per fitur (sumber kamera, model per line, commissioning PLC) | `docs/runbooks/` |
+| Compose di host PC pabrik (yang tidak ikut `autograde pull`) | skill `compose-host-pabrik` |
+| Kerja di layar konsol (tab, test, aturan teks) | skill `konsol-autograde` |
 | Spek terukur PC Lampung | skill `spek-pc-pabrik` |
 | Kontrak dengan AutoERP (yang harus dicocokkan dulu) | `../autoerp/docs/autograde-integration.md` |
-| Rekonsiliasi truk OPS-2, checklist PC pabrik | `../docs/runbooks/` di workspace `sawit` |
+| Pasang PC pabrik (image produksi), OPS-2, rilis | `../docs/runbooks/` dan skill `install-factory-pc` / `tag-release` di workspace `sawit` |
 | Sisa pekerjaan | `../docs/TODO-AUTOGRADE-AUTOERP.md` |
+| Membuat ulang PDF dokumen ini | `scripts/md_to_pdf.py docs/MANUAL.md` |
 
-Struktur kode di `src/palmgrade/`: `routes/` (HTTP) → `controllers/` → `services/` (logika) →
-`repositories/` (I/O berkas dan SQLite); `domain/` aturan murni tanpa I/O; `pipelines/` YOLO;
-`workers/` thread dan task latar; `integrations/` kamera, R2, ERP, outbox; `plc/` MC Protocol/Modbus;
-`license/`; `static/console.html` layar operator.
+### 9.1 Folder
+
+| Folder | Isi |
+|---|---|
+| `src/palmgrade/` | seluruh kode Python (rincian di bawah) |
+| `tests/` | `unit/` (tanpa torch/cv2, jalan di CI), `e2e/`, `integration/` |
+| `docs/` | dokumen ini, dokumen teknis, runbook, gambar diagram di `docs/assets/manual/` |
+| `scripts/` | kiosk, data demo, build engine, hash sandi, pembuat PDF |
+| `config/camera/` | `hikrobot.mfs`: setelan kamera, termasuk **fps** |
+| `sdk/` | SDK kamera Hikrobot (MVS), supaya build Docker tidak butuh internet |
+| `models/release/`, `engines/` | model YOLO (`.pt`) dan engine TensorRT per GPU. Tidak di git |
+| `artifacts/`, `state/` | hasil runtime (foto, sidecar, outbox) dan SQLite (`console.db`, antrean). Tidak di git |
+| `media/`, `videos/` | berkas video/foto untuk Sumber Kamera, dan hasil Rekam Video. Tidak di git |
+
+Kode di `src/palmgrade/` berlapis, urutannya tidak boleh dilompati: `routes/` (HTTP saja) →
+`controllers/` → `services/` (alur bisnis) → `repositories/` (disk dan SQLite) / `pipelines/`
+(YOLO) / `integrations/` (kamera, R2, ERP, outbox). `domain/` berisi aturan murni tanpa I/O (contoh
+`working_day.py`: shift malam masuk tanggal kerja mana); paling mudah diuji, paling mahal kalau
+keliru. `workers/` thread dan task latar; `plc/` MC Protocol ke CPU Mitsubishi; `license/` penjaga
+langganan; `static/console.html` layar operator dalam **satu berkas** tanpa build dan tanpa CDN.
+Konsol sengaja lewat `routes → services` tanpa controller (CLAUDE.md, bagian Layer rule).
+
+### 9.2 Langkah pertama untuk orang baru
+
+1. Baca bagian **Critical Rules** di `CLAUDE.md`.
+2. `make operator` (akun lokal), `make console`, lalu masuk ke `http://127.0.0.1:8100/console`.
+   `make demo` mengisi data contoh seminggu.
+3. Buka `src/palmgrade/workers/frame_processing_worker.py`: di sinilah janjang jadi angka.
+4. Buka `src/palmgrade/domain/working_day.py`: contoh aturan murni yang ringkas.
+5. `.venv/bin/pytest tests/unit` harus lolos semua sebelum mulai mengubah kode.
+
+Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap "memang begitu".
 
 ## 10. Glosarium
 
@@ -694,6 +734,7 @@ Struktur kode di `src/palmgrade/`: `routes/` (HTTP) → `controllers/` → `serv
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 1.6 | 28 September 2026 | ONBOARDING digabung ke sini (§9.1 folder, §9.2 langkah pertama) lalu dihapus; port konsol ditulis dua cara pasang (8100 image produksi, 8000 dari source); §5.11 Lampung per 28 September; aturan image GHCR dan alur rilis diperbarui. |
 | 1.5 | 28 September 2026 | Tab digabung dari 15 jadi 9: **Rekap** = Rekap + Riwayat (dibuka di Hari ini, Per truk), **Status** = Versi + Diagnostik + Antrean ERP, **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video. §3.4 dan §3.5 ditulis ulang. |
 | 1.4 | 28 September 2026 | Versi dan lisensi PC ditampilkan di bawah tulisan AUTOGRADE untuk semua akun, termasuk operator; klik untuk rinciannya. |
 | 1.3 | 28 September 2026 | Umpan balik tes staging: tombol cepat Riwayat menandai rentang yang dipakai, tombol **Lihat** di kolom sandi form akun, tombol aksi tab Akun berwarna, Last Sync menulis `-` untuk yang belum pernah sinkron, dan tab tetap benar saat berganti akun tanpa memuat ulang halaman. |

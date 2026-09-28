@@ -5,29 +5,30 @@
 > **`docs/overview.md`** (on-demand, not auto-loaded).
 > `AGENTS.md` is a symlink to this file (Codex/Copilot read the same map).
 >
-> **Belum pernah lihat repo ini sama sekali?** `docs/ONBOARDING.md` dulu, bahasa Indonesia,
-> satu kali baca: sistemnya ngapain, alur satu janjang, isi tiap folder, jebakannya.
+> **Belum pernah lihat repo ini sama sekali?** `docs/MANUAL.md` dulu (bahasa Indonesia, ada
+> PDF-nya): sistemnya ngapain, cara pakai konsol, pasang, operasional, peta folder (§9.1) dan
+> langkah pertama (§9.2).
 
 ---
 
 ## System Role
 
-`autograde` is the **Python AI camera service**. It runs as **3 Docker containers**
-(one per camera line), each doing real-time YOLO ripeness detection on its own port and
-delivering detection events to `palmgrade-api`. One of three repos:
+`autograde` is the **Python AI camera service plus the operator console**, one image run four
+times: **3 line containers** (one per camera, real-time YOLO ripeness detection, ports
+8001/8002/8003) and a **4th console container** (`APP_MODE=console`, `console_main.py`, no
+torch/cv2 so a dead camera line never takes the operator screen down). The lines deliver
+detection events to the **local console** (`BACKEND_URL`); the console sends one message per truck
+visit to **AutoERP**. palmgrade-api and palmgrade-frontend are **retired** (stopped 2026-09-20).
 
-Sejak Fase 2 (rencana yang dulu bernama PalmOS, sekarang **AutoERP**) ada **container ke-4 dari image yang sama**: konsol operator
-offline, `APP_MODE=console`, port **8000**, layar di `http://localhost:8000/console`. Modul
-ASGI-nya beda (`console_main.py`) supaya tidak ikut memuat torch/cv2, satu line kamera mati
-tidak menjatuhkan layar operator. Tiga line mengirim event ke konsol (`BACKEND_URL=http://localhost:8000`)
-lewat kontrak §5 yang sama persis dengan palmgrade-api, jadi `palmgrade_api` lokal tidak perlu
-hidup lagi di PC pabrik (7 → 4 container). Nol perubahan di kode line.
+Console port: **8100** in `docker-compose.prod.yml` (factory image; 8000 there belongs to the
+Frappe bench) and for `make console` on a laptop; **8000** when started from source with
+`docker-compose.yml` alone (`make up`). Screen at `http://localhost:<port>/console`.
 
 | Repo | Role | Tech | Port |
 |---|---|---|---|
-| **autograde** | **AI camera + inference (per line)** | **Python 3.11 / FastAPI** | **8001 / 8002 / 8003** |
-| palmgrade-api | Business logic, auth, SSE broker | Node.js / Express | 2500 |
-| palmgrade-frontend | Operator dashboard UI | Next.js 15 | 3050 |
+| **autograde** | **AI camera per line + operator console** | **Python 3.11 / FastAPI** | **8001-8003, console 8100** |
+| autoerp | ERP (ERPNext fork, module `palm_mill`): per-visit books, licences | Frappe | server |
+| palmgrade-api / palmgrade-frontend | retired 2026-09-20 | Node / Next.js | stopped |
 
 Full system map: `../ARCHITECTURE.md`.
 
@@ -84,7 +85,7 @@ src/palmgrade/
   schemas/         # Pydantic request/response models
   license/         # Ed25519 license guard (opsional) — `manager` memverifikasi, `gate` menghentikan
                    # grading, `summary` membentuk angka untuk layar. Tokennya DITERBITKAN di AutoERP.
-docs/              # overview.md (DETAIL), architecture.md, backend-overview.md, SETUP.md
+docs/              # MANUAL.md (+pdf), overview.md (DETAIL), backend-overview.md, SETUP.md, runbooks/
 tests/unit/        # unit test murni-logic (pytest, no torch/cv2)
 models/release/    # best.pt (required, NOT committed)
 artifacts/line-N/  # runtime output per line (NOT committed)
@@ -93,7 +94,7 @@ artifacts/line-N/  # runtime output per line (NOT committed)
 Tooling: `pyproject.toml` (pytest + ruff config, TIDAK untuk build), `.github/workflows/ci.yml` (lint + test).
 
 Layer rule (strict): `route → controller → service → repository / pipeline / integration`.
-Per-layer do/don't: `docs/overview.md` + `docs/architecture.md`.
+Per-layer do/don't: `docs/overview.md`.
 **Pengecualian sadar:** konsol jalan `route → service → repository / integration`, tanpa
 controller: controller di repo ini isinya cuma meneruskan argumen, dan konsol tidak punya
 logika yang butuh tempat menganggur di antaranya. HTTP ke line tetap di lapisan integration
@@ -188,7 +189,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | WS | `/ws/results` | legacy result push. ⚠️ `image_url`-nya dikirim **sebelum** berkasnya ada di disk (deteksi menyerahkan janjang ke `CaptureSaveWorker` lalu lanjut), jendelanya ratusan milidetik. Tidak ada yang memakai lane ini hari ini (`console.html` tidak membukanya), tapi siapa pun yang menghidupkannya harus menahan gambar sampai 404 pertama lewat. Jalur yang dipakai konsol aman: barisnya ditulis penulis **sesudah** gambarnya jadi |
 | GET | `/captures/...` | static images (mount → `artifacts/`) |
 
-**Konsol (`APP_MODE=console`, port 8000)**: surface yang berbeda total; `main.py` tidak dipakai.
+**Konsol (`APP_MODE=console`, port 8100 image produksi dan `make console`, 8000 dari source)**: surface yang berbeda total; `main.py` tidak dipakai.
 **Semua `/api/console/*` butuh sesi** (Fase 4) kecuali tiga baris pertama di bawah; tanpa cookie
 `konsol_sesi` jawabannya 401 `belum_masuk`. Lane mesin (`/internal/*`) tetap pakai webhook secret:
 
@@ -256,50 +257,37 @@ jauh tanpa disentuh berjam-jam akan ditidurkan screensaver).
 
 ---
 
-## Integration Contracts (verified against palmgrade-api code)
+## Integration Contracts
 
-**vision → api**: **dua jalur paralel, sengaja**:
-
-| Jalur | Tujuan | Kapan | Gambar |
-|---|---|---|---|
-| `OutboxRetryWorker` (realtime) | `BACKEND_URL` = API **lokal** PC pabrik | poll 1 detik | path relatif → api meng-serve dari mount `artifacts/` |
-| `BatchUploadWorker` (batch) | `UPLOAD_API_URL` = API **cloud** | tiap jam menit `UPLOAD_MINUTE` | di-`PUT` ke R2 dulu, event bawa URL R2 absolut |
-
-`event_id` keduanya identik (uuid5 `machine_id:file_timestamp`), jadi kalaupun dua jalur ini
-menunjuk API yang sama, POST kedua dibalas `already_processed`, bukan baris dobel.
-⚠️ `BACKEND_URL` **wajib** API lokal. Menunjuknya ke `api.smagri.id` adalah yang membanjiri
+**line → konsol** (`OutboxRetryWorker`, poll 1 detik): `POST {BACKEND_URL}{BACKEND_API_VER}/internal/vision/events`
+dengan header **`x-webhook-secret: WEBHOOK_SECRET`**. Kontraknya kontrak §5 lama palmgrade-api,
+dipertahankan persis supaya kode line tidak berubah. Konsol menyimpan ke `console.db` dan
+mengabaikan kiriman ulang (`INSERT OR IGNORE` per `event_id`).
+⚠️ `BACKEND_URL` **wajib** konsol lokal. Menunjuknya ke `api.smagri.id` adalah yang membanjiri
 produksi dengan ~1098 event tes pada 2026-08-09.
 
-Kontrak jalur batch (gambar dulu ke R2, lalu teks ke API cloud):
-- Image first: `PUT` to Cloudflare R2, then the text event references the public R2 URL.
-- `POST {UPLOAD_API_URL}{BACKEND_API_VER}/internal/vision/events`
-  → cloud `https://api.smagri.id/api/v1/internal/vision/events`
-- Header **`x-webhook-secret: UPLOAD_API_SECRET`** (must equal the cloud API's `WEBHOOK_SECRET`)
-- **Kill switch**: empty `R2_BUCKET` makes the whole batch a no-op (one `logger.warning` on the
-  first tick, then quiet (easy to miss in a long-running log)) nothing reaches
-  the cloud, and `/health/detail` will not tell you.
-- Payload field contract (api validates via `VisionEventRequest` DTO):
-  - `prediction` `"Acc"|"Rej"` (**required**)
-  - `ripeness_status` `"ACC"|"REJ"` (**UPPERCASE**, `@IsIn`)
-  - `tp_status` `"PASS"` or `null` (never `"TP"`)
-  - `capture_type` `"auto"|"manual"`
-  - `machine_id` UUID (must equal a `machines.id`)
-  - `event_id` UUID (idempotency; **selalu** uuid5 deterministik, auto maupun manual), `timestamp` ISO **UTC-aware**, `truck_id` optional, `bounding_box` `{x_min,y_min,x_max,y_max}`
-- api responds `200/201` or `{status:"already_processed"}` (both treated as delivered).
+- Payload: `prediction` `"Acc"|"Rej"`, `ripeness_status` `"ACC"|"REJ"` (**UPPERCASE**, divalidasi
+  saat ingest, aturan 18), `grade_class`, `tp_status` `"PASS"` atau `null` (never `"TP"`),
+  `capture_type` `"auto"|"manual"`, `machine_id` (= `LINE_N_MACHINE_ID`, cara konsol mengenali
+  line), `event_id` UUID (**selalu** uuid5 deterministik `machine_id:file_timestamp`),
+  `timestamp` ISO **UTC-aware**, `truck_id` opsional, `bounding_box` `{x_min,y_min,x_max,y_max}`.
+- `image_path` relatif; konsol meng-serve gambar tiap line di `/captures/{line_code}/...`
+  (mount read-only).
 
-**api → vision**: header **`x-internal-secret: WEBHOOK_SECRET`**:
-- `POST /internal/assignment` body `{machine_id, assignment_id, truck_id, assigned_at}`
-- `POST /internal/manual-reject` body `{machine_id, assignment_id, requested_by, requested_at}`
-- `GET /health` (line health check in api `getLines()`)
+**konsol → line** (header **`x-internal-secret: WEBHOOK_SECRET`**): `POST /internal/assignment`
+`{machine_id, assignment_id, truck_id, assigned_at}`, `POST /internal/manual-reject`, `GET
+/internal/status` (tiap 1 detik), `GET /health` dan `/health/detail` (tab Status).
 
-**Shared config:**
-- `WEBHOOK_SECRET`: **one** secret, both directions; must equal `palmgrade-api` `WEBHOOK_SECRET`. **Fail-fast:** `Settings.validate_for_runtime()` raise saat `APP_ENV=production` & secret masih default (`supersecret123`) → container tolak start. **Wajib isi `WEBHOOK_SECRET` di `.env` PC prod** (dev tetap boleh default, cuma warning).
-- `machine_id`: `LINE_1/2/3_MACHINE_ID` in `.env` = the three `machines.id` UUIDs in api Postgres.
-  docker-compose falls back to seed UUIDs if unset.
-- Saved images: api maps `machine_id → machines.line_code` and serves at
-  `/api/v1/captures/<line_code>/...` (vision's `image_path` has no line segment).
+**Batch ke cloud** (`BatchUploadWorker`, tiap jam menit `UPLOAD_MINUTE`): foto (`bbox/` + `thumb/`)
+di-`PUT` ke **Cloudflare R2**. Teks per janjang dulu ikut dikirim ke `UPLOAD_API_URL`
+(palmgrade-api cloud, **pensiun**): di pabrik dikosongkan, dan kosong = item `done` begitu fotonya
+sampai. **Kill switch**: `R2_BUCKET` kosong membuat seluruh batch no-op (satu `logger.warning`
+di tick pertama, lalu diam) dan `/health/detail` tidak memberi tahu.
 
-**SSE events** api broadcasts to frontend after ingest: `inspection_saved`, `new_quality_control` (alias), `assignment_changed`.
+**Shared config:** `WEBHOOK_SECRET` satu secret untuk kedua arah line ↔ konsol (satu `.env`).
+**Fail-fast:** `Settings.validate_for_runtime()` raise saat `APP_ENV=production` & secret masih
+bawaan (`supersecret123`), container menolak start. `LINE_1/2/3_MACHINE_ID` harus sama di line
+dan di konsol; compose membawa UUID bawaan kalau kosong.
 
 Full endpoint / payload / env tables: `docs/backend-overview.md`.
 
@@ -316,11 +304,15 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    `Tangkai Panjang` / `Matang`, kontrak beku). Jadi satu baris membawa
    **keduanya**: `ripeness_status` = verdict yang menggerakkan piston dan dibayar,
    `grade_class` = rincian yang dibaca layar.
-   ⚠️ **`JK` tidak dikirim ke AutoERP.** Tidak ada kriterianya di sana, dan dua
-   kandidat terdekat sama-sama salah lapor: `Sampah` itu **ditimbang**, bukan
-   dilihat kamera (jawaban Samuel 2026-09-16), dan menggabung JK ke `Mentah`
-   membesarkan porsi mentah yang dipotong dari supplier. Angkanya berhenti di
-   edge sampai ada perubahan kontrak yang disepakati.
+   ⚠️ **Angka `JK` sendiri tidak dikirim ke AutoERP, tapi janjangnya IKUT di `Mentah`.**
+   Kode hari ini: `Mentah` = semua janjang `REJ` (`erp_messages._grading` memakai `rej`,
+   `console_repository` menghitung `ripeness_status = 'REJ'`), dan JK itu REJ. Yang ikut
+   juga: buah Ripe yang dipaksa REJ karena bertumpuk/terlalu kecil (aturan 26).
+   Rancangan awal (2026-09-16) bilang sebaliknya: JK berhenti di edge karena `Sampah`
+   itu **ditimbang** (jawaban Samuel) dan JK di `Mentah` membesarkan porsi mentah yang
+   dipotong dari supplier. **Belum diputuskan** mana yang benar (ketahuan 2026-09-28);
+   sampai ada keputusan, jangan ubah kodenya dan jangan tulis ulang klaim "JK tidak
+   dikirim".
    ⚠️ Kelas dibaca dari **nama**, bukan urutan id. `cls_id in (0, 1)` dulu
    dipakai buat menentukan `area`, dan model yang dilatih ulang boleh menukar
    urutan kelas: `area` jadi 0 untuk buah dan penjaga `MINIMUM_SIZE` berhenti
@@ -505,8 +497,8 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     menemukan barisnya dan satu tiket pecah jadi dua.
     Pemisah ribuan tanpa desimal (`"14.820"` untuk empat belas ton) parse **bersih** jadi
     14,82 dan tidak ada apa pun di payload yang membantahnya, jadi yang menangkapnya lantai
-    `MINIMUM_BERAT_KG` = 100 kg pada `gross_kg`/`tare_kg`, truk kosong saja sudah berton-ton,
-    berat sungguhan melewatinya dua orde besaran.
+    `MINIMUM_BERAT_KG` pada `gross_kg`/`tare_kg` (sekarang 1 ton, lihat aturan 20), truk kosong
+    saja sudah berton-ton.
     ⚠️ Format asli program timbangan **belum diketahui** (`../docs/PERTANYAAN-TERBUKA.md` X1).
     Yang dibekukan di sini bentuk KITA; begitu formatnya turun, yang ditambah **adapter**,
     bukan bongkar tabel.
@@ -735,8 +727,8 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     kembali seketika; menahannya akan mengembalikan persis lag ~590 ms yang
     dihilangkan autograde#112. Yang dikorbankan videonya (bolong), bukan
     deteksinya: `frame_dibuang` di layar adalah alat ukurnya. Diukur 2026-09-22:
-    fps deteksi **+0,1%** dengan rekaman jalan, `frame_dibuang` nol
-    (`docs/runbooks/2026-09-22-ukur-biaya-encode-rekam.md`).
+    fps deteksi **+0,1%** dengan rekaman jalan, `frame_dibuang` nol (diukur di Mac dengan
+    video Lampung; belum diukur di PC Lampung sendiri).
     ⚠️ **Recorder yang rusak tidak boleh menjatuhkan line**: panggilannya
     dibungkus `try` di capture worker. Fitur developer tidak boleh bisa
     mematikan produksi.
@@ -827,7 +819,8 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     Kotak di bawah tab **Setelan** (support): restart semua line, logout paksa, hapus
     rekaman, hapus data transaksi, hapus semua data. Keputusan boleh/tidak di
     `domain/bahaya.py` (layar dan server memakai hasil yang sama), urutan kerjanya di
-    `services/bahaya_service.py`. Rancangan: `docs/superpowers/specs/2026-09-25-danger-zone-design.md`.
+    `services/bahaya_service.py`. Aturan ini satu-satunya rancangan yang tersisa (spesifikasinya
+    dihapus 2026-09-28 sesudah semuanya tercatat di sini).
     ⚠️ **Konsol tidak bisa menghapus foto line**, `artifacts/line-N` di-mount read-only ke
     konsol. Line menulis penanda `artifacts/.hapus-data`, keluar (`os._exit`), dan **awal
     lifespan `main.py`** menghapus isi `artifacts/` (kecuali `license.db*`) + berkas
@@ -986,7 +979,7 @@ memang khas satu mesin.
   tetap dikecualikan dari keduanya.
   **Disetel dari layar support konsol** (Setelan → Garis capture), satu angka untuk semua line,
   berlaku tanpa restart lewat `/internal/setelan`, jalur yang sama dengan `CONF_THRESHOLD` dan
-  `MINIMUM_SIZE`. `GARIS_CAPTURE` di `.env` cuma nilai awal, bawaannya **200**. **`0` = tidak ada
+  `MINIMUM_SIZE`. `GARIS_CAPTURE` di `.env` cuma nilai awal, bawaannya **300** (`config.py`, compose, `.env.example`). **`0` = tidak ada
   garis**, dan itu perilaku sebelum fitur ini ada (semua janjang di dalam ROI difoto),
   tetap sah, tapi harus ditulis sendiri sejak bawaannya bukan lagi 0.
   ⚠️ Angkanya ruang **stream** (`STREAM_WIDTH`, bawaan 1280), diskalakan ke ruang sensor saat
@@ -1047,11 +1040,13 @@ memang khas satu mesin.
 
 ## Pointers
 
-- **`docs/MANUAL.md`**: manual untuk orang yang ikut memegang AutoGrade: cara pakai konsol, fitur, setup dari nol (laptop + PC pabrik), operasional, troubleshooting, aturan. PDF-nya dibuat sama seperti ONBOARDING (`scripts/md_to_pdf.py docs/MANUAL.md`, diagram di `docs/assets/manual/`). Skill ringkasnya `.claude/skills/panduan-autograde/` (juga tersambung di `.agents/skills/` untuk Codex).
-- **`docs/ONBOARDING.md`**: titik masuk buat orang/agent baru: sistem ini ngapain, perjalanan satu janjang, fungsi tiap folder, jebakan, kamus istilah. PDF resminya `docs/ONBOARDING.pdf`, jangan diedit langsung: ubah `.md`-nya lalu `scripts/md_to_pdf.py docs/ONBOARDING.md` (butuh Chrome + `pip install markdown pypdf`). Blok ```` ```diagram:<nama> ```` di `.md` sengaja tetap ASCII untuk pembaca teks; PDF menukarnya dengan `docs/assets/onboarding/<nama>.svg`, jadi ubah keduanya bersamaan.
-- **`docs/overview.md`**: deep flows, ASCII diagrams, all invariants with rationale, worker/state model, Docker/SDK/GPU internals, prod deployment checklist, edge cases.
-- `docs/architecture.md`: layer boundaries (final design; don't change without discussion).
-- `docs/backend-overview.md`: full endpoint + event + env-var tables.
+- **`docs/MANUAL.md`**: manual untuk orang yang ikut memegang AutoGrade, termasuk orang baru: cara pakai konsol, fitur, setup dari nol (laptop + PC pabrik), operasional, troubleshooting, aturan, peta folder dan langkah pertama (§9). PDF-nya `scripts/md_to_pdf.py docs/MANUAL.md` (butuh Chrome + `pip install markdown pypdf`), diagram di `docs/assets/manual/`: blok ```` ```diagram:<nama> ```` di `.md` tetap ASCII, PDF menukarnya dengan `<nama>.svg`, jadi ubah keduanya bersamaan. Skill ringkasnya `.claude/skills/panduan-autograde/` (juga tersambung di `.agents/skills/` untuk Codex).
+- **`docs/overview.md`**: deep flows, ASCII diagrams, all invariants with rationale, worker/state model, Docker/SDK/GPU internals, edge cases.
+- `docs/backend-overview.md`: satu-satunya tabel lengkap endpoint + event + env var.
 - `docs/plc-integration.md`: referensi teknis PLC (env vars, pulse, throughput, commissioning); `docs/plc-mc-handoff.md`: dokumen tim PLC, peta alamat M final (Ocit 2026-09-23); skill `plc-mc-protocol`.
-- `docs/SETUP.md`: from-zero prod setup (NVIDIA toolkit, MVS, camera IP, Docker build).
-- `../ARCHITECTURE.md`: 3-repo system architecture.
+- `docs/SETUP.md`: from-zero setup (NVIDIA toolkit, MVS, camera IP, firewall).
+- `docs/runbooks/`: sumber kamera per line, model deteksi per line, commissioning PLC Lampung.
+- Skill `compose-host-pabrik`: compose dan launcher di host PC pabrik tidak ikut `autograde pull`; cek sebelum PR yang menambah env var atau mount.
+- Skill `konsol-autograde`: peta tab konsol, test per tab, aturan teks layar.
+- Pasang PC pabrik (image produksi), rilis, deploy: skill `install-factory-pc`, `tag-release`, `deploy-production` di workspace `sawit` (bukan di repo ini).
+- `../ARCHITECTURE.md`: system architecture.

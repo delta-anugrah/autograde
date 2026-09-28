@@ -5,7 +5,12 @@ Hasil akhir: **tiga line tersambung, M1000/M1001 (PC → PLC) dan M1111 (PLC →
 terbukti di GX Works2.** Catatan ini menyimpan urutan kejadiannya apa adanya, karena
 tiap hambatan yang muncul gejalanya menyesatkan dan **tidak satu pun ada di kode**.
 
-Yang dipegang tim PLC: `docs/plc-mc-handoff.md` (v1.4). Peta teknis: skill `plc-mc-protocol`.
+Yang dipegang tim PLC: `docs/plc-mc-handoff.md` (+ PDF). Referensi teknis:
+`docs/plc-integration.md`, skill `plc-mc-protocol`.
+
+> Sejak catatan ini ditulis: layar Uji PLC pindah ke tab **Line → Uji PLC** (2026-09-28), dan
+> ketikan konfirmasi `UJI` dicabut (2026-09-24). Pengaman "line tidak boleh punya truk
+> terpasang" tetap ada.
 
 ## Keadaan awal
 

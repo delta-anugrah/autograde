@@ -9,7 +9,7 @@ teruji di CI, jadi modul ini tidak boleh mengimpor torch, cv2, atau ultralytics
 `main.py` memasangnya dengan `get_settings`, `get_runtime_state`, dan
 `_jadwalkan_keluar` yang sama dengan router internal lain.
 
-Rancangan: `docs/superpowers/specs/2026-09-25-danger-zone-design.md` §5.
+Aturannya: CLAUDE.md aturan 25 (Danger Zone).
 """
 from __future__ import annotations
 
