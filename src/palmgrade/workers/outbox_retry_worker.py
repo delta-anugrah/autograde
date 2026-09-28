@@ -2,7 +2,7 @@
 
 Batch 2.4 (2026-09-28, keputusan user): data tidak boleh hilang. Dulu baris yang
 gagal 50 kali (kira-kira 7,3 jam konsol mati) ditandai `failed` dan tidak pernah
-dicoba lagi. Sekarang setiap baris dicoba sampai sampai, dan dua jenis gagal
+dicoba lagi. Sekarang setiap baris dicoba sampai terkirim, dan dua jenis gagal
 dibedakan (`domain/kirim_antrean_line.py`):
 
 - KONSOL bermasalah (tidak terjangkau, kunci ditolak, alamat salah, 5xx): semua
@@ -14,6 +14,16 @@ dibedakan (`domain/kirim_antrean_line.py`):
 - BARIS itu ditolak (400): konsol sehat, baris lain jalan terus; baris itu
   mundur sendiri sampai 10 menit dan dicoba terus.
 
+Jawaban "konsol bermasalah" (5xx, kunci, alamat) SESUDAH konsol menerima janjang
+lain (2xx) di sambungan yang sama dibaca sebagai masalah BARIS itu, bukan
+sambungan: barisnya mundur sendiri, pengurasan lanjut, sambungan tidak diputus,
+dan tidak ada WARNING putus. Tanpa itu satu janjang racun yang selalu memicu 500
+memutus sambungan, janjang baru berikutnya menyambungkannya lagi, dan sambung
+lagi menjadwalkan si racun sekarang juga (review Task 3: 511 POST dan 601
+WARNING per jam). Hanya jawaban seperti itu SEBELUM ada 2xx di sambungan ini
+(percobaan sambungan, atau kiriman pertama sesudah pulih) yang memutus. Galat
+jaringan dan timeout selalu memutus.
+
 Kontak pertama sesudah boot dan transisi putus ke tersambung menjadwalkan SEMUA
 baris untuk dikirim sekarang (`kirim_ulang_sekarang`), lalu antrean dikuras
 sampai habis dalam putaran yang sama, bukan 20 baris per detik.
@@ -23,6 +33,7 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+import threading
 import time
 from collections.abc import Callable
 from typing import Any
@@ -78,9 +89,18 @@ class OutboxRetryWorker:
             "Content-Type": "application/json",
             "x-webhook-secret": settings.webhook_secret,
         }
+        # `_sambungan`, galat terakhir, dan hitungan bangun dibaca/ditulis juga dari
+        # thread HTTP (`status()`, `bangunkan()`), jadi semuanya di bawah satu kunci.
+        self._kunci = threading.Lock()
         self._sambungan = SambunganKonsol()
         self._galat: str | None = None
         self._galat_at: float | None = None
+        self._bangun_ke = 0
+        self._bangun_awal_putaran = 0
+        #: Konsol sudah menerima (2xx) sejak sambungan ini hidup; lihat docstring modul.
+        self._terkirim_di_sambungan_ini = False
+        #: event_id yang penolakannya sudah di-WARNING di proses ini (sesudahnya DEBUG).
+        self._sudah_diperingatkan: set[str] = set()
 
     def run_loop(self) -> None:
         logger.info("OutboxRetryWorker started, target %s", self.settings.canonical_events_url)
@@ -93,27 +113,37 @@ class OutboxRetryWorker:
 
     def status(self) -> dict[str, Any]:
         """Keadaan untuk layar Antrean konsol (`GET /internal/outbox`). Kunci = `STATUS_TIDAK_DIKETAHUI`."""
-        s = self._sambungan
-        return {
-            "tersambung": s.tersambung,
-            "putus_sejak": s.putus_sejak,
-            "sebab_putus": s.sebab,
-            "coba_lagi_at": s.coba_lagi_at or None,
-            "galat": self._galat,
-            "galat_at": self._galat_at,
-        }
+        with self._kunci:
+            s = self._sambungan
+            return {
+                "tersambung": s.tersambung,
+                "putus_sejak": s.putus_sejak,
+                "sebab_putus": s.sebab,
+                "coba_lagi_at": s.coba_lagi_at or None,
+                "galat": self._galat,
+                "galat_at": self._galat_at,
+            }
 
     def bangunkan(self) -> None:
-        """Tombol Kirim Ulang: putaran berikutnya (paling lama 1 detik) mencoba, tanpa menunggu jeda."""
-        self._sambungan.bangunkan()
+        """Tombol Kirim Ulang: putaran berikutnya (paling lama 1 detik) mencoba, tanpa menunggu jeda.
+
+        Tercatat juga sebagai hitungan: kalau ditekan SELAMA percobaan yang lalu
+        gagal, `_konsol_bermasalah` membatalkan jeda yang baru dipasangnya.
+        """
+        with self._kunci:
+            self._bangun_ke += 1
+            self._sambungan.bangunkan()
 
     def _flush_pending(self) -> None:
         """Satu putaran: kuras semua yang jatuh tempo, sampai habis atau konsol bermasalah."""
         if not self.settings.enable_webhook:
             return
-        if not self._sambungan.boleh_coba(self._jam()):
-            return
-        if self._sambungan.tersambung is not True and not self._uji_sambungan():
+        with self._kunci:
+            if not self._sambungan.boleh_coba(self._jam()):
+                return
+            self._bangun_awal_putaran = self._bangun_ke
+            tersambung = self._sambungan.tersambung
+        if tersambung is not True and not self._uji_sambungan():
             return
         while batch := self.outbox.get_pending(limit=_BATCH):
             for row in batch:
@@ -145,34 +175,52 @@ class OutboxRetryWorker:
         putusan = nilai_jawaban(res.status_code, res.text)
         if putusan.nasib is Nasib.TERKIRIM:
             self.outbox.mark_delivered(row["id"])
+            self._sudah_diperingatkan.discard(row["event_id"])
             self.state.last_successful_api_push = datetime.datetime.now(datetime.UTC).isoformat()
             self._konsol_menjawab()
+            self._terkirim_di_sambungan_ini = True
             return True
         galat = f"HTTP {res.status_code}: {res.text[:200]}"
         if putusan.nasib is Nasib.DITOLAK:
             self._konsol_menjawab()
             self._baris_ditolak(row, galat)
             return True
+        if self._terkirim_di_sambungan_ini:
+            # Konsol baru saja menerima janjang lain: yang bermasalah baris ini.
+            self._baris_ditolak(row, galat)
+            return True
         self._konsol_bermasalah(row, putusan.sebab or SEBAB_TAK_TERJANGKAU, galat)
         return False
 
     def _catat_galat(self, galat: str) -> None:
-        self._galat = galat
-        self._galat_at = self._jam()
+        with self._kunci:
+            self._galat = galat
+            self._galat_at = self._jam()
 
     def _baris_ditolak(self, row: dict[str, Any], galat: str) -> None:
         self.outbox.mark_failed_attempt(row["id"], galat)
         self._catat_galat(galat)
-        # Sekali WARNING per baris (percobaan pertamanya), sesudahnya DEBUG: baris
-        # yang ditolak dicoba terus tiap 10 menit, dan WARNING tiap kali akan
-        # mengulang masalah lama yang sama di log sepanjang hari.
-        tingkat = logging.WARNING if row["retry_count"] == 0 else logging.DEBUG
+        # Sekali WARNING per baris per proses, sesudahnya DEBUG: baris yang ditolak
+        # dicoba terus tiap 10 menit, dan WARNING tiap kali akan mengulang masalah
+        # lama yang sama di log sepanjang hari. Bukan `retry_count == 0`: baris
+        # yang dihidupkan lagi (percobaan 50) atau dipakai menguji sambungan tidak
+        # pernah punya percobaan ke-0 lagi, dan penolakannya jadi tidak terlihat.
+        tingkat = logging.DEBUG if row["event_id"] in self._sudah_diperingatkan else logging.WARNING
+        self._sudah_diperingatkan.add(row["event_id"])
         logger.log(tingkat, "Konsol menolak janjang %s: %s. Dicoba lagi terus, jeda sampai 10 menit", row["event_id"], galat)
 
     def _konsol_bermasalah(self, row: dict[str, Any], sebab: str, galat: str) -> None:
-        self.outbox.mark_failed_attempt(row["id"], galat)
+        # Jeda dipasang SEBELUM menulis ke store: kalau tulisan itu gagal (disk
+        # penuh), putaran berikutnya tetap menunggu jeda, bukan mencoba lagi dan
+        # mencetak traceback tiap detik.
+        with self._kunci:
+            kabar_baru = self._sambungan.gagal(self._jam(), sebab=sebab)
+            if self._bangun_ke != self._bangun_awal_putaran:
+                self._sambungan.bangunkan()  # Kirim Ulang ditekan selama percobaan ini
+        self._terkirim_di_sambungan_ini = False
         self._catat_galat(galat)
-        if self._sambungan.gagal(self._jam(), sebab=sebab):
+        self.outbox.mark_failed_attempt(row["id"], galat)
+        if kabar_baru:
             logger.warning(
                 "Konsol tidak bisa dikirimi (%s): %s. %d janjang menunggu, dicoba lagi sendiri "
                 "paling lama tiap %d detik, tidak ada yang dibuang",
@@ -182,8 +230,10 @@ class OutboxRetryWorker:
             logger.debug("Konsol masih bermasalah (%s): %s", sebab, galat)
 
     def _konsol_menjawab(self) -> None:
-        putus_sejak = self._sambungan.putus_sejak
-        if not self._sambungan.berhasil():
+        with self._kunci:
+            putus_sejak = self._sambungan.putus_sejak
+            baru = self._sambungan.berhasil()
+        if not baru:
             return
         dijadwalkan = self.outbox.kirim_ulang_sekarang()
         if putus_sejak is None:

@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -22,6 +25,7 @@ from palmgrade.domain.kirim_antrean_line import (
     SEBAB_KUNCI_DITOLAK,
     SEBAB_TAK_TERJANGKAU,
 )
+from palmgrade.integrations.outbox import outbox_store as modul_outbox_store
 from palmgrade.integrations.outbox.outbox_store import OutboxStore
 from palmgrade.workers import outbox_retry_worker
 from palmgrade.workers.outbox_retry_worker import STATUS_TIDAK_DIKETAHUI, OutboxRetryWorker
@@ -50,15 +54,21 @@ class _Konsol:
         self.jawab: dict[str, int] = {}
         self.bawaan = 201
         self.diterima: list[str] = []
+        self.diminta: list[str] = []
         self.permintaan = 0
         self.terakhir: httpx.Request | None = None
+        #: Dipanggil di awal tiap permintaan: meniru hal yang terjadi SELAMA percobaan.
+        self.saat_diminta: Callable[[], None] | None = None
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.permintaan += 1
         self.terakhir = request
+        if self.saat_diminta is not None:
+            self.saat_diminta()
+        event_id = json.loads(request.content)["event_id"]
+        self.diminta.append(event_id)
         if self.mati:
             raise httpx.ConnectError("Connection refused", request=request)
-        event_id = json.loads(request.content)["event_id"]
         status = self.jawab.get(event_id, self.bawaan)
         if 200 <= status < 300:
             self.diterima.append(event_id)
@@ -191,6 +201,37 @@ def test_baris_ditolak_400_tidak_menahan_yang_lain(rakit):
     assert worker.status()["tersambung"] is True
 
 
+def test_baris_racun_500_mundur_sendiri_tanpa_memutus_sambungan(rakit, monkeypatch, caplog):
+    """Satu janjang yang selalu dijawab 500 di tengah konsol yang sehat. Dulu (review
+    Task 3): 500 memutus sambungan, janjang baru berikutnya menyambung lagi, dan
+    sambung lagi menjadwalkan si racun sekarang juga. Terukur 511 POST dan 601
+    WARNING per jam, `tersambung` berkedip. Sekarang 500 sesudah konsol menerima
+    janjang lain di sambungan yang sama = baris itu yang bermasalah."""
+    worker, store, konsol, jam = rakit()
+    monkeypatch.setattr(modul_outbox_store, "time", SimpleNamespace(time=jam))
+    store.add_event("racun", "m-1", {"event_id": "racun", "timestamp": "2026-09-20T03:00:00+00:00"})
+    konsol.jawab["racun"] = 500
+    janjang = []
+
+    with caplog.at_level(logging.DEBUG, logger=outbox_retry_worker.__name__):
+        for detik in range(3600):  # satu jam, satu janjang tiap 12 detik
+            if detik % 12 == 0:
+                janjang.append(f"b{len(janjang)}")
+                store.add_event(janjang[-1], "m-1", {"event_id": janjang[-1], "timestamp": "2026-09-20T03:00:00+00:00"})
+            worker._flush_pending()
+            jam.maju(1)
+
+    sambungan = [
+        r.getMessage() for r in caplog.records
+        if r.levelno >= logging.WARNING and ("tidak bisa dikirimi" in r.getMessage() or "tersambung lagi" in r.getMessage())
+    ]
+    assert len(sambungan) <= 2, sambungan
+    assert konsol.diminta.count("racun") <= 15
+    assert sorted(konsol.diterima) == sorted(janjang)
+    assert store.pending_count() == 1
+    assert worker.status()["tersambung"] is True
+
+
 def test_baris_ditolak_dicatat_warning_sekali_saja(rakit, caplog):
     worker, store, konsol, _ = rakit()
     _isi(store, 1)
@@ -289,3 +330,57 @@ def test_nama_worker_sama_dengan_yang_didaftarkan_main():
     nama = outbox_retry_worker.NAMA_WORKER
     assert f'_start_worker("{nama}"' in MAIN
     assert f'("{nama}", outbox_thread, outbox_worker)' in MAIN
+
+
+def test_baris_hidup_lagi_ditolak_400_warning_sekali(rakit, caplog):
+    """Baris Lampung yang dulu menyerah (percobaan 50) dan dihidupkan lagi: penolakan
+    pertamanya di proses ini tetap satu WARNING, bukan DEBUG karena hitungannya tinggi."""
+    worker, store, konsol, _ = rakit()
+    _isi(store, 1)
+    with store._db:
+        store._db.execute("UPDATE outbox_events SET retry_count = 50")
+    konsol.jawab["e0"] = 400
+
+    with caplog.at_level(logging.DEBUG, logger=outbox_retry_worker.__name__):
+        worker._flush_pending()
+        store.kirim_ulang_sekarang()
+        worker._flush_pending()
+
+    ditolak = [r for r in caplog.records if "menolak janjang" in r.getMessage()]
+    assert [r.levelno for r in ditolak] == [logging.WARNING, logging.DEBUG]
+
+
+def test_bangunkan_saat_percobaan_gagal_tidak_hilang(rakit):
+    """Kirim Ulang ditekan tepat saat percobaan yang akan gagal sedang berjalan: jeda
+    yang dipasang kegagalan itu tidak boleh menelan tombolnya."""
+    worker, store, konsol, jam = rakit()
+    _isi(store, 1)
+    konsol.mati = True
+    konsol.saat_diminta = worker.bangunkan
+
+    worker._flush_pending()
+    konsol.saat_diminta = None
+    jam.maju(1)
+    worker._flush_pending()
+
+    assert konsol.permintaan == 2
+
+
+def test_gagal_menulis_store_tetap_menjeda(rakit, monkeypatch):
+    """Disk penuh saat mencatat percobaan gagal: jeda sambungan sudah terpasang, jadi
+    putaran berikutnya tidak mencoba lagi (dan tidak mencetak traceback) tiap detik."""
+    worker, store, konsol, jam = rakit()
+    _isi(store, 1)
+    konsol.mati = True
+
+    def disk_penuh(*_args, **_kwargs):
+        raise sqlite3.OperationalError("database or disk is full")
+
+    monkeypatch.setattr(store, "mark_failed_attempt", disk_penuh)
+    with pytest.raises(sqlite3.OperationalError):
+        worker._flush_pending()
+    jam.maju(1)
+    worker._flush_pending()
+
+    assert konsol.permintaan == 1
+    assert worker.status()["tersambung"] is False

@@ -65,9 +65,12 @@ def nilai_jawaban(status: int, teks: str) -> Putusan:
     konsol sendiri menjawab 201 untuk event yang sudah ada). 5xx = konsol
     bermasalah, beda dari antrean AutoERP yang menganggap 500 "tersambung": di
     sini 500 hampir selalu berarti disk atau SQLite konsol, dan mencoba ribuan
-    baris ke konsol seperti itu cuma membanjiri log di dua sisi. Baris beracun
-    yang memang memicu 500 tetap tidak menahan antrean: dia mundur sendiri, dan
-    percobaan sambungan berikutnya memakai baris yang lebih jarang dicoba.
+    baris ke konsol seperti itu cuma membanjiri log di dua sisi.
+
+    Putusan ini arti jawaban itu SENDIRI. `OutboxRetryWorker` menurunkannya
+    jadi masalah baris kalau konsol sudah menerima janjang lain (2xx) di
+    sambungan yang sama: baris beracun yang selalu memicu 500 mundur sendiri,
+    tidak memutus sambungan, dan tidak menahan antrean.
     """
     if 200 <= status < 300 or "already_processed" in teks:
         return Putusan(Nasib.TERKIRIM)
