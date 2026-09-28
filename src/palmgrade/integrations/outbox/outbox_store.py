@@ -112,3 +112,31 @@ class OutboxStore:
                 "WHERE status='failed'"
             )
             return cur.rowcount
+
+    def serap(self, lama: Path) -> int:
+        """Salin antrean dari `outbox.db` lama (di artifacts/, sebelum batch 1) ke berkas ini.
+
+        Idempoten per `event_id` (INSERT OR IGNORE): mengulang aman, dan baris yang
+        sudah ada di sini (PC yang sempat rollback) tidak disentuh. Status,
+        hitungan percobaan, dan jadwal kirim ulang ikut apa adanya.
+
+        Sumbernya dibuka sebagai koneksi SQLite biasa, bukan disalin per berkas:
+        baris yang sudah commit tapi masih di `-wal` (proses lama mati sebelum
+        checkpoint) ikut terbaca, dan journal yang tertinggal dipulihkan dulu.
+        """
+        sumber = sqlite3.connect(str(lama))
+        try:
+            rows = sumber.execute(
+                "SELECT event_id, machine_id, payload, retry_count, next_retry_at, last_error, status "
+                "FROM outbox_events ORDER BY id"
+            ).fetchall()
+        finally:
+            sumber.close()
+        with self._lock, self._db:
+            cur = self._db.executemany(
+                "INSERT OR IGNORE INTO outbox_events "
+                "(event_id, machine_id, payload, retry_count, next_retry_at, last_error, status) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                rows,
+            )
+        return cur.rowcount

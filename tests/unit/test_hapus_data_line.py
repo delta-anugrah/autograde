@@ -20,12 +20,14 @@ from palmgrade.services import hapus_data_line
 from palmgrade.services.hapus_data_line import (
     MILIK_LINE_DI_STATE,
     PENANDA,
+    SELAMAT_DI_STATE,
     hapus_diminta,
     hapus_kalau_diminta,
     hapus_rekaman,
     ringkas_rekaman,
     tulis_penanda,
 )
+from palmgrade.services.pindah_db_line import BERKAS_DB_LINE
 
 
 def _isi_line(root: Path) -> tuple[Path, Path]:
@@ -306,6 +308,8 @@ def test_semua_berkas_db_di_state_digolongkan():
     di jalur native folder ini dipakai bersama. Berkas baru yang belum
     digolongkan membuat test ini merah, bukan diam-diam tertinggal atau
     terhapus dari bawah proses yang membukanya.
+
+    `BERKAS_DB_LINE` ikut: dua berkas itu pindah ke state/ di batch 1.
     """
     import re
     from pathlib import Path
@@ -315,7 +319,22 @@ def test_semua_berkas_db_di_state_digolongkan():
         m.group(1)
         for f in src.rglob("*.py")
         for m in re.finditer(r'state_dir / "([a-z_]+\.db)"', f.read_text())
-    }
+    } | set(BERKAS_DB_LINE)
     milik_line = {n for n in ditemukan if n.startswith(MILIK_LINE_DI_STATE)}
-    assert ditemukan - milik_line == _DB_KONSOL & ditemukan, ditemukan - milik_line - _DB_KONSOL
-    assert milik_line == {"upload_manifest.db"}
+    selamat = {n for n in ditemukan if n in SELAMAT_DI_STATE}
+    assert ditemukan - milik_line - selamat == _DB_KONSOL & ditemukan
+    assert milik_line == {"upload_manifest.db", "outbox.db"}
+    assert selamat == {"license.db"}
+
+
+def test_hapus_data_di_state_menyisakan_lisensi(tmp_path):
+    artifacts, state = tmp_path / "artifacts", tmp_path / "state"
+    artifacts.mkdir()
+    state.mkdir()
+    for nama in ("outbox.db", "outbox.db-wal", "license.db", "upload_manifest.db"):
+        (state / nama).write_bytes(b"x")
+    tulis_penanda(artifacts, mode="semua", diminta_oleh="s@pks.id", now=1.0)
+
+    hapus_kalau_diminta(artifacts, state)
+
+    assert sorted(p.name for p in state.iterdir()) == ["license.db"]

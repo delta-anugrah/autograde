@@ -102,3 +102,16 @@ def test_mount_captures_memakai_kelas_yang_menyaring():
 
 
 
+
+
+def test_make_line_memberi_state_per_line():
+    """Jalur native: tanpa ini tiga line berbagi satu outbox.db dan satu license.db."""
+    makefile = (AKAR / "Makefile").read_text(encoding="utf-8")
+    assert any("STATE_DIR=" in b and "state/line-$(N)" in b for b in makefile.splitlines())
+
+
+def test_state_dir_bisa_ditimpa_env(monkeypatch, tmp_path):
+    monkeypatch.setenv("STATE_DIR", str(tmp_path / "s"))
+    assert Settings().state_dir == tmp_path / "s"
+    monkeypatch.setenv("STATE_DIR", "  ")
+    assert Settings().state_dir == Settings().repo_root / "state"

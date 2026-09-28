@@ -714,8 +714,11 @@ class Settings:
 
     @property
     def state_dir(self) -> Path:
-        """Operational state (SQLite manifests) — OUTSIDE the static /captures mount."""
-        return self.repo_root / "state"
+        """SQLite di LUAR mount statis /captures. `STATE_DIR` menimpanya: jalur
+        native (`make line`) memberi tiap line foldernya sendiri, seperti volume
+        `./state/line-N` di Docker. Tanpa itu tiga line berbagi outbox.db."""
+        dari_env = os.getenv("STATE_DIR", "").strip()
+        return Path(dari_env) if dari_env else self.repo_root / "state"
 
     @property
     def results_dir(self) -> Path:

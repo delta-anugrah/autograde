@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from ..integrations.camera.base import CameraSource
 from ..integrations.notifications.webhook_client import WebhookClient
@@ -14,6 +15,7 @@ from ..repositories.truck_repository import TruckRepository
 from ..services.capture_service import CaptureService
 from ..services.health_service import HealthService
 from ..services.inspection_service import InspectionService
+from ..services.pindah_db_line import folder_db_line
 from ..services.result_service import ResultService
 from ..services.streaming_service import StreamingService
 from ..workers.runtime_state import RuntimeState
@@ -113,9 +115,15 @@ def get_streaming_service() -> StreamingService:
 
 
 @lru_cache
-def get_outbox_store() -> OutboxStore:
+def get_folder_db_line() -> Path:
+    """Satu keputusan per proses: outbox dan lisensi selalu di folder yang sama."""
     settings = get_settings()
-    return OutboxStore(db_path=settings.artifacts_dir / "outbox.db")
+    return folder_db_line(settings.artifacts_dir, settings.state_dir)
+
+
+@lru_cache
+def get_outbox_store() -> OutboxStore:
+    return OutboxStore(db_path=get_folder_db_line() / "outbox.db")
 
 
 def get_capture_service() -> CaptureService:

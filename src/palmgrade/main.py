@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .core.dependencies import (
     get_capture_repository,
+    get_folder_db_line,
     get_outbox_store,
     get_realtime_inspection_pipeline,
     get_runtime_state,
@@ -26,6 +27,7 @@ from .routes.internal import _jadwalkan_keluar
 from .routes.internal import router as internal_router
 from .routes.internal_bahaya import buat_router as buat_router_bahaya
 from .services.hapus_data_line import hapus_kalau_diminta
+from .services.pindah_db_line import pindahkan_db_lama
 from .workers.outbox_retry_worker import OutboxRetryWorker
 from .core.logging import configure_logging
 from .integrations.camera.base import CameraSource
@@ -159,9 +161,10 @@ def create_app() -> FastAPI:
     configure_logging()
     settings = get_settings()
 
+    # Folder DB line (state/, batch 1.2); lihat services/pindah_db_line.py.
+    _lic_repo = LicenseLocalRepo(get_folder_db_line() / "license.db")
     _lic_manager: LicenseManager | None = None
     if settings.lic_enabled:
-        _lic_repo = LicenseLocalRepo(settings.artifacts_dir / "license.db")
         _lic_manager = LicenseManager(settings.lic_pubkey_pem, _lic_repo, settings.lic_token)
 
     @asynccontextmanager
@@ -170,7 +173,8 @@ def create_app() -> FastAPI:
         # (lisensi, outbox, manifest upload) membuka berkasnya — SQLite yang
         # sedang dibuka tidak boleh dihapus dari bawah proses yang memakainya.
         # Tanpa penanda (keadaan normal) ini tidak melakukan apa pun.
-        # `license.db` selamat; lihat services/hapus_data_line.py.
+        # `license.db` selamat (di state/, atau di artifacts/ pada PC yang belum
+        # pindah); lihat services/hapus_data_line.py.
         hasil_hapus = hapus_kalau_diminta(settings.artifacts_dir, settings.state_dir)
         if hasil_hapus is not None:
             logger.warning(
@@ -178,6 +182,14 @@ def create_app() -> FastAPI:
                 hasil_hapus["mode"], hasil_hapus["diminta_oleh"],
                 hasil_hapus["dihapus"], hasil_hapus["gagal"],
             )
+
+        # Batch 1.2: outbox.db dan license.db dulu di artifacts/, yang disajikan
+        # di /captures. Diserap sekali SESUDAH hapus-saat-boot dan SEBELUM store
+        # mana pun dipakai lisensi atau worker.
+        await pindahkan_db_lama(
+            settings.artifacts_dir, get_folder_db_line(),
+            outbox=get_outbox_store(), lisensi=_lic_repo,
+        )
 
         if _lic_manager:
             await _lic_manager.init()

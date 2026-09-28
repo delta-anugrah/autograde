@@ -25,6 +25,8 @@ class LicenseLocalRepo:
         self._db_path = str(db_path)
 
     async def init(self) -> None:
+        # Jalur native memberi tiap line `state/line-N` yang belum tentu ada.
+        Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         async with aiosqlite.connect(self._db_path) as db:
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS license_state (
@@ -54,3 +56,17 @@ class LicenseLocalRepo:
             )
             await db.commit()
         return await self.read_max_seen()
+
+    async def serap(self, lama: Path) -> int:
+        """Ambil penanda jam dari `license.db` lama; yang tertinggi menang.
+
+        Memundurkan penanda sama dengan mengizinkan jam PC dimundurkan untuk
+        memperpanjang langganan, jadi `ratchet` (MAX) yang dipakai, bukan tulis ulang.
+        """
+        await self.init()
+        async with aiosqlite.connect(str(lama)) as db:
+            async with db.execute(
+                "SELECT max_seen_server_time FROM license_state WHERE id=1"
+            ) as cur:
+                row = await cur.fetchone()
+        return await self.ratchet(int(row[0]) if row and row[0] else 0)

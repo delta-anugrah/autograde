@@ -21,7 +21,7 @@ Kenapa saat boot: SQLite yang sedang dibuka tidak boleh dihapus dari bawah
 proses yang memakainya — proses itu tetap menulis ke berkas yang sudah
 di-unlink, dan layar terus menampilkan data lama sampai restart.
 
-`license.db*` (di `artifacts/`) TIDAK pernah dihapus: itu penjaga jam lisensi,
+`license.db*` (di `state/`, atau di `artifacts/` pada PC yang belum pindah) TIDAK pernah dihapus: itu penjaga jam lisensi,
 bukan data transaksi. Menghapusnya membuat jam PC bisa dimundurkan untuk
 memperpanjang langganan. `autograde reset-data-fresh` di terminal memang
 menghapusnya; tombol di konsol sengaja tidak.
@@ -45,7 +45,10 @@ PENANDA = ".hapus-data"
 #: Berkas MILIK LINE di `state/` (awalan: ikut `-wal`/`-shm`). Selain ini tidak
 #: pernah disentuh — di jalur native folder itu juga berisi basis data konsol.
 #: `test_semua_berkas_db_di_state_digolongkan` menjaga daftar ini lengkap.
-MILIK_LINE_DI_STATE = ("upload_manifest.db",)
+MILIK_LINE_DI_STATE = ("upload_manifest.db", "outbox.db")
+
+#: Berkas line di state/ yang TIDAK pernah dihapus tombol ini (penjaga jam lisensi).
+SELAMAT_DI_STATE = ("license.db",)
 
 #: Awalan berkas di `artifacts/` yang selamat: `license.db` beserta `-wal`,
 #: `-shm`, dan `-journal`-nya.
