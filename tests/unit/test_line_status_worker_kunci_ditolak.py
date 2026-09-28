@@ -63,6 +63,8 @@ def test_warning_ditulis_sekali_per_transisi_bukan_tiap_poll(caplog):
 
     warnings_ditolak = [r for r in caplog.records if "menolak" in r.message.lower() or "401" in r.message]
     assert len(warnings_ditolak) == 1
+    # Yang menolak adalah LINE (kunci konsol ditolak line), bukan konsol.
+    assert warnings_ditolak[0].getMessage().startswith("line-1 menolak kunci konsol")
 
 
 def test_warning_pulih_ditulis_saat_kembali_diterima(caplog):

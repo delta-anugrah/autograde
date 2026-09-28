@@ -1,8 +1,8 @@
 """Kunci konsol/line yang tidak sepakat (401/403) harus terlihat sebagai
 PENOLAKAN, bukan "line tidak menjawab".
 
-Sebelum perbaikan ini, `status()`, `health_detail()`, `plc_state()`, dan
-`rekam_berkas()` memakai `raise_for_status()` di dalam `except httpx.HTTPError`,
+Sebelum perbaikan ini, `status()`, `health_detail()`, `plc_state()`,
+`rekam_berkas()`, dan `rekam_status()` memakai `raise_for_status()` di dalam `except httpx.HTTPError`,
 jadi 401 (INTERNAL_SECRET beda antara konsol dan line) jatuh ke cabang yang sama
 dengan koneksi putus: `LINE_TIDAK_MENJAWAB`. Di rollout campuran (compose host
 pabrik cuma meneruskan `INTERNAL_SECRET` ke sebagian container) itu membuat
@@ -13,6 +13,7 @@ event lewat WEBHOOK_SECRET. `_post()` (dipakai assign/restart/dst) sudah benar
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import httpx
 import pytest
@@ -35,7 +36,7 @@ def _tolak_401(request: httpx.Request) -> httpx.Response:
 
 @pytest.mark.parametrize(
     "panggil",
-    ["status", "health_detail", "plc_state", "rekam_berkas"],
+    ["status", "health_detail", "plc_state", "rekam_berkas", "rekam_status"],
 )
 def test_kunci_ditolak_bukan_line_tidak_menjawab(panggil):
     client = _client(_tolak_401)
@@ -49,7 +50,7 @@ def test_kunci_ditolak_bukan_line_tidak_menjawab(panggil):
 
 @pytest.mark.parametrize(
     "panggil",
-    ["status", "health_detail", "plc_state", "rekam_berkas"],
+    ["status", "health_detail", "plc_state", "rekam_berkas", "rekam_status"],
 )
 def test_line_mati_sungguhan_tetap_line_tidak_menjawab(panggil):
     def handler(request: httpx.Request) -> httpx.Response:
@@ -62,11 +63,21 @@ def test_line_mati_sungguhan_tetap_line_tidak_menjawab(panggil):
     assert info.value.code == LINE_TIDAK_MENJAWAB
 
 
-def test_kunci_ditolak_menulis_warning(caplog):
-    import logging
-
-    caplog.set_level(logging.WARNING, logger="palmgrade.integrations.notifications.line_client")
+def test_kunci_ditolak_tidak_menulis_warning_tiap_poll(caplog):
+    """`status()` dipanggil tiap detik. WARNING-nya milik `LineStatusWorker`,
+    sekali per transisi; klien yang ikut menulis WARNING tiap poll mengisi
+    `docker logs` tiga baris per detik selama kuncinya beda."""
+    caplog.set_level(logging.DEBUG, logger="palmgrade.integrations.notifications.line_client")
     client = _client(_tolak_401)
-    with pytest.raises(LineUnavailable):
-        asyncio.run(client.status(LINE))
-    assert any("401" in r.message or "menolak" in r.message.lower() for r in caplog.records)
+    for _ in range(3):
+        with pytest.raises(LineUnavailable):
+            asyncio.run(client.status(LINE))
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+    assert any("401" in r.getMessage() for r in caplog.records)
+
+
+def test_status_rekam_500_tetap_line_tidak_menjawab():
+    client = _client(lambda request: httpx.Response(500, text="rusak"))
+    with pytest.raises(LineUnavailable) as info:
+        asyncio.run(client.rekam_status(LINE))
+    assert info.value.code == LINE_TIDAK_MENJAWAB

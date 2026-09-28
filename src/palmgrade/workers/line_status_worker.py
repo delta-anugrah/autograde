@@ -74,19 +74,23 @@ class LineStatusWorker:
             self._catat_unggah(line.line_code, jawab.get("unggah"))
             self._catat_kunci(line.line_code, ditolak=False)
 
-    def _catat_kunci(self, kode: str, *, ditolak: bool) -> None:
+    def _catat_kunci(self, line_code: str, *, ditolak: bool) -> None:
         """Satu WARNING per transisi masuk/keluar kunci ditolak, bukan tiap poll
-        (poll ini jalan tiap detik). Sama pola dengan `_catat_unggah`."""
-        sudah_ditolak = kode in self._kunci_ditolak
+        (poll ini jalan tiap detik). Sama pola dengan `_catat_unggah`.
+
+        Yang menolak adalah LINE: kunci yang dikirim konsol (`INTERNAL_SECRET`
+        konsol) tidak sama dengan yang dipegang line itu.
+        """
+        sudah_ditolak = line_code in self._kunci_ditolak
         if ditolak and not sudah_ditolak:
             logger.warning(
-                "Konsol %s menolak: INTERNAL_SECRET beda dari yang dipakai konsol",
-                kode,
+                "%s menolak kunci konsol: INTERNAL_SECRET di line itu beda dari yang dipakai konsol",
+                line_code,
             )
-            self._kunci_ditolak.add(kode)
+            self._kunci_ditolak.add(line_code)
         elif sudah_ditolak and not ditolak:
-            logger.warning("Konsol %s: kunci diterima lagi, sudah pulih", kode)
-            self._kunci_ditolak.discard(kode)
+            logger.warning("%s menerima kunci konsol lagi, sudah pulih", line_code)
+            self._kunci_ditolak.discard(line_code)
 
     def _catat_unggah(self, kode: str, unggah: dict[str, Any] | None) -> None:
         """Upload foto line putus/pulih → satu WARNING, supaya masuk tab Log.

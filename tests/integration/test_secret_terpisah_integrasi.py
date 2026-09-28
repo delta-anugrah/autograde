@@ -8,7 +8,7 @@ from dataclasses import replace
 
 import httpx
 import pytest
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
 from palmgrade.core.config import LineEndpoint, Settings
 from palmgrade.domain.operator_error import LINE_MENOLAK, LINE_TIDAK_MENJAWAB
@@ -18,6 +18,7 @@ from palmgrade.integrations.notifications.line_client import (
     LineUnavailable,
 )
 from palmgrade.routes.internal_bahaya import buat_router
+from palmgrade.routes.penjaga_rahasia import penjaga_internal
 from palmgrade.workers.runtime_state import RuntimeState
 
 WEBHOOK = "kunci-timbangan-palsu"
@@ -70,4 +71,22 @@ def test_konsol_dan_line_tidak_sepakat_terlihat_sebagai_galat(line):
         asyncio.run(_konsol(app, "nilai-lama-di-konsol").rekam_berkas(LINE))
     assert info.value.code == LINE_MENOLAK
     assert info.value.code != LINE_TIDAK_MENJAWAB
+    assert info.value.params.get("status") == 401
+
+
+def test_status_rekam_dengan_kunci_beda_terbaca_menolak(line, tmp_path):
+    """`/internal/rekam/status` hidup di `routes/internal.py`, yang menarik torch;
+    di sini rutenya dipasang dengan penjaga ASLI yang sama (`penjaga_internal`)
+    supaya jawaban 401 yang sungguhan sampai ke `LineClient.rekam_status`."""
+    app, _ = line
+    kunci_line = replace(Settings(), repo_root=tmp_path / "line-1", internal_secret=INTERNAL)
+
+    @app.get("/internal/rekam/status", dependencies=[Depends(penjaga_internal(lambda: kunci_line))])
+    def rekam_status() -> dict:
+        return {"merekam": False, "berkas": None}
+
+    assert asyncio.run(_konsol(app, INTERNAL).rekam_status(LINE)) == {"merekam": False, "berkas": None}
+    with pytest.raises(LineUnavailable) as info:
+        asyncio.run(_konsol(app, "nilai-lama-di-konsol").rekam_status(LINE))
+    assert info.value.code == LINE_MENOLAK
     assert info.value.params.get("status") == 401

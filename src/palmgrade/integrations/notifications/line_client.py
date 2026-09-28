@@ -230,20 +230,12 @@ class LineClient:
         Ini layar support yang dibuka sesekali, bukan strip status yang
         dipolling tiap detik, jadi menunggu sedikit lebih lama tidak
         memperlambat apa pun yang dilihat operator.
+
+        Kunci yang ditolak (401/403) sampai sebagai `LINE_MENOLAK`, bukan "tidak
+        menjawab", lewat `_get_json` yang sama dengan pembacaan status lain.
+        Gagalnya dicatat pemanggil (`rekam_status_semua`), sekali per line.
         """
-        url = f"{self._settings.console_line_host}:{line.port}/internal/rekam/status"
-        try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
-                res = await client.get(
-                    url, headers={"x-internal-secret": self._settings.internal_secret}
-                )
-                res.raise_for_status()
-                return res.json()
-        except httpx.HTTPError as exc:
-            logger.warning("Status rekam dari %s gagal: %s", line.line_code, exc)
-            raise LineUnavailable(
-                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
-            ) from exc
+        return await self._get_json(line, "/internal/rekam/status", timeout_s=_TIMEOUT_S)
 
     # ── Danger Zone (layar Setelan, support) ────────────────────────────────
 
@@ -283,8 +275,8 @@ class LineClient:
     async def _get_json(
         self, line: LineEndpoint, path: str, *, timeout_s: float
     ) -> dict[str, Any]:
-        """GET dipakai empat pembacaan status (`status`, `health_detail`,
-        `plc_state`, `rekam_berkas`).
+        """GET dipakai lima pembacaan status (`status`, `health_detail`,
+        `plc_state`, `rekam_berkas`, `rekam_status`).
 
         401/403 diperiksa SEBELUM `raise_for_status()` dan dilempar sebagai
         `LINE_MENOLAK` (sama seperti `_post`), bukan `LINE_TIDAK_MENJAWAB`:
@@ -295,6 +287,10 @@ class LineClient:
         masih menggrading dan masih mengirim event lewat WEBHOOK_SECRET
         tampil OFFLINE di layar operator, dan Danger Zone melaporkan "line
         mati" padahal cuma kuncinya yang beda.
+
+        Penolakan dicatat DEBUG, bukan WARNING: `status()` dipanggil tiap detik,
+        dan WARNING-nya milik `LineStatusWorker` (sekali per transisi). Pembaca
+        lain menerima `LINE_MENOLAK` dan menampilkannya sendiri.
         """
         url = f"{self._settings.console_line_host}:{line.port}{path}"
         try:
@@ -307,7 +303,7 @@ class LineClient:
                 LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
             ) from exc
         if res.status_code in (401, 403):
-            logger.warning(
+            logger.debug(
                 "%s ke %s menolak kunci: HTTP %s (INTERNAL_SECRET beda antara konsol dan line?)",
                 path, line.line_code, res.status_code,
             )
