@@ -657,7 +657,11 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     Ketujuh `/api/console/dev/*` (tabel di atas) lewat `require_support`, itu yang
     sebenarnya menolak 403, dan tab developer yang disembunyikan dari operator biasa di
     `console.html` cuma kerapian, bukan pengaman: siapa pun yang tahu URL-nya tetap
-    ditolak backend kalau `role` bukan `support`.
+    ditolak backend kalau `role` bukan `support`. Elemen `data-dev="1"` dibuang dari DOM
+    untuk non-support dan **dikembalikan ke tempatnya** saat akun support masuk di halaman
+    yang sama (`aturTabDeveloper`); tab yang diingat tapi sudah dibuang jatuh ke Grading
+    (`pastikanTabTersedia`). Dulu cuma dibuang: operator yang mewarisi tab Setelan dapat
+    layar kosong, dan support sesudahnya harus memuat ulang halaman (tes staging 2026-09-28).
     **`ERP_ALLOWED_ROLES`** (bawaan `support`) membatasi role mana yang boleh datang
     dari AutoERP (`domain/role.py`, `filter_erp_role`): **satu-satunya rem sisi
     pabrik**: kosongkan lalu restart, dan tidak ada akun ERP yang bisa membuka layar

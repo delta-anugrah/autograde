@@ -818,7 +818,7 @@ def test_tab_developer_ditandai_data_dev():
 
 def test_tab_developer_disembunyikan_default():
     """Without a support role, the developer tab must not appear on screen."""
-    assert "hapusTabDeveloper" in HTML
+    assert "aturTabDeveloper" in HTML
 
 
 def test_konsol_tetap_tanpa_referensi_https():

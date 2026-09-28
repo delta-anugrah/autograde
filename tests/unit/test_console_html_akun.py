@@ -255,3 +255,72 @@ def test_email_di_tombol_di_escape():
     html = _baris({**_AKUN, "asal": "lokal", "email": 'x"><img src=x>@pks.id'})
     assert "<img src=x>" not in html
     assert "&quot;&gt;&lt;img" in html
+
+
+# ── umpan balik tes staging 2026-09-28 ─────────────────────────────────────
+
+
+def _aturan_css(selektor: str) -> str:
+    cocok = re.search(re.escape(selektor) + r"\s*\{([^}]*)\}", HTML)
+    assert cocok, f"aturan {selektor!r} tidak ada"
+    return cocok.group(1)
+
+
+@butuh_node
+def test_tombol_aksi_akun_berwarna_menurut_akibatnya():
+    """Dulu abu-abu kusam dan menyatu dengan tabel, tidak terbaca sebagai tombol."""
+    def kelas(html: str) -> list[str]:
+        return re.findall(r'<button[^>]*class="(aksi-[a-z]+)"', html)
+
+    aktif = _baris({**_AKUN, "asal": "lokal", "role": "operator"})
+    mati = _baris({**_AKUN, "asal": "lokal", "keadaan": "mati", "role": "support"})
+
+    assert kelas(aktif) == ["aksi-sandi", "aksi-matikan", "aksi-role"]
+    assert kelas(mati) == ["aksi-sandi", "aksi-aktifkan", "aksi-role"]
+    assert "--acc-bg" in _aturan_css(".akun-tombol button.aksi-sandi")
+    assert "--rej" in _aturan_css(".akun-tombol button.aksi-matikan")
+    assert "background:var(--acc)" in _aturan_css(".akun-tombol button.aksi-aktifkan").replace(" ", "")
+    assert "--warn" in _aturan_css(".akun-tombol button.aksi-role")
+
+
+def test_kolom_sandi_tambah_akun_punya_tombol_lihat():
+    panel = _panel()
+    for id_ in ("akun-sandi", "akun-sandi-ulang"):
+        kotak = re.search(
+            rf'<span class="sandi-baris">\s*<input[^>]*id="{id_}"[^>]*>\s*<button[^>]*data-lihat-sandi', panel
+        )
+        assert kotak, id_
+
+
+@butuh_node
+def test_panel_ganti_sandi_juga_punya_tombol_lihat():
+    skrip = _STUB + _fungsi("panelAkun") + (
+        '\nconsole.log(JSON.stringify(panelAkun("sandi", {email: "ani@pks.id", nama: "Ani"})));'
+    )
+    html = json.loads(subprocess.run([NODE, "-e", skrip], capture_output=True, text=True,
+                                     check=True, timeout=30).stdout)
+
+    assert len(re.findall(r'<span class="sandi-baris">\s*<input[^>]*type="password"[^>]*>\s*<button[^>]*data-lihat-sandi',
+                          html)) == 2
+
+
+@butuh_node
+def test_tombol_lihat_membalik_jenis_kolom_dan_labelnya_bolak_balik():
+    skrip = _STUB + _fungsi("balikLihatSandi") + """
+const tombol = { a: {}, setAttribute(k, v) { this.a[k] = v; }, textContent: "" };
+const kolom = { type: "password" };
+const jejak = [];
+balikLihatSandi(tombol, kolom); jejak.push([kolom.type, tombol.a["aria-pressed"], tombol.textContent]);
+balikLihatSandi(tombol, kolom); jejak.push([kolom.type, tombol.a["aria-pressed"], tombol.textContent]);
+console.log(JSON.stringify(jejak));
+"""
+    jejak = json.loads(subprocess.run([NODE, "-e", skrip], capture_output=True, text=True,
+                                      check=True, timeout=30).stdout)
+
+    assert jejak == [["text", "true", "sembunyikanSingkat"], ["password", "false", "lihatSingkat"]]
+
+
+def test_sandi_tertutup_lagi_saat_form_ditutup_dan_saat_ganti_bahasa():
+    """Sandi yang sedang terlihat tidak boleh tertinggal terlihat untuk isian berikutnya."""
+    assert "tutupLihatSandi(" in _fungsi("tutupFormAkun")
+    assert "tutupLihatSandi(" in _fungsi("terapkanBahasa")

@@ -210,3 +210,32 @@ def test_rentang_cepat_akhir_tahun():
     hasil = _node(["tambahHari", "rentangCepat"], 'rentangCepat("bulanlalu", "2026-01-15")')
 
     assert hasil == ["2025-12-01", "2025-12-31"]
+
+
+
+# ── umpan balik tes staging 2026-09-28: tombol cepat yang sedang dipakai ─────
+
+
+@butuh_node
+def test_tombol_cepat_yang_aktif_mengikuti_rentang_tanggal():
+    """User tidak tahu rentang mana yang sedang dipakai. Yang ditandai ditentukan dari
+    tanggal di kotak, jadi rentang bawaan dari server dan tanggal yang diketik tangan
+    ikut benar; kalau dua tombol kebetulan sama (tanggal 7), yang diklik yang ditandai."""
+    hasil = _node(["tambahHari", "rentangCepat", "cepatAktif"], """[
+      cepatAktif("2026-09-21", "2026-09-27", "2026-09-27", null),
+      cepatAktif("2026-09-26", "2026-09-26", "2026-09-27", null),
+      cepatAktif("2026-09-01", "2026-09-27", "2026-09-27", null),
+      cepatAktif("2026-08-01", "2026-08-31", "2026-09-27", null),
+      cepatAktif("2026-09-20", "2026-09-22", "2026-09-27", "7hari"),
+      cepatAktif("2026-09-01", "2026-09-07", "2026-09-07", "bulanini"),
+      cepatAktif("2026-09-01", "2026-09-07", "2026-09-07", null)]""")
+
+    assert hasil == ["7hari", "kemarin", "bulanini", "bulanlalu", None, "bulanini", "7hari"]
+
+
+def test_tombol_cepat_ditandai_tiap_tanggal_berubah():
+    assert "tandaiCepat()" in _fungsi("muatRiwayat")
+    for id_ in ("riwayat-dari", "riwayat-sampai"):
+        assert re.search(rf'\$\("{id_}"\)\.addEventListener\("input", tandaiCepat\)', HTML), id_
+    aturan = re.search(r"\.riwayat-cepat button\.aktif\s*\{([^}]*)\}", HTML)
+    assert aturan and "background:var(--acc)" in aturan.group(1).replace(" ", "")
