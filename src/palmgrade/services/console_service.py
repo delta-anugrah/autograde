@@ -670,11 +670,18 @@ class ConsoleService(LayarLineSupport):
         )
         return {"accepted": True, "line_code": line_code}
 
-    async def piston(self, line_code: str, open: bool) -> dict[str, Any]:
-        """Forward the piston request to the line. A line that refuses = an operator error."""
+    async def piston(self, line_code: str, open: bool, *, requested_by: str) -> dict[str, Any]:
+        """Forward the piston request to the line, in the name of whoever pressed it.
+
+        Logged BEFORE the call: this moves hardware, and a press on a line that
+        does not answer is exactly the one somebody asks about later.
+        """
         line = self._require_line(line_code)
+        logger.warning(
+            "Piston %s %s oleh %s", line_code, "dibuka" if open else "ditutup", requested_by
+        )
         await self.line_client.set_piston(
-            line, open=open, requested_by="operator",
+            line, open=open, requested_by=requested_by,
             requested_at=datetime.now(self.tz).isoformat(),
         )
         return {"line_code": line_code, "open": open}

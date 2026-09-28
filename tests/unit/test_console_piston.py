@@ -21,13 +21,13 @@ from palmgrade.workers.line_status_worker import LineStatusWorker
 
 class FakeLine:
     def __init__(self, *, down: bool = False) -> None:
-        self.commands: list[tuple[str, bool]] = []
+        self.commands: list[tuple[str, bool, str]] = []
         self.down = down
 
     async def set_piston(self, line, *, open, requested_by, requested_at):
         if self.down:
             raise LineUnavailable(LINE_TIDAK_MENJAWAB, "line tidak menjawab")
-        self.commands.append((line.line_code, open))
+        self.commands.append((line.line_code, open, requested_by))
 
     async def status(self, line):
         if self.down:
@@ -44,14 +44,31 @@ def service(tmp_path):
 
 def test_piston_command_is_forwarded_to_the_line(service):
     code = service.lines[0].line_code
-    asyncio.run(service.piston(code, True))
-    assert service.line_client.commands == [(code, True)]
+    asyncio.run(service.piston(code, True, requested_by="Pak Budi"))
+    assert service.line_client.commands == [(code, True, "Pak Budi")]
 
 
 def test_a_down_line_surfaces_as_an_operator_error(service):
     service.line_client.down = True
     with pytest.raises(LineUnavailable):
-        asyncio.run(service.piston(service.lines[0].line_code, True))
+        asyncio.run(service.piston(service.lines[0].line_code, True, requested_by="Pak Budi"))
+
+
+def test_tiap_tekanan_piston_meninggalkan_warning_dengan_nama(service, caplog):
+    code = service.lines[0].line_code
+    with caplog.at_level("WARNING", logger="palmgrade.services.console_service"):
+        asyncio.run(service.piston(code, True, requested_by="Pak Budi"))
+
+    assert any("Pak Budi" in r.getMessage() and code in r.getMessage() for r in caplog.records)
+
+
+def test_line_mati_tetap_meninggalkan_jejak(service, caplog):
+    service.line_client.down = True
+    with caplog.at_level("WARNING", logger="palmgrade.services.console_service"):
+        with pytest.raises(LineUnavailable):
+            asyncio.run(service.piston(service.lines[0].line_code, True, requested_by="Pak Budi"))
+
+    assert any("Pak Budi" in r.getMessage() for r in caplog.records)
 
 
 def test_the_worker_stores_line_status_and_state_uses_it(service):

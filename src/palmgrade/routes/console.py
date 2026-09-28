@@ -390,9 +390,15 @@ async def manual_reject(line_code: str, service: Service, operator: Operator) ->
 
 
 @router.post("/api/console/lines/{line_code}/piston")
-async def piston(line_code: str, service: Service, open: Annotated[bool, Body(embed=True)]) -> dict:
+async def piston(
+    line_code: str, service: Service, operator: Operator, open: Annotated[bool, Body(embed=True)]
+) -> dict:
+    """Moves hardware, so behind the session like every operator lane (batch 1.1),
+    and recorded against whoever is signed in, like manual-reject."""
     try:
-        return await service.piston(line_code, open)
+        return await service.piston(
+            line_code, open, requested_by=operator["full_name"] or operator["email"]
+        )
     except ValueError as exc:
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
