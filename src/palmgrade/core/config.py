@@ -156,6 +156,19 @@ def parse_coil_list(value: str | None) -> tuple[int, ...]:
 _DEFAULT_WEBHOOK_SECRET = "supersecret123"
 
 
+def _internal_secret_dari_env() -> str:
+    """Kunci perintah konsol ke line (`x-internal-secret`).
+
+    `INTERNAL_SECRET` kalau diisi (dipangkas); kalau tidak ada atau kosong,
+    `WEBHOOK_SECRET`, supaya `.env` PC yang dipasang sebelum batch 1 tetap
+    jalan. Dipisah karena program timbangan (pihak ketiga) memegang
+    WEBHOOK_SECRET, dan kunci yang sama dulu juga membuka restart, hapus data,
+    dan coil PLC di line.
+    """
+    sendiri = os.getenv("INTERNAL_SECRET", "").strip()
+    return sendiri or os.getenv("WEBHOOK_SECRET", _DEFAULT_WEBHOOK_SECRET)
+
+
 class LineEndpoint(NamedTuple):
     """One camera line as the operator console sees it.
 
@@ -202,7 +215,7 @@ class Settings:
     backend_url: str = field(default_factory=lambda: os.getenv("BACKEND_URL", "http://localhost:2500"))
     backend_api_ver: str = field(default_factory=lambda: os.getenv("BACKEND_API_VER", "/api/v1"))
     webhook_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", _DEFAULT_WEBHOOK_SECRET))
-    internal_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", _DEFAULT_WEBHOOK_SECRET))
+    internal_secret: str = field(default_factory=_internal_secret_dari_env)
 
     # Camera
     camera_type: str = field(default_factory=lambda: os.getenv("CAMERA_TYPE", "hikrobot"))
@@ -576,6 +589,11 @@ class Settings:
                 "Set it to a secret value (identical to palmgrade-api's) before deploying."
             )
         logger.warning("WEBHOOK_SECRET is the default — set it before a production deploy.")
+
+    @property
+    def internal_secret_terpisah(self) -> bool:
+        """False = perintah ke line masih memakai kunci milik program timbangan."""
+        return self.internal_secret != self.webhook_secret
 
     # ------------------------------------------------------------------ paths
 

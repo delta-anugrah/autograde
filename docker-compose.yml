@@ -63,6 +63,9 @@ services:
       - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
+      # Kunci perintah konsol ke line (restart, hapus data, PLC). Kosong = sama
+      # dengan WEBHOOK_SECRET, jadi PC lama tetap jalan. WAJIB sama di 3 line + konsol.
+      - INTERNAL_SECRET=${INTERNAL_SECRET:-}
       - MODEL_FILE=${MODEL_FILE:-best.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
@@ -217,6 +220,9 @@ services:
       - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
+      # Kunci perintah konsol ke line (restart, hapus data, PLC). Kosong = sama
+      # dengan WEBHOOK_SECRET, jadi PC lama tetap jalan. WAJIB sama di 3 line + konsol.
+      - INTERNAL_SECRET=${INTERNAL_SECRET:-}
       - MODEL_FILE=${MODEL_FILE:-best.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
@@ -370,6 +376,9 @@ services:
       - BACKEND_URL=${BACKEND_URL:-http://localhost:2500}
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
+      # Kunci perintah konsol ke line (restart, hapus data, PLC). Kosong = sama
+      # dengan WEBHOOK_SECRET, jadi PC lama tetap jalan. WAJIB sama di 3 line + konsol.
+      - INTERNAL_SECRET=${INTERNAL_SECRET:-}
       - MODEL_FILE=${MODEL_FILE:-best.pt}
       - CONF_THRESHOLD=${CONF_THRESHOLD:-0.75}
       - MINIMUM_SIZE=${MINIMUM_SIZE:-460000}
@@ -525,10 +534,12 @@ services:
       # menjawab "unknown" selamanya, persis saat support menanyakannya lewat
       # AnyDesk. Dijaga `tests/unit/test_compose_app_version.py`.
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
-      # Dipakai dua arah: memverifikasi event masuk dari line (x-webhook-secret)
-      # dan meneruskan perintah ke line (x-internal-secret). Satu nilai, sama
-      # persis dengan yang dipakai tiga line.
+      # Memverifikasi event dari line dan kiriman program timbangan
+      # (x-webhook-secret). Perintah ke line memakai INTERNAL_SECRET di bawah.
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
+      # Kunci perintah konsol ke line (restart, hapus data, PLC). Kosong = sama
+      # dengan WEBHOOK_SECRET, jadi PC lama tetap jalan. WAJIB sama di 3 line + konsol.
+      - INTERNAL_SECRET=${INTERNAL_SECRET:-}
       # Batas hari kerja (§6.1). Pabrik jalan ~20 jam/hari lewat tengah malam,
       # jadi tanggal TIDAK boleh diturunkan dari UTC.
       - FACTORY_TZ=${FACTORY_TZ:-Asia/Jakarta}

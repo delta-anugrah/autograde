@@ -44,14 +44,32 @@ def test_development_with_default_secret_passes(monkeypatch):
     settings.validate_for_runtime()  # must not raise
 
 
-def test_internal_secret_mirrors_webhook_secret(monkeypatch):
-    # Both directions share one secret; internal_secret must equal webhook_secret
-    # so api→vision (x-internal-secret) and vision→api (x-webhook-secret) stay in
-    # sync. Guards the contract with palmgrade-api.
-    monkeypatch.setenv("WEBHOOK_SECRET", "some-secret")
-    settings = Settings()
+def test_tanpa_internal_secret_memakai_webhook_secret(monkeypatch):
+    """PC Lampung hari ini: .env tanpa INTERNAL_SECRET harus tetap jalan."""
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-palsu-w")
+    monkeypatch.delenv("INTERNAL_SECRET", raising=False)
+    s = Settings()
+    assert s.internal_secret == s.webhook_secret == "kunci-palsu-w"
+    assert s.internal_secret_terpisah is False
 
-    assert settings.internal_secret == settings.webhook_secret == "some-secret"
+
+@pytest.mark.parametrize("kosong", ["", "   "])
+def test_internal_secret_kosong_dianggap_tidak_diisi(monkeypatch, kosong):
+    """Compose meneruskan `${INTERNAL_SECRET:-}`: tidak diisi sampai sebagai string kosong."""
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-palsu-w")
+    monkeypatch.setenv("INTERNAL_SECRET", kosong)
+    assert Settings().internal_secret == "kunci-palsu-w"
+
+
+def test_internal_secret_diisi_terpisah_dan_dipangkas(monkeypatch):
+    """Dipangkas: klien HTTP membuang spasi di ujung nilai header, jadi secret
+    berspasi akan selalu ditolak line walau .env-nya sama persis."""
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-palsu-w")
+    monkeypatch.setenv("INTERNAL_SECRET", " kunci-palsu-i ")
+    s = Settings()
+    assert s.internal_secret == "kunci-palsu-i"
+    assert s.webhook_secret == "kunci-palsu-w"
+    assert s.internal_secret_terpisah is True
 
 
 def test_batch_upload_defaults(monkeypatch):

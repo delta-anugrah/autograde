@@ -33,3 +33,22 @@ def test_line_menolak_perintah_tanpa_secret(tmp_path, monkeypatch):
 def test_secret_kosong_di_env_tidak_membuka_line(tmp_path, monkeypatch):
     c = _line(tmp_path, monkeypatch, WEBHOOK_SECRET="")
     assert c.get("/internal/rekam/berkas", headers={"x-internal-secret": ""}).status_code == 401
+
+
+INTERNAL = "kunci-perintah-palsu"
+
+
+def test_pc_lama_tanpa_internal_secret_tetap_menerima_kunci_lama(tmp_path, monkeypatch):
+    c = _line(tmp_path, monkeypatch, WEBHOOK_SECRET=WEBHOOK)
+    assert c.get("/internal/rekam/berkas", headers={"x-internal-secret": WEBHOOK}).status_code == 200
+
+
+def test_internal_secret_diisi_kunci_timbangan_ditolak(tmp_path, monkeypatch):
+    c = _line(tmp_path, monkeypatch, WEBHOOK_SECRET=WEBHOOK, INTERNAL_SECRET=INTERNAL)
+    assert c.get("/internal/rekam/berkas", headers={"x-internal-secret": WEBHOOK}).status_code == 401
+    assert c.get("/internal/rekam/berkas", headers={"x-internal-secret": INTERNAL}).status_code == 200
+
+
+def test_internal_secret_kosong_di_env_sama_dengan_tidak_diisi(tmp_path, monkeypatch):
+    c = _line(tmp_path, monkeypatch, WEBHOOK_SECRET=WEBHOOK, INTERNAL_SECRET="  ")
+    assert c.get("/internal/rekam/berkas", headers={"x-internal-secret": WEBHOOK}).status_code == 200
