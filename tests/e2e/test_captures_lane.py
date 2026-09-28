@@ -81,3 +81,15 @@ def test_license_db_huruf_besar_404(tmp_path, monkeypatch):
     c = TestClient(app)
     c.post("/api/console/login", json={"email": EMAIL, "sandi": SANDI})
     assert c.get("/captures/line-1/LICENSE.DB").status_code == 404
+
+
+def test_s_panjang_tidak_membuka_pendamping_basis_data(tmp_path, monkeypatch):
+    """Disk Mac melipat `ſ` (s panjang) jadi `s`: tanpa `casefold()` nama ini
+    membuka `license.db-shm` yang asli. Di Linux berkasnya memang tidak ada."""
+    app, settings = _rakit(tmp_path, monkeypatch)
+    (settings.artifacts_dir / "line-1").mkdir(parents=True, exist_ok=True)
+    (settings.artifacts_dir / "line-1" / "license.db-shm").write_bytes(b"indeks wal")
+
+    c = TestClient(app)
+    c.post("/api/console/login", json={"email": EMAIL, "sandi": SANDI})
+    assert c.get("/captures/line-1/license.db-%C5%BFhm").status_code == 404
