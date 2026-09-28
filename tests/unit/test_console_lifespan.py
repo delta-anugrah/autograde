@@ -17,10 +17,11 @@ from __future__ import annotations
 import asyncio
 import logging
 
+import pytest
 from fastapi import FastAPI
 
 from palmgrade import console_main
-from palmgrade.core.config import Settings
+from palmgrade.core.config import _DEFAULT_WEBHOOK_SECRET, Settings
 from palmgrade.domain.operator_auth import hash_password
 from palmgrade.integrations.notifications.line_client import LineClient
 from palmgrade.repositories.console_repository import ConsoleStore
@@ -29,7 +30,7 @@ from palmgrade.services.console_service import ConsoleService
 NO_SUPPORT_MESSAGE = "No account has the support role"
 
 
-def _service(tmp_path, *, with_support: bool) -> ConsoleService:
+def _service(tmp_path, *, with_support: bool, **setelan) -> ConsoleService:
     # repo_root redirected here, not the real one: state_dir (and so
     # console_db_path/log_db_path) derives from it, and this must never touch a
     # developer's own state/console.db.
@@ -38,6 +39,7 @@ def _service(tmp_path, *, with_support: bool) -> ConsoleService:
         console_default_hash="",
         console_support_hash="",
         erp_url="",
+        **setelan,
     )
     store = ConsoleStore(settings.console_db_path)
     store.upsert_operator_manual(
@@ -98,3 +100,20 @@ def test_warning_stays_quiet_when_a_support_account_exists(tmp_path, caplog):
     _run_lifespan(service, caplog)
 
     assert not any(NO_SUPPORT_MESSAGE in r.message for r in caplog.records)
+
+
+def test_konsol_produksi_dengan_secret_bawaan_menolak_start(tmp_path, caplog):
+    service = _service(
+        tmp_path, with_support=True, environment="production",
+        webhook_secret=_DEFAULT_WEBHOOK_SECRET, internal_secret=_DEFAULT_WEBHOOK_SECRET,
+    )
+    with pytest.raises(RuntimeError, match="WEBHOOK_SECRET"):
+        _run_lifespan(service, caplog)
+
+
+def test_konsol_produksi_dengan_secret_asli_menyala(tmp_path, caplog):
+    service = _service(
+        tmp_path, with_support=True, environment="production",
+        webhook_secret="kunci-palsu-w", internal_secret="kunci-palsu-i",
+    )
+    _run_lifespan(service, caplog)  # tidak melempar

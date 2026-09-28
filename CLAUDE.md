@@ -56,7 +56,8 @@ Docker menganggapnya container baru dan bentrok dengan yang lama di PC pabrik.
 - **Ultralytics YOLO** (YOLOv8 + ByteTrack); torch/torchvision (CPU for dev, CUDA `cu126` for prod)
 - OpenCV, NumPy
 - **httpx** (cloud upload + realtime push), **APScheduler** (hourly batch upload), **SQLite**
-  (`outbox.db` = antrean realtime ke API lokal; `UploadManifest` = state per-item batch R2), **boto3** (R2)
+  (`outbox.db` = antrean realtime ke API lokal, di `state/` sejak batch 1 (dulu `artifacts/`, folder
+  yang disajikan `/captures`); `UploadManifest` = state per-item batch R2), **boto3** (R2)
 - **Hikrobot MVS SDK** (GigE industrial camera: prod only)
 - **pymcprotocol** (MC Protocol ke CPU Mitsubishi, PLC integration, jalur hidup) + **pymodbus** (Modbus-TCP, jalur coupler ODOT lama, `PLC_PROTOCOL=modbus`); PC pabrik only, mati default
 - **Docker-only** (no host venv). Deps pinned in `requirements.txt` (torch installed separately in Dockerfile).
@@ -114,7 +115,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | `make restart` | **code-only change**: kode di-bind-mount (`.:/app`), jadi **tidak perlu rebuild** |
 | `make start` / `make up-1\|2\|3` | start without rebuild (all / single line) |
 | `make up-console` / `make logs-console` | konsol operator saja (port 8000, `/console`): aman di-restart tanpa mengganggu line |
-| `make line` | satu line kamera **native tanpa Docker**, pasangan `make console` untuk develop di Mac (`make up` tidak bisa: butuh MVS SDK + CUDA + TensorRT). `make line N=2` untuk line kedua: **port DAN `MACHINE_ID` ikut berubah bersama**, karena konsol mencocokkan event lewat `machine_id`, bukan port: tiga line yang memakai `MACHINE_ID` sama dari `.env` semuanya mendarat di kartu line-1. **Sumber gambar dibaca dari `media.env`** (`LINE_N_CAMERA_TYPE`/`MEDIA_FILE`/`VIDEO_LOOP`), berkas yang ditulis layar Sumber Kamera, jadi pilihan per-line di layar berlaku di jalur native juga, bukan cuma di Docker. Tanpa `media.env` tidak ada yang ditimpa dan `.env` lama tetap jalan. **Target ini BERPUTAR sampai Ctrl-C**, meniru `restart: unless-stopped` Docker: layar merestart line dengan menyuruh prosesnya keluar, dan tanpa loop itu Simpan & Restart mematikan line tanpa pernah menghidupkannya (layar bilang tersimpan, kartu jadi OFFLINE, nol galat). `media.env` dibaca **ulang tiap putaran** (setelan baru itulah alasan prosesnya keluar. Yang ditimpa target ini juga `MACHINE_ID` dan `BACKEND_URL` (ke `make console`, bukan port Docker 8000 di `.env`) tanpa itu janjangnya tersimpan tapi tiap kiriman dibalas **404** dan layar tetap nol) |
+| `make line` | satu line kamera **native tanpa Docker**, pasangan `make console` untuk develop di Mac (`make up` tidak bisa: butuh MVS SDK + CUDA + TensorRT). `make line N=2` untuk line kedua: **port DAN `MACHINE_ID` ikut berubah bersama**, karena konsol mencocokkan event lewat `machine_id`, bukan port: tiga line yang memakai `MACHINE_ID` sama dari `.env` semuanya mendarat di kartu line-1. **Sumber gambar dibaca dari `media.env`** (`LINE_N_CAMERA_TYPE`/`MEDIA_FILE`/`VIDEO_LOOP`), berkas yang ditulis layar Sumber Kamera, jadi pilihan per-line di layar berlaku di jalur native juga, bukan cuma di Docker. Tanpa `media.env` tidak ada yang ditimpa dan `.env` lama tetap jalan. **Target ini BERPUTAR sampai Ctrl-C**, meniru `restart: unless-stopped` Docker: layar merestart line dengan menyuruh prosesnya keluar, dan tanpa loop itu Simpan & Restart mematikan line tanpa pernah menghidupkannya (layar bilang tersimpan, kartu jadi OFFLINE, nol galat). `media.env` dibaca **ulang tiap putaran** (setelan baru itulah alasan prosesnya keluar. Yang ditimpa target ini juga `MACHINE_ID`, `BACKEND_URL` (ke `make console`, bukan port Docker 8000 di `.env`) tanpa itu janjangnya tersimpan tapi tiap kiriman dibalas **404** dan layar tetap nol, dan **`STATE_DIR`** ke `state/line-N` sendiri: tanpa itu tiap line native berbagi satu `outbox.db` dengan yang lain) |
 | `make console` | konsol **native tanpa Docker** di `127.0.0.1:8100`, jalur develop di Mac (baca `.env`, `WEBHOOK_SECRET=devsecret`); target Docker tetap jalur Linux/pabrik |
 | `make kiosk` | konsol layar penuh di PC ini (`scripts/console-kiosk.sh`) |
 | `make operator` | akun **lokal** untuk login konsol: tambah / reset sandi (email + sandi). `AKSI=daftar\|matikan`. Akun milik AutoERP diurus di AutoERP. Di PC pabrik pakai `make operator-docker` (konsolnya di Docker, DB-nya beda berkas). Sejak 2026-09-26 hal yang sama bisa dari layar: tab **Akun** (support), aturan 19 |
@@ -169,7 +170,12 @@ All via **`make`** (Docker only). From `autograde/`:
   saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
   mengatakan apa-apa soal batch upload ke cloud, untuk itu baca log `Batch tick: N item eligible`
   dari `BatchUploadWorker` atau query `state/upload_manifest.db` langsung.
-- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `work_date` lewat tengah malam + `console_store` + invarian `console.html` + **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: field yang diminta persis milik DocType (ERP palsu membalas 417 seperti Frappe) + Sumber TBS mengikuti `sumber_for_supplier` + grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual, **antrean ke AutoERP**: ditolak vs tidak terjangkau dibedakan + backoff 30 dtk→1 jam + pesan yang diganti saat masih di jalan tidak ditandai terkirim + truk manual masuk antrean + truk milik ERP read-only, **kunjungan truk**: bentuk pesan §4.C + `stage` diturunkan dari keadaan + bagian kosong tidak dikirim + grading ikut lewat tautan assignment + kirim ulang harian sekali sehari + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal, **thumbnail + manifest kunjungan** (sejak 2026-09-16): varian `thumb` di `capture_layout` (twins/pasangan/kunci R2) + thumbnail 400px ditulis di `capture_writer` tanpa menggagalkan capture + `batch_upload_worker` ikut mengunggah dan menghapus thumbnail + `UPLOAD_API_URL` kosong = item `done` begitu foto sampai + bentuk JSON `visit_manifest` (murni, tanpa I/O) + `console_store.bunches_for_assignment` urut waktu + `visit_manifest_worker` (antrean sendiri, viewer diunggah sekali per proses, R2 mati menahan baris) + `detail_url` terkirim hanya kalau R2 terkonfigurasi + invarian statis `viewer.html` (nol dependensi eksternal, baca manifest relatif)), jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi`: `pyyaml` cuma untuk tes yang mencocokkan `docker-compose.yml` dengan `Settings`; `fastapi` cuma untuk penjaga sesi konsol, yang cuma bisa dibuktikan lawan app sungguhan) di samping `ruff pytest`, samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol (`integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py`) diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration/` = beberapa komponen SUNGGUHAN dirangkai tanpa Docker/hardware (konsol ↔ line lewat transport ASGI, berkas di folder sementara, render layar lewat node), jalan di CI sebagai langkah sendiri (`pytest tests/integration/ -rs`). Yang butuh kamera/GPU/Docker tetap di luar CI. **Nambah test → utamakan logic murni; jangan seret hardware, torch, atau cv2 ke CI.** FastAPI `TestClient` boleh, tapi hanya untuk hal yang memang cuma ada di lapisan HTTP (penjaga sesi): app-nya dirakit sendiri di test dengan dependensi di-override, **bukan** `create_console_app()`, yang itu menyentuh `state/console.db` milik developer.
+- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `work_date` lewat tengah malam + `console_store` + invarian `console.html` + **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: field yang diminta persis milik DocType (ERP palsu membalas 417 seperti Frappe) + Sumber TBS mengikuti `sumber_for_supplier` + grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual, **antrean ke AutoERP**: ditolak vs tidak terjangkau dibedakan + backoff 30 dtk→1 jam + pesan yang diganti saat masih di jalan tidak ditandai terkirim + truk manual masuk antrean + truk milik ERP read-only, **kunjungan truk**: bentuk pesan §4.C + `stage` diturunkan dari keadaan + bagian kosong tidak dikirim + grading ikut lewat tautan assignment + kirim ulang harian sekali sehari + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal, **thumbnail + manifest kunjungan** (sejak 2026-09-16): varian `thumb` di `capture_layout` (twins/pasangan/kunci R2) + thumbnail 400px ditulis di `capture_writer` tanpa menggagalkan capture + `batch_upload_worker` ikut mengunggah dan menghapus thumbnail + `UPLOAD_API_URL` kosong = item `done` begitu foto sampai + bentuk JSON `visit_manifest` (murni, tanpa I/O) + `console_store.bunches_for_assignment` urut waktu + `visit_manifest_worker` (antrean sendiri, viewer diunggah sekali per proses, R2 mati menahan baris) + `detail_url` terkirim hanya kalau R2 terkonfigurasi + invarian statis `viewer.html` (nol dependensi eksternal, baca manifest relatif)), jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi`: `pyyaml` cuma untuk tes yang mencocokkan `docker-compose.yml` dengan `Settings`; `fastapi` cuma untuk penjaga sesi konsol, yang cuma bisa dibuktikan lawan app sungguhan) di samping `ruff pytest`, samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi.
+⚠️ **`load_dotenv()` naik dari folder kode sampai ketemu `.env` pertama** (`find_dotenv()`), jadi
+di **worktree** itu bukan `.env` worktree ini, tapi `.env` checkout utama: dua test yang lulus
+sendirian tapi merah bersamaan adalah gejalanya, bukan test yang rapuh. `tests/conftest.py`
+membersihkan kunci di SEMUA `.env` sepanjang jalur itu (`tests/dotenv_mesin.py`), bukan cuma
+`<repo>/.env`. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol (`integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py`) diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration/` = beberapa komponen SUNGGUHAN dirangkai tanpa Docker/hardware (konsol ↔ line lewat transport ASGI, berkas di folder sementara, render layar lewat node), jalan di CI sebagai langkah sendiri (`pytest tests/integration/ -rs`). Yang butuh kamera/GPU/Docker tetap di luar CI. **Nambah test → utamakan logic murni; jangan seret hardware, torch, atau cv2 ke CI.** FastAPI `TestClient` boleh, tapi hanya untuk hal yang memang cuma ada di lapisan HTTP (penjaga sesi): app-nya dirakit sendiri di test dengan dependensi di-override, **bukan** `create_console_app()`, yang itu menyentuh `state/console.db` milik developer.
 - From-zero prod setup (NVIDIA toolkit, MVS install, camera IP): `docs/SETUP.md`.
 
 ---
@@ -187,11 +193,14 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/internal/hapus-data` | ← dari konsol (Danger Zone): tulis penanda `artifacts/.hapus-data` lalu keluar; data line dihapus **saat boot berikutnya**, sebelum store mana pun membuka berkasnya. **409** kalau line sedang dipasangi truk. Selama penandanya ada, `/internal/assignment` menolak truk baru (**409** `hapus_berjalan`). Router `routes/internal_bahaya.py`: **tanpa torch**, jadi teruji di CI |
 | GET / POST | `/internal/rekam/berkas`, `/internal/rekam/hapus` | ← dari konsol (Danger Zone): hitung / hapus rekaman **milik line ini** (`{line_code}_*.mp4`, folder `videos/` dipakai bersama). Hapus **409** selama merekam |
 | WS | `/ws/results` | legacy result push. ⚠️ `image_url`-nya dikirim **sebelum** berkasnya ada di disk (deteksi menyerahkan janjang ke `CaptureSaveWorker` lalu lanjut), jendelanya ratusan milidetik. Tidak ada yang memakai lane ini hari ini (`console.html` tidak membukanya), tapi siapa pun yang menghidupkannya harus menahan gambar sampai 404 pertama lewat. Jalur yang dipakai konsol aman: barisnya ditulis penulis **sesudah** gambarnya jadi |
-| GET | `/captures/...` | static images (mount → `artifacts/`) |
+| GET | `/captures/...` | static images (mount → `artifacts/`), tanpa sesi (line tidak punya konsep login): `.db`/berkas tersembunyi dijawab 404 (`domain/berkas_captures.py`) |
 
 **Konsol (`APP_MODE=console`, port 8100 image produksi dan `make console`, 8000 dari source)**: surface yang berbeda total; `main.py` tidak dipakai.
 **Semua `/api/console/*` butuh sesi** (Fase 4) kecuali tiga baris pertama di bawah; tanpa cookie
-`konsol_sesi` jawabannya 401 `belum_masuk`. Lane mesin (`/internal/*`) tetap pakai webhook secret:
+`konsol_sesi` jawabannya 401 `belum_masuk`. Lane mesin (`/internal/*` di line, dan yang masuk
+konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x-internal-secret`
+(`INTERNAL_SECRET`, kosong = `WEBHOOK_SECRET`) untuk perintah konsol → line, `x-webhook-secret`
+(`WEBHOOK_SECRET`) untuk line/timbangan → konsol:
 
 | Method | Path | Notes |
 |---|---|---|
@@ -219,6 +228,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line. **409** `hapus_berjalan` selama Danger Zone menghapus data (line tidak disentuh) |
 | POST | `/api/console/lines/{line}/release-truck` | truk pergi → `/internal/assignment` line dengan truk kosong |
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
+| POST | `/api/console/lines/{line}/piston` | `{open}` → diteruskan ke `/internal/piston` line. Menggerakkan hardware, jadi butuh sesi operator seperti lane operator lain (batch 1.1), dan tiap percobaan dicatat WARNING menyebut siapa yang menekan (tab Log), dipicu atau ditolak |
 | GET | `/api/console/dev/ping` | lane developer paling ringan: dipakai layar untuk memastikan akses masih hidup. **Semua baris `/dev/*` di bawah ini butuh `role='support'`, dijawab 403 kalau bukan** |
 | GET | `/api/console/dev/log` | isi `event_log`: filter `level`/`cari`, pagination `limit`+`offset` |
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu layar |
@@ -242,7 +252,7 @@ All via **`make`** (Docker only). From `autograde/`:
 | POST | `/api/console/dev/bahaya/hapus-data` | `{mode:"transaksi"\|"semua", konfirmasi:"HAPUS"}`. **400** konfirmasi/mode salah, **409** `bahaya_ditolak` (+`params.hambatan`), **409** `semua_line_menolak` (+`params.lines`, mis. `line-1:lisensi`): ketiganya tidak mengubah apa pun. **200** membawa hasil per line; `ok:true` + `kode:"belum_mati"` = diterima tapi line belum restart. Lihat aturan 25 |
 | POST | `{BACKEND_API_VER}/internal/vision/events` | ← dari tiga line (`x-webhook-secret`), kontrak §5 |
 | POST | `{BACKEND_API_VER}/internal/scale/weighing` | ← dari program timbangan (`x-webhook-secret`), bentuk sementara kita |
-| GET | `/captures/{line_code}/...` | gambar line, mount read-only, bentuk URL = `resolveCaptureUrl` api |
+| GET | `/captures/{line_code}/...` | gambar line, mount read-only, bentuk URL = `resolveCaptureUrl` api. Butuh sesi operator (401 `belum_masuk` tanpa cookie `konsol_sesi`, batch 1.3); `.db`/berkas tersembunyi tetap 404 apa pun sesinya |
 | GET | `/health` | ringan, sengaja bukan `routes/health.py` (yang itu menarik torch) |
 
 **Layar penuh = urusan browser, BUKAN `console.html`.** `requestFullscreen()` wajib dipanggil
@@ -274,9 +284,14 @@ produksi dengan ~1098 event tes pada 2026-08-09.
 - `image_path` relatif; konsol meng-serve gambar tiap line di `/captures/{line_code}/...`
   (mount read-only).
 
-**konsol → line** (header **`x-internal-secret: WEBHOOK_SECRET`**): `POST /internal/assignment`
-`{machine_id, assignment_id, truck_id, assigned_at}`, `POST /internal/manual-reject`, `GET
-/internal/status` (tiap 1 detik), `GET /health` dan `/health/detail` (tab Status).
+**konsol → line** (header **`x-internal-secret: INTERNAL_SECRET`**, kosong = `WEBHOOK_SECRET`):
+`POST /internal/assignment` `{machine_id, assignment_id, truck_id, assigned_at}`, `POST
+/internal/manual-reject`, `POST /internal/piston`, `GET /internal/status` (tiap 1 detik), `GET
+/health` dan `/health/detail` (tab Status). Kunci yang beda antara konsol dan satu line tidak
+membuat line itu OFFLINE: kartunya menulis "kunci ditolak" (`LINE_MENOLAK`), karena line hidup
+dan menjawab, cuma menolak headernya (`integrations/notifications/line_client.py`,
+`workers/line_status_worker.py`). Danger Zone masih membaca line begitu sebagai "line mati"
+kalau ditolak saat hapus data (follow-up yang belum dikerjakan).
 
 **Batch ke cloud** (`BatchUploadWorker`, tiap jam menit `UPLOAD_MINUTE`): foto (`bbox/` + `thumb/`)
 di-`PUT` ke **Cloudflare R2**. Teks per janjang dulu ikut dikirim ke `UPLOAD_API_URL`
@@ -284,10 +299,20 @@ di-`PUT` ke **Cloudflare R2**. Teks per janjang dulu ikut dikirim ke `UPLOAD_API
 sampai. **Kill switch**: `R2_BUCKET` kosong membuat seluruh batch no-op (satu `logger.warning`
 di tick pertama, lalu diam) dan `/health/detail` tidak memberi tahu.
 
-**Shared config:** `WEBHOOK_SECRET` satu secret untuk kedua arah line ↔ konsol (satu `.env`).
-**Fail-fast:** `Settings.validate_for_runtime()` raise saat `APP_ENV=production` & secret masih
-bawaan (`supersecret123`), container menolak start. `LINE_1/2/3_MACHINE_ID` harus sama di line
-dan di konsol; compose membawa UUID bawaan kalau kosong.
+**Shared config: dua secret, bukan satu.** `WEBHOOK_SECRET` tetap dipegang line ↔ konsol
+(`x-webhook-secret`, jalur §5 di atas) **dan** program timbangan pihak ketiga. `INTERNAL_SECRET`
+(sejak batch 1, `x-internal-secret`) memisahkan perintah konsol → line (restart, hapus data, coil
+PLC uji, piston, dsb.) dari kunci yang dipegang pihak ketiga: kosong atau sama dengan
+`WEBHOOK_SECRET` = perintah konsol masih memakai kunci lama (`.env` PC yang dipasang sebelum
+batch 1 tetap jalan tanpa diubah), beda = terpisah. Perbandingan **constant-time**
+(`domain/rahasia.py`) dan **fail closed**: secret yang dikonfigurasi kosong tidak pernah membuka
+lane, di line maupun di konsol (`routes/penjaga_rahasia.py`).
+**Fail-fast:** `Settings.validate_secrets()` (dipanggil line **dan** konsol) raise saat
+`APP_ENV=production` & `WEBHOOK_SECRET` masih bawaan (`supersecret123`) **atau** kosong.
+`INTERNAL_SECRET` **kosong atau tidak diisi cuma warning** (jatuh ke `WEBHOOK_SECRET`, `.env` lama
+tetap jalan); kalau **diisi**, nilainya ikut aturan yang sama (bawaan atau kosong-setelah-dipangkas
+= menolak start). `LINE_1/2/3_MACHINE_ID` harus sama di line dan di konsol; compose membawa UUID
+bawaan kalau kosong.
 
 Full endpoint / payload / env tables: `docs/backend-overview.md`.
 
@@ -823,10 +848,14 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     dihapus 2026-09-28 sesudah semuanya tercatat di sini).
     ⚠️ **Konsol tidak bisa menghapus foto line**, `artifacts/line-N` di-mount read-only ke
     konsol. Line menulis penanda `artifacts/.hapus-data`, keluar (`os._exit`), dan **awal
-    lifespan `main.py`** menghapus isi `artifacts/` (kecuali `license.db*`) + berkas
-    **milik line** di `state/` (`MILIK_LINE_DI_STATE`, hari ini `upload_manifest.db*`)
-    SEBELUM store mana pun membuka berkasnya (SQLite yang sedang dibuka tidak boleh
-    dihapus dari bawah prosesnya). Penanda dihapus **paling akhir** dan hanya kalau
+    lifespan `main.py`** menghapus isi `artifacts/` (kecuali sisa `license.db*` di PC yang
+    belum pindah, lihat aturan pindah DB di bawah) + berkas **milik line** di `state/`
+    (`MILIK_LINE_DI_STATE`, sejak
+    batch 1: `upload_manifest.db*` **dan** `outbox.db*`, yang pindah dari `artifacts/` ke
+    `state/` supaya tidak lagi tersaji lewat `/captures`) SEBELUM store mana pun membuka
+    berkasnya (SQLite yang sedang dibuka tidak boleh dihapus dari bawah prosesnya). `license.db*`
+    di `state/` **tidak** masuk `MILIK_LINE_DI_STATE`: tetap selamat di sana juga, penjaga jam
+    lisensi yang sama dengan di `artifacts/`. Penanda dihapus **paling akhir** dan hanya kalau
     semuanya berhasil: boot yang terputus mengulang, bukan meninggalkan separuh data.
     ⚠️ **Penanda di `artifacts/`, dan `state/` TIDAK dikosongkan seluruhnya**: di jalur
     native (`make line` + `make console`) `state/` dipakai BERSAMA konsol dan ketiga line,
@@ -855,7 +884,8 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     `.env` menggeser angka yang dibayar). Mode transaksi juga menyisakan truk, supplier,
     akun, sesi, dan kursor tarik AutoERP. Tabel console.db digolongkan di
     `GOLONGAN_TABEL_KONSOL`; tabel baru membuat `test_semua_tabel_konsol_digolongkan` merah.
-    **Hambatan (409)**: line mati, truk terpasang, outbox line belum kosong (tak terbaca =
+    **Hambatan (409)**: line mati, truk terpasang, antrean lama line yang gagal dipindah ke
+    `state/` (`outbox_lama`, aturan 28), outbox line belum kosong (tak terbaca =
     belum kosong), antrean AutoERP `pending` kalau `ERP_URL` terisi, **tiket timbang
     terbuka hari kerja berjalan** (bruto ada, tara belum = truk di tengah kunjungan, dan
     bruto itu yang dibayar), dan (mode semua) tidak ada hash akun **support** yang
@@ -944,6 +974,55 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     menunjuk api lama yang mati** membuat Cloud Photo merah (`POST gagal`): batch berhenti di POST
     pertama yang gagal, jadi foto di belakangnya juga tidak naik ke R2. Kosongkan (Lampung sudah,
     2026-09-23).
+
+28. **Batch 1 keamanan LAN pabrik** (2026-09-28): lubang yang ketahuan audit, ditutup tanpa
+    mengubah kontrak §5 line ↔ konsol.
+    **Piston butuh sesi operator** (`POST /api/console/lines/{line}/piston`), sama seperti
+    manual-reject; tiap penekanan dicatat WARNING menyebut pelakunya di tab Log, dipicu atau
+    ditolak (aturan yang sama dengan Uji PLC di aturan 21).
+    **Semua pemeriksaan secret mesin constant-time dan fail closed**
+    (`domain/rahasia.py`/`routes/penjaga_rahasia.py`): secret yang dikonfigurasi kosong tidak
+    pernah membuka lane, baik `x-webhook-secret` (line → konsol, timbangan → konsol) maupun
+    `x-internal-secret` (konsol → line).
+    **`INTERNAL_SECRET` terpisah dari `WEBHOOK_SECRET`** (lihat § Integration Contracts): kosong
+    atau sama dengan `WEBHOOK_SECRET` = perintah konsol → line masih memakai kunci yang juga
+    dipegang program timbangan pihak ketiga (`.env` lama tetap jalan apa adanya), diisi beda =
+    terpisah. Kunci yang beda antara konsol dan satu line membuat kartu line itu menulis "kunci
+    ditolak" (`LINE_MENOLAK`), bukan OFFLINE: line hidup dan menjawab, cuma menolak headernya.
+    Danger Zone belum ikut membedakannya (masih terbaca "line mati" kalau ditolak saat hapus
+    data), follow-up yang sengaja ditunda.
+    **Line dan konsol menolak boot di `APP_ENV=production`** kalau `WEBHOOK_SECRET` bawaan
+    (`supersecret123`) ATAU kosong (`Settings.validate_secrets()`, dipanggil keduanya: dulu cuma
+    line yang menolak). `INTERNAL_SECRET` beda aturannya: **kosong atau tidak diisi cuma warning**
+    (jatuh ke `WEBHOOK_SECRET`, itulah yang membuat rilis ini backward compatible), tapi kalau
+    **diisi** dan nilainya bawaan atau kosong-sesudah-dipangkas, ikut menolak boot juga.
+    **`/captures` di konsol butuh sesi operator** (`CapturesBersesi`, `routes/captures.py`): tanpa
+    cookie `konsol_sesi` dijawab 401 `belum_masuk`, sama dengan lane operator lain. `/captures`
+    di **line** (port 8001-8003) tetap terbuka seperti sebelumnya, line tidak punya konsep sesi
+    dan konsumen lain di LAN memakainya. **Kedua** mount menjawab **404** untuk `.db`/`.sqlite`/
+    berkas tersembunyi apa pun sesinya (`domain/berkas_captures.py`, `StaticTanpaDb`): sebelum
+    batch ini `outbox.db` dan `license.db` line ikut tersaji apa adanya di `/captures`, siapa pun
+    di LAN pabrik bisa mengunduh antrean janjang dan penjaga jam lisensi.
+    **`outbox.db` dan `license.db` line pindah ke `state/`** (di luar mount `/captures`, sibling
+    `artifacts/`, konsisten dengan `upload_manifest.db` yang sudah di sana). Pemindahan **menyerap
+    isi**, bukan memindah berkas (`os.replace` gagal EXDEV lintas bind mount Docker; PC yang
+    sempat rollback bisa punya isi di dua tempat): `services/pindah_db_line.py` menyerap
+    berdasarkan kunci alami (`event_id` untuk outbox, penanda jam tertinggi untuk lisensi), jadi
+    boot yang terputus di tengah menyerap ulang tanpa baris ganda. Kalau `/app/state` bukan mount
+    dari host (compose host belum ditambah `./state/line-N:/app/state`), keduanya **tetap** di
+    `artifacts/` (tetap tidak tersaji, lihat aturan `berkas_captures` di atas) dan `logger.error`
+    mencatat alasannya, bukan menghentikan line. `hapus-data` (Danger Zone) menghapus
+    `state/outbox.db*` sebagai berkas milik line (`MILIK_LINE_DI_STATE`, aturan 25) dan tetap
+    menyisakan `license.db*` di `state/`, sama dengan bawaan di `artifacts/`.
+    ⚠️ **Serapan yang GAGAL tidak boleh terbaca "antrean kosong"** (berkas lama rusak, disk
+    `state/` penuh, `MemoryError`; antrean lama dibaca per potongan, `_POTONGAN_SERAP`, satu
+    commit): `artifacts/outbox.db` tertinggal dan barisnya tidak dihitung `pending_count()`.
+    Tiga penjaga: `/health/detail` melapor `outbox_lama_tertinggal: true` dan `outbox_pending:
+    null` (tidak diketahui; `autograde reset-data` di host cuma mengenali angka, jadi ikut
+    menolak), Danger Zone menahan dengan hambatan `outbox_lama` yang menyebut line-nya, dan
+    hapus-data saat boot tidak menghapus `artifacts/outbox.db*` selama folder DB line bukan
+    `artifacts/` (`hapus_kalau_diminta(..., folder_db=get_folder_db_line())`). Boot berikutnya
+    menyerap lagi; yang harus dikejar penyebabnya, lewat log line itu.
 
 ---
 

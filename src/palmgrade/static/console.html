@@ -729,6 +729,13 @@
                 text-transform:uppercase; letter-spacing:.04em;
                 animation:denyut-pita 1.6s ease-in-out infinite; }
   #pita-alarm span { display:inline-block; margin:0 .6em; }
+  /* Kunci konsol/line ditolak (401/403, batch 1 keamanan LAN): warna --warn
+     yang sama dengan banner lisensi kedaluwarsa, BUKAN --danger seperti pita
+     piston - ini masalah setelan yang harus dibetulkan support, bukan bahaya
+     fisik yang butuh mata tertarik dengan denyut. */
+  .pita-kunci { margin:10px 13px 0; padding:9px 13px; border-radius:var(--r-sm);
+                background:var(--warn-bg); color:var(--warn);
+                border-left:4px solid var(--warn); font-size:.85rem; font-weight:600; }
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
@@ -2314,6 +2321,7 @@ const KAMUS = {
     hambatan_tanpa_line:"Konsol tidak mengenal satu line pun.",
     hambatan_line_mati:"{line} tidak menjawab. Nyalakan dulu.",
     hambatan_truk_terpasang:"{line} masih punya truk yang ditugaskan. Lepas dulu truknya.",
+    hambatan_outbox_lama:"{line}: antrean janjang lama (outbox.db di folder artifacts) gagal dipindah ke folder state saat line menyala. Isinya belum sampai ke konsol dan tidak ikut terhitung. Restart line itu supaya dicoba lagi; kalau masih muncul, buka tab Log dan panggil teknisi.",
     hambatan_antrean_line:"{line} masih punya {jumlah} janjang yang belum sampai ke konsol. Tunggu sebentar.",
     hambatan_antrean_erp:"{jumlah} kiriman belum sampai ke AutoERP. Tunggu sampai antreannya kosong (tab Antrean ERP).",
     hambatan_tiket_terbuka:"{jumlah} truk sudah timbang masuk hari ini tapi belum timbang keluar. Tunggu sampai tiketnya lengkap.",
@@ -2383,6 +2391,7 @@ const KAMUS = {
     err_line_tidak_dikenal:"{line} tidak dikenal konsol",
     err_line_tidak_menjawab:"{line} tidak menjawab. Pastikan layanan kameranya menyala",
     err_line_menolak:"{line} menolak perintah (HTTP {status})",
+    kartuKunciDitolak:"Kunci ditolak (HTTP {status}). Line ini hidup dan mungkin masih menggrading, tapi kuncinya beda dari konsol. Cocokkan INTERNAL_SECRET di konsol dan di line.",
     err_sandi_pendek:"Sandi minimal 8 karakter",
     err_sandi_salah:"Email atau sandi salah",
     err_terkunci:"Login terkunci {detik} detik lagi setelah beberapa sandi salah",
@@ -2646,6 +2655,7 @@ const KAMUS = {
     hambatan_tanpa_line:"The console does not know any line.",
     hambatan_line_mati:"{line} is not answering. Start it first.",
     hambatan_truk_terpasang:"{line} still has a truck assigned. Release the truck first.",
+    hambatan_outbox_lama:"{line}: the old bunch queue (outbox.db in the artifacts folder) failed to move to the state folder when the line started. It has not reached the console and is not counted. Restart that line to retry; if it still shows, open the Log tab and call a technician.",
     hambatan_antrean_line:"{line} still has {jumlah} bunches that have not reached the console. Wait a moment.",
     hambatan_antrean_erp:"{jumlah} messages have not reached AutoERP yet. Wait until the queue is empty (ERP Queue tab).",
     hambatan_tiket_terbuka:"{jumlah} trucks weighed in today but have not weighed out yet. Wait until their tickets are complete.",
@@ -2713,6 +2723,7 @@ const KAMUS = {
     err_line_tidak_dikenal:"{line} is not known to the console",
     err_line_tidak_menjawab:"{line} is not responding. Check that its camera service is running",
     err_line_menolak:"{line} refused the command (HTTP {status})",
+    kartuKunciDitolak:"Key refused (HTTP {status}). This line is alive and may still be grading, but its key differs from the console. Check that INTERNAL_SECRET matches on the console and on the line.",
     err_sandi_pendek:"The password must be at least 8 characters",
     err_sandi_salah:"Wrong email or password",
     err_terkunci:"Sign-in locked for another {detik} s after repeated wrong passwords",
@@ -3494,6 +3505,19 @@ function pitaPiston(l) {
   return `<div class="pita-piston">${esc(t("pistonTerbuka"))}${esc(catatan)}</div>`;
 }
 
+// Kunci konsol/line ditolak (l.plc.kode === "line_menolak"): line HIDUP tapi
+// menolak x-internal-secret, beda sama sekali dari line mati. Tanpa pita ini
+// yang terlihat di layar cuma "Offline" (dari cek /api/video_feed, jalur
+// terpisah dari status ini) sementara line itu bisa saja masih menggrading dan
+// mengirim event lewat WEBHOOK_SECRET - operator dan support butuh tahu ini
+// setelan yang salah, bukan kamera atau container yang mati.
+function pitaKunciDitolak(l) {
+  const p = l.plc || {};
+  if (p.kode !== "line_menolak") return "";
+  const teks = t("kartuKunciDitolak").replace("{status}", p.status ?? "401");
+  return `<div class="pita-kunci">${esc(teks)}</div>`;
+}
+
 // Alarm PLC (motor fault / E-stop) dari blok M yang dibaca tiap line. Semua
 // line membaca blok yang sama, jadi daftarnya digabung dan dideduplikasi;
 // line yang mati tidak menyumbang apa-apa (l.plc.alarms undefined). Kunci
@@ -3548,6 +3572,7 @@ function kartuLine(l) {
       </span>
     </h2>
     ${pitaPiston(l)}
+    ${pitaKunciDitolak(l)}
     ${feed ? `<div class="feed"><img src="${feed}" alt=""><span>${esc(t("kameraPutus"))}</span></div>` : ""}
     <div class="counts">
       <span class="acc"><span class="lb">${esc(t("clsRipe"))}</span><b data-k="ripe">${l.ripe || 0}</b></span>

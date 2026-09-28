@@ -295,3 +295,31 @@ def test_layar_baru_cuma_mengirim_lebar_dan_tinggi(konsol):
     assert c.get("/api/console/dev/rekam").json()["setelan"] == {
         "width": 640, "height": 480, "fps": 5,
     }
+
+
+# ── kunci ditolak line (INTERNAL_SECRET beda) ───────────────────────────────
+
+
+def test_kunci_ditolak_line_terbaca_menolak_bukan_tidak_menjawab(tmp_path, monkeypatch):
+    """`LineClient` yang asli: line-2 menjawab 401 untuk status rekam. Layar
+    harus menyebut penolakan (HTTP 401), bukan "tidak menjawab" seperti line mati."""
+    import httpx
+
+    from palmgrade.integrations.notifications.line_client import LineClient
+
+    def jawab(request: httpx.Request) -> httpx.Response:
+        if request.url.port == 8002:
+            return httpx.Response(401, text="Invalid internal secret")
+        return httpx.Response(200, json={"merekam": False, "berkas": None})
+
+    klien = LineClient(
+        Settings(console_line_host="http://line", internal_secret="kunci-perintah-palsu"),
+        transport=httpx.MockTransport(jawab),
+    )
+    with _konsol_dengan(klien, tmp_path, monkeypatch) as c:
+        baris = {b["line_code"]: b for b in c.get("/api/console/dev/rekam").json()["lines"]}
+
+    assert baris["line-1"]["terbaca"] is True
+    assert baris["line-2"]["terbaca"] is False
+    assert "refused: HTTP 401" in baris["line-2"]["alasan"]
+    assert "did not answer" not in baris["line-2"]["alasan"]

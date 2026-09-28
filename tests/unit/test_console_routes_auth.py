@@ -29,6 +29,7 @@ from palmgrade.routes.console import (
     get_auth_service,
     get_console_service,
     get_scan_service,
+    require_operator,
 )
 from palmgrade.routes.console import router as console_router
 from palmgrade.services.auth_service import AuthService
@@ -45,6 +46,7 @@ class _StubConsole:
 
     def __init__(self) -> None:
         self.rejected_by: str | None = None
+        self.piston_by: str | None = None
 
     def state(self) -> dict:
         return {"hari_ini": {}, "lines": []}
@@ -52,6 +54,10 @@ class _StubConsole:
     async def manual_reject(self, line_code: str, requested_by: str) -> dict:
         self.rejected_by = requested_by
         return {"line_code": line_code, "requested_by": requested_by}
+
+    async def piston(self, line_code: str, open: bool, *, requested_by: str) -> dict:
+        self.piston_by = requested_by
+        return {"line_code": line_code, "open": open}
 
 
 @pytest.fixture
@@ -157,6 +163,37 @@ def test_a_manual_reject_is_recorded_against_whoever_is_signed_in(console):
     client.post("/api/console/lines/line-1/manual-reject", json={"requested_by": "siapa saja"})
 
     assert stub.rejected_by == NAMA
+
+
+def test_piston_tanpa_sesi_ditolak_dan_tidak_diteruskan(console):
+    client, _, stub = console
+
+    response = client.post("/api/console/lines/line-1/piston", json={"open": True})
+
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == BELUM_MASUK
+    assert stub.piston_by is None
+
+
+def test_piston_dicatat_atas_nama_yang_masuk(console):
+    client, _, stub = console
+    _sign_in(client)
+
+    response = client.post("/api/console/lines/line-1/piston", json={"open": True})
+
+    assert response.status_code == 200
+    assert stub.piston_by == NAMA
+
+
+def test_piston_akun_tanpa_nama_dicatat_dengan_email(console):
+    client, _, stub = console
+    client.app.dependency_overrides[require_operator] = lambda: {
+        "operator_id": "o1", "email": "tanpa.nama@pks.test", "full_name": "", "role": "operator",
+    }
+
+    client.post("/api/console/lines/line-1/piston", json={"open": False})
+
+    assert stub.piston_by == "tanpa.nama@pks.test"
 
 
 # ── scan QR (2026-09-15) ──────────────────────────────────────────────────────

@@ -19,7 +19,12 @@ LIFESPAN = MAIN.split("async def lifespan(app: FastAPI):", 1)[1]
 
 
 def test_hapus_saat_boot_sebelum_store_dibuka():
-    i_hapus = LIFESPAN.index("hapus_kalau_diminta(settings.artifacts_dir, settings.state_dir)")
+    i_hapus = LIFESPAN.index("hapus_kalau_diminta(")
+    panggilan = LIFESPAN[i_hapus:].split("\n        )", 1)[0]
+    assert "settings.artifacts_dir, settings.state_dir" in panggilan
+    # Folder DB yang SAMA dengan outbox: kalau bukan artifacts/, sisa
+    # `artifacts/outbox.db` yang gagal diserap tidak ikut terhapus.
+    assert "folder_db=get_folder_db_line()" in panggilan
     for pembuka in ("_lic_manager.init()", "get_outbox_store()", "UploadManifest("):
         assert i_hapus < LIFESPAN.index(pembuka), pembuka
 

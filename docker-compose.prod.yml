@@ -113,6 +113,9 @@ services:
       # seluruh blok `environment:`, bukan menambahinya.
       - BACKEND_API_VER=${BACKEND_API_VER:-/api/v1}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-supersecret123}
+      # Kunci perintah konsol ke line (restart, hapus data, PLC). Kosong = sama
+      # dengan WEBHOOK_SECRET, jadi PC lama tetap jalan. WAJIB sama di 3 line + konsol.
+      - INTERNAL_SECRET=${INTERNAL_SECRET:-}
       - FACTORY_TZ=${FACTORY_TZ:-Asia/Jakarta}
       - CONSOLE_SYNC_INTERVAL_S=${CONSOLE_SYNC_INTERVAL_S:-300}
       - CONSOLE_LINE_HOST=${CONSOLE_LINE_HOST:-http://localhost}

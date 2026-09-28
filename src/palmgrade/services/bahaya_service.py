@@ -157,6 +157,7 @@ class BahayaService:
             truk_terpasang=bool(detail.get("current_assignment_id")),
             outbox_pending=pending if isinstance(pending, int) else None,
             outbox_gagal=gagal if isinstance(gagal, int) else None,
+            outbox_lama_tertinggal=detail.get("outbox_lama_tertinggal") is True,
             merekam=bool(rekam.get("merekam")),
             rekaman_berkas=int(rekam.get("berkas") or 0),
             rekaman_bytes=int(rekam.get("bytes") or 0),

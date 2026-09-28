@@ -16,12 +16,13 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
-from fastapi.staticfiles import StaticFiles
 
 from .core.log_sink import install_log_sink
 from .repositories.log_repository import LogStore
-from .routes.console import get_console_service, ingest_router
+from .routes.captures import CapturesBersesi
 from .routes.console import router as console_router
+from .routes.console_deps import SESSION_COOKIE, get_auth_service, get_console_service
+from .routes.console_ingest import ingest_router
 from .services.akun_bawaan import seed_default_accounts
 from .workers.cek_sinkron_worker import build_cek_sinkron
 from .workers.erp_link import build_erp_workers
@@ -42,6 +43,10 @@ async def lifespan(app: FastAPI):
     # must not touch console.db to get there (see log_db_path).
     log_store = LogStore(service.settings.log_db_path, retention_days=service.settings.log_retention_days)
     install_log_sink(log_store)
+    # Batch 1.5: secret bawaan atau kosong di produksi = menolak start, sama
+    # dengan line. Sesudah log sink, supaya peringatan INTERNAL_SECRET masuk
+    # tab Log, tempat support membacanya.
+    service.settings.validate_secrets()
     # Before anything else: a mill installed before it ever reached the internet has no
     # AutoERP accounts yet, and a console nobody can sign into is useless on exactly the
     # day it is needed. Existing accounts are never touched (see akun_bawaan).
@@ -113,14 +118,15 @@ def create_console_app() -> FastAPI:
     app = FastAPI(title="Palmgrade Operator Console", lifespan=lifespan)
 
     # Images stay on each line's own disk, mounted read-only here by
-    # docker-compose. Served statically, never scanned (plan §6.2). The URL
-    # shape mirrors palmgrade-api: /captures/{line_code}/results/...
+    # docker-compose. The URL shape mirrors palmgrade-api. Batch 1.3: only for a
+    # signed-in operator (same AuthService as every lane), and never a database
+    # or hidden file even then.
     for line in service.lines:
         line_dir = settings.artifacts_dir / line.line_code
         line_dir.mkdir(parents=True, exist_ok=True)
         app.mount(
             f"/captures/{line.line_code}",
-            StaticFiles(directory=str(line_dir)),
+            CapturesBersesi(directory=str(line_dir), sesi=get_auth_service, cookie=SESSION_COOKIE),
             name=f"captures-{line.line_code}",
         )
 

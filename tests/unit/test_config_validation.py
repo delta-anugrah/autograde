@@ -44,14 +44,44 @@ def test_development_with_default_secret_passes(monkeypatch):
     settings.validate_for_runtime()  # must not raise
 
 
-def test_internal_secret_mirrors_webhook_secret(monkeypatch):
-    # Both directions share one secret; internal_secret must equal webhook_secret
-    # so api→vision (x-internal-secret) and vision→api (x-webhook-secret) stay in
-    # sync. Guards the contract with palmgrade-api.
-    monkeypatch.setenv("WEBHOOK_SECRET", "some-secret")
-    settings = Settings()
+def test_tanpa_internal_secret_memakai_webhook_secret(monkeypatch):
+    """PC Lampung hari ini: .env tanpa INTERNAL_SECRET harus tetap jalan."""
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-palsu-w")
+    monkeypatch.delenv("INTERNAL_SECRET", raising=False)
+    s = Settings()
+    assert s.internal_secret == s.webhook_secret == "kunci-palsu-w"
+    assert s.internal_secret_terpisah is False
 
-    assert settings.internal_secret == settings.webhook_secret == "some-secret"
+
+@pytest.mark.parametrize("kosong", ["", "   "])
+def test_internal_secret_kosong_dianggap_tidak_diisi(monkeypatch, kosong):
+    """Compose meneruskan `${INTERNAL_SECRET:-}`: tidak diisi sampai sebagai string kosong."""
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-palsu-w")
+    monkeypatch.setenv("INTERNAL_SECRET", kosong)
+    assert Settings().internal_secret == "kunci-palsu-w"
+
+
+def test_internal_secret_diisi_terpisah_dan_dipangkas(monkeypatch):
+    """Dipangkas: klien HTTP membuang spasi di ujung nilai header, jadi secret
+    berspasi akan selalu ditolak line walau .env-nya sama persis."""
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-palsu-w")
+    monkeypatch.setenv("INTERNAL_SECRET", " kunci-palsu-i ")
+    s = Settings()
+    assert s.internal_secret == "kunci-palsu-i"
+    assert s.webhook_secret == "kunci-palsu-w"
+    assert s.internal_secret_terpisah is True
+
+
+def test_internal_secret_sama_dengan_webhook_secret_bukan_terpisah(monkeypatch):
+    """Teknisi boleh mengisi INTERNAL_SECRET dengan nilai yang sama persis dengan
+    WEBHOOK_SECRET (tidak salah, cuma tidak menambah proteksi). Task 6
+    (validate_secrets) memakai `internal_secret_terpisah` untuk memutuskan kapan
+    memberi peringatan, jadi kasus ini harus tetap False, bukan True."""
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-sama")
+    monkeypatch.setenv("INTERNAL_SECRET", "kunci-sama")
+    s = Settings()
+    assert s.internal_secret == s.webhook_secret == "kunci-sama"
+    assert s.internal_secret_terpisah is False
 
 
 def test_batch_upload_defaults(monkeypatch):
@@ -82,6 +112,41 @@ def test_production_empty_r2_bucket_warns_not_crash(monkeypatch, caplog):
     with caplog.at_level("WARNING"):
         s.validate_for_runtime()  # TIDAK raise
     assert any("R2_BUCKET" in r.message for r in caplog.records)
+
+
+def test_produksi_internal_secret_bawaan_ditolak(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-palsu-w")
+    monkeypatch.setenv("INTERNAL_SECRET", _DEFAULT_WEBHOOK_SECRET)
+    with pytest.raises(RuntimeError, match="INTERNAL_SECRET"):
+        Settings().validate_secrets()
+
+
+def test_produksi_webhook_secret_kosong_ditolak(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("WEBHOOK_SECRET", "")
+    monkeypatch.delenv("INTERNAL_SECRET", raising=False)
+    with pytest.raises(RuntimeError, match="WEBHOOK_SECRET"):
+        Settings().validate_secrets()
+
+
+def test_produksi_tanpa_internal_secret_cuma_peringatan(monkeypatch, caplog):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-palsu-w")
+    monkeypatch.delenv("INTERNAL_SECRET", raising=False)
+    with caplog.at_level("WARNING"):
+        Settings().validate_secrets()
+    assert any("INTERNAL_SECRET" in r.getMessage() for r in caplog.records)
+
+
+def test_validate_secrets_tidak_membawa_peringatan_khusus_line(monkeypatch, caplog):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-palsu-w")
+    monkeypatch.setenv("INTERNAL_SECRET", "kunci-palsu-i")
+    monkeypatch.delenv("R2_BUCKET", raising=False)
+    with caplog.at_level("WARNING"):
+        Settings().validate_secrets()
+    assert not any("R2_BUCKET" in r.getMessage() for r in caplog.records)
 
 
 def test_pubkey_falls_back_to_baked_in_key(monkeypatch):

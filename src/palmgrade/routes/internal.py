@@ -6,7 +6,7 @@ import threading
 import time
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from ..controllers.internal_controller import (
     line_status,
@@ -44,16 +44,12 @@ from ..schemas.internal_schema import (
 from ..services.capture_service import CaptureService
 from ..services.hapus_data_line import hapus_diminta
 from ..workers.runtime_state import RuntimeState
+from .penjaga_rahasia import penjaga_internal
 
 logger = logging.getLogger(__name__)
 
-
-async def _verify_internal_secret(
-    x_internal_secret: Annotated[str | None, Header()] = None,
-) -> None:
-    settings = get_settings()
-    if x_internal_secret != settings.internal_secret:
-        raise HTTPException(status_code=401, detail="Invalid internal secret")
+# Nama modul dipertahankan: test lokal menimpanya lewat dependency_overrides.
+_verify_internal_secret = penjaga_internal(get_settings)
 
 
 router = APIRouter(
