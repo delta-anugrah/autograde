@@ -1,0 +1,66 @@
+# Internet demo console on the AutoERP droplet, installed at /opt/autograde-demo and driven by demo-autograde.sh.
+services:
+  console:
+    image: ${PALMGRADE_AUTOGRADE_IMAGE}
+    container_name: autograde_demo_console
+    restart: unless-stopped
+    # The droplet has no swap and runs AutoERP production: the demo must be the one that dies first.
+    mem_limit: 700m
+    cpus: 1.0
+    ports:
+      - "127.0.0.1:${DEMO_PORT:-8100}:8100"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,os;urllib.request.urlopen('http://localhost:'+os.environ['APP_PORT']+'/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    environment:
+      - APP_MODE=console
+      - APP_PORT=8100
+      - APP_ENV=${APP_ENV}
+      - BACKEND_API_VER=/api/v1
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - INTERNAL_SECRET=${INTERNAL_SECRET}
+      - FACTORY_TZ=${FACTORY_TZ}
+      - CONSOLE_SYNC_INTERVAL_S=${CONSOLE_SYNC_INTERVAL_S}
+      - CONSOLE_LINE_HOST=http://localhost
+      - CONSOLE_DEFAULT_HASH=${CONSOLE_DEFAULT_HASH}
+      - CONSOLE_SUPPORT_HASH=${CONSOLE_SUPPORT_HASH}
+      - ERP_URL=${ERP_URL}
+      - ERP_API_KEY=${ERP_API_KEY}
+      - ERP_API_SECRET=${ERP_API_SECRET}
+      - ERP_COMPANY=${ERP_COMPANY}
+      - ERP_ALLOWED_ROLES=${ERP_ALLOWED_ROLES}
+      - LOG_RETENSI_HARI=30
+      # No camera lines, so no photos: R2 stays off.
+      - R2_ACCOUNT_ID=
+      - R2_ACCESS_KEY_ID=
+      - R2_SECRET_ACCESS_KEY=
+      - R2_BUCKET=
+      - R2_PUBLIC_URL=
+      - LICENSE_TOKEN=${LICENSE_TOKEN}
+      - LICENSE_ENABLED=${LICENSE_ENABLED}
+      - LICENSE_PUBLIC_KEY=${LICENSE_PUBLIC_KEY}
+      - MACHINE_ID=demo-konsol
+      - LINE_1_MACHINE_ID=d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01
+      - LINE_2_MACHINE_ID=a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02
+      - LINE_3_MACHINE_ID=ad5f7bb9-c06d-4e87-8282-ce450ae331ec
+      - MEDIA_DIR=/media
+      - MEDIA_ENV_PATH=/config/media.env
+      - REKAMAN_TAMPIL=/opt/autograde-demo/videos
+      - MEDIA_FILE=
+    volumes:
+      - ./state/console:/app/state
+      - ./artifacts/line-1:/app/artifacts/line-1:ro
+      - ./artifacts/line-2:/app/artifacts/line-2:ro
+      - ./artifacts/line-3:/app/artifacts/line-3:ro
+      - ./media:/media:ro
+      - ./models:/app/models:ro
+      - ./engines:/app/engines:ro
+      - ./media.env:/config/media.env
