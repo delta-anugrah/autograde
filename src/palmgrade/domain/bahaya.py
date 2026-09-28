@@ -5,7 +5,7 @@ yang cukup diperingatkan, dan tabel mana yang dihapus per mode. Layar memakai
 hasil yang sama untuk menjelaskan, server untuk menolak — dua tempat, satu
 aturan, jadi keduanya tidak bisa berbeda diam-diam.
 
-Rancangan: `docs/superpowers/specs/2026-09-25-danger-zone-design.md`.
+Aturannya: CLAUDE.md aturan 25 (Danger Zone).
 """
 from __future__ import annotations
 

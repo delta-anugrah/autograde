@@ -1,10 +1,10 @@
-# Spesifikasi Kamera: Palmgrade Vision
+# Spesifikasi Kamera: AutoGrade
 
-Dokumen ini merangkum spesifikasi kamera yang dipakai Palmgrade Vision, setting
-runtime yang aktif, dan alasan di balik setiap keputusan. Untuk langkah instalasi
-dari nol, lihat [SETUP.md](SETUP.md).
+Dokumen ini merangkum spesifikasi kamera yang dipakai AutoGrade, setting runtime
+yang aktif, dan alasan di balik setiap keputusan. Untuk langkah instalasi host dan
+kamera, lihat [SETUP.md](SETUP.md).
 
-Sumber kebenaran setting kamera adalah [`config/camera/hikrobot.mfs`](../config/camera/hikrobot.mfs)
+Sumber kebenaran setting kamera adalah [`config/camera/hikrobot.mfs`](../config/camera/hikrobot.mfs):
 file itu di-load ke kamera saat connect, jadi nilainya menang atas ekspektasi
 apa pun di `.env`.
 
@@ -12,7 +12,7 @@ apa pun di `.env`.
 
 ## 1. Hardware
 
-Palmgrade memakai **3 unit Hikrobot MV-CS050-10GC**, satu kamera per camera line.
+AutoGrade memakai **3 unit Hikrobot MV-CS050-10GC**, satu kamera per camera line.
 
 | Item | Nilai |
 |---|---|
@@ -105,8 +105,8 @@ Ini kendala desain utama dari keseluruhan setup kamera.
 **Tanpa mitigasi: tidak muat:**
 
 ```
-2448 × 2048 × 1 byte (BayerRG8) × 10 fps ≈ 401 Mbps per kamera
-401 Mbps × 3 kamera                      ≈ 1.2 Gbps
+2448 × 2048 × 1 byte (BayerRG8) × 15 fps ≈ 602 Mbps per kamera
+602 Mbps × 3 kamera                      ≈ 1.8 Gbps
 ```
 
 Uplink GigE hanya 1 Gbps. Konfigurasi ini **melebihi kapasitas** dan menghasilkan
@@ -164,6 +164,8 @@ YOLO tidak berkurang akibat binning.
 
 ## 4. Topologi Jaringan
 
+Contoh template, sama dengan [SETUP.md](SETUP.md) §5–6:
+
 ```
 Kamera 1 (192.168.100.10) ─┐
 Kamera 2 (192.168.100.11) ─┼─→ Gigabit Switch ─→ NIC PC (192.168.100.100)
@@ -178,6 +180,17 @@ Kamera 3 (192.168.100.12) ─┘      (MTU 9000)         enp55s0
 | Gateway | `192.168.100.254` |
 | MTU | `9000` (switch + NIC) |
 | Kabel | Cat5e/Cat6 pure copper minimum |
+
+**PC Lampung memakai segmen lain.** Angka di bawah diukur di mesinnya (skill
+`spek-pc-pabrik` dan `mvs-camera`), bukan dari template:
+
+| Item | Lampung |
+|---|---|
+| NIC kamera | `enp3s0`, `192.168.0.10/24` |
+| Kamera | segmen `192.168.0.x`; satu kamera terbaca `192.168.0.13`, IP ketiganya belum tercatat |
+| Gateway kamera | `192.168.0.254` |
+| PLC Mitsubishi | `192.168.0.14`, dicolok ke switch kamera yang sama; jangan dipakai kamera |
+| Internet | NIC terpisah (USB ethernet, DHCP) |
 
 **Assign IP satu per satu** sebelum menggabungkan semua kamera ke switch. Kamera
 keluar dari pabrik dengan IP default yang sama, jadi menghubungkan semuanya
@@ -211,15 +224,17 @@ hilang saat kamera restart.
 
 Aplikasi me-load [`config/camera/hikrobot.mfs`](../config/camera/hikrobot.mfs) ke
 kamera lewat `MV_CC_FeatureLoad` setiap kali connect
-([hikrobot_camera.py:106-118](../src/palmgrade/integrations/camera/hikrobot_camera.py#L106-L118)).
+([hikrobot_camera.py:105-126](../src/palmgrade/integrations/camera/hikrobot_camera.py#L105-L126)).
 
 Operasi ini **non-fatal**: kalau load gagal, line tetap jalan memakai setting
 firmware yang tersimpan di kamera, dan kegagalan hanya tercatat sebagai warning.
 
 > **Implikasi penting:** karena `.mfs` di-load setiap connect,
 > **`AcquisitionFrameRate = 15` di file inilah** yang menentukan fps runtime,
-> bukan `CAMERA_FPS` di `.env`. Untuk mengubah frame rate secara permanen, edit
-> `.mfs` (atau simpan ulang dari MVS), jangan hanya `.env`.
+> bukan `CAMERA_FPS` di `.env`. Line membaca balik laju itu dari kamera
+> (`HikrobotCamera.get_fps`); `CAMERA_FPS` hanya cadangan kalau sumbernya tidak
+> bisa melapor. Untuk mengubah frame rate secara permanen, edit `.mfs` (atau simpan
+> ulang dari MVS), jangan `.env`.
 
 > ⚠️ **Nge-comment `LINE_<n>_FEATURE_FILE` tidak mematikan auto-load.**
 > `docker-compose.yml` memakai `${LINE_1_FEATURE_FILE:-config/camera/hikrobot.mfs}`,
@@ -261,50 +276,42 @@ Cara mendapatkan serial: buka MVS, atau baca log startup, aplikasi mencatat
 ### 6.2 Variabel `.env` terkait kamera
 
 ```env
-CAMERA_TYPE=hikrobot      # hikrobot (produksi) | opencv (dev) | photo (testing)
-CAMERA_WIDTH=2448
-CAMERA_HEIGHT=2048
-CAMERA_FPS=15
-
-LINE_1_CAMERA_SERIAL=
+LINE_1_CAMERA_SERIAL=     # wajib di pabrik, lihat §6.1
 LINE_2_CAMERA_SERIAL=
 LINE_3_CAMERA_SERIAL=
+LINE_1_FEATURE_FILE=      # kosong = config/camera/hikrobot.mfs (lihat §5.2)
+LINE_2_FEATURE_FILE=
+LINE_3_FEATURE_FILE=
+CAMERA_FPS=20             # cadangan, lihat §5.2
 ```
 
-`CAMERA_TYPE` memberi dua opsi pengembangan tanpa hardware: `opencv` (webcam atau
-file video) dan `photo` (gambar statis).
+Jenis sumber per line (`hikrobot` untuk produksi, `opencv` untuk webcam atau
+berkas video, `photo` untuk gambar statis) tidak lagi di `.env`: ada di
+`media.env` sebagai `LINE_N_CAMERA_TYPE`, diatur dari konsol tab **Line → Sumber
+Kamera** ([runbook](runbooks/2026-09-21-sumber-kamera-per-line.md)).
 
-> **Peringatan konsistensi:** `.env.example` dan `docker-compose.yml` memakai
-> default `CAMERA_WIDTH=2448` / `CAMERA_HEIGHT=2048` (resolusi native), sedangkan
-> kamera sebenarnya mengirim **1224×1024** karena binning 2×2 di `.mfs`. Nilai
-> yang menang saat runtime adalah yang dari kamera. Jangan pakai `CAMERA_WIDTH`
-> sebagai acuan ukuran frame yang sesungguhnya.
+> `CAMERA_WIDTH` / `CAMERA_HEIGHT` hanya dipakai sumber OpenCV dan pemanasan model.
+> Kamera Hikrobot mengirim ukuran dari `.mfs`, yaitu **1224×1024** karena binning
+> 2×2. Jangan pakai `CAMERA_WIDTH` sebagai acuan ukuran frame yang sesungguhnya.
 
 ### 6.3 Deployment
 
-Tiga container Docker, satu per line, di port **8001** / **8002** / **8003**,
-dengan `network_mode: host` (diperlukan agar GigE discovery bisa menjangkau
-subnet kamera) dan GPU passthrough.
+Tiga container line di port **8001** / **8002** / **8003** (plus konsol operator
+tanpa kamera di 8100), dengan `network_mode: host` (diperlukan agar GigE discovery
+bisa menjangkau subnet kamera) dan GPU passthrough.
 
 ---
 
 ## 7. Catatan GPU
 
-Perbedaan hardware antara dev dan produksi memengaruhi kamera secara tidak langsung:
-
-| Environment | GPU | VRAM |
-|---|---|---|
-| Laptop dev | RTX 4050 Laptop | 6 GB |
-| PC produksi | GTX 1650 | 4 GB |
-
-Frame rate 10 fps bukan hanya soal bandwidth jaringan, angka itu juga hasil
-tuning terhadap kemampuan **GTX 1650** memproses tiga stream secara bersamaan
-dalam 4 GB VRAM.
+PC pabrik Lampung memakai **RTX 3060 12 GB** (compute capability sm86); spek
+terukurnya di skill `spek-pc-pabrik`. Plafon GPU untuk 3 line ada di §3.1: GPU
+bukan penentu 15 fps.
 
 Engine TensorRT **terkunci per hardware GPU** dan tidak di-commit ke repo. Engine
-yang di-build di laptop tidak bisa dipakai di PC produksi, harus
-`make build-engine` ulang di mesin produksi. Runtime akan fallback ke `.pt` kalau
-engine belum tersedia.
+yang di-build di laptop tidak bisa dipakai di PC produksi: bangun ulang di mesin
+itu (perintahnya di [runbook Model Deteksi](runbooks/2026-09-24-model-deteksi-per-line.md)).
+Runtime akan fallback ke `.pt` kalau engine belum tersedia.
 
 ---
 

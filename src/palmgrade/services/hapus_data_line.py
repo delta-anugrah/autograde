@@ -26,7 +26,7 @@ bukan data transaksi. Menghapusnya membuat jam PC bisa dimundurkan untuk
 memperpanjang langganan. `autograde reset-data-fresh` di terminal memang
 menghapusnya; tombol di konsol sengaja tidak.
 
-Rancangan: `docs/superpowers/specs/2026-09-25-danger-zone-design.md` §5.
+Aturannya: CLAUDE.md aturan 25 (Danger Zone).
 """
 from __future__ import annotations
 

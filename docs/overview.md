@@ -1,8 +1,8 @@
 # autograde: Detailed Overview
 
 > **The DETAIL doc** (read on-demand). The lean map is `../CLAUDE.md`.
-> Even deeper, specialized docs: `architecture.md` (layer boundaries), `backend-overview.md`
-> (full endpoint/env tables), `SETUP.md` (from-zero prod setup).
+> Layer boundaries: §1 below. Full endpoint and env tables: `backend-overview.md`. Host and
+> camera setup: `SETUP.md`. Factory PC install and operation: `MANUAL.md`.
 
 ---
 
@@ -32,12 +32,12 @@
 | `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); janjang menyentuh garis capture → pulse PLC + `event_queue` + serahkan `SaveJob`, lalu **lanjut**. Sejak 2026-09-18 **tidak menulis ke disk maupun outbox sendiri** |
 | `CaptureSaveWorker` | thread | penulis bukti: encode WebP bbox+clean+thumb, sidecar JSON, dan satu baris `outbox.add_event()`. Antrean 8 dalam, drop yang terbaru + `logger.error` kalau penuh (`capture_save_dropped`). Ikut diawasi watchdog; antreannya dikuras saat shutdown sebelum kamera dilepas |
 | `DisplayWorker` | thread | the **only** writer of `state.latest_frame`: draw boxes → resize → draw ROI → JPEG encode → `frame_condition.notify_all()`. Runs at `STREAM_FPS` (default 12). |
-| `OutboxRetryWorker` | thread | kirim isi `outbox.db` ke API **lokal** (`BACKEND_URL`), poll 1 detik: jalur realtime operator, hidup walau internet mati. Batch upload ke cloud jalan terpisah. |
-| `PlcWorker` | thread | **hanya kalau `PLC_ENABLED=true`** (default mati → nol thread tambahan di cloud & PC dev). Satu-satunya thread yang menyentuh socket ke PLC (MC Protocol ke CPU Mitsubishi; Modbus ke coupler ODOT kalau `PLC_PROTOCOL=modbus`): kuras antrean keputusan → pulse bit OK/NG, kedipkan heartbeat, baca blok input, tulis bit ERROR. Bangun tiap `PLC_POLL_MS` (default 200ms) **selamanya**. Sinyal telat = buah salah yang tersortir, jadi kebijakannya **buang dan hitung, jangan pernah tunda**. |
+| `OutboxRetryWorker` | thread | kirim isi `outbox.db` ke **konsol lokal** (`BACKEND_URL`), poll 1 detik: jalur realtime operator, hidup walau internet mati. Batch upload foto ke R2 jalan terpisah. |
+| `PlcWorker` | thread | **hanya kalau `PLC_ENABLED=true`** (default mati → nol thread tambahan di PC dev). Satu-satunya thread yang menyentuh socket ke PLC (MC Protocol ke CPU Mitsubishi; Modbus ke coupler ODOT kalau `PLC_PROTOCOL=modbus`): kuras antrean keputusan → pulse bit OK/NG, kedipkan heartbeat, baca blok input, tulis bit ERROR. Bangun tiap `PLC_POLL_MS` (default 200ms) **selamanya**. Sinyal telat = buah salah yang tersortir, jadi kebijakannya **buang dan hitung, jangan pernah tunda**. |
 | `EventBroadcastWorker` | asyncio task | drain `event_queue` → push to `/ws/results` WebSocket clients |
 | `_watchdog` | asyncio task | every **10s**, restart any dead worker thread |
 
-`UploadScheduler` (APScheduler) menjalankan `BatchUploadWorker.run_batch_once` tiap jam (menit `UPLOAD_MINUTE`): scan `artifacts/results/` → manifest SQLite → upload gambar ke R2 → POST teks ke API cloud. `R2_BUCKET` kosong = no-op.
+`UploadScheduler` (APScheduler) menjalankan `BatchUploadWorker.run_batch_once` tiap jam (menit `UPLOAD_MINUTE`): scan `artifacts/results/` → manifest SQLite → upload gambar ke R2 → POST teks ke `UPLOAD_API_URL` **kalau diisi** (kosong di pabrik: penerimanya, palmgrade-api, sudah pensiun). `R2_BUCKET` kosong = no-op.
 
 **Queues / sync primitives** (`workers/runtime_state.py`):
 - `frame_queue`: raw frames, bounded (drop-old).
@@ -63,10 +63,12 @@ a third category would be wiring, not code), and AutoERP books three AI criteria
 carries both: `ripeness_status` is the verdict that fires pistons and is paid on,
 `grade_class` is the detail the console shows.
 
-⚠️ **`JK` is deliberately not sent to AutoERP.** There is no criterion for it
-there, and both near-misses misreport: `Sampah` is *weighed*, not seen by a
-camera, and folding JK into `Mentah` overstates the unripe share the supplier is
-docked for. Its count stays on the edge until a contract change is agreed.
+⚠️ **The JK count itself is not sent to AutoERP, but JK bunches are inside `Mentah`.**
+The visit message books `Mentah` from the REJ count, and JK is REJ (so are Ripe bunches
+forced to REJ for being stacked or too small). The 2026-09-16 design wanted JK kept on
+the edge (`Sampah` is weighed, not seen by a camera, and JK in `Mentah` overstates the
+share the supplier is docked for). Which one is intended is undecided (found
+2026-09-28); see CLAUDE.md rule 0.
 
 ```
 each YOLO frame (ByteTrack assigns track_id per object):
@@ -88,8 +90,8 @@ each YOLO frame (ByteTrack assigns track_id per object):
   CaptureSaveWorker (thread lain):
       write_pair(): WebP bbox + clean + thumb (quality 65 / 60)
       {ts}_auto_ripeness.json — SATU sidecar per janjang, TP ikut di dalamnya
-      outbox.add_event(build_event_payload(...))  # → API lokal via OutboxRetryWorker
-      # Pengiriman ke CLOUD terpisah: BatchUploadWorker men-scan file hasil save
+      outbox.add_event(build_event_payload(...))  # → konsol lokal via OutboxRetryWorker
+      # Upload ke R2 terpisah: BatchUploadWorker men-scan file hasil save
       # di atas (lihat §4) dan menghitung ulang uuid5 yang sama dari machine_id +
       # timestamp nama file — dua jalur, satu event_id, jadi tidak pernah dobel.
 ```
@@ -179,7 +181,8 @@ Yang menolak nilai aneh adalah jalur SIMPAN, di gerbang, sebelum sampai ke tiga 
 model, bukan mutu buah, dan dari beberapa meter "54%" terbaca seperti "54% matang"; ambangnya
 sudah diputuskan `CONF_THRESHOLD`, jadi apa pun yang tergambar sudah lolos ambang itu.
 `viewer.html` membuangnya lebih dulu (`abd8f17`). Nilainya **tetap** disimpan di sidecar dan
-dikirim ke API: yang dibuang tampilannya, bukan datanya.
+dikirim ke konsol: yang dibuang tampilannya, bukan datanya. `MODE_DEV=true` (tab Setelan)
+menggambarnya lagi, untuk support yang sedang menyetel ambang.
 
 **DisplayWorker draw order:** `draw_boxes()` (on `last_yolo_frame`) → `cv2.resize()` → `draw_roi()`
 (yang juga menggambar **garis capture** biru bertanda `CAPTURE`, sesudah resize, di ruang stream).
@@ -191,14 +194,17 @@ inference can take 0.5–2s and the conveyor moves, so boxes would land in the w
 
 ## 4. Batch Upload Delivery (hourly, at-least-once)
 
-> Jalur ke **cloud**, berdampingan dengan outbox (spec batch-upload-r2, 2026-07-10).
-> Antriannya **file di disk**, bukan `outbox.db`: `_scan()` menemukan `results/{date}/*.json`
-> dan menyimpan state per-item di `UploadManifest`. Outbox mengurus jalur **lokal** (§3) dan
-> tidak dibaca di sini; `event_id` keduanya identik sehingga sebuah event yang lewat dua-duanya
-> dibalas `already_processed` di API kedua.
+> Jalur ke **cloud**, berdampingan dengan outbox. Antriannya **file di disk**, bukan
+> `outbox.db`: `_scan()` menemukan `results/{date}/*.json` dan menyimpan state per-item di
+> `UploadManifest`. Outbox mengurus jalur **lokal** ke konsol (§3) dan tidak dibaca di sini.
+>
+> **Di pabrik sekarang yang naik cuma gambar.** `UPLOAD_API_URL` kosong (penerima teks per
+> janjang, palmgrade-api, pensiun 2026-09-20), jadi item `done` begitu PUT ke R2 berhasil dan
+> langkah 4 dilewati. AutoERP tidak menerima per janjang; konsol mengirim satu pesan per
+> kunjungan truk (§11).
 
 ```
-FrameProcessingWorker / CaptureService
+CaptureSaveWorker (auto) / CaptureService (manual)
   → simpan WebP + {ts}_*_ripeness.json ke artifacts/results/{date}/    # ini antriannya
       ↓  (UploadScheduler: APScheduler cron, tiap jam pada menit UPLOAD_MINUTE)
 BatchUploadWorker.run_batch_once()
@@ -206,14 +212,17 @@ BatchUploadWorker.run_batch_once()
   2. claim        SELECT WHERE status IN ('pending','image_uploaded') AND next_retry_at <= now
                   ORDER BY discovered_at ASC   LIMIT UPLOAD_MAX_ITEMS_PER_TICK (2000)
   3. PUT gambar   → Cloudflare R2 (boto3)          → mark_image_uploaded()
+                    (+ thumbnail 400 px; gagal thumb cuma warning)
   4. POST teks    → {upload_events_url}             → mark_done()
                     header x-webhook-secret: UPLOAD_API_SECRET
-  5. _retention() hapus WebP+JSON yg `done` & lewat UPLOAD_RETENTION_DAYS (default 7)
+                    UPLOAD_API_URL kosong → langsung mark_done() sesudah langkah 3
+  5. _retention() hapus WebP+JSON yg `done` & lewat UPLOAD_RETENTION_DAYS (default 7),
+                  lebih awal kalau sisa disk < UPLOAD_DISK_MIN_FREE_GB
 ```
 
-- **Target POST = API CLOUD**, bukan API lokal: `upload_events_url` =
+- **Target POST = API cloud**, bukan konsol: `upload_events_url` =
   `{UPLOAD_API_URL}{backend_api_ver}/internal/vision/events`, secret-nya `UPLOAD_API_SECRET`.
-  `canonical_events_url` (`BACKEND_URL`, webhook realtime ke API lokal) **tidak dipakai worker ini**.
+  `canonical_events_url` (`BACKEND_URL`, jalur realtime ke konsol) **tidak dipakai worker ini**.
 - **`R2_BUCKET` kosong = worker no-op** (saklar off). Bukan error: cuma `logger.warning` **sekali**
   (`_warned_noop`), jadi gampang terlewat di log yang sudah jalan lama. Kalau event tidak pernah
   sampai cloud, cek variabel ini duluan.
@@ -235,69 +244,56 @@ BatchUploadWorker.run_batch_once()
   ulang, atau event yang sudah lewat jalur realtime, dibalas `already_processed` → tidak dobel.
 - `state/upload_manifest.db` sengaja **sibling** `artifacts/`, di luar mount statis `/captures`
   (`Settings.state_dir`) supaya DB operasional tidak ikut ter-serve sebagai file publik.
-- ⚠️ Progres batch **tidak ter-expose** di endpoint mana pun. `outbox_pending`/`outbox_failed` di
-  `/health/detail` mengukur jalur realtime ke API lokal, **bukan** backlog upload cloud.
-  Untuk backlog sungguhan: query `state/upload_manifest.db` atau baca log worker.
+- Progres batch **tidak** ada di `/health/detail`: `outbox_pending`/`outbox_failed` di sana
+  mengukur jalur realtime ke konsol. Ringkasannya naik lewat blok `unggah` di `GET
+  /internal/status` (dihitung sekali per batch) dan tampil di konsol sebagai **Last Sync →
+  Cloud Photo**. Rincian per item: query `state/upload_manifest.db` atau baca log worker.
 
-**Event payload (field names exact):**
-```json
-{
-  "event_id": "uuid (auto: uuid5 deterministik, manual: uuid4)",
-  "machine_id": "uuid",
-  "assignment_id": "uuid-or-null",
-  "truck_id": "uuid-or-null",
-  "timestamp": "ISO-8601 UTC-aware (+00:00)",
-  "image_path": "captures/results/{date}/{HHMMSS}_{plat}_{assign8}/bbox/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp",
-  "prediction": "Acc | Rej",
-  "ripeness_status": "ACC | REJ",
-  "ripeness_confidence": 0.92,
-  "tp_status": "PASS | null",
-  "tp_confidence": 0.88,
-  "capture_type": "auto | manual",
-  "bounding_box": { "x_min": 0, "y_min": 0, "x_max": 100, "y_max": 100 }
-}
-```
-Contracts: `ripeness_status` UPPERCASE; `prediction` required; `tp_status` `"PASS"` or `null`
-(never `"TP"`); `event_id` is the api idempotency key; `assignment_id` from `state.current_assignment_id`.
+**Event payload** (field names, contract, and how the batch variant differs): `backend-overview.md`
+§Payload event. Realtime: `domain/vision_event.build_event_payload`; batch:
+`BatchUploadWorker._build_payload`, same fields.
 
 ---
 
-## 5. Integration Contract (cross-checked vs palmgrade-api code)
+## 5. Integration Contract (line ↔ konsol)
 
-**vision → api**
-- `POST {BACKEND_URL}{BACKEND_API_VER}/internal/vision/events`, header `x-webhook-secret`
-  (`webhook.middleware.ts` checks equality with `process.env.WEBHOOK_SECRET`).
-- api validates `VisionEventRequest` DTO (`@IsIn` on prediction/ripeness/tp/capture_type, `@IsUUID`
-  on machine_id). `truck_id`/`bounding_box` optional on the api side.
+Kontraknya beku sejak palmgrade-api: konsol meniru URL dan header yang sama, jadi
+`OutboxRetryWorker` di line tidak berubah sama sekali.
 
-**api → vision** (`gradingConsole.service.impl.ts`), header `x-internal-secret`:
-- `POST {vision_base_url}/internal/assignment` `{machine_id, assignment_id, truck_id, assigned_at}`
-  → `AssignmentSyncRequest` → sets `state.current_truck_id` + `state.current_assignment_id`.
-- `POST {vision_base_url}/internal/manual-reject` `{machine_id, assignment_id, requested_by, requested_at}`
-  → `ManualRejectCommandRequest` → `capture_manual_reject()` via executor.
-- `GET {vision_base_url}/health` for the line health check.
+**line → konsol** (`BACKEND_URL` = konsol di mesin yang sama, `http://localhost:8100` di PC pabrik),
+header `x-webhook-secret`:
+- `POST {BACKEND_URL}{BACKEND_API_VER}/internal/vision/events`: event per janjang. Secret salah →
+  401; payload cacat → 400, dan outbox line menandainya gagal (sengaja terlihat).
+- `GET .../internal/setelan` dan `GET .../internal/penugasan?machine_id=`: dibaca line saat start,
+  supaya setelan grading dan truk terpasang selamat dari container yang dibuat ulang.
 
-**Shared:** one `WEBHOOK_SECRET` both directions untuk jalur **API lokal** (`BACKEND_URL`). Jalur
-**batch ke cloud** pakai pasangan sendiri: `UPLOAD_API_URL` + `UPLOAD_API_SECRET` (= `WEBHOOK_SECRET`
-API cloud): jangan tertukar. `LINE_1/2/3_MACHINE_ID` = the three `machines.id`
-UUIDs (docker-compose falls back to seed UUIDs if unset). api maps `machine_id → machines.line_code`
-to serve images at `/api/v1/captures/<line_code>/...`. api SSE events after ingest:
-`inspection_saved`, `new_quality_control`, `assignment_changed`.
+**konsol → line** (`CONSOLE_LINE_HOST` + port 8001-8003), header `x-internal-secret`:
+- `POST /internal/assignment` `{machine_id, assignment_id, truck_id, assigned_at, ffb_source?, plate?}`
+  → sets `state.current_truck_id` + `state.current_assignment_id`.
+- `POST /internal/manual-reject` `{machine_id, assignment_id, requested_by, requested_at}`
+  → `capture_manual_reject()` via executor.
+- `GET /internal/status` tiap detik, `POST /internal/setelan`, `POST /internal/restart`, dan
+  lane support lainnya: daftar lengkap di `backend-overview.md`.
 
-> Day-boundary note: **event** `timestamp` sekarang UTC-aware (`datetime.now(timezone.utc)`): api
-> parse dengan benar tanpa asumsi TZ. File JSON di disk masih pakai naive local time (nama folder
-> tanggal + `results_today` mengikuti jam lokal container).
+**Shared:** satu `WEBHOOK_SECRET` untuk dua arah line ↔ konsol. Jalur **batch ke cloud** pakai
+pasangan sendiri, `UPLOAD_API_URL` + `UPLOAD_API_SECRET`, yang di pabrik sekarang kosong.
+`LINE_1/2/3_MACHINE_ID` = identitas tiga line (compose membawa bawaan UUID); konsol memetakan
+`machine_id → line_code` dan menyajikan gambar di `/captures/<line_code>/...`.
+
+> Day-boundary note: **event** `timestamp` UTC-aware (`datetime.now(timezone.utc)`). File JSON di
+> disk masih pakai naive local time (nama folder tanggal + `results_today` mengikuti jam lokal
+> container). Konsol menurunkan tanggal kerja sendiri dari timestamp event (§11).
 
 ---
 
 ## 6. Invariants: full rationale (don't change without discussion)
 
-0. **Disk before API.** Never POST events directly from a detection worker. `CaptureService` dan
-   `FrameProcessingWorker` menulis file (WebP + `_ripeness.json`) ke `results/{date}/` lalu satu
-   baris ke `outbox.db`: **tidak pernah** memanggil HTTP sendiri. Yang bicara ke jaringan cuma
-   `OutboxRetryWorker` (API lokal, §3) dan `BatchUploadWorker` (R2 + cloud, §4). Deteksi **tanpa
-   truck aktif tetap dikirim** (`truck_id: null`) di kedua jalur: `_scan()` tidak memfilter truck,
-   dan outbox juga tidak: API punya `TruckResolver.resolveOrStub`.
+0. **Disk before network.** Never POST events directly from a detection worker. `CaptureSaveWorker`
+   (jalur auto) dan `CaptureService` (manual) menulis file (WebP + `_ripeness.json`) ke
+   `results/{date}/` lalu satu baris ke `outbox.db`: **tidak pernah** memanggil HTTP sendiri. Yang
+   bicara ke jaringan cuma `OutboxRetryWorker` (konsol, §3) dan `BatchUploadWorker` (R2, §4).
+   Deteksi **tanpa truck aktif tetap dikirim** (`truck_id: null`) di kedua jalur: `_scan()` tidak
+   memfilter truck, dan outbox juga tidak.
 1. **`_processed_objects`.** After saving a track_id, add it so the next iteration `continue`s
    (single-trigger). Never `discard()` an active track. `run_once` trims only IDs that are gone from
    `track_history` **and** stale >300s (`_processed_times`): pure memory control, can't re-trigger
@@ -333,19 +329,22 @@ to serve images at `/api/v1/captures/<line_code>/...`. api SSE events after inge
 11. **`cv2.imwrite` failure raises `OSError`** in `LocalFileStorage.write_image`, a silent warning
     would leave orphaned JSON pointing at a missing image, dan karena JSON itulah yang di-scan
     `BatchUploadWorker`, item-nya berakhir `poisoned` saat upload. Auto path: caught by
-    `run_loop` (skip 1 frame). Manual path: propagates → 500 to operator.
+    `CaptureSaveWorker.run_loop` (that bunch has no image and no sidecar, logged; the writer
+    keeps running). Manual path: propagates → 500 to operator.
 
 ---
 
 ## 7. Camera Abstraction
 
-`CAMERA_TYPE` (default `hikrobot`) selects the implementation in `lifespan()`, no code edit to switch:
+`CAMERA_TYPE` (default `hikrobot`) selects the implementation in `lifespan()`, no code edit to switch.
+Per line it comes from `media.env` (`LINE_N_CAMERA_TYPE` + `LINE_N_MEDIA_FILE`), written by the console
+tab **Line → Sumber Kamera** and read by the line itself at boot (`Settings.__post_init__`):
 
 | `CAMERA_TYPE` | Class | When |
 |---|---|---|
 | `hikrobot` | `HikrobotCamera` | production (needs MVS SDK + GigE hardware) |
-| `opencv` | `OpenCVCamera` | dev: webcam (`CAMERA_DEVICE_INDEX`) or video file (`CAMERA_VIDEO_PATH`) |
-| `photo` | `PhotoCamera` | testing: single image looped (`CAMERA_PHOTO_PATH`) |
+| `opencv` | `OpenCVCamera` | dev: webcam (`CAMERA_DEVICE_INDEX`) or video file (`MEDIA_FILE`; `CAMERA_VIDEO_PATH` on the native `make line` path) |
+| `photo` | `PhotoCamera` | testing: single image looped (`MEDIA_FILE`; `CAMERA_PHOTO_PATH` on `make line`) |
 
 `CameraSource` ABC: `connect(index)`, `grab_frame() -> np.ndarray | None`, `disconnect()`.
 
@@ -362,12 +361,14 @@ still runs (`health.detail.camera_connected=false`), `FrameCaptureWorker` retrie
 (outside `/app`, so the `.:/app` mount can't shadow it). `load_dotenv(override=False)` in `main.py`;
 docker-compose `environment:` always wins over host `.env`.
 
-**Shared image:** only `ripe-line-1` has `build:` + `image: palmgrade-vision:latest`; line-2/3 reuse the
-image (build once, ~20GB saved). Don't re-add `build:` to line-2/3.
+**Shared image:** `ripe-line-1` and `console` have `build:` + `image: palmgrade-vision:latest`; line-2/3
+reuse the image (build once, ~20GB saved). Don't re-add `build:` to line-2/3. The factory PC builds
+nothing: it pulls `ghcr.io/delta-anugrah/autograde:vX.Y.Z`.
 
 **`network_mode: host`**: required for GigE Vision: `MV_CC_EnumDevices()` uses UDP broadcast that the
 Docker bridge blocks. Consequence: `ports:`/`extra_hosts:` are ignored: each container binds its own
-`APP_PORT` (8001/8002/8003).
+`APP_PORT` (lines 8001/8002/8003; console 8000 in the dev compose, 8100 in `docker-compose.prod.yml`
+because 8000 is the Frappe bench port).
 
 **GPU passthrough** (`deploy.resources.reservations.devices: nvidia/all/[gpu]`): needs NVIDIA Container
 Toolkit on host (add the NVIDIA apt repo first; `apt install nvidia-container-toolkit` alone isn't enough,
@@ -385,7 +386,8 @@ apa adanya: target itu memakai `docker-compose.yml` polos yang `image: palmgrade
 `build:`, jadi Docker akan mem-build ulang dari source alih-alih memakai image yang sudah di-pull.
 Di sana jalankan `docker compose run` dengan file override yang sama seperti stack-nya, sehingga
 `${PALMGRADE_AUTOGRADE_IMAGE}` dan mount `./engines:/app/engines` ikut terpakai, tanpa mount itu engine
-ditulis ke dalam container sekali pakai dan hilang begitu container keluar.
+ditulis ke dalam container sekali pakai dan hilang begitu container keluar. Perintah lengkapnya:
+`docs/runbooks/2026-09-24-model-deteksi-per-line.md` §Engine TensorRT per model.
 
 PENTING: TensorRT wajib di-install dari index NVIDIA (`https://pypi.nvidia.com`, wheel binary),
 PyPI publik cuma punya source stub yang bikin pip hang di "Preparing metadata".
@@ -396,13 +398,10 @@ PyPI publik cuma punya source stub yang bikin pip hang di "Preparing metadata".
 needed (not just `libMvCameraControl.so`): `MV_CC_EnumDevices()` dynamically loads the transport layer
 (`MvProducerGEV.cti`, `libMVGigEVisionSDK.so`); missing them → `MV_E_LOAD_LIBRARY (0x8000000C)`.
 
-**Production deployment checklist (new PC: order matters):**
-1. Install NVIDIA Container Toolkit → verify `docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu22.04 nvidia-smi`.
-2. Install Hikrobot MVS SDK at `/opt/MVS/` (`SETUP.md § 3`).
-3. `mkdir -p models/release` + copy `best.pt`.
-4. `.env`: `LINE_1/2/3_MACHINE_ID` (real UUIDs), `BACKEND_URL`, `WEBHOOK_SECRET`, `CAMERA_TYPE=hikrobot`, `CAMERA_FPS=15` (samakan dengan Acquisition Frame Rate kamera, `SETUP.md § 6.3`, alasan bandwidth 3 kamera).
-5. `make up`.
-6. Verify `curl :8001/health/detail | grep -E "gpu_available|camera_connected"`.
+**New factory PC:** host and camera prep in `SETUP.md` §1-6, the install order (image, `.env`,
+launcher, AutoERP, PLC) in `MANUAL.md` §5. The factory PC does not run `make up`: it pulls the
+GHCR image through the host launcher (`autograde pull` / `autograde use vX.Y.Z`). Frame rate lives in
+`config/camera/hikrobot.mfs` (15 fps), not `CAMERA_FPS`.
 
 **`requirements.txt`:** never replace with `pip freeze` from elsewhere. Only what the source imports:
 `fastapi`, `uvicorn[standard]`, `python-multipart`, `python-dotenv`, `ultralytics`, `numpy`,
@@ -420,9 +419,10 @@ artifacts/line-N/   (host) ↔ /app/artifacts (container)
     {ts}_manual_ripeness.json                        # manual reject
     {HHMMSS}_{plat}_{assign8}/                       # satu folder per kunjungan truk
       bbox/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp      # bergambar kotak → image_path, naik R2
-      clean/{acc|rej}/{ts}_auto.webp                 # polos → latih model, TIDAK diupload
+      thumb/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp     # bbox 400 px → naik R2 (grid backoffice)
+      clean/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp     # polos → latih model, TIDAK diupload
     _belum-assign/                                   # ter-grading sebelum truk dipasang
-  outbox.db                 # SQLite — antrean realtime ke API lokal (OutboxRetryWorker)
+  outbox.db                 # SQLite: antrean realtime ke konsol (OutboxRetryWorker)
 
 state/line-N/   (host) ↔ /app/state (container)   # SIBLING artifacts/, DI LUAR mount /captures
   upload_manifest.db        # progres BatchUploadWorker (WAL + synchronous=FULL)
@@ -441,12 +441,12 @@ gambar; letaknya dibaca dari `image_path` di dalam JSON.
 manusia. Dua zona dalam satu pohon disengaja: folder buat manusia, berkas buat mesin.
 Aturan penamaan: `domain/capture_layout.py`. Penulis (satu-satunya, dipakai jalur auto maupun
 manual): `services/capture_writer.py`.
-⚠️ **Salinan `clean/` bikin pemakaian disk dua kali lipat** dan tidak punya baris manifest
-sendiri: `_delete_item_files` menghapusnya lewat `clean_twin_of()`. Menambah gambar ketiga
-tanpa ikut mendaftarkannya di situ = file yang tidak pernah dihapus siapa pun.
+⚠️ **Salinan `clean/` dan `thumb/` tidak punya baris manifest sendiri**: retensi menghapusnya
+lewat `twins_of()` (`domain/capture_layout.py`). Menambah varian gambar baru tanpa ikut
+mendaftarkannya di situ = file yang tidak pernah dihapus siapa pun.
 Served by FastAPI `StaticFiles` mount `/captures` → `artifacts/`, so `image_url`
-`captures/results/{date}/{truk}/{bbox|clean}/{acc|rej}/{file}` resolves on the vision side. (The api re-serves per line under
-`/api/v1/captures/<line_code>/...`.)
+`captures/results/{date}/{truk}/bbox/{Ripe|Unripe|JK}[/TP]/{file}` resolves on the line side. The
+console re-serves each line read-only under `/captures/<line_code>/...`.
 
 ---
 
@@ -455,8 +455,8 @@ Served by FastAPI `StaticFiles` mount `/captures` → `artifacts/`, so `image_ur
 `LICENSE_ENABLED=true` adds `LicenseGuardMiddleware` (Ed25519 JWS verify of `LICENSE_TOKEN`) plus a
 grading gate in `FrameProcessingWorker`: the HTTP middleware alone would leave the cameras running.
 Added before CORS so a 403 still gets CORS headers. `LicenseManager` / `LicenseLocalRepo` /
-`gate.py` live in `license/`. No network: the token comes from env, installed with
-`palmgrade license <token>`.
+`gate.py` live in `license/`. No network: the token comes from env. It is issued in AutoERP
+(DocType `AutoGrade Licence`) and installed on the factory PC with `autograde licence <token>`.
 
 **Effective-status state machine** (`LicenseManager._evaluate`, urutan cek):
 `nbf` belum tiba → clock rollback (jam < lantai `max(max_seen_server_time, server_time)` − 300 s) → status `CANCEL`/`EXPIRED` →
@@ -479,9 +479,10 @@ FastAPI/Starlette: di luar filosofi CI murni-logic); logic-nya tipis dan seluruh
 ## 11. Konsol Operator Offline (`APP_MODE=console`, Fase 2)
 
 Layar operator pindah dari `palmgrade-frontend` ke sini. Instance **ke-4 dari image yang sama**,
-port **8000**, halaman di `http://localhost:8000/console`. Rencana & keputusan yang mengunci
-bentuknya: runbook `2026-09-09-rencana-palmos-autograde.md` di repo `sawit` (§4, §6.1, §6.2,
-§3.5b). Nama "PalmOS" di judulnya sudah pensiun, kotak ERP sekarang **AutoERP**.
+port **8100** di PC pabrik (`docker-compose.prod.yml`) dan di `make console`; compose dev tanpa
+override memakai 8000. Halaman di `/console`. Rencana & keputusan yang mengunci bentuknya: runbook
+`2026-09-09-rencana-palmos-autograde.md` di repo `sawit` (§4, §6.1, §6.2, §3.5b). Nama "PalmOS" di
+judulnya sudah pensiun, kotak ERP sekarang **AutoERP**.
 
 **Kenapa modul ASGI-nya terpisah.** `main.py` menarik `core/dependencies.py` → pipelines →
 ultralytics → torch, dan `core/constants.py` → cv2. Konsol tidak butuh satupun, jadi
@@ -492,16 +493,13 @@ layar operator, dan konsol boot dalam hitungan detik.
 **Kenapa konsol tidak "membaca disknya sendiri".** docker-compose memberi tiap line
 `artifacts/line-N` + `state/line-N` sendiri-sendiri, jadi instance ke-4 melihat pohon kosong.
 Yang dipakai justru **kontrak event beku §5**: konsol membuka
-`POST {BACKEND_API_VER}/internal/vision/events` dengan header `x-webhook-secret`: bentuk yang
-persis sama dengan palmgrade-api: lalu tiap line cukup di-set `BACKEND_URL=http://localhost:8000`.
-`OutboxRetryWorker` yang sudah ada menanggung retry, backoff, dan dedupe uuid5 saat konsol
-restart. Nol perubahan di kode line, dan `palmgrade_api` lokal tidak perlu hidup lagi di PC
-pabrik (7 → 4 container).
+`POST {BACKEND_API_VER}/internal/vision/events` dengan header `x-webhook-secret`, bentuk yang
+persis sama dengan palmgrade-api dulu, lalu tiap line cukup menunjuk `BACKEND_URL` ke konsol
+(`http://localhost:8100` di PC pabrik). `OutboxRetryWorker` yang sudah ada menanggung retry,
+backoff, dan dedupe uuid5 saat konsol restart. Nol perubahan di kode line.
 
 Gambar tetap milik line-nya: tiga `artifacts/line-N` di-mount **read-only** ke konsol dan
-di-serve statis di `/captures/{line_code}/...`: bentuk URL yang sama dengan
-`resolveCaptureUrl()` di palmgrade-api, supaya pindah antara konsol dan cloud tidak mengubah
-apa yang dilihat operator.
+di-serve statis di `/captures/{line_code}/...`.
 
 **Batas hari kerja (§6.1).** Pabrik jalan ~20 jam/hari dan **lewat tengah malam**, jadi batas
 hari UTC memotong satu shift jadi dua tanggal. `work_date` dihitung **saat ingest** dari
@@ -660,7 +658,7 @@ bukan lagi string `"operator"`. Akun lokal dibuat dari PC dengan `make operator`
 2026-09-26 juga dari tab Akun (support) dengan aturan yang sama. Rincian aturannya di `CLAUDE.md`
 invarian 19.
 
-**Impor grading dari CSV (2026-09-27, support).** Kebalikan Unduh CSV di tab Riwayat: CSV Per janjang
+**Impor grading dari CSV (2026-09-27, support).** Kebalikan Unduh CSV di tab Rekap: CSV Per janjang
 dari konsol ini atau PC lain dibaca ulang jadi janjang (misalnya memindahkan riwayat ke PC baru, atau
 memulihkan hari-hari yang terhapus Danger Zone). Periksa dulu, lalu impor berkas yang sama; janjang
 hari ini tidak diimpor, yang sudah ada dilewati, dan satu impor bisa dibatalkan utuh. Janjang impor
@@ -669,8 +667,9 @@ aturan 26.
 
 **Belum termasuk Fase 2** (sengaja): timbangan brondolan lewat PLC (§6.6b, Fase 3), nomor dokumen
 berprefiks lokal (§6.3), dan toggle tampil/sembunyi per line. Riwayat lintas hari dulu juga di
-daftar ini ("urusan cloud"); sejak 2026-09-26 ada tab **Riwayat** di konsol (maks 31 hari per
-tampilan, CLAUDE.md invarian 26), karena cloud lama sudah mati dan AutoERP cuma menerima rekap per truk.
+daftar ini ("urusan cloud"); sekarang ada di tab **Rekap** konsol (maks 31 hari per tampilan,
+CLAUDE.md invarian 26; tab Riwayat digabung ke Rekap 2026-09-28), karena cloud lama sudah mati
+dan AutoERP cuma menerima rekap per truk.
 
 **Tests** (`tests/unit/test_working_day.py`, `test_console_store.py`, murni-logic; satu-satunya yang
 memakai FastAPI adalah penjaga sesi konsol, lawan app rakitan sendiri): batas hari lewat tengah

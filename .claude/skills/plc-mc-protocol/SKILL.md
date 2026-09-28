@@ -134,8 +134,8 @@ Ringkasan yang harus diingat, urut seperti kejadiannya:
    runbook, idempoten, bikin cadangan).
 2. ⚠️ **`.env` MENANG atas compose.** `PLC_PORT=502` sisa ODOT di `.env` menimpa default yang
    benar. Sisakan cuma `PLC_ENABLED` dan `PLC_HOST` di `.env`.
-3. ⚠️ Tombol Uji PLC **abu-abu selama line punya truk**, Release dulu. Kata kuncinya **`UJI`**,
-   bukan `TES` (sempat dikira "pulse terkirim tapi PLC diam").
+3. ⚠️ Tombol Uji PLC **abu-abu selama line punya truk**, Release dulu. Sejak 2026-09-24
+   tidak ada lagi kata yang diketik: konfirmasinya tombol Jalankan/Batal.
 4. 🔴 **Baca jalan, tulis ditolak `mc protocol error 0x0055`** = *Enable online change (FTP,
    MC Protocol)* belum dicentang. Izin baca/tulis **terpisah**. Perlu Write to PLC + **reset
    CPU**. Retry 200 ms membanjiri log, `PLC_ENABLED=false` sementara kalau menunggu lama.
@@ -150,9 +150,10 @@ lalu start (bukan `restart`: yang ini kadang melewati container yang dianggap "t
 berubah") → `for n in 1 2 3; do docker logs --since 30s ripe_line_$n 2>&1 | grep -iE
 "connect|0x0055|coil write failed" | tail -1; done`: ketiganya **kosong** = tersambung.
 
-**Uji tanpa kamera:** tab **Uji PLC** di konsol (akun support) memicu satu pulse per bit.
+**Uji tanpa kamera:** tab **Line → Uji PLC** di konsol (akun support) memicu satu pulse per bit.
 Tombolnya dua baris: peran + alamat ("Kamera 1 OK" / "M1000"), **hijau untuk OK, merah
-untuk NG dan ERROR**: dan daftar bit menyebut alamat M-nya (`M1102 MOTOR 3 = Aktif`).
+untuk NG, kuning untuk ERROR**. Bit yang dibaca (motor fault, E-stop) tidak ditampilkan di
+tab ini lagi: tampil di pita alarm operator dan `/health/detail`.
 Di bawahnya ada peta alamat lengkap (HTML statis: dokumen kesepakatan panel, bukan keadaan).
 
 ⚠️ Peran dan warna diturunkan dari **offset** `coil_base`, nomor kameranya dari **kode

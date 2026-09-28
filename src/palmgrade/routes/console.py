@@ -929,7 +929,7 @@ async def dev_model_deteksi_simpan(
 # ── Danger Zone (tab Setelan, support) ─────────────────────────────────
 # Lima aksi berbahaya. Semua lewat `require_support`, dan yang menghapus
 # memeriksa ulang keadaan pabrik di server — layar cuma menjelaskan.
-# Rancangan: docs/superpowers/specs/2026-09-25-danger-zone-design.md.
+# Aturannya: CLAUDE.md aturan 25 (Danger Zone).
 
 
 @router.get("/api/console/dev/bahaya")

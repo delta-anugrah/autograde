@@ -102,9 +102,10 @@ mencocokkan IP persis huruf-per-huruf; lihat `project_factory_pc_lampung`.
 
 ## Container
 
-4 container jalan: `palmgrade_api`, `palmgrade_frontend`, `palmgrade_postgres`,
-`palmgrade_mongo`, plus `ripe_line_1|2|3` untuk vision. Nama pakai **underscore**,
-tidak sama dengan compose dev. Selalu `docker ps --format '{{.Names}}'` sebelum
+Sejak 2026-09-20 yang jalan: `ripe_line_1|2|3` (line kamera) dan `autograde-console-1`
+(konsol, nama dari compose host yang tanpa `container_name`). `palmgrade_api`,
+`palmgrade_frontend`, `palmgrade_postgres`, `palmgrade_mongo` di-**stop** (bukan dihapus,
+volumenya utuh). Nama tidak sama dengan compose dev. Selalu `docker ps --format '{{.Names}}'` sebelum
 `docker exec`: file compose prod ada di host, tidak ada di repo.
 
 ## Cara ukur ulang

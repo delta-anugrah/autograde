@@ -16,7 +16,7 @@ TensorRT, dan model apa yang **benar-benar** sedang jalan di tiap line.
 
 ## Cara pakai
 
-1. Login konsol dengan akun **support**, buka tab **Model Deteksi**.
+1. Login konsol dengan akun **support**, buka tab **Line**, pilih **Model Deteksi**.
 2. Tiap kartu line menunjukkan **Sedang jalan**: nama model, backend
    (`TensorRT` atau `.pt`), dan **kelas model yang benar-benar dimuat**. Semuanya
    dilaporkan line sendiri lewat `/health/detail`, bukan disalin dari pilihan
@@ -79,7 +79,7 @@ engine TensorRT. Lihat `services/model_library.py`.
 
 1. Salin berkas `.pt` ke `models/release/` di host. Di PC pabrik:
    `/opt/palmgrade/autograde/models/release/`. Layar ini tidak mengunduh apa pun.
-2. Buka ulang tab Model Deteksi. Model baru muncul di dropdown dan di tabel
+2. Buka ulang **Line → Model Deteksi**. Model baru muncul di dropdown dan di tabel
    "Semua model di PC ini".
 3. Model baru belum punya engine: line jalan di `.pt`, sekitar 2x lebih lambat,
    tanpa error. Layar menulisnya kuning. Build engine-nya, lihat bagian berikut.
@@ -121,9 +121,13 @@ hapus engine-nya sendiri lalu build ulang.
 
 ## Sebelum dipakai di PC pabrik
 
-1. **Image konsol dan line harus versi yang memuat fitur ini.** Line versi lama
-   tidak membaca `LINE_N_MODEL_FILE` dan tidak melaporkan modelnya; layar
-   menulis "tidak dilaporkan (versi line lama)".
+Lampung sudah memenuhi keduanya sejak `v1.17.0` (2026-09-25): ketiga line melapor
+`best.pt`, `tensorrt`, kelas `['JK','Ripe','TP','Unripe']`, `sm86`. Untuk PC lain,
+kerjakan langkah 2 **sebelum** `autograde use` ke versi yang memuat fitur ini.
+
+1. **Image konsol dan line harus versi yang memuat fitur ini** (`v1.17.0` ke atas).
+   Line versi lama tidak membaca `LINE_N_MODEL_FILE` dan tidak melaporkan modelnya;
+   layar menulis "tidak dilaporkan (versi line lama)".
 2. **Compose di host harus me-mount folder model ke konsol.** Berkas compose PC
    pabrik hidup di host dan tidak ikut `autograde pull`. Di
    `docker-compose.prod.yml` host, blok `volumes: !override` service `console`,
@@ -135,10 +139,12 @@ hapus engine-nya sendiri lalu build ulang.
    ```
 
    Tanpa itu tabel menulis merah "Folder /app/models/release tidak bisa dibuka
-   konsol", walau folder host penuh. Cek sesudah `autograde restart`:
+   konsol", walau folder host penuh. Cek sesudah `autograde restart`. Nama
+   container konsol beda per PC (Lampung: `autograde-console-1`); lihat dulu
+   dengan `docker ps --format '{{.Names}}'`:
 
    ```bash
-   docker exec palmgrade_console ls /app/models/release /app/engines
+   docker exec <container-konsol> ls /app/models/release /app/engines
    ```
 
 3. Line tidak perlu mount baru: `./models`, `./engines`, dan `media.env` sudah

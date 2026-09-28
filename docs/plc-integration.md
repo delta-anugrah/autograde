@@ -1,127 +1,96 @@
-# PLC Integration: Mitsubishi Q03UDECPU (MC Protocol) · ODOT (arsip)
+# PLC Integration: Mitsubishi Q03UDECPU (MC Protocol)
 
-> **Status 2026-09-23.** Jalur yang hidup adalah **MC Protocol langsung ke CPU** (`PLC_PROTOCOL=mc`,
-> bawaan): PC bicara ke port Ethernet bawaan Q03UDECPU lewat `pymcprotocol`, device **M**, alamat
-> dari daftar pak Ocit, camera 1/2/3 base **M1000/M1003/M1006** (+0 OK, +1 NG, +2 ERROR),
-> heartbeat **M1009**, blok baca **M1100–M1115** (motor 1–11 fault, **M1111** E-stop). Coupler
-> **ODOT CN-8031 dibatalkan** 2026-09-21; jalurnya masih bisa dipilih dengan `PLC_PROTOCOL=modbus`
-> untuk site yang terlanjur dikabel begitu. Dokumen untuk tim PLC: **`docs/plc-mc-handoff.md`**
-> (+ PDF); skill: `plc-mc-protocol`.
+> **Status 2026-09-23: tersambung di Lampung.** PC bicara langsung ke port Ethernet bawaan
+> Q03UDECPU lewat **MC Protocol** (`PLC_PROTOCOL=mc`, bawaan; pustaka `pymcprotocol`, frame 3E
+> biner). Tiga line tersambung di `192.168.0.14` port 1025/1026/1027; **M1000/M1001** (PC → PLC)
+> dan **M1111** (PLC → PC) terbukti di GX Works2. Dokumen untuk tim PLC:
+> **`docs/plc-mc-handoff.md`** (+ PDF). Kronologi commissioning:
+> `docs/runbooks/2026-09-23-commissioning-plc-lampung.md`. Skill: `plc-mc-protocol`.
 >
-> Yang berubah cuma lapisan klien (`plc/mc_client.py` vs `plc/modbus_client.py`, dipilih
-> `build_plc_client`). Semua di bawah ini: pulse, antrean, ERROR, piston, buah internal,
-> throughput: berlaku untuk **kedua** jalur. Yang khusus coupler ditandai **[modbus saja]**.
->
-> **Dua beda yang penting di jalur mc:** (1) tidak ada *fault action* coupler yang mereset output
-> saat link putus, jadi heartbeat **wajib berkedip** (`PLC_ALIVE_TOGGLE_MS` bawaan 500) dan
-> ladder menghitung PERUBAHAN; (2) `pymcprotocol` mengembalikan **bit nol** (bukan error) saat
-> socket tertutup di tengah pembacaan, jadi `McProtocolPlcClient` memeriksa panjang balasan
-> mentah sendiri (kalau tidak, E-stop yang ditekan terbaca lepas).
+> **Dua hal yang wajib dijaga di jalur mc:** (1) tidak ada coupler yang mereset output saat
+> link putus, jadi heartbeat **wajib berkedip** (`PLC_ALIVE_TOGGLE_MS`, bawaan 500 untuk mc)
+> dan ladder menghitung PERUBAHAN; (2) `pymcprotocol` mengembalikan **bit nol** (bukan error)
+> saat socket tertutup di tengah pembacaan, jadi `McProtocolPlcClient` memeriksa panjang
+> balasan mentah sendiri (kalau tidak, E-stop yang ditekan terbaca lepas).
 
-Vision mengirim hasil grading tiap line (ACC / REJ / ERROR) ke PLC Mitsubishi dan membaca
-balik motor fault + E-stop. Bagian hardware dan alamat coil di bawah menyalin skematik PDF
-*"REMOTE IO: CONVEYOR SAWIT"* (DW.26/07/27 hal. 19–20, PT Nexio Teknologi Otomasi) untuk
-jalur ODOT, plus percakapan dengan pak Ocit (PLC engineer).
+Vision mengirim hasil grading tiap line (ACC / REJ / ERROR) ke PLC dan membaca balik motor
+fault + E-stop. Alamatnya daftar pak Ocit (PLC engineer), 23 September 2026.
 
 Seluruh logika terkurung di paket `src/palmgrade/plc/`. Kode di luar paket ini hanya boleh
 menyentuh fungsi yang diekspor `__init__.py`: `start_plc_worker`, `shutdown_plc_worker`,
-`submit_grading`, `inputs`, `diagnostics`, `request_piston`, `piston_state`, `picu_coil`,
+`submit_grading`, `inputs`, `diagnostics`, `request_piston`, `piston_state`, `fire_test_coil`,
 `testable_coils`.
 
 ---
 
-## Hardware **[modbus saja]**
+## Peta alamat
 
-Di jalur mc tidak ada satu pun modul di bawah: kabel Ethernet dari NIC PC langsung ke port
-bawaan CPU. Tabel ini tinggal untuk site yang masih lewat coupler.
+Literal per line di `docker-compose.yml` (properti fisik line, bukan setelan `.env`).
+Peta untuk tim PLC, bentuk sinyal, dan uji dari layar: `docs/plc-mc-handoff.md` §2 dan §4;
+`tests/unit/test_plc_docs_match_compose.py` mengikat angka di sana ke compose.
 
-| Part number | Peran |
-| --- | --- |
-| ODOT CN-8031 | Coupler remote IO, sisi kita bicara ke ini via Modbus-TCP (port 502) |
-| CT-222F | Modul output, source/PNP, high-active |
-| CT-122F | Modul input, NPN, **low-active** |
-| CT-5801 | Modul catu daya panel |
-| AJ65SBTB1-16D1 | Modul input Mitsubishi (16 titik): sisi PLC yang menerima dari CT-222F |
-| AJ65SBTB1-16T1 | Modul output Mitsubishi (16 titik): sisi PLC yang mengirim ke CT-122F |
+**PC menulis, PLC membaca**
 
-**Catatan sink/source (sudah diverifikasi cocok, tanpa relay):**
-CT-222F source/PNP → AJ65SBTB1-16D1, dengan COM di 0V. AJ65SBTB1-16T1 sink (COM di 0V) →
-CT-122F low-aktif. Kedua pasangan cocok secara elektris tanpa perlu relay perantara.
+| Line | Port | OK | NG | ERROR |
+| --- | --- | --- | --- | --- |
+| 1 | 1025 | M1000 | M1001 | M1002 |
+| 2 | 1026 | M1003 | M1004 | M1005 |
+| 3 | 1027 | M1006 | M1007 | M1008 |
 
-**Batas koneksi coupler:** CN-8031 menerima maksimum **5 client Modbus-TCP bersamaan**. Tiga
-container line (satu koneksi per proses, tidak ada pooling) memakai 3 dari 5 slot itu.
+- OK/NG = pulse (`PLC_PULSE_MS`), ERROR = level (lihat "Coil ERROR" di bawah).
+- **M1009** = HEARTBIT PC, berkedip 500 ms. Compose memberikannya ke line 1 saja (lihat
+  catatan ⚠️ di tabel env).
+- Piston manual **belum dialokasikan** panel: `PLC_COIL_MANUAL` / `PLC_DI_MANUAL` kosong =
+  fitur mati, grading tidak terpengaruh.
 
----
+**PLC menulis, PC membaca**: blok **M1100–M1115**, dibaca tiap poll oleh ketiga line (status
+conveyor bersama, bukan per line).
 
-## Coil / DO: vision menulis (zero-based)
+| Offset | Alamat | Arti |
+| --- | --- | --- |
+| 0–10 | M1100–M1110 | MOTOR 1–11 FAULT |
+| 11 | M1111 | E-STOP OP PANEL |
+| 12–15 | M1112–M1115 | belum dialokasikan |
 
-| Coil  | Alamat PLC  | Arti         | Ditulis oleh |
-| ----- | ----------- | ------------ | ------------ |
-| 0     | X0300       | CAM 1 OK     | line 1       |
-| 1     | X0301       | CAM 1 NG     | line 1       |
-| 2     | X0302       | CAM 1 ERROR  | line 1       |
-| 3     | X0303       | CAM 2 OK     | line 2       |
-| 4     | X0304       | CAM 2 NG     | line 2       |
-| 5     | X0305       | CAM 2 ERROR  | line 2       |
-| 6     | X0306       | CAM 3 OK     | line 3       |
-| 7     | X0307       | CAM 3 NG     | line 3       |
-| 8     | X0308       | CAM 3 ERROR  | line 3       |
-| 9     | X0309       | HEARTBIT PC ON | line 1     |
-| 10–15 | X030A–X030F | SPARE          | -          |
+`inputs` di `/health/detail` adalah **offset**, bukan alamat. Aplikasi hanya menafsirkan
+offset 0–11 untuk pita alarm di konsol (`domain/plc_alarm.py`) dan offset `PLC_DI_MANUAL`
+untuk konfirmasi piston; keputusan grading tidak pernah membaca blok ini.
 
-Coil 9 tidak punya writer khusus, ia hidup lewat mekanisme `PLC_COIL_ALIVE` line 1
-(lihat di bawah). Modbus function code `05` (write single coil).
+### Jalur modbus (coupler ODOT, dibatalkan)
 
-**Coil 10–15 SPARE dan tidak boleh disentuh.** Implementasi awal memakai 10/11/12 sebagai
-bit "line N alive" per proses; itu penambahan kita sendiri, bukan permintaan pak Ocit, dan
-skematik REMOTE IO menandai keenamnya SPARE. Konsekuensi yang diterima sadar: kalau proses
-satu line mati sendirian, PLC tidak melihatnya, coil `CAM_N_ERROR` line itu justru tidak
-akan menyala, karena yang harus menulisnya ya proses yang barusan mati. Butuh deteksi itu →
-minta pak Ocit mengalokasikan spare, jangan pakai diam-diam.
-
-## Discrete input / DI: vision membaca (zero-based)
-
-| DI    | Alamat PLC  | Arti                                  |
-| ----- | ----------- | ------------------------------------- |
-| 0–10  | Y0310–Y031A | MOTOR 1–11 FAULT                      |
-| 11    | Y031B       | EMERGENCY STOP                        |
-| 12    | Y031C       | LINE 1: piston terbuka (konfirmasi)   |
-| 13    | Y031D       | LINE 2: piston terbuka (konfirmasi)   |
-| 14    | Y031E       | LINE 3: piston terbuka (konfirmasi)   |
-| 15    | Y031F       | SPARE                                 |
-
-Modbus function code `02` (read discrete inputs). Semua tiga line membaca discrete input yang
-sama: itu status bersama conveyor, bukan per-line.
-
-⚠️ **Digeser satu pada 2026-09-15: motor jadi 11, bukan 10.** Dulu motor di DI 0–9 dan E-stop di
-DI 10. Aplikasi sendiri **tidak pernah menafsirkan index mana pun kecuali `PLC_DI_MANUAL`**,
-`run_once` membaca blok 16 DI mentah dan menyimpannya apa adanya, jadi pergeseran ini murni
-perubahan env + dokumen, nol perubahan logika. Sisa spare tinggal satu.
+`PLC_PROTOCOL=modbus` masih didukung kode (`plc/modbus_client.py`, Modbus-TCP port 502,
+`PLC_UNIT_ID`) untuk site yang terlanjur dikabel lewat coupler remote IO ODOT CN-8031. Coupler
+itu dibatalkan 2026-09-21 dan tidak dipakai di Lampung; tabel coil/DI dan pertanyaan
+hardware-nya dihapus dari dokumen ini (ada di riwayat git). Beda perilaku yang tersisa di kode:
+heartbeat modbus bawaannya ON statis (`PLC_ALIVE_TOGGLE_MS=0`), karena coupler punya *fault
+action* yang mematikan output sendiri saat link putus.
 
 ---
 
 ## Env vars (`PLC_*`)
 
-Semua field dideklarasikan di `core/config.py` (satu blok berlabel `# ── PLC / ODOT CN-8031
-(Modbus-TCP) ──`), bukan config terpisah, konvensi repo ini: satu sumber kebenaran untuk env.
+Semua field dideklarasikan di satu blok PLC di `core/config.py`, bukan config terpisah:
+konvensi repo ini, satu sumber kebenaran untuk env.
 
 | Variable | Default | Arti |
 | --- | --- | --- |
-| `PLC_ENABLED` | `false` | Saklar fitur. `false` = default, dipakai cloud dan semua PC dev, lihat "Mati secara default" di bawah |
-| `PLC_PROTOCOL` | `mc` | `mc` = MC Protocol langsung ke CPU (jalur hidup). `modbus` = lewat coupler ODOT. Nilai asing → jatuh ke `mc` + warning, bukan crash |
-| `PLC_HOST` | (kosong) | IP PLC (mc: `192.168.0.14` di Lampung, satu segmen dengan NIC kamera; modbus: IP coupler). Kosong + `PLC_ENABLED=true` → worker tidak dijalankan, warning di log |
-| `PLC_PORT` | ikut protokol | **mc: literal per line di compose, 1025/1026/1027.** Satu Open Setting GX Works2 = satu koneksi TCP; tiga line di satu port = dua line tidak pernah tersambung (Lampung 2026-09-23). Kosong = `1025` mc / `502` modbus |
-| `PLC_UNIT_ID` | `1` | **[modbus saja]** unit/slave ID. MC Protocol menyapa CPU-nya langsung |
-| `PLC_DEVICE_PREFIX` | `M` | **[mc saja]** huruf device yang dipakai semua alamat di bawah. Panel memberi B/Y → ganti ini saja |
-| `PLC_COIL_BASE` | `0` | **Literal per line, bukan dari `.env`**: properti fisik line, bukan setelan yang boleh beda antar PC. mc (daftar Ocit): camera 1 = `1000`, 2 = `1003`, 3 = `1006`. modbus: `0` / `3` / `6` |
-| `PLC_COIL_ALIVE` | (kosong) | **Literal per line.** Bit heartbeat, dipegang line 1 saja: mc = `1009`, modbus = `9`. Line 2 dan 3 **kosong**. Kosong = fitur alive mati |
-| `PLC_ALIVE_TOGGLE_MS` | ikut protokol | Kosong = **`500` untuk mc** (wajib berkedip: tidak ada coupler yang mereset output saat PC mati, kedipan ini satu-satunya yang bisa dipantau ladder, dan ladder harus menghitung PERUBAHAN), **`0` untuk modbus** (ON statis, ladder membaca level; toggle di sini = alarm PC-mati tiap setengah periode, kejadian v1.3.0) |
-| `PLC_DI_BASE` | `0` | Awal blok yang dibaca. mc: `1100` (M1100–M1115). modbus: `0` |
-| `PLC_PULSE_MS` | `200` | Lebar pulse ON untuk satu keputusan OK/NG. **Wajib >= `PLC_POLL_MS`** (lihat di bawah). **Belum dikonfirmasi pak Ocit**: lihat "Belum diputuskan" |
+| `PLC_ENABLED` | `false` | Saklar fitur. `false` = default, dipakai semua PC dev; lihat "Mati secara default" di bawah |
+| `PLC_PROTOCOL` | `mc` | `mc` = MC Protocol langsung ke CPU. `modbus` = coupler ODOT lama. Nilai asing → jatuh ke `mc` + warning, bukan crash |
+| `PLC_HOST` | (kosong) | IP PLC (Lampung: `192.168.0.14`, satu segmen dengan NIC kamera). Kosong + `PLC_ENABLED=true` → worker tidak dijalankan, warning di log |
+| `PLC_PORT` | ikut protokol | **Literal per line di compose, 1025/1026/1027. Jangan diisi di `.env`.** Satu Open Setting GX Works2 = satu koneksi TCP; tiga line di satu port = dua line tidak pernah tersambung (Lampung 2026-09-23). Tanpa compose: `1025` mc / `502` modbus |
+| `PLC_UNIT_ID` | `1` | Modbus saja |
+| `PLC_DEVICE_PREFIX` | `M` | mc saja: huruf device semua alamat. Panel memberi B/Y → ganti ini saja |
+| `PLC_COIL_BASE` | `1000` | **Literal per line**: `1000` / `1003` / `1006`. OK = base, NG = base+1, ERROR = base+2 |
+| `PLC_COIL_ALIVE` | `1009` | **Literal per line**: line 1 = `1009`, line 2 dan 3 ditulis kosong. ⚠️ Nilai kosong saat ini jatuh ke bawaan `1009` (`os.getenv(...) or "1009"` di `core/config.py`), jadi line 2 dan 3 ikut mengedipkan M1009. Tercatat 2026-09-28, belum diperbaiki di kode |
+| `PLC_ALIVE_TOGGLE_MS` | ikut protokol | Kosong = **`500` untuk mc** (wajib berkedip, ladder menghitung PERUBAHAN), **`0` untuk modbus** (ON statis). Lisensi kedaluwarsa menahan heartbeat OFF |
+| `PLC_DI_BASE` | `1100` | Awal blok yang dibaca (M1100) |
+| `PLC_DI_COUNT` | `16` | Jumlah bit yang dibaca tiap poll mulai `PLC_DI_BASE`. Offset 11 = E-stop |
+| `PLC_COIL_MANUAL` / `PLC_DI_MANUAL` | (kosong) | Piston manual per line. Kosong = fitur mati; tidak ada bawaan, karena menebak alamat berarti menulis ke bit milik orang lain |
+| `PLC_PULSE_MS` | `200` | Lebar pulse ON untuk satu keputusan OK/NG. **Wajib >= `PLC_POLL_MS`** (lihat di bawah) |
 | `PLC_PULSE_GAP_MS` | `100` | Jeda OFF wajib sebelum pulse berikutnya pada coil yang sama, supaya PLC melihat tepi naik terpisah |
-| `PLC_QUEUE_MAX` | `1` | **Berapa banyak keterlambatan yang mau kamu beli**, bukan kapasitas/keandalan. Jumlah pulse yang boleh terutang per coil; tiap slot = `(pulse+gap)` ms sinyal jadi lebih basi. Penuh → drop + hitung, bukan tunggu |
-| `PLC_POLL_MS` | `200` | Interval `PlcWorker.run_once()`: **resolusi waktu semua timing di atas** (dan, di jalur modbus, keepalive watchdog coupler) |
-| `PLC_DI_COUNT` | `16` | Jumlah bit yang dibaca tiap poll mulai `PLC_DI_BASE`. Bit ke-11 = E-stop di kedua jalur (M1111 / DI 11) |
+| `PLC_QUEUE_MAX` | `1` | **Berapa banyak keterlambatan yang mau kamu beli**, bukan kapasitas. Jumlah pulse yang boleh terutang per coil; tiap slot = `(pulse+gap)` ms sinyal jadi lebih basi. Penuh → drop + hitung |
+| `PLC_HOLD_MS` | `0` | `0` = pulse (jalur yang terbukti). `> 0` = mode tahan, lihat di bawah |
+| `PLC_POLL_MS` | `200` | Interval `PlcWorker.run_once()`: **resolusi waktu semua timing di atas** |
 
 ### `PLC_POLL_MS` adalah resolusi waktu, bukan sekadar keepalive
 
@@ -145,8 +114,9 @@ berbahaya daripada meneruskan apa adanya sambil teriak di log. Kalau memang butu
 pulse lebih sempit dari 200ms, yang diturunkan adalah `PLC_POLL_MS`, bukan cuma
 `PLC_PULSE_MS`.
 
-`docker-compose.yml` men-set `PLC_COIL_BASE`/`PLC_COIL_ALIVE` sebagai literal per service
-(`ripe-line-1/2/3`); variabel lain diinterpolasi dari `.env` dengan fallback default di atas.
+`docker-compose.yml` men-set `PLC_PORT`/`PLC_COIL_BASE`/`PLC_COIL_ALIVE`/`PLC_COIL_MANUAL`/
+`PLC_DI_MANUAL` sebagai literal per service (`ripe-line-1/2/3`); variabel lain diinterpolasi
+dari `.env` dengan fallback default di atas.
 
 ### Salah ketik `PLC_*` tidak boleh mematikan grading
 
@@ -203,6 +173,14 @@ Karena itu defaultnya **1**: paling banyak satu pulse terutang ⇒ staleness ≤
 struktural, tanpa perlu state timestamp/discard tambahan. Menaikkan angka ini **tidak** membuat
 sinyal lebih andal: ia menukar drop (jujur, terhitung) dengan sinyal basi (diam-diam salah).
 
+### Mode tahan (`PLC_HOLD_MS > 0`)
+
+Diminta tim PLC 2026-09-23 untuk uji di panel, karena pulse 200 ms tidak terlihat mata di lampu.
+`HoldScheduler` (`plc/hold.py`) memegang coil OK/NG ON sekian milidetik, dan janjang berikutnya
+yang datang saat coil masih ON **memperpanjang** tahanannya (tidak ada antrean, tidak ada yang
+bisa penuh). ⚠️ Di mode ini PLC **tidak bisa menghitung janjang**: dua janjang berurutan jadi
+satu sinyal panjang tanpa tepi turun. Untuk produksi biarkan `0` dan latch di ladder.
+
 ### Dua counter drop yang terpisah, sengaja tidak digabung
 
 - `PlcWorker.dropped_submissions`: dijatuhkan di **antrean ingestion** (`submit()` dari thread
@@ -239,7 +217,7 @@ Tanpa ini, retry level basi dan level segar pada bit alive ditulis terpisah deng
 PLC melihat pasangan ON/OFF selebar satu milidetik pada bit yang seharusnya kotak 1 detik.
 Peta tunggal itu menghilangkan celahnya secara struktural, bukan lewat pengecekan tambahan.
 
-Baca discrete input sengaja terjadi **setelah** flush write: itu round-trip Modbus yang bisa
+Baca blok input sengaja terjadi **setelah** flush write: itu round-trip ke PLC yang bisa
 menggantung sampai timeout socket (1 detik), dan menaruhnya sebelum write akan menunda pulse
 selama itu: pulse telat menempel ke buah yang salah.
 
@@ -247,9 +225,9 @@ selama itu: pulse telat menempel ke buah yang salah.
 
 ## Shutdown: coil dimatikan, bukan ditinggal ON
 
-`make restart` adalah langkah deploy **dan** langkah tuning lapangan, jadi SIGTERM di tengah
-produksi itu rutin. Dengan `PLC_PULSE_MS=200` dalam siklus 400 ms (2 tick), peluang sebuah coil
-sedang ON saat sinyal itu tiba kira-kira 1 dari 2.
+`autograde restart` / `make restart` adalah langkah deploy **dan** langkah tuning lapangan, jadi
+SIGTERM di tengah produksi itu rutin. Dengan `PLC_PULSE_MS=200` dalam siklus 400 ms (2 tick),
+peluang sebuah coil sedang ON saat sinyal itu tiba kira-kira 1 dari 2.
 
 `shutdown_plc_worker()` (dipanggil `lifespan` sesudah `yield`) menjalankan, berurutan:
 
@@ -262,15 +240,18 @@ sedang ON saat sinyal itu tiba kira-kira 1 dari 2.
    berikutnya yang menagih retry). Gagal dicatat di log, tidak di-retry, tidak di-raise.
 4. `client.close()` lalu bersihkan singleton modul.
 
-No-op yang aman kalau `PLC_ENABLED=false` atau worker tidak pernah start.
+No-op yang aman kalau `PLC_ENABLED=false` atau worker tidak pernah start. Shutdown yang rapi ini
+tidak menolong kalau PC mati mendadak atau kabel dicabut: itu tugas watchdog heartbeat di ladder
+(`docs/plc-mc-handoff.md` §3).
 
 ---
 
 ## Coil ERROR: kesehatan line, BUKAN overflow
 
 Coil ERROR (`plc_coil_error`, = `PLC_COIL_BASE + 2`) berarti **"line ini tidak sehat saat
-ini"**, dievaluasi ulang tiap tick, bukan flag yang sekali nyala lalu menetap. Ditulis hanya
-saat levelnya berubah.
+ini"**, dievaluasi ulang tiap tick, bukan flag yang sekali nyala lalu menetap. Ditulis saat
+levelnya berubah dan ditulis ulang tiap detik. Selama pulse uji dari layar sedang jalan di coil
+ini, level kesehatan menunggu sampai pulse selesai.
 
 Satu-satunya sumber unhealthy: **`health_check()` melaporkan tidak sehat** (praktiknya:
 `camera.connected` false), atau **exception dari `health_check()` itu sendiri**, dianggap tidak
@@ -290,39 +271,33 @@ sinyal ke PLC.
 
 ---
 
-## Satu buah = satu pulse, walau tulis disk gagal
+## Satu buah = satu pulse
 
 `FrameProcessingWorker` memakai **dua** flag single-trigger pada track yang sama, dan itu
 disengaja:
 
 | Flag | Diset kapan | Kenapa terpisah |
 | --- | --- | --- |
-| `plc_signalled` | tepat setelah `submit_grading()`, **sebelum** tulis disk | Pulse Modbus tidak punya idempotensi |
-| `processed` | setelah file WebP + JSON tersimpan | Diproses ulang itu aman: `event_id` uuid5-nya sama, API membalas `already_processed` |
+| `plc_signalled` | tepat setelah keputusan PLC diambil (`submit_grading()`, atau sinyal sengaja ditahan untuk REJ truk Internal), **sebelum** gambar diserahkan ke penulis | Pulse ke PLC tidak punya idempotensi |
+| `processed` | setelah `SaveJob` diserahkan ke `CaptureSaveWorker` (sejak 2026-09-18; dulu setelah file tersimpan) | Idempotensi ke konsol dipegang nama file (`event_id` uuid5), bukan urutan tulis |
 
-`_save_ripeness()` melempar `OSError` kalau `cv2.imwrite` gagal, itu perilaku by-design
-(Critical Rule #8), pada disk yang repo ini sendiri jalankan retensi untuknya. Kalau kedua
-kepentingan itu digabung ke satu flag, kegagalan tulis disk membuat track tetap belum
-`processed`, lalu track yang sama masuk lagi ke blok deteksi pada frame berikutnya, 10–16 kali
-per detik. Satu buah nyangkut akan menjenuhkan coil OK atau NG tanpa henti dan PLC menghitung
-satu buah sebagai berpuluh-puluh.
-
-`submit_grading()` tetap dipanggil **sebelum** tulis disk (itu keputusan latency yang benar,
-sinyal tidak boleh menunggu I/O disk); yang diperbaiki hanya supaya ia tidak ikut mewarisi
-semantik retry milik jalur disk.
+Kalau blok deteksi gagal di antara keduanya, track yang sama masuk lagi pada frame berikutnya,
+10–16 kali per detik. Dengan satu flag saja, satu buah nyangkut akan menjenuhkan coil OK atau
+NG tanpa henti dan PLC menghitung satu buah sebagai berpuluh-puluh. `submit_grading()` tetap
+dipanggil **sebelum** apa pun yang menyentuh gambar: sinyal tidak boleh menunggu I/O.
 
 ---
 
 ## Mati secara default (`PLC_ENABLED=false`)
 
-Ini default di `.env.example` dan yang dijalankan cloud + semua PC dev. Efeknya:
+Ini default di `.env.example` dan yang dijalankan semua PC dev. Efeknya:
 
 - `start_plc_worker()` mengembalikan `None` sebelum membangun client apa pun, tidak ada
   thread PLC yang start.
 - `submit_grading()` mengecek `_worker is not None` dan langsung `return` kalau `None`, satu
   pengecekan Python per buah, nol antrean, nol I/O, nol latency tambahan di jalur deteksi.
 
-Hanya PC pabrik yang benar-benar terhubung ke coupler ODOT yang menyalakan ini.
+Hanya PC pabrik yang benar-benar terhubung ke PLC yang menyalakan ini.
 
 ---
 
@@ -330,133 +305,124 @@ Hanya PC pabrik yang benar-benar terhubung ke coupler ODOT yang menyalakan ini.
 
 ```
 src/palmgrade/plc/
-├── __init__.py        # Permukaan publik: start_plc_worker(), shutdown_plc_worker(),
-│                       # submit_grading(), inputs(), diagnostics()
-│                       # + re-export ModbusPlcClient/PlcWorker/PulseScheduler untuk test
-├── modbus_client.py    # ModbusPlcClient — satu-satunya file yang menyentuh pymodbus.
-│                        # write_coil/read_discrete_inputs mengembalikan sentinel
-│                        # (False/None), tidak pernah raise — worker adalah thread panjang
-│                        # yang tidak boleh mati karena kabel dicabut.
-├── pulse.py             # PulseScheduler — logika murni, nol I/O. Menjadwalkan satu
-│                         # keputusan jadi satu pulse ON/OFF per coil dengan jeda wajib.
-└── worker.py             # PlcWorker — satu-satunya thread yang menyentuh socket Modbus.
-                           # Menguras antrean submit → pulse, tahan bit alive, baca DI,
-                           # evaluasi + tulis coil ERROR.
+├── __init__.py        # Permukaan publik (lihat atas) + build_plc_client(), yang
+│                       # memilih klien dari PLC_PROTOCOL
+├── mc_client.py        # McProtocolPlcClient: satu-satunya file yang menyentuh
+│                        # pymcprotocol. Menempelkan prefiks device (M1000), menjaga
+│                        # panjang balasan, tidak pernah raise ke worker.
+├── modbus_client.py    # ModbusPlcClient: jalur coupler ODOT lama (pymodbus).
+├── pulse.py            # PulseScheduler: logika murni, nol I/O. Satu keputusan jadi
+│                        # satu pulse ON/OFF per coil dengan jeda wajib.
+├── hold.py             # HoldScheduler: mode tahan (PLC_HOLD_MS > 0), antarmuka sama.
+└── worker.py           # PlcWorker: satu-satunya thread yang menyentuh socket PLC.
+                         # Kuras antrean submit → pulse, kedipkan heartbeat, baca blok
+                         # input, tulis coil ERROR, piston manual.
 
 tests/unit/plc/
 ├── test_plc_config.py
-├── test_plc_pulse.py
+├── test_plc_hold.py
+├── test_plc_mc_client.py
 ├── test_plc_modbus_client.py
+├── test_plc_piston.py
+├── test_plc_pulse.py
 └── test_plc_worker.py
 ```
 
-Kode di luar paket ini hanya boleh menyentuh fungsi yang diekspor `__init__.py`:
-`start_plc_worker(settings, health_check=None)`, `shutdown_plc_worker(thread=None)`,
-`submit_grading(status)`, `inputs()`, `diagnostics()`, `request_piston(open)`,
-`piston_state()`, `picu_coil(coil)`, `testable_coils(settings)`. Semua
-yang lain (`ModbusPlcClient`, `PlcWorker`, `PulseScheduler`) di-ekspor juga, tapi hanya untuk
-pemanggil yang perlu merakit worker-nya sendiri (mis. test).
+Kedua klien memberi antarmuka yang sama (`write_coil` / `read_discrete_inputs` / `close`) dan
+mengembalikan sentinel (`False`/`None`) alih-alih melempar: worker adalah thread panjang yang
+tidak boleh mati karena kabel dicabut. Kelas klien, `PlcWorker`, `PulseScheduler`, dan
+`HoldScheduler` diekspor juga, tapi hanya untuk pemanggil yang merakit worker sendiri (test).
 
 ---
 
-## Melihat state PLC dari luar: `GET /health/detail`
+## Melihat state PLC dari luar
 
-Tiga angka yang paling dibutuhkan saat commissioning, E-stop, dan kedua counter
-drop: sebelumnya cuma bisa dilihat dengan membuka shell Python di dalam
-kontainer. Sekarang ketiganya nempel di endpoint health yang sudah ada:
+Konsol: tab **Line → Uji PLC** (akun support) menampilkan blok input, tombol per coil bernama
+("Kamera 1 OK / M1000"), dan peta alamat lengkap. Uji coil ditolak selama line itu punya truk
+terpasang. Motor fault dan E-stop tampil sebagai pita merah di atas kartu line.
+
+Dari terminal, `GET /health/detail`:
 
 ```bash
 curl -s localhost:8001/health/detail | jq .plc
 {
-  "inputs": [false, false, ..., false],   # index 0-9 motor fault, index 10 E-stop
-  "dropped_pulses": 0,                    # scheduler.dropped — antrean pulse penuh
-  "dropped_submissions": 0                # antrean submit penuh (thread deteksi)
+  "inputs": [false, false, ..., false],   # 16 bit mulai PLC_DI_BASE: offset 0-10 motor, 11 E-stop
+  "dropped_pulses": 0,                    # scheduler.dropped: antrean pulse penuh
+  "dropped_submissions": 0,               # antrean submit penuh (thread deteksi)
+  "piston": null                          # null = piston manual tidak dikonfigurasi
 }
 ```
 
-`"plc": null` artinya `PLC_ENABLED=false` atau worker belum jalan. Itu **keadaan
-normal** di cloud dan PC dev, bukan error, endpoint tetap `200`, dan tidak ada
-field lain yang berubah. Lihat `plc.diagnostics()`.
+`"plc": null` artinya `PLC_ENABLED=false` atau worker belum jalan. Itu **keadaan normal** di PC
+dev, bukan error, endpoint tetap `200`, dan tidak ada field lain yang berubah. Lihat
+`plc.diagnostics()`.
 
-Kedua counter **naik monoton** selama proses hidup (tidak pernah di-reset), jadi
-yang berarti adalah **selisihnya antar-polling**, bukan nilai absolutnya. Angka
-yang bertambah terus saat belt jalan artinya kamera menghasilkan keputusan lebih
-cepat daripada yang bisa dikeluarkan `PLC_PULSE_MS + PLC_PULSE_GAP_MS`,
-plafon throughput, bukan bug. Baca ulang bagian `PLC_QUEUE_MAX`.
+Kedua counter **naik monoton** selama proses hidup (tidak pernah di-reset), jadi yang berarti
+adalah **selisihnya antar-polling**, bukan nilai absolutnya. Angka yang bertambah terus saat belt
+jalan artinya kamera menghasilkan keputusan lebih cepat daripada yang bisa dikeluarkan
+`PLC_PULSE_MS + PLC_PULSE_GAP_MS`: plafon throughput, bukan bug. Baca ulang bagian
+`PLC_QUEUE_MAX`.
 
 ---
 
-## Belum diputuskan (open hardware questions)
+## Belum diputuskan
 
-**Per 2026-09-23, jalur mc.** Yang masih ditunggu dari tim PLC: (a) **tiga koneksi** MC Protocol
-di Open Setting GX Works2, satu port satu koneksi; (b) **watchdog heartbeat di ladder** (M1009
-tidak berubah 2–3 dtk → matikan M1000–M1008); (c) butir 5 di bawah; (d) tidak mendesak: piston
-manual dialokasikan (usulan M1010–M1012 / M1112–M1114) atau ditiadakan, sekarang **kosong =
-fitur mati**. Butir 2 dan 4 di bawah **[modbus saja]**; butir 1, 3, 5, 6 berlaku dua jalur.
+Per 2026-09-23 (rinciannya untuk tim PLC di `docs/plc-mc-handoff.md` §5). Vision sudah punya
+default yang masuk akal untuk semuanya, jadi ini bukan blocker, tapi wajib dijawab sebelum
+produksi penuh:
 
-Hal-hal ini ada di sisi pak Ocit (PLC engineer) dan butuh kerja panel + ladder. Vision sudah
-punya default yang masuk akal untuk semuanya, jadi ini bukan blocker untuk mulai, tapi wajib
-dikonfirmasi sebelum commissioning:
-
-1. **Lebar pulse (`PLC_PULSE_MS`) dan jeda (`PLC_PULSE_GAP_MS`) belum dikonfirmasi terhadap
-   kecepatan belt sesungguhnya.** Default 200ms/100ms (~2,5 sinyal/detik) adalah patokan, bukan
-   angka final: perlu tahu apakah sinyal OK/NG itu pulse atau level, satu sinyal = satu buah
-   atau status batch, dan cycle time actuator penyortir yang sebenarnya.
-2. **Watchdog coupler ODOT perlu diturunkan dari 30 detik ke 2–3 detik.** PC polling tiap
-   200ms, jadi 2–3 detik aman tanpa false-trip. Dengan 30 detik, PC yang mati membuat coil
-   terakhir nyangkut sampai setengah menit, cukup lama untuk menyortir banyak buah pakai
-   keputusan basi.
-3. **E-stop perlu dikabel ulang jadi NC (normally closed).** CT-122F low-aktif, dan setting
-   ODOT saat ini (`Fault Action for Input: Cleaning Input Value`) membuat **kabel putus terbaca
-   persis sama dengan "aman"**. Perlu bit ON selama kondisi normal dan OFF saat E-stop ditekan,
-   supaya kabel putus jatuh ke sisi aman, bukan sisi berbahaya.
-4. **IP address ODOT dan NIC yang dipakainya belum dikonfirmasi.** Usulan dari sisi aplikasi
-   sudah dipasang di `.env.example`: `PLC_HOST=192.168.100.50` statis, subnet `255.255.255.0`,
-   kabel masuk ke switch gigabit yang sama dengan tiga kamera. Dipilih supaya tidak bentrok
-   dengan kamera (`.10`/`.11`/`.12`) maupun NIC komputer (`.100`); boleh diganti ke `.51`–`.99`
-   asal tetap `192.168.100.x`. **Paling menghambat**: tanpa ini aplikasi tidak bisa nyambung.
-5. **Buah yang lewat tanpa sinyal apa pun, aktuatornya default ngapain?** Sebagian keputusan
-   memang dibuang saat antrean penuh (lihat *Throughput ceiling* di atas), jadi pasti ada buah
-   yang lewat tanpa pulse. Jawabannya menentukan ke arah mana kesalahan sistem ini condong:
-   buah tak tersinyal diloloskan atau dibuang.
-6. **Saat E-stop ditekan, kamera ikut berhenti menilai atau tidak?** Sekarang tidak. Kalau
-   seharusnya iya, akan ada hasil penilaian yang tercatat padahal line sedang berhenti darurat.
+1. **Watchdog heartbeat di ladder.** M1009 tidak berubah 2–3 detik → ladder mematikan sendiri
+   M1000–M1008. Satu-satunya pekerjaan panel yang tersisa; tanpa itu bit bisa nyangkut ON saat
+   PC mati.
+2. **Polaritas M1100–M1111.** Aplikasi mengasumsikan ON = fault / ditekan. Layar menampilkan
+   E-stop `On` sepanjang uji 23 Sep; belum ditanyakan apakah panelnya memang ditekan. Kalau
+   terbalik (kabel NC), pita alarm menyala terus saat pabrik sehat.
+3. **Saat E-stop ditekan, kamera ikut berhenti menilai?** Sekarang tidak, cuma pita merah.
+4. **Buah yang lewat tanpa sinyal apa pun: lolos atau dibuang?** Sebagian keputusan memang
+   dibuang saat antrean penuh (lihat *Throughput ceiling*), dan REJ truk Internal sengaja tidak
+   dikirim. Jawabannya menentukan aturan buah Internal benar atau terbalik.
+5. **Lebar pulse terhadap kecepatan belt.** 200 ms/100 ms (~2,5 sinyal/detik) adalah patokan,
+   bukan angka final. Tim PLC sempat meminta OK/NG "ditahan terus"; untuk uji ada mode tahan,
+   untuk produksi sarannya latch di ladder.
+6. (tidak mendesak) Piston manual dialokasikan (usulan M1010–M1012 / M1112–M1114) atau
+   ditiadakan.
 
 ### Yang belum terbukti
 
-- **Belum pernah diuji ke coupler fisik**: semua tes memakai simulasi.
-- **"Satu buah = satu pulse walau simpan gambar gagal" belum punya tes otomatis.** Bagian itu
-  memuat pustaka kamera dan AI yang sengaja tidak dimuat unit test; perbaikannya baru diperiksa
-  manual.
-- **Celah lama yang belum ditutup:** simpan gambar gagal → buah keluar area pantau → nomor track
-  dipakai ulang untuk buah fisik yang sama → secara teori muncul pulse dobel. Perlu diamati saat
-  produksi.
-- **Hitungan 2,5 vs 10 sinyal per detik** bergantung pada lebar pulse di butir 1. Lebar pulse
-  berubah, seluruh hitungan itu ikut berubah.
+- **Heartbeat M1009** berkedip sejak tersambung, tapi belum dipantau di GX Works2; coil ERROR
+  (M1002/M1005/M1008) baru bisa dipicu dari layar sejak 23 Sep malam.
+- **"Satu buah = satu pulse" belum punya tes otomatis.** Bagian itu memuat pustaka kamera dan AI
+  yang sengaja tidak dimuat unit test; perbaikannya baru diperiksa manual.
+- **Celah lama yang belum ditutup:** buah keluar area pantau → nomor track dipakai ulang untuk
+  buah fisik yang sama → secara teori muncul pulse dobel. Perlu diamati saat produksi.
+- **Hitungan 2,5 vs 10 sinyal per detik** bergantung pada lebar pulse di butir 5.
+
+---
 
 ## Urutan commissioning
 
-Disarikan dari catatan serah terima Agustus 2026, ditulis untuk coupler. Di jalur mc bacanya:
-"coil 0" = **M1000**, "coil 9" = **M1009**, "IP coupler" = IP CPU, dan langkah 8 berubah
-maknanya: tidak ada *fault action*, jadi yang diuji adalah **ladder** mematikan M1000–M1008
-sendiri saat M1009 berhenti berkedip. Pastikan juga *Enable online change (FTP, MC Protocol)*
-tercentang: tanpa itu baca jalan, tulis ditolak. Kalau waktu mepet, yang **tidak boleh
-dilewat** cuma langkah 3, 4, dan 7.
+Untuk panel baru. Kalau waktu mepet, yang **tidak boleh dilewat** cuma langkah 3, 4, dan 7.
+Hambatan yang sudah pernah terjadi dan jawabannya: runbook commissioning Lampung (di atas).
 
-1. Isi IP coupler, pastikan komputer bisa nyambung.
-2. Nyalakan line 1 saja; line 2 dan 3 mati, supaya sumber keanehan kelihatan.
-3. Picu satu pulse, lalu **pastikan bersama bahwa coil 0 di aplikasi = X0300 di PLC.** Beda satu
-   alamat saja, CAM 1 OK jatuh ke CAM 1 NG.
-4. **Ukur lebar pulse yang benar-benar sampai di PLC** (scope atau monitor bit GX Works). Angka
-   200 ms harus dibuktikan, bukan dipercaya.
-5. Cek coil 9 (HEARTBIT PC) ON. Matikan proses line 1 → coil 9 padam. Matikan line 2 atau 3 →
-   coil 9 tetap ON; memang begitu (cuma line 1 yang memegangnya).
-6. Picu satu motor fault dari panel, pastikan bit yang berubah di aplikasi nomor motor yang sama.
+1. **Di PLC:** tiga Open Setting TCP MC Protocol (1025/1026/1027), centang *Enable online
+   change (FTP, MC Protocol)* (tanpa itu baca jalan, tulis ditolak `0x0055`), lalu **Write to
+   PLC + reset CPU** (tanpa reset, port baru menjawab `connection refused`).
+2. **Di PC:** `.env` cukup `PLC_ENABLED=true` dan `PLC_HOST`; jangan isi `PLC_PORT` /
+   `PLC_COIL_*` (literal compose yang berlaku). Nyalakan line 1 saja dulu, supaya sumber
+   keanehan kelihatan.
+3. Lepas truk dari line 1, picu satu pulse dari tab **Line → Uji PLC**, lalu **pastikan bersama
+   bahwa tombol "Kamera 1 OK" = M1000 di monitor GX Works2.** Beda satu alamat saja, OK jatuh
+   ke NG.
+4. **Ukur lebar pulse yang benar-benar sampai di PLC** (monitor bit GX Works2). Angka 200 ms
+   harus dibuktikan, bukan dipercaya.
+5. Pastikan M1009 berkedip. Matikan proses line → watchdog ladder mematikan M1000–M1008 dalam
+   2–3 detik (perhatikan catatan ⚠️ `PLC_COIL_ALIVE` di atas: selama line 2/3 ikut berkedip,
+   uji ini perlu ketiga line dimatikan).
+6. Picu satu motor fault dari panel, pastikan offset yang berubah di aplikasi nomor motor yang
+   sama.
 7. **Cabut kabel E-stop**, lihat pembacaan aplikasi berubah atau tidak. Tidak berubah = bukti
-   masalah polaritas di butir 3 di atas, jangan diterima hanya karena bit-nya terbaca aman.
-8. Cabut kabel LAN coupler ±10 detik lalu colok lagi: coil 9 harus padam lewat *fault action*
-   coupler, lalu ON lagi sendiri tanpa ada yang di-restart.
-9. Restart proses line 1 saat pulse sedang jalan, tidak boleh ada coil yang tertinggal ON.
-10. Produksi sungguhan ±15 menit di satu line, lalu baca jumlah sinyal terbuang di
-    `GET /health/detail`. Angka itu dasar menyetel ulang lebar pulse.
-11. Baru nyalakan line 2 dan 3.
+   masalah polaritas di butir 2 di atas, jangan diterima hanya karena bit-nya terbaca aman.
+8. Restart proses line 1 saat pulse sedang jalan, tidak boleh ada coil yang tertinggal ON.
+9. Produksi sungguhan ±15 menit di satu line, lalu baca jumlah sinyal terbuang di
+   `GET /health/detail`. Angka itu dasar menyetel ulang lebar pulse.
+10. Baru nyalakan line 2 dan 3.
