@@ -17,15 +17,17 @@ HTML = (REPO_ROOT / "src" / "palmgrade" / "static" / "console.html").read_text(e
 
 
 def test_tab_support_saja():
-    tombol = re.search(r'<button data-tab="model-deteksi"[^>]*>', HTML)
-    assert tombol, "tab Model Deteksi tidak ada"
-    assert 'data-dev="1"' in tombol.group(0), "tab Model Deteksi harus support-only"
-    assert re.search(r'<section id="sec-model-deteksi"[^>]*data-dev="1"', HTML)
+    """Sejak 2026-09-28 Model Deteksi adalah pilihan di dalam tab Line, yang support-only."""
+    tombol = re.search(r'<button data-tab="line"[^>]*>', HTML)
+    assert tombol and 'data-dev="1"' in tombol.group(0), "tab Line harus support-only"
+    line = HTML.split('<section id="sec-line"', 1)[1].split("\n</section>", 1)[0]
+    assert re.search(r'<section id="sec-line"[^>]*data-dev="1"', HTML)
+    assert 'data-sub="model-deteksi"' in line and 'id="sub-model-deteksi"' in line
 
 
 def test_tab_terdaftar_di_tab_sah_dan_muat_tab():
-    tab_sah = re.search(r"const TAB_SAH = \[(.*?)\];", HTML)
-    assert tab_sah and '"model-deteksi"' in tab_sah.group(1)
+    sub_line = re.search(r"const SUB_LINE = \[(.*?)\];", HTML)
+    assert sub_line and '"model-deteksi"' in sub_line.group(1)
     assert '"model-deteksi": muatModelDeteksi' in HTML
 
 
@@ -162,7 +164,7 @@ def test_sesudah_simpan_layar_menanyai_line_sampai_model_baru_terbaca():
     fungsi = HTML[f_awal : HTML.find("\n}\n", f_awal)]
     assert "setInterval" in fungsi and "clearInterval" in fungsi
     assert "60000" in fungsi, "pemantauan harus punya batas atas"
-    assert 'tab !== "model-deteksi"' in fungsi, "berhenti saat tab ditinggalkan"
+    assert 'tab !== "line" || subLine !== "model-deteksi"' in fungsi, "berhenti saat tab ditinggalkan"
 
 
 def test_engine_gpu_lain_tidak_ditulis_siap():
