@@ -9,6 +9,14 @@ import sqlite3
 import time
 from pathlib import Path
 
+import httpx
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from palmgrade.routes.console_deps import get_console_service
+from palmgrade.routes.console_ingest import ingest_router
+from palmgrade.services.console_service import ConsoleService
+
 # ── berkas outbox tulisan versi sebelum batch 2.4 ───────────────────────
 
 #: Skema persis versi sebelum batch 2.4: tanpa `dibuat_at`, dan `failed` masih ditulis.
@@ -45,3 +53,54 @@ def berkas_outbox_versi_lama(jalur: Path, baris: list[tuple[str, str, int, str]]
             [(eid, payload, retry, time.time() - 60, status) for eid, status, retry, payload in baris],
         )
     db.close()
+
+
+# ── kabel line ke konsol (sisi worker) ──────────────────────────────────
+
+
+class KabelKonsol:
+    """Handler `httpx.MockTransport` untuk `OutboxRetryWorker`: diteruskan ke app konsol, atau putus.
+
+    `putus = True` meniru konsol mati (ConnectError, port yang tidak didengar
+    siapa pun). `permintaan` menghitung setiap percobaan, sampai atau tidak.
+    """
+
+    def __init__(self, app: FastAPI) -> None:
+        self._klien = TestClient(app, raise_server_exceptions=False)
+        self.putus = False
+        self.permintaan = 0
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.permintaan += 1
+        if self.putus:
+            raise httpx.ConnectError("konsol mati", request=request)
+        jawab = self._klien.post(
+            request.url.path,
+            content=request.content,
+            headers={k: v for k, v in request.headers.items() if k in ("content-type", "x-webhook-secret")},
+        )
+        return httpx.Response(
+            jawab.status_code,
+            content=jawab.content,
+            headers={"content-type": jawab.headers.get("content-type", "text/plain")},
+        )
+
+    def klien(self) -> httpx.Client:
+        return httpx.Client(transport=httpx.MockTransport(self))
+
+
+def app_ingest(konsol: ConsoleService) -> FastAPI:
+    """Lane mesin konsol yang ASLI (`/api/v1/internal/vision/events`) di atas `konsol`."""
+    app = FastAPI()
+    app.include_router(ingest_router, prefix=konsol.settings.backend_api_ver)
+    app.dependency_overrides[get_console_service] = lambda: konsol
+    return app
+
+
+def klien_konsol_mati() -> httpx.Client:
+    """Klien worker yang tidak pernah sampai: konsol mati sejak awal."""
+
+    def mati(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("konsol mati", request=request)
+
+    return httpx.Client(transport=httpx.MockTransport(mati))
