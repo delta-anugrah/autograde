@@ -114,6 +114,41 @@ def test_production_empty_r2_bucket_warns_not_crash(monkeypatch, caplog):
     assert any("R2_BUCKET" in r.message for r in caplog.records)
 
 
+def test_produksi_internal_secret_bawaan_ditolak(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-palsu-w")
+    monkeypatch.setenv("INTERNAL_SECRET", _DEFAULT_WEBHOOK_SECRET)
+    with pytest.raises(RuntimeError, match="INTERNAL_SECRET"):
+        Settings().validate_secrets()
+
+
+def test_produksi_webhook_secret_kosong_ditolak(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("WEBHOOK_SECRET", "")
+    monkeypatch.delenv("INTERNAL_SECRET", raising=False)
+    with pytest.raises(RuntimeError, match="WEBHOOK_SECRET"):
+        Settings().validate_secrets()
+
+
+def test_produksi_tanpa_internal_secret_cuma_peringatan(monkeypatch, caplog):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-palsu-w")
+    monkeypatch.delenv("INTERNAL_SECRET", raising=False)
+    with caplog.at_level("WARNING"):
+        Settings().validate_secrets()
+    assert any("INTERNAL_SECRET" in r.getMessage() for r in caplog.records)
+
+
+def test_validate_secrets_tidak_membawa_peringatan_khusus_line(monkeypatch, caplog):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("WEBHOOK_SECRET", "kunci-palsu-w")
+    monkeypatch.setenv("INTERNAL_SECRET", "kunci-palsu-i")
+    monkeypatch.delenv("R2_BUCKET", raising=False)
+    with caplog.at_level("WARNING"):
+        Settings().validate_secrets()
+    assert not any("R2_BUCKET" in r.getMessage() for r in caplog.records)
+
+
 def test_pubkey_falls_back_to_baked_in_key(monkeypatch):
     """PC pabrik tanpa LICENSE_PUBLIC_KEY di .env tetap punya kunci.
 

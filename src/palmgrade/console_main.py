@@ -43,6 +43,10 @@ async def lifespan(app: FastAPI):
     # must not touch console.db to get there (see log_db_path).
     log_store = LogStore(service.settings.log_db_path, retention_days=service.settings.log_retention_days)
     install_log_sink(log_store)
+    # Batch 1.5: secret bawaan atau kosong di produksi = menolak start, sama
+    # dengan line. Sesudah log sink, supaya peringatan INTERNAL_SECRET masuk
+    # tab Log, tempat support membacanya.
+    service.settings.validate_secrets()
     # Before anything else: a mill installed before it ever reached the internet has no
     # AutoERP accounts yet, and a console nobody can sign into is useless on exactly the
     # day it is needed. Existing accounts are never touched (see akun_bawaan).

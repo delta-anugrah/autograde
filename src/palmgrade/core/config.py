@@ -567,28 +567,41 @@ class Settings:
     # ------------------------------------------------------------------ validation
 
     def validate_for_runtime(self) -> None:
-        """Fail fast on misconfiguration that is dangerous in production.
-
-        WEBHOOK_SECRET guards both directions between vision and palmgrade-api.
-        When a production `.env` was left unset the service used to run happily
-        on the committed default `supersecret123` with only a warning — anyone
-        who had read the repo could post fake events or internal commands. In
-        production we now refuse to start; development still allows the default
-        (warning only) so the dev/opencv flow stays friction-free.
-        """
+        """Line: peringatan batch upload, lalu aturan secret yang sama dengan konsol."""
         if self.environment == "production" and not self.r2_bucket:
             logger.warning(
                 "R2_BUCKET is empty — cloud batch upload is disabled (no-op). "
                 "Set R2_* in .env to enable it."
             )
-        if self.webhook_secret != _DEFAULT_WEBHOOK_SECRET:
+        self.validate_secrets()
+
+    def validate_secrets(self) -> None:
+        """Fail fast on public or empty machine secrets. Line AND console call this.
+
+        Under APP_ENV=production a secret still on the committed default
+        `supersecret123`, or empty, refuses to start: anyone who has read the
+        repo could post fake events or command a line. Development only warns
+        so the dev/opencv flow stays friction-free.
+        """
+        self._tolak_secret_lemah("WEBHOOK_SECRET", self.webhook_secret)
+        if self.internal_secret_terpisah:
+            self._tolak_secret_lemah("INTERNAL_SECRET", self.internal_secret)
+        elif self.environment == "production":
+            logger.warning(
+                "INTERNAL_SECRET belum diisi atau sama dengan WEBHOOK_SECRET: perintah "
+                "konsol ke line memakai kunci yang juga dipegang program timbangan. Isi "
+                "INTERNAL_SECRET yang berbeda di .env dan compose host, lalu autograde restart."
+            )
+
+    def _tolak_secret_lemah(self, nama: str, nilai: str) -> None:
+        if nilai.strip() and nilai != _DEFAULT_WEBHOOK_SECRET:
             return
         if self.environment == "production":
             raise RuntimeError(
-                "WEBHOOK_SECRET is still the public default under APP_ENV=production. "
-                "Set it to a secret value (identical to palmgrade-api's) before deploying."
+                f"{nama} masih bawaan atau kosong di APP_ENV=production. "
+                "Isi dengan nilai rahasia di .env sebelum menyalakan."
             )
-        logger.warning("WEBHOOK_SECRET is the default — set it before a production deploy.")
+        logger.warning("%s masih bawaan atau kosong; isi sebelum dipasang di produksi.", nama)
 
     @property
     def internal_secret_terpisah(self) -> bool:
