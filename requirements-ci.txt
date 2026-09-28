@@ -40,3 +40,8 @@ fastapi
 # -> `cv2`. `headless` adalah wheel tanpa GUI (~35 MB, tanpa X11) dan TIDAK
 # menarik torch.
 opencv-python-headless
+
+# `test_upload_scheduler_stop.py`: tutup line menghentikan penjadwal upload R2
+# tanpa menunggu batch yang jalan (batch 2.2). Pure python, tidak menarik
+# torch. `<4`: APScheduler 4 API-nya lain sama sekali; runtime memakai 3.10.4.
+apscheduler<4
