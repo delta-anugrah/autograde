@@ -166,6 +166,10 @@ services:
       # janjang. Untuk uji di panel; PLC tidak bisa menghitung janjang di mode ini.
       - PLC_HOLD_MS=${PLC_HOLD_MS:-0}
       - PLC_POLL_MS=${PLC_POLL_MS:-200}
+      # Detik gambar masuk tanpa satu frame pun selesai digrading sebelum line
+      # dinyatakan AI mati (batch 2.1): coil ERROR naik, /health 503, kartu
+      # konsol merah. Kosong = 30. Dijepit 10..600.
+      - AI_MATI_DETIK=${AI_MATI_DETIK:-30}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
@@ -322,6 +326,10 @@ services:
       # janjang. Untuk uji di panel; PLC tidak bisa menghitung janjang di mode ini.
       - PLC_HOLD_MS=${PLC_HOLD_MS:-0}
       - PLC_POLL_MS=${PLC_POLL_MS:-200}
+      # Detik gambar masuk tanpa satu frame pun selesai digrading sebelum line
+      # dinyatakan AI mati (batch 2.1): coil ERROR naik, /health 503, kartu
+      # konsol merah. Kosong = 30. Dijepit 10..600.
+      - AI_MATI_DETIK=${AI_MATI_DETIK:-30}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
@@ -478,6 +486,10 @@ services:
       # janjang. Untuk uji di panel; PLC tidak bisa menghitung janjang di mode ini.
       - PLC_HOLD_MS=${PLC_HOLD_MS:-0}
       - PLC_POLL_MS=${PLC_POLL_MS:-200}
+      # Detik gambar masuk tanpa satu frame pun selesai digrading sebelum line
+      # dinyatakan AI mati (batch 2.1): coil ERROR naik, /health 503, kartu
+      # konsol merah. Kosong = 30. Dijepit 10..600.
+      - AI_MATI_DETIK=${AI_MATI_DETIK:-30}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
