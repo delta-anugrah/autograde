@@ -244,11 +244,15 @@ class DevService:
         subscription card: they are what the mill is entitled to, not a secret.
         """
         return {
-            "versi": self._settings.app_version,
+            "versi": self.app_version(),
             "machine_id": self._settings.machine_id,
             "environment": self._settings.environment,
             "lisensi": await self.license_state(),
         }
+
+    def app_version(self) -> str:
+        """Image version, for the header every account sees (2026-09-28)."""
+        return self._settings.app_version
 
     async def license_state(self) -> dict[str, Any]:
         """Subscription dates for the console.

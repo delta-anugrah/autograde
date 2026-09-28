@@ -84,7 +84,7 @@ def test_setelan_tetap_tab_paling_kanan():
     nav = HTML.split('<nav id="tabs">', 1)[1].split("</nav>", 1)[0]
     tab = re.findall(r'data-tab="([^"]+)"', nav)
     assert tab[-1] == "setelan"
-    assert tab.index("akun") == tab.index("versi") + 1
+    assert tab.index("akun") == tab.index("status") + 1
 
 
 def test_panel_akun_ditandai_dev():

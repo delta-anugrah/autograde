@@ -827,14 +827,14 @@ def test_konsol_tetap_tanpa_referensi_https():
 
 
 # ── antrean manifest R2: second row on the same Antrean screen (task B7) ───
-# Pattern: `sec-antrean` already shows erp_outbox (pending/gagal/gagal
+# Pattern: the Antrean ERP part of `sec-status` (tab Status since 2026-09-28) shows erp_outbox (pending/gagal/gagal
 # terakhir). This adds the manifest queue's own numbers alongside it, on the
 # SAME screen — not a new tab, not a new nav button — because it is the same
 # kind of data (an ErpOutboxStore) about a different queue.
 
 
 def test_antrean_punya_baris_manifest_r2():
-    blok = HTML.split('<section id="sec-antrean"', 1)[1].split("</section>", 1)[0]
+    blok = HTML.split('<section id="sec-status"', 1)[1].split("</section>", 1)[0]
     assert 'id="manifest-ringkas"' in blok, "belum ada ringkasan antrean manifest"
     assert 'id="manifest-baris"' in blok, "belum ada tabel gagal antrean manifest"
 
@@ -842,7 +842,7 @@ def test_antrean_punya_baris_manifest_r2():
 def test_manifest_tidak_aktif_punya_pesan_tersendiri():
     """R2 belum disetel harus terbaca beda dari antrean kosong (0 pending, 0
     gagal) — dua keadaan itu SAMA angkanya, jadi harus beda elemen/pesan."""
-    blok = HTML.split('<section id="sec-antrean"', 1)[1].split("</section>", 1)[0]
+    blok = HTML.split('<section id="sec-status"', 1)[1].split("</section>", 1)[0]
     assert 'id="manifest-nonaktif"' in blok
     assert 'id="manifest-nonaktif" hidden' in blok, "pesan nonaktif harus mulai tersembunyi"
 
@@ -861,19 +861,13 @@ def test_muat_manifest_membedakan_nonaktif_dari_kosong():
 
 
 def test_manifest_dipanggil_saat_tab_antrean_dibuka():
-    """Sama seperti muatAntrean() - tab Antrean memuat dua sumber sekarang,
-    jadi keduanya harus dipanggil saat tab itu dibuka."""
-    assert "muatAntrean" in HTML and "muatManifest" in HTML
-    # MUAT_TAB memetakan satu nama tab ke satu fungsi pemuat; kalau
-    # muatManifest tidak dipanggil dari sana atau dari dalam muatAntrean
-    # sendiri, tab Antrean tidak akan pernah menariknya.
-    peta_antrean = re.search(r"antrean:\s*(\w+)", HTML)
-    assert peta_antrean, "MUAT_TAB tidak lagi memetakan tab antrean"
-    if peta_antrean.group(1) != "muatManifest":
-        dipanggil_dari = _fungsi(peta_antrean.group(1))
-        assert "muatManifest(" in dipanggil_dari, (
-            "muatManifest() tidak dipanggil dari pemuat tab antrean"
-        )
+    """Sama seperti muatAntrean() - bagian Antrean ERP memuat dua sumber, jadi
+    keduanya harus dipanggil saat tab Status dibuka."""
+    assert "status: muatStatus" in HTML, "MUAT_TAB tidak lagi memetakan tab Status"
+    assert "muatAntrean()" in _fungsi("muatStatus")
+    assert "muatManifest(" in _fungsi("muatAntrean"), (
+        "muatManifest() tidak dipanggil dari pemuat antrean"
+    )
 
 
 def test_label_manifest_diterjemahkan_di_kedua_bahasa():
@@ -907,7 +901,7 @@ def test_setiap_tab_berpanel_punya_id_yang_cocok():
     # The tabs wired to a working panel today - kept here, not derived from
     # TAB_SAH in the script, so a JS-side typo cannot make this test agree
     # with the very bug it exists to catch.
-    tab_dengan_panel = {"grading", "truk", "timbangan", "rekap", "log"}
+    tab_dengan_panel = {"grading", "truk", "timbangan", "rekap", "log", "status", "akun", "line", "setelan"}
 
     data_tab = set(re.findall(r'data-tab="(\w+)"', HTML))
     id_panel = set(re.findall(r'<section id="sec-(\w+)"', HTML))
@@ -1233,8 +1227,10 @@ def test_banner_tidak_menampilkan_token():
 
 
 def test_kartu_support_menampilkan_tanggal_langganan():
-    fn = _fungsi("muatVersi")
+    """Baris tanggal hidup di `barisLisensi`, dipakai bersama kotak detail header."""
+    fn = _fungsi("barisLisensi")
     assert "labelAktifSampai" in fn and "labelTenggangSampai" in fn
+    assert "barisLisensi(l)" in _fungsi("muatVersi")
 
 
 def test_tanggal_langganan_tidak_menampilkan_jam():

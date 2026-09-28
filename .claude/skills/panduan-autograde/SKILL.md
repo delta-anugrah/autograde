@@ -31,8 +31,10 @@ ditanya.
   *tanpa* torch (daftar pip di README Quick Start) → `make operator` → `make console`
   → `http://127.0.0.1:8100/console`. Port **8100**, bukan 8000. Kartu kamera OFFLINE
   itu normal. `make up` gagal "MVS SDK not found" di Mac itu normal.
-- **PC pabrik (Linux + GPU):** `make up` menjalankan 4 container: line di 8001–8003,
-  konsol di **8000**. Ubah kode → `make restart` (konsol saja: `make restart-console`);
+- **PC pabrik (Linux + GPU):** Lampung memakai **image produksi** + launcher `autograde`
+  (`autograde pull` / `use vX.Y.Z` / `restart` / `status`), konsol di **8100**, compose di host
+  `/opt/palmgrade/autograde` yang **tidak ikut** `pull` (skill `compose-host-pabrik`). Dari
+  source, `make up` menjalankan 4 container: line di 8001–8003, konsol di **8000**. Ubah kode → `make restart` (konsol saja: `make restart-console`);
   ubah `.env` → `make start` (satu service saja: `make up-N` / `make up-console`),
   `restart` dan reboot **tidak** membaca ulang `.env`; ubah deps/Dockerfile → `make up`.
   Setelan "tidak berlaku" padahal `.env` benar → env var proses menang atas `.env`
@@ -43,20 +45,22 @@ ditanya.
   **tidak naik ke AutoERP**; arah akun cuma AutoERP → PC.
   Akun dari AutoERP direset di AutoERP. Bawaan: `operator@autograde.local`,
   `support@autograde.local`, sandi beda per PKS (`make hash-sandi`, tulis `$$`).
-- **Tab operator** (Grading, Truk, Timbangan, Rekap, Riwayat). **Riwayat** = grading hari
-  sebelumnya, maks 31 hari per tampilan, per hari / per truk / per janjang + CSV; satu hari di
-  sana = tab Rekap hari itu. Query-nya koneksi SQLite baca-saja sendiri (aturan 26).
+- **Tab operator** (Grading, Truk, Timbangan, Rekap). **Rekap** = Rekap + Riwayat sejak
+  2026-09-28: dibuka di Hari ini, Per truk (segar tiap 15 dtk), ganti tanggal untuk hari
+  sebelumnya (maks 31 hari per tampilan), per hari / per truk / per janjang + CSV. Query-nya
+  koneksi SQLite baca-saja sendiri (aturan 26).
 - **Last Sync** (strip "Hari ini", semua operator): baris **AutoERP** dan **Cloud Photo**.
   Jam = data terakhir yang benar-benar lewat; titik hijau/kuning = sambungan hidup/putus
   SEKARANG (cek tiap 60 detik), bukan umur jam: foto naik tiap jam. Kuning → tab Log
   ("AutoERP terputus: …" / "Cloud Photo line-N terputus: …"); data menunggu di antrean,
   tidak hilang. Line mati atau versi lama tidak membuat Cloud Photo kuning (aturan 27).
-- **Tab support** (Log, Diagnostik, Antrean ERP, Versi, Akun, Uji PLC, Sumber Kamera,
-  Model Deteksi, Rekam Video, Setelan) hanya untuk peran `support`; 403 untuk operator,
+- **Tab support** (Log, Status, Akun, Line, Setelan; digabung 2026-09-28: **Status** =
+  Versi + Diagnostik + Antrean ERP, **Line** = Sumber Kamera + Model Deteksi + Uji PLC +
+  Rekam Video sebagai empat tombol pilihan) hanya untuk peran `support`; 403 untuk operator,
   401 kalau belum masuk. **Akun** = daftar akun PC ini (asal Lokal/AutoERP, aktif/mati/
   terkunci) + tombol untuk akun lokal (akun AutoERP tanpa tombol; akun sendiri cuma ganti
   sandi): sandi tidak bisa dilihat (cuma hash yang disimpan); lupa sandi: akun AutoERP
-  diganti di AutoERP, akun lokal dengan tombol Ganti sandi. **Impor CSV** di tab Riwayat juga
+  diganti di AutoERP, akun lokal dengan tombol Ganti sandi. **Impor CSV** di tab Rekap juga
   support saja (unduh CSV untuk semua): CSV Per janjang, periksa dulu, hari ini tidak diimpor,
   bisa dibatalkan per impor (aturan 26).
 - **Rekam video** (v1.13.x): satu tombol per line, jalan sampai ditekan Stop. Yang
@@ -73,7 +77,7 @@ ditanya.
 - **Kartu "Kamera tidak tersambung" padahal container jalan:** itu teks fallback saat
   **browser** gagal memuat `http://<host konsol>:800N/api/video_feed`: port line
   harus terjangkau dari PC yang membuka konsol. Status kamera sesungguhnya ada di tab
-  Diagnostik / `:800N/health/detail` (`camera_connected`). Janjang nyasar ke kartu
+  Status (bagian Diagnostik) / `:800N/health/detail` (`camera_connected`). Janjang nyasar ke kartu
   lain = `LINE_N_MACHINE_ID` kembar (konsol mencocokkan lewat `machine_id`, bukan port).
 - **Layar nol + log "Outbox delivery failed HTTP 404":** `BACKEND_URL` salah port.
 - **Janjang difoto di titik mana:** saat kotaknya **menyentuh garis capture**, garis biru
@@ -90,7 +94,7 @@ ditanya.
 - **Banner langganan / kamera berhenti tanpa sebab:** cek banner di atas layar konsol.
   Kuning = habis N hari lagi; oranye = sudah lewat tanggal tapi masih masa tenggang
   (grading **tetap jalan**); merah = tenggang habis dan **grading dihentikan**. Tanggal
-  lengkapnya di tab **Versi** (support). Token baru diterbitkan di **AutoERP** oleh
+  lengkapnya di bawah tulisan AUTOGRADE (semua akun, klik untuk detail) dan tab **Status** (support). Token baru diterbitkan di **AutoERP** oleh
   Administrator, lalu dipasang `autograde licence <token>` di PC pabrik, token baru
   cuma berlaku setelah container dibuat ulang, **reboot saja tidak cukup**. Data grading
   dan antrean ERP **tidak hilang** selama lisensi mati.
@@ -114,12 +118,13 @@ ditanya.
   itu merotasi secret. Kunci yang sedang dipakai ada di `.env` PC pabrik; bench lokal
   punya `make key-show` di repo `autoerp`; server → minta ke pemegangnya.
 - **`BACKEND_URL` ke API cloud.** Selalu konsol lokal.
-- **Mengganti nama image `palmgrade-vision`**, label selain ACC/REJ, memindai folder
+- **Menghidupkan lagi nama image `palmgrade-vision`** (sekarang `ghcr.io/delta-anugrah/autograde`, dijaga test), label selain ACC/REJ, memindai folder
   dari konsol, referensi `https://` di `console.html`, torch/cv2 di unit test.
 - **Mengirim data per janjang ke AutoERP.** Hanya rekap per kunjungan.
-- **Menjalankan `palmgrade` (stack lama) bersamaan AutoGrade** di PC Lampung: rebutan kamera dan nama container.
-- **Deploy / tag `vX.Y.Z`** selama Opsi B. Update pabrik = `git pull` manual
-  (`git checkout config/camera/hikrobot.mfs` dulu).
+- **Menyalakan lagi api/frontend lama** di PC Lampung (di-stop sejak 2026-09-20): rebutan kamera dan nama container.
+- **Tag `vX.Y.Z` tanpa "ya" eksplisit** dari pemilik. Rilis: PR merge commit `staging` → `main`,
+  tag, GitHub Release (skill `tag-release` di workspace `sawit`); pabrik menarik sendiri lewat
+  `autograde pull`.
 - **Menyimpan sandi mentah atau `LICENSE_PRIVATE_KEY`** di `.env`/image.
 
 ## Mode kerja di PC pabrik
@@ -130,6 +135,7 @@ minta hasilnya ditempel, baru lanjut. Gerbang keras saat pasang: `docker run --g
 
 ## Alur kode
 
-Branch baru → PR **squash** ke `staging` → PR **merge commit** ke `main`. Judul + isi PR
-bahasa Inggris, commit boleh Indonesia, tanpa `Co-Authored-By`. Test dulu
+Branch baru → PR **squash** ke `staging` → PR **merge commit** ke `main`. Judul, isi PR,
+**dan pesan commit** bahasa Inggris (repo squash memakai pesan commit), tanpa `Co-Authored-By`,
+tanpa em dash. Test dulu
 (`.venv/bin/pytest tests/unit`), murni logic tanpa hardware.

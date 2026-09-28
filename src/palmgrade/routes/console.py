@@ -380,9 +380,16 @@ async def console_state(service: Service, dev: Dev, operator: Operator) -> dict:
 
     Sengaja **bukan** lewat `/api/console/dev/*`: banner ini untuk operator
     biasa, yang justru orang yang akan melihat kamera berhenti. Yang dikirim di
-    sini cuma tanggal dan tingkat keparahan — nomor token tetap support-only.
+    sini cuma tanggal, tingkat keparahan, dan nama perusahaan — nomor token tetap
+    support-only. `versi` ikut untuk baris di bawah tulisan AUTOGRADE (2026-09-28):
+    dibaca tiap polling, jadi sesudah `autograde pull` layar yang terbuka ikut
+    menampilkan versi baru tanpa dimuat ulang.
     """
-    return {**service.state(), "lisensi": await dev.license_state()}
+    return {
+        **service.state(),
+        "lisensi": await dev.license_state(),
+        "versi": dev.app_version(),
+    }
 
 
 @router.get("/api/console/history")
@@ -922,7 +929,7 @@ async def dev_model_deteksi_simpan(
 # ── Danger Zone (tab Setelan, support) ─────────────────────────────────
 # Lima aksi berbahaya. Semua lewat `require_support`, dan yang menghapus
 # memeriksa ulang keadaan pabrik di server — layar cuma menjelaskan.
-# Rancangan: docs/superpowers/specs/2026-09-25-danger-zone-design.md.
+# Aturannya: CLAUDE.md aturan 25 (Danger Zone).
 
 
 @router.get("/api/console/dev/bahaya")

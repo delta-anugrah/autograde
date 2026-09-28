@@ -59,7 +59,7 @@ def test_tidak_ada_paths_ignore_untuk_docs():
     Diperiksa 2026-09-22: `tests/unit/test_doc_links.py` membaca
     `docs/**/*.md` lewat `rglob` untuk membuktikan tiap jalur yang disebut
     dokumen benar-benar ada — termasuk `docs/runbooks/`. Delapan berkas docs
-    lain juga punya test isinya sendiri (`MANUAL.md`, `ONBOARDING.md`,
+    lain juga punya test isinya sendiri (`MANUAL.md`,
     `SETUP.md`, `overview.md`, `plc-*.md`, `camera-spec.md`,
     `autograde-integration.md`).
 

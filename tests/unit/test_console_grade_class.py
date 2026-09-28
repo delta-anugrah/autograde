@@ -50,8 +50,10 @@ def test_every_count_cell_has_a_matching_grid_column(html):
 
 def test_the_recap_empty_row_spans_the_widened_table(html):
     """Ripe/Unripe/JK/TP replaced ACC/REJ, so the table gained two columns. A
-    colspan left at 8 stops the "no data yet" row halfway across."""
-    assert 'barisKosong(10, "kosongRekap")' in html
+    colspan left behind stops the "no data yet" row halfway across. Since the
+    Rekap tab became the History table (2026-09-28) the width is counted from
+    the same header list the table is drawn from."""
+    assert 'barisKosong(KEPALA_RIWAYAT[riwayatTampilan].length, "riwayatKosong")' in html
 
 
 def test_the_result_badge_prefers_the_class_but_survives_rows_without_one(html):

@@ -46,7 +46,7 @@ def _kamus(bahasa: str) -> str:
 
 
 def _panel() -> str:
-    return HTML.split('<section id="sec-riwayat"', 1)[1].split("</section>", 1)[0]
+    return HTML.split('<section id="sec-rekap"', 1)[1].split("</section>", 1)[0]
 
 
 def _node(fungsi: list[str], ekspresi: str):
@@ -59,19 +59,18 @@ def _node(fungsi: list[str], ekspresi: str):
 # ── struktur ──────────────────────────────────────────────────────────────
 
 
-def test_tab_riwayat_sesudah_rekap_dan_untuk_semua_operator():
+def test_riwayat_ada_di_tab_rekap_untuk_semua_operator():
+    """Sejak 2026-09-28 Riwayat dan Rekap satu tab: Rekap."""
     nav = HTML.split('<nav id="tabs">', 1)[1].split("</nav>", 1)[0]
-    tab = re.findall(r'data-tab="([^"]+)"', nav)
-    assert tab.index("riwayat") == tab.index("rekap") + 1
-    tombol = next(b for b in nav.splitlines() if 'data-tab="riwayat"' in b)
+    tombol = next(b for b in nav.splitlines() if 'data-tab="rekap"' in b)
     assert "data-dev" not in tombol
-    tag = re.search(r'<section id="sec-riwayat"[^>]*>', HTML).group(0)
+    tag = re.search(r'<section id="sec-rekap"[^>]*>', HTML).group(0)
     assert "data-dev" not in tag
 
 
 def test_tab_diingat_dan_dimuat_saat_dibuka():
-    assert re.search(r'const TAB_SAH = \[[^\]]*"riwayat"', HTML)
-    assert "riwayat: muatRiwayat" in HTML
+    assert re.search(r'const TAB_SAH = \[[^\]]*"rekap"', HTML)
+    assert "rekap: muatRiwayat" in HTML
 
 
 def test_filter_lengkap_ada_di_panel():
@@ -84,7 +83,7 @@ def test_filter_lengkap_ada_di_panel():
                 "riwayat-per", "riwayat-prev", "riwayat-next", "riwayat-nomor", "riwayat-rentang"):
         assert f'id="{id_}"' in panel, id_
     assert re.findall(r'data-tampilan="([^"]+)"', panel) == ["hari", "truk", "janjang"]
-    assert re.findall(r'data-cepat="([^"]+)"', panel) == ["kemarin", "7hari", "bulanini", "bulanlalu"]
+    assert re.findall(r'data-cepat="([^"]+)"', panel) == ["hariini", "kemarin", "7hari", "bulanini", "bulanlalu"]
 
 
 def test_pilihan_hasil_sama_dengan_yang_diterima_server():
@@ -119,7 +118,7 @@ def test_kunci_teks_ada_di_dua_bahasa():
     for bahasa in ("id", "en"):
         isi = _kamus(bahasa)
         for kunci in (
-            "judulRiwayat", "riwayatDari", "riwayatSampai", "riwayatSemuaLine", "riwayatPlat",
+            "judulRekap", "riwayatDari", "riwayatSampai", "riwayatSemuaLine", "riwayatPlat",
             "riwayatSemuaHasil", "riwayatTampilkan", "riwayatCsv", "riwayatPerHari",
             "riwayatPerTruk", "riwayatPerJanjang", "riwayatKemarin", "riwayat7Hari",
             "riwayatBulanIni", "riwayatBulanLalu", "riwayatLihatTruk", "riwayatLihatJanjang",

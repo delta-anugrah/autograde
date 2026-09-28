@@ -211,7 +211,7 @@ sebagai masalah jaringan.
 
 ## 6. Cara menguji tanpa menunggu kami
 
-Di layar konsol AutoGrade ada tab **"Uji PLC"** (khusus akun support). Isinya:
+Di layar konsol AutoGrade, tab **Line** → pilihan **Uji PLC** (khusus akun support). Isinya:
 
 - satu tombol per coil, **diberi nama dan alamat**: "Kamera 1 OK / M1000" (hijau),
   "Kamera 1 NG / M1001" dan "Kamera 1 Error / M1002" (merah). Termasuk **coil ERROR**,

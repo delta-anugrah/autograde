@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Print a Markdown document as an official internal PDF.
 
-    scripts/md_to_pdf.py docs/ONBOARDING.md                → docs/ONBOARDING.pdf
-    scripts/md_to_pdf.py docs/ONBOARDING.md /tmp/out.pdf
+    scripts/md_to_pdf.py docs/MANUAL.md                    → docs/MANUAL.pdf
+    scripts/md_to_pdf.py docs/MANUAL.md /tmp/out.pdf
 
 The look follows the office's existing internal documents (sawit/docs/onboarding/build-pdf.py):
 full-colour cover, a front page, every section starting on a new page. On top of that it adds

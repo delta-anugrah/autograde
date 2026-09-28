@@ -1,4 +1,4 @@
-"""End-to-end: build docs/ONBOARDING.md into the official PDF, then read that PDF back.
+"""End-to-end: build docs/MANUAL.md into the official PDF, then read that PDF back.
 
 Skipped unless headless Chrome, python-markdown and pypdf are all present — the CI runner has
 none of them, and none is a runtime dependency. What it checks is what a reader actually gets:
@@ -19,7 +19,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "md_to_pdf.py"
-DOC = REPO_ROOT / "docs" / "ONBOARDING.md"
+DOC = REPO_ROOT / "docs" / "MANUAL.md"
 _MAC_CHROME = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
 
 
@@ -54,7 +54,7 @@ def _section_titles() -> list[str]:
 def pdf(tmp_path_factory):
     import pypdf
 
-    out = tmp_path_factory.mktemp("onboarding") / "onboarding.pdf"
+    out = tmp_path_factory.mktemp("manual") / "manual.pdf"
     subprocess.run(
         [sys.executable, str(SCRIPT), str(DOC), str(out)],
         check=True,

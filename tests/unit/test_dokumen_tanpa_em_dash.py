@@ -44,7 +44,10 @@ def _em_dash_di_luar_kode(teks: str) -> list[str]:
 
 
 def test_ada_dokumen_yang_diperiksa():
-    assert len(BERKAS) > 20
+    # Menjaga penjaganya: glob yang diam-diam tidak menemukan apa pun akan lolos
+    # selamanya. Ambangnya diturunkan dari 20 saat dokumen usang dan kembar
+    # dihapus (2026-09-28); yang dijaga pemindaiannya jalan, bukan jumlah dokumen.
+    assert len(BERKAS) > 10
 
 
 @pytest.mark.parametrize("berkas", BERKAS, ids=lambda p: str(p.relative_to(AKAR)))
