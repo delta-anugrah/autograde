@@ -113,18 +113,7 @@ class LineClient:
         Read-only lane; same short timeout as `status()` — this backs a
         polling screen, not a once-a-shift diagnostic read.
         """
-        url = f"{self._settings.console_line_host}:{line.port}/internal/plc"
-        try:
-            async with httpx.AsyncClient(timeout=2.0, transport=self._transport) as client:
-                res = await client.get(
-                    url, headers={"x-internal-secret": self._settings.internal_secret}
-                )
-                res.raise_for_status()
-                return res.json()
-        except httpx.HTTPError as exc:
-            raise LineUnavailable(
-                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
-            ) from exc
+        return await self._get_json(line, "/internal/plc", timeout_s=2.0)
 
     async def plc_coil(self, line: LineEndpoint, *, coil: int, requested_by: str) -> dict[str, Any]:
         """Fire one PLC coil on `line` for a wiring test. Raises on 4xx/5xx —
@@ -204,18 +193,7 @@ class LineClient:
     async def status(self, line: LineEndpoint) -> dict[str, Any]:
         """Called once a second by LineStatusWorker, so the timeout is short:
         the operator screen must not be made to wait on a dying line."""
-        url = f"{self._settings.console_line_host}:{line.port}/internal/status"
-        try:
-            async with httpx.AsyncClient(timeout=1.5, transport=self._transport) as client:
-                res = await client.get(
-                    url, headers={"x-internal-secret": self._settings.internal_secret}
-                )
-                res.raise_for_status()
-                return res.json()
-        except httpx.HTTPError as exc:
-            raise LineUnavailable(
-                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
-            ) from exc
+        return await self._get_json(line, "/internal/status", timeout_s=1.5)
 
     async def health_detail(self, line: LineEndpoint) -> dict[str, Any]:
         """Full `/health/detail` for the support diagnostics screen.
@@ -224,18 +202,7 @@ class LineClient:
         once-a-second path, so it can afford to wait a little longer on a
         struggling line instead of flagging it unreachable too eagerly.
         """
-        url = f"{self._settings.console_line_host}:{line.port}/health/detail"
-        try:
-            async with httpx.AsyncClient(timeout=5.0, transport=self._transport) as client:
-                res = await client.get(
-                    url, headers={"x-internal-secret": self._settings.internal_secret}
-                )
-                res.raise_for_status()
-                return res.json()
-        except httpx.HTTPError as exc:
-            raise LineUnavailable(
-                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
-            ) from exc
+        return await self._get_json(line, "/health/detail", timeout_s=5.0)
 
     # ── rekam video developer ───────────────────────────────────────────────
 
@@ -263,20 +230,12 @@ class LineClient:
         Ini layar support yang dibuka sesekali, bukan strip status yang
         dipolling tiap detik, jadi menunggu sedikit lebih lama tidak
         memperlambat apa pun yang dilihat operator.
+
+        Kunci yang ditolak (401/403) sampai sebagai `LINE_MENOLAK`, bukan "tidak
+        menjawab", lewat `_get_json` yang sama dengan pembacaan status lain.
+        Gagalnya dicatat pemanggil (`rekam_status_semua`), sekali per line.
         """
-        url = f"{self._settings.console_line_host}:{line.port}/internal/rekam/status"
-        try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
-                res = await client.get(
-                    url, headers={"x-internal-secret": self._settings.internal_secret}
-                )
-                res.raise_for_status()
-                return res.json()
-        except httpx.HTTPError as exc:
-            logger.warning("Status rekam dari %s gagal: %s", line.line_code, exc)
-            raise LineUnavailable(
-                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
-            ) from exc
+        return await self._get_json(line, "/internal/rekam/status", timeout_s=_TIMEOUT_S)
 
     # ── Danger Zone (layar Setelan, support) ────────────────────────────────
 
@@ -296,18 +255,7 @@ class LineClient:
 
     async def rekam_berkas(self, line: LineEndpoint) -> dict[str, Any]:
         """Jumlah + ukuran rekaman milik line itu, dan apakah sedang merekam."""
-        url = f"{self._settings.console_line_host}:{line.port}/internal/rekam/berkas"
-        try:
-            async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
-                res = await client.get(
-                    url, headers={"x-internal-secret": self._settings.internal_secret}
-                )
-                res.raise_for_status()
-                return res.json()
-        except httpx.HTTPError as exc:
-            raise LineUnavailable(
-                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
-            ) from exc
+        return await self._get_json(line, "/internal/rekam/berkas", timeout_s=_TIMEOUT_S)
 
     async def hidup(self, line: LineEndpoint) -> bool:
         """Apakah proses line menjawab `/health` saat ini. Tidak pernah melempar.
@@ -323,6 +271,55 @@ class LineClient:
             return res.status_code == 200
         except httpx.HTTPError:
             return False
+
+    async def _get_json(
+        self, line: LineEndpoint, path: str, *, timeout_s: float
+    ) -> dict[str, Any]:
+        """GET dipakai lima pembacaan status (`status`, `health_detail`,
+        `plc_state`, `rekam_berkas`, `rekam_status`).
+
+        401/403 diperiksa SEBELUM `raise_for_status()` dan dilempar sebagai
+        `LINE_MENOLAK` (sama seperti `_post`), bukan `LINE_TIDAK_MENJAWAB`:
+        keduanya dulu memakai `raise_for_status()` di dalam `except
+        httpx.HTTPError`, jadi kunci INTERNAL_SECRET yang beda antara konsol
+        dan line (compose host pabrik cuma meneruskannya ke sebagian
+        container) terbaca sebagai "line tidak menjawab". Line yang sebenarnya
+        masih menggrading dan masih mengirim event lewat WEBHOOK_SECRET
+        tampil OFFLINE di layar operator, dan Danger Zone melaporkan "line
+        mati" padahal cuma kuncinya yang beda.
+
+        Penolakan dicatat DEBUG, bukan WARNING: `status()` dipanggil tiap detik,
+        dan WARNING-nya milik `LineStatusWorker` (sekali per transisi). Pembaca
+        lain menerima `LINE_MENOLAK` dan menampilkannya sendiri.
+        """
+        url = f"{self._settings.console_line_host}:{line.port}{path}"
+        try:
+            async with httpx.AsyncClient(timeout=timeout_s, transport=self._transport) as client:
+                res = await client.get(
+                    url, headers={"x-internal-secret": self._settings.internal_secret}
+                )
+        except httpx.HTTPError as exc:
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+            ) from exc
+        if res.status_code in (401, 403):
+            logger.debug(
+                "%s ke %s menolak kunci: HTTP %s (INTERNAL_SECRET beda antara konsol dan line?)",
+                path, line.line_code, res.status_code,
+            )
+            raise LineUnavailable(
+                LINE_MENOLAK,
+                f"{line.line_code} refused: HTTP {res.status_code} {res.text[:200]}",
+                line=line.name,
+                status=res.status_code,
+            )
+        try:
+            res.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+            ) from exc
+        return res.json()
 
     async def _post_json(
         self, line: LineEndpoint, path: str, body: dict[str, Any]

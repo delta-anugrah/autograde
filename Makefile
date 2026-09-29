@@ -170,6 +170,8 @@ LINE_ID = $(LINE_$(N)_ID)
 # (`./artifacts/line-N:/app/artifacts`). Tanpa ini tiga line native menulis ke
 # satu folder yang sama, sementara konsol menyajikan `/captures/{line_code}` dari
 # `artifacts/{line_code}` — gambarnya tersimpan tapi tiap tautan dijawab 404.
+# STATE_DIR juga per line, meniru `./state/line-N:/app/state`: outbox.db dan
+# license.db tinggal di sana.
 #
 # BACKEND_URL ikut diarahkan ke `make console` (127.0.0.1:$(CONSOLE_PORT)), bukan
 # dibiarkan memakai nilai `.env`. Alasannya: `.env` menunjuk port Docker (8000)
@@ -198,6 +200,7 @@ line:
 		env WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) MACHINE_ID=$(LINE_ID) \
 			BACKEND_URL=http://127.0.0.1:$(CONSOLE_PORT) \
 			ARTIFACTS_DIR=$(CURDIR)/artifacts/line-$(N) \
+			STATE_DIR=$(CURDIR)/state/line-$(N) \
 			MEDIA_DIR=$(CURDIR)/media \
 			$${TYPE:+CAMERA_TYPE=$$TYPE} \
 			$${TYPE:+MEDIA_FILE=$$FILE} \

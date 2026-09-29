@@ -92,6 +92,10 @@ def test_key_mid_word_does_not_trigger():
     assert "fine" in redact(message)
 
 
+def test_header_internal_secret_is_masked():
+    assert "kunci-perintah-palsu" not in redact("POST /internal/restart x-internal-secret: kunci-perintah-palsu")
+
+
 def test_two_keys_on_one_line_are_both_masked():
     result = redact("token=a secret=b")
     assert result == "token=«redacted» secret=«redacted»"

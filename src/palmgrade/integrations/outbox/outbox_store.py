@@ -28,6 +28,10 @@ CREATE INDEX IF NOT EXISTS idx_outbox_status_retry
 _MAX_RETRIES = 50
 _BACKOFF_BASE = 5    # retry cepat untuk startup race condition; exponential ke max 600s
 _BACKOFF_MAX  = 600
+#: Baris antrean lama yang dibaca per potongan saat diserap. Antrean line yang
+#: berbulan-bulan tanpa konsol bisa besar; `fetchall()` sekaligus bisa
+#: `MemoryError`, dan itu meninggalkan berkas lama yang tidak pernah terkirim.
+_POTONGAN_SERAP = 1000
 
 
 class OutboxStore:
@@ -112,3 +116,39 @@ class OutboxStore:
                 "WHERE status='failed'"
             )
             return cur.rowcount
+
+    def serap(self, lama: Path) -> int:
+        """Salin antrean dari `outbox.db` lama (di artifacts/, sebelum batch 1) ke berkas ini.
+
+        Idempoten per `event_id` (INSERT OR IGNORE): mengulang aman, dan baris yang
+        sudah ada di sini (PC yang sempat rollback) tidak disentuh. Status,
+        hitungan percobaan, dan jadwal kirim ulang ikut apa adanya.
+
+        Sumbernya dibuka sebagai koneksi SQLite biasa, bukan disalin per berkas:
+        baris yang sudah commit tapi masih di `-wal` (proses lama mati sebelum
+        checkpoint) ikut terbaca, dan journal yang tertinggal dipulihkan dulu.
+
+        Dibaca per potongan (`_POTONGAN_SERAP`), tapi ditulis dalam SATU
+        transaksi: gagal di potongan mana pun (disk penuh) tidak meninggalkan
+        separuh antrean yang tercommit, dan pemanggil baru menghapus berkas lama
+        sesudah fungsi ini kembali, yaitu sesudah satu-satunya commit.
+        """
+        sumber = sqlite3.connect(str(lama))
+        try:
+            baca = sumber.execute(
+                "SELECT event_id, machine_id, payload, retry_count, next_retry_at, last_error, status "
+                "FROM outbox_events ORDER BY id"
+            )
+            diserap = 0
+            with self._lock, self._db:
+                while potongan := baca.fetchmany(_POTONGAN_SERAP):
+                    cur = self._db.executemany(
+                        "INSERT OR IGNORE INTO outbox_events "
+                        "(event_id, machine_id, payload, retry_count, next_retry_at, last_error, status) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        potongan,
+                    )
+                    diserap += cur.rowcount
+        finally:
+            sumber.close()
+        return diserap

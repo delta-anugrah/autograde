@@ -598,7 +598,7 @@ def test_titik_rakit_konsol_memberi_satu_pencatat_ke_semua(monkeypatch, tmp_path
 
     `Settings` diganti supaya `state/` jatuh ke folder sementara: titik rakit yang
     asli akan membuka `state/console.db` milik developer."""
-    from palmgrade.routes import console as rute
+    from palmgrade.routes import console_deps as rute
 
     uji = replace(Settings(), repo_root=tmp_path, factory_tz="Asia/Jakarta", r2_bucket="palmgrade",
                   r2_public_url="https://x", erp_url="")

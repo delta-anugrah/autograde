@@ -16,6 +16,7 @@ Dua-duanya gagal HANYA kalau dijalankan bersama test lain, dan lulus kalau
 dijalankan sendirian — gejala yang terbaca seperti test rapuh padahal kodenya
 sehat. Di CI dua-duanya hijau karena `.env` tidak ikut di-commit, jadi cacat ini
 tidak pernah terlihat di PR dan cuma menyusahkan orang yang kerja lokal.
+Di worktree `.env` yang terbaca milik checkout utama; lihat tests/dotenv_mesin.py.
 
 Yang dilakukan di sini: satu fixture autouse, cakupan sesi, yang menghapus
 variabel titipan `.env` SEBELUM test pertama jalan. Test yang memang butuh
@@ -28,27 +29,17 @@ import os
 from pathlib import Path
 
 import pytest
+from dotenv_mesin import berkas_env_leluhur, kunci_env
 
-_ENV = Path(__file__).resolve().parents[1] / ".env"
-
-
-def _kunci_env() -> list[str]:
-    """Nama variabel di `.env` repo ini. Berkasnya boleh tidak ada (CI)."""
-    if not _ENV.is_file():
-        return []
-    kunci = []
-    for baris in _ENV.read_text(encoding="utf-8").splitlines():
-        baris = baris.strip()
-        if not baris or baris.startswith("#") or "=" not in baris:
-            continue
-        kunci.append(baris.split("=", 1)[0].strip())
-    return kunci
-
+# `load_dotenv()` mencari `.env` mulai dari folder kode lalu NAIK (lihat
+# tests/dotenv_mesin.py). Di worktree yang terbaca `.env` checkout utama, jadi
+# yang dibersihkan semua `.env` di jalur itu, bukan cuma `<repo>/.env`.
+_KODE = Path(__file__).resolve().parents[1] / "src" / "palmgrade"
 
 # Disimpan saat conftest di-import, SEBELUM modul test mana pun di-import dan
 # karenanya sebelum `load_dotenv` sempat jalan. Inilah environ yang asli.
 _ASLI = dict(os.environ)
-_TITIPAN = [k for k in _kunci_env() if k not in _ASLI]
+_TITIPAN = [k for k in kunci_env(berkas_env_leluhur(_KODE)) if k not in _ASLI]
 
 
 def _bersihkan() -> None:

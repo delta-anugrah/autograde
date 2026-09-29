@@ -31,3 +31,6 @@ tests/
 .env
 .env.*
 !.env.example
+
+# Droplet kits for the demo console: installed on a server, never run inside the image
+deploy/

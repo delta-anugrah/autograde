@@ -11,7 +11,7 @@ import re
 
 _KEYS = (
     "password|sandi|password_hash|token|secret|authorization|api_key"
-    "|x-webhook-secret|konsol_sesi"
+    "|x-webhook-secret|x-internal-secret|konsol_sesi"
 )
 
 # The key must start the string or follow a separator, not sit mid-word — this

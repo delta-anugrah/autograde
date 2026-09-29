@@ -207,3 +207,24 @@ def test_alur_logout_paksa(konsol):
     assert support.post("/api/console/dev/bahaya/logout-semua").json()["sesi_dihapus"] == 3
     assert support.get("/api/console/dev/bahaya").status_code == 401
     assert lain.get("/api/console/dev/bahaya").status_code == 401
+
+
+def test_alur_outbox_lama_tertinggal_menahan_dengan_alasannya(konsol):
+    """Line-2 gagal memindah antrean lamanya ke state/ saat menyala: jumlah
+    antreannya tidak diketahui. Panel menyebut sebab itu (bukan "tunggu
+    sebentar"), tombolnya ditolak, dan tidak satu line pun disuruh menghapus."""
+    app, store, line = konsol
+    support = _masuk(app, "support@pks.test", SANDI)
+    line.detail["line-2"].update({"outbox_pending": None, "outbox_lama_tertinggal": True})
+
+    panel = support.get("/api/console/dev/bahaya").json()
+    assert panel["aksi"]["transaksi"]["hambatan"] == [{"kode": "outbox_lama", "line": "line-2"}]
+    assert panel["aksi"]["semua"]["hambatan"] == [{"kode": "outbox_lama", "line": "line-2"}]
+    res = support.post(
+        "/api/console/dev/bahaya/hapus-data", json={"mode": "semua", "konfirmasi": "HAPUS"}
+    )
+
+    assert res.status_code == 409
+    assert res.json()["detail"]["params"]["hambatan"] == "outbox_lama"
+    assert line.perintah == []
+    assert hitung(store, "inspections") == 1

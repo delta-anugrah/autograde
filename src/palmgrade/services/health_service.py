@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from ..core.config import Settings
@@ -9,6 +10,7 @@ from ..integrations.outbox.outbox_store import OutboxStore
 from ..plc import diagnostics as plc_diagnostics
 from ..schemas.common_schema import HealthDetailSchema, WorkerStatus
 from ..workers.runtime_state import RuntimeState
+from .pindah_db_line import outbox_lama_tertinggal
 
 
 @dataclass
@@ -20,6 +22,25 @@ class HealthService:
     # `ModelRegistry`, atau None kalau belum dimuat. Diketik `Any` supaya modul
     # ini tidak menarik torch lewat `model_registry`.
     model: Any = None
+    # Folder DB line (`get_folder_db_line()`); None = tidak diperiksa.
+    folder_db: Path | None = None
+
+    def ringkasan_outbox(self) -> dict[str, Any]:
+        """Antrean ke konsol, termasuk sisa `artifacts/outbox.db` yang gagal diserap.
+
+        Sisa itu tidak terhitung `pending_count()`, jadi `outbox_pending` dilapor
+        `None` (tidak diketahui), bukan angka yang terbaca "kosong": Danger Zone
+        dan `autograde reset-data` di host sama-sama mempercayai angka ini
+        sebelum menghapus.
+        """
+        tertinggal = self.folder_db is not None and outbox_lama_tertinggal(
+            self.settings.artifacts_dir, self.folder_db
+        )
+        return {
+            "outbox_pending": None if tertinggal else self.outbox.pending_count(),
+            "outbox_failed": self.outbox.failed_count(),
+            "outbox_lama_tertinggal": tertinggal,
+        }
 
     def ringkasan_model(self) -> dict[str, Any]:
         if self.model is None:
@@ -73,8 +94,7 @@ class HealthService:
             gpu_device=gpu_device,
             machine_id=self.settings.machine_id,
             workers=workers,
-            outbox_pending=self.outbox.pending_count(),
-            outbox_failed=self.outbox.failed_count(),
+            **self.ringkasan_outbox(),
             capture_save_pending=saver.antrean if saver else 0,
             capture_save_dropped=saver.dibuang if saver else 0,
             tp_telat=self.state.tp_telat,

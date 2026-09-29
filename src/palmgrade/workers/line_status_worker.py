@@ -13,6 +13,8 @@ import asyncio
 import logging
 from typing import Any
 
+from ..domain.operator_error import LINE_MENOLAK, OperatorError
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,6 +27,11 @@ class LineStatusWorker:
         # Sejak kapan upload foto tiap line gagal, menurut putaran terakhir. Hanya
         # untuk mencatat putus/pulih sekali masing-masing ke tab Log.
         self._unggah_putus: dict[str, float | None] = {}
+        # Kunci ditolak (401/403) putus/pulih sekali masing-masing per line,
+        # sama alasannya dengan `_unggah_putus`: tanpa ini satu kunci yang
+        # salah menulis WARNING tiap detik dan mendorong keluar galat lain
+        # yang lebih tua dari tabel `event_log` (aturan 21).
+        self._kunci_ditolak: set[str] = set()
 
     def snapshot(self) -> dict[str, dict[str, Any]]:
         return dict(self._state)
@@ -33,9 +40,23 @@ class LineStatusWorker:
         for line in self._lines:
             try:
                 jawab = await self._client.status(line)
+            except OperatorError as exc:
+                # Kunci ditolak (INTERNAL_SECRET beda antara konsol dan line)
+                # BUKAN line mati: line itu bisa saja tetap menggrading dan
+                # mengirim event lewat WEBHOOK_SECRET. `kode` dibawa ke
+                # `/api/console/state` (lewat `plc` di console_service) supaya
+                # layar bisa membedakannya dari OFFLINE sungguhan.
+                self._state[line.line_code] = {
+                    "reachable": False,
+                    "kode": exc.code,
+                    "status": exc.params.get("status"),
+                }
+                self._catat_kunci(line.line_code, ditolak=exc.code == LINE_MENOLAK)
+                continue
             except Exception as exc:                      # line mati bukan alasan berhenti
                 logger.debug("Status %s tidak terbaca: %s", line.line_code, exc)
                 self._state[line.line_code] = {"reachable": False}
+                self._catat_kunci(line.line_code, ditolak=False)
                 continue
             piston = jawab.get("piston") or {}
             self._state[line.line_code] = {
@@ -51,6 +72,25 @@ class LineStatusWorker:
                 "unggah": jawab.get("unggah"),
             }
             self._catat_unggah(line.line_code, jawab.get("unggah"))
+            self._catat_kunci(line.line_code, ditolak=False)
+
+    def _catat_kunci(self, line_code: str, *, ditolak: bool) -> None:
+        """Satu WARNING per transisi masuk/keluar kunci ditolak, bukan tiap poll
+        (poll ini jalan tiap detik). Sama pola dengan `_catat_unggah`.
+
+        Yang menolak adalah LINE: kunci yang dikirim konsol (`INTERNAL_SECRET`
+        konsol) tidak sama dengan yang dipegang line itu.
+        """
+        sudah_ditolak = line_code in self._kunci_ditolak
+        if ditolak and not sudah_ditolak:
+            logger.warning(
+                "%s menolak kunci konsol: INTERNAL_SECRET di line itu beda dari yang dipakai konsol",
+                line_code,
+            )
+            self._kunci_ditolak.add(line_code)
+        elif sudah_ditolak and not ditolak:
+            logger.warning("%s menerima kunci konsol lagi, sudah pulih", line_code)
+            self._kunci_ditolak.discard(line_code)
 
     def _catat_unggah(self, kode: str, unggah: dict[str, Any] | None) -> None:
         """Upload foto line putus/pulih → satu WARNING, supaya masuk tab Log.

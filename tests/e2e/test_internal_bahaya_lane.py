@@ -32,7 +32,9 @@ def line(tmp_path, monkeypatch):
     monkeypatch.delenv("REKAMAN_DIR", raising=False)
     settings = replace(Settings(), repo_root=tmp_path)
 
-    # Bentuk folder line di PC pabrik (`/opt/palmgrade/autograde/artifacts/line-1`).
+    # Bentuk folder line di PC pabrik (`/opt/palmgrade/autograde/artifacts/line-1`),
+    # compose host tanpa `./state/line-N`: folder DB = artifacts/, jadi outbox di
+    # sana antrean hidup (lihat `test_sisa_outbox_lama_selamat_dari_perintah_hapus`).
     foto = settings.results_dir / "2026-09-25" / "101500_B1234XY_abcd1234"
     for varian in ("bbox/Ripe", "clean/Ripe", "thumb/Ripe"):
         (foto / varian).mkdir(parents=True)
@@ -64,7 +66,7 @@ def test_perintah_lalu_boot_mengosongkan_line(line):
     assert keluar == [1.0]  # di pabrik: os._exit → restart: unless-stopped
 
     # "Boot" berikutnya: awal lifespan main.py.
-    hasil = hapus_kalau_diminta(settings.artifacts_dir, settings.state_dir)
+    hasil = hapus_kalau_diminta(settings.artifacts_dir, settings.state_dir, folder_db=settings.artifacts_dir)
 
     assert hasil["gagal"] == 0
     assert hasil["diminta_oleh"] == "support@pks.test"
@@ -77,7 +79,7 @@ def test_boot_biasa_tidak_menyentuh_apa_pun(line):
     _client, settings, _state, _keluar = line
     sebelum = sorted(str(p) for p in settings.artifacts_dir.rglob("*"))
 
-    assert hapus_kalau_diminta(settings.artifacts_dir, settings.state_dir) is None
+    assert hapus_kalau_diminta(settings.artifacts_dir, settings.state_dir, folder_db=settings.artifacts_dir) is None
 
     assert sorted(str(p) for p in settings.artifacts_dir.rglob("*")) == sebelum
 
@@ -94,7 +96,7 @@ def test_truk_terpasang_tidak_meninggalkan_penanda(line):
 
     assert res.status_code == 409
     assert not (settings.artifacts_dir / PENANDA).exists()
-    assert hapus_kalau_diminta(settings.artifacts_dir, settings.state_dir) is None
+    assert hapus_kalau_diminta(settings.artifacts_dir, settings.state_dir, folder_db=settings.artifacts_dir) is None
     assert keluar == []
 
 
@@ -108,3 +110,22 @@ def test_rute_terpasang_di_app_line_sungguhan():
 
     jalur = {getattr(r, "path", "") for r in create_app().routes}
     assert {"/internal/hapus-data", "/internal/rekam/hapus", "/internal/rekam/berkas"} <= jalur
+
+
+def test_sisa_outbox_lama_selamat_dari_perintah_hapus(line):
+    """Compose host SUDAH me-mount state/: folder DB = state/, jadi
+    `artifacts/outbox.db` itu sisa yang gagal diserap saat line menyala.
+    Perintah hapus lewat HTTP lalu boot tidak boleh membuangnya."""
+    client, settings, _state, _keluar = line
+
+    res = client.post(
+        "/internal/hapus-data", json={"mode": "semua", "diminta_oleh": "s@pks.test"}, headers=HEADER
+    )
+    assert res.status_code == 200, res.text
+    hasil = hapus_kalau_diminta(
+        settings.artifacts_dir, settings.state_dir, folder_db=settings.state_dir
+    )
+
+    assert hasil["gagal"] == 0
+    assert sorted(p.name for p in settings.artifacts_dir.iterdir()) == ["license.db", "outbox.db"]
+    assert (settings.artifacts_dir / "outbox.db").read_bytes() == b"outbox"

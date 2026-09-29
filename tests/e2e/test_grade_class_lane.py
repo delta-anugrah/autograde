@@ -28,6 +28,7 @@ from palmgrade.core.config import Settings
 from palmgrade.domain.erp_messages import visit_message
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.routes import console as console_routes
+from palmgrade.routes.console_ingest import ingest_router
 from palmgrade.services.console_service import ConsoleService
 
 SECRET = "e2e-secret"
@@ -53,7 +54,7 @@ def klien(tmp_path, monkeypatch):
     app.include_router(console_routes.router)
     # Lane mesin punya router sendiri dan prefix versi, persis seperti
     # console_main.py merakitnya. Tanpa prefix ini ingest-nya 404.
-    app.include_router(console_routes.ingest_router, prefix=settings.backend_api_ver)
+    app.include_router(ingest_router, prefix=settings.backend_api_ver)
     # App dirakit sendiri, BUKAN create_console_app(): yang itu menyentuh
     # state/console.db milik developer (CLAUDE.md § Tests).
     app.dependency_overrides[console_routes.get_console_service] = lambda: service

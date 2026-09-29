@@ -156,6 +156,19 @@ def parse_coil_list(value: str | None) -> tuple[int, ...]:
 _DEFAULT_WEBHOOK_SECRET = "supersecret123"
 
 
+def _internal_secret_dari_env() -> str:
+    """Kunci perintah konsol ke line (`x-internal-secret`).
+
+    `INTERNAL_SECRET` kalau diisi (dipangkas); kalau tidak ada atau kosong,
+    `WEBHOOK_SECRET`, supaya `.env` PC yang dipasang sebelum batch 1 tetap
+    jalan. Dipisah karena program timbangan (pihak ketiga) memegang
+    WEBHOOK_SECRET, dan kunci yang sama dulu juga membuka restart, hapus data,
+    dan coil PLC di line.
+    """
+    sendiri = os.getenv("INTERNAL_SECRET", "").strip()
+    return sendiri or os.getenv("WEBHOOK_SECRET", _DEFAULT_WEBHOOK_SECRET)
+
+
 class LineEndpoint(NamedTuple):
     """One camera line as the operator console sees it.
 
@@ -202,7 +215,7 @@ class Settings:
     backend_url: str = field(default_factory=lambda: os.getenv("BACKEND_URL", "http://localhost:2500"))
     backend_api_ver: str = field(default_factory=lambda: os.getenv("BACKEND_API_VER", "/api/v1"))
     webhook_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", _DEFAULT_WEBHOOK_SECRET))
-    internal_secret: str = field(default_factory=lambda: os.getenv("WEBHOOK_SECRET", _DEFAULT_WEBHOOK_SECRET))
+    internal_secret: str = field(default_factory=_internal_secret_dari_env)
 
     # Camera
     camera_type: str = field(default_factory=lambda: os.getenv("CAMERA_TYPE", "hikrobot"))
@@ -554,28 +567,46 @@ class Settings:
     # ------------------------------------------------------------------ validation
 
     def validate_for_runtime(self) -> None:
-        """Fail fast on misconfiguration that is dangerous in production.
-
-        WEBHOOK_SECRET guards both directions between vision and palmgrade-api.
-        When a production `.env` was left unset the service used to run happily
-        on the committed default `supersecret123` with only a warning — anyone
-        who had read the repo could post fake events or internal commands. In
-        production we now refuse to start; development still allows the default
-        (warning only) so the dev/opencv flow stays friction-free.
-        """
+        """Line: peringatan batch upload, lalu aturan secret yang sama dengan konsol."""
         if self.environment == "production" and not self.r2_bucket:
             logger.warning(
                 "R2_BUCKET is empty — cloud batch upload is disabled (no-op). "
                 "Set R2_* in .env to enable it."
             )
-        if self.webhook_secret != _DEFAULT_WEBHOOK_SECRET:
+        self.validate_secrets()
+
+    def validate_secrets(self) -> None:
+        """Fail fast on public or empty machine secrets. Line AND console call this.
+
+        Under APP_ENV=production a secret still on the committed default
+        `supersecret123`, or empty, refuses to start: anyone who has read the
+        repo could post fake events or command a line. Development only warns
+        so the dev/opencv flow stays friction-free.
+        """
+        self._tolak_secret_lemah("WEBHOOK_SECRET", self.webhook_secret)
+        if self.internal_secret_terpisah:
+            self._tolak_secret_lemah("INTERNAL_SECRET", self.internal_secret)
+        elif self.environment == "production":
+            logger.warning(
+                "INTERNAL_SECRET belum diisi atau sama dengan WEBHOOK_SECRET: perintah "
+                "konsol ke line memakai kunci yang juga dipegang program timbangan. Isi "
+                "INTERNAL_SECRET yang berbeda di .env dan compose host, lalu autograde restart."
+            )
+
+    def _tolak_secret_lemah(self, nama: str, nilai: str) -> None:
+        if nilai.strip() and nilai != _DEFAULT_WEBHOOK_SECRET:
             return
         if self.environment == "production":
             raise RuntimeError(
-                "WEBHOOK_SECRET is still the public default under APP_ENV=production. "
-                "Set it to a secret value (identical to palmgrade-api's) before deploying."
+                f"{nama} masih bawaan atau kosong di APP_ENV=production. "
+                "Isi dengan nilai rahasia di .env sebelum menyalakan."
             )
-        logger.warning("WEBHOOK_SECRET is the default — set it before a production deploy.")
+        logger.warning("%s masih bawaan atau kosong; isi sebelum dipasang di produksi.", nama)
+
+    @property
+    def internal_secret_terpisah(self) -> bool:
+        """False = perintah ke line masih memakai kunci milik program timbangan."""
+        return self.internal_secret != self.webhook_secret
 
     # ------------------------------------------------------------------ paths
 
@@ -683,8 +714,11 @@ class Settings:
 
     @property
     def state_dir(self) -> Path:
-        """Operational state (SQLite manifests) — OUTSIDE the static /captures mount."""
-        return self.repo_root / "state"
+        """SQLite di LUAR mount statis /captures. `STATE_DIR` menimpanya: jalur
+        native (`make line`) memberi tiap line foldernya sendiri, seperti volume
+        `./state/line-N` di Docker. Tanpa itu tiga line berbagi outbox.db."""
+        dari_env = os.getenv("STATE_DIR", "").strip()
+        return Path(dari_env) if dari_env else self.repo_root / "state"
 
     @property
     def results_dir(self) -> Path:

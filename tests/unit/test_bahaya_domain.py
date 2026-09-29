@@ -274,6 +274,7 @@ def _semua_keluaran() -> tuple[set[str], set[str]]:
         _sehat("line-2", truk_terpasang=True, merekam=True),
         _sehat("line-3", outbox_pending=None),
         _sehat("line-4", merekam=True, outbox_gagal=2),
+        _sehat("line-5", outbox_pending=None, outbox_lama_tertinggal=True),
     ]
     aktif = KeadaanKonsol(
         erp_aktif=True, erp_pending=2, erp_gagal=1, akun_support_bawaan=False,
@@ -385,3 +386,21 @@ def test_setiap_kunci_sync_state_di_kode_sudah_digolongkan():
         assert not kunci_state_dihapus(kunci, MODE_TRANSAKSI), kunci
         assert kunci_state_dihapus(kunci, MODE_SEMUA), kunci
 
+
+
+def test_outbox_lama_tertinggal_menghambat_dengan_kode_sendiri():
+    """Antrean lama yang gagal dipindah ke state/ tidak terhitung di
+    `outbox_pending`; menyebutnya "antrean belum kosong" tanpa alasan membuat
+    support menunggu sesuatu yang tidak akan pernah habis sendiri."""
+    lines = [
+        _sehat("line-1"),
+        KeadaanLine("line-2", terjangkau=True, outbox_pending=None, outbox_lama_tertinggal=True),
+        _sehat("line-3"),
+    ]
+    assert hambatan_hapus_data(lines, KeadaanKonsol(erp_aktif=False)) == [
+        {"kode": "outbox_lama", "line": "line-2"}
+    ]
+
+
+def test_outbox_lama_punya_kode_hambatan_terdaftar():
+    assert "outbox_lama" in KODE_HAMBATAN

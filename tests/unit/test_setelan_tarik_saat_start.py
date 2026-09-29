@@ -81,7 +81,7 @@ def test_lane_mesin_bukan_lane_operator():
     (x-webhook-secret), bukan di lane `/api/console/dev/*` yang butuh login."""
     konsol = (
         pathlib.Path(__file__).resolve().parents[2]
-        / "src" / "palmgrade" / "routes" / "console.py"
+        / "src" / "palmgrade" / "routes" / "console_ingest.py"
     ).read_text(encoding="utf-8")
     assert '@ingest_router.get("/internal/setelan")' in konsol
 
