@@ -53,7 +53,9 @@ _DISK_SWEEP_CHUNK = 200
 
 # Awal `last_error` item yang diracun karena foto buktinya tidak utuh (batch 2.6).
 # Penanda inilah yang membedakannya dari racun lain saat memeriksa apakah
-# berkasnya kini sudah ditulis utuh.
+# berkasnya kini sudah ditulis utuh. Persisted, do not reword: nilainya sudah
+# tersimpan di `upload_manifest.db` PC pabrik, dan kata lain membuat baris lama
+# diam-diam tidak bisa pulih.
 _FOTO_TIDAK_UTUH = "foto bukti "
 
 
@@ -213,19 +215,12 @@ class BatchUploadWorker:
         Racun lain (mis. ditolak API) tetap racun: berkasnya utuh, jadi
         memeriksanya ulang tiap jam cuma mengulang penolakan yang sama.
         """
-        for item in self.manifest.get_poisoned():
-            image_path = item["image_path"]
-            if image_path:
-                if not (item["last_error"] or "").startswith(_FOTO_TIDAK_UTUH):
-                    continue
-                if self._alasan_tidak_utuh(self._berkas_gambar(image_path)):
-                    continue
-            else:
-                # Fotonya belum tentu utuh; kalau belum, item diracun lagi
-                # dengan sebab yang benar (foto, bukan sidecar).
-                image_path = self._rujukan_gambar(self.settings.artifacts_dir / item["item_key"])
-                if not image_path:
-                    continue
+        for item in self.manifest.get_recoverable_poisoned(_FOTO_TIDAK_UTUH):
+            image_path = item["image_path"] or self._rujukan_gambar(
+                self.settings.artifacts_dir / item["item_key"]
+            )
+            if not image_path or self._alasan_tidak_utuh(self._berkas_gambar(image_path)):
+                continue
             logger.warning("Item %s kini utuh, diantre ulang (dulu: %s)", item["item_key"], item["last_error"])
             self.manifest.revive(item["id"], image_path, build_r2_key(self.settings.machine_id, image_path))
 
@@ -392,24 +387,35 @@ class BatchUploadWorker:
             # image when the thumbnail is absent (static/viewer.html).
             logger.warning("PUT thumb R2 gagal (%s): %s", thumb_key, exc)
 
-    def _tolak_sidecar_tanpa_gambar(self, item: dict[str, Any]) -> None:
-        """Sidecar janjang yang tidak menyebut gambar = sidecar yang tidak terbaca.
+    def _isi_atau_tolak_item_tanpa_gambar(self, item: dict[str, Any]) -> None:
+        """Item janjang tanpa `image_path`: isi dari sidecar, atau racuni.
 
         `_scan()` membuat item tanpa `image_path` kalau sidecar-nya kosong atau
         korup. Dulu item itu langsung `done` (tidak ada penerima teks) lalu
         retensi menghapus sidecar-nya: fotonya tertinggal di disk tanpa pernah
         naik ke R2 dan tanpa ada yang menghapusnya. Sekarang `poisoned`, dan
         semua berkasnya dibiarkan. Sidecar TP lama memang tanpa gambar.
+
+        Baris lama bisa dibuat saat pindaian bertabrakan dengan tulisan sidecar
+        yang belum atomik: sidecar-nya kini terbaca, jadi gambarnya diisi dan
+        item diproses di batch ini juga, tanpa racun.
         """
         json_path = self.settings.artifacts_dir / item["item_key"]
         if json_path.name.endswith(_TP_SUFFIX):
+            return
+        image_path = self._rujukan_gambar(json_path)
+        if image_path:
+            r2_key = build_r2_key(self.settings.machine_id, image_path)
+            self.manifest.set_image(item["id"], image_path, r2_key)
+            item["image_path"], item["r2_key"] = image_path, r2_key
+            logger.info("Item %s: gambar dibaca ulang dari sidecar (%s)", item["item_key"], image_path)
             return
         self._read_meta(json_path)  # kosong / korup / hilang → _PoisonError
         raise _PoisonError(f"image_path hilang: {json_path}")
 
     def _process_item(self, item: dict[str, Any]) -> None:
         if item["status"] == "pending" and not item["image_path"]:
-            self._tolak_sidecar_tanpa_gambar(item)
+            self._isi_atau_tolak_item_tanpa_gambar(item)
         if item["status"] == "pending" and item["image_path"]:
             local = self._berkas_gambar(item["image_path"])
             if not local.exists():

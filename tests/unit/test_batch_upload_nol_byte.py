@@ -17,7 +17,7 @@ import pytest
 from palmgrade.core.config import Settings
 from palmgrade.domain.berkas_utuh import nama_sementara
 from palmgrade.integrations.upload.upload_manifest import UploadManifest
-from palmgrade.workers.batch_upload_worker import BatchUploadWorker
+from palmgrade.workers.batch_upload_worker import _FOTO_TIDAK_UTUH, BatchUploadWorker
 
 MACHINE_ID = "11111111-1111-1111-1111-111111111111"
 DAY = "2026-09-08"
@@ -206,6 +206,51 @@ def test_sidecar_utuh_tapi_fotonya_nol_byte_pulih_lewat_dua_langkah(settings):
     annotated.write_bytes(b"bbox utuh")
     manifest, uploader, _worker = _run(settings)
     assert manifest.counts()["done"] == 1
+
+
+def test_awalan_racun_foto_tersimpan_di_db_lapangan_tidak_boleh_berubah():
+    """`_FOTO_TIDAK_UTUH` ditulis ke `last_error` di `upload_manifest.db` PC pabrik.
+
+    Pemulihan mencari baris lewat awalan ini. Mengubah kata-katanya membuat
+    setiap baris yang sudah tersimpan di lapangan diam-diam tidak bisa pulih
+    lagi. Nilai ini TIDAK BOLEH diubah.
+    """
+    assert _FOTO_TIDAK_UTUH == "foto bukti "
+
+
+def test_sidecar_utuh_tapi_foto_masih_nol_byte_tidak_dibilang_kini_utuh(settings, caplog):
+    _annotated, json_path = _janjang(settings, bbox=b"", sidecar="")
+    _run(settings)
+    json_path.write_text(json.dumps({
+        "timestamp": "2026-09-08T02:14:32.781225",
+        "image_path": f"captures/results/{DAY}/{TRUCK}/bbox/Ripe/{STAMP}_auto.webp",
+        "ripeness_status": "ACC", "capture_type": "auto",
+    }))
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        manifest, uploader, _worker = _run(settings)
+
+    assert uploader.keys == []
+    assert manifest.counts()["poisoned"] == 1
+    assert not any("kini utuh" in r.getMessage() for r in caplog.records)
+
+
+def test_baris_pending_lama_tanpa_gambar_diisi_dari_sidecar_bukan_diracun(settings, caplog):
+    """Pindaian lama yang bertabrakan dengan tulisan sidecar non-atomik meninggalkan
+    baris `pending` tanpa `image_path`, padahal sidecar-nya kini terbaca."""
+    settings = replace(settings, upload_retention_days=7)
+    _annotated, json_path = _janjang(settings)
+    manifest = UploadManifest(db_path=settings.state_dir / "m.db")
+    manifest.upsert_item(str(json_path.relative_to(settings.artifacts_dir)),
+                         event_id="e-lama", image_path=None, r2_key=None)
+    uploader = FakeUploader()
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        BatchUploadWorker(settings=settings, manifest=manifest, uploader=uploader).run_batch_once()
+
+    assert f"{MACHINE_ID}/results/{DAY}/{TRUCK}/bbox/Ripe/{STAMP}_auto.webp" in uploader.keys
+    assert manifest.counts()["done"] == 1
+    assert manifest.counts()["poisoned"] == 0
+    assert not any(r.levelno >= logging.ERROR for r in caplog.records)
+    assert not any("image_path hilang" in r.getMessage() for r in caplog.records)
 
 
 def test_racun_lain_tidak_dicoba_ulang_tiap_jam(settings):
