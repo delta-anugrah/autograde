@@ -95,6 +95,43 @@ def test_poisoned_excluded(m):
     assert len(left) == 1 and left[0]["id"] == items[1]["id"]
 
 
+def test_get_poisoned_lists_only_poisoned_with_reason(m):
+    _add(m)
+    _add(m, key="results/2026-07-10/b_auto_ripeness.json", event_id="e2")
+    items = m.get_uploadable(limit=10)
+    m.mark_poisoned(items[1]["id"], "foto bukti kosong")
+    got = m.get_poisoned()
+    assert [(g["id"], g["item_key"], g["last_error"]) for g in got] == [
+        (items[1]["id"], "results/2026-07-10/b_auto_ripeness.json", "foto bukti kosong"),
+    ]
+    assert got[0]["image_path"] == "captures/results/2026-07-10/a_auto.webp"
+
+
+def test_revive_returns_poisoned_item_to_a_fresh_pending(m):
+    _add(m, image_path=None, r2_key=None)
+    item_id = m.get_uploadable(limit=10)[0]["id"]
+    m.requeue(item_id, "PUT R2 gagal")
+    m.mark_poisoned(item_id, "JSON kosong")
+
+    m.revive(item_id, image_path="captures/results/d/x_auto.webp", r2_key="M1/results/d/x_auto.webp")
+
+    got = m.get_uploadable(limit=10)
+    assert [(g["id"], g["status"], g["image_path"], g["r2_key"], g["retry_count"]) for g in got] == [
+        (item_id, "pending", "captures/results/d/x_auto.webp", "M1/results/d/x_auto.webp", 0),
+    ]
+    row = m._db.execute("SELECT last_error FROM upload_items WHERE id=?", (item_id,)).fetchone()
+    assert row["last_error"] is None
+    assert m.get_poisoned() == []
+
+
+def test_revive_leaves_non_poisoned_items_alone(m):
+    _add(m)
+    item_id = m.get_uploadable(limit=10)[0]["id"]
+    m.mark_done(item_id)
+    m.revive(item_id, image_path=None, r2_key=None)
+    assert m.counts()["done"] == 1
+
+
 def test_oldest_first_and_limit(m):
     for i in range(5):
         _add(m, key=f"results/d/{i}_auto_ripeness.json", event_id=f"e{i}")
