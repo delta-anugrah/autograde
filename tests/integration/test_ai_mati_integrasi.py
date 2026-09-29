@@ -9,14 +9,23 @@ jawaban dengan `ringkas_ai_dari_state` yang sama persis dengan controller asliny
 """
 from __future__ import annotations
 
+import asyncio
+from dataclasses import replace
+
+import httpx
 from ai_palsu import LinePalsu
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from palmgrade.core.config import LineEndpoint, Settings
+from palmgrade.integrations.notifications.line_client import LineClient
 from palmgrade.plc.pulse import PulseScheduler
 from palmgrade.plc.worker import PlcWorker
 from palmgrade.routes.health_ringan import buat_router_health
+from palmgrade.schemas.internal_schema import LineStatusResponse
 from palmgrade.services.health_service import HealthService
+from palmgrade.services.penjaga_ai import ringkas_ai_dari_state
+from palmgrade.workers.line_status_worker import LineStatusWorker
 
 COIL_ERROR = 1002
 
@@ -121,3 +130,31 @@ def test_kamera_putus_tetap_menaikkan_error_seperti_dulu():
     r.line.jalan(5)
     r.line.kamera.connected = False
     assert (r.error_plc(), r.http.get("/health").status_code) == (True, 200)
+
+
+def test_konsol_membaca_ai_mati_dari_status_line_lewat_http():
+    r = Rakitan()
+    line_app = FastAPI()
+
+    @line_app.get("/internal/status", response_model=LineStatusResponse)
+    async def status() -> LineStatusResponse:
+        return LineStatusResponse(machine_id="m-1", truck_id=None, ffb_source=None,
+                                  piston=None, ai=ringkas_ai_dari_state(r.line.state))
+
+    settings = replace(Settings(), console_line_host="http://line")
+    klien = LineClient(settings, transport=httpx.ASGITransport(app=line_app))
+    endpoint = LineEndpoint("line-1", "Line 1", 8001, "m-1")
+    worker = LineStatusWorker([endpoint], klien)
+
+    r.line.mulai()
+    r.line.pipeline.galat = RuntimeError("CUDA error")
+    r.line.jalan(32)
+    asyncio.run(worker.run_once())
+    ai = worker.snapshot()["line-1"]["ai"]
+    assert (ai["mati"], ai["kode"], ai["ambang_detik"]) == (True, "AI_MATI", 30)
+    assert "galat_terakhir" not in ai
+
+    r.line.pipeline.galat = None
+    r.line.jalan(1)
+    asyncio.run(worker.run_once())
+    assert worker.snapshot()["line-1"]["ai"]["mati"] is False

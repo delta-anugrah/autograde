@@ -736,6 +736,15 @@
   .pita-kunci { margin:10px 13px 0; padding:9px 13px; border-radius:var(--r-sm);
                 background:var(--warn-bg); color:var(--warn);
                 border-left:4px solid var(--warn); font-size:.85rem; font-weight:600; }
+  /* AI line berhenti memproses (batch 2.1): kamera jalan, buah lewat tanpa
+     disortir. Palet dan denyut bahaya yang sama dengan pita piston, plus kartu
+     berbingkai merah supaya line yang mana terbaca dari jauh. */
+  .card.ai-mati { border-color:var(--danger-fg); box-shadow:0 0 0 3px var(--danger-fg); }
+  .pita-ai { margin:10px 13px 0; padding:11px 13px; border-radius:var(--r-sm);
+             background:var(--danger-fg); color:var(--danger-bg);
+             animation:denyut-pita 1.6s ease-in-out infinite; }
+  .pita-ai b { display:block; font-size:1rem; text-transform:uppercase; letter-spacing:.04em; }
+  .pita-ai span { display:block; margin-top:4px; font-size:.85rem; font-weight:600; }
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
@@ -2392,6 +2401,8 @@ const KAMUS = {
     err_line_tidak_menjawab:"{line} tidak menjawab. Pastikan layanan kameranya menyala",
     err_line_menolak:"{line} menolak perintah (HTTP {status})",
     kartuKunciDitolak:"Kunci ditolak (HTTP {status}). Line ini hidup dan mungkin masih menggrading, tapi kuncinya beda dari konsol. Cocokkan INTERNAL_SECRET di konsol dan di line.",
+    aiMatiJudul:"{line}: AI berhenti memproses",
+    aiMatiRinci:"Kode {kode}, sejak {jam}. Kamera mengirim gambar tapi tidak ada yang digrading, buah lewat tanpa disortir. Tahan umpan buah ke line ini dan panggil teknisi untuk restart line.",
     err_sandi_pendek:"Sandi minimal 8 karakter",
     err_sandi_salah:"Email atau sandi salah",
     err_terkunci:"Login terkunci {detik} detik lagi setelah beberapa sandi salah",
@@ -2724,6 +2735,8 @@ const KAMUS = {
     err_line_tidak_menjawab:"{line} is not responding. Check that its camera service is running",
     err_line_menolak:"{line} refused the command (HTTP {status})",
     kartuKunciDitolak:"Key refused (HTTP {status}). This line is alive and may still be grading, but its key differs from the console. Check that INTERNAL_SECRET matches on the console and on the line.",
+    aiMatiJudul:"{line}: AI stopped processing",
+    aiMatiRinci:"Code {kode}, since {jam}. The camera sends images but nothing is graded, fruit passes unsorted. Hold the fruit feed to this line and call a technician to restart the line.",
     err_sandi_pendek:"The password must be at least 8 characters",
     err_sandi_salah:"Wrong email or password",
     err_terkunci:"Sign-in locked for another {detik} s after repeated wrong passwords",
@@ -3518,6 +3531,37 @@ function pitaKunciDitolak(l) {
   return `<div class="pita-kunci">${esc(teks)}</div>`;
 }
 
+// AI line berhenti memproses (batch 2.1, kode AI_MATI): kamera mengirim gambar
+// tapi tidak ada frame yang selesai digrading. DINILAI DI LINE
+// (services/penjaga_ai.py, blok `ai` di /internal/status), layar cuma
+// menggambar keputusan itu: menghitung ulang umur frame di sini berarti dua
+// aturan yang bisa berbeda dengan coil ERROR PLC. Line yang tidak terbaca tidak
+// menggambar pita ini: kartunya sudah OFFLINE.
+function aiMati(l) {
+  const p = l.plc || {};
+  return Boolean(p.reachable && p.ai && p.ai.mati);
+}
+
+// `sekarang` cuma untuk test: jam hari ini ditulis jamnya saja, hari lain ikut tanggal.
+function pitaAi(l, sekarang = Date.now() / 1000) {
+  if (!aiMati(l)) return "";
+  const ai = l.plc.ai;
+  const judul = t("aiMatiJudul").replace("{line}", l.name || l.line_code);
+  const rinci = t("aiMatiRinci")
+    .replace("{kode}", ai.kode || "AI_MATI")
+    .replace("{jam}", jamSinkron(ai.sejak, sekarang) || KOSONG);
+  return `<div class="pita-ai" role="alert"><b>${esc(judul)}</b><span>${esc(rinci)}</span></div>`;
+}
+
+// Tiap polling, bukan cuma render pertama: layar ini dibiarkan menyala berhari-
+// hari tanpa disentuh. `tulisKalauBeda` supaya pita yang sama tidak dibangun
+// ulang tiap 2 detik (denyutnya tidak mulai dari awal lagi).
+function perbaruiAi(kartu, l) {
+  kartu.classList.toggle("ai-mati", aiMati(l));
+  const slot = kartu.querySelector(".slot-ai");
+  if (slot) tulisKalauBeda(slot, pitaAi(l));
+}
+
 // Alarm PLC (motor fault / E-stop) dari blok M yang dibaca tiap line. Semua
 // line membaca blok yang sama, jadi daftarnya digabung dan dideduplikasi;
 // line yang mati tidak menyumbang apa-apa (l.plc.alarms undefined). Kunci
@@ -3560,7 +3604,7 @@ function kartuLine(l) {
     .concat(trucks.map((tr) => ({ v: tr.id, teks: tr.plate_number || KOSONG })));
   // line_code only rides along as data-line and is read via dataset - it never
   // enters an onclick attribute, so there is no JS string context to inject.
-  return `<div class="card" data-line="${esc(l.line_code)}">
+  return `<div class="card${aiMati(l) ? " ai-mati" : ""}" data-line="${esc(l.line_code)}">
     <h2><span class="nama">${esc(l.name)}</span>
       <span class="sinyal">
         <span class="on" data-t="statusOnline">Online</span>
@@ -3573,6 +3617,7 @@ function kartuLine(l) {
     </h2>
     ${pitaPiston(l)}
     ${pitaKunciDitolak(l)}
+    <div class="slot-ai">${pitaAi(l)}</div>
     ${feed ? `<div class="feed"><img src="${feed}" alt=""><span>${esc(t("kameraPutus"))}</span></div>` : ""}
     <div class="counts">
       <span class="acc"><span class="lb">${esc(t("clsRipe"))}</span><b data-k="ripe">${l.ripe || 0}</b></span>
@@ -4545,6 +4590,7 @@ async function refresh() {
         if (pitaLama && !pitaBaru) pitaLama.remove();
         else if (pitaLama) pitaLama.outerHTML = pitaBaru;
         else if (pitaBaru) c.querySelector("h2").insertAdjacentHTML("afterend", pitaBaru);
+        perbaruiAi(c, l);
       });
       terapkanUrutan();
     }
