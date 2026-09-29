@@ -142,7 +142,7 @@ def test_tanpa_plc_tetap_aman(monkeypatch):
 
 
 def test_batas_kuras_muat_dalam_batas_tutup():
-    """Kuras + henti penulis + tahap kamera/penjadwal harus muat di 9 detik:
+    """Kuras + henti penulis + tahap kamera/penjadwal harus muat di `BATAS_TUTUP_S`:
     lewat dari itu `os._exit` memotong ERROR yang menyebut janjang hilang."""
     assert BATAS_KURAS_S + BATAS_HENTI_PENULIS_S + CADANGAN_TAHAP_AKHIR_S <= BATAS_TUTUP_S
 

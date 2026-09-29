@@ -32,10 +32,14 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-#: Batas seluruh urutan tutup, detik. Di bawah tenggang `docker stop` bawaan
-#: (10 detik sebelum SIGKILL), supaya baris ERROR yang menyebut langkah macet
-#: sempat tertulis di jalur SIGTERM juga.
-BATAS_TUTUP_S = 9.0
+#: Batas seluruh urutan tutup, detik. Pada SIGTERM uvicorn lebih dulu menunggu
+#: koneksi terbuka (layar konsol selalu membuka `/api/video_feed`) sampai 1
+#: detik (`--timeout-graceful-shutdown 1`, entrypoint.sh), lalu baru lifespan
+#: shutdown. 1 + 8 + ~0,2 detik jeda uvicorn masih di bawah tenggang `docker
+#: stop` bawaan (10 detik sebelum SIGKILL), supaya baris ERROR yang menyebut
+#: langkah macet sempat tertulis di jalur SIGTERM juga
+#: (tests/unit/test_tenggang_tutup_uvicorn.py).
+BATAS_TUTUP_S = 8.0
 
 
 @dataclass(frozen=True)

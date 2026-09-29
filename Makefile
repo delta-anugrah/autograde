@@ -124,7 +124,8 @@ console:
 	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) \
 	MEDIA_DIR=$(CURDIR)/media MEDIA_ENV_PATH=$(CURDIR)/$(MEDIA_ENV) \
 	PYTHONPATH=src .venv/bin/uvicorn \
-		palmgrade.console_main:app --host 127.0.0.1 --port $(CONSOLE_PORT)
+		palmgrade.console_main:app --host 127.0.0.1 --port $(CONSOLE_PORT) \
+		--timeout-graceful-shutdown 1
 
 # Satu line kamera NATIVE tanpa Docker — pasangan `make console` untuk develop di
 # Mac, di mana `make up` memang tidak bisa jalan (butuh MVS SDK, CUDA cu126, dan
@@ -207,7 +208,8 @@ line:
 			$${TYPE:+CAMERA_VIDEO_PATH=} $${TYPE:+CAMERA_PHOTO_PATH=} \
 			$${LOOP:+CAMERA_VIDEO_LOOP=$$LOOP} \
 			PYTHONPATH=src \
-			.venv/bin/uvicorn palmgrade.main:app --host 127.0.0.1 --port $(LINE_PORT); \
+			.venv/bin/uvicorn palmgrade.main:app --host 127.0.0.1 --port $(LINE_PORT) \
+				--timeout-graceful-shutdown 1; \
 		RC=$$?; \
 		if [ $$RC -ne 0 ]; then \
 			echo "line-$(N) berhenti (exit $$RC) — tidak dinyalakan ulang"; \
@@ -429,7 +431,7 @@ clean:
 # missing from .env the result is an EMPTY string, and load_dotenv(override=False)
 # will not replace it — machine_id becomes "" and the API rejects every event.
 dev:
-	uvicorn src.palmgrade.main:app --host 0.0.0.0 --port 8001 --reload
+	uvicorn src.palmgrade.main:app --host 0.0.0.0 --port 8001 --reload --timeout-graceful-shutdown 1
 
 # Reload the console after a Python change. Bind-mounted code means HTML is
 # served fresh on refresh, but the running process keeps the old Python until

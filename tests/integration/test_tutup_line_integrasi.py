@@ -293,7 +293,7 @@ def test_link_plc_mati_dan_disk_macet_janjang_hilang_tetap_disebut(rakit, frame,
 
 
 def test_janjang_yang_datang_saat_menutup_tertulis_atau_disebut(rakit, frame, caplog):
-    """Deteksi tetap jalan selama line menutup (link PLC mati = hampir 9 detik).
+    """Deteksi tetap jalan selama line menutup (link PLC mati = sampai `BATAS_TUTUP_S`).
 
     Tiap janjang yang diserahkan sesudah perintah restart harus berakhir di
     salah satu dari dua tempat: tertulis di disk, atau disebut di log ERROR.
