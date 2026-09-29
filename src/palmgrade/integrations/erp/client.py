@@ -22,8 +22,6 @@ from typing import Any
 
 import httpx
 
-from ...domain.sinkron import galat_jaringan_http
-
 _TIMEOUT_S = 15.0
 _REASON_CHARS = 300
 _BODY_CHARS = 120
@@ -164,5 +162,14 @@ def _snippet(response: httpx.Response) -> str:
 
 
 def galat_jaringan(exc: BaseException) -> bool:
-    """Last Sync: AutoERP tidak terjangkau, bukan menjawab dengan penolakan."""
-    return isinstance(exc, ErpError) and galat_jaringan_http(exc.status)
+    """Last Sync: AutoERP tidak terjangkau, bukan menjawab dengan penolakan.
+
+    Diklasifikasi lewat TIPE exception, bukan status HTTP-nya. Setiap `ErpUnavailable`
+    berarti tidak ada jawaban yang bisa dipakai (jaringan, timeout, gateway, halaman 5xx
+    yang bukan Frappe, atau 2xx yang bukan objek JSON Frappe), apa pun status yang
+    menempel di dalamnya. Sebelum ini status 500 non-Frappe (nginx di depan Frappe yang
+    mati) lolos dari `galat_jaringan_http` (yang cuma mengenal None/502/503/504), jadi
+    Last Sync tetap hijau, dan bahkan membersihkan galat jaringan sungguhan yang lebih
+    lama. `ErpRejected` dan `ErpServerError` tetap bukan galat jaringan: AutoERP MENJAWAB.
+    """
+    return isinstance(exc, ErpUnavailable)

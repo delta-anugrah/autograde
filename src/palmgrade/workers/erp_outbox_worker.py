@@ -29,7 +29,7 @@ from ..integrations.erp.client import (
     ErpUnavailable,
     galat_jaringan,
 )
-from ..integrations.erp.outbox_store import ErpOutboxStore
+from ..integrations.erp.outbox_store import ErpOutboxStore, OutboxMessage
 from ..services.status_sinkron import StatusSinkron
 
 logger = logging.getLogger(__name__)
@@ -75,6 +75,13 @@ class ErpOutboxWorker:
                 logger.exception("Outbox drain failed; retrying next tick")
             await asyncio.sleep(self._interval_s)
 
+    def _catat_gagal_lokal(self, message: OutboxMessage, exc: Exception, *, apa: str) -> None:
+        """Satu format untuk bug di sisi kita: nama tipe exception + pesannya, supaya
+        Antrean ERP selalu menyebut tipenya, bukan cuma teks yang kebetulan dibawa
+        exception itu (mis. `KeyError` membawa `''` sebagai pesan)."""
+        logger.exception("%s %s %s failed", apa, message.kind, message.key)
+        self._outbox.mark_error(message, f"{type(exc).__name__}: {exc}")
+
     def _catat_galat(self, exc: ErpError) -> None:
         """Last Sync: apa arti galat satu kiriman untuk sambungannya.
 
@@ -117,8 +124,7 @@ class ErpOutboxWorker:
                 self._catat_galat(exc)
                 continue
             except Exception as exc:
-                logger.exception("Sending %s %s failed", message.kind, message.key)
-                self._outbox.mark_error(message, f"{type(exc).__name__}: {exc}")
+                self._catat_gagal_lokal(message, exc, apa="Sending")
                 continue
 
             try:
@@ -126,8 +132,7 @@ class ErpOutboxWorker:
             except Exception as exc:
                 # AutoERP has it; our own bookkeeping did not land. Sending again
                 # is safe (every handler upserts); losing the answer is not.
-                logger.exception("Recording %s %s failed", message.kind, message.key)
-                self._outbox.mark_error(message, str(exc))
+                self._catat_gagal_lokal(message, exc, apa="Recording")
                 continue
 
             self._outbox.mark_sent(message)

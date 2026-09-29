@@ -14,6 +14,7 @@ import pytest
 
 from palmgrade.integrations.erp.client import (
     ErpClient,
+    ErpError,
     ErpRejected,
     ErpServerError,
     ErpUnavailable,
@@ -192,6 +193,10 @@ def test_a_500_page_that_is_not_frappes_is_still_unavailable():
         asyncio.run(_client(handler).call_method("m", {}))
 
     assert caught.value.status == 500
+    # Round 1 fix: ANY ErpUnavailable is a network-shaped failure for Last Sync,
+    # whatever its status. An nginx page answering for a dead Frappe is not AutoERP
+    # refusing the request; it is AutoERP not being reachable to answer it at all.
+    assert galat_jaringan(caught.value)
 
 
 @pytest.mark.parametrize("status", [502, 503, 504])
@@ -203,3 +208,15 @@ def test_a_gateway_status_is_unavailable_even_with_a_frappe_looking_body(status)
         asyncio.run(_client(handler).call_method("m", {}))
 
     assert galat_jaringan(caught.value)
+
+
+def test_galat_jaringan_is_true_for_any_erp_unavailable_status():
+    """Round 1 fix: classify by exception type, not by status. Any `ErpUnavailable`
+    means nothing usable came back, whatever HTTP status happened to be attached."""
+    assert galat_jaringan(ErpUnavailable("boom", status=500))
+    assert galat_jaringan(ErpUnavailable("boom", status=None))
+    assert galat_jaringan(ErpUnavailable("boom", status=502))
+    # A refusal or a per-message server crash is not a network problem.
+    assert not galat_jaringan(ErpRejected("nope", status=417))
+    assert not galat_jaringan(ErpServerError("crash", status=500))
+    assert not galat_jaringan(ErpError("plain", status=None))
