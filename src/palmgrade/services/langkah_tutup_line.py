@@ -42,6 +42,14 @@ CADANGAN_TAHAP_AKHIR_S = 1.0
 #: Detik untuk menghabiskan antrean simpan: semua yang tersisa dari batas tutup.
 #: Antrean penuh = 8 antre + 1 dipegang penulis, x ~0,59 detik per janjang (PC
 #: Lampung 2026-09-17) = 5,3 detik; semuanya sudah dipulse PLC, jadi harus muat.
+#: Angka 0,59 itu SEBELUM tulisan atomik batch 2.6 (fsync berkas + folder). Diukur
+#: ulang 2026-09-29 di MacBook (APFS, frame 2448x2048 yang diburamkan supaya encode
+#: WebP-nya mirip kamera, ~0,56 dtk per janjang tanpa fsync): 13,7 fsync per janjang,
+#: dan dengan flush sungguhan (`F_FULLFSYNC`, setara fsync Linux) 9 janjang naik dari
+#: 5,05 ke 5,35-5,39 detik, +33-38 ms per janjang. Dengan angka Lampung: 9 x (0,59 +
+#: 0,04) = 5,7 detik, masih muat di 6 detik, jadi batas ini TIDAK diubah. Sisa
+#: ruangnya tipis (0,3 detik); angka `tulis ... ms` dari WARNING `Simpan janjang ...
+#: lambat` di Lampung sesudah rilis yang menentukan apakah perlu diturunkan ulang.
 #: Diturunkan dari `BATAS_TUTUP_S`, bukan angka lepas, supaya tidak ada janjang
 #: yang dibuang selagi waktu masih tersisa.
 BATAS_KURAS_S = BATAS_TUTUP_S - BATAS_HENTI_PENULIS_S - CADANGAN_TAHAP_AKHIR_S
@@ -98,9 +106,10 @@ def kuras_antrean_simpan(penulis: PenulisBukti, *, batas_s: float = BATAS_KURAS_
     hilang = penulis.belum_selesai
     if hilang:
         logger.error(
-            "Tutup line: %d janjang TIDAK tertulis dan hilang bersama proses ini: %s. "
+            "Tutup line: %d janjang TIDAK tertulis: %s. "
             "Antrean simpan tidak habis dalam %g detik (disk lambat atau macet). "
-            "Janjang ini tidak punya foto, sidecar, maupun baris di konsol.",
+            "Janjang yang sedang dipegang penulis mungkin masih selesai sebelum proses keluar; "
+            "yang lain tidak punya foto, sidecar, maupun baris di konsol.",
             hilang, _sebut(penulis.antrean_tersisa()) or "-", batas_s,
         )
 

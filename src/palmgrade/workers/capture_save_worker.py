@@ -223,6 +223,11 @@ class CaptureSaveWorker:
 
         Untuk log penutup line: janjang yang tidak sempat ditulis sebelum proses
         keluar harus bisa disebut satu per satu, bukan cuma dihitung.
+
+        Daftar ini TEPAT hanya kalau penulis sudah berhenti (`stop`) atau sedang
+        tertahan di satu tulisan. Selagi penulis jalan, janjang bisa berpindah dari
+        antrean ke "sedang ditulis" di antara dua bacaan di sini: satu janjang bisa
+        tidak tersebut atau tersebut dua kali.
         """
         sedang = self._sedang_ditulis
         with self._queue.mutex:

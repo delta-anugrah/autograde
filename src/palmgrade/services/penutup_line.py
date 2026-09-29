@@ -14,8 +14,12 @@ menjamin tiga hal untuk kedua jalan itu:
   yang mati (tiap tulis coil menunggu timeout socket) tidak boleh menghabiskan
   waktu yang dibutuhkan antrean simpan;
 - ada batas waktu untuk semuanya: disk yang macet tidak boleh membuat restart
-  menggantung selamanya. Lewat batas, langkah yang belum selesai disebut di
-  log ERROR dan proses tetap keluar;
+  menggantung selamanya. Lewat batas, langkah yang belum selesai dan yang belum
+  sempat dimulai disebut di log ERROR, lalu `tutup` kembali. Yang membuat proses
+  keluar berbeda per jalan: `keluar_nanti` memanggil `os._exit` sendiri; SIGTERM
+  kembali ke uvicorn, yang keluar sesudah lifespan selesai. Thread langkah dan
+  batch R2 daemon, jadi tidak menahannya, tapi thread non-daemon lain yang kelak
+  ditambah akan menahan jalan SIGTERM sampai SIGKILL `docker stop`;
 - sekali jalan: SIGTERM yang datang saat restart sedang menutup menunggu
   urutan yang sama, bukan menjalankannya dua kali.
 
@@ -66,6 +70,7 @@ class PenutupLine:
         self._mulai = threading.Event()
         self._selesai = threading.Event()
         self._berjalan: set[str] = set()
+        self._dimulai: set[str] = set()
 
     @property
     def sedang_menutup(self) -> bool:
@@ -74,7 +79,14 @@ class PenutupLine:
         return self._mulai.is_set()
 
     def pasang(self, tahap: Sequence[Sequence[Langkah]]) -> None:
-        """Pasang urutan tutup. Dipanggil lifespan sekali, sesudah worker dibuat."""
+        """Pasang urutan tutup. Dipanggil lifespan sekali, sesudah worker dibuat.
+
+        Nama langkah wajib unik: langkah yang macet dicari lewat namanya.
+        """
+        nama = [langkah.nama for satu in tahap for langkah in satu]
+        kembar = sorted({n for n in nama if nama.count(n) > 1})
+        if kembar:
+            raise ValueError(f"nama langkah tutup kembar: {', '.join(kembar)}")
         with self._kunci:
             if self._mulai.is_set():
                 raise RuntimeError("urutan tutup line sudah berjalan, tidak bisa diganti")
@@ -99,10 +111,11 @@ class PenutupLine:
             return True
         with self._kunci:
             macet = sorted(self._berjalan)
+            belum = [lk.nama for satu in tahap for lk in satu if lk.nama not in self._dimulai]
         logger.error(
-            "Tutup line (%s) melewati batas %.0f detik; belum selesai: %s. "
+            "Tutup line (%s) melewati batas %.0f detik; belum selesai: %s; belum dimulai: %s. "
             "Proses keluar tanpa menunggunya.",
-            alasan, self._batas_s, ", ".join(macet) or "-",
+            alasan, self._batas_s, ", ".join(macet) or "-", ", ".join(belum) or "-",
         )
         return False
 
@@ -150,6 +163,7 @@ class PenutupLine:
     def _satu(self, langkah: Langkah) -> None:
         with self._kunci:
             self._berjalan.add(langkah.nama)
+            self._dimulai.add(langkah.nama)
         mulai = time.monotonic()
         try:
             langkah.jalankan()

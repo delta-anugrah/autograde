@@ -119,6 +119,21 @@ def test_antrean_yang_tidak_habis_disebut_satu_per_satu(caplog):
     assert "2026-09-28_091433_000002 (tanpa truk)" in error[0]
 
 
+def test_error_tidak_memastikan_janjang_yang_masih_dipegang_penulis_hilang(caplog):
+    """Final review line M6: sesudah batas, penulis bisa masih menyelesaikan janjang yang
+    sedang dipegangnya sebelum proses keluar (`keluar_nanti` menunggu `os._exit`). ERROR
+    yang bilang semuanya "hilang" salah ke arah yang aman, tapi tetap salah: support
+    mencari foto yang sebenarnya ada."""
+    penulis = _Penulis(sebelum=1, sisa_sesudah=[("2026-09-28_091432_000001", None)])
+    with caplog.at_level(logging.ERROR, logger=LOGGER):
+        kuras_antrean_simpan(penulis, batas_s=0.3)
+
+    [error] = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+    assert "1 janjang TIDAK tertulis" in error
+    assert "hilang bersama proses" not in error
+    assert "mungkin masih selesai" in error
+
+
 def test_plc_dicari_saat_menutup_bukan_saat_dipasang(monkeypatch):
     """Watchdog bisa sudah mengganti thread PLC dengan yang baru."""
     dimatikan: list = []
@@ -148,9 +163,10 @@ def test_batas_kuras_muat_dalam_batas_tutup():
 
 
 def test_batas_kuras_cukup_untuk_antrean_penuh():
-    """Antrean penuh + satu yang dipegang penulis, ~0,59 detik per janjang
-    (PC Lampung 2026-09-17): semuanya sudah dipulse PLC, jadi harus sempat ditulis."""
-    assert (_QUEUE_MAX + 1) * 0.59 <= BATAS_KURAS_S
+    """Antrean penuh + satu yang dipegang penulis, ~0,59 detik per janjang (PC Lampung
+    2026-09-17) ditambah ~0,04 detik fsync tulisan atomik batch 2.6 (diukur 2026-09-29,
+    lihat komentar `BATAS_KURAS_S`): semuanya sudah dipulse PLC, jadi harus sempat ditulis."""
+    assert (_QUEUE_MAX + 1) * (0.59 + 0.04) <= BATAS_KURAS_S
 
 
 def test_batas_di_bawah_satu_detik_tidak_ditulis_nol(caplog):

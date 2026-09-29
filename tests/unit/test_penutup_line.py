@@ -80,8 +80,49 @@ def test_melewati_batas_menyebut_langkah_yang_macet_saja(caplog):
     assert "plc" in pesan[0] and "antrean_simpan" not in pesan[0]
 
 
+def test_melewati_batas_menyebut_langkah_yang_belum_sempat_mulai(caplog):
+    """Parkiran Task 2: tahap 1 macet = kamera dan penjadwal tidak pernah dijalankan.
+    ERROR-nya harus menyebut itu juga, bukan cuma langkah yang sedang jalan."""
+    lepas = threading.Event()
+    p = PenutupLine(batas_s=0.2)
+    p.pasang([
+        [Langkah("antrean_simpan", lambda: lepas.wait(5))],
+        [Langkah("kamera", lambda: None), Langkah("penjadwal_unggah", lambda: None)],
+    ])
+    try:
+        with caplog.at_level(logging.ERROR, logger=LOGGER):
+            assert p.tutup("uji") is False
+    finally:
+        lepas.set()
+
+    [pesan] = _pesan_error(caplog)
+    assert "belum selesai: antrean_simpan" in pesan
+    assert "belum dimulai: kamera, penjadwal_unggah" in pesan
+
+
+def test_nama_langkah_kembar_ditolak():
+    """Langkah yang macet dicari lewat namanya: dua langkah bernama sama akan saling
+    menghapus dari daftar yang disebut ERROR."""
+    p = PenutupLine(batas_s=1)
+    with pytest.raises(ValueError, match="plc"):
+        p.pasang([[Langkah("plc", lambda: None)], [Langkah("plc", lambda: None)]])
+
+
+class _SelesaiDihitung(threading.Event):
+    """`_selesai` yang menghitung pemanggil yang sedang menunggunya."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.menunggu = 0
+
+    def wait(self, timeout=None):
+        self.menunggu += 1
+        return super().wait(timeout)
+
+
 def test_tutup_dua_kali_langkah_jalan_sekali():
-    """SIGTERM yang datang saat restart sedang menutup (Review Focus 4)."""
+    """SIGTERM yang datang saat restart sedang menutup (Review Focus 4). Langkahnya baru
+    dilepas sesudah KEDUA pemanggil terbukti menunggu, bukan sesudah jeda tebakan."""
     hitung: list = []
     lepas = threading.Event()
 
@@ -90,12 +131,16 @@ def test_tutup_dua_kali_langkah_jalan_sekali():
         hitung.append(1)
 
     p = PenutupLine(batas_s=5)
+    p._selesai = _SelesaiDihitung()
     p.pasang([[Langkah("antrean_simpan", lambat)]])
     hasil: list = []
     benang = [threading.Thread(target=lambda a=a: hasil.append(p.tutup(a))) for a in ("konsol", "SIGTERM")]
     for b in benang:
         b.start()
-    time.sleep(0.1)
+    batas = time.monotonic() + 5
+    while p._selesai.menunggu < 2 and time.monotonic() < batas:
+        time.sleep(0.005)
+    assert p._selesai.menunggu == 2
     lepas.set()
     for b in benang:
         b.join(5)

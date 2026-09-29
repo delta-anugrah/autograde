@@ -102,10 +102,13 @@ def test_antrean_tersisa_menyebut_yang_sedang_ditulis_lalu_yang_antre(settings):
         ]
         assert w.belum_selesai == 2
     finally:
+        # Tanpa assert di sini: assert yang gagal di `finally` menutupi kegagalan
+        # asli di atas dengan pesan yang tidak ada hubungannya.
         storage.lepas.set()
-        assert w.tunggu_kosong(timeout=5)
+        kosong = w.tunggu_kosong(timeout=5)
         w.stop(timeout=2)
 
+    assert kosong
     assert w.antrean_tersisa() == []
 
 
