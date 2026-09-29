@@ -1,0 +1,355 @@
+"""Tanda "line sedang dinyalakan ulang" di kotak kamera kartu line.
+
+Permintaan user 2026-09-29: sesudah Simpan & Restart (Sumber Kamera, Model
+Deteksi) atau Danger Zone, kotak kamera line yang restart diberi spinner dan
+hitungan detik, hilang sendiri begitu line mengirim gambar lagi, dan videonya
+kembali TANPA memuat ulang halaman. Lewat 60 detik, spinner diganti pesan rinci
+(kode, line, jam, saran).
+
+Dua lapis seperti `test_console_html_ai_mati.py`: invarian teks (selalu jalan)
+dan perilaku lewat node dengan KAMUS asli (`konsol_js`).
+"""
+from __future__ import annotations
+
+import json
+import re
+
+import pytest
+from konsol_js import HTML, NODE, fungsi, jalankan, konstanta
+
+butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada")
+
+MULAI = 1_790_000_000_000  # ms; 21.13 WIB
+KONSTANTA = ("RESTART_BATAS_MS", "RESTART_PASTI_MATI_MS", "RESTART_ULANG_FEED_MS", "RESTART_KODE")
+
+
+def _kamus(bahasa: str) -> str:
+    kamus = HTML.split("const KAMUS = {", 1)[1].split("\n};", 1)[0]
+    return re.search(rf"^  {bahasa}: \{{(.*?)^  \}},", kamus, re.S | re.M).group(1)
+
+
+def _js(nilai) -> str:
+    return json.dumps(nilai)
+
+
+def _tanda(**isi) -> str:
+    dasar = {"mulai": MULAI, "turunPada": None, "diam": 0}
+    return _js({**dasar, **isi})
+
+
+def _jalan(fungsi_dipakai, ekspresi, **kw):
+    return jalankan(list(fungsi_dipakai), ekspresi, tambahan=konstanta(*KONSTANTA) + kw.pop("tambahan", ""), **kw)
+
+
+# ── line mana yang ditandai: dari jawaban SERVER, bukan dari klik ──────────
+
+
+@butuh_node
+def test_sumber_dan_model_menandai_line_yang_direstart_saja():
+    """Bentuk jawaban Sumber Kamera dan Model Deteksi (`_restart_yang_berubah`):
+    line yang tidak berubah dan line yang tidak menjawab restart tidak ditandai."""
+    jawaban = {"lines": [
+        {"line_code": "line-1", "direstart": True, "berubah": True},
+        {"line_code": "line-2", "direstart": False, "berubah": False},
+        {"line_code": "line-3", "direstart": False, "berubah": True, "alasan": "mati"},
+    ], "video": [], "foto": []}
+    assert _jalan(["lineDirestart"], f"lineDirestart({_js(jawaban)})") == ["line-1"]
+
+
+@butuh_node
+def test_danger_zone_menandai_line_yang_menerima():
+    """Restart semua line (`ok`) dan hapus data (`ok`, termasuk `belum_mati`:
+    diterima, line itu tetap restart). Line yang menolak tidak ditandai: toast
+    gagalnya sudah menyebutnya."""
+    restart = {"lines": [
+        {"line_code": "line-1", "ok": True},
+        {"line_code": "line-2", "ok": False, "alasan": "line-2 mati"},
+        {"line_code": "line-3", "ok": True},
+    ]}
+    hapus = {"mode": "transaksi", "konsol": {}, "lines": [
+        {"line_code": "line-1", "ok": False, "kode": "lisensi"},
+        {"line_code": "line-2", "ok": True, "kode": "belum_mati"},
+        {"line_code": "line-3", "ok": True},
+    ]}
+    assert _jalan(["lineDirestart"], f"lineDirestart({_js(restart)})") == ["line-1", "line-3"]
+    assert _jalan(["lineDirestart"], f"lineDirestart({_js(hapus)})") == ["line-2", "line-3"]
+
+
+@butuh_node
+def test_jawaban_tanpa_daftar_line_tidak_menandai_apa_pun():
+    for jawaban in ("undefined", "null", "{}", '{"lines": null}', '{"sesi_dihapus": 3}'):
+        assert _jalan(["lineDirestart"], f"lineDirestart({jawaban})") == [], jawaban
+
+
+def test_ketiga_aksi_restart_menandai_dari_jawaban_server():
+    sumber = HTML.split('$("sumber-simpan").addEventListener("click"', 1)[1].split("\n}));", 1)[0]
+    assert "tandaiRestart(lineDirestart(data))" in sumber
+    model = HTML.split('$("model-modal-jalankan").addEventListener("click"', 1)[1].split("\n}));", 1)[0]
+    assert "tandaiRestart(lineDirestart(data))" in model
+    bahaya = fungsi("jalankanBahaya")
+    assert "BAHAYA_RESTART.has(aksi)" in bahaya
+    assert "tandaiRestart(lineDirestart(hasil))" in bahaya
+
+
+def test_hapus_rekaman_dan_logout_tidak_merestart_line():
+    """`hapus-rekaman` juga menjawab `ok` per line, tapi line tidak restart."""
+    baris = HTML.split("const BAHAYA_RESTART = ", 1)[1].split("\n", 1)[0]
+    assert '"restart"' in baris and '"transaksi"' in baris and '"semua"' in baris
+    assert '"rekaman"' not in baris and '"logout"' not in baris
+
+
+# ── kapan line dianggap sudah kembali ────────────────────────────────────
+
+
+@butuh_node
+def test_probe_ditolak_berarti_line_mati_seketika():
+    hasil = _jalan(["catatProbe"], f"(() => {{ const m = {_tanda()}; catatProbe(m, 'mati', {MULAI + 2000}); return m; }})()")
+    assert hasil["turunPada"] == MULAI + 2000
+
+
+@butuh_node
+def test_satu_probe_lewat_tenggat_belum_berarti_mati():
+    """Sekali lewat tenggat = line sibuk menulis foto, bukan mati (aturan yang
+    sama dengan Danger Zone). Dua kali berturut-turut baru dihitung mati."""
+    satu = _jalan(["catatProbe"], f"(() => {{ const m = {_tanda()}; catatProbe(m, 'diam', {MULAI + 1000}); return m; }})()")
+    assert satu["turunPada"] is None
+    dua = _jalan(["catatProbe"], (
+        f"(() => {{ const m = {_tanda()}; catatProbe(m, 'diam', {MULAI + 1000});"
+        f" catatProbe(m, 'diam', {MULAI + 2000}); return m; }})()"))
+    assert dua["turunPada"] == MULAI + 2000
+    selang = _jalan(["catatProbe"], (
+        f"(() => {{ const m = {_tanda()}; catatProbe(m, 'diam', {MULAI + 1000});"
+        f" catatProbe(m, 'hidup', {MULAI + 2000}); catatProbe(m, 'diam', {MULAI + 3000}); return m; }})()"))
+    assert selang["turunPada"] is None
+
+
+@butuh_node
+def test_turun_pertama_yang_dicatat_tidak_ditimpa():
+    hasil = _jalan(["catatProbe"], (
+        f"(() => {{ const m = {_tanda()}; catatProbe(m, 'mati', {MULAI + 2000});"
+        f" catatProbe(m, 'mati', {MULAI + 5000}); return m; }})()"))
+    assert hasil["turunPada"] == MULAI + 2000
+
+
+@butuh_node
+def test_gambar_dari_stream_yang_diminta_sebelum_line_mati_tidak_menghapus_tanda():
+    """Stream yang diminta sebelum line terlihat mati bisa saja dilayani proses
+    LAMA: gambarnya bukan bukti line sudah kembali."""
+    fn = ["batasBuktiRestart", "restartSelesai"]
+    turun = _tanda(turunPada=MULAI + 4000)
+    assert _jalan(fn, f"restartSelesai({turun}, {MULAI + 3000}, 1280)") is False
+    assert _jalan(fn, f"restartSelesai({turun}, {MULAI + 4000}, 1280)") is True
+    assert _jalan(fn, f"restartSelesai({turun}, {MULAI + 9000}, 1280)") is True
+
+
+@butuh_node
+def test_line_yang_tidak_terlihat_mati_dianggap_kembali_sesudah_proses_lama_pasti_keluar():
+    """Restart kilat di antara dua probe: proses lama pasti sudah keluar
+    `RESTART_PASTI_MATI_MS` sesudah ditandai (urutan tutup maks 9 detik)."""
+    fn = ["batasBuktiRestart", "restartSelesai"]
+    m = _tanda()
+    batas = _jalan(fn, "RESTART_PASTI_MATI_MS")
+    assert _jalan(fn, f"restartSelesai({m}, {MULAI + batas - 1}, 1280)") is False
+    assert _jalan(fn, f"restartSelesai({m}, {MULAI + batas}, 1280)") is True
+
+
+@butuh_node
+def test_stream_tanpa_gambar_atau_tanpa_cap_waktu_bukan_bukti():
+    fn = ["batasBuktiRestart", "restartSelesai"]
+    turun = _tanda(turunPada=MULAI + 4000)
+    assert _jalan(fn, f"restartSelesai({turun}, {MULAI + 5000}, 0)") is False
+    # src dari render pertama halaman: tidak pernah diminta ulang sesudah tanda.
+    assert _jalan(fn, f"restartSelesai({turun}, undefined, 1280)") is False
+
+
+@butuh_node
+def test_gambar_yang_datang_menghapus_tanda_dan_kotaknya():
+    stub = """
+const restartLine = {};
+const digambar = [];
+const gambarRestart = (kartu, m) => digambar.push([kartu.dataset.line, m]);
+const kartu = { dataset: { line: "line-2" } };
+"""
+    fn = ["batasBuktiRestart", "restartSelesai", "selesaikanRestart"]
+    lama = _jalan(fn, (
+        f"(() => {{ restartLine['line-2'] = {_tanda(turunPada=MULAI + 4000)};"
+        f" const img = {{ _dimintaPada: {MULAI + 1000}, naturalWidth: 1280 }};"
+        f" const r = selesaikanRestart(kartu, img, {MULAI + 6000});"
+        " return [r, Object.keys(restartLine), digambar]; })()"), tambahan=stub)
+    assert lama == [False, ["line-2"], []]
+    baru = _jalan(fn, (
+        f"(() => {{ restartLine['line-2'] = {_tanda(turunPada=MULAI + 4000)};"
+        f" const img = {{ _dimintaPada: {MULAI + 5000}, naturalWidth: 1280 }};"
+        f" const r = selesaikanRestart(kartu, img, {MULAI + 6000});"
+        " return [r, Object.keys(restartLine), digambar]; })()"), tambahan=stub)
+    assert baru == [True, [], [["line-2", None]]]
+
+
+@butuh_node
+def test_line_tanpa_tanda_tidak_disentuh_saat_gambar_datang():
+    stub = """
+const restartLine = {};
+const digambar = [];
+const gambarRestart = () => digambar.push(1);
+"""
+    hasil = _jalan(["batasBuktiRestart", "restartSelesai", "selesaikanRestart"], (
+        f"[selesaikanRestart({{ dataset: {{ line: 'line-1' }} }},"
+        f" {{ _dimintaPada: {MULAI}, naturalWidth: 640 }}, {MULAI}), digambar.length]"), tambahan=stub)
+    assert hasil == [False, 0]
+
+
+def test_listener_load_kartu_menyelesaikan_restart():
+    blok = HTML.split('$("lines").addEventListener("load"', 1)[1].split(", true);", 1)[0]
+    assert "selesaikanRestart(kartu, ev.target)" in blok
+
+
+# ── video kembali tanpa memuat ulang halaman ─────────────────────────────
+
+
+@butuh_node
+def test_url_feed_baru_memaksa_browser_meminta_ulang():
+    url = _jalan(["urlFeedBaru"], "urlFeedBaru('http://10.0.0.5:8002/api/video_feed?t=11', 42)")
+    assert url == "http://10.0.0.5:8002/api/video_feed?t=42"
+    url = _jalan(["urlFeedBaru"], "urlFeedBaru('http://10.0.0.5:8002/api/video_feed', 7)")
+    assert url == "http://10.0.0.5:8002/api/video_feed?t=7"
+
+
+@butuh_node
+def test_stream_diminta_ulang_begitu_line_menjawab_lagi():
+    fn = ["batasBuktiRestart", "perluMintaUlangFeed"]
+    m = _tanda(turunPada=MULAI + 4000)
+    # Belum menjawab: meminta stream ke line yang mati cuma membuka koneksi gagal.
+    assert _jalan(fn, f"perluMintaUlangFeed({m}, undefined, false, {MULAI + 6000})") is False
+    # Menjawab lagi, stream terakhir diminta sebelum line mati.
+    assert _jalan(fn, f"perluMintaUlangFeed({m}, {MULAI + 1000}, true, {MULAI + 6000})") is True
+    # Tanpa cap waktu sama sekali (src render pertama).
+    assert _jalan(fn, f"perluMintaUlangFeed({m}, undefined, true, {MULAI + 6000})") is True
+
+
+@butuh_node
+def test_minta_ulang_dibatasi_jaraknya_dan_berhenti_sesudah_60_detik():
+    fn = ["batasBuktiRestart", "perluMintaUlangFeed"]
+    m = _tanda(turunPada=MULAI + 4000)
+    jarak = _jalan(fn, "RESTART_ULANG_FEED_MS")
+    batas = _jalan(fn, "RESTART_BATAS_MS")
+    diminta = MULAI + 6000
+    assert _jalan(fn, f"perluMintaUlangFeed({m}, {diminta}, true, {diminta + jarak - 1})") is False
+    assert _jalan(fn, f"perluMintaUlangFeed({m}, {diminta}, true, {diminta + jarak})") is True
+    # Lewat 60 detik: pengulangan cepat berhenti, cekKamera (5 detik) yang meneruskan.
+    assert _jalan(fn, f"perluMintaUlangFeed({m}, {diminta}, true, {MULAI + batas + 1})") is False
+
+
+@butuh_node
+def test_line_yang_belum_terlihat_mati_tidak_diminta_ulang_terlalu_cepat():
+    """Sebelum bukti proses lama hilang, stream baru bisa saja dilayani proses lama."""
+    fn = ["batasBuktiRestart", "perluMintaUlangFeed"]
+    batas = _jalan(fn, "RESTART_PASTI_MATI_MS")
+    m = _tanda()
+    assert _jalan(fn, f"perluMintaUlangFeed({m}, undefined, true, {MULAI + batas - 1})") is False
+    assert _jalan(fn, f"perluMintaUlangFeed({m}, undefined, true, {MULAI + batas})") is True
+
+
+def test_cek_kamera_dan_restart_memakai_satu_cara_minta_ulang():
+    """Dua jalur yang meminta ulang stream sama-sama mencap waktunya: tanpa cap
+    itu gambar dari stream baru tidak bisa dibedakan dari proses lama."""
+    assert "mintaUlangFeed(img" in fungsi("cekKamera")
+    minta = fungsi("mintaUlangFeed")
+    assert "urlFeedBaru(" in minta and "_dimintaPada" in minta
+    pantau = fungsi("pantauRestart")
+    assert "perluMintaUlangFeed(" in pantau and "mintaUlangFeed(" in pantau
+    assert "catatProbe(" in pantau
+
+
+def test_pemantau_restart_jalan_tiap_detik():
+    assert "setInterval(pantauRestart, 1000)" in HTML
+
+
+# ── yang dilihat di kotak kamera ─────────────────────────────────────────
+
+
+@butuh_node
+@pytest.mark.parametrize("bahasa,judul,detik", [
+    ("id", "Line 2 sedang dinyalakan ulang", "12 detik"),
+    ("en", "Line 2 is restarting", "12 s"),
+])
+def test_kotak_kamera_selama_restart(bahasa, judul, detik):
+    fn = ["jamSinkron", "isiRestart", "teksDetikRestart"]
+    html = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 12_400})", bahasa=bahasa)
+    assert judul in html
+    assert 'class="restart-putar"' in html
+    assert "data-restart-detik" in html
+    assert "RESTART_LAMA" not in html
+    assert _jalan(fn, f"teksDetikRestart({_tanda()}, {MULAI + 12_400})", bahasa=bahasa) == detik
+
+
+@butuh_node
+@pytest.mark.parametrize("bahasa,potongan", [
+    ("id", ["Line 2 belum kembali", "Kode RESTART_LAMA", "21.13", "60 detik",
+            "Cek tab Log dan terminal line itu"]),
+    ("en", ["Line 2 has not come back", "Code RESTART_LAMA", "21:13", "60 seconds",
+            "Check the Log tab and that line's terminal"]),
+])
+def test_lewat_60_detik_spinner_diganti_pesan_rinci(bahasa, potongan):
+    fn = ["jamSinkron", "isiRestart", "teksDetikRestart"]
+    html = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 61_000})", bahasa=bahasa)
+    for p in potongan:
+        assert p in html.replace("&#39;", "'"), (p, html)
+    assert "restart-putar" not in html
+    assert 'role="alert"' in html
+
+
+@butuh_node
+def test_isi_kotak_tidak_berubah_tiap_detik_supaya_spinner_tidak_tersentak():
+    """Detik ditulis di elemennya sendiri. Kalau angka detik ikut di kerangka,
+    `tulisKalauBeda` menulis ulang spinner tiap detik dan putarannya mulai dari
+    awal lagi."""
+    fn = ["jamSinkron", "isiRestart", "teksDetikRestart"]
+    a = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 3000})")
+    b = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 9000})")
+    assert a == b
+    c = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 70_000})")
+    d = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 95_000})")
+    assert c == d
+
+
+@butuh_node
+def test_nama_line_di_escape():
+    html = _jalan(["jamSinkron", "isiRestart", "teksDetikRestart"],
+                  f"isiRestart('<b>x</b>', {_tanda()}, {MULAI})")
+    assert "<b>x</b>" not in html and "&lt;b&gt;" in html
+
+
+def test_kotak_digambar_lewat_tulis_kalau_beda():
+    fn = fungsi("gambarRestart")
+    assert "tulisKalauBeda(slot, isiRestart(" in fn
+    assert "tulisKalauBeda(" in fn.split("data-restart-detik", 1)[1]
+    assert "innerHTML" not in fn
+
+
+def test_kartu_line_punya_slot_restart_di_dalam_kotak_kamera():
+    kartu = fungsi("kartuLine")
+    feed = kartu.split('<div class="feed">', 1)[1].split("</div>", 1)[0]
+    assert '<div class="slot-restart">' in kartu
+    assert kartu.index('<div class="slot-restart">') > kartu.index('<div class="feed">')
+    assert "<img" in feed
+
+
+def test_tanda_tidak_bergantung_peran():
+    """Operator yang menonton kotak kamera juga harus melihatnya."""
+    for nama in ("tandaiRestart", "gambarRestart", "pantauRestart", "selesaikanRestart"):
+        isi = fungsi(nama)
+        assert "support" not in isi and "role" not in isi, nama
+
+
+def test_spinner_css_murni_tanpa_gambar():
+    css = HTML.split("<style>", 1)[1].split("</style>", 1)[0]
+    blok = css.split(".restart-putar", 1)[1].split("}", 1)[0]
+    assert "animation:" in blok and "url(" not in blok
+    assert ".feed .restart-kotak" in css
+
+
+def test_kunci_kamus_ada_di_kedua_bahasa():
+    for bahasa in ("id", "en"):
+        isi = _kamus(bahasa)
+        for kunci in ("restartJudul", "restartDetik", "restartLamaJudul", "restartLamaRinci"):
+            assert f"{kunci}:" in isi, (bahasa, kunci)
