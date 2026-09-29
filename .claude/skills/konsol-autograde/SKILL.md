@@ -12,7 +12,7 @@ Satu berkas `src/palmgrade/static/console.html`: vanilla JS, tanpa build, tanpa 
 
 | Tab | Siapa | Pemuat | Isi |
 |---|---|---|---|
-| Grading | semua | polling `refresh` 2 dtk | 20 grading terakhir hari ini, kartu line merah + pita AI mati dari blok `plc.ai` (`pitaAi`, `perbaruiAi` tiap polling, test `test_console_html_ai_mati.py`) |
+| Grading | semua | polling `refresh` 2 dtk | 20 grading terakhir hari ini, kartu line merah + pita AI mati dari blok `plc.ai` (`pitaAi`, `perbaruiAi` tiap polling, test `test_console_html_ai_mati.py`); tanda "sedang dinyalakan ulang" di kotak kamera sesudah aksi yang merestart line (`tandaiRestart`, `pantauRestart` 1 dtk, test `test_console_html_restart.py`) |
 | Truk | semua | `muatTrucks` 60 dtk | master truk, truk manual, kartu QR |
 | Timbangan | semua | `muatTimbangan` 15 dtk | tiket, scan masuk/keluar, tara, tanda **Cek AutoERP** untuk janjang susulan pada tiket yang sudah final (`erp_perlu_dicek`, `tests/unit/test_console_html_timbangan_erp.py`) |
 | Rekap | semua | `muatRiwayat` (+ `segarkanRekap` 15 dtk) | Rekap + Riwayat: buka di Hari ini, Per truk; Impor CSV support saja |
@@ -41,6 +41,13 @@ Satu berkas `src/palmgrade/static/console.html`: vanilla JS, tanpa build, tanpa 
 - Setiap POST pengubah data ada di dalam fungsi yang memakai `denganSibuk(` (spinner + tolak klik
   kedua, `test_console_tombol_sibuk.py`).
 - Nilai dari server masuk HTML lewat `esc()`.
+- Toast menutup sendiri paling lama 10 detik, ditahan selama kursor di atasnya; tidak ada
+  lagi toast yang menunggu × (`test_console_html_toast.py`).
+- Aksi baru yang merestart line memanggil `tandaiRestart(lineDirestart(jawaban))` dari
+  jawaban server; stream kamera diminta ulang lewat `mintaUlangFeed` saja (cap waktu
+  `_dimintaPada` yang dipakai `restartSelesai`).
+- Isi yang disegarkan tiap polling ditulis lewat `tulisKalauBeda`, bukan membandingkan
+  `el.innerHTML` (CLAUDE.md aturan 24(d)).
 - Tidak ada `https://` di berkas ini.
 
 ## Test per bagian

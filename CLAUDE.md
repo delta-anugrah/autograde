@@ -1305,6 +1305,21 @@ memang khas satu mesin.
   ganti em dash dengan koma, jangan titik dua: `description: A: B` gagal di-parse dan
   skill-nya berhenti termuat tanpa galat. Test yang sama memeriksa frontmatter. Kata kerja
   mengikuti label tombol yang dilihat orang ("Tugaskan" truk, bukan "pasang").
+- **Toast konsol menutup sendiri, paling lama 10 detik** (keputusan user 2026-09-29, membalik
+  aturan lama "gagal menunggu ditutup"): `sukses`/`peringatan` 5 detik, `gagal` dan setiap
+  `toast(..., 0)` 10 detik (`durasiToast`, `TOAST_PALING_LAMA_MS`), dan kursor di atas toast
+  menahan hitungannya (`hitungMundurToast`). Toast yang tak pernah ditutup menumpuk di layar
+  yang dibiarkan menyala berhari-hari. Test: `tests/unit/test_console_html_toast.py`.
+- **Line yang direstart dari konsol diberi tanda di kotak kameranya** (2026-09-29): Sumber
+  Kamera, Model Deteksi, dan Danger Zone (restart, hapus data) menandai line yang dijawab
+  SERVER sudah restart/menerima (`lineDirestart`), bukan yang diklik. Spinner + detik, lewat
+  60 detik pesan `RESTART_LAMA`. Tanda hilang oleh gambar dari stream yang diminta SESUDAH
+  proses lama pasti hilang (probe `/health` ditolak, dua kali lewat tenggat, atau 12 detik
+  sesudah ditandai; `restartSelesai`): frame terakhir proses lama yang ditahan browser tanpa
+  event apa pun bukan bukti. Stream diminta ulang (`?t=`) begitu line menjawab, tiap 3 detik
+  sampai 60 detik, sesudahnya `cekKamera` (5 detik) yang meneruskan, jadi video kembali tanpa
+  muat ulang. ⚠️ Tandanya hidup di **halaman yang menekan** saja, konsol tidak mencatat restart
+  di `/api/console/state`. Test: `test_console_html_restart.py` + e2e `test_restart_indikator_lane.py`.
 - **Label janjang tidak memuat angka confidence** (permintaan operator 2026-09-18): dari beberapa
   meter "54%" terbaca seperti "54% matang", padahal itu keyakinan model dan sudah lolos
   `CONF_THRESHOLD`. Nilainya tetap ditulis ke sidecar dan dikirim ke API.
