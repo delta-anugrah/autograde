@@ -7,15 +7,30 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
 
 import httpx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from palmgrade.routes.console_deps import get_console_service
+from palmgrade.core.config import Settings
+from palmgrade.domain.operator_auth import hash_password
+from palmgrade.integrations.outbox.outbox_store import OutboxStore
+from palmgrade.repositories.console_repository import ConsoleStore
+from palmgrade.routes.console import router as console_router
+from palmgrade.routes.console_antrean_line import router as antrean_line_router
+from palmgrade.routes.console_deps import get_auth_service, get_console_service, get_pantau_antrean_line
 from palmgrade.routes.console_ingest import ingest_router
+from palmgrade.routes.internal_outbox import buat_router
+from palmgrade.services.antrean_line import AntreanLine
+from palmgrade.services.auth_service import AuthService
 from palmgrade.services.console_service import ConsoleService
+from palmgrade.services.pantau_antrean_line import PantauAntreanLine
+from palmgrade.workers.outbox_retry_worker import NAMA_WORKER, OutboxRetryWorker
+from palmgrade.workers.runtime_state import RuntimeState
 
 # ── berkas outbox tulisan versi sebelum batch 2.4 ───────────────────────
 
@@ -104,3 +119,85 @@ def klien_konsol_mati() -> httpx.Client:
         raise httpx.ConnectError("konsol mati", request=request)
 
     return httpx.Client(transport=httpx.MockTransport(mati))
+
+
+# ── line (router /internal/outbox*) dan konsol (layar support) ──────────
+
+
+class LinePerPort(httpx.AsyncBaseTransport):
+    """Transport `LineClient` konsol: satu app line per port, in-process.
+
+    Port tanpa app = line mati (ConnectError), persis seperti line yang
+    containernya berhenti.
+    """
+
+    def __init__(self, apps: dict[int, FastAPI]) -> None:
+        self._tujuan = {port: httpx.ASGITransport(app=app) for port, app in apps.items()}
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        tujuan = self._tujuan.get(request.url.port)
+        if tujuan is None:
+            raise httpx.ConnectError(f"tidak ada line di port {request.url.port}", request=request)
+        return await tujuan.handle_async_request(request)
+
+
+@dataclass
+class LineUji:
+    app: FastAPI
+    settings: Settings
+    store: OutboxStore
+    state: RuntimeState
+    worker: OutboxRetryWorker
+
+
+def rakit_line(
+    folder: Path,
+    *,
+    internal_secret: str,
+    klien_konsol: httpx.Client,
+    jam: Callable[[], float] = time.time,
+    **setelan: Any,
+) -> LineUji:
+    """Satu line seperti `main.py` merakitnya: store, worker terdaftar, router `/internal/outbox*`."""
+    settings = replace(Settings(), repo_root=folder, internal_secret=internal_secret, **setelan)
+    store = OutboxStore(settings.state_dir / "outbox.db")
+    state = RuntimeState()
+    worker = OutboxRetryWorker(store, settings, state, client=klien_konsol, jam=jam)
+    state.worker_threads.append((NAMA_WORKER, None, worker))
+    app = FastAPI()
+    app.include_router(
+        buat_router(
+            settings=lambda: settings,
+            antrean=lambda: AntreanLine(store, settings, state, settings.state_dir),
+        )
+    )
+    return LineUji(app, settings, store, state, worker)
+
+
+class _KonsolTanpaLayanan:
+    """Lane layar support tidak menyentuh `ConsoleService`; login cuma butuh store-nya."""
+
+    def __init__(self, store: ConsoleStore) -> None:
+        self.store = store
+
+
+def app_konsol(store: ConsoleStore, pantau: PantauAntreanLine) -> FastAPI:
+    """Rute konsol yang ASLI (login + tab Status → Antrean line) di atas `store` dan `pantau`."""
+    app = FastAPI()
+    app.include_router(console_router)
+    app.include_router(antrean_line_router)
+    app.dependency_overrides[get_console_service] = lambda: _KonsolTanpaLayanan(store)
+    app.dependency_overrides[get_auth_service] = lambda: AuthService(store)
+    app.dependency_overrides[get_pantau_antrean_line] = lambda: pantau
+    return app
+
+
+def masuk(app: FastAPI, store: ConsoleStore, *, role: str, sandi: str = "sandi-uji-antrean") -> TestClient:
+    """Akun lokal ber-`role` itu dibuat lalu masuk; klien membawa cookie sesinya."""
+    email = f"{role}@pks.test"
+    store.upsert_operator_manual(
+        {"email": email, "full_name": role.title(), "password_hash": hash_password(sandi), "role": role}
+    )
+    client = TestClient(app)
+    assert client.post("/api/console/login", json={"email": email, "sandi": sandi}).status_code == 200
+    return client

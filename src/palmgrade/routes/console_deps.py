@@ -35,6 +35,7 @@ from ..services.dev_service import DevService
 from ..services.erp_queue import ErpQueue
 from ..services.impor_grading_service import ImporGradingService
 from ..services.operator_admin import OperatorAdmin
+from ..services.pantau_antrean_line import PantauAntreanLine
 from ..services.riwayat_service import RiwayatService
 from ..services.scan_service import ScanService
 from ..services.status_sinkron import StatusSinkron
@@ -140,6 +141,14 @@ def get_dev_service() -> DevService:
         license_manager=_build_license_manager(settings),
         console_store=service.store,
     )
+
+
+@lru_cache
+def get_pantau_antrean_line() -> PantauAntreanLine:
+    """Tab Status → Antrean line (batch 2.4). Klien line yang sama dengan konsol:
+    satu cara memanggil line, satu `INTERNAL_SECRET`."""
+    service = get_console_service()
+    return PantauAntreanLine(service.line_client, service.lines)
 
 
 def _build_license_manager(settings) -> LicenseManager | None:

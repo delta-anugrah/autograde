@@ -204,6 +204,33 @@ class LineClient:
         """
         return await self._get_json(line, "/health/detail", timeout_s=5.0)
 
+    async def antrean_line(self, line: LineEndpoint) -> dict[str, Any]:
+        """Antrean janjang line itu ke konsol (`/internal/outbox`, batch 2.4), untuk tab Status.
+
+        Timeout sama dengan `health_detail`: layar support yang disegarkan tiap 5
+        detik, bukan strip status tiap detik. Kunci yang ditolak sampai sebagai
+        `LINE_MENOLAK` lewat `_get_json`.
+        """
+        return await self._get_json(line, "/internal/outbox", timeout_s=5.0)
+
+    async def kirim_ulang_antrean_line(self, line: LineEndpoint) -> int:
+        """Suruh line mengirim seluruh antreannya sekarang. Mengembalikan jumlahnya.
+
+        Jawaban >= 400 dilempar sebagai `LINE_MENOLAK` membawa statusnya, sama
+        dengan `_post`: layar harus bisa membedakan kunci yang ditolak dari line
+        yang mati (`LINE_TIDAK_MENJAWAB`, dari `_post_json`).
+        """
+        try:
+            jawab = await self._post_json(line, "/internal/outbox/requeue", {})
+        except LinePlcTolak as exc:
+            raise LineUnavailable(
+                LINE_MENOLAK,
+                f"{line.line_code} refused: HTTP {exc.status_code} {exc.detail}",
+                line=line.name,
+                status=exc.status_code,
+            ) from exc
+        return int(jawab.get("requeued", 0))
+
     # ── rekam video developer ───────────────────────────────────────────────
 
     async def rekam_mulai(

@@ -21,6 +21,7 @@ from .core.log_sink import install_log_sink
 from .repositories.log_repository import LogStore
 from .routes.captures import CapturesBersesi
 from .routes.console import router as console_router
+from .routes.console_antrean_line import router as antrean_line_router
 from .routes.console_deps import SESSION_COOKIE, get_auth_service, get_console_service
 from .routes.console_ingest import ingest_router
 from .services.akun_bawaan import seed_default_accounts
@@ -131,6 +132,7 @@ def create_console_app() -> FastAPI:
         )
 
     app.include_router(console_router)
+    app.include_router(antrean_line_router)
     app.include_router(ingest_router, prefix=settings.backend_api_ver)
 
     @app.get("/health", include_in_schema=False)
