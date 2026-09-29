@@ -110,6 +110,11 @@ Karena itu, di jalur MC Protocol:
 berkedip akan terbaca OFF di separuh waktu dan alarm "PC mati" menyala terus-menerus.
 Ini pernah terjadi sekali pada versi `v1.3.0` dan terlihat seperti kerusakan PC.
 
+⚠️ **Hari ini line 2 dan line 3 ikut mengedipkan M1009**, bukan cuma line 1 (setelan kosong
+jatuh ke `1009`, tercatat di `docs/plc-integration.md`). Akibatnya M1009 tetap berkedip selama
+SALAH SATU line hidup: watchdog ladder baru menangkap PC mati total, belum satu line yang mati
+sendiri. Untuk satu line yang mati, baca bit ERROR-nya dan jangan andalkan heartbeat.
+
 ---
 
 ## 4. Bentuk sinyal
@@ -129,6 +134,12 @@ kecil dari jumlah janjang di layar saat produksi padat.
 
 Level, bukan pulse. Naik kalau kamera atau proses di line itu bermasalah, dan **ditulis
 ulang tiap detik** supaya kembali naik sendiri kalau sempat ter-reset.
+
+⚠️ **ERROR = OFF tidak berarti line sehat.** Saat line dimatikan atau direstart dengan rapi
+(restart dari layar konsol, `autograde restart`, hapus data), PC menurunkan SEMUA bit ke OFF,
+termasuk ERROR, supaya tidak ada bit yang tertinggal ON. Selama line itu mati, ERROR terbaca
+OFF persis seperti line yang sehat. Yang membedakan line mati dari line sehat cuma heartbeat
+M1009 (bab 3), dengan catatan line 2 dan 3 di bab 3.
 
 ### 4.3 Piston manual
 

@@ -1087,8 +1087,9 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     baris di konsol, dan coil yang sedang ON tertinggal ON.
     **Tahapnya**, berurutan tapi langkah dalam satu tahap jalan BERSAMAAN: (1) coil PLC dimatikan
     **sejalan** dengan antrean simpan dihabiskan, karena keduanya sumber daya berbeda (jaringan vs
-    disk) dan tidak boleh saling menunggu; (2) kamera dilepas dan penjadwal upload R2 dihentikan
-    TANPA menunggu batch yang sedang jalan. Batch itu jalan di thread **daemon**
+    disk) dan tidak boleh saling menunggu; (2) thread capture dihentikan lalu kamera dilepas
+    (tanpa itu thread capture melihat frame kosong dan menyambungkan kamera lagi lewat
+    `_try_reconnect`), dan penjadwal upload R2 dihentikan TANPA menunggu batch yang sedang jalan. Batch itu jalan di thread **daemon**
     (`UploadScheduler._jalankan_batch`): thread pool APScheduler bukan daemon, dan dulu SIGTERM
     di tengah batch jam-an membuat proses bertahan sampai SIGKILL `docker stop` (exit 137).
     **Batasnya**: `BATAS_KURAS_S` 6 detik untuk menghabiskan antrean simpan (cukup untuk antrean

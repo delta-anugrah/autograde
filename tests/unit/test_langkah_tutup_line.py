@@ -14,6 +14,7 @@ from palmgrade.services.langkah_tutup_line import (
     CADANGAN_TAHAP_AKHIR_S,
     kuras_antrean_simpan,
     langkah_tutup_line,
+    lepas_kamera,
     matikan_plc,
 )
 from palmgrade.services.penutup_line import BATAS_TUTUP_S
@@ -176,3 +177,42 @@ def test_batas_di_bawah_satu_detik_tidak_ditulis_nol(caplog):
     teks = " ".join(r.getMessage() for r in caplog.records)
     assert "0.3 detik" in teks
     assert "0 detik" not in teks
+
+
+class _Pengambil:
+    def __init__(self, jejak: list) -> None:
+        self._jejak = jejak
+
+    def berhenti(self) -> None:
+        self._jejak.append("capture berhenti")
+
+
+class _KameraDicatat:
+    def __init__(self, jejak: list) -> None:
+        self._jejak = jejak
+
+    def disconnect(self) -> None:
+        self._jejak.append("kamera dilepas")
+
+
+def test_langkah_kamera_menghentikan_capture_dulu_baru_melepas_kamera():
+    """Parkiran Task 3: thread capture yang masih berputar sesudah kamera dilepas
+    menyambungkannya lagi lewat `_try_reconnect`."""
+    jejak: list = []
+    threads: list = [("capture", "t", object())]
+    tahap = langkah_tutup_line(
+        worker_threads=threads, penulis=_Penulis(sebelum=0, sisa_sesudah=[]),
+        kamera=_KameraDicatat(jejak), penjadwal=_Penjadwal(),
+    )
+    threads[0] = ("capture", "thread-baru", _Pengambil(jejak))  # watchdog mengganti
+
+    [langkah] = [lk for lk in tahap[1] if lk.nama == "kamera"]
+    langkah.jalankan()
+
+    assert jejak == ["capture berhenti", "kamera dilepas"]
+
+
+def test_lepas_kamera_tanpa_worker_capture_tetap_melepas():
+    jejak: list = []
+    lepas_kamera([("plc", "t", object())], _KameraDicatat(jejak))
+    assert jejak == ["kamera dilepas"]

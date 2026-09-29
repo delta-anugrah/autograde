@@ -7,7 +7,9 @@ tanpa beda satu pun:
 1. serentak: coil PLC dimatikan, dan antrean simpan dihabiskan. Serentak karena
    keduanya sumber daya berbeda (jaringan vs disk): link PLC yang mati tidak
    boleh memakan waktu yang dibutuhkan disk, dan sebaliknya;
-2. serentak: kamera dilepas, penjadwal upload R2 dihentikan TANPA menunggu
+2. serentak: thread capture dihentikan lalu kamera dilepas (tanpa itu thread
+   capture menyambungkan kamera lagi lewat `_try_reconnect`), penjadwal upload R2
+   dihentikan TANPA menunggu
    batch yang sedang jalan (batch itu aman diputus: manifest SQLite,
    `test_batch_upload_crash.py`; menunggunya bisa memakan menit).
 
@@ -70,6 +72,12 @@ class Kamera(Protocol):
     def disconnect(self) -> None: ...
 
 
+class PengambilFrame(Protocol):
+    """Irisan `FrameCaptureWorker` yang dibutuhkan untuk menutup."""
+
+    def berhenti(self) -> None: ...
+
+
 class PenjadwalUnggah(Protocol):
     def stop(self, *, tunggu: bool = True) -> None: ...
 
@@ -82,6 +90,16 @@ def matikan_plc(worker_threads: Sequence[tuple[str, Any, Any]]) -> None:
     """
     thread = next((t for nama, t, _ in worker_threads if nama == "plc"), None)
     shutdown_plc_worker(thread)
+
+
+def lepas_kamera(worker_threads: Sequence[tuple[str, Any, Any]], kamera: Kamera) -> None:
+    """Hentikan thread capture DULU, baru lepas kamera: thread yang masih berputar
+    melihat frame kosong dan menyambungkan kamera lagi. Dicari saat menutup, sama
+    dengan PLC. Tidak ditunggu: loop-nya selesai sendiri di putaran berikutnya."""
+    pengambil: PengambilFrame | None = next((w for nama, _t, w in worker_threads if nama == "capture"), None)
+    if pengambil is not None:
+        pengambil.berhenti()
+    kamera.disconnect()
 
 
 def _sebut(janjang: list[tuple[str, str | None]]) -> str:
@@ -129,7 +147,7 @@ def langkah_tutup_line(
             Langkah("antrean_simpan", lambda: kuras_antrean_simpan(penulis, batas_s=batas_kuras_s)),
         ],
         [
-            Langkah("kamera", kamera.disconnect),
+            Langkah("kamera", lambda: lepas_kamera(worker_threads, kamera)),
             Langkah("penjadwal_unggah", lambda: penjadwal.stop(tunggu=False)),
         ],
     ]
