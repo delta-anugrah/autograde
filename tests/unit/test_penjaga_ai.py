@@ -194,3 +194,35 @@ def test_modul_tidak_menarik_torch_cv2_atau_ultralytics():
         env={"PYTHONPATH": str(src), "PATH": "/usr/bin:/bin"}, timeout=60,
     )
     assert hasil.returncode == 0, hasil.stderr[-800:]
+
+
+def _error_mati(caplog) -> str:
+    [pesan] = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+    return pesan
+
+
+def test_error_mati_menyebut_galat_yang_terjadi_sesudah_ai_berhenti(caplog):
+    penjaga, state, _, jam = _rakit()
+    _gambar_mengalir_tanpa_selesai(state, jam, 20)
+    state.ai_galat_terakhir, state.ai_galat_at = "RuntimeError: CUDA error", 1_790_000_000.0 - 5
+    _gambar_mengalir_tanpa_selesai(state, jam, 12)
+
+    with caplog.at_level(logging.ERROR, logger=penjaga_ai.__name__):
+        penjaga.nilai()
+
+    assert "Galat terakhir: RuntimeError: CUDA error" in _error_mati(caplog)
+
+
+def test_error_mati_tidak_menyodorkan_galat_lama_sebagai_sebab(caplog):
+    """Parkiran Task 6: galat terakhir itu sejak BOOT. Galat pagi tadi yang sudah pulih
+    lalu tercetak di ERROR AI mati sore ini menyesatkan support ke sebab yang salah."""
+    penjaga, state, _, jam = _rakit()
+    state.ai_galat_terakhir, state.ai_galat_at = "RuntimeError: CUDA error pagi", 1_790_000_000.0 - 7_200
+    _gambar_mengalir_tanpa_selesai(state, jam, 32)
+
+    with caplog.at_level(logging.ERROR, logger=penjaga_ai.__name__):
+        penjaga.nilai()
+
+    pesan = _error_mati(caplog)
+    assert "tidak ada galat sejak AI berhenti" in pesan
+    assert "7200 detik lalu" in pesan and "CUDA error pagi" in pesan

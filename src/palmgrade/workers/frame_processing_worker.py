@@ -76,8 +76,9 @@ class FrameProcessingWorker:
         tidur: Callable[[float], None] = time.sleep,
     ) -> None:
         self.pipeline = pipeline
-        # Jeda sesudah exception di `putaran()`. Disuntik supaya test bisa
-        # memutar ratusan putaran gagal tanpa menunggu sedetik per putaran.
+        # Jeda sesudah exception di `putaran()` dan selama lisensi menghentikan
+        # grading. Disuntik supaya test bisa memutar ratusan putaran tanpa
+        # menunggu sedetik per putaran.
         self._tidur = tidur
         self.state = state
         self.storage = storage
@@ -685,11 +686,15 @@ class FrameProcessingWorker:
         except Exception as exc:
             logger.exception("Unhandled error in FrameProcessingWorker.run_once")
             self.state.catat_galat_ai(exc)
-            self._tidur(1)
+            self._tidur(1.0)
+
+    def mulai(self) -> None:
+        """Yang dilakukan `run_loop` sebelum putaran pertama: tenggang penjaga AI
+        dihitung dari sini (sekali per proses; watchdog yang menyalakan ulang
+        thread ini tidak memberi tenggang baru)."""
+        self.state.catat_ai_dimulai()
 
     def run_loop(self) -> None:
-        # Tenggang penjaga AI dihitung dari sini (sekali per proses; watchdog
-        # yang menyalakan ulang thread ini tidak memberi tenggang baru).
-        self.state.catat_ai_dimulai()
+        self.mulai()
         while True:
             self.putaran()

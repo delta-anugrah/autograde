@@ -73,7 +73,39 @@ def test_putaran_gagal_menjeda_lewat_tidur_yang_disuntik():
     line.pipeline.galat = RuntimeError("x")
     line.capture.run_once()
     line.deteksi.putaran()
-    assert jeda == [1]
+    assert jeda == [1.0]
+    assert isinstance(jeda[0], float)
+
+
+class _Berhenti(BaseException):
+    """Keluar dari `run_loop` yang berputar selamanya, sesudah putaran pertama."""
+
+
+def test_run_loop_memulai_tenggang_ai_sebelum_putaran_pertama():
+    """Parkiran Task 5: `run_loop` yang mencap `ai_dimulai_at` dulu tidak teruji,
+    `LinePalsu` menyalin baris itu sendiri. Sekarang lewat `mulai()` yang sama."""
+    line = LinePalsu()
+    urutan = []
+
+    def putaran() -> None:
+        urutan.append(("putaran", line.state.ai_dimulai_at))
+        raise _Berhenti
+
+    line.deteksi.putaran = putaran
+    try:
+        line.deteksi.run_loop()
+    except _Berhenti:
+        pass
+
+    assert urutan == [("putaran", 1_000.0)]
+
+
+def test_line_palsu_memakai_mulai_milik_worker():
+    line = LinePalsu()
+    dipanggil = []
+    line.deteksi.mulai = lambda: dipanggil.append(1)
+    line.mulai()
+    assert dipanggil == [1]
 
 
 def test_lisensi_habis_tidak_mencap_inferensi():

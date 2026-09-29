@@ -110,8 +110,8 @@ class LinePalsu:
         self.state.penjaga_ai = self.penjaga
 
     def mulai(self) -> None:
-        """Yang dilakukan `run_loop` sebelum putaran pertama."""
-        self.state.catat_ai_dimulai()
+        """Yang dilakukan `run_loop` sebelum putaran pertama: `mulai()` worker ASLI."""
+        self.deteksi.mulai()
 
     def jalan(self, detik: int, *, deteksi: bool = True) -> None:
         """Satu frame per detik: kamera mengambil, deteksi (kalau jalan) memproses."""
