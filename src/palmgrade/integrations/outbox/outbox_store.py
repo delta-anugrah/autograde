@@ -47,6 +47,11 @@ CREATE INDEX IF NOT EXISTS idx_outbox_status_retry
 _POTONGAN_SERAP = 1000
 #: Alasan yang sama untuk mengisi `dibuat_at` baris dari versi sebelum batch 2.4.
 _POTONGAN_RAPIKAN = 1000
+#: Satu potongan pengisian `dibuat_at`, dilanjutkan dari `id` terakhir: mengulang
+#: `WHERE dibuat_at IS NULL LIMIT n` dari awal memindai seluruh tabel tiap potongan.
+_SQL_POTONGAN_RAPIKAN = (
+    "SELECT id, payload FROM outbox_events WHERE dibuat_at IS NULL AND id > ? ORDER BY id LIMIT ?"
+)
 
 
 class OutboxStore:
@@ -74,7 +79,7 @@ class OutboxStore:
                 if nama not in kolom:
                     self._db.execute(f"ALTER TABLE outbox_events ADD COLUMN {nama} REAL")
 
-    def _rapikan_baris_lama(self) -> int:
+    def _rapikan_baris_lama(self) -> None:
         """Perbaiki di tempat dua hal tulisan versi sebelum batch 2.4. Idempoten.
 
         - `status` selain `pending` (dulu `failed` sesudah 50 percobaan) kembali
@@ -91,21 +96,19 @@ class OutboxStore:
                 "UPDATE outbox_events SET status='pending', next_retry_at=0 WHERE status <> 'pending'"
             ).rowcount
             cadangan = time.time()
-            while potongan := self._db.execute(
-                "SELECT id, payload FROM outbox_events WHERE dibuat_at IS NULL LIMIT ?",
-                (_POTONGAN_RAPIKAN,),
-            ).fetchall():
+            terakhir = 0
+            while potongan := self._db.execute(_SQL_POTONGAN_RAPIKAN, (terakhir, _POTONGAN_RAPIKAN)).fetchall():
                 self._db.executemany(
                     "UPDATE outbox_events SET dibuat_at=? WHERE id=?",
                     [(waktu_janjang(baris["payload"], cadangan), baris["id"]) for baris in potongan],
                 )
+                terakhir = potongan[-1]["id"]
         if dihidupkan:
             logger.warning(
                 "%d janjang yang dulu berhenti dicoba (batas 50 percobaan versi lama) "
                 "dihidupkan lagi dan akan dikirim ke konsol",
                 dihidupkan,
             )
-        return dihidupkan
 
     def add_event(self, event_id: str, machine_id: str, payload: dict[str, Any]) -> None:
         """`dibuat_at` = kapan janjang itu digrading, dari `timestamp` payload (jam

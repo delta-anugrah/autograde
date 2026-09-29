@@ -124,16 +124,48 @@ def test_serap_berkas_lama_menghidupkan_yang_menyerah(tmp_path):
     assert baru.ringkasan()["tertua_at"] == EPOCH_TS
 
 
+def _lacak_sql(monkeypatch) -> list[str]:
+    """Setiap pernyataan SQL yang dijalankan koneksi `OutboxStore` berikutnya."""
+    jejak: list[str] = []
+    asli = outbox_store.sqlite3.connect
+
+    def connect(*a, **k):
+        db = asli(*a, **k)
+        db.set_trace_callback(jejak.append)
+        return db
+
+    monkeypatch.setattr(outbox_store.sqlite3, "connect", connect)
+    return jejak
+
+
 def test_antrean_besar_dirapikan_per_potongan(tmp_path, monkeypatch):
+    """Dibaca per potongan, sungguh: 50 baris dengan potongan 7 = 8 potongan berisi
+    ditambah satu yang kosong, bukan satu SELECT yang membaca semuanya."""
     monkeypatch.setattr(outbox_store, "_POTONGAN_RAPIKAN", 7)
     jalur = tmp_path / "outbox.db"
     berkas_outbox_versi_lama(jalur, [(f"e{i}", "failed", 50, _payload(f"e{i}")) for i in range(50)])
+    jejak = _lacak_sql(monkeypatch)
 
     store = OutboxStore(jalur)
 
+    potongan = [q for q in jejak if q.lstrip().upper().startswith("SELECT") and "dibuat_at IS NULL" in q]
+    assert len(potongan) == 9
     kosong = store._db.execute("SELECT COUNT(*) FROM outbox_events WHERE dibuat_at IS NULL").fetchone()[0]
     assert kosong == 0
     assert store.pending_count() == 50
+
+
+def test_potongan_dilanjutkan_lewat_kunci_utama_bukan_memindai_ulang(tmp_path):
+    """Parkiran Task 2: `WHERE dibuat_at IS NULL LIMIT n` diulang dari awal tiap potongan
+    memindai seluruh tabel tiap kali (kuadratik pada antrean besar). Tiap potongan
+    melanjutkan dari `id` terakhir, jadi SQLite mencari lewat kunci utama."""
+    store = OutboxStore(tmp_path / "outbox.db")
+
+    rencana = " ".join(
+        r[3] for r in store._db.execute(f"EXPLAIN QUERY PLAN {outbox_store._SQL_POTONGAN_RAPIKAN}", (0, 7))
+    )
+
+    assert "INTEGER PRIMARY KEY" in rencana, rencana
 
 
 def test_jumlah_yang_dihidupkan_dicatat_sekali(tmp_path, caplog):

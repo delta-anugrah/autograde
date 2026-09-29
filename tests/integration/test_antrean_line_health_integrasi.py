@@ -13,6 +13,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import replace
+from types import SimpleNamespace
+
+import pytest
 
 from palmgrade.core.config import Settings
 from palmgrade.integrations.outbox.outbox_store import OutboxStore
@@ -63,3 +66,35 @@ def test_sisa_antrean_lama_tetap_tidak_diketahui(tmp_path):
     (health.settings.artifacts_dir / "outbox.db").write_bytes(b"sisa")
 
     assert _angka_penjaga(health.ringkasan_outbox()) == "?"
+
+
+def test_rute_health_detail_sungguhan_menahan_reset_data(tmp_path):
+    """Parkiran Task 2: test di atas merakit skema sendiri karena `routes/health.py`
+    menarik torch. Di mesin yang punya torch (PC developer, image line) rute ASLI
+    dijalankan, dan angka yang dibaca penjaga host diambil dari badan jawabannya."""
+    pytest.importorskip("torch")
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from palmgrade.core.dependencies import get_health_service
+    from palmgrade.routes.health import router
+    from palmgrade.workers.runtime_state import RuntimeState
+
+    jalur = tmp_path / "state" / "outbox.db"
+    lama = OutboxStore(jalur)
+    lama.add_event("e1", "m", {"event_id": "e1"})
+    with lama._db:  # yang ditulis versi lama pada percobaan ke-50
+        lama._db.execute("UPDATE outbox_events SET status = 'failed'")
+    lama._db.close()
+    health = _health(tmp_path, OutboxStore(jalur))
+    health.state = RuntimeState()
+    health.camera = SimpleNamespace(connected=True)
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_health_service] = lambda: health
+
+    jawab = TestClient(app).get("/health/detail")
+
+    assert jawab.status_code == 200
+    cocok = _SED_PENJAGA.fullmatch(jawab.text)
+    assert cocok and cocok.group(1) == "1"
