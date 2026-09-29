@@ -65,6 +65,11 @@ _CONSOLE_HTML = Path(__file__).resolve().parents[1] / "static" / "console.html"
 # The machine lanes below keep the webhook secret and never see a cookie.
 router = APIRouter(tags=["console"])
 
+# Route yang memanggil SQLite berat dideklarasikan `def`, bukan `async def` (batch 2.5):
+# FastAPI menjalankannya di thread pool, jadi query-nya tidak menahan event loop yang
+# melayani layar lain dan kiriman janjang dari tiga line. Route yang juga harus `await`
+# membungkus bagian sinkronnya dengan `run_in_threadpool`. Pola yang sama dengan tab Rekap.
+
 
 @router.get("/console", include_in_schema=False)
 async def console_page() -> FileResponse:
@@ -82,7 +87,7 @@ async def console_operators(auth: Auth) -> dict:
 
 
 @router.post("/api/console/login")
-async def login(auth: Auth, response: Response, payload: Annotated[dict, Body()]) -> dict:
+def login(auth: Auth, response: Response, payload: Annotated[dict, Body()]) -> dict:
     try:
         token, operator = auth.login(
             str(payload.get("email") or ""), str(payload.get("sandi") or "")
@@ -136,16 +141,20 @@ async def console_state(service: Service, dev: Dev, operator: Operator) -> dict:
     support-only. `versi` ikut untuk baris di bawah tulisan AUTOGRADE (2026-09-28):
     dibaca tiap polling, jadi sesudah `autograde pull` layar yang terbuka ikut
     menampilkan versi baru tanpa dimuat ulang.
+
+    `service.state()` jalan di thread pool (batch 2.5): polling 2 detik ini membaca
+    beberapa query SQLite, dan di event loop query itu menahan layar lain dan kiriman
+    janjang dari tiga line.
     """
     return {
-        **service.state(),
+        **(await run_in_threadpool(service.state)),
         "lisensi": await dev.license_state(),
         "versi": dev.app_version(),
     }
 
 
 @router.get("/api/console/history")
-async def console_history(
+def console_history(
     service: Service,
     operator: Operator,
     work_date: str | None = None,
@@ -228,7 +237,7 @@ def console_riwayat_csv(
 
 
 @router.get("/api/console/trucks")
-async def console_trucks(service: Service, operator: Operator) -> dict:
+def console_trucks(service: Service, operator: Operator) -> dict:
     return {"items": service.trucks()}
 
 
@@ -316,7 +325,7 @@ async def console_truck_qr(plate_number: str, operator: Operator) -> Response:
 
 
 @router.get("/api/console/weighings")
-async def console_weighings(
+def console_weighings(
     service: Service,
     operator: Operator,
     work_date: str | None = None,
@@ -327,7 +336,7 @@ async def console_weighings(
 
 
 @router.get("/api/console/recap")
-async def console_recap(
+def console_recap(
     service: Service, operator: Operator, work_date: str | None = None
 ) -> dict:
     """What the supplier is handed: bunches and neto per truck for one day."""
@@ -417,7 +426,7 @@ async def dev_ping(operator: Support) -> dict:
 
 
 @router.get("/api/console/dev/log")
-async def dev_log(
+def dev_log(
     dev: Dev,
     operator: Support,
     level: Annotated[str | None, Query()] = None,

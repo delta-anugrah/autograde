@@ -19,8 +19,11 @@ from .console_deps import Service
 ingest_router = APIRouter(tags=["ingest"])
 
 
+# `def`, bukan `async def` (batch 2.5): tiap janjang ditulis ke SQLite (fsync, WAL) dan
+# janjang susulan membangun ulang pesan kunjungan. Di thread pool itu tidak menahan
+# polling layar operator.
 @ingest_router.post("/internal/vision/events", status_code=201)
-async def ingest_event(
+def ingest_event(
     service: Service,
     payload: Annotated[dict, Body()],
     x_webhook_secret: Annotated[str | None, Header()] = None,
