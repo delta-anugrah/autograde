@@ -107,8 +107,10 @@ class ConsoleService(LayarLineSupport):
         """Take one grading event from a line. Returns its `work_date`.
 
         ValueError on a malformed payload → route replies 400 → the line's
-        outbox holds the event and marks it `outbox_failed`. Better visible as
-        a failure than lost, or landed on the wrong day.
+        outbox keeps the event and retries it. Rows are never dead-lettered, so
+        a line on this image always reports `outbox_failed` 0; a line still on
+        an older image may report more than 0. Better held than lost, or landed
+        on the wrong day.
         """
         event_id = str(payload.get("event_id") or "").strip()
         machine_id = str(payload.get("machine_id") or "").strip()
