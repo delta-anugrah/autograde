@@ -10,6 +10,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
+from ..domain.operator_error import InvalidInput
 from ..integrations.notifications.line_client import LineUnavailable
 from ..services.pantau_antrean_line import PantauAntreanLine
 from .console_deps import Support, _operator_error, get_pantau_antrean_line
@@ -30,7 +31,7 @@ async def kirim_ulang_antrean_line(line_code: str, pantau: PantauAntrean, operat
     """404 line tak dikenal; 502 line mati (`line_tidak_menjawab`) atau menolak (`line_menolak`)."""
     try:
         return await pantau.kirim_ulang(line_code, oleh=operator["email"])
-    except ValueError as exc:
+    except InvalidInput as exc:  # cuma line tak dikenal; JSONDecodeError juga ValueError
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
         raise _operator_error(502, exc) from exc

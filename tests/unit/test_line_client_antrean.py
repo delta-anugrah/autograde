@@ -62,11 +62,39 @@ def test_kirim_ulang_mengembalikan_jumlah():
     assert dilihat[0].headers["x-internal-secret"] == "kunci-palsu"
 
 
-@pytest.mark.parametrize("status", [401, 403, 500])
-def test_kirim_ulang_ditolak_line_menolak_membawa_status(status):
+@pytest.mark.parametrize(
+    "status,kode", [(401, LINE_MENOLAK), (403, LINE_MENOLAK), (500, LINE_TIDAK_MENJAWAB)]
+)
+def test_kirim_ulang_cuma_kunci_ditolak_yang_line_menolak(status, kode):
+    """Penjaga kunci line cuma menjawab 401/403. 500 datang dari line sendiri (disk penuh,
+    outbox.db rusak): menyebutnya "menolak" menyuruh support menyamakan INTERNAL_SECRET."""
     with pytest.raises(LineUnavailable) as info:
         asyncio.run(_klien(lambda r: httpx.Response(status, text="tolak")).kirim_ulang_antrean_line(LINE))
-    assert (info.value.code, info.value.params["status"]) == (LINE_MENOLAK, status)
+    assert (info.value.code, info.value.params["status"]) == (kode, status)
+
+
+def test_ringkasan_line_versi_lama_404_membawa_status():
+    """Line image lama tidak punya `/internal/outbox`: menjawab 404, bukan diam."""
+    with pytest.raises(LineUnavailable) as info:
+        asyncio.run(_klien(lambda r: httpx.Response(404, text="Not Found")).antrean_line(LINE))
+    assert (info.value.code, info.value.params["status"]) == (LINE_TIDAK_MENJAWAB, 404)
+
+
+@pytest.mark.parametrize(
+    "jawaban",
+    [
+        httpx.Response(200, text="bukan json"),
+        httpx.Response(200, json=[7]),
+        httpx.Response(200, json={"requeued": "7"}),
+        httpx.Response(200, json={"requeued": True}),
+        httpx.Response(200, json={}),
+    ],
+    ids=["bukan-json", "bukan-objek", "teks", "boolean", "tanpa-requeued"],
+)
+def test_kirim_ulang_jawaban_cacat_line_tidak_menjawab(jawaban):
+    with pytest.raises(LineUnavailable) as info:
+        asyncio.run(_klien(lambda r: jawaban).kirim_ulang_antrean_line(LINE))
+    assert info.value.code == LINE_TIDAK_MENJAWAB
 
 
 def test_kirim_ulang_line_mati():

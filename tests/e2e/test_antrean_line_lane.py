@@ -66,3 +66,18 @@ def test_kirim_ulang_ke_line_mati_502_dengan_kodenya(konsol):
     jawab = masuk(app, store, role=ROLE_SUPPORT).post("/api/console/dev/antrean/line/line-2/kirim-ulang")
     detail = jawab.json()["detail"]
     assert (jawab.status_code, detail["code"], detail["params"]["line"]) == (502, "line_tidak_menjawab", "Line 2")
+
+
+class _PantauRusak:
+    """Galat selain "line tidak dikenal" yang kebetulan turunan ValueError (JSONDecodeError)."""
+
+    async def kirim_ulang(self, line_code: str, *, oleh: str) -> dict:
+        raise ValueError("Expecting value: line 1 column 1 (char 0)")
+
+
+def test_galat_lain_tidak_disamarkan_jadi_404(tmp_path):
+    store = ConsoleStore(tmp_path / "console.db")
+    client = masuk(app_konsol(store, _PantauRusak()), store, role=ROLE_SUPPORT)
+
+    with pytest.raises(ValueError, match="Expecting value"):
+        client.post("/api/console/dev/antrean/line/line-1/kirim-ulang")

@@ -8,6 +8,7 @@ from dataclasses import replace
 
 import pytest
 from antrean_line_rakit import LinePerPort, app_konsol, klien_konsol_mati, masuk, rakit_line
+from fastapi import FastAPI
 
 from palmgrade.core.config import LineEndpoint, Settings
 from palmgrade.domain.role import ROLE_SUPPORT
@@ -66,6 +67,25 @@ def test_kunci_internal_beda_terbaca_line_menolak_bukan_offline(rakit):
     isi = client.get("/api/console/dev/antrean/line").json()["lines"]
 
     assert (isi["line-2"]["terjangkau"], isi["line-2"]["kode"], isi["line-2"]["status"]) == (False, "line_menolak", 401)
+    assert isi["line-1"]["terjangkau"] is True
+
+
+def test_line_versi_lama_tanpa_lane_antrean_terbaca_dengan_status_http(tmp_path):
+    """Line image lama (belum punya `/internal/outbox`) menjawab 404: baris membawa
+    statusnya supaya layar bisa bilang "line menjawab HTTP 404", bukan sekadar mati."""
+    line_1 = rakit_line(tmp_path / "line-1", internal_secret=SECRET, klien_konsol=klien_konsol_mati())
+    klien = LineClient(
+        replace(Settings(), console_line_host="http://line", internal_secret=SECRET),
+        transport=LinePerPort({8001: line_1.app, 8002: FastAPI()}),
+    )
+    store = ConsoleStore(tmp_path / "console.db")
+    client = masuk(app_konsol(store, PantauAntreanLine(klien, (LINE_1, LINE_2))), store, role=ROLE_SUPPORT)
+
+    isi = client.get("/api/console/dev/antrean/line").json()["lines"]
+
+    assert (isi["line-2"]["terjangkau"], isi["line-2"]["kode"], isi["line-2"]["status"]) == (
+        False, "line_tidak_menjawab", 404,
+    )
     assert isi["line-1"]["terjangkau"] is True
 
 
