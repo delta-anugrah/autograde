@@ -229,7 +229,10 @@ selama itu: pulse telat menempel ke buah yang salah.
 SIGTERM di tengah produksi itu rutin. Dengan `PLC_PULSE_MS=200` dalam siklus 400 ms (2 tick),
 peluang sebuah coil sedang ON saat sinyal itu tiba kira-kira 1 dari 2.
 
-`shutdown_plc_worker()` (dipanggil `lifespan` sesudah `yield`) menjalankan, berurutan:
+`shutdown_plc_worker()` (dipanggil urutan tutup line, `services/langkah_tutup_line.py`, untuk
+SIGTERM DAN `/internal/restart` + `/internal/hapus-data`, bersamaan dengan antrean simpan
+dihabiskan; batas urutan tutup 8 detik, ditambah jeda 1 detik sebelum urutan itu mulai untuk
+`/internal/restart` dan `/internal/hapus-data`) menjalankan, berurutan:
 
 1. `PlcWorker.stop()`: set `threading.Event`; `run_loop` mengeceknya tiap tick dan `wait()`
    di antara tick, jadi ia keluar dalam hitungan milidetik, bukan satu poll penuh.
@@ -243,6 +246,10 @@ peluang sebuah coil sedang ON saat sinyal itu tiba kira-kira 1 dari 2.
 No-op yang aman kalau `PLC_ENABLED=false` atau worker tidak pernah start. Shutdown yang rapi ini
 tidak menolong kalau PC mati mendadak atau kabel dicabut: itu tugas watchdog heartbeat di ladder
 (`docs/plc-mc-handoff.md` §3).
+
+Sebelum batch 2.2, restart yang diminta dari konsol (`/internal/restart`, `/internal/hapus-data`)
+melewati fungsi ini sama sekali: `os._exit` langsung, coil yang sedang ON tertinggal ON sampai
+line hidup lagi.
 
 ---
 

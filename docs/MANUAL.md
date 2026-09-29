@@ -297,7 +297,7 @@ ada line yang perlu perhatian, disebut satu per satu:
 | versi line lama | image line belum punya fitur ini | `autograde pull`, lalu tekan lagi |
 | tidak menjawab | line mati saat perintah dikirim | nyalakan line-nya, lalu tekan lagi |
 | truk terpasang | truk ditugaskan tepat saat tombol ditekan | lepas truknya, lalu tekan lagi |
-| diterima tapi belum restart | perintahnya sampai, tapi line belum restart dalam 5 detik | tunggu, datanya terhapus begitu line itu restart |
+| diterima tapi belum restart | perintahnya sampai, tapi line belum restart dalam 12 detik | tunggu, datanya terhapus begitu line itu restart |
 
 Data konsol sudah dikosongkan kalau **minimal satu** line menerima, jadi menekan lagi cuma
 membersihkan line yang tadi tertinggal. Kalau **tidak satu pun** line menerima, tidak ada yang
@@ -633,6 +633,8 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Unggah ke R2 berhenti tanpa error | `R2_BUCKET` kosong, atau JSON sidecar dipindah ke subfolder | isi R2; JSON wajib datar di folder tanggal |
 | Impor CSV ditolak "bukan CSV Per janjang" | berkas ringkasan (Per hari / Per truk), atau disimpan ulang dari Excel | di tab Rekap pilih **Per janjang**, **Unduh CSV**, impor berkas itu tanpa dibuka di Excel |
 | Disk penuh, grading berhenti tersimpan | penjaga disk mati (`UPLOAD_DISK_MIN_FREE_GB=0`) atau Docker menumpuk image lama | `docker system prune`; kembalikan penjaga ke 20 |
+| Log line `Tutup line: N janjang TIDAK tertulis` | disk lambat atau macet saat line diminta restart/hapus data | cek disk (`df -h`, `dmesg`), janjang yang disebut tidak punya foto; laporkan ke support |
+| Cloud Photo: foto `rusak` bertambah sesudah update | foto atau sidecar 0 byte dari listrik padam sebelum versi ini; tidak diunggah, dibiarkan di disk | tidak perlu apa-apa; boleh diperiksa lalu dihapus tangan |
 | Laptop: `make console` terasa memakai kode lama | port 8100 masih dipegang proses lama | cari pid-nya dengan `lsof -ti:8100`, matikan, jalankan ulang |
 | Laptop: `make up` gagal "MVS SDK not found" | memang, target Docker untuk Linux + GPU | pakai `make console` / `make line` |
 | Kamera "tidak terjawab" saat E2E di macOS | `CONSOLE_LINE_HOST=http://localhost` → IPv6 | ganti `http://127.0.0.1` |
@@ -734,6 +736,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 1.7 | 28 September 2026 | Restart dan hapus data dari konsol menutup line dengan rapi (coil PLC mati, antrean simpan habis); foto dan sidecar ditulis tahan listrik padam; foto 0 byte lama tidak diunggah. |
 | 1.6 | 28 September 2026 | ONBOARDING digabung ke sini (§9.1 folder, §9.2 langkah pertama) lalu dihapus; port konsol ditulis dua cara pasang (8100 image produksi, 8000 dari source); §5.11 Lampung per 28 September; aturan image GHCR dan alur rilis diperbarui. |
 | 1.5 | 28 September 2026 | Tab digabung dari 15 jadi 9: **Rekap** = Rekap + Riwayat (dibuka di Hari ini, Per truk), **Status** = Versi + Diagnostik + Antrean ERP, **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video. §3.4 dan §3.5 ditulis ulang. |
 | 1.4 | 28 September 2026 | Versi dan lisensi PC ditampilkan di bawah tulisan AUTOGRADE untuk semua akun, termasuk operator; klik untuk rinciannya. |

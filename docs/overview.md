@@ -30,7 +30,7 @@
 |---|---|---|
 | `FrameCaptureWorker` | thread | grab frame from camera (under `state.lock`) → `state.latest_raw_frame` + `frame_queue`. Auto-reconnects with `device_index`. |
 | `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); janjang menyentuh garis capture → pulse PLC + `event_queue` + serahkan `SaveJob`, lalu **lanjut**. Sejak 2026-09-18 **tidak menulis ke disk maupun outbox sendiri** |
-| `CaptureSaveWorker` | thread | penulis bukti: encode WebP bbox+clean+thumb, sidecar JSON, dan satu baris `outbox.add_event()`. Antrean 8 dalam, drop yang terbaru + `logger.error` kalau penuh (`capture_save_dropped`). Ikut diawasi watchdog; antreannya dikuras saat shutdown sebelum kamera dilepas |
+| `CaptureSaveWorker` | thread | penulis bukti: encode WebP bbox+clean+thumb, sidecar JSON, dan satu baris `outbox.add_event()`. Antrean 8 dalam, drop yang terbaru + `logger.error` kalau penuh (`capture_save_dropped`). Ikut diawasi watchdog; dikuras oleh urutan tutup line (SIGTERM dan perintah restart/hapus dari konsol) bersamaan dengan coil PLC dimatikan |
 | `DisplayWorker` | thread | the **only** writer of `state.latest_frame`: draw boxes → resize → draw ROI → JPEG encode → `frame_condition.notify_all()`. Runs at `STREAM_FPS` (default 12). |
 | `OutboxRetryWorker` | thread | kirim isi `outbox.db` ke **konsol lokal** (`BACKEND_URL`), poll 1 detik: jalur realtime operator, hidup walau internet mati. Batch upload foto ke R2 jalan terpisah. |
 | `PlcWorker` | thread | **hanya kalau `PLC_ENABLED=true`** (default mati → nol thread tambahan di PC dev). Satu-satunya thread yang menyentuh socket ke PLC (MC Protocol ke CPU Mitsubishi; Modbus ke coupler ODOT kalau `PLC_PROTOCOL=modbus`): kuras antrean keputusan → pulse bit OK/NG, kedipkan heartbeat, baca blok input, tulis bit ERROR. Bangun tiap `PLC_POLL_MS` (default 200ms) **selamanya**. Sinyal telat = buah salah yang tersortir, jadi kebijakannya **buang dan hitung, jangan pernah tunda**. |
@@ -230,7 +230,7 @@ BatchUploadWorker.run_batch_once()
 - Error handling per item (yang bikin satu item busuk tidak menyandera batch):
   | Kondisi | Exception | Efek |
   |---|---|---|
-  | HTTP 400/422, meta cacat, file gambar hilang | `_PoisonError` | `mark_poisoned` + **continue**. File **tidak** dihapus: ditinggal untuk diperiksa manual |
+  | HTTP 400/422, meta cacat, file gambar hilang, foto/sidecar 0 byte atau sisa `.tmp` | `_PoisonError` | `mark_poisoned` + **continue**. File **tidak** dihapus: ditinggal untuk diperiksa manual |
   | HTTP 404 (truck belum ada di DB cloud) | `_RequeueError(batch_fatal=False)` | requeue + **continue**: antrian `ORDER BY discovered_at ASC`, jadi tanpa ini satu item lama bisa head-of-line starve seluruh batch |
   | HTTP 401/403/5xx, jaringan mati | `_RequeueError` (default `batch_fatal=True`) | requeue + **break batch**: percuma lanjut kalau endpoint/kredensialnya yang bermasalah |
 - Backoff: base **5s**, eksponensial sampai cap **600s** (`upload_manifest.py`). **TANPA retry cap
@@ -318,8 +318,9 @@ operator sejak batch 1; `/captures` line sendiri tetap terbuka, tanpa konsep ses
    deteksi**, sebelum serah-terima, jadi idempotensi dipegang oleh nama, bukan oleh urutan tulis.
    Track tanpa truck aktif tetap ditandai processed supaya tidak re-trigger.
    ⚠️ Konsekuensi yang dibeli sadar: kalau proses mati di antara serah-terima dan penulisan, janjang
-   itu hilang (tidak ada retry: track sudah `processed`). Lifespan karena itu **menguras antrean
-   dulu** saat shutdown. Jendelanya ratusan milidetik, dan harganya adalah hilangnya lag ~590 ms per
+   itu hilang (tidak ada retry: track sudah `processed`). Urutan tutup line (`langkah_tutup_line`)
+   karena itu **menguras antrean dulu** saat shutdown, sama untuk SIGTERM maupun restart/hapus dari
+   konsol. Jendelanya ratusan milidetik, dan harganya adalah hilangnya lag ~590 ms per
    janjang yang sebelumnya membuang ~12 frame kamera dan memutus jejak ByteTrack.
 2. **`state.lock`** around all physical camera access (`FrameCaptureWorker.run_once` +
    `capture_manual_reject`): concurrent Hikrobot SDK access can crash.
@@ -330,7 +331,7 @@ operator sejak batch 1; `/captures` line sendiri tetap terbuka, tanpa konsep ses
    `get_health_service()`: they call `get_camera()` which raises before startup; caching would freeze
    `_camera = None`.
 5. **`repo_root = parents[3]`**: `src/palmgrade/core/config.py` → 3 levels up = `/app` in Docker.
-6. **`lifespan`** (not deprecated `@app.on_event`); scheduler + camera disconnect are lifespan locals.
+6. **`lifespan`** (not deprecated `@app.on_event`); scheduler + camera disconnect are lifespan locals, registered with `PenutupLine` before `yield`.
 7. **MJPEG written only by `DisplayWorker`**: two writers to `state.latest_frame` cause flicker.
    It renders `last_yolo_frame` (paired with `last_yolo_results`), runs at `STREAM_FPS` (default 12),
    decoupled from `CAMERA_FPS` (default 15).
@@ -339,11 +340,15 @@ operator sejak batch 1; `/captures` line sendiri tetap terbuka, tanpa konsep ses
    thread dies silently and the watchdog restarts without a stack trace.
 10. **`FrameCaptureWorker` needs `device_index`**: reconnect calls `camera.connect(index=...)`; a bare
     `connect()` (default 0) makes line-2/3 reconnect to the wrong camera.
-11. **`cv2.imwrite` failure raises `OSError`** in `LocalFileStorage.write_image`, a silent warning
+11. **Encode or write failure raises `OSError`** (including `cv2.error`) in
+    `LocalFileStorage.write_image`, a silent warning
     would leave orphaned JSON pointing at a missing image, dan karena JSON itulah yang di-scan
     `BatchUploadWorker`, item-nya berakhir `poisoned` saat upload. Auto path: caught by
     `CaptureSaveWorker.run_loop` (that bunch has no image and no sidecar, logged; the writer
     keeps running). Manual path: propagates → 500 to operator.
+    Since batch 2.6, photos and sidecars are written whole-or-nothing: `cv2.imencode` in memory,
+    then `tulis_atomik` (temp `.<name>.<random>.tmp` + fsync + `os.replace` + folder fsync). A
+    power cut leaves a hidden leftover temp file, never a 0-byte file under the final name.
 
 ---
 
