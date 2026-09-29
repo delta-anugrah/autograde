@@ -90,9 +90,9 @@ def _ditandai(jawaban: dict) -> list[str]:
 
 def _kotak(nama: str, lewat_ms: int, bahasa: str) -> str:
     konst = konstanta("RESTART_BATAS_MS", "RESTART_PASTI_MATI_MS", "RESTART_KODE")
-    m = json.dumps({"mulai": MULAI, "turunPada": None, "diam": 0})
+    m = json.dumps({"mulai": MULAI, "turunPada": None, "batasMs": 60_000, "hapus": False})
     return jalankan(
-        ["jamSinkron", "isiRestart", "teksDetikRestart"],
+        ["jamSinkron", "isiRestart", "teksDetikRestart", "teksBatasRestart"],
         f"[isiRestart({json.dumps(nama)}, {m}, {MULAI + lewat_ms}),"
         f" teksDetikRestart({m}, {MULAI + lewat_ms})].join(' ')",
         bahasa=bahasa, tambahan=konst,

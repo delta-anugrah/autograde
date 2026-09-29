@@ -37,7 +37,7 @@ const hapus = () => { ditutup += 1; };
 def _jalan(ekspresi: str):
     return jalankan(
         ["durasiToast", "hitungMundurToast"], ekspresi,
-        tambahan=konstanta("TOAST_PALING_LAMA_MS", "TOAST_DURASI") + JAM_PALSU,
+        tambahan=konstanta("TOAST_PALING_LAMA_MS", "TOAST_UMUR_MAKS_MS", "TOAST_DURASI") + JAM_PALSU,
     )
 
 
@@ -79,13 +79,29 @@ def test_kursor_di_atas_toast_menahan_hitungan():
     tutup = _jalan(
         "(() => { const el = buatEl(); hitungMundurToast(el, 5000, hapus); const r = [];"
         " maju(2000); el.dengar.mouseenter();"
-        " maju(60000); r.push(ditutup);"          # dibaca lama: tetap ada
+        " maju(20000); r.push(ditutup);"          # dibaca lama: tetap ada
         " el.dengar.mouseleave();"
         " maju(2990); r.push(ditutup);"           # sisa 3 detik, belum habis
         " maju(10); r.push(ditutup);"             # habis
         " return r; })()"
     )
     assert tutup == [0, 0, 1]
+
+
+@butuh_node
+def test_kursor_yang_diam_di_pojok_tidak_menahan_toast_selamanya():
+    """Kiosk: kursor yang diparkir di pojok toast mendapat `mouseenter` buatan
+    browser tiap tata letak berubah. Umur toast tetap dibatasi 30 detik sejak
+    muncul, walau kursor tidak pernah pergi."""
+    tutup = _jalan(
+        "(() => { const el = buatEl(); hitungMundurToast(el, 10000, hapus); const r = [];"
+        " maju(100); el.dengar.mouseenter();"
+        " maju(29890); r.push(ditutup);"
+        " maju(10); r.push(ditutup);"
+        " maju(60000); r.push(ditutup, timer.size);"
+        " return r; })()"
+    )
+    assert tutup == [0, 1, 1, 0]
 
 
 @butuh_node

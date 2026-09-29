@@ -2413,9 +2413,10 @@ const KAMUS = {
     gagalReject:"Reject manual gagal", gagalDaftar:"Gagal mendaftarkan truk",
     gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
-    restartJudul:"{line} sedang dinyalakan ulang", restartDetik:"{n} detik",
+    restartJudul:"{line} sedang dinyalakan ulang", restartDetik:"{n} detik", restartMenit:"{n} menit",
+    restartHapusJudul:"{line} sedang menghapus data lalu dinyalakan ulang",
     restartLamaJudul:"{line} belum kembali",
-    restartLamaRinci:"Kode {kode}. Restart diminta pukul {jam}. Sudah lewat {batas} detik, line ini belum mengirim gambar lagi. Cek tab Log dan terminal line itu.",
+    restartLamaRinci:"Kode {kode}. Restart diminta pukul {jam}. Sudah lewat {batas}, line ini belum mengirim gambar lagi. Cek tab Log dan terminal line itu.",
     toastTutup:"Tutup",
     sukTugaskan:"Truk ditugaskan di {line}", pelepasanOtomatis:"{line} dilepas otomatis karena {truk} sudah timbang keluar. Tugaskan lagi kalau bongkarnya belum selesai.", sukLepas:"Truk dilepas dari {line}",
     sukReject:"Reject manual tercatat di {line}", sukDaftar:"Truk terdaftar",
@@ -2772,9 +2773,10 @@ const KAMUS = {
     gagalReject:"Manual reject failed", gagalDaftar:"Failed to register truck",
     gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
     gagalKonsol:"Console not responding", kameraPutus:"Camera not connected",
-    restartJudul:"{line} is restarting", restartDetik:"{n} s",
+    restartJudul:"{line} is restarting", restartDetik:"{n} s", restartMenit:"{n} min",
+    restartHapusJudul:"{line} is deleting its data, then restarting",
     restartLamaJudul:"{line} has not come back",
-    restartLamaRinci:"Code {kode}. Restart requested at {jam}. After {batas} seconds this line has still not sent a picture. Check the Log tab and that line's terminal.",
+    restartLamaRinci:"Code {kode}. Restart requested at {jam}. After {batas} this line has still not sent a picture. Check the Log tab and that line's terminal.",
     toastTutup:"Dismiss",
     sukTugaskan:"Truck assigned on {line}", pelepasanOtomatis:"{line} was released automatically because {truk} has weighed out. Assign it again if unloading is not finished.", sukLepas:"Truck released from {line}",
     sukReject:"Manual reject recorded on {line}", sukDaftar:"Truck registered",
@@ -3510,6 +3512,10 @@ function pesan(text) {
 // di atas toast menahan hitungannya (`hitungMundurToast`), jadi kalimat
 // panjang yang sedang dibaca tidak ditarik pergi.
 const TOAST_PALING_LAMA_MS = 10000;
+// Batas umur mutlak, termasuk waktu yang ditahan kursor: kursor yang diparkir di
+// pojok toast (kiosk) mendapat `mouseenter` buatan browser tiap tata letak
+// berubah, dan tanpa batas ini toast-nya tidak pernah tertutup.
+const TOAST_UMUR_MAKS_MS = 30000;
 const TOAST_DURASI = { sukses: 5000, peringatan: 5000, gagal: TOAST_PALING_LAMA_MS };
 // More than this and the stack would climb high enough to cover the tab
 // table underneath it - four is as many as fit in the corner without that,
@@ -3524,21 +3530,32 @@ function durasiToast(durasi) {
 
 // Hitung mundur yang berhenti selama kursor di atas toast dan jalan lagi dari
 // sisanya saat kursor pergi. Layar sentuh tidak punya hover: di sana toast
-// tetap tertutup tepat waktunya.
+// tetap tertutup tepat waktunya. Apa pun yang terjadi dengan kursor, toast
+// tertutup paling lambat TOAST_UMUR_MAKS_MS sesudah muncul.
 function hitungMundurToast(el, ms, hapus) {
   let sisa = ms;
   let mulai = Date.now();
-  let timer = setTimeout(hapus, sisa);
+  let selesai = false;
+  let timer = null;
+  const tutup = () => {
+    if (selesai) return;
+    selesai = true;
+    clearTimeout(timer);
+    clearTimeout(umur);
+    hapus();
+  };
+  const umur = setTimeout(tutup, TOAST_UMUR_MAKS_MS);
+  timer = setTimeout(tutup, sisa);
   el.addEventListener("mouseenter", () => {
-    if (timer === null) return;
+    if (selesai || timer === null) return;
     clearTimeout(timer);
     timer = null;
     sisa -= Date.now() - mulai;
   });
   el.addEventListener("mouseleave", () => {
-    if (timer !== null) return;
+    if (selesai || timer !== null) return;
     mulai = Date.now();
-    timer = setTimeout(hapus, sisa);
+    timer = setTimeout(tutup, sisa);
   });
 }
 
@@ -4359,11 +4376,16 @@ $("tara-nilai").addEventListener("keydown", (ev) => {
 // Ceiling: a frozen frame that keeps being sent, or a line that dies and comes
 // back between two probes, still looks connected. If that bites, the line has
 // to report camera status through /api/console/state.
-$("lines").addEventListener("load", (ev) => {
-  const kartu = ev.target.closest(".card");
+// Firefox menembakkan `load` untuk TIAP bagian MJPEG, termasuk keep-alive kosong
+// line tanpa kamera (naturalWidth 0); Chrome sekali saja. Tanpa penjaga lebar,
+// kartu line tanpa kamera berkedip antara "Kamera tidak tersambung" dan kotak hitam.
+function feedMemuat(img) {
+  if (!(img.naturalWidth > 0)) return;
+  const kartu = img.closest(".card");
   kartu.classList.remove("putus");
-  selesaikanRestart(kartu, ev.target);
-}, true);
+  selesaikanRestart(kartu, img);
+}
+$("lines").addEventListener("load", (ev) => feedMemuat(ev.target), true);
 $("lines").addEventListener("error", (ev) => ev.target.closest(".card").classList.add("putus"), true);
 
 // The t query forces the browser to actually re-request: same URL = the dead
@@ -4381,6 +4403,17 @@ function urlFeedBaru(src, sekarang) {
 function mintaUlangFeed(img, sekarang) {
   img._dimintaPada = sekarang;
   img.src = urlFeedBaru(img.src, sekarang);
+}
+
+// Kartu yang digambar ulang (ganti bahasa, daftar truk, login) membawa `<img>`
+// baru = permintaan stream baru saat itu juga, jadi dicap seperti
+// `mintaUlangFeed`. Tanpa cap, gambarnya tidak pernah jadi bukti: sesudah
+// batas tanda habis pengulangan berhenti, cekKamera diam karena gambar tampil,
+// dan kotak RESTART_LAMA menempel di atas video yang sehat. Tandanya digambar
+// ulang saat itu juga supaya tidak hilang sedetik.
+function capFeedBaru(sekarang) {
+  for (const img of $("lines").querySelectorAll(".feed img")) img._dimintaPada = sekarang;
+  gambarSemuaRestart(sekarang);
 }
 
 async function cekKamera() {
@@ -4409,17 +4442,22 @@ async function cekKamera() {
 //
 // Kapan line "kembali": stream kamera yang diminta SESUDAH proses lama pasti
 // hilang mengirim satu gambar (`load` dengan naturalWidth > 0). "Pasti hilang"
-// = line terlihat mati oleh probe /health (ditolak sekali, atau lewat tenggat
-// dua kali berturut-turut: sekali lewat tenggat = sibuk, aturan Danger Zone),
-// atau paling lambat RESTART_PASTI_MATI_MS sesudah ditandai (urutan tutup line
+// = probe /health ditolak (tidak ada yang mendengarkan port itu; lewat tenggat
+// TIDAK dihitung: proses lama yang sedang menguras antrean simpan bisa lambat
+// lalu menjawab lagi), atau paling lambat RESTART_PASTI_MATI_MS sesudah
+// ditandai, yang juga menangani proses yang macet (urutan tutup line
 // maks 9 detik sesudah menjawab, aturan 29; 12 detik = batas tunggu Danger
 // Zone). Tanpa syarat itu frame terakhir proses lama, yang ditahan browser tanpa
 // event apa pun, akan menghapus tanda sebelum line benar-benar mati.
 const RESTART_BATAS_MS = 60000;       // sesudah ini: spinner diganti pesan rinci
+// Hapus data: line menghapus fotonya saat boot, SEBELUM /health menjawab, dan
+// itu bisa bermenit-menit. Kotak merah sesudah 60 detik di sana alarm palsu.
+const RESTART_HAPUS_BATAS_MS = 600000;
+const RESTART_HAPUS = { batasMs: RESTART_HAPUS_BATAS_MS, hapus: true };
 const RESTART_PASTI_MATI_MS = 12000;  // proses lama pasti sudah keluar
 const RESTART_ULANG_FEED_MS = 3000;   // jarak minta ulang stream selama menunggu
 const RESTART_KODE = "RESTART_LAMA";
-const restartLine = {};               // line_code -> {mulai, turunPada, diam}
+const restartLine = {};               // line_code -> {mulai, turunPada, batasMs, hapus}
 
 // Dua bentuk jawaban: Sumber Kamera / Model Deteksi (`direstart`) dan Danger
 // Zone (`ok`; hapus data `belum_mati` tetap `ok`, line itu tetap restart).
@@ -4430,16 +4468,18 @@ function lineDirestart(hasil) {
     .map((r) => r.line_code);
 }
 
-function tandaiRestart(kodeLine, sekarang = Date.now()) {
-  for (const kode of kodeLine) restartLine[kode] = { mulai: sekarang, turunPada: null, diam: 0 };
+// `opsi`: `{}` untuk restart biasa, RESTART_HAPUS untuk hapus data.
+function tandaiRestart(kodeLine, opsi = {}, sekarang = Date.now()) {
+  const batasMs = opsi.batasMs || RESTART_BATAS_MS;
+  const hapus = Boolean(opsi.hapus);
+  for (const kode of kodeLine) restartLine[kode] = { mulai: sekarang, turunPada: null, batasMs, hapus };
   gambarSemuaRestart(sekarang);
 }
 
 // `hasil` probe /health: "hidup", "mati" (koneksi ditolak), "diam" (lewat tenggat).
+// Cuma "mati" yang bukti proses lama hilang; lihat komentar di atas.
 function catatProbe(m, hasil, sekarang) {
-  if (hasil === "hidup") { m.diam = 0; return; }
-  if (hasil === "diam") m.diam += 1;
-  if (m.turunPada === null && (hasil === "mati" || m.diam >= 2)) m.turunPada = sekarang;
+  if (m.turunPada === null && hasil === "mati") m.turunPada = sekarang;
 }
 
 function batasBuktiRestart(m) {
@@ -4452,10 +4492,10 @@ function restartSelesai(m, dimintaPada, lebarGambar) {
 }
 
 // Minta ulang stream begitu line menjawab lagi, lalu tiap RESTART_ULANG_FEED_MS
-// sampai gambar datang. Berhenti di RESTART_BATAS_MS: sesudahnya cekKamera
-// (tiap 5 detik) yang meneruskan, dan gambar darinya tetap menghapus tanda.
+// sampai gambar datang. Berhenti di batas tanda (`m.batasMs`): sesudahnya
+// cekKamera (tiap 5 detik) yang meneruskan, dan gambar darinya tetap menghapus tanda.
 function perluMintaUlangFeed(m, dimintaPada, lineHidup, sekarang) {
-  if (!lineHidup || sekarang - m.mulai > RESTART_BATAS_MS) return false;
+  if (!lineHidup || sekarang - m.mulai > m.batasMs) return false;
   const batas = batasBuktiRestart(m);
   if (sekarang < batas) return false;
   if (typeof dimintaPada !== "number" || dimintaPada < batas) return true;
@@ -4466,19 +4506,26 @@ function teksDetikRestart(m, sekarang) {
   return t("restartDetik").replace("{n}", Math.max(0, Math.floor((sekarang - m.mulai) / 1000)));
 }
 
+// "60 detik" / "10 menit": batas yang ditulis di pesan RESTART_LAMA.
+function teksBatasRestart(ms) {
+  if (ms >= 120000 && ms % 60000 === 0) return t("restartMenit").replace("{n}", ms / 60000);
+  return t("restartDetik").replace("{n}", Math.round(ms / 1000));
+}
+
 // Kerangka kotak TANPA angka detik: angka itu ditulis di elemennya sendiri,
 // jadi kerangka (dan putaran spinner) cuma ditulis ulang saat keadaannya
 // berganti, bukan tiap detik. Angka detik `aria-hidden`: di dalam role=status
 // pembaca layar akan mengumumkannya tiap detik.
 function isiRestart(nama, m, sekarang) {
-  if (sekarang - m.mulai < RESTART_BATAS_MS) {
+  if (sekarang - m.mulai < m.batasMs) {
+    const judul = t(m.hapus ? "restartHapusJudul" : "restartJudul").replace("{line}", nama);
     return `<div class="restart-kotak" role="status"><div class="restart-putar" aria-hidden="true"></div>`
-      + `<b>${esc(t("restartJudul").replace("{line}", nama))}</b><p data-restart-detik aria-hidden="true"></p></div>`;
+      + `<b>${esc(judul)}</b><p data-restart-detik aria-hidden="true"></p></div>`;
   }
   const rinci = t("restartLamaRinci")
     .replace("{kode}", RESTART_KODE)
     .replace("{jam}", jamSinkron(m.mulai / 1000, sekarang / 1000) || KOSONG)
-    .replace("{batas}", RESTART_BATAS_MS / 1000);
+    .replace("{batas}", teksBatasRestart(m.batasMs));
   return `<div class="restart-kotak lama" role="alert"><b>${esc(t("restartLamaJudul").replace("{line}", nama))}</b>`
     + `<p>${esc(rinci)}</p><p data-restart-detik aria-hidden="true"></p></div>`;
 }
@@ -4511,8 +4558,8 @@ function selesaikanRestart(kartu, img, sekarang = Date.now()) {
   return true;
 }
 
-// Tenggat 1,5 detik: probe tiap detik, dan yang lewat tenggat baru dihitung
-// mati kalau berulang (`catatProbe`).
+// Tenggat 1,5 detik, probe tiap detik. Yang lewat tenggat tidak dihitung mati
+// (`catatProbe`).
 async function probeLine(src) {
   try {
     await fetch(new URL("/health", src), {
@@ -4533,11 +4580,13 @@ async function pantauRestart() {
   try {
     await Promise.all(kodeLine.map(async (kode) => {
       const kartu = kartuLineDariKode(kode);
-      const img = kartu && kartu.querySelector(".feed img");
+      // Line yang tidak punya kartu (hilang dari daftar line) tidak akan pernah kembali di layar ini.
+      if (!kartu) { delete restartLine[kode]; return; }
+      const img = kartu.querySelector(".feed img");
       // Line tanpa kotak kamera (port tidak dikenal) tidak punya apa pun untuk ditandai.
-      if (kartu && !img) { delete restartLine[kode]; return gambarRestart(kartu, null, Date.now()); }
+      if (!img) { delete restartLine[kode]; return gambarRestart(kartu, null, Date.now()); }
       const m = restartLine[kode];
-      if (!img || !m) return;
+      if (!m) return;
       const hasil = await probeLine(img.src);
       const sekarang = Date.now();
       if (restartLine[kode] !== m) return; // sudah kembali selama probe berjalan
@@ -4858,6 +4907,7 @@ async function refresh() {
     gambarPitaAlarm(s.lines);
     if (!dipasang) {
       $("lines").innerHTML = s.lines.map(kartuLine).join("");
+      capFeedBaru(Date.now());
       dipasang = true;
       terapkanUrutan();
     } else {
@@ -6667,7 +6717,7 @@ async function jalankanBahaya(aksi, tombol) {
       method: "POST", body: JSON.stringify(body),
     });
     tampilHasilBahaya(aksi, hasil);
-    if (BAHAYA_RESTART.has(aksi)) tandaiRestart(lineDirestart(hasil));
+    if (BAHAYA_RESTART.has(aksi)) tandaiRestart(lineDirestart(hasil), aksi === "restart" ? {} : RESTART_HAPUS);
     tutupPanelBahaya();
     // Logout & hapus semua mengakhiri sesi ini juga: polling berikutnya
     // dijawab 401 dan `api()` membuka gerbang login sendiri.

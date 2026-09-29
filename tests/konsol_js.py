@@ -20,6 +20,8 @@ NODE = shutil.which("node")
 def fungsi(nama: str) -> str:
     """Satu fungsi tingkat atas, sampai baris pertama yang menutupnya."""
     awal = HTML.index(f"function {nama}(")
+    if HTML[awal - 6 : awal] == "async ":
+        awal -= 6
     return HTML[awal : HTML.index("\n}", awal) + 2]
 
 

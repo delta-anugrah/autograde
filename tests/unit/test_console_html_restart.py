@@ -20,7 +20,9 @@ from konsol_js import HTML, NODE, fungsi, jalankan, konstanta
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada")
 
 MULAI = 1_790_000_000_000  # ms; 21.13 WIB
-KONSTANTA = ("RESTART_BATAS_MS", "RESTART_PASTI_MATI_MS", "RESTART_ULANG_FEED_MS", "RESTART_KODE")
+KONSTANTA = ("RESTART_BATAS_MS", "RESTART_HAPUS_BATAS_MS", "RESTART_PASTI_MATI_MS",
+             "RESTART_ULANG_FEED_MS", "RESTART_KODE")
+BATAS_HAPUS = 600_000
 
 
 def _kamus(bahasa: str) -> str:
@@ -33,7 +35,7 @@ def _js(nilai) -> str:
 
 
 def _tanda(**isi) -> str:
-    dasar = {"mulai": MULAI, "turunPada": None, "diam": 0}
+    dasar = {"mulai": MULAI, "turunPada": None, "batasMs": 60_000, "hapus": False}
     return _js({**dasar, **isi})
 
 
@@ -88,7 +90,7 @@ def test_ketiga_aksi_restart_menandai_dari_jawaban_server():
     assert "tandaiRestart(lineDirestart(data))" in model
     bahaya = fungsi("jalankanBahaya")
     assert "BAHAYA_RESTART.has(aksi)" in bahaya
-    assert "tandaiRestart(lineDirestart(hasil))" in bahaya
+    assert "tandaiRestart(lineDirestart(hasil)," in bahaya
 
 
 def test_hapus_rekaman_dan_logout_tidak_merestart_line():
@@ -108,19 +110,19 @@ def test_probe_ditolak_berarti_line_mati_seketika():
 
 
 @butuh_node
-def test_satu_probe_lewat_tenggat_belum_berarti_mati():
-    """Sekali lewat tenggat = line sibuk menulis foto, bukan mati (aturan yang
-    sama dengan Danger Zone). Dua kali berturut-turut baru dihitung mati."""
-    satu = _jalan(["catatProbe"], f"(() => {{ const m = {_tanda()}; catatProbe(m, 'diam', {MULAI + 1000}); return m; }})()")
-    assert satu["turunPada"] is None
-    dua = _jalan(["catatProbe"], (
+def test_probe_lewat_tenggat_tidak_pernah_berarti_mati():
+    """Lewat tenggat = line sibuk (misalnya menguras antrean simpan), bukan mati:
+    proses lama yang masih menutup bisa menjawab "hidup" sesudahnya, dan gambar
+    darinya tidak boleh menghapus tanda. Proses yang macet ditangani batas
+    `RESTART_PASTI_MATI_MS`."""
+    for n in (1, 2, 5):
+        panggil = " ".join(f"catatProbe(m, 'diam', {MULAI + 1000 * (i + 1)});" for i in range(n))
+        hasil = _jalan(["catatProbe"], f"(() => {{ const m = {_tanda()}; {panggil} return m; }})()")
+        assert hasil["turunPada"] is None, n
+    hidup = _jalan(["catatProbe"], (
         f"(() => {{ const m = {_tanda()}; catatProbe(m, 'diam', {MULAI + 1000});"
-        f" catatProbe(m, 'diam', {MULAI + 2000}); return m; }})()"))
-    assert dua["turunPada"] == MULAI + 2000
-    selang = _jalan(["catatProbe"], (
-        f"(() => {{ const m = {_tanda()}; catatProbe(m, 'diam', {MULAI + 1000});"
-        f" catatProbe(m, 'hidup', {MULAI + 2000}); catatProbe(m, 'diam', {MULAI + 3000}); return m; }})()"))
-    assert selang["turunPada"] is None
+        f" catatProbe(m, 'diam', {MULAI + 2000}); catatProbe(m, 'hidup', {MULAI + 3000}); return m; }})()"))
+    assert hidup["turunPada"] is None
 
 
 @butuh_node
@@ -198,9 +200,57 @@ const gambarRestart = () => digambar.push(1);
     assert hasil == [False, 0]
 
 
-def test_listener_load_kartu_menyelesaikan_restart():
+def test_listener_load_kartu_lewat_feed_memuat():
     blok = HTML.split('$("lines").addEventListener("load"', 1)[1].split(", true);", 1)[0]
-    assert "selesaikanRestart(kartu, ev.target)" in blok
+    assert "feedMemuat(ev.target)" in blok
+
+
+@butuh_node
+def test_load_tanpa_gambar_tidak_menghapus_offline():
+    """Firefox menembakkan `load` juga untuk keep-alive kosong line tanpa kamera
+    (naturalWidth 0): tanpa penjaga, kartu berkedip antara "Kamera tidak
+    tersambung" dan kotak hitam."""
+    stub = """
+const dilepas = [];
+const diselesaikan = [];
+const selesaikanRestart = (kartu, img) => diselesaikan.push(img.naturalWidth);
+const buatImg = (lebar) => ({ naturalWidth: lebar, closest: () => ({
+  classList: { remove: (k) => dilepas.push([lebar, k]) } }) });
+"""
+    hasil = _jalan(["feedMemuat"], (
+        "(feedMemuat(buatImg(0)), feedMemuat(buatImg(1280)), [dilepas, diselesaikan])"), tambahan=stub)
+    assert hasil == [[[1280, "putus"]], [1280]]
+
+
+# ── render ulang kartu (ganti bahasa, daftar truk, login) ─────────────────
+
+
+@butuh_node
+def test_img_baru_dari_render_ulang_dicap_dan_frame_segarnya_menghapus_tanda():
+    """Render ulang membuat `<img>` baru = permintaan stream baru saat itu juga.
+    Tanpa cap waktu, gambarnya tidak pernah dihitung bukti: sesudah 60 detik
+    pengulangan berhenti, cekKamera diam karena gambar tampil, dan kotak merah
+    RESTART_LAMA menempel di atas video yang sehat sampai halaman dimuat ulang."""
+    stub = f"""
+const restartLine = {{ "line-2": {_tanda(turunPada=MULAI + 4000)} }};
+const digambar = [];
+const gambarSemuaRestart = (t) => digambar.push(t);
+const gambarRestart = (kartu, m) => digambar.push(m);
+const img = {{ naturalWidth: 0 }};
+const $ = () => ({{ querySelectorAll: (sel) => (sel === ".feed img" ? [img] : []) }});
+const kartu = {{ dataset: {{ line: "line-2" }} }};
+"""
+    fn = ["capFeedBaru", "batasBuktiRestart", "restartSelesai", "selesaikanRestart"]
+    hasil = _jalan(fn, (
+        f"(() => {{ capFeedBaru({MULAI + 90_000}); const cap = img._dimintaPada;"
+        f" img.naturalWidth = 1280; const r = selesaikanRestart(kartu, img, {MULAI + 91_000});"
+        " return [cap, digambar[0], r, Object.keys(restartLine)]; })()"), tambahan=stub)
+    assert hasil == [MULAI + 90_000, MULAI + 90_000, True, []]
+
+
+def test_render_ulang_kartu_langsung_mencap_feed_dan_menggambar_tanda():
+    blok = fungsi("refresh").split('$("lines").innerHTML = s.lines.map(kartuLine).join("");', 1)[1]
+    assert blok.lstrip().startswith("capFeedBaru(Date.now());")
 
 
 # ── video kembali tanpa memuat ulang halaman ─────────────────────────────
@@ -260,6 +310,18 @@ def test_cek_kamera_dan_restart_memakai_satu_cara_minta_ulang():
     assert "catatProbe(" in pantau
 
 
+@butuh_node
+def test_tanda_line_tanpa_kartu_dibuang():
+    stub = f"""
+const restartLine = {{ "line-9": {_tanda()} }};
+const kartuLineDariKode = () => null;
+const gambarSemuaRestart = () => {{}};
+const probeLine = async () => "hidup";
+let restartSibuk = false;
+"""
+    assert _jalan(["pantauRestart"], "(pantauRestart(), Object.keys(restartLine))", tambahan=stub) == []
+
+
 def test_pemantau_restart_jalan_tiap_detik():
     assert "setInterval(pantauRestart, 1000)" in HTML
 
@@ -273,7 +335,7 @@ def test_pemantau_restart_jalan_tiap_detik():
     ("en", "Line 2 is restarting", "12 s"),
 ])
 def test_kotak_kamera_selama_restart(bahasa, judul, detik):
-    fn = ["jamSinkron", "isiRestart", "teksDetikRestart"]
+    fn = ["jamSinkron", "isiRestart", "teksDetikRestart", "teksBatasRestart"]
     html = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 12_400})", bahasa=bahasa)
     assert judul in html
     assert 'class="restart-putar"' in html
@@ -284,13 +346,13 @@ def test_kotak_kamera_selama_restart(bahasa, judul, detik):
 
 @butuh_node
 @pytest.mark.parametrize("bahasa,potongan", [
-    ("id", ["Line 2 belum kembali", "Kode RESTART_LAMA", "21.13", "60 detik",
+    ("id", ["Line 2 belum kembali", "Kode RESTART_LAMA", "21.13", "lewat 60 detik",
             "Cek tab Log dan terminal line itu"]),
-    ("en", ["Line 2 has not come back", "Code RESTART_LAMA", "21:13", "60 seconds",
+    ("en", ["Line 2 has not come back", "Code RESTART_LAMA", "21:13", "After 60 s",
             "Check the Log tab and that line's terminal"]),
 ])
 def test_lewat_60_detik_spinner_diganti_pesan_rinci(bahasa, potongan):
-    fn = ["jamSinkron", "isiRestart", "teksDetikRestart"]
+    fn = ["jamSinkron", "isiRestart", "teksDetikRestart", "teksBatasRestart"]
     html = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 61_000})", bahasa=bahasa)
     for p in potongan:
         assert p in html.replace("&#39;", "'"), (p, html)
@@ -303,7 +365,7 @@ def test_isi_kotak_tidak_berubah_tiap_detik_supaya_spinner_tidak_tersentak():
     """Detik ditulis di elemennya sendiri. Kalau angka detik ikut di kerangka,
     `tulisKalauBeda` menulis ulang spinner tiap detik dan putarannya mulai dari
     awal lagi."""
-    fn = ["jamSinkron", "isiRestart", "teksDetikRestart"]
+    fn = ["jamSinkron", "isiRestart", "teksDetikRestart", "teksBatasRestart"]
     a = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 3000})")
     b = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 9000})")
     assert a == b
@@ -314,7 +376,7 @@ def test_isi_kotak_tidak_berubah_tiap_detik_supaya_spinner_tidak_tersentak():
 
 @butuh_node
 def test_nama_line_di_escape():
-    html = _jalan(["jamSinkron", "isiRestart", "teksDetikRestart"],
+    html = _jalan(["jamSinkron", "isiRestart", "teksDetikRestart", "teksBatasRestart"],
                   f"isiRestart('<b>x</b>', {_tanda()}, {MULAI})")
     assert "<b>x</b>" not in html and "&lt;b&gt;" in html
 
@@ -351,5 +413,48 @@ def test_spinner_css_murni_tanpa_gambar():
 def test_kunci_kamus_ada_di_kedua_bahasa():
     for bahasa in ("id", "en"):
         isi = _kamus(bahasa)
-        for kunci in ("restartJudul", "restartDetik", "restartLamaJudul", "restartLamaRinci"):
+        for kunci in ("restartJudul", "restartHapusJudul", "restartDetik", "restartMenit",
+                      "restartLamaJudul", "restartLamaRinci"):
             assert f"{kunci}:" in isi, (bahasa, kunci)
+
+
+# ── hapus data: line menghapus foto saat boot, bisa bermenit-menit ────────
+
+
+@butuh_node
+def test_tanda_membawa_batasnya_sendiri():
+    stub = "const restartLine = {}; const gambarSemuaRestart = () => {};"
+    hasil = _jalan(["tandaiRestart"], (
+        f"(tandaiRestart(['line-1'], {{}}, {MULAI}),"
+        f" tandaiRestart(['line-2'], {{ batasMs: RESTART_HAPUS_BATAS_MS, hapus: true }}, {MULAI}),"
+        " restartLine)"), tambahan=stub)
+    assert hasil["line-1"] == {"mulai": MULAI, "turunPada": None, "batasMs": 60_000, "hapus": False}
+    assert hasil["line-2"] == {"mulai": MULAI, "turunPada": None, "batasMs": BATAS_HAPUS, "hapus": True}
+
+
+def test_hapus_data_ditandai_dengan_batas_sepuluh_menit():
+    assert "const RESTART_HAPUS_BATAS_MS = 600000;" in HTML
+    bahaya = fungsi("jalankanBahaya")
+    assert 'tandaiRestart(lineDirestart(hasil), aksi === "restart" ? {} : RESTART_HAPUS)' in bahaya
+
+
+@butuh_node
+@pytest.mark.parametrize("bahasa,judul,lama", [
+    ("id", "Line 2 sedang menghapus data lalu dinyalakan ulang", "lewat 10 menit"),
+    ("en", "Line 2 is deleting its data, then restarting", "After 10 min"),
+])
+def test_hapus_data_tetap_spinner_sampai_sepuluh_menit(bahasa, judul, lama):
+    fn = ["jamSinkron", "isiRestart", "teksDetikRestart", "teksBatasRestart"]
+    m = _tanda(batasMs=BATAS_HAPUS, hapus=True)
+    lima_menit = _jalan(fn, f"isiRestart('Line 2', {m}, {MULAI + 300_000})", bahasa=bahasa)
+    assert judul in lima_menit and "restart-putar" in lima_menit
+    habis = _jalan(fn, f"isiRestart('Line 2', {m}, {MULAI + BATAS_HAPUS})", bahasa=bahasa)
+    assert "RESTART_LAMA" in habis and lama in habis, habis
+
+
+@butuh_node
+def test_hapus_data_tetap_diminta_ulang_lewat_60_detik():
+    fn = ["batasBuktiRestart", "perluMintaUlangFeed"]
+    m = _tanda(turunPada=MULAI + 4000, batasMs=BATAS_HAPUS, hapus=True)
+    assert _jalan(fn, f"perluMintaUlangFeed({m}, {MULAI + 5000}, true, {MULAI + 300_000})") is True
+    assert _jalan(fn, f"perluMintaUlangFeed({m}, {MULAI + 5000}, true, {MULAI + BATAS_HAPUS + 1})") is False

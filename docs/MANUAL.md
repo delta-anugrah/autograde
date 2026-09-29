@@ -145,13 +145,15 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   = line itu sedang restart karena support menyimpan Sumber Kamera atau Model Deteksi, atau
   menekan Restart / Hapus data di Danger Zone. Hilang sendiri begitu gambar kamera muncul lagi,
   tanpa memuat ulang halaman. Lewat 60 detik berganti jadi kotak merah **Line N belum kembali**
-  (kode `RESTART_LAMA`, jam restart diminta): cek tab Log dan terminal line itu. Sesudah hapus
-  data, kotak merah ini bisa wajar selama beberapa menit (line sedang menghapus fotonya). Tanda
-  ini tampil di layar tempat tombolnya ditekan (biasanya PC pabrik lewat AnyDesk); layar lain
-  cuma melihat kartu OFFLINE lalu ONLINE lagi.
+  (kode `RESTART_LAMA`, jam restart diminta): cek tab Log dan terminal line itu. Hapus data
+  menulis **Line N sedang menghapus data lalu dinyalakan ulang** dan menunggu sampai 10 menit
+  sebelum kotak merah, karena line menghapus fotonya dulu sebelum menyala. Tanda ini tampil di
+  layar tempat tombolnya ditekan (biasanya PC pabrik lewat AnyDesk); layar lain cuma melihat
+  kartu OFFLINE lalu ONLINE lagi.
 - **Notifikasi di pojok kanan bawah** menutup sendiri: hijau dan kuning 5 detik, merah dan hasil
   Danger Zone yang perlu dibaca 10 detik. Selama kursor di atasnya hitungannya berhenti, jadi
-  kalimat panjang bisa dibaca sampai habis; tombol × menutupnya kapan saja.
+  kalimat panjang bisa dibaca sampai habis, tapi tidak ada yang bertahan lebih dari 30 detik;
+  tombol × menutupnya kapan saja.
 - **Reject manual tanpa mouse**: tahan `Spasi` lalu tekan `1` / `2` / `3` sesuai line.
 - **Piston manual** per line (Buka / Tutup) kalau PLC aktif. Ada konfirmasi karena ini
   menggerakkan besi sungguhan.
@@ -800,7 +802,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
-| 1.8 | 29 September 2026 | §3.2: kotak kamera line yang sedang restart (Sumber Kamera, Model Deteksi, Danger Zone) memberi spinner dan hitungan detik, videonya kembali tanpa memuat ulang halaman, dan lewat 60 detik berganti pesan `RESTART_LAMA`. Notifikasi pojok tidak ada lagi yang menunggu ditutup: paling lama 10 detik, berhenti selama kursor di atasnya (§3.7). |
+| 1.8 | 29 September 2026 | §3.2: kotak kamera line yang sedang restart (Sumber Kamera, Model Deteksi, Danger Zone) memberi spinner dan hitungan detik, videonya kembali tanpa memuat ulang halaman, dan lewat 60 detik (hapus data: 10 menit) berganti pesan `RESTART_LAMA`. Notifikasi pojok tidak ada lagi yang menunggu ditutup: paling lama 10 detik, berhenti selama kursor di atasnya, maksimal 30 detik (§3.2). |
 | 1.7 | 28 September 2026 | Restart dan hapus data dari konsol menutup line dengan rapi (coil PLC mati, antrean simpan habis); foto dan sidecar ditulis tahan listrik padam; foto 0 byte lama tidak diunggah. Tab Status punya bagian **Antrean line**: antrean janjang tiap line ke konsol tidak lagi menyerah sesudah 50 percobaan, dan bisa dilihat serta dikirim ulang dari layar; janjang yang ditolak konsol terbaca "DITOLAK konsol" dan dikeluarkan dengan tangan (§7.1). Kartu line jadi merah kalau AI berhenti memproses gambar (§7). §7: tanda **Cek AutoERP** di tab Timbangan untuk janjang susulan pada tiket AutoERP yang sudah final, dan baris antrean ERP `HTTP 500` beramplop Frappe. |
 | 1.6 | 28 September 2026 | ONBOARDING digabung ke sini (§9.1 folder, §9.2 langkah pertama) lalu dihapus; port konsol ditulis dua cara pasang (8100 image produksi, 8000 dari source); §5.11 Lampung per 28 September; aturan image GHCR dan alur rilis diperbarui. |
 | 1.5 | 28 September 2026 | Tab digabung dari 15 jadi 9: **Rekap** = Rekap + Riwayat (dibuka di Hari ini, Per truk), **Status** = Versi + Diagnostik + Antrean ERP, **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video. §3.4 dan §3.5 ditulis ulang. |
