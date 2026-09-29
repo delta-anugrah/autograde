@@ -199,7 +199,14 @@ def test_konsol_bermasalah_ketiga_beruntun_memutus():
 
 
 def test_hitungan_beruntun_2xx_mengosongkan_ditolak_tidak_mengubah_bermasalah_menambah():
-    assert gagal_beruntun_sesudah(_TERKIRIM, 2) == 0
-    assert gagal_beruntun_sesudah(_DITOLAK, 2) == 2
-    assert gagal_beruntun_sesudah(_GALAT, 2) == 3
-    assert gagal_beruntun_sesudah(_GALAT, 0) == 1
+    dua = frozenset({"a", "b"})
+    assert gagal_beruntun_sesudah(_TERKIRIM, dua, "c") == frozenset()
+    assert gagal_beruntun_sesudah(_DITOLAK, dua, "c") == dua
+    assert gagal_beruntun_sesudah(_GALAT, dua, "c") == {"a", "b", "c"}
+    assert gagal_beruntun_sesudah(_GALAT, frozenset(), "a") == {"a"}
+
+
+def test_baris_yang_sama_gagal_lagi_tidak_menambah_hitungan_beruntun():
+    """Satu baris racun di pabrik sepi gagal berkali-kali tanpa 2xx di antaranya: itu
+    masalah baris itu, bukan tiga bukti bahwa konsolnya yang bermasalah."""
+    assert gagal_beruntun_sesudah(_GALAT, frozenset({"racun"}), "racun") == {"racun"}

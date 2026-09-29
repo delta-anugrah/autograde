@@ -23,10 +23,12 @@ JEDA_BARIS_MAKS_S = 600.0
 #: kali semenit, dan kembalinya ketahuan dalam 30 detik.
 JEDA_SAMBUNGAN_DASAR_S = 5.0
 JEDA_SAMBUNGAN_MAKS_S = 30.0
-#: Jawaban "konsol bermasalah" berturut-turut (tanpa 2xx di antaranya) yang membuat
-#: sambungan diputus walau konsol sudah menerima janjang lain di sambungan ini.
-#: Satu atau dua = baris racun; tiga = konsolnya (disk penuh menjawab 500 untuk
-#: semua), dan menguras ribuan baris ke konsol seperti itu cuma membanjiri log.
+#: BARIS BERBEDA yang dijawab "konsol bermasalah" berturut-turut (tanpa 2xx di
+#: antaranya) yang membuat sambungan diputus walau konsol sudah menerima janjang lain
+#: di sambungan ini. Satu atau dua = baris racun; tiga baris berbeda = konsolnya
+#: (disk penuh menjawab 500 untuk semua), dan menguras ribuan baris ke konsol seperti
+#: itu cuma membanjiri log. Baris yang sama dihitung sekali: di pabrik sepi satu racun
+#: gagal berkali-kali tanpa 2xx di antaranya, dan itu tetap masalah barisnya.
 GAGAL_BERUNTUN_PUTUS = 3
 #: Tanpa batas nyerah `ke` bisa jutaan, dan 2**jutaan adalah bilangan ratusan ribu
 #: digit yang dihitung ulang tiap gagal. 2**30 sudah jauh melewati maks mana pun.
@@ -97,11 +99,12 @@ class Akibat(Enum):
 def akibat_jawaban(putusan: Putusan, *, gagal_beruntun: int, sudah_terkirim: bool) -> Akibat:
     """Akibat satu jawaban konsol bagi sambungan. Galat jaringan tidak lewat sini: selalu putus.
 
-    `gagal_beruntun` = jawaban "konsol bermasalah" beruntun SEBELUM jawaban ini
-    (`gagal_beruntun_sesudah`), `sudah_terkirim` = konsol sudah menjawab 2xx di
+    `gagal_beruntun` = baris LAIN yang dijawab "konsol bermasalah" beruntun SEBELUM
+    jawaban ini (`len(gagal_beruntun_sesudah(...) - {baris ini})`), `sudah_terkirim`
+    = konsol sudah menjawab 2xx di
     sambungan ini. "Konsol bermasalah" memutus sambungan kalau (a) belum ada 2xx
     di sambungan ini (percobaan sambungan, atau kiriman pertama sesudah pulih),
-    atau (b) jawaban ini yang ke-`GAGAL_BERUNTUN_PUTUS` berturut-turut. Selain
+    atau (b) baris ini baris berbeda ke-`GAGAL_BERUNTUN_PUTUS` berturut-turut. Selain
     itu masalah baris: satu atau dua janjang racun yang selalu memicu 500
     mundur sendiri tanpa memutus sambungan. Dulu (review Task 3) racun itu
     memutus sambungan, janjang baru berikutnya menyambungkannya lagi, dan sambung
@@ -116,14 +119,15 @@ def akibat_jawaban(putusan: Putusan, *, gagal_beruntun: int, sudah_terkirim: boo
     return Akibat.BARIS_GAGAL
 
 
-def gagal_beruntun_sesudah(putusan: Putusan, sebelumnya: int) -> int:
-    """Hitungan "konsol bermasalah" beruntun sesudah jawaban ini: 2xx mengosongkan,
-    penolakan baris (4xx lain) tidak mengubah, "konsol bermasalah" menambah satu."""
+def gagal_beruntun_sesudah(putusan: Putusan, sebelumnya: frozenset[str], event_id: str) -> frozenset[str]:
+    """Baris (`event_id`) yang dijawab "konsol bermasalah" beruntun sesudah jawaban ini:
+    2xx mengosongkan, penolakan baris (4xx lain) tidak mengubah, "konsol bermasalah"
+    menambahkan baris ini (baris yang sama tidak dihitung dua kali)."""
     if putusan.nasib is Nasib.TERKIRIM:
-        return 0
+        return frozenset()
     if putusan.nasib is Nasib.DITOLAK:
         return sebelumnya
-    return sebelumnya + 1
+    return sebelumnya | {event_id}
 
 
 def waktu_janjang(payload: str, cadangan: float) -> float:

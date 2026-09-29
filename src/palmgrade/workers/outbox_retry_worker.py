@@ -16,8 +16,9 @@ dibedakan (`domain/kirim_antrean_line.py`):
 
 Jawaban "konsol bermasalah" (5xx, kunci, alamat) memutus sambungan kalau belum
 ada 2xx di sambungan ini (percobaan sambungan, atau kiriman pertama sesudah
-pulih) atau kalau itu yang ke-`GAGAL_BERUNTUN_PUTUS` (3) berturut-turut tanpa 2xx
-di antaranya. Selain itu dia masalah BARIS itu: barisnya mundur sendiri,
+pulih) atau kalau itu baris BERBEDA ke-`GAGAL_BERUNTUN_PUTUS` (3) berturut-turut tanpa
+2xx di antaranya (baris yang sama dihitung sekali: di pabrik sepi satu racun gagal
+berulang tanpa 2xx di antaranya). Selain itu dia masalah BARIS itu: barisnya mundur sendiri,
 pengurasan lanjut, tidak ada WARNING putus (`akibat_jawaban`). Satu atau dua
 janjang racun tidak lagi membuat sambungan putus-sambung tiap janjang baru
 (review Task 3: 511 POST dan 601 WARNING per jam), dan konsol yang menjawab 500
@@ -103,7 +104,7 @@ class OutboxRetryWorker:
         self._bangun_awal_putaran = 0
         #: Dua masukan `akibat_jawaban`, keduanya milik sambungan yang sedang hidup.
         self._terkirim_di_sambungan_ini = False
-        self._gagal_beruntun = 0
+        self._gagal_beruntun: frozenset[str] = frozenset()
         #: event_id yang penolakannya sudah di-WARNING di proses ini (sesudahnya DEBUG).
         self._sudah_diperingatkan: set[str] = set()
 
@@ -179,9 +180,11 @@ class OutboxRetryWorker:
             return False
         putusan = nilai_jawaban(res.status_code, res.text)
         akibat = akibat_jawaban(
-            putusan, gagal_beruntun=self._gagal_beruntun, sudah_terkirim=self._terkirim_di_sambungan_ini
+            putusan,
+            gagal_beruntun=len(self._gagal_beruntun - {row["event_id"]}),
+            sudah_terkirim=self._terkirim_di_sambungan_ini,
         )
-        self._gagal_beruntun = gagal_beruntun_sesudah(putusan, self._gagal_beruntun)
+        self._gagal_beruntun = gagal_beruntun_sesudah(putusan, self._gagal_beruntun, row["event_id"])
         if akibat is Akibat.TERKIRIM:
             self.outbox.mark_delivered(row["id"])
             self._sudah_diperingatkan.discard(row["event_id"])
@@ -228,7 +231,7 @@ class OutboxRetryWorker:
             if self._bangun_ke != self._bangun_awal_putaran:
                 self._sambungan.bangunkan()  # Kirim Ulang ditekan selama percobaan ini
         self._terkirim_di_sambungan_ini = False
-        self._gagal_beruntun = 0
+        self._gagal_beruntun = frozenset()
         self._catat_galat(galat)
         self.outbox.mark_failed_attempt(row["id"], galat)
         if kabar_baru:

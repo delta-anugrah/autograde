@@ -293,6 +293,27 @@ def test_dua_baris_racun_berturut_turut_tidak_membuat_sambungan_berkedip(rakit, 
     assert worker.status()["tersambung"] is True
 
 
+def test_satu_baris_racun_di_pabrik_sepi_tidak_memutus_sambungan(rakit, monkeypatch, caplog):
+    """Parkiran Task 3: pabrik diam, satu janjang yang selalu dijawab 500. Tanpa janjang
+    baru tidak ada 2xx di antara percobaannya, jadi baris yang SAMA terhitung tiga kali
+    beruntun dan sambungan diputus: WARNING palsu "konsol tidak bisa dikirimi" dan
+    racun itu jadi penguji sambungan tiap 30 detik. Yang dihitung sekarang baris BERBEDA."""
+    worker, store, konsol, jam = rakit()
+    monkeypatch.setattr(modul_outbox_store, "time", SimpleNamespace(time=jam))
+    _isi(store, 1)
+    store.add_event("racun", "m-1", {"event_id": "racun", "timestamp": "2026-09-20T03:00:00+00:00"})
+    konsol.jawab["racun"] = 500
+
+    with caplog.at_level(logging.DEBUG, logger=outbox_retry_worker.__name__):
+        for _ in range(3600):
+            worker._flush_pending()
+            jam.maju(1)
+
+    assert _warning_sambungan(caplog) == []
+    assert worker.status()["tersambung"] is True
+    assert konsol.diminta.count("racun") <= 15
+
+
 def test_konsol_500_untuk_semua_sesudah_satu_2xx_putus_setelah_tiga(rakit, monkeypatch, caplog):
     """Konsol menerima satu janjang lalu menjawab 500 untuk semuanya (disk penuh).
     Tanpa pemutus beruntun ini menguras 2000 baris sekaligus, satu WARNING per baris
