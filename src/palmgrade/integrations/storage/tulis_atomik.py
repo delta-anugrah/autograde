@@ -96,7 +96,9 @@ def _fsync_folder(folder: Path) -> None:
     """
     try:
         fd = os.open(folder, os.O_RDONLY)
-    except OSError:
+    except OSError as e:
+        if e.errno not in _FSYNC_FOLDER_DITOLAK:
+            logger.warning("buka folder %s untuk fsync gagal (errno %s): %s", folder, e.errno, e)
         return
     try:
         os.fsync(fd)

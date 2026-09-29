@@ -113,7 +113,7 @@ def test_izin_mengikuti_umask_bukan_0600(tmp_path):
     assert stat.S_IMODE(tujuan.stat().st_mode) == 0o666 & ~umask
 
 
-def test_gagal_fsync_lalu_gagal_bersihkan_sementara_tetap_lempar_galat_asli():
+def test_gagal_fsync_lalu_gagal_bersihkan_sementara_tetap_lempar_galat_asli(tmp_path):
     """Review round 1, IMPORTANT 1.
 
     `fsync` gagal dengan errno tertentu, lalu `unlink` pembersihannya gagal
@@ -128,7 +128,7 @@ def test_gagal_fsync_lalu_gagal_bersihkan_sementara_tetap_lempar_galat_asli():
          patch.object(Path, "unlink", side_effect=OSError(errno.EROFS, "read-only")), \
          patch("os.replace") as replace_mock:
         with pytest.raises(OSError) as exc:
-            tulis_atomik(Path("/tmp/tidak-akan-terpakai/a.json"), b"isi")
+            tulis_atomik(tmp_path / "a.json", b"isi")
 
     assert exc.value.errno == errno.ENOSPC
     replace_mock.assert_not_called()
@@ -190,15 +190,6 @@ def test_fsync_folder_error_lain_dicatat_tapi_tidak_melempar(tmp_path, monkeypat
 
     asli_fsync = os.fsync
 
-    def fsync_eio_untuk_folder(fd):
-        try:
-            jalur = Path(f"/proc/self/fd/{fd}") if os.name != "nt" else None
-        except Exception:
-            jalur = None
-        if jalur is None or not jalur.exists():
-            raise OSError(errno.EIO, "I/O error")
-        return asli_fsync(fd)
-
     tujuan = tmp_path / "a.json"
 
     def fsync_folder_saja_eio(fd):
@@ -212,5 +203,94 @@ def test_fsync_folder_error_lain_dicatat_tapi_tidak_melempar(tmp_path, monkeypat
         tulis_atomik(tujuan, b"isi")
 
     assert tujuan.read_bytes() == b"isi"
-    assert any(str(tmp_path) in rec.message or "EIO" in rec.message or "fsync" in rec.message
-               for rec in caplog.records)
+    peringatan = [rec for rec in caplog.records if rec.levelno == logging.WARNING]
+    assert any(str(tmp_path) in rec.message and "EIO" in rec.message for rec in peringatan) \
+        or any(str(tmp_path) in rec.message and str(errno.EIO) in rec.message for rec in peringatan)
+
+
+def test_fsync_folder_errno_diabaikan_tidak_mencatat_apa_pun(tmp_path, monkeypatch, caplog):
+    """Review round 2, MINOR 2, kasus negatif.
+
+    EINVAL adalah salah satu errno yang berarti filesystem ini menolak fsync
+    folder sama sekali, itu perilaku normal (bukan sinyal ada yang salah):
+    tidak boleh mencatat apa pun, supaya WARNING benar-benar berarti sesuatu
+    yang perlu dilihat, bukan noise yang muncul di setiap filesystem yang
+    menolaknya."""
+    import logging
+
+    asli_fsync = os.fsync
+
+    tujuan = tmp_path / "a.json"
+
+    def fsync_folder_saja_einval(fd):
+        st = os.fstat(fd)
+        if stat.S_ISDIR(st.st_mode):
+            raise OSError(errno.EINVAL, "Invalid argument")
+        return asli_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", fsync_folder_saja_einval)
+    with caplog.at_level(logging.WARNING):
+        tulis_atomik(tujuan, b"isi")
+
+    assert tujuan.read_bytes() == b"isi"
+    assert caplog.records == []
+
+
+def test_fsync_folder_gagal_membuka_errno_tak_terduga_dicatat_tapi_tidak_melempar(
+    tmp_path, monkeypatch, caplog
+):
+    """Review round 2, MINOR 3.
+
+    `_fsync_folder` membuka foldernya dulu (`os.open(folder, os.O_RDONLY)`)
+    sebelum bisa `fsync`. Cabang itu dulu selalu pulang diam-diam untuk
+    `OSError` apa pun (`return` tanpa mencatat), padahal errno tak terduga di
+    sini (mis. EMFILE karena kehabisan file descriptor, atau EIO) sama
+    pentingnya untuk dilihat dengan errno tak terduga di cabang `fsync` itu
+    sendiri. Tidak boleh melempar: berkasnya sudah dapat nama akhirnya lewat
+    `os.replace` sebelum titik ini dipanggil."""
+    import logging
+
+    asli_open = os.open
+
+    tujuan = tmp_path / "a.json"
+
+    def open_folder_saja_emfile(path, flags, mode=0o777):
+        if Path(path) == tmp_path and flags == os.O_RDONLY:
+            raise OSError(errno.EMFILE, "Too many open files")
+        return asli_open(path, flags, mode)
+
+    monkeypatch.setattr(os, "open", open_folder_saja_emfile)
+    with caplog.at_level(logging.WARNING):
+        tulis_atomik(tujuan, b"isi")
+
+    assert tujuan.read_bytes() == b"isi"
+    peringatan = [rec for rec in caplog.records if rec.levelno == logging.WARNING]
+    assert any(str(tmp_path) in rec.message and str(errno.EMFILE) in rec.message
+               for rec in peringatan)
+
+
+def test_fsync_folder_gagal_membuka_errno_diabaikan_tidak_mencatat_apa_pun(
+    tmp_path, monkeypatch, caplog
+):
+    """Review round 2, MINOR 3, kasus negatif.
+
+    EACCES saat membuka foldernya untuk fsync adalah cara sebagian
+    filesystem/sandbox menolak, sama seperti errno yang diabaikan saat fsync
+    itu sendiri berhasil dibuka: tidak boleh mencatat apa pun."""
+    import logging
+
+    asli_open = os.open
+
+    tujuan = tmp_path / "a.json"
+
+    def open_folder_saja_eacces(path, flags, mode=0o777):
+        if Path(path) == tmp_path and flags == os.O_RDONLY:
+            raise OSError(errno.EACCES, "Permission denied")
+        return asli_open(path, flags, mode)
+
+    monkeypatch.setattr(os, "open", open_folder_saja_eacces)
+    with caplog.at_level(logging.WARNING):
+        tulis_atomik(tujuan, b"isi")
+
+    assert tujuan.read_bytes() == b"isi"
+    assert caplog.records == []
