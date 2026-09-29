@@ -400,7 +400,7 @@
   #tally .bar { height:12px; border:1px solid var(--line); border-radius:var(--r-pill);
                 background:var(--rej-bg); overflow:hidden; }
   #tally .bar span { display:block; height:100%; width:0; border-radius:var(--r-pill); background:var(--acc); transition:width .4s ease; }
-  /* Neto timbangan hari ini, di kanan rasio. Angkanya seukuran persen rasio
+  /* Data timbangan hari ini (neto + tiket), di kanan rasio. Angkanya seukuran persen rasio
      supaya dua angka ringkasan itu terbaca setara dari jauh. */
   #tally .timbang { display:flex; flex-direction:column; justify-content:center; gap:4px;
                     padding:10px 16px; border-left:1px solid var(--line); min-width:10rem; }
@@ -532,7 +532,7 @@
   /* Tombol Tambah akun berdiri sendiri di atas, tanpa kotak `.tools`: kotak itu
      dirancang menempel ke tabel di bawahnya, dan di sini yang di bawahnya form. */
   .akun-alat { display:flex; gap:8px; flex-wrap:wrap; margin:0 var(--pad) 12px; }
-  .akun-alat button { flex:0 0 auto; min-width:12rem; min-height:2.6rem; }
+  .akun-alat button { min-height:2.6rem; }
   #akun-tambah { margin-bottom:12px; }
   /* `.setelan-form` memakai display:grid, yang mengalahkan `[hidden]` bawaan browser:
      tanpa baris ini form tidak pernah tertutup (ketemu di browser 2026-09-26). */
@@ -540,7 +540,7 @@
   #akun-tambah .setelan-grup-isi { padding:0; }
   #akun-tambah input, #akun-tambah select { max-width:22rem; }
   .akun-form-tombol { display:flex; gap:8px; flex-wrap:wrap; }
-  .akun-form-tombol button { flex:0 0 10rem; min-height:2.6rem; }
+  .akun-form-tombol button { min-height:2.6rem; }
   .akun-form-catatan { margin:0; }
   .akun-pesan { margin:0; padding:8px 10px; border-radius:var(--r);
                 background:var(--warn-bg); color:var(--warn); }
@@ -567,10 +567,17 @@
   .akun-panel.awas { border-left-color:var(--rej); }
   .akun-panel p { flex:1 1 100%; margin:0; }
   .akun-panel input { flex:0 1 14rem; min-width:0; }
-  .akun-panel button { flex:0 0 auto; min-width:8rem; }
-  .akun-panel .sandi-lihat { min-width:0; }
   .akun-panel.awas button[data-akun-jalankan] { background:var(--rej); border-color:var(--rej);
                                                  color:#fff; }
+  /* Semua tombol aksi tab Akun selebar SAMA (permintaan operator 2026-09-29): tombol per
+     baris, Tambah akun, form, dan panel konfirmasi. Dulu empat lebar (12rem, 10rem, 8rem,
+     dan selebar label), jadi Ganti sandi / Matikan / Jadikan operator bergerigi di tiap
+     baris. Lebarnya muat label terpanjang dua bahasa ("Jadikan operator", "Yes, switch
+     off") tanpa membungkus. Tombol Lihat di kolom sandi bukan tombol aksi. */
+  #sec-akun { --lebar-tombol-akun:11.5rem; }
+  #sec-akun :is(.akun-alat, .akun-form-tombol, .akun-tombol, .akun-panel) button:not(.sandi-lihat) {
+    flex:0 0 var(--lebar-tombol-akun); width:var(--lebar-tombol-akun); min-width:0;
+    white-space:nowrap; text-align:center; }
 
   /* Camera state in a word, not only a colour, and in the title bar where it is
      readable even when the feed itself is a black box. `.putus` lives on the
@@ -601,16 +608,31 @@
   .card.putus .feed span { display:grid; }
   /* Line yang sedang dinyalakan ulang (Sumber Kamera, Model Deteksi, Danger
      Zone): di atas "Kamera tidak tersambung", karena selama restart itu memang
-     bukan kerusakan. Spinner CSS murni, tanpa gambar: konsol harus jalan offline. */
+     bukan kerusakan. Spinner dan bar CSS murni, tanpa gambar: konsol harus jalan offline. */
   .feed .restart-kotak { position:absolute; inset:0; z-index:5; display:grid; place-content:center;
                          justify-items:center; gap:8px; padding:16px; text-align:center; color:#fff;
                          background:rgba(0,0,0,.8); }
+  /* Selama spinner tampil, tulisan "Kamera tidak tersambung" tidak ikut tembus di
+     belakangnya (permintaan operator 2026-09-29: "cukup loadingnya aja"). Kelasnya
+     dipasang `gambarRestart` dan hilang saat tanda hilang atau berganti kotak merah,
+     jadi kamera yang benar-benar putus sesudahnya tetap terbaca. Harus SESUDAH
+     `.card.putus .feed span`: spesifisitasnya sama. */
+  .card.sedang-restart .feed > span { display:none; }
   .feed .restart-kotak b { font-size:1.15rem; }
   .feed .restart-kotak p { margin:0; }
-  .feed .restart-kotak [data-restart-detik] { font-family:var(--mono); font-variant-numeric:tabular-nums; opacity:.85; }
   .feed .restart-kotak.lama { background:var(--danger-bg); color:var(--danger-fg); }
   .restart-putar { width:2.6rem; height:2.6rem; border:4px solid currentColor; border-right-color:transparent;
                    border-radius:50%; animation:putar-sibuk .9s linear infinite; }
+  /* Bar berjalan tanpa angka di bawah judul: restart tidak punya persen yang jujur,
+     jadi yang ditunjukkan cuma "masih diproses" (dulu hitungan detik). */
+  .restart-bar { position:relative; width:min(14rem, 70%); height:.4rem; overflow:hidden;
+                 border-radius:var(--r-pill); background:rgba(255,255,255,.22); }
+  .restart-bar::before { content:""; position:absolute; inset:0 auto 0 0; width:40%;
+                         border-radius:inherit; background:currentColor;
+                         animation:restart-jalan 1.4s ease-in-out infinite; }
+  @keyframes restart-jalan { from { transform:translateX(-100%); } to { transform:translateX(250%); } }
+  /* Tanpa gerak, bar 40% yang diam terbaca "40% selesai": dibuat penuh dan redup. */
+  @media (prefers-reduced-motion:reduce) { .restart-bar::before { width:100%; opacity:.6; } }
 
   /* Bounded cells, not numbers on one surface: at distance the tinted block is
      read before the figure inside it. Equal columns because with flex the
@@ -845,6 +867,12 @@
   /* Pilihan di dalam tab Line (2026-09-28). */
   .line-sub-bar { display:flex; flex-wrap:wrap; gap:8px; padding:0 var(--pad) 14px; }
   .log-level button.aktif { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
+  /* Empat pilihan Line membentang selebar panel, dibagi empat sama rata (permintaan
+     operator 2026-09-29); layar sempit jadi 2 x 2, tetap sama lebar. `minmax(0,1fr)`,
+     bukan `1fr`: label panjang tidak boleh melebarkan kolomnya sendiri. */
+  #line-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px; }
+  #line-sub button { width:100%; min-width:0; }
+  @media (max-width:600px) { #line-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
      screen, and without this the page itself scrolls sideways. */
   .tabel { overflow-x:auto; background:var(--card);
@@ -1282,7 +1310,7 @@
     timbangan tersambung angkanya ikut tanpa perubahan layar.
   -->
   <div class="timbang">
-    <span class="lb" data-t="labelNetoTimbangan">Neto timbangan</span>
+    <span class="lb" data-t="labelNetoTimbangan">Data timbangan</span>
     <b id="tot-neto">-</b>
     <span class="timbang-sub" id="tot-tiket"></span>
   </div>
@@ -2383,7 +2411,7 @@ const KAMUS = {
     sinkronTersambung:"Tersambung", sinkronTerputus:"Terputus sejak {jam}", sinkronMenunggu:"{n} menunggu",
     sinkronTidakDipakai:"Tidak dipakai", sinkronMemeriksa:"Memeriksa", sinkronBelum:"Belum pernah",
     sinkronTakTerbaca:"tidak terbaca", sinkronTerakhir:"Sinkron terakhir",
-    labelNetoTimbangan:"Neto timbangan", timbangTiket:"{tiket} tiket · {tara} menunggu tara",
+    labelNetoTimbangan:"Data timbangan", timbangTiket:"{tiket} tiket · {tara} menunggu tara",
     timbangBelumAda:"Belum ada tiket",
     // Nama kelas TIDAK diterjemahkan: keempatnya nama kelas model, dan operator
     // maupun support menyebutnya persis begini saat bicara lewat telepon.
@@ -2745,7 +2773,7 @@ const KAMUS = {
     sinkronTersambung:"Connected", sinkronTerputus:"Disconnected since {jam}", sinkronMenunggu:"{n} waiting",
     sinkronTidakDipakai:"Not used", sinkronMemeriksa:"Checking", sinkronBelum:"Never",
     sinkronTakTerbaca:"not readable", sinkronTerakhir:"Last synced",
-    labelNetoTimbangan:"Weighed net", timbangTiket:"{tiket} tickets · {tara} awaiting tare",
+    labelNetoTimbangan:"Weighing data", timbangTiket:"{tiket} tickets · {tara} awaiting tare",
     timbangBelumAda:"No tickets yet",
     clsRipe:"Ripe", clsUnripe:"Unripe", clsJk:"JK", clsTp:"TP",
     labelLayout:"Layout", kolomAuto:"Auto", statusOnline:"Online", statusOffline:"Offline",
@@ -4445,8 +4473,8 @@ async function cekKamera() {
 
 // ── line yang sedang dinyalakan ulang (permintaan user 2026-09-29) ──────
 // Sumber Kamera, Model Deteksi, dan Danger Zone (restart semua, hapus data)
-// merestart line. Selama itu kotak kamera line tsb. diberi spinner + hitungan
-// detik, untuk SEMUA akun (operator yang menonton kotak kamera), dan videonya
+// merestart line. Selama itu kotak kamera line tsb. diberi spinner + bar
+// berjalan, untuk SEMUA akun (operator yang menonton kotak kamera), dan videonya
 // harus kembali tanpa memuat ulang halaman.
 //
 // Line yang ditandai = yang dijawab SERVER sudah direstart/menerima
@@ -4515,8 +4543,9 @@ function perluMintaUlangFeed(m, dimintaPada, lineHidup, sekarang) {
   return sekarang - dimintaPada >= RESTART_ULANG_FEED_MS;
 }
 
-function teksDetikRestart(m, sekarang) {
-  return t("restartDetik").replace("{n}", Math.max(0, Math.floor((sekarang - m.mulai) / 1000)));
+// Masih di dalam batas tanda: spinner + bar. Sesudahnya kotak merah RESTART_LAMA.
+function restartMasihDitunggu(m, sekarang) {
+  return sekarang - m.mulai < m.batasMs;
 }
 
 // "60 detik" / "10 menit": batas yang ditulis di pesan RESTART_LAMA.
@@ -4525,32 +4554,36 @@ function teksBatasRestart(ms) {
   return t("restartDetik").replace("{n}", Math.round(ms / 1000));
 }
 
-// Kerangka kotak TANPA angka detik: angka itu ditulis di elemennya sendiri,
-// jadi kerangka (dan putaran spinner) cuma ditulis ulang saat keadaannya
-// berganti, bukan tiap detik. Angka detik `aria-hidden`: di dalam role=status
-// pembaca layar akan mengumumkannya tiap detik.
+// Isi kotak cuma bergantung pada KEADAANNYA (menunggu atau lewat batas), tidak
+// pada detik yang berjalan: tulisKalauBeda lalu menulisnya sekali per keadaan,
+// jadi spinner dan bar tidak mulai dari awal lagi tiap detik. Tanpa hitungan
+// detik (permintaan operator 2026-09-29): bar berjalan cukup menunjukkan bahwa
+// prosesnya masih jalan.
 function isiRestart(nama, m, sekarang) {
-  if (sekarang - m.mulai < m.batasMs) {
+  if (restartMasihDitunggu(m, sekarang)) {
     const judul = t(m.hapus ? "restartHapusJudul" : "restartJudul").replace("{line}", nama);
     return `<div class="restart-kotak" role="status"><div class="restart-putar" aria-hidden="true"></div>`
-      + `<b>${esc(judul)}</b><p data-restart-detik aria-hidden="true"></p></div>`;
+      + `<b>${esc(judul)}</b><div class="restart-bar" aria-hidden="true"></div></div>`;
   }
   const rinci = t("restartLamaRinci")
     .replace("{kode}", RESTART_KODE)
     .replace("{jam}", jamSinkron(m.mulai / 1000, sekarang / 1000) || KOSONG)
     .replace("{batas}", teksBatasRestart(m.batasMs));
   return `<div class="restart-kotak lama" role="alert"><b>${esc(t("restartLamaJudul").replace("{line}", nama))}</b>`
-    + `<p>${esc(rinci)}</p><p data-restart-detik aria-hidden="true"></p></div>`;
+    + `<p>${esc(rinci)}</p></div>`;
 }
 
+// `sedang-restart` menyembunyikan "Kamera tidak tersambung" selama spinner
+// tampil: cekKamera tetap menandai `putus` (line memang mati selama restart),
+// tapi yang dibaca operator cuma loadingnya. Kotak merah dan tanda yang hilang
+// melepasnya, jadi kamera yang benar-benar putus sesudahnya terbaca lagi.
 function gambarRestart(kartu, m, sekarang) {
   const slot = kartu.querySelector(".slot-restart");
   if (!slot) return;
+  kartu.classList.toggle("sedang-restart", Boolean(m) && restartMasihDitunggu(m, sekarang));
   if (!m) return tulisKalauBeda(slot, "");
   const nama = kartu.querySelector(".nama")?.textContent || kartu.dataset.line;
   tulisKalauBeda(slot, isiRestart(nama, m, sekarang));
-  const detik = slot.querySelector("[data-restart-detik]");
-  if (detik) tulisKalauBeda(detik, esc(teksDetikRestart(m, sekarang)));
 }
 
 const kartuLineDariKode = (kode) => $("lines").querySelector(`.card[data-line="${CSS.escape(kode)}"]`);

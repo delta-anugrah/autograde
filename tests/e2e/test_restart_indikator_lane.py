@@ -92,9 +92,8 @@ def _kotak(nama: str, lewat_ms: int, bahasa: str) -> str:
     konst = konstanta("RESTART_BATAS_MS", "RESTART_PASTI_MATI_MS", "RESTART_KODE")
     m = json.dumps({"mulai": MULAI, "turunPada": None, "batasMs": 60_000, "hapus": False})
     return jalankan(
-        ["jamSinkron", "isiRestart", "teksDetikRestart", "teksBatasRestart"],
-        f"[isiRestart({json.dumps(nama)}, {m}, {MULAI + lewat_ms}),"
-        f" teksDetikRestart({m}, {MULAI + lewat_ms})].join(' ')",
+        ["jamSinkron", "restartMasihDitunggu", "isiRestart", "teksBatasRestart"],
+        f"isiRestart({json.dumps(nama)}, {m}, {MULAI + lewat_ms})",
         bahasa=bahasa, tambahan=konst,
     )
 
@@ -132,18 +131,24 @@ def test_hapus_data_menandai_line_yang_menerima(konsol):
 
 
 @butuh_node
-@pytest.mark.parametrize("bahasa,jalan,lama", [
-    ("id", ["Line 1 sedang dinyalakan ulang", "12 detik"],
-     ["Line 1 belum kembali", "Kode RESTART_LAMA", "21.13", "Cek tab Log dan terminal line itu", "75 detik"]),
-    ("en", ["Line 1 is restarting", "12 s"],
-     ["Line 1 has not come back", "Code RESTART_LAMA", "21:13", "Check the Log tab", "75 s"]),
+@pytest.mark.parametrize("bahasa,jalan,lama,tanpa", [
+    ("id", ["Line 1 sedang dinyalakan ulang", 'class="restart-bar"'],
+     ["Line 1 belum kembali", "Kode RESTART_LAMA", "21.13", "Cek tab Log dan terminal line itu", "60 detik"],
+     ["12 detik", "75 detik"]),
+    ("en", ["Line 1 is restarting", 'class="restart-bar"'],
+     ["Line 1 has not come back", "Code RESTART_LAMA", "21:13", "Check the Log tab", "60 s"],
+     ["12 s", "75 s"]),
 ])
-def test_kotak_kamera_dengan_kamus_asli_tanpa_em_dash(bahasa, jalan, lama):
+def test_kotak_kamera_dengan_kamus_asli_tanpa_em_dash(bahasa, jalan, lama, tanpa):
+    """Spinner + bar berjalan tanpa hitungan detik; kotak merah menyebut batasnya
+    saja, bukan detik yang terus berjalan."""
     teks_jalan = _kotak("Line 1", 12_000, bahasa)
     teks_lama = _kotak("Line 1", 75_000, bahasa)
     for p in jalan:
         assert p in teks_jalan, (p, teks_jalan)
     for p in lama:
         assert p in teks_lama, (p, teks_lama)
+    for p in tanpa:
+        assert p not in teks_jalan and p not in teks_lama, p
     for teks in (teks_jalan, teks_lama):
         assert "—" not in teks and "–" not in teks and " - " not in teks
