@@ -78,7 +78,9 @@ def test_disk_penuh_tidak_meninggalkan_berkas_kosong(tmp_path, frame, monkeypatc
 
 
 def test_padam_saat_menulis_foto_tidak_meninggalkan_foto_kosong(tmp_path):
-    """Review Focus 5, lewat penulis foto yang dipakai `CaptureWriter`."""
+    """Review Focus 5 di tingkat `LocalFileStorage.write_image`, yang dipanggil
+    `CaptureWriter`. `CaptureWriter` sendiri tidak dilewati di sini; jalur lengkapnya
+    (penulis bukti sampai sidecar) di `tests/e2e/test_bukti_tahan_listrik_padam.py`."""
     tujuan = tmp_path / "2026-09-28_091432_123456_auto.webp"
     env = {**os.environ, "PYTHONPATH": str(_REPO / "src")}
     proc = subprocess.run(
