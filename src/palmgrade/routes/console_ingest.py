@@ -33,10 +33,11 @@ def ingest_event(
     try:
         work_date = service.ingest(payload)
     except ValueError as exc:
-        # 400 → the line's outbox keeps it and retries; rows are never
-        # dead-lettered, so `outbox_failed` stays 0 on a line on this image (a
-        # line on an older image may still report more than 0). It is counted in
-        # `outbox_pending` (tab Status, section Diagnostik, row "Antrean lokal").
+        # 400 → the line's outbox keeps it and retries every 10 minutes; rows are
+        # never dead-lettered, so `outbox_failed` stays 0 on a line on this image
+        # (a line on an older image may still report more than 0). Support sees
+        # it in tab Status → Antrean line (state "DITOLAK konsol", counted in
+        # `ditolak`) and once per event in tab Log (`ConsoleService.ingest`).
         # Not 200 on purpose: a malformed event must be visible, not vanish.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "ok", "work_date": work_date}

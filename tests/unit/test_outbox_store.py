@@ -126,8 +126,11 @@ def test_dibuat_at_diisi_saat_ditambah(store):
     assert sebelum <= _baris(store, store.get_pending()[0]["id"])["dibuat_at"] <= time.time()
 
 
+_TANPA_DITOLAK = {"ditolak": 0, "ditolak_at": None, "ditolak_alasan": None}
+
+
 def test_ringkasan_kosong(store):
-    assert store.ringkasan() == {"menunggu": 0, "tertua_at": None}
+    assert store.ringkasan() == {"menunggu": 0, "tertua_at": None, **_TANPA_DITOLAK}
 
 
 def test_ringkasan_menyebut_jumlah_dan_yang_tertua(store):
@@ -136,7 +139,47 @@ def test_ringkasan_menyebut_jumlah_dan_yang_tertua(store):
     with store._db:
         store._db.execute("UPDATE outbox_events SET dibuat_at = 1000.0 WHERE event_id = 'e2'")
 
-    assert store.ringkasan() == {"menunggu": 2, "tertua_at": 1000.0}
+    assert store.ringkasan() == {"menunggu": 2, "tertua_at": 1000.0, **_TANPA_DITOLAK}
+
+
+def test_baris_yang_ditolak_konsol_dihitung_dengan_alasan_dan_jamnya(store):
+    """Final review konsol I1: baris yang ditolak konsol dicoba terus, dan layar harus
+    bisa membedakannya dari antrean yang sedang dikirim."""
+    for eid in ("e1", "e2", "e3"):
+        store.add_event(eid, "m1", _payload(event_id=eid))
+    baris = {r["event_id"]: r["id"] for r in store.get_pending()}
+    sebelum = time.time()
+    store.mark_failed_attempt(baris["e1"], "HTTP 400: timestamp cacat", ditolak=True)
+    store.mark_failed_attempt(baris["e2"], "HTTP 422: ripeness_status asing", ditolak=True)
+    store.mark_failed_attempt(baris["e3"], "ConnectError: refused")
+
+    isi = store.ringkasan()
+
+    assert (isi["menunggu"], isi["ditolak"]) == (3, 2)
+    assert sebelum <= isi["ditolak_at"] <= time.time()
+    assert isi["ditolak_alasan"] == "HTTP 422: ripeness_status asing"
+
+
+def test_gagal_bukan_penolakan_sesudahnya_mencabut_tanda_ditolak(store):
+    """Yang dihitung PENOLAKAN TERAKHIR baris itu: baris yang kemudian gagal karena konsol
+    mati bukan lagi bukti bahwa konsol menolaknya."""
+    store.add_event("e1", "m1", _payload())
+    row_id = store.get_pending()[0]["id"]
+    store.mark_failed_attempt(row_id, "HTTP 400: timestamp cacat", ditolak=True)
+
+    store.mark_failed_attempt(row_id, "ConnectError: refused")
+
+    assert store.ringkasan()["ditolak"] == 0
+
+
+def test_baris_ditolak_yang_akhirnya_sampai_keluar_dari_hitungan(store):
+    store.add_event("e1", "m1", _payload())
+    row_id = store.get_pending()[0]["id"]
+    store.mark_failed_attempt(row_id, "HTTP 400: timestamp cacat", ditolak=True)
+
+    store.mark_delivered(row_id)
+
+    assert store.ringkasan() == {"menunggu": 0, "tertua_at": None, **_TANPA_DITOLAK}
 
 
 def test_berikutnya_mengabaikan_jadwal_mundur(store):

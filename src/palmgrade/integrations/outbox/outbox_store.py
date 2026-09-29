@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS outbox_events (
     next_retry_at REAL NOT NULL DEFAULT 0,
     last_error  TEXT,
     status      TEXT NOT NULL DEFAULT 'pending',
-    dibuat_at   REAL
+    dibuat_at   REAL,
+    ditolak_at  REAL
 );
 CREATE INDEX IF NOT EXISTS idx_outbox_status_retry
     ON outbox_events (status, next_retry_at);
@@ -67,8 +68,11 @@ class OutboxStore:
             self._db.execute("PRAGMA synchronous=FULL")
             self._db.executescript(_CREATE_SQL)
             kolom = {baris["name"] for baris in self._db.execute("PRAGMA table_info(outbox_events)")}
-            if "dibuat_at" not in kolom:
-                self._db.execute("ALTER TABLE outbox_events ADD COLUMN dibuat_at REAL")
+            # Ditambah di tempat, bukan tabel baru: image lama menyebut kolomnya satu
+            # per satu di INSERT/UPDATE, jadi rollback tetap membaca berkas ini.
+            for nama in ("dibuat_at", "ditolak_at"):
+                if nama not in kolom:
+                    self._db.execute(f"ALTER TABLE outbox_events ADD COLUMN {nama} REAL")
 
     def _rapikan_baris_lama(self) -> int:
         """Perbaiki di tempat dua hal tulisan versi sebelum batch 2.4. Idempoten.
@@ -144,17 +148,24 @@ class OutboxStore:
         with self._lock, self._db:
             self._db.execute("DELETE FROM outbox_events WHERE id = ?", (row_id,))
 
-    def mark_failed_attempt(self, row_id: int, error: str) -> None:
-        """Catat satu percobaan gagal dan jadwal berikutnya. Baris TIDAK pernah menyerah."""
+    def mark_failed_attempt(self, row_id: int, error: str, *, ditolak: bool = False) -> None:
+        """Catat satu percobaan gagal dan jadwal berikutnya. Baris TIDAK pernah menyerah.
+
+        `ditolak` = konsol menjawab dan menolak BARIS ini (400, 422): `ditolak_at`
+        distempel sekarang. Gagal jenis lain mengosongkannya, karena yang dihitung
+        layar adalah penolakan TERAKHIR baris itu, bukan penolakan kapan pun.
+        """
         with self._lock, self._db:
             row = self._db.execute("SELECT retry_count FROM outbox_events WHERE id = ?", (row_id,)).fetchone()
             if not row:
                 return
             retry = row["retry_count"] + 1
-            next_retry = time.time() + jeda_mundur(retry, dasar=JEDA_BARIS_DASAR_S, maks=JEDA_BARIS_MAKS_S)
+            sekarang = time.time()
+            next_retry = sekarang + jeda_mundur(retry, dasar=JEDA_BARIS_DASAR_S, maks=JEDA_BARIS_MAKS_S)
             self._db.execute(
-                "UPDATE outbox_events SET retry_count=?, next_retry_at=?, last_error=?, status='pending' WHERE id=?",
-                (retry, next_retry, error[:500], row_id),
+                "UPDATE outbox_events SET retry_count=?, next_retry_at=?, last_error=?, status='pending', "
+                "ditolak_at=? WHERE id=?",
+                (retry, next_retry, error[:500], sekarang if ditolak else None, row_id),
             )
 
     def pending_count(self) -> int:
@@ -191,12 +202,25 @@ class OutboxStore:
             return self._db.execute("SELECT COUNT(*) AS n FROM outbox_events").fetchone()["n"]
 
     def ringkasan(self) -> dict[str, Any]:
-        """Jumlah yang menunggu dan kapan janjang tertuanya digrading (epoch detik)."""
+        """Untuk layar: yang menunggu, kapan janjang tertuanya digrading (epoch detik),
+        dan berapa yang percobaan terakhirnya DITOLAK konsol, dengan jam dan alasan
+        penolakan terbaru. Baris ditolak ikut `menunggu`: tidak ada yang dibuang."""
         with self._lock:
             row = self._db.execute(
-                "SELECT COUNT(*) AS n, MIN(dibuat_at) AS tertua FROM outbox_events"
+                "SELECT COUNT(*) AS n, MIN(dibuat_at) AS tertua, COUNT(ditolak_at) AS ditolak "
+                "FROM outbox_events"
             ).fetchone()
-        return {"menunggu": row["n"], "tertua_at": row["tertua"]}
+            terbaru = self._db.execute(
+                "SELECT ditolak_at, last_error FROM outbox_events WHERE ditolak_at IS NOT NULL "
+                "ORDER BY ditolak_at DESC, id DESC LIMIT 1"
+            ).fetchone()
+        return {
+            "menunggu": row["n"],
+            "tertua_at": row["tertua"],
+            "ditolak": row["ditolak"],
+            "ditolak_at": terbaru["ditolak_at"] if terbaru else None,
+            "ditolak_alasan": terbaru["last_error"] if terbaru else None,
+        }
 
     def serap(self, lama: Path) -> int:
         """Salin antrean dari `outbox.db` lama (di artifacts/, sebelum batch 1) ke berkas ini.

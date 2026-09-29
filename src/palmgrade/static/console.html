@@ -2501,6 +2501,7 @@ const KAMUS = {
     antreanLineKunciKonsol:"Line menolak kunci konsol (HTTP {status}). Samakan INTERNAL_SECRET di .env konsol dan line itu, lalu restart.",
     antreanLineTakTerjangkau:"Line tidak menjawab. Periksa kartunya di Diagnostik.",
     antreanLineErrorLine:"Line menjawab HTTP {status}. Buka tab Log untuk sebabnya.",
+    antreanLineDitolak:"{jumlah} janjang DITOLAK konsol, terakhir pukul {jam} ({alasan}). Tidak dibuang dan dicoba lagi tiap 10 menit, tapi tidak akan sampai sendiri, dan selama masih ada, Danger Zone dan autograde reset-data menolak menghapus data. Buka tab Log untuk sebabnya, lalu panggil teknisi (MANUAL §7).",
     antreanLineDikirimUlang:"{line}: {jumlah} janjang dijadwalkan kirim sekarang",
     antreanLineGagalKirimUlang:"Kirim Ulang {line} gagal pukul {jam} (kode {kode}): {alasan}. {saran}",
     saranKunciLine:"Samakan INTERNAL_SECRET di .env konsol dan line itu, lalu restart.",
@@ -2854,6 +2855,7 @@ const KAMUS = {
     antreanLineKunciKonsol:"The line refused the console key (HTTP {status}). Make INTERNAL_SECRET the same in the console and line .env, then restart.",
     antreanLineTakTerjangkau:"The line is not responding. Check its card under Diagnostics.",
     antreanLineErrorLine:"The line answered HTTP {status}. Open the Log tab for the cause.",
+    antreanLineDitolak:"{jumlah} bunches REFUSED by the console, last at {jam} ({alasan}). Not dropped and retried every 10 minutes, but they will never arrive on their own, and while they remain, Danger Zone and autograde reset-data refuse to delete data. Open the Log tab for the cause, then call a technician (MANUAL §7).",
     antreanLineDikirimUlang:"{line}: {jumlah} bunches scheduled to send now",
     antreanLineGagalKirimUlang:"Resend {line} failed at {jam} (code {kode}): {alasan}. {saran}",
     saranKunciLine:"Make INTERNAL_SECRET the same in the console and line .env, then restart.",
@@ -5567,8 +5569,11 @@ $("antrean-kirim-ulang").addEventListener("click", (ev) => denganSibuk(ev.curren
 // ── developer: antrean line ke konsol (support only, batch 2.4) ────────
 // Satu baris per line. Keadaan dipilih dari yang paling perlu tindakan: line tak
 // terjangkau, pengiriman dimatikan, antrean lama tertinggal, kosong, konsol putus
-// dilihat dari line (dengan sebab dan sejak kapan), lalu sedang mengirim. "Kosong"
-// sengaja mendahului "putus": tanpa janjang yang menunggu tidak ada yang tertahan.
+// dilihat dari line (dengan sebab dan sejak kapan), janjang yang DITOLAK konsol, lalu
+// sedang mengirim. "Kosong" sengaja mendahului "putus": tanpa janjang yang menunggu
+// tidak ada yang tertahan. "Ditolak" sesudah "putus": selama konsol putus tidak ada
+// yang sampai sama sekali. Ditolak dulu jatuh ke "Sedang dikirim" selamanya (final
+// review batch 2): baris itu dicoba terus dan tidak pernah sampai.
 function keadaanAntreanLine(d) {
   const SEBAB_PUTUS = ["tak_terjangkau", "kunci_ditolak", "alamat_salah", "konsol_galat"];
   if (!d.terjangkau) {
@@ -5589,6 +5594,7 @@ function keadaanAntreanLine(d) {
     const sebab = SEBAB_PUTUS.includes(d.sebab_putus) ? d.sebab_putus : "tak_terjangkau";
     return { kelas: "tanda-gagal", kunci: "antreanLinePutus_" + sebab };
   }
+  if (d.ditolak > 0) return { kelas: "tanda-gagal", kunci: "antreanLineDitolak" };
   return { kelas: "", kunci: "antreanLineMengirim" };
 }
 
@@ -5601,8 +5607,15 @@ function barisAntreanLine(kode, d, sekarangMs) {
   // sama sekali (mis. line yang benar-benar tidak terjangkau).
   const keadaan = t(k.kunci)
     .replace("{status}", d.status ?? (k.kunci === "antreanLineKunciKonsol" ? "401" : ""))
-    .replace("{sejak}", d.putus_sejak ? waktu(d.putus_sejak * 1000) : KOSONG);
-  const pesanBaris = (d.terjangkau ? d.galat : d.pesan) || "";
+    .replace("{sejak}", d.putus_sejak ? waktu(d.putus_sejak * 1000) : KOSONG)
+    .replace("{jumlah}", d.ditolak ?? KOSONG)
+    .replace("{jam}", d.ditolak_at ? waktu(d.ditolak_at * 1000) : KOSONG)
+    .replace("{alasan}", d.ditolak_alasan || KOSONG);
+  // Galat terakhir worker tidak pernah dikosongkan saat konsol pulih: dengan jamnya
+  // supaya galat lama tidak terbaca seperti masalah sekarang, dan tidak ditampilkan
+  // sama sekali saat antrean kosong (tidak ada yang tertahan olehnya).
+  const galat = d.menunggu && d.galat ? (d.galat_at ? `${waktu(d.galat_at * 1000)}: ${d.galat}` : d.galat) : "";
+  const pesanBaris = (d.terjangkau ? galat : d.pesan) || "";
   const tertua = d.tertua_at ? lamaProses(new Date(d.tertua_at * 1000), new Date(sekarangMs)) : null;
   const tombol = d.terjangkau && d.menunggu > 0
     ? `<button type="button" data-kirim-ulang-line="${esc(kode)}">${esc(t("btnKirimUlang"))}</button>`
@@ -5637,10 +5650,17 @@ function pesanGagalKirimUlang(e, kode, saat) {
 
 // Guard sederhana: 5 s setInterval tidak boleh menumpuk permintaan baru saat yang
 // sebelumnya masih menunggu line yang macet (sampai 3 s ditambah jaringan).
+// `susulkan` (Kirim Ulang): kalau ada yang masih di jalan, muat SEKALI lagi sesudah
+// dia selesai, bukan ditelan. Tanpa itu baris yang baru dikirim ulang tetap basi
+// sampai 5 detik sesudah toast berhasil.
 let antreanLineSedangMuat = false;
+let antreanLineSusulan = false;
 
-async function muatAntreanLine() {
-  if (antreanLineSedangMuat) return;
+async function muatAntreanLine(susulkan = false) {
+  if (antreanLineSedangMuat) {
+    if (susulkan) antreanLineSusulan = true;
+    return;
+  }
   antreanLineSedangMuat = true;
   const tbody = $("antrean-line-baris");
   try {
@@ -5655,6 +5675,10 @@ async function muatAntreanLine() {
   } finally {
     antreanLineSedangMuat = false;
   }
+  if (antreanLineSusulan) {
+    antreanLineSusulan = false;
+    await muatAntreanLine();
+  }
 }
 
 $("antrean-line-baris").addEventListener("click", (ev) => {
@@ -5665,7 +5689,7 @@ $("antrean-line-baris").addEventListener("click", (ev) => {
     try {
       const r = await api(`/api/console/dev/antrean/line/${encodeURIComponent(kode)}/kirim-ulang`, { method: "POST" });
       toastSukses(t("antreanLineDikirimUlang").replace("{line}", kode).replace("{jumlah}", r.dijadwalkan));
-      await muatAntreanLine();
+      await muatAntreanLine(true);
     } catch (e) {
       if (e.kode !== "belum_masuk") toastGagal(pesanGagalKirimUlang(e, kode, new Date()));
     }

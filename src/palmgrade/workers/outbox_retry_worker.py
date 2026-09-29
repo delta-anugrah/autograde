@@ -191,9 +191,10 @@ class OutboxRetryWorker:
             return True
         galat = f"HTTP {res.status_code}: {res.text[:200]}"
         if akibat is Akibat.BARIS_GAGAL:
-            if putusan.nasib is Nasib.DITOLAK:
+            oleh_konsol = putusan.nasib is Nasib.DITOLAK
+            if oleh_konsol:
                 self._konsol_menjawab()
-            self._baris_ditolak(row, galat)
+            self._baris_ditolak(row, galat, oleh_konsol=oleh_konsol)
             return True
         self._konsol_bermasalah(row, putusan.sebab or SEBAB_TAK_TERJANGKAU, galat)
         return False
@@ -203,8 +204,11 @@ class OutboxRetryWorker:
             self._galat = galat
             self._galat_at = self._jam()
 
-    def _baris_ditolak(self, row: dict[str, Any], galat: str) -> None:
-        self.outbox.mark_failed_attempt(row["id"], galat)
+    def _baris_ditolak(self, row: dict[str, Any], galat: str, *, oleh_konsol: bool = False) -> None:
+        """Baris ini gagal, konsolnya tidak. `oleh_konsol` = konsol MENOLAK baris ini
+        (400, 422): layar Antrean line menghitungnya terpisah (`ringkasan()["ditolak"]`),
+        karena baris itu tidak akan pernah sampai tanpa tangan orang."""
+        self.outbox.mark_failed_attempt(row["id"], galat, ditolak=oleh_konsol)
         self._catat_galat(galat)
         # Sekali WARNING per baris per proses, sesudahnya DEBUG: baris yang ditolak
         # dicoba terus tiap 10 menit, dan WARNING tiap kali akan mengulang masalah

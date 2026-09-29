@@ -27,7 +27,7 @@ KUNCI_BARU = (
     "antreanLineKosong", "antreanLineMengirim", "antreanLineNonaktif", "antreanLineLamaTertinggal",
     "antreanLinePutus_tak_terjangkau", "antreanLinePutus_kunci_ditolak", "antreanLinePutus_alamat_salah",
     "antreanLinePutus_konsol_galat", "antreanLineKunciKonsol", "antreanLineTakTerjangkau",
-    "antreanLineErrorLine",
+    "antreanLineErrorLine", "antreanLineDitolak",
     "antreanLineDikirimUlang", "antreanLineGagalKirimUlang",
     "saranKunciLine", "saranLineMati", "saranMuatUlang", "saranBukaLog",
 )
@@ -44,6 +44,7 @@ const KAMUS_UJI = {
   antreanLinePutus_tak_terjangkau: "putus sejak {sejak}",
   antreanLineKunciKonsol: "kunci ditolak HTTP {status}",
   antreanLineErrorLine: "line menjawab HTTP {status}",
+  antreanLineDitolak: "{jumlah} ditolak pukul {jam}: {alasan}",
   antreanLineGagalKirimUlang: "Kirim Ulang {line} gagal pukul {jam} (kode {kode}): {alasan}. {saran}",
 };
 const t = (k) => KAMUS_UJI[k] ?? k;
@@ -154,6 +155,13 @@ _SEHAT = {"terjangkau": True, "aktif": True, "lama_tertinggal": False, "menunggu
         ({**_SEHAT, "tersambung": False, "sebab_putus": "sebab_baru_dari_versi_lain"}, "antreanLinePutus_tak_terjangkau"),
         (_SEHAT, "antreanLineMengirim"),
         ({**_SEHAT, "tersambung": None}, "antreanLineMengirim"),
+        # Final review konsol I1: baris yang ditolak konsol dicoba terus, jadi dulu
+        # terbaca "Sedang dikirim ke konsol" selamanya.
+        ({**_SEHAT, "ditolak": 2}, "antreanLineDitolak"),
+        ({**_SEHAT, "ditolak": 0}, "antreanLineMengirim"),
+        # Konsol putus lebih mendesak: tidak ada yang sampai sama sekali.
+        ({**_SEHAT, "ditolak": 2, "tersambung": False, "sebab_putus": "tak_terjangkau"},
+         "antreanLinePutus_tak_terjangkau"),
     ],
 )
 def test_keadaan_dipilih_dari_yang_paling_perlu_tindakan(d, kunci):
@@ -184,6 +192,37 @@ def test_baris_putus_menyebut_sejak_kapan_dan_galatnya():
     assert "putus sejak " in html and "{sejak}" not in html
     assert "ConnectError: &lt;refused&gt;" in html
     assert 'class="tanda-gagal"' in html
+
+
+@butuh_node
+def test_baris_ditolak_menyebut_jumlah_jam_dan_alasan():
+    """Detail: apa (berapa janjang), kapan, dan kenapa. Line ada di kolom pertama, saran
+    di kalimat kamus (MANUAL §7)."""
+    d = {**_SEHAT, "ditolak": 2, "ditolak_at": 1_789_873_200, "ditolak_alasan": "HTTP 400: <timestamp cacat>",
+         "galat": "HTTP 400: <timestamp cacat>", "galat_at": 1_789_873_200}
+    html = _baris("line-2", d, 1_789_873_260_000)
+    assert "2 ditolak pukul " in html and "{jam}" not in html
+    assert "HTTP 400: &lt;timestamp cacat&gt;" in html
+    assert 'class="tanda-gagal"' in html
+    assert 'data-kirim-ulang-line="line-2"' in html
+
+
+@butuh_node
+def test_galat_terakhir_disertai_jamnya():
+    """Final review konsol M2: galat lama tanpa jam terbaca seperti masalah sekarang."""
+    d = {**_SEHAT, "galat": "ConnectError: refused", "galat_at": 1_789_873_200}
+    html = _baris("line-1", d, 1_789_873_260_000)
+    jam = _jalankan("waktu(1789873200000)", "waktu")
+    assert f"{jam}: ConnectError: refused" in html
+
+
+@butuh_node
+def test_galat_lama_tidak_ditampilkan_saat_antrean_kosong():
+    """Final review konsol M2: sesudah konsol restart (tiap hari upgrade) baris "Kosong"
+    dulu bersanding dengan "Connection refused" sampai line itu direstart."""
+    d = {**_SEHAT, "menunggu": 0, "galat": "ConnectError: refused", "galat_at": 1_789_873_200}
+    html = _baris("line-1", d, 1_789_873_260_000)
+    assert "ConnectError" not in html
 
 
 @butuh_node
@@ -230,32 +269,61 @@ def test_status_401_bawaan_tidak_bocor_ke_baris_lain():
     assert "401" not in html
 
 
-@butuh_node
-def test_muatAntreanLine_tidak_tumpang_tindih_saat_masih_menunggu():
-    """5 s setInterval must not start a new request while the previous one is still
-    pending: a hung line can take up to 3 s plus network time. A module-level
-    in-flight flag, released in `finally`, guards it."""
+def _jalankan_muat(badan: str) -> dict:
     skrip = (
-        "let panggilan = 0; let selesaikan;\n"
-        "const api = () => { panggilan++; return new Promise((res) => { selesaikan = res; }); };\n"
+        "let panggilan = 0; let aktif = 0; let aktifMaks = 0; const selesaikan = [];\n"
+        "const api = () => { panggilan++; aktif++; aktifMaks = Math.max(aktif, aktifMaks);\n"
+        "  return new Promise((res) => selesaikan.push(() => { aktif--; res({ lines: {} }); })); };\n"
         "const $ = () => ({});\n"
         "const KOSONG = \"-\";\n"
         "const barisKosong = () => \"\";\n"
         "function tulisKalauBeda() {}\n"
         "let antreanLineSedangMuat = false;\n"
+        "let antreanLineSusulan = false;\n"
+        "const jeda = () => new Promise((r) => setTimeout(r, 10));\n"
         "async " + _fungsi("muatAntreanLine")
-        + "\n(async () => {\n"
-        "  const p1 = muatAntreanLine();\n"
-        "  const p2 = muatAntreanLine();\n"
-        "  await new Promise((r) => setTimeout(r, 10));\n"
-        "  selesaikan({ lines: {} });\n"
-        "  await Promise.all([p1, p2]);\n"
-        "  console.log(JSON.stringify({ panggilan }));\n"
+        + "\n(async () => {\n" + badan
+        + "  console.log(JSON.stringify({ panggilan, aktifMaks }));\n"
         "})();"
     )
     hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
     assert hasil.returncode == 0, hasil.stderr[-800:]
-    assert json.loads(hasil.stdout.strip()) == {"panggilan": 1}
+    return json.loads(hasil.stdout.strip())
+
+
+@butuh_node
+def test_muatAntreanLine_tidak_tumpang_tindih_saat_masih_menunggu():
+    """5 s setInterval must not start a new request while the previous one is still
+    pending: a hung line can take up to 3 s plus network time. A module-level
+    in-flight flag, released in `finally`, guards it."""
+    hasil = _jalankan_muat(
+        "  const p1 = muatAntreanLine();\n"
+        "  const p2 = muatAntreanLine();\n"
+        "  await jeda(); selesaikan.shift()();\n"
+        "  await Promise.all([p1, p2]);\n"
+    )
+    assert hasil == {"panggilan": 1, "aktifMaks": 1}
+
+
+@butuh_node
+def test_muat_susulan_sesudah_kirim_ulang_tidak_tertelan():
+    """Final review konsol M3: Kirim Ulang yang jatuh saat muatan timer 5 detik masih
+    di jalan dulu ditelan penjaga, jadi barisnya basi sampai 5 detik sesudah toast
+    berhasil. Permintaan susulan diingat dan jalan SESUDAH yang di jalan selesai,
+    tetap tanpa tumpang tindih; tiga susulan jadi satu."""
+    hasil = _jalankan_muat(
+        "  const p1 = muatAntreanLine();\n"
+        "  const susulan = [muatAntreanLine(true), muatAntreanLine(true), muatAntreanLine(true)];\n"
+        "  await jeda(); selesaikan.shift()();\n"
+        "  await jeda(); selesaikan.shift()();\n"
+        "  await Promise.all([p1, ...susulan]);\n"
+    )
+    assert hasil == {"panggilan": 2, "aktifMaks": 1}
+
+
+def test_kirim_ulang_meminta_muat_susulan():
+    klik = HTML.split('$("antrean-line-baris").addEventListener("click"', 1)[1].split("\n});", 1)[0]
+    assert "await muatAntreanLine(true)" in klik
 
 
 @butuh_node

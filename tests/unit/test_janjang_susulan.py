@@ -203,3 +203,27 @@ def test_janjang_susulan_selagi_halaman_diunggah_tidak_hilang(tmp_path):
     assert asyncio.run(halaman.drain_once()) == 1
     assert unggah.total == [3, 4]
     assert halaman.outbox.due() == []
+
+
+def test_antre_ulang_yang_gagal_tidak_membuat_janjang_dikirim_ulang_sia_sia(tmp_path, monkeypatch, caplog):
+    """Final review konsol M1: janjang SUDAH tersimpan saat antre ulang kunjungannya gagal
+    (disk `erp_outbox.db`, bug perakit pesan). Dulu jawabannya 500, line mengirim ulang,
+    kiriman ulang itu duplikat (`baru` False), dan kunjungannya tidak pernah diantre
+    ulang, tanpa satu pun kalimat yang menyebut kunjungan mana. Sekarang janjangnya
+    diterima (201) dan kegagalannya satu ERROR yang menyebut tiket dan penugasannya."""
+    service, outbox, _ = _konsol(tmp_path)
+    tiket, assignment_id = _truk_dilepas(service)
+    _kirim_semua(outbox)
+
+    def rusak(*_a, **_k):
+        raise OSError("disk I/O error")
+
+    monkeypatch.setattr(service.erp_queue, "visit", rusak)
+    with caplog.at_level("ERROR", logger="palmgrade.services.console_service"):
+        _janjang(service, 99, assignment_id)
+
+    assert service.store.grading_counts(assignment_id)["total"] == 4
+    [catatan] = [r for r in caplog.records if r.levelname == "ERROR"]
+    assert tiket in catatan.getMessage() and assignment_id in catatan.getMessage()
+    assert "kirim ulang harian" in catatan.getMessage()
+    assert "lebih lama" in catatan.getMessage()

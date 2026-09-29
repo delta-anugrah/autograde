@@ -15,12 +15,21 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from antrean_line_rakit import LinePerPort, app_konsol, klien_konsol_mati, masuk, rakit_line
+from antrean_line_rakit import (
+    KabelKonsol,
+    LinePerPort,
+    app_ingest,
+    app_konsol,
+    klien_konsol_mati,
+    masuk,
+    rakit_line,
+)
 
 from palmgrade.core.config import LineEndpoint, Settings
 from palmgrade.domain.role import ROLE_SUPPORT
 from palmgrade.integrations.notifications.line_client import LineClient
 from palmgrade.repositories.console_repository import ConsoleStore
+from palmgrade.services.console_service import ConsoleService
 from palmgrade.services.pantau_antrean_line import PantauAntreanLine
 
 HTML = (Path(__file__).resolve().parents[2] / "src/palmgrade/static/console.html").read_text()
@@ -73,3 +82,36 @@ def test_baris_dari_jawaban_sungguhan(tmp_path):
     assert "antreanLineKunciKonsol" in baris["line-2"]
     assert "refused: HTTP 401" in baris["line-2"]
     assert "data-kirim-ulang-line" not in baris["line-2"]
+
+
+def test_janjang_yang_ditolak_konsol_terbaca_ditolak_bukan_sedang_dikirim(tmp_path, caplog):
+    """Final review konsol I1, seluruh rantai sungguhan: worker line → lane ingest konsol
+    (menolak 400) → `OutboxStore` line → `/internal/outbox` → `LineClient` → rute layar →
+    `barisAntreanLine`. Dulu baris itu terbaca "Sedang dikirim ke konsol" selamanya dan
+    tab Log konsol tidak menyebut apa pun."""
+    konsol = ConsoleService(replace(Settings(), factory_tz="Asia/Jakarta"), ConsoleStore(tmp_path / "ingest.db"), None)
+    kabel = KabelKonsol(app_ingest(konsol))
+    line_1 = rakit_line(
+        tmp_path / "line-1", internal_secret=SECRET, klien_konsol=kabel.klien(),
+        webhook_secret=konsol.settings.webhook_secret,
+    )
+    line_1.store.add_event("sah", "m-1", {"event_id": "sah", "machine_id": "m-1",
+                                          "timestamp": "2026-09-20T03:00:00+00:00", "ripeness_status": "ACC"})
+    line_1.store.add_event("rusak", "m-1", {"event_id": "rusak", "machine_id": "m-1",
+                                            "timestamp": "bukan-jam", "ripeness_status": "ACC"})
+    with caplog.at_level("WARNING", logger="palmgrade.services.console_service"):
+        line_1.worker._flush_pending()
+    klien = LineClient(
+        replace(Settings(), console_line_host="http://line", internal_secret=SECRET),
+        transport=LinePerPort({8001: line_1.app}),
+    )
+    store = ConsoleStore(tmp_path / "console.db")
+    client = masuk(app_konsol(store, PantauAntreanLine(klien, LINES[:1])), store, role=ROLE_SUPPORT)
+
+    satu = client.get("/api/console/dev/antrean/line").json()["lines"]["line-1"]
+    baris = _render({"line-1": satu})["line-1"]
+
+    assert (satu["menunggu"], satu["ditolak"]) == (1, 1)
+    assert satu["ditolak_alasan"].startswith("HTTP 400")
+    assert "antreanLineDitolak" in baris and "antreanLineMengirim" not in baris
+    assert [r for r in caplog.records if "rusak" in r.getMessage() and "DITOLAK konsol" in r.getMessage()]

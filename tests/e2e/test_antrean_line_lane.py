@@ -24,15 +24,20 @@ LINE_2 = LineEndpoint("line-2", "Line 2", 8002, "m-2")  # mati
 JALUR = ("get", "/api/console/dev/antrean/line"), ("post", "/api/console/dev/antrean/line/line-1/kirim-ulang")
 
 
-@pytest.fixture
-def konsol(tmp_path):
+def _rakit(tmp_path):
     line_1 = rakit_line(tmp_path / "line-1", internal_secret=SECRET, klien_konsol=klien_konsol_mati())
     klien = LineClient(
         replace(Settings(), console_line_host="http://line", internal_secret=SECRET),
         transport=LinePerPort({8001: line_1.app}),
     )
     store = ConsoleStore(tmp_path / "console.db")
-    return app_konsol(store, PantauAntreanLine(klien, (LINE_1, LINE_2))), store
+    return app_konsol(store, PantauAntreanLine(klien, (LINE_1, LINE_2))), store, line_1
+
+
+@pytest.fixture
+def konsol(tmp_path):
+    app, store, _ = _rakit(tmp_path)
+    return app, store
 
 
 @pytest.mark.parametrize("metode,jalur", JALUR)
@@ -81,3 +86,16 @@ def test_galat_lain_tidak_disamarkan_jadi_404(tmp_path):
 
     with pytest.raises(ValueError, match="Expecting value"):
         client.post("/api/console/dev/antrean/line/line-1/kirim-ulang")
+
+
+def test_janjang_ditolak_konsol_sampai_ke_layar_support(tmp_path):
+    """Final review konsol I1: jumlah, jam, dan alasan penolakan ikut jawaban lane layar,
+    supaya baris itu tidak terbaca "Sedang dikirim ke konsol"."""
+    app, store, line_1 = _rakit(tmp_path)
+    line_1.store.add_event("rusak", "m-1", {"event_id": "rusak", "timestamp": "2026-09-20T03:00:00+00:00"})
+    line_1.store.mark_failed_attempt(line_1.store.get_pending()[0]["id"], "HTTP 400: timestamp cacat", ditolak=True)
+
+    satu = masuk(app, store, role=ROLE_SUPPORT).get("/api/console/dev/antrean/line").json()["lines"]["line-1"]
+
+    assert (satu["menunggu"], satu["ditolak"], satu["ditolak_alasan"]) == (1, 1, "HTTP 400: timestamp cacat")
+    assert satu["ditolak_at"] is not None

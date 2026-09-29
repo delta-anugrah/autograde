@@ -202,6 +202,33 @@ def test_baris_ditolak_400_tidak_menahan_yang_lain(rakit):
     assert worker.status()["tersambung"] is True
 
 
+def test_penolakan_konsol_terhitung_ditolak_tapi_galat_konsol_tidak(rakit, monkeypatch):
+    """Final review konsol I1: layar harus bisa membedakan baris yang DITOLAK konsol
+    (400, 422: tidak akan pernah sampai tanpa tangan orang) dari baris yang cuma
+    kena 500 atau konsol mati (sampai sendiri begitu konsol sehat)."""
+    worker, store, konsol, jam = rakit()
+    monkeypatch.setattr(modul_outbox_store, "time", SimpleNamespace(time=jam))
+    _isi(store, 4)
+    konsol.jawab.update({"e1": 400, "e2": 422, "e3": 500})
+
+    worker._flush_pending()
+
+    isi = store.ringkasan()
+    assert (isi["menunggu"], isi["ditolak"]) == (3, 2)
+    assert isi["ditolak_alasan"].startswith("HTTP 422")
+    assert isi["ditolak_at"] == jam.sekarang
+
+
+def test_konsol_mati_tidak_terhitung_ditolak(rakit):
+    worker, store, konsol, _ = rakit()
+    _isi(store, 2)
+    konsol.mati = True
+
+    worker._flush_pending()
+
+    assert store.ringkasan()["ditolak"] == 0
+
+
 def test_baris_racun_500_mundur_sendiri_tanpa_memutus_sambungan(rakit, monkeypatch, caplog):
     """Satu janjang yang selalu dijawab 500 di tengah konsol yang sehat. Dulu (review
     Task 3): 500 memutus sambungan, janjang baru berikutnya menyambung lagi, dan

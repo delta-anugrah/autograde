@@ -52,7 +52,22 @@ def test_umur_diisi_dari_timestamp_payload(tmp_path):
     jalur = tmp_path / "outbox.db"
     berkas_outbox_versi_lama(jalur, [("e1", "failed", 50, _payload("e1"))])
 
-    assert OutboxStore(jalur).ringkasan() == {"menunggu": 1, "tertua_at": EPOCH_TS}
+    isi = OutboxStore(jalur).ringkasan()
+    assert (isi["menunggu"], isi["tertua_at"]) == (1, EPOCH_TS)
+
+
+def test_kolom_ditolak_ditambah_di_tempat_dan_baris_lama_belum_terhitung_ditolak(tmp_path):
+    """Kolom baru untuk layar (final review konsol I1), ditambah di tempat seperti
+    `dibuat_at`. Baris lama belum terhitung ditolak sampai konsol menjawabnya di
+    versi ini: `last_error` versi lama bisa berasal dari api yang sudah mati."""
+    jalur = tmp_path / "outbox.db"
+    berkas_outbox_versi_lama(jalur, [("e1", "failed", 50, _payload("e1"))])
+
+    store = OutboxStore(jalur)
+
+    kolom = {r["name"] for r in store._db.execute("PRAGMA table_info(outbox_events)")}
+    assert "ditolak_at" in kolom
+    assert store.ringkasan()["ditolak"] == 0
 
 
 def test_payload_tanpa_timestamp_diisi_jam_buka(tmp_path):

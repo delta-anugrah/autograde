@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import uuid
 from collections.abc import Callable
 from datetime import datetime
@@ -98,6 +99,10 @@ class ConsoleService(LayarLineSupport):
         self.tz = ZoneInfo(settings.factory_tz)
         self._by_machine = {ln.machine_id: ln for ln in self.lines}
         self._by_code = {ln.line_code: ln for ln in self.lines}
+        # event_id yang penolakannya sudah di-WARNING di proses ini. Ingest jalan di
+        # thread pool (`def` route), jadi dijaga kunci sendiri.
+        self._ditolak_diperingatkan: set[str] = set()
+        self._kunci_ditolak = threading.Lock()
 
     # ------------------------------------------------------------ ingest
 
@@ -108,12 +113,40 @@ class ConsoleService(LayarLineSupport):
         """Take one grading event from a line. Returns its `work_date`.
 
         ValueError on a malformed payload → route replies 400 → the line's
-        outbox keeps the event and retries it. Rows are never dead-lettered, so
-        a line on this image always reports `outbox_failed` 0; a line still on
-        an older image may report more than 0. A held event is counted in
-        `outbox_pending`, which support sees in tab Status, section Diagnostik,
-        row "Antrean lokal". Better held than lost, or landed on the wrong day.
+        outbox keeps the event and retries it every 10 minutes, forever. Rows are
+        never dead-lettered, so a line on this image always reports
+        `outbox_failed` 0; a line still on an older image may report more than 0.
+        Support sees the held event in tab Status → Antrean line ("DITOLAK
+        konsol") and, once per event per process, in tab Log. Better held than
+        lost, or landed on the wrong day.
         """
+        try:
+            return self._ingest(payload)
+        except ValueError as exc:
+            self._catat_ditolak(payload, exc)
+            raise
+
+    def _catat_ditolak(self, payload: dict[str, Any], alasan: ValueError) -> None:
+        """Satu WARNING per janjang yang ditolak per proses (tab Log), sesudahnya DEBUG.
+
+        Line mencobanya lagi tiap 10 menit selamanya; WARNING tiap kali akan mengulang
+        masalah yang sama sepanjang hari. Line sendiri tidak punya log_sink, jadi tanpa
+        baris ini penolakannya cuma ada di `docker logs` line.
+        """
+        event_id = str(payload.get("event_id") or "?")
+        line = self._by_machine.get(str(payload.get("machine_id") or "").strip())
+        with self._kunci_ditolak:
+            baru = event_id not in self._ditolak_diperingatkan
+            self._ditolak_diperingatkan.add(event_id)
+        logger.log(
+            logging.WARNING if baru else logging.DEBUG,
+            "Janjang %s dari %s (jam %s) DITOLAK konsol: %s. Line menyimpannya dan mencoba "
+            "lagi tiap 10 menit, tapi tidak akan sampai sebelum penyebabnya dibereskan; "
+            "selama itu hapus data ditahan (MANUAL §7)",
+            event_id, line.line_code if line else payload.get("machine_id"), payload.get("timestamp"), alasan,
+        )
+
+    def _ingest(self, payload: dict[str, Any]) -> str:
         event_id = str(payload.get("event_id") or "").strip()
         machine_id = str(payload.get("machine_id") or "").strip()
         timestamp = str(payload.get("timestamp") or "").strip()
@@ -521,8 +554,20 @@ class ConsoleService(LayarLineSupport):
         if not assignment_id:
             return
         weighing_id = self.store.weighing_for_assignment(assignment_id)
-        if weighing_id:
+        if not weighing_id:
+            return
+        try:
             self._kirim_kunjungan(weighing_id, assignment_id)
+        except Exception:
+            # Janjangnya SUDAH tersimpan. Menjawab 500 cuma membuat line mengirim ulang,
+            # kiriman ulang itu duplikat (tidak mengantre apa pun), dan kunjungan ini
+            # tidak pernah diantre ulang tanpa satu kalimat pun yang menyebutnya.
+            logger.exception(
+                "Janjang susulan tersimpan, tapi kunjungan tiket %s (penugasan %s) TIDAK "
+                "diantre ulang ke AutoERP. Tiket hari kerja ini dibawa kirim ulang harian "
+                "besok; tiket yang lebih lama tidak, rekapnya di AutoERP kurang janjang ini",
+                weighing_id, assignment_id,
+            )
 
     # ------------------------------------------------------- line commands
 
