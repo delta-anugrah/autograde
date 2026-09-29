@@ -6,10 +6,13 @@ wire is never marked as sent.
 """
 from __future__ import annotations
 
+import re
 import sqlite3
+from pathlib import Path
 
 from rencana_query import rencana
 
+from palmgrade.integrations.erp import outbox_store as modul
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 
 
@@ -319,3 +322,50 @@ def test_due_memakai_indeksnya_dan_tetap_melewati_yang_terkirim(tmp_path):
 
     assert "USING INDEX idx_erp_outbox_due" in plan, plan
     assert [m.key for m in outbox.due()] == ["baru", "gagal"]
+
+
+def _rusakkan_payload(outbox: ErpOutboxStore, key: str) -> None:
+    with outbox._db:
+        outbox._db.execute("UPDATE erp_outbox SET payload = '{bukan json' WHERE key = ?", (key,))
+
+
+def test_payload_tak_terbaca_tidak_menahan_antrean(tmp_path):
+    """Parkiran Task 3: satu baris yang payload-nya rusak (disk, salinan tangan) dulu
+    membuat `due()` melempar tiap 30 detik, jadi SELURUH antrean berhenti. Baris itu
+    kini ditandai error dengan alasannya (terlihat di Antrean ERP) dan yang lain jalan."""
+    clock = Clock()
+    outbox = _store(tmp_path, clock)
+    outbox.enqueue("truck", "RUSAK", {"plate_number": "X"})
+    outbox.enqueue("truck", "BAIK", {"plate_number": "Y"})
+    _rusakkan_payload(outbox, "RUSAK")
+
+    [message] = outbox.due()
+
+    assert message.key == "BAIK"
+    [gagal] = outbox.failed_rows()
+    assert gagal["key"] == "RUSAK" and "payload tidak terbaca" in gagal["last_error"]
+    assert gagal["next_attempt_at"] == clock.now + 3600
+    assert outbox.due() == [message]
+
+
+def test_payload_rusak_yang_diantre_ulang_terbaca_lagi(tmp_path):
+    """Pesan kunjungan dibangun ulang dari store: antre ulang menggantikan payload rusak."""
+    outbox = _store(tmp_path)
+    outbox.enqueue("visit", "WB-1", {"a": 1})
+    _rusakkan_payload(outbox, "WB-1")
+    outbox.due()
+
+    outbox.enqueue("visit", "WB-1", {"a": 2})
+
+    [message] = outbox.due()
+    assert message.payload == {"a": 2}
+
+
+def test_status_yang_ditulis_ada_di_kosakata_dan_due_membaca_semua_kecuali_sent():
+    """Parkiran Task 6: `due()` memakai `IN (...)` supaya indeksnya terpakai. Status baru
+    yang ditulis tanpa masuk ke daftar yang dibaca `due()` akan membuat barisnya
+    tidak pernah dikirim, tanpa satu pun galat."""
+    teks = Path(modul.__file__).read_text(encoding="utf-8")
+    ditulis = set(re.findall(r"status\s*=\s*'([a-z_]+)'", teks))
+    assert ditulis <= set(modul.STATUS_SEMUA), ditulis
+    assert set(modul.STATUS_BELUM_TERKIRIM) == set(modul.STATUS_SEMUA) - {"sent"}

@@ -12,6 +12,7 @@ sending once a newer one exists.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 import time
@@ -38,6 +39,15 @@ CREATE TABLE IF NOT EXISTS erp_outbox (
 );
 CREATE INDEX IF NOT EXISTS idx_erp_outbox_due ON erp_outbox (status, next_attempt_at);
 """
+
+logger = logging.getLogger(__name__)
+
+#: Every status this table ever holds.
+STATUS_SEMUA = ("pending", "error", "sent")
+#: What `due()` reads. `IN (...)`, not `!= 'sent'`, so idx_erp_outbox_due is used on a
+#: table that is never trimmed; a status added to STATUS_SEMUA must be added here too
+#: or its rows are never sent (pinned by test_erp_outbox_store.py).
+STATUS_BELUM_TERKIRIM = ("pending", "error")
 
 # Contract §5: drained every 30 s, backing off to an hour while AutoERP is down.
 _BACKOFF_BASE_S = 30
@@ -82,27 +92,48 @@ class ErpOutboxStore:
             )
 
     def due(self, limit: int = 50) -> list[OutboxMessage]:
-        """Oldest first: a truck waiting since this morning goes before one typed now."""
-        # IN, not `!= 'sent'`: the same rows (status is only ever pending/error/sent),
-        # but this form can use idx_erp_outbox_due on a table that is never trimmed.
-        with self._lock:
+        """Oldest first: a truck waiting since this morning goes before one typed now.
+
+        A row whose payload no longer parses is set aside as `error` for the full
+        hour, with the reason support reads in Antrean ERP, instead of raising:
+        one unreadable row used to stop the whole queue every 30 s. A requeue of
+        the same key replaces the payload and makes it due again.
+        """
+        tanda = ", ".join("?" * len(STATUS_BELUM_TERKIRIM))
+        with self._lock, self._db:
             rows = self._db.execute(
-                """SELECT kind, key, payload, attempts, last_error, version FROM erp_outbox
-                   WHERE status IN ('pending', 'error') AND next_attempt_at <= ?
+                f"""SELECT kind, key, payload, attempts, last_error, version FROM erp_outbox
+                   WHERE status IN ({tanda}) AND next_attempt_at <= ?
                    ORDER BY created_at, rowid LIMIT ?""",
-                (self._clock(), limit),
+                (*STATUS_BELUM_TERKIRIM, self._clock(), limit),
             ).fetchall()
-        return [
-            OutboxMessage(
-                kind=row["kind"],
-                key=row["key"],
-                payload=json.loads(row["payload"]),
-                attempts=row["attempts"],
-                last_error=row["last_error"],
-                version=row["version"],
-            )
-            for row in rows
-        ]
+            pesan = []
+            for row in rows:
+                try:
+                    payload = json.loads(row["payload"])
+                except ValueError as exc:
+                    self._sisihkan_rusak(row, f"payload tidak terbaca: {exc}")
+                    continue
+                pesan.append(
+                    OutboxMessage(
+                        kind=row["kind"],
+                        key=row["key"],
+                        payload=payload,
+                        attempts=row["attempts"],
+                        last_error=row["last_error"],
+                        version=row["version"],
+                    )
+                )
+        return pesan
+
+    def _sisihkan_rusak(self, row: sqlite3.Row, alasan: str) -> None:
+        """Dipanggil di dalam kunci dan transaksi `due()`."""
+        self._db.execute(
+            """UPDATE erp_outbox SET status='error', attempts=attempts + 1, last_error=?,
+               next_attempt_at=? WHERE kind=? AND key=? AND version=?""",
+            (alasan[:_ERROR_CHARS], self._clock() + _BACKOFF_MAX_S, row["kind"], row["key"], row["version"]),
+        )
+        logger.error("Antrean AutoERP: %s %s disisihkan, %s", row["kind"], row["key"], alasan)
 
     def mark_sent(self, message: OutboxMessage) -> None:
         """Done, but only if nothing was queued for this key since it was read.
