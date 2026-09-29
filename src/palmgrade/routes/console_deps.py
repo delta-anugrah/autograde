@@ -242,18 +242,27 @@ def get_impor_grading_service() -> ImporGradingService:
     )
 
 def hangatkan_singleton() -> None:
-    """Build, before the first request, every singleton a thread-pool route reaches.
+    """Build, before the first request, EVERY `lru_cache` singleton in this module.
 
-    Batch 2.5 moved login, `/state`, `dev/log` and the session check into the thread
-    pool, and `lru_cache` does not stop two threads from both building an instance on a
-    first call that lands at the same moment. Two `AuthService` objects would mean two
-    login locks, and a burst of wrong passwords right after boot could get past the
-    lockout again. The store, `ErpQueue` and both outboxes live inside
-    `get_console_service()`, which the app factory and the lifespan already build.
+    Batch 2.5 moved login, `/state`, `dev/log` and `ingest_event` into the thread
+    pool (the session check, a sync dependency, already ran there). `lru_cache` does
+    not stop two threads from both building an instance on a first call that lands
+    at the same moment: two `AuthService` objects would mean two login locks, and a
+    burst of wrong passwords right after boot could get past the lockout again; two
+    of any other service would mean two sets of whatever it guards. All of them, not
+    just the ones a thread-pool route reaches today (a later `def` route would
+    reopen the race); `tests/unit/test_hangatkan_singleton.py` fails when a new
+    getter is not added here.
     """
+    get_console_service()
     get_auth_service()
+    get_scan_service()
     get_dev_service()
-
+    get_pantau_antrean_line()
+    get_bahaya_service()
+    get_operator_admin()
+    get_riwayat_service()
+    get_impor_grading_service()
 
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]

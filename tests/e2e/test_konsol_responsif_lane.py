@@ -6,6 +6,10 @@ dulu; begitu query lambatnya MULAI (`mulai`, dari thread mana pun ia jalan), per
 ringan (`/api/console/me`) dikirim. Kalau yang berat jalan di event loop, loop membeku
 dan yang ringan baru jalan sesudah yang berat selesai; di thread pool, yang ringan
 selesai lebih dulu.
+
+Yang dibuktikan: EVENT LOOP tetap bebas. Bukan bahwa store konsol ikut responsif:
+permintaan yang butuh kunci store yang sama tetap antre di belakang query berat
+(kunci itu satu per berkas SQLite, aturan 11 dan 30 CLAUDE.md).
 """
 from __future__ import annotations
 
