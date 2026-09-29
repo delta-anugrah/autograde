@@ -2,9 +2,12 @@
 
 Permintaan user 2026-09-29: sesudah Simpan & Restart (Sumber Kamera, Model
 Deteksi) atau Danger Zone, kotak kamera line yang restart diberi spinner dan
-hitungan detik, hilang sendiri begitu line mengirim gambar lagi, dan videonya
+bar berjalan, hilang sendiri begitu line mengirim gambar lagi, dan videonya
 kembali TANPA memuat ulang halaman. Lewat 60 detik, spinner diganti pesan rinci
 (kode, line, jam, saran).
+
+Permintaan operator 2026-09-29 (lanjutan): selama spinner tampil, "Kamera tidak
+tersambung" tidak ikut tampil, dan hitungan detik diganti bar berjalan.
 
 Dua lapis seperti `test_console_html_ai_mati.py`: invarian teks (selalu jalan)
 dan perilaku lewat node dengan KAMUS asli (`konsol_js`).
@@ -382,13 +385,22 @@ def test_pemantau_restart_jalan_tiap_detik():
     ("en", "Line 2 is restarting", "12 s"),
 ])
 def test_kotak_kamera_selama_restart(bahasa, judul, detik):
-    fn = ["jamSinkron", "isiRestart", "teksDetikRestart", "teksBatasRestart"]
+    """Spinner + judul + bar berjalan. Tidak ada hitungan detik lagi (permintaan
+    operator 2026-09-29: "loadingnya jangan pake second")."""
+    fn = ["jamSinkron", "restartMasihDitunggu", "isiRestart", "teksBatasRestart"]
     html = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 12_400})", bahasa=bahasa)
     assert judul in html
     assert 'class="restart-putar"' in html
-    assert "data-restart-detik" in html
+    assert 'class="restart-bar"' in html
+    assert html.index("<b>") < html.index('class="restart-bar"'), "bar di bawah judul"
+    assert "data-restart-detik" not in html
+    assert detik not in html
     assert "RESTART_LAMA" not in html
-    assert _jalan(fn, f"teksDetikRestart({_tanda()}, {MULAI + 12_400})", bahasa=bahasa) == detik
+
+
+def test_hitungan_detik_dicabut():
+    assert "teksDetikRestart" not in HTML
+    assert "data-restart-detik" not in HTML
 
 
 @butuh_node
@@ -399,20 +411,22 @@ def test_kotak_kamera_selama_restart(bahasa, judul, detik):
             "Check the Log tab and that line's terminal"]),
 ])
 def test_lewat_60_detik_spinner_diganti_pesan_rinci(bahasa, potongan):
-    fn = ["jamSinkron", "isiRestart", "teksDetikRestart", "teksBatasRestart"]
+    fn = ["jamSinkron", "restartMasihDitunggu", "isiRestart", "teksBatasRestart"]
     html = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 61_000})", bahasa=bahasa)
     for p in potongan:
         assert p in html.replace("&#39;", "'"), (p, html)
     assert "restart-putar" not in html
+    assert "restart-bar" not in html
+    assert "data-restart-detik" not in html
     assert 'role="alert"' in html
 
 
 @butuh_node
 def test_isi_kotak_tidak_berubah_tiap_detik_supaya_spinner_tidak_tersentak():
-    """Detik ditulis di elemennya sendiri. Kalau angka detik ikut di kerangka,
-    `tulisKalauBeda` menulis ulang spinner tiap detik dan putarannya mulai dari
-    awal lagi."""
-    fn = ["jamSinkron", "isiRestart", "teksDetikRestart", "teksBatasRestart"]
+    """Isi kotak sama sepanjang keadaannya sama. Kalau berubah tiap detik,
+    `tulisKalauBeda` menulis ulang spinner dan bar tiap detik dan putarannya
+    mulai dari awal lagi."""
+    fn = ["jamSinkron", "restartMasihDitunggu", "isiRestart", "teksBatasRestart"]
     a = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 3000})")
     b = _jalan(fn, f"isiRestart('Line 2', {_tanda()}, {MULAI + 9000})")
     assert a == b
@@ -423,7 +437,7 @@ def test_isi_kotak_tidak_berubah_tiap_detik_supaya_spinner_tidak_tersentak():
 
 @butuh_node
 def test_nama_line_di_escape():
-    html = _jalan(["jamSinkron", "isiRestart", "teksDetikRestart", "teksBatasRestart"],
+    html = _jalan(["jamSinkron", "restartMasihDitunggu", "isiRestart", "teksBatasRestart"],
                   f"isiRestart('<b>x</b>', {_tanda()}, {MULAI})")
     assert "<b>x</b>" not in html and "&lt;b&gt;" in html
 
@@ -431,8 +445,65 @@ def test_nama_line_di_escape():
 def test_kotak_digambar_lewat_tulis_kalau_beda():
     fn = fungsi("gambarRestart")
     assert "tulisKalauBeda(slot, isiRestart(" in fn
-    assert "tulisKalauBeda(" in fn.split("data-restart-detik", 1)[1]
     assert "innerHTML" not in fn
+
+
+# ── "Kamera tidak tersambung" tidak ikut tampil selama spinner ────────────
+
+KARTU_KELAS = """
+const slot = { _terakhirDitulis: undefined, innerHTML: "" };
+const kelas = new Set();
+const kartu = {
+  dataset: { line: "line-2" },
+  classList: {
+    add: (k) => kelas.add(k), remove: (k) => kelas.delete(k), contains: (k) => kelas.has(k),
+    toggle: (k, on) => (on ? kelas.add(k) : kelas.delete(k), on),
+  },
+  querySelector: (sel) => (sel === ".slot-restart" ? slot : sel === ".nama" ? { textContent: "Line 2" } : null),
+};
+const tulisKalauBeda = (el, html) => { el._terakhirDitulis = html; el.innerHTML = html; };
+"""
+FN_GAMBAR = ["jamSinkron", "restartMasihDitunggu", "isiRestart", "teksBatasRestart", "gambarRestart"]
+
+
+@butuh_node
+def test_selama_spinner_kartu_ditandai_sedang_restart_walau_kamera_putus():
+    """cekKamera tetap menandai `putus` (line memang mati selama restart), tapi
+    kartu juga ditandai `sedang-restart`, yang menyembunyikan tulisan itu."""
+    hasil = _jalan(FN_GAMBAR, (
+        f"(() => {{ kartu.classList.add('putus'); gambarRestart(kartu, {_tanda()}, {MULAI + 5000});"
+        " return [...kelas].sort(); })()"), tambahan=KARTU_KELAS)
+    assert hasil == ["putus", "sedang-restart"]
+
+
+@pytest.mark.parametrize("opsi", [{}, {"batasMs": BATAS_HAPUS, "hapus": True}])
+@butuh_node
+def test_kotak_merah_dan_tanda_hilang_mengembalikan_tulisan_kamera_putus(opsi):
+    """Lewat batas (kotak merah RESTART_LAMA) atau tanda dihapus (gambar datang):
+    perilaku biasa kembali, jadi kamera yang benar-benar putus terbaca lagi."""
+    m = _tanda(**opsi)
+    batas = opsi.get("batasMs", 60_000)
+    hasil = _jalan(FN_GAMBAR, (
+        f"(() => {{ kartu.classList.add('putus'); const r = [];"
+        f" gambarRestart(kartu, {m}, {MULAI + 1000}); r.push(kelas.has('sedang-restart'));"
+        f" gambarRestart(kartu, {m}, {MULAI + batas}); r.push(kelas.has('sedang-restart'));"
+        f" gambarRestart(kartu, {m}, {MULAI + 1000}); r.push(kelas.has('sedang-restart'));"
+        f" gambarRestart(kartu, null, {MULAI + 2000}); r.push(kelas.has('sedang-restart'));"
+        " r.push(kelas.has('putus')); return r; })()"), tambahan=KARTU_KELAS)
+    assert hasil == [True, False, True, False, True]
+
+
+def _css() -> str:
+    return HTML.split("<style>", 1)[1].split("</style>", 1)[0]
+
+
+def test_css_menyembunyikan_tulisan_kamera_putus_selama_restart():
+    css = _css()
+    aturan = re.search(r"\.card\.sedang-restart \.feed > span\s*\{([^}]*)\}", css)
+    assert aturan, "aturan .card.sedang-restart .feed > span tidak ada"
+    assert "display:none" in aturan.group(1).replace(" ", "")
+    # Spesifisitasnya sama dengan `.card.putus .feed span`: yang menang yang belakangan.
+    assert css.index(".card.putus .feed span") < aturan.start()
 
 
 def test_kartu_line_punya_slot_restart_di_dalam_kotak_kamera():
@@ -451,10 +522,25 @@ def test_tanda_tidak_bergantung_peran():
 
 
 def test_spinner_css_murni_tanpa_gambar():
-    css = HTML.split("<style>", 1)[1].split("</style>", 1)[0]
+    css = _css()
     blok = css.split(".restart-putar", 1)[1].split("}", 1)[0]
     assert "animation:" in blok and "url(" not in blok
     assert ".feed .restart-kotak" in css
+
+
+def test_bar_berjalan_css_murni_dan_ikut_reduced_motion():
+    css = _css()
+    bar = re.search(r"\.restart-bar::before\s*\{([^}]*)\}", css)
+    assert bar, ".restart-bar::before tidak ada"
+    assert "animation:" in bar.group(1) and "url(" not in bar.group(1)
+    nama = re.search(r"animation:\s*([\w-]+)", bar.group(1)).group(1)
+    assert f"@keyframes {nama}" in css
+    # Gerak dimatikan untuk yang memintanya: aturan global mematikan semua animasi,
+    # dan bar diam dibuat penuh supaya tidak terbaca "40% selesai".
+    assert "@media (prefers-reduced-motion:reduce) { *, *::before, *::after { animation:none !important;" in css
+    assert re.search(
+        r"@media \(prefers-reduced-motion:reduce\)\s*\{\s*\.restart-bar::before\s*\{[^}]*width:100%", css
+    ), "bar diam untuk reduced-motion tidak ada"
 
 
 def test_kunci_kamus_ada_di_kedua_bahasa():
@@ -491,7 +577,7 @@ def test_hapus_data_ditandai_dengan_batas_sepuluh_menit():
     ("en", "Line 2 is deleting its data, then restarting", "After 10 min"),
 ])
 def test_hapus_data_tetap_spinner_sampai_sepuluh_menit(bahasa, judul, lama):
-    fn = ["jamSinkron", "isiRestart", "teksDetikRestart", "teksBatasRestart"]
+    fn = ["jamSinkron", "restartMasihDitunggu", "isiRestart", "teksBatasRestart"]
     m = _tanda(batasMs=BATAS_HAPUS, hapus=True)
     lima_menit = _jalan(fn, f"isiRestart('Line 2', {m}, {MULAI + 300_000})", bahasa=bahasa)
     assert judul in lima_menit and "restart-putar" in lima_menit
@@ -505,3 +591,10 @@ def test_hapus_data_tetap_diminta_ulang_lewat_60_detik():
     m = _tanda(turunPada=MULAI + 4000, batasMs=BATAS_HAPUS, hapus=True)
     assert _jalan(fn, f"perluMintaUlangFeed({m}, {MULAI + 5000}, true, {MULAI + 300_000})") is True
     assert _jalan(fn, f"perluMintaUlangFeed({m}, {MULAI + 5000}, true, {MULAI + BATAS_HAPUS + 1})") is False
+
+
+def test_kotak_restart_menutup_video_di_belakangnya_sepenuhnya():
+    """Operator 2026-09-29: cuma layar loading, bukan frame lama yang tembus samar."""
+    aturan = re.search(r"\.feed \.restart-kotak \{([^}]*)\}", HTML).group(1)
+    assert "background:#000" in aturan.replace(" ", "")
+    assert "rgba(" not in aturan

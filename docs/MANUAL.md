@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "1.8"
+versi: "1.9"
 tanggal: 29 September 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -129,7 +129,7 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   saat masa tenggang atau habis. Klik untuk melihat perusahaan, tanggal aktif, dan masa
   tenggang. PC tanpa lisensi cuma menampilkan versinya.
 - **Strip "Hari ini"**: jumlah janjang per kelas (Ripe, Unripe, JK, TP) dan total, rasio Ripe,
-  neto timbangan, dan **Last Sync**.
+  **Data timbangan** (neto hari ini dan jumlah tiket), dan **Last Sync**.
 - **Last Sync**: dua baris, **AutoERP** dan **Cloud Photo** (foto di R2). Jamnya = kapan data
   terakhir masuk ke sana; `-` berarti belum pernah ada yang masuk. Titik **hijau** = tersambung; titik **kuning** = terputus, dengan
   keterangan seperti "Terputus sejak 13.40 · 5 menunggu". Foto naik tiap jam, jadi jam Cloud
@@ -141,9 +141,10 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 - Kartu berbingkai **merah** dengan pita **AI berhenti memproses** (kode `AI_MATI`, jam mulai,
   tindakan) = kamera jalan tapi tidak ada yang digrading: tahan umpan buah ke line itu dan
   panggil teknisi. Pita hilang sendiri begitu line memproses lagi.
-- Kotak kamera bertuliskan **Line N sedang dinyalakan ulang** dengan spinner dan hitungan detik
+- Kotak kamera bertuliskan **Line N sedang dinyalakan ulang** dengan spinner dan bar berjalan
   = line itu sedang restart karena support menyimpan Sumber Kamera atau Model Deteksi, atau
-  menekan Restart / Hapus data di Danger Zone. Hilang sendiri begitu gambar kamera muncul lagi,
+  menekan Restart / Hapus data di Danger Zone. Selama itu tulisan "Kamera tidak tersambung"
+  tidak ikut tampil, dan tidak ada hitungan detik: bar berjalan cukup menandai masih diproses. Hilang sendiri begitu gambar kamera muncul lagi,
   tanpa memuat ulang halaman. Lewat 60 detik berganti jadi kotak merah **Line N belum kembali**
   (kode `RESTART_LAMA`, jam restart diminta): cek tab Log dan terminal line itu. Hapus data
   menulis **Line N sedang menghapus data lalu dinyalakan ulang** dan menunggu sampai 10 menit
@@ -802,6 +803,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 1.9 | 29 September 2026 | §3.2: kotak kamera line yang sedang restart memakai bar berjalan, bukan hitungan detik, dan tidak lagi ikut menulis "Kamera tidak tersambung"; strip "Hari ini" berlabel **Data timbangan** (dulu Neto timbangan). Tab Akun: semua tombol aksi selebar sama. Tab Line: empat pilihan membentang selebar panel. |
 | 1.8 | 29 September 2026 | §3.2: kotak kamera line yang sedang restart (Sumber Kamera, Model Deteksi, Danger Zone) memberi spinner dan hitungan detik, videonya kembali tanpa memuat ulang halaman, dan lewat 60 detik (hapus data: 10 menit) berganti pesan `RESTART_LAMA`. Notifikasi pojok tidak ada lagi yang menunggu ditutup: paling lama 10 detik, berhenti selama kursor di atasnya, maksimal 30 detik (§3.2). |
 | 1.7 | 28 September 2026 | Restart dan hapus data dari konsol menutup line dengan rapi (coil PLC mati, antrean simpan habis); foto dan sidecar ditulis tahan listrik padam; foto 0 byte lama tidak diunggah. Tab Status punya bagian **Antrean line**: antrean janjang tiap line ke konsol tidak lagi menyerah sesudah 50 percobaan, dan bisa dilihat serta dikirim ulang dari layar; janjang yang ditolak konsol terbaca "DITOLAK konsol" dan dikeluarkan dengan tangan (§7.1). Kartu line jadi merah kalau AI berhenti memproses gambar (§7). §7: tanda **Cek AutoERP** di tab Timbangan untuk janjang susulan pada tiket AutoERP yang sudah final, dan baris antrean ERP `HTTP 500` beramplop Frappe. |
 | 1.6 | 28 September 2026 | ONBOARDING digabung ke sini (§9.1 folder, §9.2 langkah pertama) lalu dihapus; port konsol ditulis dua cara pasang (8100 image produksi, 8000 dari source); §5.11 Lampung per 28 September; aturan image GHCR dan alur rilis diperbarui. |

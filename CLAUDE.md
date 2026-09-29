@@ -1314,9 +1314,14 @@ memang khas satu mesin.
   yang dibiarkan menyala berhari-hari. Test: `tests/unit/test_console_html_toast.py`.
 - **Line yang direstart dari konsol diberi tanda di kotak kameranya** (2026-09-29): Sumber
   Kamera, Model Deteksi, dan Danger Zone (restart, hapus data) menandai line yang dijawab
-  SERVER sudah restart/menerima (`lineDirestart`), bukan yang diklik. Spinner + detik, lewat
+  SERVER sudah restart/menerima (`lineDirestart`), bukan yang diklik. Spinner + bar berjalan
+  CSS murni tanpa angka (hitungan detik dicabut atas permintaan operator 2026-09-29), lewat
   batas tanda pesan `RESTART_LAMA`: 60 detik, **10 menit untuk hapus data** (`RESTART_HAPUS`:
-  line menghapus fotonya saat boot sebelum `/health` menjawab). Tanda hilang oleh gambar
+  line menghapus fotonya saat boot sebelum `/health` menjawab). Selama spinner tampil kartu
+  diberi kelas `sedang-restart` (`gambarRestart`), yang menyembunyikan "Kamera tidak
+  tersambung": `cekKamera` tetap menandai `putus`, tapi tulisannya tidak ikut tembus di balik
+  loading. Kotak merah dan tanda yang hilang melepas kelasnya, jadi kamera yang benar-benar
+  putus sesudahnya terbaca lagi. Tanda hilang oleh gambar
   (`naturalWidth > 0`, `feedMemuat`) dari stream yang diminta SESUDAH proses lama pasti hilang
   (probe `/health` DITOLAK, atau 12 detik sesudah ditandai; `restartSelesai`). Lewat tenggat
   sengaja tidak dihitung: proses lama yang menguras antrean simpan bisa lambat lalu menjawab
