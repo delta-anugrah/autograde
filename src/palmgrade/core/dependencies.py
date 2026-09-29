@@ -15,6 +15,7 @@ from ..repositories.truck_repository import TruckRepository
 from ..services.capture_service import CaptureService
 from ..services.health_service import HealthService
 from ..services.inspection_service import InspectionService
+from ..services.penutup_line import PenutupLine
 from ..services.pindah_db_line import folder_db_line
 from ..services.result_service import ResultService
 from ..services.streaming_service import StreamingService
@@ -142,3 +143,10 @@ def get_capture_service() -> CaptureService:
 @lru_cache
 def get_result_service() -> ResultService:
     return ResultService(result_repository=get_result_repository())
+
+
+@lru_cache
+def get_penutup_line() -> PenutupLine:
+    """Satu per proses line. Lifespan (SIGTERM), `/internal/restart`, dan
+    `/internal/hapus-data` wajib memakai urutan tutup yang SAMA (batch 2.2)."""
+    return PenutupLine()

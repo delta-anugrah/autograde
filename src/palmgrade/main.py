@@ -15,6 +15,7 @@ from .core.dependencies import (
     get_capture_repository,
     get_folder_db_line,
     get_outbox_store,
+    get_penutup_line,
     get_realtime_inspection_pipeline,
     get_runtime_state,
     get_settings,
@@ -27,6 +28,7 @@ from .routes.internal import _jadwalkan_keluar
 from .routes.internal import router as internal_router
 from .routes.internal_bahaya import buat_router as buat_router_bahaya
 from .services.hapus_data_line import hapus_kalau_diminta
+from .services.langkah_tutup_line import langkah_tutup_line
 from .services.pindah_db_line import pindahkan_db_lama
 from .workers.outbox_retry_worker import OutboxRetryWorker
 from .core.logging import configure_logging
@@ -52,7 +54,7 @@ from .workers.display_worker import DisplayWorker
 from .workers.event_broadcast_worker import EventBroadcastWorker
 from .workers.frame_capture_worker import FrameCaptureWorker
 from .workers.frame_processing_worker import FrameProcessingWorker
-from .plc import shutdown_plc_worker, start_plc_worker
+from .plc import start_plc_worker
 
 load_dotenv(override=False)
 
@@ -160,6 +162,7 @@ async def _tarik_penugasan(settings, state) -> None:
 def create_app() -> FastAPI:
     configure_logging()
     settings = get_settings()
+    penutup = get_penutup_line()
 
     # Folder DB line (state/, batch 1.2); lihat services/pindah_db_line.py.
     _lic_repo = LicenseLocalRepo(get_folder_db_line() / "license.db")
@@ -374,6 +377,13 @@ def create_app() -> FastAPI:
                 await asyncio.sleep(10)
                 for i, (name, thread, worker) in enumerate(state.worker_threads):
                     if not thread.is_alive():
+                        # Batch 2.2: saat menutup, penulis dan PLC SENGAJA dihentikan.
+                        # Menghidupkannya lagi membuka ulang loop penulis di tengah urutan
+                        # tutup (`run_loop` membersihkan tanda berhentinya sendiri).
+                        # Diperiksa sesudah `is_alive()`: thread yang sudah mati sebelum
+                        # tanda ini menyala memang mati sendiri, bukan dihentikan.
+                        if penutup.sedang_menutup:
+                            return
                         logger.error("Worker thread '%s' died — restarting", name)
                         new_thread = _start_worker(name, worker.run_loop)
                         state.worker_threads[i] = (name, new_thread, worker)
@@ -396,43 +406,22 @@ def create_app() -> FastAPI:
         upload_scheduler = UploadScheduler(settings=settings, run_batch=batch_worker.run_batch_once)
         upload_scheduler.start()
 
+        # Batch 2.2: SATU urutan tutup untuk SIGTERM (sesudah `yield`) dan untuk
+        # keluar atas permintaan konsol (`/internal/restart`, `/internal/hapus-data`),
+        # yang dulu `os._exit` tanpa lewat sini: coil tertinggal ON dan janjang di
+        # antrean simpan hilang. Urutan dan alasannya: services/langkah_tutup_line.py.
+        penutup.pasang(
+            langkah_tutup_line(
+                worker_threads=state.worker_threads,
+                penulis=capture_saver,
+                kamera=camera,
+                penjadwal=upload_scheduler,
+            )
+        )
+
         yield
 
-        from .core.dependencies import get_camera
-
-        # PLC didahulukan: saat SIGTERM tiba, coil OK/NG punya peluang kira-kira
-        # 1 dari 2 sedang ON di tengah pulse (200ms ON dalam siklus 400 ms, 2
-        # tick). Kontrak coil itu "satu pulse = satu buah" — dibiarkan ON sampai
-        # watchdog ODOT menyerah (masih 30 detik) berarti PLC menyortir banyak
-        # buah dengan keputusan basi. Digarap best-effort: gagal di sini tidak
-        # boleh menghalangi sisa shutdown.
-        try:
-            plc_thread = next((t for name, t, _ in state.worker_threads if name == "plc"), None)
-            shutdown_plc_worker(plc_thread)
-        except Exception:
-            logger.exception("Shutdown PLC gagal — shutdown lain tetap dilanjutkan")
-
-        # Janjang yang sudah digrading (dan sudah dapat pulse PLC) tapi belum
-        # sempat ditulis akan hilang bersama proses ini. Beri penulis kesempatan
-        # menghabiskan antreannya dulu — beberapa ratus milidetik per janjang,
-        # dan antreannya cuma tiga dalam. Best-effort: gagal di sini tidak boleh
-        # menahan sisa shutdown.
-        try:
-            if not capture_saver.tunggu_kosong(timeout=5.0):
-                logger.warning(
-                    "Shutdown: %d janjang masih di antrean simpan dan tidak sempat ditulis",
-                    capture_saver.antrean,
-                )
-            capture_saver.stop(timeout=2.0)
-        except Exception:
-            logger.exception("Menguras antrean simpan gagal — shutdown dilanjutkan")
-
-        try:
-            camera = get_camera()
-            camera.disconnect()
-        except RuntimeError:
-            pass
-        upload_scheduler.stop()
+        penutup.tutup("lifespan selesai (SIGTERM)")
 
     app = FastAPI(title="Ripe Recognition API", lifespan=lifespan)
 

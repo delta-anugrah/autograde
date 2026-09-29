@@ -50,3 +50,22 @@ def test_jeda_disebut_di_jawaban(client):
     with patch("palmgrade.routes.internal._jadwalkan_keluar"):
         r = client.post("/internal/restart", headers={"X-Internal-Secret": "rahasia-tes"})
     assert r.json()["jeda_detik"] > 0
+
+
+def test_restart_menutup_lewat_penutup_line(client):
+    """Batch 2.2: jawab dulu, lalu urutan tutup yang SAMA dengan SIGTERM (coil
+    mati, antrean simpan habis), baru `os._exit`."""
+
+    class _Penutup:
+        def __init__(self) -> None:
+            self.jeda: list[float] = []
+
+        def keluar_nanti(self, jeda: float) -> None:
+            self.jeda.append(jeda)
+
+    penutup = _Penutup()
+    with patch("palmgrade.routes.internal.get_penutup_line", return_value=penutup):
+        r = client.post("/internal/restart", headers={"X-Internal-Secret": "rahasia-tes"})
+
+    assert r.status_code == 200
+    assert penutup.jeda == [r.json()["jeda_detik"]]
