@@ -182,10 +182,10 @@ secret yang dikonfigurasi kosong tidak pernah membuka lane (`routes/penjaga_raha
 | POST | `/internal/piston` | Piston manual (fitur mati selama `PLC_COIL_MANUAL` kosong) |
 | GET | `/internal/plc` | Snapshot DI + coil yang boleh diuji |
 | POST | `/internal/plc/coil` | Picu satu coil uji; ditolak 409 selama line punya truk terpasang |
-| POST | `/internal/restart` | Keluar sesudah 1 detik (`os._exit`), `restart: unless-stopped` menyalakan lagi dan line membaca ulang `media.env` |
+| POST | `/internal/restart` | ← dari konsol (Sumber Kamera, Model Deteksi, Danger Zone): jawab dulu, 1 detik kemudian urutan tutup yang SAMA dengan SIGTERM (coil PLC mati bersamaan dengan antrean simpan dihabiskan, lalu kamera + penjadwal R2), maks 9 detik, baru `os._exit(0)`. `restart: unless-stopped` menyalakan lagi dan line membaca ulang `media.env`. Aturan 29 |
 | POST / GET | `/internal/rekam/mulai`, `/stop`, `/status` | Rekam video developer (tab Line → Rekam Video) ke `REKAMAN_DIR` |
 | GET / POST | `/internal/rekam/berkas`, `/internal/rekam/hapus` | Hitung / hapus rekaman line ini (Danger Zone); hapus ditolak selama merekam |
-| POST | `/internal/hapus-data` | Danger Zone: tulis penanda lalu keluar, data dihapus saat boot berikutnya. 409 `truk_terpasang` kalau line sedang memproses truk |
+| POST | `/internal/hapus-data` | Danger Zone: tulis penanda lalu keluar lewat urutan tutup yang sama, data dihapus saat boot berikutnya. 409 `truk_terpasang` kalau line sedang memproses truk |
 
 ### Dihapus
 

@@ -41,7 +41,14 @@ class UploadScheduler:
             self.settings.r2_bucket or "<kosong — no-op>",
         )
 
-    def stop(self) -> None:
+    def stop(self, *, tunggu: bool = True) -> None:
+        """Hentikan penjadwal. `tunggu=False` = jangan menunggu batch yang sedang jalan.
+
+        Dipakai tutup line (batch 2.2): batch upload aman diputus di tengah
+        (state per item di manifest SQLite, `test_batch_upload_crash.py`), dan
+        menunggu 500 foto naik ke R2 bisa memakan menit, jauh melewati batas
+        tutup line. `atexit` tetap memanggil bentuk bawaan yang menunggu.
+        """
         if self._scheduler and self._scheduler.running:
-            self._scheduler.shutdown()
+            self._scheduler.shutdown(wait=tunggu)
             logger.info("Batch upload scheduler stopped")

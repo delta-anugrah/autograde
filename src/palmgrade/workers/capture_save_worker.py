@@ -71,6 +71,11 @@ _POLL_TIMEOUT = 0.5
 _SLOW_SAVE_S = 1.0
 
 
+def sebut_janjang(stempel: str, assignment_id: str | None) -> str:
+    """Satu janjang di log, dengan bentuk yang sama di mana pun ia disebut hilang."""
+    return f"{stempel} ({assignment_id[:8] if assignment_id else 'tanpa truk'})"
+
+
 def _kotak(bbox: tuple[int, int, int, int]) -> dict[str, int]:
     """Tuple dari pipeline → bentuk yang sama dengan `bounding_box` janjang.
 
@@ -139,12 +144,19 @@ class CaptureSaveWorker:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._selesai = threading.Condition()
-        # Per instance, BUKAN atribut kelas: tiga line dalam satu proses (tes,
-        # dan `make line` yang menjalankan beberapa app) akan saling mengaku
-        # sibuk, dan `tunggu_kosong` salah satu line akan menunggu pekerjaan
-        # line lain.
-        self._sedang_menulis = False
+        # Janjang yang sedang dipegang penulis, untuk log penutup line (batch
+        # 2.2). Per instance, BUKAN atribut kelas: tiga line dalam satu proses
+        # (tes, dan `make line` yang menjalankan beberapa app) akan saling
+        # menyebut janjang milik line lain.
+        self._sedang_ditulis: SaveJob | None = None
         self._dropped = 0
+        # Pintu penerimaan, ditutup penutup line (batch 2.2). SENGAJA terpisah
+        # dari `_stop`: watchdog 10 detik membersihkan `_stop` lewat `run_loop`,
+        # dan itu tidak boleh membuka lagi pintu yang sudah ditutup. Lock-nya
+        # menjamin tidak ada janjang yang lolos masuk antrean sesudah
+        # `tutup_pintu()` kembali; tanpa perebutan harganya nanodetik.
+        self._pintu = threading.Lock()
+        self._pintu_tertutup = False
 
     # --------------------------------------------------------------- lifecycle
 
@@ -190,12 +202,33 @@ class CaptureSaveWorker:
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=timeout)
 
+    @property
+    def belum_selesai(self) -> int:
+        """Janjang yang sudah diserahkan tapi belum selesai ditulis (antre + sedang ditulis)."""
+        return self._queue.unfinished_tasks
+
     def tunggu_kosong(self, timeout: float = 5.0) -> bool:
-        """Antrean kosong DAN tidak ada yang sedang ditulis. Untuk tes dan shutdown."""
+        """Tidak ada janjang yang antre ATAU sedang ditulis. Untuk tes dan tutup line.
+
+        Dihitung dari `unfinished_tasks` antrean, bukan `empty()` plus tanda
+        sibuk: di antara `get()` dan tanda sibuk dipasang, janjang yang sudah
+        dipegang penulis tidak terlihat di keduanya, dan penutup line akan
+        keluar sambil membuangnya (batch 2.2).
+        """
         with self._selesai:
-            return self._selesai.wait_for(
-                lambda: self._queue.empty() and not self._sedang_menulis, timeout=timeout
-            )
+            return self._selesai.wait_for(lambda: self.belum_selesai == 0, timeout=timeout)
+
+    def antrean_tersisa(self) -> list[tuple[str, str | None]]:
+        """(stempel, assignment_id) janjang yang belum tertulis: yang sedang ditulis dulu.
+
+        Untuk log penutup line: janjang yang tidak sempat ditulis sebelum proses
+        keluar harus bisa disebut satu per satu, bukan cuma dihitung.
+        """
+        sedang = self._sedang_ditulis
+        with self._queue.mutex:
+            antre = list(self._queue.queue)
+        jobs = ([sedang] if sedang is not None else []) + antre
+        return [(job.timestamp, job.assignment_id) for job in jobs]
 
     # ------------------------------------------------------------------ submit
 
@@ -209,27 +242,50 @@ class CaptureSaveWorker:
 
         Memblokir di sini akan mengembalikan persis masalah yang thread ini
         dibuat untuk menghilangkannya, jadi ini sengaja `put_nowait`.
+
+        Sesudah `tutup_pintu()` juga `False`: tidak ada lagi yang akan
+        menulisnya, jadi menerimanya berarti kehilangan tanpa jejak.
         """
-        try:
-            self._queue.put_nowait(job)
-            return True
-        except queue.Full:
-            # Dihitung, bukan cuma dicatat. Janjang ini sudah menerima pulse PLC
-            # (buahnya sudah disortir mesin) dan sudah masuk hitungan di layar,
-            # tapi tidak akan punya gambar maupun sidecar — jadi `_scan()` milik
-            # `BatchUploadWorker` tidak akan pernah menemukannya, sekarang atau
-            # nanti. Satu baris log di PC yang cuma dijenguk lewat AnyDesk sama
-            # saja dengan tidak ada kabar; angkanya diekspos di `/health/detail`
-            # bersebelahan dengan `outbox_failed` yang memang sudah rutin dilihat.
-            self._dropped += 1
-            logger.error(
-                "Antrean simpan penuh (%d) — janjang %s TIDAK disimpan (total dibuang: %d). "
-                "Disk atau CPU tidak mengimbangi laju grading.",
-                self._queue.maxsize,
-                job.timestamp,
-                self._dropped,
-            )
-            return False
+        with self._pintu:
+            if self._pintu_tertutup:
+                logger.error(
+                    "Tutup line: line sedang menutup, janjang %s TIDAK disimpan "
+                    "(sudah digrading, tapi tidak akan punya foto, sidecar, maupun baris di konsol)",
+                    sebut_janjang(job.timestamp, job.assignment_id),
+                )
+                return False
+            try:
+                self._queue.put_nowait(job)
+                return True
+            except queue.Full:
+                pass
+        # Dihitung, bukan cuma dicatat. Janjang ini sudah menerima pulse PLC
+        # (buahnya sudah disortir mesin) dan sudah masuk hitungan di layar,
+        # tapi tidak akan punya gambar maupun sidecar — jadi `_scan()` milik
+        # `BatchUploadWorker` tidak akan pernah menemukannya, sekarang atau
+        # nanti. Satu baris log di PC yang cuma dijenguk lewat AnyDesk sama
+        # saja dengan tidak ada kabar; angkanya diekspos di `/health/detail`
+        # bersebelahan dengan `outbox_failed` yang memang sudah rutin dilihat.
+        self._dropped += 1
+        logger.error(
+            "Antrean simpan penuh (%d) — janjang %s TIDAK disimpan (total dibuang: %d). "
+            "Disk atau CPU tidak mengimbangi laju grading.",
+            self._queue.maxsize,
+            job.timestamp,
+            self._dropped,
+        )
+        return False
+
+    def tutup_pintu(self) -> None:
+        """Berhenti menerima janjang, untuk penutup line. Tidak bisa dibuka lagi.
+
+        Dipanggil SEBELUM antrean dihabiskan: sesudah ini daftar janjang yang
+        belum tertulis (`antrean_tersisa`) tidak bisa bertambah lagi, jadi
+        ERROR penutup yang menyebutnya tetap lengkap. Yang datang sesudahnya
+        ditolak `submit` dan disebut sendiri di log.
+        """
+        with self._pintu:
+            self._pintu_tertutup = True
 
     # ------------------------------------------------------------------- tulis
 
@@ -329,7 +385,7 @@ class CaptureSaveWorker:
             except queue.Empty:
                 continue
 
-            self._sedang_menulis = True
+            self._sedang_ditulis = job
             mulai = time.monotonic()
             try:
                 self.run_once(job)
@@ -346,7 +402,7 @@ class CaptureSaveWorker:
                         "Simpan janjang %s lambat: tulis %.0f ms, antre %.0f ms, antrean=%d",
                         job.timestamp, lama * 1000, tunggu * 1000, self._queue.qsize(),
                     )
-                self._sedang_menulis = False
+                self._sedang_ditulis = None
                 self._queue.task_done()
                 with self._selesai:
                     self._selesai.notify_all()

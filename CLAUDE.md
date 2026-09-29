@@ -170,12 +170,12 @@ All via **`make`** (Docker only). From `autograde/`:
   saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
   mengatakan apa-apa soal batch upload ke cloud, untuk itu baca log `Batch tick: N item eligible`
   dari `BatchUploadWorker` atau query `state/upload_manifest.db` langsung.
-- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `work_date` lewat tengah malam + `console_store` + invarian `console.html` + **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: field yang diminta persis milik DocType (ERP palsu membalas 417 seperti Frappe) + Sumber TBS mengikuti `sumber_for_supplier` + grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual, **antrean ke AutoERP**: ditolak vs tidak terjangkau dibedakan + backoff 30 dtk→1 jam + pesan yang diganti saat masih di jalan tidak ditandai terkirim + truk manual masuk antrean + truk milik ERP read-only, **kunjungan truk**: bentuk pesan §4.C + `stage` diturunkan dari keadaan + bagian kosong tidak dikirim + grading ikut lewat tautan assignment + kirim ulang harian sekali sehari + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal, **thumbnail + manifest kunjungan** (sejak 2026-09-16): varian `thumb` di `capture_layout` (twins/pasangan/kunci R2) + thumbnail 400px ditulis di `capture_writer` tanpa menggagalkan capture + `batch_upload_worker` ikut mengunggah dan menghapus thumbnail + `UPLOAD_API_URL` kosong = item `done` begitu foto sampai + bentuk JSON `visit_manifest` (murni, tanpa I/O) + `console_store.bunches_for_assignment` urut waktu + `visit_manifest_worker` (antrean sendiri, viewer diunggah sekali per proses, R2 mati menahan baris) + `detail_url` terkirim hanya kalau R2 terkonfigurasi + invarian statis `viewer.html` (nol dependensi eksternal, baca manifest relatif), **janjang susulan** (batch 2.3, AutoERP palsu `tests/autoerp_palsu.py` dengan aturan finalisasi `upsert_visit`): requeue cuma pada insert sungguhan + tiket final ditandai `erp_perlu_dicek` + WARNING sekali per catatan berbeda, dan **query konsol berindeks** (`tests/rencana_query.py`, `EXPLAIN QUERY PLAN` sebelum/sesudah tiap query `ConsoleStore` + `ErpOutboxStore`)), jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi`: `pyyaml` cuma untuk tes yang mencocokkan `docker-compose.yml` dengan `Settings`; `fastapi` cuma untuk penjaga sesi konsol, yang cuma bisa dibuktikan lawan app sungguhan) di samping `ruff pytest`, samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi.
+- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `work_date` lewat tengah malam + `console_store` + invarian `console.html` + **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: field yang diminta persis milik DocType (ERP palsu membalas 417 seperti Frappe) + Sumber TBS mengikuti `sumber_for_supplier` + grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual, **antrean ke AutoERP**: ditolak vs tidak terjangkau dibedakan + backoff 30 dtk→1 jam + pesan yang diganti saat masih di jalan tidak ditandai terkirim + truk manual masuk antrean + truk milik ERP read-only, **kunjungan truk**: bentuk pesan §4.C + `stage` diturunkan dari keadaan + bagian kosong tidak dikirim + grading ikut lewat tautan assignment + kirim ulang harian sekali sehari + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal, **thumbnail + manifest kunjungan** (sejak 2026-09-16): varian `thumb` di `capture_layout` (twins/pasangan/kunci R2) + thumbnail 400px ditulis di `capture_writer` tanpa menggagalkan capture + `batch_upload_worker` ikut mengunggah dan menghapus thumbnail + `UPLOAD_API_URL` kosong = item `done` begitu foto sampai + bentuk JSON `visit_manifest` (murni, tanpa I/O) + `console_store.bunches_for_assignment` urut waktu + `visit_manifest_worker` (antrean sendiri, viewer diunggah sekali per proses, R2 mati menahan baris) + `detail_url` terkirim hanya kalau R2 terkonfigurasi + invarian statis `viewer.html` (nol dependensi eksternal, baca manifest relatif), **janjang susulan** (batch 2.3, AutoERP palsu `tests/autoerp_palsu.py` dengan aturan finalisasi `upsert_visit`): requeue cuma pada insert sungguhan + tiket final ditandai `erp_perlu_dicek` + WARNING sekali per catatan berbeda, dan **query konsol berindeks** (`tests/rencana_query.py`, `EXPLAIN QUERY PLAN` sebelum/sesudah tiap query `ConsoleStore` + `ErpOutboxStore`)), jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi apscheduler`: `pyyaml` cuma untuk tes yang mencocokkan `docker-compose.yml` dengan `Settings`; `fastapi` cuma untuk penjaga sesi konsol, yang cuma bisa dibuktikan lawan app sungguhan; `apscheduler` cuma untuk `test_upload_scheduler_stop.py`, tutup line menghentikan penjadwal upload R2 tanpa menunggu batch yang jalan) di samping `ruff pytest`, samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi.
 ⚠️ **`load_dotenv()` naik dari folder kode sampai ketemu `.env` pertama** (`find_dotenv()`), jadi
 di **worktree** itu bukan `.env` worktree ini, tapi `.env` checkout utama: dua test yang lulus
 sendirian tapi merah bersamaan adalah gejalanya, bukan test yang rapuh. `tests/conftest.py`
 membersihkan kunci di SEMUA `.env` sepanjang jalur itu (`tests/dotenv_mesin.py`), bukan cuma
-`<repo>/.env`. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, seluruh modul konsol (`integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py`) diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration/` = beberapa komponen SUNGGUHAN dirangkai tanpa Docker/hardware (konsol ↔ line lewat transport ASGI, berkas di folder sementara, render layar lewat node), jalan di CI sebagai langkah sendiri (`pytest tests/integration/ -rs`). Yang butuh kamera/GPU/Docker tetap di luar CI. **Nambah test → utamakan logic murni; jangan seret hardware, torch, atau cv2 ke CI.** FastAPI `TestClient` boleh, tapi hanya untuk hal yang memang cuma ada di lapisan HTTP (penjaga sesi): app-nya dirakit sendiri di test dengan dependensi di-override, **bukan** `create_console_app()`, yang itu menyentuh `state/console.db` milik developer.
+`<repo>/.env`. Lint via **`ruff check`** (scope: `tests/`, `domain/`, `integrations/outbox/`, `integrations/upload/`, `integrations/storage/`, `license/`, `plc/`, `workers/batch_upload_worker.py`, `workers/master_data_worker.py`, `services/penutup_line.py`, `services/langkah_tutup_line.py`, seluruh modul konsol (`integrations/notifications/line_client.py`, `repositories/console_repository.py`, `services/console_service.py`, `routes/console.py`, `console_main.py`) diperluas bertahap per modul yang sudah bersih). Semua jalan otomatis di **`.github/workflows/ci.yml`** tiap PR/push ke `staging`/`main` (runner ringan, tanpa GPU). `tests/integration/` = beberapa komponen SUNGGUHAN dirangkai tanpa Docker/hardware (konsol ↔ line lewat transport ASGI, berkas di folder sementara, render layar lewat node), jalan di CI sebagai langkah sendiri (`pytest tests/integration/ -rs`). Yang butuh kamera/GPU/Docker tetap di luar CI. **Nambah test → utamakan logic murni; jangan seret hardware, torch, atau cv2 ke CI.** FastAPI `TestClient` boleh, tapi hanya untuk hal yang memang cuma ada di lapisan HTTP (penjaga sesi): app-nya dirakit sendiri di test dengan dependensi di-override, **bukan** `create_console_app()`, yang itu menyentuh `state/console.db` milik developer.
 - From-zero prod setup (NVIDIA toolkit, MVS install, camera IP): `docs/SETUP.md`.
 
 ---
@@ -190,7 +190,8 @@ membersihkan kunci di SEMUA `.env` sepanjang jalur itu (`tests/dotenv_mesin.py`)
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |
 | GET | `/internal/status` | ← dari konsol tiap 1 detik (`LineStatusWorker`): truk, piston, `alarms` PLC (aturan 24), dan `unggah` = ringkasan upload foto ke R2 untuk Last Sync (`aktif`/`terakhir`/`gagal_sejak`/`antre`, aturan 27). `unggah` dihitung **sekali per batch**, bukan per panggilan; `null` di line tanpa worker upload. `x-internal-secret` |
 | POST | `/internal/manual-reject` | ← from api: trigger manual reject (`x-internal-secret`) |
-| POST | `/internal/hapus-data` | ← dari konsol (Danger Zone): tulis penanda `artifacts/.hapus-data` lalu keluar; data line dihapus **saat boot berikutnya**, sebelum store mana pun membuka berkasnya. **409** kalau line sedang dipasangi truk. Selama penandanya ada, `/internal/assignment` menolak truk baru (**409** `hapus_berjalan`). Router `routes/internal_bahaya.py`: **tanpa torch**, jadi teruji di CI |
+| POST | `/internal/hapus-data` | ← dari konsol (Danger Zone): tulis penanda `artifacts/.hapus-data` lalu keluar lewat urutan tutup yang sama (aturan 29); data line dihapus **saat boot berikutnya**, sebelum store mana pun membuka berkasnya. **409** kalau line sedang dipasangi truk. Selama penandanya ada, `/internal/assignment` menolak truk baru (**409** `hapus_berjalan`). Router `routes/internal_bahaya.py`: **tanpa torch**, jadi teruji di CI |
+| POST | `/internal/restart` | ← dari konsol (Sumber Kamera, Model Deteksi, Danger Zone): jawab dulu, 1 detik kemudian urutan tutup yang SAMA dengan SIGTERM (coil PLC mati bersamaan dengan antrean simpan dihabiskan, lalu kamera + penjadwal R2), maks 9 detik, baru `os._exit(0)`. Aturan 29 |
 | GET / POST | `/internal/rekam/berkas`, `/internal/rekam/hapus` | ← dari konsol (Danger Zone): hitung / hapus rekaman **milik line ini** (`{line_code}_*.mp4`, folder `videos/` dipakai bersama). Hapus **409** selama merekam |
 | WS | `/ws/results` | legacy result push. ⚠️ `image_url`-nya dikirim **sebelum** berkasnya ada di disk (deteksi menyerahkan janjang ke `CaptureSaveWorker` lalu lanjut), jendelanya ratusan milidetik. Tidak ada yang memakai lane ini hari ini (`console.html` tidak membukanya), tapi siapa pun yang menghidupkannya harus menahan gambar sampai 404 pertama lewat. Jalur yang dipakai konsol aman: barisnya ditulis penulis **sesudah** gambarnya jadi |
 | GET | `/captures/...` | static images (mount → `artifacts/`), tanpa sesi (line tidak punya konsep login): `.db`/berkas tersembunyi dijawab 404 (`domain/berkas_captures.py`) |
@@ -366,6 +367,9 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    kalau `batch_fatal=True` (jaringan/5xx/429/401/403: kondisi global) tapi **continue** kalau
    `batch_fatal=False` (HTTP 404 = truck belum sinkron, kondisi per-item, break di situ bikin
    antrean `ORDER BY discovered_at ASC` kelaparan di belakangnya).
+   Foto bukti atau sidecar 0 byte / sisa `.tmp` (disk dari sebelum batch 2.6) = `_PoisonError`:
+   tidak diunggah, tidak disapu retensi, terhitung `rusak` di Cloud Photo; thumbnail 0 byte cuma
+   dilewati (WARNING). Sidecar janjang tanpa gambar juga diracun, bukan `done`.
 1b. **Thread deteksi tidak pernah menunggu disk** (sejak 2026-09-18). Encode WebP frame sensor penuh
    memakan **~285 ms per gambar**, dan satu janjang menulis tiga gambar + sidecar + baris outbox:
    **~590 ms** diukur di PC Lampung 2026-09-17. Selama itu dulu deteksi BERHENTI, dan tiga akibatnya
@@ -390,6 +394,9 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    berarti disk/CPU tidak mengimbangi laju grading, itu yang harus dibaca dari log, bukan ditambal
    dengan antrean lebih dalam lagi. Satu janjang >1 detik diadukan `logger.warning`
    (`tulis … ms, antre … ms, antrean=N`): itu alat ukur lapangannya.
+   Tutup line menghabiskan antrean ini dulu (maks 6 detik, `BATAS_KURAS_S`) dan menyebut janjang
+   yang tidak sempat ditulis di ERROR `Tutup line: N janjang TIDAK tertulis ...`; `tunggu_kosong`
+   menghitung janjang yang sedang dipegang penulis (`unfinished_tasks`).
 1c. **TP dipasangkan lewat JARAK, bukan urutan waktu** (sejak 2026-09-18,
    `domain/garis_capture.tp_untuk_janjang`). Saat janjang difoto, TP yang dipakai adalah yang
    pusatnya paling dekat dan masih dalam `_JANGKAUAN_TP` × setengah diagonal janjang,
@@ -430,7 +437,10 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
    tangkainya tidak dibayar dan tidak dicatat, angka TP karena itu lebih kecil
    daripada sebelum tanggal itu, dan turunnya disengaja.
    **`image_url` = `captures/results/{date}/{HHMMSS}_{plat}_{assign8}/bbox/{Ripe|Unripe|JK}[/TP]/{ts}_auto.webp`** (consistent with `/captures` mount): folder KELAS, bukan verdict (sejak 2026-09-20: `acc`/`rej` melebur Unripe dan JK, membuang persis yang dibeli retrain 4 kelas), dan janjang Ripe bertangkai panjang turun satu level lagi ke `Ripe/TP/` supaya mencari hasil TP cukup membuka satu folder. Capture manual → `unknown/` (tidak pernah lewat model). ⚠️ **Tidak ada pembaca yang boleh mematok kedalaman folder**, `Ripe/TP/` satu level lebih dalam, dan `_twin()` yang dulu menganggap verdict tepat di bawah `bbox` mengembalikan `None` untuknya: kembaran yang tidak ketemu adalah kembaran yang tidak dihapus siapa pun, karena `clean/` dan `thumb/` tidak punya baris manifest sendiri. Satu folder per truk, **tiga berkas per janjang**: `bbox/` (bergambar kotak, ini yang ditunjuk `image_path` dan yang naik R2), `clean/` (polos, buat latih model ulang; **tidak** diupload), dan `thumb/` (sejak 2026-09-16: 400px WebP q60 dari frame `bbox/`, naik ke R2 berdampingan dengan `bbox/` (apa yang dimuat grid `viewer.html`). Jam folder pakai `FACTORY_TZ`, **bukan** UTC) folder dibaca manusia, nama berkas dibaca mesin. Truk belum di-assign → `_belum-assign/`. **JSON sidecar-nya TETAP datar di folder tanggal**: `BatchUploadWorker._scan()` mencarinya dengan `glob("*/*_ripeness.json")` (kedalaman dipatok dua), jadi sidecar yang ikut masuk subfolder bikin upload cloud berhenti **tanpa error**. Aturannya di `domain/capture_layout.py` (`CaptureVariant.THUMB`, `twins_of()`), penulisnya `services/capture_writer.py` (satu-satunya yang menulis gambar, dipakai jalur auto maupun manual). Gambar disimpan **WebP** quality 65 (`JPEG_QUALITY_SAVE`), thumbnail quality 60; folder `errors/`, `captures/`, dan `logs/` **sudah tidak ada**, dulu dibuat saat startup tapi tidak pernah ditulis (REJ ditemukan via metadata `ripeness_status`, log ke stdout). Startup cuma membuat `results/`, dijaga `tests/unit/test_artifact_dirs.py`.
-8. **`cv2.imwrite` failure → `LocalFileStorage.write_image` raises `OSError`** (no orphaned JSON records pointing at an image that was never written). Kegagalan menulis **`thumb/`** khusus TIDAK melempar, janjang tetap tersimpan tanpa thumbnail, `logger.error` saja (lihat rule 7).
+8. **Encode atau tulis gagal → `LocalFileStorage.write_image` raises `OSError`** (termasuk `cv2.error`) (no orphaned JSON records pointing at an image that was never written). Kegagalan menulis **`thumb/`** khusus TIDAK melempar, janjang tetap tersimpan tanpa thumbnail, `logger.error` saja (lihat rule 7).
+   Foto dan sidecar ditulis utuh-atau-tidak-sama-sekali: `cv2.imencode` di memori lalu `tulis_atomik`
+   (temp `.<nama>.<acak>.tmp` + fsync + `os.replace` + fsync folder); listrik padam meninggalkan
+   sisa `.tmp` tersembunyi, bukan berkas 0 byte bernama sah.
    **Nama folder TANGGAL selalu UTC** (`FrameProcessingWorker._save_ripeness`,
    `capture_repository`): pembacanya wajib UTC juga. ⚠️ Yang pakai `FACTORY_TZ`
    cuma **folder truk di dalamnya** (aturan 7); dua zona dalam satu pohon itu
@@ -871,7 +881,8 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     `services/bahaya_service.py`. Aturan ini satu-satunya rancangan yang tersisa (spesifikasinya
     dihapus 2026-09-28 sesudah semuanya tercatat di sini).
     ⚠️ **Konsol tidak bisa menghapus foto line**, `artifacts/line-N` di-mount read-only ke
-    konsol. Line menulis penanda `artifacts/.hapus-data`, keluar (`os._exit`), dan **awal
+    konsol. Line menulis penanda `artifacts/.hapus-data`, keluar lewat urutan tutup yang sama
+    dengan SIGTERM (aturan 29, `os._exit` di ujungnya), dan **awal
     lifespan `main.py`** menghapus isi `artifacts/` (kecuali sisa `license.db*` di PC yang
     belum pindah, lihat aturan pindah DB di bawah) + berkas **milik line** di `state/`
     (`MILIK_LINE_DI_STATE`, sejak
@@ -894,8 +905,11 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     dari badan 409-nya), dan tombolnya **ditekan lagi** sesudah line itu beres.
     ⚠️ **Konsol MENUNGGU line mati** sebelum mengosongkan datanya sendiri: diam dulu
     selama `jeda_detik` yang dijawab line, lalu `/health` sampai **dua kali berturut-turut**
-    tidak menjawab (sekali lewat tenggat = line sibuk menulis foto, bukan mati), maks 5 dtk.
-    Line keluar 1 detik sesudah menjawab, dan janjang yang lewat di detik itu masih dikirim
+    tidak menjawab (sekali lewat tenggat = line sibuk menulis foto, bukan mati), maks 12 dtk
+    (jeda 1 dtk + batas tutup line 9 dtk + dua cek `/health`).
+    Line mulai menutup 1 detik sesudah menjawab, lalu urutan tutup sendiri maks 8 detik
+    (coil mati + antrean simpan habis, total maks 9 detik dari permintaan, aturan 29), dan
+    janjang yang lewat di detik itu masih dikirim
     ke konsol: tanpa menunggu, baris grading yang fotonya sudah hilang tertinggal. Line
     yang tidak kunjung mati dilaporkan `ok:true, kode:"belum_mati"`.
     ⚠️ **Truk tidak bisa dipasang selama penghapusan**, dua penjaga, satu per jendela:
@@ -1050,6 +1064,48 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     hapus-data saat boot tidak menghapus `artifacts/outbox.db*` selama folder DB line bukan
     `artifacts/` (`hapus_kalau_diminta(..., folder_db=get_folder_db_line())`). Boot berikutnya
     menyerap lagi; yang harus dikejar penyebabnya, lewat log line itu.
+
+29. **Batch 2A: line menutup rapi sebelum keluar, dan bukti ditulis utuh** (2026-09-28).
+    **Satu urutan tutup** untuk SIGTERM (`docker stop`, `autograde restart`), `/internal/restart`,
+    dan `/internal/hapus-data`: mesinnya `services/penutup_line.py` (`PenutupLine`), daftar
+    langkahnya `services/langkah_tutup_line.py`. Sampai batch 2.2 ketiga jalan keluar itu berbeda
+    nasib: SIGTERM lewat blok lifespan sesudah `yield` (coil dimatikan, antrean simpan dihabiskan),
+    sementara `/internal/restart` dan `/internal/hapus-data` memanggil `os._exit` langsung dan
+    melewati keduanya, sampai 8 janjang yang sudah dipulse PLC hilang tanpa foto, sidecar, maupun
+    baris di konsol, dan coil yang sedang ON tertinggal ON.
+    **Tahapnya**, berurutan tapi langkah dalam satu tahap jalan BERSAMAAN: (1) coil PLC dimatikan
+    **sejalan** dengan antrean simpan dihabiskan, karena keduanya sumber daya berbeda (jaringan vs
+    disk) dan tidak boleh saling menunggu; (2) kamera dilepas dan penjadwal upload R2 dihentikan
+    TANPA menunggu batch yang sedang jalan.
+    **Batasnya**: `BATAS_KURAS_S` 6 detik untuk menghabiskan antrean simpan (cukup untuk antrean
+    penuh, 8 antre + 1 dipegang penulis, sekitar 5,3 detik), `BATAS_TUTUP_S` 8 detik untuk seluruh
+    urutan tutup, keduanya di bawah tenggang `docker stop` bawaan (10 detik sebelum SIGKILL). Line
+    uvicorn jalan dengan `--timeout-graceful-shutdown 1`, karena `/api/video_feed` yang masih
+    terbuka dulu menahan shutdown sampai SIGKILL; konsol sengaja TANPA batas itu. Anggarannya
+    (SIGTERM): 1 + 0,2 + 8 masih di bawah 10 detik `docker stop`. `/internal/restart` menjawab
+    dulu, tunggu 1 detik, baru urutan tutup jalan: maks 9 detik dari permintaan sampai proses
+    benar-benar keluar.
+    Janjang yang tidak sempat ditulis disebut satu per satu di ERROR `Tutup line: N janjang TIDAK
+    tertulis ...`, bukan hilang diam-diam.
+    **`os._exit` cuma hidup di `services/penutup_line.py`**, dijaga
+    `test_satu_satunya_os_exit_ada_di_penutup_line` (pemindaian AST): jalan keluar baru wajib
+    memanggil `get_penutup_line().keluar_nanti(jeda)`, bukan `os._exit` sendiri.
+    **Watchdog berhenti menghidupkan ulang worker begitu urutan tutup mulai** (`sedang_menutup`):
+    tanpa itu watchdog 10 detik akan menyalakan lagi thread yang sengaja dihentikan di tengah
+    penutupan.
+    `CaptureSaveWorker.tutup_pintu()` menutup pintu penerimaan **lebih dulu**: janjang yang
+    digrading SESUDAH coil dimatikan tidak lagi dipulse, dan yang diserahkan sesudah pintu tertutup
+    ditolak, bukan ditulis, dicatat di ERROR saat itu juga.
+    Danger Zone konsol menunggu line mati sampai **12 detik** (aturan 25 di atas).
+    **Bukti ditulis atomik**, batch 2.6: `integrations/storage/tulis_atomik.py` satu-satunya pola
+    temp+fsync+`os.replace`+fsync folder di repo ini, dipakai `media_env_service` dan
+    `tulis_penanda` (dulu masing-masing menyalin polanya sendiri). Nama sementara
+    `.<nama>.<acak>.tmp` (`domain/berkas_utuh.py`) tersembunyi dari `/captures` dan dari
+    `BatchUploadWorker._scan()`; izin berkas mengikuti umask proses, bukan `0600` bawaan
+    `tempfile.mkstemp`. Sisa `.tmp` dari listrik padam **tidak dihapus otomatis**, cuma hapus data
+    yang menyapunya.
+    Aturan uploader: lihat Rule 1 di atas (foto/sidecar 0 byte atau `.tmp` = poisoned, tidak
+    diunggah, tidak disapu retensi; thumbnail 0 byte dilewati; sidecar tanpa gambar diracun).
 
 30. **Route konsol yang berat pada SQLite tidak boleh menahan event loop** (batch 2.5).
     Satu event loop melayani layar semua operator (polling `/state` tiap 2 detik) DAN kiriman

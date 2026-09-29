@@ -95,6 +95,71 @@ def test_poisoned_excluded(m):
     assert len(left) == 1 and left[0]["id"] == items[1]["id"]
 
 
+def test_get_recoverable_poisoned_filters_in_sql(m):
+    """Only poisoned rows without an image, or poisoned with the given photo prefix."""
+    keys = [f"results/2026-07-10/{c}_auto_ripeness.json" for c in "abcde"]
+    _add(m, key=keys[0], event_id="e0")                                  # photo prefix
+    _add(m, key=keys[1], event_id="e1")                                  # other poison
+    _add(m, key=keys[2], event_id="e2", image_path=None, r2_key=None)    # no image
+    _add(m, key=keys[3], event_id="e3")                                  # pending
+    _add(m, key=keys[4], event_id="e4")                                  # prefix is a LIKE wildcard trap
+    ids = {i["item_key"]: i["id"] for i in m.get_uploadable(limit=10)}
+    m.mark_poisoned(ids[keys[0]], "foto bukti kosong (0 byte)")
+    m.mark_poisoned(ids[keys[1]], "HTTP 400: bad")
+    m.mark_poisoned(ids[keys[2]], "JSON kosong")
+    m.mark_poisoned(ids[keys[4]], "fotoXbukti kosong")
+
+    # Prefix taken literally: `_` is not a wildcard, so "fotoXbukti" does not match.
+    assert [g["item_key"] for g in m.get_recoverable_poisoned("foto_bukti")] == [keys[2]]
+    got = m.get_recoverable_poisoned("foto bukti ")
+    assert [(g["item_key"], g["last_error"]) for g in got] == [
+        (keys[0], "foto bukti kosong (0 byte)"),
+        (keys[2], "JSON kosong"),
+    ]
+    assert got[0]["image_path"] == "captures/results/2026-07-10/a_auto.webp"
+    assert got[1]["image_path"] is None
+
+
+def test_set_image_fills_a_pending_row_only(m):
+    _add(m, image_path=None, r2_key=None)
+    item_id = m.get_uploadable(limit=10)[0]["id"]
+    m.set_image(item_id, image_path="captures/results/d/x_auto.webp", r2_key="M1/results/d/x_auto.webp")
+    got = m.get_uploadable(limit=10)[0]
+    assert (got["status"], got["image_path"], got["r2_key"]) == (
+        "pending", "captures/results/d/x_auto.webp", "M1/results/d/x_auto.webp",
+    )
+
+    m.mark_done(item_id)
+    m.set_image(item_id, image_path="lain.webp", r2_key="lain")
+    row = m._db.execute("SELECT image_path FROM upload_items WHERE id=?", (item_id,)).fetchone()
+    assert row["image_path"] == "captures/results/d/x_auto.webp"
+
+
+def test_revive_returns_poisoned_item_to_a_fresh_pending(m):
+    _add(m, image_path=None, r2_key=None)
+    item_id = m.get_uploadable(limit=10)[0]["id"]
+    m.requeue(item_id, "PUT R2 gagal")
+    m.mark_poisoned(item_id, "JSON kosong")
+
+    m.revive(item_id, image_path="captures/results/d/x_auto.webp", r2_key="M1/results/d/x_auto.webp")
+
+    got = m.get_uploadable(limit=10)
+    assert [(g["id"], g["status"], g["image_path"], g["r2_key"], g["retry_count"]) for g in got] == [
+        (item_id, "pending", "captures/results/d/x_auto.webp", "M1/results/d/x_auto.webp", 0),
+    ]
+    row = m._db.execute("SELECT last_error FROM upload_items WHERE id=?", (item_id,)).fetchone()
+    assert row["last_error"] is None
+    assert m.get_recoverable_poisoned("foto bukti ") == []
+
+
+def test_revive_leaves_non_poisoned_items_alone(m):
+    _add(m)
+    item_id = m.get_uploadable(limit=10)[0]["id"]
+    m.mark_done(item_id)
+    m.revive(item_id, image_path=None, r2_key=None)
+    assert m.counts()["done"] == 1
+
+
 def test_oldest_first_and_limit(m):
     for i in range(5):
         _add(m, key=f"results/d/{i}_auto_ripeness.json", event_id=f"e{i}")

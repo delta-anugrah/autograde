@@ -11,8 +11,9 @@ Klasifikasi kegagalan (spec §5):
   requeue item + CONTINUE batch (`batch_fatal=False`), supaya satu item yang
   terus-menerus 404 tidak menyandera item lain di belakangnya (head-of-line
   starvation, antrean di-ORDER BY discovered_at ASC).
-- _PoisonError   → input cacat (JSON korup/field hilang/gambar hilang):
-  poisoned + CONTINUE (satu item busuk tidak menyandera batch). File TIDAK dihapus.
+- _PoisonError   → input cacat (JSON korup/field hilang/gambar hilang, dan sejak
+  batch 2.6 foto atau sidecar 0 byte / sisa tulisan sementara): poisoned +
+  CONTINUE (satu item busuk tidak menyandera batch). File TIDAK dihapus.
 """
 from __future__ import annotations
 
@@ -27,6 +28,7 @@ from typing import Any
 import httpx
 
 from ..core.config import Settings
+from ..domain.berkas_utuh import alasan_tidak_utuh
 from ..domain.capture_layout import thumb_key_of, thumb_twin_of, twins_of
 from ..domain.grade_class import grade_class_or_none
 from ..domain.vision_event import TP_PASS, event_id_for, prediction_for, verdict_of
@@ -48,6 +50,13 @@ _TP_SUFFIX = "_auto_tp.json"
 # Berapa item dihapus sebelum sisa disk diukur ulang. statvfs itu murah tapi
 # bukan gratis; 200 item ~40 MB, cukup halus untuk tidak kebablasan jauh.
 _DISK_SWEEP_CHUNK = 200
+
+# Awal `last_error` item yang diracun karena foto buktinya tidak utuh (batch 2.6).
+# Penanda inilah yang membedakannya dari racun lain saat memeriksa apakah
+# berkasnya kini sudah ditulis utuh. Persisted, do not reword: nilainya sudah
+# tersimpan di `upload_manifest.db` PC pabrik, dan kata lain membuat baris lama
+# diam-diam tidak bisa pulih.
+_FOTO_TIDAK_UTUH = "foto bukti "
 
 
 class _PoisonError(Exception):
@@ -134,15 +143,32 @@ class BatchUploadWorker:
 
     def _read_meta(self, json_path: Path) -> dict[str, Any]:
         try:
-            return json.loads(json_path.read_text(encoding="utf-8"))
+            teks = json_path.read_text(encoding="utf-8")
         except FileNotFoundError as exc:
             raise _PoisonError(f"JSON hilang: {json_path}") from exc
-        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        except UnicodeDecodeError as exc:
+            raise _PoisonError(f"JSON korup: {json_path}: {exc}") from exc
+        if not teks:
+            # Sidecar yang ditulis sebelum batch 2.6 saat listrik padam.
+            raise _PoisonError(f"JSON kosong (0 byte), sisa tulisan yang terputus: {json_path}")
+        try:
+            return json.loads(teks)
+        except json.JSONDecodeError as exc:
             raise _PoisonError(f"JSON korup: {json_path}: {exc}") from exc
 
     def _image_ref(self, meta: dict[str, Any]) -> str | None:
         # auto pakai "image_path", manual pakai "image_url" (capture_repository)
         return meta.get("image_path") or meta.get("image_url")
+
+    def _rujukan_gambar(self, json_path: Path) -> str | None:
+        """Gambar yang disebut sidecar, atau None kalau sidecar-nya tidak terbaca."""
+        try:
+            return self._image_ref(self._read_meta(json_path))
+        except _PoisonError:
+            return None
+
+    def _berkas_gambar(self, image_path: str) -> Path:
+        return self.settings.artifacts_dir / image_path.lstrip("/").removeprefix("captures/")
 
     def _scan(self) -> None:
         artifacts = self.settings.artifacts_dir
@@ -154,14 +180,9 @@ class BatchUploadWorker:
             if self.manifest.has_item(item_key):
                 continue
             ts = file_timestamp(json_path.name)
-            image_path = None
-            r2_key = None
-            try:
-                image_path = self._image_ref(self._read_meta(json_path))
-            except _PoisonError:
-                pass  # item tetap dibuat; poison ketahuan saat build payload
-            if image_path:
-                r2_key = build_r2_key(self.settings.machine_id, image_path)
+            # Sidecar tak terbaca: item tetap dibuat, racunnya ketahuan saat diproses.
+            image_path = self._rujukan_gambar(json_path)
+            r2_key = build_r2_key(self.settings.machine_id, image_path) if image_path else None
             self.manifest.upsert_item(
                 item_key,
                 event_id=event_id_for(self.settings.machine_id, ts),
@@ -184,6 +205,24 @@ class BatchUploadWorker:
                 image_path=None,
                 r2_key=None,
             )
+
+    def _pulihkan_bukti_yang_kini_utuh(self) -> None:
+        """Bukti yang dulu ditolak karena tidak utuh lalu ditulis utuh: antre lagi.
+
+        `poisoned` tidak pernah disentuh retensi, jadi berkasnya masih di disk.
+        Yang dipulihkan cuma dua sebab batch 2.6: sidecar janjang yang tidak
+        menyebut gambar (kosong atau korup) dan foto bukti yang tidak utuh.
+        Racun lain (mis. ditolak API) tetap racun: berkasnya utuh, jadi
+        memeriksanya ulang tiap jam cuma mengulang penolakan yang sama.
+        """
+        for item in self.manifest.get_recoverable_poisoned(_FOTO_TIDAK_UTUH):
+            image_path = item["image_path"] or self._rujukan_gambar(
+                self.settings.artifacts_dir / item["item_key"]
+            )
+            if not image_path or self._alasan_tidak_utuh(self._berkas_gambar(image_path)):
+                continue
+            logger.warning("Item %s kini utuh, diantre ulang (dulu: %s)", item["item_key"], item["last_error"])
+            self.manifest.revive(item["id"], image_path, build_r2_key(self.settings.machine_id, image_path))
 
     # ---------------------------------------------------------------- payload
 
@@ -277,6 +316,7 @@ class BatchUploadWorker:
         naik = 0
         try:
             self._scan()
+            self._pulihkan_bukti_yang_kini_utuh()
             items = self.manifest.get_uploadable(limit=self.settings.upload_max_items_per_tick)
             logger.info("Batch tick: %d item eligible (%s)", len(items), self.manifest.counts())
 
@@ -312,11 +352,80 @@ class BatchUploadWorker:
             raise
         self._catat_batch(fatal, naik)
 
+    @staticmethod
+    def _alasan_tidak_utuh(path: Path) -> str | None:
+        """Kenapa berkas ini tidak boleh naik ke R2 (batch 2.6). None = utuh."""
+        try:
+            ukuran = path.stat().st_size
+        except FileNotFoundError:
+            return "hilang"
+        return alasan_tidak_utuh(path.name, ukuran)
+
+    def _unggah_thumb(self, local: Path, r2_key: str) -> None:
+        """Thumbnail ikut naik di samping foto bukti. Tidak pernah fatal, tidak pernah racun."""
+        thumb_local = thumb_twin_of(local)
+        thumb_key = thumb_key_of(r2_key)
+        if thumb_local is None or thumb_key is None or not thumb_local.exists():
+            return
+        alasan = self._alasan_tidak_utuh(thumb_local)
+        if alasan:
+            # Batch 2.6: pratinjau 0 byte tidak diunggah. Foto bukti sudah naik,
+            # dan viewer memakai foto penuh kalau thumbnail tidak ada.
+            logger.warning("Thumbnail %s tidak diunggah: %s", thumb_local, alasan)
+            return
+        try:
+            self.uploader.put(thumb_local, thumb_key)
+        except Exception as exc:  # noqa: BLE001 — a preview must not hold the queue
+            # Never fatal, and never a poison: the annotated image — the
+            # evidence — is already in R2, so a picture the viewer can do
+            # without must not hold back every image and event queued
+            # behind it (batch-fatal is reserved for global conditions,
+            # the docstring above). This item is not requeued for the
+            # thumbnail alone, and nothing else revisits this PUT, so a
+            # failure here is not a delay — the thumbnail is permanently
+            # missing for this bunch. The viewer falls back to the full
+            # image when the thumbnail is absent (static/viewer.html).
+            logger.warning("PUT thumb R2 gagal (%s): %s", thumb_key, exc)
+
+    def _isi_atau_tolak_item_tanpa_gambar(self, item: dict[str, Any]) -> None:
+        """Item janjang tanpa `image_path`: isi dari sidecar, atau racuni.
+
+        `_scan()` membuat item tanpa `image_path` kalau sidecar-nya kosong atau
+        korup. Dulu item itu langsung `done` (tidak ada penerima teks) lalu
+        retensi menghapus sidecar-nya: fotonya tertinggal di disk tanpa pernah
+        naik ke R2 dan tanpa ada yang menghapusnya. Sekarang `poisoned`, dan
+        semua berkasnya dibiarkan. Sidecar TP lama memang tanpa gambar.
+
+        Baris lama bisa dibuat saat pindaian bertabrakan dengan tulisan sidecar
+        yang belum atomik: sidecar-nya kini terbaca, jadi gambarnya diisi dan
+        item diproses di batch ini juga, tanpa racun.
+        """
+        json_path = self.settings.artifacts_dir / item["item_key"]
+        if json_path.name.endswith(_TP_SUFFIX):
+            return
+        image_path = self._rujukan_gambar(json_path)
+        if image_path:
+            r2_key = build_r2_key(self.settings.machine_id, image_path)
+            self.manifest.set_image(item["id"], image_path, r2_key)
+            item["image_path"], item["r2_key"] = image_path, r2_key
+            logger.info("Item %s: gambar dibaca ulang dari sidecar (%s)", item["item_key"], image_path)
+            return
+        self._read_meta(json_path)  # kosong / korup / hilang → _PoisonError
+        raise _PoisonError(f"image_path hilang: {json_path}")
+
     def _process_item(self, item: dict[str, Any]) -> None:
+        if item["status"] == "pending" and not item["image_path"]:
+            self._isi_atau_tolak_item_tanpa_gambar(item)
         if item["status"] == "pending" and item["image_path"]:
-            local = self.settings.artifacts_dir / item["image_path"].lstrip("/").removeprefix("captures/")
+            local = self._berkas_gambar(item["image_path"])
             if not local.exists():
                 raise _PoisonError(f"file gambar hilang: {local}")
+            alasan = self._alasan_tidak_utuh(local)
+            if alasan:
+                # Batch 2.6: foto 0 byte (listrik padam sebelum penulis atomik)
+                # tidak diunggah dan TIDAK dihapus: `poisoned` tidak pernah
+                # disentuh retensi, dan salinan clean-nya bisa masih utuh.
+                raise _PoisonError(f"{_FOTO_TIDAK_UTUH}{alasan}, tidak diunggah dan dibiarkan di disk: {local}")
             try:
                 self.uploader.put(local, item["r2_key"])
             except FileNotFoundError as exc:
@@ -324,22 +433,7 @@ class BatchUploadWorker:
             except Exception as exc:
                 raise _RequeueError(f"PUT R2 gagal: {exc}") from exc
 
-            thumb_local = thumb_twin_of(local)
-            thumb_key = thumb_key_of(item["r2_key"])
-            if thumb_local is not None and thumb_local.exists() and thumb_key is not None:
-                try:
-                    self.uploader.put(thumb_local, thumb_key)
-                except Exception as exc:  # noqa: BLE001 — a preview must not hold the queue
-                    # Never fatal, and never a poison: the annotated image — the
-                    # evidence — is already in R2, so a picture the viewer can do
-                    # without must not hold back every image and event queued
-                    # behind it (batch-fatal is reserved for global conditions,
-                    # the docstring above). This item is not requeued for the
-                    # thumbnail alone, and nothing else revisits this PUT, so a
-                    # failure here is not a delay — the thumbnail is permanently
-                    # missing for this bunch. The viewer falls back to the full
-                    # image when the thumbnail is absent (static/viewer.html).
-                    logger.warning("PUT thumb R2 gagal (%s): %s", thumb_key, exc)
+            self._unggah_thumb(local, item["r2_key"])
 
             self.manifest.mark_image_uploaded(item["id"])
             item["status"] = "image_uploaded"
@@ -383,9 +477,7 @@ class BatchUploadWorker:
         if json_path.name.endswith("_auto_ripeness.json"):
             targets.append(json_path.with_name(json_path.name.replace("_auto_ripeness.json", _TP_SUFFIX)))
         if item["image_path"]:
-            annotated = (
-                self.settings.artifacts_dir / item["image_path"].lstrip("/").removeprefix("captures/")
-            )
+            annotated = self._berkas_gambar(item["image_path"])
             targets.append(annotated)
             # The clean and thumb twins are deleted here or by nothing at all: they
             # have no manifest row of their own, so both age-based retention and the
