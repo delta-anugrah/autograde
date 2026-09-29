@@ -608,10 +608,12 @@
   .card.putus .feed span { display:grid; }
   /* Line yang sedang dinyalakan ulang (Sumber Kamera, Model Deteksi, Danger
      Zone): di atas "Kamera tidak tersambung", karena selama restart itu memang
-     bukan kerusakan. Spinner dan bar CSS murni, tanpa gambar: konsol harus jalan offline. */
+     bukan kerusakan. Spinner dan bar CSS murni, tanpa gambar: konsol harus jalan offline.
+     Latarnya PEKAT, bukan transparan (operator 2026-09-29: "bener2 cuma layar loading"):
+     frame lama yang beku di belakangnya terbaca seperti line masih jalan. */
   .feed .restart-kotak { position:absolute; inset:0; z-index:5; display:grid; place-content:center;
                          justify-items:center; gap:8px; padding:16px; text-align:center; color:#fff;
-                         background:rgba(0,0,0,.8); }
+                         background:#000; }
   /* Selama spinner tampil, tulisan "Kamera tidak tersambung" tidak ikut tembus di
      belakangnya (permintaan operator 2026-09-29: "cukup loadingnya aja"). Kelasnya
      dipasang `gambarRestart` dan hilang saat tanda hilang atau berganti kotak merah,

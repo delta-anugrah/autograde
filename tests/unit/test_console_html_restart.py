@@ -591,3 +591,10 @@ def test_hapus_data_tetap_diminta_ulang_lewat_60_detik():
     m = _tanda(turunPada=MULAI + 4000, batasMs=BATAS_HAPUS, hapus=True)
     assert _jalan(fn, f"perluMintaUlangFeed({m}, {MULAI + 5000}, true, {MULAI + 300_000})") is True
     assert _jalan(fn, f"perluMintaUlangFeed({m}, {MULAI + 5000}, true, {MULAI + BATAS_HAPUS + 1})") is False
+
+
+def test_kotak_restart_menutup_video_di_belakangnya_sepenuhnya():
+    """Operator 2026-09-29: cuma layar loading, bukan frame lama yang tembus samar."""
+    aturan = re.search(r"\.feed \.restart-kotak \{([^}]*)\}", HTML).group(1)
+    assert "background:#000" in aturan.replace(" ", "")
+    assert "rgba(" not in aturan
