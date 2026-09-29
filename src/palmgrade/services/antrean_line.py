@@ -56,7 +56,11 @@ class AntreanLine:
         worker = self._worker()
         if worker is not None:
             worker.bangunkan()
-        logger.warning("Kirim Ulang dari konsol: %d janjang dijadwalkan kirim sekarang", dijadwalkan)
+        # Antrean kosong tidak menjadwalkan apa pun: INFO, bukan peringatan.
+        logger.log(
+            logging.WARNING if dijadwalkan else logging.INFO,
+            "Kirim Ulang dari konsol: %d janjang dijadwalkan kirim sekarang", dijadwalkan,
+        )
         return dijadwalkan
 
     def _worker(self) -> _WorkerAntrean | None:

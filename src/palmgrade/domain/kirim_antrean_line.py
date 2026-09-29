@@ -34,6 +34,9 @@ GAGAL_BERUNTUN_PUTUS = 3
 #: digit yang dihitung ulang tiap gagal. 2**30 sudah jauh melewati maks mana pun.
 _PANGKAT_MAKS = 30
 
+#: Tidak ada jawaban HTTP sama sekali (jaringan, timeout). Satu-satunya sebab yang
+#: TIDAK dihasilkan `nilai_jawaban`: worker memberinya langsung saat `post()` melempar,
+#: dan memakainya juga sebagai cadangan kalau putusan tidak membawa sebab.
 SEBAB_TAK_TERJANGKAU = "tak_terjangkau"
 SEBAB_KUNCI_DITOLAK = "kunci_ditolak"
 SEBAB_ALAMAT_SALAH = "alamat_salah"
@@ -73,6 +76,12 @@ def nilai_jawaban(status: int, teks: str) -> Putusan:
     bermasalah, beda dari antrean AutoERP yang menganggap 500 "tersambung": di
     sini 500 hampir selalu berarti disk atau SQLite konsol, dan mencoba ribuan
     baris ke konsol seperti itu cuma membanjiri log di dua sisi.
+
+    Urutan pemeriksaan: 2xx atau `already_processed` = terkirim; 401/403 =
+    kunci ditolak; 404/405/3xx = alamat salah; 4xx lain kecuali 408/429 = baris
+    ditolak. SISANYA jatuh ke konsol galat: 5xx, 408, 429, dan status apa pun
+    yang tidak dikenal (1xx, >599). Aman ke arah itu: "konsol bermasalah" cuma
+    menjeda pengiriman, tidak pernah membuang atau menandai baris ditolak.
 
     Putusan ini arti jawaban itu SENDIRI; akibatnya bagi sambungan (baris
     gagal atau sambungan putus) diputuskan `akibat_jawaban`.

@@ -210,3 +210,10 @@ def test_baris_yang_sama_gagal_lagi_tidak_menambah_hitungan_beruntun():
     """Satu baris racun di pabrik sepi gagal berkali-kali tanpa 2xx di antaranya: itu
     masalah baris itu, bukan tiga bukti bahwa konsolnya yang bermasalah."""
     assert gagal_beruntun_sesudah(_GALAT, frozenset({"racun"}), "racun") == {"racun"}
+
+
+@pytest.mark.parametrize("status", [100, 199, 600, 999])
+def test_status_asing_jatuh_ke_konsol_galat_bukan_baris_ditolak(status):
+    """Catch-all `nilai_jawaban` (parkiran Task 1): status yang tidak dikenal menjeda
+    pengiriman, tidak pernah menandai baris ditolak."""
+    assert nilai_jawaban(status, "") == Putusan(Nasib.KONSOL_BERMASALAH, SEBAB_KONSOL_GALAT)

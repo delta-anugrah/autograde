@@ -1,6 +1,7 @@
 """`AntreanLine` (sisi line, batch 2.4): ringkasan untuk layar konsol dan Kirim Ulang."""
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 
 import pytest
@@ -78,3 +79,18 @@ def test_kirim_ulang_tanpa_worker_tetap_menjadwalkan(line):
     antrean.outbox.add_event("e1", "m-1", {"event_id": "e1"})
 
     assert antrean.kirim_ulang() == 1
+
+
+@pytest.mark.parametrize("isi,tingkat", [(1, logging.WARNING), (0, logging.INFO)])
+def test_kirim_ulang_antrean_kosong_bukan_warning(line, caplog, isi, tingkat):
+    """Parkiran Task 4: Kirim Ulang pada antrean kosong tidak menjadwalkan apa pun, jadi
+    bukan kejadian yang perlu dicari di log sebagai peringatan."""
+    antrean, _ = line
+    for i in range(isi):
+        antrean.outbox.add_event(f"e{i}", "m-1", {"event_id": f"e{i}"})
+
+    with caplog.at_level(logging.DEBUG, logger="palmgrade.services.antrean_line"):
+        antrean.kirim_ulang()
+
+    [catatan] = [r for r in caplog.records if "Kirim Ulang" in r.getMessage()]
+    assert catatan.levelno == tingkat
