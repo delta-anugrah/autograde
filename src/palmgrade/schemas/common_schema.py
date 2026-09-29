@@ -9,6 +9,13 @@ class ApiMessage(BaseModel):
     version: str = "unknown"
 
 
+class HealthRinganSchema(ApiMessage):
+    """`GET /health` line. `ai` = blok `services/penjaga_ai.ringkas()`; None
+    sebelum lifespan memasang penjaganya."""
+
+    ai: dict | None = None
+
+
 class WorkerStatus(BaseModel):
     name: str
     alive: bool
@@ -63,3 +70,6 @@ class HealthDetailSchema(BaseModel):
     tp_telat: int = 0
     current_assignment_id: str | None = None
     last_successful_api_push: str | None = None
+    # Batch 2.1: `PenjagaAi.ringkas_lengkap()` (keadaan AI + galat terakhir loop
+    # deteksi). None = penjaga belum dipasang.
+    ai: dict | None = None

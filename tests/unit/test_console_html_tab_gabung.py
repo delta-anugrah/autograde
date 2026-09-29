@@ -147,8 +147,8 @@ def test_timer_ikut_tab_dan_pilihan_line():
         "const jalan = []; let n = 0;\n"
         "globalThis.setInterval = (f, ms) => { jalan.push(f.name + ':' + ms); return ++n; };\n"
         "globalThis.clearInterval = () => {};\n"
-        "let diagnostikTimer, rekamTimer, plcTimer, rekapTimer; let subLine;\n"
-        "const MUAT_TAB = {}; const muatDiagnostik = () => {}, muatRekam = () => {},"
+        "let diagnostikTimer, antreanLineTimer, rekamTimer, plcTimer, rekapTimer; let subLine;\n"
+        "const MUAT_TAB = {}; const muatDiagnostik = () => {}, muatAntreanLine = () => {}, muatRekam = () => {},"
         " segarkanPlc = () => {}, segarkanRekap = () => {};\n"
         + _fungsi("bukaTabDev")
         + "\nconst hasil = {};\n"
@@ -158,7 +158,7 @@ def test_timer_ikut_tab_dan_pilihan_line():
         "console.log(JSON.stringify(hasil));"
     )
     assert _node(kode) == {
-        "status/null": ["muatDiagnostik:5000"],
+        "status/null": ["muatDiagnostik:5000", "muatAntreanLine:5000"],
         "line/plc": ["segarkanPlc:1000"],
         "line/rekam": ["muatRekam:3000"],
         "line/sumber-kamera": [],

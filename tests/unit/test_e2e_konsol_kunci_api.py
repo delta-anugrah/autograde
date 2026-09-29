@@ -38,7 +38,7 @@ KUNCI_API = (
     ("full_name", SRC / "routes" / "console.py"),
     ("supplier_name", SRC / "repositories" / "console_repository.py"),
     ("plate_number", SRC / "repositories" / "console_repository.py"),
-    ("net_kg", SRC / "repositories" / "console_repository.py"),
+    ("net_kg", SRC / "repositories" / "console_skema.py"),
 )
 
 # Nama-nama pra-#93 yang pernah ada di berkas E2E ini dan membuatnya mati diam-diam.

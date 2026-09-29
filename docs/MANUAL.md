@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "1.6"
+versi: "1.7"
 tanggal: 28 September 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -138,6 +138,9 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   yang hilang: semuanya menunggu di antrean dan terkirim sendiri begitu sambungan pulih.
 - **Tiga kartu line**, satu per kamera, dengan stream langsung, status **ONLINE / OFFLINE** di
   judul, tombol **Tugaskan** (pilih truk), **Lepas** (truk pergi), dan **Reject Manual**.
+- Kartu berbingkai **merah** dengan pita **AI berhenti memproses** (kode `AI_MATI`, jam mulai,
+  tindakan) = kamera jalan tapi tidak ada yang digrading: tahan umpan buah ke line itu dan
+  panggil teknisi. Pita hilang sendiri begitu line memproses lagi.
 - **Reject manual tanpa mouse**: tahan `Spasi` lalu tekan `1` / `2` / `3` sesuai line.
 - **Piston manual** per line (Buka / Tutup) kalau PLC aktif. Ada konfirmasi karena ini
   menggerakkan besi sungguhan.
@@ -236,6 +239,7 @@ Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riw
 | **Log** | ERROR/WARNING 180 hari terakhir, selamat dari restart; pesan berulang digabung `×N`; sandi/token tertulis `«ditutup»` |
 | **Status**, bagian Versi | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah tulisan AUTOGRADE untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati: token ada, tapi LICENSE_ENABLED tidak menyala** berarti tokennya sampai ke konsol tapi saklarnya tidak: periksa blok konsol di compose host, bukan tokennya |
 | **Status**, bagian Diagnostik | tiga kartu line: kamera, GPU, PLC, antrean lokal, lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ `capture_save_dropped` dan `tp_telat` **harus nol**, di atas nol berarti ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat Disegarkan tiap 5 detik selama tab Status terbuka |
+| **Status**, bagian Antrean line | janjang yang belum sampai dari tiap line ke konsol: jumlah, umur yang tertua, keadaan (dengan sebab, sejak kapan, dan harus ngapain), galat terakhir; tombol **Kirim Ulang** per line. Antrean ini tidak pernah menyerah: konsol mati berjam-jam pun janjangnya menunggu dan terkirim sendiri begitu konsol hidup lagi |
 | **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang**. Plus antrean manifest R2 |
 | **Akun** | semua akun yang bisa masuk konsol di PC ini: nama, email, role, asal (**Lokal** / **AutoERP**), status (Aktif / Mati / Terkunci), sedang masuk atau tidak. **Tambah akun** membuat akun **Lokal** baru (nama, email, role, sandi minimal 8 karakter); akun ini cuma ada di PC ini dan **tidak masuk ke AutoERP**. Tiap akun Lokal punya tombol **Ganti sandi** (semua sesinya langsung berakhir), **Matikan / Aktifkan**, dan **Jadikan support / operator**; di baris akunmu sendiri cuma Ganti sandi. Akun AutoERP tidak punya tombol: diurus di AutoERP. **Sandi tidak bisa dilihat**: yang disimpan cuma hash-nya. Lupa sandi: akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ±5 menit), akun Lokal dengan Ganti sandi. Tiap perubahan tercatat di tab Log beserta siapa yang mengubah |
 | **Line** → Sumber Kamera | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik) |
@@ -297,7 +301,7 @@ ada line yang perlu perhatian, disebut satu per satu:
 | versi line lama | image line belum punya fitur ini | `autograde pull`, lalu tekan lagi |
 | tidak menjawab | line mati saat perintah dikirim | nyalakan line-nya, lalu tekan lagi |
 | truk terpasang | truk ditugaskan tepat saat tombol ditekan | lepas truknya, lalu tekan lagi |
-| diterima tapi belum restart | perintahnya sampai, tapi line belum restart dalam 5 detik | tunggu, datanya terhapus begitu line itu restart |
+| diterima tapi belum restart | perintahnya sampai, tapi line belum restart dalam 12 detik | tunggu, datanya terhapus begitu line itu restart |
 
 Data konsol sudah dikosongkan kalau **minimal satu** line menerima, jadi menekan lagi cuma
 membersihkan line yang tadi tertinggal. Kalau **tidak satu pun** line menerima, tidak ada yang
@@ -593,6 +597,7 @@ membuat ulang container supaya versinya benar-benar terpasang.
 |---|---|
 | tab **Status**, bagian Diagnostik (support) | worker, kamera, fps, GPU, PLC per line |
 | `curl localhost:8001/health/detail` | `camera_connected`, `gpu_available`, `current_assignment_id`, `outbox_pending`, dan **`capture_save_dropped` + `tp_telat` yang harus NOL** |
+| tab **Status**, bagian Antrean line | janjang yang belum sampai dari line ke konsol dan sebabnya |
 | tab **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP dan sebabnya |
 | tab **Log** | ERROR/WARNING 180 hari, bertahan lewat restart |
 | `docker logs ripe_line_1 \| grep 'Batch tick'` | progres unggah ke R2 (tidak ada di `/health`) |
@@ -625,6 +630,10 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | 403 "menu ini untuk akun support" | akun berperan operator membuka tab support | akun support lain: tab Akun → **Jadikan support**; atau `make operator-docker AKSI=role ROLE=support` |
 | Log konsol: "Tidak ada akun dengan peran support" | `.env` dibuat sebelum fitur peran ada | perintah yang sama di atas |
 | Akun bawaan ditolak saat start | hash di `.env` terpotong karena `$` | tulis `$$` untuk tiap `$` |
+| Antrean line (tab Status) menumpuk, keadaan "Konsol tidak terjangkau" / "menolak kunci" / "alamat salah" | konsol mati, `WEBHOOK_SECRET` beda antara line dan konsol, atau `BACKEND_URL` line salah | ikuti kalimat di kolom Keadaan; janjang tidak hilang dan terkirim sendiri sesudah pulih, atau tekan **Kirim Ulang** |
+| Antrean line (tab Status): "N janjang DITOLAK konsol"; Danger Zone dan `autograde reset-data` menolak hapus data | konsol menjawab 400/422 untuk janjang itu (timestamp cacat, `ripeness_status` asing); line menyimpannya dan mencoba tiap 10 menit, tapi tidak akan sampai sendiri | tab Log, baris `Janjang … DITOLAK konsol: <alasan>`; betulkan penyebabnya lalu **Kirim Ulang**, atau keluarkan barisnya dengan tangan (§7.1) |
+| Sesudah update, angka Rekap/Riwayat hari-hari lalu berubah | janjang yang dulu berhenti dicoba versi lama (50 percobaan) dikirim lagi dan mendarat di tanggal kerja ASLINYA, bukan hari ini; kunjungan AutoERP-nya bisa diantre ulang, tiket final ditandai **Cek AutoERP** | wajar, tidak ada yang dihitung dua kali; cek dulu jumlahnya sebelum update (skill `compose-host-pabrik`, urutan pasang batch 2) |
+| Sesudah update, log line `Simpan janjang … lambat` lebih sering, atau `capture_save_dropped` di atas nol | foto dan sidecar kini ditulis dengan fsync (tahan listrik padam), jadi menulis satu janjang lebih lama; disk lambat terasa lebih dulu | amati beberapa jam pertama; `capture_save_dropped` harus tetap nol, kalau naik laporkan angka `tulis … ms` dari log itu ke support |
 | Antrean ERP (tab Status) menumpuk, sebab 4xx | pesan **ditolak** ERP (field tidak dikenal, versi ERP lama, 417) | betulkan di ERP, lalu **Kirim Ulang** |
 | Antrean ERP (tab Status) menumpuk, sebab jaringan/5xx | ERP **tidak terjangkau**; backoff 30 dtk → 1 jam | tunggu, atau Kirim Ulang setelah ERP pulih |
 | Last Sync: **AutoERP** kuning (terputus) | internet PC pabrik putus, AutoERP sedang mati, atau `ERP_URL` / kunci salah | tab Log, baris "AutoERP terputus: …" menyebut alasannya; data menunggu di Antrean ERP di tab Status dan terkirim sendiri saat pulih |
@@ -633,9 +642,54 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Unggah ke R2 berhenti tanpa error | `R2_BUCKET` kosong, atau JSON sidecar dipindah ke subfolder | isi R2; JSON wajib datar di folder tanggal |
 | Impor CSV ditolak "bukan CSV Per janjang" | berkas ringkasan (Per hari / Per truk), atau disimpan ulang dari Excel | di tab Rekap pilih **Per janjang**, **Unduh CSV**, impor berkas itu tanpa dibuka di Excel |
 | Disk penuh, grading berhenti tersimpan | penjaga disk mati (`UPLOAD_DISK_MIN_FREE_GB=0`) atau Docker menumpuk image lama | `docker system prune`; kembalikan penjaga ke 20 |
+| Log line `Tutup line: N janjang TIDAK tertulis` | disk lambat atau macet saat line diminta restart/hapus data | cek disk (`df -h`, `dmesg`), janjang yang disebut tidak punya foto; laporkan ke support |
+| Cloud Photo: foto `rusak` bertambah sesudah update | foto atau sidecar 0 byte dari listrik padam sebelum versi ini; tidak diunggah, dibiarkan di disk | tidak perlu apa-apa; boleh diperiksa lalu dihapus tangan |
 | Laptop: `make console` terasa memakai kode lama | port 8100 masih dipegang proses lama | cari pid-nya dengan `lsof -ti:8100`, matikan, jalankan ulang |
 | Laptop: `make up` gagal "MVS SDK not found" | memang, target Docker untuk Linux + GPU | pakai `make console` / `make line` |
 | Kamera "tidak terjawab" saat E2E di macOS | `CONSOLE_LINE_HOST=http://localhost` → IPv6 | ganti `http://127.0.0.1` |
+| Tab Timbangan: tanda **Cek AutoERP** di plat | janjang tiba sesudah tiket AutoERP-nya final (konsol sempat tidak terjangkau dari line, atau truk ditimbang keluar saat janjang terakhir masih diproses); AutoERP tidak mengubah angka yang dibukukan | tab Log baris `[TIKET_FINAL_BERBEDA]` menyebut tiketnya; minta backoffice memeriksa tiket itu di AutoERP (tanda `grading_revised`) |
+| Antrean ERP: satu baris `HTTP 500` dengan alasan Frappe, yang lain terkirim | isi kunjungan itu membuat AutoERP galat | kirim alasannya ke pengelola AutoERP; setelah dibetulkan, **Kirim Ulang** |
+| Kartu line merah, AI berhenti memproses | loop deteksi melempar galat terus (CUDA/GPU), atau macet | `curl :800N/health/detail` → `ai.galat_terakhir` (galat terakhir sejak boot, lihat `galat_at` untuk umurnya); restart line (Setelan, Danger Zone); kalau terulang, `nvidia-smi` dan log line |
+| Kartu line merah sesudah update ke versi baru | model/engine versi baru gagal pada frame sungguhan. **Update tidak mundur sendiri**: gerbang `autograde` selesai pada jawaban sehat pertama, yang selalu jatuh di 30 detik pertama | lihat kartu line paling cepat 30 detik sesudah update; kalau merah, `autograde use <versi sebelumnya>` |
+
+### 7.1 Janjang yang ditolak konsol
+
+Line tidak pernah membuang janjang (CLAUDE.md aturan 31). Janjang yang dijawab konsol dengan
+400/422 dicoba lagi tiap 10 menit selamanya dan tidak akan pernah sampai sendiri. Tandanya: tab
+Status, bagian Antrean line, menulis **"N janjang DITOLAK konsol"**, dan tab Log punya baris
+`Janjang <event_id> dari line-N (jam …) DITOLAK konsol: <alasan>`. Selama baris itu ada, Danger
+Zone hapus data dan `autograde reset-data` menolak, karena antrean line belum kosong. Tidak ada
+tombol yang membuangnya: orang yang memutuskan, dengan tiga langkah di PC pabrik (AnyDesk).
+
+1. Lihat baris mana yang ditolak di tiap line (baca saja): `event_id`, jam grading, jam
+   penolakan terakhir (UTC), alasannya.
+
+```bash
+for n in 1 2 3; do docker exec ripe_line_$n python -c 'import os,sqlite3; p=next(x for x in ("/app/state/outbox.db","/app/artifacts/outbox.db") if os.path.exists(x)); print(p); [print(*r, sep=" | ") for r in sqlite3.connect(p).execute("select event_id, json_extract(payload, ?), datetime(ditolak_at, ?), last_error from outbox_events where ditolak_at is not null", ("$.timestamp", "unixepoch"))]'; done
+```
+
+2. Kalau penyebabnya bisa dibetulkan (misalnya konsol masih versi lama), betulkan lalu tekan
+   **Kirim Ulang**. Kalau janjang itu memang tidak bisa diterima, simpan dulu ke berkas di host,
+   satu per `event_id`. Ganti `ripe_line_1` dengan line yang disebut dan `EVENT_ID` dengan kolom
+   pertama langkah 1. Berkasnya harus berisi satu baris JSON; kosong = `event_id` salah atau
+   baris itu tidak (lagi) tercatat ditolak, jangan lanjut ke langkah 3. Berkas yang sudah ada
+   tidak pernah ditimpa, jadi menjalankannya lagi sesudah langkah 3 tidak menghapus salinannya.
+
+```bash
+f=~/janjang-ditolak-EVENT_ID.json; if [ -e "$f" ]; then echo "$f sudah ada, TIDAK ditimpa"; else docker exec ripe_line_1 python -c 'import json,os,sqlite3,sys; p=next(x for x in ("/app/state/outbox.db","/app/artifacts/outbox.db") if os.path.exists(x)); db=sqlite3.connect(p); db.row_factory=sqlite3.Row; r=db.execute("select * from outbox_events where event_id=? and ditolak_at is not null", (sys.argv[1],)).fetchone(); r or sys.exit("tidak ada baris ditolak dengan event_id itu"); print(json.dumps(dict(r)))' EVENT_ID > "$f.baru" && mv "$f.baru" "$f"; rm -f "$f.baru"; fi
+cat "$f"
+```
+
+3. Baru hapus barisnya. Perintah ini hanya menghapus baris yang tercatat ditolak, jadi
+   `event_id` yang salah ketik tidak menghapus apa pun (`0 baris dihapus`). Line boleh tetap
+   jalan. Berkas `~/janjang-ditolak-*.json` itu satu-satunya salinan janjang tersebut: jangan
+   dihapus.
+
+```bash
+docker exec ripe_line_1 python -c 'import os,sqlite3,sys; p=next(x for x in ("/app/state/outbox.db","/app/artifacts/outbox.db") if os.path.exists(x)); db=sqlite3.connect(p); n=db.execute("delete from outbox_events where event_id=? and ditolak_at is not null", (sys.argv[1],)).rowcount; db.commit(); print(n, "baris dihapus")' EVENT_ID
+```
+
+Tab Status bagian Antrean line menghitung ulang dalam 5 detik.
 
 Dua jebakan umum di balik "setelan `.env` tidak berlaku": **env var proses menang atas
 `.env`** (`load_dotenv(override=False)`; cek `/health/detail`), dan `.env` yang diubah baru
@@ -734,6 +788,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 1.7 | 28 September 2026 | Restart dan hapus data dari konsol menutup line dengan rapi (coil PLC mati, antrean simpan habis); foto dan sidecar ditulis tahan listrik padam; foto 0 byte lama tidak diunggah. Tab Status punya bagian **Antrean line**: antrean janjang tiap line ke konsol tidak lagi menyerah sesudah 50 percobaan, dan bisa dilihat serta dikirim ulang dari layar; janjang yang ditolak konsol terbaca "DITOLAK konsol" dan dikeluarkan dengan tangan (§7.1). Kartu line jadi merah kalau AI berhenti memproses gambar (§7). §7: tanda **Cek AutoERP** di tab Timbangan untuk janjang susulan pada tiket AutoERP yang sudah final, dan baris antrean ERP `HTTP 500` beramplop Frappe. |
 | 1.6 | 28 September 2026 | ONBOARDING digabung ke sini (§9.1 folder, §9.2 langkah pertama) lalu dihapus; port konsol ditulis dua cara pasang (8100 image produksi, 8000 dari source); §5.11 Lampung per 28 September; aturan image GHCR dan alur rilis diperbarui. |
 | 1.5 | 28 September 2026 | Tab digabung dari 15 jadi 9: **Rekap** = Rekap + Riwayat (dibuka di Hari ini, Per truk), **Status** = Versi + Diagnostik + Antrean ERP, **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video. §3.4 dan §3.5 ditulis ulang. |
 | 1.4 | 28 September 2026 | Versi dan lisensi PC ditampilkan di bawah tulisan AUTOGRADE untuk semua akun, termasuk operator; klik untuk rinciannya. |

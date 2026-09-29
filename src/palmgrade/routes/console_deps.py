@@ -35,6 +35,7 @@ from ..services.dev_service import DevService
 from ..services.erp_queue import ErpQueue
 from ..services.impor_grading_service import ImporGradingService
 from ..services.operator_admin import OperatorAdmin
+from ..services.pantau_antrean_line import PantauAntreanLine
 from ..services.riwayat_service import RiwayatService
 from ..services.scan_service import ScanService
 from ..services.status_sinkron import StatusSinkron
@@ -142,6 +143,14 @@ def get_dev_service() -> DevService:
     )
 
 
+@lru_cache
+def get_pantau_antrean_line() -> PantauAntreanLine:
+    """Tab Status → Antrean line (batch 2.4). Klien line yang sama dengan konsol:
+    satu cara memanggil line, satu `INTERNAL_SECRET`."""
+    service = get_console_service()
+    return PantauAntreanLine(service.line_client, service.lines)
+
+
 def _build_license_manager(settings) -> LicenseManager | None:
     """The console's own verifier, or None if the feature is off.
 
@@ -231,6 +240,29 @@ def get_impor_grading_service() -> ImporGradingService:
         # Hari kerja yang sama dengan strip "Hari ini": janjang hari ini tidak diimpor.
         hari_ini=service.today,
     )
+
+def hangatkan_singleton() -> None:
+    """Build, before the first request, EVERY `lru_cache` singleton in this module.
+
+    Batch 2.5 moved login, `/state`, `dev/log` and `ingest_event` into the thread
+    pool (the session check, a sync dependency, already ran there). `lru_cache` does
+    not stop two threads from both building an instance on a first call that lands
+    at the same moment: two `AuthService` objects would mean two login locks, and a
+    burst of wrong passwords right after boot could get past the lockout again; two
+    of any other service would mean two sets of whatever it guards. All of them, not
+    just the ones a thread-pool route reaches today (a later `def` route would
+    reopen the race); `tests/unit/test_hangatkan_singleton.py` fails when a new
+    getter is not added here.
+    """
+    get_console_service()
+    get_auth_service()
+    get_scan_service()
+    get_dev_service()
+    get_pantau_antrean_line()
+    get_bahaya_service()
+    get_operator_admin()
+    get_riwayat_service()
+    get_impor_grading_service()
 
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]

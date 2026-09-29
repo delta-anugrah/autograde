@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
+from palmgrade.integrations.storage.tulis_atomik import tulis_atomik
+from palmgrade.services import media_env_service
 from palmgrade.services.media_env_service import (
     BAWAAN,
     LINE_CODES,
@@ -202,6 +206,50 @@ def test_tulis_berhasil_walau_berkas_bind_mount(tmp_path, monkeypatch):
     assert hasil["line-1"]["berkas"] == "sawit.jpg"
 
 
+@pytest.mark.parametrize("kode_galat", ["EXDEV", "EINVAL"])
+def test_tulis_berhasil_untuk_errno_mount_lain(tmp_path, monkeypatch, kode_galat):
+    """Parkiran Task 8: jalur cadangan menerima tiga errno. EXDEV (temp dan tujuan
+    beda sistem berkas, misal overlay lawan bind mount) dan EINVAL (kernel/FS yang
+    menolak rename ke mount point dengan cara itu) belum pernah diuji: cuma EBUSY."""
+    import errno
+    import os
+
+    path = tmp_path / "media.env"
+    MediaEnvService(path).tulis({kode: dict(BAWAAN) for kode in LINE_CODES})
+    replace_asli = os.replace
+
+    def replace_ditolak(src, dst):
+        if str(dst) == str(path):
+            raise OSError(getattr(errno, kode_galat), kode_galat)
+        return replace_asli(src, dst)
+
+    monkeypatch.setattr(os, "replace", replace_ditolak)
+    MediaEnvService(path).tulis({**{kode: dict(BAWAAN) for kode in LINE_CODES},
+                                 "line-2": {"sumber": "foto", "berkas": "sawit.jpg", "ulang": False}})
+
+    assert MediaEnvService(path).baca()["line-2"]["berkas"] == "sawit.jpg"
+    assert [p.name for p in tmp_path.iterdir() if p.name.startswith(".media.env.")] == []
+
+
+def test_errno_lain_tetap_dilempar(tmp_path, monkeypatch):
+    """Disk penuh atau izin bukan urusan mount point: jangan ditulis di tempat."""
+    import errno
+    import os
+
+    path = tmp_path / "media.env"
+    MediaEnvService(path).tulis({kode: dict(BAWAAN) for kode in LINE_CODES})
+    isi_lama = path.read_bytes()
+
+    def replace_penuh(src, dst):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(os, "replace", replace_penuh)
+    with pytest.raises(OSError):
+        MediaEnvService(path).tulis({**{kode: dict(BAWAAN) for kode in LINE_CODES},
+                                     "line-2": {"sumber": "foto", "berkas": "sawit.jpg", "ulang": False}})
+    assert path.read_bytes() == isi_lama
+
+
 def test_tulis_bind_mount_tidak_meninggalkan_berkas_sementara(tmp_path, monkeypatch):
     """Jalur cadangan tetap harus bersih-bersih sesudah dirinya."""
     import errno
@@ -224,7 +272,6 @@ def test_tulis_bind_mount_tidak_meninggalkan_berkas_sementara(tmp_path, monkeypa
 
 # ───────────────────────────── model deteksi per line (sejak 2026-09-24)
 
-import pytest  # noqa: E402
 
 from palmgrade.domain.pilihan_model import LINE_MODEL, ModelTidakSah  # noqa: E402
 
@@ -296,3 +343,19 @@ def test_berkas_lama_tanpa_baris_model_tetap_terbaca(tmp_path):
     svc = MediaEnvService(path)
     assert svc.baca_model() == {k: "" for k in LINE_CODES}
     assert svc.baca()["line-1"]["sumber"] == "foto"
+
+
+def test_media_env_ditulis_lewat_penulis_atomik_bersama(tmp_path, monkeypatch):
+    """Batch 2.6: satu pola temp + fsync + os.replace untuk semua penulis, bukan salinan."""
+    dipanggil: list = []
+
+    def catat(jalur, isi):
+        dipanggil.append(jalur)
+        tulis_atomik(jalur, isi)
+
+    monkeypatch.setattr(media_env_service, "tulis_atomik", catat)
+    path = tmp_path / "media.env"
+    MediaEnvService(path).tulis({kode: dict(BAWAAN) for kode in LINE_CODES})
+
+    assert dipanggil == [path]
+    assert MediaEnvService(path).baca() == {kode: dict(BAWAAN) for kode in LINE_CODES}

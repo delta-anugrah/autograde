@@ -16,11 +16,11 @@ from datetime import UTC, datetime, tzinfo
 def work_date_for(timestamp_iso: str, tz: tzinfo) -> str:
     """`YYYY-MM-DD` in the mill's zone. ValueError if the timestamp is unreadable.
 
-    A timestamp with no offset is read as UTC - that is what the camera lines
+    A timestamp with no offset is read as UTC, that is what the camera lines
     send (`datetime.now(timezone.utc).isoformat()` sometimes lost its suffix in
     older data). Raising is deliberate rather than falling back to today: ingest
-    answers 400, the line's outbox holds and retries, and the row shows up as
-    `outbox_failed` - far better than tonnage quietly sticking to a wrong date.
+    answers 400, the line's outbox holds and keeps retrying it, visible in tab Status
+    (Antrean line), far better than tonnage quietly sticking to a wrong date.
     """
     raw = timestamp_iso.strip().replace("Z", "+00:00")
     dt = datetime.fromisoformat(raw)  # ValueError when the shape is not ISO

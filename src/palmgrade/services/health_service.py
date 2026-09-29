@@ -10,6 +10,7 @@ from ..integrations.outbox.outbox_store import OutboxStore
 from ..plc import diagnostics as plc_diagnostics
 from ..schemas.common_schema import HealthDetailSchema, WorkerStatus
 from ..workers.runtime_state import RuntimeState
+from .penjaga_ai import ringkas_ai_dari_state
 from .pindah_db_line import outbox_lama_tertinggal
 
 
@@ -53,11 +54,13 @@ class HealthService:
             }
         return self.model.ringkasan()
 
-    def get_health(self) -> dict[str, str]:
+    def get_health(self) -> dict[str, Any]:
         return {
             "message": "Ripe Recognition API is ready.",
             "detail": f"Environment: {self.settings.environment}",
             "version": self.settings.app_version,
+            # Batch 2.1: `/health` menjawab 503 kalau `ai.mati` (routes/health_ringan.py).
+            "ai": ringkas_ai_dari_state(self.state),
         }
 
     def get_health_detail(self) -> HealthDetailSchema:
@@ -101,4 +104,5 @@ class HealthService:
             current_assignment_id=self.state.current_assignment_id,
             last_successful_api_push=self.state.last_successful_api_push,
             **self.ringkasan_model(),
+            ai=ringkas_ai_dari_state(self.state, lengkap=True),
         )

@@ -4,6 +4,7 @@ import datetime
 import logging
 import queue
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ..core.config import Settings
@@ -72,8 +73,13 @@ class FrameProcessingWorker:
         settings: Settings,
         outbox_store: OutboxStore,
         capture_saver: CaptureSaveWorker | None = None,
+        tidur: Callable[[float], None] = time.sleep,
     ) -> None:
         self.pipeline = pipeline
+        # Jeda sesudah exception di `putaran()` dan selama lisensi menghentikan
+        # grading. Disuntik supaya test bisa memutar ratusan putaran tanpa
+        # menunggu sedetik per putaran.
+        self._tidur = tidur
         self.state = state
         self.storage = storage
         self.webhook = webhook
@@ -189,7 +195,7 @@ class FrameProcessingWorker:
                 self._license_stop_logged = True
             # Tidur sebentar: tanpa ini run_loop memutar ribuan kali per detik
             # untuk tidak melakukan apa-apa dan menghabiskan satu core.
-            time.sleep(1.0)
+            self._tidur(1.0)
             return
         if self._license_stop_logged:
             logger.info("Lisensi kembali valid — deteksi dilanjutkan")
@@ -666,12 +672,29 @@ class FrameProcessingWorker:
                 (b, t) for b, t in self._janjang_difoto if now - t <= 300
             ]
 
+        # Penjaga AI mati (batch 2.1): frame ini SELESAI digrading. Dicap paling
+        # akhir, bukan di samping `last_yolo_frame_at`: exception di mana pun di
+        # atas (sesudah inferensi) tidak boleh membuat line terlihat memproses.
+        self.state.catat_inferensi_selesai()
+
         # DisplayWorker handles MJPEG rendering — processing worker only does detection.
 
+    def putaran(self) -> None:
+        """Satu putaran `run_loop`: exception dicatat untuk penjaga AI, lalu jeda."""
+        try:
+            self.run_once()
+        except Exception as exc:
+            logger.exception("Unhandled error in FrameProcessingWorker.run_once")
+            self.state.catat_galat_ai(exc)
+            self._tidur(1.0)
+
+    def mulai(self) -> None:
+        """Yang dilakukan `run_loop` sebelum putaran pertama: tenggang penjaga AI
+        dihitung dari sini (sekali per proses; watchdog yang menyalakan ulang
+        thread ini tidak memberi tenggang baru)."""
+        self.state.catat_ai_dimulai()
+
     def run_loop(self) -> None:
+        self.mulai()
         while True:
-            try:
-                self.run_once()
-            except Exception:
-                logger.exception("Unhandled error in FrameProcessingWorker.run_once")
-                time.sleep(1)
+            self.putaran()

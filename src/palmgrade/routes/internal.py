@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import logging
-import os
 import threading
-import time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,20 +17,18 @@ from ..controllers.internal_controller import (
 from ..core.config import Settings
 from ..core.dependencies import (
     get_capture_service,
-    get_outbox_store,
+    get_penutup_line,
     get_runtime_state,
     get_settings,
 )
 from ..domain.setelan_grading import bersihkan_setelan
 from ..domain.setelan_rekam import SetelanRekamTidakSah, bersihkan_setelan_rekam
-from ..integrations.outbox.outbox_store import OutboxStore
 from ..schemas.internal_schema import (
     AssignmentSyncRequest,
     AssignmentSyncResponse,
     LineStatusResponse,
     ManualRejectCommandRequest,
     ManualRejectCommandResponse,
-    OutboxRequeueResponse,
     PistonCommandRequest,
     PlcCoilCommandRequest,
     PlcCoilCommandResponse,
@@ -137,16 +133,6 @@ async def manual_reject(
     return await manual_reject_command(request, service)
 
 
-@router.post("/outbox/requeue", response_model=OutboxRequeueResponse)
-async def outbox_requeue(
-    outbox: Annotated[OutboxStore, Depends(get_outbox_store)],
-) -> OutboxRequeueResponse:
-    # Move dead-letter events (status='failed') back to 'pending' so
-    # OutboxRetryWorker tries sending them again. Used after the API recovers
-    # from a long outage. Safe to repeat (idempotent when nothing has failed).
-    return OutboxRequeueResponse(requeued=outbox.requeue_failed())
-
-
 @router.post("/piston", response_model=LineStatusResponse)
 async def piston(
     request: PistonCommandRequest,
@@ -181,24 +167,16 @@ _JEDA_KELUAR_DETIK = 1.0
 
 
 def _jadwalkan_keluar(jeda: float) -> None:
-    """Keluar `jeda` detik dari sekarang, di thread terpisah.
+    """Tutup rapi lalu keluar, `jeda` detik dari sekarang (batch 2.2).
 
-    `os._exit` dan bukan `sys.exit`: yang dituju adalah container berhenti
-    supaya `restart: unless-stopped` menyalakannya lagi dengan environment yang
-    Compose baca ulang. `sys.exit` dari thread non-utama hanya menghentikan
-    thread itu — proses tetap hidup dan setelan baru tidak pernah berlaku,
-    tanpa satu pun galat yang terlihat.
+    Dipakai `/internal/restart` dan `/internal/hapus-data`. Dulu fungsi ini
+    memanggil `os._exit` langsung dan melewati lifespan: coil PLC yang sedang ON
+    tertinggal ON, dan janjang di antrean simpan (sudah dipulse, belum ditulis)
+    hilang tanpa foto maupun sidecar. Sekarang urutan tutup yang SAMA dengan
+    SIGTERM jalan dulu; `os._exit` tetap di ujungnya
+    (`services/penutup_line.PenutupLine.keluar_nanti`).
     """
-    def keluar() -> None:
-        time.sleep(jeda)
-        # Tidak menyebut "Docker": di pabrik memang `restart: unless-stopped`
-        # yang menyalakan ulang, tapi jalur native dinyalakan loop `make line`.
-        # Pesan yang menyebut Docker di terminal `make line` membuat orang
-        # mencari container yang tidak ada.
-        logger.warning("Keluar atas permintaan konsol — menunggu dinyalakan ulang")
-        os._exit(0)  # noqa: SLF001 — disengaja, lihat docstring
-
-    threading.Thread(target=keluar, daemon=True, name="restart").start()
+    get_penutup_line().keluar_nanti(jeda)
 
 
 @router.post("/restart", response_model=RestartResponse)

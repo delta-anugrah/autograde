@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import NamedTuple
 
+from ..domain.kesehatan_ai import AMBANG_BAWAAN_DETIK, ambang_dari_teks
 from ..domain.pilihan_model import ModelTidakSah, bersihkan_nama_model
 
 logger = logging.getLogger(__name__)
@@ -148,6 +149,26 @@ def parse_coil_list(value: str | None) -> tuple[int, ...]:
             value,
         )
         return ()
+
+
+def _ai_mati_detik() -> int:
+    """`AI_MATI_DETIK`: berapa detik gambar mengalir tanpa satu frame pun selesai
+    digrading sebelum line dinyatakan AI mati (batch 2.1).
+
+    Memaafkan seperti `_plc_int`, bukan fail-fast: ini penjaga, dan penjaga yang
+    salah ketik tidak boleh menahan container (dan grading) tidak menyala.
+    Nilai di luar batas dijepit, bukan ditolak, dan dua-duanya dicatat.
+    """
+    raw = os.getenv("AI_MATI_DETIK")
+    nilai = ambang_dari_teks(raw)
+    if nilai is None:
+        logger.warning(
+            "AI_MATI_DETIK=%r bukan bilangan bulat, dipakai %s detik", raw, AMBANG_BAWAAN_DETIK
+        )
+        return AMBANG_BAWAAN_DETIK
+    if raw and raw.strip() and int(raw.strip()) != nilai:
+        logger.warning("AI_MATI_DETIK=%s di luar batas, dipakai %s detik", raw.strip(), nilai)
+    return nilai
 
 
 # The committed default WEBHOOK_SECRET, also the docker-compose fallback. Fine
@@ -299,6 +320,9 @@ class Settings:
     minimum_size: int = field(default_factory=lambda: int(os.getenv("MINIMUM_SIZE", "460000")))
     # Run YOLO every N frames — reduce CPU load on video-file testing (set to 1 for production)
     yolo_skip_frames: int = field(default_factory=lambda: int(os.getenv("YOLO_SKIP_FRAMES", "1")))
+    # Batch 2.1: detik tanpa frame yang selesai digrading (padahal gambar masuk)
+    # sebelum line dinyatakan AI mati. Lihat `domain/kesehatan_ai.py`.
+    ai_mati_detik: int = field(default_factory=_ai_mati_detik)
     # Garis capture: x (px) dalam ruang STREAM (`STREAM_WIDTH`), bukan ruang
     # sensor. Janjang difoto saat kotaknya MENYENTUH garis ini — beda dari ROI,
     # yang menyaring wilayah dan memakai titik tengah.

@@ -12,12 +12,12 @@ Satu berkas `src/palmgrade/static/console.html`: vanilla JS, tanpa build, tanpa 
 
 | Tab | Siapa | Pemuat | Isi |
 |---|---|---|---|
-| Grading | semua | polling `refresh` 2 dtk | 20 grading terakhir hari ini |
+| Grading | semua | polling `refresh` 2 dtk | 20 grading terakhir hari ini, kartu line merah + pita AI mati dari blok `plc.ai` (`pitaAi`, `perbaruiAi` tiap polling, test `test_console_html_ai_mati.py`) |
 | Truk | semua | `muatTrucks` 60 dtk | master truk, truk manual, kartu QR |
-| Timbangan | semua | `muatTimbangan` 15 dtk | tiket, scan masuk/keluar, tara |
+| Timbangan | semua | `muatTimbangan` 15 dtk | tiket, scan masuk/keluar, tara, tanda **Cek AutoERP** untuk janjang susulan pada tiket yang sudah final (`erp_perlu_dicek`, `tests/unit/test_console_html_timbangan_erp.py`) |
 | Rekap | semua | `muatRiwayat` (+ `segarkanRekap` 15 dtk) | Rekap + Riwayat: buka di Hari ini, Per truk; Impor CSV support saja |
 | Log | support | `muatLog` | ERROR/WARNING 180 hari |
-| Status | support | `muatStatus` (diagnostik 5 dtk) | Versi, Diagnostik, Antrean ERP + manifest R2 |
+| Status | support | `muatStatus` (diagnostik 5 dtk, antrean line 5 dtk) | Versi, Diagnostik, Antrean line, Antrean ERP + manifest R2 |
 | Akun | support | `muatAkun` | akun lokal/AutoERP, tombol aksi berwarna |
 | Line | support | `muatLine` → `MUAT_SUB_LINE[subLine]` | Sumber Kamera, Model Deteksi, Uji PLC (1 dtk), Rekam Video (3 dtk) |
 | Setelan | support | `muatSetelan` | setelan grading, garis capture, Danger Zone. Selalu paling kanan |

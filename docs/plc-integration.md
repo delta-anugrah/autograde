@@ -229,7 +229,10 @@ selama itu: pulse telat menempel ke buah yang salah.
 SIGTERM di tengah produksi itu rutin. Dengan `PLC_PULSE_MS=200` dalam siklus 400 ms (2 tick),
 peluang sebuah coil sedang ON saat sinyal itu tiba kira-kira 1 dari 2.
 
-`shutdown_plc_worker()` (dipanggil `lifespan` sesudah `yield`) menjalankan, berurutan:
+`shutdown_plc_worker()` (dipanggil urutan tutup line, `services/langkah_tutup_line.py`, untuk
+SIGTERM DAN `/internal/restart` + `/internal/hapus-data`, bersamaan dengan antrean simpan
+dihabiskan; batas urutan tutup 8 detik, ditambah jeda 1 detik sebelum urutan itu mulai untuk
+`/internal/restart` dan `/internal/hapus-data`) menjalankan, berurutan:
 
 1. `PlcWorker.stop()`: set `threading.Event`; `run_loop` mengeceknya tiap tick dan `wait()`
    di antara tick, jadi ia keluar dalam hitungan milidetik, bukan satu poll penuh.
@@ -244,6 +247,10 @@ No-op yang aman kalau `PLC_ENABLED=false` atau worker tidak pernah start. Shutdo
 tidak menolong kalau PC mati mendadak atau kabel dicabut: itu tugas watchdog heartbeat di ladder
 (`docs/plc-mc-handoff.md` §3).
 
+Sebelum batch 2.2, restart yang diminta dari konsol (`/internal/restart`, `/internal/hapus-data`)
+melewati fungsi ini sama sekali: `os._exit` langsung, coil yang sedang ON tertinggal ON sampai
+line hidup lagi.
+
 ---
 
 ## Coil ERROR: kesehatan line, BUKAN overflow
@@ -253,10 +260,16 @@ ini"**, dievaluasi ulang tiap tick, bukan flag yang sekali nyala lalu menetap. D
 levelnya berubah dan ditulis ulang tiap detik. Selama pulse uji dari layar sedang jalan di coil
 ini, level kesehatan menunggu sampai pulse selesai.
 
-Satu-satunya sumber unhealthy: **`health_check()` melaporkan tidak sehat** (praktiknya:
-`camera.connected` false), atau **exception dari `health_check()` itu sendiri**, dianggap tidak
-sehat (fail-loud). Sumber health yang tidak diketahui statusnya tidak boleh dibaca sebagai sehat
-pada sinyal keselamatan.
+Satu-satunya sumber unhealthy: **`health_check()` melaporkan tidak sehat**, atau **exception dari
+`health_check()` itu sendiri**, dianggap tidak sehat (fail-loud). Sumber health yang tidak
+diketahui statusnya tidak boleh dibaca sebagai sehat pada sinyal keselamatan.
+
+Sejak batch 2.1 (2026-09-28), `health_check()` = `PenjagaAi.sehat_untuk_plc()`
+(`services/penjaga_ai.py`): tidak sehat berarti **kamera putus ATAU AI mati** (kamera mengirim
+gambar tapi tidak ada frame yang selesai digrading selama `AI_MATI_DETIK`, bawaan 30 detik).
+Lisensi habis dan sumber diam (gambar berhenti sama sekali walau kamera tersambung) **sengaja
+tidak** menaikkan ERROR: keduanya sudah punya sinyalnya sendiri (banner lisensi, alive bit mati)
+dan bukan kerusakan line. Overflow (di bawah) tetap tidak menaikkannya, tidak berubah.
 
 **Overflow sengaja TIDAK menaikkan ERROR.** Drop adalah steady state yang dideklarasikan di
 bawah beban (lihat "Throughput ceiling" di atas): kamera bisa ~10 keputusan/detik, satu coil muat
