@@ -26,6 +26,8 @@ from .routes.captures import StaticTanpaDb
 from .routes.internal import _jadwalkan_keluar
 from .routes.internal import router as internal_router
 from .routes.internal_bahaya import buat_router as buat_router_bahaya
+from .routes.internal_outbox import buat_router as buat_router_outbox
+from .services.antrean_line import AntreanLine
 from .services.hapus_data_line import hapus_kalau_diminta
 from .services.pindah_db_line import pindahkan_db_lama
 from .workers.outbox_retry_worker import OutboxRetryWorker
@@ -465,6 +467,16 @@ def create_app() -> FastAPI:
     app.include_router(
         buat_router_bahaya(
             settings=get_settings, state=get_runtime_state, keluar=_jadwalkan_keluar
+        )
+    )
+    # Antrean janjang ke konsol (batch 2.4): dilihat dan didorong dari tab Status
+    # konsol. Store, Settings, dan RuntimeState yang SAMA dengan worker pengirimnya.
+    app.include_router(
+        buat_router_outbox(
+            settings=get_settings,
+            antrean=lambda: AntreanLine(
+                get_outbox_store(), get_settings(), get_runtime_state(), get_folder_db_line()
+            ),
         )
     )
 
