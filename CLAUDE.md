@@ -1325,9 +1325,17 @@ memang khas satu mesin.
   digambar ulang: ganti bahasa, daftar truk, login); tanpa cap itu tanda menempel selamanya di
   atas video sehat. Stream diminta ulang (`?t=`) begitu line menjawab, tiap 3 detik sampai
   batas tanda, sesudahnya `cekKamera` (5 detik) yang meneruskan, jadi video kembali tanpa
-  muat ulang. ⚠️ Firefox menembakkan `load` untuk TIAP bagian MJPEG, termasuk keep-alive
-  kosong (`naturalWidth` 0); Chrome sekali saja, dan keep-alive membuatnya `error`. ⚠️ Tandanya hidup di **halaman yang menekan** saja, konsol tidak mencatat restart
-  di `/api/console/state`. Test: `test_console_html_restart.py` + e2e `test_restart_indikator_lane.py`.
+  muat ulang. Test: `test_console_html_restart.py` + e2e `test_restart_indikator_lane.py`.
+  ⚠️ **URL feed di `kartuLine` WAJIB membawa `?t=` unik per render** (`urlFeedBaru`, jam yang
+  sama dengan cap `capFeedBaru`). URL telanjang yang sudah pernah dimuat dilayani browser dari
+  daftar gambar di memori (Chrome 154, Firefox 155, diuji dengan server MJPEG sungguhan): nol
+  permintaan ke line, `load` dalam 2 ms dengan frame LAMA. Akibatnya stream yang sudah putus
+  tetap beku sesudah ganti bahasa/daftar truk/login (keluhan awal "harus refresh browser"),
+  dan cap render menghapus tanda walau line masih mati.
+  ⚠️ Firefox menembakkan `load` untuk TIAP bagian MJPEG, termasuk keep-alive kosong
+  (`naturalWidth` 0); Chrome sekali saja, dan keep-alive membuatnya `error`.
+  ⚠️ Tandanya hidup di **halaman yang menekan** saja, konsol tidak mencatat restart di
+  `/api/console/state`.
 - **Label janjang tidak memuat angka confidence** (permintaan operator 2026-09-18): dari beberapa
   meter "54%" terbaca seperti "54% matang", padahal itu keyakinan model dan sudah lolos
   `CONF_THRESHOLD`. Nilainya tetap ditulis ke sidecar dan dikirim ke API.

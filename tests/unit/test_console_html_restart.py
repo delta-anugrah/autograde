@@ -249,8 +249,55 @@ const kartu = {{ dataset: {{ line: "line-2" }} }};
 
 
 def test_render_ulang_kartu_langsung_mencap_feed_dan_menggambar_tanda():
-    blok = fungsi("refresh").split('$("lines").innerHTML = s.lines.map(kartuLine).join("");', 1)[1]
-    assert blok.lstrip().startswith("capFeedBaru(Date.now());")
+    """URL feed dan capnya memakai SATU jam render: satu permintaan per render,
+    dan cap itu persis milik permintaan tersebut."""
+    fn = fungsi("refresh")
+    assert "const dipasangPada = Date.now();" in fn
+    blok = fn.split('$("lines").innerHTML = s.lines.map((l) => kartuLine(l, dipasangPada)).join("");', 1)[1]
+    assert blok.lstrip().startswith("capFeedBaru(dipasangPada);")
+
+
+# ── B-1: tiap render = permintaan stream yang sungguhan ──────────────────
+
+KARTU_STUB = """
+const location = { protocol: "http:", hostname: "10.0.0.5" };
+const trucks = [];
+const komponenPilih = () => "";
+const pitaPiston = () => "";
+const pitaKunciDitolak = () => "";
+const pitaAi = () => "";
+const aiMati = () => false;
+const isiTruk = () => "";
+const tombolPiston = () => "";
+"""
+
+
+@butuh_node
+def test_url_feed_kartu_selalu_membawa_t_unik_per_render():
+    """URL telanjang yang sama dengan render sebelumnya dilayani browser dari
+    daftar gambar di memori (Chrome 154 dan Firefox 155, diuji reviewer):
+    tidak ada permintaan ke line, `load` datang dalam 2 ms dengan frame LAMA.
+    Akibatnya cap render menghapus tanda walau line masih mati, dan stream yang
+    sudah putus tidak pernah tersambung lagi sesudah ganti bahasa/daftar truk/login."""
+    fn = ["urlFeedBaru", "kartuLine"]
+    hasil = _jalan(fn, (
+        "[kartuLine({ line_code: 'line-2', name: 'Line 2', port: 8002 }, 111),"
+        " kartuLine({ line_code: 'line-2', name: 'Line 2', port: 8002 }, 222)]"), tambahan=KARTU_STUB)
+    assert 'src="http://10.0.0.5:8002/api/video_feed?t=111"' in hasil[0]
+    assert 'src="http://10.0.0.5:8002/api/video_feed?t=222"' in hasil[1]
+    assert "/api/video_feed\"" not in hasil[0] and '/api/video_feed"' not in hasil[0]
+
+
+def test_kartu_line_membangun_url_lewat_url_feed_baru():
+    kartu = fungsi("kartuLine")
+    assert kartu.startswith("function kartuLine(l, sekarang = Date.now())")
+    assert "urlFeedBaru(" in kartu
+    # capFeedBaru cuma mencap: meminta ulang di situ berarti dua permintaan per render.
+    assert "mintaUlangFeed(" not in fungsi("capFeedBaru")
+
+
+def test_komentar_reconnect_once_yang_salah_dicabut():
+    assert "reconnect once" not in HTML
 
 
 # ── video kembali tanpa memuat ulang halaman ─────────────────────────────

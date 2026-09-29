@@ -3031,8 +3031,9 @@ $("bahasa").addEventListener("click", async () => {
   bahasa = bahasa === "id" ? "en" : "id";
   simpan("bahasa", bahasa);
   terapkanBahasa();
-  // Line cards are built in JS, so they have to be redrawn. The MJPEG streams
-  // reconnect once - the price of one deliberate click, not of every 2 s poll.
+  // Line cards are built in JS, so they have to be redrawn. Each redraw opens
+  // new MJPEG streams (unique `?t=`, see kartuLine): the price of one deliberate
+  // click, not of every 2 s poll.
   dipasang = false;
   isiTrucks();
   gambarUlangRiwayat();
@@ -3531,7 +3532,8 @@ function durasiToast(durasi) {
 // Hitung mundur yang berhenti selama kursor di atas toast dan jalan lagi dari
 // sisanya saat kursor pergi. Layar sentuh tidak punya hover: di sana toast
 // tetap tertutup tepat waktunya. Apa pun yang terjadi dengan kursor, toast
-// tertutup paling lambat TOAST_UMUR_MAKS_MS sesudah muncul.
+// tertutup paling lambat TOAST_UMUR_MAKS_MS sesudah muncul. Mengembalikan
+// `tutup`, untuk tombol ×.
 function hitungMundurToast(el, ms, hapus) {
   let sisa = ms;
   let mulai = Date.now();
@@ -3557,6 +3559,7 @@ function hitungMundurToast(el, ms, hapus) {
     mulai = Date.now();
     timer = setTimeout(tutup, sisa);
   });
+  return tutup;
 }
 
 function toast(kind, text, durasi = TOAST_DURASI[kind]) {
@@ -3569,8 +3572,9 @@ function toast(kind, text, durasi = TOAST_DURASI[kind]) {
   el.innerHTML = `<span class="pesan"></span><button type="button" class="tutup" aria-label="${esc(t("toastTutup"))}">&times;</button>`;
   el.querySelector(".pesan").textContent = text;
   const hapus = () => el.remove();
-  el.querySelector(".tutup").addEventListener("click", hapus);
-  hitungMundurToast(el, durasiToast(durasi), hapus);
+  // × memakai `tutup`: kedua timer (sisa dan umur maksimal) ikut dibersihkan.
+  const tutup = hitungMundurToast(el, durasiToast(durasi), hapus);
+  el.querySelector(".tutup").addEventListener("click", tutup);
   wadah.append(el);
 }
 const toastSukses = (text) => toast("sukses", text);
@@ -3722,10 +3726,18 @@ function gambarPitaAlarm(lines) {
   el.hidden = false;
 }
 
-function kartuLine(l) {
+// `sekarang` = jam render, dipakai `?t=` URL feed DAN cap `_dimintaPada`
+// (`capFeedBaru`), jadi tiap render = satu permintaan stream sungguhan.
+function kartuLine(l, sekarang = Date.now()) {
   // The stream comes from the same host as this page, only another port - so
   // the console still works opened over a LAN IP, not just 127.0.0.1.
-  const feed = l.port ? `${location.protocol}//${location.hostname}:${l.port}/api/video_feed` : "";
+  // Always with a unique `?t=`: a bare URL the page already loaded is served
+  // from the browser's in-memory image list (Chrome and Firefox, verified with a
+  // real MJPEG server): no request reaches the line, `load` fires within
+  // milliseconds with the OLD frame, and a stream that already ended stays a
+  // frozen picture after a language switch, truck registration, or login.
+  const feed = l.port
+    ? urlFeedBaru(`${location.protocol}//${location.hostname}:${l.port}/api/video_feed`, sekarang) : "";
   const opsi = [{ v: "", teks: t("pilihTruk") }]
     .concat(trucks.map((tr) => ({ v: tr.id, teks: tr.plate_number || KOSONG })));
   // line_code only rides along as data-line and is read via dataset - it never
@@ -4126,8 +4138,8 @@ $("daftar").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, asyn
     await api("/api/console/trucks", { method: "POST", body: JSON.stringify({ plate_number }) });
     $("plat").value = "";
     // Full re-render so the new truck shows up in all three line dropdowns at
-    // once. The MJPEG streams reconnect once - the price of one deliberate
-    // operator click, not something that happens every 2 s.
+    // once. It opens new MJPEG streams (unique `?t=`, see kartuLine) - the price
+    // of one deliberate operator click, not something that happens every 2 s.
     dipasang = false;
     await muatTrucks();
     await refresh();
@@ -4406,8 +4418,9 @@ function mintaUlangFeed(img, sekarang) {
 }
 
 // Kartu yang digambar ulang (ganti bahasa, daftar truk, login) membawa `<img>`
-// baru = permintaan stream baru saat itu juga, jadi dicap seperti
-// `mintaUlangFeed`. Tanpa cap, gambarnya tidak pernah jadi bukti: sesudah
+// baru dengan `?t=<sekarang>` dari `kartuLine`, jadi permintaan stream baru saat
+// itu juga, dan dicap dengan jam yang SAMA seperti `mintaUlangFeed`. Sengaja
+// cuma mencap, tidak meminta ulang: itu dua permintaan per render. Tanpa cap, gambarnya tidak pernah jadi bukti: sesudah
 // batas tanda habis pengulangan berhenti, cekKamera diam karena gambar tampil,
 // dan kotak RESTART_LAMA menempel di atas video yang sehat. Tandanya digambar
 // ulang saat itu juga supaya tidak hilang sedetik.
@@ -4906,8 +4919,9 @@ async function refresh() {
     isiSinkron(s.sinkron);
     gambarPitaAlarm(s.lines);
     if (!dipasang) {
-      $("lines").innerHTML = s.lines.map(kartuLine).join("");
-      capFeedBaru(Date.now());
+      const dipasangPada = Date.now();
+      $("lines").innerHTML = s.lines.map((l) => kartuLine(l, dipasangPada)).join("");
+      capFeedBaru(dipasangPada);
       dipasang = true;
       terapkanUrutan();
     } else {

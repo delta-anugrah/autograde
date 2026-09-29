@@ -115,9 +115,21 @@ def test_masuk_keluar_berulang_tidak_menggandakan_timer():
     assert tutup == [1, 0]
 
 
+@butuh_node
+def test_tutup_manual_membersihkan_kedua_timer():
+    """Tombol × memakai `tutup` dari hitung mundur: kedua timer (sisa dan umur
+    maksimal) dibersihkan, dan hapus cuma sekali walau timer lain jatuh tempo."""
+    hasil = _jalan(
+        "(() => { const tutup = hitungMundurToast(buatEl(), 5000, hapus);"
+        " tutup(); const r = [ditutup, timer.size]; maju(60000); tutup(); r.push(ditutup); return r; })()"
+    )
+    assert hasil == [1, 0, 1]
+
+
 def test_toast_memakai_hitung_mundur_bukan_timer_telanjang():
     fn = fungsi("toast")
-    assert "hitungMundurToast(el, durasiToast(durasi), hapus)" in fn
+    assert "const tutup = hitungMundurToast(el, durasiToast(durasi), hapus);" in fn
+    assert '.addEventListener("click", tutup)' in fn
     assert "durasi = TOAST_DURASI[kind]" in fn
     assert "setTimeout(" not in fn
     hitung = fungsi("hitungMundurToast")
