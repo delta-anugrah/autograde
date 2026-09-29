@@ -1206,7 +1206,10 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     `/internal/status.ai` → `LineStatusWorker` → `/api/console/state` → `pitaAi`, `perbaruiAi`
     tiap polling). `/health/detail` **tetap 200 dan `status:"ok"` walau `ai.mati`** (load-bearing:
     `autograde reset-data` di host dan Danger Zone membaca kode HTTP-nya, bukan isinya, untuk
-    memutuskan line hidup atau mati). `ai.galat_terakhir` di `/health/detail` adalah galat
+    memutuskan line hidup atau mati). Danger Zone yang menunggu line keluar (aturan 25, 29)
+    memang membaca `/health`, jadi `LineClient.hidup()` menghitung 503 dengan `ai.mati` sebagai
+    proses yang masih hidup: tanpa itu konsol berhenti menunggu sementara line masih
+    menghabiskan antrean simpannya. `ai.galat_terakhir` di `/health/detail` adalah galat
     deteksi TERAKHIR sejak boot, bukan bukti ada galat SEKARANG: baca `galat_at` untuk menilai
     umurnya sebelum menyimpulkan apa pun.
     Seluruh penilaian jalan di **satu lock** (`PenjagaAi._nilai_sekarang`): jam dibaca dan

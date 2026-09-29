@@ -45,6 +45,16 @@ class LinePlcTolak(RuntimeError):
         self.detail = detail
 
 
+def _ai_mati(res: httpx.Response) -> bool:
+    """Badan `/health` line membawa `ai.mati` (routes/health_ringan.py)."""
+    try:
+        isi = res.json()
+    except ValueError:
+        return False
+    ai = isi.get("ai") if isinstance(isi, dict) else None
+    return isinstance(ai, dict) and bool(ai.get("mati"))
+
+
 class LineClient:
     def __init__(
         self, settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None
@@ -310,9 +320,15 @@ class LineClient:
         try:
             async with httpx.AsyncClient(timeout=0.5, transport=self._transport) as client:
                 res = await client.get(url)
-            return res.status_code == 200
         except httpx.HTTPError:
             return False
+        if res.status_code == 200:
+            return True
+        # Batch 2.1: `/health` menjawab 503 kalau AI line mati, tapi prosesnya
+        # masih hidup dan masih menjalankan urutan tutupnya. Dibaca "mati" di
+        # sini, Danger Zone berhenti menunggu dan mengosongkan konsol sebelum
+        # antrean simpan line itu habis dikirim.
+        return res.status_code == 503 and _ai_mati(res)
 
     async def _get_json(
         self, line: LineEndpoint, path: str, *, timeout_s: float

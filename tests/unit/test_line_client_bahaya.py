@@ -91,11 +91,26 @@ def test_hidup_benar_saat_health_menjawab():
     assert asyncio.run(_client(handler).hidup(LINE)) is True
 
 
+def test_hidup_benar_saat_ai_mati_karena_prosesnya_masih_jalan():
+    """`/health` 503 karena AI mati (batch 2.1) = proses line masih hidup.
+
+    Danger Zone menunggu line BENAR-BENAR keluar sebelum mengosongkan konsol
+    (batch 2.2): 503 ini dibaca mati berarti konsol berhenti menunggu padahal
+    line masih menghabiskan antrean simpannya.
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"status": "ok", "ai": {"keadaan": "ai_mati", "mati": True}})
+
+    assert asyncio.run(_client(handler).hidup(LINE)) is True
+
+
 @pytest.mark.parametrize(
     "handler",
     [
         _putus,
         lambda request: httpx.Response(503, text="starting"),
+        lambda request: httpx.Response(503, json={"status": "ok", "ai": {"mati": False}}),
+        lambda request: httpx.Response(500, json={"ai": {"mati": True}}),
     ],
 )
 def test_hidup_salah_tanpa_melempar(handler):
