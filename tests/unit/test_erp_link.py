@@ -147,3 +147,82 @@ def test_the_worker_and_the_tests_share_one_handler_map(tmp_path):
         "truck": "erpnext.palm_mill.api.upsert_truck",
         "visit": "erpnext.palm_mill.api.upsert_visit",
     }
+
+
+# ── batch 2.3: only answers a human must act on reach the Log tab ────────────
+
+
+def _janjang(store: ConsoleStore, event_id: str, *, line_code: str, assignment_id: str) -> None:
+    store.add_inspection({
+        "event_id": event_id, "machine_id": "m-2", "line_code": line_code, "work_date": "2026-09-13",
+        "timestamp": "2026-09-13T07:58:00+07:00", "ripeness_status": "ACC",
+        "ripeness_confidence": 0.9, "capture_type": "auto", "image_path": None,
+        "truck_id": truck_id_for(PLATE), "assignment_id": assignment_id, "prediction": "Acc",
+        "tp_status": None, "tp_confidence": None,
+    })
+
+
+def _warnings(caplog) -> list[str]:
+    return [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+
+
+def test_tiket_final_yang_berbeda_dicatat_dengan_kode_line_jam_dan_tindakan(tmp_path, caplog):
+    store, _ = _parts(tmp_path)
+    _weighing(store)
+    store.link_weighing_to_assignment("w1", "a1")
+    _janjang(store, "ev-1", line_code="line-2", assignment_id="a1")
+
+    with caplog.at_level("WARNING"):
+        visit_recorded(store)("w1", {
+            "ticket": "WB-2026-03851", "status": "Finalised", "revised": True,
+            "note": "ticket already finalised; grading revised",
+        })
+
+    [pesan] = _warnings(caplog)
+    assert pesan.startswith("[TIKET_FINAL_BERBEDA] Truk BE 1 AA, line-2, timbang masuk 2026-09-13 07:41: ")
+    assert "WB-2026-03851" in pesan and "Tindakan: " in pesan
+
+
+def test_visit_unchanged_tidak_masuk_tab_log(tmp_path, caplog):
+    """Kirim ulang harian menjawab ini untuk SETIAP tiket final kemarin: bukan berita."""
+    store, _ = _parts(tmp_path)
+    _weighing(store)
+
+    with caplog.at_level("INFO"):
+        visit_recorded(store)("w1", {
+            "ticket": "WB-2026-03851", "status": "Finalised",
+            "note": "ticket already finalised; visit unchanged",
+        })
+
+    assert _warnings(caplog) == []
+    assert store.weighing("w1")["erp_note"] == "ticket already finalised; visit unchanged"
+
+
+def test_tiket_dibatalkan_masuk_tab_log_dengan_kodenya(tmp_path, caplog):
+    store, _ = _parts(tmp_path)
+    _weighing(store)
+
+    with caplog.at_level("WARNING"):
+        visit_recorded(store)("w1", {"ticket": "WB-2026-03851", "status": "Cancelled",
+                                     "note": "ticket cancelled; visit ignored"})
+
+    [pesan] = _warnings(caplog)
+    assert pesan.startswith("[TIKET_DIBATALKAN] Truk BE 1 AA, -, timbang masuk 2026-09-13 07:41: ")
+
+
+def test_jawaban_yang_sama_dari_kirim_ulang_tidak_dicatat_dua_kali(tmp_path, caplog):
+    """AutoERP membandingkan dengan angka yang DIBUKUKAN, jadi tiap kirim ulang rekap yang
+    sama menjawab "grading revised" lagi. Sekali per perubahan, bukan sekali per kiriman;
+    kalimat baru (bobot ikut berubah) tetap dicatat."""
+    store, _ = _parts(tmp_path)
+    _weighing(store)
+    revisi = {"ticket": "WB-2026-03851", "status": "Finalised", "revised": True,
+              "note": "ticket already finalised; grading revised"}
+
+    with caplog.at_level("INFO"):
+        visit_recorded(store)("w1", revisi)
+        visit_recorded(store)("w1", revisi)
+        visit_recorded(store)("w1", revisi | {"note": "ticket already finalised; grading revised, weights revised"})
+
+    assert [p.split("]")[0] for p in _warnings(caplog)] == ["[TIKET_FINAL_BERBEDA", "[TIKET_FINAL_BERBEDA"]
+    assert "grading revised, weights revised" in _warnings(caplog)[1]

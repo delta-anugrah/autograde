@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from ..core.config import Settings
 from ..domain import erp_messages
 from ..domain.erp_master import supplier_id_for
+from ..domain.jawaban_kunjungan import KonteksKunjungan, jam_masuk, kabar_baru, pesan_log
 from ..domain.plate import truck_id_for
 from ..integrations.erp.client import ErpClient
 from ..repositories.console_repository import ConsoleStore
@@ -57,28 +58,45 @@ def visit_recorded(store: ConsoleStore) -> Callable[[str, Any], None]:
     """Keep what AutoERP answered for a visit.
 
     The Weighbridge Ticket is the trace from a weighbridge row at the mill to the
-    receipt in the ledger. The `note` is the part that used to be dropped, and it is
-    the part a human needs: AutoERP never rewrites a finalised ticket, so a late
-    grading change is acknowledged as `revised` with a comment on its side — and the
-    mill kept marking that send simply "delivered".
+    receipt in the ledger. AutoERP never rewrites a finalised ticket, so a late
+    grading change comes back as `revised` + a note, and the ticket keeps the numbers
+    it was booked with. Only answers a human must act on reach the Log tab (batch 2.3):
+    a finalised ticket that received different numbers, or a cancelled one, once per
+    change of AutoERP's answer. "visit unchanged" is what every daily resend of a
+    finalised ticket answers; logging it as a WARNING buried the one line that
+    mattered. The same "grading revised" answered again by a resend is not a new
+    change either (see `domain/jawaban_kunjungan.kabar_baru`).
     """
 
     def record(key: str, answer: Any) -> None:
         answer = answer or {}
         note = answer.get("note")
+        sebelumnya = (store.weighing(key) or {}).get("erp_note")
         store.record_visit_answer(
             key, ticket=answer.get("ticket"), status=answer.get("status"), note=note
         )
-        if note or answer.get("revised"):
-            logger.warning(
-                "AutoERP answer needs a look for visit %s: %s (ticket %s, status %s)",
-                key,
-                note or "grading revised after finalisation",
-                answer.get("ticket"),
-                answer.get("status"),
-            )
+        golongan = kabar_baru(note, revised=bool(answer.get("revised")), sebelumnya=sebelumnya)
+        if golongan is None:
+            if note:
+                logger.info("AutoERP answer for visit %s: %s", key, note)
+            return
+        logger.warning(pesan_log(golongan, _konteks(store, key, answer)))
 
     return record
+
+
+def _konteks(store: ConsoleStore, key: str, answer: dict[str, Any]) -> KonteksKunjungan:
+    """Truck, line and weigh-in time of this visit, for one Log tab line."""
+    visit = store.visit(key) or {}
+    assignment_id = visit.get("assignment_id")
+    grading = store.grading_counts(assignment_id) if assignment_id else None
+    return KonteksKunjungan(
+        plat=visit.get("plate_number") or "-",
+        line=(grading or {}).get("line_code") or "-",
+        masuk=jam_masuk(visit.get("entered_at")),
+        tiket=answer.get("ticket") or visit.get("erp_ticket") or "-",
+        catatan=answer.get("note") or "grading revised after finalisation",
+    )
 
 
 def outbox_handlers(store: ConsoleStore) -> dict[str, OutboxHandler]:

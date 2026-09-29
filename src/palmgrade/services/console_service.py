@@ -25,6 +25,7 @@ from ..core.config import LineEndpoint, Settings
 from ..domain.bahaya import HapusBerjalan
 from ..domain.ffb_source import ffb_source_label
 from ..domain.grade_class import grade_class_or_none
+from ..domain.jawaban_kunjungan import golongkan
 from ..domain.operator_error import (
     BUKAN_ANGKA,
     DI_BAWAH_MINIMUM,
@@ -304,7 +305,7 @@ class ConsoleService(LayarLineSupport):
         return [_with_source_label(row) for row in self.store.trucks()]
 
     def weighings(self, work_date: str, *, limit: int = 100) -> list[dict[str, Any]]:
-        return [_with_source_label(row) for row in self.store.weighings(work_date, limit=limit)]
+        return [_tiket_view(row) for row in self.store.weighings(work_date, limit=limit)]
 
     def recap(self, work_date: str) -> list[dict[str, Any]]:
         """Per-truck tally with the weighbridge neto folded in.
@@ -778,6 +779,14 @@ def _with_source_label(row: dict[str, Any]) -> dict[str, Any]:
     """
     row["source_label"] = _source_label(row)
     return row
+
+
+def _tiket_view(row: dict[str, Any]) -> dict[str, Any]:
+    """One Timbangan row: the source label, and whether AutoERP's last answer for this
+    visit needs a human (batch 2.3). Classified here so the screen never parses
+    AutoERP's sentences."""
+    row["erp_perlu_dicek"] = golongkan(row.get("erp_note"))
+    return _with_source_label(row)
 
 
 def _assignment_view(row: dict[str, Any] | None) -> dict[str, Any] | None:
