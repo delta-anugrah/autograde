@@ -83,10 +83,12 @@ class ErpOutboxStore:
 
     def due(self, limit: int = 50) -> list[OutboxMessage]:
         """Oldest first: a truck waiting since this morning goes before one typed now."""
+        # IN, not `!= 'sent'`: the same rows (status is only ever pending/error/sent),
+        # but this form can use idx_erp_outbox_due on a table that is never trimmed.
         with self._lock:
             rows = self._db.execute(
                 """SELECT kind, key, payload, attempts, last_error, version FROM erp_outbox
-                   WHERE status != 'sent' AND next_attempt_at <= ?
+                   WHERE status IN ('pending', 'error') AND next_attempt_at <= ?
                    ORDER BY created_at, rowid LIMIT ?""",
                 (self._clock(), limit),
             ).fetchall()

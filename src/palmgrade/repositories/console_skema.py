@@ -190,6 +190,18 @@ DROP INDEX IF EXISTS idx_inspections_erp;
 -- jadi ingest dari line tidak membayar apa pun untuk indeks ini.
 CREATE INDEX IF NOT EXISTS idx_inspections_impor ON inspections (import_batch)
     WHERE import_batch IS NOT NULL;
+-- Batch 2.5. Rekap satu penugasan (`grading_counts`, `bunches_for_assignment`) dulu
+-- memindai seluruh `inspections` sambil memegang lock konsol (63 ms di 558 ribu baris).
+-- Parsial: janjang tanpa penugasan dan janjang impor tidak ikut diindeks. `timestamp`
+-- di belakang supaya daftar janjang manifest keluar berurutan tanpa sortir.
+CREATE INDEX IF NOT EXISTS idx_inspections_assignment ON inspections (assignment_id, timestamp)
+    WHERE assignment_id IS NOT NULL;
+-- Janjang susulan (batch 2.3) mencari tiket yang ditautkan ke penugasannya, tiap janjang.
+CREATE INDEX IF NOT EXISTS idx_weighings_assignment ON weighings (assignment_id)
+    WHERE assignment_id IS NOT NULL;
+-- `/api/console/state` tiap 2 detik membaca pelepasan otomatis sejam terakhir; tabelnya
+-- tidak pernah dibersihkan.
+CREATE INDEX IF NOT EXISTS idx_auto_releases_waktu ON auto_releases (released_at);
 """
 
 # Columns renamed to English after the schema had already been created on
@@ -243,6 +255,10 @@ def _migrate(db: sqlite3.Connection) -> None:
     """
     _drop_pin_era_operators(db)
     for table, column in (
+        # Batch 2.5: the index on it below. Every real console database already has this
+        # column; this only guards a hand-made or very old table
+        # (tests/unit/test_console_store.py builds one without it).
+        ("inspections", "assignment_id"),
         ("suppliers", "erp_name"),
         ("trucks", "erp_name"),
         ("weighings", "assignment_id"),

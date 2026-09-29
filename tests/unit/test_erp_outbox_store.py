@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import sqlite3
 
+from rencana_query import rencana
+
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 
 
@@ -298,3 +300,22 @@ def test_an_outbox_from_an_older_build_gains_the_generation_and_keeps_its_rows(t
     assert outbox.due() == []
     outbox.enqueue("visit", "v1", {"stage": "departed"})
     assert outbox.due()[0].version == 1
+
+
+def test_due_memakai_indeksnya_dan_tetap_melewati_yang_terkirim(tmp_path):
+    """Batch 2.5: `status != 'sent'` tidak bisa memakai `idx_erp_outbox_due`; tabel ini
+    tidak pernah dibersihkan dan dipindai tiap 30 detik oleh dua worker."""
+    clock = Clock()
+    outbox = _store(tmp_path, clock)
+    outbox.enqueue("visit", "baru", {"n": 1})
+    outbox.enqueue("visit", "gagal", {"n": 2})
+    outbox.enqueue("visit", "terkirim", {"n": 3})
+    [baru, gagal, terkirim] = outbox.due()
+    outbox.mark_error(gagal, "HTTP 500")
+    outbox.mark_sent(terkirim)
+    clock.now += 30
+
+    [plan] = rencana(outbox._db, outbox.due)
+
+    assert "USING INDEX idx_erp_outbox_due" in plan, plan
+    assert [m.key for m in outbox.due()] == ["baru", "gagal"]
