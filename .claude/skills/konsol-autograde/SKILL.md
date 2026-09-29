@@ -17,7 +17,7 @@ Satu berkas `src/palmgrade/static/console.html`: vanilla JS, tanpa build, tanpa 
 | Timbangan | semua | `muatTimbangan` 15 dtk | tiket, scan masuk/keluar, tara |
 | Rekap | semua | `muatRiwayat` (+ `segarkanRekap` 15 dtk) | Rekap + Riwayat: buka di Hari ini, Per truk; Impor CSV support saja |
 | Log | support | `muatLog` | ERROR/WARNING 180 hari |
-| Status | support | `muatStatus` (diagnostik 5 dtk) | Versi, Diagnostik, Antrean ERP + manifest R2 |
+| Status | support | `muatStatus` (diagnostik 5 dtk, antrean line 5 dtk) | Versi, Diagnostik, Antrean line, Antrean ERP + manifest R2 |
 | Akun | support | `muatAkun` | akun lokal/AutoERP, tombol aksi berwarna |
 | Line | support | `muatLine` → `MUAT_SUB_LINE[subLine]` | Sumber Kamera, Model Deteksi, Uji PLC (1 dtk), Rekam Video (3 dtk) |
 | Setelan | support | `muatSetelan` | setelan grading, garis capture, Danger Zone. Selalu paling kanan |

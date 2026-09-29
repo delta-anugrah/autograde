@@ -27,7 +27,7 @@ class AssignmentSyncRequest(BaseModel):
 
         It must become `None` here, not pass through as-is: `""` rides along into
         the next event payload and palmgrade-api validates it as a UUID → the
-        event is rejected 400 and lands in `outbox_failed`.
+        event is rejected 400 and waits in the line queue forever (retried, never delivered).
         """
         return value or None
 

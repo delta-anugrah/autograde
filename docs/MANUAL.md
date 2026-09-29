@@ -236,6 +236,7 @@ Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riw
 | **Log** | ERROR/WARNING 180 hari terakhir, selamat dari restart; pesan berulang digabung `×N`; sandi/token tertulis `«ditutup»` |
 | **Status**, bagian Versi | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah tulisan AUTOGRADE untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati: token ada, tapi LICENSE_ENABLED tidak menyala** berarti tokennya sampai ke konsol tapi saklarnya tidak: periksa blok konsol di compose host, bukan tokennya |
 | **Status**, bagian Diagnostik | tiga kartu line: kamera, GPU, PLC, antrean lokal, lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ `capture_save_dropped` dan `tp_telat` **harus nol**, di atas nol berarti ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat Disegarkan tiap 5 detik selama tab Status terbuka |
+| **Status**, bagian Antrean line | janjang yang belum sampai dari tiap line ke konsol: jumlah, umur yang tertua, keadaan (dengan sebab, sejak kapan, dan harus ngapain), galat terakhir; tombol **Kirim Ulang** per line. Antrean ini tidak pernah menyerah: konsol mati berjam-jam pun janjangnya menunggu dan terkirim sendiri begitu konsol hidup lagi |
 | **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang**. Plus antrean manifest R2 |
 | **Akun** | semua akun yang bisa masuk konsol di PC ini: nama, email, role, asal (**Lokal** / **AutoERP**), status (Aktif / Mati / Terkunci), sedang masuk atau tidak. **Tambah akun** membuat akun **Lokal** baru (nama, email, role, sandi minimal 8 karakter); akun ini cuma ada di PC ini dan **tidak masuk ke AutoERP**. Tiap akun Lokal punya tombol **Ganti sandi** (semua sesinya langsung berakhir), **Matikan / Aktifkan**, dan **Jadikan support / operator**; di baris akunmu sendiri cuma Ganti sandi. Akun AutoERP tidak punya tombol: diurus di AutoERP. **Sandi tidak bisa dilihat**: yang disimpan cuma hash-nya. Lupa sandi: akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ±5 menit), akun Lokal dengan Ganti sandi. Tiap perubahan tercatat di tab Log beserta siapa yang mengubah |
 | **Line** → Sumber Kamera | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik) |
@@ -593,6 +594,7 @@ membuat ulang container supaya versinya benar-benar terpasang.
 |---|---|
 | tab **Status**, bagian Diagnostik (support) | worker, kamera, fps, GPU, PLC per line |
 | `curl localhost:8001/health/detail` | `camera_connected`, `gpu_available`, `current_assignment_id`, `outbox_pending`, dan **`capture_save_dropped` + `tp_telat` yang harus NOL** |
+| tab **Status**, bagian Antrean line | janjang yang belum sampai dari line ke konsol dan sebabnya |
 | tab **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP dan sebabnya |
 | tab **Log** | ERROR/WARNING 180 hari, bertahan lewat restart |
 | `docker logs ripe_line_1 \| grep 'Batch tick'` | progres unggah ke R2 (tidak ada di `/health`) |
@@ -625,6 +627,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | 403 "menu ini untuk akun support" | akun berperan operator membuka tab support | akun support lain: tab Akun → **Jadikan support**; atau `make operator-docker AKSI=role ROLE=support` |
 | Log konsol: "Tidak ada akun dengan peran support" | `.env` dibuat sebelum fitur peran ada | perintah yang sama di atas |
 | Akun bawaan ditolak saat start | hash di `.env` terpotong karena `$` | tulis `$$` untuk tiap `$` |
+| Antrean line (tab Status) menumpuk, keadaan "Konsol tidak terjangkau" / "menolak kunci" / "alamat salah" | konsol mati, `WEBHOOK_SECRET` beda antara line dan konsol, atau `BACKEND_URL` line salah | ikuti kalimat di kolom Keadaan; janjang tidak hilang dan terkirim sendiri sesudah pulih, atau tekan **Kirim Ulang** |
 | Antrean ERP (tab Status) menumpuk, sebab 4xx | pesan **ditolak** ERP (field tidak dikenal, versi ERP lama, 417) | betulkan di ERP, lalu **Kirim Ulang** |
 | Antrean ERP (tab Status) menumpuk, sebab jaringan/5xx | ERP **tidak terjangkau**; backoff 30 dtk → 1 jam | tunggu, atau Kirim Ulang setelah ERP pulih |
 | Last Sync: **AutoERP** kuning (terputus) | internet PC pabrik putus, AutoERP sedang mati, atau `ERP_URL` / kunci salah | tab Log, baris "AutoERP terputus: …" menyebut alasannya; data menunggu di Antrean ERP di tab Status dan terkirim sendiri saat pulih |
@@ -734,6 +737,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 1.7 | 28 September 2026 | Tab Status punya bagian **Antrean line**: antrean janjang tiap line ke konsol tidak lagi menyerah sesudah 50 percobaan, dan bisa dilihat serta dikirim ulang dari layar. |
 | 1.6 | 28 September 2026 | ONBOARDING digabung ke sini (§9.1 folder, §9.2 langkah pertama) lalu dihapus; port konsol ditulis dua cara pasang (8100 image produksi, 8000 dari source); §5.11 Lampung per 28 September; aturan image GHCR dan alur rilis diperbarui. |
 | 1.5 | 28 September 2026 | Tab digabung dari 15 jadi 9: **Rekap** = Rekap + Riwayat (dibuka di Hari ini, Per truk), **Status** = Versi + Diagnostik + Antrean ERP, **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video. §3.4 dan §3.5 ditulis ulang. |
 | 1.4 | 28 September 2026 | Versi dan lisensi PC ditampilkan di bawah tulisan AUTOGRADE untuk semua akun, termasuk operator; klik untuk rinciannya. |

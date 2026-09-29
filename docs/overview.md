@@ -234,7 +234,7 @@ BatchUploadWorker.run_batch_once()
   | HTTP 404 (truck belum ada di DB cloud) | `_RequeueError(batch_fatal=False)` | requeue + **continue**: antrian `ORDER BY discovered_at ASC`, jadi tanpa ini satu item lama bisa head-of-line starve seluruh batch |
   | HTTP 401/403/5xx, jaringan mati | `_RequeueError` (default `batch_fatal=True`) | requeue + **break batch**: percuma lanjut kalau endpoint/kredensialnya yang bermasalah |
 - Backoff: base **5s**, eksponensial sampai cap **600s** (`upload_manifest.py`). **TANPA retry cap
-  dan TANPA TTL**: beda kontrak dari outbox lama yang punya dead-letter setelah 50 retry. Item
+  dan TANPA TTL**: kontrak yang sama dengan outbox line sejak batch 2.4 (tanpa batas nyerah). Item
   menunggu di disk selamanya sampai terkirim (syarat "tahan outage berapa lama pun").
 - Tahan restart karena **file-nya ada di disk**; manifest hanya menyimpan progres.
   SQLite durability eksplisit: **`PRAGMA journal_mode=WAL` + `synchronous=FULL`**: commit di-fsync,
@@ -245,7 +245,8 @@ BatchUploadWorker.run_batch_once()
 - `state/upload_manifest.db` sengaja **sibling** `artifacts/`, di luar mount statis `/captures`
   (`Settings.state_dir`) supaya DB operasional tidak ikut ter-serve sebagai file publik.
 - Progres batch **tidak** ada di `/health/detail`: `outbox_pending`/`outbox_failed` di sana
-  mengukur jalur realtime ke konsol. Ringkasannya naik lewat blok `unggah` di `GET
+  mengukur jalur realtime ke konsol (`outbox_pending` = semua yang belum sampai, `outbox_failed`
+  selalu 0 sejak batch 2.4). Ringkasannya naik lewat blok `unggah` di `GET
   /internal/status` (dihitung sekali per batch) dan tampil di konsol sebagai **Last Sync →
   Cloud Photo**. Rincian per item: query `state/upload_manifest.db` atau baca log worker.
 
@@ -263,7 +264,8 @@ Kontraknya beku sejak palmgrade-api: konsol meniru URL dan header yang sama, jad
 **line → konsol** (`BACKEND_URL` = konsol di mesin yang sama, `http://localhost:8100` di PC pabrik),
 header `x-webhook-secret`:
 - `POST {BACKEND_URL}{BACKEND_API_VER}/internal/vision/events`: event per janjang. Secret salah →
-  401; payload cacat → 400, dan outbox line menandainya gagal (sengaja terlihat).
+  401; payload cacat → 400, dan outbox line menahannya dan terus mencoba (tab Status → Antrean
+  line, sengaja terlihat gagal).
 - `GET .../internal/setelan` dan `GET .../internal/penugasan?machine_id=`: dibaca line saat start,
   supaya setelan grading dan truk terpasang selamat dari container yang dibuat ulang.
 
@@ -543,8 +545,8 @@ hari UTC memotong satu shift jadi dua tanggal. `work_date` dihitung **saat inges
 timestamp event itu sendiri (`domain/working_day.py`, zona `FACTORY_TZ`) lalu **disimpan
 sebagai kolom**: bukan diturunkan ulang saat query, dan tidak pernah dari `now()`, `creation`,
 atau nama folder. Event yang datang telat (outbox menyusul setelah listrik mati) tetap mendarat
-di harinya sendiri. Timestamp cacat → 400 → outbox line menandainya `outbox_failed`, sengaja
-terlihat gagal. Batasnya **kalender**, tanpa cutoff shift; karena kolomnya disimpan, mengubah
+di harinya sendiri. Timestamp cacat → 400 → outbox line menahannya dan terus mencoba (tab Status
+→ Antrean line), sengaja terlihat gagal. Batasnya **kalender**, tanpa cutoff shift; karena kolomnya disimpan, mengubah
 aturan itu nanti cuma menyentuh satu fungsi. `python:3.11-slim` butuh `tzdata` (sudah
 ditambahkan): tanpa itu `ZoneInfo` gagal dan tanggal diam-diam kembali ke UTC.
 
