@@ -12,14 +12,14 @@ Satu berkas `src/palmgrade/static/console.html`: vanilla JS, tanpa build, tanpa 
 
 | Tab | Siapa | Pemuat | Isi |
 |---|---|---|---|
-| Grading | semua | polling `refresh` 2 dtk | 20 grading terakhir hari ini |
+| Grading | semua | polling `refresh` 2 dtk | 20 grading terakhir hari ini, kartu line merah + pita AI mati dari blok `plc.ai` (`pitaAi`, `perbaruiAi` tiap polling, test `test_console_html_ai_mati.py`); tanda "sedang dinyalakan ulang" di kotak kamera sesudah aksi yang merestart line (`tandaiRestart`, `pantauRestart` 1 dtk, spinner + bar berjalan tanpa hitungan detik, kelas kartu `sedang-restart` menyembunyikan "Kamera tidak tersambung" selama itu, test `test_console_html_restart.py`); strip "Hari ini" berlabel **Data timbangan** (`labelNetoTimbangan`) |
 | Truk | semua | `muatTrucks` 60 dtk | master truk, truk manual, kartu QR |
-| Timbangan | semua | `muatTimbangan` 15 dtk | tiket, scan masuk/keluar, tara |
+| Timbangan | semua | `muatTimbangan` 15 dtk | tiket, scan masuk/keluar, tara, tanda **Cek AutoERP** untuk janjang susulan pada tiket yang sudah final (`erp_perlu_dicek`, `tests/unit/test_console_html_timbangan_erp.py`) |
 | Rekap | semua | `muatRiwayat` (+ `segarkanRekap` 15 dtk) | Rekap + Riwayat: buka di Hari ini, Per truk; Impor CSV support saja |
 | Log | support | `muatLog` | ERROR/WARNING 180 hari |
-| Status | support | `muatStatus` (diagnostik 5 dtk) | Versi, Diagnostik, Antrean ERP + manifest R2 |
-| Akun | support | `muatAkun` | akun lokal/AutoERP, tombol aksi berwarna |
-| Line | support | `muatLine` → `MUAT_SUB_LINE[subLine]` | Sumber Kamera, Model Deteksi, Uji PLC (1 dtk), Rekam Video (3 dtk) |
+| Status | support | `muatStatus` (diagnostik 5 dtk, antrean line 5 dtk) | Versi, Diagnostik, Antrean line, Antrean ERP + manifest R2 |
+| Akun | support | `muatAkun` | akun lokal/AutoERP, tombol aksi berwarna, semua tombol aksi satu lebar (`--lebar-tombol-akun`, satu aturan `#sec-akun :is(...) button`) |
+| Line | support | `muatLine` → `MUAT_SUB_LINE[subLine]` | Sumber Kamera, Model Deteksi, Uji PLC (1 dtk), Rekam Video (3 dtk); empat tombol pilihan `#line-sub` = grid 4 kolom selebar panel, 2 x 2 di bawah 600 px |
 | Setelan | support | `muatSetelan` | setelan grading, garis capture, Danger Zone. Selalu paling kanan |
 
 - Registri: `TAB_SAH`, `SUB_LINE`, `MUAT_TAB`, `MUAT_SUB_LINE`. Tab lama yang tersimpan di
@@ -41,6 +41,13 @@ Satu berkas `src/palmgrade/static/console.html`: vanilla JS, tanpa build, tanpa 
 - Setiap POST pengubah data ada di dalam fungsi yang memakai `denganSibuk(` (spinner + tolak klik
   kedua, `test_console_tombol_sibuk.py`).
 - Nilai dari server masuk HTML lewat `esc()`.
+- Toast menutup sendiri paling lama 10 detik, ditahan selama kursor di atasnya; tidak ada
+  lagi toast yang menunggu × (`test_console_html_toast.py`).
+- Aksi baru yang merestart line memanggil `tandaiRestart(lineDirestart(jawaban))` dari
+  jawaban server; stream kamera diminta ulang lewat `mintaUlangFeed` saja (cap waktu
+  `_dimintaPada` yang dipakai `restartSelesai`).
+- Isi yang disegarkan tiap polling ditulis lewat `tulisKalauBeda`, bukan membandingkan
+  `el.innerHTML` (CLAUDE.md aturan 24(d)).
 - Tidak ada `https://` di berkas ini.
 
 ## Test per bagian

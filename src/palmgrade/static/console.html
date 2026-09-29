@@ -400,7 +400,7 @@
   #tally .bar { height:12px; border:1px solid var(--line); border-radius:var(--r-pill);
                 background:var(--rej-bg); overflow:hidden; }
   #tally .bar span { display:block; height:100%; width:0; border-radius:var(--r-pill); background:var(--acc); transition:width .4s ease; }
-  /* Neto timbangan hari ini, di kanan rasio. Angkanya seukuran persen rasio
+  /* Data timbangan hari ini (neto + tiket), di kanan rasio. Angkanya seukuran persen rasio
      supaya dua angka ringkasan itu terbaca setara dari jauh. */
   #tally .timbang { display:flex; flex-direction:column; justify-content:center; gap:4px;
                     padding:10px 16px; border-left:1px solid var(--line); min-width:10rem; }
@@ -532,7 +532,7 @@
   /* Tombol Tambah akun berdiri sendiri di atas, tanpa kotak `.tools`: kotak itu
      dirancang menempel ke tabel di bawahnya, dan di sini yang di bawahnya form. */
   .akun-alat { display:flex; gap:8px; flex-wrap:wrap; margin:0 var(--pad) 12px; }
-  .akun-alat button { flex:0 0 auto; min-width:12rem; min-height:2.6rem; }
+  .akun-alat button { min-height:2.6rem; }
   #akun-tambah { margin-bottom:12px; }
   /* `.setelan-form` memakai display:grid, yang mengalahkan `[hidden]` bawaan browser:
      tanpa baris ini form tidak pernah tertutup (ketemu di browser 2026-09-26). */
@@ -540,7 +540,7 @@
   #akun-tambah .setelan-grup-isi { padding:0; }
   #akun-tambah input, #akun-tambah select { max-width:22rem; }
   .akun-form-tombol { display:flex; gap:8px; flex-wrap:wrap; }
-  .akun-form-tombol button { flex:0 0 10rem; min-height:2.6rem; }
+  .akun-form-tombol button { min-height:2.6rem; }
   .akun-form-catatan { margin:0; }
   .akun-pesan { margin:0; padding:8px 10px; border-radius:var(--r);
                 background:var(--warn-bg); color:var(--warn); }
@@ -567,10 +567,17 @@
   .akun-panel.awas { border-left-color:var(--rej); }
   .akun-panel p { flex:1 1 100%; margin:0; }
   .akun-panel input { flex:0 1 14rem; min-width:0; }
-  .akun-panel button { flex:0 0 auto; min-width:8rem; }
-  .akun-panel .sandi-lihat { min-width:0; }
   .akun-panel.awas button[data-akun-jalankan] { background:var(--rej); border-color:var(--rej);
                                                  color:#fff; }
+  /* Semua tombol aksi tab Akun selebar SAMA (permintaan operator 2026-09-29): tombol per
+     baris, Tambah akun, form, dan panel konfirmasi. Dulu empat lebar (12rem, 10rem, 8rem,
+     dan selebar label), jadi Ganti sandi / Matikan / Jadikan operator bergerigi di tiap
+     baris. Lebarnya muat label terpanjang dua bahasa ("Jadikan operator", "Yes, switch
+     off") tanpa membungkus. Tombol Lihat di kolom sandi bukan tombol aksi. */
+  #sec-akun { --lebar-tombol-akun:11.5rem; }
+  #sec-akun :is(.akun-alat, .akun-form-tombol, .akun-tombol, .akun-panel) button:not(.sandi-lihat) {
+    flex:0 0 var(--lebar-tombol-akun); width:var(--lebar-tombol-akun); min-width:0;
+    white-space:nowrap; text-align:center; }
 
   /* Camera state in a word, not only a colour, and in the title bar where it is
      readable even when the feed itself is a black box. `.putus` lives on the
@@ -599,6 +606,35 @@
                font-size:1.15rem; font-weight:700; background:rgba(0,0,0,.72); }
   .card.putus .feed img { visibility:hidden; }
   .card.putus .feed span { display:grid; }
+  /* Line yang sedang dinyalakan ulang (Sumber Kamera, Model Deteksi, Danger
+     Zone): di atas "Kamera tidak tersambung", karena selama restart itu memang
+     bukan kerusakan. Spinner dan bar CSS murni, tanpa gambar: konsol harus jalan offline.
+     Latarnya PEKAT, bukan transparan (operator 2026-09-29: "bener2 cuma layar loading"):
+     frame lama yang beku di belakangnya terbaca seperti line masih jalan. */
+  .feed .restart-kotak { position:absolute; inset:0; z-index:5; display:grid; place-content:center;
+                         justify-items:center; gap:8px; padding:16px; text-align:center; color:#fff;
+                         background:#000; }
+  /* Selama spinner tampil, tulisan "Kamera tidak tersambung" tidak ikut tembus di
+     belakangnya (permintaan operator 2026-09-29: "cukup loadingnya aja"). Kelasnya
+     dipasang `gambarRestart` dan hilang saat tanda hilang atau berganti kotak merah,
+     jadi kamera yang benar-benar putus sesudahnya tetap terbaca. Harus SESUDAH
+     `.card.putus .feed span`: spesifisitasnya sama. */
+  .card.sedang-restart .feed > span { display:none; }
+  .feed .restart-kotak b { font-size:1.15rem; }
+  .feed .restart-kotak p { margin:0; }
+  .feed .restart-kotak.lama { background:var(--danger-bg); color:var(--danger-fg); }
+  .restart-putar { width:2.6rem; height:2.6rem; border:4px solid currentColor; border-right-color:transparent;
+                   border-radius:50%; animation:putar-sibuk .9s linear infinite; }
+  /* Bar berjalan tanpa angka di bawah judul: restart tidak punya persen yang jujur,
+     jadi yang ditunjukkan cuma "masih diproses" (dulu hitungan detik). */
+  .restart-bar { position:relative; width:min(14rem, 70%); height:.4rem; overflow:hidden;
+                 border-radius:var(--r-pill); background:rgba(255,255,255,.22); }
+  .restart-bar::before { content:""; position:absolute; inset:0 auto 0 0; width:40%;
+                         border-radius:inherit; background:currentColor;
+                         animation:restart-jalan 1.4s ease-in-out infinite; }
+  @keyframes restart-jalan { from { transform:translateX(-100%); } to { transform:translateX(250%); } }
+  /* Tanpa gerak, bar 40% yang diam terbaca "40% selesai": dibuat penuh dan redup. */
+  @media (prefers-reduced-motion:reduce) { .restart-bar::before { width:100%; opacity:.6; } }
 
   /* Bounded cells, not numbers on one surface: at distance the tinted block is
      read before the figure inside it. Equal columns because with flex the
@@ -736,6 +772,15 @@
   .pita-kunci { margin:10px 13px 0; padding:9px 13px; border-radius:var(--r-sm);
                 background:var(--warn-bg); color:var(--warn);
                 border-left:4px solid var(--warn); font-size:.85rem; font-weight:600; }
+  /* AI line berhenti memproses (batch 2.1): kamera jalan, buah lewat tanpa
+     disortir. Palet dan denyut bahaya yang sama dengan pita piston, plus kartu
+     berbingkai merah supaya line yang mana terbaca dari jauh. */
+  .card.ai-mati { border-color:var(--danger-fg); box-shadow:0 0 0 3px var(--danger-fg); }
+  .pita-ai { margin:10px 13px 0; padding:11px 13px; border-radius:var(--r-sm);
+             background:var(--danger-fg); color:var(--danger-bg);
+             animation:denyut-pita 1.6s ease-in-out infinite; }
+  .pita-ai b { display:block; font-size:1rem; text-transform:uppercase; letter-spacing:.04em; }
+  .pita-ai span { display:block; margin-top:4px; font-size:.85rem; font-weight:600; }
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
@@ -824,6 +869,12 @@
   /* Pilihan di dalam tab Line (2026-09-28). */
   .line-sub-bar { display:flex; flex-wrap:wrap; gap:8px; padding:0 var(--pad) 14px; }
   .log-level button.aktif { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
+  /* Empat pilihan Line membentang selebar panel, dibagi empat sama rata (permintaan
+     operator 2026-09-29); layar sempit jadi 2 x 2, tetap sama lebar. `minmax(0,1fr)`,
+     bukan `1fr`: label panjang tidak boleh melebarkan kolomnya sendiri. */
+  #line-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px; }
+  #line-sub button { width:100%; min-width:0; }
+  @media (max-width:600px) { #line-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
      screen, and without this the page itself scrolls sideways. */
   .tabel { overflow-x:auto; background:var(--card);
@@ -1261,7 +1312,7 @@
     timbangan tersambung angkanya ikut tanpa perubahan layar.
   -->
   <div class="timbang">
-    <span class="lb" data-t="labelNetoTimbangan">Neto timbangan</span>
+    <span class="lb" data-t="labelNetoTimbangan">Data timbangan</span>
     <b id="tot-neto">-</b>
     <span class="timbang-sub" id="tot-tiket"></span>
   </div>
@@ -1780,6 +1831,21 @@
     An unreachable line still gets a card - that is the one worth seeing.
   -->
   <div id="diagnostik-kartu" class="kartu-grid"></div>
+  <h2 class="status-judul" data-t="judulAntreanLine">Antrean line ke konsol</h2>
+  <!--
+    Support-only (batch 2.4, 2026-09-28): janjang yang belum sampai dari tiap line ke
+    konsol. Antrean ini tidak pernah menyerah lagi, jadi yang perlu dilihat: berapa,
+    sejak kapan, dan kenapa. Kirim Ulang per line menyuruh line itu mengirim semuanya
+    sekarang tanpa menunggu jadwal mundurnya. Disegarkan tiap 5 detik bersama Diagnostik.
+  -->
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thLine">Line</th><th class="num" data-t="thMenunggu">Menunggu</th>
+        <th data-t="thTertua">Tertua</th><th data-t="thKeadaan">Keadaan</th>
+        <th data-t="thPesan">Pesan</th><th></th></tr></thead>
+      <tbody id="antrean-line-baris"></tbody>
+    </table>
+  </div>
   <h2 class="status-judul" data-t="judulAntrean">Antrean ERP</h2>
   <!--
     Support-only: what is stuck in the ERP outbox, why, and one button to
@@ -2347,7 +2413,7 @@ const KAMUS = {
     sinkronTersambung:"Tersambung", sinkronTerputus:"Terputus sejak {jam}", sinkronMenunggu:"{n} menunggu",
     sinkronTidakDipakai:"Tidak dipakai", sinkronMemeriksa:"Memeriksa", sinkronBelum:"Belum pernah",
     sinkronTakTerbaca:"tidak terbaca", sinkronTerakhir:"Sinkron terakhir",
-    labelNetoTimbangan:"Neto timbangan", timbangTiket:"{tiket} tiket · {tara} menunggu tara",
+    labelNetoTimbangan:"Data timbangan", timbangTiket:"{tiket} tiket · {tara} menunggu tara",
     timbangBelumAda:"Belum ada tiket",
     // Nama kelas TIDAK diterjemahkan: keempatnya nama kelas model, dan operator
     // maupun support menyebutnya persis begini saat bicara lewat telepon.
@@ -2369,6 +2435,7 @@ const KAMUS = {
     truk:"Truk", supplier:"Supplier", trukBelum:"Truk belum dipilih",
     pilihTruk:"Pilih Truk", lepasTitle:"Truk sudah pergi", spasi:"Spasi",
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
+    erpFinalBeda:"Cek AutoERP", erpFinalBedaJudul:"Tiket {tiket} sudah final di AutoERP saat data terbaru tiba. Angka yang dibukukan tidak berubah; minta backoffice memeriksa tiket ini.", erpBatal:"Tiket batal", erpBatalJudul:"Tiket {tiket} dibatalkan di AutoERP, kunjungan ini tidak dibukukan. Minta backoffice memeriksanya.", erpTanpaNomor:"(tanpa nomor)",
     kosongGrading:"Belum ada grading hari ini",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio Ripe", trukTanpaNama:"Tanpa truk",
     wajibIsi:"Plat dan bruto wajib diisi",
@@ -2376,6 +2443,10 @@ const KAMUS = {
     gagalReject:"Reject manual gagal", gagalDaftar:"Gagal mendaftarkan truk",
     gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
+    restartJudul:"{line} sedang dinyalakan ulang", restartDetik:"{n} detik", restartMenit:"{n} menit",
+    restartHapusJudul:"{line} sedang menghapus data lalu dinyalakan ulang",
+    restartLamaJudul:"{line} belum kembali",
+    restartLamaRinci:"Kode {kode}. Restart diminta pukul {jam}. Sudah lewat {batas}, line ini belum mengirim gambar lagi. Cek tab Log dan terminal line itu.",
     toastTutup:"Tutup",
     sukTugaskan:"Truk ditugaskan di {line}", pelepasanOtomatis:"{line} dilepas otomatis karena {truk} sudah timbang keluar. Tugaskan lagi kalau bongkarnya belum selesai.", sukLepas:"Truk dilepas dari {line}",
     sukReject:"Reject manual tercatat di {line}", sukDaftar:"Truk terdaftar",
@@ -2392,6 +2463,8 @@ const KAMUS = {
     err_line_tidak_menjawab:"{line} tidak menjawab. Pastikan layanan kameranya menyala",
     err_line_menolak:"{line} menolak perintah (HTTP {status})",
     kartuKunciDitolak:"Kunci ditolak (HTTP {status}). Line ini hidup dan mungkin masih menggrading, tapi kuncinya beda dari konsol. Cocokkan INTERNAL_SECRET di konsol dan di line.",
+    aiMatiJudul:"{line}: AI berhenti memproses",
+    aiMatiRinci:"Kode {kode}, sejak {jam}. Kamera mengirim gambar tapi tidak ada yang digrading, buah lewat tanpa disortir. Tahan umpan buah ke line ini dan panggil teknisi untuk restart line.",
     err_sandi_pendek:"Sandi minimal 8 karakter",
     err_sandi_salah:"Email atau sandi salah",
     err_terkunci:"Login terkunci {detik} detik lagi setelah beberapa sandi salah",
@@ -2460,6 +2533,27 @@ const KAMUS = {
     judulManifest:"Manifest R2", ringkasManifest:"{pending} menunggu · {gagal} gagal",
     kosongManifest:"Antrean manifest kosong", gagalManifest:"Gagal memuat antrean manifest",
     manifestNonaktif:"R2 belum disetel, jadi halaman detail truk tidak jalan di PKS ini.",
+    judulAntreanLine:"Antrean line ke konsol", thMenunggu:"Menunggu", thTertua:"Tertua", thKeadaan:"Keadaan",
+    kosongAntreanLine:"Belum ada line yang dikenal konsol",
+    gagalAntreanLine:"Gagal memuat antrean line. Buka tab Log untuk rinciannya.",
+    antreanLineKosong:"Kosong, semua janjang sudah sampai ke konsol",
+    antreanLineMengirim:"Sedang dikirim ke konsol",
+    antreanLineNonaktif:"Pengiriman dimatikan (ENABLE_WEBHOOK=false). Janjang tetap disimpan dan baru terkirim sesudah ENABLE_WEBHOOK=true di .env line itu lalu line itu direstart.",
+    antreanLineLamaTertinggal:"Antrean lama (outbox.db di folder artifacts) belum terserap, jadi jumlahnya belum lengkap. Restart line itu; kalau masih muncul, buka tab Log dan panggil teknisi.",
+    antreanLinePutus_tak_terjangkau:"Konsol tidak terjangkau dari line ini sejak {sejak}. Line mencoba lagi sendiri tiap 30 detik dan tidak membuang janjang. Kalau berlangsung lama, periksa BACKEND_URL di .env line itu.",
+    antreanLinePutus_kunci_ditolak:"Konsol menolak kunci line ini sejak {sejak} (WEBHOOK_SECRET beda). Samakan WEBHOOK_SECRET di .env line dan konsol, lalu restart line itu.",
+    antreanLinePutus_alamat_salah:"Alamat konsol salah sejak {sejak}. Arahkan BACKEND_URL di .env line itu ke konsol (port 8100), lalu restart line itu.",
+    antreanLinePutus_konsol_galat:"Konsol galat saat menerima janjang sejak {sejak}. Line terus mencoba; buka tab Log untuk sebabnya.",
+    antreanLineKunciKonsol:"Line menolak kunci konsol (HTTP {status}). Samakan INTERNAL_SECRET di .env konsol dan line itu, lalu restart.",
+    antreanLineTakTerjangkau:"Line tidak menjawab. Periksa kartunya di Diagnostik.",
+    antreanLineErrorLine:"Line menjawab HTTP {status}. Buka tab Log untuk sebabnya.",
+    antreanLineDitolak:"{jumlah} janjang DITOLAK konsol, terakhir pukul {jam} ({alasan}). Tidak dibuang dan dicoba lagi tiap 10 menit, tapi tidak akan sampai sendiri, dan selama masih ada, Danger Zone dan autograde reset-data menolak menghapus data. Buka tab Log untuk sebabnya, lalu panggil teknisi (MANUAL §7).",
+    antreanLineDikirimUlang:"{line}: {jumlah} janjang dijadwalkan kirim sekarang",
+    antreanLineGagalKirimUlang:"Kirim Ulang {line} gagal pukul {jam} (kode {kode}): {alasan}. {saran}",
+    saranKunciLine:"Samakan INTERNAL_SECRET di .env konsol dan line itu, lalu restart.",
+    saranLineMati:"Periksa line itu di Diagnostik dan nyalakan lagi kalau mati.",
+    saranMuatUlang:"Muat ulang halaman ini.",
+    saranBukaLog:"Buka tab Log untuk rinciannya.",
     labelVersi:"Versi", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Lisensi", gagalVersi:"Gagal memuat versi",
     judulInfoSistem:"Versi & lisensi", infoLisensiSampai:"Lisensi s/d {tanggal}",
@@ -2681,7 +2775,7 @@ const KAMUS = {
     sinkronTersambung:"Connected", sinkronTerputus:"Disconnected since {jam}", sinkronMenunggu:"{n} waiting",
     sinkronTidakDipakai:"Not used", sinkronMemeriksa:"Checking", sinkronBelum:"Never",
     sinkronTakTerbaca:"not readable", sinkronTerakhir:"Last synced",
-    labelNetoTimbangan:"Weighed net", timbangTiket:"{tiket} tickets · {tara} awaiting tare",
+    labelNetoTimbangan:"Weighing data", timbangTiket:"{tiket} tickets · {tara} awaiting tare",
     timbangBelumAda:"No tickets yet",
     clsRipe:"Ripe", clsUnripe:"Unripe", clsJk:"JK", clsTp:"TP",
     labelLayout:"Layout", kolomAuto:"Auto", statusOnline:"Online", statusOffline:"Offline",
@@ -2701,6 +2795,7 @@ const KAMUS = {
     truk:"Truck", supplier:"Supplier", trukBelum:"No truck selected",
     pilihTruk:"Select Truck", lepasTitle:"Truck has left", spasi:"Space",
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
+    erpFinalBeda:"Check AutoERP", erpFinalBedaJudul:"Ticket {tiket} was already final in AutoERP when the latest data arrived. The booked figures did not change; ask the back office to review this ticket.", erpBatal:"Ticket cancelled", erpBatalJudul:"Ticket {tiket} was cancelled in AutoERP, so this visit is not booked. Ask the back office to look at it.", erpTanpaNomor:"(no number)",
     kosongGrading:"No grading yet today",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Ripe rate", trukTanpaNama:"No truck",
     wajibIsi:"Plate and gross weight are required",
@@ -2708,6 +2803,10 @@ const KAMUS = {
     gagalReject:"Manual reject failed", gagalDaftar:"Failed to register truck",
     gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
     gagalKonsol:"Console not responding", kameraPutus:"Camera not connected",
+    restartJudul:"{line} is restarting", restartDetik:"{n} s", restartMenit:"{n} min",
+    restartHapusJudul:"{line} is deleting its data, then restarting",
+    restartLamaJudul:"{line} has not come back",
+    restartLamaRinci:"Code {kode}. Restart requested at {jam}. After {batas} this line has still not sent a picture. Check the Log tab and that line's terminal.",
     toastTutup:"Dismiss",
     sukTugaskan:"Truck assigned on {line}", pelepasanOtomatis:"{line} was released automatically because {truk} has weighed out. Assign it again if unloading is not finished.", sukLepas:"Truck released from {line}",
     sukReject:"Manual reject recorded on {line}", sukDaftar:"Truck registered",
@@ -2724,6 +2823,8 @@ const KAMUS = {
     err_line_tidak_menjawab:"{line} is not responding. Check that its camera service is running",
     err_line_menolak:"{line} refused the command (HTTP {status})",
     kartuKunciDitolak:"Key refused (HTTP {status}). This line is alive and may still be grading, but its key differs from the console. Check that INTERNAL_SECRET matches on the console and on the line.",
+    aiMatiJudul:"{line}: AI stopped processing",
+    aiMatiRinci:"Code {kode}, since {jam}. The camera sends images but nothing is graded, fruit passes unsorted. Hold the fruit feed to this line and call a technician to restart the line.",
     err_sandi_pendek:"The password must be at least 8 characters",
     err_sandi_salah:"Wrong email or password",
     err_terkunci:"Sign-in locked for another {detik} s after repeated wrong passwords",
@@ -2790,6 +2891,27 @@ const KAMUS = {
     judulManifest:"R2 manifest", ringkasManifest:"{pending} pending · {gagal} failed",
     kosongManifest:"Manifest queue is empty", gagalManifest:"Failed to load the manifest queue",
     manifestNonaktif:"R2 is not configured, so the truck detail page does not work at this mill.",
+    judulAntreanLine:"Line queue to console", thMenunggu:"Waiting", thTertua:"Oldest", thKeadaan:"State",
+    kosongAntreanLine:"The console knows no lines yet",
+    gagalAntreanLine:"Failed to load the line queue. Open the Log tab for details.",
+    antreanLineKosong:"Empty, every bunch has reached the console",
+    antreanLineMengirim:"Sending to the console",
+    antreanLineNonaktif:"Sending is switched off (ENABLE_WEBHOOK=false). Bunches are kept and only sent after ENABLE_WEBHOOK=true in that line's .env and a restart of that line.",
+    antreanLineLamaTertinggal:"The old queue (outbox.db in the artifacts folder) was not absorbed, so this count is incomplete. Restart that line; if it stays, open the Log tab and call a technician.",
+    antreanLinePutus_tak_terjangkau:"The console has been unreachable from this line since {sejak}. The line retries on its own every 30 seconds and drops nothing. If it lasts, check BACKEND_URL in that line's .env.",
+    antreanLinePutus_kunci_ditolak:"The console has refused this line's key since {sejak} (WEBHOOK_SECRET differs). Make WEBHOOK_SECRET the same in the line and console .env, then restart that line.",
+    antreanLinePutus_alamat_salah:"Wrong console address since {sejak}. Point BACKEND_URL in that line's .env at the console (port 8100), then restart that line.",
+    antreanLinePutus_konsol_galat:"The console has been failing to take bunches since {sejak}. The line keeps retrying; open the Log tab for the cause.",
+    antreanLineKunciKonsol:"The line refused the console key (HTTP {status}). Make INTERNAL_SECRET the same in the console and line .env, then restart.",
+    antreanLineTakTerjangkau:"The line is not responding. Check its card under Diagnostics.",
+    antreanLineErrorLine:"The line answered HTTP {status}. Open the Log tab for the cause.",
+    antreanLineDitolak:"{jumlah} bunches REFUSED by the console, last at {jam} ({alasan}). Not dropped and retried every 10 minutes, but they will never arrive on their own, and while they remain, Danger Zone and autograde reset-data refuse to delete data. Open the Log tab for the cause, then call a technician (MANUAL §7).",
+    antreanLineDikirimUlang:"{line}: {jumlah} bunches scheduled to send now",
+    antreanLineGagalKirimUlang:"Resend {line} failed at {jam} (code {kode}): {alasan}. {saran}",
+    saranKunciLine:"Make INTERNAL_SECRET the same in the console and line .env, then restart.",
+    saranLineMati:"Check that line under Diagnostics and start it again if it is down.",
+    saranMuatUlang:"Reload this page.",
+    saranBukaLog:"Open the Log tab for details.",
     labelVersi:"Version", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Licence", gagalVersi:"Failed to load version",
     judulInfoSistem:"Version & licence", infoLisensiSampai:"Licence until {tanggal}",
@@ -2939,8 +3061,9 @@ $("bahasa").addEventListener("click", async () => {
   bahasa = bahasa === "id" ? "en" : "id";
   simpan("bahasa", bahasa);
   terapkanBahasa();
-  // Line cards are built in JS, so they have to be redrawn. The MJPEG streams
-  // reconnect once - the price of one deliberate click, not of every 2 s poll.
+  // Line cards are built in JS, so they have to be redrawn. Each redraw opens
+  // new MJPEG streams (unique `?t=`, see kartuLine): the price of one deliberate
+  // click, not of every 2 s poll.
   dipasang = false;
   isiTrucks();
   gambarUlangRiwayat();
@@ -3111,7 +3234,7 @@ const MUAT_TAB = { rekap: muatRiwayat, log: muatLog, status: muatStatus, akun: m
 const MUAT_SUB_LINE = { "sumber-kamera": muatSumberKamera, "model-deteksi": muatModelDeteksi, plc: muatPlc, rekam: muatRekam };
 
 function muatStatus() {
-  return Promise.all([muatVersi(), muatDiagnostik(), muatAntrean()]);
+  return Promise.all([muatVersi(), muatDiagnostik(), muatAntreanLine(), muatAntrean()]);
 }
 
 function muatLine() {
@@ -3121,6 +3244,8 @@ function muatLine() {
 function bukaTabDev(namaTab) {
   clearInterval(diagnostikTimer);
   diagnostikTimer = null;
+  clearInterval(antreanLineTimer);
+  antreanLineTimer = null;
   // Polling rekam dihentikan begitu tabnya ditutup: menanyai tiga line tiap 3
   // detik dari tab lain membebani line tanpa ada yang melihat hasilnya.
   clearInterval(rekamTimer);
@@ -3131,6 +3256,7 @@ function bukaTabDev(namaTab) {
   rekapTimer = null;
   const muat = MUAT_TAB[namaTab] ? MUAT_TAB[namaTab]() : Promise.resolve();
   if (namaTab === "status") diagnostikTimer = setInterval(muatDiagnostik, 5000);
+  if (namaTab === "status") antreanLineTimer = setInterval(muatAntreanLine, 5000);
   if (namaTab === "line" && subLine === "rekam") rekamTimer = setInterval(muatRekam, 3000);
   // 1 detik: lebih rapat dari diagnostik (5 s) karena di sini orang menunggu
   // jawaban tombol yang baru saja ditekan. Tiap tick = satu GET ringan per line,
@@ -3404,22 +3530,68 @@ function pesan(text) {
 // how important the action was: a routine success the operator already saw
 // happen (the truck card updates) only needs a quick corner-of-the-eye
 // confirmation. A warning is a "look before you act again" case (borrowed
-// truck, two open tickets) so it gets longer. A failure needs the operator to
-// actually read a sentence and decide what to do next - it does not
-// self-dismiss at all, it waits for the tap on ×.
+// truck, two open tickets). A failure needs the operator to actually read a
+// sentence and decide what to do next, so it gets the longest.
 // `sukses` 5 detik, sama dengan `peringatan`: tiga detik cukup untuk pesan
 // yang dikenali sekilas ("Line 1 ditugaskan"), tapi tidak untuk yang harus
 // DIBACA — toast rekaman membawa jalur berkas sepanjang puluhan karakter, dan
-// yang membacanya sering sambil memegang hal lain. `gagal` tetap 0: kegagalan
-// menunggu ditutup, bukan menunggu tenggat habis di tengah orang membacanya.
-const TOAST_DURASI = { sukses: 5000, peringatan: 5000, gagal: 0 };
+// yang membacanya sering sambil memegang hal lain.
+// TIDAK ADA toast yang menunggu ditutup selamanya (keputusan user 2026-09-29):
+// dulu `gagal` dan hasil Danger Zone yang perlu dibaca (`durasi` 0) tetap
+// sampai ×, dan di layar yang dibiarkan menyala berhari-hari toast yang tak
+// pernah ditutup menumpuk di pojok. Sekarang paling lama 10 detik, dan kursor
+// di atas toast menahan hitungannya (`hitungMundurToast`), jadi kalimat
+// panjang yang sedang dibaca tidak ditarik pergi.
+const TOAST_PALING_LAMA_MS = 10000;
+// Batas umur mutlak, termasuk waktu yang ditahan kursor: kursor yang diparkir di
+// pojok toast (kiosk) mendapat `mouseenter` buatan browser tiap tata letak
+// berubah, dan tanpa batas ini toast-nya tidak pernah tertutup.
+const TOAST_UMUR_MAKS_MS = 30000;
+const TOAST_DURASI = { sukses: 5000, peringatan: 5000, gagal: TOAST_PALING_LAMA_MS };
 // More than this and the stack would climb high enough to cover the tab
 // table underneath it - four is as many as fit in the corner without that,
 // even during a run of rapid manual rejects.
 const TOAST_MAKS = 4;
 
-// `durasi` 0 = tetap sampai ditutup, apa pun jenisnya (hasil Danger Zone yang
-// harus diulang di satu line tidak boleh lewat saat support melihat ke line).
+// `durasi` 0 (dipakai hasil Danger Zone yang harus dibaca) = paling lama, 10
+// detik. Angka di atas batas itu juga dipotong ke 10 detik.
+function durasiToast(durasi) {
+  return durasi > 0 ? Math.min(durasi, TOAST_PALING_LAMA_MS) : TOAST_PALING_LAMA_MS;
+}
+
+// Hitung mundur yang berhenti selama kursor di atas toast dan jalan lagi dari
+// sisanya saat kursor pergi. Layar sentuh tidak punya hover: di sana toast
+// tetap tertutup tepat waktunya. Apa pun yang terjadi dengan kursor, toast
+// tertutup paling lambat TOAST_UMUR_MAKS_MS sesudah muncul. Mengembalikan
+// `tutup`, untuk tombol ×.
+function hitungMundurToast(el, ms, hapus) {
+  let sisa = ms;
+  let mulai = Date.now();
+  let selesai = false;
+  let timer = null;
+  const tutup = () => {
+    if (selesai) return;
+    selesai = true;
+    clearTimeout(timer);
+    clearTimeout(umur);
+    hapus();
+  };
+  const umur = setTimeout(tutup, TOAST_UMUR_MAKS_MS);
+  timer = setTimeout(tutup, sisa);
+  el.addEventListener("mouseenter", () => {
+    if (selesai || timer === null) return;
+    clearTimeout(timer);
+    timer = null;
+    sisa -= Date.now() - mulai;
+  });
+  el.addEventListener("mouseleave", () => {
+    if (selesai || timer !== null) return;
+    mulai = Date.now();
+    timer = setTimeout(tutup, sisa);
+  });
+  return tutup;
+}
+
 function toast(kind, text, durasi = TOAST_DURASI[kind]) {
   if (!text) return;
   const wadah = $("toasts");
@@ -3430,8 +3602,9 @@ function toast(kind, text, durasi = TOAST_DURASI[kind]) {
   el.innerHTML = `<span class="pesan"></span><button type="button" class="tutup" aria-label="${esc(t("toastTutup"))}">&times;</button>`;
   el.querySelector(".pesan").textContent = text;
   const hapus = () => el.remove();
-  el.querySelector(".tutup").addEventListener("click", hapus);
-  if (durasi) setTimeout(hapus, durasi);
+  // × memakai `tutup`: kedua timer (sisa dan umur maksimal) ikut dibersihkan.
+  const tutup = hitungMundurToast(el, durasiToast(durasi), hapus);
+  el.querySelector(".tutup").addEventListener("click", tutup);
   wadah.append(el);
 }
 const toastSukses = (text) => toast("sukses", text);
@@ -3518,6 +3691,37 @@ function pitaKunciDitolak(l) {
   return `<div class="pita-kunci">${esc(teks)}</div>`;
 }
 
+// AI line berhenti memproses (batch 2.1, kode AI_MATI): kamera mengirim gambar
+// tapi tidak ada frame yang selesai digrading. DINILAI DI LINE
+// (services/penjaga_ai.py, blok `ai` di /internal/status), layar cuma
+// menggambar keputusan itu: menghitung ulang umur frame di sini berarti dua
+// aturan yang bisa berbeda dengan coil ERROR PLC. Line yang tidak terbaca tidak
+// menggambar pita ini: kartunya sudah OFFLINE.
+function aiMati(l) {
+  const p = l.plc || {};
+  return Boolean(p.reachable && p.ai && p.ai.mati);
+}
+
+// `sekarang` cuma untuk test: jam hari ini ditulis jamnya saja, hari lain ikut tanggal.
+function pitaAi(l, sekarang = Date.now() / 1000) {
+  if (!aiMati(l)) return "";
+  const ai = l.plc.ai;
+  const judul = t("aiMatiJudul").replace("{line}", l.name || l.line_code);
+  const rinci = t("aiMatiRinci")
+    .replace("{kode}", ai.kode || "AI_MATI")
+    .replace("{jam}", jamSinkron(ai.sejak, sekarang) || KOSONG);
+  return `<div class="pita-ai" role="alert"><b>${esc(judul)}</b><span>${esc(rinci)}</span></div>`;
+}
+
+// Tiap polling, bukan cuma render pertama: layar ini dibiarkan menyala berhari-
+// hari tanpa disentuh. `tulisKalauBeda` supaya pita yang sama tidak dibangun
+// ulang tiap 2 detik (denyutnya tidak mulai dari awal lagi).
+function perbaruiAi(kartu, l) {
+  kartu.classList.toggle("ai-mati", aiMati(l));
+  const slot = kartu.querySelector(".slot-ai");
+  if (slot) tulisKalauBeda(slot, pitaAi(l));
+}
+
 // Alarm PLC (motor fault / E-stop) dari blok M yang dibaca tiap line. Semua
 // line membaca blok yang sama, jadi daftarnya digabung dan dideduplikasi;
 // line yang mati tidak menyumbang apa-apa (l.plc.alarms undefined). Kunci
@@ -3552,15 +3756,23 @@ function gambarPitaAlarm(lines) {
   el.hidden = false;
 }
 
-function kartuLine(l) {
+// `sekarang` = jam render, dipakai `?t=` URL feed DAN cap `_dimintaPada`
+// (`capFeedBaru`), jadi tiap render = satu permintaan stream sungguhan.
+function kartuLine(l, sekarang = Date.now()) {
   // The stream comes from the same host as this page, only another port - so
   // the console still works opened over a LAN IP, not just 127.0.0.1.
-  const feed = l.port ? `${location.protocol}//${location.hostname}:${l.port}/api/video_feed` : "";
+  // Always with a unique `?t=`: a bare URL the page already loaded is served
+  // from the browser's in-memory image list (Chrome and Firefox, verified with a
+  // real MJPEG server): no request reaches the line, `load` fires within
+  // milliseconds with the OLD frame, and a stream that already ended stays a
+  // frozen picture after a language switch, truck registration, or login.
+  const feed = l.port
+    ? urlFeedBaru(`${location.protocol}//${location.hostname}:${l.port}/api/video_feed`, sekarang) : "";
   const opsi = [{ v: "", teks: t("pilihTruk") }]
     .concat(trucks.map((tr) => ({ v: tr.id, teks: tr.plate_number || KOSONG })));
   // line_code only rides along as data-line and is read via dataset - it never
   // enters an onclick attribute, so there is no JS string context to inject.
-  return `<div class="card" data-line="${esc(l.line_code)}">
+  return `<div class="card${aiMati(l) ? " ai-mati" : ""}" data-line="${esc(l.line_code)}">
     <h2><span class="nama">${esc(l.name)}</span>
       <span class="sinyal">
         <span class="on" data-t="statusOnline">Online</span>
@@ -3573,7 +3785,8 @@ function kartuLine(l) {
     </h2>
     ${pitaPiston(l)}
     ${pitaKunciDitolak(l)}
-    ${feed ? `<div class="feed"><img src="${feed}" alt=""><span>${esc(t("kameraPutus"))}</span></div>` : ""}
+    <div class="slot-ai">${pitaAi(l)}</div>
+    ${feed ? `<div class="feed"><img src="${feed}" alt=""><span>${esc(t("kameraPutus"))}</span><div class="slot-restart"></div></div>` : ""}
     <div class="counts">
       <span class="acc"><span class="lb">${esc(t("clsRipe"))}</span><b data-k="ripe">${l.ripe || 0}</b></span>
       <span class="rej"><span class="lb">${esc(t("clsUnripe"))}</span><b data-k="unripe">${l.unripe || 0}</b></span>
@@ -3662,13 +3875,27 @@ function barisTimbangan(w) {
     <td>${w.entered_at ? waktu(w.entered_at) : KOSONG}</td>
     <td>${w.exited_at ? waktu(w.exited_at) : KOSONG}</td>
     <td>${dash(lamaProses(w.entered_at, w.exited_at))}</td>
-    <td class="key">${dash(w.plate_number)}</td>
+    <td class="key">${dash(w.plate_number)}${tandaErp(w)}</td>
     <td>${dash(w.source_label)}</td>
     <td class="num">${kg(w.gross_kg)}</td>
     <td class="num">${kg(w.tare_kg)}</td>
     <td class="num">${kg(w.net_kg)}</td>
     <td>${w.tare_kg == null ? `<button data-aksi="keluar">${esc(t("btnKeluar"))}</button>` : ""}</td>
   </tr>`;
+}
+
+// Jawaban AutoERP yang butuh orang (batch 2.3). Server yang menggolongkan
+// (`erp_perlu_dicek`, domain/jawaban_kunjungan.py); layar cuma memberi kata. Tiket
+// final tidak pernah ditulis ulang AutoERP, jadi janjang yang datang sesudahnya
+// hanya bisa ditandai di sini. Rinciannya untuk support ada di tab Log.
+function tandaErp(w) {
+  const kunci = {
+    tiket_final_berbeda: ["erpFinalBeda", "erpFinalBedaJudul"],
+    tiket_dibatalkan: ["erpBatal", "erpBatalJudul"],
+  }[w.erp_perlu_dicek];
+  if (!kunci) return "";
+  const judul = t(kunci[1]).replace("{tiket}", w.erp_ticket || t("erpTanpaNomor"));
+  return ` <span class="tag no" title="${esc(judul)}">${esc(t(kunci[0]))}</span>`;
 }
 
 // The list arrives newest first, so the number is a position on screen, not an
@@ -3941,8 +4168,8 @@ $("daftar").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, asyn
     await api("/api/console/trucks", { method: "POST", body: JSON.stringify({ plate_number }) });
     $("plat").value = "";
     // Full re-render so the new truck shows up in all three line dropdowns at
-    // once. The MJPEG streams reconnect once - the price of one deliberate
-    // operator click, not something that happens every 2 s.
+    // once. It opens new MJPEG streams (unique `?t=`, see kartuLine) - the price
+    // of one deliberate operator click, not something that happens every 2 s.
     dipasang = false;
     await muatTrucks();
     await refresh();
@@ -4191,8 +4418,46 @@ $("tara-nilai").addEventListener("keydown", (ev) => {
 // Ceiling: a frozen frame that keeps being sent, or a line that dies and comes
 // back between two probes, still looks connected. If that bites, the line has
 // to report camera status through /api/console/state.
-$("lines").addEventListener("load", (ev) => ev.target.closest(".card").classList.remove("putus"), true);
+// Firefox menembakkan `load` untuk TIAP bagian MJPEG, termasuk keep-alive kosong
+// line tanpa kamera (naturalWidth 0); Chrome sekali saja. Tanpa penjaga lebar,
+// kartu line tanpa kamera berkedip antara "Kamera tidak tersambung" dan kotak hitam.
+function feedMemuat(img) {
+  if (!(img.naturalWidth > 0)) return;
+  const kartu = img.closest(".card");
+  kartu.classList.remove("putus");
+  selesaikanRestart(kartu, img);
+}
+$("lines").addEventListener("load", (ev) => feedMemuat(ev.target), true);
 $("lines").addEventListener("error", (ev) => ev.target.closest(".card").classList.add("putus"), true);
+
+// The t query forces the browser to actually re-request: same URL = the dead
+// connection's last frame stays on screen.
+function urlFeedBaru(src, sekarang) {
+  const url = new URL(src);
+  url.searchParams.set("t", sekarang);
+  return String(url);
+}
+
+// Satu-satunya cara meminta ulang stream, dipakai cekKamera DAN pemantau
+// restart. `_dimintaPada` = kapan stream ini diminta: tanda restart hanya
+// dihapus oleh gambar dari stream yang diminta SESUDAH proses lama hilang
+// (`restartSelesai`), bukan oleh frame proses lama yang masih tertahan.
+function mintaUlangFeed(img, sekarang) {
+  img._dimintaPada = sekarang;
+  img.src = urlFeedBaru(img.src, sekarang);
+}
+
+// Kartu yang digambar ulang (ganti bahasa, daftar truk, login) membawa `<img>`
+// baru dengan `?t=<sekarang>` dari `kartuLine`, jadi permintaan stream baru saat
+// itu juga, dan dicap dengan jam yang SAMA seperti `mintaUlangFeed`. Sengaja
+// cuma mencap, tidak meminta ulang: itu dua permintaan per render. Tanpa cap, gambarnya tidak pernah jadi bukti: sesudah
+// batas tanda habis pengulangan berhenti, cekKamera diam karena gambar tampil,
+// dan kotak RESTART_LAMA menempel di atas video yang sehat. Tandanya digambar
+// ulang saat itu juga supaya tidak hilang sedetik.
+function capFeedBaru(sekarang) {
+  for (const img of $("lines").querySelectorAll(".feed img")) img._dimintaPada = sekarang;
+  gambarSemuaRestart(sekarang);
+}
 
 async function cekKamera() {
   await Promise.all([...document.querySelectorAll(".feed img")].map(async (img) => {
@@ -4203,12 +4468,182 @@ async function cekKamera() {
     }).then(() => true, () => false);
     if (lineHidup && img.naturalWidth > 0) return;
     img.closest(".card").classList.add("putus");
-    // Each attempt = one new connection to the line, hence once per probe. The
-    // t query forces the browser to actually re-request.
-    const url = new URL(img.src);
-    url.searchParams.set("t", Date.now());
-    img.src = url;
+    // Each attempt = one new connection to the line, hence once per probe.
+    mintaUlangFeed(img, Date.now());
   }));
+}
+
+// ── line yang sedang dinyalakan ulang (permintaan user 2026-09-29) ──────
+// Sumber Kamera, Model Deteksi, dan Danger Zone (restart semua, hapus data)
+// merestart line. Selama itu kotak kamera line tsb. diberi spinner + bar
+// berjalan, untuk SEMUA akun (operator yang menonton kotak kamera), dan videonya
+// harus kembali tanpa memuat ulang halaman.
+//
+// Line yang ditandai = yang dijawab SERVER sudah direstart/menerima
+// (`lineDirestart`), bukan yang diklik. Tandanya hidup di halaman ini saja:
+// konsol tidak mencatat restart di /api/console/state.
+//
+// Kapan line "kembali": stream kamera yang diminta SESUDAH proses lama pasti
+// hilang mengirim satu gambar (`load` dengan naturalWidth > 0). "Pasti hilang"
+// = probe /health ditolak (tidak ada yang mendengarkan port itu; lewat tenggat
+// TIDAK dihitung: proses lama yang sedang menguras antrean simpan bisa lambat
+// lalu menjawab lagi), atau paling lambat RESTART_PASTI_MATI_MS sesudah
+// ditandai, yang juga menangani proses yang macet (urutan tutup line
+// maks 9 detik sesudah menjawab, aturan 29; 12 detik = batas tunggu Danger
+// Zone). Tanpa syarat itu frame terakhir proses lama, yang ditahan browser tanpa
+// event apa pun, akan menghapus tanda sebelum line benar-benar mati.
+const RESTART_BATAS_MS = 60000;       // sesudah ini: spinner diganti pesan rinci
+// Hapus data: line menghapus fotonya saat boot, SEBELUM /health menjawab, dan
+// itu bisa bermenit-menit. Kotak merah sesudah 60 detik di sana alarm palsu.
+const RESTART_HAPUS_BATAS_MS = 600000;
+const RESTART_HAPUS = { batasMs: RESTART_HAPUS_BATAS_MS, hapus: true };
+const RESTART_PASTI_MATI_MS = 12000;  // proses lama pasti sudah keluar
+const RESTART_ULANG_FEED_MS = 3000;   // jarak minta ulang stream selama menunggu
+const RESTART_KODE = "RESTART_LAMA";
+const restartLine = {};               // line_code -> {mulai, turunPada, batasMs, hapus}
+
+// Dua bentuk jawaban: Sumber Kamera / Model Deteksi (`direstart`) dan Danger
+// Zone (`ok`; hapus data `belum_mati` tetap `ok`, line itu tetap restart).
+function lineDirestart(hasil) {
+  const baris = hasil && Array.isArray(hasil.lines) ? hasil.lines : [];
+  return baris
+    .filter((r) => r && r.line_code && ("direstart" in r ? r.direstart === true : r.ok === true))
+    .map((r) => r.line_code);
+}
+
+// `opsi`: `{}` untuk restart biasa, RESTART_HAPUS untuk hapus data.
+function tandaiRestart(kodeLine, opsi = {}, sekarang = Date.now()) {
+  const batasMs = opsi.batasMs || RESTART_BATAS_MS;
+  const hapus = Boolean(opsi.hapus);
+  for (const kode of kodeLine) restartLine[kode] = { mulai: sekarang, turunPada: null, batasMs, hapus };
+  gambarSemuaRestart(sekarang);
+}
+
+// `hasil` probe /health: "hidup", "mati" (koneksi ditolak), "diam" (lewat tenggat).
+// Cuma "mati" yang bukti proses lama hilang; lihat komentar di atas.
+function catatProbe(m, hasil, sekarang) {
+  if (m.turunPada === null && hasil === "mati") m.turunPada = sekarang;
+}
+
+function batasBuktiRestart(m) {
+  const pasti = m.mulai + RESTART_PASTI_MATI_MS;
+  return m.turunPada === null ? pasti : Math.min(m.turunPada, pasti);
+}
+
+function restartSelesai(m, dimintaPada, lebarGambar) {
+  return lebarGambar > 0 && typeof dimintaPada === "number" && dimintaPada >= batasBuktiRestart(m);
+}
+
+// Minta ulang stream begitu line menjawab lagi, lalu tiap RESTART_ULANG_FEED_MS
+// sampai gambar datang. Berhenti di batas tanda (`m.batasMs`): sesudahnya
+// cekKamera (tiap 5 detik) yang meneruskan, dan gambar darinya tetap menghapus tanda.
+function perluMintaUlangFeed(m, dimintaPada, lineHidup, sekarang) {
+  if (!lineHidup || sekarang - m.mulai > m.batasMs) return false;
+  const batas = batasBuktiRestart(m);
+  if (sekarang < batas) return false;
+  if (typeof dimintaPada !== "number" || dimintaPada < batas) return true;
+  return sekarang - dimintaPada >= RESTART_ULANG_FEED_MS;
+}
+
+// Masih di dalam batas tanda: spinner + bar. Sesudahnya kotak merah RESTART_LAMA.
+function restartMasihDitunggu(m, sekarang) {
+  return sekarang - m.mulai < m.batasMs;
+}
+
+// "60 detik" / "10 menit": batas yang ditulis di pesan RESTART_LAMA.
+function teksBatasRestart(ms) {
+  if (ms >= 120000 && ms % 60000 === 0) return t("restartMenit").replace("{n}", ms / 60000);
+  return t("restartDetik").replace("{n}", Math.round(ms / 1000));
+}
+
+// Isi kotak cuma bergantung pada KEADAANNYA (menunggu atau lewat batas), tidak
+// pada detik yang berjalan: tulisKalauBeda lalu menulisnya sekali per keadaan,
+// jadi spinner dan bar tidak mulai dari awal lagi tiap detik. Tanpa hitungan
+// detik (permintaan operator 2026-09-29): bar berjalan cukup menunjukkan bahwa
+// prosesnya masih jalan.
+function isiRestart(nama, m, sekarang) {
+  if (restartMasihDitunggu(m, sekarang)) {
+    const judul = t(m.hapus ? "restartHapusJudul" : "restartJudul").replace("{line}", nama);
+    return `<div class="restart-kotak" role="status"><div class="restart-putar" aria-hidden="true"></div>`
+      + `<b>${esc(judul)}</b><div class="restart-bar" aria-hidden="true"></div></div>`;
+  }
+  const rinci = t("restartLamaRinci")
+    .replace("{kode}", RESTART_KODE)
+    .replace("{jam}", jamSinkron(m.mulai / 1000, sekarang / 1000) || KOSONG)
+    .replace("{batas}", teksBatasRestart(m.batasMs));
+  return `<div class="restart-kotak lama" role="alert"><b>${esc(t("restartLamaJudul").replace("{line}", nama))}</b>`
+    + `<p>${esc(rinci)}</p></div>`;
+}
+
+// `sedang-restart` menyembunyikan "Kamera tidak tersambung" selama spinner
+// tampil: cekKamera tetap menandai `putus` (line memang mati selama restart),
+// tapi yang dibaca operator cuma loadingnya. Kotak merah dan tanda yang hilang
+// melepasnya, jadi kamera yang benar-benar putus sesudahnya terbaca lagi.
+function gambarRestart(kartu, m, sekarang) {
+  const slot = kartu.querySelector(".slot-restart");
+  if (!slot) return;
+  kartu.classList.toggle("sedang-restart", Boolean(m) && restartMasihDitunggu(m, sekarang));
+  if (!m) return tulisKalauBeda(slot, "");
+  const nama = kartu.querySelector(".nama")?.textContent || kartu.dataset.line;
+  tulisKalauBeda(slot, isiRestart(nama, m, sekarang));
+}
+
+const kartuLineDariKode = (kode) => $("lines").querySelector(`.card[data-line="${CSS.escape(kode)}"]`);
+
+function gambarSemuaRestart(sekarang) {
+  for (const [kode, m] of Object.entries(restartLine)) {
+    const kartu = kartuLineDariKode(kode);
+    if (kartu) gambarRestart(kartu, m, sekarang);
+  }
+}
+
+function selesaikanRestart(kartu, img, sekarang = Date.now()) {
+  const kode = kartu.dataset.line;
+  const m = restartLine[kode];
+  if (!m || !restartSelesai(m, img._dimintaPada, img.naturalWidth)) return false;
+  delete restartLine[kode];
+  gambarRestart(kartu, null, sekarang);
+  return true;
+}
+
+// Tenggat 1,5 detik, probe tiap detik. Yang lewat tenggat tidak dihitung mati
+// (`catatProbe`).
+async function probeLine(src) {
+  try {
+    await fetch(new URL("/health", src), {
+      mode: "no-cors", cache: "no-store", signal: AbortSignal.timeout(1500),
+    });
+    return "hidup";
+  } catch (e) {
+    return e && e.name === "TimeoutError" ? "diam" : "mati";
+  }
+}
+
+let restartSibuk = false;
+async function pantauRestart() {
+  gambarSemuaRestart(Date.now());
+  const kodeLine = Object.keys(restartLine);
+  if (!kodeLine.length || restartSibuk) return;
+  restartSibuk = true;
+  try {
+    await Promise.all(kodeLine.map(async (kode) => {
+      const kartu = kartuLineDariKode(kode);
+      // Line yang tidak punya kartu (hilang dari daftar line) tidak akan pernah kembali di layar ini.
+      if (!kartu) { delete restartLine[kode]; return; }
+      const img = kartu.querySelector(".feed img");
+      // Line tanpa kotak kamera (port tidak dikenal) tidak punya apa pun untuk ditandai.
+      if (!img) { delete restartLine[kode]; return gambarRestart(kartu, null, Date.now()); }
+      const m = restartLine[kode];
+      if (!m) return;
+      const hasil = await probeLine(img.src);
+      const sekarang = Date.now();
+      if (restartLine[kode] !== m) return; // sudah kembali selama probe berjalan
+      catatProbe(m, hasil, sekarang);
+      if (perluMintaUlangFeed(m, img._dimintaPada, hasil === "hidup", sekarang)) mintaUlangFeed(img, sekarang);
+    }));
+  } finally {
+    restartSibuk = false;
+  }
 }
 
 // An action whose inputs are not filled in is disabled here, rather than left
@@ -4519,7 +4954,9 @@ async function refresh() {
     isiSinkron(s.sinkron);
     gambarPitaAlarm(s.lines);
     if (!dipasang) {
-      $("lines").innerHTML = s.lines.map(kartuLine).join("");
+      const dipasangPada = Date.now();
+      $("lines").innerHTML = s.lines.map((l) => kartuLine(l, dipasangPada)).join("");
+      capFeedBaru(dipasangPada);
       dipasang = true;
       terapkanUrutan();
     } else {
@@ -4545,6 +4982,7 @@ async function refresh() {
         if (pitaLama && !pitaBaru) pitaLama.remove();
         else if (pitaLama) pitaLama.outerHTML = pitaBaru;
         else if (pitaBaru) c.querySelector("h2").insertAdjacentHTML("afterend", pitaBaru);
+        perbaruiAi(c, l);
       });
       terapkanUrutan();
     }
@@ -5304,6 +5742,7 @@ $("log-next").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, ()
 // ── developer: diagnostik (support only) ────────────────────────────────
 // The 5 s auto-refresh timer itself lives in `bukaTabDev` above.
 let diagnostikTimer = null;
+let antreanLineTimer = null;
 // Layar Uji PLC dipakai saat commissioning, sambil orang lain menekan tombol di
 // panel — tanpa timer, `muatPlc()` cuma jalan sekali saat tab dibuka dan bit
 // motor/E-stop jadi foto lama sampai operator pindah tab lalu kembali. Terbaca
@@ -5442,6 +5881,138 @@ $("antrean-kirim-ulang").addEventListener("click", (ev) => denganSibuk(ev.curren
     $("antrean-kirim-ulang").disabled = false;
   }
 }));
+
+// ── developer: antrean line ke konsol (support only, batch 2.4) ────────
+// Satu baris per line. Keadaan dipilih dari yang paling perlu tindakan: line tak
+// terjangkau, pengiriman dimatikan, antrean lama tertinggal, kosong, konsol putus
+// dilihat dari line (dengan sebab dan sejak kapan), janjang yang DITOLAK konsol, lalu
+// sedang mengirim. "Kosong" sengaja mendahului "putus": tanpa janjang yang menunggu
+// tidak ada yang tertahan. "Ditolak" sesudah "putus": selama konsol putus tidak ada
+// yang sampai sama sekali. Ditolak dulu jatuh ke "Sedang dikirim" selamanya (final
+// review batch 2): baris itu dicoba terus dan tidak pernah sampai.
+function keadaanAntreanLine(d) {
+  const SEBAB_PUTUS = ["tak_terjangkau", "kunci_ditolak", "alamat_salah", "konsol_galat"];
+  if (!d.terjangkau) {
+    // line_menolak = kunci internal ditolak (401/403): saran ganti INTERNAL_SECRET.
+    // line_tidak_menjawab DENGAN status = line itu sendiri menjawab tapi galat (500)
+    // atau line lama tanpa rute ini (404): line hidup, ini bukan "line mati".
+    // line_tidak_menjawab TANPA status = benar-benar tidak terjangkau atau timeout.
+    if (d.kode === "line_menolak") return { kelas: "tanda-gagal", kunci: "antreanLineKunciKonsol" };
+    if (d.kode === "line_tidak_menjawab" && d.status != null) {
+      return { kelas: "tanda-gagal", kunci: "antreanLineErrorLine" };
+    }
+    return { kelas: "tanda-gagal", kunci: "antreanLineTakTerjangkau" };
+  }
+  if (!d.aktif) return { kelas: "tanda-gagal", kunci: "antreanLineNonaktif" };
+  if (d.lama_tertinggal) return { kelas: "tanda-gagal", kunci: "antreanLineLamaTertinggal" };
+  if (!d.menunggu) return { kelas: "tanda-ok", kunci: "antreanLineKosong" };
+  if (d.tersambung === false) {
+    const sebab = SEBAB_PUTUS.includes(d.sebab_putus) ? d.sebab_putus : "tak_terjangkau";
+    return { kelas: "tanda-gagal", kunci: "antreanLinePutus_" + sebab };
+  }
+  if (d.ditolak > 0) return { kelas: "tanda-gagal", kunci: "antreanLineDitolak" };
+  return { kelas: "", kunci: "antreanLineMengirim" };
+}
+
+// `sekarangMs` dari pemanggil, bukan Date.now() di sini: umur "Tertua" dihitung dari
+// jam yang sama untuk tiga baris, dan fungsinya bisa diuji tanpa memalsukan jam.
+function barisAntreanLine(kode, d, sekarangMs) {
+  const k = keadaanAntreanLine(d);
+  // {status} cuma dipakai oleh dua kunci (kunci ditolak, error line): jangan diganti
+  // untuk kunci lain, atau bawaan "401" bocor ke baris yang tidak menyebut status
+  // sama sekali (mis. line yang benar-benar tidak terjangkau).
+  const keadaan = t(k.kunci)
+    .replace("{status}", d.status ?? (k.kunci === "antreanLineKunciKonsol" ? "401" : ""))
+    .replace("{sejak}", d.putus_sejak ? waktu(d.putus_sejak * 1000) : KOSONG)
+    .replace("{jumlah}", d.ditolak ?? KOSONG)
+    .replace("{jam}", d.ditolak_at ? waktu(d.ditolak_at * 1000) : KOSONG)
+    // Fungsi, bukan teks: alasan datang dari jawaban HTTP, dan "$&" di dalamnya akan
+    // dibaca `replace` sebagai pola.
+    .replace("{alasan}", () => d.ditolak_alasan || KOSONG);
+  // Galat terakhir worker tidak pernah dikosongkan saat konsol pulih: dengan jamnya
+  // supaya galat lama tidak terbaca seperti masalah sekarang, dan tidak ditampilkan
+  // sama sekali saat antrean kosong (tidak ada yang tertahan olehnya).
+  const galat = d.menunggu && d.galat ? (d.galat_at ? `${waktu(d.galat_at * 1000)}: ${d.galat}` : d.galat) : "";
+  const pesanBaris = (d.terjangkau ? galat : d.pesan) || "";
+  const tertua = d.tertua_at ? lamaProses(new Date(d.tertua_at * 1000), new Date(sekarangMs)) : null;
+  const tombol = d.terjangkau && d.menunggu > 0
+    ? `<button type="button" data-kirim-ulang-line="${esc(kode)}">${esc(t("btnKirimUlang"))}</button>`
+    : "";
+  return `<tr data-line="${esc(kode)}">
+    <td>${esc(kode)}</td>
+    <td class="num">${d.terjangkau ? dash(d.menunggu) : KOSONG}</td>
+    <td>${dash(tertua)}</td>
+    <td class="${k.kelas}">${esc(keadaan)}</td>
+    <td title="${esc(pesanBaris)}">${pesanBaris ? esc(pesanBaris) : KOSONG}</td>
+    <td>${tombol}</td>
+  </tr>`;
+}
+
+// Kalimat gagal Kirim Ulang: apa yang gagal, di line mana, jam berapa, kodenya, dan
+// harus ngapain (keputusan 2026-09-28, pesan error konsol wajib detail).
+// line_tidak_menjawab TANPA status = benar-benar tidak terjangkau/timeout →
+// saranLineMati; DENGAN status (line menjawab tapi galat, mis. 500, atau line lama
+// menjawab 404) itu bukan "line mati", jadi jatuh ke saranBukaLog seperti kode lain.
+const SARAN_KIRIM_ULANG = { line_menolak: "saranKunciLine", line_tidak_dikenal: "saranMuatUlang" };
+
+function pesanGagalKirimUlang(e, kode, saat) {
+  const status = e.params && e.params.status;
+  const saran = e.kode === "line_tidak_menjawab" && status == null ? "saranLineMati" : (SARAN_KIRIM_ULANG[e.kode] || "saranBukaLog");
+  return t("antreanLineGagalKirimUlang")
+    .replace("{line}", kode)
+    .replace("{jam}", waktu(saat))
+    .replace("{kode}", e.kode || "http")
+    .replace("{alasan}", alasan(e))
+    .replace("{saran}", t(saran));
+}
+
+// Guard sederhana: 5 s setInterval tidak boleh menumpuk permintaan baru saat yang
+// sebelumnya masih menunggu line yang macet (sampai 3 s ditambah jaringan).
+// `susulkan` (Kirim Ulang): kalau ada yang masih di jalan, muat SEKALI lagi sesudah
+// dia selesai, bukan ditelan. Tanpa itu baris yang baru dikirim ulang tetap basi
+// sampai 5 detik sesudah toast berhasil.
+let antreanLineSedangMuat = false;
+let antreanLineSusulan = false;
+
+async function muatAntreanLine(susulkan = false) {
+  if (antreanLineSedangMuat) {
+    if (susulkan) antreanLineSusulan = true;
+    return;
+  }
+  antreanLineSedangMuat = true;
+  const tbody = $("antrean-line-baris");
+  try {
+    const r = await api("/api/console/dev/antrean/line");
+    const sekarang = Date.now();
+    const baris = Object.entries(r.lines).map(([kode, d]) => barisAntreanLine(kode, d, sekarang)).join("");
+    // tulisKalauBeda: disegarkan tiap 5 detik, dan tombol Kirim Ulang yang diganti
+    // di tengah ketukan menelan ketukannya.
+    tulisKalauBeda(tbody, baris || barisKosong(6, "kosongAntreanLine"));
+  } catch (e) {
+    if (e.kode !== "belum_masuk") tulisKalauBeda(tbody, barisKosong(6, "gagalAntreanLine"));
+  } finally {
+    antreanLineSedangMuat = false;
+  }
+  if (antreanLineSusulan) {
+    antreanLineSusulan = false;
+    await muatAntreanLine();
+  }
+}
+
+$("antrean-line-baris").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-kirim-ulang-line]");
+  if (!tombol) return;
+  const kode = tombol.dataset.kirimUlangLine;
+  denganSibuk(tombol, async () => {
+    try {
+      const r = await api(`/api/console/dev/antrean/line/${encodeURIComponent(kode)}/kirim-ulang`, { method: "POST" });
+      toastSukses(t("antreanLineDikirimUlang").replace("{line}", kode).replace("{jumlah}", r.dijadwalkan));
+      await muatAntreanLine(true);
+    } catch (e) {
+      if (e.kode !== "belum_masuk") toastGagal(pesanGagalKirimUlang(e, kode, new Date()));
+    }
+  });
+});
 
 // ── developer: versi & lisensi (support only) ───────────────────────────
 // Tiap pasangan dibungkus satu `<div>`: `.daftar-definisi` menyebar jadi
@@ -6011,6 +6582,8 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
 // tarikan sebelumnya): keadaan line bisa berubah sejak tab dibuka. Server
 // memeriksa ulang semuanya; 409 menggambar ulang panel dengan alasan terbaru.
 const BAHAYA_HAPUS = new Set(["rekaman", "transaksi", "semua"]);
+// Aksi yang membuat line restart (hapus data: line keluar lalu menghapus saat boot).
+const BAHAYA_RESTART = new Set(["restart", "transaksi", "semua"]);
 const BAHAYA_URL = {
   restart: "restart-line", logout: "logout-semua", rekaman: "hapus-rekaman",
   transaksi: "hapus-data", semua: "hapus-data",
@@ -6125,7 +6698,8 @@ function hasilBahaya(aksi, h) {
   return teks;
 }
 
-// Ada line yang gagal atau perlu dicek: toast-nya tetap sampai ditutup.
+// Ada line yang gagal atau perlu dicek: toast-nya bertahan paling lama (10
+// detik, berhenti menghitung selama kursor di atasnya), bukan 5 detik.
 function hasilPerluDibaca(h) {
   return (h.lines || []).some((r) => !r.ok || Boolean(r.kode));
 }
@@ -6192,6 +6766,7 @@ async function jalankanBahaya(aksi, tombol) {
       method: "POST", body: JSON.stringify(body),
     });
     tampilHasilBahaya(aksi, hasil);
+    if (BAHAYA_RESTART.has(aksi)) tandaiRestart(lineDirestart(hasil), aksi === "restart" ? {} : RESTART_HAPUS);
     tutupPanelBahaya();
     // Logout & hapus semua mengakhiri sesi ini juga: polling berikutnya
     // dijawab 401 dan `api()` membuka gerbang login sendiri.
@@ -6479,6 +7054,7 @@ $("sumber-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarge
       body: JSON.stringify(payload),
     });
     sumberKameraTerakhir = data;
+    tandaiRestart(lineDirestart(data));
     // `berubah && !direstart` = setelan SUDAH tersimpan tapi line itu tidak
     // menjawab restart - bukan simpan yang gagal (services/console_service.py
     // simpan_sumber_kamera). Menyebutnya "gagal" di sini akan membuat support
@@ -6760,6 +7336,7 @@ $("model-modal-jalankan").addEventListener("click", (ev) => denganSibuk(ev.curre
       method: "POST",
       body: JSON.stringify(pilihan),
     });
+    tandaiRestart(lineDirestart(data));
     // Sama dengan Sumber Kamera: `berubah && !direstart` = SUDAH tersimpan,
     // line itu saja yang tidak menjawab. Bukan simpan yang gagal.
     const tidakJawab = (data.lines || []).filter((b) => b.berubah && !b.direstart);
@@ -6916,6 +7493,7 @@ $("plc-kartu").addEventListener("click", (ev) => {
   detak();
   setInterval(detak, 1000);
   setInterval(cekKamera, 5000);
+  setInterval(pantauRestart, 1000);
   // Still signed in (cookie valid): the name goes in the bar and the gate comes down.
   // If not, the gate stays up — before four polls each find that out on their own.
   await cekSesi();

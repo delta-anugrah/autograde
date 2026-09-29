@@ -15,6 +15,7 @@ from .core.dependencies import (
     get_capture_repository,
     get_folder_db_line,
     get_outbox_store,
+    get_penutup_line,
     get_realtime_inspection_pipeline,
     get_runtime_state,
     get_settings,
@@ -26,7 +27,10 @@ from .routes.captures import StaticTanpaDb
 from .routes.internal import _jadwalkan_keluar
 from .routes.internal import router as internal_router
 from .routes.internal_bahaya import buat_router as buat_router_bahaya
+from .routes.internal_outbox import buat_router as buat_router_outbox
+from .services.antrean_line import AntreanLine
 from .services.hapus_data_line import hapus_kalau_diminta
+from .services.langkah_tutup_line import langkah_tutup_line
 from .services.pindah_db_line import pindahkan_db_lama
 from .workers.outbox_retry_worker import OutboxRetryWorker
 from .core.logging import configure_logging
@@ -46,13 +50,17 @@ from .integrations.upload.upload_manifest import UploadManifest
 from .workers.batch_upload_worker import BatchUploadWorker
 from .workers.capture_save_worker import CaptureSaveWorker
 from .routes.health import router as health_router
+from .core.dependencies import get_health_service
+from .routes.health_ringan import buat_router_health
+from .services.penjaga_ai import PenjagaAi
 from .routes.inspection import router as inspection_router
 from .routes.streaming import router as streaming_router
 from .workers.display_worker import DisplayWorker
 from .workers.event_broadcast_worker import EventBroadcastWorker
 from .workers.frame_capture_worker import FrameCaptureWorker
 from .workers.frame_processing_worker import FrameProcessingWorker
-from .plc import shutdown_plc_worker, start_plc_worker
+from .workers.pengawas_worker import awasi_sekali
+from .plc import start_plc_worker
 
 load_dotenv(override=False)
 
@@ -160,6 +168,7 @@ async def _tarik_penugasan(settings, state) -> None:
 def create_app() -> FastAPI:
     configure_logging()
     settings = get_settings()
+    penutup = get_penutup_line()
 
     # Folder DB line (state/, batch 1.2); lihat services/pindah_db_line.py.
     _lic_repo = LicenseLocalRepo(get_folder_db_line() / "license.db")
@@ -258,6 +267,11 @@ def create_app() -> FastAPI:
         state = get_runtime_state()
         state.main_loop = asyncio.get_running_loop()
 
+        # Batch 2.1: SATU penilai "AI masih memproses?" untuk coil ERROR,
+        # `/health` (+ healthcheck Docker), dan kartu line konsol.
+        penjaga_ai = PenjagaAi(settings=settings, state=state, kamera=camera)
+        state.penjaga_ai = penjaga_ai
+
         # Sesudah `state` ada, sebelum worker deteksi menyala: setelan yang
         # dipegang konsol harus sudah terpasang saat janjang pertama lewat.
         await _tarik_setelan_grading(settings, state)
@@ -346,13 +360,11 @@ def create_app() -> FastAPI:
         # Mengembalikan None kalau PLC_ENABLED=false, jadi di cloud dan di PC
         # dev tidak ada thread tambahan sama sekali. Didaftarkan ke
         # worker_threads supaya ikut di-restart watchdog 10 detik kalau mati.
-        # `camera` di lambda ini variabel lokal `lifespan`, di-assign sekali di
-        # atas (baris ~84-95) dan TIDAK PERNAH di-rebind sesudahnya. Jadi lambda
-        # ini selamanya menunjuk objek kamera yang sama — dan justru itu yang
-        # bikin benar: reconnect tidak membuat objek baru, `FrameCaptureWorker`
-        # cuma mengubah `.connected` di tempat pada objek yang sama
-        # (`integrations/camera/base.py:9`). health_check karena itu selalu
-        # membaca status terkini, bukan snapshot saat startup.
+        # Coil ERROR = kamera putus ATAU AI mati (batch 2.1), dinilai
+        # `penjaga_ai` tiap tick. Penjaga memegang objek kamera yang sama
+        # selamanya: reconnect tidak membuat objek baru, `FrameCaptureWorker`
+        # cuma mengubah `.connected` di tempat, jadi yang dibaca selalu status
+        # terkini, bukan snapshot saat startup.
         # Dibungkus try/except karena PLC itu fitur OPSIONAL yang default-nya mati:
         # env rusak (mis. PLC_PULSE_MS=0 yang lolos int() lalu ditolak
         # PulseScheduler.__post_init__) tidak boleh menjatuhkan lifespan dan ikut
@@ -360,7 +372,7 @@ def create_app() -> FastAPI:
         try:
             plc_worker = start_plc_worker(
                 settings,
-                health_check=lambda: camera.connected,
+                health_check=penjaga_ai.sehat_untuk_plc,
                 license_ok=lambda: not grading_blocked(settings.lic_enabled, state.license_exp),
             )
         except Exception:
@@ -370,13 +382,15 @@ def create_app() -> FastAPI:
             state.worker_threads.append(("plc", _start_worker("plc", plc_worker.run_loop), plc_worker))
 
         async def _watchdog() -> None:
+            # Berhenti begitu urutan tutup mulai: `workers/pengawas_worker.py`.
             while True:
                 await asyncio.sleep(10)
-                for i, (name, thread, worker) in enumerate(state.worker_threads):
-                    if not thread.is_alive():
-                        logger.error("Worker thread '%s' died — restarting", name)
-                        new_thread = _start_worker(name, worker.run_loop)
-                        state.worker_threads[i] = (name, new_thread, worker)
+                if not awasi_sekali(
+                    state.worker_threads,
+                    sedang_menutup=lambda: penutup.sedang_menutup,
+                    mulai=_start_worker,
+                ):
+                    return
 
         asyncio.create_task(_watchdog())
 
@@ -396,43 +410,22 @@ def create_app() -> FastAPI:
         upload_scheduler = UploadScheduler(settings=settings, run_batch=batch_worker.run_batch_once)
         upload_scheduler.start()
 
+        # Batch 2.2: SATU urutan tutup untuk SIGTERM (sesudah `yield`) dan untuk
+        # keluar atas permintaan konsol (`/internal/restart`, `/internal/hapus-data`),
+        # yang dulu `os._exit` tanpa lewat sini: coil tertinggal ON dan janjang di
+        # antrean simpan hilang. Urutan dan alasannya: services/langkah_tutup_line.py.
+        penutup.pasang(
+            langkah_tutup_line(
+                worker_threads=state.worker_threads,
+                penulis=capture_saver,
+                kamera=camera,
+                penjadwal=upload_scheduler,
+            )
+        )
+
         yield
 
-        from .core.dependencies import get_camera
-
-        # PLC didahulukan: saat SIGTERM tiba, coil OK/NG punya peluang kira-kira
-        # 1 dari 2 sedang ON di tengah pulse (200ms ON dalam siklus 400 ms, 2
-        # tick). Kontrak coil itu "satu pulse = satu buah" — dibiarkan ON sampai
-        # watchdog ODOT menyerah (masih 30 detik) berarti PLC menyortir banyak
-        # buah dengan keputusan basi. Digarap best-effort: gagal di sini tidak
-        # boleh menghalangi sisa shutdown.
-        try:
-            plc_thread = next((t for name, t, _ in state.worker_threads if name == "plc"), None)
-            shutdown_plc_worker(plc_thread)
-        except Exception:
-            logger.exception("Shutdown PLC gagal — shutdown lain tetap dilanjutkan")
-
-        # Janjang yang sudah digrading (dan sudah dapat pulse PLC) tapi belum
-        # sempat ditulis akan hilang bersama proses ini. Beri penulis kesempatan
-        # menghabiskan antreannya dulu — beberapa ratus milidetik per janjang,
-        # dan antreannya cuma tiga dalam. Best-effort: gagal di sini tidak boleh
-        # menahan sisa shutdown.
-        try:
-            if not capture_saver.tunggu_kosong(timeout=5.0):
-                logger.warning(
-                    "Shutdown: %d janjang masih di antrean simpan dan tidak sempat ditulis",
-                    capture_saver.antrean,
-                )
-            capture_saver.stop(timeout=2.0)
-        except Exception:
-            logger.exception("Menguras antrean simpan gagal — shutdown dilanjutkan")
-
-        try:
-            camera = get_camera()
-            camera.disconnect()
-        except RuntimeError:
-            pass
-        upload_scheduler.stop()
+        penutup.tutup("lifespan selesai (SIGTERM)")
 
     app = FastAPI(title="Ripe Recognition API", lifespan=lifespan)
 
@@ -456,6 +449,7 @@ def create_app() -> FastAPI:
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/captures", StaticTanpaDb(directory=str(artifacts_dir)), name="captures")
 
+    app.include_router(buat_router_health(get_health_service))
     app.include_router(health_router)
     app.include_router(inspection_router)
     app.include_router(streaming_router)
@@ -465,6 +459,16 @@ def create_app() -> FastAPI:
     app.include_router(
         buat_router_bahaya(
             settings=get_settings, state=get_runtime_state, keluar=_jadwalkan_keluar
+        )
+    )
+    # Antrean janjang ke konsol (batch 2.4): dilihat dan didorong dari tab Status
+    # konsol. Store, Settings, dan RuntimeState yang SAMA dengan worker pengirimnya.
+    app.include_router(
+        buat_router_outbox(
+            settings=get_settings,
+            antrean=lambda: AntreanLine(
+                get_outbox_store(), get_settings(), get_runtime_state(), get_folder_db_line()
+            ),
         )
     )
 

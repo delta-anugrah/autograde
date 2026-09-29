@@ -27,7 +27,7 @@ class AssignmentSyncRequest(BaseModel):
 
         It must become `None` here, not pass through as-is: `""` rides along into
         the next event payload and palmgrade-api validates it as a UUID → the
-        event is rejected 400 and lands in `outbox_failed`.
+        event is rejected 400 and waits in the line queue forever (retried, never delivered).
         """
         return value or None
 
@@ -74,6 +74,9 @@ class LineStatusResponse(BaseModel):
     # Ringkasan upload foto ke R2 untuk Last Sync konsol (Cloud Photo). None =
     # line belum punya worker upload; konsol lama mengabaikan field ini.
     unggah: dict | None = None
+    # Penjaga AI mati (batch 2.1): `PenjagaAi.ringkas()`, tanpa galat mentah.
+    # None = penjaga belum dipasang; konsol lama mengabaikan field ini.
+    ai: dict | None = None
 
 
 class PlcCoilCommandRequest(BaseModel):

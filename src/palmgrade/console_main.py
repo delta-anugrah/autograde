@@ -21,7 +21,13 @@ from .core.log_sink import install_log_sink
 from .repositories.log_repository import LogStore
 from .routes.captures import CapturesBersesi
 from .routes.console import router as console_router
-from .routes.console_deps import SESSION_COOKIE, get_auth_service, get_console_service
+from .routes.console_antrean_line import router as antrean_line_router
+from .routes.console_deps import (
+    SESSION_COOKIE,
+    get_auth_service,
+    get_console_service,
+    hangatkan_singleton,
+)
 from .routes.console_ingest import ingest_router
 from .services.akun_bawaan import seed_default_accounts
 from .workers.cek_sinkron_worker import build_cek_sinkron
@@ -81,6 +87,9 @@ async def lifespan(app: FastAPI):
             "(use `make operator-docker` if the console runs in Docker) to promote an "
             "existing account, or `make operator ROLE=support` for a new one."
         )
+    # Sebelum permintaan pertama: rute di thread pool bisa membuat singleton ganda
+    # kalau panggilan pertamanya datang bersamaan (lihat hangatkan_singleton).
+    hangatkan_singleton()
     # The AutoERP link is optional by design: with ERP_URL empty there are no
     # workers at all, and any of them may die without taking the screen down.
     workers = build_erp_workers(
@@ -131,6 +140,7 @@ def create_console_app() -> FastAPI:
         )
 
     app.include_router(console_router)
+    app.include_router(antrean_line_router)
     app.include_router(ingest_router, prefix=settings.backend_api_ver)
 
     @app.get("/health", include_in_schema=False)

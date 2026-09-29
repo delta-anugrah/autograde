@@ -30,7 +30,7 @@
 |---|---|---|
 | `FrameCaptureWorker` | thread | grab frame from camera (under `state.lock`) → `state.latest_raw_frame` + `frame_queue`. Auto-reconnects with `device_index`. |
 | `FrameProcessingWorker` | thread | YOLO inference from `frame_queue`; sets `state.last_yolo_frame` + `state.last_yolo_results` (paired); janjang menyentuh garis capture → pulse PLC + `event_queue` + serahkan `SaveJob`, lalu **lanjut**. Sejak 2026-09-18 **tidak menulis ke disk maupun outbox sendiri** |
-| `CaptureSaveWorker` | thread | penulis bukti: encode WebP bbox+clean+thumb, sidecar JSON, dan satu baris `outbox.add_event()`. Antrean 8 dalam, drop yang terbaru + `logger.error` kalau penuh (`capture_save_dropped`). Ikut diawasi watchdog; antreannya dikuras saat shutdown sebelum kamera dilepas |
+| `CaptureSaveWorker` | thread | penulis bukti: encode WebP bbox+clean+thumb, sidecar JSON, dan satu baris `outbox.add_event()`. Antrean 8 dalam, drop yang terbaru + `logger.error` kalau penuh (`capture_save_dropped`). Ikut diawasi watchdog; dikuras oleh urutan tutup line (SIGTERM dan perintah restart/hapus dari konsol) bersamaan dengan coil PLC dimatikan |
 | `DisplayWorker` | thread | the **only** writer of `state.latest_frame`: draw boxes → resize → draw ROI → JPEG encode → `frame_condition.notify_all()`. Runs at `STREAM_FPS` (default 12). |
 | `OutboxRetryWorker` | thread | kirim isi `outbox.db` ke **konsol lokal** (`BACKEND_URL`), poll 1 detik: jalur realtime operator, hidup walau internet mati. Batch upload foto ke R2 jalan terpisah. |
 | `PlcWorker` | thread | **hanya kalau `PLC_ENABLED=true`** (default mati → nol thread tambahan di PC dev). Satu-satunya thread yang menyentuh socket ke PLC (MC Protocol ke CPU Mitsubishi; Modbus ke coupler ODOT kalau `PLC_PROTOCOL=modbus`): kuras antrean keputusan → pulse bit OK/NG, kedipkan heartbeat, baca blok input, tulis bit ERROR. Bangun tiap `PLC_POLL_MS` (default 200ms) **selamanya**. Sinyal telat = buah salah yang tersortir, jadi kebijakannya **buang dan hitung, jangan pernah tunda**. |
@@ -46,6 +46,14 @@
 - `state.lock`: guards physical camera access.
 - `current_truck_id`, `current_assignment_id`: set by `POST /internal/assignment`.
 - `last_successful_api_push`, `worker_threads`, `websocket_clients`, `main_loop`.
+
+**AI mati (batch 2.1).** Empat stempel `time.monotonic()` di `RuntimeState` (`ai_dimulai_at`,
+`frame_terakhir_at`, `aliran_frame_sejak`, `inferensi_selesai_at`) ditulis worker, dan
+`services/penjaga_ai.py` (`PenjagaAi`) membacanya untuk menjawab satu pertanyaan: kamera
+mengirim gambar, tapi ada frame yang selesai digrading dalam `AI_MATI_DETIK` detik terakhir?
+Kalau tidak, AI dinyatakan mati, dan coil ERROR PLC, `/health` (503), serta kartu line konsol
+sama-sama membaca penilaian yang sama dari objek ini, bukan menghitung sendiri-sendiri. Detail
+aturan dan lima keadaan yang sengaja tidak dialarm: `domain/kesehatan_ai.py`, CLAUDE.md aturan 32.
 
 ---
 
@@ -230,11 +238,11 @@ BatchUploadWorker.run_batch_once()
 - Error handling per item (yang bikin satu item busuk tidak menyandera batch):
   | Kondisi | Exception | Efek |
   |---|---|---|
-  | HTTP 400/422, meta cacat, file gambar hilang | `_PoisonError` | `mark_poisoned` + **continue**. File **tidak** dihapus: ditinggal untuk diperiksa manual |
+  | HTTP 400/422, meta cacat, file gambar hilang, foto/sidecar 0 byte atau sisa `.tmp` | `_PoisonError` | `mark_poisoned` + **continue**. File **tidak** dihapus: ditinggal untuk diperiksa manual |
   | HTTP 404 (truck belum ada di DB cloud) | `_RequeueError(batch_fatal=False)` | requeue + **continue**: antrian `ORDER BY discovered_at ASC`, jadi tanpa ini satu item lama bisa head-of-line starve seluruh batch |
   | HTTP 401/403/5xx, jaringan mati | `_RequeueError` (default `batch_fatal=True`) | requeue + **break batch**: percuma lanjut kalau endpoint/kredensialnya yang bermasalah |
 - Backoff: base **5s**, eksponensial sampai cap **600s** (`upload_manifest.py`). **TANPA retry cap
-  dan TANPA TTL**: beda kontrak dari outbox lama yang punya dead-letter setelah 50 retry. Item
+  dan TANPA TTL**: kontrak yang sama dengan outbox line sejak batch 2.4 (tanpa batas nyerah). Item
   menunggu di disk selamanya sampai terkirim (syarat "tahan outage berapa lama pun").
 - Tahan restart karena **file-nya ada di disk**; manifest hanya menyimpan progres.
   SQLite durability eksplisit: **`PRAGMA journal_mode=WAL` + `synchronous=FULL`**: commit di-fsync,
@@ -245,7 +253,8 @@ BatchUploadWorker.run_batch_once()
 - `state/upload_manifest.db` sengaja **sibling** `artifacts/`, di luar mount statis `/captures`
   (`Settings.state_dir`) supaya DB operasional tidak ikut ter-serve sebagai file publik.
 - Progres batch **tidak** ada di `/health/detail`: `outbox_pending`/`outbox_failed` di sana
-  mengukur jalur realtime ke konsol. Ringkasannya naik lewat blok `unggah` di `GET
+  mengukur jalur realtime ke konsol (`outbox_pending` = semua yang belum sampai, `outbox_failed`
+  selalu 0 sejak batch 2.4). Ringkasannya naik lewat blok `unggah` di `GET
   /internal/status` (dihitung sekali per batch) dan tampil di konsol sebagai **Last Sync →
   Cloud Photo**. Rincian per item: query `state/upload_manifest.db` atau baca log worker.
 
@@ -263,7 +272,8 @@ Kontraknya beku sejak palmgrade-api: konsol meniru URL dan header yang sama, jad
 **line → konsol** (`BACKEND_URL` = konsol di mesin yang sama, `http://localhost:8100` di PC pabrik),
 header `x-webhook-secret`:
 - `POST {BACKEND_URL}{BACKEND_API_VER}/internal/vision/events`: event per janjang. Secret salah →
-  401; payload cacat → 400, dan outbox line menandainya gagal (sengaja terlihat).
+  401; payload cacat → 400, dan outbox line menahannya dan terus mencoba (tab Status → Antrean
+  line, sengaja terlihat gagal).
 - `GET .../internal/setelan` dan `GET .../internal/penugasan?machine_id=`: dibaca line saat start,
   supaya setelan grading dan truk terpasang selamat dari container yang dibuat ulang.
 
@@ -318,8 +328,9 @@ operator sejak batch 1; `/captures` line sendiri tetap terbuka, tanpa konsep ses
    deteksi**, sebelum serah-terima, jadi idempotensi dipegang oleh nama, bukan oleh urutan tulis.
    Track tanpa truck aktif tetap ditandai processed supaya tidak re-trigger.
    ⚠️ Konsekuensi yang dibeli sadar: kalau proses mati di antara serah-terima dan penulisan, janjang
-   itu hilang (tidak ada retry: track sudah `processed`). Lifespan karena itu **menguras antrean
-   dulu** saat shutdown. Jendelanya ratusan milidetik, dan harganya adalah hilangnya lag ~590 ms per
+   itu hilang (tidak ada retry: track sudah `processed`). Urutan tutup line (`langkah_tutup_line`)
+   karena itu **menguras antrean dulu** saat shutdown, sama untuk SIGTERM maupun restart/hapus dari
+   konsol. Jendelanya ratusan milidetik, dan harganya adalah hilangnya lag ~590 ms per
    janjang yang sebelumnya membuang ~12 frame kamera dan memutus jejak ByteTrack.
 2. **`state.lock`** around all physical camera access (`FrameCaptureWorker.run_once` +
    `capture_manual_reject`): concurrent Hikrobot SDK access can crash.
@@ -330,7 +341,7 @@ operator sejak batch 1; `/captures` line sendiri tetap terbuka, tanpa konsep ses
    `get_health_service()`: they call `get_camera()` which raises before startup; caching would freeze
    `_camera = None`.
 5. **`repo_root = parents[3]`**: `src/palmgrade/core/config.py` → 3 levels up = `/app` in Docker.
-6. **`lifespan`** (not deprecated `@app.on_event`); scheduler + camera disconnect are lifespan locals.
+6. **`lifespan`** (not deprecated `@app.on_event`); scheduler + camera disconnect are lifespan locals, registered with `PenutupLine` before `yield`.
 7. **MJPEG written only by `DisplayWorker`**: two writers to `state.latest_frame` cause flicker.
    It renders `last_yolo_frame` (paired with `last_yolo_results`), runs at `STREAM_FPS` (default 12),
    decoupled from `CAMERA_FPS` (default 15).
@@ -339,11 +350,15 @@ operator sejak batch 1; `/captures` line sendiri tetap terbuka, tanpa konsep ses
    thread dies silently and the watchdog restarts without a stack trace.
 10. **`FrameCaptureWorker` needs `device_index`**: reconnect calls `camera.connect(index=...)`; a bare
     `connect()` (default 0) makes line-2/3 reconnect to the wrong camera.
-11. **`cv2.imwrite` failure raises `OSError`** in `LocalFileStorage.write_image`, a silent warning
+11. **Encode or write failure raises `OSError`** (including `cv2.error`) in
+    `LocalFileStorage.write_image`, a silent warning
     would leave orphaned JSON pointing at a missing image, dan karena JSON itulah yang di-scan
     `BatchUploadWorker`, item-nya berakhir `poisoned` saat upload. Auto path: caught by
     `CaptureSaveWorker.run_loop` (that bunch has no image and no sidecar, logged; the writer
     keeps running). Manual path: propagates → 500 to operator.
+    Since batch 2.6, photos and sidecars are written whole-or-nothing: `cv2.imencode` in memory,
+    then `tulis_atomik` (temp `.<name>.<random>.tmp` + fsync + `os.replace` + folder fsync). A
+    power cut leaves a hidden leftover temp file, never a 0-byte file under the final name.
 
 ---
 
@@ -543,17 +558,27 @@ hari UTC memotong satu shift jadi dua tanggal. `work_date` dihitung **saat inges
 timestamp event itu sendiri (`domain/working_day.py`, zona `FACTORY_TZ`) lalu **disimpan
 sebagai kolom**: bukan diturunkan ulang saat query, dan tidak pernah dari `now()`, `creation`,
 atau nama folder. Event yang datang telat (outbox menyusul setelah listrik mati) tetap mendarat
-di harinya sendiri. Timestamp cacat → 400 → outbox line menandainya `outbox_failed`, sengaja
-terlihat gagal. Batasnya **kalender**, tanpa cutoff shift; karena kolomnya disimpan, mengubah
+di harinya sendiri. Timestamp cacat → 400 → outbox line menahannya dan terus mencoba (tab Status
+→ Antrean line), sengaja terlihat gagal. Batasnya **kalender**, tanpa cutoff shift; karena kolomnya disimpan, mengubah
 aturan itu nanti cuma menyentuh satu fungsi. `python:3.11-slim` butuh `tzdata` (sudah
 ditambahkan): tanpa itu `ZoneInfo` gagal dan tanggal diam-diam kembali ke UTC.
 
-**Index, bukan pindai (§6.2).** Semua yang dibaca layar datang dari `state/console.db`
-(`repositories/console_repository.py`): konvensinya sama dengan `OutboxStore`: WAL,
-`synchronous=FULL`, satu `threading.Lock`, `INSERT OR IGNORE` dengan kunci `event_id`. Layar
-polling tiap 2 detik lewat `GET /api/console/state`; tidak ada `listdir` di jalur manapun.
+**Index, bukan pindai (§6.2).** Semua yang dibaca layar datang dari `state/console.db`, dibagi
+tiga berkas (batch 2): `repositories/console_repository.py` (query), skema dan migrasinya di
+`repositories/console_skema.py`, dan akun di mixin `repositories/console_akun_repository.py`.
+Konvensinya sama dengan `OutboxStore`: WAL, `synchronous=FULL`, satu `threading.Lock`,
+`INSERT OR IGNORE` dengan kunci `event_id`. Layar polling tiap 2 detik lewat
+`GET /api/console/state`; tidak ada `listdir` di jalur manapun.
 Tabelnya: `inspections` (+ index `(work_date, line_code)` dan `(work_date, timestamp)`),
-`trucks`, `suppliers`, `assignments`, `sync_state`.
+`trucks`, `suppliers`, `assignments`, `sync_state`. Tiga index tambahan (batch 2.5):
+`idx_inspections_assignment` (`inspections(assignment_id, timestamp)`, dipakai query per
+penugasan), `idx_weighings_assignment` (`weighings(assignment_id)`), dan
+`idx_auto_releases_waktu` (`auto_releases(released_at)`, dipakai pencarian pelepasan
+terbaru). Dibangun sekali di boot pertama konsol sesudah upgrade, lewat
+`CREATE INDEX IF NOT EXISTS`: sekitar 0,65 detik per bulan data (terukur di `inspections`
+558 ribu baris, cache hangat, MacBook), sekitar 2,3 detik untuk tiga bulan. Boot berikutnya
+cuma sekitar 0,001 detik karena index-nya sudah ada. Query panas yang sebelumnya `SCAN
+inspections` turun dari sekitar 61 ms jadi sekitar 0,2 ms.
 
 **Master data & Sumber TBS (§3.5b).** `MasterDataWorker` menarik dari **AutoERP**, bukan lagi
 dari cloud api: `GET {ERP_URL}/api/resource/Supplier` lalu `.../Truck`, REST bawaan Frappe
@@ -608,15 +633,21 @@ karena di situ mati lampu dan internet putusnya.
 Kuncinya `(kind, key)` dengan `key` = kunci alami yang dicocokkan AutoERP (plat ternormalisasi
 untuk truk), jadi satu truk yang diketik dua kali tetap **satu pesan berisi keadaan terbaru**,
 bukan dua. Pesan yang diganti **saat masih di jalan** sengaja tidak ditandai terkirim
-(`mark_sent` mencocokkan payload-nya), supaya keadaan yang lebih baru tidak hilang.
+(`mark_sent` dan `mark_error` mencocokkan kolom `version`, yang naik di setiap antre),
+supaya keadaan yang lebih baru tidak hilang. Yang dicocokkan generasinya, bukan isinya:
+antrean ulang halaman R2 isinya selalu sama (`{"assignment_id": X}`) tapi tetap berarti
+"bangun lagi". Kolom itu ditambahkan di tempat saat konsol pertama jalan; baris lama mulai
+dari 0 dan tetap terkirim.
 
-`integrations/erp/client.py` membedakan dua hal, dan pemanggilnya bertindak beda:
+`integrations/erp/client.py` membedakan empat hal (batch 2.7), dan pemanggilnya bertindak beda:
 
 | Balasan | Artinya | Yang dilakukan worker |
 |---|---|---|
-| 2xx | mendarat | handler mencatat jawabannya (mis. `erp_name` truk), baris selesai |
-| **4xx** (`ErpRejected`) | AutoERP **menolak isinya**: diulang pun sama | disimpan **dengan alasan dari Frappe**, batch lanjut ke pesan berikutnya |
-| **jaringan / 5xx** (`ErpUnavailable`) | AutoERP **tidak terjangkau** | batch **berhenti**: sisanya cuma akan membakar backoff-nya sendiri |
+| 2xx (objek JSON Frappe) | mendarat | handler mencatat jawabannya (mis. `erp_name` truk), baris selesai |
+| **4xx** (`ErpRejected`) | AutoERP **menolak isinya**: diulang pun sama | dicatat **dengan alasan dari Frappe**, backoff sendiri, batch lanjut ke pesan berikutnya |
+| **5xx beramplop Frappe** (`ErpServerError`) | AutoERP **hidup**, tapi handler request ini yang crash | dicatat **dengan alasan dari Frappe**, backoff sendiri, batch lanjut, sama seperti penolakan |
+| **jaringan / gateway / 5xx bukan-Frappe / 2xx bukan objek JSON** (`ErpUnavailable`) | AutoERP **tidak terjangkau**: tidak ada jawaban yang bisa dipakai | dicatat di baris kepala dengan backoff, batch **tertahan**, Last Sync membaca `terputus` |
+| galat lain per pesan (exception tak terduga) | satu pesan bermasalah, bukan seluruh batch | dicatat + backoff, batch lanjut; `drain_once` sendiri tidak pernah melempar |
 
 Backoff 30 detik → 1 jam (kontrak §5). Handler yang gagal mencatat di sisi kita juga menahan
 pesannya: AutoERP sudah menerima, tapi kirim ulang aman (semua handler upsert) sedangkan
@@ -646,6 +677,36 @@ kunjungan truk itu di jam yang sama karena itu mendarat di satu tiket, perilaku 
 konsol. Dan tiket yang sudah punya berat bersih lalu menerima grading akan **difinalisasi**;
 untuk buah Inti itu butuh Gudang Penerimaan TBS + Akun Pendapatan Transfer di Pengaturan PKS,
 yang di situs demo belum diisi (AutoERP membalas 417 dan antrean menahannya dengan alasannya).
+
+**Janjang susulan (batch 2.3).** Kamera line boleh mengirim janjang yang tiba **sesudah**
+truknya dilepas: line offline sebentar, atau truk sudah ditimbang keluar sementara janjang
+terakhir masih diproses. `ConsoleService.ingest` mendeteksinya lewat `add_inspection`: cuma
+kalau baris itu **insert sungguhan** (bukan kiriman ulang `event_id` yang sudah ada), ia mencari
+tiket timbangan milik penugasan itu (`weighing_for_assignment`) dan memanggil `ErpQueue.visit`
+lagi, membangun ulang pesan kunjungan dari store seperti biasa.
+
+Yang membedakan hasilnya cuma **kapan** AutoERP menerimanya, dan itu ditentukan §4.C step 4
+di AutoERP sendiri (`upsert_visit`), bukan konsol:
+
+- **Sebelum baris antrean lama berangkat**: `enqueue` mengganti baris `(kind, key)` yang sama
+  (kunci alami = id kunjungan), jadi AutoERP menerima **satu kiriman** berisi seluruh janjang,
+  tanpa ada yang ditandai. Ini kasus umum: sampai 8 janjang bisa menumpuk di antrean simpan
+  line saat truk ditimbang keluar.
+- **Sesudah tiket difinalisasi**: AutoERP menjawab `revised: true` + catatan, dan **tidak
+  menulis ulang** bruto/neto/grading yang sudah dibukukan (`_after_finalisation`). Konsol
+  menandainya untuk operator dan support: tab **Timbangan** menampilkan tag **Cek AutoERP** di
+  baris truk itu (dibaca dari `erp_perlu_dicek` pada `GET /api/console/weighings`), dan tab
+  **Log** mencatat satu WARNING `[TIKET_FINAL_BERBEDA]` (tiket yang sudah dibatalkan →
+  `[TIKET_DIBATALKAN]`) menyebut apa yang berbeda dalam bahasa Indonesia dan rekap pabrik
+  sekarang (`domain/jawaban_kunjungan.py`).
+
+Tag Timbangan hidup selama **hari kerja itu saja** (dihitung ulang tiap query, tidak pernah
+dibersihkan tindakan backoffice di AutoERP); jejak yang tahan lama adalah WARNING di tab Log
+(retensi 180 hari, sama dengan `event_log` lain). WARNING dicatat **sekali per catatan AutoERP
+yang berbeda**, bukan sekali per kirim ulang harian: kirim ulang harian yang menjawab catatan
+sama persis lagi cuma mencatat INFO (`visit unchanged`). Harga yang disadari: janjang susulan
+kedua yang sungguhan pada tiket yang sudah ditandai tidak menambah WARNING baru, tapi tag
+Timbangan-nya tetap ada.
 
 **Truk baru naik (§4.B).** Truk yang diketik operator dikirim ke
 `erpnext.palm_mill.api.upsert_truck` dengan `plate_number` + `autograde_id`; AutoERP membuatnya

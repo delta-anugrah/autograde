@@ -8,7 +8,11 @@ import pytest
 
 AKAR = Path(__file__).resolve().parents[2]
 BATAS = 1000
-DIJAGA = ("src/palmgrade/routes/console.py", "src/palmgrade/services/console_service.py")
+DIJAGA = (
+    "src/palmgrade/routes/console.py",
+    "src/palmgrade/services/console_service.py",
+    "src/palmgrade/repositories/console_repository.py",
+)
 
 
 @pytest.mark.parametrize("relatif", DIJAGA)

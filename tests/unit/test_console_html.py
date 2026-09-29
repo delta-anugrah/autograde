@@ -943,20 +943,23 @@ def test_toast_tidak_pakai_alert_atau_confirm_atau_dialog():
 
 def test_toast_membersihkan_diri_sendiri_bukan_lewat_refresh():
     fn = _fungsi("toast")
-    assert "setTimeout" in fn, "toast sukses/peringatan harus hilang sendiri, bukan menunggu refresh()"
+    assert "hitungMundurToast(" in fn, "toast harus hilang sendiri, bukan menunggu refresh()"
+    assert "setTimeout" in _fungsi("hitungMundurToast")
     # refresh() (poll 2 s) must never be the thing that clears a toast -
     # that's the exact bug (`#err`) this feature replaces.
     refresh_fn = _fungsi("refresh")
     assert '$("toasts")' not in refresh_fn
 
 
-def test_toast_gagal_tidak_hilang_sendiri():
-    """A failure the operator must act on should outlast a routine success -
-    it stays until dismissed, not on a timer that might run out while they
-    are still reading the translated sentence."""
+def test_toast_gagal_bertahan_paling_lama():
+    """A failure the operator must act on outlasts a routine success. Since
+    2026-09-29 it no longer waits forever (user decision): it gets the longest
+    time any toast gets, 10 s, paused while the pointer rests on it
+    (behaviour: `test_console_html_toast.py`)."""
     assert "TOAST_DURASI" in HTML
     blok = HTML.split("const TOAST_DURASI", 1)[1].split("\n", 1)[0]
-    assert "gagal: 0" in blok
+    assert "gagal: TOAST_PALING_LAMA_MS" in blok
+    assert "const TOAST_PALING_LAMA_MS = 10000;" in HTML
 
 
 def test_toast_dibatasi_jumlahnya_di_layar():

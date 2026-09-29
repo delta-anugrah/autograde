@@ -56,3 +56,12 @@ def test_kamus_dua_bahasa(kunci):
 
 def test_css_kotak_timbangan_ada():
     assert "#tally .timbang {" in HTML
+
+
+def test_label_strip_hari_ini_data_timbangan():
+    """Permintaan operator 2026-09-29: "Neto Timbangan" jadi "Data Timbangan".
+    Kepala tabel "Neto (kg)" tidak ikut berubah."""
+    assert 'labelNetoTimbangan:"Data timbangan"' in HTML
+    assert 'labelNetoTimbangan:"Weighing data"' in HTML
+    assert '<span class="lb" data-t="labelNetoTimbangan">Data timbangan</span>' in HTML
+    assert "Neto timbangan" not in HTML and "Weighed net" not in HTML

@@ -87,6 +87,15 @@ def test_env_example_is_safe_to_expose_to_the_internet():
     assert env["LICENSE_ENABLED"] == "false"
 
 
+def test_erp_company_is_named_not_left_to_the_site_default():
+    """demo.smagri.id carries three companies and defaults to the wrong one.
+
+    Empty means AutoERP books against its default, whose cost center then belongs to another
+    company: every visit is rejected with HTTP 417, and only the outbox screen shows it.
+    """
+    assert _env_example()["ERP_COMPANY"] == "PT Sawit Rambang Lestari"
+
+
 def test_kit_never_names_the_production_site():
     for path in KIT.iterdir():
         assert "app.smagri.id" not in path.read_text(encoding="utf-8"), path.name

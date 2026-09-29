@@ -55,7 +55,7 @@ ditanya.
   ("AutoERP terputus: …" / "Cloud Photo line-N terputus: …"); data menunggu di antrean,
   tidak hilang. Line mati atau versi lama tidak membuat Cloud Photo kuning (aturan 27).
 - **Tab support** (Log, Status, Akun, Line, Setelan; digabung 2026-09-28: **Status** =
-  Versi + Diagnostik + Antrean ERP, **Line** = Sumber Kamera + Model Deteksi + Uji PLC +
+  Versi + Diagnostik + Antrean line + Antrean ERP, **Line** = Sumber Kamera + Model Deteksi + Uji PLC +
   Rekam Video sebagai empat tombol pilihan) hanya untuk peran `support`; 403 untuk operator,
   401 kalau belum masuk. **Akun** = daftar akun PC ini (asal Lokal/AutoERP, aktif/mati/
   terkunci) + tombol untuk akun lokal (akun AutoERP tanpa tombol; akun sendiri cuma ganti

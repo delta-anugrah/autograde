@@ -115,7 +115,7 @@ class BahayaService:
         hash_support: str = "",
         hari_kerja: Callable[[], str],
         tarik_master: Callable[[], Awaitable[Any]] | None = None,
-        tunggu_mati_s: float = 5.0,
+        tunggu_mati_s: float = 12.0,
         jeda_cek_s: float = 0.25,
     ) -> None:
         self._store = store

@@ -324,3 +324,51 @@ def test_sandi_tertutup_lagi_saat_form_ditutup_dan_saat_ganti_bahasa():
     """Sandi yang sedang terlihat tidak boleh tertinggal terlihat untuk isian berikutnya."""
     assert "tutupLihatSandi(" in _fungsi("tutupFormAkun")
     assert "tutupLihatSandi(" in _fungsi("terapkanBahasa")
+
+
+# ── permintaan operator 2026-09-29: semua tombol aksi tab Akun selebar sama ──
+
+_KELOMPOK_TOMBOL_AKUN = (".akun-alat", ".akun-form-tombol", ".akun-tombol", ".akun-panel")
+
+
+def _aturan_lebar_tombol_akun() -> str:
+    cocok = re.search(r"#sec-akun :is\(([^)]*)\) button:not\(\.sandi-lihat\)\s*\{([^}]*)\}", HTML)
+    assert cocok, "aturan lebar tombol tab Akun tidak ada"
+    kelompok = tuple(k.strip() for k in cocok.group(1).split(","))
+    assert kelompok == _KELOMPOK_TOMBOL_AKUN
+    return cocok.group(2).replace(" ", "")
+
+
+def test_semua_tombol_aksi_akun_satu_lebar_tetap_tanpa_membungkus():
+    """Satu aturan CSS untuk tombol per baris, form Tambah akun, tombol Tambah akun,
+    dan panel konfirmasi: lebarnya dipatok (rem, bukan menurut label), dan label
+    terpanjang dua bahasa ("Jadikan operator", "Yes, switch off") tidak membungkus."""
+    aturan = _aturan_lebar_tombol_akun()
+    lebar = re.search(r"width:(var\(--lebar-tombol-akun\)|[\d.]+rem)", aturan)
+    assert lebar, aturan
+    assert "flex:00var(--lebar-tombol-akun)" in aturan  # spasi dibuang
+    assert "white-space:nowrap" in aturan
+    assert re.search(r"#sec-akun\s*\{[^}]*--lebar-tombol-akun:\s*[\d.]+rem", HTML)
+    # Tombol Lihat di kolom sandi bukan tombol aksi: tetap selebar labelnya.
+    assert ":not(.sandi-lihat)" in HTML
+
+
+def test_lebar_lama_per_kelompok_dicabut():
+    """Dulu empat lebar berbeda (12rem, 10rem, 8rem, dan selebar label). Aturan
+    kelompok yang tersisa tidak boleh menyetel lebar sendiri lagi."""
+    assert ".akun-panel button {" not in HTML
+    for selektor in (".akun-alat button", ".akun-form-tombol button", ".akun-tombol button"):
+        for cocok in re.finditer(re.escape(selektor) + r"\s*\{([^}]*)\}", HTML):
+            isi = cocok.group(1).replace(" ", "")
+            assert "width" not in isi and "flex:" not in isi, (selektor, isi)
+
+
+def test_tombol_tab_akun_ada_di_kelompok_yang_dilebarkan():
+    """Tombol yang tidak berada di salah satu kelompok tidak ikut dilebarkan."""
+    assert '<div class="akun-alat">\n    <button type="button" id="akun-tambah-buka"' in HTML
+    form = HTML.split('<div class="akun-form-tombol">', 1)[1].split("</div>", 1)[0]
+    assert 'id="akun-tambah-simpan"' in form and 'id="akun-tambah-batal"' in form
+    assert '<span class="akun-tombol">' in _fungsi("aksiAkun")
+    panel = _fungsi("panelAkun")
+    assert panel.count('<div class="akun-panel') == 2
+    assert "data-akun-jalankan" in panel and "data-akun-batal" in panel

@@ -37,11 +37,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import shutil
 from pathlib import Path
 from typing import Any
 
+from ..domain.berkas_utuh import berkas_sementara
+from ..integrations.storage.tulis_atomik import tulis_atomik
 from .pindah_db_line import db_sudah_pindah, outbox_lama_tertinggal
 
 logger = logging.getLogger(__name__)
@@ -74,22 +75,9 @@ def tulis_penanda(artifacts_dir: Path, *, mode: str, diminta_oleh: str, now: flo
     konsol mengosongkan index-nya sesudah perintah ini, jadi penanda yang hilang
     saat listrik mati meninggalkan foto tanpa index.
     """
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
     jalur = artifacts_dir / PENANDA
-    sementara = artifacts_dir / f"{PENANDA}.tmp"
-    with open(sementara, "w") as f:
-        f.write(json.dumps({"mode": mode, "diminta_oleh": diminta_oleh, "diminta_pada": now}))
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(sementara, jalur)
-    try:
-        fd = os.open(artifacts_dir, os.O_RDONLY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-    except OSError:
-        pass  # sebagian sistem berkas menolak fsync folder; isinya sudah aman
+    isi = json.dumps({"mode": mode, "diminta_oleh": diminta_oleh, "diminta_pada": now})
+    tulis_atomik(jalur, isi.encode("utf-8"))
     return jalur
 
 
@@ -134,7 +122,9 @@ def hapus_kalau_diminta(
             )
     dihapus = gagal = 0
     for anak in _isi(artifacts_dir):
-        if anak.name.startswith(simpan) or anak.name in (PENANDA, f"{PENANDA}.tmp"):
+        if anak.name.startswith(simpan) or anak.name == PENANDA or (
+            berkas_sementara(anak.name) and PENANDA in anak.name
+        ):
             continue
         ok = _hapus(anak)
         dihapus += 1 if ok else 0

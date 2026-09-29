@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import queue
+import threading
 import time
 
 from ..integrations.camera.base import CameraSource
@@ -29,6 +30,13 @@ class FrameCaptureWorker:
         self._fps_counter: int = 0
         self._fps_timer: float = 0.0
         self._exhausted_logged: bool = False
+        # Dipasang langkah tutup line (batch 2.2): loop berhenti dan kamera tidak
+        # disambung ulang, supaya kamera yang baru dilepas tidak dibuka lagi.
+        self._berhenti = threading.Event()
+
+    def berhenti(self) -> None:
+        """Akhiri `run_loop` sesudah putaran yang sedang jalan; jangan sambung ulang kamera."""
+        self._berhenti.set()
 
     @property
     def frame_interval(self) -> float:
@@ -75,6 +83,8 @@ class FrameCaptureWorker:
         )
 
     def _try_reconnect(self) -> None:
+        if self._berhenti.is_set():
+            return
         logger.warning("Camera: %d consecutive failures — attempting reconnect", self._consecutive_failures)
         try:
             self.camera.disconnect()
@@ -82,6 +92,8 @@ class FrameCaptureWorker:
             pass
         time.sleep(self._reconnect_backoff)
         self._reconnect_backoff = min(self._reconnect_backoff * 2, _RECONNECT_BACKOFF_MAX)
+        if self._berhenti.is_set():
+            return
         try:
             self.camera.connect(index=self._device_index, serial=self._serial, feature_file=self._feature_file)
             self._consecutive_failures = 0
@@ -122,6 +134,9 @@ class FrameCaptureWorker:
         self._consecutive_failures = 0
         self._reconnect_backoff = _RECONNECT_BACKOFF_BASE
         self.state.latest_raw_frame = frame
+        # Penjaga AI mati (batch 2.1): gambar MASUK. Tanpa cap ini penilai tidak
+        # bisa membedakan "AI mati" dari "kamera tidak mengirim apa pun".
+        self.state.catat_frame_masuk()
 
         # Rekaman developer, kalau menyala. Frame di sini masih CLEAN — bbox
         # digambar jauh di hilir — jadi rekamannya otomatis polos tanpa kerja
@@ -174,7 +189,7 @@ class FrameCaptureWorker:
 
     def run_loop(self) -> None:
         self.adopt_camera_frame_rate()
-        while True:
+        while not self._berhenti.is_set():
             try:
                 self.run_once()
             except Exception:

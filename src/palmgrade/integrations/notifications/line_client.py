@@ -45,6 +45,16 @@ class LinePlcTolak(RuntimeError):
         self.detail = detail
 
 
+def _ai_mati(res: httpx.Response) -> bool:
+    """Badan `/health` line membawa `ai.mati` (routes/health_ringan.py)."""
+    try:
+        isi = res.json()
+    except ValueError:
+        return False
+    ai = isi.get("ai") if isinstance(isi, dict) else None
+    return isinstance(ai, dict) and bool(ai.get("mati"))
+
+
 class LineClient:
     def __init__(
         self, settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None
@@ -204,6 +214,48 @@ class LineClient:
         """
         return await self._get_json(line, "/health/detail", timeout_s=5.0)
 
+    async def antrean_line(self, line: LineEndpoint) -> dict[str, Any]:
+        """Antrean janjang line itu ke konsol (`/internal/outbox`, batch 2.4), untuk tab Status.
+
+        Timeout sama dengan `health_detail`: layar support yang disegarkan tiap 5
+        detik, bukan strip status tiap detik. Kunci yang ditolak sampai sebagai
+        `LINE_MENOLAK` lewat `_get_json`.
+        """
+        return await self._get_json(line, "/internal/outbox", timeout_s=5.0)
+
+    async def kirim_ulang_antrean_line(self, line: LineEndpoint) -> int:
+        """Suruh line mengirim seluruh antreannya sekarang. Mengembalikan jumlahnya.
+
+        Aturannya sama dengan `_get_json`: cuma 401/403 (penjaga kunci line) yang
+        `LINE_MENOLAK`. Status galat lain datang dari line itu sendiri (disk penuh,
+        `outbox.db` rusak) dan jadi `LINE_TIDAK_MENJAWAB` membawa statusnya: layar
+        menyuruh menyamakan INTERNAL_SECRET untuk `LINE_MENOLAK`, dan untuk 500
+        itu tindakan yang salah. Jawaban yang bukan `{"requeued": <int>}` juga
+        `LINE_TIDAK_MENJAWAB`, bukan angka tebakan.
+        """
+        try:
+            jawab = await self._post_json(line, "/internal/outbox/requeue", {})
+        except LinePlcTolak as exc:
+            ditolak = exc.status_code in (401, 403)
+            raise LineUnavailable(
+                LINE_MENOLAK if ditolak else LINE_TIDAK_MENJAWAB,
+                f"{line.line_code} {'refused' if ditolak else 'answered'}: HTTP {exc.status_code} {exc.detail}",
+                line=line.name,
+                status=exc.status_code,
+            ) from exc
+        except ValueError as exc:  # badan 200 yang bukan JSON
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} answered non-JSON: {exc}", line=line.name
+            ) from exc
+        jumlah = jawab.get("requeued") if isinstance(jawab, dict) else None
+        if not isinstance(jumlah, int) or isinstance(jumlah, bool):
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB,
+                f"{line.line_code} answered an unexpected requeue body: {str(jawab)[:200]}",
+                line=line.name,
+            )
+        return jumlah
+
     # ── rekam video developer ───────────────────────────────────────────────
 
     async def rekam_mulai(
@@ -268,9 +320,15 @@ class LineClient:
         try:
             async with httpx.AsyncClient(timeout=0.5, transport=self._transport) as client:
                 res = await client.get(url)
-            return res.status_code == 200
         except httpx.HTTPError:
             return False
+        if res.status_code == 200:
+            return True
+        # Batch 2.1: `/health` menjawab 503 kalau AI line mati, tapi prosesnya
+        # masih hidup dan masih menjalankan urutan tutupnya. Dibaca "mati" di
+        # sini, Danger Zone berhenti menunggu dan mengosongkan konsol sebelum
+        # antrean simpan line itu habis dikirim.
+        return res.status_code == 503 and _ai_mati(res)
 
     async def _get_json(
         self, line: LineEndpoint, path: str, *, timeout_s: float
@@ -316,8 +374,13 @@ class LineClient:
         try:
             res.raise_for_status()
         except httpx.HTTPError as exc:
+            # `status` ikut: line versi lama yang belum punya rutenya menjawab 404,
+            # dan layar bisa menulis "line menjawab HTTP 404", bukan sekadar mati.
             raise LineUnavailable(
-                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+                LINE_TIDAK_MENJAWAB,
+                f"{line.line_code} did not answer: {exc}",
+                line=line.name,
+                status=res.status_code,
             ) from exc
         return res.json()
 

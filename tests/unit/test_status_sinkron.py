@@ -150,6 +150,20 @@ def test_autoerp_tak_terjangkau_saat_mengirim_berarti_putus(tmp_path, store):
     assert s.ringkas("erp", antre=0)["keadaan"] == TERPUTUS
 
 
+def test_halaman_500_bukan_frappe_saat_mengirim_berarti_putus(tmp_path, store):
+    """nginx atau proxy lain menjawab untuk Frappe yang mati: itu bukan AutoERP
+    menolak isi pesan, itu AutoERP tidak terjangkau sama sekali."""
+    s = _status(store)
+    worker, outbox = _outbox_worker(
+        tmp_path, lambda r: httpx.Response(500, text="<html><center>nginx</center></html>"), s
+    )
+    outbox.enqueue("truck", "BE1AA", {"plate_number": "BE 1 AA"})
+
+    asyncio.run(worker.drain_once())
+
+    assert s.ringkas("erp", antre=0)["keadaan"] == TERPUTUS
+
+
 def test_kiriman_ditolak_autoerp_tetap_tersambung(tmp_path, store):
     """AutoERP menjawab: sambungannya hidup. Pesan yang ditolak ada di tab
     Antrean ERP dan ikut dihitung di angka antrean, bukan membuat status merah."""
@@ -299,11 +313,17 @@ def test_tarikan_ditolak_tetap_merah_walau_ping_berhasil(store, caplog):
 
 
 def test_satu_pesan_yang_membuat_autoerp_500_tidak_memerahkan_sambungan(tmp_path, store):
-    """500 untuk satu kiriman biasanya isi pesan itu yang memicu galat di AutoERP; pesannya
-    menunggu di tab Antrean ERP. Server yang benar-benar rusak ketahuan dari ping."""
+    """500 dengan amplop galat Frappe berarti Frappe MENJAWAB: satu pesan yang memicu
+    galat di AutoERP, pesannya menunggu di tab Antrean ERP. Server yang benar-benar
+    rusak (500 tanpa amplop Frappe, mis. halaman nginx) ketahuan lewat jalur lain
+    (`test_a_500_page_that_is_not_frappes_reads_terputus_on_last_sync`)."""
     s = _status(store)
     asyncio.run(CekSinkronWorker(s, erp=_ErpPalsu(), r2=None).run_once())
-    kirim, outbox = _outbox_worker(tmp_path, lambda r: httpx.Response(500, text="Traceback"), s)
+    kirim, outbox = _outbox_worker(
+        tmp_path,
+        lambda r: httpx.Response(500, json={"exc_type": "KeyError", "exception": "KeyError: 'counts'"}),
+        s,
+    )
 
     _kirim(kirim, outbox)
 

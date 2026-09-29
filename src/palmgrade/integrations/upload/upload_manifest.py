@@ -4,6 +4,8 @@ State machine per item:
     pending ──PUT R2 ok──▶ image_uploaded ──POST API ok──▶ done ──retensi──▶ dihapus
        │ (item tanpa gambar: langsung POST → done)
        └─ input cacat ──▶ poisoned (di-skip, file TIDAK pernah dihapus)
+                              │ bukti yang dulu tidak utuh kini utuh (batch 2.6)
+                              └──▶ pending lagi (`revive`)
 
 Beda kontrak dgn outbox lama: TANPA retry cap & TANPA TTL — item nunggu di
 disk selamanya sampai terkirim (syarat "tahan outage berapa pun").
@@ -97,6 +99,44 @@ class UploadManifest:
             self._db.execute(
                 "UPDATE upload_items SET status='poisoned', last_error=? WHERE id=?",
                 (error[:500], item_id),
+            )
+
+    def get_recoverable_poisoned(self, photo_error_prefix: str) -> list[dict[str, Any]]:
+        """Item `poisoned` yang mungkin pulih: tanpa gambar, atau diracun dengan awalan foto.
+
+        Disaring di SQL supaya racun lain (mis. ditolak API) tidak pernah dibaca
+        ulang tiap batch. Awalan dicocokkan apa adanya lewat `substr`, bukan
+        LIKE, jadi `_` dan `%` di dalamnya bukan wildcard.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT id, item_key, image_path, last_error FROM upload_items "
+                "WHERE status='poisoned' AND (image_path IS NULL "
+                "OR substr(last_error, 1, length(?)) = ?) ORDER BY id",
+                (photo_error_prefix, photo_error_prefix),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def set_image(self, item_id: int, image_path: str, r2_key: str) -> None:
+        """Isi rujukan gambar baris `pending` yang dibuat tanpa gambar. Status lain tidak disentuh."""
+        with self._lock, self._db:
+            self._db.execute(
+                "UPDATE upload_items SET image_path=?, r2_key=? WHERE id=? AND status='pending'",
+                (image_path, r2_key, item_id),
+            )
+
+    def revive(self, item_id: int, image_path: str | None, r2_key: str | None) -> None:
+        """`poisoned` → `pending` bersih, dengan rujukan gambar yang terbaca sekarang.
+
+        Hanya menyentuh baris `poisoned`: item yang sudah jalan lagi (atau `done`)
+        tidak boleh mundur ke awal.
+        """
+        with self._lock, self._db:
+            self._db.execute(
+                "UPDATE upload_items SET status='pending', image_path=?, r2_key=?, "
+                "retry_count=0, next_retry_at=0, last_error=NULL "
+                "WHERE id=? AND status='poisoned'",
+                (image_path, r2_key, item_id),
             )
 
     def requeue(self, item_id: int, error: str) -> None:

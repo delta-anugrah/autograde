@@ -147,8 +147,8 @@ def test_timer_ikut_tab_dan_pilihan_line():
         "const jalan = []; let n = 0;\n"
         "globalThis.setInterval = (f, ms) => { jalan.push(f.name + ':' + ms); return ++n; };\n"
         "globalThis.clearInterval = () => {};\n"
-        "let diagnostikTimer, rekamTimer, plcTimer, rekapTimer; let subLine;\n"
-        "const MUAT_TAB = {}; const muatDiagnostik = () => {}, muatRekam = () => {},"
+        "let diagnostikTimer, antreanLineTimer, rekamTimer, plcTimer, rekapTimer; let subLine;\n"
+        "const MUAT_TAB = {}; const muatDiagnostik = () => {}, muatAntreanLine = () => {}, muatRekam = () => {},"
         " segarkanPlc = () => {}, segarkanRekap = () => {};\n"
         + _fungsi("bukaTabDev")
         + "\nconst hasil = {};\n"
@@ -158,7 +158,7 @@ def test_timer_ikut_tab_dan_pilihan_line():
         "console.log(JSON.stringify(hasil));"
     )
     assert _node(kode) == {
-        "status/null": ["muatDiagnostik:5000"],
+        "status/null": ["muatDiagnostik:5000", "muatAntreanLine:5000"],
         "line/plc": ["segarkanPlc:1000"],
         "line/rekam": ["muatRekam:3000"],
         "line/sumber-kamera": [],
@@ -234,3 +234,26 @@ def test_kamus_tab_baru_dua_bahasa():
         isi = _kamus(bahasa)
         for kunci in ("judulStatus", "judulLine", "riwayatHariIni"):
             assert f"{kunci}:" in isi, f"KAMUS.{bahasa} belum punya {kunci}"
+
+
+# ── permintaan operator 2026-09-29: empat pilihan Line selebar panel, dibagi empat ──
+
+
+def _aturan(selektor: str, css: str) -> str:
+    cocok = re.search(re.escape(selektor) + r"\s*\{([^}]*)\}", css)
+    assert cocok, f"aturan {selektor!r} tidak ada"
+    return cocok.group(1).replace(" ", "")
+
+
+def test_pilihan_line_empat_kolom_sama_lebar_selebar_panel():
+    css = HTML.split("<style>", 1)[1].split("</style>", 1)[0]
+    grup = _aturan("#line-sub", css)
+    assert "display:grid" in grup
+    assert "grid-template-columns:repeat(4,minmax(0,1fr))" in grup
+    assert "flex:11100%" in grup  # `flex:1 1 100%` di `.line-sub-bar` yang flex
+    assert "width:100%" in _aturan("#line-sub button", css)
+    sempit = re.search(r"@media \(max-width:600px\)\s*\{\s*#line-sub\s*\{([^}]*)\}", css)
+    assert sempit, "2 x 2 di layar sempit tidak ada"
+    assert "grid-template-columns:repeat(2,minmax(0,1fr))" in sempit.group(1).replace(" ", "")
+    tombol = HTML.split('<div class="log-level" id="line-sub" role="group">', 1)[1].split("</div>", 1)[0]
+    assert tombol.count("data-sub=") == 4

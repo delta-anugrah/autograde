@@ -3,6 +3,8 @@ from __future__ import annotations
 import pytest
 
 from palmgrade.domain.berkas_captures import boleh_disajikan
+from palmgrade.domain.berkas_utuh import nama_sementara
+from palmgrade.services.hapus_data_line import PENANDA
 
 
 @pytest.mark.parametrize("jalur", [
@@ -16,7 +18,9 @@ def test_foto_dan_sidecar_boleh(jalur):
 
 @pytest.mark.parametrize("jalur", [
     "outbox.db", "license.db", "OUTBOX.DB", "license.db-wal", "license.db-shm",
-    "outbox.db-journal", "upload_manifest.sqlite3", ".hapus-data", ".hapus-data.tmp",
+    # Nama sementara penanda persis seperti yang ditulis `tulis_atomik` (parkiran
+    # Task 8: literal lama `.hapus-data.tmp` bukan nama yang pernah ditulis).
+    "outbox.db-journal", "upload_manifest.sqlite3", ".hapus-data", nama_sementara(PENANDA, "a1b2c3d4"),
     "results/.tersembunyi/x.webp", "results/../outbox.db", "", ".",
     # Huruf s panjang (U+017F): disk Mac yang tidak membedakan besar kecil
     # membuka `license.db-shm` untuk nama ini, dan `.lower()` tidak melipatnya.
