@@ -20,6 +20,8 @@ NODE = shutil.which("node")
 def fungsi(nama: str) -> str:
     """Satu fungsi tingkat atas, sampai baris pertama yang menutupnya."""
     awal = HTML.index(f"function {nama}(")
+    if HTML[awal - 6 : awal] == "async ":
+        awal -= 6
     return HTML[awal : HTML.index("\n}", awal) + 2]
 
 
@@ -34,8 +36,27 @@ def kamus_asli() -> str:
     return HTML[awal : HTML.index("\n};", awal) + 3]
 
 
-def jalankan(fungsi_dipakai: list[str], ekspresi: str, *, bahasa: str = "id", tz: str = "Asia/Jakarta"):
-    """Evaluasi `ekspresi` sesudah KAMUS asli + fungsi yang disebut; hasil JSON."""
+def konstanta(*nama: str) -> str:
+    """Baris `const NAMA = ...;` apa adanya dari layar (konstanta satu baris)."""
+    baris = []
+    for n in nama:
+        awal = HTML.index(f"\nconst {n} = ") + 1
+        baris.append(HTML[awal : HTML.index("\n", awal)])
+    return "\n".join(baris)
+
+
+def jalankan(
+    fungsi_dipakai: list[str],
+    ekspresi: str,
+    *,
+    bahasa: str = "id",
+    tz: str = "Asia/Jakarta",
+    tambahan: str = "",
+):
+    """Evaluasi `ekspresi` sesudah KAMUS asli + fungsi yang disebut; hasil JSON.
+
+    `tambahan` (stub, konstanta) disisipkan sebelum fungsi-fungsinya.
+    """
     skrip = "\n".join(
         [
             kamus_asli(),
@@ -44,6 +65,7 @@ def jalankan(fungsi_dipakai: list[str], ekspresi: str, *, bahasa: str = "id", tz
             'const KOSONG = "-";',
             "const t = (k) => KAMUS[bahasa][k] ?? k;",
             'const lokal = () => (bahasa === "id" ? "id-ID" : "en-GB");',
+            tambahan,
             *(fungsi(n) for n in fungsi_dipakai),
             f"console.log(JSON.stringify({ekspresi}));",
         ]

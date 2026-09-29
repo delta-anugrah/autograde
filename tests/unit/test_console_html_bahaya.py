@@ -341,9 +341,10 @@ def test_hasil_yang_perlu_dibaca():
 
 
 @butuh_node
-def test_hasil_yang_perlu_dibaca_tidak_hilang_sendiri():
-    """Toast 5 detik lewat saat support sedang melihat ke line — line yang harus
-    diulang tetap di layar sampai ditutup."""
+def test_hasil_yang_perlu_dibaca_bertahan_paling_lama():
+    """Toast 5 detik lewat saat support sedang melihat ke line: line yang harus
+    diulang memakai `durasi` 0, yang sejak 2026-09-29 berarti paling lama
+    (10 detik, ditahan selama kursor di atasnya), bukan sampai ditutup."""
     stub = """
 const dipanggil = [];
 const toast = (jenis, teks, durasi) => dipanggil.push([jenis, durasi]);

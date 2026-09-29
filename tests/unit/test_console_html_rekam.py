@@ -200,11 +200,11 @@ def test_toast_sukses_bertahan_lima_detik():
     assert "sukses: 5000" in blok, blok
 
 
-def test_toast_gagal_tetap_menunggu_ditutup():
-    """Kontrol negatif: menaikkan durasi sukses tidak boleh ikut memberi
-    tenggat pada kegagalan, yang harus bertahan sampai operator menutupnya."""
+def test_toast_gagal_bertahan_lebih_lama_dari_sukses():
+    """Kontrol negatif: durasi sukses tidak boleh ikut dipakai kegagalan, yang
+    bertahan paling lama (10 detik sejak 2026-09-29, bukan lagi sampai ditutup)."""
     blok = HTML.split("const TOAST_DURASI", 1)[1].split("\n", 1)[0]
-    assert "gagal: 0" in blok, blok
+    assert "gagal: TOAST_PALING_LAMA_MS" in blok, blok
 
 
 # ── tabel selebar layar, tombol di kanan ────────────────────────────────────

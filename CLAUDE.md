@@ -1305,6 +1305,37 @@ memang khas satu mesin.
   ganti em dash dengan koma, jangan titik dua: `description: A: B` gagal di-parse dan
   skill-nya berhenti termuat tanpa galat. Test yang sama memeriksa frontmatter. Kata kerja
   mengikuti label tombol yang dilihat orang ("Tugaskan" truk, bukan "pasang").
+- **Toast konsol menutup sendiri, paling lama 10 detik** (keputusan user 2026-09-29, membalik
+  aturan lama "gagal menunggu ditutup"): `sukses`/`peringatan` 5 detik, `gagal` dan setiap
+  `toast(..., 0)` 10 detik (`durasiToast`, `TOAST_PALING_LAMA_MS`), dan kursor di atas toast
+  menahan hitungannya (`hitungMundurToast`), tapi umur toast dibatasi 30 detik sejak muncul
+  (`TOAST_UMUR_MAKS_MS`: kursor yang diparkir di pojok kiosk mendapat `mouseenter` buatan
+  browser tiap tata letak berubah). Toast yang tak pernah ditutup menumpuk di layar
+  yang dibiarkan menyala berhari-hari. Test: `tests/unit/test_console_html_toast.py`.
+- **Line yang direstart dari konsol diberi tanda di kotak kameranya** (2026-09-29): Sumber
+  Kamera, Model Deteksi, dan Danger Zone (restart, hapus data) menandai line yang dijawab
+  SERVER sudah restart/menerima (`lineDirestart`), bukan yang diklik. Spinner + detik, lewat
+  batas tanda pesan `RESTART_LAMA`: 60 detik, **10 menit untuk hapus data** (`RESTART_HAPUS`:
+  line menghapus fotonya saat boot sebelum `/health` menjawab). Tanda hilang oleh gambar
+  (`naturalWidth > 0`, `feedMemuat`) dari stream yang diminta SESUDAH proses lama pasti hilang
+  (probe `/health` DITOLAK, atau 12 detik sesudah ditandai; `restartSelesai`). Lewat tenggat
+  sengaja tidak dihitung: proses lama yang menguras antrean simpan bisa lambat lalu menjawab
+  lagi. Frame terakhir proses lama yang ditahan browser tanpa event apa pun bukan bukti. Tiap
+  permintaan stream dicap waktunya (`mintaUlangFeed`, dan `capFeedBaru` sesudah kartu
+  digambar ulang: ganti bahasa, daftar truk, login); tanpa cap itu tanda menempel selamanya di
+  atas video sehat. Stream diminta ulang (`?t=`) begitu line menjawab, tiap 3 detik sampai
+  batas tanda, sesudahnya `cekKamera` (5 detik) yang meneruskan, jadi video kembali tanpa
+  muat ulang. Test: `test_console_html_restart.py` + e2e `test_restart_indikator_lane.py`.
+  ⚠️ **URL feed di `kartuLine` WAJIB membawa `?t=` unik per render** (`urlFeedBaru`, jam yang
+  sama dengan cap `capFeedBaru`). URL telanjang yang sudah pernah dimuat dilayani browser dari
+  daftar gambar di memori (Chrome 154, Firefox 155, diuji dengan server MJPEG sungguhan): nol
+  permintaan ke line, `load` dalam 2 ms dengan frame LAMA. Akibatnya stream yang sudah putus
+  tetap beku sesudah ganti bahasa/daftar truk/login (keluhan awal "harus refresh browser"),
+  dan cap render menghapus tanda walau line masih mati.
+  ⚠️ Firefox menembakkan `load` untuk TIAP bagian MJPEG, termasuk keep-alive kosong
+  (`naturalWidth` 0); Chrome sekali saja, dan keep-alive membuatnya `error`.
+  ⚠️ Tandanya hidup di **halaman yang menekan** saja, konsol tidak mencatat restart di
+  `/api/console/state`.
 - **Label janjang tidak memuat angka confidence** (permintaan operator 2026-09-18): dari beberapa
   meter "54%" terbaca seperti "54% matang", padahal itu keyakinan model dan sudah lolos
   `CONF_THRESHOLD`. Nilainya tetap ditulis ke sidecar dan dikirim ke API.

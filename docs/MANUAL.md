@@ -2,8 +2,8 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "1.7"
-tanggal: 28 September 2026
+versi: "1.8"
+tanggal: 29 September 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
 sorotan: Isi = Fitur · Setup · Operasional · Troubleshooting; Pembaca = Pemegang baru AutoGrade; Bentuk = Ringkas, tabel, perintah siap tempel
@@ -141,6 +141,19 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 - Kartu berbingkai **merah** dengan pita **AI berhenti memproses** (kode `AI_MATI`, jam mulai,
   tindakan) = kamera jalan tapi tidak ada yang digrading: tahan umpan buah ke line itu dan
   panggil teknisi. Pita hilang sendiri begitu line memproses lagi.
+- Kotak kamera bertuliskan **Line N sedang dinyalakan ulang** dengan spinner dan hitungan detik
+  = line itu sedang restart karena support menyimpan Sumber Kamera atau Model Deteksi, atau
+  menekan Restart / Hapus data di Danger Zone. Hilang sendiri begitu gambar kamera muncul lagi,
+  tanpa memuat ulang halaman. Lewat 60 detik berganti jadi kotak merah **Line N belum kembali**
+  (kode `RESTART_LAMA`, jam restart diminta): cek tab Log dan terminal line itu. Hapus data
+  menulis **Line N sedang menghapus data lalu dinyalakan ulang** dan menunggu sampai 10 menit
+  sebelum kotak merah, karena line menghapus fotonya dulu sebelum menyala. Tanda ini tampil di
+  layar tempat tombolnya ditekan (biasanya PC pabrik lewat AnyDesk); layar lain cuma melihat
+  kartu OFFLINE lalu ONLINE lagi.
+- **Notifikasi di pojok kanan bawah** menutup sendiri: hijau dan kuning 5 detik, merah dan hasil
+  Danger Zone yang perlu dibaca 10 detik. Selama kursor di atasnya hitungannya berhenti, jadi
+  kalimat panjang bisa dibaca sampai habis, tapi tidak ada yang bertahan lebih dari 30 detik;
+  tombol × menutupnya kapan saja.
 - **Reject manual tanpa mouse**: tahan `Spasi` lalu tekan `1` / `2` / `3` sesuai line.
 - **Piston manual** per line (Buka / Tutup) kalau PLC aktif. Ada konfirmasi karena ini
   menggerakkan besi sungguhan.
@@ -242,7 +255,7 @@ Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riw
 | **Status**, bagian Antrean line | janjang yang belum sampai dari tiap line ke konsol: jumlah, umur yang tertua, keadaan (dengan sebab, sejak kapan, dan harus ngapain), galat terakhir; tombol **Kirim Ulang** per line. Antrean ini tidak pernah menyerah: konsol mati berjam-jam pun janjangnya menunggu dan terkirim sendiri begitu konsol hidup lagi |
 | **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang**. Plus antrean manifest R2 |
 | **Akun** | semua akun yang bisa masuk konsol di PC ini: nama, email, role, asal (**Lokal** / **AutoERP**), status (Aktif / Mati / Terkunci), sedang masuk atau tidak. **Tambah akun** membuat akun **Lokal** baru (nama, email, role, sandi minimal 8 karakter); akun ini cuma ada di PC ini dan **tidak masuk ke AutoERP**. Tiap akun Lokal punya tombol **Ganti sandi** (semua sesinya langsung berakhir), **Matikan / Aktifkan**, dan **Jadikan support / operator**; di baris akunmu sendiri cuma Ganti sandi. Akun AutoERP tidak punya tombol: diurus di AutoERP. **Sandi tidak bisa dilihat**: yang disimpan cuma hash-nya. Lupa sandi: akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ±5 menit), akun Lokal dengan Ganti sandi. Tiap perubahan tercatat di tab Log beserta siapa yang mengubah |
-| **Line** → Sumber Kamera | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik) |
+| **Line** → Sumber Kamera | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik); kotak kamera line itu menulis "sedang dinyalakan ulang" sampai gambarnya muncul lagi (§3.2) |
 | **Line** → Model Deteksi | pilih model YOLO tiap line dari berkas di `models/release/`. Tiap model menampilkan **kelasnya** dan status engine TensorRT; model yang kelasnya bukan `Ripe/Unripe/JK/TP` tampil tapi tidak bisa dipilih. Kartu line menunjukkan model yang **sedang jalan** menurut line itu sendiri, beserta kelasnya, **merah** kalau bukan empat kelas itu, artinya line tidak menghitung janjang. Simpan membuka **modal konfirmasi** yang menyebut line yang akan restart (~10 detik) dan truk yang sedang diproses di situ. Bawaan PC = `MODEL_FILE` di `.env`. Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md` |
 | **Line** → Uji PLC | tombol uji coil per line (OK hijau, NG merah, Error kuning, alamat M di tiap tombol) + kartu peta alamat PLC di bawahnya. Mati saat line memproses truk; konfirmasi tombol Jalankan/Batal; heartbeat (M1009) sengaja tidak ada |
 | **Line** → Rekam Video | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi (lebar × tinggi) diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya**, mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **FPS mengikuti sumbernya, tidak diatur dari layar** (kolom FPS dan Bitrate dicabut 2026-09-25, dua-duanya tidak pernah sampai ke berkas): berkas video memakai laju aslinya, kamera Hikrobot memakai `CAMERA_FPS`. Itu yang membuat durasi rekaman sama dengan lama menekan Record. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari folder yang tertulis di kaki layar (`Disimpan di …`, di PC pabrik `/opt/palmgrade/autograde/videos/`). Sesudah menekan Stop, jalur lengkap berkasnya juga muncul sekali di notifikasi hijau. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
@@ -292,8 +305,9 @@ fotonya sudah berbulan-bulan. Siapa menekan apa tercatat di tab **Log**
 (`[Danger Zone] … oleh <email>`). Di terminal, padanannya `autograde reset-data-fresh`, tapi
 yang itu menghapus **semuanya**, termasuk setelan dan lisensi.
 
-**Membaca hasilnya:** toast hijau = semua beres. Toast kuning yang **tidak hilang sendiri** =
-ada line yang perlu perhatian, disebut satu per satu:
+**Membaca hasilnya:** toast hijau = semua beres. Toast kuning yang **bertahan 10 detik** (bukan
+5; berhenti menghitung selama kursor di atasnya) = ada line yang perlu perhatian, disebut satu
+per satu:
 
 | Di toast | Artinya | Yang dilakukan |
 |---|---|---|
@@ -788,6 +802,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 1.8 | 29 September 2026 | §3.2: kotak kamera line yang sedang restart (Sumber Kamera, Model Deteksi, Danger Zone) memberi spinner dan hitungan detik, videonya kembali tanpa memuat ulang halaman, dan lewat 60 detik (hapus data: 10 menit) berganti pesan `RESTART_LAMA`. Notifikasi pojok tidak ada lagi yang menunggu ditutup: paling lama 10 detik, berhenti selama kursor di atasnya, maksimal 30 detik (§3.2). |
 | 1.7 | 28 September 2026 | Restart dan hapus data dari konsol menutup line dengan rapi (coil PLC mati, antrean simpan habis); foto dan sidecar ditulis tahan listrik padam; foto 0 byte lama tidak diunggah. Tab Status punya bagian **Antrean line**: antrean janjang tiap line ke konsol tidak lagi menyerah sesudah 50 percobaan, dan bisa dilihat serta dikirim ulang dari layar; janjang yang ditolak konsol terbaca "DITOLAK konsol" dan dikeluarkan dengan tangan (§7.1). Kartu line jadi merah kalau AI berhenti memproses gambar (§7). §7: tanda **Cek AutoERP** di tab Timbangan untuk janjang susulan pada tiket AutoERP yang sudah final, dan baris antrean ERP `HTTP 500` beramplop Frappe. |
 | 1.6 | 28 September 2026 | ONBOARDING digabung ke sini (§9.1 folder, §9.2 langkah pertama) lalu dihapus; port konsol ditulis dua cara pasang (8100 image produksi, 8000 dari source); §5.11 Lampung per 28 September; aturan image GHCR dan alur rilis diperbarui. |
 | 1.5 | 28 September 2026 | Tab digabung dari 15 jadi 9: **Rekap** = Rekap + Riwayat (dibuka di Hari ini, Per truk), **Status** = Versi + Diagnostik + Antrean ERP, **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video. §3.4 dan §3.5 ditulis ulang. |
