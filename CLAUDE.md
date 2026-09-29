@@ -158,7 +158,7 @@ All via **`make`** (Docker only). From `autograde/`:
   compose di PC pabrik hidup di host dan harus ditambah tangan. Engine dibangun per model lewat
   service line yang memakainya (`run ... ripe-line-N scripts/build_engine.py`).
   Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md`.
-- **Verify**: `curl :8001/health`; `curl :8001/health/detail` (camera_connected, gpu_available, workers, current_assignment_id, `plc` = `null` kalau PLC mati); stream at `http://localhost:8001/api/video_feed`.
+- **Verify**: `curl :8001/health`; **503 selama `ai.mati`**, sejak batch 2.1. `curl :8001/health/detail` (camera_connected, gpu_available, workers, current_assignment_id, `plc` = `null` kalau PLC mati); stream at `http://localhost:8001/api/video_feed`.
   ⚠️ **`capture_save_dropped` di `/health/detail` harus NOL.** Di atas nol berarti antrean penulis
   pernah penuh dan janjang yang sudah digrading, sudah dapat pulse PLC, sudah masuk rekap,
   tidak tersimpan sama sekali: tidak ada gambar, tidak ada sidecar, jadi tidak ada yang bisa
@@ -184,11 +184,11 @@ membersihkan kunci di SEMUA `.env` sepanjang jalur itu (`tests/dotenv_mesin.py`)
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/health`, `/health/detail` | detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending`/`outbox_failed`, always `0`: outbox disabled) + `model_file`/`model_backend`/`model_kelas`/`model_kelas_cocok`/`gpu_sm` = model yang benar-benar dimuat |
+| GET | `/health`, `/health/detail` | `/health` ringan, **503 kalau AI mati** (`ai` = keadaan penjaga AI, `routes/health_ringan.py`, tanpa torch); detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending`/`outbox_failed`, always `0`: outbox disabled) + `model_file`/`model_backend`/`model_kelas`/`model_kelas_cocok`/`gpu_sm` = model yang benar-benar dimuat + `ai` (keadaan + `galat_terakhir`) |
 | GET | `/api/video_feed` | MJPEG live (multi-viewer) |
 | GET | `/api/results_today` | today's results (read from disk) |
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |
-| GET | `/internal/status` | ← dari konsol tiap 1 detik (`LineStatusWorker`): truk, piston, `alarms` PLC (aturan 24), dan `unggah` = ringkasan upload foto ke R2 untuk Last Sync (`aktif`/`terakhir`/`gagal_sejak`/`antre`, aturan 27). `unggah` dihitung **sekali per batch**, bukan per panggilan; `null` di line tanpa worker upload. `x-internal-secret` |
+| GET | `/internal/status` | ← dari konsol tiap 1 detik (`LineStatusWorker`): truk, piston, `alarms` PLC (aturan 24), dan `unggah` = ringkasan upload foto ke R2 untuk Last Sync (`aktif`/`terakhir`/`gagal_sejak`/`antre`, aturan 27). `unggah` dihitung **sekali per batch**, bukan per panggilan; `null` di line tanpa worker upload. Bawa juga `ai` = blok penjaga AI mati (keadaan, `mati`, `kode`, `sejak`, `ambang_detik`), tanpa galat mentah. `x-internal-secret` |
 | POST | `/internal/manual-reject` | ← from api: trigger manual reject (`x-internal-secret`) |
 | POST | `/internal/hapus-data` | ← dari konsol (Danger Zone): tulis penanda `artifacts/.hapus-data` lalu keluar; data line dihapus **saat boot berikutnya**, sebelum store mana pun membuka berkasnya. **409** kalau line sedang dipasangi truk. Selama penandanya ada, `/internal/assignment` menolak truk baru (**409** `hapus_berjalan`). Router `routes/internal_bahaya.py`: **tanpa torch**, jadi teruji di CI |
 | GET / POST | `/internal/rekam/berkas`, `/internal/rekam/hapus` | ← dari konsol (Danger Zone): hitung / hapus rekaman **milik line ini** (`{line_code}_*.mp4`, folder `videos/` dipakai bersama). Hapus **409** selama merekam |
@@ -1023,6 +1023,60 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     hapus-data saat boot tidak menghapus `artifacts/outbox.db*` selama folder DB line bukan
     `artifacts/` (`hapus_kalau_diminta(..., folder_db=get_folder_db_line())`). Boot berikutnya
     menyerap lagi; yang harus dikejar penyebabnya, lewat log line itu.
+
+32. **AI mati: satu penjaga, tiga pembaca** (batch 2.1, 2026-09-28). Sebelum ini, loop deteksi
+    yang melempar exception tiap frame cuma menulis log lalu tidur satu detik selamanya: coil
+    ERROR cuma mencerminkan `camera.connected`, `/health` tetap "ok", kartu line konsol tetap
+    sehat, dan buah lewat tanpa disortir tanpa satu alarm pun. `services/penjaga_ai.py`
+    (`PenjagaAi`, satu objek per proses line, dirakit `main.py`) sekarang jadi satu-satunya
+    sumber yang dibaca ketiga pembaca, supaya ketiganya selalu sepakat.
+    **AI dinyatakan mati** kalau kamera MENGIRIM gambar tapi tidak ada satu frame pun SELESAI
+    digrading selama `AI_MATI_DETIK` (bawaan **30** detik, dijepit **10..600**; nilai yang bukan
+    bilangan bulat atau di luar batas dijepit/jatuh ke bawaan dengan WARNING, tidak pernah
+    menahan boot, aturan yang sama dengan `_plc_int`).
+    **Lima keadaan lain sengaja TIDAK dilaporkan sebagai AI mati**, supaya alarm ini tidak
+    pernah berteriak serigala: **baru mulai** (`memulai`, loop deteksi baru jalan atau gambar
+    baru mengalir lagi sesudah jeda >5 detik, tenggangnya dihitung dari yang LEBIH BELAKANGAN
+    antara loop mulai dan aliran mulai lagi, bukan cuma salah satu); **kamera putus**
+    (`kamera_putus`, kartu dan coil ERROR sudah menanganinya sejak dulu); **lisensi habis**
+    (`lisensi`, grading memang dihentikan sengaja, banner lisensi yang bicara); **sumber diam**
+    (`sumber_diam`, tidak ada frame masuk sama sekali meski kamera tersambung, misalnya video
+    tanpa ulang yang habis: urusan kamera, ditunda ke batch 3.6); dan model dengan kelas yang
+    tidak cocok (inferensi tetap selesai, jadi tetap `sehat`, layar Model Deteksi yang menandai
+    merah).
+    **Empat stempel monotonic** di `RuntimeState` (`time.monotonic()` lewat `RuntimeState.jam`,
+    bukan jam dinding: PC pabrik offline yang melompat jam saat NTP datang tidak boleh terbaca
+    sebagai AI mati): `ai_dimulai_at` (ditulis SEKALI per proses, watchdog yang menyalakan ulang
+    thread mati tidak memperbaruinya), `frame_terakhir_at`, `aliran_frame_sejak` (reset kalau
+    jeda antar-frame >5 detik), dan `inferensi_selesai_at`. ⚠️ **`last_yolo_frame_at` (dipakai
+    `DisplayWorker` untuk overlay MJPEG) sengaja TIDAK dipakai di sini**: ia distempel SEBELUM
+    loop janjang, jadi exception di tengah loop janjang membuatnya tetap segar tiap detik
+    walau tidak ada janjang yang selesai digrading.
+    **Tiga pembaca, satu sumber**: coil ERROR PLC (`sehat_untuk_plc()`, naik untuk **kamera
+    putus ATAU AI mati**, tidak untuk lisensi habis atau sumber diam, PLC tidak berubah sama
+    sekali, no ladder change, tapi **tim PLC harus diberi tahu** M1002/M1005/M1008 sekarang
+    bisa naik untuk sebab baru ini); `/health` (503 **hanya** untuk AI mati, kamera putus/
+    lisensi/sumber diam tetap 200, karena `autograde.sh` `curl -f /health` MEMUNDURKAN versi
+    yang tidak menjawab 200 dalam 90 detik: **rilis yang AI-nya mati lebih dari 30 detik sejak
+    start otomatis di-rollback**); dan kartu line konsol (merah + pita rinci lewat
+    `/internal/status.ai` → `LineStatusWorker` → `/api/console/state` → `pitaAi`, `perbaruiAi`
+    tiap polling). `/health/detail` **tetap 200 dan `status:"ok"` walau `ai.mati`** (load-bearing:
+    `autograde reset-data` di host dan Danger Zone membaca kode HTTP-nya, bukan isinya, untuk
+    memutuskan line hidup atau mati). `ai.galat_terakhir` di `/health/detail` adalah galat
+    deteksi TERAKHIR sejak boot, bukan bukti ada galat SEKARANG: baca `galat_at` untuk menilai
+    umurnya sebelum menyimpulkan apa pun.
+    Seluruh penilaian jalan di **satu lock** (`PenjagaAi._nilai_sekarang`): jam dibaca dan
+    dinilai dalam kunci yang sama, supaya PLC (5x/detik) dan HTTP yang membaca bersamaan tidak
+    membalik urutan transisi dan mencatat satu kejadian jadi tiga baris log. Transisi dicatat
+    sekali per perubahan, bukan tiap panggilan: masuk `ai_mati` → `logger.error`; keluar dari
+    `ai_mati` → `logger.warning` **"AI %s tidak lagi dinilai mati (keadaan %s)"** (keluar bisa
+    juga ke `kamera_putus`/`lisensi`/`sumber_diam`, bukan cuma balik `sehat`).
+    **Docker healthcheck TIDAK autoheal**: `restart: unless-stopped` tidak bereaksi ke
+    `unhealthy`, dan tidak ada autoheal container/label di repo mana pun, jadi AI mati yang
+    membuat `/health` 503 membuat line terlihat `unhealthy` di `docker ps` tapi **tidak**
+    memicu restart mana pun.
+    **Gap yang sengaja dibiarkan** (ditunda ke batch 3.6): frame yang berhenti mengalir padahal
+    kamera tetap tersambung dibaca `sumber_diam`, tidak dialarm sama sekali.
 
 ---
 

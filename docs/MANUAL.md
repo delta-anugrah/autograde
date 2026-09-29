@@ -138,6 +138,9 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   yang hilang: semuanya menunggu di antrean dan terkirim sendiri begitu sambungan pulih.
 - **Tiga kartu line**, satu per kamera, dengan stream langsung, status **ONLINE / OFFLINE** di
   judul, tombol **Tugaskan** (pilih truk), **Lepas** (truk pergi), dan **Reject Manual**.
+- Kartu berbingkai **merah** dengan pita **AI berhenti memproses** (kode `AI_MATI`, jam mulai,
+  tindakan) = kamera jalan tapi tidak ada yang digrading: tahan umpan buah ke line itu dan
+  panggil teknisi. Pita hilang sendiri begitu line memproses lagi.
 - **Reject manual tanpa mouse**: tahan `Spasi` lalu tekan `1` / `2` / `3` sesuai line.
 - **Piston manual** per line (Buka / Tutup) kalau PLC aktif. Ada konfirmasi karena ini
   menggerakkan besi sungguhan.
@@ -636,6 +639,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Laptop: `make console` terasa memakai kode lama | port 8100 masih dipegang proses lama | cari pid-nya dengan `lsof -ti:8100`, matikan, jalankan ulang |
 | Laptop: `make up` gagal "MVS SDK not found" | memang, target Docker untuk Linux + GPU | pakai `make console` / `make line` |
 | Kamera "tidak terjawab" saat E2E di macOS | `CONSOLE_LINE_HOST=http://localhost` → IPv6 | ganti `http://127.0.0.1` |
+| Kartu line merah, AI berhenti memproses | loop deteksi melempar galat terus (CUDA/GPU), atau macet | `curl :800N/health/detail` → `ai.galat_terakhir`; restart line (Setelan, Danger Zone); kalau terulang, `nvidia-smi` dan log line |
 
 Dua jebakan umum di balik "setelan `.env` tidak berlaku": **env var proses menang atas
 `.env`** (`load_dotenv(override=False)`; cek `/health/detail`), dan `.env` yang diubah baru

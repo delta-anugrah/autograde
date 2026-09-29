@@ -108,7 +108,7 @@ per `track_id`): `docs/overview.md` §3.
 |---|---|---|
 | GET | `/api/video_feed` | MJPEG (`multipart/x-mixed-replace; boundary=frame`). Dimuat langsung oleh `<img src>` di konsol, jadi tidak bisa diberi header auth: dijaga firewall (`docs/SETUP.md` §10) |
 | GET | `/api/results_today` | Hasil grading hari ini dari `_ripeness.json` di `artifacts/results/{tanggal}/` (`_tp.json` lama masih dibaca). Warisan palmgrade-frontend; konsol tidak memakainya |
-| GET | `/health` | Hidup/tidak; dipakai healthcheck compose dan launcher |
+| GET | `/health` | Hidup/tidak; 200, atau **503 kalau AI mati** (badan membawa `ai`, dipakai healthcheck compose dan launcher `autograde.sh`) |
 | GET | `/health/detail` | Status operasional, lihat di bawah |
 | WS | `/ws/results` | Push event per deteksi. Legacy: masih aktif, tidak ada pemakai di repo ini (konsol polling `/api/console/state`) |
 
@@ -147,7 +147,17 @@ per `track_id`): `docs/overview.md` §3.
   "model_backend": "tensorrt",
   "model_kelas": ["JK", "Ripe", "TP", "Unripe"],
   "model_kelas_cocok": true,
-  "gpu_sm": "86"
+  "gpu_sm": "86",
+  "ai": {
+    "keadaan": "sehat",
+    "mati": false,
+    "kode": null,
+    "sejak": null,
+    "umur_detik": 0.8,
+    "ambang_detik": 30,
+    "galat_terakhir": null,
+    "galat_at": null
+  }
 }
 ```
 
@@ -163,6 +173,7 @@ per `track_id`): `docs/overview.md` §3.
 | `workers[]` | memuat `outbox_retry` dan `plc` (kalau aktif), tapi **tidak** `BatchUploadWorker`: itu job APScheduler, jadi watchdog `_watchdog` tidak memantaunya |
 | `plc` | `null` kalau `PLC_ENABLED=false`. `inputs` = offset dari `PLC_DI_BASE` (0–10 motor fault, 11 E-stop); dua counter drop **naik monoton**, yang berarti selisih antar-polling. Detail: `docs/plc-integration.md` |
 | `model_*`, `gpu_sm` | model yang **benar-benar dimuat** line ini, bukan pilihan di `media.env`. `model_kelas_cocok: false` = line **tidak menghitung janjang** (layar Model Deteksi menulisnya merah); `null` = tidak diketahui. `gpu_sm` = compute capability (nama engine `<model>.sm<cc>.engine`), `null` di CPU |
+| `ai` | penjaga AI mati (batch 2.1, `services/penjaga_ai.py`): `keadaan` (`sehat`/`memulai`/`kamera_putus`/`lisensi`/`sumber_diam`/`ai_mati`), `mati` (bool), `kode` (`AI_MATI` atau `null`), `sejak` (epoch mulai diam, cuma saat `mati`), `umur_detik` (detik sejak frame terakhir selesai digrading), `ambang_detik` (`AI_MATI_DETIK` yang berlaku), `galat_terakhir` + `galat_at` (galat deteksi TERAKHIR sejak boot dan umurnya, **bukan** bukti ada galat sekarang). `mati:true` menaikkan coil ERROR dan membuat `/health` 503; `/health/detail` sendiri **tetap 200** walau `ai.mati` |
 
 Backlog upload R2 tidak ada di sini: lihat blok `unggah` di `GET /internal/status`, atau query
 `state/upload_manifest.db` (`SELECT status, COUNT(*) FROM upload_items GROUP BY status`).
@@ -175,7 +186,7 @@ secret yang dikonfigurasi kosong tidak pernah membuka lane (`routes/penjaga_raha
 | Method | Path | Notes |
 |---|---|---|
 | POST | `/internal/assignment` | `{machine_id, assignment_id, truck_id, assigned_at, ffb_source?, plate?}` → `{accepted, machine_id, truck_id, assignment_id}`. Set `current_truck_id` + `current_assignment_id`; `plate` + `assigned_at` menamai folder capture truk (`domain/capture_layout.py`). ⚠️ `plate` itu label, bukan identitas; opsional supaya konsol lama tidak ditolak saat upgrade separuh jalan |
-| GET | `/internal/status` | Dipanggil tiap 1 detik (`LineStatusWorker`) → `{machine_id, truck_id, ffb_source, piston, alarms, unggah}`. `unggah` = ringkasan upload R2 untuk **Last Sync** (`aktif`, `terakhir`, `gagal_sejak`, `pesan`, `antre`, `rusak`), dihitung sekali per batch; `null` sebelum worker upload ada |
+| GET | `/internal/status` | Dipanggil tiap 1 detik (`LineStatusWorker`) → `{machine_id, truck_id, ffb_source, piston, alarms, unggah, ai}`. `unggah` = ringkasan upload R2 untuk **Last Sync** (`aktif`, `terakhir`, `gagal_sejak`, `pesan`, `antre`, `rusak`), dihitung sekali per batch; `null` sebelum worker upload ada. `ai` = blok penjaga AI mati (sama bentuknya dengan `/health/detail` tapi tanpa `galat_terakhir`/`galat_at`), dibaca kartu line konsol (`pitaAi`) |
 | POST | `/internal/manual-reject` | `{machine_id, assignment_id, requested_by, requested_at}` → `{accepted, message}`. `capture_manual_reject()` lewat executor: WebP + JSON + satu baris outbox, sampai di konsol ~1 detik |
 | GET / POST | `/internal/setelan` | Setelan grading yang berlaku / timpa tanpa restart (`conf_threshold`, `minimum_size`, `garis_capture`, `sumbu_garis`, `mode_dev`). Disimpan di `RuntimeState`; konsol pemegang nilai sebenarnya |
 | POST | `/internal/outbox/requeue` | Antre ulang baris outbox yang gagal |
@@ -385,6 +396,7 @@ seperti variabel mati padahal bukan: jangan dihapus karena `grep os.getenv` tida
 | `LINE_N_MODEL_FILE` (di `media.env`) | kosong | Model line N, ditulis tab Line → Model Deteksi. Menang atas `MODEL_FILE` untuk line itu |
 | `CONF_THRESHOLD` | `0.75` | Minimum confidence YOLO. **Nilai awal**: yang dipakai diatur tab Setelan |
 | `MINIMUM_SIZE` | `460000` | Minimum area bounding box (px²): di bawah ini auto rej. Nilai awal |
+| `AI_MATI_DETIK` | `30` | Detik gambar masuk tanpa frame yang selesai digrading sebelum AI mati; dijepit 10..600. Nilai yang bukan bilangan bulat atau di luar batas jatuh ke bawaan/dijepit dengan WARNING, tidak pernah menahan boot |
 | `GARIS_CAPTURE` | `300` | Garis capture (px, ruang **stream**). `0` = tanpa garis. Nilai awal |
 | `SUMBU_GARIS` | `tegak` | `tegak` (conveyor mendatar, px dari **kiri**) / `mendatar` (conveyor menurun, px dari **atas**). Nilai awal |
 | `MODE_DEV` | `false` | `true` = angka keyakinan ikut digambar di kotak janjang. Untuk support, bukan operator. Nilai awal |

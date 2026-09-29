@@ -158,6 +158,10 @@ M1008) kini bisa dipicu dari layar Uji PLC, supaya ketiganya bisa dibuktikan ter
 line yang sehat tidak pernah menaikkan ERROR dengan sendirinya. Sesudah pulse uji selesai,
 levelnya kembali mengikuti kesehatan line di tick berikutnya.
 
+Sejak batch 2.1 ERROR juga naik kalau AI line itu berhenti memproses (kamera jalan, tidak ada
+yang digrading lebih dari 30 detik). Tidak ada perubahan program PLC yang diminta; kalau tim
+PLC mau menghentikan conveyor dari bit ini, itu keputusan dan pekerjaan terpisah.
+
 | Yang diuji | Hasil |
 |---|---|
 | Koneksi 3 line ke `192.168.0.14` port 1025/1026/1027 | ✅ ketiganya tersambung |
