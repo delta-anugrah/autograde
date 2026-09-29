@@ -12,10 +12,12 @@ memakainya. Yang dijaga di sini:
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
 
+from palmgrade.domain.berkas_utuh import nama_sementara
 from palmgrade.services import hapus_data_line
 from palmgrade.services.hapus_data_line import (
     MILIK_LINE_DI_STATE,
@@ -263,16 +265,17 @@ def test_penanda_disimpan_ke_disk_sebelum_line_keluar(tmp_path, monkeypatch):
     """M-7: listrik mati sedetik sesudah penanda ditulis tidak boleh
     menghilangkannya — konsol sudah mengosongkan index-nya saat itu."""
     disinkron: list[int] = []
-    asli = hapus_data_line.os.fsync
+    asli = os.fsync
 
     def catat(fd):
         disinkron.append(fd)
         return asli(fd)
 
-    monkeypatch.setattr(hapus_data_line.os, "fsync", catat)
+    # Sejak batch 2.6 penanda ditulis `tulis_atomik` (isi + folder di-fsync).
+    monkeypatch.setattr(os, "fsync", catat)
     tulis_penanda(tmp_path / "artifacts", mode="transaksi", diminta_oleh="s", now=1.0)
 
-    assert len(disinkron) >= 1
+    assert len(disinkron) >= 2
 
 
 def test_hapus_diminta_membaca_penanda(tmp_path):
@@ -369,3 +372,19 @@ def test_tanpa_mount_state_outbox_di_artifacts_itu_antrean_hidup_dan_ikut_terhap
     hapus_kalau_diminta(artifacts, state, folder_db=artifacts)
 
     assert _sisa(artifacts) == {"license.db", "license.db-wal"}
+
+
+def test_sisa_sementara_penanda_tidak_ikut_dihapus_maupun_dihitung(tmp_path):
+    """Batch 2.6: penanda ditulis `tulis_atomik`, jadi sisa sementaranya bernama
+    `nama_sementara(PENANDA, ...)`, bukan lagi `.hapus-data.tmp`. Aturan lewatnya sama."""
+    artifacts, state = _isi_line(tmp_path)
+    tulis_penanda(artifacts, mode="transaksi", diminta_oleh="s", now=1.0)
+    sisa = artifacts / nama_sementara(PENANDA, "a1b2c3d4")
+    sisa.write_text("{}")
+
+    hasil = hapus_kalau_diminta(artifacts, state, folder_db=artifacts)
+
+    assert sisa.exists()
+    # results/, outbox.db, outbox.db-wal di artifacts/ + upload_manifest.db di state/.
+    assert (hasil["dihapus"], hasil["gagal"]) == (4, 0)
+    assert not (artifacts / "results").exists()

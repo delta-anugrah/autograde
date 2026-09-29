@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from palmgrade.integrations.storage.tulis_atomik import tulis_atomik
+from palmgrade.services import media_env_service
 from palmgrade.services.media_env_service import (
     BAWAAN,
     LINE_CODES,
@@ -296,3 +298,19 @@ def test_berkas_lama_tanpa_baris_model_tetap_terbaca(tmp_path):
     svc = MediaEnvService(path)
     assert svc.baca_model() == {k: "" for k in LINE_CODES}
     assert svc.baca()["line-1"]["sumber"] == "foto"
+
+
+def test_media_env_ditulis_lewat_penulis_atomik_bersama(tmp_path, monkeypatch):
+    """Batch 2.6: satu pola temp + fsync + os.replace untuk semua penulis, bukan salinan."""
+    dipanggil: list = []
+
+    def catat(jalur, isi):
+        dipanggil.append(jalur)
+        tulis_atomik(jalur, isi)
+
+    monkeypatch.setattr(media_env_service, "tulis_atomik", catat)
+    path = tmp_path / "media.env"
+    MediaEnvService(path).tulis({kode: dict(BAWAAN) for kode in LINE_CODES})
+
+    assert dipanggil == [path]
+    assert MediaEnvService(path).baca() == {kode: dict(BAWAAN) for kode in LINE_CODES}
