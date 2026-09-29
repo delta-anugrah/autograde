@@ -82,6 +82,20 @@ site lain di stack yang sama adalah produksi.
 6. Baru isi `ERP_URL=https://demo.smagri.id` + kunci integrasi milik site demo, lalu
    `docker compose up -d`.
 
+⚠️ **`ERP_COMPANY` wajib diisi `PT Sawit Rambang Lestari`, jangan dikosongkan.** Site
+`demo.smagri.id` memuat **tiga** Company dan yang jadi default bukan punya seeder demo
+(`REA KALTIM PLANTATIONS (Demo)`, terukur 2026-09-29). Kosong = AutoERP membukukan ke
+Company default itu, cost center-nya milik Company lain, dan **setiap** kunjungan ditolak
+`HTTP 417: Cost Center Main - SRL does not belong to the Company ...`. Layar operator tidak
+menunjukkan apa pun; gagalnya hanya terlihat di tab Status, bagian Antrean ERP. Di PC pabrik
+kosong itu benar, karena site-nya cuma punya satu Company.
+
+⚠️ **Baris antrean yang sudah mentok percobaan tidak ikut terkirim sesudah `.env`
+diperbaiki**, walau ditekan Kirim Ulang: jadwal coba lagi sudah lewat batasnya. Kiriman
+**baru** langsung jalan. Bersihkan sisanya sekali saja sesudah perbaikan benar-benar
+terbukti (kirim satu timbangan uji, pastikan tiketnya muncul di ERP demo dengan Company
+yang benar, lalu hapus tiket uji itu).
+
 ## Test
 
 | Lapis | Berkas | Butuh |
