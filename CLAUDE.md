@@ -200,7 +200,7 @@ membersihkan kunci di SEMUA `.env` sepanjang jalur itu (`tests/dotenv_mesin.py`)
 | GET / POST | `/internal/rekam/berkas`, `/internal/rekam/hapus` | ← dari konsol (Danger Zone): hitung / hapus rekaman **milik line ini** (`{line_code}_*.mp4`, folder `videos/` dipakai bersama). Hapus **409** selama merekam |
 | WS | `/ws/results` | legacy result push. ⚠️ `image_url`-nya dikirim **sebelum** berkasnya ada di disk (deteksi menyerahkan janjang ke `CaptureSaveWorker` lalu lanjut), jendelanya ratusan milidetik. Tidak ada yang memakai lane ini hari ini (`console.html` tidak membukanya), tapi siapa pun yang menghidupkannya harus menahan gambar sampai 404 pertama lewat. Jalur yang dipakai konsol aman: barisnya ditulis penulis **sesudah** gambarnya jadi |
 | GET | `/captures/...` | static images (mount → `artifacts/`), tanpa sesi (line tidak punya konsep login): `.db`/berkas tersembunyi dijawab 404 (`domain/berkas_captures.py`) |
-| GET | `/internal/outbox` | ← dari konsol (tab Status → Antrean line): `{line_code, aktif, menunggu, tertua_at, lama_tertinggal, tersambung, putus_sejak, sebab_putus, coba_lagi_at, galat, galat_at}`. Router `routes/internal_outbox.py`, **tanpa torch**. `x-internal-secret` |
+| GET | `/internal/outbox` | ← dari konsol (tab Status → Antrean line): `{line_code, aktif, menunggu, tertua_at, ditolak, ditolak_at, ditolak_alasan, lama_tertinggal, tersambung, putus_sejak, sebab_putus, coba_lagi_at, galat, galat_at}` (`ditolak` = baris yang percobaan terakhirnya ditolak konsol 400/422). Router `routes/internal_outbox.py`, **tanpa torch**. `x-internal-secret` |
 | POST | `/internal/outbox/requeue` | ← Kirim Ulang: semua baris jatuh tempo sekarang, jeda sambungan dibatalkan → `{requeued}`. URL dan bentuk sama dengan sebelum batch 2.4. `x-internal-secret` |
 
 **Konsol (`APP_MODE=console`, port 8100 image produksi dan `make console`, 8000 dari source)**: surface yang berbeda total; `main.py` tidak dipakai.
@@ -917,7 +917,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     ⚠️ **Konsol MENUNGGU line mati** sebelum mengosongkan datanya sendiri: diam dulu
     selama `jeda_detik` yang dijawab line, lalu `/health` sampai **dua kali berturut-turut**
     tidak menjawab (sekali lewat tenggat = line sibuk menulis foto, bukan mati), maks 12 dtk
-    (jeda 1 dtk + batas tutup line 9 dtk + dua cek `/health`).
+    (jeda 1 dtk + urutan tutup line maks 8 dtk + cadangan untuk dua cek `/health` berturut-turut).
     Line mulai menutup 1 detik sesudah menjawab, lalu urutan tutup sendiri maks 8 detik
     (coil mati + antrean simpan habis, total maks 9 detik dari permintaan, aturan 29), dan
     janjang yang lewat di detik itu masih dikirim
@@ -1088,7 +1088,9 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     **Tahapnya**, berurutan tapi langkah dalam satu tahap jalan BERSAMAAN: (1) coil PLC dimatikan
     **sejalan** dengan antrean simpan dihabiskan, karena keduanya sumber daya berbeda (jaringan vs
     disk) dan tidak boleh saling menunggu; (2) kamera dilepas dan penjadwal upload R2 dihentikan
-    TANPA menunggu batch yang sedang jalan.
+    TANPA menunggu batch yang sedang jalan. Batch itu jalan di thread **daemon**
+    (`UploadScheduler._jalankan_batch`): thread pool APScheduler bukan daemon, dan dulu SIGTERM
+    di tengah batch jam-an membuat proses bertahan sampai SIGKILL `docker stop` (exit 137).
     **Batasnya**: `BATAS_KURAS_S` 6 detik untuk menghabiskan antrean simpan (cukup untuk antrean
     penuh, 8 antre + 1 dipegang penulis, sekitar 5,3 detik), `BATAS_TUTUP_S` 8 detik untuk seluruh
     urutan tutup, keduanya di bawah tenggang `docker stop` bawaan (10 detik sebelum SIGKILL). Line
@@ -1167,6 +1169,16 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     dulu menyerah; `outbox_failed` tetap ada di bentuk jawaban tapi selalu 0. Akibatnya host
     `autograde reset-data` dan Danger Zone ikut menahan hapus data selama baris yang ditolak
     konsol masih ada: disengaja, tidak ada janjang yang dibuang tanpa dilihat.
+    **Baris yang DITOLAK konsol** (400/422: timestamp cacat, `ripeness_status` asing) tidak akan
+    pernah sampai sendiri, jadi tidak boleh terbaca "Sedang dikirim". Line menandainya
+    (`outbox_events.ditolak_at`, kolom ditambah di tempat; dikosongkan lagi kalau percobaan
+    berikutnya gagal dengan cara lain) dan `/internal/outbox` membawa `ditolak`, `ditolak_at`,
+    `ditolak_alasan`; layar menulis keadaan **"N janjang DITOLAK konsol"** dengan jam, alasan, dan
+    saran. Konsol mencatat satu WARNING per `event_id` per proses (`ConsoleService.ingest`) supaya
+    tab Log menyebutnya: line tidak punya log_sink. **Tetap tidak ada yang dibuang otomatis**:
+    cara melihat, menyimpan ke berkas, lalu menghapus satu baris ditolak dengan tangan ada di
+    `docs/MANUAL.md` §7.1 (perintahnya dijaga `tests/unit/test_perintah_janjang_ditolak.py`,
+    dijalankan lawan `OutboxStore` sungguhan).
 
 32. **AI mati: satu penjaga, tiga pembaca** (batch 2.1, 2026-09-28). Sebelum ini, loop deteksi
     yang melempar exception tiap frame cuma menulis log lalu tidur satu detik selamanya: coil
@@ -1200,9 +1212,16 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     putus ATAU AI mati**, tidak untuk lisensi habis atau sumber diam, PLC tidak berubah sama
     sekali, no ladder change, tapi **tim PLC harus diberi tahu** M1002/M1005/M1008 sekarang
     bisa naik untuk sebab baru ini); `/health` (503 **hanya** untuk AI mati, kamera putus/
-    lisensi/sumber diam tetap 200, karena `autograde.sh` `curl -f /health` MEMUNDURKAN versi
-    yang tidak menjawab 200 dalam 90 detik: **rilis yang AI-nya mati lebih dari 30 detik sejak
-    start otomatis di-rollback**); dan kartu line konsol (merah + pita rinci lewat
+    lisensi/sumber diam tetap 200, karena gerbang update `autograde.sh` (`wait_healthy`, `curl -f
+    /health`) memundurkan versi yang tidak menjawab 200 dalam 90 detik, dan tiga keadaan itu
+    bukan salah versi). ⚠️ **Gerbang itu TIDAK menangkap AI yang mati sesudah start**: dia
+    selesai pada 200 PERTAMA, dan probe pertama selalu jatuh di dalam tenggang `memulai` 30
+    detik (`ai_dimulai_at` distempel di startup yang sama yang membuka `/health`). Rilis yang
+    AI-nya mati pada frame sungguhan TIDAK di-rollback: launcher mencatat `OK vX.Y.Z` dan
+    membuang image lama. 503 cuma membuat compose healthcheck dan `autograde status` menandai
+    line `unhealthy`, dan tidak ada yang bertindak atasnya (lihat autoheal di bawah). Sesudah
+    rilis, **lihat kartu line (atau `/health`) paling cepat 30 detik sesudah start**; dan kartu
+    line konsol (merah + pita rinci lewat
     `/internal/status.ai` → `LineStatusWorker` → `/api/console/state` → `pitaAi`, `perbaruiAi`
     tiap polling). `/health/detail` **tetap 200 dan `status:"ok"` walau `ai.mati`** (load-bearing:
     `autograde reset-data` di host dan Danger Zone membaca kode HTTP-nya, bukan isinya, untuk

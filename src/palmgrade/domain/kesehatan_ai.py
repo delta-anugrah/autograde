@@ -132,8 +132,10 @@ def ke_kawat(
 
 def kode_http_health(ai: dict[str, Any] | None) -> int:
     """503 hanya untuk AI mati. Kamera putus, lisensi, dan sumber diam tetap 200:
-    launcher `autograde.sh` membaca `/health` dengan `curl -f` dan MEMUNDURKAN
-    versi yang tidak sehat, dan tidak satu pun dari ketiganya salah versi."""
+    gerbang update `autograde.sh` membaca `/health` dengan `curl -f` dan memundurkan
+    versi yang tidak menjawab 200, dan tidak satu pun dari ketiganya salah versi.
+    Gerbang itu selesai pada 200 pertama, yang jatuh di tenggang `memulai`: AI yang
+    mati SESUDAH start tidak memicu rollback (CLAUDE.md aturan 32)."""
     return 503 if ai and ai.get("mati") else 200
 
 
