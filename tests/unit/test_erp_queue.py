@@ -5,6 +5,8 @@ the daily resend and the live triggers can never drift apart.
 """
 from __future__ import annotations
 
+import threading
+
 from palmgrade.domain.erp_master import supplier_row, truck_row
 from palmgrade.domain.plate import truck_id_for
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
@@ -168,3 +170,51 @@ def _grade(store: ConsoleStore, *, assignment_id: str, acc: int, rej: int, long_
         add("ACC", 0.91, "auto")
     for i in range(rej):
         add("REJ", None, "manual" if i < manual else "auto")
+
+
+class _ReadPausedStore(ConsoleStore):
+    """Holds the grading read of the thread named `stale` until the test releases it:
+    the window between reading the store and queueing the recap."""
+
+    def __init__(self, path) -> None:
+        super().__init__(path)
+        self.read_done = threading.Event()
+        self.release = threading.Event()
+
+    def grading_counts(self, assignment_id: str):
+        counts = super().grading_counts(assignment_id)
+        if threading.current_thread().name == "stale":
+            self.read_done.set()
+            self.release.wait(5)
+        return counts
+
+
+def test_two_visits_racing_leave_the_newest_count_queued(tmp_path):
+    """Two late bunches ingested on two worker threads (or a release racing an ingest)
+    each rebuild the recap. The one that read first must not queue last."""
+    store = _ReadPausedStore(tmp_path / "console.db")
+    outbox = ErpOutboxStore(tmp_path / "erp_outbox.db")
+    queue = ErpQueue(store, outbox, site=SITE)
+    _linked_truck(store)
+    _weighing(store)
+    _grade(store, assignment_id="a1", acc=3, rej=0, long_stalk=0, manual=0)
+    store.link_weighing_to_assignment("w1", "a1")
+
+    stale = threading.Thread(target=queue.visit, args=("w1",), name="stale")
+    stale.start()
+    assert store.read_done.wait(5)
+    store.add_inspection({
+        "event_id": "a1-late", "machine_id": "m1", "line_code": "line-1", "work_date": "2026-09-13",
+        "timestamp": "2026-09-13T08:30:00+07:00", "ripeness_status": "REJ", "ripeness_confidence": 0.9,
+        "capture_type": "auto", "image_path": None, "truck_id": truck_id_for(PLATE),
+        "assignment_id": "a1", "prediction": "Rej", "tp_status": None, "tp_confidence": None,
+    })
+    fresh = threading.Thread(target=queue.visit, args=("w1",), name="fresh")
+    fresh.start()
+    fresh.join(0.2)             # unguarded, the fresh recap is queued here, before the stale one
+    store.release.set()
+    stale.join(5)
+    fresh.join(5)
+
+    [message] = outbox.due()
+    assert (message.payload["grading"]["counts"]["total"], message.payload["grading"]["counts"]["rej"]) == (4, 1)
