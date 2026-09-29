@@ -85,11 +85,13 @@ class ErpOutboxWorker:
     def _catat_galat(self, exc: ErpError) -> None:
         """Last Sync: apa arti galat satu kiriman untuk sambungannya.
 
-        - jaringan (tanpa jawaban, gateway mati): putus, sampai ada jawaban dari mana pun;
-        - 401/403: kunci AutoERP ditolak, tidak ada yang akan sampai: putus;
-        - sisanya (417, 404, 500, ...): AutoERP menjawab, ISI pesan ini yang ditolak atau
-          memicu galat. Pesannya terlihat di tab Antrean ERP, bukan di warna sambungan;
-          server yang benar-benar rusak ketahuan dari ping tiap menit.
+        - `ErpUnavailable` (tanpa jawaban, gateway mati, halaman 5xx yang bukan Frappe,
+          2xx yang bukan objek JSON Frappe): putus, sampai ada jawaban dari mana pun;
+        - 401/403 (`ErpRejected`): kunci AutoERP ditolak, tidak ada yang akan sampai: putus;
+        - sisanya (417, 404, dan 500 yang MEMBAWA amplop galat Frappe/`ErpServerError`):
+          AutoERP menjawab, ISI pesan ini yang ditolak atau memicu galat. Pesannya terlihat
+          di tab Antrean ERP, bukan di warna sambungan; server yang benar-benar rusak
+          ketahuan dari ping tiap menit, bukan dari status 500 saja.
         """
         if self._status is None:
             return
