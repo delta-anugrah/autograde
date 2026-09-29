@@ -130,7 +130,7 @@ class ConsoleService(LayarLineSupport):
         work_date = work_date_for(timestamp, self.tz)
 
         line = self._by_machine.get(machine_id)
-        self.store.add_inspection(
+        baru = self.store.add_inspection(
             {
                 "event_id": event_id,
                 "machine_id": machine_id,
@@ -159,6 +159,8 @@ class ConsoleService(LayarLineSupport):
                 "tp_confidence": payload.get("tp_confidence"),
             }
         )
+        if baru:
+            self._kunjungan_susulan(payload.get("assignment_id"))
         return work_date
 
     # ------------------------------------------------------------- read
@@ -490,12 +492,33 @@ class ConsoleService(LayarLineSupport):
             # visit goes up when the weighing does — or on the daily resend.
             return
         self.store.link_weighing_to_assignment(weighing_id, assignment_id)
-        # The detail page does not depend on the AutoERP link: a mill with R2 but
-        # no ERP_URL still gets its per-truck pages.
+        self._kirim_kunjungan(weighing_id, assignment_id)
+
+    def _kirim_kunjungan(self, weighing_id: str, assignment_id: str) -> None:
+        """Halaman detail dan pesan kunjungan untuk tiket yang sudah bertaut ke penugasannya.
+
+        The detail page does not depend on the AutoERP link: a mill with R2 but no
+        ERP_URL still gets its per-truck pages.
+        """
         if self.manifest_queue is not None:
             self.manifest_queue.enqueue(weighing_id, assignment_id)
         if self.erp_queue is not None:
             self.erp_queue.visit(weighing_id, tz=self.tz)
+
+    def _kunjungan_susulan(self, assignment_id: str | None) -> None:
+        """Janjang yang tiba SESUDAH truknya dilepas (batch 2.3): kirim ulang kunjungannya.
+
+        Pesannya dibangun ulang dari store (`ErpQueue.visit`), jadi hitungannya ikut
+        janjang yang baru masuk. Selama kiriman sebelumnya belum berangkat, baris
+        antrean yang sama diganti dan AutoERP hanya menerima angka yang lengkap. Kalau
+        tiketnya sudah final, AutoERP tidak menulis ulang apa pun; jawabannya ditandai
+        di tab Timbangan dan tab Log (`domain/jawaban_kunjungan.py`).
+        """
+        if not assignment_id:
+            return
+        weighing_id = self.store.weighing_for_assignment(assignment_id)
+        if weighing_id:
+            self._kirim_kunjungan(weighing_id, assignment_id)
 
     # ------------------------------------------------------- line commands
 

@@ -50,14 +50,16 @@ class ConsoleStore(AkunStore):
 
     # -------------------------------------------------------- inspections
 
-    def add_inspection(self, row: dict[str, Any]) -> None:
+    def add_inspection(self, row: dict[str, Any]) -> bool:
         """Idempotent: a line resends the same event after an outbox retry.
 
         The dedupe key `event_id` = uuid5(machine_id, file_ts) — the same frozen
         formula palmgrade-api uses, so one bunch is never counted twice.
+        True when the row is new; False when this event_id was already stored (a line
+        resending after a retry).
         """
         with self._lock, self._db:
-            self._db.execute(
+            cursor = self._db.execute(
                 """INSERT OR IGNORE INTO inspections (
                        event_id, machine_id, line_code, work_date, timestamp,
                        ripeness_status, ripeness_confidence, capture_type,
@@ -74,6 +76,7 @@ class ConsoleStore(AkunStore):
                 # labelnya tidak ada.
                 {"grade_class": None, **row, "received_at": time.time()},
             )
+        return cursor.rowcount == 1
 
     def summary(self, work_date: str) -> list[dict[str, Any]]:
         with self._lock:
@@ -482,6 +485,21 @@ class ConsoleStore(AkunStore):
             self._db.execute(
                 "UPDATE weighings SET assignment_id = ? WHERE id = ?", (assignment_id, weighing_id)
             )
+
+    def weighing_for_assignment(self, assignment_id: str) -> str | None:
+        """The ticket linked to this assignment when its truck was released, or None.
+
+        The link is written only at release (`link_weighing_to_assignment`), so a link
+        means the assignment is closed and its visit was already queued without any
+        bunch that arrives now.
+        """
+        with self._lock:
+            row = self._db.execute(
+                """SELECT id FROM weighings WHERE assignment_id = ?
+                   ORDER BY received_at DESC LIMIT 1""",
+                (assignment_id,),
+            ).fetchone()
+        return row["id"] if row else None
 
     def record_visit_answer(
         self, weighing_id: str, *, ticket: str | None, status: str | None, note: str | None
