@@ -124,8 +124,7 @@ console:
 	WEBHOOK_SECRET=$(DEV_WEBHOOK_SECRET) \
 	MEDIA_DIR=$(CURDIR)/media MEDIA_ENV_PATH=$(CURDIR)/$(MEDIA_ENV) \
 	PYTHONPATH=src .venv/bin/uvicorn \
-		palmgrade.console_main:app --host 127.0.0.1 --port $(CONSOLE_PORT) \
-		--timeout-graceful-shutdown 1
+		palmgrade.console_main:app --host 127.0.0.1 --port $(CONSOLE_PORT)
 
 # Satu line kamera NATIVE tanpa Docker — pasangan `make console` untuk develop di
 # Mac, di mana `make up` memang tidak bisa jalan (butuh MVS SDK, CUDA cu126, dan

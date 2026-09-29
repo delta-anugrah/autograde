@@ -7,6 +7,12 @@ dipanggil, SESUDAH semua koneksi yang terbuka selesai. Layar konsol membuka
 selesai sendiri: tanpa `--timeout-graceful-shutdown` uvicorn menunggunya
 selamanya, SIGKILL datang duluan, dan coil maupun antrean simpan tidak pernah
 diurus (diukur 2026-09-29, uvicorn 0.34.0: masih hidup 15 detik sesudah SIGTERM).
+
+Konsol sengaja TANPA batas itu: aliran tanpa ujungnya cuma ada di line, dan
+satu-satunya `StreamingResponse` konsol (CSV Riwayat) selesai sendiri. Batas 1
+detik di konsol cuma memotong permintaan yang sedang jalan saat `docker stop`:
+CSV sebulan (~6 detik) dan hapus-data Danger Zone yang menunggu line mati
+(sampai ~13 detik), yang tanpa batas masih sempat selesai.
 """
 from __future__ import annotations
 
@@ -39,21 +45,36 @@ def _perintah_uvicorn(berkas: str) -> list[str]:
 
 def _tenggang(perintah: str) -> float:
     cocok = _TENGGANG.search(perintah)
-    assert cocok, f"uvicorn tanpa --timeout-graceful-shutdown: {perintah.strip()}"
+    assert cocok, f"uvicorn line tanpa --timeout-graceful-shutdown: {perintah.strip()}"
     return float(cocok.group(1))
 
 
-def test_image_menyerahkan_koneksi_terbuka_lalu_urutan_tutup_muat_sebelum_sigkill():
-    perintah = _perintah_uvicorn("entrypoint.sh")
-    assert len(perintah) == 2  # APP_ENV=development (--reload) dan produksi
-    for satu in perintah:
+def _konsol(perintah: str) -> bool:
+    return "console_main" in perintah
+
+
+def test_image_line_menyerahkan_koneksi_terbuka_lalu_urutan_tutup_muat_sebelum_sigkill():
+    line = [satu for satu in _perintah_uvicorn("entrypoint.sh") if not _konsol(satu)]
+    assert len(line) == 2  # APP_ENV=development (--reload) dan produksi
+    for satu in line:
         assert _tenggang(satu) + OVERHEAD_UVICORN_S + BATAS_TUTUP_S < TENGGANG_DOCKER_STOP_S, satu
 
 
-def test_jalur_native_makefile_memakai_tenggang_yang_sama():
-    """`make line`, `make dev`, dan `make console` berperilaku seperti image:
-    Ctrl+C dengan layar konsol terbuka tidak boleh menggantung di sini saja."""
-    bawaan = {_tenggang(satu) for satu in _perintah_uvicorn("entrypoint.sh")}
+def test_image_konsol_menunggu_permintaan_yang_sedang_jalan():
+    konsol = [satu for satu in _perintah_uvicorn("entrypoint.sh") if _konsol(satu)]
+    assert len(konsol) == 2  # APP_ENV=development (--reload) dan produksi
+    for satu in konsol:
+        assert not _TENGGANG.search(satu), satu
+
+
+def test_jalur_native_makefile_sama_dengan_image():
+    """`make line` dan `make dev` (line-1) memakai batas yang sama dengan image;
+    `make console` tanpa batas, seperti konsol di image."""
+    bawaan = {_tenggang(satu) for satu in _perintah_uvicorn("entrypoint.sh") if not _konsol(satu)}
     perintah = _perintah_uvicorn("Makefile")
-    assert len(perintah) >= 3
-    assert {_tenggang(satu) for satu in perintah} == bawaan
+    line = [satu for satu in perintah if not _konsol(satu)]
+    konsol = [satu for satu in perintah if _konsol(satu)]
+    assert len(line) >= 2 and len(konsol) >= 1
+    assert {_tenggang(satu) for satu in line} == bawaan
+    for satu in konsol:
+        assert not _TENGGANG.search(satu), satu
