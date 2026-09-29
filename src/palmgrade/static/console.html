@@ -1780,6 +1780,21 @@
     An unreachable line still gets a card - that is the one worth seeing.
   -->
   <div id="diagnostik-kartu" class="kartu-grid"></div>
+  <h2 class="status-judul" data-t="judulAntreanLine">Antrean line ke konsol</h2>
+  <!--
+    Support-only (batch 2.4, 2026-09-28): janjang yang belum sampai dari tiap line ke
+    konsol. Antrean ini tidak pernah menyerah lagi, jadi yang perlu dilihat: berapa,
+    sejak kapan, dan kenapa. Kirim Ulang per line menyuruh line itu mengirim semuanya
+    sekarang tanpa menunggu jadwal mundurnya. Disegarkan tiap 5 detik bersama Diagnostik.
+  -->
+  <div class="tabel">
+    <table>
+      <thead><tr><th data-t="thLine">Line</th><th class="num" data-t="thMenunggu">Menunggu</th>
+        <th data-t="thTertua">Tertua</th><th data-t="thKeadaan">Keadaan</th>
+        <th data-t="thPesan">Pesan</th><th></th></tr></thead>
+      <tbody id="antrean-line-baris"></tbody>
+    </table>
+  </div>
   <h2 class="status-judul" data-t="judulAntrean">Antrean ERP</h2>
   <!--
     Support-only: what is stuck in the ERP outbox, why, and one button to
@@ -2460,6 +2475,25 @@ const KAMUS = {
     judulManifest:"Manifest R2", ringkasManifest:"{pending} menunggu · {gagal} gagal",
     kosongManifest:"Antrean manifest kosong", gagalManifest:"Gagal memuat antrean manifest",
     manifestNonaktif:"R2 belum disetel, jadi halaman detail truk tidak jalan di PKS ini.",
+    judulAntreanLine:"Antrean line ke konsol", thMenunggu:"Menunggu", thTertua:"Tertua", thKeadaan:"Keadaan",
+    kosongAntreanLine:"Belum ada line yang dikenal konsol",
+    gagalAntreanLine:"Gagal memuat antrean line. Buka tab Log untuk rinciannya.",
+    antreanLineKosong:"Kosong, semua janjang sudah sampai ke konsol",
+    antreanLineMengirim:"Sedang dikirim ke konsol",
+    antreanLineNonaktif:"Pengiriman dimatikan (ENABLE_WEBHOOK=false). Janjang tetap disimpan dan baru terkirim sesudah ENABLE_WEBHOOK=true di .env line itu lalu line itu direstart.",
+    antreanLineLamaTertinggal:"Antrean lama (outbox.db di folder artifacts) belum terserap, jadi jumlahnya belum lengkap. Restart line itu; kalau masih muncul, buka tab Log dan panggil teknisi.",
+    antreanLinePutus_tak_terjangkau:"Konsol tidak terjangkau dari line ini sejak {sejak}. Line mencoba lagi sendiri tiap 30 detik dan tidak membuang janjang. Kalau berlangsung lama, periksa BACKEND_URL di .env line itu.",
+    antreanLinePutus_kunci_ditolak:"Konsol menolak kunci line ini sejak {sejak} (WEBHOOK_SECRET beda). Samakan WEBHOOK_SECRET di .env line dan konsol, lalu restart line itu.",
+    antreanLinePutus_alamat_salah:"Alamat konsol salah sejak {sejak}. Arahkan BACKEND_URL di .env line itu ke konsol (port 8100), lalu restart line itu.",
+    antreanLinePutus_konsol_galat:"Konsol galat saat menerima janjang sejak {sejak}. Line terus mencoba; buka tab Log untuk sebabnya.",
+    antreanLineKunciKonsol:"Line menolak kunci konsol (HTTP {status}). Samakan INTERNAL_SECRET di .env konsol dan line itu, lalu restart.",
+    antreanLineTakTerjangkau:"Line tidak menjawab. Periksa kartunya di Diagnostik.",
+    antreanLineDikirimUlang:"{line}: {jumlah} janjang dijadwalkan kirim sekarang",
+    antreanLineGagalKirimUlang:"Kirim Ulang {line} gagal pukul {jam} (kode {kode}): {alasan}. {saran}",
+    saranKunciLine:"Samakan INTERNAL_SECRET di .env konsol dan line itu, lalu restart.",
+    saranLineMati:"Periksa line itu di Diagnostik dan nyalakan lagi kalau mati.",
+    saranMuatUlang:"Muat ulang halaman ini.",
+    saranBukaLog:"Buka tab Log untuk rinciannya.",
     labelVersi:"Versi", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Lisensi", gagalVersi:"Gagal memuat versi",
     judulInfoSistem:"Versi & lisensi", infoLisensiSampai:"Lisensi s/d {tanggal}",
@@ -2790,6 +2824,25 @@ const KAMUS = {
     judulManifest:"R2 manifest", ringkasManifest:"{pending} pending · {gagal} failed",
     kosongManifest:"Manifest queue is empty", gagalManifest:"Failed to load the manifest queue",
     manifestNonaktif:"R2 is not configured, so the truck detail page does not work at this mill.",
+    judulAntreanLine:"Line queue to console", thMenunggu:"Waiting", thTertua:"Oldest", thKeadaan:"State",
+    kosongAntreanLine:"The console knows no lines yet",
+    gagalAntreanLine:"Failed to load the line queue. Open the Log tab for details.",
+    antreanLineKosong:"Empty, every bunch has reached the console",
+    antreanLineMengirim:"Sending to the console",
+    antreanLineNonaktif:"Sending is switched off (ENABLE_WEBHOOK=false). Bunches are kept and only sent after ENABLE_WEBHOOK=true in that line's .env and a restart of that line.",
+    antreanLineLamaTertinggal:"The old queue (outbox.db in the artifacts folder) was not absorbed, so this count is incomplete. Restart that line; if it stays, open the Log tab and call a technician.",
+    antreanLinePutus_tak_terjangkau:"The console has been unreachable from this line since {sejak}. The line retries on its own every 30 seconds and drops nothing. If it lasts, check BACKEND_URL in that line's .env.",
+    antreanLinePutus_kunci_ditolak:"The console has refused this line's key since {sejak} (WEBHOOK_SECRET differs). Make WEBHOOK_SECRET the same in the line and console .env, then restart that line.",
+    antreanLinePutus_alamat_salah:"Wrong console address since {sejak}. Point BACKEND_URL in that line's .env at the console (port 8100), then restart that line.",
+    antreanLinePutus_konsol_galat:"The console has been failing to take bunches since {sejak}. The line keeps retrying; open the Log tab for the cause.",
+    antreanLineKunciKonsol:"The line refused the console key (HTTP {status}). Make INTERNAL_SECRET the same in the console and line .env, then restart.",
+    antreanLineTakTerjangkau:"The line is not responding. Check its card under Diagnostics.",
+    antreanLineDikirimUlang:"{line}: {jumlah} bunches scheduled to send now",
+    antreanLineGagalKirimUlang:"Resend {line} failed at {jam} (code {kode}): {alasan}. {saran}",
+    saranKunciLine:"Make INTERNAL_SECRET the same in the console and line .env, then restart.",
+    saranLineMati:"Check that line under Diagnostics and start it again if it is down.",
+    saranMuatUlang:"Reload this page.",
+    saranBukaLog:"Open the Log tab for details.",
     labelVersi:"Version", labelMachineId:"Machine ID", labelEnvironment:"Environment",
     labelLisensi:"Licence", gagalVersi:"Failed to load version",
     judulInfoSistem:"Version & licence", infoLisensiSampai:"Licence until {tanggal}",
@@ -3111,7 +3164,7 @@ const MUAT_TAB = { rekap: muatRiwayat, log: muatLog, status: muatStatus, akun: m
 const MUAT_SUB_LINE = { "sumber-kamera": muatSumberKamera, "model-deteksi": muatModelDeteksi, plc: muatPlc, rekam: muatRekam };
 
 function muatStatus() {
-  return Promise.all([muatVersi(), muatDiagnostik(), muatAntrean()]);
+  return Promise.all([muatVersi(), muatDiagnostik(), muatAntreanLine(), muatAntrean()]);
 }
 
 function muatLine() {
@@ -3121,6 +3174,8 @@ function muatLine() {
 function bukaTabDev(namaTab) {
   clearInterval(diagnostikTimer);
   diagnostikTimer = null;
+  clearInterval(antreanLineTimer);
+  antreanLineTimer = null;
   // Polling rekam dihentikan begitu tabnya ditutup: menanyai tiga line tiap 3
   // detik dari tab lain membebani line tanpa ada yang melihat hasilnya.
   clearInterval(rekamTimer);
@@ -3131,6 +3186,7 @@ function bukaTabDev(namaTab) {
   rekapTimer = null;
   const muat = MUAT_TAB[namaTab] ? MUAT_TAB[namaTab]() : Promise.resolve();
   if (namaTab === "status") diagnostikTimer = setInterval(muatDiagnostik, 5000);
+  if (namaTab === "status") antreanLineTimer = setInterval(muatAntreanLine, 5000);
   if (namaTab === "line" && subLine === "rekam") rekamTimer = setInterval(muatRekam, 3000);
   // 1 detik: lebih rapat dari diagnostik (5 s) karena di sini orang menunggu
   // jawaban tombol yang baru saja ditekan. Tiap tick = satu GET ringan per line,
@@ -5304,6 +5360,7 @@ $("log-next").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, ()
 // ── developer: diagnostik (support only) ────────────────────────────────
 // The 5 s auto-refresh timer itself lives in `bukaTabDev` above.
 let diagnostikTimer = null;
+let antreanLineTimer = null;
 // Layar Uji PLC dipakai saat commissioning, sambil orang lain menekan tombol di
 // panel — tanpa timer, `muatPlc()` cuma jalan sekali saat tab dibuka dan bit
 // motor/E-stop jadi foto lama sampai operator pindah tab lalu kembali. Terbaca
@@ -5442,6 +5499,90 @@ $("antrean-kirim-ulang").addEventListener("click", (ev) => denganSibuk(ev.curren
     $("antrean-kirim-ulang").disabled = false;
   }
 }));
+
+// ── developer: antrean line ke konsol (support only, batch 2.4) ────────
+// Satu baris per line. Keadaan dipilih dari yang paling perlu tindakan: line tak
+// terjangkau, pengiriman dimatikan, antrean lama tertinggal, kosong, konsol putus
+// dilihat dari line (dengan sebab dan sejak kapan), lalu sedang mengirim. "Kosong"
+// sengaja mendahului "putus": tanpa janjang yang menunggu tidak ada yang tertahan.
+function keadaanAntreanLine(d) {
+  const SEBAB_PUTUS = ["tak_terjangkau", "kunci_ditolak", "alamat_salah", "konsol_galat"];
+  if (!d.terjangkau) {
+    return { kelas: "tanda-gagal", kunci: d.kode === "line_menolak" ? "antreanLineKunciKonsol" : "antreanLineTakTerjangkau" };
+  }
+  if (!d.aktif) return { kelas: "tanda-gagal", kunci: "antreanLineNonaktif" };
+  if (d.lama_tertinggal) return { kelas: "tanda-gagal", kunci: "antreanLineLamaTertinggal" };
+  if (!d.menunggu) return { kelas: "tanda-ok", kunci: "antreanLineKosong" };
+  if (d.tersambung === false) {
+    const sebab = SEBAB_PUTUS.includes(d.sebab_putus) ? d.sebab_putus : "tak_terjangkau";
+    return { kelas: "tanda-gagal", kunci: "antreanLinePutus_" + sebab };
+  }
+  return { kelas: "", kunci: "antreanLineMengirim" };
+}
+
+// `sekarangMs` dari pemanggil, bukan Date.now() di sini: umur "Tertua" dihitung dari
+// jam yang sama untuk tiga baris, dan fungsinya bisa diuji tanpa memalsukan jam.
+function barisAntreanLine(kode, d, sekarangMs) {
+  const k = keadaanAntreanLine(d);
+  const keadaan = t(k.kunci)
+    .replace("{status}", d.status ?? "401")
+    .replace("{sejak}", d.putus_sejak ? waktu(d.putus_sejak * 1000) : KOSONG);
+  const pesanBaris = (d.terjangkau ? d.galat : d.pesan) || "";
+  const tertua = d.tertua_at ? lamaProses(new Date(d.tertua_at * 1000), new Date(sekarangMs)) : null;
+  const tombol = d.terjangkau && d.menunggu > 0
+    ? `<button type="button" data-kirim-ulang-line="${esc(kode)}">${esc(t("btnKirimUlang"))}</button>`
+    : "";
+  return `<tr data-line="${esc(kode)}">
+    <td>${esc(kode)}</td>
+    <td class="num">${d.terjangkau ? dash(d.menunggu) : KOSONG}</td>
+    <td>${dash(tertua)}</td>
+    <td class="${k.kelas}">${esc(keadaan)}</td>
+    <td title="${esc(pesanBaris)}">${pesanBaris ? esc(pesanBaris) : KOSONG}</td>
+    <td>${tombol}</td>
+  </tr>`;
+}
+
+// Kalimat gagal Kirim Ulang: apa yang gagal, di line mana, jam berapa, kodenya, dan
+// harus ngapain (keputusan 2026-09-28, pesan error konsol wajib detail).
+const SARAN_KIRIM_ULANG = { line_menolak: "saranKunciLine", line_tidak_menjawab: "saranLineMati", line_tidak_dikenal: "saranMuatUlang" };
+
+function pesanGagalKirimUlang(e, kode, saat) {
+  return t("antreanLineGagalKirimUlang")
+    .replace("{line}", kode)
+    .replace("{jam}", waktu(saat))
+    .replace("{kode}", e.kode || "http")
+    .replace("{alasan}", alasan(e))
+    .replace("{saran}", t(SARAN_KIRIM_ULANG[e.kode] || "saranBukaLog"));
+}
+
+async function muatAntreanLine() {
+  const tbody = $("antrean-line-baris");
+  try {
+    const r = await api("/api/console/dev/antrean/line");
+    const sekarang = Date.now();
+    const baris = Object.entries(r.lines).map(([kode, d]) => barisAntreanLine(kode, d, sekarang)).join("");
+    // tulisKalauBeda: disegarkan tiap 5 detik, dan tombol Kirim Ulang yang diganti
+    // di tengah ketukan menelan ketukannya.
+    tulisKalauBeda(tbody, baris || barisKosong(6, "kosongAntreanLine"));
+  } catch (e) {
+    if (e.kode !== "belum_masuk") tulisKalauBeda(tbody, barisKosong(6, "gagalAntreanLine"));
+  }
+}
+
+$("antrean-line-baris").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-kirim-ulang-line]");
+  if (!tombol) return;
+  const kode = tombol.dataset.kirimUlangLine;
+  denganSibuk(tombol, async () => {
+    try {
+      const r = await api(`/api/console/dev/antrean/line/${encodeURIComponent(kode)}/kirim-ulang`, { method: "POST" });
+      toastSukses(t("antreanLineDikirimUlang").replace("{line}", kode).replace("{jumlah}", r.dijadwalkan));
+      await muatAntreanLine();
+    } catch (e) {
+      if (e.kode !== "belum_masuk") toastGagal(pesanGagalKirimUlang(e, kode, new Date()));
+    }
+  });
+});
 
 // ── developer: versi & lisensi (support only) ───────────────────────────
 // Tiap pasangan dibungkus satu `<div>`: `.daftar-definisi` menyebar jadi
