@@ -8,8 +8,9 @@ Yang tiruan: AutoERP (`tests/autoerp_palsu.py`) dan line (menerima penugasan).
 from __future__ import annotations
 
 import asyncio
+import threading
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -147,3 +148,51 @@ def test_janjang_truk_yang_masih_di_line_tidak_mengantre(konsol):
     konsol.janjang(assignment_id)
 
     assert konsol.outbox.due() == []
+
+
+def test_hari_pertama_lampung_baris_hidup_lagi_dari_tiga_line_sekaligus(konsol, caplog):
+    """Final review konsol M6: jalur hari pertama upgrade di Lampung, C lalu B. Antrean
+    tiga line menghidupkan lagi janjang lama (tanggal kerja tiga hari lalu) dan
+    mengirimnya BERSAMAAN, sebagian dua kali (jawaban hilang), sementara antrean
+    AutoERP dikuras di sela-selanya dan tiketnya sudah final. Yang harus tetap: rekap
+    terakhir yang diterima AutoERP = isi store, kiriman ganda tidak mengantre apa pun,
+    dan satu WARNING `[TIKET_FINAL_BERBEDA]` untuk tiket itu, bukan satu per janjang."""
+    _, assignment_id = konsol.truk_selesai()
+    assert konsol.kirim() == 1                          # tiket final dengan 3 janjang
+    lama = datetime.now(UTC) - timedelta(days=3)
+    galat: list[BaseException] = []
+
+    def line(k: int, n: int = 50) -> None:
+        try:
+            for i in range(n):
+                body = build_event_payload(
+                    machine_id=konsol.service.lines[k].machine_id,
+                    file_ts=f"2026-09-2{k}_03-00-{i:05d}_000000",
+                    timestamp=(lama + timedelta(seconds=i)).isoformat(),
+                    ripeness_status="REJ" if i % 3 == 0 else "ACC", ripeness_confidence=0.9,
+                    capture_type="auto", image_path=f"captures/results/x/{k}-{i}.webp",
+                    truck_id=truck_id_for(PLAT), assignment_id=assignment_id,
+                )
+                konsol.service.ingest(body)
+                konsol.service.ingest(body)             # jawaban hilang, line mengirim ulang
+        except BaseException as exc:  # noqa: BLE001 — dilaporkan di assert
+            galat.append(exc)
+
+    benang = [threading.Thread(target=line, args=(k,)) for k in range(3)]
+    with caplog.at_level("WARNING"):
+        for b in benang:
+            b.start()
+        while any(b.is_alive() for b in benang):
+            konsol.kirim()
+        for b in benang:
+            b.join()
+        konsol.kirim()
+
+    assert galat == []
+    hitungan = konsol.store.grading_counts(assignment_id)
+    assert hitungan["total"] == 3 + 150
+    assert konsol.erp.diterima[-1]["grading"]["counts"]["total"] == hitungan["total"]
+    assert konsol.erp.diterima[-1]["grading"]["counts"]["rej"] == hitungan["rej"]
+    assert konsol.outbox.due() == []
+    catatan = [r for r in caplog.records if "[TIKET_FINAL_BERBEDA]" in r.getMessage()]
+    assert len(catatan) == 1
