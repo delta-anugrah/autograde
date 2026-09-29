@@ -17,21 +17,18 @@ from ..controllers.internal_controller import (
 from ..core.config import Settings
 from ..core.dependencies import (
     get_capture_service,
-    get_outbox_store,
     get_penutup_line,
     get_runtime_state,
     get_settings,
 )
 from ..domain.setelan_grading import bersihkan_setelan
 from ..domain.setelan_rekam import SetelanRekamTidakSah, bersihkan_setelan_rekam
-from ..integrations.outbox.outbox_store import OutboxStore
 from ..schemas.internal_schema import (
     AssignmentSyncRequest,
     AssignmentSyncResponse,
     LineStatusResponse,
     ManualRejectCommandRequest,
     ManualRejectCommandResponse,
-    OutboxRequeueResponse,
     PistonCommandRequest,
     PlcCoilCommandRequest,
     PlcCoilCommandResponse,
@@ -134,16 +131,6 @@ async def manual_reject(
     service: Annotated[CaptureService, Depends(get_capture_service)],
 ) -> ManualRejectCommandResponse:
     return await manual_reject_command(request, service)
-
-
-@router.post("/outbox/requeue", response_model=OutboxRequeueResponse)
-async def outbox_requeue(
-    outbox: Annotated[OutboxStore, Depends(get_outbox_store)],
-) -> OutboxRequeueResponse:
-    # Move dead-letter events (status='failed') back to 'pending' so
-    # OutboxRetryWorker tries sending them again. Used after the API recovers
-    # from a long outage. Safe to repeat (idempotent when nothing has failed).
-    return OutboxRequeueResponse(requeued=outbox.requeue_failed())
 
 
 @router.post("/piston", response_model=LineStatusResponse)

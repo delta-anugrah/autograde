@@ -22,17 +22,16 @@ def _lama(tmp_path, *event_ids):
     return lama
 
 
-def test_baris_lama_pindah_utuh_termasuk_yang_gagal(tmp_path):
+def test_baris_lama_pindah_utuh_yang_menyerah_dihidupkan(tmp_path):
     lama = _lama(tmp_path, "e1", "e2")
-    rows = lama.get_pending()
-    for _ in range(50):
-        lama.mark_failed_attempt(rows[1]["id"], "HTTP 503")
+    with lama._db:  # yang ditulis versi sebelum batch 2.4 pada percobaan ke-50
+        lama._db.execute("UPDATE outbox_events SET status = 'failed' WHERE event_id = 'e2'")
     lama._db.close()
     baru = OutboxStore(tmp_path / "state" / "outbox.db")
 
     assert baru.serap(tmp_path / "lama" / "outbox.db") == 2
-    assert baru.pending_count() == 1
-    assert baru.failed_count() == 1
+    assert baru.pending_count() == 2
+    assert baru.failed_count() == 0
 
 
 def test_serap_dua_kali_tidak_menggandakan(tmp_path):

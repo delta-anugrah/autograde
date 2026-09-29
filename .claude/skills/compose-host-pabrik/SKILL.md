@@ -90,8 +90,10 @@ Urutannya, kalau memang mau dikerjakan sekalian:
    `artifacts/` (aman, tidak tersaji `/captures`), cuma `logger.error` tiap boot, bukan gagal
    start; beri tahu user kalau ketemu.
 2. **Rilis** (`autograde pull` / `use`). Boot pertama tiap line mencatat `outbox.db dipindah ...`
-   dan `license.db dipindah ...`. Cek `/health/detail` `outbox_pending` sama dengan sebelum
-   upgrade, `ls artifacts/line-1/*.db` kosong, `ls state/line-1/` memuat kedua berkas, dan foto
+   dan `license.db dipindah ...`. Cek `/health/detail` `outbox_pending` sama dengan
+   `outbox_pending + outbox_failed` sebelum upgrade (baris yang dulu menyerah ikut dihitung dan
+   dikirim; batch 2.4), lalu turun sendiri ke 0 dalam beberapa menit, `ls artifacts/line-1/*.db`
+   kosong, `ls state/line-1/` memuat kedua berkas, dan foto
    konsol tetap tampil sesudah login. `outbox_lama_tertinggal: true` (dengan `outbox_pending:
    null`) = antrean lama gagal diserap: jangan hapus data apa pun, restart line itu, lalu baca
    log line-nya (`gagal diserap`).

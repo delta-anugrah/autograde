@@ -154,7 +154,7 @@ per `track_id`): `docs/overview.md` §3.
 | Field | Artinya |
 |---|---|
 | `camera_type` | sumber yang **benar-benar** dipakai line (dari `media.env`), bukan `printenv` container |
-| `outbox_pending` / `outbox_failed` | backlog jalur realtime ke **konsol** (`BACKEND_URL`). Naik terus = konsol tidak menjawab. **Bukan** backlog upload R2. `outbox_pending` `null` = tidak diketahui (lihat baris berikut) |
+| `outbox_pending` / `outbox_failed` | backlog jalur realtime ke **konsol** (`BACKEND_URL`). `outbox_pending` = semua janjang belum sampai (`COUNT(*)`), termasuk baris yang versi lama pernah menyerah dan sekarang dicoba lagi. Naik terus = konsol tidak menjawab, rinciannya di tab Status → Antrean line. **Bukan** backlog upload R2. `outbox_failed` tetap ada di bentuk jawaban tapi **selalu 0 sejak batch 2.4** (antrean ini tidak punya batas nyerah lagi). `outbox_pending` `null` = tidak diketahui (lihat baris berikut) |
 | `outbox_lama_tertinggal` | `true` = `artifacts/outbox.db` dari sebelum batch 1 gagal diserap ke `state/` (berkas rusak, disk penuh): barisnya belum terkirim dan tidak terhitung, jadi `outbox_pending` dilapor `null`. Danger Zone menahan hapus data (`outbox_lama`); restart line itu untuk mencoba lagi, lalu baca log line-nya |
 | `capture_save_pending` | janjang yang menunggu ditulis `CaptureSaveWorker` (antrean 8 dalam). Naik terus = disk/CPU tidak mengimbangi laju grading |
 | `capture_save_dropped` | **harus NOL.** Janjang yang dibuang karena antrean penuh: sudah dapat pulse PLC dan sudah masuk rekap, tapi **tidak punya gambar maupun sidecar**, jadi `BatchUploadWorker._scan()` tidak akan pernah menemukannya |
@@ -178,7 +178,8 @@ secret yang dikonfigurasi kosong tidak pernah membuka lane (`routes/penjaga_raha
 | GET | `/internal/status` | Dipanggil tiap 1 detik (`LineStatusWorker`) → `{machine_id, truck_id, ffb_source, piston, alarms, unggah}`. `unggah` = ringkasan upload R2 untuk **Last Sync** (`aktif`, `terakhir`, `gagal_sejak`, `pesan`, `antre`, `rusak`), dihitung sekali per batch; `null` sebelum worker upload ada |
 | POST | `/internal/manual-reject` | `{machine_id, assignment_id, requested_by, requested_at}` → `{accepted, message}`. `capture_manual_reject()` lewat executor: WebP + JSON + satu baris outbox, sampai di konsol ~1 detik |
 | GET / POST | `/internal/setelan` | Setelan grading yang berlaku / timpa tanpa restart (`conf_threshold`, `minimum_size`, `garis_capture`, `sumbu_garis`, `mode_dev`). Disimpan di `RuntimeState`; konsol pemegang nilai sebenarnya |
-| POST | `/internal/outbox/requeue` | Antre ulang baris outbox yang gagal |
+| GET | `/internal/outbox` | Ringkasan antrean line untuk tab Status → Antrean line: `{line_code, aktif, menunggu, tertua_at, lama_tertinggal, tersambung, putus_sejak, sebab_putus, coba_lagi_at, galat, galat_at}`. Router `routes/internal_outbox.py`, tanpa torch |
+| POST | `/internal/outbox/requeue` | Kirim Ulang: semua baris outbox jatuh tempo sekarang, jeda sambungan dibatalkan → `{requeued}`. URL dan bentuk sama dengan sebelum batch 2.4 |
 | POST | `/internal/piston` | Piston manual (fitur mati selama `PLC_COIL_MANUAL` kosong) |
 | GET | `/internal/plc` | Snapshot DI + coil yang boleh diuji |
 | POST | `/internal/plc/coil` | Picu satu coil uji; ditolak 409 selama line punya truk terpasang |
@@ -202,7 +203,7 @@ pemanggil, dan keduanya tanpa auth. Penggantinya `/internal/assignment` (yang ju
 
 | Method | Path | Notes |
 |---|---|---|
-| POST | `/api/v1/internal/vision/events` | Event per janjang dari tiga line (kontrak beku, sama dengan palmgrade-api dulu). 401 secret salah, 400 payload cacat (outbox line menandainya gagal) → 201 `{status, work_date}` |
+| POST | `/api/v1/internal/vision/events` | Event per janjang dari tiga line (kontrak beku, sama dengan palmgrade-api dulu). 401 secret salah, 400 payload cacat (outbox line menahannya dan terus mencoba, tab Status → Antrean line) → 201 `{status, work_date}` |
 | GET | `/api/v1/internal/setelan` | Setelan grading, dibaca line saat start |
 | GET | `/api/v1/internal/penugasan?machine_id=` | Truk terpasang untuk satu line, dibaca line saat start |
 | POST | `/api/v1/internal/scale/weighing` | Payload program timbangan (`plate_number`, `gross_kg`, `tare_kg`, `entered_at`, `exited_at`, `ref?`); format sebenarnya belum diketahui |
@@ -267,7 +268,7 @@ Rinciannya: CLAUDE.md, Critical Rule 27.
 
 ### Lane support (`require_support`)
 
-Melayani tab support: **Log**, **Status** (Versi, Diagnostik, Antrean ERP), **Akun**, **Line**
+Melayani tab support: **Log**, **Status** (Versi, Diagnostik, Antrean line, Antrean ERP), **Akun**, **Line**
 (Sumber Kamera, Model Deteksi, Uji PLC, Rekam Video), dan **Setelan** (termasuk Danger Zone).
 Semuanya dijawab **403** kalau operator yang masuk bukan `role='support'`. Rasionalnya:
 CLAUDE.md, Critical Rule 21.
@@ -280,6 +281,8 @@ CLAUDE.md, Critical Rule 21.
 | GET | `/api/console/dev/antrean` | `erp_outbox`: jumlah pending/gagal + daftar gagal. `ErpClient` membalas empat jawaban (`ErpRejected` 4xx, `ErpServerError` 5xx beramplop Frappe, `ErpUnavailable` tidak terjangkau, atau terkirim); dua yang pertama dicatat per pesan dan batch lanjut, `ErpUnavailable` menahan batch dan Last Sync membaca putus (`integrations/erp/client.py`) |
 | GET | `/api/console/dev/antrean/manifest` | antrean manifest R2 (DB terpisah dari `erp_outbox`, supaya R2 mati tidak menahan pesan AutoERP) |
 | POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox`. **`attempts` sengaja tidak di-reset**: itu yang membedakan "macet selamanya" dari "gangguan sesaat" |
+| GET | `/api/console/dev/antrean/line` | antrean janjang tiap line ke konsol, satu baris per line; line mati atau menolak kunci tetap 200 dengan `kode`/`status`/`pesan` |
+| POST | `/api/console/dev/antrean/line/{line}/kirim-ulang` | → `/internal/outbox/requeue` line itu → `{line_code, dijadwalkan}`. **404** `line_tidak_dikenal`, **502** `line_tidak_menjawab`/`line_menolak`. Tiap tekanan satu WARNING menyebut pelakunya |
 | GET | `/api/console/dev/versi` | versi image + status lisensi |
 | GET | `/api/console/dev/akun` | `{akun:[{email, nama, role, asal: "lokal"\|"erp", keadaan: "aktif"\|"mati"\|"terkunci", terkunci_detik, sedang_masuk, dibuat}]}`: semua akun di PC ini, aktif dulu. **Tanpa hash sandi** (kolomnya disebut satu per satu) |
 | POST | `/api/console/dev/akun` | `{email, nama, sandi, sandi_ulang, role}` → 201 `{akun:{email, role}}`: akun **lokal** baru. 409 `akun_sudah_ada` / `akun_milik_erp`, 400 `akun_email_tidak_sah` / `akun_nama_kosong` / `akun_sandi_beda` / `sandi_pendek` |
