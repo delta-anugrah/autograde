@@ -976,12 +976,15 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     objeknya saja belum ada). Cek cuma menggerakkan warna, **tidak menggeser jam**. Sambungan putus
     kalau SATU sumbernya sedang gagal, dan tiap sumber pulih sendiri: dulu satu catatan untuk semua
     membuat titiknya berkedip merah-hijau tiap menit (ping 401 = putus, kiriman 401 = "AutoERP
-    menjawab"). Galat jaringan (tanpa jawaban, 502/503/504) dicatat di sumber `jaringan` yang
-    dibersihkan jawaban apa pun dari server: kiriman yang gagal diulang sampai sejam kemudian, dan
-    titiknya tidak boleh merah selama itu. **Kiriman yang ditolak (417, 404) atau memicu 500 =
-    tersambung**: isi pesan itu yang bermasalah, terlihat di Antrean ERP (tab Status); **401/403 = putus**
-    (kunci ditolak, tidak ada yang akan sampai). **Tarikan data yang gagal = putus** sampai tarikan
-    berikutnya berhasil (data tidak mengalir walau server hidup).
+    menjawab"). **Galat jaringan = SETIAP `ErpUnavailable`** (aturan 14, batch 2.7): tanpa jawaban
+    atau timeout, gateway 502/503/504, halaman 5xx yang bukan Frappe, atau 2xx yang isinya bukan
+    objek JSON Frappe. Dicatat di sumber `jaringan` yang dibersihkan jawaban apa pun dari server:
+    kiriman yang gagal diulang sampai sejam kemudian, dan titiknya tidak boleh merah selama itu.
+    **Kiriman yang ditolak (417, 404) atau yang memicu 5xx BERAMPLOP FRAPPE (`ErpServerError`) =
+    tersambung**: AutoERP menjawab, isi pesan itu yang bermasalah, per pesan, terlihat di Antrean
+    ERP (tab Status); **401/403 = putus** (kunci ditolak, tidak ada yang akan sampai). **Tarikan
+    data yang gagal = putus** sampai tarikan berikutnya berhasil (data tidak mengalir walau
+    server hidup).
     **Cloud Photo = cek R2 konsol + blok `unggah` tiap line** (lewat `/internal/status`). Satu
     sumber gagal cukup untuk merah, `sejak` = yang paling awal. **Line mati atau versi lama TIDAK
     membuat merah**: kartunya sudah menulis OFFLINE, dan baris ini bicara soal cloud. "Menunggu"
@@ -1060,6 +1063,15 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     `manual-reject`/`piston`, `record_weighing`, rekam, model, bahaya, diagnostik), yang cuma
     satu pencarian primary-key (`me`, `operators`, `scan`, `setelan`, `penugasan`, `akun`), dan
     `dev_queue`/`dev_resend` (tiga hitungan terindeks).
+    **Thread safety yang membuat pindahan ini aman**: `ErpQueue._visit_lock` dipegang dari
+    baca, bangun, sampai antre di `visit()` (aturan 18), urutan kuncinya **visit lock, lalu
+    store lock, lalu outbox lock**; event loop boleh menunggu kunci ini beberapa milidetik saja
+    (fsync saat antre), bukan lebih. `AuthService` memegang satu `threading.Lock` dari
+    pemeriksaan lockout sampai hash sandi sampai pencatatan hitungan gagal (`login`), supaya
+    sandi salah yang datang bersamaan tidak lolos dari lockout; harga yang diterima: login
+    antre satu per satu, kira-kira satu scrypt tiap kali. `hangatkan_singleton()`
+    (`routes/console_deps.py`) memanaskan service yang di-cache sejak boot, supaya permintaan
+    pertama yang datang dari loop tidak sempat membangun dua instance yang sama.
 
 ---
 
