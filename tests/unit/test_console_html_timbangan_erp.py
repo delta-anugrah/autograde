@@ -17,14 +17,15 @@ import pytest
 HTML = (Path(__file__).resolve().parents[2] / "src/palmgrade/static/console.html").read_text()
 NODE = shutil.which("node")
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada (image CI)")
-KUNCI = ("erpFinalBeda", "erpFinalBedaJudul", "erpBatal", "erpBatalJudul")
+KUNCI = ("erpFinalBeda", "erpFinalBedaJudul", "erpBatal", "erpBatalJudul", "erpTanpaNomor")
 
 _STUB = """
 const esc = (s) => String(s ?? "").replace(/[&<>"'`]/g, (c) =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;","`":"&#96;" }[c]));
 const KOSONG = "-";
 const t = (k) => ({erpFinalBeda: "CEK", erpFinalBedaJudul: "Tiket {tiket} final",
-                   erpBatal: "BATAL", erpBatalJudul: "Tiket {tiket} batal"}[k] || k);
+                   erpBatal: "BATAL", erpBatalJudul: "Tiket {tiket} batal",
+                   erpTanpaNomor: "(tanpa nomor)"}[k] || k);
 """
 
 
@@ -67,6 +68,13 @@ def test_tiket_batal_bertanda_sendiri():
 def test_nomor_tiket_di_escape_dan_kode_asing_diabaikan():
     assert "&lt;b&gt;" in _tanda({"erp_perlu_dicek": "tiket_dibatalkan", "erp_ticket": "<b>"})
     assert _tanda({"erp_perlu_dicek": "kode_dari_versi_lain"}) == ""
+
+
+@butuh_node
+def test_tiket_tanpa_nomor_ditulis_netral_bukan_strip():
+    tanda = _tanda({"erp_perlu_dicek": "tiket_final_berbeda", "erp_ticket": None})
+
+    assert 'title="Tiket (tanpa nomor) final"' in tanda
 
 
 def test_tanda_ada_di_sel_plat_baris_timbangan():

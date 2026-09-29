@@ -46,7 +46,7 @@ class Konsol:
             erp_queue=ErpQueue(self.store, self.outbox), status_sinkron=self.status,
         )
         klien = ErpClient("http://erp.local", "k", "s", transport=httpx.MockTransport(self.erp))
-        self.worker = ErpOutboxWorker(self.outbox, klien, outbox_handlers(self.store), status=self.status)
+        self.worker = ErpOutboxWorker(self.outbox, klien, outbox_handlers(self.store, tz=WIB), status=self.status)
 
     def timbang_masuk(self, plat: str) -> str:
         tiket = asyncio.run(self.service.record_weighing({

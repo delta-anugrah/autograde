@@ -11,12 +11,18 @@ tiket final yang angkanya sama) bukan berita.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 TIKET_FINAL_BERBEDA = "tiket_final_berbeda"
 TIKET_DIBATALKAN = "tiket_dibatalkan"
+#: Tiket yang belum diketahui nomornya. Bukan "-": di tengah kalimat itu terbaca sebagai jeda.
+TANPA_NOMOR = "(tanpa nomor)"
 
 _CATATAN_BATAL = "ticket cancelled"
 _CATATAN_REVISI = "revised"
+# Potongan `note` AutoERP (`_after_finalisation`) → kata yang dibaca support.
+_YANG_BERUBAH = (("grading revised", "grading berubah"), ("weights revised", "berat berubah"))
 
 _KEJADIAN = {
     TIKET_FINAL_BERBEDA: (
@@ -42,6 +48,9 @@ class KonteksKunjungan:
     masuk: str
     tiket: str
     catatan: str
+    #: Rekap pabrik SEKARANG (yang baru dikirim), None kalau belum ada janjang.
+    janjang: int | None = None
+    mentah: int | None = None
 
 
 def golongkan(note: str | None, *, revised: bool = False) -> str | None:
@@ -67,18 +76,43 @@ def kabar_baru(note: str | None, *, revised: bool = False, sebelumnya: str | Non
     return golongan
 
 
-def jam_masuk(entered_at: str | None) -> str:
-    """`2026-09-28T07:41:09+07:00` jadi `2026-09-28 07:41`: jam pabrik apa adanya."""
+def jam_masuk(entered_at: str | None, tz: ZoneInfo) -> str:
+    """Jam timbang masuk dalam jam pabrik, tanpa detik: sama dengan baris tab Timbangan.
+
+    Tombol Timbang masuk mengirim `new Date().toISOString()` (UTC, `Z`); tanpa konversi
+    07:41 WIB tertulis 00:41, dan shift malam mendapat tanggal kemarin. Jam tanpa zona
+    sudah jam pabrik. Yang tidak bisa dibaca ditulis apa adanya, bukan dibuang.
+    """
     if not entered_at:
         return "-"
-    return entered_at[:16].replace("T", " ")
+    try:
+        jam = datetime.fromisoformat(entered_at)
+    except ValueError:
+        return entered_at[:16].replace("T", " ")
+    if jam.tzinfo is not None:
+        jam = jam.astimezone(tz)
+    return jam.strftime("%Y-%m-%d %H:%M")
 
 
 def pesan_log(golongan: str, konteks: KonteksKunjungan) -> str:
-    """Satu baris tab Log: kode, truk, line, jam timbang masuk, apa yang terjadi, tindakan."""
+    """Satu baris tab Log: kode, truk, line, jam timbang masuk, apa yang terjadi, apa yang
+    berbeda, rekap pabrik sekarang, tindakan, lalu kalimat AutoERP apa adanya."""
     return (
         f"[{golongan.upper()}] Truk {konteks.plat}, {konteks.line}, timbang masuk {konteks.masuk}: "
         f"{_KEJADIAN[golongan].format(tiket=konteks.tiket)}. "
+        f"{_yang_berbeda(konteks.catatan)}{_rekap(konteks)}"
         f"Tindakan: {_TINDAKAN[golongan].format(tiket=konteks.tiket)}. "
         f"Jawaban AutoERP: {konteks.catatan}"
     )
+
+
+def _yang_berbeda(catatan: str) -> str:
+    kata = [indonesia for inggris, indonesia in _YANG_BERUBAH if inggris in catatan.lower()]
+    return f"Yang berbeda: {', '.join(kata)}. " if kata else ""
+
+
+def _rekap(konteks: KonteksKunjungan) -> str:
+    if not konteks.janjang:
+        return ""
+    persen = f"{round((konteks.mentah or 0) / konteks.janjang * 100, 1):g}".replace(".", ",")
+    return f"Rekap pabrik sekarang: {konteks.janjang} janjang, mentah {persen}%. "

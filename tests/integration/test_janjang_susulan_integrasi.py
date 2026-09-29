@@ -52,7 +52,7 @@ class Konsol:
         )
         self.erp = AutoErpPalsu()
         klien = ErpClient("http://erp.local", "k", "s", transport=httpx.MockTransport(self.erp))
-        self.worker = ErpOutboxWorker(self.outbox, klien, outbox_handlers(self.store))
+        self.worker = ErpOutboxWorker(self.outbox, klien, outbox_handlers(self.store, tz=WIB))
         app = FastAPI()
         app.include_router(ingest_router, prefix=self.settings.backend_api_ver)
         app.dependency_overrides[get_console_service] = lambda: self.service
@@ -123,6 +123,8 @@ def test_janjang_susulan_sesudah_tiket_final_dikirim_dan_jawabannya_disimpan(kon
 
     assert [k["grading"]["counts"]["total"] for k in konsol.erp.diterima] == [3, 4]
     assert konsol.store.weighing(tiket)["erp_note"] == "ticket already finalised; grading revised"
+    [baris] = konsol.service.weighings(konsol.service.today())
+    assert (baris["id"], baris["erp_perlu_dicek"]) == (tiket, "tiket_final_berbeda")
 
 
 def test_kiriman_ulang_janjang_lama_tidak_mengantre_ulang(konsol):

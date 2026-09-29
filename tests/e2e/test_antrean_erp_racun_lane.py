@@ -65,7 +65,7 @@ class Pabrik:
         dev = DevService(LogStore(root / "log.db"), erp_outbox=outbox, settings=settings, console_store=store)
         self.erp = AutoErpPalsu()
         klien = ErpClient("http://erp.local", "k", "s", transport=httpx.MockTransport(self.erp))
-        self.worker = ErpOutboxWorker(outbox, klien, outbox_handlers(store), status=status)
+        self.worker = ErpOutboxWorker(outbox, klien, outbox_handlers(store, tz=WIB), status=status)
         app = FastAPI()
         app.include_router(console_router)
         app.dependency_overrides[get_console_service] = lambda: service

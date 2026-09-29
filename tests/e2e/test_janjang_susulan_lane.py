@@ -69,7 +69,7 @@ class Pabrik:
         self.service = ConsoleService(self.settings, store, _Line(), erp_queue=ErpQueue(store, outbox))
         self.erp = AutoErpPalsu()
         klien = ErpClient("http://erp.local", "k", "s", transport=httpx.MockTransport(self.erp))
-        self.worker = ErpOutboxWorker(outbox, klien, outbox_handlers(store))
+        self.worker = ErpOutboxWorker(outbox, klien, outbox_handlers(store, tz=WIB))
         self.log = LogStore(root / "log.db")
         dev = DevService(self.log, console_store=store, settings=self.settings)
         app = FastAPI()
@@ -100,9 +100,13 @@ class Pabrik:
         assert res.status_code == 201, res.text
 
     def truk_selesai(self, operator: TestClient) -> str:
-        """Timbang masuk, tugaskan ke line-1, tiga janjang, timbang keluar (melepas line)."""
+        """Timbang masuk, tugaskan ke line-1, tiga janjang, timbang keluar (melepas line).
+
+        Jam masuk dikirim seperti tombol Timbang masuk mengirimnya: `new Date().toISOString()`,
+        UTC dengan `Z`."""
+        self.masuk_utc = datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         res = operator.post("/api/console/weighings", json={
-            "ref": "SCL-7", "plate_number": PLAT, "entered_at": datetime.now(WIB).isoformat(), "gross_kg": 14560,
+            "ref": "SCL-7", "plate_number": PLAT, "entered_at": self.masuk_utc, "gross_kg": 14560,
         })
         assert res.status_code == 201, res.text
         res = operator.post("/api/console/lines/line-1/assign-truck", json={"truck_id": truck_id_for(PLAT)})
@@ -165,7 +169,9 @@ def test_tiket_final_yang_menerima_janjang_susulan_ditandai_untuk_operator_dan_s
     assert (tiket["erp_ticket"], tiket["erp_perlu_dicek"]) == ("WB-2026-00001", "tiket_final_berbeda")
     [catatan] = _log(pabrik, "TIKET_FINAL_BERBEDA")
     assert catatan["level"] == "WARNING"
-    assert "Truk BE 8821 KL, line-1, timbang masuk " in catatan["message"]
+    jam_pabrik = datetime.fromisoformat(pabrik.masuk_utc).astimezone(WIB).strftime("%Y-%m-%d %H:%M")
+    assert f"Truk BE 8821 KL, line-1, timbang masuk {jam_pabrik}: " in catatan["message"]
+    assert "Yang berbeda: grading berubah. Rekap pabrik sekarang: 4 janjang, mentah 25%. " in catatan["message"]
     assert "WB-2026-00001" in catatan["message"] and "Tindakan: " in catatan["message"]
 
 
