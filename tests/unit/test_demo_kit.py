@@ -66,6 +66,13 @@ def test_console_data_lives_on_the_host():
     assert "./state/console:/app/state" in _console()["volumes"]
 
 
+def test_seeder_can_write_the_demo_photos():
+    """No camera lines here: the seeder writes the photos, so artifacts cannot be read-only."""
+    volumes = _console()["volumes"]
+    for line in ("line-1", "line-2", "line-3"):
+        assert f"./artifacts/{line}:/app/artifacts/{line}" in volumes
+
+
 def test_env_example_defines_every_variable_compose_reads():
     read = set(re.findall(r"\$\{([A-Z0-9_]+)\}", COMPOSE.read_text(encoding="utf-8")))
     assert read - set(_env_example()) == set()

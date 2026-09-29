@@ -57,9 +57,10 @@ services:
       - MEDIA_FILE=
     volumes:
       - ./state/console:/app/state
-      - ./artifacts/line-1:/app/artifacts/line-1:ro
-      - ./artifacts/line-2:/app/artifacts/line-2:ro
-      - ./artifacts/line-3:/app/artifacts/line-3:ro
+      # Writable, unlike the factory console: with no camera lines the seeder writes the demo photos.
+      - ./artifacts/line-1:/app/artifacts/line-1
+      - ./artifacts/line-2:/app/artifacts/line-2
+      - ./artifacts/line-3:/app/artifacts/line-3
       - ./media:/media:ro
       - ./models:/app/models:ro
       - ./engines:/app/engines:ro
