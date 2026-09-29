@@ -13,6 +13,7 @@ import logging
 import threading
 import time
 from dataclasses import replace
+from itertools import count
 
 import pytest
 
@@ -42,19 +43,25 @@ class _CfgPlc:
 
 
 class _SocketPlc:
-    """Socket PLC tiruan: mencatat tiap tulisan coil ke jejak bersama."""
+    """Socket PLC tiruan: mencatat tiap tulisan coil ke jejak bersama.
 
-    def __init__(self, jejak: list, *, jeda_s: float = 0.0) -> None:
+    `jeda_s` meniru link yang mati (tiap panggilan menunggu timeout socket).
+    `lepas` memotong jeda itu saat teardown, supaya langkah PLC yang masih
+    jalan sesudah tes selesai tidak bocor ke tes berikutnya.
+    """
+
+    def __init__(self, jejak: list, *, jeda_s: float = 0.0, lepas: threading.Event) -> None:
         self.jejak = jejak
         self.jeda_s = jeda_s
+        self.lepas = lepas
 
     def write_coil(self, address: int, value: bool) -> bool:
-        time.sleep(self.jeda_s)
+        self.lepas.wait(self.jeda_s)
         self.jejak.append(("coil", address, value))
         return self.jeda_s == 0.0
 
     def read_discrete_inputs(self, start: int, count: int):
-        time.sleep(self.jeda_s)
+        self.lepas.wait(self.jeda_s)
         return [False] * count
 
     def close(self) -> None:
@@ -99,9 +106,9 @@ class _Penjadwal:
         self.jejak.append(("penjadwal_stop", tunggu))
 
 
-def _job(frame, detik: int) -> SaveJob:
+def _job(frame, detik: int, mikro: int = 1) -> SaveJob:
     return SaveJob(
-        timestamp=f"2026-09-28_0914{detik:02d}_000001",
+        timestamp=f"2026-09-28_0914{detik:02d}_{mikro:06d}",
         date_folder="2026-09-28",
         truck_folder="091432_B1234XY_a3f9c201",
         annotated_frame=frame,
@@ -123,6 +130,8 @@ def rakit(tmp_path, monkeypatch):
     monkeypatch.delenv("ARTIFACTS_DIR", raising=False)
     settings = replace(Settings(), repo_root=tmp_path, factory_tz="Asia/Jakarta")
     dibuat: list = []
+    lepas_socket = threading.Event()
+    sudah_ada = set(threading.enumerate())
 
     def _rakit(*, storage, socket_jeda_s=0.0, batas_s=5.0, batas_kuras_s=5.0):
         jejak: list = []
@@ -131,7 +140,7 @@ def rakit(tmp_path, monkeypatch):
         t_penulis = threading.Thread(target=penulis.run_loop, daemon=True, name="capture_save")
         t_penulis.start()
         worker = PlcWorker(
-            client=_SocketPlc(jejak, jeda_s=socket_jeda_s),
+            client=_SocketPlc(jejak, jeda_s=socket_jeda_s, lepas=lepas_socket),
             scheduler=PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=20),
             settings=_CfgPlc(),
         )
@@ -155,8 +164,19 @@ def rakit(tmp_path, monkeypatch):
         return penutup, penulis, worker, jejak, keluar
 
     yield _rakit, settings
+    # Langkah tutup yang lewat batas masih jalan sesudah `keluar` (di produksi
+    # `os._exit` memotongnya). Tanpa ditunggu, langkah PLC menulis
+    # `plc._worker = None` sesudah monkeypatch dipulihkan, di tengah tes lain.
+    lepas_socket.set()
     for penulis in dibuat:
         penulis.stop(timeout=1)
+    batas = time.monotonic() + 5
+    baru = set(threading.enumerate()) - sudah_ada
+    for t in baru:
+        t.join(timeout=max(0.0, batas - time.monotonic()))
+    tertinggal = sorted(t.name for t in baru if t.is_alive())
+    assert tertinggal == [], f"thread tutup masih jalan sesudah tes: {tertinggal}"
+    assert plc._worker is None
 
 
 @pytest.fixture
@@ -221,7 +241,13 @@ def test_disk_macet_keluar_tetap_terjadi_dan_janjang_hilang_disebut(rakit, frame
 
 
 def test_link_plc_mati_tidak_menahan_antrean_simpan(rakit, frame, caplog):
-    """Review Focus 2: tiap tulis coil menunggu timeout socket; bukti tetap tertulis."""
+    """Review Focus 2: tiap tulis coil menunggu timeout socket; bukti tetap tertulis,
+    dan ERROR batas waktu cuma menyebut `plc`.
+
+    Tes ini TIDAK membuktikan kedua langkah itu serentak: penulis menulis di
+    thread-nya sendiri, jadi antrean ini habis juga kalau urutannya berurutan.
+    Yang membuktikannya `test_link_plc_mati_dan_disk_macet_janjang_hilang_tetap_disebut`.
+    """
     _rakit, settings = rakit
     penutup, penulis, _worker, _jejak, keluar = _rakit(
         storage=_DiskLambat(jeda_s=0.05), socket_jeda_s=0.5, batas_s=1.5
@@ -236,3 +262,71 @@ def test_link_plc_mati_tidak_menahan_antrean_simpan(rakit, frame, caplog):
     assert len(list(settings.results_dir.glob("*/*_ripeness.json"))) == 3
     error = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
     assert any("plc" in m and "antrean_simpan" not in m for m in error)
+
+
+def test_link_plc_mati_dan_disk_macet_janjang_hilang_tetap_disebut(rakit, frame, caplog):
+    """Review Focus 1 + 2 sekaligus: link PLC mati (tahap PLC makan seluruh batas)
+    DAN disk macet. Janjang yang hilang tetap disebut satu per satu.
+
+    Ini yang membedakan tahap serentak dari berurutan: kalau antrean baru
+    dikuras sesudah PLC selesai, pengurasan tidak pernah mulai sebelum batas
+    habis, dan tidak ada yang menyebut janjang yang hilang.
+    """
+    _rakit, _settings = rakit
+    macet = threading.Event()
+    penutup, penulis, _worker, _jejak, keluar = _rakit(
+        storage=_DiskLambat(macet=macet), socket_jeda_s=1.0, batas_s=3.0, batas_kuras_s=0.3
+    )
+    try:
+        penulis.submit(_job(frame, 1))
+        penulis.submit(_job(frame, 2))
+        with caplog.at_level(logging.ERROR):
+            penutup.keluar_nanti(0)
+            assert keluar.wait(10)
+    finally:
+        macet.set()
+
+    error = " ".join(r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR)
+    assert "2 janjang TIDAK tertulis" in error
+    assert "2026-09-28_091401_000001 (a3f9c201)" in error
+    assert "2026-09-28_091402_000001 (a3f9c201)" in error
+
+
+def test_janjang_yang_datang_saat_menutup_tertulis_atau_disebut(rakit, frame, caplog):
+    """Deteksi tetap jalan selama line menutup (link PLC mati = hampir 9 detik).
+
+    Tiap janjang yang diserahkan sesudah perintah restart harus berakhir di
+    salah satu dari dua tempat: tertulis di disk, atau disebut di log ERROR.
+    Dulu yang datang sesudah penulis dihentikan diterima (`True`), tidak ditulis
+    siapa pun, dan tidak disebut: hilang tanpa jejak.
+    """
+    _rakit, settings = rakit
+    penutup, penulis, _worker, _jejak, keluar = _rakit(
+        storage=_DiskLambat(jeda_s=0.02), socket_jeda_s=0.5, batas_s=3.0, batas_kuras_s=0.3
+    )
+    # Grading lebih lambat dari disk: antrean hampir kosong saat penulis
+    # dihentikan, jadi janjang sesudahnya masuk ke celah itu, bukan ditolak
+    # karena antrean penuh (yang sudah menyebutnya sendiri).
+    diserahkan: list[str] = []
+    nomor = count(1)
+
+    def grading() -> None:
+        while not keluar.is_set():
+            job = _job(frame, 5, next(nomor))
+            penulis.submit(job)
+            diserahkan.append(job.timestamp)
+            time.sleep(0.15)
+
+    with caplog.at_level(logging.ERROR):
+        t_grading = threading.Thread(target=grading, daemon=True, name="grading")
+        t_grading.start()
+        time.sleep(0.2)
+        penutup.keluar_nanti(0)
+        assert keluar.wait(10)
+        t_grading.join(timeout=2)
+
+    tertulis = {p.name.removesuffix("_auto_ripeness.json") for p in settings.results_dir.glob("*/*_ripeness.json")}
+    error = " ".join(r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR)
+    hilang_diam = [s for s in diserahkan if s not in tertulis and s not in error]
+    assert hilang_diam == [], f"janjang hilang tanpa disebut: {hilang_diam}"
+    assert "line sedang menutup" in error, "tidak ada janjang yang datang sesudah pintu ditutup"

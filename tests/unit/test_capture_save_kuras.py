@@ -10,13 +10,15 @@ Jalan tanpa torch/cv2: storage di-stub.
 """
 from __future__ import annotations
 
+import logging
 import threading
+import time
 from dataclasses import replace
 
 import pytest
 
 from palmgrade.core.config import Settings
-from palmgrade.workers.capture_save_worker import CaptureSaveWorker, SaveJob
+from palmgrade.workers.capture_save_worker import CaptureSaveWorker, SaveJob, sebut_janjang
 
 
 @pytest.fixture
@@ -109,3 +111,62 @@ def test_antrean_tersisa_menyebut_yang_sedang_ditulis_lalu_yang_antre(settings):
 
 def test_antrean_tersisa_kosong_saat_tidak_ada_apa_apa(settings):
     assert CaptureSaveWorker(settings, _Storage(), _Outbox()).antrean_tersisa() == []
+
+
+# ── pintu ditutup saat line menutup ──────────────────────────────────────────
+#
+# Sesudah antrean dihabiskan dan penulis dihentikan, thread deteksi masih bisa
+# menyerahkan janjang (link PLC mati = tahap tutup makan hampir seluruh 9
+# detik). Dulu `submit` tetap menerimanya: True, masuk antrean, tidak ada yang
+# menulis, dan daftar ERROR sudah dibaca. Hilang tanpa jejak.
+
+
+def test_submit_sesudah_pintu_ditutup_ditolak_dan_disebut(settings, caplog):
+    w = CaptureSaveWorker(settings, _Storage(), _Outbox())
+    w.tutup_pintu()
+
+    with caplog.at_level(logging.ERROR, logger="palmgrade.workers.capture_save_worker"):
+        assert w.submit(_job("2026-09-28_091432_000001")) is False
+        assert w.submit(_job("2026-09-28_091433_000002", assignment_id=None)) is False
+
+    assert w.belum_selesai == 0
+    assert w.antrean_tersisa() == []
+    error = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+    assert len(error) == 2
+    assert "line sedang menutup" in error[0]
+    assert "2026-09-28_091432_000001 (a3f9c201)" in error[0]
+    assert "2026-09-28_091433_000002 (tanpa truk)" in error[1]
+
+
+def test_pintu_tertutup_tidak_dibuka_lagi_oleh_watchdog(settings):
+    """Watchdog 10 detik memanggil `run_loop` langsung, yang membersihkan `_stop`.
+    Itu tidak boleh membuka lagi pintu yang ditutup penutup line."""
+    w = CaptureSaveWorker(settings, _Storage(), _Outbox())
+    w.start()
+    w.tutup_pintu()
+    w.stop(timeout=2)
+
+    ulang = threading.Thread(target=w.run_loop, daemon=True, name="capture_save")
+    ulang.start()
+    try:
+        deadline = time.monotonic() + 2
+        while w._stop.is_set() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert not w._stop.is_set(), "run_loop tidak pernah jalan ulang"
+        assert w.submit(_job("2026-09-28_091432_000001")) is False
+        assert w.belum_selesai == 0
+    finally:
+        w.stop(timeout=2)
+
+
+def test_pintu_terbuka_sebelum_ditutup(settings):
+    w = CaptureSaveWorker(settings, _Storage(), _Outbox())
+    assert w.submit(_job("2026-09-28_091432_000001")) is True
+    assert w.belum_selesai == 1
+
+
+def test_sebut_janjang_memakai_delapan_huruf_assignment():
+    assert sebut_janjang("2026-09-28_091432_000001", "a3f9c201-dead-beef") == (
+        "2026-09-28_091432_000001 (a3f9c201)"
+    )
+    assert sebut_janjang("2026-09-28_091432_000001", None) == "2026-09-28_091432_000001 (tanpa truk)"

@@ -10,10 +10,14 @@ import logging
 import palmgrade.services.langkah_tutup_line as modul
 from palmgrade.services.langkah_tutup_line import (
     BATAS_HENTI_PENULIS_S,
+    BATAS_KURAS_S,
+    CADANGAN_TAHAP_AKHIR_S,
     kuras_antrean_simpan,
     langkah_tutup_line,
     matikan_plc,
 )
+from palmgrade.services.penutup_line import BATAS_TUTUP_S
+from palmgrade.workers.capture_save_worker import _QUEUE_MAX
 
 LOGGER = "palmgrade.services.langkah_tutup_line"
 
@@ -29,6 +33,9 @@ class _Penulis:
     @property
     def belum_selesai(self) -> int:
         return self._belum
+
+    def tutup_pintu(self) -> None:
+        self.jejak.append(("tutup_pintu",))
 
     def tunggu_kosong(self, timeout: float) -> bool:
         self.jejak.append(("tunggu", timeout))
@@ -87,7 +94,9 @@ def test_antrean_habis_dihentikan_tanpa_error(caplog):
     with caplog.at_level(logging.WARNING, logger=LOGGER):
         kuras_antrean_simpan(penulis, batas_s=5.0)
 
-    assert penulis.jejak == [("tunggu", 5.0), ("stop", BATAS_HENTI_PENULIS_S)]
+    # Pintu ditutup DULU: janjang yang datang sesudah daftar hilang dibaca
+    # tidak boleh diterima lalu hilang tanpa disebut.
+    assert penulis.jejak == [("tutup_pintu",), ("tunggu", 5.0), ("stop", BATAS_HENTI_PENULIS_S)]
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
     assert any("3 janjang" in r.getMessage() for r in caplog.records)
 
@@ -130,3 +139,24 @@ def test_tanpa_plc_tetap_aman(monkeypatch):
     monkeypatch.setattr(modul, "shutdown_plc_worker", dimatikan.append)
     matikan_plc([("capture", "t", object())])
     assert dimatikan == [None]
+
+
+def test_batas_kuras_muat_dalam_batas_tutup():
+    """Kuras + henti penulis + tahap kamera/penjadwal harus muat di 9 detik:
+    lewat dari itu `os._exit` memotong ERROR yang menyebut janjang hilang."""
+    assert BATAS_KURAS_S + BATAS_HENTI_PENULIS_S + CADANGAN_TAHAP_AKHIR_S <= BATAS_TUTUP_S
+
+
+def test_batas_kuras_cukup_untuk_antrean_penuh():
+    """Antrean penuh + satu yang dipegang penulis, ~0,59 detik per janjang
+    (PC Lampung 2026-09-17): semuanya sudah dipulse PLC, jadi harus sempat ditulis."""
+    assert (_QUEUE_MAX + 1) * 0.59 <= BATAS_KURAS_S
+
+
+def test_batas_di_bawah_satu_detik_tidak_ditulis_nol(caplog):
+    penulis = _Penulis(sebelum=1, sisa_sesudah=[("2026-09-28_091432_000001", None)])
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        kuras_antrean_simpan(penulis, batas_s=0.3)
+    teks = " ".join(r.getMessage() for r in caplog.records)
+    assert "0.3 detik" in teks
+    assert "0 detik" not in teks
