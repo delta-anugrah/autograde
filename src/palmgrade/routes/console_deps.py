@@ -232,6 +232,20 @@ def get_impor_grading_service() -> ImporGradingService:
         hari_ini=service.today,
     )
 
+def hangatkan_singleton() -> None:
+    """Build, before the first request, every singleton a thread-pool route reaches.
+
+    Batch 2.5 moved login, `/state`, `dev/log` and the session check into the thread
+    pool, and `lru_cache` does not stop two threads from both building an instance on a
+    first call that lands at the same moment. Two `AuthService` objects would mean two
+    login locks, and a burst of wrong passwords right after boot could get past the
+    lockout again. The store, `ErpQueue` and both outboxes live inside
+    `get_console_service()`, which the app factory and the lifespan already build.
+    """
+    get_auth_service()
+    get_dev_service()
+
+
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
 Scan = Annotated[ScanService, Depends(get_scan_service)]

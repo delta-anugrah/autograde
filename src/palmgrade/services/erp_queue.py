@@ -8,6 +8,7 @@ after a power cut.
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -37,6 +38,10 @@ class ErpQueue:
         # test keeps working unchanged. console_main.py wires the real one only
         # when R2 is configured (see domain/visit_manifest.detail_url_for).
         self._detail_url_for = detail_url_for
+        # Held from reading the store to queueing the message (`visit`). One
+        # instance per console process (built once in `routes/console_deps.py`),
+        # so every trigger shares it.
+        self._visit_lock = threading.Lock()
 
     def truck(self, plate_number: str) -> None:
         """Interface B: a plate first seen at the mill goes up to AutoERP."""
@@ -48,9 +53,16 @@ class ErpQueue:
         nothing to send yet.
 
         The payload is rebuilt from the store on every call rather than patched,
-        so a send queued behind another one can never carry older state than the
-        row it came from.
+        and one lock covers read, build and enqueue. That lock is what guarantees
+        the queued message never carries older state than the store: without it,
+        two calls on two threads (two late bunches, or a release racing an
+        ingest) could read in one order and enqueue in the other, leaving the
+        recap without the last bunch.
         """
+        with self._visit_lock:
+            return self._queue_visit(weighing_id, tz)
+
+    def _queue_visit(self, weighing_id: str, tz: ZoneInfo | None) -> bool:
         visit = self._store.visit(weighing_id)
         if not visit or not visit.get("entered_at"):
             # `weighing.time_in` dates the ticket in AutoERP; without it there is

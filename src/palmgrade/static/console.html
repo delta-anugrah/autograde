@@ -2369,6 +2369,7 @@ const KAMUS = {
     truk:"Truk", supplier:"Supplier", trukBelum:"Truk belum dipilih",
     pilihTruk:"Pilih Truk", lepasTitle:"Truk sudah pergi", spasi:"Spasi",
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
+    erpFinalBeda:"Cek AutoERP", erpFinalBedaJudul:"Tiket {tiket} sudah final di AutoERP saat data terbaru tiba. Angka yang dibukukan tidak berubah; minta backoffice memeriksa tiket ini.", erpBatal:"Tiket batal", erpBatalJudul:"Tiket {tiket} dibatalkan di AutoERP, kunjungan ini tidak dibukukan. Minta backoffice memeriksanya.", erpTanpaNomor:"(tanpa nomor)",
     kosongGrading:"Belum ada grading hari ini",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio Ripe", trukTanpaNama:"Tanpa truk",
     wajibIsi:"Plat dan bruto wajib diisi",
@@ -2701,6 +2702,7 @@ const KAMUS = {
     truk:"Truck", supplier:"Supplier", trukBelum:"No truck selected",
     pilihTruk:"Select Truck", lepasTitle:"Truck has left", spasi:"Space",
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
+    erpFinalBeda:"Check AutoERP", erpFinalBedaJudul:"Ticket {tiket} was already final in AutoERP when the latest data arrived. The booked figures did not change; ask the back office to review this ticket.", erpBatal:"Ticket cancelled", erpBatalJudul:"Ticket {tiket} was cancelled in AutoERP, so this visit is not booked. Ask the back office to look at it.", erpTanpaNomor:"(no number)",
     kosongGrading:"No grading yet today",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Ripe rate", trukTanpaNama:"No truck",
     wajibIsi:"Plate and gross weight are required",
@@ -3662,13 +3664,27 @@ function barisTimbangan(w) {
     <td>${w.entered_at ? waktu(w.entered_at) : KOSONG}</td>
     <td>${w.exited_at ? waktu(w.exited_at) : KOSONG}</td>
     <td>${dash(lamaProses(w.entered_at, w.exited_at))}</td>
-    <td class="key">${dash(w.plate_number)}</td>
+    <td class="key">${dash(w.plate_number)}${tandaErp(w)}</td>
     <td>${dash(w.source_label)}</td>
     <td class="num">${kg(w.gross_kg)}</td>
     <td class="num">${kg(w.tare_kg)}</td>
     <td class="num">${kg(w.net_kg)}</td>
     <td>${w.tare_kg == null ? `<button data-aksi="keluar">${esc(t("btnKeluar"))}</button>` : ""}</td>
   </tr>`;
+}
+
+// Jawaban AutoERP yang butuh orang (batch 2.3). Server yang menggolongkan
+// (`erp_perlu_dicek`, domain/jawaban_kunjungan.py); layar cuma memberi kata. Tiket
+// final tidak pernah ditulis ulang AutoERP, jadi janjang yang datang sesudahnya
+// hanya bisa ditandai di sini. Rinciannya untuk support ada di tab Log.
+function tandaErp(w) {
+  const kunci = {
+    tiket_final_berbeda: ["erpFinalBeda", "erpFinalBedaJudul"],
+    tiket_dibatalkan: ["erpBatal", "erpBatalJudul"],
+  }[w.erp_perlu_dicek];
+  if (!kunci) return "";
+  const judul = t(kunci[1]).replace("{tiket}", w.erp_ticket || t("erpTanpaNomor"));
+  return ` <span class="tag no" title="${esc(judul)}">${esc(t(kunci[0]))}</span>`;
 }
 
 // The list arrives newest first, so the number is a position on screen, not an

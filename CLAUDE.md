@@ -170,7 +170,7 @@ All via **`make`** (Docker only). From `autograde/`:
   saja. Angka naik terus = API lokal tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
   mengatakan apa-apa soal batch upload ke cloud, untuk itu baca log `Batch tick: N item eligible`
   dari `BatchUploadWorker` atau query `state/upload_manifest.db` langsung.
-- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `work_date` lewat tengah malam + `console_store` + invarian `console.html` + **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: field yang diminta persis milik DocType (ERP palsu membalas 417 seperti Frappe) + Sumber TBS mengikuti `sumber_for_supplier` + grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual, **antrean ke AutoERP**: ditolak vs tidak terjangkau dibedakan + backoff 30 dtk→1 jam + pesan yang diganti saat masih di jalan tidak ditandai terkirim + truk manual masuk antrean + truk milik ERP read-only, **kunjungan truk**: bentuk pesan §4.C + `stage` diturunkan dari keadaan + bagian kosong tidak dikirim + grading ikut lewat tautan assignment + kirim ulang harian sekali sehari + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal, **thumbnail + manifest kunjungan** (sejak 2026-09-16): varian `thumb` di `capture_layout` (twins/pasangan/kunci R2) + thumbnail 400px ditulis di `capture_writer` tanpa menggagalkan capture + `batch_upload_worker` ikut mengunggah dan menghapus thumbnail + `UPLOAD_API_URL` kosong = item `done` begitu foto sampai + bentuk JSON `visit_manifest` (murni, tanpa I/O) + `console_store.bunches_for_assignment` urut waktu + `visit_manifest_worker` (antrean sendiri, viewer diunggah sekali per proses, R2 mati menahan baris) + `detail_url` terkirim hanya kalau R2 terkonfigurasi + invarian statis `viewer.html` (nol dependensi eksternal, baca manifest relatif)), jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi`: `pyyaml` cuma untuk tes yang mencocokkan `docker-compose.yml` dengan `Settings`; `fastapi` cuma untuk penjaga sesi konsol, yang cuma bisa dibuktikan lawan app sungguhan) di samping `ruff pytest`, samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi.
+- **Tests / CI**: `tests/unit/` = unit test murni-logic (`rules`, `outbox_store`, `event_id` uuid5, streaming keep-alive, config validation, **license**: JWS Ed25519 verify + state machine + SQLite hash-chain, **konsol**: `work_date` lewat tengah malam + `console_store` + invarian `console.html` + **timbangan**: neto dihitung bukan dipercaya + timbang-keluar menggabung bukan menimpa + plat beda tulisan tetap satu truk, **master data dari AutoERP**: field yang diminta persis milik DocType (ERP palsu membalas 417 seperti Frappe) + Sumber TBS mengikuti `sumber_for_supplier` + grup supplier disimpan mentah + truk ERP mengadopsi baris truk manual, **antrean ke AutoERP**: ditolak vs tidak terjangkau dibedakan + backoff 30 dtk→1 jam + pesan yang diganti saat masih di jalan tidak ditandai terkirim + truk manual masuk antrean + truk milik ERP read-only, **kunjungan truk**: bentuk pesan §4.C + `stage` diturunkan dari keadaan + bagian kosong tidak dikirim + grading ikut lewat tautan assignment + kirim ulang harian sekali sehari + `erp_name` tidak terhapus saat plat diketik ulang + kursor per-DocType tidak maju kalau ada baris gagal, **thumbnail + manifest kunjungan** (sejak 2026-09-16): varian `thumb` di `capture_layout` (twins/pasangan/kunci R2) + thumbnail 400px ditulis di `capture_writer` tanpa menggagalkan capture + `batch_upload_worker` ikut mengunggah dan menghapus thumbnail + `UPLOAD_API_URL` kosong = item `done` begitu foto sampai + bentuk JSON `visit_manifest` (murni, tanpa I/O) + `console_store.bunches_for_assignment` urut waktu + `visit_manifest_worker` (antrean sendiri, viewer diunggah sekali per proses, R2 mati menahan baris) + `detail_url` terkirim hanya kalau R2 terkonfigurasi + invarian statis `viewer.html` (nol dependensi eksternal, baca manifest relatif), **janjang susulan** (batch 2.3, AutoERP palsu `tests/autoerp_palsu.py` dengan aturan finalisasi `upsert_visit`): requeue cuma pada insert sungguhan + tiket final ditandai `erp_perlu_dicek` + WARNING sekali per catatan berbeda, dan **query konsol berindeks** (`tests/rencana_query.py`, `EXPLAIN QUERY PLAN` sebelum/sesudah tiap query `ConsoleStore` + `ErpOutboxStore`)), jalan tanpa torch/cv2/SDK via **`pytest`** (config di `pyproject.toml`, `pythonpath=src`; async pakai `asyncio.run`, **bukan** pytest-asyncio). CI install deps ringan pure-python (`cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi`: `pyyaml` cuma untuk tes yang mencocokkan `docker-compose.yml` dengan `Settings`; `fastapi` cuma untuk penjaga sesi konsol, yang cuma bisa dibuktikan lawan app sungguhan) di samping `ruff pytest`, samakan venv lokal dengan daftar itu, kalau tidak 4 test batch upload gagal koleksi.
 ⚠️ **`load_dotenv()` naik dari folder kode sampai ketemu `.env` pertama** (`find_dotenv()`), jadi
 di **worktree** itu bukan `.env` worktree ini, tapi `.env` checkout utama: dua test yang lulus
 sendirian tapi merah bersamaan adalah gejalanya, bukan test yang rapuh. `tests/conftest.py`
@@ -216,7 +216,7 @@ konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x
 | GET | `/api/console/trucks/{plat}/qr.png` | kartu QR untuk ditempel di truk / dikirim ke HP supir. **Dibuat di server** (`segno`, pure-Python) karena `console.html` nol referensi `https://`, pustaka CDN akan mati saat internet putus. Isinya plat ternormalisasi, divalidasi ulang sebelum dicetak. Truk yang belum terdaftar tetap dilayani: kartu dicetak dulu, truknya didaftarkan kemudian |
 | POST | `/api/console/scan/keluar` | `{qr}` di gerbang keluar → tiket yang menunggu tara. **Dua tiket terbuka ditolak, tidak ditebak** (keputusan operator 2026-09-15): menebak bisa memasangkan tara ke kunjungan yang salah dan mencampur tonase dua kunjungan. Dibatasi hari kerja: tiket kemarin yang taranya kosong akan memberi neto dari bruto kemarin dan tara hari ini |
 | POST | `/api/console/scan` | `{qr}` hasil scan di gerbang timbangan → truk yang sudah ada. Truk belum terdaftar dijawab **200 `ditemukan:false`** (truk pinjaman itu kasus normal, 404 terbaca seperti kerusakan); yang bukan plat **400**. **Tidak pernah membuat truk dan tidak pernah menulis berat** |
-| GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto) |
+| GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto), plus `erp_perlu_dicek` (`tiket_final_berbeda` / `tiket_dibatalkan` / null) |
 | POST | `/api/console/weighings` | operator mengetik bruto/tara sendiri: payload identik dengan kiriman program timbangan |
 | GET | `/api/console/recap` | rekap per truk satu hari kerja (janjang, ACC/REJ, neto): `?work_date=` opsional. **Tidak dipakai layar lagi** sejak tab Rekap = Riwayat (2026-09-28) |
 | GET | `/api/console/riwayat` | tab **Rekap** (dulu Riwayat; operator biasa, bukan support): `dari`/`sampai` (tanggal kerja, maks **31 hari**, tanpa tanggal = 7 hari terakhir), `line_code`, `plat` (potongan plat), `hasil` (`ripe`/`unripe`/`jk`/`tp`, Per janjang saja), `tampilan=hari\|truk\|janjang`, `ringkasan=true\|false`. Per hari & per truk dikirim utuh, per janjang `limit`+`offset`. **400** kode `riwayat_*` untuk tanggal yang salah, **422** untuk tampilan/hasil asing. Aturan 26 |
@@ -250,7 +250,7 @@ konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x
 | POST | `/api/console/dev/bahaya/restart-line` · `/logout-semua` | restart ketiga line · hapus semua sesi (termasuk yang menekan). Tidak diblokir; hasil per line |
 | POST | `/api/console/dev/bahaya/hapus-rekaman` | `{konfirmasi:"HAPUS"}`: tiap line menghapus rekamannya; yang merekam/mati dilewati dan disebut |
 | POST | `/api/console/dev/bahaya/hapus-data` | `{mode:"transaksi"\|"semua", konfirmasi:"HAPUS"}`. **400** konfirmasi/mode salah, **409** `bahaya_ditolak` (+`params.hambatan`), **409** `semua_line_menolak` (+`params.lines`, mis. `line-1:lisensi`): ketiganya tidak mengubah apa pun. **200** membawa hasil per line; `ok:true` + `kode:"belum_mati"` = diterima tapi line belum restart. Lihat aturan 25 |
-| POST | `{BACKEND_API_VER}/internal/vision/events` | ← dari tiga line (`x-webhook-secret`), kontrak §5 |
+| POST | `{BACKEND_API_VER}/internal/vision/events` | ← dari tiga line (`x-webhook-secret`), kontrak §5; janjang baru untuk penugasan yang sudah dilepas mengantre ulang kunjungannya (batch 2.3) |
 | POST | `{BACKEND_API_VER}/internal/scale/weighing` | ← dari program timbangan (`x-webhook-secret`), bentuk sementara kita |
 | GET | `/captures/{line_code}/...` | gambar line, mount read-only, bentuk URL = `resolveCaptureUrl` api. Butuh sesi operator (401 `belum_masuk` tanpa cookie `konsol_sesi`, batch 1.3); `.db`/berkas tersembunyi tetap 404 apa pun sesinya |
 | GET | `/health` | ringan, sengaja bukan `routes/health.py` (yang itu menarik torch) |
@@ -461,10 +461,15 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     terlihat gagal daripada mendarat di hari yang salah. `python:3.11-slim` butuh `tzdata`
     (sudah di Dockerfile): tanpa itu `ZoneInfo` gagal dan tanggal diam-diam balik ke UTC.
 11. **Konsol tidak boleh memindai direktori** (§6.2): semua yang dibaca layar operator datang
-    dari **index SQLite** `state/console.db` (`repositories/console_repository.py`, konvensi
-    sama dengan `OutboxStore`: WAL + `synchronous=FULL` + satu lock + `INSERT OR IGNORE`).
+    dari **index SQLite** `state/console.db`, di **`repositories/console_repository.py`**
+    dengan skema dan migrasinya di **`repositories/console_skema.py`** dan akunnya di mixin
+    **`repositories/console_akun_repository.py`** (batch 2). Konvensi sama dengan `OutboxStore`:
+    WAL + `synchronous=FULL` + satu lock + `INSERT OR IGNORE`.
     Gambar tetap di disk line-nya, di-mount read-only dan di-serve statis. Polling `listdir`
     tiap 2 detik akan memakan I/O yang dipakai grading.
+    Query per penugasan memakai **`idx_inspections_assignment`**: query baru yang berat harus
+    menunjukkan `SEARCH`, bukan `SCAN inspections`, di `EXPLAIN QUERY PLAN`
+    (`tests/rencana_query.py`, `tests/unit/test_console_store_indeks.py`).
 12. **Sumber TBS: edge cuma mencerminkan aturan AutoERP, tidak pernah menebak** (§3.5b). AutoERP
     menurunkannya dari supplier saja (`sumber_for_supplier`: punya supplier = External, tidak
     punya = Internal). `domain/ffb_source.py` mencerminkannya persis: truk ber-supplier →
@@ -490,6 +495,14 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     DocType: Frappe membalas 417 untuk satu field asing. `ERP_URL` kosong = semua worker ERP
     mati diam-diam, dan itu default: jalur ini tidak boleh jadi syarat hidupnya layar operator.
     Kolom `inspections.erp_state` sisa jalur per janjang yang dihapus; tidak dipakai.
+    **`ErpClient` membalas empat jawaban** (`integrations/erp/client.py`, batch 2.7):
+    `ErpRejected` (4xx, AutoERP menolak kiriman ini apa adanya), `ErpServerError` (5xx yang
+    membawa amplop galat Frappe sendiri, per pesan, backoff sendiri, batch lanjut),
+    `ErpUnavailable` (tidak ada jawaban yang bisa dipakai: jaringan, timeout, gateway
+    502/503/504, halaman 5xx yang bukan Frappe, atau 2xx yang isinya bukan objek JSON Frappe,
+    dibaca sebagai "tidak terjangkau" oleh Last Sync), dan terkirim (AutoERP menerima). Worker
+    antrean mencatat dan mem-backoff SETIAP kegagalan per pesan dan tidak pernah melempar
+    (`drain_once` selalu kembali dengan tenang, batch di belakangnya tetap jalan).
 18. **Kunjungan truk: satu pesan, dibangun ulang tiap kali, tidak pernah ditambal** (§4.C).
     `ErpQueue` satu-satunya yang merakit pesan, pemicu langsung dan kirim ulang harian memakai
     jalan yang sama, jadi tidak bisa berbeda isi. Tiga pemicunya kejadian yang memang terjadi:
@@ -511,6 +524,17 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     **Sudah diperbaiki di AutoERP** (autoerp PR #7, merge 2026-09-16): kunjungan dengan
     `scale_ticket_no` berbeda tidak lagi mengadopsi tiket milik kunjungan lain. Tidak ada yang
     perlu ditambal dari sisi konsol, dulu maupun sekarang.
+    **Janjang susulan untuk penugasan yang sudah dilepas mengantre ulang kunjungannya**
+    (batch 2.3): cuma pada **insert sungguhan** (`add_inspection` mengembalikan baris baru),
+    bukan pada kiriman ulang `event_id` yang sama. Janjang susulan yang tiba SEBELUM baris
+    antrean sebelumnya berangkat **menggantikan** baris itu (dan halaman R2-nya), jadi AutoERP
+    cuma menerima satu kiriman berisi semua janjang, tidak ada yang ditandai. Janjang susulan
+    yang tiba SESUDAH tiket final dijawab AutoERP `revised`, yang **tidak menulis ulang** angka
+    yang sudah dibukukan: tab Timbangan menandai baris itu **Cek AutoERP**, dan tab Log mencatat
+    satu WARNING `[TIKET_FINAL_BERBEDA]` (tiket dibatalkan → `[TIKET_DIBATALKAN]`)
+    (`domain/jawaban_kunjungan.py`), sekali per catatan AutoERP yang berbeda, bukan sekali per
+    kirim ulang harian. `visit unchanged` (kirim ulang harian untuk tiket final yang angkanya
+    sama) dicatat INFO saja, bukan WARNING.
 15. **Timbangan: `net_kg` dihitung, tidak pernah dipercaya mentah** (§3.5c). Pengirim boleh
     menyertakannya; kalau bedanya dari `bruto − tara` lewat `TOLERANSI_NETO_KG` (1 kg) kiriman
     **ditolak 400**. Ini angka yang dibayar ke petani, dua sumber kebenaran yang diam-diam
@@ -952,12 +976,15 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     objeknya saja belum ada). Cek cuma menggerakkan warna, **tidak menggeser jam**. Sambungan putus
     kalau SATU sumbernya sedang gagal, dan tiap sumber pulih sendiri: dulu satu catatan untuk semua
     membuat titiknya berkedip merah-hijau tiap menit (ping 401 = putus, kiriman 401 = "AutoERP
-    menjawab"). Galat jaringan (tanpa jawaban, 502/503/504) dicatat di sumber `jaringan` yang
-    dibersihkan jawaban apa pun dari server: kiriman yang gagal diulang sampai sejam kemudian, dan
-    titiknya tidak boleh merah selama itu. **Kiriman yang ditolak (417, 404) atau memicu 500 =
-    tersambung**: isi pesan itu yang bermasalah, terlihat di Antrean ERP (tab Status); **401/403 = putus**
-    (kunci ditolak, tidak ada yang akan sampai). **Tarikan data yang gagal = putus** sampai tarikan
-    berikutnya berhasil (data tidak mengalir walau server hidup).
+    menjawab"). **Galat jaringan = SETIAP `ErpUnavailable`** (aturan 14, batch 2.7): tanpa jawaban
+    atau timeout, gateway 502/503/504, halaman 5xx yang bukan Frappe, atau 2xx yang isinya bukan
+    objek JSON Frappe. Dicatat di sumber `jaringan` yang dibersihkan jawaban apa pun dari server:
+    kiriman yang gagal diulang sampai sejam kemudian, dan titiknya tidak boleh merah selama itu.
+    **Kiriman yang ditolak (417, 404) atau yang memicu 5xx BERAMPLOP FRAPPE (`ErpServerError`) =
+    tersambung**: AutoERP menjawab, isi pesan itu yang bermasalah, per pesan, terlihat di Antrean
+    ERP (tab Status); **401/403 = putus** (kunci ditolak, tidak ada yang akan sampai). **Tarikan
+    data yang gagal = putus** sampai tarikan berikutnya berhasil (data tidak mengalir walau
+    server hidup).
     **Cloud Photo = cek R2 konsol + blok `unggah` tiap line** (lewat `/internal/status`). Satu
     sumber gagal cukup untuk merah, `sejak` = yang paling awal. **Line mati atau versi lama TIDAK
     membuat merah**: kartunya sudah menulis OFFLINE, dan baris ini bicara soal cloud. "Menunggu"
@@ -1023,6 +1050,28 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     hapus-data saat boot tidak menghapus `artifacts/outbox.db*` selama folder DB line bukan
     `artifacts/` (`hapus_kalau_diminta(..., folder_db=get_folder_db_line())`). Boot berikutnya
     menyerap lagi; yang harus dikejar penyebabnya, lewat log line itu.
+
+30. **Route konsol yang berat pada SQLite tidak boleh menahan event loop** (batch 2.5).
+    Satu event loop melayani layar semua operator (polling `/state` tiap 2 detik) DAN kiriman
+    janjang tiga line, jadi `async def` yang memanggil `ConsoleStore` sinkron menahan loop itu
+    selama query jalan. Pola tab Rekap (`console_riwayat`, `def`) diperluas: route `def` (FastAPI
+    menjalankannya di thread pool), atau kalau route itu juga harus `await` (`console_state`,
+    yang menunggu lisensi), panggilan sinkronnya sendiri dibungkus `run_in_threadpool`.
+    `login`, `console_history`, `console_trucks`, `console_weighings` (GET), `console_recap`,
+    `dev_log`, dan `ingest_event` jadi `def`.
+    **Yang sengaja tetap `async`**: route yang menunggu panggilan ke line (`assign`/`release`/
+    `manual-reject`/`piston`, `record_weighing`, rekam, model, bahaya, diagnostik), yang cuma
+    satu pencarian primary-key (`me`, `operators`, `scan`, `setelan`, `penugasan`, `akun`), dan
+    `dev_queue`/`dev_resend` (tiga hitungan terindeks).
+    **Thread safety yang membuat pindahan ini aman**: `ErpQueue._visit_lock` dipegang dari
+    baca, bangun, sampai antre di `visit()` (aturan 18), urutan kuncinya **visit lock, lalu
+    store lock, lalu outbox lock**; event loop boleh menunggu kunci ini beberapa milidetik saja
+    (fsync saat antre), bukan lebih. `AuthService` memegang satu `threading.Lock` dari
+    pemeriksaan lockout sampai hash sandi sampai pencatatan hitungan gagal (`login`), supaya
+    sandi salah yang datang bersamaan tidak lolos dari lockout; harga yang diterima: login
+    antre satu per satu, kira-kira satu scrypt tiap kali. `hangatkan_singleton()`
+    (`routes/console_deps.py`) memanaskan service yang di-cache sejak boot, supaya permintaan
+    pertama yang datang dari loop tidak sempat membangun dua instance yang sama.
 
 ---
 

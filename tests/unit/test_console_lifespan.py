@@ -23,9 +23,12 @@ from fastapi import FastAPI
 from palmgrade import console_main
 from palmgrade.core.config import _DEFAULT_WEBHOOK_SECRET, Settings
 from palmgrade.domain.operator_auth import hash_password
+from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.integrations.notifications.line_client import LineClient
 from palmgrade.repositories.console_repository import ConsoleStore
+from palmgrade.routes import console_deps
 from palmgrade.services.console_service import ConsoleService
+from palmgrade.services.erp_queue import ErpQueue
 
 NO_SUPPORT_MESSAGE = "No account has the support role"
 
@@ -53,34 +56,68 @@ def _service(tmp_path, *, with_support: bool, **setelan) -> ConsoleService:
         store.set_role(
             store.operator_by_email("operator@pks.test")["id"], "support"
         )
-    return ConsoleService(settings, store, LineClient(settings))
+    # With an ErpQueue, as get_console_service always builds it: the lifespan warms
+    # get_dev_service, which reads the queue's outbox.
+    erp_queue = ErpQueue(store, ErpOutboxStore(settings.erp_outbox_db_path))
+    return ConsoleService(settings, store, LineClient(settings), erp_queue=erp_queue)
 
 
-def _run_lifespan(service: ConsoleService, caplog) -> None:
-    """One pass through `lifespan`: enter, then leave immediately.
+def _run_lifespan(service: ConsoleService, caplog, *, selama=lambda: None) -> None:
+    """One pass through `lifespan`: enter, run `selama`, then leave.
 
     `get_console_service` is patched on `console_main`'s own module dict —
     that is the name `lifespan` actually calls, since `from .routes.console
-    import get_console_service` bound it there at import time.
+    import get_console_service` bound it there at import time. It is patched
+    on `console_deps` too: the singletons the lifespan warms (`get_auth_service`,
+    `get_dev_service`) call it by that module's name. Their caches are emptied
+    before and after, so no instance built on this `tmp_path` outlives the test.
     """
     original = console_main.get_console_service
+    original_deps = console_deps.get_console_service
     root = logging.getLogger()
     original_handlers = list(root.handlers)
     console_main.get_console_service = lambda: service
+    console_deps.get_console_service = lambda: service
+    _kosongkan_singleton()
     try:
         async def _runner() -> None:
             async with console_main.lifespan(FastAPI()):
-                pass
+                selama()
 
         with caplog.at_level(logging.WARNING):
             asyncio.run(_runner())
     finally:
         console_main.get_console_service = original
+        console_deps.get_console_service = original_deps
+        _kosongkan_singleton()
         # `lifespan` adds a SqliteLogHandler to the root logger and never
         # removes it (a real process keeps it for the app's whole life) — a
         # test run has to, or every later test's WARNING/ERROR logs a write
         # attempt against this closed, temp-dir LogStore.
         root.handlers = original_handlers
+
+
+def _kosongkan_singleton() -> None:
+    console_deps.get_auth_service.cache_clear()
+    console_deps.get_dev_service.cache_clear()
+
+
+def test_layanan_sesi_dan_log_sudah_dibuat_sebelum_permintaan_pertama(tmp_path, caplog):
+    """Batch 2.5: login, `/state`, dan tab Log jalan di thread pool, dan `lru_cache`
+    tidak mencegah dua thread membuat instance pada panggilan pertama. Dua
+    `AuthService` = dua kunci login, dan hitungan sandi salah bisa dilewati lagi.
+    Jadi keduanya dibuat di lifespan, sebelum konsol melayani satu permintaan pun."""
+    service = _service(tmp_path, with_support=True)
+    terlihat = {}
+
+    def selama() -> None:
+        terlihat["auth"] = console_deps.get_auth_service.cache_info().currsize
+        terlihat["dev"] = console_deps.get_dev_service.cache_info().currsize
+        terlihat["store"] = console_deps.get_auth_service()._store
+
+    _run_lifespan(service, caplog, selama=selama)
+
+    assert terlihat == {"auth": 1, "dev": 1, "store": service.store}
 
 
 def test_warning_fires_when_there_is_no_support_account(tmp_path, caplog):

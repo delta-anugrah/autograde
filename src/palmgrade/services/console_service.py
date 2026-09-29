@@ -25,6 +25,7 @@ from ..core.config import LineEndpoint, Settings
 from ..domain.bahaya import HapusBerjalan
 from ..domain.ffb_source import ffb_source_label
 from ..domain.grade_class import grade_class_or_none
+from ..domain.jawaban_kunjungan import golongkan
 from ..domain.operator_error import (
     BUKAN_ANGKA,
     DI_BAWAH_MINIMUM,
@@ -107,8 +108,11 @@ class ConsoleService(LayarLineSupport):
         """Take one grading event from a line. Returns its `work_date`.
 
         ValueError on a malformed payload → route replies 400 → the line's
-        outbox holds the event and marks it `outbox_failed`. Better visible as
-        a failure than lost, or landed on the wrong day.
+        outbox keeps the event and retries it. Rows are never dead-lettered, so
+        a line on this image always reports `outbox_failed` 0; a line still on
+        an older image may report more than 0. A held event is counted in
+        `outbox_pending`, which support sees in tab Status, section Diagnostik,
+        row "Antrean lokal". Better held than lost, or landed on the wrong day.
         """
         event_id = str(payload.get("event_id") or "").strip()
         machine_id = str(payload.get("machine_id") or "").strip()
@@ -130,7 +134,7 @@ class ConsoleService(LayarLineSupport):
         work_date = work_date_for(timestamp, self.tz)
 
         line = self._by_machine.get(machine_id)
-        self.store.add_inspection(
+        baru = self.store.add_inspection(
             {
                 "event_id": event_id,
                 "machine_id": machine_id,
@@ -159,6 +163,8 @@ class ConsoleService(LayarLineSupport):
                 "tp_confidence": payload.get("tp_confidence"),
             }
         )
+        if baru:
+            self._kunjungan_susulan(payload.get("assignment_id"))
         return work_date
 
     # ------------------------------------------------------------- read
@@ -299,7 +305,7 @@ class ConsoleService(LayarLineSupport):
         return [_with_source_label(row) for row in self.store.trucks()]
 
     def weighings(self, work_date: str, *, limit: int = 100) -> list[dict[str, Any]]:
-        return [_with_source_label(row) for row in self.store.weighings(work_date, limit=limit)]
+        return [_tiket_view(row) for row in self.store.weighings(work_date, limit=limit)]
 
     def recap(self, work_date: str) -> list[dict[str, Any]]:
         """Per-truck tally with the weighbridge neto folded in.
@@ -490,12 +496,33 @@ class ConsoleService(LayarLineSupport):
             # visit goes up when the weighing does — or on the daily resend.
             return
         self.store.link_weighing_to_assignment(weighing_id, assignment_id)
-        # The detail page does not depend on the AutoERP link: a mill with R2 but
-        # no ERP_URL still gets its per-truck pages.
+        self._kirim_kunjungan(weighing_id, assignment_id)
+
+    def _kirim_kunjungan(self, weighing_id: str, assignment_id: str) -> None:
+        """Halaman detail dan pesan kunjungan untuk tiket yang sudah bertaut ke penugasannya.
+
+        The detail page does not depend on the AutoERP link: a mill with R2 but no
+        ERP_URL still gets its per-truck pages.
+        """
         if self.manifest_queue is not None:
             self.manifest_queue.enqueue(weighing_id, assignment_id)
         if self.erp_queue is not None:
             self.erp_queue.visit(weighing_id, tz=self.tz)
+
+    def _kunjungan_susulan(self, assignment_id: str | None) -> None:
+        """Janjang yang tiba SESUDAH truknya dilepas (batch 2.3): kirim ulang kunjungannya.
+
+        Pesannya dibangun ulang dari store (`ErpQueue.visit`), jadi hitungannya ikut
+        janjang yang baru masuk. Selama kiriman sebelumnya belum berangkat, baris
+        antrean yang sama diganti dan AutoERP hanya menerima angka yang lengkap. Kalau
+        tiketnya sudah final, AutoERP tidak menulis ulang apa pun; jawabannya ditandai
+        di tab Timbangan dan tab Log (`domain/jawaban_kunjungan.py`).
+        """
+        if not assignment_id:
+            return
+        weighing_id = self.store.weighing_for_assignment(assignment_id)
+        if weighing_id:
+            self._kirim_kunjungan(weighing_id, assignment_id)
 
     # ------------------------------------------------------- line commands
 
@@ -752,6 +779,14 @@ def _with_source_label(row: dict[str, Any]) -> dict[str, Any]:
     """
     row["source_label"] = _source_label(row)
     return row
+
+
+def _tiket_view(row: dict[str, Any]) -> dict[str, Any]:
+    """One Timbangan row: the source label, and whether AutoERP's last answer for this
+    visit needs a human (batch 2.3). Classified here so the screen never parses
+    AutoERP's sentences."""
+    row["erp_perlu_dicek"] = golongkan(row.get("erp_note"))
+    return _with_source_label(row)
 
 
 def _assignment_view(row: dict[str, Any] | None) -> dict[str, Any] | None:

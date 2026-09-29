@@ -11,6 +11,10 @@ pinned here is that the service never asks anybody anything.
 
 from __future__ import annotations
 
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+
 import pytest
 
 from palmgrade.domain.operator_auth import hash_password, operator_id_for
@@ -166,6 +170,35 @@ def test_five_wrong_passwords_shut_sign_in_and_the_answer_says_for_how_long(tmp_
         auth.login(EMAIL, SANDI)
     assert locked.value.code == TERKUNCI
     assert locked.value.params["detik"] > 0
+
+
+def test_wrong_passwords_sent_at_once_still_shut_sign_in_after_five(tmp_path, monkeypatch):
+    """`/api/console/login` runs in the thread pool (batch 2.5), so tries arrive in
+    parallel. Each try must see the count left by the one before it: otherwise every
+    try in a burst reads a count under five and the lockout never starts."""
+    auth, store, _ = _auth(tmp_path)
+
+    def hash_lambat(*_args) -> bool:
+        time.sleep(0.05)  # stand-in for the deliberately slow hash
+        return False
+
+    monkeypatch.setattr("palmgrade.services.auth_service.verify_password", hash_lambat)
+    serentak = threading.Barrier(20)
+
+    def coba() -> str:
+        serentak.wait()
+        try:
+            auth.login(EMAIL, WRONG)
+        except OperatorError as exc:
+            return exc.code
+        return "masuk"
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        codes = list(pool.map(lambda _: coba(), range(20)))
+
+    assert codes.count(SANDI_SALAH) == 5
+    assert codes.count(TERKUNCI) == 15
+    assert store.operator(operator_id_for(EMAIL))["fail_count"] == 5
 
 
 def test_the_right_password_gets_in_once_the_lockout_has_run_out(tmp_path):

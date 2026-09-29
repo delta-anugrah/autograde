@@ -14,7 +14,7 @@ Satu berkas `src/palmgrade/static/console.html`: vanilla JS, tanpa build, tanpa 
 |---|---|---|---|
 | Grading | semua | polling `refresh` 2 dtk | 20 grading terakhir hari ini |
 | Truk | semua | `muatTrucks` 60 dtk | master truk, truk manual, kartu QR |
-| Timbangan | semua | `muatTimbangan` 15 dtk | tiket, scan masuk/keluar, tara |
+| Timbangan | semua | `muatTimbangan` 15 dtk | tiket, scan masuk/keluar, tara, tanda **Cek AutoERP** untuk janjang susulan pada tiket yang sudah final (`erp_perlu_dicek`, `tests/unit/test_console_html_timbangan_erp.py`) |
 | Rekap | semua | `muatRiwayat` (+ `segarkanRekap` 15 dtk) | Rekap + Riwayat: buka di Hari ini, Per truk; Impor CSV support saja |
 | Log | support | `muatLog` | ERROR/WARNING 180 hari |
 | Status | support | `muatStatus` (diagnostik 5 dtk) | Versi, Diagnostik, Antrean ERP + manifest R2 |

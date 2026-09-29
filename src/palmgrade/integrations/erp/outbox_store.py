@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS erp_outbox (
     last_error      TEXT,
     next_attempt_at REAL NOT NULL DEFAULT 0,
     created_at      REAL NOT NULL,
+    -- Moves on at every enqueue: a send marks its row done only if nothing newer
+    -- was queued while it was on the wire (see `mark_sent`).
+    version         INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (kind, key)
 );
 CREATE INDEX IF NOT EXISTS idx_erp_outbox_due ON erp_outbox (status, next_attempt_at);
@@ -49,6 +52,8 @@ class OutboxMessage:
     payload: dict[str, Any]
     attempts: int
     last_error: str | None
+    # The row's generation when it was read; 0 on rows written by an older build.
+    version: int = 0
 
 
 class ErpOutboxStore:
@@ -62,25 +67,28 @@ class ErpOutboxStore:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
             self._db.executescript(_CREATE_SQL)
+            _add_version_column(self._db)
 
     def enqueue(self, kind: str, key: str, payload: dict[str, Any]) -> None:
         """Queue the newest state for one key. Due at once, even after a failure."""
         with self._lock, self._db:
             self._db.execute(
-                """INSERT INTO erp_outbox (kind, key, payload, created_at)
-                   VALUES (?, ?, ?, ?)
+                """INSERT INTO erp_outbox (kind, key, payload, created_at, version)
+                   VALUES (?, ?, ?, ?, 1)
                    ON CONFLICT(kind, key) DO UPDATE SET
                        payload=excluded.payload, status='pending', attempts=0,
-                       last_error=NULL, next_attempt_at=0""",
+                       last_error=NULL, next_attempt_at=0, version=erp_outbox.version + 1""",
                 (kind, key, _dump(payload), self._clock()),
             )
 
     def due(self, limit: int = 50) -> list[OutboxMessage]:
         """Oldest first: a truck waiting since this morning goes before one typed now."""
+        # IN, not `!= 'sent'`: the same rows (status is only ever pending/error/sent),
+        # but this form can use idx_erp_outbox_due on a table that is never trimmed.
         with self._lock:
             rows = self._db.execute(
-                """SELECT kind, key, payload, attempts, last_error FROM erp_outbox
-                   WHERE status != 'sent' AND next_attempt_at <= ?
+                """SELECT kind, key, payload, attempts, last_error, version FROM erp_outbox
+                   WHERE status IN ('pending', 'error') AND next_attempt_at <= ?
                    ORDER BY created_at, rowid LIMIT ?""",
                 (self._clock(), limit),
             ).fetchall()
@@ -91,33 +99,43 @@ class ErpOutboxStore:
                 payload=json.loads(row["payload"]),
                 attempts=row["attempts"],
                 last_error=row["last_error"],
+                version=row["version"],
             )
             for row in rows
         ]
 
     def mark_sent(self, message: OutboxMessage) -> None:
-        """Done — but only if this is still the payload that was sent.
+        """Done, but only if nothing was queued for this key since it was read.
 
         The console can queue newer state while the older one is on the wire;
-        marking that row sent would drop the newer state for good.
+        marking that row sent would drop the newer state for good. The generation
+        decides, not the payload: a requeue can carry the very same text (the R2
+        page's is always `{"assignment_id": X}`) and still mean "build it again".
         """
         with self._lock, self._db:
             self._db.execute(
                 """UPDATE erp_outbox SET status='sent', last_error=NULL
-                   WHERE kind=? AND key=? AND payload=?""",
-                (message.kind, message.key, _dump(message.payload)),
+                   WHERE kind=? AND key=? AND version=?""",
+                (message.kind, message.key, message.version),
             )
 
     def mark_error(self, message: OutboxMessage, error: str) -> None:
-        """Keep it, with the reason, and try again after the backoff."""
+        """Keep it, with the reason, and try again after the backoff.
+
+        Skipped when newer state was queued meanwhile: that one was never tried,
+        so it stays due at once with no failure on it.
+        """
         attempts = message.attempts + 1
         backoff = min(_BACKOFF_BASE_S * 2 ** (attempts - 1), _BACKOFF_MAX_S)
         with self._lock, self._db:
             self._db.execute(
                 """UPDATE erp_outbox
                    SET status='error', attempts=?, last_error=?, next_attempt_at=?
-                   WHERE kind=? AND key=?""",
-                (attempts, error[:_ERROR_CHARS], self._clock() + backoff, message.kind, message.key),
+                   WHERE kind=? AND key=? AND version=?""",
+                (
+                    attempts, error[:_ERROR_CHARS], self._clock() + backoff,
+                    message.kind, message.key, message.version,
+                ),
             )
 
     def hapus_semua(self) -> int:
@@ -180,6 +198,14 @@ class ErpOutboxStore:
         return cur.rowcount
 
 
+def _add_version_column(db: sqlite3.Connection) -> None:
+    """In place on an outbox written by an older build: its rows start at 0 and keep
+    working, and an older build opened on the file later simply ignores the column."""
+    columns = {row["name"] for row in db.execute("PRAGMA table_info(erp_outbox)")}
+    if "version" not in columns:
+        db.execute("ALTER TABLE erp_outbox ADD COLUMN version INTEGER NOT NULL DEFAULT 0")
+
+
 def _dump(payload: dict[str, Any]) -> str:
-    """Sorted keys: the stored text is compared when marking a message sent."""
+    """Sorted keys: the same state is always stored as the same text."""
     return json.dumps(payload, sort_keys=True)

@@ -548,12 +548,22 @@ terlihat gagal. Batasnya **kalender**, tanpa cutoff shift; karena kolomnya disim
 aturan itu nanti cuma menyentuh satu fungsi. `python:3.11-slim` butuh `tzdata` (sudah
 ditambahkan): tanpa itu `ZoneInfo` gagal dan tanggal diam-diam kembali ke UTC.
 
-**Index, bukan pindai (§6.2).** Semua yang dibaca layar datang dari `state/console.db`
-(`repositories/console_repository.py`): konvensinya sama dengan `OutboxStore`: WAL,
-`synchronous=FULL`, satu `threading.Lock`, `INSERT OR IGNORE` dengan kunci `event_id`. Layar
-polling tiap 2 detik lewat `GET /api/console/state`; tidak ada `listdir` di jalur manapun.
+**Index, bukan pindai (§6.2).** Semua yang dibaca layar datang dari `state/console.db`, dibagi
+tiga berkas (batch 2): `repositories/console_repository.py` (query), skema dan migrasinya di
+`repositories/console_skema.py`, dan akun di mixin `repositories/console_akun_repository.py`.
+Konvensinya sama dengan `OutboxStore`: WAL, `synchronous=FULL`, satu `threading.Lock`,
+`INSERT OR IGNORE` dengan kunci `event_id`. Layar polling tiap 2 detik lewat
+`GET /api/console/state`; tidak ada `listdir` di jalur manapun.
 Tabelnya: `inspections` (+ index `(work_date, line_code)` dan `(work_date, timestamp)`),
-`trucks`, `suppliers`, `assignments`, `sync_state`.
+`trucks`, `suppliers`, `assignments`, `sync_state`. Tiga index tambahan (batch 2.5):
+`idx_inspections_assignment` (`inspections(assignment_id, timestamp)`, dipakai query per
+penugasan), `idx_weighings_assignment` (`weighings(assignment_id)`), dan
+`idx_auto_releases_waktu` (`auto_releases(released_at)`, dipakai pencarian pelepasan
+terbaru). Dibangun sekali di boot pertama konsol sesudah upgrade, lewat
+`CREATE INDEX IF NOT EXISTS`: sekitar 0,65 detik per bulan data (terukur di `inspections`
+558 ribu baris, cache hangat, MacBook), sekitar 2,3 detik untuk tiga bulan. Boot berikutnya
+cuma sekitar 0,001 detik karena index-nya sudah ada. Query panas yang sebelumnya `SCAN
+inspections` turun dari sekitar 61 ms jadi sekitar 0,2 ms.
 
 **Master data & Sumber TBS (§3.5b).** `MasterDataWorker` menarik dari **AutoERP**, bukan lagi
 dari cloud api: `GET {ERP_URL}/api/resource/Supplier` lalu `.../Truck`, REST bawaan Frappe
@@ -608,15 +618,21 @@ karena di situ mati lampu dan internet putusnya.
 Kuncinya `(kind, key)` dengan `key` = kunci alami yang dicocokkan AutoERP (plat ternormalisasi
 untuk truk), jadi satu truk yang diketik dua kali tetap **satu pesan berisi keadaan terbaru**,
 bukan dua. Pesan yang diganti **saat masih di jalan** sengaja tidak ditandai terkirim
-(`mark_sent` mencocokkan payload-nya), supaya keadaan yang lebih baru tidak hilang.
+(`mark_sent` dan `mark_error` mencocokkan kolom `version`, yang naik di setiap antre),
+supaya keadaan yang lebih baru tidak hilang. Yang dicocokkan generasinya, bukan isinya:
+antrean ulang halaman R2 isinya selalu sama (`{"assignment_id": X}`) tapi tetap berarti
+"bangun lagi". Kolom itu ditambahkan di tempat saat konsol pertama jalan; baris lama mulai
+dari 0 dan tetap terkirim.
 
-`integrations/erp/client.py` membedakan dua hal, dan pemanggilnya bertindak beda:
+`integrations/erp/client.py` membedakan empat hal (batch 2.7), dan pemanggilnya bertindak beda:
 
 | Balasan | Artinya | Yang dilakukan worker |
 |---|---|---|
-| 2xx | mendarat | handler mencatat jawabannya (mis. `erp_name` truk), baris selesai |
-| **4xx** (`ErpRejected`) | AutoERP **menolak isinya**: diulang pun sama | disimpan **dengan alasan dari Frappe**, batch lanjut ke pesan berikutnya |
-| **jaringan / 5xx** (`ErpUnavailable`) | AutoERP **tidak terjangkau** | batch **berhenti**: sisanya cuma akan membakar backoff-nya sendiri |
+| 2xx (objek JSON Frappe) | mendarat | handler mencatat jawabannya (mis. `erp_name` truk), baris selesai |
+| **4xx** (`ErpRejected`) | AutoERP **menolak isinya**: diulang pun sama | dicatat **dengan alasan dari Frappe**, backoff sendiri, batch lanjut ke pesan berikutnya |
+| **5xx beramplop Frappe** (`ErpServerError`) | AutoERP **hidup**, tapi handler request ini yang crash | dicatat **dengan alasan dari Frappe**, backoff sendiri, batch lanjut, sama seperti penolakan |
+| **jaringan / gateway / 5xx bukan-Frappe / 2xx bukan objek JSON** (`ErpUnavailable`) | AutoERP **tidak terjangkau**: tidak ada jawaban yang bisa dipakai | dicatat di baris kepala dengan backoff, batch **tertahan**, Last Sync membaca `terputus` |
+| galat lain per pesan (exception tak terduga) | satu pesan bermasalah, bukan seluruh batch | dicatat + backoff, batch lanjut; `drain_once` sendiri tidak pernah melempar |
 
 Backoff 30 detik → 1 jam (kontrak §5). Handler yang gagal mencatat di sisi kita juga menahan
 pesannya: AutoERP sudah menerima, tapi kirim ulang aman (semua handler upsert) sedangkan
@@ -646,6 +662,36 @@ kunjungan truk itu di jam yang sama karena itu mendarat di satu tiket, perilaku 
 konsol. Dan tiket yang sudah punya berat bersih lalu menerima grading akan **difinalisasi**;
 untuk buah Inti itu butuh Gudang Penerimaan TBS + Akun Pendapatan Transfer di Pengaturan PKS,
 yang di situs demo belum diisi (AutoERP membalas 417 dan antrean menahannya dengan alasannya).
+
+**Janjang susulan (batch 2.3).** Kamera line boleh mengirim janjang yang tiba **sesudah**
+truknya dilepas: line offline sebentar, atau truk sudah ditimbang keluar sementara janjang
+terakhir masih diproses. `ConsoleService.ingest` mendeteksinya lewat `add_inspection`: cuma
+kalau baris itu **insert sungguhan** (bukan kiriman ulang `event_id` yang sudah ada), ia mencari
+tiket timbangan milik penugasan itu (`weighing_for_assignment`) dan memanggil `ErpQueue.visit`
+lagi, membangun ulang pesan kunjungan dari store seperti biasa.
+
+Yang membedakan hasilnya cuma **kapan** AutoERP menerimanya, dan itu ditentukan §4.C step 4
+di AutoERP sendiri (`upsert_visit`), bukan konsol:
+
+- **Sebelum baris antrean lama berangkat**: `enqueue` mengganti baris `(kind, key)` yang sama
+  (kunci alami = id kunjungan), jadi AutoERP menerima **satu kiriman** berisi seluruh janjang,
+  tanpa ada yang ditandai. Ini kasus umum: sampai 8 janjang bisa menumpuk di antrean simpan
+  line saat truk ditimbang keluar.
+- **Sesudah tiket difinalisasi**: AutoERP menjawab `revised: true` + catatan, dan **tidak
+  menulis ulang** bruto/neto/grading yang sudah dibukukan (`_after_finalisation`). Konsol
+  menandainya untuk operator dan support: tab **Timbangan** menampilkan tag **Cek AutoERP** di
+  baris truk itu (dibaca dari `erp_perlu_dicek` pada `GET /api/console/weighings`), dan tab
+  **Log** mencatat satu WARNING `[TIKET_FINAL_BERBEDA]` (tiket yang sudah dibatalkan →
+  `[TIKET_DIBATALKAN]`) menyebut apa yang berbeda dalam bahasa Indonesia dan rekap pabrik
+  sekarang (`domain/jawaban_kunjungan.py`).
+
+Tag Timbangan hidup selama **hari kerja itu saja** (dihitung ulang tiap query, tidak pernah
+dibersihkan tindakan backoffice di AutoERP); jejak yang tahan lama adalah WARNING di tab Log
+(retensi 180 hari, sama dengan `event_log` lain). WARNING dicatat **sekali per catatan AutoERP
+yang berbeda**, bukan sekali per kirim ulang harian: kirim ulang harian yang menjawab catatan
+sama persis lagi cuma mencatat INFO (`visit unchanged`). Harga yang disadari: janjang susulan
+kedua yang sungguhan pada tiket yang sudah ditandai tidak menambah WARNING baru, tapi tag
+Timbangan-nya tetap ada.
 
 **Truk baru naik (§4.B).** Truk yang diketik operator dikirim ke
 `erpnext.palm_mill.api.upsert_truck` dengan `plate_number` + `autograde_id`; AutoERP membuatnya

@@ -6,6 +6,10 @@ wire is never marked as sent.
 """
 from __future__ import annotations
 
+import sqlite3
+
+from rencana_query import rencana
+
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 
 
@@ -228,3 +232,90 @@ def test_requeue_failed_resets_next_attempt_at_to_now(tmp_path):
     # its old backed-off value.
     clock.now += 7200
     assert [m.key for m in outbox.due()] == ["K1"]
+
+
+def test_the_same_payload_queued_again_during_the_send_is_not_marked_sent(tmp_path):
+    """The R2 page payload is always `{"assignment_id": X}`: a late bunch requeues it
+    with the SAME text while the older build is uploading. Matching on the payload
+    marked that fresh row sent and froze the page at the old count."""
+    outbox = _store(tmp_path)
+    outbox.enqueue("visit_manifest", "w1", {"assignment_id": "a1"})
+    in_flight = outbox.due()[0]
+
+    outbox.enqueue("visit_manifest", "w1", {"assignment_id": "a1"})
+    outbox.mark_sent(in_flight)
+
+    assert [m.key for m in outbox.due()] == ["w1"]
+
+
+def test_a_failed_send_of_older_state_does_not_back_off_the_newer_state(tmp_path):
+    """The newer state was never tried: it stays due at once, with no failure on it."""
+    outbox = _store(tmp_path)
+    outbox.enqueue("visit", "v1", {"stage": "gate"})
+    in_flight = outbox.due()[0]
+
+    outbox.enqueue("visit", "v1", {"stage": "departed"})
+    outbox.mark_error(in_flight, "timeout")
+
+    [message] = outbox.due()
+    assert (message.payload, message.attempts, message.last_error) == ({"stage": "departed"}, 0, None)
+
+
+def test_every_enqueue_moves_the_generation_on(tmp_path):
+    outbox = _store(tmp_path)
+
+    outbox.enqueue("visit", "v1", {"stage": "gate"})
+    first = outbox.due()[0].version
+    outbox.enqueue("visit", "v1", {"stage": "gate"})
+
+    assert outbox.due()[0].version == first + 1
+
+
+def test_an_outbox_from_an_older_build_gains_the_generation_and_keeps_its_rows(tmp_path):
+    """Lampung's erp_outbox.db and manifest_outbox.db predate the `version` column:
+    their pending and failed rows must still be due and still be marked done."""
+    path = tmp_path / "erp_outbox.db"
+    lama = sqlite3.connect(path)
+    lama.executescript(
+        """CREATE TABLE erp_outbox (
+               kind TEXT NOT NULL, key TEXT NOT NULL, payload TEXT NOT NULL,
+               status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+               last_error TEXT, next_attempt_at REAL NOT NULL DEFAULT 0,
+               created_at REAL NOT NULL, PRIMARY KEY (kind, key));
+           INSERT INTO erp_outbox (kind, key, payload, created_at)
+               VALUES ('visit', 'v1', '{"stage": "gate"}', 1);
+           INSERT INTO erp_outbox (kind, key, payload, status, attempts, last_error, created_at)
+               VALUES ('truck', 'BE1AA', '{"v": 1}', 'error', 2, 'timeout', 2);"""
+    )
+    lama.commit()
+    lama.close()
+
+    outbox = ErpOutboxStore(path, clock=Clock())
+
+    visit, truck = outbox.due()
+    assert (visit.key, visit.payload, visit.version) == ("v1", {"stage": "gate"}, 0)
+    assert (truck.key, truck.attempts, truck.last_error) == ("BE1AA", 2, "timeout")
+    outbox.mark_sent(visit)
+    outbox.mark_sent(truck)
+    assert outbox.due() == []
+    outbox.enqueue("visit", "v1", {"stage": "departed"})
+    assert outbox.due()[0].version == 1
+
+
+def test_due_memakai_indeksnya_dan_tetap_melewati_yang_terkirim(tmp_path):
+    """Batch 2.5: `status != 'sent'` tidak bisa memakai `idx_erp_outbox_due`; tabel ini
+    tidak pernah dibersihkan dan dipindai tiap 30 detik oleh dua worker."""
+    clock = Clock()
+    outbox = _store(tmp_path, clock)
+    outbox.enqueue("visit", "baru", {"n": 1})
+    outbox.enqueue("visit", "gagal", {"n": 2})
+    outbox.enqueue("visit", "terkirim", {"n": 3})
+    [baru, gagal, terkirim] = outbox.due()
+    outbox.mark_error(gagal, "HTTP 500")
+    outbox.mark_sent(terkirim)
+    clock.now += 30
+
+    [plan] = rencana(outbox._db, outbox.due)
+
+    assert "USING INDEX idx_erp_outbox_due" in plan, plan
+    assert [m.key for m in outbox.due()] == ["baru", "gagal"]

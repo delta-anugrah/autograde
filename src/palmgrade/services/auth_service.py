@@ -10,6 +10,7 @@ a sign-in works with the line offline, which is the point of the whole design.
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable
 from typing import Any
@@ -43,6 +44,10 @@ class AuthService:
         self._store = store
         self._ttl_s = ttl_s
         self._now = now
+        # One sign-in attempt at a time (batch 2.5: the route runs in the thread pool).
+        # The lockout reads the failure count before the slow hash and writes it after;
+        # tries running side by side would all read a count under five and never lock.
+        self._login_lock = threading.Lock()
 
     def operators(self) -> list[dict[str, Any]]:
         """Accounts for the sign-in screen — read before anyone is in, so nothing more.
@@ -59,6 +64,10 @@ class AuthService:
         cheap just because the account exists, and an operator who is locked out needs
         to be told to wait rather than told their password is wrong.
         """
+        with self._login_lock:
+            return self._login(email, password)
+
+    def _login(self, email: str, password: str) -> tuple[str, dict[str, Any]]:
         now = self._now()
         row = self._store.operator_by_email(email)
         if row is None or row["status"] != "active":

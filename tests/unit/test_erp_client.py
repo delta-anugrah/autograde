@@ -12,7 +12,14 @@ import json
 import httpx
 import pytest
 
-from palmgrade.integrations.erp.client import ErpClient, ErpRejected, ErpUnavailable
+from palmgrade.integrations.erp.client import (
+    ErpClient,
+    ErpError,
+    ErpRejected,
+    ErpServerError,
+    ErpUnavailable,
+    galat_jaringan,
+)
 
 ERP = "http://erp.local"
 
@@ -116,3 +123,100 @@ def test_a_dead_link_means_autoerp_could_not_be_reached():
 
     with pytest.raises(ErpUnavailable):
         asyncio.run(_client(handler).call_method("m", {}))
+
+
+# ── batch 2.7: nothing but an ErpError ever leaves the client ────────────────
+
+
+def test_a_200_that_is_not_json_is_unavailable_not_a_crash():
+    """A captive portal or a wrong ERP_URL answers 200 with HTML. `response.json()` used
+    to raise a bare JSONDecodeError past every caller, and the outbox worker stalled."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html><body>Login hotspot</body></html>")
+
+    with pytest.raises(ErpUnavailable) as caught:
+        asyncio.run(_client(handler).call_method("m", {}))
+
+    # Read as "not reached", like a dead link: it is not AutoERP that answered.
+    assert caught.value.status is None
+    assert galat_jaringan(caught.value)
+    assert "HTTP 200" in str(caught.value) and "Login hotspot" in str(caught.value)
+
+
+@pytest.mark.parametrize("body", [[1, 2], "pong", 42, None])
+def test_json_that_is_not_an_object_is_not_frappe_either(body):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=body)
+
+    with pytest.raises(ErpUnavailable):
+        asyncio.run(_client(handler).call_method("m", {}))
+
+
+def test_every_call_shape_is_protected():
+    """The master-data pull and the Last Sync ping share `_request` with the outbox."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="not json")
+
+    client = _client(handler)
+    for call in (
+        lambda: client.ping(),
+        lambda: client.list_modified_since("Truck", ("name",), None, limit=1),
+        lambda: client.call_method("m", {}),
+    ):
+        with pytest.raises(ErpUnavailable):
+            asyncio.run(call())
+
+
+def test_a_frappe_500_is_a_server_error_that_carries_frappes_reason():
+    """AutoERP is up and THIS payload crashed a handler: a per-message problem."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _frappe_error(500, "KeyError", "'counts'")
+
+    with pytest.raises(ErpServerError) as caught:
+        asyncio.run(_client(handler).call_method("m", {}))
+
+    assert (caught.value.status, caught.value.exc_type) == (500, "KeyError")
+    assert "KeyError: 'counts'" in str(caught.value)
+    assert not galat_jaringan(caught.value)
+
+
+def test_a_500_page_that_is_not_frappes_is_still_unavailable():
+    """nginx in front of a dead Frappe: says nothing about this payload."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="<html><center>nginx</center></html>")
+
+    with pytest.raises(ErpUnavailable) as caught:
+        asyncio.run(_client(handler).call_method("m", {}))
+
+    assert caught.value.status == 500
+    # Round 1 fix: ANY ErpUnavailable is a network-shaped failure for Last Sync,
+    # whatever its status. An nginx page answering for a dead Frappe is not AutoERP
+    # refusing the request; it is AutoERP not being reachable to answer it at all.
+    assert galat_jaringan(caught.value)
+
+
+@pytest.mark.parametrize("status", [502, 503, 504])
+def test_a_gateway_status_is_unavailable_even_with_a_frappe_looking_body(status):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _frappe_error(status, "OperationalError", "database is down")
+
+    with pytest.raises(ErpUnavailable) as caught:
+        asyncio.run(_client(handler).call_method("m", {}))
+
+    assert galat_jaringan(caught.value)
+
+
+def test_galat_jaringan_is_true_for_any_erp_unavailable_status():
+    """Round 1 fix: classify by exception type, not by status. Any `ErpUnavailable`
+    means nothing usable came back, whatever HTTP status happened to be attached."""
+    assert galat_jaringan(ErpUnavailable("boom", status=500))
+    assert galat_jaringan(ErpUnavailable("boom", status=None))
+    assert galat_jaringan(ErpUnavailable("boom", status=502))
+    # A refusal or a per-message server crash is not a network problem.
+    assert not galat_jaringan(ErpRejected("nope", status=417))
+    assert not galat_jaringan(ErpServerError("crash", status=500))
+    assert not galat_jaringan(ErpError("plain", status=None))
