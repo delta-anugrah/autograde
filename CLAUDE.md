@@ -1093,7 +1093,7 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     (`UploadScheduler._jalankan_batch`): thread pool APScheduler bukan daemon, dan dulu SIGTERM
     di tengah batch jam-an membuat proses bertahan sampai SIGKILL `docker stop` (exit 137).
     **Batasnya**: `BATAS_KURAS_S` 6 detik untuk menghabiskan antrean simpan (cukup untuk antrean
-    penuh, 8 antre + 1 dipegang penulis, sekitar 5,3 detik), `BATAS_TUTUP_S` 8 detik untuk seluruh
+    penuh, 8 antre + 1 dipegang penulis, sekitar 5,7 detik dengan fsync), `BATAS_TUTUP_S` 8 detik untuk seluruh
     urutan tutup, keduanya di bawah tenggang `docker stop` bawaan (10 detik sebelum SIGKILL). Line
     uvicorn jalan dengan `--timeout-graceful-shutdown 1`, karena `/api/video_feed` yang masih
     terbuka dulu menahan shutdown sampai SIGKILL; konsol sengaja TANPA batas itu. Anggarannya

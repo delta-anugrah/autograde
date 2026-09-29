@@ -672,11 +672,12 @@ for n in 1 2 3; do docker exec ripe_line_$n python -c 'import os,sqlite3; p=next
    **Kirim Ulang**. Kalau janjang itu memang tidak bisa diterima, simpan dulu ke berkas di host,
    satu per `event_id`. Ganti `ripe_line_1` dengan line yang disebut dan `EVENT_ID` dengan kolom
    pertama langkah 1. Berkasnya harus berisi satu baris JSON; kosong = `event_id` salah atau
-   baris itu tidak (lagi) tercatat ditolak, jangan lanjut ke langkah 3.
+   baris itu tidak (lagi) tercatat ditolak, jangan lanjut ke langkah 3. Berkas yang sudah ada
+   tidak pernah ditimpa, jadi menjalankannya lagi sesudah langkah 3 tidak menghapus salinannya.
 
 ```bash
-docker exec ripe_line_1 python -c 'import json,os,sqlite3,sys; p=next(x for x in ("/app/state/outbox.db","/app/artifacts/outbox.db") if os.path.exists(x)); db=sqlite3.connect(p); db.row_factory=sqlite3.Row; r=db.execute("select * from outbox_events where event_id=? and ditolak_at is not null", (sys.argv[1],)).fetchone(); r or sys.exit("tidak ada baris ditolak dengan event_id itu"); print(json.dumps(dict(r)))' EVENT_ID > ~/janjang-ditolak-EVENT_ID.json
-cat ~/janjang-ditolak-EVENT_ID.json
+f=~/janjang-ditolak-EVENT_ID.json; if [ -e "$f" ]; then echo "$f sudah ada, TIDAK ditimpa"; else docker exec ripe_line_1 python -c 'import json,os,sqlite3,sys; p=next(x for x in ("/app/state/outbox.db","/app/artifacts/outbox.db") if os.path.exists(x)); db=sqlite3.connect(p); db.row_factory=sqlite3.Row; r=db.execute("select * from outbox_events where event_id=? and ditolak_at is not null", (sys.argv[1],)).fetchone(); r or sys.exit("tidak ada baris ditolak dengan event_id itu"); print(json.dumps(dict(r)))' EVENT_ID > "$f.baru" && mv "$f.baru" "$f"; rm -f "$f.baru"; fi
+cat "$f"
 ```
 
 3. Baru hapus barisnya. Perintah ini hanya menghapus baris yang tercatat ditolak, jadi
