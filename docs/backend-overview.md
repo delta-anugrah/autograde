@@ -219,7 +219,7 @@ pemanggil, dan keduanya tanpa auth. Penggantinya `/internal/assignment` (yang ju
 | GET / POST | `/api/console/trucks` | Daftar truk / truk ketik operator (masuk antrean ERP) |
 | POST | `/api/console/scan`, `/api/console/scan/keluar` | Scan QR gerbang masuk / keluar |
 | GET | `/api/console/trucks/{plate_number}/qr.png` | Kartu QR, dibuat server |
-| GET / POST | `/api/console/weighings` | Timbangan; bruto/tara di bawah 1.000 kg ditolak (`MINIMUM_WEIGHT_KG`) |
+| GET / POST | `/api/console/weighings` | Timbangan; bruto/tara di bawah 1.000 kg ditolak (`MINIMUM_WEIGHT_KG`). Baris GET membawa `erp_perlu_dicek` (`tiket_final_berbeda` / `tiket_dibatalkan` / null, batch 2.3) |
 | GET | `/api/console/recap` | Rekap per truk satu hari. Tidak dipanggil layar sejak tab digabung 2026-09-28; endpoint tetap |
 | POST | `/api/console/lines/{line_code}/assign-truck`, `/release-truck`, `/manual-reject`, `/piston` | Diteruskan ke `/internal/*` line; line yang tidak menjawab → 502 |
 
@@ -277,7 +277,7 @@ CLAUDE.md, Critical Rule 21.
 | GET | `/api/console/dev/ping` | cek akses masih hidup, tanpa membaca apa pun |
 | GET | `/api/console/dev/log` | `event_log`: filter `level`/`cari`, `limit`+`offset` |
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu jawaban |
-| GET | `/api/console/dev/antrean` | `erp_outbox`: jumlah pending/gagal + daftar gagal |
+| GET | `/api/console/dev/antrean` | `erp_outbox`: jumlah pending/gagal + daftar gagal. `ErpClient` membalas empat jawaban (`ErpRejected` 4xx, `ErpServerError` 5xx beramplop Frappe, `ErpUnavailable` tidak terjangkau, atau terkirim); dua yang pertama dicatat per pesan dan batch lanjut, `ErpUnavailable` menahan batch dan Last Sync membaca putus (`integrations/erp/client.py`) |
 | GET | `/api/console/dev/antrean/manifest` | antrean manifest R2 (DB terpisah dari `erp_outbox`, supaya R2 mati tidak menahan pesan AutoERP) |
 | POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox`. **`attempts` sengaja tidak di-reset**: itu yang membedakan "macet selamanya" dari "gangguan sesaat" |
 | GET | `/api/console/dev/versi` | versi image + status lisensi |
