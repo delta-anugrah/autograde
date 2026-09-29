@@ -47,6 +47,14 @@
 - `current_truck_id`, `current_assignment_id`: set by `POST /internal/assignment`.
 - `last_successful_api_push`, `worker_threads`, `websocket_clients`, `main_loop`.
 
+**AI mati (batch 2.1).** Empat stempel `time.monotonic()` di `RuntimeState` (`ai_dimulai_at`,
+`frame_terakhir_at`, `aliran_frame_sejak`, `inferensi_selesai_at`) ditulis worker, dan
+`services/penjaga_ai.py` (`PenjagaAi`) membacanya untuk menjawab satu pertanyaan: kamera
+mengirim gambar, tapi ada frame yang selesai digrading dalam `AI_MATI_DETIK` detik terakhir?
+Kalau tidak, AI dinyatakan mati, dan coil ERROR PLC, `/health` (503), serta kartu line konsol
+sama-sama membaca penilaian yang sama dari objek ini, bukan menghitung sendiri-sendiri. Detail
+aturan dan lima keadaan yang sengaja tidak dialarm: `domain/kesehatan_ai.py`, CLAUDE.md aturan 32.
+
 ---
 
 ## 3. Detection Flow (single-trigger, not voting)

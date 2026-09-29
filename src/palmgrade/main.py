@@ -50,6 +50,9 @@ from .integrations.upload.upload_manifest import UploadManifest
 from .workers.batch_upload_worker import BatchUploadWorker
 from .workers.capture_save_worker import CaptureSaveWorker
 from .routes.health import router as health_router
+from .core.dependencies import get_health_service
+from .routes.health_ringan import buat_router_health
+from .services.penjaga_ai import PenjagaAi
 from .routes.inspection import router as inspection_router
 from .routes.streaming import router as streaming_router
 from .workers.display_worker import DisplayWorker
@@ -263,6 +266,11 @@ def create_app() -> FastAPI:
         state = get_runtime_state()
         state.main_loop = asyncio.get_running_loop()
 
+        # Batch 2.1: SATU penilai "AI masih memproses?" untuk coil ERROR,
+        # `/health` (+ healthcheck Docker), dan kartu line konsol.
+        penjaga_ai = PenjagaAi(settings=settings, state=state, kamera=camera)
+        state.penjaga_ai = penjaga_ai
+
         # Sesudah `state` ada, sebelum worker deteksi menyala: setelan yang
         # dipegang konsol harus sudah terpasang saat janjang pertama lewat.
         await _tarik_setelan_grading(settings, state)
@@ -351,13 +359,11 @@ def create_app() -> FastAPI:
         # Mengembalikan None kalau PLC_ENABLED=false, jadi di cloud dan di PC
         # dev tidak ada thread tambahan sama sekali. Didaftarkan ke
         # worker_threads supaya ikut di-restart watchdog 10 detik kalau mati.
-        # `camera` di lambda ini variabel lokal `lifespan`, di-assign sekali di
-        # atas (baris ~84-95) dan TIDAK PERNAH di-rebind sesudahnya. Jadi lambda
-        # ini selamanya menunjuk objek kamera yang sama — dan justru itu yang
-        # bikin benar: reconnect tidak membuat objek baru, `FrameCaptureWorker`
-        # cuma mengubah `.connected` di tempat pada objek yang sama
-        # (`integrations/camera/base.py:9`). health_check karena itu selalu
-        # membaca status terkini, bukan snapshot saat startup.
+        # Coil ERROR = kamera putus ATAU AI mati (batch 2.1), dinilai
+        # `penjaga_ai` tiap tick. Penjaga memegang objek kamera yang sama
+        # selamanya: reconnect tidak membuat objek baru, `FrameCaptureWorker`
+        # cuma mengubah `.connected` di tempat, jadi yang dibaca selalu status
+        # terkini, bukan snapshot saat startup.
         # Dibungkus try/except karena PLC itu fitur OPSIONAL yang default-nya mati:
         # env rusak (mis. PLC_PULSE_MS=0 yang lolos int() lalu ditolak
         # PulseScheduler.__post_init__) tidak boleh menjatuhkan lifespan dan ikut
@@ -365,7 +371,7 @@ def create_app() -> FastAPI:
         try:
             plc_worker = start_plc_worker(
                 settings,
-                health_check=lambda: camera.connected,
+                health_check=penjaga_ai.sehat_untuk_plc,
                 license_ok=lambda: not grading_blocked(settings.lic_enabled, state.license_exp),
             )
         except Exception:
@@ -447,6 +453,7 @@ def create_app() -> FastAPI:
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/captures", StaticTanpaDb(directory=str(artifacts_dir)), name="captures")
 
+    app.include_router(buat_router_health(get_health_service))
     app.include_router(health_router)
     app.include_router(inspection_router)
     app.include_router(streaming_router)

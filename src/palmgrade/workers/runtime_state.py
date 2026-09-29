@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from queue import Queue
 from typing import Any
+
+from ..domain.kesehatan_ai import JEDA_ALIRAN_DETIK
 
 
 @dataclass
@@ -97,3 +101,42 @@ class RuntimeState:
     # harganya jauh lebih mahal daripada satu int yang dibandingkan time.time().
     # Diisi main.py saat lifespan; diabaikan kalau LICENSE_ENABLED=false.
     license_exp: int = 0
+
+    # ── Penjaga AI mati (batch 2.1, `services/penjaga_ai.py`) ──────────────
+    # Jam yang dipakai keempat cap di bawah DAN penilainya. `time.monotonic`:
+    # jam dinding PC pabrik bisa melompat berjam-jam saat dapat internet, dan
+    # lompatan itu tidak boleh terbaca sebagai AI mati. Test menukarnya.
+    jam: Callable[[], float] = field(default=time.monotonic)
+    ai_dimulai_at: float = 0.0            # loop deteksi mulai jalan (sekali per proses)
+    frame_terakhir_at: float = 0.0        # frame terakhir masuk dari kamera
+    aliran_frame_sejak: float = 0.0       # awal aliran frame sekarang (sesudah jeda)
+    # Frame terakhir yang SELESAI digrading, bukan cuma masuk ke model:
+    # `last_yolo_frame_at` di atas dicap sebelum janjangnya diproses, jadi
+    # exception sesudah inferensi tetap membuatnya segar tiap detik.
+    inferensi_selesai_at: float = 0.0
+    # Galat terakhir loop deteksi, untuk `/health/detail` (support), BUKAN
+    # untuk layar operator. `ai_galat_at` jam dinding: cuma untuk dibaca.
+    ai_galat_terakhir: str | None = None
+    ai_galat_at: float = 0.0
+    # `PenjagaAi` line ini, dipasang main.py. None di konsol dan sebelum lifespan.
+    penjaga_ai: Any = None
+
+    def catat_ai_dimulai(self) -> None:
+        """Sekali per proses: watchdog yang menyalakan ulang thread deteksi tidak
+        boleh memberi tenggang baru, kalau tidak thread yang mati berulang tidak
+        pernah terbaca mati."""
+        if self.ai_dimulai_at <= 0:
+            self.ai_dimulai_at = self.jam()
+
+    def catat_frame_masuk(self) -> None:
+        sekarang = self.jam()
+        if sekarang - self.frame_terakhir_at > JEDA_ALIRAN_DETIK:
+            self.aliran_frame_sejak = sekarang
+        self.frame_terakhir_at = sekarang
+
+    def catat_inferensi_selesai(self) -> None:
+        self.inferensi_selesai_at = self.jam()
+
+    def catat_galat_ai(self, exc: BaseException) -> None:
+        self.ai_galat_terakhir = f"{type(exc).__name__}: {exc}"[:300]
+        self.ai_galat_at = time.time()

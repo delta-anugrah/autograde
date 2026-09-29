@@ -32,6 +32,9 @@ class LineStatusWorker:
         # salah menulis WARNING tiap detik dan mendorong keluar galat lain
         # yang lebih tua dari tabel `event_log` (aturan 21).
         self._kunci_ditolak: set[str] = set()
+        # Line yang AI-nya sedang mati (batch 2.1), untuk satu ERROR saat masuk
+        # dan satu WARNING saat pulih di tab Log, bukan satu per detik.
+        self._ai_mati: set[str] = set()
 
     def snapshot(self) -> dict[str, dict[str, Any]]:
         return dict(self._state)
@@ -70,8 +73,12 @@ class LineStatusWorker:
                 # Cloud Photo di Last Sync. None dari line versi lama: konsol
                 # menulisnya "tidak terbaca", bukan menganggapnya putus.
                 "unggah": jawab.get("unggah"),
+                # Penjaga AI mati (batch 2.1). None dari line versi lama: kartu
+                # tidak menggambar apa pun, bukan menebak.
+                "ai": jawab.get("ai"),
             }
             self._catat_unggah(line.line_code, jawab.get("unggah"))
+            self._catat_ai(line.line_code, jawab.get("ai"))
             self._catat_kunci(line.line_code, ditolak=False)
 
     def _catat_kunci(self, line_code: str, *, ditolak: bool) -> None:
@@ -91,6 +98,26 @@ class LineStatusWorker:
         elif sudah_ditolak and not ditolak:
             logger.warning("%s menerima kunci konsol lagi, sudah pulih", line_code)
             self._kunci_ditolak.discard(line_code)
+
+    def _catat_ai(self, kode: str, ai: dict[str, Any] | None) -> None:
+        """AI line berhenti/kembali memproses → satu ERROR / satu WARNING di tab Log.
+
+        Line tidak memasang log_sink, jadi tanpa ini kejadiannya cuma ada di
+        `docker logs` line, yang hilang saat container dibuat ulang. Line yang
+        tidak terbaca tidak dipanggil ke sini, jadi OFFLINE tidak terbaca pulih.
+        """
+        mati = bool(ai and ai.get("mati"))
+        if mati and kode not in self._ai_mati:
+            logger.error(
+                "%s: AI berhenti memproses (kode %s): lebih dari %s detik kamera mengirim "
+                "gambar tapi tidak ada yang digrading, buah lewat tanpa disortir. Restart "
+                "line lewat Setelan, Danger Zone, lalu periksa log line itu.",
+                kode, ai.get("kode") or "AI_MATI", ai.get("ambang_detik") or "?",
+            )
+            self._ai_mati.add(kode)
+        elif not mati and kode in self._ai_mati:
+            logger.warning("%s: AI memproses lagi", kode)
+            self._ai_mati.discard(kode)
 
     def _catat_unggah(self, kode: str, unggah: dict[str, Any] | None) -> None:
         """Upload foto line putus/pulih → satu WARNING, supaya masuk tab Log.

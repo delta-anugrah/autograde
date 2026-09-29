@@ -122,6 +122,9 @@ class FrameCaptureWorker:
         self._consecutive_failures = 0
         self._reconnect_backoff = _RECONNECT_BACKOFF_BASE
         self.state.latest_raw_frame = frame
+        # Penjaga AI mati (batch 2.1): gambar MASUK. Tanpa cap ini penilai tidak
+        # bisa membedakan "AI mati" dari "kamera tidak mengirim apa pun".
+        self.state.catat_frame_masuk()
 
         # Rekaman developer, kalau menyala. Frame di sini masih CLEAN — bbox
         # digambar jauh di hilir — jadi rekamannya otomatis polos tanpa kerja

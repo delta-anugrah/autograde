@@ -138,6 +138,9 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   yang hilang: semuanya menunggu di antrean dan terkirim sendiri begitu sambungan pulih.
 - **Tiga kartu line**, satu per kamera, dengan stream langsung, status **ONLINE / OFFLINE** di
   judul, tombol **Tugaskan** (pilih truk), **Lepas** (truk pergi), dan **Reject Manual**.
+- Kartu berbingkai **merah** dengan pita **AI berhenti memproses** (kode `AI_MATI`, jam mulai,
+  tindakan) = kamera jalan tapi tidak ada yang digrading: tahan umpan buah ke line itu dan
+  panggil teknisi. Pita hilang sendiri begitu line memproses lagi.
 - **Reject manual tanpa mouse**: tahan `Spasi` lalu tekan `1` / `2` / `3` sesuai line.
 - **Piston manual** per line (Buka / Tutup) kalau PLC aktif. Ada konfirmasi karena ini
   menggerakkan besi sungguhan.
@@ -643,6 +646,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Kamera "tidak terjawab" saat E2E di macOS | `CONSOLE_LINE_HOST=http://localhost` → IPv6 | ganti `http://127.0.0.1` |
 | Tab Timbangan: tanda **Cek AutoERP** di plat | janjang tiba sesudah tiket AutoERP-nya final (konsol sempat tidak terjangkau dari line, atau truk ditimbang keluar saat janjang terakhir masih diproses); AutoERP tidak mengubah angka yang dibukukan | tab Log baris `[TIKET_FINAL_BERBEDA]` menyebut tiketnya; minta backoffice memeriksa tiket itu di AutoERP (tanda `grading_revised`) |
 | Antrean ERP: satu baris `HTTP 500` dengan alasan Frappe, yang lain terkirim | isi kunjungan itu membuat AutoERP galat | kirim alasannya ke pengelola AutoERP; setelah dibetulkan, **Kirim Ulang** |
+| Kartu line merah, AI berhenti memproses | loop deteksi melempar galat terus (CUDA/GPU), atau macet | `curl :800N/health/detail` → `ai.galat_terakhir`; restart line (Setelan, Danger Zone); kalau terulang, `nvidia-smi` dan log line |
 
 Dua jebakan umum di balik "setelan `.env` tidak berlaku": **env var proses menang atas
 `.env`** (`load_dotenv(override=False)`; cek `/health/detail`), dan `.env` yang diubah baru
@@ -741,7 +745,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
-| 1.7 | 28 September 2026 | Restart dan hapus data dari konsol menutup line dengan rapi (coil PLC mati, antrean simpan habis); foto dan sidecar ditulis tahan listrik padam; foto 0 byte lama tidak diunggah. Tab Status punya bagian **Antrean line**: antrean janjang tiap line ke konsol tidak lagi menyerah sesudah 50 percobaan, dan bisa dilihat serta dikirim ulang dari layar. §7: tanda **Cek AutoERP** di tab Timbangan untuk janjang susulan pada tiket AutoERP yang sudah final, dan baris antrean ERP `HTTP 500` beramplop Frappe. |
+| 1.7 | 28 September 2026 | Restart dan hapus data dari konsol menutup line dengan rapi (coil PLC mati, antrean simpan habis); foto dan sidecar ditulis tahan listrik padam; foto 0 byte lama tidak diunggah. Tab Status punya bagian **Antrean line**: antrean janjang tiap line ke konsol tidak lagi menyerah sesudah 50 percobaan, dan bisa dilihat serta dikirim ulang dari layar. Kartu line jadi merah kalau AI berhenti memproses gambar (§7). §7: tanda **Cek AutoERP** di tab Timbangan untuk janjang susulan pada tiket AutoERP yang sudah final, dan baris antrean ERP `HTTP 500` beramplop Frappe. |
 | 1.6 | 28 September 2026 | ONBOARDING digabung ke sini (§9.1 folder, §9.2 langkah pertama) lalu dihapus; port konsol ditulis dua cara pasang (8100 image produksi, 8000 dari source); §5.11 Lampung per 28 September; aturan image GHCR dan alur rilis diperbarui. |
 | 1.5 | 28 September 2026 | Tab digabung dari 15 jadi 9: **Rekap** = Rekap + Riwayat (dibuka di Hari ini, Per truk), **Status** = Versi + Diagnostik + Antrean ERP, **Line** = Sumber Kamera + Model Deteksi + Uji PLC + Rekam Video. §3.4 dan §3.5 ditulis ulang. |
 | 1.4 | 28 September 2026 | Versi dan lisensi PC ditampilkan di bawah tulisan AUTOGRADE untuk semua akun, termasuk operator; klik untuk rinciannya. |

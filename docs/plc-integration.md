@@ -260,10 +260,16 @@ ini"**, dievaluasi ulang tiap tick, bukan flag yang sekali nyala lalu menetap. D
 levelnya berubah dan ditulis ulang tiap detik. Selama pulse uji dari layar sedang jalan di coil
 ini, level kesehatan menunggu sampai pulse selesai.
 
-Satu-satunya sumber unhealthy: **`health_check()` melaporkan tidak sehat** (praktiknya:
-`camera.connected` false), atau **exception dari `health_check()` itu sendiri**, dianggap tidak
-sehat (fail-loud). Sumber health yang tidak diketahui statusnya tidak boleh dibaca sebagai sehat
-pada sinyal keselamatan.
+Satu-satunya sumber unhealthy: **`health_check()` melaporkan tidak sehat**, atau **exception dari
+`health_check()` itu sendiri**, dianggap tidak sehat (fail-loud). Sumber health yang tidak
+diketahui statusnya tidak boleh dibaca sebagai sehat pada sinyal keselamatan.
+
+Sejak batch 2.1 (2026-09-28), `health_check()` = `PenjagaAi.sehat_untuk_plc()`
+(`services/penjaga_ai.py`): tidak sehat berarti **kamera putus ATAU AI mati** (kamera mengirim
+gambar tapi tidak ada frame yang selesai digrading selama `AI_MATI_DETIK`, bawaan 30 detik).
+Lisensi habis dan sumber diam (gambar berhenti sama sekali walau kamera tersambung) **sengaja
+tidak** menaikkan ERROR: keduanya sudah punya sinyalnya sendiri (banner lisensi, alive bit mati)
+dan bukan kerusakan line. Overflow (di bawah) tetap tidak menaikkannya, tidak berubah.
 
 **Overflow sengaja TIDAK menaikkan ERROR.** Drop adalah steady state yang dideklarasikan di
 bawah beban (lihat "Throughput ceiling" di atas): kamera bisa ~10 keputusan/detik, satu coil muat
