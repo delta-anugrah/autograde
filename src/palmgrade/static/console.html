@@ -2488,6 +2488,7 @@ const KAMUS = {
     antreanLinePutus_konsol_galat:"Konsol galat saat menerima janjang sejak {sejak}. Line terus mencoba; buka tab Log untuk sebabnya.",
     antreanLineKunciKonsol:"Line menolak kunci konsol (HTTP {status}). Samakan INTERNAL_SECRET di .env konsol dan line itu, lalu restart.",
     antreanLineTakTerjangkau:"Line tidak menjawab. Periksa kartunya di Diagnostik.",
+    antreanLineErrorLine:"Line menjawab HTTP {status}. Buka tab Log untuk sebabnya.",
     antreanLineDikirimUlang:"{line}: {jumlah} janjang dijadwalkan kirim sekarang",
     antreanLineGagalKirimUlang:"Kirim Ulang {line} gagal pukul {jam} (kode {kode}): {alasan}. {saran}",
     saranKunciLine:"Samakan INTERNAL_SECRET di .env konsol dan line itu, lalu restart.",
@@ -2837,6 +2838,7 @@ const KAMUS = {
     antreanLinePutus_konsol_galat:"The console has been failing to take bunches since {sejak}. The line keeps retrying; open the Log tab for the cause.",
     antreanLineKunciKonsol:"The line refused the console key (HTTP {status}). Make INTERNAL_SECRET the same in the console and line .env, then restart.",
     antreanLineTakTerjangkau:"The line is not responding. Check its card under Diagnostics.",
+    antreanLineErrorLine:"The line answered HTTP {status}. Open the Log tab for the cause.",
     antreanLineDikirimUlang:"{line}: {jumlah} bunches scheduled to send now",
     antreanLineGagalKirimUlang:"Resend {line} failed at {jam} (code {kode}): {alasan}. {saran}",
     saranKunciLine:"Make INTERNAL_SECRET the same in the console and line .env, then restart.",
@@ -5508,7 +5510,15 @@ $("antrean-kirim-ulang").addEventListener("click", (ev) => denganSibuk(ev.curren
 function keadaanAntreanLine(d) {
   const SEBAB_PUTUS = ["tak_terjangkau", "kunci_ditolak", "alamat_salah", "konsol_galat"];
   if (!d.terjangkau) {
-    return { kelas: "tanda-gagal", kunci: d.kode === "line_menolak" ? "antreanLineKunciKonsol" : "antreanLineTakTerjangkau" };
+    // line_menolak = kunci internal ditolak (401/403): saran ganti INTERNAL_SECRET.
+    // line_tidak_menjawab DENGAN status = line itu sendiri menjawab tapi galat (500)
+    // atau line lama tanpa rute ini (404): line hidup, ini bukan "line mati".
+    // line_tidak_menjawab TANPA status = benar-benar tidak terjangkau atau timeout.
+    if (d.kode === "line_menolak") return { kelas: "tanda-gagal", kunci: "antreanLineKunciKonsol" };
+    if (d.kode === "line_tidak_menjawab" && d.status != null) {
+      return { kelas: "tanda-gagal", kunci: "antreanLineErrorLine" };
+    }
+    return { kelas: "tanda-gagal", kunci: "antreanLineTakTerjangkau" };
   }
   if (!d.aktif) return { kelas: "tanda-gagal", kunci: "antreanLineNonaktif" };
   if (d.lama_tertinggal) return { kelas: "tanda-gagal", kunci: "antreanLineLamaTertinggal" };
@@ -5524,8 +5534,11 @@ function keadaanAntreanLine(d) {
 // jam yang sama untuk tiga baris, dan fungsinya bisa diuji tanpa memalsukan jam.
 function barisAntreanLine(kode, d, sekarangMs) {
   const k = keadaanAntreanLine(d);
+  // {status} cuma dipakai oleh dua kunci (kunci ditolak, error line): jangan diganti
+  // untuk kunci lain, atau bawaan "401" bocor ke baris yang tidak menyebut status
+  // sama sekali (mis. line yang benar-benar tidak terjangkau).
   const keadaan = t(k.kunci)
-    .replace("{status}", d.status ?? "401")
+    .replace("{status}", d.status ?? (k.kunci === "antreanLineKunciKonsol" ? "401" : ""))
     .replace("{sejak}", d.putus_sejak ? waktu(d.putus_sejak * 1000) : KOSONG);
   const pesanBaris = (d.terjangkau ? d.galat : d.pesan) || "";
   const tertua = d.tertua_at ? lamaProses(new Date(d.tertua_at * 1000), new Date(sekarangMs)) : null;
@@ -5544,18 +5557,29 @@ function barisAntreanLine(kode, d, sekarangMs) {
 
 // Kalimat gagal Kirim Ulang: apa yang gagal, di line mana, jam berapa, kodenya, dan
 // harus ngapain (keputusan 2026-09-28, pesan error konsol wajib detail).
-const SARAN_KIRIM_ULANG = { line_menolak: "saranKunciLine", line_tidak_menjawab: "saranLineMati", line_tidak_dikenal: "saranMuatUlang" };
+// line_tidak_menjawab TANPA status = benar-benar tidak terjangkau/timeout →
+// saranLineMati; DENGAN status (line menjawab tapi galat, mis. 500, atau line lama
+// menjawab 404) itu bukan "line mati", jadi jatuh ke saranBukaLog seperti kode lain.
+const SARAN_KIRIM_ULANG = { line_menolak: "saranKunciLine", line_tidak_dikenal: "saranMuatUlang" };
 
 function pesanGagalKirimUlang(e, kode, saat) {
+  const status = e.params && e.params.status;
+  const saran = e.kode === "line_tidak_menjawab" && status == null ? "saranLineMati" : (SARAN_KIRIM_ULANG[e.kode] || "saranBukaLog");
   return t("antreanLineGagalKirimUlang")
     .replace("{line}", kode)
     .replace("{jam}", waktu(saat))
     .replace("{kode}", e.kode || "http")
     .replace("{alasan}", alasan(e))
-    .replace("{saran}", t(SARAN_KIRIM_ULANG[e.kode] || "saranBukaLog"));
+    .replace("{saran}", t(saran));
 }
 
+// Guard sederhana: 5 s setInterval tidak boleh menumpuk permintaan baru saat yang
+// sebelumnya masih menunggu line yang macet (sampai 3 s ditambah jaringan).
+let antreanLineSedangMuat = false;
+
 async function muatAntreanLine() {
+  if (antreanLineSedangMuat) return;
+  antreanLineSedangMuat = true;
   const tbody = $("antrean-line-baris");
   try {
     const r = await api("/api/console/dev/antrean/line");
@@ -5566,6 +5590,8 @@ async function muatAntreanLine() {
     tulisKalauBeda(tbody, baris || barisKosong(6, "kosongAntreanLine"));
   } catch (e) {
     if (e.kode !== "belum_masuk") tulisKalauBeda(tbody, barisKosong(6, "gagalAntreanLine"));
+  } finally {
+    antreanLineSedangMuat = false;
   }
 }
 

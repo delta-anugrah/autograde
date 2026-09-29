@@ -27,6 +27,7 @@ KUNCI_BARU = (
     "antreanLineKosong", "antreanLineMengirim", "antreanLineNonaktif", "antreanLineLamaTertinggal",
     "antreanLinePutus_tak_terjangkau", "antreanLinePutus_kunci_ditolak", "antreanLinePutus_alamat_salah",
     "antreanLinePutus_konsol_galat", "antreanLineKunciKonsol", "antreanLineTakTerjangkau",
+    "antreanLineErrorLine",
     "antreanLineDikirimUlang", "antreanLineGagalKirimUlang",
     "saranKunciLine", "saranLineMati", "saranMuatUlang", "saranBukaLog",
 )
@@ -42,6 +43,7 @@ const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v)
 const KAMUS_UJI = {
   antreanLinePutus_tak_terjangkau: "putus sejak {sejak}",
   antreanLineKunciKonsol: "kunci ditolak HTTP {status}",
+  antreanLineErrorLine: "line menjawab HTTP {status}",
   antreanLineGagalKirimUlang: "Kirim Ulang {line} gagal pukul {jam} (kode {kode}): {alasan}. {saran}",
 };
 const t = (k) => KAMUS_UJI[k] ?? k;
@@ -141,6 +143,10 @@ _SEHAT = {"terjangkau": True, "aktif": True, "lama_tertinggal": False, "menunggu
     [
         ({"terjangkau": False, "kode": "line_menolak", "status": 401}, "antreanLineKunciKonsol"),
         ({"terjangkau": False, "kode": "line_tidak_menjawab"}, "antreanLineTakTerjangkau"),
+        # Line-side error (a 500) or an old line answering 404: a status came back,
+        # so the line itself is reachable, this is NOT "the line is down".
+        ({"terjangkau": False, "kode": "line_tidak_menjawab", "status": 500}, "antreanLineErrorLine"),
+        ({"terjangkau": False, "kode": "line_tidak_menjawab", "status": 404}, "antreanLineErrorLine"),
         ({**_SEHAT, "aktif": False}, "antreanLineNonaktif"),
         ({**_SEHAT, "lama_tertinggal": True}, "antreanLineLamaTertinggal"),
         ({**_SEHAT, "menunggu": 0, "tersambung": False, "sebab_putus": "kunci_ditolak"}, "antreanLineKosong"),
@@ -190,6 +196,26 @@ def test_baris_line_menolak_tanpa_tombol_dengan_status_dan_pesan():
 
 
 @butuh_node
+def test_baris_line_error_500_bukan_line_mati():
+    """Line-side error (500): a status came back, so this is NOT the key advice
+    and NOT the unreachable wording, it is its own row."""
+    d = {"terjangkau": False, "kode": "line_tidak_menjawab", "status": 500, "pesan": "line-2 did not answer: HTTP 500"}
+    html = _baris("line-2", d, 0)
+    assert "data-kirim-ulang-line" not in html
+    assert "line menjawab HTTP 500" in html
+    assert "kunci ditolak" not in html
+
+
+@butuh_node
+def test_baris_line_lama_404_bukan_line_mati():
+    """An old line with no `/internal/outbox` answers 404: same treatment as a 500."""
+    d = {"terjangkau": False, "kode": "line_tidak_menjawab", "status": 404, "pesan": "line-2 did not answer: HTTP 404"}
+    html = _baris("line-2", d, 0)
+    assert "line menjawab HTTP 404" in html
+    assert "kunci ditolak" not in html
+
+
+@butuh_node
 def test_baris_kosong_tanpa_tombol():
     html = _baris("line-3", {**_SEHAT, "menunggu": 0, "tertua_at": None}, 0)
     assert "data-kirim-ulang-line" not in html
@@ -197,13 +223,58 @@ def test_baris_kosong_tanpa_tombol():
 
 
 @butuh_node
+def test_status_401_bawaan_tidak_bocor_ke_baris_lain():
+    """The `{status}` default of "401" in `barisAntreanLine` must not leak into a
+    key that has nothing to do with a refused key, such as antreanLineTakTerjangkau."""
+    html = _baris("line-1", {"terjangkau": False, "kode": "line_tidak_menjawab"}, 0)
+    assert "401" not in html
+
+
+@butuh_node
+def test_muatAntreanLine_tidak_tumpang_tindih_saat_masih_menunggu():
+    """5 s setInterval must not start a new request while the previous one is still
+    pending: a hung line can take up to 3 s plus network time. A module-level
+    in-flight flag, released in `finally`, guards it."""
+    skrip = (
+        "let panggilan = 0; let selesaikan;\n"
+        "const api = () => { panggilan++; return new Promise((res) => { selesaikan = res; }); };\n"
+        "const $ = () => ({});\n"
+        "const KOSONG = \"-\";\n"
+        "const barisKosong = () => \"\";\n"
+        "function tulisKalauBeda() {}\n"
+        "let antreanLineSedangMuat = false;\n"
+        "async " + _fungsi("muatAntreanLine")
+        + "\n(async () => {\n"
+        "  const p1 = muatAntreanLine();\n"
+        "  const p2 = muatAntreanLine();\n"
+        "  await new Promise((r) => setTimeout(r, 10));\n"
+        "  selesaikan({ lines: {} });\n"
+        "  await Promise.all([p1, p2]);\n"
+        "  console.log(JSON.stringify({ panggilan }));\n"
+        "})();"
+    )
+    hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
+    assert hasil.returncode == 0, hasil.stderr[-800:]
+    assert json.loads(hasil.stdout.strip()) == {"panggilan": 1}
+
+
+@butuh_node
 @pytest.mark.parametrize(
-    "kode,saran",
-    [("line_menolak", "saranKunciLine"), ("line_tidak_menjawab", "saranLineMati"),
-     ("line_tidak_dikenal", "saranMuatUlang"), (None, "saranBukaLog")],
+    "kode,params,saran",
+    [
+        ("line_menolak", {"status": 401}, "saranKunciLine"),
+        # line_tidak_menjawab WITHOUT a status: truly unreachable or timed out.
+        ("line_tidak_menjawab", {}, "saranLineMati"),
+        # line_tidak_menjawab WITH a status: line-side error (500) or an old line
+        # answering 404. Must NOT read as the line being down.
+        ("line_tidak_menjawab", {"status": 500}, "saranBukaLog"),
+        ("line_tidak_menjawab", {"status": 404}, "saranBukaLog"),
+        ("line_tidak_dikenal", {}, "saranMuatUlang"),
+        (None, {}, "saranBukaLog"),
+    ],
 )
-def test_pesan_gagal_menyebut_line_jam_kode_dan_saran(kode, saran):
-    e = {"kode": kode, "message": "Line 1 menolak perintah (HTTP 401)", "params": {}}
+def test_pesan_gagal_menyebut_line_jam_kode_dan_saran(kode, params, saran):
+    e = {"kode": kode, "message": "Line 1 menolak perintah (HTTP 401)", "params": params}
     teks = _jalankan(
         f"pesanGagalKirimUlang({json.dumps(e)}, 'line-1', new Date(2026, 8, 28, 14, 5, 9))",
         "pesanGagalKirimUlang", "waktu", konstanta=("SARAN_KIRIM_ULANG",),
@@ -212,3 +283,17 @@ def test_pesan_gagal_menyebut_line_jam_kode_dan_saran(kode, saran):
     assert f"(kode {kode or 'http'})" in teks
     assert "Line 1 menolak perintah (HTTP 401)" in teks
     assert teks.endswith(saran)
+
+
+@butuh_node
+def test_kirim_ulang_500_menunjukkan_status_bukan_saran_kunci_atau_line_mati():
+    """A 500 on Kirim Ulang must show the HTTP status and saranBukaLog, and must
+    NOT show saranLineMati or the INTERNAL_SECRET advice (saranKunciLine)."""
+    e = {"kode": "line_tidak_menjawab", "message": "line-1 did not answer: HTTP 500", "params": {"status": 500}}
+    teks = _jalankan(
+        f"pesanGagalKirimUlang({json.dumps(e)}, 'line-1', new Date(2026, 8, 28, 14, 5, 9))",
+        "pesanGagalKirimUlang", "waktu", konstanta=("SARAN_KIRIM_ULANG",),
+    )
+    assert teks.endswith("saranBukaLog")
+    assert "saranLineMati" not in teks
+    assert "saranKunciLine" not in teks
