@@ -608,7 +608,11 @@ karena di situ mati lampu dan internet putusnya.
 Kuncinya `(kind, key)` dengan `key` = kunci alami yang dicocokkan AutoERP (plat ternormalisasi
 untuk truk), jadi satu truk yang diketik dua kali tetap **satu pesan berisi keadaan terbaru**,
 bukan dua. Pesan yang diganti **saat masih di jalan** sengaja tidak ditandai terkirim
-(`mark_sent` mencocokkan payload-nya), supaya keadaan yang lebih baru tidak hilang.
+(`mark_sent` dan `mark_error` mencocokkan kolom `version`, yang naik di setiap antre),
+supaya keadaan yang lebih baru tidak hilang. Yang dicocokkan generasinya, bukan isinya:
+antrean ulang halaman R2 isinya selalu sama (`{"assignment_id": X}`) tapi tetap berarti
+"bangun lagi". Kolom itu ditambahkan di tempat saat konsol pertama jalan; baris lama mulai
+dari 0 dan tetap terkirim.
 
 `integrations/erp/client.py` membedakan dua hal, dan pemanggilnya bertindak beda:
 

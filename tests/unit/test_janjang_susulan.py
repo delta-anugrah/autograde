@@ -8,6 +8,7 @@ dan tiket yang sudah final tidak pernah dibetulkan.
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import replace
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -32,17 +33,33 @@ class _Unggah:
     def put_bytes(self, body, r2_key, *, content_type) -> None: ...
 
 
+class _UnggahDenganSusulan:
+    """R2 palsu yang mencatat `counts.total` tiap halaman, dan menjalankan `selagi_unggah`
+    di tengah unggahan halaman PERTAMA: janjang susulan tiba selagi kiriman di jalan."""
+
+    def __init__(self) -> None:
+        self.total: list[int] = []
+        self.selagi_unggah = lambda: None
+
+    def put_bytes(self, body, r2_key, *, content_type) -> None:
+        if content_type != "application/json":
+            return
+        self.total.append(json.loads(body)["counts"]["total"])
+        if len(self.total) == 1:
+            self.selagi_unggah()
+
+
 def _sekarang() -> str:
     return datetime.now(WIB).isoformat()
 
 
-def _konsol(tmp_path, *, erp: bool = True, manifest: bool = False):
+def _konsol(tmp_path, *, erp: bool = True, manifest: bool = False, unggah=None):
     store = ConsoleStore(tmp_path / "console.db")
     outbox = ErpOutboxStore(tmp_path / "erp_outbox.db")
     halaman = None
     if manifest:
         halaman = VisitManifestWorker(
-            store, ErpOutboxStore(tmp_path / "manifest_outbox.db"), _Unggah(),
+            store, ErpOutboxStore(tmp_path / "manifest_outbox.db"), unggah or _Unggah(),
             public_url="https://captures.example", viewer_html=tmp_path / "viewer.html",
             clock=lambda: "2026-09-28T09:00:00+07:00",
         )
@@ -168,3 +185,21 @@ def test_konsol_tanpa_autoerp_tetap_menerima_janjang_susulan(tmp_path):
     _janjang(service, 99, assignment_id)
 
     assert service.store.grading_counts(assignment_id)["total"] == 4
+
+
+def test_janjang_susulan_selagi_halaman_diunggah_tidak_hilang(tmp_path):
+    """Isi antrean halaman selalu `{"assignment_id": X}`, jadi antrean ulangnya sama persis
+    dengan yang sedang diunggah. Kiriman lama tidak boleh menandai antrean baru itu
+    terkirim: halaman membeku di 3 sementara AutoERP mencatat 4."""
+    unggah = _UnggahDenganSusulan()
+    service, _, halaman = _konsol(tmp_path, manifest=True, unggah=unggah)
+    (tmp_path / "viewer.html").write_text("<html></html>")
+    _, assignment_id = _truk_dilepas(service)
+    unggah.selagi_unggah = lambda: _janjang(service, 99, assignment_id)
+
+    assert asyncio.run(halaman.drain_once()) == 1
+    assert [m.payload for m in halaman.outbox.due()] == [{"assignment_id": assignment_id}]
+
+    assert asyncio.run(halaman.drain_once()) == 1
+    assert unggah.total == [3, 4]
+    assert halaman.outbox.due() == []
