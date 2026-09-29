@@ -32,8 +32,9 @@ async def ingest_event(
     except ValueError as exc:
         # 400 → the line's outbox keeps it and retries; rows are never
         # dead-lettered, so `outbox_failed` stays 0 on a line on this image (a
-        # line on an older image may still report more than 0). Not 200 on
-        # purpose: a malformed event must be held, not vanish.
+        # line on an older image may still report more than 0). It is counted in
+        # `outbox_pending` (tab Status, section Diagnostik, row "Antrean lokal").
+        # Not 200 on purpose: a malformed event must be visible, not vanish.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "ok", "work_date": work_date}
 

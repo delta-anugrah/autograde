@@ -109,8 +109,9 @@ class ConsoleService(LayarLineSupport):
         ValueError on a malformed payload → route replies 400 → the line's
         outbox keeps the event and retries it. Rows are never dead-lettered, so
         a line on this image always reports `outbox_failed` 0; a line still on
-        an older image may report more than 0. Better held than lost, or landed
-        on the wrong day.
+        an older image may report more than 0. A held event is counted in
+        `outbox_pending`, which support sees in tab Status, section Diagnostik,
+        row "Antrean lokal". Better held than lost, or landed on the wrong day.
         """
         event_id = str(payload.get("event_id") or "").strip()
         machine_id = str(payload.get("machine_id") or "").strip()
