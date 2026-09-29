@@ -5610,7 +5610,9 @@ function barisAntreanLine(kode, d, sekarangMs) {
     .replace("{sejak}", d.putus_sejak ? waktu(d.putus_sejak * 1000) : KOSONG)
     .replace("{jumlah}", d.ditolak ?? KOSONG)
     .replace("{jam}", d.ditolak_at ? waktu(d.ditolak_at * 1000) : KOSONG)
-    .replace("{alasan}", d.ditolak_alasan || KOSONG);
+    // Fungsi, bukan teks: alasan datang dari jawaban HTTP, dan "$&" di dalamnya akan
+    // dibaca `replace` sebagai pola.
+    .replace("{alasan}", () => d.ditolak_alasan || KOSONG);
   // Galat terakhir worker tidak pernah dikosongkan saat konsol pulih: dengan jamnya
   // supaya galat lama tidak terbaca seperti masalah sekarang, dan tidak ditampilkan
   // sama sekali saat antrean kosong (tidak ada yang tertahan olehnya).

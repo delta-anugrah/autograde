@@ -208,6 +208,12 @@ def test_baris_ditolak_menyebut_jumlah_jam_dan_alasan():
 
 
 @butuh_node
+def test_alasan_penolakan_dengan_tanda_dolar_ditulis_apa_adanya():
+    d = {**_SEHAT, "ditolak": 1, "ditolak_at": 1_789_873_200, "ditolak_alasan": "HTTP 400: harga $& $1"}
+    assert "HTTP 400: harga $&amp; $1" in _baris("line-1", d, 1_789_873_260_000)
+
+
+@butuh_node
 def test_galat_terakhir_disertai_jamnya():
     """Final review konsol M2: galat lama tanpa jam terbaca seperti masalah sekarang."""
     d = {**_SEHAT, "galat": "ConnectError: refused", "galat_at": 1_789_873_200}
