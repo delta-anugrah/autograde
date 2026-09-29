@@ -197,7 +197,10 @@ def test_perintah_kedua_saat_menutup_tidak_menjalankan_urutan_dua_kali(line):
         )
         assert res.status_code == 200
     assert keluar.wait(15)
-    time.sleep(1.2)  # beri waktu thread keluar kedua
+    # Tunggu thread keluar KEDUA dengan polling, bukan jeda tebakan (parkiran Task 4).
+    batas = time.monotonic() + 15
+    while jejak.count(("keluar", 0)) < 2 and time.monotonic() < batas:
+        time.sleep(0.02)
 
     assert jejak.count(("keluar", 0)) == 2  # dua perintah = dua os._exit; yang pertama menang
     assert sum(1 for isi in jejak if isi == ("coil", COIL_OK, False)) == 1

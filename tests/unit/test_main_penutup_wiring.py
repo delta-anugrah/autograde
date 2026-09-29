@@ -11,6 +11,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 SRC = Path(__file__).resolve().parents[2] / "src" / "palmgrade"
 MAIN = (SRC / "main.py").read_text(encoding="utf-8")
 LIFESPAN = MAIN.split("async def lifespan(app: FastAPI):", 1)[1].split("\n    app = FastAPI(", 1)[0]
@@ -18,18 +20,63 @@ SESUDAH_YIELD = LIFESPAN.split("\n        yield\n", 1)[1]
 WATCHDOG = LIFESPAN.split("async def _watchdog()", 1)[1].split("asyncio.create_task(_watchdog())", 1)[0]
 INTERNAL = (SRC / "routes" / "internal.py").read_text(encoding="utf-8")
 
-_JALAN_KELUAR = {("os", "_exit"), ("sys", "exit"), ("os", "kill"), ("os", "abort")}
+_JALAN_KELUAR = {
+    ("os", "_exit"), ("os", "kill"), ("os", "killpg"), ("os", "abort"),
+    ("sys", "exit"), ("signal", "raise_signal"),
+}
+_BAWAAN_KELUAR = {"SystemExit", "exit", "quit"}
+
+
+def _jalan_keluar_teks(teks: str) -> list[int]:
+    """Baris yang bisa mengakhiri proses tanpa lewat urutan tutup.
+
+    Mengenali `os._exit(...)` juga lewat alias (`import os as o`), lewat
+    `from os import _exit`, dan `SystemExit`/`exit`/`quit` bawaan (parkiran Task 4:
+    penjaga lama cuma mengenal bentuk `os._exit` harfiah).
+    """
+    pohon = ast.parse(teks)
+    alias: dict[str, str] = {}
+    temuan: list[int] = []
+    for n in ast.walk(pohon):
+        if isinstance(n, ast.Import):
+            for nama in n.names:
+                alias[nama.asname or nama.name] = nama.name
+        elif isinstance(n, ast.ImportFrom) and n.module:
+            temuan += [n.lineno for nama in n.names if (n.module, nama.name) in _JALAN_KELUAR]
+    for n in ast.walk(pohon):
+        if (
+            isinstance(n, ast.Attribute)
+            and isinstance(n.value, ast.Name)
+            and (alias.get(n.value.id, n.value.id), n.attr) in _JALAN_KELUAR
+        ) or (isinstance(n, ast.Name) and n.id in _BAWAAN_KELUAR):
+            temuan.append(n.lineno)
+    return sorted(set(temuan))
 
 
 def _jalan_keluar(berkas: Path) -> list[int]:
-    pohon = ast.parse(berkas.read_text(encoding="utf-8"))
-    return [
-        n.lineno
-        for n in ast.walk(pohon)
-        if isinstance(n, ast.Attribute)
-        and isinstance(n.value, ast.Name)
-        and (n.value.id, n.attr) in _JALAN_KELUAR
-    ]
+    return _jalan_keluar_teks(berkas.read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize(
+    "teks",
+    [
+        "import os\nos._exit(0)",
+        "import os as o\no._exit(0)",
+        "from os import _exit\n_exit(0)",
+        "from os import killpg\nkillpg(0, 15)",
+        "import os\nos.killpg(0, 15)",
+        "import sys\nsys.exit(1)",
+        "raise SystemExit(0)",
+        "exit(0)",
+        "import signal\nsignal.raise_signal(15)",
+    ],
+)
+def test_penjaga_mengenali_semua_bentuk_jalan_keluar(teks):
+    assert _jalan_keluar_teks(teks), teks
+
+
+def test_penjaga_tidak_salah_tuduh():
+    assert _jalan_keluar_teks("import os\nos.path.exists('x')\nkeluar_nanti(1)") == []
 
 
 def test_satu_satunya_os_exit_ada_di_penutup_line():
@@ -59,17 +106,8 @@ def test_urutan_tutup_tidak_ditulis_dua_kali_di_lifespan():
 
 
 def test_watchdog_berhenti_saat_line_menutup():
-    """Diperiksa SESUDAH thread terlihat mati dan SEBELUM dihidupkan lagi.
-
-    Urutan itu yang menutup celahnya: thread yang sudah mati saat tanda tutup
-    masih padam memang mati sendiri (crash), bukan dihentikan urutan tutup, jadi
-    boleh dihidupkan lagi. Diperiksa sekali di awal putaran saja masih
-    menyisakan celah: urutan tutup bisa mulai dan menghentikan penulis di antara
-    pemeriksaan itu dan `_start_worker`.
-    """
-    assert "penutup.sedang_menutup" in WATCHDOG
-    assert (
-        WATCHDOG.index("thread.is_alive()")
-        < WATCHDOG.index("penutup.sedang_menutup")
-        < WATCHDOG.index("_start_worker(")
-    )
+    """Perilakunya diuji di `test_pengawas_worker.py`; di sini cuma kabelnya: satu
+    putaran = `awasi_sekali` dengan tanda tutup milik `PenutupLine` yang sama."""
+    assert "awasi_sekali(" in WATCHDOG
+    assert "sedang_menutup=lambda: penutup.sedang_menutup" in WATCHDOG
+    assert "mulai=_start_worker" in WATCHDOG

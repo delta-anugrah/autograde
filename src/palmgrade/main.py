@@ -59,6 +59,7 @@ from .workers.display_worker import DisplayWorker
 from .workers.event_broadcast_worker import EventBroadcastWorker
 from .workers.frame_capture_worker import FrameCaptureWorker
 from .workers.frame_processing_worker import FrameProcessingWorker
+from .workers.pengawas_worker import awasi_sekali
 from .plc import start_plc_worker
 
 load_dotenv(override=False)
@@ -381,20 +382,15 @@ def create_app() -> FastAPI:
             state.worker_threads.append(("plc", _start_worker("plc", plc_worker.run_loop), plc_worker))
 
         async def _watchdog() -> None:
+            # Berhenti begitu urutan tutup mulai: `workers/pengawas_worker.py`.
             while True:
                 await asyncio.sleep(10)
-                for i, (name, thread, worker) in enumerate(state.worker_threads):
-                    if not thread.is_alive():
-                        # Batch 2.2: saat menutup, penulis dan PLC SENGAJA dihentikan.
-                        # Menghidupkannya lagi membuka ulang loop penulis di tengah urutan
-                        # tutup (`run_loop` membersihkan tanda berhentinya sendiri).
-                        # Diperiksa sesudah `is_alive()`: thread yang sudah mati sebelum
-                        # tanda ini menyala memang mati sendiri, bukan dihentikan.
-                        if penutup.sedang_menutup:
-                            return
-                        logger.error("Worker thread '%s' died — restarting", name)
-                        new_thread = _start_worker(name, worker.run_loop)
-                        state.worker_threads[i] = (name, new_thread, worker)
+                if not awasi_sekali(
+                    state.worker_threads,
+                    sedang_menutup=lambda: penutup.sedang_menutup,
+                    mulai=_start_worker,
+                ):
+                    return
 
         asyncio.create_task(_watchdog())
 
