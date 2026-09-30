@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from ..domain.visit_manifest import MANIFEST_KIND, VIEWER_KEY, build_manifest, manifest_key
-from ..integrations.erp.outbox_store import ErpOutboxStore
+from ..integrations.erp.outbox_store import GAGAL_TAK_TERJANGKAU, GAGAL_TUJUAN, ErpOutboxStore
 from ..integrations.upload.r2_uploader import galat_jaringan
 from ..repositories.console_repository import ConsoleStore
 from ..services.status_sinkron import StatusSinkron
@@ -85,9 +85,10 @@ class VisitManifestWorker:
                 )
             except Exception as exc:  # noqa: BLE001 — any transport failure: keep the row
                 logger.warning("R2 unreachable, holding manifests: %s", exc)
-                self.outbox.mark_error(message, str(exc))
+                jaringan = galat_jaringan(exc)
+                self.outbox.mark_error(message, str(exc), jenis=GAGAL_TAK_TERJANGKAU if jaringan else GAGAL_TUJUAN)
                 if self._status is not None:
-                    self._status.gagal("r2", "manifest", str(exc), jaringan=galat_jaringan(exc))
+                    self._status.gagal("r2", "manifest", str(exc), jaringan=jaringan)
                 break
             self.outbox.mark_sent(message)
             uploaded += 1

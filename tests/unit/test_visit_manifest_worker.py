@@ -138,6 +138,27 @@ def test_r2_down_keeps_the_row_and_backs_off(tmp_path):
     [row] = worker.outbox.failed_rows()
     assert row["key"] == wid
     assert "R2 down" in row["last_error"]
+    # What the Status tab words (2026-10-01): the raw text stays for the Log tab.
+    assert row["error_kind"] == "tak_terjangkau"
+
+
+def test_r2_yang_menjawab_menolak_bukan_tak_terjangkau(tmp_path):
+    """R2 answered 403: it was reached, it refused. Not "waits for the connection"."""
+    from botocore.exceptions import ClientError
+
+    class _Tolak:
+        def put_bytes(self, body, r2_key, *, content_type):
+            raise ClientError(
+                {"Error": {"Code": "AccessDenied"}, "ResponseMetadata": {"HTTPStatusCode": 403}}, "PutObject"
+            )
+
+    store, wid = _store(tmp_path)
+    worker = _worker(tmp_path, store, _Tolak())
+    worker.enqueue(wid, "a-1")
+    asyncio.run(worker.drain_once())
+
+    [row] = worker.outbox.failed_rows()
+    assert row["error_kind"] == "galat_tujuan"
 
 
 def test_viewer_upload_failing_does_not_mark_it_uploaded(tmp_path):
