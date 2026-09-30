@@ -42,13 +42,11 @@ Decisions:      rule numbering is frozen (cited by tests, docs, skills); new rul
                 in both files. AI-facing files in English; MANUAL.md and runbooks stay Indonesian.
                 Hook copied from autoerp (separate .py, command-position matching, py3.9-safe).
 Next:           follow-up PR, not this one:
-                (1) docs/rules.md:718 "§ Integration Contracts" and :396 "tabel di atas" point at
-                the old place; both now live in docs/backend-overview.md.
-                (2) ~15 code/test comments still cite "CLAUDE.md § Tests" or "§ Critical Rule 1"
+                (1) ~15 code/test comments still cite "CLAUDE.md § Tests" or "§ Critical Rule 1"
                 (e.g. src/palmgrade/workers/capture_save_worker.py:30).
-                (3) CI does not run scripts/hooks/test_guard.py; the hook fails open on a crash.
-                (4) .agents/skills has no symlink for mvs-camera, model-swap-eval, spek-pc-pabrik.
-                (5) Rule 31: its 5xx wording may not match
+                (2) CI does not run scripts/hooks/test_guard.py; the hook fails open on a crash.
+                (3) .agents/skills has no symlink for mvs-camera, model-swap-eval, spek-pc-pabrik.
+                (4) Rule 31: its 5xx wording may not match
                 test_baris_racun_500_mundur_sendiri_tanpa_memutus_sambungan and
                 GAGAL_BERUNTUN_PUTUS=3; read the test first.
                 Also: moved `##` headings could be demoted to `###`. Run docs-sync monthly.

@@ -393,7 +393,8 @@ end of this file.
     sandi pabrikan di akun yang sandinya sudah diganti, dan tidak boleh menghidupkan akun
     yang sudah sengaja dimatikan.
 21. **Lane developer: backend yang menjaga, layar cuma merapikan** (Task 14, 2026-09-15).
-    Ketujuh `/api/console/dev/*` (tabel di atas) lewat `require_support`, itu yang
+    Ketujuh `/api/console/dev/*` (tabel di `docs/backend-overview.md` § HTTP Surface) lewat
+    `require_support`, itu yang
     sebenarnya menolak 403, dan tab developer yang disembunyikan dari operator biasa di
     `console.html` cuma kerapian, bukan pengaman: siapa pun yang tahu URL-nya tetap
     ditolak backend kalau `role` bukan `support`. Elemen `data-dev="1"` dibuang dari DOM
@@ -715,7 +716,8 @@ end of this file.
     (`domain/rahasia.py`/`routes/penjaga_rahasia.py`): secret yang dikonfigurasi kosong tidak
     pernah membuka lane, baik `x-webhook-secret` (line → konsol, timbangan → konsol) maupun
     `x-internal-secret` (konsol → line).
-    **`INTERNAL_SECRET` terpisah dari `WEBHOOK_SECRET`** (lihat § Integration Contracts): kosong
+    **`INTERNAL_SECRET` terpisah dari `WEBHOOK_SECRET`** (lihat `docs/backend-overview.md`
+    § Integration Contracts): kosong
     atau sama dengan `WEBHOOK_SECRET` = perintah konsol → line masih memakai kunci yang juga
     dipegang program timbangan pihak ketiga (`.env` lama tetap jalan apa adanya), diisi beda =
     terpisah. Kunci yang beda antara konsol dan satu line membuat kartu line itu menulis "kunci
