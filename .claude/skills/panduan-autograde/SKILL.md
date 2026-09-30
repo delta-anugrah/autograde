@@ -19,7 +19,7 @@ ditanya.
 | Setup laptop (tanpa kamera) / setup PC pabrik dari nol | `docs/MANUAL.md` §4 / §5, rinci di `docs/SETUP.md` |
 | Perintah `make`, update kode, cek kesehatan, disk | `docs/MANUAL.md` §6, `Makefile` (komentarnya lengkap) |
 | Gejala → sebab → tindakan | `docs/MANUAL.md` §7 |
-| Aturan yang tidak boleh dilanggar dan alasannya | `CLAUDE.md` § Critical Rules, `docs/overview.md` |
+| Aturan yang tidak boleh dilanggar dan alasannya | `docs/rules.md` § Critical Rules (indeks satu baris: `CLAUDE.md` §3), `docs/overview.md` |
 | Variabel `.env` | `.env.example` (tiap baris berkomentar) |
 | Kontrak ke AutoERP (cocokkan ini dulu sebelum menulis kode integrasi) | `../autoerp/docs/autograde-integration.md` |
 | PLC / coil, spek PC Lampung | skill `plc-mc-protocol`, skill `spek-pc-pabrik` |
@@ -104,7 +104,7 @@ ditanya.
   datanya sendiri saat boot (penanda `artifacts/.hapus-data`); setelan grading dan
   `license.db` selamat: beda dengan `autograde reset-data-fresh` yang menghapus
   semuanya. Tidak satu line pun menerima (mis. lisensi line habis) = tidak ada yang
-  dihapus; sebagian gagal = tekan lagi sesudah line itu beres. Aturan 25 di `CLAUDE.md`.
+  dihapus; sebagian gagal = tekan lagi sesudah line itu beres. Aturan 25 di `docs/rules.md`.
 - **fps:** untuk Hikrobot diatur `config/camera/hikrobot.mfs`, `CAMERA_FPS` diabaikan.
 - **Berat:** neto dihitung konsol, bruto/tara < 1.000 kg ditolak, `14.820` terbaca 14,82.
 

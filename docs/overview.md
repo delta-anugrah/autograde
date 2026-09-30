@@ -53,7 +53,7 @@
 mengirim gambar, tapi ada frame yang selesai digrading dalam `AI_MATI_DETIK` detik terakhir?
 Kalau tidak, AI dinyatakan mati, dan coil ERROR PLC, `/health` (503), serta kartu line konsol
 sama-sama membaca penilaian yang sama dari objek ini, bukan menghitung sendiri-sendiri. Detail
-aturan dan lima keadaan yang sengaja tidak dialarm: `domain/kesehatan_ai.py`, CLAUDE.md aturan 32.
+aturan dan lima keadaan yang sengaja tidak dialarm: `domain/kesehatan_ai.py`, `docs/rules.md` aturan 32.
 
 ---
 
@@ -76,7 +76,7 @@ The visit message books `Mentah` from the REJ count, and JK is REJ (so are Ripe 
 forced to REJ for being stacked or too small). The 2026-09-16 design wanted JK kept on
 the edge (`Sampah` is weighed, not seen by a camera, and JK in `Mentah` overstates the
 share the supplier is docked for). Which one is intended is undecided (found
-2026-09-28); see CLAUDE.md rule 0.
+2026-09-28); see `docs/rules.md` rule 0.
 
 ```
 each YOLO frame (ByteTrack assigns track_id per object):
@@ -741,7 +741,7 @@ hidup sekarang. Tidak ada endpoint baru: ringkasannya menumpang `/api/console/st
 `sinkron`), dan blok `unggah` tiap line menumpang `/internal/status` yang sudah di-poll tiap
 detik. Semua worker yang bicara ke luar mencatat hasilnya ke satu `StatusSinkron`, dan
 `CekSinkronWorker` mengecek AutoERP (`ping`) dan R2 (`head_object`) tiap 60 detik supaya warnanya
-tetap segar saat tidak ada data yang lewat. Aturan lengkapnya `CLAUDE.md` aturan 27.
+tetap segar saat tidak ada data yang lewat. Aturan lengkapnya `docs/rules.md` aturan 27.
 
 **Login (Fase 4, §6.5).** Layar tertutup gerbang **email + sandi** sampai ada yang masuk, dan
 **semua** `/api/console/*` menjawab 401 `belum_masuk` tanpa cookie `konsol_sesi`, kecuali
@@ -754,20 +754,20 @@ jadi tidak akan ada yang bisa ditarik. Dua skema berdampingan: `pbkdf2_sha256` m
 (dibaca `hashlib` saja) dan `scrypt` untuk akun lokal. Sesi 12 jam (`sesi`), lockout berlipat dua
 sesudah lima kali salah, dan `requested_by` Reject Manual sekarang nama operator yang masuk,
 bukan lagi string `"operator"`. Akun lokal dibuat dari PC dengan `make operator`, dan sejak
-2026-09-26 juga dari tab Akun (support) dengan aturan yang sama. Rincian aturannya di `CLAUDE.md`
-invarian 19.
+2026-09-26 juga dari tab Akun (support) dengan aturan yang sama. Rincian aturannya di `docs/rules.md`
+aturan 19.
 
 **Impor grading dari CSV (2026-09-27, support).** Kebalikan Unduh CSV di tab Rekap: CSV Per janjang
 dari konsol ini atau PC lain dibaca ulang jadi janjang (misalnya memindahkan riwayat ke PC baru, atau
 memulihkan hari-hari yang terhapus Danger Zone). Periksa dulu, lalu impor berkas yang sama; janjang
 hari ini tidak diimpor, yang sudah ada dilewati, dan satu impor bisa dibatalkan utuh. Janjang impor
-tidak punya penugasan, jadi tidak pernah ikut pesan kunjungan ke AutoERP. Aturannya `CLAUDE.md`
+tidak punya penugasan, jadi tidak pernah ikut pesan kunjungan ke AutoERP. Aturannya `docs/rules.md`
 aturan 26.
 
 **Belum termasuk Fase 2** (sengaja): timbangan brondolan lewat PLC (§6.6b, Fase 3), nomor dokumen
 berprefiks lokal (§6.3), dan toggle tampil/sembunyi per line. Riwayat lintas hari dulu juga di
 daftar ini ("urusan cloud"); sekarang ada di tab **Rekap** konsol (maks 31 hari per tampilan,
-CLAUDE.md invarian 26; tab Riwayat digabung ke Rekap 2026-09-28), karena cloud lama sudah mati
+`docs/rules.md` aturan 26; tab Riwayat digabung ke Rekap 2026-09-28), karena cloud lama sudah mati
 dan AutoERP cuma menerima rekap per truk.
 
 **Tests** (`tests/unit/test_working_day.py`, `test_console_store.py`, murni-logic; satu-satunya yang
