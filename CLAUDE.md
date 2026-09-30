@@ -254,7 +254,7 @@ konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x
 | GET | `/api/console/dev/rekam` | status rekaman tiap line + setelan yang berlaku + sisa disk. Line yang tidak menjawab dilaporkan `terbaca:false`, bukan menjatuhkan seluruh jawaban |
 | POST | `/api/console/dev/rekam/setelan` | ubah resolusi rekaman. Berlaku untuk rekaman **berikutnya**: mengubah resolusi di tengah berkas MP4 menghasilkannya rusak. `bitrate_kbps` dicabut 2026-09-25 (tidak pernah sampai ke `cv2.VideoWriter`); kiriman yang masih membawanya diabaikan |
 | POST | `/api/console/dev/rekam/{line_code}/mulai` | mulai merekam satu line. 409 kalau sudah merekam, **507 kalau disk mepet** (dua hal yang butuh tindakan berbeda, jadi tidak diratakan) |
-| POST | `/api/console/dev/rekam/{line_code}/stop` | hentikan dan tutup berkasnya. Menahan ~2 detik: line menunggu encoder menutup berkas dengan rapi |
+| POST | `/api/console/dev/rekam/{line_code}/stop` | hentikan dan tutup berkasnya. Menahan ~2 detik: line menunggu encoder menulis frame yang sudah antre (maks 30) lalu menutup berkas dengan rapi |
 | GET | `/api/console/dev/model-deteksi` | pilihan model tiap line + semua `.pt` di `models/release` dengan kelas, engine per GPU, `cocok`/`alasan` |
 | POST | `/api/console/dev/model-deteksi` | ganti model per line (`LINE_N_MODEL_FILE` di `media.env`), restart line yang berubah. **400** untuk model yang tidak ada atau kelasnya asing, tanpa menulis apa pun |
 | GET | `/api/console/dev/bahaya` | Danger Zone: angka (janjang, tiket, truk, akun, sesi, rekaman) + hambatan + peringatan untuk kelima aksi, dari keadaan line saat itu |
@@ -803,6 +803,11 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     ⚠️ **Recorder yang rusak tidak boleh menjatuhkan line**: panggilannya
     dibungkus `try` di capture worker. Fitur developer tidak boleh bisa
     mematikan produksi.
+    **Stop menulis dulu frame yang sudah antre saat Stop ditekan** (2026-09-30), paling
+    banyak sebesar antrean (30 frame, isi antrean dihitung sekali saat Stop), jadi Stop
+    bisa sekitar 1 detik lebih lama. Dulu isi antrean dibuang: ekor tiap rekaman hilang,
+    dan encoder yang telat siap menutup berkas tanpa satu frame pun. Rem disk tetap
+    berhenti seketika.
     **Codec `avc1` (H.264), fallback `mp4v`**: diukur 5x lebih kecil (0,48 vs
     2,40 GB/jam pada 1280x1024 @ 5 fps). Fallback-nya bukan hiasan: `avc1` tidak
     ada di setiap build OpenCV, dan `VideoWriter` yang gagal membuka **tidak

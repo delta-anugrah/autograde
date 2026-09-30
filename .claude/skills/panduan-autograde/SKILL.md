@@ -67,6 +67,8 @@ ditanya.
   terekam frame **clean tanpa bbox**, disadap di `FrameCaptureWorker`, sebelum
   inference. Berkasnya di `videos/` (jalurnya tertulis di kaki layar), **tidak pernah
   dihapus otomatis** dan berhenti sendiri di bawah `UPLOAD_DISK_MIN_FREE_GB`.
+  Stop menulis dulu frame yang sudah antre saat itu (maks sebesar antrean, 30), jadi
+  bisa sekitar 1 detik lebih lama; rem disk tetap berhenti seketika.
   ⚠️ **Laju video mengikuti SUMBERNYA**: berkas video memakai laju aslinya, kamera
   yang tidak bisa melapor memakai `CAMERA_FPS`. Kolom FPS dan Bitrate di layar
   dicabut 2026-09-25: keduanya tidak pernah sampai ke berkas; yang bisa disetel
