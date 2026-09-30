@@ -24,10 +24,14 @@ ini** (`write`/`antre_line`). `susun` memegang `self._lock` (non-reentrant) sepa
 pemanggilan `susun_pesan`; thread yang sama mencoba masuk lagi lewat `write` akan
 mengunci dirinya sendiri selamanya, dan karena lock yang sama dipakai SEMUA method,
 thread lain (termasuk event loop) yang lalu memanggil method store mana pun ikut
-menggantung. Penjaga lapis kedua: `_antre` mendeteksi re-entry per-thread dan
-MELEWATKAN (bukan menunggu) entri itu, supaya deadlock tidak pernah benar-benar
-terjadi biarpun aturan di atas suatu hari dilanggar; entrinya cukup hilang dari
-digest ini (baris log lain, kalau ada, tetap menyimpannya).
+menggantung. Penjaga re-entry di `_antre` cuma menutup kasus THREAD YANG SAMA: entri
+yang masuk lagi dari dalam `susun_pesan` dilewati (bukan menunggu), jadi hilang dari
+digest ini (baris log lain, kalau ada, tetap menyimpannya). Kasus DUA THREAD
+(thread lain sudah di dalam `handle()` handler lapor, menunggu `self._lock`, sementara
+`susun_pesan` mencatat ERROR dan menunggu kunci handler itu) tidak ditutup guard ini:
+yang mencegahnya aturan "`susun_pesan` tidak mencatat log" di atas DAN handler lapor
+yang sengaja tanpa kunci handler (`services/lapor_discord.pasang_handler_lapor`; store
+ini sudah menyerialkan dirinya sendiri).
 
 Berkas milik konsol (`test_semua_berkas_db_di_state_digolongkan`). Danger Zone tidak
 mengosongkannya: isinya laporan yang belum keluar, bukan data transaksi.
@@ -244,7 +248,12 @@ class LaporDiscordStore:
                     self._db.execute("COMMIT")
                     return len(pesan)
                 except BaseException:
-                    self._db.execute("ROLLBACK")
+                    # `rollback()`, bukan `execute("ROLLBACK")`: SQLITE_FULL/IOERR bisa
+                    # membuat SQLite membatalkan transaksinya sendiri, dan ROLLBACK mentah
+                    # sesudahnya melempar "no transaction is active" yang menutupi galat
+                    # aslinya. `rollback()` tidak berbuat apa-apa kalau transaksinya sudah
+                    # tidak ada.
+                    self._db.rollback()
                     raise
             finally:
                 self._pemegang_lock = None

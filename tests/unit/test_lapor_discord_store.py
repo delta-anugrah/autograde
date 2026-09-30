@@ -93,6 +93,30 @@ def test_susun_yang_gagal_meninggalkan_galat_menunggu(tmp_path):
     store.close()
 
 
+def test_galat_yang_sudah_dibatalkan_sqlite_sendiri_tetap_galat_aslinya(tmp_path):
+    """Carry B-T7 no. 6: SQLITE_FULL/IOERR bisa membuat SQLite membatalkan transaksinya
+    SENDIRI. `ROLLBACK` mentah sesudahnya melempar "cannot rollback - no transaction is
+    active" dan menutupi galat asli (disk penuh), yang justru harus dibaca support.
+
+    Pembatalan otomatis itu tidak bisa dipicu dengan andal dari test, jadi ditiru: kode di
+    dalam `susun` membatalkan transaksi koneksi store lalu melempar galat disk penuh."""
+    store = LaporDiscordStore(tmp_path / "lapor.db", jam=_Jam())
+    store.write("ERROR", "a", "x", None, now=1.0)
+
+    def _disk_penuh(kelompok):
+        store._db.execute("ROLLBACK")  # yang dilakukan SQLite sendiri pada SQLITE_FULL
+        raise sqlite3.OperationalError("database or disk is full")
+
+    with pytest.raises(sqlite3.OperationalError, match="database or disk is full"):
+        store.susun(_disk_penuh, now=5.0)
+
+    assert store.tertua_masuk_at() == 1000.0
+    assert not store.ada_kiriman()
+    store.write("ERROR", "b", "sesudahnya", None, now=6.0)  # store tetap bisa dipakai
+    assert store.ringkasan()["menunggu_jenis"] == 2
+    store.close()
+
+
 def test_antrean_selamat_sesudah_konsol_restart(tmp_path):
     """Ringkasan yang disusun saat offline terkirim sesudah restart, tidak dibuang."""
     jalur = tmp_path / "lapor.db"
@@ -202,6 +226,12 @@ def test_susun_pesan_yang_log_error_tidak_deadlock(tmp_path):
     logger.setLevel(logging.ERROR)
 
     class _HandlerKeStore(logging.Handler):
+        def createLock(self) -> None:
+            # Tanpa kunci handler: kalau guard re-entry regresi, thread daemon yang
+            # menggantung tidak memegang kunci yang ditunggu `logging.shutdown()` saat
+            # interpreter keluar, jadi test gagal alih-alih menggantungkan pytest.
+            self.lock = None
+
         def emit(self, record: logging.LogRecord) -> None:
             store.write("ERROR", record.name, record.getMessage(), None, now=99.0)
 
