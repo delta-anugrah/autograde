@@ -165,6 +165,7 @@ class FrameCaptureWorker:
             self._consecutive_failures += 1
             if self._consecutive_failures >= _MAX_CONSECUTIVE_FAILURES:
                 self._catat_kamera_putus()
+            # Syarat yang sama sengaja diulang: log putus untuk semua kamera, sambung ulang cuma yang mendukungnya.
             if self._consecutive_failures >= _MAX_CONSECUTIVE_FAILURES and self.camera.supports_reconnect:
                 self._try_reconnect()
                 self.state.catat_sambung_kamera(berhasil=self.camera.connected)
