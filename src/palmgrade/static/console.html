@@ -869,6 +869,16 @@
   /* Pilihan di dalam tab Line (2026-09-28). */
   .line-sub-bar { display:flex; flex-wrap:wrap; gap:8px; padding:0 var(--pad) 14px; }
   .log-level button.aktif { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
+  /* Tab Log (batch 3.2/3.5): asal baris, waktu pertama, traceback, keadaan lapor Discord. */
+  .log-asal { display:inline-block; margin-right:6px; padding:2px 6px; border-radius:var(--r-xs);
+              background:var(--zebra); border:1px solid var(--line); font-size:.78rem; font-weight:700; }
+  .log-pertama { font-size:.78rem; }
+  .log-detail summary { cursor:pointer; }
+  .log-detail pre { margin:6px 0 0; max-height:18rem; overflow:auto; white-space:pre-wrap;
+                    font:.78rem/1.35 var(--mono); }
+  .log-discord { margin:0 var(--pad) 10px; font-size:.9rem; }
+  .log-discord.peringatan { color:var(--warn); font-weight:600; }
+  .log-discord.gagal { color:var(--rej); font-weight:700; }
   /* Empat pilihan Line membentang selebar panel, dibagi empat sama rata (permintaan
      operator 2026-09-29); layar sempit jadi 2 x 2, tetap sama lebar. `minmax(0,1fr)`,
      bukan `1fr`: label panjang tidak boleh melebarkan kolomnya sendiri. */
@@ -1643,13 +1653,14 @@
     require_support. Identical messages are already merged into one row with
     a count (LogStore's merge window) - this screen just displays that.
   -->
+  <p id="log-discord" class="log-discord muted" hidden></p>
   <div class="tools">
     <span class="log-level" id="log-level" data-nilai="">
       <button type="button" class="aktif" data-nilai="" data-t="logSemua">Semua</button>
       <button type="button" data-nilai="ERROR">ERROR</button>
       <button type="button" data-nilai="WARNING">WARNING</button>
     </span>
-    <input id="log-cari" data-t-ph="phCariLog" placeholder="Cari pesan atau sumber" autocomplete="off">
+    <input id="log-cari" data-t-ph="phCariLog" placeholder="Cari pesan, sumber, atau line" autocomplete="off">
   </div>
   <div class="tabel">
     <table>
@@ -2425,10 +2436,17 @@ const KAMUS = {
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"Masuk", thKeluar:"Keluar", thLama:"Lama", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
     thLevel:"Level", thPesan:"Pesan", thJumlah:"×",
-    phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan atau sumber",
+    phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan, sumber, atau line",
     hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
     hintGerbangKeluar:"Tekan Keluar di baris truknya pada tabel di bawah",
     logSemua:"Semua", kosongLog:"Belum ada galat tercatat", gagalLog:"Gagal memuat log",
+    logKonsol:"konsol", logPertama:"pertama {waktu}",
+    discordMati:"Lapor ke Discord: mati (DISCORD_WEBHOOK_URL kosong). Galat tetap tercatat di tab ini.",
+    discordUrlSalah:"Lapor ke Discord MATI: DISCORD_WEBHOOK_URL tidak diawali https. Salin ulang alamat webhook dari Discord ke .env PC ini, lalu autograde restart.",
+    discordAktif:"Lapor ke Discord: aktif. Terakhir terkirim {terkirim}. {menunggu} galat menunggu ringkasan berikutnya (paling sering tiap 15 menit).",
+    discordTertahan:"Lapor ke Discord tertahan sejak {jam}: {galat}. {kiriman} pesan menunggu dan terkirim sendiri begitu internet ada, tidak ada yang dibuang.",
+    discordDitolak:"Lapor ke Discord DITOLAK pukul {jam} (HTTP {status}): webhook salah atau sudah dihapus. Periksa DISCORD_WEBHOOK_URL di .env PC ini, lalu autograde restart. {kiriman} pesan menunggu, tidak dibuang.",
+    discordRusak:"Lapor ke Discord MATI: antrean di disk rusak ({galat}). Hapus berkas state/lapor_discord.db lalu restart konsol lewat Setelan. Galat tetap tercatat di tab ini.",
     btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
@@ -2785,10 +2803,17 @@ const KAMUS = {
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"In", thKeluar:"Out", thLama:"Duration", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
     thLevel:"Level", thPesan:"Message", thJumlah:"×",
-    phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message or source",
+    phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message, source, or line",
     hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
     hintGerbangKeluar:"Press Out on the truck's row in the table below",
     logSemua:"All", kosongLog:"No faults logged yet", gagalLog:"Failed to load the log",
+    logKonsol:"console", logPertama:"first {waktu}",
+    discordMati:"Discord report: off (DISCORD_WEBHOOK_URL is empty). Faults are still logged on this tab.",
+    discordUrlSalah:"Discord report OFF: DISCORD_WEBHOOK_URL does not start with https. Copy the webhook address from Discord into this PC's .env again, then run autograde restart.",
+    discordAktif:"Discord report: on. Last sent {terkirim}. {menunggu} faults wait for the next digest (at most every 15 minutes).",
+    discordTertahan:"Discord report held since {jam}: {galat}. {kiriman} messages wait and go out by themselves once the internet is back; nothing is dropped.",
+    discordDitolak:"Discord report REFUSED at {jam} (HTTP {status}): the webhook is wrong or was deleted. Check DISCORD_WEBHOOK_URL in this PC's .env, then run autograde restart. {kiriman} messages wait; nothing is dropped.",
+    discordRusak:"Discord report OFF: the queue on disk is corrupt ({galat}). Delete the file state/lapor_discord.db, then restart the console from Settings. Faults are still logged on this tab.",
     btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
@@ -5670,15 +5695,62 @@ let logTotal = 0;
 const LOG_PER = 50;
 
 function barisLog(r) {
-  // last_seen_at is a Unix epoch (seconds, from LogStore) - not an ISO string,
-  // so it needs ×1000 before Date() rather than going through waktu() as-is.
   return `<tr>
-    <td>${waktu(r.last_seen_at * 1000)}</td>
+    <td>${waktuLog(r)}</td>
     <td class="key">${esc(r.level)}</td>
-    <td>${esc(r.source)}</td>
-    <td>${esc(r.message)}</td>
+    <td>${sumberLog(r)}</td>
+    <td>${pesanLog(r)}</td>
     <td class="num">${r.count > 1 ? "×" + r.count : ""}</td>
   </tr>`;
+}
+
+// Waktu terakhir, plus kapan pertama muncul kalau barisnya gabungan beberapa
+// kejadian. Epoch detik dari LogStore, bukan ISO: dikali 1000 sebelum waktu().
+function waktuLog(r) {
+  const akhir = waktu(r.last_seen_at * 1000);
+  if (!r.logged_at || Math.floor(r.logged_at) === Math.floor(r.last_seen_at)) return akhir;
+  const pertama = t("logPertama").replace("{waktu}", waktu(r.logged_at * 1000));
+  return `${akhir}<div class="muted log-pertama">${esc(pertama)}</div>`;
+}
+
+// Batch 3.2: baris yang ditarik dari line membawa `line_code`; baris konsol tidak.
+function sumberLog(r) {
+  return `<span class="log-asal">${esc(r.line_code || t("logKonsol"))}</span>${esc(r.source)}`;
+}
+
+// Traceback (`detail`) dibuka per baris; pesan tanpa traceback tetap teks biasa.
+function pesanLog(r) {
+  if (!r.detail) return esc(r.message);
+  return `<details class="log-detail"><summary>${esc(r.message)}</summary>`
+       + `<pre>${esc(r.detail)}</pre></details>`;
+}
+
+// Batch 3.5: satu kalimat keadaan lapor Discord di atas tabel log.
+function teksLaporDiscord(d) {
+  const jam = (s) => (s ? waktu(s * 1000) : KOSONG);
+  const isi = (k) => t(k)
+    .replace("{terkirim}", jam(d.terkirim_terakhir_at)).replace("{menunggu}", d.menunggu_kejadian ?? 0)
+    .replace("{jam}", jam(d.galat_at)).replace("{galat}", d.galat || KOSONG)
+    .replace("{status}", d.status_http ?? KOSONG).replace("{kiriman}", d.kiriman ?? 0);
+  if (d.keadaan === "mati") return { kelas: "muted", teks: isi("discordMati") };
+  if (d.keadaan === "url_salah") return { kelas: "gagal", teks: isi("discordUrlSalah") };
+  if (d.keadaan === "rusak") return { kelas: "gagal", teks: isi("discordRusak") };
+  if (d.keadaan === "aktif") return { kelas: "muted", teks: isi("discordAktif") };
+  if (d.keadaan === "ditolak") return { kelas: "gagal", teks: isi("discordDitolak") };
+  return { kelas: "peringatan", teks: isi("discordTertahan") };
+}
+
+async function muatLaporDiscord() {
+  const el = $("log-discord");
+  try {
+    const { kelas, teks } = teksLaporDiscord(await api("/api/console/dev/lapor-discord"));
+    el.className = `log-discord ${kelas}`;
+    el.textContent = teks;
+    el.hidden = false;
+  } catch (e) {
+    // Sesi habis atau konsol putus: tabel log di bawahnya sudah menceritakannya.
+    el.hidden = true;
+  }
 }
 
 function segarkanHalamanLog() {
@@ -5693,6 +5765,7 @@ function segarkanHalamanLog() {
 }
 
 async function muatLog() {
+  muatLaporDiscord();
   try {
     const qs = new URLSearchParams({ limit: String(LOG_PER), offset: String(logOffset) });
     if (logLevel) qs.set("level", logLevel);
