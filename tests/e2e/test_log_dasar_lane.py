@@ -8,12 +8,14 @@ application" ditulis uvicorn sendiri, bukan ditiru test:
 1. Route yang meledak (500) sampai tab Log dengan traceback, dan terbaca support
    lewat `GET /api/console/dev/log` sesudah konsol restart.
 2. Polling yang sukses tidak tertulis di access log; 401 dan 500 tertulis.
+3. AutoERP tidak terjangkau seharian: tab Log berisi satu baris master data, bukan 288.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from uvicorn_tanpa_socket import konfigurasi, minta
@@ -22,12 +24,14 @@ from palmgrade import console_main
 from palmgrade.core.config import Settings
 from palmgrade.domain.operator_auth import hash_password
 from palmgrade.domain.role import ROLE_SUPPORT
+from palmgrade.integrations.erp.client import ErpClient
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.integrations.notifications.line_client import LineClient
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.routes import console_deps
 from palmgrade.services.console_service import ConsoleService
 from palmgrade.services.erp_queue import ErpQueue
+from palmgrade.workers.master_data_worker import MasterDataWorker
 
 SANDI = "sandi-e2e-log-3a"
 _UVICORN = ("uvicorn", "uvicorn.error", "uvicorn.access")
@@ -106,3 +110,26 @@ def test_polling_sukses_diam_galat_tertulis_di_docker_logs(konsol, capsys):
     assert len(akses) == 2, akses
     assert '"GET /api/console/state HTTP/1.1" 401' in akses[0] and "| console |" in akses[0]
     assert '"GET /api/uji/meledak HTTP/1.1" 500' in akses[1] and "+07:00" in akses[1]
+
+
+def test_autoerp_mati_seharian_satu_baris_master_data_di_tab_log(konsol):
+    app, service = konsol
+
+    def mati(_request):
+        raise httpx.ConnectError("[Errno 113] No route to host")
+
+    worker = MasterDataWorker(
+        service.store, ErpClient("http://erp.local", "k", "s", transport=httpx.MockTransport(mati)),
+        interval_s=300, status=service.status_sinkron,
+    )
+
+    async def _jalan() -> None:
+        async with console_main.lifespan(app):
+            for _ in range(288):
+                await worker.run_once()
+
+    asyncio.run(_jalan())
+
+    baris = _baca_tab_log(app, "Master data")
+    assert len(baris) == 1 and baris[0]["count"] == 1
+    assert "jaringan" in baris[0]["message"]

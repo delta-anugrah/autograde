@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
 from ..domain.erp_master import operator_row, supplier_row, truck_row
+from ..domain.transisi import PelacakTransisi, teks_lama
 from ..integrations.erp.client import ErpClient, galat_jaringan
 from ..repositories.console_repository import ConsoleStore
 from ..services.status_sinkron import StatusSinkron
@@ -91,11 +93,13 @@ class MasterDataWorker:
         *,
         interval_s: int = _INTERVAL_S,
         status: StatusSinkron | None = None,
+        jam: Callable[[], float] = time.monotonic,
     ) -> None:
         self.store = store
         self._client = client
         self._interval_s = interval_s
         self._status = status
+        self._putus = PelacakTransisi(jam=jam)
 
     async def run_loop(self) -> None:
         logger.info("MasterDataWorker started, every %ss", self._interval_s)
@@ -113,19 +117,47 @@ class MasterDataWorker:
         try:
             await self.pull_once()
         except Exception as exc:
-            logger.exception("Master data pull failed; retrying next tick")
+            self._catat_gagal(exc)
             if self._status is not None:
                 self._status.gagal("erp", "tarik", str(exc), jaringan=galat_jaringan(exc))
             return
+        self._catat_pulih()
         if self._status is not None:
             self._status.berhasil("erp", "tarik", sinkron=True)
+
+    def _catat_gagal(self, exc: Exception) -> None:
+        """Batch 3.3: satu baris per kejadian (dan per jenis galat), bukan tiap tarikan.
+
+        Dulu tiap tarikan gagal menulis ERROR bertraceback: pabrik offline seharian =
+        ±288 baris sama. Galat jaringan tanpa traceback (tidak ada yang bisa dibaca
+        dari sana, dan itu keadaan biasa pabrik); galat lain dengan traceback, sekali.
+        """
+        jaringan = galat_jaringan(exc)
+        if not self._putus.gagal("jaringan" if jaringan else type(exc).__name__):
+            logger.debug("Master data masih gagal ditarik: %s", exc)
+            return
+        if jaringan:
+            logger.warning(
+                "Master data belum bisa ditarik dari AutoERP (jaringan), dicoba lagi tiap %s detik: %s",
+                self._interval_s, exc,
+            )
+        else:
+            logger.error(
+                "Master data gagal ditarik dari AutoERP, dicoba lagi tiap %s detik", self._interval_s, exc_info=exc
+            )
+
+    def _catat_pulih(self) -> None:
+        lama = self._putus.pulih()
+        if lama is not None:
+            logger.warning("Master data tertarik lagi dari AutoERP sesudah %s gagal", teks_lama(lama))
 
     async def pull_once(self) -> int:
         """Pull each DocType once. Returns how many rows landed."""
         applied = 0
         for resource in _RESOURCES:
             applied += await self._pull(resource)
-        logger.info("Master data: %s rows applied", applied)
+        # Tarikan tanpa perubahan itu keadaan biasa tiap 5 menit, bukan kabar.
+        logger.log(logging.INFO if applied else logging.DEBUG, "Master data: %s rows applied", applied)
         return applied
 
     async def _pull(self, resource: _Resource) -> int:
