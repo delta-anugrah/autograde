@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-09-30 · logging, health, CI · Batch 3 on fix/logging-batch-3 (PR not open yet, in progress)
+## 2026-09-30 · logging, health, CI · Batch 3 on fix/logging-batch-3 (PR #200)
 Changed:        Integration branch from 849c30d: streams D, A, C merged, origin/staging (#196/#197)
                 merged in, then stream B merged.
                 D (batch 4.1, 4.3): deploy.yml calls ci.yml, release and demo images build only
