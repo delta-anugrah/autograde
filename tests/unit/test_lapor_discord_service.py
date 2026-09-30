@@ -182,6 +182,7 @@ def test_console_main_melepas_handler_lapor_sesudah_worker_dihentikan():
     [
         "https://discord.com:99999/api/webhooks/1/rahasia",   # port di luar jangkauan
         "https://exa\x01mple.com/api/webhooks/1/rahasia",     # lolos urllib, ditolak httpx
+        "https://xn--a.com/api/webhooks/1/rahasia",           # host IDNA rusak: ValueError
     ],
 )
 def test_alamat_https_yang_tidak_bisa_dikirimi_mati_dan_disebut_url_salah(tmp_path, monkeypatch, caplog, url):

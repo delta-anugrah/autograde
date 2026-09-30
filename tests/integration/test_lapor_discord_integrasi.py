@@ -147,11 +147,11 @@ def test_layar_support_membaca_keadaan_tanpa_alamat_webhook(tmp_path):
 # ── Lifespan konsol yang asli ─────────────────────────────────────────────────
 
 
-def _layanan(tmp_path) -> ConsoleService:
+def _layanan(tmp_path, url: str = URL) -> ConsoleService:
     # repo_root di tmp_path: state_dir (console.db, log, lapor_discord.db) ikut ke sana,
     # tidak pernah ke state/ milik developer.
     settings = Settings(
-        repo_root=tmp_path, discord_webhook_url=URL,
+        repo_root=tmp_path, discord_webhook_url=url,
         console_default_hash="", console_support_hash="", erp_url="",
     )
     store = ConsoleStore(settings.console_db_path)
@@ -221,3 +221,17 @@ def test_handler_lapor_dilepas_saat_konsol_berhenti(tmp_path):
 
     assert terpasang["ada"] is True
     assert not [h for h in sisa if type(h).__name__ == "_HandlerLapor"]
+
+
+def test_konsol_menyala_walau_alamat_webhook_idna_rusak(tmp_path):
+    """`https://xn--a.com/...` lolos pemeriksaan awalan, host, dan port, tapi host IDNA-nya
+    tidak bisa didekode: `httpx.URL(...).host` melempar `idna.InvalidCodepoint` (turunan
+    `ValueError`, bukan `httpx.InvalidURL`). Dulu itu terjadi saat singleton lapor
+    dihangatkan di lifespan, jadi konsol tidak menyala sama sekali."""
+    service = _layanan(tmp_path, url="https://xn--a.com/api/webhooks/1/rahasia")
+    terlihat = {}
+
+    _jalankan_lifespan(service, lambda: terlihat.update(console_deps.get_lapor_discord().ringkasan()))
+
+    assert terlihat == {"keadaan": "url_salah"}
+    assert not service.settings.lapor_discord_db_path.exists()

@@ -36,9 +36,10 @@ class DiscordClient:
         try:
             async with httpx.AsyncClient(timeout=_TIMEOUT_S, transport=self._transport) as client:
                 res = await client.post(self._url, json=badan)
-        except (httpx.HTTPError, httpx.InvalidURL) as exc:
-            # `InvalidURL` bukan `HTTPError`: alamat yang lolos pemeriksaan awal tapi
-            # ditolak httpx tidak boleh lolos sebagai exception mentah dari sini.
+        except (httpx.HTTPError, httpx.InvalidURL, ValueError) as exc:
+            # `InvalidURL` bukan `HTTPError`, dan host IDNA yang rusak melempar
+            # `idna.InvalidCodepoint` (turunan `ValueError`): alamat yang lolos pemeriksaan
+            # awal tapi ditolak httpx tidak boleh lolos sebagai exception mentah dari sini.
             raise DiscordTakTerjangkau(type(exc).__name__) from None
         return JawabanDiscord(res.status_code, _retry_after(res))
 

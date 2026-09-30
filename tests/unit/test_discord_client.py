@@ -65,3 +65,12 @@ def test_alamat_yang_ditolak_httpx_jadi_tak_terjangkau_tanpa_alamat():
         asyncio.run(klien.kirim("x"))
     assert str(info.value) == "InvalidURL"
     assert "rahasia" not in repr(info.value)
+
+
+def test_host_idna_rusak_jadi_tak_terjangkau_tanpa_alamat():
+    """`idna.InvalidCodepoint` (turunan `ValueError`) juga tidak boleh lolos dari `kirim`."""
+    klien = DiscordClient("https://xn--a.com/api/webhooks/1/rahasia",
+                          transport=httpx.MockTransport(lambda r: httpx.Response(204)))
+    with pytest.raises(DiscordTakTerjangkau) as info:
+        asyncio.run(klien.kirim("x"))
+    assert "rahasia" not in repr(info.value)

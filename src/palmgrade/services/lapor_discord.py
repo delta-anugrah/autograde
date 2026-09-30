@@ -72,10 +72,14 @@ def rakit_lapor_discord(settings: Settings) -> LaporDiscord:
 
 
 def _diterima_httpx(url: str) -> bool:
-    """httpx yang nanti mengirimnya menerima alamat ini (tanpa jaringan)."""
+    """httpx yang nanti mengirimnya menerima alamat ini (tanpa jaringan).
+
+    `ValueError` ikut ditangkap: host IDNA yang tidak bisa didekode (`https://xn--a.com`)
+    melempar `idna.InvalidCodepoint`, turunan `ValueError`, bukan `httpx.InvalidURL`, dan
+    ini dipanggil saat lifespan konsol: yang lolos di sini membuat konsol gagal menyala."""
     try:
         return bool(httpx.URL(url).host)
-    except httpx.InvalidURL:
+    except (httpx.InvalidURL, ValueError):
         return False
 
 
