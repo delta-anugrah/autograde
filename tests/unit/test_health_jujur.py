@@ -7,6 +7,7 @@ lisensi, dan PLC yang benar-benar tersambung.
 from __future__ import annotations
 
 import sys
+import time
 import types
 from collections import namedtuple
 from dataclasses import replace
@@ -63,9 +64,15 @@ def test_fps_nol_saat_gambar_berhenti_bukan_angka_lama(torch_palsu):
     assert (d.fps_kamera, d.fps_deteksi, d.frame_umur_detik) == (0.0, 0.0, 43.0)
 
 
-def test_detail_tetap_200_dan_ok_walau_frame_berhenti(torch_palsu):
-    """Load-bearing: `autograde reset-data` dan Danger Zone membaca kode HTTP
-    `/health/detail`, dan menganggap line non-2xx sebagai mati/tidak diketahui."""
+def test_status_tetap_ok_walau_frame_berhenti(torch_palsu):
+    """Load-bearing di lapisan SERVICE (angka `ai.keadaan`), BUKAN kode HTTP:
+    `HealthDetailSchema.status` datang dari `HealthService.get_health_detail()`,
+    yang hardcode `"ok"` dan tidak pernah membaca `ai.keadaan`. Kode HTTP 503
+    yang sesungguhnya dijaga terpisah oleh
+    `test_health_503_hanya_untuk_ai_mati_dan_frame_berhenti` di
+    `tests/unit/test_kesehatan_ai.py` (`kode_http_health()`), dan
+    `docs/overview.md` aturan 32 menjelaskan kenapa `autograde reset-data` dan
+    Danger Zone bergantung pada kode HTTP itu, bukan pada field `status` ini."""
     line = LinePalsu()
     line.mulai()
     line.jalan(5)
@@ -95,6 +102,28 @@ def test_lisensi_line_dari_gerbang_grading(torch_palsu):
     line.state.license_exp = 0
     d = _service(line).get_health_detail()
     assert d.lisensi == {"aktif": True, "grading_diblokir": True, "berlaku_sampai": None}
+
+
+def test_lisensi_token_valid_tidak_diblokir(torch_palsu):
+    # `grading_blocked()` membandingkan `license_exp` dengan jam DINDING
+    # (`time.time()`), bukan jam monotonic `RuntimeState.jam` yang dipakai fps.
+    line = LinePalsu(lic_enabled=True)
+    line.state.license_exp = int(time.time()) + 3600                # masih jauh dari tenggat
+    d = _service(line).get_health_detail()
+    assert d.lisensi == {
+        "aktif": True,
+        "grading_diblokir": False,
+        "berlaku_sampai": line.state.license_exp,
+    }
+
+
+def test_lisensi_mati_tidak_pernah_memblokir(torch_palsu):
+    """`lic_enabled=False` (bawaan PC dev/cloud, PC pabrik yang belum dilisensi):
+    fitur lisensi mati sama sekali, apa pun isi `license_exp`."""
+    line = LinePalsu(lic_enabled=False)
+    line.state.license_exp = 0
+    d = _service(line).get_health_detail()
+    assert d.lisensi == {"aktif": False, "grading_diblokir": False, "berlaku_sampai": None}
 
 
 def test_plc_connected_dari_klien_bukan_dari_plc_menyala(torch_palsu, monkeypatch):
