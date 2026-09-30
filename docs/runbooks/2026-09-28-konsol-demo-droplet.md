@@ -18,7 +18,7 @@ image sendiri dari workflow `.github/workflows/demo-image.yml`:
 |---|---|---|
 | Torch | `cu126` | `cpu` |
 | SDK Hikrobot | ya | tidak |
-| Workflow | `deploy.yml` | `demo-image.yml` |
+| Workflow | `deploy.yml` | `demo-image.yml`, dipanggil `deploy.yml` |
 | Cache build | `:buildcache` | `:buildcache-cpu` |
 | Menulis `latest` | ya (penanda updater pabrik) | **tidak pernah** |
 
@@ -26,9 +26,12 @@ image sendiri dari workflow `.github/workflows/demo-image.yml`:
 menulisnya, PC Lampung akan memasang image tanpa GPU dan grading jadi lambat tanpa satu pun
 error. Dijaga `tests/unit/test_demo_image_workflow.py`.
 
-Workflow demo jalan sendiri tiap tag rilis. Untuk rilis yang sudah ada: GitHub, Actions,
+Workflow demo tidak jalan sendiri lagi: tiap tag rilis, `deploy.yml` menjalankan CI dulu,
+lalu memanggil `demo-image.yml` di samping build image pabrik (batch 4.1). CI merah berarti
+tidak ada image `-cpu` maupun image pabrik. Untuk rilis yang sudah ada: GitHub, Actions,
 **Build AutoGrade Demo Image (CPU)**, Run workflow, isi versinya (misalnya `v1.19.0`).
-Versinya harus tag yang sudah ada di `main`; tag `-cpu` yang sudah terbit tidak ditimpa.
+Versinya harus tag yang sudah ada di `main` dan image pabrik `vX.Y.Z`-nya sudah terbit (bukti
+tag itu lolos rilis); tag `-cpu` yang sudah terbit tidak ditimpa.
 
 ## Isi kit (`deploy/demo/`)
 

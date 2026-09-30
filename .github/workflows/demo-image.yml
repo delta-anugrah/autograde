@@ -68,10 +68,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # A manual run may only rebuild a version that was really released: the
-      # factory image `vX.Y.Z` exists only for a tag that passed deploy.yml, CI
-      # included. Skipped when deploy.yml calls this workflow (the event is then the
-      # tag push), because that tag's factory image is still being built beside it.
+      # A manual run may only rebuild a version that was really released: from this
+      # release on, the factory image `vX.Y.Z` exists only for a tag that passed
+      # deploy.yml, CI included (older factory images, such as v1.19.0, were built
+      # before that gate existed). Skipped when deploy.yml calls this workflow (the
+      # event is then the tag push), because that tag's factory image is still being
+      # built beside it.
       - name: Require a published factory release
         if: github.event_name == 'workflow_dispatch'
         shell: bash

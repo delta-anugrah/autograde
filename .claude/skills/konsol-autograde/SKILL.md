@@ -55,7 +55,11 @@ Satu berkas `src/palmgrade/static/console.html`: vanilla JS, tanpa build, tanpa 
 `tests/unit/test_console_html*.py` (`_riwayat`, `_akun`, `_sinkron`, `_tab_gabung`, `_tab_peran`,
 `_info_sistem`, `_model`, `_rekam`, `_sumber`, `_alarm`, ...). Pola: potong fungsi dengan
 `_fungsi(nama)` (dari `function nama(` sampai `\n}` pertama) lalu jalankan di `node` dengan stub.
-Test yang butuh node dilewati di CI tanpa node, jadi jalankan lokal.
+Test yang butuh node melewati dirinya kalau node tidak ada; runner CI punya node dan langkah
+unit memakai `-rs`, jadi skip terbaca alasannya. Fungsi yang diekstrak tidak membuktikan
+seluruh skrip sehat: sebelum PR jalankan juga
+`python tests/cek_skrip_konsol.py src/palmgrade/static/console.html` (langkah CI yang sama,
+batch 4.3), yang memparse tiap `<script>` utuh seperti browser.
 
 ## Cek di browser (tanpa menyentuh punya user)
 

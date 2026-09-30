@@ -92,7 +92,8 @@ models/release/    # best.pt (required, NOT committed)
 artifacts/line-N/  # runtime output per line (NOT committed)
 ```
 
-Tooling: `pyproject.toml` (pytest + ruff config, TIDAK untuk build), `.github/workflows/ci.yml` (lint + test).
+Tooling: `pyproject.toml` (pytest + ruff config, TIDAK untuk build), `.github/workflows/ci.yml` (lint + test,
+plus dipanggil `deploy.yml` sebelum image rilis mana pun dibangun).
 
 Layer rule (strict): `route → controller → service → repository / pipeline / integration`.
 Per-layer do/don't: `docs/overview.md`.
@@ -1370,6 +1371,21 @@ memang khas satu mesin.
   commit tersendiri. Karena itu `main` selalu punya merge commit yang tidak ada di
   `staging`: itu normal, bukan divergensi. Cek isinya dengan
   `git diff --stat origin/staging origin/main` (kosong = nol beda), jangan `git cherry`.
+- **Tag rilis `vX.Y.Z` menunggu CI hijau di commit tag itu sendiri** (batch 4.1). `deploy.yml`
+  memanggil `ci.yml` sebagai job `ci` (`workflow_call`, dari commit yang sama), lalu dua job
+  menunggunya: `build-and-push` (image pabrik + `latest`) dan `demo` (memanggil
+  `demo-image.yml`, image `vX.Y.Z-cpu`). CI merah = tidak ada image sama sekali, dan PC pabrik
+  tetap di versi lama tanpa error. Tag tidak pernah dipindah, jadi perbaikannya commit baru +
+  tag baru; CI yang cuma flaky boleh di-"Re-run failed jobs". Satu rilis kini memakan kira-kira
+  3,5 menit CI lebih dulu. `demo-image.yml` tidak lagi jalan sendiri saat tag; jalan manual
+  (`workflow_dispatch`) cuma untuk versi yang image pabriknya sudah terbit. Dijaga
+  `tests/unit/test_ci_gerbang_rilis.py` dan `tests/integration/test_alur_rilis_integrasi.py`;
+  langkah parse skrip dijaga `tests/unit/test_ci_skrip_konsol.py`.
+- **CI memparse seluruh `<script>` `console.html`** (batch 4.3) lewat
+  `python tests/cek_skrip_konsol.py src/palmgrade/static/console.html`: test konsol lain cuma
+  menjalankan fungsi yang diekstrak, jadi syntax error di tingkat atas lolos semua test sementara
+  layar operator kosong. Jalankan juga sebelum PR yang menyentuh `console.html`. Langkah
+  `pytest tests/unit/` di CI memakai `-rs` seperti e2e dan integration.
 - Commit messages: **never** include "Co-Authored-By: Claude" or any AI reference.
 
 ---
@@ -1386,7 +1402,8 @@ memang khas satu mesin.
 - Skill `konsol-autograde`: peta tab konsol, test per tab, aturan teks layar.
 - `deploy/demo/` + `docs/runbooks/2026-09-28-konsol-demo-droplet.md`: konsol demo internet
   (`demo-autograde.smagri.id`) di droplet AutoERP, perintah `demo-autograde`. Image-nya
-  `vX.Y.Z-cpu` dari `demo-image.yml` (tanpa CUDA/SDK; image pabrik 18,2 GB memenuhi disk
-  droplet), dan workflow itu **tidak pernah menulis `latest`**: itu penanda updater pabrik.
+  `vX.Y.Z-cpu` dari `demo-image.yml`, dipanggil `deploy.yml` sesudah CI hijau (tanpa CUDA/SDK;
+  image pabrik 18,2 GB memenuhi disk droplet), dan workflow itu **tidak pernah menulis
+  `latest`**: itu penanda updater pabrik.
 - Pasang PC pabrik (image produksi), rilis, deploy: skill `install-factory-pc`, `tag-release`, `deploy-production` di workspace `sawit` (bukan di repo ini).
 - `../ARCHITECTURE.md`: system architecture.
