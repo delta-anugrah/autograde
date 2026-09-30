@@ -334,6 +334,8 @@ def pasang_penangan_validasi(app: FastAPI) -> None:
             return await request_validation_exception_handler(request, exc)
         errors = exc.errors()
         loc = errors[0]["loc"] if errors else ("body",)
-        field = str(loc[1]) if len(loc) > 1 else str(loc[0])
+        # `loc` is ("body", "qr") for a field, ("body",) for a body that is not an object,
+        # and ("body", 17) for broken JSON; the screen labels the field through KAMUS.
+        field = loc[1] if len(loc) > 1 and isinstance(loc[1], str) else "body"
         refusal = OperatorError(INPUT_TIDAK_SAH, f"isian tidak sah: {field}", field=field)
         return JSONResponse(status_code=400, content={"detail": refusal.as_detail()})

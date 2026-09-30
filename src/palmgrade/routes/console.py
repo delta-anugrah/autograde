@@ -352,7 +352,7 @@ async def record_weighing_manual(
     program's format is unknown (docs/PERTANYAAN-TERBUKA.md X1).
     """
     try:
-        # Only what was sent: an absent tare must stay absent, or weigh-out overwrites it.
+        # Only what was sent, as before; `_kg` also keeps a stored tare when the value is None.
         return await service.record_weighing(payload.model_dump(exclude_unset=True))
     except ValueError as exc:
         raise _operator_error(400, exc) from exc
@@ -534,7 +534,7 @@ def dev_akun_status(
     """Matikan (sesinya berakhir) atau hidupkan lagi akun lokal. Bukan akun sendiri.
 
     `aktif` wajib boolean: `bool("false")` bernilai True, jadi teks bebas ditolak
-    422 alih-alih ditebak jadi "aktifkan".
+    400 `input_tidak_sah` alih-alih ditebak jadi "aktifkan".
     """
     try:
         return {"status": admin.atur_status(email, aktif, oleh=operator["email"])}
@@ -855,7 +855,7 @@ async def dev_plc_coil(
     line_code: str,
     coil: Annotated[int, Body()],
     # Sisa penjaga ketik yang dicabut 2026-09-24 — tetap diterima (tanpa
-    # diperiksa) supaya konsol yang belum dimuat ulang tidak mendadak 422.
+    # diperiksa) supaya konsol yang belum dimuat ulang tidak mendadak ditolak (400 `input_tidak_sah`).
     konfirmasi: Annotated[str, Body()] = "",
 ) -> dict:
     """The only lane in this whole console that moves physical hardware.

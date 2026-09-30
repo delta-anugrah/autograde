@@ -76,7 +76,7 @@ def console(tmp_path):
     stub = _StubConsole()
     app = FastAPI()
     app.include_router(console_router)
-    app.include_router(ingest_router)
+    app.include_router(ingest_router, prefix="/api/v1")  # as console_main mounts it
     pasang_penangan_validasi(app)
     app.dependency_overrides[get_console_service] = lambda: stub
     app.dependency_overrides[get_auth_service] = lambda: AuthService(store)
@@ -152,12 +152,14 @@ def test_a_body_that_is_not_an_object_is_400_input_tidak_sah(console):
     response = client.post("/api/console/scan", json=["BE 1234 AB"])
     assert response.status_code == 400
     assert _code(response) == INPUT_TIDAK_SAH
+    # "body" has its own KAMUS label, so the screen never shows a raw API name here.
+    assert response.json()["detail"]["params"]["field"] == "body"
 
 
 def test_the_machine_lane_keeps_the_default_answer(console):
     # The lines' outbox reads this lane; its answers must not change shape.
     client, _ = console
-    response = client.post("/internal/vision/events", json=["not", "an", "event"])
+    response = client.post("/api/v1/internal/vision/events", json=["not", "an", "event"])
     assert response.status_code == 422
 
 

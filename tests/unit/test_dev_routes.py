@@ -24,6 +24,7 @@ from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.repositories.log_repository import LogStore
 from palmgrade.routes.console import get_auth_service, get_console_service, get_dev_service
 from palmgrade.routes.console import router as console_router
+from palmgrade.routes.console_deps import pasang_penangan_validasi
 from palmgrade.services.auth_service import AuthService
 from palmgrade.services.dev_service import DevService
 
@@ -69,6 +70,7 @@ def _app_dev(tmp_path, *, line_client=None, lines=(LINE_1, LINE_2), manifest_out
 
     app = FastAPI()
     app.include_router(console_router)
+    pasang_penangan_validasi(app)
     app.dependency_overrides[get_console_service] = lambda: _StubConsole(store)
     app.dependency_overrides[get_auth_service] = lambda: AuthService(store)
     app.dependency_overrides[get_dev_service] = lambda: DevService(
@@ -161,14 +163,14 @@ def test_log_limit_dibatasi_atas(dev):
     app, store, _, _, _ = dev
     client = _client_support(app, store)
 
-    assert client.get("/api/console/dev/log?limit=99999").status_code == 422
+    assert client.get("/api/console/dev/log?limit=99999").status_code == 400
 
 
 def test_log_offset_tidak_boleh_negatif(dev):
     app, store, _, _, _ = dev
     client = _client_support(app, store)
 
-    assert client.get("/api/console/dev/log?offset=-1").status_code == 422
+    assert client.get("/api/console/dev/log?offset=-1").status_code == 400
 
 
 def test_log_cari_menyaring_pesan(dev):

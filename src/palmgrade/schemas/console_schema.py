@@ -4,8 +4,10 @@ Content rules stay in the domain, which answers with codes the screen words one 
 (`bukan_plat`, `bukan_angka`, a wrong password). A model here only fixes which fields a body
 may carry and their JSON types; a body of the wrong shape is 400 `input_tidak_sah`.
 
-Every field is optional, so a body that passed before still passes and the domain still
-decides what an empty one means. Unknown fields are ignored, as `payload.get()` ignored them.
+Every field is optional, so every body the screen sends still passes and the domain still
+decides what an empty one means. What is narrower than before: a number where text belongs
+(`{"qr": 123}`) used to reach the domain through `str()` and is now 400. Unknown fields are
+ignored, as `payload.get()` ignored them.
 """
 
 from __future__ import annotations

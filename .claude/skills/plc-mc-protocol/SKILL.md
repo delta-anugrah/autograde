@@ -168,7 +168,7 @@ memperlambat pekerjaan yang berulang. Dua penjaga yang benar-benar menahan kecel
 TETAP, dan keduanya di sisi **line**, bukan layar: ditolak 409 selama line memproses truk
 (dicek di proses yang memegang `RuntimeState`-nya), dan tiap percobaan, dipicu maupun
 ditolak: meninggalkan baris WARNING di `event_log`. Field `konfirmasi` masih diterima
-tanpa diperiksa supaya konsol yang belum dimuat ulang tidak mendadak 422.
+tanpa diperiksa supaya konsol yang belum dimuat ulang tidak mendadak ditolak (400 `input_tidak_sah`).
 Sejak 2026-09-23 malam yang bisa diuji: **OK, NG, dan ERROR** per line
 (1000/1001/**1002**, 1003/1004/**1005**, 1006/1007/**1008**) + piston kalau dialokasikan.
 Heartbeat **tidak pernah** masuk daftar, memicunya bikin panel mengira PC mati.
