@@ -11,6 +11,8 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from .jejak_sambungan import JejakSambunganPlc
+
 logger = logging.getLogger(__name__)
 
 
@@ -28,6 +30,7 @@ class ModbusPlcClient:
         self._factory = _client_factory or self._default_factory
         self._client: Any = None
         self.connected = False
+        self._jejak = JejakSambunganPlc(host, port)
 
     def _default_factory(self) -> Any:
         from pymodbus.client import ModbusTcpClient
@@ -41,12 +44,16 @@ class ModbusPlcClient:
             self._client = self._factory()
             self.connected = bool(self._client.connect())
         except Exception as exc:
-            logger.warning("PLC connect ke %s:%s gagal: %s", self._host, self._port, exc)
+            self._jejak.gagal_sambung(exc)
             self.connected = False
+            return False
+        if not self.connected:
+            # pymodbus menjawab False, bukan melempar, untuk host yang tidak menjawab.
+            self._jejak.gagal_sambung("koneksi Modbus ditolak atau tidak dijawab")
         return self.connected
 
     def _drop(self, exc: Exception) -> None:
-        logger.warning("PLC I/O gagal (%s) — menandai terputus, akan reconnect", exc)
+        self._jejak.terputus(exc)
         self.connected = False
         try:
             if self._client is not None:
@@ -63,8 +70,11 @@ class ModbusPlcClient:
         except Exception as exc:
             self._drop(exc)
             return False
+        # Ada jawaban: sambungannya hidup, walau isinya penolakan. Penolakan yang
+        # berulang dicatat PlcWorker sekali per kejadian, jadi di sini cuma DEBUG.
+        self._jejak.berhasil()
         if reply.isError():
-            logger.warning("PLC menolak write coil %s = %s", address, value)
+            logger.debug("PLC menolak write coil %s = %s", address, value)
             return False
         return True
 
@@ -76,6 +86,7 @@ class ModbusPlcClient:
         except Exception as exc:
             self._drop(exc)
             return None
+        self._jejak.berhasil()
         if reply.isError():
             return None
         return list(reply.bits)[:count]

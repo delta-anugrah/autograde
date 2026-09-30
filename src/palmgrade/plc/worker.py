@@ -14,6 +14,8 @@ import threading
 import time
 from collections.abc import Callable
 
+from ..domain.transisi import PelacakTransisi, teks_lama
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,6 +66,11 @@ class PlcWorker:
         # dict mutations (enqueue/tick both touch `_coils`) now need a lock —
         # same shape as `_piston_lock` above, one small lock per shared field.
         self._scheduler_lock = threading.Lock()
+        # Batch 3.3: tulis/baca yang gagal padahal sambungannya HIDUP (PLC menolak
+        # paketnya) dicatat sekali per kejadian. Sambungan yang putus dicatat klien
+        # PLC sendiri (`plc/jejak_sambungan.py`), jadi di sini diam.
+        self._tulis_gagal = PelacakTransisi()
+        self._baca_gagal = PelacakTransisi()
 
     def submit(self, status: str) -> None:
         """Called from the detection thread. Never blocks, never raises."""
@@ -128,16 +135,33 @@ class PlcWorker:
     def _write_coil(self, coil: int, level: bool) -> None:
         if self.client.write_coil(coil, level):
             self._failed_writes.pop(coil, None)
+            self._catat_pulih(self._tulis_gagal, "Coil PLC bisa ditulis lagi sesudah %s")
             return
         if level and coil == getattr(self.settings, "plc_coil_manual", None):
             # A failed open request is NOT retried: see block e in run_once.
             with self._piston_lock:
                 self._piston_requested = False
             self._piston_written = False
-            logger.warning("Piston coil write failed — open request cancelled, not retried")
+            logger.warning("Piston coil write failed, open request cancelled, not retried")
             return
         self._failed_writes[coil] = level
-        logger.warning("PLC coil write failed, will retry next tick: coil=%s level=%s", coil, level)
+        self._catat_gagal(
+            self._tulis_gagal, "Coil PLC gagal ditulis, dicoba lagi tiap tick: coil=%s level=%s", coil, level
+        )
+
+    def _catat_gagal(self, pelacak: PelacakTransisi, pesan: str, *args: object) -> None:
+        """WARNING sekali per kejadian, hanya kalau sambungannya hidup. Klien tanpa
+        atribut `connected` (pengganti di test) dianggap tersambung."""
+        if getattr(self.client, "connected", True) and pelacak.gagal():
+            logger.warning(pesan, *args)
+        else:
+            logger.debug(pesan, *args)
+
+    @staticmethod
+    def _catat_pulih(pelacak: PelacakTransisi, pesan: str) -> None:
+        lama = pelacak.pulih()
+        if lama is not None:
+            logger.warning(pesan, teks_lama(lama))
 
     def run_once(self, now: float | None = None) -> None:
         now = time.monotonic() if now is None else now
@@ -263,8 +287,9 @@ class PlcWorker:
         )
         if bits is not None:
             self.inputs = bits
+            self._catat_pulih(self._baca_gagal, "Input PLC terbaca lagi sesudah %s")
         else:
-            logger.warning("PLC discrete input read failed — keeping the last input state")
+            self._catat_gagal(self._baca_gagal, "Input PLC gagal dibaca, memakai keadaan terakhir")
 
     def _scheduler_is_active(self, coil: int) -> bool:
         """Scheduler sedang memegang coil ini (pulse berjalan / tahanan ON).
