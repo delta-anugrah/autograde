@@ -33,12 +33,14 @@ except ImportError:
 
 
 class HikrobotCamera(CameraSource):
-    #: `connect()` yang sudah dipanggil proses ini. Rincian sambung (perangkat, handle,
-    #: grabbing) INFO cuma untuk yang pertama: kamera yang diam disambung ulang tiap ~2
-    #: detik selama FRAME_BERHENTI, dan enam baris INFO tiap siklus menenggelamkan
-    #: `docker logs`. Kejadiannya sendiri dicatat `FrameCaptureWorker` (putus dan pulih).
+    #: `connect()` yang sudah dipanggil OBJEK kamera ini (nilai kelas cuma bawaan; tiap
+    #: objek menghitung sendiri, dan satu line memakai satu objek seumur prosesnya).
+    #: Rincian sambung (perangkat, handle, grabbing) INFO cuma untuk yang pertama: kamera
+    #: yang diam disambung ulang tiap ~2 detik selama FRAME_BERHENTI, dan enam baris INFO
+    #: tiap siklus menenggelamkan `docker logs`. Kejadiannya sendiri dicatat
+    #: `FrameCaptureWorker` (putus dan pulih).
     _jumlah_sambung = 0
-    #: Laju sudah pernah dilaporkan (atau tidak bisa dilaporkan) sekali.
+    #: Laju objek ini sudah pernah dilaporkan (atau tidak bisa dilaporkan) sekali.
     _laju_sudah_dilapor = False
 
     def _level_rinci(self) -> int:
