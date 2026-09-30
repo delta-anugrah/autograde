@@ -27,6 +27,7 @@ from .routes.console_deps import (
     get_auth_service,
     get_console_service,
     hangatkan_singleton,
+    pasang_penangan_validasi,
 )
 from .routes.console_ingest import ingest_router
 from .services.akun_bawaan import seed_default_accounts
@@ -142,6 +143,7 @@ def create_console_app() -> FastAPI:
     app.include_router(console_router)
     app.include_router(antrean_line_router)
     app.include_router(ingest_router, prefix=settings.backend_api_ver)
+    pasang_penangan_validasi(app)
 
     @app.get("/health", include_in_schema=False)
     async def health() -> dict:

@@ -3,7 +3,7 @@
 - Butuh sesi (401 tanpa cookie), tapi BUKAN lane support: operator biasa yang
   membaca riwayat grading, sama dengan tab Grading dan Rekap.
 - Filter yang salah dijawab 400 dengan kode yang diterjemahkan layar; tampilan
-  atau hasil yang tidak dikenal 422.
+  atau hasil yang tidak dikenal 400 `input_tidak_sah`.
 - CSV terunduh sebagai lampiran dengan nama berkas dan BOM.
 
 Rute dirakit lewat dependency graph asli dengan dependensi di-override, bukan
@@ -20,6 +20,7 @@ from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.repositories.riwayat_repository import RiwayatStore
 from palmgrade.routes.console import get_auth_service, get_console_service, get_riwayat_service
 from palmgrade.routes.console import router as console_router
+from palmgrade.routes.console_deps import pasang_penangan_validasi
 from palmgrade.services.auth_service import AuthService
 from palmgrade.services.riwayat_service import RiwayatService
 
@@ -37,6 +38,7 @@ def app(tmp_path):
     store = ConsoleStore(db)
     aplikasi = FastAPI()
     aplikasi.include_router(console_router)
+    pasang_penangan_validasi(aplikasi)
     aplikasi.dependency_overrides[get_console_service] = lambda: _StubConsole(store)
     aplikasi.dependency_overrides[get_auth_service] = lambda: AuthService(store)
     aplikasi.dependency_overrides[get_riwayat_service] = lambda: RiwayatService(
@@ -120,10 +122,12 @@ def test_filter_salah_dijawab_kode_untuk_layar(app, params, kode):
 
 
 @pytest.mark.parametrize("params", [{"tampilan": "bulan"}, {"hasil": "busuk"}, {"bahasa": "fr"}])
-def test_pilihan_yang_tidak_dikenal_422(app, params):
+def test_pilihan_yang_tidak_dikenal_400_input_tidak_sah(app, params):
     path = "/api/console/riwayat/csv" if "bahasa" in params else "/api/console/riwayat"
 
-    assert _masuk(app).get(path, params=params).status_code == 422
+    res = _masuk(app).get(path, params=params)
+    assert res.status_code == 400
+    assert res.json()["detail"]["code"] == "input_tidak_sah"
 
 
 def test_csv_terunduh_sebagai_lampiran(app):

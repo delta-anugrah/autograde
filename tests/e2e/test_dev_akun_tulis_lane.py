@@ -29,6 +29,7 @@ from palmgrade.routes.console import (
     get_operator_admin,
 )
 from palmgrade.routes.console import router as console_router
+from palmgrade.routes.console_deps import pasang_penangan_validasi
 from palmgrade.services.auth_service import AuthService
 from palmgrade.services.dev_service import DevService
 from palmgrade.services.operator_admin import OperatorAdmin
@@ -52,6 +53,7 @@ def store(tmp_path) -> ConsoleStore:
 def app(tmp_path, store):
     aplikasi = FastAPI()
     aplikasi.include_router(console_router)
+    pasang_penangan_validasi(aplikasi)
     aplikasi.dependency_overrides[get_console_service] = lambda: _StubConsole(store)
     aplikasi.dependency_overrides[get_auth_service] = lambda: AuthService(store)
     aplikasi.dependency_overrides[get_dev_service] = lambda: DevService(
@@ -247,5 +249,6 @@ def test_status_harus_benar_salah_bukan_teks_bebas(app, store):
     res = support.post("/api/console/dev/akun/status",
                        json={"email": "operator@pks.test", "aktif": "mungkin"})
 
-    assert res.status_code == 422
+    assert res.status_code == 400
+    assert res.json()["detail"]["code"] == "input_tidak_sah"
     assert store.operator_by_email("operator@pks.test")["status"] == "active"
