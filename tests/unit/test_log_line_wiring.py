@@ -12,7 +12,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from palmgrade.license.guard import _ALWAYS_ALLOWED
+from palmgrade.license.guard import _ALWAYS_ALLOWED_PERSIS
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "palmgrade"
 MAIN = (SRC / "main.py").read_text(encoding="utf-8")
@@ -71,4 +71,4 @@ def test_router_log_memakai_store_yang_sama_dengan_handler():
 
 
 def test_rute_log_tetap_terbuka_saat_lisensi_habis():
-    assert "/internal/log" in _ALWAYS_ALLOWED
+    assert "/internal/log" in _ALWAYS_ALLOWED_PERSIS
