@@ -101,13 +101,23 @@ def test_truk_terpasang_tidak_meninggalkan_penanda(line):
     assert keluar == []
 
 
-def test_rute_terpasang_di_app_line_sungguhan():
+def test_rute_terpasang_di_app_line_sungguhan(monkeypatch):
     """`main.create_app()` memasang router ini. Butuh torch (app line menarik
     YOLO), jadi dilewati di CI — penjaga teksnya ada di
     `tests/unit/test_main_bahaya_wiring.py`."""
     pytest.importorskip("torch")
     pytest.importorskip("cv2")
-    from palmgrade.main import create_app
+    # Batch 3.2: create_app() (juga yang jalan saat modul main diimpor) membuka
+    # log_line.db di folder DB line dan memasang penulisnya di root. Di test itu
+    # berarti `state/` repo ini dan handler yang tertinggal sampai sesi selesai,
+    # menulis log test lain ke sana. Rute yang diperiksa di sini tidak butuh keduanya.
+    import palmgrade.services.antrean_log_line as antrean_log_line
+
+    monkeypatch.setattr(antrean_log_line, "pasang_penulis_log_line", lambda _folder: None)
+    from palmgrade import main
+
+    monkeypatch.setattr(main, "pasang_penulis_log_line", lambda _folder: None)
+    create_app = main.create_app
 
     try:
         jalur = {getattr(r, "path", "") for r in create_app().routes}
