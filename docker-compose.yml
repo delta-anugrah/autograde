@@ -170,6 +170,11 @@ services:
       # dinyatakan AI mati (batch 2.1): coil ERROR naik, /health 503, kartu
       # konsol merah. Kosong = 30. Dijepit 10..600.
       - AI_MATI_DETIK=${AI_MATI_DETIK:-30}
+      # Pemantau disk (batch 3.7): alert konsol saat sisa disk di bawah angka ini
+      # (GB), dengan atau tanpa R2. Kosong = 15 / 5. 0 = tingkat itu dimatikan.
+      # Jaga DISK_PERINGATAN_GB di bawah UPLOAD_DISK_MIN_FREE_GB.
+      - DISK_PERINGATAN_GB=${DISK_PERINGATAN_GB:-15}
+      - DISK_KRITIS_GB=${DISK_KRITIS_GB:-5}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
@@ -330,6 +335,11 @@ services:
       # dinyatakan AI mati (batch 2.1): coil ERROR naik, /health 503, kartu
       # konsol merah. Kosong = 30. Dijepit 10..600.
       - AI_MATI_DETIK=${AI_MATI_DETIK:-30}
+      # Pemantau disk (batch 3.7): alert konsol saat sisa disk di bawah angka ini
+      # (GB), dengan atau tanpa R2. Kosong = 15 / 5. 0 = tingkat itu dimatikan.
+      # Jaga DISK_PERINGATAN_GB di bawah UPLOAD_DISK_MIN_FREE_GB.
+      - DISK_PERINGATAN_GB=${DISK_PERINGATAN_GB:-15}
+      - DISK_KRITIS_GB=${DISK_KRITIS_GB:-5}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
@@ -490,6 +500,11 @@ services:
       # dinyatakan AI mati (batch 2.1): coil ERROR naik, /health 503, kartu
       # konsol merah. Kosong = 30. Dijepit 10..600.
       - AI_MATI_DETIK=${AI_MATI_DETIK:-30}
+      # Pemantau disk (batch 3.7): alert konsol saat sisa disk di bawah angka ini
+      # (GB), dengan atau tanpa R2. Kosong = 15 / 5. 0 = tingkat itu dimatikan.
+      # Jaga DISK_PERINGATAN_GB di bawah UPLOAD_DISK_MIN_FREE_GB.
+      - DISK_PERINGATAN_GB=${DISK_PERINGATAN_GB:-15}
+      - DISK_KRITIS_GB=${DISK_KRITIS_GB:-5}
       - DEBUG_MODEL_OUTPUT=${DEBUG_MODEL_OUTPUT:-}
     volumes:
       - .:/app
