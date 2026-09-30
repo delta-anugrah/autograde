@@ -56,7 +56,7 @@ All via **`make`** (Docker only). From `autograde/`:
   compose di PC pabrik hidup di host dan harus ditambah tangan. Engine dibangun per model lewat
   service line yang memakainya (`run ... ripe-line-N scripts/build_engine.py`).
   Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md`.
-- **Verify**: `curl :8001/health`; **503 selama `ai.mati`**, sejak batch 2.1. `curl :8001/health/detail` (camera_connected, gpu_available, workers, current_assignment_id, `plc` = `null` kalau PLC mati); stream at `http://localhost:8001/api/video_feed`.
+- **Verify**: `curl :8001/health`; **503 selama AI mati (sejak batch 2.1) atau frame berhenti (sejak batch 3.6)**, badan jawabannya menyebut yang mana (`ai.keadaan`, `ai.kode`). `curl :8001/health/detail` (camera_connected, gpu_available, workers, current_assignment_id, `plc` = `null` kalau PLC mati); stream at `http://localhost:8001/api/video_feed`.
   ⚠️ **`capture_save_dropped` di `/health/detail` harus NOL.** Di atas nol berarti antrean penulis
   pernah penuh dan janjang yang sudah digrading, sudah dapat pulse PLC, sudah masuk rekap,
   tidak tersimpan sama sekali: tidak ada gambar, tidak ada sidecar, jadi tidak ada yang bisa

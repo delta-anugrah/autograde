@@ -52,7 +52,7 @@ make build-engine               # TensorRT FP16 engine, once per GPU
 .venv/bin/pytest tests/unit/ -q               # pure-logic tests, no torch/cv2/SDK
 .venv/bin/pytest tests/integration/ -rs       # real components without hardware
 .venv/bin/ruff check <scope in .github/workflows/ci.yml>
-curl :8001/health               # 503 while the AI guard says dead;  /health/detail: capture_save_dropped must be 0
+curl :8001/health               # 503 while the AI guard says AI dead or frames stopped;  /health/detail: capture_save_dropped must be 0
 ```
 
 CI (`ci.yml`) runs ruff + unit + e2e + integration on every PR to `staging`/`main`, without GPU,

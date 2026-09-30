@@ -109,7 +109,7 @@ class LineStatusWorker:
             self._kunci_ditolak.discard(line_code)
 
     def _catat_ai(self, kode: str, ai: dict[str, Any] | None) -> None:
-        """AI line berhenti/kembali memproses → satu baris di `docker logs` konsol.
+        """AI line mati / tidak lagi mati → satu baris di `docker logs` konsol.
 
         Sejak batch 3.2 line menyimpan log-nya sendiri (`log_line.db`) dan itu
         yang sampai ke tab Log lewat tarikan log line (aturan 34): baris ERROR/
@@ -127,7 +127,13 @@ class LineStatusWorker:
             )
             self._ai_mati.add(kode)
         elif not mati and kode in self._ai_mati:
-            logger.info("%s: AI memproses lagi", kode)
+            keadaan = (ai or {}).get("keadaan")
+            if keadaan == "sehat":
+                logger.info("%s: AI memproses lagi", kode)
+            else:
+                # Keluar ke frame_berhenti, kamera_putus, lisensi, atau sumber_selesai:
+                # AI tetap tidak memproses, jadi bukan "memproses lagi".
+                logger.info("%s: AI tidak lagi dinilai mati (keadaan %s)", kode, keadaan or "tidak diketahui")
             self._ai_mati.discard(kode)
 
     def _catat_frame(self, kode: str, ai: dict[str, Any] | None) -> None:
@@ -181,12 +187,14 @@ class LineStatusWorker:
             logger.info("%s: disk kembali lega, %s", kode, sisa)
 
     def _catat_unggah(self, kode: str, unggah: dict[str, Any] | None) -> None:
-        """Upload foto line putus/pulih → satu WARNING, supaya masuk tab Log.
+        """Upload foto line putus/pulih → satu WARNING konsol per transisi.
 
-        Line tidak memasang log_sink, jadi tanpa ini alasan gagalnya cuma ada di
-        `docker logs` line. Pulih baru dicatat kalau jam unggah melewati awal putus:
-        line yang restart melupakan status gagalnya sampai batch berikutnya, dan itu
-        bukan bukti fotonya sudah naik.
+        Ringkasan keadaan unggah per line untuk konsol (sama dengan Last Sync), dengan
+        alasan dari status line. Rincian per item (item diantre ulang, item racun) tetap
+        baris milik line itu sendiri, yang sampai tab Log lewat tarikan log line (aturan
+        34). Pulih baru dicatat kalau jam unggah melewati awal putus: line yang restart
+        melupakan status gagalnya sampai batch berikutnya, dan itu bukan bukti fotonya
+        sudah naik.
         """
         if not unggah:
             return

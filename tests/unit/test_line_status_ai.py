@@ -1,6 +1,6 @@
-"""`LineStatusWorker` membawa blok `ai` line ke layar dan mencatat transisinya
-ke tab Log sekali masing-masing (batch 2.1), pola yang sama dengan
-`_catat_unggah` / `_catat_kunci`.
+"""`LineStatusWorker` membawa blok `ai` line ke layar dan mencatat transisinya sekali
+masing-masing (batch 2.1) sebagai INFO di `docker logs` konsol. Sejak batch 3.2 yang
+sampai tab Log adalah baris milik line itu sendiri, lewat tarikan log line (aturan 35).
 """
 from __future__ import annotations
 
@@ -72,3 +72,16 @@ def test_line_offline_tidak_terbaca_sebagai_pulih(caplog):
     _putar(worker, 3)
     assert not [r for r in caplog.records if "memproses lagi" in r.getMessage()]
     assert "ai" not in worker.snapshot()["line-1"]
+
+
+
+def test_ai_mati_lalu_frame_berhenti_tidak_mengaku_memproses_lagi(caplog):
+    """Keluar dari AI mati ke frame berhenti: line itu tetap tidak menyortir."""
+    frame_berhenti = {"keadaan": "frame_berhenti", "mati": False, "kode": "FRAME_BERHENTI",
+                      "sejak": 2.0, "umur_detik": 80.0, "ambang_detik": 30}
+    caplog.set_level(logging.INFO, logger="palmgrade.workers.line_status_worker")
+    worker = LineStatusWorker([LINE], _Klien([MATI, frame_berhenti]))
+    _putar(worker, 2)
+    pesan = [r.getMessage() for r in caplog.records]
+    assert "line-1: AI tidak lagi dinilai mati (keadaan frame_berhenti)" in pesan
+    assert not [p for p in pesan if "memproses lagi" in p]

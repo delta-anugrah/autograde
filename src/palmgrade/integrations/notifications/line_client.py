@@ -47,7 +47,7 @@ class LinePlcTolak(RuntimeError):
         self.detail = detail
 
 
-def _ai_mati(res: httpx.Response) -> bool:
+def _503_dari_penjaga(res: httpx.Response) -> bool:
     """Badan `/health` line menyebut 503-nya dari penjaga (routes/health_ringan.py):
     AI mati (batch 2.1) atau frame berhenti (batch 3.6). Aturannya satu dengan
     yang menjawab 503 itu, supaya keadaan baru tidak lupa ditambahkan di sini."""
@@ -329,7 +329,8 @@ class LineClient:
     async def hidup(self, line: LineEndpoint) -> bool:
         """Apakah proses line menjawab `/health` saat ini. Tidak pernah melempar.
 
-        Dipakai berulang (tiap ¼ detik) saat konsol menunggu line keluar sesudah
+        200 = hidup; 503 dari penjaga (AI mati ATAU frame berhenti) juga hidup: prosesnya
+        jalan, cuma tidak menyortir. Dipakai berulang (tiap ¼ detik) saat konsol menunggu line keluar sesudah
         perintah hapus, jadi timeout-nya pendek: line yang sedang mati memang
         diharapkan tidak menjawab.
         """
@@ -341,11 +342,11 @@ class LineClient:
             return False
         if res.status_code == 200:
             return True
-        # Batch 2.1: `/health` menjawab 503 kalau AI line mati, tapi prosesnya
-        # masih hidup dan masih menjalankan urutan tutupnya. Dibaca "mati" di
-        # sini, Danger Zone berhenti menunggu dan mengosongkan konsol sebelum
-        # antrean simpan line itu habis dikirim.
-        return res.status_code == 503 and _ai_mati(res)
+        # `/health` menjawab 503 kalau AI line mati (batch 2.1) atau frame berhenti
+        # (batch 3.6), tapi prosesnya masih hidup dan masih menjalankan urutan
+        # tutupnya. Dibaca "mati" di sini, Danger Zone berhenti menunggu dan
+        # mengosongkan konsol sebelum antrean simpan line itu habis dikirim.
+        return res.status_code == 503 and _503_dari_penjaga(res)
 
     async def _get_json(
         self, line: LineEndpoint, path: str, *, timeout_s: float

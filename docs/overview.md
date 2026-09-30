@@ -54,6 +54,8 @@ mengirim gambar, tapi ada frame yang selesai digrading dalam `AI_MATI_DETIK` det
 Kalau tidak, AI dinyatakan mati, dan coil ERROR PLC, `/health` (503), serta kartu line konsol
 sama-sama membaca penilaian yang sama dari objek ini, bukan menghitung sendiri-sendiri. Detail
 aturan dan lima keadaan yang sengaja tidak dialarm: `domain/kesehatan_ai.py`, `docs/rules.md` aturan 32.
+Sejak batch 3.6 objek yang sama juga menilai **frame berhenti** (kamera tersambung tapi tidak
+mengirim gambar): coil ERROR dan `/health` 503 seperti AI mati, `ai.mati` tetap AI saja (aturan 35).
 
 **Log line (batch 3.2).** WARNING/ERROR line dulu berhenti di stdout + `PenulisLogLine` (antrean
 memori tiap ~0,2 detik, thread deteksi tidak pernah menunggu disk, aturan 1b), sekarang juga

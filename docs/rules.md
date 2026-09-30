@@ -916,10 +916,10 @@ end of this file.
     **Tiga pembaca, satu sumber**: coil ERROR PLC (`sehat_untuk_plc()`, naik untuk **kamera
     putus ATAU AI mati ATAU frame berhenti (aturan 35)**, tidak untuk lisensi habis atau sumber selesai, PLC tidak berubah sama
     sekali, no ladder change, tapi **tim PLC harus diberi tahu** M1002/M1005/M1008 sekarang
-    bisa naik untuk sebab baru ini); `/health` (503 **hanya** untuk AI mati, kamera putus/
-    lisensi/sumber selesai tetap 200, frame berhenti 503 seperti AI mati (aturan 35), karena gerbang update `autograde.sh` (`wait_healthy`, `curl -f
-    /health`) memundurkan versi yang tidak menjawab 200 dalam 90 detik, dan tiga keadaan itu
-    bukan salah versi). ⚠️ **Gerbang itu TIDAK menangkap AI yang mati sesudah start**: dia
+    bisa naik untuk sebab baru ini); `/health` (503 **hanya** untuk AI mati dan frame berhenti
+    (aturan 35); kamera putus, lisensi, dan sumber selesai tetap 200, karena gerbang update
+    `autograde.sh` (`wait_healthy`, `curl -f /health`) memundurkan versi yang tidak menjawab 200
+    dalam 90 detik, dan tiga keadaan itu bukan salah versi). ⚠️ **Gerbang itu TIDAK menangkap AI yang mati sesudah start**: dia
     selesai pada 200 PERTAMA, dan probe pertama selalu jatuh di dalam tenggang `memulai` 30
     detik (`ai_dimulai_at` distempel di startup yang sama yang membuka `/health`). Rilis yang
     AI-nya mati pada frame sungguhan TIDAK di-rollback: launcher mencatat `OK vX.Y.Z` dan
@@ -1071,7 +1071,11 @@ end of this file.
     bukan per kartu: ketiga line menulis ke satu disk.
     Fakta milik line (AI mati, frame berhenti, disk) dicatat WARNING/ERROR oleh line dan sampai
     tab Log lewat tarikan log line (aturan 34); cermin `LineStatusWorker` konsol cuma INFO,
-    supaya satu kejadian satu baris dan satu kelompok Discord. Baris "Kamera tidak mengirim
+    supaya satu kejadian satu baris dan satu kelompok Discord. "Satu kejadian" itu per line:
+    satu disk penuh yang ditulisi ketiga line = tiga baris tab Log dan tiga baris di satu
+    ringkasan Discord (`line-1`, `line-2`, `line-3`), sengaja tidak digabung di sana. Tiap line
+    mengukurnya sendiri dan line bisa ada di disk yang berbeda; menggabung per kode di digest
+    akan menyembunyikan line mana yang terkena. Yang digabung cuma layar (satu `#pita-disk`). Baris "Kamera tidak mengirim
     gambar" (aturan 33, mulai 5 grab gagal) dan FRAME_BERHENTI (sesudah `AI_MATI_DETIK`, coil
     ERROR naik) sengaja dua baris: yang pertama menyebut alasan kamera, yang kedua keputusan
     sehat.
