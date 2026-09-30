@@ -7,6 +7,7 @@ description: Use when changing the AutoGrade operator console screen (src/palmgr
 
 Satu berkas `src/palmgrade/static/console.html`: vanilla JS, tanpa build, tanpa CDN, nol
 `https://` (harus jalan saat internet putus). Server: `console_main.py` + `routes/console.py`.
+Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian Frontend (F1 sampai F10).
 
 ## Sembilan tab (sejak 2026-09-28, dulu 15)
 

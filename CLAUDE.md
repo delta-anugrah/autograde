@@ -4,6 +4,9 @@
 the start of every session, so it is short. Full rule text: `docs/rules.md`. Manual for a
 newcomer (Indonesian, with PDF): `docs/MANUAL.md`.
 
+Coding standard for every change (rule ids L, S, B, F, T, C, D). Claude Code loads it through this
+import; other agents read it before touching code: @docs/coding-standard.md
+
 ## 1. What this is
 
 `autograde` is the **Python AI camera service plus the operator console**, one image run four
@@ -143,6 +146,7 @@ never a "Co-Authored-By: Claude" or other AI mention.
 
 | Touching… | Read first |
 |---|---|
+| Any code, or reviewing it | `docs/coding-standard.md` (loaded above; cite its rule ids) |
 | Any rule in §3, or something that "feels forbidden" | `docs/rules.md` (full text, rationale, dates) |
 | A `make` target, tests, CI | `docs/commands.md`, `.github/workflows/ci.yml` |
 | Flows, worker/state model, invariants, Docker/SDK/GPU internals, artifact layout, licence guard, console | `docs/overview.md` |

@@ -81,6 +81,30 @@ Next:           PR to staging (PR body: reusable ci.yml call only provable on th
                 tell the PLC team the ERROR coil also rises for a camera that stops sending
                 frames.
 
+## 2026-09-30 · docs · Coding standard loaded into every session (PR #198)
+Changed:        new docs/coding-standard.md: 45 one-line rules with ids (L logic, S style,
+                B backend, F frontend, T tests, C installed factory PCs, D docs), "not used here"
+                and 8 known gaps. CLAUDE.md imports it (@docs/coding-standard.md, 176 lines).
+                REVIEW-CHECKLIST section E cites the ids; rule-reviewer reads the standard;
+                docs/overview.md §1 table fixed (console without controller, SQLite in
+                repositories, schemas/integrations/plc/core rows); skill konsol-autograde points
+                at F1 to F10. tests/unit/test_coding_standard.py guards the import, the length,
+                the ids and every code path the standard names. .agents/skills gained the missing
+                symlinks for model-swap-eval, mvs-camera and spek-pc-pabrik (follow-up 3 of #196),
+                guarded by tests/unit/test_skill_mirror.py.
+Validated:      tests/unit → 3105 passed, 28 skipped, 1 warning in 82.57s. Guard + test_doc_links +
+                test_dokumen_tanpa_em_dash → 51 passed (the 4 first guard tests failed before the
+                docs existed); test_skill_mirror failed on the three missing links, then 3 passed.
+                ruff over the ci.yml scope → All checks passed. rule-reviewer: 4
+                blocking + 9 warnings, all fixed (B1, L4/F3 and F9 had described the code wrongly).
+                A subagent started in the worktree had the standard in context: the import loads.
+Not validated:  tests/e2e and tests/integration (CI runs them).
+Decisions:      names: factory concepts may stay Indonesian in Python, columns and new API paths
+                English; REST shape for new endpoints only, existing paths never renamed; no URL
+                state on the kiosk; five view states (disconnected added); scrypt and pbkdf2 kept;
+                known gaps get their own PRs, a PR is not blocked by a gap it did not add.
+Next:           first known gap: Pydantic bodies for the eleven dict routes (B1).
+
 ## 2026-09-30 · docs · Fix references left stale by the CLAUDE.md tidy (PR #197)
 Changed:        rule references in 2 skills, docs/overview.md, docs/backend-overview.md,
                 docs/MANUAL.md and README.md now cite docs/rules.md (full text, sub-points,
