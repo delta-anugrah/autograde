@@ -165,38 +165,42 @@ class HikrobotCamera(CameraSource):
 
         ret = self.cam.MV_CC_GetOneFrameTimeout(self._data_buf, self._buffer_size, frame_info, 100)
         if ret != 0:
-            logger.warning("Failed to grab frame, return code: %s", format_mvs_ret(ret))
-            return None
+            return self._gagal(f"grab gagal, kode {format_mvs_ret(ret)}")
 
         img_bytes = np.frombuffer(self._data_buf, dtype=np.uint8, count=frame_info.nFrameLen)
         w, h = frame_info.nWidth, frame_info.nHeight
 
         if frame_info.enPixelType == PixelType_Gvsp_Mono8:
             if not _validate_frame_len(frame_info.nFrameLen, w, h, channels=1):
-                logger.warning("Dropping partial Mono8 frame: expected=%d got=%d", w * h, frame_info.nFrameLen)
-                return None
+                return self._gagal(f"frame Mono8 terpotong: {frame_info.nFrameLen} dari {w * h} byte")
             img = img_bytes.reshape((h, w))
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
         elif frame_info.enPixelType == PixelType_Gvsp_BayerRG8:
             if not _validate_frame_len(frame_info.nFrameLen, w, h, channels=1):
-                logger.warning("Dropping partial Bayer frame: expected=%d got=%d", w * h, frame_info.nFrameLen)
-                return None
+                return self._gagal(f"frame Bayer terpotong: {frame_info.nFrameLen} dari {w * h} byte")
             img = img_bytes.reshape((h, w))
             img = cv2.cvtColor(img, cv2.COLOR_BAYER_RGGB2BGR_EA)
 
         elif frame_info.enPixelType in (17301513, PixelType_Gvsp_RGB8_Packed):
             if not _validate_frame_len(frame_info.nFrameLen, w, h, channels=3):
-                logger.warning("Dropping partial RGB frame: expected=%d got=%d", w * h * 3, frame_info.nFrameLen)
-                return None
+                return self._gagal(f"frame RGB terpotong: {frame_info.nFrameLen} dari {w * h * 3} byte")
             img = img_bytes.reshape((h, w, 3))
             img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
         else:
-            logger.error("Unsupported pixel format: %s", frame_info.enPixelType)
-            return None
+            return self._gagal(f"format piksel {frame_info.enPixelType} tidak didukung")
 
+        self.galat_terakhir = None
         return img
+
+    def _gagal(self, alasan: str) -> None:
+        """Satu grab gagal: alasan disimpan untuk WARNING per kejadian di
+        `FrameCaptureWorker`, dan cuma DEBUG di sini. Dulu tiap grab gagal satu WARNING,
+        dan kamera yang putus menggrab tiap 100 ms: ±10 baris per detik."""
+        self.galat_terakhir = alasan
+        logger.debug("Grab kamera gagal: %s", alasan)
+        return None
 
     def disconnect(self) -> None:
         if self.connected:

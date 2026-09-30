@@ -5,6 +5,7 @@ import queue
 import threading
 import time
 
+from ..domain.transisi import PelacakTransisi, teks_lama
 from ..integrations.camera.base import CameraSource
 from .runtime_state import RuntimeState
 
@@ -33,6 +34,12 @@ class FrameCaptureWorker:
         # Dipasang langkah tutup line (batch 2.2): loop berhenti dan kamera tidak
         # disambung ulang, supaya kamera yang baru dilepas tidak dibuka lagi.
         self._berhenti = threading.Event()
+        # Batch 3.3: satu WARNING saat kamera berhenti mengirim gambar, satu saat
+        # kembali. Di antaranya grab gagal tiap 100 ms dan sambung ulang tiap <=30 dtk
+        # cuma DEBUG.
+        self._putus = PelacakTransisi()
+        self._percobaan_sambung = 0
+        self._sambung_gagal = 0
 
     def berhenti(self) -> None:
         """Akhiri `run_loop` sesudah putaran yang sedang jalan; jangan sambung ulang kamera."""
@@ -85,7 +92,8 @@ class FrameCaptureWorker:
     def _try_reconnect(self) -> None:
         if self._berhenti.is_set():
             return
-        logger.warning("Camera: %d consecutive failures — attempting reconnect", self._consecutive_failures)
+        logger.debug("Camera: %d consecutive failures, attempting reconnect", self._consecutive_failures)
+        self._percobaan_sambung += 1
         try:
             self.camera.disconnect()
         except Exception:
@@ -99,9 +107,40 @@ class FrameCaptureWorker:
             self._consecutive_failures = 0
             self._reconnect_backoff = _RECONNECT_BACKOFF_BASE
             self.adopt_camera_frame_rate()
-            logger.info("Camera reconnected successfully")
+            logger.debug("Camera reconnected")
         except Exception as exc:
-            logger.error("Camera reconnect failed: %s", exc)
+            self._sambung_gagal += 1
+            if self._sambung_gagal == 1:
+                logger.error(
+                    "Kamera gagal disambung ulang: %s. Dicoba lagi dengan jeda sampai %d detik;"
+                    " kegagalan berikutnya tidak ditulis lagi sampai kamera mengirim gambar",
+                    exc, int(_RECONNECT_BACKOFF_MAX),
+                )
+            else:
+                logger.debug("Camera reconnect failed: %s", exc)
+
+    def _catat_kamera_putus(self) -> None:
+        """Kejadian dimulai saat grab gagal `_MAX_CONSECUTIVE_FAILURES` kali berturut:
+        satu-dua frame terpotong di GigE itu biasa dan tidak pantas satu baris pun."""
+        if not self._putus.gagal():
+            return
+        alasan = getattr(self.camera, "galat_terakhir", None) or "kamera tidak menyebut alasannya"
+        logger.warning(
+            "Kamera tidak mengirim gambar: %d kali gagal berturut (terakhir: %s)%s",
+            self._consecutive_failures, alasan,
+            ", menyambung ulang" if self.camera.supports_reconnect else "",
+        )
+
+    def _catat_kamera_kembali(self) -> None:
+        lama = self._putus.pulih()
+        if lama is None:
+            return
+        logger.warning(
+            "Kamera mengirim gambar lagi sesudah %s (%d kali sambung ulang)",
+            teks_lama(lama), self._percobaan_sambung,
+        )
+        self._percobaan_sambung = 0
+        self._sambung_gagal = 0
 
     def run_once(self) -> None:
         now = time.time()
@@ -124,6 +163,8 @@ class FrameCaptureWorker:
 
             self._exhausted_logged = False
             self._consecutive_failures += 1
+            if self._consecutive_failures >= _MAX_CONSECUTIVE_FAILURES:
+                self._catat_kamera_putus()
             if self._consecutive_failures >= _MAX_CONSECUTIVE_FAILURES and self.camera.supports_reconnect:
                 self._try_reconnect()
             else:
@@ -133,6 +174,7 @@ class FrameCaptureWorker:
         self._exhausted_logged = False
         self._consecutive_failures = 0
         self._reconnect_backoff = _RECONNECT_BACKOFF_BASE
+        self._catat_kamera_kembali()
         self.state.latest_raw_frame = frame
         # Penjaga AI mati (batch 2.1): gambar MASUK. Tanpa cap ini penilai tidak
         # bisa membedakan "AI mati" dari "kamera tidak mengirim apa pun".
