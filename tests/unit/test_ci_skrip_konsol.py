@@ -31,3 +31,12 @@ def test_parse_skrip_jalan_sebelum_pytest_unit():
 
 def test_pytest_unit_melaporkan_alasan_skip():
     assert LANGKAH_CI[_indeks_langkah("pytest tests/unit/")]["run"] == "pytest tests/unit/ -rs"
+
+
+def test_main_py_diperiksa_nama_tak_terdefinisi():
+    """`main.py` di luar daftar lint (impor torch), tapi batch 3 menyunting blok impornya dari
+    tiga cabang: impor yang hilang saat merge mematikan tiap line saat boot sementara CI hijau.
+    Minimal F821 (nama tak terdefinisi) wajib jalan, sebelum suite unit."""
+    langkah = LANGKAH_CI[_indeks_langkah("ruff check --select F821")]
+    assert langkah["run"] == "ruff check --select F821 src/palmgrade/main.py"
+    assert _indeks_langkah("ruff check --select F821") < _indeks_langkah("pytest tests/unit/")
