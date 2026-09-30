@@ -1,7 +1,16 @@
-"""`LaporDiscordStore` (batch 3.5): galat menunggu → kiriman, tanpa hilang dan tanpa ganda."""
+"""`LaporDiscordStore` (batch 3.5): galat menunggu → kiriman.
+
+Tanpa hilang sampai konsol menyimpannya (galat_menunggu → kiriman satu transaksi,
+M1/I1). Sesudah itu paling sedikit sekali (at-least-once) sampai Discord: kiriman yang
+sudah dijawab 2xx tapi belum sempat `tandai_terkirim` (proses mati/koneksi putus di
+antara keduanya) akan dikirim lagi saat dicoba ulang, M2. Webhook Discord tidak punya
+kunci idempotensi untuk mencegah ini di sisi penerima.
+"""
 from __future__ import annotations
 
+import logging
 import sqlite3
+import threading
 
 import pytest
 
@@ -40,6 +49,7 @@ def test_galat_konsol_dan_line_sekelompok_per_jenis_dengan_hitungan(tmp_path):
         isi.append(k.isi)
         store.tandai_terkirim(k.id, now=101.0)
     assert isi == ["7x line-2 grab gagal", "2x konsol truk gagal assign deadbeef01"]
+    store.close()
 
 
 def test_galat_beda_angka_pendek_tetap_dua_kelompok(tmp_path):
@@ -52,6 +62,7 @@ def test_galat_beda_angka_pendek_tetap_dua_kelompok(tmp_path):
     assert store.susun(_susun_mentah, now=100.0) == 2
     r = store.ringkasan()
     assert r["kiriman"] == 2
+    store.close()
 
 
 def test_susun_memindah_semuanya_dalam_satu_transaksi(tmp_path):
@@ -63,6 +74,7 @@ def test_susun_memindah_semuanya_dalam_satu_transaksi(tmp_path):
     assert store.ada_kiriman()
     assert store.ringkasan_terakhir_at() == 5.0
     assert store.susun(_susun_mentah, now=6.0) == 0
+    store.close()
 
 
 def test_susun_yang_gagal_meninggalkan_galat_menunggu(tmp_path):
@@ -78,6 +90,7 @@ def test_susun_yang_gagal_meninggalkan_galat_menunggu(tmp_path):
     assert store.tertua_masuk_at() == 1000.0
     assert not store.ada_kiriman()
     assert store.ringkasan_terakhir_at() is None
+    store.close()
 
 
 def test_antrean_selamat_sesudah_konsol_restart(tmp_path):
@@ -87,12 +100,14 @@ def test_antrean_selamat_sesudah_konsol_restart(tmp_path):
     store.write("ERROR", "a", "sebelum restart", None, now=1.0)
     store.susun(_susun_mentah, now=2.0)
     store.write("ERROR", "a", "belum disusun", None, now=3.0)
+    store.close()
 
     baru = LaporDiscordStore(jalur, jam=_Jam())
 
     assert baru.kiriman_berikut().isi == "1x konsol sebelum restart"
     assert baru.ringkasan()["menunggu_jenis"] == 1
     assert baru.ringkasan_terakhir_at() == 2.0
+    baru.close()
 
 
 def test_gagal_tetap_menyimpan_pesan_dan_mencatat_galat(tmp_path):
@@ -110,6 +125,7 @@ def test_gagal_tetap_menyimpan_pesan_dan_mencatat_galat(tmp_path):
     assert (r["galat"], r["galat_at"], r["status_http"], r["kiriman"]) == (
         "Discord tidak terjangkau (ConnectError)", 4.0, None, 1,
     )
+    store.close()
 
 
 def test_terkirim_menghapus_pesan_dan_membersihkan_galat(tmp_path):
@@ -123,6 +139,7 @@ def test_terkirim_menghapus_pesan_dan_membersihkan_galat(tmp_path):
 
     r = store.ringkasan()
     assert (r["kiriman"], r["galat"], r["status_http"], r["terkirim_terakhir_at"]) == (0, None, None, 9.0)
+    store.close()
 
 
 def test_jenis_galat_terlalu_banyak_dilebur_ke_kelompok_lain_bukan_dibuang(tmp_path, monkeypatch):
@@ -137,6 +154,7 @@ def test_jenis_galat_terlalu_banyak_dilebur_ke_kelompok_lain_bukan_dibuang(tmp_p
     store.susun(lambda ks: kelompok.extend(ks) or ["x"], now=5.0)
 
     assert sorted((k.message, k.jumlah) for k in kelompok) == [(PESAN_LAIN, 2), ("pertama", 2)]
+    store.close()
 
 
 def test_batas_jenis_bawaan():
@@ -144,6 +162,171 @@ def test_batas_jenis_bawaan():
 
 
 def test_berkas_memakai_wal(tmp_path):
-    LaporDiscordStore(tmp_path / "lapor.db")
+    store = LaporDiscordStore(tmp_path / "lapor.db")
     db = sqlite3.connect(str(tmp_path / "lapor.db"))
     assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    db.close()
+    store.close()
+
+
+def test_susun_satu_transaksi_kegagalan_di_tengah_tidak_menyisakan_setengah(tmp_path):
+    """I1: kegagalan INSERT kiriman kedua (NOT NULL) tidak boleh menyisakan kiriman
+    pertama atau menghapus galat menunggu. Ini yang membuktikan `susun` benar-benar
+    satu transaksi, bukan cuma "kebetulan tidak pernah gagal di tengah" di test lain."""
+    store = LaporDiscordStore(tmp_path / "lapor.db", jam=_Jam())
+    store.write("ERROR", "a", "x", None, now=1.0)
+
+    def _pesan_kedua_null(kelompok):
+        return ["ok", None]  # None gagal NOT NULL saat INSERT ke kiriman
+
+    with pytest.raises(sqlite3.IntegrityError):
+        store.susun(_pesan_kedua_null, now=5.0)
+
+    r = store.ringkasan()
+    assert r["kiriman"] == 0
+    assert r["menunggu_jenis"] == 1
+    assert r["ringkasan_terakhir_at"] is None
+    store.close()
+
+
+def test_susun_pesan_yang_log_error_tidak_deadlock(tmp_path):
+    """I2: `susun` memegang kunci sambil memanggil `susun_pesan` (kode luar). Kalau
+    kode itu mencatat ERROR lewat root handler yang disambungkan ke store yang sama
+    (`write`), thread yang sama tidak boleh mengunci dirinya sendiri selamanya. Guard
+    re-entry per-thread: entri dari dalam `susun_pesan` dilewati (bukan disimpan),
+    bukan menunggu kunci."""
+    store = LaporDiscordStore(tmp_path / "lapor.db", jam=_Jam())
+    store.write("ERROR", "a", "sebelum susun", None, now=1.0)
+
+    logger = logging.getLogger("test_i2_" + str(id(store)))
+    logger.setLevel(logging.ERROR)
+
+    class _HandlerKeStore(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            store.write("ERROR", record.name, record.getMessage(), None, now=99.0)
+
+    handler = _HandlerKeStore()
+    logger.addHandler(handler)
+
+    def _susun_yang_log(kelompok):
+        logger.error("galat dari dalam susun_pesan")
+        return ["pesan jadi"]
+
+    hasil = {}
+
+    def _jalankan():
+        try:
+            hasil["jumlah"] = store.susun(_susun_yang_log, now=5.0)
+        except BaseException as e:  # pragma: no cover, dilaporkan lewat assert di bawah
+            hasil["galat"] = e
+
+    t = threading.Thread(target=_jalankan, daemon=True)
+    t.start()
+    t.join(timeout=5.0)
+
+    logger.removeHandler(handler)
+    if t.is_alive():
+        # susun() masih memegang self._lock di thread lain: SETIAP panggilan lain ke
+        # store (termasuk store.ringkasan() atau store.close()) akan ikut menggantung
+        # di sini. Gagal SEKARANG, jangan sentuh store lagi.
+        pytest.fail("susun() masih menggantung, deadlock re-entry belum diperbaiki")
+    assert "galat" not in hasil, hasil.get("galat")
+    assert hasil["jumlah"] == 1
+
+    r = store.ringkasan()
+    assert r["kiriman"] == 1
+    assert r["menunggu_jenis"] == 0
+    store.close()
+
+
+def test_susun_begin_immediate_menahan_tulisan_koneksi_lain(tmp_path):
+    """M1: `susun` mengunci tulis (`BEGIN IMMEDIATE`) sebelum SELECT, supaya galat
+    yang ditulis koneksi/proses lain di antara SELECT dan DELETE tidak hilang begitu
+    saja. Dibuktikan dengan dua instance store pada satu berkas: instance kedua yang
+    menulis SAAT instance pertama sedang menyusun harus menunggu, bukan menyelinap
+    lalu terhapus tanpa pernah ikut kelompokkan."""
+    jalur = tmp_path / "lapor.db"
+    store_a = LaporDiscordStore(jalur, jam=_Jam())
+    store_b = LaporDiscordStore(jalur, jam=_Jam(2000.0))
+    store_a.write("ERROR", "a", "pertama", None, now=1.0)
+
+    mulai_susun = threading.Event()
+    boleh_tulis_b = threading.Event()
+    hasil = {}
+
+    def _susun_pesan_lambat(kelompok):
+        mulai_susun.set()
+        boleh_tulis_b.wait(timeout=5.0)
+        return _susun_mentah(kelompok)
+
+    def _jalankan_susun():
+        hasil["jumlah"] = store_a.susun(_susun_pesan_lambat, now=10.0)
+
+    t = threading.Thread(target=_jalankan_susun, daemon=True)
+    t.start()
+    assert mulai_susun.wait(timeout=5.0)
+
+    def _tulis_dari_b():
+        store_b.write("ERROR", "b", "kedua dari koneksi lain", None, now=3.0)
+
+    tb = threading.Thread(target=_tulis_dari_b, daemon=True)
+    tb.start()
+    tb.join(timeout=0.3)
+    b_selesai_lebih_dulu = not tb.is_alive()
+
+    boleh_tulis_b.set()
+    tb.join(timeout=5.0)
+    t.join(timeout=5.0)
+
+    assert not t.is_alive()
+    assert not tb.is_alive()
+    assert not b_selesai_lebih_dulu, "tulisan store_b tidak tertahan BEGIN IMMEDIATE store_a"
+
+    r = store_a.ringkasan()
+    # Galat dari store_b ditulis SESUDAH susun store_a commit, jadi menunggu ringkasan berikutnya.
+    assert r["menunggu_jenis"] == 1
+    store_a.close()
+    store_b.close()
+
+
+def test_pesan_kosong_untuk_galat_tidak_kosong_menolak_bukan_menghapus(tmp_path):
+    """M4: `susun_pesan` yang mengembalikan [] padahal ada galat menunggu adalah bug
+    pemanggil (bukan "tidak ada apa-apa untuk dikirim"), jadi tidak boleh diam-diam
+    mengosongkan antrean tanpa mengirim satu pesan pun."""
+    store = LaporDiscordStore(tmp_path / "lapor.db", jam=_Jam())
+    store.write("ERROR", "a", "x", None, now=1.0)
+
+    with pytest.raises(ValueError):
+        store.susun(lambda kelompok: [], now=5.0)
+
+    r = store.ringkasan()
+    assert r["menunggu_jenis"] == 1
+    assert r["kiriman"] == 0
+    store.close()
+
+
+def test_pesan_dan_sumber_dipotong_saat_masuk(tmp_path):
+    """M3: pesan/sumber yang sangat panjang tidak membuat baris `galat_menunggu`
+    tumbuh tanpa batas (bug atau serangan di hulu tidak boleh membengkakkan berkas)."""
+    store = LaporDiscordStore(tmp_path / "lapor.db", jam=_Jam())
+    panjang = "x" * 10_000
+
+    store.write("ERROR", panjang, panjang, None, now=1.0)
+
+    kelompok = []
+    store.susun(lambda ks: kelompok.extend(ks) or ["p"], now=5.0)
+    (k,) = kelompok
+    assert len(k.message) < 10_000
+    assert len(k.source) < 10_000
+    store.close()
+
+
+def test_write_di_bawah_error_diabaikan(tmp_path):
+    """M5: pertahanan lapis kedua, seandainya handler yang memanggil `write` suatu
+    hari salah level. `galat_menunggu` tidak boleh menerima WARNING/INFO."""
+    store = LaporDiscordStore(tmp_path / "lapor.db", jam=_Jam())
+
+    store.write("WARNING", "a", "cuma peringatan", None, now=1.0)
+
+    assert store.ringkasan()["menunggu_jenis"] == 0
+    store.close()
