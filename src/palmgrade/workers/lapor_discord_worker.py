@@ -131,7 +131,9 @@ class LaporDiscordWorker:
         await self._gagal(kiriman.id, f"Discord menjawab HTTP {jawab.status}", jawab.status, putusan.nasib)
         if putusan.nasib is NasibDiscord.DITOLAK:
             self._coba_lagi_at = self._jam() + putusan.tunggu_s
-        elif putusan.nasib is NasibDiscord.ISI_DITOLAK and kiriman.percobaan + 1 >= MAKS_ISI_DITOLAK:
+        elif putusan.nasib is NasibDiscord.ISI_DITOLAK and kiriman.isi_ditolak + 1 >= MAKS_ISI_DITOLAK:
+            # Cuma penolakan ISI yang dihitung, bukan `percobaan` (yang ikut menghitung
+            # kegagalan jaringan): layar dan aturan 34 menjanjikan "3 kali ditolak".
             await asyncio.to_thread(self._store.sisihkan, kiriman.id, now=self._jam())
             self._coba_lagi_at = 0.0
             logger.warning(
@@ -147,7 +149,8 @@ class LaporDiscordWorker:
     ) -> None:
         now = self._jam()
         await asyncio.to_thread(
-            self._store.tandai_gagal, kiriman_id, galat=galat, status_http=status_http, now=now
+            self._store.tandai_gagal, kiriman_id, galat=galat, status_http=status_http, now=now,
+            isi_ditolak=jenis is NasibDiscord.ISI_DITOLAK,
         )
         self._gagal_beruntun += 1
         self._coba_lagi_at = now + jeda_mundur(

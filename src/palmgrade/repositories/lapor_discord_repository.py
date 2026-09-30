@@ -107,7 +107,10 @@ class _GalatLine(Protocol):
 class Kiriman:
     id: int
     isi: str
+    #: Semua kegagalan kirim (jaringan, 5xx, 4xx).
     percobaan: int
+    #: Berapa kali Discord menolak ISI pesan ini (400); yang menentukan kapan disisihkan.
+    isi_ditolak: int = 0
 
 
 class LaporDiscordStore:
@@ -126,9 +129,11 @@ class LaporDiscordStore:
             self._db.execute("PRAGMA synchronous=FULL")
             self._db.executescript(_CREATE_SQL)
             kolom = {r["name"] for r in self._db.execute("PRAGMA table_info(kiriman)")}
+            # Berkas dari versi sebelum kolom-kolom ini: diberi kolom di tempat, isinya utuh.
             if "disisihkan_at" not in kolom:
-                # Berkas dari versi sebelum kolom ini: diberi kolom di tempat, isinya utuh.
                 self._db.execute("ALTER TABLE kiriman ADD COLUMN disisihkan_at REAL")
+            if "isi_ditolak" not in kolom:
+                self._db.execute("ALTER TABLE kiriman ADD COLUMN isi_ditolak INTEGER NOT NULL DEFAULT 0")
 
     def close(self) -> None:
         with self._lock:
@@ -277,9 +282,10 @@ class LaporDiscordStore:
     def kiriman_berikut(self) -> Kiriman | None:
         with self._lock:
             row = self._db.execute(
-                "SELECT id, isi, percobaan FROM kiriman WHERE disisihkan_at IS NULL ORDER BY id LIMIT 1"
+                "SELECT id, isi, percobaan, isi_ditolak FROM kiriman WHERE disisihkan_at IS NULL"
+                " ORDER BY id LIMIT 1"
             ).fetchone()
-        return Kiriman(row["id"], row["isi"], row["percobaan"]) if row else None
+        return Kiriman(row["id"], row["isi"], row["percobaan"], row["isi_ditolak"]) if row else None
 
     def sisihkan(self, kiriman_id: int, *, now: float) -> None:
         """Pesan yang isinya terus ditolak: simpan, jangan kirim lagi, jangan menahan antrean."""
@@ -295,13 +301,16 @@ class LaporDiscordStore:
             )
 
     def tandai_gagal(
-        self, kiriman_id: int, *, galat: str, status_http: int | None, now: float
+        self, kiriman_id: int, *, galat: str, status_http: int | None, now: float,
+        isi_ditolak: bool = False,
     ) -> None:
+        """Satu kegagalan kirim. `isi_ditolak` = Discord menolak isi pesannya (400)."""
         galat = galat[:_GALAT_CHARS]
         with self._lock, self._db:
             self._db.execute(
-                "UPDATE kiriman SET percobaan = percobaan + 1, galat = ?, galat_at = ? WHERE id = ?",
-                (galat, now, kiriman_id),
+                "UPDATE kiriman SET percobaan = percobaan + 1, isi_ditolak = isi_ditolak + ?,"
+                " galat = ?, galat_at = ? WHERE id = ?",
+                (int(isi_ditolak), galat, now, kiriman_id),
             )
             self._set("galat", galat)
             self._set("galat_at", now)

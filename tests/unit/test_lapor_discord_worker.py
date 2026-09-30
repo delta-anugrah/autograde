@@ -325,3 +325,24 @@ def test_run_loop_bertahan_saat_satu_putaran_melempar_dan_cuma_warning(tmp_path,
     assert [(r.levelno, r.getMessage()) for r in caplog.records] == [
         (logging.WARNING, "Putaran lapor Discord gagal")
     ]
+
+
+def test_kegagalan_jaringan_tidak_dihitung_sebagai_isi_ditolak(tmp_path):
+    """Review wave 2: `percobaan` menghitung SEMUA kegagalan, jadi pesan yang dua kali gagal
+    karena internet dulu disisihkan pada 400 pertamanya, padahal layar dan aturan 34
+    menulis "3 kali ditolak". Yang dihitung sekarang cuma penolakan isi (400)."""
+    jam, discord = _Jam(), _Discord()
+    worker, store = _rakit(tmp_path, jam, discord)
+    discord.putus = True
+    _galat(store, jam)
+    jam.t += JEDA_KUMPUL_S
+    for _ in range(2):
+        asyncio.run(worker.run_once())
+        jam.t += JEDA_GAGAL_MAKS_S
+    discord.putus, discord.status = False, 400
+    for _ in range(MAKS_ISI_DITOLAK - 1):
+        asyncio.run(worker.run_once())
+        jam.t += JEDA_GAGAL_MAKS_S
+    assert (store.ringkasan()["kiriman"], store.ringkasan()["disisihkan"]) == (1, 0)
+    asyncio.run(worker.run_once())
+    assert (store.ringkasan()["kiriman"], store.ringkasan()["disisihkan"]) == (0, 1)

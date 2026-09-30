@@ -390,3 +390,24 @@ def test_pesan_sama_galat_berbeda_dua_kelompok_dengan_nama_kelasnya(tmp_path):
         "1x konsol Exception in ASGI application (sqlite3.IntegrityError)",
     ]
     store.close()
+
+
+def test_berkas_lama_tanpa_kolom_isi_ditolak_diberi_kolom_di_tempat(tmp_path):
+    """Berkas dari versi sebelum kolom `isi_ditolak` (dan `disisihkan_at`) tetap bisa dibuka;
+    pesan yang menunggu di sana utuh dan mulai dari nol penolakan."""
+    jalur = tmp_path / "lapor.db"
+    db = sqlite3.connect(jalur)
+    db.executescript(
+        "CREATE TABLE kiriman (id INTEGER PRIMARY KEY AUTOINCREMENT, isi TEXT NOT NULL,"
+        " dibuat_at REAL NOT NULL, percobaan INTEGER NOT NULL DEFAULT 0, galat TEXT, galat_at REAL);"
+        "INSERT INTO kiriman (isi, dibuat_at, percobaan) VALUES ('pesan lama', 1.0, 4);"
+    )
+    db.commit()
+    db.close()
+    store = LaporDiscordStore(jalur, jam=_Jam())
+    k = store.kiriman_berikut()
+    assert (k.isi, k.percobaan, k.isi_ditolak) == ("pesan lama", 4, 0)
+    store.tandai_gagal(k.id, galat="Discord menjawab HTTP 400", status_http=400, now=2.0, isi_ditolak=True)
+    store.tandai_gagal(k.id, galat="Discord tidak terjangkau", status_http=None, now=3.0)
+    assert store.kiriman_berikut().isi_ditolak == 1
+    store.close()

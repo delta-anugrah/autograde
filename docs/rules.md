@@ -1020,7 +1020,8 @@ end of this file.
     paling sering tiap 15 menit, dan tidak ada ringkasan baru selama masih ada pesan yang belum
     terkirim. Jaringan/5xx (`tertahan`): jeda 30 dtk berlipat sampai 15 menit. 429: tunggu
     `retry_after`. 400 (`isi_ditolak`: Discord menolak ISI pesan, alamatnya benar): jeda berlipat,
-    dan sesudah 3 kali pesan itu **disisihkan** (`kiriman.disisihkan_at`, tetap di disk, tidak
+    dan sesudah 3 kali (`kiriman.isi_ditolak`, cuma penolakan isi; kegagalan jaringan/5xx tidak
+    ikut dihitung) pesan itu **disisihkan** (`kiriman.disisihkan_at`, tetap di disk, tidak
     dikirim lagi) supaya satu pesan tidak menahan semua laporan sesudahnya. 4xx lain (`ditolak`,
     webhook salah/dihapus): berhenti sejam, kalimat merah di atas tabel tab Log. Tiap perubahan
     jenis kegagalan satu WARNING dengan sarannya sendiri, pulihnya satu WARNING. Worker lapor
