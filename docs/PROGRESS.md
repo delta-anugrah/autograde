@@ -63,8 +63,16 @@ Changed:        Integration branch from 849c30d: streams D, A, C merged, origin/
                 tab Log; Rekam Video stop runs in the threadpool; reconnect cycles are quiet;
                 drifted /health and comment text fixed; the test suites no longer write into the
                 checkout's state/ and artifacts/.
-Validated:      after the fix wave: tests/unit 3633 passed, 28 skipped; tests/integration 124
-                passed; tests/e2e 331 passed, 17 skipped (torch venv); ruff on the ci.yml scope
+                Fix waves 2 to 5 (each re-reviewed): an undecodable webhook host is url_salah instead
+                of stopping the console boot; only content refusals count before a Discord message
+                is set aside; the merge key is the exception class plus our own last frame (never the
+                message text), class shown only when the traceback was not cut, frame taken from the
+                whole detail, one linear pass, truncated details still keyed. origin/staging #198
+                (coding standard) and #199 (Pydantic bodies) merged in; nine batch-touched files
+                joined the ruff list (standard S5).
+Validated:      after the #199 merge: tests/unit 3677 passed, 28 skipped; tests/integration 125
+                passed; tests/e2e 331 passed, 17 skipped (torch venv). After fix wave 1: tests/unit
+                3633 passed, 28 skipped; tests/integration 124 passed; tests/e2e 331 passed, 17 skipped; ruff on the ci.yml scope
                 and the F821 step clean; tests/cek_skrip_konsol.py OK; scripts/hooks/test_guard.py
                 69/69 (venv and /usr/bin/python3); state/ and artifacts/ empty after all three
                 suites. Earlier: the two cross-stream tests turn red when the console mirror goes
