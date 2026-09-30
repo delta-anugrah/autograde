@@ -194,7 +194,8 @@ secret yang dikonfigurasi kosong tidak pernah membuka lane (`routes/penjaga_raha
 | POST | `/internal/piston` | Piston manual (fitur mati selama `PLC_COIL_MANUAL` kosong) |
 | GET | `/internal/plc` | Snapshot DI + coil yang boleh diuji |
 | POST | `/internal/plc/coil` | Picu satu coil uji; ditolak 409 selama line punya truk terpasang |
-| POST | `/internal/restart` | ← dari konsol (Sumber Kamera, Model Deteksi, Danger Zone): jawab dulu, 1 detik kemudian urutan tutup yang SAMA dengan SIGTERM (coil PLC mati bersamaan dengan antrean simpan dihabiskan, lalu kamera + penjadwal R2), maks 9 detik, baru `os._exit(0)`. `restart: unless-stopped` menyalakan lagi dan line membaca ulang `media.env`. Aturan 29 |
+| POST | `/internal/restart` | ← dari konsol (Sumber Kamera, Model Deteksi, Danger Zone): jawab dulu, 1 detik kemudian urutan tutup yang SAMA dengan SIGTERM (coil PLC mati bersamaan dengan antrean simpan dihabiskan, lalu kamera + penjadwal R2), lalu antrean log line dikuras (batch 3.2, maks 1 detik), maks 10 detik total, baru `os._exit(0)`. `restart: unless-stopped` menyalakan lagi dan line membaca ulang `media.env`. Aturan 29 |
+| GET | `/internal/log` | ← dari konsol tiap 10 detik (`TarikLogLineWorker`, batch 3.2): `?setelah=<seq>&generasi=<g>&batas=<n>` → `{generasi, entri[{id, seq, first_at, last_at, level, source, message, detail, count}], seq_akhir, lagi, dibuang}`. WARNING/ERROR line dari `log_line.db` (folder DB line, maks 2.000 baris, selamat dari Danger Zone). Terbuka walau lisensi habis (gerbang lisensi mengizinkan path ini persis); router `routes/internal_log.py`, tanpa torch |
 | POST / GET | `/internal/rekam/mulai`, `/stop`, `/status` | Rekam video developer (tab Line → Rekam Video) ke `REKAMAN_DIR` |
 | GET / POST | `/internal/rekam/berkas`, `/internal/rekam/hapus` | Hitung / hapus rekaman line ini (Danger Zone); hapus ditolak selama merekam |
 | POST | `/internal/hapus-data` | Danger Zone: tulis penanda lalu keluar lewat urutan tutup yang sama, data dihapus saat boot berikutnya. 409 `truk_terpasang` kalau line sedang memproses truk |
@@ -287,7 +288,8 @@ CLAUDE.md, Critical Rule 21.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/console/dev/ping` | cek akses masih hidup, tanpa membaca apa pun |
-| GET | `/api/console/dev/log` | `event_log`: filter `level`/`cari`, `limit`+`offset` |
+| GET | `/api/console/dev/log` | `event_log`: filter `level`/`cari`, `limit`+`offset`. Sejak batch 3.2 baris tarikan line membawa `line_code` (null = konsol) dan `asal` |
+| GET | `/api/console/dev/lapor-discord` | Keadaan lapor Discord (`mati`/`url_salah`/`aktif`/`tertahan`/`ditolak`) + antrean + galat terakhir (aturan 34). Alamat webhook tidak pernah ikut |
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu jawaban |
 | GET | `/api/console/dev/antrean` | `erp_outbox`: jumlah pending/gagal + daftar gagal. `ErpClient` membalas empat jawaban (`ErpRejected` 4xx, `ErpServerError` 5xx beramplop Frappe, `ErpUnavailable` tidak terjangkau, atau terkirim); dua yang pertama dicatat per pesan dan batch lanjut, `ErpUnavailable` menahan batch dan Last Sync membaca putus (`integrations/erp/client.py`) |
 | GET | `/api/console/dev/antrean/manifest` | antrean manifest R2 (DB terpisah dari `erp_outbox`, supaya R2 mati tidak menahan pesan AutoERP) |
@@ -446,6 +448,7 @@ seperti variabel mati padahal bukan: jangan dihapus karena `grep os.getenv` tida
 | `ERP_COMPANY` | - | Company AutoERP; kosong = company bawaan site |
 | `ERP_ALLOWED_ROLES` | `support` | Peran mana yang boleh datang dari AutoERP (`domain/role.py`, `filter_erp_role`). Kosong = tolak semua akun ERP dari lane support |
 | `LOG_RETENSI_HARI` | `180` | Umur baris `log_kejadian` (tab Log) |
+| `DISCORD_WEBHOOK_URL` | kosong | Konsol, opsional. Kosong = fitur Lapor Discord mati total (aturan 34); rahasia, tidak pernah dicatat atau dikirim ke layar. Lampung: tambahkan di blok `console:` compose host DAN `.env` PC, lalu `autograde restart` |
 | `REKAMAN_TAMPIL` | `/opt/palmgrade/autograde/videos` (compose) | Jalur rekaman yang **ditampilkan** di Rekam Video: jalur host, bukan `/app/videos` |
 | `CONSOLE_MACHINE_ID` | `konsol` (compose prod) | Diteruskan sebagai `MACHINE_ID` konsol, untuk kartu Versi |
 

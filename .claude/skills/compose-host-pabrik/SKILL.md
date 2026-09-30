@@ -40,6 +40,9 @@ PC pabrik tidak punya source code. Yang ada di `/opt/palmgrade/autograde/`: `doc
 - Mengubah launcher? Ubah salinan di repo `sawit` (`docs/runbooks/files/`) dan beri langkah
   salin ke `/opt/palmgrade/`.
 - Tidak ada yang di atas? Tulis "No host-side change" di PR, seperti rilis `v1.18.0`.
+- **`DISCORD_WEBHOOK_URL`** (batch 3.5): satu baris di blok `console:` compose host
+  (`- DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}`) lalu nilainya di `.env`, lalu
+  `autograde restart`. Tanpa itu fitur mati, tidak ada yang rusak.
 - **`INTERNAL_SECRET`** (batch 1 keamanan, 2026-09-28): kosong = perintah konsol → line ikut
   `WEBHOOK_SECRET`, jadi rilisnya sendiri backward compatible, tapi meneruskannya butuh
   menyentuh **empat blok** di compose host: tiga blok line di `docker-compose.yml`

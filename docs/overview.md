@@ -55,6 +55,12 @@ Kalau tidak, AI dinyatakan mati, dan coil ERROR PLC, `/health` (503), serta kart
 sama-sama membaca penilaian yang sama dari objek ini, bukan menghitung sendiri-sendiri. Detail
 aturan dan lima keadaan yang sengaja tidak dialarm: `domain/kesehatan_ai.py`, CLAUDE.md aturan 32.
 
+**Log line (batch 3.2).** WARNING/ERROR line dulu berhenti di stdout + `PenulisLogLine` (antrean
+memori tiap ~0,2 detik, thread deteksi tidak pernah menunggu disk, aturan 1b), sekarang juga
+ditulis ke `log_line.db` di folder DB line (maks 2.000 baris). Konsol menariknya ke tab Log
+(`TarikLogLineWorker`, tiap 10 detik), jadi galat line tetap terbaca sesudah container di-recreate.
+CLAUDE.md aturan 34.
+
 ---
 
 ## 3. Detection Flow (single-trigger, not voting)
