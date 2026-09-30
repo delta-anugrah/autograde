@@ -25,11 +25,14 @@ sekarang — yang hilang cuma nilai yang tidak pernah diminta siapa pun.
 """
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
 import pytest
 from dotenv_mesin import berkas_env_leluhur, kunci_env
+
+import palmgrade.core.logging as logging_palmgrade
 
 # `load_dotenv()` mencari `.env` mulai dari folder kode lalu NAIK (lihat
 # tests/dotenv_mesin.py). Di worktree yang terbaca `.env` checkout utama, jadi
@@ -77,3 +80,41 @@ def tanpa_dotenv_mesin(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     for kunci in _TITIPAN:
         monkeypatch.delenv(kunci, raising=False)
+
+
+#: Logger selain root yang diubah `configure_logging` (uvicorn diambil alih, klien
+#: HTTP dibatasi WARNING).
+_LOGGER_DIPASANG = ("uvicorn", "uvicorn.error", "uvicorn.access", "httpx", "httpcore")
+
+
+@pytest.fixture(autouse=True)
+def logging_dilepas_sesudah_test():
+    """Setiap test berakhir tanpa pemasangan `configure_logging` yang masih aktif.
+
+    Lifespan konsol yang GAGAL start sengaja tidak melepas logging-nya: di produksi
+    itulah yang membawa traceback "Application startup failed" uvicorn ke tab Log.
+    Di test, pemasangan yang tertinggal baru dilepas `configure_logging` BERIKUTNYA,
+    di test lain, dan pelepasan itu memulihkan root dan uvicorn ke potret milik test
+    yang sudah lewat: test sesudahnya merah atau hijau tergantung urutan.
+
+    Handler root tidak dipulihkan dari potret: pytest memasang handler tangkapannya
+    sendiri per tahap (setup/call/teardown), dan potret dari tahap setup akan
+    meninggalkan handler tahap itu selamanya. `lepas()` mencabut handler yang
+    dipasangnya sendiri.
+    """
+    root = logging.getLogger()
+    level_root = root.level
+    semula = {
+        nama: (list(lg.handlers), list(lg.filters), lg.propagate, lg.level)
+        for nama, lg in ((n, logging.getLogger(n)) for n in _LOGGER_DIPASANG)
+    }
+    yield
+    # `_aktif` sengaja privat: produksi tidak punya alasan melepas pemasangan orang lain.
+    aktif = logging_palmgrade._aktif
+    if aktif is not None:
+        aktif.lepas()
+    root.setLevel(level_root)
+    for nama, (handlers, filters, propagate, level) in semula.items():
+        lg = logging.getLogger(nama)
+        lg.handlers, lg.filters, lg.propagate = handlers, filters, propagate
+        lg.setLevel(level)

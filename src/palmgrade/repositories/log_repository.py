@@ -14,6 +14,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from ..domain.sidik_log import normalkan_pesan
+
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS event_log (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -161,4 +163,6 @@ class LogStore:
 
 
 def _fingerprint(level: str, source: str, message: str) -> str:
-    return hashlib.sha256(f"{level}|{source}|{message}".encode()).hexdigest()[:32]
+    # Id yang berganti tiap kejadian dinormalkan dulu (batch 3.3), supaya satu galat
+    # yang menyebut uuid/epoch/durasi berbeda tetap tergabung jadi satu baris.
+    return hashlib.sha256(f"{level}|{source}|{normalkan_pesan(message)}".encode()).hexdigest()[:32]

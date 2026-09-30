@@ -90,10 +90,10 @@ def _run_lifespan(service: ConsoleService, caplog, *, selama=lambda: None) -> No
         console_main.get_console_service = original
         console_deps.get_console_service = original_deps
         _kosongkan_singleton()
-        # `lifespan` adds a SqliteLogHandler to the root logger and never
-        # removes it (a real process keeps it for the app's whole life) — a
-        # test run has to, or every later test's WARNING/ERROR logs a write
-        # attempt against this closed, temp-dir LogStore.
+        # `lifespan` removes its logging on a clean exit, but not when startup
+        # raises (the secret tests below): the SqliteLogHandler would stay on
+        # the root logger, and every later test's WARNING/ERROR would log a
+        # write attempt against this closed, temp-dir LogStore.
         root.handlers = original_handlers
 
 

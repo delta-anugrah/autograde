@@ -166,8 +166,11 @@ async def _tarik_penugasan(settings, state) -> None:
 
 
 def create_app() -> FastAPI:
-    configure_logging()
+    # Settings dulu: konteks (kode line), zona, dan level log datang dari sana. Yang
+    # sempat dicatat Settings sendiri sebelum ini tetap sampai stderr lewat
+    # `logging.lastResort`, cuma tanpa format.
     settings = get_settings()
+    configure_logging(konteks=settings.line_code, zona=settings.factory_tz, level=settings.log_level)
     penutup = get_penutup_line()
 
     # Folder DB line (state/, batch 1.2); lihat services/pindah_db_line.py.

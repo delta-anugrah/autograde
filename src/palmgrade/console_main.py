@@ -17,7 +17,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
-from .core.log_sink import install_log_sink
+from .core.log_sink import SqliteLogHandler
+from .core.logging import KONTEKS_KONSOL, configure_logging
 from .repositories.log_repository import LogStore
 from .routes.captures import CapturesBersesi
 from .routes.console import router as console_router
@@ -48,7 +49,17 @@ async def lifespan(app: FastAPI):
     # Own SQLite file, own logging handler: a fault must survive a restart, and
     # must not touch console.db to get there (see log_db_path).
     log_store = LogStore(service.settings.log_db_path, retention_days=service.settings.log_retention_days)
-    install_log_sink(log_store)
+    # Batch 3.1: keluaran proses (`docker logs`) DAN tab Log, termasuk galat 500 yang
+    # dicatat uvicorn. Dilepas lagi di akhir lifespan yang selesai normal. Start yang
+    # GAGAL (mis. validate_secrets di bawah) sengaja tidak melepasnya: uvicorn menulis
+    # traceback "Application startup failed" sesudah lifespan melempar, dan lewat
+    # pemasangan ini traceback itu ikut sampai tab Log (test_konsol_boot_secret_lane).
+    pemasangan_log = configure_logging(
+        konteks=KONTEKS_KONSOL,
+        zona=service.settings.factory_tz,
+        level=service.settings.log_level,
+        handler_tambahan=(SqliteLogHandler(log_store),),
+    )
     # Batch 1.5: secret bawaan atau kosong di produksi = menolak start, sama
     # dengan line. Sesudah log sink, supaya peringatan INTERNAL_SECRET masuk
     # tab Log, tempat support membacanya.
@@ -119,6 +130,7 @@ async def lifespan(app: FastAPI):
     yield
     for task in tasks:
         task.cancel()
+    pemasangan_log.lepas()
 
 
 def create_console_app() -> FastAPI:

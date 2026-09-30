@@ -53,7 +53,9 @@ class CaptureWriter:
         """
         try:
             return ZoneInfo(self._settings.factory_tz)
-        except (ZoneInfoNotFoundError, ValueError):
+        except (ZoneInfoNotFoundError, ValueError, OSError):
+            # OSError: a zone folder name (`Asia`) through the `tzdata` package
+            # raises IsADirectoryError, not ZoneInfoNotFoundError.
             logger.warning(
                 "FACTORY_TZ %r is not a known zone — capture folders fall back to UTC",
                 self._settings.factory_tz,

@@ -2,7 +2,7 @@
 
 Membuktikan bahwa peringatan INTERNAL_SECRET dari `validate_secrets()` benar-benar
 mendarat di `event_log` (tab Log yang dibaca support), bukan cuma di stdout, karena
-`validate_secrets()` dipanggil SESUDAH `install_log_sink`.
+`validate_secrets()` dipanggil SESUDAH `configure_logging` memasang `SqliteLogHandler`.
 """
 from __future__ import annotations
 

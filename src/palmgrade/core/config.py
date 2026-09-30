@@ -225,6 +225,10 @@ class Settings:
     # `entrypoint.sh` before uvicorn — a different app module, so the console
     # never imports torch/cv2 and a dead camera line cannot take the screen down.
     app_mode: str = field(default_factory=lambda: os.getenv("APP_MODE", "line"))
+    # Teks mentah `LOG_LEVEL` (batch 3.4). Diurai `core/logging.configure_logging`,
+    # bukan di sini: nilai yang salah jatuh ke INFO dengan satu WARNING yang baru
+    # bisa ditulis sesudah handler log terpasang, dan tidak pernah menahan boot.
+    log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", ""))
     # Bind host/port do NOT live here: `entrypoint.sh` runs uvicorn (host hardcoded
     # to 0.0.0.0, port from APP_PORT which docker-compose sets per line). Settings
     # is never read for binding — do not add host/port fields back.

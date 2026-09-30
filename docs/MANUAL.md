@@ -2,8 +2,8 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "1.9"
-tanggal: 29 September 2026
+versi: "2.0"
+tanggal: 30 September 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
 sorotan: Isi = Fitur · Setup · Operasional · Troubleshooting; Pembaca = Pemegang baru AutoGrade; Bentuk = Ringkas, tabel, perintah siap tempel
@@ -615,6 +615,7 @@ membuat ulang container supaya versinya benar-benar terpasang.
 | tab **Status**, bagian Antrean line | janjang yang belum sampai dari line ke konsol dan sebabnya |
 | tab **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP dan sebabnya |
 | tab **Log** | ERROR/WARNING 180 hari, bertahan lewat restart |
+| `docker logs ripe_line_1` | tiap baris: jam bertanda zona (`+07:00`), kode line, level; polling yang sukses tidak ditulis; PLC/kamera putus cuma satu baris saat putus dan satu saat pulih |
 | `docker logs ripe_line_1 \| grep 'Batch tick'` | progres unggah ke R2 (tidak ada di `/health`) |
 
 `outbox_pending` naik terus = konsol tidak menjawab (cek `BACKEND_URL`). Angka itu **tidak**
@@ -666,6 +667,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Antrean ERP: satu baris `HTTP 500` dengan alasan Frappe, yang lain terkirim | isi kunjungan itu membuat AutoERP galat | kirim alasannya ke pengelola AutoERP; setelah dibetulkan, **Kirim Ulang** |
 | Kartu line merah, AI berhenti memproses | loop deteksi melempar galat terus (CUDA/GPU), atau macet | `curl :800N/health/detail` → `ai.galat_terakhir` (galat terakhir sejak boot, lihat `galat_at` untuk umurnya); restart line (Setelan, Danger Zone); kalau terulang, `nvidia-smi` dan log line |
 | Kartu line merah sesudah update ke versi baru | model/engine versi baru gagal pada frame sungguhan. **Update tidak mundur sendiri**: gerbang `autograde` selesai pada jawaban sehat pertama, yang selalu jatuh di 30 detik pertama | lihat kartu line paling cepat 30 detik sesudah update; kalau merah, `autograde use <versi sebelumnya>` |
+| Log line: "PLC … tidak bisa disambung" / "Kamera tidak mengirim gambar" | kabel PLC atau kamera lepas, perangkat mati | cek kabel dan lampu perangkat; baris "tersambung lagi sesudah …" / "mengirim gambar lagi sesudah …" muncul sendiri begitu pulih |
 
 ### 7.1 Janjang yang ditolak konsol
 
@@ -803,6 +805,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.0 | 30 September 2026 | Log line dan konsol bertanda jam zona pabrik dan kode line; konsol kini menulis ke `docker logs` dan galat 500 masuk tab Log; PLC, kamera, dan AutoERP yang putus cuma dicatat saat putus dan saat pulih; `LOG_LEVEL` bisa diatur. |
 | 1.9 | 29 September 2026 | §3.2: kotak kamera line yang sedang restart memakai bar berjalan, bukan hitungan detik, dan tidak lagi ikut menulis "Kamera tidak tersambung"; strip "Hari ini" berlabel **Data timbangan** (dulu Neto timbangan). Tab Akun: semua tombol aksi selebar sama. Tab Line: empat pilihan membentang selebar panel. |
 | 1.8 | 29 September 2026 | §3.2: kotak kamera line yang sedang restart (Sumber Kamera, Model Deteksi, Danger Zone) memberi spinner dan hitungan detik, videonya kembali tanpa memuat ulang halaman, dan lewat 60 detik (hapus data: 10 menit) berganti pesan `RESTART_LAMA`. Notifikasi pojok tidak ada lagi yang menunggu ditutup: paling lama 10 detik, berhenti selama kursor di atasnya, maksimal 30 detik (§3.2). |
 | 1.7 | 28 September 2026 | Restart dan hapus data dari konsol menutup line dengan rapi (coil PLC mati, antrean simpan habis); foto dan sidecar ditulis tahan listrik padam; foto 0 byte lama tidak diunggah. Tab Status punya bagian **Antrean line**: antrean janjang tiap line ke konsol tidak lagi menyerah sesudah 50 percobaan, dan bisa dilihat serta dikirim ulang dari layar; janjang yang ditolak konsol terbaca "DITOLAK konsol" dan dikeluarkan dengan tangan (§7.1). Kartu line jadi merah kalau AI berhenti memproses gambar (§7). §7: tanda **Cek AutoERP** di tab Timbangan untuk janjang susulan pada tiket AutoERP yang sudah final, dan baris antrean ERP `HTTP 500` beramplop Frappe. |
