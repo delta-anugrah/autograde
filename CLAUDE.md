@@ -739,6 +739,8 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     `make operator` atau tab Akun) tidak lewat penyaring ini.
     **`event_log` cuma menyimpan ERROR dan WARNING**, retensi 180 hari
     (`LOG_RETENSI_HARI`). Pesan identik yang datang dalam 60 detik **digabung** jadi satu
+    (sejak batch 3.3 "identik" dihitung sesudah uuid, id hex 8+, desimal lepas, dan bilangan
+    6+ digit dinormalkan, `domain/sidik_log.py`; kode HTTP, port, IP, plat TIDAK)
     baris dengan hitungan naik, bukan baris baru per kejadian, tanpa itu satu loop yang
     gagal tiap detik akan memenuhi tabel dalam semenit dan mendorong keluar galat lain
     yang lebih tua. `redaksi()` (`domain/log_redaksi.py`) menyaring rahasia **sebelum**
@@ -1244,6 +1246,34 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     memicu restart mana pun.
     **Gap yang sengaja dibiarkan** (ditunda ke batch 3.6): frame yang berhenti mengalir padahal
     kamera tetap tersambung dibaca `sumber_diam`, tidak dialarm sama sekali.
+
+33. **Log dasar: satu pemasangan, baris bertanda, transisi bukan spam** (batch 3.1, 3.3, 3.4,
+    2026-09-30). `core/logging.configure_logging` dipakai line (`main.py`, konteks
+    `settings.line_code`) DAN konsol (lifespan, konteks `console`, plus `SqliteLogHandler` tab
+    Log; dilepas lagi di akhir lifespan). Dulu konsol tidak pernah memanggilnya: INFO dibuang,
+    WARNING/ERROR tidak pernah sampai `docker logs`, dan galat 500 uvicorn berhenti di handler
+    uvicorn. Format: `2026-09-30T14:03:07.123+07:00 | WARNING | line-2 | palmgrade.x | pesan`.
+    **Zona dari `FACTORY_TZ` lewat formatter, JANGAN `TZ` di compose** (aturan 8: `TZ` memindah
+    folder hasil); kosong = `+00:00`, salah (termasuk nama folder zona seperti `Asia`) = UTC +
+    satu WARNING. **`LOG_LEVEL`** (bawaan INFO, salah ketik = INFO + satu WARNING) cuma mengatur
+    keluaran proses: root tidak pernah di atas WARNING, jadi tab Log tetap menerima WARNING.
+    `LOG_LEVEL=DEBUG` cuma menyalakan DEBUG untuk logger paket ini (`palmgrade.*`), tidak pernah
+    root atau pustaka pihak ketiga; `DEBUG_MODEL_OUTPUT` menumpang lewat filter keluaran
+    tersendiri, jadi baris `[MODEL]` tetap lolos apa pun `LOG_LEVEL`-nya. `httpx`/`httpcore`
+    dibatasi WARNING apa pun `LOG_LEVEL`-nya, alamat permintaan (webhook Discord, polling status)
+    tidak pernah tertulis. Logger `uvicorn*` diarahkan ke root; access log polling yang SUKSES
+    (GET/HEAD, < 400) ke jalur di `core/log_akses.JALUR_POLLING_SENYAP` dibisukan, 4xx/5xx dan
+    POST tetap tertulis. Jalur polling baru = satu baris di konstanta itu. **Transisi**
+    (`domain/transisi.PelacakTransisi`, pola `status_sinkron.py`): PLC putus (klien,
+    `plc/jejak_sambungan.py`, pulih baru sesudah satu baca/tulis berhasil, dilacak per coil),
+    kamera berhenti mengirim (mulai di 5 grab gagal berturut, alasan dari
+    `CameraSource.galat_terakhir`), dan tarikan master data gagal (per jenis: jaringan tanpa
+    traceback, lainnya ERROR bertraceback sekali) masing-masing SATU baris saat mulai dan SATU
+    saat pulih dengan lamanya; ulangan cuma DEBUG. Dulu: PLC dicabut ±10 baris/detik, kamera
+    ±10/detik, pabrik offline ±288 traceback/hari. Konsol tetap memasang logging sesudah start
+    yang gagal (sengaja): traceback `Application startup failed` uvicorn ikut sampai tab Log.
+    ⚠️ Pengecualian tetap: exception deteksi tiap detik saat AI mati belum disaring (ditandai
+    penjaga AI, aturan 32).
 
 ---
 

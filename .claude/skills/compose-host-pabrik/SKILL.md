@@ -51,6 +51,10 @@ PC pabrik tidak punya source code. Yang ada di `/opt/palmgrade/autograde/`: `doc
   `.env` untuk line yang lambat) tidak berpengaruh apa pun sampai tiga blok line
   `docker-compose.yml` host memuat `- AI_MATI_DETIK=${AI_MATI_DETIK:-30}`: gejala "setelan tidak
   berlaku" persis aturan 1. Tulis di PR: "the host line is only needed to tune AI_MATI_DETIK".
+- **`LOG_LEVEL`** (batch 3.1, opsional) dan **`FACTORY_TZ`** untuk line (batch 3.4, opsional):
+  keduanya jalan tanpa perubahan host. Kosong = `LOG_LEVEL` jatuh ke `INFO`, dan `FACTORY_TZ`
+  jatuh ke `Asia/Jakarta` (bawaan `Settings`, yang dipakai Lampung hari ini). Compose host
+  Lampung tidak perlu diedit untuk rilis ini.
 - **`state/` di-mount dari host**, bukan sekadar ada di image: outbox line dan penjaga jam
   lisensi (`outbox.db`, `license.db`) sejak batch 1 hidup di `state/line-N`, bukan lagi
   `artifacts/line-N`. Cek read-only: `docker inspect ripe_line_1 --format

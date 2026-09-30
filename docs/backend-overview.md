@@ -446,6 +446,7 @@ seperti variabel mati padahal bukan: jangan dihapus karena `grep os.getenv` tida
 | `ERP_COMPANY` | - | Company AutoERP; kosong = company bawaan site |
 | `ERP_ALLOWED_ROLES` | `support` | Peran mana yang boleh datang dari AutoERP (`domain/role.py`, `filter_erp_role`). Kosong = tolak semua akun ERP dari lane support |
 | `LOG_RETENSI_HARI` | `180` | Umur baris `log_kejadian` (tab Log) |
+| `LOG_LEVEL` | `INFO` | Level keluaran proses (`docker logs`) line dan konsol; salah ketik = INFO + satu WARNING; tab Log tetap WARNING/ERROR |
 | `REKAMAN_TAMPIL` | `/opt/palmgrade/autograde/videos` (compose) | Jalur rekaman yang **ditampilkan** di Rekam Video: jalur host, bukan `/app/videos` |
 | `CONSOLE_MACHINE_ID` | `konsol` (compose prod) | Diteruskan sebagai `MACHINE_ID` konsol, untuk kartu Versi |
 
