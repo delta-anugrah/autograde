@@ -785,3 +785,100 @@ bukan menambal method privat service. `test_console_html.py` menjaga dua invaria
 punya test runner sendiri (tanpa build step, jadi tanpa Vitest): tidak ada handler `on*` inline,
 tombol dipasang lewat delegasi + `data-line`, dan `esc()` tetap meloloskan `'` dan `` ` ``,
 karena nilainya masuk ke atribut HTML.
+
+
+## 12. System role, tech stack and project structure (moved from CLAUDE.md 2026-09-30)
+
+## System Role
+
+`autograde` is the **Python AI camera service plus the operator console**, one image run four
+times: **3 line containers** (one per camera, real-time YOLO ripeness detection, ports
+8001/8002/8003) and a **4th console container** (`APP_MODE=console`, `console_main.py`, no
+torch/cv2 so a dead camera line never takes the operator screen down). The lines deliver
+detection events to the **local console** (`BACKEND_URL`); the console sends one message per truck
+visit to **AutoERP**. palmgrade-api and palmgrade-frontend are **retired** (stopped 2026-09-20).
+
+Console port: **8100** in `docker-compose.prod.yml` (factory image; 8000 there belongs to the
+Frappe bench) and for `make console` on a laptop; **8000** when started from source with
+`docker-compose.yml` alone (`make up`). Screen at `http://localhost:<port>/console`.
+
+| Repo | Role | Tech | Port |
+|---|---|---|---|
+| **autograde** | **AI camera per line + operator console** | **Python 3.11 / FastAPI** | **8001-8003, console 8100** |
+| autoerp | ERP (ERPNext fork, module `palm_mill`): per-visit books, licences | Frappe | server |
+| palmgrade-api / palmgrade-frontend | retired 2026-09-20 | Node / Next.js | stopped |
+
+Full system map: `../ARCHITECTURE.md`.
+
+⚠️ **Repo ini dulu bernama `palmgrade-vision`** (diganti 2026-09-14, bareng `autoerp` pindah
+ke org `delta-anugrah`). Yang **sengaja tidak ikut berubah**, jangan "dirapikan":
+
+- **Nama image GHCR `ghcr.io/delta-anugrah/autograde`**, satu nama, tanpa warisan (keputusan
+  2026-09-18: semuanya pindah ke AutoGrade, PC Lampung ikut; `palmgrade-vision` **dicabut**).
+  Dipatok di `deploy.yml` dan dijaga `tests/unit/test_deploy_image_name.py`. Di PC Lampung
+  image itu dipilih `PALMGRADE_AUTOGRADE_IMAGE` di `/opt/palmgrade/autograde/.env` (folder dan
+  variabel diganti dari `vision` 2026-09-18), dan dipasang dengan `autograde pull` atau
+  `autograde use vX.Y.Z`, tidak pernah dengan mengedit variabel itu tangan.
+- **Tag image lokal** `palmgrade-vision:latest` di `docker-compose.yml` + `Makefile`.
+- **Paket Python** `src/palmgrade/` dan **nama container** di compose repo (`ripe_line_*`,
+  `palmgrade_console`).
+
+Yang dua terakhir baru berganti kalau memang ada alasan kuat: mengganti nama container membuat
+Docker menganggapnya container baru dan bentrok dengan yang lama di PC pabrik.
+
+---
+
+## Tech Stack
+
+- Python 3.11, **FastAPI** + uvicorn
+- **Ultralytics YOLO** (YOLOv8 + ByteTrack); torch/torchvision (CPU for dev, CUDA `cu126` for prod)
+- OpenCV, NumPy
+- **httpx** (cloud upload + realtime push), **APScheduler** (hourly batch upload), **SQLite**
+  (`outbox.db` = antrean realtime ke API lokal, di `state/` sejak batch 1 (dulu `artifacts/`, folder
+  yang disajikan `/captures`); `UploadManifest` = state per-item batch R2), **boto3** (R2)
+- **Hikrobot MVS SDK** (GigE industrial camera: prod only)
+- **pymcprotocol** (MC Protocol ke CPU Mitsubishi, PLC integration, jalur hidup) + **pymodbus** (Modbus-TCP, jalur coupler ODOT lama, `PLC_PROTOCOL=modbus`); PC pabrik only, mati default
+- **Docker-only** (no host venv). Deps pinned in `requirements.txt` (torch installed separately in Dockerfile).
+
+---
+
+## Project Structure (key dirs)
+
+```
+src/palmgrade/
+  main.py          # app factory + lifespan: camera init, workers, 10s watchdog, /captures mount, /ws/results
+  console_main.py  # app factory KONSOL (APP_MODE=console) — sengaja terpisah: tidak boleh import torch/cv2
+  static/          # console.html — satu file, vanilla JS, tanpa build step & tanpa CDN (harus jalan offline)
+  core/            # config.py (Settings/env), dependencies.py (DI), logging.py, constants.py
+  routes/          # endpoint declarations only → controllers
+  controllers/     # request handlers
+  services/        # business flow (capture, inspection, streaming, truck, health, result)
+  repositories/    # file I/O (WebP/JSON) via LocalFileStorage
+  pipelines/       # YOLO inference (realtime_inspection_pipeline, model_registry)
+  workers/         # background threads + RuntimeState (capture / display / processing / capture_save / event_broadcast / outbox_retry / batch_upload)
+                   # capture_save = penulis bukti (encode WebP + sidecar + outbox) di thread sendiri; deteksi cuma menyerahkan, tidak pernah menunggu disk
+                   # konsol pakai asyncio, bukan thread: master_data (tarik supplier + truk) / erp_outbox (kirim ke AutoERP) / visit_resend (kirim ulang kunjungan kemarin) — dirakit di workers/erp_link.py, mati total kalau ERP_URL kosong
+  integrations/    # camera/{hikrobot,opencv,photo}, notifications/ (webhook_client → api, line_client → line dari konsol), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
+  domain/          # pure rules + entities (no I/O) — termasuk working_day.py (§6.1) & ffb_source.py (§3.5b)
+  plc/             # PLC integration (MC Protocol ke CPU Mitsubishi; Modbus/ODOT dipertahankan via PLC_PROTOCOL), self-contained — mc_client.py + modbus_client.py isi lubang yang sama, build_plc_client memilih
+  schemas/         # Pydantic request/response models
+  license/         # Ed25519 license guard (opsional) — `manager` memverifikasi, `gate` menghentikan
+                   # grading, `summary` membentuk angka untuk layar. Tokennya DITERBITKAN di AutoERP.
+docs/              # MANUAL.md (+pdf), overview.md (DETAIL), backend-overview.md, SETUP.md, runbooks/
+tests/unit/        # unit test murni-logic (pytest, no torch/cv2)
+models/release/    # best.pt (required, NOT committed)
+artifacts/line-N/  # runtime output per line (NOT committed)
+```
+
+Tooling: `pyproject.toml` (pytest + ruff config, TIDAK untuk build), `.github/workflows/ci.yml` (lint + test).
+
+Layer rule (strict): `route → controller → service → repository / pipeline / integration`.
+Per-layer do/don't: `docs/overview.md`.
+**Pengecualian sadar:** konsol jalan `route → service → repository / integration`, tanpa
+controller: controller di repo ini isinya cuma meneruskan argumen, dan konsol tidak punya
+logika yang butuh tempat menganggur di antaranya. HTTP ke line tetap di lapisan integration
+(`notifications/line_client.py`), disuntik ke `ConsoleService` lewat konstruktor: service tidak
+boleh tahu soal httpx, dan test menukar kolaboratornya, bukan menambal method privat.
+
+---
+
