@@ -203,7 +203,7 @@ class LogLineStore:
 
 
 def _sidik(level: str, source: str, message: str, detail: str | None = None) -> str:
-    """Sama dengan `LogStore._fingerprint`: kelas galat + frame terakhir ikut, kalau ada."""
+    """Sama dengan `LogStore._fingerprint`: kelas galat + frame pembedanya ikut, kalau ada."""
     kunci = f"{level}|{source}|{normalkan_pesan(message)}"
     ringkas = ringkas_galat(detail)
     if ringkas:

@@ -20,7 +20,7 @@ Pesan yang DISIMPAN tetap pesan asli kejadian pertama; ini cuma untuk sidiknya.
 
 Galat yang pesannya tetap tapi sebabnya berbeda (uvicorn menulis TIAP 500 sebagai
 "Exception in ASGI application", `logger.exception("... gagal")` dengan pesan tetap)
-dibedakan lewat `ringkas_galat`: nama kelas galat + frame terakhirnya ikut sidik. Tanpa
+dibedakan lewat `ringkas_galat`: nama kelas galat + frame pembedanya ikut sidik. Tanpa
 itu satu 500 yang berulang menelan setiap 500 lain selama jendela 60 detiknya terus
 bergeser, dan traceback kedua tidak tersimpan di mana pun. Teks galatnya sendiri tidak
 ikut: plat, hitungan, jam, atau jalur di sana akan memecah satu galat jadi banyak baris.
@@ -56,34 +56,74 @@ _FRAME = re.compile(r'^  File "([^"]+)", line (\d+)')
 _PENANDA_TRACEBACK = "Traceback (most recent call last):"
 
 
-def _kepala_dan_frame(detail: str | None) -> tuple[str, str]:
-    """(nama kelas galat yang terakhir dilempar, frame terakhirnya) dari traceback.
+#: Baris pemisah galat berantai yang ditulis `traceback.format_exception`.
+_PEMISAH_RANTAI = (
+    "The above exception was the direct cause of the following exception:",
+    "During handling of the above exception, another exception occurred:",
+)
+#: Awal detail yang kepalanya dipotong `domain/log_line.potong_detail`.
+_TANDA_POTONG = "...(dipotong)"
 
-    Kepala = baris TIDAK menjorok pertama sesudah frame terakhir (baris kode dan tanda
-    `^^^` di bawah frame itu menjorok). Baris sesudahnya milik pesan galat yang panjang
-    (bisa memuat plat) dan tidak pernah dibaca. Galat berantai: frame terakhir milik
-    traceback terakhir, jadi yang terbaca galat yang terakhir dilempar. Tanpa frame dan
-    tanpa penanda traceback: bukan traceback, dua-duanya kosong.
+
+def _awal_blok(baris: list[str]) -> list[int]:
+    """Indeks baris pertama tiap blok traceback MILIK galat ini.
+
+    Blok sah dimulai di awal teks (atau sesudah tanda potong, kalau penandanya ikut
+    terpotong), atau sesudah penanda `Traceback (most recent call last):` yang didahului
+    pemisah rantai. Penanda di tengah pesan galat (keluaran traceback proses lain) tidak
+    didahului pemisah, jadi bukan awal blok.
+    """
+    awal = []
+    mulai = 1 if baris and baris[0].strip() == _TANDA_POTONG else 0
+    if mulai < len(baris):
+        awal.append(mulai + 1 if baris[mulai].startswith(_PENANDA_TRACEBACK) else mulai)
+    for i in range(mulai + 1, len(baris)):
+        if not baris[i].startswith(_PENANDA_TRACEBACK):
+            continue
+        sebelum = [b.strip() for b in baris[:i] if b.strip()]
+        if sebelum and sebelum[-1] in _PEMISAH_RANTAI:
+            awal.append(i + 1)
+    return awal
+
+
+def _kepala_dan_frame(detail: str | None) -> tuple[str, str]:
+    """(nama kelas galat yang terakhir dilempar, frame pembedanya) dari traceback.
+
+    Dibaca dari blok traceback sah yang TERAKHIR (galat berantai: yang terakhir dilempar).
+    Satu blok = baris-baris menjorok (frame `  File ...` dan baris kodenya) lalu kepala:
+    baris TIDAK menjorok pertama. Semua sesudah kepala adalah pesan galat (bisa memuat
+    plat, bahkan baris berbentuk frame) dan tidak pernah dibaca. Blok tanpa satu frame
+    pun cuma sah kalau dibuka penanda traceback; teks bebas tanpa keduanya: kosong.
+
+    Frame pembeda = frame terakhir yang jalurnya di kode kita (`palmgrade/`), kalau tidak
+    ada, frame terakhir: galat yang dilempar pustaka (pydantic, json, httpx) dari dua rute
+    berbeda berakhir di frame pustaka yang sama, dan harus tetap dua baris.
     """
     baris = (detail or "").splitlines()
-    mulai = None
-    frame = ""
-    for i, b in enumerate(baris):
-        cocok = _FRAME.match(b)
-        if cocok:
-            mulai, frame = i + 1, f"{_jalur_pendek(cocok.group(1))}:{cocok.group(2)}"
-        elif b.startswith(_PENANDA_TRACEBACK):
-            mulai, frame = i + 1, ""
-    if mulai is None:
-        return "", ""
-    for b in baris[mulai:]:
-        if not b.strip() or b[0].isspace():
+    for awal in reversed(_awal_blok(baris)):
+        berpenanda = awal > 0 and baris[awal - 1].startswith(_PENANDA_TRACEBACK)
+        frame: list[str] = []
+        kepala = None
+        for b in baris[awal:]:
+            if not b.strip():
+                continue
+            if b[0].isspace():
+                cocok = _FRAME.match(b)
+                if cocok:
+                    frame.append(f"{_jalur_pendek(cocok.group(1))}:{cocok.group(2)}")
+                continue
+            kepala = b
+            break
+        if kepala is None or not (frame or berpenanda):
             continue
-        cocok = _KEPALA.match(b)
+        cocok = _KEPALA.match(kepala)
         nama = cocok.group(1) if cocok else ""
         # Nama kelas galat diawali huruf besar di segmen terakhirnya (`sqlite3.IntegrityError`).
-        return (nama if nama and nama.rsplit(".", 1)[-1][:1].isupper() else ""), frame
-    return "", frame
+        if not (nama and nama.rsplit(".", 1)[-1][:1].isupper()):
+            nama = ""
+        milik_kita = [f for f in frame if f.startswith("palmgrade/")]
+        return nama, (milik_kita or frame or [""])[-1]
+    return "", ""
 
 
 def _jalur_pendek(jalur: str) -> str:
@@ -96,7 +136,8 @@ def _jalur_pendek(jalur: str) -> str:
 
 
 def ringkas_galat(detail: str | None) -> str:
-    """Pembeda galat untuk sidik: nama kelas + frame terakhir (`ValueError@palmgrade/x.py:12`).
+    """Pembeda galat untuk sidik: nama kelas + frame terakhir di kode kita, kalau tidak ada
+    frame terakhir (`ValueError@palmgrade/x.py:12`).
 
     Ikut sidik penggabungan: dua galat dengan pesan log yang sama tapi sebab berbeda (kelas
     atau tempat lemparnya beda) jadi dua baris, galat yang sama berulang tetap satu. Teks

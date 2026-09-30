@@ -176,3 +176,80 @@ def test_logstore_500_berbeda_dalam_satu_jendela_jadi_dua_baris(tmp_path):
         (1, "sqlite3.IntegrityError: UNIQUE constraint failed: weighings.id"),
         (2, "KeyError: 'state'"),
     ]
+
+
+# ── Review wave 3 ──
+
+
+def _tb_lib(route: str, baris: int) -> str:
+    """Galat yang dilempar pustaka: frame terakhir di pydantic, bukan di kode kita."""
+    return (
+        "Traceback (most recent call last):\n"
+        f'  File "/app/src/palmgrade/routes/{route}", line {baris}, in simpan\n'
+        "    data = Model(**isi)\n"
+        '  File "/usr/local/lib/python3.11/site-packages/pydantic/main.py", line 212, in __init__\n'
+        "    validated_self = self.__pydantic_validator__.validate_python(data)\n"
+        "pydantic_core._pydantic_core.ValidationError: 1 validation error for Model\n"
+        "plat\n  Field required\n"
+    )
+
+
+def test_ringkas_galat_memakai_frame_kode_kita_bukan_frame_pustaka():
+    """Dua 500 berbeda dari rute berbeda yang sama-sama berakhir di pydantic dulu jadi satu
+    baris: traceback yang kedua hilang."""
+    a, b = _tb_lib("a.py", 10), _tb_lib("b.py", 50)
+    assert ringkas_galat(a) == "pydantic_core._pydantic_core.ValidationError@palmgrade/routes/a.py:10"
+    assert ringkas_galat(a) != ringkas_galat(b)
+    assert ringkas_galat(a) == ringkas_galat(_tb_lib("a.py", 10))
+
+
+def test_ringkas_galat_tanpa_frame_kode_kita_memakai_frame_terakhir():
+    tb = (
+        "Traceback (most recent call last):\n"
+        '  File "/usr/local/lib/python3.11/site-packages/uvicorn/x.py", line 5, in a\n'
+        "    b()\n"
+        '  File "/usr/local/lib/python3.11/site-packages/httpx/y.py", line 9, in b\n'
+        "    raise ConnectError\n"
+        "httpx.ConnectError: refused\n"
+    )
+    assert ringkas_galat(tb) == "httpx.ConnectError@httpx/y.py:9"
+
+
+def test_logstore_dua_rute_berbeda_galat_pustaka_sama_tetap_dua_baris(tmp_path):
+    store = LogStore(tmp_path / "log.db")
+    store.write("ERROR", "uvicorn.error", _ASGI, _tb_lib("a.py", 10), now=100.0)
+    store.write("ERROR", "uvicorn.error", _ASGI, _tb_lib("b.py", 50), now=110.0)
+    store.write("ERROR", "uvicorn.error", _ASGI, _tb_lib("a.py", 10), now=120.0)
+    items = store.read(level=None, search=None, limit=10, offset=0)["items"]
+    assert sorted(i["count"] for i in items) == [1, 2]
+
+
+def test_baris_berbentuk_frame_di_dalam_pesan_galat_tidak_jadi_nama_kelas():
+    """Probe review wave 3: teks pesan yang kebetulan berbentuk frame tidak boleh membuat
+    baris sesudahnya (sebuah plat) terbaca sebagai nama kelas."""
+    probe = _tb('RuntimeError: child failed\n  File "z.py", line 3, in q\nB1234XY')
+    assert jenis_galat(probe) == "RuntimeError"
+    assert ringkas_galat(probe) == "RuntimeError@palmgrade/routes/console.py:12"
+
+
+def test_traceback_utuh_di_dalam_pesan_galat_tidak_jadi_nama_kelas():
+    """Pesan yang memuat keluaran traceback proses lain: penandanya tidak didahului pemisah
+    rantai, jadi bukan traceback milik galat ini."""
+    probe = _tb(
+        "RuntimeError: child failed\nTraceback (most recent call last):\n"
+        '  File "z.py", line 3, in q\nB1234XY'
+    )
+    assert jenis_galat(probe) == "RuntimeError"
+
+
+def test_traceback_yang_kepalanya_terpotong_tetap_terbaca():
+    """`potong_detail` menyimpan ekor traceback yang panjang: penandanya bisa ikut terpotong."""
+    terpotong = (
+        "...(dipotong)\n"
+        "    x()\n"
+        '  File "/app/src/palmgrade/workers/a.py", line 5, in f\n'
+        "    y()\n"
+        "KeyError: 1\n"
+    )
+    assert jenis_galat(terpotong) == "KeyError"
+    assert ringkas_galat(terpotong) == "KeyError@palmgrade/workers/a.py:5"
