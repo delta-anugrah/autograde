@@ -86,7 +86,7 @@ def test_write_tidak_menunggu_disk_yang_lambat():
         assert time.perf_counter() - mulai < 0.1
     finally:
         store.lepas.set()
-        berhenti.set()
+        assert antrean.hentikan(berhenti, batas_s=2.0) is True
 
 
 def test_kuras_menulis_semua_yang_menunggu_dalam_satu_panggilan(tmp_path):
@@ -248,7 +248,7 @@ def test_thread_penulis_menguras_sendiri(tmp_path):
             time.sleep(0.02)
         assert store.ambil(setelah=0, generasi=store.generasi, batas=10)["entri"][0]["message"] == "sampai sendiri"
     finally:
-        berhenti.set()
+        assert antrean.hentikan(berhenti, batas_s=2.0) is True
 
 
 def test_berhenti_menguras_sisa_terakhir(tmp_path):
@@ -341,6 +341,9 @@ def test_hentikan_tidak_menunggu_disk_yang_macet():
         assert time.monotonic() - mulai < BATAS_BERHENTI_S + 0.3
     finally:
         store.lepas.set()
+        # Thread yang tadi ditinggal di disk macet ditunggu sampai selesai di sini,
+        # supaya tidak hidup melewati test ini.
+        assert antrean.hentikan(penulis.berhenti, batas_s=2.0) is True
 
 
 def test_galat_startup_lalu_keluar_tetap_tertulis(tmp_path):

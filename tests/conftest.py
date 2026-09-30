@@ -25,19 +25,68 @@ sekarang — yang hilang cuma nilai yang tidak pernah diminta siapa pun.
 """
 from __future__ import annotations
 
+import atexit
 import logging
 import os
+import shutil
+import tempfile
 from pathlib import Path
 
 import pytest
 from dotenv_mesin import berkas_env_leluhur, kunci_env
 
+import palmgrade.core.config as config_palmgrade
 import palmgrade.core.logging as logging_palmgrade
 
 # `load_dotenv()` mencari `.env` mulai dari folder kode lalu NAIK (lihat
 # tests/dotenv_mesin.py). Di worktree yang terbaca `.env` checkout utama, jadi
 # yang dibersihkan semua `.env` di jalur itu, bukan cuma `<repo>/.env`.
 _KODE = Path(__file__).resolve().parents[1] / "src" / "palmgrade"
+
+
+#: Akar repo yang dipakai `Settings()` tanpa `repo_root` titipan.
+AKAR_REPO = Path(config_palmgrade.__file__).resolve().parents[3]
+#: Pengganti `<repo>/state` dan `<repo>/artifacts` selama sesi test.
+DATA_SESI = Path(tempfile.mkdtemp(prefix="autograde-test-data-"))
+atexit.register(shutil.rmtree, DATA_SESI, ignore_errors=True)
+_STATE_DIR_ASLI = config_palmgrade.Settings.state_dir
+_ARTIFACTS_DIR_ASLI = config_palmgrade.Settings.artifacts_dir
+
+
+def _dialihkan(asli: property, env: str, nama: str) -> property:
+    """Folder data bawaan repo diganti folder sesi; yang lain dibiarkan apa adanya.
+
+    Tanpa ini, collection sudah menulis ke `state/` checkout yang menjalankan test:
+    `console_main` membangun `app` di tingkat modul (console.db, erp_outbox.db,
+    manifest_outbox.db), dan layanan `lru_cache` yang belum ditimpa test membuka
+    log_kejadian.db. Di checkout utama itu `state/` dev milik orang sungguhan.
+
+    Sengaja bukan `STATE_DIR`/`ARTIFACTS_DIR` di environ: puluhan test mengisolasi
+    diri dengan `replace(Settings(), repo_root=tmp_path)` dan mengandalkan folder data
+    yang ikut `repo_root`; env global akan menyatukan semuanya di satu folder. Jadi
+    yang dialihkan hanya `Settings` yang masih memakai akar repo asli dan tidak punya
+    env sendiri. Test yang menguji jalur bawaan repo memakai `jalur_data_repo_asli`.
+    """
+
+    def ambil(self: config_palmgrade.Settings) -> Path:
+        if self.repo_root == AKAR_REPO and not os.getenv(env, "").strip():
+            return DATA_SESI / nama
+        return asli.fget(self)
+
+    return property(ambil, doc=asli.__doc__)
+
+
+# Dipasang saat conftest di-import, sebelum modul test mana pun di-import.
+config_palmgrade.Settings.state_dir = _dialihkan(_STATE_DIR_ASLI, "STATE_DIR", "state")
+config_palmgrade.Settings.artifacts_dir = _dialihkan(_ARTIFACTS_DIR_ASLI, "ARTIFACTS_DIR", "artifacts")
+
+
+@pytest.fixture
+def jalur_data_repo_asli(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Untuk test yang justru menguji bawaan `<repo>/state` dan `<repo>/artifacts`."""
+    monkeypatch.setattr(config_palmgrade.Settings, "state_dir", _STATE_DIR_ASLI)
+    monkeypatch.setattr(config_palmgrade.Settings, "artifacts_dir", _ARTIFACTS_DIR_ASLI)
+
 
 # Disimpan saat conftest di-import, SEBELUM modul test mana pun di-import dan
 # karenanya sebelum `load_dotenv` sempat jalan. Inilah environ yang asli.

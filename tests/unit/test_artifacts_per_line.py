@@ -23,14 +23,14 @@ def test_env_menimpa_folder_artifacts(monkeypatch, tmp_path):
     assert Settings().artifacts_dir == tmp_path / "line-9"
 
 
-def test_tanpa_env_kembali_ke_bawaan(monkeypatch):
+def test_tanpa_env_kembali_ke_bawaan(monkeypatch, jalur_data_repo_asli):
     """Docker tidak menyetelnya — di sana volume yang memisahkan."""
     monkeypatch.delenv("ARTIFACTS_DIR", raising=False)
     s = Settings()
     assert s.artifacts_dir == s.repo_root / "artifacts"
 
 
-def test_kosong_dianggap_tidak_diset(monkeypatch):
+def test_kosong_dianggap_tidak_diset(monkeypatch, jalur_data_repo_asli):
     """`.env` yang menulis `ARTIFACTS_DIR=` tanpa nilai tidak boleh berarti
     "tulis ke folder bernama string kosong"."""
     monkeypatch.setenv("ARTIFACTS_DIR", "   ")
@@ -110,7 +110,7 @@ def test_make_line_memberi_state_per_line():
     assert any("STATE_DIR=" in b and "state/line-$(N)" in b for b in makefile.splitlines())
 
 
-def test_state_dir_bisa_ditimpa_env(monkeypatch, tmp_path):
+def test_state_dir_bisa_ditimpa_env(monkeypatch, tmp_path, jalur_data_repo_asli):
     monkeypatch.setenv("STATE_DIR", str(tmp_path / "s"))
     assert Settings().state_dir == tmp_path / "s"
     monkeypatch.setenv("STATE_DIR", "  ")
