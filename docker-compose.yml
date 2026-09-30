@@ -93,6 +93,10 @@ services:
       # Auto-load setting kamera (.mfs dari MVS) saat connect. Non-fatal kalau gagal.
       - CAMERA_FEATURE_FILE=${LINE_1_FEATURE_FILE:-config/camera/hikrobot.mfs}
       - MACHINE_ID=${LINE_1_MACHINE_ID:-d1f9c7b2-8e5a-4c3b-9a1e-2f6d4c8e7b01}
+      # Log (batch 3.4): jam tiap baris bertanda zona pabrik (FACTORY_TZ, sama dengan
+      # konsol), level dari LOG_LEVEL. Tanpa keduanya: Asia/Jakarta dan INFO.
+      - FACTORY_TZ=${FACTORY_TZ:-Asia/Jakarta}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # Sumber kamera line ini, disusun layar Support dan ditulis ke media.env.
       # Per line, bukan satu untuk semua: satu PC bisa menguji video di satu
       # line sementara dua lainnya memakai kamera sungguhan.
@@ -254,6 +258,10 @@ services:
       # Auto-load setting kamera (.mfs dari MVS) saat connect. Non-fatal kalau gagal.
       - CAMERA_FEATURE_FILE=${LINE_2_FEATURE_FILE:-config/camera/hikrobot.mfs}
       - MACHINE_ID=${LINE_2_MACHINE_ID:-a7e2f4c9-3b6d-4e1a-8c5f-9d2b6a1e4f02}
+      # Log (batch 3.4): jam tiap baris bertanda zona pabrik (FACTORY_TZ, sama dengan
+      # konsol), level dari LOG_LEVEL. Tanpa keduanya: Asia/Jakarta dan INFO.
+      - FACTORY_TZ=${FACTORY_TZ:-Asia/Jakarta}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # Sumber kamera line ini, disusun layar Support dan ditulis ke media.env.
       # Per line, bukan satu untuk semua: satu PC bisa menguji video di satu
       # line sementara dua lainnya memakai kamera sungguhan.
@@ -414,6 +422,10 @@ services:
       # Auto-load setting kamera (.mfs dari MVS) saat connect. Non-fatal kalau gagal.
       - CAMERA_FEATURE_FILE=${LINE_3_FEATURE_FILE:-config/camera/hikrobot.mfs}
       - MACHINE_ID=${LINE_3_MACHINE_ID:-ad5f7bb9-c06d-4e87-8282-ce450ae331ec}
+      # Log (batch 3.4): jam tiap baris bertanda zona pabrik (FACTORY_TZ, sama dengan
+      # konsol), level dari LOG_LEVEL. Tanpa keduanya: Asia/Jakarta dan INFO.
+      - FACTORY_TZ=${FACTORY_TZ:-Asia/Jakarta}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # Sumber kamera line ini, disusun layar Support dan ditulis ke media.env.
       # Per line, bukan satu untuk semua: satu PC bisa menguji video di satu
       # line sementara dua lainnya memakai kamera sungguhan.
@@ -576,6 +588,7 @@ services:
       - ERP_ALLOWED_ROLES=${ERP_ALLOWED_ROLES:-support}
       # Berapa lama layar Log (support) menyimpan riwayat ERROR/WARNING.
       - LOG_RETENSI_HARI=${LOG_RETENSI_HARI:-180}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # R2: tempat manifest per truk + viewer.html, bucket yang sama dengan foto
       # dari tiga line. R2_BUCKET kosong = tidak ada manifest, tidak ada detail_url.
       - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
