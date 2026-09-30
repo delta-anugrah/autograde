@@ -37,6 +37,9 @@ from palmgrade.domain.kesehatan_disk import GB
 from palmgrade.domain.operator_auth import hash_password
 from palmgrade.domain.role import ROLE_SUPPORT
 from palmgrade.integrations.notifications.line_client import LineClient
+from palmgrade.plc.mc_client import McProtocolPlcClient
+from palmgrade.plc.pulse import PulseScheduler
+from palmgrade.plc.worker import PlcWorker
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.repositories.log_line_repository import LogLineStore
 from palmgrade.repositories.log_repository import LogStore
@@ -64,6 +67,8 @@ LOGGER_LINE = (
     "palmgrade.services.pemantau_disk",
     "palmgrade.workers.frame_capture_worker",
     "palmgrade.workers.frame_processing_worker",
+    "palmgrade.plc.jejak_sambungan",
+    "palmgrade.plc.worker",
 )
 #: Logger yang hidup di proses KONSOL dan ikut kejadian ini.
 LOGGER_KONSOL = (
@@ -80,6 +85,52 @@ class _DiskPalsu:
     def __call__(self, _jalur):
         total, bebas = 468 * GB, int(self.bebas_gb * GB)
         return Usage(total, total - bebas, bebas)
+
+
+class _Type3E:
+    """Pengganti pymcprotocol.Type3E; `papan["hidup"] = False` = kabel PLC dicabut."""
+
+    def __init__(self, papan: dict) -> None:
+        self._papan = papan
+
+    def _cek(self) -> None:
+        if not self._papan["hidup"]:
+            raise OSError("[Errno 113] No route to host")
+
+    def setaccessopt(self, **_kw) -> None:
+        pass
+
+    def connect(self, _ip, _port) -> None:
+        self._cek()
+
+    def batchwrite_bitunits(self, headdevice, values) -> None:
+        self._cek()
+
+    def randomwrite_bitunits(self, bit_devices, values) -> None:
+        self._cek()
+
+    def _recv(self):
+        return b"\x00" * 32
+
+    def batchread_bitunits(self, headdevice, readsize):
+        self._cek()
+        self._recv()
+        return [0] * readsize
+
+    def close(self) -> None:
+        pass
+
+
+class _CfgPlc:
+    plc_coil_base = 1000
+    plc_coil_alive = (1015,)
+    plc_alive_toggle_ms = 0
+    plc_poll_ms = 200
+    plc_di_base = 1100
+    plc_di_count = 16
+    plc_coil_ok = 1000
+    plc_coil_ng = 1001
+    plc_coil_error = 1002
 
 
 class _StubConsole:
@@ -101,6 +152,11 @@ def pabrik(tmp_path, monkeypatch):
     # ── proses line ──────────────────────────────────────────────────────────
     line = LinePalsu()
     line.kamera.bisa_sambung_ulang = True        # Hikrobot: sambung ulangnya tetap berhasil
+    papan_plc = {"hidup": True}
+    plc = PlcWorker(
+        McProtocolPlcClient("192.168.3.39", 1025, _client_factory=lambda: _Type3E(papan_plc)),
+        PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=20), _CfgPlc(),
+    )
     disk = _DiskPalsu()
     line.state.pemantau_disk = PemantauDisk(
         settings=replace(line.settings, r2_bucket=""), jalur=(Path("/app/artifacts"),), ukur=disk,
@@ -157,7 +213,8 @@ def pabrik(tmp_path, monkeypatch):
     di_line = _pasang(handler_line, LOGGER_LINE)
     di_konsol = _pasang(handler_konsol, LOGGER_KONSOL)
     try:
-        yield types.SimpleNamespace(line=line, disk=disk, putaran=putaran, tab_log=tab_log)
+        yield types.SimpleNamespace(line=line, disk=disk, putaran=putaran, tab_log=tab_log,
+                                    plc=plc, papan_plc=papan_plc)
     finally:
         for lg in di_line:
             lg.removeHandler(handler_line)
@@ -200,4 +257,68 @@ def test_disk_kritis_satu_baris_error_bertanda_line_di_tab_log(pabrik):
     baris = p.tab_log()
     disk = [b for b in baris if "DISK_KRITIS" in b["message"]]
     assert [(b["level"], b["line_code"], b["count"]) for b in disk] == [("ERROR", "line-2", 1)], baris
+    assert _baris_konsol(baris) == []
+
+
+
+def _tick_plc(plc: PlcWorker, mulai: float, n: int) -> float:
+    for i in range(n):
+        plc.run_once(now=mulai + i * 0.2)
+    return mulai + n * 0.2
+
+
+def test_plc_putus_lalu_pulih_satu_baris_masing_masing_bertanda_line(pabrik):
+    """Review akhir 1, M3: kabel PLC dicabut 50 tick (10 detik) lalu dipasang lagi. Tab Log
+    konsol: satu ERROR "tidak bisa disambung" / "terputus" dan satu WARNING "tersambung
+    lagi", keduanya `line-2`, tidak ada baris konsol."""
+    p = pabrik
+    t = _tick_plc(p.plc, 0.0, 3)
+    p.putaran()
+    assert p.tab_log() == []
+
+    p.papan_plc["hidup"] = False
+    t = _tick_plc(p.plc, t, 50)
+    for _ in range(3):
+        p.putaran()
+    p.papan_plc["hidup"] = True
+    _tick_plc(p.plc, t, 5)
+    for _ in range(3):
+        p.putaran()
+
+    baris = p.tab_log()
+    plc = sorted(((b["level"], b["line_code"], b["count"], b["message"]) for b in baris
+                  if b["source"].startswith("palmgrade.plc")), key=lambda x: x[0])
+    assert [(lv, lc, n) for lv, lc, n, _ in plc] == [("ERROR", "line-2", 1), ("WARNING", "line-2", 1)], baris
+    assert "192.168.3.39:1025" in plc[0][3]
+    assert "tersambung lagi sesudah" in plc[1][3]
+    assert _baris_konsol(baris) == []
+
+
+def test_kamera_berhenti_lalu_kembali_satu_baris_masing_masing_bertanda_line(pabrik):
+    """Review akhir 1, M3: kamera berhenti 10 detik (di bawah ambang FRAME_BERHENTI) lalu
+    kembali. Tab Log: satu WARNING "tidak mengirim gambar" dan satu WARNING "mengirim
+    gambar lagi", keduanya `line-2`, walau konsol memantau tiap detik."""
+    p = pabrik
+    p.line.mulai()
+    p.line.jalan(5)
+    p.putaran()
+    assert p.tab_log() == []
+
+    p.line.kamera.mengirim = False
+    p.line.jalan(10, deteksi=False)
+    for _ in range(3):
+        p.putaran()
+    p.line.kamera.mengirim = True
+    p.line.jalan(3)
+    for _ in range(3):
+        p.putaran()
+
+    baris = p.tab_log()
+    kamera = [(b["level"], b["line_code"], b["count"], b["message"]) for b in baris
+              if b["source"] == "palmgrade.workers.frame_capture_worker"]
+    pesan = sorted(m for *_, m in kamera)
+    assert [(lv, lc, n) for lv, lc, n, _ in kamera] == [("WARNING", "line-2", 1)] * 2, baris
+    assert pesan[0].startswith("Kamera mengirim gambar lagi sesudah")
+    assert pesan[1].startswith("Kamera tidak mengirim gambar")
+    assert not [b for b in baris if "FRAME_BERHENTI" in b["message"]]
     assert _baris_konsol(baris) == []
