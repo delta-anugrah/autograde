@@ -32,6 +32,14 @@ def test_query_string_tidak_membuat_polling_lolos():
     assert polling_sukses(_args("/api/console/state?t=123", 200)) is True
 
 
+def test_tab_rekap_yang_menyegarkan_hari_ini_dibisukan():
+    """Tab Rekap menanyai `/api/console/riwayat` tiap 15 detik selama rentangnya memuat
+    hari ini (`segarkanRekap`): ±5.760 baris sehari per layar kalau tidak disaring."""
+    jalur = "/api/console/riwayat?dari=2026-09-24&sampai=2026-09-30&tampilan=truk&ringkasan=true"
+    assert polling_sukses(_args(jalur, 200)) is True
+    assert polling_sukses(_args(jalur, 400)) is False
+
+
 @pytest.mark.parametrize("status", [400, 401, 403, 404, 500, 503])
 def test_galat_di_jalur_polling_tetap_tertulis(status):
     assert polling_sukses(_args("/internal/status", status)) is False
@@ -42,7 +50,11 @@ def test_head_ikut_dibisukan_post_tidak():
     assert polling_sukses(_args("/api/console/weighings", 200, "POST")) is False
 
 
-@pytest.mark.parametrize("jalur", ["/internal/assignment", "/api/console/login", "/health/", "/healthz", "/"])
+@pytest.mark.parametrize(
+    "jalur",
+    # CSV Rekap = unduhan yang diminta orang, bukan polling: tetap tertulis.
+    ["/internal/assignment", "/api/console/login", "/api/console/riwayat/csv", "/health/", "/healthz", "/"],
+)
 def test_jalur_lain_tetap_tertulis(jalur):
     assert polling_sukses(_args(jalur, 200)) is False
 

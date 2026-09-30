@@ -50,8 +50,10 @@ async def lifespan(app: FastAPI):
     # must not touch console.db to get there (see log_db_path).
     log_store = LogStore(service.settings.log_db_path, retention_days=service.settings.log_retention_days)
     # Batch 3.1: keluaran proses (`docker logs`) DAN tab Log, termasuk galat 500 yang
-    # dicatat uvicorn. Dilepas lagi di akhir lifespan, jadi yang dipasang di sini
-    # tidak pernah tertinggal di proses yang memuat app ini lebih dari sekali.
+    # dicatat uvicorn. Dilepas lagi di akhir lifespan yang selesai normal. Start yang
+    # GAGAL (mis. validate_secrets di bawah) sengaja tidak melepasnya: uvicorn menulis
+    # traceback "Application startup failed" sesudah lifespan melempar, dan lewat
+    # pemasangan ini traceback itu ikut sampai tab Log (test_konsol_boot_secret_lane).
     pemasangan_log = configure_logging(
         konteks=KONTEKS_KONSOL,
         zona=service.settings.factory_tz,

@@ -35,6 +35,7 @@ JALUR_POLLING_SENYAP: frozenset[str] = frozenset(
         "/api/console/state",  # layar operator, 2 dtk per layar yang terbuka
         "/api/console/weighings",  # tab Timbangan, 15 dtk
         "/api/console/trucks",  # daftar truk, 60 dtk
+        "/api/console/riwayat",  # tab Rekap, 15 dtk selama rentangnya memuat hari ini (CSV-nya tidak)
         "/api/console/dev/diagnostik",  # Status dan Uji PLC (5 dtk, 1 dtk)
         "/api/console/dev/antrean/line",  # Antrean line (5 dtk)
         "/api/console/dev/rekam",  # Rekam Video (3 dtk)

@@ -39,13 +39,22 @@ class _Transport(asyncio.Transport):
         pass
 
 
-def konfigurasi(app) -> uvicorn.Config:
-    """`uvicorn.Config` seperti `entrypoint.sh` (h11, tanpa lifespan uvicorn).
+def konfigurasi(app, *, lifespan: str = "off") -> uvicorn.Config:
+    """`uvicorn.Config` seperti `entrypoint.sh`, dengan h11 menggantikan httptools.
+
+    Produksi memasang `uvicorn[standard]`, jadi yang jalan di sana `httptools`; di CI
+    cuma ada h11. Baris access log dan "Exception in ASGI application" keduanya
+    ditulis dengan logger, format, dan argumen yang sama, jadi yang dibuktikan di sini
+    berlaku untuk keduanya. Tanpa websocket (`ws="none"`): tidak ada yang diuji lewat
+    sana, dan memuat protokolnya cuma memunculkan DeprecationWarning pustaka
+    `websockets`.
 
     Membuatnya memasang konfigurasi log bawaan uvicorn, persis urutan boot: uvicorn
-    dulu, baru lifespan app yang memasang `configure_logging`.
+    dulu, baru lifespan app yang memasang `configure_logging`. Bawaannya tanpa
+    lifespan uvicorn (test menjalankan lifespan app sendiri); `lifespan="on"` untuk
+    menjalankannya lewat `uvicorn.lifespan.on.LifespanOn`, seperti saat boot.
     """
-    config = uvicorn.Config(app, http="h11", lifespan="off")
+    config = uvicorn.Config(app, http="h11", ws="none", lifespan=lifespan)
     config.load()
     return config
 
@@ -62,4 +71,6 @@ async def minta(config: uvicorn.Config, jalur: str, *, metode: str = "GET", head
         if transport.is_closing():
             break
         await asyncio.sleep(0.01)
-    return int(bytes(transport.keluar).split(b" ", 2)[1])
+    keluar = bytes(transport.keluar)
+    assert keluar, f"uvicorn tidak menjawab {metode} {jalur} dalam 5 detik"
+    return int(keluar.split(b" ", 2)[1])
