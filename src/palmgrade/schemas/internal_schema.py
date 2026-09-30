@@ -77,6 +77,9 @@ class LineStatusResponse(BaseModel):
     # Penjaga AI mati (batch 2.1): `PenjagaAi.ringkas()`, tanpa galat mentah.
     # None = penjaga belum dipasang; konsol lama mengabaikan field ini.
     ai: dict | None = None
+    # Pemantau disk (batch 3.7): `PemantauDisk.ringkas()`. None = belum dipasang;
+    # konsol lama mengabaikan field ini.
+    disk: dict | None = None
 
 
 class PlcCoilCommandRequest(BaseModel):

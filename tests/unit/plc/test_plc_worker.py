@@ -682,3 +682,24 @@ def test_line_sakit_tetap_menaikkan_error_walau_pernah_diuji():
     w.run_once(now=1.5)
 
     assert (err, True) in client.writes
+
+
+def test_diagnostics_connected_mengikuti_klien_bukan_plc_menyala(monkeypatch):
+    """Batch 3.6: kartu Diagnostik menggambar PLC ✓ dari `connected`, bukan dari
+    dict ini ada. PLC menyala dengan kabel tercabut harus terbaca terputus."""
+    import palmgrade.plc as plc
+
+    w, client = _worker()
+    monkeypatch.setattr(plc, "_worker", w, raising=False)
+    client.connected = False
+    assert plc.diagnostics()["connected"] is False
+    client.connected = True
+    assert plc.diagnostics()["connected"] is True
+
+
+def test_diagnostics_connected_none_untuk_klien_tanpa_atribut(monkeypatch):
+    import palmgrade.plc as plc
+
+    w, _client = _worker()
+    monkeypatch.setattr(plc, "_worker", w, raising=False)
+    assert plc.diagnostics()["connected"] is None

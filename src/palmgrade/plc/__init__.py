@@ -244,11 +244,18 @@ def diagnostics() -> dict | None:
     coincidence, not by design — do not hard-code either.
 
     `inputs` is copied: a caller must not be able to mutate worker state.
+
+    `connected` (batch 3.6) is the client's own view of the socket: True only
+    after a connect succeeded and no read or write has failed since. It is what
+    the Diagnostik card draws as PLC ✓, so "PLC enabled but cable out" reads ✗
+    instead of the ✓ it used to get from this dict merely existing. None = a
+    client without that attribute (test doubles).
     """
     worker = _worker
     if worker is None:
         return None
     return {
+        "connected": getattr(worker.client, "connected", None),
         "inputs": list(worker.inputs),
         "dropped_pulses": worker.scheduler.dropped,
         "dropped_submissions": worker.dropped_submissions,

@@ -1,0 +1,116 @@
+"""`/health/detail` jujur (batch 3.6 + 3.7): fps terukur, umur gambar, disk,
+lisensi, dan PLC yang benar-benar tersambung.
+
+`get_health_detail()` mengimpor torch; di sini torch diganti modul palsu kecil
+(`sys.modules`), jadi yang diuji adalah fungsi ASLINYA, bukan potongannya.
+"""
+from __future__ import annotations
+
+import sys
+import types
+from collections import namedtuple
+from dataclasses import replace
+from pathlib import Path
+
+import pytest
+from ai_palsu import LinePalsu
+
+import palmgrade.plc as plc
+from palmgrade.core.config import Settings
+from palmgrade.domain.kesehatan_disk import GB
+from palmgrade.schemas.common_schema import HealthDetailSchema
+from palmgrade.services.health_service import HealthService
+from palmgrade.services.pemantau_disk import PemantauDisk
+
+Usage = namedtuple("Usage", "total used free")
+
+
+class _Outbox:
+    def pending_count(self):
+        return 0
+
+    def failed_count(self):
+        return 0
+
+
+@pytest.fixture
+def torch_palsu(monkeypatch):
+    cuda = types.SimpleNamespace(is_available=lambda: False, get_device_name=lambda _i: "-")
+    monkeypatch.setitem(sys.modules, "torch", types.SimpleNamespace(cuda=cuda))
+
+
+def _service(line: LinePalsu) -> HealthService:
+    return HealthService(settings=line.settings, state=line.state, camera=line.kamera, outbox=_Outbox())
+
+
+def test_line_sehat_melaporkan_fps_terukur_dan_umur_gambar(torch_palsu):
+    line = LinePalsu()
+    line.mulai()
+    line.jalan(12)                                  # satu gambar per detik jam palsu
+    d = _service(line).get_health_detail()
+    assert d.fps_kamera == pytest.approx(1.0, rel=0.05)
+    assert d.frame_umur_detik == 1.0
+    assert d.status == "ok"
+
+
+def test_fps_nol_saat_gambar_berhenti_bukan_angka_lama(torch_palsu):
+    line = LinePalsu()
+    line.mulai()
+    line.jalan(12)
+    line.state.inference_fps = 7.5
+    line.jam.sekarang += 42
+    d = _service(line).get_health_detail()
+    assert (d.fps_kamera, d.fps_deteksi, d.frame_umur_detik) == (0.0, 0.0, 43.0)
+
+
+def test_detail_tetap_200_dan_ok_walau_frame_berhenti(torch_palsu):
+    """Load-bearing: `autograde reset-data` dan Danger Zone membaca kode HTTP
+    `/health/detail`, dan menganggap line non-2xx sebagai mati/tidak diketahui."""
+    line = LinePalsu()
+    line.mulai()
+    line.jalan(5)
+    line.kamera.mengirim = False
+    line.jalan(40, deteksi=False)
+    d = _service(line).get_health_detail()
+    assert d.status == "ok"
+    assert d.ai["keadaan"] == "frame_berhenti"
+
+
+def test_disk_dari_pemantau_yang_dipasang(torch_palsu):
+    line = LinePalsu()
+    line.state.pemantau_disk = PemantauDisk(
+        settings=replace(Settings(), r2_bucket=""), jalur=(Path("/app/artifacts"),),
+        ukur=lambda _p: Usage(468 * GB, 458 * GB, 10 * GB),
+    )
+    d = _service(line).get_health_detail()
+    assert (d.disk["tingkat"], d.disk["kode"], d.disk["bebas_gb"]) == ("peringatan", "DISK_HAMPIR_PENUH", 10.0)
+
+
+def test_tanpa_pemantau_disk_none(torch_palsu):
+    assert _service(LinePalsu()).get_health_detail().disk is None
+
+
+def test_lisensi_line_dari_gerbang_grading(torch_palsu):
+    line = LinePalsu(lic_enabled=True)
+    line.state.license_exp = 0
+    d = _service(line).get_health_detail()
+    assert d.lisensi == {"aktif": True, "grading_diblokir": True, "berlaku_sampai": None}
+
+
+def test_plc_connected_dari_klien_bukan_dari_plc_menyala(torch_palsu, monkeypatch):
+    klien = types.SimpleNamespace(connected=False)
+    worker = types.SimpleNamespace(client=klien, inputs=[False] * 12, dropped_submissions=0,
+                                   scheduler=types.SimpleNamespace(dropped=0),
+                                   settings=types.SimpleNamespace(plc_coil_manual=None))
+    monkeypatch.setattr(plc, "_worker", worker, raising=False)
+    line = LinePalsu()
+    assert _service(line).get_health_detail().plc["connected"] is False
+    klien.connected = True
+    assert _service(line).get_health_detail().plc["connected"] is True
+
+
+def test_skema_lama_tanpa_field_baru_tetap_sah():
+    """Konsol versi ini membaca line versi lama: semua field baru punya bawaan."""
+    d = HealthDetailSchema(status="ok", environment="t", camera_type="hikrobot", camera_connected=True,
+                           gpu_available=False, gpu_device=None, machine_id="m", workers=[])
+    assert (d.fps_kamera, d.fps_deteksi, d.frame_umur_detik, d.disk, d.lisensi) == (0.0, 0.0, None, None, None)
