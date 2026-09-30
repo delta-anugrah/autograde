@@ -23,6 +23,10 @@ menjamin tiga hal untuk kedua jalan itu:
 - sekali jalan: SIGTERM yang datang saat restart sedang menutup menunggu
   urutan yang sama, bukan menjalankannya dua kali.
 
+`os._exit` melewati `atexit`, jadi yang biasanya dibereskan `atexit` saat keluar
+biasa (log line, batch 3.2) didaftarkan lewat `sebelum_keluar` dan dijalankan
+`keluar_nanti` tepat sebelum `os._exit`, sesudah pesan keluar terakhirnya.
+
 Bebas torch/cv2, jadi teruji di CI.
 """
 from __future__ import annotations
@@ -71,6 +75,7 @@ class PenutupLine:
         self._selesai = threading.Event()
         self._berjalan: set[str] = set()
         self._dimulai: set[str] = set()
+        self._sebelum_keluar: list[Callable[[], None]] = []
 
     @property
     def sedang_menutup(self) -> bool:
@@ -91,6 +96,17 @@ class PenutupLine:
             if self._mulai.is_set():
                 raise RuntimeError("urutan tutup line sudah berjalan, tidak bisa diganti")
             self._tahap = [list(satu) for satu in tahap]
+
+    def sebelum_keluar(self, fungsi: Callable[[], None]) -> None:
+        """Daftarkan `fungsi` untuk dijalankan tepat sebelum `os._exit` di `keluar_nanti`.
+
+        Untuk pekerjaan yang dijamin `atexit` pada keluar biasa (SIGTERM, `sys.exit`)
+        tapi dilewati `os._exit`, misalnya menguras antrean log line. `fungsi` wajib
+        singkat dan berbatas waktu sendiri; yang melempar dicatat dan tidak menahan
+        keluar maupun `fungsi` lain.
+        """
+        with self._kunci:
+            self._sebelum_keluar.append(fungsi)
 
     def tutup(self, alasan: str) -> bool:
         """Jalankan urutan tutup sekali. True = semua langkah selesai dalam batas.
@@ -138,11 +154,23 @@ class PenutupLine:
                 # mencari container yang tidak ada.
                 logger.warning("Keluar atas permintaan konsol, menunggu dinyalakan ulang")
             finally:
-                self._keluar(0)
+                try:
+                    self._jalankan_sebelum_keluar()
+                finally:
+                    self._keluar(0)
 
         threading.Thread(target=jalan, daemon=True, name="restart").start()
 
     # ── privat ──────────────────────────────────────────────────────────────
+
+    def _jalankan_sebelum_keluar(self) -> None:
+        with self._kunci:
+            daftar = list(self._sebelum_keluar)
+        for fungsi in daftar:
+            try:
+                fungsi()
+            except Exception:
+                logger.exception("Pekerjaan sebelum keluar %r gagal; line tetap keluar", fungsi)
 
     def _jalankan(self, tahap: list[list[Langkah]]) -> None:
         try:

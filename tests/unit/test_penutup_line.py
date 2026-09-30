@@ -206,6 +206,57 @@ def test_tanpa_langkah_terpasang_tetap_keluar():
     assert keluar.wait(3)
 
 
+def test_sebelum_keluar_jalan_sesudah_pesan_terakhir_dan_sebelum_os_exit(caplog):
+    """`os._exit` melewati `atexit`: log line dikuras lewat kait ini (batch 3.2),
+    sesudah pesan keluar terakhir supaya pesan itu ikut tertulis."""
+    jejak: list = []
+    keluar = threading.Event()
+
+    def catat_keluar(kode: int) -> None:
+        jejak.append(("keluar", kode))
+        keluar.set()
+
+    p = PenutupLine(batas_s=5, keluar=catat_keluar, tidur=lambda s: None)
+    p.pasang([[_catat(jejak, "plc")]])
+    p.sebelum_keluar(lambda: jejak.append(("kuras", [r.getMessage() for r in caplog.records][-1])))
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        p.keluar_nanti(0)
+        assert keluar.wait(5)
+
+    assert jejak == [
+        "plc",
+        ("kuras", "Keluar atas permintaan konsol, menunggu dinyalakan ulang"),
+        ("keluar", 0),
+    ]
+
+
+def test_sebelum_keluar_yang_melempar_tidak_menahan_keluar_maupun_yang_lain(caplog):
+    jejak: list = []
+    keluar = threading.Event()
+
+    def rusak() -> None:
+        raise OSError("disk log penuh")
+
+    p = PenutupLine(batas_s=1, keluar=lambda k: keluar.set(), tidur=lambda s: None)
+    p.sebelum_keluar(rusak)
+    p.sebelum_keluar(lambda: jejak.append("kuras kedua"))
+    with caplog.at_level(logging.ERROR, logger=LOGGER):
+        p.keluar_nanti(0)
+        assert keluar.wait(3)
+
+    assert jejak == ["kuras kedua"]
+    assert [str(r.exc_info[1]) for r in caplog.records if r.exc_info] == ["disk log penuh"]
+
+
+def test_sebelum_keluar_tidak_dijalankan_tutup_sigterm():
+    """SIGTERM kembali ke uvicorn, yang keluar biasa: `atexit` yang menguras di sana."""
+    jejak: list = []
+    p = PenutupLine(batas_s=1)
+    p.sebelum_keluar(lambda: jejak.append("kuras"))
+    assert p.tutup("uji") is True
+    assert jejak == []
+
+
 def test_pesan_keluar_tidak_menjanjikan_docker(caplog):
     """Jalur native dinyalakan ulang `make line`, bukan Docker (2026-09-21)."""
     keluar = threading.Event()
