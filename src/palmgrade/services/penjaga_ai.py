@@ -135,7 +135,9 @@ class PenjagaAi:
                 "ada frame yang selesai digrading selama lebih dari %s detik. Buah lewat "
                 "tanpa disortir; coil ERROR naik kalau PLC aktif. Galat terakhir: %s. Restart line "
                 "lewat Setelan, Danger Zone, lalu periksa log line itu.",
-                self._settings.line_code, self._settings.ai_mati_detik, self._galat_untuk_log(p, sekarang),
+                self._settings.line_code, self._settings.ai_mati_detik,
+                # Galat yang sudah berakhir titik tidak boleh jadi "..": baris ini ikut Discord.
+                self._galat_untuk_log(p, sekarang).rstrip("."),
             )
         elif p.keadaan is KeadaanAi.FRAME_BERHENTI:
             logger.error(
