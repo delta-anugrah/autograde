@@ -126,8 +126,11 @@ def test_rekaman_menghasilkan_berkas_yang_bisa_dibaca(line):
     hasil = c.post("/internal/rekam/mulai", json=SETELAN, headers=HEADER).json()
     for _ in range(10):
         state.video_recorder.tulis(np.zeros((240, 320, 3), dtype=np.uint8))
-    c.post("/internal/rekam/stop", headers=HEADER)
+    akhir = c.post("/internal/rekam/stop", headers=HEADER).json()
 
+    # Stop menunggu encoder menulis semua yang sudah diserahkan, jadi hitungan
+    # ini pasti, bukan balapan dengan thread encoder.
+    assert akhir["frame_ditulis"] == 10
     berkas = videos / hasil["berkas"]
     assert berkas.exists(), f"{berkas} tidak ditulis"
     assert berkas.stat().st_size > 0

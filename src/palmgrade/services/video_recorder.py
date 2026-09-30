@@ -326,12 +326,7 @@ class VideoRecorder:
                 except queue.Empty:
                     continue
 
-                if frame.shape[0] != tinggi or frame.shape[1] != lebar:
-                    frame = cv2.resize(
-                        frame, (lebar, tinggi), interpolation=cv2.INTER_AREA
-                    )
-                writer.write(np.ascontiguousarray(frame))
-                self._frame_ditulis += 1
+                self._tulis_ke_berkas(writer, frame, lebar, tinggi)
 
                 sejak_periksa += 1
                 if sejak_periksa >= _PERIKSA_DISK_TIAP:
@@ -349,5 +344,35 @@ class VideoRecorder:
                             self._alasan_berhenti = "disk_mepet"
                             self._merekam = False
                         break
+            else:
+                # Loop selesai karena Stop, bukan rem disk: yang masih antre
+                # sudah diserahkan sebelum Stop, jadi bagian rekaman.
+                self._kuras_antrean(writer, lebar, tinggi)
         finally:
             writer.release()
+
+    def _kuras_antrean(self, writer, lebar: int, tinggi: int) -> None:
+        """Tulis frame yang masih antre saat Stop datang.
+
+        Tanpa ini encoder yang telat siap (codec lambat dibuka di mesin sibuk)
+        menutup berkas tanpa satu frame pun, dan ekor rekaman sampai
+        `ukuran_antrean` frame hilang tanpa galat. Dibatasi pada isi antrean
+        saat Stop: capture masih boleh mengirim sampai `stop()` selesai, dan
+        kuras yang mengejar kiriman itu tidak pernah selesai kalau encoder
+        lebih lambat dari kamera.
+        """
+        antrean = self._antrean
+        if antrean is None:
+            return
+        for _ in range(antrean.qsize()):
+            try:
+                frame = antrean.get_nowait()
+            except queue.Empty:
+                return
+            self._tulis_ke_berkas(writer, frame, lebar, tinggi)
+
+    def _tulis_ke_berkas(self, writer, frame: Any, lebar: int, tinggi: int) -> None:
+        if frame.shape[0] != tinggi or frame.shape[1] != lebar:
+            frame = cv2.resize(frame, (lebar, tinggi), interpolation=cv2.INTER_AREA)
+        writer.write(np.ascontiguousarray(frame))
+        self._frame_ditulis += 1
