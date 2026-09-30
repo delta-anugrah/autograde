@@ -72,3 +72,17 @@ def test_router_log_memakai_store_yang_sama_dengan_handler():
 
 def test_rute_log_tetap_terbuka_saat_lisensi_habis():
     assert "/internal/log" in _ALWAYS_ALLOWED_PERSIS
+
+
+def test_state_tidak_di_mount_diulang_ke_tab_log_sesudah_handler_terpasang():
+    """Review akhir 1, M6: ERROR "state tidak di-mount" ditulis `folder_db_line` SEBELUM
+    handler log line ada (dia yang memilih folder log_line.db), jadi tidak pernah sampai
+    tab Log. Diulang sekali sebagai WARNING sesudah handler terpasang."""
+    impor = _impor_tingkat_modul()
+    assert ("services.pindah_db_line", "catat_state_tidak_di_mount", "catat_state_tidak_di_mount") in impor
+    blok = (
+        "if penulis_log is not None and get_folder_db_line() != settings.state_dir:\n"
+        "        catat_state_tidak_di_mount(settings.state_dir, settings.artifacts_dir, level=logging.WARNING)"
+    )
+    assert blok in SEBELUM_LIFESPAN
+    assert SEBELUM_LIFESPAN.index("pasang_penulis_log_line(") < SEBELUM_LIFESPAN.index(blok)

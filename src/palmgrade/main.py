@@ -33,7 +33,7 @@ from .services.antrean_log_line import pasang_penulis_log_line
 from .services.antrean_line import AntreanLine
 from .services.hapus_data_line import hapus_kalau_diminta
 from .services.langkah_tutup_line import langkah_tutup_line
-from .services.pindah_db_line import pindahkan_db_lama
+from .services.pindah_db_line import catat_state_tidak_di_mount, pindahkan_db_lama
 from .workers.outbox_retry_worker import OutboxRetryWorker
 from .core.logging import configure_logging
 from .integrations.camera.base import CameraSource
@@ -184,6 +184,10 @@ def create_app() -> FastAPI:
     log_line = penulis_log.store if penulis_log is not None else None
     if penulis_log is not None:
         penutup.sebelum_keluar(penulis_log.hentikan)
+    # ERROR "state tidak di-mount" ditulis saat folder itu dipilih, sebelum handler di
+    # atas ada: diulang sekali supaya sampai tab Log.
+    if penulis_log is not None and get_folder_db_line() != settings.state_dir:
+        catat_state_tidak_di_mount(settings.state_dir, settings.artifacts_dir, level=logging.WARNING)
 
     # Folder DB line (state/, batch 1.2); lihat services/pindah_db_line.py.
     _lic_repo = LicenseLocalRepo(get_folder_db_line() / "license.db")
