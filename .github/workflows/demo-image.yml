@@ -4,9 +4,15 @@ name: Build AutoGrade Demo Image (CPU)
 # Publishes vX.Y.Z-cpu only; factory PCs update from `latest`, which this workflow never writes.
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  # Called by deploy.yml once its `ci` job passed on the tag commit (batch 4.1).
+  # No `push: tags` trigger of its own any more: with both, every tag would build
+  # twice, before CI and after it.
+  workflow_call:
+    inputs:
+      version:
+        description: "Release tag being built, e.g. v1.20.0"
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       version:
@@ -61,6 +67,21 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      # A manual run may only rebuild a version that was really released: the
+      # factory image `vX.Y.Z` exists only for a tag that passed deploy.yml, CI
+      # included. Skipped when deploy.yml calls this workflow (the event is then the
+      # tag push), because that tag's factory image is still being built beside it.
+      - name: Require a published factory release
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE="$REGISTRY/$IMAGE_NAME:$VERSION"
+          if ! docker buildx imagetools inspect "$RELEASE" >/dev/null 2>&1; then
+            echo "$VERSION has no factory release image; release it through deploy.yml first"
+            exit 1
+          fi
 
       - name: Reject existing demo image
         shell: bash

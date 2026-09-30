@@ -17,6 +17,11 @@ on:
   # dokumen justru satu-satunya yang bisa memerahkan test itu.
   push:
     branches: [main]
+  # Dipanggil `deploy.yml` (job `ci`) saat tag rilis: image baru dibangun sesudah
+  # seluruh langkah di bawah hijau di commit tag yang SAMA (batch 4.1). Tanpa
+  # input dan tanpa secret, jadi pemanggilnya tidak butuh `secrets: inherit`;
+  # menambah `secrets.*` di sini berarti mengubah `deploy.yml` juga.
+  workflow_call:
 
 jobs:
   lint-and-test:
