@@ -346,7 +346,7 @@ def test_polling_dua_detik_tidak_menarik_halaman_yang_sedang_dibaca():
 
 
 def test_pindah_halaman_tidak_pernah_keluar_rentang():
-    """Offset negatif maupun offset melewati akhir daftar dibalas 422 oleh server, dan
+    """Offset negatif maupun offset melewati akhir daftar dibalas 400 input_tidak_sah oleh server, dan
     layar cuma menampilkan error tanpa sebab yang kelihatan.
 
     Dijepitnya di `keHalaman`, satu tempat: tombol nomor dan tombol
@@ -419,7 +419,7 @@ def test_nomor_halaman_dibatasi_jumlahnya():
 
 
 def test_lompat_halaman_menolak_di_luar_rentang():
-    """Halaman 0 atau halaman 700 dari 653 mengirim offset yang dibalas 422, dan
+    """Halaman 0 atau halaman 700 dari 653 mengirim offset yang dibalas 400 input_tidak_sah, dan
     layar cuma menampilkan error tanpa sebab yang kelihatan."""
     fn = _fungsi("keHalaman")
     assert "Math.max" in fn and "Math.min" in fn

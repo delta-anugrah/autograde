@@ -87,7 +87,7 @@ def test_filter_lengkap_ada_di_panel():
 
 
 def test_pilihan_hasil_sama_dengan_yang_diterima_server():
-    """`HasilRiwayat` di routes/console.py: pilihan lain dijawab 422."""
+    """`HasilRiwayat` di routes/console.py: pilihan lain dijawab 400 input_tidak_sah."""
     blok = _panel().split('id="riwayat-hasil"', 1)[1].split('class="riwayat-aksi"', 1)[0]
     assert re.findall(r'role="option"[^>]*data-nilai="([^"]*)"', blok) == ["", "ripe", "unripe", "jk", "tp"]
 

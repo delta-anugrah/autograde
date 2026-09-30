@@ -105,7 +105,7 @@ def test_polling_berhenti_saat_tab_ditutup():
 def test_setelan_dikirim_sebagai_string_json():
     """`api()` meneruskan opts ke fetch apa adanya, jadi body WAJIB string.
 
-    Objek telanjang dikirim sebagai "[object Object]" dan dijawab 422. Gejalanya
+    Objek telanjang dikirim sebagai "[object Object]" dan dijawab 400 input_tidak_sah. Gejalanya
     menyesatkan: toast merah memang muncul, tapi bunyinya "gagal menyimpan"
     sementara penyebabnya bentuk payload — dan setelan diam-diam tetap lama.
     Ketemu di browser 2026-09-22.

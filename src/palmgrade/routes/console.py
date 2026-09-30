@@ -32,6 +32,7 @@ from ..domain.setelan_grading import SetelanTidakSah
 from ..domain.setelan_rekam import SetelanRekamTidakSah
 from ..domain.sumber_kamera import SumberTidakSah
 from ..integrations.notifications.line_client import LinePlcTolak, LineUnavailable
+from ..schemas.console_schema import LoginBody, ManualTruckBody, ScanBody, WeighingBody
 from ..services.bahaya_service import BahayaDitolak, BahayaSemuaMenolak, BahayaTidakSah
 from ..services.dev_service import CoilTidakDikenal, PlcSibuk
 from ..services.impor_grading_service import ImporDitolak, ImporTidakAda
@@ -87,11 +88,9 @@ async def console_operators(auth: Auth) -> dict:
 
 
 @router.post("/api/console/login")
-def login(auth: Auth, response: Response, payload: Annotated[dict, Body()]) -> dict:
+def login(auth: Auth, response: Response, payload: LoginBody) -> dict:
     try:
-        token, operator = auth.login(
-            str(payload.get("email") or ""), str(payload.get("sandi") or "")
-        )
+        token, operator = auth.login(payload.email or "", payload.sandi or "")
     except OperatorError as exc:
         raise _operator_error(429 if exc.code == TERKUNCI else 401, exc) from exc
     response.set_cookie(
@@ -243,14 +242,14 @@ def console_trucks(service: Service, operator: Operator) -> dict:
 
 @router.post("/api/console/trucks", status_code=201)
 async def register_manual_truck(
-    service: Service, operator: Operator, payload: Annotated[dict, Body()]
+    service: Service, operator: Operator, payload: ManualTruckBody
 ) -> dict:
     """Borrowed or unregistered truck, typed by the operator (not from cloud master)."""
     try:
         return service.register_manual_truck(
-            str(payload.get("plate_number") or ""),
-            supplier_id=payload.get("supplier_id"),
-            capacity=payload.get("capacity"),
+            payload.plate_number or "",
+            supplier_id=payload.supplier_id,
+            capacity=payload.capacity,
         )
     except ValueError as exc:
         raise _operator_error(400, exc) from exc
@@ -258,7 +257,7 @@ async def register_manual_truck(
 
 @router.post("/api/console/scan")
 async def console_scan(
-    scan: Scan, operator: Operator, payload: Annotated[dict, Body()]
+    scan: Scan, operator: Operator, payload: ScanBody
 ) -> dict:
     """One QR read at the weighbridge gate → the truck it belongs to.
 
@@ -273,14 +272,14 @@ async def console_scan(
     to get scanned must never turn into a ghost truck in master data.
     """
     try:
-        return scan.search(str(payload.get("qr") or ""))
+        return scan.search(payload.qr or "")
     except OperatorError as exc:
         raise _operator_error(400, exc) from exc
 
 
 @router.post("/api/console/scan/keluar")
 async def console_scan_exit(
-    scan: Scan, service: Service, operator: Operator, payload: Annotated[dict, Body()]
+    scan: Scan, service: Service, operator: Operator, payload: ScanBody
 ) -> dict:
     """The second scan, at the exit gate: which ticket is waiting for its tare.
 
@@ -293,7 +292,7 @@ async def console_scan_exit(
     both and the operator picks.
     """
     try:
-        return scan.open_ticket(str(payload.get("qr") or ""), service.today())
+        return scan.open_ticket(payload.qr or "", service.today())
     except OperatorError as exc:
         raise _operator_error(400, exc) from exc
 
@@ -346,14 +345,15 @@ def console_recap(
 
 @router.post("/api/console/weighings", status_code=201)
 async def record_weighing_manual(
-    service: Service, operator: Operator, payload: Annotated[dict, Body()]
+    service: Service, operator: Operator, payload: WeighingBody
 ) -> dict:
     """Operator types bruto/tara by hand; the payload shape is identical to the
     scale program's. This lane keeps weighing tickets flowing while the scale
     program's format is unknown (docs/PERTANYAAN-TERBUKA.md X1).
     """
     try:
-        return await service.record_weighing(payload)
+        # Only what was sent: an absent tare must stay absent, or weigh-out overwrites it.
+        return await service.record_weighing(payload.model_dump(exclude_unset=True))
     except ValueError as exc:
         raise _operator_error(400, exc) from exc
 
