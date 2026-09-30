@@ -767,7 +767,8 @@ ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/p
   src/palmgrade/workers/master_data_worker.py \
   src/palmgrade/integrations/notifications/line_client.py src/palmgrade/repositories/console_repository.py \
   src/palmgrade/services/console_service.py src/palmgrade/routes/console.py src/palmgrade/console_main.py
-pytest tests/unit/
+python tests/cek_skrip_konsol.py src/palmgrade/static/console.html   # seluruh <script> konsol bisa diparse
+pytest tests/unit/ -rs
 ```
 
 > Konfigurasi pytest ada di `pyproject.toml` (`pythonpath=["src"]`): tidak perlu set `PYTHONPATH` manual. Tidak memakai `pytest-asyncio`: kode async diuji lewat `asyncio.run` stdlib supaya dependency CI minimal.
@@ -793,6 +794,7 @@ pytest tests/unit/
 | Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |
 | PLC | `tests/unit/plc/`, `tests/e2e/test_mc_protocol_lane.py` | Klien MC Protocol + Modbus, state machine pulse/heartbeat/piston, alamat M ≡ compose |
 | Config | `test_config_validation.py` | Fail-fast saat secret masih default di `APP_ENV=production` |
+| **CI dan rilis** | `test_ci_gerbang_rilis.py`, `test_ci_skrip_konsol.py`, `test_cek_skrip_konsol.py`, `test_demo_image_workflow.py`, `tests/integration/test_alur_rilis_integrasi.py`, `tests/e2e/test_ci_skrip_konsol_lane.py` | Image pabrik dan demo baru dibangun sesudah `ci.yml` hijau di commit tag yang sama; seluruh `<script>` `console.html` diparse seperti browser (syntax error di luar fungsi yang diuji ikut ketahuan) |
 | Camera selector | `test_device_selector.py` | Pilih kamera by-serial (enum GigE tidak deterministik) |
 | Streaming | `test_streaming_service.py` | MJPEG keep-alive multi-viewer |
 | SDK boundary | `test_hikrobot_frame.py`, `test_mvs_error.py` | Konversi frame + mapping error SDK |
