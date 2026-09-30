@@ -421,12 +421,14 @@ end of this file.
     (sejak batch 3.3 "identik" dihitung sesudah uuid, id hex 8+, desimal lepas, dan bilangan
     6+ digit dinormalkan, `domain/sidik_log.py`; kode HTTP, port, IP, plat TIDAK; dan
     `ringkas_galat` ikut sidik: KELAS = kepala blok traceback pertama (galat berantai: akar
-    penyebabnya), kosong kalau kepala itu ikut terpotong `potong_detail`, satu-satunya bagian
-    yang pernah ditampilkan (Discord); FRAME = frame `palmgrade/` terakhir di seluruh detail,
+    penyebabnya), kosong kalau detailnya dipotong `potong_detail` (walau kepalanya masih ada),
+    satu-satunya bagian yang pernah ditampilkan (Discord); FRAME = frame `palmgrade/` terakhir di seluruh detail,
     tanpa itu frame terakhir, cuma di-hash. Jadi dua 500 uvicorn yang pesannya sama "Exception
     in ASGI application" tapi sebabnya beda tetap dua baris dengan traceback masing-masing,
     galat yang sama dengan plat/jam/jalur berbeda di teksnya tetap satu baris, dan teks pesan
-    galat tidak pernah terbaca sebagai kelas) baris dengan hitungan naik, bukan baris baru per kejadian, tanpa itu satu loop yang
+    galat tidak pernah terbaca sebagai kelas. Di belakang `LicenseGuardMiddleware` sebuah 500
+    konsol dicetak dengan blok ExceptionGroup lebih dulu, jadi Discord tidak menampilkan
+    kelasnya; sidiknya tetap terpisah lewat frame) baris dengan hitungan naik, bukan baris baru per kejadian, tanpa itu satu loop yang
     gagal tiap detik akan memenuhi tabel dalam semenit dan mendorong keluar galat lain
     yang lebih tua. `redaksi()` (`domain/log_redaksi.py`) menyaring rahasia **sebelum**
     baris menyentuh disk, bukan saat ditampilkan: berkasnya dibaca lewat AnyDesk

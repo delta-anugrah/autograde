@@ -65,9 +65,9 @@ def _kepala_dan_frame(detail: str | None) -> tuple[str, str]:
 
     KELAS (satu-satunya yang pernah ditampilkan, misalnya di Discord): kepala blok traceback
     PERTAMA, yaitu baris tidak menjorok pertama sesudah frame-frame-nya, dan HANYA kalau
-    blok itu dicapai tanpa sinkron ulang. Detail yang dipotong `potong_detail` sebelum kepala
-    blok pertamanya (potongan di offset karakter) memberi kelas kosong: yang terbaca sesudah
-    potongan bisa teks pesan galat. Teks lain tidak pernah dibaca sebagai kelas, jadi galat
+    blok itu dicapai tanpa sinkron ulang. Detail apa pun yang dipotong `potong_detail`
+    (berawalan tanda potong, potongan di offset karakter) memberi kelas kosong, walau kepalanya
+    masih ada: yang terbaca sesudah potongan bisa teks pesan galat. Teks lain tidak pernah dibaca sebagai kelas, jadi galat
     berantai dikenali dari akar penyebabnya (dicetak lebih dulu). Blok tanpa frame cuma sah
     kalau dibuka penanda `Traceback (most recent call last):`.
 
@@ -134,7 +134,7 @@ def ringkas_galat(detail: str | None) -> str:
 
 def jenis_galat(detail: str | None) -> str:
     """Nama kelas galat dari kepala blok traceback pertama (`KeyError`; galat berantai: akar
-    penyebabnya). Kosong kalau tidak jelas atau kalau kepala itu ikut terpotong.
+    penyebabnya). Kosong kalau tidak jelas atau kalau detailnya dipotong `potong_detail`.
 
     Untuk Discord: yang keluar pabrik cuma nama kelasnya, bukan isi pesan galatnya
     (bisa memuat plat, nilai SQL, jalur berkas). Rinciannya tetap di tab Log.

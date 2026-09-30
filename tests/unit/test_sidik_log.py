@@ -297,8 +297,8 @@ def test_traceback_panjang_yang_dipotong_di_mana_pun_tetap_punya_sidik():
         if "ValueError: truk" not in terpotong or 'palmgrade/workers/panjang.py"' not in terpotong:
             continue
         diuji += 1
-        # Kepala blok pertama ikut terpotong (perlu sinkron ulang ke frame utuh): kelas
-        # sengaja kosong, frame pembedanya tetap benar jadi sidiknya tidak kosong.
+        # Detailnya dipotong (perlu sinkron ulang ke frame utuh): kelas sengaja kosong,
+        # walau kepalanya masih ada; frame pembedanya tetap benar jadi sidiknya tidak kosong.
         assert jenis_galat(terpotong) == "", ekor
         assert ringkas_galat(terpotong) == "@palmgrade/workers/panjang.py:302", ekor
     assert diuji == 120
