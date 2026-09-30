@@ -6,12 +6,15 @@ langsung: coil PLC tertinggal ON dan sampai 8 janjang yang sudah dipulse hilang.
 """
 from __future__ import annotations
 
+import inspect
 import logging
 import threading
 import time
 
 import pytest
 
+from palmgrade.routes.internal_bahaya import JEDA_KELUAR_DETIK
+from palmgrade.services.bahaya_service import BahayaService
 from palmgrade.services.penutup_line import (
     BATAS_SEBELUM_KELUAR_S,
     BATAS_TUTUP_S,
@@ -281,8 +284,10 @@ def test_sebelum_keluar_yang_macet_tidak_menahan_keluar(caplog):
 
 
 def test_batas_sebelum_keluar_masih_di_bawah_tenggang_danger_zone():
-    """1 dtk jeda + urutan tutup + pekerjaan sebelum keluar < 12 dtk yang ditunggu konsol."""
-    assert 1 + BATAS_TUTUP_S + BATAS_SEBELUM_KELUAR_S < 12
+    """Jeda + urutan tutup + pekerjaan sebelum keluar < tunggu Danger Zone konsol, dibaca
+    dari bawaan `BahayaService` (bukan angka yang disalin), dengan cadangan 1 detik."""
+    tunggu = inspect.signature(BahayaService.__init__).parameters["tunggu_mati_s"].default
+    assert JEDA_KELUAR_DETIK + BATAS_TUTUP_S + BATAS_SEBELUM_KELUAR_S + 1.0 <= tunggu
 
 
 def test_sebelum_keluar_tidak_dijalankan_tutup_sigterm():
