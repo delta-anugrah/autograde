@@ -18,6 +18,19 @@ Next:           ...
 
 ---
 
+## 2026-09-30 · docs · Fix references left stale by the CLAUDE.md tidy (PR #197)
+Changed:        rule references in 2 skills, docs/overview.md, docs/backend-overview.md,
+                docs/MANUAL.md and README.md now cite docs/rules.md (full text, sub-points,
+                § Critical Rules) or docs/backend-overview.md (HTTP Surface); docs/rules.md rule 21
+                and the INTERNAL_SECRET note name docs/backend-overview.md; docs-sync gained check 5
+                for references into CLAUDE.md. Rule numbers unchanged. Code and test comments untouched.
+Validated:      test_doc_links + test_dokumen_tanpa_em_dash: 44 passed with the local plan file under
+                docs/superpowers/ moved aside (only that untracked file fails otherwise);
+                test_manual_doc, test_perintah_janjang_ditolak, test_console_copy green. The docs-sync
+                grep finds 22 lines on staging, 7 on the branch, all 7 citing sections that exist.
+Not validated:  full CI (runs on the PR). docs/MANUAL.pdf not regenerated.
+Next:           the ~15 code/test comments citing "CLAUDE.md § Tests" / "Critical Rule N" (item (1) below).
+
 ## 2026-09-30 · docs · Tidy the AI-facing docs (PR #196)
 Changed:        CLAUDE.md 1392 → 172 lines, English, fixed section order, one-line index of rules 0-32
                 plus 1b/1c. Old lines 14-1392 moved verbatim: rules/conventions/git/pointers to
