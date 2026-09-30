@@ -189,11 +189,11 @@ membersihkan kunci di SEMUA `.env` sepanjang jalur itu (`tests/dotenv_mesin.py`)
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/health`, `/health/detail` | `/health` ringan, **503 kalau AI mati** (`ai` = keadaan penjaga AI, `routes/health_ringan.py`, tanpa torch); detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending` = semua janjang belum sampai konsol, `outbox_failed` selalu `0` sejak batch 2.4, rincian di tab Status → Antrean line) + `model_file`/`model_backend`/`model_kelas`/`model_kelas_cocok`/`gpu_sm` = model yang benar-benar dimuat + `ai` (keadaan + `galat_terakhir`) |
+| GET | `/health`, `/health/detail` | `/health` ringan, **503 kalau AI mati atau frame berhenti** (`ai` = keadaan penjaga AI, `routes/health_ringan.py`, tanpa torch); detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending` = semua janjang belum sampai konsol, `outbox_failed` selalu `0` sejak batch 2.4, rincian di tab Status → Antrean line) + `model_file`/`model_backend`/`model_kelas`/`model_kelas_cocok`/`gpu_sm` = model yang benar-benar dimuat + `ai` (keadaan + `galat_terakhir`) + `fps_kamera`/`fps_deteksi` (terukur, 0 kalau basi) + `frame_umur_detik` + `disk` (pemantau disk) + `lisensi` + `plc.connected` (aturan 35) |
 | GET | `/api/video_feed` | MJPEG live (multi-viewer) |
 | GET | `/api/results_today` | today's results (read from disk) |
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |
-| GET | `/internal/status` | ← dari konsol tiap 1 detik (`LineStatusWorker`): truk, piston, `alarms` PLC (aturan 24), dan `unggah` = ringkasan upload foto ke R2 untuk Last Sync (`aktif`/`terakhir`/`gagal_sejak`/`antre`, aturan 27). `unggah` dihitung **sekali per batch**, bukan per panggilan; `null` di line tanpa worker upload. Bawa juga `ai` = blok penjaga AI mati (keadaan, `mati`, `kode`, `sejak`, `ambang_detik`), tanpa galat mentah. `x-internal-secret` |
+| GET | `/internal/status` | ← dari konsol tiap 1 detik (`LineStatusWorker`): truk, piston, `alarms` PLC (aturan 24), dan `unggah` = ringkasan upload foto ke R2 untuk Last Sync (`aktif`/`terakhir`/`gagal_sejak`/`antre`, aturan 27). `unggah` dihitung **sekali per batch**, bukan per panggilan; `null` di line tanpa worker upload. Bawa juga `ai` = blok penjaga AI mati (keadaan, `mati`, `kode`, `sejak`, `ambang_detik`), tanpa galat mentah, dan `disk` = blok pemantau disk (aturan 35). `x-internal-secret` |
 | POST | `/internal/manual-reject` | ← from api: trigger manual reject (`x-internal-secret`) |
 | POST | `/internal/hapus-data` | ← dari konsol (Danger Zone): tulis penanda `artifacts/.hapus-data` lalu keluar lewat urutan tutup yang sama (aturan 29); data line dihapus **saat boot berikutnya**, sebelum store mana pun membuka berkasnya. **409** kalau line sedang dipasangi truk. Selama penandanya ada, `/internal/assignment` menolak truk baru (**409** `hapus_berjalan`). Router `routes/internal_bahaya.py`: **tanpa torch**, jadi teruji di CI |
 | POST | `/internal/restart` | ← dari konsol (Sumber Kamera, Model Deteksi, Danger Zone): jawab dulu, 1 detik kemudian urutan tutup yang SAMA dengan SIGTERM (coil PLC mati bersamaan dengan antrean simpan dihabiskan, lalu kamera + penjadwal R2), maks 9 detik, baru `os._exit(0)`. Aturan 29 |
@@ -1196,9 +1196,10 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     baru mengalir lagi sesudah jeda >5 detik, tenggangnya dihitung dari yang LEBIH BELAKANGAN
     antara loop mulai dan aliran mulai lagi, bukan cuma salah satu); **kamera putus**
     (`kamera_putus`, kartu dan coil ERROR sudah menanganinya sejak dulu); **lisensi habis**
-    (`lisensi`, grading memang dihentikan sengaja, banner lisensi yang bicara); **sumber diam**
-    (`sumber_diam`, tidak ada frame masuk sama sekali meski kamera tersambung, misalnya video
-    tanpa ulang yang habis: urusan kamera, ditunda ke batch 3.6); dan model dengan kelas yang
+    (`lisensi`, grading memang dihentikan sengaja, banner lisensi yang bicara); **sumber selesai**
+    (`sumber_selesai`, video uji tanpa ulang yang habis, sejak batch 3.6; dulu `sumber_diam`);
+    **frame berhenti** (`frame_berhenti`, kamera tersambung tapi tidak mengirim: kerusakan
+    sendiri, aturan 35); dan model dengan kelas yang
     tidak cocok (inferensi tetap selesai, jadi tetap `sehat`, layar Model Deteksi yang menandai
     merah).
     **Empat stempel monotonic** di `RuntimeState` (`time.monotonic()` lewat `RuntimeState.jam`,
@@ -1210,10 +1211,10 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     loop janjang, jadi exception di tengah loop janjang membuatnya tetap segar tiap detik
     walau tidak ada janjang yang selesai digrading.
     **Tiga pembaca, satu sumber**: coil ERROR PLC (`sehat_untuk_plc()`, naik untuk **kamera
-    putus ATAU AI mati**, tidak untuk lisensi habis atau sumber diam, PLC tidak berubah sama
+    putus ATAU AI mati ATAU frame berhenti (aturan 35)**, tidak untuk lisensi habis atau sumber selesai, PLC tidak berubah sama
     sekali, no ladder change, tapi **tim PLC harus diberi tahu** M1002/M1005/M1008 sekarang
     bisa naik untuk sebab baru ini); `/health` (503 **hanya** untuk AI mati, kamera putus/
-    lisensi/sumber diam tetap 200, karena gerbang update `autograde.sh` (`wait_healthy`, `curl -f
+    lisensi/sumber selesai tetap 200, frame berhenti 503 seperti AI mati (aturan 35), karena gerbang update `autograde.sh` (`wait_healthy`, `curl -f
     /health`) memundurkan versi yang tidak menjawab 200 dalam 90 detik, dan tiga keadaan itu
     bukan salah versi). ⚠️ **Gerbang itu TIDAK menangkap AI yang mati sesudah start**: dia
     selesai pada 200 PERTAMA, dan probe pertama selalu jatuh di dalam tenggang `memulai` 30
@@ -1237,13 +1238,52 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     membalik urutan transisi dan mencatat satu kejadian jadi tiga baris log. Transisi dicatat
     sekali per perubahan, bukan tiap panggilan: masuk `ai_mati` → `logger.error`; keluar dari
     `ai_mati` → `logger.warning` **"AI %s tidak lagi dinilai mati (keadaan %s)"** (keluar bisa
-    juga ke `kamera_putus`/`lisensi`/`sumber_diam`, bukan cuma balik `sehat`).
+    juga ke `kamera_putus`/`lisensi`/`sumber_selesai`, bukan cuma balik `sehat`).
     **Docker healthcheck TIDAK autoheal**: `restart: unless-stopped` tidak bereaksi ke
     `unhealthy`, dan tidak ada autoheal container/label di repo mana pun, jadi AI mati yang
     membuat `/health` 503 membuat line terlihat `unhealthy` di `docker ps` tapi **tidak**
     memicu restart mana pun.
-    **Gap yang sengaja dibiarkan** (ditunda ke batch 3.6): frame yang berhenti mengalir padahal
-    kamera tetap tersambung dibaca `sumber_diam`, tidak dialarm sama sekali.
+    Gap `sumber_diam` yang dulu sengaja dibiarkan ditutup batch 3.6: lihat aturan 35.
+35. **Health jujur + pemantau disk** (batch 3.6 dan 3.7, 2026-09-30). Aturan 32 diperluas,
+    bukan diduplikasi: `domain/kesehatan_ai.py` + `services/penjaga_ai.py` yang SAMA.
+    **Frame berhenti** (`frame_berhenti`, kode `FRAME_BERHENTI`) = kamera ADA (tersambung
+    sekarang, ATAU sambung ulang terakhir `FrameCaptureWorker` berhasil) tapi tidak ada gambar
+    masuk selama `AI_MATI_DETIK` sejak yang paling belakangan dari: gambar terakhir, loop mulai,
+    kamera pulih dari putus sungguhan (`RuntimeState.kamera_pulih_at`, dicap hanya saat sambung
+    ulang BERHASIL sesudah yang GAGAL). ⚠️ "Sambung ulang terakhir berhasil" itu wajib: Hikrobot
+    yang diam membuat worker memutus dan menyambung lagi tiap lima grab gagal, jadi
+    `camera.connected` bolak-balik; tanpa fakta ini penilaian berkedip antara kamera putus (200)
+    dan frame berhenti (503). ⚠️ `kamera_pulih_at` TIDAK diperbarui oleh sambung ulang berhasil
+    yang beruntun, kalau tidak tenggangnya diperpanjang selamanya (pola `ai_dimulai_at`).
+    Frame berhenti menaikkan coil ERROR dan membuat `/health` 503 (`PenilaianAi.gagal`,
+    `KEADAAN_GAGAL`), tapi `ai.mati` **tetap AI saja**: konsol versi lama membaca `mati` dan
+    menulis "AI berhenti memproses". `LineClient.hidup()` menghitung 503 frame berhenti sebagai
+    proses hidup (satu aturan `kode_http_health`). **Sumber selesai** (`sumber_selesai`,
+    `camera.exhausted`, video tanpa ulang) dinilai SEBELUM kamera putus (video yang habis
+    memutus dirinya sendiri) dan tidak menaikkan apa pun. Kamera putus sungguhan (sambung ulang
+    GAGAL) tetap 200 + coil ERROR seperti dulu. `/health/detail` tetap 200 (aturan 32).
+    `/health/detail` memuat `fps_kamera` (terukur di `RuntimeState.catat_frame_masuk`, jendela 5
+    detik), `fps_deteksi`, keduanya **0 kalau yang terakhir lebih tua dari 5 detik**,
+    `frame_umur_detik`, `disk`, `lisensi`, dan `plc.connected` (klien PLC sendiri; kartu
+    Diagnostik menggambar ✓ hanya untuk `true`, ✗ untuk `false`, "tidak diketahui" untuk line
+    lama tanpa field ini, `-` untuk PLC mati).
+    **Pemantau disk** (`domain/kesehatan_disk.py` + `services/pemantau_disk.py`, satu per proses
+    line di `RuntimeState.pemantau_disk`): mengukur partisi `artifacts/` DAN folder DB line, yang
+    tersempit yang dilapor, **tanpa R2 dan tanpa menghapus apa pun** (tanpa R2, arsip lokal itu
+    satu-satunya salinan bukti; TODO L1 soal pembersih tanpa R2 sengaja tetap manual).
+    `DISK_PERINGATAN_GB` (15) dan `DISK_KRITIS_GB` (5), histeresis 1 GB. ⚠️ Peringatan wajib di
+    BAWAH `UPLOAD_DISK_MIN_FREE_GB` (20): dengan R2 penjaga retensi menjaga sisa disk di sekitar
+    lantai itu, jadi ambang setinggi itu = alert permanen (pemantau menulis WARNING saat start).
+    Penjaga retensi di `BatchUploadWorker` tidak diubah. Konsol: `LineStatusWorker` membawa
+    `disk` + mencatat transisi (`_catat_frame`, `_catat_disk`), layar menggambar SATU pita
+    `#pita-disk` per kode untuk seluruh PC (`gabungDisk`/`pitaDisk`, sisa terkecil, daftar line),
+    bukan per kartu: ketiga line menulis ke satu disk.
+    Fakta milik line (AI mati, frame berhenti, disk) dicatat WARNING/ERROR oleh line dan sampai
+    tab Log lewat tarikan log line (aturan 34); cermin `LineStatusWorker` konsol cuma INFO,
+    supaya satu kejadian satu baris dan satu kelompok Discord. Baris "Kamera tidak mengirim
+    gambar" (aturan 33, mulai 5 grab gagal) dan FRAME_BERHENTI (sesudah `AI_MATI_DETIK`, coil
+    ERROR naik) sengaja dua baris: yang pertama menyebut alasan kamera, yang kedua keputusan
+    sehat.
 
 ---
 
