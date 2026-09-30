@@ -6,34 +6,65 @@ tepat saat disk lambat. Aturan 1b melarang deteksi menunggu disk, jadi `write()`
 cuma menaruh kejadian di antrean memori; thread penulis sendiri yang menguras ke
 `LogLineStore` tiap ~0,2 detik.
 
-Harga yang diterima: kejadian yang ditulis beberapa ratus milidetik sebelum proses
-mati mendadak (SIGKILL, listrik) bisa hilang. Restart dari konsol dan SIGTERM tidak
-kehilangannya: urutan tutup line makan waktu jauh lebih lama dari satu kurasan.
+Keluar biasa (SIGTERM lewat uvicorn, `sys.exit` saat startup gagal) menguras sisa
+antrean lewat `atexit`, jadi galat terakhir sebelum line mati tetap sampai ke tab Log;
+justru itu yang dicari support saat line berputar gagal start. Yang tetap bisa hilang:
+kejadian ~0,2 detik terakhir saat proses mati tanpa lewat `atexit`, yaitu SIGKILL,
+listrik, dan `os._exit` (restart dan hapus data dari konsol, `penutup_line.keluar_nanti`).
 Antrean penuh (1000 kejadian yang belum sempat ditulis) membuang yang paling lama
 dan menghitungnya, bukan menahan pemanggil.
 """
 from __future__ import annotations
 
+import atexit
 import logging
 import sys
 import threading
 from collections import deque
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from ..core.log_sink import install_log_sink
-from ..domain.log_line import EntriLog
+from ..core.log_sink import SqliteLogHandler, install_log_sink
+from ..domain.log_line import PANJANG_SUMBER_MAKS, EntriLog, potong_detail, potong_pesan
 from ..repositories.log_line_repository import NAMA_DB_LOG_LINE, LogLineStore
 
 logger = logging.getLogger(__name__)
 
 KAPASITAS_ANTREAN = 1000
 JEDA_KURAS_S = 0.2
+#: Menunggu thread penulis selesai saat berhenti. Kecil: SIGTERM punya anggaran
+#: 10 detik `docker stop`, dan urutan tutup line sudah memakai sampai 9 detik.
+BATAS_BERHENTI_S = 0.5
 NAMA_THREAD = "log_line"
 
 
 class _PenyimpanLog(Protocol):
     def tulis_banyak(self, entri: list[EntriLog], *, dibuang_antrean: int = 0) -> None: ...
+
+
+def _aman(teks: object) -> str:
+    """Teks yang pasti bisa di-encode UTF-8: surrogate (nama berkas bukan UTF-8) jadi `\\udcff`."""
+    return str(teks).encode("utf-8", "backslashreplace").decode("utf-8")
+
+
+def _entri(level: str, source: str, message: str, detail: str | None, now: float) -> EntriLog:
+    """Dipotong di sini, sebelum antre: batas 1000 kejadian juga membatasi memori."""
+    return EntriLog(
+        level,
+        _aman(source)[:PANJANG_SUMBER_MAKS],
+        potong_pesan(_aman(message)),
+        potong_detail(_aman(detail)) if detail is not None else None,
+        now,
+    )
+
+
+def _ke_stderr(pesan: str) -> None:
+    # stderr yang tertutup atau hilang tidak boleh mematikan thread penulis.
+    try:
+        print(pesan, file=sys.stderr)
+    except (OSError, ValueError):
+        pass
 
 
 class AntreanLogLine:
@@ -44,17 +75,27 @@ class AntreanLogLine:
         self._kapasitas = kapasitas
         self._jeda_s = jeda_s
         self._antre: deque[EntriLog] = deque()
-        self._kunci = threading.Lock()
+        # RLock: finalizer atau signal handler yang menulis log di tengah `write()`
+        # thread yang sama tidak boleh membuat thread deteksi macet selamanya.
+        self._kunci = threading.RLock()
         self._ada = threading.Event()
         self._dibuang = 0
         self._sudah_mengeluh = False
+        self._thread: threading.Thread | None = None
 
     def write(
         self, level: str, source: str, message: str, detail: str | None, *, now: float
     ) -> None:
         """Bentuk `_LogSink`. Tidak pernah menyentuh disk dan tidak pernah melempar."""
+        try:
+            entri: EntriLog | None = _entri(level, source, message, detail, now)
+        except Exception:  # noqa: BLE001, pemanggilnya bisa thread deteksi
+            entri = None
         with self._kunci:
-            self._taruh(EntriLog(level, source, message, detail, now))
+            if entri is None:
+                self._dibuang += 1
+            else:
+                self._taruh(entri)
         self._ada.set()
 
     def _taruh(self, entri: EntriLog) -> None:
@@ -64,11 +105,12 @@ class AntreanLogLine:
         self._antre.append(entri)
 
     def kuras(self) -> int:
-        """Tulis semua yang menunggu dalam satu transaksi. Mengembalikan jumlahnya.
+        """Tulis semua yang menunggu dalam satu transaksi. Mengembalikan jumlah yang tertulis.
 
-        Gagal menulis (disk penuh, berkas rusak) mengembalikan kejadiannya ke depan
-        antrean dan mengeluh SEKALI ke stderr: log yang rusak tidak boleh menjatuhkan
-        line, dan tidak boleh diam selamanya juga.
+        Batch yang gagal ditulis ulang satu per satu: kejadian yang gagal sendirian
+        dibuang dan dihitung, supaya satu kejadian racun tidak menyandera yang lain.
+        Kalau semuanya gagal, disknya yang rusak: kejadiannya kembali ke depan antrean
+        dan penulis mengeluh SEKALI per gangguan ke stderr, dengan sebabnya.
         """
         with self._kunci:
             batch = list(self._antre)
@@ -79,21 +121,55 @@ class AntreanLogLine:
             return 0
         try:
             self._store.tulis_banyak(batch, dibuang_antrean=dibuang)
-        except Exception:  # noqa: BLE001, lihat docstring
-            with self._kunci:
-                baru = list(self._antre)
-                self._antre.clear()
-                self._dibuang += dibuang
-                for e in batch + baru:
-                    self._taruh(e)
-            if not self._sudah_mengeluh:
-                self._sudah_mengeluh = True
-                print(
-                    "log line could not be written; the console Log tab will miss this line",
-                    file=sys.stderr,
-                )
-            return 0
+        except Exception as exc:  # noqa: BLE001, lihat docstring
+            return self._tulis_satu_per_satu(batch, dibuang, exc)
+        self._sudah_mengeluh = False
         return len(batch)
+
+    def _tulis_satu_per_satu(self, batch: list[EntriLog], dibuang: int, galat: Exception) -> int:
+        tertulis = 0
+        racun = 0
+        for e in batch:
+            try:
+                self._store.tulis_banyak([e])
+            except Exception as exc:  # noqa: BLE001
+                racun += 1
+                galat = exc
+            else:
+                tertulis += 1
+        if not tertulis:
+            self._kembalikan(batch, dibuang)
+            self._mengeluh(galat)
+            return 0
+        self._sudah_mengeluh = False
+        if racun:
+            _ke_stderr(
+                f"log line dropped {racun} entries that could not be written:"
+                f" {type(galat).__name__}: {galat}"
+            )
+        try:
+            self._store.tulis_banyak([], dibuang_antrean=dibuang + racun)
+        except Exception:  # noqa: BLE001, hitungannya dicoba lagi di kurasan berikut
+            with self._kunci:
+                self._dibuang += dibuang + racun
+        return tertulis
+
+    def _kembalikan(self, batch: list[EntriLog], dibuang: int) -> None:
+        with self._kunci:
+            baru = list(self._antre)
+            self._antre.clear()
+            self._dibuang += dibuang
+            for e in batch + baru:
+                self._taruh(e)
+
+    def _mengeluh(self, galat: Exception) -> None:
+        if self._sudah_mengeluh:
+            return
+        self._sudah_mengeluh = True
+        _ke_stderr(
+            "log line could not be written; the console Log tab will miss this line:"
+            f" {type(galat).__name__}: {galat}"
+        )
 
     def jalan(self, berhenti: threading.Event) -> None:
         """Loop thread penulis. Tidak pernah keluar karena galat."""
@@ -105,14 +181,55 @@ class AntreanLogLine:
         self.kuras()
 
     def mulai(self) -> threading.Event:
-        """Nyalakan thread penulis (daemon). Mengembalikan saklar hentinya (untuk test)."""
+        """Nyalakan thread penulis (daemon). Mengembalikan saklar hentinya."""
         berhenti = threading.Event()
-        threading.Thread(target=self.jalan, args=(berhenti,), daemon=True, name=NAMA_THREAD).start()
+        self._thread = threading.Thread(
+            target=self.jalan, args=(berhenti,), daemon=True, name=NAMA_THREAD
+        )
+        self._thread.start()
         return berhenti
 
+    def hentikan(self, berhenti: threading.Event, *, batas_s: float = BATAS_BERHENTI_S) -> bool:
+        """Hentikan penulis dan tulis sisanya. True = thread penulis sudah berhenti.
 
-def pasang_log_line(folder_db: Path) -> LogLineStore | None:
-    """Buka log line, nyalakan penulisnya, dan pasang handlernya di root logger.
+        Thread yang macet di disk lambat tidak ditunggu lewat `batas_s` (dan sisanya
+        tidak dikuras dari sini: kurasan kedua akan antre di kunci store yang sama).
+        """
+        berhenti.set()
+        self._ada.set()
+        if self._thread is not None:
+            self._thread.join(batas_s)
+            if self._thread.is_alive():
+                return False
+        self.kuras()
+        return True
+
+
+@dataclass
+class PenulisLogLine:
+    """Log line yang terpasang: store untuk `GET /internal/log`, plus kendali berhentinya."""
+
+    store: LogLineStore
+    antrean: AntreanLogLine
+    handler: SqliteLogHandler
+    berhenti: threading.Event
+
+    def __post_init__(self) -> None:
+        atexit.register(self._saat_keluar)
+
+    def _saat_keluar(self) -> None:
+        self.antrean.hentikan(self.berhenti)
+
+    def hentikan(self) -> bool:
+        """Copot handler dari root logger, hentikan penulis, tulis sisanya (untuk test)."""
+        logging.getLogger().removeHandler(self.handler)
+        atexit.unregister(self._saat_keluar)
+        return self.antrean.hentikan(self.berhenti)
+
+
+def pasang_penulis_log_line(folder_db: Path) -> PenulisLogLine | None:
+    """Buka log line, nyalakan penulisnya, pasang handlernya di root logger, dan
+    daftarkan pengurasan saat proses keluar.
 
     `None` kalau berkasnya tidak bisa dibuka: line tetap jalan tanpa log di disk,
     `GET /internal/log` menjawab 503, dan alasannya ada di `docker logs`.
@@ -123,6 +240,11 @@ def pasang_log_line(folder_db: Path) -> LogLineStore | None:
         logger.exception("Log line di %s tidak bisa dibuka; tab Log konsol tidak menerima log line ini", folder_db)
         return None
     antrean = AntreanLogLine(store)
-    antrean.mulai()
-    install_log_sink(antrean)
-    return store
+    berhenti = antrean.mulai()
+    return PenulisLogLine(store, antrean, install_log_sink(antrean), berhenti)
+
+
+def pasang_log_line(folder_db: Path) -> LogLineStore | None:
+    """Bentuk yang dipakai `main.py`: cuma store-nya (router `/internal/log`)."""
+    penulis = pasang_penulis_log_line(folder_db)
+    return penulis.store if penulis is not None else None
