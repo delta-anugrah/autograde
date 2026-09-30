@@ -462,6 +462,9 @@
      sendiri, dan hex yang dipatok cuma terbaca di salah satunya. */
   .tanda-ok { color:var(--acc); font-weight:700; }
   .tanda-gagal { color:var(--rej); font-weight:700; }
+  /* Batch 3.7: sisa disk di bawah ambang peringatan. Kuning, bukan merah: perlu
+     dijadwalkan, belum darurat. */
+  .tanda-waspada { color:var(--warn); font-weight:700; }
 
   /* Uji PLC: the only card that moves hardware. DI bits are read-only text;
      coil buttons get the danger tokens piston.terbuka already uses, so the
@@ -781,6 +784,17 @@
              animation:denyut-pita 1.6s ease-in-out infinite; }
   .pita-ai b { display:block; font-size:1rem; text-transform:uppercase; letter-spacing:.04em; }
   .pita-ai span { display:block; margin-top:4px; font-size:.85rem; font-weight:600; }
+  /* Disk PC hampir penuh (batch 3.7): satu pita untuk seluruh layar seperti
+     #pita-alarm, karena ketiga line menulis ke disk yang sama. Peringatan
+     memakai palet --warn tanpa denyut (dijadwalkan, bukan darurat); kritis
+     memakai palet dan denyut bahaya yang sama dengan pita AI. */
+  #pita-disk { margin:10px 13px 0; }
+  #pita-disk p { margin:0 0 6px; padding:11px 13px; border-radius:var(--r-sm);
+                 background:var(--warn-bg); color:var(--warn); border-left:4px solid var(--warn); }
+  #pita-disk p.kritis { background:var(--danger-fg); color:var(--danger-bg); border-left:none;
+                        animation:denyut-pita 1.6s ease-in-out infinite; }
+  #pita-disk b { display:block; font-size:1rem; text-transform:uppercase; letter-spacing:.04em; }
+  #pita-disk span { display:block; margin-top:4px; font-size:.85rem; font-weight:600; }
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
@@ -1362,6 +1376,7 @@
 </section>
 
 <div id="pita-alarm" hidden></div>
+<div id="pita-disk" hidden></div>
 <div id="lines"></div>
 
 <nav id="tabs">
@@ -2465,6 +2480,13 @@ const KAMUS = {
     kartuKunciDitolak:"Kunci ditolak (HTTP {status}). Line ini hidup dan mungkin masih menggrading, tapi kuncinya beda dari konsol. Cocokkan INTERNAL_SECRET di konsol dan di line.",
     aiMatiJudul:"{line}: AI berhenti memproses",
     aiMatiRinci:"Kode {kode}, sejak {jam}. Kamera mengirim gambar tapi tidak ada yang digrading, buah lewat tanpa disortir. Tahan umpan buah ke line ini dan panggil teknisi untuk restart line.",
+    frameBerhentiJudul:"{line}: kamera berhenti mengirim gambar",
+    frameBerhentiRinci:"Kode {kode}, sejak {jam}. Kamera tersambung tapi tidak ada gambar masuk, buah lewat tanpa disortir. Tahan umpan buah ke line ini dan panggil teknisi: periksa kabel data dan switch kamera, lalu restart line.",
+    diskHampirPenuhJudul:"Disk PC hampir penuh",
+    diskKritisJudul:"Disk PC hampir habis",
+    diskRinci:"Kode {kode}, sejak {jam}, dilaporkan {line}. Sisa {bebas} GB dari {total} GB.",
+    diskSaranPeringatan:"Jadwalkan pengosongan: hapus rekaman video lama, docker system prune, pastikan unggah Cloud Photo jalan.",
+    diskSaranKritis:"Kosongkan sekarang, grading berhenti tersimpan begitu disk habis: hapus rekaman video, docker system prune, panggil support.",
     err_sandi_pendek:"Sandi minimal 8 karakter",
     err_sandi_salah:"Email atau sandi salah",
     err_terkunci:"Login terkunci {detik} detik lagi setelah beberapa sandi salah",
@@ -2503,6 +2525,10 @@ const KAMUS = {
     gagalPiston:"Perintah piston gagal",
     thSebab:"Sebab", thKamera:"Kamera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Antrean lokal", lineTidakTerjangkau:"Tidak terjangkau",
+    thFps:"FPS kamera / deteksi", thFrameTerakhir:"Gambar terakhir", thDisk:"Disk",
+    thLisensiLine:"Lisensi", thVersiModel:"Versi / model", thTersimpanGagal:"Janjang tak tersimpan",
+    thTpTelat:"TP telat", diagDetikLalu:"{n} dtk lalu", diagDiskBebas:"{bebas} GB bebas ({persen}%)",
+    diagPlcTakDiketahui:"tidak diketahui (line versi lama)",
     gagalDiagnostik:"Gagal memuat diagnostik",
     judulAkun:"Akun", thNama:"Nama", thEmail:"Email", thRole:"Role", thAsal:"Asal",
     thSedangMasuk:"Sedang masuk", thDibuat:"Dibuat",
@@ -2825,6 +2851,13 @@ const KAMUS = {
     kartuKunciDitolak:"Key refused (HTTP {status}). This line is alive and may still be grading, but its key differs from the console. Check that INTERNAL_SECRET matches on the console and on the line.",
     aiMatiJudul:"{line}: AI stopped processing",
     aiMatiRinci:"Code {kode}, since {jam}. The camera sends images but nothing is graded, fruit passes unsorted. Hold the fruit feed to this line and call a technician to restart the line.",
+    frameBerhentiJudul:"{line}: camera stopped sending images",
+    frameBerhentiRinci:"Code {kode}, since {jam}. The camera is connected but no image arrives, fruit passes unsorted. Hold the fruit feed to this line and call a technician: check the camera data cable and switch, then restart the line.",
+    diskHampirPenuhJudul:"PC disk almost full",
+    diskKritisJudul:"PC disk nearly out of space",
+    diskRinci:"Code {kode}, since {jam}, reported by {line}. {bebas} GB free of {total} GB.",
+    diskSaranPeringatan:"Plan a clean-up: delete old video recordings, docker system prune, make sure the Cloud Photo upload runs.",
+    diskSaranKritis:"Free space now, grading stops being saved once the disk is full: delete video recordings, docker system prune, call support.",
     err_sandi_pendek:"The password must be at least 8 characters",
     err_sandi_salah:"Wrong email or password",
     err_terkunci:"Sign-in locked for another {detik} s after repeated wrong passwords",
@@ -2861,6 +2894,10 @@ const KAMUS = {
     gagalPiston:"Piston command failed",
     thSebab:"Reason", thKamera:"Camera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Local queue", lineTidakTerjangkau:"Unreachable",
+    thFps:"Camera / detection FPS", thFrameTerakhir:"Last image", thDisk:"Disk",
+    thLisensiLine:"Licence", thVersiModel:"Version / model", thTersimpanGagal:"Bunches not saved",
+    thTpTelat:"Late TP", diagDetikLalu:"{n} s ago", diagDiskBebas:"{bebas} GB free ({persen}%)",
+    diagPlcTakDiketahui:"unknown (older line version)",
     gagalDiagnostik:"Failed to load diagnostics",
     judulAkun:"Users", thNama:"Name", thEmail:"Email", thRole:"Role", thAsal:"Source",
     thSedangMasuk:"Signed in", thDibuat:"Created",
@@ -3691,24 +3728,27 @@ function pitaKunciDitolak(l) {
   return `<div class="pita-kunci">${esc(teks)}</div>`;
 }
 
-// AI line berhenti memproses (batch 2.1, kode AI_MATI): kamera mengirim gambar
-// tapi tidak ada frame yang selesai digrading. DINILAI DI LINE
-// (services/penjaga_ai.py, blok `ai` di /internal/status), layar cuma
-// menggambar keputusan itu: menghitung ulang umur frame di sini berarti dua
-// aturan yang bisa berbeda dengan coil ERROR PLC. Line yang tidak terbaca tidak
-// menggambar pita ini: kartunya sudah OFFLINE.
+// Line yang terlihat hidup tapi tidak menyortir: AI berhenti memproses (batch
+// 2.1, kode AI_MATI) ATAU kamera tersambung tapi berhenti mengirim gambar
+// (batch 3.6, kode FRAME_BERHENTI). DINILAI DI LINE (services/penjaga_ai.py,
+// blok `ai` di /internal/status), layar cuma menggambar keputusan itu:
+// menghitung ulang umur frame di sini berarti dua aturan yang bisa berbeda
+// dengan coil ERROR PLC. Line yang tidak terbaca tidak menggambar pita ini:
+// kartunya sudah OFFLINE. `ai.mati` sengaja tetap AI saja (konsol versi lama
+// membacanya), jadi frame berhenti dikenali dari `keadaan`.
 function aiMati(l) {
   const p = l.plc || {};
-  return Boolean(p.reachable && p.ai && p.ai.mati);
+  return Boolean(p.reachable && p.ai && (p.ai.mati || p.ai.keadaan === "frame_berhenti"));
 }
 
 // `sekarang` cuma untuk test: jam hari ini ditulis jamnya saja, hari lain ikut tanggal.
 function pitaAi(l, sekarang = Date.now() / 1000) {
   if (!aiMati(l)) return "";
   const ai = l.plc.ai;
-  const judul = t("aiMatiJudul").replace("{line}", l.name || l.line_code);
-  const rinci = t("aiMatiRinci")
-    .replace("{kode}", ai.kode || "AI_MATI")
+  const frame = ai.keadaan === "frame_berhenti";
+  const judul = t(frame ? "frameBerhentiJudul" : "aiMatiJudul").replace("{line}", l.name || l.line_code);
+  const rinci = t(frame ? "frameBerhentiRinci" : "aiMatiRinci")
+    .replace("{kode}", ai.kode || (frame ? "FRAME_BERHENTI" : "AI_MATI"))
     .replace("{jam}", jamSinkron(ai.sejak, sekarang) || KOSONG);
   return `<div class="pita-ai" role="alert"><b>${esc(judul)}</b><span>${esc(rinci)}</span></div>`;
 }
@@ -3754,6 +3794,52 @@ function gambarPitaAlarm(lines) {
     return `<span>${esc(teks)}</span>`;
   }).join("");
   el.hidden = false;
+}
+
+// Disk PC hampir penuh (batch 3.7). Tiap line mengukur partisi yang dia tulis
+// (services/pemantau_disk.py) dan konsol cuma menggambar: satu pita per kode,
+// menyebut semua line yang melaporkannya dan sisa TERKECIL di antaranya (di
+// Lampung ketiga line menulis ke satu disk, jadi tiga pita kembar tidak menambah
+// apa-apa). Kritis di atas peringatan. Line lama (tanpa `disk`), OFFLINE, dan
+// disk yang tidak terbaca tidak menyumbang apa pun.
+function gabungDisk(lines) {
+  const perKode = {};
+  for (const l of lines || []) {
+    const p = l.plc || {};
+    const d = p.disk;
+    if (!p.reachable || !d || !d.kode || (d.tingkat !== "peringatan" && d.tingkat !== "kritis")) continue;
+    const g = perKode[d.kode] || (perKode[d.kode] = { kode: d.kode, tingkat: d.tingkat, lines: [], disk: d });
+    g.lines.push(l.name || l.line_code);
+    if (d.bebas_gb < g.disk.bebas_gb) g.disk = d;
+  }
+  return Object.values(perKode).sort((a, b) => Number(b.tingkat === "kritis") - Number(a.tingkat === "kritis"));
+}
+
+// `sekarang` cuma untuk test, sama seperti pitaAi.
+function pitaDisk(lines, sekarang = Date.now() / 1000) {
+  const angka = (v) => (v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal()));
+  return gabungDisk(lines).map((g) => {
+    const kritis = g.tingkat === "kritis";
+    const rinci = t("diskRinci")
+      .replace("{kode}", g.kode)
+      .replace("{jam}", jamSinkron(g.disk.sejak, sekarang) || KOSONG)
+      .replace("{line}", g.lines.join(", "))
+      .replace("{bebas}", angka(g.disk.bebas_gb))
+      .replace("{total}", angka(g.disk.total_gb));
+    const saran = t(kritis ? "diskSaranKritis" : "diskSaranPeringatan");
+    return `<p class="${kritis ? "kritis" : "peringatan"}" role="alert"><b>${esc(t(kritis ? "diskKritisJudul" : "diskHampirPenuhJudul"))}</b>`
+      + `<span>${esc(rinci)} ${esc(saran)}</span></p>`;
+  }).join("");
+}
+
+// Tiap polling. `tulisKalauBeda` supaya pita yang sama tidak dibangun ulang tiap
+// 2 detik (denyut pita kritis tidak mulai dari awal lagi).
+function gambarPitaDisk(lines) {
+  const el = $("pita-disk");
+  if (!el) return;
+  const html = pitaDisk(lines);
+  el.hidden = !html;
+  tulisKalauBeda(el, html);
 }
 
 // `sekarang` = jam render, dipakai `?t=` URL feed DAN cap `_dimintaPada`
@@ -4953,6 +5039,7 @@ async function refresh() {
     isiTallyTimbangan(s.timbangan);
     isiSinkron(s.sinkron);
     gambarPitaAlarm(s.lines);
+    gambarPitaDisk(s.lines);
     if (!dipasang) {
       const dipasangPada = Date.now();
       $("lines").innerHTML = s.lines.map((l) => kartuLine(l, dipasangPada)).join("");
@@ -5757,6 +5844,51 @@ function tanda(ok) {
   return ok ? `<span class="tanda-ok">✓</span>` : `<span class="tanda-gagal">✗</span>`;
 }
 
+// Batch 3.6: PLC ✓ hanya kalau line bilang BENAR-BENAR tersambung
+// (`plc.connected`, klien PLC-nya sendiri), bukan karena dict `plc` ada: dulu
+// PLC yang menyala dengan kabel tercabut tetap dapat ✓. `plc: null` = PLC
+// dimatikan di line itu, strip. Line versi lama tidak mengirim `connected`:
+// tidak diketahui, bukan ✓ yang tidak bisa dibuktikan.
+function diagPlc(plc) {
+  if (!plc) return KOSONG;
+  if (plc.connected === undefined || plc.connected === null) return esc(t("diagPlcTakDiketahui"));
+  return tanda(plc.connected === true);
+}
+
+// Angka satu desimal ala layar ("14,9"); strip kalau line tidak mengirimnya.
+function diagAngka(v) {
+  return v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal(), { maximumFractionDigits: 1 });
+}
+
+// Umur gambar terakhir. Merah kalau line menilai kameranya berhenti mengirim:
+// keputusan yang SAMA dengan coil ERROR, bukan ambang kedua di layar.
+function diagFrame(d) {
+  if (d.frame_umur_detik === null || d.frame_umur_detik === undefined) return KOSONG;
+  const teks = esc(t("diagDetikLalu").replace("{n}", diagAngka(d.frame_umur_detik)));
+  return d.ai && d.ai.keadaan === "frame_berhenti" ? `<span class="tanda-gagal">${teks}</span>` : teks;
+}
+
+// Sisa disk (batch 3.7) dengan warna tingkatnya; tingkat asing tidak masuk atribut.
+function diagDisk(disk) {
+  if (!disk || disk.bebas_gb === null || disk.bebas_gb === undefined) return KOSONG;
+  const kelas = { aman: "tanda-ok", peringatan: "tanda-waspada", kritis: "tanda-gagal" }[disk.tingkat] || "";
+  const teks = t("diagDiskBebas").replace("{bebas}", diagAngka(disk.bebas_gb)).replace("{persen}", diagAngka(disk.persen_bebas));
+  return `<span class="${kelas}">${esc(teks)}</span>`;
+}
+
+// Lisensi line itu: strip kalau `LICENSE_ENABLED` mati di sana, ✗ kalau grading diblokir.
+function diagLisensi(l) {
+  if (!l || !l.aktif) return KOSONG;
+  return tanda(!l.grading_diblokir);
+}
+
+// `capture_save_dropped` dan `tp_telat` harus NOL (docs/MANUAL.md §3.5): nol
+// hijau, di atas nol merah, supaya angka yang wajib nol terbaca tanpa dihafal.
+function diagNol(n) {
+  if (n === null || n === undefined) return KOSONG;
+  return `<span class="${Number(n) > 0 ? "tanda-gagal" : "tanda-ok"}">${esc(String(n))}</span>`;
+}
+
 // Dynamic markup, generated fresh on every poll: static labels are resolved
 // with t() inline here, not via data-t - that attribute is only ever scanned
 // once, over the page's static HTML (see terapkanBahasa).
@@ -5781,16 +5913,22 @@ function kartuDiagnostik(kode, d) {
   const barisWorker = workers
     .map((x) => `<dt class="diag-worker">${esc(x.name)}</dt><dd>${tanda(x.alive)}</dd>`)
     .join("");
-  // `plc: null` = PLC dimatikan di line itu, bukan rusak: strip, bukan silang
-  // merah yang akan dikejar teknisi sebagai kerusakan.
-  const plc = d.plc ? tanda(true) : KOSONG;
+  const model = [d.version, d.model_file && `${d.model_file}${d.model_backend ? ` (${d.model_backend})` : ""}`]
+    .filter(Boolean).join(" · ");
   return `<div class="card" data-line="${esc(kode)}">
     <h2><span class="nama">${esc(kode)}</span></h2>
     <dl>
       <dt>${esc(t("thKamera"))}</dt><dd>${tanda(d.camera_connected)}</dd>
+      <dt>${esc(t("thFps"))}</dt><dd>${diagAngka(d.fps_kamera)} / ${diagAngka(d.fps_deteksi)}</dd>
+      <dt>${esc(t("thFrameTerakhir"))}</dt><dd>${diagFrame(d)}</dd>
       <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : tanda(d.gpu_available)}</dd>
-      <dt>${esc(t("thPlc"))}</dt><dd>${plc}</dd>
+      <dt>${esc(t("thPlc"))}</dt><dd>${diagPlc(d.plc)}</dd>
+      <dt>${esc(t("thDisk"))}</dt><dd>${diagDisk(d.disk)}</dd>
+      <dt>${esc(t("thLisensiLine"))}</dt><dd>${diagLisensi(d.lisensi)}</dd>
+      <dt>${esc(t("thVersiModel"))}</dt><dd>${dash(model)}</dd>
       <dt>${esc(t("thAntreanLokal"))}</dt><dd>${dash(d.outbox_pending)} / ${dash(d.outbox_failed)}</dd>
+      <dt>${esc(t("thTersimpanGagal"))}</dt><dd>${diagNol(d.capture_save_dropped)}</dd>
+      <dt>${esc(t("thTpTelat"))}</dt><dd>${diagNol(d.tp_telat)}</dd>
       <dt>${esc(t("thWorkers"))}</dt><dd>${ringkasWorker}</dd>${barisWorker}
     </dl>
   </div>`;

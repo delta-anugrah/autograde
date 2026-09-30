@@ -50,7 +50,8 @@ def _detail(*, kamera: bool, mati: set[str]) -> dict:
         environment="production",
         camera_type="hikrobot",
         camera_connected=kamera,
-        plc={"inputs": [False] * 12, "dropped_pulses": 0, "dropped_submissions": 0, "piston": {}},
+        plc={"connected": True, "inputs": [False] * 12, "dropped_pulses": 0,
+             "dropped_submissions": 0, "piston": {}},
         gpu_available=True,
         gpu_device="NVIDIA GeForce RTX 3060",
         machine_id="m",
@@ -112,6 +113,10 @@ def _fungsi(nama: str) -> str:
     return HTML[awal : HTML.index("\n}", awal) + 2]
 
 
+# Pembantu baris kartu Diagnostik (batch 3.6 / 3.7), diekstrak bersama kartunya.
+_FUNGSI_DIAG = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol"]
+
+
 def _render(fungsi: list[str], ekspresi: str):
     skrip = (
         'const esc = (s) => String(s ?? "").replace(/[&<>"\'`]/g, (c) =>'
@@ -119,6 +124,7 @@ def _render(fungsi: list[str], ekspresi: str):
         'const KOSONG = "-";\n'
         'const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));\n'
         "const t = (k) => k;\n"
+        'const lokal = () => "id-ID";\n'
         + "\n".join(_fungsi(f) for f in fungsi)
         + f"\nconsole.log(JSON.stringify({ekspresi}));"
     )
@@ -130,7 +136,7 @@ def _render(fungsi: list[str], ekspresi: str):
 def test_diagnostik_dari_jawaban_line_sungguhan(support):
     lines = support.get("/api/console/dev/diagnostik").json()["lines"]
     kartu = {
-        kode: _render(["tanda", "kartuDiagnostik"], f"kartuDiagnostik({json.dumps(kode)}, {json.dumps(d)})")
+        kode: _render([*_FUNGSI_DIAG, "kartuDiagnostik"], f"kartuDiagnostik({json.dumps(kode)}, {json.dumps(d)})")
         for kode, d in lines.items()
     }
 
