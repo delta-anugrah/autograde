@@ -61,7 +61,7 @@ async def manual_reject_command(
         return ManualRejectCommandResponse(accepted=True, message="capture_reject_requested")
     except RuntimeError as exc:
         logger.warning("Manual reject failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 async def piston_command(request: PistonCommandRequest, state: RuntimeState) -> LineStatusResponse:

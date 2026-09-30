@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from ctypes import POINTER, cast, c_ubyte
+from ctypes import POINTER, c_ubyte, cast
 
 import cv2
 import numpy as np
@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 
 try:
     from MvImport.MvCameraControl_class import (  # type: ignore
-        MV_ACCESS_Exclusive,
         MV_CC_DEVICE_INFO,
         MV_CC_DEVICE_INFO_LIST,
         MV_FRAME_OUT_INFO_EX,
         MV_GIGE_DEVICE,
         MV_USB_DEVICE,
+        MV_ACCESS_Exclusive,
         MvCamera,
         PixelType_Gvsp_BayerRG8,
         PixelType_Gvsp_Mono8,
