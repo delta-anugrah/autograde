@@ -11,6 +11,14 @@ def _semua(store: LogLineStore, setelah: int = 0, generasi: str | None = None) -
     return store.ambil(setelah=setelah, generasi=generasi or store.generasi, batas=500)
 
 
+def _tb(kelas_pesan: str, baris: int = 12) -> str:
+    """Traceback berbentuk asli: penanda, frame, baris kode, lalu kepala galat."""
+    return ("Traceback (most recent call last):\n"
+            f'  File "/app/src/palmgrade/workers/x.py", line {baris}, in f\n'
+            "    jalan()\n"
+            f"{kelas_pesan}\n")
+
+
 def test_kejadian_tersimpan_dan_terbaca_urut_seq(tmp_path):
     store = LogLineStore(tmp_path / "log_line.db")
     store.write("ERROR", "a", "kamera putus", "Traceback\nX", now=100.0)
@@ -28,9 +36,9 @@ def test_kejadian_tersimpan_dan_terbaca_urut_seq(tmp_path):
 def test_pesan_sama_dalam_60_detik_digabung_dan_seq_naik(tmp_path):
     """Baris yang hitungannya naik dapat seq baru, supaya konsol membacanya ulang."""
     store = LogLineStore(tmp_path / "log_line.db")
-    store.write("ERROR", "a", "grab gagal", "Traceback\n  File a\nOSError: x", now=100.0)
+    store.write("ERROR", "a", "grab gagal", _tb("OSError: truk B1234XY"), now=100.0)
     store.write("WARNING", "b", "lain", None, now=101.0)
-    store.write("ERROR", "a", "grab gagal", "Traceback\n  File b\nOSError: x", now=130.0)
+    store.write("ERROR", "a", "grab gagal", _tb("OSError: truk D5678AB"), now=130.0)
 
     hasil = _semua(store, setelah=2)
 
@@ -38,8 +46,8 @@ def test_pesan_sama_dalam_60_detik_digabung_dan_seq_naik(tmp_path):
     assert (e["message"], e["count"], e["seq"], e["first_at"], e["last_at"]) == (
         "grab gagal", 2, 3, 100.0, 130.0,
     )
-    # Galat yang sama (baris terakhir traceback sama): traceback pertama yang dipakai.
-    assert e["detail"] == "Traceback\n  File a\nOSError: x"
+    # Galat yang sama (kelas + frame terakhir sama, teks galat beda): traceback pertama.
+    assert e["detail"] == _tb("OSError: truk B1234XY")
 
 
 def test_pesan_sama_sesudah_jendela_jadi_baris_baru(tmp_path):
@@ -248,9 +256,9 @@ def test_pesan_sama_beda_uuid_tergabung_kode_http_berbeda_tidak(tmp_path):
 def test_500_berbeda_dalam_satu_jendela_jadi_dua_baris(tmp_path):
     store = LogLineStore(tmp_path / "log_line.db")
     asgi = "Exception in ASGI application\n"
-    store.write("ERROR", "uvicorn.error", asgi, "Traceback\nKeyError: a", now=100.0)
-    store.write("ERROR", "uvicorn.error", asgi, "Traceback\nOSError: disk", now=130.0)
-    store.write("ERROR", "uvicorn.error", asgi, "Traceback\nKeyError: a", now=140.0)
+    store.write("ERROR", "uvicorn.error", asgi, _tb("KeyError: a"), now=100.0)
+    store.write("ERROR", "uvicorn.error", asgi, _tb("OSError: disk", baris=30), now=130.0)
+    store.write("ERROR", "uvicorn.error", asgi, _tb("KeyError: b"), now=140.0)
     entri = _semua(store)["entri"]
     assert sorted((e["count"], e["detail"].splitlines()[-1]) for e in entri) == [
         (1, "OSError: disk"), (2, "KeyError: a"),

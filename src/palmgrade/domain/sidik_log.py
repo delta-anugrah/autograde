@@ -20,9 +20,10 @@ Pesan yang DISIMPAN tetap pesan asli kejadian pertama; ini cuma untuk sidiknya.
 
 Galat yang pesannya tetap tapi sebabnya berbeda (uvicorn menulis TIAP 500 sebagai
 "Exception in ASGI application", `logger.exception("... gagal")` dengan pesan tetap)
-dibedakan lewat `ringkas_galat`: baris terakhir traceback ikut sidik. Tanpa itu satu
-500 yang berulang menelan setiap 500 lain selama jendela 60 detiknya terus bergeser,
-dan traceback kedua tidak tersimpan di mana pun.
+dibedakan lewat `ringkas_galat`: nama kelas galat + frame terakhirnya ikut sidik. Tanpa
+itu satu 500 yang berulang menelan setiap 500 lain selama jendela 60 detiknya terus
+bergeser, dan traceback kedua tidak tersimpan di mana pun. Teks galatnya sendiri tidak
+ikut: plat, hitungan, jam, atau jalur di sana akan memecah satu galat jadi banyak baris.
 """
 
 from __future__ import annotations
@@ -48,35 +49,72 @@ def normalkan_pesan(pesan: str) -> str:
     hasil = _DESIMAL.sub("<n>", hasil)
     return _BULAT_PANJANG.sub("<n>", hasil)
 
-#: Nama kelas di awal baris galat Python: `KeyError`, `sqlite3.IntegrityError`.
-_KELAS = re.compile(r"[A-Za-z_][\w.]*")
+#: Kepala galat Python: nama kelas (bertitik boleh) lalu ": pesan" atau akhir baris.
+_KEPALA = re.compile(r"([A-Za-z_][\w.]*)(?:: |:?$)")
+#: Satu frame traceback: `  File "jalur", line N, in fungsi`.
+_FRAME = re.compile(r'^  File "([^"]+)", line (\d+)')
+_PENANDA_TRACEBACK = "Traceback (most recent call last):"
 
 
-def _baris_terakhir(detail: str | None) -> str:
-    for baris in reversed((detail or "").splitlines()):
-        if baris.strip():
-            return baris.strip()
-    return ""
+def _kepala_dan_frame(detail: str | None) -> tuple[str, str]:
+    """(nama kelas galat yang terakhir dilempar, frame terakhirnya) dari traceback.
+
+    Kepala = baris TIDAK menjorok pertama sesudah frame terakhir (baris kode dan tanda
+    `^^^` di bawah frame itu menjorok). Baris sesudahnya milik pesan galat yang panjang
+    (bisa memuat plat) dan tidak pernah dibaca. Galat berantai: frame terakhir milik
+    traceback terakhir, jadi yang terbaca galat yang terakhir dilempar. Tanpa frame dan
+    tanpa penanda traceback: bukan traceback, dua-duanya kosong.
+    """
+    baris = (detail or "").splitlines()
+    mulai = None
+    frame = ""
+    for i, b in enumerate(baris):
+        cocok = _FRAME.match(b)
+        if cocok:
+            mulai, frame = i + 1, f"{_jalur_pendek(cocok.group(1))}:{cocok.group(2)}"
+        elif b.startswith(_PENANDA_TRACEBACK):
+            mulai, frame = i + 1, ""
+    if mulai is None:
+        return "", ""
+    for b in baris[mulai:]:
+        if not b.strip() or b[0].isspace():
+            continue
+        cocok = _KEPALA.match(b)
+        nama = cocok.group(1) if cocok else ""
+        # Nama kelas galat diawali huruf besar di segmen terakhirnya (`sqlite3.IntegrityError`).
+        return (nama if nama and nama.rsplit(".", 1)[-1][:1].isupper() else ""), frame
+    return "", frame
+
+
+def _jalur_pendek(jalur: str) -> str:
+    """Jalur frame tanpa bagian yang berbeda antar mesin: sesudah `site-packages/` atau
+    `src/`, kalau tidak ada, nama berkasnya saja."""
+    for penanda in ("site-packages/", "src/"):
+        if penanda in jalur:
+            return jalur.rsplit(penanda, 1)[1]
+    return jalur.replace("\\", "/").rsplit("/", 1)[-1]
 
 
 def ringkas_galat(detail: str | None) -> str:
-    """Baris terakhir traceback (`KeyError: 'state'`), dinormalkan. Kosong tanpa traceback.
+    """Pembeda galat untuk sidik: nama kelas + frame terakhir (`ValueError@palmgrade/x.py:12`).
 
-    Ikut sidik penggabungan: dua galat dengan pesan log yang sama tapi sebab berbeda
-    jadi dua baris. Pesan tanpa traceback menghasilkan kosong, jadi sidiknya sama dengan
-    versi sebelum batch 3.
+    Ikut sidik penggabungan: dua galat dengan pesan log yang sama tapi sebab berbeda (kelas
+    atau tempat lemparnya beda) jadi dua baris, galat yang sama berulang tetap satu. Teks
+    galatnya sengaja TIDAK ikut: galat yang sama dengan plat, hitungan, jam, atau jalur
+    berbeda di teksnya akan memecah jadi ratusan baris, dan `event_log` tidak punya batas
+    baris. Tanpa traceback: kosong, jadi sidiknya sama dengan versi sebelum batch 3.
     """
-    return normalkan_pesan(_baris_terakhir(detail))
+    jenis, frame = _kepala_dan_frame(detail)
+    return f"{jenis}@{frame}" if jenis or frame else ""
 
 
 def jenis_galat(detail: str | None) -> str:
-    """Nama kelas galat dari baris terakhir traceback (`KeyError`). Kosong kalau bukan.
+    """Nama kelas galat yang terakhir dilempar (`KeyError`). Kosong kalau tidak jelas.
 
     Untuk Discord: yang keluar pabrik cuma nama kelasnya, bukan isi pesan galatnya
     (bisa memuat plat, nilai SQL, jalur berkas). Rinciannya tetap di tab Log.
     """
-    kepala = _baris_terakhir(detail).split(":", 1)[0].strip()
-    return kepala if _KELAS.fullmatch(kepala) else ""
+    return _kepala_dan_frame(detail)[0]
 
 
 def dengan_jenis_galat(message: str, detail: str | None) -> str:

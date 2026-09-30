@@ -85,20 +85,71 @@ _TB_INTEG = (
 _ASGI = "Exception in ASGI application\n"
 
 
-def test_ringkas_galat_adalah_baris_terakhir_traceback_yang_dinormalkan():
-    assert ringkas_galat(_TB_KEY) == "KeyError: 'state'"
-    assert ringkas_galat("Traceback\nOSError: tulis 1727680000.5 gagal\n\n") == "OSError: tulis <n> gagal"
-    assert ringkas_galat(None) == ""
-    assert ringkas_galat("   \n") == ""
+def _tb(kelas_pesan: str, *, berkas: str = "/app/src/palmgrade/routes/console.py", baris: int = 12) -> str:
+    return (
+        "Traceback (most recent call last):\n"
+        '  File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 74, in app\n'
+        "    response = await f(request)\n"
+        f'  File "{berkas}", line {baris}, in simpan\n'
+        "    return store.simpan(data)\n"
+        f"{kelas_pesan}\n"
+    )
 
 
 def test_jenis_galat_cuma_nama_kelas():
     """Yang keluar pabrik (Discord) cuma nama kelasnya, bukan isi pesannya."""
     assert jenis_galat(_TB_KEY) == "KeyError"
     assert jenis_galat(_TB_INTEG) == "sqlite3.IntegrityError"
-    assert jenis_galat("Traceback\nKeyboardInterrupt\n") == "KeyboardInterrupt"
+    assert jenis_galat("Traceback (most recent call last):\nKeyboardInterrupt\n") == "KeyboardInterrupt"
     assert jenis_galat("baris bebas: bukan traceback") == ""
     assert jenis_galat(None) == ""
+
+
+def test_jenis_galat_pesan_banyak_baris_tidak_membocorkan_baris_berikutnya():
+    """Review wave 2: `ValueError: bad\nB1234XY` dulu mengembalikan `B1234XY`, sebuah
+    plat, yang lalu tampil di Discord."""
+    assert jenis_galat(_tb("ValueError: bad\nB1234XY")) == "ValueError"
+    assert jenis_galat(_tb("ValueError: bad\n  indented: tail\nlast line")) == "ValueError"
+
+
+def test_jenis_galat_galat_berantai_memakai_yang_terakhir_dilempar():
+    berantai = (
+        _tb("KeyError: 'a'")
+        + "\nThe above exception was the direct cause of the following exception:\n\n"
+        + _tb("RuntimeError: gagal menyimpan\nB9999ZZ", berkas="/app/src/palmgrade/services/x.py")
+    )
+    assert jenis_galat(berantai) == "RuntimeError"
+
+
+def test_jenis_galat_kepala_yang_bukan_nama_kelas_kosong():
+    assert jenis_galat(_tb("bukan kelas: huruf kecil")) == ""
+    assert jenis_galat("B1234XY\n") == ""              # tanpa traceback sama sekali
+
+
+def test_ringkas_galat_kelas_dan_frame_terakhir_bukan_teks_galatnya():
+    """Review wave 2: sidik memakai kelas + frame terakhir, jadi galat yang sama dengan
+    plat, hitungan pendek, jam, atau jalur berbeda di teksnya tetap satu baris."""
+    a = _tb("ValueError: truk B1234XY ditolak jam 10:15, sisa 3 dari /media/a.mp4")
+    b = _tb("ValueError: truk D5678AB ditolak jam 11:42, sisa 7 dari /media/b.mp4")
+    assert ringkas_galat(a) == ringkas_galat(b) == "ValueError@palmgrade/routes/console.py:12"
+    assert ringkas_galat(None) == ""
+    assert ringkas_galat("   \n") == ""
+
+
+def test_ringkas_galat_kelas_atau_tempat_berbeda_tetap_beda():
+    dasar = _tb("ValueError: x")
+    assert ringkas_galat(dasar) != ringkas_galat(_tb("KeyError: x"))
+    assert ringkas_galat(dasar) != ringkas_galat(_tb("ValueError: x", baris=40))
+    assert ringkas_galat(dasar) != ringkas_galat(_tb("ValueError: x", berkas="/app/src/palmgrade/services/y.py"))
+
+
+def test_logstore_galat_berulang_dengan_plat_berbeda_satu_baris(tmp_path):
+    store = LogStore(tmp_path / "log.db")
+    for i, plat in enumerate(("B1234XY", "D5678AB", "BE9012CD")):
+        store.write("ERROR", "palmgrade.x", "Simpan timbangan gagal",
+                    _tb(f"ValueError: truk {plat} ditolak jam 10:1{i}"), now=100.0 + i)
+    (baris,) = store.read(level=None, search=None, limit=10, offset=0)["items"]
+    assert baris["count"] == 3
 
 
 def test_pesan_sama_galat_berbeda_dua_sidik():

@@ -16,6 +16,14 @@ def _e(id_: int, seq: int, *, count: int = 1, level: str = "ERROR", message: str
                       message or f"pesan {id_}", detail, count)
 
 
+def _tb(kelas_pesan: str, baris: int = 12) -> str:
+    """Traceback berbentuk asli: penanda, frame, baris kode, lalu kepala galat."""
+    return ("Traceback (most recent call last):\n"
+            f'  File "/app/src/palmgrade/workers/x.py", line {baris}, in f\n'
+            "    jalan()\n"
+            f"{kelas_pesan}\n")
+
+
 def _j(*entri: EntriTarik, generasi: str = "g1", seq_akhir: int | None = None,
        lagi: bool = False, dibuang: int = 0) -> JawabanLog:
     akhir = seq_akhir if seq_akhir is not None else max((e.seq for e in entri), default=0)
@@ -221,8 +229,8 @@ def test_galat_baru_line_membawa_nama_kelas_galatnya(tmp_path):
     store = LogStore(tmp_path / "log.db")
     asgi = "Exception in ASGI application"
     halaman = _j(
-        _e(1, 1, message=asgi, detail="Traceback\nKeyError: 'a'"),
-        _e(2, 2, message=asgi, detail="Traceback\nOSError: disk"),
+        _e(1, 1, message=asgi, detail=_tb("KeyError: 'a'")),
+        _e(2, 2, message=asgi, detail=_tb("OSError: disk\nB1234XY")),
         _e(3, 3, message="tanpa traceback"),
     )
     galat = store.galat_baru_line("line-2", halaman)

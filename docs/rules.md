@@ -419,10 +419,11 @@ end of this file.
     **`event_log` cuma menyimpan ERROR dan WARNING**, retensi 180 hari
     (`LOG_RETENSI_HARI`). Pesan identik yang datang dalam 60 detik **digabung** jadi satu
     (sejak batch 3.3 "identik" dihitung sesudah uuid, id hex 8+, desimal lepas, dan bilangan
-    6+ digit dinormalkan, `domain/sidik_log.py`; kode HTTP, port, IP, plat TIDAK; dan baris
-    terakhir traceback ikut sidik, `ringkas_galat`, supaya dua 500 uvicorn yang pesannya sama
-    "Exception in ASGI application" tapi sebabnya beda tetap dua baris dengan traceback
-    masing-masing) baris dengan hitungan naik, bukan baris baru per kejadian, tanpa itu satu loop yang
+    6+ digit dinormalkan, `domain/sidik_log.py`; kode HTTP, port, IP, plat TIDAK; dan nama kelas
+    galat + frame terakhir traceback ikut sidik, `ringkas_galat`, supaya dua 500 uvicorn yang
+    pesannya sama "Exception in ASGI application" tapi sebabnya beda tetap dua baris dengan
+    traceback masing-masing, sementara galat yang sama dengan plat/jam/jalur berbeda di teksnya
+    tetap satu baris) baris dengan hitungan naik, bukan baris baru per kejadian, tanpa itu satu loop yang
     gagal tiap detik akan memenuhi tabel dalam semenit dan mendorong keluar galat lain
     yang lebih tua. `redaksi()` (`domain/log_redaksi.py`) menyaring rahasia **sebelum**
     baris menyentuh disk, bukan saat ditampilkan: berkasnya dibaca lewat AnyDesk

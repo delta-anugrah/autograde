@@ -28,6 +28,14 @@ class _Jam:
         return self.t
 
 
+def _tb(kelas_pesan: str, baris: int = 12) -> str:
+    """Traceback berbentuk asli: penanda, frame, baris kode, lalu kepala galat."""
+    return ("Traceback (most recent call last):\n"
+            f'  File "/app/src/palmgrade/workers/x.py", line {baris}, in f\n'
+            "    jalan()\n"
+            f"{kelas_pesan}\n")
+
+
 def _susun_mentah(kelompok) -> list[str]:
     return [f"{k.jumlah}x {k.line_code or 'konsol'} {k.message}" for k in sorted(kelompok, key=lambda k: k.message)]
 
@@ -367,9 +375,9 @@ def test_pesan_sama_galat_berbeda_dua_kelompok_dengan_nama_kelasnya(tmp_path):
     galatnya, Discord menulis satu kelompok yang tidak mengatakan apa pun."""
     store = LaporDiscordStore(tmp_path / "lapor.db", jam=_Jam())
     asgi = "Exception in ASGI application\n"
-    store.write("ERROR", "uvicorn.error", asgi, "Traceback\nKeyError: 'state'", now=10.0)
-    store.write("ERROR", "uvicorn.error", asgi, "Traceback\nsqlite3.IntegrityError: x", now=20.0)
-    store.write("ERROR", "uvicorn.error", asgi, "Traceback\nKeyError: 'lain'", now=30.0)
+    store.write("ERROR", "uvicorn.error", asgi, _tb("KeyError: 'state'"), now=10.0)
+    store.write("ERROR", "uvicorn.error", asgi, _tb("sqlite3.IntegrityError: x\nB1234XY"), now=20.0)
+    store.write("ERROR", "uvicorn.error", asgi, _tb("KeyError: 'lain'"), now=30.0)
 
     store.susun(_susun_mentah, now=100.0)
 

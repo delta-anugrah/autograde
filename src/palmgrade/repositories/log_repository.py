@@ -188,9 +188,9 @@ class LogStore:
 
 def _fingerprint(level: str, source: str, message: str, detail: str | None = None) -> str:
     # Id yang berganti tiap kejadian dinormalkan dulu (batch 3.3), supaya satu galat
-    # yang menyebut uuid/epoch/durasi berbeda tetap tergabung jadi satu baris. Baris
-    # terakhir traceback ikut, supaya dua galat berbeda dengan pesan log yang sama
-    # (tiap 500 uvicorn) tidak tergabung; tanpa traceback sidiknya sama seperti dulu.
+    # yang menyebut uuid/epoch/durasi berbeda tetap tergabung jadi satu baris. Kelas galat
+    # + frame terakhirnya ikut (`ringkas_galat`), supaya dua galat berbeda dengan pesan log
+    # yang sama (tiap 500 uvicorn) tidak tergabung; tanpa traceback sidiknya sama seperti dulu.
     kunci = f"{level}|{source}|{normalkan_pesan(message)}"
     ringkas = ringkas_galat(detail)
     if ringkas:
