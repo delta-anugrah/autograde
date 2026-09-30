@@ -26,10 +26,13 @@ Changed:        new docs/coding-standard.md: 45 one-line rules with ids (L logic
                 docs/overview.md §1 table fixed (console without controller, SQLite in
                 repositories, schemas/integrations/plc/core rows); skill konsol-autograde points
                 at F1 to F10. tests/unit/test_coding_standard.py guards the import, the length,
-                the ids and every code path the standard names.
-Validated:      tests/unit → 3102 passed, 28 skipped, 1 warning in 87.12s. Guard + test_doc_links +
+                the ids and every code path the standard names. .agents/skills gained the missing
+                symlinks for model-swap-eval, mvs-camera and spek-pc-pabrik (follow-up 3 of #196),
+                guarded by tests/unit/test_skill_mirror.py.
+Validated:      tests/unit → 3105 passed, 28 skipped, 1 warning in 82.57s. Guard + test_doc_links +
                 test_dokumen_tanpa_em_dash → 51 passed (the 4 first guard tests failed before the
-                docs existed). ruff over the ci.yml scope → All checks passed. rule-reviewer: 4
+                docs existed); test_skill_mirror failed on the three missing links, then 3 passed.
+                ruff over the ci.yml scope → All checks passed. rule-reviewer: 4
                 blocking + 9 warnings, all fixed (B1, L4/F3 and F9 had described the code wrongly).
                 A subagent started in the worktree had the standard in context: the import loads.
 Not validated:  tests/e2e and tests/integration (CI runs them).
