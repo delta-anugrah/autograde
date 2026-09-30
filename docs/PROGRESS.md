@@ -32,11 +32,23 @@ Validated:      old-vs-new line diff: 0 lines of CLAUDE.md 14-1392 missing from 
                 present; test_doc_links, test_dokumen_tanpa_em_dash, test_manual_doc,
                 test_plc_docs_match_compose green; tests/unit 3122 passed, 1 skipped;
                 scripts/hooks/test_guard.py 69/69 with the hook on Python 3.9.6 and 3.12.14
-                (RED 36/36 against an always-allow hook first).
-Not validated:  full CI (runs on the PR); fresh-session recall test (see below).
+                (RED 36/36 against an always-allow hook first). Fresh-session recall test 4/4
+                (plus 1 sawit question). Pre-PR run: rule-reviewer no blocking violations; ruff
+                clean; tests/unit 3121 passed, 1 failed (test_doc_links, caused by the local
+                session plan file excluded via .git/info/exclude, not in the PR); tests/e2e
+                311 passed, 17 skipped; tests/integration 96 passed; test_guard 69/69.
+Not validated:  full CI (runs on the PR).
 Decisions:      rule numbering is frozen (cited by tests, docs, skills); new rules append 33, 34, ...
                 in both files. AI-facing files in English; MANUAL.md and runbooks stay Indonesian.
                 Hook copied from autoerp (separate .py, command-position matching, py3.9-safe).
-Next:           deferred review minors: hook fails open on a crash; rules.md moved text still says
-                "tabel di atas" for tables now in backend-overview.md; moved `##` headings could be
-                demoted to `###`. Run docs-sync monthly.
+Next:           follow-up PR, not this one:
+                (1) docs/rules.md:718 "§ Integration Contracts" and :396 "tabel di atas" point at
+                the old place; both now live in docs/backend-overview.md.
+                (2) ~15 code/test comments still cite "CLAUDE.md § Tests" or "§ Critical Rule 1"
+                (e.g. src/palmgrade/workers/capture_save_worker.py:30).
+                (3) CI does not run scripts/hooks/test_guard.py; the hook fails open on a crash.
+                (4) .agents/skills has no symlink for mvs-camera, model-swap-eval, spek-pc-pabrik.
+                (5) Rule 31: its 5xx wording may not match
+                test_baris_racun_500_mundur_sendiri_tanpa_memutus_sambungan and
+                GAGAL_BERUNTUN_PUTUS=3; read the test first.
+                Also: moved `##` headings could be demoted to `###`. Run docs-sync monthly.
