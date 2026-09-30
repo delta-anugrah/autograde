@@ -112,13 +112,17 @@ def test_jenis_galat_pesan_banyak_baris_tidak_membocorkan_baris_berikutnya():
     assert jenis_galat(_tb("ValueError: bad\n  indented: tail\nlast line")) == "ValueError"
 
 
-def test_jenis_galat_galat_berantai_memakai_yang_terakhir_dilempar():
+def test_jenis_galat_galat_berantai_memakai_akar_penyebabnya():
+    """Galat berantai dibaca dari blok PERTAMA (akar penyebab, yang dicetak lebih dulu).
+    Blok sesudahnya tidak bisa dibedakan dari teks yang meniru rantai di dalam pesan galat
+    terakhir, jadi tidak pernah dibaca (lihat probe wave 4 di bawah)."""
     berantai = (
         _tb("KeyError: 'a'")
         + "\nThe above exception was the direct cause of the following exception:\n\n"
         + _tb("RuntimeError: gagal menyimpan\nB9999ZZ", berkas="/app/src/palmgrade/services/x.py")
     )
-    assert jenis_galat(berantai) == "RuntimeError"
+    assert jenis_galat(berantai) == "KeyError"
+    assert ringkas_galat(berantai) == "KeyError@palmgrade/routes/console.py:12"
 
 
 def test_jenis_galat_kepala_yang_bukan_nama_kelas_kosong():
@@ -253,3 +257,71 @@ def test_traceback_yang_kepalanya_terpotong_tetap_terbaca():
     )
     assert jenis_galat(terpotong) == "KeyError"
     assert ringkas_galat(terpotong) == "KeyError@palmgrade/workers/a.py:5"
+
+
+
+# ── Review wave 4 ──
+
+
+def _traceback_panjang(ekor_pesan: int) -> str:
+    """Traceback ASLI (`traceback.format_exception`) lebih dari 8.000 karakter: 150 frame
+    di berkas `palmgrade/`, pesan galat dua baris yang panjang baris keduanya diatur."""
+    import traceback
+
+    kode = "\n".join(
+        [f"def fungsi_yang_namanya_cukup_panjang_{i}():\n    fungsi_yang_namanya_cukup_panjang_{i + 1}()"
+         for i in range(150)]
+        + ["def fungsi_yang_namanya_cukup_panjang_150():\n    raise ValueError(PESAN)"]
+    )
+    ruang: dict = {"PESAN": "truk B1234XY ditolak\n" + "m" * ekor_pesan}
+    exec(compile(kode, "/app/src/palmgrade/workers/panjang.py", "exec"), ruang)
+    try:
+        ruang["fungsi_yang_namanya_cukup_panjang_0"]()
+    except ValueError as exc:
+        return "".join(traceback.format_exception(exc))
+    raise AssertionError("tidak melempar")
+
+
+def test_traceback_panjang_yang_dipotong_di_mana_pun_tetap_punya_sidik():
+    """Review wave 4: `potong_detail` memotong di OFFSET KARAKTER, jadi baris pertama
+    sesudah tanda potong biasanya potongan frame yang tidak menjorok. Parser lama
+    menganggapnya kepala blok dan sidiknya kosong untuk 94 dari 120 potongan."""
+    from palmgrade.domain.log_line import PANJANG_DETAIL_MAKS, potong_detail
+
+    diuji = 0
+    for ekor in range(0, 360, 3):
+        asli = _traceback_panjang(ekor)
+        assert len(asli) > PANJANG_DETAIL_MAKS
+        terpotong = potong_detail(asli)
+        if "ValueError: truk" not in terpotong or 'palmgrade/workers/panjang.py"' not in terpotong:
+            continue
+        diuji += 1
+        assert jenis_galat(terpotong) == "ValueError", ekor
+        assert ringkas_galat(terpotong) == "ValueError@palmgrade/workers/panjang.py:302", ekor
+    assert diuji == 120
+
+
+def test_rantai_palsu_di_dalam_pesan_galat_terakhir_tidak_dibaca():
+    """Probe review wave 4: pesan galat terakhir yang memuat rantai tiruan lengkap (pemisah,
+    penanda, frame, lalu plat) tidak boleh membuat plat terbaca sebagai nama kelas."""
+    probe = _tb(
+        "RuntimeError: wrap\n\nThe above exception was the direct cause of the following exception:"
+        '\n\nTraceback (most recent call last):\n  File "/tmp/x.py", line 9, in g\nB1234XY: plate'
+    )
+    assert jenis_galat(probe) == "RuntimeError"
+    assert ringkas_galat(probe) == "RuntimeError@palmgrade/routes/console.py:12"
+
+
+def test_detail_20000_baris_selesai_jauh_di_bawah_satu_detik():
+    """Dipanggil di dalam panggilan logging: detail sepanjang apa pun harus linear."""
+    import time
+
+    pemisah = "\nThe above exception was the direct cause of the following exception:\n\n"
+    blok = 'Traceback (most recent call last):\n  File "/app/src/palmgrade/a.py", line 1, in f\nKeyError: 1\n'
+    raksasa = pemisah.join([blok] * 4000)          # sekitar 20.000 baris, 4.000 penanda
+    assert raksasa.count("\n") >= 20000
+    mulai = time.perf_counter()
+    for _ in range(3):
+        ringkas_galat(raksasa)
+        jenis_galat(raksasa)
+    assert time.perf_counter() - mulai < 1.0

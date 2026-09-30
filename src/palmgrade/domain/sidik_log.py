@@ -56,67 +56,50 @@ _FRAME = re.compile(r'^  File "([^"]+)", line (\d+)')
 _PENANDA_TRACEBACK = "Traceback (most recent call last):"
 
 
-#: Baris pemisah galat berantai yang ditulis `traceback.format_exception`.
-_PEMISAH_RANTAI = (
-    "The above exception was the direct cause of the following exception:",
-    "During handling of the above exception, another exception occurred:",
-)
 #: Awal detail yang kepalanya dipotong `domain/log_line.potong_detail`.
 _TANDA_POTONG = "...(dipotong)"
 
 
-def _awal_blok(baris: list[str]) -> list[int]:
-    """Indeks baris pertama tiap blok traceback MILIK galat ini.
-
-    Blok sah dimulai di awal teks (atau sesudah tanda potong, kalau penandanya ikut
-    terpotong), atau sesudah penanda `Traceback (most recent call last):` yang didahului
-    pemisah rantai. Penanda di tengah pesan galat (keluaran traceback proses lain) tidak
-    didahului pemisah, jadi bukan awal blok.
-    """
-    awal = []
-    mulai = 1 if baris and baris[0].strip() == _TANDA_POTONG else 0
-    if mulai < len(baris):
-        awal.append(mulai + 1 if baris[mulai].startswith(_PENANDA_TRACEBACK) else mulai)
-    for i in range(mulai + 1, len(baris)):
-        if not baris[i].startswith(_PENANDA_TRACEBACK):
-            continue
-        sebelum = [b.strip() for b in baris[:i] if b.strip()]
-        if sebelum and sebelum[-1] in _PEMISAH_RANTAI:
-            awal.append(i + 1)
-    return awal
-
-
 def _kepala_dan_frame(detail: str | None) -> tuple[str, str]:
-    """(nama kelas galat yang terakhir dilempar, frame pembedanya) dari traceback.
+    """(nama kelas galat, frame pembedanya) dari blok traceback PERTAMA. Satu lintasan.
 
-    Dibaca dari blok traceback sah yang TERAKHIR (galat berantai: yang terakhir dilempar).
-    Satu blok = baris-baris menjorok (frame `  File ...` dan baris kodenya) lalu kepala:
-    baris TIDAK menjorok pertama. Semua sesudah kepala adalah pesan galat (bisa memuat
-    plat, bahkan baris berbentuk frame) dan tidak pernah dibaca. Blok tanpa satu frame
-    pun cuma sah kalau dibuka penanda traceback; teks bebas tanpa keduanya: kosong.
+    Blok = baris menjorok (frame `  File ...` dan baris kodenya), lalu kepala: baris TIDAK
+    menjorok pertama. Pembacaan BERHENTI di kepala itu: semua sesudahnya pesan galat (bisa
+    memuat plat, baris berbentuk frame, bahkan rantai tiruan lengkap) dan tidak pernah
+    dibaca. Karena itu galat berantai dibaca dari blok pertamanya, akar penyebab yang
+    dicetak lebih dulu: rantai sungguhan dan rantai tiruan di dalam pesan galat terakhir
+    tidak bisa dibedakan dari teksnya.
 
-    Frame pembeda = frame terakhir yang jalurnya di kode kita (`palmgrade/`), kalau tidak
-    ada, frame terakhir: galat yang dilempar pustaka (pydantic, json, httpx) dari dua rute
-    berbeda berakhir di frame pustaka yang sama, dan harus tetap dua baris.
+    Awal blok: sesudah penanda `Traceback (most recent call last):` di baris pertama; di
+    detail yang kepalanya dipotong `potong_detail` (potongan di offset karakter, jadi baris
+    sesudah tanda potong biasanya sepotong frame), sesudah frame UTUH pertama; tanpa
+    keduanya, baris pertama itu sendiri. Blok tanpa frame cuma sah kalau dibuka penanda.
+
+    Frame pembeda = frame terakhir blok itu yang jalurnya di kode kita (`palmgrade/`), kalau
+    tidak ada, frame terakhir: galat yang dilempar pustaka (pydantic, json, httpx) dari dua
+    rute berbeda berakhir di frame pustaka yang sama, dan harus tetap dua baris.
     """
     baris = (detail or "").splitlines()
-    for awal in reversed(_awal_blok(baris)):
-        berpenanda = awal > 0 and baris[awal - 1].startswith(_PENANDA_TRACEBACK)
-        frame: list[str] = []
-        kepala = None
-        for b in baris[awal:]:
-            if not b.strip():
-                continue
-            if b[0].isspace():
-                cocok = _FRAME.match(b)
-                if cocok:
-                    frame.append(f"{_jalur_pendek(cocok.group(1))}:{cocok.group(2)}")
-                continue
-            kepala = b
-            break
-        if kepala is None or not (frame or berpenanda):
+    if not baris:
+        return "", ""
+    berpenanda = baris[0].startswith(_PENANDA_TRACEBACK)
+    i = 1 if berpenanda else 0
+    if baris[0].strip() == _TANDA_POTONG:
+        i = 1
+        while i < len(baris) and not _FRAME.match(baris[i]):
+            i += 1
+    frame: list[str] = []
+    for b in baris[i:]:
+        if not b.strip():
             continue
-        cocok = _KEPALA.match(kepala)
+        if b[0].isspace():
+            cocok = _FRAME.match(b)
+            if cocok:
+                frame.append(f"{_jalur_pendek(cocok.group(1))}:{cocok.group(2)}")
+            continue
+        if not (frame or berpenanda):
+            return "", ""
+        cocok = _KEPALA.match(b)
         nama = cocok.group(1) if cocok else ""
         # Nama kelas galat diawali huruf besar di segmen terakhirnya (`sqlite3.IntegrityError`).
         if not (nama and nama.rsplit(".", 1)[-1][:1].isupper()):

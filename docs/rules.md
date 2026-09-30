@@ -420,7 +420,8 @@ end of this file.
     (`LOG_RETENSI_HARI`). Pesan identik yang datang dalam 60 detik **digabung** jadi satu
     (sejak batch 3.3 "identik" dihitung sesudah uuid, id hex 8+, desimal lepas, dan bilangan
     6+ digit dinormalkan, `domain/sidik_log.py`; kode HTTP, port, IP, plat TIDAK; dan nama kelas
-    galat + frame terakhir di `palmgrade/` (tanpa itu frame terakhir) ikut sidik, `ringkas_galat`,
+    galat + frame terakhir di `palmgrade/` (tanpa itu frame terakhir) dari blok traceback pertama
+    (galat berantai: akar penyebabnya) ikut sidik, `ringkas_galat`,
     supaya dua 500 uvicorn yang pesannya sama "Exception in ASGI application" tapi sebabnya
     beda tetap dua baris dengan traceback masing-masing, sementara galat yang sama dengan plat/jam/jalur berbeda di teksnya
     tetap satu baris) baris dengan hitungan naik, bukan baris baru per kejadian, tanpa itu satu loop yang
