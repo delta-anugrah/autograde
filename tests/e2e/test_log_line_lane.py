@@ -109,7 +109,9 @@ def test_support_melihat_galat_line_dari_sebelum_restart_dengan_traceback(pabrik
     _, sebelum = _app_line(tmp_path / "state-line-1")
     sebelum.write("ERROR", "palmgrade.workers.frame_capture_worker", "grab kamera gagal",
                   "Traceback (most recent call last):\nRuntimeError: MV_E_NODATA", now=jam.t - 120)
-    sebelum.write("ERROR", "palmgrade.workers.frame_capture_worker", "grab kamera gagal", None, now=jam.t - 90)
+    # Galat yang sama lagi (baris terakhir traceback sama): tergabung jadi satu baris.
+    sebelum.write("ERROR", "palmgrade.workers.frame_capture_worker", "grab kamera gagal",
+                  "Traceback (most recent call last):\nRuntimeError: MV_E_NODATA", now=jam.t - 90)
 
     line_baru, _ = _app_line(tmp_path / "state-line-1")  # container dibuat ulang, berkas sama
     _tarik(line_baru, log_store, lapor, jam)
