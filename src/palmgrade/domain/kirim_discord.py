@@ -74,6 +74,9 @@ KEADAAN_URL_SALAH = "url_salah"
 KEADAAN_AKTIF = "aktif"
 KEADAAN_TERTAHAN = "tertahan"
 KEADAAN_DITOLAK = "ditolak"
+#: Alamat sah tapi antrean di disk (`lapor_discord.db`) tidak bisa dibuka: fitur mati
+#: sampai berkasnya dibetulkan. Diputuskan saat merakit, bukan oleh `keadaan_lapor`.
+KEADAAN_RUSAK = "rusak"
 
 
 def url_webhook_sah(url: str) -> bool:

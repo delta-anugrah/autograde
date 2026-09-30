@@ -576,6 +576,9 @@ services:
       - ERP_ALLOWED_ROLES=${ERP_ALLOWED_ROLES:-support}
       # Berapa lama layar Log (support) menyimpan riwayat ERROR/WARNING.
       - LOG_RETENSI_HARI=${LOG_RETENSI_HARI:-180}
+      # Batch 3.5: ringkasan ERROR ke kanal Discord support, antre di disk sampai ada
+      # internet. Kosong = mati. Alamat webhook itu rahasia, isi di .env saja.
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
       # R2: tempat manifest per truk + viewer.html, bucket yang sama dengan foto
       # dari tiga line. R2_BUCKET kosong = tidak ada manifest, tidak ada detail_url.
       - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}

@@ -25,7 +25,8 @@ COMPOSE_PROD = REPO_ROOT / "docker-compose.prod.yml"
 # deliberately out of scope: the console service has no business carrying them.
 # R2_* is in scope since 2026-09-16: the console's own manifest worker uploads
 # per-truck detail pages, independent of the line's batch-upload R2 usage.
-CONSOLE_PREFIXES = ("ERP_", "CONSOLE_", "LOG_", "R2_", "MEDIA_", "LICENSE_")
+# DISCORD_ since batch 3.5: only the console sends the error digest.
+CONSOLE_PREFIXES = ("ERP_", "CONSOLE_", "LOG_", "R2_", "MEDIA_", "LICENSE_", "DISCORD_")
 
 
 def _settings_env_names() -> set[str]:

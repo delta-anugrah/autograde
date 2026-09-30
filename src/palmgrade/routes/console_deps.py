@@ -34,6 +34,7 @@ from ..services.console_service import ConsoleService
 from ..services.dev_service import DevService
 from ..services.erp_queue import ErpQueue
 from ..services.impor_grading_service import ImporGradingService
+from ..services.lapor_discord import LaporDiscord, rakit_lapor_discord
 from ..services.operator_admin import OperatorAdmin
 from ..services.pantau_antrean_line import PantauAntreanLine
 from ..services.riwayat_service import RiwayatService
@@ -151,6 +152,13 @@ def get_pantau_antrean_line() -> PantauAntreanLine:
     return PantauAntreanLine(service.line_client, service.lines)
 
 
+@lru_cache
+def get_lapor_discord() -> LaporDiscord:
+    """Lapor galat ke Discord (batch 3.5). Satu store untuk handler, worker, dan layar;
+    `store` None kalau `DISCORD_WEBHOOK_URL` kosong, bukan https, atau antreannya rusak."""
+    return rakit_lapor_discord(get_console_service().settings)
+
+
 def _build_license_manager(settings) -> LicenseManager | None:
     """The console's own verifier, or None if the feature is off.
 
@@ -259,6 +267,7 @@ def hangatkan_singleton() -> None:
     get_scan_service()
     get_dev_service()
     get_pantau_antrean_line()
+    get_lapor_discord()
     get_bahaya_service()
     get_operator_admin()
     get_riwayat_service()
