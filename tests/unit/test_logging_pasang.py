@@ -105,6 +105,18 @@ def test_zona_salah_jadi_utc_ditandai_tidak_sah(nama):
     assert zona_dari_nama(nama) == (UTC, False)
 
 
+def _zona_berupa_folder(nama):
+    """Yang dilakukan paket `tzdata` untuk nama folder zona (`Asia`, `America`)."""
+    raise IsADirectoryError(21, "Is a directory", nama)
+
+
+def test_zona_berupa_folder_jadi_utc_ditandai_tidak_sah(monkeypatch):
+    """`FACTORY_TZ=Asia` lewat `tzdata` (ada di image pabrik) melempar
+    IsADirectoryError, bukan ZoneInfoNotFoundError. Tanpa ditangkap, line mati saat boot."""
+    monkeypatch.setattr(log_pabrik, "ZoneInfo", _zona_berupa_folder)
+    assert zona_dari_nama("Asia") == (UTC, False)
+
+
 # ── format ───────────────────────────────────────────────────────────────────
 
 
@@ -246,11 +258,15 @@ def test_handler_tambahan_menerima_line_code(pasang):
 def test_lepas_mengembalikan_root_seperti_semula(pasang):
     root = logging.getLogger()
     handler_semula, level_semula = list(root.handlers), root.level
+    paket = logging.getLogger("palmgrade")
+    level_paket_semula = paket.level
     p = pasang(konteks="line-1", level="DEBUG", handler_tambahan=(_Tampung(),))
-    assert root.level == logging.DEBUG
+    # DEBUG cuma untuk paket kita; root (pustaka pihak ketiga) tetap INFO.
+    assert root.level == logging.INFO and paket.level == logging.DEBUG
     p.lepas()
     p.lepas()  # aman diulang
     assert root.handlers == handler_semula and root.level == level_semula
+    assert paket.level == level_paket_semula
     assert log_pabrik._aktif is None
 
 
@@ -267,6 +283,72 @@ def test_debug_model_output_tetap_menyalakan_debug_worker(pasang, capsys, monkey
         assert not any("debug lain" in b for b in baris)
     finally:
         logging.getLogger(nama).setLevel(semula)
+
+
+def test_zona_berupa_folder_tidak_menahan_boot(pasang, capsys, monkeypatch):
+    monkeypatch.setattr(log_pabrik, "ZoneInfo", _zona_berupa_folder)
+    pasang(konteks="line-1", zona="Asia")
+    logging.getLogger("palmgrade.uji").info("jalan terus")
+    baris = _baris(capsys)
+    assert len([b for b in baris if "FACTORY_TZ" in b]) == 1
+    assert "+00:00 | INFO | line-1 | palmgrade.uji | jalan terus" in baris[-1]
+
+
+def test_handler_tambahan_dipakai_ulang_tidak_membawa_konteks_lama(pasang):
+    """Handler milik pemanggil (tab Log) yang dipasang ulang sesudah `lepas()` tidak
+    boleh masih membawa filter konteks dan formatter (zona) pemasangan lama."""
+    tampung = _Tampung()
+    pasang(konteks="line-1", zona="Asia/Jakarta", handler_tambahan=(tampung,)).lepas()
+    assert tampung.filters == [] and tampung.formatter is None
+    pasang(konteks=KONTEKS_KONSOL, zona="", handler_tambahan=(tampung,))
+    logging.getLogger("palmgrade.uji").warning("sesudah pasang ulang")
+    [record] = tampung.records
+    assert record.line_code == KONTEKS_KONSOL
+    assert "+00:00 | WARNING | console |" in tampung.format(record)
+
+
+def test_debug_model_output_tidak_membuat_log_level_diabaikan(pasang, capsys, monkeypatch):
+    """`DEBUG_MODEL_OUTPUT` menambah baris `[MODEL]`, tidak membuka keluaran proses
+    untuk logger lain yang levelnya disetel sendiri (uvicorn.access INFO)."""
+    nama = "palmgrade.workers.frame_processing_worker"
+    worker = logging.getLogger(nama)
+    semula = worker.level
+    _uvicorn_seperti_saat_boot()
+    monkeypatch.setenv("DEBUG_MODEL_OUTPUT", "true")
+    p = pasang(konteks="line-1", level="WARNING")
+    _akses("/internal/assignment", 200, "POST")
+    worker.debug("[MODEL] kotak")
+    baris = _baris(capsys)
+    assert not any("/internal/assignment" in b for b in baris)
+    assert any("[MODEL] kotak" in b for b in baris)
+    p.lepas()
+    assert worker.level == semula
+
+
+def test_log_level_debug_tidak_menyalakan_debug_pustaka_lain(pasang, capsys):
+    """botocore di DEBUG menulis header bertanda tangan (access key id): LOG_LEVEL=DEBUG
+    cuma berlaku untuk paket palmgrade."""
+    pasang(konteks=KONTEKS_KONSOL, level="DEBUG")
+    logging.getLogger("botocore.endpoint").debug("Authorization: AWS4-HMAC-SHA256 rahasia")
+    logging.getLogger("botocore.endpoint").info("pustaka info tetap tampil")
+    logging.getLogger("palmgrade.uji").debug("debug milik kita")
+    baris = _baris(capsys)
+    assert not any("rahasia" in b for b in baris)
+    assert any("pustaka info tetap tampil" in b for b in baris)
+    assert any("debug milik kita" in b for b in baris)
+
+
+def test_level_klien_http_yang_lebih_ketat_dihormati(pasang):
+    lg = logging.getLogger("httpx")
+    semula = lg.level
+    lg.setLevel(logging.ERROR)
+    try:
+        p = pasang(konteks=KONTEKS_KONSOL)
+        assert lg.level == logging.ERROR
+        p.lepas()
+        assert lg.level == logging.ERROR
+    finally:
+        lg.setLevel(semula)
 
 
 # ── uvicorn ──────────────────────────────────────────────────────────────────

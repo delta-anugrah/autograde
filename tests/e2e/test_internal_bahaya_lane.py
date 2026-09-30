@@ -16,6 +16,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from palmgrade.core import logging as log_pabrik
 from palmgrade.core.config import Settings
 from palmgrade.routes.internal_bahaya import buat_router
 from palmgrade.services.hapus_data_line import PENANDA, hapus_kalau_diminta
@@ -108,7 +109,12 @@ def test_rute_terpasang_di_app_line_sungguhan():
     pytest.importorskip("cv2")
     from palmgrade.main import create_app
 
-    jalur = {getattr(r, "path", "") for r in create_app().routes}
+    try:
+        jalur = {getattr(r, "path", "") for r in create_app().routes}
+    finally:
+        # create_app() memasang logging line; kembalikan root dan logger uvicorn.
+        if log_pabrik._aktif is not None:
+            log_pabrik._aktif.lepas()
     assert {"/internal/hapus-data", "/internal/rekam/hapus", "/internal/rekam/berkas"} <= jalur
 
 

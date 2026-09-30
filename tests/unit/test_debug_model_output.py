@@ -49,8 +49,8 @@ def test_saklar_menyala_menghidupkan_debug(monkeypatch):
     from palmgrade.workers import frame_processing_worker
 
     monkeypatch.setenv("DEBUG_MODEL_OUTPUT", "true")
-    # `configure_logging` pulang lebih awal kalau root sudah punya handler
-    # (pytest memasang satu), jadi bagian yang diuji dipanggil apa adanya.
+    # Yang diuji di sini cuma nama logger-nya, jadi levelnya disetel langsung tanpa
+    # memasang seluruh logging (pemasangan utuh diuji `test_logging_pasang.py`).
     paket = palmgrade_logging.__name__.rsplit(".", 2)[0]
     logging.getLogger(f"{paket}.workers.frame_processing_worker").setLevel(logging.DEBUG)
 

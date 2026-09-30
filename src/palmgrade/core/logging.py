@@ -65,6 +65,17 @@ _LOGGER_UVICORN = ("uvicorn", "uvicorn.error", "uvicorn.access")
 #: apa pun `LOG_LEVEL`-nya; galat koneksinya tetap tertulis.
 _LOGGER_KLIEN_HTTP = ("httpx", "httpcore")
 
+#: Paket kita (`palmgrade.core.logging` -> `palmgrade`). `LOG_LEVEL=DEBUG` cuma
+#: berlaku di sini: DEBUG pustaka lain (botocore menulis header bertanda tangan
+#: berisi access key id) tidak pernah dinyalakan.
+_PAKET = __name__.rsplit(".", 2)[0]
+
+#: Logger baris `[MODEL]` yang dinyalakan `DEBUG_MODEL_OUTPUT`. Diturunkan dari
+#: paket ini sendiri, bukan ditulis tangan: dulu barisnya `"src.palmgrade..."`,
+#: padahal paketnya dimuat sebagai `palmgrade...`, jadi level DEBUG mendarat di
+#: logger yang tidak pernah dipakai siapa pun, diam-diam.
+_LOGGER_MODEL = f"{_PAKET}.workers.frame_processing_worker"
+
 
 def level_dari_teks(teks: str | None) -> tuple[int, bool]:
     """`LOG_LEVEL` jadi level logging. `(level, sah)`; kosong = INFO dan tetap sah."""
@@ -82,7 +93,8 @@ def zona_dari_nama(nama: str | None) -> tuple[tzinfo, bool]:
         return UTC, True
     try:
         return ZoneInfo(bersih), True
-    except (ZoneInfoNotFoundError, ValueError):
+    except (ZoneInfoNotFoundError, ValueError, OSError):
+        # OSError: nama folder zona (`Asia`) lewat paket `tzdata` = IsADirectoryError.
         return UTC, False
 
 
@@ -110,6 +122,22 @@ class FilterKonteks(logging.Filter):
         return True
 
 
+class _SaringLevelKeluaran(logging.Filter):
+    """Keluaran proses di `DEBUG_MODEL_OUTPUT`: level `LOG_LEVEL`, kecuali baris model.
+
+    Handler-nya harus mau menerima DEBUG untuk baris `[MODEL]`, tapi logger lain yang
+    levelnya disetel sendiri (uvicorn.access INFO) tetap disaring `LOG_LEVEL`.
+    """
+
+    def __init__(self, level: int, logger_lolos: str) -> None:
+        super().__init__()
+        self._level = level
+        self._logger_lolos = logger_lolos
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.levelno >= self._level or record.name == self._logger_lolos
+
+
 class _HandlerKeluaranProses(logging.StreamHandler):
     """Ke stderr proses (yang dibaca `docker logs`), sama dengan `basicConfig` dulu.
 
@@ -133,13 +161,30 @@ class _HandlerKeluaranProses(logging.StreamHandler):
 class PemasanganLog:
     """Apa yang dipasang `configure_logging`, supaya bisa dilepas utuh lagi."""
 
-    def __init__(self) -> None:
+    def __init__(self, filter_konteks: FilterKonteks) -> None:
         self.handler: list[logging.Handler] = []
         self._level_root_semula = logging.getLogger().level
         self._uvicorn_semula: dict[str, tuple[list[logging.Handler], bool]] = {}
-        self._level_klien_http_semula: dict[str, int] = {}
+        #: Level logger yang diubah pemasangan ini (klien HTTP, paket, logger model).
+        self._level_semula: dict[str, int] = {}
         self._saring = SaringAksesPolling()
+        self._filter_konteks = filter_konteks
+        #: Handler yang formatter-nya dipasang di sini (bukan milik pemanggil).
+        self._formatter_dipasang: list[logging.Handler] = []
         self._dilepas = False
+
+    def _pasang_handler(self, handler: logging.Handler, formatter: logging.Formatter) -> None:
+        if handler.formatter is None:
+            handler.setFormatter(formatter)
+            self._formatter_dipasang.append(handler)
+        handler.addFilter(self._filter_konteks)
+        logging.getLogger().addHandler(handler)
+        self.handler.append(handler)
+
+    def _setel_level(self, nama: str, level: int) -> None:
+        lg = logging.getLogger(nama)
+        self._level_semula.setdefault(nama, lg.level)
+        lg.setLevel(level)
 
     def _ambil_alih_uvicorn(self) -> None:
         for nama in _LOGGER_UVICORN:
@@ -150,13 +195,12 @@ class PemasanganLog:
         logging.getLogger("uvicorn.access").addFilter(self._saring)
 
     def _batasi_klien_http(self) -> None:
+        # max: level yang lebih ketat dari pemanggil (ERROR) tetap dihormati.
         for nama in _LOGGER_KLIEN_HTTP:
-            lg = logging.getLogger(nama)
-            self._level_klien_http_semula[nama] = lg.level
-            lg.setLevel(logging.WARNING)
+            self._setel_level(nama, max(logging.getLogger(nama).level, logging.WARNING))
 
     def lepas(self) -> None:
-        """Kembalikan root, logger uvicorn, dan klien HTTP seperti sebelum dipasang. Aman diulang."""
+        """Kembalikan root, logger yang diubah, dan handler pemanggil seperti semula. Aman diulang."""
         global _aktif
         if self._dilepas:
             return
@@ -164,13 +208,16 @@ class PemasanganLog:
         root = logging.getLogger()
         for handler in self.handler:
             root.removeHandler(handler)
+            handler.removeFilter(self._filter_konteks)
+        for handler in self._formatter_dipasang:
+            handler.setFormatter(None)
         root.setLevel(self._level_root_semula)
         for nama, (handlers, propagate) in self._uvicorn_semula.items():
             lg = logging.getLogger(nama)
             lg.handlers = handlers
             lg.propagate = propagate
         logging.getLogger("uvicorn.access").removeFilter(self._saring)
-        for nama, level in self._level_klien_http_semula.items():
+        for nama, level in self._level_semula.items():
             logging.getLogger(nama).setLevel(level)
         if _aktif is self:
             _aktif = None
@@ -207,35 +254,28 @@ def configure_logging(
     nilai_zona, zona_sah = zona_dari_nama(zona)
     debug_model = os.getenv("DEBUG_MODEL_OUTPUT", "").lower() in ("1", "true")
 
-    pasang = PemasanganLog()
+    pasang = PemasanganLog(FilterKonteks(konteks))
     formatter = FormatterPabrik(nilai_zona)
-    konteks_filter = FilterKonteks(konteks)
     keluaran = _HandlerKeluaranProses()
-    # DEBUG_MODEL_OUTPUT menyalakan DEBUG di satu logger (di bawah); handler keluaran
-    # harus ikut mau menerima DEBUG, logger lain tetap disaring level root.
-    keluaran.setLevel(logging.DEBUG if debug_model else nilai_level)
+    if debug_model:
+        # Baris `[MODEL]` (DEBUG) harus lolos; yang lain tetap disaring LOG_LEVEL.
+        keluaran.setLevel(logging.DEBUG)
+        keluaran.addFilter(_SaringLevelKeluaran(nilai_level, _LOGGER_MODEL))
+    else:
+        keluaran.setLevel(nilai_level)
     for handler in (keluaran, *handler_tambahan):
-        if handler.formatter is None:
-            handler.setFormatter(formatter)
-        handler.addFilter(konteks_filter)
-        root.addHandler(handler)
-        pasang.handler.append(handler)
-    # Root tidak pernah di atas WARNING: tab Log tetap menerima WARNING walau
-    # LOG_LEVEL=ERROR membuat keluaran proses cuma menampilkan ERROR.
-    root.setLevel(min(nilai_level, logging.WARNING))
+        pasang._pasang_handler(handler, formatter)
+    # Root di antara INFO dan WARNING: tidak pernah di atas WARNING (tab Log tetap
+    # menerima WARNING walau LOG_LEVEL=ERROR), tidak pernah di bawah INFO (DEBUG
+    # pustaka pihak ketiga tidak pernah dinyalakan).
+    root.setLevel(min(max(nilai_level, logging.INFO), logging.WARNING))
+    if nilai_level < logging.INFO:
+        pasang._setel_level(_PAKET, nilai_level)
+    if debug_model:
+        pasang._setel_level(_LOGGER_MODEL, logging.DEBUG)
     pasang._ambil_alih_uvicorn()
     pasang._batasi_klien_http()
     _aktif = pasang
-
-    if debug_model:
-        # Nama logger diturunkan dari paket ini sendiri, bukan ditulis tangan.
-        # Dulu barisnya `"src.palmgrade.workers..."`, padahal paketnya dimuat
-        # sebagai `palmgrade...` (`src` itu root path, bukan bagian nama modul),
-        # jadi level DEBUG mendarat di logger yang tidak pernah dipakai siapa pun
-        # dan `DEBUG_MODEL_OUTPUT=true` tidak menghasilkan satu baris pun.
-        # Diam-diam, karena menyetel level logger yang tidak ada bukan error.
-        paket = __name__.rsplit(".", 2)[0]  # palmgrade.core.logging -> palmgrade
-        logging.getLogger(f"{paket}.workers.frame_processing_worker").setLevel(logging.DEBUG)
     if not level_sah:
         logger.warning(
             "LOG_LEVEL=%r tidak dikenal (pilih DEBUG, INFO, WARNING, ERROR, atau CRITICAL); memakai INFO",
