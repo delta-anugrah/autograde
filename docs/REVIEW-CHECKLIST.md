@@ -26,6 +26,16 @@ Used by the `rule-reviewer` subagent and by humans. Report violations only; do n
 - [ ] Paths named in new markdown exist (`tests/unit/test_doc_links.py` would tell you).
 - [ ] `docs/PROGRESS.md` has an entry for this work.
 
+## E. Coding standard (`docs/coding-standard.md`; cite the rule id)
+A known gap listed at the end of the standard is a warning, not a violation, unless this PR added it.
+- [ ] Business rules in `domain/`, SQL only in storage modules, nothing decided on the screen (L2, L3, L4, F3).
+- [ ] No broad `except` that passes in silence; a failure that stops data from arriving shows on the console (L6, L7).
+- [ ] Route bodies added or changed are Pydantic models in `schemas/`; new paths follow B2; no existing path renamed (B1, B2, C2).
+- [ ] Outbound calls have a timeout and a capped backoff; every send is safe to repeat (B3, B4).
+- [ ] A schema change runs by itself, is safe to run twice and adds rather than renames; values are bound with `?` (B5, C3).
+- [ ] Console: text reaches `innerHTML` through `esc()`, data-changing POSTs run in `denganSibuk(`, every view handles its five states (F4, F7, F8).
+- [ ] New logic got its failing test first; every touched Python file passes `ruff check` and sits in the CI ruff list (T1, S5).
+
 ## Output format
 ```
 VIOLATIONS (blocking):   file:line, rule, what to change
