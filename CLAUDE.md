@@ -1265,8 +1265,10 @@ Full endpoint / payload / env tables: `docs/backend-overview.md`.
     (GET/HEAD, < 400) ke jalur di `core/log_akses.JALUR_POLLING_SENYAP` dibisukan, 4xx/5xx dan
     POST tetap tertulis. Jalur polling baru = satu baris di konstanta itu. **Transisi**
     (`domain/transisi.PelacakTransisi`, pola `status_sinkron.py`): PLC putus (klien,
-    `plc/jejak_sambungan.py`, pulih baru sesudah satu baca/tulis berhasil, dilacak per coil),
-    kamera berhenti mengirim (mulai di 5 grab gagal berturut, alasan dari
+    `plc/jejak_sambungan.py`, satu tracker per alamat koneksi, pulih baru sesudah satu
+    baca/tulis berhasil) dan coil yang gagal ditulis (`plc/worker.py` `_tracker_tulis`, satu
+    tracker per coil, sengaja terpisah dari tracker klien), kamera berhenti mengirim (mulai
+    di 5 grab gagal berturut, alasan dari
     `CameraSource.galat_terakhir`), dan tarikan master data gagal (per jenis: jaringan tanpa
     traceback, lainnya ERROR bertraceback sekali) masing-masing SATU baris saat mulai dan SATU
     saat pulih dengan lamanya; ulangan cuma DEBUG. Dulu: PLC dicabut ±10 baris/detik, kamera
