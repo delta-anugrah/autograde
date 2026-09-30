@@ -29,6 +29,7 @@ from .routes.console_deps import (
     get_console_service,
     get_lapor_discord,
     hangatkan_singleton,
+    pasang_penangan_validasi,
 )
 from .routes.console_ingest import ingest_router
 from .routes.console_lapor_discord import router as lapor_discord_router
@@ -174,6 +175,7 @@ def create_console_app() -> FastAPI:
     app.include_router(antrean_line_router)
     app.include_router(lapor_discord_router)
     app.include_router(ingest_router, prefix=settings.backend_api_ver)
+    pasang_penangan_validasi(app)
 
     @app.get("/health", include_in_schema=False)
     async def health() -> dict:

@@ -81,6 +81,22 @@ Next:           PR to staging (PR body: reusable ci.yml call only provable on th
                 tell the PLC team the ERROR coil also rises for a camera that stops sending
                 frames.
 
+## 2026-09-30 · console · Pydantic bodies for the operator routes (PR #199)
+Changed:        login, manual truck, scan, scan/keluar and manual weighing take models from
+                schemas/console_schema.py (shape only; content rules and their codes stay in the
+                domain). pasang_penangan_validasi: a body or query shape error on /api/console/ is
+                400 input_tidak_sah (new code, KAMUS id and en plus field labels) instead of 422;
+                the machine lane keeps 422. Standard B1 updated and its gap row closed.
+Validated:      tests/unit + tests/e2e → 3429 passed, 45 skipped, 1 warning in 160.38s;
+                tests/integration → 96 passed; ruff over the ci.yml scope → All checks passed.
+                rule-reviewer: 1 blocking (this entry) + 9 warnings, all fixed.
+Not validated:  a real browser (the only screen change is the text of an error the screen's own
+                requests never trigger).
+Decisions:      the four support-setting routes keep a dict (their domain parsers already check
+                every field, some read "8" as 8); the two ingest routes keep it for the frozen line
+                contract. Weighing figures stay text so "14820,5" from the keypad still passes.
+Next:           next known gap in docs/coding-standard.md: schema version for console.db (B5, C3).
+
 ## 2026-09-30 · docs · Coding standard loaded into every session (PR #198)
 Changed:        new docs/coding-standard.md: 45 one-line rules with ids (L logic, S style,
                 B backend, F frontend, T tests, C installed factory PCs, D docs), "not used here"

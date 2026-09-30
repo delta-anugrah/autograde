@@ -29,7 +29,7 @@ PRs; a PR is not blocked by a gap it did not add.
 
 ## Backend
 
-- **B1.** Check every input where it enters, before it reaches a service: an HTTP body with a Pydantic model in `schemas/`; scanner text, CSV rows and AutoERP documents with a pure parser in `domain/` that rejects what it does not recognise (as `baca_qr` in `domain/qr.py`). New routes never take `Annotated[dict, Body()]`. Escaping is for output (F7), not input.
+- **B1.** Check every input where it enters, before it reaches a service: an HTTP body with a Pydantic model in `schemas/` that fixes its shape only, while content rules stay in the domain and keep their codes (a wrong shape is 400 `input_tidak_sah`); scanner text, CSV rows and AutoERP documents with a pure parser in `domain/` that rejects what it does not recognise (as `baca_qr` in `domain/qr.py`). New routes never take `Annotated[dict, Body()]`; the only ones left are the four support-setting routes, whose domain parsers already check every field with their own codes (setelan rekam reads `"8"` as 8 and ignores fields from a newer screen, setelan grading and sumber kamera refuse unknown ones), and the machine lane with its frozen contract (`tests/unit/test_console_body_schema.py`). Escaping is for output (F7), not input.
 - **B2.** New endpoints: a noun for data (`GET` or `POST /api/console/trucks`), `POST .../{id}/<verb>` for an action (as `/lines/{line_code}/assign-truck`), English path words, errors as `HTTPException` with the right status code. Never rename an existing path (C2). Calls to AutoERP follow `autoerp/docs/autograde-integration.md`, not REST.
 - **B3.** Every send between systems (line to console, console to AutoERP, photos to R2) is safe to repeat: `event_id` is uuid5 (rule 1), and a truck visit is resent whole, never patched (rule 18).
 - **B4.** Every outbound call has a timeout; retries back off exponentially up to a ceiling, and factory data is never dropped after N failures (rule 31).
@@ -85,7 +85,6 @@ PRs; a PR is not blocked by a gap it did not add.
 
 | Gap | Where | Rule |
 |---|---|---|
-| Eleven routes take `Annotated[dict, Body()]` and check the body by hand in the service | `routes/console.py` (9), `routes/console_ingest.py` (2) | B1 |
 | Schema changes are ad-hoc blocks with no version number; the column renames date from developer machines | `repositories/console_skema.py`, `integrations/erp/outbox_store.py`, `integrations/outbox/outbox_store.py` | B5, C3 |
 | A silent `except Exception: pass` | `workers/frame_capture_worker.py`, `pipelines/realtime_inspection_pipeline.py` | L6 |
 | The ripe rate and the yard totals across lines are computed on the screen | `static/console.html` (`isiTally`, `rasioRiwayat`) | L4, F3 |

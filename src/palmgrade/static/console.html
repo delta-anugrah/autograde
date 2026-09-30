@@ -2490,6 +2490,10 @@ const KAMUS = {
     err_plat_kosong:"Nomor polisi tidak boleh kosong",
     err_bukan_plat:"Yang di-scan bukan nomor polisi",
     err_bukan_angka:"{field} bukan angka: {value}",
+    err_input_tidak_sah:"Isian {field} tidak sah",
+    qr:"Hasil scan", plate_number:"Nomor polisi", email:"Email", sandi:"Sandi",
+    supplier_id:"Pemasok", capacity:"Kapasitas", ref:"Nomor tiket", entered_at:"Jam masuk",
+    exited_at:"Jam keluar", net_kg:"Neto", body:"Data",
     err_negatif:"{field} tidak boleh negatif",
     err_di_bawah_minimum:"{field} {value} kg di bawah {minimum} kg. Cek pemisah ribuan, misalnya 14.820 terbaca 14,82",
     err_tara_lebih_besar:"Tara {tara} kg lebih besar dari bruto {bruto} kg",
@@ -2869,6 +2873,10 @@ const KAMUS = {
     err_plat_kosong:"Plate number cannot be empty",
     err_bukan_plat:"What was scanned is not a plate number",
     err_bukan_angka:"{field} is not a number: {value}",
+    err_input_tidak_sah:"{field} is not valid",
+    qr:"Scan", plate_number:"Plate number", email:"Email", sandi:"Password",
+    supplier_id:"Supplier", capacity:"Capacity", ref:"Ticket number", entered_at:"Time in",
+    exited_at:"Time out", net_kg:"Net", body:"Data",
     err_negatif:"{field} cannot be negative",
     err_di_bawah_minimum:"{field} {value} kg is below {minimum} kg. Check the thousands separator, e.g. 14.820 is read as 14.82",
     err_tara_lebih_besar:"Tare {tara} kg is greater than gross {bruto} kg",
@@ -3449,7 +3457,7 @@ function keHalaman(nomor) {
   const per = Number(gradingPer);
   const jumlah = Math.max(1, Math.ceil(gradingTotal / per));
   // Clamped on both sides: a negative offset or one past the end of the list
-  // is answered 422 by the server, and the screen just shows an error with no
+  // is answered 400 input_tidak_sah by the server, and the screen just shows an error with no
   // visible cause.
   const aman = Math.max(1, Math.min(nomor, jumlah));
   const baru = (aman - 1) * per;
@@ -6976,7 +6984,7 @@ async function jalankanBahaya(aksi, tombol) {
   tombol.textContent = t("bahayaMenunggu");
   try {
     // `api()` meneruskan opts ke fetch apa adanya, jadi body WAJIB string —
-    // objek telanjang terkirim sebagai "[object Object]" dan dijawab 422.
+    // objek telanjang terkirim sebagai "[object Object]" dan dijawab 400 input_tidak_sah.
     const hasil = await api(`/api/console/dev/bahaya/${BAHAYA_URL[aksi]}`, {
       method: "POST", body: JSON.stringify(body),
     });
@@ -7156,7 +7164,7 @@ $("rekam-baris").addEventListener("click", async (ev) => {
 $("rekam-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   try {
     // `api()` meneruskan opts ke fetch apa adanya, jadi body WAJIB string.
-    // Objek telanjang dikirim sebagai "[object Object]" dan dijawab 422 —
+    // Objek telanjang dikirim sebagai "[object Object]" dan dijawab 400 input_tidak_sah —
     // toast merah muncul, tapi yang terbaca "gagal menyimpan", bukan "salah
     // bentuk". Ketemu di browser 2026-09-22.
     await api("/api/console/dev/rekam/setelan", {
