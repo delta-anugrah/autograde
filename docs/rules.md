@@ -986,7 +986,17 @@ end of this file.
     awal. Konsol menariknya tiap 10 detik (`TarikLogLineWorker`, BUKAN `LineStatusWorker`) dan
     menyimpan baris + kursor dalam SATU transaksi di `log_kejadian.db` (`log_line_kursor`): tidak
     hilang dan tidak ganda saat line restart, konsol restart, atau log line direset. Line mati,
-    menolak kunci, atau versi lama (404) = diam, dicoba lagi 30 dtk / 5 menit kemudian.
+    menolak kunci, atau versi lama (404) = diam, dicoba lagi 30 dtk / 5 menit kemudian
+    (keadaannya sudah diceritakan `LineStatusWorker`). Yang tidak diceritakan siapa pun dapat
+    SATU WARNING saat masuk dan satu "kembali tertarik" saat pulih: 503 `log_line_mati`
+    (log_line.db line tidak bisa dibuka), 5xx lain (berkasnya rusak sesudah dibuka), bentuk
+    halaman asing (versi konsol dan line berbeda), dan galat tak terduga saat menarik.
+    Hitungan Discord untuk ERROR line paling sedikit sekali, dengan dua batas yang sengaja
+    diterima (docstring `repositories/log_serap_line.py`): konsol mati di antara meneruskan ke
+    Discord dan menyerap = halaman itu diteruskan lagi sesudah start; Danger Zone yang
+    mengosongkan `event_log` (atau retensi) lalu baris line yang sama datang lagi = seluruh
+    hitungannya diteruskan lagi. Serapan yang GAGAL tanpa konsol mati TIDAK menggandakan:
+    hitungan yang sudah diteruskan diingat per line sampai terserap.
     **Lapor Discord** mati kalau `DISCORD_WEBHOOK_URL` kosong (bawaan) atau bukan https. Nyala:
     semua ERROR konsol + ERROR line yang ditarik antre per jenis di `lapor_discord.db` (jenis =
     pesan yang dinormalkan plus nama kelas galatnya, `dengan_jenis_galat`: "Exception in ASGI

@@ -389,8 +389,8 @@ class _StoreBercatat:
     def kursor_line(self, line_code):
         return self.store.kursor_line(line_code)
 
-    def galat_baru_line(self, line_code, jawaban):
-        return self.store.galat_baru_line(line_code, jawaban)
+    def galat_baru_line(self, line_code, jawaban, **kw):
+        return self.store.galat_baru_line(line_code, jawaban, **kw)
 
     def serap_line(self, line_code, jawaban, *, now):
         self.catatan.append("serap")
@@ -440,7 +440,9 @@ def test_mati_sesudah_digest_sebelum_serapan_ditarik_ulang_dihitung_lagi_tidak_h
     assert [g.message for g in digest.galat] == ["pesan 1"]
     assert _pesan(asli) == [] and asli.kursor_line("line-1").seq == 0
 
-    jam.t += JEDA_GAGAL_S + 1
+    # Konsol mati lalu start lagi: worker baru, ingatan "sudah diteruskan" hilang.
+    worker = TarikLogLineWorker([LINE_1], _Klien({"line-1": _LinePalsu([_entri(1, 1)])}), store,
+                                digest=digest, jam=jam, monotonik=jam)
     asyncio.run(worker.run_once())
 
     assert [g.message for g in digest.galat] == ["pesan 1", "pesan 1"]
@@ -508,3 +510,104 @@ def test_pulih_dicatat_sesudah_seluruh_putaran_line_berhasil(tmp_path, caplog):
     assert len(peringatan) == 2, peringatan
     assert "log_line.db" in peringatan[0] and "kembali" in peringatan[1]
     assert asli.kursor_line("line-1").seq == 150
+
+
+# ── Review akhir 1, I2: line yang menjawab 500 atau bentuk asing tidak boleh diam ──
+
+
+def test_line_menjawab_500_diperingatkan_sekali_lalu_pulih(tmp_path, caplog):
+    """log_line.db line rusak sesudah dibuka: `/internal/log` menjawab 500 tiap 30 detik.
+    Dulu cuma DEBUG, dan tab Log berhenti menerima line itu tanpa satu petunjuk."""
+    store = LogStore(tmp_path / "log.db")
+    line = _LinePalsu([_entri(1, 1)])
+    line.gagal = LineUnavailable(LINE_TIDAK_MENJAWAB, "line-1 did not answer: 500", line="Line 1", status=500)
+    jam = _Jam()
+    worker = TarikLogLineWorker([LINE_1], _Klien({"line-1": line}), store, jam=jam, monotonik=jam)
+
+    with caplog.at_level(logging.WARNING, logger="palmgrade.workers.tarik_log_line_worker"):
+        for _ in range(3):
+            asyncio.run(worker.run_once())
+            jam.t += JEDA_GAGAL_S + 1
+        line.gagal = None
+        asyncio.run(worker.run_once())
+
+    peringatan = _peringatan(caplog)
+    assert len(peringatan) == 2, peringatan
+    assert "line-1" in peringatan[0] and "HTTP 500" in peringatan[0] and "30 detik" in peringatan[0]
+    assert peringatan[1] == "Log line-1 kembali tertarik ke tab Log"
+    assert _pesan(store) == [("line-1", "pesan 1")]
+
+
+def test_bentuk_jawaban_asing_diperingatkan_sekali_lalu_pulih(tmp_path, caplog):
+    """Versi konsol dan line yang bentuk halamannya berbeda: dulu diam selamanya."""
+    store = LogStore(tmp_path / "log.db")
+    jam = _Jam()
+
+    class _KlienCacat:
+        cacat = True
+
+        async def log_line(self, line, **_):
+            if self.cacat:
+                return {"generasi": "g1", "entri": [{"id": 1}], "seq_akhir": 9, "lagi": False, "dibuang": 0}
+            return _LinePalsu([_entri(1, 1)]).jawab(0, "", 100)
+
+    klien = _KlienCacat()
+    worker = TarikLogLineWorker([LINE_1], klien, store, jam=jam, monotonik=jam)
+
+    with caplog.at_level(logging.WARNING, logger="palmgrade.workers.tarik_log_line_worker"):
+        for _ in range(3):
+            asyncio.run(worker.run_once())
+            jam.t += JEDA_GAGAL_S + 1
+        klien.cacat = False
+        asyncio.run(worker.run_once())
+
+    peringatan = _peringatan(caplog)
+    assert len(peringatan) == 2, peringatan
+    assert "line-1" in peringatan[0] and "bentuk jawaban" in peringatan[0]
+    assert peringatan[1] == "Log line-1 kembali tertarik ke tab Log"
+
+
+def test_503_lalu_500_masing_masing_diperingatkan(tmp_path, caplog):
+    store = LogStore(tmp_path / "log.db")
+    line = _LinePalsu([_entri(1, 1)])
+    line.gagal = LineUnavailable(LINE_TIDAK_MENJAWAB, "503", line="Line 1", status=503)
+    jam = _Jam()
+    worker = TarikLogLineWorker([LINE_1], _Klien({"line-1": line}), store, jam=jam, monotonik=jam)
+
+    with caplog.at_level(logging.WARNING, logger="palmgrade.workers.tarik_log_line_worker"):
+        asyncio.run(worker.run_once())
+        jam.t += JEDA_GAGAL_S + 1
+        line.gagal = LineUnavailable(LINE_TIDAK_MENJAWAB, "500", line="Line 1", status=500)
+        asyncio.run(worker.run_once())
+
+    peringatan = _peringatan(caplog)
+    assert len(peringatan) == 2 and "log_line.db" in peringatan[0] and "HTTP 500" in peringatan[1]
+
+
+# ── Review akhir 1, I4: serapan yang gagal terus tidak menggandakan hitungan Discord ──
+
+
+def test_serapan_gagal_terus_tidak_meneruskan_galat_yang_sama_lagi(tmp_path):
+    """`event_log` konsol rusak saat jalan (atau disk penuh sementara `lapor_discord.db`
+    masih muat): tiap tarikan ulang dulu meneruskan hitungan ERROR yang sama lagi, jadi
+    sejam kemudian Discord menulis "120x" untuk satu kejadian. Yang bertambah di line
+    tetap diteruskan, cuma tambahannya."""
+    catatan: list[str] = []
+    asli = LogStore(tmp_path / "log.db")
+    store = _StoreBercatat(asli, catatan)
+    store.serap_gagal = 5
+    digest = _DigestBercatat(catatan)
+    line = _LinePalsu([_entri(1, 1, count=2)])
+    jam = _Jam()
+    worker = TarikLogLineWorker([LINE_1], _Klien({"line-1": line}), store, digest=digest,
+                                jam=jam, monotonik=jam)
+
+    for putaran in range(6):
+        if putaran == 3:
+            line.entri = [_entri(1, 2, count=5)]      # baris yang sama digabung lagi di line
+        asyncio.run(worker.run_once())
+        jam.t += JEDA_GAGAL_S + 1
+
+    assert [(g.message, g.tambah) for g in digest.galat] == [("pesan 1", 2), ("pesan 1", 3)]
+    assert _pesan(asli) == [("line-1", "pesan 1")]
+    assert asli.kursor_line("line-1").seq == 2

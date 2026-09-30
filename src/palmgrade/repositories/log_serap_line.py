@@ -12,14 +12,23 @@ line) memperbarui barisnya, tidak menambah baris. `fingerprint` baris line beraw
 `line:`, jadi penggabungan pesan milik konsol sendiri (`LogStore.write`, sidik 32 hex)
 tidak pernah menyentuh baris line.
 
-ERROR yang baru untuk digest Discord dihitung `galat_baru` SEBELUM serapan, tanpa menulis
-(carry B-T7 no. 2): pemanggil meneruskannya ke antrean Discord dulu, baru menyerap. Mati
-di antara keduanya = halaman yang sama ditarik lagi dan dihitung lagi (hitungan Discord
-bisa lebih), tidak pernah hilang.
+ERROR yang baru untuk digest Discord dihitung `galat_baru` SEBELUM serapan, tanpa menulis:
+pemanggil meneruskannya ke antrean Discord dulu, baru menyerap. Dua batas hitungan Discord
+yang sengaja diterima (paling sedikit sekali, tidak pernah hilang):
+
+- Konsol mati di antara meneruskan dan menyerap: halaman yang sama ditarik lagi sesudah
+  start dan hitungannya diteruskan lagi. Serapan yang GAGAL tanpa konsol mati (event_log
+  rusak saat jalan, disk penuh) tidak menggandakan: `TarikLogLineWorker` mengingat hitungan
+  yang sudah diteruskan tapi belum terserap dan memberikannya lewat `sudah`, jadi tarikan
+  ulang cuma meneruskan tambahannya.
+- Danger Zone mengosongkan `event_log` (atau retensi membuang baris line) lalu line mengirim
+  lagi baris yang sama (hitungannya naik): hitungan tersimpan jadi nol, jadi seluruh
+  hitungan baris itu diteruskan lagi, bukan cuma tambahannya.
 """
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from ..domain.log_line import EntriTarik, JawabanLog, KursorLine
@@ -77,17 +86,23 @@ def kursor_line(db: sqlite3.Connection, line_code: str) -> KursorLine:
     return KursorLine(row[0], row[1], row[2]) if row else KursorLine()
 
 
-def galat_baru(db: sqlite3.Connection, line_code: str, jawaban: JawabanLog) -> tuple[TambahGalat, ...]:
+def galat_baru(
+    db: sqlite3.Connection, line_code: str, jawaban: JawabanLog, *, sudah: Mapping[int, int] | None = None
+) -> tuple[TambahGalat, ...]:
     """ERROR halaman ini yang belum terlihat konsol, TANPA menulis apa pun.
 
     Pembandingnya hitungan yang sudah tersimpan: baris yang digabung di line sesudah
     ditarik cuma menyumbang tambahannya, halaman yang sudah diserap menyumbang nol.
+    `sudah` = id baris line (generasi halaman ini) -> hitungan yang sudah diteruskan
+    tapi belum terserap; yang lebih besar dari keduanya yang jadi pembanding.
     """
+    sudah = sudah or {}
     galat = []
     for e in jawaban.entri:
         if e.level != "ERROR":
             continue
-        tambah = e.count - _hitungan_tersimpan(db, line_code, jawaban.generasi, e)
+        dasar = max(_hitungan_tersimpan(db, line_code, jawaban.generasi, e), sudah.get(e.id, 0))
+        tambah = e.count - dasar
         if tambah > 0:
             pesan = dengan_jenis_galat(e.message, e.detail)
             galat.append(TambahGalat(e.level, e.source, line_code, pesan, e.first_at, e.last_at, tambah))

@@ -11,10 +11,11 @@ tidak boleh membuat kartu line terlambat.
 
 Line mati, menolak kunci, atau versi lama tanpa rute ini (404) = diam, ditunda, dicoba
 lagi. Keadaan line sudah diceritakan `LineStatusWorker`; tab Log tidak perlu baris
-tambahan tiap 10 detik untuk hal yang sama. Dua keadaan yang TIDAK diceritakan siapa pun
+tambahan tiap 10 detik untuk hal yang sama. Keadaan yang TIDAK diceritakan siapa pun
 diberi satu WARNING saat masuk dan satu saat pulih: line yang menjawab 503
-`log_line_mati` (berkas log line itu tidak bisa dibuka) dan galat tak terduga saat
-menarik satu line (yang lain tetap ditarik).
+`log_line_mati` (berkas log line itu tidak bisa dibuka), line yang menjawab 5xx lain
+(misalnya log_line.db rusak sesudah dibuka), halaman yang bentuknya asing (versi konsol
+dan line berbeda), dan galat tak terduga saat menarik satu line (yang lain tetap ditarik).
 
 Penundaan diukur dengan jam monotonic, bukan jam dinding: PC pabrik yang offline lalu
 dikoreksi NTP tidak boleh membuat tab Log diam sejam atau menarik tanpa jeda. Jam dinding
@@ -23,6 +24,9 @@ cuma untuk stempel `now` yang disimpan.
 ERROR tiap halaman diteruskan ke antrean Discord SEBELUM halaman itu diserap (baris +
 kursor, satu transaksi): mati di antara keduanya = halaman yang sama ditarik dan
 diteruskan lagi, jadi hitungan Discord bisa lebih tapi galatnya tidak pernah hilang.
+Serapan yang gagal tanpa konsol mati tidak menggandakan: hitungan yang sudah diteruskan
+tapi belum terserap diingat per line (`_diteruskan`), jadi tarikan ulang cuma meneruskan
+tambahannya (batas lainnya di docstring `repositories/log_serap_line.py`).
 Antrean Discord yang gagal tidak menahan tab Log: halamannya tetap diserap, dan
 kegagalan itu punya satu WARNING masuk + satu pulih sendiri, terpisah dari masalah
 menarik. "Kembali tertarik" baru dicatat sesudah seluruh putaran line itu berhasil.
@@ -32,7 +36,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from typing import Protocol
 
 from ..core.config import LineEndpoint
@@ -52,6 +56,8 @@ JEDA_GAGAL_S = 30.0
 JEDA_RUTE_TIDAK_ADA_S = 300.0
 
 _LOG_LINE_MATI = "log_line_mati"
+_LINE_GALAT_HTTP = "line_galat_http"
+_BENTUK_ASING = "bentuk_asing"
 _GALAT = "galat"
 
 
@@ -64,7 +70,9 @@ class _KlienLog(Protocol):
 class _PenyimpanLog(Protocol):
     def kursor_line(self, line_code: str) -> KursorLine: ...
 
-    def galat_baru_line(self, line_code: str, jawaban: JawabanLog) -> tuple[TambahGalat, ...]: ...
+    def galat_baru_line(
+        self, line_code: str, jawaban: JawabanLog, *, sudah: Mapping[int, int] | None = None
+    ) -> tuple[TambahGalat, ...]: ...
 
     def serap_line(self, line_code: str, jawaban: JawabanLog, *, now: float) -> HasilSerap: ...
 
@@ -97,6 +105,9 @@ class TarikLogLineWorker:
         self._masalah: dict[str, str] = {}
         #: Line yang galatnya sedang gagal masuk antrean Discord (sudah diperingatkan).
         self._digest_gagal: set[str] = set()
+        #: line_code -> (generasi, id baris -> hitungan ERROR yang sudah diteruskan ke
+        #: Discord tapi belum terserap). Hilang saat konsol mati: paling sedikit sekali.
+        self._diteruskan: dict[str, tuple[str, dict[int, int]]] = {}
 
     async def run_once(self) -> None:
         for line in self._lines:
@@ -122,6 +133,7 @@ class TarikLogLineWorker:
                 return
             await self._teruskan_ke_digest(kode, jawaban)
             hasil = await asyncio.to_thread(self._log.serap_line, kode, jawaban, now=self._jam())
+            self._lupakan_terserap(kode, jawaban)
             self._laporkan_dibuang(kode, hasil)
             kursor = hasil.kursor
             if not jawaban.lagi:
@@ -133,7 +145,8 @@ class TarikLogLineWorker:
     async def _minta(self, line: LineEndpoint, kursor: KursorLine) -> JawabanLog | None:
         """Satu halaman yang sudah diperiksa, atau None (line ditunda).
 
-        Alasannya DEBUG, kecuali 503 `log_line_mati`: satu WARNING per transisi.
+        Line mati, menolak kunci, atau versi lama: DEBUG. 503 `log_line_mati`, 5xx lain,
+        dan bentuk jawaban asing: satu WARNING per transisi (lihat docstring modul).
         """
         try:
             data = await self._client.log_line(
@@ -152,20 +165,36 @@ class TarikLogLineWorker:
                     "direstart. Sebabnya tertulis di docker logs line itu.",
                     line.line_code,
                 )
+            elif isinstance(status, int) and status >= 500:
+                self._masuk_masalah(
+                    line.line_code, _LINE_GALAT_HTTP,
+                    "Log %s tidak bisa ditarik ke tab Log: line menjawab HTTP %s. Dicoba lagi tiap "
+                    "%.0f detik; sebabnya tertulis di docker logs line itu.",
+                    line.line_code, status, JEDA_GAGAL_S,
+                )
         except ValueError as exc:  # badan bukan JSON, atau bentuknya asing
             self._tunda(line.line_code, JEDA_GAGAL_S)
-            logger.debug("Log %s dijawab dengan bentuk asing: %s", line.line_code, exc)
+            self._masuk_masalah(
+                line.line_code, _BENTUK_ASING,
+                "Log %s tidak bisa ditarik ke tab Log: bentuk jawaban line asing (%s). Versi konsol "
+                "dan line mungkin berbeda; samakan versinya. Dicoba lagi tiap %.0f detik.",
+                line.line_code, exc, JEDA_GAGAL_S,
+            )
         return None
 
     async def _teruskan_ke_digest(self, kode: str, jawaban: JawabanLog) -> None:
         """ERROR baru halaman ini ke antrean Discord, SEBELUM serapan (docstring modul)."""
         if self._digest is None:
             return
+        sudah = self._sudah_diteruskan(kode, jawaban.generasi)
         try:
-            galat = await asyncio.to_thread(self._log.galat_baru_line, kode, jawaban)
+            galat = await asyncio.to_thread(self._log.galat_baru_line, kode, jawaban, sudah=dict(sudah))
             if not galat:
                 return
             await asyncio.to_thread(self._digest.antre_line, galat)
+            for e in jawaban.entri:
+                if e.level == "ERROR":
+                    sudah[e.id] = max(sudah.get(e.id, 0), e.count)
         except Exception as exc:  # noqa: BLE001, tab Log didahulukan daripada Discord
             if kode not in self._digest_gagal:
                 self._digest_gagal.add(kode)
@@ -179,6 +208,22 @@ class TarikLogLineWorker:
         if kode in self._digest_gagal:
             self._digest_gagal.discard(kode)
             logger.warning("Galat %s kembali masuk antrean lapor Discord", kode)
+
+    def _sudah_diteruskan(self, kode: str, generasi: str) -> dict[int, int]:
+        """Hitungan yang sudah diteruskan tapi belum terserap, untuk generasi ini."""
+        simpanan = self._diteruskan.get(kode)
+        if simpanan is None or simpanan[0] != generasi:
+            simpanan = (generasi, {})
+            self._diteruskan[kode] = simpanan
+        return simpanan[1]
+
+    def _lupakan_terserap(self, kode: str, jawaban: JawabanLog) -> None:
+        """Baris yang sudah terserap dihitung dari `event_log` lagi, bukan dari ingatan."""
+        simpanan = self._diteruskan.get(kode)
+        if simpanan is None or simpanan[0] != jawaban.generasi:
+            return
+        for e in jawaban.entri:
+            simpanan[1].pop(e.id, None)
 
     @staticmethod
     def _laporkan_dibuang(kode: str, hasil: HasilSerap) -> None:

@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 import threading
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -153,11 +154,13 @@ class LogStore:
         with self._lock:
             return log_serap_line.kursor_line(self._db, line_code)
 
-    def galat_baru_line(self, line_code: str, jawaban: JawabanLog) -> tuple[TambahGalat, ...]:
+    def galat_baru_line(
+        self, line_code: str, jawaban: JawabanLog, *, sudah: Mapping[int, int] | None = None
+    ) -> tuple[TambahGalat, ...]:
         """ERROR halaman ini yang belum terlihat, TANPA menulis: diteruskan ke digest
         Discord SEBELUM `serap_line` (lihat log_serap_line)."""
         with self._lock:
-            return log_serap_line.galat_baru(self._db, line_code, jawaban)
+            return log_serap_line.galat_baru(self._db, line_code, jawaban, sudah=sudah)
 
     def serap_line(self, line_code: str, jawaban: JawabanLog, *, now: float) -> HasilSerap:
         """Satu halaman log line + kursornya dalam SATU transaksi (lihat log_serap_line)."""
