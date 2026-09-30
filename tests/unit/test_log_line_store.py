@@ -163,6 +163,24 @@ def test_tanda_terbaca_selamat_sesudah_dibuka_ulang(tmp_path):
     assert _semua(dibuka_ulang)["dibuang"] == 0
 
 
+def test_disk_tidak_bisa_ditulis_ambil_tetap_menyajikan_halaman(tmp_path):
+    """Disk `state/` yang di-remount read-only (atau penuh): justru saat itu log line yang
+    menjelaskannya harus tetap sampai ke tab Log. Penanda `terbaca` cuma usaha terbaik."""
+    store = LogLineStore(tmp_path / "log_line.db")
+    store.write("ERROR", "a", "disk mulai rusak", None, now=100.0)
+    store.write("ERROR", "a", "tulis gagal", None, now=200.0)
+    store._db.execute("PRAGMA query_only=ON")  # meniru disk yang tidak bisa ditulis
+
+    hasil = _semua(store)
+
+    assert [e["message"] for e in hasil["entri"]] == ["disk mulai rusak", "tulis gagal"]
+    assert hasil["seq_akhir"] == 2
+
+    store._db.execute("PRAGMA query_only=OFF")  # disk pulih: kunci dan transaksi tidak rusak
+    store.write("ERROR", "a", "sesudah pulih", None, now=300.0)
+    assert [e["message"] for e in _semua(store, setelah=2)["entri"]] == ["sesudah pulih"]
+
+
 def test_baris_yang_baru_digabung_tidak_ikut_dibuang(tmp_path):
     """Yang dibuang = seq terendah, yaitu yang paling lama tidak berubah, bukan yang tertua dibuat."""
     store = LogLineStore(tmp_path / "log_line.db", batas_baris=2)

@@ -147,18 +147,18 @@ class LogLineStore:
         Mencatat `seq` tertinggi yang pernah disajikan (`terbaca`), supaya baris itu
         tidak dihitung `dibuang` kalau kelak tergeser batas.
         """
-        with self._lock, self._db:
+        with self._lock:
             mulai = mulai_dari(setelah, generasi, self._generasi)
             rows = self._db.execute(
                 "SELECT id, seq, first_at, last_at, level, source, message, detail, count"
                 " FROM log_line WHERE seq > ? ORDER BY seq LIMIT ?",
                 (mulai, batas + 1),
             ).fetchall()
+            dibuang = int(self._meta("dibuang") or 0)
             lagi = len(rows) > batas
             rows = rows[:batas]
-            if rows and rows[-1]["seq"] > int(self._meta("terbaca") or 0):
-                self._tulis_meta("terbaca", rows[-1]["seq"])
-            dibuang = int(self._meta("dibuang") or 0)
+            if rows:
+                self._catat_terbaca(rows[-1]["seq"])
         return {
             "generasi": self._generasi,
             "entri": [dict(r) for r in rows],
@@ -166,6 +166,21 @@ class LogLineStore:
             "lagi": lagi,
             "dibuang": dibuang,
         }
+
+    def _catat_terbaca(self, seq: int) -> None:
+        """Usaha terbaik, dalam transaksinya sendiri. Pemanggil memegang kunci.
+
+        Disk `state/` yang tidak bisa ditulis (remount read-only, penuh, galat I/O) tidak
+        boleh membuat `GET /internal/log` menjawab 500: justru saat itu log line yang
+        menjelaskan disknya dicari support. Gagal = halaman tetap disajikan, dan paling
+        buruk baris ini kelak ikut terhitung `dibuang` (perilaku sebelum penanda ini ada).
+        """
+        try:
+            with self._db:
+                if seq > int(self._meta("terbaca") or 0):
+                    self._tulis_meta("terbaca", seq)
+        except sqlite3.Error:
+            pass
 
     def _meta(self, kunci: str) -> str | None:
         row = self._db.execute(

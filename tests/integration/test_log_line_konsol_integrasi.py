@@ -201,6 +201,17 @@ def test_line_dengan_log_line_rusak_diperingatkan_sekali(tmp_path, caplog):
     assert "line-1" in pesan and "log_line.db" in pesan
     assert _baris(log_store) == []
 
+def test_log_line_tetap_ditarik_saat_disk_line_tidak_bisa_ditulis(tmp_path):
+    """`state/` line di-remount read-only: `/internal/log` tetap menjawab 200, bukan 500."""
+    line = LineLog(tmp_path / "line-1")
+    line.error("disk state line rusak")
+    line.store._db.execute("PRAGMA query_only=ON")  # meniru disk yang tidak bisa ditulis
+    log_store = LogStore(tmp_path / "log.db")
+
+    asyncio.run(_worker(line.app, log_store).run_once())
+
+    assert [b["message"] for b in _baris(log_store)] == ["disk state line rusak"]
+
 def _peringatan_membuang(caplog) -> list[str]:
     return [r.getMessage() for r in caplog.records if "membuang" in r.getMessage()]
 

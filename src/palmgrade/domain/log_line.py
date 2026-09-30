@@ -18,8 +18,10 @@ from dataclasses import dataclass
 from typing import Any
 
 #: Baris log yang disimpan line. Lebih dari ini, baris yang paling lama tidak berubah
-#: dibuang (dan dihitung di `dibuang`): konsol biasanya menariknya dalam 10 detik,
-#: jadi batas ini baru tersentuh kalau konsol mati lama DAN line membanjiri log.
+#: dibuang. Baris yang sudah ditarik konsol TETAP disimpan (tidak dihapus saat ditarik),
+#: jadi batas ini tersentuh juga dalam kerja normal; yang dihitung `dibuang` cuma baris
+#: yang tergeser SEBELUM pernah disajikan ke konsol (konsol mati lama DAN line
+#: membanjiri log), ditambah kejadian yang dibuang antrean di memori.
 BATAS_BARIS_LINE = 2000
 #: Traceback dipotong dari DEPAN: yang berguna ada di ekornya (baris exception).
 PANJANG_DETAIL_MAKS = 8000
