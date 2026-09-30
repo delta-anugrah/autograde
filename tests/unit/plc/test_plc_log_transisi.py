@@ -105,6 +105,8 @@ def test_plc_dicabut_lima_puluh_tick_satu_warning_lalu_satu_saat_pulih(jalur, ca
 
     assert len(putus) == 1 and "192.168.3.39:1025" in putus[0].getMessage()
     assert len(semua) == 2 and "tersambung lagi sesudah" in semua[1].getMessage()
+    # Awal putus ERROR (sampai ke Discord: buah lewat tanpa disortir), pulihnya WARNING.
+    assert [r.levelno for r in semua] == [logging.ERROR, logging.WARNING]
 
 
 def test_kegagalan_berikutnya_tetap_ada_di_debug(jalur, caplog):
@@ -187,6 +189,9 @@ def test_penolakan_modbus_saat_tersambung_dicatat_worker_per_coil(caplog):
     assert len(gagal) == 2
     assert any("coil=1015" in p for p in gagal) and any("coil=1002" in p for p in gagal)
     assert len(pulih) == 2
+    catatan = _log_plc(caplog)
+    assert {r.levelno for r in catatan if r.getMessage().startswith("Coil PLC gagal")} == {logging.ERROR}
+    assert {r.levelno for r in catatan if r.getMessage().startswith("Coil PLC bisa")} == {logging.WARNING}
 
 
 def test_satu_coil_rusak_tidak_membuat_coil_sehat_lain_flapping(caplog):
@@ -238,3 +243,69 @@ def test_satu_coil_rusak_tidak_membuat_coil_sehat_lain_flapping(caplog):
     tick(t, 3)
     pulih_lagi = [r.getMessage() for r in _log_plc(caplog) if r.getMessage().startswith("Coil PLC bisa ditulis lagi")]
     assert len(pulih_lagi) == 1
+
+
+def test_awal_putus_plc_error_supaya_sampai_discord_pulihnya_warning():
+    """Review akhir 1, I3: satu-satunya kanal keluar pabrik (digest Discord) cuma
+    membawa ERROR. PLC yang putus berarti buah lewat tanpa disortir seharian, jadi
+    awal kejadiannya ERROR, sekali per kejadian; pulihnya tetap WARNING."""
+    jam = _Jam()
+    jejak = JejakSambunganPlc("10.0.0.1", 1025, jam=jam)
+    catatan: list[logging.LogRecord] = []
+
+    class _Tangkap(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            catatan.append(record)
+
+    log = logging.getLogger("palmgrade.plc.jejak_sambungan")
+    penangkap = _Tangkap(level=logging.WARNING)
+    log.addHandler(penangkap)
+    try:
+        jejak.gagal_sambung("timed out")
+        jejak.gagal_sambung("timed out")
+        jam.t = 30.0
+        jejak.berhasil()
+        jejak.terputus(OSError("reset"))
+        jejak.terputus(OSError("reset"))
+        jam.t = 90.0
+        jejak.berhasil()
+    finally:
+        log.removeHandler(penangkap)
+    assert [(r.levelno, r.getMessage().split(" ")[2]) for r in catatan] == [
+        (logging.ERROR, "tidak"), (logging.WARNING, "tersambung"),
+        (logging.ERROR, "terputus"), (logging.WARNING, "tersambung"),
+    ]
+
+
+def test_input_plc_gagal_dibaca_tetap_warning():
+    """Baca input cuma konfirmasi piston; sortirnya tetap jalan. Bukan ERROR."""
+
+    class _KlienBacaRusak:
+        connected = True
+
+        def write_coil(self, address: int, value: bool) -> bool:
+            return True
+
+        def read_discrete_inputs(self, start: int, count: int) -> list[bool] | None:
+            return None
+
+        def close(self) -> None:
+            pass
+
+    worker = PlcWorker(_KlienBacaRusak(), PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=20), _Cfg())
+    catatan: list[logging.LogRecord] = []
+
+    class _Tangkap(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            catatan.append(record)
+
+    log = logging.getLogger("palmgrade.plc.worker")
+    penangkap = _Tangkap(level=logging.WARNING)
+    log.addHandler(penangkap)
+    try:
+        _tick(worker, 0.0, 5)
+    finally:
+        log.removeHandler(penangkap)
+    assert [(r.levelno, r.getMessage()) for r in catatan] == [
+        (logging.WARNING, "Input PLC gagal dibaca, memakai keadaan terakhir")
+    ]

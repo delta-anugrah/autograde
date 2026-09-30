@@ -161,12 +161,16 @@ class PlcWorker:
             logger.warning("Piston coil write failed, open request cancelled, not retried")
             return
         self._failed_writes[coil] = level
+        # ERROR: coil yang tidak tertulis = sinyal sortir yang hilang (aturan 33).
         self._catat_gagal(
-            self._tracker_tulis(coil), "Coil PLC gagal ditulis, dicoba lagi tiap tick: coil=%s level=%s", coil, level
+            self._tracker_tulis(coil), "Coil PLC gagal ditulis, dicoba lagi tiap tick: coil=%s level=%s", coil, level,
+            level_log=logging.ERROR,
         )
 
-    def _catat_gagal(self, pelacak: PelacakTransisi, pesan: str, *args: object) -> None:
-        """WARNING sekali per kejadian, hanya kalau sambungannya hidup. Klien tanpa
+    def _catat_gagal(
+        self, pelacak: PelacakTransisi, pesan: str, *args: object, level_log: int = logging.WARNING
+    ) -> None:
+        """Sekali per kejadian (`level_log`), hanya kalau sambungannya hidup. Klien tanpa
         atribut `connected` (pengganti di test) dianggap tersambung.
 
         Sengaja TIDAK memakai bentuk `JejakSambunganPlc` (M1, fix round 1): dua
@@ -179,7 +183,7 @@ class PlcWorker:
         sudah putus (itu sudah dicatat `JejakSambunganPlc` di klien).
         """
         if getattr(self.client, "connected", True) and pelacak.gagal():
-            logger.warning(pesan, *args)
+            logger.log(level_log, pesan, *args)
         else:
             logger.debug(pesan, *args)
 

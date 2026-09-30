@@ -970,7 +970,11 @@ end of this file.
     di 5 grab gagal berturut, alasan dari
     `CameraSource.galat_terakhir`), dan tarikan master data gagal (per jenis: jaringan tanpa
     traceback, lainnya ERROR bertraceback sekali) masing-masing SATU baris saat mulai dan SATU
-    saat pulih dengan lamanya; ulangan cuma DEBUG. Dulu: PLC dicabut ±10 baris/detik, kamera
+    saat pulih dengan lamanya; ulangan cuma DEBUG. Awal PLC putus dan coil yang gagal ditulis
+    saat tersambung ditulis **ERROR** (pulihnya WARNING): buah lewat tanpa disortir, dan
+    ringkasan Discord (aturan 34) cuma membawa ERROR, jadi kabel PLC yang lepas seharian
+    sampai ke support di luar pabrik sebagai satu baris. Input PLC yang gagal dibaca tetap
+    WARNING (cuma konfirmasi piston, sortir tetap jalan). Dulu: PLC dicabut ±10 baris/detik, kamera
     ±10/detik, pabrik offline ±288 traceback/hari. Konsol tetap memasang logging sesudah start
     yang gagal (sengaja): traceback `Application startup failed` uvicorn ikut sampai tab Log.
     ⚠️ Pengecualian tetap: exception deteksi tiap detik saat AI mati belum disaring (ditandai
