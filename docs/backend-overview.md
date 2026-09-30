@@ -238,7 +238,7 @@ pemanggil, dan keduanya tanpa auth. Penggantinya `/internal/assignment` (yang ju
 ### Rekap (tab Rekap, 2026-09-26; dulu tab Riwayat)
 
 Lane operator biasa (butuh sesi, **bukan** `require_support`), kecuali impor. Rinciannya:
-CLAUDE.md, Critical Rule 26.
+`docs/rules.md`, Critical Rule 26.
 
 | Method | Path | Notes |
 |---|---|---|
@@ -254,7 +254,7 @@ Impor CSV: `domain/impor_grading.py` (baca + aturan per baris, murni), `services
 ### Last Sync (2026-09-27)
 
 Tidak ada endpoint baru: `GET /api/console/state` membawa `sinkron` untuk semua operator.
-Rinciannya: CLAUDE.md, Critical Rule 27.
+Rinciannya: `docs/rules.md`, Critical Rule 27.
 
 ```json
 "sinkron": {
@@ -282,7 +282,7 @@ Rinciannya: CLAUDE.md, Critical Rule 27.
 Melayani tab support: **Log**, **Status** (Versi, Diagnostik, Antrean line, Antrean ERP), **Akun**, **Line**
 (Sumber Kamera, Model Deteksi, Uji PLC, Rekam Video), dan **Setelan** (termasuk Danger Zone).
 Semuanya dijawab **403** kalau operator yang masuk bukan `role='support'`. Rasionalnya:
-CLAUDE.md, Critical Rule 21.
+`docs/rules.md`, Critical Rule 21.
 
 | Method | Path | Notes |
 |---|---|---|
@@ -530,7 +530,7 @@ konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x
 | POST | `/api/console/dev/akun` | `{email, nama, sandi, sandi_ulang, role}` → **201** akun **lokal** baru. Email yang sudah ada **409** `akun_sudah_ada` (tidak diganti sandinya), email milik AutoERP **409** `akun_milik_erp`, isian salah **400**. Aturan 19 |
 | POST | `/api/console/dev/akun/sandi` · `/status` · `/role` | ganti sandi (semua sesi akun itu berakhir; status tetap) · `{email, aktif}` matikan/aktifkan (`aktif` wajib boolean, teks bebas 422) · ubah role. **Akun lokal saja** (409 `akun_milik_erp`); matikan dan ubah role **bukan untuk akun sendiri** (409 `akun_diri_sendiri`); email tak dikenal 404 `akun_tidak_ada`. Tiap perubahan satu WARNING menyebut pelakunya |
 | GET | `/api/console/dev/plc/{line_code}` | snapshot DI + daftar coil yang boleh diuji untuk satu line, baca saja, aman dibuka kapan pun |
-| POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil PLC line itu, **satu-satunya aksi konsol yang menggerakkan hardware fisik**, lihat Critical Rules |
+| POST | `/api/console/dev/plc/{line_code}/coil` | picu satu coil PLC line itu, **satu-satunya aksi konsol yang menggerakkan hardware fisik**, lihat `docs/rules.md` § Critical Rules |
 | GET | `/api/console/dev/rekam` | status rekaman tiap line + setelan yang berlaku + sisa disk. Line yang tidak menjawab dilaporkan `terbaca:false`, bukan menjatuhkan seluruh jawaban |
 | POST | `/api/console/dev/rekam/setelan` | ubah resolusi rekaman. Berlaku untuk rekaman **berikutnya**: mengubah resolusi di tengah berkas MP4 menghasilkannya rusak. `bitrate_kbps` dicabut 2026-09-25 (tidak pernah sampai ke `cv2.VideoWriter`); kiriman yang masih membawanya diabaikan |
 | POST | `/api/console/dev/rekam/{line_code}/mulai` | mulai merekam satu line. 409 kalau sudah merekam, **507 kalau disk mepet** (dua hal yang butuh tindakan berbeda, jadi tidak diratakan) |

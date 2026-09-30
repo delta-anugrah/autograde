@@ -18,6 +18,19 @@ Next:           ...
 
 ---
 
+## 2026-09-30 · docs · Fix references left stale by the CLAUDE.md tidy (PR #197)
+Changed:        rule references in 2 skills, docs/overview.md, docs/backend-overview.md,
+                docs/MANUAL.md and README.md now cite docs/rules.md (full text, sub-points,
+                § Critical Rules) or docs/backend-overview.md (HTTP Surface); docs/rules.md rule 21
+                and the INTERNAL_SECRET note name docs/backend-overview.md; docs-sync gained check 5
+                for references into CLAUDE.md. Rule numbers unchanged. Code and test comments untouched.
+Validated:      test_doc_links + test_dokumen_tanpa_em_dash: 44 passed with the local plan file under
+                docs/superpowers/ moved aside (only that untracked file fails otherwise);
+                test_manual_doc, test_perintah_janjang_ditolak, test_console_copy green. The docs-sync
+                grep finds 22 lines on staging, 7 on the branch, all 7 citing sections that exist.
+Not validated:  full CI (runs on the PR). docs/MANUAL.pdf not regenerated.
+Next:           the ~15 code/test comments citing "CLAUDE.md § Tests" / "Critical Rule N" (item (1) below).
+
 ## 2026-09-30 · docs · Tidy the AI-facing docs (PR #196)
 Changed:        CLAUDE.md 1392 → 172 lines, English, fixed section order, one-line index of rules 0-32
                 plus 1b/1c. Old lines 14-1392 moved verbatim: rules/conventions/git/pointers to
@@ -42,13 +55,11 @@ Decisions:      rule numbering is frozen (cited by tests, docs, skills); new rul
                 in both files. AI-facing files in English; MANUAL.md and runbooks stay Indonesian.
                 Hook copied from autoerp (separate .py, command-position matching, py3.9-safe).
 Next:           follow-up PR, not this one:
-                (1) docs/rules.md:718 "§ Integration Contracts" and :396 "tabel di atas" point at
-                the old place; both now live in docs/backend-overview.md.
-                (2) ~15 code/test comments still cite "CLAUDE.md § Tests" or "§ Critical Rule 1"
+                (1) ~15 code/test comments still cite "CLAUDE.md § Tests" or "§ Critical Rule 1"
                 (e.g. src/palmgrade/workers/capture_save_worker.py:30).
-                (3) CI does not run scripts/hooks/test_guard.py; the hook fails open on a crash.
-                (4) .agents/skills has no symlink for mvs-camera, model-swap-eval, spek-pc-pabrik.
-                (5) Rule 31: its 5xx wording may not match
+                (2) CI does not run scripts/hooks/test_guard.py; the hook fails open on a crash.
+                (3) .agents/skills has no symlink for mvs-camera, model-swap-eval, spek-pc-pabrik.
+                (4) Rule 31: its 5xx wording may not match
                 test_baris_racun_500_mundur_sendiri_tanpa_memutus_sambungan and
                 GAGAL_BERUNTUN_PUTUS=3; read the test first.
                 Also: moved `##` headings could be demoted to `###`. Run docs-sync monthly.

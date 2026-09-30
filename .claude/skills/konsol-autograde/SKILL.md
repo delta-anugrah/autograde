@@ -47,7 +47,7 @@ Satu berkas `src/palmgrade/static/console.html`: vanilla JS, tanpa build, tanpa 
   jawaban server; stream kamera diminta ulang lewat `mintaUlangFeed` saja (cap waktu
   `_dimintaPada` yang dipakai `restartSelesai`).
 - Isi yang disegarkan tiap polling ditulis lewat `tulisKalauBeda`, bukan membandingkan
-  `el.innerHTML` (CLAUDE.md aturan 24(d)).
+  `el.innerHTML` (`docs/rules.md` aturan 24(d)).
 - Tidak ada `https://` di berkas ini.
 
 ## Test per bagian
@@ -62,4 +62,4 @@ Test yang butuh node dilewati di CI tanpa node, jadi jalankan lokal.
 Jangan pakai port 8100 atau 8001 (milik `make console` / `make line` user). Worktree terpisah,
 konsol uji di 8110/8111 dengan `env -i`, `CONSOLE_LINE_HOST=http://127.0.0.2`, data demo lewat
 `scripts/seed-console-demo.py --hari 10`, Playwright dengan Chrome sistem. **Matikan konsol uji
-begitu selesai.** Aturan bisnis di balik layar ada di `CLAUDE.md` aturan 19 sampai 27.
+begitu selesai.** Aturan bisnis di balik layar ada di `docs/rules.md` aturan 19 sampai 27.
