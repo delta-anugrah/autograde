@@ -48,6 +48,7 @@ def _run_lifespan(service: ConsoleService) -> None:
 def _kosongkan_singleton() -> None:
     console_deps.get_auth_service.cache_clear()
     console_deps.get_dev_service.cache_clear()
+    console_deps.get_lapor_discord.cache_clear()
 
 
 def test_peringatan_internal_secret_mendarat_di_tab_log(tmp_path):

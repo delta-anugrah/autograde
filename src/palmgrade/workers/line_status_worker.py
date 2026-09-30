@@ -115,7 +115,7 @@ class LineStatusWorker:
         yang sampai ke tab Log lewat tarikan log line (aturan 34): baris ERROR/
         WARNING sungguhan sudah dicatat di `PenjagaAi` pada line itu. Cermin di
         sini cuma INFO supaya satu kejadian tidak muncul dua kali di tab Log
-        atau dua kali di kelompok Discord (aturan 35 / ruling R5).
+        atau dua kali di kelompok Discord (aturan 35).
         """
         mati = bool(ai and ai.get("mati"))
         if mati and kode not in self._ai_mati:
@@ -134,7 +134,7 @@ class LineStatusWorker:
         """Kamera line tersambung tapi berhenti mengirim (batch 3.6) → satu baris
         di `docker logs` konsol saat masuk dan satu saat keluar, pola `_catat_ai`.
 
-        INFO saja (ruling R5): baris ERROR/WARNING sungguhan sudah dicatat di
+        INFO saja (aturan 35): baris ERROR/WARNING sungguhan sudah dicatat di
         `PenjagaAi` pada line itu dan sampai tab Log lewat tarikan log line.
         """
         berhenti = bool(ai) and ai.get("keadaan") == "frame_berhenti"
@@ -155,7 +155,7 @@ class LineStatusWorker:
         `docker logs` konsol per transisi. Line versi lama (None) dan disk tak
         terbaca tidak mengubah apa pun.
 
-        INFO saja (ruling R5): baris ERROR/WARNING sungguhan sudah dicatat di
+        INFO saja (aturan 35): baris ERROR/WARNING sungguhan sudah dicatat di
         `PemantauDisk` pada line itu dan sampai tab Log lewat tarikan log line.
         """
         if not disk or disk.get("tingkat") not in ("aman", "peringatan", "kritis"):

@@ -43,6 +43,7 @@ def _jalankan(service: ConsoleService, selama) -> None:
     console_deps.get_console_service = lambda: service
     console_deps.get_auth_service.cache_clear()
     console_deps.get_dev_service.cache_clear()
+    console_deps.get_lapor_discord.cache_clear()
     try:
         async def _runner() -> None:
             async with console_main.lifespan(FastAPI()):
@@ -53,6 +54,7 @@ def _jalankan(service: ConsoleService, selama) -> None:
         console_main.get_console_service, console_deps.get_console_service = asli, asli_deps
         console_deps.get_auth_service.cache_clear()
         console_deps.get_dev_service.cache_clear()
+        console_deps.get_lapor_discord.cache_clear()
 
 
 def test_konsol_menulis_ke_keluaran_proses_dan_tab_log(tmp_path, capsys):

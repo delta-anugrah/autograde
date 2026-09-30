@@ -11,6 +11,7 @@ from palmgrade.domain.kirim_discord import (
     JEDA_KUMPUL_S,
     KEADAAN_AKTIF,
     KEADAAN_DITOLAK,
+    KEADAAN_ISI_DITOLAK,
     KEADAAN_MATI,
     KEADAAN_TERTAHAN,
     KEADAAN_URL_SALAH,
@@ -18,6 +19,7 @@ from palmgrade.domain.kirim_discord import (
     boleh_susun,
     keadaan_lapor,
     nilai_jawaban_discord,
+    url_webhook_sah,
 )
 
 URL = "https://discord.com/api/webhooks/1/palsu"
@@ -35,10 +37,30 @@ def test_429_menunggu_selama_yang_diminta_dibatasi():
     assert nilai_jawaban_discord(429, 1).nasib is NasibDiscord.TUNGGU
 
 
-@pytest.mark.parametrize("status", [400, 401, 403, 404])
+@pytest.mark.parametrize("status", [401, 403, 404])
 def test_4xx_ditolak_berhenti_sejam(status):
     putusan = nilai_jawaban_discord(status, None)
     assert (putusan.nasib, putusan.tunggu_s) == (NasibDiscord.DITOLAK, JEDA_DITOLAK_S)
+
+
+def test_400_isi_ditolak_bukan_webhook_salah():
+    """400 = Discord menolak ISI pesan, bukan alamatnya: saran "periksa webhook" salah,
+    dan pesan itu yang harus disisihkan, bukan seluruh laporan berhenti."""
+    assert nilai_jawaban_discord(400, None).nasib is NasibDiscord.ISI_DITOLAK
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://discord.com:99999/api/webhooks/1/x",   # port di luar jangkauan
+        "https://discord.com:abc/api/webhooks/1/x",     # port bukan angka
+        "https:///api/webhooks/1/x",                    # tanpa host
+    ],
+)
+def test_alamat_https_yang_tidak_bisa_dipakai_bukan_alamat_sah(url):
+    """Dulu cuma awalan yang diperiksa: httpx menolaknya tiap kirim dan layar tetap "aktif"."""
+    assert url_webhook_sah(url) is False
+    assert keadaan_lapor(url, None, None) == KEADAAN_URL_SALAH
 
 
 @pytest.mark.parametrize("status", [500, 502, 503, 301])
@@ -74,3 +96,4 @@ def test_keadaan_layar():
     assert keadaan_lapor(URL, "Discord tidak terjangkau (ConnectError)", None) == KEADAAN_TERTAHAN
     assert keadaan_lapor(URL, "Discord menjawab HTTP 503", 503) == KEADAAN_TERTAHAN
     assert keadaan_lapor(URL, "Discord menjawab HTTP 404", 404) == KEADAAN_DITOLAK
+    assert keadaan_lapor(URL, "Discord menjawab HTTP 400", 400) == KEADAAN_ISI_DITOLAK

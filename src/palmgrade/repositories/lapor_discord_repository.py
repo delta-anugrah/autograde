@@ -7,7 +7,9 @@ outbox (WAL, `synchronous=FULL`, satu kunci):
    ringkasan berikutnya disusun. Diisi handler ERROR konsol (`write`) dan ERROR line
    yang ditarik (`antre_line`).
 2. `kiriman`: isi pesan Discord yang sudah disusun, dihapus HANYA saat Discord
-   menjawab 2xx. Penyusunan memindah tahap 1 ke tahap 2 dalam SATU transaksi
+   menjawab 2xx. Pesan yang isinya ditolak Discord (400) berulang kali disisihkan
+   (`disisihkan_at`): tetap di berkas untuk dibaca, tidak dikirim lagi, dan tidak
+   menahan ringkasan berikutnya. Penyusunan memindah tahap 1 ke tahap 2 dalam SATU transaksi
    (`BEGIN IMMEDIATE` sebelum SELECT, jadi tulisan dari koneksi lain di antara SELECT
    dan DELETE menunggu, bukan menyelinap lalu terhapus tanpa pernah ikut kelompok),
    jadi listrik mati di tengahnya tidak menghilangkan atau menggandakan galat YANG
@@ -59,7 +61,7 @@ from ..domain.sidik_log import dengan_jenis_galat
 logger = logging.getLogger(__name__)
 
 #: Batas ukuran `message`/`source` yang disimpan (karakter). `sidik_digest` tetap
-#: memakai teks PENUH sebelum dipotong (M3): dua galat yang cuma beda di ekor yang
+#: memakai teks PENUH sebelum dipotong: dua galat yang cuma beda di ekor yang
 #: panjang tidak boleh diam-diam disatukan sidiknya gara-gara pemotongan ini.
 _MASUK_CHARS = 4000
 
@@ -112,7 +114,7 @@ class LaporDiscordStore:
     def __init__(self, db_path: Path, *, jam: Callable[[], float] = time.time) -> None:
         self._jam = jam
         self._lock = threading.Lock()
-        #: Thread yang SEDANG memegang `self._lock` (I2). `threading.Lock` tidak
+        #: Thread yang SEDANG memegang `self._lock`. `threading.Lock` tidak
         #: menyimpan pemiliknya sendiri, jadi dicatat manual, cuma untuk mendeteksi
         #: re-entry, bukan untuk sinkronisasi (itu tetap tugas `self._lock`).
         self._pemegang_lock: int | None = None
@@ -123,6 +125,10 @@ class LaporDiscordStore:
             self._db.execute("PRAGMA journal_mode=WAL")
             self._db.execute("PRAGMA synchronous=FULL")
             self._db.executescript(_CREATE_SQL)
+            kolom = {r["name"] for r in self._db.execute("PRAGMA table_info(kiriman)")}
+            if "disisihkan_at" not in kolom:
+                # Berkas dari versi sebelum kolom ini: diberi kolom di tempat, isinya utuh.
+                self._db.execute("ALTER TABLE kiriman ADD COLUMN disisihkan_at REAL")
 
     def close(self) -> None:
         with self._lock:
@@ -135,7 +141,7 @@ class LaporDiscordStore:
     ) -> None:
         """Bentuk `_LogSink` untuk handler ERROR konsol. Traceback tidak ikut keluar pabrik.
 
-        M5: level di bawah ERROR diabaikan. Handler yang memasang store ini seharusnya
+        Level di bawah ERROR diabaikan. Handler yang memasang store ini seharusnya
         sudah menyaring level, ini cuma pertahanan lapis kedua di store sendiri.
         """
         if level != "ERROR":
@@ -156,7 +162,7 @@ class LaporDiscordStore:
 
     def _antre(self, kelompok: list[KelompokGalat]) -> None:
         if self._pemegang_lock == threading.get_ident():
-            # I2: thread ini sedang di dalam `susun` (memegang `self._lock`) dan
+            # Thread ini sedang di dalam `susun` (memegang `self._lock`) dan
             # sekarang mencoba menulis lagi lewat handler log yang disambungkan ke
             # store yang sama. Mengunci lagi di sini = deadlock selamanya. Lewati
             # entrinya (galat masih tercatat di baris log lain kalau ada) daripada
@@ -176,7 +182,7 @@ class LaporDiscordStore:
                 self._pemegang_lock = None
 
     def _antre_satu(self, k: KelompokGalat, now: float) -> None:
-        # M3: sidik dihitung dari teks PENUH sebelum dipotong, supaya dua galat yang
+        # Sidik dihitung dari teks PENUH sebelum dipotong, supaya dua galat yang
         # cuma beda di ekor yang panjang tidak diam-diam disatukan sidiknya.
         sidik = sidik_digest(k.level, k.source, k.line_code, k.message)
         if not self._ada_sidik(sidik) and self._jumlah_kelompok() >= BATAS_KELOMPOK_MENUNGGU:
@@ -209,17 +215,17 @@ class LaporDiscordStore:
         """Pindahkan SEMUA galat menunggu jadi pesan siap kirim, satu transaksi.
 
         `susun_pesan` yang melempar (atau mengembalikan `[]` padahal ada galat
-        menunggu, M4) membatalkan semuanya: galat tetap menunggu. Mengembalikan
+        menunggu) membatalkan semuanya: galat tetap menunggu. Mengembalikan
         jumlah pesan yang dibuat.
 
         ⚠️ `susun_pesan` TIDAK BOLEH mencatat log lewat handler yang disambungkan ke
-        store ini (lihat docstring modul, I2): lock yang dipegang method ini bukan
+        store ini (lihat docstring modul): lock yang dipegang method ini bukan
         reentrant.
         """
         with self._lock:
             self._pemegang_lock = threading.get_ident()
             try:
-                # M1: `BEGIN IMMEDIATE` mengunci TULIS sebelum SELECT, bukan sesudah
+                # `BEGIN IMMEDIATE` mengunci TULIS sebelum SELECT, bukan sesudah
                 # baris pertama ditulis (deferred, bawaan). Tanpa ini koneksi/proses
                 # lain bisa menulis galat baru PERSIS di antara SELECT dan DELETE di
                 # bawah, lalu galat itu ikut ter-DELETE tanpa pernah masuk kelompok
@@ -236,7 +242,7 @@ class LaporDiscordStore:
                         return 0
                     pesan = susun_pesan([KelompokGalat(*r) for r in rows])
                     if not pesan:
-                        # M4: rows tidak kosong tapi pemanggil tidak menyusun satu
+                        # Rows tidak kosong tapi pemanggil tidak menyusun satu
                         # pesan pun adalah bug pemanggil, bukan "tidak ada yang
                         # dikirim". Membiarkannya lewat berarti DELETE di bawah
                         # membuang galat yang belum pernah benar-benar disusun.
@@ -264,14 +270,21 @@ class LaporDiscordStore:
 
     def ada_kiriman(self) -> bool:
         with self._lock:
-            return self._db.execute("SELECT 1 FROM kiriman LIMIT 1").fetchone() is not None
+            return self._db.execute(
+                "SELECT 1 FROM kiriman WHERE disisihkan_at IS NULL LIMIT 1"
+            ).fetchone() is not None
 
     def kiriman_berikut(self) -> Kiriman | None:
         with self._lock:
             row = self._db.execute(
-                "SELECT id, isi, percobaan FROM kiriman ORDER BY id LIMIT 1"
+                "SELECT id, isi, percobaan FROM kiriman WHERE disisihkan_at IS NULL ORDER BY id LIMIT 1"
             ).fetchone()
         return Kiriman(row["id"], row["isi"], row["percobaan"]) if row else None
+
+    def sisihkan(self, kiriman_id: int, *, now: float) -> None:
+        """Pesan yang isinya terus ditolak: simpan, jangan kirim lagi, jangan menahan antrean."""
+        with self._lock, self._db:
+            self._db.execute("UPDATE kiriman SET disisihkan_at = ? WHERE id = ?", (now, kiriman_id))
 
     def tandai_terkirim(self, kiriman_id: int, *, now: float) -> None:
         with self._lock, self._db:
@@ -308,12 +321,15 @@ class LaporDiscordStore:
             menunggu = self._db.execute(
                 "SELECT COUNT(*), COALESCE(SUM(jumlah), 0) FROM galat_menunggu"
             ).fetchone()
-            kiriman = self._db.execute("SELECT COUNT(*) FROM kiriman").fetchone()[0]
+            kiriman, disisihkan = self._db.execute(
+                "SELECT COUNT(*) - COUNT(disisihkan_at), COUNT(disisihkan_at) FROM kiriman"
+            ).fetchone()
             keadaan = {r["kunci"]: r["nilai"] for r in self._db.execute("SELECT kunci, nilai FROM keadaan")}
         return {
             "menunggu_jenis": menunggu[0],
             "menunggu_kejadian": menunggu[1],
             "kiriman": kiriman,
+            "disisihkan": disisihkan,
             "ringkasan_terakhir_at": _float(keadaan.get("ringkasan_terakhir_at")),
             "terkirim_terakhir_at": _float(keadaan.get("terkirim_terakhir_at")),
             "galat": keadaan.get("galat"),
@@ -338,6 +354,6 @@ def _float(nilai: str | None) -> float | None:
 
 
 def _potong(teks: str) -> str:
-    """M3: batasi ukuran teks yang DISIMPAN (bukan yang dipakai `sidik_digest`, itu
+    """Batasi ukuran teks yang DISIMPAN (bukan yang dipakai `sidik_digest`, itu
     dipanggil dengan teks penuh SEBELUM fungsi ini)."""
     return teks if len(teks) <= _MASUK_CHARS else teks[:_MASUK_CHARS]

@@ -9,13 +9,17 @@ dikirim begitu jalannya ada, tidak pernah dibuang. Yang dijaga lajunya:
   dihitung di antrean, jadi internet mati semalam = satu ringkasan, bukan 96;
 - Discord tidak terjangkau atau 5xx: coba lagi 30 dtk berlipat sampai 15 menit;
 - 429: tunggu selama yang diminta Discord;
-- 4xx lain (401/403/404 webhook dihapus atau salah, 400): berhenti sejam, tidak
-  berputar cepat, dan layar support menyebutnya.
+- 400 (Discord menolak ISI pesan, alamatnya benar): coba lagi dengan jeda berlipat, dan
+  sesudah `MAKS_ISI_DITOLAK` kali pesan itu disisihkan (tetap di disk, tidak dikirim)
+  supaya satu pesan yang ditolak tidak menahan semua laporan sesudahnya;
+- 4xx lain (401/403/404 webhook dihapus atau salah): berhenti sejam, tidak berputar
+  cepat, dan layar support menyebutnya.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from urllib.parse import urlsplit
 
 JEDA_ANTAR_RINGKASAN_S = 900.0
 JEDA_KUMPUL_S = 120.0
@@ -24,6 +28,8 @@ JEDA_GAGAL_MAKS_S = 900.0
 JEDA_DITOLAK_S = 3600.0
 JEDA_429_MAKS_S = 900.0
 MAKS_KIRIM_PER_PUTARAN = 5
+#: Berapa kali isi satu pesan boleh ditolak Discord (400) sebelum disisihkan.
+MAKS_ISI_DITOLAK = 3
 
 
 class NasibDiscord(Enum):
@@ -32,8 +38,10 @@ class NasibDiscord(Enum):
     ULANG = "ulang"
     #: 429: tunggu `tunggu_s` dari Discord, bukan kegagalan.
     TUNGGU = "tunggu"
-    #: 4xx lain: webhook atau isi ditolak. Berhenti sejam, tampil di layar support.
+    #: 4xx selain 400 dan 429: webhook salah atau dihapus. Berhenti sejam, tampil di layar support.
     DITOLAK = "ditolak"
+    #: 400: isi pesan ditolak. Jeda berlipat, disisihkan sesudah `MAKS_ISI_DITOLAK` kali.
+    ISI_DITOLAK = "isi_ditolak"
 
 
 @dataclass(frozen=True)
@@ -48,6 +56,8 @@ def nilai_jawaban_discord(status: int, retry_after: float | None) -> PutusanDisc
     if status == 429:
         tunggu = retry_after if retry_after is not None and retry_after > 0 else JEDA_GAGAL_DASAR_S
         return PutusanDiscord(NasibDiscord.TUNGGU, min(tunggu, JEDA_429_MAKS_S))
+    if status == 400:
+        return PutusanDiscord(NasibDiscord.ISI_DITOLAK)
     if 400 <= status < 500:
         return PutusanDiscord(NasibDiscord.DITOLAK, JEDA_DITOLAK_S)
     return PutusanDiscord(NasibDiscord.ULANG)
@@ -74,23 +84,36 @@ KEADAAN_URL_SALAH = "url_salah"
 KEADAAN_AKTIF = "aktif"
 KEADAAN_TERTAHAN = "tertahan"
 KEADAAN_DITOLAK = "ditolak"
+KEADAAN_ISI_DITOLAK = "isi_ditolak"
 #: Alamat sah tapi antrean di disk (`lapor_discord.db`) tidak bisa dibuka: fitur mati
 #: sampai berkasnya dibetulkan. Diputuskan saat merakit, bukan oleh `keadaan_lapor`.
 KEADAAN_RUSAK = "rusak"
 
 
 def url_webhook_sah(url: str) -> bool:
-    return url.startswith("https://")
+    """https, dengan host, dan port (kalau ada) yang bisa dipakai. Awalan saja tidak cukup:
+    `https://discord.com:99999/...` lolos awalan tapi tidak pernah bisa dikirimi."""
+    if not url.startswith("https://"):
+        return False
+    try:
+        bagian = urlsplit(url)
+        _ = bagian.port  # port bukan angka atau di luar jangkauan: ValueError
+    except ValueError:
+        return False
+    return bool(bagian.hostname)
 
 
 def keadaan_lapor(url: str, galat: str | None, status_http: int | None) -> str:
-    """Satu kata untuk layar: mati / url_salah / aktif / tertahan / ditolak."""
+    """Satu kata untuk layar: mati / url_salah / aktif / tertahan / ditolak / isi_ditolak."""
     if not url:
         return KEADAAN_MATI
     if not url_webhook_sah(url):
         return KEADAAN_URL_SALAH
     if galat is None:
         return KEADAAN_AKTIF
-    if status_http is not None and nilai_jawaban_discord(status_http, None).nasib is NasibDiscord.DITOLAK:
+    nasib = nilai_jawaban_discord(status_http, None).nasib if status_http is not None else None
+    if nasib is NasibDiscord.DITOLAK:
         return KEADAAN_DITOLAK
+    if nasib is NasibDiscord.ISI_DITOLAK:
+        return KEADAAN_ISI_DITOLAK
     return KEADAAN_TERTAHAN

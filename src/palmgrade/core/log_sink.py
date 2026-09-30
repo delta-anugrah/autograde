@@ -27,6 +27,9 @@ class _LogSink(Protocol):
 class SqliteLogHandler(logging.Handler):
     """Write ERROR/WARNING to a `LogStore`-shaped sink. Never raises to the caller."""
 
+    #: The one stderr line written the first time the sink refuses a write.
+    KELUHAN = "event log could not be written; the Log screen will stay empty"
+
     def __init__(self, store: _LogSink, *, now: Any = time.time) -> None:
         super().__init__(level=logging.WARNING)
         self._store = store
@@ -51,10 +54,7 @@ class SqliteLogHandler(logging.Handler):
             # shows in `docker logs` instead of going silent forever.
             if not self._already_complained:
                 self._already_complained = True
-                print(
-                    "event log could not be written; the Log screen will stay empty",
-                    file=sys.stderr,
-                )
+                print(self.KELUHAN, file=sys.stderr)
 
     @staticmethod
     def _format_exception(record: logging.LogRecord) -> str:

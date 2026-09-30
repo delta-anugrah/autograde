@@ -69,7 +69,7 @@ class PlcWorker:
         # Batch 3.3: tulis/baca yang gagal padahal sambungannya HIDUP (PLC menolak
         # paketnya) dicatat sekali per kejadian. Sambungan yang putus dicatat klien
         # PLC sendiri (`plc/jejak_sambungan.py`), jadi di sini diam.
-        # ⚠️ Fix round 1 (C1): SATU tracker PER COIL, bukan satu untuk semua coil.
+        # ⚠️ SATU tracker PER COIL, bukan satu untuk semua coil.
         # run_once menulis beberapa coil per tick (OK/NG pulse, alive ~1 detik,
         # ERROR ~1 detik): dengan tracker gabungan, coil 1015 yang selalu berhasil
         # memanggil `.pulih()` pada tracker yang sama dengan coil 1000 yang selalu
@@ -173,7 +173,7 @@ class PlcWorker:
         """Sekali per kejadian (`level_log`), hanya kalau sambungannya hidup. Klien tanpa
         atribut `connected` (pengganti di test) dianggap tersambung.
 
-        Sengaja TIDAK memakai bentuk `JejakSambunganPlc` (M1, fix round 1): dua
+        Sengaja TIDAK memakai bentuk `JejakSambunganPlc`: dua
         beda struktural bikin gabungan itu lebih rumit daripada dua fungsi kecil
         ini. `JejakSambunganPlc` mematok SATU pesan tetap per method dan satu
         tracker per alamat host; di sini pesan dan argumennya beda tiap pemanggil

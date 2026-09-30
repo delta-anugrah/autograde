@@ -2457,11 +2457,12 @@ const KAMUS = {
     logSemua:"Semua", kosongLog:"Belum ada galat tercatat", gagalLog:"Gagal memuat log",
     logKonsol:"konsol", logPertama:"pertama {waktu}",
     discordMati:"Lapor ke Discord: mati (DISCORD_WEBHOOK_URL kosong). Galat tetap tercatat di tab ini.",
-    discordUrlSalah:"Lapor ke Discord MATI: DISCORD_WEBHOOK_URL tidak diawali https. Salin ulang alamat webhook dari Discord ke .env PC ini, lalu autograde restart.",
+    discordUrlSalah:"Lapor ke Discord MATI: DISCORD_WEBHOOK_URL bukan alamat https yang bisa dipakai. Salin ulang alamat webhook dari Discord ke .env PC ini, lalu autograde restart.",
     discordAktif:"Lapor ke Discord: aktif. Terakhir terkirim {terkirim}. {menunggu} galat menunggu ringkasan berikutnya (paling sering tiap 15 menit).",
     discordTertahan:"Lapor ke Discord tertahan sejak {jam}: {galat}. {kiriman} pesan menunggu dan terkirim sendiri begitu internet ada, tidak ada yang dibuang.",
     discordDitolak:"Lapor ke Discord DITOLAK pukul {jam} (HTTP {status}): webhook salah atau sudah dihapus. Periksa DISCORD_WEBHOOK_URL di .env PC ini, lalu autograde restart. {kiriman} pesan menunggu, tidak dibuang.",
-    discordRusak:"Lapor ke Discord MATI: antrean di disk rusak ({galat}). Hapus berkas state/lapor_discord.db lalu restart konsol lewat Setelan. Galat tetap tercatat di tab ini.",
+    discordRusak:"Lapor ke Discord MATI: antrean di disk rusak ({galat}). Pindahkan berkas state/console/lapor_discord.db di folder autograde PC ini, lalu autograde restart. Galat tetap tercatat di tab ini.",
+    discordIsiDitolak:"Discord menolak ISI pesan pukul {jam} (HTTP {status}), alamat webhook benar. Pesan yang 3 kali ditolak disisihkan dan tetap di disk; laporan berikutnya jalan terus. {kiriman} pesan menunggu, {disisihkan} disisihkan.",
     btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
@@ -2835,11 +2836,12 @@ const KAMUS = {
     logSemua:"All", kosongLog:"No faults logged yet", gagalLog:"Failed to load the log",
     logKonsol:"console", logPertama:"first {waktu}",
     discordMati:"Discord report: off (DISCORD_WEBHOOK_URL is empty). Faults are still logged on this tab.",
-    discordUrlSalah:"Discord report OFF: DISCORD_WEBHOOK_URL does not start with https. Copy the webhook address from Discord into this PC's .env again, then run autograde restart.",
+    discordUrlSalah:"Discord report OFF: DISCORD_WEBHOOK_URL is not a usable https address. Copy the webhook address from Discord into this PC's .env again, then run autograde restart.",
     discordAktif:"Discord report: on. Last sent {terkirim}. {menunggu} faults wait for the next digest (at most every 15 minutes).",
     discordTertahan:"Discord report held since {jam}: {galat}. {kiriman} messages wait and go out by themselves once the internet is back; nothing is dropped.",
     discordDitolak:"Discord report REFUSED at {jam} (HTTP {status}): the webhook is wrong or was deleted. Check DISCORD_WEBHOOK_URL in this PC's .env, then run autograde restart. {kiriman} messages wait; nothing is dropped.",
-    discordRusak:"Discord report OFF: the queue on disk is corrupt ({galat}). Delete the file state/lapor_discord.db, then restart the console from Settings. Faults are still logged on this tab.",
+    discordRusak:"Discord report OFF: the queue on disk is corrupt ({galat}). Move the file state/console/lapor_discord.db out of the autograde folder on this PC, then run autograde restart. Faults are still logged on this tab.",
+    discordIsiDitolak:"Discord refused the CONTENT of a message at {jam} (HTTP {status}); the webhook address is fine. A message refused 3 times is set aside and kept on disk; later reports keep going. {kiriman} messages wait, {disisihkan} set aside.",
     btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
@@ -5818,12 +5820,14 @@ function teksLaporDiscord(d) {
   const isi = (k) => t(k)
     .replace("{terkirim}", jam(d.terkirim_terakhir_at)).replace("{menunggu}", d.menunggu_kejadian ?? 0)
     .replace("{jam}", jam(d.galat_at)).replace("{galat}", d.galat || KOSONG)
-    .replace("{status}", d.status_http ?? KOSONG).replace("{kiriman}", d.kiriman ?? 0);
+    .replace("{status}", d.status_http ?? KOSONG).replace("{kiriman}", d.kiriman ?? 0)
+    .replace("{disisihkan}", d.disisihkan ?? 0);
   if (d.keadaan === "mati") return { kelas: "muted", teks: isi("discordMati") };
   if (d.keadaan === "url_salah") return { kelas: "gagal", teks: isi("discordUrlSalah") };
   if (d.keadaan === "rusak") return { kelas: "gagal", teks: isi("discordRusak") };
   if (d.keadaan === "aktif") return { kelas: "muted", teks: isi("discordAktif") };
   if (d.keadaan === "ditolak") return { kelas: "gagal", teks: isi("discordDitolak") };
+  if (d.keadaan === "isi_ditolak") return { kelas: "peringatan", teks: isi("discordIsiDitolak") };
   return { kelas: "peringatan", teks: isi("discordTertahan") };
 }
 

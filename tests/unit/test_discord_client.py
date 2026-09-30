@@ -54,3 +54,14 @@ def test_jaringan_putus_tanpa_url_di_pesan():
     assert str(info.value) == "ConnectError"
     assert "token-palsu-rahasia" not in repr(info.value)
     assert info.value.__cause__ is None
+
+
+def test_alamat_yang_ditolak_httpx_jadi_tak_terjangkau_tanpa_alamat():
+    """`httpx.InvalidURL` bukan `httpx.HTTPError`: dulu lolos dari `kirim`, putaran worker
+    gagal tiap 30 detik dan layar tetap "aktif"."""
+    klien = DiscordClient("https://discord.com:abc/api/webhooks/1/rahasia",
+                          transport=httpx.MockTransport(lambda r: httpx.Response(204)))
+    with pytest.raises(DiscordTakTerjangkau) as info:
+        asyncio.run(klien.kirim("x"))
+    assert str(info.value) == "InvalidURL"
+    assert "rahasia" not in repr(info.value)

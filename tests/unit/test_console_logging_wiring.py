@@ -63,6 +63,7 @@ def jalankan(monkeypatch):
     monkeypatch.setattr(console_main, "configure_logging", perekam)
     console_deps.get_auth_service.cache_clear()
     console_deps.get_dev_service.cache_clear()
+    console_deps.get_lapor_discord.cache_clear()
 
     def _jalankan(service: ConsoleService, selama=lambda: None) -> None:
         monkeypatch.setattr(console_main, "get_console_service", lambda: service)
@@ -77,6 +78,7 @@ def jalankan(monkeypatch):
     yield _jalankan, perekam
     console_deps.get_auth_service.cache_clear()
     console_deps.get_dev_service.cache_clear()
+    console_deps.get_lapor_discord.cache_clear()
 
 
 def test_lifespan_memasang_logging_konsol_dengan_zona_level_dan_tab_log(tmp_path, jalankan):

@@ -100,6 +100,7 @@ def _run_lifespan(service: ConsoleService, caplog, *, selama=lambda: None) -> No
 def _kosongkan_singleton() -> None:
     console_deps.get_auth_service.cache_clear()
     console_deps.get_dev_service.cache_clear()
+    console_deps.get_lapor_discord.cache_clear()
 
 
 def test_layanan_sesi_dan_log_sudah_dibuat_sebelum_permintaan_pertama(tmp_path, caplog):

@@ -16,7 +16,7 @@ butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada (image CI)"
 
 KUNCI_BARU = (
     "logKonsol", "logPertama", "discordMati", "discordUrlSalah", "discordAktif",
-    "discordTertahan", "discordDitolak", "discordRusak",
+    "discordTertahan", "discordDitolak", "discordRusak", "discordIsiDitolak",
 )
 FUNGSI = ["waktu", "waktuLog", "sumberLog", "pesanLog", "barisLog", "teksLaporDiscord"]
 #: 2026-09-30 10:00:00 WIB
@@ -84,7 +84,7 @@ def test_waktu_pertama_tampil_hanya_untuk_baris_gabungan():
     "data,kelas,potongan",
     [
         ({"keadaan": "mati"}, "muted", "mati (DISCORD_WEBHOOK_URL kosong)"),
-        ({"keadaan": "url_salah"}, "gagal", "tidak diawali https"),
+        ({"keadaan": "url_salah"}, "gagal", "bukan alamat https yang bisa dipakai"),
         ({"keadaan": "aktif", "terkirim_terakhir_at": T, "menunggu_kejadian": 3},
          "muted", "Terakhir terkirim 30/09/2026 10:00:00. 3 galat menunggu"),
         ({"keadaan": "tertahan", "galat": "Discord tidak terjangkau (ConnectError)", "galat_at": T, "kiriman": 2},
@@ -93,6 +93,12 @@ def test_waktu_pertama_tampil_hanya_untuk_baris_gabungan():
          "gagal", "DITOLAK pukul 30/09/2026 10:00:00 (HTTP 404)"),
         ({"keadaan": "rusak", "galat": "lapor_discord.db tidak bisa dibuka (OSError)"},
          "gagal", "lapor_discord.db tidak bisa dibuka (OSError)"),
+        ({"keadaan": "rusak", "galat": "x"},
+         "gagal", "Pindahkan berkas state/console/lapor_discord.db di folder autograde PC ini, lalu autograde restart"),
+        ({"keadaan": "isi_ditolak", "status_http": 400, "galat_at": T, "kiriman": 0, "disisihkan": 1},
+         "peringatan", "menolak ISI pesan pukul 30/09/2026 10:00:00 (HTTP 400)"),
+        ({"keadaan": "isi_ditolak", "status_http": 400, "galat_at": T, "kiriman": 0, "disisihkan": 1},
+         "peringatan", "0 pesan menunggu, 1 disisihkan"),
     ],
 )
 def test_kalimat_keadaan_discord_detail(data, kelas, potongan):
@@ -121,3 +127,12 @@ def test_rusak_tanpa_galat_tidak_melempar():
 def test_ditolak_menyebut_tindakan():
     hasil = jalankan(FUNGSI, 'teksLaporDiscord({keadaan:"ditolak", status_http:401, galat_at:1, kiriman:1})')
     assert "Periksa DISCORD_WEBHOOK_URL di .env PC ini, lalu autograde restart" in hasil["teks"]
+
+
+@pytest.mark.parametrize("bahasa", ["id", "en"])
+def test_teks_rusak_tidak_menyuruh_restart_konsol_lewat_setelan(bahasa):
+    """Setelan tidak punya restart konsol (Danger Zone cuma me-restart line), dan jalur host
+    berkasnya `state/console/lapor_discord.db`."""
+    baris = re.search(r'discordRusak:"([^"]*)"', _kamus(bahasa)).group(1)
+    assert "state/console/lapor_discord.db" in baris and "autograde restart" in baris
+    assert "Setelan" not in baris and "Settings" not in baris

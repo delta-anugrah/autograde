@@ -6,8 +6,11 @@ Aturan jeda dan arti jawaban Discord hidup di `domain/kirim_discord.py`.
 
 Worker ini TIDAK PERNAH menulis ERROR: handler lapor menangkap semua ERROR konsol, dan
 Discord yang mati akan melaporkan kematiannya sendiri ke antrean yang tidak bisa
-terkirim, selamanya. Putus dan pulih masing-masing SATU WARNING (tab Log), seperti
-Last Sync.
+terkirim, selamanya. Tiap perubahan JENIS kegagalan (jaringan/5xx, webhook ditolak, isi
+ditolak) satu WARNING dengan sarannya sendiri, dan pulihnya satu WARNING, seperti Last
+Sync: internet yang putus lalu webhook yang ternyata dihapus tetap memberi saran
+memeriksa webhook. Pesan yang isinya ditolak Discord `MAKS_ISI_DITOLAK` kali disisihkan
+(tetap di disk) dengan satu WARNING, supaya ringkasan berikutnya tidak ikut tertahan.
 """
 from __future__ import annotations
 
@@ -26,6 +29,7 @@ from ..domain.kirim_antrean_line import jeda_mundur
 from ..domain.kirim_discord import (
     JEDA_GAGAL_DASAR_S,
     JEDA_GAGAL_MAKS_S,
+    MAKS_ISI_DITOLAK,
     MAKS_KIRIM_PER_PUTARAN,
     NasibDiscord,
     boleh_susun,
@@ -41,6 +45,17 @@ from ..repositories.lapor_discord_repository import LaporDiscordStore
 logger = logging.getLogger(__name__)
 
 INTERVAL_S = 30.0
+
+_SARAN = {
+    NasibDiscord.ULANG: "Pesan tidak dibuang, dikirim otomatis begitu internet ada.",
+    NasibDiscord.DITOLAK: (
+        "Pesan tidak dibuang, periksa DISCORD_WEBHOOK_URL di .env PC ini lalu autograde restart."
+    ),
+    NasibDiscord.ISI_DITOLAK: (
+        f"Discord menolak isi pesannya, bukan alamatnya; pesan yang {MAKS_ISI_DITOLAK} kali "
+        "ditolak disisihkan (tetap di disk) supaya laporan berikutnya jalan."
+    ),
+}
 
 
 class _Pengirim(Protocol):
@@ -66,7 +81,8 @@ class LaporDiscordWorker:
         self._jam = jam
         self._coba_lagi_at = 0.0
         self._gagal_beruntun = 0
-        self._putus = False
+        #: Jenis kegagalan yang sudah diperingatkan dan belum pulih; None = sehat.
+        self._jenis_gagal: NasibDiscord | None = None
 
     @classmethod
     def dari_settings(cls, store: LaporDiscordStore, settings: Settings) -> LaporDiscordWorker:
@@ -102,7 +118,7 @@ class LaporDiscordWorker:
         try:
             jawab = await self._pengirim.kirim(kiriman.isi)
         except DiscordTakTerjangkau as exc:
-            await self._gagal(kiriman.id, f"Discord tidak terjangkau ({exc})", None)
+            await self._gagal(kiriman.id, f"Discord tidak terjangkau ({exc})", None, NasibDiscord.ULANG)
             return False
         putusan = nilai_jawaban_discord(jawab.status, jawab.retry_after)
         if putusan.nasib is NasibDiscord.TERKIRIM:
@@ -112,12 +128,23 @@ class LaporDiscordWorker:
         if putusan.nasib is NasibDiscord.TUNGGU:
             self._coba_lagi_at = self._jam() + putusan.tunggu_s
             return False
-        await self._gagal(kiriman.id, f"Discord menjawab HTTP {jawab.status}", jawab.status)
+        await self._gagal(kiriman.id, f"Discord menjawab HTTP {jawab.status}", jawab.status, putusan.nasib)
         if putusan.nasib is NasibDiscord.DITOLAK:
             self._coba_lagi_at = self._jam() + putusan.tunggu_s
+        elif putusan.nasib is NasibDiscord.ISI_DITOLAK and kiriman.percobaan + 1 >= MAKS_ISI_DITOLAK:
+            await asyncio.to_thread(self._store.sisihkan, kiriman.id, now=self._jam())
+            self._coba_lagi_at = 0.0
+            logger.warning(
+                "Satu pesan lapor Discord disisihkan sesudah %d kali ditolak isinya (HTTP %s). "
+                "Pesannya tetap di state/console/lapor_discord.db dan tidak dikirim lagi; "
+                "laporan berikutnya jalan terus.",
+                MAKS_ISI_DITOLAK, jawab.status,
+            )
         return False
 
-    async def _gagal(self, kiriman_id: int, galat: str, status_http: int | None) -> None:
+    async def _gagal(
+        self, kiriman_id: int, galat: str, status_http: int | None, jenis: NasibDiscord
+    ) -> None:
         now = self._jam()
         await asyncio.to_thread(
             self._store.tandai_gagal, kiriman_id, galat=galat, status_http=status_http, now=now
@@ -126,20 +153,15 @@ class LaporDiscordWorker:
         self._coba_lagi_at = now + jeda_mundur(
             self._gagal_beruntun, dasar=JEDA_GAGAL_DASAR_S, maks=JEDA_GAGAL_MAKS_S
         )
-        if not self._putus:
-            self._putus = True
-            saran = (
-                "periksa DISCORD_WEBHOOK_URL di .env PC ini lalu autograde restart"
-                if status_http is not None and 400 <= status_http < 500
-                else "dikirim otomatis begitu internet ada"
-            )
-            logger.warning("Lapor Discord tertahan: %s. Pesan tidak dibuang, %s.", galat, saran)
+        if jenis is not self._jenis_gagal:
+            self._jenis_gagal = jenis
+            logger.warning("Lapor Discord tertahan: %s. %s", galat, _SARAN[jenis])
 
     def _pulih(self) -> None:
         self._gagal_beruntun = 0
         self._coba_lagi_at = 0.0
-        if self._putus:
-            self._putus = False
+        if self._jenis_gagal is not None:
+            self._jenis_gagal = None
             logger.warning("Lapor Discord terkirim lagi")
 
     async def run_loop(self) -> None:

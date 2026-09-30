@@ -308,7 +308,7 @@ Semuanya dijawab **403** kalau operator yang masuk bukan `role='support'`. Rasio
 |---|---|---|
 | GET | `/api/console/dev/ping` | cek akses masih hidup, tanpa membaca apa pun |
 | GET | `/api/console/dev/log` | `event_log`: filter `level`/`cari`, `limit`+`offset`. Sejak batch 3.2 baris tarikan line membawa `line_code` (null = konsol) dan `asal` |
-| GET | `/api/console/dev/lapor-discord` | Keadaan lapor Discord (`mati`/`url_salah`/`aktif`/`tertahan`/`ditolak`) + antrean + galat terakhir (aturan 34). Alamat webhook tidak pernah ikut |
+| GET | `/api/console/dev/lapor-discord` | Keadaan lapor Discord (`mati`/`url_salah`/`rusak`/`aktif`/`tertahan`/`ditolak`/`isi_ditolak`) + antrean (`kiriman`, `disisihkan`) + galat terakhir (aturan 34). Alamat webhook tidak pernah ikut |
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu jawaban |
 | GET | `/api/console/dev/antrean` | `erp_outbox`: jumlah pending/gagal + daftar gagal. `ErpClient` membalas empat jawaban (`ErpRejected` 4xx, `ErpServerError` 5xx beramplop Frappe, `ErpUnavailable` tidak terjangkau, atau terkirim); dua yang pertama dicatat per pesan dan batch lanjut, `ErpUnavailable` menahan batch dan Last Sync membaca putus (`integrations/erp/client.py`) |
 | GET | `/api/console/dev/antrean/manifest` | antrean manifest R2 (DB terpisah dari `erp_outbox`, supaya R2 mati tidak menahan pesan AutoERP) |
@@ -545,7 +545,7 @@ konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x
 | POST | `/api/console/lines/{line}/piston` | `{open}` → diteruskan ke `/internal/piston` line. Menggerakkan hardware, jadi butuh sesi operator seperti lane operator lain (batch 1.1), dan tiap percobaan dicatat WARNING menyebut siapa yang menekan (tab Log), dipicu atau ditolak |
 | GET | `/api/console/dev/ping` | lane developer paling ringan: dipakai layar untuk memastikan akses masih hidup. **Semua baris `/dev/*` di bawah ini butuh `role='support'`, dijawab 403 kalau bukan** |
 | GET | `/api/console/dev/log` | isi `event_log`: filter `level`/`cari`, pagination `limit`+`offset`. Sejak batch 3.2 baris tarikan line membawa `line_code` (null = konsol) dan `asal`; `cari` juga mencocokkan kode line |
-| GET | `/api/console/dev/lapor-discord` | **support**: keadaan lapor Discord (`mati`/`url_salah`/`aktif`/`tertahan`/`ditolak`) + antrean + galat terakhir. Alamat webhook tidak pernah ikut |
+| GET | `/api/console/dev/lapor-discord` | **support**: keadaan lapor Discord (`mati`/`url_salah`/`rusak`/`aktif`/`tertahan`/`ditolak`/`isi_ditolak`) + antrean (`kiriman`, `disisihkan`) + galat terakhir. Alamat webhook tidak pernah ikut |
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu layar |
 | GET | `/api/console/dev/antrean` | isi `erp_outbox`: jumlah pending/gagal + daftar yang gagal |
 | POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox` |

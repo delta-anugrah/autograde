@@ -11,7 +11,13 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from palmgrade.domain.digest_galat import MAKS_PESAN
-from palmgrade.domain.kirim_discord import JEDA_ANTAR_RINGKASAN_S, JEDA_DITOLAK_S, JEDA_KUMPUL_S
+from palmgrade.domain.kirim_discord import (
+    JEDA_ANTAR_RINGKASAN_S,
+    JEDA_DITOLAK_S,
+    JEDA_GAGAL_MAKS_S,
+    JEDA_KUMPUL_S,
+    MAKS_ISI_DITOLAK,
+)
 from palmgrade.integrations.notifications.discord_client import DiscordClient
 from palmgrade.repositories.lapor_discord_repository import LaporDiscordStore
 from palmgrade.workers.lapor_discord_worker import LaporDiscordWorker
@@ -236,3 +242,86 @@ def test_worker_tidak_pernah_menulis_error_walau_discord_rusak(tmp_path, caplog)
 
     assert not [x for x in caplog.records if x.levelno >= logging.ERROR]
     assert store.ringkasan()["status_http"] == 500
+
+
+def test_internet_putus_lalu_webhook_404_saran_webhook_tetap_muncul(tmp_path, caplog):
+    """Dulu satu bendera "putus" untuk semua kegagalan: sesudah internet mati, 404 yang
+    menyusul tidak pernah diberi saran memeriksa webhook. Sekarang satu WARNING per
+    perubahan jenis kegagalan."""
+    jam, discord = _Jam(), _Discord()
+    worker, store = _rakit(tmp_path, jam, discord)
+    discord.putus = True
+    _galat(store, jam)
+    jam.t += JEDA_KUMPUL_S
+    with caplog.at_level(logging.WARNING, logger="palmgrade.workers.lapor_discord_worker"):
+        for _ in range(3):
+            asyncio.run(worker.run_once())
+            jam.t += JEDA_GAGAL_MAKS_S
+        discord.putus, discord.status = False, 404
+        asyncio.run(worker.run_once())
+        jam.t += JEDA_DITOLAK_S
+        asyncio.run(worker.run_once())
+    pesan = [r.getMessage() for r in caplog.records]
+    assert len(pesan) == 2, pesan
+    assert "internet" in pesan[0]
+    assert "HTTP 404" in pesan[1] and "periksa DISCORD_WEBHOOK_URL" in pesan[1]
+
+
+def test_isi_ditolak_400_disisihkan_sesudah_batas_dan_laporan_berikutnya_jalan(tmp_path, caplog):
+    """Review akhir 1, M5: pesan yang isinya ditolak Discord dulu dicoba ulang selamanya dan
+    menahan semua ringkasan sesudahnya. Sekarang disisihkan (tetap di disk) sesudah
+    `MAKS_ISI_DITOLAK` kali, dengan satu WARNING, dan antreannya jalan lagi."""
+    jam, discord = _Jam(), _Discord()
+    worker, store = _rakit(tmp_path, jam, discord)
+    discord.status = 400
+    _galat(store, jam, "galat pertama")
+    jam.t += JEDA_KUMPUL_S
+    with caplog.at_level(logging.WARNING, logger="palmgrade.workers.lapor_discord_worker"):
+        for _ in range(MAKS_ISI_DITOLAK + 2):
+            asyncio.run(worker.run_once())
+            jam.t += JEDA_GAGAL_MAKS_S
+    assert discord.permintaan == MAKS_ISI_DITOLAK
+    r = store.ringkasan()
+    assert (r["kiriman"], r["disisihkan"], r["status_http"]) == (0, 1, 400)
+    pesan = [x.getMessage() for x in caplog.records]
+    assert len(pesan) == 2, pesan
+    assert "HTTP 400" in pesan[0] and "isi" in pesan[0] and "DISCORD_WEBHOOK_URL" not in pesan[0]
+    assert "disisihkan" in pesan[1]
+    assert not [x for x in caplog.records if x.levelno >= logging.ERROR]
+
+    discord.status = 204
+    _galat(store, jam, "galat kedua")
+    jam.t += JEDA_ANTAR_RINGKASAN_S
+    asyncio.run(worker.run_once())
+    assert len(discord.diterima) == 1 and "galat kedua" in discord.diterima[0]
+    assert store.ringkasan()["disisihkan"] == 1
+
+
+def test_run_loop_bertahan_saat_satu_putaran_melempar_dan_cuma_warning(tmp_path, caplog):
+    jam, discord = _Jam(), _Discord()
+    worker, store = _rakit(tmp_path, jam, discord)
+    worker._interval_s = 0
+    putaran: list[int] = []
+
+    async def rusak_sekali() -> None:
+        putaran.append(1)
+        if len(putaran) == 1:
+            raise RuntimeError("putaran rusak")
+
+    worker.run_once = rusak_sekali
+
+    async def jalankan() -> None:
+        tugas = asyncio.create_task(worker.run_loop())
+        for _ in range(100):
+            await asyncio.sleep(0.01)
+            if len(putaran) >= 3:
+                break
+        tugas.cancel()
+
+    with caplog.at_level(logging.DEBUG, logger="palmgrade.workers.lapor_discord_worker"):
+        asyncio.run(jalankan())
+
+    assert len(putaran) >= 3
+    assert [(r.levelno, r.getMessage()) for r in caplog.records] == [
+        (logging.WARNING, "Putaran lapor Discord gagal")
+    ]

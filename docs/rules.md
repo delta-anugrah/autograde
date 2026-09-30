@@ -1001,17 +1001,24 @@ end of this file.
     mengosongkan `event_log` (atau retensi) lalu baris line yang sama datang lagi = seluruh
     hitungannya diteruskan lagi. Serapan yang GAGAL tanpa konsol mati TIDAK menggandakan:
     hitungan yang sudah diteruskan diingat per line sampai terserap.
-    **Lapor Discord** mati kalau `DISCORD_WEBHOOK_URL` kosong (bawaan) atau bukan https. Nyala:
+    **Lapor Discord** mati kalau `DISCORD_WEBHOOK_URL` kosong (bawaan, keadaan `mati`), bukan
+    alamat https dengan host dan port yang bisa dipakai (`url_salah`, diperiksa juga oleh httpx),
+    atau antreannya di disk tidak bisa dibuka (`rusak`: pindahkan
+    `state/console/lapor_discord.db` lalu `autograde restart`; Setelan tidak me-restart konsol). Nyala:
     semua ERROR konsol + ERROR line yang ditarik antre per jenis di `lapor_discord.db` (jenis =
     pesan yang dinormalkan plus nama kelas galatnya, `dengan_jenis_galat`: "Exception in ASGI
     application (KeyError)"), disusun jadi ringkasan (identitas `ERP_COMPANY` + host + versi,
     hitungan, jam pertama/terakhir, tanpa traceback dan tanpa isi pesan galat, teredaksi,
     dipecah 2.000 karakter) paling cepat 2 menit sesudah galat pertama dan
     paling sering tiap 15 menit, dan tidak ada ringkasan baru selama masih ada pesan yang belum
-    terkirim. Jaringan/5xx: jeda 30 dtk berlipat sampai 15 menit. 429: tunggu `retry_after`.
-    4xx lain (webhook salah/dihapus): berhenti sejam, kalimat merah di atas tabel tab Log, satu
-    WARNING. Worker lapor tidak pernah menulis ERROR (akan melaporkan dirinya sendiri). Alamat
-    webhook itu rahasia: tidak pernah dicatat atau dikirim ke layar.
+    terkirim. Jaringan/5xx (`tertahan`): jeda 30 dtk berlipat sampai 15 menit. 429: tunggu
+    `retry_after`. 400 (`isi_ditolak`: Discord menolak ISI pesan, alamatnya benar): jeda berlipat,
+    dan sesudah 3 kali pesan itu **disisihkan** (`kiriman.disisihkan_at`, tetap di disk, tidak
+    dikirim lagi) supaya satu pesan tidak menahan semua laporan sesudahnya. 4xx lain (`ditolak`,
+    webhook salah/dihapus): berhenti sejam, kalimat merah di atas tabel tab Log. Tiap perubahan
+    jenis kegagalan satu WARNING dengan sarannya sendiri, pulihnya satu WARNING. Worker lapor
+    tidak pernah menulis ERROR (akan melaporkan dirinya sendiri). Alamat webhook itu rahasia:
+    tidak pernah dicatat atau dikirim ke layar.
 
 35. **Health jujur + pemantau disk** (batch 3.6 dan 3.7, 2026-09-30). Aturan 32 diperluas,
     bukan diduplikasi: `domain/kesehatan_ai.py` + `services/penjaga_ai.py` yang SAMA.

@@ -54,6 +54,7 @@ def konsol(tmp_path, monkeypatch):
     monkeypatch.setattr(console_deps, "get_console_service", lambda: service)
     console_deps.get_auth_service.cache_clear()
     console_deps.get_dev_service.cache_clear()
+    console_deps.get_lapor_discord.cache_clear()
     semula = {n: (list(logging.getLogger(n).handlers), logging.getLogger(n).propagate) for n in _UVICORN}
     root = logging.getLogger()
     handler_root, level_root = list(root.handlers), root.level
@@ -70,6 +71,7 @@ def konsol(tmp_path, monkeypatch):
     yield app, service
     console_deps.get_auth_service.cache_clear()
     console_deps.get_dev_service.cache_clear()
+    console_deps.get_lapor_discord.cache_clear()
     root.handlers, root.level = handler_root, level_root
     for nama, (handlers, propagate) in semula.items():
         logging.getLogger(nama).handlers, logging.getLogger(nama).propagate = handlers, propagate
