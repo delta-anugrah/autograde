@@ -25,7 +25,8 @@ menjamin tiga hal untuk kedua jalan itu:
 
 `os._exit` melewati `atexit`, jadi yang biasanya dibereskan `atexit` saat keluar
 biasa (log line, batch 3.2) didaftarkan lewat `sebelum_keluar` dan dijalankan
-`keluar_nanti` tepat sebelum `os._exit`, sesudah pesan keluar terakhirnya.
+`keluar_nanti` tepat sebelum `os._exit`, sesudah pesan keluar terakhirnya, dengan
+batas sendiri (`BATAS_SEBELUM_KELUAR_S`) supaya disk log yang macet tidak menahan keluar.
 
 Bebas torch/cv2, jadi teruji di CI.
 """
@@ -48,6 +49,11 @@ logger = logging.getLogger(__name__)
 #: langkah macet sempat tertulis di jalur SIGTERM juga
 #: (tests/unit/test_tenggang_tutup_uvicorn.py).
 BATAS_TUTUP_S = 8.0
+#: Batas pekerjaan `sebelum_keluar` (menguras log line) pada jalan `keluar_nanti`.
+#: Disk log yang macet tidak boleh membuat proses tidak pernah keluar: route sudah
+#: menjawab dan coil sudah mati, jadi line cuma diam tanpa dinyalakan ulang. 1 + 8 + 1
+#: detik masih di bawah 12 detik yang ditunggu Danger Zone konsol (aturan 25).
+BATAS_SEBELUM_KELUAR_S = 1.0
 
 
 @dataclass(frozen=True)
@@ -63,10 +69,12 @@ class PenutupLine:
         self,
         *,
         batas_s: float = BATAS_TUTUP_S,
+        batas_sebelum_keluar_s: float = BATAS_SEBELUM_KELUAR_S,
         keluar: Callable[[int], None] = os._exit,
         tidur: Callable[[float], None] = time.sleep,
     ) -> None:
         self._batas_s = batas_s
+        self._batas_sebelum_keluar_s = batas_sebelum_keluar_s
         self._keluar = keluar
         self._tidur = tidur
         self._tahap: list[list[Langkah]] = []
@@ -101,9 +109,9 @@ class PenutupLine:
         """Daftarkan `fungsi` untuk dijalankan tepat sebelum `os._exit` di `keluar_nanti`.
 
         Untuk pekerjaan yang dijamin `atexit` pada keluar biasa (SIGTERM, `sys.exit`)
-        tapi dilewati `os._exit`, misalnya menguras antrean log line. `fungsi` wajib
-        singkat dan berbatas waktu sendiri; yang melempar dicatat dan tidak menahan
-        keluar maupun `fungsi` lain.
+        tapi dilewati `os._exit`, misalnya menguras antrean log line. Semua `fungsi`
+        jalan bersamaan dengan batas `BATAS_SEBELUM_KELUAR_S`: yang melempar atau
+        macet dicatat dan tidak menahan keluar maupun `fungsi` lain.
         """
         with self._kunci:
             self._sebelum_keluar.append(fungsi)
@@ -143,7 +151,8 @@ class PenutupLine:
         yang dituju container berhenti supaya `restart: unless-stopped` (atau
         loop `make line`) menyalakannya lagi dengan environment yang dibaca
         ulang; `sys.exit` dari thread non-utama cuma menghentikan thread itu.
-        Keluar tetap terjadi walau urutan tutup melewati batas.
+        Keluar tetap terjadi walau urutan tutup atau pekerjaan `sebelum_keluar`
+        melewati batasnya: paling lama `jeda` + `BATAS_TUTUP_S` + `BATAS_SEBELUM_KELUAR_S`.
         """
         def jalan() -> None:
             try:
@@ -164,13 +173,30 @@ class PenutupLine:
     # ── privat ──────────────────────────────────────────────────────────────
 
     def _jalankan_sebelum_keluar(self) -> None:
+        """Semua pekerjaan `sebelum_keluar` BERSAMAAN, di thread daemon, berbatas waktu.
+
+        Yang melewati batas disebut di ERROR lalu ditinggal: `os._exit` tetap terjadi.
+        """
         with self._kunci:
             daftar = list(self._sebelum_keluar)
-        for fungsi in daftar:
-            try:
-                fungsi()
-            except Exception:
-                logger.exception("Pekerjaan sebelum keluar %r gagal; line tetap keluar", fungsi)
+        benang = [
+            (_nama(fungsi), threading.Thread(
+                target=_jalankan_aman, args=(fungsi,), daemon=True, name="sebelum-keluar"
+            ))
+            for fungsi in daftar
+        ]
+        for _, b in benang:
+            b.start()
+        tenggat = time.monotonic() + self._batas_sebelum_keluar_s
+        for _, b in benang:
+            b.join(max(0.0, tenggat - time.monotonic()))
+        macet = [nama for nama, b in benang if b.is_alive()]
+        if macet:
+            logger.error(
+                "Pekerjaan sebelum keluar melewati batas %.0f detik; belum selesai: %s. "
+                "Proses keluar tanpa menunggunya.",
+                self._batas_sebelum_keluar_s, ", ".join(macet),
+            )
 
     def _jalankan(self, tahap: list[list[Langkah]]) -> None:
         try:
@@ -201,3 +227,14 @@ class PenutupLine:
             with self._kunci:
                 self._berjalan.discard(langkah.nama)
             logger.info("Langkah tutup %r selesai dalam %.1f detik", langkah.nama, time.monotonic() - mulai)
+
+
+def _nama(fungsi: Callable[[], None]) -> str:
+    return getattr(fungsi, "__qualname__", None) or repr(fungsi)
+
+
+def _jalankan_aman(fungsi: Callable[[], None]) -> None:
+    try:
+        fungsi()
+    except Exception:
+        logger.exception("Pekerjaan sebelum keluar %s gagal; line tetap keluar", _nama(fungsi))

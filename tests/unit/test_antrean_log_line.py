@@ -21,7 +21,9 @@ from palmgrade.domain.log_line import (
 )
 from palmgrade.repositories.log_line_repository import NAMA_DB_LOG_LINE, LogLineStore
 from palmgrade.services.antrean_log_line import (
+    BATAS_BERHENTI_S,
     AntreanLogLine,
+    PenulisLogLine,
     pasang_log_line,
     pasang_penulis_log_line,
 )
@@ -323,6 +325,22 @@ def test_hentikan_menulis_sisa_yang_belum_dikuras(tmp_path):
         "tepat sebelum berhenti"
     ]
     assert list(root.handlers) == sebelum
+
+
+def test_hentikan_tidak_menunggu_disk_yang_macet():
+    """Dipanggil tepat sebelum `os._exit` (restart dari konsol): disk log yang macet
+    tidak boleh menahan restart lebih dari `BATAS_BERHENTI_S`."""
+    store = _StoreLambat()
+    antrean = AntreanLogLine(store, jeda_s=0.0)
+    penulis = PenulisLogLine(store, antrean, SqliteLogHandler(antrean), antrean.mulai())
+    try:
+        antrean.write("ERROR", "a", "tertahan di disk", None, now=1.0)
+        time.sleep(0.2)  # penulis sudah masuk tulis_banyak dan tertahan
+        mulai = time.monotonic()
+        assert penulis.hentikan() is False
+        assert time.monotonic() - mulai < BATAS_BERHENTI_S + 0.3
+    finally:
+        store.lepas.set()
 
 
 def test_galat_startup_lalu_keluar_tetap_tertulis(tmp_path):

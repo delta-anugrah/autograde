@@ -12,7 +12,12 @@ import time
 
 import pytest
 
-from palmgrade.services.penutup_line import BATAS_TUTUP_S, Langkah, PenutupLine
+from palmgrade.services.penutup_line import (
+    BATAS_SEBELUM_KELUAR_S,
+    BATAS_TUTUP_S,
+    Langkah,
+    PenutupLine,
+)
 
 LOGGER = "palmgrade.services.penutup_line"
 
@@ -246,6 +251,38 @@ def test_sebelum_keluar_yang_melempar_tidak_menahan_keluar_maupun_yang_lain(capl
 
     assert jejak == ["kuras kedua"]
     assert [str(r.exc_info[1]) for r in caplog.records if r.exc_info] == ["disk log penuh"]
+
+
+def test_sebelum_keluar_yang_macet_tidak_menahan_keluar(caplog):
+    """Route sudah menjawab 200 dan coil sudah mati: proses yang tidak pernah keluar
+    berarti line tidak pernah dinyalakan ulang, tanpa satu pun galat di layar."""
+    lepas = threading.Event()
+    keluar = threading.Event()
+    jejak: list = []
+
+    def macet_di_disk() -> None:
+        lepas.wait(30)
+
+    p = PenutupLine(batas_s=1, batas_sebelum_keluar_s=0.2, keluar=lambda k: keluar.set(), tidur=lambda s: None)
+    p.sebelum_keluar(macet_di_disk)
+    p.sebelum_keluar(lambda: jejak.append("kuras lain"))
+    mulai = time.monotonic()
+    try:
+        with caplog.at_level(logging.ERROR, logger=LOGGER):
+            p.keluar_nanti(0)
+            assert keluar.wait(3)
+        assert time.monotonic() - mulai < 2
+    finally:
+        lepas.set()
+
+    assert jejak == ["kuras lain"]
+    (pesan,) = _pesan_error(caplog)
+    assert "macet_di_disk" in pesan and "kuras lain" not in pesan
+
+
+def test_batas_sebelum_keluar_masih_di_bawah_tenggang_danger_zone():
+    """1 dtk jeda + urutan tutup + pekerjaan sebelum keluar < 12 dtk yang ditunggu konsol."""
+    assert 1 + BATAS_TUTUP_S + BATAS_SEBELUM_KELUAR_S < 12
 
 
 def test_sebelum_keluar_tidak_dijalankan_tutup_sigterm():
