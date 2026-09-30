@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make ps)",
+      "Bash(make logs:*)",
+      "Bash(make reset-data)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(.venv/bin/pytest:*)",
+      "Bash(.venv/bin/ruff check:*)",
+      "Bash(curl :800:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(docker compose down -v:*)",
+      "Bash(make reset-data-fresh:*)",
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/.env.production)",
+      "Read(**/.env.bak*)",
+      "Read(**/media.env)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/hooks/guard.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

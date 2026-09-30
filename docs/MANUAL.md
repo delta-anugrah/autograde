@@ -682,7 +682,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 
 ### 7.1 Janjang yang ditolak konsol
 
-Line tidak pernah membuang janjang (CLAUDE.md aturan 31). Janjang yang dijawab konsol dengan
+Line tidak pernah membuang janjang (`docs/rules.md` aturan 31). Janjang yang dijawab konsol dengan
 400/422 dicoba lagi tiap 10 menit selamanya dan tidak akan pernah sampai sendiri. Tandanya: tab
 Status, bagian Antrean line, menulis **"N janjang DITOLAK konsol"**, dan tab Log punya baris
 `Janjang <event_id> dari line-N (jam …) DITOLAK konsol: <alasan>`. Selama baris itu ada, Danger
@@ -723,7 +723,7 @@ Dua jebakan umum di balik "setelan `.env` tidak berlaku": **env var proses menan
 `.env`** (`load_dotenv(override=False)`; cek `/health/detail`), dan `.env` yang diubah baru
 berlaku setelah `make start`, bukan `make restart` atau reboot.
 
-Kalau gejalanya tidak ada di tabel: tab Log dulu, lalu `make logs-<line>`, lalu `CLAUDE.md`
+Kalau gejalanya tidak ada di tabel: tab Log dulu, lalu `make logs-<line>`, lalu `docs/rules.md`
 § Critical Rules untuk memahami aturan yang mungkin tersentuh.
 
 ## 8. Aturan yang Tidak Boleh Dilanggar
@@ -785,7 +785,7 @@ Konsol sengaja lewat `routes → services` tanpa controller (CLAUDE.md, bagian L
 
 ### 9.2 Langkah pertama untuk orang baru
 
-1. Baca bagian **Critical Rules** di `CLAUDE.md`.
+1. Baca bagian **Critical Rules** di `docs/rules.md` (indeksnya `CLAUDE.md` §3).
 2. `make operator` (akun lokal), `make console`, lalu masuk ke `http://127.0.0.1:8100/console`.
    `make demo` mengisi data contoh seminggu.
 3. Buka `src/palmgrade/workers/frame_processing_worker.py`: di sinilah janjang jadi angka.

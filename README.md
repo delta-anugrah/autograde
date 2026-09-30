@@ -450,7 +450,7 @@ Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disim
 - **Hari-hari sebelumnya** di tab yang sama: ganti tanggal (maks 31 hari) + **Unduh CSV** untuk
   semua operator. **Impor CSV** untuk akun support saja: CSV Per janjang hasil unduhan (PC ini atau PC
   lain) diperiksa dulu, lalu diimpor utuh atau ditolak utuh; janjang hari ini tidak diimpor, yang
-  sudah ada dilewati, dan satu impor bisa dibatalkan (`CLAUDE.md` aturan 26).
+  sudah ada dilewati, dan satu impor bisa dibatalkan (`docs/rules.md` aturan 26).
 - **Coba di lokal tanpa kamera**: `make up-console` lalu buka
   <http://localhost:8000/console>. DB-nya kosong, jadi tab-tabnya masih polos,
   isi dengan **`make demo`**: 10 truk, ~6 kunjungan per hari selama seminggu, ratusan
@@ -553,9 +553,9 @@ Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disim
 
 ## API Endpoints
 
-Daftar endpoint line dan konsol yang selalu mutakhir ada di `CLAUDE.md` bagian **HTTP Surface**
+Daftar endpoint line dan konsol yang selalu mutakhir ada di `docs/backend-overview.md` bagian **HTTP Surface**
 (konsol: semua `/api/console/*` butuh sesi, lane support `/api/console/dev/*` butuh peran
-`support`). Payload, event, dan variabel lingkungan lengkap: `docs/backend-overview.md`.
+`support`). Payload, event, dan variabel lingkungan lengkap ada di berkas yang sama.
 
 ```bash
 # Line
@@ -571,7 +571,7 @@ curl -b /tmp/konsol.jar 'http://localhost:8100/api/console/riwayat?tampilan=truk
 
 ⚠️ `neto_kg` **dihitung, tidak pernah dipercaya mentah** (beda > 1 kg dari `bruto − tara` ditolak
 400), dan `MINIMUM_BERAT_KG` = **1 ton** menangkap pemisah ribuan (`14.820` terbaca 14,82 kg).
-Rinciannya `CLAUDE.md` aturan 15 dan 20.
+Rinciannya `docs/rules.md` aturan 15 dan 20.
 
 ---
 
