@@ -113,16 +113,16 @@ def test_jenis_galat_pesan_banyak_baris_tidak_membocorkan_baris_berikutnya():
 
 
 def test_jenis_galat_galat_berantai_memakai_akar_penyebabnya():
-    """Galat berantai dibaca dari blok PERTAMA (akar penyebab, yang dicetak lebih dulu).
-    Blok sesudahnya tidak bisa dibedakan dari teks yang meniru rantai di dalam pesan galat
-    terakhir, jadi tidak pernah dibaca (lihat probe wave 4 di bawah)."""
+    """Kelas galat berantai diambil dari kepala blok PERTAMA (akar penyebab, dicetak lebih
+    dulu): teks lain tidak pernah dibaca sebagai kelas (probe wave 4 di bawah). Frame
+    pembedanya dicari di SELURUH detail: frame `palmgrade/` terakhir."""
     berantai = (
         _tb("KeyError: 'a'")
         + "\nThe above exception was the direct cause of the following exception:\n\n"
         + _tb("RuntimeError: gagal menyimpan\nB9999ZZ", berkas="/app/src/palmgrade/services/x.py")
     )
     assert jenis_galat(berantai) == "KeyError"
-    assert ringkas_galat(berantai) == "KeyError@palmgrade/routes/console.py:12"
+    assert ringkas_galat(berantai) == "KeyError@palmgrade/services/x.py:12"
 
 
 def test_jenis_galat_kepala_yang_bukan_nama_kelas_kosong():
@@ -246,8 +246,9 @@ def test_traceback_utuh_di_dalam_pesan_galat_tidak_jadi_nama_kelas():
     assert jenis_galat(probe) == "RuntimeError"
 
 
-def test_traceback_yang_kepalanya_terpotong_tetap_terbaca():
-    """`potong_detail` menyimpan ekor traceback yang panjang: penandanya bisa ikut terpotong."""
+def test_traceback_yang_kepalanya_terpotong_tetap_punya_frame_tanpa_kelas():
+    """`potong_detail` menyimpan ekor traceback yang panjang: penandanya bisa ikut terpotong.
+    Sesudah sinkron ulang kelas sengaja kosong (keputusan wave 5), frame tetap terbaca."""
     terpotong = (
         "...(dipotong)\n"
         "    x()\n"
@@ -255,8 +256,8 @@ def test_traceback_yang_kepalanya_terpotong_tetap_terbaca():
         "    y()\n"
         "KeyError: 1\n"
     )
-    assert jenis_galat(terpotong) == "KeyError"
-    assert ringkas_galat(terpotong) == "KeyError@palmgrade/workers/a.py:5"
+    assert jenis_galat(terpotong) == ""
+    assert ringkas_galat(terpotong) == "@palmgrade/workers/a.py:5"
 
 
 
@@ -296,8 +297,10 @@ def test_traceback_panjang_yang_dipotong_di_mana_pun_tetap_punya_sidik():
         if "ValueError: truk" not in terpotong or 'palmgrade/workers/panjang.py"' not in terpotong:
             continue
         diuji += 1
-        assert jenis_galat(terpotong) == "ValueError", ekor
-        assert ringkas_galat(terpotong) == "ValueError@palmgrade/workers/panjang.py:302", ekor
+        # Kepala blok pertama ikut terpotong (perlu sinkron ulang ke frame utuh): kelas
+        # sengaja kosong, frame pembedanya tetap benar jadi sidiknya tidak kosong.
+        assert jenis_galat(terpotong) == "", ekor
+        assert ringkas_galat(terpotong) == "@palmgrade/workers/panjang.py:302", ekor
     assert diuji == 120
 
 
@@ -325,3 +328,69 @@ def test_detail_20000_baris_selesai_jauh_di_bawah_satu_detik():
         ringkas_galat(raksasa)
         jenis_galat(raksasa)
     assert time.perf_counter() - mulai < 1.0
+
+
+
+# ── Review wave 5 (keputusan koordinator): kelas dari blok pertama, frame dari seluruh detail ──
+
+
+def _jalankan(berkas: dict[str, str], masuk: str) -> str:
+    """Kompilasi beberapa "berkas" palmgrade di satu ruang nama, jalankan `masuk`, dan
+    kembalikan traceback ASLI-nya (`traceback.format_exception`)."""
+    import traceback
+
+    ruang: dict = {}
+    for jalur, kode in berkas.items():
+        exec(compile(kode, jalur, "exec"), ruang)
+    try:
+        ruang[masuk]()
+    except Exception as exc:  # noqa: BLE001, yang diuji justru traceback-nya
+        return "".join(traceback.format_exception(exc))
+    raise AssertionError("tidak melempar")
+
+
+def test_httpx_connect_error_dari_dua_rute_berbeda_tetap_dua_sidik():
+    """ConnectError httpx ASLI (berantai dari httpcore) dari dua rute berbeda. Wave 4
+    menyatukan keduanya jadi `httpcore.ConnectError@httpcore/_exceptions.py:14`."""
+    kode = (
+        "import httpx\n"
+        "def {nama}():\n"
+        "    httpx.Client(timeout=1).get('http://127.0.0.1:1/')\n"
+    )
+    a = _jalankan({"/app/src/palmgrade/routes/timbangan.py": kode.format(nama="timbang")}, "timbang")
+    b = _jalankan({"/app/src/palmgrade/routes/lisensi.py": kode.format(nama="lisensi")}, "lisensi")
+    assert "The above exception was the direct cause" in a
+    assert ringkas_galat(a).endswith("@palmgrade/routes/timbangan.py:3")
+    assert ringkas_galat(b).endswith("@palmgrade/routes/lisensi.py:3")
+    assert ringkas_galat(a) != ringkas_galat(b)
+
+
+def test_raise_from_di_dua_rute_lewat_helper_yang_sama_tetap_dua_sidik():
+    bantu = "def bantu():\n    raise ValueError('x')\n"
+    rute = (
+        "class {kelas}(Exception):\n    pass\n"
+        "def {nama}():\n"
+        "    try:\n        bantu()\n"
+        "    except ValueError as e:\n        raise {kelas}('gagal') from e\n"
+    )
+    a = _jalankan({"/app/src/palmgrade/domain/bantu.py": bantu,
+                   "/app/src/palmgrade/routes/a.py": rute.format(kelas="SimpanGagal", nama="a")}, "a")
+    b = _jalankan({"/app/src/palmgrade/domain/bantu.py": bantu,
+                   "/app/src/palmgrade/routes/b.py": rute.format(kelas="KirimGagal", nama="b")}, "b")
+    assert ringkas_galat(a) == "ValueError@palmgrade/routes/a.py:7"
+    assert ringkas_galat(b) == "ValueError@palmgrade/routes/b.py:7"
+
+
+def test_sinkron_ulang_sesudah_potongan_tidak_pernah_menghasilkan_kelas():
+    """Detail yang terpotong SEBELUM kepala blok pertamanya: yang terbaca sesudah sinkron
+    ulang bisa teks pesan galat (di sini keluaran proses anak yang memuat plat). Kelas
+    kosong; sidik boleh berisi frame, tapi tidak pernah platnya."""
+    from palmgrade.domain.log_line import potong_detail
+
+    pesan = "stderr anak:\n" + "x" * 9000 + '\n  File "/tmp/x.py", line 9, in g\nB1234XY: plate\n' + "y" * 100
+    kode = "def jalan():\n    raise RuntimeError(PESAN)\n"
+    ruang_berkas = {"/app/src/palmgrade/workers/anak.py": f"PESAN = {pesan!r}\n" + kode}
+    terpotong = potong_detail(_jalankan(ruang_berkas, "jalan"))
+    assert terpotong.startswith("...(dipotong)")
+    assert jenis_galat(terpotong) == ""
+    assert "B1234XY" not in ringkas_galat(terpotong)

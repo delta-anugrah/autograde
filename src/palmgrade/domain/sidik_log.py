@@ -61,52 +61,52 @@ _TANDA_POTONG = "...(dipotong)"
 
 
 def _kepala_dan_frame(detail: str | None) -> tuple[str, str]:
-    """(nama kelas galat, frame pembedanya) dari blok traceback PERTAMA. Satu lintasan.
+    """(kelas galat, frame pembeda) dari sebuah traceback. Satu lintasan, tidak melempar.
 
-    Blok = baris menjorok (frame `  File ...` dan baris kodenya), lalu kepala: baris TIDAK
-    menjorok pertama. Pembacaan BERHENTI di kepala itu: semua sesudahnya pesan galat (bisa
-    memuat plat, baris berbentuk frame, bahkan rantai tiruan lengkap) dan tidak pernah
-    dibaca. Karena itu galat berantai dibaca dari blok pertamanya, akar penyebab yang
-    dicetak lebih dulu: rantai sungguhan dan rantai tiruan di dalam pesan galat terakhir
-    tidak bisa dibedakan dari teksnya.
+    KELAS (satu-satunya yang pernah ditampilkan, misalnya di Discord): kepala blok traceback
+    PERTAMA, yaitu baris tidak menjorok pertama sesudah frame-frame-nya, dan HANYA kalau
+    blok itu dicapai tanpa sinkron ulang. Detail yang dipotong `potong_detail` sebelum kepala
+    blok pertamanya (potongan di offset karakter) memberi kelas kosong: yang terbaca sesudah
+    potongan bisa teks pesan galat. Teks lain tidak pernah dibaca sebagai kelas, jadi galat
+    berantai dikenali dari akar penyebabnya (dicetak lebih dulu). Blok tanpa frame cuma sah
+    kalau dibuka penanda `Traceback (most recent call last):`.
 
-    Awal blok: sesudah penanda `Traceback (most recent call last):` di baris pertama; di
-    detail yang kepalanya dipotong `potong_detail` (potongan di offset karakter, jadi baris
-    sesudah tanda potong biasanya sepotong frame), sesudah frame UTUH pertama; tanpa
-    keduanya, baris pertama itu sendiri. Blok tanpa frame cuma sah kalau dibuka penanda.
-
-    Frame pembeda = frame terakhir blok itu yang jalurnya di kode kita (`palmgrade/`), kalau
-    tidak ada, frame terakhir: galat yang dilempar pustaka (pydantic, json, httpx) dari dua
-    rute berbeda berakhir di frame pustaka yang sama, dan harus tetap dua baris.
+    FRAME (cuma masuk sidik, tidak pernah ditampilkan): frame `palmgrade/` TERAKHIR di seluruh
+    detail (semua blok), kalau tidak ada, frame terakhir. Galat yang dilempar pustaka
+    (pydantic, httpx) atau dibungkus `raise ... from e` dari dua rute berbeda tetap dua baris.
+    Frame tiruan yang tersalin ke pesan galat paling buruk memecah baris, tidak pernah bocor.
     """
     baris = (detail or "").splitlines()
     if not baris:
         return "", ""
+    disinkron = baris[0].strip() == _TANDA_POTONG
     berpenanda = baris[0].startswith(_PENANDA_TRACEBACK)
-    i = 1 if berpenanda else 0
-    if baris[0].strip() == _TANDA_POTONG:
-        i = 1
-        while i < len(baris) and not _FRAME.match(baris[i]):
-            i += 1
-    frame: list[str] = []
-    for b in baris[i:]:
-        if not b.strip():
+    kepala = ""
+    kepala_lewat = False
+    frame_blok_pertama = False
+    frame_kita = frame_akhir = ""
+    for b in baris[1 if (disinkron or berpenanda) else 0:]:
+        cocok = _FRAME.match(b)
+        if cocok:
+            frame_akhir = f"{_jalur_pendek(cocok.group(1))}:{cocok.group(2)}"
+            if frame_akhir.startswith("palmgrade/"):
+                frame_kita = frame_akhir
+            frame_blok_pertama = frame_blok_pertama or not kepala_lewat
             continue
-        if b[0].isspace():
-            cocok = _FRAME.match(b)
-            if cocok:
-                frame.append(f"{_jalur_pendek(cocok.group(1))}:{cocok.group(2)}")
+        if kepala_lewat or not b.strip() or b[0].isspace():
             continue
-        if not (frame or berpenanda):
-            return "", ""
-        cocok = _KEPALA.match(b)
-        nama = cocok.group(1) if cocok else ""
-        # Nama kelas galat diawali huruf besar di segmen terakhirnya (`sqlite3.IntegrityError`).
-        if not (nama and nama.rsplit(".", 1)[-1][:1].isupper()):
-            nama = ""
-        milik_kita = [f for f in frame if f.startswith("palmgrade/")]
-        return nama, (milik_kita or frame or [""])[-1]
-    return "", ""
+        kepala_lewat = True
+        if not disinkron and (frame_blok_pertama or berpenanda):
+            kepala = b
+    return _nama_kelas(kepala), frame_kita or frame_akhir
+
+
+def _nama_kelas(kepala: str) -> str:
+    """Nama kelas di awal kepala galat, diawali huruf besar di segmen terakhirnya
+    (`sqlite3.IntegrityError`). Kosong kalau bukan."""
+    cocok = _KEPALA.match(kepala)
+    nama = cocok.group(1) if cocok else ""
+    return nama if nama and nama.rsplit(".", 1)[-1][:1].isupper() else ""
 
 
 def _jalur_pendek(jalur: str) -> str:
@@ -119,8 +119,8 @@ def _jalur_pendek(jalur: str) -> str:
 
 
 def ringkas_galat(detail: str | None) -> str:
-    """Pembeda galat untuk sidik: nama kelas + frame terakhir di kode kita, kalau tidak ada
-    frame terakhir (`ValueError@palmgrade/x.py:12`).
+    """Pembeda galat untuk sidik: kelas (kepala blok pertama) + frame `palmgrade/` terakhir di
+    seluruh detail, kalau tidak ada frame terakhir (`ValueError@palmgrade/x.py:12`).
 
     Ikut sidik penggabungan: dua galat dengan pesan log yang sama tapi sebab berbeda (kelas
     atau tempat lemparnya beda) jadi dua baris, galat yang sama berulang tetap satu. Teks
@@ -133,7 +133,8 @@ def ringkas_galat(detail: str | None) -> str:
 
 
 def jenis_galat(detail: str | None) -> str:
-    """Nama kelas galat yang terakhir dilempar (`KeyError`). Kosong kalau tidak jelas.
+    """Nama kelas galat dari kepala blok traceback pertama (`KeyError`; galat berantai: akar
+    penyebabnya). Kosong kalau tidak jelas atau kalau kepala itu ikut terpotong.
 
     Untuk Discord: yang keluar pabrik cuma nama kelasnya, bukan isi pesan galatnya
     (bisa memuat plat, nilai SQL, jalur berkas). Rinciannya tetap di tab Log.
