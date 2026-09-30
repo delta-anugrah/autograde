@@ -12,8 +12,13 @@ from .manager import LicenseManager
 logger = logging.getLogger(__name__)
 
 # Paths yang selalu diizinkan tanpa cek license. /health tetap terbuka supaya
-# operator dan watchdog masih bisa melihat kenapa mesin berhenti.
-_ALWAYS_ALLOWED = {"/health", "/jwks.json", "/docs", "/openapi.json", "/redoc", "/captures", "/api/video_feed"}
+# operator dan watchdog masih bisa melihat kenapa mesin berhenti. `/internal/log`
+# (batch 3.2) juga: log line paling dibutuhkan justru saat line berhenti, dan rute
+# itu tetap dijaga `INTERNAL_SECRET`.
+_ALWAYS_ALLOWED = {
+    "/health", "/jwks.json", "/docs", "/openapi.json", "/redoc", "/captures", "/api/video_feed",
+    "/internal/log",
+}
 
 
 class LicenseGuardMiddleware(BaseHTTPMiddleware):

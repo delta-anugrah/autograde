@@ -8,9 +8,11 @@ cuma menaruh kejadian di antrean memori; thread penulis sendiri yang menguras ke
 
 Keluar biasa (SIGTERM lewat uvicorn, `sys.exit` saat startup gagal) menguras sisa
 antrean lewat `atexit`, jadi galat terakhir sebelum line mati tetap sampai ke tab Log;
-justru itu yang dicari support saat line berputar gagal start. Yang tetap bisa hilang:
-kejadian ~0,2 detik terakhir saat proses mati tanpa lewat `atexit`, yaitu SIGKILL,
-listrik, dan `os._exit` (restart dan hapus data dari konsol, `penutup_line.keluar_nanti`).
+justru itu yang dicari support saat line berputar gagal start. Restart dan hapus data
+dari konsol keluar lewat `os._exit` (`penutup_line.keluar_nanti`), yang melewati
+`atexit`: `main.py` mendaftarkan `PenulisLogLine.hentikan` ke `sebelum_keluar` penutup,
+jadi antreannya dikuras juga di sana. Yang tetap bisa hilang: kejadian ~0,2 detik
+terakhir saat proses mati tanpa lewat keduanya, yaitu SIGKILL dan listrik.
 Antrean penuh (1000 kejadian yang belum sempat ditulis) membuang yang paling lama
 dan menghitungnya, bukan menahan pemanggil.
 """
@@ -221,7 +223,11 @@ class PenulisLogLine:
         self.antrean.hentikan(self.berhenti)
 
     def hentikan(self) -> bool:
-        """Copot handler dari root logger, hentikan penulis, tulis sisanya (untuk test)."""
+        """Copot handler dari root logger, hentikan penulis, tulis sisanya.
+
+        Dipanggil test, dan `penutup_line.keluar_nanti` tepat sebelum `os._exit`.
+        Berbatas waktu (`BATAS_BERHENTI_S`), jadi tidak bisa menahan restart.
+        """
         logging.getLogger().removeHandler(self.handler)
         atexit.unregister(self._saat_keluar)
         return self.antrean.hentikan(self.berhenti)

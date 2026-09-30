@@ -28,6 +28,8 @@ from .routes.internal import _jadwalkan_keluar
 from .routes.internal import router as internal_router
 from .routes.internal_bahaya import buat_router as buat_router_bahaya
 from .routes.internal_outbox import buat_router as buat_router_outbox
+from .routes.internal_log import buat_router as buat_router_log
+from .services.antrean_log_line import pasang_penulis_log_line
 from .services.antrean_line import AntreanLine
 from .services.hapus_data_line import hapus_kalau_diminta
 from .services.langkah_tutup_line import langkah_tutup_line
@@ -169,6 +171,15 @@ def create_app() -> FastAPI:
     configure_logging()
     settings = get_settings()
     penutup = get_penutup_line()
+    # Batch 3.2: WARNING/ERROR line ini ke log_line.db di folder DB line (selamat dari
+    # --force-recreate), ditarik konsol ke tab Log. Sedini mungkin supaya galat saat
+    # boot ikut tercatat; None = tanpa log di disk, line tetap jalan. Restart dan hapus
+    # data dari konsol keluar lewat os._exit, yang melewati atexit: antreannya dikuras
+    # dulu lewat penutup, supaya pesan terakhir sebelum keluar ikut tercatat.
+    penulis_log = pasang_penulis_log_line(get_folder_db_line())
+    log_line = penulis_log.store if penulis_log is not None else None
+    if penulis_log is not None:
+        penutup.sebelum_keluar(penulis_log.hentikan)
 
     # Folder DB line (state/, batch 1.2); lihat services/pindah_db_line.py.
     _lic_repo = LicenseLocalRepo(get_folder_db_line() / "license.db")
@@ -471,6 +482,9 @@ def create_app() -> FastAPI:
             ),
         )
     )
+
+    # Log line untuk tab Log konsol (batch 3.2): store yang SAMA dengan handler di atas.
+    app.include_router(buat_router_log(settings=get_settings, store=lambda: log_line))
 
     @app.websocket("/ws/results")
     async def websocket_endpoint(websocket: WebSocket) -> None:

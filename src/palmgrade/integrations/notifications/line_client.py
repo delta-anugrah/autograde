@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 
@@ -222,6 +223,19 @@ class LineClient:
         `LINE_MENOLAK` lewat `_get_json`.
         """
         return await self._get_json(line, "/internal/outbox", timeout_s=5.0)
+
+    async def log_line(
+        self, line: LineEndpoint, *, setelah: int, generasi: str, batas: int
+    ) -> dict[str, Any]:
+        """Satu halaman WARNING/ERROR line itu (`/internal/log`, batch 3.2) untuk tab Log.
+
+        Timeout sama dengan `antrean_line`: tarikan latar tiap 10 detik, bukan strip
+        status tiap detik. Line versi lama menjawab 404, dan itu sampai sebagai
+        `LineUnavailable` dengan `status` 404 lewat `_get_json`: pemanggil
+        (`TarikLogLineWorker`) diam dan mencoba lagi beberapa menit kemudian.
+        """
+        kueri = urlencode({"setelah": setelah, "generasi": generasi, "batas": batas})
+        return await self._get_json(line, f"/internal/log?{kueri}", timeout_s=5.0)
 
     async def kirim_ulang_antrean_line(self, line: LineEndpoint) -> int:
         """Suruh line mengirim seluruh antreannya sekarang. Mengembalikan jumlahnya.
