@@ -5,7 +5,7 @@ bertumpu pada "SQLite tahan lama + kirim ulang idempoten", tapi test tutup line
 memakai outbox tiruan berbasis list. Di sini dirangkai `CaptureSaveWorker` +
 disk sungguhan lewat `tulis_atomik` asli (gambar diganti byte tetap dan diperlambat
 supaya antrean terisi, jadi jalan di CI tanpa cv2), `OutboxStore` +
-`OutboxRetryWorker` asli di thread-nya sendiri, dan `PenutupLine` +
+`OutboxRetryWorker` asli di thread-nya sendiri (`_putar_sampai_mati`), dan `PenutupLine` +
 `langkah_tutup_line` yang dipakai `main.py`. Boot berikutnya mengirim ke lane ingest
 konsol yang ASLI (`ConsoleService`, `INSERT OR IGNORE` per `event_id`).
 """
@@ -69,6 +69,20 @@ def _janjang(i: int) -> SaveJob:
     )
 
 
+def _putar_sampai_mati(pengirim: OutboxRetryWorker, mati: threading.Event) -> None:
+    """Putaran `run_loop` yang berhenti saat "proses" di test ini mati.
+
+    Di pabrik proses line keluar lewat `os._exit` dan outbox-nya tidak pernah
+    ditutup, jadi `run_loop` memang tidak perlu berhenti. Di test prosesnya tetap
+    hidup: thread `run_loop` yang ditinggal terus memakai outbox yang ditutup di
+    bawah ini, dan sesudah jeda sambungan (5 detik) mencatat ProgrammingError
+    tiap detik ke test-test berikutnya.
+    """
+    while not mati.is_set():
+        pengirim._flush_pending()
+        mati.wait(0.05)
+
+
 def _konsol_mati(request: httpx.Request) -> httpx.Response:
     raise httpx.ConnectError("Connection refused", request=request)
 
@@ -88,8 +102,12 @@ def test_tutup_saat_konsol_mati_lalu_boot_ulang_mengirim_tiap_janjang_sekali(tmp
     state = RuntimeState()
     penulis = CaptureSaveWorker(settings=settings, storage=_DiskLambat(), outbox_store=store)
     pengirim = OutboxRetryWorker(store, settings, state, client=httpx.Client(transport=httpx.MockTransport(_konsol_mati)))
-    for nama, worker in (("capture_save", penulis), ("outbox_retry", pengirim)):
-        benang = threading.Thread(target=worker.run_loop, daemon=True, name=nama)
+    mati = threading.Event()
+    benang_pengirim = threading.Thread(target=_putar_sampai_mati, args=(pengirim, mati), daemon=True, name="outbox_retry")
+    for nama, benang, worker in (
+        ("capture_save", threading.Thread(target=penulis.run_loop, daemon=True, name="capture_save"), penulis),
+        ("outbox_retry", benang_pengirim, pengirim),
+    ):
         benang.start()
         state.worker_threads.append((nama, benang, worker))
     keluar = threading.Event()
@@ -105,7 +123,11 @@ def test_tutup_saat_konsol_mati_lalu_boot_ulang_mengirim_tiap_janjang_sekali(tmp
     with caplog.at_level("ERROR"):
         terlambat = penulis.submit(_janjang(20))
 
-    # Proses "mati" di sini. Semua janjang yang antre ada di antrean konsol di disk.
+    # Proses "mati" di sini: pengirimnya berhenti dulu, baru outbox-nya ditutup.
+    # Semua janjang yang antre ada di antrean konsol di disk.
+    mati.set()
+    benang_pengirim.join(timeout=5)
+    assert not benang_pengirim.is_alive(), "pengirim proses lama masih jalan saat outbox-nya ditutup"
     assert terlambat is False
     assert any("2026-09-29_101520" in r.getMessage() for r in caplog.records)
     assert store.pending_count() == 8
