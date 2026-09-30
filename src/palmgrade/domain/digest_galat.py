@@ -24,6 +24,9 @@ BATAS_KARAKTER_DISCORD = 2000
 MAKS_PESAN = 5
 MAKS_KELOMPOK = 40
 PANJANG_PESAN_GALAT = 300
+#: Panjang aman untuk fragmen bebas (nama perusahaan, host, versi) di baris judul: cukup
+#: untuk identitas normal, tapi tidak boleh sendirian mendekati batas 2000 satu pesan.
+PANJANG_FRAGMEN_JUDUL = 200
 #: Jenis galat berbeda yang ditampung antrean sebelum sisanya dilebur ke satu kelompok
 #: "galat lain": pesan yang tidak bisa dinormalkan tidak boleh menumbuhkan berkas tanpa batas.
 BATAS_KELOMPOK_MENUNGGU = 500
@@ -45,6 +48,16 @@ class KelompokGalat:
     jumlah: int
 
 
+def _muat(fragmen: str, maks: int) -> str:
+    """Potong `fragmen` bebas (nama perusahaan, host, versi) supaya muat di `maks`
+    karakter, dengan tanda `...` yang KELIHATAN kalau kepotong. Dipakai tiap kali teks
+    yang datang dari luar (bukan yang kita tulis sendiri di kode) masuk ke judul pesan:
+    satu tempat, supaya tidak ada fragmen yang lolos tanpa batas."""
+    if len(fragmen) <= maks:
+        return fragmen
+    return fragmen[: maks - 3] + "..."
+
+
 def sidik_digest(level: str, source: str, line_code: str | None, message: str) -> str:
     kunci = f"{level}|{source}|{line_code or ''}|{normalkan_pesan(message)}"
     return hashlib.sha256(kunci.encode()).hexdigest()[:32]
@@ -56,8 +69,14 @@ def redaksi_discord(teks: str) -> str:
 
 
 def identitas_pabrik(erp_company: str, host: str) -> str:
-    """Nama pabrik untuk judul ringkasan: Company AutoERP, dan host PC sebagai pembeda."""
-    nama = erp_company.strip() or "ERP_COMPANY belum diisi"
+    """Nama pabrik untuk judul ringkasan: Company AutoERP, dan host PC sebagai pembeda.
+
+    `erp_company` dan `host` adalah teks bebas (isian AutoERP, hostname PC): dipotong ke
+    `PANJANG_FRAGMEN_JUDUL` sebelum digabung supaya satu isian aneh tidak sendirian
+    membuat baris judul pesan Discord lewat batas 2000 karakter.
+    """
+    nama = _muat(erp_company.strip(), PANJANG_FRAGMEN_JUDUL) or "ERP_COMPANY belum diisi"
+    host = _muat(host, PANJANG_FRAGMEN_JUDUL)
     return f"{nama} (host {host})" if host else nama
 
 
@@ -82,6 +101,15 @@ def _baris(k: KelompokGalat, zona: ZoneInfo, acuan: datetime) -> str:
 
 
 def _kemas(baris: list[str], batas: int) -> list[str]:
+    """Susun `baris` jadi bagian-bagian yang masing-masing <= `batas` karakter.
+
+    Struktural, bukan cuma "biasanya cukup": SETIAP baris yang sendirian sudah lebih
+    panjang dari `batas` (header berisi identitas/versi bebas, satu baris galat yang
+    lolos dari `_bersih`, atau footer) dipotong DI SINI dengan tanda `...` yang
+    kelihatan, sebelum dipaketkan. Baris pemanggil tidak perlu tahu batasnya sendiri;
+    invarian 2000 karakter tidak bisa ditembus lewat jalur mana pun yang berakhir di sini.
+    """
+    baris = [b if len(b) <= batas else _muat(b, batas) for b in baris]
     bagian: list[str] = []
     kini = ""
     for b in baris:
@@ -109,6 +137,11 @@ def susun_pesan(
     """Isi pesan Discord untuk satu ringkasan. Kosong kalau tidak ada kelompok."""
     if not kelompok:
         return []
+    #: `identitas` dan `versi` adalah teks bebas (identitas biasanya sudah lewat
+    #: `identitas_pabrik`, tapi dijaga lagi di sini: pemanggil lain bisa saja melewatinya).
+    #: `_kemas` di bawah tetap jadi jaring pengaman terakhir untuk baris ini.
+    identitas = _muat(identitas, PANJANG_FRAGMEN_JUDUL)
+    versi = _muat(versi, PANJANG_FRAGMEN_JUDUL)
     urut = sorted(kelompok, key=lambda k: (-k.jumlah, -k.terakhir_at))
     acuan = datetime.fromtimestamp(max(k.terakhir_at for k in urut), zona)
     total = sum(k.jumlah for k in urut)

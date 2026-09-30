@@ -24,7 +24,10 @@ def _k(pesan: str = "kamera putus", *, jumlah: int = 1, line: str | None = "line
 
 
 def _susun(kelompok, **kw):
-    return susun_pesan(kelompok, identitas="PT Nexio (host pc-lampung)", versi="v1.20.0", zona=WIB, **kw)
+    kw.setdefault("identitas", "PT Nexio (host pc-lampung)")
+    kw.setdefault("versi", "v1.20.0")
+    kw.setdefault("zona", WIB)
+    return susun_pesan(kelompok, **kw)
 
 
 def test_galat_berbeda_kode_http_tidak_sekelompok():
@@ -116,3 +119,32 @@ def test_tanpa_em_dash():
     (pesan,) = _susun([_k(terakhir=T + 600)])
     assert "—" not in pesan
     assert " - " not in pesan
+
+
+def test_identitas_sangat_panjang_tidak_membuat_pesan_lewat_batas():
+    identitas = "PT " + "A" * 2500
+    (pesan,) = _susun([_k()], identitas=identitas)
+    assert len(pesan) <= BATAS_KARAKTER_DISCORD
+    assert "..." in pesan.splitlines()[0]
+
+
+def test_versi_sangat_panjang_tidak_membuat_pesan_lewat_batas():
+    (pesan,) = _susun([_k()], versi="v" + "9" * 2500)
+    assert len(pesan) <= BATAS_KARAKTER_DISCORD
+    assert "..." in pesan.splitlines()[0]
+
+
+def test_banyak_ukuran_pesan_selalu_di_bawah_batas_dan_tidak_hilang_diam_diam():
+    import random
+
+    acak = random.Random(0)
+    for _ in range(200):
+        n = acak.choice([1, 2, 5, 20, 50, 300, 3000])
+        identitas = "PT " + "X" * acak.choice([1, 10, 500, 3000])
+        versi = "v" + "1" * acak.choice([1, 5, 500, 3000])
+        kelompok = [_k(f"galat {i} " + "z" * acak.choice([0, 5, 400, 3000]), jumlah=n - i, line=f"l{i}")
+                    for i in range(n)]
+        pesan = _susun(kelompok, identitas=identitas, versi=versi)
+        assert pesan, "ringkasan tidak boleh hilang total"
+        for p in pesan:
+            assert len(p) <= BATAS_KARAKTER_DISCORD, (n, len(p))
