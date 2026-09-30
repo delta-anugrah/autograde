@@ -50,20 +50,36 @@ Changed:        Integration branch from 849c30d: streams D, A, C merged, origin/
                 tests/integration/test_discord_tanpa_alamat_di_log.py (webhook address never in
                 stderr, tab Log or the Discord queue). The create_app route test no longer leaves
                 the line log writer on root writing into the repo's state/. MANUAL 2.0 + PDF.
-Validated:      after the B merge: tests/unit 3583 passed, 28 skipped; tests/integration 124
-                passed; tests/e2e 327 passed, 17 skipped (torch venv); ruff on the ci.yml scope
+                Final fix wave (both final reviews + queued items): the last traceback line joins
+                the merge key in tab Log, line log and digest (two different 500s stay two rows,
+                Discord shows the exception class only); a line answering 5xx or a malformed log
+                page gets one WARNING; a failing absorption no longer re-forwards the same ERROR
+                counts to Discord; the start of a PLC outage and a coil write failure are ERROR
+                (reach Discord); frame stop judged from any reconnect success since the last
+                frame (no flapping, grace stamped once per episode, no false ERROR at the end of
+                an outage, boot connect recorded); Discord 400 sets the message aside after three
+                refusals, one WARNING per failure kind, unusable https URLs are url_salah; the
+                line log writer backs off on a refusing disk; the state-not-mounted error reaches
+                tab Log; Rekam Video stop runs in the threadpool; reconnect cycles are quiet;
+                drifted /health and comment text fixed; the test suites no longer write into the
+                checkout's state/ and artifacts/.
+Validated:      after the fix wave: tests/unit 3633 passed, 28 skipped; tests/integration 124
+                passed; tests/e2e 331 passed, 17 skipped (torch venv); ruff on the ci.yml scope
                 and the F821 step clean; tests/cek_skrip_konsol.py OK; scripts/hooks/test_guard.py
-                69/69. The two cross-stream tests turn red when the console mirror goes back to
-                WARNING or the httpx cap is removed (mutations reverted). Every line the branches
-                added to the old CLAUDE.md (A/C/D 109, B 48) found verbatim in the new layout.
+                69/69 (venv and /usr/bin/python3); state/ and artifacts/ empty after all three
+                suites. Earlier: the two cross-stream tests turn red when the console mirror goes
+                back to WARNING or the httpx cap is removed (mutations reverted). Every line the
+                branches added to the old CLAUDE.md (A/C/D 109, B 48) found verbatim in the new
+                layout.
 Not validated:  full CI (runs on the PR); nothing on the Lampung PC yet; Discord against the real
                 webhook.
 Decisions:      rule numbers A = 33, B = 34, C = 35; the line is the single WARNING/ERROR source
-                for facts it owns, console mirrors are INFO.
-Next:           final review and fix wave (two deferred minors in PenjagaAi from stream C), PR to
-                staging. Lampung: optional DISCORD_WEBHOOK_URL in the host compose console block
-                and .env; tell the PLC team the ERROR coil also rises for a camera that stops
-                sending frames.
+                for facts it owns, console mirrors are INFO. Fix wave: PLC outage start is ERROR
+                (Discord), recovery WARNING; one full disk stays one row per line (rule 35).
+Next:           PR to staging (PR body: reusable ci.yml call only provable on the first tag).
+                Lampung: optional DISCORD_WEBHOOK_URL in the host compose console block and .env;
+                tell the PLC team the ERROR coil also rises for a camera that stops sending
+                frames.
 
 ## 2026-09-30 · docs · Fix references left stale by the CLAUDE.md tidy (PR #197)
 Changed:        rule references in 2 skills, docs/overview.md, docs/backend-overview.md,
