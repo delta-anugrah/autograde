@@ -8,17 +8,23 @@
 
 ## 1. Layered Architecture: per-layer do/don't
 
-`route → controller → service → repository / pipeline / integration`. Each layer has a strict boundary.
+`route → controller → service → repository / pipeline / integration`. The console app skips the
+controller on purpose (`route → service → repository`, see `routes/console.py`). Each layer has a
+strict boundary; the coding rules that go with it are in `docs/coding-standard.md`.
 
 | Layer | Folder | May | Must NOT |
 |---|---|---|---|
 | Routes | `routes/` | path, method, `Depends()`, return type | any logic, file/model/queue access |
 | Controllers | `controllers/` | take request, call **one** service, raise `HTTPException` | touch repository, queue, or YOLO |
 | Services | `services/` | combine repo + pipeline + integration; run business flow | SQL, vendor SDK detail, direct file I/O |
-| Repositories | `repositories/` | read/write JSON & JPEG via `LocalFileStorage` | PASS/FAIL rules, HTTP, inference, voting |
+| Repositories | `repositories/` | read/write SQLite (`console.db` for visits, accounts and history; the event log in its own file) and JSON or images via `LocalFileStorage` | PASS/FAIL rules, HTTP, inference, voting |
 | Pipelines | `pipelines/` | YOLO inference, frame processing, draw boxes | HTTP, file save, business rules, queue |
 | Domain | `domain/` | pure functions/dataclasses, zero I/O | import `cv2`/`httpx`/`fastapi`, read/write files |
 | Workers | `workers/` | background loop, queue, lock, `RuntimeState` | return HTTP, save to file directly (delegate to repo) |
+| Schemas | `schemas/` | Pydantic models that validate input at the boundary and shape responses | logic, I/O |
+| Integrations | `integrations/` | the outside world: AutoERP client and outbox store, camera sources, file storage, R2 upload, notifications, scheduler | business rules, deciding a verdict |
+| PLC | `plc/` | MC Protocol and Modbus clients, pulse and hold, the PLC worker | deciding a verdict (that is `domain/`) |
+| Core | `core/` | `Settings` from env vars, DI factories, logging, constants | business rules; no other module reads env vars |
 
 ---
 
