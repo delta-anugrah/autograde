@@ -18,6 +18,42 @@ Next:           ...
 
 ---
 
+## 2026-09-30 · logging, health, CI · Batch 3 on fix/logging-batch-3 (PR not open yet, in progress)
+Changed:        Integration branch from 849c30d with streams D, A, C merged, then origin/staging
+                (#196/#197) merged in. Stream B (3.2 line log in tab Log, 3.5 Discord digest,
+                rule 34) is not merged yet.
+                D (batch 4.1, 4.3): deploy.yml calls ci.yml, release and demo images build only
+                after CI passes on the tagged commit; CI parses every console.html script block;
+                unit step uses -rs. Two flaky tests fixed: outbox sender stopped before its store
+                closes in the shutdown test; Rekam Video Stop now writes the frames already queued
+                (real bug: recordings lost their tail).
+                A (batch 3.1, 3.3, 3.4, rule 33): one configure_logging for lines and console
+                (console now reaches docker logs and uvicorn 500s reach tab Log), zone-marked
+                lines with line code, LOG_LEVEL, httpx/httpcore capped at WARNING, successful
+                polling silenced in the access log, tab Log merge key normalises volatile ids,
+                PLC/camera/master data faults logged once at start and once at recovery.
+                C (batch 3.6, 3.7, rule 35): connected camera that stops sending frames =
+                FRAME_BERHENTI (ERROR coil, /health 503), finished test video = sumber_selesai,
+                disk monitor on every line (15 GB / 5 GB, with or without R2, deletes nothing),
+                honest Diagnostik card; console mirrors of line facts log at INFO only.
+                Integration: CI step `ruff check --select F821 src/palmgrade/main.py`; rule 33
+                and 35 full text plus the A/C/D edits to rules 21, 23, 32 and Git Workflow /
+                Pointers moved into docs/rules.md, HTTP rows into docs/backend-overview.md,
+                the Tooling line into docs/overview.md; CLAUDE.md gets index lines 33 and 35.
+Validated:      after the staging merge: tests/unit 3381 passed, 28 skipped; tests/integration
+                105 passed; tests/e2e 322 passed, 17 skipped; ruff on the ci.yml scope and the
+                F821 step clean; tests/cek_skrip_konsol.py OK; scripts/hooks/test_guard.py 69/69.
+                All 109 lines the branch had added to the old CLAUDE.md found verbatim in the new
+                layout, 0 replaced lines left behind.
+Not validated:  full CI (runs on the PR); docs/MANUAL.pdf not regenerated (once, after B);
+                cross-stream tests (tab Log shows one row per line transition, Discord URL never
+                logged) wait for B; nothing on the Lampung PC yet.
+Decisions:      rule numbers A = 33, B = 34, C = 35 (34 left as a gap until B merges); the line
+                is the single WARNING/ERROR source for facts it owns, console mirrors are INFO.
+Next:           merge stream B, write the two cross-stream tests, regenerate MANUAL.pdf, final
+                review, PR to staging. Tell the PLC team the ERROR coil also rises for a camera
+                that stops sending frames.
+
 ## 2026-09-30 · docs · Fix references left stale by the CLAUDE.md tidy (PR #197)
 Changed:        rule references in 2 skills, docs/overview.md, docs/backend-overview.md,
                 docs/MANUAL.md and README.md now cite docs/rules.md (full text, sub-points,
