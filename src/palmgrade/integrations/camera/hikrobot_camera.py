@@ -33,6 +33,17 @@ except ImportError:
 
 
 class HikrobotCamera(CameraSource):
+    #: `connect()` yang sudah dipanggil proses ini. Rincian sambung (perangkat, handle,
+    #: grabbing) INFO cuma untuk yang pertama: kamera yang diam disambung ulang tiap ~2
+    #: detik selama FRAME_BERHENTI, dan enam baris INFO tiap siklus menenggelamkan
+    #: `docker logs`. Kejadiannya sendiri dicatat `FrameCaptureWorker` (putus dan pulih).
+    _jumlah_sambung = 0
+    #: Laju sudah pernah dilaporkan (atau tidak bisa dilaporkan) sekali.
+    _laju_sudah_dilapor = False
+
+    def _level_rinci(self) -> int:
+        return logging.INFO if self._jumlah_sambung <= 1 else logging.DEBUG
+
     def __init__(self) -> None:
         if not _SDK_AVAILABLE:
             raise RuntimeError(
@@ -47,10 +58,12 @@ class HikrobotCamera(CameraSource):
         self._data_buf = None
 
     def connect(self, index: int = 0, serial: str | None = None, feature_file: str | None = None) -> None:
+        self._jumlah_sambung += 1
+        rinci = self._level_rinci()
         ret = MvCamera.MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, self.device_list)
         if ret != 0 or self.device_list.nDeviceNum == 0:
             raise RuntimeError(f"No camera found, return code: {format_mvs_ret(ret)}")
-        logger.info("Found %d device(s)", self.device_list.nDeviceNum)
+        logger.log(rinci, "Found %d device(s)", self.device_list.nDeviceNum)
 
         device_infos = [
             cast(self.device_list.pDeviceInfo[i], POINTER(MV_CC_DEVICE_INFO)).contents
@@ -62,10 +75,11 @@ class HikrobotCamera(CameraSource):
             # urutan enum GigE tidak deterministik. Raise kalau serial tak ada
             # (reconnect loop akan retry; kamera bisa belum online).
             target_index = find_index_by_serial(device_infos, serial)
-            logger.info("Camera selected by serial %s (enum index %d)", serial, target_index)
+            logger.log(rinci, "Camera selected by serial %s (enum index %d)", serial, target_index)
         else:
             target_index = index
-            logger.info(
+            logger.log(
+                rinci,
                 "Camera selected by index %d (serial %s) — set CAMERA_SERIAL untuk stabil",
                 target_index,
                 extract_serial(device_infos[target_index]) or "?",
@@ -77,12 +91,12 @@ class HikrobotCamera(CameraSource):
         ret = self.cam.MV_CC_CreateHandle(device_info)
         if ret != 0:
             raise RuntimeError(f"CreateHandle failed with code: {format_mvs_ret(ret)}")
-        logger.info("Camera handle created")
+        logger.log(rinci, "Camera handle created")
 
         ret = self.cam.MV_CC_OpenDevice(MV_ACCESS_Exclusive, 0)
         if ret != 0:
             raise RuntimeError(f"OpenDevice failed with code: {format_mvs_ret(ret)}")
-        logger.info("Camera device opened")
+        logger.log(rinci, "Camera device opened")
 
         # Apply feature set (.mfs dari MVS Feature Save) sebelum grabbing. Non-fatal:
         # kalau file tak ada / SDK menolak → warning + lanjut pakai setting firmware
@@ -93,12 +107,12 @@ class HikrobotCamera(CameraSource):
         ret = self.cam.MV_CC_StartGrabbing()
         if ret != 0:
             raise RuntimeError(f"StartGrabbing failed with code: {format_mvs_ret(ret)}")
-        logger.info("Camera started grabbing")
+        logger.log(rinci, "Camera started grabbing")
 
         # O1: allocate frame buffer once (max 4096×3072 RGB) to avoid 36 MB alloc per frame
         self._buffer_size = 4096 * 3072 * 3
         self._data_buf = (c_ubyte * self._buffer_size)()
-        logger.info("Frame buffer pre-allocated (%d bytes)", self._buffer_size)
+        logger.log(rinci, "Frame buffer pre-allocated (%d bytes)", self._buffer_size)
 
         self.connected = True
 
@@ -123,7 +137,7 @@ class HikrobotCamera(CameraSource):
                 format_mvs_ret(ret),
             )
             return
-        logger.info("Loaded camera features from %s", feature_file)
+        logger.log(self._level_rinci(), "Loaded camera features from %s", feature_file)
 
     def get_fps(self) -> float:
         """Frame rate the camera is actually running at, asked of the camera itself.
@@ -146,15 +160,21 @@ class HikrobotCamera(CameraSource):
         except ImportError:  # pragma: no cover - depends on the vendored SDK
             return 0.0
 
+        pertama = not self._laju_sudah_dilapor
+        self._laju_sudah_dilapor = True
         for node in ("ResultingFrameRate", "AcquisitionFrameRate"):
             value = MVCC_FLOATVALUE()
             ret = self.cam.MV_CC_GetFloatValue(node, value)
             if ret == 0 and value.fCurValue > 0:
-                logger.info("Camera reports %s = %.2f fps", node, value.fCurValue)
+                logger.log(logging.INFO if pertama else logging.DEBUG,
+                           "Camera reports %s = %.2f fps", node, value.fCurValue)
                 return float(value.fCurValue)
-        logger.warning(
-            "Camera did not report a frame rate — pacing falls back to CAMERA_FPS, "
-            "so the rate in the feature file cannot be confirmed."
+        # Sekali per proses: kamera yang memang tidak melaporkan lajunya (Lampung) akan
+        # tetap begitu di tiap sambung ulang, dan WARNING ini ikut ke tab Log.
+        logger.log(
+            logging.WARNING if pertama else logging.DEBUG,
+            "Camera did not report a frame rate; pacing falls back to CAMERA_FPS, "
+            "so the rate in the feature file cannot be confirmed.",
         )
         return 0.0
 
@@ -208,4 +228,6 @@ class HikrobotCamera(CameraSource):
             self.cam.MV_CC_CloseDevice()
             self.cam.MV_CC_DestroyHandle()
             self.connected = False
-            logger.info("Camera disconnected")
+            # DEBUG: tiap sambung ulang dimulai dengan ini, dan kejadiannya sudah
+            # ditulis `FrameCaptureWorker` sebagai WARNING "menyambung ulang".
+            logger.debug("Camera disconnected")

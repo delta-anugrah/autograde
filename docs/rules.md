@@ -976,7 +976,10 @@ end of this file.
     saat tersambung ditulis **ERROR** (pulihnya WARNING): buah lewat tanpa disortir, dan
     ringkasan Discord (aturan 34) cuma membawa ERROR, jadi kabel PLC yang lepas seharian
     sampai ke support di luar pabrik sebagai satu baris. Input PLC yang gagal dibaca tetap
-    WARNING (cuma konfirmasi piston, sortir tetap jalan). Dulu: PLC dicabut ±10 baris/detik, kamera
+    WARNING (cuma konfirmasi piston, sortir tetap jalan). Kamera yang diam disambung ulang tiap
+    ~2 detik selama FRAME_BERHENTI: rincian sambung Hikrobot (perangkat, handle, grabbing) INFO
+    cuma di `connect()` pertama proses, "Camera disconnected" DEBUG, laju kamera INFO hanya saat
+    angkanya berubah, dan WARNING "Camera did not report a frame rate" sekali per proses. Dulu: PLC dicabut ±10 baris/detik, kamera
     ±10/detik, pabrik offline ±288 traceback/hari. Konsol tetap memasang logging sesudah start
     yang gagal (sengaja): traceback `Application startup failed` uvicorn ikut sampai tab Log.
     ⚠️ Pengecualian tetap: exception deteksi tiap detik saat AI mati belum disaring (ditandai

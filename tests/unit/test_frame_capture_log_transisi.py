@@ -165,3 +165,104 @@ def test_hikrobot_format_piksel_asing_cuma_debug(monkeypatch, caplog):
         assert kamera.grab_frame() is None
     assert all(r.levelno == logging.DEBUG for r in caplog.records)
     assert kamera.galat_terakhir == "format piksel 999 tidak didukung"
+
+
+# ── Review akhir 2, M2: sambung ulang tiap 2 detik selama FRAME_BERHENTI tidak boleh berisik ──
+
+
+class _SdkSambung:
+    """`MvCamera` palsu: enum, handle, buka, grab. Cukup untuk `connect()` asli."""
+
+    @staticmethod
+    def MV_CC_EnumDevices(flags, daftar):  # noqa: N802 (nama milik SDK MVS)
+        daftar.nDeviceNum = 1
+        return 0
+
+    def MV_CC_CreateHandle(self, info):  # noqa: N802
+        return 0
+
+    def MV_CC_OpenDevice(self, akses, kunci):  # noqa: N802
+        return 0
+
+    def MV_CC_StartGrabbing(self):  # noqa: N802
+        return 0
+
+    def MV_CC_StopGrabbing(self):  # noqa: N802
+        return 0
+
+    def MV_CC_CloseDevice(self):  # noqa: N802
+        return 0
+
+    def MV_CC_DestroyHandle(self):  # noqa: N802
+        return 0
+
+
+class _UbytePalsu:
+    """`(c_ubyte * n)()` tanpa mengalokasikan buffer frame sungguhan."""
+
+    def __mul__(self, _n):
+        return bytearray
+
+
+class _DaftarPerangkat:
+    def __init__(self) -> None:
+        self.nDeviceNum = 0
+        self.pDeviceInfo = [object()]
+
+
+def _hikrobot_sambung(monkeypatch) -> HikrobotCamera:
+    for nama, nilai in (("MV_GIGE_DEVICE", 1), ("MV_USB_DEVICE", 4), ("MV_ACCESS_Exclusive", 1),
+                        ("MV_CC_DEVICE_INFO", object)):
+        monkeypatch.setattr(hikrobot_camera, nama, nilai, raising=False)
+    monkeypatch.setattr(hikrobot_camera, "MvCamera", _SdkSambung, raising=False)
+    monkeypatch.setattr(hikrobot_camera, "cast", lambda p, _t: type("P", (), {"contents": p})())
+    monkeypatch.setattr(hikrobot_camera, "POINTER", lambda t: t)
+    monkeypatch.setattr(hikrobot_camera, "find_index_by_serial", lambda _infos, _serial: 0)
+    monkeypatch.setattr(hikrobot_camera, "c_ubyte", _UbytePalsu())   # buffer kosong, bukan 36 MB
+    kamera = HikrobotCamera.__new__(HikrobotCamera)
+    kamera.device_list = _DaftarPerangkat()
+    kamera.cam = _SdkSambung()
+    kamera.connected = False
+    return kamera
+
+
+def test_rincian_sambung_hikrobot_info_sekali_lalu_debug(monkeypatch, caplog):
+    kamera = _hikrobot_sambung(monkeypatch)
+    with caplog.at_level(logging.DEBUG, logger=hikrobot_camera.logger.name):
+        kamera.connect(serial="DA1234")
+        pertama = [r.levelno for r in caplog.records]
+        caplog.clear()
+        for _ in range(3):                       # sambung ulang tiap siklus FRAME_BERHENTI
+            kamera.disconnect()
+            kamera.connect(serial="DA1234")
+        ulang = [r.levelno for r in caplog.records]
+    assert pertama and set(pertama) == {logging.INFO}
+    assert ulang and set(ulang) == {logging.DEBUG}
+
+
+def test_laju_tidak_dilaporkan_warning_sekali_lalu_debug(monkeypatch, caplog):
+    """Kamera Lampung tidak melaporkan lajunya: WARNING itu dulu muncul tiap sambung ulang
+    dan ikut ke log_line.db. Sekali per proses cukup."""
+    import sys
+    import types
+
+    class _Float:
+        fCurValue = 0.0
+
+    sdk = types.ModuleType("MvImport.MvCameraControl_class")
+    sdk.MVCC_FLOATVALUE = _Float
+    monkeypatch.setitem(sys.modules, "MvImport", types.ModuleType("MvImport"))
+    monkeypatch.setitem(sys.modules, "MvImport.MvCameraControl_class", sdk)
+
+    class _SdkTanpaLaju:
+        def MV_CC_GetFloatValue(self, node, nilai):  # noqa: N802
+            return 0
+
+    kamera = HikrobotCamera.__new__(HikrobotCamera)
+    kamera.connected = True
+    kamera.cam = _SdkTanpaLaju()
+    with caplog.at_level(logging.DEBUG, logger=hikrobot_camera.logger.name):
+        for _ in range(4):
+            assert kamera.get_fps() == 0.0
+    level = [r.levelno for r in caplog.records]
+    assert level == [logging.WARNING, logging.DEBUG, logging.DEBUG, logging.DEBUG]

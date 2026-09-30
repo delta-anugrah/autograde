@@ -80,14 +80,20 @@ class FrameCaptureWorker:
             else float(self._target_fps) if self._target_fps > 0
             else 0.0
         )
+        # INFO hanya saat lajunya BERUBAH: kamera yang diam disambung ulang tiap ~2 detik
+        # selama FRAME_BERHENTI, dan baris yang sama tiap siklus cuma derau.
         if detected > 0:
             self._frame_interval = 1.0 / detected
-            logger.info("Capture paced by the camera: %.2f fps", detected)
+            self._catat_laju("Capture paced by the camera: %.2f fps", detected)
             return
         self._frame_interval = 1.0 / self._target_fps if self._target_fps > 0 else 0.0
-        logger.info(
-            "Camera reports no frame rate — pacing from CAMERA_FPS=%s", self._target_fps
-        )
+        self._catat_laju("Camera reports no frame rate; pacing from CAMERA_FPS=%s", self._target_fps)
+
+    def _catat_laju(self, pesan: str, nilai: float) -> None:
+        kunci = (pesan, nilai)
+        level = logging.DEBUG if kunci == getattr(self, "_laju_tercatat", None) else logging.INFO
+        self._laju_tercatat = kunci
+        logger.log(level, pesan, nilai)
 
     def _try_reconnect(self) -> None:
         if self._berhenti.is_set():
