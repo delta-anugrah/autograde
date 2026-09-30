@@ -54,14 +54,15 @@ def test_line_lama_tanpa_blok_ai_menjadi_none():
 
 
 def test_mati_dan_pulih_dicatat_sekali_masing_masing(caplog):
-    caplog.set_level(logging.WARNING, logger="palmgrade.workers.line_status_worker")
+    caplog.set_level(logging.INFO, logger="palmgrade.workers.line_status_worker")
     worker = LineStatusWorker([LINE], _Klien([SEHAT, MATI, MATI, MATI, SEHAT, SEHAT]))
     _putar(worker, 6)
 
-    error = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    warning = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
-    assert len(error) == 1 and "line-1" in error[0] and "AI_MATI" in error[0]
-    assert warning == ["line-1: AI memproses lagi"]
+    info = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO]
+    tinggi = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert len(info) == 2 and "line-1" in info[0] and "AI_MATI" in info[0]
+    assert info[1] == "line-1: AI memproses lagi"
+    assert tinggi == []
 
 
 def test_line_offline_tidak_terbaca_sebagai_pulih(caplog):
