@@ -35,6 +35,10 @@ class LineStatusWorker:
         # Line yang AI-nya sedang mati (batch 2.1), untuk satu ERROR saat masuk
         # dan satu WARNING saat pulih di tab Log, bukan satu per detik.
         self._ai_mati: set[str] = set()
+        # Batch 3.6 / 3.7: line yang kameranya berhenti mengirim, dan tingkat disk
+        # terakhir tiap line. Pola yang sama: satu baris per transisi.
+        self._frame_berhenti: set[str] = set()
+        self._tingkat_disk: dict[str, str] = {}
 
     def snapshot(self) -> dict[str, dict[str, Any]]:
         return dict(self._state)
@@ -76,9 +80,14 @@ class LineStatusWorker:
                 # Penjaga AI mati (batch 2.1). None dari line versi lama: kartu
                 # tidak menggambar apa pun, bukan menebak.
                 "ai": jawab.get("ai"),
+                # Pemantau disk (batch 3.7). None dari line versi lama: layar
+                # tidak menggambar alert disk, bukan menebak.
+                "disk": jawab.get("disk"),
             }
             self._catat_unggah(line.line_code, jawab.get("unggah"))
             self._catat_ai(line.line_code, jawab.get("ai"))
+            self._catat_frame(line.line_code, jawab.get("ai"))
+            self._catat_disk(line.line_code, jawab.get("disk"))
             self._catat_kunci(line.line_code, ditolak=False)
 
     def _catat_kunci(self, line_code: str, *, ditolak: bool) -> None:
@@ -100,15 +109,17 @@ class LineStatusWorker:
             self._kunci_ditolak.discard(line_code)
 
     def _catat_ai(self, kode: str, ai: dict[str, Any] | None) -> None:
-        """AI line berhenti/kembali memproses → satu ERROR / satu WARNING di tab Log.
+        """AI line berhenti/kembali memproses → satu baris di `docker logs` konsol.
 
-        Line tidak memasang log_sink, jadi tanpa ini kejadiannya cuma ada di
-        `docker logs` line, yang hilang saat container dibuat ulang. Line yang
-        tidak terbaca tidak dipanggil ke sini, jadi OFFLINE tidak terbaca pulih.
+        Sejak batch 3.2 line menyimpan log-nya sendiri (`log_line.db`) dan itu
+        yang sampai ke tab Log lewat tarikan log line (aturan 34): baris ERROR/
+        WARNING sungguhan sudah dicatat di `PenjagaAi` pada line itu. Cermin di
+        sini cuma INFO supaya satu kejadian tidak muncul dua kali di tab Log
+        atau dua kali di kelompok Discord (aturan 35 / ruling R5).
         """
         mati = bool(ai and ai.get("mati"))
         if mati and kode not in self._ai_mati:
-            logger.error(
+            logger.info(
                 "%s: AI berhenti memproses (kode %s): lebih dari %s detik kamera mengirim "
                 "gambar tapi tidak ada yang digrading, buah lewat tanpa disortir. Restart "
                 "line lewat Setelan, Danger Zone, lalu periksa log line itu.",
@@ -116,8 +127,58 @@ class LineStatusWorker:
             )
             self._ai_mati.add(kode)
         elif not mati and kode in self._ai_mati:
-            logger.warning("%s: AI memproses lagi", kode)
+            logger.info("%s: AI memproses lagi", kode)
             self._ai_mati.discard(kode)
+
+    def _catat_frame(self, kode: str, ai: dict[str, Any] | None) -> None:
+        """Kamera line tersambung tapi berhenti mengirim (batch 3.6) → satu baris
+        di `docker logs` konsol saat masuk dan satu saat keluar, pola `_catat_ai`.
+
+        INFO saja (ruling R5): baris ERROR/WARNING sungguhan sudah dicatat di
+        `PenjagaAi` pada line itu dan sampai tab Log lewat tarikan log line.
+        """
+        berhenti = bool(ai) and ai.get("keadaan") == "frame_berhenti"
+        if berhenti and kode not in self._frame_berhenti:
+            logger.info(
+                "%s: kamera tersambung tapi tidak mengirim gambar (kode %s) lebih dari %s detik, "
+                "buah lewat tanpa disortir. Periksa kabel data dan switch kamera, lalu restart "
+                "line lewat Setelan, Danger Zone.",
+                kode, ai.get("kode") or "FRAME_BERHENTI", ai.get("ambang_detik") or "?",
+            )
+            self._frame_berhenti.add(kode)
+        elif not berhenti and kode in self._frame_berhenti:
+            logger.info("%s: kamera mengirim gambar lagi", kode)
+            self._frame_berhenti.discard(kode)
+
+    def _catat_disk(self, kode: str, disk: dict[str, Any] | None) -> None:
+        """Disk line hampir penuh / kritis / lega lagi (batch 3.7) → satu baris di
+        `docker logs` konsol per transisi. Line versi lama (None) dan disk tak
+        terbaca tidak mengubah apa pun.
+
+        INFO saja (ruling R5): baris ERROR/WARNING sungguhan sudah dicatat di
+        `PemantauDisk` pada line itu dan sampai tab Log lewat tarikan log line.
+        """
+        if not disk or disk.get("tingkat") not in ("aman", "peringatan", "kritis"):
+            return
+        tingkat = disk["tingkat"]
+        lama = self._tingkat_disk.get(kode, "aman")
+        if tingkat == lama:
+            return
+        self._tingkat_disk[kode] = tingkat
+        sisa = f"sisa {disk.get('bebas_gb')} GB dari {disk.get('total_gb')} GB"
+        if tingkat == "kritis":
+            logger.info(
+                "%s: disk hampir habis (kode %s), %s. Grading berhenti tersimpan begitu disk "
+                "habis: kosongkan sekarang (docker system prune, rekaman video, unggah R2).",
+                kode, disk.get("kode") or "DISK_KRITIS", sisa,
+            )
+        elif tingkat == "peringatan":
+            logger.info(
+                "%s: disk hampir penuh (kode %s), %s. Jadwalkan pengosongan.",
+                kode, disk.get("kode") or "DISK_HAMPIR_PENUH", sisa,
+            )
+        else:
+            logger.info("%s: disk kembali lega, %s", kode, sisa)
 
     def _catat_unggah(self, kode: str, unggah: dict[str, Any] | None) -> None:
         """Upload foto line putus/pulih → satu WARNING, supaya masuk tab Log.

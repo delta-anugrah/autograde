@@ -141,6 +141,14 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 - Kartu berbingkai **merah** dengan pita **AI berhenti memproses** (kode `AI_MATI`, jam mulai,
   tindakan) = kamera jalan tapi tidak ada yang digrading: tahan umpan buah ke line itu dan
   panggil teknisi. Pita hilang sendiri begitu line memproses lagi.
+- Kartu berbingkai **merah** dengan pita **kamera berhenti mengirim gambar** (kode
+  `FRAME_BERHENTI`, jam mulai, tindakan) = kamera tersambung tapi tidak ada gambar masuk lebih dari
+  30 detik: tahan umpan buah, periksa kabel data dan switch kamera, restart line. Video uji tanpa
+  ulang yang selesai diputar TIDAK memunculkan pita ini. Hilang sendiri begitu gambar datang lagi.
+- Pita **Disk PC hampir penuh** (kuning, kode `DISK_HAMPIR_PENUH`, sisa di bawah 15 GB) atau
+  **Disk PC hampir habis** (merah berdenyut, kode `DISK_KRITIS`, di bawah 5 GB) di atas semua kartu,
+  satu pita untuk seluruh PC: menyebut jam mulai, line yang melaporkan, sisa GB, dan tindakannya.
+  Muncul dengan atau tanpa R2, dan hilang sendiri begitu disk lega lagi.
 - Kotak kamera bertuliskan **Line N sedang dinyalakan ulang** dengan spinner dan bar berjalan
   = line itu sedang restart karena support menyimpan Sumber Kamera atau Model Deteksi, atau
   menekan Restart / Hapus data di Danger Zone. Selama itu tulisan "Kamera tidak tersambung"
@@ -252,7 +260,7 @@ Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riw
 |---|---|
 | **Log** | ERROR/WARNING 180 hari terakhir, selamat dari restart; pesan berulang digabung `×N`; sandi/token tertulis `«ditutup»` |
 | **Status**, bagian Versi | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah tulisan AUTOGRADE untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati: token ada, tapi LICENSE_ENABLED tidak menyala** berarti tokennya sampai ke konsol tapi saklarnya tidak: periksa blok konsol di compose host, bukan tokennya |
-| **Status**, bagian Diagnostik | tiga kartu line: kamera, GPU, PLC, antrean lokal, lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ `capture_save_dropped` dan `tp_telat` **harus nol**, di atas nol berarti ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat Disegarkan tiap 5 detik selama tab Status terbuka |
+| **Status**, bagian Diagnostik | tiga kartu line: kamera, FPS kamera / deteksi (terukur, 0 kalau gambar berhenti), umur gambar terakhir (merah kalau kamera berhenti mengirim), GPU, PLC (✓ **hanya kalau benar-benar tersambung**, ✗ kalau PLC menyala tapi terputus, `-` kalau PLC dimatikan), disk (sisa GB, kuning/merah di bawah ambang), lisensi, versi / model, antrean lokal, **Janjang tak tersimpan** (`capture_save_dropped`) dan **TP telat** (`tp_telat`), lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ Janjang tak tersimpan dan TP telat **harus nol** (hijau), di atas nol merah: ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat. Disegarkan tiap 5 detik selama tab Status terbuka |
 | **Status**, bagian Antrean line | janjang yang belum sampai dari tiap line ke konsol: jumlah, umur yang tertua, keadaan (dengan sebab, sejak kapan, dan harus ngapain), galat terakhir; tombol **Kirim Ulang** per line. Antrean ini tidak pernah menyerah: konsol mati berjam-jam pun janjangnya menunggu dan terkirim sendiri begitu konsol hidup lagi |
 | **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang**. Plus antrean manifest R2 |
 | **Akun** | semua akun yang bisa masuk konsol di PC ini: nama, email, role, asal (**Lokal** / **AutoERP**), status (Aktif / Mati / Terkunci), sedang masuk atau tidak. **Tambah akun** membuat akun **Lokal** baru (nama, email, role, sandi minimal 8 karakter); akun ini cuma ada di PC ini dan **tidak masuk ke AutoERP**. Tiap akun Lokal punya tombol **Ganti sandi** (semua sesinya langsung berakhir), **Matikan / Aktifkan**, dan **Jadikan support / operator**; di baris akunmu sendiri cuma Ganti sandi. Akun AutoERP tidak punya tombol: diurus di AutoERP. **Sandi tidak bisa dilihat**: yang disimpan cuma hash-nya. Lupa sandi: akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ±5 menit), akun Lokal dengan Ganti sandi. Tiap perubahan tercatat di tab Log beserta siapa yang mengubah |
@@ -473,6 +481,7 @@ Baris yang wajib disentuh. Sisanya biarkan bawaan.
 | `R2_ACCOUNT_ID` … `R2_PUBLIC_URL` | dari Cloudflare, atau kosong | kosong = foto tidak diunggah, tidak ada `detail_url` di tiket ERP |
 | `UPLOAD_API_URL`, `UPLOAD_API_SECRET` | **kosong** | penerima teks per janjang sudah pensiun |
 | `UPLOAD_RETENTION_DAYS`, `UPLOAD_DISK_MIN_FREE_GB` | 180, 20 | penjaga disk membuang arsip `done` tertua saat disk tinggal 20 GB |
+| `DISK_PERINGATAN_GB`, `DISK_KRITIS_GB` | 15, 5 | pita disk di layar konsol (kuning / merah), dengan atau tanpa R2, tidak menghapus apa pun. Peringatan wajib di bawah `UPLOAD_DISK_MIN_FREE_GB` |
 | `ERP_URL`, `ERP_API_KEY`, `ERP_API_SECRET` | kosong dulu | isi di §5.8 |
 | `PLC_ENABLED` | `false` dulu | nyalakan saat commissioning PLC (§5.9) |
 | `LICENSE_ENABLED` | `false` | lihat §5.10 |
@@ -610,8 +619,8 @@ membuat ulang container supaya versinya benar-benar terpasang.
 
 | Cara | Yang dilihat |
 |---|---|
-| tab **Status**, bagian Diagnostik (support) | worker, kamera, fps, GPU, PLC per line |
-| `curl localhost:8001/health/detail` | `camera_connected`, `gpu_available`, `current_assignment_id`, `outbox_pending`, dan **`capture_save_dropped` + `tp_telat` yang harus NOL** |
+| tab **Status**, bagian Diagnostik (support) | worker, kamera, fps terukur, umur gambar, GPU, PLC tersambung, disk, lisensi, versi / model per line |
+| `curl localhost:8001/health/detail` | `camera_connected`, `fps_kamera`, `frame_umur_detik`, `gpu_available`, `plc.connected`, `disk`, `current_assignment_id`, `outbox_pending`, dan **`capture_save_dropped` + `tp_telat` yang harus NOL** |
 | tab **Status**, bagian Antrean line | janjang yang belum sampai dari line ke konsol dan sebabnya |
 | tab **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP dan sebabnya |
 | tab **Log** | ERROR/WARNING 180 hari, bertahan lewat restart |
@@ -658,6 +667,8 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Unggah ke R2 berhenti tanpa error | `R2_BUCKET` kosong, atau JSON sidecar dipindah ke subfolder | isi R2; JSON wajib datar di folder tanggal |
 | Impor CSV ditolak "bukan CSV Per janjang" | berkas ringkasan (Per hari / Per truk), atau disimpan ulang dari Excel | di tab Rekap pilih **Per janjang**, **Unduh CSV**, impor berkas itu tanpa dibuka di Excel |
 | Disk penuh, grading berhenti tersimpan | penjaga disk mati (`UPLOAD_DISK_MIN_FREE_GB=0`) atau Docker menumpuk image lama | `docker system prune`; kembalikan penjaga ke 20 |
+| Pita **Disk PC hampir penuh / hampir habis** | sisa disk di bawah `DISK_PERINGATAN_GB` / `DISK_KRITIS_GB`. Tanpa R2 tidak ada yang membersihkan arsip lokal (itu satu-satunya salinan bukti, jadi sengaja tidak dihapus otomatis) | `docker system prune`, hapus rekaman video lama (`/opt/palmgrade/autograde/videos/`), pastikan unggah Cloud Photo jalan; pita hilang sendiri begitu lega |
+| Pita **kamera berhenti mengirim gambar** (`FRAME_BERHENTI`) | kamera masih terbuka di SDK tapi gambarnya tidak datang: kabel data longgar, switch/splitter, bandwidth GigE, SDK macet | periksa kabel dan LED link, lalu restart line (Danger Zone atau `autograde restart`); log line menyebut `FRAME_BERHENTI` |
 | Log line `Tutup line: N janjang TIDAK tertulis` | disk lambat atau macet saat line diminta restart/hapus data | cek disk (`df -h`, `dmesg`), janjang yang disebut tidak punya foto; laporkan ke support |
 | Cloud Photo: foto `rusak` bertambah sesudah update | foto atau sidecar 0 byte dari listrik padam sebelum versi ini; tidak diunggah, dibiarkan di disk | tidak perlu apa-apa; boleh diperiksa lalu dihapus tangan |
 | Laptop: `make console` terasa memakai kode lama | port 8100 masih dipegang proses lama | cari pid-nya dengan `lsof -ti:8100`, matikan, jalankan ulang |

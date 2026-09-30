@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from ..domain.kesehatan_ai import AMBANG_BAWAAN_DETIK, ambang_dari_teks
+from ..domain.kesehatan_disk import KRITIS_BAWAAN_GB, PERINGATAN_BAWAAN_GB, gb_dari_teks
 from ..domain.pilihan_model import ModelTidakSah, bersihkan_nama_model
 
 logger = logging.getLogger(__name__)
@@ -168,6 +169,18 @@ def _ai_mati_detik() -> int:
         return AMBANG_BAWAAN_DETIK
     if raw and raw.strip() and int(raw.strip()) != nilai:
         logger.warning("AI_MATI_DETIK=%s di luar batas, dipakai %s detik", raw.strip(), nilai)
+    return nilai
+
+
+def _disk_gb(nama: str, bawaan: float) -> float:
+    """`DISK_PERINGATAN_GB` / `DISK_KRITIS_GB` (batch 3.7): sisa disk dalam GB di
+    bawah mana konsol memperingatkan. Memaafkan seperti `_ai_mati_detik`: salah
+    ketik jatuh ke bawaan dengan WARNING, tidak pernah menahan boot."""
+    raw = os.getenv(nama)
+    nilai = gb_dari_teks(raw, bawaan)
+    if nilai is None:
+        logger.warning("%s=%r bukan angka GB yang sah, dipakai %s", nama, raw, bawaan)
+        return bawaan
     return nilai
 
 
@@ -383,6 +396,12 @@ class Settings:
     # means grading stops writing, not merely an archive running late.
     # 0 disables the guard (back to age-only behaviour).
     upload_disk_min_free_gb: float = field(default_factory=lambda: float(os.getenv("UPLOAD_DISK_MIN_FREE_GB", "20")))
+    # Pemantau disk (batch 3.7, `services/pemantau_disk.py`): alert konsol saat sisa
+    # disk di bawah angka ini, dengan atau tanpa R2. 0 = tingkat itu dimatikan.
+    disk_peringatan_gb: float = field(
+        default_factory=lambda: _disk_gb("DISK_PERINGATAN_GB", PERINGATAN_BAWAAN_GB)
+    )
+    disk_kritis_gb: float = field(default_factory=lambda: _disk_gb("DISK_KRITIS_GB", KRITIS_BAWAAN_GB))
 
     # ── Operator console (APP_MODE=console) ──────────────────────
     # Mill timezone. Used ONLY to derive `work_date` at ingest (§6.1): a

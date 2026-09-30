@@ -21,15 +21,17 @@ import time
 from collections.abc import Callable
 from typing import Any, Protocol
 
-from ..domain.kesehatan_ai import FaktaAi, PenilaianAi, ke_kawat, nilai_ai
+from ..domain.kesehatan_ai import FaktaAi, KeadaanAi, PenilaianAi, ke_kawat, nilai_ai
 from ..license.gate import grading_blocked
 
 logger = logging.getLogger(__name__)
 
 
 class KameraBerstatus(Protocol):
-    """Yang dibaca penjaga dari kamera: cuma status sambungannya, dibaca tiap penilaian
-    (reconnect mengubah `.connected` objek yang sama, bukan membuat objek baru)."""
+    """Yang dibaca penjaga dari kamera: status sambungannya, dibaca tiap penilaian
+    (reconnect mengubah `.connected` objek yang sama, bukan membuat objek baru).
+    `exhausted` (sumber yang memang berakhir, batch 3.6) dibaca lewat `getattr`
+    dengan bawaan False: `CameraSource` punya, kamera palsu di test boleh tidak."""
 
     connected: bool
 
@@ -48,7 +50,9 @@ class PenjagaAi:
         self._kamera = kamera
         self._jam_dinding = jam_dinding
         self._kunci = threading.Lock()
-        self._mati_tercatat = False
+        # Keadaan gagal (AI mati / frame berhenti) yang terakhir dicatat ke log,
+        # None = tidak gagal. Satu baris per perubahan, bukan tiap tick PLC.
+        self._gagal_tercatat: KeadaanAi | None = None
 
     def nilai(self) -> PenilaianAi:
         return self._nilai_sekarang()[1]
@@ -94,12 +98,15 @@ class PenjagaAi:
                     frame_terakhir_at=s.frame_terakhir_at,
                     aliran_frame_sejak=s.aliran_frame_sejak,
                     inferensi_selesai_at=s.inferensi_selesai_at,
+                    sumber_selesai=bool(getattr(self._kamera, "exhausted", False)),
+                    kamera_pulih_at=s.kamera_pulih_at,
+                    sambung_terakhir_ok=s.kamera_sambung_ok,
                 )
             )
-            berubah = penilaian.mati != self._mati_tercatat
-            self._mati_tercatat = penilaian.mati
-        if berubah:
-            self._catat_transisi(penilaian, sekarang)
+            gagal = penilaian.keadaan if penilaian.gagal else None
+            sebelumnya, self._gagal_tercatat = self._gagal_tercatat, gagal
+        if gagal != sebelumnya:
+            self._catat_transisi(penilaian, sekarang, sebelumnya)
         return sekarang, penilaian
 
     def _galat_untuk_log(self, p: PenilaianAi, sekarang: float) -> str:
@@ -118,19 +125,35 @@ class PenjagaAi:
             f"galat terakhir sejak boot {int(dinding - galat_at)} detik lalu: {galat}"
         )
 
-    def _catat_transisi(self, p: PenilaianAi, sekarang: float) -> None:
+    def _catat_transisi(
+        self, p: PenilaianAi, sekarang: float, sebelumnya: KeadaanAi | None
+    ) -> None:
         if p.mati:
             logger.error(
                 "AI %s berhenti memproses (kode AI_MATI): kamera mengirim gambar tapi tidak "
                 "ada frame yang selesai digrading selama lebih dari %s detik. Buah lewat "
-                "tanpa disortir; coil ERROR naik kalau PLC aktif. Galat terakhir: %s",
+                "tanpa disortir; coil ERROR naik kalau PLC aktif. Galat terakhir: %s. Restart line "
+                "lewat Setelan, Danger Zone, lalu periksa log line itu.",
                 self._settings.line_code, self._settings.ai_mati_detik, self._galat_untuk_log(p, sekarang),
             )
-        else:
+        elif p.keadaan is KeadaanAi.FRAME_BERHENTI:
+            logger.error(
+                "Kamera %s tersambung tapi tidak mengirim gambar (kode FRAME_BERHENTI) selama "
+                "lebih dari %s detik. Buah lewat tanpa disortir; coil ERROR naik kalau PLC "
+                "aktif. Periksa kabel data dan switch kamera, lalu restart line lewat Setelan, "
+                "Danger Zone.",
+                self._settings.line_code, self._settings.ai_mati_detik,
+            )
+        elif sebelumnya is KeadaanAi.AI_MATI:
             # Bukan "memproses lagi": keluar dari ai_mati bisa juga ke kamera_putus,
-            # lisensi, atau sumber_diam, dan di sana AI tetap tidak memproses.
+            # lisensi, atau sumber_selesai, dan di sana AI tetap tidak memproses.
             logger.warning(
                 "AI %s tidak lagi dinilai mati (keadaan %s)",
+                self._settings.line_code, p.keadaan.value,
+            )
+        else:
+            logger.warning(
+                "Kamera %s tidak lagi dinilai berhenti mengirim (keadaan %s)",
                 self._settings.line_code, p.keadaan.value,
             )
 

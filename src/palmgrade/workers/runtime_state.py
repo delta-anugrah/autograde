@@ -10,6 +10,10 @@ from typing import Any
 
 from ..domain.kesehatan_ai import JEDA_ALIRAN_DETIK
 
+#: Lebar jendela hitung `fps_kamera`. Sama dengan log `[FPS] capture` di
+#: `FrameCaptureWorker`, supaya dua angka itu bisa dibandingkan langsung.
+JENDELA_FPS_DETIK = 5.0
+
 
 @dataclass
 class RuntimeState:
@@ -121,6 +125,26 @@ class RuntimeState:
     # `PenjagaAi` line ini, dipasang main.py. None di konsol dan sebelum lifespan.
     penjaga_ai: Any = None
 
+    # ── Health jujur (batch 3.6) ───────────────────────────────────────────
+    # Hasil sambung ulang kamera terakhir oleh `FrameCaptureWorker`. None =
+    # belum pernah ada sambung ulang (kamera tersambung sejak start, atau gagal
+    # di start dan worker belum mencoba). Membedakan kamera yang BENAR-BENAR
+    # putus (sambung ulang gagal) dari kamera yang tersambung tapi diam.
+    kamera_sambung_ok: bool | None = None
+    # Sambung ulang BERHASIL sesudah yang gagal: kamera kembali dari putus
+    # sungguhan, tenggang gambar mulai lagi dari sini. Hikrobot yang bolak-balik
+    # sambung karena tidak mengirim (tiap sambungnya berhasil) tidak
+    # memperbaruinya, kalau tidak tenggangnya diperpanjang selamanya.
+    kamera_pulih_at: float = 0.0
+    # Laju gambar masuk yang TERUKUR (bukan laju setelan `camera_fps_terukur`),
+    # dihitung tiap `JENDELA_FPS_DETIK`. Dibaca bersama `frame_terakhir_at`:
+    # angkanya membeku saat gambar berhenti, jadi pembaca yang menentukan 0.
+    fps_kamera: float = 0.0
+    _fps_jendela_mulai: float = 0.0
+    _fps_jumlah: int = 0
+    # `PemantauDisk` line ini (batch 3.7), dipasang main.py. None di konsol.
+    pemantau_disk: Any = None
+
     def catat_ai_dimulai(self) -> None:
         """Sekali per proses: watchdog yang menyalakan ulang thread deteksi tidak
         boleh memberi tenggang baru, kalau tidak thread yang mati berulang tidak
@@ -132,7 +156,21 @@ class RuntimeState:
         sekarang = self.jam()
         if sekarang - self.frame_terakhir_at > JEDA_ALIRAN_DETIK:
             self.aliran_frame_sejak = sekarang
+            self.fps_kamera = 0.0
+            self._fps_jendela_mulai, self._fps_jumlah = sekarang, 0
+        else:
+            self._fps_jumlah += 1
+            lama = sekarang - self._fps_jendela_mulai
+            if lama >= JENDELA_FPS_DETIK:
+                self.fps_kamera = self._fps_jumlah / lama
+                self._fps_jendela_mulai, self._fps_jumlah = sekarang, 0
         self.frame_terakhir_at = sekarang
+
+    def catat_sambung_kamera(self, *, berhasil: bool) -> None:
+        """Hasil satu sambung ulang kamera (batch 3.6)."""
+        if berhasil and self.kamera_sambung_ok is not True:
+            self.kamera_pulih_at = self.jam()
+        self.kamera_sambung_ok = berhasil
 
     def catat_inferensi_selesai(self) -> None:
         self.inferensi_selesai_at = self.jam()

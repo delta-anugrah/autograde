@@ -167,6 +167,7 @@ class FrameCaptureWorker:
                 self._catat_kamera_putus()
             if self._consecutive_failures >= _MAX_CONSECUTIVE_FAILURES and self.camera.supports_reconnect:
                 self._try_reconnect()
+                self.state.catat_sambung_kamera(berhasil=self.camera.connected)
             else:
                 time.sleep(0.1)
             return

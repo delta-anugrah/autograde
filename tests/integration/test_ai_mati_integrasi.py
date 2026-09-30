@@ -25,6 +25,7 @@ from palmgrade.routes.health_ringan import buat_router_health
 from palmgrade.schemas.internal_schema import LineStatusResponse
 from palmgrade.services.health_service import HealthService
 from palmgrade.services.penjaga_ai import ringkas_ai_dari_state
+from palmgrade.workers import frame_capture_worker
 from palmgrade.workers.line_status_worker import LineStatusWorker
 
 COIL_ERROR = 1002
@@ -115,12 +116,14 @@ def test_tenggang_start_lalu_ai_yang_tidak_pernah_menjawab():
 
 
 def test_video_habis_bukan_ai_mati():
+    """Batch 3.6: sumber uji yang berakhir punya keadaannya sendiri, dan tidak
+    terbaca sebagai line rusak (coil ERROR tidak naik, `/health` tetap 200)."""
     r = Rakitan()
     r.line.mulai()
     r.line.jalan(5)
     r.line.kamera.habis = True
     r.line.jam.sekarang += 40        # tidak ada frame yang bisa diambil
-    assert r.line.penjaga.nilai().keadaan.value == "sumber_diam"
+    assert r.line.penjaga.nilai().keadaan.value == "sumber_selesai"
     assert (r.error_plc(), r.http.get("/health").status_code) == (False, 200)
 
 
@@ -158,3 +161,59 @@ def test_konsol_membaca_ai_mati_dari_status_line_lewat_http():
     r.line.jalan(1)
     asyncio.run(worker.run_once())
     assert worker.snapshot()["line-1"]["ai"]["mati"] is False
+
+
+# ── Batch 3.6: frame berhenti (kamera tersambung tapi tidak mengirim) ─────
+
+
+def test_kamera_tersambung_tanpa_gambar_menaikkan_error_503_lalu_pulih(monkeypatch):
+    """Hikrobot yang berhenti mengirim tanpa terputus. `FrameCaptureWorker` ASLI
+    memutus dan menyambung lagi tiap lima grab gagal, dan tiap sambungnya
+    berhasil: coil ERROR dan `/health` harus tetap merah sepanjang itu, termasuk
+    tepat di sela sambung ulang, lalu hijau sendiri begitu gambar datang lagi."""
+    monkeypatch.setattr(frame_capture_worker.time, "sleep", lambda _detik: None)
+    r = Rakitan()
+    r.line.kamera.bisa_sambung_ulang = True
+    r.line.mulai()
+    r.line.jalan(5)
+    assert (r.error_plc(), r.http.get("/health").status_code) == (False, 200)
+
+    r.line.kamera.mengirim = False
+    # Tanpa gambar deteksi tidak punya apa pun untuk diproses; `deteksi=False`
+    # cuma supaya tiap putaran tidak menunggu antrean kosong 0,1 detik.
+    r.line.jalan(5, deteksi=False)               # lima grab gagal: sambung ulang pertama
+    assert r.line.state.kamera_sambung_ok is True
+    r.line.jalan(31, deteksi=False)
+    assert r.line.penjaga.nilai().keadaan.value == "frame_berhenti"
+    assert (r.error_plc(), r.http.get("/health").status_code) == (True, 503)
+    r.line.kamera.connected = False              # di sela sambung ulang
+    assert (r.error_plc(), r.http.get("/health").status_code) == (True, 503)
+
+    r.line.kamera.connected = True
+    r.line.kamera.mengirim = True
+    r.line.jalan(1)
+    assert (r.error_plc(), r.http.get("/health").status_code) == (False, 200)
+
+
+def test_kabel_kamera_dicabut_tetap_kamera_putus_200_lalu_tenggang_saat_kembali(monkeypatch):
+    monkeypatch.setattr(frame_capture_worker.time, "sleep", lambda _detik: None)
+    r = Rakitan()
+    r.line.kamera.bisa_sambung_ulang = True
+    r.line.mulai()
+    r.line.jalan(5)
+
+    r.line.kamera.sambung_gagal = True
+    r.line.kamera.connected = False
+    r.line.jalan(60, deteksi=False)
+    assert r.line.state.kamera_sambung_ok is False
+    assert r.line.penjaga.nilai().keadaan.value == "kamera_putus"
+    assert (r.error_plc(), r.http.get("/health").status_code) == (True, 200)
+
+    r.line.kamera.sambung_gagal = False
+    r.line.kamera.mengirim = False               # kembali, tapi gambar pertama belum ada
+    r.line.jalan(5, deteksi=False)
+    assert r.line.penjaga.nilai().keadaan.value == "memulai"
+    assert r.http.get("/health").status_code == 200
+    r.line.kamera.mengirim = True
+    r.line.jalan(2)
+    assert (r.error_plc(), r.http.get("/health").status_code) == (False, 200)

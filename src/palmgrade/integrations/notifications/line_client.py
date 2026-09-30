@@ -20,6 +20,7 @@ from typing import Any
 import httpx
 
 from ...core.config import LineEndpoint, Settings
+from ...domain.kesehatan_ai import kode_http_health
 from ...domain.operator_error import LINE_MENOLAK, LINE_TIDAK_MENJAWAB, OperatorError
 
 logger = logging.getLogger(__name__)
@@ -46,13 +47,15 @@ class LinePlcTolak(RuntimeError):
 
 
 def _ai_mati(res: httpx.Response) -> bool:
-    """Badan `/health` line membawa `ai.mati` (routes/health_ringan.py)."""
+    """Badan `/health` line menyebut 503-nya dari penjaga (routes/health_ringan.py):
+    AI mati (batch 2.1) atau frame berhenti (batch 3.6). Aturannya satu dengan
+    yang menjawab 503 itu, supaya keadaan baru tidak lupa ditambahkan di sini."""
     try:
         isi = res.json()
     except ValueError:
         return False
     ai = isi.get("ai") if isinstance(isi, dict) else None
-    return isinstance(ai, dict) and bool(ai.get("mati"))
+    return isinstance(ai, dict) and kode_http_health(ai) == 503
 
 
 class LineClient:

@@ -52,6 +52,7 @@ from .workers.capture_save_worker import CaptureSaveWorker
 from .routes.health import router as health_router
 from .core.dependencies import get_health_service
 from .routes.health_ringan import buat_router_health
+from .services.pemantau_disk import PemantauDisk
 from .services.penjaga_ai import PenjagaAi
 from .routes.inspection import router as inspection_router
 from .routes.streaming import router as streaming_router
@@ -274,6 +275,11 @@ def create_app() -> FastAPI:
         # `/health` (+ healthcheck Docker), dan kartu line konsol.
         penjaga_ai = PenjagaAi(settings=settings, state=state, kamera=camera)
         state.penjaga_ai = penjaga_ai
+        # Batch 3.7: sisa disk partisi yang DITULIS line ini (foto + DB), dengan
+        # atau tanpa R2. Tidak menghapus apa pun; konsol yang memperingatkan.
+        state.pemantau_disk = PemantauDisk(
+            settings=settings, jalur=(settings.artifacts_dir, get_folder_db_line())
+        )
 
         # Sesudah `state` ada, sebelum worker deteksi menyala: setelan yang
         # dipegang konsol harus sudah terpasang saat janjang pertama lewat.

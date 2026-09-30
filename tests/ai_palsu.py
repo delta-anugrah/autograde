@@ -30,15 +30,24 @@ class JamPalsu:
 
 
 class KameraPalsu(CameraSource):
-    """Mengirim frame hitam kecil selama `mengirim`; `habis` meniru video tanpa ulang."""
+    """Mengirim frame hitam kecil selama `mengirim`; `habis` meniru video tanpa ulang.
+
+    Batch 3.6: `bisa_sambung_ulang` menyalakan jalur sambung ulang
+    `FrameCaptureWorker` (Hikrobot/webcam), dan `sambung_gagal` membuat
+    `connect()` melempar seperti kamera yang kabelnya dicabut.
+    """
 
     def __init__(self) -> None:
         super().__init__()
         self.connected = True
         self.mengirim = True
         self.habis = False
+        self.bisa_sambung_ulang = False
+        self.sambung_gagal = False
 
     def connect(self, index=0, serial=None, feature_file=None) -> None:
+        if self.sambung_gagal:
+            raise RuntimeError("kamera tidak ditemukan")
         self.connected = True
 
     def grab_frame(self):
@@ -55,7 +64,7 @@ class KameraPalsu(CameraSource):
 
     @property
     def supports_reconnect(self) -> bool:
-        return False
+        return self.bisa_sambung_ulang
 
 
 class HasilKosong:

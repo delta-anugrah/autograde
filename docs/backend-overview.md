@@ -108,7 +108,7 @@ per `track_id`): `docs/overview.md` §3.
 |---|---|---|
 | GET | `/api/video_feed` | MJPEG (`multipart/x-mixed-replace; boundary=frame`). Dimuat langsung oleh `<img src>` di konsol, jadi tidak bisa diberi header auth: dijaga firewall (`docs/SETUP.md` §10) |
 | GET | `/api/results_today` | Hasil grading hari ini dari `_ripeness.json` di `artifacts/results/{tanggal}/` (`_tp.json` lama masih dibaca). Warisan palmgrade-frontend; konsol tidak memakainya |
-| GET | `/health` | Hidup/tidak; 200, atau **503 kalau AI mati** (badan membawa `ai`, dipakai healthcheck compose dan launcher `autograde.sh`) |
+| GET | `/health` | Hidup/tidak; 200, atau **503 kalau AI mati atau frame berhenti** (badan membawa `ai`, dipakai healthcheck compose dan launcher `autograde.sh`) |
 | GET | `/health/detail` | Status operasional, lihat di bawah |
 | WS | `/ws/results` | Push event per deteksi. Legacy: masih aktif, tidak ada pemakai di repo ini (konsol polling `/api/console/state`) |
 
@@ -157,7 +157,22 @@ per `track_id`): `docs/overview.md` §3.
     "ambang_detik": 30,
     "galat_terakhir": null,
     "galat_at": null
-  }
+  },
+  "fps_kamera": 14.9,
+  "fps_deteksi": 7.2,
+  "frame_umur_detik": 0.1,
+  "disk": {
+    "tingkat": "aman",
+    "kode": null,
+    "bebas_gb": 232.0,
+    "total_gb": 468.0,
+    "persen_bebas": 49.6,
+    "jalur": "/app/artifacts",
+    "ambang_peringatan_gb": 15.0,
+    "ambang_kritis_gb": 5.0,
+    "sejak": null
+  },
+  "lisensi": {"aktif": true, "grading_diblokir": false, "berlaku_sampai": 1822000000}
 }
 ```
 
@@ -173,7 +188,11 @@ per `track_id`): `docs/overview.md` §3.
 | `workers[]` | memuat `outbox_retry` dan `plc` (kalau aktif), tapi **tidak** `BatchUploadWorker`: itu job APScheduler, jadi watchdog `_watchdog` tidak memantaunya |
 | `plc` | `null` kalau `PLC_ENABLED=false`. `inputs` = offset dari `PLC_DI_BASE` (0–10 motor fault, 11 E-stop); dua counter drop **naik monoton**, yang berarti selisih antar-polling. Detail: `docs/plc-integration.md` |
 | `model_*`, `gpu_sm` | model yang **benar-benar dimuat** line ini, bukan pilihan di `media.env`. `model_kelas_cocok: false` = line **tidak menghitung janjang** (layar Model Deteksi menulisnya merah); `null` = tidak diketahui. `gpu_sm` = compute capability (nama engine `<model>.sm<cc>.engine`), `null` di CPU |
-| `ai` | penjaga AI mati (batch 2.1, `services/penjaga_ai.py`): `keadaan` (`sehat`/`memulai`/`kamera_putus`/`lisensi`/`sumber_diam`/`ai_mati`), `mati` (bool), `kode` (`AI_MATI` atau `null`), `sejak` (epoch mulai diam, cuma saat `mati`), `umur_detik` (detik sejak frame terakhir selesai digrading), `ambang_detik` (`AI_MATI_DETIK` yang berlaku), `galat_terakhir` + `galat_at` (galat deteksi TERAKHIR sejak boot dan umurnya, **bukan** bukti ada galat sekarang). `mati:true` menaikkan coil ERROR dan membuat `/health` 503; `/health/detail` sendiri **tetap 200** walau `ai.mati` |
+| `ai` | penjaga AI mati (batch 2.1, `services/penjaga_ai.py`): `keadaan` (`sehat`/`memulai`/`kamera_putus`/`lisensi`/`sumber_selesai`/`frame_berhenti`/`ai_mati`; line versi 2.1 masih bisa mengirim `sumber_diam`), `mati` (bool, **AI saja**), `kode` (`AI_MATI`, `FRAME_BERHENTI`, atau `null`), `sejak` (epoch mulai diam, cuma saat `ai_mati`/`frame_berhenti`), `umur_detik` (detik sejak frame terakhir selesai digrading), `ambang_detik` (`AI_MATI_DETIK` yang berlaku), `galat_terakhir` + `galat_at` (galat deteksi TERAKHIR sejak boot dan umurnya, **bukan** bukti ada galat sekarang). `mati:true` menaikkan coil ERROR dan membuat `/health` 503; `/health/detail` sendiri **tetap 200** walau `ai.mati` |
+| `fps_kamera` / `fps_deteksi` | laju TERUKUR gambar masuk / frame selesai digrading (batch 3.6). **0** kalau yang terakhir lebih tua dari 5 detik, jadi angka lama tidak pernah tampil sebagai laju sekarang |
+| `frame_umur_detik` | detik sejak gambar terakhir masuk dari kamera; `null` = belum pernah |
+| `disk` | pemantau disk (batch 3.7, `services/pemantau_disk.py`), partisi foto + DB line yang PALING sempit: `tingkat` (`aman`/`peringatan`/`kritis`/`tidak_terbaca`), `kode` (`DISK_HAMPIR_PENUH`/`DISK_KRITIS`/`null`), `bebas_gb`, `total_gb`, `persen_bebas`, `jalur`, ambang yang berlaku, `sejak` (epoch mulai tingkat sekarang). Jalan **tanpa R2** dan tidak menghapus apa pun; `null` = line versi lama |
+| `lisensi` | lisensi line ini: `aktif` (`LICENSE_ENABLED`), `grading_diblokir` (gerbang yang sama dengan thread grading), `berlaku_sampai` (epoch akhir tenggang) |
 
 Backlog upload R2 tidak ada di sini: lihat blok `unggah` di `GET /internal/status`, atau query
 `state/upload_manifest.db` (`SELECT status, COUNT(*) FROM upload_items GROUP BY status`).
@@ -186,7 +205,7 @@ secret yang dikonfigurasi kosong tidak pernah membuka lane (`routes/penjaga_raha
 | Method | Path | Notes |
 |---|---|---|
 | POST | `/internal/assignment` | `{machine_id, assignment_id, truck_id, assigned_at, ffb_source?, plate?}` → `{accepted, machine_id, truck_id, assignment_id}`. Set `current_truck_id` + `current_assignment_id`; `plate` + `assigned_at` menamai folder capture truk (`domain/capture_layout.py`). ⚠️ `plate` itu label, bukan identitas; opsional supaya konsol lama tidak ditolak saat upgrade separuh jalan |
-| GET | `/internal/status` | Dipanggil tiap 1 detik (`LineStatusWorker`) → `{machine_id, truck_id, ffb_source, piston, alarms, unggah, ai}`. `unggah` = ringkasan upload R2 untuk **Last Sync** (`aktif`, `terakhir`, `gagal_sejak`, `pesan`, `antre`, `rusak`), dihitung sekali per batch; `null` sebelum worker upload ada. `ai` = blok penjaga AI mati (sama bentuknya dengan `/health/detail` tapi tanpa `galat_terakhir`/`galat_at`), dibaca kartu line konsol (`pitaAi`) |
+| GET | `/internal/status` | Dipanggil tiap 1 detik (`LineStatusWorker`) → `{machine_id, truck_id, ffb_source, piston, alarms, unggah, ai, disk}`. `unggah` = ringkasan upload R2 untuk **Last Sync** (`aktif`, `terakhir`, `gagal_sejak`, `pesan`, `antre`, `rusak`), dihitung sekali per batch; `null` sebelum worker upload ada. `ai` = blok penjaga AI mati (sama bentuknya dengan `/health/detail` tapi tanpa `galat_terakhir`/`galat_at`), dibaca kartu line konsol (`pitaAi`). `disk` = blok pemantau disk (sama dengan `/health/detail`), dibaca pita disk konsol (`pitaDisk`) |
 | POST | `/internal/manual-reject` | `{machine_id, assignment_id, requested_by, requested_at}` → `{accepted, message}`. `capture_manual_reject()` lewat executor: WebP + JSON + satu baris outbox, sampai di konsol ~1 detik |
 | GET / POST | `/internal/setelan` | Setelan grading yang berlaku / timpa tanpa restart (`conf_threshold`, `minimum_size`, `garis_capture`, `sumbu_garis`, `mode_dev`). Disimpan di `RuntimeState`; konsol pemegang nilai sebenarnya |
 | GET | `/internal/outbox` | Ringkasan antrean line untuk tab Status → Antrean line: `{line_code, aktif, menunggu, tertua_at, ditolak, ditolak_at, ditolak_alasan, lama_tertinggal, tersambung, putus_sejak, sebab_putus, coba_lagi_at, galat, galat_at}` (`ditolak` = baris yang percobaan terakhirnya ditolak konsol 400/422). Router `routes/internal_outbox.py`, tanpa torch |
@@ -422,6 +441,7 @@ seperti variabel mati padahal bukan: jangan dihapus karena `grep os.getenv` tida
 | `UPLOAD_MAX_ITEMS_PER_TICK` | `2000` | Jumlah maksimal item per batch run |
 | `UPLOAD_RETENTION_DAYS` | `7` | Umur arsip lokal item `done` (pabrik: 180) |
 | `UPLOAD_DISK_MIN_FREE_GB` | `20` | Lantai sisa disk: di bawahnya item `done` tertua dibuang lebih awal. `0` = mati |
+| `DISK_PERINGATAN_GB`, `DISK_KRITIS_GB` | `15`, `5` | Pemantau disk (batch 3.7): alert konsol + kartu Diagnostik saat sisa disk di bawah angka ini, dengan atau tanpa R2, tanpa menghapus apa pun. `0` = tingkat itu mati. Peringatan wajib di bawah `UPLOAD_DISK_MIN_FREE_GB` (dengan R2 sisa disk dijaga di sekitar lantai itu); salah ketik jatuh ke bawaan dengan WARNING |
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` / `R2_PUBLIC_URL` | - | Cloudflare R2, dipakai tiga line (foto) dan konsol (manifest per truk + `viewer.html`). `R2_BUCKET` kosong = keduanya mati |
 | `UPLOAD_API_URL` / `UPLOAD_API_SECRET` | - | Penerima teks per janjang di cloud. **Kosongkan**: palmgrade-api pensiun; kosong = item selesai begitu gambar mendarat di R2 |
 | `LICENSE_ENABLED` | `false` | Aktifkan license guard + gerbang grading |
