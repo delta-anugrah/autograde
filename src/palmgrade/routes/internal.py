@@ -256,10 +256,12 @@ async def rekam_mulai(
 
 
 @router.post("/rekam/stop")
-async def rekam_stop(
+def rekam_stop(
     state: Annotated[RuntimeState, Depends(get_runtime_state)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict:
+    """`def`, bukan `async`: `stop()` menguras antrean encoder dan menunggu thread-nya,
+    jadi jalan di threadpool. Di event loop dia membekukan `/health` dan MJPEG line ini."""
     from ..services.video_recorder import RekamTidakJalan
 
     try:

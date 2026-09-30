@@ -488,10 +488,12 @@ end of this file.
     dibungkus `try` di capture worker. Fitur developer tidak boleh bisa
     mematikan produksi.
     **Stop menulis dulu frame yang sudah antre saat Stop ditekan** (2026-09-30), paling
-    banyak sebesar antrean (30 frame, isi antrean dihitung sekali saat Stop), jadi Stop
-    bisa sekitar 1 detik lebih lama. Dulu isi antrean dibuang: ekor tiap rekaman hilang,
-    dan encoder yang telat siap menutup berkas tanpa satu frame pun. Rem disk tetap
-    berhenti seketika.
+    banyak sebesar antrean (30 frame, isi antrean dihitung saat encoder melihat Stop), jadi
+    Stop lebih lama paling banyak 30 frame (di Mac ±0,6 dtk; belum diukur di Lampung). Dulu
+    isi antrean dibuang: ekor tiap rekaman hilang, dan encoder yang telat siap menutup berkas
+    tanpa satu frame pun. Rem disk tetap berhenti seketika. `POST /internal/rekam/stop` itu
+    `def` (threadpool), bukan `async def`: pengurasan itu tidak boleh membekukan event loop
+    line (`/health`, MJPEG).
     **Codec `avc1` (H.264), fallback `mp4v`**: diukur 5x lebih kecil (0,48 vs
     2,40 GB/jam pada 1280x1024 @ 5 fps). Fallback-nya bukan hiasan: `avc1` tidak
     ada di setiap build OpenCV, dan `VideoWriter` yang gagal membuka **tidak
