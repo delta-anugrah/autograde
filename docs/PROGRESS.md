@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-09-30 · docs · Tidy the AI-facing docs (PR #__)
+## 2026-09-30 · docs · Tidy the AI-facing docs (PR #196)
 Changed:        CLAUDE.md 1392 → 172 lines, English, fixed section order, one-line index of rules 0-32
                 plus 1b/1c. Old lines 14-1392 moved verbatim: rules/conventions/git/pointers to
                 docs/rules.md, the make table to docs/commands.md, HTTP surface and contracts
