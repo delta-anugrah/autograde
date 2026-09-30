@@ -7,6 +7,12 @@ tab Log lewat `GET /internal/log` (batch 3.2, kontrak di `domain/log_line.py`).
 
 Kebiasaan sama dengan store lain: WAL, `synchronous=FULL`, satu kunci. Yang menulis
 cuma thread penulis `AntreanLogLine`, tidak pernah thread deteksi (aturan 1b).
+
+`dibuang` menghitung kejadian yang hilang SEBELUM konsol sempat menariknya: yang dibuang
+antrean di memori, dan baris yang tergeser batas padahal `seq`-nya belum pernah
+disajikan `ambil` (penanda `terbaca` di `log_line_meta`). Baris yang sudah ditarik lalu
+tergeser bukan kehilangan; menghitungnya membuat konsol memperingatkan tiap baris baru
+begitu berkas penuh, walau tidak ada yang hilang.
 """
 from __future__ import annotations
 
@@ -119,24 +125,40 @@ class LogLineStore:
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (seq, e.at, e.at, e.level, e.source, message, potong_detail(e.detail), sidik),
         )
-        return self._db.execute(
-            "DELETE FROM log_line WHERE seq <= ("
-            " SELECT seq FROM log_line ORDER BY seq DESC LIMIT 1 OFFSET ?)",
-            (self._batas,),
-        ).rowcount
+        return self._buang_lewat_batas()
+
+    def _buang_lewat_batas(self) -> int:
+        """Buang baris di luar batas. Mengembalikan yang belum pernah disajikan ke konsol."""
+        batas = self._db.execute(
+            "SELECT seq FROM log_line ORDER BY seq DESC LIMIT 1 OFFSET ?", (self._batas,)
+        ).fetchone()
+        if batas is None:
+            return 0
+        terbaca = int(self._meta("terbaca") or 0)
+        (belum_terbaca,) = self._db.execute(
+            "SELECT COUNT(*) FROM log_line WHERE seq <= ? AND seq > ?", (batas["seq"], terbaca)
+        ).fetchone()
+        self._db.execute("DELETE FROM log_line WHERE seq <= ?", (batas["seq"],))
+        return belum_terbaca
 
     def ambil(self, *, setelah: int, generasi: str, batas: int) -> dict[str, Any]:
-        """Satu halaman untuk `GET /internal/log`, urut `seq` naik."""
-        with self._lock:
+        """Satu halaman untuk `GET /internal/log`, urut `seq` naik.
+
+        Mencatat `seq` tertinggi yang pernah disajikan (`terbaca`), supaya baris itu
+        tidak dihitung `dibuang` kalau kelak tergeser batas.
+        """
+        with self._lock, self._db:
             mulai = mulai_dari(setelah, generasi, self._generasi)
             rows = self._db.execute(
                 "SELECT id, seq, first_at, last_at, level, source, message, detail, count"
                 " FROM log_line WHERE seq > ? ORDER BY seq LIMIT ?",
                 (mulai, batas + 1),
             ).fetchall()
+            lagi = len(rows) > batas
+            rows = rows[:batas]
+            if rows and rows[-1]["seq"] > int(self._meta("terbaca") or 0):
+                self._tulis_meta("terbaca", rows[-1]["seq"])
             dibuang = int(self._meta("dibuang") or 0)
-        lagi = len(rows) > batas
-        rows = rows[:batas]
         return {
             "generasi": self._generasi,
             "entri": [dict(r) for r in rows],
@@ -154,12 +176,15 @@ class LogLineStore:
     def _tambah_meta(self, kunci: str, n: int) -> int:
         """Penghitung di tabel meta, di dalam transaksi pemanggil. Mengembalikan nilai baru."""
         baru = int(self._meta(kunci) or 0) + n
+        self._tulis_meta(kunci, baru)
+        return baru
+
+    def _tulis_meta(self, kunci: str, nilai: int) -> None:
         self._db.execute(
             "INSERT INTO log_line_meta (kunci, nilai) VALUES (?, ?)"
             " ON CONFLICT(kunci) DO UPDATE SET nilai = excluded.nilai",
-            (kunci, str(baru)),
+            (kunci, str(nilai)),
         )
-        return baru
 
 
 def _sidik(level: str, source: str, message: str) -> str:

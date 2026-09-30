@@ -251,6 +251,10 @@ def pasang_penulis_log_line(folder_db: Path) -> PenulisLogLine | None:
 
 
 def pasang_log_line(folder_db: Path) -> LogLineStore | None:
-    """Bentuk yang dipakai `main.py`: cuma store-nya (router `/internal/log`)."""
+    """Bentuk pendek: cuma store-nya, tanpa kendali berhenti.
+
+    `main.py` TIDAK memakai ini: dia memegang `PenulisLogLine` dari
+    `pasang_penulis_log_line` supaya antrean bisa dikuras sebelum `os._exit`.
+    """
     penulis = pasang_penulis_log_line(folder_db)
     return penulis.store if penulis is not None else None

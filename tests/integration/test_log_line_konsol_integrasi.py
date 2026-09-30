@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 
 from palmgrade.core.config import LineEndpoint, Settings
 from palmgrade.core.log_sink import SqliteLogHandler
+from palmgrade.domain.log_line import BATAS_BARIS_LINE
 from palmgrade.integrations.notifications.line_client import LineClient
 from palmgrade.license.guard import LicenseGuardMiddleware
 from palmgrade.license.types import EffectiveLicense
@@ -46,8 +47,15 @@ class _Lisensi:
 class LineLog:
     """Satu proses line: berkas log di `folder`, handler asli, router asli."""
 
-    def __init__(self, folder: Path, *, secret: str = SECRET, lisensi_habis: bool | None = None) -> None:
-        self.store = LogLineStore(folder / "log_line.db")
+    def __init__(
+        self,
+        folder: Path,
+        *,
+        secret: str = SECRET,
+        lisensi_habis: bool | None = None,
+        batas_baris: int = BATAS_BARIS_LINE,
+    ) -> None:
+        self.store = LogLineStore(folder / "log_line.db", batas_baris=batas_baris)
         self.antrean = AntreanLogLine(self.store)
         self.logger = logging.getLogger(f"uji.line.{id(self)}")
         self.logger.handlers.clear()
@@ -174,6 +182,61 @@ def test_log_tetap_bisa_ditarik_saat_lisensi_habis(tmp_path):
 
     assert [b["message"] for b in _baris(log_store)] == ["lisensi habis, deteksi berhenti"]
     assert TestClient(line.app).get("/internal/status").status_code == 403  # gerbangnya memang aktif
+
+
+def test_line_dengan_log_line_rusak_diperingatkan_sekali(tmp_path, caplog):
+    """`pasang_log_line` mengembalikan None (berkas tidak bisa dibuka): router menjawab
+    503 `log_line_mati`, dan konsol menyebutnya sekali di tab Log, bukan diam."""
+    settings = replace(Settings(), internal_secret=SECRET)
+    app = FastAPI()
+    app.include_router(buat_router(settings=lambda: settings, store=lambda: None))
+    log_store = LogStore(tmp_path / "log.db")
+    worker = _worker(app, log_store)
+
+    with caplog.at_level(logging.WARNING, logger="palmgrade.workers.tarik_log_line_worker"):
+        asyncio.run(worker.run_once())
+        asyncio.run(worker.run_once())
+
+    (pesan,) = [r.getMessage() for r in caplog.records]
+    assert "line-1" in pesan and "log_line.db" in pesan
+    assert _baris(log_store) == []
+
+def _peringatan_membuang(caplog) -> list[str]:
+    return [r.getMessage() for r in caplog.records if "membuang" in r.getMessage()]
+
+
+def test_batas_baris_penuh_saat_konsol_rajin_menarik_tidak_memperingatkan(tmp_path, caplog):
+    """Baris yang sudah ditarik lalu dibuang batas bukan kehilangan: tab Log sudah punya."""
+    line = LineLog(tmp_path / "line-1", batas_baris=3)
+    log_store = LogStore(tmp_path / "log.db")
+    worker = _worker(line.app, log_store)
+
+    with caplog.at_level(logging.WARNING, logger="palmgrade.workers.tarik_log_line_worker"):
+        for i in range(10):
+            line.error(f"galat berbeda {i}")
+            asyncio.run(worker.run_once())
+
+    assert _peringatan_membuang(caplog) == []
+    assert len(_baris(log_store)) == 10
+
+
+def test_batas_baris_penuh_saat_konsol_tidak_menarik_memperingatkan_sekali(tmp_path, caplog):
+    line = LineLog(tmp_path / "line-1", batas_baris=3)
+    for i in range(10):
+        line.error(f"galat berbeda {i}")  # konsol mati: tidak ada yang menarik
+    log_store = LogStore(tmp_path / "log.db")
+    worker = _worker(line.app, log_store)
+
+    with caplog.at_level(logging.WARNING, logger="palmgrade.workers.tarik_log_line_worker"):
+        asyncio.run(worker.run_once())
+        for i in range(5):
+            line.error(f"galat sesudah pulih {i}")
+            asyncio.run(worker.run_once())
+
+    assert _peringatan_membuang(caplog) == [
+        "line-1 membuang 7 baris log sebelum sempat ditarik konsol (log line penuh saat konsol "
+        "tidak menariknya). Galat yang tersisa tetap tampil di tab Log."
+    ]
 
 
 def test_pesan_terakhir_sebelum_restart_dari_konsol_sudah_di_disk_saat_keluar(tmp_path):

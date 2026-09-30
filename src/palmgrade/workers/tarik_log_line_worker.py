@@ -11,7 +11,14 @@ tidak boleh membuat kartu line terlambat.
 
 Line mati, menolak kunci, atau versi lama tanpa rute ini (404) = diam, ditunda, dicoba
 lagi. Keadaan line sudah diceritakan `LineStatusWorker`; tab Log tidak perlu baris
-tambahan tiap 10 detik untuk hal yang sama.
+tambahan tiap 10 detik untuk hal yang sama. Dua keadaan yang TIDAK diceritakan siapa pun
+diberi satu WARNING saat masuk dan satu saat pulih: line yang menjawab 503
+`log_line_mati` (berkas log line itu tidak bisa dibuka) dan galat tak terduga saat
+menarik satu line (yang lain tetap ditarik).
+
+Penundaan diukur dengan jam monotonic, bukan jam dinding: PC pabrik yang offline lalu
+dikoreksi NTP tidak boleh membuat tab Log diam sejam atau menarik tanpa jeda. Jam dinding
+cuma untuk stempel `now` yang disimpan.
 """
 from __future__ import annotations
 
@@ -36,6 +43,9 @@ JEDA_GAGAL_S = 30.0
 #: Line versi lama (belum punya `/internal/log`): tanya lagi 5 menit kemudian, supaya
 #: line yang baru di-upgrade terbaca tanpa konsol di-restart.
 JEDA_RUTE_TIDAK_ADA_S = 300.0
+
+_LOG_LINE_MATI = "log_line_mati"
+_GALAT = "galat"
 
 
 class _KlienLog(Protocol):
@@ -64,6 +74,7 @@ class TarikLogLineWorker:
         digest: _AntreanDigest | None = None,
         interval_s: float = INTERVAL_S,
         jam: Callable[[], float] = time.time,
+        monotonik: Callable[[], float] = time.monotonic,
     ) -> None:
         self._lines = list(lines)
         self._client = client
@@ -71,15 +82,27 @@ class TarikLogLineWorker:
         self._digest = digest
         self._interval_s = interval_s
         self._jam = jam
+        self._monotonik = monotonik
         self._tunda_sampai: dict[str, float] = {}
+        #: line_code -> jenis masalah yang sudah diperingatkan dan belum pulih.
+        self._masalah: dict[str, str] = {}
 
     async def run_once(self) -> None:
         for line in self._lines:
-            await self._tarik(line)
+            try:
+                await self._tarik(line)
+            except Exception as exc:  # noqa: BLE001, satu line yang rusak tidak boleh menahan yang lain
+                self._tunda(line.line_code, JEDA_GAGAL_S)
+                self._masuk_masalah(
+                    line.line_code, _GALAT,
+                    "Log %s tidak bisa ditarik ke tab Log: %s: %s. Dicoba lagi tiap %.0f detik.",
+                    line.line_code, type(exc).__name__, exc, JEDA_GAGAL_S,
+                    exc_info=True,
+                )
 
     async def _tarik(self, line: LineEndpoint) -> None:
         kode = line.line_code
-        if self._jam() < self._tunda_sampai.get(kode, 0.0):
+        if self._monotonik() < self._tunda_sampai.get(kode, float("-inf")):
             return
         kursor = await asyncio.to_thread(self._log.kursor_line, kode)
         for _ in range(MAKS_HALAMAN):
@@ -87,22 +110,34 @@ class TarikLogLineWorker:
             if jawaban is None:
                 return
             hasil = await asyncio.to_thread(self._log.serap_line, kode, jawaban, now=self._jam())
+            self._pulih(kode)
             await self._teruskan(kode, hasil)
             kursor = hasil.kursor
             if not jawaban.lagi:
                 return
 
     async def _minta(self, line: LineEndpoint, kursor: KursorLine) -> JawabanLog | None:
-        """Satu halaman yang sudah diperiksa, atau None (line ditunda, alasannya DEBUG)."""
+        """Satu halaman yang sudah diperiksa, atau None (line ditunda).
+
+        Alasannya DEBUG, kecuali 503 `log_line_mati`: satu WARNING per transisi.
+        """
         try:
             data = await self._client.log_line(
                 line, setelah=kursor.seq, generasi=kursor.generasi, batas=BATAS_HALAMAN
             )
             return baca_jawaban_log(data)
         except LineUnavailable as exc:
-            rute_tidak_ada = exc.params.get("status") == 404
-            self._tunda(line.line_code, JEDA_RUTE_TIDAK_ADA_S if rute_tidak_ada else JEDA_GAGAL_S)
+            status = exc.params.get("status")
+            self._tunda(line.line_code, JEDA_RUTE_TIDAK_ADA_S if status == 404 else JEDA_GAGAL_S)
             logger.debug("Log %s tidak ditarik: %s", line.line_code, exc)
+            if status == 503:
+                self._masuk_masalah(
+                    line.line_code, _LOG_LINE_MATI,
+                    "Log %s tidak bisa dibaca di line itu (log_line.db tidak bisa dibuka, jawaban "
+                    "503 log_line_mati): tab Log tidak menerima log line ini sampai line itu "
+                    "direstart. Sebabnya tertulis di docker logs line itu.",
+                    line.line_code,
+                )
         except ValueError as exc:  # badan bukan JSON, atau bentuknya asing
             self._tunda(line.line_code, JEDA_GAGAL_S)
             logger.debug("Log %s dijawab dengan bentuk asing: %s", line.line_code, exc)
@@ -119,7 +154,18 @@ class TarikLogLineWorker:
             await asyncio.to_thread(self._digest.antre_line, hasil.galat_baru)
 
     def _tunda(self, kode: str, detik: float) -> None:
-        self._tunda_sampai[kode] = self._jam() + detik
+        self._tunda_sampai[kode] = self._monotonik() + detik
+
+    def _masuk_masalah(self, kode: str, jenis: str, pesan: str, *args: object, exc_info: bool = False) -> None:
+        """Satu WARNING per transisi masuk; masalah yang sama berulang tetap diam."""
+        if self._masalah.get(kode) == jenis:
+            return
+        self._masalah[kode] = jenis
+        logger.warning(pesan, *args, exc_info=exc_info)
+
+    def _pulih(self, kode: str) -> None:
+        if self._masalah.pop(kode, None) is not None:
+            logger.warning("Log %s kembali tertarik ke tab Log", kode)
 
     async def run_loop(self) -> None:
         while True:

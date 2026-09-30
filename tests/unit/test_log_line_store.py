@@ -125,6 +125,44 @@ def test_batas_baris_membuang_yang_paling_lama_tidak_berubah_dan_menghitungnya(t
     assert hasil["dibuang"] == 2
 
 
+def test_baris_yang_sudah_ditarik_tidak_dihitung_dibuang_saat_batas(tmp_path):
+    """`dibuang` = baris yang hilang SEBELUM konsol sempat menariknya. Yang sudah
+    disajikan `ambil` lalu tergeser batas bukan kehilangan: tab Log sudah punya."""
+    store = LogLineStore(tmp_path / "log_line.db", batas_baris=3)
+    for i in range(3):
+        store.write("ERROR", "a", f"pesan {i}", None, now=100.0 + i * 100)
+    seq_akhir = _semua(store)["seq_akhir"]
+
+    for i in range(3, 6):
+        store.write("ERROR", "a", f"pesan {i}", None, now=100.0 + i * 100)
+
+    assert _semua(store, setelah=seq_akhir)["dibuang"] == 0
+
+
+def test_baris_belum_ditarik_tetap_dihitung_walau_sebagian_sudah_ditarik(tmp_path):
+    store = LogLineStore(tmp_path / "log_line.db", batas_baris=3)
+    store.write("ERROR", "a", "pesan 0", None, now=100.0)
+    store.ambil(setelah=0, generasi=store.generasi, batas=500)  # konsol menarik pesan 0
+    for i in range(1, 7):
+        store.write("ERROR", "a", f"pesan {i}", None, now=100.0 + i * 100)
+
+    # tergeser: pesan 0 (sudah ditarik) + pesan 1..3 (belum pernah disajikan)
+    assert _semua(store)["dibuang"] == 3
+
+
+def test_tanda_terbaca_selamat_sesudah_dibuka_ulang(tmp_path):
+    store = LogLineStore(tmp_path / "log_line.db", batas_baris=2)
+    for i in range(2):
+        store.write("ERROR", "a", f"pesan {i}", None, now=100.0 + i * 100)
+    _semua(store)
+
+    dibuka_ulang = LogLineStore(tmp_path / "log_line.db", batas_baris=2)
+    for i in range(2, 4):
+        dibuka_ulang.write("ERROR", "a", f"pesan {i}", None, now=100.0 + i * 100)
+
+    assert _semua(dibuka_ulang)["dibuang"] == 0
+
+
 def test_baris_yang_baru_digabung_tidak_ikut_dibuang(tmp_path):
     """Yang dibuang = seq terendah, yaitu yang paling lama tidak berubah, bukan yang tertua dibuat."""
     store = LogLineStore(tmp_path / "log_line.db", batas_baris=2)
