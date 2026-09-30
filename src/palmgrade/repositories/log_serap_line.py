@@ -11,6 +11,11 @@ Satu baris log line = satu baris `event_log`, dikenali `(line_code, asal)` denga
 line) memperbarui barisnya, tidak menambah baris. `fingerprint` baris line berawalan
 `line:`, jadi penggabungan pesan milik konsol sendiri (`LogStore.write`, sidik 32 hex)
 tidak pernah menyentuh baris line.
+
+ERROR yang baru untuk digest Discord dihitung `galat_baru` SEBELUM serapan, tanpa menulis
+(carry B-T7 no. 2): pemanggil meneruskannya ke antrean Discord dulu, baru menyerap. Mati
+di antara keduanya = halaman yang sama ditarik lagi dan dihitung lagi (hitungan Discord
+bisa lebih), tidak pernah hilang.
 """
 from __future__ import annotations
 
@@ -37,7 +42,7 @@ KOLOM_LINE = ("line_code", "asal")
 
 @dataclass(frozen=True)
 class TambahGalat:
-    """ERROR line yang baru terlihat konsol, untuk digest Discord (batch 3.5)."""
+    """ERROR line yang belum terlihat konsol, untuk digest Discord (batch 3.5)."""
 
     level: str
     source: str
@@ -51,7 +56,6 @@ class TambahGalat:
 @dataclass(frozen=True)
 class HasilSerap:
     kursor: KursorLine
-    galat_baru: tuple[TambahGalat, ...]
     #: Baris yang dibuang line sebelum sempat ditarik, sejak serapan sebelumnya.
     dibuang_baru: int
 
@@ -72,19 +76,32 @@ def kursor_line(db: sqlite3.Connection, line_code: str) -> KursorLine:
     return KursorLine(row[0], row[1], row[2]) if row else KursorLine()
 
 
+def galat_baru(db: sqlite3.Connection, line_code: str, jawaban: JawabanLog) -> tuple[TambahGalat, ...]:
+    """ERROR halaman ini yang belum terlihat konsol, TANPA menulis apa pun.
+
+    Pembandingnya hitungan yang sudah tersimpan: baris yang digabung di line sesudah
+    ditarik cuma menyumbang tambahannya, halaman yang sudah diserap menyumbang nol.
+    """
+    galat = []
+    for e in jawaban.entri:
+        if e.level != "ERROR":
+            continue
+        tambah = e.count - _hitungan_tersimpan(db, line_code, jawaban.generasi, e)
+        if tambah > 0:
+            galat.append(
+                TambahGalat(e.level, e.source, line_code, e.message, e.first_at, e.last_at, tambah)
+            )
+    return tuple(galat)
+
+
 def serap_line(
     db: sqlite3.Connection, line_code: str, jawaban: JawabanLog, *, now: float
 ) -> HasilSerap:
     """Simpan satu halaman dan majukan kursor. Pemanggil memegang kunci + transaksi."""
     lama = kursor_line(db, line_code)
     dibuang_lama = lama.dibuang if lama.generasi == jawaban.generasi else 0
-    galat = []
     for e in jawaban.entri:
-        tambah = _simpan_entri(db, line_code, jawaban.generasi, e)
-        if e.level == "ERROR" and tambah > 0:
-            galat.append(
-                TambahGalat(e.level, e.source, line_code, e.message, e.first_at, e.last_at, tambah)
-            )
+        _simpan_entri(db, line_code, jawaban.generasi, e)
     baru = KursorLine(jawaban.generasi, jawaban.seq_akhir, jawaban.dibuang)
     db.execute(
         "INSERT INTO log_line_kursor (line_code, generasi, seq, dibuang, diubah_at)"
@@ -93,14 +110,25 @@ def serap_line(
         " diubah_at = excluded.diubah_at",
         (line_code, baru.generasi, baru.seq, baru.dibuang, now),
     )
-    return HasilSerap(baru, tuple(galat), max(0, jawaban.dibuang - dibuang_lama))
+    return HasilSerap(baru, max(0, jawaban.dibuang - dibuang_lama))
 
 
-def _simpan_entri(db: sqlite3.Connection, line_code: str, generasi: str, e: EntriTarik) -> int:
-    """Insert atau perbarui satu baris. Mengembalikan kejadian yang baru terlihat."""
-    asal = f"{generasi}:{e.id}"
+def _asal(generasi: str, e: EntriTarik) -> str:
+    return f"{generasi}:{e.id}"
+
+
+def _hitungan_tersimpan(db: sqlite3.Connection, line_code: str, generasi: str, e: EntriTarik) -> int:
     row = db.execute(
-        "SELECT id, count FROM event_log WHERE line_code = ? AND asal = ?", (line_code, asal)
+        "SELECT count FROM event_log WHERE line_code = ? AND asal = ?", (line_code, _asal(generasi, e))
+    ).fetchone()
+    return row[0] if row else 0
+
+
+def _simpan_entri(db: sqlite3.Connection, line_code: str, generasi: str, e: EntriTarik) -> None:
+    """Insert atau perbarui satu baris."""
+    asal = _asal(generasi, e)
+    row = db.execute(
+        "SELECT id FROM event_log WHERE line_code = ? AND asal = ?", (line_code, asal)
     ).fetchone()
     if row is None:
         db.execute(
@@ -109,10 +137,9 @@ def _simpan_entri(db: sqlite3.Connection, line_code: str, generasi: str, e: Entr
             (e.first_at, e.level, e.source, e.message, e.detail,
              f"line:{line_code}:{asal}", e.count, e.last_at, line_code, asal),
         )
-        return e.count
+        return
     db.execute(
         "UPDATE event_log SET count = ?, last_seen_at = ?, detail = COALESCE(?, detail)"
         " WHERE id = ?",
         (e.count, e.last_at, e.detail, row[0]),
     )
-    return max(0, e.count - row[1])

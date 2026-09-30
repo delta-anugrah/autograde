@@ -19,6 +19,13 @@ menarik satu line (yang lain tetap ditarik).
 Penundaan diukur dengan jam monotonic, bukan jam dinding: PC pabrik yang offline lalu
 dikoreksi NTP tidak boleh membuat tab Log diam sejam atau menarik tanpa jeda. Jam dinding
 cuma untuk stempel `now` yang disimpan.
+
+ERROR tiap halaman diteruskan ke antrean Discord SEBELUM halaman itu diserap (baris +
+kursor, satu transaksi): mati di antara keduanya = halaman yang sama ditarik dan
+diteruskan lagi, jadi hitungan Discord bisa lebih tapi galatnya tidak pernah hilang.
+Antrean Discord yang gagal tidak menahan tab Log: halamannya tetap diserap, dan
+kegagalan itu punya satu WARNING masuk + satu pulih sendiri, terpisah dari masalah
+menarik. "Kembali tertarik" baru dicatat sesudah seluruh putaran line itu berhasil.
 """
 from __future__ import annotations
 
@@ -57,6 +64,8 @@ class _KlienLog(Protocol):
 class _PenyimpanLog(Protocol):
     def kursor_line(self, line_code: str) -> KursorLine: ...
 
+    def galat_baru_line(self, line_code: str, jawaban: JawabanLog) -> tuple[TambahGalat, ...]: ...
+
     def serap_line(self, line_code: str, jawaban: JawabanLog, *, now: float) -> HasilSerap: ...
 
 
@@ -86,6 +95,8 @@ class TarikLogLineWorker:
         self._tunda_sampai: dict[str, float] = {}
         #: line_code -> jenis masalah yang sudah diperingatkan dan belum pulih.
         self._masalah: dict[str, str] = {}
+        #: Line yang galatnya sedang gagal masuk antrean Discord (sudah diperingatkan).
+        self._digest_gagal: set[str] = set()
 
     async def run_once(self) -> None:
         for line in self._lines:
@@ -109,12 +120,15 @@ class TarikLogLineWorker:
             jawaban = await self._minta(line, kursor)
             if jawaban is None:
                 return
+            await self._teruskan_ke_digest(kode, jawaban)
             hasil = await asyncio.to_thread(self._log.serap_line, kode, jawaban, now=self._jam())
-            self._pulih(kode)
-            await self._teruskan(kode, hasil)
+            self._laporkan_dibuang(kode, hasil)
             kursor = hasil.kursor
             if not jawaban.lagi:
-                return
+                break
+        # Sesudah SELURUH putaran: halaman pertama lolos lalu halaman kedua gagal lagi
+        # bukan pemulihan, dan mencatatnya membuat pasangan WARNING tiap putaran.
+        self._pulih(kode)
 
     async def _minta(self, line: LineEndpoint, kursor: KursorLine) -> JawabanLog | None:
         """Satu halaman yang sudah diperiksa, atau None (line ditunda).
@@ -143,15 +157,37 @@ class TarikLogLineWorker:
             logger.debug("Log %s dijawab dengan bentuk asing: %s", line.line_code, exc)
         return None
 
-    async def _teruskan(self, kode: str, hasil: HasilSerap) -> None:
+    async def _teruskan_ke_digest(self, kode: str, jawaban: JawabanLog) -> None:
+        """ERROR baru halaman ini ke antrean Discord, SEBELUM serapan (docstring modul)."""
+        if self._digest is None:
+            return
+        try:
+            galat = await asyncio.to_thread(self._log.galat_baru_line, kode, jawaban)
+            if not galat:
+                return
+            await asyncio.to_thread(self._digest.antre_line, galat)
+        except Exception as exc:  # noqa: BLE001, tab Log didahulukan daripada Discord
+            if kode not in self._digest_gagal:
+                self._digest_gagal.add(kode)
+                logger.warning(
+                    "Galat %s tidak bisa masuk antrean lapor Discord: %s: %s. Tab Log tetap "
+                    "menerimanya, tapi galat line itu tidak ikut ringkasan Discord sampai "
+                    "antreannya pulih.",
+                    kode, type(exc).__name__, exc, exc_info=True,
+                )
+            return
+        if kode in self._digest_gagal:
+            self._digest_gagal.discard(kode)
+            logger.warning("Galat %s kembali masuk antrean lapor Discord", kode)
+
+    @staticmethod
+    def _laporkan_dibuang(kode: str, hasil: HasilSerap) -> None:
         if hasil.dibuang_baru:
             logger.warning(
                 "%s membuang %d baris log sebelum sempat ditarik konsol (log line penuh "
                 "saat konsol tidak menariknya). Galat yang tersisa tetap tampil di tab Log.",
                 kode, hasil.dibuang_baru,
             )
-        if self._digest is not None and hasil.galat_baru:
-            await asyncio.to_thread(self._digest.antre_line, hasil.galat_baru)
 
     def _tunda(self, kode: str, detik: float) -> None:
         self._tunda_sampai[kode] = self._monotonik() + detik

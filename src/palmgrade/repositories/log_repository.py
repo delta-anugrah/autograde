@@ -16,7 +16,7 @@ from typing import Any
 
 from ..domain.log_line import JawabanLog, KursorLine
 from . import log_serap_line
-from .log_serap_line import HasilSerap
+from .log_serap_line import HasilSerap, TambahGalat
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS event_log (
@@ -151,6 +151,12 @@ class LogStore:
         """Sampai mana log satu line sudah ditarik (batch 3.2)."""
         with self._lock:
             return log_serap_line.kursor_line(self._db, line_code)
+
+    def galat_baru_line(self, line_code: str, jawaban: JawabanLog) -> tuple[TambahGalat, ...]:
+        """ERROR halaman ini yang belum terlihat, TANPA menulis: diteruskan ke digest
+        Discord SEBELUM `serap_line` (lihat log_serap_line)."""
+        with self._lock:
+            return log_serap_line.galat_baru(self._db, line_code, jawaban)
 
     def serap_line(self, line_code: str, jawaban: JawabanLog, *, now: float) -> HasilSerap:
         """Satu halaman log line + kursornya dalam SATU transaksi (lihat log_serap_line)."""

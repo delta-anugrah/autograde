@@ -372,3 +372,139 @@ def test_log_line_mati_503_diperingatkan_sekali_lalu_pulih(tmp_path, caplog):
     assert "line-1" in peringatan[1] and "kembali" in peringatan[1]
     assert _pesan(store) == [("line-1", "pesan 1")]
     assert len(line.permintaan) == 4
+
+
+# ── Carry B-T7 no. 2 dan 3: digest dulu, baru serapan; pulih sesudah putaran utuh ──
+
+
+class _StoreBercatat:
+    """`LogStore` asli yang mencatat urutan panggilan; `serap_gagal` meniru konsol mati
+    PERSIS sesudah digest diteruskan dan sebelum baris + kursor tersimpan."""
+
+    def __init__(self, store: LogStore, catatan: list[str]) -> None:
+        self.store = store
+        self.catatan = catatan
+        self.serap_gagal = 0
+
+    def kursor_line(self, line_code):
+        return self.store.kursor_line(line_code)
+
+    def galat_baru_line(self, line_code, jawaban):
+        return self.store.galat_baru_line(line_code, jawaban)
+
+    def serap_line(self, line_code, jawaban, *, now):
+        self.catatan.append("serap")
+        if self.serap_gagal:
+            self.serap_gagal -= 1
+            raise OSError("konsol mati di tengah serapan")
+        return self.store.serap_line(line_code, jawaban, now=now)
+
+
+class _DigestBercatat(_Digest):
+    def __init__(self, catatan: list[str]) -> None:
+        super().__init__()
+        self.catatan = catatan
+        self.rusak: Exception | None = None
+
+    def antre_line(self, galat) -> None:
+        self.catatan.append("digest")
+        if self.rusak is not None:
+            raise self.rusak
+        super().antre_line(galat)
+
+
+def test_error_diteruskan_ke_digest_sebelum_baris_dan_kursor_diserap(tmp_path):
+    catatan: list[str] = []
+    store = _StoreBercatat(LogStore(tmp_path / "log.db"), catatan)
+    digest = _DigestBercatat(catatan)
+    worker = TarikLogLineWorker([LINE_1], _Klien({"line-1": _LinePalsu([_entri(1, 1)])}), store,
+                                digest=digest, jam=_Jam())
+
+    asyncio.run(worker.run_once())
+
+    assert catatan == ["digest", "serap"]
+
+
+def test_mati_sesudah_digest_sebelum_serapan_ditarik_ulang_dihitung_lagi_tidak_hilang(tmp_path):
+    """Paling sedikit sekali: hitungan Discord boleh lebih, galatnya tidak boleh hilang."""
+    catatan: list[str] = []
+    asli = LogStore(tmp_path / "log.db")
+    store = _StoreBercatat(asli, catatan)
+    store.serap_gagal = 1
+    digest = _DigestBercatat(catatan)
+    jam = _Jam()
+    worker = TarikLogLineWorker([LINE_1], _Klien({"line-1": _LinePalsu([_entri(1, 1)])}), store,
+                                digest=digest, jam=jam, monotonik=jam)
+
+    asyncio.run(worker.run_once())
+    assert [g.message for g in digest.galat] == ["pesan 1"]
+    assert _pesan(asli) == [] and asli.kursor_line("line-1").seq == 0
+
+    jam.t += JEDA_GAGAL_S + 1
+    asyncio.run(worker.run_once())
+
+    assert [g.message for g in digest.galat] == ["pesan 1", "pesan 1"]
+    assert _pesan(asli) == [("line-1", "pesan 1")]
+    assert asli.kursor_line("line-1").seq == 1
+
+
+def test_antrean_discord_rusak_satu_warning_dan_tab_log_tetap_terisi(tmp_path, caplog):
+    """Tab Log didahulukan: antre_line yang melempar tidak menahan serapan. Satu WARNING
+    saat mulai rusak dan satu saat pulih, bukan pasangan "tidak bisa ditarik"/"kembali
+    tertarik" tiap putaran (carry no. 3)."""
+    catatan: list[str] = []
+    asli = LogStore(tmp_path / "log.db")
+    digest = _DigestBercatat(catatan)
+    digest.rusak = OSError("disk lapor penuh")
+    line = _LinePalsu([_entri(1, 1)])
+    jam = _Jam()
+    worker = TarikLogLineWorker([LINE_1], _Klien({"line-1": line}), asli, digest=digest,
+                                jam=jam, monotonik=jam)
+
+    with caplog.at_level(logging.WARNING, logger="palmgrade.workers.tarik_log_line_worker"):
+        for i in range(2, 5):
+            asyncio.run(worker.run_once())
+            line.entri.append(_entri(i, i))
+            jam.t += JEDA_GAGAL_S + 1
+        digest.rusak = None
+        asyncio.run(worker.run_once())
+
+    assert len(_pesan(asli)) == 4
+    assert asli.kursor_line("line-1").seq == 4
+    assert [g.message for g in digest.galat] == ["pesan 4"]
+    peringatan = _peringatan(caplog)
+    assert len(peringatan) == 2, peringatan
+    assert "line-1" in peringatan[0] and "OSError" in peringatan[0] and "Discord" in peringatan[0]
+    assert peringatan[1] == "Galat line-1 kembali masuk antrean lapor Discord"
+
+
+def test_pulih_dicatat_sesudah_seluruh_putaran_line_berhasil(tmp_path, caplog):
+    """Halaman pertama lolos lalu halaman kedua 503 lagi bukan pemulihan (carry no. 3)."""
+    asli = LogStore(tmp_path / "log.db")
+    line = _LinePalsu([_entri(i, i) for i in range(1, 151)])
+    jawab_asli = line.jawab
+    mati = LineUnavailable(LINE_TIDAK_MENJAWAB, "503", line="Line 1", status=503)
+    skrip = iter([mati, None, mati, None])  # satu per permintaan
+
+    def jawab(setelah, generasi, batas):
+        galat = next(skrip)
+        if galat is not None:
+            raise galat
+        return jawab_asli(setelah, generasi, batas)
+
+    line.jawab = jawab
+    jam = _Jam()
+    worker = TarikLogLineWorker([LINE_1], _Klien({"line-1": line}), asli, jam=jam, monotonik=jam)
+
+    with caplog.at_level(logging.WARNING, logger="palmgrade.workers.tarik_log_line_worker"):
+        asyncio.run(worker.run_once())  # 503
+        jam.t += JEDA_GAGAL_S + 1
+        asyncio.run(worker.run_once())  # halaman 1 lolos, halaman 2 503 lagi
+        assert len(_peringatan(caplog)) == 1
+        jam.t += JEDA_GAGAL_S + 1
+        asyncio.run(worker.run_once())  # halaman 2 lolos, putaran utuh
+
+    peringatan = _peringatan(caplog)
+    assert len(peringatan) == 2, peringatan
+    assert "log_line.db" in peringatan[0] and "kembali" in peringatan[1]
+    assert asli.kursor_line("line-1").seq == 150

@@ -60,23 +60,39 @@ def test_halaman_yang_sama_diserap_dua_kali_tidak_ganda(tmp_path):
 def test_baris_yang_digabung_di_line_memperbarui_hitungan_bukan_menambah(tmp_path):
     store = LogStore(tmp_path / "log.db")
     store.serap_line("line-1", _j(_e(1, 1, count=1, last_at=100.0)), now=1.0)
+    halaman = _j(_e(1, 5, count=4, last_at=150.0))
 
-    hasil = store.serap_line("line-1", _j(_e(1, 5, count=4, last_at=150.0)), now=2.0)
+    galat = store.galat_baru_line("line-1", halaman)
+    store.serap_line("line-1", halaman, now=2.0)
 
     (b,) = _baris(store)
     assert (b["count"], b["last_seen_at"], b["logged_at"]) == (4, 150.0, 100.0)
-    assert [g.tambah for g in hasil.galat_baru] == [3]
+    assert [g.tambah for g in galat] == [3]
 
 
 def test_galat_baru_cuma_error_yang_benar_benar_bertambah(tmp_path):
     store = LogStore(tmp_path / "log.db")
     halaman = _j(_e(1, 1, count=2), _e(2, 2, level="WARNING"))
 
-    pertama = store.serap_line("line-3", halaman, now=1.0)
-    ulang = store.serap_line("line-3", halaman, now=2.0)
+    pertama = store.galat_baru_line("line-3", halaman)
+    store.serap_line("line-3", halaman, now=1.0)
+    ulang = store.galat_baru_line("line-3", halaman)
 
-    assert [(g.line_code, g.message, g.tambah) for g in pertama.galat_baru] == [("line-3", "pesan 1", 2)]
-    assert ulang.galat_baru == ()
+    assert [(g.line_code, g.message, g.tambah) for g in pertama] == [("line-3", "pesan 1", 2)]
+    assert ulang == ()
+
+
+def test_galat_baru_tidak_menulis_apa_pun(tmp_path):
+    """Carry B-T7 no. 2: dipanggil SEBELUM serapan. Kalau ia ikut menulis, galat yang
+    diteruskan ke Discord lalu mati sebelum serapan akan terbaca "sudah terlihat" dan
+    hilang dari tarikan ulang, bukan dihitung lagi."""
+    store = LogStore(tmp_path / "log.db")
+    halaman = _j(_e(1, 1, count=2))
+
+    assert len(store.galat_baru_line("line-1", halaman)) == 1
+    assert len(store.galat_baru_line("line-1", halaman)) == 1
+    assert _baris(store) == []
+    assert store.kursor_line("line-1") == KursorLine()
 
 
 def test_id_sama_dari_line_lain_baris_lain(tmp_path):
