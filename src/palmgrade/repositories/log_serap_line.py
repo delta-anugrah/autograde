@@ -23,6 +23,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from ..domain.log_line import EntriTarik, JawabanLog, KursorLine
+from ..domain.sidik_log import dengan_jenis_galat
 
 _SKEMA_LINE_SQL = """
 CREATE UNIQUE INDEX IF NOT EXISTS idx_event_log_asal
@@ -88,9 +89,8 @@ def galat_baru(db: sqlite3.Connection, line_code: str, jawaban: JawabanLog) -> t
             continue
         tambah = e.count - _hitungan_tersimpan(db, line_code, jawaban.generasi, e)
         if tambah > 0:
-            galat.append(
-                TambahGalat(e.level, e.source, line_code, e.message, e.first_at, e.last_at, tambah)
-            )
+            pesan = dengan_jenis_galat(e.message, e.detail)
+            galat.append(TambahGalat(e.level, e.source, line_code, pesan, e.first_at, e.last_at, tambah))
     return tuple(galat)
 
 

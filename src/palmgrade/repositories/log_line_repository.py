@@ -31,7 +31,7 @@ from ..domain.log_line import (
     potong_detail,
     potong_pesan,
 )
-from ..domain.sidik_log import normalkan_pesan
+from ..domain.sidik_log import normalkan_pesan, ringkas_galat
 
 #: Nama berkas di folder DB line. Digolongkan `SELAMAT_DI_STATE` (hapus_data_line):
 #: berkasnya sudah terbuka sejak proses mulai, jadi hapus-saat-boot tidak boleh menyentuhnya.
@@ -106,7 +106,7 @@ class LogLineStore:
     def _tulis_satu(self, e: EntriLog) -> int:
         """Tulis atau gabung satu kejadian. Mengembalikan jumlah baris yang dibuang batas."""
         message = potong_pesan(e.message)
-        sidik = _sidik(e.level, e.source, message)
+        sidik = _sidik(e.level, e.source, message, e.detail)
         seq = self._tambah_meta("seq", 1)
         row = self._db.execute(
             "SELECT id FROM log_line WHERE sidik = ? AND last_at >= ?"
@@ -202,5 +202,10 @@ class LogLineStore:
         )
 
 
-def _sidik(level: str, source: str, message: str) -> str:
-    return hashlib.sha256(f"{level}|{source}|{normalkan_pesan(message)}".encode()).hexdigest()[:32]
+def _sidik(level: str, source: str, message: str, detail: str | None = None) -> str:
+    """Sama dengan `LogStore._fingerprint`: baris terakhir traceback ikut, kalau ada."""
+    kunci = f"{level}|{source}|{normalkan_pesan(message)}"
+    ringkas = ringkas_galat(detail)
+    if ringkas:
+        kunci += f"|{ringkas}"
+    return hashlib.sha256(kunci.encode()).hexdigest()[:32]

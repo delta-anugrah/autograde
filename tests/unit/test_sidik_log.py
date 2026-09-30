@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from palmgrade.domain.sidik_log import normalkan_pesan
+from palmgrade.domain.sidik_log import jenis_galat, normalkan_pesan, ringkas_galat
 from palmgrade.repositories.log_repository import LogStore, _fingerprint
 
 
@@ -75,3 +75,53 @@ def test_logstore_tidak_menggabungkan_kode_http_yang_berbeda(tmp_path):
     store.write("ERROR", "palmgrade.x", "AutoERP menjawab HTTP 404", None, now=1000.0)
     store.write("ERROR", "palmgrade.x", "AutoERP menjawab HTTP 500", None, now=1001.0)
     assert store.read(level=None, search=None, limit=10, offset=0)["total"] == 2
+
+
+_TB_KEY = 'Traceback (most recent call last):\n  File "x.py", line 1, in f\nKeyError: \'state\'\n'
+_TB_INTEG = (
+    'Traceback (most recent call last):\n  File "y.py", line 9, in g\n'
+    "sqlite3.IntegrityError: UNIQUE constraint failed: weighings.id\n"
+)
+_ASGI = "Exception in ASGI application\n"
+
+
+def test_ringkas_galat_adalah_baris_terakhir_traceback_yang_dinormalkan():
+    assert ringkas_galat(_TB_KEY) == "KeyError: 'state'"
+    assert ringkas_galat("Traceback\nOSError: tulis 1727680000.5 gagal\n\n") == "OSError: tulis <n> gagal"
+    assert ringkas_galat(None) == ""
+    assert ringkas_galat("   \n") == ""
+
+
+def test_jenis_galat_cuma_nama_kelas():
+    """Yang keluar pabrik (Discord) cuma nama kelasnya, bukan isi pesannya."""
+    assert jenis_galat(_TB_KEY) == "KeyError"
+    assert jenis_galat(_TB_INTEG) == "sqlite3.IntegrityError"
+    assert jenis_galat("Traceback\nKeyboardInterrupt\n") == "KeyboardInterrupt"
+    assert jenis_galat("baris bebas: bukan traceback") == ""
+    assert jenis_galat(None) == ""
+
+
+def test_pesan_sama_galat_berbeda_dua_sidik():
+    assert _fingerprint("ERROR", "uvicorn.error", _ASGI, _TB_KEY) != _fingerprint(
+        "ERROR", "uvicorn.error", _ASGI, _TB_INTEG
+    )
+
+
+def test_pesan_tanpa_traceback_sidiknya_sama_dengan_versi_lama():
+    """Baris lama dan baru tanpa traceback tetap satu sidik sesudah upgrade."""
+    assert _fingerprint("ERROR", "x", "a", None) == _fingerprint("ERROR", "x", "a")
+
+
+def test_logstore_500_berbeda_dalam_satu_jendela_jadi_dua_baris(tmp_path):
+    """uvicorn menulis tiap 500 dengan pesan tetap "Exception in ASGI application".
+    Dua galat berbeda dalam 60 detik dulu jadi satu baris dengan traceback yang
+    pertama saja: galat kedua hilang dari mana pun."""
+    store = LogStore(tmp_path / "log.db")
+    store.write("ERROR", "uvicorn.error", _ASGI, _TB_KEY, now=100.0)
+    store.write("ERROR", "uvicorn.error", _ASGI, _TB_INTEG, now=130.0)
+    store.write("ERROR", "uvicorn.error", _ASGI, _TB_KEY, now=140.0)
+    items = store.read(level=None, search=None, limit=10, offset=0)["items"]
+    assert sorted((i["count"], i["detail"].strip().splitlines()[-1]) for i in items) == [
+        (1, "sqlite3.IntegrityError: UNIQUE constraint failed: weighings.id"),
+        (2, "KeyError: 'state'"),
+    ]

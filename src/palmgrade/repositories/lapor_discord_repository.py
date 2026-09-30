@@ -54,6 +54,7 @@ from ..domain.digest_galat import (
     KelompokGalat,
     sidik_digest,
 )
+from ..domain.sidik_log import dengan_jenis_galat
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +140,10 @@ class LaporDiscordStore:
         """
         if level != "ERROR":
             return
-        self._antre([KelompokGalat(level, source, None, message, now, now, 1)])
+        # Nama kelas galat dari traceback, sebelum traceback-nya dibuang: tiap 500
+        # uvicorn berpesan sama, dan tanpa ini semuanya satu kelompok yang tidak
+        # mengatakan apa pun.
+        self._antre([KelompokGalat(level, source, None, dengan_jenis_galat(message, detail), now, now, 1)])
 
     def antre_line(self, galat: Iterable[_GalatLine]) -> None:
         """ERROR line yang baru ditarik konsol (`TarikLogLineWorker`)."""

@@ -213,3 +213,19 @@ def test_konsol_versi_lama_tetap_bisa_menulis_ke_berkas_baru(tmp_path):
             " VALUES (5.0, 'ERROR', 'konsol', 'dari versi lama', NULL, 'f', 1, 5.0)"
         )
     assert db.execute("SELECT COUNT(*) FROM event_log").fetchone()[0] == 2
+
+
+def test_galat_baru_line_membawa_nama_kelas_galatnya(tmp_path):
+    """Dua 500 berbeda di line jadi dua baris di sana; untuk Discord keduanya harus
+    tetap dua kelompok, jadi pesan yang diteruskan membawa nama kelasnya."""
+    store = LogStore(tmp_path / "log.db")
+    asgi = "Exception in ASGI application"
+    halaman = _j(
+        _e(1, 1, message=asgi, detail="Traceback\nKeyError: 'a'"),
+        _e(2, 2, message=asgi, detail="Traceback\nOSError: disk"),
+        _e(3, 3, message="tanpa traceback"),
+    )
+    galat = store.galat_baru_line("line-2", halaman)
+    assert [g.message for g in galat] == [
+        f"{asgi} (KeyError)", f"{asgi} (OSError)", "tanpa traceback",
+    ]

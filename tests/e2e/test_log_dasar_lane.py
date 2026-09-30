@@ -63,6 +63,10 @@ def konsol(tmp_path, monkeypatch):
     def meledak() -> None:
         raise RuntimeError("uji meledak di route konsol")
 
+    @app.get("/api/uji/meledak-lain")
+    def meledak_lain() -> None:
+        raise KeyError("galat kedua yang berbeda")
+
     yield app, service
     console_deps.get_auth_service.cache_clear()
     console_deps.get_dev_service.cache_clear()
@@ -98,6 +102,22 @@ def test_galat_500_sampai_tab_log_dengan_traceback(konsol):
 
     assert baris["level"] == "ERROR" and baris["source"] == "uvicorn.error"
     assert "uji meledak di route konsol" in baris["detail"]
+
+
+def test_dua_500_berbeda_jadi_dua_baris_dengan_traceback_masing_masing(konsol):
+    """uvicorn menulis tiap 500 dengan pesan tetap "Exception in ASGI application".
+    Dulu 500 kedua tergabung ke baris yang pertama dan traceback-nya hilang."""
+    app, _ = konsol
+    kode = _layani(app, ["/api/uji/meledak", "/api/uji/meledak-lain", "/api/uji/meledak"])
+    assert kode == [500, 500, 500]
+
+    baris = _baca_tab_log(app, "ASGI")
+
+    ringkas = sorted((b["count"], b["detail"].strip().splitlines()[-1]) for b in baris)
+    assert ringkas == [
+        (1, "KeyError: 'galat kedua yang berbeda'"),
+        (2, "RuntimeError: uji meledak di route konsol"),
+    ]
 
 
 def test_polling_sukses_diam_galat_tertulis_di_docker_logs(konsol, capsys):

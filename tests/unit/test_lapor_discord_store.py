@@ -360,3 +360,25 @@ def test_write_di_bawah_error_diabaikan(tmp_path):
 
     assert store.ringkasan()["menunggu_jenis"] == 0
     store.close()
+
+
+def test_pesan_sama_galat_berbeda_dua_kelompok_dengan_nama_kelasnya(tmp_path):
+    """Tiap 500 uvicorn berpesan "Exception in ASGI application": tanpa nama kelas
+    galatnya, Discord menulis satu kelompok yang tidak mengatakan apa pun."""
+    store = LaporDiscordStore(tmp_path / "lapor.db", jam=_Jam())
+    asgi = "Exception in ASGI application\n"
+    store.write("ERROR", "uvicorn.error", asgi, "Traceback\nKeyError: 'state'", now=10.0)
+    store.write("ERROR", "uvicorn.error", asgi, "Traceback\nsqlite3.IntegrityError: x", now=20.0)
+    store.write("ERROR", "uvicorn.error", asgi, "Traceback\nKeyError: 'lain'", now=30.0)
+
+    store.susun(_susun_mentah, now=100.0)
+
+    isi = []
+    while (k := store.kiriman_berikut()) is not None:
+        isi.append(k.isi)
+        store.tandai_terkirim(k.id, now=101.0)
+    assert isi == [
+        "2x konsol Exception in ASGI application (KeyError)",
+        "1x konsol Exception in ASGI application (sqlite3.IntegrityError)",
+    ]
+    store.close()

@@ -419,8 +419,10 @@ end of this file.
     **`event_log` cuma menyimpan ERROR dan WARNING**, retensi 180 hari
     (`LOG_RETENSI_HARI`). Pesan identik yang datang dalam 60 detik **digabung** jadi satu
     (sejak batch 3.3 "identik" dihitung sesudah uuid, id hex 8+, desimal lepas, dan bilangan
-    6+ digit dinormalkan, `domain/sidik_log.py`; kode HTTP, port, IP, plat TIDAK)
-    baris dengan hitungan naik, bukan baris baru per kejadian, tanpa itu satu loop yang
+    6+ digit dinormalkan, `domain/sidik_log.py`; kode HTTP, port, IP, plat TIDAK; dan baris
+    terakhir traceback ikut sidik, `ringkas_galat`, supaya dua 500 uvicorn yang pesannya sama
+    "Exception in ASGI application" tapi sebabnya beda tetap dua baris dengan traceback
+    masing-masing) baris dengan hitungan naik, bukan baris baru per kejadian, tanpa itu satu loop yang
     gagal tiap detik akan memenuhi tabel dalam semenit dan mendorong keluar galat lain
     yang lebih tua. `redaksi()` (`domain/log_redaksi.py`) menyaring rahasia **sebelum**
     baris menyentuh disk, bukan saat ditampilkan: berkasnya dibaca lewat AnyDesk
@@ -986,9 +988,11 @@ end of this file.
     hilang dan tidak ganda saat line restart, konsol restart, atau log line direset. Line mati,
     menolak kunci, atau versi lama (404) = diam, dicoba lagi 30 dtk / 5 menit kemudian.
     **Lapor Discord** mati kalau `DISCORD_WEBHOOK_URL` kosong (bawaan) atau bukan https. Nyala:
-    semua ERROR konsol + ERROR line yang ditarik antre per jenis di `lapor_discord.db`, disusun
-    jadi ringkasan (identitas `ERP_COMPANY` + host + versi, hitungan, jam pertama/terakhir, tanpa
-    traceback, teredaksi, dipecah 2.000 karakter) paling cepat 2 menit sesudah galat pertama dan
+    semua ERROR konsol + ERROR line yang ditarik antre per jenis di `lapor_discord.db` (jenis =
+    pesan yang dinormalkan plus nama kelas galatnya, `dengan_jenis_galat`: "Exception in ASGI
+    application (KeyError)"), disusun jadi ringkasan (identitas `ERP_COMPANY` + host + versi,
+    hitungan, jam pertama/terakhir, tanpa traceback dan tanpa isi pesan galat, teredaksi,
+    dipecah 2.000 karakter) paling cepat 2 menit sesudah galat pertama dan
     paling sering tiap 15 menit, dan tidak ada ringkasan baru selama masih ada pesan yang belum
     terkirim. Jaringan/5xx: jeda 30 dtk berlipat sampai 15 menit. 429: tunggu `retry_after`.
     4xx lain (webhook salah/dihapus): berhenti sejam, kalimat merah di atas tabel tab Log, satu

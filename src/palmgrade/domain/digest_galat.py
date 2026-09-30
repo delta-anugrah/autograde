@@ -2,9 +2,10 @@
 
 Murni, tanpa I/O. Satu ringkasan = semua ERROR yang menumpuk sejak ringkasan terakhir,
 dikelompokkan per jenis (pesan yang angka dan id-nya dinormalkan lewat `normalkan_pesan`,
-satu normaliser yang sama dipakai penggabungan tab Log dan antrean log line), dengan
-hitungan, jam pertama dan terakhir, identitas pabrik, dan versi. Traceback TIDAK ikut: yang
-keluar pabrik cuma cukup untuk tahu ada apa, rinciannya tetap di tab Log konsol.
+satu normaliser yang sama dipakai penggabungan tab Log dan antrean log line, plus nama kelas
+galatnya dari traceback, `sidik_log.dengan_jenis_galat`), dengan hitungan, jam pertama dan
+terakhir, identitas pabrik, dan versi. Traceback dan isi pesan galatnya TIDAK ikut: yang keluar
+pabrik cuma cukup untuk tahu ada apa, rinciannya tetap di tab Log konsol.
 
 Batas Discord: 2000 karakter per pesan. Ringkasan panjang dipecah jadi beberapa pesan
 bernomor, paling banyak `MAKS_PESAN`; jenis yang tidak muat disebut jumlahnya.

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from ..domain.log_line import JawabanLog, KursorLine
-from ..domain.sidik_log import normalkan_pesan
+from ..domain.sidik_log import normalkan_pesan, ringkas_galat
 from . import log_serap_line
 from .log_serap_line import HasilSerap, TambahGalat
 
@@ -98,7 +98,7 @@ class LogStore:
         self, level: str, source: str, message: str, detail: str | None, *, now: float
     ) -> None:
         """Record one event, or bump the counter if it is a duplicate within the merge window."""
-        fingerprint = _fingerprint(level, source, message)
+        fingerprint = _fingerprint(level, source, message, detail)
         with self._lock, self._db:
             row = self._db.execute(
                 "SELECT id FROM event_log"
@@ -183,7 +183,13 @@ class LogStore:
             return cur.rowcount
 
 
-def _fingerprint(level: str, source: str, message: str) -> str:
+def _fingerprint(level: str, source: str, message: str, detail: str | None = None) -> str:
     # Id yang berganti tiap kejadian dinormalkan dulu (batch 3.3), supaya satu galat
-    # yang menyebut uuid/epoch/durasi berbeda tetap tergabung jadi satu baris.
-    return hashlib.sha256(f"{level}|{source}|{normalkan_pesan(message)}".encode()).hexdigest()[:32]
+    # yang menyebut uuid/epoch/durasi berbeda tetap tergabung jadi satu baris. Baris
+    # terakhir traceback ikut, supaya dua galat berbeda dengan pesan log yang sama
+    # (tiap 500 uvicorn) tidak tergabung; tanpa traceback sidiknya sama seperti dulu.
+    kunci = f"{level}|{source}|{normalkan_pesan(message)}"
+    ringkas = ringkas_galat(detail)
+    if ringkas:
+        kunci += f"|{ringkas}"
+    return hashlib.sha256(kunci.encode()).hexdigest()[:32]

@@ -28,9 +28,9 @@ def test_kejadian_tersimpan_dan_terbaca_urut_seq(tmp_path):
 def test_pesan_sama_dalam_60_detik_digabung_dan_seq_naik(tmp_path):
     """Baris yang hitungannya naik dapat seq baru, supaya konsol membacanya ulang."""
     store = LogLineStore(tmp_path / "log_line.db")
-    store.write("ERROR", "a", "grab gagal", None, now=100.0)
+    store.write("ERROR", "a", "grab gagal", "Traceback\n  File a\nOSError: x", now=100.0)
     store.write("WARNING", "b", "lain", None, now=101.0)
-    store.write("ERROR", "a", "grab gagal", "Traceback", now=130.0)
+    store.write("ERROR", "a", "grab gagal", "Traceback\n  File b\nOSError: x", now=130.0)
 
     hasil = _semua(store, setelah=2)
 
@@ -38,7 +38,8 @@ def test_pesan_sama_dalam_60_detik_digabung_dan_seq_naik(tmp_path):
     assert (e["message"], e["count"], e["seq"], e["first_at"], e["last_at"]) == (
         "grab gagal", 2, 3, 100.0, 130.0,
     )
-    assert e["detail"] == "Traceback"  # detail pertama yang ada dipakai
+    # Galat yang sama (baris terakhir traceback sama): traceback pertama yang dipakai.
+    assert e["detail"] == "Traceback\n  File a\nOSError: x"
 
 
 def test_pesan_sama_sesudah_jendela_jadi_baris_baru(tmp_path):
@@ -242,3 +243,15 @@ def test_pesan_sama_beda_uuid_tergabung_kode_http_berbeda_tidak(tmp_path):
     assert by_message["Penugasan 3f2a9c1e-5b7d-4e1a-9c3f-2b6d4c8e7b01 gagal diteruskan"] == 2
     assert by_message["AutoERP menjawab HTTP 404"] == 1
     assert by_message["AutoERP menjawab HTTP 500"] == 1
+
+
+def test_500_berbeda_dalam_satu_jendela_jadi_dua_baris(tmp_path):
+    store = LogLineStore(tmp_path / "log_line.db")
+    asgi = "Exception in ASGI application\n"
+    store.write("ERROR", "uvicorn.error", asgi, "Traceback\nKeyError: a", now=100.0)
+    store.write("ERROR", "uvicorn.error", asgi, "Traceback\nOSError: disk", now=130.0)
+    store.write("ERROR", "uvicorn.error", asgi, "Traceback\nKeyError: a", now=140.0)
+    entri = _semua(store)["entri"]
+    assert sorted((e["count"], e["detail"].splitlines()[-1]) for e in entri) == [
+        (1, "OSError: disk"), (2, "KeyError: a"),
+    ]
