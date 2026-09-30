@@ -998,21 +998,30 @@ end of this file.
 35. **Health jujur + pemantau disk** (batch 3.6 dan 3.7, 2026-09-30). Aturan 32 diperluas,
     bukan diduplikasi: `domain/kesehatan_ai.py` + `services/penjaga_ai.py` yang SAMA.
     **Frame berhenti** (`frame_berhenti`, kode `FRAME_BERHENTI`) = kamera ADA (tersambung
-    sekarang, ATAU sambung ulang terakhir `FrameCaptureWorker` berhasil) tapi tidak ada gambar
-    masuk selama `AI_MATI_DETIK` sejak yang paling belakangan dari: gambar terakhir, loop mulai,
-    kamera pulih dari putus sungguhan (`RuntimeState.kamera_pulih_at`, dicap hanya saat sambung
-    ulang BERHASIL sesudah yang GAGAL). ⚠️ "Sambung ulang terakhir berhasil" itu wajib: Hikrobot
-    yang diam membuat worker memutus dan menyambung lagi tiap lima grab gagal, jadi
-    `camera.connected` bolak-balik; tanpa fakta ini penilaian berkedip antara kamera putus (200)
-    dan frame berhenti (503). ⚠️ `kamera_pulih_at` TIDAK diperbarui oleh sambung ulang berhasil
-    yang beruntun, kalau tidak tenggangnya diperpanjang selamanya (pola `ai_dimulai_at`).
+    sekarang, ATAU ada sambung yang berhasil sejak gambar terakhir,
+    `RuntimeState.kamera_sambung_ok_sejak_frame`) tapi tidak ada gambar masuk selama
+    `AI_MATI_DETIK` sejak yang paling belakangan dari: gambar terakhir, loop mulai, kamera pulih
+    dari putus sungguhan (`RuntimeState.kamera_pulih_at`, dicap SEKALI per kejadian: sambung
+    berhasil yang pertama sejak gambar terakhir, dan hanya kalau sebelumnya sudah ada yang
+    gagal). ⚠️ "Berhasil sejak gambar terakhir", BUKAN "sambung terakhir berhasil": Hikrobot
+    yang diam membuat worker memutus dan menyambung lagi tiap lima grab gagal, dan sambungnya bisa
+    berselang berhasil dan gagal (MVS atau handle lama yang masih memegang kamera). Menilai dari
+    sambung terakhir saja membuat penilaian berkedip antara kamera putus (200) dan frame berhenti
+    (503) tiap siklus, dengan ERROR + WARNING tiap 2 sampai 4 detik. Kamera yang SEMUA sambungnya
+    sejak gambar terakhir gagal tetap kamera putus. ⚠️ `kamera_pulih_at` TIDAK diperbarui oleh
+    sambung berhasil berikutnya dalam kejadian yang sama, kalau tidak tenggangnya diperpanjang
+    selamanya dan kamera diam tidak pernah beralarm (pola `ai_dimulai_at`). ⚠️ `connect()`
+    menyetel `connected` SEBELUM hasilnya dicatat: `connected` dihitung tersambung hanya kalau
+    hasil sambung tercatat bukan gagal (`_tersambung`), dan `main.py` mencatat hasil `connect()`
+    saat boot. Tanpa keduanya, tick PLC di sela itu pada akhir putus panjang menulis satu ERROR
+    FRAME_BERHENTI palsu tepat saat kameranya kembali, dan ERROR itu sampai ke Discord.
     Frame berhenti menaikkan coil ERROR dan membuat `/health` 503 (`PenilaianAi.gagal`,
     `KEADAAN_GAGAL`), tapi `ai.mati` **tetap AI saja**: konsol versi lama membaca `mati` dan
     menulis "AI berhenti memproses". `LineClient.hidup()` menghitung 503 frame berhenti sebagai
     proses hidup (satu aturan `kode_http_health`). **Sumber selesai** (`sumber_selesai`,
     `camera.exhausted`, video tanpa ulang) dinilai SEBELUM kamera putus (video yang habis
-    memutus dirinya sendiri) dan tidak menaikkan apa pun. Kamera putus sungguhan (sambung ulang
-    GAGAL) tetap 200 + coil ERROR seperti dulu. `/health/detail` tetap 200 (aturan 32).
+    memutus dirinya sendiri) dan tidak menaikkan apa pun. Kamera putus sungguhan (semua sambung
+    ulang sejak gambar terakhir GAGAL) tetap 200 + coil ERROR seperti dulu. `/health/detail` tetap 200 (aturan 32).
     `/health/detail` memuat `fps_kamera` (terukur di `RuntimeState.catat_frame_masuk`, jendela 5
     detik), `fps_deteksi`, keduanya **0 kalau yang terakhir lebih tua dari 5 detik**,
     `frame_umur_detik`, `disk`, `lisensi`, dan `plc.connected` (klien PLC sendiri; kartu

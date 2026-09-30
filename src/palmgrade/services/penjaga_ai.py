@@ -101,6 +101,7 @@ class PenjagaAi:
                     sumber_selesai=bool(getattr(self._kamera, "exhausted", False)),
                     kamera_pulih_at=s.kamera_pulih_at,
                     sambung_terakhir_ok=s.kamera_sambung_ok,
+                    sambung_ok_sejak_frame=s.kamera_sambung_ok_sejak_frame,
                 )
             )
             gagal = penilaian.keadaan if penilaian.gagal else None

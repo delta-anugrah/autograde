@@ -267,8 +267,8 @@ diketahui statusnya tidak boleh dibaca sebagai sehat pada sinyal keselamatan.
 Sejak batch 2.1 (2026-09-28), `health_check()` = `PenjagaAi.sehat_untuk_plc()`
 (`services/penjaga_ai.py`): tidak sehat berarti **kamera putus ATAU AI mati** (kamera mengirim
 gambar tapi tidak ada frame yang selesai digrading selama `AI_MATI_DETIK`, bawaan 30 detik).
-Sejak batch 3.6 ditambah **frame berhenti**: kamera tersambung (atau tiap sambung ulangnya
-berhasil) tapi tidak ada gambar masuk selama `AI_MATI_DETIK`. Buah lewat tanpa disortir persis
+Sejak batch 3.6 ditambah **frame berhenti**: kamera tersambung (atau ada sambung ulang yang
+berhasil sejak gambar terakhir) tapi tidak ada gambar masuk selama `AI_MATI_DETIK`. Buah lewat tanpa disortir persis
 seperti AI mati; sebelum ini coil-nya malah berkedip (kamera putus dan sumber diam bergantian
 tiap sambung ulang). Lisensi habis dan **sumber selesai** (video uji tanpa ulang yang habis)
 **sengaja tidak** menaikkan ERROR: yang pertama sudah punya sinyalnya sendiri (banner lisensi,

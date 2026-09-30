@@ -126,15 +126,25 @@ class RuntimeState:
     penjaga_ai: Any = None
 
     # ── Health jujur (batch 3.6) ───────────────────────────────────────────
-    # Hasil sambung ulang kamera terakhir oleh `FrameCaptureWorker`. None =
-    # belum pernah ada sambung ulang (kamera tersambung sejak start, atau gagal
-    # di start dan worker belum mencoba). Membedakan kamera yang BENAR-BENAR
-    # putus (sambung ulang gagal) dari kamera yang tersambung tapi diam.
+    # Hasil sambung kamera terakhir sejak gambar terakhir: `connect()` saat boot
+    # (main.py) lalu tiap sambung ulang `FrameCaptureWorker`. None = belum ada
+    # sambung sejak gambar terakhir (gambar yang masuk membuktikan kameranya
+    # tersambung). Penilai memakainya untuk menutup sela antara `connect()`
+    # menyetel `connected` dan hasilnya dicatat di sini
+    # (`domain/kesehatan_ai._tersambung`).
     kamera_sambung_ok: bool | None = None
-    # Sambung ulang BERHASIL sesudah yang gagal: kamera kembali dari putus
-    # sungguhan, tenggang gambar mulai lagi dari sini. Hikrobot yang bolak-balik
-    # sambung karena tidak mengirim (tiap sambungnya berhasil) tidak
-    # memperbaruinya, kalau tidak tenggangnya diperpanjang selamanya.
+    # Ada sambung yang BERHASIL sejak gambar terakhir masuk: kameranya ada tapi
+    # diam. Tetap True walau sambung sesudahnya gagal, supaya sambung ulang yang
+    # berselang berhasil dan gagal tidak membuat penilaian berkedip antara frame
+    # berhenti dan kamera putus. Dikosongkan tiap gambar masuk.
+    kamera_sambung_ok_sejak_frame: bool = False
+    # Ada sambung yang GAGAL sejak gambar terakhir masuk.
+    kamera_sambung_gagal_sejak_frame: bool = False
+    # Sambung BERHASIL yang pertama sejak gambar terakhir, dan sebelumnya sudah
+    # ada yang gagal: kamera kembali dari putus sungguhan, tenggang gambar mulai
+    # lagi dari sini. Dicap sekali per kejadian. Sambung berhasil tanpa gagal
+    # sebelumnya (Hikrobot diam) dan sambung berhasil berikutnya dalam kejadian
+    # yang sama tidak mencapnya, kalau tidak tenggangnya diperpanjang selamanya.
     kamera_pulih_at: float = 0.0
     # Laju gambar masuk yang TERUKUR (bukan laju setelan `camera_fps_terukur`),
     # dihitung tiap `JENDELA_FPS_DETIK`. Dibaca bersama `frame_terakhir_at`:
@@ -165,11 +175,18 @@ class RuntimeState:
                 self.fps_kamera = self._fps_jumlah / lama
                 self._fps_jendela_mulai, self._fps_jumlah = sekarang, 0
         self.frame_terakhir_at = sekarang
+        self.kamera_sambung_ok = None
+        self.kamera_sambung_ok_sejak_frame = False
+        self.kamera_sambung_gagal_sejak_frame = False
 
     def catat_sambung_kamera(self, *, berhasil: bool) -> None:
-        """Hasil satu sambung ulang kamera (batch 3.6)."""
-        if berhasil and self.kamera_sambung_ok is not True:
-            self.kamera_pulih_at = self.jam()
+        """Hasil satu sambung kamera: saat boot atau sambung ulang (batch 3.6)."""
+        if berhasil:
+            if self.kamera_sambung_gagal_sejak_frame and not self.kamera_sambung_ok_sejak_frame:
+                self.kamera_pulih_at = self.jam()
+            self.kamera_sambung_ok_sejak_frame = True
+        else:
+            self.kamera_sambung_gagal_sejak_frame = True
         self.kamera_sambung_ok = berhasil
 
     def catat_inferensi_selesai(self) -> None:

@@ -130,3 +130,90 @@ def test_ai_mati_lalu_frame_berhenti_mencatat_error_baru_tanpa_mengaku_pulih(cap
     assert error[1].endswith(
         "Periksa kabel data dan switch kamera, lalu restart line lewat Setelan, Danger Zone."
     )
+
+
+def _siklus_sambung_ulang(penjaga, state, kamera, jam, *, berhasil: bool) -> list[str]:
+    """Satu `_try_reconnect` seperti `FrameCaptureWorker`, dengan penilaian (tick PLC)
+    di tiap sela: sesudah memutus, di jeda backoff, tepat sesudah `connect()`
+    menyetel `connected` tapi SEBELUM hasilnya dicatat, dan sesudah dicatat."""
+    keadaan = []
+    kamera.connected = False                          # disconnect()
+    keadaan.append(penjaga.nilai().keadaan.value)
+    jam.sekarang += 1.0                               # tidur backoff
+    keadaan.append(penjaga.nilai().keadaan.value)
+    kamera.connected = berhasil                       # connect() selesai
+    keadaan.append(penjaga.nilai().keadaan.value)
+    state.catat_sambung_kamera(berhasil=kamera.connected)
+    keadaan.append(penjaga.nilai().keadaan.value)
+    jam.sekarang += 1.0                               # lima grab gagal lagi
+    keadaan.append(penjaga.nilai().keadaan.value)
+    return keadaan
+
+
+def test_sambung_ulang_berselang_masuk_frame_berhenti_sekali_tanpa_berkedip(caplog):
+    """Simulasi review akhir 2: satu gambar terakhir lalu diam, sambung ulang
+    bergantian berhasil dan gagal tiap 2 detik selama 120 detik. Dulu: berkedip
+    frame_berhenti/kamera_putus tiap siklus (60 transisi), atau tidak pernah
+    beralarm sama sekali. Sekarang: masuk sekali, keluar hanya saat gambar datang."""
+    penjaga, state, kamera, jam = _rakit()
+    caplog.set_level(logging.WARNING, logger="palmgrade.services.penjaga_ai")
+    _sehat_lalu_gambar_berhenti(state, jam, 1)
+    riwayat = []
+    for i in range(60):
+        riwayat += _siklus_sambung_ulang(penjaga, state, kamera, jam, berhasil=i % 2 == 0)
+
+    masuk = riwayat.index("frame_berhenti")
+    assert set(riwayat[masuk:]) == {"frame_berhenti"}
+    assert set(riwayat[:masuk]) <= {"sehat", "memulai", "kamera_putus"}
+    error = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert len(error) == 1 and "FRAME_BERHENTI" in error[0]
+    assert [r for r in caplog.records if r.levelno == logging.WARNING] == []
+
+    kamera.connected = True
+    state.catat_frame_masuk()
+    state.catat_inferensi_selesai()
+    assert penjaga.nilai().keadaan.value == "sehat"
+    pulih = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert pulih == ["Kamera line-2 tidak lagi dinilai berhenti mengirim (keadaan sehat)"]
+
+
+def test_semua_sambung_ulang_gagal_tetap_kamera_putus(caplog):
+    """Kabel dicabut: tiap sambung ulang sejak gambar terakhir gagal. Itu kamera
+    putus sepanjang waktu, tidak pernah frame berhenti."""
+    penjaga, state, kamera, jam = _rakit()
+    caplog.set_level(logging.WARNING, logger="palmgrade.services.penjaga_ai")
+    _sehat_lalu_gambar_berhenti(state, jam, 1)
+    riwayat = []
+    for _ in range(60):
+        riwayat += _siklus_sambung_ulang(penjaga, state, kamera, jam, berhasil=False)
+    assert set(riwayat) == {"kamera_putus"}
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+
+
+def test_akhir_putus_panjang_tidak_menulis_frame_berhenti_palsu(caplog):
+    """Lima menit putus sungguhan lalu kamera kembali. Tick PLC yang jatuh di sela
+    `connect()` dan pencatatan hasilnya dulu menulis satu ERROR FRAME_BERHENTI palsu
+    tepat saat kameranya kembali, dan ERROR itu sampai ke Discord."""
+    penjaga, state, kamera, jam = _rakit()
+    caplog.set_level(logging.WARNING, logger="palmgrade.services.penjaga_ai")
+    _sehat_lalu_gambar_berhenti(state, jam, 1)
+    for _ in range(150):
+        _siklus_sambung_ulang(penjaga, state, kamera, jam, berhasil=False)
+    kembali = _siklus_sambung_ulang(penjaga, state, kamera, jam, berhasil=True)
+    assert kembali == ["kamera_putus", "kamera_putus", "kamera_putus", "memulai", "memulai"]
+    assert [r for r in caplog.records if r.levelno == logging.ERROR] == []
+
+
+def test_gagal_sambung_saat_boot_dicatat_supaya_sambung_pertama_tidak_berteriak(caplog):
+    """`main.py` mencatat hasil `connect()` saat boot. Tanpa itu, sambung ulang
+    pertama sesudah boot yang gagal membaca `kamera_sambung_ok` None, dan tick di
+    sela `connect()` dan pencatatan hasilnya terbaca frame berhenti."""
+    penjaga, state, kamera, jam = _rakit()
+    caplog.set_level(logging.WARNING, logger="palmgrade.services.penjaga_ai")
+    kamera.connected = False
+    state.catat_sambung_kamera(berhasil=False)       # connect() saat boot gagal
+    state.catat_ai_dimulai()
+    jam.sekarang += 120
+    kembali = _siklus_sambung_ulang(penjaga, state, kamera, jam, berhasil=True)
+    assert "frame_berhenti" not in kembali
+    assert [r for r in caplog.records if r.levelno == logging.ERROR] == []

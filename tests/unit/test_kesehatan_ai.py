@@ -130,9 +130,29 @@ def test_kamera_bolak_balik_sambung_tanpa_gambar_tetap_frame_berhenti():
     """Lima grab gagal membuat worker memutus lalu menyambung lagi. Tepat di
     sela itu `connected` False, tapi sambung ulang terakhirnya BERHASIL: tetap
     frame berhenti, bukan berkedip ke kamera putus (200) tiap beberapa detik."""
-    f = replace(SEHAT, kamera_tersambung=False, sambung_terakhir_ok=True,
+    f = replace(SEHAT, kamera_tersambung=False, sambung_terakhir_ok=True, sambung_ok_sejak_frame=True,
                 frame_terakhir_at=MULAI + 50, inferensi_selesai_at=MULAI + 50)
     assert nilai_ai(f).keadaan is KeadaanAi.FRAME_BERHENTI
+
+
+def test_sambung_ulang_terakhir_gagal_tidak_membalik_frame_berhenti():
+    """Hikrobot diam yang sambung ulangnya berselang berhasil dan gagal: satu
+    sambung yang berhasil sejak gambar terakhir sudah membuktikan kameranya ada.
+    Sambung berikutnya yang gagal tidak boleh membalik penilaian ke kamera putus,
+    kalau tidak alarmnya berkedip tiap siklus sambung ulang."""
+    f = replace(SEHAT, kamera_tersambung=False, sambung_terakhir_ok=False, sambung_ok_sejak_frame=True,
+                frame_terakhir_at=MULAI + 50, inferensi_selesai_at=MULAI + 50)
+    assert nilai_ai(f).keadaan is KeadaanAi.FRAME_BERHENTI
+
+
+def test_connected_sebelum_hasil_sambung_dicatat_masih_kamera_putus():
+    """Akhir putus panjang: `connect()` sudah menyetel `connected`, tapi hasil
+    sambungnya belum dicatat (masih gagal dari percobaan sebelumnya). Satu tick
+    di sela itu tidak boleh terbaca frame berhenti: itu ERROR palsu yang sampai ke
+    Discord tepat saat kameranya kembali."""
+    f = replace(SEHAT, sekarang=MULAI + 400, kamera_tersambung=True, sambung_terakhir_ok=False,
+                frame_terakhir_at=MULAI + 50, inferensi_selesai_at=MULAI + 50)
+    assert nilai_ai(f).keadaan is KeadaanAi.KAMERA_PUTUS
 
 
 def test_sambung_ulang_yang_gagal_adalah_kamera_putus_walau_gambar_basi():
@@ -178,7 +198,7 @@ def test_lisensi_didahulukan_atas_frame_berhenti():
 
 def test_lisensi_dan_kamera_bolak_balik_tetap_kamera_putus_seperti_dulu():
     f = replace(SEHAT, grading_diblokir=True, kamera_tersambung=False, sambung_terakhir_ok=True,
-                frame_terakhir_at=MULAI + 10, inferensi_selesai_at=MULAI + 10)
+                sambung_ok_sejak_frame=True, frame_terakhir_at=MULAI + 10, inferensi_selesai_at=MULAI + 10)
     assert nilai_ai(f).error_plc is True
 
 

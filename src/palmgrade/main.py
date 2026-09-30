@@ -281,6 +281,9 @@ def create_app() -> FastAPI:
 
         state = get_runtime_state()
         state.main_loop = asyncio.get_running_loop()
+        # Hasil `connect()` di atas, sebelum penjaga menilai: sambung ulang pertama
+        # sesudah boot yang gagal tidak boleh membaca "belum pernah dicatat".
+        state.catat_sambung_kamera(berhasil=bool(getattr(camera, "connected", False)))
 
         # Batch 2.1: SATU penilai "AI masih memproses?" untuk coil ERROR,
         # `/health` (+ healthcheck Docker), dan kartu line konsol.

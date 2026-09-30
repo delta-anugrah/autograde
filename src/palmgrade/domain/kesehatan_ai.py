@@ -18,12 +18,13 @@ ini tidak pernah berteriak serigala:
   jeda, dan frame pertama belum selesai.
 
 Batch 3.6 menambah satu kerusakan lagi yang dinilai di sini: **frame berhenti**.
-Kamera tersambung (atau tiap sambung ulangnya berhasil) tapi tidak mengirim satu
-gambar pun selama `ambang_detik`. Buah lewat tanpa disortir persis seperti AI
+Kamera tersambung (atau ada sambung ulang yang berhasil sejak gambar terakhir)
+tapi tidak mengirim satu gambar pun selama `ambang_detik`. Buah lewat tanpa disortir persis seperti AI
 mati, jadi keduanya menaikkan coil ERROR dan membuat `/health` 503. Bedanya
-dengan kamera putus: kamera putus = sambung ulang GAGAL (kabel, IP, MVS masih
-memegang kamera); frame berhenti = sambung ulang BERHASIL tapi gambarnya tetap
-tidak datang (Hikrobot yang berhenti mengirim tanpa terputus, SDK yang macet).
+dengan kamera putus: kamera putus = semua sambung ulang sejak gambar terakhir
+GAGAL (kabel, IP, MVS masih memegang kamera); frame berhenti = paling sedikit satu
+BERHASIL tapi gambarnya tetap tidak datang (Hikrobot yang berhenti mengirim tanpa
+terputus, SDK yang macet).
 
 Semua jam di sini `time.monotonic()` (lewat `RuntimeState.jam`): PC pabrik
 yang offline lalu dapat internet bisa melompatkan jam dinding berjam-jam, dan
@@ -88,10 +89,13 @@ class FaktaAi:
     inferensi_selesai_at: float
     #: Sumber yang memang berakhir (`CameraSource.exhausted`): video tanpa ulang.
     sumber_selesai: bool = False
-    #: Kamera kembali sesudah sambung ulang yang GAGAL: tenggang frame dimulai lagi.
+    #: Sambung berhasil pertama sesudah yang GAGAL, sejak gambar terakhir: kamera
+    #: kembali dari putus sungguhan, tenggang gambar dimulai lagi.
     kamera_pulih_at: float = 0.0
-    #: Hasil sambung ulang terakhir `FrameCaptureWorker`. None = belum pernah.
+    #: Hasil sambung terakhir (boot atau sambung ulang) sejak gambar terakhir. None = belum ada.
     sambung_terakhir_ok: bool | None = None
+    #: Ada sambung yang berhasil sejak gambar terakhir, walau yang sesudahnya gagal.
+    sambung_ok_sejak_frame: bool = False
 
 
 @dataclass(frozen=True)
@@ -129,16 +133,28 @@ def _acuan_frame(f: FaktaAi) -> float:
     return max(f.frame_terakhir_at, f.dimulai_at, f.kamera_pulih_at)
 
 
-def _frame_berhenti(f: FaktaAi) -> bool:
-    """Kamera ADA (tersambung sekarang, atau sambung ulang terakhirnya berhasil)
-    tapi tidak ada gambar masuk selama lebih dari ambang.
+def _tersambung(f: FaktaAi) -> bool:
+    """`connected` yang sudah dicatat hasilnya. `connect()` menyetel `connected`
+    sebelum `FrameCaptureWorker` mencatat hasil sambungnya; di sela itu hasil
+    tercatat masih gagal dari percobaan sebelumnya. Tanpa ini tick PLC yang jatuh
+    di sela itu, di akhir putus panjang, menulis satu ERROR frame berhenti palsu
+    tepat saat kameranya kembali."""
+    return f.kamera_tersambung and f.sambung_terakhir_ok is not False
 
-    "Sambung ulang terakhir berhasil" menutup Hikrobot yang berhenti mengirim:
-    lima grab gagal membuat `FrameCaptureWorker` memutus lalu menyambung lagi,
-    jadi `connected` bolak-balik tiap beberapa detik. Tanpa ini penilaian ikut
-    bolak-balik antara kamera putus (200) dan frame berhenti (503).
+
+def _frame_berhenti(f: FaktaAi) -> bool:
+    """Kamera ADA (tersambung sekarang, atau ada sambung yang berhasil sejak gambar
+    terakhir) tapi tidak ada gambar masuk selama lebih dari ambang.
+
+    "Berhasil sejak gambar terakhir", bukan "sambung terakhir berhasil": Hikrobot
+    yang berhenti mengirim diputus lalu disambung lagi oleh `FrameCaptureWorker`
+    tiap lima grab gagal, dan sambungnya bisa berselang berhasil dan gagal (MVS
+    atau handle lama yang masih memegang kamera). Menilai dari sambung terakhir
+    saja membuat penilaian berkedip antara kamera putus (200) dan frame berhenti
+    (503) tiap siklus. Kamera yang semua sambungnya sejak gambar terakhir gagal
+    tetap kamera putus.
     """
-    ada = f.kamera_tersambung or f.sambung_terakhir_ok is True
+    ada = _tersambung(f) or f.sambung_ok_sejak_frame
     return f.dimulai_at > 0 and ada and f.sekarang - _acuan_frame(f) > f.ambang_detik
 
 
@@ -151,7 +167,7 @@ def nilai_ai(f: FaktaAi) -> PenilaianAi:
     if f.sumber_selesai:
         return PenilaianAi(KeadaanAi.SUMBER_SELESAI, umur)
     berhenti = _frame_berhenti(f)
-    if not f.kamera_tersambung and (f.grading_diblokir or not berhenti):
+    if not _tersambung(f) and (f.grading_diblokir or not berhenti):
         return PenilaianAi(KeadaanAi.KAMERA_PUTUS, umur)
     if f.grading_diblokir:
         return PenilaianAi(KeadaanAi.LISENSI, umur)

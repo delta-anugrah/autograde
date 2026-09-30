@@ -29,7 +29,10 @@ def test_sambung_ulang_yang_berhasil_dicatat_berhasil():
     line.kamera.mengirim = False
     _grab_gagal(line, 5)
     assert line.state.kamera_sambung_ok is True
-    assert line.state.kamera_pulih_at == 1_000.0
+    assert line.state.kamera_sambung_ok_sejak_frame is True
+    # Kamera diam yang sambungnya berhasil tanpa gagal: bukan kembali dari putus,
+    # jadi tidak ada tenggang gambar baru.
+    assert line.state.kamera_pulih_at == 0.0
 
 
 def test_sambung_ulang_yang_gagal_dicatat_gagal():
