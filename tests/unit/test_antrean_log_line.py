@@ -378,3 +378,57 @@ def test_pasang_log_line_gagal_membuka_mengembalikan_none_tanpa_melempar(tmp_pat
 
     assert pasang_log_line(bukan_folder) is None
     assert list(root.handlers) == sebelum
+
+
+# ── Review akhir 1, M4: disk yang menolak semua tulisan tidak dicoba tanpa jeda ──
+
+
+def test_disk_rusak_jeda_coba_lagi_berlipat_sampai_30_detik_lalu_nol_saat_pulih():
+    store = _StoreRusak()
+    antrean = AntreanLogLine(store)
+    jeda = []
+    for i in range(7):
+        antrean.write("ERROR", "a", f"kejadian {i}", None, now=float(i))
+        antrean.kuras()
+        jeda.append(antrean.jeda_gagal_s)
+    assert jeda == [1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 30.0]
+    store.rusak = False
+    assert antrean.kuras() == 7
+    assert antrean.jeda_gagal_s == 0.0
+
+
+def test_thread_penulis_menunggu_jeda_gagal_sebelum_mencoba_lagi():
+    """Line yang terus menulis log sementara `state/` read-only: dulu tiap ~0,2 detik satu
+    batch gagal plus seribu transaksi tunggal gagal. Sekarang loopnya tidur berlipat."""
+
+    class _SaklarBercatat(threading.Event):
+        def __init__(self, batas: int) -> None:
+            super().__init__()
+            self.tunggu: list[float | None] = []
+            self._batas = batas
+
+        def wait(self, timeout=None):
+            self.tunggu.append(timeout)
+            if len(self.tunggu) >= self._batas:
+                self.set()
+            return self.is_set()
+
+    class _SelaluAda:
+        def wait(self, timeout=None):
+            return True
+
+        def clear(self):
+            pass
+
+        def set(self):
+            pass
+
+    store = _StoreRusak()
+    antrean = AntreanLogLine(store, jeda_s=0.2)
+    antrean._ada = _SelaluAda()          # line yang terus menulis: selalu ada kejadian baru
+    antrean.write("ERROR", "a", "satu", None, now=1.0)
+    berhenti = _SaklarBercatat(batas=8)
+
+    antrean.jalan(berhenti)
+
+    assert berhenti.tunggu == [0.2, 1.0, 0.2, 2.0, 0.2, 4.0, 0.2, 8.0]

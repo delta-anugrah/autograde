@@ -15,6 +15,11 @@ jadi antreannya dikuras juga di sana. Yang tetap bisa hilang: kejadian ~0,2 deti
 terakhir saat proses mati tanpa lewat keduanya, yaitu SIGKILL dan listrik.
 Antrean penuh (1000 kejadian yang belum sempat ditulis) membuang yang paling lama
 dan menghitungnya, bukan menahan pemanggil.
+
+Disk yang menolak SEMUA tulisan (penuh, `state/` jadi read-only) tidak dicoba tanpa jeda:
+sesudah kurasan yang tidak menulis apa pun, thread penulis tidur 1 detik berlipat sampai
+30 detik sebelum mencoba lagi. Tanpa ini tiap ~0,2 detik satu batch gagal plus satu
+transaksi gagal per kejadian menunggu, di PC yang disknya memang sedang bermasalah.
 """
 from __future__ import annotations
 
@@ -39,6 +44,9 @@ JEDA_KURAS_S = 0.2
 #: 10 detik `docker stop`, dan urutan tutup line sudah memakai sampai 9 detik.
 BATAS_BERHENTI_S = 0.5
 NAMA_THREAD = "log_line"
+#: Jeda coba lagi sesudah kurasan yang tidak menulis apa pun: mulai 1 detik, berlipat, maks 30.
+JEDA_GAGAL_AWAL_S = 1.0
+JEDA_GAGAL_MAKS_S = 30.0
 
 
 class _PenyimpanLog(Protocol):
@@ -84,6 +92,8 @@ class AntreanLogLine:
         self._dibuang = 0
         self._sudah_mengeluh = False
         self._thread: threading.Thread | None = None
+        #: Tidur tambahan thread penulis sesudah kurasan yang gagal total. 0 = sehat.
+        self.jeda_gagal_s = 0.0
 
     def write(
         self, level: str, source: str, message: str, detail: str | None, *, now: float
@@ -126,6 +136,7 @@ class AntreanLogLine:
         except Exception as exc:  # noqa: BLE001, lihat docstring
             return self._tulis_satu_per_satu(batch, dibuang, exc)
         self._sudah_mengeluh = False
+        self.jeda_gagal_s = 0.0
         return len(batch)
 
     def _tulis_satu_per_satu(self, batch: list[EntriLog], dibuang: int, galat: Exception) -> int:
@@ -142,8 +153,10 @@ class AntreanLogLine:
         if not tertulis:
             self._kembalikan(batch, dibuang)
             self._mengeluh(galat)
+            self.jeda_gagal_s = min(max(self.jeda_gagal_s * 2, JEDA_GAGAL_AWAL_S), JEDA_GAGAL_MAKS_S)
             return 0
         self._sudah_mengeluh = False
+        self.jeda_gagal_s = 0.0
         if racun:
             _ke_stderr(
                 f"log line dropped {racun} entries that could not be written:"
@@ -180,6 +193,8 @@ class AntreanLogLine:
             self._ada.clear()
             berhenti.wait(self._jeda_s)
             self.kuras()
+            if self.jeda_gagal_s and not berhenti.is_set():
+                berhenti.wait(self.jeda_gagal_s)
         self.kuras()
 
     def mulai(self) -> threading.Event:

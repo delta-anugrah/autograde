@@ -984,7 +984,8 @@ end of this file.
     Line menulis WARNING/ERROR-nya ke `log_line.db` di folder DB line lewat `SqliteLogHandler`
     yang sama dengan konsol, tapi `write()` cuma menaruh di antrean memori (`AntreanLogLine`,
     maks 1.000) dan thread `log_line` yang menulis ke disk tiap ~0,2 detik: thread deteksi tidak
-    pernah menunggu disk log (aturan 1b). Berkas maks 2.000 baris, baris yang paling lama tidak
+    pernah menunggu disk log (aturan 1b). Disk yang menolak SEMUA tulisan dicoba lagi dengan jeda
+    1 detik berlipat sampai 30 detik, dan dikeluhkan sekali ke stderr per gangguan. Berkas maks 2.000 baris, baris yang paling lama tidak
     berubah dibuang dan dihitung (`dibuang`). Kursor `(generasi, seq)`: `seq` naik tiap baris
     berubah (baru atau digabung), `generasi` acak per berkas, jadi berkas yang direset dibaca dari
     awal. Konsol menariknya tiap 10 detik (`TarikLogLineWorker`, BUKAN `LineStatusWorker`) dan
