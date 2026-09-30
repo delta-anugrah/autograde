@@ -63,7 +63,9 @@ torch, cv2 or SDK. New tests: pure logic first; never drag hardware into CI. Fas
 ## 3. Rules (index; full text and rationale in `docs/rules.md`, same numbers)
 
 0. Model has 4 classes; a class is not a verdict. Mapping lives only in `domain/grade_class.py`.
-1. Disk before API: workers never POST; only `OutboxRetryWorker` (console) and `BatchUploadWorker` (R2) talk to the network.
+1. Disk before API: detection workers never POST events; the line's outbox (`OutboxRetryWorker`, to the console) and `BatchUploadWorker` (R2) send them. `event_id` is always uuid5.
+1b. The detection thread never waits for disk; PLC pulse, `processed` marks and the `timestamp` stay on the detection path.
+1c. TP is paired to a bunch by distance, not by time order (`domain/garis_capture.tp_untuk_janjang`).
 2. `_processed_objects`: never discard an active track (single trigger); trim only inactive and stale ids.
 3. `state.lock` around every physical camera access.
 4. MJPEG: only `DisplayWorker` writes `state.latest_frame`, via `Condition.notify_all()`.
@@ -99,8 +101,8 @@ torch, cv2 or SDK. New tests: pure logic first; never drag hardware into CI. Fas
 Conventions (full text in `docs/rules.md` § Conventions): process env vars beat `.env`
 (`override=False`); three image sources (`CAMERA_TYPE` = `hikrobot` / `opencv` / `photo`,
 video uses `opencv`); all paths via `Settings`, new env var gets a default in `core/config.py`;
-ROI and the capture line are in **stream space** (1280×720); the capture line decides **when**
-a bunch is photographed, ROI decides **where** (default 300, set from the console, `0` = off);
+ROI and the capture line are in **stream space** (1280×720); the capture line (`GARIS_CAPTURE`,
+default 300, set from the console, `0` = off) decides **when** a bunch is photographed, ROI decides **where**;
 no confidence number on bunch labels (`mode_dev` shows it); toasts close by themselves within
 10 s; a restarted line is marked on its card; frame rate lives in `config/camera/hikrobot.mfs`;
 `snake_case` files, `PascalCase` classes, `UPPER_SNAKE` env vars.

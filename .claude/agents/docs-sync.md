@@ -7,7 +7,7 @@ model: sonnet
 
 Compare what the docs say with what the repository contains. Report only mismatches.
 
-1. Rule index vs full text: the numbered headlines (`^[0-9]+\. `) in `CLAUDE.md` §3 and in `docs/rules.md` must be the same set of numbers, and each one-liner must describe the same rule (read both for any number that changed recently).
+1. Rule index vs full text: the numbered headlines (`^[0-9]+[a-z]?\. `, so 1b and 1c count) in `CLAUDE.md` §3 and in `docs/rules.md` must be the same set of numbers, and each one-liner must describe the same rule (read both for any number that changed recently).
 2. Every `make <target>` named in `CLAUDE.md`, `docs/commands.md`, `docs/MANUAL.md` exists in `Makefile` (`grep -E "^<target>:" Makefile`).
 3. Every skill named in `CLAUDE.md` exists under `.claude/skills/<name>/SKILL.md` (skills that live in the `sawit` workspace are named as such and are skipped); note which ones also have an `.agents/skills/<name>` symlink.
 4. Every path in backticks in `CLAUDE.md` and `docs/*.md` that starts with `docs/`, `src/`, `tests/`, `scripts/`, `config/` exists (`test -e`).

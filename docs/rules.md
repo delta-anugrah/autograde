@@ -1,7 +1,7 @@
 # Rules, conventions and git workflow (full text)
 
 Moved verbatim from `CLAUDE.md` on 2026-09-30. `CLAUDE.md` §3 keeps a one-line index with the
-same numbers (0 to 32); this file is the full text with rationale, dates and the `⚠️` notes.
+same numbers (0 to 32, plus 1b and 1c); this file is the full text with rationale, dates and the `⚠️` notes.
 Rule numbers are cited by tests, `docs/overview.md` and skills: do not renumber. New rules are
 appended with the next number in both files. The former `CLAUDE.md` "Pointers" list sits at the
 end of this file.
