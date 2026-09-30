@@ -69,7 +69,14 @@ class PlcWorker:
         # Batch 3.3: tulis/baca yang gagal padahal sambungannya HIDUP (PLC menolak
         # paketnya) dicatat sekali per kejadian. Sambungan yang putus dicatat klien
         # PLC sendiri (`plc/jejak_sambungan.py`), jadi di sini diam.
-        self._tulis_gagal = PelacakTransisi()
+        # ⚠️ Fix round 1 (C1): SATU tracker PER COIL, bukan satu untuk semua coil.
+        # run_once menulis beberapa coil per tick (OK/NG pulse, alive ~1 detik,
+        # ERROR ~1 detik): dengan tracker gabungan, coil 1015 yang selalu berhasil
+        # memanggil `.pulih()` pada tracker yang sama dengan coil 1000 yang selalu
+        # gagal, jadi 1000 terbaca "pulih" lalu "gagal" lagi tiap kali coil sehat
+        # ditulis, bukan diam sampai 1000 sendiri yang pulih. Dibangun lazily,
+        # sama seperti `_failed_writes`: kebanyakan coil tidak pernah gagal.
+        self._tulis_gagal: dict[int, PelacakTransisi] = {}
         self._baca_gagal = PelacakTransisi()
 
     def submit(self, status: str) -> None:
@@ -132,10 +139,19 @@ class PlcWorker:
         with self._scheduler_lock:
             return self.scheduler.enqueue(coil)
 
+    def _tracker_tulis(self, coil: int) -> PelacakTransisi:
+        """Tracker milik SATU coil, dibangun lazily (kebanyakan coil tidak pernah
+        gagal). Lihat catatan C1 di `__init__`: menyamakan tracker antar coil
+        membuat coil yang selalu sehat memicu "pulih" palsu pada coil yang rusak."""
+        pelacak = self._tulis_gagal.get(coil)
+        if pelacak is None:
+            pelacak = self._tulis_gagal[coil] = PelacakTransisi()
+        return pelacak
+
     def _write_coil(self, coil: int, level: bool) -> None:
         if self.client.write_coil(coil, level):
             self._failed_writes.pop(coil, None)
-            self._catat_pulih(self._tulis_gagal, "Coil PLC bisa ditulis lagi sesudah %s")
+            self._catat_pulih(self._tracker_tulis(coil), "Coil PLC bisa ditulis lagi sesudah %s")
             return
         if level and coil == getattr(self.settings, "plc_coil_manual", None):
             # A failed open request is NOT retried: see block e in run_once.
@@ -146,12 +162,22 @@ class PlcWorker:
             return
         self._failed_writes[coil] = level
         self._catat_gagal(
-            self._tulis_gagal, "Coil PLC gagal ditulis, dicoba lagi tiap tick: coil=%s level=%s", coil, level
+            self._tracker_tulis(coil), "Coil PLC gagal ditulis, dicoba lagi tiap tick: coil=%s level=%s", coil, level
         )
 
     def _catat_gagal(self, pelacak: PelacakTransisi, pesan: str, *args: object) -> None:
         """WARNING sekali per kejadian, hanya kalau sambungannya hidup. Klien tanpa
-        atribut `connected` (pengganti di test) dianggap tersambung."""
+        atribut `connected` (pengganti di test) dianggap tersambung.
+
+        Sengaja TIDAK memakai bentuk `JejakSambunganPlc` (M1, fix round 1): dua
+        beda struktural bikin gabungan itu lebih rumit daripada dua fungsi kecil
+        ini. `JejakSambunganPlc` mematok SATU pesan tetap per method dan satu
+        tracker per alamat host; di sini pesan dan argumennya beda tiap pemanggil
+        (coil mana, level apa) dan trackernya per coil (`_tracker_tulis`) atau
+        tunggal (`_baca_gagal`), dan cuma di sini ada gerbang `client.connected`
+        supaya kegagalan tulis/baca tidak dobel dilaporkan saat link-nya sendiri
+        sudah putus (itu sudah dicatat `JejakSambunganPlc` di klien).
+        """
         if getattr(self.client, "connected", True) and pelacak.gagal():
             logger.warning(pesan, *args)
         else:

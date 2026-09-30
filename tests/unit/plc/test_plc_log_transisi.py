@@ -144,7 +144,13 @@ def test_modbus_host_yang_tidak_menjawab_satu_warning(caplog):
     assert len(_log_plc(caplog)) == 1
 
 
-def test_penolakan_modbus_saat_tersambung_dicatat_worker_sekali(caplog):
+def test_penolakan_modbus_saat_tersambung_dicatat_worker_per_coil(caplog):
+    """`run_once` tanpa status apa pun di antrean tetap menulis DUA coil sendiri
+    tiap detik (alive 1015, ERROR 1002). Fix round 1 (C1) membuat tracker per
+    coil, jadi keduanya dicatat sebagai DUA kejadian terpisah, masing-masing satu
+    WARNING gagal + satu WARNING pulih: bukan satu pasang gabungan seperti
+    sebelum fix (dulu kebetulan tampak "satu" karena tracker dibagi semua coil)."""
+
     class _Balas:
         def __init__(self, galat):
             self._galat = galat
@@ -176,5 +182,59 @@ def test_penolakan_modbus_saat_tersambung_dicatat_worker_sekali(caplog):
         inner.menolak = False
         _tick(worker, t, 10)
     pesan = [r.getMessage() for r in _log_plc(caplog)]
-    assert len(pesan) == 2
-    assert pesan[0].startswith("Coil PLC gagal ditulis") and pesan[1].startswith("Coil PLC bisa ditulis lagi")
+    gagal = [p for p in pesan if p.startswith("Coil PLC gagal ditulis")]
+    pulih = [p for p in pesan if p.startswith("Coil PLC bisa ditulis lagi")]
+    assert len(gagal) == 2
+    assert any("coil=1015" in p for p in gagal) and any("coil=1002" in p for p in gagal)
+    assert len(pulih) == 2
+
+
+def test_satu_coil_rusak_tidak_membuat_coil_sehat_lain_flapping(caplog):
+    """Fix round 1, C1: coil 1000 SELALU gagal ditulis, coil 1015 (alive) dan 1002
+    (ERROR) SELALU berhasil di tick yang sama. Sebelum fix, satu `PelacakTransisi`
+    dipakai bersama semua coil: coil sehat yang berhasil sesudah coil 1000 gagal
+    memanggil `.pulih()` pada tracker yang sama dan membuat 1000 terbaca pulih,
+    lalu gagal lagi tick berikutnya -> WARNING-recovery-WARNING berulang, bukan
+    satu WARNING yang diam sampai coil 1000 benar-benar pulih.
+    """
+
+    class _KlienCoilTunggalRusak:
+        connected = True
+
+        def __init__(self, coil_rusak: int) -> None:
+            self._rusak = coil_rusak
+
+        def write_coil(self, address: int, value: bool) -> bool:
+            return address != self._rusak
+
+        def read_discrete_inputs(self, start: int, count: int) -> list[bool] | None:
+            return [False] * count
+
+        def close(self) -> None:
+            pass
+
+    klien = _KlienCoilTunggalRusak(coil_rusak=1000)
+    worker = PlcWorker(klien, PulseScheduler(pulse_s=0.2, gap_s=0.1, queue_max=20), _Cfg())
+
+    def tick(mulai: float, n: int) -> float:
+        # `submit("acc")` tiap tick memaksa coil 1000 (plc_coil_ok) ditulis tiap
+        # tick lewat retry (`_failed_writes`), SEDANGKAN coil alive (1015) dan
+        # ERROR (1002) ditulis tiap ~1 detik dan SELALU berhasil di klien ini:
+        # ini kombinasi yang bikin tracker gabungan flap sebelum fix C1.
+        for i in range(n):
+            worker.submit("acc")
+            worker.run_once(now=mulai + i * 0.2)
+        return mulai + n * 0.2
+
+    with caplog.at_level(logging.WARNING, logger="palmgrade.plc"):
+        t = tick(0.0, 10)
+    gagal = [r.getMessage() for r in _log_plc(caplog) if r.getMessage().startswith("Coil PLC gagal ditulis")]
+    pulih = [r.getMessage() for r in _log_plc(caplog) if r.getMessage().startswith("Coil PLC bisa ditulis lagi")]
+    assert len(gagal) == 1
+    assert len(pulih) == 0
+
+    caplog.clear()
+    klien._rusak = -1  # coil 1000 pulih
+    tick(t, 3)
+    pulih_lagi = [r.getMessage() for r in _log_plc(caplog) if r.getMessage().startswith("Coil PLC bisa ditulis lagi")]
+    assert len(pulih_lagi) == 1

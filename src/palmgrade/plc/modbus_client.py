@@ -46,6 +46,11 @@ class ModbusPlcClient:
         except Exception as exc:
             self._jejak.gagal_sambung(exc)
             self.connected = False
+            # `return self.connected` di bawah sudah False di sini juga, tapi
+            # `except` berhenti di sini SENGAJA: baris `if not self.connected`
+            # sesudahnya cuma untuk kasus pymodbus MENJAWAB False (bukan
+            # melempar), jadi tidak boleh ikut jalan dan menulis WARNING kedua
+            # untuk exception yang sama.
             return False
         if not self.connected:
             # pymodbus menjawab False, bukan melempar, untuk host yang tidak menjawab.
