@@ -12,6 +12,7 @@ import logging
 from typing import Any, Protocol
 
 from ..core.config import LineEndpoint
+from ..domain.line_tak_terbaca import SEBAB_LAIN, sebab_tak_terbaca
 from ..domain.operator_error import (
     LINE_TIDAK_DIKENAL,
     LINE_TIDAK_MENJAWAB,
@@ -88,15 +89,31 @@ class PantauAntreanLine:
 
 
 def _baris(line: LineEndpoint, isi: Any) -> dict[str, Any]:
-    """Satu baris layar dari jawaban satu line, atau dari alasan line itu tidak menjawab."""
+    """Satu baris layar dari jawaban satu line, atau dari alasan line itu tidak menjawab.
+
+    Layar menulis kalimatnya dari `sebab_kode` (`domain/line_tak_terbaca.py`), tidak
+    pernah dari `pesan` (keputusan user 2026-10-01: di luar tab Log tidak ada teks galat
+    sistem); `pesan` tetap ikut untuk curl dan test.
+    """
     if isinstance(isi, OperatorError):
-        return {"terjangkau": False, "kode": isi.code, "status": isi.params.get("status"), "pesan": str(isi)}
+        status = isi.params.get("status")
+        return {
+            "terjangkau": False, "kode": isi.code, "status": status, "pesan": str(isi),
+            "sebab_kode": sebab_tak_terbaca(isi.code, status),
+        }
     if isinstance(isi, Exception):
-        return {"terjangkau": False, "kode": LINE_TIDAK_MENJAWAB, "status": None, "pesan": str(isi)}
+        return _tak_terbaca_lain(str(isi))
     if isinstance(isi, BaseException):
         raise isi
     if not isinstance(isi, dict):
         # Jawaban cacat satu line jadi baris galat line itu saja, bukan 500 seluruh layar.
-        pesan = f"{line.line_code} answered {type(isi).__name__}, not an object"
-        return {"terjangkau": False, "kode": LINE_TIDAK_MENJAWAB, "status": None, "pesan": pesan}
+        return _tak_terbaca_lain(f"{line.line_code} answered {type(isi).__name__}, not an object")
     return {"terjangkau": True, **isi}
+
+
+def _tak_terbaca_lain(pesan: str) -> dict[str, Any]:
+    """Line MENJAWAB atau kodenya sendiri gagal: bukan "tidak ada jawaban sama sekali"."""
+    return {
+        "terjangkau": False, "kode": LINE_TIDAK_MENJAWAB, "status": None, "pesan": pesan,
+        "sebab_kode": SEBAB_LAIN,
+    }

@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 
 from palmgrade.core.config import LineEndpoint
 from palmgrade.domain.operator_auth import hash_password
+from palmgrade.domain.operator_error import LINE_TIDAK_MENJAWAB
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.integrations.notifications.line_client import LineUnavailable
 from palmgrade.repositories.console_repository import ConsoleStore
@@ -227,6 +228,28 @@ def test_satu_line_mati_tidak_menjatuhkan_line_lain(tmp_path):
 
     assert data["lines"]["line-1"]["terjangkau"] is True
     assert data["lines"]["line-2"]["terjangkau"] is False
+
+
+def test_line_tak_terbaca_membawa_kode_sebab_untuk_layar(tmp_path):
+    """User decision 2026-10-01: the Diagnostik card words the reason from `sebab_kode`
+    (domain/line_tak_terbaca.py), never from the raw `sebab` text. A failure that is
+    not a `LineUnavailable` at all still gets a code, the generic one."""
+    class _Campuran:
+        async def health_detail(self, line: LineEndpoint):
+            if line.line_code == "line-1":
+                raise LineUnavailable(
+                    LINE_TIDAK_MENJAWAB, "line-1 did not answer: Client error '404 Not Found'",
+                    line=line.name, status=404,
+                )
+            raise ValueError("Expecting value: line 1 column 1 (char 0)")
+
+    app, store, _, _, _ = _app_dev(tmp_path, line_client=_Campuran())
+    client = _client_support(app, store)
+
+    lines = client.get("/api/console/dev/diagnostik").json()["lines"]
+
+    assert (lines["line-1"]["terjangkau"], lines["line-1"]["sebab_kode"]) == (False, "bukan_line")
+    assert (lines["line-2"]["terjangkau"], lines["line-2"]["sebab_kode"]) == (False, "lain")
 
 
 def test_diagnostik_butuh_peran_support(dev):

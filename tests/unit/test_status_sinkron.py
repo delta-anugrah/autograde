@@ -501,7 +501,9 @@ def test_upload_foto_line_putus_dan_pulih_masuk_tab_log_sekali_masing_masing(cap
         _putaran(worker, line, putus)
         _putaran(worker, line, {"aktif": True, "terakhir": 4_600.0, "gagal_sejak": None, "antre": 0})
 
-    pesan = [r.getMessage() for r in caplog.records]
+    # Line yang mati sebentar punya barisnya sendiri ("tidak terbaca" lalu "terbaca lagi",
+    # 2026-10-01); yang dijaga di sini cuma baris Cloud Photo.
+    pesan = [r.getMessage() for r in caplog.records if "Cloud Photo" in r.getMessage()]
     assert len(pesan) == 2, pesan
     assert "line-1" in pesan[0] and "PUT R2 gagal: timeout" in pesan[0]
     assert "line-1" in pesan[1] and "tersambung lagi" in pesan[1]

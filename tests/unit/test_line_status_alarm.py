@@ -51,6 +51,9 @@ def test_line_mati_tidak_punya_alarms_palsu():
     # `kode`/`status` sejak batch 1 keamanan LAN: LineUnavailable selalu
     # OperatorError, jadi line mati sungguhan (LINE_TIDAK_MENJAWAB) ikut
     # membawanya juga, dibedakan dari kunci ditolak (LINE_MENOLAK) lewat
-    # `kode`-nya sendiri, bukan lewat ada/tidaknya field ini.
-    assert status == {"reachable": False, "kode": LINE_TIDAK_MENJAWAB, "status": None}
+    # `kode`-nya sendiri, bukan lewat ada/tidaknya field ini. `sebab_kode` (2026-10-01):
+    # kenapa tidak terbaca, sebagai kode yang diterjemahkan layar, bukan teks galat.
+    assert status == {
+        "reachable": False, "kode": LINE_TIDAK_MENJAWAB, "status": None, "sebab_kode": "tak_terjangkau",
+    }
     assert "alarms" not in status

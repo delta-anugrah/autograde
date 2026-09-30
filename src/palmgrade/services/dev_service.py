@@ -18,6 +18,7 @@ from typing import Any
 
 from ..core.config import LineEndpoint, Settings
 from ..domain.daftar_akun import ringkas_akun
+from ..domain.line_tak_terbaca import SEBAB_LAIN, sebab_tak_terbaca
 from ..domain.operator_error import (
     COIL_TIDAK_DIKENAL,
     LINE_TIDAK_DIKENAL,
@@ -52,6 +53,13 @@ class CoilTidakDikenal(OperatorError, ValueError):
 
     def __init__(self, message: str) -> None:
         super().__init__(COIL_TIDAK_DIKENAL, message)
+
+
+def _sebab_kode(exc: BaseException) -> str:
+    """Kenapa line itu tidak terbaca, sebagai kode yang diterjemahkan layar."""
+    if isinstance(exc, OperatorError):
+        return sebab_tak_terbaca(exc.code, exc.params.get("status"))
+    return SEBAB_LAIN
 
 
 class DevService:
@@ -131,8 +139,14 @@ class DevService:
         for line, entry in zip(self._lines, results, strict=True):
             # Any exception (LineUnavailable or otherwise) reads as unreachable —
             # a bug in one line's fetch must not take the other two cards down too.
+            # The card words `sebab_kode`, never `sebab` (user decision 2026-10-01: no
+            # raw error text outside the Log tab); `sebab` stays for curl and the tests.
             if isinstance(entry, BaseException):
-                lines[line.line_code] = {"terjangkau": False, "sebab": str(entry)}
+                lines[line.line_code] = {
+                    "terjangkau": False,
+                    "sebab": str(entry),
+                    "sebab_kode": _sebab_kode(entry),
+                }
             else:
                 lines[line.line_code] = {"terjangkau": True, **entry}
         return {"lines": lines}

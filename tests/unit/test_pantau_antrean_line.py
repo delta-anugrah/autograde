@@ -55,10 +55,13 @@ def test_ringkasan_satu_baris_per_line_apa_pun_keadaannya():
 
     assert list(hasil) == ["line-1", "line-2", "line-3"]
     assert hasil["line-1"] == {"terjangkau": True, "menunggu": 2, "tersambung": True}
+    # `sebab_kode` (2026-10-01): the screen words the reason from it, never from `pesan`.
     assert hasil["line-2"] == {
         "terjangkau": False, "kode": LINE_MENOLAK, "status": 401, "pesan": "line-2 refused: HTTP 401",
+        "sebab_kode": "kunci_ditolak",
     }
     assert (hasil["line-3"]["kode"], hasil["line-3"]["status"]) == (LINE_TIDAK_MENJAWAB, None)
+    assert hasil["line-3"]["sebab_kode"] == "tak_terjangkau"
 
 
 def test_galat_tak_terduga_satu_line_tidak_mengosongkan_yang_lain():
@@ -66,12 +69,15 @@ def test_galat_tak_terduga_satu_line_tidak_mengosongkan_yang_lain():
 
     hasil = asyncio.run(PantauAntreanLine(klien, LINES).ringkasan())["lines"]
 
-    assert hasil["line-1"] == {"terjangkau": False, "kode": LINE_TIDAK_MENJAWAB, "status": None, "pesan": "bug"}
+    # An unexpected failure is not "no answer at all": the generic code, not tak_terjangkau.
+    assert hasil["line-1"] == {
+        "terjangkau": False, "kode": LINE_TIDAK_MENJAWAB, "status": None, "pesan": "bug", "sebab_kode": "lain",
+    }
     assert hasil["line-3"]["menunggu"] == 1
 
 
 def test_status_http_line_ikut_ke_barisnya():
-    """Line versi lama menjawab 404: layar bisa menulis "line menjawab HTTP 404"."""
+    """Something answering 404 at the line's address (not an AutoGrade line, or too old)."""
     klien = _KlienPalsu({
         "line-1": {"menunggu": 0},
         "line-2": LineUnavailable(LINE_TIDAK_MENJAWAB, "line-2 did not answer: 404", line="Line 2", status=404),
@@ -81,6 +87,7 @@ def test_status_http_line_ikut_ke_barisnya():
     hasil = asyncio.run(PantauAntreanLine(klien, LINES).ringkasan())["lines"]
 
     assert (hasil["line-2"]["kode"], hasil["line-2"]["status"]) == (LINE_TIDAK_MENJAWAB, 404)
+    assert hasil["line-2"]["sebab_kode"] == "bukan_line"
 
 
 def test_line_macet_tidak_menahan_layar_lebih_dari_batasnya():
@@ -93,6 +100,7 @@ def test_line_macet_tidak_menahan_layar_lebih_dari_batasnya():
     assert time.monotonic() - mulai < 1.0
     assert (hasil["line-2"]["terjangkau"], hasil["line-2"]["kode"]) == (False, LINE_TIDAK_MENJAWAB)
     assert "line-2" in hasil["line-2"]["pesan"]
+    assert hasil["line-2"]["sebab_kode"] == "tak_terjangkau"
     assert (hasil["line-1"]["menunggu"], hasil["line-3"]["menunggu"]) == (1, 3)
 
 
@@ -106,6 +114,7 @@ def test_jawaban_bukan_objek_jadi_baris_galat_line_itu_saja():
     hasil = asyncio.run(PantauAntreanLine(klien, LINES).ringkasan())["lines"]
 
     assert (hasil["line-1"]["terjangkau"], hasil["line-1"]["kode"]) == (False, LINE_TIDAK_MENJAWAB)
+    assert hasil["line-1"]["sebab_kode"] == "lain", "it answered, just not an object"
     assert (hasil["line-2"]["terjangkau"], hasil["line-3"]["menunggu"]) == (True, 1)
 
 
