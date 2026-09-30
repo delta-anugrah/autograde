@@ -63,6 +63,11 @@ ditanya.
   diganti di AutoERP, akun lokal dengan tombol Ganti sandi. **Impor CSV** di tab Rekap juga
   support saja (unduh CSV untuk semua): CSV Per janjang, periksa dulu, hari ini tidak diimpor,
   bisa dibatalkan per impor (aturan 26).
+- **Tab Log** (batch 3.2 + 3.5): ERROR/WARNING konsol DAN ketiga line, tag `line-1/2/3` atau
+  konsol per baris, jam pertama muncul untuk baris yang digabung, traceback bisa dibuka per
+  baris. `muatLog` memanggil `muatLaporDiscord`, yang menulis satu kalimat di atas tabel
+  tentang keadaan lapor ke Discord (`mati`/`url_salah`/`aktif`/`tertahan`/`ditolak`); alamat
+  webhook itu sendiri tidak pernah tampil (aturan 34).
 - **Rekam video** (v1.13.x): satu tombol per line, jalan sampai ditekan Stop. Yang
   terekam frame **clean tanpa bbox**, disadap di `FrameCaptureWorker`, sebelum
   inference. Berkasnya di `videos/` (jalurnya tertulis di kaki layar), **tidak pernah

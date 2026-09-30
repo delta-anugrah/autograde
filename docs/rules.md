@@ -1,7 +1,7 @@
 # Rules, conventions and git workflow (full text)
 
 Moved verbatim from `CLAUDE.md` on 2026-09-30. `CLAUDE.md` §3 keeps a one-line index with the
-same numbers (0 to 33 and 35, plus 1b and 1c); this file is the full text with rationale, dates and the `⚠️` notes.
+same numbers (0 to 35, plus 1b and 1c); this file is the full text with rationale, dates and the `⚠️` notes.
 Rule numbers are cited by tests, `docs/overview.md` and skills: do not renumber. New rules are
 appended with the next number in both files. The former `CLAUDE.md` "Pointers" list sits at the
 end of this file.
@@ -425,7 +425,9 @@ end of this file.
     yang lebih tua. `redaksi()` (`domain/log_redaksi.py`) menyaring rahasia **sebelum**
     baris menyentuh disk, bukan saat ditampilkan: berkasnya dibaca lewat AnyDesk
     berbulan-bulan kemudian, dan sandi/token yang sempat mendarat di disk sudah bocor
-    walau layarnya sendiri tidak pernah menampilkannya.
+    walau layarnya sendiri tidak pernah menampilkannya. Sejak batch 3.2 tabel yang sama
+    memuat WARNING/ERROR ketiga line (kolom `line_code`), ditarik konsol tiap 10 detik dari
+    `log_line.db` tiap line; baris line tidak ikut digabung dengan pesan konsol.
     **Uji PLC satu-satunya aksi konsol yang menggerakkan hardware fisik**, dan bawa tiga
     pengaman sekaligus: **ditolak selama line itu punya assignment**, dicek di proses
     line yang memegang `RuntimeState`-nya sendiri, **bukan** di konsol, karena konsol
@@ -581,7 +583,9 @@ end of this file.
     konsol. Line menulis penanda `artifacts/.hapus-data`, keluar lewat urutan tutup yang sama
     dengan SIGTERM (aturan 29, `os._exit` di ujungnya), dan **awal
     lifespan `main.py`** menghapus isi `artifacts/` (kecuali sisa `license.db*` di PC yang
-    belum pindah, lihat aturan pindah DB di bawah) + berkas **milik line** di `state/`
+    belum pindah, lihat aturan pindah DB di bawah, dan kecuali `log_line.db` (sudah terbuka
+    sejak proses mulai; konsol tidak menarik ulang baris lama karena kursornya tidak ikut
+    dihapus)) + berkas **milik line** di `state/`
     (`MILIK_LINE_DI_STATE`, sejak
     batch 1: `upload_manifest.db*` **dan** `outbox.db*`, yang pindah dari `artifacts/` ke
     `state/` supaya tidak lagi tersaji lewat `/captures`) SEBELUM store mana pun membuka
@@ -603,10 +607,12 @@ end of this file.
     ⚠️ **Konsol MENUNGGU line mati** sebelum mengosongkan datanya sendiri: diam dulu
     selama `jeda_detik` yang dijawab line, lalu `/health` sampai **dua kali berturut-turut**
     tidak menjawab (sekali lewat tenggat = line sibuk menulis foto, bukan mati), maks 12 dtk
-    (jeda 1 dtk + urutan tutup line maks 8 dtk + cadangan untuk dua cek `/health` berturut-turut).
+    (jeda 1 dtk + urutan tutup line maks 8 dtk + antrean log line dikuras maks 1 dtk (batch
+    3.2, `sebelum_keluar`) + 1 dtk margin untuk dua cek `/health` berturut-turut).
     Line mulai menutup 1 detik sesudah menjawab, lalu urutan tutup sendiri maks 8 detik
-    (coil mati + antrean simpan habis, total maks 9 detik dari permintaan, aturan 29), dan
-    janjang yang lewat di detik itu masih dikirim
+    (coil mati + antrean simpan habis), lalu antrean log line dikuras maks 1 detik lagi
+    sebelum `os._exit` (batch 3.2, `sebelum_keluar`, melewati `atexit`): total maks 10 detik
+    dari permintaan, aturan 29. Janjang yang lewat di detik itu masih dikirim
     ke konsol: tanpa menunggu, baris grading yang fotonya sudah hilang tertinggal. Line
     yang tidak kunjung mati dilaporkan `ok:true, kode:"belum_mati"`.
     ⚠️ **Truk tidak bisa dipasang selama penghapusan**, dua penjaga, satu per jendela:
@@ -706,8 +712,9 @@ end of this file.
     pertama (jam R2 yang tersimpan bukan bukti hidup), dan "hapus semua" di Danger Zone langsung
     mengosongkannya. Jam Cloud Photo tiap line cuma bergerak kalau batch itu benar-benar menaikkan
     foto, bukan karena batch-nya jalan. **Putus dan pulih =
-    masing-masing SATU WARNING** di tab Log, termasuk upload foto tiap line (line tidak memasang
-    log_sink, jadi `LineStatusWorker` konsol yang mencatat alasannya). **Pesan galat mentah tidak
+    masing-masing SATU WARNING** di tab Log, termasuk upload foto tiap line (line menulis
+    log_sink-nya sendiri ke `log_line.db` sejak batch 3.2, tapi WARNING sisi konsol ini tetap
+    dicatat supaya transisinya terbaca dari sudut konsol). **Pesan galat mentah tidak
     dikirim ke layar.** ⚠️ Line yang restart melupakan status gagalnya sampai batch jam berikutnya;
     pulih baru dicatat kalau jam unggahnya benar-benar bergerak. ⚠️ **`UPLOAD_API_URL` yang masih
     menunjuk api lama yang mati** membuat Cloud Photo merah (`POST gagal`): batch berhenti di POST
@@ -784,9 +791,12 @@ end of this file.
     urutan tutup, keduanya di bawah tenggang `docker stop` bawaan (10 detik sebelum SIGKILL). Line
     uvicorn jalan dengan `--timeout-graceful-shutdown 1`, karena `/api/video_feed` yang masih
     terbuka dulu menahan shutdown sampai SIGKILL; konsol sengaja TANPA batas itu. Anggarannya
-    (SIGTERM): 1 + 0,2 + 8 masih di bawah 10 detik `docker stop`. `/internal/restart` menjawab
-    dulu, tunggu 1 detik, baru urutan tutup jalan: maks 9 detik dari permintaan sampai proses
-    benar-benar keluar.
+    (SIGTERM): 1 + 0,2 + 8 masih di bawah 10 detik `docker stop`; antrean log line (batch 3.2)
+    keluar lewat `atexit` di jalur ini, sudah termasuk dalam waktu itu, tanpa budget tambahan.
+    `/internal/restart` dan `/internal/hapus-data` menjawab dulu, tunggu 1 detik, lalu urutan
+    tutup jalan (maks 8 detik), lalu antrean log line dikuras lewat `sebelum_keluar` (batch 3.2,
+    yang melewati `atexit` karena jalur ini berakhir di `os._exit`), maks 1 detik lagi: **maks
+    10 detik** dari permintaan sampai proses benar-benar keluar.
     Janjang yang tidak sempat ditulis disebut satu per satu di ERROR `Tutup line: N janjang TIDAK
     tertulis ...`, bukan hilang diam-diam.
     **`os._exit` cuma hidup di `services/penutup_line.py`**, dijaga
@@ -863,7 +873,9 @@ end of this file.
     berikutnya gagal dengan cara lain) dan `/internal/outbox` membawa `ditolak`, `ditolak_at`,
     `ditolak_alasan`; layar menulis keadaan **"N janjang DITOLAK konsol"** dengan jam, alasan, dan
     saran. Konsol mencatat satu WARNING per `event_id` per proses (`ConsoleService.ingest`) supaya
-    tab Log menyebutnya: line tidak punya log_sink. **Tetap tidak ada yang dibuang otomatis**:
+    tab Log menyebutnya: line menulis log_sink-nya sendiri ke `log_line.db` sejak batch 3.2, tapi
+    WARNING sisi konsol ini tetap dicatat supaya transisinya terbaca dari sudut konsol.
+    **Tetap tidak ada yang dibuang otomatis**:
     cara melihat, menyimpan ke berkas, lalu menghapus satu baris ditolak dengan tangan ada di
     `docs/MANUAL.md` §7.1 (perintahnya dijaga `tests/unit/test_perintah_janjang_ditolak.py`,
     dijalankan lawan `OutboxStore` sungguhan).
@@ -961,6 +973,27 @@ end of this file.
     yang gagal (sengaja): traceback `Application startup failed` uvicorn ikut sampai tab Log.
     ⚠️ Pengecualian tetap: exception deteksi tiap detik saat AI mati belum disaring (ditandai
     penjaga AI, aturan 32).
+
+34. **Log line sampai tab Log, galat penting sampai Discord** (batch 3.2 + 3.5, 2026-09-30).
+    Line menulis WARNING/ERROR-nya ke `log_line.db` di folder DB line lewat `SqliteLogHandler`
+    yang sama dengan konsol, tapi `write()` cuma menaruh di antrean memori (`AntreanLogLine`,
+    maks 1.000) dan thread `log_line` yang menulis ke disk tiap ~0,2 detik: thread deteksi tidak
+    pernah menunggu disk log (aturan 1b). Berkas maks 2.000 baris, baris yang paling lama tidak
+    berubah dibuang dan dihitung (`dibuang`). Kursor `(generasi, seq)`: `seq` naik tiap baris
+    berubah (baru atau digabung), `generasi` acak per berkas, jadi berkas yang direset dibaca dari
+    awal. Konsol menariknya tiap 10 detik (`TarikLogLineWorker`, BUKAN `LineStatusWorker`) dan
+    menyimpan baris + kursor dalam SATU transaksi di `log_kejadian.db` (`log_line_kursor`): tidak
+    hilang dan tidak ganda saat line restart, konsol restart, atau log line direset. Line mati,
+    menolak kunci, atau versi lama (404) = diam, dicoba lagi 30 dtk / 5 menit kemudian.
+    **Lapor Discord** mati kalau `DISCORD_WEBHOOK_URL` kosong (bawaan) atau bukan https. Nyala:
+    semua ERROR konsol + ERROR line yang ditarik antre per jenis di `lapor_discord.db`, disusun
+    jadi ringkasan (identitas `ERP_COMPANY` + host + versi, hitungan, jam pertama/terakhir, tanpa
+    traceback, teredaksi, dipecah 2.000 karakter) paling cepat 2 menit sesudah galat pertama dan
+    paling sering tiap 15 menit, dan tidak ada ringkasan baru selama masih ada pesan yang belum
+    terkirim. Jaringan/5xx: jeda 30 dtk berlipat sampai 15 menit. 429: tunggu `retry_after`.
+    4xx lain (webhook salah/dihapus): berhenti sejam, kalimat merah di atas tabel tab Log, satu
+    WARNING. Worker lapor tidak pernah menulis ERROR (akan melaporkan dirinya sendiri). Alamat
+    webhook itu rahasia: tidak pernah dicatat atau dikirim ke layar.
 
 35. **Health jujur + pemantau disk** (batch 3.6 dan 3.7, 2026-09-30). Aturan 32 diperluas,
     bukan diduplikasi: `domain/kesehatan_ai.py` + `services/penjaga_ai.py` yang SAMA.

@@ -427,6 +427,10 @@ class Settings:
     # row-count cap: a count cap would discard old rows exactly while errors
     # are flooding. ~300 bytes/row, so 180 days is ~10 MB.
     log_retention_days: int = field(default_factory=lambda: int(os.getenv("LOG_RETENSI_HARI", "180")))
+    # Batch 3.5: ringkasan ERROR penting ke kanal Discord support, lewat antrean di
+    # disk (terkirim saat internet ada). Kosong = mati, bawaan: `.env` lama tidak
+    # berubah perilaku. Alamat ini rahasia; tidak pernah dicatat atau ditampilkan.
+    discord_webhook_url: str = field(default_factory=lambda: os.getenv("DISCORD_WEBHOOK_URL", "").strip())
 
     # ── AutoERP link ─────────────────────────────────────────────
     # The console calls AutoERP; AutoERP never calls in (a factory PC has no
@@ -831,6 +835,11 @@ class Settings:
         """Its own file, not a table in console.db — an error flood must not
         slow down the queries serving the operator screen."""
         return self.state_dir / "log_kejadian.db"
+
+    @property
+    def lapor_discord_db_path(self) -> Path:
+        """Antrean ringkasan galat ke Discord (batch 3.5), berkas sendiri milik konsol."""
+        return self.state_dir / "lapor_discord.db"
 
     @property
     def console_lines(self) -> tuple[LineEndpoint, ...]:

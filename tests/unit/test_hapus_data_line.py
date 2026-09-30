@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from palmgrade.domain.berkas_utuh import nama_sementara
+from palmgrade.repositories.log_line_repository import NAMA_DB_LOG_LINE
 from palmgrade.services import hapus_data_line
 from palmgrade.services.hapus_data_line import (
     MILIK_LINE_DI_STATE,
@@ -300,7 +301,7 @@ def test_mulai_hapus_dicatat_sebelum_menghapus(tmp_path, caplog):
 
 # ── penjaga: setiap berkas .db di state/ harus tergolong ────────────────────
 
-_DB_KONSOL = {"console.db", "erp_outbox.db", "log_kejadian.db", "manifest_outbox.db"}
+_DB_KONSOL = {"console.db", "erp_outbox.db", "log_kejadian.db", "manifest_outbox.db", "lapor_discord.db"}
 
 
 def test_semua_berkas_db_di_state_digolongkan():
@@ -322,12 +323,12 @@ def test_semua_berkas_db_di_state_digolongkan():
         m.group(1)
         for f in src.rglob("*.py")
         for m in re.finditer(r'state_dir / "([a-z_]+\.db)"', f.read_text())
-    } | set(BERKAS_DB_LINE)
+    } | set(BERKAS_DB_LINE) | {NAMA_DB_LOG_LINE}
     milik_line = {n for n in ditemukan if n.startswith(MILIK_LINE_DI_STATE)}
     selamat = {n for n in ditemukan if n in SELAMAT_DI_STATE}
     assert ditemukan - milik_line - selamat == _DB_KONSOL & ditemukan
     assert milik_line == {"upload_manifest.db", "outbox.db"}
-    assert selamat == {"license.db"}
+    assert selamat == {"license.db", "log_line.db"}
 
 
 def test_hapus_data_di_state_menyisakan_lisensi(tmp_path):

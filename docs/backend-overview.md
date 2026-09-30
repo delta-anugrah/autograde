@@ -213,7 +213,8 @@ secret yang dikonfigurasi kosong tidak pernah membuka lane (`routes/penjaga_raha
 | POST | `/internal/piston` | Piston manual (fitur mati selama `PLC_COIL_MANUAL` kosong) |
 | GET | `/internal/plc` | Snapshot DI + coil yang boleh diuji |
 | POST | `/internal/plc/coil` | Picu satu coil uji; ditolak 409 selama line punya truk terpasang |
-| POST | `/internal/restart` | ← dari konsol (Sumber Kamera, Model Deteksi, Danger Zone): jawab dulu, 1 detik kemudian urutan tutup yang SAMA dengan SIGTERM (coil PLC mati bersamaan dengan antrean simpan dihabiskan, lalu kamera + penjadwal R2), maks 9 detik, baru `os._exit(0)`. `restart: unless-stopped` menyalakan lagi dan line membaca ulang `media.env`. Aturan 29 |
+| POST | `/internal/restart` | ← dari konsol (Sumber Kamera, Model Deteksi, Danger Zone): jawab dulu, 1 detik kemudian urutan tutup yang SAMA dengan SIGTERM (coil PLC mati bersamaan dengan antrean simpan dihabiskan, lalu kamera + penjadwal R2), lalu antrean log line dikuras (batch 3.2, maks 1 detik), maks 10 detik total, baru `os._exit(0)`. `restart: unless-stopped` menyalakan lagi dan line membaca ulang `media.env`. Aturan 29 |
+| GET | `/internal/log` | ← dari konsol tiap 10 detik (`TarikLogLineWorker`, batch 3.2): `?setelah=<seq>&generasi=<g>&batas=<n>` → `{generasi, entri[{id, seq, first_at, last_at, level, source, message, detail, count}], seq_akhir, lagi, dibuang}`. WARNING/ERROR line dari `log_line.db` (folder DB line, maks 2.000 baris, selamat dari Danger Zone). Terbuka walau lisensi habis (gerbang lisensi mengizinkan path ini persis); router `routes/internal_log.py`, tanpa torch |
 | POST / GET | `/internal/rekam/mulai`, `/stop`, `/status` | Rekam video developer (tab Line → Rekam Video) ke `REKAMAN_DIR` |
 | GET / POST | `/internal/rekam/berkas`, `/internal/rekam/hapus` | Hitung / hapus rekaman line ini (Danger Zone); hapus ditolak selama merekam |
 | POST | `/internal/hapus-data` | Danger Zone: tulis penanda lalu keluar lewat urutan tutup yang sama, data dihapus saat boot berikutnya. 409 `truk_terpasang` kalau line sedang memproses truk |
@@ -306,7 +307,8 @@ Semuanya dijawab **403** kalau operator yang masuk bukan `role='support'`. Rasio
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/console/dev/ping` | cek akses masih hidup, tanpa membaca apa pun |
-| GET | `/api/console/dev/log` | `event_log`: filter `level`/`cari`, `limit`+`offset` |
+| GET | `/api/console/dev/log` | `event_log`: filter `level`/`cari`, `limit`+`offset`. Sejak batch 3.2 baris tarikan line membawa `line_code` (null = konsol) dan `asal` |
+| GET | `/api/console/dev/lapor-discord` | Keadaan lapor Discord (`mati`/`url_salah`/`aktif`/`tertahan`/`ditolak`) + antrean + galat terakhir (aturan 34). Alamat webhook tidak pernah ikut |
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu jawaban |
 | GET | `/api/console/dev/antrean` | `erp_outbox`: jumlah pending/gagal + daftar gagal. `ErpClient` membalas empat jawaban (`ErpRejected` 4xx, `ErpServerError` 5xx beramplop Frappe, `ErpUnavailable` tidak terjangkau, atau terkirim); dua yang pertama dicatat per pesan dan batch lanjut, `ErpUnavailable` menahan batch dan Last Sync membaca putus (`integrations/erp/client.py`) |
 | GET | `/api/console/dev/antrean/manifest` | antrean manifest R2 (DB terpisah dari `erp_outbox`, supaya R2 mati tidak menahan pesan AutoERP) |
@@ -467,6 +469,7 @@ seperti variabel mati padahal bukan: jangan dihapus karena `grep os.getenv` tida
 | `ERP_ALLOWED_ROLES` | `support` | Peran mana yang boleh datang dari AutoERP (`domain/role.py`, `filter_erp_role`). Kosong = tolak semua akun ERP dari lane support |
 | `LOG_RETENSI_HARI` | `180` | Umur baris `log_kejadian` (tab Log) |
 | `LOG_LEVEL` | `INFO` | Level keluaran proses (`docker logs`) line dan konsol; salah ketik = INFO + satu WARNING; tab Log tetap WARNING/ERROR |
+| `DISCORD_WEBHOOK_URL` | kosong | Konsol, opsional. Kosong = fitur Lapor Discord mati total (aturan 34); rahasia, tidak pernah dicatat atau dikirim ke layar. Lampung: tambahkan di blok `console:` compose host DAN `.env` PC, lalu `autograde restart` |
 | `REKAMAN_TAMPIL` | `/opt/palmgrade/autograde/videos` (compose) | Jalur rekaman yang **ditampilkan** di Rekam Video: jalur host, bukan `/app/videos` |
 | `CONSOLE_MACHINE_ID` | `konsol` (compose prod) | Diteruskan sebagai `MACHINE_ID` konsol, untuk kartu Versi |
 
@@ -498,12 +501,13 @@ Verbatim copy of the former `CLAUDE.md` sections "HTTP Surface" and "Integration
 | GET | `/internal/status` | ← dari konsol tiap 1 detik (`LineStatusWorker`): truk, piston, `alarms` PLC (aturan 24), dan `unggah` = ringkasan upload foto ke R2 untuk Last Sync (`aktif`/`terakhir`/`gagal_sejak`/`antre`, aturan 27). `unggah` dihitung **sekali per batch**, bukan per panggilan; `null` di line tanpa worker upload. Bawa juga `ai` = blok penjaga AI mati (keadaan, `mati`, `kode`, `sejak`, `ambang_detik`), tanpa galat mentah, dan `disk` = blok pemantau disk (aturan 35). `x-internal-secret` |
 | POST | `/internal/manual-reject` | ← from api: trigger manual reject (`x-internal-secret`) |
 | POST | `/internal/hapus-data` | ← dari konsol (Danger Zone): tulis penanda `artifacts/.hapus-data` lalu keluar lewat urutan tutup yang sama (aturan 29); data line dihapus **saat boot berikutnya**, sebelum store mana pun membuka berkasnya. **409** kalau line sedang dipasangi truk. Selama penandanya ada, `/internal/assignment` menolak truk baru (**409** `hapus_berjalan`). Router `routes/internal_bahaya.py`: **tanpa torch**, jadi teruji di CI |
-| POST | `/internal/restart` | ← dari konsol (Sumber Kamera, Model Deteksi, Danger Zone): jawab dulu, 1 detik kemudian urutan tutup yang SAMA dengan SIGTERM (coil PLC mati bersamaan dengan antrean simpan dihabiskan, lalu kamera + penjadwal R2), maks 9 detik, baru `os._exit(0)`. Aturan 29 |
+| POST | `/internal/restart` | ← dari konsol (Sumber Kamera, Model Deteksi, Danger Zone): jawab dulu, 1 detik kemudian urutan tutup yang SAMA dengan SIGTERM (coil PLC mati bersamaan dengan antrean simpan dihabiskan, lalu kamera + penjadwal R2), lalu antrean log line dikuras (batch 3.2, maks 1 detik), maks 10 detik total, baru `os._exit(0)`. Aturan 29 |
 | GET / POST | `/internal/rekam/berkas`, `/internal/rekam/hapus` | ← dari konsol (Danger Zone): hitung / hapus rekaman **milik line ini** (`{line_code}_*.mp4`, folder `videos/` dipakai bersama). Hapus **409** selama merekam |
 | WS | `/ws/results` | legacy result push. ⚠️ `image_url`-nya dikirim **sebelum** berkasnya ada di disk (deteksi menyerahkan janjang ke `CaptureSaveWorker` lalu lanjut), jendelanya ratusan milidetik. Tidak ada yang memakai lane ini hari ini (`console.html` tidak membukanya), tapi siapa pun yang menghidupkannya harus menahan gambar sampai 404 pertama lewat. Jalur yang dipakai konsol aman: barisnya ditulis penulis **sesudah** gambarnya jadi |
 | GET | `/captures/...` | static images (mount → `artifacts/`), tanpa sesi (line tidak punya konsep login): `.db`/berkas tersembunyi dijawab 404 (`domain/berkas_captures.py`) |
 | GET | `/internal/outbox` | ← dari konsol (tab Status → Antrean line): `{line_code, aktif, menunggu, tertua_at, ditolak, ditolak_at, ditolak_alasan, lama_tertinggal, tersambung, putus_sejak, sebab_putus, coba_lagi_at, galat, galat_at}` (`ditolak` = baris yang percobaan terakhirnya ditolak konsol 400/422). Router `routes/internal_outbox.py`, **tanpa torch**. `x-internal-secret` |
 | POST | `/internal/outbox/requeue` | ← Kirim Ulang: semua baris jatuh tempo sekarang, jeda sambungan dibatalkan → `{requeued}`. URL dan bentuk sama dengan sebelum batch 2.4. `x-internal-secret` |
+| GET | `/internal/log` | ← dari konsol tiap 10 detik (`TarikLogLineWorker`, batch 3.2): `?setelah=<seq>&generasi=<g>&batas=<n>` → `{generasi, entri[{id, seq, first_at, last_at, level, source, message, detail, count}], seq_akhir, lagi, dibuang}`. WARNING/ERROR line ini dari `log_line.db` (folder DB line, maks 2.000 baris, selamat dari `--force-recreate` dan Danger Zone). Terbuka walau lisensi habis, tetap `x-internal-secret`. Router `routes/internal_log.py`, **tanpa torch** |
 
 **Konsol (`APP_MODE=console`, port 8100 image produksi dan `make console`, 8000 dari source)**: surface yang berbeda total; `main.py` tidak dipakai.
 **Semua `/api/console/*` butuh sesi** (Fase 4) kecuali tiga baris pertama di bawah; tanpa cookie
@@ -540,7 +544,8 @@ konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
 | POST | `/api/console/lines/{line}/piston` | `{open}` → diteruskan ke `/internal/piston` line. Menggerakkan hardware, jadi butuh sesi operator seperti lane operator lain (batch 1.1), dan tiap percobaan dicatat WARNING menyebut siapa yang menekan (tab Log), dipicu atau ditolak |
 | GET | `/api/console/dev/ping` | lane developer paling ringan: dipakai layar untuk memastikan akses masih hidup. **Semua baris `/dev/*` di bawah ini butuh `role='support'`, dijawab 403 kalau bukan** |
-| GET | `/api/console/dev/log` | isi `event_log`: filter `level`/`cari`, pagination `limit`+`offset` |
+| GET | `/api/console/dev/log` | isi `event_log`: filter `level`/`cari`, pagination `limit`+`offset`. Sejak batch 3.2 baris tarikan line membawa `line_code` (null = konsol) dan `asal`; `cari` juga mencocokkan kode line |
+| GET | `/api/console/dev/lapor-discord` | **support**: keadaan lapor Discord (`mati`/`url_salah`/`aktif`/`tertahan`/`ditolak`) + antrean + galat terakhir. Alamat webhook tidak pernah ikut |
 | GET | `/api/console/dev/diagnostik` | `/health/detail` ketiga line, digabung satu layar |
 | GET | `/api/console/dev/antrean` | isi `erp_outbox`: jumlah pending/gagal + daftar yang gagal |
 | POST | `/api/console/dev/antrean/kirim-ulang` | requeue semua baris gagal di `erp_outbox` |

@@ -39,6 +39,8 @@ services:
       - ERP_ALLOWED_ROLES=${ERP_ALLOWED_ROLES}
       - LOG_RETENSI_HARI=30
       - LOG_LEVEL=INFO
+      # Batch 3.5: sengaja kosong. Demo tidak melapor ke kanal support pabrik.
+      - DISCORD_WEBHOOK_URL=
       # No camera lines, so no photos: R2 stays off.
       - R2_ACCOUNT_ID=
       - R2_ACCESS_KEY_ID=
