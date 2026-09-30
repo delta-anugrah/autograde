@@ -4600,7 +4600,7 @@ async function cekKamera() {
 // TIDAK dihitung: proses lama yang sedang menguras antrean simpan bisa lambat
 // lalu menjawab lagi), atau paling lambat RESTART_PASTI_MATI_MS sesudah
 // ditandai, yang juga menangani proses yang macet (urutan tutup line
-// maks 9 detik sesudah menjawab, aturan 29; 12 detik = batas tunggu Danger
+// maks 10 detik sesudah menjawab, 1 + 8 + 1 kuras log line, aturan 29; 12 detik = batas tunggu Danger
 // Zone). Tanpa syarat itu frame terakhir proses lama, yang ditahan browser tanpa
 // event apa pun, akan menghapus tanda sebelum line benar-benar mati.
 const RESTART_BATAS_MS = 60000;       // sesudah ini: spinner diganti pesan rinci

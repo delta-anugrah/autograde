@@ -150,7 +150,7 @@ def test_gambar_dari_stream_yang_diminta_sebelum_line_mati_tidak_menghapus_tanda
 @butuh_node
 def test_line_yang_tidak_terlihat_mati_dianggap_kembali_sesudah_proses_lama_pasti_keluar():
     """Restart kilat di antara dua probe: proses lama pasti sudah keluar
-    `RESTART_PASTI_MATI_MS` sesudah ditandai (urutan tutup maks 9 detik)."""
+    `RESTART_PASTI_MATI_MS` sesudah ditandai (line keluar maks 10 detik sesudah menjawab)."""
     fn = ["batasBuktiRestart", "restartSelesai"]
     m = _tanda()
     batas = _jalan(fn, "RESTART_PASTI_MATI_MS")
