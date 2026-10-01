@@ -18,6 +18,18 @@ Next:           ...
 
 ---
 
+## 2026-10-01 · docs · Stale text found by the markdown audit (PR #207)
+Changed:        Audit of all 31 tracked .md files: none to remove (the repo was cleaned in #180 and
+                #186). Fixed in place: the 2026-09-23 PLC commissioning runbook says the `UJI`
+                confirmation is gone and that `autograde restart` now recreates the containers
+                (`--force-recreate`), so its "stop then start, not restart" advice is no longer
+                needed; agent docs-sync no longer skips the untracked `docs/superpowers/`; a test
+                docstring no longer lists autoerp's `autograde-integration.md` as an autograde doc;
+                skill model-swap-eval names the support account and the Line tab plainly.
+Validated:      unit suite and test_doc_links / em dash / skill mirror tests pass (output in the PR).
+Not validated:  Nothing else.
+Next:           None.
+
 ## 2026-10-01 · console, tests · Follow-ups from the browser suite (PR #206)
 Changed:        Console: the Setelan line that did not receive a change is a KAMUS sentence
                 (`setelanBelumSampai`, id + en), guarded by `test_kalimat_layar_hanya_dari_kamus`;
