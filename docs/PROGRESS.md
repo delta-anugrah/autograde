@@ -41,14 +41,22 @@ Changed:        A truck unloaded on three lines has three line assignments, but 
                 `kirim=True`). A release with graded bunches that finds no ticket in the window now
                 logs a WARNING (plate, line, assignment) instead of dropping the bunches silently.
                 The dead `ConsoleStore.bunches_for_assignment` is gone (its tests moved to
-                `bunches_for_visit`); `grading_counts` stays, the warning uses it.
+                `bunches_for_visit`); `grading_counts` stays, the warning uses it. Residual of the
+                single send: a late bunch of a released line or an operator Lepas during the
+                weigh-out loop still queued the visit (tare plus the lines linked so far), so the
+                console keeps a locked count of trucks being weighed out and `_kirim_kunjungan`
+                skips their tickets; the queue after the loop rebuilds from the store and counts
+                the late bunch. After the loop the visits are queued first and the detail pages
+                last, and a page that cannot be queued is logged, never raised.
 Validated:      RED first: `test_kunjungan_banyak_line_kirim.py` 7 failed before the change (total 2 of
                 5, link rows without a line code, nothing linked across midnight); the new integration
                 test failed against the previous commit with 4 of 9 bunches sent. For the final review
                 fixes: against f1eb217 the weigh-out test failed with "kunjungan dengan tara sudah di
                 antrean saat line ke-2 dilepas", the detail page was queued 3 times instead of once,
-                and the no-ticket warning test found no log record. After:
-                `pytest tests/unit tests/e2e tests/integration` → 4318 passed, 45 skipped;
+                and the no-ticket warning test found no log record. Against 2d77bf5 the late-bunch
+                and operator-Lepas tests failed with "kunjungan dengan tara sudah di antrean pada
+                pelepasan ke-2" and "ke-3", and a page that raises escaped `record_weighing`. After:
+                `pytest tests/unit tests/e2e tests/integration` → 4324 passed, 45 skipped;
                 `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
                 58 passed; `ruff check` on every touched file clean. New tests:
                 `tests/unit/test_kunjungan_banyak_line_kirim.py` (send, detail page, Log line, window,
@@ -62,7 +70,10 @@ Risks:          A release before the ticket is typed can attach the grading to t
                 ticket, up to 12 hours back and across midnight, because the link takes the truck's
                 newest ticket in the window. A visit longer than 12 hours from weigh-in to release
                 loses its grading link (the bunches stay in the console, never reach that visit);
-                this is now logged as a WARNING in the Log tab, not fixed.
+                this is now logged as a WARNING in the Log tab, not fixed. A line that does not
+                answer at weigh-out keeps the truck: the visit is queued with the lines that did
+                release; a later manual Lepas re-sends it whole and AutoERP marks it revised
+                (Cek AutoERP).
 Decisions:      The key AutoERP stores (`autograde_assignment_id`, unique) is the FIRST assignment
                 linked, so it stays the same across resends. `line_code` in the message now names every
                 line ("line-1, line-2"); AutoERP does not read it. The window query filters on

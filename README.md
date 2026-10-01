@@ -691,7 +691,8 @@ dibuka dari tiket AutoERP di kantor, bukan cuma dari PC pabrik. PC pabrik nol in
 AnyDesk), jadi halamannya tidak bisa hidup di konsol; dia hidup di R2, domain publik yang sama
 dengan foto (`captures.smagri.id`).
 
-Alurnya, saat konsol melepas truk dari line (`_queue_grading`):
+Alurnya, saat konsol melepas truk dari line (`_queue_grading`; pada timbang keluar, sekali
+sesudah semua line truk itu lepas, di `record_weighing`):
 
 1. Konsol membaca semua janjang kunjungan itu, dari setiap line yang membongkar truknya, dari
    SQLite-nya sendiri (`ConsoleStore.bunches_for_visit`), lalu merakit **satu JSON per kunjungan**
