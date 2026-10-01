@@ -13,6 +13,7 @@ directory scanning anywhere (§6.2).
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import threading
@@ -46,6 +47,7 @@ from ..repositories.console_repository import ConsoleStore
 from ..workers.visit_manifest_worker import VisitManifestWorker
 from .erp_queue import ErpQueue
 from .layar_line_support import LayarLineSupport
+from .penugasan_otomatis import PenugasanOtomatis
 from .status_sinkron import StatusSinkron
 
 logger = logging.getLogger(__name__)
@@ -64,7 +66,7 @@ NET_TOLERANCE_KG = 1.0
 MINIMUM_WEIGHT_KG = 1000.0
 
 
-class ConsoleService(LayarLineSupport):
+class ConsoleService(LayarLineSupport, PenugasanOtomatis):
     def __init__(
         self,
         settings: Settings,
@@ -114,6 +116,9 @@ class ConsoleService(LayarLineSupport):
         self._truk_ditutup: dict[str, int] = {}
         self._tertunda: dict[str, dict[str, str]] = {}
         self._kunci_ditutup = threading.Lock()
+        # One automatic assignment at a time (2026-10-01): two weighings landing together
+        # would both see the lines free and the second would overwrite the first.
+        self._kunci_penugasan = asyncio.Lock()
 
     # ------------------------------------------------------------ ingest
 
@@ -263,6 +268,12 @@ class ConsoleService(LayarLineSupport):
             # Ditampilkan supaya pelepasannya terlihat: kalau bongkar ternyata
             # belum habis, operator masih bisa meng-assign ulang.
             "auto_releases": self.store.auto_releases_terbaru(),
+            # Antrean bongkar di atas kartu line (2026-10-01), di polling 2 detik yang sama:
+            # yang perlu melihatnya operator yang sedang memegang tombol line.
+            "antrean_bongkar": self.antrean_bongkar(),
+            "penugasan_otomatis": {
+                k: v for k, v in self.penugasan_otomatis().items() if k != "lines_tersedia"
+            },
             # Menumpang polling 2 detik ini, bukan endpoint sendiri: yang melihat
             # sambungan putus itu operator biasa (alasan sama dengan banner lisensi).
             "sinkron": self._sinkron_aman(),
@@ -510,7 +521,11 @@ class ConsoleService(LayarLineSupport):
         # The pages last: the visit never depends on the page.
         for tiket, assignment_id in halaman.items():
             self._antre_halaman(tiket, assignment_id)
-        return self.store.weighing(weighing_id) or {}
+        # Automatic line assignment (2026-10-01), only after everything above is queued and
+        # outside the weigh-out guard: a new ticket may go straight onto the lines, and a
+        # weigh-out just freed them for the next truck in the unloading queue.
+        dipasang = await self.isi_line_otomatis()
+        return {**(self.store.weighing(weighing_id) or {}), "dipasang": dipasang}
 
     # ------------------------------------------------------ send to AutoERP
 
@@ -742,6 +757,8 @@ class ConsoleService(LayarLineSupport):
             assigned_at=datetime.now(self.tz).isoformat(),
             ffb_source=None,
         )
+        # No `await` between these two (2026-10-01): until the link is written, the truck is
+        # on no line and linked to nothing, so the unloading queue would offer it again.
         self.store.set_assignment(line_code, "", None)
         self._queue_grading(closing, kirim=kirim)
         return {"line_code": line_code, "truck_id": None}

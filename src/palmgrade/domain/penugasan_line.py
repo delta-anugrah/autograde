@@ -41,8 +41,8 @@ def setelan_bawaan(line_dikenal: list[str]) -> SetelanPenugasan:
 
 
 def baca_setelan(tersimpan: str | None, line_dikenal: list[str]) -> SetelanPenugasan:
-    """The stored setting, or the default. A line no longer configured is dropped, and
-    a setting left with no line reads as off.
+    """The stored setting, or the default. A line no longer configured is dropped; a
+    setting left with no line, or with an `aktif` that is not JSON true, reads as off.
 
     Never raises: the `state()` poll reads it every 2 s, so text that is not JSON, JSON
     that is not an object, or a `lines` of the wrong shape all fall back instead.
@@ -58,7 +58,9 @@ def baca_setelan(tersimpan: str | None, line_dikenal: list[str]) -> SetelanPenug
     daftar = nilai.get("lines")
     pilihan = {kode for kode in daftar if isinstance(kode, str)} if isinstance(daftar, list) else set()
     lines = tuple(kode for kode in line_dikenal if kode in pilihan)
-    return SetelanPenugasan(aktif=bool(nilai.get("aktif")) and bool(lines), lines=lines)
+    # Only a real JSON true turns it on: `bool("false")` is True, and anything this code
+    # did not write must read as the safe default, off (D13).
+    return SetelanPenugasan(aktif=nilai.get("aktif") is True and bool(lines), lines=lines)
 
 
 def bersihkan_setelan_penugasan(

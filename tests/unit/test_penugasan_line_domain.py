@@ -67,6 +67,18 @@ def test_daftar_line_yang_bentuknya_salah_dibaca_kosong_dan_mati(teks):
     assert baca_setelan(teks, LINES) == SetelanPenugasan(aktif=False, lines=())
 
 
+@pytest.mark.parametrize(
+    ("aktif", "nyala"),
+    [("true", True), ('"false"', False), ('"0"', False), ('"true"', False), ("1", False),
+     ("0", False), ("null", False), ("false", False)],
+)
+def test_cuma_true_asli_yang_menyalakan(aktif, nyala):
+    """Teks "false" atau "0" yang tersimpan tidak boleh terbaca nyala: bawaannya mati (D13),
+    jadi nilai yang tidak dikenal ikut mati, bukan diam diam menugaskan truk."""
+    teks = f'{{"aktif": {aktif}, "lines": ["line-1"]}}'
+    assert baca_setelan(teks, LINES).aktif is nyala
+
+
 def test_nyala_tanpa_line_tersisa_dibaca_mati():
     assert baca_setelan('{"aktif": true, "lines": ["line-9"]}', LINES).aktif is False
 
