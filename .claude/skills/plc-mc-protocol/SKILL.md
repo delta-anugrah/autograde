@@ -38,7 +38,8 @@ Polanya persis skema ODOT lama (coil 0–9, DI 0–11) dipindah ke M1000 / M1100
 | **M1009** | **HEARTBIT PC** | **berkedip 500 ms**; OFF kalau lisensi menghentikan grading |
 
 ERROR naik untuk **kamera putus ATAU AI mati** sejak v1.20.0, dan untuk **frame berhenti** (kamera
-tersambung tapi diam) sesudah autograde #200 (bab "Coil ERROR" di bawah).
+tersambung tapi diam) sejak v1.21.0 (bab "Coil ERROR" di bawah). Keduanya terpasang di Lampung
+2026-10-01.
 
 **PC membaca**: satu blok M1100–M1115 tiap 200 ms:
 
@@ -218,11 +219,12 @@ di panel. ⚠️ **PLC tidak bisa menghitung janjang di mode ini**, dua janjang 
 satu sinyal panjang. Keduanya berbagi antarmuka (`enqueue`/`tick`/`dropped`/`is_active`),
 jadi `PlcWorker` tidak tahu mana yang terpasang, pola yang sama dengan `build_plc_client`.
 
-## Coil ERROR: kapan naik (v1.20.0, frame berhenti sesudah #200)
+## Coil ERROR: kapan naik (v1.20.0, frame berhenti sejak v1.21.0)
 
 Ringkasnya: **kamera putus, AI mati** (gambar masuk tapi tidak ada frame yang selesai digrading
 lebih dari `AI_MATI_DETIK`, bawaan 30 detik), **atau frame berhenti** (kamera tersambung tapi tidak
-ada gambar masuk selama `AI_MATI_DETIK`, keadaan `frame_berhenti`, batch 3.6, autograde #200).
+ada gambar masuk selama `AI_MATI_DETIK`, keadaan `frame_berhenti`, batch 3.6, autograde #200,
+rilis v1.21.0).
 Lisensi, sumber selesai (video uji tanpa ulang yang habis), line yang baru mulai, dan pulse yang
 dibuang **tidak** menaikkannya. Aturan lengkap dan alasannya tidak disalin di sini: sumbernya
 `PenilaianAi.error_plc` (`domain/kesehatan_ai.py`), penjelasannya `docs/rules.md` aturan 32 dan
@@ -244,8 +246,8 @@ Peta alamat **sudah beres** (daftar Ocit 2026-09-23). Sisanya:
 
 0. ⚠️ **Coil ERROR (M1002/M1005/M1008) belum pernah dibuktikan di panel**; tombol ujinya ada
    sejak 23 Sep malam. M1000, M1001, dan M1111 terbukti 23 Sep; heartbeat M1009 jalan tapi
-   **belum dipantau** di GX Works2. Sejak v1.20.0 (terpasang di Lampung 2026-10-01) ERROR juga
-   naik untuk AI mati; rilis sesudah #200 menambah frame berhenti (belum terpasang di Lampung).
+   **belum dipantau** di GX Works2. ERROR juga naik untuk AI mati sejak v1.20.0 dan untuk frame
+   berhenti sejak v1.21.0; keduanya terpasang di Lampung 2026-10-01.
 1. **Watchdog heartbeat di ladder** (pantau M1009 berkedip): satu-satunya pekerjaan panel
    yang tersisa; paling mudah terlewat, paling mahal kalau lupa.
 1b. **Mode tahan dipakai atau tidak di produksi?** Opsinya sudah ada (`PLC_HOLD_MS`), tapi
