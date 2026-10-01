@@ -52,14 +52,16 @@ Bisa ditambah ~35 GB gratis dengan `docker system prune` (image lama + build cac
 
 ### Kapasitas gambar, dihitung
 
-Ukuran nyata **178 KB/gambar** (WebP q65, kamera 2448×2048). Untuk **3 line
-digabung**, dengan asumsi 20 jam operasi/hari:
+Ukuran nyata **178 KB/gambar** (WebP q65, kamera 2448×2048). Sejak autograde #97 tiap janjang
+menulis **dua gambar penuh** (`bbox/` dan `clean/`, keduanya q65) plus thumbnail 400 px
+(`services/capture_writer.py`), jadi ±370 KB per janjang. Yang diukur cuma gambar `bbox/`;
+ukuran `clean/` (dianggap sama, 178 KB) dan thumbnail (±15 KB) masih perkiraan. Untuk **3 line digabung**, dengan asumsi 20 jam operasi/hari:
 
 | janjang/jam/line | per hari (3 line) | muat berapa hari di 210 GB |
 |---|---|---|
-| 300 | 3,1 GB | **~68 hari** |
-| 500 | 5,1 GB | **~41 hari** |
-| 1000 | 10,2 GB | **~21 hari** |
+| 300 | ~6,4 GB | **~33 hari** |
+| 500 | ~10,6 GB | **~20 hari** |
+| 1000 | ~21 GB | **~10 hari** |
 
 ⚠️ **`UPLOAD_RETENTION_DAYS=180` di pabrik TIDAK akan pernah tercapai** pada
 throughput manapun di atas: penjaga disk (`UPLOAD_DISK_MIN_FREE_GB=20`) akan
@@ -67,8 +69,9 @@ membuang item `done` jauh lebih dulu. Itu **perilaku benar, bukan bug**: arsip
 sesungguhnya ada di R2/cloud, lokal cuma cadangan. Jangan "membetulkan"
 retensi karena melihat foto lama hilang.
 
-⚠️ **Menyimpan gambar versi kedua (mis. clean tanpa bounding box) = semua angka
-di atas dibagi dua.** Di 500 janjang/jam/line, 41 hari jadi ~20 hari.
+Angka di atas **sudah** menghitung salinan `clean/` (polos, buat latih ulang model). Dulu tabel ini
+cuma menghitung satu gambar dan menyebut salinan kedua sebagai kemungkinan; sekarang itu keadaan
+sebenarnya. `clean/` tidak naik ke R2 dan ikut dihapus bersama `bbox/` oleh retensi.
 
 ## GPU
 
@@ -106,7 +109,8 @@ Sejak 2026-09-20 yang jalan: `ripe_line_1|2|3` (line kamera) dan `autograde-cons
 (konsol, nama dari compose host yang tanpa `container_name`). `palmgrade_api`,
 `palmgrade_frontend`, `palmgrade_postgres`, `palmgrade_mongo` di-**stop** (bukan dihapus,
 volumenya utuh). Nama tidak sama dengan compose dev. Selalu `docker ps --format '{{.Names}}'` sebelum
-`docker exec`: file compose prod ada di host, tidak ada di repo.
+`docker exec`: compose yang dipakai pabrik hidup di host (`/opt/palmgrade/autograde/`) dan
+berbeda dari `docker-compose.prod.yml` di repo (skill `compose-host-pabrik`).
 
 ## Cara ukur ulang
 

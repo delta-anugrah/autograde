@@ -142,7 +142,7 @@ ditulis ke container sekali-pakai dan **hilang** begitu perintah selesai.
 
 ```bash
 docker logs ripe_line_1 2>&1 | grep backend=      # harus backend=tensorrt
-ls -lh engines/                                   # ±180 MB
+ls -lh engines/                                   # ±45 MB (best.sm86.engine, Lampung 2026-09-23)
 ```
 
 Masih `backend=pytorch` → engine nggak kebaca. Sistem tetap jalan, cuma lebih
