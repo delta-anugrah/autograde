@@ -284,8 +284,10 @@ browser-siap:
 
 # Tes browser: konsol asli di port acak dari salinan kode, line palsu, data demo.
 # `make test-browser BROWSER=firefox` untuk satu browser; tanpa BROWSER jalan di keduanya.
+# `WAJIB_BROWSER=1`: whoever types this target wants a failure, not a quiet skip, when
+# Playwright is missing.
 test-browser:
-	.venv/bin/pytest tests/browser/ -rs $(if $(BROWSER),--browser $(BROWSER),--browser chromium --browser firefox)
+	WAJIB_BROWSER=1 .venv/bin/pytest tests/browser/ -rs $(if $(BROWSER),--browser $(BROWSER),--browser chromium --browser firefox)
 
 # OPS-2: satukan truk kembar di PC pabrik yang SUDAH punya data dari palmgrade-api.
 # Truk lama ber-id acak, AutoGrade menurunkan id dari plat, dan plat tidak punya

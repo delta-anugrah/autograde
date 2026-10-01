@@ -1,6 +1,9 @@
 """The harness itself: isolated from the developer's machine, loud when it breaks.
 
-These hold the promises every other browser test leans on (plan Review Focus 1-5).
+These hold the promises every other browser test leans on: a developer's console, lines
+and `.env` stay untouched, a console that cannot start says why within its time limit,
+teardown frees what it started, and the page guard catches script and server errors in its
+own call while ignoring a refused camera feed.
 """
 
 from __future__ import annotations
@@ -11,10 +14,10 @@ import sys
 from pathlib import Path
 
 import httpx
-import langkah  # noqa: F401  (skips this module where Playwright is missing, fails in CI)
 import psutil
 import pytest
 from harness import PORT_DEVELOPER, KonsolUji, port_bebas
+from langkah import JEDA_HALAMAN_MS  # skips this module where Playwright is missing, fails in CI
 from line_palsu import LinePalsu
 
 
@@ -65,7 +68,7 @@ def test_the_guard_ignores_a_refused_resource_but_not_a_script_error(halaman):
     halaman.evaluate("() => { const i = new Image(); i.src = 'http://127.0.0.1:9/nope.png'; }")
     halaman.evaluate("() => { setTimeout(() => { throw new Error('boom from the test'); }, 0); }")
     # Let the page's own clock run the timer and the image attempt (no Python sleep).
-    halaman.evaluate("() => new Promise((r) => setTimeout(r, 300))")
+    halaman.evaluate("(ms) => new Promise((r) => setTimeout(r, ms))", JEDA_HALAMAN_MS)
     galat = halaman.context.galat_uji  # the fixture's list, read back here
     assert any("boom from the test" in g for g in galat)
     assert not any("Failed to load resource" in g for g in galat)

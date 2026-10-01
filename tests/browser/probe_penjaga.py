@@ -7,9 +7,9 @@ pytest-playwright keeps the trace and screenshot. A guard that trips in teardown
 
 from __future__ import annotations
 
-import langkah  # noqa: F401  (same skip-or-fail switch as the real tests)
+from langkah import JEDA_HALAMAN_MS  # same skip-or-fail switch as the real tests
 
 
 def test_a_page_that_throws(halaman):
     halaman.evaluate("() => { setTimeout(() => { throw new Error('probe error'); }, 0); }")
-    halaman.evaluate("() => new Promise((r) => setTimeout(r, 300))")
+    halaman.evaluate("(ms) => new Promise((r) => setTimeout(r, ms))", JEDA_HALAMAN_MS)

@@ -14,7 +14,9 @@ from line_palsu import LinePalsu
 
 _LOKAL = {"127.0.0.1", "localhost"}
 # What Chromium logs for the offline line's camera feed and for a deliberate 4xx answer.
-# Anything else on the console, and every uncaught exception, fails the test.
+# Anything else on the console, and every uncaught exception, fails the test. A 4xx passes
+# on purpose: the screen answers 401 before sign-in and words refusals from their codes;
+# a wrong API path shows up as the flow's own assertion failing.
 _BUKAN_GALAT = "Failed to load resource"
 # Firefox logs nothing for a failed response and Chromium words a 500 like the refused feed
 # above, so a server error from the console is read from the response status instead.

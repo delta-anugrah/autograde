@@ -17,7 +17,12 @@ if os.environ.get("WAJIB_BROWSER") != "1":
 
 from playwright.sync_api import Page, expect  # noqa: E402
 
-expect.set_options(timeout=5_000)
+# Playwright's own default; written down so a slow CI runner is never "fixed" by a sleep.
+EXPECT_MAKS_MS = 5_000
+# How long a test lets the page's own clock run a timer it just set (no Python sleep).
+JEDA_HALAMAN_MS = 300
+
+expect.set_options(timeout=EXPECT_MAKS_MS)
 
 OPERATOR = ("operator@demo.autoerp.test", "sawit2026")
 SUPPORT = ("support@demo.autoerp.test", "sawit2026")

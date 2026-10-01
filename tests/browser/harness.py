@@ -125,7 +125,7 @@ class KonsolUji:
                 if httpx.get(self.url + "/health", timeout=_TANYA_HEALTH_MAKS_S).status_code == 200:
                     return
             except httpx.HTTPError:
-                pass
+                pass  # not listening yet; the loop asks again until MULAI_MAKS_S
             time.sleep(_JEDA_TANYA_S)
         self.berhenti()
         raise RuntimeError(f"the console did not answer within {MULAI_MAKS_S:.0f} s:\n{self._ekor_log()}")
