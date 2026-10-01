@@ -277,6 +277,16 @@ demo-docker:
 hash-sandi:
 	PYTHONPATH=src .venv/bin/python scripts/hash-sandi.py
 
+# Tes browser (Playwright): pasang paket dan dua browsernya, sekali per mesin.
+browser-siap:
+	.venv/bin/pip install -r requirements-browser.txt
+	.venv/bin/python -m playwright install chromium firefox
+
+# Tes browser: konsol asli di port acak dari salinan kode, line palsu, data demo.
+# `make test-browser BROWSER=firefox` untuk satu browser; tanpa BROWSER jalan di keduanya.
+test-browser:
+	.venv/bin/pytest tests/browser/ -rs $(if $(BROWSER),--browser $(BROWSER),--browser chromium --browser firefox)
+
 # OPS-2: satukan truk kembar di PC pabrik yang SUDAH punya data dari palmgrade-api.
 # Truk lama ber-id acak, AutoGrade menurunkan id dari plat, dan plat tidak punya
 # indeks unik - tanpa ini tarikan pertama membelah tonase satu truk jadi dua baris.
