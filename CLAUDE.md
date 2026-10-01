@@ -117,6 +117,8 @@ no confidence number on bunch labels (`mode_dev` shows it); toasts close by them
 
 Git: default branch `staging`, PR-only, squash to `staging`, merge commit to `main` (so `main`
 always has merge commits `staging` lacks; compare with `git diff --stat`, not `git cherry`).
+CI green required by ruleset `ci-wajib-lolos` (id 24315701, `staging` and `main`): `lint-and-test`,
+`browser (chromium)`, `browser (firefox)`; renaming a job or matrix entry locks every PR.
 PR title `<type>(<scope>): ...`, PR body and **every commit message in English**, no em dash,
 never a "Co-Authored-By: Claude" or other AI mention.
 
