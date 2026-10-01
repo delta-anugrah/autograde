@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-01 · console · A visit's grading is summed over every line that unloaded it (PR pending)
+## 2026-10-01 · console · A visit's grading is summed over every line that unloaded it (PR #208)
 Changed:        A truck unloaded on three lines has three line assignments, but `weighings.assignment_id`
                 holds one, so AutoERP, the detail page and the Log tab counted only the line released
                 last. New table `visit_assignments` (one row per assignment, written when a line lets
