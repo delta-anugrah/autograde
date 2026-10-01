@@ -91,6 +91,10 @@ Kosong di container padahal ada di `.env` = blok compose host tidak menyebutnya 
 
 ## Urutan pasang batch 1 keamanan LAN di Lampung
 
+**Status Lampung:** langkah 1 dan 2 selesai. Cek pra-tag lolos 2026-09-30 (ketiga line me-mount
+`/app/state`, `WEBHOOK_SECRET` konsol bukan bawaan) dan `v1.20.0` terpasang 2026-10-01. Langkah 3
+(`INTERNAL_SECRET`) belum. Urutan di bawah tetap dipakai untuk PC berikutnya.
+
 Rilisnya sendiri **backward compatible**: tidak butuh sentuh `.env` atau compose host lebih dulu.
 Urutannya, kalau memang mau dikerjakan sekalian:
 
@@ -122,6 +126,9 @@ Urutannya, kalau memang mau dikerjakan sekalian:
 
 ## Urutan pasang batch 2 di Lampung
 
+**Status Lampung:** terpasang bersama `v1.20.0` (2026-10-01). Precheck 2026-09-30: antrean outbox
+ketiga line kosong (`[]`), jadi tidak ada janjang lama yang dikirim ulang.
+
 Rilisnya **No host-side change required** (tanpa `.env`, compose, atau launcher baru). Yang perlu
 dijaga ada di data, bukan berkas host:
 
@@ -134,7 +141,7 @@ for n in 1 2 3; do docker exec ripe_line_$n python -c 'import os,sqlite3; p=next
 ```
 
    Beri tahu user angkanya **sebelum** update: tiap baris `failed` dikirim lagi ke konsol di boot
-   pertama dan **mendarat di tanggal kerja ASLINYA**, bukan hari ini. Jadi total Rekap/Riwayat
+   pertama dan **mendarat di tanggal kerja ASLINYA**, bukan hari ini. Jadi total Rekap
    hari-hari lalu berubah, dan kunjungan AutoERP yang penugasannya masih tertaut bisa diantre
    ulang (tiket yang sudah final ditandai **Cek AutoERP** di tab Timbangan, satu WARNING
    `[TIKET_FINAL_BERBEDA]` per tiket). Tidak ada yang terhitung dua kali. Kalau user memutuskan

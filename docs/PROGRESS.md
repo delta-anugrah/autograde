@@ -131,6 +131,29 @@ Next:           PR to staging (PR body: reusable ci.yml call only provable on th
                 tell the PLC team the ERROR coil also rises for a camera that stops sending
                 frames.
 
+## 2026-10-01 · docs · PLC skill and the PLC team document brought up to v1.20.0 (PR #201)
+Changed:        plc-mc-protocol: ERROR = camera lost or AI dead (pointers to rules.md rule 32 and
+                plc-integration § Coil ERROR), a licence that stops grading turns M1009 off, all
+                three lines hold M1009 and what one crashed line leaves behind, the session plus
+                INTERNAL_SECRET path for Uji PLC and the piston. docs/plc-mc-handoff.md 1.8 + PDF.
+                Stale lines fixed in spek-pc-pabrik (disk table halved: bbox + clean + thumb),
+                mvs-camera (15 fps), model-swap-eval, compose-host-pabrik (Lampung status),
+                konsol-autograde and panduan-autograde. Outside the repo: v1.20.0 installed on the
+                Lampung PC on 2026-10-01 with the sawit #61 launcher (md5 7d3d7f24...); the
+                pre-tag checks passed on 2026-09-30.
+Validated:      doc guard tests (em dash, doc links, plc-map vs compose, skill mirror, rejected
+                bunch commands, camera feature file) → 59 passed; md_to_pdf → 12 pages, page 7
+                checked by eye; git merge-tree against origin/fix/logging-batch-3 → clean;
+                rule-reviewer → 1 blocking + 9 warnings, all fixed. Lampung `autograde status`
+                (pasted by the operator) → 4 containers up, /health v1.20.0, ai.keadaan=sehat.
+Not validated:  the ERROR coil on a real panel (item 0 of the PLC skill); the full test suite
+                (no code changed, CI runs it).
+Decisions:      the skill points to rule 32 and plc-integration instead of copying the ERROR
+                table (standard D1); the PLC team document keeps its own table because its
+                readers are outside the repo.
+Next:           when #200 lands, update rule 32, plc-integration § Coil ERROR, the handoff (1.9 +
+                PDF) and the skill paragraph for "frame berhenti"; hand handoff 1.8 to the PLC team.
+
 ## 2026-09-30 · console · Pydantic bodies for the operator routes (PR #199)
 Changed:        login, manual truck, scan, scan/keluar and manual weighing take models from
                 schemas/console_schema.py (shape only; content rules and their codes stay in the
