@@ -6,7 +6,9 @@ description: Use when changing the AutoGrade operator console screen (src/palmgr
 # Layar konsol AutoGrade
 
 Satu berkas `src/palmgrade/static/console.html`: vanilla JS, tanpa build, tanpa CDN, nol
-`https://` (harus jalan saat internet putus). Server: `console_main.py` + `routes/console.py`.
+`https://` (harus jalan saat internet putus). Server: `console_main.py` + `routes/console.py`, plus
+`routes/console_antrean_line.py` (bagian Antrean line di tab Status), `routes/console_ingest.py`
+(kiriman janjang dari line) dan `routes/console_deps.py` (sesi dan peran).
 Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian Frontend (F1 sampai F10).
 
 ## Sembilan tab (sejak 2026-09-28, dulu 15)
@@ -63,4 +65,6 @@ Test yang butuh node dilewati di CI tanpa node, jadi jalankan lokal.
 Jangan pakai port 8100 atau 8001 (milik `make console` / `make line` user). Worktree terpisah,
 konsol uji di 8110/8111 dengan `env -i`, `CONSOLE_LINE_HOST=http://127.0.0.2`, data demo lewat
 `scripts/seed-console-demo.py --hari 10`, Playwright dengan Chrome sistem. **Matikan konsol uji
-begitu selesai.** Aturan bisnis di balik layar ada di `docs/rules.md` aturan 19 sampai 27.
+begitu selesai.** Aturan bisnis di balik layar ada di `docs/rules.md` aturan 19 sampai 27, plus
+28 (keamanan LAN: foto dan piston butuh sesi), 30 (route konsol yang berat pada SQLite tidak
+boleh menahan event loop), 31 (Antrean line) dan 32 (AI mati) yang juga mengatur layar ini.

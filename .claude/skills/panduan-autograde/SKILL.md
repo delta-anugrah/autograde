@@ -41,7 +41,9 @@ ditanya.
   (`load_dotenv(override=False)`), lihat nilai efektifnya di `/health/detail`.
 - **Akun konsol:** email + sandi, sesi 12 jam. Lokal: tab **Akun** (support) → Tambah akun,
   Ganti sandi, Matikan/Aktifkan, Jadikan support/operator (sejak 2026-09-26), atau `make operator`
-  (`make operator-docker` di pabrik; `AKSI=daftar|matikan|role ROLE=support`). Akun lokal
+  (`AKSI=daftar|matikan|role ROLE=support`). PC pabrik tidak punya Makefile: di sana pakai tab Akun,
+  atau `docker exec -it <konsol> python scripts/console-operator.py`. Nama container konsol dicek
+  dulu dengan `docker ps` (Lampung `autograde-console-1`, compose repo `palmgrade_console`). Akun lokal
   **tidak naik ke AutoERP**; arah akun cuma AutoERP → PC.
   Akun dari AutoERP direset di AutoERP. Bawaan: `operator@autograde.local`,
   `support@autograde.local`, sandi beda per PKS (`make hash-sandi`, tulis `$$`).
@@ -79,7 +81,12 @@ ditanya.
   harus terjangkau dari PC yang membuka konsol. Status kamera sesungguhnya ada di tab
   Status (bagian Diagnostik) / `:800N/health/detail` (`camera_connected`). Janjang nyasar ke kartu
   lain = `LINE_N_MACHINE_ID` kembar (konsol mencocokkan lewat `machine_id`, bukan port).
-- **Layar nol + log "Outbox delivery failed HTTP 404":** `BACKEND_URL` salah port.
+- **Layar nol + log line "Konsol tidak bisa dikirimi (alamat_salah): HTTP 404":** `BACKEND_URL`
+  line salah port (harus konsol, 8100). Tab **Status** bagian Antrean line menulis "Alamat konsol
+  salah sejak …". Janjang menunggu di antrean line, tidak hilang.
+- **Konsol atau line menolak start** dengan `APP_ENV=production`: `WEBHOOK_SECRET` kosong atau masih
+  bawaan publik `supersecret123` (line sudah lama begitu; konsol ikut sejak v1.20.0, batch 1). Isi `openssl rand -hex 32` di `.env`,
+  nilai yang sama untuk keempat container, lalu `autograde restart`.
 - **Janjang difoto di titik mana:** saat kotaknya **menyentuh garis capture**, garis biru
   bertanda `CAPTURE`, diatur dari tab **Setelan** (piksel, ruang stream; `0` = tanpa garis,
   janjang difoto begitu masuk ROI). ROI menjawab *di mana*, garis menjawab *kapan*. Arah
@@ -113,7 +120,9 @@ ditanya.
 - **`make demo` di PC pabrik.** Menulis ke database operator; hanya laptop/demo. Skripnya
   menolak DB berisi data sungguhan, tapi `PAKSA=1` melewatinya, penolakan itu jaring, bukan izin.
 - **Mengisi `ERP_URL` di PC yang punya data truk lama** sebelum OPS-2
-  (`make rekonsiliasi-truk[-docker]`, lihat dulu tanpa `TULIS=1`). Tonase terbelah dua tanpa pesan.
+  (`make rekonsiliasi-truk`, lihat dulu tanpa `TULIS=1`; di PC pabrik yang tanpa Makefile:
+  `docker exec -it <konsol> python scripts/rekonsiliasi-truk.py`, tambah `--tulis` untuk menulis).
+  Tonase terbelah dua tanpa pesan.
 - **Menjalankan ulang `create_integration_user` di AutoERP** hanya untuk melihat kunci:
   itu merotasi secret. Kunci yang sedang dipakai ada di `.env` PC pabrik; bench lokal
   punya `make key-show` di repo `autoerp`; server → minta ke pemegangnya.
@@ -123,8 +132,10 @@ ditanya.
 - **Mengirim data per janjang ke AutoERP.** Hanya rekap per kunjungan.
 - **Menyalakan lagi api/frontend lama** di PC Lampung (di-stop sejak 2026-09-20): rebutan kamera dan nama container.
 - **Tag `vX.Y.Z` tanpa "ya" eksplisit** dari pemilik. Rilis: PR merge commit `staging` → `main`,
-  tag, GitHub Release (skill `tag-release` di workspace `sawit`); pabrik menarik sendiri lewat
-  `autograde pull`.
+  tag, GitHub Release (skill `tag-release` di workspace `sawit`). Tag menerbitkan `:latest`: sesudah
+  Start yang sehat, launcher pabrik mengunduhnya diam-diam dan **memasangnya di Start berikutnya**
+  (balik sendiri ke versi lama kalau tidak sehat). `autograde pull` cuma jalur manualnya. Karena itu
+  cek baca-saja di PC pabrik (di badan PR rilis) dijalankan **sebelum** tag, bukan sesudahnya.
 - **Menyimpan sandi mentah atau `LICENSE_PRIVATE_KEY`** di `.env`/image.
 
 ## Mode kerja di PC pabrik

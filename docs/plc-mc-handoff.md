@@ -2,11 +2,11 @@
 judul: AutoGrade ↔ PLC Mitsubishi
 subjudul: Peta alamat M, sinyal yang dikirim PC, dan yang diminta dari sisi PLC, untuk commissioning MC Protocol.
 label: Internal · Tim Engineering
-versi: "1.7"
-tanggal: 23 September 2026
+versi: "1.8"
+tanggal: 1 Oktober 2026
 klasifikasi: Internal, untuk tim PLC dan tim engineering
 pemilik: Tim Engineering AutoGrade
-sorotan: TERSAMBUNG 23 Sep = 3 line, M1000/M1001/M1111 terbukti; Ditunggu dari PLC = 4 butir; Wajib = watchdog heartbeat
+sorotan: Baru di 1.8 = ERROR juga untuk AI mati, langganan berhenti mematikan M1009; Ditunggu dari PLC = 4 butir; Wajib = watchdog heartbeat
 ---
 
 # AutoGrade ↔ PLC Mitsubishi
@@ -22,6 +22,15 @@ port Ethernet bawaannya, memakai **MC Protocol** (pustaka `pymcprotocol`, frame 
 Coupler remote IO ODOT CN-8031 yang dulu direncanakan **dibatalkan** dan tidak lagi dipakai.
 
 Sisi aplikasi **sudah selesai dan teruji**. Yang ditunggu ada di bab 5.
+
+**Yang baru di versi 1.8** (AutoGrade `v1.20.0`, terpasang di PC Lampung 1 Oktober 2026).
+Tidak ada alamat yang berubah dan program PLC tidak perlu diubah:
+
+- Bit **ERROR** (M1002 / M1005 / M1008) sekarang juga naik kalau **AI line itu mati**:
+  kamera mengirim gambar tapi tidak ada yang selesai dinilai lebih dari 30 detik (bab 4.2).
+- Kalau **langganan AutoGrade menghentikan penilaian** (habis, atau tokennya tidak ada atau tidak
+  terbaca), PC mematikan **M1009**, jadi panel membacanya sebagai "PC mati" (bab 3).
+- Penjelasan baru: apa yang terjadi pada bit kalau **satu line** mati sendiri (bab 3).
 
 ### 1.1 Yang perlu diketahui lebih dulu
 
@@ -110,10 +119,25 @@ Karena itu, di jalur MC Protocol:
 berkedip akan terbaca OFF di separuh waktu dan alarm "PC mati" menyala terus-menerus.
 Ini pernah terjadi sekali pada versi `v1.3.0` dan terlihat seperti kerusakan PC.
 
+**Langganan berhenti = M1009 dimatikan.** Saat langganan AutoGrade menghentikan penilaian (masa
+berlaku dan masa tenggangnya habis, atau token langganan tidak ada atau tidak terbaca), kamera
+berhenti menilai dan PC sengaja mematikan M1009, supaya alarm "PC mati" di panel menyala dan buah
+yang lewat tanpa dinilai terlihat di lantai pabrik. Di panel, keadaan ini dan "PC mati" tampak
+sama; yang membedakan cuma layar operator AutoGrade (banner langganan).
+
 ⚠️ **Hari ini line 2 dan line 3 ikut mengedipkan M1009**, bukan cuma line 1 (setelan kosong
 jatuh ke `1009`, tercatat di `docs/plc-integration.md`). Akibatnya M1009 tetap berkedip selama
-SALAH SATU line hidup: watchdog ladder baru menangkap PC mati total, belum satu line yang mati
-sendiri. Untuk satu line yang mati, baca bit ERROR-nya dan jangan andalkan heartbeat.
+SALAH SATU line hidup, jadi watchdog ladder cuma menangkap **PC mati total**. Kalau **satu
+line saja** yang mati, panel tidak punya tanda yang pasti:
+
+- line yang berhenti dengan rapi menurunkan semua bitnya, termasuk ERROR (bab 4.2), jadi
+  terlihat seperti line sehat yang sedang tidak ada buah;
+- line yang prosesnya **crash** tidak sempat menurunkan apa pun: bit OK/NG yang kebetulan
+  sedang ON tertinggal ON, dan line yang hidup lagi baru menurunkannya pada pulse berikutnya
+  di bit itu. Watchdog tidak menolong karena M1009 masih berkedip dari line lain. Dua akibatnya:
+  pulse pertama sesudah crash jatuh di bit yang sudah ON, jadi ladder yang menghitung tepi naik
+  tidak melihatnya; dan kalau yang tertinggal ON itu NG, piston terus menembak sampai pulse itu
+  selesai.
 
 ---
 
@@ -132,14 +156,26 @@ kecil dari jumlah janjang di layar saat produksi padat.
 
 ### 4.2 Bit ERROR
 
-Level, bukan pulse. Naik kalau kamera atau proses di line itu bermasalah, dan **ditulis
-ulang tiap detik** supaya kembali naik sendiri kalau sempat ter-reset.
+Level, bukan pulse, dan **ditulis ulang tiap detik** supaya kembali naik sendiri kalau sempat
+ter-reset. Naik untuk dua keadaan:
+
+| Keadaan line itu | ERROR |
+|---|---|
+| Kamera putus | **naik** (sejak awal) |
+| **AI mati**: kamera mengirim gambar, tapi tidak ada yang selesai dinilai lebih dari **30 detik** | **naik** (baru di versi 1.8 / `v1.20.0`) |
+| Langganan berhenti (habis, token tidak ada atau tidak terbaca) | tidak, yang mati M1009 (bab 3) |
+| Kamera tersambung tapi tidak ada gambar masuk | tidak |
+| Line baru menyala, atau gambar baru mengalir lagi sesudah jeda | tidak, AI diberi waktu 30 detik dulu |
+| Terlalu banyak keputusan sekaligus (pulse dibuang, bab 4.1) | tidak, sengaja |
+
+Angka 30 detik bisa diubah dari sisi kami (10 sampai 600 detik). Dengan beban 300 janjang per
+jam per line, paling banyak dua atau tiga janjang lewat tanpa dinilai sebelum ERROR naik.
 
 ⚠️ **ERROR = OFF tidak berarti line sehat.** Saat line dimatikan atau direstart dengan rapi
 (restart dari layar konsol, `autograde restart`, hapus data), PC menurunkan SEMUA bit ke OFF,
 termasuk ERROR, supaya tidak ada bit yang tertinggal ON. Selama line itu mati, ERROR terbaca
-OFF persis seperti line yang sehat. Yang membedakan line mati dari line sehat cuma heartbeat
-M1009 (bab 3), dengan catatan line 2 dan 3 di bab 3.
+OFF persis seperti line yang sehat. Hari ini panel tidak punya tanda yang pasti untuk satu line
+yang mati sendiri; penjelasannya di bab 3.
 
 ### 4.3 Piston manual
 
@@ -179,6 +215,7 @@ PLC mau menghentikan conveyor dari bit ini, itu keputusan dan pekerjaan terpisah
 | PC → PLC: pulse **M1000** dan **M1001** dari layar Uji PLC | ✅ terbaca di GX Works2 |
 | PLC → PC: **M1111** (E-stop) | ✅ tampil di layar konsol |
 | Heartbeat **M1009** berkedip 500 ms | jalan sejak tersambung: **belum dipantau** di GX Works2 |
+| ERROR untuk AI mati (`v1.20.0`, terpasang 1 Okt) | ikut terpasang di PC Lampung (selama PLC menyala di sana): **belum dibuktikan** di panel |
 
 Dua hal yang sempat menghambat, dan jawabannya, supaya tidak terulang di panel lain:
 
