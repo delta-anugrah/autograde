@@ -306,10 +306,12 @@ end of this file.
     setumpuk kertas terbuang yang baru terlihat sesudahnya. `@media print`
     menyembunyikan kamera, tally, tab, dan tabel: tanpa itu puluhan lembar terbuang
     sebelum kartu pertama muncul.
-    **Kolom scan di tab Timbangan** mengisi plat lalu memindahkan kursor ke Bruto,
+    **Kolom scan di tab Timbangan** (disembunyikan dengan `hidden` sampai scanner dibeli;
+    sampai saat itu plat dipilih dari daftar dan tara lewat **Timbang keluar** di baris
+    tiket) mengisi plat lalu memindahkan kursor ke Bruto,
     itu satu sentuhan layar yang dihemat per truk, dan itulah gunanya scan. Enter
     datang dari scanner sendiri (scanner = papan ketik), jadi tidak ada tombol; kolomnya
-    juga menerima ketikan, yang membuatnya bisa dipakai sebelum scanner datang.
+    juga menerima ketikan tangan.
     `scanSibuk` menolak bacaan kedua dalam sekejap: scanner kadang membaca satu QR dua
     kali dalam beberapa ratus milidetik. **Hasil scan punya `#scan-pesan` sendiri, bukan
     banner global**: `refresh()` membersihkan banner tiap kali berhasil, jadi pesan
