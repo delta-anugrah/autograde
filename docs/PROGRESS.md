@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-01 · ci · CI checks required by a repo ruleset (PR #n)
+## 2026-10-01 · ci · CI checks required by a repo ruleset (PR #205)
 Changed:        Repo ruleset `ci-wajib-lolos` (id 24315701, active) on `refs/heads/staging` and
                 `refs/heads/main` requires `lint-and-test`, `browser (chromium)` and
                 `browser (firefox)`; branches need not be up to date. Before it, the org ruleset
