@@ -18,6 +18,9 @@ _KUNCI_TERLIHAT = """() => {
 }"""
 
 
+_MUAT_TAB = "(tab) => MUAT_TAB[tab] ? MUAT_TAB[tab]() : null"
+
+
 def test_every_tab_opens_for_support(halaman):
     masuk(halaman, SUPPORT)
     for tab in TABS:
@@ -40,5 +43,9 @@ def test_a_narrow_screen_never_scrolls_sideways(halaman):
     masuk(halaman, SUPPORT)
     for tab in TABS:
         buka_tab(halaman, tab)
+        # Measure the tab with its data: a tab's table is drawn after its fetch returns, and a
+        # measurement taken before that passed on a fast laptop and failed on the CI runner.
+        # Awaiting the screen's own loader (`MUAT_TAB`) is the one wait that fits every tab.
+        halaman.evaluate(_MUAT_TAB, tab)
         lebar = halaman.evaluate("() => [document.documentElement.scrollWidth, window.innerWidth]")
         assert lebar[0] <= lebar[1], f"tab {tab} is {lebar[0]} px wide on a {lebar[1]} px screen"
