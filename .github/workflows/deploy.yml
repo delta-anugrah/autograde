@@ -45,6 +45,9 @@ jobs:
     permissions:
       contents: read
 
+  # Batch 4.2: build under a temporary `candidate-vX.Y.Z` tag only. The release tag and
+  # `latest` are written by `promote`, after `smoke` passed on that exact digest. A factory
+  # PC reads only `latest` (and the version label), so it never sees a candidate.
   build-and-push:
     needs: ci
     runs-on: ubuntu-latest
@@ -52,6 +55,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: Checkout release commit
@@ -124,7 +130,8 @@ jobs:
       # tanpa itu build multi-tahap seperti ini hampir tidak dapat manfaat.
       # Tag `buildcache` terpisah dari tag rilis, jadi tidak pernah tertukar
       # dengan image yang ditarik pabrik.
-      - name: Build and push versioned image
+      - name: Build and push candidate image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -135,15 +142,72 @@ jobs:
             TORCH_VARIANT=cu126
             WITH_SDK=true
             APP_VERSION=${{ github.ref_name }}
-          # `latest` is the marker the factory updater reads to find out whether
-          # a newer version exists. It moves; the vX.Y.Z tag never does.
+          # Candidate only. The label already carries the final version: `promote` copies
+          # this digest unchanged, and the factory launcher reads the version from it.
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:candidate-${{ github.ref_name }}
           labels: |
             org.opencontainers.image.version=${{ github.ref_name }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+  smoke:
+    needs: build-and-push
+    uses: ./.github/workflows/image-smoke.yml
+    with:
+      image: ghcr.io/delta-anugrah/autograde@${{ needs.build-and-push.outputs.digest }}
+      version: ${{ github.ref_name }}
+      label: ${{ github.ref_name }}
+    permissions:
+      contents: read
+      packages: read
+
+  # Copies the smoked digest to the release tag and `latest` in the registry: no rebuild,
+  # so what reaches the factory is byte for byte what passed `smoke`.
+  promote:
+    needs: [build-and-push, smoke]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      SOURCE: ghcr.io/delta-anugrah/autograde@${{ needs.build-and-push.outputs.digest }}
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Checked again here: the build started minutes ago, and a release tag is immutable.
+      - name: Reject existing immutable release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_REF_NAME}"
+          if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "Release image already exists and must not be overwritten: $IMAGE"
+            exit 1
+          fi
+
+      # `latest` is the marker the factory updater reads to find out whether a newer
+      # version exists. It moves; the vX.Y.Z tag never does.
+      - name: Promote candidate to the release tag and latest
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create \
+            --tag "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_REF_NAME}" \
+            --tag "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" \
+            "$SOURCE"
+          docker buildx imagetools inspect "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_REF_NAME}"
 
   # The CPU demo image (`vX.Y.Z-cpu`, demo-autograde.smagri.id) waits for the same
   # CI run instead of starting on its own at tag time, so a version whose tests are

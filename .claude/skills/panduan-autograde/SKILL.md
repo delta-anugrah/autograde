@@ -139,7 +139,8 @@ ditanya.
 - **Mengirim data per janjang ke AutoERP.** Hanya rekap per kunjungan.
 - **Menyalakan lagi api/frontend lama** di PC Lampung (di-stop sejak 2026-09-20): rebutan kamera dan nama container.
 - **Tag `vX.Y.Z` tanpa "ya" eksplisit** dari pemilik. Rilis: PR merge commit `staging` → `main`,
-  tag, GitHub Release (skill `tag-release` di workspace `sawit`). Tag menerbitkan `:latest`: sesudah
+  tag, GitHub Release (skill `tag-release` di workspace `sawit`). Tag menerbitkan `:latest` (sesudah
+  image lolos cek `image-smoke.yml`, batch 4.2): sesudah
   Start yang sehat, launcher pabrik mengunduhnya diam-diam dan **memasangnya di Start berikutnya**
   (balik sendiri ke versi lama kalau tidak sehat). `autograde pull` cuma jalur manualnya. Karena itu
   cek baca-saja di PC pabrik (di badan PR rilis) dijalankan **sebelum** tag, bukan sesudahnya.

@@ -55,7 +55,7 @@ def _leluhur(jobs: dict, nama: str) -> set[str]:
 
 def test_tiap_workflow_yang_dipanggil_ada_dan_bisa_dipanggil():
     panggilan = _job_panggilan(_muat(RILIS))
-    assert set(panggilan) == {"ci", "demo"}
+    assert set(panggilan) == {"ci", "demo", "smoke"}
     for nama, job in panggilan.items():
         assert job["uses"].startswith("./.github/workflows/"), nama
         assert "workflow_call" in _pemicu(_dipanggil(job)), nama
@@ -113,3 +113,43 @@ def test_demo_yang_dipanggil_membangun_tag_yang_sama():
         s for s in demo["jobs"]["build-and-push"]["steps"] if str(s.get("uses", "")).startswith("actions/checkout")
     )
     assert checkout["with"]["ref"] == "refs/tags/${{ env.VERSION }}"
+
+
+# ── batch 4.2: smoke dipanggil dari dua tingkat ─────────────────────────────
+
+
+def _semua_panggilan(jalur: str, kedalaman: int = 0):
+    """Tiap (berkas, job pemanggil) di seluruh rangkaian, termasuk yang bersarang:
+    deploy.yml -> demo-image.yml -> image-smoke.yml."""
+    assert kedalaman < 4, "GitHub cuma mengizinkan 4 tingkat workflow bersarang"
+    for nama, job in _job_panggilan(_muat(jalur)).items():
+        yield jalur, nama, job
+        yield from _semua_panggilan(job["uses"].removeprefix("./"), kedalaman + 1)
+
+
+def test_rangkaian_bersarang_input_dan_izinnya_cocok():
+    tingkat = {"none": 0, "read": 1, "write": 2}
+    dilihat = list(_semua_panggilan(RILIS))
+    assert {(j, n) for j, n, _ in dilihat} >= {
+        (RILIS, "smoke"),
+        (".github/workflows/demo-image.yml", "smoke"),
+    }
+    for jalur, nama, job in dilihat:
+        dipanggil = _dipanggil(job)
+        masukan = (_pemicu(dipanggil)["workflow_call"] or {}).get("inputs") or {}
+        dikirim = set(job.get("with") or {})
+        assert dikirim <= set(masukan), (jalur, nama)
+        assert {k for k, v in masukan.items() if v.get("required")} <= dikirim, (jalur, nama)
+        diberi = job.get("permissions") or {}
+        for anak, isi in dipanggil["jobs"].items():
+            for izin, minta in (isi.get("permissions") or {}).items():
+                assert tingkat[minta] <= tingkat[diberi.get(izin, "none")], (jalur, nama, anak, izin)
+
+
+def test_tag_rilis_cuma_ditulis_sesudah_ci_dan_smoke():
+    """Rantai lengkap: tag vX.Y.Z dan latest (promote) menunggu smoke, smoke menunggu
+    build, build menunggu CI di commit tag yang sama."""
+    jobs = _muat(RILIS)["jobs"]
+    assert {"ci", "build-and-push", "smoke"} <= _leluhur(jobs, "promote")
+    demo = _muat(".github/workflows/demo-image.yml")["jobs"]
+    assert {"build-and-push", "smoke"} <= _leluhur(demo, "promote")

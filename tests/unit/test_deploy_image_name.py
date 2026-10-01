@@ -62,10 +62,11 @@ def test_the_version_and_the_latest_marker_are_both_published():
     """`:latest` itu penanda yang dibaca updater PC pabrik untuk tahu ada versi
     baru. Nama yang dapat `vX.Y.Z` tapi tidak dapat `:latest` menghasilkan image
     di registry yang tidak pernah ditemukan siapa pun."""
-    teks = _teks()
-    for tag in ("${{ github.ref_name }}", "latest"):
-        baris = f"${{{{ env.REGISTRY }}}}/${{{{ env.IMAGE_NAME }}}}:{tag}"
-        assert baris in teks, f"tag {tag} tidak diterbitkan"
+    langkah = yaml.safe_load(_teks())["jobs"]["promote"]["steps"]
+    run = next(s["run"] for s in langkah if s.get("name") == "Promote candidate to the release tag and latest")
+    for tag in ("${GITHUB_REF_NAME}", "latest"):
+        baris = f'--tag "${{{{ env.REGISTRY }}}}/${{{{ env.IMAGE_NAME }}}}:{tag}"'
+        assert baris in run, f"tag {tag} tidak diterbitkan"
 
 
 def test_the_image_name_does_not_follow_the_repository_name():
