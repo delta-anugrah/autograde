@@ -112,3 +112,24 @@ def test_tautan_lama_terbawa_saat_konsol_baru_start(tmp_path):
 
 def test_tautan_digolongkan_transaksi_untuk_danger_zone():
     assert GOLONGAN_TABEL_KONSOL["visit_assignments"] == "transaksi"
+
+
+def test_penugasan_yang_tidak_tertaut_tidak_bocor_ke_rekap_kunjungan(tmp_path):
+    """Dua tiket hari yang sama, masing-masing dengan penugasan dan janjangnya sendiri:
+    rekap dan daftar janjang satu kunjungan tidak boleh menyerap milik yang lain."""
+    store = ConsoleStore(tmp_path / "console.db")
+    _tiket(store, "w1")
+    _tiket(store, "w2")
+    _janjang(store, "a1", "line-1", acc=3, rej=1)
+    _janjang(store, "a2", "line-2", acc=0, rej=2)
+    _janjang(store, "a-lepas", "line-3", acc=5, rej=0)   # tidak tertaut ke tiket mana pun
+    store.link_weighing_to_assignment("w1", "a1", "line-1")
+    store.link_weighing_to_assignment("w2", "a2", "line-2")
+
+    satu, dua = store.grading_counts_for_visit("w1"), store.grading_counts_for_visit("w2")
+
+    assert (satu["total"], satu["acc"], satu["rej"], satu["line_code"]) == (4, 3, 1, "line-1")
+    assert (dua["total"], dua["acc"], dua["rej"], dua["line_code"]) == (2, 0, 2, "line-2")
+    assert {j["event_id"] for j in store.bunches_for_visit("w1")} == {f"a1-{i}" for i in range(4)}
+    assert {j["event_id"] for j in store.bunches_for_visit("w2")} == {f"a2-{i}" for i in range(2)}
+

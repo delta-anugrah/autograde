@@ -528,7 +528,7 @@ class ConsoleService(LayarLineSupport):
             # Nothing weighed yet. AutoERP dates a ticket from `time_in`, so this
             # visit goes up when the weighing does — or on the daily resend.
             return
-        self.store.link_weighing_to_assignment(weighing_id, assignment_id)
+        self.store.link_weighing_to_assignment(weighing_id, assignment_id, closing.get("line_code"))
         self._kirim_kunjungan(weighing_id, assignment_id)
 
     def _kirim_kunjungan(self, weighing_id: str, assignment_id: str) -> None:

@@ -323,6 +323,11 @@ def wipe(store: ConsoleStore) -> int:
                 f"DELETE FROM {table} WHERE {column} IN ({','.join('?' * len(ids))})", tuple(ids)
             )
             removed += cur.rowcount
+        # Link rows of the visits just deleted (2026-10-01); they carry no truck id.
+        cur = store._db.execute(  # noqa: SLF001
+            "DELETE FROM visit_assignments WHERE weighing_id NOT IN (SELECT id FROM weighings)"
+        )
+        removed += cur.rowcount
         cur = store._db.execute(  # noqa: SLF001
             f"DELETE FROM trucks WHERE id IN ({','.join('?' * len(ids))})", tuple(ids)
         )
@@ -455,7 +460,7 @@ def _seed_one_visit(
             "exited_at": (start + timedelta(hours=1)).isoformat(),
         }
     )
-    store.link_weighing_to_assignment(_uid("weighing", key), assignment_id)
+    store.link_weighing_to_assignment(_uid("weighing", key), assignment_id, line)
 
     total = rng.randint(*BUNCHES_PER_VISIT)
     rej_share = rng.uniform(*REJ_SHARE)

@@ -207,9 +207,10 @@ end of this file.
     timbang masuk, truk dilepas dari line, timbang keluar. **`stage` diturunkan dari keadaan
     kunjungan**, bukan ditentukan pemanggil. Bagian yang tidak kita punya **tidak dikirim**,
     tiap kiriman mengganti bagian yang dibawanya, jadi bagian kosong menghapus isi ERP.
-    Grading ditautkan lewat `weighings.assignment_id` yang **ditulis saat truk dilepas**; tanpa
-    tautan itu tiket kedua di hari yang sama mewarisi janjang tiket pertama. Kriteria: mentah =
-    REJ, tangkai panjang = ACC dengan `tp_confidence > 0.8`, matang diturunkan AutoERP sendiri.
+    Grading ditautkan lewat tabel `visit_assignments` (satu baris per penugasan line) yang
+    **ditulis saat truk dilepas**; tanpa tautan itu tiket kedua di hari yang sama mewarisi janjang
+    tiket pertama. Kriteria: mentah = REJ, tangkai panjang = ACC dengan `tp_confidence > 0.8`,
+    matang diturunkan AutoERP sendiri.
     Karena angka itu dijumlah dari `ripeness_status`, **`ripeness_status` divalidasi saat ingest**
     (`domain/vision_event.verdict_of`, satu kosakata untuk penulis dan pembaca field ini): di luar
     `{ACC, REJ}` → 400, seperti timestamp cacat. Nilai asing dulu ikut `total` tapi tidak masuk
@@ -233,6 +234,10 @@ end of this file.
     (`domain/jawaban_kunjungan.py`), sekali per catatan AutoERP yang berbeda, bukan sekali per
     kirim ulang harian. `visit unchanged` (kirim ulang harian untuk tiket final yang angkanya
     sama) dicatat INFO saja, bukan WARNING.
+    Grading kunjungan = **semua** penugasan line yang tertaut ke tiketnya, dijumlah
+    (`visit_assignments`, `grading_counts_for_visit`, 2026-10-01): satu truk boleh dibongkar
+    di beberapa line, dan dulu cuma line yang dilepas terakhir yang terhitung. Kolom lama
+    `weighings.assignment_id` tetap ditulis supaya image lama masih jalan setelah rollback.
 15. **Timbangan: `net_kg` dihitung, tidak pernah dipercaya mentah** (§3.5c). Pengirim boleh
     menyertakannya; kalau bedanya dari `bruto − tara` lewat `TOLERANSI_NETO_KG` (1 kg) kiriman
     **ditolak 400**. Ini angka yang dibayar ke petani, dua sumber kebenaran yang diam-diam

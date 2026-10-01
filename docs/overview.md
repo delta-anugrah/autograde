@@ -682,7 +682,7 @@ keadaan lebih lama daripada barisnya.
 | `visit_id` | id baris timbangan (uuid5 dari `ref`, atau plat + `waktu_masuk`) |
 | `stage` | **diturunkan** dari keadaan: ada tara → `departed`, ada grading → `grading`, sisanya `gate` |
 | bagian kosong | **tidak dikirim**: tiap kiriman mengganti bagian yang dibawanya, jadi bagian kosong menghapus isi ERP |
-| grading | lewat `weighings.assignment_id`, ditulis **saat truk dilepas**; tanpa itu tiket kedua hari itu mewarisi janjang tiket pertama |
+| grading | semua penugasan line yang tertaut ke tiketnya, dijumlah (`visit_assignments`, ditulis **saat truk dilepas**); tanpa tautan itu tiket kedua hari itu mewarisi janjang tiket pertama |
 | kriteria | mentah = REJ, tangkai panjang = ACC dengan `tp_confidence > 0.8`, matang diturunkan AutoERP |
 | `erp_ticket` | nomor Weighbridge Ticket jawaban AutoERP, disimpan balik ke baris timbangan |
 

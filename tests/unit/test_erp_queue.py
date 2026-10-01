@@ -181,8 +181,8 @@ class _ReadPausedStore(ConsoleStore):
         self.read_done = threading.Event()
         self.release = threading.Event()
 
-    def grading_counts(self, assignment_id: str):
-        counts = super().grading_counts(assignment_id)
+    def grading_counts_for_visit(self, weighing_id: str):
+        counts = super().grading_counts_for_visit(weighing_id)
         if threading.current_thread().name == "stale":
             self.read_done.set()
             self.release.wait(5)
