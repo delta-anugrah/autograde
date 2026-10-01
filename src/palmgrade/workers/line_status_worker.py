@@ -11,23 +11,34 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from collections.abc import Callable
 from typing import Any
 
-from ..domain.line_tak_terbaca import SEBAB_KUNCI_DITOLAK, SEBAB_LAIN, sebab_tak_terbaca
+from ..domain.episode_tak_terbaca import TAK_TERBACA_POLL_BERTURUT, TENGGANG_START_S
+from ..domain.line_tak_terbaca import SEBAB_LAIN, sebab_tak_terbaca
 from ..domain.operator_error import OperatorError
-from ..domain.transisi import PelacakTransisi, teks_lama
+from ..services.jejak_tak_terbaca import JejakTakTerbaca
 
 logger = logging.getLogger(__name__)
 
-#: Poll gagal berturut-turut sebelum line dicatat tidak terbaca di tab Log. Satu poll yang
-#: lewat timeout `status()` 1,5 detik (line yang sedang sibuk inferensi) bukan kejadian:
-#: tanpa ambang ini tiap kedip menulis dua WARNING. Pola kamera (5 grab gagal, aturan 33).
-#: Layar tidak menunggu: `reachable: False` dan `sebab_kode` sudah tampil sejak poll pertama.
-TAK_TERBACA_POLL_BERTURUT = 3
+#: Ambang poll dan tenggang start untuk tab Log: `domain/episode_tak_terbaca.py`, sama untuk
+#: ketiga pembaca line di konsol. Layar tidak menunggu: `reachable: False` dan `sebab_kode`
+#: sudah tampil sejak poll pertama.
+__all__ = ["TAK_TERBACA_POLL_BERTURUT", "LineStatusWorker"]
 
 
 class LineStatusWorker:
-    def __init__(self, lines, line_client, *, interval_s: float = 1.0) -> None:
+    def __init__(
+        self,
+        lines,
+        line_client,
+        *,
+        interval_s: float = 1.0,
+        jam: Callable[[], float] = time.monotonic,
+        mulai: float | None = None,
+        tenggang_start_s: float = TENGGANG_START_S,
+    ) -> None:
         self._lines = list(lines)
         self._client = line_client
         self._interval_s = interval_s
@@ -35,13 +46,14 @@ class LineStatusWorker:
         # Sejak kapan upload foto tiap line gagal, menurut putaran terakhir. Hanya
         # untuk mencatat putus/pulih sekali masing-masing ke tab Log.
         self._unggah_putus: dict[str, float | None] = {}
-        # Line yang tidak terbaca konsol: satu pelacak per line, supaya awal kejadian,
-        # sebabnya yang berganti, dan pulihnya masing-masing SATU WARNING, bukan tiap
-        # poll (aturan 21: satu galat per detik mendorong keluar galat lain yang lebih
-        # tua dari `event_log`). Alasan mentahnya cuma tampil di sini, di tab Log: layar
-        # menulis kalimat ramah dari `sebab_kode` (keputusan user 2026-10-01).
-        self._tak_terbaca: dict[str, PelacakTransisi] = {}
-        self._gagal_beruntun: dict[str, int] = {}
+        # Line yang tidak terbaca konsol: SATU WARNING saat kejadian mulai (dengan alasan
+        # mentahnya) dan satu saat pulih, bukan tiap poll (aturan 21: satu galat per detik
+        # mendorong keluar galat lain yang lebih tua dari `event_log`). Ini fakta KONSOL:
+        # line yang mati tidak bisa menceritakannya sendiri lewat tarikan log line (aturan
+        # 34). Layar menulis kalimat ramah dari `sebab_kode` (keputusan user 2026-10-01).
+        self._tak_terbaca = JejakTakTerbaca(
+            logger, "status", jam=jam, mulai=mulai, tenggang_s=tenggang_start_s
+        )
         # Line yang AI-nya sedang mati (batch 2.1), untuk satu ERROR saat masuk
         # dan satu WARNING saat pulih di tab Log, bukan satu per detik.
         self._ai_mati: set[str] = set()
@@ -71,11 +83,11 @@ class LineStatusWorker:
                     "status": status,
                     "sebab_kode": sebab,
                 }
-                self._catat_tak_terbaca(line.line_code, sebab, str(exc))
+                self._tak_terbaca.gagal(line.line_code, sebab, str(exc))
                 continue
             except Exception as exc:                      # line mati bukan alasan berhenti
                 self._state[line.line_code] = {"reachable": False, "sebab_kode": SEBAB_LAIN}
-                self._catat_tak_terbaca(line.line_code, SEBAB_LAIN, f"{type(exc).__name__}: {exc}")
+                self._tak_terbaca.gagal(line.line_code, SEBAB_LAIN, f"{type(exc).__name__}: {exc}")
                 continue
             piston = jawab.get("piston") or {}
             self._state[line.line_code] = {
@@ -100,41 +112,7 @@ class LineStatusWorker:
             self._catat_ai(line.line_code, jawab.get("ai"))
             self._catat_frame(line.line_code, jawab.get("ai"))
             self._catat_disk(line.line_code, jawab.get("disk"))
-            self._catat_terbaca_lagi(line.line_code)
-
-    def _catat_tak_terbaca(self, line_code: str, sebab: str, mentah: str) -> None:
-        """Satu WARNING saat konsol mulai tidak bisa membaca line itu (sesudah
-        `TAK_TERBACA_POLL_BERTURUT` poll gagal berturut), dan satu lagi kalau sebabnya
-        berganti di tengah kejadian (mati lalu menolak kunci adalah dua masalah), bukan
-        tiap poll. Ini fakta KONSOL, bukan fakta line: line yang mati tidak bisa
-        menceritakannya sendiri lewat tarikan log line (aturan 34).
-
-        Yang menolak kunci adalah LINE: kunci yang dikirim konsol (`INTERNAL_SECRET`
-        konsol) tidak sama dengan yang dipegang line itu.
-        """
-        beruntun = self._gagal_beruntun.get(line_code, 0) + 1
-        self._gagal_beruntun[line_code] = beruntun
-        if beruntun < TAK_TERBACA_POLL_BERTURUT:
-            return
-        pelacak = self._tak_terbaca.setdefault(line_code, PelacakTransisi())
-        if not pelacak.gagal(sebab):
-            return
-        if sebab == SEBAB_KUNCI_DITOLAK:
-            logger.warning(
-                "%s menolak kunci konsol: INTERNAL_SECRET di line itu beda dari yang dipakai konsol (%s)",
-                line_code, mentah,
-            )
-        else:
-            logger.warning("%s tidak terbaca oleh konsol (%s): %s", line_code, sebab, mentah)
-
-    def _catat_terbaca_lagi(self, line_code: str) -> None:
-        """Satu WARNING saat line yang tadinya dicatat tidak terbaca menjawab lagi, dengan
-        lamanya. Kedip di bawah ambang tidak pernah dicatat mulai, jadi tidak pulih juga."""
-        self._gagal_beruntun[line_code] = 0
-        pelacak = self._tak_terbaca.get(line_code)
-        lama = pelacak.pulih() if pelacak is not None else None
-        if lama is not None:
-            logger.warning("%s terbaca lagi oleh konsol sesudah %s, sudah pulih", line_code, teks_lama(lama))
+            self._tak_terbaca.pulih(line.line_code)
 
     def _catat_ai(self, kode: str, ai: dict[str, Any] | None) -> None:
         """AI line mati / tidak lagi mati → satu baris di `docker logs` konsol.

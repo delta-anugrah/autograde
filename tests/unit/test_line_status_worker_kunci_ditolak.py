@@ -54,7 +54,7 @@ def test_line_mati_sungguhan_tidak_membawa_kode_ditolak():
 
 def test_warning_ditulis_sekali_per_transisi_bukan_tiap_poll(caplog):
     tolak = LineUnavailable(LINE_MENOLAK, "line-1 refused: HTTP 401", line="Line 1", status=401)
-    worker = LineStatusWorker([LINE], _KlienPalsu([tolak, tolak, tolak]))
+    worker = LineStatusWorker([LINE], _KlienPalsu([tolak, tolak, tolak]), tenggang_start_s=0)
 
     caplog.set_level(logging.WARNING, logger="palmgrade.workers.line_status_worker")
     asyncio.run(worker.run_once())
@@ -72,7 +72,7 @@ def test_warning_pulih_ditulis_saat_kembali_diterima(caplog):
     ok = {"piston": {}}
     # Tiga poll berturut sebelum dicatat (TAK_TERBACA_POLL_BERTURUT, 2026-10-01): kedip
     # satu poll yang lewat timeout bukan kejadian.
-    worker = LineStatusWorker([LINE], _KlienPalsu([tolak, tolak, tolak, ok]))
+    worker = LineStatusWorker([LINE], _KlienPalsu([tolak, tolak, tolak, ok]), tenggang_start_s=0)
 
     caplog.set_level(logging.WARNING, logger="palmgrade.workers.line_status_worker")
     for _ in range(4):

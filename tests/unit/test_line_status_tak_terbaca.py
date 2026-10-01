@@ -53,7 +53,8 @@ class _Klien:
 
 
 def _jalankan(urutan, caplog) -> tuple[LineStatusWorker, list[logging.LogRecord]]:
-    worker = LineStatusWorker([LINE], _Klien(urutan))
+    # No start-up grace here (`tenggang_start_s=0`); the grace has its own test below.
+    worker = LineStatusWorker([LINE], _Klien(urutan), tenggang_start_s=0)
     caplog.set_level(logging.DEBUG, logger=LOGGER)
     for _ in urutan:
         asyncio.run(worker.run_once())
@@ -91,15 +92,33 @@ def test_pulih_ditulis_sekali_dengan_lamanya(caplog):
     assert "line-1" in pesan[1] and "pulih" in pesan[1]
 
 
-def test_sebab_yang_berganti_ditulis_lagi_tapi_pulih_tetap_sekali(caplog):
-    """Down, then back up refusing the key: two different problems, two rows, one recovery."""
-    _worker, catatan = _jalankan([MATI, MATI, MATI, TOLAK, TOLAK, SEHAT], caplog)
+def test_sebab_bergantian_cuma_awal_dan_pulih(caplog):
+    """Fix wave ruling: only the FIRST cause when the episode starts, then the recovery;
+    a cause change used to write a row on every poll that changed it."""
+    _worker, catatan = _jalankan([MATI, TOLAK, MATI, TOLAK, MATI, TOLAK, BUKAN_LINE, SEHAT], caplog)
 
     pesan = [r.getMessage() for r in catatan]
-    assert len(pesan) == 3, pesan
-    assert SEBAB_TAK_TERJANGKAU in pesan[0]
-    assert pesan[1].startswith("line-1 menolak kunci konsol")
-    assert "pulih" in pesan[2]
+    assert len(pesan) == 2, pesan
+    assert SEBAB_TAK_TERJANGKAU in pesan[0] and "All connection attempts failed" in pesan[0]
+    assert "pulih" in pesan[1]
+
+
+def test_tenggang_start_tidak_menulis_line_yang_masih_memuat_model(caplog):
+    """Seen live 2026-10-01: at console boot all three lines were still loading the model."""
+    class _Jam:
+        t = 5_000.0
+
+        def __call__(self):
+            return self.t
+
+    jam = _Jam()
+    worker = LineStatusWorker([LINE], _Klien([MATI] * 60 + [SEHAT]), jam=jam, mulai=jam.t)
+    caplog.set_level(logging.DEBUG, logger=LOGGER)
+    for _ in range(61):
+        asyncio.run(worker.run_once())
+        jam.t += 1
+
+    assert [r for r in caplog.records if r.name == LOGGER and r.levelno >= logging.WARNING] == []
 
 
 def test_line_yang_menolak_kunci_lalu_mati_tidak_dicatat_pulih(caplog):
@@ -107,7 +126,7 @@ def test_line_yang_menolak_kunci_lalu_mati_tidak_dicatat_pulih(caplog):
     _worker, catatan = _jalankan([TOLAK, TOLAK, TOLAK, MATI], caplog)
 
     pesan = [r.getMessage() for r in catatan]
-    assert len(pesan) == 2, pesan
+    assert len(pesan) == 1, pesan            # the same episode: its first cause only
     assert not any("pulih" in p for p in pesan), pesan
 
 

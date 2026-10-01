@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from collections.abc import Callable
 from typing import Any, Protocol
 
 from ..core.config import LineEndpoint
+from ..domain.episode_tak_terbaca import TENGGANG_START_S
 from ..domain.line_tak_terbaca import SEBAB_LAIN, sebab_tak_terbaca
 from ..domain.operator_error import (
     LINE_TIDAK_DIKENAL,
@@ -20,6 +23,7 @@ from ..domain.operator_error import (
     OperatorError,
 )
 from ..integrations.notifications.line_client import LineUnavailable
+from .jejak_tak_terbaca import JejakTakTerbaca
 
 logger = logging.getLogger(__name__)
 
@@ -41,20 +45,29 @@ class PantauAntreanLine:
         lines: tuple[LineEndpoint, ...],
         *,
         batas_tunggu_s: float = BATAS_TUNGGU_LINE_S,
+        jam: Callable[[], float] = time.monotonic,
+        tenggang_start_s: float = TENGGANG_START_S,
     ) -> None:
         self._client = line_client
         self._lines = tuple(lines)
         self._batas_tunggu_s = batas_tunggu_s
+        # Baris layar menunjuk ke tab Log untuk line yang tidak terbaca; alasan mentahnya
+        # tertulis di sini, satu baris per kejadian (aturan LineStatusWorker).
+        self._tak_terbaca = JejakTakTerbaca(logger, "antrean line", jam=jam, tenggang_s=tenggang_start_s)
 
     async def ringkasan(self) -> dict[str, Any]:
         hasil = await asyncio.gather(
             *(self._antrean(line) for line in self._lines), return_exceptions=True
         )
-        return {
-            "lines": {
-                line.line_code: _baris(line, isi) for line, isi in zip(self._lines, hasil, strict=True)
-            }
-        }
+        lines: dict[str, Any] = {}
+        for line, isi in zip(self._lines, hasil, strict=True):
+            baris = _baris(line, isi)
+            if baris["terjangkau"]:
+                self._tak_terbaca.pulih(line.line_code)
+            else:
+                self._tak_terbaca.gagal(line.line_code, baris["sebab_kode"], baris["pesan"])
+            lines[line.line_code] = baris
+        return {"lines": lines}
 
     async def _antrean(self, line: LineEndpoint) -> Any:
         try:

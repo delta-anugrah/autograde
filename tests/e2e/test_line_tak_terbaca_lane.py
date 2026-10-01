@@ -99,7 +99,7 @@ def konsol(tmp_path):
     app = app_konsol(store, PantauAntreanLine(klien, LINES))
     app.dependency_overrides[get_dev_service] = lambda: DevService(log_store, line_client=klien, lines=LINES)
     layar = masuk(app, store, role=ROLE_SUPPORT)
-    worker = LineStatusWorker(LINES, klien)
+    worker = LineStatusWorker(LINES, klien, tenggang_start_s=0)
     logger.addHandler(handler)
     try:
         yield layar, worker, transport
