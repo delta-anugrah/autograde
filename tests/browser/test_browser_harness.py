@@ -118,6 +118,31 @@ def test_a_server_error_from_the_console_fails_the_guard(halaman, konsol):
     galat.clear()
 
 
+def test_a_missing_console_api_route_fails_the_guard(halaman, konsol):
+    # A route renamed on the server while the screen still polls the old path: Chromium words
+    # it like the refused feed and Firefox logs nothing, so the guard reads the status. The
+    # body is FastAPI's own answer for a path it does not have.
+    halaman.route(
+        konsol.url + "/api/console/rute-lama",
+        lambda route: route.fulfill(status=404, json={"detail": "Not Found"}),
+    )
+    halaman.evaluate("() => fetch('/api/console/rute-lama')")
+    penjaga = halaman.context.penjaga_uji
+    assert any("404" in g and "/api/console/rute-lama" in g for g in penjaga.temuan()), penjaga.temuan()
+    penjaga.bersihkan()
+
+
+def test_a_deliberate_404_with_a_code_passes_the_guard(halaman, konsol):
+    # The console answers 404 on purpose for an unknown line or truck, with a code the screen
+    # words (`_operator_error`); that is a refusal, not a missing route.
+    halaman.route(
+        konsol.url + "/api/console/lines/line-9/piston",
+        lambda route: route.fulfill(status=404, json={"detail": {"code": "line_tidak_dikenal"}}),
+    )
+    halaman.evaluate("() => fetch('/api/console/lines/line-9/piston', { method: 'POST' })")
+    assert halaman.context.penjaga_uji.temuan() == []
+
+
 _PROBE = Path(__file__).with_name("probe_penjaga.py")
 _PROBE_MAKS_S = 180
 
