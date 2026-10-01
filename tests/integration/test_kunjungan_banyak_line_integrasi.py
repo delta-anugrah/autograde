@@ -98,10 +98,9 @@ class Pabrik:
         self.mesin = TestClient(app_ingest(self.service))
         self._n = 0
 
-    def janjang(self, line_code: str, *, status: str = "ACC") -> str:
+    def janjang(self, line_code: str, *, status: str = "ACC") -> None:
         """Satu janjang lewat lane mesin, seperti OutboxRetryWorker line itu."""
         self._n += 1
-        event_id = f"{line_code}-{self._n}"
         line = next(ln for ln in self.service.lines if ln.line_code == line_code)
         body = build_event_payload(
             machine_id=line.machine_id, file_ts=f"2026-09-28_07-41-{self._n:02d}_000000",
@@ -115,7 +114,6 @@ class Pabrik:
             json=body, headers={"x-webhook-secret": SECRET_WEBHOOK},
         )
         assert res.status_code == 201, res.text
-        return event_id
 
 
 @pytest.fixture
@@ -123,14 +121,18 @@ def pabrik(tmp_path) -> Pabrik:
     return Pabrik(tmp_path)
 
 
-def _truk_dibongkar_di_tiga_line(pabrik: Pabrik) -> str:
-    """Timbang masuk, tiga line menerima truk, 3 + 2 + 4 janjang (3 ditolak), timbang keluar."""
+def _truk_dibongkar_di_tiga_line(pabrik: Pabrik) -> tuple[str, str]:
+    """Timbang masuk, tiga line menerima truk, 3 + 2 + 4 janjang (3 ditolak), timbang keluar.
+
+    Mengembalikan id tiket dan penugasan line-1, yang pertama tertaut (dibaca sebelum timbang
+    keluar, sebab pelepasan mengosongkannya)."""
     tiket = asyncio.run(pabrik.service.record_weighing({
         "ref": "SCL-9", "plate_number": PLAT,
         "entered_at": datetime.now(WIB).isoformat(), "gross_kg": 14560,
     }))
     for kode in LINES:
         asyncio.run(pabrik.service.assign_truck(kode, truck_id_for(PLAT)))
+    penugasan_line_1 = pabrik.store.assignments()["line-1"]["assignment_id"]
     for kode, ditolak, diterima in (("line-1", 1, 2), ("line-2", 0, 2), ("line-3", 2, 2)):
         for _ in range(diterima):
             pabrik.janjang(kode)
@@ -140,7 +142,7 @@ def _truk_dibongkar_di_tiga_line(pabrik: Pabrik) -> str:
         "ref": "SCL-9", "plate_number": PLAT, "tare_kg": 5400,
         "exited_at": datetime.now(WIB).isoformat(),
     }))
-    return tiket["id"]
+    return tiket["id"], penugasan_line_1
 
 
 def test_timbang_keluar_melepas_ketiga_line_lewat_klien_sungguhan(pabrik):
@@ -154,21 +156,23 @@ def test_timbang_keluar_melepas_ketiga_line_lewat_klien_sungguhan(pabrik):
 
 
 def test_pesan_autoerp_membawa_jumlah_ketiga_line(pabrik):
-    tiket = _truk_dibongkar_di_tiga_line(pabrik)
+    tiket, penugasan_line_1 = _truk_dibongkar_di_tiga_line(pabrik)
 
     assert asyncio.run(pabrik.erp_worker.drain_once()) >= 1
 
     grading = pabrik.erp.diterima[-1]["grading"]
     assert grading["counts"]["total"] == 9, "cuma satu line yang terkirim ke AutoERP"
     assert grading["counts"]["rej"] == 3
+    # Nothing carrying the tare ever reached AutoERP with fewer than the three lines.
+    dengan_tara = [k for k in pabrik.erp.diterima if "tare_kg" in k["weighing"]]
+    assert dengan_tara and all(k["grading"]["counts"]["total"] == 9 for k in dengan_tara)
     # Satu penugasan jadi kunci tiket di AutoERP (unik): yang pertama tertaut, tetap sama tiap kirim ulang.
-    pertama = pabrik.store.grading_counts_for_visit(tiket)["assignment_id"]
-    assert grading["assignment_id"] == pertama
+    assert grading["assignment_id"] == penugasan_line_1
     assert pabrik.store.weighing(tiket)["erp_status"] == "Finalised"
 
 
 def test_halaman_detail_memuat_setiap_janjang_ketiga_line(pabrik):
-    tiket = _truk_dibongkar_di_tiga_line(pabrik)
+    tiket, _ = _truk_dibongkar_di_tiga_line(pabrik)
 
     assert asyncio.run(pabrik.halaman.drain_once()) == 1
 
