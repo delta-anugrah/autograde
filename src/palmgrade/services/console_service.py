@@ -104,6 +104,12 @@ class ConsoleService(LayarLineSupport):
         # thread pool (`def` route), jadi dijaga kunci sendiri.
         self._ditolak_diperingatkan: set[str] = set()
         self._kunci_ditolak = threading.Lock()
+        # Truk yang sedang ditimbang keluar (id truk -> jumlah timbang keluarnya yang jalan).
+        # Selama itu, janjang susulan dan Lepas manual tidak mengantre kunjungan truk itu: tara
+        # sudah tersimpan tapi baru sebagian line yang tertaut. Ingest jalan di thread pool,
+        # jadi dijaga kunci sendiri.
+        self._truk_ditutup: dict[str, int] = {}
+        self._kunci_ditutup = threading.Lock()
 
     # ------------------------------------------------------------ ingest
 
@@ -476,14 +482,22 @@ class ConsoleService(LayarLineSupport):
         # di sini alih-alih menunggu operator ingat.
         bertaut: dict[str, str] = {}
         if tare is not None or exited_at:
-            bertaut = await self._lepas_line_truk_yang_keluar(truck_id_for(plate))
+            truck_id = truck_id_for(plate)
+            self._mulai_tutup(truck_id)
+            try:
+                bertaut = await self._lepas_line_truk_yang_keluar(truck_id)
+            finally:
+                # Before the queue below: a bunch that saw the guard is stored by now, so the
+                # message built from the store counts it; one that comes later queues it itself.
+                self._selesai_tutup(truck_id)
         # ONE message, after every line is released and linked: the tare is stored already,
         # so a message queued between two releases would carry it with only the lines
         # released so far, and AutoERP finalises a ticket the moment it has both.
-        for tiket, assignment_id in bertaut.items():
-            self._antre_halaman(tiket, assignment_id)
         for tiket in {weighing_id, *bertaut}:
             self._queue_visit(tiket)
+        # The pages last: the visit never depends on the page.
+        for tiket, assignment_id in bertaut.items():
+            self._antre_halaman(tiket, assignment_id)
         return self.store.weighing(weighing_id) or {}
 
     # ------------------------------------------------------ send to AutoERP
@@ -527,6 +541,26 @@ class ConsoleService(LayarLineSupport):
                 bertaut.setdefault(tiket, pegangan["assignment_id"])
         return bertaut
 
+    def _mulai_tutup(self, truck_id: str) -> None:
+        with self._kunci_ditutup:
+            self._truk_ditutup[truck_id] = self._truk_ditutup.get(truck_id, 0) + 1
+
+    def _selesai_tutup(self, truck_id: str) -> None:
+        with self._kunci_ditutup:
+            sisa = self._truk_ditutup.get(truck_id, 0) - 1
+            if sisa > 0:
+                self._truk_ditutup[truck_id] = sisa
+            else:
+                self._truk_ditutup.pop(truck_id, None)
+
+    def _sedang_ditutup(self, weighing_id: str) -> bool:
+        """Truk tiket ini sedang ditimbang keluar: kunjungannya diantre sekali, sesudah semua line lepas."""
+        with self._kunci_ditutup:
+            if not self._truk_ditutup:
+                return False
+            truk = set(self._truk_ditutup)
+        return (self.store.weighing(weighing_id) or {}).get("truck_id") in truk
+
     def _queue_visit(self, weighing_id: str) -> None:
         """A weighbridge row moved: AutoERP gets the whole visit as it stands."""
         if self.erp_queue is not None:
@@ -569,16 +603,31 @@ class ConsoleService(LayarLineSupport):
         """Halaman detail kunjungan ini ke antrean R2 (diganti kalau barisnya masih menunggu).
 
         The detail page does not depend on the AutoERP link: a mill with R2 but no
-        ERP_URL still gets its per-truck pages.
+        ERP_URL still gets its per-truck pages. The reverse holds too: the visit is
+        queued before the page, and a page that cannot be queued is logged, never raised.
         """
-        if self.manifest_queue is not None:
+        if self.manifest_queue is None:
+            return
+        try:
             self.manifest_queue.enqueue(weighing_id, assignment_id)
+        except Exception:
+            logger.exception(
+                "Halaman detail tiket %s (penugasan %s) TIDAK diantre ke R2; kunjungannya ke "
+                "AutoERP tetap diantre, halaman detailnya belum terbentuk",
+                weighing_id, assignment_id,
+            )
 
     def _kirim_kunjungan(self, weighing_id: str, assignment_id: str) -> None:
-        """Halaman detail dan pesan kunjungan untuk tiket yang sudah bertaut ke penugasannya."""
-        self._antre_halaman(weighing_id, assignment_id)
+        """Pesan kunjungan dan halaman detail untuk tiket yang sudah bertaut ke penugasannya.
+
+        Dilewati selama truk tiket ini sedang ditimbang keluar: janjang dan tautannya sudah
+        tersimpan, dan timbang keluar mengantre kunjungan utuh sesudah line terakhir lepas.
+        """
+        if self._sedang_ditutup(weighing_id):
+            return
         if self.erp_queue is not None:
             self.erp_queue.visit(weighing_id, tz=self.tz)
+        self._antre_halaman(weighing_id, assignment_id)
 
     def _kunjungan_susulan(self, assignment_id: str | None) -> None:
         """Janjang yang tiba SESUDAH truknya dilepas (batch 2.3): kirim ulang kunjungannya.

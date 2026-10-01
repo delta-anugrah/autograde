@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
 from dataclasses import replace
 from datetime import datetime, timedelta
@@ -273,9 +274,17 @@ class _LineMengintip(FakeLine):
     def __init__(self) -> None:
         self.lihat = lambda: []
         self.potret: list[list[dict]] = []
+        #: (which release, what happens during it): runs just before that release is looked at,
+        #: like a bunch or an operator's click landing while the weigh-out awaits its line.
+        self.selama = None
+        self._pelepasan = 0
 
     async def assign_truck(self, line, *, assignment_id, **kw):
         if assignment_id == "":
+            self._pelepasan += 1
+            if self.selama is not None and self._pelepasan == self.selama[0]:
+                kerja, self.selama = self.selama[1], None
+                await kerja()
             self.potret.append(self.lihat())
 
 
@@ -287,8 +296,11 @@ class _CatatHalaman:
         self.dipanggil.append((weighing_id, assignment_id))
 
 
-def _timbang_keluar_tiga_line(tmp_path, *, manifest_queue=None):
-    """Weigh in, three lines take the truck (3 + 2 + 4 bunches), weigh out with the tare."""
+def _timbang_keluar_tiga_line(tmp_path, *, manifest_queue=None, selama=None):
+    """Weigh in, three lines take the truck (3 + 2 + 4 bunches), weigh out with the tare.
+
+    `selama=(n, kerja)`: `await kerja(service, truck_id, penugasan)` while the n-th release is
+    awaiting its line, `penugasan` being each line's assignment id before the weigh-out."""
     line = _LineMengintip()
     service, store, outbox = _konsol(tmp_path, line=line, manifest_queue=manifest_queue)
     line.lihat = lambda: [m.payload for m in outbox.due(50) if m.kind == erp_messages.VISIT]
@@ -302,6 +314,10 @@ def _timbang_keluar_tiga_line(tmp_path, *, manifest_queue=None):
     _janjang(service, "line-2", 2)
     _janjang(service, "line-3", 4)
     line.potret.clear()
+    if selama is not None:
+        penugasan = {k: v["assignment_id"] for k, v in store.assignments().items()}
+        urutan, kerja = selama
+        line.selama = (urutan, lambda: kerja(service, truck_id, penugasan))
     asyncio.run(service.record_weighing({
         "ref": "SCL-9", "plate_number": PLAT, "tare_kg": 5000, "exited_at": datetime.now(WIB).isoformat(),
     }))
@@ -350,3 +366,115 @@ def test_lepas_manual_satu_line_tetap_mengantre_kunjungannya_langsung(tmp_path):
 
     assert _kiriman_terakhir(outbox, tiket["id"])["grading"]["counts"]["total"] == 3
     assert [w for w, _ in halaman.dipanggil] == [tiket["id"]]
+
+
+async def _janjang_susulan_line_1(service, truck_id, penugasan):
+    """One more bunch of line-1, which the weigh-out has just released: the ingest route is a
+    plain `def`, so on the factory PC it runs on a worker thread at exactly this point."""
+    service.ingest({
+        "event_id": "susulan-selama-timbang-keluar", "machine_id": service.lines[0].machine_id,
+        "timestamp": datetime.now(WIB).isoformat(), "ripeness_status": "REJ",
+        "assignment_id": penugasan["line-1"], "truck_id": truck_id,
+    })
+
+
+async def _janjang_susulan_line_1_dari_thread_lain(service, truck_id, penugasan):
+    """The same bunch, ingested on another thread as the real route does."""
+    benang = threading.Thread(target=lambda: asyncio.run(_janjang_susulan_line_1(service, truck_id, penugasan)))
+    benang.start()
+    benang.join(10)
+    assert not benang.is_alive()
+
+
+async def _lepas_manual_line_3(service, truck_id, penugasan):
+    """The operator presses Lepas on another line of the same truck while it is being weighed out."""
+    await service.release_truck("line-3")
+
+
+def _tak_ada_tara_di_antrean(line):
+    for urutan, antrean in enumerate(line.potret, start=1):
+        assert [p for p in antrean if "tare_kg" in p["weighing"]] == [], (
+            f"kunjungan dengan tara sudah di antrean pada pelepasan ke-{urutan}"
+        )
+
+
+def test_janjang_susulan_selama_timbang_keluar_tidak_mengantre_kunjungan_setengah_jadi(tmp_path):
+    """A late bunch of the line released first finds its ticket (the link was just written) and
+    re-queues the visit, which now carries the stored tare and only the lines released so far.
+    It must wait for the weigh-out to finish; its bunch is stored, so the one queued after the
+    last release counts it."""
+    _, _, outbox, line, wid = _timbang_keluar_tiga_line(tmp_path, selama=(2, _janjang_susulan_line_1))
+
+    assert len(line.potret) == 3
+    _tak_ada_tara_di_antrean(line)
+    akhir = _kiriman_terakhir(outbox, wid)
+    assert akhir["weighing"]["tare_kg"] == 5000
+    assert akhir["grading"]["counts"]["total"] == 10
+
+
+def test_janjang_susulan_dari_thread_lain_selama_timbang_keluar_masuk_kunjungan_utuh(tmp_path):
+    _, _, outbox, line, wid = _timbang_keluar_tiga_line(
+        tmp_path, selama=(2, _janjang_susulan_line_1_dari_thread_lain)
+    )
+
+    _tak_ada_tara_di_antrean(line)
+    assert _kiriman_terakhir(outbox, wid)["grading"]["counts"]["total"] == 10
+
+
+def test_lepas_manual_selama_timbang_keluar_tidak_mengantre_kunjungan_setengah_jadi(tmp_path):
+    _, _, outbox, line, wid = _timbang_keluar_tiga_line(tmp_path, selama=(2, _lepas_manual_line_3))
+
+    _tak_ada_tara_di_antrean(line)
+    akhir = _kiriman_terakhir(outbox, wid)
+    assert akhir["weighing"]["tare_kg"] == 5000
+    assert akhir["grading"]["counts"]["total"] == 9
+
+
+def test_janjang_susulan_sesudah_timbang_keluar_tetap_mengantre_kunjungan_utuh(tmp_path):
+    """The guard lasts only while the weigh-out runs: a bunch that arrives afterwards queues the
+    whole visit itself, as before."""
+    service, _, outbox, _, wid = _timbang_keluar_tiga_line(tmp_path)
+    penugasan = {}
+    with service.store._lock:  # noqa: SLF001 (the release emptied `assignments`; read the link)
+        penugasan["line-1"] = service.store._db.execute(  # noqa: SLF001
+            "SELECT assignment_id FROM visit_assignments WHERE line_code = 'line-1'"
+        ).fetchone()["assignment_id"]
+    truck_id = service.register_manual_truck(PLAT)["id"]
+
+    asyncio.run(_janjang_susulan_line_1(service, truck_id, penugasan))
+
+    assert _kiriman_terakhir(outbox, wid)["grading"]["counts"]["total"] == 10
+
+
+class _HalamanRusak:
+    """A detail-page queue that cannot be written (full disk, locked file)."""
+
+    def enqueue(self, weighing_id: str, assignment_id: str) -> None:
+        raise OSError("antrean halaman tidak bisa ditulis")
+
+
+def test_halaman_yang_gagal_diantre_tidak_menggagalkan_timbang_keluar(tmp_path, caplog):
+    """The weighing is stored and the scale must be answered; the visit goes to AutoERP whole
+    even though its page could not be queued, and the failure is in the Log tab."""
+    with caplog.at_level("ERROR", logger=LOGGER):
+        _, _, outbox, _, wid = _timbang_keluar_tiga_line(tmp_path, manifest_queue=_HalamanRusak())
+
+    akhir = _kiriman_terakhir(outbox, wid)
+    assert akhir["weighing"]["tare_kg"] == 5000 and akhir["grading"]["counts"]["total"] == 9
+    assert [r for r in caplog.records if "Halaman detail tiket" in r.getMessage()]
+
+
+def test_halaman_yang_gagal_diantre_tidak_menggagalkan_lepas_manual(tmp_path, caplog):
+    service, _, outbox = _konsol(tmp_path, manifest_queue=_HalamanRusak())
+    truck_id = service.register_manual_truck(PLAT)["id"]
+    tiket = asyncio.run(service.record_weighing({
+        "plate_number": PLAT, "gross_kg": 14000, "entered_at": datetime.now(WIB).isoformat(),
+    }))
+    asyncio.run(service.assign_truck("line-1", truck_id))
+    _janjang(service, "line-1", 3)
+
+    with caplog.at_level("ERROR", logger=LOGGER):
+        asyncio.run(service.release_truck("line-1"))
+
+    assert _kiriman_terakhir(outbox, tiket["id"])["grading"]["counts"]["total"] == 3
+    assert [r for r in caplog.records if "Halaman detail tiket" in r.getMessage()]
