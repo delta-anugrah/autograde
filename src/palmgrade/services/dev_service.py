@@ -218,7 +218,7 @@ class DevService:
             # the same SqliteLogHandler as everything else in event_log —
             # that is what applies redact() before the row settles on disk.
             logger.warning(
-                "PLC TEST: %s fired coil %s on %s — rejected by line: %s",
+                "PLC TEST: %s fired coil %s on %s, rejected by line: %s",
                 operator_email, coil, line_code, exc,
             )
             if exc.status_code == 409:
@@ -233,7 +233,7 @@ class DevService:
             # its own line (line_client.py) for the network story, but that log
             # line has no idea who the operator is — this one does.
             logger.warning(
-                "PLC TEST: %s fired coil %s on %s — line unreachable: %s",
+                "PLC TEST: %s fired coil %s on %s, line unreachable: %s",
                 operator_email, coil, line_code, exc,
             )
             raise

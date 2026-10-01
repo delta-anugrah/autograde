@@ -91,7 +91,7 @@ async def _tarik_setelan_grading(settings, state) -> None:
                 url, headers={"x-webhook-secret": settings.webhook_secret}
             )
         if res.status_code != 200:
-            logger.info("Setelan grading tidak diambil (HTTP %s) — pakai .env", res.status_code)
+            logger.info("Setelan grading tidak diambil (HTTP %s), pakai .env", res.status_code)
             return
         data = res.json()
         if data.get("sumber") != "konsol":
@@ -118,7 +118,7 @@ async def _tarik_setelan_grading(settings, state) -> None:
             bersih["garis_capture"], bersih["sumbu_garis"],
         )
     except Exception as exc:
-        logger.info("Setelan grading tidak bisa diambil (%s) — pakai .env", exc)
+        logger.info("Setelan grading tidak bisa diambil (%s), pakai .env", exc)
 
 
 async def _tarik_penugasan(settings, state) -> None:
@@ -145,7 +145,7 @@ async def _tarik_penugasan(settings, state) -> None:
                 headers={"x-webhook-secret": settings.webhook_secret},
             )
         if res.status_code != 200:
-            logger.info("Penugasan tidak diambil (HTTP %s) — line start tanpa truk", res.status_code)
+            logger.info("Penugasan tidak diambil (HTTP %s), line start tanpa truk", res.status_code)
             return
         data = res.json()
         assignment_id = str(data.get("assignment_id") or "").strip()
@@ -165,7 +165,7 @@ async def _tarik_penugasan(settings, state) -> None:
             truck_id, assignment_id, data.get("plate"), data.get("ffb_source"),
         )
     except Exception as exc:
-        logger.info("Penugasan tidak bisa diambil (%s) — line start tanpa truk", exc)
+        logger.info("Penugasan tidak bisa diambil (%s), line start tanpa truk", exc)
 
 
 def create_app() -> FastAPI:
@@ -278,7 +278,7 @@ def create_app() -> FastAPI:
             camera.connect(index=settings.camera_device_index, serial=settings.camera_serial, feature_file=settings.camera_feature_file)
         except RuntimeError as exc:
             if camera_type == "hikrobot":
-                logger.warning("Camera not found at startup: %s — FrameCaptureWorker will keep retrying", exc)
+                logger.warning("Camera not found at startup: %s, FrameCaptureWorker will keep retrying", exc)
             else:
                 raise
         set_camera(camera)
@@ -313,7 +313,7 @@ def create_app() -> FastAPI:
             state.license_exp = effective.grace_ends_at
             if effective.is_expired:
                 logger.error(
-                    "Lisensi tidak berlaku (%s) — deteksi TIDAK dijalankan", effective.reason
+                    "Lisensi tidak berlaku (%s), deteksi TIDAK dijalankan", effective.reason
                 )
             elif effective.warning:
                 logger.warning("%s: %s", effective.warning.code, effective.warning.message)
@@ -403,7 +403,7 @@ def create_app() -> FastAPI:
                 license_ok=lambda: not grading_blocked(settings.lic_enabled, state.license_exp),
             )
         except Exception:
-            logger.exception("Start PLC gagal — grading tetap jalan, PLC dinonaktifkan")
+            logger.exception("Start PLC gagal, grading tetap jalan, PLC dinonaktifkan")
             plc_worker = None
         if plc_worker is not None:
             state.worker_threads.append(("plc", _start_worker("plc", plc_worker.run_loop), plc_worker))

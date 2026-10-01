@@ -164,7 +164,7 @@ class VideoRecorder:
             thread.join(timeout=10.0)
             if thread.is_alive():
                 logger.error(
-                    "Encoder %s tidak berhenti dalam 10 detik — berkas mungkin tidak lengkap",
+                    "Encoder %s tidak berhenti dalam 10 detik, berkas mungkin tidak lengkap",
                     self._line_code,
                 )
 
@@ -284,7 +284,7 @@ class VideoRecorder:
             if writer.isOpened():
                 if tag != _CODEC[0]:
                     logger.warning(
-                        "Codec %s tidak tersedia — rekaman %s memakai %s (berkas lebih besar)",
+                        "Codec %s tidak tersedia, rekaman %s memakai %s (berkas lebih besar)",
                         _CODEC[0],
                         self._line_code,
                         tag,
@@ -301,7 +301,7 @@ class VideoRecorder:
         writer, tag = self._buka_writer(jalur, lebar, tinggi, setelan["fps"])
         if writer is None:
             logger.error(
-                "Tidak ada codec video yang bisa dipakai (%s) — rekaman %s dibatalkan",
+                "Tidak ada codec video yang bisa dipakai (%s), rekaman %s dibatalkan",
                 ", ".join(_CODEC),
                 self._line_code,
             )

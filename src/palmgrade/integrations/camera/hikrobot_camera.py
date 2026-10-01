@@ -82,7 +82,7 @@ class HikrobotCamera(CameraSource):
             target_index = index
             logger.log(
                 rinci,
-                "Camera selected by index %d (serial %s) — set CAMERA_SERIAL untuk stabil",
+                "Camera selected by index %d (serial %s), set CAMERA_SERIAL untuk stabil",
                 target_index,
                 extract_serial(device_infos[target_index]) or "?",
             )
@@ -127,14 +127,14 @@ class HikrobotCamera(CameraSource):
         """
         if not os.path.exists(feature_file):
             logger.warning(
-                "CAMERA_FEATURE_FILE %s tidak ditemukan — lanjut pakai setting firmware",
+                "CAMERA_FEATURE_FILE %s tidak ditemukan, lanjut pakai setting firmware",
                 feature_file,
             )
             return
         ret = self.cam.MV_CC_FeatureLoad(feature_file)
         if ret != 0:
             logger.warning(
-                "MV_CC_FeatureLoad(%s) gagal: %s — lanjut pakai setting firmware",
+                "MV_CC_FeatureLoad(%s) gagal: %s, lanjut pakai setting firmware",
                 feature_file,
                 format_mvs_ret(ret),
             )

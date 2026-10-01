@@ -87,7 +87,7 @@ class PlcWorker:
             self.dropped_submissions += 1
             if self.dropped_submissions == 1 or self.dropped_submissions % 100 == 0:
                 logger.warning(
-                    "PLC submit queue full — status dropped (total %s).",
+                    "PLC submit queue full, status dropped (total %s).",
                     self.dropped_submissions,
                 )
 
@@ -211,7 +211,7 @@ class PlcWorker:
             if not scheduled:
                 if self.scheduler.dropped == 1 or self.scheduler.dropped % 100 == 0:
                     logger.warning(
-                        "PLC pulse queue full — signal dropped (total %s). "
+                        "PLC pulse queue full, signal dropped (total %s). "
                         "Bunches are arriving faster than the PLC can count them.",
                         self.scheduler.dropped,
                     )
@@ -296,7 +296,7 @@ class PlcWorker:
                 if self._input_at(di_manual) is not True:
                     with self._piston_lock:
                         self._piston_requested = requested = False
-                    logger.warning("PLC did not confirm piston open — request cancelled")
+                    logger.warning("PLC did not confirm piston open, request cancelled")
             if requested != self._piston_written:
                 writes[coil_manual] = requested
                 self._piston_written = requested
@@ -343,7 +343,7 @@ class PlcWorker:
             try:
                 return not self.health_check()
             except Exception:
-                logger.exception("PLC health_check failed — treated as unhealthy")
+                logger.exception("PLC health_check failed, treated as unhealthy")
                 return True
         return False
 
@@ -391,6 +391,6 @@ class PlcWorker:
             try:
                 self.run_once()
             except Exception:
-                logger.exception("PlcWorker.run_once failed — loop keeps running")
+                logger.exception("PlcWorker.run_once failed, loop keeps running")
             # wait(), not sleep(): shutdown does not need to wait a full poll interval.
             self._stop.wait(interval)

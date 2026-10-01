@@ -84,7 +84,7 @@ def _plc_int(name: str, default: int) -> int:
     try:
         return int(raw)
     except ValueError:
-        logger.warning("%s=%r is not an integer — falling back to %s", name, raw, default)
+        logger.warning("%s=%r is not an integer, falling back to %s", name, raw, default)
         return default
 
 
@@ -100,7 +100,7 @@ def _plc_opt_int(name: str) -> int | None:
     try:
         return int(raw)
     except ValueError:
-        logger.warning("%s=%r is not a number — manual piston disabled", name, raw)
+        logger.warning("%s=%r is not a number, manual piston disabled", name, raw)
         return None
 
 
@@ -120,7 +120,7 @@ def _plc_protocol() -> str:
         return PLC_PROTOCOLS[0]
     if raw not in PLC_PROTOCOLS:
         logger.warning(
-            "PLC_PROTOCOL=%r is not one of %s — falling back to %r",
+            "PLC_PROTOCOL=%r is not one of %s, falling back to %r",
             raw, ", ".join(PLC_PROTOCOLS), PLC_PROTOCOLS[0],
         )
         return PLC_PROTOCOLS[0]
@@ -146,7 +146,7 @@ def parse_coil_list(value: str | None) -> tuple[int, ...]:
         return tuple(int(part.strip()) for part in value.split(","))
     except ValueError:
         logger.warning(
-            "PLC_COIL_ALIVE=%r is invalid — this line's alive bit is OFF. Format: '9,10'.",
+            "PLC_COIL_ALIVE=%r is invalid, this line's alive bit is OFF. Format: '9,10'.",
             value,
         )
         return ()
@@ -586,7 +586,7 @@ class Settings:
             nama = bersihkan_nama_model(nilai)
         except ModelTidakSah as exc:
             logger.warning(
-                "media.env: model untuk %s diabaikan (%s) — memakai %s",
+                "media.env: model untuk %s diabaikan (%s), memakai %s",
                 self.line_code, exc, self.model_file,
             )
             return
@@ -621,7 +621,7 @@ class Settings:
         """Line: peringatan batch upload, lalu aturan secret yang sama dengan konsol."""
         if self.environment == "production" and not self.r2_bucket:
             logger.warning(
-                "R2_BUCKET is empty — cloud batch upload is disabled (no-op). "
+                "R2_BUCKET is empty, cloud batch upload is disabled (no-op). "
                 "Set R2_* in .env to enable it."
             )
         self.validate_secrets()

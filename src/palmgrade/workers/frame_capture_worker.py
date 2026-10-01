@@ -161,7 +161,7 @@ class FrameCaptureWorker:
         if frame is None:
             if self.camera.exhausted:
                 if not self._exhausted_logged:
-                    logger.info("Camera source exhausted — capture paused without reconnect")
+                    logger.info("Camera source exhausted, capture paused without reconnect")
                     self._exhausted_logged = True
                 self._consecutive_failures = 0
                 time.sleep(max(self._frame_interval, 0.25))
@@ -201,7 +201,7 @@ class FrameCaptureWorker:
             try:
                 recorder.tulis(frame)
             except Exception:
-                logger.exception("Recorder video menolak frame — rekaman diabaikan")
+                logger.exception("Recorder video menolak frame, rekaman diabaikan")
 
         self._fps_counter += 1
         if self._fps_timer == 0.0:

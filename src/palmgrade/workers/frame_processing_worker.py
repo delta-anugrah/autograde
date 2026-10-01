@@ -189,7 +189,7 @@ class FrameProcessingWorker:
         if grading_blocked(self.settings.lic_enabled, self.state.license_exp):
             if not self._license_stop_logged:
                 logger.error(
-                    "Langganan habis atau lisensi tidak valid — deteksi dihentikan. "
+                    "Langganan habis atau lisensi tidak valid, deteksi dihentikan. "
                     "Pasang token baru dengan `palmgrade license <token>`."
                 )
                 self._license_stop_logged = True
@@ -198,7 +198,7 @@ class FrameProcessingWorker:
             self._tidur(1.0)
             return
         if self._license_stop_logged:
-            logger.info("Lisensi kembali valid — deteksi dilanjutkan")
+            logger.info("Lisensi kembali valid, deteksi dilanjutkan")
             self._license_stop_logged = False
 
         if self.state.rewind_signal:
@@ -210,7 +210,7 @@ class FrameProcessingWorker:
             self._janjang_difoto.clear()
             self.state.track_history.clear()
             self.state.rewind_signal = False
-            logger.info("Video rewind — ByteTrack and tracking state reset")
+            logger.info("Video rewind, ByteTrack and tracking state reset")
 
         try:
             frame = self.state.frame_queue.get(timeout=0.1)
@@ -437,7 +437,7 @@ class FrameProcessingWorker:
                             self.state.tp_telat += 1
                             logger.info(
                                 "TP muncul sesudah janjang terdekatnya difoto "
-                                "(total: %d) — tangkai ini tidak ikut ke mana pun",
+                                "(total: %d), tangkai ini tidak ikut ke mana pun",
                                 self.state.tp_telat,
                             )
                     continue

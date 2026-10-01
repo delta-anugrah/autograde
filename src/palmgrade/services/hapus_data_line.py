@@ -111,7 +111,7 @@ def hapus_kalau_diminta(
     # Dicatat SEBELUM mulai: berbulan-bulan foto bisa makan menit, dan selama
     # itu line belum mendengarkan port-nya — terbaca mati di konsol.
     logger.warning(
-        "Penanda hapus data ditemukan — mulai menghapus data line ini (mode %s, diminta %s). "
+        "Penanda hapus data ditemukan, mulai menghapus data line ini (mode %s, diminta %s). "
         "Bisa beberapa menit kalau fotonya banyak.", info["mode"], info["diminta_oleh"],
     )
     simpan = _AWALAN_SIMPAN
@@ -141,7 +141,7 @@ def hapus_kalau_diminta(
         penanda.unlink(missing_ok=True)
     else:
         logger.error(
-            "Hapus data line belum tuntas: %d item gagal dihapus — penanda dibiarkan, "
+            "Hapus data line belum tuntas: %d item gagal dihapus, penanda dibiarkan, "
             "boot berikutnya mencoba lagi", gagal,
         )
     return {**info, "dihapus": dihapus, "gagal": gagal}

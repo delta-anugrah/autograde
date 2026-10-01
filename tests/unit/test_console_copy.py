@@ -4,9 +4,9 @@ Permintaan user 2026-09-26: em dash (—) dan " - " sebagai jeda membuat teks
 terasa ditulis mesin. Kalimat dipecah dengan titik, koma, titik dua, atau kurung.
 
 Yang diperiksa hanya yang sampai ke orang: kamus dua bahasa konsol, teks statis
-HTML, string JS di luar kamus, dan pesan exception (jawaban HTTP yang ditampilkan
-layar apa adanya, dan terminal teknisi lewat `make operator`). Komentar kode,
-docstring, dan log bebas.
+HTML, string JS di luar kamus, pesan exception (terminal teknisi lewat `make
+operator`, dan log), dan pesan log, yang sejak batch 3 tampil di tab Log
+(2026-10-01). Komentar kode dan docstring bebas.
 """
 from __future__ import annotations
 
@@ -80,3 +80,21 @@ def test_pesan_lain_yang_tampil_tanpa_em_dash():
 
     assert not _ada_dash(str(HapusBerjalan()))
     assert not _ada_dash(_alasan(None))
+
+
+_LEVEL_LOG = {"debug", "info", "warning", "error", "exception", "critical", "log"}
+
+
+def test_pesan_log_tanpa_em_dash():
+    """Log messages reach the screen in the Log tab (batch 3.2): same copy rule as KAMUS."""
+    ada = []
+    for berkas in sorted(SRC.rglob("*.py")):
+        for node in ast.walk(ast.parse(berkas.read_text())):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in _LEVEL_LOG and node.args):
+                continue
+            pesan = node.args[1] if node.func.attr == "log" and len(node.args) > 1 else node.args[0]
+            for sub in ast.walk(pesan):
+                if isinstance(sub, ast.Constant) and isinstance(sub.value, str) and _ada_dash(sub.value):
+                    ada.append(f"{berkas.relative_to(SRC)}:{sub.lineno} {sub.value[:80]}")
+    assert not ada, ada
