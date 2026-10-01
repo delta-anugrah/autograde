@@ -32,7 +32,7 @@ from ..domain.setelan_grading import SetelanTidakSah
 from ..domain.setelan_rekam import SetelanRekamTidakSah
 from ..domain.sumber_kamera import SumberTidakSah
 from ..integrations.notifications.line_client import LinePlcTolak, LineUnavailable
-from ..schemas.console_schema import LoginBody, ManualTruckBody, ScanBody, WeighingBody
+from ..schemas.console_schema import AutoAssignBody, LoginBody, ManualTruckBody, ScanBody, WeighingBody
 from ..services.bahaya_service import BahayaDitolak, BahayaSemuaMenolak, BahayaTidakSah
 from ..services.dev_service import CoilTidakDikenal, PlcSibuk
 from ..services.impor_grading_service import ImporDitolak, ImporTidakAda
@@ -377,13 +377,37 @@ async def assign_truck(
 
 @router.post("/api/console/lines/{line_code}/release-truck")
 async def release_truck(line_code: str, service: Service, operator: Operator) -> dict:
-    """Truck leaves. The line is told too — see `ConsoleService.lepas_truk`."""
+    """Truck leaves. The line is told too; then the next truck in the unloading queue
+    may go on (`release_truck_by_operator`, 2026-10-01), and the answer says which."""
     try:
-        return await service.release_truck(line_code)
+        return await service.release_truck_by_operator(line_code)
     except ValueError as exc:
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
         raise _operator_error(502, exc) from exc
+
+
+@router.post("/api/console/unloading-queue/{weighing_id}/assign")
+async def unloading_queue_assign(weighing_id: str, service: Service, operator: Operator) -> dict:
+    """"Tugaskan sekarang" on the unloading queue: this truck onto the free lines now.
+
+    409 when the queue changed since the screen drew it (`bukan_antrean`) or no line is
+    free (`line_semua_terpakai`): the state moved, the request itself was fine.
+    """
+    try:
+        return {"dipasang": await service.pasang_dari_antrean(weighing_id)}
+    except InvalidInput as exc:
+        raise _operator_error(409, exc) from exc
+
+
+@router.post("/api/console/unloading-queue/{weighing_id}/skip")
+def unloading_queue_skip(weighing_id: str, service: Service, operator: Operator) -> dict:
+    """"Lewati": a truck that will not unload leaves the unloading queue."""
+    try:
+        service.lewati_antrean(weighing_id, oleh=operator["email"])
+    except InvalidInput as exc:
+        raise _operator_error(409, exc) from exc
+    return {"weighing_id": weighing_id, "dilewati": True}
 
 
 @router.post("/api/console/lines/{line_code}/manual-reject")
@@ -578,6 +602,24 @@ async def dev_setelan_simpan(
             payload, diubah_oleh=operator["email"]
         )
     except SetelanTidakSah as exc:
+        raise _operator_error(400, exc) from exc
+
+
+@router.get("/api/console/dev/auto-assign")
+def dev_penugasan_baca(service: Service, operator: Support) -> dict:
+    """Penugasan line otomatis: nyala atau mati, dan line mana yang dipakai."""
+    return service.penugasan_otomatis()
+
+
+@router.post("/api/console/dev/auto-assign")
+def dev_penugasan_simpan(service: Service, operator: Support, payload: AutoAssignBody) -> dict:
+    """Support only, like the grading settings: this decides which truck the bunches are
+    counted to. Every change is logged WARNING with who made it."""
+    try:
+        return service.simpan_penugasan_otomatis(
+            payload.aktif, payload.lines, diubah_oleh=operator["email"]
+        )
+    except InvalidInput as exc:
         raise _operator_error(400, exc) from exc
 
 

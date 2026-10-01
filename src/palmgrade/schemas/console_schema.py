@@ -47,3 +47,14 @@ class WeighingBody(_Body):
     gross_kg: str | float | None = None
     tare_kg: str | float | None = None
     net_kg: str | float | None = None
+
+
+class AutoAssignBody(_Body):
+    """Automatic line assignment (support, 2026-10-01). The domain checks the lines.
+
+    The screen always sends both. A missing field reads as off / no lines, so `{}` saves
+    "off" (it never crashes and never turns the setting on).
+    """
+
+    aktif: bool | None = None
+    lines: list[str] | None = None
