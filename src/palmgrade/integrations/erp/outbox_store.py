@@ -30,7 +30,9 @@ CREATE TABLE IF NOT EXISTS erp_outbox (
     status          TEXT NOT NULL DEFAULT 'pending',
     attempts        INTEGER NOT NULL DEFAULT 0,
     last_error      TEXT,
-    -- Why it is waiting, one of JENIS_GAGAL (NULL on rows from an older build).
+    -- Why it is waiting, one of JENIS_GAGAL (NULL on rows from an older build). Cleared on
+    -- enqueue, success and requeue. Rollback safe: an older build ignores the column, and a
+    -- row it marks failed keeps the stale kind until the next enqueue, success or requeue.
     error_kind      TEXT,
     next_attempt_at REAL NOT NULL DEFAULT 0,
     created_at      REAL NOT NULL,
@@ -243,7 +245,7 @@ class ErpOutboxStore:
         """
         with self._lock, self._db:
             cur = self._db.execute(
-                """UPDATE erp_outbox SET status='pending', next_attempt_at=0
+                """UPDATE erp_outbox SET status='pending', next_attempt_at=0, error_kind=NULL
                    WHERE status='error'"""
             )
         return cur.rowcount

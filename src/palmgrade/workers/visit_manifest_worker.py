@@ -18,8 +18,18 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 
+from botocore.exceptions import ClientError, HTTPClientError
+from botocore.exceptions import ConnectionError as BotoConnectionError
+
+from ..domain.sinkron import galat_jaringan_http
 from ..domain.visit_manifest import MANIFEST_KIND, VIEWER_KEY, build_manifest, manifest_key
-from ..integrations.erp.outbox_store import GAGAL_TAK_TERJANGKAU, GAGAL_TUJUAN, ErpOutboxStore
+from ..integrations.erp.outbox_store import (
+    GAGAL_KONSOL,
+    GAGAL_KUNCI_DITOLAK,
+    GAGAL_TAK_TERJANGKAU,
+    GAGAL_TUJUAN,
+    ErpOutboxStore,
+)
 from ..integrations.upload.r2_uploader import galat_jaringan
 from ..repositories.console_repository import ConsoleStore
 from ..services.status_sinkron import StatusSinkron
@@ -28,6 +38,29 @@ logger = logging.getLogger(__name__)
 
 _INTERVAL_S = 30
 _BATCH = 20
+
+
+_KUNCI_DITOLAK = frozenset({401, 403})
+#: Galat yang berarti jaringan, bukan R2 menjawab dan bukan setelan kita sendiri.
+_GALAT_JARINGAN = (HTTPClientError, BotoConnectionError, ConnectionError, TimeoutError)
+
+
+def jenis_gagal_r2(exc: BaseException) -> str:
+    """Kenapa manifest ini tertahan, untuk tab Status (fix wave 2026-10-01).
+
+    R2 menjawab 401/403 = kunci ditolak; menjawab galat lain = galat tujuan, kecuali gateway
+    (502/503/504) yang berarti jaringan; jaringan sungguhan (endpoint, timeout) = tak
+    terjangkau; selebihnya (kredensial kosong, berkas viewer hilang, bug) = sisi konsol.
+    Last Sync tetap memakai `galat_jaringan`, yang sengaja lebih lebar.
+    """
+    if isinstance(exc, ClientError):
+        status = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+        if status in _KUNCI_DITOLAK:
+            return GAGAL_KUNCI_DITOLAK
+        return GAGAL_TAK_TERJANGKAU if galat_jaringan_http(status) else GAGAL_TUJUAN
+    if isinstance(exc, _GALAT_JARINGAN):
+        return GAGAL_TAK_TERJANGKAU
+    return GAGAL_KONSOL
 
 
 class Uploader(Protocol):
@@ -85,10 +118,9 @@ class VisitManifestWorker:
                 )
             except Exception as exc:  # noqa: BLE001 — any transport failure: keep the row
                 logger.warning("R2 unreachable, holding manifests: %s", exc)
-                jaringan = galat_jaringan(exc)
-                self.outbox.mark_error(message, str(exc), jenis=GAGAL_TAK_TERJANGKAU if jaringan else GAGAL_TUJUAN)
+                self.outbox.mark_error(message, str(exc), jenis=jenis_gagal_r2(exc))
                 if self._status is not None:
-                    self._status.gagal("r2", "manifest", str(exc), jaringan=jaringan)
+                    self._status.gagal("r2", "manifest", str(exc), jaringan=galat_jaringan(exc))
                 break
             self.outbox.mark_sent(message)
             uploaded += 1

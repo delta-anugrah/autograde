@@ -48,6 +48,14 @@ _KUNCI_DITOLAK = (401, 403)
 _BATCH = 50
 
 
+def _jenis_tak_terjangkau(exc: ErpUnavailable) -> str:
+    """Tanpa status atau gateway 5xx: menunggu sambungan. Status 4xx berarti ada yang
+    MENJAWAB (bukan Frappe yang bisa dibaca), jadi bukan "tidak terjangkau"."""
+    if exc.status is not None and 400 <= exc.status <= 499:
+        return GAGAL_TUJUAN
+    return GAGAL_TAK_TERJANGKAU
+
+
 def _jenis_tolak(exc: ErpRejected | ErpServerError) -> str:
     """AutoERP answered: its key check refused us, it refused this content, or it crashed."""
     if isinstance(exc, ErpServerError):
@@ -133,7 +141,7 @@ class ErpOutboxWorker:
                 answer = await self._client.call_method(handler.method, message.payload)
             except ErpUnavailable as exc:
                 logger.warning("AutoERP unreachable, holding the batch: %s", exc)
-                self._outbox.mark_error(message, str(exc), jenis=GAGAL_TAK_TERJANGKAU)
+                self._outbox.mark_error(message, str(exc), jenis=_jenis_tak_terjangkau(exc))
                 self._catat_galat(exc)
                 break
             except (ErpRejected, ErpServerError) as exc:
