@@ -45,6 +45,30 @@ Decisions:      The QR fields ship hidden, so scan tests un-hide `#scan-plat` an
 Next:           Merge by the user; then the ruleset `ci-wajib-lolos`. Open: `Belum sampai ke:` in
                 Setelan is a literal, not KAMUS; no browser test for the weigh-out scan.
 
+## 2026-10-01 · release · v1.21.0 released and installed in Lampung, PLC docs follow (PR #204)
+Changed:        Release PR #202 (staging to main, merge commit 1adadec, tag v1.21.0) shipped #196,
+                #197, the coding standard, the Codex skill mirror guard, #199, #201 and #200
+                (Batch 3 logging plus the 4.1 and 4.3 gates). This PR: the "after #200, not yet
+                installed in Lampung" wording becomes v1.21.0, installed 2026-10-01, in
+                docs/plc-mc-handoff.md 1.9 (summary, table 4.2, field test paragraph and table,
+                PDF reprinted) and skill plc-mc-protocol (address map note, Coil ERROR heading and
+                summary, waiting list item 0).
+Validated:      Deploy run 36821091663: ci / lint-and-test 3m44s first (the 4.1 gate holds), then
+                the factory image 8m06s and the demo -cpu image 1m00s, all success; its log pushes
+                v1.21.0, latest and v1.21.0-cpu. GitHub Release v1.21.0 = Latest. Lampung, by the
+                user: `autograde use v1.21.0`, everything checked as expected. Check before the
+                install (12:40 WIB): 3 lines healthy, cameras 20 fps, 201 GB free; the E-STOP
+                ribbon was on (a PLC reading, not a blocker). This PR: unit 3824 passed /
+                28 skipped; doc guard tests 62 passed; md_to_pdf → 12 pages, pages 3, 7 and 9
+                checked by eye; rule-reviewer → 0 blocking, 4 warnings, all fixed.
+Not validated:  The ERROR coil on a real panel, for AI dead and for frames stopped alike. Last Sync
+                Cloud Photo in Lampung still read 25 Sep 14:00 before the install (normal if
+                nothing was graded since; the user checks it).
+Decisions:      The handoff stays at version 1.9: only the install status changed, and the PLC
+                team has not received 1.9 yet.
+Next:           Hand the 1.9 PDF to the PLC team once this is merged. Demo console to
+                v1.21.0-cpu (the user runs it). Batch 4: 4.4, 4.2, 4.5, 4.6.
+
 ## 2026-10-01 · console, logging · Fixes from the manual browser test (PR #200)
 Changed:        Unreachable-line sentence ends at "mati atau sedang restart." (no technician tail).
                 Disk strip: as wide as the cards (`--pad`, also `#pita-alarm`), one line with an
