@@ -454,8 +454,8 @@ end of this file.
     konfigurasi, nama berkas, atau kode galat (`AI_MATI`, `RESTART_LAMA`, ...) di layar mana
     pun selain tab Log; kalimatnya tetap menyebut apa yang terjadi, line mana, sejak kapan, dan
     harus apa. `alasan()` memulangkan kalimat umum untuk kode asing, diawali konteks pemanggil
-    (`gagalKarena` untuk awalan): `err_ditolak` (nilai yang ditolak) untuk 4xx tanpa kode,
-    `err_umum` untuk selebihnya, dan `err_konsol_putus` untuk konsol yang tidak menjawab sama
+    (`gagalKarena` untuk awalan): `err_ditolak` (nilai yang ditolak) untuk 4xx tanpa kode kecuali 404,
+    `err_umum` untuk 404, 5xx, dan selebihnya, dan `err_konsol_putus` untuk konsol yang tidak menjawab sama
     sekali (`ambil`), tidak pernah `e.message`. Line yang tidak terbaca konsol diklasifikasi
     backend (`domain/line_tak_terbaca.py`, `sebab_kode` di kartu Diagnostik, Antrean line, dan
     snapshot `LineStatusWorker`), kiriman AutoERP/R2 yang tertahan membawa `error_kind` (kolom

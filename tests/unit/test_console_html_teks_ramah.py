@@ -256,7 +256,7 @@ def _jalankan_api(fetch_js: str, bahasa: str = "id") -> dict:
         "const LANE_GERBANG = new Set();",
         "function bukaGerbang() {}",
         f"globalThis.fetch = {fetch_js};",
-        fungsi("ambil"), fungsi("api"), fungsi("kodeDikenal"), fungsi("saranUmum"), fungsi("alasan"),
+        fungsi("ambil"), fungsi("galatJawaban"), fungsi("api"), fungsi("kodeDikenal"), fungsi("saranUmum"), fungsi("alasan"),
         "(async () => { try { await api('/api/console/state'); console.log('null'); }"
         " catch (e) { console.log(JSON.stringify({ kode: e.kode ?? null, teks: alasan(e) })); } })();",
     ])
@@ -440,7 +440,7 @@ def _jalankan_api_status(status: int, gagal: str, bahasa: str = "id") -> str:
         'const lokal = () => (bahasa === "id" ? "id-ID" : "en-GB");',
         "const $ = () => ({ hidden: true }); const LANE_GERBANG = new Set(); function bukaGerbang() {}",
         f"globalThis.fetch = async () => ({{ ok: false, status: {status}, json: async () => ({{ detail: 'conf_threshold harus antara 0 dan 1' }}) }});",
-        fungsi("ambil"), fungsi("api"), fungsi("kodeDikenal"), fungsi("saranUmum"), fungsi("alasan"),
+        fungsi("ambil"), fungsi("galatJawaban"), fungsi("api"), fungsi("kodeDikenal"), fungsi("saranUmum"), fungsi("alasan"),
         f"(async () => {{ try {{ await api('/x'); }} catch (e) {{ console.log(JSON.stringify(alasan(e, {json.dumps(gagal)}))); }} }})();",
     ])
     hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
@@ -464,6 +464,11 @@ def test_setelan_dan_rekam_setelan_menyebut_konteksnya():
     assert 'alasan(e, "gagalSetelanMuat")' in fungsi("muatSetelan")
     rekam = HTML.split('$("rekam-simpan").addEventListener("click"', 1)[1].split("\n}));", 1)[0]
     assert 'alasan(e, "gagalRekamSetelan")' in rekam
+    # Start/stop is a command, not loading the status (re-review C).
+    perintah = HTML.split('$("rekam-baris").addEventListener("click"', 1)[1].split("\n});", 1)[0]
+    assert 'alasan(e, "gagalRekamPerintah")' in perintah
+    for bahasa in ("id", "en"):
+        assert "gagalRekamPerintah" in _kamus(bahasa)
 
 
 @butuh_node
@@ -504,3 +509,25 @@ def test_alarm_plc_asing_kalimat_umum_bukan_kunci_mentah(bahasa):
     kamus = _kamus(bahasa)
     assert "alarm_kode_baru" not in hasil
     assert _esc(kamus["alarm_lain"]) in hasil and _esc(kamus["alarm_estop"]) in hasil
+
+
+
+def test_unduh_riwayat_memakai_galat_yang_sama_dengan_api():
+    """Re-review B: the CSV download built its error by hand and lost `status`."""
+    assert "galatJawaban(res)" in fungsi("unduhRiwayat")
+    assert "galatJawaban(res)" in fungsi("api")
+
+
+@butuh_node
+def test_422_tanpa_kode_dari_unduhan_jadi_nilai_ditolak():
+    jawab = "({ status: 422, json: async () => ({ detail: 'rentang aneh' }) })"
+    skrip = "\n".join([
+        kamus_asli(), 'let bahasa = "id";', "const t = (k) => KAMUS[bahasa][k] ?? k;",
+        'const lokal = () => "id-ID"; function bukaGerbang() {}',
+        fungsi("galatJawaban"), fungsi("kodeDikenal"), fungsi("saranUmum"), fungsi("alasan"),
+        f"(async () => {{ const e = await galatJawaban({jawab}); console.log(JSON.stringify(alasan(e, 'riwayatGagal'))); }})();",
+    ])
+    hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
+    assert hasil.returncode == 0, hasil.stderr[-800:]
+    kamus = _kamus("id")
+    assert json.loads(hasil.stdout) == f"{kamus['riwayatGagal']}. {kamus['err_ditolak']}"

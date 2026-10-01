@@ -2511,7 +2511,7 @@ const KAMUS = {
     gagalUmum:"Gagal",
     err_ditolak:"Nilai yang dikirim ditolak. Periksa isian yang ditandai atau angka yang dimasukkan; rinciannya ada di tab Log",
     gagalSetelan:"Gagal menyimpan setelan", gagalSetelanMuat:"Gagal memuat setelan",
-    gagalRekamSetelan:"Gagal menyimpan setelan rekaman",
+    gagalRekamSetelan:"Gagal menyimpan setelan rekaman", gagalRekamPerintah:"Perintah rekam gagal",
     kartuKunciDitolak:"Kunci ditolak. Line ini hidup dan mungkin masih menggrading, tapi kuncinya beda dari konsol. Panggil teknisi untuk menyamakan kunci konsol dan line ini.",
     aiMatiJudul:"{line}: AI berhenti memproses",
     aiMatiRinci:"Sejak {jam}. Kamera mengirim gambar tapi tidak ada yang digrading, buah lewat tanpa disortir. Tahan umpan buah ke line ini dan panggil teknisi untuk restart line.",
@@ -2919,7 +2919,7 @@ const KAMUS = {
     gagalUmum:"Failed",
     err_ditolak:"The value sent was refused. Check the highlighted field or the numbers entered; the details are in the Log tab",
     gagalSetelan:"Failed to save the settings", gagalSetelanMuat:"Failed to load the settings",
-    gagalRekamSetelan:"Failed to save the recording settings",
+    gagalRekamSetelan:"Failed to save the recording settings", gagalRekamPerintah:"The recording command failed",
     kartuKunciDitolak:"Key refused. This line is alive and may still be grading, but its key differs from the console. Call a technician to make the console and line keys match.",
     aiMatiJudul:"{line}: AI stopped processing",
     aiMatiRinci:"Since {jam}. The camera sends images but nothing is graded, fruit passes unsorted. Hold the fruit feed to this line and call a technician to restart the line.",
@@ -3615,6 +3615,22 @@ async function ambil(path, opts) {
   }
 }
 
+// The error for an answer that is not ok, shared by api() and the CSV download.
+// Operator routes send {code, params, message}; machine lanes send plain text. The
+// message is for devtools only: the screen words the code (alasan), never the text;
+// `status` lets alasan() tell a refused value (uncoded 4xx) from a failure.
+async function galatJawaban(res) {
+  const detail = (await res.json().catch(() => ({}))).detail;
+  const err = new Error((typeof detail === "string" ? detail : detail?.message) || `HTTP ${res.status}`);
+  err.kode = detail?.code;
+  err.params = detail?.params || {};
+  err.status = res.status;
+  // The session is gone (expired, signed out elsewhere, operator switched off):
+  // back to the gate, not a red banner over a screen that silently stopped updating.
+  if (res.status === 401 && err.kode === "belum_masuk") bukaGerbang();
+  return err;
+}
+
 async function api(path, opts) {
   // A signed-out console left on all night would otherwise ask for data every 2 s
   // and be refused every time. The polls resume the moment someone signs in.
@@ -3626,19 +3642,7 @@ async function api(path, opts) {
     throw belum;
   }
   const res = await ambil(path, { headers: { "content-type": "application/json" }, ...opts });
-  if (!res.ok) {
-    // Operator routes send {code, params, message}; machine lanes send plain text. The
-    // message is for devtools only: the screen words the code (alasan), never the text.
-    const detail = (await res.json().catch(() => ({}))).detail;
-    const err = new Error((typeof detail === "string" ? detail : detail?.message) || `HTTP ${res.status}`);
-    err.kode = detail?.code;
-    err.params = detail?.params || {};
-    err.status = res.status;
-    // The session is gone (expired, signed out elsewhere, operator switched off):
-    // back to the gate, not a red banner over a screen that silently stopped updating.
-    if (res.status === 401 && err.kode === "belum_masuk") bukaGerbang();
-    throw err;
-  }
+  if (!res.ok) throw await galatJawaban(res);
   return res.json();
 }
 
@@ -5545,14 +5549,7 @@ async function unduhRiwayat(tombol) {
     $("riwayat-pesan").textContent = "";
     try {
       const res = await ambil(`/api/console/riwayat/csv?${paramRiwayat({ tampilan: riwayatTampilan, bahasa })}`);
-      if (!res.ok) {
-        const detail = (await res.json().catch(() => ({}))).detail;
-        const err = new Error((typeof detail === "string" ? detail : detail?.message) || `HTTP ${res.status}`);
-        err.kode = detail?.code;
-        err.params = detail?.params || {};
-        if (res.status === 401 && err.kode === "belum_masuk") bukaGerbang();
-        throw err;
-      }
+      if (!res.ok) throw await galatJawaban(res);
       const nama = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") || "")?.[1]
         || "riwayat-grading.csv";
       const url = URL.createObjectURL(await res.blob());
@@ -7253,7 +7250,7 @@ $("rekam-baris").addEventListener("click", async (ev) => {
     }
     await muatRekam();
   } catch (e) {
-    toastGagal(alasan(e, "gagalRekam"));
+    toastGagal(alasan(e, "gagalRekamPerintah"));
     el.disabled = false;
     el.classList.remove("sibuk");
     el.textContent = tulisanAsli;

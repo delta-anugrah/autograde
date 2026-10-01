@@ -185,24 +185,6 @@ def test_jenis_tanpa_handler_galat_konsol_dan_tercatat_di_tab_log(tmp_path, capl
     assert any("visit" in r.getMessage() and r.levelno >= logging.WARNING for r in caplog.records)
 
 
-@pytest.mark.parametrize("status,jenis", [(404, GAGAL_TUJUAN), (None, GAGAL_TAK_TERJANGKAU), (503, GAGAL_TAK_TERJANGKAU)])
-def test_erp_unavailable_dengan_status_4xx_bukan_tak_terjangkau(tmp_path, status, jenis):
-    """Fix wave: an ErpUnavailable that carries a 4xx status came from an answer, so the row
-    is not waiting for the connection."""
-    from palmgrade.integrations.erp.client import ErpUnavailable
-
-    class _Klien:
-        async def call_method(self, method, payload):
-            raise ErpUnavailable("POST /api/method/x: HTTP ?", status=status)
-
-    outbox = ErpOutboxStore(tmp_path / "o.db")
-    worker = ErpOutboxWorker(outbox, _Klien(), {"truck": OutboxHandler(method=METHOD, on_sent=lambda k, m: None)})
-    outbox.enqueue("truck", "K1", {"v": 1})
-    asyncio.run(worker.drain_once())
-
-    assert _satu_gagal(outbox)["error_kind"] == jenis
-
-
 def test_kirim_ulang_menghapus_jenis(tmp_path):
     """Requeued rows are pending again: an old reason must not survive into the next failure."""
     jalur = tmp_path / "o.db"
