@@ -18,6 +18,26 @@ Next:           ...
 
 ---
 
+## 2026-10-01 · console · Plain-language screen text outside the Log tab (PR #200)
+Changed:        User decision after the manual test of PR #200: no screen except the Log tab
+                shows system error text. KAMUS id/en rewritten (no HTTP codes, env or file
+                names, error codes; ribbons keep line, since-time, action); alasan() returns
+                a generic sentence for an unknown code and its own sentence when the console
+                does not answer, never e.message; the backend classifies an unreadable line
+                (domain/line_tak_terbaca.py, sebab_kode) and a waiting AutoERP/R2 message
+                (erp_outbox.error_kind, added in place), the screen words both; the raw
+                reason goes to the Log tab (LineStatusWorker: one WARNING per episode after
+                three failed polls, one on a cause change, one on recovery; uncoded operator
+                refusals logged). Setelan errors go through alasan(); rekam refusal codes got
+                their err_ keys; the Versi box lines up with the other Status sections; 60
+                em dashes in log messages became commas (guarded). Docs: rules 21, F6, skill
+                konsol-autograde, backend-overview, MANUAL ribbon lines.
+Validated:      unit, integration, e2e, ruff CI scope, F821 on main.py, cek_skrip_konsol
+                (counts in .superpowers/sdd/batch3-induk/teks-ramah-report.md).
+Not validated:  real browser pass (test servers were stopped; not started on purpose);
+                MANUAL PDF not regenerated.
+Next:           user re-tests the Status tab and a line restart in the browser.
+
 ## 2026-09-30 · logging, health, CI · Batch 3 on fix/logging-batch-3 (PR #200)
 Changed:        Integration branch from 849c30d: streams D, A, C merged, origin/staging (#196/#197)
                 merged in, then stream B merged.

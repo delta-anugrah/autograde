@@ -48,7 +48,7 @@ PRs; a PR is not blocked by a gap it did not add.
 - **F3.** The screen never decides or computes what counts (L4). Hiding a support control is only tidiness; the lock is the backend guard (`require_support`, 403, rule 21).
 - **F4.** Every view that loads data handles five states: loading, error, empty, content, and disconnected (camera, line or AutoERP unreachable).
 - **F5.** Colours and spacing come from the CSS variables in `:root` (light and dark theme); text reads from metres away; buttons in one row share one width.
-- **F6.** All screen text goes through `KAMUS` (id and en), with no em dash, no spaced hyphen as a pause, and verbs that match the button labels (`tests/unit/test_console_copy.py`).
+- **F6.** All screen text goes through `KAMUS` (id and en), with no em dash, no spaced hyphen as a pause, and verbs that match the button labels (`tests/unit/test_console_copy.py`). Outside the Log tab no system error text: no HTTP status, URL, raw server or exception text, env or file name, or error code; a failure is worded from a code, and an unknown code gets the generic sentence (`alasan`, rule 21, `tests/unit/test_console_html_teks_ramah.py`).
 - **F7.** Text from the server or from the operator reaches `innerHTML` only through `esc()`; a number goes through `Number()` or `kg()` first.
 - **F8.** A POST that changes data runs inside `denganSibuk(`: spinner on, second click refused (`tests/unit/test_console_tombol_sibuk.py`).
 - **F9.** A timer that belongs to one tab starts and stops in `bukaTabDev` (rule 21); the screen-wide polls (`refresh`, `muatTrucks`, `muatTimbangan`) run on every tab on purpose (rules 22, 24, 27). A poll that rewrites a view uses `tulisKalauBeda`, so an unchanged view is not redrawn.

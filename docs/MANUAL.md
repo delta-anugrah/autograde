@@ -138,15 +138,14 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   yang hilang: semuanya menunggu di antrean dan terkirim sendiri begitu sambungan pulih.
 - **Tiga kartu line**, satu per kamera, dengan stream langsung, status **ONLINE / OFFLINE** di
   judul, tombol **Tugaskan** (pilih truk), **Lepas** (truk pergi), dan **Reject Manual**.
-- Kartu berbingkai **merah** dengan pita **AI berhenti memproses** (kode `AI_MATI`, jam mulai,
-  tindakan) = kamera jalan tapi tidak ada yang digrading: tahan umpan buah ke line itu dan
+- Kartu berbingkai **merah** dengan pita **AI berhenti memproses** (jam mulai, tindakan) = kamera jalan tapi tidak ada yang digrading: tahan umpan buah ke line itu dan
   panggil teknisi. Pita hilang sendiri begitu line memproses lagi.
-- Kartu berbingkai **merah** dengan pita **kamera berhenti mengirim gambar** (kode
-  `FRAME_BERHENTI`, jam mulai, tindakan) = kamera tersambung tapi tidak ada gambar masuk lebih dari
+- Kartu berbingkai **merah** dengan pita **kamera berhenti mengirim gambar** (jam mulai,
+  tindakan) = kamera tersambung tapi tidak ada gambar masuk lebih dari
   30 detik: tahan umpan buah, periksa kabel data dan switch kamera, restart line. Video uji tanpa
   ulang yang selesai diputar TIDAK memunculkan pita ini. Hilang sendiri begitu gambar datang lagi.
-- Pita **Disk PC hampir penuh** (kuning, kode `DISK_HAMPIR_PENUH`, sisa di bawah 15 GB) atau
-  **Disk PC hampir habis** (merah berdenyut, kode `DISK_KRITIS`, di bawah 5 GB) di atas semua kartu,
+- Pita **Disk PC hampir penuh** (kuning, sisa di bawah 15 GB) atau
+  **Disk PC hampir habis** (merah berdenyut, di bawah 5 GB) di atas semua kartu,
   satu pita untuk seluruh PC: menyebut jam mulai, line yang melaporkan, sisa GB, dan tindakannya.
   Muncul dengan atau tanpa R2, dan hilang sendiri begitu disk lega lagi.
 - Kotak kamera bertuliskan **Line N sedang dinyalakan ulang** dengan spinner dan bar berjalan
@@ -154,7 +153,7 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   menekan Restart / Hapus data di Danger Zone. Selama itu tulisan "Kamera tidak tersambung"
   tidak ikut tampil, dan tidak ada hitungan detik: bar berjalan cukup menandai masih diproses. Hilang sendiri begitu gambar kamera muncul lagi,
   tanpa memuat ulang halaman. Lewat 60 detik berganti jadi kotak merah **Line N belum kembali**
-  (kode `RESTART_LAMA`, jam restart diminta): cek tab Log dan terminal line itu. Hapus data
+  (jam restart diminta): cek tab Log dan terminal line itu. Hapus data
   menulis **Line N sedang menghapus data lalu dinyalakan ulang** dan menunggu sampai 10 menit
   sebelum kotak merah, karena line menghapus fotonya dulu sebelum menyala. Tanda ini tampil di
   layar tempat tombolnya ditekan (biasanya PC pabrik lewat AnyDesk); layar lain cuma melihat
@@ -259,7 +258,7 @@ Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riw
 | Tab | Isi |
 |---|---|
 | **Log** | galat dan peringatan konsol DAN ketiga line (kolom Sumber menyebut line-1/2/3 atau konsol), jam pertama muncul untuk baris gabungan, traceback bisa dibuka per baris; kalimat di atas tabel menyebut keadaan lapor ke Discord. 180 hari terakhir, selamat dari restart; pesan berulang digabung `×N`; sandi/token tertulis `«ditutup»` |
-| **Status**, bagian Versi | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah tulisan AUTOGRADE untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati: token ada, tapi LICENSE_ENABLED tidak menyala** berarti tokennya sampai ke konsol tapi saklarnya tidak: periksa blok konsol di compose host, bukan tokennya |
+| **Status**, bagian Versi | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah tulisan AUTOGRADE untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati. Token ada, tapi saklar lisensi di konsol belum menyala** berarti tokennya sampai ke konsol tapi saklarnya (`LICENSE_ENABLED`) tidak: periksa blok konsol di compose host, bukan tokennya |
 | **Status**, bagian Diagnostik | tiga kartu line: kamera, FPS kamera / deteksi (terukur, 0 kalau gambar berhenti), umur gambar terakhir (merah kalau kamera berhenti mengirim), GPU, PLC (✓ **hanya kalau benar-benar tersambung**, ✗ kalau PLC menyala tapi terputus, `-` kalau PLC dimatikan), disk (sisa GB, kuning/merah di bawah ambang), lisensi, versi / model, antrean lokal, **Janjang tak tersimpan** (`capture_save_dropped`) dan **TP telat** (`tp_telat`), lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ Janjang tak tersimpan dan TP telat **harus nol** (hijau), di atas nol merah: ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat. Disegarkan tiap 5 detik selama tab Status terbuka |
 | **Status**, bagian Antrean line | janjang yang belum sampai dari tiap line ke konsol: jumlah, umur yang tertua, keadaan (dengan sebab, sejak kapan, dan harus ngapain), galat terakhir; tombol **Kirim Ulang** per line. Antrean ini tidak pernah menyerah: konsol mati berjam-jam pun janjangnya menunggu dan terkirim sendiri begitu konsol hidup lagi |
 | **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang**. Plus antrean manifest R2 |

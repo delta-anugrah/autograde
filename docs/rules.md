@@ -449,6 +449,22 @@ end of this file.
     bukan cuma tab yang hilang, seluruh menunya buntu di 403. Lifespan konsol memeriksa
     ini saat startup dan `logger.warning` kalau kosong, supaya yang pasang PC tahu
     sebelum AnyDesk pertama yang butuh layar ini datang.
+    **Di luar tab Log tidak ada teks galat sistem** (keputusan user 2026-10-01, sesudah tes
+    PR #200): tidak ada kode HTTP, alamat, teks exception atau jawaban server, nama env atau
+    konfigurasi, nama berkas, atau kode galat (`AI_MATI`, `RESTART_LAMA`, ...) di layar mana
+    pun selain tab Log; kalimatnya tetap menyebut apa yang terjadi, line mana, sejak kapan, dan
+    harus apa. `alasan()` memulangkan kalimat umum (`err_umum`, diawali konteks pemanggil,
+    `gagalKarena` untuk awalan) untuk kode asing dan `err_konsol_putus` untuk konsol yang tidak
+    menjawab sama sekali (`ambil`), tidak pernah `e.message`. Line yang tidak terbaca konsol
+    diklasifikasi backend (`domain/line_tak_terbaca.py`, `sebab_kode` di kartu Diagnostik,
+    Antrean line, dan snapshot `LineStatusWorker`), kiriman AutoERP/R2 yang tertahan membawa
+    `error_kind` (kolom `erp_outbox.error_kind`, ditulis worker-nya), layar menerjemahkan
+    keduanya lewat KAMUS dan kode yang tidak dikenal jatuh ke kalimat umum. Teks mentahnya ada
+    di tab Log: `LineStatusWorker` menulis SATU WARNING saat line tidak terbaca tiga poll
+    berturut (dengan alasan mentahnya), satu saat sebabnya berganti, satu saat pulih; penolakan
+    operator tanpa kode (`_operator_error` dengan ValueError) dicatat WARNING. Penjaga:
+    `tests/unit/test_console_html_teks_ramah.py` (KAMUS id/en, teks statis, perilaku lewat
+    node) dan `tests/unit/test_console_copy.py` (pesan log juga tanpa em dash).
 22. **Lisensi: pabrik MEMERIKSA, AutoERP yang MENERBITKAN** (2026-09-22).
     Token JWS Ed25519 dicetak DocType `AutoGrade Licence` di AutoERP (dulu
     palmgrade-api, yang mati 2026-09-20) dan dipasang teknisi dengan
@@ -1159,7 +1175,7 @@ memang khas satu mesin.
   Kamera, Model Deteksi, dan Danger Zone (restart, hapus data) menandai line yang dijawab
   SERVER sudah restart/menerima (`lineDirestart`), bukan yang diklik. Spinner + bar berjalan
   CSS murni tanpa angka (hitungan detik dicabut atas permintaan operator 2026-09-29), lewat
-  batas tanda pesan `RESTART_LAMA`: 60 detik, **10 menit untuk hapus data** (`RESTART_HAPUS`:
+  batas tanda kotak merah "belum kembali" (dulu bertulisan kode `RESTART_LAMA`, sejak 2026-10-01 tanpa kode): 60 detik, **10 menit untuk hapus data** (`RESTART_HAPUS`:
   line menghapus fotonya saat boot sebelum `/health` menjawab). Selama spinner tampil kartu
   diberi kelas `sedang-restart` (`gambarRestart`), yang menyembunyikan "Kamera tidak
   tersambung": `cekKamera` tetap menandai `putus`, tapi tulisannya tidak ikut tembus di balik

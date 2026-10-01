@@ -37,6 +37,11 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 
 - Tanpa em dash dan tanpa " - " sebagai jeda di teks layar dan KAMUS (`test_console_copy.py`).
 - Setiap string layar lewat `KAMUS` dua bahasa, id dan en; kunci tidak boleh dobel.
+- Di luar tab Log tidak ada teks galat sistem (keputusan user 2026-10-01, aturan 21): tidak ada
+  kode HTTP, alamat, teks server atau exception, nama env, nama berkas, atau kode galat. Pakai
+  `alasan(e, kunciKonteks)` / `gagalKarena(kunci, e)`, jangan pernah `e.message`; data mentah
+  dari server diterjemahkan dari kode (`sebab_kode`, `error_kind`), teks mentahnya milik tab Log.
+  Penjaga: `tests/unit/test_console_html_teks_ramah.py`.
 - Elemen `hidden` yang punya aturan `display` butuh aturan `[hidden]{display:none}`
   (`test_console_html_hidden.py`).
 - Setiap POST pengubah data ada di dalam fungsi yang memakai `denganSibuk(` (spinner + tolak klik
