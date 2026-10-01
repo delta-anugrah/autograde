@@ -37,6 +37,7 @@ from ..services.console_service import ConsoleService
 from ..services.dev_service import DevService
 from ..services.erp_queue import ErpQueue
 from ..services.impor_grading_service import ImporGradingService
+from ..services.lapor_discord import LaporDiscord, rakit_lapor_discord
 from ..services.operator_admin import OperatorAdmin
 from ..services.pantau_antrean_line import PantauAntreanLine
 from ..services.riwayat_service import RiwayatService
@@ -154,6 +155,13 @@ def get_pantau_antrean_line() -> PantauAntreanLine:
     return PantauAntreanLine(service.line_client, service.lines)
 
 
+@lru_cache
+def get_lapor_discord() -> LaporDiscord:
+    """Lapor galat ke Discord (batch 3.5). Satu store untuk handler, worker, dan layar;
+    `store` None kalau `DISCORD_WEBHOOK_URL` kosong, bukan https, atau antreannya rusak."""
+    return rakit_lapor_discord(get_console_service().settings)
+
+
 def _build_license_manager(settings) -> LicenseManager | None:
     """The console's own verifier, or None if the feature is off.
 
@@ -262,6 +270,7 @@ def hangatkan_singleton() -> None:
     get_scan_service()
     get_dev_service()
     get_pantau_antrean_line()
+    get_lapor_discord()
     get_bahaya_service()
     get_operator_admin()
     get_riwayat_service()
@@ -311,9 +320,14 @@ def _operator_error(status_code: int, exc: Exception) -> HTTPException:
     """Operator routes answer with a code the screen words in its own language.
 
     Machine lanes (events, scale program) keep a plain-text detail — see below.
+    A refusal WITHOUT a code (a domain ValueError such as SetelanTidakSah) reaches the
+    screen as the generic sentence that points to the Log tab (user decision 2026-10-01:
+    no server text outside the Log tab), so its own text is logged here, once per refusal.
     """
-    detail = exc.as_detail() if isinstance(exc, OperatorError) else str(exc)
-    return HTTPException(status_code=status_code, detail=detail)
+    if isinstance(exc, OperatorError):
+        return HTTPException(status_code=status_code, detail=exc.as_detail())
+    logger.warning("Permintaan operator ditolak (HTTP %s): %s", status_code, exc)
+    return HTTPException(status_code=status_code, detail=str(exc))
 
 
 #: Only the operator lane answers in the screen's terms; the lines' machine lane keeps

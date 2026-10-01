@@ -126,8 +126,11 @@ def test_rekaman_menghasilkan_berkas_yang_bisa_dibaca(line):
     hasil = c.post("/internal/rekam/mulai", json=SETELAN, headers=HEADER).json()
     for _ in range(10):
         state.video_recorder.tulis(np.zeros((240, 320, 3), dtype=np.uint8))
-    c.post("/internal/rekam/stop", headers=HEADER)
+    akhir = c.post("/internal/rekam/stop", headers=HEADER).json()
 
+    # Stop menunggu encoder menulis semua yang sudah diserahkan, jadi hitungan
+    # ini pasti, bukan balapan dengan thread encoder.
+    assert akhir["frame_ditulis"] == 10
     berkas = videos / hasil["berkas"]
     assert berkas.exists(), f"{berkas} tidak ditulis"
     assert berkas.stat().st_size > 0
@@ -186,3 +189,44 @@ def test_tanpa_laporan_kamera_pakai_setelan(line):
 
     assert res.json()["setelan"]["fps"] == 5
     c.post("/internal/rekam/stop", headers=HEADER)
+
+
+def test_stop_tidak_membekukan_event_loop_line(line):
+    """Stop menguras antrean encoder (paling banyak 30 frame) dan menunggu thread-nya.
+    Sebagai `async def` itu berjalan DI event loop line: selama itu `/health`, MJPEG, dan
+    perintah konsol lain tidak dijawab. Sebagai `def` dia jalan di threadpool."""
+    import asyncio
+    import threading
+    import time
+
+    import httpx
+
+    c, state, _dir = line
+    masuk, lepas = threading.Event(), threading.Event()
+
+    class _RecorderLambat:
+        def stop(self) -> dict:
+            masuk.set()
+            lepas.wait(2.0)
+            return {"merekam": False}
+
+        def status(self) -> dict:
+            return {"merekam": True}
+
+    state.video_recorder = _RecorderLambat()
+
+    async def uji() -> float:
+        transport = httpx.ASGITransport(app=c.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://line") as klien:
+            mulai = time.monotonic()
+            tugas = asyncio.create_task(klien.post("/internal/rekam/stop", headers=HEADER))
+            await asyncio.to_thread(masuk.wait, 2.0)
+            status = await klien.get("/internal/rekam/status", headers=HEADER)
+            lama = time.monotonic() - mulai
+            lepas.set()
+            assert (await tugas).status_code == 200
+            assert status.status_code == 200
+            return lama
+
+    assert asyncio.run(uji()) < 1.0
+    state.video_recorder = None

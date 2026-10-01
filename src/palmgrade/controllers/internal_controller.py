@@ -17,6 +17,7 @@ from ..schemas.internal_schema import (
     PlcStateResponse,
 )
 from ..services.capture_service import CaptureService
+from ..services.pemantau_disk import ringkas_disk_dari_state
 from ..services.penjaga_ai import ringkas_ai_dari_state
 from ..workers.runtime_state import RuntimeState
 
@@ -60,7 +61,7 @@ async def manual_reject_command(
         return ManualRejectCommandResponse(accepted=True, message="capture_reject_requested")
     except RuntimeError as exc:
         logger.warning("Manual reject failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 async def piston_command(request: PistonCommandRequest, state: RuntimeState) -> LineStatusResponse:
@@ -141,4 +142,5 @@ async def line_status(state: RuntimeState) -> LineStatusResponse:
         alarms=alarms_from_inputs(_plc_inputs()),
         unggah=unggah_dari_state(state),
         ai=ringkas_ai_dari_state(state),
+        disk=ringkas_disk_dari_state(state),
     )

@@ -14,10 +14,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from typing import Any
 
 from ..core.config import LineEndpoint, Settings
 from ..domain.daftar_akun import ringkas_akun
+from ..domain.episode_tak_terbaca import TENGGANG_START_S
+from ..domain.line_tak_terbaca import SEBAB_LAIN, sebab_tak_terbaca
 from ..domain.operator_error import (
     COIL_TIDAK_DIKENAL,
     LINE_TIDAK_DIKENAL,
@@ -32,6 +35,7 @@ from ..license.summary import license_summary
 from ..license.types import EffectiveLicense
 from ..repositories.console_repository import ConsoleStore
 from ..repositories.log_repository import LogStore
+from .jejak_tak_terbaca import JejakTakTerbaca
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +58,18 @@ class CoilTidakDikenal(OperatorError, ValueError):
         super().__init__(COIL_TIDAK_DIKENAL, message)
 
 
+def _mentah(exc: BaseException) -> str:
+    """Alasan mentah untuk tab Log: pesan galat operator apa adanya, galat lain dengan tipenya."""
+    return str(exc) if isinstance(exc, OperatorError) else f"{type(exc).__name__}: {exc}"
+
+
+def _sebab_kode(exc: BaseException) -> str:
+    """Kenapa line itu tidak terbaca, sebagai kode yang diterjemahkan layar."""
+    if isinstance(exc, OperatorError):
+        return sebab_tak_terbaca(exc.code, exc.params.get("status"))
+    return SEBAB_LAIN
+
+
 class DevService:
     def __init__(
         self,
@@ -66,8 +82,13 @@ class DevService:
         settings: Settings | None = None,
         license_manager: LicenseManager | None = None,
         console_store: ConsoleStore | None = None,
+        jam: Callable[[], float] = time.monotonic,
+        tenggang_start_s: float = TENGGANG_START_S,
     ) -> None:
         self._log = log_store
+        # Kartu Diagnostik menunjuk ke tab Log untuk line yang tidak terbaca; di sinilah
+        # alasan mentahnya tertulis, satu baris per kejadian (aturan LineStatusWorker).
+        self._tak_terbaca = JejakTakTerbaca(logger, "diagnostik", jam=jam, tenggang_s=tenggang_start_s)
         self._last_purge = 0.0
         self._line_client = line_client
         self._lines = lines
@@ -131,10 +152,15 @@ class DevService:
         for line, entry in zip(self._lines, results, strict=True):
             # Any exception (LineUnavailable or otherwise) reads as unreachable —
             # a bug in one line's fetch must not take the other two cards down too.
+            # The card words `sebab_kode`, never `sebab` (user decision 2026-10-01: no
+            # raw error text outside the Log tab); `sebab` stays for curl and the tests.
             if isinstance(entry, BaseException):
-                lines[line.line_code] = {"terjangkau": False, "sebab": str(entry)}
+                sebab_kode = _sebab_kode(entry)
+                lines[line.line_code] = {"terjangkau": False, "sebab": str(entry), "sebab_kode": sebab_kode}
+                self._tak_terbaca.gagal(line.line_code, sebab_kode, _mentah(entry))
             else:
                 lines[line.line_code] = {"terjangkau": True, **entry}
+                self._tak_terbaca.pulih(line.line_code)
         return {"lines": lines}
 
     async def _one_line(self, line: LineEndpoint) -> dict[str, Any]:
@@ -204,7 +230,7 @@ class DevService:
             # the same SqliteLogHandler as everything else in event_log —
             # that is what applies redact() before the row settles on disk.
             logger.warning(
-                "PLC TEST: %s fired coil %s on %s — rejected by line: %s",
+                "PLC TEST: %s fired coil %s on %s, rejected by line: %s",
                 operator_email, coil, line_code, exc,
             )
             if exc.status_code == 409:
@@ -219,7 +245,7 @@ class DevService:
             # its own line (line_client.py) for the network story, but that log
             # line has no idea who the operator is — this one does.
             logger.warning(
-                "PLC TEST: %s fired coil %s on %s — line unreachable: %s",
+                "PLC TEST: %s fired coil %s on %s, line unreachable: %s",
                 operator_email, coil, line_code, exc,
             )
             raise

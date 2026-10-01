@@ -18,6 +18,121 @@ Next:           ...
 
 ---
 
+## 2026-10-01 · console, logging · Fixes from the manual browser test (PR #200)
+Changed:        Unreachable-line sentence ends at "mati atau sedang restart." (no technician tail).
+                Disk strip: as wide as the cards (`--pad`, also `#pita-alarm`), one line with an
+                inline SVG warning icon, title, divider, time + lines + free GB only (diskSaran*
+                keys removed, steps stay in MANUAL and the line log), slow pulse on the warning,
+                × on the warning hides it for 24 h per browser (`pitaDiskDitutupPada`), critical
+                cannot be dismissed. uvicorn's "timeout graceful shutdown exceeded" (every line
+                restart while the console holds the video feed) is INFO, not an ERROR in the Log
+                tab and Discord (`core/log_akses.TurunkanTenggangTutup`). MANUAL + rules + PDF.
+                After #201 was merged: staging merged in, and the PLC skill + `plc-mc-handoff.md`
+                1.9 (+ PDF) name frame berhenti as a third ERROR-coil state (the four-places rule).
+Validated:      unit 3824 passed / 28 skipped; integration + e2e 459 passed / 17 skipped; CI ruff
+                scope and F821 main.py clean; cek_skrip_konsol OK (detached worktree at 354ec4e).
+                Browser by the user: Diagnostik sentence, Versi width, disk strip (width, pulse,
+                one line, icon, ×, 24 h), Log tab WARNING line-1/line-3, recording stop 132 frames
+                written = 132 readable, 0 dropped.
+Not validated:  The uvicorn downgrade in a live restart (no feed was open on the restart after the
+                fix); covered by a unit test that replays uvicorn 0.34's exact call.
+Next:           Review, merge to staging by the user.
+
+## 2026-10-01 · console · Plain-language screen text outside the Log tab (PR #200)
+Changed:        User decision after the manual test of PR #200: no screen except the Log tab
+                shows system error text. KAMUS id/en rewritten (no HTTP codes, env or file
+                names, error codes; ribbons keep line, since-time, action); alasan() returns
+                a generic sentence for an unknown code and its own sentence when the console
+                does not answer, never e.message; the backend classifies an unreadable line
+                (domain/line_tak_terbaca.py, sebab_kode) and a waiting AutoERP/R2 message
+                (erp_outbox.error_kind, added in place), the screen words both; the raw
+                reason goes to the Log tab (LineStatusWorker: one WARNING per episode after
+                three failed polls, one on a cause change, one on recovery; uncoded operator
+                refusals logged). Setelan errors go through alasan(); rekam refusal codes got
+                their err_ keys; the Versi box lines up with the other Status sections; 60
+                em dashes in log messages became commas (guarded). Docs: rules 21, F6, skill
+                konsol-autograde, backend-overview, MANUAL ribbon lines.
+Validated:      unit, integration, e2e, ruff CI scope, F821 on main.py, cek_skrip_konsol
+                (counts in .superpowers/sdd/batch3-induk/teks-ramah-report.md).
+                Fix wave after review: one episode rule for all three console readers of a
+                line (first cause only, duration from the first failed poll, 120 s start-up
+                grace), model reasons as codes, 4xx refusals worded as refused values, R2 and
+                odd AutoERP failures classified precisely, unknown PLC alarm worded, no paths
+                or commands in error sentences (guarded), MANUAL PDF regenerated.
+Not validated:  real browser pass (the user's manual test).
+Next:           user re-tests the Status tab and a line restart in the browser.
+
+## 2026-09-30 · logging, health, CI · Batch 3 on fix/logging-batch-3 (PR #200)
+Changed:        Integration branch from 849c30d: streams D, A, C merged, origin/staging (#196/#197)
+                merged in, then stream B merged.
+                D (batch 4.1, 4.3): deploy.yml calls ci.yml, release and demo images build only
+                after CI passes on the tagged commit; CI parses every console.html script block;
+                unit step uses -rs. Two flaky tests fixed: outbox sender stopped before its store
+                closes in the shutdown test; Rekam Video Stop now writes the frames already queued
+                (real bug: recordings lost their tail).
+                A (batch 3.1, 3.3, 3.4, rule 33): one configure_logging for lines and console
+                (console now reaches docker logs and uvicorn 500s reach tab Log), zone-marked
+                lines with line code, LOG_LEVEL, httpx/httpcore capped at WARNING, successful
+                polling silenced in the access log, tab Log merge key normalises volatile ids,
+                PLC/camera/master data faults logged once at start and once at recovery.
+                B (batch 3.2, 3.5, rule 34): each line keeps its WARNING/ERROR in a capped
+                log_line.db written from a queue (detection never waits); the console pulls it
+                every 10 s with a (generasi, seq) cursor into tab Log (line tag, first seen,
+                traceback); ERRORs go to Discord as a digest queued on disk (off while
+                DISCORD_WEBHOOK_URL is empty); a restarted line drains its log before os._exit,
+                so the exit budget is 1 + 8 + 1 = 10 s (Danger Zone still waits 12 s).
+                C (batch 3.6, 3.7, rule 35): connected camera that stops sending frames =
+                FRAME_BERHENTI (ERROR coil, /health 503), finished test video = sumber_selesai,
+                disk monitor on every line (15 GB / 5 GB, with or without R2, deletes nothing),
+                honest Diagnostik card; console mirrors of line facts log at INFO only.
+                Integration: CI step `ruff check --select F821 src/palmgrade/main.py`; rules 33,
+                34, 35 full text plus the A/B/C/D edits to rules 21, 23, 25, 27, 29, 31, 32 and
+                Git Workflow / Pointers moved into docs/rules.md, HTTP rows into
+                docs/backend-overview.md, the Tooling line into docs/overview.md; CLAUDE.md index
+                lines 33 to 35. Cross-stream tests: tests/e2e/test_transisi_line_sekali_di_tab_log_lane.py
+                (one line transition = one line-tagged Log row) and
+                tests/integration/test_discord_tanpa_alamat_di_log.py (webhook address never in
+                stderr, tab Log or the Discord queue). The create_app route test no longer leaves
+                the line log writer on root writing into the repo's state/. MANUAL 2.0 + PDF.
+                Final fix wave (both final reviews + queued items): the last traceback line joins
+                the merge key in tab Log, line log and digest (two different 500s stay two rows,
+                Discord shows the exception class only); a line answering 5xx or a malformed log
+                page gets one WARNING; a failing absorption no longer re-forwards the same ERROR
+                counts to Discord; the start of a PLC outage and a coil write failure are ERROR
+                (reach Discord); frame stop judged from any reconnect success since the last
+                frame (no flapping, grace stamped once per episode, no false ERROR at the end of
+                an outage, boot connect recorded); Discord 400 sets the message aside after three
+                refusals, one WARNING per failure kind, unusable https URLs are url_salah; the
+                line log writer backs off on a refusing disk; the state-not-mounted error reaches
+                tab Log; Rekam Video stop runs in the threadpool; reconnect cycles are quiet;
+                drifted /health and comment text fixed; the test suites no longer write into the
+                checkout's state/ and artifacts/.
+                Fix waves 2 to 5 (each re-reviewed): an undecodable webhook host is url_salah instead
+                of stopping the console boot; only content refusals count before a Discord message
+                is set aside; the merge key is the exception class plus our own last frame (never the
+                message text), class shown only when the traceback was not cut, frame taken from the
+                whole detail, one linear pass, truncated details still keyed. origin/staging #198
+                (coding standard) and #199 (Pydantic bodies) merged in; nine batch-touched files
+                joined the ruff list (standard S5).
+Validated:      after the #199 merge: tests/unit 3677 passed, 28 skipped; tests/integration 125
+                passed; tests/e2e 331 passed, 17 skipped (torch venv). After fix wave 1: tests/unit
+                3633 passed, 28 skipped; tests/integration 124 passed; tests/e2e 331 passed, 17 skipped; ruff on the ci.yml scope
+                and the F821 step clean; tests/cek_skrip_konsol.py OK; scripts/hooks/test_guard.py
+                69/69 (venv and /usr/bin/python3); state/ and artifacts/ empty after all three
+                suites. Earlier: the two cross-stream tests turn red when the console mirror goes
+                back to WARNING or the httpx cap is removed (mutations reverted). Every line the
+                branches added to the old CLAUDE.md (A/C/D 109, B 48) found verbatim in the new
+                layout.
+Not validated:  full CI (runs on the PR); nothing on the Lampung PC yet; Discord against the real
+                webhook.
+Decisions:      rule numbers A = 33, B = 34, C = 35; the line is the single WARNING/ERROR source
+                for facts it owns, console mirrors are INFO. Fix wave: PLC outage start is ERROR
+                (Discord), recovery WARNING; one full disk stays one row per line (rule 35).
+Next:           PR to staging (PR body: reusable ci.yml call only provable on the first tag).
+                Lampung: optional DISCORD_WEBHOOK_URL in the host compose console block and .env;
+                tell the PLC team the ERROR coil also rises for a camera that stops sending
+                frames.
+
 ## 2026-10-01 · docs · PLC skill and the PLC team document brought up to v1.20.0 (PR #201)
 Changed:        plc-mc-protocol: ERROR = camera lost or AI dead (pointers to rules.md rule 32 and
                 plc-integration § Coil ERROR), a licence that stops grading turns M1009 off, all

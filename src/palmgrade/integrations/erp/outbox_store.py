@@ -30,6 +30,10 @@ CREATE TABLE IF NOT EXISTS erp_outbox (
     status          TEXT NOT NULL DEFAULT 'pending',
     attempts        INTEGER NOT NULL DEFAULT 0,
     last_error      TEXT,
+    -- Why it is waiting, one of JENIS_GAGAL (NULL on rows from an older build). Cleared on
+    -- enqueue, success and requeue. Rollback safe: an older build ignores the column, and a
+    -- row it marks failed keeps the stale kind until the next enqueue, success or requeue.
+    error_kind      TEXT,
     next_attempt_at REAL NOT NULL DEFAULT 0,
     created_at      REAL NOT NULL,
     -- Moves on at every enqueue: a send marks its row done only if nothing newer
@@ -50,6 +54,17 @@ STATUS_SEMUA = ("pending", "error", "sent")
 STATUS_BELUM_TERKIRIM = ("pending", "error")
 
 # Contract §5: drained every 30 s, backing off to an hour while AutoERP is down.
+#: Why a row is waiting, set by its worker at `mark_error` and worded by the Status tab
+#: (user decision 2026-10-01: outside the Log tab no raw error text; `last_error` keeps
+#: the text for the Log tab and curl). The worker knows the failure's type, the text
+#: alone would have to be parsed.
+GAGAL_TAK_TERJANGKAU = "tak_terjangkau"   # no usable answer: network, timeout, gateway
+GAGAL_KUNCI_DITOLAK = "kunci_ditolak"     # the destination refused this PC's key (401/403)
+GAGAL_DITOLAK = "ditolak"                 # the destination refused this message's content
+GAGAL_TUJUAN = "galat_tujuan"             # the destination crashed on this message
+GAGAL_KONSOL = "galat_konsol"             # our own side: bookkeeping, unknown kind, bad payload
+JENIS_GAGAL = (GAGAL_TAK_TERJANGKAU, GAGAL_KUNCI_DITOLAK, GAGAL_DITOLAK, GAGAL_TUJUAN, GAGAL_KONSOL)
+
 _BACKOFF_BASE_S = 30
 _BACKOFF_MAX_S = 3600
 _ERROR_CHARS = 500
@@ -78,6 +93,7 @@ class ErpOutboxStore:
             self._db.execute("PRAGMA synchronous=FULL")
             self._db.executescript(_CREATE_SQL)
             _add_version_column(self._db)
+            _add_error_kind_column(self._db)
 
     def enqueue(self, kind: str, key: str, payload: dict[str, Any]) -> None:
         """Queue the newest state for one key. Due at once, even after a failure."""
@@ -87,7 +103,8 @@ class ErpOutboxStore:
                    VALUES (?, ?, ?, ?, 1)
                    ON CONFLICT(kind, key) DO UPDATE SET
                        payload=excluded.payload, status='pending', attempts=0,
-                       last_error=NULL, next_attempt_at=0, version=erp_outbox.version + 1""",
+                       last_error=NULL, error_kind=NULL, next_attempt_at=0,
+                       version=erp_outbox.version + 1""",
                 (kind, key, _dump(payload), self._clock()),
             )
 
@@ -130,8 +147,11 @@ class ErpOutboxStore:
         """Dipanggil di dalam kunci dan transaksi `due()`."""
         self._db.execute(
             """UPDATE erp_outbox SET status='error', attempts=attempts + 1, last_error=?,
-               next_attempt_at=? WHERE kind=? AND key=? AND version=?""",
-            (alasan[:_ERROR_CHARS], self._clock() + _BACKOFF_MAX_S, row["kind"], row["key"], row["version"]),
+               error_kind=?, next_attempt_at=? WHERE kind=? AND key=? AND version=?""",
+            (
+                alasan[:_ERROR_CHARS], GAGAL_KONSOL, self._clock() + _BACKOFF_MAX_S,
+                row["kind"], row["key"], row["version"],
+            ),
         )
         logger.error("Antrean AutoERP: %s %s disisihkan, %s", row["kind"], row["key"], alasan)
 
@@ -145,13 +165,14 @@ class ErpOutboxStore:
         """
         with self._lock, self._db:
             self._db.execute(
-                """UPDATE erp_outbox SET status='sent', last_error=NULL
+                """UPDATE erp_outbox SET status='sent', last_error=NULL, error_kind=NULL
                    WHERE kind=? AND key=? AND version=?""",
                 (message.kind, message.key, message.version),
             )
 
-    def mark_error(self, message: OutboxMessage, error: str) -> None:
-        """Keep it, with the reason, and try again after the backoff.
+    def mark_error(self, message: OutboxMessage, error: str, *, jenis: str | None = None) -> None:
+        """Keep it, with the reason (`error` for the Log tab, `jenis` from JENIS_GAGAL for
+        the screen), and try again after the backoff.
 
         Skipped when newer state was queued meanwhile: that one was never tried,
         so it stays due at once with no failure on it.
@@ -161,10 +182,10 @@ class ErpOutboxStore:
         with self._lock, self._db:
             self._db.execute(
                 """UPDATE erp_outbox
-                   SET status='error', attempts=?, last_error=?, next_attempt_at=?
+                   SET status='error', attempts=?, last_error=?, error_kind=?, next_attempt_at=?
                    WHERE kind=? AND key=? AND version=?""",
                 (
-                    attempts, error[:_ERROR_CHARS], self._clock() + backoff,
+                    attempts, error[:_ERROR_CHARS], jenis, self._clock() + backoff,
                     message.kind, message.key, message.version,
                 ),
             )
@@ -196,7 +217,7 @@ class ErpOutboxStore:
         """Rows waiting out their backoff, newest failure first — what support reads."""
         with self._lock:
             rows = self._db.execute(
-                """SELECT kind, key, last_error, attempts, next_attempt_at FROM erp_outbox
+                """SELECT kind, key, last_error, error_kind, attempts, next_attempt_at FROM erp_outbox
                    WHERE status='error' ORDER BY next_attempt_at DESC LIMIT ?""",
                 (limit,),
             ).fetchall()
@@ -205,6 +226,7 @@ class ErpOutboxStore:
                 "kind": row["kind"],
                 "key": row["key"],
                 "last_error": row["last_error"],
+                "error_kind": row["error_kind"],
                 "attempts": row["attempts"],
                 "next_attempt_at": row["next_attempt_at"],
             }
@@ -223,7 +245,7 @@ class ErpOutboxStore:
         """
         with self._lock, self._db:
             cur = self._db.execute(
-                """UPDATE erp_outbox SET status='pending', next_attempt_at=0
+                """UPDATE erp_outbox SET status='pending', next_attempt_at=0, error_kind=NULL
                    WHERE status='error'"""
             )
         return cur.rowcount
@@ -235,6 +257,14 @@ def _add_version_column(db: sqlite3.Connection) -> None:
     columns = {row["name"] for row in db.execute("PRAGMA table_info(erp_outbox)")}
     if "version" not in columns:
         db.execute("ALTER TABLE erp_outbox ADD COLUMN version INTEGER NOT NULL DEFAULT 0")
+
+
+def _add_error_kind_column(db: sqlite3.Connection) -> None:
+    """Same pattern as `_add_version_column`: an older file gains the column with NULL
+    (the screen then writes its generic sentence), an older build ignores it."""
+    columns = {row["name"] for row in db.execute("PRAGMA table_info(erp_outbox)")}
+    if "error_kind" not in columns:
+        db.execute("ALTER TABLE erp_outbox ADD COLUMN error_kind TEXT")
 
 
 def _dump(payload: dict[str, Any]) -> str:

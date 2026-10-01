@@ -55,7 +55,7 @@ make build-engine               # TensorRT FP16 engine, once per GPU
 .venv/bin/pytest tests/unit/ -q               # pure-logic tests, no torch/cv2/SDK
 .venv/bin/pytest tests/integration/ -rs       # real components without hardware
 .venv/bin/ruff check <scope in .github/workflows/ci.yml>
-curl :8001/health               # 503 while the AI guard says dead;  /health/detail: capture_save_dropped must be 0
+curl :8001/health               # 503 while the AI guard says AI dead or frames stopped;  /health/detail: capture_save_dropped must be 0
 ```
 
 CI (`ci.yml`) runs ruff + unit + e2e + integration on every PR to `staging`/`main`, without GPU,
@@ -100,6 +100,9 @@ torch, cv2 or SDK. New tests: pure logic first; never drag hardware into CI. Fas
 30. Console routes heavy on SQLite must not block the event loop.
 31. Line to console queue: no give-up limit.
 32. AI dead: one guard, three readers.
+33. Logging: one install for lines and console, lines tagged with zone and line code, a fault logged once when it starts and once when it ends.
+34. Line log and Discord: line warnings and errors reach the Log tab through a cursor pull; errors reach Discord as a digest, off while `DISCORD_WEBHOOK_URL` is empty.
+35. Honest health and disk monitor: a connected camera that stops sending frames is a fault; free disk is watched on every line, with or without R2, and nothing is deleted.
 
 Conventions (full text in `docs/rules.md` § Conventions): process env vars beat `.env`
 (`override=False`); three image sources (`CAMERA_TYPE` = `hikrobot` / `opencv` / `photo`,

@@ -53,9 +53,11 @@ class CaptureWriter:
         """
         try:
             return ZoneInfo(self._settings.factory_tz)
-        except (ZoneInfoNotFoundError, ValueError):
+        except (ZoneInfoNotFoundError, ValueError, OSError):
+            # OSError: a zone folder name (`Asia`) through the `tzdata` package
+            # raises IsADirectoryError, not ZoneInfoNotFoundError.
             logger.warning(
-                "FACTORY_TZ %r is not a known zone — capture folders fall back to UTC",
+                "FACTORY_TZ %r is not a known zone, capture folders fall back to UTC",
                 self._settings.factory_tz,
             )
             return datetime.UTC
@@ -72,7 +74,7 @@ class CaptureWriter:
         try:
             parsed = datetime.datetime.fromisoformat(assigned_at)
         except ValueError:
-            logger.warning("Unparseable assigned_at %r — using the capture time", assigned_at)
+            logger.warning("Unparseable assigned_at %r, using the capture time", assigned_at)
             return fallback
         return parsed if parsed.tzinfo else parsed.replace(tzinfo=datetime.UTC)
 

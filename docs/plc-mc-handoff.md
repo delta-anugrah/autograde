@@ -2,11 +2,11 @@
 judul: AutoGrade ↔ PLC Mitsubishi
 subjudul: Peta alamat M, sinyal yang dikirim PC, dan yang diminta dari sisi PLC, untuk commissioning MC Protocol.
 label: Internal · Tim Engineering
-versi: "1.8"
+versi: "1.9"
 tanggal: 1 Oktober 2026
 klasifikasi: Internal, untuk tim PLC dan tim engineering
 pemilik: Tim Engineering AutoGrade
-sorotan: Baru di 1.8 = ERROR juga untuk AI mati, langganan berhenti mematikan M1009; Ditunggu dari PLC = 4 butir; Wajib = watchdog heartbeat
+sorotan: Baru di 1.9 = ERROR juga untuk kamera yang berhenti mengirim gambar; 1.8 = ERROR untuk AI mati, langganan berhenti mematikan M1009; Ditunggu dari PLC = 4 butir; Wajib = watchdog heartbeat
 ---
 
 # AutoGrade ↔ PLC Mitsubishi
@@ -22,6 +22,13 @@ port Ethernet bawaannya, memakai **MC Protocol** (pustaka `pymcprotocol`, frame 
 Coupler remote IO ODOT CN-8031 yang dulu direncanakan **dibatalkan** dan tidak lagi dipakai.
 
 Sisi aplikasi **sudah selesai dan teruji**. Yang ditunggu ada di bab 5.
+
+**Yang baru di versi 1.9** (rilis AutoGrade sesudah `v1.20.0`, belum terpasang di PC Lampung).
+Tidak ada alamat yang berubah dan program PLC tidak perlu diubah:
+
+- Bit **ERROR** (M1002 / M1005 / M1008) sekarang juga naik kalau **kamera line itu berhenti
+  mengirim gambar** padahal masih tersambung, lebih dari 30 detik (bab 4.2). Buah lewat tanpa
+  dinilai, sama seperti AI mati. Video uji yang sudah habis diputar tidak menaikkannya.
 
 **Yang baru di versi 1.8** (AutoGrade `v1.20.0`, terpasang di PC Lampung 1 Oktober 2026).
 Tidak ada alamat yang berubah dan program PLC tidak perlu diubah:
@@ -157,15 +164,16 @@ kecil dari jumlah janjang di layar saat produksi padat.
 ### 4.2 Bit ERROR
 
 Level, bukan pulse, dan **ditulis ulang tiap detik** supaya kembali naik sendiri kalau sempat
-ter-reset. Naik untuk dua keadaan:
+ter-reset. Naik untuk tiga keadaan:
 
 | Keadaan line itu | ERROR |
 |---|---|
 | Kamera putus | **naik** (sejak awal) |
 | **AI mati**: kamera mengirim gambar, tapi tidak ada yang selesai dinilai lebih dari **30 detik** | **naik** (baru di versi 1.8 / `v1.20.0`) |
 | Langganan berhenti (habis, token tidak ada atau tidak terbaca) | tidak, yang mati M1009 (bab 3) |
-| Kamera tersambung tapi tidak ada gambar masuk | tidak |
-| Line baru menyala, atau gambar baru mengalir lagi sesudah jeda | tidak, AI diberi waktu 30 detik dulu |
+| **Kamera berhenti mengirim**: tersambung, tapi tidak ada gambar masuk lebih dari **30 detik** | **naik** (baru di versi 1.9) |
+| Video uji yang sudah habis diputar (bukan kamera sungguhan) | tidak |
+| Line baru menyala, atau gambar baru mengalir lagi sesudah jeda | tidak, line diberi waktu 30 detik dulu |
 | Terlalu banyak keputusan sekaligus (pulse dibuang, bab 4.1) | tidak, sengaja |
 
 Angka 30 detik bisa diubah dari sisi kami (10 sampai 600 detik). Dengan beban 300 janjang per

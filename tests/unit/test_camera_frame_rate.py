@@ -122,3 +122,20 @@ def test_the_fallback_rate_is_the_same_in_settings_compose_and_the_env_template(
     compose = re.findall(r"CAMERA_FPS=\$\{CAMERA_FPS:-(\d+)\}", (repo / "docker-compose.yml").read_text())
     assert compose == [str(FALLBACK_FPS)] * 3, "every line must carry the same fallback"
     assert f"\nCAMERA_FPS={FALLBACK_FPS}\n" in (repo / ".env.example").read_text()
+
+
+def test_rate_logged_at_info_only_when_it_changes(caplog):
+    """A silent Hikrobot reconnects every 2 s for the whole FRAME_BERHENTI episode; the
+    same pacing line on every reconnect is the log spam batch 3.3 set out to remove."""
+    import logging
+
+    camera = FakeCamera(fps=MFS_RATE)
+    worker = _worker(camera)
+    with caplog.at_level(logging.DEBUG, logger="palmgrade.workers.frame_capture_worker"):
+        for _ in range(5):
+            worker.adopt_camera_frame_rate()
+        camera._fps = 10.0
+        worker.adopt_camera_frame_rate()
+        worker.adopt_camera_frame_rate()
+    info = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO]
+    assert info == ["Capture paced by the camera: 15.00 fps", "Capture paced by the camera: 10.00 fps"]

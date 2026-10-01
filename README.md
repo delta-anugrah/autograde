@@ -559,8 +559,8 @@ Daftar endpoint line dan konsol yang selalu mutakhir ada di `docs/backend-overvi
 
 ```bash
 # Line
-curl http://localhost:8001/health
-curl http://localhost:8001/health/detail     # capture_save_dropped dan tp_telat harus 0
+curl http://localhost:8001/health            # 200 sehat; 503 kalau AI mati atau kamera tersambung tapi berhenti mengirim gambar
+curl http://localhost:8001/health/detail     # selalu 200; capture_save_dropped dan tp_telat harus 0; ada fps terukur, umur frame, disk, lisensi, plc.connected
 
 # Konsol (8100: image produksi dan `make console`; 8000: dari source)
 curl -s -c /tmp/konsol.jar -H 'content-type: application/json' \
@@ -568,6 +568,8 @@ curl -s -c /tmp/konsol.jar -H 'content-type: application/json' \
 curl -b /tmp/konsol.jar http://localhost:8100/api/console/state
 curl -b /tmp/konsol.jar 'http://localhost:8100/api/console/riwayat?tampilan=truk'   # per truk, 7 hari terakhir
 ```
+
+> **Log (sejak batch 3, `docs/rules.md` aturan 33 sampai 35).** Tiap baris `docker logs` bertanda jam zona pabrik (`+07:00`, dari `FACTORY_TZ`) dan kode line (`line-1`) atau `console`; `LOG_LEVEL` mengatur keluaran proses saja. Gangguan PLC, kamera, dan tarikan master data dicatat sekali saat mulai dan sekali saat pulih. WARNING/ERROR tiap line juga disimpan di `state/line-N/log_line.db` dan ditarik konsol ke **tab Log** (tag line, jam pertama muncul, traceback), jadi tetap ada walau container dibuat ulang. ERROR bisa dikirim ringkas ke Discord kalau `DISCORD_WEBHOOK_URL` diisi (kosong = mati).
 
 ⚠️ `neto_kg` **dihitung, tidak pernah dipercaya mentah** (beda > 1 kg dari `bruto − tara` ditolak
 400), dan `MINIMUM_BERAT_KG` = **1 ton** menangkap pemisah ribuan (`14.820` terbaca 14,82 kg).
@@ -720,6 +722,10 @@ Alurnya, saat konsol melepas truk dari line (`_queue_grading`):
 > blockquote di atas), `run_batch_once()` pulang lebih awal sebelum `_retention()` kalau
 > `R2_BUCKET` kosong: mematikan R2 tanpa pengganti berarti tidak ada yang membersihkan disk
 > pabrik sama sekali, bukan cuma kehilangan tautan detail.
+>
+> Sejak batch 3.7 tiap line punya pemantau disk sendiri (`DISK_PERINGATAN_GB` 15, `DISK_KRITIS_GB` 5) yang
+> memunculkan pita peringatan di konsol walau `R2_BUCKET` kosong. Pemantau itu **tidak menghapus apa pun**; pembersihan
+> tetap cuma lewat retensi R2.
 
 Layar **Antrean** di menu developer (`role=support`) punya baris kedua untuk antrean ini
 (`GET /api/console/dev/antrean/manifest`): dan baris itu membaca `aktif: false` saat R2 belum
@@ -767,7 +773,8 @@ ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/p
   src/palmgrade/workers/master_data_worker.py \
   src/palmgrade/integrations/notifications/line_client.py src/palmgrade/repositories/console_repository.py \
   src/palmgrade/services/console_service.py src/palmgrade/routes/console.py src/palmgrade/console_main.py
-pytest tests/unit/
+python tests/cek_skrip_konsol.py src/palmgrade/static/console.html   # seluruh <script> konsol bisa diparse
+pytest tests/unit/ -rs
 ```
 
 > Konfigurasi pytest ada di `pyproject.toml` (`pythonpath=["src"]`): tidak perlu set `PYTHONPATH` manual. Tidak memakai `pytest-asyncio`: kode async diuji lewat `asyncio.run` stdlib supaya dependency CI minimal.
@@ -793,6 +800,7 @@ pytest tests/unit/
 | Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |
 | PLC | `tests/unit/plc/`, `tests/e2e/test_mc_protocol_lane.py` | Klien MC Protocol + Modbus, state machine pulse/heartbeat/piston, alamat M ≡ compose |
 | Config | `test_config_validation.py` | Fail-fast saat secret masih default di `APP_ENV=production` |
+| **CI dan rilis** | `test_ci_gerbang_rilis.py`, `test_ci_skrip_konsol.py`, `test_cek_skrip_konsol.py`, `test_demo_image_workflow.py`, `tests/integration/test_alur_rilis_integrasi.py`, `tests/e2e/test_ci_skrip_konsol_lane.py` | Image pabrik dan demo baru dibangun sesudah `ci.yml` hijau di commit tag yang sama; seluruh `<script>` `console.html` diparse seperti browser (syntax error di luar fungsi yang diuji ikut ketahuan) |
 | Camera selector | `test_device_selector.py` | Pilih kamera by-serial (enum GigE tidak deterministik) |
 | Streaming | `test_streaming_service.py` | MJPEG keep-alive multi-viewer |
 | SDK boundary | `test_hikrobot_frame.py`, `test_mvs_error.py` | Konversi frame + mapping error SDK |

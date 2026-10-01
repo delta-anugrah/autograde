@@ -77,7 +77,7 @@ def buat_router(
         # Di artifacts/ milik line ini — lihat services/hapus_data_line.py.
         tulis_penanda(s.artifacts_dir, mode=mode, diminta_oleh=diminta_oleh, now=time.time())
         logger.warning(
-            "Hapus data (%s) diminta %s — line keluar, data dihapus saat boot", mode, diminta_oleh
+            "Hapus data (%s) diminta %s, line keluar, data dihapus saat boot", mode, diminta_oleh
         )
         keluar(JEDA_KELUAR_DETIK)
         return {"status": "menghapus", "jeda_detik": JEDA_KELUAR_DETIK}

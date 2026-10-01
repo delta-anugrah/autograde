@@ -31,7 +31,11 @@ const esc = (s) => String(s ?? "").replace(/[&<>"'`]/g, (c) =>
 const KOSONG = "-";
 const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));
 const t = (k) => k;
+const lokal = () => "id-ID";
 """
+
+# Pembantu baris kartu Diagnostik (batch 3.6 / 3.7), diekstrak bersama kartunya.
+_FUNGSI_DIAG = ("tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol")
 
 
 def _fungsi(nama: str) -> str:
@@ -67,7 +71,7 @@ _LINE_SEHAT = {
     "camera_connected": False,
     "gpu_available": True,
     "gpu_device": "NVIDIA GeForce RTX 3060",
-    "plc": {"inputs": []},
+    "plc": {"connected": True, "inputs": []},
     "workers": [
         {"name": "capture", "alive": True},
         {"name": "display", "alive": True},
@@ -81,7 +85,7 @@ _LINE_SEHAT = {
 def _kartu(data: dict) -> str:
     skrip = (
         _STUB
-        + _fungsi("tanda")
+        + "\n".join(_fungsi(f) for f in _FUNGSI_DIAG)
         + "\n"
         + _fungsi("kartuDiagnostik")
         + f"\nconsole.log(JSON.stringify(kartuDiagnostik('line-1', {json.dumps(data)})));"

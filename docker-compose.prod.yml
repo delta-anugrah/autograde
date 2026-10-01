@@ -127,6 +127,9 @@ services:
       - ERP_COMPANY=${ERP_COMPANY:-}
       - ERP_ALLOWED_ROLES=${ERP_ALLOWED_ROLES:-support}
       - LOG_RETENSI_HARI=${LOG_RETENSI_HARI:-180}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Batch 3.5, lapor Discord. Kosong = mati. Compose HOST pabrik ditambah tangan.
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
       - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
       - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
       - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}

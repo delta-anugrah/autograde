@@ -61,3 +61,11 @@ def test_healthcheck_docker_tiap_line_memanggil_health():
         assert "/health'" in " ".join(svc["healthcheck"]["test"]), nama
         assert svc["restart"] == "unless-stopped", nama
         assert "autoheal" not in str(svc.get("labels", "")), nama
+
+
+def test_hasil_sambung_kamera_saat_boot_dicatat_sebelum_penjaga_menilai():
+    """Tanpa ini sambung ulang pertama sesudah boot yang gagal bisa menulis satu
+    ERROR FRAME_BERHENTI palsu (tick di sela `connect()` dan pencatatan hasilnya)."""
+    i = LIFESPAN.index("state.catat_sambung_kamera(berhasil=bool(getattr(camera, \"connected\", False)))")
+    assert LIFESPAN.index("state = get_runtime_state()") < i
+    assert i < LIFESPAN.index("penjaga_ai = PenjagaAi(settings=settings, state=state, kamera=camera)")

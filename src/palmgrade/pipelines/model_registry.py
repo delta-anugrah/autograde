@@ -72,12 +72,12 @@ class ModelRegistry:
                     return model
                 except Exception as exc:
                     logger.warning(
-                        "TensorRT engine gagal di-load (%s) — fallback ke .pt. "
+                        "TensorRT engine gagal di-load (%s), fallback ke .pt. "
                         "Rebuild via `make build-engine`.", exc,
                     )
             elif engine_path is not None:
                 logger.info(
-                    "Belum ada TensorRT engine untuk GPU ini (%s) — pakai .pt. "
+                    "Belum ada TensorRT engine untuk GPU ini (%s), pakai .pt. "
                     "Jalankan `make build-engine` untuk speedup.", engine_path,
                 )
 
@@ -119,7 +119,7 @@ def _warn_on_unexpected_classes(names: list[str], logger: logging.Logger) -> Non
         logger.error(
             "Kelas model tidak seperti yang diharapkan. Ada: %s. "
             "Tidak dikenal: %s. Hilang: %s. Yang diharapkan: %s. "
-            "Cek model line ini (layar Support > Model Deteksi, atau MODEL_FILE) — "
+            "Cek model line ini (layar Support > Model Deteksi, atau MODEL_FILE), "
             "kelas yang tidak dikenal DILEWATI, jadi line bisa terlihat jalan tanpa menghitung.",
             sorted(names), unknown or "-", missing or "-",
             list(GRADE_CLASSES),

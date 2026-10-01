@@ -155,4 +155,7 @@ def test_db_antrean_dan_log_konsol_cuma_berisi_tabel_yang_dikosongkan(tmp_path):
     ErpOutboxStore(tmp_path / "erp_outbox.db")
     LogStore(tmp_path / "log.db")
     assert tabel(tmp_path / "erp_outbox.db") == {"erp_outbox"}
-    assert tabel(tmp_path / "log.db") == {"event_log"}
+    # `log_line_kursor` (batch 3.2) SENGAJA selamat: kalau ikut kosong, tarikan
+    # berikutnya mengimpor ulang semua baris lama dari `log_line.db` tiap line, dan
+    # log yang baru dihapus muncul lagi. Isinya kursor, bukan log.
+    assert tabel(tmp_path / "log.db") == {"event_log", "log_line_kursor"}

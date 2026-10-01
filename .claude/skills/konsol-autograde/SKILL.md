@@ -15,12 +15,12 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 
 | Tab | Siapa | Pemuat | Isi |
 |---|---|---|---|
-| Grading | semua | polling `refresh` 2 dtk | 20 grading terakhir hari ini, kartu line merah + pita AI mati dari blok `plc.ai` (`pitaAi`, `perbaruiAi` tiap polling, test `test_console_html_ai_mati.py`); tanda "sedang dinyalakan ulang" di kotak kamera sesudah aksi yang merestart line (`tandaiRestart`, `pantauRestart` 1 dtk, spinner + bar berjalan tanpa hitungan detik, kelas kartu `sedang-restart` menyembunyikan "Kamera tidak tersambung" selama itu, test `test_console_html_restart.py`); strip "Hari ini" berlabel **Data timbangan** (`labelNetoTimbangan`) |
+| Grading | semua | polling `refresh` 2 dtk | 20 grading terakhir hari ini, kartu line merah + pita AI mati / kamera berhenti mengirim dari blok `plc.ai` (`pitaAi`, `perbaruiAi` tiap polling, keadaan `ai_mati` atau `frame_berhenti`, test `test_console_html_ai_mati.py` + `test_console_html_frame_disk.py`); satu pita disk PC untuk seluruh layar dari blok `plc.disk` (`#pita-disk`, `gambarPitaDisk` tiap polling, aturan 35): satu baris (ikon SVG, judul, jam, line, sisa GB; langkah pengosongan cuma di MANUAL dan log line), peringatan berdenyut pelan dan bisa ditutup 24 jam per browser (`localStorage` `pitaDiskDitutupPada`), kritis tidak bisa ditutup; tanda "sedang dinyalakan ulang" di kotak kamera sesudah aksi yang merestart line (`tandaiRestart`, `pantauRestart` 1 dtk, spinner + bar berjalan tanpa hitungan detik, kelas kartu `sedang-restart` menyembunyikan "Kamera tidak tersambung" selama itu, test `test_console_html_restart.py`); strip "Hari ini" berlabel **Data timbangan** (`labelNetoTimbangan`) |
 | Truk | semua | `muatTrucks` 60 dtk | master truk, truk manual, kartu QR |
 | Timbangan | semua | `muatTimbangan` 15 dtk | tiket, scan masuk/keluar, tara, tanda **Cek AutoERP** untuk janjang susulan pada tiket yang sudah final (`erp_perlu_dicek`, `tests/unit/test_console_html_timbangan_erp.py`) |
 | Rekap | semua | `muatRiwayat` (+ `segarkanRekap` 15 dtk) | Rekap + Riwayat: buka di Hari ini, Per truk; Impor CSV support saja |
-| Log | support | `muatLog` | ERROR/WARNING 180 hari |
-| Status | support | `muatStatus` (diagnostik 5 dtk, antrean line 5 dtk) | Versi, Diagnostik, Antrean line, Antrean ERP + manifest R2 |
+| Log | support | `muatLog` (+ `muatLaporDiscord`) | ERROR/WARNING 180 hari, konsol DAN ketiga line (tag line-1/2/3 atau konsol), jam pertama muncul untuk baris gabungan, traceback bisa dibuka per baris; kalimat di atas tabel menyebut keadaan lapor ke Discord (`mati`/`url_salah`/`aktif`/`tertahan`/`ditolak`); pesan identik dalam 60 dtk digabung sesudah id yang berganti (uuid, hex 8+, desimal, bilangan 6+ digit) dinormalkan (`domain/sidik_log.py`, batch 3.3); galat 500 uvicorn konsol (termasuk saat start gagal) kini ikut masuk lewat `configure_logging` (batch 3.1) |
+| Status | support | `muatStatus` (diagnostik 5 dtk, antrean line 5 dtk) | Versi, Diagnostik (fps terukur, umur gambar, PLC ✓ hanya kalau `plc.connected`, disk, lisensi, versi / model, `capture_save_dropped` + `tp_telat` harus nol; pembantu `diag*`, test `test_console_html_diagnostik_jujur.py`), Antrean line, Antrean ERP + manifest R2 |
 | Akun | support | `muatAkun` | akun lokal/AutoERP, tombol aksi berwarna, semua tombol aksi satu lebar (`--lebar-tombol-akun`, satu aturan `#sec-akun :is(...) button`) |
 | Line | support | `muatLine` → `MUAT_SUB_LINE[subLine]` | Sumber Kamera, Model Deteksi, Uji PLC (1 dtk), Rekam Video (3 dtk); empat tombol pilihan `#line-sub` = grid 4 kolom selebar panel, 2 x 2 di bawah 600 px |
 | Setelan | support | `muatSetelan` | setelan grading, garis capture, Danger Zone. Selalu paling kanan |
@@ -39,6 +39,11 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 
 - Tanpa em dash dan tanpa " - " sebagai jeda di teks layar dan KAMUS (`test_console_copy.py`).
 - Setiap string layar lewat `KAMUS` dua bahasa, id dan en; kunci tidak boleh dobel.
+- Di luar tab Log tidak ada teks galat sistem (keputusan user 2026-10-01, aturan 21): tidak ada
+  kode HTTP, alamat, teks server atau exception, nama env, nama berkas, atau kode galat. Pakai
+  `alasan(e, kunciKonteks)` / `gagalKarena(kunci, e)`, jangan pernah `e.message`; data mentah
+  dari server diterjemahkan dari kode (`sebab_kode`, `error_kind`), teks mentahnya milik tab Log.
+  Penjaga: `tests/unit/test_console_html_teks_ramah.py`.
 - Elemen `hidden` yang punya aturan `display` butuh aturan `[hidden]{display:none}`
   (`test_console_html_hidden.py`).
 - Setiap POST pengubah data ada di dalam fungsi yang memakai `denganSibuk(` (spinner + tolak klik
@@ -58,7 +63,11 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 `tests/unit/test_console_html*.py` (`_riwayat`, `_akun`, `_sinkron`, `_tab_gabung`, `_tab_peran`,
 `_info_sistem`, `_model`, `_rekam`, `_sumber`, `_alarm`, ...). Pola: potong fungsi dengan
 `_fungsi(nama)` (dari `function nama(` sampai `\n}` pertama) lalu jalankan di `node` dengan stub.
-Test yang butuh node dilewati di CI tanpa node, jadi jalankan lokal.
+Test yang butuh node melewati dirinya kalau node tidak ada; runner CI punya node dan langkah
+unit memakai `-rs`, jadi skip terbaca alasannya. Fungsi yang diekstrak tidak membuktikan
+seluruh skrip sehat: sebelum PR jalankan juga
+`python tests/cek_skrip_konsol.py src/palmgrade/static/console.html` (langkah CI yang sama,
+batch 4.3), yang memparse tiap `<script>` utuh seperti browser.
 
 ## Cek di browser (tanpa menyentuh punya user)
 

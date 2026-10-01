@@ -5,6 +5,13 @@ from typing import Any
 
 
 class CameraSource(ABC):
+    #: Alasan grab terakhir yang gagal, untuk dibaca manusia (batch 3.3). Sumber yang
+    #: tahu alasannya (kode MVS Hikrobot) mengisinya dan mencatat tiap kegagalan cuma
+    #: di DEBUG; `FrameCaptureWorker` yang menulis SATU WARNING per kejadian dengan
+    #: alasan ini. Atribut kelas, supaya sumber yang tidak memanggil `super().__init__()`
+    #: tetap punya nilainya.
+    galat_terakhir: str | None = None
+
     def __init__(self) -> None:
         self.connected: bool = False
 

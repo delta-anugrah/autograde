@@ -104,6 +104,17 @@ def test_hidup_benar_saat_ai_mati_karena_prosesnya_masih_jalan():
     assert asyncio.run(_client(handler).hidup(LINE)) is True
 
 
+def test_hidup_benar_saat_frame_berhenti_karena_prosesnya_masih_jalan():
+    """Batch 3.6: `/health` juga 503 untuk frame berhenti. Proses line tetap
+    hidup dan tetap menjalankan urutan tutupnya, sama seperti AI mati."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            503, json={"status": "ok", "ai": {"keadaan": "frame_berhenti", "mati": False}}
+        )
+
+    assert asyncio.run(_client(handler).hidup(LINE)) is True
+
+
 @pytest.mark.parametrize(
     "handler",
     [

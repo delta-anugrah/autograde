@@ -138,6 +138,47 @@ def test_r2_down_keeps_the_row_and_backs_off(tmp_path):
     [row] = worker.outbox.failed_rows()
     assert row["key"] == wid
     assert "R2 down" in row["last_error"]
+    # What the Status tab words (2026-10-01): the raw text stays for the Log tab.
+    assert row["error_kind"] == "tak_terjangkau"
+
+
+def _gagal_dengan(tmp_path, exc) -> dict:
+    class _Gagal:
+        def put_bytes(self, body, r2_key, *, content_type):
+            raise exc
+
+    store, wid = _store(tmp_path)
+    worker = _worker(tmp_path, store, _Gagal())
+    worker.enqueue(wid, "a-1")
+    asyncio.run(worker.drain_once())
+    [row] = worker.outbox.failed_rows()
+    return row
+
+
+def _client_error(status: int):
+    from botocore.exceptions import ClientError
+
+    return ClientError({"Error": {"Code": "X"}, "ResponseMetadata": {"HTTPStatusCode": status}}, "PutObject")
+
+
+def test_jenis_gagal_r2_dari_tipe_galatnya(tmp_path):
+    """Fix wave: R2 refusing the key, R2 crashing, our own config, and the network are four
+    different stories (only the last one fixes itself)."""
+    from botocore.exceptions import EndpointConnectionError, NoCredentialsError
+
+    kasus = [
+        (_client_error(403), "kunci_ditolak"),
+        (_client_error(401), "kunci_ditolak"),
+        (_client_error(500), "galat_tujuan"),
+        (_client_error(503), "tak_terjangkau"),
+        (EndpointConnectionError(endpoint_url="https://r2.example"), "tak_terjangkau"),
+        (TimeoutError("timed out"), "tak_terjangkau"),
+        (NoCredentialsError(), "galat_konsol"),
+        (FileNotFoundError("viewer.html"), "galat_konsol"),
+        (ValueError("bad"), "galat_konsol"),
+    ]
+    for i, (exc, jenis) in enumerate(kasus):
+        assert _gagal_dengan(tmp_path / str(i), exc)["error_kind"] == jenis, (exc, jenis)
 
 
 def test_viewer_upload_failing_does_not_mark_it_uploaded(tmp_path):

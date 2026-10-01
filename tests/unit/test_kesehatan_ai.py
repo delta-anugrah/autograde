@@ -16,6 +16,7 @@ from palmgrade.domain.kesehatan_ai import (
     AMBANG_MAKS_DETIK,
     AMBANG_MIN_DETIK,
     KODE_AI_MATI,
+    KODE_FRAME_BERHENTI,
     FaktaAi,
     KeadaanAi,
     PenilaianAi,
@@ -95,17 +96,110 @@ def test_lisensi_habis_bukan_ai_mati_dan_tidak_menaikkan_error():
     assert (p.keadaan, p.mati, p.error_plc) == (KeadaanAi.LISENSI, False, False)
 
 
-def test_tidak_ada_gambar_masuk_adalah_sumber_diam_bukan_ai_mati():
-    """Video tanpa ulang yang habis, atau kamera yang berhenti mengirim tanpa
-    terputus: tidak ada yang bisa digrading, jadi bukan AI yang salah."""
+def test_kamera_tersambung_tanpa_gambar_melewati_ambang_adalah_frame_berhenti():
+    """Batch 3.6: Hikrobot yang berhenti mengirim tanpa terputus. Buah lewat
+    tanpa disortir persis seperti AI mati: coil ERROR naik, `/health` 503."""
     f = replace(SEHAT, frame_terakhir_at=MULAI + 50, inferensi_selesai_at=MULAI + 50)
     p = nilai_ai(f)
-    assert (p.keadaan, p.mati, p.error_plc) == (KeadaanAi.SUMBER_DIAM, False, False)
+    assert (p.keadaan, p.mati, p.gagal, p.error_plc) == (KeadaanAi.FRAME_BERHENTI, False, True, True)
+    assert p.diam_sejak == MULAI + 50
 
 
-def test_belum_pernah_ada_gambar_sejak_mulai_melewati_ambang_adalah_sumber_diam():
+def test_frame_berhenti_tepat_di_ambang_belum():
+    f = replace(SEHAT, frame_terakhir_at=MULAI + 70, inferensi_selesai_at=MULAI + 70)
+    assert nilai_ai(f).keadaan is KeadaanAi.SEHAT
+
+
+def test_belum_pernah_ada_gambar_sejak_mulai_melewati_ambang_adalah_frame_berhenti():
     f = replace(SEHAT, frame_terakhir_at=0.0, aliran_frame_sejak=0.0, inferensi_selesai_at=0.0)
-    assert nilai_ai(f).keadaan is KeadaanAi.SUMBER_DIAM
+    p = nilai_ai(f)
+    assert p.keadaan is KeadaanAi.FRAME_BERHENTI
+    assert p.diam_sejak == MULAI
+
+
+def test_sumber_yang_selesai_bukan_kerusakan():
+    """Video tanpa ulang yang habis memutus dirinya sendiri: sumber uji yang
+    berakhir tidak boleh terbaca sebagai line rusak di lapangan."""
+    f = replace(SEHAT, kamera_tersambung=False, sumber_selesai=True,
+                frame_terakhir_at=MULAI + 10, inferensi_selesai_at=MULAI + 10)
+    p = nilai_ai(f)
+    assert (p.keadaan, p.gagal, p.error_plc) == (KeadaanAi.SUMBER_SELESAI, False, False)
+
+
+def test_kamera_bolak_balik_sambung_tanpa_gambar_tetap_frame_berhenti():
+    """Lima grab gagal membuat worker memutus lalu menyambung lagi. Tepat di
+    sela itu `connected` False, tapi sambung ulang terakhirnya BERHASIL: tetap
+    frame berhenti, bukan berkedip ke kamera putus (200) tiap beberapa detik."""
+    f = replace(SEHAT, kamera_tersambung=False, sambung_terakhir_ok=True, sambung_ok_sejak_frame=True,
+                frame_terakhir_at=MULAI + 50, inferensi_selesai_at=MULAI + 50)
+    assert nilai_ai(f).keadaan is KeadaanAi.FRAME_BERHENTI
+
+
+def test_sambung_ulang_terakhir_gagal_tidak_membalik_frame_berhenti():
+    """Hikrobot diam yang sambung ulangnya berselang berhasil dan gagal: satu
+    sambung yang berhasil sejak gambar terakhir sudah membuktikan kameranya ada.
+    Sambung berikutnya yang gagal tidak boleh membalik penilaian ke kamera putus,
+    kalau tidak alarmnya berkedip tiap siklus sambung ulang."""
+    f = replace(SEHAT, kamera_tersambung=False, sambung_terakhir_ok=False, sambung_ok_sejak_frame=True,
+                frame_terakhir_at=MULAI + 50, inferensi_selesai_at=MULAI + 50)
+    assert nilai_ai(f).keadaan is KeadaanAi.FRAME_BERHENTI
+
+
+def test_connected_sebelum_hasil_sambung_dicatat_masih_kamera_putus():
+    """Akhir putus panjang: `connect()` sudah menyetel `connected`, tapi hasil
+    sambungnya belum dicatat (masih gagal dari percobaan sebelumnya). Satu tick
+    di sela itu tidak boleh terbaca frame berhenti: itu ERROR palsu yang sampai ke
+    Discord tepat saat kameranya kembali."""
+    f = replace(SEHAT, sekarang=MULAI + 400, kamera_tersambung=True, sambung_terakhir_ok=False,
+                frame_terakhir_at=MULAI + 50, inferensi_selesai_at=MULAI + 50)
+    assert nilai_ai(f).keadaan is KeadaanAi.KAMERA_PUTUS
+
+
+def test_sambung_ulang_yang_gagal_adalah_kamera_putus_walau_gambar_basi():
+    """Kabel dicabut: sambung ulang gagal. Itu kamera putus (200, coil ERROR
+    seperti dulu), bukan frame berhenti."""
+    f = replace(SEHAT, kamera_tersambung=False, sambung_terakhir_ok=False,
+                frame_terakhir_at=MULAI + 10, inferensi_selesai_at=MULAI + 10)
+    p = nilai_ai(f)
+    assert (p.keadaan, p.gagal, p.error_plc) == (KeadaanAi.KAMERA_PUTUS, False, True)
+
+
+def test_kamera_putus_sebelum_sambung_ulang_pertama_tetap_kamera_putus():
+    f = replace(SEHAT, kamera_tersambung=False, sambung_terakhir_ok=None,
+                frame_terakhir_at=MULAI + 10, inferensi_selesai_at=MULAI + 10)
+    assert nilai_ai(f).keadaan is KeadaanAi.KAMERA_PUTUS
+
+
+def test_kamera_pulih_dari_putus_sungguhan_diberi_tenggang_gambar():
+    """Kamera kembali sesudah lima menit putus: gambar terakhir lima menit lalu,
+    tapi kamera baru boleh dituntut mengirim sejak pulih. Selama tenggang:
+    MEMULAI, bukan frame berhenti dan bukan AI mati."""
+    f = replace(SEHAT, sekarang=MULAI + 400, sambung_terakhir_ok=True, kamera_pulih_at=MULAI + 390,
+                frame_terakhir_at=MULAI + 100, aliran_frame_sejak=MULAI + 1,
+                inferensi_selesai_at=MULAI + 100)
+    p = nilai_ai(f)
+    assert (p.keadaan, p.gagal, p.error_plc) == (KeadaanAi.MEMULAI, False, False)
+
+
+def test_kamera_pulih_tapi_tidak_pernah_mengirim_sesudah_tenggang_adalah_frame_berhenti():
+    f = replace(SEHAT, sekarang=MULAI + 421, sambung_terakhir_ok=True, kamera_pulih_at=MULAI + 390,
+                frame_terakhir_at=MULAI + 100, aliran_frame_sejak=MULAI + 1,
+                inferensi_selesai_at=MULAI + 100)
+    p = nilai_ai(f)
+    assert p.keadaan is KeadaanAi.FRAME_BERHENTI
+    assert p.diam_sejak == MULAI + 390
+
+
+def test_lisensi_didahulukan_atas_frame_berhenti():
+    f = replace(SEHAT, grading_diblokir=True, frame_terakhir_at=MULAI + 10,
+                inferensi_selesai_at=MULAI + 10)
+    assert nilai_ai(f).keadaan is KeadaanAi.LISENSI
+
+
+def test_lisensi_dan_kamera_bolak_balik_tetap_kamera_putus_seperti_dulu():
+    f = replace(SEHAT, grading_diblokir=True, kamera_tersambung=False, sambung_terakhir_ok=True,
+                sambung_ok_sejak_frame=True, frame_terakhir_at=MULAI + 10, inferensi_selesai_at=MULAI + 10)
+    assert nilai_ai(f).error_plc is True
 
 
 def test_gambar_mengalir_lagi_sesudah_jeda_memberi_tenggang_baru():
@@ -123,6 +217,15 @@ def test_tenggang_aliran_baru_habis_tanpa_frame_selesai_adalah_ai_mati():
     p = nilai_ai(f)
     assert p.keadaan is KeadaanAi.AI_MATI
     assert p.diam_sejak == MULAI + 395
+
+
+def test_kawat_frame_berhenti_membawa_kodenya_sendiri_dan_mati_tetap_false():
+    """`mati` tetap AI saja: konsol versi lama menulis "AI berhenti memproses"
+    untuk `mati:true`, kalimat yang salah untuk kamera yang diam."""
+    p = PenilaianAi(KeadaanAi.FRAME_BERHENTI, umur_detik=None, diam_sejak=1_050.0)
+    kawat = ke_kawat(p, ambang_detik=30, sekarang=1_100.0, jam_dinding=1_790_000_000.0)
+    assert (kawat["keadaan"], kawat["mati"], kawat["kode"]) == ("frame_berhenti", False, KODE_FRAME_BERHENTI)
+    assert kawat["sejak"] == 1_790_000_000.0 - 50.0
 
 
 def test_kawat_membawa_kode_dan_jam_dinding_tanpa_galat_mentah():
@@ -146,11 +249,13 @@ def test_kawat_line_sehat_tanpa_kode_dan_tanpa_jam():
         ({"keadaan": "sehat", "mati": False}, 200),
         ({"keadaan": "kamera_putus", "mati": False}, 200),
         ({"keadaan": "lisensi", "mati": False}, 200),
-        ({"keadaan": "sumber_diam", "mati": False}, 200),
+        ({"keadaan": "sumber_diam", "mati": False}, 200),      # line versi 2.1
+        ({"keadaan": "sumber_selesai", "mati": False}, 200),
+        ({"keadaan": "frame_berhenti", "mati": False}, 503),
         ({"keadaan": "ai_mati", "mati": True}, 503),
     ],
 )
-def test_health_503_hanya_untuk_ai_mati(ai, kode):
+def test_health_503_hanya_untuk_ai_mati_dan_frame_berhenti(ai, kode):
     assert kode_http_health(ai) == kode
 
 

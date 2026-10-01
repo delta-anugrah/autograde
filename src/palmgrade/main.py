@@ -28,10 +28,12 @@ from .routes.internal import _jadwalkan_keluar
 from .routes.internal import router as internal_router
 from .routes.internal_bahaya import buat_router as buat_router_bahaya
 from .routes.internal_outbox import buat_router as buat_router_outbox
+from .routes.internal_log import buat_router as buat_router_log
+from .services.antrean_log_line import pasang_penulis_log_line
 from .services.antrean_line import AntreanLine
 from .services.hapus_data_line import hapus_kalau_diminta
 from .services.langkah_tutup_line import langkah_tutup_line
-from .services.pindah_db_line import pindahkan_db_lama
+from .services.pindah_db_line import catat_state_tidak_di_mount, pindahkan_db_lama
 from .workers.outbox_retry_worker import OutboxRetryWorker
 from .core.logging import configure_logging
 from .integrations.camera.base import CameraSource
@@ -52,6 +54,7 @@ from .workers.capture_save_worker import CaptureSaveWorker
 from .routes.health import router as health_router
 from .core.dependencies import get_health_service
 from .routes.health_ringan import buat_router_health
+from .services.pemantau_disk import PemantauDisk
 from .services.penjaga_ai import PenjagaAi
 from .routes.inspection import router as inspection_router
 from .routes.streaming import router as streaming_router
@@ -88,7 +91,7 @@ async def _tarik_setelan_grading(settings, state) -> None:
                 url, headers={"x-webhook-secret": settings.webhook_secret}
             )
         if res.status_code != 200:
-            logger.info("Setelan grading tidak diambil (HTTP %s) — pakai .env", res.status_code)
+            logger.info("Setelan grading tidak diambil (HTTP %s), pakai .env", res.status_code)
             return
         data = res.json()
         if data.get("sumber") != "konsol":
@@ -115,7 +118,7 @@ async def _tarik_setelan_grading(settings, state) -> None:
             bersih["garis_capture"], bersih["sumbu_garis"],
         )
     except Exception as exc:
-        logger.info("Setelan grading tidak bisa diambil (%s) — pakai .env", exc)
+        logger.info("Setelan grading tidak bisa diambil (%s), pakai .env", exc)
 
 
 async def _tarik_penugasan(settings, state) -> None:
@@ -142,7 +145,7 @@ async def _tarik_penugasan(settings, state) -> None:
                 headers={"x-webhook-secret": settings.webhook_secret},
             )
         if res.status_code != 200:
-            logger.info("Penugasan tidak diambil (HTTP %s) — line start tanpa truk", res.status_code)
+            logger.info("Penugasan tidak diambil (HTTP %s), line start tanpa truk", res.status_code)
             return
         data = res.json()
         assignment_id = str(data.get("assignment_id") or "").strip()
@@ -162,13 +165,29 @@ async def _tarik_penugasan(settings, state) -> None:
             truck_id, assignment_id, data.get("plate"), data.get("ffb_source"),
         )
     except Exception as exc:
-        logger.info("Penugasan tidak bisa diambil (%s) — line start tanpa truk", exc)
+        logger.info("Penugasan tidak bisa diambil (%s), line start tanpa truk", exc)
 
 
 def create_app() -> FastAPI:
-    configure_logging()
+    # Settings dulu: konteks (kode line), zona, dan level log datang dari sana. Yang
+    # sempat dicatat Settings sendiri sebelum ini tetap sampai stderr lewat
+    # `logging.lastResort`, cuma tanpa format.
     settings = get_settings()
+    configure_logging(konteks=settings.line_code, zona=settings.factory_tz, level=settings.log_level)
     penutup = get_penutup_line()
+    # Batch 3.2: WARNING/ERROR line ini ke log_line.db di folder DB line (selamat dari
+    # --force-recreate), ditarik konsol ke tab Log. Sedini mungkin supaya galat saat
+    # boot ikut tercatat; None = tanpa log di disk, line tetap jalan. Restart dan hapus
+    # data dari konsol keluar lewat os._exit, yang melewati atexit: antreannya dikuras
+    # dulu lewat penutup, supaya pesan terakhir sebelum keluar ikut tercatat.
+    penulis_log = pasang_penulis_log_line(get_folder_db_line())
+    log_line = penulis_log.store if penulis_log is not None else None
+    if penulis_log is not None:
+        penutup.sebelum_keluar(penulis_log.hentikan)
+    # ERROR "state tidak di-mount" ditulis saat folder itu dipilih, sebelum handler di
+    # atas ada: diulang sekali supaya sampai tab Log.
+    if penulis_log is not None and get_folder_db_line() != settings.state_dir:
+        catat_state_tidak_di_mount(settings.state_dir, settings.artifacts_dir, level=logging.WARNING)
 
     # Folder DB line (state/, batch 1.2); lihat services/pindah_db_line.py.
     _lic_repo = LicenseLocalRepo(get_folder_db_line() / "license.db")
@@ -259,18 +278,26 @@ def create_app() -> FastAPI:
             camera.connect(index=settings.camera_device_index, serial=settings.camera_serial, feature_file=settings.camera_feature_file)
         except RuntimeError as exc:
             if camera_type == "hikrobot":
-                logger.warning("Camera not found at startup: %s — FrameCaptureWorker will keep retrying", exc)
+                logger.warning("Camera not found at startup: %s, FrameCaptureWorker will keep retrying", exc)
             else:
                 raise
         set_camera(camera)
 
         state = get_runtime_state()
         state.main_loop = asyncio.get_running_loop()
+        # Hasil `connect()` di atas, sebelum penjaga menilai: sambung ulang pertama
+        # sesudah boot yang gagal tidak boleh membaca "belum pernah dicatat".
+        state.catat_sambung_kamera(berhasil=bool(getattr(camera, "connected", False)))
 
         # Batch 2.1: SATU penilai "AI masih memproses?" untuk coil ERROR,
         # `/health` (+ healthcheck Docker), dan kartu line konsol.
         penjaga_ai = PenjagaAi(settings=settings, state=state, kamera=camera)
         state.penjaga_ai = penjaga_ai
+        # Batch 3.7: sisa disk partisi yang DITULIS line ini (foto + DB), dengan
+        # atau tanpa R2. Tidak menghapus apa pun; konsol yang memperingatkan.
+        state.pemantau_disk = PemantauDisk(
+            settings=settings, jalur=(settings.artifacts_dir, get_folder_db_line())
+        )
 
         # Sesudah `state` ada, sebelum worker deteksi menyala: setelan yang
         # dipegang konsol harus sudah terpasang saat janjang pertama lewat.
@@ -286,7 +313,7 @@ def create_app() -> FastAPI:
             state.license_exp = effective.grace_ends_at
             if effective.is_expired:
                 logger.error(
-                    "Lisensi tidak berlaku (%s) — deteksi TIDAK dijalankan", effective.reason
+                    "Lisensi tidak berlaku (%s), deteksi TIDAK dijalankan", effective.reason
                 )
             elif effective.warning:
                 logger.warning("%s: %s", effective.warning.code, effective.warning.message)
@@ -376,7 +403,7 @@ def create_app() -> FastAPI:
                 license_ok=lambda: not grading_blocked(settings.lic_enabled, state.license_exp),
             )
         except Exception:
-            logger.exception("Start PLC gagal — grading tetap jalan, PLC dinonaktifkan")
+            logger.exception("Start PLC gagal, grading tetap jalan, PLC dinonaktifkan")
             plc_worker = None
         if plc_worker is not None:
             state.worker_threads.append(("plc", _start_worker("plc", plc_worker.run_loop), plc_worker))
@@ -471,6 +498,9 @@ def create_app() -> FastAPI:
             ),
         )
     )
+
+    # Log line untuk tab Log konsol (batch 3.2): store yang SAMA dengan handler di atas.
+    app.include_router(buat_router_log(settings=get_settings, store=lambda: log_line))
 
     @app.websocket("/ws/results")
     async def websocket_endpoint(websocket: WebSocket) -> None:

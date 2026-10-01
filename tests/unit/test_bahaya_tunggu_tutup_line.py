@@ -12,10 +12,13 @@ import inspect
 
 from palmgrade.routes.internal_bahaya import JEDA_KELUAR_DETIK
 from palmgrade.services.bahaya_service import BahayaService
-from palmgrade.services.penutup_line import BATAS_TUTUP_S
+from palmgrade.services.penutup_line import BATAS_SEBELUM_KELUAR_S, BATAS_TUTUP_S
 
 
 def test_batas_tunggu_mati_bawaan_menutup_jeda_dan_batas_tutup_line():
+    """Batch 3.2 menambah `BATAS_SEBELUM_KELUAR_S` (menguras log line sebelum `os._exit`)
+    di ujung jalan keluar yang sama: batas itu ikut dijumlah, supaya perubahan yang
+    memakan cadangan tunggu Danger Zone langsung merah di sini."""
     bawaan = inspect.signature(BahayaService.__init__).parameters["tunggu_mati_s"].default
     # +1 detik: dua pemeriksaan `/health` berturut-turut yang tidak dijawab.
-    assert bawaan >= JEDA_KELUAR_DETIK + BATAS_TUTUP_S + 1.0
+    assert bawaan >= JEDA_KELUAR_DETIK + BATAS_TUTUP_S + BATAS_SEBELUM_KELUAR_S + 1.0

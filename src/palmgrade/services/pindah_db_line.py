@@ -86,13 +86,22 @@ def folder_db_line(
         return state_dir
     if ada_mount(_baca_mountinfo() if mountinfo is None else mountinfo, state_dir):
         return state_dir
-    logger.error(
+    catat_state_tidak_di_mount(state_dir, artifacts_dir, level=logging.ERROR)
+    return artifacts_dir
+
+
+def catat_state_tidak_di_mount(state_dir: Path, artifacts_dir: Path, *, level: int) -> None:
+    """Satu kalimat, dua tempat: ERROR saat folder dipilih (sebelum handler log line ada,
+    jadi cuma sampai stderr), lalu WARNING dari `main.py` sesudah handler terpasang
+    supaya kalimat yang sama ada di tab Log. Justru ini yang dicari support sesudah
+    container dibuat ulang tanpa mount `./state/line-N`."""
+    logger.log(
+        level,
         "%s tidak di-mount dari host: outbox.db dan license.db tetap di %s supaya tidak "
         "hilang saat container dibuat ulang. Tambahkan ./state/line-N:/app/state di compose "
         "host lalu autograde restart.",
         state_dir, artifacts_dir,
     )
-    return artifacts_dir
 
 
 def db_sudah_pindah(artifacts_dir: Path, folder_db: Path) -> bool:

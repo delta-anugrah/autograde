@@ -60,6 +60,14 @@ mengirim gambar, tapi ada frame yang selesai digrading dalam `AI_MATI_DETIK` det
 Kalau tidak, AI dinyatakan mati, dan coil ERROR PLC, `/health` (503), serta kartu line konsol
 sama-sama membaca penilaian yang sama dari objek ini, bukan menghitung sendiri-sendiri. Detail
 aturan dan lima keadaan yang sengaja tidak dialarm: `domain/kesehatan_ai.py`, `docs/rules.md` aturan 32.
+Sejak batch 3.6 objek yang sama juga menilai **frame berhenti** (kamera tersambung tapi tidak
+mengirim gambar): coil ERROR dan `/health` 503 seperti AI mati, `ai.mati` tetap AI saja (aturan 35).
+
+**Log line (batch 3.2).** WARNING/ERROR line dulu berhenti di stdout + `PenulisLogLine` (antrean
+memori tiap ~0,2 detik, thread deteksi tidak pernah menunggu disk, aturan 1b), sekarang juga
+ditulis ke `log_line.db` di folder DB line (maks 2.000 baris). Konsol menariknya ke tab Log
+(`TarikLogLineWorker`, tiap 10 detik), jadi galat line tetap terbaca sesudah container di-recreate.
+Aturan lengkapnya `docs/rules.md` aturan 34.
 
 ---
 
@@ -876,7 +884,8 @@ models/release/    # best.pt (required, NOT committed)
 artifacts/line-N/  # runtime output per line (NOT committed)
 ```
 
-Tooling: `pyproject.toml` (pytest + ruff config, TIDAK untuk build), `.github/workflows/ci.yml` (lint + test).
+Tooling: `pyproject.toml` (pytest + ruff config, TIDAK untuk build), `.github/workflows/ci.yml` (lint + test,
+plus dipanggil `deploy.yml` sebelum image rilis mana pun dibangun).
 
 Layer rule (strict): `route → controller → service → repository / pipeline / integration`.
 Per-layer do/don't: `docs/overview.md`.

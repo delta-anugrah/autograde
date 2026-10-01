@@ -33,6 +33,6 @@ def awasi_sekali(
             continue
         if sedang_menutup():
             return False
-        logger.error("Worker thread '%s' died — restarting", nama)
+        logger.error("Worker thread '%s' died, restarting", nama)
         worker_threads[i] = (nama, mulai(nama, worker.run_loop), worker)
     return True

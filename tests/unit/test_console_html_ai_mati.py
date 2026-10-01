@@ -4,8 +4,8 @@
 - invarian teks (selalu jalan): pita digambar saat render pertama DAN tiap
   polling, diterjemahkan di kedua bahasa, di-escape;
 - perilaku lewat node dengan KAMUS asli: kalimat yang sungguh dibaca operator
-  memuat kode, line, jam, dan tindakan; line sehat, line lama tanpa blok `ai`,
-  dan line OFFLINE tidak menggambar apa pun.
+  memuat line, jam, dan tindakan, tanpa kode galat (keputusan user 2026-10-01);
+  line sehat, line lama tanpa blok `ai`, dan line OFFLINE tidak menggambar apa pun.
 """
 from __future__ import annotations
 
@@ -70,12 +70,13 @@ def test_tanpa_suara():
 
 
 @butuh_node
-def test_ai_mati_menulis_kode_line_jam_dan_tindakan():
+def test_ai_mati_menulis_line_jam_dan_tindakan_tanpa_kode():
     html = jalankan(["jamSinkron", "aiMati", "pitaAi"], f"pitaAi({_js(_line(AI_MATI))}, {SEJAK + 42})")
     assert 'class="pita-ai" role="alert"' in html
     assert "Line 2: AI berhenti memproses" in html
-    assert "Kode AI_MATI, sejak 21.13." in html
+    assert "Sejak 21.13." in html
     assert "panggil teknisi" in html
+    assert "AI_MATI" not in html and "Kode" not in html
 
 
 @butuh_node
@@ -83,14 +84,15 @@ def test_hari_lain_ikut_tanggal():
     """Pita yang menyala sejak kemarin (kiosk dibiarkan semalaman) harus bilang
     kemarin, bukan jam yang terbaca seperti tadi pagi."""
     html = jalankan(["jamSinkron", "aiMati", "pitaAi"], f"pitaAi({_js(_line(AI_MATI))}, {SEJAK + 86_400})")
-    assert "sejak 21 Sep 21.13." in html
+    assert "Sejak 21 Sep 21.13." in html
 
 
 @butuh_node
 def test_bahasa_inggris():
     html = jalankan(["jamSinkron", "aiMati", "pitaAi"], f"pitaAi({_js(_line(AI_MATI))}, {SEJAK + 42})", bahasa="en")
     assert "Line 2: AI stopped processing" in html
-    assert "Code AI_MATI, since 21:13." in html
+    assert "Since 21:13." in html
+    assert "AI_MATI" not in html and "Code" not in html
 
 
 @pytest.mark.parametrize(

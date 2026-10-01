@@ -226,3 +226,18 @@ def test_error_mati_tidak_menyodorkan_galat_lama_sebagai_sebab(caplog):
     pesan = _error_mati(caplog)
     assert "tidak ada galat sejak AI berhenti" in pesan
     assert "7200 detik lalu" in pesan and "CUDA error pagi" in pesan
+
+
+def test_error_mati_tidak_mencetak_dua_titik_saat_galatnya_berakhir_titik(caplog):
+    """Kalimat ini jadi baris ringkasan Discord: "...triggered.. Restart" terbaca rusak."""
+    penjaga, state, _, jam = _rakit()
+    _gambar_mengalir_tanpa_selesai(state, jam, 20)
+    state.ai_galat_terakhir = "RuntimeError: CUDA error: device-side assert triggered."
+    state.ai_galat_at = 1_790_000_000.0 - 5
+    _gambar_mengalir_tanpa_selesai(state, jam, 12)
+
+    with caplog.at_level(logging.ERROR, logger=penjaga_ai.__name__):
+        penjaga.nilai()
+
+    pesan = _error_mati(caplog)
+    assert "triggered. Restart line" in pesan and ".." not in pesan

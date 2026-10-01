@@ -32,7 +32,21 @@ env:
   IMAGE_NAME: delta-anugrah/autograde
 
 jobs:
+  # Batch 4.1: no image is built before the whole CI suite passed on THIS commit.
+  # `ci.yml` is called, not waited for. It also runs on the push to `main`, but
+  # finding "the run for this tag" means guessing: the tag can arrive before that
+  # run is registered, or sit on a commit whose run was cancelled or re-run, and a
+  # job that polls burns the same runner minutes as running the suite itself.
+  # `./` runs ci.yml from this very commit, and the called workflow sees this
+  # run's github context (sha, ref), so its checkout is exactly the tagged commit.
+  ci:
+    uses: ./.github/workflows/ci.yml
+    # A called workflow can keep or narrow these, never widen them.
+    permissions:
+      contents: read
+
   build-and-push:
+    needs: ci
     runs-on: ubuntu-latest
 
     permissions:
@@ -130,3 +144,16 @@ jobs:
             org.opencontainers.image.version=${{ github.ref_name }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+  # The CPU demo image (`vX.Y.Z-cpu`, demo-autograde.smagri.id) waits for the same
+  # CI run instead of starting on its own at tag time, so a version whose tests are
+  # red is published under neither name. It runs beside the factory build, not
+  # after it: a failed demo build never holds back the image the factory pulls.
+  demo:
+    needs: ci
+    uses: ./.github/workflows/demo-image.yml
+    with:
+      version: ${{ github.ref_name }}
+    permissions:
+      contents: read
+      packages: write

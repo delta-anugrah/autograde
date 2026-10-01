@@ -1,7 +1,7 @@
 # Rules, conventions and git workflow (full text)
 
 Moved verbatim from `CLAUDE.md` on 2026-09-30. `CLAUDE.md` §3 keeps a one-line index with the
-same numbers (0 to 32, plus 1b and 1c); this file is the full text with rationale, dates and the `⚠️` notes.
+same numbers (0 to 35, plus 1b and 1c); this file is the full text with rationale, dates and the `⚠️` notes.
 Rule numbers are cited by tests, `docs/overview.md` and skills: do not renumber. New rules are
 appended with the next number in both files. The former `CLAUDE.md` "Pointers" list sits at the
 end of this file.
@@ -418,12 +418,24 @@ end of this file.
     `make operator` atau tab Akun) tidak lewat penyaring ini.
     **`event_log` cuma menyimpan ERROR dan WARNING**, retensi 180 hari
     (`LOG_RETENSI_HARI`). Pesan identik yang datang dalam 60 detik **digabung** jadi satu
-    baris dengan hitungan naik, bukan baris baru per kejadian, tanpa itu satu loop yang
+    (sejak batch 3.3 "identik" dihitung sesudah uuid, id hex 8+, desimal lepas, dan bilangan
+    6+ digit dinormalkan, `domain/sidik_log.py`; kode HTTP, port, IP, plat TIDAK; dan
+    `ringkas_galat` ikut sidik: KELAS = kepala blok traceback pertama (galat berantai: akar
+    penyebabnya), kosong kalau detailnya dipotong `potong_detail` (walau kepalanya masih ada),
+    satu-satunya bagian yang pernah ditampilkan (Discord); FRAME = frame `palmgrade/` terakhir di seluruh detail,
+    tanpa itu frame terakhir, cuma di-hash. Jadi dua 500 uvicorn yang pesannya sama "Exception
+    in ASGI application" tapi sebabnya beda tetap dua baris dengan traceback masing-masing,
+    galat yang sama dengan plat/jam/jalur berbeda di teksnya tetap satu baris, dan teks pesan
+    galat tidak pernah terbaca sebagai kelas. Di belakang `LicenseGuardMiddleware` sebuah 500
+    konsol dicetak dengan blok ExceptionGroup lebih dulu, jadi Discord tidak menampilkan
+    kelasnya; sidiknya tetap terpisah lewat frame) baris dengan hitungan naik, bukan baris baru per kejadian, tanpa itu satu loop yang
     gagal tiap detik akan memenuhi tabel dalam semenit dan mendorong keluar galat lain
     yang lebih tua. `redaksi()` (`domain/log_redaksi.py`) menyaring rahasia **sebelum**
     baris menyentuh disk, bukan saat ditampilkan: berkasnya dibaca lewat AnyDesk
     berbulan-bulan kemudian, dan sandi/token yang sempat mendarat di disk sudah bocor
-    walau layarnya sendiri tidak pernah menampilkannya.
+    walau layarnya sendiri tidak pernah menampilkannya. Sejak batch 3.2 tabel yang sama
+    memuat WARNING/ERROR ketiga line (kolom `line_code`), ditarik konsol tiap 10 detik dari
+    `log_line.db` tiap line; baris line tidak ikut digabung dengan pesan konsol.
     **Uji PLC satu-satunya aksi konsol yang menggerakkan hardware fisik**, dan bawa tiga
     pengaman sekaligus: **ditolak selama line itu punya assignment**, dicek di proses
     line yang memegang `RuntimeState`-nya sendiri, **bukan** di konsol, karena konsol
@@ -437,6 +449,33 @@ end of this file.
     bukan cuma tab yang hilang, seluruh menunya buntu di 403. Lifespan konsol memeriksa
     ini saat startup dan `logger.warning` kalau kosong, supaya yang pasang PC tahu
     sebelum AnyDesk pertama yang butuh layar ini datang.
+    **Di luar tab Log tidak ada teks galat sistem** (keputusan user 2026-10-01, sesudah tes
+    PR #200): tidak ada kode HTTP, alamat, teks exception atau jawaban server, nama env atau
+    konfigurasi, nama berkas, atau kode galat (`AI_MATI`, `RESTART_LAMA`, ...) di layar mana
+    pun selain tab Log; kalimatnya tetap menyebut apa yang terjadi, line mana, sejak kapan, dan
+    harus apa. `alasan()` memulangkan kalimat umum untuk kode asing, diawali konteks pemanggil
+    (`gagalKarena` untuk awalan): `err_ditolak` (nilai yang ditolak) untuk 4xx tanpa kode kecuali 404,
+    `err_umum` untuk 404, 5xx, dan selebihnya, dan `err_konsol_putus` untuk konsol yang tidak menjawab sama
+    sekali (`ambil`), tidak pernah `e.message`. Line yang tidak terbaca konsol diklasifikasi
+    backend (`domain/line_tak_terbaca.py`, `sebab_kode` di kartu Diagnostik, Antrean line, dan
+    snapshot `LineStatusWorker`), kiriman AutoERP/R2 yang tertahan membawa `error_kind` (kolom
+    `erp_outbox.error_kind`, ditulis worker-nya, dikosongkan saat diantre ulang, Kirim Ulang,
+    atau terkirim; aman untuk mundur versi: build lama mengabaikan kolomnya, dan baris yang ia
+    tandai gagal membawa jenis lama sampai diantre ulang), model yang tidak bisa dipakai membawa
+    `alasan_kode`, alarm PLC yang tidak dikenal jatuh ke `alarm_lain`; layar menerjemahkan
+    semuanya lewat KAMUS dan kode yang tidak dikenal jatuh ke kalimat umum. Satu-satunya
+    pengecualian: kalimat info di layar support boleh menyebut folder rekaman (`rekamSelesai`,
+    `rekamCatatanRetensi`, `bahayaRekamanTeks`), karena support harus menemukan berkasnya;
+    kalimat galat tidak pernah memuat jalur atau perintah. Teks mentahnya ada di tab Log: ketiga
+    pembaca line di konsol (`LineStatusWorker`, kartu Diagnostik, Antrean line) memakai satu
+    aturan (`domain/episode_tak_terbaca.py`, `services/jejak_tak_terbaca.py`, per line): SATU
+    WARNING dengan sebab dan alasan mentah PERTAMA kejadian sesudah tiga poll gagal berturut,
+    sebab yang berganti tidak menulis apa pun, SATU WARNING saat pulih dengan lama sejak poll
+    gagal pertama, dan 120 detik pertama sesudah konsol menyala (`TENGGANG_START_S`, line masih
+    memuat model) tidak menulis awal kejadian. Penolakan operator tanpa kode (`_operator_error`
+    dengan ValueError) dicatat WARNING. Penjaga:
+    `tests/unit/test_console_html_teks_ramah.py` (KAMUS id/en, teks statis, perilaku lewat
+    node) dan `tests/unit/test_console_copy.py` (pesan log juga tanpa em dash).
 22. **Lisensi: pabrik MEMERIKSA, AutoERP yang MENERBITKAN** (2026-09-22).
     Token JWS Ed25519 dicetak DocType `AutoGrade Licence` di AutoERP (dulu
     palmgrade-api, yang mati 2026-09-20) dan dipasang teknisi dengan
@@ -481,6 +520,13 @@ end of this file.
     ⚠️ **Recorder yang rusak tidak boleh menjatuhkan line**: panggilannya
     dibungkus `try` di capture worker. Fitur developer tidak boleh bisa
     mematikan produksi.
+    **Stop menulis dulu frame yang sudah antre saat Stop ditekan** (2026-09-30), paling
+    banyak sebesar antrean (30 frame, isi antrean dihitung saat encoder melihat Stop), jadi
+    Stop lebih lama paling banyak 30 frame (di Mac ±0,6 dtk; belum diukur di Lampung). Dulu
+    isi antrean dibuang: ekor tiap rekaman hilang, dan encoder yang telat siap menutup berkas
+    tanpa satu frame pun. Rem disk tetap berhenti seketika. `POST /internal/rekam/stop` itu
+    `def` (threadpool), bukan `async def`: pengurasan itu tidak boleh membekukan event loop
+    line (`/health`, MJPEG).
     **Codec `avc1` (H.264), fallback `mp4v`**: diukur 5x lebih kecil (0,48 vs
     2,40 GB/jam pada 1280x1024 @ 5 fps). Fallback-nya bukan hiasan: `avc1` tidak
     ada di setiap build OpenCV, dan `VideoWriter` yang gagal membuka **tidak
@@ -574,7 +620,9 @@ end of this file.
     konsol. Line menulis penanda `artifacts/.hapus-data`, keluar lewat urutan tutup yang sama
     dengan SIGTERM (aturan 29, `os._exit` di ujungnya), dan **awal
     lifespan `main.py`** menghapus isi `artifacts/` (kecuali sisa `license.db*` di PC yang
-    belum pindah, lihat aturan pindah DB di bawah) + berkas **milik line** di `state/`
+    belum pindah, lihat aturan pindah DB di bawah, dan kecuali `log_line.db` (sudah terbuka
+    sejak proses mulai; konsol tidak menarik ulang baris lama karena kursornya tidak ikut
+    dihapus)) + berkas **milik line** di `state/`
     (`MILIK_LINE_DI_STATE`, sejak
     batch 1: `upload_manifest.db*` **dan** `outbox.db*`, yang pindah dari `artifacts/` ke
     `state/` supaya tidak lagi tersaji lewat `/captures`) SEBELUM store mana pun membuka
@@ -596,10 +644,12 @@ end of this file.
     ⚠️ **Konsol MENUNGGU line mati** sebelum mengosongkan datanya sendiri: diam dulu
     selama `jeda_detik` yang dijawab line, lalu `/health` sampai **dua kali berturut-turut**
     tidak menjawab (sekali lewat tenggat = line sibuk menulis foto, bukan mati), maks 12 dtk
-    (jeda 1 dtk + urutan tutup line maks 8 dtk + cadangan untuk dua cek `/health` berturut-turut).
+    (jeda 1 dtk + urutan tutup line maks 8 dtk + antrean log line dikuras maks 1 dtk (batch
+    3.2, `sebelum_keluar`) + 1 dtk margin untuk dua cek `/health` berturut-turut).
     Line mulai menutup 1 detik sesudah menjawab, lalu urutan tutup sendiri maks 8 detik
-    (coil mati + antrean simpan habis, total maks 9 detik dari permintaan, aturan 29), dan
-    janjang yang lewat di detik itu masih dikirim
+    (coil mati + antrean simpan habis), lalu antrean log line dikuras maks 1 detik lagi
+    sebelum `os._exit` (batch 3.2, `sebelum_keluar`, melewati `atexit`): total maks 10 detik
+    dari permintaan, aturan 29. Janjang yang lewat di detik itu masih dikirim
     ke konsol: tanpa menunggu, baris grading yang fotonya sudah hilang tertinggal. Line
     yang tidak kunjung mati dilaporkan `ok:true, kode:"belum_mati"`.
     ⚠️ **Truk tidak bisa dipasang selama penghapusan**, dua penjaga, satu per jendela:
@@ -699,8 +749,9 @@ end of this file.
     pertama (jam R2 yang tersimpan bukan bukti hidup), dan "hapus semua" di Danger Zone langsung
     mengosongkannya. Jam Cloud Photo tiap line cuma bergerak kalau batch itu benar-benar menaikkan
     foto, bukan karena batch-nya jalan. **Putus dan pulih =
-    masing-masing SATU WARNING** di tab Log, termasuk upload foto tiap line (line tidak memasang
-    log_sink, jadi `LineStatusWorker` konsol yang mencatat alasannya). **Pesan galat mentah tidak
+    masing-masing SATU WARNING** di tab Log, termasuk upload foto tiap line (line menulis
+    log_sink-nya sendiri ke `log_line.db` sejak batch 3.2, tapi WARNING sisi konsol ini tetap
+    dicatat supaya transisinya terbaca dari sudut konsol). **Pesan galat mentah tidak
     dikirim ke layar.** ⚠️ Line yang restart melupakan status gagalnya sampai batch jam berikutnya;
     pulih baru dicatat kalau jam unggahnya benar-benar bergerak. ⚠️ **`UPLOAD_API_URL` yang masih
     menunjuk api lama yang mati** membuat Cloud Photo merah (`POST gagal`): batch berhenti di POST
@@ -777,9 +828,12 @@ end of this file.
     urutan tutup, keduanya di bawah tenggang `docker stop` bawaan (10 detik sebelum SIGKILL). Line
     uvicorn jalan dengan `--timeout-graceful-shutdown 1`, karena `/api/video_feed` yang masih
     terbuka dulu menahan shutdown sampai SIGKILL; konsol sengaja TANPA batas itu. Anggarannya
-    (SIGTERM): 1 + 0,2 + 8 masih di bawah 10 detik `docker stop`. `/internal/restart` menjawab
-    dulu, tunggu 1 detik, baru urutan tutup jalan: maks 9 detik dari permintaan sampai proses
-    benar-benar keluar.
+    (SIGTERM): 1 + 0,2 + 8 masih di bawah 10 detik `docker stop`; antrean log line (batch 3.2)
+    keluar lewat `atexit` di jalur ini, sudah termasuk dalam waktu itu, tanpa budget tambahan.
+    `/internal/restart` dan `/internal/hapus-data` menjawab dulu, tunggu 1 detik, lalu urutan
+    tutup jalan (maks 8 detik), lalu antrean log line dikuras lewat `sebelum_keluar` (batch 3.2,
+    yang melewati `atexit` karena jalur ini berakhir di `os._exit`), maks 1 detik lagi: **maks
+    10 detik** dari permintaan sampai proses benar-benar keluar.
     Janjang yang tidak sempat ditulis disebut satu per satu di ERROR `Tutup line: N janjang TIDAK
     tertulis ...`, bukan hilang diam-diam.
     **`os._exit` cuma hidup di `services/penutup_line.py`**, dijaga
@@ -856,7 +910,9 @@ end of this file.
     berikutnya gagal dengan cara lain) dan `/internal/outbox` membawa `ditolak`, `ditolak_at`,
     `ditolak_alasan`; layar menulis keadaan **"N janjang DITOLAK konsol"** dengan jam, alasan, dan
     saran. Konsol mencatat satu WARNING per `event_id` per proses (`ConsoleService.ingest`) supaya
-    tab Log menyebutnya: line tidak punya log_sink. **Tetap tidak ada yang dibuang otomatis**:
+    tab Log menyebutnya: line menulis log_sink-nya sendiri ke `log_line.db` sejak batch 3.2, tapi
+    WARNING sisi konsol ini tetap dicatat supaya transisinya terbaca dari sudut konsol.
+    **Tetap tidak ada yang dibuang otomatis**:
     cara melihat, menyimpan ke berkas, lalu menghapus satu baris ditolak dengan tangan ada di
     `docs/MANUAL.md` §7.1 (perintahnya dijaga `tests/unit/test_perintah_janjang_ditolak.py`,
     dijalankan lawan `OutboxStore` sungguhan).
@@ -876,9 +932,10 @@ end of this file.
     baru mengalir lagi sesudah jeda >5 detik, tenggangnya dihitung dari yang LEBIH BELAKANGAN
     antara loop mulai dan aliran mulai lagi, bukan cuma salah satu); **kamera putus**
     (`kamera_putus`, kartu dan coil ERROR sudah menanganinya sejak dulu); **lisensi habis**
-    (`lisensi`, grading memang dihentikan sengaja, banner lisensi yang bicara); **sumber diam**
-    (`sumber_diam`, tidak ada frame masuk sama sekali meski kamera tersambung, misalnya video
-    tanpa ulang yang habis: urusan kamera, ditunda ke batch 3.6); dan model dengan kelas yang
+    (`lisensi`, grading memang dihentikan sengaja, banner lisensi yang bicara); **sumber selesai**
+    (`sumber_selesai`, video uji tanpa ulang yang habis, sejak batch 3.6; dulu `sumber_diam`);
+    **frame berhenti** (`frame_berhenti`, kamera tersambung tapi tidak mengirim: kerusakan
+    sendiri, aturan 35); dan model dengan kelas yang
     tidak cocok (inferensi tetap selesai, jadi tetap `sehat`, layar Model Deteksi yang menandai
     merah).
     **Empat stempel monotonic** di `RuntimeState` (`time.monotonic()` lewat `RuntimeState.jam`,
@@ -890,12 +947,12 @@ end of this file.
     loop janjang, jadi exception di tengah loop janjang membuatnya tetap segar tiap detik
     walau tidak ada janjang yang selesai digrading.
     **Tiga pembaca, satu sumber**: coil ERROR PLC (`sehat_untuk_plc()`, naik untuk **kamera
-    putus ATAU AI mati**, tidak untuk lisensi habis atau sumber diam, PLC tidak berubah sama
+    putus ATAU AI mati ATAU frame berhenti (aturan 35)**, tidak untuk lisensi habis atau sumber selesai, PLC tidak berubah sama
     sekali, no ladder change, tapi **tim PLC harus diberi tahu** M1002/M1005/M1008 sekarang
-    bisa naik untuk sebab baru ini); `/health` (503 **hanya** untuk AI mati, kamera putus/
-    lisensi/sumber diam tetap 200, karena gerbang update `autograde.sh` (`wait_healthy`, `curl -f
-    /health`) memundurkan versi yang tidak menjawab 200 dalam 90 detik, dan tiga keadaan itu
-    bukan salah versi). ⚠️ **Gerbang itu TIDAK menangkap AI yang mati sesudah start**: dia
+    bisa naik untuk sebab baru ini); `/health` (503 **hanya** untuk AI mati dan frame berhenti
+    (aturan 35); kamera putus, lisensi, dan sumber selesai tetap 200, karena gerbang update
+    `autograde.sh` (`wait_healthy`, `curl -f /health`) memundurkan versi yang tidak menjawab 200
+    dalam 90 detik, dan tiga keadaan itu bukan salah versi). ⚠️ **Gerbang itu TIDAK menangkap AI yang mati sesudah start**: dia
     selesai pada 200 PERTAMA, dan probe pertama selalu jatuh di dalam tenggang `memulai` 30
     detik (`ai_dimulai_at` distempel di startup yang sama yang membuka `/health`). Rilis yang
     AI-nya mati pada frame sungguhan TIDAK di-rollback: launcher mencatat `OK vX.Y.Z` dan
@@ -917,13 +974,151 @@ end of this file.
     membalik urutan transisi dan mencatat satu kejadian jadi tiga baris log. Transisi dicatat
     sekali per perubahan, bukan tiap panggilan: masuk `ai_mati` → `logger.error`; keluar dari
     `ai_mati` → `logger.warning` **"AI %s tidak lagi dinilai mati (keadaan %s)"** (keluar bisa
-    juga ke `kamera_putus`/`lisensi`/`sumber_diam`, bukan cuma balik `sehat`).
+    juga ke `kamera_putus`/`lisensi`/`sumber_selesai`, bukan cuma balik `sehat`).
     **Docker healthcheck TIDAK autoheal**: `restart: unless-stopped` tidak bereaksi ke
     `unhealthy`, dan tidak ada autoheal container/label di repo mana pun, jadi AI mati yang
     membuat `/health` 503 membuat line terlihat `unhealthy` di `docker ps` tapi **tidak**
     memicu restart mana pun.
-    **Gap yang sengaja dibiarkan** (ditunda ke batch 3.6): frame yang berhenti mengalir padahal
-    kamera tetap tersambung dibaca `sumber_diam`, tidak dialarm sama sekali.
+    Gap `sumber_diam` yang dulu sengaja dibiarkan ditutup batch 3.6: lihat aturan 35.
+
+33. **Log dasar: satu pemasangan, baris bertanda, transisi bukan spam** (batch 3.1, 3.3, 3.4,
+    2026-09-30). `core/logging.configure_logging` dipakai line (`main.py`, konteks
+    `settings.line_code`) DAN konsol (lifespan, konteks `console`, plus `SqliteLogHandler` tab
+    Log; dilepas lagi di akhir lifespan). Dulu konsol tidak pernah memanggilnya: INFO dibuang,
+    WARNING/ERROR tidak pernah sampai `docker logs`, dan galat 500 uvicorn berhenti di handler
+    uvicorn. Format: `2026-09-30T14:03:07.123+07:00 | WARNING | line-2 | palmgrade.x | pesan`.
+    **Zona dari `FACTORY_TZ` lewat formatter, JANGAN `TZ` di compose** (aturan 8: `TZ` memindah
+    folder hasil); kosong = `+00:00`, salah (termasuk nama folder zona seperti `Asia`) = UTC +
+    satu WARNING. **`LOG_LEVEL`** (bawaan INFO, salah ketik = INFO + satu WARNING) cuma mengatur
+    keluaran proses: root tidak pernah di atas WARNING, jadi tab Log tetap menerima WARNING.
+    `LOG_LEVEL=DEBUG` cuma menyalakan DEBUG untuk logger paket ini (`palmgrade.*`), tidak pernah
+    root atau pustaka pihak ketiga; `DEBUG_MODEL_OUTPUT` menumpang lewat filter keluaran
+    tersendiri, jadi baris `[MODEL]` tetap lolos apa pun `LOG_LEVEL`-nya. `httpx`/`httpcore`
+    dibatasi WARNING apa pun `LOG_LEVEL`-nya, alamat permintaan (webhook Discord, polling status)
+    tidak pernah tertulis. Logger `uvicorn*` diarahkan ke root; access log polling yang SUKSES
+    (GET/HEAD, < 400) ke jalur di `core/log_akses.JALUR_POLLING_SENYAP` dibisukan, 4xx/5xx dan
+    POST tetap tertulis. Jalur polling baru = satu baris di konstanta itu. Baris uvicorn
+    "timeout graceful shutdown exceeded" (tiap restart line, karena layar konsol selalu membuka
+    video feed) diturunkan ke INFO (`TurunkanTenggangTutup`): tetap di `docker logs`, tidak masuk
+    tab Log dan Discord. **Transisi**
+    (`domain/transisi.PelacakTransisi`, pola `status_sinkron.py`): PLC putus (klien,
+    `plc/jejak_sambungan.py`, satu tracker per alamat koneksi, pulih baru sesudah satu
+    baca/tulis berhasil) dan coil yang gagal ditulis (`plc/worker.py` `_tracker_tulis`, satu
+    tracker per coil, sengaja terpisah dari tracker klien), kamera berhenti mengirim (mulai
+    di 5 grab gagal berturut, alasan dari
+    `CameraSource.galat_terakhir`), dan tarikan master data gagal (per jenis: jaringan tanpa
+    traceback, lainnya ERROR bertraceback sekali) masing-masing SATU baris saat mulai dan SATU
+    saat pulih dengan lamanya; ulangan cuma DEBUG. Awal PLC putus dan coil yang gagal ditulis
+    saat tersambung ditulis **ERROR** (pulihnya WARNING): buah lewat tanpa disortir, dan
+    ringkasan Discord (aturan 34) cuma membawa ERROR, jadi kabel PLC yang lepas seharian
+    sampai ke support di luar pabrik sebagai satu baris. Input PLC yang gagal dibaca tetap
+    WARNING (cuma konfirmasi piston, sortir tetap jalan). Kamera yang diam disambung ulang tiap
+    ~2 detik selama FRAME_BERHENTI: rincian sambung Hikrobot (perangkat, handle, grabbing) INFO
+    cuma di `connect()` pertama objek kamera (satu per line seumur proses), "Camera disconnected"
+    DEBUG, laju kamera INFO hanya saat angkanya berubah, dan WARNING "Camera did not report a
+    frame rate" sekali per objek kamera. Dulu: PLC dicabut ±10 baris/detik, kamera
+    ±10/detik, pabrik offline ±288 traceback/hari. Konsol tetap memasang logging sesudah start
+    yang gagal (sengaja): traceback `Application startup failed` uvicorn ikut sampai tab Log.
+    ⚠️ Pengecualian tetap: exception deteksi tiap detik saat AI mati belum disaring (ditandai
+    penjaga AI, aturan 32).
+
+34. **Log line sampai tab Log, galat penting sampai Discord** (batch 3.2 + 3.5, 2026-09-30).
+    Line menulis WARNING/ERROR-nya ke `log_line.db` di folder DB line lewat `SqliteLogHandler`
+    yang sama dengan konsol, tapi `write()` cuma menaruh di antrean memori (`AntreanLogLine`,
+    maks 1.000) dan thread `log_line` yang menulis ke disk tiap ~0,2 detik: thread deteksi tidak
+    pernah menunggu disk log (aturan 1b). Disk yang menolak SEMUA tulisan dicoba lagi dengan jeda
+    1 detik berlipat sampai 30 detik, dan dikeluhkan sekali ke stderr per gangguan. Berkas maks 2.000 baris, baris yang paling lama tidak
+    berubah dibuang dan dihitung (`dibuang`). Kursor `(generasi, seq)`: `seq` naik tiap baris
+    berubah (baru atau digabung), `generasi` acak per berkas, jadi berkas yang direset dibaca dari
+    awal. Konsol menariknya tiap 10 detik (`TarikLogLineWorker`, BUKAN `LineStatusWorker`) dan
+    menyimpan baris + kursor dalam SATU transaksi di `log_kejadian.db` (`log_line_kursor`): tidak
+    hilang dan tidak ganda saat line restart, konsol restart, atau log line direset. Line mati,
+    menolak kunci, atau versi lama (404) = diam, dicoba lagi 30 dtk / 5 menit kemudian
+    (keadaannya sudah diceritakan `LineStatusWorker`). Yang tidak diceritakan siapa pun dapat
+    SATU WARNING saat masuk dan satu "kembali tertarik" saat pulih: 503 `log_line_mati`
+    (log_line.db line tidak bisa dibuka), 5xx lain (berkasnya rusak sesudah dibuka), bentuk
+    halaman asing (versi konsol dan line berbeda), dan galat tak terduga saat menarik.
+    Hitungan Discord untuk ERROR line paling sedikit sekali, dengan dua batas yang sengaja
+    diterima (docstring `repositories/log_serap_line.py`): konsol mati di antara meneruskan ke
+    Discord dan menyerap = halaman itu diteruskan lagi sesudah start; Danger Zone yang
+    mengosongkan `event_log` (atau retensi) lalu baris line yang sama datang lagi = seluruh
+    hitungannya diteruskan lagi. Serapan yang GAGAL tanpa konsol mati TIDAK menggandakan:
+    hitungan yang sudah diteruskan diingat per line sampai terserap.
+    **Lapor Discord** mati kalau `DISCORD_WEBHOOK_URL` kosong (bawaan, keadaan `mati`), bukan
+    alamat https dengan host dan port yang bisa dipakai (`url_salah`, diperiksa juga oleh httpx),
+    atau antreannya di disk tidak bisa dibuka (`rusak`: pindahkan
+    `state/console/lapor_discord.db` lalu `autograde restart`; Setelan tidak me-restart konsol). Nyala:
+    semua ERROR konsol + ERROR line yang ditarik antre per jenis di `lapor_discord.db` (jenis =
+    pesan yang dinormalkan plus nama kelas galatnya, `dengan_jenis_galat`: "Exception in ASGI
+    application (KeyError)"), disusun jadi ringkasan (identitas `ERP_COMPANY` + host + versi,
+    hitungan, jam pertama/terakhir, tanpa traceback dan tanpa isi pesan galat, teredaksi,
+    dipecah 2.000 karakter) paling cepat 2 menit sesudah galat pertama dan
+    paling sering tiap 15 menit, dan tidak ada ringkasan baru selama masih ada pesan yang belum
+    terkirim. Jaringan/5xx (`tertahan`): jeda 30 dtk berlipat sampai 15 menit. 429: tunggu
+    `retry_after`. 400 (`isi_ditolak`: Discord menolak ISI pesan, alamatnya benar): jeda berlipat,
+    dan sesudah 3 kali (`kiriman.isi_ditolak`, cuma penolakan isi; kegagalan jaringan/5xx tidak
+    ikut dihitung) pesan itu **disisihkan** (`kiriman.disisihkan_at`, tetap di disk, tidak
+    dikirim lagi) supaya satu pesan tidak menahan semua laporan sesudahnya. 4xx lain (`ditolak`,
+    webhook salah/dihapus): berhenti sejam, kalimat merah di atas tabel tab Log. Tiap perubahan
+    jenis kegagalan satu WARNING dengan sarannya sendiri, pulihnya satu WARNING. Worker lapor
+    tidak pernah menulis ERROR (akan melaporkan dirinya sendiri). Alamat webhook itu rahasia:
+    tidak pernah dicatat atau dikirim ke layar.
+
+35. **Health jujur + pemantau disk** (batch 3.6 dan 3.7, 2026-09-30). Aturan 32 diperluas,
+    bukan diduplikasi: `domain/kesehatan_ai.py` + `services/penjaga_ai.py` yang SAMA.
+    **Frame berhenti** (`frame_berhenti`, kode `FRAME_BERHENTI`) = kamera ADA (tersambung
+    sekarang, ATAU ada sambung yang berhasil sejak gambar terakhir,
+    `RuntimeState.kamera_sambung_ok_sejak_frame`) tapi tidak ada gambar masuk selama
+    `AI_MATI_DETIK` sejak yang paling belakangan dari: gambar terakhir, loop mulai, kamera pulih
+    dari putus sungguhan (`RuntimeState.kamera_pulih_at`, dicap SEKALI per kejadian: sambung
+    berhasil yang pertama sejak gambar terakhir, dan hanya kalau sebelumnya sudah ada yang
+    gagal). ⚠️ "Berhasil sejak gambar terakhir", BUKAN "sambung terakhir berhasil": Hikrobot
+    yang diam membuat worker memutus dan menyambung lagi tiap lima grab gagal, dan sambungnya bisa
+    berselang berhasil dan gagal (MVS atau handle lama yang masih memegang kamera). Menilai dari
+    sambung terakhir saja membuat penilaian berkedip antara kamera putus (200) dan frame berhenti
+    (503) tiap siklus, dengan ERROR + WARNING tiap 2 sampai 4 detik. Kamera yang SEMUA sambungnya
+    sejak gambar terakhir gagal tetap kamera putus. ⚠️ `kamera_pulih_at` TIDAK diperbarui oleh
+    sambung berhasil berikutnya dalam kejadian yang sama, kalau tidak tenggangnya diperpanjang
+    selamanya dan kamera diam tidak pernah beralarm (pola `ai_dimulai_at`). ⚠️ `connect()`
+    menyetel `connected` SEBELUM hasilnya dicatat: `connected` dihitung tersambung hanya kalau
+    hasil sambung tercatat bukan gagal (`_tersambung`), dan `main.py` mencatat hasil `connect()`
+    saat boot. Tanpa keduanya, tick PLC di sela itu pada akhir putus panjang menulis satu ERROR
+    FRAME_BERHENTI palsu tepat saat kameranya kembali, dan ERROR itu sampai ke Discord.
+    Frame berhenti menaikkan coil ERROR dan membuat `/health` 503 (`PenilaianAi.gagal`,
+    `KEADAAN_GAGAL`), tapi `ai.mati` **tetap AI saja**: konsol versi lama membaca `mati` dan
+    menulis "AI berhenti memproses". `LineClient.hidup()` menghitung 503 frame berhenti sebagai
+    proses hidup (satu aturan `kode_http_health`). **Sumber selesai** (`sumber_selesai`,
+    `camera.exhausted`, video tanpa ulang) dinilai SEBELUM kamera putus (video yang habis
+    memutus dirinya sendiri) dan tidak menaikkan apa pun. Kamera putus sungguhan (semua sambung
+    ulang sejak gambar terakhir GAGAL) tetap 200 + coil ERROR seperti dulu. `/health/detail` tetap 200 (aturan 32).
+    `/health/detail` memuat `fps_kamera` (terukur di `RuntimeState.catat_frame_masuk`, jendela 5
+    detik), `fps_deteksi`, keduanya **0 kalau yang terakhir lebih tua dari 5 detik**,
+    `frame_umur_detik`, `disk`, `lisensi`, dan `plc.connected` (klien PLC sendiri; kartu
+    Diagnostik menggambar ✓ hanya untuk `true`, ✗ untuk `false`, "tidak diketahui" untuk line
+    lama tanpa field ini, `-` untuk PLC mati).
+    **Pemantau disk** (`domain/kesehatan_disk.py` + `services/pemantau_disk.py`, satu per proses
+    line di `RuntimeState.pemantau_disk`): mengukur partisi `artifacts/` DAN folder DB line, yang
+    tersempit yang dilapor, **tanpa R2 dan tanpa menghapus apa pun** (tanpa R2, arsip lokal itu
+    satu-satunya salinan bukti; TODO L1 soal pembersih tanpa R2 sengaja tetap manual).
+    `DISK_PERINGATAN_GB` (15) dan `DISK_KRITIS_GB` (5), histeresis 1 GB. ⚠️ Peringatan wajib di
+    BAWAH `UPLOAD_DISK_MIN_FREE_GB` (20): dengan R2 penjaga retensi menjaga sisa disk di sekitar
+    lantai itu, jadi ambang setinggi itu = alert permanen (pemantau menulis WARNING saat start).
+    Penjaga retensi di `BatchUploadWorker` tidak diubah. Konsol: `LineStatusWorker` membawa
+    `disk` + mencatat transisi (`_catat_frame`, `_catat_disk`), layar menggambar SATU pita
+    `#pita-disk` per kode untuk seluruh PC (`gabungDisk`/`pitaDisk`, sisa terkecil, daftar line),
+    bukan per kartu: ketiga line menulis ke satu disk. Pita cuma menyebut jam, line, dan sisa GB
+    (langkah pengosongan ada di MANUAL dan log line); peringatan bisa ditutup 24 jam per browser
+    (`localStorage` `pitaDiskDitutupPada`), kritis tidak.
+    Fakta milik line (AI mati, frame berhenti, disk) dicatat WARNING/ERROR oleh line dan sampai
+    tab Log lewat tarikan log line (aturan 34); cermin `LineStatusWorker` konsol cuma INFO,
+    supaya satu kejadian satu baris dan satu kelompok Discord. "Satu kejadian" itu per line:
+    satu disk penuh yang ditulisi ketiga line = tiga baris tab Log dan tiga baris di satu
+    ringkasan Discord (`line-1`, `line-2`, `line-3`), sengaja tidak digabung di sana. Tiap line
+    mengukurnya sendiri dan line bisa ada di disk yang berbeda; menggabung per kode di digest
+    akan menyembunyikan line mana yang terkena. Yang digabung cuma layar (satu `#pita-disk`). Baris "Kamera tidak mengirim
+    gambar" (aturan 33, mulai 5 grab gagal) dan FRAME_BERHENTI (sesudah `AI_MATI_DETIK`, coil
+    ERROR naik) sengaja dua baris: yang pertama menyebut alasan kamera, yang kedua keputusan
+    sehat.
 
 ---
 
@@ -996,7 +1191,7 @@ memang khas satu mesin.
   Kamera, Model Deteksi, dan Danger Zone (restart, hapus data) menandai line yang dijawab
   SERVER sudah restart/menerima (`lineDirestart`), bukan yang diklik. Spinner + bar berjalan
   CSS murni tanpa angka (hitungan detik dicabut atas permintaan operator 2026-09-29), lewat
-  batas tanda pesan `RESTART_LAMA`: 60 detik, **10 menit untuk hapus data** (`RESTART_HAPUS`:
+  batas tanda kotak merah "belum kembali" (dulu bertulisan kode `RESTART_LAMA`, sejak 2026-10-01 tanpa kode): 60 detik, **10 menit untuk hapus data** (`RESTART_HAPUS`:
   line menghapus fotonya saat boot sebelum `/health` menjawab). Selama spinner tampil kartu
   diberi kelas `sedang-restart` (`gambarRestart`), yang menyembunyikan "Kamera tidak
   tersambung": `cekKamera` tetap menandai `putus`, tapi tulisannya tidak ikut tembus di balik
@@ -1050,6 +1245,21 @@ memang khas satu mesin.
   commit tersendiri. Karena itu `main` selalu punya merge commit yang tidak ada di
   `staging`: itu normal, bukan divergensi. Cek isinya dengan
   `git diff --stat origin/staging origin/main` (kosong = nol beda), jangan `git cherry`.
+- **Tag rilis `vX.Y.Z` menunggu CI hijau di commit tag itu sendiri** (batch 4.1). `deploy.yml`
+  memanggil `ci.yml` sebagai job `ci` (`workflow_call`, dari commit yang sama), lalu dua job
+  menunggunya: `build-and-push` (image pabrik + `latest`) dan `demo` (memanggil
+  `demo-image.yml`, image `vX.Y.Z-cpu`). CI merah = tidak ada image sama sekali, dan PC pabrik
+  tetap di versi lama tanpa error. Tag tidak pernah dipindah, jadi perbaikannya commit baru +
+  tag baru; CI yang cuma flaky boleh di-"Re-run failed jobs". Satu rilis kini memakan kira-kira
+  3,5 menit CI lebih dulu. `demo-image.yml` tidak lagi jalan sendiri saat tag; jalan manual
+  (`workflow_dispatch`) cuma untuk versi yang image pabriknya sudah terbit. Dijaga
+  `tests/unit/test_ci_gerbang_rilis.py` dan `tests/integration/test_alur_rilis_integrasi.py`;
+  langkah parse skrip dijaga `tests/unit/test_ci_skrip_konsol.py`.
+- **CI memparse seluruh `<script>` `console.html`** (batch 4.3) lewat
+  `python tests/cek_skrip_konsol.py src/palmgrade/static/console.html`: test konsol lain cuma
+  menjalankan fungsi yang diekstrak, jadi syntax error di tingkat atas lolos semua test sementara
+  layar operator kosong. Jalankan juga sebelum PR yang menyentuh `console.html`. Langkah
+  `pytest tests/unit/` di CI memakai `-rs` seperti e2e dan integration.
 - Commit messages: **never** include "Co-Authored-By: Claude" or any AI reference.
 
 ---
@@ -1066,7 +1276,8 @@ memang khas satu mesin.
 - Skill `konsol-autograde`: peta tab konsol, test per tab, aturan teks layar.
 - `deploy/demo/` + `docs/runbooks/2026-09-28-konsol-demo-droplet.md`: konsol demo internet
   (`demo-autograde.smagri.id`) di droplet AutoERP, perintah `demo-autograde`. Image-nya
-  `vX.Y.Z-cpu` dari `demo-image.yml` (tanpa CUDA/SDK; image pabrik 18,2 GB memenuhi disk
-  droplet), dan workflow itu **tidak pernah menulis `latest`**: itu penanda updater pabrik.
+  `vX.Y.Z-cpu` dari `demo-image.yml`, dipanggil `deploy.yml` sesudah CI hijau (tanpa CUDA/SDK;
+  image pabrik 18,2 GB memenuhi disk droplet), dan workflow itu **tidak pernah menulis
+  `latest`**: itu penanda updater pabrik.
 - Pasang PC pabrik (image produksi), rilis, deploy: skill `install-factory-pc`, `tag-release`, `deploy-production` di workspace `sawit` (bukan di repo ini).
 - `../ARCHITECTURE.md`: system architecture.
