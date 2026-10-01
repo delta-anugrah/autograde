@@ -18,6 +18,24 @@ Next:           ...
 
 ---
 
+## 2026-10-01 · console, logging · Fixes from the manual browser test (PR #200)
+Changed:        Unreachable-line sentence ends at "mati atau sedang restart." (no technician tail).
+                Disk strip: as wide as the cards (`--pad`, also `#pita-alarm`), one line with an
+                inline SVG warning icon, title, divider, time + lines + free GB only (diskSaran*
+                keys removed, steps stay in MANUAL and the line log), slow pulse on the warning,
+                × on the warning hides it for 24 h per browser (`pitaDiskDitutupPada`), critical
+                cannot be dismissed. uvicorn's "timeout graceful shutdown exceeded" (every line
+                restart while the console holds the video feed) is INFO, not an ERROR in the Log
+                tab and Discord (`core/log_akses.TurunkanTenggangTutup`). MANUAL + rules + PDF.
+Validated:      unit 3824 passed / 28 skipped; integration + e2e 459 passed / 17 skipped; CI ruff
+                scope and F821 main.py clean; cek_skrip_konsol OK (detached worktree at 354ec4e).
+                Browser by the user: Diagnostik sentence, Versi width, disk strip (width, pulse,
+                one line, icon, ×, 24 h), Log tab WARNING line-1/line-3, recording stop 132 frames
+                written = 132 readable, 0 dropped.
+Not validated:  The uvicorn downgrade in a live restart (no feed was open on the restart after the
+                fix); covered by a unit test that replays uvicorn 0.34's exact call.
+Next:           Review, merge to staging by the user.
+
 ## 2026-10-01 · console · Plain-language screen text outside the Log tab (PR #200)
 Changed:        User decision after the manual test of PR #200: no screen except the Log tab
                 shows system error text. KAMUS id/en rewritten (no HTTP codes, env or file
