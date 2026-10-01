@@ -12,6 +12,10 @@ from __future__ import annotations
 from langkah import OPERATOR, buka_tab, kamus, masuk, plat
 from playwright.sync_api import expect
 
+# The row's number cells, in order: gross, tare, net (`barisTimbangan` in console.html).
+# A whole-row `to_contain_text` would accept 8.620 inside 8.620,5.
+_BRUTO, _NETO = 0, 2
+
 
 def test_a_visit_from_gross_to_net(halaman, browser_name):
     nomor = plat(browser_name, 1003)
@@ -30,7 +34,8 @@ def test_a_visit_from_gross_to_net(halaman, browser_name):
     halaman.click("#masuk")
     expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukMasuk"))
     baris = halaman.locator("#timbangan tr", has_text=nomor)
-    expect(baris).to_contain_text(halaman.evaluate("() => kg(14820.5)"))
+    angka = baris.locator("td.num")
+    expect(angka.nth(_BRUTO)).to_have_text(halaman.evaluate("() => kg(14820.5)"))
 
     baris.locator('button[data-aksi="keluar"]').click()
     expect(halaman.locator("#tara-grup")).to_be_visible()
@@ -38,4 +43,4 @@ def test_a_visit_from_gross_to_net(halaman, browser_name):
     halaman.fill("#tara-nilai", "6200")
     halaman.click("#tara-simpan")
     expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukTara"))
-    expect(baris).to_contain_text(halaman.evaluate("() => kg(8620.5)"))
+    expect(angka.nth(_NETO)).to_have_text(halaman.evaluate("() => kg(8620.5)"))
