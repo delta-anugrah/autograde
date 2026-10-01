@@ -1,6 +1,6 @@
 ---
 name: plc-mc-protocol
-description: Jalur AutoGrade → PLC Mitsubishi lewat MC Protocol (pymcprotocol, device M), peta alamat M, pilihan protokol mc/modbus, heartbeat berkedip, kapan coil ERROR naik (kamera putus atau AI mati), jebakan balasan terpotong, dan apa yang ditunggu dari tim PLC. Pakai kalau sinyal tidak sampai ke PLC, alamat M mau diganti, alarm "PC mati" nyala terus atau nyala padahal PC hidup, coil ERROR naik padahal kamera jalan, konfirmasi piston tidak pernah datang, E-stop terbaca lepas padahal ditekan, Uji PLC atau piston ditolak sesudah INTERNAL_SECRET diisi, lagi commissioning, atau mau tahu beda jalur ini dengan ODOT yang dibatalkan.
+description: Jalur AutoGrade → PLC Mitsubishi lewat MC Protocol (pymcprotocol, device M), peta alamat M, pilihan protokol mc/modbus, heartbeat berkedip, kapan coil ERROR naik (kamera putus, AI mati, atau kamera berhenti mengirim gambar), jebakan balasan terpotong, dan apa yang ditunggu dari tim PLC. Pakai kalau sinyal tidak sampai ke PLC, alamat M mau diganti, alarm "PC mati" nyala terus atau nyala padahal PC hidup, coil ERROR naik padahal kamera jalan, konfirmasi piston tidak pernah datang, E-stop terbaca lepas padahal ditekan, Uji PLC atau piston ditolak sesudah INTERNAL_SECRET diisi, lagi commissioning, atau mau tahu beda jalur ini dengan ODOT yang dibatalkan.
 ---
 
 # AutoGrade ↔ PLC Mitsubishi (MC Protocol)
@@ -37,7 +37,8 @@ Polanya persis skema ODOT lama (coil 0–9, DI 0–11) dipindah ke M1000 / M1100
 | M1006 / M1007 / M1008 | CAMERA 3 OK / NG / ERROR | sama |
 | **M1009** | **HEARTBIT PC** | **berkedip 500 ms**; OFF kalau lisensi menghentikan grading |
 
-ERROR naik untuk **kamera putus ATAU AI mati** sejak v1.20.0 (bab "Coil ERROR" di bawah).
+ERROR naik untuk **kamera putus ATAU AI mati** sejak v1.20.0, dan untuk **frame berhenti** (kamera
+tersambung tapi diam) sesudah autograde #200 (bab "Coil ERROR" di bawah).
 
 **PC membaca**: satu blok M1100–M1115 tiap 200 ms:
 
@@ -217,11 +218,13 @@ di panel. ⚠️ **PLC tidak bisa menghitung janjang di mode ini**, dua janjang 
 satu sinyal panjang. Keduanya berbagi antarmuka (`enqueue`/`tick`/`dropped`/`is_active`),
 jadi `PlcWorker` tidak tahu mana yang terpasang, pola yang sama dengan `build_plc_client`.
 
-## Coil ERROR: kapan naik (v1.20.0)
+## Coil ERROR: kapan naik (v1.20.0, frame berhenti sesudah #200)
 
-Ringkasnya: **kamera putus ATAU AI mati** (gambar masuk tapi tidak ada frame yang selesai digrading
-lebih dari `AI_MATI_DETIK`, bawaan 30 detik). Lisensi, sumber diam, line yang baru mulai, dan pulse
-yang dibuang **tidak** menaikkannya. Aturan lengkap dan alasannya tidak disalin di sini: sumbernya
+Ringkasnya: **kamera putus, AI mati** (gambar masuk tapi tidak ada frame yang selesai digrading
+lebih dari `AI_MATI_DETIK`, bawaan 30 detik), **atau frame berhenti** (kamera tersambung tapi tidak
+ada gambar masuk selama `AI_MATI_DETIK`, keadaan `frame_berhenti`, batch 3.6, autograde #200).
+Lisensi, sumber selesai (video uji tanpa ulang yang habis), line yang baru mulai, dan pulse yang
+dibuang **tidak** menaikkannya. Aturan lengkap dan alasannya tidak disalin di sini: sumbernya
 `PenilaianAi.error_plc` (`domain/kesehatan_ai.py`), penjelasannya `docs/rules.md` aturan 32 dan
 `docs/plc-integration.md` § Coil ERROR.
 
@@ -229,8 +232,8 @@ yang dibuang **tidak** menaikkannya. Aturan lengkap dan alasannya tidak disalin 
 dulu (`services/langkah_tutup_line.py`), lihat `docs/plc-integration.md` (shutdown) dan
 `docs/plc-mc-handoff.md` bab 4.2.
 
-**Tim PLC harus tahu** ERROR sekarang juga berarti AI mati: `docs/plc-mc-handoff.md` bab 4.2
-(v1.8) memuat tabelnya dalam bahasa panel. Kode yang menambah keadaan ke `error_plc` wajib
+**Tim PLC harus tahu** ERROR sekarang juga berarti AI mati dan kamera yang diam:
+`docs/plc-mc-handoff.md` bab 4.2 (v1.9) memuat tabelnya dalam bahasa panel. Kode yang menambah keadaan ke `error_plc` wajib
 memperbarui keempat tempat dalam PR yang sama: `docs/rules.md` aturan 32,
 `docs/plc-integration.md` § Coil ERROR, `docs/plc-mc-handoff.md` bab 4.2 (+ PDF dan versinya),
 dan ringkasan satu paragraf di atas.
@@ -242,7 +245,7 @@ Peta alamat **sudah beres** (daftar Ocit 2026-09-23). Sisanya:
 0. ⚠️ **Coil ERROR (M1002/M1005/M1008) belum pernah dibuktikan di panel**; tombol ujinya ada
    sejak 23 Sep malam. M1000, M1001, dan M1111 terbukti 23 Sep; heartbeat M1009 jalan tapi
    **belum dipantau** di GX Works2. Sejak v1.20.0 (terpasang di Lampung 2026-10-01) ERROR juga
-   naik untuk AI mati.
+   naik untuk AI mati; rilis sesudah #200 menambah frame berhenti (belum terpasang di Lampung).
 1. **Watchdog heartbeat di ladder** (pantau M1009 berkedip): satu-satunya pekerjaan panel
    yang tersisa; paling mudah terlewat, paling mahal kalau lupa.
 1b. **Mode tahan dipakai atau tidak di produksi?** Opsinya sudah ada (`PLC_HOLD_MS`), tapi
@@ -275,7 +278,8 @@ bukan Lampung. Pastikan `.14` tidak dipakai kamera (IP kamera Lampung belum terc
 | `tests/unit/plc/test_plc_hold.py` | mode tahan: memperpanjang bukan mengantre, tidak pernah membuang |
 | `tests/e2e/test_mc_protocol_lane.py` (lanjutan) | **ACC→M1000 / REJ→M1001 dibuktikan dari bingkai yang keluar di socket**, termasuk rantai kelas model → verdict → coil |
 | `tests/unit/test_plc_docs_match_compose.py` | dokumen tim PLC ≡ `docker-compose.yml` |
-| `tests/unit/test_kesehatan_ai.py` | keadaan line (kamera putus, AI mati, lisensi, sumber diam, memulai) dan `error_plc` |
+| `tests/unit/test_kesehatan_ai.py` | keadaan line (kamera putus, AI mati, frame berhenti, sumber selesai, lisensi, memulai) dan `error_plc` |
+| `tests/unit/test_penjaga_frame_berhenti.py`, `tests/e2e/test_health_jujur_lane.py` | frame berhenti menaikkan ERROR dan `/health` 503 sesudah tenggang start; sumber selesai tidak |
 | `tests/unit/test_penjaga_ai.py`, `tests/unit/test_config_ai_mati.py` | penjaga AI tiap tick, `AI_MATI_DETIK` dijepit 10 sampai 600 |
 | `tests/unit/plc/test_plc_worker.py` | `health_check` False ⇒ coil ERROR naik, ditulis ulang tiap detik |
 | `tests/integration/test_ai_mati_integrasi.py`, `tests/e2e/test_ai_mati_lane.py` | `penjaga.sehat_untuk_plc` tersambung ke `PlcWorker`; AI mati sampai ke `/health` 503 dan kartu line |
