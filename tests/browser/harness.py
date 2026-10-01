@@ -48,9 +48,11 @@ def jalankan_terbatas(
 ) -> subprocess.CompletedProcess[str]:
     """Run `perintah` to the end within `batas_s`, stdout and stderr together.
 
-    It runs in its own session. One that hangs is killed with every process it started (the
-    whole group), and the error carries what it printed: killing only the parent would leave
-    a console or a browser driver running, and lose the one clue to why it hung.
+    It runs in its own session. One that hangs is killed with its whole process group (the
+    console a nested pytest started, its Playwright driver), and the error carries what it
+    printed: killing only the parent would leave those running and lose the one clue to why it
+    hung. A browser Playwright launched in its own group is not in it; it exits once its driver
+    is gone.
     """
     proses = subprocess.Popen(
         perintah,
@@ -64,7 +66,10 @@ def jalankan_terbatas(
     try:
         keluaran, _ = proses.communicate(timeout=batas_s)
     except subprocess.TimeoutExpired:
-        os.killpg(proses.pid, signal.SIGKILL)
+        try:
+            os.killpg(proses.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # the group ended between the timeout and the kill
         try:
             keluaran, _ = proses.communicate(timeout=BERHENTI_MAKS_S)
         except subprocess.TimeoutExpired as habis:  # a grandchild in its own session holds the pipe

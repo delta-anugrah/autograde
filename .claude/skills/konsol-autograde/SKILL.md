@@ -82,7 +82,9 @@ Menulis tes browser baru (pelajaran dari #203):
 - Kalimat dibaca dari layar (`kamus(halaman, kunci)`), tidak disalin ke tes.
 - Angka dicek di selnya sendiri (`td.num`), bukan `to_contain_text` satu baris: `8.620` ikut
   cocok di dalam `8.620,5`. Tabel kosong juga satu `<tr>` (`barisKosong`), jadi tunggu sel data.
-- Ukur tata letak sesudah data tab tergambar: `halaman.evaluate("(t) => MUAT_TAB[t]()", tab)`.
+- Ukur tata letak sesudah data tab tergambar: `halaman.evaluate("(t) => MUAT_TAB[t] ? MUAT_TAB[t]() : null", tab)`.
+  `MUAT_TAB` cuma punya enam tab (rekap, log, status, akun, line, setelan); grading, truk dan
+  timbangan diisi polling layar.
   `wait_for_load_state("networkidle")` langsung lolos kalau halaman pernah diam.
 - Tiap tes dibuktikan bisa gagal sekali (ubah satu harapan, lihat merah, kembalikan).
 

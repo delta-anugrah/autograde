@@ -45,13 +45,16 @@ def test_the_console_runs_from_its_own_folder(konsol):
     assert Path(psutil.Process(konsol.pid).cwd()).resolve() == konsol.root.resolve()
 
 
+# The child's pid is written before anything is printed, so a slow runner that times out
+# early still leaves the pid to check.
 _MACET = """
 import subprocess, sys, time
-print("sudah mulai", flush=True)
 anak = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
 open(sys.argv[1], "w").write(str(anak.pid))
+print("sudah mulai", flush=True)
 time.sleep(60)
 """
+_MACET_BATAS_S = 5
 _TUNGGU_MATI_S = 5
 
 
@@ -59,7 +62,7 @@ def test_a_command_that_hangs_is_stopped_with_its_children_and_says_what_it_prin
     # A probe or seeder that hangs must not leave its console or browser driver behind.
     berkas_pid = tmp_path / "anak.pid"
     with pytest.raises(RuntimeError, match="sudah mulai"):
-        jalankan_terbatas([sys.executable, "-c", _MACET, str(berkas_pid)], batas_s=2)
+        jalankan_terbatas([sys.executable, "-c", _MACET, str(berkas_pid)], batas_s=_MACET_BATAS_S)
     try:
         # Raises psutil.TimeoutExpired, failing the test, while the child is still alive.
         psutil.Process(int(berkas_pid.read_text())).wait(timeout=_TUNGGU_MATI_S)
@@ -72,7 +75,7 @@ def test_a_seeder_that_hangs_says_what_it_printed(tmp_path, monkeypatch):
     (k.root / "scripts" / "seed-console-demo.py").write_text(
         "import time\nprint('seeder macet di sini', flush=True)\ntime.sleep(60)\n"
     )
-    monkeypatch.setattr(harness, "SEED_MAKS_S", 2)
+    monkeypatch.setattr(harness, "SEED_MAKS_S", _MACET_BATAS_S)
     with pytest.raises(RuntimeError, match="seeder macet di sini"):
         k.seed(hari=1)
 
@@ -129,6 +132,19 @@ def test_a_missing_console_api_route_fails_the_guard(halaman, konsol):
     halaman.evaluate("() => fetch('/api/console/rute-lama')")
     penjaga = halaman.context.penjaga_uji
     assert any("404" in g and "/api/console/rute-lama" in g for g in penjaga.temuan()), penjaga.temuan()
+    penjaga.bersihkan()
+
+
+def test_a_wrong_method_on_a_console_route_fails_the_guard(halaman, konsol):
+    # The screen calling an existing path with the wrong method gets FastAPI's 405: as much a
+    # broken screen as a missing route, and just as quiet in Firefox.
+    halaman.route(
+        konsol.url + "/api/console/trucks",
+        lambda route: route.fulfill(status=405, json={"detail": "Method Not Allowed"}),
+    )
+    halaman.evaluate("() => fetch('/api/console/trucks', { method: 'PUT' })")
+    penjaga = halaman.context.penjaga_uji
+    assert any("405" in g for g in penjaga.temuan()), penjaga.temuan()
     penjaga.bersihkan()
 
 

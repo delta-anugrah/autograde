@@ -32,6 +32,8 @@ _GALAT_SERVER = 500
 # console's deliberate 404 (unknown line or truck) carries a code the screen words.
 _TIDAK_ADA = 404
 _API_KONSOL = "/api/"
+# An existing console path called with the wrong method: as broken, and as quiet in Firefox.
+_METODE_SALAH = 405
 
 
 @pytest.fixture(scope="session")
@@ -82,7 +84,9 @@ class _Penjaga:
         self.asal_konsol = asal_konsol
         self.keluar: list[str] = []
         self.galat: list[str] = []
-        # Judged in `temuan`, after the test: a body is not read inside the event callback.
+        # Judged in `temuan`, after the test: a body is not read inside the event callback. A
+        # test that navigates away would lose these bodies in Chromium and fail as "no code";
+        # none does today.
         self._hilang: list[Response] = []
 
     def jaga(self, route: Route) -> None:
@@ -102,7 +106,7 @@ class _Penjaga:
     def catat_jawaban(self, jawaban: Response) -> None:
         if not jawaban.url.startswith(self.asal_konsol):
             return
-        if jawaban.status >= _GALAT_SERVER:
+        if jawaban.status >= _GALAT_SERVER or jawaban.status == _METODE_SALAH:
             self.galat.append(f"{jawaban.status} from {jawaban.url}")
         elif jawaban.status == _TIDAK_ADA and urlsplit(jawaban.url).path.startswith(_API_KONSOL):
             self._hilang.append(jawaban)
@@ -117,7 +121,7 @@ class _Penjaga:
             except (GalatPlaywright, ValueError):
                 detail = None  # no JSON body: not the console's worded refusal either
             if not (isinstance(detail, dict) and "code" in detail):
-                hilang.append(f"{jawaban.status} from {jawaban.url} (no such route)")
+                hilang.append(f"{jawaban.status} from {jawaban.url} (no such route, or a refusal without a code)")
         return hilang
 
     def temuan(self) -> list[str]:
