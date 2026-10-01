@@ -9,12 +9,12 @@ from palmgrade.repositories.console_repository import ConsoleStore
 HARI = "2026-10-01"
 
 
-def _tiket(store, wid, truck, *, tara=None):
+def _tiket(store, wid, truck, *, tara=None, jam="01:00"):
     store.upsert_weighing({
         "id": wid, "ref": None, "plate_number": f"BE {truck}", "plate_norm": f"BE{truck}",
         "truck_id": truck, "work_date": HARI, "gross_kg": 14000.0, "tare_kg": tara,
         "net_kg": None if tara is None else 14000.0 - tara,
-        "entered_at": f"{HARI}T01:00:00+00:00", "exited_at": None,
+        "entered_at": f"{HARI}T{jam}:00+00:00", "exited_at": None,
     })
 
 
@@ -58,6 +58,17 @@ def test_cuma_tiket_terbaru_satu_truk_yang_antre(tmp_path):
     _tiket(store, "w2", "B")
     _tiket(store, "w3", "A")
     assert [r["weighing_id"] for r in store.unloading_queue(_sejak())] == ["w2", "w3"]
+
+
+def test_tiket_terbaru_diurutkan_seperti_target_taut(tmp_path):
+    """Satu urutan untuk "tiket terbaru": jam timbang isi dulu, baru jam terima, persis
+    `latest_weighing_for_truck_since`, supaya tiket yang ditaut pelepasan selalu tiket yang
+    antre. Di sini w1 diterima lebih dulu tapi jam timbang isinya lebih baru."""
+    store = ConsoleStore(tmp_path / "console.db")
+    _tiket(store, "w1", "A", jam="02:00")
+    _tiket(store, "w2", "A", jam="01:00")
+    assert [r["weighing_id"] for r in store.unloading_queue(_sejak())] == ["w1"]
+    assert store.latest_weighing_for_truck_since("A", _sejak()) == "w1"
 
 
 def test_truk_yang_pernah_di_line_tidak_antre_lagi(tmp_path):

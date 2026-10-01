@@ -48,9 +48,13 @@ class FakeLine:
         self.jejak: list[tuple] = [] if jejak is None else jejak
         # Dijalankan sekali saat line itu sedang dipanggil (operator bertindak di sela-selanya).
         self.selagi: dict[str, Callable[[], None]] = {}
+        # Pelepasan line ini menunggu sampai gerbangnya dibuka (line yang lambat menjawab).
+        self.lambat: dict[str, asyncio.Event] = {}
 
     async def assign_truck(self, line, *, assignment_id, truck_id, assigned_at, ffb_source=None, plate=None):
         await asyncio.sleep(0)
+        if not truck_id and (gerbang := self.lambat.pop(line.line_code, None)):
+            await gerbang.wait()
         if aksi := self.selagi.pop(line.line_code, None):
             aksi()
         if line.line_code in self.mati:
@@ -113,8 +117,9 @@ def test_timbang_isi_memasang_truk_ke_semua_line_pilihan(service):
 def test_cuma_line_yang_dipilih(service):
     _nyalakan(service, ["line-1", "line-3"])
     _isi(service, "BE 1 AA")
-    assert set(service.store.assignments()) >= {"line-1", "line-3"}
-    assert not (service.store.assignments().get("line-2") or {}).get("truck_id")
+    truk_a = truck_id_for("BE 1 AA")
+    pegangan = {kode: (a or {}).get("truck_id") for kode, a in service.store.assignments().items()}
+    assert (pegangan.get("line-1"), pegangan.get("line-2"), pegangan.get("line-3")) == (truk_a, None, truk_a)
 
 
 def test_truk_berikutnya_menunggu_selama_truk_sebelumnya_belum_timbang_kosong(service):
@@ -180,6 +185,71 @@ def test_truk_yang_tertimbang_isi_dua_kali_tidak_naik_lagi_sesudah_pergi(service
     for kode in LINES:
         asyncio.run(service.release_truck_by_operator(kode))
     assert _plat_di_line(service) == set()
+
+
+def _timbang_isi_selagi_timbang_kosong(service, aksi):
+    """A di line, B menunggu; timbang kosong A tertahan di pelepasan line-2, dan selama itu
+    `aksi()` jalan (timbang isi truk lain, atau tombol). Mengembalikan (hasil aksi, hasil timbang kosong)."""
+    _nyalakan(service)
+    _isi(service, "BE 1 AA")
+    _isi(service, "BE 2 BB", 5)
+
+    async def jalankan():
+        gerbang = asyncio.Event()
+        service.line_client.lambat["line-2"] = gerbang
+        keluar = asyncio.create_task(service.record_weighing({
+            "plate_number": "BE 1 AA", "entered_at": _jam(0), "tare_kg": 6000, "exited_at": _jam(60),
+        }))
+        for _ in range(5):
+            await asyncio.sleep(0)
+        try:
+            hasil = await aksi()
+        except InvalidInput as exc:
+            hasil = exc
+        gerbang.set()
+        return hasil, await keluar
+
+    return asyncio.run(jalankan())
+
+
+def test_timbang_isi_selagi_truk_lain_timbang_kosong_menunggu(service):
+    """Taranya sudah tertulis, tapi line-2 dan line-3 masih memegang A: A masih disortir.
+    Truk berikutnya naik ke SEMUA line sesudah A selesai dilepas, bukan ke sebagian (D9)."""
+    truk_b = truck_id_for("BE 2 BB")
+
+    async def timbang_isi_c():
+        return await service.record_weighing({"plate_number": "BE 3 CC", "gross_kg": 14000, "entered_at": _jam(10)})
+
+    row_c, row_keluar = _timbang_isi_selagi_timbang_kosong(service, timbang_isi_c)
+    assert row_c["dipasang"] == []
+    assert [d["line_code"] for d in row_keluar["dipasang"] if d["plate_number"] == "BE 2 BB"] == LINES
+    assert {kode: a["truck_id"] for kode, a in service.store.assignments().items()} == dict.fromkeys(LINES, truk_b)
+    assert [a["plate_number"] for a in service.antrean_bongkar()] == ["BE 3 CC"]
+
+
+def test_tugaskan_sekarang_selagi_timbang_kosong_ditolak(service):
+    """Tombolnya juga tidak memasang truk ke sebagian line selama truk sebelumnya dilepas."""
+    async def tugaskan_b():
+        return await service.pasang_dari_antrean(service.antrean_bongkar()[0]["weighing_id"])
+
+    galat, row_keluar = _timbang_isi_selagi_timbang_kosong(service, tugaskan_b)
+    assert isinstance(galat, InvalidInput) and galat.code == LINE_SEMUA_TERPAKAI
+    assert [d["line_code"] for d in row_keluar["dipasang"]] == LINES
+    assert _plat_di_line(service) == {"BE 2 BB"}
+
+
+def test_tiket_ganda_dengan_jam_terbalik_tidak_memasang_truk_lagi(service):
+    """Tiket ganda yang jam timbang isinya (entered_at) dan jam terimanya (received_at)
+    berlawanan urutan: pelepasan menaut tiket dengan entered_at terbaru, jadi antrean
+    memakai urutan yang sama dan tiket lainnya tidak pernah ditawarkan."""
+    _nyalakan(service)
+    _isi(service, "BE 1 AA", 5)
+    _isi(service, "BE 1 AA", 0)
+    _isi(service, "BE 2 BB", 10)
+    row = _kosong(service, "BE 1 AA", 5)
+    assert {d["plate_number"] for d in row["dipasang"]} == {"BE 2 BB"}
+    assert _plat_di_line(service) == {"BE 2 BB"}
+    assert service.antrean_bongkar() == []
 
 
 def test_truk_yang_sedang_dilepas_tidak_pernah_muncul_di_antrean(service):

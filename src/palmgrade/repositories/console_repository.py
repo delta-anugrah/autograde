@@ -674,7 +674,9 @@ class ConsoleStore(AkunStore):
         lines holding it right now: a truck being sorted, or already sorted, is never
         offered again. Only a truck's newest ticket is offered: an older one left open by
         a weigh-in typed twice would otherwise put the truck back on the lines after it
-        left. `sejak` is an epoch on `received_at`, the console's own clock.
+        left. "Newest" is ordered exactly as `latest_weighing_for_truck_since` orders it
+        (weigh-in time, then arrival), so the ticket a release links is always the one
+        this would offer. `sejak` is an epoch on `received_at`, the console's own clock.
         """
         with self._lock:
             rows = self._db.execute(
@@ -687,10 +689,13 @@ class ConsoleStore(AkunStore):
                      AND w.received_at >= ?
                      AND NOT EXISTS (SELECT 1 FROM visit_assignments va WHERE va.weighing_id = w.id)
                      AND NOT EXISTS (SELECT 1 FROM assignments a WHERE a.truck_id = w.truck_id)
-                     AND NOT EXISTS (SELECT 1 FROM weighings w2
-                                     WHERE w2.truck_id = w.truck_id AND w2.received_at > w.received_at)
+                     AND NOT EXISTS (
+                         SELECT 1 FROM weighings w2
+                          WHERE w2.truck_id = w.truck_id AND w2.received_at >= ?
+                            AND (COALESCE(w2.entered_at, ''), w2.received_at)
+                                > (COALESCE(w.entered_at, ''), w.received_at))
                    ORDER BY w.received_at, w.rowid""",
-                (sejak,),
+                (sejak, sejak),
             ).fetchall()
         return [dict(r) for r in rows]
 

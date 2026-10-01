@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime
@@ -47,6 +48,8 @@ class PenugasanOtomatis:
     lines: tuple[LineEndpoint, ...]
     tz: ZoneInfo
     _kunci_penugasan: asyncio.Lock
+    _truk_ditutup: dict[str, int]
+    _kunci_ditutup: threading.Lock
     assign_truck: Callable[[str, str], Awaitable[dict[str, Any]]]
     release_truck: Callable[[str], Awaitable[dict[str, Any]]]
 
@@ -102,6 +105,11 @@ class PenugasanOtomatis:
         and a failure here must not cost the weight. The truck stays in the queue.
         The queue is read inside the lock, so a second caller sees the first one's truck
         on the lines instead of offering it again.
+
+        A truck being weighed out still counts as sorting until every line has let it go:
+        its tare is written before the releases, and the next truck put on the lines
+        released so far would end up on only some of them (D9). That weigh-out calls this
+        again once its releases are done.
         """
         try:
             setelan = self._setelan_penugasan()
@@ -113,7 +121,8 @@ class PenugasanOtomatis:
                 if not antrean:
                     return []
                 pegangan = self.store.assignments()
-                if line_sibuk(setelan.lines, pegangan, self.store.trucks_with_open_ticket(sejak)):
+                terbuka = self.store.trucks_with_open_ticket(sejak) | self._truk_sedang_ditutup()
+                if line_sibuk(setelan.lines, pegangan, terbuka):
                     return []
                 return await self._pasang(antrean[0], line_bebas(setelan.lines, pegangan))
         except Exception:
@@ -124,7 +133,9 @@ class PenugasanOtomatis:
         """"Tugaskan sekarang": this queued truck onto the free chosen lines, now.
 
         No busy check: the operator is looking at the ramp and decided. Free lines only,
-        so a truck being sorted is never pushed off a line by this button.
+        so a truck being sorted is never pushed off a line by this button. The one
+        exception is a truck being weighed out right now: its lines are freed one by one,
+        and pressing now would put this truck on only some of them (D9).
         """
         setelan = self._setelan_penugasan()
         async with self._kunci_penugasan:
@@ -133,8 +144,9 @@ class PenugasanOtomatis:
                 # Support saved no line at all: "every line is busy" would send the
                 # operator looking at the cards instead of at Setelan.
                 raise InvalidInput(PENUGASAN_TANPA_LINE, "tidak ada line yang dipilih untuk penugasan")
-            bebas = line_bebas(setelan.lines, self.store.assignments())
-            if not bebas:
+            pegangan = self.store.assignments()
+            bebas = line_bebas(setelan.lines, pegangan)
+            if not bebas or line_sibuk(setelan.lines, pegangan, self._truk_sedang_ditutup()):
                 raise InvalidInput(LINE_SEMUA_TERPAKAI, "semua line masih memegang truk")
             return await self._pasang(antre, bebas)
 
@@ -154,6 +166,11 @@ class PenugasanOtomatis:
         """Lepas pressed on a card: the same release, then the next truck may go on (D11)."""
         hasil = await self.release_truck(line_code)
         return {**hasil, "dipasang": await self.isi_line_otomatis()}
+
+    def _truk_sedang_ditutup(self) -> set[str]:
+        """Trucks whose weigh-out is releasing their lines right now (the weigh-out guard)."""
+        with self._kunci_ditutup:
+            return set(self._truk_ditutup)
 
     def _di_antrean(self, weighing_id: str) -> dict[str, Any]:
         """This ticket's row in the unloading queue as it stands now, or `bukan_antrean`."""
