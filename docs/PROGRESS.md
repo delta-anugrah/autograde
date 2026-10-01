@@ -32,18 +32,37 @@ Changed:        A truck unloaded on three lines has three line assignments, but 
                 truck weighed in at 23:30 and released at 00:30 is no longer linked to nothing. Demo
                 seeder: `wipe()` also deletes the link rows of the visits it deleted, and the seed
                 writes the line code. Rule 18 and `docs/overview.md` name the new link.
+                Final review fixes: the weigh-out stores the tare and then releases the truck's lines
+                one by one, and each release queued the visit, so an outbox drain between two
+                releases would have sent the tare with only some lines and AutoERP finalises at once.
+                `release_truck(line_code, *, kirim=True)` and `_queue_grading(..., kirim=True)` take a
+                `kirim` keyword: the weigh-out releases with `kirim=False`, then queues the detail
+                page and the visit once after the last line (the operator's single Lepas keeps
+                `kirim=True`). A release with graded bunches that finds no ticket in the window now
+                logs a WARNING (plate, line, assignment) instead of dropping the bunches silently.
+                The dead `ConsoleStore.bunches_for_assignment` is gone (its tests moved to
+                `bunches_for_visit`); `grading_counts` stays, the warning uses it.
 Validated:      RED first: `test_kunjungan_banyak_line_kirim.py` 7 failed before the change (total 2 of
                 5, link rows without a line code, nothing linked across midnight); the new integration
-                test failed against the previous commit with 4 of 9 bunches sent. After:
-                `pytest tests/unit tests/e2e tests/integration` → 4313 passed, 45 skipped;
+                test failed against the previous commit with 4 of 9 bunches sent. For the final review
+                fixes: against f1eb217 the weigh-out test failed with "kunjungan dengan tara sudah di
+                antrean saat line ke-2 dilepas", the detail page was queued 3 times instead of once,
+                and the no-ticket warning test found no log record. After:
+                `pytest tests/unit tests/e2e tests/integration` → 4318 passed, 45 skipped;
                 `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
                 58 passed; `ruff check` on every touched file clean. New tests:
-                `tests/unit/test_kunjungan_banyak_line_kirim.py` (send, detail page, Log line, window),
-                `tests/unit/test_kunjungan_banyak_line.py` (an unlinked assignment never leaks into a
-                visit's recap, window query), `tests/unit/test_demo_wipe.py` (link rows),
+                `tests/unit/test_kunjungan_banyak_line_kirim.py` (send, detail page, Log line, window,
+                weigh-out queues once, no-ticket warning), `tests/unit/test_kunjungan_banyak_line.py`
+                (an unlinked assignment never leaks into a visit's recap, window query),
+                `tests/unit/test_demo_wipe.py` (link rows),
                 `tests/integration/test_kunjungan_banyak_line_integrasi.py` (three lines, real
                 `LineClient`, real queues and workers).
 Not validated:  A real factory PC and a real AutoERP; the fake AutoERP is `tests/autoerp_palsu.py`.
+Risks:          A release before the ticket is typed can attach the grading to the truck's previous
+                ticket, up to 12 hours back and across midnight, because the link takes the truck's
+                newest ticket in the window. A visit longer than 12 hours from weigh-in to release
+                loses its grading link (the bunches stay in the console, never reach that visit);
+                this is now logged as a WARNING in the Log tab, not fixed.
 Decisions:      The key AutoERP stores (`autograde_assignment_id`, unique) is the FIRST assignment
                 linked, so it stays the same across resends. `line_code` in the message now names every
                 line ("line-1, line-2"); AutoERP does not read it. The window query filters on
