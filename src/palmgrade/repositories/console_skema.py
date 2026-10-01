@@ -126,6 +126,9 @@ CREATE TABLE IF NOT EXISTS visit_assignments (
     linked_at     REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_visit_assignments_tiket ON visit_assignments (weighing_id);
+-- The unloading queue and the busy check read open tickets of the last hours, every 2 s.
+CREATE INDEX IF NOT EXISTS idx_weighings_terbuka ON weighings (received_at)
+    WHERE tare_kg IS NULL;
 
 CREATE TABLE IF NOT EXISTS sync_state (
     key   TEXT PRIMARY KEY,
@@ -285,6 +288,8 @@ def _migrate(db: sqlite3.Connection) -> None:
         ("weighings", "erp_ticket"),
         ("weighings", "erp_status"),
         ("weighings", "erp_note"),
+        # "Lewati" on the unloading queue (2026-10-01). NULL = still eligible.
+        ("weighings", "unloading_queue_skipped_at"),
         # Konsol pabrik yang sudah jalan punya tabel `inspections` tanpa kolom ini;
         # `CREATE TABLE IF NOT EXISTS` di atas tidak akan menambahkannya. Baris lama
         # tetap NULL, sengaja: kelas aslinya memang tidak pernah direkam, dan

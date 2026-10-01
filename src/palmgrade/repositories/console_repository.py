@@ -665,6 +665,52 @@ class ConsoleStore(AkunStore):
             ).fetchall()
         return [dict(r) for r in rows]
 
+    # ------------------------------------------ unloading queue (2026-10-01)
+
+    def unloading_queue(self, sejak: float) -> list[dict[str, Any]]:
+        """Weighed in, not out, on no line, never on one, not skipped; oldest first.
+
+        "Never on one" is the visit link (written when a line lets the truck go) plus the
+        lines holding it right now: a truck being sorted, or already sorted, is never
+        offered again. `sejak` is an epoch on `received_at`, the console's own clock.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT w.id AS weighing_id, w.truck_id, w.plate_number, w.entered_at,
+                          w.received_at
+                   FROM weighings w
+                   WHERE w.tare_kg IS NULL AND w.gross_kg IS NOT NULL
+                     AND w.truck_id IS NOT NULL
+                     AND w.unloading_queue_skipped_at IS NULL
+                     AND w.received_at >= ?
+                     AND NOT EXISTS (SELECT 1 FROM visit_assignments va WHERE va.weighing_id = w.id)
+                     AND NOT EXISTS (SELECT 1 FROM assignments a WHERE a.truck_id = w.truck_id)
+                   ORDER BY w.received_at, w.rowid""",
+                (sejak,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def trucks_with_open_ticket(self, sejak: float) -> set[str]:
+        """Trucks weighed in and not yet out: the ones still being sorted."""
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT DISTINCT truck_id FROM weighings
+                   WHERE tare_kg IS NULL AND gross_kg IS NOT NULL
+                     AND truck_id IS NOT NULL AND received_at >= ?""",
+                (sejak,),
+            ).fetchall()
+        return {r["truck_id"] for r in rows}
+
+    def skip_unloading_queue(self, weighing_id: str, at: str) -> bool:
+        """"Lewati": out of the unloading queue, once, and only while the ticket is open."""
+        with self._lock, self._db:
+            cur = self._db.execute(
+                """UPDATE weighings SET unloading_queue_skipped_at = ?
+                    WHERE id = ? AND unloading_queue_skipped_at IS NULL AND tare_kg IS NULL""",
+                (at, weighing_id),
+            )
+        return cur.rowcount == 1
+
     # -------------------------------------------------------- assignment
 
     def set_assignment(self, line_code: str, assignment_id: str, truck_id: str | None) -> None:

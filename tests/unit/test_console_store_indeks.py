@@ -67,6 +67,26 @@ def test_query_penugasan_dan_pelepasan_memakai_indeksnya(store, panggil, indeks)
     assert "SCAN" not in plan, plan
 
 
+@pytest.mark.parametrize(
+    "panggil",
+    [lambda s: s.unloading_queue(0.0), lambda s: s.trucks_with_open_ticket(0.0)],
+    ids=["unloading_queue", "trucks_with_open_ticket"],
+)
+def test_antrean_bongkar_dibaca_lewat_indeks_tiket_terbuka(store, panggil):
+    """Dibaca tiap 2 detik. `SCAN a` di subquery antrean = tabel `assignments`, satu baris per
+    line; yang tidak boleh adalah memindai `weighings`, tabel yang tidak pernah dibersihkan."""
+    [plan] = rencana(store._db, lambda: panggil(store))
+
+    assert "idx_weighings_terbuka (received_at>?)" in plan, plan
+    assert not re.search(r"\bSCAN (weighings|w)\b", plan), plan
+
+
+def test_antrean_bongkar_urut_dari_indeks_tanpa_sortir_ulang(store):
+    [plan] = rencana(store._db, lambda: store.unloading_queue(0.0))
+
+    assert "TEMP B-TREE" not in plan, plan
+
+
 @pytest.mark.parametrize("panggil", [lambda s: s.auto_releases_terbaru()], ids=["auto_releases_terbaru"])
 def test_urutan_datang_dari_indeks_tanpa_sortir_ulang(store, panggil):
     [plan] = rencana(store._db, lambda: panggil(store))
