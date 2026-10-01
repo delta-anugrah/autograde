@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import time
 import uuid
 from collections.abc import Callable
 from datetime import datetime
@@ -39,7 +40,7 @@ from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.setelan_grading import KUNCI_SETELAN, bersihkan_setelan
 from ..domain.sinkron import gabung_cloud
 from ..domain.vision_event import prediction_for, verdict_of
-from ..domain.working_day import work_date_for
+from ..domain.working_day import JENDELA_KUNJUNGAN_DETIK, work_date_for
 from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
 from ..workers.visit_manifest_worker import VisitManifestWorker
@@ -522,8 +523,10 @@ class ConsoleService(LayarLineSupport):
         truck_id, assignment_id = closing.get("truck_id"), closing.get("assignment_id")
         if not (truck_id and assignment_id):
             return
-        hari = work_date_for(datetime.now(self.tz).isoformat(), self.tz)
-        weighing_id = self.store.latest_weighing_for_truck(truck_id, hari)
+        # A window, not today's work date: the date flips at midnight, a visit does not.
+        weighing_id = self.store.latest_weighing_for_truck_since(
+            truck_id, time.time() - JENDELA_KUNJUNGAN_DETIK
+        )
         if not weighing_id:
             # Nothing weighed yet. AutoERP dates a ticket from `time_in`, so this
             # visit goes up when the weighing does — or on the daily resend.

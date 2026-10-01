@@ -12,6 +12,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, tzinfo
 
+#: A visit, weigh-in to release, never lasts longer; the work date flips at midnight, this does not.
+JENDELA_KUNJUNGAN_DETIK = 12 * 60 * 60
+
 
 def work_date_for(timestamp_iso: str, tz: tzinfo) -> str:
     """`YYYY-MM-DD` in the mill's zone. ValueError if the timestamp is unreadable.

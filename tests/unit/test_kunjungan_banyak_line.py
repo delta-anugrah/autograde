@@ -7,6 +7,7 @@ terakhir. Yang dijumlah sekarang: semua penugasan yang tertaut ke kunjungan itu.
 from __future__ import annotations
 
 import sqlite3
+import time
 
 from palmgrade.domain.bahaya import GOLONGAN_TABEL_KONSOL
 from palmgrade.repositories.console_repository import ConsoleStore
@@ -133,3 +134,18 @@ def test_penugasan_yang_tidak_tertaut_tidak_bocor_ke_rekap_kunjungan(tmp_path):
     assert {j["event_id"] for j in store.bunches_for_visit("w1")} == {f"a1-{i}" for i in range(4)}
     assert {j["event_id"] for j in store.bunches_for_visit("w2")} == {f"a2-{i}" for i in range(2)}
 
+
+def test_tiket_terbaru_truk_dalam_jendela_waktu(tmp_path):
+    store = ConsoleStore(tmp_path / "console.db")
+    _tiket(store, "w-lama")
+    _tiket(store, "w-baru")
+    with store._lock, store._db:  # noqa: SLF001 (the clock this reads is not settable)
+        for wid, umur, masuk in (("w-lama", 7200, "T01:00:00"), ("w-baru", 3600, "T02:00:00")):
+            store._db.execute(  # noqa: SLF001
+                "UPDATE weighings SET received_at = ?, entered_at = ? WHERE id = ?",
+                (time.time() - umur, f"{HARI}{masuk}+00:00", wid),
+            )
+
+    assert store.latest_weighing_for_truck_since("t1", time.time() - 12 * 3600) == "w-baru"
+    assert store.latest_weighing_for_truck_since("t1", time.time() - 1800) is None
+    assert store.latest_weighing_for_truck_since("t-lain", time.time() - 12 * 3600) is None

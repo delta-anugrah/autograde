@@ -214,6 +214,9 @@ CREATE INDEX IF NOT EXISTS idx_weighings_assignment ON weighings (assignment_id)
 -- `/api/console/state` tiap 2 detik membaca pelepasan otomatis sejam terakhir; tabelnya
 -- tidak pernah dibersihkan.
 CREATE INDEX IF NOT EXISTS idx_auto_releases_waktu ON auto_releases (released_at);
+-- Lepas truk mencari tiket truk itu dalam jendela 12 jam (`latest_weighing_for_truck_since`),
+-- bukan lagi lewat hari kerja yang berindeks.
+CREATE INDEX IF NOT EXISTS idx_weighings_truck ON weighings (truck_id, received_at);
 -- Visits linked before `visit_assignments` existed. Safe to repeat on every boot: the
 -- assignment is the primary key, so a second run inserts nothing.
 INSERT OR IGNORE INTO visit_assignments (assignment_id, weighing_id, line_code, linked_at)

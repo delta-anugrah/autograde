@@ -18,6 +18,39 @@ Next:           ...
 
 ---
 
+## 2026-10-01 · console · A visit's grading is summed over every line that unloaded it (PR pending)
+Changed:        A truck unloaded on three lines has three line assignments, but `weighings.assignment_id`
+                holds one, so AutoERP, the detail page and the Log tab counted only the line released
+                last. New table `visit_assignments` (one row per assignment, written when a line lets
+                the truck go, back-filled at start-up; the old column is still written so an older
+                image works after a rollback). `ConsoleStore.grading_counts_for_visit` and
+                `bunches_for_visit` sum every linked assignment; `ErpQueue`, `VisitManifestWorker` and
+                the Log tab context (`erp_link._konteks`) read them. Every assignment now finds its
+                ticket, so a late bunch on the first released line re-queues the visit. Cross-midnight
+                fix: `_queue_grading` finds the ticket by a 12 hour window on the console clock
+                (`JENDELA_KUNJUNGAN_DETIK`, `latest_weighing_for_truck_since`), not by work date, so a
+                truck weighed in at 23:30 and released at 00:30 is no longer linked to nothing. Demo
+                seeder: `wipe()` also deletes the link rows of the visits it deleted, and the seed
+                writes the line code. Rule 18 and `docs/overview.md` name the new link.
+Validated:      RED first: `test_kunjungan_banyak_line_kirim.py` 7 failed before the change (total 2 of
+                5, link rows without a line code, nothing linked across midnight); the new integration
+                test failed against the previous commit with 4 of 9 bunches sent. After:
+                `pytest tests/unit tests/e2e tests/integration` → 4313 passed, 45 skipped;
+                `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
+                58 passed; `ruff check` on every touched file clean. New tests:
+                `tests/unit/test_kunjungan_banyak_line_kirim.py` (send, detail page, Log line, window),
+                `tests/unit/test_kunjungan_banyak_line.py` (an unlinked assignment never leaks into a
+                visit's recap, window query), `tests/unit/test_demo_wipe.py` (link rows),
+                `tests/integration/test_kunjungan_banyak_line_integrasi.py` (three lines, real
+                `LineClient`, real queues and workers).
+Not validated:  A real factory PC and a real AutoERP; the fake AutoERP is `tests/autoerp_palsu.py`.
+Decisions:      The key AutoERP stores (`autograde_assignment_id`, unique) is the FIRST assignment
+                linked, so it stays the same across resends. `line_code` in the message now names every
+                line ("line-1, line-2"); AutoERP does not read it. The window query filters on
+                `truck_id` and `received_at`, so it gets its own index (`idx_weighings_truck`, added
+                at start-up like the others, nothing dropped) instead of scanning `weighings`.
+Next:           Part 2 of the plan, automatic line assignment (stacked on this PR).
+
 ## 2026-10-01 · console, tests · Follow-ups from the browser suite (PR #206)
 Changed:        Console: the Setelan line that did not receive a change is a KAMUS sentence
                 (`setelanBelumSampai`, id + en), guarded by `test_kalimat_layar_hanya_dari_kamus`;

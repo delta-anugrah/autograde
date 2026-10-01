@@ -209,8 +209,10 @@ end of this file.
     tiap kiriman mengganti bagian yang dibawanya, jadi bagian kosong menghapus isi ERP.
     Grading ditautkan lewat tabel `visit_assignments` (satu baris per penugasan line) yang
     **ditulis saat truk dilepas**; tanpa tautan itu tiket kedua di hari yang sama mewarisi janjang
-    tiket pertama. Kriteria: mentah = REJ, tangkai panjang = ACC dengan `tp_confidence > 0.8`,
-    matang diturunkan AutoERP sendiri.
+    tiket pertama. Tiketnya dicari lewat **jendela waktu** (`JENDELA_KUNJUNGAN_DETIK`, 12 jam sejak
+    tiket diterima konsol), bukan hari kerja: hari kerja berganti pukul 00:00, kunjungan tidak.
+    Kriteria: mentah = REJ, tangkai panjang = ACC dengan `tp_confidence > 0.8`, matang
+    diturunkan AutoERP sendiri.
     Karena angka itu dijumlah dari `ripeness_status`, **`ripeness_status` divalidasi saat ingest**
     (`domain/vision_event.verdict_of`, satu kosakata untuk penulis dan pembaca field ini): di luar
     `{ACC, REJ}` → 400, seperti timestamp cacat. Nilai asing dulu ikut `total` tapi tidak masuk

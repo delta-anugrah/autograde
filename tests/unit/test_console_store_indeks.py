@@ -53,8 +53,11 @@ def store(tmp_path) -> ConsoleStore:
         # Sejak 2026-10-01 tautan dibaca dari `visit_assignments`, kuncinya penugasan itu sendiri.
         (lambda s: s.weighing_for_assignment("a1"), "sqlite_autoindex_visit_assignments_1 (assignment_id=?)"),
         (lambda s: s.auto_releases_terbaru(), "idx_auto_releases_waktu (released_at>?)"),
+        # Sejak 2026-10-01 tiket truk dicari lewat jendela waktu, bukan hari kerja.
+        (lambda s: s.latest_weighing_for_truck_since("t1", 0.0), "idx_weighings_truck (truck_id=? AND received_at>?)"),
     ],
-    ids=["grading_counts", "bunches_for_assignment", "weighing_for_assignment", "auto_releases_terbaru"],
+    ids=["grading_counts", "bunches_for_assignment", "weighing_for_assignment", "auto_releases_terbaru",
+         "latest_weighing_for_truck_since"],
 )
 def test_query_penugasan_dan_pelepasan_memakai_indeksnya(store, panggil, indeks):
     [plan] = rencana(store._db, lambda: panggil(store))

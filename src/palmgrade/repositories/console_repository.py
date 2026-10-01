@@ -584,14 +584,19 @@ class ConsoleStore(AkunStore):
                 (ticket, status, note, weighing_id),
             )
 
-    def latest_weighing_for_truck(self, truck_id: str, work_date: str) -> str | None:
-        """The visit a truck's grading belongs to: its newest ticket that day."""
+    def latest_weighing_for_truck_since(self, truck_id: str, sejak: float) -> str | None:
+        """The visit a truck's grading belongs to: its newest ticket received since `sejak`.
+
+        A time window on the console clock (epoch seconds), not a work date: the work
+        date flips at midnight, and a truck weighed in at 23:30 and released at 00:30
+        used to find no ticket at all, so its grading reached AutoERP linked to nothing.
+        """
         with self._lock:
             row = self._db.execute(
                 """SELECT id FROM weighings
-                   WHERE truck_id = ? AND work_date = ?
+                   WHERE truck_id = ? AND received_at >= ?
                    ORDER BY COALESCE(entered_at, '') DESC, received_at DESC LIMIT 1""",
-                (truck_id, work_date),
+                (truck_id, sejak),
             ).fetchone()
         return row["id"] if row else None
 

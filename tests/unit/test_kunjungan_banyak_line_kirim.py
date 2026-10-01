@@ -3,14 +3,17 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
 
 from palmgrade.core.config import Settings
 from palmgrade.domain import erp_messages
+from palmgrade.domain.plate import normalisasi_plat
+from palmgrade.domain.working_day import JENDELA_KUNJUNGAN_DETIK
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.services.console_service import ConsoleService
@@ -150,3 +153,66 @@ def test_baris_log_menyebut_semua_line(pabrik):
     assert konteks.janjang == 5
     assert konteks.line == "line-1, line-2"
 
+
+# ---- Tiket ditemukan lewat jendela waktu, bukan hari kerja (lintas tengah malam) ----
+
+def _tiket_lampau(store, truck_id: str, jam_lalu: float, *, wid: str) -> str:
+    """A ticket weighed in `jam_lalu` hours ago, filed under YESTERDAY's work date, as one
+    weighed in at 23:30 is once the clock passes midnight."""
+    sekarang = datetime.now(WIB)
+    masuk = sekarang - timedelta(hours=jam_lalu)
+    store.upsert_weighing({
+        "id": wid, "ref": None, "plate_number": PLAT, "plate_norm": normalisasi_plat(PLAT),
+        "truck_id": truck_id, "work_date": (sekarang - timedelta(days=1)).strftime("%Y-%m-%d"),
+        "gross_kg": 14000.0, "tare_kg": None, "net_kg": None,
+        "entered_at": masuk.isoformat(), "exited_at": None,
+    })
+    with store._lock, store._db:  # noqa: SLF001 (the clock the window reads is not settable)
+        store._db.execute(  # noqa: SLF001
+            "UPDATE weighings SET received_at = ? WHERE id = ?", (time.time() - jam_lalu * 3600, wid)
+        )
+    return wid
+
+
+def test_jendela_kunjungan_dua_belas_jam():
+    assert JENDELA_KUNJUNGAN_DETIK == 12 * 60 * 60
+
+
+def test_tiket_sebelum_tengah_malam_tertaut_saat_dilepas_sesudahnya(tmp_path):
+    service, store, outbox = _konsol(tmp_path)
+    truck_id = service.register_manual_truck(PLAT)["id"]
+    wid = _tiket_lampau(store, truck_id, 1.0, wid="w-semalam")
+    asyncio.run(service.assign_truck("line-1", truck_id))
+    _janjang(service, "line-1", 3)
+
+    asyncio.run(service.release_truck("line-1"))
+
+    assert len(_penugasan(store, wid)) == 1
+    assert _kiriman_terakhir(outbox, wid)["grading"]["counts"]["total"] == 3
+
+
+def test_tiket_tiga_belas_jam_lalu_tidak_ditautkan(tmp_path):
+    service, store, outbox = _konsol(tmp_path)
+    truck_id = service.register_manual_truck(PLAT)["id"]
+    wid = _tiket_lampau(store, truck_id, 13.0, wid="w-kemarin")
+    asyncio.run(service.assign_truck("line-1", truck_id))
+    _janjang(service, "line-1", 3)
+
+    asyncio.run(service.release_truck("line-1"))
+
+    assert _penugasan(store, wid) == []
+    assert [m for m in outbox.due(50) if m.kind == erp_messages.VISIT] == []
+
+
+def test_dua_tiket_dalam_jendela_tertaut_ke_yang_terbaru(tmp_path):
+    service, store, _ = _konsol(tmp_path)
+    truck_id = service.register_manual_truck(PLAT)["id"]
+    lama = _tiket_lampau(store, truck_id, 3.0, wid="w-lama")
+    baru = _tiket_lampau(store, truck_id, 1.0, wid="w-baru")
+    asyncio.run(service.assign_truck("line-1", truck_id))
+    _janjang(service, "line-1", 2)
+
+    asyncio.run(service.release_truck("line-1"))
+
+    assert len(_penugasan(store, baru)) == 1
+    assert _penugasan(store, lama) == []
