@@ -474,15 +474,26 @@ class ConsoleService(LayarLineSupport):
         # Timbang keluar = truk sudah pergi. Line yang masih memegangnya akan
         # menstempel janjang truk BERIKUTNYA dengan truk ini (G5), jadi dilepas
         # di sini alih-alih menunggu operator ingat.
+        bertaut: dict[str, str] = {}
         if tare is not None or exited_at:
-            await self._lepas_line_truk_yang_keluar(truck_id_for(plate))
-        self._queue_visit(weighing_id)
+            bertaut = await self._lepas_line_truk_yang_keluar(truck_id_for(plate))
+        # ONE message, after every line is released and linked: the tare is stored already,
+        # so a message queued between two releases would carry it with only the lines
+        # released so far, and AutoERP finalises a ticket the moment it has both.
+        for tiket, assignment_id in bertaut.items():
+            self._antre_halaman(tiket, assignment_id)
+        for tiket in {weighing_id, *bertaut}:
+            self._queue_visit(tiket)
         return self.store.weighing(weighing_id) or {}
 
     # ------------------------------------------------------ send to AutoERP
 
-    async def _lepas_line_truk_yang_keluar(self, truck_id: str) -> None:
+    async def _lepas_line_truk_yang_keluar(self, truck_id: str) -> dict[str, str]:
         """Truk sudah timbang keluar: lepaskan setiap line yang masih memegangnya.
+
+        Mengembalikan tiket yang tertaut ke line yang berhasil dilepas (id tiket ke
+        penugasan pertamanya), dan TIDAK mengantre apa pun ke AutoERP: tiap line dilepas
+        dengan `kirim=False`, dan pemanggil mengantre sekali sesudah semuanya.
 
         Tanpa ini, `Release` yang terlewat membuat line terus menstempel truk yang
         sudah pulang ke janjang truk berikutnya — tonase yang dibayar ke petani,
@@ -492,10 +503,11 @@ class ConsoleService(LayarLineSupport):
 
         Semua line, bukan yang pertama: satu truk boleh dibongkar paralel.
         """
+        bertaut: dict[str, str] = {}
         for pegangan in self.store.assignments_for_truck(truck_id):
             line_code = pegangan["line_code"]
             try:
-                await self.release_truck(line_code)
+                await self.release_truck(line_code, kirim=False)
             except Exception:
                 # Line tidak menjawab. Jangan gagalkan penimbangannya — berat itu
                 # angka yang dibayar dan harus tetap tersimpan. Yang hilang hanya
@@ -510,15 +522,22 @@ class ConsoleService(LayarLineSupport):
                 plate_number=pegangan.get("plate_number"),
                 assignment_id=pegangan.get("assignment_id"),
             )
+            tiket = self.store.weighing_for_assignment(pegangan["assignment_id"])
+            if tiket:
+                bertaut.setdefault(tiket, pegangan["assignment_id"])
+        return bertaut
 
     def _queue_visit(self, weighing_id: str) -> None:
         """A weighbridge row moved: AutoERP gets the whole visit as it stands."""
         if self.erp_queue is not None:
             self.erp_queue.visit(weighing_id, tz=self.tz)
 
-    def _queue_grading(self, closing: dict[str, Any]) -> None:
+    def _queue_grading(self, closing: dict[str, Any], *, kirim: bool = True) -> None:
         """The line assignment just closed, so its bunches belong to that truck's
         visit — the link is written here, once, and never guessed at send time.
+
+        `kirim=False` writes the link and queues nothing: the weigh-out releases every
+        line of the truck, and its caller queues the visit once when the last one is done.
         """
         truck_id, assignment_id = closing.get("truck_id"), closing.get("assignment_id")
         if not (truck_id and assignment_id):
@@ -528,20 +547,36 @@ class ConsoleService(LayarLineSupport):
             truck_id, time.time() - JENDELA_KUNJUNGAN_DETIK
         )
         if not weighing_id:
-            # Nothing weighed yet. AutoERP dates a ticket from `time_in`, so this
-            # visit goes up when the weighing does — or on the daily resend.
+            # No ticket for this truck in the window. Nothing links this assignment later
+            # (the weigh-in and the daily resend only read links that exist), so whatever
+            # it graded reaches no visit: say so in the Log tab instead of losing it quietly.
+            hitungan = self.store.grading_counts(assignment_id)
+            if hitungan:
+                logger.warning(
+                    "Penugasan %s di %s (truk %s) dilepas dengan %s janjang, tapi tidak ada tiket "
+                    "timbangan truk itu dalam %s jam terakhir: janjangnya TIDAK masuk kunjungan "
+                    "mana pun dan tidak terkirim ke AutoERP",
+                    assignment_id, closing.get("line_code"),
+                    closing.get("plate_number") or truck_id, hitungan["total"],
+                    JENDELA_KUNJUNGAN_DETIK // 3600,
+                )
             return
         self.store.link_weighing_to_assignment(weighing_id, assignment_id, closing.get("line_code"))
-        self._kirim_kunjungan(weighing_id, assignment_id)
+        if kirim:
+            self._kirim_kunjungan(weighing_id, assignment_id)
 
-    def _kirim_kunjungan(self, weighing_id: str, assignment_id: str) -> None:
-        """Halaman detail dan pesan kunjungan untuk tiket yang sudah bertaut ke penugasannya.
+    def _antre_halaman(self, weighing_id: str, assignment_id: str) -> None:
+        """Halaman detail kunjungan ini ke antrean R2 (diganti kalau barisnya masih menunggu).
 
         The detail page does not depend on the AutoERP link: a mill with R2 but no
         ERP_URL still gets its per-truck pages.
         """
         if self.manifest_queue is not None:
             self.manifest_queue.enqueue(weighing_id, assignment_id)
+
+    def _kirim_kunjungan(self, weighing_id: str, assignment_id: str) -> None:
+        """Halaman detail dan pesan kunjungan untuk tiket yang sudah bertaut ke penugasannya."""
+        self._antre_halaman(weighing_id, assignment_id)
         if self.erp_queue is not None:
             self.erp_queue.visit(weighing_id, tz=self.tz)
 
@@ -615,8 +650,12 @@ class ConsoleService(LayarLineSupport):
         self.store.set_assignment(line_code, assignment_id, truck_id)
         return {"assignment_id": assignment_id, "truck_id": truck_id, "line_code": line_code}
 
-    async def release_truck(self, line_code: str) -> dict[str, Any]:
+    async def release_truck(self, line_code: str, *, kirim: bool = True) -> dict[str, Any]:
         """Truck done unloading and gone. Line first, then record (§13, like assign).
+
+        `kirim=True` (the operator's Lepas, one line): the visit and its detail page are
+        queued at once. `kirim=False` links the grading and queues nothing, for the
+        weigh-out, which releases all of the truck's lines and queues the visit once after.
 
         Without this an assignment never ends: the line keeps stamping the truck
         that already left onto the next bunches, and that tonnage lands on the
@@ -634,7 +673,7 @@ class ConsoleService(LayarLineSupport):
             ffb_source=None,
         )
         self.store.set_assignment(line_code, "", None)
-        self._queue_grading(closing)
+        self._queue_grading(closing, kirim=kirim)
         return {"line_code": line_code, "truck_id": None}
 
     def penugasan_untuk_mesin(self, machine_id: str) -> dict[str, Any]:

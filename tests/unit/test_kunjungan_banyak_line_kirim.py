@@ -35,12 +35,12 @@ class FakeUploader:
         return None
 
 
-def _konsol(tmp_path):
+def _konsol(tmp_path, *, line=None, manifest_queue=None):
     store = ConsoleStore(tmp_path / "console.db")
     outbox = ErpOutboxStore(tmp_path / "erp_outbox.db")
     service = ConsoleService(
-        replace(Settings(), factory_tz="Asia/Jakarta"), store, FakeLine(),
-        erp_queue=ErpQueue(store, outbox),
+        replace(Settings(), factory_tz="Asia/Jakarta"), store, line or FakeLine(),
+        erp_queue=ErpQueue(store, outbox), manifest_queue=manifest_queue,
     )
     return service, store, outbox
 
@@ -216,3 +216,137 @@ def test_dua_tiket_dalam_jendela_tertaut_ke_yang_terbaru(tmp_path):
 
     assert len(_penugasan(store, baru)) == 1
     assert _penugasan(store, lama) == []
+
+
+# ---- Dilepas tanpa tiket: janjangnya tidak boleh hilang tanpa satu kalimat pun ----
+
+LOGGER = "palmgrade.services.console_service"
+
+
+def test_lepas_dengan_janjang_tanpa_tiket_dalam_jendela_mencatat_peringatan(tmp_path, caplog):
+    service, store, _ = _konsol(tmp_path)
+    truck_id = service.register_manual_truck(PLAT)["id"]
+    _tiket_lampau(store, truck_id, 13.0, wid="w-kemarin")
+    asyncio.run(service.assign_truck("line-1", truck_id))
+    penugasan = store.assignments()["line-1"]["assignment_id"]
+    _janjang(service, "line-1", 3)
+
+    with caplog.at_level("WARNING", logger=LOGGER):
+        asyncio.run(service.release_truck("line-1"))
+
+    [catatan] = [r for r in caplog.records if r.levelname == "WARNING"]
+    pesan = catatan.getMessage()
+    assert PLAT in pesan and "line-1" in pesan and penugasan in pesan
+    assert "3 janjang" in pesan and "12 jam" in pesan
+
+
+def test_lepas_tanpa_janjang_dan_tanpa_tiket_tidak_mencatat_peringatan(tmp_path, caplog):
+    """Nothing was graded, so nothing is lost: a warning here would only teach the operator
+    to ignore the Log tab."""
+    service, _, _ = _konsol(tmp_path)
+    truck_id = service.register_manual_truck(PLAT)["id"]
+    asyncio.run(service.assign_truck("line-1", truck_id))
+
+    with caplog.at_level("WARNING", logger=LOGGER):
+        asyncio.run(service.release_truck("line-1"))
+
+    assert [r for r in caplog.records if r.levelname == "WARNING"] == []
+
+
+def test_lepas_dengan_tiket_tidak_mencatat_peringatan(pabrik, caplog):
+    service, _, _, truck_id, _ = pabrik
+    asyncio.run(service.assign_truck("line-1", truck_id))
+    _janjang(service, "line-1", 2)
+
+    with caplog.at_level("WARNING", logger=LOGGER):
+        asyncio.run(service.release_truck("line-1"))
+
+    assert [r for r in caplog.records if r.levelname == "WARNING"] == []
+
+
+# ---- Timbang keluar: AutoERP menerima kunjungan SEKALI, sesudah semua line dilepas ----
+
+class _LineMengintip(FakeLine):
+    """A line that looks at the AutoERP queue each time it is told to let a truck go: what the
+    outbox worker would find if it woke up between two releases of the same weigh-out."""
+
+    def __init__(self) -> None:
+        self.lihat = lambda: []
+        self.potret: list[list[dict]] = []
+
+    async def assign_truck(self, line, *, assignment_id, **kw):
+        if assignment_id == "":
+            self.potret.append(self.lihat())
+
+
+class _CatatHalaman:
+    def __init__(self) -> None:
+        self.dipanggil: list[tuple[str, str]] = []
+
+    def enqueue(self, weighing_id: str, assignment_id: str) -> None:
+        self.dipanggil.append((weighing_id, assignment_id))
+
+
+def _timbang_keluar_tiga_line(tmp_path, *, manifest_queue=None):
+    """Weigh in, three lines take the truck (3 + 2 + 4 bunches), weigh out with the tare."""
+    line = _LineMengintip()
+    service, store, outbox = _konsol(tmp_path, line=line, manifest_queue=manifest_queue)
+    line.lihat = lambda: [m.payload for m in outbox.due(50) if m.kind == erp_messages.VISIT]
+    truck_id = service.register_manual_truck(PLAT)["id"]
+    tiket = asyncio.run(service.record_weighing({
+        "ref": "SCL-9", "plate_number": PLAT, "gross_kg": 14000, "entered_at": datetime.now(WIB).isoformat(),
+    }))
+    for kode in ("line-1", "line-2", "line-3"):
+        asyncio.run(service.assign_truck(kode, truck_id))
+    _janjang(service, "line-1", 3)
+    _janjang(service, "line-2", 2)
+    _janjang(service, "line-3", 4)
+    line.potret.clear()
+    asyncio.run(service.record_weighing({
+        "ref": "SCL-9", "plate_number": PLAT, "tare_kg": 5000, "exited_at": datetime.now(WIB).isoformat(),
+    }))
+    return service, store, outbox, line, tiket["id"]
+
+
+def test_timbang_keluar_tidak_mengantre_kunjungan_setengah_jadi(tmp_path):
+    """The weigh-out stores the tare, then lets the lines go one by one, and each release
+    awaits its line. A drain of the AutoERP queue in between would send the tare with only
+    the lines released so far, and AutoERP finalises a ticket at once (a deduction taken
+    from one line). So no queued visit may carry the tare before every line is released."""
+    _, _, outbox, line, wid = _timbang_keluar_tiga_line(tmp_path)
+
+    assert len(line.potret) == 3, "ketiga line harus dilepas"
+    for urutan, antrean in enumerate(line.potret, start=1):
+        assert [p for p in antrean if "tare_kg" in p["weighing"]] == [], (
+            f"kunjungan dengan tara sudah di antrean saat line ke-{urutan} dilepas"
+        )
+    akhir = _kiriman_terakhir(outbox, wid)
+    assert akhir["weighing"]["tare_kg"] == 5000
+    assert akhir["grading"]["counts"]["total"] == 9
+
+
+def test_timbang_keluar_mengantre_halaman_detail_sekali_sesudah_semua_line(tmp_path):
+    halaman = _CatatHalaman()
+
+    _, store, _, _, wid = _timbang_keluar_tiga_line(tmp_path, manifest_queue=halaman)
+
+    assert [w for w, _ in halaman.dipanggil] == [wid]
+    assert halaman.dipanggil[0][1] == store.grading_counts_for_visit(wid)["assignment_id"]
+
+
+def test_lepas_manual_satu_line_tetap_mengantre_kunjungannya_langsung(tmp_path):
+    """The operator's Lepas is one line, nothing else follows it: it queues at once."""
+    halaman = _CatatHalaman()
+    line = _LineMengintip()
+    service, _, outbox = _konsol(tmp_path, line=line, manifest_queue=halaman)
+    truck_id = service.register_manual_truck(PLAT)["id"]
+    tiket = asyncio.run(service.record_weighing({
+        "plate_number": PLAT, "gross_kg": 14000, "entered_at": datetime.now(WIB).isoformat(),
+    }))
+    asyncio.run(service.assign_truck("line-1", truck_id))
+    _janjang(service, "line-1", 3)
+
+    asyncio.run(service.release_truck("line-1"))
+
+    assert _kiriman_terakhir(outbox, tiket["id"])["grading"]["counts"]["total"] == 3
+    assert [w for w, _ in halaman.dipanggil] == [tiket["id"]]
