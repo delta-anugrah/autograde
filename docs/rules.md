@@ -453,16 +453,27 @@ end of this file.
     PR #200): tidak ada kode HTTP, alamat, teks exception atau jawaban server, nama env atau
     konfigurasi, nama berkas, atau kode galat (`AI_MATI`, `RESTART_LAMA`, ...) di layar mana
     pun selain tab Log; kalimatnya tetap menyebut apa yang terjadi, line mana, sejak kapan, dan
-    harus apa. `alasan()` memulangkan kalimat umum (`err_umum`, diawali konteks pemanggil,
-    `gagalKarena` untuk awalan) untuk kode asing dan `err_konsol_putus` untuk konsol yang tidak
-    menjawab sama sekali (`ambil`), tidak pernah `e.message`. Line yang tidak terbaca konsol
-    diklasifikasi backend (`domain/line_tak_terbaca.py`, `sebab_kode` di kartu Diagnostik,
-    Antrean line, dan snapshot `LineStatusWorker`), kiriman AutoERP/R2 yang tertahan membawa
-    `error_kind` (kolom `erp_outbox.error_kind`, ditulis worker-nya), layar menerjemahkan
-    keduanya lewat KAMUS dan kode yang tidak dikenal jatuh ke kalimat umum. Teks mentahnya ada
-    di tab Log: `LineStatusWorker` menulis SATU WARNING saat line tidak terbaca tiga poll
-    berturut (dengan alasan mentahnya), satu saat sebabnya berganti, satu saat pulih; penolakan
-    operator tanpa kode (`_operator_error` dengan ValueError) dicatat WARNING. Penjaga:
+    harus apa. `alasan()` memulangkan kalimat umum untuk kode asing, diawali konteks pemanggil
+    (`gagalKarena` untuk awalan): `err_ditolak` (nilai yang ditolak) untuk 4xx tanpa kode,
+    `err_umum` untuk selebihnya, dan `err_konsol_putus` untuk konsol yang tidak menjawab sama
+    sekali (`ambil`), tidak pernah `e.message`. Line yang tidak terbaca konsol diklasifikasi
+    backend (`domain/line_tak_terbaca.py`, `sebab_kode` di kartu Diagnostik, Antrean line, dan
+    snapshot `LineStatusWorker`), kiriman AutoERP/R2 yang tertahan membawa `error_kind` (kolom
+    `erp_outbox.error_kind`, ditulis worker-nya, dikosongkan saat diantre ulang, Kirim Ulang,
+    atau terkirim; aman untuk mundur versi: build lama mengabaikan kolomnya, dan baris yang ia
+    tandai gagal membawa jenis lama sampai diantre ulang), model yang tidak bisa dipakai membawa
+    `alasan_kode`, alarm PLC yang tidak dikenal jatuh ke `alarm_lain`; layar menerjemahkan
+    semuanya lewat KAMUS dan kode yang tidak dikenal jatuh ke kalimat umum. Satu-satunya
+    pengecualian: kalimat info di layar support boleh menyebut folder rekaman (`rekamSelesai`,
+    `rekamCatatanRetensi`, `bahayaRekamanTeks`), karena support harus menemukan berkasnya;
+    kalimat galat tidak pernah memuat jalur atau perintah. Teks mentahnya ada di tab Log: ketiga
+    pembaca line di konsol (`LineStatusWorker`, kartu Diagnostik, Antrean line) memakai satu
+    aturan (`domain/episode_tak_terbaca.py`, `services/jejak_tak_terbaca.py`, per line): SATU
+    WARNING dengan sebab dan alasan mentah PERTAMA kejadian sesudah tiga poll gagal berturut,
+    sebab yang berganti tidak menulis apa pun, SATU WARNING saat pulih dengan lama sejak poll
+    gagal pertama, dan 120 detik pertama sesudah konsol menyala (`TENGGANG_START_S`, line masih
+    memuat model) tidak menulis awal kejadian. Penolakan operator tanpa kode (`_operator_error`
+    dengan ValueError) dicatat WARNING. Penjaga:
     `tests/unit/test_console_html_teks_ramah.py` (KAMUS id/en, teks statis, perilaku lewat
     node) dan `tests/unit/test_console_copy.py` (pesan log juga tanpa em dash).
 22. **Lisensi: pabrik MEMERIKSA, AutoERP yang MENERBITKAN** (2026-09-22).

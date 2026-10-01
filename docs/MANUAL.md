@@ -138,14 +138,15 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   yang hilang: semuanya menunggu di antrean dan terkirim sendiri begitu sambungan pulih.
 - **Tiga kartu line**, satu per kamera, dengan stream langsung, status **ONLINE / OFFLINE** di
   judul, tombol **Tugaskan** (pilih truk), **Lepas** (truk pergi), dan **Reject Manual**.
-- Kartu berbingkai **merah** dengan pita **AI berhenti memproses** (jam mulai, tindakan) = kamera jalan tapi tidak ada yang digrading: tahan umpan buah ke line itu dan
-  panggil teknisi. Pita hilang sendiri begitu line memproses lagi.
+- Kartu berbingkai **merah** dengan pita **AI berhenti memproses** (jam mulai, tindakan) =
+  kamera jalan tapi tidak ada yang digrading: tahan umpan buah ke line itu dan panggil teknisi.
+  Pita hilang sendiri begitu line memproses lagi.
 - Kartu berbingkai **merah** dengan pita **kamera berhenti mengirim gambar** (jam mulai,
-  tindakan) = kamera tersambung tapi tidak ada gambar masuk lebih dari
-  30 detik: tahan umpan buah, periksa kabel data dan switch kamera, restart line. Video uji tanpa
+  tindakan) = kamera tersambung tapi tidak ada gambar masuk lebih dari 30 detik: tahan umpan
+  buah, periksa kabel data dan switch kamera, restart line. Video uji tanpa
   ulang yang selesai diputar TIDAK memunculkan pita ini. Hilang sendiri begitu gambar datang lagi.
-- Pita **Disk PC hampir penuh** (kuning, sisa di bawah 15 GB) atau
-  **Disk PC hampir habis** (merah berdenyut, di bawah 5 GB) di atas semua kartu,
+- Pita **Disk PC hampir penuh** (kuning, sisa di bawah 15 GB) atau **Disk PC hampir habis**
+  (merah berdenyut, di bawah 5 GB) di atas semua kartu,
   satu pita untuk seluruh PC: menyebut jam mulai, line yang melaporkan, sisa GB, dan tindakannya.
   Muncul dengan atau tanpa R2, dan hilang sendiri begitu disk lega lagi.
 - Kotak kamera bertuliskan **Line N sedang dinyalakan ulang** dengan spinner dan bar berjalan
@@ -260,7 +261,7 @@ Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riw
 | **Log** | galat dan peringatan konsol DAN ketiga line (kolom Sumber menyebut line-1/2/3 atau konsol), jam pertama muncul untuk baris gabungan, traceback bisa dibuka per baris; kalimat di atas tabel menyebut keadaan lapor ke Discord. 180 hari terakhir, selamat dari restart; pesan berulang digabung `×N`; sandi/token tertulis `«ditutup»` |
 | **Status**, bagian Versi | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah tulisan AUTOGRADE untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati. Token ada, tapi saklar lisensi di konsol belum menyala** berarti tokennya sampai ke konsol tapi saklarnya (`LICENSE_ENABLED`) tidak: periksa blok konsol di compose host, bukan tokennya |
 | **Status**, bagian Diagnostik | tiga kartu line: kamera, FPS kamera / deteksi (terukur, 0 kalau gambar berhenti), umur gambar terakhir (merah kalau kamera berhenti mengirim), GPU, PLC (✓ **hanya kalau benar-benar tersambung**, ✗ kalau PLC menyala tapi terputus, `-` kalau PLC dimatikan), disk (sisa GB, kuning/merah di bawah ambang), lisensi, versi / model, antrean lokal, **Janjang tak tersimpan** (`capture_save_dropped`) dan **TP telat** (`tp_telat`), lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ Janjang tak tersimpan dan TP telat **harus nol** (hijau), di atas nol merah: ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat. Disegarkan tiap 5 detik selama tab Status terbuka |
-| **Status**, bagian Antrean line | janjang yang belum sampai dari tiap line ke konsol: jumlah, umur yang tertua, keadaan (dengan sebab, sejak kapan, dan harus ngapain), galat terakhir; tombol **Kirim Ulang** per line. Antrean ini tidak pernah menyerah: konsol mati berjam-jam pun janjangnya menunggu dan terkirim sendiri begitu konsol hidup lagi |
+| **Status**, bagian Antrean line | janjang yang belum sampai dari tiap line ke konsol: jumlah, umur yang tertua, keadaan (dengan sebab, sejak kapan, dan harus ngapain), jam pengiriman terakhir yang gagal (teks galatnya di tab Log); tombol **Kirim Ulang** per line. Antrean ini tidak pernah menyerah: konsol mati berjam-jam pun janjangnya menunggu dan terkirim sendiri begitu konsol hidup lagi |
 | **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang**. Plus antrean manifest R2 |
 | **Akun** | semua akun yang bisa masuk konsol di PC ini: nama, email, role, asal (**Lokal** / **AutoERP**), status (Aktif / Mati / Terkunci), sedang masuk atau tidak. **Tambah akun** membuat akun **Lokal** baru (nama, email, role, sandi minimal 8 karakter); akun ini cuma ada di PC ini dan **tidak masuk ke AutoERP**. Tiap akun Lokal punya tombol **Ganti sandi** (semua sesinya langsung berakhir), **Matikan / Aktifkan**, dan **Jadikan support / operator**; di baris akunmu sendiri cuma Ganti sandi. Akun AutoERP tidak punya tombol: diurus di AutoERP. **Sandi tidak bisa dilihat**: yang disimpan cuma hash-nya. Lupa sandi: akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ±5 menit), akun Lokal dengan Ganti sandi. Tiap perubahan tercatat di tab Log beserta siapa yang mengubah |
 | **Line** → Sumber Kamera | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik); kotak kamera line itu menulis "sedang dinyalakan ulang" sampai gambarnya muncul lagi (§3.2) |
@@ -667,7 +668,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Impor CSV ditolak "bukan CSV Per janjang" | berkas ringkasan (Per hari / Per truk), atau disimpan ulang dari Excel | di tab Rekap pilih **Per janjang**, **Unduh CSV**, impor berkas itu tanpa dibuka di Excel |
 | Disk penuh, grading berhenti tersimpan | penjaga disk mati (`UPLOAD_DISK_MIN_FREE_GB=0`) atau Docker menumpuk image lama | `docker system prune`; kembalikan penjaga ke 20 |
 | Pita **Disk PC hampir penuh / hampir habis** | sisa disk di bawah `DISK_PERINGATAN_GB` / `DISK_KRITIS_GB`. Tanpa R2 tidak ada yang membersihkan arsip lokal (itu satu-satunya salinan bukti, jadi sengaja tidak dihapus otomatis) | `docker system prune`, hapus rekaman video lama (`/opt/palmgrade/autograde/videos/`), pastikan unggah Cloud Photo jalan; pita hilang sendiri begitu lega |
-| Pita **kamera berhenti mengirim gambar** (`FRAME_BERHENTI`) | kamera masih terbuka di SDK tapi gambarnya tidak datang: kabel data longgar, switch/splitter, bandwidth GigE, SDK macet | periksa kabel dan LED link, lalu restart line (Danger Zone atau `autograde restart`); log line menyebut `FRAME_BERHENTI` |
+| Pita **kamera berhenti mengirim gambar** (di log line tertulis `FRAME_BERHENTI`; pitanya sendiri tanpa kode) | kamera masih terbuka di SDK tapi gambarnya tidak datang: kabel data longgar, switch/splitter, bandwidth GigE, SDK macet | periksa kabel dan LED link, lalu restart line (Danger Zone atau `autograde restart`); log line menyebut `FRAME_BERHENTI` |
 | Log line `Tutup line: N janjang TIDAK tertulis` | disk lambat atau macet saat line diminta restart/hapus data | cek disk (`df -h`, `dmesg`), janjang yang disebut tidak punya foto; laporkan ke support |
 | Cloud Photo: foto `rusak` bertambah sesudah update | foto atau sidecar 0 byte dari listrik padam sebelum versi ini; tidak diunggah, dibiarkan di disk | tidak perlu apa-apa; boleh diperiksa lalu dihapus tangan |
 | Laptop: `make console` terasa memakai kode lama | port 8100 masih dipegang proses lama | cari pid-nya dengan `lsof -ti:8100`, matikan, jalankan ulang |

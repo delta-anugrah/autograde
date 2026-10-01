@@ -34,8 +34,12 @@ Changed:        User decision after the manual test of PR #200: no screen except
                 konsol-autograde, backend-overview, MANUAL ribbon lines.
 Validated:      unit, integration, e2e, ruff CI scope, F821 on main.py, cek_skrip_konsol
                 (counts in .superpowers/sdd/batch3-induk/teks-ramah-report.md).
-Not validated:  real browser pass (test servers were stopped; not started on purpose);
-                MANUAL PDF not regenerated.
+                Fix wave after review: one episode rule for all three console readers of a
+                line (first cause only, duration from the first failed poll, 120 s start-up
+                grace), model reasons as codes, 4xx refusals worded as refused values, R2 and
+                odd AutoERP failures classified precisely, unknown PLC alarm worded, no paths
+                or commands in error sentences (guarded), MANUAL PDF regenerated.
+Not validated:  real browser pass (the user's manual test).
 Next:           user re-tests the Status tab and a line restart in the browser.
 
 ## 2026-09-30 · logging, health, CI · Batch 3 on fix/logging-batch-3 (PR #200)
