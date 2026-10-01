@@ -306,7 +306,7 @@ class BatchUploadWorker:
     def run_batch_once(self) -> None:
         if not self.settings.r2_bucket:
             if not self._warned_noop:
-                logger.warning("R2_BUCKET kosong — batch upload no-op (saklar off)")
+                logger.warning("R2_BUCKET kosong, batch upload no-op (saklar off)")
                 self._warned_noop = True
             return
 
@@ -331,10 +331,10 @@ class BatchUploadWorker:
                 except _RequeueError as exc:
                     self.manifest.requeue(item["id"], str(exc))
                     if exc.batch_fatal:
-                        logger.warning("Item requeued %s: %s — batch break", item["item_key"], exc)
+                        logger.warning("Item requeued %s: %s, batch break", item["item_key"], exc)
                         fatal = str(exc)
                         break  # kondisi eksternal rusak — sisa antrean nunggu tick berikut
-                    logger.warning("Item requeued %s: %s — batch continue", item["item_key"], exc)
+                    logger.warning("Item requeued %s: %s, batch continue", item["item_key"], exc)
                     continue  # kondisi per-item — item lain di belakangnya tetap diproses
                 finally:
                     # Juga saat POST teks gagal SESUDAH fotonya sampai R2.
@@ -461,10 +461,10 @@ class BatchUploadWorker:
         if res.status_code in (400, 422):
             raise _PoisonError(f"HTTP {res.status_code}: {res.text[:200]}")
         if res.status_code in (401, 403):
-            logger.error("Auth ke API cloud ditolak (HTTP %s) — cek UPLOAD_API_SECRET", res.status_code)
+            logger.error("Auth ke API cloud ditolak (HTTP %s), cek UPLOAD_API_SECRET", res.status_code)
             raise _RequeueError(f"HTTP {res.status_code}: {res.text[:200]}")
         if res.status_code == 404:
-            logger.error("Truck belum ada di DB cloud (HTTP 404) — item nunggu sinkronisasi truck")
+            logger.error("Truck belum ada di DB cloud (HTTP 404), item nunggu sinkronisasi truck")
             raise _RequeueError(f"HTTP {res.status_code}: {res.text[:200]}", batch_fatal=False)
         raise _RequeueError(f"HTTP {res.status_code}: {res.text[:200]}")
 
@@ -493,7 +493,7 @@ class BatchUploadWorker:
         try:
             return shutil.disk_usage(self.settings.artifacts_dir).free
         except OSError as exc:
-            logger.warning("Sisa disk tak terbaca (%s) — penjaga disk dilewati", exc)
+            logger.warning("Sisa disk tak terbaca (%s), penjaga disk dilewati", exc)
             return None
 
     def _retention(self) -> None:
@@ -521,7 +521,7 @@ class BatchUploadWorker:
             return
 
         logger.warning(
-            "Sisa disk %.1f GB di bawah lantai %.1f GB — membuang item done tertua",
+            "Sisa disk %.1f GB di bawah lantai %.1f GB, membuang item done tertua",
             free / 1024**3, floor / 1024**3,
         )
         removed = 0
@@ -533,7 +533,7 @@ class BatchUploadWorker:
                 # jadi berhenti dan berisik — ini butuh tangan operator.
                 logger.error(
                     "Sisa disk %.1f GB masih di bawah lantai %.1f GB tapi tidak ada item "
-                    "done tersisa — antrean upload macet atau disk dipakai hal lain. "
+                    "done tersisa, antrean upload macet atau disk dipakai hal lain. "
                     "Cek koneksi ke cloud; grading berhenti menulis kalau disk habis.",
                     free / 1024**3, floor / 1024**3,
                 )

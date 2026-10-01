@@ -73,3 +73,13 @@ class HealthDetailSchema(BaseModel):
     # Batch 2.1: `PenjagaAi.ringkas_lengkap()` (keadaan AI + galat terakhir loop
     # deteksi). None = penjaga belum dipasang.
     ai: dict | None = None
+    # Batch 3.6: laju TERUKUR (0 kalau gambar/grading terakhir lebih tua dari 5
+    # detik) dan umur gambar terakhir. None = belum pernah ada gambar.
+    fps_kamera: float = 0.0
+    fps_deteksi: float = 0.0
+    frame_umur_detik: float | None = None
+    # Batch 3.7: `PemantauDisk.ringkas()` (tingkat, sisa GB, ambang, sejak).
+    # None = pemantau belum dipasang (line versi lama tidak mengirimnya).
+    disk: dict | None = None
+    # Batch 3.6: lisensi line ini (`aktif`, `grading_diblokir`, `berlaku_sampai`).
+    lisensi: dict | None = None

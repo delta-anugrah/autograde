@@ -118,10 +118,10 @@ class MediaEnvService:
         except FileNotFoundError:
             return {}
         except UnicodeDecodeError as exc:
-            logger.warning("media.env tidak terbaca (%s) — memakai bawaan", exc)
+            logger.warning("media.env tidak terbaca (%s), memakai bawaan", exc)
             return {}
         except OSError as exc:
-            logger.warning("media.env tidak terbaca (%s) — memakai bawaan", exc)
+            logger.warning("media.env tidak terbaca (%s), memakai bawaan", exc)
             return {}
 
         pasangan: dict[str, str] = {}

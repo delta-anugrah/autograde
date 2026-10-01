@@ -70,8 +70,11 @@ def test_layar_punya_gerbang_pin():
 def test_sesi_habis_membuka_gerbang_bukan_cuma_pesan_error():
     """Every lane answers 401 `belum_masuk` once a session is gone. Treating that like
     any other error would leave the operator staring at a red banner over a stale screen."""
+    # The answer's error is built by `galatJawaban`, shared with the CSV download.
     api = _fungsi("api")
-    assert "belum_masuk" in api and "bukaGerbang" in api
+    galat = _fungsi("galatJawaban")
+    assert "galatJawaban(res)" in api
+    assert "belum_masuk" in galat and "bukaGerbang" in galat
 
 
 def test_gerbang_yang_terbuka_menahan_polling_data():
@@ -346,7 +349,7 @@ def test_polling_dua_detik_tidak_menarik_halaman_yang_sedang_dibaca():
 
 
 def test_pindah_halaman_tidak_pernah_keluar_rentang():
-    """Offset negatif maupun offset melewati akhir daftar dibalas 422 oleh server, dan
+    """Offset negatif maupun offset melewati akhir daftar dibalas 400 input_tidak_sah oleh server, dan
     layar cuma menampilkan error tanpa sebab yang kelihatan.
 
     Dijepitnya di `keHalaman`, satu tempat: tombol nomor dan tombol
@@ -419,7 +422,7 @@ def test_nomor_halaman_dibatasi_jumlahnya():
 
 
 def test_lompat_halaman_menolak_di_luar_rentang():
-    """Halaman 0 atau halaman 700 dari 653 mengirim offset yang dibalas 422, dan
+    """Halaman 0 atau halaman 700 dari 653 mengirim offset yang dibalas 400 input_tidak_sah, dan
     layar cuma menampilkan error tanpa sebab yang kelihatan."""
     fn = _fungsi("keHalaman")
     assert "Math.max" in fn and "Math.min" in fn

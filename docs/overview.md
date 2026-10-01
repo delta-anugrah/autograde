@@ -8,17 +8,23 @@
 
 ## 1. Layered Architecture: per-layer do/don't
 
-`route → controller → service → repository / pipeline / integration`. Each layer has a strict boundary.
+`route → controller → service → repository / pipeline / integration`. The console app skips the
+controller on purpose (`route → service → repository`, see `routes/console.py`). Each layer has a
+strict boundary; the coding rules that go with it are in `docs/coding-standard.md`.
 
 | Layer | Folder | May | Must NOT |
 |---|---|---|---|
 | Routes | `routes/` | path, method, `Depends()`, return type | any logic, file/model/queue access |
 | Controllers | `controllers/` | take request, call **one** service, raise `HTTPException` | touch repository, queue, or YOLO |
 | Services | `services/` | combine repo + pipeline + integration; run business flow | SQL, vendor SDK detail, direct file I/O |
-| Repositories | `repositories/` | read/write JSON & JPEG via `LocalFileStorage` | PASS/FAIL rules, HTTP, inference, voting |
+| Repositories | `repositories/` | read/write SQLite (`console.db` for visits, accounts and history; the event log in its own file) and JSON or images via `LocalFileStorage` | PASS/FAIL rules, HTTP, inference, voting |
 | Pipelines | `pipelines/` | YOLO inference, frame processing, draw boxes | HTTP, file save, business rules, queue |
 | Domain | `domain/` | pure functions/dataclasses, zero I/O | import `cv2`/`httpx`/`fastapi`, read/write files |
 | Workers | `workers/` | background loop, queue, lock, `RuntimeState` | return HTTP, save to file directly (delegate to repo) |
+| Schemas | `schemas/` | Pydantic models that validate input at the boundary and shape responses | logic, I/O |
+| Integrations | `integrations/` | the outside world: AutoERP client and outbox store, camera sources, file storage, R2 upload, notifications, scheduler | business rules, deciding a verdict |
+| PLC | `plc/` | MC Protocol and Modbus clients, pulse and hold, the PLC worker | deciding a verdict (that is `domain/`) |
+| Core | `core/` | `Settings` from env vars, DI factories, logging, constants | business rules; no other module reads env vars |
 
 ---
 
@@ -53,7 +59,15 @@
 mengirim gambar, tapi ada frame yang selesai digrading dalam `AI_MATI_DETIK` detik terakhir?
 Kalau tidak, AI dinyatakan mati, dan coil ERROR PLC, `/health` (503), serta kartu line konsol
 sama-sama membaca penilaian yang sama dari objek ini, bukan menghitung sendiri-sendiri. Detail
-aturan dan lima keadaan yang sengaja tidak dialarm: `domain/kesehatan_ai.py`, CLAUDE.md aturan 32.
+aturan dan lima keadaan yang sengaja tidak dialarm: `domain/kesehatan_ai.py`, `docs/rules.md` aturan 32.
+Sejak batch 3.6 objek yang sama juga menilai **frame berhenti** (kamera tersambung tapi tidak
+mengirim gambar): coil ERROR dan `/health` 503 seperti AI mati, `ai.mati` tetap AI saja (aturan 35).
+
+**Log line (batch 3.2).** WARNING/ERROR line dulu berhenti di stdout + `PenulisLogLine` (antrean
+memori tiap ~0,2 detik, thread deteksi tidak pernah menunggu disk, aturan 1b), sekarang juga
+ditulis ke `log_line.db` di folder DB line (maks 2.000 baris). Konsol menariknya ke tab Log
+(`TarikLogLineWorker`, tiap 10 detik), jadi galat line tetap terbaca sesudah container di-recreate.
+Aturan lengkapnya `docs/rules.md` aturan 34.
 
 ---
 
@@ -76,7 +90,7 @@ The visit message books `Mentah` from the REJ count, and JK is REJ (so are Ripe 
 forced to REJ for being stacked or too small). The 2026-09-16 design wanted JK kept on
 the edge (`Sampah` is weighed, not seen by a camera, and JK in `Mentah` overstates the
 share the supplier is docked for). Which one is intended is undecided (found
-2026-09-28); see CLAUDE.md rule 0.
+2026-09-28); see `docs/rules.md` rule 0.
 
 ```
 each YOLO frame (ByteTrack assigns track_id per object):
@@ -741,7 +755,7 @@ hidup sekarang. Tidak ada endpoint baru: ringkasannya menumpang `/api/console/st
 `sinkron`), dan blok `unggah` tiap line menumpang `/internal/status` yang sudah di-poll tiap
 detik. Semua worker yang bicara ke luar mencatat hasilnya ke satu `StatusSinkron`, dan
 `CekSinkronWorker` mengecek AutoERP (`ping`) dan R2 (`head_object`) tiap 60 detik supaya warnanya
-tetap segar saat tidak ada data yang lewat. Aturan lengkapnya `CLAUDE.md` aturan 27.
+tetap segar saat tidak ada data yang lewat. Aturan lengkapnya `docs/rules.md` aturan 27.
 
 **Login (Fase 4, §6.5).** Layar tertutup gerbang **email + sandi** sampai ada yang masuk, dan
 **semua** `/api/console/*` menjawab 401 `belum_masuk` tanpa cookie `konsol_sesi`, kecuali
@@ -754,20 +768,20 @@ jadi tidak akan ada yang bisa ditarik. Dua skema berdampingan: `pbkdf2_sha256` m
 (dibaca `hashlib` saja) dan `scrypt` untuk akun lokal. Sesi 12 jam (`sesi`), lockout berlipat dua
 sesudah lima kali salah, dan `requested_by` Reject Manual sekarang nama operator yang masuk,
 bukan lagi string `"operator"`. Akun lokal dibuat dari PC dengan `make operator`, dan sejak
-2026-09-26 juga dari tab Akun (support) dengan aturan yang sama. Rincian aturannya di `CLAUDE.md`
-invarian 19.
+2026-09-26 juga dari tab Akun (support) dengan aturan yang sama. Rincian aturannya di `docs/rules.md`
+aturan 19.
 
 **Impor grading dari CSV (2026-09-27, support).** Kebalikan Unduh CSV di tab Rekap: CSV Per janjang
 dari konsol ini atau PC lain dibaca ulang jadi janjang (misalnya memindahkan riwayat ke PC baru, atau
 memulihkan hari-hari yang terhapus Danger Zone). Periksa dulu, lalu impor berkas yang sama; janjang
 hari ini tidak diimpor, yang sudah ada dilewati, dan satu impor bisa dibatalkan utuh. Janjang impor
-tidak punya penugasan, jadi tidak pernah ikut pesan kunjungan ke AutoERP. Aturannya `CLAUDE.md`
+tidak punya penugasan, jadi tidak pernah ikut pesan kunjungan ke AutoERP. Aturannya `docs/rules.md`
 aturan 26.
 
 **Belum termasuk Fase 2** (sengaja): timbangan brondolan lewat PLC (§6.6b, Fase 3), nomor dokumen
 berprefiks lokal (§6.3), dan toggle tampil/sembunyi per line. Riwayat lintas hari dulu juga di
 daftar ini ("urusan cloud"); sekarang ada di tab **Rekap** konsol (maks 31 hari per tampilan,
-CLAUDE.md invarian 26; tab Riwayat digabung ke Rekap 2026-09-28), karena cloud lama sudah mati
+`docs/rules.md` aturan 26; tab Riwayat digabung ke Rekap 2026-09-28), karena cloud lama sudah mati
 dan AutoERP cuma menerima rekap per truk.
 
 **Tests** (`tests/unit/test_working_day.py`, `test_console_store.py`, murni-logic; satu-satunya yang
@@ -785,3 +799,101 @@ bukan menambal method privat service. `test_console_html.py` menjaga dua invaria
 punya test runner sendiri (tanpa build step, jadi tanpa Vitest): tidak ada handler `on*` inline,
 tombol dipasang lewat delegasi + `data-line`, dan `esc()` tetap meloloskan `'` dan `` ` ``,
 karena nilainya masuk ke atribut HTML.
+
+
+## 12. System role, tech stack and project structure (moved from CLAUDE.md 2026-09-30)
+
+## System Role
+
+`autograde` is the **Python AI camera service plus the operator console**, one image run four
+times: **3 line containers** (one per camera, real-time YOLO ripeness detection, ports
+8001/8002/8003) and a **4th console container** (`APP_MODE=console`, `console_main.py`, no
+torch/cv2 so a dead camera line never takes the operator screen down). The lines deliver
+detection events to the **local console** (`BACKEND_URL`); the console sends one message per truck
+visit to **AutoERP**. palmgrade-api and palmgrade-frontend are **retired** (stopped 2026-09-20).
+
+Console port: **8100** in `docker-compose.prod.yml` (factory image; 8000 there belongs to the
+Frappe bench) and for `make console` on a laptop; **8000** when started from source with
+`docker-compose.yml` alone (`make up`). Screen at `http://localhost:<port>/console`.
+
+| Repo | Role | Tech | Port |
+|---|---|---|---|
+| **autograde** | **AI camera per line + operator console** | **Python 3.11 / FastAPI** | **8001-8003, console 8100** |
+| autoerp | ERP (ERPNext fork, module `palm_mill`): per-visit books, licences | Frappe | server |
+| palmgrade-api / palmgrade-frontend | retired 2026-09-20 | Node / Next.js | stopped |
+
+Full system map: `../ARCHITECTURE.md`.
+
+⚠️ **Repo ini dulu bernama `palmgrade-vision`** (diganti 2026-09-14, bareng `autoerp` pindah
+ke org `delta-anugrah`). Yang **sengaja tidak ikut berubah**, jangan "dirapikan":
+
+- **Nama image GHCR `ghcr.io/delta-anugrah/autograde`**, satu nama, tanpa warisan (keputusan
+  2026-09-18: semuanya pindah ke AutoGrade, PC Lampung ikut; `palmgrade-vision` **dicabut**).
+  Dipatok di `deploy.yml` dan dijaga `tests/unit/test_deploy_image_name.py`. Di PC Lampung
+  image itu dipilih `PALMGRADE_AUTOGRADE_IMAGE` di `/opt/palmgrade/autograde/.env` (folder dan
+  variabel diganti dari `vision` 2026-09-18), dan dipasang dengan `autograde pull` atau
+  `autograde use vX.Y.Z`, tidak pernah dengan mengedit variabel itu tangan.
+- **Tag image lokal** `palmgrade-vision:latest` di `docker-compose.yml` + `Makefile`.
+- **Paket Python** `src/palmgrade/` dan **nama container** di compose repo (`ripe_line_*`,
+  `palmgrade_console`).
+
+Yang dua terakhir baru berganti kalau memang ada alasan kuat: mengganti nama container membuat
+Docker menganggapnya container baru dan bentrok dengan yang lama di PC pabrik.
+
+---
+
+## Tech Stack
+
+- Python 3.11, **FastAPI** + uvicorn
+- **Ultralytics YOLO** (YOLOv8 + ByteTrack); torch/torchvision (CPU for dev, CUDA `cu126` for prod)
+- OpenCV, NumPy
+- **httpx** (cloud upload + realtime push), **APScheduler** (hourly batch upload), **SQLite**
+  (`outbox.db` = antrean realtime ke API lokal, di `state/` sejak batch 1 (dulu `artifacts/`, folder
+  yang disajikan `/captures`); `UploadManifest` = state per-item batch R2), **boto3** (R2)
+- **Hikrobot MVS SDK** (GigE industrial camera: prod only)
+- **pymcprotocol** (MC Protocol ke CPU Mitsubishi, PLC integration, jalur hidup) + **pymodbus** (Modbus-TCP, jalur coupler ODOT lama, `PLC_PROTOCOL=modbus`); PC pabrik only, mati default
+- **Docker-only** (no host venv). Deps pinned in `requirements.txt` (torch installed separately in Dockerfile).
+
+---
+
+## Project Structure (key dirs)
+
+```
+src/palmgrade/
+  main.py          # app factory + lifespan: camera init, workers, 10s watchdog, /captures mount, /ws/results
+  console_main.py  # app factory KONSOL (APP_MODE=console) — sengaja terpisah: tidak boleh import torch/cv2
+  static/          # console.html — satu file, vanilla JS, tanpa build step & tanpa CDN (harus jalan offline)
+  core/            # config.py (Settings/env), dependencies.py (DI), logging.py, constants.py
+  routes/          # endpoint declarations only → controllers
+  controllers/     # request handlers
+  services/        # business flow (capture, inspection, streaming, truck, health, result)
+  repositories/    # file I/O (WebP/JSON) via LocalFileStorage
+  pipelines/       # YOLO inference (realtime_inspection_pipeline, model_registry)
+  workers/         # background threads + RuntimeState (capture / display / processing / capture_save / event_broadcast / outbox_retry / batch_upload)
+                   # capture_save = penulis bukti (encode WebP + sidecar + outbox) di thread sendiri; deteksi cuma menyerahkan, tidak pernah menunggu disk
+                   # konsol pakai asyncio, bukan thread: master_data (tarik supplier + truk) / erp_outbox (kirim ke AutoERP) / visit_resend (kirim ulang kunjungan kemarin) — dirakit di workers/erp_link.py, mati total kalau ERP_URL kosong
+  integrations/    # camera/{hikrobot,opencv,photo}, notifications/ (webhook_client → api, line_client → line dari konsol), storage/, scheduler/, upload/ (R2Uploader + UploadManifest), outbox/ (OutboxStore)
+  domain/          # pure rules + entities (no I/O) — termasuk working_day.py (§6.1) & ffb_source.py (§3.5b)
+  plc/             # PLC integration (MC Protocol ke CPU Mitsubishi; Modbus/ODOT dipertahankan via PLC_PROTOCOL), self-contained — mc_client.py + modbus_client.py isi lubang yang sama, build_plc_client memilih
+  schemas/         # Pydantic request/response models
+  license/         # Ed25519 license guard (opsional) — `manager` memverifikasi, `gate` menghentikan
+                   # grading, `summary` membentuk angka untuk layar. Tokennya DITERBITKAN di AutoERP.
+docs/              # MANUAL.md (+pdf), overview.md (DETAIL), backend-overview.md, SETUP.md, runbooks/
+tests/unit/        # unit test murni-logic (pytest, no torch/cv2)
+models/release/    # best.pt (required, NOT committed)
+artifacts/line-N/  # runtime output per line (NOT committed)
+```
+
+Tooling: `pyproject.toml` (pytest + ruff config, TIDAK untuk build), `.github/workflows/ci.yml` (lint + test,
+plus dipanggil `deploy.yml` sebelum image rilis mana pun dibangun).
+
+Layer rule (strict): `route → controller → service → repository / pipeline / integration`.
+Per-layer do/don't: `docs/overview.md`.
+**Pengecualian sadar:** konsol jalan `route → service → repository / integration`, tanpa
+controller: controller di repo ini isinya cuma meneruskan argumen, dan konsol tidak punya
+logika yang butuh tempat menganggur di antaranya. HTTP ke line tetap di lapisan integration
+(`notifications/line_client.py`), disuntik ke `ConsoleService` lewat konstruktor: service tidak
+boleh tahu soal httpx, dan test menukar kolaboratornya, bukan menambal method privat.
+
+---
+

@@ -458,10 +458,15 @@
   /* Worker satu per baris di bawah judul Workers, menjorok supaya terbaca
      sebagai anak judul itu, bukan baris diagnostik yang setara. */
   .kartu-grid dt.diag-worker { padding-left:14px; font-family:var(--mono); font-size:.8rem; }
+  /* Sebab line tak terbaca: satu kalimat utuh yang dibaca, bukan nilai yang boleh dipotong `…`. */
+  .kartu-grid dd.diag-sebab { white-space:normal; text-align:left; }
   /* ✓/✗ berwarna. Token tema, bukan hex: terang dan gelap punya hijau-merah
      sendiri, dan hex yang dipatok cuma terbaca di salah satunya. */
   .tanda-ok { color:var(--acc); font-weight:700; }
   .tanda-gagal { color:var(--rej); font-weight:700; }
+  /* Batch 3.7: sisa disk di bawah ambang peringatan. Kuning, bukan merah: perlu
+     dijadwalkan, belum darurat. */
+  .tanda-waspada { color:var(--warn); font-weight:700; }
 
   /* Uji PLC: the only card that moves hardware. DI bits are read-only text;
      coil buttons get the danger tokens piston.terbuka already uses, so the
@@ -516,9 +521,11 @@
 
      Lebarnya mengikuti layar (dulu dipatok 480 px). Di layar lebar pasangannya
      menyebar jadi beberapa kolom lewat `auto-fit`, jadi versi + machine id +
-     lisensi terbaca sekali pandang, bukan sebagai daftar sempit di pojok. */
+     lisensi terbaca sekali pandang, bukan sebagai daftar sempit di pojok. Tanpa
+     margin samping (user 2026-10-01): tepinya sejajar kartu Diagnostik dan tabel
+     antrean di tab Status, yang juga berdiri di padding panel. */
   .daftar-definisi { background:var(--card); border:1px solid var(--line-kuat);
-                      border-radius:var(--r-md); padding:14px var(--pad); margin:0 var(--pad);
+                      border-radius:var(--r-md); padding:14px var(--pad); margin:0;
                       display:grid; gap:8px 16px;
                       grid-template-columns:repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); }
   /* Tiap pasangan jadi satu sel: tanpa ini `auto-fit` memecah dt dan dd ke
@@ -759,7 +766,7 @@
      kartu - ketiga line membaca blok M yang sama dari satu PLC, jadi ini
      keadaan pabrik. Palet dan denyut sama dengan pita piston supaya dua hal
      "bahaya" di layar ini tidak punya dua bahasa visual. */
-  #pita-alarm { margin:10px 13px 0; padding:11px 13px; border-radius:var(--r-sm);
+  #pita-alarm { margin:10px var(--pad) 0; padding:11px 13px; border-radius:var(--r-sm);
                 background:var(--danger-fg); color:var(--danger-bg);
                 font-size:1.15rem; font-weight:700; text-align:center;
                 text-transform:uppercase; letter-spacing:.04em;
@@ -781,6 +788,28 @@
              animation:denyut-pita 1.6s ease-in-out infinite; }
   .pita-ai b { display:block; font-size:1rem; text-transform:uppercase; letter-spacing:.04em; }
   .pita-ai span { display:block; margin-top:4px; font-size:.85rem; font-weight:600; }
+  /* Disk PC hampir penuh (batch 3.7): satu pita untuk seluruh layar seperti
+     #pita-alarm, karena ketiga line menulis ke disk yang sama. Peringatan
+     memakai palet --warn dengan denyut pelan supaya operator melihatnya; kritis
+     memakai palet dan denyut bahaya yang sama dengan pita AI. */
+  #pita-disk { margin:10px var(--pad) 0; }
+  #pita-disk p { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px;
+                 margin:0 0 6px; padding:11px 13px; border-radius:var(--r-sm);
+                 background:var(--warn-bg); color:var(--warn); border-left:4px solid var(--warn);
+                 animation:denyut-pita 2.4s ease-in-out infinite; }
+  #pita-disk p.kritis { background:var(--danger-fg); color:var(--danger-bg); border-left:none;
+                        animation:denyut-pita 1.6s ease-in-out infinite; }
+  /* Satu baris: ikon, judul, garis tipis, rincian. Layar sempit boleh membungkus. */
+  #pita-disk .ikon-pita { flex:none; width:1.5rem; height:1.5rem; }
+  #pita-disk b { font-size:1rem; text-transform:uppercase; letter-spacing:.04em; }
+  #pita-disk span { padding-left:12px; border-left:2px solid currentColor; font-size:.9rem; font-weight:600; }
+  /* Peringatan bisa ditutup 24 jam (kritis tidak): tombol × di pojok, target 2.5rem untuk sarung tangan. */
+  #pita-disk p.peringatan { padding-right:3.5rem; }
+  #pita-disk .tutup { position:absolute; top:50%; right:.35rem; transform:translateY(-50%);
+                      min-width:2.5rem; min-height:2.5rem;
+                      padding:0; border:0; background:transparent; color:inherit;
+                      font-size:1.4rem; line-height:1; opacity:.7; cursor:pointer; }
+  #pita-disk .tutup:hover { opacity:1; }
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
@@ -869,6 +898,16 @@
   /* Pilihan di dalam tab Line (2026-09-28). */
   .line-sub-bar { display:flex; flex-wrap:wrap; gap:8px; padding:0 var(--pad) 14px; }
   .log-level button.aktif { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
+  /* Tab Log (batch 3.2/3.5): asal baris, waktu pertama, traceback, keadaan lapor Discord. */
+  .log-asal { display:inline-block; margin-right:6px; padding:2px 6px; border-radius:var(--r-xs);
+              background:var(--zebra); border:1px solid var(--line); font-size:.78rem; font-weight:700; }
+  .log-pertama { font-size:.78rem; }
+  .log-detail summary { cursor:pointer; }
+  .log-detail pre { margin:6px 0 0; max-height:18rem; overflow:auto; white-space:pre-wrap;
+                    font:.78rem/1.35 var(--mono); }
+  .log-discord { margin:0 var(--pad) 10px; font-size:.9rem; }
+  .log-discord.peringatan { color:var(--warn); font-weight:600; }
+  .log-discord.gagal { color:var(--rej); font-weight:700; }
   /* Empat pilihan Line membentang selebar panel, dibagi empat sama rata (permintaan
      operator 2026-09-29); layar sempit jadi 2 x 2, tetap sama lebar. `minmax(0,1fr)`,
      bukan `1fr`: label panjang tidak boleh melebarkan kolomnya sendiri. */
@@ -1362,6 +1401,7 @@
 </section>
 
 <div id="pita-alarm" hidden></div>
+<div id="pita-disk" hidden></div>
 <div id="lines"></div>
 
 <nav id="tabs">
@@ -1643,13 +1683,14 @@
     require_support. Identical messages are already merged into one row with
     a count (LogStore's merge window) - this screen just displays that.
   -->
+  <p id="log-discord" class="log-discord muted" hidden></p>
   <div class="tools">
     <span class="log-level" id="log-level" data-nilai="">
       <button type="button" class="aktif" data-nilai="" data-t="logSemua">Semua</button>
       <button type="button" data-nilai="ERROR">ERROR</button>
       <button type="button" data-nilai="WARNING">WARNING</button>
     </span>
-    <input id="log-cari" data-t-ph="phCariLog" placeholder="Cari pesan atau sumber" autocomplete="off">
+    <input id="log-cari" data-t-ph="phCariLog" placeholder="Cari pesan, sumber, atau line" autocomplete="off">
   </div>
   <div class="tabel">
     <table>
@@ -2387,11 +2428,11 @@ const KAMUS = {
     hambatan_tanpa_line:"Konsol tidak mengenal satu line pun.",
     hambatan_line_mati:"{line} tidak menjawab. Nyalakan dulu.",
     hambatan_truk_terpasang:"{line} masih punya truk yang ditugaskan. Lepas dulu truknya.",
-    hambatan_outbox_lama:"{line}: antrean janjang lama (outbox.db di folder artifacts) gagal dipindah ke folder state saat line menyala. Isinya belum sampai ke konsol dan tidak ikut terhitung. Restart line itu supaya dicoba lagi; kalau masih muncul, buka tab Log dan panggil teknisi.",
+    hambatan_outbox_lama:"{line}: antrean janjang lama gagal dipindah ke tempat barunya saat line menyala. Isinya belum sampai ke konsol dan tidak ikut terhitung. Restart line itu supaya dicoba lagi; kalau masih muncul, buka tab Log dan panggil teknisi.",
     hambatan_antrean_line:"{line} masih punya {jumlah} janjang yang belum sampai ke konsol. Tunggu sebentar.",
     hambatan_antrean_erp:"{jumlah} kiriman belum sampai ke AutoERP. Tunggu sampai antreannya kosong (tab Antrean ERP).",
     hambatan_tiket_terbuka:"{jumlah} truk sudah timbang masuk hari ini tapi belum timbang keluar. Tunggu sampai tiketnya lengkap.",
-    hambatan_tanpa_sumber_akun:"Hash akun support (CONSOLE_SUPPORT_HASH) di .env tidak terbaca dan AutoERP tidak disetel. Sesudah ini tidak ada yang bisa membuka menu support.",
+    hambatan_tanpa_sumber_akun:"Akun support dari pemasangan PC ini tidak terbaca dan AutoERP tidak disetel, jadi sesudah ini tidak ada yang bisa membuka menu support. Panggil teknisi dulu.",
     peringatan_foto_belum_r2:"Foto yang belum naik ke R2 ikut hilang.",
     peringatan_kiriman_gagal:"{jumlah} kiriman AutoERP yang gagal ikut terhapus.",
     peringatan_antrean_line_gagal:"{line} punya {jumlah} janjang yang ditolak konsol dan tidak akan terkirim lagi. Janjang itu ikut terhapus.",
@@ -2406,7 +2447,7 @@ const KAMUS = {
     lineHasil_line_mati:"tidak menjawab", lineHasil_ditolak:"ditolak", lineHasil_gagal:"gagal",
     lineHasil_versi_lama:"versi line lama, perbarui dulu", lineHasil_lisensi:"lisensi line habis",
     lineHasil_belum_mati:"diterima tapi belum restart, datanya terhapus saat line restart",
-    setelanDariEnv:"Sumber: .env (belum pernah diubah dari sini)",
+    setelanDariEnv:"Sumber: bawaan pemasangan PC (belum pernah diubah dari sini)",
     setelanDariKonsol:"Sumber: konsol",
     labelHariIni:"Hari ini", labelRasio:"Rasio Ripe",
     lastSync:"Last Sync", sinkronErp:"AutoERP", sinkronCloud:"Cloud Photo",
@@ -2425,10 +2466,18 @@ const KAMUS = {
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"Masuk", thKeluar:"Keluar", thLama:"Lama", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
     thLevel:"Level", thPesan:"Pesan", thJumlah:"×",
-    phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan atau sumber",
+    phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan, sumber, atau line",
     hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
     hintGerbangKeluar:"Tekan Keluar di baris truknya pada tabel di bawah",
     logSemua:"Semua", kosongLog:"Belum ada galat tercatat", gagalLog:"Gagal memuat log",
+    logKonsol:"konsol", logPertama:"pertama {waktu}",
+    discordMati:"Lapor ke Discord: mati (DISCORD_WEBHOOK_URL kosong). Galat tetap tercatat di tab ini.",
+    discordUrlSalah:"Lapor ke Discord MATI: DISCORD_WEBHOOK_URL bukan alamat https yang bisa dipakai. Salin ulang alamat webhook dari Discord ke .env PC ini, lalu autograde restart.",
+    discordAktif:"Lapor ke Discord: aktif. Terakhir terkirim {terkirim}. {menunggu} galat menunggu ringkasan berikutnya (paling sering tiap 15 menit).",
+    discordTertahan:"Lapor ke Discord tertahan sejak {jam}: {galat}. {kiriman} pesan menunggu dan terkirim sendiri begitu internet ada, tidak ada yang dibuang.",
+    discordDitolak:"Lapor ke Discord DITOLAK pukul {jam} (HTTP {status}): webhook salah atau sudah dihapus. Periksa DISCORD_WEBHOOK_URL di .env PC ini, lalu autograde restart. {kiriman} pesan menunggu, tidak dibuang.",
+    discordRusak:"Lapor ke Discord MATI: antrean di disk rusak ({galat}). Pindahkan berkas state/console/lapor_discord.db di folder autograde PC ini, lalu autograde restart. Galat tetap tercatat di tab ini.",
+    discordIsiDitolak:"Discord menolak ISI pesan pukul {jam} (HTTP {status}), alamat webhook benar. Pesan yang 3 kali ditolak disisihkan dan tetap di disk; laporan berikutnya jalan terus. {kiriman} pesan menunggu, {disisihkan} disisihkan.",
     btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
@@ -2446,7 +2495,7 @@ const KAMUS = {
     restartJudul:"{line} sedang dinyalakan ulang", restartDetik:"{n} detik", restartMenit:"{n} menit",
     restartHapusJudul:"{line} sedang menghapus data lalu dinyalakan ulang",
     restartLamaJudul:"{line} belum kembali",
-    restartLamaRinci:"Kode {kode}. Restart diminta pukul {jam}. Sudah lewat {batas}, line ini belum mengirim gambar lagi. Cek tab Log dan terminal line itu.",
+    restartLamaRinci:"Restart diminta pukul {jam}. Sudah lewat {batas}, line ini belum mengirim gambar lagi. Cek tab Log dan terminal line itu.",
     toastTutup:"Tutup",
     sukTugaskan:"Truk ditugaskan di {line}", pelepasanOtomatis:"{line} dilepas otomatis karena {truk} sudah timbang keluar. Tugaskan lagi kalau bongkarnya belum selesai.", sukLepas:"Truk dilepas dari {line}",
     sukReject:"Reject manual tercatat di {line}", sukDaftar:"Truk terdaftar",
@@ -2456,15 +2505,32 @@ const KAMUS = {
     err_plat_kosong:"Nomor polisi tidak boleh kosong",
     err_bukan_plat:"Yang di-scan bukan nomor polisi",
     err_bukan_angka:"{field} bukan angka: {value}",
+    err_input_tidak_sah:"Isian {field} tidak sah",
+    qr:"Hasil scan", plate_number:"Nomor polisi", email:"Email", sandi:"Sandi",
+    supplier_id:"Pemasok", capacity:"Kapasitas", ref:"Nomor tiket", entered_at:"Jam masuk",
+    exited_at:"Jam keluar", net_kg:"Neto", body:"Data",
     err_negatif:"{field} tidak boleh negatif",
     err_di_bawah_minimum:"{field} {value} kg di bawah {minimum} kg. Cek pemisah ribuan, misalnya 14.820 terbaca 14,82",
     err_tara_lebih_besar:"Tara {tara} kg lebih besar dari bruto {bruto} kg",
     err_line_tidak_dikenal:"{line} tidak dikenal konsol",
     err_line_tidak_menjawab:"{line} tidak menjawab. Pastikan layanan kameranya menyala",
-    err_line_menolak:"{line} menolak perintah (HTTP {status})",
-    kartuKunciDitolak:"Kunci ditolak (HTTP {status}). Line ini hidup dan mungkin masih menggrading, tapi kuncinya beda dari konsol. Cocokkan INTERNAL_SECRET di konsol dan di line.",
+    err_line_menolak:"{line} menolak perintah. Panggil teknisi; rinciannya di tab Log",
+    // Kalimat umum untuk kode yang tidak dikenal atau tidak ada (alasan()), dan untuk konsol
+    // yang tidak menjawab sama sekali (api(), fetch ditolak). Tidak pernah teks server/browser.
+    err_umum:"Coba sekali lagi. Kalau tetap gagal, panggil teknisi; rinciannya ada di tab Log",
+    err_konsol_putus:"Konsol tidak menjawab. Tunggu sebentar lalu coba lagi; kalau tetap begitu, panggil teknisi",
+    gagalUmum:"Gagal",
+    err_ditolak:"Nilai yang dikirim ditolak. Periksa isian yang ditandai atau angka yang dimasukkan; rinciannya ada di tab Log",
+    gagalSetelan:"Gagal menyimpan setelan", gagalSetelanMuat:"Gagal memuat setelan",
+    gagalRekamSetelan:"Gagal menyimpan setelan rekaman", gagalRekamPerintah:"Perintah rekam gagal",
+    kartuKunciDitolak:"Kunci ditolak. Line ini hidup dan mungkin masih menggrading, tapi kuncinya beda dari konsol. Panggil teknisi untuk menyamakan kunci konsol dan line ini.",
     aiMatiJudul:"{line}: AI berhenti memproses",
-    aiMatiRinci:"Kode {kode}, sejak {jam}. Kamera mengirim gambar tapi tidak ada yang digrading, buah lewat tanpa disortir. Tahan umpan buah ke line ini dan panggil teknisi untuk restart line.",
+    aiMatiRinci:"Sejak {jam}. Kamera mengirim gambar tapi tidak ada yang digrading, buah lewat tanpa disortir. Tahan umpan buah ke line ini dan panggil teknisi untuk restart line.",
+    frameBerhentiJudul:"{line}: kamera berhenti mengirim gambar",
+    frameBerhentiRinci:"Sejak {jam}. Kamera tersambung tapi tidak ada gambar masuk, buah lewat tanpa disortir. Tahan umpan buah ke line ini dan panggil teknisi: periksa kabel data dan switch kamera, lalu restart line.",
+    diskHampirPenuhJudul:"Disk PC hampir penuh",
+    diskKritisJudul:"Disk PC hampir habis",
+    diskRinci:"Sejak {jam}, dilaporkan {line}. Sisa {bebas} GB dari {total} GB.",
     err_sandi_pendek:"Sandi minimal 8 karakter",
     err_sandi_salah:"Email atau sandi salah",
     err_terkunci:"Login terkunci {detik} detik lagi setelah beberapa sandi salah",
@@ -2492,17 +2558,29 @@ const KAMUS = {
     phScanKeluar:"QR keluar", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
     scanGanda:"Ada 2 tiket terbuka, pilih di tabel bawah untuk",
     rentangBaris:"{dari}-{sampai} dari {total}",
-    gerbangKosong:"Belum ada operator. Buat dulu di PC ini: make operator",
+    gerbangKosong:"Belum ada operator. Minta teknisi membuat akun operator di PC ini.",
     btnPistonBuka:"Buka piston", btnPistonTutup:"Tutup piston",
     pistonMenunggu:"Menunggu PLC…", pistonMati:"Piston mati",
     pistonBelumKonfirmasi:"belum dikonfirmasi PLC",
     pistonTerbuka:"PISTON TERBUKA. Hati-hati, besi bergerak",
     alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP DITEKAN: line berhenti darurat",
+    alarm_lain:"ALARM PLC menyala: periksa panel PLC",
     konfirmasiBuka:"Buka piston {line}? Ini menggerakkan besi.",
     labelInternal:"Internal · REJ tidak dibuang",
     gagalPiston:"Perintah piston gagal",
     thSebab:"Sebab", thKamera:"Kamera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Antrean lokal", lineTidakTerjangkau:"Tidak terjangkau",
+    // Kenapa konsol tidak bisa membaca satu line: `sebab_kode` dari backend
+    // (domain/line_tak_terbaca.py), dipakai kartu Diagnostik dan tabel Antrean line.
+    lineSebab_tak_terjangkau:"Line tidak menjawab sama sekali: mati atau sedang restart.",
+    lineSebab_bukan_line:"Yang menjawab di alamat line ini bukan line AutoGrade, atau versi line-nya terlalu lama. Panggil teknisi; rinciannya di tab Log.",
+    lineSebab_kunci_ditolak:"Line hidup tapi menolak kunci konsol, jadi datanya tidak terbaca. Panggil teknisi untuk menyamakan kunci konsol dan line itu.",
+    lineSebab_line_galat:"Line menjawab tapi sedang galat. Restart line lewat Setelan, Danger Zone; kalau masih muncul, panggil teknisi. Rinciannya di tab Log.",
+    lineSebab_lain:"Konsol tidak bisa membaca line ini. Rinciannya di tab Log.",
+    thFps:"FPS kamera / deteksi", thFrameTerakhir:"Gambar terakhir", thDisk:"Disk",
+    thLisensiLine:"Lisensi", thVersiModel:"Versi / model", thTersimpanGagal:"Janjang tak tersimpan",
+    thTpTelat:"TP telat", diagDetikLalu:"{n} dtk lalu", diagDiskBebas:"{bebas} GB bebas ({persen}%)",
+    diagPlcTakDiketahui:"tidak diketahui (line versi lama)",
     gagalDiagnostik:"Gagal memuat diagnostik",
     judulAkun:"Akun", thNama:"Nama", thEmail:"Email", thRole:"Role", thAsal:"Asal",
     thSedangMasuk:"Sedang masuk", thDibuat:"Dibuat",
@@ -2530,6 +2608,14 @@ const KAMUS = {
     antreanSekarang:"Sekarang",
     btnKirimUlang:"Kirim Ulang", ringkasAntrean:"{pending} menunggu · {gagal} gagal",
     kosongAntrean:"Antrean ERP kosong", gagalAntrean:"Gagal memuat antrean",
+    // Kenapa satu kiriman belum sampai: `error_kind` yang dicatat worker-nya. {tujuan} =
+    // AutoERP atau R2. Teks galat mentahnya (last_error) cuma untuk tab Log.
+    antreanSebab_tak_terjangkau:"{tujuan} tidak terjangkau. Kiriman ini menunggu dan terkirim sendiri begitu sambungan pulih.",
+    antreanSebab_kunci_ditolak:"{tujuan} menolak kunci PC ini, jadi tidak ada kiriman yang sampai. Panggil teknisi untuk memeriksa kuncinya.",
+    antreanSebab_ditolak:"{tujuan} menolak isi kiriman ini. Minta backoffice memeriksanya; rinciannya di tab Log.",
+    antreanSebab_galat_tujuan:"{tujuan} galat saat memproses kiriman ini; dicoba lagi sendiri. Kalau berulang, panggil teknisi; rinciannya di tab Log.",
+    antreanSebab_galat_konsol:"Konsol gagal menyiapkan atau mencatat kiriman ini. Panggil teknisi; rinciannya di tab Log.",
+    antreanSebab_lain:"Belum terkirim. Rinciannya di tab Log.",
     judulManifest:"Manifest R2", ringkasManifest:"{pending} menunggu · {gagal} gagal",
     kosongManifest:"Antrean manifest kosong", gagalManifest:"Gagal memuat antrean manifest",
     manifestNonaktif:"R2 belum disetel, jadi halaman detail truk tidak jalan di PKS ini.",
@@ -2538,19 +2624,17 @@ const KAMUS = {
     gagalAntreanLine:"Gagal memuat antrean line. Buka tab Log untuk rinciannya.",
     antreanLineKosong:"Kosong, semua janjang sudah sampai ke konsol",
     antreanLineMengirim:"Sedang dikirim ke konsol",
-    antreanLineNonaktif:"Pengiriman dimatikan (ENABLE_WEBHOOK=false). Janjang tetap disimpan dan baru terkirim sesudah ENABLE_WEBHOOK=true di .env line itu lalu line itu direstart.",
-    antreanLineLamaTertinggal:"Antrean lama (outbox.db di folder artifacts) belum terserap, jadi jumlahnya belum lengkap. Restart line itu; kalau masih muncul, buka tab Log dan panggil teknisi.",
-    antreanLinePutus_tak_terjangkau:"Konsol tidak terjangkau dari line ini sejak {sejak}. Line mencoba lagi sendiri tiap 30 detik dan tidak membuang janjang. Kalau berlangsung lama, periksa BACKEND_URL di .env line itu.",
-    antreanLinePutus_kunci_ditolak:"Konsol menolak kunci line ini sejak {sejak} (WEBHOOK_SECRET beda). Samakan WEBHOOK_SECRET di .env line dan konsol, lalu restart line itu.",
-    antreanLinePutus_alamat_salah:"Alamat konsol salah sejak {sejak}. Arahkan BACKEND_URL di .env line itu ke konsol (port 8100), lalu restart line itu.",
+    antreanLineNonaktif:"Pengiriman ke konsol dimatikan di setelan line ini. Janjang tetap disimpan dan baru terkirim sesudah teknisi menyalakannya lagi lalu line itu direstart.",
+    antreanLineLamaTertinggal:"Antrean lama belum terserap, jadi jumlahnya belum lengkap. Restart line itu; kalau masih muncul, buka tab Log dan panggil teknisi.",
+    antreanLinePutus_tak_terjangkau:"Konsol tidak terjangkau dari line ini sejak {sejak}. Line mencoba lagi sendiri tiap 30 detik dan tidak membuang janjang. Kalau berlangsung lama, panggil teknisi untuk memeriksa alamat konsol di setelan line itu.",
+    antreanLinePutus_kunci_ditolak:"Konsol menolak kunci line ini sejak {sejak}: kunci pengiriman line dan konsol beda. Panggil teknisi untuk menyamakannya, lalu restart line itu.",
+    antreanLinePutus_alamat_salah:"Alamat konsol di setelan line ini salah sejak {sejak}. Panggil teknisi untuk mengarahkannya ke konsol, lalu restart line itu.",
     antreanLinePutus_konsol_galat:"Konsol galat saat menerima janjang sejak {sejak}. Line terus mencoba; buka tab Log untuk sebabnya.",
-    antreanLineKunciKonsol:"Line menolak kunci konsol (HTTP {status}). Samakan INTERNAL_SECRET di .env konsol dan line itu, lalu restart.",
-    antreanLineTakTerjangkau:"Line tidak menjawab. Periksa kartunya di Diagnostik.",
-    antreanLineErrorLine:"Line menjawab HTTP {status}. Buka tab Log untuk sebabnya.",
-    antreanLineDitolak:"{jumlah} janjang DITOLAK konsol, terakhir pukul {jam} ({alasan}). Tidak dibuang dan dicoba lagi tiap 10 menit, tapi tidak akan sampai sendiri, dan selama masih ada, Danger Zone dan autograde reset-data menolak menghapus data. Buka tab Log untuk sebabnya, lalu panggil teknisi (MANUAL §7).",
+    antreanLineGalatTerakhir:"Pengiriman terakhir gagal pukul {jam}. Rinciannya di tab Log.",
+    antreanLineDitolak:"{jumlah} janjang DITOLAK konsol, terakhir pukul {jam}. Tidak dibuang dan dicoba lagi tiap 10 menit, tapi tidak akan sampai sendiri, dan selama masih ada, Danger Zone dan autograde reset-data menolak menghapus data. Buka tab Log untuk sebabnya, lalu panggil teknisi (MANUAL §7).",
     antreanLineDikirimUlang:"{line}: {jumlah} janjang dijadwalkan kirim sekarang",
-    antreanLineGagalKirimUlang:"Kirim Ulang {line} gagal pukul {jam} (kode {kode}): {alasan}. {saran}",
-    saranKunciLine:"Samakan INTERNAL_SECRET di .env konsol dan line itu, lalu restart.",
+    antreanLineGagalKirimUlang:"Kirim Ulang {line} gagal pukul {jam}: {alasan}. {saran}",
+    saranKunciLine:"Kunci konsol dan line itu perlu disamakan, lalu line itu direstart.",
     saranLineMati:"Periksa line itu di Diagnostik dan nyalakan lagi kalau mati.",
     saranMuatUlang:"Muat ulang halaman ini.",
     saranBukaLog:"Buka tab Log untuk rinciannya.",
@@ -2561,7 +2645,7 @@ const KAMUS = {
     infoTanpaToken:"Token lisensi belum dipasang", infoLisensiAktif:"Lisensi aktif",
     versiDariSource:"dev (dari source)",
     lisensiAktif:"Aktif", lisensiTanpaToken:"Aktif, token belum terpasang", lisensiMati:"Mati",
-    lisensiSaklarMati:"Mati. Token ada, tapi LICENSE_ENABLED tidak menyala di konsol",
+    lisensiSaklarMati:"Mati. Token ada, tapi saklar lisensi di konsol belum menyala. Panggil teknisi",
     labelAktifSampai:"Aktif sampai", labelTenggangSampai:"Tenggang sampai",
     labelPerusahaan:"Perusahaan", lisensiSisaHari:"{hari} hari lagi",
     lisensiTokenRusak:"Token tidak terbaca",
@@ -2610,9 +2694,9 @@ const KAMUS = {
     rekamMenunggu:"Menunggu…",
     rekamSelesai:"Rekaman tersimpan di folder videos/:",
     rekamDisimpanDi:"Disimpan di", thAksi:"Aksi",
-    rekam_keadaan_berubah:"Keadaan line sudah berubah, layar disegarkan",
-    rekam_disk_mepet:"Disk PC pabrik hampir penuh, rekaman tidak dimulai",
-    rekam_ditolak:"Line menolak perintah rekam",
+    err_rekam_keadaan_berubah:"Keadaan line sudah berubah, layar disegarkan",
+    err_rekam_disk_mepet:"Disk PC pabrik hampir penuh, rekaman tidak dimulai",
+    err_rekam_ditolak:"Line menolak perintah rekam",
     rekamMulai:"Rekam", rekamStop:"Stop",
     rekamSedangMerekam:"Merekam", rekamMati:"Mati", rekamTakTerbaca:"Tak terbaca",
     rekamDiskBebas:"Disk bebas", rekamSetelanJudul:"Setelan rekaman",
@@ -2633,24 +2717,29 @@ const KAMUS = {
     gagalSumberSimpan:"Gagal menyimpan sumber kamera",
     judulModelDeteksi:"Model Deteksi",
     modelPeringatan:"Mengganti model akan merestart line itu (sekitar 10 detik). Janjang yang lewat selama restart tidak dihitung.",
-    modelPilih:"Model", modelBawaan:"Bawaan PC", modelBawaanPanjang:"Bawaan PC (MODEL_FILE di .env)",
-    modelRinciBawaan:"Memakai MODEL_FILE di .env PC ini.",
+    modelPilih:"Model", modelBawaan:"Bawaan PC", modelBawaanPanjang:"Bawaan PC (model yang disetel saat pemasangan)",
+    modelRinciBawaan:"Memakai model bawaan yang disetel saat PC ini dipasang.",
     modelJalan:"Sedang jalan", modelJalanMemuat:"Menanyai line…",
     modelJalanTidakDilapor:"tidak dilaporkan (versi line lama)",
     modelJalanKelasAsing:"Kelas model yang sedang jalan bukan Ripe/Unripe/JK/TP, jadi line ini TIDAK menghitung janjang. Pilih model lain, atau build ulang engine-nya.",
     modelBelumBerlaku:"Pilihan sudah tersimpan tapi belum berlaku. Line belum restart atau gagal memuatnya.",
-    modelTidakBisa:"tidak bisa dipakai", modelHilang:"Berkas ini sudah tidak ada di models/release.",
+    modelTidakBisa:"tidak bisa dipakai", modelHilang:"Berkas model ini sudah tidak ada di PC.",
+    // Kenapa model tidak bisa dipakai: `alasan_kode` dari ModelLibrary (alasanModel).
+    modelAlasan_kelas_tak_terbaca:"Kelas model tidak terbaca, mungkin bukan model YOLO",
+    modelAlasan_kelas_asing:"Kelas tidak dikenal: {kelas}", modelAlasan_kelas_hilang:"Kelas hilang: {kelas}",
+    modelAlasan_nama_tak_sah:"Nama berkasnya tidak bisa dipakai (kutip di awal, tanda dolar, atau backtick). Minta teknisi mengganti nama berkasnya",
+    modelAlasan_lain:"Model ini tidak bisa dipakai",
     modelKelasTakTerbaca:"kelas tidak terbaca",
-    modelTanpaEngine:"Belum ada engine TensorRT, jadi line jalan di .pt (sekitar 2x lebih lambat).",
+    modelTanpaEngine:"Belum ada engine TensorRT, jadi line jalan tanpa engine (sekitar 2x lebih lambat).",
     modelEngineBasi:"basi, build ulang", modelEngineOk:"siap",
     modelEngineGpuLain:"untuk GPU lain",
-    modelTanpaEngineGpuIni:"Belum ada engine untuk GPU line ini ({sm}), jadi line jalan di .pt (sekitar 2x lebih lambat).",
+    modelTanpaEngineGpuIni:"Belum ada engine untuk GPU line ini ({sm}), jadi line jalan tanpa engine (sekitar 2x lebih lambat).",
     modelCocok:"Bisa dipakai",
     modelSemuaJudul:"Semua model di PC ini",
     thModelBerkas:"Berkas", thModelUkuran:"Ukuran", thModelKelas:"Kelas",
     thModelEngine:"Engine TensorRT", thModelStatus:"Status",
-    modelKosong:"Belum ada berkas .pt di models/release",
-    modelFolderTakTerbaca:"Folder {path} tidak bisa dibuka konsol, kemungkinan belum di-mount. Tambahkan ./models:/app/models:ro ke service console di compose (runbook Model Deteksi).",
+    modelKosong:"Belum ada berkas model di PC ini",
+    modelFolderTakTerbaca:"Folder model tidak bisa dibuka konsol, kemungkinan belum dipasang ke konsol. Panggil teknisi; langkahnya ada di runbook Model Deteksi.",
     btnModelSimpan:"Simpan & Restart", btnModelJalankan:"Ganti & Restart",
     modelModalJudul:"Ganti model dan restart line?",
     modelModalRestart:"Line di atas akan restart sekitar 10 detik. Janjang yang lewat selama itu tidak dihitung.",
@@ -2749,11 +2838,11 @@ const KAMUS = {
     hambatan_tanpa_line:"The console does not know any line.",
     hambatan_line_mati:"{line} is not answering. Start it first.",
     hambatan_truk_terpasang:"{line} still has a truck assigned. Release the truck first.",
-    hambatan_outbox_lama:"{line}: the old bunch queue (outbox.db in the artifacts folder) failed to move to the state folder when the line started. It has not reached the console and is not counted. Restart that line to retry; if it still shows, open the Log tab and call a technician.",
+    hambatan_outbox_lama:"{line}: the old bunch queue failed to move to its new place when the line started. It has not reached the console and is not counted. Restart that line to retry; if it still shows, open the Log tab and call a technician.",
     hambatan_antrean_line:"{line} still has {jumlah} bunches that have not reached the console. Wait a moment.",
     hambatan_antrean_erp:"{jumlah} messages have not reached AutoERP yet. Wait until the queue is empty (ERP Queue tab).",
     hambatan_tiket_terbuka:"{jumlah} trucks weighed in today but have not weighed out yet. Wait until their tickets are complete.",
-    hambatan_tanpa_sumber_akun:"There is no readable support account hash (CONSOLE_SUPPORT_HASH) in .env and AutoERP is not configured. Afterwards nobody could open the support menu.",
+    hambatan_tanpa_sumber_akun:"The support account set up with this PC cannot be read and AutoERP is not configured, so afterwards nobody could open the support menu. Call a technician first.",
     peringatan_foto_belum_r2:"Photos not yet uploaded to R2 are lost too.",
     peringatan_kiriman_gagal:"{jumlah} failed AutoERP messages are deleted too.",
     peringatan_antrean_line_gagal:"{line} has {jumlah} bunches the console refused. They will never be sent and are deleted too.",
@@ -2768,7 +2857,7 @@ const KAMUS = {
     lineHasil_line_mati:"not answering", lineHasil_ditolak:"refused", lineHasil_gagal:"failed",
     lineHasil_versi_lama:"old line version, update it first", lineHasil_lisensi:"line licence expired",
     lineHasil_belum_mati:"accepted but not restarted yet, its data is deleted when it restarts",
-    setelanDariEnv:"Source: .env (never changed from here)",
+    setelanDariEnv:"Source: the PC's installation default (never changed from here)",
     setelanDariKonsol:"Source: console",
     labelHariIni:"Today", labelRasio:"Ripe rate",
     lastSync:"Last Sync", sinkronErp:"AutoERP", sinkronCloud:"Cloud Photo",
@@ -2785,10 +2874,18 @@ const KAMUS = {
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
     thMasuk:"In", thKeluar:"Out", thLama:"Duration", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
     thLevel:"Level", thPesan:"Message", thJumlah:"×",
-    phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message or source",
+    phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message, source, or line",
     hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
     hintGerbangKeluar:"Press Out on the truck's row in the table below",
     logSemua:"All", kosongLog:"No faults logged yet", gagalLog:"Failed to load the log",
+    logKonsol:"console", logPertama:"first {waktu}",
+    discordMati:"Discord report: off (DISCORD_WEBHOOK_URL is empty). Faults are still logged on this tab.",
+    discordUrlSalah:"Discord report OFF: DISCORD_WEBHOOK_URL is not a usable https address. Copy the webhook address from Discord into this PC's .env again, then run autograde restart.",
+    discordAktif:"Discord report: on. Last sent {terkirim}. {menunggu} faults wait for the next digest (at most every 15 minutes).",
+    discordTertahan:"Discord report held since {jam}: {galat}. {kiriman} messages wait and go out by themselves once the internet is back; nothing is dropped.",
+    discordDitolak:"Discord report REFUSED at {jam} (HTTP {status}): the webhook is wrong or was deleted. Check DISCORD_WEBHOOK_URL in this PC's .env, then run autograde restart. {kiriman} messages wait; nothing is dropped.",
+    discordRusak:"Discord report OFF: the queue on disk is corrupt ({galat}). Move the file state/console/lapor_discord.db out of the autograde folder on this PC, then run autograde restart. Faults are still logged on this tab.",
+    discordIsiDitolak:"Discord refused the CONTENT of a message at {jam} (HTTP {status}); the webhook address is fine. A message refused 3 times is set aside and kept on disk; later reports keep going. {kiriman} messages wait, {disisihkan} set aside.",
     btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
@@ -2806,7 +2903,7 @@ const KAMUS = {
     restartJudul:"{line} is restarting", restartDetik:"{n} s", restartMenit:"{n} min",
     restartHapusJudul:"{line} is deleting its data, then restarting",
     restartLamaJudul:"{line} has not come back",
-    restartLamaRinci:"Code {kode}. Restart requested at {jam}. After {batas} this line has still not sent a picture. Check the Log tab and that line's terminal.",
+    restartLamaRinci:"Restart requested at {jam}. After {batas} this line has still not sent a picture. Check the Log tab and that line's terminal.",
     toastTutup:"Dismiss",
     sukTugaskan:"Truck assigned on {line}", pelepasanOtomatis:"{line} was released automatically because {truk} has weighed out. Assign it again if unloading is not finished.", sukLepas:"Truck released from {line}",
     sukReject:"Manual reject recorded on {line}", sukDaftar:"Truck registered",
@@ -2816,15 +2913,30 @@ const KAMUS = {
     err_plat_kosong:"Plate number cannot be empty",
     err_bukan_plat:"What was scanned is not a plate number",
     err_bukan_angka:"{field} is not a number: {value}",
+    err_input_tidak_sah:"{field} is not valid",
+    qr:"Scan", plate_number:"Plate number", email:"Email", sandi:"Password",
+    supplier_id:"Supplier", capacity:"Capacity", ref:"Ticket number", entered_at:"Time in",
+    exited_at:"Time out", net_kg:"Net", body:"Data",
     err_negatif:"{field} cannot be negative",
     err_di_bawah_minimum:"{field} {value} kg is below {minimum} kg. Check the thousands separator, e.g. 14.820 is read as 14.82",
     err_tara_lebih_besar:"Tare {tara} kg is greater than gross {bruto} kg",
     err_line_tidak_dikenal:"{line} is not known to the console",
     err_line_tidak_menjawab:"{line} is not responding. Check that its camera service is running",
-    err_line_menolak:"{line} refused the command (HTTP {status})",
-    kartuKunciDitolak:"Key refused (HTTP {status}). This line is alive and may still be grading, but its key differs from the console. Check that INTERNAL_SECRET matches on the console and on the line.",
+    err_line_menolak:"{line} refused the command. Call a technician; the details are in the Log tab",
+    err_umum:"Try once more. If it keeps failing, call a technician; the details are in the Log tab",
+    err_konsol_putus:"The console is not answering. Wait a moment and try again; if it stays that way, call a technician",
+    gagalUmum:"Failed",
+    err_ditolak:"The value sent was refused. Check the highlighted field or the numbers entered; the details are in the Log tab",
+    gagalSetelan:"Failed to save the settings", gagalSetelanMuat:"Failed to load the settings",
+    gagalRekamSetelan:"Failed to save the recording settings", gagalRekamPerintah:"The recording command failed",
+    kartuKunciDitolak:"Key refused. This line is alive and may still be grading, but its key differs from the console. Call a technician to make the console and line keys match.",
     aiMatiJudul:"{line}: AI stopped processing",
-    aiMatiRinci:"Code {kode}, since {jam}. The camera sends images but nothing is graded, fruit passes unsorted. Hold the fruit feed to this line and call a technician to restart the line.",
+    aiMatiRinci:"Since {jam}. The camera sends images but nothing is graded, fruit passes unsorted. Hold the fruit feed to this line and call a technician to restart the line.",
+    frameBerhentiJudul:"{line}: camera stopped sending images",
+    frameBerhentiRinci:"Since {jam}. The camera is connected but no image arrives, fruit passes unsorted. Hold the fruit feed to this line and call a technician: check the camera data cable and switch, then restart the line.",
+    diskHampirPenuhJudul:"PC disk almost full",
+    diskKritisJudul:"PC disk nearly out of space",
+    diskRinci:"Since {jam}, reported by {line}. {bebas} GB free of {total} GB.",
     err_sandi_pendek:"The password must be at least 8 characters",
     err_sandi_salah:"Wrong email or password",
     err_terkunci:"Sign-in locked for another {detik} s after repeated wrong passwords",
@@ -2850,17 +2962,27 @@ const KAMUS = {
     phScanKeluar:"QR out", scanTakAdaTiket:"No open ticket today for",
     scanGanda:"Two open tickets, pick one in the table below for",
     rentangBaris:"{dari}-{sampai} of {total}",
-    gerbangKosong:"No operators yet. Create one on this PC: make operator",
+    gerbangKosong:"No operators yet. Ask a technician to create an operator account on this PC.",
     btnPistonBuka:"Open piston", btnPistonTutup:"Close piston",
     pistonMenunggu:"Waiting for PLC…", pistonMati:"Piston disabled",
     pistonBelumKonfirmasi:"not confirmed by PLC",
     pistonTerbuka:"PISTON OPEN. Moving metal, stand clear",
     alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP PRESSED: emergency stop active",
+    alarm_lain:"PLC ALARM on: check the PLC panel",
     konfirmasiBuka:"Open the piston on {line}? This moves metal.",
     labelInternal:"Internal · REJ not discarded",
     gagalPiston:"Piston command failed",
     thSebab:"Reason", thKamera:"Camera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Local queue", lineTidakTerjangkau:"Unreachable",
+    lineSebab_tak_terjangkau:"The line does not answer at all: it is down or restarting.",
+    lineSebab_bukan_line:"Something other than an AutoGrade line answers at this line's address, or the line version is too old. Call a technician; the details are in the Log tab.",
+    lineSebab_kunci_ditolak:"The line is alive but refuses the console key, so its data cannot be read. Call a technician to make the console and line keys match.",
+    lineSebab_line_galat:"The line answers but reports an error. Restart the lines under Settings, Danger Zone; if it stays, call a technician. The details are in the Log tab.",
+    lineSebab_lain:"The console cannot read this line. The details are in the Log tab.",
+    thFps:"Camera / detection FPS", thFrameTerakhir:"Last image", thDisk:"Disk",
+    thLisensiLine:"Licence", thVersiModel:"Version / model", thTersimpanGagal:"Bunches not saved",
+    thTpTelat:"Late TP", diagDetikLalu:"{n} s ago", diagDiskBebas:"{bebas} GB free ({persen}%)",
+    diagPlcTakDiketahui:"unknown (older line version)",
     gagalDiagnostik:"Failed to load diagnostics",
     judulAkun:"Users", thNama:"Name", thEmail:"Email", thRole:"Role", thAsal:"Source",
     thSedangMasuk:"Signed in", thDibuat:"Created",
@@ -2888,6 +3010,12 @@ const KAMUS = {
     antreanSekarang:"Now",
     btnKirimUlang:"Resend", ringkasAntrean:"{pending} pending · {gagal} failed",
     kosongAntrean:"ERP queue is empty", gagalAntrean:"Failed to load the queue",
+    antreanSebab_tak_terjangkau:"{tujuan} cannot be reached. This message waits and goes out by itself once the connection is back.",
+    antreanSebab_kunci_ditolak:"{tujuan} refuses this PC's key, so no message gets through. Call a technician to check the key.",
+    antreanSebab_ditolak:"{tujuan} refused the content of this message. Ask the back office to check it; the details are in the Log tab.",
+    antreanSebab_galat_tujuan:"{tujuan} failed while processing this message; it is retried on its own. If it keeps happening, call a technician; the details are in the Log tab.",
+    antreanSebab_galat_konsol:"The console failed to prepare or record this message. Call a technician; the details are in the Log tab.",
+    antreanSebab_lain:"Not sent yet. The details are in the Log tab.",
     judulManifest:"R2 manifest", ringkasManifest:"{pending} pending · {gagal} failed",
     kosongManifest:"Manifest queue is empty", gagalManifest:"Failed to load the manifest queue",
     manifestNonaktif:"R2 is not configured, so the truck detail page does not work at this mill.",
@@ -2896,19 +3024,17 @@ const KAMUS = {
     gagalAntreanLine:"Failed to load the line queue. Open the Log tab for details.",
     antreanLineKosong:"Empty, every bunch has reached the console",
     antreanLineMengirim:"Sending to the console",
-    antreanLineNonaktif:"Sending is switched off (ENABLE_WEBHOOK=false). Bunches are kept and only sent after ENABLE_WEBHOOK=true in that line's .env and a restart of that line.",
-    antreanLineLamaTertinggal:"The old queue (outbox.db in the artifacts folder) was not absorbed, so this count is incomplete. Restart that line; if it stays, open the Log tab and call a technician.",
-    antreanLinePutus_tak_terjangkau:"The console has been unreachable from this line since {sejak}. The line retries on its own every 30 seconds and drops nothing. If it lasts, check BACKEND_URL in that line's .env.",
-    antreanLinePutus_kunci_ditolak:"The console has refused this line's key since {sejak} (WEBHOOK_SECRET differs). Make WEBHOOK_SECRET the same in the line and console .env, then restart that line.",
-    antreanLinePutus_alamat_salah:"Wrong console address since {sejak}. Point BACKEND_URL in that line's .env at the console (port 8100), then restart that line.",
+    antreanLineNonaktif:"Sending to the console is switched off in this line's settings. Bunches are kept and only sent after a technician switches it back on and restarts that line.",
+    antreanLineLamaTertinggal:"The old queue was not absorbed, so this count is incomplete. Restart that line; if it stays, open the Log tab and call a technician.",
+    antreanLinePutus_tak_terjangkau:"The console has been unreachable from this line since {sejak}. The line retries on its own every 30 seconds and drops nothing. If it lasts, call a technician to check the console address in that line's settings.",
+    antreanLinePutus_kunci_ditolak:"The console has refused this line's key since {sejak}: the line's and the console's sending keys differ. Call a technician to make them match, then restart that line.",
+    antreanLinePutus_alamat_salah:"The console address in this line's settings has been wrong since {sejak}. Call a technician to point it at the console, then restart that line.",
     antreanLinePutus_konsol_galat:"The console has been failing to take bunches since {sejak}. The line keeps retrying; open the Log tab for the cause.",
-    antreanLineKunciKonsol:"The line refused the console key (HTTP {status}). Make INTERNAL_SECRET the same in the console and line .env, then restart.",
-    antreanLineTakTerjangkau:"The line is not responding. Check its card under Diagnostics.",
-    antreanLineErrorLine:"The line answered HTTP {status}. Open the Log tab for the cause.",
-    antreanLineDitolak:"{jumlah} bunches REFUSED by the console, last at {jam} ({alasan}). Not dropped and retried every 10 minutes, but they will never arrive on their own, and while they remain, Danger Zone and autograde reset-data refuse to delete data. Open the Log tab for the cause, then call a technician (MANUAL §7).",
+    antreanLineGalatTerakhir:"The last send failed at {jam}. The details are in the Log tab.",
+    antreanLineDitolak:"{jumlah} bunches REFUSED by the console, last at {jam}. Not dropped and retried every 10 minutes, but they will never arrive on their own, and while they remain, Danger Zone and autograde reset-data refuse to delete data. Open the Log tab for the cause, then call a technician (MANUAL §7).",
     antreanLineDikirimUlang:"{line}: {jumlah} bunches scheduled to send now",
-    antreanLineGagalKirimUlang:"Resend {line} failed at {jam} (code {kode}): {alasan}. {saran}",
-    saranKunciLine:"Make INTERNAL_SECRET the same in the console and line .env, then restart.",
+    antreanLineGagalKirimUlang:"Resend {line} failed at {jam}: {alasan}. {saran}",
+    saranKunciLine:"The console and line keys need to match, then that line restarted.",
     saranLineMati:"Check that line under Diagnostics and start it again if it is down.",
     saranMuatUlang:"Reload this page.",
     saranBukaLog:"Open the Log tab for details.",
@@ -2919,7 +3045,7 @@ const KAMUS = {
     infoTanpaToken:"No licence token installed", infoLisensiAktif:"Licence active",
     versiDariSource:"dev (from source)",
     lisensiAktif:"Active", lisensiTanpaToken:"Active, no token installed", lisensiMati:"Inactive",
-    lisensiSaklarMati:"Inactive. A token is installed, but LICENSE_ENABLED is off for the console",
+    lisensiSaklarMati:"Inactive. A token is installed, but the console's licence switch is off. Call a technician",
     labelAktifSampai:"Active until", labelTenggangSampai:"Grace until",
     labelPerusahaan:"Company", lisensiSisaHari:"{hari} days left",
     lisensiTokenRusak:"Token unreadable",
@@ -2968,9 +3094,9 @@ const KAMUS = {
     rekamMenunggu:"Working…",
     rekamSelesai:"Recording saved in the videos/ folder:",
     rekamDisimpanDi:"Saved in", thAksi:"Action",
-    rekam_keadaan_berubah:"The line's state changed, so the screen was refreshed",
-    rekam_disk_mepet:"The mill PC is low on disk, so recording did not start",
-    rekam_ditolak:"The line refused the recording command",
+    err_rekam_keadaan_berubah:"The line's state changed, so the screen was refreshed",
+    err_rekam_disk_mepet:"The mill PC is low on disk, so recording did not start",
+    err_rekam_ditolak:"The line refused the recording command",
     rekamMulai:"Record", rekamStop:"Stop",
     rekamSedangMerekam:"Recording", rekamMati:"Off", rekamTakTerbaca:"Unreachable",
     rekamDiskBebas:"Free disk", rekamSetelanJudul:"Recording settings",
@@ -2991,24 +3117,28 @@ const KAMUS = {
     gagalSumberSimpan:"Failed to save camera source",
     judulModelDeteksi:"Detection Model",
     modelPeringatan:"Changing the model restarts that line (about 10 seconds). Bunches that pass during the restart are not counted.",
-    modelPilih:"Model", modelBawaan:"PC default", modelBawaanPanjang:"PC default (MODEL_FILE in .env)",
-    modelRinciBawaan:"Uses MODEL_FILE from this PC's .env.",
+    modelPilih:"Model", modelBawaan:"PC default", modelBawaanPanjang:"PC default (the model set at installation)",
+    modelRinciBawaan:"Uses the default model set when this PC was installed.",
     modelJalan:"Running now", modelJalanMemuat:"Asking the line…",
     modelJalanTidakDilapor:"not reported (older line version)",
     modelJalanKelasAsing:"The running model's classes are not Ripe/Unripe/JK/TP, so this line counts NO bunches. Pick another model, or rebuild its engine.",
     modelBelumBerlaku:"The saved choice is not active yet. The line has not restarted or failed to load it.",
-    modelTidakBisa:"cannot be used", modelHilang:"This file is no longer in models/release.",
+    modelTidakBisa:"cannot be used", modelHilang:"This model file is no longer on the PC.",
+    modelAlasan_kelas_tak_terbaca:"Model classes unreadable, probably not a YOLO model",
+    modelAlasan_kelas_asing:"Unknown classes: {kelas}", modelAlasan_kelas_hilang:"Missing classes: {kelas}",
+    modelAlasan_nama_tak_sah:"The file name cannot be used (a leading quote, a dollar sign or a backtick). Ask a technician to rename the file",
+    modelAlasan_lain:"This model cannot be used",
     modelKelasTakTerbaca:"classes unreadable",
-    modelTanpaEngine:"No TensorRT engine yet, so the line runs the .pt (about 2x slower).",
+    modelTanpaEngine:"No TensorRT engine yet, so the line runs without one (about 2x slower).",
     modelEngineBasi:"stale, rebuild", modelEngineOk:"ready",
     modelEngineGpuLain:"for another GPU",
-    modelTanpaEngineGpuIni:"No engine for this line's GPU ({sm}) yet, so the line runs the .pt (about 2x slower).",
+    modelTanpaEngineGpuIni:"No engine for this line's GPU ({sm}) yet, so the line runs without one (about 2x slower).",
     modelCocok:"Usable",
     modelSemuaJudul:"All models on this PC",
     thModelBerkas:"File", thModelUkuran:"Size", thModelKelas:"Classes",
     thModelEngine:"TensorRT engine", thModelStatus:"Status",
-    modelKosong:"No .pt files in models/release yet",
-    modelFolderTakTerbaca:"The console cannot open {path}, probably because it is not mounted. Add ./models:/app/models:ro to the console service in compose (Model Deteksi runbook).",
+    modelKosong:"No model files on this PC yet",
+    modelFolderTakTerbaca:"The console cannot open the model folder, probably because it is not attached to the console. Call a technician; the steps are in the Model Deteksi runbook.",
     btnModelSimpan:"Save & Restart", btnModelJalankan:"Change & Restart",
     modelModalJudul:"Change the model and restart the line?",
     modelModalRestart:"The lines above restart for about 10 seconds. Bunches passing during that time are not counted.",
@@ -3385,7 +3515,7 @@ function keHalaman(nomor) {
   const per = Number(gradingPer);
   const jumlah = Math.max(1, Math.ceil(gradingTotal / per));
   // Clamped on both sides: a negative offset or one past the end of the list
-  // is answered 422 by the server, and the screen just shows an error with no
+  // is answered 400 input_tidak_sah by the server, and the screen just shows an error with no
   // visible cause.
   const aman = Math.max(1, Math.min(nomor, jumlah));
   const baru = (aman - 1) * per;
@@ -3478,6 +3608,36 @@ const detak = () => { $("jam").textContent = waktu(new Date()); };
 // The gate's own lanes. Everything else can only answer 401 while the gate is up.
 const LANE_GERBANG = new Set(["/api/console/operators", "/api/console/login", "/api/console/me"]);
 
+// fetch yang mengubah "tidak ada jawaban sama sekali" (konsol mati, jaringan putus) jadi
+// kode layar sendiri, `konsol_putus`: teks browser ("Failed to fetch", "NetworkError when
+// attempting to fetch resource") tidak pernah sampai ke layar (keputusan user 2026-10-01).
+async function ambil(path, opts) {
+  try {
+    return await fetch(path, opts);
+  } catch (galat) {
+    const putus = new Error(t("err_konsol_putus"));
+    putus.kode = "konsol_putus";
+    putus.params = {};
+    throw putus;
+  }
+}
+
+// The error for an answer that is not ok, shared by api() and the CSV download.
+// Operator routes send {code, params, message}; machine lanes send plain text. The
+// message is for devtools only: the screen words the code (alasan), never the text;
+// `status` lets alasan() tell a refused value (uncoded 4xx) from a failure.
+async function galatJawaban(res) {
+  const detail = (await res.json().catch(() => ({}))).detail;
+  const err = new Error((typeof detail === "string" ? detail : detail?.message) || `HTTP ${res.status}`);
+  err.kode = detail?.code;
+  err.params = detail?.params || {};
+  err.status = res.status;
+  // The session is gone (expired, signed out elsewhere, operator switched off):
+  // back to the gate, not a red banner over a screen that silently stopped updating.
+  if (res.status === 401 && err.kode === "belum_masuk") bukaGerbang();
+  return err;
+}
+
 async function api(path, opts) {
   // A signed-out console left on all night would otherwise ask for data every 2 s
   // and be refused every time. The polls resume the moment someone signs in.
@@ -3488,31 +3648,40 @@ async function api(path, opts) {
     belum.kode = "belum_masuk";
     throw belum;
   }
-  const res = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
-  if (!res.ok) {
-    // Operator routes send {code, params, message}; machine lanes send plain text.
-    const detail = (await res.json().catch(() => ({}))).detail;
-    const err = new Error((typeof detail === "string" ? detail : detail?.message) || `HTTP ${res.status}`);
-    err.kode = detail?.code;
-    err.params = detail?.params || {};
-    // The session is gone (expired, signed out elsewhere, operator switched off):
-    // back to the gate, not a red banner over a screen that silently stopped updating.
-    if (res.status === 401 && err.kode === "belum_masuk") bukaGerbang();
-    throw err;
-  }
+  const res = await ambil(path, { headers: { "content-type": "application/json" }, ...opts });
+  if (!res.ok) throw await galatJawaban(res);
   return res.json();
 }
 
 // The sentence is built here from the code, so an error reads in one language.
-// Unknown code (or none) -> the server text, better than nothing.
-function alasan(e) {
-  const pola = e.kode && KAMUS[bahasa]["err_" + e.kode];
-  if (!pola) return e.message;
-  return pola.replace(/\{(\w+)\}/g, (_, k) => {
-    const v = e.params[k];
+// Never the server's or the browser's own text (user decision 2026-10-01: outside the
+// Log tab no system error text): an unknown code, or none, gets the generic advice,
+// headed by what failed when the caller names it (`gagal`, a KAMUS key).
+function kodeDikenal(e) {
+  return Boolean(e && e.kode && KAMUS[bahasa]["err_" + e.kode]);
+}
+
+// Saran untuk kode asing: penolakan 4xx tanpa kode (SetelanTidakSah dan kawan-kawan, 400)
+// berarti nilai yang ditolak, bukan "coba lagi"; 404 dan 5xx tetap kalimat umum.
+function saranUmum(e) {
+  const s = e && e.status;
+  return t(s >= 400 && s < 500 && s !== 404 ? "err_ditolak" : "err_umum");
+}
+
+function alasan(e, gagal = "gagalUmum") {
+  if (!kodeDikenal(e)) return `${t(gagal)}. ${saranUmum(e)}`;
+  const params = e.params || {};
+  return KAMUS[bahasa]["err_" + e.kode].replace(/\{(\w+)\}/g, (_, k) => {
+    const v = params[k];
     if (typeof v === "number") return v.toLocaleString(lokal());
     return k === "field" ? t(v) : String(v ?? "");
   });
+}
+
+// "Gagal mendaftarkan truk: <sebab>" for a known code. An unknown one reads
+// "Gagal mendaftarkan truk. Coba sekali lagi. …", not "…: Gagal. Coba…" twice.
+function gagalKarena(kunci, e) {
+  return kodeDikenal(e) ? `${t(kunci)}: ${alasan(e)}` : alasan(e, kunci);
 }
 
 function pesan(text) {
@@ -3687,28 +3856,32 @@ function pitaPiston(l) {
 function pitaKunciDitolak(l) {
   const p = l.plc || {};
   if (p.kode !== "line_menolak") return "";
-  const teks = t("kartuKunciDitolak").replace("{status}", p.status ?? "401");
-  return `<div class="pita-kunci">${esc(teks)}</div>`;
+  // Tanpa kode HTTP dan tanpa nama env (keputusan user 2026-10-01): WARNING-nya di tab Log.
+  return `<div class="pita-kunci">${esc(t("kartuKunciDitolak"))}</div>`;
 }
 
-// AI line berhenti memproses (batch 2.1, kode AI_MATI): kamera mengirim gambar
-// tapi tidak ada frame yang selesai digrading. DINILAI DI LINE
-// (services/penjaga_ai.py, blok `ai` di /internal/status), layar cuma
-// menggambar keputusan itu: menghitung ulang umur frame di sini berarti dua
-// aturan yang bisa berbeda dengan coil ERROR PLC. Line yang tidak terbaca tidak
-// menggambar pita ini: kartunya sudah OFFLINE.
+// Line yang terlihat hidup tapi tidak menyortir: AI berhenti memproses (batch
+// 2.1, kode AI_MATI) ATAU kamera tersambung tapi berhenti mengirim gambar
+// (batch 3.6, kode FRAME_BERHENTI). DINILAI DI LINE (services/penjaga_ai.py,
+// blok `ai` di /internal/status), layar cuma menggambar keputusan itu:
+// menghitung ulang umur frame di sini berarti dua aturan yang bisa berbeda
+// dengan coil ERROR PLC. Line yang tidak terbaca tidak menggambar pita ini:
+// kartunya sudah OFFLINE. `ai.mati` sengaja tetap AI saja (konsol versi lama
+// membacanya), jadi frame berhenti dikenali dari `keadaan`.
 function aiMati(l) {
   const p = l.plc || {};
-  return Boolean(p.reachable && p.ai && p.ai.mati);
+  return Boolean(p.reachable && p.ai && (p.ai.mati || p.ai.keadaan === "frame_berhenti"));
 }
 
 // `sekarang` cuma untuk test: jam hari ini ditulis jamnya saja, hari lain ikut tanggal.
 function pitaAi(l, sekarang = Date.now() / 1000) {
   if (!aiMati(l)) return "";
   const ai = l.plc.ai;
-  const judul = t("aiMatiJudul").replace("{line}", l.name || l.line_code);
-  const rinci = t("aiMatiRinci")
-    .replace("{kode}", ai.kode || "AI_MATI")
+  const frame = ai.keadaan === "frame_berhenti";
+  const judul = t(frame ? "frameBerhentiJudul" : "aiMatiJudul").replace("{line}", l.name || l.line_code);
+  // Line, jam mulai, dan tindakan; kodenya (AI_MATI, FRAME_BERHENTI) cuma di tab Log
+  // (keputusan user 2026-10-01: di luar tab Log tidak ada kode galat).
+  const rinci = t(frame ? "frameBerhentiRinci" : "aiMatiRinci")
     .replace("{jam}", jamSinkron(ai.sejak, sekarang) || KOSONG);
   return `<div class="pita-ai" role="alert"><b>${esc(judul)}</b><span>${esc(rinci)}</span></div>`;
 }
@@ -3750,11 +3923,88 @@ function gambarPitaAlarm(lines) {
   const alarms = gabungAlarm(lines);
   if (!alarms.length) { el.hidden = true; el.textContent = ""; return; }
   el.innerHTML = alarms.map((a) => {
-    const teks = t("alarm_" + a.code).replace("{n}", a.n === undefined ? "" : String(a.n));
+    // Kode yang tidak dikenal KAMUS (PLC atau line versi baru): kalimat umum, tidak pernah
+    // kunci mentah `alarm_<code>` (keputusan user 2026-10-01); alarmnya tetap terlihat.
+    const kunci = KAMUS[bahasa]["alarm_" + a.code] ? "alarm_" + a.code : "alarm_lain";
+    const teks = t(kunci).replace("{n}", a.n === undefined ? "" : String(a.n));
     return `<span>${esc(teks)}</span>`;
   }).join("");
   el.hidden = false;
 }
+
+// Disk PC hampir penuh (batch 3.7). Tiap line mengukur partisi yang dia tulis
+// (services/pemantau_disk.py) dan konsol cuma menggambar: satu pita per kode,
+// menyebut semua line yang melaporkannya dan sisa TERKECIL di antaranya (di
+// Lampung ketiga line menulis ke satu disk, jadi tiga pita kembar tidak menambah
+// apa-apa). Kritis di atas peringatan. Line lama (tanpa `disk`), OFFLINE, dan
+// disk yang tidak terbaca tidak menyumbang apa pun.
+function gabungDisk(lines) {
+  const perKode = {};
+  for (const l of lines || []) {
+    const p = l.plc || {};
+    const d = p.disk;
+    if (!p.reachable || !d || !d.kode || (d.tingkat !== "peringatan" && d.tingkat !== "kritis")) continue;
+    const g = perKode[d.kode] || (perKode[d.kode] = { kode: d.kode, tingkat: d.tingkat, lines: [], disk: d });
+    g.lines.push(l.name || l.line_code);
+    if (d.bebas_gb < g.disk.bebas_gb) g.disk = d;
+  }
+  return Object.values(perKode).sort((a, b) => Number(b.tingkat === "kritis") - Number(a.tingkat === "kritis"));
+}
+
+// `sekarang` cuma untuk test, sama seperti pitaAi. `ditutupPada` = detik epoch
+// saat operator menutup pita peringatan (bacaPitaDiskDitutupPada); pita itu muncul
+// lagi 24 jam kemudian. Jam yang mundur (ditutupPada di masa depan) tidak
+// menyembunyikan apa pun. Kritis tidak bisa ditutup karena grading berhenti
+// tersimpan begitu disk habis. Langkah pengosongan sengaja tidak ditulis: itu
+// urusan teknisi (MANUAL), operator cukup tahu sisa disk dan line-nya.
+function pitaDisk(lines, sekarang = Date.now() / 1000, ditutupPada = 0) {
+  const SEHARI = 24 * 3600;
+  // Segitiga peringatan, SVG di dalam halaman: konsol jalan tanpa internet dan emoji
+  // tergantung font PC pabrik. Warnanya ikut teks pita (currentColor).
+  const IKON = '<svg class="ikon-pita" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+  const umur = sekarang - ditutupPada;
+  const ditutup = umur >= 0 && umur < SEHARI;
+  const angka = (v) => (v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal()));
+  return gabungDisk(lines).map((g) => {
+    const kritis = g.tingkat === "kritis";
+    if (!kritis && ditutup) return "";
+    const rinci = t("diskRinci")
+      .replace("{jam}", jamSinkron(g.disk.sejak, sekarang) || KOSONG)
+      .replace("{line}", g.lines.join(", "))
+      .replace("{bebas}", angka(g.disk.bebas_gb))
+      .replace("{total}", angka(g.disk.total_gb));
+    const tutup = kritis ? ""
+      : `<button type="button" class="tutup" data-tutup-pita aria-label="${esc(t("toastTutup"))}">&times;</button>`;
+    return `<p class="${kritis ? "kritis" : "peringatan"}" role="alert">${tutup}${IKON}<b>${esc(t(kritis ? "diskKritisJudul" : "diskHampirPenuhJudul"))}</b>`
+      + `<span>${esc(rinci)}</span></p>`;
+  }).join("");
+}
+
+// Tiap polling. `tulisKalauBeda` supaya pita yang sama tidak dibangun ulang tiap
+// 2 detik (denyut pita tidak mulai dari awal lagi).
+function gambarPitaDisk(lines) {
+  const el = $("pita-disk");
+  if (!el) return;
+  const html = pitaDisk(lines, undefined, bacaPitaDiskDitutupPada());
+  el.hidden = !html;
+  tulisKalauBeda(el, html);
+}
+
+function bacaPitaDiskDitutupPada() {
+  return Number(baca("pitaDiskDitutupPada", "0")) || 0;
+}
+
+// Tutup langsung di layar; polling berikutnya menggambar tanpa pita itu
+// (tulisKalauBeda melihat html baru).
+$("pita-disk").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-tutup-pita]");
+  if (!b) return;
+  simpan("pitaDiskDitutupPada", String(Date.now() / 1000));
+  b.closest("p").remove();
+  const el = $("pita-disk");
+  if (!el.querySelector("p")) el.hidden = true;
+});
 
 // `sekarang` = jam render, dipakai `?t=` URL feed DAN cap `_dimintaPada`
 // (`capFeedBaru`), jadi tiap render = satu permintaan stream sungguhan.
@@ -4092,7 +4342,7 @@ $("lines").addEventListener("click", async (ev) => {
     pesan("");
   } catch (e) {
     const awalan = { tugaskan: "gagalTugaskan", lepas: "gagalLepas", piston: "gagalPiston" }[tombol.dataset.aksi] || "gagalReject";
-    const teks = t(awalan) + ": " + alasan(e);
+    const teks = gagalKarena(awalan, e);
     pesan(teks);
     toastGagal(teks);
   } finally {
@@ -4176,7 +4426,7 @@ $("daftar").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, asyn
     pesan("");
     toastSukses(t("sukDaftar"));
   } catch (e) {
-    const teks = t("gagalDaftar") + ": " + alasan(e);
+    const teks = gagalKarena("gagalDaftar", e);
     pesan(teks);
     toastGagal(teks);
   } finally {
@@ -4314,7 +4564,7 @@ $("masuk").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async
     pesan("");
     toastSukses(t("sukMasuk"));
   } catch (e) {
-    const teks = t("gagalTimbang") + ": " + alasan(e);
+    const teks = gagalKarena("gagalTimbang", e);
     pesan(teks);
     toastGagal(teks);
   } finally {
@@ -4389,7 +4639,7 @@ async function simpanTara() {
     // is a second read of the same failure for anyone glancing at the corner
     // instead, not a replacement for it.
     pesanScanKeluar(alasan(e), true);
-    toastGagal(t("gagalTara") + ": " + alasan(e));
+    toastGagal(gagalKarena("gagalTara", e));
   } finally {
     $("tara-simpan").disabled = false;
     $("tara-simpan").classList.remove("sibuk");
@@ -4489,7 +4739,7 @@ async function cekKamera() {
 // TIDAK dihitung: proses lama yang sedang menguras antrean simpan bisa lambat
 // lalu menjawab lagi), atau paling lambat RESTART_PASTI_MATI_MS sesudah
 // ditandai, yang juga menangani proses yang macet (urutan tutup line
-// maks 9 detik sesudah menjawab, aturan 29; 12 detik = batas tunggu Danger
+// maks 10 detik sesudah menjawab, 1 + 8 + 1 kuras log line, aturan 29; 12 detik = batas tunggu Danger
 // Zone). Tanpa syarat itu frame terakhir proses lama, yang ditahan browser tanpa
 // event apa pun, akan menghapus tanda sebelum line benar-benar mati.
 const RESTART_BATAS_MS = 60000;       // sesudah ini: spinner diganti pesan rinci
@@ -4499,7 +4749,6 @@ const RESTART_HAPUS_BATAS_MS = 600000;
 const RESTART_HAPUS = { batasMs: RESTART_HAPUS_BATAS_MS, hapus: true };
 const RESTART_PASTI_MATI_MS = 12000;  // proses lama pasti sudah keluar
 const RESTART_ULANG_FEED_MS = 3000;   // jarak minta ulang stream selama menunggu
-const RESTART_KODE = "RESTART_LAMA";
 const restartLine = {};               // line_code -> {mulai, turunPada, batasMs, hapus}
 
 // Dua bentuk jawaban: Sumber Kamera / Model Deteksi (`direstart`) dan Danger
@@ -4568,7 +4817,6 @@ function isiRestart(nama, m, sekarang) {
       + `<b>${esc(judul)}</b><div class="restart-bar" aria-hidden="true"></div></div>`;
   }
   const rinci = t("restartLamaRinci")
-    .replace("{kode}", RESTART_KODE)
     .replace("{jam}", jamSinkron(m.mulai / 1000, sekarang / 1000) || KOSONG)
     .replace("{batas}", teksBatasRestart(m.batasMs));
   return `<div class="restart-kotak lama" role="alert"><b>${esc(t("restartLamaJudul").replace("{line}", nama))}</b>`
@@ -4953,6 +5201,7 @@ async function refresh() {
     isiTallyTimbangan(s.timbangan);
     isiSinkron(s.sinkron);
     gambarPitaAlarm(s.lines);
+    gambarPitaDisk(s.lines);
     if (!dipasang) {
       const dipasangPada = Date.now();
       $("lines").innerHTML = s.lines.map((l) => kartuLine(l, dipasangPada)).join("");
@@ -4999,7 +5248,9 @@ async function refresh() {
     // Not signed in is a normal state, and the gate is already saying so on top of
     // this screen. Claiming the console is down as well trains the shift to ignore
     // that banner, which is the one that matters when it really has stopped answering.
-    pesan(e.kode === "belum_masuk" ? "" : t("gagalKonsol") + ": " + alasan(e));
+    // A console that did not answer at all already says so in its own sentence.
+    if (e.kode === "belum_masuk") pesan("");
+    else pesan(e.kode === "konsol_putus" ? alasan(e) : gagalKarena("gagalKonsol", e));
   }
 }
 
@@ -5333,15 +5584,8 @@ async function unduhRiwayat(tombol) {
   return denganSibuk(tombol, async () => {
     $("riwayat-pesan").textContent = "";
     try {
-      const res = await fetch(`/api/console/riwayat/csv?${paramRiwayat({ tampilan: riwayatTampilan, bahasa })}`);
-      if (!res.ok) {
-        const detail = (await res.json().catch(() => ({}))).detail;
-        const err = new Error((typeof detail === "string" ? detail : detail?.message) || `HTTP ${res.status}`);
-        err.kode = detail?.code;
-        err.params = detail?.params || {};
-        if (res.status === 401 && err.kode === "belum_masuk") bukaGerbang();
-        throw err;
-      }
+      const res = await ambil(`/api/console/riwayat/csv?${paramRiwayat({ tampilan: riwayatTampilan, bahasa })}`);
+      if (!res.ok) throw await galatJawaban(res);
       const nama = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") || "")?.[1]
         || "riwayat-grading.csv";
       const url = URL.createObjectURL(await res.blob());
@@ -5670,15 +5914,64 @@ let logTotal = 0;
 const LOG_PER = 50;
 
 function barisLog(r) {
-  // last_seen_at is a Unix epoch (seconds, from LogStore) - not an ISO string,
-  // so it needs ×1000 before Date() rather than going through waktu() as-is.
   return `<tr>
-    <td>${waktu(r.last_seen_at * 1000)}</td>
+    <td>${waktuLog(r)}</td>
     <td class="key">${esc(r.level)}</td>
-    <td>${esc(r.source)}</td>
-    <td>${esc(r.message)}</td>
+    <td>${sumberLog(r)}</td>
+    <td>${pesanLog(r)}</td>
     <td class="num">${r.count > 1 ? "×" + r.count : ""}</td>
   </tr>`;
+}
+
+// Waktu terakhir, plus kapan pertama muncul kalau barisnya gabungan beberapa
+// kejadian. Epoch detik dari LogStore, bukan ISO: dikali 1000 sebelum waktu().
+function waktuLog(r) {
+  const akhir = waktu(r.last_seen_at * 1000);
+  if (!r.logged_at || Math.floor(r.logged_at) === Math.floor(r.last_seen_at)) return akhir;
+  const pertama = t("logPertama").replace("{waktu}", waktu(r.logged_at * 1000));
+  return `${akhir}<div class="muted log-pertama">${esc(pertama)}</div>`;
+}
+
+// Batch 3.2: baris yang ditarik dari line membawa `line_code`; baris konsol tidak.
+function sumberLog(r) {
+  return `<span class="log-asal">${esc(r.line_code || t("logKonsol"))}</span>${esc(r.source)}`;
+}
+
+// Traceback (`detail`) dibuka per baris; pesan tanpa traceback tetap teks biasa.
+function pesanLog(r) {
+  if (!r.detail) return esc(r.message);
+  return `<details class="log-detail"><summary>${esc(r.message)}</summary>`
+       + `<pre>${esc(r.detail)}</pre></details>`;
+}
+
+// Batch 3.5: satu kalimat keadaan lapor Discord di atas tabel log.
+function teksLaporDiscord(d) {
+  const jam = (s) => (s ? waktu(s * 1000) : KOSONG);
+  const isi = (k) => t(k)
+    .replace("{terkirim}", jam(d.terkirim_terakhir_at)).replace("{menunggu}", d.menunggu_kejadian ?? 0)
+    .replace("{jam}", jam(d.galat_at)).replace("{galat}", d.galat || KOSONG)
+    .replace("{status}", d.status_http ?? KOSONG).replace("{kiriman}", d.kiriman ?? 0)
+    .replace("{disisihkan}", d.disisihkan ?? 0);
+  if (d.keadaan === "mati") return { kelas: "muted", teks: isi("discordMati") };
+  if (d.keadaan === "url_salah") return { kelas: "gagal", teks: isi("discordUrlSalah") };
+  if (d.keadaan === "rusak") return { kelas: "gagal", teks: isi("discordRusak") };
+  if (d.keadaan === "aktif") return { kelas: "muted", teks: isi("discordAktif") };
+  if (d.keadaan === "ditolak") return { kelas: "gagal", teks: isi("discordDitolak") };
+  if (d.keadaan === "isi_ditolak") return { kelas: "peringatan", teks: isi("discordIsiDitolak") };
+  return { kelas: "peringatan", teks: isi("discordTertahan") };
+}
+
+async function muatLaporDiscord() {
+  const el = $("log-discord");
+  try {
+    const { kelas, teks } = teksLaporDiscord(await api("/api/console/dev/lapor-discord"));
+    el.className = `log-discord ${kelas}`;
+    el.textContent = teks;
+    el.hidden = false;
+  } catch (e) {
+    // Sesi habis atau konsol putus: tabel log di bawahnya sudah menceritakannya.
+    el.hidden = true;
+  }
 }
 
 function segarkanHalamanLog() {
@@ -5693,6 +5986,7 @@ function segarkanHalamanLog() {
 }
 
 async function muatLog() {
+  muatLaporDiscord();
   try {
     const qs = new URLSearchParams({ limit: String(LOG_PER), offset: String(logOffset) });
     if (logLevel) qs.set("level", logLevel);
@@ -5757,6 +6051,60 @@ function tanda(ok) {
   return ok ? `<span class="tanda-ok">✓</span>` : `<span class="tanda-gagal">✗</span>`;
 }
 
+// Batch 3.6: PLC ✓ hanya kalau line bilang BENAR-BENAR tersambung
+// (`plc.connected`, klien PLC-nya sendiri), bukan karena dict `plc` ada: dulu
+// PLC yang menyala dengan kabel tercabut tetap dapat ✓. `plc: null` = PLC
+// dimatikan di line itu, strip. Line versi lama tidak mengirim `connected`:
+// tidak diketahui, bukan ✓ yang tidak bisa dibuktikan.
+function diagPlc(plc) {
+  if (!plc) return KOSONG;
+  if (plc.connected === undefined || plc.connected === null) return esc(t("diagPlcTakDiketahui"));
+  return tanda(plc.connected === true);
+}
+
+// Angka satu desimal ala layar ("14,9"); strip kalau line tidak mengirimnya.
+function diagAngka(v) {
+  return v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal(), { maximumFractionDigits: 1 });
+}
+
+// Umur gambar terakhir. Merah kalau line menilai kameranya berhenti mengirim:
+// keputusan yang SAMA dengan coil ERROR, bukan ambang kedua di layar.
+function diagFrame(d) {
+  if (d.frame_umur_detik === null || d.frame_umur_detik === undefined) return KOSONG;
+  const teks = esc(t("diagDetikLalu").replace("{n}", diagAngka(d.frame_umur_detik)));
+  return d.ai && d.ai.keadaan === "frame_berhenti" ? `<span class="tanda-gagal">${teks}</span>` : teks;
+}
+
+// Sisa disk (batch 3.7) dengan warna tingkatnya; tingkat asing tidak masuk atribut.
+function diagDisk(disk) {
+  if (!disk || disk.bebas_gb === null || disk.bebas_gb === undefined) return KOSONG;
+  const kelas = { aman: "tanda-ok", peringatan: "tanda-waspada", kritis: "tanda-gagal" }[disk.tingkat] || "";
+  const teks = t("diagDiskBebas").replace("{bebas}", diagAngka(disk.bebas_gb)).replace("{persen}", diagAngka(disk.persen_bebas));
+  return `<span class="${kelas}">${esc(teks)}</span>`;
+}
+
+// Lisensi line itu: strip kalau `LICENSE_ENABLED` mati di sana, ✗ kalau grading diblokir.
+function diagLisensi(l) {
+  if (!l || !l.aktif) return KOSONG;
+  return tanda(!l.grading_diblokir);
+}
+
+// `capture_save_dropped` dan `tp_telat` harus NOL (docs/MANUAL.md §3.5): nol
+// hijau, di atas nol merah, supaya angka yang wajib nol terbaca tanpa dihafal.
+function diagNol(n) {
+  if (n === null || n === undefined) return KOSONG;
+  return `<span class="${Number(n) > 0 ? "tanda-gagal" : "tanda-ok"}">${esc(String(n))}</span>`;
+}
+
+// Kenapa konsol tidak bisa membaca line itu: kodenya dipilih BACKEND (`sebab_kode`,
+// domain/line_tak_terbaca.py), layar cuma menerjemahkan. Alasan mentahnya (httpx, HTTP
+// 404, alamat) tidak pernah ke layar, cuma ke tab Log (LineStatusWorker, satu WARNING
+// per kejadian; keputusan user 2026-10-01). Kode asing atau tidak ada: kalimat umum.
+function kunciSebabTakTerbaca(d) {
+  const kunci = "lineSebab_" + (d.sebab_kode || "lain");
+  return KAMUS[bahasa][kunci] ? kunci : "lineSebab_lain";
+}
+
 // Dynamic markup, generated fresh on every poll: static labels are resolved
 // with t() inline here, not via data-t - that attribute is only ever scanned
 // once, over the page's static HTML (see terapkanBahasa).
@@ -5765,7 +6113,7 @@ function kartuDiagnostik(kode, d) {
     return `<div class="card tidak-terjangkau" data-line="${esc(kode)}">
       <h2><span class="nama">${esc(kode)}</span></h2>
       <dl><dt>${esc(t("thStatus"))}</dt><dd>${esc(t("lineTidakTerjangkau"))}</dd>
-        <dt>${esc(t("thSebab"))}</dt><dd title="${esc(d.sebab)}">${esc(d.sebab)}</dd></dl>
+        <dt>${esc(t("thSebab"))}</dt><dd class="diag-sebab">${esc(t(kunciSebabTakTerbaca(d)))}</dd></dl>
     </div>`;
   }
   // Satu baris per worker, di bawah, bukan satu kalimat "capture:✓ display:✓
@@ -5781,16 +6129,22 @@ function kartuDiagnostik(kode, d) {
   const barisWorker = workers
     .map((x) => `<dt class="diag-worker">${esc(x.name)}</dt><dd>${tanda(x.alive)}</dd>`)
     .join("");
-  // `plc: null` = PLC dimatikan di line itu, bukan rusak: strip, bukan silang
-  // merah yang akan dikejar teknisi sebagai kerusakan.
-  const plc = d.plc ? tanda(true) : KOSONG;
+  const model = [d.version, d.model_file && `${d.model_file}${d.model_backend ? ` (${d.model_backend})` : ""}`]
+    .filter(Boolean).join(" · ");
   return `<div class="card" data-line="${esc(kode)}">
     <h2><span class="nama">${esc(kode)}</span></h2>
     <dl>
       <dt>${esc(t("thKamera"))}</dt><dd>${tanda(d.camera_connected)}</dd>
+      <dt>${esc(t("thFps"))}</dt><dd>${diagAngka(d.fps_kamera)} / ${diagAngka(d.fps_deteksi)}</dd>
+      <dt>${esc(t("thFrameTerakhir"))}</dt><dd>${diagFrame(d)}</dd>
       <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : tanda(d.gpu_available)}</dd>
-      <dt>${esc(t("thPlc"))}</dt><dd>${plc}</dd>
+      <dt>${esc(t("thPlc"))}</dt><dd>${diagPlc(d.plc)}</dd>
+      <dt>${esc(t("thDisk"))}</dt><dd>${diagDisk(d.disk)}</dd>
+      <dt>${esc(t("thLisensiLine"))}</dt><dd>${diagLisensi(d.lisensi)}</dd>
+      <dt>${esc(t("thVersiModel"))}</dt><dd>${dash(model)}</dd>
       <dt>${esc(t("thAntreanLokal"))}</dt><dd>${dash(d.outbox_pending)} / ${dash(d.outbox_failed)}</dd>
+      <dt>${esc(t("thTersimpanGagal"))}</dt><dd>${diagNol(d.capture_save_dropped)}</dd>
+      <dt>${esc(t("thTpTelat"))}</dt><dd>${diagNol(d.tp_telat)}</dd>
       <dt>${esc(t("thWorkers"))}</dt><dd>${ringkasWorker}</dd>${barisWorker}
     </dl>
   </div>`;
@@ -5815,11 +6169,21 @@ function jadwalAntrean(nextAttemptAt) {
   return nextAttemptAt * 1000 <= Date.now() ? t("antreanSekarang") : waktu(nextAttemptAt * 1000);
 }
 
-function barisAntrean(r) {
+// Kenapa kiriman ini belum sampai: jenisnya dicatat worker saat gagal (`error_kind`) dan
+// cuma diterjemahkan di sini, `tujuan` = AutoERP atau R2. Teks galat mentahnya (jawaban
+// AutoERP/R2, exception) tidak pernah ke layar, tab Log sudah mencatatnya (keputusan user
+// 2026-10-01). Baris dari versi lama tanpa jenis: kalimat umum.
+function sebabAntrean(r, tujuan) {
+  const kunci = "antreanSebab_" + (r.error_kind || "lain");
+  return t(KAMUS[bahasa][kunci] ? kunci : "antreanSebab_lain").replace("{tujuan}", tujuan);
+}
+
+function barisAntrean(r, tujuan) {
+  const sebab = sebabAntrean(r, tujuan);
   return `<tr>
     <td>${esc(r.kind)}</td>
     <td>${esc(r.key)}</td>
-    <td title="${esc(r.last_error || "")}">${esc(r.last_error || KOSONG)}</td>
+    <td title="${esc(sebab)}">${esc(sebab)}</td>
     <td class="num">${dash(r.attempts)}</td>
     <td>${jadwalAntrean(r.next_attempt_at)}</td>
   </tr>`;
@@ -5831,7 +6195,7 @@ async function muatAntrean() {
     $("antrean-ringkas").textContent = t("ringkasAntrean")
       .replace("{pending}", r.pending).replace("{gagal}", r.gagal);
     $("antrean-baris").innerHTML = r.items.length
-      ? r.items.map(barisAntrean).join("") : barisKosong(5, "kosongAntrean");
+      ? r.items.map((x) => barisAntrean(x, "AutoERP")).join("") : barisKosong(5, "kosongAntrean");
   } catch (e) {
     if (e.kode !== "belum_masuk") $("antrean-baris").innerHTML = barisKosong(5, "gagalAntrean");
   }
@@ -5840,7 +6204,7 @@ async function muatAntrean() {
 
 // Second row, same screen: the R2 manifest queue. Row shape is the same
 // ErpOutboxStore.failed_rows() as the ERP outbox above, so barisAntrean() and
-// jadwalAntrean() are reused as-is.
+// jadwalAntrean() are reused, naming R2 instead of AutoERP.
 //
 // `aktif: false` (R2 not configured) is handled as its OWN branch, not as an
 // empty queue: the whole point of this card is that a stalled/never-started
@@ -5859,7 +6223,7 @@ async function muatManifest() {
     $("manifest-ringkas").textContent = t("ringkasManifest")
       .replace("{pending}", r.pending).replace("{gagal}", r.gagal);
     $("manifest-baris").innerHTML = r.items.length
-      ? r.items.map(barisAntrean).join("") : barisKosong(5, "kosongManifest");
+      ? r.items.map((x) => barisAntrean(x, "R2")).join("") : barisKosong(5, "kosongManifest");
   } catch (e) {
     if (e.kode !== "belum_masuk") {
       $("manifest-nonaktif").hidden = true;
@@ -5892,17 +6256,10 @@ $("antrean-kirim-ulang").addEventListener("click", (ev) => denganSibuk(ev.curren
 // review batch 2): baris itu dicoba terus dan tidak pernah sampai.
 function keadaanAntreanLine(d) {
   const SEBAB_PUTUS = ["tak_terjangkau", "kunci_ditolak", "alamat_salah", "konsol_galat"];
-  if (!d.terjangkau) {
-    // line_menolak = kunci internal ditolak (401/403): saran ganti INTERNAL_SECRET.
-    // line_tidak_menjawab DENGAN status = line itu sendiri menjawab tapi galat (500)
-    // atau line lama tanpa rute ini (404): line hidup, ini bukan "line mati".
-    // line_tidak_menjawab TANPA status = benar-benar tidak terjangkau atau timeout.
-    if (d.kode === "line_menolak") return { kelas: "tanda-gagal", kunci: "antreanLineKunciKonsol" };
-    if (d.kode === "line_tidak_menjawab" && d.status != null) {
-      return { kelas: "tanda-gagal", kunci: "antreanLineErrorLine" };
-    }
-    return { kelas: "tanda-gagal", kunci: "antreanLineTakTerjangkau" };
-  }
+  // Line yang tidak terbaca konsol: kalimat yang SAMA dengan kartu Diagnostik, dari
+  // `sebab_kode` backend (kunci ditolak, bukan line AutoGrade, line galat, tidak menjawab
+  // sama sekali), bukan dari kode HTTP (keputusan user 2026-10-01).
+  if (!d.terjangkau) return { kelas: "tanda-gagal", kunci: kunciSebabTakTerbaca(d) };
   if (!d.aktif) return { kelas: "tanda-gagal", kunci: "antreanLineNonaktif" };
   if (d.lama_tertinggal) return { kelas: "tanda-gagal", kunci: "antreanLineLamaTertinggal" };
   if (!d.menunggu) return { kelas: "tanda-ok", kunci: "antreanLineKosong" };
@@ -5918,22 +6275,18 @@ function keadaanAntreanLine(d) {
 // jam yang sama untuk tiga baris, dan fungsinya bisa diuji tanpa memalsukan jam.
 function barisAntreanLine(kode, d, sekarangMs) {
   const k = keadaanAntreanLine(d);
-  // {status} cuma dipakai oleh dua kunci (kunci ditolak, error line): jangan diganti
-  // untuk kunci lain, atau bawaan "401" bocor ke baris yang tidak menyebut status
-  // sama sekali (mis. line yang benar-benar tidak terjangkau).
   const keadaan = t(k.kunci)
-    .replace("{status}", d.status ?? (k.kunci === "antreanLineKunciKonsol" ? "401" : ""))
     .replace("{sejak}", d.putus_sejak ? waktu(d.putus_sejak * 1000) : KOSONG)
     .replace("{jumlah}", d.ditolak ?? KOSONG)
-    .replace("{jam}", d.ditolak_at ? waktu(d.ditolak_at * 1000) : KOSONG)
-    // Fungsi, bukan teks: alasan datang dari jawaban HTTP, dan "$&" di dalamnya akan
-    // dibaca `replace` sebagai pola.
-    .replace("{alasan}", () => d.ditolak_alasan || KOSONG);
-  // Galat terakhir worker tidak pernah dikosongkan saat konsol pulih: dengan jamnya
-  // supaya galat lama tidak terbaca seperti masalah sekarang, dan tidak ditampilkan
-  // sama sekali saat antrean kosong (tidak ada yang tertahan olehnya).
-  const galat = d.menunggu && d.galat ? (d.galat_at ? `${waktu(d.galat_at * 1000)}: ${d.galat}` : d.galat) : "";
-  const pesanBaris = (d.terjangkau ? galat : d.pesan) || "";
+    .replace("{jam}", d.ditolak_at ? waktu(d.ditolak_at * 1000) : KOSONG);
+  // Galat terakhir worker line: jamnya saja, teksnya (galat mentah, alasan penolakan) milik
+  // tab Log (keputusan user 2026-10-01). Tidak pernah dikosongkan saat konsol pulih, jadi
+  // jamnya yang membuat galat lama tidak terbaca seperti masalah sekarang. Tidak ditulis
+  // saat antrean kosong (tidak ada yang tertahan olehnya) atau saat line tidak terbaca
+  // (kolom Keadaan sudah bilang kenapa).
+  const pesanBaris = d.terjangkau && d.menunggu && d.galat
+    ? t("antreanLineGalatTerakhir").replace("{jam}", d.galat_at ? waktu(d.galat_at * 1000) : KOSONG)
+    : "";
   const tertua = d.tertua_at ? lamaProses(new Date(d.tertua_at * 1000), new Date(sekarangMs)) : null;
   const tombol = d.terjangkau && d.menunggu > 0
     ? `<button type="button" data-kirim-ulang-line="${esc(kode)}">${esc(t("btnKirimUlang"))}</button>`
@@ -5948,8 +6301,8 @@ function barisAntreanLine(kode, d, sekarangMs) {
   </tr>`;
 }
 
-// Kalimat gagal Kirim Ulang: apa yang gagal, di line mana, jam berapa, kodenya, dan
-// harus ngapain (keputusan 2026-09-28, pesan error konsol wajib detail).
+// Kalimat gagal Kirim Ulang: apa yang gagal, di line mana, jam berapa, dan harus ngapain
+// (keputusan 2026-09-28, pesan error konsol wajib detail), tanpa kode galat (2026-10-01).
 // line_tidak_menjawab TANPA status = benar-benar tidak terjangkau/timeout →
 // saranLineMati; DENGAN status (line menjawab tapi galat, mis. 500, atau line lama
 // menjawab 404) itu bukan "line mati", jadi jatuh ke saranBukaLog seperti kode lain.
@@ -5957,13 +6310,19 @@ const SARAN_KIRIM_ULANG = { line_menolak: "saranKunciLine", line_tidak_dikenal: 
 
 function pesanGagalKirimUlang(e, kode, saat) {
   const status = e.params && e.params.status;
-  const saran = e.kode === "line_tidak_menjawab" && status == null ? "saranLineMati" : (SARAN_KIRIM_ULANG[e.kode] || "saranBukaLog");
+  // Kode asing: kalimat umumnya sudah menyebut apa yang harus dilakukan (dan tab Log).
+  let saran = "";
+  if (kodeDikenal(e)) {
+    saran = e.kode === "line_tidak_menjawab" && status == null
+      ? "saranLineMati" : (SARAN_KIRIM_ULANG[e.kode] || "saranBukaLog");
+  }
   return t("antreanLineGagalKirimUlang")
     .replace("{line}", kode)
     .replace("{jam}", waktu(saat))
-    .replace("{kode}", e.kode || "http")
-    .replace("{alasan}", alasan(e))
-    .replace("{saran}", t(saran));
+    // Kode asing: cuma sarannya, kalimat templatnya sudah bilang "gagal".
+    .replace("{alasan}", () => (kodeDikenal(e) ? alasan(e) : saranUmum(e)))
+    .replace("{saran}", saran ? t(saran) : "")
+    .trim();
 }
 
 // Guard sederhana: 5 s setInterval tidak boleh menumpuk permintaan baru saat yang
@@ -6537,7 +6896,7 @@ async function muatSetelan() {
     $("set-sumber").textContent = t(r.sumber === "konsol" ? "setelanDariKonsol" : "setelanDariEnv");
     $("set-pesan").textContent = "";
     $("set-lines").textContent = "";
-  } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = e.pesan || "gagal"; }
+  } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = alasan(e, "gagalSetelanMuat"); }
 }
 
 $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
@@ -6565,10 +6924,11 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
     const belum = (r.lines || []).filter((l) => !l.terkirim).map((l) => l.line_code);
     $("set-lines").textContent = belum.length ? `Belum sampai ke: ${belum.join(", ")}` : "";
   } catch (e) {
-    pesan.textContent = e.pesan || e.detail || "gagal";
-    // Server menyebut nama field di pesannya; kolomnya ikut ditandai supaya
-    // operator tidak perlu mencocokkan kalimat dengan kolom sendiri.
-    const teks = String(e.pesan || e.detail || "");
+    pesan.textContent = alasan(e, "gagalSetelan");
+    // Server menyebut nama field di pesannya (SetelanTidakSah, tanpa kode); kolomnya ikut
+    // ditandai supaya operator tidak perlu mencocokkan kalimat dengan kolom sendiri. Teks
+    // server cuma DIBACA di sini, tidak pernah ditampilkan (keputusan user 2026-10-01).
+    const teks = String(e.message || "");
     for (const [field, id] of Object.entries({
       conf_threshold: "set-conf", minimum_size: "set-minsize", garis_capture: "set-garis",
     })) {
@@ -6670,7 +7030,7 @@ async function bukaPanelBahaya(aksi) {
     // Sesi habis: gerbang login sudah terbuka; panel yang tertinggal di
     // "Memeriksa…" di belakangnya terbaca macet sesudah login.
     if (e.kode === "belum_masuk") return tutupPanelBahaya();
-    panel.innerHTML = `<p class="bahaya-akibat">${esc(alasan(e) || t("gagalBahaya"))}</p>`
+    panel.innerHTML = `<p class="bahaya-akibat">${esc(alasan(e, "gagalBahaya"))}</p>`
       + `<div class="bahaya-tombol"><button type="button" data-bahaya-batal>${esc(t("btnBatal"))}</button></div>`;
   }
 }
@@ -6717,7 +7077,7 @@ function alasanBahaya(e) {
   if (e.kode === "semua_line_menolak") {
     return t("err_semua_line_menolak").replace("{lines}", daftarLineHasil(e.params?.lines));
   }
-  return alasan(e) || t("gagalBahaya");
+  return alasan(e, "gagalBahaya");
 }
 
 function tampilHasilBahaya(aksi, hasil) {
@@ -6761,7 +7121,7 @@ async function jalankanBahaya(aksi, tombol) {
   tombol.textContent = t("bahayaMenunggu");
   try {
     // `api()` meneruskan opts ke fetch apa adanya, jadi body WAJIB string —
-    // objek telanjang terkirim sebagai "[object Object]" dan dijawab 422.
+    // objek telanjang terkirim sebagai "[object Object]" dan dijawab 400 input_tidak_sah.
     const hasil = await api(`/api/console/dev/bahaya/${BAHAYA_URL[aksi]}`, {
       method: "POST", body: JSON.stringify(body),
     });
@@ -6883,7 +7243,7 @@ async function muatRekam() {
     rekamFolder = data.folder || "";
     $("rekam-folder").textContent = rekamFolder || KOSONG;
   } catch (e) {
-    if (e.kode !== "belum_masuk") toastGagal(alasan(e) || t("gagalRekam"));
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e, "gagalRekam"));
   }
 }
 
@@ -6926,7 +7286,7 @@ $("rekam-baris").addEventListener("click", async (ev) => {
     }
     await muatRekam();
   } catch (e) {
-    toastGagal(alasan(e) || t("gagalRekam"));
+    toastGagal(alasan(e, "gagalRekamPerintah"));
     el.disabled = false;
     el.classList.remove("sibuk");
     el.textContent = tulisanAsli;
@@ -6941,7 +7301,7 @@ $("rekam-baris").addEventListener("click", async (ev) => {
 $("rekam-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   try {
     // `api()` meneruskan opts ke fetch apa adanya, jadi body WAJIB string.
-    // Objek telanjang dikirim sebagai "[object Object]" dan dijawab 422 —
+    // Objek telanjang dikirim sebagai "[object Object]" dan dijawab 400 input_tidak_sah —
     // toast merah muncul, tapi yang terbaca "gagal menyimpan", bukan "salah
     // bentuk". Ketemu di browser 2026-09-22.
     await api("/api/console/dev/rekam/setelan", {
@@ -6954,7 +7314,7 @@ $("rekam-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget
     toastSukses(t("rekamSetelanTersimpan"));
     await muatRekam();
   } catch (e) {
-    toastGagal(alasan(e) || t("gagalRekam"));
+    toastGagal(alasan(e, "gagalRekamSetelan"));
   }
 }));
 
@@ -7021,7 +7381,7 @@ async function muatSumberKamera() {
       perbaruiTampakSumber(kode);
     }
   } catch (e) {
-    if (e.kode !== "belum_masuk") toastGagal(alasan(e) || t("gagalSumberKamera"));
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e, "gagalSumberKamera"));
   }
 }
 
@@ -7075,7 +7435,7 @@ $("sumber-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarge
     // - GET ulang supaya layar menunjukkan persis apa yang ada di media.env.
     await muatSumberKamera();
   } catch (e) {
-    toastGagal(alasan(e) || t("gagalSumberSimpan"));
+    toastGagal(alasan(e, "gagalSumberSimpan"));
   }
 }));
 
@@ -7124,6 +7484,17 @@ function statusEngine(m) {
   }).join(" · ");
 }
 
+// Kenapa model tidak bisa dipakai: kode dari ModelLibrary (`alasan_kode`), diterjemahkan
+// di sini; `m.alasan` teks server (bisa memuat teks exception) tidak pernah ke layar
+// (keputusan user 2026-10-01). Kode asing atau tidak ada: kalimat umum.
+function alasanModel(m) {
+  const bagian = (m.alasan_kode || []).map((a) => {
+    const kunci = "modelAlasan_" + a.kode;
+    return KAMUS[bahasa][kunci] ? t(kunci).replace("{kelas}", a.kelas ?? "") : null;
+  });
+  return bagian.length && bagian.every(Boolean) ? bagian.join("; ") : t("modelAlasan_lain");
+}
+
 function opsiModel(kode, terpilih) {
   const pilih = document.querySelector(`[data-model="${kode}"]`);
   if (!pilih || !modelTerakhir) return;
@@ -7134,7 +7505,7 @@ function opsiModel(kode, terpilih) {
     // Tampil tapi tidak bisa dipilih, dengan alasannya: menyembunyikan model
     // lama membuat orang mengira berkasnya hilang lalu menyalinnya lagi.
     opt.disabled = !m.cocok;
-    opt.title = m.alasan || "";
+    opt.title = m.cocok ? "" : alasanModel(m);
     pilih.append(opt);
   }
   if (terpilih && !modelTerakhir.model.some((m) => m.berkas === terpilih)) {
@@ -7163,7 +7534,7 @@ function rinciModel(kode) {
   }
   wadah.innerHTML = `<div>${chipKelas(m.kelas)}</div>
     <div>${statusEngine(m)}</div>
-    ${m.cocok ? "" : `<div class="model-tolak">${esc(m.alasan)}</div>`}`;
+    ${m.cocok ? "" : `<div class="model-tolak">${esc(alasanModel(m))}</div>`}`;
 }
 
 function tulisJalan(kode) {
@@ -7174,7 +7545,7 @@ function tulisJalan(kode) {
   if (!d) { el.innerHTML = `${label} ${esc(t("modelJalanMemuat"))}`; return; }
   if (!d.terjangkau) { el.innerHTML = `${label} ${esc(t("lineTidakTerjangkau"))}`; return; }
   if (!d.model_file) { el.innerHTML = `${label} ${esc(t("modelJalanTidakDilapor"))}`; return; }
-  const backend = d.model_backend === "tensorrt" ? "TensorRT" : (d.model_backend === "pytorch" ? ".pt" : d.model_backend);
+  const backend = d.model_backend === "tensorrt" ? "TensorRT" : (d.model_backend === "pytorch" ? "PyTorch" : d.model_backend);
   const tersimpan = modelTerakhir?.lines?.[kode] || "";
   // Cuma bisa dibandingkan kalau pilihannya bukan Bawaan: nama bawaan hidup di
   // .env line, dan konsol tidak membaca .env.
@@ -7192,7 +7563,7 @@ function tulisJalan(kode) {
 function barisModel(m) {
   const status = m.cocok
     ? `<span class="model-ok">${esc(t("modelCocok"))}</span>`
-    : `<span class="model-tolak">${esc(m.alasan)}</span>`;
+    : `<span class="model-tolak">${esc(alasanModel(m))}</span>`;
   return `<tr>
     <td>${esc(m.berkas)}</td>
     <td class="num">${esc(m.ukuran_mb)} MB</td>
@@ -7211,7 +7582,7 @@ function isiTabelModel() {
   const folder = modelTerakhir.folder || {};
   return folder.terbaca === false
     ? `<tr><td colspan="5" class="kosong bungkus"><span class="model-tolak">${esc(
-        t("modelFolderTakTerbaca").replace("{path}", folder.path || "models/release"))}</span></td></tr>`
+        t("modelFolderTakTerbaca"))}</span></td></tr>`
     : barisKosong(5, "modelKosong");
 }
 
@@ -7243,7 +7614,7 @@ async function muatModelDeteksi() {
     }
     $("model-baris").innerHTML = isiTabelModel();
   } catch (e) {
-    if (e.kode !== "belum_masuk") toastGagal(alasan(e) || t("gagalModelDeteksi"));
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e, "gagalModelDeteksi"));
     return;
   }
   await muatJalanModel();
@@ -7350,7 +7721,7 @@ $("model-modal-jalankan").addEventListener("click", (ev) => denganSibuk(ev.curre
     const berubah = (data.lines || []).filter((b) => b.berubah).map((b) => b.line_code);
     if (berubah.length) pantauSesudahSimpan(pilihan, berubah);
   } catch (e) {
-    toastGagal(alasan(e) || t("gagalModelSimpan"));
+    toastGagal(alasan(e, "gagalModelSimpan"));
   } finally {
     modelSibukKirim = false;
     $("model-simpan").disabled = false;
@@ -7422,7 +7793,7 @@ async function muatPlcSatuLine(kode) {
     tulisKalauBeda(kartu.querySelector("[data-plc-coil]"), isiCoilPlc(kode, data, sibuk));
   } catch (e) {
     if (e.kode === "belum_masuk") return;
-    tulisKalauBeda(kartu.querySelector("[data-plc-coil]"), `<span class="muted">${esc(alasan(e))}</span>`);
+    tulisKalauBeda(kartu.querySelector("[data-plc-coil]"), `<span class="muted">${esc(alasan(e, "gagalPlc"))}</span>`);
   }
 }
 
@@ -7463,7 +7834,7 @@ async function jalankanUjiPlc() {
     }));
     pesan(hasil.fired ? t("ujiPlcBerhasil").replace("{coil}", coil) : t("ujiPlcDijatuhkan").replace("{coil}", coil));
   } catch (e) {
-    if (e.kode !== "belum_masuk") pesan(t("gagalUjiPlc") + ": " + alasan(e));
+    if (e.kode !== "belum_masuk") pesan(gagalKarena("gagalUjiPlc", e));
   } finally {
     await muatPlcSatuLine(line_code);          // re-enables the button if the line is still idle
   }

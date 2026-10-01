@@ -174,3 +174,27 @@ def test_outbox_di_artifacts_bukan_sisa_kalau_folder_db_memang_artifacts(tmp_pat
     artifacts.mkdir()
     (artifacts / "outbox.db").write_bytes(b"db")
     assert outbox_lama_tertinggal(artifacts, artifacts) is False
+
+
+def test_state_tidak_di_mount_sampai_log_line_saat_diulang_sesudah_handler(tmp_path):
+    """Yang dilakukan `main.py`: folder dipilih (ERROR ke stderr saja, handler belum ada),
+    handler log line dipasang di folder itu, lalu kalimat yang sama diulang WARNING."""
+    import logging
+
+    from palmgrade.services.antrean_log_line import pasang_penulis_log_line
+    from palmgrade.services.pindah_db_line import catat_state_tidak_di_mount, folder_db_line
+
+    artifacts, state = tmp_path / "artifacts", tmp_path / "state"
+    artifacts.mkdir()
+    folder = folder_db_line(artifacts, state, di_container=True, mountinfo="")
+    assert folder == artifacts
+    penulis = pasang_penulis_log_line(folder)
+    assert penulis is not None
+    try:
+        catat_state_tidak_di_mount(state, artifacts, level=logging.WARNING)
+    finally:
+        penulis.hentikan()
+    store = penulis.store
+    (baris,) = store.ambil(setelah=0, generasi=store.generasi, batas=10)["entri"]
+    assert baris["level"] == "WARNING"
+    assert "tidak di-mount dari host" in baris["message"] and "./state/line-N:/app/state" in baris["message"]

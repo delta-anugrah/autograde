@@ -6,13 +6,21 @@ langsung: coil PLC tertinggal ON dan sampai 8 janjang yang sudah dipulse hilang.
 """
 from __future__ import annotations
 
+import inspect
 import logging
 import threading
 import time
 
 import pytest
 
-from palmgrade.services.penutup_line import BATAS_TUTUP_S, Langkah, PenutupLine
+from palmgrade.routes.internal_bahaya import JEDA_KELUAR_DETIK
+from palmgrade.services.bahaya_service import BahayaService
+from palmgrade.services.penutup_line import (
+    BATAS_SEBELUM_KELUAR_S,
+    BATAS_TUTUP_S,
+    Langkah,
+    PenutupLine,
+)
 
 LOGGER = "palmgrade.services.penutup_line"
 
@@ -204,6 +212,91 @@ def test_tanpa_langkah_terpasang_tetap_keluar():
     p = PenutupLine(batas_s=1, keluar=lambda k: keluar.set(), tidur=lambda s: None)
     p.keluar_nanti(0)
     assert keluar.wait(3)
+
+
+def test_sebelum_keluar_jalan_sesudah_pesan_terakhir_dan_sebelum_os_exit(caplog):
+    """`os._exit` melewati `atexit`: log line dikuras lewat kait ini (batch 3.2),
+    sesudah pesan keluar terakhir supaya pesan itu ikut tertulis."""
+    jejak: list = []
+    keluar = threading.Event()
+
+    def catat_keluar(kode: int) -> None:
+        jejak.append(("keluar", kode))
+        keluar.set()
+
+    p = PenutupLine(batas_s=5, keluar=catat_keluar, tidur=lambda s: None)
+    p.pasang([[_catat(jejak, "plc")]])
+    p.sebelum_keluar(lambda: jejak.append(("kuras", [r.getMessage() for r in caplog.records][-1])))
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        p.keluar_nanti(0)
+        assert keluar.wait(5)
+
+    assert jejak == [
+        "plc",
+        ("kuras", "Keluar atas permintaan konsol, menunggu dinyalakan ulang"),
+        ("keluar", 0),
+    ]
+
+
+def test_sebelum_keluar_yang_melempar_tidak_menahan_keluar_maupun_yang_lain(caplog):
+    jejak: list = []
+    keluar = threading.Event()
+
+    def rusak() -> None:
+        raise OSError("disk log penuh")
+
+    p = PenutupLine(batas_s=1, keluar=lambda k: keluar.set(), tidur=lambda s: None)
+    p.sebelum_keluar(rusak)
+    p.sebelum_keluar(lambda: jejak.append("kuras kedua"))
+    with caplog.at_level(logging.ERROR, logger=LOGGER):
+        p.keluar_nanti(0)
+        assert keluar.wait(3)
+
+    assert jejak == ["kuras kedua"]
+    assert [str(r.exc_info[1]) for r in caplog.records if r.exc_info] == ["disk log penuh"]
+
+
+def test_sebelum_keluar_yang_macet_tidak_menahan_keluar(caplog):
+    """Route sudah menjawab 200 dan coil sudah mati: proses yang tidak pernah keluar
+    berarti line tidak pernah dinyalakan ulang, tanpa satu pun galat di layar."""
+    lepas = threading.Event()
+    keluar = threading.Event()
+    jejak: list = []
+
+    def macet_di_disk() -> None:
+        lepas.wait(30)
+
+    p = PenutupLine(batas_s=1, batas_sebelum_keluar_s=0.2, keluar=lambda k: keluar.set(), tidur=lambda s: None)
+    p.sebelum_keluar(macet_di_disk)
+    p.sebelum_keluar(lambda: jejak.append("kuras lain"))
+    mulai = time.monotonic()
+    try:
+        with caplog.at_level(logging.ERROR, logger=LOGGER):
+            p.keluar_nanti(0)
+            assert keluar.wait(3)
+        assert time.monotonic() - mulai < 2
+    finally:
+        lepas.set()
+
+    assert jejak == ["kuras lain"]
+    (pesan,) = _pesan_error(caplog)
+    assert "macet_di_disk" in pesan and "kuras lain" not in pesan
+
+
+def test_batas_sebelum_keluar_masih_di_bawah_tenggang_danger_zone():
+    """Jeda + urutan tutup + pekerjaan sebelum keluar < tunggu Danger Zone konsol, dibaca
+    dari bawaan `BahayaService` (bukan angka yang disalin), dengan cadangan 1 detik."""
+    tunggu = inspect.signature(BahayaService.__init__).parameters["tunggu_mati_s"].default
+    assert JEDA_KELUAR_DETIK + BATAS_TUTUP_S + BATAS_SEBELUM_KELUAR_S + 1.0 <= tunggu
+
+
+def test_sebelum_keluar_tidak_dijalankan_tutup_sigterm():
+    """SIGTERM kembali ke uvicorn, yang keluar biasa: `atexit` yang menguras di sana."""
+    jejak: list = []
+    p = PenutupLine(batas_s=1)
+    p.sebelum_keluar(lambda: jejak.append("kuras"))
+    assert p.tutup("uji") is True
+    assert jejak == []
 
 
 def test_pesan_keluar_tidak_menjanjikan_docker(caplog):

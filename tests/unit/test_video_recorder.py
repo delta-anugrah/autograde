@@ -145,6 +145,69 @@ def test_frame_dihitung_ditulis_atau_dibuang(rekaman):
     assert s["frame_ditulis"] + s["frame_dibuang"] == 5
 
 
+def test_stop_menulis_frame_yang_sudah_diserahkan(tmp_path):
+    """Frame yang diserahkan sebelum Stop adalah bagian rekaman.
+
+    Encoder yang telat siap (membuka codec di mesin yang sibuk) dulu menutup
+    berkas begitu Stop datang dan membuang isi antrean: berkasnya ada, tapi
+    tanpa satu frame pun, dan di line yang sedang jalan ekor rekaman sampai
+    `ukuran_antrean` frame hilang tanpa satu galat pun.
+    """
+    import cv2
+
+    r = VideoRecorder(videos_dir=tmp_path, line_code="line1", disk_min_free_gb=0.0)
+    _encoder_siap_sesudah_stop(r)
+    hasil = r.mulai(SETELAN)
+    for _ in range(10):
+        r.tulis(_frame())
+    akhir = r.stop()
+
+    assert akhir["frame_ditulis"] == 10
+    assert akhir["frame_dibuang"] == 0
+    cap = cv2.VideoCapture(str(tmp_path / hasil["berkas"]))
+    try:
+        assert cap.get(cv2.CAP_PROP_FRAME_COUNT) == 10
+    finally:
+        cap.release()
+
+
+def test_kuras_saat_stop_tidak_mengejar_kiriman_baru(tmp_path):
+    """Capture tetap mengirim frame sampai `stop()` selesai. Kuras yang ikut
+    mengejar kiriman itu tidak pernah selesai selama kamera lebih cepat dari
+    encoder, dan Stop menggantung sampai batas 10 detiknya."""
+    r = VideoRecorder(videos_dir=tmp_path, line_code="line1", disk_min_free_gb=0.0)
+    _encoder_siap_sesudah_stop(r)
+    tulis_asli = r._tulis_ke_berkas
+
+    def kamera_lebih_cepat(*args):
+        # Tiap frame yang selesai ditulis, kamera sudah mengirim satu lagi.
+        tulis_asli(*args)
+        r.tulis(_frame())
+
+    r._tulis_ke_berkas = kamera_lebih_cepat
+    r.mulai(SETELAN)
+    for _ in range(10):
+        r.tulis(_frame())
+
+    mulai = time.monotonic()
+    akhir = r.stop()
+
+    assert time.monotonic() - mulai < 5.0
+    assert akhir["frame_ditulis"] == 10
+
+
+def _encoder_siap_sesudah_stop(r: VideoRecorder) -> None:
+    """Mesin sibuk, versi deterministik: encoder baru membuka codec sesudah
+    Stop ditekan, jadi semua frame masih antre saat Stop datang."""
+    buka_asli = r._buka_writer
+
+    def buka_sesudah_stop(*args):
+        r._berhenti.wait(5.0)
+        return buka_asli(*args)
+
+    r._buka_writer = buka_sesudah_stop
+
+
 def test_frame_ukuran_beda_diresize_bukan_menjatuhkan_rekaman(rekaman):
     # Frame sensor 2448x2048 ke rekaman 320x240: ini kasus normal, bukan galat.
     rekaman.mulai(SETELAN)

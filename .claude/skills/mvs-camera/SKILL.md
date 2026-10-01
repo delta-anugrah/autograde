@@ -16,7 +16,7 @@ color (Bayer), GigE Vision, **DC power, BUKAN PoE**. Serial contoh live: `DA9070
 
 ## Aturan emas: `.mfs` MENANG atas `.env`
 
-`hikrobot_camera.py:90` manggil `MV_CC_FeatureLoad(feature_file)` **tiap connect**,
+`hikrobot_camera.py` (sekitar baris 118) manggil `MV_CC_FeatureLoad(feature_file)` **tiap connect**,
 sesudah `MV_CC_OpenDevice`, sebelum `StartGrabbing`. Gagal load = warning, **nggak fatal**
 (lanjut pakai setting firmware).
 
@@ -44,7 +44,7 @@ ke XML). Load balik = **Load Feature**.
 Shortcut MVS: panel **Common Features** (Basic / ISP / Transport) isinya node yang sama,
 cuma dikurasi: cukup buat 90% tuning harian.
 
-## Nilai live (terverifikasi di PC Lampung 2026-08-21, cocok 1:1 sama `hikrobot.mfs`)
+## Nilai live (terverifikasi di PC Lampung 2026-08-21; fps sejak itu dinaikkan ke 15 di `hikrobot.mfs`)
 
 ```
 Binning        Horizontal 2 × Vertical 2, BinningMode = Sum   → 1224×1024 (FOV tetap penuh)
@@ -54,7 +54,7 @@ Exposure       ExposureTimeMode Standard, ExposureTime 22000 µs
 Gain           0, GainAuto Off, limit 0 – 23.9812
 BlackLevel     240 (enabled)
 White balance  BalanceWhiteAuto = Continuous
-Acquisition    Continuous, AcquisitionFrameRate 10 (Enable = 1)
+Acquisition    Continuous, AcquisitionFrameRate 15 (Enable = 1)  [10 saat diukur 2026-08-21]
 Trigger        TriggerMode Off  (free-run; Line 0 debouncer 50 µs nganggur)
 Reverse X / Y  off / off
 Auto Fn AOI    1224 × 1024
@@ -65,10 +65,11 @@ GigE           GevSCPSPacketSize 8164 (jumbo), GevSCPD 400, BandwidthReserve 2,
 Binning 2×2 itu **bukan crop**: FOV penuh, tiap 4 piksel dijumlah jadi 1.
 Efek samping: lebih terang (mode `Sum`) + bandwidth turun 4×.
 
-## Bandwidth (kenapa binning + 10 fps wajib)
+## Bandwidth (kenapa binning wajib)
 
-Full-res 2448×2048×8bit @10fps ≈ 401 Mbps/kamera × 3 = **1,2 Gbps** → lewat kapasitas 1 GigE uplink.
-Binning 2×2 → ~100 Mbps/kamera ≈ **300 Mbps** total. Aman.
+Full-res 2448×2048×8bit @15fps ≈ 600 Mbps/kamera × 3 = **1,8 Gbps** → jauh lewat kapasitas 1 GigE
+uplink. Binning 2×2 → ~150 Mbps/kamera ≈ **450 Mbps** total di 15 fps. Aman. Hitungan lengkap:
+`docs/camera-spec.md` §3.
 
 Jumbo frame `8164` cuma jalan kalau **MTU 9000 diset di switch DAN NIC host**.
 MTU salah = frame putus / `MV_E_...` timeout. Cek: `ip link show <nic>` harus `mtu 9000`.
@@ -95,12 +96,13 @@ Simpan UserSet = jaring pengaman. Tes: simpan → cabut listrik kamera → nyala
   `AcquisitionFrameRate` (sekarang 15) dan di-load tiap connect, jadi `CAMERA_FPS`
   di `.env` cuma target loop capture. ⚠️ Nge-comment `LINE_n_FEATURE_FILE` **nggak**
   mematikan auto-load: default `:-` di `docker-compose.yml` tetap nyuntik
-  `config/camera/hikrobot.mfs`. Plafon lain lihat `docs/camera-spec.md § 5.4`.
-- **Jaringan di docs beda sama live.** Live Lampung: NIC `enp3s0` `192.168.0.10`,
-  kamera `192.168.0.13`, gateway `192.168.0.254`, `GEV SCDA/MCDA = 192.168.0.10`.
-  `camera-spec.md` nulis `192.168.100.x`, `camera-field-setup.md` nulis `192.168.X.20`.
-  **Percaya kamera live**, dokumennya belum direkonsiliasi.
-- **`camera-field-setup.md` sebagian basi**: masih klaim "kode capture TIDAK nge-set
+  `config/camera/hikrobot.mfs`. Plafon lain lihat `docs/camera-spec.md` §3.1.
+- **Jaringan Lampung beda dari template.** Live Lampung: NIC `enp3s0` `192.168.0.10`,
+  kamera `192.168.0.13`, gateway `192.168.0.254`, `GEV SCDA/MCDA = 192.168.0.10`, PLC `.14`.
+  `docs/camera-spec.md` §4 sekarang mencatat keduanya: `192.168.100.x` itu template pasang
+  dari nol, tabel Lampung di bawahnya. `camera-field-setup.md` (di workspace `sawit`, `../docs/`)
+  masih nulis `192.168.X.20`. **Percaya kamera live.**
+- **`camera-field-setup.md` (workspace `sawit`) sebagian basi**: masih klaim "kode capture TIDAK nge-set
   parameter kamera" (salah sejak FeatureLoad ada) dan nyaranin Binning off + full-res
   (bertentangan sama hitungan bandwidth). Prosedur kalibrasi WB-nya masih valid.
 

@@ -16,10 +16,12 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 
 from ...core.config import LineEndpoint, Settings
+from ...domain.kesehatan_ai import kode_http_health
 from ...domain.operator_error import LINE_MENOLAK, LINE_TIDAK_MENJAWAB, OperatorError
 
 logger = logging.getLogger(__name__)
@@ -45,14 +47,16 @@ class LinePlcTolak(RuntimeError):
         self.detail = detail
 
 
-def _ai_mati(res: httpx.Response) -> bool:
-    """Badan `/health` line membawa `ai.mati` (routes/health_ringan.py)."""
+def _503_dari_penjaga(res: httpx.Response) -> bool:
+    """Badan `/health` line menyebut 503-nya dari penjaga (routes/health_ringan.py):
+    AI mati (batch 2.1) atau frame berhenti (batch 3.6). Aturannya satu dengan
+    yang menjawab 503 itu, supaya keadaan baru tidak lupa ditambahkan di sini."""
     try:
         isi = res.json()
     except ValueError:
         return False
     ai = isi.get("ai") if isinstance(isi, dict) else None
-    return isinstance(ai, dict) and bool(ai.get("mati"))
+    return isinstance(ai, dict) and kode_http_health(ai) == 503
 
 
 class LineClient:
@@ -223,6 +227,19 @@ class LineClient:
         """
         return await self._get_json(line, "/internal/outbox", timeout_s=5.0)
 
+    async def log_line(
+        self, line: LineEndpoint, *, setelah: int, generasi: str, batas: int
+    ) -> dict[str, Any]:
+        """Satu halaman WARNING/ERROR line itu (`/internal/log`, batch 3.2) untuk tab Log.
+
+        Timeout sama dengan `antrean_line`: tarikan latar tiap 10 detik, bukan strip
+        status tiap detik. Line versi lama menjawab 404, dan itu sampai sebagai
+        `LineUnavailable` dengan `status` 404 lewat `_get_json`: pemanggil
+        (`TarikLogLineWorker`) diam dan mencoba lagi beberapa menit kemudian.
+        """
+        kueri = urlencode({"setelah": setelah, "generasi": generasi, "batas": batas})
+        return await self._get_json(line, f"/internal/log?{kueri}", timeout_s=5.0)
+
     async def kirim_ulang_antrean_line(self, line: LineEndpoint) -> int:
         """Suruh line mengirim seluruh antreannya sekarang. Mengembalikan jumlahnya.
 
@@ -312,7 +329,8 @@ class LineClient:
     async def hidup(self, line: LineEndpoint) -> bool:
         """Apakah proses line menjawab `/health` saat ini. Tidak pernah melempar.
 
-        Dipakai berulang (tiap ¼ detik) saat konsol menunggu line keluar sesudah
+        200 = hidup; 503 dari penjaga (AI mati ATAU frame berhenti) juga hidup: prosesnya
+        jalan, cuma tidak menyortir. Dipakai berulang (tiap ¼ detik) saat konsol menunggu line keluar sesudah
         perintah hapus, jadi timeout-nya pendek: line yang sedang mati memang
         diharapkan tidak menjawab.
         """
@@ -324,11 +342,11 @@ class LineClient:
             return False
         if res.status_code == 200:
             return True
-        # Batch 2.1: `/health` menjawab 503 kalau AI line mati, tapi prosesnya
-        # masih hidup dan masih menjalankan urutan tutupnya. Dibaca "mati" di
-        # sini, Danger Zone berhenti menunggu dan mengosongkan konsol sebelum
-        # antrean simpan line itu habis dikirim.
-        return res.status_code == 503 and _ai_mati(res)
+        # `/health` menjawab 503 kalau AI line mati (batch 2.1) atau frame berhenti
+        # (batch 3.6), tapi prosesnya masih hidup dan masih menjalankan urutan
+        # tutupnya. Dibaca "mati" di sini, Danger Zone berhenti menunggu dan
+        # mengosongkan konsol sebelum antrean simpan line itu habis dikirim.
+        return res.status_code == 503 and _503_dari_penjaga(res)
 
     async def _get_json(
         self, line: LineEndpoint, path: str, *, timeout_s: float

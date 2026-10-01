@@ -5,11 +5,14 @@ from pathlib import Path
 from typing import Any
 
 from ..core.config import Settings
+from ..domain.kesehatan_ai import JEDA_ALIRAN_DETIK
 from ..integrations.camera.base import CameraSource
 from ..integrations.outbox.outbox_store import OutboxStore
+from ..license.gate import grading_blocked
 from ..plc import diagnostics as plc_diagnostics
 from ..schemas.common_schema import HealthDetailSchema, WorkerStatus
 from ..workers.runtime_state import RuntimeState
+from .pemantau_disk import ringkas_disk_dari_state
 from .penjaga_ai import ringkas_ai_dari_state
 from .pindah_db_line import outbox_lama_tertinggal
 
@@ -53,6 +56,36 @@ class HealthService:
                 "gpu_sm": None,
             }
         return self.model.ringkasan()
+
+    def ringkasan_kamera(self) -> dict[str, Any]:
+        """Laju terukur dan umur gambar terakhir (batch 3.6).
+
+        Kedua angka fps membeku di nilai terakhirnya saat gambar (atau grading)
+        berhenti, jadi di sini dilaporkan 0 begitu yang terakhir lebih tua dari
+        satu jeda aliran: "14,9 fps" dari lima menit lalu adalah kebohongan
+        yang paling mudah dipercaya di kartu Diagnostik.
+        """
+        s = self.state
+        sekarang = s.jam()
+        umur_frame = sekarang - s.frame_terakhir_at if s.frame_terakhir_at > 0 else None
+        umur_deteksi = sekarang - s.inferensi_selesai_at if s.inferensi_selesai_at > 0 else None
+
+        def segar(umur: float | None) -> bool:
+            return umur is not None and umur <= JEDA_ALIRAN_DETIK
+
+        return {
+            "fps_kamera": round(s.fps_kamera, 1) if segar(umur_frame) else 0.0,
+            "fps_deteksi": round(s.inference_fps, 1) if segar(umur_deteksi) else 0.0,
+            "frame_umur_detik": None if umur_frame is None else round(umur_frame, 1),
+        }
+
+    def ringkasan_lisensi(self) -> dict[str, Any]:
+        """Lisensi LINE ini, dari gerbang yang sama dengan thread grading."""
+        return {
+            "aktif": bool(self.settings.lic_enabled),
+            "grading_diblokir": grading_blocked(self.settings.lic_enabled, self.state.license_exp),
+            "berlaku_sampai": self.state.license_exp or None,
+        }
 
     def get_health(self) -> dict[str, Any]:
         return {
@@ -105,4 +138,7 @@ class HealthService:
             last_successful_api_push=self.state.last_successful_api_push,
             **self.ringkasan_model(),
             ai=ringkas_ai_dari_state(self.state, lengkap=True),
+            **self.ringkasan_kamera(),
+            disk=ringkas_disk_dari_state(self.state),
+            lisensi=self.ringkasan_lisensi(),
         )

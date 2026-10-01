@@ -273,7 +273,7 @@ class CaptureSaveWorker:
         # bersebelahan dengan `outbox_failed` yang memang sudah rutin dilihat.
         self._dropped += 1
         logger.error(
-            "Antrean simpan penuh (%d) — janjang %s TIDAK disimpan (total dibuang: %d). "
+            "Antrean simpan penuh (%d), janjang %s TIDAK disimpan (total dibuang: %d). "
             "Disk atau CPU tidak mengimbangi laju grading.",
             self._queue.maxsize,
             job.timestamp,

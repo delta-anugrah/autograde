@@ -43,6 +43,7 @@ from typing import Any
 
 from ..domain.berkas_utuh import berkas_sementara
 from ..integrations.storage.tulis_atomik import tulis_atomik
+from ..repositories.log_line_repository import NAMA_DB_LOG_LINE
 from .pindah_db_line import db_sudah_pindah, outbox_lama_tertinggal
 
 logger = logging.getLogger(__name__)
@@ -55,12 +56,13 @@ PENANDA = ".hapus-data"
 #: `test_semua_berkas_db_di_state_digolongkan` menjaga daftar ini lengkap.
 MILIK_LINE_DI_STATE = ("upload_manifest.db", "outbox.db")
 
-#: Berkas line di state/ yang TIDAK pernah dihapus tombol ini (penjaga jam lisensi).
-SELAMAT_DI_STATE = ("license.db",)
+#: Berkas line di state/ yang TIDAK pernah dihapus tombol ini: penjaga jam lisensi, dan
+#: log line (batch 3.2) yang sudah terbuka sejak proses mulai, sebelum hapus-saat-boot.
+SELAMAT_DI_STATE = ("license.db", NAMA_DB_LOG_LINE)
 
-#: Awalan berkas di `artifacts/` yang selamat: `license.db` beserta `-wal`,
-#: `-shm`, dan `-journal`-nya.
-_AWALAN_SIMPAN = ("license.db",)
+#: Awalan berkas di `artifacts/` yang selamat: `license.db` dan log line beserta
+#: `-wal`, `-shm`, dan `-journal`-nya.
+_AWALAN_SIMPAN = ("license.db", NAMA_DB_LOG_LINE)
 #: Ikut selamat kalau folder DB line sudah `state/`: sisa yang gagal diserap.
 _AWALAN_SISA_SERAPAN = ("outbox.db",)
 
@@ -109,7 +111,7 @@ def hapus_kalau_diminta(
     # Dicatat SEBELUM mulai: berbulan-bulan foto bisa makan menit, dan selama
     # itu line belum mendengarkan port-nya — terbaca mati di konsol.
     logger.warning(
-        "Penanda hapus data ditemukan — mulai menghapus data line ini (mode %s, diminta %s). "
+        "Penanda hapus data ditemukan, mulai menghapus data line ini (mode %s, diminta %s). "
         "Bisa beberapa menit kalau fotonya banyak.", info["mode"], info["diminta_oleh"],
     )
     simpan = _AWALAN_SIMPAN
@@ -139,7 +141,7 @@ def hapus_kalau_diminta(
         penanda.unlink(missing_ok=True)
     else:
         logger.error(
-            "Hapus data line belum tuntas: %d item gagal dihapus — penanda dibiarkan, "
+            "Hapus data line belum tuntas: %d item gagal dihapus, penanda dibiarkan, "
             "boot berikutnya mencoba lagi", gagal,
         )
     return {**info, "dihapus": dihapus, "gagal": gagal}

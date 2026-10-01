@@ -6,7 +6,8 @@ router konsol ASLI dengan login sungguhan, lalu kartu line dirender lewat node
 dengan KAMUS asli. Tanpa torch, kamera, PLC, atau ERP: jalan di CI.
 
 Yang dilihat operator: kartu line merah + pita "AI berhenti memproses" dengan
-kode, line, jam, dan tindakan; hilang sendiri begitu AI pulih, tanpa sentuhan.
+line, jam, dan tindakan (tanpa kode galat sejak 2026-10-01; kodenya di tab Log);
+hilang sendiri begitu AI pulih, tanpa sentuhan.
 Yang dilihat Docker/launcher: `/health` 503 selama AI mati.
 """
 from __future__ import annotations
@@ -119,7 +120,7 @@ def test_cuda_rusak_sampai_ke_kartu_operator_lalu_hilang_sendiri(pabrik):
 
 
 @butuh_node
-def test_kalimat_di_layar_memuat_kode_line_jam_dan_tindakan(pabrik):
+def test_kalimat_di_layar_memuat_line_jam_dan_tindakan(pabrik):
     line, _, layar = pabrik
     line.mulai()
     line.jalan(5)
@@ -130,8 +131,9 @@ def test_kalimat_di_layar_memuat_kode_line_jam_dan_tindakan(pabrik):
     html = jalankan(["jamSinkron", "aiMati", "pitaAi"],
                     f"pitaAi({json.dumps(kartu)}, {JAM_DINDING + 60})")
     assert "Line 2: AI berhenti memproses" in html
-    assert "Kode AI_MATI, sejak 21.13." in html
+    assert "Sejak 21.13." in html
     assert "Tahan umpan buah ke line ini dan panggil teknisi" in html
+    assert "AI_MATI" not in html
 
 
 def test_baru_menyala_tidak_pernah_merah(pabrik):

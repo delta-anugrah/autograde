@@ -34,6 +34,8 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from .jejak_sambungan import JejakSambunganPlc
+
 logger = logging.getLogger(__name__)
 
 #: Detik. Dipakai sebagai `timer_sec` pymcprotocol, yang memasang socket
@@ -58,6 +60,7 @@ class McProtocolPlcClient:
         self._factory = _client_factory or self._default_factory
         self._client: Any = None
         self.connected = False
+        self._jejak = JejakSambunganPlc(host, port)
 
     def _default_factory(self) -> Any:
         import pymcprotocol
@@ -117,7 +120,7 @@ class McProtocolPlcClient:
             self._client.connect(self._host, self._port)
             self.connected = True
         except Exception as exc:
-            logger.warning("PLC connect ke %s:%s gagal: %s", self._host, self._port, exc)
+            self._jejak.gagal_sambung(exc)
             self._client = None
             self.connected = False
         return self.connected
@@ -129,7 +132,7 @@ class McProtocolPlcClient:
         dalam pymcprotocol tidak ikut reset sendiri, dan `_send` pada socket
         yang sudah mati melempar selamanya.
         """
-        logger.warning("PLC I/O gagal (%s) — menandai terputus, akan reconnect", exc)
+        self._jejak.terputus(exc)
         self.connected = False
         try:
             if self._client is not None:
@@ -150,6 +153,7 @@ class McProtocolPlcClient:
         except Exception as exc:
             self._drop(exc)
             return False
+        self._jejak.berhasil()
         return True
 
     def write_coils(self, values: dict[int, bool]) -> dict[int, bool]:
@@ -174,6 +178,7 @@ class McProtocolPlcClient:
         except Exception as exc:
             self._drop(exc)
             return dict.fromkeys(values, False)
+        self._jejak.berhasil()
         return dict.fromkeys(values, True)
 
     def read_discrete_inputs(self, start: int, count: int) -> list[bool] | None:
@@ -190,6 +195,7 @@ class McProtocolPlcClient:
         except Exception as exc:
             self._drop(exc)
             return None
+        self._jejak.berhasil()
         return [bool(b) for b in bits][:count]
 
     def close(self) -> None:

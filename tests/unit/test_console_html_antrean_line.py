@@ -26,8 +26,7 @@ KUNCI_BARU = (
     "judulAntreanLine", "thMenunggu", "thTertua", "thKeadaan", "kosongAntreanLine", "gagalAntreanLine",
     "antreanLineKosong", "antreanLineMengirim", "antreanLineNonaktif", "antreanLineLamaTertinggal",
     "antreanLinePutus_tak_terjangkau", "antreanLinePutus_kunci_ditolak", "antreanLinePutus_alamat_salah",
-    "antreanLinePutus_konsol_galat", "antreanLineKunciKonsol", "antreanLineTakTerjangkau",
-    "antreanLineErrorLine", "antreanLineDitolak",
+    "antreanLinePutus_konsol_galat", "antreanLineGalatTerakhir", "antreanLineDitolak",
     "antreanLineDikirimUlang", "antreanLineGagalKirimUlang",
     "saranKunciLine", "saranLineMati", "saranMuatUlang", "saranBukaLog",
 )
@@ -42,13 +41,20 @@ const KOSONG = "-";
 const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));
 const KAMUS_UJI = {
   antreanLinePutus_tak_terjangkau: "putus sejak {sejak}",
-  antreanLineKunciKonsol: "kunci ditolak HTTP {status}",
-  antreanLineErrorLine: "line menjawab HTTP {status}",
-  antreanLineDitolak: "{jumlah} ditolak pukul {jam}: {alasan}",
-  antreanLineGagalKirimUlang: "Kirim Ulang {line} gagal pukul {jam} (kode {kode}): {alasan}. {saran}",
+  antreanLineDitolak: "{jumlah} ditolak pukul {jam}",
+  antreanLineGalatTerakhir: "galat terakhir {jam}",
+  antreanLineGagalKirimUlang: "Kirim Ulang {line} gagal pukul {jam}: {alasan}. {saran}",
+  lineSebab_tak_terjangkau: "line tidak menjawab", lineSebab_bukan_line: "bukan line AutoGrade",
+  lineSebab_kunci_ditolak: "kunci konsol ditolak", lineSebab_line_galat: "line galat",
+  lineSebab_lain: "line tidak terbaca",
 };
+const bahasa = "id";
+const KAMUS = { id: KAMUS_UJI };
 const t = (k) => KAMUS_UJI[k] ?? k;
+// Stand-ins for the real helpers (their own tests: test_console_html_teks_ramah.py).
+const kodeDikenal = (e) => Boolean(e.kode);
 const alasan = (e) => e.message;
+const saranUmum = () => "SARAN-UMUM";
 """
 
 
@@ -142,12 +148,20 @@ _SEHAT = {"terjangkau": True, "aktif": True, "lama_tertinggal": False, "menunggu
 @pytest.mark.parametrize(
     "d,kunci",
     [
-        ({"terjangkau": False, "kode": "line_menolak", "status": 401}, "antreanLineKunciKonsol"),
-        ({"terjangkau": False, "kode": "line_tidak_menjawab"}, "antreanLineTakTerjangkau"),
-        # Line-side error (a 500) or an old line answering 404: a status came back,
-        # so the line itself is reachable, this is NOT "the line is down".
-        ({"terjangkau": False, "kode": "line_tidak_menjawab", "status": 500}, "antreanLineErrorLine"),
-        ({"terjangkau": False, "kode": "line_tidak_menjawab", "status": 404}, "antreanLineErrorLine"),
+        # A line the console cannot read: the backend's `sebab_kode` picks the sentence the
+        # Diagnostik card uses too (2026-10-01), never the HTTP status.
+        ({"terjangkau": False, "kode": "line_menolak", "status": 401, "sebab_kode": "kunci_ditolak"},
+         "lineSebab_kunci_ditolak"),
+        ({"terjangkau": False, "kode": "line_tidak_menjawab", "sebab_kode": "tak_terjangkau"},
+         "lineSebab_tak_terjangkau"),
+        # Line-side error (a 500) or something answering 404: a status came back, so this
+        # is NOT "the line is down".
+        ({"terjangkau": False, "kode": "line_tidak_menjawab", "status": 500, "sebab_kode": "line_galat"},
+         "lineSebab_line_galat"),
+        ({"terjangkau": False, "kode": "line_tidak_menjawab", "status": 404, "sebab_kode": "bukan_line"},
+         "lineSebab_bukan_line"),
+        # A console older than the code: the generic sentence, never a guess from the status.
+        ({"terjangkau": False, "kode": "line_tidak_menjawab", "status": 404}, "lineSebab_lain"),
         ({**_SEHAT, "aktif": False}, "antreanLineNonaktif"),
         ({**_SEHAT, "lama_tertinggal": True}, "antreanLineLamaTertinggal"),
         ({**_SEHAT, "menunggu": 0, "tersambung": False, "sebab_putus": "kunci_ditolak"}, "antreanLineKosong"),
@@ -165,13 +179,13 @@ _SEHAT = {"terjangkau": True, "aktif": True, "lama_tertinggal": False, "menunggu
     ],
 )
 def test_keadaan_dipilih_dari_yang_paling_perlu_tindakan(d, kunci):
-    assert _jalankan(f"keadaanAntreanLine({json.dumps(d)}).kunci", "keadaanAntreanLine") == kunci
+    assert _jalankan(f"keadaanAntreanLine({json.dumps(d)}).kunci", "kunciSebabTakTerbaca", "keadaanAntreanLine") == kunci
 
 
 def _baris(kode: str, d: dict, sekarang_ms: int) -> str:
     return _jalankan(
         f"barisAntreanLine({json.dumps(kode)}, {json.dumps(d)}, {sekarang_ms})",
-        "keadaanAntreanLine", "barisAntreanLine", "waktu", "lamaProses",
+        "kunciSebabTakTerbaca", "keadaanAntreanLine", "barisAntreanLine", "waktu", "lamaProses",
     )
 
 
@@ -185,32 +199,36 @@ def test_baris_line_sehat_punya_tombol_dan_umur_tertua():
 
 
 @butuh_node
-def test_baris_putus_menyebut_sejak_kapan_dan_galatnya():
+def test_baris_putus_menyebut_sejak_kapan_tanpa_galat_mentah():
+    """The worker's raw error belongs to the Log tab (user decision 2026-10-01)."""
     d = {**_SEHAT, "tersambung": False, "sebab_putus": "tak_terjangkau", "putus_sejak": 1_789_873_200,
-         "galat": "ConnectError: <refused>"}
+         "galat": "ConnectError: <refused>", "galat_at": 1_789_873_200}
     html = _baris("line-1", d, 1_789_873_260_000)
     assert "putus sejak " in html and "{sejak}" not in html
-    assert "ConnectError: &lt;refused&gt;" in html
+    assert "ConnectError" not in html and "refused" not in html
+    assert "galat terakhir " in html
     assert 'class="tanda-gagal"' in html
 
 
 @butuh_node
-def test_baris_ditolak_menyebut_jumlah_jam_dan_alasan():
-    """Detail: apa (berapa janjang), kapan, dan kenapa. Line ada di kolom pertama, saran
-    di kalimat kamus (MANUAL §7)."""
+def test_baris_ditolak_menyebut_jumlah_dan_jam_tanpa_alasan_mentah():
+    """What (how many bunches) and when; the why is the console's own answer, which the
+    Log tab keeps. Line in the first column, advice in the KAMUS sentence (MANUAL §7)."""
     d = {**_SEHAT, "ditolak": 2, "ditolak_at": 1_789_873_200, "ditolak_alasan": "HTTP 400: <timestamp cacat>",
          "galat": "HTTP 400: <timestamp cacat>", "galat_at": 1_789_873_200}
     html = _baris("line-2", d, 1_789_873_260_000)
     assert "2 ditolak pukul " in html and "{jam}" not in html
-    assert "HTTP 400: &lt;timestamp cacat&gt;" in html
+    assert "timestamp cacat" not in html and "HTTP" not in html
     assert 'class="tanda-gagal"' in html
     assert 'data-kirim-ulang-line="line-2"' in html
 
 
 @butuh_node
-def test_alasan_penolakan_dengan_tanda_dolar_ditulis_apa_adanya():
+def test_alasan_penolakan_tidak_pernah_masuk_baris():
+    """It used to be written through `replace` (with a function, for "$&"); now not at all."""
     d = {**_SEHAT, "ditolak": 1, "ditolak_at": 1_789_873_200, "ditolak_alasan": "HTTP 400: harga $& $1"}
-    assert "HTTP 400: harga $&amp; $1" in _baris("line-1", d, 1_789_873_260_000)
+    html = _baris("line-1", d, 1_789_873_260_000)
+    assert "harga" not in html and "$&" not in html
 
 
 @butuh_node
@@ -219,7 +237,8 @@ def test_galat_terakhir_disertai_jamnya():
     d = {**_SEHAT, "galat": "ConnectError: refused", "galat_at": 1_789_873_200}
     html = _baris("line-1", d, 1_789_873_260_000)
     jam = _jalankan("waktu(1789873200000)", "waktu")
-    assert f"{jam}: ConnectError: refused" in html
+    assert f"galat terakhir {jam}" in html
+    assert "ConnectError" not in html
 
 
 @butuh_node
@@ -232,32 +251,36 @@ def test_galat_lama_tidak_ditampilkan_saat_antrean_kosong():
 
 
 @butuh_node
-def test_baris_line_menolak_tanpa_tombol_dengan_status_dan_pesan():
-    d = {"terjangkau": False, "kode": "line_menolak", "status": 403, "pesan": "line-2 refused: HTTP 403"}
+def test_baris_line_menolak_tanpa_tombol_tanpa_status_dan_pesan_mentah():
+    d = {"terjangkau": False, "kode": "line_menolak", "status": 403, "pesan": "line-2 refused: HTTP 403",
+         "sebab_kode": "kunci_ditolak"}
     html = _baris("line-2", d, 0)
     assert "data-kirim-ulang-line" not in html
-    assert "kunci ditolak HTTP 403" in html
-    assert "line-2 refused: HTTP 403" in html
+    assert "kunci konsol ditolak" in html
+    assert "403" not in html and "refused" not in html
 
 
 @butuh_node
 def test_baris_line_error_500_bukan_line_mati():
     """Line-side error (500): a status came back, so this is NOT the key advice
     and NOT the unreachable wording, it is its own row."""
-    d = {"terjangkau": False, "kode": "line_tidak_menjawab", "status": 500, "pesan": "line-2 did not answer: HTTP 500"}
+    d = {"terjangkau": False, "kode": "line_tidak_menjawab", "status": 500,
+         "pesan": "line-2 did not answer: HTTP 500", "sebab_kode": "line_galat"}
     html = _baris("line-2", d, 0)
     assert "data-kirim-ulang-line" not in html
-    assert "line menjawab HTTP 500" in html
-    assert "kunci ditolak" not in html
+    assert "line galat" in html
+    assert "kunci konsol ditolak" not in html and "line tidak menjawab" not in html
+    assert "500" not in html
 
 
 @butuh_node
-def test_baris_line_lama_404_bukan_line_mati():
-    """An old line with no `/internal/outbox` answers 404: same treatment as a 500."""
-    d = {"terjangkau": False, "kode": "line_tidak_menjawab", "status": 404, "pesan": "line-2 did not answer: HTTP 404"}
+def test_baris_404_bukan_line_mati():
+    """Something answering 404 at the line's address (not an AutoGrade line, or too old)."""
+    d = {"terjangkau": False, "kode": "line_tidak_menjawab", "status": 404,
+         "pesan": "line-2 did not answer: HTTP 404", "sebab_kode": "bukan_line"}
     html = _baris("line-2", d, 0)
-    assert "line menjawab HTTP 404" in html
-    assert "kunci ditolak" not in html
+    assert "bukan line AutoGrade" in html
+    assert "kunci konsol ditolak" not in html and "404" not in html
 
 
 @butuh_node
@@ -339,31 +362,41 @@ def test_kirim_ulang_meminta_muat_susulan():
         ("line_menolak", {"status": 401}, "saranKunciLine"),
         # line_tidak_menjawab WITHOUT a status: truly unreachable or timed out.
         ("line_tidak_menjawab", {}, "saranLineMati"),
-        # line_tidak_menjawab WITH a status: line-side error (500) or an old line
-        # answering 404. Must NOT read as the line being down.
+        # line_tidak_menjawab WITH a status: line-side error (500) or something answering
+        # 404. Must NOT read as the line being down.
         ("line_tidak_menjawab", {"status": 500}, "saranBukaLog"),
         ("line_tidak_menjawab", {"status": 404}, "saranBukaLog"),
         ("line_tidak_dikenal", {}, "saranMuatUlang"),
-        (None, {}, "saranBukaLog"),
     ],
 )
-def test_pesan_gagal_menyebut_line_jam_kode_dan_saran(kode, params, saran):
-    e = {"kode": kode, "message": "Line 1 menolak perintah (HTTP 401)", "params": params}
+def test_pesan_gagal_menyebut_line_jam_alasan_dan_saran_tanpa_kode(kode, params, saran):
+    """What failed, on which line, when, why (the KAMUS sentence from alasan) and what to do.
+    No error code since 2026-10-01 (user decision: no codes outside the Log tab)."""
+    e = {"kode": kode, "message": "ALASAN", "params": params}
     teks = _jalankan(
         f"pesanGagalKirimUlang({json.dumps(e)}, 'line-1', new Date(2026, 8, 28, 14, 5, 9))",
         "pesanGagalKirimUlang", "waktu", konstanta=("SARAN_KIRIM_ULANG",),
     )
-    assert teks.startswith("Kirim Ulang line-1 gagal pukul 28/09/2026 14:05:09")
-    assert f"(kode {kode or 'http'})" in teks
-    assert "Line 1 menolak perintah (HTTP 401)" in teks
-    assert teks.endswith(saran)
+    assert teks == f"Kirim Ulang line-1 gagal pukul 28/09/2026 14:05:09: ALASAN. {saran}"
+    assert "kode" not in teks
 
 
 @butuh_node
-def test_kirim_ulang_500_menunjukkan_status_bukan_saran_kunci_atau_line_mati():
-    """A 500 on Kirim Ulang must show the HTTP status and saranBukaLog, and must
-    NOT show saranLineMati or the INTERNAL_SECRET advice (saranKunciLine)."""
-    e = {"kode": "line_tidak_menjawab", "message": "line-1 did not answer: HTTP 500", "params": {"status": 500}}
+def test_kode_asing_tanpa_saran_tambahan():
+    """An unknown code gets the generic advice only: the template already says "gagal"."""
+    e = {"kode": None, "message": "ALASAN", "params": {}}
+    teks = _jalankan(
+        f"pesanGagalKirimUlang({json.dumps(e)}, 'line-1', new Date(2026, 8, 28, 14, 5, 9))",
+        "pesanGagalKirimUlang", "waktu", konstanta=("SARAN_KIRIM_ULANG",),
+    )
+    assert teks == "Kirim Ulang line-1 gagal pukul 28/09/2026 14:05:09: SARAN-UMUM."
+
+
+@butuh_node
+def test_kirim_ulang_500_menyarankan_tab_log_bukan_kunci_atau_line_mati():
+    """A 500 on Kirim Ulang ends with saranBukaLog, and must NOT give saranLineMati or
+    the key advice (saranKunciLine)."""
+    e = {"kode": "line_tidak_menjawab", "message": "ALASAN", "params": {"status": 500}}
     teks = _jalankan(
         f"pesanGagalKirimUlang({json.dumps(e)}, 'line-1', new Date(2026, 8, 28, 14, 5, 9))",
         "pesanGagalKirimUlang", "waktu", konstanta=("SARAN_KIRIM_ULANG",),

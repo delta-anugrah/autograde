@@ -128,10 +128,14 @@ def test_daftar_menandai_cocok_dan_tidak(folder):
 
     assert [m["berkas"] for m in daftar] == ["best.pt", "best_3class_v2.pt"]
     baru, lama = daftar
-    assert baru["cocok"] is True and baru["alasan"] == ""
+    assert baru["cocok"] is True and baru["alasan"] == "" and baru["alasan_kode"] == []
     assert baru["kelas"] == ["JK", "Ripe", "TP", "Unripe"]
     assert lama["cocok"] is False
     assert "ACC" in lama["alasan"] and "Ripe" in lama["alasan"]
+    # What the screen words (fix wave 2026-10-01): codes plus the class names, no server text.
+    kode = {a["kode"]: a["kelas"] for a in lama["alasan_kode"]}
+    assert set(kode) == {"kelas_asing", "kelas_hilang"}
+    assert "ACC" in kode["kelas_asing"] and "Ripe" in kode["kelas_hilang"]
 
 
 def test_daftar_pt_rusak_tetap_tampil_tapi_tidak_cocok(folder):
@@ -141,6 +145,7 @@ def test_daftar_pt_rusak_tetap_tampil_tapi_tidak_cocok(folder):
     assert satu["kelas"] is None
     assert satu["cocok"] is False
     assert "tidak terbaca" in satu["alasan"]
+    assert satu["alasan_kode"] == [{"kode": "kelas_tak_terbaca"}]
 
 
 def test_daftar_folder_tidak_ada_kosong(tmp_path):
@@ -252,6 +257,8 @@ def test_nama_berkas_tak_didukung_tampil_tapi_tidak_cocok(folder):
     assert satu["kelas"] == ["JK", "Ripe", "TP", "Unripe"]
     assert satu["cocok"] is False
     assert "nama" in satu["alasan"]
+    # The exception text (`nama berkas: ...`) stays server side; the screen gets the code.
+    assert satu["alasan_kode"] == [{"kode": "nama_tak_sah"}]
 
 
 def test_folder_tidak_ada_tidak_terbaca(tmp_path):

@@ -9,9 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from collections.abc import Callable
 from typing import Any, Protocol
 
 from ..core.config import LineEndpoint
+from ..domain.episode_tak_terbaca import TENGGANG_START_S
+from ..domain.line_tak_terbaca import SEBAB_LAIN, sebab_tak_terbaca
 from ..domain.operator_error import (
     LINE_TIDAK_DIKENAL,
     LINE_TIDAK_MENJAWAB,
@@ -19,6 +23,7 @@ from ..domain.operator_error import (
     OperatorError,
 )
 from ..integrations.notifications.line_client import LineUnavailable
+from .jejak_tak_terbaca import JejakTakTerbaca
 
 logger = logging.getLogger(__name__)
 
@@ -40,20 +45,29 @@ class PantauAntreanLine:
         lines: tuple[LineEndpoint, ...],
         *,
         batas_tunggu_s: float = BATAS_TUNGGU_LINE_S,
+        jam: Callable[[], float] = time.monotonic,
+        tenggang_start_s: float = TENGGANG_START_S,
     ) -> None:
         self._client = line_client
         self._lines = tuple(lines)
         self._batas_tunggu_s = batas_tunggu_s
+        # Baris layar menunjuk ke tab Log untuk line yang tidak terbaca; alasan mentahnya
+        # tertulis di sini, satu baris per kejadian (aturan LineStatusWorker).
+        self._tak_terbaca = JejakTakTerbaca(logger, "antrean line", jam=jam, tenggang_s=tenggang_start_s)
 
     async def ringkasan(self) -> dict[str, Any]:
         hasil = await asyncio.gather(
             *(self._antrean(line) for line in self._lines), return_exceptions=True
         )
-        return {
-            "lines": {
-                line.line_code: _baris(line, isi) for line, isi in zip(self._lines, hasil, strict=True)
-            }
-        }
+        lines: dict[str, Any] = {}
+        for line, isi in zip(self._lines, hasil, strict=True):
+            baris = _baris(line, isi)
+            if baris["terjangkau"]:
+                self._tak_terbaca.pulih(line.line_code)
+            else:
+                self._tak_terbaca.gagal(line.line_code, baris["sebab_kode"], baris["pesan"])
+            lines[line.line_code] = baris
+        return {"lines": lines}
 
     async def _antrean(self, line: LineEndpoint) -> Any:
         try:
@@ -88,15 +102,31 @@ class PantauAntreanLine:
 
 
 def _baris(line: LineEndpoint, isi: Any) -> dict[str, Any]:
-    """Satu baris layar dari jawaban satu line, atau dari alasan line itu tidak menjawab."""
+    """Satu baris layar dari jawaban satu line, atau dari alasan line itu tidak menjawab.
+
+    Layar menulis kalimatnya dari `sebab_kode` (`domain/line_tak_terbaca.py`), tidak
+    pernah dari `pesan` (keputusan user 2026-10-01: di luar tab Log tidak ada teks galat
+    sistem); `pesan` tetap ikut untuk curl dan test.
+    """
     if isinstance(isi, OperatorError):
-        return {"terjangkau": False, "kode": isi.code, "status": isi.params.get("status"), "pesan": str(isi)}
+        status = isi.params.get("status")
+        return {
+            "terjangkau": False, "kode": isi.code, "status": status, "pesan": str(isi),
+            "sebab_kode": sebab_tak_terbaca(isi.code, status),
+        }
     if isinstance(isi, Exception):
-        return {"terjangkau": False, "kode": LINE_TIDAK_MENJAWAB, "status": None, "pesan": str(isi)}
+        return _tak_terbaca_lain(str(isi))
     if isinstance(isi, BaseException):
         raise isi
     if not isinstance(isi, dict):
         # Jawaban cacat satu line jadi baris galat line itu saja, bukan 500 seluruh layar.
-        pesan = f"{line.line_code} answered {type(isi).__name__}, not an object"
-        return {"terjangkau": False, "kode": LINE_TIDAK_MENJAWAB, "status": None, "pesan": pesan}
+        return _tak_terbaca_lain(f"{line.line_code} answered {type(isi).__name__}, not an object")
     return {"terjangkau": True, **isi}
+
+
+def _tak_terbaca_lain(pesan: str) -> dict[str, Any]:
+    """Line MENJAWAB atau kodenya sendiri gagal: bukan "tidak ada jawaban sama sekali"."""
+    return {
+        "terjangkau": False, "kode": LINE_TIDAK_MENJAWAB, "status": None, "pesan": pesan,
+        "sebab_kode": SEBAB_LAIN,
+    }

@@ -267,9 +267,13 @@ diketahui statusnya tidak boleh dibaca sebagai sehat pada sinyal keselamatan.
 Sejak batch 2.1 (2026-09-28), `health_check()` = `PenjagaAi.sehat_untuk_plc()`
 (`services/penjaga_ai.py`): tidak sehat berarti **kamera putus ATAU AI mati** (kamera mengirim
 gambar tapi tidak ada frame yang selesai digrading selama `AI_MATI_DETIK`, bawaan 30 detik).
-Lisensi habis dan sumber diam (gambar berhenti sama sekali walau kamera tersambung) **sengaja
-tidak** menaikkan ERROR: keduanya sudah punya sinyalnya sendiri (banner lisensi, alive bit mati)
-dan bukan kerusakan line. Overflow (di bawah) tetap tidak menaikkannya, tidak berubah.
+Sejak batch 3.6 ditambah **frame berhenti**: kamera tersambung (atau ada sambung ulang yang
+berhasil sejak gambar terakhir) tapi tidak ada gambar masuk selama `AI_MATI_DETIK`. Buah lewat tanpa disortir persis
+seperti AI mati; sebelum ini coil-nya malah berkedip (kamera putus dan sumber diam bergantian
+tiap sambung ulang). Lisensi habis dan **sumber selesai** (video uji tanpa ulang yang habis)
+**sengaja tidak** menaikkan ERROR: yang pertama sudah punya sinyalnya sendiri (banner lisensi,
+alive bit mati), yang kedua bukan kerusakan line. PLC tidak berubah; tim PLC perlu tahu
+M1002/M1005/M1008 sekarang juga naik untuk kamera yang diam. Overflow (di bawah) tetap tidak menaikkannya, tidak berubah.
 
 **Overflow sengaja TIDAK menaikkan ERROR.** Drop adalah steady state yang dideklarasikan di
 bawah beban (lihat "Throughput ceiling" di atas): kamera bisa ~10 keputusan/detik, satu coil muat

@@ -182,6 +182,20 @@ def _iso(detik: float) -> str:
     return datetime.fromtimestamp(detik, tz=UTC).isoformat(timespec="seconds")
 
 
+def _alasan_kode(kelas: list[str] | None) -> list[dict[str, str]]:
+    """Kenapa model tidak bisa dipakai, sebagai kode yang diterjemahkan layar (KAMUS
+    `modelAlasan_<kode>`), bukan kalimat server (keputusan user 2026-10-01)."""
+    if kelas is None:
+        return [{"kode": "kelas_tak_terbaca"}]
+    asing, hilang = periksa_kelas(kelas)
+    hasil = []
+    if asing:
+        hasil.append({"kode": "kelas_asing", "kelas": ", ".join(asing)})
+    if hilang:
+        hasil.append({"kode": "kelas_hilang", "kelas": ", ".join(hilang)})
+    return hasil
+
+
 def _alasan(kelas: list[str] | None) -> str:
     if kelas is None:
         return "kelas tidak terbaca, mungkin bukan checkpoint YOLO"
@@ -245,11 +259,15 @@ class ModelLibrary:
         # Nama diperiksa dengan aturan yang sama dengan gerbang simpan: berkas
         # yang namanya tidak bisa ditulis ke media.env tampil dengan alasannya,
         # bukan lolos ke dropdown lalu ditolak 400 saat disimpan.
+        # `alasan` (teks) tetap untuk pesan tolak simpan di server (layar_line_support) dan
+        # log; layar menulis `alasan_kode`.
         try:
             bersihkan_nama_model(pt.name)
             alasan = _alasan(kelas)
+            alasan_kode = _alasan_kode(kelas)
         except ModelTidakSah as exc:
             alasan = f"nama berkas: {exc}"
+            alasan_kode = [{"kode": "nama_tak_sah"}]
         return {
             "berkas": pt.name,
             "ukuran_mb": round(st.st_size / 1_000_000, 1),
@@ -257,6 +275,7 @@ class ModelLibrary:
             "kelas": kelas,
             "cocok": not alasan,
             "alasan": alasan,
+            "alasan_kode": alasan_kode,
             "engine": self._engine_untuk(pt, kelas, st.st_mtime),
         }
 

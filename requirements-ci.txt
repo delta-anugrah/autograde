@@ -45,3 +45,9 @@ opencv-python-headless
 # tanpa menunggu batch yang jalan (batch 2.2). Pure python, tidak menarik
 # torch. `<4`: APScheduler 4 API-nya lain sama sekali; runtime memakai 3.10.4.
 apscheduler<4
+
+# `uvicorn` (pure python + h11, tidak menarik torch): test logging batch 3 memasang
+# konfigurasi log uvicorn yang SAMA dengan saat boot dan menjalankan protokol HTTP-nya
+# tanpa socket, untuk membuktikan galat 500 dan access log melewati jalur kita.
+# Versi sama dengan `requirements.txt`.
+uvicorn==0.34.0

@@ -198,7 +198,7 @@ def test_memanggil_rute_yang_ada():
 
 def test_body_dikirim_sebagai_json_string():
     """`api()` meneruskan opts ke fetch apa adanya: objek telanjang terkirim
-    sebagai "[object Object]" dan dijawab 422 (terjadi di Rekam Video)."""
+    sebagai "[object Object]" dan dijawab 400 input_tidak_sah (terjadi di Rekam Video)."""
     assert "JSON.stringify(body)" in _fungsi("jalankanBahaya")
 
 

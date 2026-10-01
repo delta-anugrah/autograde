@@ -67,6 +67,9 @@ IMPOR_BERJALAN = "impor_berjalan"
 IMPOR_TIDAK_ADA = "impor_tidak_ada"
 IMPOR_SUDAH_DIBATALKAN = "impor_sudah_dibatalkan"
 IMPOR_HAPUS_BERJALAN = "impor_hapus_berjalan"
+# A body of the wrong shape on an operator route (a list, or a number where text belongs),
+# refused by the Pydantic model before the domain sees it (2026-09-30, standard B1).
+INPUT_TIDAK_SAH = "input_tidak_sah"
 
 CODES = (
     PLAT_KOSONG,
@@ -109,6 +112,7 @@ CODES = (
     IMPOR_TIDAK_ADA,
     IMPOR_SUDAH_DIBATALKAN,
     IMPOR_HAPUS_BERJALAN,
+    INPUT_TIDAK_SAH,
 )
 
 

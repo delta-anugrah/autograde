@@ -89,7 +89,7 @@ def _ditandai(jawaban: dict) -> list[str]:
 
 
 def _kotak(nama: str, lewat_ms: int, bahasa: str) -> str:
-    konst = konstanta("RESTART_BATAS_MS", "RESTART_PASTI_MATI_MS", "RESTART_KODE")
+    konst = konstanta("RESTART_BATAS_MS", "RESTART_PASTI_MATI_MS")
     m = json.dumps({"mulai": MULAI, "turunPada": None, "batasMs": 60_000, "hapus": False})
     return jalankan(
         ["jamSinkron", "restartMasihDitunggu", "isiRestart", "teksBatasRestart"],
@@ -133,10 +133,10 @@ def test_hapus_data_menandai_line_yang_menerima(konsol):
 @butuh_node
 @pytest.mark.parametrize("bahasa,jalan,lama,tanpa", [
     ("id", ["Line 1 sedang dinyalakan ulang", 'class="restart-bar"'],
-     ["Line 1 belum kembali", "Kode RESTART_LAMA", "21.13", "Cek tab Log dan terminal line itu", "60 detik"],
+     ["Line 1 belum kembali", "Restart diminta pukul 21.13", "Cek tab Log dan terminal line itu", "60 detik"],
      ["12 detik", "75 detik"]),
     ("en", ["Line 1 is restarting", 'class="restart-bar"'],
-     ["Line 1 has not come back", "Code RESTART_LAMA", "21:13", "Check the Log tab", "60 s"],
+     ["Line 1 has not come back", "Restart requested at 21:13", "Check the Log tab", "60 s"],
      ["12 s", "75 s"]),
 ])
 def test_kotak_kamera_dengan_kamus_asli_tanpa_em_dash(bahasa, jalan, lama, tanpa):
@@ -152,3 +152,4 @@ def test_kotak_kamera_dengan_kamus_asli_tanpa_em_dash(bahasa, jalan, lama, tanpa
         assert p not in teks_jalan and p not in teks_lama, p
     for teks in (teks_jalan, teks_lama):
         assert "—" not in teks and "–" not in teks and " - " not in teks
+        assert "RESTART_LAMA" not in teks, "no error code outside the Log tab (2026-10-01)"

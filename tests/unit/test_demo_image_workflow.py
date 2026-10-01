@@ -67,9 +67,14 @@ def test_publishes_under_the_same_pinned_image_name_as_the_release():
     assert _workflow()["env"]["IMAGE_NAME"] == _workflow(RELEASE)["env"]["IMAGE_NAME"]
 
 
-def test_runs_on_every_release_tag_and_on_demand_for_an_older_one():
+def test_runs_when_the_release_calls_it_and_on_demand_for_an_older_one():
+    """Every release tag reaches this workflow through deploy.yml, after CI (batch 4.1)."""
     triggers = _workflow()[True]  # YAML 1.1 reads the `on:` key as True
-    assert triggers["push"]["tags"] == ["v*.*.*"]
+    assert triggers["workflow_call"]["inputs"]["version"] == {
+        "description": "Release tag being built, e.g. v1.20.0",
+        "required": True,
+        "type": "string",
+    }
     assert triggers["workflow_dispatch"]["inputs"]["version"]["required"] is True
 
 

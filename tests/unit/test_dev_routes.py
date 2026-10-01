@@ -18,12 +18,14 @@ from fastapi.testclient import TestClient
 
 from palmgrade.core.config import LineEndpoint
 from palmgrade.domain.operator_auth import hash_password
+from palmgrade.domain.operator_error import LINE_TIDAK_MENJAWAB
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.integrations.notifications.line_client import LineUnavailable
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.repositories.log_repository import LogStore
 from palmgrade.routes.console import get_auth_service, get_console_service, get_dev_service
 from palmgrade.routes.console import router as console_router
+from palmgrade.routes.console_deps import pasang_penangan_validasi
 from palmgrade.services.auth_service import AuthService
 from palmgrade.services.dev_service import DevService
 
@@ -69,6 +71,7 @@ def _app_dev(tmp_path, *, line_client=None, lines=(LINE_1, LINE_2), manifest_out
 
     app = FastAPI()
     app.include_router(console_router)
+    pasang_penangan_validasi(app)
     app.dependency_overrides[get_console_service] = lambda: _StubConsole(store)
     app.dependency_overrides[get_auth_service] = lambda: AuthService(store)
     app.dependency_overrides[get_dev_service] = lambda: DevService(
@@ -161,14 +164,14 @@ def test_log_limit_dibatasi_atas(dev):
     app, store, _, _, _ = dev
     client = _client_support(app, store)
 
-    assert client.get("/api/console/dev/log?limit=99999").status_code == 422
+    assert client.get("/api/console/dev/log?limit=99999").status_code == 400
 
 
 def test_log_offset_tidak_boleh_negatif(dev):
     app, store, _, _, _ = dev
     client = _client_support(app, store)
 
-    assert client.get("/api/console/dev/log?offset=-1").status_code == 422
+    assert client.get("/api/console/dev/log?offset=-1").status_code == 400
 
 
 def test_log_cari_menyaring_pesan(dev):
@@ -225,6 +228,28 @@ def test_satu_line_mati_tidak_menjatuhkan_line_lain(tmp_path):
 
     assert data["lines"]["line-1"]["terjangkau"] is True
     assert data["lines"]["line-2"]["terjangkau"] is False
+
+
+def test_line_tak_terbaca_membawa_kode_sebab_untuk_layar(tmp_path):
+    """User decision 2026-10-01: the Diagnostik card words the reason from `sebab_kode`
+    (domain/line_tak_terbaca.py), never from the raw `sebab` text. A failure that is
+    not a `LineUnavailable` at all still gets a code, the generic one."""
+    class _Campuran:
+        async def health_detail(self, line: LineEndpoint):
+            if line.line_code == "line-1":
+                raise LineUnavailable(
+                    LINE_TIDAK_MENJAWAB, "line-1 did not answer: Client error '404 Not Found'",
+                    line=line.name, status=404,
+                )
+            raise ValueError("Expecting value: line 1 column 1 (char 0)")
+
+    app, store, _, _, _ = _app_dev(tmp_path, line_client=_Campuran())
+    client = _client_support(app, store)
+
+    lines = client.get("/api/console/dev/diagnostik").json()["lines"]
+
+    assert (lines["line-1"]["terjangkau"], lines["line-1"]["sebab_kode"]) == (False, "bukan_line")
+    assert (lines["line-2"]["terjangkau"], lines["line-2"]["sebab_kode"]) == (False, "lain")
 
 
 def test_diagnostik_butuh_peran_support(dev):

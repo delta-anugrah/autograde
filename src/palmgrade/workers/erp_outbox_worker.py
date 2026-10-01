@@ -29,7 +29,15 @@ from ..integrations.erp.client import (
     ErpUnavailable,
     galat_jaringan,
 )
-from ..integrations.erp.outbox_store import ErpOutboxStore, OutboxMessage
+from ..integrations.erp.outbox_store import (
+    GAGAL_DITOLAK,
+    GAGAL_KONSOL,
+    GAGAL_KUNCI_DITOLAK,
+    GAGAL_TAK_TERJANGKAU,
+    GAGAL_TUJUAN,
+    ErpOutboxStore,
+    OutboxMessage,
+)
 from ..services.status_sinkron import StatusSinkron
 
 logger = logging.getLogger(__name__)
@@ -38,6 +46,13 @@ _INTERVAL_S = 30
 # Kunci AutoERP ditolak: tidak ada kiriman yang akan sampai, apa pun isinya.
 _KUNCI_DITOLAK = (401, 403)
 _BATCH = 50
+
+
+def _jenis_tolak(exc: ErpRejected | ErpServerError) -> str:
+    """AutoERP answered: its key check refused us, it refused this content, or it crashed."""
+    if isinstance(exc, ErpServerError):
+        return GAGAL_TUJUAN
+    return GAGAL_KUNCI_DITOLAK if exc.status in _KUNCI_DITOLAK else GAGAL_DITOLAK
 
 
 @dataclass(frozen=True)
@@ -80,7 +95,7 @@ class ErpOutboxWorker:
         Antrean ERP selalu menyebut tipenya, bukan cuma teks yang kebetulan dibawa
         exception itu (mis. `KeyError` membawa `''` sebagai pesan)."""
         logger.exception("%s %s %s failed", apa, message.kind, message.key)
-        self._outbox.mark_error(message, f"{type(exc).__name__}: {exc}")
+        self._outbox.mark_error(message, f"{type(exc).__name__}: {exc}", jenis=GAGAL_KONSOL)
 
     def _catat_galat(self, exc: ErpError) -> None:
         """Last Sync: apa arti galat satu kiriman untuk sambungannya.
@@ -109,20 +124,24 @@ class ErpOutboxWorker:
             handler = self._handlers.get(message.kind)
             if handler is None:
                 # Held, not dropped: an older console can queue a kind a newer
-                # build knows how to send.
-                self._outbox.mark_error(message, f"no handler for kind {message.kind!r}")
+                # build knows how to send. Logged: the Status tab points to the Log tab.
+                logger.warning("No handler for AutoERP outbox kind %r (%s), held", message.kind, message.key)
+                self._outbox.mark_error(message, f"no handler for kind {message.kind!r}", jenis=GAGAL_KONSOL)
                 continue
 
             try:
                 answer = await self._client.call_method(handler.method, message.payload)
             except ErpUnavailable as exc:
+                # Always "waits for the connection": ErpClient turns a 4xx into ErpRejected,
+                # and a non-Frappe 2xx body (a captive portal, the usual case on factory
+                # internet) clears up once the real connection is back.
                 logger.warning("AutoERP unreachable, holding the batch: %s", exc)
-                self._outbox.mark_error(message, str(exc))
+                self._outbox.mark_error(message, str(exc), jenis=GAGAL_TAK_TERJANGKAU)
                 self._catat_galat(exc)
                 break
             except (ErpRejected, ErpServerError) as exc:
                 logger.error("AutoERP refused or failed on %s %s: %s", message.kind, message.key, exc)
-                self._outbox.mark_error(message, str(exc))
+                self._outbox.mark_error(message, str(exc), jenis=_jenis_tolak(exc))
                 self._catat_galat(exc)
                 continue
             except Exception as exc:

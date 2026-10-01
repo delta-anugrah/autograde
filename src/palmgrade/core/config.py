@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from ..domain.kesehatan_ai import AMBANG_BAWAAN_DETIK, ambang_dari_teks
+from ..domain.kesehatan_disk import KRITIS_BAWAAN_GB, PERINGATAN_BAWAAN_GB, gb_dari_teks
 from ..domain.pilihan_model import ModelTidakSah, bersihkan_nama_model
 
 logger = logging.getLogger(__name__)
@@ -83,7 +84,7 @@ def _plc_int(name: str, default: int) -> int:
     try:
         return int(raw)
     except ValueError:
-        logger.warning("%s=%r is not an integer — falling back to %s", name, raw, default)
+        logger.warning("%s=%r is not an integer, falling back to %s", name, raw, default)
         return default
 
 
@@ -99,7 +100,7 @@ def _plc_opt_int(name: str) -> int | None:
     try:
         return int(raw)
     except ValueError:
-        logger.warning("%s=%r is not a number — manual piston disabled", name, raw)
+        logger.warning("%s=%r is not a number, manual piston disabled", name, raw)
         return None
 
 
@@ -119,7 +120,7 @@ def _plc_protocol() -> str:
         return PLC_PROTOCOLS[0]
     if raw not in PLC_PROTOCOLS:
         logger.warning(
-            "PLC_PROTOCOL=%r is not one of %s — falling back to %r",
+            "PLC_PROTOCOL=%r is not one of %s, falling back to %r",
             raw, ", ".join(PLC_PROTOCOLS), PLC_PROTOCOLS[0],
         )
         return PLC_PROTOCOLS[0]
@@ -145,7 +146,7 @@ def parse_coil_list(value: str | None) -> tuple[int, ...]:
         return tuple(int(part.strip()) for part in value.split(","))
     except ValueError:
         logger.warning(
-            "PLC_COIL_ALIVE=%r is invalid — this line's alive bit is OFF. Format: '9,10'.",
+            "PLC_COIL_ALIVE=%r is invalid, this line's alive bit is OFF. Format: '9,10'.",
             value,
         )
         return ()
@@ -168,6 +169,18 @@ def _ai_mati_detik() -> int:
         return AMBANG_BAWAAN_DETIK
     if raw and raw.strip() and int(raw.strip()) != nilai:
         logger.warning("AI_MATI_DETIK=%s di luar batas, dipakai %s detik", raw.strip(), nilai)
+    return nilai
+
+
+def _disk_gb(nama: str, bawaan: float) -> float:
+    """`DISK_PERINGATAN_GB` / `DISK_KRITIS_GB` (batch 3.7): sisa disk dalam GB di
+    bawah mana konsol memperingatkan. Memaafkan seperti `_ai_mati_detik`: salah
+    ketik jatuh ke bawaan dengan WARNING, tidak pernah menahan boot."""
+    raw = os.getenv(nama)
+    nilai = gb_dari_teks(raw, bawaan)
+    if nilai is None:
+        logger.warning("%s=%r bukan angka GB yang sah, dipakai %s", nama, raw, bawaan)
+        return bawaan
     return nilai
 
 
@@ -225,6 +238,10 @@ class Settings:
     # `entrypoint.sh` before uvicorn — a different app module, so the console
     # never imports torch/cv2 and a dead camera line cannot take the screen down.
     app_mode: str = field(default_factory=lambda: os.getenv("APP_MODE", "line"))
+    # Teks mentah `LOG_LEVEL` (batch 3.4). Diurai `core/logging.configure_logging`,
+    # bukan di sini: nilai yang salah jatuh ke INFO dengan satu WARNING yang baru
+    # bisa ditulis sesudah handler log terpasang, dan tidak pernah menahan boot.
+    log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", ""))
     # Bind host/port do NOT live here: `entrypoint.sh` runs uvicorn (host hardcoded
     # to 0.0.0.0, port from APP_PORT which docker-compose sets per line). Settings
     # is never read for binding — do not add host/port fields back.
@@ -379,6 +396,12 @@ class Settings:
     # means grading stops writing, not merely an archive running late.
     # 0 disables the guard (back to age-only behaviour).
     upload_disk_min_free_gb: float = field(default_factory=lambda: float(os.getenv("UPLOAD_DISK_MIN_FREE_GB", "20")))
+    # Pemantau disk (batch 3.7, `services/pemantau_disk.py`): alert konsol saat sisa
+    # disk di bawah angka ini, dengan atau tanpa R2. 0 = tingkat itu dimatikan.
+    disk_peringatan_gb: float = field(
+        default_factory=lambda: _disk_gb("DISK_PERINGATAN_GB", PERINGATAN_BAWAAN_GB)
+    )
+    disk_kritis_gb: float = field(default_factory=lambda: _disk_gb("DISK_KRITIS_GB", KRITIS_BAWAAN_GB))
 
     # ── Operator console (APP_MODE=console) ──────────────────────
     # Mill timezone. Used ONLY to derive `work_date` at ingest (§6.1): a
@@ -404,6 +427,10 @@ class Settings:
     # row-count cap: a count cap would discard old rows exactly while errors
     # are flooding. ~300 bytes/row, so 180 days is ~10 MB.
     log_retention_days: int = field(default_factory=lambda: int(os.getenv("LOG_RETENSI_HARI", "180")))
+    # Batch 3.5: ringkasan ERROR penting ke kanal Discord support, lewat antrean di
+    # disk (terkirim saat internet ada). Kosong = mati, bawaan: `.env` lama tidak
+    # berubah perilaku. Alamat ini rahasia; tidak pernah dicatat atau ditampilkan.
+    discord_webhook_url: str = field(default_factory=lambda: os.getenv("DISCORD_WEBHOOK_URL", "").strip())
 
     # ── AutoERP link ─────────────────────────────────────────────
     # The console calls AutoERP; AutoERP never calls in (a factory PC has no
@@ -559,7 +586,7 @@ class Settings:
             nama = bersihkan_nama_model(nilai)
         except ModelTidakSah as exc:
             logger.warning(
-                "media.env: model untuk %s diabaikan (%s) — memakai %s",
+                "media.env: model untuk %s diabaikan (%s), memakai %s",
                 self.line_code, exc, self.model_file,
             )
             return
@@ -594,7 +621,7 @@ class Settings:
         """Line: peringatan batch upload, lalu aturan secret yang sama dengan konsol."""
         if self.environment == "production" and not self.r2_bucket:
             logger.warning(
-                "R2_BUCKET is empty — cloud batch upload is disabled (no-op). "
+                "R2_BUCKET is empty, cloud batch upload is disabled (no-op). "
                 "Set R2_* in .env to enable it."
             )
         self.validate_secrets()
@@ -808,6 +835,11 @@ class Settings:
         """Its own file, not a table in console.db — an error flood must not
         slow down the queries serving the operator screen."""
         return self.state_dir / "log_kejadian.db"
+
+    @property
+    def lapor_discord_db_path(self) -> Path:
+        """Antrean ringkasan galat ke Discord (batch 3.5), berkas sendiri milik konsol."""
+        return self.state_dir / "lapor_discord.db"
 
     @property
     def console_lines(self) -> tuple[LineEndpoint, ...]:

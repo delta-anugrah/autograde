@@ -1,6 +1,6 @@
 ---
 name: plc-mc-protocol
-description: Jalur AutoGrade → PLC Mitsubishi lewat MC Protocol (pymcprotocol, device M), peta alamat M, pilihan protokol mc/modbus, heartbeat berkedip, jebakan balasan terpotong, dan apa yang ditunggu dari tim PLC. Pakai kalau sinyal tidak sampai ke PLC, alamat M mau diganti, alarm "PC mati" nyala terus, konfirmasi piston tidak pernah datang, E-stop terbaca lepas padahal ditekan, lagi commissioning, atau mau tahu beda jalur ini dengan ODOT yang dibatalkan.
+description: Jalur AutoGrade → PLC Mitsubishi lewat MC Protocol (pymcprotocol, device M), peta alamat M, pilihan protokol mc/modbus, heartbeat berkedip, kapan coil ERROR naik (kamera putus, AI mati, atau kamera berhenti mengirim gambar), jebakan balasan terpotong, dan apa yang ditunggu dari tim PLC. Pakai kalau sinyal tidak sampai ke PLC, alamat M mau diganti, alarm "PC mati" nyala terus atau nyala padahal PC hidup, coil ERROR naik padahal kamera jalan, konfirmasi piston tidak pernah datang, E-stop terbaca lepas padahal ditekan, Uji PLC atau piston ditolak sesudah INTERNAL_SECRET diisi, lagi commissioning, atau mau tahu beda jalur ini dengan ODOT yang dibatalkan.
 ---
 
 # AutoGrade ↔ PLC Mitsubishi (MC Protocol)
@@ -35,7 +35,10 @@ Polanya persis skema ODOT lama (coil 0–9, DI 0–11) dipindah ke M1000 / M1100
 | M1000 / M1001 / M1002 | CAMERA 1 OK / NG / ERROR | pulse / pulse / level |
 | M1003 / M1004 / M1005 | CAMERA 2 OK / NG / ERROR | sama |
 | M1006 / M1007 / M1008 | CAMERA 3 OK / NG / ERROR | sama |
-| **M1009** | **HEARTBIT PC** | **berkedip 500 ms** |
+| **M1009** | **HEARTBIT PC** | **berkedip 500 ms**; OFF kalau lisensi menghentikan grading |
+
+ERROR naik untuk **kamera putus ATAU AI mati** sejak v1.20.0, dan untuk **frame berhenti** (kamera
+tersambung tapi diam) sesudah autograde #200 (bab "Coil ERROR" di bawah).
 
 **PC membaca**: satu blok M1100–M1115 tiap 200 ms:
 
@@ -81,6 +84,23 @@ Jadi:
   PC kalau tidak berubah 2–3 detik.
 - ⚠️ Ladder yang membaca M1009 sebagai **level** akan menyalakan alarm "PC mati" tiap
   setengah periode. Ini pernah terjadi di `v1.3.0`.
+- **Lisensi menghentikan grading = M1009 dimatikan** (`PlcWorker`, `license_ok = not
+  grading_blocked(...)`): habis lewat masa tenggang, token tidak ada, atau token tidak terbaca
+  (fail closed, `license/gate.py`). Ladder membacanya sebagai "PC mati" dan alarm panel menyala,
+  sengaja. Di panel itu tampak sama dengan PC mati; cuma layar konsol (banner lisensi, baris versi
+  di bawah AUTOGRADE) yang membedakannya. PC baru dengan `LICENSE_ENABLED=true` tanpa token =
+  alarm "PC mati" padahal PC hidup.
+- ⚠️ **Hari ini ketiga line memegang M1009**, bukan cuma line 1: compose mengosongkan
+  `PLC_COIL_ALIVE` untuk line 2 dan 3, tapi `config.py` mengubah kosong jadi `1009`. Akibatnya
+  M1009 tetap berkedip selama SALAH SATU line hidup: watchdog ladder cuma menangkap PC mati total.
+  Satu line yang berhenti rapi menurunkan semua coil-nya (termasuk ERROR), jadi panel tidak bisa
+  membedakannya dari line sehat yang sedang tidak ada buah. Satu line yang **crash** tidak sempat
+  menurunkan apa pun: OK/NG yang sedang ON tertinggal ON, dan `PulseScheduler` line yang hidup
+  lagi baru menulis OFF pada pulse berikutnya di coil itu (dia cuma melacak coil yang pernah dia
+  antrekan). Akibatnya pulse pertama sesudah crash mendarat di bit yang sudah ON (ladder yang
+  menghitung tepi naik melewatkannya), dan NG yang tertinggal ON membuat piston terus menembak
+  sampai pulse itu selesai. Ini perilaku yang tercatat, bukan bug yang sedang dikerjakan
+  (`docs/plc-mc-handoff.md` bab 3, `docs/backend-overview.md`).
 
 ## Jebakan pustaka: balasan terpotong = "semua input mati"
 
@@ -145,9 +165,9 @@ Ringkasan yang harus diingat, urut seperti kejadiannya:
    **belum reset CPU**.
 6. Sesudah PLC beres, PC **tidak perlu restart**, tiap line reconnect sendiri tiap tick.
 
-**Menyalakan di PC baru:** `PLC_ENABLED=true` + `PLC_HOST` di `.env` → `autograde.sh stop`
-lalu start (bukan `restart`: yang ini kadang melewati container yang dianggap "tidak
-berubah") → `for n in 1 2 3; do docker logs --since 30s ripe_line_$n 2>&1 | grep -iE
+**Menyalakan di PC baru:** `PLC_ENABLED=true` + `PLC_HOST` di `.env` → `autograde restart`
+(membuat ulang container dengan `--force-recreate`, jadi env baru terbaca; reboot saja tidak)
+→ `for n in 1 2 3; do docker logs --since 30s ripe_line_$n 2>&1 | grep -iE
 "connect|0x0055|coil write failed" | tail -1; done`: ketiganya **kosong** = tersambung.
 
 **Uji tanpa kamera:** tab **Line → Uji PLC** di konsol (akun support) memicu satu pulse per bit.
@@ -168,16 +188,26 @@ memperlambat pekerjaan yang berulang. Dua penjaga yang benar-benar menahan kecel
 TETAP, dan keduanya di sisi **line**, bukan layar: ditolak 409 selama line memproses truk
 (dicek di proses yang memegang `RuntimeState`-nya), dan tiap percobaan, dipicu maupun
 ditolak: meninggalkan baris WARNING di `event_log`. Field `konfirmasi` masih diterima
-tanpa diperiksa supaya konsol yang belum dimuat ulang tidak mendadak 422.
+tanpa diperiksa supaya konsol yang belum dimuat ulang tidak mendadak ditolak (400 `input_tidak_sah`).
 Sejak 2026-09-23 malam yang bisa diuji: **OK, NG, dan ERROR** per line
 (1000/1001/**1002**, 1003/1004/**1005**, 1006/1007/**1008**) + piston kalau dialokasikan.
 Heartbeat **tidak pernah** masuk daftar, memicunya bikin panel mengira PC mati.
 
-⚠️ ERROR itu **level** yang dikemudikan `health_check()`, bukan pulse. `PlcWorker`
+⚠️ ERROR itu **level** yang dikemudikan `health_check()`, bukan pulse (kapan naik: bab
+"Coil ERROR" di bawah). `PlcWorker`
 melewati penulisan levelnya selama pulse uji berjalan (`_scheduler_is_active`): tanpa itu
 pulse naik lalu ditimpa level sehat pada tick yang sama, coil bergerak beberapa milidetik
 dan tidak ada yang melihatnya di panel. Levelnya pulih sendiri di tick sesudahnya;
 `_error_level` sengaja tidak diperbarui saat dilewati.
+
+**Tombol uji dan piston lewat dua penjaga.** Rute konsol butuh sesi (uji coil
+`/api/console/dev/plc/{line}/coil` support saja, sejak awal; piston
+`/api/console/lines/{line}/piston` baru wajib sesi di batch 1.1), lalu konsol memanggil line
+dengan `x-internal-secret`. Batch 1 (v1.20.0) membuat kunci itu bisa dipisah (`INTERNAL_SECRET`,
+kosong = `WEBHOOK_SECRET`). Kunci yang tidak sama di keempat container = kartu line menulis
+"Kunci ditolak (HTTP 401)" dan semua perintah konsol ke line gagal, termasuk Uji PLC dan piston;
+janjang tetap mengalir. Gejala lengkap dan cara cek: skill `compose-host-pabrik`, aturan 28 di
+`docs/rules.md`.
 
 Pulse 200 ms: pantau dari **monitor bit GX Works2**, lampu panel terlalu cepat.
 
@@ -188,12 +218,34 @@ di panel. ⚠️ **PLC tidak bisa menghitung janjang di mode ini**, dua janjang 
 satu sinyal panjang. Keduanya berbagi antarmuka (`enqueue`/`tick`/`dropped`/`is_active`),
 jadi `PlcWorker` tidak tahu mana yang terpasang, pola yang sama dengan `build_plc_client`.
 
+## Coil ERROR: kapan naik (v1.20.0, frame berhenti sesudah #200)
+
+Ringkasnya: **kamera putus, AI mati** (gambar masuk tapi tidak ada frame yang selesai digrading
+lebih dari `AI_MATI_DETIK`, bawaan 30 detik), **atau frame berhenti** (kamera tersambung tapi tidak
+ada gambar masuk selama `AI_MATI_DETIK`, keadaan `frame_berhenti`, batch 3.6, autograde #200).
+Lisensi, sumber selesai (video uji tanpa ulang yang habis), line yang baru mulai, dan pulse yang
+dibuang **tidak** menaikkannya. Aturan lengkap dan alasannya tidak disalin di sini: sumbernya
+`PenilaianAi.error_plc` (`domain/kesehatan_ai.py`), penjelasannya `docs/rules.md` aturan 32 dan
+`docs/plc-integration.md` § Coil ERROR.
+
+⚠️ **ERROR OFF tidak berarti line sehat**: line yang berhenti rapi menurunkan semua coil-nya lebih
+dulu (`services/langkah_tutup_line.py`), lihat `docs/plc-integration.md` (shutdown) dan
+`docs/plc-mc-handoff.md` bab 4.2.
+
+**Tim PLC harus tahu** ERROR sekarang juga berarti AI mati dan kamera yang diam:
+`docs/plc-mc-handoff.md` bab 4.2 (v1.9) memuat tabelnya dalam bahasa panel. Kode yang menambah keadaan ke `error_plc` wajib
+memperbarui keempat tempat dalam PR yang sama: `docs/rules.md` aturan 32,
+`docs/plc-integration.md` § Coil ERROR, `docs/plc-mc-handoff.md` bab 4.2 (+ PDF dan versinya),
+dan ringkasan satu paragraf di atas.
+
 ## Yang masih ditunggu dari tim PLC
 
 Peta alamat **sudah beres** (daftar Ocit 2026-09-23). Sisanya:
 
-0. ⚠️ **Coil ERROR (M1002/M1005/M1008) belum pernah kena PLC sungguhan**, tombolnya baru
-   ada sejak 2026-09-24. Sisanya (M1000, M1001, M1111, heartbeat) sudah terbukti 23 Sep.
+0. ⚠️ **Coil ERROR (M1002/M1005/M1008) belum pernah dibuktikan di panel**; tombol ujinya ada
+   sejak 23 Sep malam. M1000, M1001, dan M1111 terbukti 23 Sep; heartbeat M1009 jalan tapi
+   **belum dipantau** di GX Works2. Sejak v1.20.0 (terpasang di Lampung 2026-10-01) ERROR juga
+   naik untuk AI mati; rilis sesudah #200 menambah frame berhenti (belum terpasang di Lampung).
 1. **Watchdog heartbeat di ladder** (pantau M1009 berkedip): satu-satunya pekerjaan panel
    yang tersisa; paling mudah terlewat, paling mahal kalau lupa.
 1b. **Mode tahan dipakai atau tidak di produksi?** Opsinya sudah ada (`PLC_HOLD_MS`), tapi
@@ -226,8 +278,13 @@ bukan Lampung. Pastikan `.14` tidak dipakai kamera (IP kamera Lampung belum terc
 | `tests/unit/plc/test_plc_hold.py` | mode tahan: memperpanjang bukan mengantre, tidak pernah membuang |
 | `tests/e2e/test_mc_protocol_lane.py` (lanjutan) | **ACC→M1000 / REJ→M1001 dibuktikan dari bingkai yang keluar di socket**, termasuk rantai kelas model → verdict → coil |
 | `tests/unit/test_plc_docs_match_compose.py` | dokumen tim PLC ≡ `docker-compose.yml` |
+| `tests/unit/test_kesehatan_ai.py` | keadaan line (kamera putus, AI mati, frame berhenti, sumber selesai, lisensi, memulai) dan `error_plc` |
+| `tests/unit/test_penjaga_frame_berhenti.py`, `tests/e2e/test_health_jujur_lane.py` | frame berhenti menaikkan ERROR dan `/health` 503 sesudah tenggang start; sumber selesai tidak |
+| `tests/unit/test_penjaga_ai.py`, `tests/unit/test_config_ai_mati.py` | penjaga AI tiap tick, `AI_MATI_DETIK` dijepit 10 sampai 600 |
+| `tests/unit/plc/test_plc_worker.py` | `health_check` False ⇒ coil ERROR naik, ditulis ulang tiap detik |
+| `tests/integration/test_ai_mati_integrasi.py`, `tests/e2e/test_ai_mati_lane.py` | `penjaga.sehat_untuk_plc` tersambung ke `PlcWorker`; AI mati sampai ke `/health` 503 dan kartu line |
 
-⚠️ Test terakhir membaca komentar `<!-- plc-map: ... -->` di `docs/plc-mc-handoff.md`.
+⚠️ `tests/unit/test_plc_docs_match_compose.py` membaca komentar `<!-- plc-map: ... -->` di `docs/plc-mc-handoff.md`.
 Ganti alamat di compose tanpa mengganti dokumen = test merah. Itu disengaja: dokumen yang
 dipegang tim panel tidak boleh diam-diam berbeda dari yang dipakai aplikasi.
 

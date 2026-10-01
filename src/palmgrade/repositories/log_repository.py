@@ -11,8 +11,14 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 import threading
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
+
+from ..domain.log_line import JawabanLog, KursorLine
+from ..domain.sidik_log import normalkan_pesan, ringkas_galat
+from . import log_serap_line
+from .log_serap_line import HasilSerap, TambahGalat
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS event_log (
@@ -67,6 +73,8 @@ class LogStore:
             # columns that do not exist yet.
             self._rename_indonesian_table()
             self._db.executescript(_CREATE_SQL)
+            # Batch 3.2: kolom `line_code`/`asal` + kursor tarikan log line, di tempat.
+            log_serap_line.pasang_skema_line(self._db)
 
     def _rename_indonesian_table(self) -> None:
         """Carry a database written before `log_kejadian` became `event_log`.
@@ -91,7 +99,7 @@ class LogStore:
         self, level: str, source: str, message: str, detail: str | None, *, now: float
     ) -> None:
         """Record one event, or bump the counter if it is a duplicate within the merge window."""
-        fingerprint = _fingerprint(level, source, message)
+        fingerprint = _fingerprint(level, source, message, detail)
         with self._lock, self._db:
             row = self._db.execute(
                 "SELECT id FROM event_log"
@@ -126,8 +134,8 @@ class LogStore:
             conditions.append("level = ?")
             args.append(level)
         if search:
-            conditions.append("(message LIKE ? OR source LIKE ?)")
-            args.extend([f"%{search}%", f"%{search}%"])
+            conditions.append("(message LIKE ? OR source LIKE ? OR line_code LIKE ?)")
+            args.extend([f"%{search}%"] * 3)
         where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
 
         with self._lock:
@@ -140,6 +148,24 @@ class LogStore:
                 [*args, limit, offset],
             ).fetchall()
         return {"items": [dict(r) for r in rows], "total": total}
+
+    def kursor_line(self, line_code: str) -> KursorLine:
+        """Sampai mana log satu line sudah ditarik (batch 3.2)."""
+        with self._lock:
+            return log_serap_line.kursor_line(self._db, line_code)
+
+    def galat_baru_line(
+        self, line_code: str, jawaban: JawabanLog, *, sudah: Mapping[int, int] | None = None
+    ) -> tuple[TambahGalat, ...]:
+        """ERROR halaman ini yang belum terlihat, TANPA menulis: diteruskan ke digest
+        Discord SEBELUM `serap_line` (lihat log_serap_line)."""
+        with self._lock:
+            return log_serap_line.galat_baru(self._db, line_code, jawaban, sudah=sudah)
+
+    def serap_line(self, line_code: str, jawaban: JawabanLog, *, now: float) -> HasilSerap:
+        """Satu halaman log line + kursornya dalam SATU transaksi (lihat log_serap_line)."""
+        with self._lock, self._db:
+            return log_serap_line.serap_line(self._db, line_code, jawaban, now=now)
 
     def hapus_semua(self) -> int:
         """Danger Zone: kosongkan log. Jejak siapa yang menghapus ditulis SESUDAH
@@ -160,5 +186,13 @@ class LogStore:
             return cur.rowcount
 
 
-def _fingerprint(level: str, source: str, message: str) -> str:
-    return hashlib.sha256(f"{level}|{source}|{message}".encode()).hexdigest()[:32]
+def _fingerprint(level: str, source: str, message: str, detail: str | None = None) -> str:
+    # Id yang berganti tiap kejadian dinormalkan dulu (batch 3.3), supaya satu galat
+    # yang menyebut uuid/epoch/durasi berbeda tetap tergabung jadi satu baris. Kelas galat
+    # + frame pembedanya ikut (`ringkas_galat`), supaya dua galat berbeda dengan pesan log
+    # yang sama (tiap 500 uvicorn) tidak tergabung; tanpa traceback sidiknya sama seperti dulu.
+    kunci = f"{level}|{source}|{normalkan_pesan(message)}"
+    ringkas = ringkas_galat(detail)
+    if ringkas:
+        kunci += f"|{ringkas}"
+    return hashlib.sha256(kunci.encode()).hexdigest()[:32]

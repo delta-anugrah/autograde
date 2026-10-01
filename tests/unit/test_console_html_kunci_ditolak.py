@@ -60,7 +60,7 @@ def _jalankan(kartu: dict) -> str:
     import json
 
     skrip = (
-        "const KAMUS={id:{kartuKunciDitolak:'Kunci ditolak (HTTP {status}). Cocokkan INTERNAL_SECRET.'}};"
+        "const KAMUS={id:{kartuKunciDitolak:'Kunci ditolak. Panggil teknisi.'}};"
         "let bahasa='id'; const t=(k)=>KAMUS[bahasa][k] ?? k;\n"
         + _esc_stub()
         + _fungsi("pitaKunciDitolak")
@@ -75,7 +75,8 @@ def _jalankan(kartu: dict) -> str:
 def test_kunci_ditolak_menampilkan_pita():
     hasil = _jalankan({"plc": {"reachable": False, "kode": "line_menolak", "status": 401}})
     assert "pita-kunci" in hasil
-    assert "401" in hasil
+    # Tanpa kode HTTP (keputusan user 2026-10-01): WARNING-nya di tab Log.
+    assert "401" not in hasil and "HTTP" not in hasil
 
 
 @butuh_node

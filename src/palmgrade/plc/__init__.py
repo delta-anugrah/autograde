@@ -68,14 +68,14 @@ def start_plc_worker(
         # same ModbusTcpClient socket — interleaved writes and mismatched
         # transaction ids. Far worse than refusing.
         logger.warning(
-            "start_plc_worker called again while a PLC worker is running — "
+            "start_plc_worker called again while a PLC worker is running, "
             "ignoring this call (no second client, no second thread)"
         )
         return None
     if not settings.plc_enabled:
         return None
     if not settings.plc_host:
-        logger.warning("PLC_ENABLED=true but PLC_HOST is empty — PLC not started")
+        logger.warning("PLC_ENABLED=true but PLC_HOST is empty, PLC not started")
         return None
     if settings.plc_pulse_ms < settings.plc_poll_ms:
         # run_loop only wakes every PLC_POLL_MS, so that is the real time
@@ -85,7 +85,7 @@ def start_plc_worker(
         # on site, and silently guessing a replacement value is more dangerous
         # than passing the value through and saying so loudly.
         logger.warning(
-            "PLC_PULSE_MS (%s) is below PLC_POLL_MS (%s) — the real resolution is "
+            "PLC_PULSE_MS (%s) is below PLC_POLL_MS (%s), the real resolution is "
             "PLC_POLL_MS, so a pulse this short may never be seen by the PLC. "
             "Raise PLC_PULSE_MS or lower PLC_POLL_MS.",
             settings.plc_pulse_ms,
@@ -124,7 +124,7 @@ def build_scheduler(settings):
     """
     if settings.plc_hold_ms > 0:
         logger.warning(
-            "PLC mode TAHAN %s ms — coil OK/NG dipegang ON, bukan pulse. PLC tidak bisa "
+            "PLC mode TAHAN %s ms, coil OK/NG dipegang ON, bukan pulse. PLC tidak bisa "
             "menghitung janjang di mode ini (dua janjang berurutan = satu sinyal panjang).",
             settings.plc_hold_ms,
         )
@@ -244,11 +244,18 @@ def diagnostics() -> dict | None:
     coincidence, not by design — do not hard-code either.
 
     `inputs` is copied: a caller must not be able to mutate worker state.
+
+    `connected` (batch 3.6) is the client's own view of the socket: True only
+    after a connect succeeded and no read or write has failed since. It is what
+    the Diagnostik card draws as PLC ✓, so "PLC enabled but cable out" reads ✗
+    instead of the ✓ it used to get from this dict merely existing. None = a
+    client without that attribute (test doubles).
     """
     worker = _worker
     if worker is None:
         return None
     return {
+        "connected": getattr(worker.client, "connected", None),
         "inputs": list(worker.inputs),
         "dropped_pulses": worker.scheduler.dropped,
         "dropped_submissions": worker.dropped_submissions,
@@ -277,11 +284,11 @@ def shutdown_plc_worker(thread: threading.Thread | None = None, timeout: float =
             thread.join(timeout=timeout)
             if thread.is_alive():
                 logger.warning(
-                    "PLC thread still alive after %ss — dropping coils best-effort anyway", timeout
+                    "PLC thread still alive after %ss, dropping coils best-effort anyway", timeout
                 )
         worker.deenergise()
         worker.client.close()
     except Exception:
-        logger.exception("PLC shutdown was not clean — continuing anyway")
+        logger.exception("PLC shutdown was not clean, continuing anyway")
     finally:
         _worker = None

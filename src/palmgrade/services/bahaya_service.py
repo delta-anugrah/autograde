@@ -305,7 +305,7 @@ class BahayaService:
             # index yang menunjuk ke sana, tanpa satu berkas pun berkurang.
             logger.warning(
                 "[Danger Zone] Hapus data %s oleh %s GAGAL: tidak ada line yang menerima (%s)"
-                " — tidak ada yang dihapus", mode, oleh, _ringkas_hasil(hasil_line),
+                ", tidak ada yang dihapus", mode, oleh, _ringkas_hasil(hasil_line),
             )
             raise BahayaSemuaMenolak(hasil_line)
 
@@ -376,7 +376,7 @@ class BahayaService:
                 await asyncio.sleep(self._jeda_cek_s)
         if sisa:
             logger.warning(
-                "[Danger Zone] %s belum mati sesudah %.0f detik — data konsol tetap dihapus",
+                "[Danger Zone] %s belum mati sesudah %.0f detik, data konsol tetap dihapus",
                 ", ".join(ln.line_code for ln in sisa), self._tunggu_mati_s,
             )
         return {ln.line_code for ln in sisa}
