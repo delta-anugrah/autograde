@@ -81,6 +81,13 @@ def test_antrean_bongkar_dibaca_lewat_indeks_tiket_terbuka(store, panggil):
     assert not re.search(r"\bSCAN (weighings|w)\b", plan), plan
 
 
+def test_tiket_terbaru_truk_dicari_lewat_indeks_truk(store):
+    """Satu tiket per truk di antrean: tiket yang lebih baru dicari per truk, bukan dipindai."""
+    [plan] = rencana(store._db, lambda: store.unloading_queue(0.0))
+
+    assert "idx_weighings_truck (truck_id=? AND received_at>?)" in plan, plan
+
+
 def test_antrean_bongkar_urut_dari_indeks_tanpa_sortir_ulang(store):
     [plan] = rencana(store._db, lambda: store.unloading_queue(0.0))
 

@@ -50,6 +50,16 @@ def test_truk_yang_sedang_di_line_tidak_antre(tmp_path):
     assert store.unloading_queue(_sejak()) == []
 
 
+def test_cuma_tiket_terbaru_satu_truk_yang_antre(tmp_path):
+    """Truk yang tertimbang isi dua kali karena salah: tiket lamanya tidak pernah antre
+    sendiri, jadi truk itu tidak naik lagi ke line lewat tiket yang terlupa."""
+    store = ConsoleStore(tmp_path / "console.db")
+    _tiket(store, "w1", "A")
+    _tiket(store, "w2", "B")
+    _tiket(store, "w3", "A")
+    assert [r["weighing_id"] for r in store.unloading_queue(_sejak())] == ["w2", "w3"]
+
+
 def test_truk_yang_pernah_di_line_tidak_antre_lagi(tmp_path):
     """Dilepas manual sebelum timbang kosong: sudah disortir, jangan ditugaskan ulang."""
     store = ConsoleStore(tmp_path / "console.db")

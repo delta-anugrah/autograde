@@ -19,6 +19,7 @@ from palmgrade.domain.operator_error import (
     BUKAN_ANTREAN,
     LINE_SEMUA_TERPAKAI,
     LINE_TIDAK_MENJAWAB,
+    PENUGASAN_TANPA_LINE,
     InvalidInput,
 )
 from palmgrade.domain.plate import truck_id_for
@@ -165,6 +166,22 @@ def test_truk_yang_sudah_disortir_tidak_ditugaskan_lagi(service):
     assert service.antrean_bongkar() == []
 
 
+def test_truk_yang_tertimbang_isi_dua_kali_tidak_naik_lagi_sesudah_pergi(service):
+    """Timbang isi kedua karena salah meninggalkan tiket lama yang terbuka. Sesudah truk itu
+    timbang kosong di tiket barunya, tiket lama itu tidak boleh memasangnya lagi ke line."""
+    _nyalakan(service)
+    _isi(service, "BE 1 AA")
+    _isi(service, "BE 1 AA", 1)
+    _isi(service, "BE 2 BB", 10)
+    row = _kosong(service, "BE 1 AA", 1)
+    assert {d["plate_number"] for d in row["dipasang"]} == {"BE 2 BB"}
+    assert _plat_di_line(service) == {"BE 2 BB"}
+    assert service.antrean_bongkar() == []
+    for kode in LINES:
+        asyncio.run(service.release_truck_by_operator(kode))
+    assert _plat_di_line(service) == set()
+
+
 def test_truk_yang_sedang_dilepas_tidak_pernah_muncul_di_antrean(service):
     """Lepas mengosongkan line lalu menautkan tiketnya tanpa `await` di antaranya: tidak
     ada saat truk itu sudah tidak di line tapi belum tertaut, jadi coroutine lain (poll,
@@ -283,6 +300,16 @@ def test_tugaskan_sekarang_tanpa_line_bebas_ditolak(service):
     with pytest.raises(InvalidInput) as galat:
         asyncio.run(service.pasang_dari_antrean(wid_b))
     assert galat.value.code == LINE_SEMUA_TERPAKAI
+
+
+def test_tugaskan_sekarang_tanpa_line_terpilih_ditolak(service):
+    """Bukan "semua line terpakai": tidak ada line yang dipilih di Setelan."""
+    service.simpan_penugasan_otomatis(False, [], diubah_oleh="support@pks.test")
+    _isi(service, "BE 1 AA")
+    with pytest.raises(InvalidInput) as galat:
+        asyncio.run(service.pasang_dari_antrean(service.antrean_bongkar()[0]["weighing_id"]))
+    assert galat.value.code == PENUGASAN_TANPA_LINE
+    assert _plat_di_line(service) == set()
 
 
 def test_tugaskan_sekarang_tiket_di_luar_antrean_ditolak(service):

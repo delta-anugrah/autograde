@@ -17,7 +17,12 @@ from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint
 from ..domain.bahaya import HapusBerjalan
-from ..domain.operator_error import BUKAN_ANTREAN, LINE_SEMUA_TERPAKAI, InvalidInput
+from ..domain.operator_error import (
+    BUKAN_ANTREAN,
+    LINE_SEMUA_TERPAKAI,
+    PENUGASAN_TANPA_LINE,
+    InvalidInput,
+)
 from ..domain.penugasan_line import (
     JENDELA_ANTREAN_BONGKAR,
     KUNCI_PENUGASAN,
@@ -124,6 +129,10 @@ class PenugasanOtomatis:
         setelan = self._setelan_penugasan()
         async with self._kunci_penugasan:
             antre = self._di_antrean(weighing_id)
+            if not setelan.lines:
+                # Support saved no line at all: "every line is busy" would send the
+                # operator looking at the cards instead of at Setelan.
+                raise InvalidInput(PENUGASAN_TANPA_LINE, "tidak ada line yang dipilih untuk penugasan")
             bebas = line_bebas(setelan.lines, self.store.assignments())
             if not bebas:
                 raise InvalidInput(LINE_SEMUA_TERPAKAI, "semua line masih memegang truk")

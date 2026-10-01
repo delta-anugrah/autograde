@@ -672,7 +672,9 @@ class ConsoleStore(AkunStore):
 
         "Never on one" is the visit link (written when a line lets the truck go) plus the
         lines holding it right now: a truck being sorted, or already sorted, is never
-        offered again. `sejak` is an epoch on `received_at`, the console's own clock.
+        offered again. Only a truck's newest ticket is offered: an older one left open by
+        a weigh-in typed twice would otherwise put the truck back on the lines after it
+        left. `sejak` is an epoch on `received_at`, the console's own clock.
         """
         with self._lock:
             rows = self._db.execute(
@@ -685,6 +687,8 @@ class ConsoleStore(AkunStore):
                      AND w.received_at >= ?
                      AND NOT EXISTS (SELECT 1 FROM visit_assignments va WHERE va.weighing_id = w.id)
                      AND NOT EXISTS (SELECT 1 FROM assignments a WHERE a.truck_id = w.truck_id)
+                     AND NOT EXISTS (SELECT 1 FROM weighings w2
+                                     WHERE w2.truck_id = w.truck_id AND w2.received_at > w.received_at)
                    ORDER BY w.received_at, w.rowid""",
                 (sejak,),
             ).fetchall()
