@@ -49,7 +49,16 @@ def test_ci_tetap_jalan_untuk_pr_dan_push_main():
 
 def test_job_ci_masih_bernama_lint_and_test():
     """Nama check PR yang mungkin diwajibkan branch protection tidak boleh berubah."""
-    assert list(CI["jobs"]) == ["lint-and-test"]
+    assert list(CI["jobs"]) == ["lint-and-test", "browser"]
+
+
+def test_nama_check_browser_cocok_dengan_ruleset():
+    """Ruleset repo mewajibkan check `browser (chromium)` dan `browser (firefox)` lewat
+    namanya; nama job atau isi matrix yang berubah membuat check wajib itu menunggu
+    selamanya dan setiap PR terkunci."""
+    job = CI["jobs"]["browser"]
+    assert job["name"] == "browser (${{ matrix.browser }})"
+    assert job["strategy"]["matrix"]["browser"] == ["chromium", "firefox"]
 
 
 def test_rilis_memanggil_ci_dari_commit_yang_sama():

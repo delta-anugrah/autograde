@@ -71,6 +71,10 @@ batch 4.3), yang memparse tiap `<script>` utuh seperti browser.
 
 ## Cek di browser (tanpa menyentuh punya user)
 
+Alur yang diklik operator dijaga otomatis oleh `tests/browser/` (Playwright, Firefox dan
+Chromium, wajib lolos di CI): `make test-browser`. Resep manual di bawah untuk yang tidak
+bisa dinilai test, yaitu tampilan.
+
 Jangan pakai port 8100 atau 8001 (milik `make console` / `make line` user). Worktree terpisah,
 konsol uji di 8110/8111 dengan `env -i`, `CONSOLE_LINE_HOST=http://127.0.0.2`, data demo lewat
 `scripts/seed-console-demo.py --hari 10`, Playwright dengan Chrome sistem. **Matikan konsol uji
