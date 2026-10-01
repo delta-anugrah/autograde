@@ -422,8 +422,9 @@ class ConsoleStore(AkunStore):
     def grading_counts(self, assignment_id: str) -> dict[str, Any] | None:
         """The AI result of one line assignment, counted in SQL (§4.C).
 
-        None when the assignment graded nothing: there is no summary to send. A visit's
-        recap is `grading_counts_for_visit`, which sums every line of the truck.
+        None when the assignment graded nothing. Used to tell whether a release that found
+        no ticket loses any bunches. A visit's recap, the one that is sent, is
+        `grading_counts_for_visit`, which sums every line of the truck.
         """
         with self._lock:
             row = self._db.execute(
@@ -433,15 +434,6 @@ class ConsoleStore(AkunStore):
         if not row or not row["total"]:
             return None
         return {"assignment_id": assignment_id, **dict(row)}
-
-    def bunches_for_assignment(self, assignment_id: str) -> list[dict[str, Any]]:
-        """Every bunch of one line assignment, oldest first."""
-        with self._lock:
-            rows = self._db.execute(
-                f"SELECT {_KOLOM_JANJANG} FROM inspections WHERE assignment_id = ? ORDER BY timestamp",
-                (assignment_id,),
-            ).fetchall()
-        return [dict(r) for r in rows]
 
     def grading_counts_for_visit(self, weighing_id: str) -> dict[str, Any] | None:
         """The AI result of one truck visit: every line assignment linked to it, summed.

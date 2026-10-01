@@ -49,15 +49,16 @@ def store(tmp_path) -> ConsoleStore:
     "panggil, indeks",
     [
         (lambda s: s.grading_counts("a1"), "idx_inspections_assignment (assignment_id=?)"),
-        (lambda s: s.bunches_for_assignment("a1"), "idx_inspections_assignment (assignment_id=?)"),
+        (lambda s: s.bunches_for_visit("w1"), "idx_inspections_assignment (assignment_id=?)"),
+        (lambda s: s.grading_counts_for_visit("w1"), "idx_inspections_assignment (assignment_id=?)"),
         # Sejak 2026-10-01 tautan dibaca dari `visit_assignments`, kuncinya penugasan itu sendiri.
         (lambda s: s.weighing_for_assignment("a1"), "sqlite_autoindex_visit_assignments_1 (assignment_id=?)"),
         (lambda s: s.auto_releases_terbaru(), "idx_auto_releases_waktu (released_at>?)"),
         # Sejak 2026-10-01 tiket truk dicari lewat jendela waktu, bukan hari kerja.
         (lambda s: s.latest_weighing_for_truck_since("t1", 0.0), "idx_weighings_truck (truck_id=? AND received_at>?)"),
     ],
-    ids=["grading_counts", "bunches_for_assignment", "weighing_for_assignment", "auto_releases_terbaru",
-         "latest_weighing_for_truck_since"],
+    ids=["grading_counts", "bunches_for_visit", "grading_counts_for_visit", "weighing_for_assignment",
+         "auto_releases_terbaru", "latest_weighing_for_truck_since"],
 )
 def test_query_penugasan_dan_pelepasan_memakai_indeksnya(store, panggil, indeks):
     [plan] = rencana(store._db, lambda: panggil(store))
@@ -66,9 +67,7 @@ def test_query_penugasan_dan_pelepasan_memakai_indeksnya(store, panggil, indeks)
     assert "SCAN" not in plan, plan
 
 
-@pytest.mark.parametrize("panggil", [lambda s: s.bunches_for_assignment("a1"),
-                                     lambda s: s.auto_releases_terbaru()],
-                         ids=["bunches_for_assignment", "auto_releases_terbaru"])
+@pytest.mark.parametrize("panggil", [lambda s: s.auto_releases_terbaru()], ids=["auto_releases_terbaru"])
 def test_urutan_datang_dari_indeks_tanpa_sortir_ulang(store, panggil):
     [plan] = rencana(store._db, lambda: panggil(store))
 
@@ -85,7 +84,6 @@ HOT = {
     "inspection_count_truk": lambda s: s.inspection_count(HARI, truck_id="t1"),
     "truck_recap": lambda s: s.truck_recap(HARI),
     "grading_counts": lambda s: s.grading_counts("a1"),
-    "bunches_for_assignment": lambda s: s.bunches_for_assignment("a1"),
     "grading_counts_for_visit": lambda s: s.grading_counts_for_visit("w1"),
     "bunches_for_visit": lambda s: s.bunches_for_visit("w1"),
 }
@@ -109,14 +107,14 @@ def test_database_lama_mendapat_indeks_tanpa_mengubah_isi(tmp_path):
     with lama._lock, lama._db:
         for nama in INDEKS_BARU:
             lama._db.execute(f"DROP INDEX {nama}")
-    sebelum = (lama.grading_counts("a1"), lama.bunches_for_assignment("a1"),
+    sebelum = (lama.grading_counts("a1"), lama.bunches_for_visit("w1"),
                lama.weighing_for_assignment("a1"), len(lama.auto_releases_terbaru()))
     lama._db.close()
 
     baru = ConsoleStore(path)
 
     assert set(INDEKS_BARU) <= _indeks(baru)
-    assert (baru.grading_counts("a1"), baru.bunches_for_assignment("a1"),
+    assert (baru.grading_counts("a1"), baru.bunches_for_visit("w1"),
             baru.weighing_for_assignment("a1"), len(baru.auto_releases_terbaru())) == sebelum
 
 

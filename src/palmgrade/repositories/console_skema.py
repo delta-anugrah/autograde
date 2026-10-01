@@ -202,7 +202,7 @@ DROP INDEX IF EXISTS idx_inspections_erp;
 -- jadi ingest dari line tidak membayar apa pun untuk indeks ini.
 CREATE INDEX IF NOT EXISTS idx_inspections_impor ON inspections (import_batch)
     WHERE import_batch IS NOT NULL;
--- Batch 2.5. Rekap satu penugasan (`grading_counts`, `bunches_for_assignment`) dulu
+-- Batch 2.5. Rekap satu penugasan (`grading_counts`, `grading_counts_for_visit`, `bunches_for_visit`) dulu
 -- memindai seluruh `inspections` sambil memegang lock konsol (63 ms di 558 ribu baris).
 -- Parsial: janjang tanpa penugasan dan janjang impor tidak ikut diindeks. `timestamp`
 -- di belakang supaya daftar janjang manifest keluar berurutan tanpa sortir.
