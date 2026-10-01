@@ -18,6 +18,18 @@ Next:           ...
 
 ---
 
+## 2026-10-01 · ci · CI checks required by a repo ruleset (PR #n)
+Changed:        Repo ruleset `ci-wajib-lolos` (id 24315701, active) on `refs/heads/staging` and
+                `refs/heads/main` requires `lint-and-test`, `browser (chromium)` and
+                `browser (firefox)`; branches need not be up to date. Before it, the org ruleset
+                `protected-branch` required one approval and no check, so a red PR could merge.
+                CLAUDE.md §3 Git names it. `tests/unit/test_ci_gerbang_rilis.py` pins the job name
+                and matrix the ruleset matches on.
+Validated:      `gh api repos/delta-anugrah/autograde/rulesets/24315701` → enforcement active,
+                include staging + main, the three checks, strict false.
+Not validated:  See this PR's merge state below once its checks run.
+Next:           None.
+
 ## 2026-10-01 · console, tests · Browser tests with Playwright (PR #203)
 Changed:        `tests/browser/`: Playwright drives the real console (copy of `src/palmgrade` in a
                 temp folder, free ports, two fake lines and a dead one, 10 seeded days) through
