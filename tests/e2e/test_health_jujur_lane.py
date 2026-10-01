@@ -209,7 +209,7 @@ def test_disk_hampir_penuh_muncul_di_layar_lalu_hilang_sendiri(pabrik):
 
     p.disk.bebas_gb = 3.0
     html = jalankan(["jamSinkron", "gabungDisk", "pitaDisk"], f"pitaDisk({json.dumps(p.poll())}, {JAM_DINDING + 60})")
-    assert 'class="kritis"' in html and "Kosongkan sekarang" in html
+    assert 'class="kritis"' in html and "Disk PC hampir habis" in html
 
     p.disk.bebas_gb = 40.0
     assert jalankan(["jamSinkron", "gabungDisk", "pitaDisk"], f"pitaDisk({json.dumps(p.poll())})") == ""

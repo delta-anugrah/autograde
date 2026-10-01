@@ -145,9 +145,11 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   tindakan) = kamera tersambung tapi tidak ada gambar masuk lebih dari 30 detik: tahan umpan
   buah, periksa kabel data dan switch kamera, restart line. Video uji tanpa
   ulang yang selesai diputar TIDAK memunculkan pita ini. Hilang sendiri begitu gambar datang lagi.
-- Pita **Disk PC hampir penuh** (kuning, sisa di bawah 15 GB) atau **Disk PC hampir habis**
+- Pita **Disk PC hampir penuh** (kuning berdenyut pelan, sisa di bawah 15 GB) atau **Disk PC hampir habis**
   (merah berdenyut, di bawah 5 GB) di atas semua kartu,
-  satu pita untuk seluruh PC: menyebut jam mulai, line yang melaporkan, sisa GB, dan tindakannya.
+  satu pita untuk seluruh PC: menyebut jam mulai, line yang melaporkan, dan sisa GB. Langkah
+  pengosongannya untuk teknisi, ada di tabel masalah di bawah. Pita kuning bisa ditutup dengan
+  tombol ×, lalu muncul lagi 24 jam kemudian kalau disk masih penuh; pita merah tidak bisa ditutup.
   Muncul dengan atau tanpa R2, dan hilang sendiri begitu disk lega lagi.
 - Kotak kamera bertuliskan **Line N sedang dinyalakan ulang** dengan spinner dan bar berjalan
   = line itu sedang restart karena support menyimpan Sumber Kamera atau Model Deteksi, atau

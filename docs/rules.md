@@ -1103,7 +1103,9 @@ end of this file.
     Penjaga retensi di `BatchUploadWorker` tidak diubah. Konsol: `LineStatusWorker` membawa
     `disk` + mencatat transisi (`_catat_frame`, `_catat_disk`), layar menggambar SATU pita
     `#pita-disk` per kode untuk seluruh PC (`gabungDisk`/`pitaDisk`, sisa terkecil, daftar line),
-    bukan per kartu: ketiga line menulis ke satu disk.
+    bukan per kartu: ketiga line menulis ke satu disk. Pita cuma menyebut jam, line, dan sisa GB
+    (langkah pengosongan ada di MANUAL dan log line); peringatan bisa ditutup 24 jam per browser
+    (`localStorage` `pitaDiskDitutupPada`), kritis tidak.
     Fakta milik line (AI mati, frame berhenti, disk) dicatat WARNING/ERROR oleh line dan sampai
     tab Log lewat tarikan log line (aturan 34); cermin `LineStatusWorker` konsol cuma INFO,
     supaya satu kejadian satu baris dan satu kelompok Discord. "Satu kejadian" itu per line:

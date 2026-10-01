@@ -790,16 +790,17 @@
   .pita-ai span { display:block; margin-top:4px; font-size:.85rem; font-weight:600; }
   /* Disk PC hampir penuh (batch 3.7): satu pita untuk seluruh layar seperti
      #pita-alarm, karena ketiga line menulis ke disk yang sama. Peringatan
-     memakai palet --warn tanpa denyut (dijadwalkan, bukan darurat); kritis
+     memakai palet --warn dengan denyut pelan supaya operator melihatnya; kritis
      memakai palet dan denyut bahaya yang sama dengan pita AI. */
   #pita-disk { margin:10px var(--pad) 0; }
   #pita-disk p { position:relative; margin:0 0 6px; padding:11px 13px; border-radius:var(--r-sm);
-                 background:var(--warn-bg); color:var(--warn); border-left:4px solid var(--warn); }
+                 background:var(--warn-bg); color:var(--warn); border-left:4px solid var(--warn);
+                 animation:denyut-pita 2.4s ease-in-out infinite; }
   #pita-disk p.kritis { background:var(--danger-fg); color:var(--danger-bg); border-left:none;
                         animation:denyut-pita 1.6s ease-in-out infinite; }
   #pita-disk b { display:block; font-size:1rem; text-transform:uppercase; letter-spacing:.04em; }
   #pita-disk span { display:block; margin-top:4px; font-size:.85rem; font-weight:600; }
-  /* Peringatan bisa ditutup (kritis tidak): tombol × di pojok, target 2.5rem untuk sarung tangan. */
+  /* Peringatan bisa ditutup 24 jam (kritis tidak): tombol × di pojok, target 2.5rem untuk sarung tangan. */
   #pita-disk p.peringatan { padding-right:3.5rem; }
   #pita-disk .tutup { position:absolute; top:.35rem; right:.35rem; min-width:2.5rem; min-height:2.5rem;
                       padding:0; border:0; background:transparent; color:inherit;
@@ -2526,8 +2527,6 @@ const KAMUS = {
     diskHampirPenuhJudul:"Disk PC hampir penuh",
     diskKritisJudul:"Disk PC hampir habis",
     diskRinci:"Sejak {jam}, dilaporkan {line}. Sisa {bebas} GB dari {total} GB.",
-    diskSaranPeringatan:"Jadwalkan pengosongan: hapus rekaman video lama, minta teknisi membersihkan image Docker lama, pastikan unggah Cloud Photo jalan.",
-    diskSaranKritis:"Kosongkan sekarang, grading berhenti tersimpan begitu disk habis: hapus rekaman video dan panggil teknisi untuk membersihkan image Docker lama.",
     err_sandi_pendek:"Sandi minimal 8 karakter",
     err_sandi_salah:"Email atau sandi salah",
     err_terkunci:"Login terkunci {detik} detik lagi setelah beberapa sandi salah",
@@ -2934,8 +2933,6 @@ const KAMUS = {
     diskHampirPenuhJudul:"PC disk almost full",
     diskKritisJudul:"PC disk nearly out of space",
     diskRinci:"Since {jam}, reported by {line}. {bebas} GB free of {total} GB.",
-    diskSaranPeringatan:"Plan a clean-up: delete old video recordings, ask a technician to remove old Docker images, check that the Cloud Photo upload runs.",
-    diskSaranKritis:"Free space now, grading stops being saved once the disk is full: delete video recordings and call a technician to remove old Docker images.",
     err_sandi_pendek:"The password must be at least 8 characters",
     err_sandi_salah:"Wrong email or password",
     err_terkunci:"Sign-in locked for another {detik} s after repeated wrong passwords",
@@ -3950,53 +3947,52 @@ function gabungDisk(lines) {
   return Object.values(perKode).sort((a, b) => Number(b.tingkat === "kritis") - Number(a.tingkat === "kritis"));
 }
 
-// `sekarang` cuma untuk test, sama seperti pitaAi. `ditutup` = kunci pita
-// peringatan yang ditutup operator (bacaPitaDiskDitutup). Kuncinya jam mulai (sejak),
-// jadi episode baru tampil lagi; kritis tidak bisa ditutup karena grading berhenti
-// tersimpan begitu disk habis.
-function pitaDisk(lines, sekarang = Date.now() / 1000, ditutup = []) {
+// `sekarang` cuma untuk test, sama seperti pitaAi. `ditutupPada` = detik epoch
+// saat operator menutup pita peringatan (bacaPitaDiskDitutupPada); pita itu muncul
+// lagi 24 jam kemudian. Jam yang mundur (ditutupPada di masa depan) tidak
+// menyembunyikan apa pun. Kritis tidak bisa ditutup karena grading berhenti
+// tersimpan begitu disk habis. Langkah pengosongan sengaja tidak ditulis: itu
+// urusan teknisi (MANUAL), operator cukup tahu sisa disk dan line-nya.
+function pitaDisk(lines, sekarang = Date.now() / 1000, ditutupPada = 0) {
+  const SEHARI = 24 * 3600;
+  const umur = sekarang - ditutupPada;
+  const ditutup = umur >= 0 && umur < SEHARI;
   const angka = (v) => (v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal()));
   return gabungDisk(lines).map((g) => {
     const kritis = g.tingkat === "kritis";
-    const kunci = String(g.disk.sejak);
-    if (!kritis && ditutup.includes(kunci)) return "";
+    if (!kritis && ditutup) return "";
     const rinci = t("diskRinci")
       .replace("{jam}", jamSinkron(g.disk.sejak, sekarang) || KOSONG)
       .replace("{line}", g.lines.join(", "))
       .replace("{bebas}", angka(g.disk.bebas_gb))
       .replace("{total}", angka(g.disk.total_gb));
-    const saran = t(kritis ? "diskSaranKritis" : "diskSaranPeringatan");
     const tutup = kritis ? ""
-      : `<button type="button" class="tutup" data-tutup-pita="${esc(kunci)}" aria-label="${esc(t("toastTutup"))}">&times;</button>`;
+      : `<button type="button" class="tutup" data-tutup-pita aria-label="${esc(t("toastTutup"))}">&times;</button>`;
     return `<p class="${kritis ? "kritis" : "peringatan"}" role="alert">${tutup}<b>${esc(t(kritis ? "diskKritisJudul" : "diskHampirPenuhJudul"))}</b>`
-      + `<span>${esc(rinci)} ${esc(saran)}</span></p>`;
+      + `<span>${esc(rinci)}</span></p>`;
   }).join("");
 }
 
 // Tiap polling. `tulisKalauBeda` supaya pita yang sama tidak dibangun ulang tiap
-// 2 detik (denyut pita kritis tidak mulai dari awal lagi).
+// 2 detik (denyut pita tidak mulai dari awal lagi).
 function gambarPitaDisk(lines) {
   const el = $("pita-disk");
   if (!el) return;
-  const html = pitaDisk(lines, undefined, bacaPitaDiskDitutup());
+  const html = pitaDisk(lines, undefined, bacaPitaDiskDitutupPada());
   el.hidden = !html;
   tulisKalauBeda(el, html);
 }
 
-function bacaPitaDiskDitutup() {
-  try {
-    const v = JSON.parse(baca("pitaDiskDitutup", "[]"));
-    return Array.isArray(v) ? v : [];
-  } catch (e) { return []; }
+function bacaPitaDiskDitutupPada() {
+  return Number(baca("pitaDiskDitutupPada", "0")) || 0;
 }
 
 // Tutup langsung di layar; polling berikutnya menggambar tanpa pita itu
-// (tulisKalauBeda melihat html baru). Cuma 10 kunci terakhir yang disimpan.
+// (tulisKalauBeda melihat html baru).
 $("pita-disk").addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-tutup-pita]");
   if (!b) return;
-  const kunci = b.dataset.tutupPita;
-  simpan("pitaDiskDitutup", JSON.stringify([...bacaPitaDiskDitutup().filter((k) => k !== kunci), kunci].slice(-10)));
+  simpan("pitaDiskDitutupPada", String(Date.now() / 1000));
   b.closest("p").remove();
   const el = $("pita-disk");
   if (!el.querySelector("p")) el.hidden = true;
