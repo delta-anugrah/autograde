@@ -43,7 +43,14 @@ TERLARANG = {
     "placeholder teks galat mentah": r"\{galat\}",
     "berkas .env": r"\.env\b",
     "berkas .db": r"\.db\b",
+    "jalur folder": r"\b[a-z_]{3,}/",
+    "berkas .pt": r"\.pt\b",
+    "perintah make": r"\bmake (?:operator|up|console|line|demo|restart|reset)",
 }
+
+#: Info sentences on support-only screens that may name the recordings folder (fix wave
+#: ruling, rule 21): support has to find the file. Exempt from "jalur folder" only.
+INFO_FOLDER = frozenset({"rekamSelesai", "rekamCatatanRetensi", "bahayaRekamanTeks"})
 
 
 def _kamus(bahasa: str) -> dict[str, str]:
@@ -53,8 +60,11 @@ def _kamus(bahasa: str) -> dict[str, str]:
     return dict(re.findall(r'(\w+):\s*"((?:[^"\\]|\\.)*)"', blok.group(1)))
 
 
-def _pelanggaran(teks: str) -> list[str]:
-    return [nama for nama, pola in TERLARANG.items() if re.search(pola, teks)]
+def _pelanggaran(teks: str, kunci: str = "") -> list[str]:
+    return [
+        nama for nama, pola in TERLARANG.items()
+        if re.search(pola, teks) and not (nama == "jalur folder" and kunci in INFO_FOLDER)
+    ]
 
 
 # ── text invariants ─────────────────────────────────────────────────────
@@ -63,8 +73,8 @@ def _pelanggaran(teks: str) -> list[str]:
 @pytest.mark.parametrize("bahasa", ["id", "en"])
 def test_kamus_di_luar_tab_log_tanpa_teks_sistem(bahasa):
     salah = {
-        k: _pelanggaran(v) for k, v in _kamus(bahasa).items()
-        if k not in KHUSUS_TAB_LOG and _pelanggaran(v)
+        k: _pelanggaran(v, k) for k, v in _kamus(bahasa).items()
+        if k not in KHUSUS_TAB_LOG and _pelanggaran(v, k)
     }
     assert not salah, salah
 
@@ -73,13 +83,16 @@ def test_daftar_khusus_tab_log_masih_ada_di_kamus():
     """A stale allow-list would let a renamed key slip through unchecked."""
     for bahasa in ("id", "en"):
         assert KHUSUS_TAB_LOG <= set(_kamus(bahasa)), bahasa
+        assert INFO_FOLDER <= set(_kamus(bahasa)), bahasa
 
 
 def test_teks_statis_html_tanpa_teks_sistem():
     tampil = re.sub(r"<script\b.*?</script>|<style\b.*?</style>|<!--.*?-->", "", HTML, flags=re.S)
     baris = [b.strip() for b in re.sub(r"<[^>]+>", "\n", tampil).splitlines() if b.strip()]
     atribut = re.findall(r'(?:placeholder|title|aria-label)="([^"]*)"', tampil)
-    salah = [t for t in baris + atribut if _pelanggaran(t)]
+    # Static defaults of the INFO_FOLDER keys (replaced by KAMUS at runtime) carry the folder too.
+    info = {_kamus("id")[k] for k in INFO_FOLDER}
+    salah = [t for t in baris + atribut if _pelanggaran(t) and t not in info]
     assert not salah, salah
 
 
@@ -122,7 +135,7 @@ def test_setelan_memakai_alasan_bukan_field_yang_tak_pernah_diisi():
     simpan = HTML.split('$("set-simpan").addEventListener("click"', 1)[1].split("\n}));", 1)[0]
     for blok in (muat, simpan):
         assert "e.pesan" not in blok and "e.detail" not in blok
-        assert "alasan(e)" in blok
+        assert "alasan(e, " in blok
     # The field is still highlighted: read from the server text, never shown.
     assert 'setAttribute("aria-invalid", "true")' in simpan
 
@@ -199,7 +212,7 @@ def _tanpa_mentah(teks: str) -> None:
 ])
 def test_kode_asing_jadi_kalimat_umum_bukan_teks_server(bahasa, e):
     kamus = _kamus(bahasa)
-    teks = jalankan(["kodeDikenal", "alasan"], f"alasan({json.dumps(e)})", bahasa=bahasa)
+    teks = jalankan(["kodeDikenal", "saranUmum", "alasan"], f"alasan({json.dumps(e)})", bahasa=bahasa)
     assert teks == f"{kamus['gagalUmum']}. {kamus['err_umum']}"
     _tanpa_mentah(teks)
 
@@ -207,14 +220,14 @@ def test_kode_asing_jadi_kalimat_umum_bukan_teks_server(bahasa, e):
 @butuh_node
 def test_kode_asing_dengan_konteks_pemanggil():
     kamus = _kamus("id")
-    teks = jalankan(["kodeDikenal", "alasan"], f"alasan({json.dumps({'message': MENTAH})}, 'gagalSumberKamera')")
+    teks = jalankan(["kodeDikenal", "saranUmum", "alasan"], f"alasan({json.dumps({'message': MENTAH})}, 'gagalSumberKamera')")
     assert teks == f"{kamus['gagalSumberKamera']}. {kamus['err_umum']}"
 
 
 @butuh_node
 def test_kode_yang_dikenal_tetap_kalimatnya_sendiri_tanpa_status():
     e = {"kode": "line_menolak", "params": {"line": "Line 1", "status": 401}, "message": MENTAH}
-    teks = jalankan(["kodeDikenal", "alasan"], f"alasan({json.dumps(e)})")
+    teks = jalankan(["kodeDikenal", "saranUmum", "alasan"], f"alasan({json.dumps(e)})")
     assert teks == _kamus("id")["err_line_menolak"].replace("{line}", "Line 1")
     assert "401" not in teks
     _tanpa_mentah(teks)
@@ -223,7 +236,7 @@ def test_kode_yang_dikenal_tetap_kalimatnya_sendiri_tanpa_status():
 @butuh_node
 def test_awalan_tidak_dobel_gagal_untuk_kode_asing():
     kamus = _kamus("id")
-    fn = ["kodeDikenal", "alasan", "gagalKarena"]
+    fn = ["kodeDikenal", "saranUmum", "alasan", "gagalKarena"]
     dikenal = {"kode": "line_tidak_menjawab", "params": {"line": "Line 2"}, "message": MENTAH}
     assert jalankan(fn, f"gagalKarena('gagalDaftar', {json.dumps(dikenal)})") == (
         f"{kamus['gagalDaftar']}: {kamus['err_line_tidak_menjawab'].replace('{line}', 'Line 2')}")
@@ -243,7 +256,7 @@ def _jalankan_api(fetch_js: str, bahasa: str = "id") -> dict:
         "const LANE_GERBANG = new Set();",
         "function bukaGerbang() {}",
         f"globalThis.fetch = {fetch_js};",
-        fungsi("ambil"), fungsi("api"), fungsi("kodeDikenal"), fungsi("alasan"),
+        fungsi("ambil"), fungsi("api"), fungsi("kodeDikenal"), fungsi("saranUmum"), fungsi("alasan"),
         "(async () => { try { await api('/api/console/state'); console.log('null'); }"
         " catch (e) { console.log(JSON.stringify({ kode: e.kode ?? null, teks: alasan(e) })); } })();",
     ])
@@ -358,7 +371,7 @@ def test_kedua_tabel_antrean_menyebut_tujuannya():
 ])
 def test_gagal_kirim_ulang_tanpa_kode_dan_tanpa_teks_server(e, saran):
     teks = jalankan(
-        ["kodeDikenal", "alasan", "waktu", "pesanGagalKirimUlang"],
+        ["kodeDikenal", "saranUmum", "alasan", "waktu", "pesanGagalKirimUlang"],
         f"pesanGagalKirimUlang({json.dumps(e)}, 'line-1', new Date(2026, 8, 28, 14, 5, 9))",
         tambahan=_konstanta("SARAN_KIRIM_ULANG"),
     )
@@ -372,11 +385,11 @@ def test_gagal_kirim_ulang_tanpa_kode_dan_tanpa_teks_server(e, saran):
 def test_gagal_kirim_ulang_kode_asing_tidak_menunjuk_tab_log_dua_kali():
     kamus = _kamus("id")
     teks = jalankan(
-        ["kodeDikenal", "alasan", "waktu", "pesanGagalKirimUlang"],
+        ["kodeDikenal", "saranUmum", "alasan", "waktu", "pesanGagalKirimUlang"],
         f"pesanGagalKirimUlang({json.dumps({'message': MENTAH})}, 'line-1', new Date(2026, 8, 28, 14, 5, 9))",
         tambahan=_konstanta("SARAN_KIRIM_ULANG"),
     )
-    assert teks == f"Kirim Ulang line-1 gagal pukul 28/09/2026 14:05:09: {kamus['gagalUmum']}. {kamus['err_umum']}."
+    assert teks == f"Kirim Ulang line-1 gagal pukul 28/09/2026 14:05:09: {kamus['err_umum']}."
     assert kamus["saranBukaLog"] not in teks
 
 
@@ -390,5 +403,104 @@ def test_kode_penolakan_rekam_diterjemahkan(kode):
     """routes/console.py `_REKAM_TOLAK` codes: their sentences sat in KAMUS without the
     `err_` prefix, so the screen showed the line's raw answer instead (found 2026-10-01)."""
     e = {"kode": kode, "message": "line-1 409 {\"detail\":\"sudah merekam\"}", "params": {}}
-    teks = jalankan(["kodeDikenal", "alasan"], f"alasan({json.dumps(e)}, 'gagalRekam')")
+    teks = jalankan(["kodeDikenal", "saranUmum", "alasan"], f"alasan({json.dumps(e)}, 'gagalRekam')")
     assert teks == _kamus("id")[f"err_{kode}"]
+
+
+
+# ── fix wave 2026-10-01 ─────────────────────────────────────────────────
+
+
+@butuh_node
+@pytest.mark.parametrize("bahasa", ["id", "en"])
+def test_alasan_model_dari_kode_bukan_teks_server(bahasa):
+    kamus = _kamus(bahasa)
+    m = {"berkas": "a$b.pt", "cocok": False, "alasan": "nama berkas: a$b.pt: nama memuat karakter",
+         "alasan_kode": [{"kode": "kelas_asing", "kelas": "ACC, REJ"}, {"kode": "kelas_hilang", "kelas": "Ripe"}]}
+    teks = jalankan(["alasanModel"], f"alasanModel({json.dumps(m)})", bahasa=bahasa)
+    assert teks == (kamus["modelAlasan_kelas_asing"].replace("{kelas}", "ACC, REJ") + "; "
+                    + kamus["modelAlasan_kelas_hilang"].replace("{kelas}", "Ripe"))
+    for kode, harap in (([{"kode": "nama_tak_sah"}]), "modelAlasan_nama_tak_sah"), (([{"kode": "kode_baru"}]), "modelAlasan_lain"), (([]), "modelAlasan_lain"):
+        teks = jalankan(["alasanModel"], f"alasanModel({json.dumps({**m, 'alasan_kode': kode})})", bahasa=bahasa)
+        assert teks == kamus[harap], teks
+        assert "nama memuat karakter" not in teks and "$" not in teks
+
+
+def test_layar_model_tidak_membaca_alasan_mentah():
+    for nama in ("opsiModel", "rinciModel", "barisModel"):
+        fn = fungsi(nama)
+        assert "m.alasan" not in fn.replace("m.alasan_kode", ""), nama
+        assert "alasanModel(m)" in fn, nama
+
+
+def _jalankan_api_status(status: int, gagal: str, bahasa: str = "id") -> str:
+    skrip = "\n".join([
+        kamus_asli(), esc_asli(), f"let bahasa = {json.dumps(bahasa)};",
+        "const t = (k) => KAMUS[bahasa][k] ?? k;",
+        'const lokal = () => (bahasa === "id" ? "id-ID" : "en-GB");',
+        "const $ = () => ({ hidden: true }); const LANE_GERBANG = new Set(); function bukaGerbang() {}",
+        f"globalThis.fetch = async () => ({{ ok: false, status: {status}, json: async () => ({{ detail: 'conf_threshold harus antara 0 dan 1' }}) }});",
+        fungsi("ambil"), fungsi("api"), fungsi("kodeDikenal"), fungsi("saranUmum"), fungsi("alasan"),
+        f"(async () => {{ try {{ await api('/x'); }} catch (e) {{ console.log(JSON.stringify(alasan(e, {json.dumps(gagal)}))); }} }})();",
+    ])
+    hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
+    assert hasil.returncode == 0, hasil.stderr[-800:]
+    return json.loads(hasil.stdout)
+
+
+@butuh_node
+@pytest.mark.parametrize("bahasa", ["id", "en"])
+def test_penolakan_4xx_tanpa_kode_kalimatnya_sendiri(bahasa):
+    """Fix wave ruling: an uncoded 400 (Setelan, Sumber Kamera, Model, Rekam setelan) is a
+    refused value, not "try once more"; 5xx keeps err_umum."""
+    kamus = _kamus(bahasa)
+    assert _jalankan_api_status(400, "gagalSetelan", bahasa) == f"{kamus['gagalSetelan']}. {kamus['err_ditolak']}"
+    assert _jalankan_api_status(500, "gagalSetelan", bahasa) == f"{kamus['gagalSetelan']}. {kamus['err_umum']}"
+
+
+def test_setelan_dan_rekam_setelan_menyebut_konteksnya():
+    simpan = HTML.split('$("set-simpan").addEventListener("click"', 1)[1].split("\n}));", 1)[0]
+    assert 'alasan(e, "gagalSetelan")' in simpan
+    assert 'alasan(e, "gagalSetelanMuat")' in fungsi("muatSetelan")
+    rekam = HTML.split('$("rekam-simpan").addEventListener("click"', 1)[1].split("\n}));", 1)[0]
+    assert 'alasan(e, "gagalRekamSetelan")' in rekam
+
+
+@butuh_node
+def test_kirim_ulang_kode_asing_tidak_menulis_gagal_dua_kali():
+    teks = jalankan(
+        ["kodeDikenal", "alasan", "saranUmum", "waktu", "pesanGagalKirimUlang"],
+        f"pesanGagalKirimUlang({json.dumps({'message': MENTAH})}, 'line-1', new Date(2026, 8, 28, 14, 5, 9))",
+        tambahan=_konstanta("SARAN_KIRIM_ULANG"),
+    )
+    assert teks.lower().count("gagal") == 2, teks   # "Kirim Ulang ... gagal" + "kalau tetap gagal"
+    assert ": Gagal." not in teks
+
+
+@butuh_node
+@pytest.mark.parametrize("bahasa", ["id", "en"])
+def test_kirim_ulang_kunci_ditolak_tidak_menyuruh_panggil_teknisi_dua_kali(bahasa):
+    e = {"kode": "line_menolak", "params": {"line": "Line 1", "status": 401}, "message": MENTAH}
+    teks = jalankan(
+        ["kodeDikenal", "alasan", "saranUmum", "waktu", "pesanGagalKirimUlang"],
+        f"pesanGagalKirimUlang({json.dumps(e)}, 'line-1', new Date(2026, 8, 28, 14, 5, 9))",
+        bahasa=bahasa, tambahan=_konstanta("SARAN_KIRIM_ULANG"),
+    )
+    panggil = "panggil teknisi" if bahasa == "id" else "call a technician"
+    assert teks.lower().count(panggil) == 1, teks
+
+
+@butuh_node
+@pytest.mark.parametrize("bahasa", ["id", "en"])
+def test_alarm_plc_asing_kalimat_umum_bukan_kunci_mentah(bahasa):
+    skrip_alarm = (
+        "const el = { hidden: true, innerHTML: '', textContent: '' }; const $ = () => el;"
+    )
+    hasil = jalankan(
+        ["gabungAlarm", "gambarPitaAlarm"],
+        "(gambarPitaAlarm([{ plc: { alarms: [{ code: 'kode_baru' }, { code: 'estop' }] } }]), el.innerHTML)",
+        bahasa=bahasa, tambahan=skrip_alarm,
+    )
+    kamus = _kamus(bahasa)
+    assert "alarm_kode_baru" not in hasil
+    assert _esc(kamus["alarm_lain"]) in hasil and _esc(kamus["alarm_estop"]) in hasil

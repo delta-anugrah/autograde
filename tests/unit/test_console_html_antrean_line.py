@@ -54,6 +54,7 @@ const t = (k) => KAMUS_UJI[k] ?? k;
 // Stand-ins for the real helpers (their own tests: test_console_html_teks_ramah.py).
 const kodeDikenal = (e) => Boolean(e.kode);
 const alasan = (e) => e.message;
+const saranUmum = () => "SARAN-UMUM";
 """
 
 
@@ -382,13 +383,13 @@ def test_pesan_gagal_menyebut_line_jam_alasan_dan_saran_tanpa_kode(kode, params,
 
 @butuh_node
 def test_kode_asing_tanpa_saran_tambahan():
-    """An unknown code gets the generic sentence, which already says what to do."""
+    """An unknown code gets the generic advice only: the template already says "gagal"."""
     e = {"kode": None, "message": "ALASAN", "params": {}}
     teks = _jalankan(
         f"pesanGagalKirimUlang({json.dumps(e)}, 'line-1', new Date(2026, 8, 28, 14, 5, 9))",
         "pesanGagalKirimUlang", "waktu", konstanta=("SARAN_KIRIM_ULANG",),
     )
-    assert teks == "Kirim Ulang line-1 gagal pukul 28/09/2026 14:05:09: ALASAN."
+    assert teks == "Kirim Ulang line-1 gagal pukul 28/09/2026 14:05:09: SARAN-UMUM."
 
 
 @butuh_node
