@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from ..core.config import Settings
@@ -18,7 +18,7 @@ class ResultRepository:
         # dengan UTC. `datetime.now()` naive kebetulan cocok cuma karena container
         # ini kebetulan TZ=UTC — set TZ ke Asia/Jakarta dan endpoint ini langsung
         # menunjuk folder yang belum ada, lalu melapor "hari ini nol hasil".
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         result_dir = self.settings.results_dir / today
         grouped: dict[str, dict[str, Any]] = {}
 

@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .core.dependencies import (
     get_capture_repository,
     get_folder_db_line,
+    get_health_service,
     get_outbox_store,
     get_penutup_line,
     get_realtime_inspection_pipeline,
@@ -22,48 +23,46 @@ from .core.dependencies import (
     get_webhook_client,
     set_camera,
 )
-from .integrations.outbox.outbox_store import OutboxStore
-from .routes.captures import StaticTanpaDb
-from .routes.internal import _jadwalkan_keluar
-from .routes.internal import router as internal_router
-from .routes.internal_bahaya import buat_router as buat_router_bahaya
-from .routes.internal_outbox import buat_router as buat_router_outbox
-from .routes.internal_log import buat_router as buat_router_log
-from .services.antrean_log_line import pasang_penulis_log_line
-from .services.antrean_line import AntreanLine
-from .services.hapus_data_line import hapus_kalau_diminta
-from .services.langkah_tutup_line import langkah_tutup_line
-from .services.pindah_db_line import catat_state_tidak_di_mount, pindahkan_db_lama
-from .workers.outbox_retry_worker import OutboxRetryWorker
 from .core.logging import configure_logging
+from .domain.setelan_grading import bersihkan_setelan
+from .domain.sumber_kamera_resolver import rencana_kamera
 from .integrations.camera.base import CameraSource
 from .integrations.camera.hikrobot_camera import HikrobotCamera
 from .integrations.camera.opencv_camera import OpenCVCamera
 from .integrations.camera.photo_camera import PhotoCamera
+from .integrations.scheduler.upload_scheduler import UploadScheduler
+from .integrations.upload.r2_uploader import R2Uploader
+from .integrations.upload.upload_manifest import UploadManifest
 from .license.gate import grading_blocked
 from .license.guard import LicenseGuardMiddleware
 from .license.local_repo import LicenseLocalRepo
 from .license.manager import LicenseManager
-from .domain.setelan_grading import bersihkan_setelan
-from .domain.sumber_kamera_resolver import rencana_kamera
-from .integrations.scheduler.upload_scheduler import UploadScheduler
-from .integrations.upload.r2_uploader import R2Uploader
-from .integrations.upload.upload_manifest import UploadManifest
-from .workers.batch_upload_worker import BatchUploadWorker
-from .workers.capture_save_worker import CaptureSaveWorker
+from .plc import start_plc_worker
+from .routes.captures import StaticTanpaDb
 from .routes.health import router as health_router
-from .core.dependencies import get_health_service
 from .routes.health_ringan import buat_router_health
+from .routes.inspection import router as inspection_router
+from .routes.internal import _jadwalkan_keluar
+from .routes.internal import router as internal_router
+from .routes.internal_bahaya import buat_router as buat_router_bahaya
+from .routes.internal_log import buat_router as buat_router_log
+from .routes.internal_outbox import buat_router as buat_router_outbox
+from .routes.streaming import router as streaming_router
+from .services.antrean_line import AntreanLine
+from .services.antrean_log_line import pasang_penulis_log_line
+from .services.hapus_data_line import hapus_kalau_diminta
+from .services.langkah_tutup_line import langkah_tutup_line
 from .services.pemantau_disk import PemantauDisk
 from .services.penjaga_ai import PenjagaAi
-from .routes.inspection import router as inspection_router
-from .routes.streaming import router as streaming_router
+from .services.pindah_db_line import catat_state_tidak_di_mount, pindahkan_db_lama
+from .workers.batch_upload_worker import BatchUploadWorker
+from .workers.capture_save_worker import CaptureSaveWorker
 from .workers.display_worker import DisplayWorker
 from .workers.event_broadcast_worker import EventBroadcastWorker
 from .workers.frame_capture_worker import FrameCaptureWorker
 from .workers.frame_processing_worker import FrameProcessingWorker
+from .workers.outbox_retry_worker import OutboxRetryWorker
 from .workers.pengawas_worker import awasi_sekali
-from .plc import start_plc_worker
 
 load_dotenv(override=False)
 
