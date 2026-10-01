@@ -6,8 +6,9 @@ asli (torch palsu). Konsol: `LineClient` + `LineStatusWorker` + `ConsoleService`
 + `DevService` + router konsol ASLI dengan login sungguhan, lalu layar dirender
 lewat node dengan KAMUS asli. Tanpa torch, kamera, PLC, atau ERP: jalan di CI.
 
-Yang dilihat operator: kartu line merah + pita FRAME_BERHENTI, dan satu pita
-disk untuk seluruh layar; keduanya hilang sendiri. Yang dilihat support: kartu
+Yang dilihat operator: kartu line merah + pita kamera berhenti mengirim gambar, dan
+satu pita disk untuk seluruh layar, tanpa kode galat (2026-10-01); keduanya hilang
+sendiri. Yang dilihat support: kartu
 Diagnostik dengan fps, umur gambar, disk, dan PLC yang jujur.
 """
 from __future__ import annotations
@@ -182,7 +183,7 @@ def test_kalimat_frame_berhenti_di_layar(pabrik):
     p.line.jalan(40, deteksi=False)
     html = jalankan(["jamSinkron", "aiMati", "pitaAi"], f"pitaAi({json.dumps(p.kartu())}, {JAM_DINDING + 60})")
     assert "Line 2: kamera berhenti mengirim gambar" in html
-    assert "Kode FRAME_BERHENTI, sejak 21.13." in html
+    assert "Sejak 21.13." in html and "FRAME_BERHENTI" not in html
 
 
 def test_video_uji_yang_habis_tidak_terbaca_rusak(pabrik):
@@ -203,7 +204,8 @@ def test_disk_hampir_penuh_muncul_di_layar_lalu_hilang_sendiri(pabrik):
     p.disk.bebas_gb = 12.0
     html = jalankan(["jamSinkron", "gabungDisk", "pitaDisk"], f"pitaDisk({json.dumps(p.poll())}, {JAM_DINDING + 60})")
     assert "Disk PC hampir penuh" in html
-    assert "Kode DISK_HAMPIR_PENUH, sejak 21.13, dilaporkan Line 2. Sisa 12 GB dari 468 GB." in html
+    assert "Sejak 21.13, dilaporkan Line 2. Sisa 12 GB dari 468 GB." in html
+    assert "DISK_HAMPIR_PENUH" not in html
 
     p.disk.bebas_gb = 3.0
     html = jalankan(["jamSinkron", "gabungDisk", "pitaDisk"], f"pitaDisk({json.dumps(p.poll())}, {JAM_DINDING + 60})")

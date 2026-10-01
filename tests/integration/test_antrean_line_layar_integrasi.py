@@ -24,6 +24,7 @@ from antrean_line_rakit import (
     masuk,
     rakit_line,
 )
+from konsol_js import kamus_asli
 
 from palmgrade.core.config import LineEndpoint, Settings
 from palmgrade.domain.role import ROLE_SUPPORT
@@ -51,8 +52,12 @@ def _render(lines: dict) -> dict:
         ' ({ "&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;","\'":"&#39;","`":"&#96;" }[c]));\n'
         'const KOSONG = "-";\n'
         'const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));\n'
+        # The real KAMUS only decides which keys exist (`kunciSebabTakTerbaca`); `t` keeps
+        # printing key names, so the asserts read which sentence was picked.
+        + kamus_asli() + '\nconst bahasa = "id";\n'
         "const t = (k) => k;\n"
-        + "\n".join(_fungsi(f) for f in ("keadaanAntreanLine", "barisAntreanLine", "waktu", "lamaProses"))
+        + "\n".join(_fungsi(f) for f in (
+            "kunciSebabTakTerbaca", "keadaanAntreanLine", "barisAntreanLine", "waktu", "lamaProses"))
         + f"\nconst lines = {json.dumps(lines)};\n"
         "console.log(JSON.stringify(Object.fromEntries(Object.entries(lines)"
         ".map(([k, d]) => [k, barisAntreanLine(k, d, Date.now())]))));"
@@ -78,9 +83,11 @@ def test_baris_dari_jawaban_sungguhan(tmp_path):
 
     assert "antreanLinePutus_tak_terjangkau" in baris["line-1"]
     assert 'data-kirim-ulang-line="line-1"' in baris["line-1"]
-    assert "ConnectError" in baris["line-1"]
-    assert "antreanLineKunciKonsol" in baris["line-2"]
-    assert "refused: HTTP 401" in baris["line-2"]
+    # The worker's raw error stays in the Log tab; the row only says when (2026-10-01).
+    assert "antreanLineGalatTerakhir" in baris["line-1"] and "ConnectError" not in baris["line-1"]
+    # `sebab_kode` from PantauAntreanLine is the field the screen reads.
+    assert "lineSebab_kunci_ditolak" in baris["line-2"]
+    assert "401" not in baris["line-2"] and "refused" not in baris["line-2"]
     assert "data-kirim-ulang-line" not in baris["line-2"]
 
 

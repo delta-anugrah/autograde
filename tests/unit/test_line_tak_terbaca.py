@@ -56,3 +56,4 @@ def test_kosakata_lengkap_dan_tanpa_ganda():
         SEBAB_TAK_TERJANGKAU, SEBAB_BUKAN_LINE, SEBAB_KUNCI_DITOLAK, SEBAB_LINE_GALAT, SEBAB_LAIN,
     }
     assert len(SEBAB_SEMUA) == len(set(SEBAB_SEMUA))
+

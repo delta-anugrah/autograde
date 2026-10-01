@@ -59,12 +59,14 @@ def test_tanpa_suara():
 
 
 @butuh_node
-def test_frame_berhenti_menulis_kode_line_jam_dan_tindakan():
+def test_frame_berhenti_menulis_line_jam_dan_tindakan_tanpa_kode():
     html = jalankan(FUNGSI_PITA, f"pitaAi({json.dumps(_line(FRAME))}, {SEJAK + 42})")
     assert 'class="pita-ai" role="alert"' in html
     assert "Line 2: kamera berhenti mengirim gambar" in html
-    assert "Kode FRAME_BERHENTI, sejak 21.13." in html
+    assert "Sejak 21.13." in html
     assert "periksa kabel data dan switch kamera" in html
+    # Keputusan user 2026-10-01: kodenya cuma di tab Log.
+    assert "FRAME_BERHENTI" not in html and "Kode" not in html
 
 
 @butuh_node
@@ -76,7 +78,7 @@ def test_frame_berhenti_membuat_kartu_merah():
 def test_frame_berhenti_bahasa_inggris():
     html = jalankan(FUNGSI_PITA, f"pitaAi({json.dumps(_line(FRAME))}, {SEJAK + 42})", bahasa="en")
     assert "Line 2: camera stopped sending images" in html
-    assert "Code FRAME_BERHENTI, since 21:13." in html
+    assert "Since 21:13." in html and "FRAME_BERHENTI" not in html
 
 
 @pytest.mark.parametrize(
@@ -98,7 +100,8 @@ def test_disk_tiga_line_satu_pita_dengan_sisa_terkecil():
     assert html.count('role="alert"') == 1
     assert 'class="peringatan"' in html
     assert "Disk PC hampir penuh" in html
-    assert "Kode DISK_HAMPIR_PENUH, sejak 21.13, dilaporkan Line 1, Line 2, Line 3." in html
+    assert "Sejak 21.13, dilaporkan Line 1, Line 2, Line 3." in html
+    assert "DISK_HAMPIR_PENUH" not in html
     assert "Sisa 12,1 GB dari 468 GB." in html
     assert "Jadwalkan pengosongan" in html
 
@@ -115,7 +118,8 @@ def test_disk_kritis_didahulukan_dan_berdenyut():
 def test_disk_bahasa_inggris():
     html = jalankan(FUNGSI_DISK, f"pitaDisk({json.dumps([_line(disk=_disk('kritis', 3))])}, {SEJAK + 60})",
                     bahasa="en")
-    assert "PC disk nearly out of space" in html and "Code DISK_KRITIS, since 21:13, reported by Line 2." in html
+    assert "PC disk nearly out of space" in html and "Since 21:13, reported by Line 2." in html
+    assert "DISK_KRITIS" not in html
 
 
 @pytest.mark.parametrize(

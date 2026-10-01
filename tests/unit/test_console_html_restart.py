@@ -24,7 +24,7 @@ butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada")
 
 MULAI = 1_790_000_000_000  # ms; 21.13 WIB
 KONSTANTA = ("RESTART_BATAS_MS", "RESTART_HAPUS_BATAS_MS", "RESTART_PASTI_MATI_MS",
-             "RESTART_ULANG_FEED_MS", "RESTART_KODE")
+             "RESTART_ULANG_FEED_MS")
 BATAS_HAPUS = 600_000
 
 
@@ -43,7 +43,8 @@ def _tanda(**isi) -> str:
 
 
 def _jalan(fungsi_dipakai, ekspresi, **kw):
-    return jalankan(list(fungsi_dipakai), ekspresi, tambahan=konstanta(*KONSTANTA) + kw.pop("tambahan", ""), **kw)
+    # "\n": the last constant line can end in a `//` comment that would swallow `tambahan`.
+    return jalankan(list(fungsi_dipakai), ekspresi, tambahan=konstanta(*KONSTANTA) + "\n" + kw.pop("tambahan", ""), **kw)
 
 
 # ── line mana yang ditandai: dari jawaban SERVER, bukan dari klik ──────────
@@ -405,9 +406,9 @@ def test_hitungan_detik_dicabut():
 
 @butuh_node
 @pytest.mark.parametrize("bahasa,potongan", [
-    ("id", ["Line 2 belum kembali", "Kode RESTART_LAMA", "21.13", "lewat 60 detik",
+    ("id", ["Line 2 belum kembali", "Restart diminta pukul 21.13", "lewat 60 detik",
             "Cek tab Log dan terminal line itu"]),
-    ("en", ["Line 2 has not come back", "Code RESTART_LAMA", "21:13", "After 60 s",
+    ("en", ["Line 2 has not come back", "Restart requested at 21:13", "After 60 s",
             "Check the Log tab and that line's terminal"]),
 ])
 def test_lewat_60_detik_spinner_diganti_pesan_rinci(bahasa, potongan):
@@ -419,6 +420,8 @@ def test_lewat_60_detik_spinner_diganti_pesan_rinci(bahasa, potongan):
     assert "restart-bar" not in html
     assert "data-restart-detik" not in html
     assert 'role="alert"' in html
+    # Line, jam, dan tindakan; tanpa kode galat (keputusan user 2026-10-01).
+    assert "RESTART_LAMA" not in html
 
 
 @butuh_node
@@ -582,7 +585,8 @@ def test_hapus_data_tetap_spinner_sampai_sepuluh_menit(bahasa, judul, lama):
     lima_menit = _jalan(fn, f"isiRestart('Line 2', {m}, {MULAI + 300_000})", bahasa=bahasa)
     assert judul in lima_menit and "restart-putar" in lima_menit
     habis = _jalan(fn, f"isiRestart('Line 2', {m}, {MULAI + BATAS_HAPUS})", bahasa=bahasa)
-    assert "RESTART_LAMA" in habis and lama in habis, habis
+    assert "restart-kotak lama" in habis and lama in habis, habis
+    assert "RESTART_LAMA" not in habis
 
 
 @butuh_node

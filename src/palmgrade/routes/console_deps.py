@@ -320,9 +320,14 @@ def _operator_error(status_code: int, exc: Exception) -> HTTPException:
     """Operator routes answer with a code the screen words in its own language.
 
     Machine lanes (events, scale program) keep a plain-text detail — see below.
+    A refusal WITHOUT a code (a domain ValueError such as SetelanTidakSah) reaches the
+    screen as the generic sentence that points to the Log tab (user decision 2026-10-01:
+    no server text outside the Log tab), so its own text is logged here, once per refusal.
     """
-    detail = exc.as_detail() if isinstance(exc, OperatorError) else str(exc)
-    return HTTPException(status_code=status_code, detail=detail)
+    if isinstance(exc, OperatorError):
+        return HTTPException(status_code=status_code, detail=exc.as_detail())
+    logger.warning("Permintaan operator ditolak (HTTP %s): %s", status_code, exc)
+    return HTTPException(status_code=status_code, detail=str(exc))
 
 
 #: Only the operator lane answers in the screen's terms; the lines' machine lane keeps
