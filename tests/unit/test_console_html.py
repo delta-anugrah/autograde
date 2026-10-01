@@ -589,6 +589,17 @@ def test_scan_tidak_bilang_berhasil_kalau_plat_tidak_terisi():
         assert "scanDaftarBelumMuat:" in _kamus(bahasa)
 
 
+def test_truk_nonaktif_dikatakan_bukan_dicari_di_daftar():
+    """Server menandai truk nonaktif (`truck.status`, test_scan_plat) supaya layar bisa
+    mengatakan kenapa truknya tidak bisa dipakai. Daftar truk menyembunyikannya, jadi
+    memuat ulang daftar tidak pernah menemukannya dan pesan "belum termuat" akan bohong."""
+    badan = _badan_kirim_scan()
+    assert 'status === "inactive"' in badan
+    assert badan.index('status === "inactive"') < badan.index("muatTrucks()")
+    for bahasa in ("id", "en"):
+        assert "scanTrukNonaktif:" in _kamus(bahasa)
+
+
 def test_kolom_scan_dikosongkan_setelah_dibaca():
     """Isi yang tertinggal akan tersambung dengan scan berikutnya menjadi satu teks
     panjang yang tidak cocok plat mana pun."""
