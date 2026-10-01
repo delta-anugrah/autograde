@@ -26,6 +26,33 @@ from .console_skema import siapkan_skema
 # definition, so every screen labels the same truck the same way.
 SOURCE_FACTS = "t.supplier_id IS NOT NULL AS has_supplier, t.erp_name IS NOT NULL AS in_erp"
 
+#: One recap row, shared by the per-assignment and the per-visit recap so the two can
+#: never count differently. Criteria mapping (AutoERP contract names, do not rename):
+#: `mentah` is REJ, `tangkai_panjang` an ACC with `tp_confidence > 0.8`, `matang` the rest.
+#: The 4-class breakdown (`ripe`, `unripe`, `jk`) is for the console screen only. It does
+#: NOT go to AutoERP: `erp_messages._grading` picks fields one by one, and `jk` has no
+#: criterion there (see `domain/grade_class.py`).
+_KOLOM_REKAP = """COUNT(*) AS total,
+       MIN(line_code) AS line_code,
+       SUM(CASE WHEN ripeness_status = 'ACC' THEN 1 ELSE 0 END) AS acc,
+       SUM(CASE WHEN ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej,
+       SUM(CASE WHEN ripeness_status = 'ACC' AND tp_confidence > 0.8
+                THEN 1 ELSE 0 END) AS tangkai_panjang,
+       SUM(CASE WHEN grade_class = 'Ripe'   THEN 1 ELSE 0 END) AS ripe,
+       SUM(CASE WHEN grade_class = 'Unripe' THEN 1 ELSE 0 END) AS unripe,
+       SUM(CASE WHEN grade_class = 'JK'     THEN 1 ELSE 0 END) AS jk,
+       SUM(CASE WHEN capture_type = 'manual' THEN 1 ELSE 0 END) AS manual_reject,
+       MIN(timestamp) AS started_at,
+       MAX(timestamp) AS ended_at"""
+
+#: The bunch columns of the detail page, for one assignment or one visit.
+_KOLOM_JANJANG = """event_id, machine_id, line_code, timestamp, ripeness_status,
+       ripeness_confidence, capture_type, image_path, grade_class,
+       tp_status, tp_confidence"""
+
+#: Every assignment linked to one visit; `?` is the weighing id.
+_PENUGASAN_KUNJUNGAN = "SELECT assignment_id FROM visit_assignments WHERE weighing_id = ?"
+
 
 class ConsoleStore(AkunStore):
     def __init__(self, db_path: Path, *, erp_allowed_roles: frozenset[str] | None = None) -> None:
@@ -395,30 +422,12 @@ class ConsoleStore(AkunStore):
     def grading_counts(self, assignment_id: str) -> dict[str, Any] | None:
         """The AI result of one line assignment, counted in SQL (§4.C).
 
-        Criteria mapping (AutoERP contract field names, do not rename): `mentah` is
-        REJ, `tangkai_panjang` an ACC the line marked with `tp_confidence > 0.8`,
-        `matang` the rest — AutoERP derives that one. None when the assignment
-        graded nothing: there is no summary to send.
+        None when the assignment graded nothing: there is no summary to send. A visit's
+        recap is `grading_counts_for_visit`, which sums every line of the truck.
         """
         with self._lock:
             row = self._db.execute(
-                """SELECT COUNT(*) AS total,
-                          MIN(line_code) AS line_code,
-                          SUM(CASE WHEN ripeness_status = 'ACC' THEN 1 ELSE 0 END) AS acc,
-                          SUM(CASE WHEN ripeness_status = 'REJ' THEN 1 ELSE 0 END) AS rej,
-                          SUM(CASE WHEN ripeness_status = 'ACC' AND tp_confidence > 0.8
-                                   THEN 1 ELSE 0 END) AS tangkai_panjang,
-                          -- Rincian 4 kelas, buat layar konsol. Sengaja TIDAK
-                          -- ikut ke AutoERP: `erp_messages._grading` memilih
-                          -- field satu per satu, dan `jk` tidak punya kriteria
-                          -- di sana (lihat `domain/grade_class.py`).
-                          SUM(CASE WHEN grade_class = 'Ripe'   THEN 1 ELSE 0 END) AS ripe,
-                          SUM(CASE WHEN grade_class = 'Unripe' THEN 1 ELSE 0 END) AS unripe,
-                          SUM(CASE WHEN grade_class = 'JK'     THEN 1 ELSE 0 END) AS jk,
-                          SUM(CASE WHEN capture_type = 'manual' THEN 1 ELSE 0 END) AS manual_reject,
-                          MIN(timestamp) AS started_at,
-                          MAX(timestamp) AS ended_at
-                   FROM inspections WHERE assignment_id = ?""",
+                f"SELECT {_KOLOM_REKAP} FROM inspections WHERE assignment_id = ?",
                 (assignment_id,),
             ).fetchone()
         if not row or not row["total"]:
@@ -426,14 +435,53 @@ class ConsoleStore(AkunStore):
         return {"assignment_id": assignment_id, **dict(row)}
 
     def bunches_for_assignment(self, assignment_id: str) -> list[dict[str, Any]]:
-        """Every bunch of one line assignment, oldest first — the visit manifest."""
+        """Every bunch of one line assignment, oldest first."""
         with self._lock:
             rows = self._db.execute(
-                """SELECT event_id, machine_id, line_code, timestamp, ripeness_status,
-                          ripeness_confidence, capture_type, image_path, grade_class,
-                          tp_status, tp_confidence
-                   FROM inspections WHERE assignment_id = ? ORDER BY timestamp""",
+                f"SELECT {_KOLOM_JANJANG} FROM inspections WHERE assignment_id = ? ORDER BY timestamp",
                 (assignment_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def grading_counts_for_visit(self, weighing_id: str) -> dict[str, Any] | None:
+        """The AI result of one truck visit: every line assignment linked to it, summed.
+
+        A truck unloaded on three lines has three assignments; counting only one sent
+        AutoERP one line of three (fixed 2026-10-01). `assignment_id` is the first one
+        linked, so the key AutoERP stores (`autograde_assignment_id`, unique) stays the
+        same across resends. `line_code` names every line, for the detail page and the
+        Log tab; AutoERP does not read it.
+        """
+        with self._lock:
+            row = self._db.execute(
+                f"""SELECT {_KOLOM_REKAP} FROM inspections
+                    WHERE assignment_id IN ({_PENUGASAN_KUNJUNGAN})""",
+                (weighing_id,),
+            ).fetchone()
+            if not row or not row["total"]:
+                return None
+            lines = [
+                r["line_code"]
+                for r in self._db.execute(
+                    f"""SELECT DISTINCT line_code FROM inspections
+                        WHERE assignment_id IN ({_PENUGASAN_KUNJUNGAN}) ORDER BY line_code""",
+                    (weighing_id,),
+                ).fetchall()
+            ]
+            pertama = self._db.execute(
+                """SELECT assignment_id FROM visit_assignments WHERE weighing_id = ?
+                   ORDER BY linked_at, rowid LIMIT 1""",
+                (weighing_id,),
+            ).fetchone()
+        return {**dict(row), "assignment_id": pertama["assignment_id"], "line_code": ", ".join(lines)}
+
+    def bunches_for_visit(self, weighing_id: str) -> list[dict[str, Any]]:
+        """Every bunch of one truck visit across all its lines, oldest first (detail page)."""
+        with self._lock:
+            rows = self._db.execute(
+                f"""SELECT {_KOLOM_JANJANG} FROM inspections
+                    WHERE assignment_id IN ({_PENUGASAN_KUNJUNGAN}) ORDER BY timestamp""",
+                (weighing_id,),
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -479,27 +527,38 @@ class ConsoleStore(AkunStore):
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def link_weighing_to_assignment(self, weighing_id: str, assignment_id: str) -> None:
-        """Written when the truck leaves the line: these bunches are that visit's."""
+    def link_weighing_to_assignment(
+        self, weighing_id: str, assignment_id: str, line_code: str | None = None
+    ) -> None:
+        """Written when a line lets the truck go: that line's bunches are this visit's.
+
+        Two writes, one transaction: the link row the recap sums, and the old single
+        column, still read by an older image if the factory PC rolls back.
+        """
         with self._lock, self._db:
             self._db.execute(
                 "UPDATE weighings SET assignment_id = ? WHERE id = ?", (assignment_id, weighing_id)
             )
+            self._db.execute(
+                """INSERT OR IGNORE INTO visit_assignments
+                       (assignment_id, weighing_id, line_code, linked_at)
+                   VALUES (?, ?, ?, ?)""",
+                (assignment_id, weighing_id, line_code, time.time()),
+            )
 
     def weighing_for_assignment(self, assignment_id: str) -> str | None:
-        """The ticket linked to this assignment when its truck was released, or None.
+        """The ticket this assignment was linked to when its line let the truck go, or None.
 
-        The link is written only at release (`link_weighing_to_assignment`), so a link
-        means the assignment is closed and its visit was already queued without any
-        bunch that arrives now.
+        The link is written only at release, so a link means the assignment is closed and
+        its visit was already queued without any bunch that arrives now. Every line of the
+        visit finds it, not only the one released last.
         """
         with self._lock:
             row = self._db.execute(
-                """SELECT id FROM weighings WHERE assignment_id = ?
-                   ORDER BY received_at DESC LIMIT 1""",
+                "SELECT weighing_id FROM visit_assignments WHERE assignment_id = ?",
                 (assignment_id,),
             ).fetchone()
-        return row["id"] if row else None
+        return row["weighing_id"] if row else None
 
     def record_visit_answer(
         self, weighing_id: str, *, ticket: str | None, status: str | None, note: str | None

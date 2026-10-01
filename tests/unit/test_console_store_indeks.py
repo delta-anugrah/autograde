@@ -50,7 +50,8 @@ def store(tmp_path) -> ConsoleStore:
     [
         (lambda s: s.grading_counts("a1"), "idx_inspections_assignment (assignment_id=?)"),
         (lambda s: s.bunches_for_assignment("a1"), "idx_inspections_assignment (assignment_id=?)"),
-        (lambda s: s.weighing_for_assignment("a1"), "idx_weighings_assignment (assignment_id=?)"),
+        # Sejak 2026-10-01 tautan dibaca dari `visit_assignments`, kuncinya penugasan itu sendiri.
+        (lambda s: s.weighing_for_assignment("a1"), "sqlite_autoindex_visit_assignments_1 (assignment_id=?)"),
         (lambda s: s.auto_releases_terbaru(), "idx_auto_releases_waktu (released_at>?)"),
     ],
     ids=["grading_counts", "bunches_for_assignment", "weighing_for_assignment", "auto_releases_terbaru"],
@@ -82,6 +83,8 @@ HOT = {
     "truck_recap": lambda s: s.truck_recap(HARI),
     "grading_counts": lambda s: s.grading_counts("a1"),
     "bunches_for_assignment": lambda s: s.bunches_for_assignment("a1"),
+    "grading_counts_for_visit": lambda s: s.grading_counts_for_visit("w1"),
+    "bunches_for_visit": lambda s: s.bunches_for_visit("w1"),
 }
 
 

@@ -115,6 +115,18 @@ CREATE TABLE IF NOT EXISTS weighings (
 CREATE INDEX IF NOT EXISTS idx_weighings_hari ON weighings (work_date, entered_at DESC);
 CREATE INDEX IF NOT EXISTS idx_weighings_plat ON weighings (plate_norm);
 
+-- One visit, every line that unloaded it (2026-10-01). A truck on three lines has three
+-- assignments, and `weighings.assignment_id` holds one: the AutoERP recap counted the
+-- line released last. That column is still written (an older image reads it); this
+-- table is what the recap sums. Written when a line lets the truck go.
+CREATE TABLE IF NOT EXISTS visit_assignments (
+    assignment_id TEXT PRIMARY KEY,
+    weighing_id   TEXT NOT NULL,
+    line_code     TEXT,
+    linked_at     REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_visit_assignments_tiket ON visit_assignments (weighing_id);
+
 CREATE TABLE IF NOT EXISTS sync_state (
     key   TEXT PRIMARY KEY,
     value TEXT
@@ -202,6 +214,11 @@ CREATE INDEX IF NOT EXISTS idx_weighings_assignment ON weighings (assignment_id)
 -- `/api/console/state` tiap 2 detik membaca pelepasan otomatis sejam terakhir; tabelnya
 -- tidak pernah dibersihkan.
 CREATE INDEX IF NOT EXISTS idx_auto_releases_waktu ON auto_releases (released_at);
+-- Visits linked before `visit_assignments` existed. Safe to repeat on every boot: the
+-- assignment is the primary key, so a second run inserts nothing.
+INSERT OR IGNORE INTO visit_assignments (assignment_id, weighing_id, line_code, linked_at)
+    SELECT assignment_id, id, NULL, received_at FROM weighings
+    WHERE assignment_id IS NOT NULL AND assignment_id != '';
 """
 
 # Columns renamed to English after the schema had already been created on
