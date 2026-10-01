@@ -20,7 +20,9 @@ def test_a_saved_threshold_reaches_the_lines_that_answer(halaman, lines):
     halaman.fill("#set-conf", "0.6")
     halaman.click("#set-simpan")
     expect(halaman.locator("#set-pesan")).to_have_text(kamus(halaman, "setelanTersimpan"))
-    expect(halaman.locator("#set-lines")).to_contain_text("line-3")
+    expect(halaman.locator("#set-lines")).to_have_text(
+        kamus(halaman, "setelanBelumSampai").replace("{lines}", "line-3")
+    )
     for kode in _HIDUP:
         terkirim = [isi for jalur, isi in lines[kode].diterima if jalur == "/internal/setelan"]
         assert terkirim and terkirim[-1]["conf_threshold"] == 0.6, (kode, terkirim)

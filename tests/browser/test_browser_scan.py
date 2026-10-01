@@ -38,7 +38,10 @@ def test_an_unregistered_plate_asks_for_registration(halaman, browser_name):
     masuk(halaman, OPERATOR)
     buka_tab(halaman, "timbangan")
     _scan(halaman, nomor)
-    expect(halaman.locator("#scan-pesan")).to_contain_text(kamus(halaman, "scanBelumAda"))
+    # The sentence names the plate (the operator registers exactly that one), and the form
+    # stays empty: a borrowed truck is weighed only after it is registered.
+    expect(halaman.locator("#scan-pesan")).to_have_text(f"{kamus(halaman, 'scanBelumAda')} {nomor}")
+    expect(halaman.locator("#plat-timbang")).to_have_attribute("data-nilai", "")
 
 
 def test_something_that_is_not_a_plate_is_refused(halaman):

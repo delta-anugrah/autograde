@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -40,6 +41,42 @@ def port_bebas() -> int:
             port = s.getsockname()[1]
         if port not in PORT_DEVELOPER:
             return port
+
+
+def jalankan_terbatas(
+    perintah: list[str], *, batas_s: float, env: dict[str, str] | None = None, cwd: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Run `perintah` to the end within `batas_s`, stdout and stderr together.
+
+    It runs in its own session. One that hangs is killed with its whole process group (the
+    console a nested pytest started, its Playwright driver), and the error carries what it
+    printed: killing only the parent would leave those running and lose the one clue to why it
+    hung. A browser Playwright launched in its own group is not in it; it exits once its driver
+    is gone.
+    """
+    proses = subprocess.Popen(
+        perintah,
+        env=env,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        keluaran, _ = proses.communicate(timeout=batas_s)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proses.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # the group ended between the timeout and the kill
+        try:
+            keluaran, _ = proses.communicate(timeout=BERHENTI_MAKS_S)
+        except subprocess.TimeoutExpired as habis:  # a grandchild in its own session holds the pipe
+            keluaran = habis.output.decode(errors="replace") if isinstance(habis.output, bytes) else ""
+        nama = " ".join(Path(bagian).name for bagian in perintah[:2])
+        raise RuntimeError(f"{nama} did not finish within {batas_s:.0f} s:\n{keluaran}") from None
+    return subprocess.CompletedProcess(perintah, proses.returncode, keluaran, "")
 
 
 def _salin_kode(tujuan: Path) -> Path:
@@ -88,16 +125,14 @@ class KonsolUji:
         }
 
     def seed(self, *, hari: int) -> None:
-        hasil = subprocess.run(
+        hasil = jalankan_terbatas(
             [sys.executable, str(self.root / "scripts" / "seed-console-demo.py"), "--hari", str(hari)],
+            batas_s=SEED_MAKS_S,
             env=self._env(),
             cwd=self.root,
-            capture_output=True,
-            text=True,
-            timeout=SEED_MAKS_S,
         )
         if hasil.returncode != 0:
-            raise RuntimeError(f"the demo seeder failed:\n{hasil.stdout}\n{hasil.stderr}")
+            raise RuntimeError(f"the demo seeder failed:\n{hasil.stdout}")
 
     def mulai(self) -> None:
         with self.log.open("wb") as log:
