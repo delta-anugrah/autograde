@@ -37,9 +37,8 @@ Polanya persis skema ODOT lama (coil 0–9, DI 0–11) dipindah ke M1000 / M1100
 | M1006 / M1007 / M1008 | CAMERA 3 OK / NG / ERROR | sama |
 | **M1009** | **HEARTBIT PC** | **berkedip 500 ms**; OFF kalau lisensi menghentikan grading |
 
-ERROR naik untuk **kamera putus ATAU AI mati** sejak v1.20.0, dan untuk **frame berhenti** (kamera
-tersambung tapi diam) sejak v1.21.0 (bab "Coil ERROR" di bawah). Keduanya terpasang di Lampung
-2026-10-01.
+ERROR naik untuk **kamera putus** (sejak awal), **AI mati** (sejak v1.20.0), dan **frame berhenti**
+(kamera tersambung tapi diam, sejak v1.21.0); bab "Coil ERROR" di bawah.
 
 **PC membaca**: satu blok M1100–M1115 tiap 200 ms:
 
@@ -235,7 +234,7 @@ dulu (`services/langkah_tutup_line.py`), lihat `docs/plc-integration.md` (shutdo
 `docs/plc-mc-handoff.md` bab 4.2.
 
 **Tim PLC harus tahu** ERROR sekarang juga berarti AI mati dan kamera yang diam:
-`docs/plc-mc-handoff.md` bab 4.2 (v1.9) memuat tabelnya dalam bahasa panel. Kode yang menambah keadaan ke `error_plc` wajib
+`docs/plc-mc-handoff.md` bab 4.2 (dokumen versi 1.9) memuat tabelnya dalam bahasa panel. Kode yang menambah keadaan ke `error_plc` wajib
 memperbarui keempat tempat dalam PR yang sama: `docs/rules.md` aturan 32,
 `docs/plc-integration.md` § Coil ERROR, `docs/plc-mc-handoff.md` bab 4.2 (+ PDF dan versinya),
 dan ringkasan satu paragraf di atas.

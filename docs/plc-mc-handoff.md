@@ -213,9 +213,10 @@ M1008) kini bisa dipicu dari layar Uji PLC, supaya ketiganya bisa dibuktikan ter
 line yang sehat tidak pernah menaikkan ERROR dengan sendirinya. Sesudah pulse uji selesai,
 levelnya kembali mengikuti kesehatan line di tick berikutnya.
 
-Sejak batch 2.1 ERROR juga naik kalau AI line itu berhenti memproses (kamera jalan, tidak ada
-yang digrading lebih dari 30 detik). Tidak ada perubahan program PLC yang diminta; kalau tim
-PLC mau menghentikan conveyor dari bit ini, itu keputusan dan pekerjaan terpisah.
+Sejak `v1.20.0` ERROR juga naik kalau AI line itu berhenti memproses (kamera jalan, tidak ada
+yang digrading lebih dari 30 detik), dan sejak `v1.21.0` kalau kamera berhenti mengirim gambar.
+Tidak ada perubahan program PLC yang diminta; kalau tim PLC mau menghentikan conveyor dari bit
+ini, itu keputusan dan pekerjaan terpisah.
 
 | Yang diuji | Hasil |
 |---|---|
