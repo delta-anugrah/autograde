@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-01 · console, tests · Follow-ups from the browser suite (PR #n)
+## 2026-10-01 · console, tests · Follow-ups from the browser suite (PR #206)
 Changed:        Console: the Setelan line that did not receive a change is a KAMUS sentence
                 (`setelanBelumSampai`, id + en), guarded by `test_kalimat_layar_hanya_dari_kamus`;
                 the weigh-out hint names the row button "Timbang keluar" (it said "Keluar").
