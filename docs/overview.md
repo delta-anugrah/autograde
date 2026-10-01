@@ -697,7 +697,11 @@ truknya dilepas: line offline sebentar, atau truk sudah ditimbang keluar sementa
 terakhir masih diproses. `ConsoleService.ingest` mendeteksinya lewat `add_inspection`: cuma
 kalau baris itu **insert sungguhan** (bukan kiriman ulang `event_id` yang sudah ada), ia mencari
 tiket timbangan milik penugasan itu (`weighing_for_assignment`) dan memanggil `ErpQueue.visit`
-lagi, membangun ulang pesan kunjungan dari store seperti biasa.
+lagi, membangun ulang pesan kunjungan dari store seperti biasa. Kalau truknya **sedang ditimbang
+keluar** (timbang keluar melepas semua lininya satu per satu), janjang susulan dan Lepas manual
+**ditahan**: janjangnya dan tautannya tersimpan, tapi kunjungannya tidak diantre sampai line
+terakhir lepas, supaya AutoERP tidak menerima tara dengan sebagian line. Timbang keluar lalu
+mengantre sekali, dari store, termasuk semua yang tertahan.
 
 Yang membedakan hasilnya cuma **kapan** AutoERP menerimanya, dan itu ditentukan §4.C step 4
 di AutoERP sendiri (`upsert_visit`), bukan konsol:
