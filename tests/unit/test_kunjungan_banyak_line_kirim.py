@@ -36,8 +36,8 @@ class FakeUploader:
         return None
 
 
-def _konsol(tmp_path, *, line=None, manifest_queue=None):
-    store = ConsoleStore(tmp_path / "console.db")
+def _konsol(tmp_path, *, line=None, manifest_queue=None, store_cls=ConsoleStore):
+    store = store_cls(tmp_path / "console.db")
     outbox = ErpOutboxStore(tmp_path / "erp_outbox.db")
     service = ConsoleService(
         replace(Settings(), factory_tz="Asia/Jakarta"), store, line or FakeLine(),
@@ -478,3 +478,108 @@ def test_halaman_yang_gagal_diantre_tidak_menggagalkan_lepas_manual(tmp_path, ca
 
     assert _kiriman_terakhir(outbox, tiket["id"])["grading"]["counts"]["total"] == 3
     assert [r for r in caplog.records if "Halaman detail tiket" in r.getMessage()]
+
+
+# ---- Dua celah terakhir: tara ditulis sebelum penjaga, dan kiriman yang dilewati ----
+
+class _TokoJeda(ConsoleStore):
+    """Holds the thread named `susulan` inside the visit read the queue makes, after its guard
+    check and before it reads the stored tare: the interleaving that matters."""
+
+    def __init__(self, path) -> None:
+        super().__init__(path)
+        self.parado = threading.Event()
+        self.lanjut = threading.Event()
+
+    def visit(self, weighing_id: str):
+        if threading.current_thread().name == "susulan":
+            self.parado.set()
+            self.lanjut.wait(1.0)
+        return super().visit(weighing_id)
+
+
+def test_janjang_susulan_yang_lolos_penjaga_tidak_membaca_tara_setengah_jadi(tmp_path):
+    """Line-1 was released by the operator before the weigh-out, so its late bunch finds the
+    ticket. If it checks the guard just BEFORE the weigh-out raises it, it must not then read
+    the freshly written tare with only line-1 linked: the check and the queue are one step
+    that the weigh-out cannot interleave with, and the guard goes up before the tare is written."""
+    line = _LineMengintip()
+    service, store, outbox = _konsol(tmp_path, line=line, store_cls=_TokoJeda)
+    line.lihat = lambda: [m.payload for m in outbox.due(50) if m.kind == erp_messages.VISIT]
+    truck_id = service.register_manual_truck(PLAT)["id"]
+    tiket = asyncio.run(service.record_weighing({
+        "ref": "SCL-9", "plate_number": PLAT, "gross_kg": 14000, "entered_at": datetime.now(WIB).isoformat(),
+    }))
+    for kode in ("line-1", "line-2", "line-3"):
+        asyncio.run(service.assign_truck(kode, truck_id))
+    _janjang(service, "line-1", 3)
+    _janjang(service, "line-2", 2)
+    _janjang(service, "line-3", 4)
+    penugasan_1 = store.assignments()["line-1"]["assignment_id"]
+    asyncio.run(service.release_truck("line-1"))
+    benang = threading.Thread(
+        name="susulan",
+        target=service.ingest,
+        args=({
+            "event_id": "susulan-g", "machine_id": service.lines[0].machine_id,
+            "timestamp": datetime.now(WIB).isoformat(), "ripeness_status": "REJ",
+            "assignment_id": penugasan_1, "truck_id": truck_id,
+        },),
+    )
+    benang.start()
+    assert store.parado.wait(5)
+    line.potret.clear()
+
+    async def lanjutkan():
+        store.lanjut.set()
+        benang.join(5)
+
+    line._pelepasan = 0  # noqa: SLF001 (count the weigh-out's releases only)
+    line.selama = (1, lanjutkan)
+    asyncio.run(service.record_weighing({
+        "ref": "SCL-9", "plate_number": PLAT, "tare_kg": 5000, "exited_at": datetime.now(WIB).isoformat(),
+    }))
+
+    assert not benang.is_alive()
+    _tak_ada_tara_di_antrean(line)
+    akhir = _kiriman_terakhir(outbox, tiket["id"])
+    assert akhir["weighing"]["tare_kg"] == 5000 and akhir["grading"]["counts"]["total"] == 10
+
+
+async def _janjang_susulan_tiket_lama(service, truck_id, penugasan):
+    service.ingest({
+        "event_id": "susulan-tiket-lama", "machine_id": service.lines[0].machine_id,
+        "timestamp": datetime.now(WIB).isoformat(), "ripeness_status": "REJ",
+        "assignment_id": penugasan["lama"], "truck_id": truck_id,
+    })
+
+
+def test_kiriman_yang_dilewati_selama_timbang_keluar_dikejar_untuk_tiket_lama(tmp_path):
+    """Line-1 unloaded the truck for an OLDER ticket of the previous work date (still inside the
+    window), the weigh-out is for a new ticket, and a late bunch of line-1 arrives during it. Its
+    visit and page are skipped while the guard is up and are not among the tickets the weigh-out
+    links, so they must be made up for when it ends."""
+    halaman = _CatatHalaman()
+    line = _LineMengintip()
+    service, store, outbox = _konsol(tmp_path, line=line, manifest_queue=halaman)
+    truck_id = service.register_manual_truck(PLAT)["id"]
+    lama = _tiket_lampau(store, truck_id, 3.0, wid="w-lama")
+    asyncio.run(service.assign_truck("line-1", truck_id))
+    penugasan_lama = store.assignments()["line-1"]["assignment_id"]
+    _janjang(service, "line-1", 3)
+    asyncio.run(service.release_truck("line-1"))
+    asyncio.run(service.record_weighing({
+        "ref": "SCL-9", "plate_number": PLAT, "gross_kg": 14000, "entered_at": datetime.now(WIB).isoformat(),
+    }))
+    asyncio.run(service.assign_truck("line-2", truck_id))
+    _janjang(service, "line-2", 2)
+    halaman.dipanggil.clear()
+    line._pelepasan = 0  # noqa: SLF001 (count the weigh-out's releases only)
+    line.selama = (1, lambda: _janjang_susulan_tiket_lama(service, truck_id, {"lama": penugasan_lama}))
+
+    asyncio.run(service.record_weighing({
+        "ref": "SCL-9", "plate_number": PLAT, "tare_kg": 5000, "exited_at": datetime.now(WIB).isoformat(),
+    }))
+
+    assert _kiriman_terakhir(outbox, lama)["grading"]["counts"]["total"] == 4
+    assert lama in [w for w, _ in halaman.dipanggil]

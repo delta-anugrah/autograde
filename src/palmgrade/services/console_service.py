@@ -106,9 +106,13 @@ class ConsoleService(LayarLineSupport):
         self._kunci_ditolak = threading.Lock()
         # Truk yang sedang ditimbang keluar (id truk -> jumlah timbang keluarnya yang jalan).
         # Selama itu, janjang susulan dan Lepas manual tidak mengantre kunjungan truk itu: tara
-        # sudah tersimpan tapi baru sebagian line yang tertaut. Ingest jalan di thread pool,
-        # jadi dijaga kunci sendiri.
+        # sudah tersimpan tapi baru sebagian line yang tertaut. Kiriman yang dilewati dicatat
+        # (id truk -> {id tiket: penugasan}) dan dikejar sesudahnya. Ingest jalan di thread
+        # pool, jadi dijaga kunci sendiri. Urutan kunci: `_kunci_ditutup` lalu kunci
+        # `ErpQueue` lalu kunci store; tidak ada yang memegang kunci store atau `ErpQueue`
+        # lalu meminta `_kunci_ditutup`.
         self._truk_ditutup: dict[str, int] = {}
+        self._tertunda: dict[str, dict[str, str]] = {}
         self._kunci_ditutup = threading.Lock()
 
     # ------------------------------------------------------------ ingest
@@ -462,41 +466,49 @@ class ConsoleService(LayarLineSupport):
                 )
         net = _neto(gross, tare, _kg(payload.get("net_kg"), "net_kg", None))
 
-        self.store.upsert_weighing(
-            {
-                "id": weighing_id,
-                "ref": ref,
-                "plate_number": plate,
-                "plate_norm": plate_norm,
-                "truck_id": truck_id_for(plate),
-                "work_date": work_date,
-                "gross_kg": gross,
-                "tare_kg": tare,
-                "net_kg": net,
-                "entered_at": entered_at,
-                "exited_at": exited_at,
-            }
-        )
-        # Timbang keluar = truk sudah pergi. Line yang masih memegangnya akan
-        # menstempel janjang truk BERIKUTNYA dengan truk ini (G5), jadi dilepas
-        # di sini alih-alih menunggu operator ingat.
+        truck_id = truck_id_for(plate)
+        menutup = tare is not None or bool(exited_at)
         bertaut: dict[str, str] = {}
-        if tare is not None or exited_at:
-            truck_id = truck_id_for(plate)
+        tertunda: dict[str, str] = {}
+        # The guard goes up BEFORE the tare is written: from that write on, a visit queued
+        # for this truck would carry a tare that not every line is linked to yet.
+        if menutup:
             self._mulai_tutup(truck_id)
-            try:
+        try:
+            self.store.upsert_weighing(
+                {
+                    "id": weighing_id,
+                    "ref": ref,
+                    "plate_number": plate,
+                    "plate_norm": plate_norm,
+                    "truck_id": truck_id,
+                    "work_date": work_date,
+                    "gross_kg": gross,
+                    "tare_kg": tare,
+                    "net_kg": net,
+                    "entered_at": entered_at,
+                    "exited_at": exited_at,
+                }
+            )
+            # Timbang keluar = truk sudah pergi. Line yang masih memegangnya akan
+            # menstempel janjang truk BERIKUTNYA dengan truk ini (G5), jadi dilepas
+            # di sini alih-alih menunggu operator ingat.
+            if menutup:
                 bertaut = await self._lepas_line_truk_yang_keluar(truck_id)
-            finally:
+        finally:
+            if menutup:
                 # Before the queue below: a bunch that saw the guard is stored by now, so the
                 # message built from the store counts it; one that comes later queues it itself.
-                self._selesai_tutup(truck_id)
+                tertunda = self._selesai_tutup(truck_id)
         # ONE message, after every line is released and linked: the tare is stored already,
         # so a message queued between two releases would carry it with only the lines
-        # released so far, and AutoERP finalises a ticket the moment it has both.
-        for tiket in {weighing_id, *bertaut}:
+        # released so far, and AutoERP finalises a ticket the moment it has both. Plus every
+        # visit that was held back meanwhile, whichever ticket it belongs to.
+        halaman = {**tertunda, **bertaut}
+        for tiket in {weighing_id, *halaman}:
             self._queue_visit(tiket)
         # The pages last: the visit never depends on the page.
-        for tiket, assignment_id in bertaut.items():
+        for tiket, assignment_id in halaman.items():
             self._antre_halaman(tiket, assignment_id)
         return self.store.weighing(weighing_id) or {}
 
@@ -545,21 +557,27 @@ class ConsoleService(LayarLineSupport):
         with self._kunci_ditutup:
             self._truk_ditutup[truck_id] = self._truk_ditutup.get(truck_id, 0) + 1
 
-    def _selesai_tutup(self, truck_id: str) -> None:
+    def _selesai_tutup(self, truck_id: str) -> dict[str, str]:
+        """Turunkan penjaga; kalau ini timbang keluar terakhir truk itu, kembalikan kiriman
+        yang dilewati selama penjaga naik (id tiket -> penugasan) supaya pemanggil mengantrenya."""
         with self._kunci_ditutup:
             sisa = self._truk_ditutup.get(truck_id, 0) - 1
             if sisa > 0:
                 self._truk_ditutup[truck_id] = sisa
-            else:
-                self._truk_ditutup.pop(truck_id, None)
+                return {}
+            self._truk_ditutup.pop(truck_id, None)
+            return self._tertunda.pop(truck_id, {})
 
-    def _sedang_ditutup(self, weighing_id: str) -> bool:
-        """Truk tiket ini sedang ditimbang keluar: kunjungannya diantre sekali, sesudah semua line lepas."""
-        with self._kunci_ditutup:
-            if not self._truk_ditutup:
-                return False
-            truk = set(self._truk_ditutup)
-        return (self.store.weighing(weighing_id) or {}).get("truck_id") in truk
+    def _tunda_kalau_ditutup(self, weighing_id: str, assignment_id: str) -> bool:
+        """Truk tiket ini sedang ditimbang keluar: catat kiriman ini untuk sesudahnya dan
+        jawab True. Dipanggil dengan `_kunci_ditutup` dipegang."""
+        if not self._truk_ditutup:
+            return False
+        truck_id = (self.store.weighing(weighing_id) or {}).get("truck_id")
+        if truck_id not in self._truk_ditutup:
+            return False
+        self._tertunda.setdefault(truck_id, {})[weighing_id] = assignment_id
+        return True
 
     def _queue_visit(self, weighing_id: str) -> None:
         """A weighbridge row moved: AutoERP gets the whole visit as it stands."""
@@ -622,11 +640,14 @@ class ConsoleService(LayarLineSupport):
 
         Dilewati selama truk tiket ini sedang ditimbang keluar: janjang dan tautannya sudah
         tersimpan, dan timbang keluar mengantre kunjungan utuh sesudah line terakhir lepas.
+        Pengecekan penjaga dan pembacaan store untuk pesan itu satu langkah di bawah
+        `_kunci_ditutup`: timbang keluar tidak bisa menaikkan penjaga dan menulis tara di antaranya.
         """
-        if self._sedang_ditutup(weighing_id):
-            return
-        if self.erp_queue is not None:
-            self.erp_queue.visit(weighing_id, tz=self.tz)
+        with self._kunci_ditutup:
+            if self._tunda_kalau_ditutup(weighing_id, assignment_id):
+                return
+            if self.erp_queue is not None:
+                self.erp_queue.visit(weighing_id, tz=self.tz)
         self._antre_halaman(weighing_id, assignment_id)
 
     def _kunjungan_susulan(self, assignment_id: str | None) -> None:
