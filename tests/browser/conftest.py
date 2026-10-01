@@ -16,6 +16,9 @@ _LOKAL = {"127.0.0.1", "localhost"}
 # What Chromium logs for the offline line's camera feed and for a deliberate 4xx answer.
 # Anything else on the console, and every uncaught exception, fails the test.
 _BUKAN_GALAT = "Failed to load resource"
+# Firefox logs nothing for a failed response and Chromium words a 500 like the refused feed
+# above, so a server error from the console is read from the response status instead.
+_GALAT_SERVER = 500
 
 
 @pytest.fixture(scope="session")
@@ -54,28 +57,58 @@ def browser_context_args(browser_context_args):
     }
 
 
-@pytest.fixture
-def halaman(page, konsol):
-    """`page` on the console, guarded: nothing leaves this machine, no script crashes."""
-    keluar: list[str] = []
-    galat: list[str] = []
-    page.context.galat_uji = galat  # read back only by the harness self-test
+class _Penjaga:
+    """What a page did that it must not: reach beyond this machine, crash a script, or get a
+    server error from the console."""
 
-    def jaga(route) -> None:
+    def __init__(self, asal_konsol: str) -> None:
+        self.asal_konsol = asal_konsol
+        self.keluar: list[str] = []
+        self.galat: list[str] = []
+
+    def jaga(self, route) -> None:
         if urlsplit(route.request.url).hostname in _LOKAL:
             route.continue_()
         else:
-            keluar.append(route.request.url)
+            self.keluar.append(route.request.url)
             route.abort()
 
-    def catat_console(pesan) -> None:
+    def catat_console(self, pesan) -> None:
         if pesan.type == "error" and _BUKAN_GALAT not in pesan.text:
-            galat.append(pesan.text)
+            self.galat.append(pesan.text)
 
-    page.route("**/*", jaga)
-    page.on("pageerror", lambda exc: galat.append(str(exc)))
-    page.on("console", catat_console)
+    def catat_jawaban(self, jawaban) -> None:
+        if jawaban.status >= _GALAT_SERVER and jawaban.url.startswith(self.asal_konsol):
+            self.galat.append(f"{jawaban.status} from {jawaban.url}")
+
+    def periksa(self) -> None:
+        assert not self.keluar, f"the page reached beyond this machine: {self.keluar}"
+        assert not self.galat, f"script or server errors on the page: {self.galat}"
+
+
+_PENJAGA = pytest.StashKey[_Penjaga]()
+
+
+@pytest.fixture
+def halaman(request, page, konsol):
+    """`page` on the console, guarded: nothing leaves this machine, no script crashes."""
+    penjaga = _Penjaga(konsol.url)
+    request.node.stash[_PENJAGA] = penjaga
+    page.context.galat_uji = penjaga.galat  # read back only by the harness self-tests
+    page.route("**/*", penjaga.jaga)
+    page.on("pageerror", lambda exc: penjaga.galat.append(str(exc)))
+    page.on("console", penjaga.catat_console)
+    page.on("response", penjaga.catat_jawaban)
     page.goto(konsol.url + "/console")
-    yield page
-    assert not keluar, f"the page reached beyond this machine: {keluar}"
-    assert not galat, f"script errors on the page: {galat}"
+    return page
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item):
+    """The guard fails the test itself, not its teardown: pytest-playwright keeps the trace
+    and the screenshot only for a test whose call failed."""
+    hasil = yield
+    penjaga = item.stash.get(_PENJAGA, None)
+    if penjaga is not None:
+        penjaga.periksa()
+    return hasil

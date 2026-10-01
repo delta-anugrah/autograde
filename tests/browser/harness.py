@@ -27,7 +27,10 @@ REPO = Path(__file__).resolve().parents[2]
 PORT_DEVELOPER = frozenset({8000, 8100, 8001, 8002, 8003})
 MULAI_MAKS_S = 30.0
 BERHENTI_MAKS_S = 10.0
+SEED_MAKS_S = 120.0
 _JEDA_TANYA_S = 0.2
+_TANYA_HEALTH_MAKS_S = 1.0
+_BARIS_LOG = 40
 
 
 def port_bebas() -> int:
@@ -65,6 +68,10 @@ class KonsolUji:
     def url(self) -> str:
         return f"http://127.0.0.1:{self.port}"
 
+    @property
+    def pid(self) -> int | None:
+        return self._proses.pid if self._proses else None
+
     def _env(self) -> dict[str, str]:
         # Nothing inherited but PATH and HOME: a shell variable must not steer the test.
         return {
@@ -84,9 +91,10 @@ class KonsolUji:
         hasil = subprocess.run(
             [sys.executable, str(self.root / "scripts" / "seed-console-demo.py"), "--hari", str(hari)],
             env=self._env(),
+            cwd=self.root,
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=SEED_MAKS_S,
         )
         if hasil.returncode != 0:
             raise RuntimeError(f"the demo seeder failed:\n{hasil.stdout}\n{hasil.stderr}")
@@ -103,6 +111,9 @@ class KonsolUji:
                     ",".join(map(str, self.port_line)),
                 ],
                 env=self._env(),
+                # Not the checkout: python-dotenv falls back to the working directory
+                # under a debugger or coverage, and the checkout sits under a `.env`.
+                cwd=self.root,
                 stdout=log,
                 stderr=subprocess.STDOUT,
             )
@@ -111,7 +122,7 @@ class KonsolUji:
             if self._proses.poll() is not None:
                 raise RuntimeError(f"the console exited while starting:\n{self._ekor_log()}")
             try:
-                if httpx.get(self.url + "/health", timeout=1).status_code == 200:
+                if httpx.get(self.url + "/health", timeout=_TANYA_HEALTH_MAKS_S).status_code == 200:
                     return
             except httpx.HTTPError:
                 pass
@@ -129,5 +140,5 @@ class KonsolUji:
             self._proses.kill()
             self._proses.wait()
 
-    def _ekor_log(self, baris: int = 40) -> str:
+    def _ekor_log(self, baris: int = _BARIS_LOG) -> str:
         return "\n".join(self.log.read_text(errors="replace").splitlines()[-baris:])

@@ -6,10 +6,13 @@ These hold the promises every other browser test leans on (plan Review Focus 1-5
 from __future__ import annotations
 
 import socket
+import subprocess
+import sys
 from pathlib import Path
 
 import httpx
 import langkah  # noqa: F401  (skips this module where Playwright is missing, fails in CI)
+import psutil
 import pytest
 from harness import PORT_DEVELOPER, KonsolUji, port_bebas
 from line_palsu import LinePalsu
@@ -30,6 +33,12 @@ def test_a_console_that_cannot_start_says_why(tmp_path):
     (k.src / "palmgrade" / "console_main.py").write_text("raise SystemExit('broken on purpose')\n")
     with pytest.raises(RuntimeError, match="broken on purpose"):
         k.mulai()
+
+
+def test_the_console_runs_from_its_own_folder(konsol):
+    # python-dotenv falls back to the working directory under a debugger or coverage, and
+    # the working directory of pytest is the checkout, under the developer's `.env`.
+    assert Path(psutil.Process(konsol.pid).cwd()).resolve() == konsol.root.resolve()
 
 
 def test_stopping_frees_the_port(tmp_path):
@@ -60,7 +69,48 @@ def test_the_guard_ignores_a_refused_resource_but_not_a_script_error(halaman):
     galat = halaman.context.galat_uji  # the fixture's list, read back here
     assert any("boom from the test" in g for g in galat)
     assert not any("Failed to load resource" in g for g in galat)
-    galat.clear()  # the fixture's teardown would otherwise fail this test on purpose
+    galat.clear()  # the guard would otherwise fail this test on purpose
+
+
+def test_a_server_error_from_the_console_fails_the_guard(halaman, konsol):
+    # Firefox logs nothing for a 500 and Chromium words it like a refused feed, so the
+    # guard reads the status itself. The 500 is staged by Playwright, not by the console.
+    halaman.route(konsol.url + "/api/console/galat-uji", lambda route: route.fulfill(status=500))
+    halaman.evaluate("() => fetch('/api/console/galat-uji')")
+    galat = halaman.context.galat_uji
+    assert any("500" in g and "/api/console/galat-uji" in g for g in galat), galat
+    galat.clear()
+
+
+_PROBE = Path(__file__).with_name("probe_penjaga.py")
+_PROBE_MAKS_S = 180
+
+
+def test_a_guard_trip_fails_the_test_itself_not_its_teardown(tmp_path, browser_name):
+    hasil = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            str(_PROBE),
+            "-o",
+            "addopts=",  # the repo's own `-q` would make this `-qq`, which drops the summary
+            "-q",
+            "-rN",
+            "--color=no",
+            "-p",
+            "no:cacheprovider",
+            "--browser",
+            browser_name,
+            "--basetemp",
+            str(tmp_path / "probe"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=_PROBE_MAKS_S,
+    )
+    ringkasan = hasil.stdout.strip().splitlines()[-1]
+    assert "1 failed" in ringkasan and "error" not in ringkasan, hasil.stdout[-2000:]
 
 
 def test_the_seeded_accounts_can_sign_in(konsol):
