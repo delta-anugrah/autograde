@@ -10,14 +10,14 @@ from __future__ import annotations
 
 import shutil
 import socket
-import subprocess
 import sys
 from pathlib import Path
 
+import harness
 import httpx
 import psutil
 import pytest
-from harness import PORT_DEVELOPER, KonsolUji, port_bebas
+from harness import PORT_DEVELOPER, KonsolUji, jalankan_terbatas, port_bebas
 from langkah import JEDA_HALAMAN_MS  # skips this module where Playwright is missing, fails in CI
 from line_palsu import LinePalsu
 
@@ -43,6 +43,38 @@ def test_the_console_runs_from_its_own_folder(konsol):
     # python-dotenv falls back to the working directory under a debugger or coverage, and
     # the working directory of pytest is the checkout, under the developer's `.env`.
     assert Path(psutil.Process(konsol.pid).cwd()).resolve() == konsol.root.resolve()
+
+
+_MACET = """
+import subprocess, sys, time
+print("sudah mulai", flush=True)
+anak = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+open(sys.argv[1], "w").write(str(anak.pid))
+time.sleep(60)
+"""
+_TUNGGU_MATI_S = 5
+
+
+def test_a_command_that_hangs_is_stopped_with_its_children_and_says_what_it_printed(tmp_path):
+    # A probe or seeder that hangs must not leave its console or browser driver behind.
+    berkas_pid = tmp_path / "anak.pid"
+    with pytest.raises(RuntimeError, match="sudah mulai"):
+        jalankan_terbatas([sys.executable, "-c", _MACET, str(berkas_pid)], batas_s=2)
+    try:
+        # Raises psutil.TimeoutExpired, failing the test, while the child is still alive.
+        psutil.Process(int(berkas_pid.read_text())).wait(timeout=_TUNGGU_MATI_S)
+    except psutil.NoSuchProcess:
+        pass  # already gone, which is the point
+
+
+def test_a_seeder_that_hangs_says_what_it_printed(tmp_path, monkeypatch):
+    k = KonsolUji(tmp_path, port_line=(port_bebas(), port_bebas(), port_bebas()))
+    (k.root / "scripts" / "seed-console-demo.py").write_text(
+        "import time\nprint('seeder macet di sini', flush=True)\ntime.sleep(60)\n"
+    )
+    monkeypatch.setattr(harness, "SEED_MAKS_S", 2)
+    with pytest.raises(RuntimeError, match="seeder macet di sini"):
+        k.seed(hari=1)
 
 
 def test_stopping_frees_the_port(tmp_path):
@@ -96,7 +128,8 @@ def test_a_guard_trip_fails_the_test_itself_not_its_teardown(tmp_path, browser_n
     jejak_luar = Path.cwd() / "test-results" / "probe-penjaga-penanda" / "trace.zip"
     jejak_luar.parent.mkdir(parents=True, exist_ok=True)
     jejak_luar.write_bytes(b"")
-    hasil = subprocess.run(
+    # Through `jalankan_terbatas`: a hung probe must not leave its own console running.
+    hasil = jalankan_terbatas(
         [
             sys.executable,
             "-m",
@@ -116,9 +149,7 @@ def test_a_guard_trip_fails_the_test_itself_not_its_teardown(tmp_path, browser_n
             "--output",
             str(tmp_path / "probe-hasil"),
         ],
-        capture_output=True,
-        text=True,
-        timeout=_PROBE_MAKS_S,
+        batas_s=_PROBE_MAKS_S,
     )
     ringkasan = hasil.stdout.strip().splitlines()[-1]
     assert "1 failed" in ringkasan and "error" not in ringkasan, hasil.stdout[-2000:]
