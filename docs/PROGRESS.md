@@ -27,6 +27,8 @@ Changed:        Unreachable-line sentence ends at "mati atau sedang restart." (n
                 cannot be dismissed. uvicorn's "timeout graceful shutdown exceeded" (every line
                 restart while the console holds the video feed) is INFO, not an ERROR in the Log
                 tab and Discord (`core/log_akses.TurunkanTenggangTutup`). MANUAL + rules + PDF.
+                After #201 was merged: staging merged in, and the PLC skill + `plc-mc-handoff.md`
+                1.9 (+ PDF) name frame berhenti as a third ERROR-coil state (the four-places rule).
 Validated:      unit 3824 passed / 28 skipped; integration + e2e 459 passed / 17 skipped; CI ruff
                 scope and F821 main.py clean; cek_skrip_konsol OK (detached worktree at 354ec4e).
                 Browser by the user: Diagnostik sentence, Versi width, disk strip (width, pulse,
