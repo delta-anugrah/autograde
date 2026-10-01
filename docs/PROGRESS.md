@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-01 · docs · Stale text found by the markdown audit (PR #n)
+## 2026-10-01 · docs · Stale text found by the markdown audit (PR #207)
 Changed:        Audit of all 31 tracked .md files: none to remove (the repo was cleaned in #180 and
                 #186). Fixed in place: the 2026-09-23 PLC commissioning runbook says the `UJI`
                 confirmation is gone and that `autograde restart` now recreates the containers
