@@ -189,3 +189,21 @@ def test_disk_peringatan_yang_ditutup_muncul_lagi_sesudah_24_jam(umur, tampil):
     sekarang = SEJAK + 2 * SEHARI
     html = jalankan(FUNGSI_DISK, f"pitaDisk({_peringatan()}, {sekarang}, {sekarang - umur})")
     assert ("Disk PC hampir penuh" in html) is tampil
+
+
+# Permintaan user 2026-10-01: ikon peringatan di depan judul, judul dan rincian satu baris.
+def test_pita_disk_satu_baris():
+    aturan = re.search(r"#pita-disk p \{([^}]*)\}", HTML).group(1)
+    assert "display:flex" in aturan
+    for anak in ("b", "span"):
+        assert "display:block" not in re.search(rf"#pita-disk {anak} \{{([^}}]*)\}}", HTML).group(1), anak
+
+
+@pytest.mark.parametrize("tingkat", ["peringatan", "kritis"])
+@butuh_node
+def test_pita_disk_berikon_peringatan(tingkat):
+    html = jalankan(FUNGSI_DISK, f"pitaDisk({json.dumps([_line(disk=_disk(tingkat, 3))])}, {SEJAK + 60})")
+    # Ikon SVG di dalam halaman (konsol harus jalan tanpa internet), bukan emoji yang
+    # tergantung font PC pabrik; dibaca pembaca layar lewat judulnya saja.
+    assert re.search(r'<svg class="ikon-pita"[^>]*aria-hidden="true"', html)
+    assert html.index("<svg") < html.index("<b>")

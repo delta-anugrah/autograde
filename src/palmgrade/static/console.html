@@ -793,16 +793,20 @@
      memakai palet --warn dengan denyut pelan supaya operator melihatnya; kritis
      memakai palet dan denyut bahaya yang sama dengan pita AI. */
   #pita-disk { margin:10px var(--pad) 0; }
-  #pita-disk p { position:relative; margin:0 0 6px; padding:11px 13px; border-radius:var(--r-sm);
+  #pita-disk p { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px;
+                 margin:0 0 6px; padding:11px 13px; border-radius:var(--r-sm);
                  background:var(--warn-bg); color:var(--warn); border-left:4px solid var(--warn);
                  animation:denyut-pita 2.4s ease-in-out infinite; }
   #pita-disk p.kritis { background:var(--danger-fg); color:var(--danger-bg); border-left:none;
                         animation:denyut-pita 1.6s ease-in-out infinite; }
-  #pita-disk b { display:block; font-size:1rem; text-transform:uppercase; letter-spacing:.04em; }
-  #pita-disk span { display:block; margin-top:4px; font-size:.85rem; font-weight:600; }
+  /* Satu baris: ikon, judul, garis tipis, rincian. Layar sempit boleh membungkus. */
+  #pita-disk .ikon-pita { flex:none; width:1.5rem; height:1.5rem; }
+  #pita-disk b { font-size:1rem; text-transform:uppercase; letter-spacing:.04em; }
+  #pita-disk span { padding-left:12px; border-left:2px solid currentColor; font-size:.9rem; font-weight:600; }
   /* Peringatan bisa ditutup 24 jam (kritis tidak): tombol × di pojok, target 2.5rem untuk sarung tangan. */
   #pita-disk p.peringatan { padding-right:3.5rem; }
-  #pita-disk .tutup { position:absolute; top:.35rem; right:.35rem; min-width:2.5rem; min-height:2.5rem;
+  #pita-disk .tutup { position:absolute; top:50%; right:.35rem; transform:translateY(-50%);
+                      min-width:2.5rem; min-height:2.5rem;
                       padding:0; border:0; background:transparent; color:inherit;
                       font-size:1.4rem; line-height:1; opacity:.7; cursor:pointer; }
   #pita-disk .tutup:hover { opacity:1; }
@@ -3955,6 +3959,10 @@ function gabungDisk(lines) {
 // urusan teknisi (MANUAL), operator cukup tahu sisa disk dan line-nya.
 function pitaDisk(lines, sekarang = Date.now() / 1000, ditutupPada = 0) {
   const SEHARI = 24 * 3600;
+  // Segitiga peringatan, SVG di dalam halaman: konsol jalan tanpa internet dan emoji
+  // tergantung font PC pabrik. Warnanya ikut teks pita (currentColor).
+  const IKON = '<svg class="ikon-pita" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
   const umur = sekarang - ditutupPada;
   const ditutup = umur >= 0 && umur < SEHARI;
   const angka = (v) => (v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal()));
@@ -3968,7 +3976,7 @@ function pitaDisk(lines, sekarang = Date.now() / 1000, ditutupPada = 0) {
       .replace("{total}", angka(g.disk.total_gb));
     const tutup = kritis ? ""
       : `<button type="button" class="tutup" data-tutup-pita aria-label="${esc(t("toastTutup"))}">&times;</button>`;
-    return `<p class="${kritis ? "kritis" : "peringatan"}" role="alert">${tutup}<b>${esc(t(kritis ? "diskKritisJudul" : "diskHampirPenuhJudul"))}</b>`
+    return `<p class="${kritis ? "kritis" : "peringatan"}" role="alert">${tutup}${IKON}<b>${esc(t(kritis ? "diskKritisJudul" : "diskHampirPenuhJudul"))}</b>`
       + `<span>${esc(rinci)}</span></p>`;
   }).join("");
 }
