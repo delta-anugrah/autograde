@@ -57,7 +57,7 @@ def _render(lines: dict) -> dict:
         + kamus_asli() + '\nconst bahasa = "id";\n'
         "const t = (k) => k;\n"
         + "\n".join(_fungsi(f) for f in (
-            "kunciSebabTakTerbaca", "keadaanAntreanLine", "barisAntreanLine", "waktu", "lamaProses"))
+            "kunciSebabTakTerbaca", "keadaanAntreanLine", "barisAntreanLine", "waktu", "teksMenit", "lamaProses"))
         + f"\nconst lines = {json.dumps(lines)};\n"
         "console.log(JSON.stringify(Object.fromEntries(Object.entries(lines)"
         ".map(([k, d]) => [k, barisAntreanLine(k, d, Date.now())]))));"

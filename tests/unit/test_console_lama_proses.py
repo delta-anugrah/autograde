@@ -81,7 +81,7 @@ def _lama(masuk: str | None, keluar: str | None) -> str | None:
 
     Disalin ke test, fungsinya akan terus lulus setelah yang di layar diubah.
     """
-    skrip = _fungsi("lamaProses") + f"\nconsole.log(JSON.stringify(lamaProses({json.dumps(masuk)}, {json.dumps(keluar)})));"
+    skrip = _fungsi("teksMenit") + _fungsi("lamaProses") + f"\nconsole.log(JSON.stringify(lamaProses({json.dumps(masuk)}, {json.dumps(keluar)})));"
     keluaran = subprocess.run(
         [NODE, "-e", skrip], capture_output=True, text=True, check=True, timeout=30
     ).stdout.strip()

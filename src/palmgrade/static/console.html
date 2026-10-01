@@ -793,6 +793,13 @@
      memakai palet --warn dengan denyut pelan supaya operator melihatnya; kritis
      memakai palet dan denyut bahaya yang sama dengan pita AI. */
   #pita-disk { margin:10px var(--pad) 0; }
+  /* ---- antrean bongkar (2026-10-01): truk yang menunggu line, di atas kartu line ---- */
+  .antrean-bongkar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px;
+                     margin:10px var(--pad) 0; padding:8px 12px; background:var(--card);
+                     border:1px solid var(--line-kuat); border-radius:8px; }
+  .antrean-bongkar[hidden] { display:none; }
+  .antrean-truk { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  .antrean-truk b { font-family:var(--mono); font-size:1.05rem; }
   #pita-disk p { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px;
                  margin:0 0 6px; padding:11px 13px; border-radius:var(--r-sm);
                  background:var(--warn-bg); color:var(--warn); border-left:4px solid var(--warn);
@@ -1105,7 +1112,7 @@
      sekaligus, jadi dia tidak boleh terbaca sebagai bagian dari kolom terakhir. */
   .setelan-form .tools { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
                          padding-top:14px; border-top:1px solid var(--line); }
-  #set-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
+  #set-pesan:not(:empty), #set-penugasan-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
                            background:var(--warn-bg); color:var(--warn); }
   #set-lines:not(:empty) { color:var(--rej); }
   /* Sumber kamera: tiga kartu SEJAJAR (bukan ditumpuk) supaya layar lebar pabrik
@@ -1404,6 +1411,13 @@
 
 <div id="pita-alarm" hidden></div>
 <div id="pita-disk" hidden></div>
+<!--
+  Antrean bongkar (2026-10-01): truk yang sudah timbang isi tapi belum di line. Satu truk di
+  line sampai selesai; truk berikutnya menunggu di sini sampai truk sebelumnya timbang
+  kosong atau dilepas. Tersembunyi kalau kosong: kamera tidak kehilangan ruang untuk
+  sesuatu yang tidak ada.
+-->
+<div id="antrean-bongkar" class="antrean-bongkar" hidden></div>
 <div id="lines"></div>
 
 <nav id="tabs">
@@ -1795,6 +1809,32 @@
     </div>
     <p id="set-pesan" role="alert"></p>
     <div id="set-lines" class="muted"></div>
+  </div>
+
+  <!--
+    Penugasan line otomatis (2026-10-01). Tombol simpannya SENDIRI, bukan Simpan setelan
+    di atas: jalurnya lain, dan berlaku seketika untuk truk berikutnya. Support saja,
+    seperti setelan grading: ini menentukan janjang dihitung ke truk mana.
+  -->
+  <div class="setelan-form">
+    <details class="setelan-grup" data-setelan-grup="penugasan" open>
+      <summary data-t="grupPenugasan">Penugasan line</summary>
+      <div class="setelan-grup-isi">
+        <label class="saklar">
+          <input id="set-otomatis" type="checkbox">
+          <span>
+            <span data-t="labelOtomatis">Tugaskan truk ke line otomatis saat timbang isi</span>
+            <small class="muted" data-t="bantuOtomatis">Satu truk di line sampai timbang kosong. Truk berikutnya menunggu di antrean bongkar.</small>
+          </span>
+        </label>
+        <span class="lb" data-t="labelLineOtomatis">Line yang dipakai</span>
+        <div id="set-otomatis-lines"></div>
+      </div>
+    </details>
+    <div class="tools lepas">
+      <button id="set-penugasan-simpan" class="utama" data-t="btnSimpanPenugasan">Simpan penugasan</button>
+    </div>
+    <p id="set-penugasan-pesan" role="alert"></p>
   </div>
 
   <!--
@@ -2395,6 +2435,15 @@ const KAMUS = {
     bantuGarisMendatar:"Piksel dari ATAS. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
     labelDev:"Mode dev", bantuDev:"Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.",
     btnSimpanSetelan:"Simpan", setelanTersimpan:"Tersimpan dan dikirim ke line.",
+    grupPenugasan:"Penugasan line", labelOtomatis:"Tugaskan truk ke line otomatis saat timbang isi",
+    bantuOtomatis:"Satu truk di line sampai timbang kosong. Truk berikutnya menunggu di antrean bongkar.",
+    labelLineOtomatis:"Line yang dipakai", btnSimpanPenugasan:"Simpan penugasan",
+    penugasanTersimpan:"Penugasan line tersimpan.",
+    antreanBongkarOtomatis:"Antrean bongkar (otomatis)", antreanBongkarManual:"Antrean bongkar",
+    btnTugaskanSekarang:"Tugaskan sekarang", btnLewati:"Lewati",
+    konfirmasiLewati:"Lewati {truk}? Truk ini tidak akan ditugaskan otomatis.",
+    sukLewati:"{truk} dilewati di antrean bongkar", sukDitugaskanOtomatis:"{truk} ditugaskan ke {line}",
+    tugaskanGagalLine:"{line} tidak menjawab. Tugaskan {truk} manual di kartunya",
     setelanBelumSampai:"Belum sampai ke: {lines}",
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart semua line",
@@ -2811,6 +2860,15 @@ const KAMUS = {
     bantuGarisMendatar:"Pixels from the TOP. A bunch is photographed when it touches the blue line. 0 = no line.",
     labelDev:"Dev mode", bantuDev:"Show the confidence number on bunch boxes. For tuning the threshold, not for operators.",
     btnSimpanSetelan:"Save", setelanTersimpan:"Saved and sent to the lines.",
+    grupPenugasan:"Line assignment", labelOtomatis:"Assign the truck to the lines automatically at weigh-in",
+    bantuOtomatis:"One truck on the lines until it is weighed out. The next truck waits in the unloading queue.",
+    labelLineOtomatis:"Lines to use", btnSimpanPenugasan:"Save assignment",
+    penugasanTersimpan:"Line assignment saved.",
+    antreanBongkarOtomatis:"Unloading queue (automatic)", antreanBongkarManual:"Unloading queue",
+    btnTugaskanSekarang:"Assign now", btnLewati:"Skip",
+    konfirmasiLewati:"Skip {truk}? It will not be assigned automatically.",
+    sukLewati:"{truk} skipped in the unloading queue", sukDitugaskanOtomatis:"{truk} assigned to {line}",
+    tugaskanGagalLine:"{line} did not answer. Assign {truk} by hand on its card",
     setelanBelumSampai:"Not received yet by: {lines}",
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart all lines",
@@ -3594,6 +3652,17 @@ function waktu(iso) {
        + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+// Menit -> "25 mnt" / "1 j 45 mnt". Satu bentuk untuk semua durasi di layar (kolom Lama,
+// antrean bongkar). Null, bukan "0 mnt", kalau angkanya tidak ada.
+function teksMenit(menit) {
+  const m = Number(menit);
+  if (menit === null || menit === undefined || !Number.isFinite(m) || m < 0) return null;
+  if (m < 60) return `${m} mnt`;
+  const jam = Math.floor(m / 60);
+  const sisa = m % 60;
+  return sisa ? `${jam} j ${sisa} mnt` : `${jam} j`;
+}
+
 // Berapa lama truk diproses: dari timbang masuk sampai timbang keluar.
 // Dihitung di layar dari dua kolom yang MEMANG sudah ada (`entered_at` /
 // `exited_at`), bukan disimpan sebagai kolom ketiga di SQLite. Alasannya satu:
@@ -3609,10 +3678,7 @@ function lamaProses(masuk, keluar) {
   // Jam mundur (koreksi manual, NTP menyentak) memberi selisih negatif. Itu
   // bukan durasi dan tidak boleh tampil sebagai "-12 mnt" - baris itu diam.
   if (menit < 0) return null;
-  if (menit < 60) return `${menit} mnt`;
-  const jam = Math.floor(menit / 60);
-  const sisa = menit % 60;
-  return sisa ? `${jam} j ${sisa} mnt` : `${jam} j`;
+  return teksMenit(menit);
 }
 
 // Wall clock from the browser, not the server: it keeps ticking when the
@@ -4327,9 +4393,11 @@ $("lines").addEventListener("click", async (ev) => {
       await refresh();
       toastSukses(t("sukTugaskan").replace("{line}", namaLine));
     } else if (tombol.dataset.aksi === "lepas") {
-      await api(`/api/console/lines/${encodeURIComponent(line)}/release-truck`, { method: "POST" });
+      const r = await api(`/api/console/lines/${encodeURIComponent(line)}/release-truck`, { method: "POST" });
       await refresh();
       toastSukses(t("sukLepas").replace("{line}", namaLine));
+      // Lepas di line terakhir truk ini membuat truk berikutnya di antrean bongkar naik.
+      umumkanPasang(r.dipasang);
     } else if (tombol.dataset.aksi === "piston") {
       // Opening moves metal: ask first. Closing is the safe state - it must
       // never be blocked by a dialog, so the guard below only ever runs when
@@ -4593,12 +4661,15 @@ $("masuk").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async
   if (!plate_number || !gross_kg) { pesan(t("wajibIsi")); return; }
   $("masuk").disabled = true;
   try {
-    await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
+    const r = await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
       { plate_number, gross_kg, entered_at: new Date().toISOString() }) });
     pilihNilai($("plat-timbang"), ""); $("bruto").value = "";
     await muatTimbangan();
     pesan("");
     toastSukses(t("sukMasuk"));
+    umumkanPasang(r.dipasang);
+    // Kartu line dan antrean bongkar langsung ikut, tidak menunggu poll 2 detik.
+    await refresh();
   } catch (e) {
     const teks = gagalKarena("gagalTimbang", e);
     pesan(teks);
@@ -4659,7 +4730,7 @@ async function simpanTara() {
   $("tara-simpan").disabled = true;
   $("tara-simpan").classList.add("sibuk");
   try {
-    await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
+    const r = await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
       plate_number: w.plate_number, ref: w.ref, entered_at: w.entered_at,
       tare_kg: teks, exited_at: new Date().toISOString() }) });
     tutupTara();
@@ -4668,6 +4739,9 @@ async function simpanTara() {
     // the only confirmation left on screen - unlike weigh-in, there is no
     // more field nearby that still shows what happened.
     toastSukses(t("sukTara"));
+    // Timbang kosong melepas line truk ini; truk berikutnya di antrean bongkar naik.
+    umumkanPasang(r.dipasang);
+    await refresh();
   } catch (e) {
     // The field is left open: the number is still there, so the operator can
     // fix it without retyping from scratch. pesanScanKeluar already puts the
@@ -5187,6 +5261,71 @@ function umumkanPelepasanOtomatis(daftar) {
   });
 }
 
+// ── antrean bongkar + penugasan otomatis (2026-10-01) ──────────────────
+// Antrean bongkar = truk yang sudah timbang isi tapi belum di line. Bukan "antrean line"
+// di tab Status (kiriman line ke konsol). Judulnya bilang otomatis atau manual: saat
+// saklar mati truk tidak akan naik sendiri, operator yang menekan Tugaskan sekarang.
+function htmlAntreanBongkar(daftar, aktif) {
+  if (!daftar || !daftar.length) return "";
+  const judul = t(aktif ? "antreanBongkarOtomatis" : "antreanBongkarManual");
+  return `<span class="lb">${esc(judul)}</span>` + daftar.map((a) =>
+    `<span class="antrean-truk" data-id="${esc(a.weighing_id)}" data-plat="${esc(a.plate_number)}">
+       <b>${esc(a.plate_number)}</b>
+       <span class="muted">${esc(teksMenit(a.menit) || "0 mnt")}</span>
+       <button data-aksi="pasang">${esc(t("btnTugaskanSekarang"))}</button>
+       <button data-aksi="lewati">${esc(t("btnLewati"))}</button>
+     </span>`).join("");
+}
+
+function gambarAntreanBongkar(daftar, setelan) {
+  const el = $("antrean-bongkar");
+  const html = htmlAntreanBongkar(daftar, Boolean(setelan && setelan.aktif));
+  el.hidden = !html;
+  tulisKalauBeda(el, html);
+}
+
+// Nama line seperti di kartunya ("Line 1"), bukan kode internal.
+function namaLineDari(kode) {
+  const el = document.querySelector(`#lines .card[data-line="${CSS.escape(kode)}"] .nama`);
+  return el ? el.textContent.trim() : kode;
+}
+
+// Yang terpasang jadi satu toast sukses; line yang tidak menjawab jadi peringatan
+// sendiri, supaya operator tahu kartu mana yang harus ditugaskan manual.
+function umumkanPasang(daftarPasang) {
+  const daftar = daftarPasang || [];
+  if (!daftar.length) return;
+  const truk = daftar[0].plate_number || "";
+  const ok = daftar.filter((d) => d.terpasang).map((d) => namaLineDari(d.line_code));
+  const gagal = daftar.filter((d) => !d.terpasang).map((d) => namaLineDari(d.line_code));
+  if (ok.length) toastSukses(t("sukDitugaskanOtomatis").replace("{truk}", truk).replace("{line}", ok.join(", ")));
+  if (gagal.length) toastPeringatan(t("tugaskanGagalLine").replace("{truk}", truk).replace("{line}", gagal.join(", ")));
+}
+
+$("antrean-bongkar").addEventListener("click", (ev) => {
+  const tombol = ev.target.closest("button[data-aksi]");
+  if (!tombol) return;
+  const truk = tombol.closest(".antrean-truk");
+  const id = truk.dataset.id;
+  const plat = truk.dataset.plat;
+  const lewati = tombol.dataset.aksi === "lewati";
+  if (lewati && !confirm(t("konfirmasiLewati").replace("{truk}", plat))) return;
+  denganSibuk(tombol, async () => {
+    try {
+      if (lewati) {
+        await api(`/api/console/unloading-queue/${encodeURIComponent(id)}/skip`, { method: "POST" });
+        toastSukses(t("sukLewati").replace("{truk}", plat));
+      } else {
+        const r = await api(`/api/console/unloading-queue/${encodeURIComponent(id)}/assign`, { method: "POST" });
+        umumkanPasang(r.dipasang);
+      }
+      await refresh();
+    } catch (e) {
+      toastGagal(alasan(e));
+    }
+  });
+});
+
 // ── banner langganan ────────────────────────────────────────────────────
 // Kenapa ini ada sama sekali: sebelumnya, saat langganan habis, kamera berhenti
 // grading dan konsol TIDAK BILANG APA-APA. Operator melihat line diam tanpa satu
@@ -5232,6 +5371,7 @@ async function refresh() {
     gambarBannerLisensi(s.lisensi);
     gambarInfoSistem(s.versi, s.lisensi);
     umumkanPelepasanOtomatis(s.auto_releases);
+    gambarAntreanBongkar(s.antrean_bongkar, s.penugasan_otomatis);
     selarasUrutan(s.lines);
     isiTally(s.lines);
     isiTallyTimbangan(s.timbangan);
@@ -6933,7 +7073,40 @@ async function muatSetelan() {
     $("set-pesan").textContent = "";
     $("set-lines").textContent = "";
   } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = alasan(e, "gagalSetelanMuat"); }
+  await muatPenugasan();
 }
+
+// Saklar penugasan line otomatis: jalurnya sendiri, dimuat sesudah setelan grading.
+async function muatPenugasan() {
+  try {
+    const r = await api("/api/console/dev/auto-assign");
+    $("set-otomatis").checked = Boolean(r.aktif);
+    const dipakai = new Set(r.lines || []);
+    $("set-otomatis-lines").innerHTML = (r.lines_tersedia || []).map((l) =>
+      `<label class="saklar"><input type="checkbox" data-line="${esc(l.line_code)}"${
+        dipakai.has(l.line_code) ? " checked" : ""}><span><span>${esc(l.name || l.line_code)}</span></span></label>`
+    ).join("");
+    $("set-penugasan-pesan").textContent = "";
+  } catch (e) {
+    if (e.kode !== "belum_masuk") $("set-penugasan-pesan").textContent = alasan(e, "gagalSetelanMuat");
+  }
+}
+
+$("set-penugasan-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
+  const pesan = $("set-penugasan-pesan");
+  pesan.textContent = "";
+  try {
+    const lines = [...document.querySelectorAll("#set-otomatis-lines input[data-line]:checked")]
+      .map((el) => el.dataset.line);
+    await api("/api/console/dev/auto-assign", {
+      method: "POST", body: JSON.stringify({ aktif: $("set-otomatis").checked, lines }),
+    });
+    pesan.textContent = t("penugasanTersimpan");
+    await refresh();
+  } catch (e) {
+    pesan.textContent = alasan(e, "gagalSetelan");
+  }
+}));
 
 $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   const pesan = $("set-pesan");
