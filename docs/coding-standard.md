@@ -58,7 +58,7 @@ PRs; a PR is not blocked by a gap it did not add.
 
 - **T1.** Test first: new logic gets a failing pure-logic test in `tests/unit/` before the code; a bug fix starts with a test that reproduces it.
 - **T2.** Tests never need torch, cv2, the camera SDK or a GPU; HTTP-only bits use an app assembled in the test, never `create_console_app()`.
-- **T3.** A console change gets a test in `tests/unit/test_console_html_*.py` and is tried in a real browser before the PR (skill `konsol-autograde`, never on ports 8100 or 8001).
+- **T3.** A console change gets a test in `tests/unit/test_console_html_*.py`; a change to something an operator clicks through also gets or updates a browser test in `tests/browser/` (Playwright, Firefox and Chromium, required in CI; `make test-browser`). Looks that a test cannot judge are checked by eye in a real browser (skill `konsol-autograde`, never on ports 8100 or 8001).
 - **T4.** The final report pastes `pytest` and `ruff` output; a claim without output counts as not validated.
 
 ## Factory PCs already installed

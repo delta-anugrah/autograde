@@ -317,6 +317,13 @@ end of this file.
     membacanya (ketemu di browser). **`BUKAN_PLAT` kode tersendiri, bukan `PLAT_KOSONG`**:
     layar menerjemahkan per kode, dan QR berisi URL yang dijawab "tidak boleh kosong"
     adalah pesan salah di depan operator gerbang.
+    **Scan tidak pernah bilang berhasil di atas kolom plat yang kosong** (ketemu tes
+    browser 2026-10-01): daftar truk di layar dimuat ulang tiap 60 detik, jadi truk yang
+    baru turun dari AutoERP belum jadi pilihan dan `pilihNilai` diam saja. Plat yang
+    belum ada di daftar membuat layar memuat ulang daftarnya dulu; kalau tetap tidak ada,
+    `scanDaftarBelumMuat` (kuning), bukan `sukScan`. Truk yang dinonaktifkan tetap terbaca
+    dan ditandai server (`truck.status`), dan layar mengatakannya (`scanTrukNonaktif`)
+    sebelum mencari di daftar yang memang menyembunyikannya.
     **Tara diisi di kolom yang muncul DI BARIS ALAT, bukan dialog yang menutup layar**
     (dua kali dilaporkan operator 2026-09-15). `prompt()` bawaan browser ditolak lebih
     dulu: kotaknya kecil untuk jempol bersarung tangan, ukurannya tidak bisa diatur, dan

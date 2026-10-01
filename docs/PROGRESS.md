@@ -18,6 +18,33 @@ Next:           ...
 
 ---
 
+## 2026-10-01 · console, tests · Browser tests with Playwright (PR #203)
+Changed:        `tests/browser/`: Playwright drives the real console (copy of `src/palmgrade` in a
+                temp folder, free ports, two fake lines and a dead one, 10 seeded days) through
+                sign-in, line cards, manual truck, gate scan, weigh-in and weigh-out, assignment,
+                Rekap + CSV, every tab in id and en and at 1024 px, roles, settings, accounts.
+                A page guard fails the test call on a script error, a console 5xx or a request
+                beyond 127.0.0.1. CI job `browser` (chromium, firefox), `requirements-browser.txt`,
+                `make browser-siap` / `make test-browser`, qa-runner step 5, T3, CLAUDE.md §2.
+                Console fix found by the suite: `kirimScan` reloads the truck list when the scanned
+                plate is not an option yet, never toasts "scanned" over an empty plate field
+                (`scanDaftarBelumMuat`), and names a deactivated truck (`scanTrukNonaktif`); rule 20.
+                Second fix, found in CI: `.tabel` is `position:relative`, so the `.sr-only` header
+                label no longer widens the Rekap page past a 1024 px screen (Linux Chromium 1079 px).
+Validated:      on 149f3c0: unit 3817 passed / 37 skipped; e2e 271 passed / 27 skipped; integration
+                124 passed / 1 skipped; CI ruff scope + F821 clean; cek_skrip_konsol OK. On cd54aed:
+                `make test-browser` 58 passed in 135.97s (Chromium + Firefox). Each browser test
+                was made to fail once on purpose. On c192970: unit 3818 passed / 37 skipped,
+                `make test-browser` 58 passed; GitHub CI: lint-and-test pass, browser (chromium)
+                33 passed, browser (firefox) 33 passed.
+Not validated:  The ruleset (separate step).
+Decisions:      The QR fields ship hidden, so scan tests un-hide `#scan-plat` and the weighing test
+                uses the plate picker and the row's Keluar button (today's operator path). The
+                ruleset that makes the three checks required is a separate step after merge, with
+                the user's go-ahead (needs repo admin).
+Next:           Merge by the user; then the ruleset `ci-wajib-lolos`. Open: `Belum sampai ke:` in
+                Setelan is a literal, not KAMUS; no browser test for the weigh-out scan.
+
 ## 2026-10-01 · release · v1.21.0 released and installed in Lampung, PLC docs follow (PR #204)
 Changed:        Release PR #202 (staging to main, merge commit 1adadec, tag v1.21.0) shipped #196,
                 #197, the coding standard, the Codex skill mirror guard, #199, #201 and #200

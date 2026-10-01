@@ -916,7 +916,9 @@
   @media (max-width:600px) { #line-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
      screen, and without this the page itself scrolls sideways. */
-  .tabel { overflow-x:auto; background:var(--card);
+  /* position:relative: an absolute child (`.sr-only` in a header cell) otherwise escapes
+     the sideways scroll and widens the whole page on a 1024 px screen (Rekap, 2026-10-01). */
+  .tabel { position:relative; overflow-x:auto; background:var(--card);
            border:1px solid var(--line-kuat); border-radius:var(--r-md); }
   .tools + .tabel { border-top:none; border-radius:0 0 var(--r-md) var(--r-md); }
   /* Bar simpan yang BERDIRI SENDIRI, bukan kepala tabel. Kotak `.tools` di atas
@@ -2555,6 +2557,8 @@ const KAMUS = {
     phTara:"Tara (kg)",
     taraMinimum:"Tara minimal 1.000 kg, cek lagi angkanya",
     phScan:"QR masuk", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
+    scanDaftarBelumMuat:"Truk ditemukan, tapi daftar truk di layar belum termuat. Scan sekali lagi.",
+    scanTrukNonaktif:"Truk ini sudah dinonaktifkan, tidak bisa ditimbang:",
     phScanKeluar:"QR keluar", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
     scanGanda:"Ada 2 tiket terbuka, pilih di tabel bawah untuk",
     rentangBaris:"{dari}-{sampai} dari {total}",
@@ -2959,6 +2963,8 @@ const KAMUS = {
     phTara:"Tare (kg)",
     taraMinimum:"Tare must be at least 1,000 kg, check the figure",
     phScan:"QR in", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
+    scanDaftarBelumMuat:"Truck found, but the truck list on screen has not loaded. Scan once more.",
+    scanTrukNonaktif:"This truck is deactivated and cannot be weighed:",
     phScanKeluar:"QR out", scanTakAdaTiket:"No open ticket today for",
     scanGanda:"Two open tickets, pick one in the table below for",
     rentangBaris:"{dari}-{sampai} of {total}",
@@ -4476,8 +4482,30 @@ async function kirimScan() {
       toastPeringatan(`${t("scanBelumAda")} ${hasil.plate_number}`);
       return;
     }
+    const plat = hasil.truck.plate_number;
+    // The server marks a retired truck instead of hiding it (the driver does not
+    // know), and the truck list leaves it out, so reloading the list below would
+    // never find it. Say why it cannot be used. Yellow, like an unregistered truck.
+    if (hasil.truck.status === "inactive") {
+      pesanScan(`${t("scanTrukNonaktif")} ${plat}`, true);
+      toastPeringatan(`${t("scanTrukNonaktif")} ${plat}`);
+      return;
+    }
     pesanScan("");
-    pilihNilai($("plat-timbang"), hasil.truck.plate_number);
+    // The truck list on screen reloads every 60 s, so a truck that reached the
+    // server since (synced from AutoERP, registered on another screen) is not
+    // an option yet, and `pilihNilai` would leave the form empty without a word.
+    if (!$("plat-timbang").querySelector(`[role="option"][data-nilai="${CSS.escape(plat)}"]`)) {
+      await muatTrucks();
+    }
+    pilihNilai($("plat-timbang"), plat);
+    // Never "scanned" over an empty plate field: the operator would press
+    // weigh-in and be told to fill in a field they believe is filled.
+    if ($("plat-timbang").dataset.nilai !== plat) {
+      pesanScan(t("scanDaftarBelumMuat"), true);
+      toastPeringatan(t("scanDaftarBelumMuat"));
+      return;
+    }
     // Cursor straight to the next field: the operator is weighing while
     // holding the driver's phone, and that one saved screen touch is the
     // whole point of scanning.

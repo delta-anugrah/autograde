@@ -54,14 +54,16 @@ make reset-data                 # SHOW what would be deleted;  make reset-data-f
 make build-engine               # TensorRT FP16 engine, once per GPU
 .venv/bin/pytest tests/unit/ -q               # pure-logic tests, no torch/cv2/SDK
 .venv/bin/pytest tests/integration/ -rs       # real components without hardware
+make test-browser               # Playwright on the real console, Firefox + Chromium (make browser-siap once)
 .venv/bin/ruff check <scope in .github/workflows/ci.yml>
 curl :8001/health               # 503 while the AI guard says AI dead or frames stopped;  /health/detail: capture_save_dropped must be 0
 ```
 
-CI (`ci.yml`) runs ruff + unit + e2e + integration on every PR to `staging`/`main`, without GPU,
-torch, cv2 or SDK. New tests: pure logic first; never drag hardware into CI. FastAPI
-`TestClient` only for the HTTP-only bits, with an app assembled in the test, never
-`create_console_app()` (it opens the developer's `state/console.db`).
+CI (`ci.yml`) runs ruff + unit + e2e + integration, and the browser suite in Firefox and
+Chromium, on every PR to `staging`/`main`, without GPU, torch, cv2 or SDK. New tests: pure
+logic first; never drag hardware into CI. FastAPI `TestClient` only for the HTTP-only bits,
+with an app assembled in the test, never `create_console_app()` (it opens the developer's
+`state/console.db`).
 
 ## 3. Rules (index; full text and rationale in `docs/rules.md`, same numbers)
 

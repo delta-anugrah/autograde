@@ -253,3 +253,5 @@ media.env
 # Berkas video/foto uji; foldernya sendiri dipertahankan .gitkeep.
 media/*
 !media/.gitkeep
+# Trace dan screenshot tes browser yang gagal (pytest-playwright `--output`).
+test-results/
