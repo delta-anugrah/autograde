@@ -8,6 +8,7 @@ own call while ignoring a refused camera feed.
 
 from __future__ import annotations
 
+import shutil
 import socket
 import subprocess
 import sys
@@ -90,6 +91,11 @@ _PROBE_MAKS_S = 180
 
 
 def test_a_guard_trip_fails_the_test_itself_not_its_teardown(tmp_path, browser_name):
+    # pytest-playwright empties its output folder when a session starts; the probe's own
+    # session must not empty the outer run's, where CI keeps the traces of earlier failures.
+    jejak_luar = Path.cwd() / "test-results" / "probe-penjaga-penanda" / "trace.zip"
+    jejak_luar.parent.mkdir(parents=True, exist_ok=True)
+    jejak_luar.write_bytes(b"")
     hasil = subprocess.run(
         [
             sys.executable,
@@ -107,6 +113,8 @@ def test_a_guard_trip_fails_the_test_itself_not_its_teardown(tmp_path, browser_n
             browser_name,
             "--basetemp",
             str(tmp_path / "probe"),
+            "--output",
+            str(tmp_path / "probe-hasil"),
         ],
         capture_output=True,
         text=True,
@@ -114,6 +122,8 @@ def test_a_guard_trip_fails_the_test_itself_not_its_teardown(tmp_path, browser_n
     )
     ringkasan = hasil.stdout.strip().splitlines()[-1]
     assert "1 failed" in ringkasan and "error" not in ringkasan, hasil.stdout[-2000:]
+    assert jejak_luar.is_file(), "the probe emptied the outer run's test-results"
+    shutil.rmtree(jejak_luar.parent)
 
 
 def test_the_seeded_accounts_can_sign_in(konsol):
