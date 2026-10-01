@@ -98,3 +98,20 @@ def test_pesan_log_tanpa_em_dash():
                 if isinstance(sub, ast.Constant) and isinstance(sub.value, str) and _ada_dash(sub.value):
                     ada.append(f"{berkas.relative_to(SRC)}:{sub.lineno} {sub.value[:80]}")
     assert not ada, ada
+
+
+def test_kalimat_layar_hanya_dari_kamus():
+    """Ketemu tes browser 2026-10-01: "Belum sampai ke:" di tab Setelan ditulis langsung
+    di JS, jadi layar berbahasa Inggris tetap menampilkan bahasa Indonesia di situ (F6).
+    Kalimat yang dibaca orang hanya boleh datang dari KAMUS; yang dicari di sini string JS
+    yang terbaca seperti kalimat: kata berawalan huruf besar lalu kata biasa."""
+    skrip = "\n".join(re.findall(r"<script>(.*?)</script>", HTML, re.S)).replace(KAMUS, "")
+    skrip = re.sub(r"/\*.*?\*/", "", skrip, flags=re.S)
+    skrip = "\n".join(re.sub(r"(^|\s)//.*$", "", b) for b in skrip.splitlines())
+    literal = re.findall(r'"([^"\n]*)"|`([^`]*)`|\'([^\'\n]*)\'', skrip)
+    kalimat = []
+    for s in (s for grup in literal for s in grup if s):
+        polos = re.sub(r"<[^>]+>", " ", re.sub(r"\$\{[^}]*\}", " ", s))
+        if re.search(r"\b[A-Z][a-z]+ [a-z]{2,}\b", polos):
+            kalimat.append(s.strip()[:80])
+    assert not kalimat, kalimat

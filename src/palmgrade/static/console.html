@@ -2395,6 +2395,7 @@ const KAMUS = {
     bantuGarisMendatar:"Piksel dari ATAS. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
     labelDev:"Mode dev", bantuDev:"Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.",
     btnSimpanSetelan:"Simpan", setelanTersimpan:"Tersimpan dan dikirim ke line.",
+    setelanBelumSampai:"Belum sampai ke: {lines}",
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart semua line",
     bahayaRestartTeks:"Ketiga line mati sekitar 10 detik, lalu hidup lagi. Janjang yang lewat selama itu tidak dihitung.",
@@ -2807,6 +2808,7 @@ const KAMUS = {
     bantuGarisMendatar:"Pixels from the TOP. A bunch is photographed when it touches the blue line. 0 = no line.",
     labelDev:"Dev mode", bantuDev:"Show the confidence number on bunch boxes. For tuning the threshold, not for operators.",
     btnSimpanSetelan:"Save", setelanTersimpan:"Saved and sent to the lines.",
+    setelanBelumSampai:"Not received yet by: {lines}",
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart all lines",
     bahayaRestartTeks:"All three lines stop for about 10 seconds, then come back. Bunches that pass during that time are not counted.",
@@ -6950,7 +6952,8 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
     // line itu saja yang belum menerimanya. Menyembunyikannya membuat operator
     // mengira semua line sudah berubah.
     const belum = (r.lines || []).filter((l) => !l.terkirim).map((l) => l.line_code);
-    $("set-lines").textContent = belum.length ? `Belum sampai ke: ${belum.join(", ")}` : "";
+    $("set-lines").textContent = belum.length
+      ? t("setelanBelumSampai").replace("{lines}", belum.join(", ")) : "";
   } catch (e) {
     pesan.textContent = alasan(e, "gagalSetelan");
     // Server menyebut nama field di pesannya (SetelanTidakSah, tanpa kode); kolomnya ikut
