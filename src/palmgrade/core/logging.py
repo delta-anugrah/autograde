@@ -21,7 +21,8 @@ Tiap baris sekarang membawa:
 
 Logger uvicorn diarahkan ke root, jadi access log dan galat uvicorn memakai format
 yang sama dan `uvicorn.error` sampai ke handler tambahan. Access log polling yang
-sukses dibisukan (`core/log_akses.py`). Logger `httpx`/`httpcore` dibatasi WARNING:
+sukses dibisukan, dan tenggang tutup uvicorn yang habis (layar konsol selalu
+membuka video feed) cuma INFO (`core/log_akses.py`). Logger `httpx`/`httpcore` dibatasi WARNING:
 alamat permintaan (webhook Discord yang rahasia, polling status tiap detik) tidak
 pernah tertulis.
 
@@ -37,7 +38,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from .log_akses import SaringAksesPolling
+from .log_akses import SaringAksesPolling, TurunkanTenggangTutup
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +169,7 @@ class PemasanganLog:
         #: Level logger yang diubah pemasangan ini (klien HTTP, paket, logger model).
         self._level_semula: dict[str, int] = {}
         self._saring = SaringAksesPolling()
+        self._tenggang = TurunkanTenggangTutup()
         self._filter_konteks = filter_konteks
         #: Handler yang formatter-nya dipasang di sini (bukan milik pemanggil).
         self._formatter_dipasang: list[logging.Handler] = []
@@ -193,6 +195,7 @@ class PemasanganLog:
             lg.handlers = []
             lg.propagate = True
         logging.getLogger("uvicorn.access").addFilter(self._saring)
+        logging.getLogger("uvicorn.error").addFilter(self._tenggang)
 
     def _batasi_klien_http(self) -> None:
         # max: level yang lebih ketat dari pemanggil (ERROR) tetap dihormati.
@@ -217,6 +220,7 @@ class PemasanganLog:
             lg.handlers = handlers
             lg.propagate = propagate
         logging.getLogger("uvicorn.access").removeFilter(self._saring)
+        logging.getLogger("uvicorn.error").removeFilter(self._tenggang)
         for nama, level in self._level_semula.items():
             logging.getLogger(nama).setLevel(level)
         if _aktif is self:

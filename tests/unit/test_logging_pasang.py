@@ -377,6 +377,36 @@ def test_galat_uvicorn_sampai_handler_tambahan_dengan_traceback(pasang):
     assert record.name == "uvicorn.error" and record.exc_info is not None
 
 
+def _tenggang_habis(jumlah: int = 1) -> None:
+    """Persis panggilan uvicorn 0.34 `Server.shutdown` saat koneksi masih terbuka."""
+    logging.getLogger("uvicorn.error").error(
+        "Cancel %s running task(s), timeout graceful shutdown exceeded", jumlah
+    )
+
+
+def test_tenggang_tutup_uvicorn_cuma_info_tidak_sampai_tab_log(pasang, capsys):
+    """Tes manual 2026-10-01: layar konsol SELALU membuka `/api/video_feed`, jadi
+    tiap restart atau upgrade line menulis baris ini. Itu jalan normal (1 detik
+    `--timeout-graceful-shutdown`), bukan galat: tetap di `docker logs` sebagai INFO,
+    tidak masuk tab Log dan Discord."""
+    _uvicorn_seperti_saat_boot()
+    tampung = _Tampung()
+    pasang(konteks="line-2", handler_tambahan=(tampung,))
+    _tenggang_habis()
+    assert tampung.records == []
+    [baris] = _baris(capsys)
+    assert "| INFO | line-2 | uvicorn.error | Cancel 1 running task(s)" in baris
+
+
+def test_galat_uvicorn_lain_tetap_error(pasang):
+    _uvicorn_seperti_saat_boot()
+    tampung = _Tampung()
+    pasang(konteks="line-2", handler_tambahan=(tampung,))
+    logging.getLogger("uvicorn.error").error("Cancel ditolak: %s", "bukan tenggang")
+    [record] = tampung.records
+    assert record.levelno == logging.ERROR
+
+
 def test_access_log_memakai_format_yang_sama(pasang, capsys):
     _uvicorn_seperti_saat_boot()
     pasang(konteks="line-1", zona="Asia/Jakarta")
@@ -408,6 +438,7 @@ def test_lepas_mengembalikan_handler_uvicorn(pasang):
     assert logging.getLogger("uvicorn").handlers == semula
     assert logging.getLogger("uvicorn").propagate is False
     assert logging.getLogger("uvicorn.access").filters == []
+    assert logging.getLogger("uvicorn.error").filters == []
 
 
 # ── httpx ────────────────────────────────────────────────────────────────────

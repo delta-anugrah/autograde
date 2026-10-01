@@ -997,7 +997,10 @@ end of this file.
     dibatasi WARNING apa pun `LOG_LEVEL`-nya, alamat permintaan (webhook Discord, polling status)
     tidak pernah tertulis. Logger `uvicorn*` diarahkan ke root; access log polling yang SUKSES
     (GET/HEAD, < 400) ke jalur di `core/log_akses.JALUR_POLLING_SENYAP` dibisukan, 4xx/5xx dan
-    POST tetap tertulis. Jalur polling baru = satu baris di konstanta itu. **Transisi**
+    POST tetap tertulis. Jalur polling baru = satu baris di konstanta itu. Baris uvicorn
+    "timeout graceful shutdown exceeded" (tiap restart line, karena layar konsol selalu membuka
+    video feed) diturunkan ke INFO (`TurunkanTenggangTutup`): tetap di `docker logs`, tidak masuk
+    tab Log dan Discord. **Transisi**
     (`domain/transisi.PelacakTransisi`, pola `status_sinkron.py`): PLC putus (klien,
     `plc/jejak_sambungan.py`, satu tracker per alamat koneksi, pulih baru sesudah satu
     baca/tulis berhasil) dan coil yang gagal ditulis (`plc/worker.py` `_tracker_tulis`, satu

@@ -70,3 +70,25 @@ class SaringAksesPolling(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         return not polling_sukses(record.args)
+
+
+#: Potongan pesan uvicorn (0.34 `Server.shutdown`) saat SIGTERM masih menemukan
+#: koneksi terbuka sesudah `--timeout-graceful-shutdown 1`.
+PESAN_TENGGANG_TUTUP = "timeout graceful shutdown exceeded"
+
+
+class TurunkanTenggangTutup(logging.Filter):
+    """Filter untuk logger `uvicorn.error`: tenggang tutup yang habis jadi INFO.
+
+    Layar konsol SELALU membuka `/api/video_feed` (MJPEG tanpa akhir), jadi tiap
+    restart atau upgrade line menulis "Cancel 1 running task(s), timeout graceful
+    shutdown exceeded" di ERROR. Itu jalan normal (services/penutup_line.py), bukan
+    galat: tetap di `docker logs`, tapi tidak masuk tab Log dan Discord. Galat
+    uvicorn lain tidak disentuh.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.levelno == logging.ERROR and PESAN_TENGGANG_TUTUP in str(record.msg):
+            record.levelno = logging.INFO
+            record.levelname = logging.getLevelName(logging.INFO)
+        return True
