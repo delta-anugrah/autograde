@@ -916,7 +916,9 @@
   @media (max-width:600px) { #line-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
      screen, and without this the page itself scrolls sideways. */
-  .tabel { overflow-x:auto; background:var(--card);
+  /* position:relative: an absolute child (`.sr-only` in a header cell) otherwise escapes
+     the sideways scroll and widens the whole page on a 1024 px screen (Rekap, 2026-10-01). */
+  .tabel { position:relative; overflow-x:auto; background:var(--card);
            border:1px solid var(--line-kuat); border-radius:var(--r-md); }
   .tools + .tabel { border-top:none; border-radius:0 0 var(--r-md) var(--r-md); }
   /* Bar simpan yang BERDIRI SENDIRI, bukan kepala tabel. Kotak `.tools` di atas

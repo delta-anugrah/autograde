@@ -1310,3 +1310,13 @@ def test_kamus_tanpa_kunci_ganda():
         kunci = re.findall(r'(?:^|[\s,{])([A-Za-z_][A-Za-z0-9_]*):"', _kamus(bahasa))
         ganda = sorted({k for k in kunci if kunci.count(k) > 1})
         assert not ganda, f"KAMUS.{bahasa} punya kunci ganda: {ganda}"
+
+
+def test_tabel_menahan_teks_sr_only_di_dalam_geserannya():
+    """Ketemu tes browser di CI 2026-10-01: `.sr-only` (position:absolute) di kepala kolom
+    terakhir Rekap lolos dari `overflow-x:auto` wadah `.tabel`, karena wadahnya tidak
+    positioned. Halaman jadi bisa digeser ke samping di layar 1024 px dan kolom NETO
+    terpotong. `position:relative` menjadikan wadah itu pemilik elemen absolut di dalamnya."""
+    aturan = re.search(r"\n  \.tabel \{([^}]*)\}", HTML)
+    assert aturan, "aturan .tabel tidak ketemu"
+    assert "position:relative" in aturan.group(1)
