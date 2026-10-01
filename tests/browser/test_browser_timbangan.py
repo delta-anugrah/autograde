@@ -1,0 +1,41 @@
+"""One truck visit on the weighbridge screen, the way the operator does it today: pick the
+plate from the list, gross with a keypad comma, Keluar on the ticket row, tare, and the net
+the server computed (rule 15) shown in the row.
+
+The plate comes from the list, not a scan: the QR field ships hidden until the mill buys a
+scanner (`test_browser_scan.py` covers that path). The truck is registered on the Truk tab,
+which redraws the list at once; one registered through the API would wait for the 60 s poll.
+"""
+
+from __future__ import annotations
+
+from langkah import OPERATOR, buka_tab, kamus, masuk, plat
+from playwright.sync_api import expect
+
+
+def test_a_visit_from_gross_to_net(halaman, browser_name):
+    nomor = plat(browser_name, 1003)
+    masuk(halaman, OPERATOR)
+    buka_tab(halaman, "truk")
+    halaman.fill("#plat", nomor)
+    halaman.click("#daftar")
+    expect(halaman.locator("#trucks")).to_contain_text(nomor)
+
+    buka_tab(halaman, "timbangan")
+    pilih = halaman.locator("#plat-timbang")
+    pilih.locator(".pilih-tombol").click()
+    pilih.locator('[role="option"]', has_text=nomor).click()
+    expect(pilih).to_have_attribute("data-nilai", nomor)
+    halaman.fill("#bruto", "14820,5")
+    halaman.click("#masuk")
+    expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukMasuk"))
+    baris = halaman.locator("#timbangan tr", has_text=nomor)
+    expect(baris).to_contain_text(halaman.evaluate("() => kg(14820.5)"))
+
+    baris.locator('button[data-aksi="keluar"]').click()
+    expect(halaman.locator("#tara-grup")).to_be_visible()
+    expect(halaman.locator("#tara-plat")).to_have_text(nomor)
+    halaman.fill("#tara-nilai", "6200")
+    halaman.click("#tara-simpan")
+    expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukTara"))
+    expect(baris).to_contain_text(halaman.evaluate("() => kg(8620.5)"))
