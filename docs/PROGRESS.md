@@ -18,6 +18,25 @@ Next:           ...
 
 ---
 
+## 2026-10-01 · console, tests · Follow-ups from the browser suite (PR #n)
+Changed:        Console: the Setelan line that did not receive a change is a KAMUS sentence
+                (`setelanBelumSampai`, id + en), guarded by `test_kalimat_layar_hanya_dari_kamus`;
+                the weigh-out hint names the row button "Timbang keluar" (it said "Keluar").
+                Browser tests: exit scan (tare box, no ticket, two tickets refused), unregistered
+                plate names the plate and leaves the form empty; the guard also fails a console
+                /api/ 404 without a code and a 405; `jalankan_terbatas` stops a hung seeder or probe
+                with its process group and keeps its output; fixtures typed. MANUAL 2.1 + PDF
+                (hidden scan fields, plate picker, Timbang keluar), rule 20, skills konsol-autograde
+                (how to write browser tests) and panduan-autograde (manual version).
+Validated:      on 4b72c97: unit 3823 passed / 37 skipped; e2e 271 passed / 27 skipped;
+                integration 124 passed / 1 skipped; `make test-browser` 72 passed (Chromium +
+                Firefox); CI ruff scope + F821 clean; cek_skrip_konsol OK; test_manual_pdf 3 passed.
+                New tests each made to fail once on purpose; the copy guard fails on the old HTML.
+Not validated:  None beyond CI on the PR.
+Decisions:      Holding the offline line-3 port was dropped: a bound, non-listening socket is
+                refused on Linux but times out on macOS, unlike a stopped line.
+Next:           None from #203's list.
+
 ## 2026-10-01 · ci · CI checks required by a repo ruleset (PR #205)
 Changed:        Repo ruleset `ci-wajib-lolos` (id 24315701, active) on `refs/heads/staging` and
                 `refs/heads/main` requires `lint-and-test`, `browser (chromium)` and
