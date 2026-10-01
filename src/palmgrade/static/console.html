@@ -766,7 +766,7 @@
      kartu - ketiga line membaca blok M yang sama dari satu PLC, jadi ini
      keadaan pabrik. Palet dan denyut sama dengan pita piston supaya dua hal
      "bahaya" di layar ini tidak punya dua bahasa visual. */
-  #pita-alarm { margin:10px 13px 0; padding:11px 13px; border-radius:var(--r-sm);
+  #pita-alarm { margin:10px var(--pad) 0; padding:11px 13px; border-radius:var(--r-sm);
                 background:var(--danger-fg); color:var(--danger-bg);
                 font-size:1.15rem; font-weight:700; text-align:center;
                 text-transform:uppercase; letter-spacing:.04em;
@@ -792,13 +792,19 @@
      #pita-alarm, karena ketiga line menulis ke disk yang sama. Peringatan
      memakai palet --warn tanpa denyut (dijadwalkan, bukan darurat); kritis
      memakai palet dan denyut bahaya yang sama dengan pita AI. */
-  #pita-disk { margin:10px 13px 0; }
-  #pita-disk p { margin:0 0 6px; padding:11px 13px; border-radius:var(--r-sm);
+  #pita-disk { margin:10px var(--pad) 0; }
+  #pita-disk p { position:relative; margin:0 0 6px; padding:11px 13px; border-radius:var(--r-sm);
                  background:var(--warn-bg); color:var(--warn); border-left:4px solid var(--warn); }
   #pita-disk p.kritis { background:var(--danger-fg); color:var(--danger-bg); border-left:none;
                         animation:denyut-pita 1.6s ease-in-out infinite; }
   #pita-disk b { display:block; font-size:1rem; text-transform:uppercase; letter-spacing:.04em; }
   #pita-disk span { display:block; margin-top:4px; font-size:.85rem; font-weight:600; }
+  /* Peringatan bisa ditutup (kritis tidak): tombol × di pojok, target 2.5rem untuk sarung tangan. */
+  #pita-disk p.peringatan { padding-right:3.5rem; }
+  #pita-disk .tutup { position:absolute; top:.35rem; right:.35rem; min-width:2.5rem; min-height:2.5rem;
+                      padding:0; border:0; background:transparent; color:inherit;
+                      font-size:1.4rem; line-height:1; opacity:.7; cursor:pointer; }
+  #pita-disk .tutup:hover { opacity:1; }
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
@@ -3944,18 +3950,25 @@ function gabungDisk(lines) {
   return Object.values(perKode).sort((a, b) => Number(b.tingkat === "kritis") - Number(a.tingkat === "kritis"));
 }
 
-// `sekarang` cuma untuk test, sama seperti pitaAi.
-function pitaDisk(lines, sekarang = Date.now() / 1000) {
+// `sekarang` cuma untuk test, sama seperti pitaAi. `ditutup` = kunci pita
+// peringatan yang ditutup operator (bacaPitaDiskDitutup). Kuncinya jam mulai (sejak),
+// jadi episode baru tampil lagi; kritis tidak bisa ditutup karena grading berhenti
+// tersimpan begitu disk habis.
+function pitaDisk(lines, sekarang = Date.now() / 1000, ditutup = []) {
   const angka = (v) => (v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal()));
   return gabungDisk(lines).map((g) => {
     const kritis = g.tingkat === "kritis";
+    const kunci = String(g.disk.sejak);
+    if (!kritis && ditutup.includes(kunci)) return "";
     const rinci = t("diskRinci")
       .replace("{jam}", jamSinkron(g.disk.sejak, sekarang) || KOSONG)
       .replace("{line}", g.lines.join(", "))
       .replace("{bebas}", angka(g.disk.bebas_gb))
       .replace("{total}", angka(g.disk.total_gb));
     const saran = t(kritis ? "diskSaranKritis" : "diskSaranPeringatan");
-    return `<p class="${kritis ? "kritis" : "peringatan"}" role="alert"><b>${esc(t(kritis ? "diskKritisJudul" : "diskHampirPenuhJudul"))}</b>`
+    const tutup = kritis ? ""
+      : `<button type="button" class="tutup" data-tutup-pita="${esc(kunci)}" aria-label="${esc(t("toastTutup"))}">&times;</button>`;
+    return `<p class="${kritis ? "kritis" : "peringatan"}" role="alert">${tutup}<b>${esc(t(kritis ? "diskKritisJudul" : "diskHampirPenuhJudul"))}</b>`
       + `<span>${esc(rinci)} ${esc(saran)}</span></p>`;
   }).join("");
 }
@@ -3965,10 +3978,29 @@ function pitaDisk(lines, sekarang = Date.now() / 1000) {
 function gambarPitaDisk(lines) {
   const el = $("pita-disk");
   if (!el) return;
-  const html = pitaDisk(lines);
+  const html = pitaDisk(lines, undefined, bacaPitaDiskDitutup());
   el.hidden = !html;
   tulisKalauBeda(el, html);
 }
+
+function bacaPitaDiskDitutup() {
+  try {
+    const v = JSON.parse(baca("pitaDiskDitutup", "[]"));
+    return Array.isArray(v) ? v : [];
+  } catch (e) { return []; }
+}
+
+// Tutup langsung di layar; polling berikutnya menggambar tanpa pita itu
+// (tulisKalauBeda melihat html baru). Cuma 10 kunci terakhir yang disimpan.
+$("pita-disk").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-tutup-pita]");
+  if (!b) return;
+  const kunci = b.dataset.tutupPita;
+  simpan("pitaDiskDitutup", JSON.stringify([...bacaPitaDiskDitutup().filter((k) => k !== kunci), kunci].slice(-10)));
+  b.closest("p").remove();
+  const el = $("pita-disk");
+  if (!el.querySelector("p")) el.hidden = true;
+});
 
 // `sekarang` = jam render, dipakai `?t=` URL feed DAN cap `_dimintaPada`
 // (`capFeedBaru`), jadi tiap render = satu permintaan stream sungguhan.

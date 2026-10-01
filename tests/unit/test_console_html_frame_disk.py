@@ -50,7 +50,7 @@ def test_pita_disk_ada_di_layar_dan_digambar_tiap_polling():
 
 
 def test_pita_disk_memakai_esc():
-    assert fungsi("pitaDisk").count("esc(") == 3
+    assert fungsi("pitaDisk").count("esc(") == 5
 
 
 def test_tanpa_suara():
@@ -132,3 +132,46 @@ def test_disk_bahasa_inggris():
 @butuh_node
 def test_disk_tanpa_masalah_tidak_menggambar(line):
     assert jalankan(FUNGSI_DISK, f"pitaDisk({json.dumps([line])})") == ""
+
+
+# Permintaan user 2026-10-01: pita disk selebar kartu di bawahnya dan bisa ditutup.
+KUNCI_PERINGATAN = str(int(SEJAK))
+
+
+def test_pita_layar_selebar_bagian_lain():
+    # #lines dan #tally memakai --pad; 13px membuat pita menjorok keluar 7px.
+    for pita in ("#pita-disk", "#pita-alarm"):
+        aturan = re.search(rf"{pita} \{{([^}}]*)\}}", HTML).group(1)
+        assert "margin:10px var(--pad) 0" in aturan, pita
+
+
+def test_pita_disk_ditutup_disimpan_per_episode():
+    assert "pitaDisk(lines, undefined, bacaPitaDiskDitutup())" in fungsi("gambarPitaDisk")
+    assert 'simpan("pitaDiskDitutup"' in HTML
+    assert '$("pita-disk").addEventListener("click"' in HTML
+
+
+@butuh_node
+def test_disk_peringatan_punya_tombol_tutup():
+    html = jalankan(FUNGSI_DISK, f"pitaDisk({json.dumps([_line(disk=_disk('peringatan', 12))])}, {SEJAK + 60})")
+    assert f'data-tutup-pita="{KUNCI_PERINGATAN}"' in html
+    assert 'aria-label="Tutup"' in html
+
+
+@butuh_node
+def test_disk_kritis_tidak_bisa_ditutup():
+    lines = json.dumps([_line(disk=_disk("kritis", 3))])
+    html = jalankan(FUNGSI_DISK, f"pitaDisk({lines}, {SEJAK + 60}, ['{int(SEJAK)}'])")
+    assert "Disk PC hampir habis" in html and "data-tutup-pita" not in html
+
+
+@butuh_node
+def test_disk_peringatan_yang_ditutup_hilang_sampai_episode_baru():
+    tutup = json.dumps([KUNCI_PERINGATAN])
+    sama = json.dumps([_line(disk=_disk("peringatan", 12))])
+    assert jalankan(FUNGSI_DISK, f"pitaDisk({sama}, {SEJAK + 60}, {tutup})") == ""
+    baru = json.dumps([_line(disk=_disk("peringatan", 12, sejak=SEJAK + 3600))])
+    assert "Disk PC hampir penuh" in jalankan(FUNGSI_DISK, f"pitaDisk({baru}, {SEJAK + 3700}, {tutup})")
+    # Kritis tidak pernah disaring, walau jam mulainya sama dengan peringatan yang ditutup.
+    kritis = json.dumps([_line(disk=_disk("kritis", 3))])
+    assert "Disk PC hampir habis" in jalankan(FUNGSI_DISK, f"pitaDisk({kritis}, {SEJAK + 60}, {tutup})")
