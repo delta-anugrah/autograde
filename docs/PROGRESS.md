@@ -29,11 +29,15 @@ Changed:        `tests/browser/`: Playwright drives the real console (copy of `s
                 Console fix found by the suite: `kirimScan` reloads the truck list when the scanned
                 plate is not an option yet, never toasts "scanned" over an empty plate field
                 (`scanDaftarBelumMuat`), and names a deactivated truck (`scanTrukNonaktif`); rule 20.
+                Second fix, found in CI: `.tabel` is `position:relative`, so the `.sr-only` header
+                label no longer widens the Rekap page past a 1024 px screen (Linux Chromium 1079 px).
 Validated:      on 149f3c0: unit 3817 passed / 37 skipped; e2e 271 passed / 27 skipped; integration
                 124 passed / 1 skipped; CI ruff scope + F821 clean; cek_skrip_konsol OK. On cd54aed:
                 `make test-browser` 58 passed in 135.97s (Chromium + Firefox). Each browser test
-                was made to fail once on purpose.
-Not validated:  The CI job on ubuntu-latest until this PR's first run.
+                was made to fail once on purpose. On c192970: unit 3818 passed / 37 skipped,
+                `make test-browser` 58 passed; GitHub CI: lint-and-test pass, browser (chromium)
+                33 passed, browser (firefox) 33 passed.
+Not validated:  The ruleset (separate step).
 Decisions:      The QR fields ship hidden, so scan tests un-hide `#scan-plat` and the weighing test
                 uses the plate picker and the row's Keluar button (today's operator path). The
                 ruleset that makes the three checks required is a separate step after merge, with
