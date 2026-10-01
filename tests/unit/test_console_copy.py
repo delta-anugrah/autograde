@@ -115,3 +115,11 @@ def test_kalimat_layar_hanya_dari_kamus():
         if re.search(r"\b[A-Z][a-z]+ [a-z]{2,}\b", polos):
             kalimat.append(s.strip()[:80])
     assert not kalimat, kalimat
+
+
+@pytest.mark.parametrize("bahasa", ["id", "en"])
+def test_petunjuk_gerbang_keluar_menyebut_tombol_yang_ada_di_baris(bahasa):
+    """Petunjuk di sisi Truk keluar menyuruh menekan tombol di baris tiket; kata yang dipakai
+    harus tulisan tombol itu sendiri (`btnKeluar`), bukan kata lain yang tidak ada di layar."""
+    kamus = _kamus(bahasa)
+    assert kamus["btnKeluar"] in kamus["hintGerbangKeluar"], (kamus["btnKeluar"], kamus["hintGerbangKeluar"])
