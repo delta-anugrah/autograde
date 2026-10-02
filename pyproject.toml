@@ -11,8 +11,8 @@ addopts = "-q"
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-# Test murni-logic + domain tidak butuh dependency berat; sisanya (torch/cv2/SDK)
-# tidak di-lint di CI karena tidak ter-install di runner ringan.
+# CI menjalankan `ruff check src/ tests/` (batch 4.4). Ruff tidak mengimpor modul, jadi kode
+# yang butuh torch/cv2/SDK tetap dilint. Yang dikecualikan cuma kode vendor/skrip di luar paket.
 extend-exclude = ["sdk", "cli", "scripts"]
 
 [tool.ruff.lint]

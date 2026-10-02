@@ -94,7 +94,7 @@ Tiap run training ninggalin `results.csv` + `confusion_matrix.png`. Urutan bacan
 cp <kandidat>.pt models/release/
 ```
 
-Lalu pilih di konsol: Support → **Line → Model Deteksi** → line yang mau dicoba →
+Lalu di konsol, masuk dengan akun support → tab **Line** → **Model Deteksi** → line yang mau dicoba →
 Simpan & Restart → konfirmasi di modal. Cuma line itu yang restart.
 
 Cara lama tetap sah untuk mengganti bawaan ketiga line sekaligus:

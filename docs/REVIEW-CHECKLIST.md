@@ -34,7 +34,7 @@ A known gap listed at the end of the standard is a warning, not a violation, unl
 - [ ] Outbound calls have a timeout and a capped backoff; every send is safe to repeat (B3, B4).
 - [ ] A schema change runs by itself, is safe to run twice and adds rather than renames; values are bound with `?` (B5, C3).
 - [ ] Console: text reaches `innerHTML` through `esc()`, data-changing POSTs run in `denganSibuk(`, every view handles its five states (F4, F7, F8).
-- [ ] New logic got its failing test first; every touched Python file passes `ruff check` and sits in the CI ruff list (T1, S5).
+- [ ] New logic got its failing test first; every touched Python file passes `ruff check src/ tests/` (T1, S5).
 
 ## Output format
 ```
