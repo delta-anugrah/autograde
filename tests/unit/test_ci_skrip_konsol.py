@@ -38,5 +38,5 @@ def test_main_py_diperiksa_nama_tak_terdefinisi():
     mematikan tiap line saat boot sementara CI hijau. Sejak batch 4.4 ruff memeriksa seluruh
     `src/` dengan aturan `F` (termasuk F821, nama tak terdefinisi), sebelum suite unit."""
     langkah = LANGKAH_CI[_indeks_langkah("ruff check")]
-    assert langkah["run"] == "ruff check src/ tests/"
+    assert langkah["run"].startswith("ruff check src/ tests/")
     assert _indeks_langkah("ruff check") < _indeks_langkah("pytest tests/unit/")

@@ -18,6 +18,21 @@ Next:           ...
 
 ---
 
+## 2026-10-02 · ci · Smoke-test the image before it gets its release tag (PR #210)
+Changed:        Batch 4.2. The factory and demo builds push only `candidate-vX.Y.Z[-cpu]`. New
+                `image-smoke.yml` pulls that digest on a fresh runner: `scripts/smoke_image.py`
+                (version label, line and console imports, console boot with `/health` version),
+                offline tracker test, demo kit test for the CPU image. Job `promote` then copies
+                the digest to `vX.Y.Z` + `latest` (demo `vX.Y.Z-cpu`) without a rebuild. The
+                workflow also runs by hand on any existing image (trial mode, read-only).
+Validated:      unit 3865 passed; e2e 289 passed; integration 126 passed; actionlint clean. Script
+                against a real CPU image from this repo: healthy image passes in 16 s; removed
+                module, console that refuses to boot, empty label and wrong version all FAIL; image
+                without `lap` fails the tracker test. `test_smoke_image_docker.py` 3 passed.
+Not validated:  the workflow on GitHub (dispatch works only after merge; the first full run is
+                the next tag) and the factory CUDA image (not built locally).
+Next:           after merge, trial mode on `v1.21.0-cpu` (Tahap 2 in the sawit plan).
+
 ## 2026-10-02 · ci · Lint the whole code base, pin CI packages to the runtime versions (PR #209)
 Changed:        Batch 4.4. Ruff checks `src/ tests/` (was an allow-list of about 80 modules that
                 skipped `main.py` and the detection workers); the separate F821 step for `main.py`

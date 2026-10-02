@@ -54,7 +54,7 @@ jobs:
       # cuma memeriksa nama tak terdefinisi (F821) di sana tidak perlu lagi: F821 bagian
       # dari aturan `F`. Dijaga `tests/unit/test_requirements_ci_terkunci.py`.
       - name: Ruff (lint)
-        run: ruff check src/ tests/
+        run: ruff check src/ tests/ scripts/smoke_image.py
 
       # Batch 4.3: test konsol lain menyalin satu fungsi lalu menjalankannya, jadi
       # syntax error DI LUAR fungsi itu lolos semua test sementara browser menolak

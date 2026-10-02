@@ -125,7 +125,10 @@ def test_ruff_memeriksa_seluruh_src_dan_tests():
     Ruff membaca berkas tanpa mengimpornya, jadi torch atau SDK yang tidak
     terpasang di CI bukan alasan mengecualikan modul."""
     argumen = _perintah_ruff().split()[2:]
-    assert argumen == ["src/", "tests/"], argumen
+    assert argumen[:2] == ["src/", "tests/"], argumen
+    # Sesudahnya cuma boleh berkas di `scripts/` (dikecualikan pyproject, jadi disebut satu-satu).
+    for berkas in argumen[2:]:
+        assert berkas.startswith("scripts/") and (AKAR / berkas).is_file(), berkas
 
 
 def test_ruff_tidak_dimatikan_lewat_exclude():

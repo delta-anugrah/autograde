@@ -31,7 +31,10 @@ lalu memanggil `demo-image.yml` di samping build image pabrik (batch 4.1). CI me
 tidak ada image `-cpu` maupun image pabrik. Untuk rilis yang sudah ada: GitHub, Actions,
 **Build AutoGrade Demo Image (CPU)**, Run workflow, isi versinya (misalnya `v1.19.0`).
 Versinya harus tag yang sudah ada di `main` dan image pabrik `vX.Y.Z`-nya sudah terbit (bukti
-tag itu lolos rilis); tag `-cpu` yang sudah terbit tidak ditimpa.
+tag itu lolos rilis); tag `-cpu` yang sudah terbit tidak ditimpa. Sejak batch 4.2 image demo
+mula-mula terbit sebagai `candidate-vX.Y.Z-cpu` dan baru jadi `vX.Y.Z-cpu` sesudah lolos cek
+`image-smoke.yml` (kit demo ikut dinyalakan); `demo-autograde upgrade` cuma menarik `vX.Y.Z-cpu`.
+Rinciannya: `docs/rules.md`, butir batch 4.2.
 
 ## Isi kit (`deploy/demo/`)
 
