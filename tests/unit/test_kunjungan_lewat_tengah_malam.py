@@ -10,6 +10,7 @@ instant, never the calendar date. The ticket keeps its own `work_date`: day tota
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import replace
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -19,7 +20,7 @@ import pytest
 from palmgrade.core.config import Settings
 from palmgrade.domain.gerbang import TAHAP_BONGKAR, TAHAP_TIMBANG_KOSONG
 from palmgrade.domain.plate import truck_id_for
-from palmgrade.domain.working_day import awal_kunjungan, work_date_for
+from palmgrade.domain.working_day import JENDELA_KUNJUNGAN_DETIK, awal_kunjungan, work_date_for
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.services.console_service import ConsoleService
 from palmgrade.services.gate_service import GateService
@@ -204,3 +205,18 @@ def test_kunjungan_selesai_lewat_tengah_malam_lalu_hilang_dari_tabel_hari_ini(ko
     assert gate.leave("BE4412OFL", f"{HARI_2}T00:20:00+07:00")["hasil"] == "tercatat"
     assert service.weighings(HARI_2) == []
     assert store.weighing(tiket["id"])["work_date"] == HARI_1
+
+
+# ── the unloading queue and automatic assignment: already a window on `received_at` ─────
+
+
+def test_antrean_bongkar_tidak_peduli_hari_kerja(store):
+    """The queue reads the console's arrival clock (`received_at`, epoch), never the work
+    date: a ticket whose work date is yesterday but which arrived 20 minutes ago is queued,
+    and its truck still counts as being sorted."""
+    _tiket(store, "w", f"{HARI_1}T23:50:00+07:00")
+    with store._lock, store._db:
+        store._db.execute("UPDATE weighings SET received_at = ?", (time.time() - 20 * 60,))
+    sejak = time.time() - JENDELA_KUNJUNGAN_DETIK
+    assert [r["weighing_id"] for r in store.unloading_queue(sejak)] == ["w"]
+    assert store.trucks_with_open_ticket(sejak) == {truck_id_for(PLAT)}
