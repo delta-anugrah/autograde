@@ -21,9 +21,8 @@ def test_a_saved_threshold_reaches_the_lines_that_answer(halaman, lines):
     halaman.click("#set-simpan")
     # One warning toast that says it is saved and names the line that did not answer
     # (user 2026-10-02: the yellow box under the button read like a failure).
-    expect(halaman.locator("#toasts .toast.peringatan")).to_contain_text(
-        kamus(halaman, "setelanTersimpanSebagian").replace("{lines}", "line-3")
-    )
+    sebagian = kamus(halaman, "setelanTersimpanSebagian").replace("{lines}", "line-3")
+    expect(halaman.locator("#toasts .toast.peringatan", has_text=sebagian)).to_have_count(1)
     expect(halaman.locator("#set-pesan")).to_have_text("")
     for kode in _HIDUP:
         terkirim = [isi for jalur, isi in lines[kode].diterima if jalur == "/internal/setelan"]

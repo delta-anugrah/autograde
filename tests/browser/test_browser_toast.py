@@ -19,24 +19,36 @@ from langkah import OPERATOR, SUPPORT, buka_tab, kamus, masuk
 from playwright.sync_api import expect
 
 _SEJAJAR_PX = 2
-_TENGAH = """() => [...document.querySelectorAll('#toasts .toast')].map((el) => {
+# Only the toast this test raised: the session-wide console may announce lines released by an
+# earlier test (`umumkanPelepasanOtomatis`) right after sign-in.
+_TENGAH = """(teks) => [...document.querySelectorAll('#toasts .toast')]
+  .filter((el) => el.querySelector('.pesan').textContent === teks).map((el) => {
   const tengah = (x) => { const r = x.getBoundingClientRect(); return r.top + r.height / 2; };
   return [tengah(el.querySelector('.pesan')), tengah(el.querySelector('.tutup')),
           el.querySelector('.pesan').getBoundingClientRect().height];
 })"""
 
 
-def _toast(halaman, kelas: str):
-    return halaman.locator(f"#toasts .toast.{kelas}")
+def _masuk_tanpa_toast_lama(halaman, akun) -> None:
+    """Sign in, let one poll announce what the shared console has to announce (lines an
+    earlier test released), then clear the corner: at most four toasts stay up
+    (`TOAST_MAKS`), and a stale one must not push out the toast under test."""
+    masuk(halaman, akun)
+    halaman.evaluate("async () => { await refresh();"
+                     " document.querySelectorAll('#toasts .toast').forEach((el) => el.remove()); }")
+
+
+def _toast(halaman, kelas: str, teks: str):
+    """The toast of this kind carrying `teks`; others from the shared console are ignored."""
+    return halaman.locator(f"#toasts .toast.{kelas}", has_text=teks)
 
 
 @pytest.mark.parametrize("teks", ["Truk terdaftar", "Kalimat panjang " * 12])
 def test_a_toast_message_is_centred_on_its_close_button(halaman, teks):
-    masuk(halaman, OPERATOR)
-    halaman.evaluate("() => document.querySelectorAll('#toasts .toast').forEach((el) => el.remove())")
+    _masuk_tanpa_toast_lama(halaman, OPERATOR)
     halaman.evaluate("(t) => toastSukses(t)", teks)
-    expect(_toast(halaman, "sukses")).to_have_count(1)
-    (pesan, tutup, tinggi), = halaman.evaluate(_TENGAH)
+    expect(_toast(halaman, "sukses", teks.strip())).to_have_count(1)
+    (pesan, tutup, tinggi), = halaman.evaluate(_TENGAH, teks)
     assert abs(pesan - tutup) <= _SEJAJAR_PX, (pesan, tutup, tinggi)
 
 
@@ -56,30 +68,30 @@ def _setelan_lewat(halaman, semua_sampai: bool) -> None:
 
 @pytest.mark.parametrize("semua_sampai", [True, False])
 def test_setelan_saved_is_a_toast_not_a_yellow_box(halaman, lines, semua_sampai):
-    masuk(halaman, SUPPORT)
+    _masuk_tanpa_toast_lama(halaman, SUPPORT)
     buka_tab(halaman, "setelan")
     expect(halaman.locator("#set-conf")).not_to_have_value("")
     _setelan_lewat(halaman, semua_sampai)
     halaman.fill("#set-conf", "0.6")
     halaman.click("#set-simpan")
+    sukses = kamus(halaman, "setelanTersimpan")
+    sebagian = kamus(halaman, "setelanTersimpanSebagian")
     if semua_sampai:
-        expect(_toast(halaman, "sukses")).to_contain_text(kamus(halaman, "setelanTersimpan"))
-        expect(_toast(halaman, "peringatan")).to_have_count(0)
+        expect(_toast(halaman, "sukses", sukses)).to_have_count(1)
+        expect(_toast(halaman, "peringatan", sebagian.split("{lines}")[0].strip())).to_have_count(0)
     else:
-        harap = kamus(halaman, "setelanTersimpanSebagian").replace("{lines}", "line-3")
-        expect(_toast(halaman, "peringatan")).to_have_text(re.compile(re.escape(harap)))
-        expect(_toast(halaman, "sukses")).to_have_count(0)
+        expect(_toast(halaman, "peringatan", sebagian.replace("{lines}", "line-3"))).to_have_count(1)
+        expect(_toast(halaman, "sukses", sukses)).to_have_count(0)
     # Nothing stays behind under the button: the box only ever carries a refusal now.
     expect(halaman.locator("#set-pesan")).to_have_text("")
     expect(halaman.locator("#set-lines")).to_have_count(0)
 
 
 def test_erp_resend_answers_with_a_toast(halaman):
-    masuk(halaman, SUPPORT)
+    _masuk_tanpa_toast_lama(halaman, SUPPORT)
     buka_tab(halaman, "status")
     halaman.click("#antrean-kirim-ulang")
-    expect(_toast(halaman, "sukses")).to_contain_text(
-        kamus(halaman, "antreanDikirimUlang").replace("{n}", "0"))
+    expect(_toast(halaman, "sukses", kamus(halaman, "antreanDikirimUlang").replace("{n}", "0"))).to_have_count(1)
 
 
 _PLC = {"enabled": True, "coil_base": 1000, "testable_coils": [1000, 1001], "device_prefix": "M"}
@@ -92,17 +104,17 @@ def test_plc_coil_test_answers_with_a_toast_that_outlives_the_poll(halaman):
                   lambda route: route.fulfill(json=_PLC))
     halaman.route(re.compile(r".*/api/console/dev/plc/line-[0-9]+/coil$"),
                   lambda route: route.fulfill(json=next(jawaban)))
-    masuk(halaman, SUPPORT)
+    _masuk_tanpa_toast_lama(halaman, SUPPORT)
     buka_tab(halaman, "line")
     halaman.click('[data-sub="plc"]')
     coil = halaman.locator('#plc-kartu button.uji-coil[data-line="line-1"][data-coil="1001"]')
     for kelas, kunci in (("sukses", "ujiPlcBerhasil"), ("peringatan", "ujiPlcDijatuhkan")):
         coil.click()
         halaman.click("#plc-konfirmasi-jalankan")
-        expect(_toast(halaman, kelas)).to_contain_text(kamus(halaman, kunci).replace("{coil}", "1001"))
+        expect(_toast(halaman, kelas, kamus(halaman, kunci).replace("{coil}", "1001"))).to_have_count(1)
     # Still there after a poll has run: a toast is not the banner `refresh()` wipes.
     halaman.evaluate("() => refresh()")
-    expect(_toast(halaman, "sukses")).to_have_count(1)
+    expect(_toast(halaman, "sukses", kamus(halaman, "ujiPlcBerhasil").replace("{coil}", "1001"))).to_have_count(1)
 
 
 def test_recording_start_answers_with_a_toast(halaman):
@@ -123,20 +135,20 @@ def test_recording_start_answers_with_a_toast(halaman):
 
     halaman.route("**/api/console/dev/rekam", status)
     halaman.route("**/api/console/dev/rekam/line-1/mulai", mulai)
-    masuk(halaman, SUPPORT)
+    _masuk_tanpa_toast_lama(halaman, SUPPORT)
     buka_tab(halaman, "line")
     halaman.click('[data-sub="rekam"]')
     halaman.click('[data-rekam-mulai="line-1"]')
-    expect(_toast(halaman, "sukses")).to_contain_text(kamus(halaman, "rekamDimulai").replace("{line}", "line-1"))
+    expect(_toast(halaman, "sukses", kamus(halaman, "rekamDimulai").replace("{line}", "line-1"))).to_have_count(1)
 
 
 def test_piston_command_answers_with_a_toast(halaman):
     halaman.route("**/api/console/lines/line-1/piston", lambda route: route.fulfill(json={"ok": True}))
-    masuk(halaman, OPERATOR)
+    _masuk_tanpa_toast_lama(halaman, OPERATOR)
     tombol = halaman.locator('.card[data-line="line-1"] button.piston')
     expect(tombol).to_be_enabled()
     nama = halaman.locator('.card[data-line="line-1"] .nama').inner_text().strip()
     kunci = "sukPistonBuka" if tombol.get_attribute("data-buka") == "1" else "sukPistonTutup"
     halaman.once("dialog", lambda dialog: dialog.accept())
     tombol.click()
-    expect(_toast(halaman, "sukses")).to_contain_text(kamus(halaman, kunci).replace("{line}", nama))
+    expect(_toast(halaman, "sukses", kamus(halaman, kunci).replace("{line}", nama))).to_have_count(1)
