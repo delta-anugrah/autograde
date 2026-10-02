@@ -200,11 +200,13 @@ tampil sebagai baris paling atas berlencana **Datang**, dengan menit tunggunya d
 dan tanpa tombol. Di bawahnya tiket urut **timbang isi terbaru dulu**, menurut jam sebenarnya
 (jam dari browser dan jam dari data demo atau program timbangan dibandingkan dengan benar).
 Tanda "tanpa scan 1" berwarna kuning peringatan. Dropdown plat di **2. Timbang isi** menaruh
-truk yang sedang menunggu di bagian **Menunggu timbang** paling atas (yang datang paling dulu
-di atas, dengan menit tunggunya), lalu truk lain di bagian **Truk lain**; kalau tidak ada yang
+truk terdaftar yang sedang menunggu di bagian **Menunggu timbang** paling atas (yang datang
+paling dulu di atas, dengan menit tunggunya), lalu truk lain di bagian **Truk lain**; truk yang
+belum terdaftar tetap tampil di tabel sebagai **Datang** dan baru bisa dipilih setelah
+didaftarkan di tab Truk; kalau tidak ada yang
 menunggu, daftarnya seperti biasa. Daftar itu diperbarui tiap 15 detik tanpa mengubah plat yang
-sudah dipilih, dan tidak dibangun ulang selama sedang dibuka. Petunjuk desimal ada tepat di bawah
-kolom Bruto. Mulai lebar layar sekitar 1.330 px keempat langkah berdiri dalam satu baris; di layar
+sudah dipilih, dan tidak dibangun ulang selama sedang dibuka. Pilih truk, Bruto dan tombol **Timbang isi** berada
+satu baris; petunjuk desimal ada tepat di bawah kolom Bruto. Mulai lebar layar sekitar 1.330 px keempat langkah berdiri dalam satu baris; di layar
 lebih sempit langkahnya bertumpuk.
 
 **Penugasan otomatis** (bawaannya mati; support yang menyalakannya di tab **Setelan**). Selama

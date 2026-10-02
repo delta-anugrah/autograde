@@ -51,12 +51,21 @@ Changed:        Part 3 of the scan work. The Timbangan tab has four labelled ste
                 a first Status column with a stage badge (`tahap` from `domain/gerbang.tahap_tiket`),
                 waiting arrivals as top rows, step headers in the badge colours, the four steps on
                 one row from 1331 px and the decimal hint under Bruto. No schema change.
+                Polish review fixes: plate, Bruto and Timbang isi stay on one line from 1331 px
+                (grid 1 / 2.2 / 1 / .7); a truck's open tickets (where the tare lands) use the same
+                real-instant order; the picker redraws only when its options change and keeps the
+                keyboard focus; only registered trucks are offered (an unregistered arrival stays a
+                "Datang" row); the PLC dialog's Escape handler no longer throws for an operator.
 Validated:      `pytest tests/unit tests/e2e tests/integration` → 4593 passed, 45 skipped, 0 failed.
                 `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
                 110 passed. Doc guards (em dash, manual, skill mirror) → 53 passed.
                 `scripts/md_to_pdf.py docs/MANUAL.md` → 38 pages, "1. Datang" present. ("Timbang
                 masuk" gone was wrong at first: §3.3, §3.4, §7 and the glossary still had it;
                 fixed in the fix wave, see its report for the PDF search.)
+                Polish run (after its review fixes): Python suite → 4752 passed, 48 skipped;
+                `uvx ruff@0.16.9 check src/ tests/ scripts/smoke_image.py` → All checks passed;
+                browser suite → 122 passed (56 chromium, 56 firefox, 10 harness);
+                `scripts/md_to_pdf.py docs/MANUAL.md` → 38 pages (v2.4).
 Not validated:  No manual browser check at 1920/1440/1280/1024 px and no hand-started console
                 (the browser suite covers the four widths in both engines). Not pushed, no PR yet.
 Risks:          Naive timestamps are read as UTC: the future scale/PLC lane must send offset-aware
@@ -67,6 +76,10 @@ Risks:          Naive timestamps are read as UTC: the future scale/PLC lane must
                 arrived and was turned away cannot be cancelled: it stays in Menunggu timbang for
                 up to 12 h (product follow-up: a "Batal datang" button or a shorter stale cut-off).
                 The diagram SVG in the manual still reads "timbang masuk/keluar" (left as is).
+                SQLite `julianday()` returns NULL for offsets like `+0700`, `+07` or compact ISO
+                that Python accepts; such a ticket sorts by `received_at` (the table, the truck's
+                newest ticket, its open tickets and the unloading queue still agree). The scale/PLC
+                lane must send standard ISO with `+HH:MM` or `Z`.
 Next:           Push `feat/gate-scans`, open the PR 3 to `staging`, then the sawit-repo docs
                 (`ALUR-TIMBANGAN-AUTOGRADE-AUTOERP.md`, `PERTANYAAN-TERBUKA.md` S6).
 
