@@ -18,6 +18,22 @@ Next:           ...
 
 ---
 
+## 2026-10-02 · ci · Lint the whole code base, pin CI packages to the runtime versions (PR #209)
+Changed:        Batch 4.4. Ruff checks `src/ tests/` (was an allow-list of about 80 modules that
+                skipped `main.py` and the detection workers); the separate F821 step for `main.py`
+                is gone. `requirements-ci.txt` pins every package `==` at the `requirements.txt`
+                version and adds `pymcprotocol` + `pymodbus`, so the 18 MC Protocol wire tests run
+                in CI. Dockerfile sets `YOLO_AUTOINSTALL=false`. Six safe ruff autofixes in `src/`.
+                Guard: `tests/unit/test_requirements_ci_terkunci.py`.
+Validated:      fresh Python 3.11 venv from the new file: ruff clean; unit 3865 passed, 40 skipped;
+                e2e 289 passed, 26 skipped (MC lane 18 passed); integration 124 passed, 1 skipped.
+                Torch tests that import `main.py`, local venv: 61 passed. Each guard fails when its
+                rule is broken (6 mutations, each reverted).
+Not validated:  the factory image with `YOLO_AUTOINSTALL=false`; it is first built at the next tag,
+                and batch 4.2 runs `test_image_tracker_deps.py` against it before it is published.
+Decisions:      CI pins equal runtime pins; raising a version edits both files in one PR.
+Next:           batch 4.2, smoke test the image before the release tags are written.
+
 ## 2026-10-01 · docs · Stale text found by the markdown audit (PR #207)
 Changed:        Audit of all 31 tracked .md files: none to remove (the repo was cleaned in #180 and
                 #186). Fixed in place: the 2026-09-23 PLC commissioning runbook says the `UJI`

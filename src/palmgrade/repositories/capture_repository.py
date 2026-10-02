@@ -35,7 +35,7 @@ class CaptureRepository:
     ) -> dict[str, Any]:
         # Aware UTC so the filename shares one instant with the payload
         # timestamp below (which was already UTC-aware).
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
         date_folder = now.strftime("%Y-%m-%d")
         timestamp = now.strftime("%Y-%m-%d_%H%M%S_%f")
 
@@ -77,7 +77,7 @@ class CaptureRepository:
             "tp_bounding_box": None,
             "title": "FAIL Detected (Manual)",
             "description": f"Manual reject capture (truck_id={truck_id})",
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
             "image_url": image_url,
             "capture_type": MANUAL_CAPTURE_SUFFIX,
             "truck_id": truck_id,

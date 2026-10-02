@@ -12,42 +12,57 @@
 # ⚠️ Menambah paket di sini berarti memeriksa dulu apakah ia menarik torch.
 # `requirements.txt` (runtime) tetap sumber kebenaran untuk yang jalan di
 # pabrik; ini cuma untuk menjalankan test.
+#
+# Batch 4.4: SEMUA baris dikunci `==`. Sebelumnya tanpa versi, sehingga CI
+# menguji pustaka yang tidak pernah jalan di pabrik (2026-10-01: CI memasang
+# fastapi 0.142, pydantic 2.13, numpy 2.4, cryptography 50, apscheduler 3.11;
+# pabrik 0.115, 2.11, 1.26, 44, 3.10). Paket yang juga ada di `requirements.txt`
+# memakai versi yang SAMA; `tests/unit/test_requirements_ci_terkunci.py` menjaga
+# keduanya tidak berpisah lagi. Menaikkan versi = ubah dua berkas di PR yang sama.
 
-ruff
-pytest
+# Alat. Bukan bagian runtime, versi dipilih sendiri; naikkan dengan sengaja.
+ruff==0.16.9
+pytest==9.1.1
 
-# Dipakai kode yang diuji.
-cryptography
-aiosqlite
-psutil
-httpx
-boto3
-pydantic
-segno
+# Dipakai kode yang diuji. Versi = `requirements.txt`.
+cryptography==44.0.2
+psutil==7.0.0
+httpx==0.28.1
+boto3==1.43.45
+pydantic==2.11.3
+segno==1.6.6
+fastapi==0.115.12
+
+# Runtime cuma meminta `>=0.20.0`; dikunci ke yang dipasang image terakhir.
+aiosqlite==0.22.1
 
 # `python-dotenv` ikut lewat `console_main`, yang diimpor test lifespan untuk
 # membuktikan peringatan startup benar-benar muncul.
-python-dotenv
+python-dotenv==1.1.0
 
-# Khusus test:
-#  - `pyyaml` membaca balik berkas compose dan mencocokkannya dengan Settings.
-#  - `fastapi` untuk penjaga sesi konsol, yang cuma bisa dibuktikan lawan app
-#    sungguhan.
-pyyaml
-fastapi
+# Khusus test: `pyyaml` membaca balik berkas compose dan mencocokkannya dengan
+# Settings. Tidak ada di runtime.
+pyyaml==6.0.3
 
 # Delapan test lane PLC menyentuh `internal_controller` -> `core/constants.py`
 # -> `cv2`. `headless` adalah wheel tanpa GUI (~35 MB, tanpa X11) dan TIDAK
-# menarik torch.
-opencv-python-headless
+# menarik torch. Versinya sama dengan `opencv-python` di runtime, dan `numpy`
+# dikunci ke versi runtime karena opencv menariknya (tanpa kunci CI dapat 2.x).
+opencv-python-headless==4.11.0.86
+numpy==1.26.4
+
+# PLC: tanpa dua paket ini `tests/e2e/test_mc_protocol_lane.py` (bingkai MC
+# Protocol sungguhan lewat soket) dilewati diam-diam di CI. Keduanya pure
+# python dan tidak menarik torch.
+pymcprotocol==0.3.0
+pymodbus==3.6.9
 
 # `test_upload_scheduler_stop.py`: tutup line menghentikan penjadwal upload R2
 # tanpa menunggu batch yang jalan (batch 2.2). Pure python, tidak menarik
-# torch. `<4`: APScheduler 4 API-nya lain sama sekali; runtime memakai 3.10.4.
-apscheduler<4
+# torch. APScheduler 4 API-nya lain sama sekali.
+apscheduler==3.10.4
 
 # `uvicorn` (pure python + h11, tidak menarik torch): test logging batch 3 memasang
 # konfigurasi log uvicorn yang SAMA dengan saat boot dan menjalankan protokol HTTP-nya
 # tanpa socket, untuk membuktikan galat 500 dan access log melewati jalur kita.
-# Versi sama dengan `requirements.txt`.
 uvicorn==0.34.0

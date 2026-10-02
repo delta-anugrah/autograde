@@ -77,6 +77,14 @@ COPY . .
 # Folder artifacts dibuat di startup, tapi kita pastiin parent-nya ada
 RUN mkdir -p artifacts/results
 
+# Ultralytics memasang paket yang dianggapnya kurang lewat `pip install` SAAT JALAN.
+# Di pabrik itu menyembunyikan dependensi yang hilang di satu line dan tidak di dua
+# lainnya (`lap`), atau nyangkut tanpa internet (2026-09-09, onnxruntime-gpu). Semua
+# yang dibutuhkan sudah dipasang di atas; yang kurang harus gagal di sini, dibuktikan
+# `tests/e2e/test_image_tracker_deps.py`, bukan diunduh diam-diam di PC pabrik.
+# Ditaruh di bawah supaya tidak membatalkan cache layer torch/CUDA.
+ENV YOLO_AUTOINSTALL=false
+
 # Tag rilis di-bake sebagai APP_VERSION supaya GET /health bisa menyebutkan
 # versi image yang benar-benar jalan tanpa SSH ke PC pabrik. Ditaruh paling
 # bawah: nilainya berubah tiap rilis, jadi jangan sampai membatalkan cache pip.

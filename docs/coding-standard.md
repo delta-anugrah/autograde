@@ -24,7 +24,7 @@ PRs; a PR is not blocked by a gap it did not add.
 - **S2.** A timeout, limit, threshold or retry delay is a named constant, never a bare number inside the logic.
 - **S3.** One function, one job: if its description needs "and", split it. New functions carry type hints.
 - **S4.** Comments and docstrings say why; the code already says what.
-- **S5.** A Python file you create or change passes `ruff check`; once it passes, it joins the ruff list in `.github/workflows/ci.yml`.
+- **S5.** A Python file you create or change passes `ruff check src/ tests/`, which CI runs on the whole code base.
 - **S6.** A new dependency needs a reason in the PR and a pin in `requirements.txt`; nothing the console imports may pull in torch or cv2.
 
 ## Backend
@@ -89,6 +89,6 @@ PRs; a PR is not blocked by a gap it did not add.
 | A silent `except Exception: pass` | `workers/frame_capture_worker.py`, `pipelines/realtime_inspection_pipeline.py` | L6 |
 | The ripe rate and the yard totals across lines are computed on the screen | `static/console.html` (`isiTally`, `rasioRiwayat`) | L4, F3 |
 | The weighbridge table is redrawn every 15 s without `tulisKalauBeda` | `static/console.html` (`muatTimbangan`) | F9 |
-| Ruff runs on an allow-list of files, with rules E, F, I, UP, B only | `.github/workflows/ci.yml`, `pyproject.toml` | S5 |
+| Ruff runs with rules E, F, I, UP, B only | `pyproject.toml` | S5 |
 | No JS linter; the node-based console tests skip themselves where node is missing | `static/console.html` | T3 |
 | Path words mix languages (`/history` next to `/riwayat`) | `routes/console.py` | B2 (new paths only, never rename) |
