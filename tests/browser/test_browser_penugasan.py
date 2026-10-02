@@ -11,7 +11,7 @@ once (one registered through the API would wait for the 60 s poll).
 
 from __future__ import annotations
 
-from langkah import OPERATOR, SUPPORT, buka_tab, kamus, masuk, plat
+from langkah import OPERATOR, SUPPORT, buka_tab, kamus, keluar, masuk, plat
 from playwright.sync_api import expect
 
 _DUA_LINE = ("line-1", "line-2")
@@ -254,3 +254,42 @@ def test_switch_off_hides_the_strip_and_saving_it_on_puts_the_waiting_truck_on(
         expect(_kartu(halaman, kode).locator(".truk")).to_contain_text(b)
     _kosong(halaman, b)
 
+
+def test_the_operator_works_the_strip(halaman, konsol, browser_name, penugasan_bersih):
+    """The strip's real user is OPERATOR: support turns the switch on, the operator weighs
+    in, sees the waiting truck, is refused "Tugaskan sekarang" while the first truck still
+    sorts, and takes the truck out with Lewati after the confirm."""
+    a, b = plat(browser_name, 1111), plat(browser_name, 1112)
+    masuk(halaman, SUPPORT)
+    _nyalakan(halaman, konsol, _DUA_LINE)
+    _daftar(halaman, a, b)
+    keluar(halaman)
+    masuk(halaman, OPERATOR)
+
+    toasts = halaman.locator("#toasts")
+    _isi(halaman, a)
+    expect(toasts).to_contain_text(_ditugaskan(halaman, a, _DUA_LINE))
+    _isi(halaman, b)
+    strip = halaman.locator("#antrean-bongkar")
+    expect(_antre(halaman, b)).to_be_visible()
+    expect(strip.locator(".lb")).to_have_text(kamus(halaman, "antreanBongkarOtomatis"))
+    halaman.click("#bahasa")
+    expect(strip.locator(".lb")).to_have_text("Unloading queue (automatic)")
+    halaman.click("#bahasa")
+    expect(strip.locator(".lb")).to_have_text(kamus(halaman, "antreanBongkarOtomatis"))
+
+    _antre(halaman, b).locator('button[data-aksi="pasang"]').click()
+    expect(toasts).to_contain_text(kamus(halaman, "err_line_semua_terpakai"))
+    expect(_antre(halaman, b)).to_be_visible()
+
+    halaman.once("dialog", lambda d: d.accept())
+    _antre(halaman, b).locator('button[data-aksi="lewati"]').click()
+    expect(toasts).to_contain_text(kamus(halaman, "sukLewati").replace("{truk}", b))
+    expect(strip).to_be_hidden()
+
+    _kosong(halaman, a)
+    halaman.evaluate("() => refresh()")
+    for kode in _DUA_LINE:
+        expect(_kartu(halaman, kode).locator(".truk")).not_to_contain_text(a)
+        expect(_kartu(halaman, kode).locator(".truk")).not_to_contain_text(b)
+    _kosong(halaman, b)
