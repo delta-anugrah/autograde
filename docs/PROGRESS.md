@@ -18,6 +18,19 @@ Next:           ...
 
 ---
 
+## 2026-10-02 · console · Stamp console.db with a schema number (PR #213)
+Changed:        `repositories/console_skema.py`: `VERSI_SKEMA = 1`; `siapkan_skema()` ends with
+                `_tandai_versi()`, which raises `PRAGMA user_version` to that number and never lowers
+                it. Migrations stay `PRAGMA table_info` based (B5); the number is a marker for the
+                factory launcher and a technician. New `tests/unit/test_console_skema_versi.py`.
+                Known gap row in `docs/coding-standard.md` now lists only the two outboxes.
+Validated:      pytest unit 3935 passed / 28 skipped; integration 127 passed; e2e 334 passed /
+                20 skipped; `ruff check src tests` clean.
+Not validated:  an older image opening a stamped file on the factory PC (Tahap 2 rollback step).
+Decisions:      the number is never lowered, so a rollback to an older image keeps it.
+Next:           sawit launcher PR #73 (batch 4.5 health gate + console.db backup), installed over
+                AnyDesk before tag `v1.22.0`.
+
 ## 2026-10-02 · docs · The manual smoke run needs the workflow on main (PR #211)
 Changed:        `docs/rules.md` (batch 4.2 bullet) and the `image-smoke.yml` header say the Run
                 workflow button exists only once `image-smoke.yml` is on `main`: GitHub offers
