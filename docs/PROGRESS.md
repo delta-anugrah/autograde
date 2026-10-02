@@ -18,6 +18,41 @@ Next:           ...
 
 ---
 
+## 2026-10-02 · console · Timbangan polish round 2 and a visit across midnight (PR #214)
+Changed:        After a second manual test by the user. Every successful action answers with a
+                toast (Setelan Simpan, which used to write a yellow box plus red "Belum sampai ke"
+                text, now gives one success or one warning toast; Uji PLC, AutoERP Kirim Ulang,
+                recording start/stop and piston gained one). Toast text is centred against its
+                close button. One button language: `button.utama` (Catat datang joined it),
+                `button.bahaya` for every cancel/delete/reset/release/sign-out button and
+                `button.bahaya.pekat` for the final irreversible run; the old one-off red rules
+                are gone and the Danger Zone container rule is scoped to `details.bahaya`
+                (coding standard F11, pinned by `tests/unit/test_console_tombol_bahaya.py`). The
+                four Timbangan steps are equal-height cards with aligned controls; the tare form
+                is plate in the card header plus Tara, Simpan, Batal on one row, and the step 3
+                hint hides while it is open. Midnight: a truck weighed in at 23:50 and weighed
+                out at 00:10 was lost (scan 3 answered "no open ticket", and the row with its
+                Timbang kosong / Keluar buttons left today's table at 00:00). Open tickets are
+                now found within the 12 h visit window on the real instant
+                (`open_weighings_for_truck(truck_id, sejak)`), today's table carries unfinished
+                visits from an earlier work date (`kunjungan_terbawa`, `weighings_terbawa`), and
+                the Danger Zone open-ticket block counts them. A ticket keeps its own work date:
+                totals, Rekap, Riwayat, CSV, the daily resend and the AutoERP message unchanged.
+                The two browser tests that failed between 00:00 and 01:21 WIB are clock
+                independent now. `MANUAL.md` v2.5 (+ PDF), `rules.md` rule 37, backend-overview,
+                skill `konsol-autograde`.
+Validated:      `pytest tests/unit tests/e2e tests/integration` → 4785 passed, 48 skipped;
+                `ruff check src tests` → All checks passed; browser: see the PR body.
+                Each branch was reviewed separately: no Critical or Important findings.
+Not validated:  Not run with the real clock between 00:00 and 01:21 WIB (midnight is faked by
+                seeding yesterday's work date with a 20 minute old weigh-in). Not seen on the
+                factory PC's Firefox kiosk fonts.
+Risks:          At 1331 px step 2 has about 5 px to spare in Chromium. A ticket with a tare but no
+                Keluar stays on today's table up to 12 h after its weigh-in. The summary strip
+                counts today's work date only, so a carried "waiting for tare" row is not in it.
+                `console_service.py` is at 999 of 1000 lines.
+Next:           User decisions: "Batal datang" button, the "Jam kosong" wording.
+
 ## 2026-10-02 · console · Four gate scans (PR #214)
 Changed:        Part 3 of the scan work. The Timbangan tab has four labelled steps: 1 Datang
                 (truck dropdown + Catat datang, or QR when the scanner exists), 2 Timbang isi,
