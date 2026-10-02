@@ -88,7 +88,6 @@ PRs; a PR is not blocked by a gap it did not add.
 | Schema changes are ad-hoc blocks with no version number; the column renames date from developer machines | `repositories/console_skema.py`, `integrations/erp/outbox_store.py`, `integrations/outbox/outbox_store.py` | B5, C3 |
 | A silent `except Exception: pass` | `workers/frame_capture_worker.py`, `pipelines/realtime_inspection_pipeline.py` | L6 |
 | The ripe rate and the yard totals across lines are computed on the screen | `static/console.html` (`isiTally`, `rasioRiwayat`) | L4, F3 |
-| The weighbridge table is redrawn every 15 s without `tulisKalauBeda` | `static/console.html` (`muatTimbangan`) | F9 |
 | Ruff runs on an allow-list of files, with rules E, F, I, UP, B only | `.github/workflows/ci.yml`, `pyproject.toml` | S5 |
 | No JS linter; the node-based console tests skip themselves where node is missing | `static/console.html` | T3 |
 | Path words mix languages (`/history` next to `/riwayat`) | `routes/console.py` | B2 (new paths only, never rename) |

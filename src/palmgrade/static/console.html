@@ -336,12 +336,12 @@
                white-space:nowrap; }
   .tara-grup input { flex:0 0 8rem; font-family:var(--mono); text-align:right; }
   .tara-grup button { flex:0 0 7rem; }
-  /* Pemisah: dua gerbang itu dua tempat fisik, dan garis ini yang mengatakannya. */
-  .timbang-keluar { padding-left:18px; border-left:1px solid var(--line-kuat); }
-  /* Di layar sempit gerbang keluar turun ke baris kedua, dan garis di KIRI jadi
+  /* Pemisah: empat tahap itu empat langkah fisik, dan garis ini yang mengatakannya. */
+  .timbang-keluar, .timbang-pisah { padding-left:18px; border-left:1px solid var(--line-kuat); }
+  /* Di layar sempit tahap berikutnya turun ke baris baru, dan garis di KIRI jadi
      janggal karena tidak ada apa pun di sebelahnya lagi. Pemisahnya pindah ke atas. */
   @media (max-width:1330px) {
-    .timbang-keluar { padding-left:0; padding-top:12px; border-left:0;
+    .timbang-keluar, .timbang-pisah { padding-left:0; padding-top:12px; border-left:0;
                       border-top:1px solid var(--line-kuat); width:100%; }
   }
   .scan-pesan.salah { color:var(--danger-fg); }
@@ -1539,10 +1539,25 @@
     bukan disembunyikan di balik satu klik lagi.
   -->
   <div class="tools timbang-alat">
+    <!--
+      Scan 1 dan 4 (2026-09-30): jam datang dan jam keluar gerbang, cuma disimpan di PC
+      ini. Scan 1 boleh terlewat; tiketnya lalu ditandai di kolom Antre.
+    -->
     <div class="timbang-sisi">
-      <label class="lb" for="scan-plat" data-t="lbGerbangMasuk">Truk masuk</label>
+      <label class="lb" for="scan-datang" data-t="lbDatang">1. Datang</label>
       <div class="timbang-baris">
-        <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="QR masuk"
+        <input id="scan-datang" class="plat" data-t-ph="phScanDatang" placeholder="QR datang"
+               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
+        <div class="pilih" id="plat-datang" data-nilai=""></div>
+        <button id="datang" data-t="btnDatang" disabled>Catat datang</button>
+      </div>
+      <span id="antre" class="catatan"></span>
+      <span id="scan-datang-pesan" class="scan-pesan" role="status"></span>
+    </div>
+    <div class="timbang-sisi timbang-pisah">
+      <label class="lb" for="scan-plat" data-t="lbGerbangMasuk">2. Timbang isi</label>
+      <div class="timbang-baris">
+        <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="QR timbang isi"
                autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
         <div class="pilih" id="plat-timbang" data-nilai=""></div>
         <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
@@ -1557,9 +1572,9 @@
       <span id="scan-pesan" class="scan-pesan" role="status"></span>
     </div>
     <div class="timbang-sisi timbang-keluar">
-      <label class="lb" for="scan-keluar" data-t="lbGerbangKeluar">Truk keluar</label>
+      <label class="lb" for="scan-keluar" data-t="lbGerbangKeluar">3. Timbang kosong</label>
       <div class="timbang-baris">
-        <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="QR keluar"
+        <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="QR timbang kosong"
                autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
         <!--
           Kolom tara muncul DI SINI setelah scan berhasil, bukan sebagai lapisan di atas
@@ -1580,19 +1595,30 @@
       </div>
       <!--
         Selama kolom QR disembunyikan (scanner belum dibeli), sisi ini kosong
-        sampai operator menekan Timbang keluar di baris tiket. Label "Truk keluar" di
+        sampai operator menekan Timbang kosong di baris tiket. Label "3. Timbang kosong" di
         atas ruang kosong terbaca seperti alat yang rusak, jadi petunjuk ini
         yang menunjukkan ke mana harus pergi. Hapus bersama `hidden` di
         `#scan-keluar` begitu scanner datang.
       -->
-      <span id="petunjuk-keluar" class="catatan" data-t="hintGerbangKeluar">Tekan Timbang keluar di baris truknya pada tabel di bawah</span>
+      <span id="petunjuk-keluar" class="catatan" data-t="hintGerbangKeluar">Tekan Timbang kosong di baris truknya pada tabel di bawah</span>
       <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
+    </div>
+    <div class="timbang-sisi timbang-pisah">
+      <label class="lb" for="scan-pergi" data-t="lbPergi">4. Keluar</label>
+      <div class="timbang-baris">
+        <input id="scan-pergi" class="plat" data-t-ph="phScanPergi" placeholder="QR keluar"
+               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
+      </div>
+      <span id="petunjuk-pergi" class="catatan" data-t="hintPergi">Tekan Keluar di baris truknya pada tabel di bawah</span>
+      <span id="scan-pergi-pesan" class="scan-pesan" role="status"></span>
     </div>
     <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
   </div>
   <div class="tabel">
     <table>
-      <thead><tr><th data-t="thMasuk">Masuk</th><th data-t="thKeluar">Keluar</th><th data-t="thLama">Lama</th><th data-t="thTruk">Truk</th>
+      <thead><tr><th data-t="thMasuk">Jam isi</th><th data-t="thKeluar">Jam kosong</th>
+        <th data-t="thAntre">Antre</th><th data-t="thLama">Lama</th><th data-t="thTotal">Total</th>
+        <th data-t="thTruk">Truk</th>
         <th data-t="thSumber">Sumber</th><th class="num" data-t="thBruto">Bruto (kg)</th>
         <th class="num" data-t="thTara">Tara (kg)</th><th class="num" data-t="thNeto">Neto (kg)</th>
         <th></th></tr></thead>
@@ -2518,11 +2544,11 @@ const KAMUS = {
     geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
     thNo:"No", thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
-    thMasuk:"Masuk", thKeluar:"Keluar", thLama:"Lama", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
+    thMasuk:"Jam isi", thKeluar:"Jam kosong", thLama:"Lama", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
     thLevel:"Level", thPesan:"Pesan", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan, sumber, atau line",
     hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
-    hintGerbangKeluar:"Tekan Timbang keluar di baris truknya pada tabel di bawah",
+    hintGerbangKeluar:"Tekan Timbang kosong di baris truknya pada tabel di bawah",
     logSemua:"Semua", kosongLog:"Belum ada galat tercatat", gagalLog:"Gagal memuat log",
     logKonsol:"konsol", logPertama:"pertama {waktu}",
     discordMati:"Lapor ke Discord: mati (DISCORD_WEBHOOK_URL kosong). Galat tetap tercatat di tab ini.",
@@ -2532,7 +2558,7 @@ const KAMUS = {
     discordDitolak:"Lapor ke Discord DITOLAK pukul {jam} (HTTP {status}): webhook salah atau sudah dihapus. Periksa DISCORD_WEBHOOK_URL di .env PC ini, lalu autograde restart. {kiriman} pesan menunggu, tidak dibuang.",
     discordRusak:"Lapor ke Discord MATI: antrean di disk rusak ({galat}). Pindahkan berkas state/console/lapor_discord.db di folder autograde PC ini, lalu autograde restart. Galat tetap tercatat di tab ini.",
     discordIsiDitolak:"Discord menolak ISI pesan pukul {jam} (HTTP {status}), alamat webhook benar. Pesan yang 3 kali ditolak disisihkan dan tetap di disk; laporan berikutnya jalan terus. {kiriman} pesan menunggu, {disisihkan} disisihkan.",
-    btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
+    btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnTimbangKosong:"Timbang kosong",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
     truk:"Truk", supplier:"Supplier", trukBelum:"Truk belum dipilih",
@@ -2607,14 +2633,26 @@ const KAMUS = {
     perHalaman:"Baris per halaman", halamanSebelum:"Sebelumnya", halamanBerikut:"Berikutnya",
     keHalaman:"Ke halaman",
     btnCetakQr:"Cetak QR truk", qrJudul:"Kartu QR truk",
-    lbGerbangMasuk:"Truk masuk", lbGerbangKeluar:"Truk keluar",
+    lbGerbangMasuk:"2. Timbang isi", lbGerbangKeluar:"3. Timbang kosong",
     taraJudul:"Timbang keluar", btnSimpanTara:"Simpan", btnBatal:"Batal",
     phTara:"Tara (kg)",
     taraMinimum:"Tara minimal 1.000 kg, cek lagi angkanya",
-    phScan:"QR masuk", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
+    phScan:"QR timbang isi", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
     scanDaftarBelumMuat:"Truk ditemukan, tapi daftar truk di layar belum termuat. Scan sekali lagi.",
     scanTrukNonaktif:"Truk ini sudah dinonaktifkan, tidak bisa ditimbang:",
-    phScanKeluar:"QR keluar", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
+    phScanKeluar:"QR timbang kosong", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
+    // Empat scan gerbang (2026-09-30): 1 datang dan 4 keluar cuma disimpan di PC ini.
+    lbDatang:"1. Datang", lbPergi:"4. Keluar", phScanDatang:"QR datang", phScanPergi:"QR keluar",
+    btnDatang:"Catat datang", btnPergi:"Keluar",
+    hintPergi:"Tekan Keluar di baris truknya pada tabel di bawah",
+    thAntre:"Antre", antreKelewat:"tanpa scan 1",
+    antreKelewatJudul:"Scan datang terlewat: waktu antre tidak diketahui, total dihitung dari timbang isi",
+    antreMenunggu:"Menunggu timbang ({n})", jamDatang:"Datang", jamPergi:"Keluar",
+    sukDatang:"Kedatangan tercatat", datangSudah:"Sudah tercatat datang jam {jam}",
+    datangMasihDiDalam:"Truk ini masih di dalam, belum timbang kosong",
+    sukPergi:"Keluar tercatat",
+    pergiBelumKosong:"BELUM timbang kosong. Timbang kosong dulu sebelum truk keluar",
+    pergiSudah:"Sudah tercatat keluar", pergiTakAdaTiket:"Tidak ada tiket untuk truk ini",
     scanGanda:"Ada 2 tiket terbuka, pilih di tabel bawah untuk",
     rentangBaris:"{dari}-{sampai} dari {total}",
     gerbangKosong:"Belum ada operator. Minta teknisi membuat akun operator di PC ini.",
@@ -2943,11 +2981,11 @@ const KAMUS = {
     geserKiri:"Move left", geserKanan:"Move right",
     thNo:"No", thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
-    thMasuk:"In", thKeluar:"Out", thLama:"Duration", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
+    thMasuk:"Weighed in", thKeluar:"Weighed out", thLama:"Duration", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
     thLevel:"Level", thPesan:"Message", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message, source, or line",
     hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
-    hintGerbangKeluar:"Press Weigh out on the truck's row in the table below",
+    hintGerbangKeluar:"Press Weigh out on the truck's row below",
     logSemua:"All", kosongLog:"No faults logged yet", gagalLog:"Failed to load the log",
     logKonsol:"console", logPertama:"first {waktu}",
     discordMati:"Discord report: off (DISCORD_WEBHOOK_URL is empty). Faults are still logged on this tab.",
@@ -2957,7 +2995,7 @@ const KAMUS = {
     discordDitolak:"Discord report REFUSED at {jam} (HTTP {status}): the webhook is wrong or was deleted. Check DISCORD_WEBHOOK_URL in this PC's .env, then run autograde restart. {kiriman} messages wait; nothing is dropped.",
     discordRusak:"Discord report OFF: the queue on disk is corrupt ({galat}). Move the file state/console/lapor_discord.db out of the autograde folder on this PC, then run autograde restart. Faults are still logged on this tab.",
     discordIsiDitolak:"Discord refused the CONTENT of a message at {jam} (HTTP {status}); the webhook address is fine. A message refused 3 times is set aside and kept on disk; later reports keep going. {kiriman} messages wait, {disisihkan} set aside.",
-    btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
+    btnDaftar:"Register truck", btnMasuk:"Weigh in", btnTimbangKosong:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
     truk:"Truck", supplier:"Supplier", trukBelum:"No truck selected",
@@ -3028,14 +3066,25 @@ const KAMUS = {
     perHalaman:"Rows per page", halamanSebelum:"Previous", halamanBerikut:"Next",
     keHalaman:"Go to page",
     btnCetakQr:"Print truck QR", qrJudul:"Truck QR cards",
-    lbGerbangMasuk:"Truck in", lbGerbangKeluar:"Truck out",
+    lbGerbangMasuk:"2. Weigh in", lbGerbangKeluar:"3. Weigh out",
     taraJudul:"Weigh out", btnSimpanTara:"Save", btnBatal:"Cancel",
     phTara:"Tare (kg)",
     taraMinimum:"Tare must be at least 1,000 kg, check the figure",
-    phScan:"QR in", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
+    phScan:"Weigh-in QR", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
     scanDaftarBelumMuat:"Truck found, but the truck list on screen has not loaded. Scan once more.",
     scanTrukNonaktif:"This truck is deactivated and cannot be weighed:",
-    phScanKeluar:"QR out", scanTakAdaTiket:"No open ticket today for",
+    phScanKeluar:"Weigh-out QR", scanTakAdaTiket:"No open ticket today for",
+    lbDatang:"1. Arrive", lbPergi:"4. Leave", phScanDatang:"Arrival QR", phScanPergi:"Leave QR",
+    btnDatang:"Record arrival", btnPergi:"Leave",
+    hintPergi:"Press Leave on the truck's row below",
+    thAntre:"Queue", antreKelewat:"no scan 1",
+    antreKelewatJudul:"Arrival scan skipped: queue time unknown, total counted from weigh-in",
+    antreMenunggu:"Waiting to weigh ({n})", jamDatang:"Arrived", jamPergi:"Left",
+    sukDatang:"Arrival recorded", datangSudah:"Already recorded at {jam}",
+    datangMasihDiDalam:"This truck is still inside, not weighed out yet",
+    sukPergi:"Leave recorded",
+    pergiBelumKosong:"NOT weighed out. Weigh it out before the truck leaves",
+    pergiSudah:"Already recorded as left", pergiTakAdaTiket:"No ticket for this truck",
     scanGanda:"Two open tickets, pick one in the table below for",
     rentangBaris:"{dari}-{sampai} of {total}",
     gerbangKosong:"No operators yet. Ask a technician to create an operator account on this PC.",
@@ -4201,21 +4250,52 @@ function barisTruk(tr) {
 }
 
 function barisTimbangan(w) {
-  // The row carries the ticket identity so weigh-out resends exactly the same
-  // key (ref, or plate + entered_at) - miss it and one ticket splits into two
-  // rows with its neto gone.
-  return `<tr data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
+  // The row carries the ticket identity so weigh-out resends exactly the same key
+  // (ref, or plate + entered_at): miss it and one ticket splits into two rows with its
+  // neto gone. `data-id` is for the Keluar button (scan 4). Minutes come from the
+  // backend (standard L4); only the clock times are formatted here.
+  const jamDatang = w.arrived_at ? `${t("jamDatang")} ${waktu(w.arrived_at)}` : "";
+  const jamPergi = w.left_at ? `${t("jamPergi")} ${waktu(w.left_at)}` : "";
+  return `<tr data-id="${esc(w.id)}" data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
               data-masuk="${esc(w.entered_at ?? "")}">
     <td>${w.entered_at ? waktu(w.entered_at) : KOSONG}</td>
     <td>${w.exited_at ? waktu(w.exited_at) : KOSONG}</td>
+    <td title="${esc(jamDatang)}">${durasiAntre(w)}</td>
     <td>${dash(lamaProses(w.entered_at, w.exited_at))}</td>
+    <td title="${esc(jamPergi)}">${dash(teksMenit(w.total_menit))}</td>
     <td class="key">${dash(w.plate_number)}${tandaErp(w)}</td>
     <td>${dash(w.source_label)}</td>
     <td class="num">${kg(w.gross_kg)}</td>
     <td class="num">${kg(w.tare_kg)}</td>
     <td class="num">${kg(w.net_kg)}</td>
-    <td>${w.tare_kg == null ? `<button data-aksi="keluar">${esc(t("btnKeluar"))}</button>` : ""}</td>
+    <td>${aksiTiket(w)}</td>
   </tr>`;
+}
+
+// Antre = scan 1 sampai timbang isi. Tanpa scan 1 bukan "0 mnt": itu menarik rata-rata
+// antre ke bawah padahal antreannya memang tidak tercatat (keputusan D4).
+function durasiAntre(w) {
+  if (w.tanpa_scan_1) {
+    return `<span class="tag" title="${esc(t("antreKelewatJudul"))}">${esc(t("antreKelewat"))}</span>`;
+  }
+  return dash(teksMenit(w.antre_menit));
+}
+
+// Satu tombol per baris, sesuai tahap berikutnya: timbang kosong dulu, baru keluar.
+// Layar tidak menebak tahap (D6): tombolnya ditentukan isi tiket dari server.
+function aksiTiket(w) {
+  if (w.tare_kg == null) return `<button data-aksi="keluar">${esc(t("btnTimbangKosong"))}</button>`;
+  if (!w.left_at) return `<button data-aksi="pergi">${esc(t("btnPergi"))}</button>`;
+  return "";
+}
+
+// Antrean di sisi Datang: truk yang sudah scan 1 tapi belum timbang isi. Menitnya dari
+// server; null (jam datang tak terbaca) jadi strip, bukan "0 mnt". Dipakai lewat
+// textContent, jadi tidak perlu esc().
+function teksAntre(daftar) {
+  if (!daftar || !daftar.length) return "";
+  const isi = daftar.map((a) => `${a.plate_number} (${teksMenit(a.menit) ?? KOSONG})`);
+  return `${t("antreMenunggu").replace("{n}", daftar.length)}: ${isi.join(", ")}`;
 }
 
 // Jawaban AutoERP yang butuh orang (batch 2.3). Server yang menggolongkan
@@ -4686,6 +4766,8 @@ $("masuk").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async
 // Tare goes through a dialog, not a column inside its row: this table is
 // rebuilt on every poll, which would wipe out anything the operator is typing.
 $("timbangan").addEventListener("click", async (ev) => {
+  const pergi = ev.target.closest("button[data-aksi='pergi']");
+  if (pergi) { kirimPergi({ weighing_id: pergi.closest("tr").dataset.id }); return; }
   const tombol = ev.target.closest("button[data-aksi='keluar']");
   if (!tombol) return;
   const baris = tombol.closest("tr").dataset;
@@ -4769,6 +4851,98 @@ $("tara-nilai").addEventListener("keydown", (ev) => {
   // Esc closes it, like any dialog: a wrongly scanned truck must not force
   // the operator to save anything.
   if (ev.key === "Escape") tutupTara();
+});
+
+// ── scan 1 dan 4: jam datang dan jam keluar gerbang (2026-09-30) ───────────
+// Cuma disimpan di PC ini, tidak naik ke AutoERP. Hasil yang bukan "tercatat" dijawab
+// 200 dengan `hasil`, jadi peringatan kuning, bukan merah: gerbangnya bekerja. Layar
+// tidak menebak tahap (D6): kolom datang selalu scan 1, kolom keluar selalu scan 4.
+function pesanGerbang(id, teks, salah = false) {
+  const el = $(id);
+  el.textContent = teks || "";
+  el.classList.toggle("salah", Boolean(teks) && salah);
+}
+
+// Mengembalikan true kalau server menjawab (hasil apa pun), supaya tombol cadangan
+// tahu pilihannya boleh dikosongkan.
+async function kirimDatang(qr) {
+  if (!qr || scanSibuk) return false;
+  scanSibuk = true;
+  try {
+    const h = await api("/api/console/arrivals", {
+      method: "POST", body: JSON.stringify({ qr, at: new Date().toISOString() }),
+    });
+    if (h.hasil === "tercatat") {
+      pesanGerbang("scan-datang-pesan", "");
+      toastSukses(`${t("sukDatang")} ${h.plate_number}`);
+    } else {
+      const teks = h.hasil === "sudah_tercatat"
+        ? t("datangSudah").replace("{jam}", waktu(h.arrived_at))
+        : t("datangMasihDiDalam");
+      pesanGerbang("scan-datang-pesan", `${teks} ${h.plate_number}`, true);
+      toastPeringatan(`${teks} ${h.plate_number}`);
+    }
+    await muatTimbangan();
+    return true;
+  } catch (e) {
+    pesanGerbang("scan-datang-pesan", alasan(e), true);
+    toastGagal(alasan(e));
+    return false;
+  } finally {
+    scanSibuk = false;
+  }
+}
+
+// `isi` = { qr } dari scanner, atau { weighing_id } dari tombol Keluar di baris tiket.
+async function kirimPergi(isi) {
+  if (scanSibuk) return;
+  scanSibuk = true;
+  try {
+    const h = await api("/api/console/departures", {
+      method: "POST", body: JSON.stringify({ ...isi, at: new Date().toISOString() }),
+    });
+    const kunci = {
+      belum_timbang_kosong: "pergiBelumKosong",
+      sudah_keluar: "pergiSudah",
+      tidak_ada_tiket: "pergiTakAdaTiket",
+    }[h.hasil];
+    const plat = h.plate_number || "";
+    if (!kunci) {
+      pesanGerbang("scan-pergi-pesan", "");
+      toastSukses(`${t("sukPergi")} ${plat}`.trim());
+    } else {
+      const teks = `${t(kunci)} ${plat}`.trim();
+      pesanGerbang("scan-pergi-pesan", teks, true);
+      toastPeringatan(teks);
+    }
+    await muatTimbangan();
+  } catch (e) {
+    pesanGerbang("scan-pergi-pesan", alasan(e), true);
+    toastGagal(alasan(e));
+  } finally {
+    scanSibuk = false;
+  }
+}
+
+$("scan-datang").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  ev.preventDefault();
+  const qr = $("scan-datang").value.trim();
+  $("scan-datang").value = "";
+  kirimDatang(qr);
+});
+
+$("datang").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
+  if (await kirimDatang($("plat-datang").dataset.nilai)) pilihNilai($("plat-datang"), "");
+  segarkanTombol();
+}));
+
+$("scan-pergi").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  ev.preventDefault();
+  const qr = $("scan-pergi").value.trim();
+  $("scan-pergi").value = "";
+  if (qr) kirimPergi({ qr });
 });
 
 // ── camera status ──────────────────────────────────────────────────────
@@ -5034,6 +5208,8 @@ function segarkanTombol() {
   $("daftar").disabled = !$("plat").value.trim();
   const timbang = $("plat-timbang");
   $("masuk").disabled = !(timbang && timbang.dataset.nilai && $("bruto").value.trim());
+  const datang = $("plat-datang");
+  $("datang").disabled = !(datang && datang.dataset.nilai);
 }
 // One pair of listeners for the whole page: dropdowns bubble `pilih`, text
 // boxes bubble `input`, and cards built in JS need no wiring of their own.
@@ -5459,9 +5635,11 @@ async function refresh() {
 
 async function muatTimbangan() {
   try {
-    const items = (await api("/api/console/weighings")).items;
-    $("timbangan").innerHTML = items.length
-      ? items.map(barisTimbangan).join("") : barisKosong(9, "kosongTiket");
+    const data = await api("/api/console/weighings");
+    const items = data.items;
+    tulisKalauBeda($("timbangan"), items.length
+      ? items.map(barisTimbangan).join("") : barisKosong(11, "kosongTiket"));
+    $("antre").textContent = teksAntre(data.waiting);
   } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
 }
 
@@ -6100,6 +6278,10 @@ function isiTrucks() {
   const opsi = [{ v: "", teks: t("pilihTruk") }]
     .concat(trucks.map((tr) => ({ v: tr.plate_number, teks: tr.plate_number || KOSONG })));
   pilih.outerHTML = komponenPilih(opsi, pilih.dataset.nilai, "plat-timbang");
+  // Scan 1 memilih dari daftar yang sama. Selalu ada di markup: `kirimScan` sampai ke
+  // sini lewat `muatTrucks()` pada setiap scan masuk.
+  const datang = $("plat-datang");
+  datang.outerHTML = komponenPilih(opsi, datang.dataset.nilai, "plat-datang");
   segarkanTombol();
 }
 

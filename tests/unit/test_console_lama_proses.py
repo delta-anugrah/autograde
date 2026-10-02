@@ -54,8 +54,8 @@ def test_baris_kosong_selebar_tabel_yang_sudah_ditambah_kolom():
     assert kolom == 1, "header tabel timbangan tidak tunggal lagi, hitungan di bawah tak sahih"
     awal = HTML.index('<th data-t="thMasuk"')
     kepala = HTML[awal : HTML.index("</thead>", awal)]
-    assert kepala.count("<th") == 9, "lebar header berubah - colspan baris kosong ikut berubah"
-    assert 'barisKosong(9, "kosongTiket")' in HTML, (
+    assert kepala.count("<th") == 11, "lebar header berubah - colspan baris kosong ikut berubah"
+    assert 'barisKosong(11, "kosongTiket")' in HTML, (
         "baris 'belum ada tiket' tidak selebar tabel timbangan"
     )
 

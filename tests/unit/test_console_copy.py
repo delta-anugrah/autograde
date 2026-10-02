@@ -122,10 +122,12 @@ def test_kalimat_layar_hanya_dari_kamus():
 
 @pytest.mark.parametrize("bahasa", ["id", "en"])
 def test_petunjuk_gerbang_keluar_menyebut_tombol_yang_ada_di_baris(bahasa):
-    """Petunjuk di sisi Truk keluar menyuruh menekan tombol di baris tiket; kata yang dipakai
-    harus tulisan tombol itu sendiri (`btnKeluar`), bukan kata lain yang tidak ada di layar."""
+    """Petunjuk di sisi 3 (timbang kosong) dan sisi 4 (keluar) menyuruh menekan tombol di
+    baris tiket; kata yang dipakai harus tulisan tombol itu sendiri (`btnTimbangKosong`,
+    `btnPergi`), bukan kata lain yang tidak ada di layar."""
     kamus = _kamus(bahasa)
-    assert kamus["btnKeluar"] in kamus["hintGerbangKeluar"], (kamus["btnKeluar"], kamus["hintGerbangKeluar"])
+    for tombol, petunjuk in (("btnTimbangKosong", "hintGerbangKeluar"), ("btnPergi", "hintPergi")):
+        assert kamus[tombol] in kamus[petunjuk], (kamus[tombol], kamus[petunjuk])
 
 
 @pytest.mark.parametrize("bahasa", ["id", "en"])
