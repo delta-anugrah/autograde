@@ -51,9 +51,6 @@ _KOLOM_JANJANG = """event_id, machine_id, line_code, timestamp, ripeness_status,
        ripeness_confidence, capture_type, image_path, grade_class,
        tp_status, tp_confidence"""
 
-#: Every assignment linked to one visit; `?` is the weighing id.
-
-
 def _saat_isi(t: str) -> str:
     """A ticket's real weigh-in instant, as SQL (user's screenshot 2026-10-02).
 
@@ -64,10 +61,12 @@ def _saat_isi(t: str) -> str:
     return f"COALESCE(julianday({t}.entered_at), julianday({t}.received_at, 'unixepoch'))"
 
 
-#: Newest ticket first. ONE order for the table, the truck's newest ticket and the unloading
-#: queue's "newer ticket" test, so the ticket a release links is the one the queue offers.
+#: Newest ticket first. ONE order for the table, the truck's newest ticket, its open tickets
+#: and the unloading queue's "newer ticket" test, so the ticket a release links is the one
+#: the queue offers and the tare lands on.
 _TERBARU_DULU = f"{_saat_isi('w')} DESC, w.received_at DESC, w.rowid DESC"
 
+#: Every assignment linked to one visit; `?` is the weighing id.
 _PENUGASAN_KUNJUNGAN = "SELECT assignment_id FROM visit_assignments WHERE weighing_id = ?"
 
 
@@ -676,9 +675,9 @@ class ConsoleStore(AkunStore, GerbangStore):
         """
         with self._lock:
             rows = self._db.execute(
-                """SELECT * FROM weighings
-                   WHERE truck_id = ? AND work_date = ? AND tare_kg IS NULL
-                   ORDER BY COALESCE(entered_at, '') DESC, received_at DESC""",
+                f"""SELECT w.* FROM weighings w
+                   WHERE w.truck_id = ? AND w.work_date = ? AND w.tare_kg IS NULL
+                   ORDER BY {_TERBARU_DULU}""",
                 (truck_id, work_date),
             ).fetchall()
         return [dict(r) for r in rows]

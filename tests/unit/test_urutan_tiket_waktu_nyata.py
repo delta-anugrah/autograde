@@ -86,3 +86,11 @@ def test_menunggu_timbang_urut_jam_datang_nyata(store):
         store.record_arrival({"id": aid, "plate_number": plat, "plate_norm": plat.replace(" ", ""),
                               "truck_id": plat, "work_date": HARI, "arrived_at": jam})
     assert [a["plate_number"] for a in store.waiting_arrivals(HARI)] == ["BE 3", "BE 2", "BE 1"]
+
+
+def test_tiket_terbuka_truk_terbaru_dulu_menurut_waktu_nyata(store):
+    """Which open ticket a tare goes to: the same order as the table and the queue."""
+    _tiket(store, "lama", "A", f"{HARI}T08:00:00+07:00")  # 01:00 UTC; as text the "newest"
+    _tiket(store, "baru", "A", f"{HARI}T01:30:00Z")
+    assert [w["id"] for w in store.open_weighings_for_truck("A", HARI)] == ["baru", "lama"]
+    assert store.latest_weighing_for_truck_since("A", _sejak()) == "baru"
