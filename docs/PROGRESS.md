@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-02 · console · Stamp console.db with a schema number (PR #TBD)
+## 2026-10-02 · console · Stamp console.db with a schema number (PR #213)
 Changed:        `repositories/console_skema.py`: `VERSI_SKEMA = 1`; `siapkan_skema()` ends with
                 `_tandai_versi()`, which raises `PRAGMA user_version` to that number and never lowers
                 it. Migrations stay `PRAGMA table_info` based (B5); the number is a marker for the
