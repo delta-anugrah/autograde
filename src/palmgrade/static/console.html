@@ -1176,7 +1176,6 @@
                          padding-top:14px; border-top:1px solid var(--line); }
   #set-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
                            background:var(--warn-bg); color:var(--warn); }
-  #set-lines:not(:empty) { color:var(--rej); }
   /* Sumber kamera: tiga kartu SEJAJAR (bukan ditumpuk) supaya layar lebar pabrik
      tidak kosong di kanan sementara Simpan terdorong jauh ke bawah. `.tools`
      ada DI LUAR baris kartu (lihat markup) supaya dia tetap satu blok penuh di
@@ -1916,7 +1915,6 @@
       <span id="set-sumber" class="muted"></span>
     </div>
     <p id="set-pesan" role="alert"></p>
-    <div id="set-lines" class="muted"></div>
   </div>
 
   <!--
@@ -2558,7 +2556,7 @@ const KAMUS = {
     tugaskanGagalLine:"{line} tidak menjawab. Tugaskan {truk} manual di kartunya",
     tugaskanTertahan:"{line} masih memegang truk {lama} yang sudah timbang kosong. Lepas di kartunya, lalu tugaskan {truk}.",
     pelepasanOtomatisGabung:"{line} dilepas otomatis karena {truk} sudah timbang kosong.",
-    setelanBelumSampai:"Belum sampai ke: {lines}",
+    setelanTersimpanSebagian:"Tersimpan. Belum sampai ke: {lines}.",
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart semua line",
     bahayaRestartTeks:"Ketiga line mati sekitar 10 detik, lalu hidup lagi. Janjang yang lewat selama itu tidak dihitung.",
@@ -2668,6 +2666,7 @@ const KAMUS = {
     toastTutup:"Tutup",
     sukTugaskan:"Truk ditugaskan di {line}", pelepasanOtomatis:"{line} dilepas otomatis karena {truk} sudah timbang kosong. Tugaskan lagi kalau bongkarnya belum selesai.", sukLepas:"Truk dilepas dari {line}",
     sukReject:"Reject manual tercatat di {line}", sukDaftar:"Truk terdaftar",
+    sukPistonBuka:"Perintah buka piston dikirim ke {line}", sukPistonTutup:"Perintah tutup piston dikirim ke {line}",
     sukMasuk:"Timbang isi tercatat", sukTara:"Timbang kosong tercatat",
     sukScan:"Truk ditemukan",
     gross_kg:"Bruto", tare_kg:"Tara",
@@ -2819,6 +2818,7 @@ const KAMUS = {
     antreanLineGalatTerakhir:"Pengiriman terakhir gagal pukul {jam}. Rinciannya di tab Log.",
     antreanLineDitolak:"{jumlah} janjang DITOLAK konsol, terakhir pukul {jam}. Tidak dibuang dan dicoba lagi tiap 10 menit, tapi tidak akan sampai sendiri, dan selama masih ada, Danger Zone dan autograde reset-data menolak menghapus data. Buka tab Log untuk sebabnya, lalu panggil teknisi (MANUAL §7).",
     antreanLineDikirimUlang:"{line}: {jumlah} janjang dijadwalkan kirim sekarang",
+    antreanDikirimUlang:"{n} pesan ke AutoERP dijadwalkan kirim ulang sekarang",
     antreanLineGagalKirimUlang:"Kirim Ulang {line} gagal pukul {jam}: {alasan}. {saran}",
     saranKunciLine:"Kunci konsol dan line itu perlu disamakan, lalu line itu direstart.",
     saranLineMati:"Periksa line itu di Diagnostik dan nyalakan lagi kalau mati.",
@@ -2879,6 +2879,7 @@ const KAMUS = {
     judulRekamVideo:"Rekam Video", kosongLine:"Belum ada line", thMajuRekam:"Terekam",
     rekamMenunggu:"Menunggu…",
     rekamSelesai:"Rekaman tersimpan di folder videos/:",
+    rekamDimulai:"Rekaman {line} dimulai", rekamDihentikan:"Rekaman {line} dihentikan",
     rekamDisimpanDi:"Disimpan di", thAksi:"Aksi",
     err_rekam_keadaan_berubah:"Keadaan line sudah berubah, layar disegarkan",
     err_rekam_disk_mepet:"Disk PC pabrik hampir penuh, rekaman tidak dimulai",
@@ -3000,7 +3001,7 @@ const KAMUS = {
     tugaskanGagalLine:"{line} did not answer. Assign {truk} by hand on its card",
     tugaskanTertahan:"{line} still holds truck {lama}, which has already weighed out. Release it on its card, then assign {truk}.",
     pelepasanOtomatisGabung:"{line} released automatically because {truk} has weighed out.",
-    setelanBelumSampai:"Not received yet by: {lines}",
+    setelanTersimpanSebagian:"Saved. Not received yet by: {lines}.",
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart all lines",
     bahayaRestartTeks:"All three lines stop for about 10 seconds, then come back. Bunches that pass during that time are not counted.",
@@ -3108,6 +3109,7 @@ const KAMUS = {
     toastTutup:"Dismiss",
     sukTugaskan:"Truck assigned on {line}", pelepasanOtomatis:"{line} was released automatically because {truk} has weighed out. Assign it again if unloading is not finished.", sukLepas:"Truck released from {line}",
     sukReject:"Manual reject recorded on {line}", sukDaftar:"Truck registered",
+    sukPistonBuka:"Open piston command sent to {line}", sukPistonTutup:"Close piston command sent to {line}",
     sukMasuk:"Weigh-in recorded", sukTara:"Weigh-out recorded",
     sukScan:"Truck found",
     gross_kg:"Gross", tare_kg:"Tare",
@@ -3250,6 +3252,7 @@ const KAMUS = {
     antreanLineGalatTerakhir:"The last send failed at {jam}. The details are in the Log tab.",
     antreanLineDitolak:"{jumlah} bunches REFUSED by the console, last at {jam}. Not dropped and retried every 10 minutes, but they will never arrive on their own, and while they remain, Danger Zone and autograde reset-data refuse to delete data. Open the Log tab for the cause, then call a technician (MANUAL §7).",
     antreanLineDikirimUlang:"{line}: {jumlah} bunches scheduled to send now",
+    antreanDikirimUlang:"{n} messages to AutoERP scheduled to resend now",
     antreanLineGagalKirimUlang:"Resend {line} failed at {jam}: {alasan}. {saran}",
     saranKunciLine:"The console and line keys need to match, then that line restarted.",
     saranLineMati:"Check that line under Diagnostics and start it again if it is down.",
@@ -3310,6 +3313,7 @@ const KAMUS = {
     judulRekamVideo:"Record Video", kosongLine:"No lines yet", thMajuRekam:"Recorded",
     rekamMenunggu:"Working…",
     rekamSelesai:"Recording saved in the videos/ folder:",
+    rekamDimulai:"Recording started on {line}", rekamDihentikan:"Recording stopped on {line}",
     rekamDisimpanDi:"Saved in", thAksi:"Action",
     err_rekam_keadaan_berubah:"The line's state changed, so the screen was refreshed",
     err_rekam_disk_mepet:"The mill PC is low on disk, so recording did not start",
@@ -4632,11 +4636,10 @@ $("lines").addEventListener("click", async (ev) => {
       await api(`/api/console/lines/${encodeURIComponent(line)}/piston`,
                 { method: "POST", body: JSON.stringify({ open: buka }) });
       await refresh();
-      // No toast here on purpose: the button itself already reports the
-      // outcome (state now driven by the PLC, `.kedip` flash on click), and
-      // the guard above already interrupted the operator with a dialog for
-      // the one case (opening) that needs their attention. A toast on top
-      // would be a third signal for the same event.
+      // Toast seperti tombol lain (user 2026-10-02: "semua action button ... kalo berhasil
+      // munculnya toast"). Katanya "perintah dikirim", bukan "piston terbuka": yang
+      // menyatakan keadaan piston tetap tombolnya sendiri, dari PLC (E-stop bisa menolak).
+      toastSukses(t(buka ? "sukPistonBuka" : "sukPistonTutup").replace("{line}", namaLine));
     } else {
       // No `requested_by`: the server records whoever holds the session (Fase 4). The
       // page used to send the literal "operator", which the server now ignores — left
@@ -6814,7 +6817,8 @@ async function muatManifest() {
 $("antrean-kirim-ulang").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   $("antrean-kirim-ulang").disabled = true;
   try {
-    await api("/api/console/dev/antrean/kirim-ulang", { method: "POST" });
+    const r = await api("/api/console/dev/antrean/kirim-ulang", { method: "POST" });
+    toastSukses(t("antreanDikirimUlang").replace("{n}", Number(r.dikirim_ulang) || 0));
     await muatAntrean();
   } catch (e) {
     // Same element the summary normally lives in - the next successful
@@ -7474,7 +7478,6 @@ async function muatSetelan() {
     labelGaris();
     $("set-sumber").textContent = t(r.sumber === "konsol" ? "setelanDariKonsol" : "setelanDariEnv");
     $("set-pesan").textContent = "";
-    $("set-lines").textContent = "";
   } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = alasan(e, "gagalSetelanMuat"); }
   await muatPenugasan();
 }
@@ -7530,13 +7533,14 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
       }),
     });
     $("set-sumber").textContent = t("setelanDariKonsol");
-    pesan.textContent = t("setelanTersimpan");
-    // Line yang tidak menjawab disebut apa adanya: nilainya SUDAH tersimpan,
-    // line itu saja yang belum menerimanya. Menyembunyikannya membuat operator
-    // mengira semua line sudah berubah.
+    // Hasilnya toast (user 2026-10-02): kotak kuning di bawah tombol terbaca seperti
+    // peringatan, dan kalimat merah di bawahnya seperti gagal, padahal simpannya berhasil.
+    // Line yang tidak menjawab tetap disebut apa adanya, dalam SATU toast peringatan:
+    // nilainya SUDAH tersimpan, line itu saja yang belum menerimanya. Menyembunyikannya
+    // membuat operator mengira semua line sudah berubah.
     const belum = (r.lines || []).filter((l) => !l.terkirim).map((l) => l.line_code);
-    $("set-lines").textContent = belum.length
-      ? t("setelanBelumSampai").replace("{lines}", belum.join(", ")) : "";
+    if (belum.length) toastPeringatan(t("setelanTersimpanSebagian").replace("{lines}", belum.join(", ")));
+    else toastSukses(t("setelanTersimpan"));
   } catch (e) {
     pesan.textContent = alasan(e, "gagalSetelan");
     // Server menyebut nama field di pesannya (SetelanTidakSah, tanpa kode); kolomnya ikut
@@ -7897,6 +7901,8 @@ $("rekam-baris").addEventListener("click", async (ev) => {
     if (stop && hasil && hasil.berkas) {
       const lokasi = rekamFolder ? `${rekamFolder}/${hasil.berkas}` : hasil.berkas;
       toastSukses(`${t("rekamSelesai")} ${lokasi}`);
+    } else {
+      toastSukses(t(mulai ? "rekamDimulai" : "rekamDihentikan").replace("{line}", kode));
     }
     await muatRekam();
   } catch (e) {
@@ -8446,9 +8452,14 @@ async function jalankanUjiPlc() {
       method: "POST",
       body: JSON.stringify({ coil }),
     }));
-    pesan(hasil.fired ? t("ujiPlcBerhasil").replace("{coil}", coil) : t("ujiPlcDijatuhkan").replace("{coil}", coil));
+    // Toast, bukan banner `#err` (user 2026-10-02): `refresh()` membersihkan banner itu
+    // dalam 2 detik, jadi hasil uji coil hilang sebelum support sempat menoleh dari PLC.
+    // Coil yang dijatuhkan antrean pulse bukan sukses: kuning, coba lagi.
+    if (hasil === undefined) return;
+    if (hasil.fired) toastSukses(t("ujiPlcBerhasil").replace("{coil}", coil));
+    else toastPeringatan(t("ujiPlcDijatuhkan").replace("{coil}", coil));
   } catch (e) {
-    if (e.kode !== "belum_masuk") pesan(gagalKarena("gagalUjiPlc", e));
+    if (e.kode !== "belum_masuk") toastGagal(gagalKarena("gagalUjiPlc", e));
   } finally {
     await muatPlcSatuLine(line_code);          // re-enables the button if the line is still idle
   }

@@ -133,5 +133,6 @@ def test_petunjuk_gerbang_keluar_menyebut_tombol_yang_ada_di_baris(bahasa):
 @pytest.mark.parametrize("bahasa", ["id", "en"])
 def test_line_yang_belum_menerima_setelan_disebut_dalam_bahasa_layar(bahasa):
     """Tab Setelan menyebut line yang belum menerima perubahan; kalimatnya ada di kedua bahasa
-    dan memberi tempat untuk daftar line (`{lines}`)."""
-    assert "{lines}" in _kamus(bahasa).get("setelanBelumSampai", "")
+    dan memberi tempat untuk daftar line (`{lines}`). Sejak 2026-10-02 satu toast peringatan
+    yang juga mengatakan nilainya sudah tersimpan."""
+    assert "{lines}" in _kamus(bahasa).get("setelanTersimpanSebagian", "")
