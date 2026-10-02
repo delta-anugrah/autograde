@@ -37,19 +37,23 @@ class GerbangStore:
         """This truck's unclaimed arrivals, every day: the caller's time window decides."""
         with self._lock:
             rows = self._db.execute(
-                "SELECT * FROM arrivals WHERE truck_id = ? AND weighing_id IS NULL", (truck_id,)
+                """SELECT * FROM arrivals WHERE truck_id = ? AND weighing_id IS NULL
+                   ORDER BY arrived_at, rowid""",
+                (truck_id,),
             ).fetchall()
         return [dict(r) for r in rows]
 
     def claim_arrival(self, arrival_id: str, weighing_id: str) -> bool:
-        """Pair one waiting arrival with one ticket. False when either side is taken: a
-        second claim is a normal race (double read at the gate), not an error."""
+        """Pair one waiting arrival with one ticket of the SAME truck. False when either
+        side is taken, the ticket is unknown or belongs to another truck: a second claim is
+        a normal race (double read at the gate), not an error."""
         with self._lock, self._db:
             cur = self._db.execute(
                 """UPDATE arrivals SET weighing_id = ?
                     WHERE id = ? AND weighing_id IS NULL
+                      AND truck_id = (SELECT truck_id FROM weighings WHERE id = ?)
                       AND NOT EXISTS (SELECT 1 FROM arrivals WHERE weighing_id = ?)""",
-                (weighing_id, arrival_id, weighing_id),
+                (weighing_id, arrival_id, weighing_id, weighing_id),
             )
         return cur.rowcount == 1
 

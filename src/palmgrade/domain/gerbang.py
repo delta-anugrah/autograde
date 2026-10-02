@@ -10,6 +10,7 @@ not the working day: a queue can cross midnight.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -39,12 +40,15 @@ def _waktu_atau_none(teks: str | None) -> datetime | None:
         return None
     try:
         return baca_waktu(teks)
-    except ValueError:
+    except (ValueError, OverflowError):
         return None
 
 
 def menit_antara(awal: str | None, akhir: str | None) -> int | None:
-    """Whole minutes from one ISO time to another, rounded like the Lama column.
+    """Whole minutes from one ISO time to another, half rounded up like the Lama column.
+
+    The screen's Lama column uses JS `Math.round` (30 s is 1 minute); Python's `round`
+    goes half to even (30 s is 0), so the rounding is spelled out here.
 
     None when either is missing or unreadable, or when the clock went backwards (a
     corrected time, an NTP jump): that is not a duration.
@@ -52,7 +56,7 @@ def menit_antara(awal: str | None, akhir: str | None) -> int | None:
     a, b = _waktu_atau_none(awal), _waktu_atau_none(akhir)
     if a is None or b is None or b < a:
         return None
-    return round((b - a).total_seconds() / 60)
+    return math.floor((b - a).total_seconds() / 60 + 0.5)
 
 
 def durasi_kunjungan(tiket: dict[str, Any]) -> dict[str, Any]:
@@ -95,14 +99,21 @@ class KeputusanKeluar:
     weighing: dict[str, Any] | None = None
 
 
+_PALING_TUA = datetime.min.replace(tzinfo=UTC)
+
+
 def _baru(waktu: datetime | None, sekarang: datetime, jendela: timedelta | None) -> bool:
+    """Inside the window. With no window the caller named the ticket, so even one
+    without a readable time counts."""
+    if jendela is None:
+        return True
     if waktu is None:
         return False
-    return jendela is None or waktu >= sekarang - jendela
+    return waktu >= sekarang - jendela
 
 
-def _terbaru(rows: list[tuple[datetime, dict[str, Any]]]) -> dict[str, Any]:
-    return max(rows, key=lambda pasangan: pasangan[0])[1]
+def _terbaru(rows: list[tuple[datetime | None, dict[str, Any]]]) -> dict[str, Any]:
+    return max(rows, key=lambda pasangan: pasangan[0] or _PALING_TUA)[1]
 
 
 def putuskan_keluar(
@@ -119,16 +130,17 @@ def putuskan_keluar(
     `jendela=None` switches the window off: the per-row button names its ticket.
     """
     sekarang = baca_waktu(at)
-    terbuka: list[tuple[datetime, dict[str, Any]]] = []
-    selesai: list[tuple[datetime, dict[str, Any]]] = []
+    terbuka: list[tuple[datetime | None, dict[str, Any]]] = []
+    selesai: list[tuple[datetime | None, dict[str, Any]]] = []
     for row in tiket:
         if row.get("tare_kg") is None:
             waktu = _waktu_atau_none(row.get("entered_at"))
             if _baru(waktu, sekarang, jendela):
                 terbuka.append((waktu, row))
         else:
-            # The scale program may send a tare without `exited_at`.
-            waktu = _waktu_atau_none(row.get("exited_at") or row.get("entered_at"))
+            # The scale program may send a tare without `exited_at`, and a corrupt
+            # `exited_at` is no better: either way the weigh-in time stands in.
+            waktu = _waktu_atau_none(row.get("exited_at")) or _waktu_atau_none(row.get("entered_at"))
             if _baru(waktu, sekarang, jendela):
                 selesai.append((waktu, row))
 

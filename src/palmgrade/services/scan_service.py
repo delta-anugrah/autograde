@@ -1,9 +1,10 @@
 """Scan a QR at the weighbridge gate: one plate in, one truck out.
 
-Two scan stages, both at the gate, both replacing **typing that genuinely
-happens**: weigh-in and weigh-out. The sorting stage is not scanned — knowing
-the hopper is empty is the line operator's call, not the driver's who just
-carries a phone, and the button is already right in front of the operator.
+Scans 2 and 3 of four (2026-09-30): weigh-in and weigh-out, both at the
+weighbridge, both replacing typing that genuinely happens. Scans 1 (arrive) and
+4 (leave) only record times and live in `GateService`, so this service can stay
+read-only. The sorting stage is not scanned: knowing the hopper is empty is the
+line operator's call, and the button is already in front of them.
 
 This layer **only searches**. It never creates a truck and never touches weight:
 

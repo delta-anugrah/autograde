@@ -164,3 +164,32 @@ def test_tara_tanpa_jam_keluar_memakai_jam_masuk():
 
 def test_jendela_dua_belas_jam():
     assert JENDELA_KEDATANGAN == JENDELA_KELUAR == timedelta(hours=12)
+
+
+# ── review fixes (Task 11) ───────────────────────────────────────────────────
+
+
+def test_menit_antara_membulat_ke_atas_seperti_kolom_lama():
+    """JS `Math.round` memberi 30 detik → 1 dan 90 detik → 2; `round` Python memberi 0 dan 2."""
+    assert menit_antara("2026-09-30T01:00:00Z", "2026-09-30T01:00:30Z") == 1
+    assert menit_antara("2026-09-30T01:00:00Z", "2026-09-30T01:01:30Z") == 2
+    assert menit_antara("2026-09-30T01:00:00Z", "2026-09-30T01:00:29Z") == 0
+    assert menit_antara("2026-09-30T01:00:00Z", "2026-09-30T01:02:30Z") == 3
+
+
+def test_tara_dengan_jam_keluar_rusak_jatuh_ke_jam_masuk():
+    tiket = [_tiket("w1", masuk="2026-09-30T01:00:00Z", keluar="bukan jam", tara=5000.0)]
+    k = putuskan_keluar(tiket, "2026-09-30T02:10:00Z")
+    assert (k.hasil, k.weighing["id"]) == (TERCATAT, "w1")
+
+
+def test_tiket_yang_ditunjuk_tanpa_jam_sama_sekali_tetap_ditutup():
+    """Tombol baris menunjuk tiketnya; jam yang kosong tidak boleh membuatnya hilang."""
+    tiket = [_tiket("w1", masuk=None, keluar=None, tara=5000.0)]
+    assert putuskan_keluar(tiket, "2026-09-30T02:10:00Z", jendela=None).hasil == TERCATAT
+    assert putuskan_keluar(tiket, "2026-09-30T02:10:00Z").hasil == TIDAK_ADA_TIKET
+
+
+def test_jam_tersimpan_di_luar_jangkauan_dilewati_bukan_meledak():
+    tiket = [_tiket("w1", masuk="0001-01-01T00:00:00+05:00", keluar=None, tara=5000.0)]
+    assert putuskan_keluar(tiket, "2026-09-30T02:10:00Z").hasil == TIDAK_ADA_TIKET

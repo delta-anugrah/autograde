@@ -146,3 +146,40 @@ def test_buka_dua_kali_tidak_mengubah_isi(tmp_path):
 
     assert lagi.weighing("w1")["left_at"] == f"{HARI}T02:10:00+00:00"
     assert [a["id"] for a in lagi.waiting_arrivals_for_truck("t2")] == ["a1"]
+
+
+# ── review fixes (Task 11) ───────────────────────────────────────────────────
+
+
+def test_kedatangan_menunggu_diurut_tertua_dulu(tmp_path):
+    store = ConsoleStore(tmp_path / "console.db")
+    _datang(store, "c", jam=f"{HARI}T00:50:00+00:00")
+    _datang(store, "a", jam=f"{HARI}T00:10:00+00:00")
+    _datang(store, "b", jam=f"{HARI}T00:30:00+00:00")
+    assert [a["id"] for a in store.waiting_arrivals_for_truck("t1")] == ["a", "b", "c"]
+
+
+def test_kedatangan_tidak_boleh_dipasangkan_ke_tiket_truk_lain(tmp_path):
+    store = ConsoleStore(tmp_path / "console.db")
+    _tiket(store, "w-lain", truck="t2")
+    _datang(store, "a1", truck="t1")
+    assert store.claim_arrival("a1", "w-lain") is False
+    assert [a["id"] for a in store.waiting_arrivals_for_truck("t1")] == ["a1"]
+    _tiket(store, "w1", truck="t1")
+    assert store.claim_arrival("a1", "w1") is True
+
+
+def test_kedatangan_tidak_dipasangkan_ke_tiket_yang_tidak_ada(tmp_path):
+    store = ConsoleStore(tmp_path / "console.db")
+    _datang(store, "a1")
+    assert store.claim_arrival("a1", "hantu") is False
+
+
+def test_hapus_transaksi_ikut_mengosongkan_kedatangan(tmp_path):
+    store = ConsoleStore(tmp_path / "console.db")
+    _tiket(store, "w1")
+    _datang(store, "a1")
+    hasil = store.hapus_data("transaksi")
+    assert hasil["arrivals"] == 1
+    assert store.arrival("a1") is None
+    assert store.waiting_arrivals_for_truck("t1") == []
