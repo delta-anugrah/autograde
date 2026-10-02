@@ -11,19 +11,21 @@ is simply "tanpa scan 1" (D4).
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from typing import Any
 
-from ..domain.gerbang import menit_antara, pilih_kedatangan
+from ..domain.gerbang import JENDELA_KEDATANGAN, masih_menunggu, menit_antara, pilih_kedatangan
+from ..domain.working_day import work_date_for
 from ..repositories.console_repository import ConsoleStore
 
 logger = logging.getLogger(__name__)
 
 
 class GerbangKonsol:
-    """Provided by `ConsoleService`: `store`."""
+    """Provided by `ConsoleService`: `store` and `tz`."""
 
     store: ConsoleStore
+    tz: tzinfo
 
     def _klaim_kedatangan(
         self, baru: bool, truck_id: str, entered_at: str | None, weighing_id: str
@@ -43,17 +45,23 @@ class GerbangKonsol:
         except Exception:  # noqa: BLE001 - the weight is the paid number, this is a statistic
             logger.exception("Klaim kedatangan gagal untuk tiket %s; timbangan tetap tersimpan", weighing_id)
 
-    def waiting_arrivals(self, work_date: str) -> list[dict[str, Any]]:
+    def waiting_arrivals(self, sekarang: datetime | None = None) -> list[dict[str, Any]]:
         """Trucks that scanned in (scan 1) and are not weighed in yet, with minutes waited.
 
-        Each row: `plate_number`, `arrived_at`, `menit`. The basis is the SERVER clock
-        (now), not the browser's: the arrival time was the browser's, so a PC clock that
-        is wrong shows here, not hidden. `menit` is whole minutes, never negative, and
-        `None` (not 0) when the stored time is unreadable or lies in the future: "0
-        minutes waited" would read as a truck that just arrived, which is a lie.
+        Each row: `plate_number`, `arrived_at`, `menit`. Chosen by the claim window back
+        from now (`masih_menunggu`), not by work date: a truck that arrived at 23:50 still
+        waits at 00:10, because its weigh-in then still claims it.
+
+        The basis is the SERVER clock (now), not the browser's: the arrival time was the
+        browser's, so a PC clock that is wrong shows here, not hidden. `menit` is whole
+        minutes, never negative, and `None` (not 0) when the stored time is unreadable or
+        lies in the future: "0 minutes waited" would read as a truck that just arrived,
+        which is a lie. `sekarang` is for tests; the route passes nothing.
         """
-        sekarang = datetime.now(UTC).isoformat()
+        nyata = sekarang or datetime.now(UTC)
+        sejak_hari = work_date_for((nyata - JENDELA_KEDATANGAN).isoformat(), self.tz)
+        jam = nyata.isoformat()
         return [
-            {**a, "menit": menit_antara(a["arrived_at"], sekarang)}
-            for a in self.store.waiting_arrivals(work_date)
+            {**a, "menit": menit_antara(a["arrived_at"], jam)}
+            for a in masih_menunggu(self.store.waiting_arrivals(sejak_hari), nyata)
         ]

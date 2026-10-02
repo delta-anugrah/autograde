@@ -57,13 +57,18 @@ class GerbangStore:
             )
         return cur.rowcount == 1
 
-    def waiting_arrivals(self, work_date: str) -> list[dict[str, Any]]:
-        """The queue at the scale: arrived that day, not weighed in yet, oldest first."""
+    def waiting_arrivals(self, sejak_hari: str) -> list[dict[str, Any]]:
+        """The queue at the scale: not weighed in yet, oldest first, from `sejak_hari` on.
+
+        The work date only narrows the read (index `idx_arrivals_hari`); the caller passes
+        the work date of "now minus the claim window" and the domain applies the window
+        itself (`masih_menunggu`), so a queue that crosses midnight stays one queue.
+        """
         with self._lock:
             rows = self._db.execute(
                 """SELECT plate_number, arrived_at FROM arrivals
-                   WHERE work_date = ? AND weighing_id IS NULL ORDER BY arrived_at""",
-                (work_date,),
+                   WHERE work_date >= ? AND weighing_id IS NULL ORDER BY arrived_at""",
+                (sejak_hari,),
             ).fetchall()
         return [dict(r) for r in rows]
 

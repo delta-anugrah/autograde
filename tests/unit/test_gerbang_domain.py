@@ -6,10 +6,13 @@ antrean pabrik bisa lewat tengah malam.
 """
 from __future__ import annotations
 
+import ast
+import inspect
 from datetime import timedelta
 
 import pytest
 
+from palmgrade.domain import gerbang
 from palmgrade.domain.gerbang import (
     BELUM_TIMBANG_KOSONG,
     JENDELA_KEDATANGAN,
@@ -23,6 +26,7 @@ from palmgrade.domain.gerbang import (
     pilih_kedatangan,
     putuskan_keluar,
 )
+from palmgrade.domain.working_day import JENDELA_KUNJUNGAN_DETIK
 
 
 def _datang(id_: str, jam: str) -> dict:
@@ -164,6 +168,21 @@ def test_tara_tanpa_jam_keluar_memakai_jam_masuk():
 
 def test_jendela_dua_belas_jam():
     assert JENDELA_KEDATANGAN == JENDELA_KELUAR == timedelta(hours=12)
+
+
+def test_jendela_gerbang_satu_angka_dengan_lama_kunjungan():
+    """Satu angka untuk "berapa lama satu kunjungan" (ketetapan Task 3): kedua jendela
+    gerbang dibangun dari `JENDELA_KUNJUNGAN_DETIK`, bukan 12 jam yang ditulis lagi."""
+    pohon = ast.parse(inspect.getsource(gerbang))
+    nilai = {
+        t.id: n.value
+        for n in pohon.body if isinstance(n, ast.Assign | ast.AnnAssign)
+        for t in (n.targets if isinstance(n, ast.Assign) else [n.target]) if isinstance(t, ast.Name)
+    }
+    for nama in ("JENDELA_KEDATANGAN", "JENDELA_KELUAR"):
+        dipakai = {x.id for x in ast.walk(nilai[nama]) if isinstance(x, ast.Name)}
+        assert dipakai & {"JENDELA_KUNJUNGAN_DETIK", "JENDELA_KEDATANGAN"}, nama
+    assert JENDELA_KEDATANGAN == timedelta(seconds=JENDELA_KUNJUNGAN_DETIK)
 
 
 # ── review fixes (Task 11) ───────────────────────────────────────────────────

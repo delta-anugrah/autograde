@@ -15,6 +15,7 @@ import pytest
 
 from palmgrade.core.config import Settings
 from palmgrade.domain import erp_messages
+from palmgrade.domain.gerbang import baca_waktu
 from palmgrade.domain.plate import truck_id_for
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.repositories.console_repository import ConsoleStore
@@ -53,10 +54,12 @@ def _pesan_visit(outbox):
 def test_empat_scan_sampai_lama_antre_dan_total(pabrik):
     service, gate, store, outbox = pabrik
     assert gate.arrive(PLAT, "2026-09-30T00:30:00+00:00")["hasil"] == "tercatat"
-    assert [a["plate_number"] for a in service.waiting_arrivals(HARI)] == ["BE4412OFL"]  # unregistered: the normalized plate
+    assert [a["plate_number"] for a in service.waiting_arrivals(baca_waktu("2026-09-30T00:40:00+00:00"))] == [
+        "BE4412OFL"  # unregistered: the normalized plate
+    ]
 
     _isi(service, "2026-09-30T01:00:00+00:00")  # claims the arrival
-    assert service.waiting_arrivals(HARI) == []
+    assert service.waiting_arrivals(baca_waktu("2026-09-30T01:05:00+00:00")) == []
     _kosong(service, "2026-09-30T01:00:00+00:00", "2026-09-30T02:00:00+00:00")
     assert gate.leave(PLAT, "2026-09-30T02:10:00+00:00")["hasil"] == "tercatat"
 

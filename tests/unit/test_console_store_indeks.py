@@ -166,7 +166,8 @@ def test_versi_lama_tetap_bisa_menulis_ke_database_berindeks(tmp_path):
 
 GERBANG_KUERI = [
     # Dibaca tiap 15 detik lewat tampilan Timbangan (antrean timbang + join jam datang).
-    (lambda s: s.waiting_arrivals(HARI), "idx_arrivals_hari (work_date=?)"),
+    # Sejak hari kerja "sekarang dikurangi jendela klaim"; jendelanya disaring di domain.
+    (lambda s: s.waiting_arrivals(HARI), "idx_arrivals_hari (work_date>?)"),
     (lambda s: s.waiting_arrivals_for_truck("t1"), "idx_arrivals_menunggu (truck_id=?)"),
     (lambda s: s.weighings_for_truck("t1"), "idx_weighings_truck (truck_id=?)"),
 ]

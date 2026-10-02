@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import FastAPI
@@ -10,6 +12,7 @@ from fastapi.testclient import TestClient
 from palmgrade.core.config import Settings
 from palmgrade.domain.operator_auth import hash_password
 from palmgrade.domain.plate import truck_id_for
+from palmgrade.domain.working_day import work_date_for
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.routes.console import get_auth_service, get_console_service, get_gate_service
 from palmgrade.routes.console import router as console_router
@@ -47,19 +50,32 @@ def test_jalur_gerbang_tertutup_tanpa_sesi(klien):
         assert klien.post(jalur, json={"qr": PLAT}).status_code == 401
 
 
+def _jam(dt):
+    return dt.isoformat().replace("+00:00", "Z")
+
+
 def test_empat_scan_satu_kunjungan(klien):
+    """Jam relatif ke sekarang: daftar "Menunggu timbang" memakai jendela klaim dari jam
+    server (Q3), jadi tanggal yang ditulis mati akan selalu di luar jendela."""
     _masuk(klien)
-    r = klien.post("/api/console/arrivals", json={"qr": PLAT, "at": "2026-09-30T00:30:00Z"})
+    t0 = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=3)
+    datang, masuk, kosong, pergi = (_jam(t0 + timedelta(minutes=m)) for m in (0, 30, 90, 100))
+    hari = work_date_for(masuk, ZoneInfo("Asia/Jakarta"))
+
+    r = klien.post("/api/console/arrivals", json={"qr": PLAT, "at": datang})
     assert r.status_code == 200 and r.json()["hasil"] == "tercatat"
-    antre = klien.get("/api/console/weighings", params={"work_date": "2026-09-30"}).json()
+    antre = klien.get("/api/console/weighings", params={"work_date": hari}).json()
     assert [a["plate_number"] for a in antre["waiting"]] == [PLAT]
+    # Yang menunggu itu selalu "sekarang", hari apa pun yang sedang dibuka tabelnya.
+    lama = klien.get("/api/console/weighings", params={"work_date": "2020-01-01"}).json()
+    assert [a["plate_number"] for a in lama["waiting"]] == [PLAT]
 
-    klien.post("/api/console/weighings", json={"plate_number": PLAT, "gross_kg": "14000", "entered_at": "2026-09-30T01:00:00Z"})
-    klien.post("/api/console/weighings", json={"plate_number": PLAT, "entered_at": "2026-09-30T01:00:00Z",
-                                               "tare_kg": "6000", "exited_at": "2026-09-30T02:00:00Z"})
-    assert klien.post("/api/console/departures", json={"qr": PLAT, "at": "2026-09-30T02:10:00Z"}).json()["hasil"] == "tercatat"
+    klien.post("/api/console/weighings", json={"plate_number": PLAT, "gross_kg": "14000", "entered_at": masuk})
+    klien.post("/api/console/weighings", json={"plate_number": PLAT, "entered_at": masuk,
+                                               "tare_kg": "6000", "exited_at": kosong})
+    assert klien.post("/api/console/departures", json={"qr": PLAT, "at": pergi}).json()["hasil"] == "tercatat"
 
-    data = klien.get("/api/console/weighings", params={"work_date": "2026-09-30"}).json()
+    data = klien.get("/api/console/weighings", params={"work_date": hari}).json()
     [tiket] = data["items"]
     assert (tiket["antre_menit"], tiket["total_menit"], tiket["tanpa_scan_1"]) == (30, 100, False)
     assert data["waiting"] == []

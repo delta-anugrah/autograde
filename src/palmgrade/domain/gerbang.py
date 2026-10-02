@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from .working_day import JENDELA_KUNJUNGAN_DETIK
+
 TERCATAT = "tercatat"
 SUDAH_TERCATAT = "sudah_tercatat"
 MASIH_DI_DALAM = "masih_di_dalam"
@@ -23,10 +25,11 @@ SUDAH_KELUAR = "sudah_keluar"
 TIDAK_ADA_TIKET = "tidak_ada_tiket"
 
 #: How far back a weigh-in looks for its truck's arrival: a peak-season queue fits,
-#: yesterday's turned-away truck is not read as a twenty-hour wait.
-JENDELA_KEDATANGAN = timedelta(hours=12)
-#: How far back scan 4 looks for the ticket it closes. Same reasoning, same size.
-JENDELA_KELUAR = timedelta(hours=12)
+#: yesterday's turned-away truck is not read as a twenty-hour wait. The length of a
+#: visit, one number for the whole console (`JENDELA_KUNJUNGAN_DETIK`).
+JENDELA_KEDATANGAN = timedelta(seconds=JENDELA_KUNJUNGAN_DETIK)
+#: How far back scan 4 looks for the ticket it closes. Same reasoning, same number.
+JENDELA_KELUAR = timedelta(seconds=JENDELA_KUNJUNGAN_DETIK)
 
 
 def baca_waktu(teks: str) -> datetime:
@@ -89,6 +92,25 @@ def pilih_kedatangan(
     if not cocok:
         return None
     return max(cocok, key=lambda pasangan: pasangan[0])[1]
+
+
+def masih_menunggu(
+    calon: list[dict[str, Any]], sekarang: datetime, jendela: timedelta = JENDELA_KEDATANGAN
+) -> list[dict[str, Any]]:
+    """The unclaimed arrivals a weigh-in now could still claim: the "Menunggu timbang" list.
+
+    The same window as `pilih_kedatangan`, never the work date: a truck that arrived at
+    23:50 is still waiting at 00:10, because its 00:10 weigh-in still claims it. A time
+    later than now (a PC clock ahead) is kept, and so is an unreadable one: shown with an
+    unknown wait, never hidden.
+    """
+    batas = sekarang - jendela
+    hasil = []
+    for row in calon:
+        datang = _waktu_atau_none(row.get("arrived_at"))
+        if datang is None or datang >= batas:
+            hasil.append(row)
+    return hasil
 
 
 @dataclass(frozen=True)

@@ -370,7 +370,8 @@ def console_weighings(
     return {
         "work_date": resolved_date,
         "items": service.weighings(resolved_date, limit=limit),
-        "waiting": service.waiting_arrivals(resolved_date),
+        # "Who is waiting at the scale" is always now, whatever day the table shows.
+        "waiting": service.waiting_arrivals(),
     }
 
 

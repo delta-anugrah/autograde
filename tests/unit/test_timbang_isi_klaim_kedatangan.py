@@ -10,6 +10,7 @@ import pytest
 
 from palmgrade.core.config import Settings
 from palmgrade.domain.erp_messages import visit_message
+from palmgrade.domain.gerbang import baca_waktu
 from palmgrade.domain.plate import truck_id_for
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.services.console_service import ConsoleService
@@ -124,7 +125,7 @@ def test_keluar_gerbang_tidak_mengantre_kiriman_erp(pabrik):
 def test_antrean_timbang_dari_service_membawa_menit(pabrik):
     service, gate, _, _ = pabrik
     gate.arrive(PLAT, "2026-09-30T00:30:00+00:00")
-    [a] = service.waiting_arrivals("2026-09-30")
+    [a] = service.waiting_arrivals(baca_waktu("2026-09-30T00:40:00+00:00"))
     assert a["plate_number"] == "BE4412OFL"
     assert isinstance(a["menit"], int) and a["menit"] >= 0
 
