@@ -18,6 +18,16 @@ Next:           ...
 
 ---
 
+## 2026-10-02 · docs · The manual smoke run needs the workflow on main (PR #n)
+Changed:        `docs/rules.md` (batch 4.2 bullet) and the `image-smoke.yml` header say the Run
+                workflow button exists only once `image-smoke.yml` is on `main`: GitHub offers
+                manual runs for workflows on the default branch, and this repository's default
+                branch on GitHub is `main` (checked: `gh workflow view image-smoke.yml` answers 404
+                "not found on the default branch" after #210 merged to `staging`).
+Validated:      doc tests (links, em dash) pass.
+Not validated:  nothing else; no behaviour change.
+Next:           trial run at the batch 4 release PR, before the `v1.22.0` tag.
+
 ## 2026-10-02 · ci · Smoke-test the image before it gets its release tag (PR #210)
 Changed:        Batch 4.2. The factory and demo builds push only `candidate-vX.Y.Z[-cpu]`. New
                 `image-smoke.yml` pulls that digest on a fresh runner: `scripts/smoke_image.py`

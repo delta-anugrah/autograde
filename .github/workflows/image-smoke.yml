@@ -10,6 +10,8 @@ name: Smoke Test AutoGrade Image
 # Manual run (trial mode): smoke any image that already exists, for example
 # `ghcr.io/delta-anugrah/autograde:v1.21.0-cpu`. It only reads: no tag is written,
 # this workflow has no `packages: write`.
+# The Run workflow button appears only once this file is on `main`, the repository's
+# default branch on GitHub; until the first release PR after batch 4.2 it is not there.
 
 on:
   workflow_call:
