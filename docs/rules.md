@@ -1274,7 +1274,7 @@ memang khas satu mesin.
   `promote` menyalin digest yang sama ke `vX.Y.Z` + `latest` (demo: `vX.Y.Z-cpu`) dengan
   `docker buildx imagetools create`, tanpa build ulang. Smoke gagal = tidak ada tag rilis,
   pabrik tetap di versi lama; tag kandidat tertinggal di registry dan tidak dibaca siapa pun
-  (launcher cuma membaca `latest`). Uji coba tanpa rilis: Actions, **Smoke Test AutoGrade
+  (launcher cuma membaca `latest`). Uji coba tanpa rilis (baru bisa sesudah `image-smoke.yml` ada di `main`: branch default repo di GitHub adalah `main`, dan GitHub cuma menawarkan Run workflow untuk workflow di branch default): Actions, **Smoke Test AutoGrade
   Image**, Run workflow, isi image yang sudah ada (misalnya
   `ghcr.io/delta-anugrah/autograde:v1.21.0-cpu`, versi `v1.21.0`, label `v1.21.0-cpu`, centang
   demo); workflow ini cuma membaca, tidak punya izin tulis. Variabel `E2E_WAJIB=1` membuat test
