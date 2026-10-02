@@ -24,6 +24,7 @@ from palmgrade.services.gate_service import GateService
 EMAIL = "gerbang@pks.test"
 SANDI = "timbangan2026"
 PLAT = "BE 4412 OFL"
+ANEH = "TNI 1234-00"  # registered, but not plate-shaped (Q2)
 
 
 @pytest.fixture
@@ -31,6 +32,7 @@ def klien(tmp_path):
     store = ConsoleStore(tmp_path / "console.db")
     store.upsert_operator_manual({"email": EMAIL, "full_name": "Operator Gerbang", "password_hash": hash_password(SANDI)})
     store.upsert_truck({"id": truck_id_for(PLAT), "plate_number": PLAT, "status": "active"})
+    store.upsert_truck({"id": truck_id_for(ANEH), "plate_number": ANEH, "status": "active"})
     service = ConsoleService(replace(Settings(), factory_tz="Asia/Jakarta"), store, None)
     app = FastAPI()
     app.include_router(console_router)
@@ -120,6 +122,19 @@ def test_bukan_plat_dijawab_kode_operator(klien):
     assert r.status_code == 400 and _kode(r) == "bukan_plat"
     r = klien.post("/api/console/arrivals", json={})
     assert r.status_code == 400 and _kode(r) == "plat_kosong"
+
+
+def test_truk_terdaftar_berplat_menyimpang_catat_datang_dari_dropdown(klien):
+    """Dropdown "Catat datang" mengirim plat truk terdaftar; bentuknya menyimpang tapi
+    trucknya dikenal, jadi dicatat, bukan "Yang di-scan bukan nomor polisi"."""
+    _masuk(klien)
+    jam = _jam(datetime.now(UTC).replace(microsecond=0) - timedelta(minutes=5))
+    r = klien.post("/api/console/arrivals", json={"qr": ANEH, "at": jam})
+    assert r.status_code == 200, r.text
+    assert (r.json()["hasil"], r.json()["plate_number"]) == ("tercatat", ANEH)
+    assert [a["plate_number"] for a in klien.get("/api/console/weighings").json()["waiting"]] == [ANEH]
+    r = klien.post("/api/console/arrivals", json={"qr": "TNI 9999-00"})
+    assert r.status_code == 400 and _kode(r) == "bukan_plat"
 
 
 def test_tombol_baris_keluar_lewat_weighing_id(klien):

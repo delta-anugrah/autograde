@@ -99,6 +99,41 @@ def test_datang_bukan_plat_ditolak_tanpa_menulis(gate, store, isi):
     assert store.waiting_arrivals("2026-09-30") == []
 
 
+# Q2 (review akhir Part 3): truk TERDAFTAR yang platnya tidak berbentuk plat biasa
+# (plat dinas, plat lama) bisa ditimbang dari dropdown yang sama, jadi "Catat datang"
+# juga harus menerimanya. Yang tidak dikenal dan tidak berbentuk plat tetap ditolak.
+ANEH = "TNI 1234-00"
+
+
+def _daftar(store, plat=ANEH):
+    store.upsert_truck({"id": truck_id_for(plat), "plate_number": plat, "status": "active"})
+
+
+def test_truk_terdaftar_berplat_menyimpang_bisa_datang(gate, store):
+    _daftar(store)
+    h = gate.arrive(ANEH, "2026-09-30T01:00:00+00:00")
+    assert (h["hasil"], h["plate_number"]) == ("tercatat", ANEH)
+    [baris] = store.waiting_arrivals_for_truck(truck_id_for(ANEH))
+    assert baris["plate_norm"] == "TNI123400"
+
+
+def test_truk_terdaftar_berplat_menyimpang_bisa_keluar_lewat_qr(gate, store):
+    _daftar(store)
+    _selesai(store, "w1", "2026-09-30T01:00:00+00:00", "2026-09-30T02:00:00+00:00", plat=ANEH)
+    h = gate.leave(ANEH, "2026-09-30T02:10:00+00:00")
+    assert (h["hasil"], h["weighing_id"]) == ("tercatat", "w1")
+
+
+def test_bentuk_menyimpang_yang_tidak_terdaftar_tetap_bukan_plat(gate, store):
+    for scan in (lambda: gate.arrive(ANEH, "2026-09-30T01:00:00+00:00"),
+                 lambda: gate.leave(ANEH, "2026-09-30T02:10:00+00:00")):
+        with pytest.raises(OperatorError) as e:
+            scan()
+        assert e.value.code == BUKAN_PLAT
+    assert store.trucks() == []
+    assert store.waiting_arrivals_for_truck(truck_id_for(ANEH)) == []
+
+
 def test_datang_kosong_ditolak(gate):
     with pytest.raises(OperatorError) as e:
         gate.arrive("   ", "2026-09-30T01:00:00+00:00")

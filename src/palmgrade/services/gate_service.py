@@ -8,9 +8,9 @@ Nothing here reaches AutoERP: this service has no queue at all, and the visit me
 (`domain/erp_messages.py`) picks its fields one by one. A truck that is not registered
 can still arrive: the arrival keys on the truck id derived from the plate.
 
-Failures the route turns into a 4xx: a scan that is not a plate (`BUKAN_PLAT`,
-`PLAT_KOSONG`) and a clock that cannot be read (`INPUT_TIDAK_SAH`, field `at`). Both are
-`OperatorError`, and `InvalidInput` is also a `ValueError`. Refusals that are not
+Failures the route turns into a 4xx: a scan that is neither plate-shaped nor a registered
+truck (`BUKAN_PLAT`, `PLAT_KOSONG`) and a clock that cannot be read (`INPUT_TIDAK_SAH`,
+field `at`). Both are `OperatorError`, and `InvalidInput` is also a `ValueError`. Refusals that are not
 mistakes (`masih_di_dalam`, `belum_timbang_kosong`, ...) are answers, not exceptions.
 """
 from __future__ import annotations
@@ -34,7 +34,7 @@ from ..domain.gerbang import (
     pilih_kedatangan,
     putuskan_keluar,
 )
-from ..domain.operator_error import INPUT_TIDAK_SAH, InvalidInput
+from ..domain.operator_error import BUKAN_PLAT, INPUT_TIDAK_SAH, InvalidInput
 from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.qr import baca_qr
 from ..domain.working_day import work_date_for
@@ -76,8 +76,27 @@ class GateService:
             raise InvalidInput(INPUT_TIDAK_SAH, f"jam tidak terbaca: {teks!r}", field="at") from exc
         return teks
 
+    def _plat(self, qr_text: str) -> str:
+        """The scan as a normalised plate. A REGISTERED truck is accepted whatever its shape.
+
+        `baca_qr` refuses what is not plate-shaped, so a stray QR never adds a ghost truck.
+        A registered truck with an odd plate (service plate, old plate, approved in
+        AutoERP) is no ghost: it can be weighed in from the same dropdown, so refusing its
+        arrival would make it "tanpa scan 1" forever (finding Q2). Rule 20 holds: the QR
+        still carries only the plate. Unknown and not plate-shaped stays `BUKAN_PLAT`.
+        """
+        try:
+            return baca_qr(qr_text)
+        except InvalidInput as exc:
+            if exc.code != BUKAN_PLAT:
+                raise
+            plat = normalisasi_plat(qr_text)
+            if self.store.truck(truck_id_for(plat)) is None:
+                raise
+            return plat
+
     def arrive(self, qr_text: str, at: Any = None) -> dict[str, Any]:
-        plate = baca_qr(qr_text)
+        plate = self._plat(qr_text)
         waktu = self._waktu(at)
         with self._kunci:
             return self._datang(plate, waktu)
@@ -121,7 +140,7 @@ class GateService:
             keputusan = putuskan_keluar([row], waktu, jendela=None)
             plate = row.get("plate_number")
         else:
-            plate = baca_qr(qr_text or "")
+            plate = self._plat(qr_text or "")
             keputusan = putuskan_keluar(self.store.weighings_for_truck(truck_id_for(plate)), waktu)
 
         tiket = keputusan.weighing or {}
