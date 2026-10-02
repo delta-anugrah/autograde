@@ -28,7 +28,7 @@ Validated:      pytest unit 3935 passed / 28 skipped; integration 127 passed; e2
                 20 skipped; `ruff check src tests` clean.
 Not validated:  an older image opening a stamped file on the factory PC (Tahap 2 rollback step).
 Decisions:      the number is never lowered, so a rollback to an older image keeps it.
-Next:           sawit launcher PR (batch 4.5 health gate + console.db backup), installed over
+Next:           sawit launcher PR #73 (batch 4.5 health gate + console.db backup), installed over
                 AnyDesk before tag `v1.22.0`.
 
 ## 2026-10-02 · docs · The manual smoke run needs the workflow on main (PR #211)
