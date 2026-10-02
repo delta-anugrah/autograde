@@ -16,6 +16,7 @@ mistakes (`masih_di_dalam`, `belum_timbang_kosong`, ...) are answers, not except
 from __future__ import annotations
 
 import logging
+import threading
 import uuid
 from datetime import UTC, datetime, tzinfo
 from typing import Any
@@ -48,6 +49,11 @@ class GateService:
     def __init__(self, store: ConsoleStore, tz: tzinfo) -> None:
         self.store = store
         self.tz = tz
+        # One lock around each check-then-write. The routes are plain `def`, so two scans
+        # of one QR run on two pool threads: without it both could read "nobody waiting"
+        # (browser times differ, so the ids differ) and insert two waiting arrivals, or
+        # both close one ticket. One instance per process (`get_gate_service`).
+        self._kunci = threading.Lock()
 
     def _waktu(self, at: Any) -> str:
         """The browser's clock, like weigh-in and weigh-out. Server UTC only when absent.
@@ -73,6 +79,10 @@ class GateService:
     def arrive(self, qr_text: str, at: Any = None) -> dict[str, Any]:
         plate = baca_qr(qr_text)
         waktu = self._waktu(at)
+        with self._kunci:
+            return self._datang(plate, waktu)
+
+    def _datang(self, plate: str, waktu: str) -> dict[str, Any]:
         truck_id = truck_id_for(plate)
         tampil = (self.store.truck(truck_id) or {}).get("plate_number") or plate
 
@@ -99,6 +109,10 @@ class GateService:
         self, qr_text: str | None = None, at: Any = None, weighing_id: str | None = None
     ) -> dict[str, Any]:
         waktu = self._waktu(at)
+        with self._kunci:
+            return self._keluar(qr_text, waktu, weighing_id)
+
+    def _keluar(self, qr_text: str | None, waktu: str, weighing_id: str | None) -> dict[str, Any]:
         if weighing_id:
             # The per-row button names its ticket: no window, nothing to search.
             row = self.store.weighing(weighing_id)

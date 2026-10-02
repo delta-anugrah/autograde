@@ -32,7 +32,15 @@ from ..domain.setelan_grading import SetelanTidakSah
 from ..domain.setelan_rekam import SetelanRekamTidakSah
 from ..domain.sumber_kamera import SumberTidakSah
 from ..integrations.notifications.line_client import LinePlcTolak, LineUnavailable
-from ..schemas.console_schema import AutoAssignBody, LoginBody, ManualTruckBody, ScanBody, WeighingBody
+from ..schemas.console_schema import (
+    ArrivalBody,
+    AutoAssignBody,
+    DepartureBody,
+    LoginBody,
+    ManualTruckBody,
+    ScanBody,
+    WeighingBody,
+)
 from ..services.bahaya_service import BahayaDitolak, BahayaSemuaMenolak, BahayaTidakSah
 from ..services.dev_service import CoilTidakDikenal, PlcSibuk
 from ..services.impor_grading_service import ImporDitolak, ImporTidakAda
@@ -42,12 +50,13 @@ from ..services.riwayat_service import RiwayatService
 # Wiring and guards live in console_deps.py. The `x as x` form re-exports them:
 # tests override these by identity and have imported them from here since Fase 4.
 from .console_deps import SESSION_COOKIE as SESSION_COOKIE
-from .console_deps import Admin, Auth, Bahaya, Dev, Impor, Operator, Riwayat, Scan, Service, Support
+from .console_deps import Admin, Auth, Bahaya, Dev, Gate, Impor, Operator, Riwayat, Scan, Service, Support
 from .console_deps import _operator_error as _operator_error
 from .console_deps import get_auth_service as get_auth_service
 from .console_deps import get_bahaya_service as get_bahaya_service
 from .console_deps import get_console_service as get_console_service
 from .console_deps import get_dev_service as get_dev_service
+from .console_deps import get_gate_service as get_gate_service
 from .console_deps import get_impor_grading_service as get_impor_grading_service
 from .console_deps import get_operator_admin as get_operator_admin
 from .console_deps import get_riwayat_service as get_riwayat_service
@@ -297,6 +306,33 @@ async def console_scan_exit(
         raise _operator_error(400, exc) from exc
 
 
+@router.post("/api/console/arrivals")
+def console_arrival(gate: Gate, operator: Operator, payload: ArrivalBody) -> dict:
+    """Scan 1 (2026-09-30): the truck reached the gate. Recorded on this PC only.
+
+    Every outcome of a readable request is 200 with `hasil`, like the other scan lanes:
+    a truck scanned twice, or one still in the yard, is the gate doing its job. A plain
+    `def` (rule 30): it only does synchronous SQLite work, so it runs in the thread pool.
+    """
+    try:
+        return gate.arrive(payload.qr or "", payload.at)
+    except (OperatorError, ValueError) as exc:
+        raise _operator_error(400, exc) from exc
+
+
+@router.post("/api/console/departures")
+def console_departure(gate: Gate, operator: Operator, payload: DepartureBody) -> dict:
+    """Scan 4 (2026-09-30): the truck leaves the gate. Recorded on this PC only.
+
+    A truck not yet weighed out is answered `belum_timbang_kosong` and nothing is
+    written: that warning is what scan 4 is for.
+    """
+    try:
+        return gate.leave(payload.qr or "", payload.at, weighing_id=(payload.weighing_id or "").strip() or None)
+    except (OperatorError, ValueError) as exc:
+        raise _operator_error(400, exc) from exc
+
+
 @router.get("/api/console/trucks/{plate_number}/qr.png", include_in_schema=False)
 async def console_truck_qr(plate_number: str, operator: Operator) -> Response:
     """The QR card image for one plate, built here rather than in the browser.
@@ -331,7 +367,11 @@ def console_weighings(
     limit: int = Query(100, ge=1, le=500),
 ) -> dict:
     resolved_date = work_date or service.today()
-    return {"work_date": resolved_date, "items": service.weighings(resolved_date, limit=limit)}
+    return {
+        "work_date": resolved_date,
+        "items": service.weighings(resolved_date, limit=limit),
+        "waiting": service.waiting_arrivals(resolved_date),
+    }
 
 
 @router.get("/api/console/recap")

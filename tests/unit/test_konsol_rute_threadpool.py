@@ -65,6 +65,10 @@ class _Service:
         self.catatan.tandai("weighings")
         return []
 
+    def waiting_arrivals(self, *_a, **_k) -> list:
+        self.catatan.tandai("weighings")
+        return []
+
     def recap(self, *_a, **_k) -> list:
         self.catatan.tandai("recap")
         return []

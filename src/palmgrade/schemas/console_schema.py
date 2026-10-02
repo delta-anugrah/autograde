@@ -35,6 +35,21 @@ class ScanBody(_Body):
     qr: str | None = None
 
 
+class ArrivalBody(_Body):
+    """Scan 1 (2026-09-30). `at` is the browser clock; the domain checks it."""
+
+    qr: str | None = None
+    at: str | None = None
+
+
+class DepartureBody(_Body):
+    """Scan 4: the scanner sends `qr`, the per-row button sends `weighing_id`."""
+
+    qr: str | None = None
+    weighing_id: str | None = None
+    at: str | None = None
+
+
 class WeighingBody(_Body):
     """The manual lane of the scale program's shape (`record_weighing`)."""
 

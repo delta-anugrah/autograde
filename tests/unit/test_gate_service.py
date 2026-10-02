@@ -222,3 +222,57 @@ def test_gerbang_tidak_pernah_menyentuh_berat(gate, store):
     gate.arrive(PLAT, "2026-09-30T03:00:00+00:00")
     gate.leave(PLAT, "2026-09-30T02:10:00+00:00")
     assert {k: store.weighing("w1")[k] for k in ("gross_kg", "tare_kg", "net_kg")} == sebelum
+
+
+# ── dua scan hampir bersamaan (ruling: satu kunci di sekeliling cek-lalu-tulis) ──
+
+
+def _serempak(fungsi, jumlah=2):
+    import threading
+
+    hasil, kesalahan = [None] * jumlah, []
+
+    def jalan(i):
+        try:
+            hasil[i] = fungsi(i)
+        except Exception as exc:  # noqa: BLE001 - the test reports it
+            kesalahan.append(exc)
+
+    utas = [threading.Thread(target=jalan, args=(i,)) for i in range(jumlah)]
+    for u in utas:
+        u.start()
+    for u in utas:
+        u.join(10)
+    assert not kesalahan, kesalahan
+    return hasil
+
+
+def test_dua_scan_datang_serempak_dengan_jam_beda_hanya_satu_baris(gate, store, monkeypatch):
+    import time
+
+    asli = store.waiting_arrivals_for_truck
+
+    def lambat(truck_id):
+        baris = asli(truck_id)
+        time.sleep(0.15)  # the window between "nobody waiting" and the insert
+        return baris
+
+    monkeypatch.setattr(store, "waiting_arrivals_for_truck", lambda t: lambat(t))
+    jam = ("2026-09-30T00:30:00+00:00", "2026-09-30T00:30:05+00:00")
+    hasil = _serempak(lambda i: gate.arrive(PLAT, jam[i]))
+    assert sorted(h["hasil"] for h in hasil) == ["sudah_tercatat", "tercatat"]
+    assert len(asli(truck_id_for(PLAT))) == 1
+
+
+def test_dua_scan_keluar_serempak_menulis_sekali(gate, store, monkeypatch):
+    import time
+
+    _selesai(store, "w1", "2026-09-30T01:00:00+00:00", "2026-09-30T02:00:00+00:00")
+    asli = store.weighings_for_truck
+    monkeypatch.setattr(store, "weighings_for_truck", lambda t: (lambda r: (time.sleep(0.15), r)[1])(asli(t)))
+    jam = ("2026-09-30T02:10:00+00:00", "2026-09-30T02:10:07+00:00")
+    hasil = _serempak(lambda i: gate.leave(PLAT, jam[i]))
+    assert sorted(h["hasil"] for h in hasil) == ["sudah_keluar", "tercatat"]
+    assert store.weighing("w1")["left_at"] in jam
+    pencatat = [h for h in hasil if h["hasil"] == "tercatat"][0]
+    assert store.weighing("w1")["left_at"] == pencatat["left_at"]

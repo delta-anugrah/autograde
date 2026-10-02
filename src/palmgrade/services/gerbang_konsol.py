@@ -46,10 +46,14 @@ class GerbangKonsol:
     def waiting_arrivals(self, work_date: str) -> list[dict[str, Any]]:
         """Trucks that scanned in (scan 1) and are not weighed in yet, with minutes waited.
 
-        Each row: `plate_number`, `arrived_at`, `menit` (whole minutes, never negative).
+        Each row: `plate_number`, `arrived_at`, `menit`. The basis is the SERVER clock
+        (now), not the browser's: the arrival time was the browser's, so a PC clock that
+        is wrong shows here, not hidden. `menit` is whole minutes, never negative, and
+        `None` (not 0) when the stored time is unreadable or lies in the future: "0
+        minutes waited" would read as a truck that just arrived, which is a lie.
         """
         sekarang = datetime.now(UTC).isoformat()
         return [
-            {**a, "menit": menit_antara(a["arrived_at"], sekarang) or 0}
+            {**a, "menit": menit_antara(a["arrived_at"], sekarang)}
             for a in self.store.waiting_arrivals(work_date)
         ]
