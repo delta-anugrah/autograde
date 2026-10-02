@@ -18,6 +18,37 @@ Next:           ...
 
 ---
 
+## 2026-10-02 · console · Four gate scans (PR pending)
+Changed:        Part 3 of the scan work. The Timbangan tab has four labelled steps: 1 Datang
+                (truck dropdown + Catat datang, or QR when the scanner exists), 2 Timbang isi,
+                3 Timbang kosong, 4 Keluar (per-row button, or QR). Scans 1 and 4 live only in
+                AutoGrade (`arrivals` table, `weighings.left_at`), written only by
+                `services/gate_service.py`, never sent to AutoERP (rule 37). Weigh-in claims the
+                truck's newest waiting arrival (same truck, within 12 h). New routes
+                `POST /api/console/arrivals` and `POST /api/console/departures` (Operator);
+                `GET /api/console/weighings` adds `waiting` and per-ticket `arrived_at`, `left_at`,
+                `antre_menit`, `total_menit`, `tanpa_scan_1`. Table columns Antre and Total; no scan
+                1 reads "tanpa scan 1", never "0 mnt"; null minutes show a dash. Keluar before the
+                weigh-out is refused and writes nothing. Bad times answer 400 `input_tidak_sah`.
+                The four QR inputs stay hidden until a scanner is bought. The demo seeder seeds gate
+                times (about 10% without scan 1). Row button column pinned on the right. Docs: rule
+                20 rewritten and rule 37 added (`docs/rules.md`, `CLAUDE.md` §3),
+                `docs/backend-overview.md`, `docs/MANUAL.md` v2.3 (+ PDF), `docs/overview.md`, skill
+                `konsol-autograde`. Step words "Timbang masuk/keluar" became "Timbang isi/kosong".
+Validated:      `pytest tests/unit tests/e2e tests/integration` → 4593 passed, 45 skipped, 0 failed.
+                `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
+                110 passed. Doc guards (em dash, manual, skill mirror) → 53 passed.
+                `scripts/md_to_pdf.py docs/MANUAL.md` → 38 pages, "1. Datang" present, "Timbang masuk" gone.
+Not validated:  No manual browser check at 1920/1440/1280/1024 px and no hand-started console
+                (the browser suite covers the four widths in both engines). Not pushed, no PR yet.
+Risks:          Naive timestamps are read as UTC: the future scale/PLC lane must send offset-aware
+                times. The live "waiting N min" compares the server clock with the browser's
+                arrival time, so a wrong PC clock shows there. A ticket first written tare-only
+                never claims its arrival. The scanner is not bought yet, so the QR inputs are hidden
+                and only the dropdown and row buttons are exercised in the field.
+Next:           Push `feat/gate-scans`, open the PR 3 to `staging`, then the sawit-repo docs
+                (`ALUR-TIMBANGAN-AUTOGRADE-AUTOERP.md`, `PERTANYAAN-TERBUKA.md` S6).
+
 ## 2026-10-02 · console · Automatic line assignment (PR #212)
 Changed:        Part 2 of the scan work. With the support-only switch on, a truck that weighs in goes
                 onto the chosen lines by itself (`isi_line_otomatis`, `services/penugasan_otomatis.py`,

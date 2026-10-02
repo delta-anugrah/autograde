@@ -214,7 +214,7 @@ end of this file.
     mewarisi janjang tiket pertama. Kolom lama `weighings.assignment_id` tetap ditulis supaya
     image lama masih jalan setelah rollback. Tiketnya dicari lewat **jendela waktu**
     (`JENDELA_KUNJUNGAN_DETIK`, 12 jam sejak tiket diterima konsol), bukan hari kerja: hari kerja
-    berganti pukul 00:00, kunjungan tidak. Timbang keluar melepas semua line truk itu lebih dulu
+    berganti pukul 00:00, kunjungan tidak. Timbang kosong melepas semua line truk itu lebih dulu
     dan mengantre kunjungannya **sekali** sesudahnya: AutoERP memfinalisasi tiket begitu bobot dan
     grading sama-sama ada, jadi pesan di antara dua pelepasan akan membukukan sebagian line.
     Kriteria: mentah = REJ, tangkai panjang = ACC dengan `tp_confidence > 0.8`, matang
@@ -288,11 +288,9 @@ end of this file.
     gagal. `trucks_semua()` dipakai, bukan `trucks()`: yang terakhir menyembunyikan baris
     `inactive`, dan baris inactive ber-id lama tetap akan kembar begitu platnya ditarik.
 20. **Scan QR: isinya nomor plat, tidak lebih** (keputusan operator 2026-09-15).
-    **Dua** tahap scan, dua-duanya di gerbang timbangan (masuk + keluar), karena cuma
-    di situ scan menggantikan ketikan yang sungguhan ada. Tahap sortir **tidak**
-    di-scan: yang tahu bak sudah kosong itu operator line, bukan supir yang datang
-    membawa HP, dan tombol Lepas sudah ada di depan mata operator. Empat scan menambah
-    dua langkah tanpa menambah satu data pun.
+    **Empat** tahap scan sejak 2026-09-30 (aturan 37): datang, timbang isi, timbang
+    kosong, keluar. Tahap sortir tetap **tidak** di-scan: yang tahu bak sudah kosong itu
+    operator line, dan tombol Lepas sudah ada di depan mata operator.
     **QR isinya cuma plat ternormalisasi** (`domain/qr.py`). Bukan seluruh data truk:
     supplier dan nama sopir berubah di ERP **sesudah** QR dicetak, jadi QR yang
     membawanya jadi bohong tanpa ada yang tahu, dan nama sopir itu data pribadi yang
@@ -316,7 +314,7 @@ end of this file.
     menyembunyikan kamera, tally, tab, dan tabel: tanpa itu puluhan lembar terbuang
     sebelum kartu pertama muncul.
     **Kolom scan di tab Timbangan** (disembunyikan dengan `hidden` sampai scanner dibeli;
-    sampai saat itu plat dipilih dari daftar dan tara lewat **Timbang keluar** di baris
+    sampai saat itu plat dipilih dari daftar dan tara lewat **Timbang kosong** di baris
     tiket) mengisi plat lalu memindahkan kursor ke Bruto,
     itu satu sentuhan layar yang dihemat per truk, dan itulah gunanya scan. Enter
     datang dari scanner sendiri (scanner = papan ketik), jadi tidak ada tombol; kolomnya
@@ -1184,6 +1182,27 @@ end of this file.
     `{terpasang: false, tertahan: true, plate_lama}` dan layar memunculkan toast
     `tugaskanTertahan` dengan kedua plat. Lepas pada line yang mati dijawab 502: begitu line
     itu menjawab lagi, Lepas di kartunya lalu tugaskan truk yang menunggu.
+
+37. **Jam gerbang: scan 1 dan 4 tinggal di PC pabrik** (keputusan user 2026-09-30).
+    Scan 1 (truk datang) menulis tabel `arrivals`; scan 4 (truk keluar gerbang) menulis
+    `weighings.left_at`. Penulisnya cuma `GateService` (`services/gate_service.py`);
+    `ScanService` tetap cuma mencari dan `record_weighing` tetap satu-satunya penulis berat.
+    Keduanya **tidak pernah** masuk pesan AutoERP: AutoERP cuma kenal tiga tahap, dan
+    `erp_messages` memilih field satu per satu. Tiket BARU mengklaim kedatangan truknya di
+    `record_weighing`, bukan di jalur scan, supaya tiket dari dropdown plat atau program
+    timbangan juga dapat waktu antrenya. Pencarian pakai jendela 12 jam (`domain/gerbang.py`),
+    bukan hari kerja: antrean bisa lewat tengah malam. Scan 1 **boleh terlewat**: kolom Antre
+    menulis "tanpa scan 1", bukan 0 menit, dan Total dihitung dari timbang isi. Menit yang
+    kosong tampil strip, bukan 0. Menitnya dihitung backend (`durasi_kunjungan`). Scan 4 atas
+    truk yang belum timbang kosong **ditolak dan diperingatkan**, tidak ditulis. Tiap tahap
+    punya kolom sendiri karena konsol tidak bisa menebak ini scan ke berapa.
+    Rute: `POST /api/console/arrivals {qr, at}` dan `POST /api/console/departures
+    {qr?, weighing_id?, at}` (Operator); jam salah dijawab 400 `input_tidak_sah`.
+    ⚠️ Jam datang dan jam keluar berasal dari jam browser; stempel tanpa zona dibaca sebagai
+    UTC, jadi jalur timbangan atau PLC kelak wajib mengirim jam dengan offset. ⚠️ Tulisan
+    "menunggu N menit" yang hidup membandingkan jam server dengan jam browser saat datang.
+    ⚠️ Tiket yang pertama kali ditulis langsung dengan tara tidak pernah mengklaim
+    kedatangannya. ⚠️ Empat kolom QR tetap `hidden` sampai scanner dibeli.
 
 ---
 

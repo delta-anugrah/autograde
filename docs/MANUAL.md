@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.2"
+versi: "2.3"
 tanggal: 2 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -170,9 +170,10 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   menggerakkan besi sungguhan.
 - Sumber TBS **Internal** ditandai "REJ tidak dibuang": buah kebun sendiri tetap dinilai, tapi
   piston tidak membuangnya.
-- Kolom scan QR **Truk masuk** dan **Truk keluar** di baris alat tab Timbangan baru muncul
-  sesudah scanner barcode dipasang; sampai saat itu keduanya disembunyikan. Plat dipilih dari
-  daftar **Pilih Truk**, dan timbang keluar lewat tombol **Timbang keluar** di baris tiket (§3.3).
+- Empat kolom di baris alat tab Timbangan: **1. Datang**, **2. Timbang isi**, **3. Timbang
+  kosong**, **4. Keluar**. Kolom scan QR muncul setelah scanner dipasang; sebelum itu pakai
+  pilihan truk (Datang) dan tombol di baris tabel (Timbang kosong, Keluar). Plat dipilih dari
+  daftar **Pilih Truk** (§3.3).
 
 ### 3.3 Alur satu kunjungan truk
 
@@ -182,12 +183,14 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 
 | # | Kejadian | Yang dilakukan di konsol | Yang dikirim ke AutoERP |
 |---|---|---|---|
-| 1 | Truk tiba | Pilih plat di daftar **Pilih Truk** (sesudah scanner dipasang: scan kartu QR di kolom **Truk masuk**). Truk belum dikenal → **Daftar truk manual** di tab Truk (cukup plat) | truk baru (`upsert_truck`) |
-| 2 | Timbang masuk | Tab **Timbangan** → **Timbang masuk**: plat + bruto (kg). Berat di bawah 1.000 kg ditolak | tahap `gate`: bruto + jam masuk |
+| 1 | Truk tiba | Scan QR di kolom **1. Datang** (boleh terlewat; tanpa scanner pilih truknya lalu tekan **Catat datang**). Truk belum dikenal → **Daftar truk manual** di tab Truk (cukup plat) | truk baru (`upsert_truck`); jam datang tidak dikirim |
+| 2 | Timbang isi | Di timbangan scan di kolom **2. Timbang isi** atau pilih plat, isi bruto (kg). Berat di bawah 1.000 kg ditolak | tahap `gate`: bruto + jam masuk |
 | 3 | Bongkar | Kartu line → **Tugaskan** → pilih truk. Janjang berikutnya dicatat atas nama truk itu. Kalau penugasan otomatis dinyalakan support, langkah ini jalan sendiri (lihat di bawah tabel) | - |
 | 4 | Selesai bongkar | **Lepas** di kartu line | tahap `grading`: total, ACC, REJ, persen |
-| 5 | Timbang keluar | Tombol **Timbang keluar** di baris tiket truk itu → isi tara (sesudah scanner dipasang: scan QR di kolom **Truk keluar**; dua tiket terbuka → konsol menolak menebak, pilih di tabel) | tahap `departed`: tara + jam keluar |
+| 5 | Timbang kosong dan keluar | Scan QR di kolom **3. Timbang kosong** atau tekan **Timbang kosong** di baris truknya, isi tara. Di gerbang, scan di kolom **4. Keluar** atau tekan **Keluar** di barisnya. Truk yang belum timbang kosong ditolak dengan peringatan. Dua tiket terbuka → konsol menolak menebak, pilih di tabel | tahap `departed`: tara + jam keluar (jam keluar gerbang tidak ikut) |
 | 6 | AutoERP | - | neto = bruto − tara, potongan, harga, Purchase Receipt |
+
+Kolom **Antre** = datang sampai timbang isi; "tanpa scan 1" artinya scan datang terlewat. **Total** = datang sampai keluar gerbang. Jam datang dan jam keluar cuma disimpan di PC pabrik, tidak dikirim ke AutoERP. Kalau jamnya belum ada, kolomnya menulis strip, bukan "0 mnt". Truk yang sudah dicatat datang tapi belum ditimbang tampil di baris **Menunggu timbang** di atas tabel.
 
 **Penugasan otomatis** (bawaannya mati; support yang menyalakannya di tab **Setelan**). Selama
 mati, layar sama seperti sebelumnya: tidak ada strip antrean, truk ditugaskan lewat kartu line.
@@ -237,7 +240,7 @@ Aturan angka yang dijaga konsol:
 |---|---|---|
 | **Grading** | riwayat janjang: waktu, line, truk, sumber, hasil, kelas, confidence, foto | filter per line/truk, pagination, klik foto → tampilan besar |
 | **Truk** | master truk + supplier + asal data (ERP / manual) | **Daftar truk manual**, **Cetak QR truk** (kartu QR berisi plat, dibuat di server) |
-| **Timbangan** | tiket hari kerja: masuk, keluar, bruto, tara, neto | **Timbang masuk**, isi tara lewat **Timbang keluar** di baris tiket |
+| **Timbangan** | tiket hari kerja: masuk, keluar, bruto, tara, neto, antre, total | **Datang**, **Timbang isi**, lalu **Timbang kosong** dan **Keluar** di baris tiket |
 | **Rekap** | grading per truk dan per hari, untuk hari ini atau hari-hari sebelumnya (paling panjang 31 hari). Dibuka di **Hari ini, Per truk**: satu baris per truk, ini yang diserahkan ke supplier | ganti tanggal untuk hari sebelumnya, **Unduh CSV**, **Impor CSV** untuk akun support; rinciannya di bawah |
 
 > Angka keyakinan ada di tabel Grading, tapi **tidak** digambar di kotak janjang pada layar
@@ -850,6 +853,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.3 | 2 Oktober 2026 | Empat tahap scan (§3.2, §3.3 dan §3.4): **1. Datang**, **2. Timbang isi**, **3. Timbang kosong**, **4. Keluar**; kolom **Antre** dan **Total** di tabel Timbangan, jam datang dan keluar hanya disimpan di PC pabrik. |
 | 2.2 | 2 Oktober 2026 | Penugasan line otomatis (§3.3 dan §3.5): truk yang timbang isi ditugaskan ke line sendiri, truk berikutnya menunggu di **Antrean bongkar** sampai timbang kosong, tombol **Tugaskan sekarang** dan **Lewati**, dan saklar **Penugasan line** di tab Setelan (support, bawaan mati; selama mati layar tidak berubah dan strip antrean tidak tampil). §7: notifikasi line yang tidak menjawab dan line yang masih memegang truk yang sudah keluar. |
 | 2.1 | 1 Oktober 2026 | §3.2 sampai §3.4 mengikuti layar sekarang: kolom scan QR disembunyikan sampai scanner dipasang, plat dipilih dari daftar, tara lewat tombol **Timbang keluar** di baris tiket (petunjuk di layar kini menyebut nama tombol itu). Scan yang menemukan truk yang belum ada di daftar layar memuat ulang daftarnya dulu, dan truk yang dinonaktifkan disebut nonaktif. Tab Setelan: line yang belum menerima perubahan ditulis dalam bahasa layar. Tabel Rekap tidak lagi melebarkan halaman di layar 1024 px. |
 | 2.0 | 30 September 2026 | Log line dan konsol bertanda jam zona pabrik dan kode line; konsol kini menulis ke `docker logs` dan galat 500 masuk tab Log; PLC, kamera, dan AutoERP yang putus cuma dicatat saat putus dan saat pulih; `LOG_LEVEL` bisa diatur. Tab Log menampilkan galat ketiga line (tetap ada walau line direstart), traceback, dan jam pertama muncul; galat penting bisa dilaporkan otomatis ke Discord. Kartu line merah FRAME_BERHENTI kalau kamera tersambung tapi berhenti mengirim gambar; video uji yang selesai tidak lagi terbaca rusak; satu pita disk di atas kartu saat disk hampir penuh atau kritis; kartu Diagnostik memakai fps terukur, umur frame, disk, lisensi, dan status sambungan PLC. |
