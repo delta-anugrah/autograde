@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.4"
+versi: "2.5"
 tanggal: 2 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -170,10 +170,18 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   menggerakkan besi sungguhan.
 - Sumber TBS **Internal** ditandai "REJ tidak dibuang": buah kebun sendiri tetap dinilai, tapi
   piston tidak membuangnya.
-- Empat kolom di baris alat tab Timbangan: **1. Datang**, **2. Timbang isi**, **3. Timbang
-  kosong**, **4. Keluar**. Kolom scan QR muncul setelah scanner dipasang; sebelum itu pakai
-  pilihan truk (Datang) dan tombol di baris tabel (Timbang kosong, Keluar). Plat dipilih dari
+- Empat kartu langkah di atas tabel Timbangan: **1. Datang**, **2. Timbang isi**, **3. Timbang
+  kosong**, **4. Keluar**, satu baris dan sama tinggi di layar lebar, bertumpuk di layar sempit.
+  Kolom scan QR muncul setelah scanner dipasang; sebelum itu pakai pilihan truk (Datang) dan
+  tombol di baris tabel (Timbang kosong, Keluar); kartu 3 dan 4 menulis petunjuknya di kotak
+  bergaris putus. Setelah **Timbang kosong** ditekan, plat truknya tampil di samping judul
+  kartu 3, dan kolom **Tara**, **Simpan**, **Batal** berjajar satu baris. Plat dipilih dari
   daftar **Pilih Truk** (§3.3).
+- Warna tombol sama di semua tab: **hijau penuh** = aksi utama langkah itu (Catat datang,
+  Timbang isi, Simpan); **merah muda** = membatalkan, menghapus, mereset, melepas, atau keluar
+  dari akun (Batal, Lepas, Keluar di bar atas, tombol Danger Zone); **merah pekat** = eksekusi
+  terakhir yang tidak bisa diurungkan. Setiap aksi yang berhasil menjawab lewat notifikasi
+  hijau di pojok kanan bawah; kuning kalau tersimpan tapi belum sampai ke semua line.
 
 ### 3.3 Alur satu kunjungan truk
 
@@ -316,9 +324,9 @@ Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riw
 | **Akun** | semua akun yang bisa masuk konsol di PC ini: nama, email, role, asal (**Lokal** / **AutoERP**), status (Aktif / Mati / Terkunci), sedang masuk atau tidak. **Tambah akun** membuat akun **Lokal** baru (nama, email, role, sandi minimal 8 karakter); akun ini cuma ada di PC ini dan **tidak masuk ke AutoERP**. Tiap akun Lokal punya tombol **Ganti sandi** (semua sesinya langsung berakhir), **Matikan / Aktifkan**, dan **Jadikan support / operator**; di baris akunmu sendiri cuma Ganti sandi. Akun AutoERP tidak punya tombol: diurus di AutoERP. **Sandi tidak bisa dilihat**: yang disimpan cuma hash-nya. Lupa sandi: akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ±5 menit), akun Lokal dengan Ganti sandi. Tiap perubahan tercatat di tab Log beserta siapa yang mengubah |
 | **Line** → Sumber Kamera | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik); kotak kamera line itu menulis "sedang dinyalakan ulang" sampai gambarnya muncul lagi (§3.2) |
 | **Line** → Model Deteksi | pilih model YOLO tiap line dari berkas di `models/release/`. Tiap model menampilkan **kelasnya** dan status engine TensorRT; model yang kelasnya bukan `Ripe/Unripe/JK/TP` tampil tapi tidak bisa dipilih. Kartu line menunjukkan model yang **sedang jalan** menurut line itu sendiri, beserta kelasnya, **merah** kalau bukan empat kelas itu, artinya line tidak menghitung janjang. Simpan membuka **modal konfirmasi** yang menyebut line yang akan restart (~10 detik) dan truk yang sedang diproses di situ. Bawaan PC = `MODEL_FILE` di `.env`. Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md` |
-| **Line** → Uji PLC | tombol uji coil per line (OK hijau, NG merah, Error kuning, alamat M di tiap tombol) + kartu peta alamat PLC di bawahnya. Mati saat line memproses truk; konfirmasi tombol Jalankan/Batal; heartbeat (M1009) sengaja tidak ada |
+| **Line** → Uji PLC | tombol uji coil per line (OK hijau, NG merah, Error kuning, alamat M di tiap tombol) + kartu peta alamat PLC di bawahnya. Mati saat line memproses truk; konfirmasi tombol Jalankan/Batal; hasilnya notifikasi (hijau coil menyala, kuning coil tidak menyala karena antrean pulse PLC penuh); heartbeat (M1009) sengaja tidak ada |
 | **Line** → Rekam Video | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi (lebar × tinggi) diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya**, mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **FPS mengikuti sumbernya, tidak diatur dari layar** (kolom FPS dan Bitrate dicabut 2026-09-25, dua-duanya tidak pernah sampai ke berkas): berkas video memakai laju aslinya, kamera Hikrobot memakai `CAMERA_FPS`. Itu yang membuat durasi rekaman sama dengan lama menekan Record. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari folder yang tertulis di kaki layar (`Disimpan di …`, di PC pabrik `/opt/palmgrade/autograde/videos/`). Sesudah menekan Stop, jalur lengkap berkasnya juga muncul sekali di notifikasi hijau. Stop menulis dulu gambar yang sudah antre saat tombol ditekan (paling banyak 30 gambar; di Mac sekitar 0,6 detik, belum diukur di Lampung); yang berhenti karena disk mepet tetap berhenti seketika. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
-| **Setelan** | ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`. Tab paling kanan. Di bawahnya **Penugasan line**: saklar otomatis dan line yang dipakai, dengan tombol simpan sendiri. Bawaannya mati |
+| **Setelan** | ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`; notifikasi hijau kalau semua line menerimanya, kuning yang menyebut line yang belum menerima (nilainya tetap tersimpan dan dikirim lagi saat line itu hidup). Tab paling kanan. Di bawahnya **Penugasan line**: saklar otomatis dan line yang dipakai, dengan tombol simpan sendiri. Bawaannya mati |
 
 ### 3.6 Layar penuh di PC pabrik
 
@@ -870,6 +878,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.5 | 2 Oktober 2026 | §3.2: empat langkah Timbangan jadi kartu sendiri yang sejajar dan sama tinggi; Tara, Simpan, Batal satu baris dengan plat di judul kartu 3; petunjuk kartu 3 dan 4 di kotak bergaris putus. Satu bahasa warna tombol (hijau aksi utama, merah muda batal/hapus/lepas, merah pekat eksekusi terakhir). Setiap aksi yang berhasil menjawab lewat notifikasi, juga Simpan di tab Setelan (dulu kotak kuning), Uji PLC, Kirim Ulang antrean ERP, mulai rekam, dan piston. |
 | 2.4 | 2 Oktober 2026 | Tab Timbangan (§3.3): kolom **Status** dengan lencana tahap (Datang, Bongkar, Timbang kosong, Selesai) berwarna sama dengan judul langkahnya; truk yang menunggu jadi baris paling atas dan bagian **Menunggu timbang** di dropdown **2. Timbang isi**; tabel urut timbang isi terbaru menurut jam sebenarnya; "tanpa scan 1" kuning; empat langkah satu baris mulai sekitar 1.330 px dan petunjuk desimal di bawah Bruto. Simpan **Penugasan line** di tab Setelan kini menjawab lewat notifikasi. |
 | 2.3 | 2 Oktober 2026 | Empat tahap scan (§3.2, §3.3 dan §3.4): **1. Datang**, **2. Timbang isi**, **3. Timbang kosong**, **4. Keluar**; kolom **Antre** dan **Total** di tabel Timbangan, jam datang dan keluar hanya disimpan di PC pabrik. **Menunggu timbang** bertahan lewat tengah malam (12 jam) dan tidak lagi menggeser kolom lain; truk terdaftar berplat tak biasa bisa dicatat datang. Kata langkah lama (timbang masuk, timbang keluar) diganti di §3.3, §3.4, §7 dan glosarium. |
 | 2.2 | 2 Oktober 2026 | Penugasan line otomatis (§3.3 dan §3.5): truk yang timbang isi ditugaskan ke line sendiri, truk berikutnya menunggu di **Antrean bongkar** sampai timbang kosong, tombol **Tugaskan sekarang** dan **Lewati**, dan saklar **Penugasan line** di tab Setelan (support, bawaan mati; selama mati layar tidak berubah dan strip antrean tidak tampil). §7: notifikasi line yang tidak menjawab dan line yang masih memegang truk yang sudah keluar. |
