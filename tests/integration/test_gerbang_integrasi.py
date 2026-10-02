@@ -28,6 +28,7 @@ from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.services.console_service import ConsoleService
 from palmgrade.services.erp_queue import ErpQueue
 from palmgrade.services.gate_service import GateService
+from palmgrade.services.scan_service import ScanService
 
 PLAT = "BE 4412 OFL"
 HARI = "2026-09-30"
@@ -216,3 +217,35 @@ def test_tampilan_timbangan_satu_kunjungan_per_tahap(pabrik):
     [c] = [w for w in items if w["plate_number"] == "BE 3 CC"]
     assert gate.leave(at="2026-09-30T02:00:00Z", weighing_id=c["id"])["hasil"] == "tercatat"
     assert {w["plate_number"]: w["tahap"] for w in service.weighings(HARI)}["BE 3 CC"] == TAHAP_SELESAI
+
+
+def test_kunjungan_lewat_tengah_malam_selesai_dan_tetap_di_harinya(pabrik):
+    """Task 2026-10-02 ("benerin"): datang 23:40, timbang isi 23:50, scan keluar dan tara
+    00:10, keluar gerbang 00:20 hari kalender berikutnya. Tiket ditemukan dan tetap di
+    tabel hari ini sampai keluar, tapi total hari, kirim ulang harian dan pesan AutoERP
+    tetap milik 30 September."""
+    service, gate, store, outbox = pabrik
+    hari_2 = "2026-10-01"
+    service.sekarang = lambda: baca_waktu("2026-09-30T16:50:00Z")  # 23:50 WIB
+    gate.arrive(PLAT, "2026-09-30T23:40:00+07:00")
+    row = _isi(service, "2026-09-30T23:50:00+07:00")
+    assert row["work_date"] == HARI
+
+    service.sekarang = lambda: baca_waktu("2026-10-01T00:10:00+07:00")
+    assert service.today() == hari_2
+    scan = ScanService(store).open_ticket("BE4412OFL", service.sekarang())
+    assert scan["ditemukan"] is True and scan["weighing"]["id"] == row["id"]
+    keluar = _kosong(service, scan["weighing"]["entered_at"], "2026-10-01T00:10:00+07:00")
+    assert (keluar["net_kg"], keluar["work_date"]) == (8000.0, HARI)
+    [tiket] = service.weighings(hari_2)
+    assert (tiket["id"], tiket["tahap"], tiket["antre_menit"]) == (row["id"], TAHAP_TIMBANG_KOSONG, 10)
+
+    assert gate.leave(PLAT, "2026-10-01T00:20:00+07:00")["hasil"] == "tercatat"
+    assert service.weighings(hari_2) == []
+    assert [w["tahap"] for w in service.weighings(HARI)] == [TAHAP_SELESAI]
+
+    assert store.ringkasan_timbangan(HARI) == {"tiket": 1, "menunggu_tara": 0, "neto_kg": 8000.0}
+    assert store.ringkasan_timbangan(hari_2) == {"tiket": 0, "menunggu_tara": 0, "neto_kg": 0}
+    assert store.weighing_ids_on(HARI) == [row["id"]] and store.weighing_ids_on(hari_2) == []
+    pesan = _pesan_visit(outbox)
+    assert pesan and {m.payload["weighing"]["time_in"] for m in pesan} == {"2026-09-30T23:50:00+07:00"}

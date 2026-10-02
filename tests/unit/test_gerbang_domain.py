@@ -124,6 +124,16 @@ def test_tiket_selesai_tanpa_jam_keluar_ditutup():
     assert (k.hasil, k.weighing["id"]) == (TERCATAT, "w1")
 
 
+def test_scan_4_lewat_tengah_malam_menutup_tiket_2350():
+    """Timbang isi 23:50, timbang kosong 00:10, keluar 00:20 hari kalender berikutnya."""
+    tiket = [_tiket("w1", masuk="2026-09-30T23:50:00+07:00", keluar="2026-10-01T00:10:00+07:00", tara=6000.0)]
+    k = putuskan_keluar(tiket, "2026-10-01T00:20:00+07:00")
+    assert (k.hasil, k.weighing["id"]) == (TERCATAT, "w1")
+    # Belum timbang kosong pukul 00:20: peringatan scan 4, bukan "tidak ada tiket".
+    tiket = [_tiket("w2", masuk="2026-09-30T23:50:00+07:00")]
+    assert putuskan_keluar(tiket, "2026-10-01T00:20:00+07:00").hasil == BELUM_TIMBANG_KOSONG
+
+
 def test_tiket_terbuka_menang_atas_tiket_selesai():
     tiket = [
         _tiket("lama", masuk="2026-09-30T00:00:00Z", keluar="2026-09-30T00:50:00Z", tara=5000.0),

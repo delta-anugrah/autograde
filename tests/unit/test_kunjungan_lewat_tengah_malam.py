@@ -26,10 +26,10 @@ from palmgrade.services.gate_service import GateService
 from palmgrade.services.scan_service import ScanService
 
 WIB = ZoneInfo("Asia/Jakarta")
-HARI_1 = "2026-10-02"
-HARI_2 = "2026-10-03"
+HARI_1 = "2026-09-20"
+HARI_2 = "2026-09-21"
 #: 00:10 WIB on the second calendar day: twenty minutes after the 23:50 weigh-in.
-SEKARANG = datetime(2026, 10, 3, 0, 10, tzinfo=WIB)
+SEKARANG = datetime(2026, 9, 21, 0, 10, tzinfo=WIB)
 PLAT = "BE 4412 OFL"
 
 
