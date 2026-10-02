@@ -612,11 +612,14 @@ def dev_penugasan_baca(service: Service, operator: Support) -> dict:
 
 
 @router.post("/api/console/dev/auto-assign")
-def dev_penugasan_simpan(service: Service, operator: Support, payload: AutoAssignBody) -> dict:
+async def dev_penugasan_simpan(service: Service, operator: Support, payload: AutoAssignBody) -> dict:
     """Support only, like the grading settings: this decides which truck the bunches are
-    counted to. Every change is logged WARNING with who made it."""
+    counted to. Every change is logged WARNING with who made it.
+
+    `async def` (rule 30): saved on, a truck already waiting goes onto the free lines
+    right away, and that asks the lines. The answer's `dipasang` says where."""
     try:
-        return service.simpan_penugasan_otomatis(
+        return await service.simpan_penugasan_lalu_isi(
             payload.aktif, payload.lines, diubah_oleh=operator["email"]
         )
     except InvalidInput as exc:

@@ -88,6 +88,14 @@ class PenugasanOtomatis:
         )
         return self.penugasan_otomatis()
 
+    async def simpan_penugasan_lalu_isi(
+        self, aktif: bool | None, lines: list[str] | None, *, diubah_oleh: str
+    ) -> dict[str, Any]:
+        """Save, then fill: a truck already waiting while the lines are free goes on now,
+        not at the next weighing or Lepas. Off fills nothing (`isi_line_otomatis` checks)."""
+        setelan = self.simpan_penugasan_otomatis(aktif, lines, diubah_oleh=diubah_oleh)
+        return {**setelan, "dipasang": await self.isi_line_otomatis()}
+
     def antrean_bongkar(self) -> list[dict[str, Any]]:
         """Trucks weighed in and waiting for the lines, with how long, for the screen."""
         sekarang = time.time()

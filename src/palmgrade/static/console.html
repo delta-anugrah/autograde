@@ -7125,10 +7125,12 @@ $("set-penugasan-simpan").addEventListener("click", (ev) => denganSibuk(ev.curre
   try {
     const lines = [...document.querySelectorAll("#set-otomatis-lines input[data-line]:checked")]
       .map((el) => el.dataset.line);
-    await api("/api/console/dev/auto-assign", {
+    const r = await api("/api/console/dev/auto-assign", {
       method: "POST", body: JSON.stringify({ aktif: $("set-otomatis").checked, lines }),
     });
     pesan.textContent = t("penugasanTersimpan");
+    // Disimpan nyala: truk yang sudah menunggu langsung naik ke line yang bebas.
+    umumkanPasang(r.dipasang);
     await refresh();
   } catch (e) {
     pesan.textContent = alasan(e, "gagalSetelan");

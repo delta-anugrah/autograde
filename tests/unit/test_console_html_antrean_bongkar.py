@@ -146,6 +146,7 @@ def test_simpan_penugasan_memakai_kalimatnya_sendiri():
     awal = HTML.index('$("set-penugasan-simpan").addEventListener("click"')
     blok = HTML[awal : HTML.index("\n}));", awal)]
     assert 't("penugasanTersimpan")' in blok and "setelanTersimpan" not in blok
+    assert "umumkanPasang(r.dipasang)" in blok, "simpan nyala bisa langsung memasang truk"
     assert "denganSibuk(" in blok
 
 

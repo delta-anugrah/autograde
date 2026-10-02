@@ -497,6 +497,22 @@ def test_lewati_truk_yang_sudah_di_line_ditolak(service):
     assert service.store.weighing(wid_a)["unloading_queue_skipped_at"] is None
 
 
+def test_simpan_saklar_nyala_mengisi_line_saat_itu_juga(service):
+    """Truk yang menunggu sejak saklar mati naik begitu support menyimpan saklar nyala."""
+    _isi(service, "BE 1 AA")
+    hasil = asyncio.run(service.simpan_penugasan_lalu_isi(True, LINES, diubah_oleh="support@pks.test"))
+    assert hasil["aktif"] is True
+    assert [d["line_code"] for d in hasil["dipasang"] if d["terpasang"]] == LINES
+    assert _plat_di_line(service) == {"BE 1 AA"}
+
+
+def test_simpan_saklar_mati_tidak_mengisi_line(service):
+    _isi(service, "BE 1 AA")
+    hasil = asyncio.run(service.simpan_penugasan_lalu_isi(False, LINES, diubah_oleh="support@pks.test"))
+    assert hasil["aktif"] is False and hasil["dipasang"] == []
+    assert _plat_di_line(service) == set()
+
+
 def test_setelan_tersimpan_dan_terbaca(service):
     assert service.penugasan_otomatis()["aktif"] is False
     _nyalakan(service, ["line-2"])

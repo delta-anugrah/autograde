@@ -227,28 +227,30 @@ def test_lepas_on_the_last_line_puts_the_next_truck_on(halaman, konsol, browser_
         expect(_kartu(halaman, kode).locator(".truk")).not_to_contain_text(a)
 
 
-def test_switch_off_strip_reads_manual_and_assign_now_still_works(halaman, browser_name, penugasan_bersih):
+def test_switch_off_hides_the_strip_and_saving_it_on_puts_the_waiting_truck_on(
+    halaman, konsol, browser_name, penugasan_bersih
+):
+    """D13: with the switch off the screen is what it was before this release, so no strip
+    (the per-line dropdown is the manual way). Saving the switch on from Setelan puts the
+    truck already waiting onto the free chosen lines at once, and says so."""
     b = plat(browser_name, 1110)
     masuk(halaman, SUPPORT)
     _daftar(halaman, b)
     _isi(halaman, b)
-    strip = halaman.locator("#antrean-bongkar")
-    expect(strip.locator(".lb")).to_have_text(kamus(halaman, "antreanBongkarManual"))
+    antre = halaman.request.get(konsol.url + "/api/console/state").json()["antrean_bongkar"]
+    assert [a["plate_number"] for a in antre] == [b], antre
+    halaman.evaluate("() => refresh()")
+    expect(halaman.locator("#antrean-bongkar")).to_be_hidden()
     for kode in _TIGA_LINE:
         expect(_kartu(halaman, kode).locator(".truk")).not_to_contain_text(b)
 
-    halaman.click("#bahasa")
-    expect(strip.locator(".lb")).to_have_text("Unloading queue")
-    halaman.click("#bahasa")
-    expect(strip.locator(".lb")).to_have_text(kamus(halaman, "antreanBongkarManual"))
-
-    _antre(halaman, b).locator('button[data-aksi="pasang"]').click()
-    toasts = halaman.locator("#toasts")
-    expect(toasts).to_contain_text(_ditugaskan(halaman, b, _DUA_LINE))
-    expect(toasts).to_contain_text(
-        kamus(halaman, "tugaskanGagalLine").replace("{line}", _nama(halaman, "line-3")).replace("{truk}", b)
-    )
-    expect(strip).to_be_hidden()
+    buka_tab(halaman, "setelan")
+    halaman.check("#set-otomatis")
+    halaman.uncheck('#set-otomatis-lines input[data-line="line-3"]')
+    halaman.click("#set-penugasan-simpan")
+    expect(halaman.locator("#set-penugasan-pesan")).to_have_text(kamus(halaman, "penugasanTersimpan"))
+    expect(halaman.locator("#toasts")).to_contain_text(_ditugaskan(halaman, b, _DUA_LINE))
     for kode in _DUA_LINE:
         expect(_kartu(halaman, kode).locator(".truk")).to_contain_text(b)
     _kosong(halaman, b)
+

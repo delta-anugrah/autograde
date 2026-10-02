@@ -89,6 +89,27 @@ def test_nyalakan_lalu_timbang_isi_memasang_truk(konsol):
     assert [d["line_code"] for d in hasil["dipasang"]] == ["line-1", "line-2"]
 
 
+def test_simpan_nyala_langsung_memasang_truk_yang_menunggu(konsol):
+    """Truk yang sudah menunggu saat support menyalakan saklar naik saat itu juga, tidak
+    menunggu timbangan atau Lepas berikutnya; jawabannya bilang ke mana."""
+    app, _ = konsol
+    _isi(_masuk(app, OPERATOR), "BE 1 AA")
+    support = _masuk(app, SUPPORT)
+    r = support.post("/api/console/dev/auto-assign", json={"aktif": True, "lines": ["line-1", "line-2"]})
+    assert r.status_code == 200, r.text
+    assert [(d["line_code"], d["plate_number"]) for d in r.json()["dipasang"]] == [
+        ("line-1", "BE 1 AA"), ("line-2", "BE 1 AA"),
+    ]
+    assert support.get("/api/console/state").json()["antrean_bongkar"] == []
+
+
+def test_simpan_mati_tidak_memasang_apa_pun(konsol):
+    app, _ = konsol
+    _isi(_masuk(app, OPERATOR), "BE 1 AA")
+    r = _masuk(app, SUPPORT).post("/api/console/dev/auto-assign", json={"aktif": False, "lines": ["line-1"]})
+    assert r.status_code == 200 and r.json()["dipasang"] == []
+
+
 @pytest.mark.parametrize(
     ("body", "kode"),
     [
