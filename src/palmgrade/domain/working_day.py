@@ -14,6 +14,11 @@ from datetime import UTC, datetime, tzinfo
 
 #: A visit, weigh-in to release, never lasts longer; the work date flips at midnight, this does not.
 JENDELA_KUNJUNGAN_DETIK = 12 * 60 * 60
+#: How long a ticket that HAS its tare waits for its Keluar (scan 4) before the visit counts
+#: as finished "tanpa scan 4" (user 2026-10-03), counted from the weigh-out. Longer than the
+#: visit window on purpose: a tared ticket's net is final, so waiting longer risks nothing,
+#: while an UNTARED ticket kept past 12 h could take tomorrow's tare and pay a wrong net.
+JENDELA_TANPA_KELUAR_DETIK = 24 * 60 * 60
 
 
 def awal_kunjungan(sekarang: datetime) -> float:

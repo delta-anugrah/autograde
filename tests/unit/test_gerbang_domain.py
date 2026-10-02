@@ -166,9 +166,15 @@ def test_tiket_di_luar_jendela_tidak_ikut():
     assert putuskan_keluar(tiket, "2026-09-30T02:10:00Z").hasil == TIDAK_ADA_TIKET
 
 
-def test_tanpa_jendela_tiket_lama_tetap_ditutup():
-    tiket = [_tiket("w1", masuk="2026-09-28T01:00:00Z", keluar="2026-09-28T02:00:00Z", tara=5000.0)]
+def test_tanpa_jendela_tiket_dari_kemarin_tetap_ditutup():
+    tiket = [_tiket("w1", masuk="2026-09-29T08:00:00Z", keluar="2026-09-29T09:00:00Z", tara=5000.0)]
     assert putuskan_keluar(tiket, "2026-09-30T02:10:00Z", jendela=None).hasil == TERCATAT
+
+
+def test_tanpa_jendela_tiket_lewat_24_jam_sudah_selesai():
+    """User 2026-10-03: after 24 h the visit counts as finished "tanpa scan 4"."""
+    tiket = [_tiket("w1", masuk="2026-09-28T01:00:00Z", keluar="2026-09-28T02:00:00Z", tara=5000.0)]
+    assert putuskan_keluar(tiket, "2026-09-30T02:10:00Z", jendela=None).hasil == SUDAH_KELUAR
 
 
 def test_tara_tanpa_jam_keluar_memakai_jam_masuk():
