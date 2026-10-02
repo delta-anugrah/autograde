@@ -38,7 +38,8 @@ Changed:        Part 2 of the scan work. With the support-only switch on, a truc
                 answers carry `dipasang`; `/api/console/state` carries `antrean_bongkar` and
                 `penugasan_otomatis`. Setting key `setelan_penugasan_line` survives a Danger Zone wipe.
                 Store: `unloading_queue`, `trucks_with_open_ticket`, `skip_unloading_queue`, column
-                `weighings.unloading_queue_skipped_at`. Docs: rule 36 (`docs/rules.md`, `CLAUDE.md` §3),
+                `weighings.unloading_queue_skipped_at` (with `idx_weighings_terbuka`, it raises
+                `VERSI_SKEMA` from 2 to 3, the #213 rule). Docs: rule 36 (`docs/rules.md`, `CLAUDE.md` §3),
                 `docs/backend-overview.md`, `docs/MANUAL.md` v2.2 plus regenerated `docs/MANUAL.pdf`
                 (37 pages), skill `konsol-autograde`. The new queue is "Antrean bongkar", not "Antrean
                 line" (that name already belongs to the line-to-console outbox on the Status tab).

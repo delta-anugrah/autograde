@@ -17,7 +17,8 @@ import sqlite3
 #: (rollback lewat `autograde use`).
 #:
 #: 1 = batch 4.5 (PR #213). 2 = `visit_assignments` + `idx_weighings_truck` (PR #208).
-VERSI_SKEMA = 2
+#: 3 = `weighings.unloading_queue_skipped_at` + `idx_weighings_terbuka` (PR #212).
+VERSI_SKEMA = 3
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
