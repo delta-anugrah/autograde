@@ -129,12 +129,9 @@
   .jam { display:flex; align-items:baseline; gap:8px; }
   #topbar .aksi { margin-left:auto; display:flex; gap:8px; }
   #topbar .aksi button { min-width:5.5rem; min-height:2.6rem; border-radius:var(--r-pill); }
-  /* Last in the row and in the danger colours: signing out drops a shift's
-     screen back to the login gate, so it must never be the button a gloved
+  /* Sign-out (`#keluar`) is last in the row and wears `button.bahaya`: it drops a
+     shift's screen back to the login gate, so it must never be the button a gloved
      hand hits while reaching for the language or theme toggle. */
-  #topbar .aksi #keluar { background:var(--danger-bg); border-color:var(--danger-line);
-                          color:var(--danger-fg); }
-  #topbar .aksi #keluar:hover { border-color:var(--danger-fg); }
 
   #err { display:none; padding:13px var(--pad); font-weight:700;
          background:var(--danger-bg); color:var(--danger-fg);
@@ -616,8 +613,6 @@
   .akun-panel.awas { border-left-color:var(--rej); }
   .akun-panel p { flex:1 1 100%; margin:0; }
   .akun-panel input { flex:0 1 14rem; min-width:0; }
-  .akun-panel.awas button[data-akun-jalankan] { background:var(--rej); border-color:var(--rej);
-                                                 color:#fff; }
   /* Semua tombol aksi tab Akun selebar SAMA (permintaan operator 2026-09-29): tombol per
      baris, Tambah akun, form, dan panel konfirmasi. Dulu empat lebar (12rem, 10rem, 8rem,
      dan selebar label), jadi Ganti sandi / Matikan / Jadikan operator bergerigi di tiap
@@ -758,12 +753,23 @@
      filled button on the card. */
   button.utama { background:var(--acc); border-color:var(--acc); color:var(--on-acc); }
   button.utama:hover { border-color:var(--fg); }
-  /* Release throws away the line's current assignment, so it wears the same
-     palette as the reject button - the two destructive actions on the card look
-     alike, and Assign is the only filled one. */
-  .assign [data-aksi="lepas"] { background:var(--danger-bg); border-color:var(--danger-line);
-                                color:var(--danger-fg); }
-  .assign [data-aksi="lepas"]:hover:not(:disabled) { border-color:var(--danger-fg); }
+  /* Varian bahaya, SATU untuk semua tombol yang membatalkan, menghapus, mereset, mengurungkan,
+     melepas, atau keluar dari sesi (user 2026-10-02: "button batal dibuat warna merah ... pake
+     component button ya supaya seragam semua"). Bentuk, tinggi, hover dan disabled tetap dari
+     `button` dasar; cuma warnanya yang berubah. Lepas di kartu line, Batal di mana pun, Keluar
+     di bar atas, dan lima tombol Danger Zone memakai ini. `tests/unit/test_console_tombol_bahaya.py`
+     menolak tombol Batal/Hapus/Reset baru tanpa kelas ini. BUKAN untuk Keluar di tabel
+     Timbangan (truk meninggalkan gerbang, langkah 4) atau Reject/Piston (aksi grading). */
+  button.bahaya { background:var(--danger-bg); border-color:var(--danger-line); color:var(--danger-fg); }
+  button.bahaya:hover:not(:disabled) { border-color:var(--danger-fg); }
+  /* Pekat: eksekusi terakhir yang tidak bisa diurungkan (Jalankan di Danger Zone, Ya matikan
+     akun, Batal impor yang sudah ditanya). Lebih keras dari `bahaya` supaya tidak tertukar
+     dengan Batal di sebelahnya. Mati = tanpa warna, seperti menunggu HAPUS diketik. Pasangan
+     token bahaya dibalik, bukan `--rej` + putih: di tema gelap `--rej` terang dan teks putih
+     di atasnya di bawah 3:1. */
+  button.bahaya.pekat { background:var(--danger-fg); border-color:var(--danger-fg); color:var(--danger-bg); }
+  button.bahaya.pekat:hover:not(:disabled) { border-color:var(--fg); }
+  button.bahaya.pekat:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
   /* Reject manual dan piston satu baris, lebar dibagi dua (permintaan
      2026-09-26): satu baris tombol, bukan dua, jadi kartu line lebih pendek.
      `min-width:0` supaya label panjang turun baris di dalam tombolnya sendiri,
@@ -1048,7 +1054,9 @@
   /* Danger Zone: bingkai merah di bawah kartu Setelan, tertutup saat tab
      dibuka. Token bahaya yang sama dengan tombol Uji PLC — satu bahasa warna
      untuk "ini bisa merusak". */
-  .bahaya { margin:18px var(--pad) 0; border:1px solid var(--danger-line);
+  /* `details.bahaya`, bukan `.bahaya`: `button.bahaya` adalah varian tombol bahaya, dan
+     aturan tanpa nama elemen akan memberi setiap tombol Batal margin dan bingkai ini. */
+  details.bahaya { margin:18px var(--pad) 0; border:1px solid var(--danger-line);
             border-radius:var(--r); background:var(--kartu); }
   .bahaya > summary { cursor:pointer; padding:12px 16px; font-weight:700; user-select:none;
                       color:var(--danger-fg); letter-spacing:.04em; list-style:revert; }
@@ -1060,9 +1068,7 @@
   /* Lebar TETAP, sama untuk kelima tombol (permintaan 2026-09-26): muat label
      terpanjang dua bahasa ("Delete transaction data…"); label yang lebih
      panjang nanti turun ke baris kedua, lebarnya tetap. */
-  button.bahaya-buka { flex:0 0 15rem; width:15rem; white-space:normal; font-weight:600;
-                       border-color:var(--danger-line); background:var(--danger-bg);
-                       color:var(--danger-fg); }
+  button.bahaya-buka { flex:0 0 15rem; width:15rem; white-space:normal; font-weight:600; }
   .bahaya-panel { margin:0 16px 12px; padding:12px 14px; border-radius:var(--r-sm);
                   border:1px solid var(--danger-line); background:var(--danger-bg); }
   .bahaya-panel[hidden] { display:none; }
@@ -1074,8 +1080,6 @@
   /* Sengaja TANPA text-transform: "hapus" yang terlihat seperti "HAPUS" padahal
      tombolnya tetap mati akan terbaca seperti layar yang rusak. */
   .bahaya-tombol input { flex:0 0 11rem; font-family:var(--mono); }
-  button.bahaya-jalankan { border-color:var(--rej); background:var(--rej); color:#fff; font-weight:700; }
-  button.bahaya-jalankan:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
 
   /* Layar Rekam Video memakai ulang `.setelan-form`, tapi kolomnya empat dan
      berdampingan dengan tabel selebar layar. Kolomnya dibuat lebih sempit dari
@@ -1263,7 +1267,6 @@
                  border:1px solid var(--line); border-radius:var(--r); }
   .impor-batch .muted { font-size:.85rem; }
   .impor-batch button { margin-left:auto; min-height:2.4rem; min-width:7rem; }
-  .impor-batch button.yakin { color:var(--rej); border-color:var(--rej); }
   .impor-batch[data-status="undone"] { opacity:.7; }
   /* Janjang dari impor CSV, di tampilan Per janjang tab Riwayat. */
   .label-impor { display:inline-block; margin-left:6px; padding:2px 6px; border:1px solid var(--line-kuat);
@@ -1371,7 +1374,7 @@
     <span id="operator-aktif" hidden></span>
     <button id="bahasa">EN</button>
     <button id="tema">Terang</button>
-    <button id="keluar" hidden data-t="tombolKeluar">Keluar</button>
+    <button id="keluar" class="bahaya" hidden data-t="tombolKeluar">Keluar</button>
   </span>
 </header>
 <div id="err"></div>
@@ -1624,7 +1627,7 @@
         <input id="scan-datang" class="plat" data-t-ph="phScanDatang" placeholder="QR datang"
                autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
         <div class="pilih" id="plat-datang" data-nilai=""></div>
-        <button id="datang" data-t="btnDatang" disabled>Catat datang</button>
+        <button id="datang" class="utama" data-t="btnDatang" disabled>Catat datang</button>
       </div>
       <span id="antre" class="catatan"></span>
       <span id="scan-datang-pesan" class="scan-pesan" role="status"></span>
@@ -1670,7 +1673,7 @@
           <input id="tara-nilai" class="kg" inputmode="decimal" autocomplete="off"
                  data-t-ph="phTara" placeholder="Tara (kg)">
           <button type="button" id="tara-simpan" class="utama" data-t="btnSimpanTara">Simpan</button>
-          <button type="button" id="tara-batal" data-t="btnBatal">Batal</button>
+          <button type="button" id="tara-batal" class="bahaya" data-t="btnBatal">Batal</button>
         </span>
       </div>
       <!--
@@ -1964,7 +1967,7 @@
           <b data-t="bahayaRestartJudul">Restart semua line</b>
           <small class="muted" data-t="bahayaRestartTeks">Ketiga line mati sekitar 10 detik, lalu hidup lagi. Janjang yang lewat selama itu tidak dihitung.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="restart" data-t="bahayaRestartTombol">Restart</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="restart" data-t="bahayaRestartTombol">Restart</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="restart" hidden></div>
       <div class="bahaya-baris" data-bahaya="logout">
@@ -1972,7 +1975,7 @@
           <b data-t="bahayaLogoutJudul">Logout paksa semua akun</b>
           <small class="muted" data-t="bahayaLogoutTeks">Semua sesi dihapus, termasuk layar operator di PC pabrik dan akunmu sendiri.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="logout" data-t="bahayaLogoutTombol">Logout semua</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="logout" data-t="bahayaLogoutTombol">Logout semua</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="logout" hidden></div>
       <div class="bahaya-baris" data-bahaya="rekaman">
@@ -1980,7 +1983,7 @@
           <b data-t="bahayaRekamanJudul">Hapus rekaman video</b>
           <small class="muted" data-t="bahayaRekamanTeks">Rekaman video ketiga line di folder videos/ hilang permanen. Line yang sedang merekam atau mati dilewati.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="rekaman" data-t="bahayaRekamanTombol">Hapus rekaman</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="rekaman" data-t="bahayaRekamanTombol">Hapus rekaman</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="rekaman" hidden></div>
       <div class="bahaya-baris" data-bahaya="transaksi">
@@ -1988,7 +1991,7 @@
           <b data-t="bahayaTransaksiJudul">Hapus data transaksi</b>
           <small class="muted" data-t="bahayaTransaksiTeks">Grading, foto, timbangan, antrean, dan log hilang permanen. Truk, akun, dan setelan tetap.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="transaksi" data-t="bahayaTransaksiTombol">Hapus data transaksi</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="transaksi" data-t="bahayaTransaksiTombol">Hapus data transaksi</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="transaksi" hidden></div>
       <div class="bahaya-baris" data-bahaya="semua">
@@ -1996,7 +1999,7 @@
           <b data-t="bahayaSemuaJudul">Hapus semua data</b>
           <small class="muted" data-t="bahayaSemuaTeks">Data transaksi, akun yang dibuat di PC ini, truk, dan supplier hilang permanen. Setelan tetap.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="semua" data-t="bahayaSemuaTombol">Hapus semua data</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="semua" data-t="bahayaSemuaTombol">Hapus semua data</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="semua" hidden></div>
     </div>
@@ -2115,7 +2118,7 @@
     <p class="muted akun-form-catatan" data-t="akunTambahCatatan">Akun ini cuma ada di PC ini dan tidak masuk ke AutoERP. Sandi minimal 8 karakter.</p>
     <div class="akun-form-tombol">
       <button type="submit" id="akun-tambah-simpan" class="utama" data-t="akunSimpan">Simpan</button>
-      <button type="button" id="akun-tambah-batal" data-t="btnBatal">Batal</button>
+      <button type="button" id="akun-tambah-batal" class="bahaya" data-t="btnBatal">Batal</button>
     </div>
     <p id="akun-tambah-pesan" class="akun-pesan" role="alert"></p>
   </form>
@@ -2281,7 +2284,7 @@
   <div id="plc-konfirmasi" class="plc-konfirmasi" hidden>
     <b id="plc-konfirmasi-teks"></b>
     <button type="button" id="plc-konfirmasi-jalankan" class="utama" data-t="btnUjiPlcJalankan">Jalankan</button>
-    <button type="button" id="plc-konfirmasi-batal" data-t="btnBatal">Batal</button>
+    <button type="button" id="plc-konfirmasi-batal" class="bahaya" data-t="btnBatal">Batal</button>
   </div>
   <!--
     Peta alamat, statis: daftar yang dipegang tim PLC (23 Sep 2026), ditaruh di
@@ -2407,7 +2410,7 @@
     <ul id="model-modal-daftar"></ul>
     <p class="muted" data-t="modelModalRestart">Line di atas akan restart sekitar 10 detik. Janjang yang lewat selama itu tidak dihitung.</p>
     <div class="tools">
-      <button type="button" id="model-modal-batal" data-t="btnBatal">Batal</button>
+      <button type="button" id="model-modal-batal" class="bahaya" data-t="btnBatal">Batal</button>
       <button type="button" id="model-modal-jalankan" class="utama" data-t="btnModelJalankan">Ganti &amp; Restart</button>
     </div>
   </div>
@@ -4283,7 +4286,7 @@ function kartuLine(l, sekarang = Date.now()) {
       <div class="assign">
         ${komponenPilih(opsi, l.assignment ? l.assignment.truck_id : "")}
         <button class="utama" data-aksi="tugaskan"${l.assignment ? "" : " disabled"}>${esc(t("btnTugaskan"))}</button>
-        <button data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>
+        <button class="bahaya" data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>
       </div>
       <div class="aksi-line">
         <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
@@ -6194,7 +6197,7 @@ function barisImpor(b) {
     <span class="muted">${esc(mulai)} · ${esc(b.imported_by)}</span>
     <span>${esc(jumlah)} · ${esc(rentangImpor(b.date_from, b.date_to))}</span>
     <span class="pill">${esc(status)}</span>${batal}
-    ${bisaBatal ? `<button type="button" data-batal="${esc(b.id)}">${esc(t("imporBatal"))}</button>` : ""}
+    ${bisaBatal ? `<button type="button" class="bahaya" data-batal="${esc(b.id)}">${esc(t("imporBatal"))}</button>` : ""}
   </div>`;
 }
 
@@ -6269,11 +6272,12 @@ async function jalankanImpor(tombol) {
 // meleset tidak boleh cukup; pertanyaannya hilang sendiri sesudah 5 detik.
 async function batalkanImpor(tombol) {
   if (!tombol.classList.contains("yakin")) {
-    tombol.classList.add("yakin");
+    // Ditanya = varian pekat: klik kedua menghapus janjang, jadi tombolnya ikut mengeras.
+    tombol.classList.add("yakin", "pekat");
     tombol.textContent = t("imporYakinBatal");
     setTimeout(() => {
       if (!tombol.isConnected || tombol.classList.contains("sibuk")) return;
-      tombol.classList.remove("yakin");
+      tombol.classList.remove("yakin", "pekat");
       tombol.textContent = t("imporBatal");
     }, 5000);
     return undefined;
@@ -7232,7 +7236,7 @@ function tutupPanelAkun() {
 // kuasa (jadikan support).
 function panelAkun(aksi, a) {
   const nama = a.nama || a.email;
-  const batal = `<button type="button" data-akun-batal>${esc(t("btnBatal"))}</button>`;
+  const batal = `<button type="button" class="bahaya" data-akun-batal>${esc(t("btnBatal"))}</button>`;
   const lihat = `<button type="button" class="sandi-lihat" data-lihat-sandi aria-pressed="false"
       aria-label="${esc(t("lihatSandi"))}">${esc(t("lihatSingkat"))}</button>`;
   const pesan = `<p class="akun-pesan" role="alert"></p>`;
@@ -7259,7 +7263,7 @@ function panelAkun(aksi, a) {
       : ["akunSupportTanya", "akunYaUbah", true]);
   return `<div class="akun-panel${awas ? " awas" : ""}">
     <p>${esc(t(tanya).replace("{nama}", nama))}</p>
-    <button type="button" class="utama" data-akun-jalankan>${esc(t(ya))}</button>
+    <button type="button" class="${awas ? "bahaya pekat" : "utama"}" data-akun-jalankan>${esc(t(ya))}</button>
     ${batal}${pesan}
   </div>`;
 }
@@ -7603,13 +7607,13 @@ function panelBahaya(aksi, r) {
     ? `<ul class="${kelas}">${items.map((i) => `<li>${esc(teksKode(awalan(i), i))}</li>`).join("")}</ul>`
     : "";
   const ketik = BAHAYA_HAPUS.has(aksi);
-  let tombol = `<button type="button" data-bahaya-batal>${esc(t("btnBatal"))}</button>`;
+  let tombol = `<button type="button" class="bahaya" data-bahaya-batal>${esc(t("btnBatal"))}</button>`;
   if (!hambatan.length) {
     if (ketik) {
       tombol += `<input data-bahaya-ketik autocomplete="off" autocapitalize="characters"
         spellcheck="false" placeholder="${esc(t("bahayaKetikHapus"))}" aria-label="${esc(t("bahayaKetikHapus"))}">`;
     }
-    tombol += `<button type="button" class="bahaya-jalankan" data-bahaya-jalankan="${esc(aksi)}"${ketik ? " disabled" : ""}>${esc(t("bahayaJalankan_" + aksi))}</button>`;
+    tombol += `<button type="button" class="bahaya pekat" data-bahaya-jalankan="${esc(aksi)}"${ketik ? " disabled" : ""}>${esc(t("bahayaJalankan_" + aksi))}</button>`;
   }
   return `<p class="bahaya-akibat">${esc(akibatBahaya(aksi, r))}</p>`
     + (aksi === "transaksi" || aksi === "semua" ? `<p class="muted">${esc(t("bahayaTidakTersentuh"))}</p>` : "")
@@ -7641,7 +7645,7 @@ async function bukaPanelBahaya(aksi) {
     // "Memeriksa…" di belakangnya terbaca macet sesudah login.
     if (e.kode === "belum_masuk") return tutupPanelBahaya();
     panel.innerHTML = `<p class="bahaya-akibat">${esc(alasan(e, "gagalBahaya"))}</p>`
-      + `<div class="bahaya-tombol"><button type="button" data-bahaya-batal>${esc(t("btnBatal"))}</button></div>`;
+      + `<div class="bahaya-tombol"><button type="button" class="bahaya" data-bahaya-batal>${esc(t("btnBatal"))}</button></div>`;
   }
 }
 
