@@ -162,3 +162,28 @@ def test_versi_lama_tetap_bisa_menulis_ke_database_berindeks(tmp_path):
     db.close()
 
     assert ConsoleStore(path).grading_counts("a-lama")["total"] == 1
+
+
+GERBANG_KUERI = [
+    # Dibaca tiap 15 detik lewat tampilan Timbangan (antrean timbang + join jam datang).
+    (lambda s: s.waiting_arrivals(HARI), "idx_arrivals_hari (work_date=?)"),
+    (lambda s: s.waiting_arrivals_for_truck("t1"), "idx_arrivals_menunggu (truck_id=?)"),
+    (lambda s: s.weighings_for_truck("t1"), "idx_weighings_truck (truck_id=?)"),
+]
+
+
+@pytest.mark.parametrize("panggil, indeks", GERBANG_KUERI, ids=["waiting_arrivals", "waiting_arrivals_for_truck", "weighings_for_truck"])
+def test_query_gerbang_memakai_indeksnya(store, panggil, indeks):
+    [plan] = rencana(store._db, lambda: panggil(store))
+
+    assert indeks in plan, plan
+    assert "SCAN" not in plan, plan
+
+
+def test_jam_datang_di_tampilan_timbangan_dicari_lewat_indeks_tiket(store):
+    """`weighings()` menggabung `arrivals` per tiket: tanpa indeks `weighing_id` tiap baris
+    memindai seluruh `arrivals`, tabel yang tumbuh satu baris per kedatangan."""
+    plans = rencana(store._db, lambda: store.weighings(HARI))
+
+    assert any("idx_arrivals_tiket (weighing_id=?)" in p for p in plans), plans
+    assert not any(re.search(r"\bSCAN (arrivals|a)\b", p) for p in plans), plans

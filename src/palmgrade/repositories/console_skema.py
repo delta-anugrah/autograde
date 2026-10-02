@@ -110,7 +110,10 @@ CREATE TABLE IF NOT EXISTS weighings (
     -- finalised ticket whose grading changed, or a cancelled one it ignored.
     erp_ticket    TEXT,
     erp_status    TEXT,
-    erp_note      TEXT
+    erp_note      TEXT,
+    -- Scan 4 (truck leaves the gate), 2026-09-30. Stays on this PC: never in the AutoERP
+    -- visit message. Written only by `GateService`, once the ticket has its tare.
+    left_at       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_weighings_hari ON weighings (work_date, entered_at DESC);
 CREATE INDEX IF NOT EXISTS idx_weighings_plat ON weighings (plate_norm);
@@ -129,6 +132,24 @@ CREATE INDEX IF NOT EXISTS idx_visit_assignments_tiket ON visit_assignments (wei
 -- The unloading queue and the busy check read open tickets of the last hours, every 2 s.
 CREATE INDEX IF NOT EXISTS idx_weighings_terbuka ON weighings (received_at)
     WHERE tare_kg IS NULL;
+
+-- Scan 1 (truck reaches the gate), 2026-09-30. Stays on this PC: "arrived" is not one of
+-- AutoERP's stages. A row waits with `weighing_id` NULL until the truck's weigh-in
+-- claims it; that link is how queue time (arrival to weigh-in) is read.
+CREATE TABLE IF NOT EXISTS arrivals (
+    id            TEXT PRIMARY KEY,
+    plate_number  TEXT NOT NULL,
+    plate_norm    TEXT NOT NULL,
+    truck_id      TEXT NOT NULL,
+    work_date     TEXT NOT NULL,
+    arrived_at    TEXT NOT NULL,
+    weighing_id   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_arrivals_menunggu ON arrivals (truck_id) WHERE weighing_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_arrivals_hari ON arrivals (work_date);
+-- One arrival per ticket. NULLs are exempt, so every waiting arrival is allowed.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_arrivals_tiket ON arrivals (weighing_id)
+    WHERE weighing_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS sync_state (
     key   TEXT PRIMARY KEY,
@@ -290,6 +311,8 @@ def _migrate(db: sqlite3.Connection) -> None:
         ("weighings", "erp_note"),
         # "Lewati" on the unloading queue (2026-10-01). NULL = still eligible.
         ("weighings", "unloading_queue_skipped_at"),
+        # Scan 4, gate leave time (2026-09-30). NULL = not scanned out.
+        ("weighings", "left_at"),
         # Konsol pabrik yang sudah jalan punya tabel `inspections` tanpa kolom ini;
         # `CREATE TABLE IF NOT EXISTS` di atas tidak akan menambahkannya. Baris lama
         # tetap NULL, sengaja: kelas aslinya memang tidak pernah direkam, dan

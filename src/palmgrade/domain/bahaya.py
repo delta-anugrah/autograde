@@ -51,6 +51,8 @@ GOLONGAN_TABEL_KONSOL: dict[str, str] = {
     "weighings": _TRANSAKSI,
     # Tautan kunjungan ke penugasan line (2026-10-01): milik tiket yang ikut terhapus.
     "visit_assignments": _TRANSAKSI,
+    # Scan 1 (2026-09-30): jam datang truk, milik kunjungan yang ikut terhapus.
+    "arrivals": _TRANSAKSI,
     # Catatan impor CSV: janjangnya ikut terhapus bersama `inspections`.
     "grading_imports": _TRANSAKSI,
     "trucks": _SEMUA,

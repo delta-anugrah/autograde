@@ -20,6 +20,7 @@ from typing import Any
 from ..domain.bahaya import kunci_state_dihapus, tabel_dihapus
 from ..domain.plate import normalisasi_plat
 from .console_akun_repository import AkunStore
+from .console_gerbang_repository import GerbangStore
 from .console_skema import siapkan_skema
 
 # What the FFB source label needs from a truck (`domain/ffb_source.py`). One
@@ -54,7 +55,7 @@ _KOLOM_JANJANG = """event_id, machine_id, line_code, timestamp, ripeness_status,
 _PENUGASAN_KUNJUNGAN = "SELECT assignment_id FROM visit_assignments WHERE weighing_id = ?"
 
 
-class ConsoleStore(AkunStore):
+class ConsoleStore(AkunStore, GerbangStore):
     def __init__(self, db_path: Path, *, erp_allowed_roles: frozenset[str] | None = None) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
@@ -307,7 +308,7 @@ class ConsoleStore(AkunStore):
         """Move everything hanging off one truck id onto another, in ONE transaction
         (OPS-2, one-time reconciliation when a running mill PC gets AutoGrade).
 
-        `truck_id` lives in three tables, and a half-done move is worse than none:
+        `truck_id` lives in four tables, and a half-done move is worse than none:
         rows left pointing at a deleted id vanish from the recap entirely, and that
         recap is what the supplier is paid on. So the whole move commits or nothing
         does.
@@ -345,7 +346,7 @@ class ConsoleStore(AkunStore):
                      lama["status"], lama["erp_name"], ke),
                 )
                 self._db.execute("DELETE FROM trucks WHERE id = ?", (dari,))
-            for tabel in ("inspections", "assignments", "weighings"):
+            for tabel in ("inspections", "assignments", "weighings", "arrivals"):
                 self._db.execute(
                     f"UPDATE {tabel} SET truck_id = ? WHERE truck_id = ?", (ke, dari)
                 )
@@ -612,8 +613,9 @@ class ConsoleStore(AkunStore):
         # until the ERP lane is live — see docs/PERTANYAAN-TERBUKA.md S1-S3.
         with self._lock:
             rows = self._db.execute(
-                f"""SELECT w.*, s.name AS supplier_name, {SOURCE_FACTS}
+                f"""SELECT w.*, a.arrived_at AS arrived_at, s.name AS supplier_name, {SOURCE_FACTS}
                    FROM weighings w
+                   LEFT JOIN arrivals a ON a.weighing_id = w.id
                    LEFT JOIN trucks t ON t.id = w.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id
                    WHERE w.work_date = ?
