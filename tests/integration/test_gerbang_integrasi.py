@@ -8,7 +8,6 @@ pesan AutoERP yang benar-benar masuk antrean, sedangkan scan 4 tidak mengantre a
 from __future__ import annotations
 
 import asyncio
-import json
 from dataclasses import replace
 
 import pytest
@@ -17,6 +16,7 @@ from palmgrade.core.config import Settings
 from palmgrade.domain import erp_messages
 from palmgrade.domain.gerbang import baca_waktu
 from palmgrade.domain.plate import truck_id_for
+from palmgrade.domain.visit_manifest import build_manifest
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
 from palmgrade.repositories.console_repository import ConsoleStore
 from palmgrade.services.console_service import ConsoleService
@@ -91,24 +91,75 @@ def test_keluar_sebelum_timbang_kosong_tidak_menulis_apa_pun(pabrik):
     assert store.weighing(row["id"])["left_at"] is None
 
 
+DATANG, PERGI = "2026-09-30T00:17:00+00:00", "2026-09-30T02:43:00+00:00"
+
+# What a visit may carry, key by key (contract §4.C). A new key fails here first, so a
+# gate time can never slip in under a name nobody thought to search for (Q1).
+KUNCI_PESAN = {"visit_id", "stage", "truck", "weighing", "emitted_at"}
+KUNCI_TIMBANGAN = {"time_in", "gross_kg", "tare_kg", "time_out"}
+KUNCI_TRUK = {"plate_number", "autograde_id"}
+KUNCI_MANIFEST = {"schema", "visit_id", "assignment_id", "line_code", "plate_number", "supplier_name",
+                  "work_date", "started_at", "ended_at", "generated_at", "counts", "bunches"}
+
+
+def _daun(nilai):
+    """Every leaf value of a JSON body, however deep."""
+    if isinstance(nilai, dict):
+        for v in nilai.values():
+            yield from _daun(v)
+    elif isinstance(nilai, list):
+        for v in nilai:
+            yield from _daun(v)
+    else:
+        yield nilai
+
+
+def _tanpa_jam_gerbang(body):
+    """No leaf is the arrive or leave instant in any rendering: UTC, Z, +07:00, epoch."""
+    instan = {baca_waktu(DATANG), baca_waktu(PERGI)}
+    epoch = {t.timestamp() for t in instan} | {t.timestamp() * 1000 for t in instan}
+    for nilai in _daun(body):
+        if isinstance(nilai, bool) or nilai is None:
+            continue
+        if isinstance(nilai, int | float):
+            assert float(nilai) not in epoch, nilai
+            continue
+        try:
+            waktu = baca_waktu(str(nilai))
+        except ValueError:
+            continue
+        assert waktu not in instan, nilai
+
+
 def test_jam_gerbang_tidak_pernah_ada_di_pesan_autoerp_yang_antre(pabrik):
     service, gate, store, outbox = pabrik
-    gate.arrive(PLAT, "2026-09-30T00:17:00+00:00")
+    gate.arrive(PLAT, DATANG)
     _isi(service, "2026-09-30T01:00:00+00:00")
     row = _kosong(service, "2026-09-30T01:00:00+00:00", "2026-09-30T02:00:00+00:00")
-    gate.leave(PLAT, "2026-09-30T02:43:00+00:00")
+    gate.leave(PLAT, PERGI)
 
     [tiket] = service.weighings(HARI)
-    assert tiket["arrived_at"] and tiket["left_at"]  # the ticket really holds both gate times
+    assert (tiket["arrived_at"], tiket["left_at"]) == (DATANG, PERGI)  # the ticket really holds both
 
     # The daily resend rebuilds the visit from the store, after both gate times exist.
     assert service.erp_queue.visit(row["id"]) is True
     pesan = _pesan_visit(outbox)
     assert pesan, "no visit message was queued"
     for m in pesan:
-        teks = json.dumps(m.payload)
-        assert "00:17" not in teks and "02:43" not in teks
-        assert "arrived" not in teks and "left" not in teks
+        assert set(m.payload) == KUNCI_PESAN, sorted(m.payload)
+        assert set(m.payload["weighing"]) == KUNCI_TIMBANGAN, sorted(m.payload["weighing"])
+        assert set(m.payload["truck"]) == KUNCI_TRUK, sorted(m.payload["truck"])
+        _tanpa_jam_gerbang(m.payload)
+
+    # The detail page (R2) is built from the same row: give it both gate times on purpose.
+    visit = {**store.visit(row["id"]), "arrived_at": tiket["arrived_at"]}
+    assert visit["left_at"] == PERGI
+    grading = {"assignment_id": "a1", "line_code": "line-1", "total": 1, "acc": 1,
+               "started_at": "2026-09-30T01:05:00+00:00", "ended_at": "2026-09-30T01:50:00+00:00"}
+    manifest = build_manifest(visit, grading, [], public_url="https://captures.example",
+                              generated_at="2026-09-30T03:00:00+00:00")
+    assert set(manifest) == KUNCI_MANIFEST, sorted(manifest)
+    _tanpa_jam_gerbang(manifest)
 
 
 def test_scan_4_tidak_mengantre_apa_pun_ke_autoerp(pabrik):

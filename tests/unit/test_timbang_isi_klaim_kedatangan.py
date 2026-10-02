@@ -107,6 +107,9 @@ def test_jam_gerbang_tidak_pernah_masuk_pesan_autoerp():
         "arrived_at": "2026-09-30T00:17:00+00:00", "left_at": "2026-09-30T02:43:00+00:00",
     }
     _, payload = visit_message(visit, None, site="", emitted_at="2026-09-30T02:44:00+00:00")
+    # Exact keys, not a substring scan: `time_arrive` in +07:00 would pass a scan (Q1).
+    assert set(payload) == {"visit_id", "stage", "truck", "weighing", "emitted_at"}
+    assert set(payload["weighing"]) == {"time_in", "gross_kg", "tare_kg", "time_out"}
     teks = json.dumps(payload)
     assert "00:17" not in teks and "02:43" not in teks
     assert "arrived" not in teks and "left_at" not in teks
