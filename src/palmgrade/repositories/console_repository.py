@@ -630,8 +630,8 @@ class ConsoleStore(AkunStore, GerbangStore):
         (epoch, the real instant) and not left yet. Today's Timbangan table carries them
         past midnight so their Timbang kosong / Keluar buttons stay; their work date stays.
 
-        `sejak_hari` (the work date of `sejak`) only narrows the read to the index
-        `idx_weighings_hari`; the window itself decides. No limit: the window bounds it.
+        `sejak_hari` (a work date at or before the window's start) only narrows the read
+        to the index `idx_weighings_hari`; the window decides. No limit: the window bounds it.
         """
         return self._baris_timbangan(
             f"""w.work_date >= ? AND w.work_date < ? AND w.left_at IS NULL

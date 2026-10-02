@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import UTC, datetime, tzinfo
+from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Any
 
 from ..domain.gerbang import (
@@ -26,6 +26,10 @@ from ..domain.working_day import awal_kunjungan, work_date_for
 from ..repositories.console_repository import ConsoleStore
 
 logger = logging.getLogger(__name__)
+
+#: How far before the visit window the carried-visit read looks by work date (see
+#: `kunjungan_terbawa`): the read stays on two or three days of the day index.
+KELONGGARAN_HARI = timedelta(days=1)
 
 
 class GerbangKonsol:
@@ -52,7 +56,12 @@ class GerbangKonsol:
         if work_date != self.today():
             return []
         sejak = awal_kunjungan(self.sekarang())
-        sejak_hari = work_date_for(datetime.fromtimestamp(sejak, UTC).isoformat(), self.tz)
+        # The work date only narrows the read; a day of slack, because it was stamped from
+        # the weigh-in text while the window reads the real instant (a PC clock off at
+        # weigh-in must not hide a truck still in the yard).
+        sejak_hari = work_date_for(
+            (datetime.fromtimestamp(sejak, UTC) - KELONGGARAN_HARI).isoformat(), self.tz
+        )
         return self.store.weighings_terbawa(work_date, sejak, sejak_hari)
 
     def _klaim_kedatangan(
