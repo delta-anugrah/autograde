@@ -11,6 +11,7 @@ is simply "tanpa scan 1" (D4).
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime, tzinfo
 from typing import Any
 
@@ -21,7 +22,7 @@ from ..domain.gerbang import (
     menit_antara,
     pilih_kedatangan,
 )
-from ..domain.working_day import work_date_for
+from ..domain.working_day import awal_kunjungan, work_date_for
 from ..repositories.console_repository import ConsoleStore
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,27 @@ class GerbangKonsol:
 
     store: ConsoleStore
     tz: tzinfo
+    today: Callable[[], str]
+
+    def sekarang(self) -> datetime:
+        """The console's clock for "now": the work date, the visit window, the waiting
+        list. One method, so a test can stand the whole console just after midnight."""
+        return datetime.now(UTC)
+
+    def kunjungan_terbawa(self, work_date: str) -> list[dict[str, Any]]:
+        """Yesterday's visits still in the yard, for TODAY's Timbangan table only (2026-10-02).
+
+        A truck weighed in at 23:50 is weighed out at 00:10: a table read by work date
+        alone lost its row, and with it the Timbang kosong and Keluar buttons, at 00:00.
+        Carried while not left and inside the visit window; never moved to today, so day
+        totals, Rekap, Riwayat, CSV and AutoERP stay on its own day. A past day's table
+        carries nothing.
+        """
+        if work_date != self.today():
+            return []
+        sejak = awal_kunjungan(self.sekarang())
+        sejak_hari = work_date_for(datetime.fromtimestamp(sejak, UTC).isoformat(), self.tz)
+        return self.store.weighings_terbawa(work_date, sejak, sejak_hari)
 
     def _klaim_kedatangan(
         self, baru: bool, truck_id: str, entered_at: str | None, weighing_id: str
@@ -65,7 +87,7 @@ class GerbangKonsol:
         lies in the future: "0 minutes waited" would read as a truck that just arrived,
         which is a lie. `sekarang` is for tests; the route passes nothing.
         """
-        nyata = sekarang or datetime.now(UTC)
+        nyata = sekarang or self.sekarang()
         sejak_hari = work_date_for((nyata - JENDELA_KEDATANGAN).isoformat(), self.tz)
         jam = nyata.isoformat()
         return [

@@ -17,6 +17,9 @@ menyentuh tonase. Dia cuma mencari, dan mengembalikan apa yang sudah ada.
 
 from __future__ import annotations
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import pytest
 
 from palmgrade.domain.operator_error import OperatorError
@@ -215,6 +218,9 @@ def test_kode_bukan_plat_terdaftar_supaya_wajib_diterjemahkan():
 
 # ── scan di timbang keluar ───────────────────────────────────────────────────
 
+#: Jam konsol saat scan keluar: siang hari tiket-tiket 08:00 dan 10:00 di bawah.
+SIANG = datetime(2026, 9, 15, 12, 0, tzinfo=ZoneInfo("Asia/Jakarta"))
+
 
 def _timbang_masuk(store: ConsoleStore, wid: str, plat: str, **over) -> None:
     row = {
@@ -234,7 +240,7 @@ def test_scan_keluar_menemukan_tiket_terbuka_truk_itu(store, scan):
     _truk(store, "BE 4412 OFL")
     _timbang_masuk(store, "w-1", "BE 4412 OFL")
 
-    hasil = scan.open_ticket("BE4412OFL", "2026-09-15")
+    hasil = scan.open_ticket("BE4412OFL", SIANG)
 
     assert hasil["ditemukan"] is True
     assert hasil["weighing"]["id"] == "w-1"
@@ -247,7 +253,7 @@ def test_tiket_yang_sudah_ada_taranya_bukan_tiket_terbuka(store, scan):
     _timbang_masuk(store, "w-1", "BE 4412 OFL", tare_kg=5000.0, net_kg=8000.0,
                    exited_at="2026-09-15T09:00:00+07:00")
 
-    hasil = scan.open_ticket("BE4412OFL", "2026-09-15")
+    hasil = scan.open_ticket("BE4412OFL", SIANG)
 
     assert hasil["ditemukan"] is False
 
@@ -260,7 +266,7 @@ def test_dua_tiket_terbuka_ditolak_bukan_ditebak(store, scan):
     _timbang_masuk(store, "w-1", "BE 4412 OFL")
     _timbang_masuk(store, "w-2", "BE 4412 OFL", entered_at="2026-09-15T10:00:00+07:00")
 
-    hasil = scan.open_ticket("BE4412OFL", "2026-09-15")
+    hasil = scan.open_ticket("BE4412OFL", SIANG)
 
     assert hasil["ditemukan"] is False
     assert hasil["ganda"] is True
@@ -272,19 +278,21 @@ def test_truk_tanpa_tiket_terbuka_dijawab_belum_ada(store, scan):
     timbang masuknya terlewat. Jawabannya jelas, bukan error."""
     _truk(store, "BE 4412 OFL")
 
-    hasil = scan.open_ticket("BE4412OFL", "2026-09-15")
+    hasil = scan.open_ticket("BE4412OFL", SIANG)
 
     assert hasil["ditemukan"] is False
     assert hasil.get("ganda") is not True
 
 
-def test_tiket_hari_lain_tidak_ikut_terbawa(store, scan):
-    """Tiket kemarin yang taranya belum terisi tidak boleh muncul hari ini: netonya
-    akan memakai bruto kemarin dan tara hari ini."""
+def test_tiket_di_luar_jendela_kunjungan_tidak_ikut_terbawa(store, scan):
+    """Tiket kemarin pagi yang taranya belum terisi tidak boleh muncul siang ini: netonya
+    akan memakai bruto kemarin dan tara hari ini. Lewat tengah malam yang masih di dalam
+    jendela 12 jam justru dicari: `test_kunjungan_lewat_tengah_malam.py`."""
     _truk(store, "BE 4412 OFL")
-    _timbang_masuk(store, "w-kemarin", "BE 4412 OFL", work_date="2026-09-14")
+    _timbang_masuk(store, "w-kemarin", "BE 4412 OFL", work_date="2026-09-14",
+                   entered_at="2026-09-14T08:00:00+07:00")
 
-    hasil = scan.open_ticket("BE4412OFL", "2026-09-15")
+    hasil = scan.open_ticket("BE4412OFL", SIANG)
 
     assert hasil["ditemukan"] is False
 
@@ -293,7 +301,7 @@ def test_scan_keluar_menolak_yang_bukan_plat(store, scan):
     from palmgrade.domain.operator_error import BUKAN_PLAT
 
     with pytest.raises(OperatorError) as kena:
-        scan.open_ticket("https://contoh.id", "2026-09-15")
+        scan.open_ticket("https://contoh.id", SIANG)
     assert kena.value.code == BUKAN_PLAT
 
 
@@ -302,7 +310,7 @@ def test_scan_keluar_tidak_pernah_menulis_apa_pun(store, scan):
     _truk(store, "BE 4412 OFL")
     _timbang_masuk(store, "w-1", "BE 4412 OFL")
 
-    scan.open_ticket("BE4412OFL", "2026-09-15")
+    scan.open_ticket("BE4412OFL", SIANG)
 
     assert store.weighing("w-1")["tare_kg"] is None
 

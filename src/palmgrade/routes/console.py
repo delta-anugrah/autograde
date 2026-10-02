@@ -298,10 +298,11 @@ async def console_scan_exit(
     **Two open tickets are refused, not guessed** (operator's decision, 2026-09-15):
     guessing here can attach the tare to the wrong visit and mix two visits' tonnage —
     the same shape as the ticket-adoption bug we reported to AutoERP. The screen shows
-    both and the operator picks.
+    both and the operator picks. Open = no tare yet within the visit window, not today's
+    work date: a truck weighed in at 23:50 is weighed out at 00:10.
     """
     try:
-        return scan.open_ticket(payload.qr or "", service.today())
+        return scan.open_ticket(payload.qr or "", service.sekarang())
     except OperatorError as exc:
         raise _operator_error(400, exc) from exc
 

@@ -16,6 +16,16 @@ from datetime import UTC, datetime, tzinfo
 JENDELA_KUNJUNGAN_DETIK = 12 * 60 * 60
 
 
+def awal_kunjungan(sekarang: datetime) -> float:
+    """Epoch seconds of the oldest weigh-in a visit still running at `sekarang` can have.
+
+    What "still in the yard" means everywhere on the console: the exit scan's open ticket,
+    the Timbangan table carrying yesterday's unfinished visit, the Danger Zone block. A
+    truck weighed in at 23:50 is still being sorted at 00:10; its work date is not today.
+    """
+    return sekarang.timestamp() - JENDELA_KUNJUNGAN_DETIK
+
+
 def work_date_for(timestamp_iso: str, tz: tzinfo) -> str:
     """`YYYY-MM-DD` in the mill's zone. ValueError if the timestamp is unreadable.
 

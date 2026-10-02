@@ -128,7 +128,7 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol):
     # ------------------------------------------------------------ ingest
 
     def today(self) -> str:
-        return datetime.now(self.tz).strftime("%Y-%m-%d")
+        return self.sekarang().astimezone(self.tz).strftime("%Y-%m-%d")
 
     def ingest(self, payload: dict[str, Any]) -> str:
         """Take one grading event from a line. Returns its `work_date`.
@@ -365,7 +365,8 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol):
         return [_with_source_label(row) for row in self.store.trucks()]
 
     def weighings(self, work_date: str, *, limit: int = 100) -> list[dict[str, Any]]:
-        return [_tiket_view(row) for row in self.store.weighings(work_date, limit=limit)]
+        rows = self.store.weighings(work_date, limit=limit) + self.kunjungan_terbawa(work_date)
+        return [_tiket_view(row) for row in rows]
 
     def recap(self, work_date: str) -> list[dict[str, Any]]:
         """Per-truck tally with the weighbridge neto folded in.

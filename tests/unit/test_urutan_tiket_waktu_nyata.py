@@ -7,6 +7,7 @@ The browser sends `...Z`, the demo seeder and the scale program `...+07:00`. As 
 from __future__ import annotations
 
 import time
+from datetime import UTC, datetime
 
 import pytest
 
@@ -92,5 +93,6 @@ def test_tiket_terbuka_truk_terbaru_dulu_menurut_waktu_nyata(store):
     """Which open ticket a tare goes to: the same order as the table and the queue."""
     _tiket(store, "lama", "A", f"{HARI}T08:00:00+07:00")  # 01:00 UTC; as text the "newest"
     _tiket(store, "baru", "A", f"{HARI}T01:30:00Z")
-    assert [w["id"] for w in store.open_weighings_for_truck("A", HARI)] == ["baru", "lama"]
+    sejak = datetime(2026, 10, 2, tzinfo=UTC).timestamp()
+    assert [w["id"] for w in store.open_weighings_for_truck("A", sejak)] == ["baru", "lama"]
     assert store.latest_weighing_for_truck_since("A", _sejak()) == "baru"

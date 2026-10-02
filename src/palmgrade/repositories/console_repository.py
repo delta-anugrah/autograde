@@ -623,9 +623,27 @@ class ConsoleStore(AkunStore, GerbangStore):
         return dict(row) if row else None
 
     def weighings(self, work_date: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        return self._baris_timbangan("w.work_date = ?", (work_date,), limit)
+
+    def weighings_terbawa(self, work_date: str, sejak: float, sejak_hari: str) -> list[dict[str, Any]]:
+        """Visits from an earlier work date still in the yard: weighed in since `sejak`
+        (epoch, the real instant) and not left yet. Today's Timbangan table carries them
+        past midnight so their Timbang kosong / Keluar buttons stay; their work date stays.
+
+        `sejak_hari` (the work date of `sejak`) only narrows the read to the index
+        `idx_weighings_hari`; the window itself decides. No limit: the window bounds it.
+        """
+        return self._baris_timbangan(
+            f"""w.work_date >= ? AND w.work_date < ? AND w.left_at IS NULL
+                AND {_saat_isi('w')} >= julianday(?, 'unixepoch')""",
+            (sejak_hari, work_date, sejak), -1,
+        )
+
+    def _baris_timbangan(self, syarat: str, nilai: tuple[Any, ...], limit: int) -> list[dict[str, Any]]:
+        """Timbangan table rows; `syarat` is SQL from code constants only (B5)."""
         # ponytail: joins on `truck_id` only, so a cloud-synced truck (id from
         # the cloud, not uuid5 of the plate) shows no name yet. Good enough
-        # until the ERP lane is live — see docs/PERTANYAAN-TERBUKA.md S1-S3.
+        # until the ERP lane is live, see docs/PERTANYAAN-TERBUKA.md S1-S3.
         with self._lock:
             rows = self._db.execute(
                 f"""SELECT w.*, a.arrived_at AS arrived_at, s.name AS supplier_name, {SOURCE_FACTS}
@@ -633,9 +651,9 @@ class ConsoleStore(AkunStore, GerbangStore):
                    LEFT JOIN arrivals a ON a.weighing_id = w.id
                    LEFT JOIN trucks t ON t.id = w.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id
-                   WHERE w.work_date = ?
+                   WHERE {syarat}
                    ORDER BY {_TERBARU_DULU} LIMIT ?""",
-                (work_date, limit),
+                (*nilai, limit),
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -662,23 +680,26 @@ class ConsoleStore(AkunStore, GerbangStore):
             "neto_kg": row["neto_kg"],
         }
 
-    def open_weighings_for_truck(self, truck_id: str, work_date: str) -> list[dict[str, Any]]:
-        """This truck's tickets not yet weighed out, for that working day only.
+    def open_weighings_for_truck(self, truck_id: str, sejak: float) -> list[dict[str, Any]]:
+        """This truck's tickets not yet weighed out, weighed in since `sejak` (epoch).
 
         `tare_kg IS NULL` is what makes a ticket open: one that already has a
         tare means its truck has left, and offering it again would overwrite
-        the first tare — net silently changes, and net is what gets paid.
+        the first tare: net silently changes, and net is what gets paid.
 
-        Scoped to the working day: yesterday's ticket whose tare was never
-        filled would otherwise produce a net from yesterday's gross and
-        today's tare.
+        Scoped to the visit window on the real weigh-in instant, not the work date
+        (2026-10-02): a truck weighed in at 23:50 is weighed out at 00:10. A ticket
+        older than the window, whose tare was never filled, stays out: it would
+        produce a net from an old gross and tonight's tare. Read through the
+        truck's index (`idx_weighings_truck`); a truck has a few tickets a day.
         """
         with self._lock:
             rows = self._db.execute(
                 f"""SELECT w.* FROM weighings w
-                   WHERE w.truck_id = ? AND w.work_date = ? AND w.tare_kg IS NULL
+                   WHERE w.truck_id = ? AND w.tare_kg IS NULL
+                     AND {_saat_isi('w')} >= julianday(?, 'unixepoch')
                    ORDER BY {_TERBARU_DULU}""",
-                (truck_id, work_date),
+                (truck_id, sejak),
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -932,18 +953,21 @@ class ConsoleStore(AkunStore, GerbangStore):
         self.jumlah_hapus += 1
         return hasil
 
-    def tiket_terbuka(self, hari_kerja: str) -> dict[str, int]:
+    def tiket_terbuka(self, hari_kerja: str, sejak: float) -> dict[str, int]:
         """Tiket yang sudah timbang masuk tapi belum keluar (bruto ada, tara belum):
-        `hari_ini` = hari kerja berjalan — truk di tengah kunjungan; `lama` = hari
-        lain, hampir pasti sisa uji coba yang taranya tidak pernah diisi."""
+        `berjalan` = hari kerja berjalan ATAU timbang isi sejak `sejak` (jendela kunjungan,
+        epoch): truk 23:50 masih di tengah kunjungan pukul 00:10; `lama` = sisanya,
+        hampir pasti sisa uji coba yang taranya tidak pernah diisi."""
         with self._lock:
             row = self._db.execute(
-                """SELECT COALESCE(SUM(work_date = ?), 0) AS hari_ini,
-                          COALESCE(SUM(work_date <> ?), 0) AS lama
-                   FROM weighings WHERE gross_kg IS NOT NULL AND tare_kg IS NULL""",
-                (hari_kerja, hari_kerja),
+                f"""SELECT COALESCE(SUM(berjalan), 0) AS berjalan,
+                           COALESCE(SUM(NOT berjalan), 0) AS lama
+                    FROM (SELECT (work_date = ? OR {_saat_isi('w')} >= julianday(?, 'unixepoch'))
+                                 AS berjalan
+                          FROM weighings w WHERE gross_kg IS NOT NULL AND tare_kg IS NULL)""",
+                (hari_kerja, sejak),
             ).fetchone()
-        return {"hari_ini": row["hari_ini"], "lama": row["lama"]}
+        return {"berjalan": row["berjalan"], "lama": row["lama"]}
 
     def hapus_semua_sesi(self) -> int:
         """Logout paksa: semua sesi, termasuk milik yang menekan tombolnya."""
