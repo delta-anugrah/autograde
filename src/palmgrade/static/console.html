@@ -949,6 +949,14 @@
   td.no { font-family:var(--mono); font-variant-numeric:tabular-nums; }
   th.num, td.num { text-align:right; }
   td.num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  /* Tombol baris Timbangan (Timbang kosong / Keluar) dipaku di kanan: 11 kolom lebih
+     lebar dari layar 1280 dan 1440 px, dan tanpa scanner tombol itu satu-satunya jalan
+     per tiket. Latarnya pekat (juga baris zebra) supaya kolom yang lewat di bawahnya
+     tidak tembus. Baris "belum ada tiket" (colspan) tidak ikut dipaku. */
+  #sec-timbangan th:last-child, #sec-timbangan td:last-child:not(.kosong) {
+    position:sticky; right:0; z-index:1; border-left:1px solid var(--line); }
+  #sec-timbangan td:last-child:not(.kosong) { background:var(--card); }
+  #sec-timbangan tbody tr:nth-child(even) td:last-child:not(.kosong) { background:var(--zebra); }
   /* The column heads already say ACC and REJ, so the colour is a second signal
      here, never the only one. */
   /* Form setelan: kolom sempit dan label di atas, bukan sebaris. Angkanya
@@ -1562,7 +1570,7 @@
         <div class="pilih" id="plat-timbang" data-nilai=""></div>
         <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
                inputmode="decimal" autocomplete="off">
-        <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang masuk</button>
+        <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang isi</button>
       </div>
       <!--
         Hasil scan punya tempatnya sendiri, bukan banner global `#err`: `refresh()`
@@ -2558,7 +2566,7 @@ const KAMUS = {
     discordDitolak:"Lapor ke Discord DITOLAK pukul {jam} (HTTP {status}): webhook salah atau sudah dihapus. Periksa DISCORD_WEBHOOK_URL di .env PC ini, lalu autograde restart. {kiriman} pesan menunggu, tidak dibuang.",
     discordRusak:"Lapor ke Discord MATI: antrean di disk rusak ({galat}). Pindahkan berkas state/console/lapor_discord.db di folder autograde PC ini, lalu autograde restart. Galat tetap tercatat di tab ini.",
     discordIsiDitolak:"Discord menolak ISI pesan pukul {jam} (HTTP {status}), alamat webhook benar. Pesan yang 3 kali ditolak disisihkan dan tetap di disk; laporan berikutnya jalan terus. {kiriman} pesan menunggu, {disisihkan} disisihkan.",
-    btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnTimbangKosong:"Timbang kosong",
+    btnDaftar:"Daftar truk manual", btnMasuk:"Timbang isi", btnTimbangKosong:"Timbang kosong",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
     truk:"Truk", supplier:"Supplier", trukBelum:"Truk belum dipilih",
@@ -2579,7 +2587,7 @@ const KAMUS = {
     toastTutup:"Tutup",
     sukTugaskan:"Truk ditugaskan di {line}", pelepasanOtomatis:"{line} dilepas otomatis karena {truk} sudah timbang keluar. Tugaskan lagi kalau bongkarnya belum selesai.", sukLepas:"Truk dilepas dari {line}",
     sukReject:"Reject manual tercatat di {line}", sukDaftar:"Truk terdaftar",
-    sukMasuk:"Timbang masuk tercatat", sukTara:"Timbang keluar tercatat",
+    sukMasuk:"Timbang isi tercatat", sukTara:"Timbang kosong tercatat",
     sukScan:"Truk ditemukan",
     gross_kg:"Bruto", tare_kg:"Tara",
     err_plat_kosong:"Nomor polisi tidak boleh kosong",
@@ -2634,7 +2642,7 @@ const KAMUS = {
     keHalaman:"Ke halaman",
     btnCetakQr:"Cetak QR truk", qrJudul:"Kartu QR truk",
     lbGerbangMasuk:"2. Timbang isi", lbGerbangKeluar:"3. Timbang kosong",
-    taraJudul:"Timbang keluar", btnSimpanTara:"Simpan", btnBatal:"Batal",
+    btnSimpanTara:"Simpan", btnBatal:"Batal",
     phTara:"Tara (kg)",
     taraMinimum:"Tara minimal 1.000 kg, cek lagi angkanya",
     phScan:"QR timbang isi", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
@@ -3067,7 +3075,7 @@ const KAMUS = {
     keHalaman:"Go to page",
     btnCetakQr:"Print truck QR", qrJudul:"Truck QR cards",
     lbGerbangMasuk:"2. Weigh in", lbGerbangKeluar:"3. Weigh out",
-    taraJudul:"Weigh out", btnSimpanTara:"Save", btnBatal:"Cancel",
+    btnSimpanTara:"Save", btnBatal:"Cancel",
     phTara:"Tare (kg)",
     taraMinimum:"Tare must be at least 1,000 kg, check the figure",
     phScan:"Weigh-in QR", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
@@ -4855,7 +4863,8 @@ $("tara-nilai").addEventListener("keydown", (ev) => {
 
 // ── scan 1 dan 4: jam datang dan jam keluar gerbang (2026-09-30) ───────────
 // Cuma disimpan di PC ini, tidak naik ke AutoERP. Hasil yang bukan "tercatat" dijawab
-// 200 dengan `hasil`, jadi peringatan kuning, bukan merah: gerbangnya bekerja. Layar
+// 200 dengan `hasil`: toast-nya peringatan kuning, bukan gagal merah, karena gerbangnya
+// bekerja; pesan di sebelah kolomnya tetap merah (`.salah`), seperti scan masuk. Layar
 // tidak menebak tahap (D6): kolom datang selalu scan 1, kolom keluar selalu scan 4.
 function pesanGerbang(id, teks, salah = false) {
   const el = $(id);

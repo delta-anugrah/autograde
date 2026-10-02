@@ -190,12 +190,49 @@ def test_not_a_plate_is_refused_on_both_gate_fields(halaman):
         expect(halaman.locator(kolom)).to_have_value("")
 
 
-@pytest.mark.parametrize("lebar", [1024, 1280, 1440, 1920])
-def test_the_four_steps_never_scroll_sideways(halaman, lebar):
+def _tiket_terbuka(halaman, konsol, nomor: str) -> dict:
+    """A truck registered and weighed in through the API, the way the screen sends it."""
+    r = halaman.request.post(konsol.url + "/api/console/trucks", data={"plate_number": nomor})
+    assert r.status == 201, r.text()
+    masuk_pada = halaman.evaluate("() => new Date().toISOString()")
+    r = halaman.request.post(
+        konsol.url + "/api/console/weighings",
+        data={"plate_number": nomor, "gross_kg": "14000", "entered_at": masuk_pada},
+    )
+    assert r.status == 201, r.text()
+    return next(w for w in halaman.request.get(konsol.url + "/api/console/weighings").json()["items"]
+                if w["plate_number"] == nomor)
+
+
+def _tutup_tiket(halaman, konsol, tiket: dict) -> None:
+    """Weigh out and leave through the API: the session-scoped console keeps every ticket."""
+    sekarang = halaman.evaluate("() => new Date().toISOString()")
+    r = halaman.request.post(konsol.url + "/api/console/weighings", data={
+        "plate_number": tiket["plate_number"], "entered_at": tiket["entered_at"],
+        "tare_kg": "6000", "exited_at": sekarang})
+    assert r.status == 201, r.text()
+    r = halaman.request.post(konsol.url + "/api/console/departures", data={"weighing_id": tiket["id"], "at": sekarang})
+    assert r.status == 200 and r.json()["hasil"] == "tercatat", r.text()
+
+
+_LEBAR = (1024, 1280, 1440, 1920)
+
+
+@pytest.mark.parametrize("lebar", _LEBAR)
+def test_the_four_steps_never_scroll_sideways(halaman, konsol, browser_name, lebar, penugasan_bersih):
     halaman.set_viewport_size({"width": lebar, "height": 900})
     masuk(halaman, OPERATOR)
+    tiket = _tiket_terbuka(halaman, konsol, plat(browser_name, 1205 + _LEBAR.index(lebar)))
     buka_tab(halaman, "timbangan")
     halaman.evaluate("() => muatTimbangan()")
+    # The row button is the operator's only per-row action without a scanner: on screen
+    # without scrolling the table sideways (11 columns are wider than 1280 and 1440 px).
+    tombol = _baris(halaman, tiket["plate_number"]).locator('button[data-aksi="keluar"]')
+    expect(tombol).to_have_count(1)
+    tombol.evaluate("(el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 200)")
+    assert halaman.evaluate("() => document.querySelector('#sec-timbangan .tabel').scrollLeft") == 0
+    expect(tombol).to_be_in_viewport(ratio=1)
+    _tutup_tiket(halaman, konsol, tiket)
     ukuran = halaman.evaluate("() => [document.documentElement.scrollWidth, window.innerWidth]")
     assert ukuran[0] <= ukuran[1], f"Timbangan is {ukuran[0]} px wide on a {ukuran[1]} px screen"
     pemisah = halaman.evaluate(
