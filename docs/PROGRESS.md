@@ -43,14 +43,15 @@ Changed:        Part 2 of the scan work. With the support-only switch on, a truc
                 (37 pages), skill `konsol-autograde`. The new queue is "Antrean bongkar", not "Antrean
                 line" (that name already belongs to the line-to-console outbox on the Status tab).
                 Final review fixes: a chosen line still holding a truck that already weighed out
-                (its release failed) is reported in `dipasang` as `tertahan` with `plate_lama`, and
+                (its release failed; its newest ticket has a tare) is reported in `dipasang` as
+                `tertahan` with `plate_lama`, and
                 the screen names both plates (`tugaskanTertahan`); with the switch on, the releases
                 of one weigh-out are one toast without "assign again" (`pelepasanOtomatisGabung`);
                 the ticket is read again before each line and Lewati is refused while the truck is
                 going on; saving the switch on puts a waiting truck on at once (`POST
                 /api/console/dev/auto-assign` is now `async def` and answers `dipasang`); browser
                 test that drives the strip as OPERATOR.
-Validated:      `pytest tests/unit tests/e2e tests/integration` → 4460 passed, 45 skipped, 0 failed
+Validated:      `pytest tests/unit tests/e2e tests/integration` → 4463 passed, 45 skipped, 0 failed
                 (`tests/unit/test_dokumen_tanpa_em_dash.py`, `test_coding_standard.py`,
                 `test_manual_doc.py`, `test_skill_mirror.py` included).
                 `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
@@ -68,8 +69,11 @@ Risks:          Off by default, so nothing changes at a mill until support turns
                 out of order at the gate needs "Tugaskan sekarang" by the operator. A ticket typed
                 after its truck was already sorted and released has no link, so with the switch on
                 it goes back onto the lines (Part 1 logs the lost grading); operators should weigh
-                in before assigning. A line holding a truck that never had a ticket is reported as
-                held by a truck that "already left".
+                in before assigning. A line is reported as held only when its truck's newest
+                ticket in the 12 hour window carries a tare (it really weighed out) and a plate is
+                known; a truck put on by hand without a ticket (or with an open ticket older than
+                the window) is left out silently, so that line is simply not free and the next
+                truck goes on the other lines without a warning naming it.
 Next:           Open the PR for this branch against staging (assignee `marcoabelz`, reviewer
                 `supportusahaai`), then turn the switch on at one mill and watch a full shift.
 

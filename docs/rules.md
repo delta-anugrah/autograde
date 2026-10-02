@@ -1178,7 +1178,9 @@ end of this file.
     menunggu sampai 10 detik per line yang menggantung (pemasangan memanggil tiap line satu
     per satu, 10 detik batas per panggilan). ⚠️ Kalau timbang kosong sebuah truk tidak
     bisa melepas line yang mati, line itu tetap memegang truk yang sudah keluar dan truk
-    berikutnya hanya dipasang ke line yang bebas. Line itu dilaporkan di `dipasang` sebagai
+    berikutnya hanya dipasang ke line yang bebas. Line itu (hanya kalau tiket terbaru truknya
+    dalam jendela sudah bertara dan platnya diketahui; truk yang dipasang tangan tanpa tiket
+    masih disortir dan tidak dilaporkan) dilaporkan di `dipasang` sebagai
     `{terpasang: false, tertahan: true, plate_lama}` dan layar memunculkan toast
     `tugaskanTertahan` dengan kedua plat. Lepas pada line yang mati dijawab 502: begitu line
     itu menjawab lagi, Lepas di kartunya lalu tugaskan truk yang menunggu.

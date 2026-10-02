@@ -102,11 +102,11 @@ def line_sibuk(
 def line_tertahan(
     lines: tuple[str, ...] | list[str], pegangan: dict[str, dict[str, Any]], truk_terbuka: set[str]
 ) -> list[str]:
-    """The chosen lines still holding a truck that is no longer being sorted.
+    """The chosen lines holding a truck with no open ticket: the candidates for "held by a
+    truck that left" (its weigh-out could not release them).
 
-    Its weigh-out could not release them (the line did not answer). Such a line is not
-    free, and when it answers again it stamps that departed truck on the next bunches
-    (G5), so the screen must name it for a Lepas by hand, never skip it in silence.
+    Only candidates: a truck put on by hand with no ticket is here too and is still being
+    sorted. The service keeps a line only when the holder's newest ticket has a tare.
     """
     return [
         kode for kode in lines

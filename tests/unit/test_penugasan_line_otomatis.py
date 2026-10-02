@@ -364,6 +364,25 @@ def test_tugaskan_sekarang_melaporkan_line_tertahan(service):
     ]
 
 
+@pytest.mark.parametrize("pemegang", ["tanpa_tiket", "terdaftar_tanpa_tiket", "tiket_terbuka_lama"])
+def test_truk_yang_belum_timbang_kosong_di_line_tidak_dilaporkan_tertahan(service, pemegang):
+    """Truk yang ditugaskan tangan tanpa tiket (atau dengan tiket terbuka di luar jendela)
+    masih disortir: menyuruh Lepas memindahkan sisa janjangnya ke truk berikutnya (G5).
+    Line itu cuma tidak bebas, tidak dilaporkan, dan id truk tidak pernah tampil sebagai plat."""
+    truk_c = truck_id_for("BE 3 CC")
+    if pemegang == "terdaftar_tanpa_tiket":
+        service.store.upsert_truck({"id": truk_c, "plate_number": "BE 3 CC", "status": "active"})
+    if pemegang == "tiket_terbuka_lama":
+        _isi(service, "BE 3 CC", -800)
+        with service.store._lock, service.store._db:
+            service.store._db.execute("UPDATE weighings SET received_at = received_at - 13 * 3600")
+    service.store.set_assignment("line-3", "manual-c", truk_c)
+    _nyalakan(service)
+    row = _isi(service, "BE 1 AA")
+    assert [(d["line_code"], d["terpasang"]) for d in row["dipasang"]] == [("line-1", True), ("line-2", True)]
+    assert all(not d.get("tertahan") for d in row["dipasang"])
+
+
 def test_lewati_selagi_truk_dipasang_ditolak(service):
     """Lewati yang menyelip saat line-1 sedang ditanya: ditolak, truknya naik utuh ke
     semua line. Dulu jawabannya ok dan layar bilang "dilewati" padahal truknya di line."""

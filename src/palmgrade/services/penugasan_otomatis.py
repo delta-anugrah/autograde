@@ -202,14 +202,17 @@ class PenugasanOtomatis:
         tiket = self.store.weighing(weighing_id) or {}
         return not tiket.get("unloading_queue_skipped_at") and tiket.get("tare_kg") is None
 
-    def _plat_lama(self, pegangan: dict[str, Any], sejak: float) -> str:
-        """The plate of the truck a line still holds, for the screen. A truck that was
-        never registered has no plate in `trucks`; its newest ticket still names it."""
-        if pegangan.get("plate_number"):
-            return pegangan["plate_number"]
+    def _plat_sudah_keluar(self, pegangan: dict[str, Any], sejak: float) -> str | None:
+        """The plate of the truck a line still holds, ONLY when that truck really weighed
+        out: its newest ticket in the window carries a tare. A holder with no ticket in the
+        window (put on by hand) or an open one is still being sorted: telling the operator
+        to Lepas it would move its remaining bunches to the next truck (G5). None also when
+        no plate is known: a truck id is never shown as a plate."""
         tiket = self.store.latest_weighing_for_truck_since(pegangan["truck_id"], sejak)
-        plat = (self.store.weighing(tiket) or {}).get("plate_number") if tiket else None
-        return plat or pegangan["truck_id"]
+        baris = (self.store.weighing(tiket) or {}) if tiket else {}
+        if baris.get("tare_kg") is None:
+            return None
+        return pegangan.get("plate_number") or baris.get("plate_number") or None
 
     async def _pasang(
         self,
@@ -223,11 +226,11 @@ class PenugasanOtomatis:
         accepts first, then it is recorded). A line that does not answer is reported; the
         others still get the truck. In the chosen order, so the toast reads like the cards.
 
-        A chosen line still holding a truck that left (its weigh-out could not release it)
-        is reported `tertahan` with that truck's plate: the operator must Lepas it on its
-        card, or it stamps the departed truck on this truck's bunches once it answers (G5).
-        A line holding a truck still being sorted is left out (only "Tugaskan sekarang"
-        gets this far with one).
+        A chosen line still holding a truck that weighed out (its weigh-out could not
+        release it) is reported `tertahan` with that truck's plate: the operator must Lepas
+        it on its card, or it stamps the departed truck on this truck's bunches once it
+        answers (G5). Any other holder (still sorting, put on by hand without a ticket, or
+        no plate known) is left out silently: the line is simply not free.
 
         A line is checked again right before its turn: while an earlier line was being
         asked, the operator may have put another truck on it from the card dropdown, and
@@ -241,14 +244,17 @@ class PenugasanOtomatis:
                 return []
             self._tiket_dipasang.add(weighing_id)
         try:
-            tertahan = set(line_tertahan(lines, pegangan, terbuka))
+            tertahan = {
+                kode: plat for kode in line_tertahan(lines, pegangan, terbuka)
+                if (plat := self._plat_sudah_keluar(pegangan[kode], sejak))
+            }
             bebas = set(line_bebas(lines, pegangan))
             hasil = []
             for line_code in lines:
                 if line_code in tertahan:
                     hasil.append({
                         "line_code": line_code, "plate_number": antre["plate_number"], "terpasang": False,
-                        "tertahan": True, "plate_lama": self._plat_lama(pegangan[line_code], sejak),
+                        "tertahan": True, "plate_lama": tertahan[line_code],
                     })
                     continue
                 if line_code not in bebas or not self._masih_menunggu(weighing_id):
