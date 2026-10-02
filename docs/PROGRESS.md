@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-02 · console · Four gate scans (PR pending)
+## 2026-10-02 · console · Four gate scans (PR #214)
 Changed:        Part 3 of the scan work. The Timbangan tab has four labelled steps: 1 Datang
                 (truck dropdown + Catat datang, or QR when the scanner exists), 2 Timbang isi,
                 3 Timbang kosong, 4 Keluar (per-row button, or QR). Scans 1 and 4 live only in
