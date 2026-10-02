@@ -190,7 +190,7 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 | 5 | Timbang kosong dan keluar | Scan QR di kolom **3. Timbang kosong** atau tekan **Timbang kosong** di baris truknya, isi tara. Di gerbang, scan di kolom **4. Keluar** atau tekan **Keluar** di barisnya. Truk yang belum timbang kosong ditolak dengan peringatan. Dua tiket terbuka → konsol menolak menebak, pilih di tabel | tahap `departed`: tara + jam keluar (jam keluar gerbang tidak ikut) |
 | 6 | AutoERP | - | neto = bruto − tara, potongan, harga, Purchase Receipt |
 
-Kolom **Antre** = datang sampai timbang isi; "tanpa scan 1" artinya scan datang terlewat. **Total** = datang sampai keluar gerbang; kalau scan datang terlewat, Total dihitung dari timbang isi. Jam datang dan jam keluar cuma disimpan di PC pabrik, tidak dikirim ke AutoERP. Kalau jamnya belum ada, kolomnya menulis strip, bukan "0 mnt". Truk yang sudah dicatat datang tapi belum timbang isi tampil di baris **Menunggu timbang** di bawah kolom **1. Datang**, sampai 12 jam, juga lewat tengah malam. Daftar yang panjang terpotong; arahkan kursor ke baris itu untuk membaca semuanya. Truk terdaftar yang platnya tidak berbentuk plat biasa (plat dinas, plat lama) tetap bisa dicatat datang dari daftar truk.
+Kolom **Antre** = datang sampai timbang isi; "tanpa scan 1" artinya scan datang terlewat. **Total** = datang sampai keluar gerbang; kalau scan datang terlewat, Total dihitung dari timbang isi. Jam datang dan jam keluar cuma disimpan di PC pabrik, tidak dikirim ke AutoERP. Kalau jamnya belum ada, kolomnya menulis strip, bukan "0 mnt". Truk yang sudah dicatat datang tapi belum timbang isi tampil di baris **Menunggu timbang** di bawah kolom **1. Datang**, sampai 12 jam, juga lewat tengah malam. Daftarnya selalu dua baris; yang lebih panjang terpotong di ujung baris kedua. Truk terdaftar yang platnya tidak berbentuk plat biasa (plat dinas, plat lama) tetap bisa dicatat datang dari daftar truk.
 
 **Penugasan otomatis** (bawaannya mati; support yang menyalakannya di tab **Setelan**). Selama
 mati, layar sama seperti sebelumnya: tidak ada strip antrean, truk ditugaskan lewat kartu line.
@@ -213,7 +213,7 @@ terbarunya. Line yang dilepas oleh timbang kosong diumumkan dalam satu notifikas
 - Kalau sebuah line tidak menjawab saat truk dipasang, layar menyebut line-nya. Timbangannya
   tetap tersimpan; tugaskan truknya manual di kartu line itu.
 - Kalau timbang kosong tidak bisa melepas sebuah line (line itu mati), line itu masih memegang
-  truk yang sudah keluar dan truk berikutnya hanya naik ke line lain. Notifikasinya menyebut
+  truk yang sudah timbang kosong dan truk berikutnya hanya naik ke line lain. Notifikasinya menyebut
   line itu dan plat truk lama. Begitu line itu menjawab lagi, tekan **Lepas** di kartunya, lalu
   tugaskan truk yang menunggu di kartu yang sama. Selama line masih mati, Lepas juga ditolak
   "tidak menjawab".
@@ -715,7 +715,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Tab Log: "Lapor ke Discord DITOLAK ... (HTTP 404)" | webhook Discord salah atau sudah dihapus | buat webhook baru di kanal support, isi `DISCORD_WEBHOOK_URL` di `.env` PC, lalu `autograde restart`; pesan yang menunggu tidak hilang |
 | Tab Log: "Lapor ke Discord tertahan" | internet pabrik putus | tidak perlu apa-apa, terkirim sendiri begitu internet ada |
 | Notifikasi "Line N tidak menjawab. Tugaskan … manual di kartunya" | penugasan otomatis tidak sampai ke line itu (line mati, restart, atau sedang hapus data); timbangannya tetap tersimpan | nyalakan line-nya, lalu tugaskan truk itu lewat dropdown di kartu line tersebut |
-| Notifikasi "Line N masih memegang truk … yang sudah keluar" | timbang kosong tidak bisa melepas line itu karena line mati; truk berikutnya cuma naik ke line lain | tunggu line menjawab lagi, **Lepas** di kartunya, lalu tugaskan truk yang menunggu di kartu itu |
+| Notifikasi "Line N masih memegang truk … yang sudah timbang kosong" | timbang kosong tidak bisa melepas line itu karena line mati; truk berikutnya cuma naik ke line lain | tunggu line menjawab lagi, **Lepas** di kartunya, lalu tugaskan truk yang menunggu di kartu itu |
 
 ### 7.1 Janjang yang ditolak konsol
 

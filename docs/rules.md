@@ -1175,7 +1175,7 @@ end of this file.
     line ke konsol (aturan 31, tab Status). ⚠️ Selama saklar nyala, satu timbang isi bisa
     menunggu sampai 10 detik per line yang menggantung (pemasangan memanggil tiap line satu
     per satu, 10 detik batas per panggilan). ⚠️ Kalau timbang kosong sebuah truk tidak
-    bisa melepas line yang mati, line itu tetap memegang truk yang sudah keluar dan truk
+    bisa melepas line yang mati, line itu tetap memegang truk yang sudah timbang kosong dan truk
     berikutnya hanya dipasang ke line yang bebas. Line itu (hanya kalau tiket terbaru truknya
     dalam jendela sudah bertara dan platnya diketahui; truk yang dipasang tangan tanpa tiket
     masih disortir dan tidak dilaporkan) dilaporkan di `dipasang` sebagai

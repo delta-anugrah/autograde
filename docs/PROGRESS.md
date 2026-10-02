@@ -40,7 +40,7 @@ Changed:        Part 3 of the scan work. The Timbangan tab has four labelled ste
                 Fix wave: the waiting list uses the 12 h claim window, not the work date (a truck
                 arriving 23:50 still waits at 00:10); a registered truck with an odd plate can
                 arrive and leave by QR; both gate windows come from `JENDELA_KUNJUNGAN_DETIK`;
-                the waiting text no longer moves steps 2 to 4 (one line, full list in `title`);
+                the waiting text no longer moves steps 2 to 4 (fixed two-line box, full list also in `title`);
                 the AutoERP gate-time test pins exact key sets.
 Validated:      `pytest tests/unit tests/e2e tests/integration` → 4593 passed, 45 skipped, 0 failed.
                 `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
