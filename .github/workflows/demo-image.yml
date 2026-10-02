@@ -1,7 +1,8 @@
 name: Build AutoGrade Demo Image (CPU)
 
 # Console-only image for the internet demo (demo-autograde.smagri.id): CPU torch, no camera SDK.
-# Publishes vX.Y.Z-cpu only; factory PCs update from `latest`, which this workflow never writes.
+# Publishes candidate-vX.Y.Z-cpu, then vX.Y.Z-cpu once it passed image-smoke.yml; factory PCs update
+# from `latest`, which this workflow never writes.
 
 on:
   # Called by deploy.yml once its `ci` job passed on the tag commit (batch 4.1).
@@ -137,6 +138,9 @@ jobs:
   promote:
     needs: [build-and-push, smoke]
     runs-on: ubuntu-latest
+    concurrency:
+      group: promote-demo-${{ inputs.version || github.ref_name }}
+      cancel-in-progress: false
 
     permissions:
       contents: read
@@ -158,10 +162,17 @@ jobs:
 
       - name: Reject existing demo image
         shell: bash
+        env:
+          DIGEST: ${{ needs.build-and-push.outputs.digest }}
         run: |
           set -euo pipefail
           IMAGE="$REGISTRY/$IMAGE_NAME:$VERSION-cpu"
           if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
+            EXISTING=$(docker buildx imagetools inspect "$IMAGE" --format '{{.Manifest.Digest}}')
+            if [ "$EXISTING" = "$DIGEST" ]; then
+              echo "Demo tag already points at this candidate ($DIGEST): re-run"
+              exit 0
+            fi
             echo "Demo image already exists and must not be overwritten: $IMAGE"
             exit 1
           fi

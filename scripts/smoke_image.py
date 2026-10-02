@@ -29,6 +29,7 @@ import json
 import subprocess
 import sys
 import time
+import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
@@ -67,11 +68,24 @@ class SmokeFailed(Exception):
     """A check failed; the message says which and why."""
 
 
+# Exit code reported for a docker command that ran past COMMAND_TIMEOUT_S (as `timeout(1)`).
+EXIT_TIMEOUT = 124
+
+
 def run_docker(args: Sequence[str]) -> Result:
-    done = subprocess.run(
-        ["docker", *args], capture_output=True, text=True, timeout=COMMAND_TIMEOUT_S, check=False
-    )
+    try:
+        done = subprocess.run(
+            ["docker", *args], capture_output=True, text=True, timeout=COMMAND_TIMEOUT_S, check=False
+        )
+    except subprocess.TimeoutExpired:
+        return Result(EXIT_TIMEOUT, "", f"docker {args[0]} ran longer than {COMMAND_TIMEOUT_S} s")
     return Result(done.returncode, done.stdout, done.stderr)
+
+
+def _container_name(what: str) -> str:
+    # Named, so the container can be removed even when the docker CLI was killed or
+    # `run -d` failed after the container was created.
+    return f"autograde-smoke-{what}-{uuid.uuid4().hex[:12]}"
 
 
 def _tail(text: str) -> str:
@@ -82,14 +96,23 @@ def check_label(run: Runner, image: str, label: str) -> None:
     result = run(["image", "inspect", "--format", "{{json .Config.Labels}}", image])
     if result.returncode != 0:
         raise SmokeFailed(f"label: image not found locally: {_tail(result.stderr)}")
-    labels = json.loads(result.stdout or "null") or {}
+    try:
+        labels = json.loads(result.stdout or "null") or {}
+    except json.JSONDecodeError as exc:
+        raise SmokeFailed(f"label: docker inspect returned no JSON: {exc}") from exc
     found = labels.get(VERSION_LABEL)
     if found != label:
         raise SmokeFailed(f"label: {VERSION_LABEL} is {found!r}, expected {label!r}")
 
 
 def _python(run: Runner, image: str, code: str, what: str) -> None:
-    result = run(["run", "--rm", "--network", "none", "--entrypoint", "python", image, "-c", code])
+    name = _container_name("import")
+    try:
+        result = run(
+            ["run", "--rm", "--name", name, "--network", "none", "--entrypoint", "python", image, "-c", code]
+        )
+    finally:
+        run(["rm", "-f", name])
     if result.returncode != 0:
         raise SmokeFailed(f"{what}: exit {result.returncode}\n{_tail(result.stderr)}")
 
@@ -127,13 +150,14 @@ def check_console_boot(
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
 ) -> None:
-    started = run(
-        ["run", "-d", "--network", "none", "-e", "APP_MODE=console", "-e", f"APP_PORT={CONSOLE_PORT}", image]
-    )
-    if started.returncode != 0:
-        raise SmokeFailed(f"boot: container did not start\n{_tail(started.stderr)}")
-    container = started.stdout.strip()
+    container = _container_name("console")
     try:
+        started = run(
+            ["run", "-d", "--name", container, "--network", "none",
+             "-e", "APP_MODE=console", "-e", f"APP_PORT={CONSOLE_PORT}", image]
+        )
+        if started.returncode != 0:
+            raise SmokeFailed(f"boot: container did not start\n{_tail(started.stderr)}")
         deadline = clock() + timeout_s
         health = _read_health(run, container)
         # A console that refuses to boot (validate_secrets, a crash at import) exits at

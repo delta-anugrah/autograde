@@ -39,6 +39,8 @@ class DockerPalsu:
         self.berhenti = False  # container exits right after start
         self.__dict__.update(ubah)
         self.panggilan: list[list[str]] = []
+        self.dinyalakan: list[str] = []
+        self.dihapus_nama: list[str] = []
         self._poll = 0
 
     def __call__(self, args):
@@ -49,6 +51,8 @@ class DockerPalsu:
             if self.label is None:
                 return Result(1, "", "Error: No such image")
             return Result(0, json.dumps({smoke_image.VERSION_LABEL: self.label}), "")
+        if cmd == "run":
+            self.dinyalakan.append(args[args.index("--name") + 1])
         if cmd == "run" and "-d" in args:
             return Result(self.run_d_exit, "c0ffee\n" if self.run_d_exit == 0 else "", "boom")
         if cmd == "run":
@@ -66,11 +70,13 @@ class DockerPalsu:
         if cmd == "logs":
             return Result(0, "RuntimeError: WEBHOOK_SECRET is required\n", "")
         if cmd == "rm":
+            self.dihapus_nama.append(args[-1])
             return Result(0, "", "")
         raise AssertionError(f"unexpected docker call: {args}")
 
     def dihapus(self) -> bool:
-        return ["rm", "-f", "c0ffee"] in self.panggilan
+        """Every container the script started, by name, was removed."""
+        return bool(self.dinyalakan) and set(self.dinyalakan) <= set(self.dihapus_nama)
 
 
 def _jalan(docker, **kw):
@@ -131,14 +137,15 @@ def test_import_jalan_tanpa_jaringan():
     impor = [a for a in docker.panggilan if a[0] == "run" and "-d" not in a]
     assert len(impor) == 2
     for args in impor:
-        assert args[1:4] == ["--rm", "--network", "none"], args
+        assert args[1] == "--rm", args
+        assert args[4:6] == ["--network", "none"], args
 
 
 def test_konsol_dinyalakan_mode_konsol_tanpa_jaringan():
     docker = DockerPalsu()
     _jalan(docker)
     start = next(a for a in docker.panggilan if a[0] == "run" and "-d" in a)
-    assert ["--network", "none"] == start[2:4]
+    assert ["--network", "none"] == start[4:6]
     assert "APP_MODE=console" in start
 
 
@@ -188,9 +195,61 @@ def test_health_yang_tidak_cocok_ditolak(health):
     assert docker.dihapus()
 
 
-def test_container_yang_gagal_start_ditolak():
+def test_container_yang_gagal_start_ditolak_dan_tetap_dibuang():
+    """`run -d` bisa gagal SESUDAH container dibuat (port, mount): namanya tetap dihapus."""
+    docker = DockerPalsu(run_d_exit=125)
     with pytest.raises(SmokeFailed, match="did not start"):
-        smoke_image.check_console_boot(DockerPalsu(run_d_exit=125), IMAGE, "v1.22.0")
+        smoke_image.check_console_boot(docker, IMAGE, "v1.22.0")
+    assert docker.dihapus()
+
+
+def test_container_import_dibuang_walau_import_gagal():
+    docker = DockerPalsu(line_exit=1)
+    with pytest.raises(SmokeFailed):
+        _jalan(docker)
+    assert docker.dihapus()
+    assert len(set(docker.dinyalakan)) == len(docker.dinyalakan), "names must be unique"
+
+
+def test_semua_container_dibuang_di_jalur_sehat():
+    docker = DockerPalsu()
+    _jalan(docker)
+    assert len(docker.dinyalakan) == 3
+    assert docker.dihapus()
+
+
+def test_json_rusak_dari_inspect_jadi_fail_bukan_traceback():
+    def rusak(args):
+        return Result(0, "<not json>", "")
+
+    with pytest.raises(SmokeFailed, match="no JSON"):
+        smoke_image.check_label(rusak, IMAGE, "v1.22.0")
+
+
+def test_perintah_docker_yang_kelamaan_jadi_kode_keluar_bukan_traceback(monkeypatch):
+    def lambat(*_a, **_k):
+        raise smoke_image.subprocess.TimeoutExpired(cmd="docker", timeout=1)
+
+    monkeypatch.setattr(smoke_image.subprocess, "run", lambat)
+    hasil = smoke_image.run_docker(["run", "x"])
+    assert hasil.returncode == smoke_image.EXIT_TIMEOUT
+    assert "ran longer than" in hasil.stderr
+
+
+def test_import_yang_kelamaan_ditolak():
+    docker = DockerPalsu()
+    asli = docker.__call__
+
+    def lambat(args):
+        if args[0] == "run" and "-d" not in args:
+            docker.panggilan.append(list(args))
+            docker.dinyalakan.append(args[args.index("--name") + 1])
+            return Result(smoke_image.EXIT_TIMEOUT, "", "docker run ran longer than 600 s")
+        return asli(args)
+
+    with pytest.raises(SmokeFailed, match="line import: exit 124"):
+        smoke_image.smoke(lambat, IMAGE, "v1.22.0", "v1.22.0", log=lambda _s: None)
+    assert docker.dihapus()
 
 
 def test_main_mengembalikan_kode_keluar(capsys):

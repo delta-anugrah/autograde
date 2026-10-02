@@ -65,6 +65,9 @@ jobs:
       LABEL_EXPECTED: ${{ inputs.label }}
 
     steps:
+      # Called from a release: this is the tag commit, the same code as the image. Run by
+      # hand: the scripts come from the branch picked in the Run workflow form, which may be
+      # newer than the image being checked.
       - uses: actions/checkout@v4
 
       # Same reason as the factory build in deploy.yml: the CUDA image does not fit on

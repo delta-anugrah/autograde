@@ -187,3 +187,30 @@ def test_urutan_cek_smoke():
 def test_disk_runner_dibersihkan_untuk_image_pabrik_saja():
     langkah = next(s for s in SMOKE["jobs"]["smoke"]["steps"] if s.get("name") == "Reclaim runner disk")
     assert langkah["if"] == "${{ !inputs.demo }}"
+
+
+@pytest.mark.parametrize("nama", sorted(RILIS))
+def test_promote_antre_tidak_dibatalkan(nama):
+    """Dua tag berdekatan: tanpa antrean, rilis yang lebih tua bisa menulis `latest`
+    terakhir dan pabrik mundur versi. `cancel-in-progress` harus mati: membatalkan
+    promote di tengah bisa meninggalkan tag rilis tanpa `latest`."""
+    conc = RILIS[nama]["jobs"]["promote"]["concurrency"]
+    assert conc["cancel-in-progress"] is False
+    assert conc["group"]
+
+
+def test_antrean_latest_satu_untuk_semua_rilis_pabrik():
+    assert DEPLOY["jobs"]["promote"]["concurrency"]["group"] == "promote-release-latest"
+
+
+@pytest.mark.parametrize("nama", sorted(RILIS))
+def test_jalan_ulang_promote_boleh_kalau_tag_sudah_digest_yang_sama(nama):
+    """Promote yang gagal sesudah menulis tag rilis tapi sebelum `latest` harus bisa
+    di-re-run; tag yang menunjuk digest LAIN tetap ditolak (tag rilis tidak bisa diubah)."""
+    langkah = next(
+        s for s in RILIS[nama]["jobs"]["promote"]["steps"] if s.get("name", "").startswith("Reject existing")
+    )
+    assert langkah["env"]["DIGEST"] == "${{ needs.build-and-push.outputs.digest }}"
+    run = langkah["run"]
+    assert '[ "$EXISTING" = "$DIGEST" ]' in run
+    assert run.index("exit 0") < run.rindex("exit 1")

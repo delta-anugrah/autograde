@@ -163,10 +163,15 @@ jobs:
       packages: read
 
   # Copies the smoked digest to the release tag and `latest` in the registry: no rebuild,
-  # so what reaches the factory is byte for byte what passed `smoke`.
+  # the same layers that passed `smoke`. The digest of the result is printed for the log.
   promote:
     needs: [build-and-push, smoke]
     runs-on: ubuntu-latest
+    # Two tags pushed close together: smoke time varies with the pull, so without a queue
+    # the older release could write `latest` last and move the factory backwards.
+    concurrency:
+      group: promote-release-latest
+      cancel-in-progress: false
 
     permissions:
       contents: read
@@ -187,12 +192,22 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Checked again here: the build started minutes ago, and a release tag is immutable.
+      # The one exception is a re-run of this job after it wrote the release tag but failed
+      # on `latest`: the tag then already points at this very digest, and writing both
+      # again changes nothing but `latest`.
       - name: Reject existing immutable release tag
         shell: bash
+        env:
+          DIGEST: ${{ needs.build-and-push.outputs.digest }}
         run: |
           set -euo pipefail
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_REF_NAME}"
           if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
+            EXISTING=$(docker buildx imagetools inspect "$IMAGE" --format '{{.Manifest.Digest}}')
+            if [ "$EXISTING" = "$DIGEST" ]; then
+              echo "Release tag already points at this candidate ($DIGEST): re-run, writing latest again"
+              exit 0
+            fi
             echo "Release image already exists and must not be overwritten: $IMAGE"
             exit 1
           fi
@@ -207,12 +222,16 @@ jobs:
             --tag "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_REF_NAME}" \
             --tag "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" \
             "$SOURCE"
+          echo "candidate digest: $SOURCE"
           docker buildx imagetools inspect "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_REF_NAME}"
 
   # The CPU demo image (`vX.Y.Z-cpu`, demo-autograde.smagri.id) waits for the same
   # CI run instead of starting on its own at tag time, so a version whose tests are
   # red is published under neither name. It runs beside the factory build, not
-  # after it: a failed demo build never holds back the image the factory pulls.
+  # after it: a failed demo build never holds back the image the factory pulls. The two
+  # smoke tests are separate too, so `vX.Y.Z-cpu` can exist while the factory `vX.Y.Z`
+  # failed its smoke; the fix is a new tag either way, and `demo-autograde upgrade` to such
+  # a version is simply not done.
   demo:
     needs: ci
     uses: ./.github/workflows/demo-image.yml
