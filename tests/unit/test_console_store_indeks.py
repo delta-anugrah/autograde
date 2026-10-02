@@ -55,6 +55,8 @@ def store(tmp_path) -> ConsoleStore:
         (lambda s: s.weighing_for_assignment("a1"), "sqlite_autoindex_visit_assignments_1 (assignment_id=?)"),
         (lambda s: s.auto_releases_terbaru(), "idx_auto_releases_waktu (released_at>?)"),
         # Sejak 2026-10-01 tiket truk dicari lewat jendela waktu, bukan hari kerja.
+        # Sejak 2026-10-02 diurutkan menurut julianday: TEMP B-TREE atas tiket satu truk di
+        # jendela itu (segelintir baris) diterima; yang dijaga tetap pencarian lewat indeksnya.
         (lambda s: s.latest_weighing_for_truck_since("t1", 0.0), "idx_weighings_truck (truck_id=? AND received_at>?)"),
     ],
     ids=["grading_counts", "bunches_for_visit", "grading_counts_for_visit", "weighing_for_assignment",

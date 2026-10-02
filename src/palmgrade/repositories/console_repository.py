@@ -52,6 +52,22 @@ _KOLOM_JANJANG = """event_id, machine_id, line_code, timestamp, ripeness_status,
        tp_status, tp_confidence"""
 
 #: Every assignment linked to one visit; `?` is the weighing id.
+
+
+def _saat_isi(t: str) -> str:
+    """A ticket's real weigh-in instant, as SQL (user's screenshot 2026-10-02).
+
+    The browser writes `...Z`, the seeder and the scale program `...+07:00`; as text
+    "08:00+07:00" (01:00 UTC) sorts after "01:30Z". `julianday()` reads both. No readable
+    weigh-in time: the console's own arrival clock (`received_at`, epoch seconds) stands in.
+    """
+    return f"COALESCE(julianday({t}.entered_at), julianday({t}.received_at, 'unixepoch'))"
+
+
+#: Newest ticket first. ONE order for the table, the truck's newest ticket and the unloading
+#: queue's "newer ticket" test, so the ticket a release links is the one the queue offers.
+_TERBARU_DULU = f"{_saat_isi('w')} DESC, w.received_at DESC, w.rowid DESC"
+
 _PENUGASAN_KUNJUNGAN = "SELECT assignment_id FROM visit_assignments WHERE weighing_id = ?"
 
 
@@ -586,9 +602,9 @@ class ConsoleStore(AkunStore, GerbangStore):
         """
         with self._lock:
             row = self._db.execute(
-                """SELECT id FROM weighings
-                   WHERE truck_id = ? AND received_at >= ?
-                   ORDER BY COALESCE(entered_at, '') DESC, received_at DESC LIMIT 1""",
+                f"""SELECT w.id FROM weighings w
+                   WHERE w.truck_id = ? AND w.received_at >= ?
+                   ORDER BY {_TERBARU_DULU} LIMIT 1""",
                 (truck_id, sejak),
             ).fetchone()
         return row["id"] if row else None
@@ -619,7 +635,7 @@ class ConsoleStore(AkunStore, GerbangStore):
                    LEFT JOIN trucks t ON t.id = w.truck_id
                    LEFT JOIN suppliers s ON s.id = t.supplier_id
                    WHERE w.work_date = ?
-                   ORDER BY w.entered_at DESC, w.received_at DESC LIMIT ?""",
+                   ORDER BY {_TERBARU_DULU} LIMIT ?""",
                 (work_date, limit),
             ).fetchall()
         return [dict(r) for r in rows]
@@ -677,12 +693,12 @@ class ConsoleStore(AkunStore, GerbangStore):
         offered again. Only a truck's newest ticket is offered: an older one left open by
         a weigh-in typed twice would otherwise put the truck back on the lines after it
         left. "Newest" is ordered exactly as `latest_weighing_for_truck_since` orders it
-        (weigh-in time, then arrival), so the ticket a release links is always the one
-        this would offer. `sejak` is an epoch on `received_at`, the console's own clock.
+        (`_TERBARU_DULU`: real weigh-in instant, then arrival, then rowid), so the ticket a
+        release links is always the one this would offer. `sejak` is an epoch on `received_at`, the console's own clock.
         """
         with self._lock:
             rows = self._db.execute(
-                """SELECT w.id AS weighing_id, w.truck_id, w.plate_number, w.entered_at,
+                f"""SELECT w.id AS weighing_id, w.truck_id, w.plate_number, w.entered_at,
                           w.received_at
                    FROM weighings w
                    WHERE w.tare_kg IS NULL AND w.gross_kg IS NOT NULL
@@ -694,8 +710,8 @@ class ConsoleStore(AkunStore, GerbangStore):
                      AND NOT EXISTS (
                          SELECT 1 FROM weighings w2
                           WHERE w2.truck_id = w.truck_id AND w2.received_at >= ?
-                            AND (COALESCE(w2.entered_at, ''), w2.received_at)
-                                > (COALESCE(w.entered_at, ''), w.received_at))
+                            AND ({_saat_isi('w2')}, w2.received_at, w2.rowid)
+                                > ({_saat_isi('w')}, w.received_at, w.rowid))
                    ORDER BY w.received_at, w.rowid""",
                 (sejak, sejak),
             ).fetchall()

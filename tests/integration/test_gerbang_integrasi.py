@@ -173,3 +173,19 @@ def test_scan_4_tidak_mengantre_apa_pun_ke_autoerp(pabrik):
     assert gate.leave(PLAT, "2026-09-30T02:10:00+00:00")["hasil"] == "tercatat"
     assert [(m.kind, m.key) for m in outbox.due(50)] == sebelum
     assert store.truck(truck_id_for("BE 7001 XY")) is None  # a scan never creates a truck
+
+
+def test_tabel_terbaru_dulu_menurut_waktu_nyata_dan_tiket_truk_yang_ditaut(pabrik):
+    """User's screenshot 2026-10-02: a browser ticket (`Z`) sat between older seeded ones
+    (`+07:00`) because the table was ordered by the ISO text."""
+    service, gate, store, _ = pabrik
+    _isi(service, "2026-09-30T08:00:00+07:00", plat="BE 1 LAMA")  # 01:00 UTC, seeded
+    _isi(service, "2026-09-30T01:30:00.000Z", plat="BE 2 BARU")  # from the browser
+    assert [w["plate_number"] for w in service.weighings(HARI)] == ["BE 2 BARU", "BE 1 LAMA"]
+
+    # One truck weighed in twice in two spellings: the newer instant is its ticket.
+    _isi(service, "2026-09-30T08:10:00+07:00")  # 01:10 UTC
+    _isi(service, "2026-09-30T01:20:00Z")
+    terbaru = store.latest_weighing_for_truck_since(truck_id_for(PLAT), 0.0)
+    assert store.weighing(terbaru)["entered_at"] == "2026-09-30T01:20:00Z"
+    assert terbaru in [r["weighing_id"] for r in store.unloading_queue(0.0)]

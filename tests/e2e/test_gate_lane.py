@@ -146,3 +146,15 @@ def test_tombol_baris_keluar_lewat_weighing_id(klien):
     assert r.status_code == 200
     assert r.json() == {"hasil": "tercatat", "plate_number": PLAT, "weighing_id": row["id"],
                         "left_at": "2026-09-30T02:10:00Z"}
+
+
+def test_tabel_lewat_rute_terbaru_dulu_menurut_waktu_nyata(klien):
+    """The browser writes `Z`, the seeder `+07:00`: the route orders by the real instant."""
+    _masuk(klien)
+    for plat, jam in (("BE 1 AA", "2026-09-30T08:00:00+07:00"),  # 01:00 UTC
+                      ("BE 2 BB", "2026-09-30T01:30:00.000Z"),
+                      ("BE 3 CC", "2026-09-30T08:45:00+07:00")):  # 01:45 UTC
+        r = klien.post("/api/console/weighings", json={"plate_number": plat, "gross_kg": "14000", "entered_at": jam})
+        assert r.status_code == 201, r.text
+    data = klien.get("/api/console/weighings", params={"work_date": "2026-09-30"}).json()
+    assert [w["plate_number"] for w in data["items"]] == ["BE 3 CC", "BE 2 BB", "BE 1 AA"]

@@ -60,6 +60,9 @@ class GerbangStore:
     def waiting_arrivals(self, sejak_hari: str) -> list[dict[str, Any]]:
         """The queue at the scale: not weighed in yet, oldest first, from `sejak_hari` on.
 
+        Oldest by the real instant (`julianday`), not the text: the browser writes `...Z`,
+        the seeder `...+07:00`.
+
         The work date only narrows the read (index `idx_arrivals_hari`); the caller passes
         the work date of "now minus the claim window" and the domain applies the window
         itself (`masih_menunggu`), so a queue that crosses midnight stays one queue.
@@ -67,7 +70,8 @@ class GerbangStore:
         with self._lock:
             rows = self._db.execute(
                 """SELECT plate_number, arrived_at FROM arrivals
-                   WHERE work_date >= ? AND weighing_id IS NULL ORDER BY arrived_at""",
+                   WHERE work_date >= ? AND weighing_id IS NULL
+                   ORDER BY julianday(arrived_at), rowid""",
                 (sejak_hari,),
             ).fetchall()
         return [dict(r) for r in rows]
