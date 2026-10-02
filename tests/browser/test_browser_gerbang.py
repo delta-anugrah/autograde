@@ -265,8 +265,8 @@ _LEBAR_ANTRE = (1024, 1440, 1920)
 @pytest.mark.parametrize("lebar", _LEBAR_ANTRE)
 def test_the_waiting_list_never_moves_the_other_steps(halaman, konsol, browser_name, lebar, penugasan_bersih):
     """`#antre` under step 1 changes on every 15 s poll ("Menunggu timbang (n): ..."). It never
-    widens or heightens step 1 (one line, cut inside it), so steps 2 to 4 stay where the
-    operator's hand is, side by side or stacked (Q6)."""
+    widens or heightens step 1 (a fixed two-line box, cut inside it), so steps 2 to 4 stay where
+    the operator's hand is, side by side or stacked (Q6)."""
     halaman.set_viewport_size({"width": lebar, "height": 900})
     masuk(halaman, OPERATOR)
     buka_tab(halaman, "timbangan")
@@ -285,7 +285,7 @@ def test_the_waiting_list_never_moves_the_other_steps(halaman, konsol, browser_n
         halaman.evaluate("() => muatTimbangan()")
         for n in nomor:
             expect(halaman.locator("#antre")).to_contain_text(n)
-            # One line, cut with an ellipsis when long: the whole list is in the tooltip.
+            # Two lines, cut when longer: the whole list is also in the tooltip.
             expect(halaman.locator("#antre")).to_have_attribute("title", re.compile(re.escape(n)))
 
         assert halaman.evaluate(_POSISI_LANGKAH) == sebelum
@@ -294,6 +294,12 @@ def test_the_waiting_list_never_moves_the_other_steps(halaman, konsol, browser_n
             " document.querySelector('#antre').parentElement.getBoundingClientRect().width]"
         )
         assert lebar_antre <= lebar_sisi, (lebar_antre, lebar_sisi)
+        # Readable from a distance: two lines of text, never one, and the box never grows.
+        tinggi, baris = halaman.evaluate(
+            "() => { const el = document.querySelector('#antre'), g = getComputedStyle(el);"
+            " return [el.getBoundingClientRect().height, parseFloat(g.lineHeight)]; }"
+        )
+        assert round(tinggi / baris) == 2, (tinggi, baris)
     finally:
         # Every arrival is claimed by a weigh-in, then weighed out and gone: the console is
         # shared by the whole session, a leftover would sit in the next test's waiting list.
