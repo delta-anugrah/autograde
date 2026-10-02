@@ -316,6 +316,7 @@ def wipe(store: ConsoleStore) -> int:
     with store._lock, store._db:  # noqa: SLF001 — no public bulk-delete; this is a dev tool
         for table, column in (
             ("inspections", "truck_id"),
+            ("arrivals", "truck_id"),
             ("weighings", "truck_id"),
             ("assignments", "truck_id"),
         ):
@@ -461,6 +462,7 @@ def _seed_one_visit(
         }
     )
     store.link_weighing_to_assignment(_uid("weighing", key), assignment_id, line)
+    _seed_gerbang(store, tz, key, plate, truck_id, start)
 
     total = rng.randint(*BUNCHES_PER_VISIT)
     rej_share = rng.uniform(*REJ_SHARE)
@@ -519,6 +521,35 @@ def _seed_one_visit(
             nyata=nyata,
         )
     return total
+
+
+def _seed_gerbang(store: ConsoleStore, tz, key: str, plate: str, truck_id: str, start) -> None:
+    """Scan 1 and 4 for one demo visit (2026-09-30), so the Timbangan tab shows queue and
+    total times instead of "no scan 1" on every row.
+
+    Its own random stream (`:gerbang`): drawing from the visit's stream would shift every
+    bunch count after it, and a partly seeded day would fill in different numbers.
+    """
+    rng = random.Random(f"{SEED}:{key}:gerbang")
+    weighing_id = _uid("weighing", key)
+    # About one visit in ten skips scan 1, like a real gate on a quiet morning.
+    if rng.random() >= 0.1:
+        datang = start - timedelta(minutes=rng.randint(5, 90))
+        arrival_id = _uid("arrival", key)
+        store.record_arrival(
+            {
+                "id": arrival_id,
+                "plate_number": plate,
+                "plate_norm": normalisasi_plat(plate),
+                "truck_id": truck_id,
+                "work_date": work_date_for(datang.isoformat(), tz),
+                "arrived_at": datang.isoformat(),
+            }
+        )
+        store.claim_arrival(arrival_id, weighing_id)
+    pergi = start + timedelta(hours=1, minutes=rng.randint(2, 15))
+    # Never in the future: the table would show a leave time that has not happened.
+    store.set_left_at(weighing_id, min(pergi, datetime.now(tz)).isoformat())
 
 
 if __name__ == "__main__":
