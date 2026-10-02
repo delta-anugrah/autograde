@@ -10,6 +10,13 @@ from __future__ import annotations
 
 import sqlite3
 
+#: Nomor skema `console.db` (`PRAGMA user_version`). Naikkan SATU setiap kali
+#: `_CREATE_SQL` atau `_migrate` berubah. Ini penanda, bukan pengatur: migrasi tetap
+#: berbasis `PRAGMA table_info` (aturan B5), dan angkanya tidak pernah diturunkan,
+#: jadi image lama yang membuka berkas dari image lebih baru tidak mengubahnya
+#: (rollback lewat `autograde use`).
+VERSI_SKEMA = 1
+
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
     event_id            TEXT PRIMARY KEY,
@@ -256,7 +263,9 @@ _RENAMED_COLUMNS = (
 
 
 def siapkan_skema(db: sqlite3.Connection) -> None:
-    """Rename kolom lama, buat yang belum ada, lalu migrasi. Aman diulang tiap boot.
+    """Rename kolom lama, buat yang belum ada, migrasi, lalu tandai nomor skema.
+
+    Aman diulang tiap boot.
 
     Rename lebih dulu: indeks di `_CREATE_SQL` menyebut nama kolom berbahasa Inggris,
     jadi di database dari sebelum rename indeks itu akan dibuat pada kolom yang belum ada.
@@ -264,6 +273,16 @@ def siapkan_skema(db: sqlite3.Connection) -> None:
     _rename_indonesian_columns(db)
     db.executescript(_CREATE_SQL)
     _migrate(db)
+    _tandai_versi(db)
+
+
+def _tandai_versi(db: sqlite3.Connection) -> None:
+    """Naikkan `user_version` ke `VERSI_SKEMA`, tidak pernah menurunkannya."""
+    sekarang = db.execute("PRAGMA user_version").fetchone()[0]
+    if sekarang < VERSI_SKEMA:
+        # PRAGMA tidak menerima parameter terikat; angkanya konstanta kode (B5).
+        db.execute(f"PRAGMA user_version = {VERSI_SKEMA}")
+        db.commit()
 
 
 def _migrate(db: sqlite3.Connection) -> None:

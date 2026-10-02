@@ -115,4 +115,4 @@ def test_dispatch_manual_demo_cuma_untuk_versi_yang_benar_benar_dirilis():
     assert 'RELEASE="$REGISTRY/$IMAGE_NAME:$VERSION"' in syarat["run"]
     assert 'docker buildx imagetools inspect "$RELEASE"' in syarat["run"]
     assert nama.index("Log in to Container Registry") < nama.index("Require a published factory release")
-    assert nama.index("Require a published factory release") < nama.index("Build and push demo image")
+    assert nama.index("Require a published factory release") < nama.index("Build and push candidate demo image")
