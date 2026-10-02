@@ -18,6 +18,42 @@ Next:           ...
 
 ---
 
+## 2026-10-02 · console · Automatic line assignment (PR pending)
+Changed:        Part 2 of the scan work. With the support-only switch on, a truck that weighs in goes
+                onto the chosen lines by itself (`isi_line_otomatis`, `services/penugasan_otomatis.py`,
+                rules in `domain/penugasan_line.py`). While a chosen line still holds a truck that is
+                not weighed out (or whose weigh-out is still releasing lines) the next truck waits in
+                the unloading queue, oldest first, and only a truck's newest open ticket is offered.
+                A weigh-out, or a manual Lepas of the last line, puts the next truck on. Manual ways:
+                the per-line Tugaskan/Lepas dropdown, strip buttons "Tugaskan sekarang" and "Lewati"
+                (with confirm), and the switch with the line choice in Setelan (support). Routes
+                `POST /api/console/unloading-queue/{weighing_id}/assign|skip` (Operator) and
+                `GET/POST /api/console/dev/auto-assign` (Support); the weighing and release-truck
+                answers carry `dipasang`; `/api/console/state` carries `antrean_bongkar` and
+                `penugasan_otomatis`. Setting key `setelan_penugasan_line` survives a Danger Zone wipe.
+                Store: `unloading_queue`, `trucks_with_open_ticket`, `skip_unloading_queue`, column
+                `weighings.unloading_queue_skipped_at`. Docs: rule 36 (`docs/rules.md`, `CLAUDE.md` §3),
+                `docs/backend-overview.md`, `docs/MANUAL.md` v2.2 plus regenerated `docs/MANUAL.pdf`
+                (37 pages), skill `konsol-autograde`. The new queue is "Antrean bongkar", not "Antrean
+                line" (that name already belongs to the line-to-console outbox on the Status tab).
+Validated:      `pytest tests/unit tests/e2e tests/integration` → 4446 passed, 45 skipped, 0 failed
+                (`tests/unit/test_dokumen_tanpa_em_dash.py`, `test_coding_standard.py`,
+                `test_manual_doc.py`, `test_skill_mirror.py` included).
+                `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
+                88 passed (the unloading queue strip and the switch, both engines).
+                `scripts/md_to_pdf.py docs/MANUAL.md` → 37 pages, new text present in the PDF.
+Not validated:  Not on the factory PC and not against real lines: the Playwright suite uses fake
+                lines. No manual browser pass (the suite is the check). No PR yet.
+Risks:          Off by default, so nothing changes at a mill until support turns it on. While it is
+                on, a weigh-in waits up to 10 s per hung line (assignment calls each line in turn
+                with a 10 s limit), so a camera line that hangs slows the weigh-in itself, though
+                the ticket is saved first. A truck whose weigh-out cannot release a dead line stays
+                on that line and the next truck goes on the free lines only, until the dead line is
+                released from its card. A truck weighed in out of order at the gate needs
+                "Tugaskan sekarang" by the operator.
+Next:           Open the PR for this branch against staging (assignee `marcoabelz`, reviewer
+                `supportusahaai`), then turn the switch on at one mill and watch a full shift.
+
 ## 2026-10-01 · console · A visit's grading is summed over every line that unloaded it (PR #208)
 Changed:        A truck unloaded on three lines has three line assignments, but `weighings.assignment_id`
                 holds one, so AutoERP, the detail page and the Log tab counted only the line released

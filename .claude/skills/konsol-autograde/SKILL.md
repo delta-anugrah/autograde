@@ -23,8 +23,15 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 | Status | support | `muatStatus` (diagnostik 5 dtk, antrean line 5 dtk) | Versi, Diagnostik (fps terukur, umur gambar, PLC ✓ hanya kalau `plc.connected`, disk, lisensi, versi / model, `capture_save_dropped` + `tp_telat` harus nol; pembantu `diag*`, test `test_console_html_diagnostik_jujur.py`), Antrean line, Antrean ERP + manifest R2 |
 | Akun | support | `muatAkun` | akun lokal/AutoERP, tombol aksi berwarna, semua tombol aksi satu lebar (`--lebar-tombol-akun`, satu aturan `#sec-akun :is(...) button`) |
 | Line | support | `muatLine` → `MUAT_SUB_LINE[subLine]` | Sumber Kamera, Model Deteksi, Uji PLC (1 dtk), Rekam Video (3 dtk); empat tombol pilihan `#line-sub` = grid 4 kolom selebar panel, 2 x 2 di bawah 600 px |
-| Setelan | support | `muatSetelan` | setelan grading, garis capture, Danger Zone. Selalu paling kanan |
+| Setelan | support | `muatSetelan` (+ `muatPenugasan`) | setelan grading, garis capture, **Penugasan line** (saklar + line pilihan, tombol simpan sendiri, `GET/POST /api/console/dev/auto-assign`, pesan `#set-penugasan-pesan`), Danger Zone. Selalu paling kanan |
 
+- Penugasan otomatis (aturan 36): strip **Antrean bongkar** `#antrean-bongkar` di atas kartu line di tab
+  Grading (`htmlAntreanBongkar` / `gambarAntreanBongkar`, tombol `data-aksi="pasang"|"lewati"`,
+  routes `/api/console/unloading-queue/{id}/assign|skip`), dari kunci `antrean_bongkar` dan
+  `penugasan_otomatis` di `/api/console/state`. Jawaban timbang dan Lepas membawa `dipasang`
+  (per line `terpasang`), jangan pernah namai variabel tingkat atas `dipasang` (sudah dipakai
+  "kartu line tergambar"). Bukan "Antrean line": itu antrean janjang line ke konsol (tab Status).
+  Tes: `test_console_html_antrean_bongkar.py`, `tests/browser/test_browser_penugasan.py`.
 - Registri: `TAB_SAH`, `SUB_LINE`, `MUAT_TAB`, `MUAT_SUB_LINE`. Tab lama yang tersimpan di
   localStorage dipetakan `tabDariSimpanan` / `TAB_LAMA` (riwayat → rekap, diagnostik/antrean/versi
   → status, empat layar per line → line + pilihannya).

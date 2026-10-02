@@ -246,14 +246,16 @@ pemanggil, dan keduanya tanpa auth. Penggantinya `/internal/assignment` (yang ju
 | GET | `/console` | Halaman `console.html` |
 | GET | `/api/console/operators` | Daftar akun untuk kolom email (tanpa hash), bisa dibaca sebelum masuk |
 | POST | `/api/console/login`, `/api/console/logout` · GET `/api/console/me` | Sesi cookie `konsol_sesi`, 12 jam |
-| GET | `/api/console/state` | Ringkasan hari kerja + langganan + `sinkron` (Last Sync); layar polling tiap 2 detik |
+| GET | `/api/console/state` | Ringkasan hari kerja + langganan + `sinkron` (Last Sync) + `antrean_bongkar` (`[{weighing_id, plate_number, menit}]`, truk yang menunggu line) + `penugasan_otomatis` (`{aktif, lines}`); layar polling tiap 2 detik |
 | GET | `/api/console/history` | Janjang per hari kerja (`work_date`, `line_code`, `truck_id`, `limit` ≤ 200) |
 | GET / POST | `/api/console/trucks` | Daftar truk / truk ketik operator (masuk antrean ERP) |
 | POST | `/api/console/scan`, `/api/console/scan/keluar` | Scan QR gerbang masuk / keluar |
 | GET | `/api/console/trucks/{plate_number}/qr.png` | Kartu QR, dibuat server |
-| GET / POST | `/api/console/weighings` | Timbangan; bruto/tara di bawah 1.000 kg ditolak (`MINIMUM_WEIGHT_KG`). Baris GET membawa `erp_perlu_dicek` (`tiket_final_berbeda` / `tiket_dibatalkan` / null, batch 2.3) |
+| GET / POST | `/api/console/weighings` | Timbangan; POST membawa `dipasang` (aturan 36); bruto/tara di bawah 1.000 kg ditolak (`MINIMUM_WEIGHT_KG`). Baris GET membawa `erp_perlu_dicek` (`tiket_final_berbeda` / `tiket_dibatalkan` / null, batch 2.3) |
 | GET | `/api/console/recap` | Rekap per truk satu hari. Tidak dipanggil layar sejak tab digabung 2026-09-28; endpoint tetap |
 | POST | `/api/console/lines/{line_code}/assign-truck`, `/release-truck`, `/manual-reject`, `/piston` | Diteruskan ke `/internal/*` line; line yang tidak menjawab → 502 |
+| POST | `/api/console/unloading-queue/{weighing_id}/assign` | Operator. **Tugaskan sekarang** di antrean bongkar: truk itu ke line pilihan yang bebas → `{dipasang: [{line_code, plate_number, terpasang}]}`. 409 `bukan_antrean` (antrean sudah berubah) / `line_semua_terpakai` (aturan 36) |
+| POST | `/api/console/unloading-queue/{weighing_id}/skip` | Operator. **Lewati**: truk yang tidak jadi bongkar keluar dari antrean bongkar → `{weighing_id, dilewati: true}`. 409 `bukan_antrean` |
 
 ### Rekap (tab Rekap, 2026-09-26; dulu tab Riwayat)
 
@@ -322,6 +324,7 @@ Semuanya dijawab **403** kalau operator yang masuk bukan `role='support'`. Rasio
 | POST | `/api/console/dev/akun/status` | `{email, aktif: bool}` → `{status:"active"\|"off"}`: matikan (sesinya berakhir) / aktifkan akun lokal. `aktif` bukan boolean → 400 `input_tidak_sah` |
 | POST | `/api/console/dev/akun/role` | `{email, role}` → `{role}`: ubah role akun lokal (role asing jadi `operator`). Status/role **akun sendiri** ditolak 409 `akun_diri_sendiri`; akun AutoERP 409 `akun_milik_erp`; email tak dikenal 404 `akun_tidak_ada` |
 | GET / POST | `/api/console/dev/setelan` | lima setelan grading dari tab Setelan: `conf_threshold`, `minimum_size`, `garis_capture`, `sumbu_garis`, `mode_dev`. Tersimpan di konsol, disebar ke tiga line, berlaku tanpa restart |
+| GET / POST | `/api/console/dev/auto-assign` | **support**, penugasan line otomatis: `{aktif, lines, lines_tersedia}` / badan `{aktif, lines}`. Bawaan **mati**. Tersimpan di `sync_state` kunci `setelan_penugasan_line` (selamat dari Danger Zone), perubahan dicatat WARNING beserta siapa. 400 `penugasan_tanpa_line` (nyala tanpa satu line) / `line_tidak_dikenal` (aturan 36) |
 | GET / POST | `/api/console/dev/sumber-kamera` | sumber tiap line + berkas di folder media / simpan ke `media.env`, restart line yang berubah saja. 400 untuk kombinasi yang tidak sah |
 | GET / POST | `/api/console/dev/model-deteksi` | pilihan model tiap line (`""` = bawaan PC) + semua `.pt` di `models/release` beserta kelas, ukuran, engine per GPU, dan `cocok`/`alasan`; `folder.terbaca: false` = mount `./models` belum ada. POST `{"line-1": "...", ...}` menulis `LINE_N_MODEL_FILE` dan merestart line yang berubah; **400** untuk model yang tidak ada atau kelasnya bukan empat kelas yang dikenal, tanpa menulis apa pun |
 | GET | `/api/console/dev/plc/{line_code}` | snapshot DI + coil yang boleh diuji, baca saja |
@@ -523,7 +526,7 @@ konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x
 | POST | `/api/console/login` | `{email, sandi}` → cookie `konsol_sesi` HttpOnly, 12 jam. Sandi salah 401, login terkunci 429 |
 | POST | `/api/console/logout` | akhiri sesi ini saja |
 | GET | `/api/console/me` | operator yang sedang masuk |
-| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator + `plc.alarms` per line (motor fault / E-stop) untuk pita alarm + `sinkron` untuk **Last Sync** (`autoerp` dan `cloud`: `keadaan`/`terakhir`/`sejak`/`antre`, aturan 27). + `versi` image, untuk baris versi + lisensi di bawah tulisan AUTOGRADE (semua akun, 2026-09-28). Semuanya di sini, **bukan** lane support: yang melihat kamera berhenti, motor mati, atau sambungan putus itu operator biasa |
+| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) + `antrean_bongkar` + `penugasan_otomatis` (aturan 36) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator + `plc.alarms` per line (motor fault / E-stop) untuk pita alarm + `sinkron` untuk **Last Sync** (`autoerp` dan `cloud`: `keadaan`/`terakhir`/`sejak`/`antre`, aturan 27). + `versi` image, untuk baris versi + lisensi di bawah tulisan AUTOGRADE (semua akun, 2026-09-28). Semuanya di sini, **bukan** lane support: yang melihat kamera berhenti, motor mati, atau sambungan putus itu operator biasa |
 | GET | `/api/console/history` | filter `work_date` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas |
 | GET | `/api/console/trucks` | master truk + supplier + `source_label` |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar), id = uuid5 plat ternormalisasi |
@@ -531,7 +534,7 @@ konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x
 | POST | `/api/console/scan/keluar` | `{qr}` di gerbang keluar → tiket yang menunggu tara. **Dua tiket terbuka ditolak, tidak ditebak** (keputusan operator 2026-09-15): menebak bisa memasangkan tara ke kunjungan yang salah dan mencampur tonase dua kunjungan. Dibatasi hari kerja: tiket kemarin yang taranya kosong akan memberi neto dari bruto kemarin dan tara hari ini |
 | POST | `/api/console/scan` | `{qr}` hasil scan di gerbang timbangan → truk yang sudah ada. Truk belum terdaftar dijawab **200 `ditemukan:false`** (truk pinjaman itu kasus normal, 404 terbaca seperti kerusakan); yang bukan plat **400**. **Tidak pernah membuat truk dan tidak pernah menulis berat** |
 | GET | `/api/console/weighings` | tiket timbangan hari kerja (bruto / tara / neto), plus `erp_perlu_dicek` (`tiket_final_berbeda` / `tiket_dibatalkan` / null) |
-| POST | `/api/console/weighings` | operator mengetik bruto/tara sendiri: payload identik dengan kiriman program timbangan |
+| POST | `/api/console/weighings` | operator mengetik bruto/tara sendiri: payload identik dengan kiriman program timbangan. Jawabannya membawa `dipasang`: per line yang dicoba penugasan otomatis `{line_code, plate_number, terpasang}` (`[]` kalau saklar mati atau truk menunggu; line yang tidak menjawab `terpasang: false`, timbangan tetap tersimpan; aturan 36) |
 | GET | `/api/console/recap` | rekap per truk satu hari kerja (janjang, ACC/REJ, neto): `?work_date=` opsional. **Tidak dipakai layar lagi** sejak tab Rekap = Riwayat (2026-09-28) |
 | GET | `/api/console/riwayat` | tab **Rekap** (dulu Riwayat; operator biasa, bukan support): `dari`/`sampai` (tanggal kerja, maks **31 hari**, tanpa tanggal = 7 hari terakhir), `line_code`, `plat` (potongan plat), `hasil` (`ripe`/`unripe`/`jk`/`tp`, Per janjang saja), `tampilan=hari\|truk\|janjang`, `ringkasan=true\|false`. Per hari & per truk dikirim utuh, per janjang `limit`+`offset`. **400** kode `riwayat_*` untuk tanggal yang salah, **400** `input_tidak_sah` untuk tampilan/hasil asing. Aturan 26 |
 | GET | `/api/console/riwayat/csv` | filter yang sama + `bahasa=id\|en` → lampiran CSV (BOM UTF-8, jam pabrik), **semua** baris filter itu, dialirkan per potongan |
@@ -540,7 +543,8 @@ konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x
 | GET | `/api/console/dev/riwayat/impor` | **support**: 20 impor terakhir |
 | POST | `/api/console/dev/riwayat/impor/{id}/batal` | **support**: hapus janjang satu impor. **404** tidak ada, **409** sudah dibatalkan |
 | POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line. **409** `hapus_berjalan` selama Danger Zone menghapus data (line tidak disentuh) |
-| POST | `/api/console/lines/{line}/release-truck` | truk pergi → `/internal/assignment` line dengan truk kosong |
+| POST | `/api/console/lines/{line}/release-truck` | truk pergi → `/internal/assignment` line dengan truk kosong. Jawabannya membawa `dipasang` (truk berikutnya yang naik otomatis, `[]` kalau tidak ada atau saklar mati; aturan 36) |
+| POST | `/api/console/unloading-queue/{weighing_id}/assign`, `/skip` | **Tugaskan sekarang** / **Lewati** pada antrean bongkar, lihat tabel konsol di atas (aturan 36) |
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
 | POST | `/api/console/lines/{line}/piston` | `{open}` → diteruskan ke `/internal/piston` line. Menggerakkan hardware, jadi butuh sesi operator seperti lane operator lain (batch 1.1), dan tiap percobaan dicatat WARNING menyebut siapa yang menekan (tab Log), dipicu atau ditolak |
 | GET | `/api/console/dev/ping` | lane developer paling ringan: dipakai layar untuk memastikan akses masih hidup. **Semua baris `/dev/*` di bawah ini butuh `role='support'`, dijawab 403 kalau bukan** |

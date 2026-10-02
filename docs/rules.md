@@ -1138,6 +1138,37 @@ end of this file.
     ERROR naik) sengaja dua baris: yang pertama menyebut alasan kamera, yang kedua keputusan
     sehat.
 
+36. **Penugasan line otomatis: satu truk di line sampai selesai** (keputusan user 2026-10-01).
+    Tiap timbang isi dan tiap Lepas memanggil `isi_line_otomatis()`
+    (`services/penugasan_otomatis.py`, mixin `ConsoleService`; aturan murni di
+    `domain/penugasan_line.py`): truk tertua di **antrean bongkar** (sudah timbang isi, belum
+    timbang kosong, belum pernah di line, tidak dilewati, dan tiket terbukanya yang terbaru:
+    tiket lama yang tertinggal terbuka tidak pernah ditawarkan) dipasang ke line pilihan yang
+    bebas, **asalkan** tidak ada line pilihan yang masih memegang truk yang belum timbang
+    kosong, atau truk yang timbang kosongnya masih melepas line. Kalau masih ada, truk baru
+    menunggu; memasangnya sekarang membuat sisa janjang truk lama tercatat ke truk baru.
+    Timbang kosong atau Lepas manual pada line TERAKHIR yang memegang truk memasang truk
+    berikutnya. Setelannya di `sync_state` (`setelan_penugasan_line`, selamat dari Danger
+    Zone), **mati sampai support menyalakannya** (bawaan mati, supaya pembaruan tidak mengubah
+    cara kerja pabrik di hari ia terpasang), dan hanya support yang mengubahnya (`GET/POST
+    /api/console/dev/auto-assign`). `baca_setelan` tidak pernah melempar (dibaca tiap polling
+    `state()`): teks rusak, JSON bukan objek, atau `lines` salah bentuk = bawaan.
+    Penugasan tetap lewat `assign_truck` (aturan 13: line menerima dulu, baru dicatat); line
+    yang tidak menjawab dilaporkan ke layar (`dipasang[].terpasang: false`) dan tidak pernah
+    menggagalkan timbangan. Jalan manual: dropdown Tugaskan/Lepas per line, serta tombol
+    **Tugaskan sekarang** dan **Lewati** (dengan konfirmasi) di strip antrean bongkar
+    (`POST /api/console/unloading-queue/{weighing_id}/assign|skip`, operator). Kolom
+    `weighings.unloading_queue_skipped_at` menandai truk yang dilewati. Jendela antrean =
+    `JENDELA_ANTREAN_BONGKAR`, sama dengan `JENDELA_KUNJUNGAN_DETIK` (12 jam): satu angka
+    untuk "berapa lama satu kunjungan". Jawaban rilis dan timbangan membawa `dipasang`; layar
+    membaca `antrean_bongkar` dan `penugasan_otomatis` dari `/api/console/state`.
+    ⚠️ "Antrean bongkar" bukan "Antrean line": yang kedua sudah dipakai untuk antrean janjang
+    line ke konsol (aturan 31, tab Status). ⚠️ Selama saklar nyala, satu timbang isi bisa
+    menunggu sampai 10 detik per line yang menggantung (pemasangan memanggil tiap line satu
+    per satu, 10 detik batas per panggilan). ⚠️ Kalau timbang kosong sebuah truk tidak
+    bisa melepas line yang mati, truk itu tetap di line mati tersebut dan truk berikutnya
+    hanya dipasang ke line yang bebas, sampai line yang mati dilepas dari kartunya.
+
 ---
 
 ## Conventions
