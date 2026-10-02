@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 from ..core.config import LineEndpoint, Settings
 from ..domain.bahaya import HapusBerjalan
 from ..domain.ffb_source import ffb_source_label
+from ..domain.gerbang import durasi_kunjungan
 from ..domain.grade_class import grade_class_or_none
 from ..domain.jawaban_kunjungan import golongkan
 from ..domain.operator_error import (
@@ -46,6 +47,7 @@ from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
 from ..workers.visit_manifest_worker import VisitManifestWorker
 from .erp_queue import ErpQueue
+from .gerbang_konsol import GerbangKonsol
 from .layar_line_support import LayarLineSupport
 from .penugasan_otomatis import PenugasanOtomatis
 from .status_sinkron import StatusSinkron
@@ -66,7 +68,7 @@ NET_TOLERANCE_KG = 1.0
 MINIMUM_WEIGHT_KG = 1000.0
 
 
-class ConsoleService(LayarLineSupport, PenugasanOtomatis):
+class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol):
     def __init__(
         self,
         settings: Settings,
@@ -504,6 +506,8 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis):
                     "exited_at": exited_at,
                 }
             )
+            # Scan 1: a NEW ticket claims its truck's arrival (never fails the weighing).
+            self._klaim_kedatangan(not existing and gross is not None, truck_id, entered_at, weighing_id)
             # Timbang keluar = truk sudah pergi. Line yang masih memegangnya akan
             # menstempel janjang truk BERIKUTNYA dengan truk ini (G5), jadi dilepas
             # di sini alih-alih menunggu operator ingat.
@@ -960,9 +964,10 @@ def _with_source_label(row: dict[str, Any]) -> dict[str, Any]:
 
 def _tiket_view(row: dict[str, Any]) -> dict[str, Any]:
     """One Timbangan row: the source label, and whether AutoERP's last answer for this
-    visit needs a human (batch 2.3). Classified here so the screen never parses
-    AutoERP's sentences."""
+    visit needs a human (batch 2.3), and the queue and total minutes (standard L4).
+    Computed here so the screen never parses AutoERP's sentences or adds up clocks."""
     row["erp_perlu_dicek"] = golongkan(row.get("erp_note"))
+    row.update(durasi_kunjungan(row))
     return _with_source_label(row)
 
 
