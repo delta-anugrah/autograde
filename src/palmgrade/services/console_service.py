@@ -119,6 +119,9 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis):
         # One automatic assignment at a time (2026-10-01): two weighings landing together
         # would both see the lines free and the second would overwrite the first.
         self._kunci_penugasan = asyncio.Lock()
+        # Tickets going onto the lines right now: Lewati refuses them (route runs in a thread).
+        self._tiket_dipasang: set[str] = set()
+        self._kunci_antrean = threading.Lock()
 
     # ------------------------------------------------------------ ingest
 

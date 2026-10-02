@@ -32,6 +32,7 @@ from ..domain.penugasan_line import (
     bersihkan_setelan_penugasan,
     line_bebas,
     line_sibuk,
+    line_tertahan,
     menit_menunggu,
     simpan_teks,
 )
@@ -50,6 +51,8 @@ class PenugasanOtomatis:
     _kunci_penugasan: asyncio.Lock
     _truk_ditutup: dict[str, int]
     _kunci_ditutup: threading.Lock
+    _tiket_dipasang: set[str]
+    _kunci_antrean: threading.Lock
     assign_truck: Callable[[str, str], Awaitable[dict[str, Any]]]
     release_truck: Callable[[str], Awaitable[dict[str, Any]]]
 
@@ -124,7 +127,7 @@ class PenugasanOtomatis:
                 terbuka = self.store.trucks_with_open_ticket(sejak) | self._truk_sedang_ditutup()
                 if line_sibuk(setelan.lines, pegangan, terbuka):
                     return []
-                return await self._pasang(antrean[0], line_bebas(setelan.lines, pegangan))
+                return await self._pasang(antrean[0], setelan.lines, pegangan, terbuka, sejak)
         except Exception:
             logger.exception("Penugasan line otomatis gagal; truk tetap di antrean bongkar")
             return []
@@ -140,15 +143,17 @@ class PenugasanOtomatis:
         setelan = self._setelan_penugasan()
         async with self._kunci_penugasan:
             antre = self._di_antrean(weighing_id)
+            sejak = self._sejak_antrean()
             if not setelan.lines:
                 # Support saved no line at all: "every line is busy" would send the
                 # operator looking at the cards instead of at Setelan.
                 raise InvalidInput(PENUGASAN_TANPA_LINE, "tidak ada line yang dipilih untuk penugasan")
             pegangan = self.store.assignments()
-            bebas = line_bebas(setelan.lines, pegangan)
-            if not bebas or line_sibuk(setelan.lines, pegangan, self._truk_sedang_ditutup()):
+            ditutup = self._truk_sedang_ditutup()
+            if not line_bebas(setelan.lines, pegangan) or line_sibuk(setelan.lines, pegangan, ditutup):
                 raise InvalidInput(LINE_SEMUA_TERPAKAI, "semua line masih memegang truk")
-            return await self._pasang(antre, bebas)
+            terbuka = self.store.trucks_with_open_ticket(sejak) | ditutup
+            return await self._pasang(antre, setelan.lines, pegangan, terbuka, sejak)
 
     def lewati_antrean(self, weighing_id: str, *, oleh: str) -> None:
         """"Lewati": a truck that will not unload leaves the queue (it is never assigned
@@ -156,10 +161,15 @@ class PenugasanOtomatis:
 
         Checked against the queue first: a screen one poll behind may still show a truck
         that just went onto the lines, and marking that ticket must be refused, not done.
+        A ticket being put on the lines right now is refused the same way: it is not in
+        the queue any more, it just is not on every line yet.
         """
-        self._di_antrean(weighing_id)
-        if not self.store.skip_unloading_queue(weighing_id, datetime.now(self.tz).isoformat()):
-            raise InvalidInput(BUKAN_ANTREAN, "tiket ini tidak ada di antrean bongkar")
+        with self._kunci_antrean:
+            if weighing_id in self._tiket_dipasang:
+                raise InvalidInput(BUKAN_ANTREAN, "tiket ini sedang ditugaskan ke line")
+            self._di_antrean(weighing_id)
+            if not self.store.skip_unloading_queue(weighing_id, datetime.now(self.tz).isoformat()):
+                raise InvalidInput(BUKAN_ANTREAN, "tiket ini tidak ada di antrean bongkar")
         logger.info("Tiket %s dikeluarkan dari antrean bongkar oleh %s", weighing_id, oleh)
 
     async def release_truck_by_operator(self, line_code: str) -> dict[str, Any]:
@@ -179,27 +189,77 @@ class PenugasanOtomatis:
                 return row
         raise InvalidInput(BUKAN_ANTREAN, "tiket ini tidak ada di antrean bongkar")
 
-    async def _pasang(self, antre: dict[str, Any], lines: list[str]) -> list[dict[str, Any]]:
-        """Each line on its own (rule 13: the line accepts first, then it is recorded).
-        A line that does not answer is reported; the others still get the truck.
+    def _masih_menunggu(self, weighing_id: str) -> bool:
+        """Not skipped and not weighed out: this ticket's truck may still go on a line."""
+        tiket = self.store.weighing(weighing_id) or {}
+        return not tiket.get("unloading_queue_skipped_at") and tiket.get("tare_kg") is None
+
+    def _plat_lama(self, pegangan: dict[str, Any], sejak: float) -> str:
+        """The plate of the truck a line still holds, for the screen. A truck that was
+        never registered has no plate in `trucks`; its newest ticket still names it."""
+        if pegangan.get("plate_number"):
+            return pegangan["plate_number"]
+        tiket = self.store.latest_weighing_for_truck_since(pegangan["truck_id"], sejak)
+        plat = (self.store.weighing(tiket) or {}).get("plate_number") if tiket else None
+        return plat or pegangan["truck_id"]
+
+    async def _pasang(
+        self,
+        antre: dict[str, Any],
+        lines: tuple[str, ...],
+        pegangan: dict[str, dict[str, Any]],
+        terbuka: set[str],
+        sejak: float,
+    ) -> list[dict[str, Any]]:
+        """The queued truck onto the free chosen lines, each on its own (rule 13: the line
+        accepts first, then it is recorded). A line that does not answer is reported; the
+        others still get the truck. In the chosen order, so the toast reads like the cards.
+
+        A chosen line still holding a truck that left (its weigh-out could not release it)
+        is reported `tertahan` with that truck's plate: the operator must Lepas it on its
+        card, or it stamps the departed truck on this truck's bunches once it answers (G5).
+        A line holding a truck still being sorted is left out (only "Tugaskan sekarang"
+        gets this far with one).
 
         A line is checked again right before its turn: while an earlier line was being
         asked, the operator may have put another truck on it from the card dropdown, and
         that truck is never pushed off. Such a line is left out of the result (it was not
-        free), not reported as one to do by hand.
+        free), not reported as one to do by hand. The ticket is read again too: once it is
+        weighed out (the truck left) no further line gets it. Lewati is refused meanwhile.
         """
-        hasil = []
-        for line_code in lines:
-            if (self.store.assignments().get(line_code) or {}).get("truck_id"):
-                continue
-            try:
-                await self.assign_truck(line_code, antre["truck_id"])
-            except (LineUnavailable, HapusBerjalan) as exc:
-                logger.warning(
-                    "Line %s tidak menerima truk %s otomatis (%s); tugaskan manual di kartunya",
-                    line_code, antre["plate_number"], exc,
-                )
-                hasil.append({"line_code": line_code, "plate_number": antre["plate_number"], "terpasang": False})
-                continue
-            hasil.append({"line_code": line_code, "plate_number": antre["plate_number"], "terpasang": True})
-        return hasil
+        weighing_id = antre["weighing_id"]
+        with self._kunci_antrean:
+            if not self._masih_menunggu(weighing_id):
+                return []
+            self._tiket_dipasang.add(weighing_id)
+        try:
+            tertahan = set(line_tertahan(lines, pegangan, terbuka))
+            bebas = set(line_bebas(lines, pegangan))
+            hasil = []
+            for line_code in lines:
+                if line_code in tertahan:
+                    hasil.append({
+                        "line_code": line_code, "plate_number": antre["plate_number"], "terpasang": False,
+                        "tertahan": True, "plate_lama": self._plat_lama(pegangan[line_code], sejak),
+                    })
+                    continue
+                if line_code not in bebas or not self._masih_menunggu(weighing_id):
+                    continue
+                if (self.store.assignments().get(line_code) or {}).get("truck_id"):
+                    continue
+                hasil.append(await self._pasang_satu(line_code, antre))
+            return hasil
+        finally:
+            with self._kunci_antrean:
+                self._tiket_dipasang.discard(weighing_id)
+
+    async def _pasang_satu(self, line_code: str, antre: dict[str, Any]) -> dict[str, Any]:
+        try:
+            await self.assign_truck(line_code, antre["truck_id"])
+        except (LineUnavailable, HapusBerjalan) as exc:
+            logger.warning(
+                "Line %s tidak menerima truk %s otomatis (%s); tugaskan manual di kartunya",
+                line_code, antre["plate_number"], exc,
+            )
+            return {"line_code": line_code, "plate_number": antre["plate_number"], "terpasang": False}
+        return {"line_code": line_code, "plate_number": antre["plate_number"], "terpasang": True}

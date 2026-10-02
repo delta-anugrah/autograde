@@ -20,6 +20,7 @@ from palmgrade.domain.penugasan_line import (
     bersihkan_setelan_penugasan,
     line_bebas,
     line_sibuk,
+    line_tertahan,
     menit_menunggu,
     setelan_bawaan,
     simpan_teks,
@@ -128,6 +129,13 @@ def test_truk_yang_sudah_timbang_kosong_tidak_menahan_antrean():
 def test_line_di_luar_pilihan_tidak_dihitung():
     pegangan = {"line-3": {"truck_id": "A"}}
     assert line_sibuk(("line-1", "line-2"), pegangan, {"A"}) is False
+
+
+def test_line_tertahan_memegang_truk_yang_sudah_timbang_kosong():
+    """Pelepasannya gagal: line itu bukan bebas, bukan sibuk, tapi tertahan truk yang sudah pergi."""
+    pegangan = {"line-1": {"truck_id": "A"}, "line-2": {"truck_id": "B"}, "line-4": {"truck_id": "A"}}
+    assert line_tertahan(("line-1", "line-2", "line-3"), pegangan, {"B"}) == ["line-1"]
+    assert line_tertahan(("line-1", "line-2"), pegangan, {"A", "B"}) == []
 
 
 def test_menit_menunggu_dibulatkan_ke_bawah_dan_tidak_negatif():

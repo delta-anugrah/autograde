@@ -99,6 +99,21 @@ def line_sibuk(
     return any((pegangan.get(kode) or {}).get("truck_id") in truk_terbuka for kode in lines)
 
 
+def line_tertahan(
+    lines: tuple[str, ...] | list[str], pegangan: dict[str, dict[str, Any]], truk_terbuka: set[str]
+) -> list[str]:
+    """The chosen lines still holding a truck that is no longer being sorted.
+
+    Its weigh-out could not release them (the line did not answer). Such a line is not
+    free, and when it answers again it stamps that departed truck on the next bunches
+    (G5), so the screen must name it for a Lepas by hand, never skip it in silence.
+    """
+    return [
+        kode for kode in lines
+        if (truk := (pegangan.get(kode) or {}).get("truck_id")) and truk not in truk_terbuka
+    ]
+
+
 def menit_menunggu(sejak_epoch: float, sekarang_epoch: float) -> int:
     """Whole minutes a ticket has waited for the lines, never negative."""
     return max(0, int((sekarang_epoch - sejak_epoch) // 60))

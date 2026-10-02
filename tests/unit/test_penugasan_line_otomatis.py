@@ -324,6 +324,85 @@ def test_line_mati_tidak_menggagalkan_timbangan(service):
     }
 
 
+def test_line_mati_saat_timbang_kosong_dilaporkan_tertahan(service):
+    """A di tiga line, B menunggu, line-2 mati saat A timbang kosong: pelepasan line-2 gagal,
+    jadi line itu masih memegang A yang sudah pergi. B naik ke line-1 dan line-3, dan line-2
+    dilaporkan tertahan dengan plat A, bukan diam diam dilewati (layar cuma bilang "Line 1,
+    Line 3" dan line-2 menstempel A ke janjang berikutnya begitu hidup lagi)."""
+    _nyalakan(service)
+    _isi(service, "BE 1 AA")
+    _isi(service, "BE 2 BB", 10)
+    service.line_client.mati.add("line-2")
+    row = _kosong(service, "BE 1 AA")
+    assert row["dipasang"] == [
+        {"line_code": "line-1", "plate_number": "BE 2 BB", "terpasang": True},
+        {"line_code": "line-2", "plate_number": "BE 2 BB", "terpasang": False, "tertahan": True,
+         "plate_lama": "BE 1 AA"},
+        {"line_code": "line-3", "plate_number": "BE 2 BB", "terpasang": True},
+    ]
+
+
+def test_tugaskan_sekarang_melaporkan_line_tertahan(service):
+    """Tombolnya juga menyebut line yang masih memegang truk yang sudah keluar."""
+    _nyalakan(service)
+    _isi(service, "BE 1 AA")
+    service.line_client.mati.add("line-3")
+    _kosong(service, "BE 1 AA")
+    service.line_client.mati.clear()
+    _isi(service, "BE 2 BB", 10)
+    service.simpan_penugasan_otomatis(False, LINES, diubah_oleh="support@pks.test")
+    _isi(service, "BE 3 CC", 20)
+    wid_c = next(a["weighing_id"] for a in service.antrean_bongkar() if a["plate_number"] == "BE 3 CC")
+    with pytest.raises(InvalidInput):
+        # B (tiket terbuka) memegang line-1 dan line-2: tidak ada line yang bebas.
+        asyncio.run(service.pasang_dari_antrean(wid_c))
+    for kode in ("line-1", "line-2"):
+        asyncio.run(service.release_truck_by_operator(kode))
+    dipasang = asyncio.run(service.pasang_dari_antrean(wid_c))
+    assert [(d["line_code"], d["terpasang"], d.get("plate_lama")) for d in dipasang] == [
+        ("line-1", True, None), ("line-2", True, None), ("line-3", False, "BE 1 AA"),
+    ]
+
+
+def test_lewati_selagi_truk_dipasang_ditolak(service):
+    """Lewati yang menyelip saat line-1 sedang ditanya: ditolak, truknya naik utuh ke
+    semua line. Dulu jawabannya ok dan layar bilang "dilewati" padahal truknya di line."""
+    _isi(service, "BE 1 AA")
+    wid = service.antrean_bongkar()[0]["weighing_id"]
+    galat: list[str] = []
+
+    def lewati():
+        try:
+            service.lewati_antrean(wid, oleh="op@pks.test")
+        except InvalidInput as exc:
+            galat.append(exc.code)
+
+    service.line_client.selagi["line-1"] = lewati
+    dipasang = asyncio.run(service.pasang_dari_antrean(wid))
+    assert galat == [BUKAN_ANTREAN]
+    assert [d["line_code"] for d in dipasang if d["terpasang"]] == LINES
+    assert service.store.weighing(wid)["unloading_queue_skipped_at"] is None
+
+
+@pytest.mark.parametrize("tandai", ["dilewati", "tara"])
+def test_tiket_yang_berubah_selagi_dipasang_berhenti_dipasang(service, tandai):
+    """Sebelum tiap line tiketnya dibaca lagi: yang sudah dilewati atau sudah bertara
+    (truknya pergi) tidak dipasang ke line berikutnya."""
+    _isi(service, "BE 1 AA")
+    wid = service.antrean_bongkar()[0]["weighing_id"]
+
+    def ubah():
+        if tandai == "dilewati":
+            service.store.skip_unloading_queue(wid, _jam())
+        else:
+            service.store.upsert_weighing({**service.store.weighing(wid), "tare_kg": 6000, "exited_at": _jam(60)})
+
+    service.line_client.selagi["line-1"] = ubah
+    dipasang = asyncio.run(service.pasang_dari_antrean(wid))
+    assert [d["line_code"] for d in dipasang] == ["line-1"]
+    assert set(service.store.assignments()) <= {"line-1"}
+
+
 def test_galat_penugasan_tidak_menggagalkan_timbangan(service, monkeypatch):
     """Penugasan jalan di jalur uang: apa pun yang rusak di sana, beratnya tetap tersimpan."""
     _nyalakan(service)
