@@ -713,14 +713,20 @@ def test_kelas_gerbang_login_tidak_dipakai_di_tab_timbangan():
     assert not bocor, f"kelas gerbang login dipakai di tab Timbangan: {bocor}"
 
 
-def test_pemisah_dua_gerbang_ikut_berpindah_saat_turun_baris():
-    """Di layar sempit gerbang keluar turun ke baris kedua, dan garis di KIRI jadi
-    janggal karena tidak ada apa pun di sebelahnya. Dibuktikan di browser: 1440 px
-    garis kiri, 1280 px garis atas."""
-    assert ".timbang-keluar" in HTML
-    aturan = HTML.split("@media (max-width:1330px)", 1)
-    assert len(aturan) == 2, "belum ada aturan layar sempit untuk pemisah gerbang"
-    assert "border-top" in aturan[1][:300]
+def test_empat_langkah_kartu_sendiri_bertumpuk_di_layar_sempit():
+    """Dulu empat kolom dipisah garis tipis yang pindah dari kiri ke atas di layar sempit;
+    user 2026-10-02 menyebutnya "jelek banget". Sekarang tiap langkah kartunya sendiri dalam
+    grid: satu kolom (bertumpuk) secara bawaan, empat kolom mulai 1331 px. Dibuktikan di
+    browser (`test_browser_gerbang.py`): satu baris dan sama tinggi di 1440 px, bertumpuk di
+    1200 px."""
+    assert "timbang-pisah" not in HTML, "garis pemisah lama masih dipakai"
+    kartu = re.search(r"\n  \.timbang-sisi \{([^}]*)\}", HTML).group(1)
+    assert "border:" in kartu and "background:var(--zebra)" in kartu.replace(" ", "")
+    alat = re.search(r"\n  \.tools\.timbang-alat \{([^}]*)\}", HTML).group(1).replace(" ", "")
+    assert "display:grid" in alat and "grid-template-columns:minmax(0,1fr)" in alat
+    assert "align-items:stretch" in alat
+    lebar = HTML.split("@media (min-width:1331px)", 1)
+    assert len(lebar) == 2 and "grid-template-columns" in lebar[1][:300]
 
 
 # ── kolom tara inline, bukan dialog yang menutup layar ─────────────────────

@@ -249,16 +249,16 @@ def test_the_four_steps_never_scroll_sideways(halaman, konsol, browser_name, leb
     _tutup_tiket(halaman, konsol, tiket)
     ukuran = halaman.evaluate("() => [document.documentElement.scrollWidth, window.innerWidth]")
     assert ukuran[0] <= ukuran[1], f"Timbangan is {ukuran[0]} px wide on a {ukuran[1]} px screen"
-    pemisah = halaman.evaluate(
-        "() => [...document.querySelectorAll('#sec-timbangan .timbang-pisah')]"
-        ".map((el) => [getComputedStyle(el).borderTopWidth, getComputedStyle(el).borderLeftWidth])"
-    )
-    assert len(pemisah) == 2, pemisah
+    # Each step is its own card (user 2026-10-02: the four columns split by thin lines read
+    # as "jelek banget"): stacked one under the other below 1331 px, side by side above.
+    kartu = halaman.evaluate(_KARTU_LANGKAH)
+    assert len(kartu) == 4, kartu
     if lebar <= 1330:
-        # Stacked: the separator moves to the top, a left line would point at nothing.
-        assert all(atas != "0px" and kiri == "0px" for atas, kiri in pemisah), pemisah
+        assert [k["top"] for k in kartu] == sorted({k["top"] for k in kartu}), kartu
+        assert len({k["width"] for k in kartu}) == 1, kartu
     else:
-        assert all(atas == "0px" and kiri != "0px" for atas, kiri in pemisah), pemisah
+        assert len({k["top"] for k in kartu}) == 1, kartu
+        assert max(k["height"] for k in kartu) - min(k["height"] for k in kartu) <= 1, kartu
         # One row from 1331 px (user 2026-10-02: at 1440 "4. Keluar" wrapped to a second row).
         atas = halaman.evaluate(_ATAS_LANGKAH)
         assert len(set(atas)) == 1, atas
@@ -273,6 +273,10 @@ def test_the_four_steps_never_scroll_sideways(halaman, konsol, browser_name, leb
     assert abs(letak["petunjuk"]["left"] - letak["bruto"]["left"]) <= 1, letak
 
 
+_KARTU_LANGKAH = """() => [...document.querySelectorAll('#sec-timbangan .timbang-sisi')].map((el) => {
+  const r = el.getBoundingClientRect();
+  return {top: Math.round(r.top), height: Math.round(r.height), width: Math.round(r.width)};
+})"""
 _ATAS_LANGKAH = """() => ['lbDatang', 'lbGerbangMasuk', 'lbGerbangKeluar', 'lbPergi']
   .map((k) => Math.round(document.querySelector(`#sec-timbangan [data-t="${k}"]`).getBoundingClientRect().top))"""
 _ATAS_ISI = """() => ['#plat-timbang', '#bruto', '#masuk']
@@ -494,3 +498,53 @@ def test_a_poll_never_takes_the_weigh_in_picker_from_the_operator(halaman, konso
     finally:
         for n in nomor[1:]:
             _selesaikan(halaman, konsol, n)
+
+
+_LEBAR_KARTU = (1200, 1440)
+_SEJAJAR_PX = 2
+_KOTAK = """(sel) => sel.map((s) => { const r = document.querySelector(s).getBoundingClientRect();
+  return {top: Math.round(r.top), height: Math.round(r.height)}; })"""
+
+
+@pytest.mark.parametrize("lebar", _LEBAR_KARTU)
+def test_step_cards_and_the_tara_form_line_up(halaman, konsol, browser_name, lebar, penugasan_bersih):
+    """User 2026-10-02: four tidy steps, one button component, and the step 3 buttons no
+    longer stacked full width under the tare field ("berantakan")."""
+    halaman.set_viewport_size({"width": lebar, "height": 900})
+    masuk(halaman, OPERATOR)
+    tiket = _tiket_terbuka(halaman, konsol, plat(browser_name, 1261 + _LEBAR_KARTU.index(lebar)))
+    try:
+        buka_tab(halaman, "timbangan")
+        halaman.evaluate("() => muatTimbangan()")
+        utama, bahaya = re.compile(r"\butama\b"), re.compile(r"\bbahaya\b")
+        # Catat datang is the same primary button as Timbang isi.
+        expect(halaman.locator("#datang")).to_have_class(utama)
+        expect(halaman.locator("#masuk")).to_have_class(utama)
+        expect(halaman.locator("#petunjuk-keluar")).to_be_visible()
+
+        _baris(halaman, tiket["plate_number"]).locator('button[data-aksi="keluar"]').click()
+        expect(halaman.locator("#tara-grup")).to_be_visible()
+        expect(halaman.locator("#tara-plat")).to_have_text(tiket["plate_number"])
+        # The hint pointed at the row; with the form open it would only be in the way.
+        expect(halaman.locator("#petunjuk-keluar")).to_be_hidden()
+        expect(halaman.locator("#tara-simpan")).to_have_class(utama)
+        expect(halaman.locator("#tara-batal")).to_have_class(bahaya)
+
+        kartu = halaman.evaluate(_KARTU_LANGKAH)
+        if lebar == 1440:
+            assert len({k["top"] for k in kartu}) == 1, kartu
+            assert max(k["height"] for k in kartu) - min(k["height"] for k in kartu) <= 1, kartu
+            # Tara, Simpan, Batal on ONE row, as tall as step 2's controls, and level with them.
+            tara = halaman.evaluate(_KOTAK, ["#tara-nilai", "#tara-simpan", "#tara-batal", "#bruto", "#masuk"])
+            assert max(k["top"] for k in tara) - min(k["top"] for k in tara) <= _SEJAJAR_PX, tara
+            assert max(k["height"] for k in tara) - min(k["height"] for k in tara) <= _SEJAJAR_PX, tara
+        else:
+            assert [k["top"] for k in kartu] == sorted({k["top"] for k in kartu}), kartu
+            assert len({k["width"] for k in kartu}) == 1, kartu
+
+        halaman.click("#tara-batal")
+        expect(halaman.locator("#tara-grup")).to_be_hidden()
+        expect(halaman.locator("#tara-plat")).to_have_text("")
+        expect(halaman.locator("#petunjuk-keluar")).to_be_visible()
+    finally:
+        _tutup_tiket(halaman, konsol, tiket)
