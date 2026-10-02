@@ -15,7 +15,9 @@ import sqlite3
 #: berbasis `PRAGMA table_info` (aturan B5), dan angkanya tidak pernah diturunkan,
 #: jadi image lama yang membuka berkas dari image lebih baru tidak mengubahnya
 #: (rollback lewat `autograde use`).
-VERSI_SKEMA = 1
+#:
+#: 1 = batch 4.5 (PR #213). 2 = `visit_assignments` + `idx_weighings_truck` (PR #208).
+VERSI_SKEMA = 2
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (

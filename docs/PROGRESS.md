@@ -79,6 +79,8 @@ Decisions:      The key AutoERP stores (`autograde_assignment_id`, unique) is th
                 line ("line-1, line-2"); AutoERP does not read it. The window query filters on
                 `truck_id` and `received_at`, so it gets its own index (`idx_weighings_truck`, added
                 at start-up like the others, nothing dropped) instead of scanning `weighings`.
+                The new table and index raise `VERSI_SKEMA` from 1 to 2 (the #213 rule: one step
+                per schema change).
 Next:           Part 2 of the plan, automatic line assignment (stacked on this PR).
 
 ## 2026-10-02 · console · Stamp console.db with a schema number (PR #213)

@@ -26,8 +26,9 @@ def _versi(path) -> int:
         db.close()
 
 
-def test_versi_skema_dimulai_dari_satu():
-    assert VERSI_SKEMA == 1
+def test_versi_skema_naik_satu_per_perubahan_skema():
+    # 1 = batch 4.5 (PR #213), 2 = `visit_assignments` + `idx_weighings_truck` (PR #208).
+    assert VERSI_SKEMA == 2
 
 
 def test_db_baru_diberi_nomor_versi_skema(tmp_path):
