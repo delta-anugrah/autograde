@@ -681,8 +681,8 @@ end of this file.
     **Hambatan (409)**: line mati, truk terpasang, antrean lama line yang gagal dipindah ke
     `state/` (`outbox_lama`, aturan 28), outbox line belum kosong (tak terbaca =
     belum kosong), antrean AutoERP `pending` kalau `ERP_URL` terisi, **tiket timbang
-    terbuka hari kerja berjalan** (bruto ada, tara belum = truk di tengah kunjungan, dan
-    bruto itu yang dibayar), dan (mode semua) tidak ada hash akun **support** yang
+    terbuka hari kerja berjalan atau dalam jendela kunjungan 12 jam** (bruto ada, tara belum =
+    truk di tengah kunjungan, juga lewat tengah malam, dan bruto itu yang dibayar), dan (mode semua) tidak ada hash akun **support** yang
     terbaca (`hash_is_usable`, aturan yang sama dengan seed akun bawaan) DAN tidak ada
     AutoERP: tanpa akun support, Danger Zone dan seluruh lane developer terkunci. Line juga
     memeriksa truknya sendiri (409): truk bisa dipasang di antara keduanya.
@@ -1196,7 +1196,12 @@ end of this file.
     timbangan juga dapat waktu antrenya. Pencarian pakai jendela 12 jam (`domain/gerbang.py`,
     dari `JENDELA_KUNJUNGAN_DETIK`), bukan hari kerja: antrean bisa lewat tengah malam. Daftar
     **Menunggu timbang** memakai jendela yang sama dari jam server, jadi truk yang datang 23:50
-    masih menunggu pukul 00:10. Scan yang tidak berbentuk plat ditolak `bukan_plat`, kecuali
+    masih menunggu pukul 00:10. Scan 3 (`open_weighings_for_truck`) mencari tiket tanpa tara
+    yang timbang isi dalam jendela yang sama sebelum sekarang, dan tabel Timbangan hari ini
+    membawa kunjungan hari kerja sebelumnya yang belum keluar gerbang dalam jendela itu
+    (`kunjungan_terbawa`, 2026-10-02): truk 23:50 ditimbang kosong 00:10. Tiketnya tetap
+    milik hari kerjanya sendiri; total hari, Rekap, CSV dan AutoERP tidak berpindah hari.
+    Scan yang tidak berbentuk plat ditolak `bukan_plat`, kecuali
     platnya milik truk terdaftar (plat dinas, plat lama): truk itu tetap bisa dicatat datang
     dan keluar. Scan 1 **boleh terlewat**: kolom Antre
     menulis "tanpa scan 1", bukan 0 menit, dan Total dihitung dari timbang isi. Menit yang

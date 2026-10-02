@@ -195,7 +195,7 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 | 2 | Timbang isi | Di timbangan scan di kolom **2. Timbang isi** atau pilih plat, isi bruto (kg). Berat di bawah 1.000 kg ditolak | tahap `gate`: bruto + jam masuk |
 | 3 | Bongkar | Kartu line → **Tugaskan** → pilih truk. Janjang berikutnya dicatat atas nama truk itu. Kalau penugasan otomatis dinyalakan support, langkah ini jalan sendiri (lihat di bawah tabel) | - |
 | 4 | Selesai bongkar | **Lepas** di kartu line | tahap `grading`: total, ACC, REJ, persen |
-| 5 | Timbang kosong dan keluar | Scan QR di kolom **3. Timbang kosong** atau tekan **Timbang kosong** di baris truknya, isi tara. Di gerbang, scan di kolom **4. Keluar** atau tekan **Keluar** di barisnya. Truk yang belum timbang kosong ditolak dengan peringatan. Dua tiket terbuka → konsol menolak menebak, pilih di tabel | tahap `departed`: tara + jam keluar (jam keluar gerbang tidak ikut) |
+| 5 | Timbang kosong dan keluar | Scan QR di kolom **3. Timbang kosong** atau tekan **Timbang kosong** di baris truknya, isi tara. Di gerbang, scan di kolom **4. Keluar** atau tekan **Keluar** di barisnya. Truk yang belum timbang kosong ditolak dengan peringatan. Dua tiket terbuka → konsol menolak menebak, pilih di tabel. Truk yang timbang isi sebelum tengah malam tetap ditemukan sesudahnya (sampai 12 jam) | tahap `departed`: tara + jam keluar (jam keluar gerbang tidak ikut) |
 | 6 | AutoERP | - | neto = bruto − tara, potongan, harga, Purchase Receipt |
 
 Kolom **Antre** = datang sampai timbang isi; "tanpa scan 1" artinya scan datang terlewat. **Total** = datang sampai keluar gerbang; kalau scan datang terlewat, Total dihitung dari timbang isi. Jam datang dan jam keluar cuma disimpan di PC pabrik, tidak dikirim ke AutoERP. Kalau jamnya belum ada, kolomnya menulis strip, bukan "0 mnt". Truk yang sudah dicatat datang tapi belum timbang isi tampil di baris **Menunggu timbang** di bawah kolom **1. Datang**, sampai 12 jam, juga lewat tengah malam. Daftarnya selalu dua baris; yang lebih panjang terpotong di ujung baris kedua. Truk terdaftar yang platnya tidak berbentuk plat biasa (plat dinas, plat lama) tetap bisa dicatat datang dari daftar truk.
@@ -216,6 +216,14 @@ menunggu, daftarnya seperti biasa. Daftar itu diperbarui tiap 15 detik tanpa men
 sudah dipilih, dan tidak dibangun ulang selama sedang dibuka. Pilih truk, Bruto dan tombol **Timbang isi** berada
 satu baris; petunjuk desimal ada tepat di bawah kolom Bruto. Mulai lebar layar sekitar 1.330 px keempat langkah berdiri dalam satu baris; di layar
 lebih sempit langkahnya bertumpuk.
+
+**Lewat tengah malam.** Pabrik jalan sampai lewat tengah malam, jadi truk yang timbang isi pukul
+23:50 dan belum selesai tetap ada di tabel hari ini sesudah pukul 00:00, lengkap dengan lencana
+tahap dan tombol **Timbang kosong** atau **Keluar**-nya; kolom jam isi menunjukkan tanggal
+kemarin. Barisnya hilang dari tabel hari ini begitu truknya keluar gerbang, atau kalau timbang
+isinya sudah lebih dari 12 jam lalu. Scan di kolom **3. Timbang kosong** juga mencari tiket 12
+jam ke belakang, bukan cuma tiket hari ini. Tiketnya tetap milik tanggal kerja kemarin: strip
+"Hari ini", Rekap, CSV dan AutoERP menghitungnya di hari itu, tidak dua kali.
 
 **Penugasan otomatis** (bawaannya mati; support yang menyalakannya di tab **Setelan**). Selama
 mati, layar sama seperti sebelumnya: tidak ada strip antrean, truk ditugaskan lewat kartu line.
@@ -265,7 +273,7 @@ Aturan angka yang dijaga konsol:
 |---|---|---|
 | **Grading** | riwayat janjang: waktu, line, truk, sumber, hasil, kelas, confidence, foto | filter per line/truk, pagination, klik foto → tampilan besar |
 | **Truk** | master truk + supplier + asal data (ERP / manual) | **Daftar truk manual**, **Cetak QR truk** (kartu QR berisi plat, dibuat di server) |
-| **Timbangan** | tiket hari kerja: masuk, keluar, bruto, tara, neto, antre, total | **Datang**, **Timbang isi**, lalu **Timbang kosong** dan **Keluar** di baris tiket |
+| **Timbangan** | tiket hari kerja, plus truk dari hari kerja sebelumnya yang belum selesai (12 jam): masuk, keluar, bruto, tara, neto, antre, total | **Datang**, **Timbang isi**, lalu **Timbang kosong** dan **Keluar** di baris tiket |
 | **Rekap** | grading per truk dan per hari, untuk hari ini atau hari-hari sebelumnya (paling panjang 31 hari). Dibuka di **Hari ini, Per truk**: satu baris per truk, ini yang diserahkan ke supplier | ganti tanggal untuk hari sebelumnya, **Unduh CSV**, **Impor CSV** untuk akun support; rinciannya di bawah |
 
 > Angka keyakinan ada di tabel Grading, tapi **tidak** digambar di kotak janjang pada layar
@@ -353,8 +361,8 @@ merah (kalau ada, tombol eksekusinya tidak muncul), dan **peringatan** kuning. `
 huruf besar.
 
 **Kapan ditolak:** ada line yang tidak menjawab, ada line yang sedang dipasangi truk, masih ada
-janjang yang belum sampai ke konsol, ada truk yang sudah timbang isi **hari ini** tapi belum
-timbang kosong (bruto-nya yang dibayar, jadi tunggu tiketnya lengkap), atau masih ada kiriman
+janjang yang belum sampai ke konsol, ada truk yang sudah timbang isi **hari ini atau dalam 12 jam
+terakhir** (juga lewat tengah malam) tapi belum timbang kosong (bruto-nya yang dibayar, jadi tunggu tiketnya lengkap), atau masih ada kiriman
 yang belum sampai ke AutoERP (tunggu Antrean ERP di tab Status kosong). "Hapus semua data" juga ditolak
 kalau `.env` tidak punya hash akun **support** yang terbaca (`CONSOLE_SUPPORT_HASH`) dan AutoERP
 tidak disetel, karena sesudahnya tidak ada yang bisa membuka menu support. Tiket terbuka dari hari-hari
