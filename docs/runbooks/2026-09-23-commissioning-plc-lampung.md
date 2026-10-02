@@ -10,7 +10,9 @@ Yang dipegang tim PLC: `docs/plc-mc-handoff.md` (+ PDF). Referensi teknis:
 
 > Sejak catatan ini ditulis: layar Uji PLC pindah ke tab **Line → Uji PLC** (2026-09-28), dan
 > ketikan konfirmasi `UJI` dicabut (2026-09-24). Pengaman "line tidak boleh punya truk
-> terpasang" tetap ada.
+> terpasang" tetap ada. `autograde restart` kini membuat ulang semua container
+> (`--force-recreate`, `docs/SETUP.md`), jadi saran "stop lalu start, bukan restart" di bagian
+> Perintah di bawah tidak diperlukan lagi.
 
 ## Keadaan awal
 
@@ -55,7 +57,7 @@ dan tombol berbunyi "Test coil 1000/1001". **Jalur baca hidup.**
 ### 3. Tombol abu-abu walau PLC hidup
 
 Pengaman yang disengaja: uji coil **ditolak selama line punya truk terpasang**. Tekan
-**Release** dulu. Kata konfirmasinya **`UJI`**: sempat diketik `TES`, dan selama beberapa
+**Release** dulu. Kata konfirmasinya waktu itu **`UJI`** (sudah dicabut): sempat diketik `TES`, dan selama beberapa
 menit dikira "pulse terkirim tapi PLC diam", padahal belum pernah terkirim.
 
 ### 4. Baca jalan, tulis ditolak: `mc protocol error: error code 0x0055`

@@ -1338,7 +1338,7 @@ memang khas satu mesin.
   `git diff --stat origin/staging origin/main` (kosong = nol beda), jangan `git cherry`.
 - **Tag rilis `vX.Y.Z` menunggu CI hijau di commit tag itu sendiri** (batch 4.1). `deploy.yml`
   memanggil `ci.yml` sebagai job `ci` (`workflow_call`, dari commit yang sama), lalu dua job
-  menunggunya: `build-and-push` (image pabrik + `latest`) dan `demo` (memanggil
+  menunggunya: `build-and-push` (image pabrik) dan `demo` (memanggil
   `demo-image.yml`, image `vX.Y.Z-cpu`). CI merah = tidak ada image sama sekali, dan PC pabrik
   tetap di versi lama tanpa error. Tag tidak pernah dipindah, jadi perbaikannya commit baru +
   tag baru; CI yang cuma flaky boleh di-"Re-run failed jobs". Satu rilis kini memakan kira-kira
@@ -1346,6 +1346,23 @@ memang khas satu mesin.
   (`workflow_dispatch`) cuma untuk versi yang image pabriknya sudah terbit. Dijaga
   `tests/unit/test_ci_gerbang_rilis.py` dan `tests/integration/test_alur_rilis_integrasi.py`;
   langkah parse skrip dijaga `tests/unit/test_ci_skrip_konsol.py`.
+- **Image dicek dulu sebelum dapat tag rilis** (batch 4.2). Build cuma menulis tag sementara
+  `candidate-vX.Y.Z` (demo: `candidate-vX.Y.Z-cpu`). Job `smoke` (`image-smoke.yml`, runner
+  baru) menarik digest itu dan menjalankan `scripts/smoke_image.py`: label
+  `org.opencontainers.image.version` benar (launcher membaca versi dari situ), `main` dan
+  `console_main` bisa diimpor (konsol tanpa torch/cv2), konsol nyala tanpa jaringan dan
+  `/health` menjawab versi yang benar; lalu `tests/e2e/test_image_tracker_deps.py` (tracker
+  jalan offline) dan, untuk demo, `tests/e2e/test_demo_kit_docker.py`. Baru sesudah lulus job
+  `promote` menyalin digest yang sama ke `vX.Y.Z` + `latest` (demo: `vX.Y.Z-cpu`) dengan
+  `docker buildx imagetools create`, tanpa build ulang. Smoke gagal = tidak ada tag rilis,
+  pabrik tetap di versi lama; tag kandidat tertinggal di registry dan tidak dibaca siapa pun
+  (launcher cuma membaca `latest`). Uji coba tanpa rilis (baru bisa sesudah `image-smoke.yml` ada di `main`: branch default repo di GitHub adalah `main`, dan GitHub cuma menawarkan Run workflow untuk workflow di branch default): Actions, **Smoke Test AutoGrade
+  Image**, Run workflow, isi image yang sudah ada (misalnya
+  `ghcr.io/delta-anugrah/autograde:v1.21.0-cpu`, versi `v1.21.0`, label `v1.21.0-cpu`, centang
+  demo); workflow ini cuma membaca, tidak punya izin tulis. Variabel `E2E_WAJIB=1` membuat test
+  image yang mestinya dilewati jadi gagal. Dijaga `tests/unit/test_rilis_lewat_smoke.py`,
+  `tests/unit/test_smoke_image.py`, `tests/integration/test_alur_rilis_integrasi.py`,
+  `tests/e2e/test_smoke_image_docker.py`.
 - **CI memparse seluruh `<script>` `console.html`** (batch 4.3) lewat
   `python tests/cek_skrip_konsol.py src/palmgrade/static/console.html`: test konsol lain cuma
   menjalankan fungsi yang diekstrak, jadi syntax error di tingkat atas lolos semua test sementara

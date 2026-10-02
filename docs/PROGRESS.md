@@ -81,7 +81,8 @@ Changed:        Part 2 of the scan work. With the support-only switch on, a truc
                 answers carry `dipasang`; `/api/console/state` carries `antrean_bongkar` and
                 `penugasan_otomatis`. Setting key `setelan_penugasan_line` survives a Danger Zone wipe.
                 Store: `unloading_queue`, `trucks_with_open_ticket`, `skip_unloading_queue`, column
-                `weighings.unloading_queue_skipped_at`. Docs: rule 36 (`docs/rules.md`, `CLAUDE.md` §3),
+                `weighings.unloading_queue_skipped_at` (with `idx_weighings_terbuka`, it raises
+                `VERSI_SKEMA` from 2 to 3, the #213 rule). Docs: rule 36 (`docs/rules.md`, `CLAUDE.md` §3),
                 `docs/backend-overview.md`, `docs/MANUAL.md` v2.2 plus regenerated `docs/MANUAL.pdf`
                 (37 pages), skill `konsol-autograde`. The new queue is "Antrean bongkar", not "Antrean
                 line" (that name already belongs to the line-to-console outbox on the Status tab).
@@ -181,7 +182,75 @@ Decisions:      The key AutoERP stores (`autograde_assignment_id`, unique) is th
                 line ("line-1, line-2"); AutoERP does not read it. The window query filters on
                 `truck_id` and `received_at`, so it gets its own index (`idx_weighings_truck`, added
                 at start-up like the others, nothing dropped) instead of scanning `weighings`.
+                The new table and index raise `VERSI_SKEMA` from 1 to 2 (the #213 rule: one step
+                per schema change).
 Next:           Part 2 of the plan, automatic line assignment (stacked on this PR).
+
+## 2026-10-02 · console · Stamp console.db with a schema number (PR #213)
+Changed:        `repositories/console_skema.py`: `VERSI_SKEMA = 1`; `siapkan_skema()` ends with
+                `_tandai_versi()`, which raises `PRAGMA user_version` to that number and never lowers
+                it. Migrations stay `PRAGMA table_info` based (B5); the number is a marker for the
+                factory launcher and a technician. New `tests/unit/test_console_skema_versi.py`.
+                Known gap row in `docs/coding-standard.md` now lists only the two outboxes.
+Validated:      pytest unit 3935 passed / 28 skipped; integration 127 passed; e2e 334 passed /
+                20 skipped; `ruff check src tests` clean.
+Not validated:  an older image opening a stamped file on the factory PC (Tahap 2 rollback step).
+Decisions:      the number is never lowered, so a rollback to an older image keeps it.
+Next:           sawit launcher PR #73 (batch 4.5 health gate + console.db backup), installed over
+                AnyDesk before tag `v1.22.0`.
+
+## 2026-10-02 · docs · The manual smoke run needs the workflow on main (PR #211)
+Changed:        `docs/rules.md` (batch 4.2 bullet) and the `image-smoke.yml` header say the Run
+                workflow button exists only once `image-smoke.yml` is on `main`: GitHub offers
+                manual runs for workflows on the default branch, and this repository's default
+                branch on GitHub is `main` (checked: `gh workflow view image-smoke.yml` answers 404
+                "not found on the default branch" after #210 merged to `staging`).
+Validated:      doc tests (links, em dash) pass.
+Not validated:  nothing else; no behaviour change.
+Next:           trial run at the batch 4 release PR, before the `v1.22.0` tag.
+
+## 2026-10-02 · ci · Smoke-test the image before it gets its release tag (PR #210)
+Changed:        Batch 4.2. The factory and demo builds push only `candidate-vX.Y.Z[-cpu]`. New
+                `image-smoke.yml` pulls that digest on a fresh runner: `scripts/smoke_image.py`
+                (version label, line and console imports, console boot with `/health` version),
+                offline tracker test, demo kit test for the CPU image. Job `promote` then copies
+                the digest to `vX.Y.Z` + `latest` (demo `vX.Y.Z-cpu`) without a rebuild. The
+                workflow also runs by hand on any existing image (trial mode, read-only).
+Validated:      unit 3865 passed; e2e 289 passed; integration 126 passed; actionlint clean. Script
+                against a real CPU image from this repo: healthy image passes in 16 s; removed
+                module, console that refuses to boot, empty label and wrong version all FAIL; image
+                without `lap` fails the tracker test. `test_smoke_image_docker.py` 3 passed.
+Not validated:  the workflow on GitHub (dispatch works only after merge; the first full run is
+                the next tag) and the factory CUDA image (not built locally).
+Next:           after merge, trial mode on `v1.21.0-cpu` (Tahap 2 in the sawit plan).
+
+## 2026-10-02 · ci · Lint the whole code base, pin CI packages to the runtime versions (PR #209)
+Changed:        Batch 4.4. Ruff checks `src/ tests/` (was an allow-list of about 80 modules that
+                skipped `main.py` and the detection workers); the separate F821 step for `main.py`
+                is gone. `requirements-ci.txt` pins every package `==` at the `requirements.txt`
+                version and adds `pymcprotocol` + `pymodbus`, so the 18 MC Protocol wire tests run
+                in CI. Dockerfile sets `YOLO_AUTOINSTALL=false`. Six safe ruff autofixes in `src/`.
+                Guard: `tests/unit/test_requirements_ci_terkunci.py`.
+Validated:      fresh Python 3.11 venv from the new file: ruff clean; unit 3865 passed, 40 skipped;
+                e2e 289 passed, 26 skipped (MC lane 18 passed); integration 124 passed, 1 skipped.
+                Torch tests that import `main.py`, local venv: 61 passed. Each guard fails when its
+                rule is broken (6 mutations, each reverted).
+Not validated:  the factory image with `YOLO_AUTOINSTALL=false`; it is first built at the next tag,
+                and batch 4.2 runs `test_image_tracker_deps.py` against it before it is published.
+Decisions:      CI pins equal runtime pins; raising a version edits both files in one PR.
+Next:           batch 4.2, smoke test the image before the release tags are written.
+
+## 2026-10-01 · docs · Stale text found by the markdown audit (PR #207)
+Changed:        Audit of all 31 tracked .md files: none to remove (the repo was cleaned in #180 and
+                #186). Fixed in place: the 2026-09-23 PLC commissioning runbook says the `UJI`
+                confirmation is gone and that `autograde restart` now recreates the containers
+                (`--force-recreate`), so its "stop then start, not restart" advice is no longer
+                needed; agent docs-sync no longer skips the untracked `docs/superpowers/`; a test
+                docstring no longer lists autoerp's `autograde-integration.md` as an autograde doc;
+                skill model-swap-eval names the support account and the Line tab plainly.
+Validated:      unit suite and test_doc_links / em dash / skill mirror tests pass (output in the PR).
+Not validated:  Nothing else.
+Next:           None.
 
 ## 2026-10-01 · console, tests · Follow-ups from the browser suite (PR #206)
 Changed:        Console: the Setelan line that did not receive a change is a KAMUS sentence

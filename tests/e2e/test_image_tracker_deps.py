@@ -14,9 +14,12 @@ import subprocess
 import pytest
 
 IMAGE = os.getenv("E2E_IMAGE", "")
-pytestmark = pytest.mark.skipif(
-    not IMAGE or shutil.which("docker") is None, reason="E2E_IMAGE not set or no docker"
-)
+_TIDAK_BISA = not IMAGE or shutil.which("docker") is None
+# `E2E_WAJIB=1` (the image smoke workflow, batch 4.2): what would skip fails instead, so
+# a step that never ran cannot read as green.
+if _TIDAK_BISA and os.getenv("E2E_WAJIB") == "1":
+    raise RuntimeError("E2E_WAJIB=1 but E2E_IMAGE not set or no docker")
+pytestmark = pytest.mark.skipif(_TIDAK_BISA, reason="E2E_IMAGE not set or no docker")
 
 # The exact import ByteTrack's matcher does, plus one real assignment solve.
 PROBE = (

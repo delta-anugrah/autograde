@@ -42,9 +42,17 @@ def test_never_publishes_the_latest_marker():
     assert not [line for line in code if re.search(r":latest\b", line)], "factory PCs update from :latest"
 
 
-def test_publishes_only_the_cpu_suffixed_tag():
+def test_builds_only_the_candidate_tag():
+    """Batch 4.2: the build writes a candidate; `promote` writes `vX.Y.Z-cpu` after smoke."""
     tags = _lines(_build_step()["with"]["tags"])
-    assert tags == ["${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION }}-cpu"]
+    assert tags == ["${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:candidate-${{ env.VERSION }}-cpu"]
+
+
+def test_promotes_only_the_cpu_suffixed_tag():
+    promote = _workflow()["jobs"]["promote"]["steps"]
+    run = next(s["run"] for s in promote if s.get("name") == "Promote candidate to the demo tag")
+    assert '--tag "$REGISTRY/$IMAGE_NAME:$VERSION-cpu" "$SOURCE"' in run
+    assert run.count("--tag") == 1
 
 
 def test_builds_cpu_torch_without_the_camera_sdk():

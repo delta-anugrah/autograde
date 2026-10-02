@@ -55,7 +55,7 @@ make build-engine               # TensorRT FP16 engine, once per GPU
 .venv/bin/pytest tests/unit/ -q               # pure-logic tests, no torch/cv2/SDK
 .venv/bin/pytest tests/integration/ -rs       # real components without hardware
 make test-browser               # Playwright on the real console, Firefox + Chromium (make browser-siap once)
-.venv/bin/ruff check <scope in .github/workflows/ci.yml>
+.venv/bin/ruff check src/ tests/              # the whole code base, same as CI
 curl :8001/health               # 503 while the AI guard says AI dead or frames stopped;  /health/detail: capture_save_dropped must be 0
 ```
 
