@@ -1290,6 +1290,9 @@
 
   .tag.ok { color:var(--acc); background:var(--acc-bg); border-color:var(--acc); }
   .tag.no { color:var(--rej); background:var(--rej-bg); border-color:var(--rej); }
+  /* TANPA SCAN 1 (user 2026-10-02): kuning peringatan, bukan abu-abu yang terbaca seperti
+     teks biasa. Katanya tetap tertulis, jadi warnanya bukan satu-satunya tanda. */
+  .tag.peringatan { color:var(--warn); background:var(--warn-bg); border-color:var(--warn); }
 
   /* One staggered reveal on load, nothing after it. A screen that is watched
      all day must not keep moving. */
@@ -4296,7 +4299,7 @@ function barisTimbangan(w) {
 // antre ke bawah padahal antreannya memang tidak tercatat (keputusan D4).
 function durasiAntre(w) {
   if (w.tanpa_scan_1) {
-    return `<span class="tag" title="${esc(t("antreKelewatJudul"))}">${esc(t("antreKelewat"))}</span>`;
+    return `<span class="tag peringatan" title="${esc(t("antreKelewatJudul"))}">${esc(t("antreKelewat"))}</span>`;
   }
   return dash(teksMenit(w.antre_menit));
 }

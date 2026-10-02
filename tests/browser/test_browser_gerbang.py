@@ -25,6 +25,16 @@ _SALAH = re.compile(r"\bsalah\b")
 _BUKAN_PLAT = "https://promo.example/qr"
 _LANGKAH = ("lbDatang", "lbGerbangMasuk", "lbGerbangKeluar", "lbPergi")
 _KOLOM_SCAN = ("#scan-datang", "#scan-plat", "#scan-keluar", "#scan-pergi")
+_WARNA = "(el) => [getComputedStyle(el).color, getComputedStyle(el).backgroundColor]"
+# The theme's own warning pair, resolved by the browser the same way as the tag's.
+_WARNA_PERINGATAN = """() => {
+  const el = document.createElement("span");
+  el.style.color = "var(--warn)"; el.style.backgroundColor = "var(--warn-bg)";
+  document.body.append(el);
+  const g = getComputedStyle(el), hasil = [g.color, g.backgroundColor];
+  el.remove();
+  return hasil;
+}"""
 
 
 def _daftar(halaman, nomor: str) -> None:
@@ -126,6 +136,9 @@ def test_weigh_out_then_leave_fills_the_total(halaman, browser_name, penugasan_b
     tanda = sel.nth(_ANTRE).locator(".tag")
     expect(tanda).to_have_text(kamus(halaman, "antreKelewat"))
     expect(tanda).to_have_attribute("title", kamus(halaman, "antreKelewatJudul"))
+    # In the warning colour of this theme (user 2026-10-02), not grey like plain text.
+    expect(tanda).to_have_class(re.compile(r"\bperingatan\b"))
+    assert tanda.evaluate(_WARNA) == halaman.evaluate(_WARNA_PERINGATAN)
     expect(baris.locator('button[data-aksi="keluar"]')).to_have_text(kamus(halaman, "btnTimbangKosong"))
     expect(sel.nth(_TOTAL)).to_have_text("-")
 
