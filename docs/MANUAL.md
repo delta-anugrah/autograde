@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.3"
+versi: "2.4"
 tanggal: 2 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -191,6 +191,21 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 | 6 | AutoERP | - | neto = bruto − tara, potongan, harga, Purchase Receipt |
 
 Kolom **Antre** = datang sampai timbang isi; "tanpa scan 1" artinya scan datang terlewat. **Total** = datang sampai keluar gerbang; kalau scan datang terlewat, Total dihitung dari timbang isi. Jam datang dan jam keluar cuma disimpan di PC pabrik, tidak dikirim ke AutoERP. Kalau jamnya belum ada, kolomnya menulis strip, bukan "0 mnt". Truk yang sudah dicatat datang tapi belum timbang isi tampil di baris **Menunggu timbang** di bawah kolom **1. Datang**, sampai 12 jam, juga lewat tengah malam. Daftarnya selalu dua baris; yang lebih panjang terpotong di ujung baris kedua. Truk terdaftar yang platnya tidak berbentuk plat biasa (plat dinas, plat lama) tetap bisa dicatat datang dari daftar truk.
+
+Kolom pertama tabel Timbangan, **Status**, menulis tahap tiap truk dengan lencana berwarna yang
+sama dengan judul langkah di atasnya: **Datang** (abu-abu, langkah 1), **Bongkar** (kuning,
+langkah 2), **Timbang kosong** (biru, langkah 3), **Selesai** (hijau, langkah 4). Tahapnya
+dihitung konsol, bukan ditebak layar. Truk yang sudah dicatat datang tapi belum timbang isi juga
+tampil sebagai baris paling atas berlencana **Datang**, dengan menit tunggunya di kolom Antre
+dan tanpa tombol. Di bawahnya tiket urut **timbang isi terbaru dulu**, menurut jam sebenarnya
+(jam dari browser dan jam dari data demo atau program timbangan dibandingkan dengan benar).
+Tanda "tanpa scan 1" berwarna kuning peringatan. Dropdown plat di **2. Timbang isi** menaruh
+truk yang sedang menunggu di bagian **Menunggu timbang** paling atas (yang datang paling dulu
+di atas, dengan menit tunggunya), lalu truk lain di bagian **Truk lain**; kalau tidak ada yang
+menunggu, daftarnya seperti biasa. Daftar itu diperbarui tiap 15 detik tanpa mengubah plat yang
+sudah dipilih, dan tidak dibangun ulang selama sedang dibuka. Petunjuk desimal ada tepat di bawah
+kolom Bruto. Mulai lebar layar sekitar 1.330 px keempat langkah berdiri dalam satu baris; di layar
+lebih sempit langkahnya bertumpuk.
 
 **Penugasan otomatis** (bawaannya mati; support yang menyalakannya di tab **Setelan**). Selama
 mati, layar sama seperti sebelumnya: tidak ada strip antrean, truk ditugaskan lewat kartu line.
@@ -853,6 +868,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.4 | 2 Oktober 2026 | Tab Timbangan (§3.3): kolom **Status** dengan lencana tahap (Datang, Bongkar, Timbang kosong, Selesai) berwarna sama dengan judul langkahnya; truk yang menunggu jadi baris paling atas dan bagian **Menunggu timbang** di dropdown **2. Timbang isi**; tabel urut timbang isi terbaru menurut jam sebenarnya; "tanpa scan 1" kuning; empat langkah satu baris mulai sekitar 1.330 px dan petunjuk desimal di bawah Bruto. Simpan **Penugasan line** di tab Setelan kini menjawab lewat notifikasi. |
 | 2.3 | 2 Oktober 2026 | Empat tahap scan (§3.2, §3.3 dan §3.4): **1. Datang**, **2. Timbang isi**, **3. Timbang kosong**, **4. Keluar**; kolom **Antre** dan **Total** di tabel Timbangan, jam datang dan keluar hanya disimpan di PC pabrik. **Menunggu timbang** bertahan lewat tengah malam (12 jam) dan tidak lagi menggeser kolom lain; truk terdaftar berplat tak biasa bisa dicatat datang. Kata langkah lama (timbang masuk, timbang keluar) diganti di §3.3, §3.4, §7 dan glosarium. |
 | 2.2 | 2 Oktober 2026 | Penugasan line otomatis (§3.3 dan §3.5): truk yang timbang isi ditugaskan ke line sendiri, truk berikutnya menunggu di **Antrean bongkar** sampai timbang kosong, tombol **Tugaskan sekarang** dan **Lewati**, dan saklar **Penugasan line** di tab Setelan (support, bawaan mati; selama mati layar tidak berubah dan strip antrean tidak tampil). §7: notifikasi line yang tidak menjawab dan line yang masih memegang truk yang sudah keluar. |
 | 2.1 | 1 Oktober 2026 | §3.2 sampai §3.4 mengikuti layar sekarang: kolom scan QR disembunyikan sampai scanner dipasang, plat dipilih dari daftar, tara lewat tombol **Timbang keluar** di baris tiket (petunjuk di layar kini menyebut nama tombol itu). Scan yang menemukan truk yang belum ada di daftar layar memuat ulang daftarnya dulu, dan truk yang dinonaktifkan disebut nonaktif. Tab Setelan: line yang belum menerima perubahan ditulis dalam bahasa layar. Tabel Rekap tidak lagi melebarkan halaman di layar 1024 px. |

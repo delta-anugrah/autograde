@@ -43,6 +43,14 @@ Changed:        Part 3 of the scan work. The Timbangan tab has four labelled ste
                 arrive and leave by QR; both gate windows come from `JENDELA_KUNJUNGAN_DETIK`;
                 the waiting text no longer moves steps 2 to 4 (fixed two-line box, full list also in `title`);
                 the AutoERP gate-time test pins exact key sets.
+                Polish (user's manual test): the Penugasan line save answers with a toast; step 2's
+                plate picker lists waiting trucks first ("Menunggu timbang", oldest first, with
+                minutes; "Truk lain" below), kept across the 15 s poll; the table, the truck's
+                newest ticket and the unloading queue order by the real instant (`julianday`), so
+                `Z` and `+07:00` tickets no longer interleave; "tanpa scan 1" in the warning colour;
+                a first Status column with a stage badge (`tahap` from `domain/gerbang.tahap_tiket`),
+                waiting arrivals as top rows, step headers in the badge colours, the four steps on
+                one row from 1331 px and the decimal hint under Bruto. No schema change.
 Validated:      `pytest tests/unit tests/e2e tests/integration` → 4593 passed, 45 skipped, 0 failed.
                 `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
                 110 passed. Doc guards (em dash, manual, skill mirror) → 53 passed.

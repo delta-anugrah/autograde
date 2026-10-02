@@ -1203,6 +1203,9 @@ end of this file.
     kosong tampil strip, bukan 0. Menitnya dihitung backend (`durasi_kunjungan`). Scan 4 atas
     truk yang belum timbang kosong **ditolak dan diperingatkan**, tidak ditulis. Tiap tahap
     punya kolom sendiri karena konsol tidak bisa menebak ini scan ke berapa.
+    Tahap tiap tiket (`tahap`: bongkar, timbang_kosong, selesai; kedatangan yang menunggu
+    = datang) diputuskan `tahap_tiket` di `domain/gerbang.py`, dikirim backend, dan layar cuma
+    mewarnainya (2026-10-02).
     Rute: `POST /api/console/arrivals {qr, at}` dan `POST /api/console/departures
     {qr?, weighing_id?, at}` (Operator); jam salah dijawab 400 `input_tidak_sah`.
     ⚠️ Jam datang dan jam keluar berasal dari jam browser; stempel tanpa zona dibaca sebagai
