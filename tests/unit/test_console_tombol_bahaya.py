@@ -42,7 +42,7 @@ def _kelas(atribut: str) -> set[str]:
     if awal < 0:
         return set()
     isi, dalam = [], 0
-    for i, c in enumerate(atribut[awal + len('class="'):]):
+    for c in atribut[awal + len('class="'):]:
         if c == '"' and dalam == 0:
             break
         if c == "{" and isi and isi[-1] == "$":
