@@ -14,7 +14,13 @@ import pytest
 
 from palmgrade.core.config import Settings
 from palmgrade.domain import erp_messages
-from palmgrade.domain.gerbang import baca_waktu
+from palmgrade.domain.gerbang import (
+    TAHAP_BONGKAR,
+    TAHAP_DATANG,
+    TAHAP_SELESAI,
+    TAHAP_TIMBANG_KOSONG,
+    baca_waktu,
+)
 from palmgrade.domain.plate import truck_id_for
 from palmgrade.domain.visit_manifest import build_manifest
 from palmgrade.integrations.erp.outbox_store import ErpOutboxStore
@@ -189,3 +195,24 @@ def test_tabel_terbaru_dulu_menurut_waktu_nyata_dan_tiket_truk_yang_ditaut(pabri
     terbaru = store.latest_weighing_for_truck_since(truck_id_for(PLAT), 0.0)
     assert store.weighing(terbaru)["entered_at"] == "2026-09-30T01:20:00Z"
     assert terbaru in [r["weighing_id"] for r in store.unloading_queue(0.0)]
+
+
+def test_tampilan_timbangan_satu_kunjungan_per_tahap(pabrik):
+    """User 2026-10-02: A has only arrived, B weighed in from the browser (`Z`), C was seeded
+    earlier (`+07:00`) and weighed out. The GET view (items + waiting) is newest first by the
+    real instant, every ticket carries its stage and A waits with stage "datang"."""
+    service, gate, _, _ = pabrik
+    _isi(service, "2026-09-30T08:10:00+07:00", plat="BE 3 CC")  # 01:10 UTC
+    _kosong(service, "2026-09-30T08:10:00+07:00", "2026-09-30T08:30:00+07:00", plat="BE 3 CC")
+    _isi(service, "2026-09-30T01:40:00.000Z", plat="BE 2 BB")
+    assert gate.arrive("BE 1 AA", "2026-09-30T01:55:00Z")["hasil"] == "tercatat"
+
+    items = service.weighings(HARI)
+    assert [(w["plate_number"], w["tahap"]) for w in items] == [
+        ("BE 2 BB", TAHAP_BONGKAR), ("BE 3 CC", TAHAP_TIMBANG_KOSONG)]
+    [menunggu] = service.waiting_arrivals(baca_waktu("2026-09-30T02:00:00Z"))
+    assert (menunggu["plate_number"], menunggu["tahap"], menunggu["menit"]) == ("BE1AA", TAHAP_DATANG, 5)
+
+    [c] = [w for w in items if w["plate_number"] == "BE 3 CC"]
+    assert gate.leave(at="2026-09-30T02:00:00Z", weighing_id=c["id"])["hasil"] == "tercatat"
+    assert {w["plate_number"]: w["tahap"] for w in service.weighings(HARI)}["BE 3 CC"] == TAHAP_SELESAI

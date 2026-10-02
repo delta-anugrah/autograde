@@ -14,7 +14,13 @@ import logging
 from datetime import UTC, datetime, tzinfo
 from typing import Any
 
-from ..domain.gerbang import JENDELA_KEDATANGAN, masih_menunggu, menit_antara, pilih_kedatangan
+from ..domain.gerbang import (
+    JENDELA_KEDATANGAN,
+    TAHAP_DATANG,
+    masih_menunggu,
+    menit_antara,
+    pilih_kedatangan,
+)
 from ..domain.working_day import work_date_for
 from ..repositories.console_repository import ConsoleStore
 
@@ -48,7 +54,8 @@ class GerbangKonsol:
     def waiting_arrivals(self, sekarang: datetime | None = None) -> list[dict[str, Any]]:
         """Trucks that scanned in (scan 1) and are not weighed in yet, with minutes waited.
 
-        Each row: `plate_number`, `arrived_at`, `menit`. Chosen by the claim window back
+        Each row: `plate_number`, `arrived_at`, `menit`, and `tahap` ("datang", the first
+        badge on the Timbangan table). Chosen by the claim window back
         from now (`masih_menunggu`), not by work date: a truck that arrived at 23:50 still
         waits at 00:10, because its weigh-in then still claims it.
 
@@ -62,6 +69,6 @@ class GerbangKonsol:
         sejak_hari = work_date_for((nyata - JENDELA_KEDATANGAN).isoformat(), self.tz)
         jam = nyata.isoformat()
         return [
-            {**a, "menit": menit_antara(a["arrived_at"], jam)}
+            {**a, "menit": menit_antara(a["arrived_at"], jam), "tahap": TAHAP_DATANG}
             for a in masih_menunggu(self.store.waiting_arrivals(sejak_hari), nyata)
         ]

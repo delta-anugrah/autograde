@@ -27,7 +27,7 @@ from zoneinfo import ZoneInfo
 from ..core.config import LineEndpoint, Settings
 from ..domain.bahaya import HapusBerjalan
 from ..domain.ffb_source import ffb_source_label
-from ..domain.gerbang import durasi_kunjungan
+from ..domain.gerbang import durasi_kunjungan, tahap_tiket
 from ..domain.grade_class import grade_class_or_none
 from ..domain.jawaban_kunjungan import golongkan
 from ..domain.operator_error import (
@@ -964,10 +964,10 @@ def _with_source_label(row: dict[str, Any]) -> dict[str, Any]:
 
 def _tiket_view(row: dict[str, Any]) -> dict[str, Any]:
     """One Timbangan row: the source label, and whether AutoERP's last answer for this
-    visit needs a human (batch 2.3), and the queue and total minutes (standard L4).
+    visit needs a human (batch 2.3), the queue and total minutes and the stage (standard L4).
     Computed here so the screen never parses AutoERP's sentences or adds up clocks."""
     row["erp_perlu_dicek"] = golongkan(row.get("erp_note"))
-    row.update(durasi_kunjungan(row))
+    row.update(durasi_kunjungan(row), tahap=tahap_tiket(row))
     return _with_source_label(row)
 
 

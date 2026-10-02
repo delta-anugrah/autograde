@@ -24,6 +24,13 @@ BELUM_TIMBANG_KOSONG = "belum_timbang_kosong"
 SUDAH_KELUAR = "sudah_keluar"
 TIDAK_ADA_TIKET = "tidak_ada_tiket"
 
+#: The four stages of a visit, one per gate step (user 2026-10-02). The Timbangan table
+#: shows one as a badge per row, coloured like its step header; the screen never works it out.
+TAHAP_DATANG = "datang"
+TAHAP_BONGKAR = "bongkar"
+TAHAP_TIMBANG_KOSONG = "timbang_kosong"
+TAHAP_SELESAI = "selesai"
+
 #: How far back a weigh-in looks for its truck's arrival: a peak-season queue fits,
 #: yesterday's turned-away truck is not read as a twenty-hour wait. The length of a
 #: visit, one number for the whole console (`JENDELA_KUNJUNGAN_DETIK`).
@@ -74,6 +81,20 @@ def durasi_kunjungan(tiket: dict[str, Any]) -> dict[str, Any]:
         "total_menit": menit_antara(datang or masuk, tiket.get("left_at")),
         "tanpa_scan_1": bool(masuk) and not datang,
     }
+
+
+def tahap_tiket(tiket: dict[str, Any]) -> str:
+    """Where a ticket's truck is now, for the Status badge (standard L4).
+
+    A ticket exists only after the weigh-in, so it is never "datang": a truck that scanned
+    in and is not weighed in yet is an arrival, sent in `waiting`. A tare of 0 kg is still
+    a tare: `None`, not falsy, means "not weighed out".
+    """
+    if tiket.get("left_at"):
+        return TAHAP_SELESAI
+    if tiket.get("tare_kg") is not None:
+        return TAHAP_TIMBANG_KOSONG
+    return TAHAP_BONGKAR
 
 
 def pilih_kedatangan(

@@ -158,3 +158,26 @@ def test_tabel_lewat_rute_terbaru_dulu_menurut_waktu_nyata(klien):
         assert r.status_code == 201, r.text
     data = klien.get("/api/console/weighings", params={"work_date": "2026-09-30"}).json()
     assert [w["plate_number"] for w in data["items"]] == ["BE 3 CC", "BE 2 BB", "BE 1 AA"]
+
+
+def test_tahap_tiap_langkah_lewat_rute(klien):
+    """The Status badge's value comes from the route at every step: datang (in `waiting`),
+    bongkar, timbang_kosong, selesai."""
+    _masuk(klien)
+    t0 = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=3)
+    datang, masuk, kosong, pergi = (_jam(t0 + timedelta(minutes=m)) for m in (0, 30, 90, 100))
+    hari = work_date_for(masuk, ZoneInfo("Asia/Jakarta"))
+
+    def _lihat():
+        data = klien.get("/api/console/weighings", params={"work_date": hari}).json()
+        return [w["tahap"] for w in data["items"]], [a["tahap"] for a in data["waiting"]]
+
+    klien.post("/api/console/arrivals", json={"qr": PLAT, "at": datang})
+    assert _lihat() == ([], ["datang"])
+    klien.post("/api/console/weighings", json={"plate_number": PLAT, "gross_kg": "14000", "entered_at": masuk})
+    assert _lihat() == (["bongkar"], [])
+    klien.post("/api/console/weighings", json={"plate_number": PLAT, "entered_at": masuk,
+                                               "tare_kg": "6000", "exited_at": kosong})
+    assert _lihat() == (["timbang_kosong"], [])
+    assert klien.post("/api/console/departures", json={"qr": PLAT, "at": pergi}).json()["hasil"] == "tercatat"
+    assert _lihat() == (["selesai"], [])
