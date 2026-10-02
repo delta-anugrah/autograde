@@ -2480,7 +2480,7 @@ let trucks = [];
 // Trucks that did "Catat datang" and are not weighed in yet (`waiting` of /weighings,
 // oldest first): the top section of step 2's plate picker and the top rows of the table.
 let menungguTimbang = [];
-// What `isiPlatTimbang` last wrote: the picker is rebuilt only when this changes.
+// The options `isiPlatTimbang` last wrote: the picker is rebuilt only when they change.
 let platTimbangTerakhir = "";
 // Versi + lisensi terakhir dari `/api/console/state`, untuk menggambar ulang header saat
 // bahasa diganti tanpa menunggu polling berikutnya.
@@ -6429,6 +6429,8 @@ function isiTrucks() {
 // their own section with the minutes waited, then the rest. No one waiting = no header,
 // the list looks as it always did. `menunggu` comes oldest first from the server; a plate
 // stored normalised at scan 1 (not registered then) still finds its truck by `kunciPlat`.
+// Only REGISTERED trucks are offered, as before: an unregistered arrival stays a "Datang"
+// row in the table until its truck is registered in the Truk tab.
 function opsiPlatTimbang(daftar, menunggu) {
   const kosong = { v: "", teks: t("pilihTruk") };
   const semua = daftar.map((tr) => ({ v: tr.plate_number, teks: tr.plate_number || KOSONG }));
@@ -6438,11 +6440,12 @@ function opsiPlatTimbang(daftar, menunggu) {
   const atas = [];
   menunggu.forEach((a) => {
     const kunci = kunciPlat(a.plate_number);
-    if (!kunci || dipakai.has(kunci)) return;
+    if (!truk.has(kunci) || dipakai.has(kunci)) return;
     dipakai.add(kunci);
-    const plat = truk.get(kunci) || a.plate_number;
+    const plat = truk.get(kunci);
     atas.push({ v: plat, teks: plat, catatan: teksMenit(a.menit) ?? KOSONG, grup: t("grupMenungguTimbang") });
   });
+  if (!atas.length) return [kosong, ...semua];
   const lain = semua.filter((o) => !dipakai.has(kunciPlat(o.v))).map((o) => ({ ...o, grup: t("grupTrukLain") }));
   return [kosong, ...atas, ...lain];
 }
@@ -6452,16 +6455,21 @@ function kunciPlat(plat) {
   return String(plat ?? "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
 }
 
-// Called by the 60 s truck poll and the 15 s weighing poll. Written only when something
-// changed, and never while the panel is open: a list that rebuilds under the operator's
-// finger loses the row they were about to press. The picked plate is carried over.
+// Called by the 60 s truck poll and the 15 s weighing poll. Written only when the options
+// changed (the key leaves the pick out, so picking alone never redraws), and never while
+// the panel is open: a list that rebuilds under the operator's finger loses the row they
+// were about to press. The picked plate is carried over, and so is the keyboard focus:
+// `outerHTML` would otherwise drop it on <body> right after a keyboard pick.
 function isiPlatTimbang() {
   const pilih = $("plat-timbang");
   if (pilih.dataset.buka === "1") return;
-  const html = komponenPilih(opsiPlatTimbang(trucks, menungguTimbang), pilih.dataset.nilai, "plat-timbang");
-  if (html === platTimbangTerakhir) return;
-  platTimbangTerakhir = html;
-  pilih.outerHTML = html;
+  const opsi = opsiPlatTimbang(trucks, menungguTimbang);
+  const kunci = JSON.stringify(opsi);
+  if (kunci === platTimbangTerakhir) return;
+  platTimbangTerakhir = kunci;
+  const fokus = pilih.contains(document.activeElement);
+  pilih.outerHTML = komponenPilih(opsi, pilih.dataset.nilai, "plat-timbang");
+  if (fokus) tombolPilih($("plat-timbang")).focus({ preventScroll: true });
   segarkanTombol();
 }
 
@@ -8445,8 +8453,12 @@ $("plc-konfirmasi-batal").addEventListener("click", tutupUjiPlc);
 
 // Esc menutup, seperti dialog mana pun: coil yang salah dipilih tidak boleh
 // memaksa siapa pun menekan Jalankan.
+// The dialog lives in the support-only Line tab, which an operator's screen removes
+// (`aturTabDeveloper`): without the null check every Escape an operator pressed (closing a
+// dropdown) threw a TypeError. Found by the browser test of 2026-10-02.
 document.addEventListener("keydown", (ev) => {
-  if (ev.key === "Escape" && !$("plc-konfirmasi").hidden) tutupUjiPlc();
+  const dialog = $("plc-konfirmasi");
+  if (ev.key === "Escape" && dialog && !dialog.hidden) tutupUjiPlc();
 });
 
 $("plc-kartu").addEventListener("click", (ev) => {

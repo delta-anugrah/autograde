@@ -402,7 +402,8 @@ def test_waiting_trucks_lead_the_weigh_in_picker_and_a_poll_keeps_the_pick(halam
         expect(pilih.locator(".pilih-teks")).to_have_text(lain)
 
         _datang_api(halaman, konsol, kedua)
-        halaman.evaluate("() => muatTimbangan()")
+        # Registered just now: the truck list poll brings it in, only registered trucks are offered.
+        halaman.evaluate("() => muatTrucks().then(() => muatTimbangan())")
         expect(halaman.locator(f'#plat-timbang [role="option"][data-nilai="{kedua}"]')).to_have_count(1)
         expect(halaman.locator("#plat-timbang")).to_have_attribute("data-nilai", lain)
         # Oldest arrival first.
@@ -459,3 +460,37 @@ def test_status_badge_follows_the_four_steps_and_the_newest_row_leads(halaman, k
     _pergi(halaman, nomor)
     expect(_lencana(_baris(halaman, nomor))).to_have_text(kamus(halaman, "tahapSelesai"))
     _sama_warna("lbPergi")
+
+
+def test_a_poll_never_takes_the_weigh_in_picker_from_the_operator(halaman, konsol, browser_name, penugasan_bersih):
+    """Review 2026-10-02: a poll with a changed waiting list keeps an open panel open, and after
+    a keyboard pick the focus stays on the picker (an `outerHTML` redraw sent it to <body>)."""
+    nomor = [plat(browser_name, n) for n in (1251, 1252, 1253)]
+    masuk(halaman, OPERATOR)
+    try:
+        r = halaman.request.post(konsol.url + "/api/console/trucks", data={"plate_number": nomor[0]})
+        assert r.status == 201, r.text()
+        buka_tab(halaman, "timbangan")
+        halaman.evaluate("() => muatTrucks().then(() => muatTimbangan())")
+        pilih = halaman.locator("#plat-timbang")
+        pilih.locator(".pilih-tombol").click()
+        expect(pilih.locator(".pilih-panel")).to_be_visible()
+        _datang_api(halaman, konsol, nomor[1])
+        halaman.evaluate("() => muatTrucks().then(() => muatTimbangan())")
+        expect(pilih.locator(".pilih-panel")).to_be_visible()
+
+        halaman.keyboard.press("Escape")
+        halaman.keyboard.press("ArrowDown")
+        halaman.keyboard.press("ArrowDown")
+        halaman.keyboard.press("Enter")
+        expect(pilih.locator(".pilih-panel")).to_be_hidden()
+        dipilih = pilih.get_attribute("data-nilai")
+        assert dipilih, "the keyboard pick did not land"
+        _datang_api(halaman, konsol, nomor[2])
+        halaman.evaluate("() => muatTrucks().then(() => muatTimbangan())")
+        expect(halaman.locator('#plat-timbang [role="option"]', has_text=nomor[2])).to_have_count(1)
+        expect(halaman.locator("#plat-timbang")).to_have_attribute("data-nilai", dipilih)
+        assert halaman.evaluate("() => Boolean(document.activeElement.closest('#plat-timbang'))")
+    finally:
+        for n in nomor[1:]:
+            _selesaikan(halaman, konsol, n)

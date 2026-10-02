@@ -88,11 +88,15 @@ def test_truk_menunggu_di_atas_dengan_menitnya_lalu_truk_lain():
 
 
 @butuh_node
-def test_truk_menunggu_yang_belum_di_daftar_tetap_muncul_sekali():
-    menunggu = '[{plate_number:"BE9ZZ", menit:3}, {plate_number:"BE9ZZ", menit:1}]'
+def test_truk_menunggu_yang_belum_terdaftar_tidak_ditawarkan():
+    """Ruling 2026-10-02: step 2 offers registered trucks only, as before. An unregistered
+    arrival stays visible as a "Datang" row in the table, never as a pick here."""
+    hanya_asing = _jalankan(f'opsiPlatTimbang({_TRUK}, [{{plate_number:"BE9ZZ", menit:3}}])', *_OPSI)
+    assert hanya_asing == _jalankan(f"opsiPlatTimbang({_TRUK}, [])", *_OPSI)
+    menunggu = '[{plate_number:"BE9ZZ", menit:3}, {plate_number:"BE 3 CC", menit:1}, {plate_number:"BE3CC", menit:0}]'
     hasil = _jalankan(f"opsiPlatTimbang({_TRUK}, {menunggu})", *_OPSI)
-    assert [o["v"] for o in hasil] == ["", "BE9ZZ", "BE 1 AA", "BE 2 BB", "BE 3 CC"]
-    assert hasil[1]["catatan"] == "3 mnt"
+    assert [o["v"] for o in hasil] == ["", "BE 3 CC", "BE 1 AA", "BE 2 BB"]
+    assert hasil[1]["catatan"] == "1 mnt"
 
 
 @butuh_node
@@ -118,6 +122,10 @@ def test_dropdown_timbang_isi_ikut_poll_tanpa_mengganggu_operator():
     assert "opsiPlatTimbang(trucks, menungguTimbang)" in fn
     assert 'dataset.buka === "1"' in fn, "never rebuilt while the operator has it open"
     assert "platTimbangTerakhir" in fn, "an unchanged picker is not redrawn"
+    # The key leaves the pick out: picking a truck alone never forces a redraw.
+    assert "JSON.stringify(opsi)" in fn and "platTimbangTerakhir = kunci" in fn
+    # A redraw while the operator's focus is in the picker puts it back on the new button.
+    assert "contains(document.activeElement)" in fn and "focus(" in fn
     assert "isiPlatTimbang()" in _fungsi("isiTrucks")
     assert "isiPlatTimbang()" in _fungsi("muatTimbangan")
     assert "menungguTimbang = " in _fungsi("muatTimbangan")
@@ -231,3 +239,11 @@ def test_petunjuk_desimal_di_bawah_bruto_di_langkah_2():
     langkah2 = blok.split('data-t="lbGerbangMasuk"', 1)[1].split('class="timbang-sisi', 1)[0]
     assert re.search(r'<input id="bruto"[^>]*>\s*<span class="catatan" data-t="hintDesimal"', langkah2)
     assert blok.count('data-t="hintDesimal"') == 1
+
+
+def test_escape_operator_tidak_melempar_galat():
+    """`#plc-konfirmasi` sits in the support-only Line tab, removed for an operator."""
+    awal = HTML.index('document.addEventListener("keydown", (ev) => {\n  const dialog = $("plc-konfirmasi");')
+    blok = HTML[awal : HTML.index("\n});", awal)]
+    assert "dialog && !dialog.hidden" in blok
+    assert '!$("plc-konfirmasi").hidden' not in HTML
