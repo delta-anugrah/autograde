@@ -212,7 +212,7 @@ def test_line_tertahan_diumumkan_dengan_plat_lama():
                     kunci=("sukDitugaskanOtomatis", "tugaskanGagalLine", "tugaskanTertahan"))
     assert toasts == [
         ["sukses", "BE 2 BB ditugaskan ke Line 1, Line 3"],
-        ["peringatan", "Line 2 masih memegang truk BE 1 AA yang sudah keluar. Lepas di kartunya, lalu tugaskan BE 2 BB."],
+        ["peringatan", "Line 2 masih memegang truk BE 1 AA yang sudah timbang kosong. Lepas di kartunya, lalu tugaskan BE 2 BB."],
     ]
 
 
@@ -230,7 +230,7 @@ def test_pelepasan_tiga_line_satu_toast_saat_saklar_nyala():
         f"umumkanPelepasanOtomatis({_TIGA_PELEPASAN}, true); umumkanPelepasanOtomatis({_TIGA_PELEPASAN}, true)",
         "umumkanPelepasanOtomatis", kunci=("pelepasanOtomatis", "pelepasanOtomatisGabung"),
     )
-    assert toasts == [["peringatan", "Line 1, Line 2, Line 3 dilepas otomatis karena BE 1 AA sudah timbang keluar."]]
+    assert toasts == [["peringatan", "Line 1, Line 2, Line 3 dilepas otomatis karena BE 1 AA sudah timbang kosong."]]
 
 
 @butuh_node
@@ -240,7 +240,7 @@ def test_pelepasan_per_line_seperti_dulu_saat_saklar_mati():
         "umumkanPelepasanOtomatis", kunci=("pelepasanOtomatis", "pelepasanOtomatisGabung"),
     )
     assert [m for _, m in toasts] == [
-        f"line-{i} dilepas otomatis karena BE 1 AA sudah timbang keluar. Tugaskan lagi kalau bongkarnya belum selesai."
+        f"line-{i} dilepas otomatis karena BE 1 AA sudah timbang kosong. Tugaskan lagi kalau bongkarnya belum selesai."
         for i in (1, 2, 3)
     ]
 
@@ -249,3 +249,15 @@ def test_refresh_memberi_tahu_saklar_ke_pengumuman_pelepasan():
     awal = HTML.index("async function refresh()")
     blok = HTML[awal : HTML.index("\n}\n", awal)]
     assert "umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif))" in blok
+
+
+def test_kata_langkah_lama_tidak_ada_lagi_di_kamus_id():
+    """Empat scan (2026-09-30): langkah 2 dan 3 bernama Timbang isi dan Timbang kosong.
+    "Timbang masuk" / "timbang keluar" tidak boleh tersisa di kalimat layar (Q5)."""
+    import re
+    from pathlib import Path
+
+    html = (Path(__file__).resolve().parents[2] / "src/palmgrade/static/console.html").read_text(encoding="utf-8")
+    kamus_id = html[html.index("const KAMUS"):html.index("\n  en: {")]
+    teks = " ".join(re.findall(r':"([^"]*)"', kamus_id)).lower()
+    assert "timbang keluar" not in teks and "timbang masuk" not in teks
