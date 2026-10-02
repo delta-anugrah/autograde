@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-02 · console · Automatic line assignment (PR pending)
+## 2026-10-02 · console · Automatic line assignment (PR #212)
 Changed:        Part 2 of the scan work. With the support-only switch on, a truck that weighs in goes
                 onto the chosen lines by itself (`isi_line_otomatis`, `services/penugasan_otomatis.py`,
                 rules in `domain/penugasan_line.py`). While a chosen line still holds a truck that is
