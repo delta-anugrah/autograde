@@ -58,3 +58,78 @@ def test_tag_tanpa_scan_1_berwarna_peringatan():
 def test_tag_tanpa_scan_1_tetap_berkata_bukan_cuma_warna():
     hasil = _jalankan("durasiAntre({tanpa_scan_1:true, antre_menit:null})", "teksMenit", "durasiAntre")
     assert 'class="tag peringatan"' in hasil and ">antreKelewat<" in hasil
+
+
+# ── U2: "2. Timbang isi" picker, waiting trucks first ───────────────────
+
+_TRUK = '[{plate_number:"BE 1 AA"},{plate_number:"BE 2 BB"},{plate_number:"BE 3 CC"}]'
+_OPSI = ("opsiPlatTimbang", "kunciPlat", "teksMenit")
+
+
+@butuh_node
+def test_tanpa_truk_menunggu_dropdown_seperti_dulu():
+    hasil = _jalankan(f"opsiPlatTimbang({_TRUK}, [])", *_OPSI)
+    assert hasil == [{"v": "", "teks": "pilihTruk"}] + [
+        {"v": p, "teks": p} for p in ("BE 1 AA", "BE 2 BB", "BE 3 CC")]
+
+
+@butuh_node
+def test_truk_menunggu_di_atas_dengan_menitnya_lalu_truk_lain():
+    """Backend order is kept (oldest arrival first); a plate stored normalised (unregistered
+    at scan 1, registered since) still finds its truck; no truck is listed twice."""
+    menunggu = '[{plate_number:"BE3CC", menit:40}, {plate_number:"BE 1 AA", menit:null}]'
+    hasil = _jalankan(f"opsiPlatTimbang({_TRUK}, {menunggu})", *_OPSI)
+    assert hasil == [
+        {"v": "", "teks": "pilihTruk"},
+        {"v": "BE 3 CC", "teks": "BE 3 CC", "catatan": "40 mnt", "grup": "grupMenungguTimbang"},
+        {"v": "BE 1 AA", "teks": "BE 1 AA", "catatan": "-", "grup": "grupMenungguTimbang"},
+        {"v": "BE 2 BB", "teks": "BE 2 BB", "grup": "grupTrukLain"},
+    ]
+
+
+@butuh_node
+def test_truk_menunggu_yang_belum_di_daftar_tetap_muncul_sekali():
+    menunggu = '[{plate_number:"BE9ZZ", menit:3}, {plate_number:"BE9ZZ", menit:1}]'
+    hasil = _jalankan(f"opsiPlatTimbang({_TRUK}, {menunggu})", *_OPSI)
+    assert [o["v"] for o in hasil] == ["", "BE9ZZ", "BE 1 AA", "BE 2 BB", "BE 3 CC"]
+    assert hasil[1]["catatan"] == "3 mnt"
+
+
+@butuh_node
+def test_kepala_bagian_bukan_pilihan_dan_menit_tidak_ikut_ke_tombol():
+    opsi = ('[{v:"", teks:"Pilih"}, {v:"BE 1 AA", teks:"BE 1 AA", catatan:"5 mnt", grup:"Menunggu"},'
+            ' {v:"BE 2 BB", teks:"BE 2 BB", grup:"Lain"}]')
+    html = _jalankan(f'komponenPilih({opsi}, "BE 1 AA", "plat-timbang")', "komponenPilih")
+    assert html.count('class="pilih-grup"') == 2
+    assert re.search(r'<div class="pilih-grup" role="presentation">Menunggu</div>', html)
+    assert len(re.findall(r'role="option"', html)) == 3
+    assert 'data-teks="BE 1 AA"' in html and '<span class="pilih-catatan">5 mnt</span>' in html
+    assert '<span class="pilih-teks">BE 1 AA</span>' in html
+
+
+def test_tombol_dropdown_memakai_teks_tanpa_menit():
+    for nama in ("pilihNilai", "segarkanPilih"):
+        assert "dataset.teks" in _fungsi(nama), nama
+    assert "panel.firstElementChild" not in _fungsi("bukaPilih"), "a section header is not an option"
+
+
+def test_dropdown_timbang_isi_ikut_poll_tanpa_mengganggu_operator():
+    fn = _fungsi("isiPlatTimbang")
+    assert "opsiPlatTimbang(trucks, menungguTimbang)" in fn
+    assert 'dataset.buka === "1"' in fn, "never rebuilt while the operator has it open"
+    assert "platTimbangTerakhir" in fn, "an unchanged picker is not redrawn"
+    assert "isiPlatTimbang()" in _fungsi("isiTrucks")
+    assert "isiPlatTimbang()" in _fungsi("muatTimbangan")
+    assert "menungguTimbang = " in _fungsi("muatTimbangan")
+
+
+def test_langkah_1_tidak_berubah():
+    assert 'komponenPilih(opsi, datang.dataset.nilai, "plat-datang")' in _fungsi("isiTrucks")
+
+
+@pytest.mark.parametrize("bahasa", ["id", "en"])
+def test_kata_dropdown_di_dua_bahasa(bahasa):
+    isi = _kamus(bahasa)
+    harap = {"id": ("Menunggu timbang", "Truk lain"), "en": ("Waiting to weigh", "Other trucks")}[bahasa]
+    assert f'grupMenungguTimbang:"{harap[0]}"' in isi
+    assert f'grupTrukLain:"{harap[1]}"' in isi

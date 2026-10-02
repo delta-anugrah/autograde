@@ -327,3 +327,64 @@ def test_the_waiting_list_never_moves_the_other_steps(halaman, konsol, browser_n
             _tutup_tiket(halaman, konsol, tiket)
     halaman.evaluate("() => muatTimbangan()")
     expect(halaman.locator("#antre")).to_have_text("")
+
+
+def _datang_api(halaman, konsol, nomor: str) -> None:
+    r = halaman.request.post(konsol.url + "/api/console/trucks", data={"plate_number": nomor})
+    assert r.status == 201, r.text()
+    jam = halaman.evaluate("() => new Date().toISOString()")
+    r = halaman.request.post(konsol.url + "/api/console/arrivals", data={"qr": nomor, "at": jam})
+    assert r.status == 200 and r.json()["hasil"] == "tercatat", r.text()
+
+
+def _selesaikan(halaman, konsol, nomor: str) -> None:
+    """Weigh in (claims the arrival), weigh out and leave: nothing left for the next test."""
+    masuk_pada = halaman.evaluate("() => new Date().toISOString()")
+    r = halaman.request.post(konsol.url + "/api/console/weighings",
+                             data={"plate_number": nomor, "gross_kg": "14000", "entered_at": masuk_pada})
+    assert r.status == 201, r.text()
+    tiket = next(w for w in halaman.request.get(konsol.url + "/api/console/weighings").json()["items"]
+                 if w["plate_number"] == nomor)
+    _tutup_tiket(halaman, konsol, tiket)
+
+
+def test_waiting_trucks_lead_the_weigh_in_picker_and_a_poll_keeps_the_pick(halaman, konsol, browser_name,
+                                                                           penugasan_bersih):
+    """User 2026-10-02: the trucks that did "Catat datang" come first in "2. Timbang isi", in
+    their own section, and the 15 s poll never resets what the operator picked."""
+    lain, pertama, kedua = (plat(browser_name, n) for n in (1231, 1232, 1233))
+    masuk(halaman, OPERATOR)
+    try:
+        r = halaman.request.post(konsol.url + "/api/console/trucks", data={"plate_number": lain})
+        assert r.status == 201, r.text()
+        _datang_api(halaman, konsol, pertama)
+        buka_tab(halaman, "timbangan")
+        halaman.evaluate("() => muatTrucks().then(() => muatTimbangan())")
+        pilih = halaman.locator("#plat-timbang")
+        pilih.locator(".pilih-tombol").click()
+        kepala = pilih.locator(".pilih-grup")
+        expect(kepala).to_have_count(2)
+        expect(kepala.nth(0)).to_have_text(kamus(halaman, "grupMenungguTimbang"))
+        expect(kepala.nth(1)).to_have_text(kamus(halaman, "grupTrukLain"))
+        opsi = pilih.locator('[role="option"]')
+        expect(opsi.nth(1)).to_have_attribute("data-nilai", pertama)
+        expect(opsi.nth(1).locator(".pilih-catatan")).to_have_text(halaman.evaluate("() => teksMenit(0)"))
+        expect(pilih.locator(f'[role="option"][data-nilai="{lain}"]')).to_have_count(1)
+        expect(pilih.locator(f'[role="option"][data-nilai="{pertama}"]')).to_have_count(1)
+        pilih.locator(f'[role="option"][data-nilai="{lain}"]').click()
+        expect(pilih).to_have_attribute("data-nilai", lain)
+        # The closed trigger shows the plate only, never a minute count going stale.
+        expect(pilih.locator(".pilih-teks")).to_have_text(lain)
+
+        _datang_api(halaman, konsol, kedua)
+        halaman.evaluate("() => muatTimbangan()")
+        expect(halaman.locator(f'#plat-timbang [role="option"][data-nilai="{kedua}"]')).to_have_count(1)
+        expect(halaman.locator("#plat-timbang")).to_have_attribute("data-nilai", lain)
+        # Oldest arrival first.
+        expect(halaman.locator('#plat-timbang [role="option"]').nth(1)).to_have_attribute("data-nilai", pertama)
+        expect(halaman.locator('#plat-timbang [role="option"]').nth(2)).to_have_attribute("data-nilai", kedua)
+    finally:
+        for n in (pertama, kedua):
+            _selesaikan(halaman, konsol, n)
+    halaman.evaluate("() => muatTimbangan()")
+    expect(halaman.locator("#plat-timbang .pilih-grup")).to_have_count(0)

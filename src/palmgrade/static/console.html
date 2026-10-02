@@ -859,6 +859,14 @@
   .pilih-panel [role="option"]:focus { outline:none; background:var(--zebra);
                                        box-shadow:inset 4px 0 0 var(--acc); }
   .pilih-panel [role="option"][aria-selected="true"] { background:var(--acc-bg); color:var(--acc); }
+  /* Section header inside a list (step 2: "Menunggu timbang" / "Truk lain"). Styled like
+     the `.lb` micro-label so it reads as a legend, never as a truck to pick. */
+  .pilih-grup { padding:10px 14px 4px; font-size:.72rem; font-weight:700; letter-spacing:.12em;
+                text-transform:uppercase; color:var(--muted); }
+  .pilih-grup:not(:first-child) { margin-top:4px; border-top:1px solid var(--line); }
+  /* The minutes waited, on the right of the plate. */
+  .pilih-catatan { margin-left:auto; padding-left:16px; font-family:var(--mono); font-weight:600;
+                   color:var(--muted); }
   /* A panel on a button already flush with the right edge grows off-screen: `left:0`
      measures from the button's left, and the panel is wider than the button. Anchored
      to the right edge instead. Not applied to every `.pilih` - the ones on the left
@@ -2424,6 +2432,11 @@ const esc = (s) => String(s ?? "").replace(/[&<>"'`]/g, (c) =>
 const KOSONG = "-";
 const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));
 let trucks = [];
+// Trucks that did "Catat datang" and are not weighed in yet (`waiting` of /weighings,
+// oldest first): the top section of step 2's plate picker and the top rows of the table.
+let menungguTimbang = [];
+// What `isiPlatTimbang` last wrote: the picker is rebuilt only when this changes.
+let platTimbangTerakhir = "";
 // Versi + lisensi terakhir dari `/api/console/state`, untuk menggambar ulang header saat
 // bahasa diganti tanpa menunggu polling berikutnya.
 let infoVersi;
@@ -2586,6 +2599,7 @@ const KAMUS = {
     temaGelap:"Gelap", temaTerang:"Terang",
     truk:"Truk", supplier:"Supplier", trukBelum:"Truk belum dipilih",
     pilihTruk:"Pilih Truk", lepasTitle:"Truk sudah pergi", spasi:"Spasi",
+    grupMenungguTimbang:"Menunggu timbang", grupTrukLain:"Truk lain",
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
     erpFinalBeda:"Cek AutoERP", erpFinalBedaJudul:"Tiket {tiket} sudah final di AutoERP saat data terbaru tiba. Angka yang dibukukan tidak berubah; minta backoffice memeriksa tiket ini.", erpBatal:"Tiket batal", erpBatalJudul:"Tiket {tiket} dibatalkan di AutoERP, kunjungan ini tidak dibukukan. Minta backoffice memeriksanya.", erpTanpaNomor:"(tanpa nomor)",
     kosongGrading:"Belum ada grading hari ini",
@@ -3023,6 +3037,7 @@ const KAMUS = {
     temaGelap:"Dark", temaTerang:"Light",
     truk:"Truck", supplier:"Supplier", trukBelum:"No truck selected",
     pilihTruk:"Select Truck", lepasTitle:"Truck has left", spasi:"Space",
+    grupMenungguTimbang:"Waiting to weigh", grupTrukLain:"Other trucks",
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
     erpFinalBeda:"Check AutoERP", erpFinalBedaJudul:"Ticket {tiket} was already final in AutoERP when the latest data arrived. The booked figures did not change; ask the back office to review this ticket.", erpBatal:"Ticket cancelled", erpBatalJudul:"Ticket {tiket} was cancelled in AutoERP, so this visit is not booked. Ask the back office to look at it.", erpTanpaNomor:"(no number)",
     kosongGrading:"No grading yet today",
@@ -3359,11 +3374,23 @@ $("tema").addEventListener("click", () => {
 // A real listbox, not a <select>. Its rows are sized for a gloved hand and read
 // at distance, which the OS picker cannot do. Value lives on the root as
 // data-nilai; picking one fires a "pilih" event that bubbles.
+//
+// An option may carry `grup` (a section header is written where it changes; the header is
+// not an option, so the arrow keys skip it) and `catatan` (a note on the right, such as
+// the minutes waited, which the closed trigger leaves out: it would go stale there).
 function komponenPilih(opsi, terpilih, id) {
   const aktif = opsi.find((o) => o.v === terpilih) || opsi[0];
-  const baris = opsi.map((o) =>
-    `<div role="option" tabindex="-1" data-nilai="${esc(o.v)}"
-          aria-selected="${o.v === aktif.v}">${esc(o.teks)}</div>`).join("");
+  let grup;
+  const baris = opsi.map((o) => {
+    const kepala = o.grup && o.grup !== grup
+      ? `<div class="pilih-grup" role="presentation">${esc(o.grup)}</div>` : "";
+    grup = o.grup;
+    const catatan = o.catatan == null ? ""
+      : `<span class="pilih-catatan">${esc(o.catatan)}</span>`;
+    return `${kepala}<div role="option" tabindex="-1" data-nilai="${esc(o.v)}"${
+      catatan ? ` data-teks="${esc(o.teks)}"` : ""}
+          aria-selected="${o.v === aktif.v}">${esc(o.teks)}${catatan}</div>`;
+  }).join("");
   return `<div class="pilih"${id ? ` id="${esc(id)}"` : ""} data-nilai="${esc(aktif.v)}">
     <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
       <span class="pilih-teks">${esc(aktif.teks)}</span>
@@ -3386,7 +3413,7 @@ function bukaPilih(root) {
   const panel = root.querySelector(".pilih-panel");
   panel.hidden = false;
   tombolPilih(root).setAttribute("aria-expanded", "true");
-  const awal = panel.querySelector('[aria-selected="true"]') || panel.firstElementChild;
+  const awal = panel.querySelector('[aria-selected="true"]') || panel.querySelector('[role="option"]');
   // preventScroll: the panel opens right under a button the operator just
   // pressed, so it is already in view - scrolling the cameras off screen to
   // reach it is worse than not scrolling at all.
@@ -3397,7 +3424,7 @@ function pilihNilai(root, v) {
   const opt = root.querySelector(`[role="option"][data-nilai="${CSS.escape(v)}"]`);
   if (!opt) return;
   root.dataset.nilai = v;
-  root.querySelector(".pilih-teks").textContent = opt.textContent;
+  root.querySelector(".pilih-teks").textContent = opt.dataset.teks ?? opt.textContent;
   root.querySelectorAll('[role="option"]')
       .forEach((o) => o.setAttribute("aria-selected", String(o === opt)));
   root.dispatchEvent(new CustomEvent("pilih", { bubbles: true }));
@@ -3408,7 +3435,7 @@ function pilihNilai(root, v) {
 function segarkanPilih() {
   document.querySelectorAll(".pilih").forEach((root) => {
     const opt = root.querySelector('[role="option"][aria-selected="true"]');
-    if (opt) root.querySelector(".pilih-teks").textContent = opt.textContent;
+    if (opt) root.querySelector(".pilih-teks").textContent = opt.dataset.teks ?? opt.textContent;
   });
 }
 
@@ -5663,6 +5690,8 @@ async function muatTimbangan() {
     const items = data.items;
     tulisKalauBeda($("timbangan"), items.length
       ? items.map(barisTimbangan).join("") : barisKosong(11, "kosongTiket"));
+    menungguTimbang = data.waiting || [];
+    isiPlatTimbang();
     const antre = teksAntre(data.waiting);
     $("antre").textContent = antre;
     $("antre").title = antre;
@@ -6298,16 +6327,55 @@ window.addEventListener("afterprint", () => { $("qr-cetak").hidden = true; });
 function isiTrucks() {
   $("trucks").innerHTML = trucks.length
     ? trucks.map(barisTruk).join("") : barisKosong(4, "kosongTruk");
+  isiPlatTimbang();
   // Rebuilt on every poll, so whatever is picked has to be carried over -
   // otherwise a 60 s refresh clears it while the operator is typing bruto.
-  const pilih = $("plat-timbang");
   const opsi = [{ v: "", teks: t("pilihTruk") }]
     .concat(trucks.map((tr) => ({ v: tr.plate_number, teks: tr.plate_number || KOSONG })));
-  pilih.outerHTML = komponenPilih(opsi, pilih.dataset.nilai, "plat-timbang");
   // Scan 1 memilih dari daftar yang sama. Selalu ada di markup: `kirimScan` sampai ke
   // sini lewat `muatTrucks()` pada setiap scan masuk.
   const datang = $("plat-datang");
   datang.outerHTML = komponenPilih(opsi, datang.dataset.nilai, "plat-datang");
+  segarkanTombol();
+}
+
+// The plate picker of step 2 (user 2026-10-02): trucks that did "Catat datang" first, in
+// their own section with the minutes waited, then the rest. No one waiting = no header,
+// the list looks as it always did. `menunggu` comes oldest first from the server; a plate
+// stored normalised at scan 1 (not registered then) still finds its truck by `kunciPlat`.
+function opsiPlatTimbang(daftar, menunggu) {
+  const kosong = { v: "", teks: t("pilihTruk") };
+  const semua = daftar.map((tr) => ({ v: tr.plate_number, teks: tr.plate_number || KOSONG }));
+  if (!menunggu.length) return [kosong, ...semua];
+  const truk = new Map(daftar.map((tr) => [kunciPlat(tr.plate_number), tr.plate_number]));
+  const dipakai = new Set();
+  const atas = [];
+  menunggu.forEach((a) => {
+    const kunci = kunciPlat(a.plate_number);
+    if (!kunci || dipakai.has(kunci)) return;
+    dipakai.add(kunci);
+    const plat = truk.get(kunci) || a.plate_number;
+    atas.push({ v: plat, teks: plat, catatan: teksMenit(a.menit) ?? KOSONG, grup: t("grupMenungguTimbang") });
+  });
+  const lain = semua.filter((o) => !dipakai.has(kunciPlat(o.v))).map((o) => ({ ...o, grup: t("grupTrukLain") }));
+  return [kosong, ...atas, ...lain];
+}
+
+// Same as `normalisasi_plat` in domain/plate.py: "be 1 aa" and "BE1AA" are one truck.
+function kunciPlat(plat) {
+  return String(plat ?? "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+}
+
+// Called by the 60 s truck poll and the 15 s weighing poll. Written only when something
+// changed, and never while the panel is open: a list that rebuilds under the operator's
+// finger loses the row they were about to press. The picked plate is carried over.
+function isiPlatTimbang() {
+  const pilih = $("plat-timbang");
+  if (pilih.dataset.buka === "1") return;
+  const html = komponenPilih(opsiPlatTimbang(trucks, menungguTimbang), pilih.dataset.nilai, "plat-timbang");
+  if (html === platTimbangTerakhir) return;
+  platTimbangTerakhir = html;
+  pilih.outerHTML = html;
   segarkanTombol();
 }
 
