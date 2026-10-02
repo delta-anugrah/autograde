@@ -2439,11 +2439,13 @@ const KAMUS = {
     bantuOtomatis:"Satu truk di line sampai timbang kosong. Truk berikutnya menunggu di antrean bongkar.",
     labelLineOtomatis:"Line yang dipakai", btnSimpanPenugasan:"Simpan penugasan",
     penugasanTersimpan:"Penugasan line tersimpan.",
-    antreanBongkarOtomatis:"Antrean bongkar (otomatis)", antreanBongkarManual:"Antrean bongkar",
+    antreanBongkarOtomatis:"Antrean bongkar (otomatis)",
     btnTugaskanSekarang:"Tugaskan sekarang", btnLewati:"Lewati",
     konfirmasiLewati:"Lewati {truk}? Truk ini tidak akan ditugaskan otomatis.",
     sukLewati:"{truk} dilewati di antrean bongkar", sukDitugaskanOtomatis:"{truk} ditugaskan ke {line}",
     tugaskanGagalLine:"{line} tidak menjawab. Tugaskan {truk} manual di kartunya",
+    tugaskanTertahan:"{line} masih memegang truk {lama} yang sudah keluar. Lepas di kartunya, lalu tugaskan {truk}.",
+    pelepasanOtomatisGabung:"{line} dilepas otomatis karena {truk} sudah timbang keluar.",
     setelanBelumSampai:"Belum sampai ke: {lines}",
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart semua line",
@@ -2864,11 +2866,13 @@ const KAMUS = {
     bantuOtomatis:"One truck on the lines until it is weighed out. The next truck waits in the unloading queue.",
     labelLineOtomatis:"Lines to use", btnSimpanPenugasan:"Save assignment",
     penugasanTersimpan:"Line assignment saved.",
-    antreanBongkarOtomatis:"Unloading queue (automatic)", antreanBongkarManual:"Unloading queue",
+    antreanBongkarOtomatis:"Unloading queue (automatic)",
     btnTugaskanSekarang:"Assign now", btnLewati:"Skip",
     konfirmasiLewati:"Skip {truk}? It will not be assigned automatically.",
     sukLewati:"{truk} skipped in the unloading queue", sukDitugaskanOtomatis:"{truk} assigned to {line}",
     tugaskanGagalLine:"{line} did not answer. Assign {truk} by hand on its card",
+    tugaskanTertahan:"{line} still holds truck {lama}, which has already left. Release it on its card, then assign {truk}.",
+    pelepasanOtomatisGabung:"{line} released automatically because {truk} has weighed out.",
     setelanBelumSampai:"Not received yet by: {lines}",
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart all lines",
@@ -5251,24 +5255,39 @@ $("keluar").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, asyn
 // sekali per pelepasan: state di-poll tiap 2 detik, dan toast yang sama muncul
 // berulang selama satu jam adalah cara tercepat mengajari operator mengabaikan
 // kotak peringatan.
+//
+// Saklar penugasan otomatis nyala: melepas memang jalannya dan truk berikutnya
+// langsung naik. Satu toast per truk (tiga line = satu kalimat, bukan tiga toast
+// yang membuang toast suksesnya dari TOAST_MAKS), tanpa "tugaskan lagi": menugaskan
+// lagi akan menimpa truk berikutnya. Saklar mati: per line seperti dulu (D13).
 const pelepasanSudahDiumumkan = new Set();
-function umumkanPelepasanOtomatis(daftar) {
-  (daftar || []).forEach((r) => {
-    if (pelepasanSudahDiumumkan.has(r.id)) return;
-    pelepasanSudahDiumumkan.add(r.id);
+function umumkanPelepasanOtomatis(daftar, otomatis) {
+  const baru = (daftar || []).filter((r) => !pelepasanSudahDiumumkan.has(r.id));
+  baru.forEach((r) => pelepasanSudahDiumumkan.add(r.id));
+  if (!otomatis) {
+    baru.forEach((r) => {
+      const truk = r.plate_number || r.truck_id;
+      toastPeringatan(t("pelepasanOtomatis").replace("{line}", r.line_code).replace("{truk}", truk));
+    });
+    return;
+  }
+  const perTruk = new Map();
+  baru.forEach((r) => {
     const truk = r.plate_number || r.truck_id;
-    toastPeringatan(t("pelepasanOtomatis").replace("{line}", r.line_code).replace("{truk}", truk));
+    perTruk.set(truk, [...(perTruk.get(truk) || []), namaLineDari(r.line_code)]);
   });
+  perTruk.forEach((lines, truk) => toastPeringatan(
+    t("pelepasanOtomatisGabung").replace("{line}", lines.join(", ")).replace("{truk}", truk)));
 }
 
 // ── antrean bongkar + penugasan otomatis (2026-10-01) ──────────────────
 // Antrean bongkar = truk yang sudah timbang isi tapi belum di line. Bukan "antrean line"
-// di tab Status (kiriman line ke konsol). Judulnya bilang otomatis atau manual: saat
-// saklar mati truk tidak akan naik sendiri, operator yang menekan Tugaskan sekarang.
+// di tab Status (kiriman line ke konsol). Cuma tampil saat saklar nyala: saklar mati
+// berarti layar sama seperti sebelum fitur ini (D13), dan dropdown per line tetap cara
+// manualnya. Jalur Tugaskan sekarang / Lewati tetap ada di server.
 function htmlAntreanBongkar(daftar, aktif) {
-  if (!daftar || !daftar.length) return "";
-  const judul = t(aktif ? "antreanBongkarOtomatis" : "antreanBongkarManual");
-  return `<span class="lb">${esc(judul)}</span>` + daftar.map((a) =>
+  if (!aktif || !daftar || !daftar.length) return "";
+  return `<span class="lb">${esc(t("antreanBongkarOtomatis"))}</span>` + daftar.map((a) =>
     `<span class="antrean-truk" data-id="${esc(a.weighing_id)}" data-plat="${esc(a.plate_number)}">
        <b>${esc(a.plate_number)}</b>
        <span class="muted">${esc(teksMenit(a.menit) || "0 mnt")}</span>
@@ -5291,15 +5310,23 @@ function namaLineDari(kode) {
 }
 
 // Yang terpasang jadi satu toast sukses; line yang tidak menjawab jadi peringatan
-// sendiri, supaya operator tahu kartu mana yang harus ditugaskan manual.
+// sendiri, supaya operator tahu kartu mana yang harus ditugaskan manual. Line yang
+// masih memegang truk yang sudah keluar (pelepasannya gagal) juga, dengan plat truk
+// lama itu: kalau tidak dilepas, line itu menstempel truk lama ke janjang berikutnya.
 function umumkanPasang(daftarPasang) {
   const daftar = daftarPasang || [];
   if (!daftar.length) return;
   const truk = daftar[0].plate_number || "";
   const ok = daftar.filter((d) => d.terpasang).map((d) => namaLineDari(d.line_code));
-  const gagal = daftar.filter((d) => !d.terpasang).map((d) => namaLineDari(d.line_code));
+  const gagal = daftar.filter((d) => !d.terpasang && !d.tertahan).map((d) => namaLineDari(d.line_code));
+  const tertahan = new Map();
+  daftar.filter((d) => d.tertahan).forEach((d) => {
+    tertahan.set(d.plate_lama, [...(tertahan.get(d.plate_lama) || []), namaLineDari(d.line_code)]);
+  });
   if (ok.length) toastSukses(t("sukDitugaskanOtomatis").replace("{truk}", truk).replace("{line}", ok.join(", ")));
   if (gagal.length) toastPeringatan(t("tugaskanGagalLine").replace("{truk}", truk).replace("{line}", gagal.join(", ")));
+  tertahan.forEach((lines, lama) => toastPeringatan(t("tugaskanTertahan")
+    .replace("{line}", lines.join(", ")).replace("{lama}", lama || "").replace("{truk}", truk)));
 }
 
 $("antrean-bongkar").addEventListener("click", (ev) => {
@@ -5370,7 +5397,7 @@ async function refresh() {
     if (s.work_date) hariKerja = s.work_date;
     gambarBannerLisensi(s.lisensi);
     gambarInfoSistem(s.versi, s.lisensi);
-    umumkanPelepasanOtomatis(s.auto_releases);
+    umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif));
     gambarAntreanBongkar(s.antrean_bongkar, s.penugasan_otomatis);
     selarasUrutan(s.lines);
     isiTally(s.lines);

@@ -26,13 +26,14 @@ KUNCI_BARU = (
     "btnSimpanPenugasan",
     "penugasanTersimpan",
     "antreanBongkarOtomatis",
-    "antreanBongkarManual",
     "btnTugaskanSekarang",
     "btnLewati",
     "konfirmasiLewati",
     "sukLewati",
     "sukDitugaskanOtomatis",
     "tugaskanGagalLine",
+    "tugaskanTertahan",
+    "pelepasanOtomatisGabung",
 )
 
 _STUB = """
@@ -54,6 +55,32 @@ def _kamus(bahasa: str) -> str:
 
 def _jalankan(ekspresi: str, *fungsi: str):
     skrip = _STUB + "".join(_fungsi(f) for f in fungsi) + f"\nprocess.stdout.write(JSON.stringify({ekspresi}));"
+    hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
+    assert hasil.returncode == 0, hasil.stderr[-800:]
+    return json.loads(hasil.stdout)
+
+
+_TOAST = """
+const toasts = [];
+const toastSukses = (m) => toasts.push(["sukses", m]);
+const toastPeringatan = (m) => toasts.push(["peringatan", m]);
+const namaLineDari = (k) => k.replace("line-", "Line ");
+const pelepasanSudahDiumumkan = new Set();
+"""
+
+
+def _kalimat(kunci: str, bahasa: str = "id") -> str:
+    return re.search(rf"\b{kunci}:\"([^\"]*)\"", _kamus(bahasa)).group(1)
+
+
+def _toast(ekspresi: str, *fungsi: str, kunci: tuple[str, ...]) -> list[list[str]]:
+    """Toasts raised by `ekspresi`, with the real Indonesian sentences filled in."""
+    kamus = json.dumps({k: _kalimat(k) for k in kunci})
+    skrip = (
+        _STUB.replace("const t = (k) => k;", f"const t = (k) => ({kamus})[k] ?? k;")
+        + _TOAST + "".join(_fungsi(f) for f in fungsi)
+        + f"\n{ekspresi};\nprocess.stdout.write(JSON.stringify(toasts));"
+    )
     hasil = subprocess.run([NODE, "-e", skrip], capture_output=True, text=True, timeout=30)
     assert hasil.returncode == 0, hasil.stderr[-800:]
     return json.loads(hasil.stdout)
@@ -160,11 +187,64 @@ def test_strip_menyebut_plat_menit_dan_dua_tombol():
 
 
 @butuh_node
-def test_strip_manual_saat_saklar_mati():
+def test_strip_tersembunyi_saat_saklar_mati():
+    """D13: saklar mati = layar sama seperti sebelum rilis ini. Jalurnya tetap ada,
+    dropdown per line tetap cara manualnya."""
     html = _jalankan(
         'htmlAntreanBongkar([{weighing_id:"w1", plate_number:"BE 1 AA", menit:0}], false)',
         "teksMenit",
         "htmlAntreanBongkar",
     )
-    assert "antreanBongkarManual" in html and "antreanBongkarOtomatis" not in html
-    assert "0 mnt" in html
+    assert html == ""
+    assert "antreanBongkarManual" not in HTML
+
+
+@butuh_node
+def test_line_tertahan_diumumkan_dengan_plat_lama():
+    daftar = json.dumps([
+        {"line_code": "line-1", "plate_number": "BE 2 BB", "terpasang": True},
+        {"line_code": "line-2", "plate_number": "BE 2 BB", "terpasang": False, "tertahan": True,
+         "plate_lama": "BE 1 AA"},
+        {"line_code": "line-3", "plate_number": "BE 2 BB", "terpasang": True},
+    ])
+    toasts = _toast(f"umumkanPasang({daftar})", "umumkanPasang",
+                    kunci=("sukDitugaskanOtomatis", "tugaskanGagalLine", "tugaskanTertahan"))
+    assert toasts == [
+        ["sukses", "BE 2 BB ditugaskan ke Line 1, Line 3"],
+        ["peringatan", "Line 2 masih memegang truk BE 1 AA yang sudah keluar. Lepas di kartunya, lalu tugaskan BE 2 BB."],
+    ]
+
+
+_TIGA_PELEPASAN = json.dumps([
+    {"id": i, "line_code": f"line-{i}", "plate_number": "BE 1 AA", "truck_id": "t-a"} for i in (1, 2, 3)
+])
+
+
+@butuh_node
+def test_pelepasan_tiga_line_satu_toast_saat_saklar_nyala():
+    """Timbang kosong di pabrik tiga line: sukTara, truk berikutnya ditugaskan, lalu satu
+    toast pelepasan, bukan tiga (TOAST_MAKS 4 membuang toast suksesnya). Tanpa "tugaskan
+    lagi": saklar nyala, menugaskan lagi menimpa truk berikutnya."""
+    toasts = _toast(
+        f"umumkanPelepasanOtomatis({_TIGA_PELEPASAN}, true); umumkanPelepasanOtomatis({_TIGA_PELEPASAN}, true)",
+        "umumkanPelepasanOtomatis", kunci=("pelepasanOtomatis", "pelepasanOtomatisGabung"),
+    )
+    assert toasts == [["peringatan", "Line 1, Line 2, Line 3 dilepas otomatis karena BE 1 AA sudah timbang keluar."]]
+
+
+@butuh_node
+def test_pelepasan_per_line_seperti_dulu_saat_saklar_mati():
+    toasts = _toast(
+        f"umumkanPelepasanOtomatis({_TIGA_PELEPASAN}, false)",
+        "umumkanPelepasanOtomatis", kunci=("pelepasanOtomatis", "pelepasanOtomatisGabung"),
+    )
+    assert [m for _, m in toasts] == [
+        f"line-{i} dilepas otomatis karena BE 1 AA sudah timbang keluar. Tugaskan lagi kalau bongkarnya belum selesai."
+        for i in (1, 2, 3)
+    ]
+
+
+def test_refresh_memberi_tahu_saklar_ke_pengumuman_pelepasan():
+    awal = HTML.index("async function refresh()")
+    blok = HTML[awal : HTML.index("\n}\n", awal)]
+    assert "umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif))" in blok
