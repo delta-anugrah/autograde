@@ -312,7 +312,9 @@
   /* Dua gerbang dalam satu baris alat, masing-masing berlabel. Labelnya yang membuat
      dua kolom scan bisa dibedakan sekali lihat - tanpa itu keduanya terbaca sama dan
      scan keluar mendarat di jalur masuk, membuat tiket kedua untuk satu kunjungan. */
-  .timbang-alat { align-items:flex-start; gap:18px; }
+  /* `.tools.timbang-alat`, not `.timbang-alat`: the `.tools` rule further down says
+     `align-items:center` and would win, re-centring steps 2 to 4 every time step 1 grows. */
+  .tools.timbang-alat { align-items:flex-start; gap:18px; }
   /* ⚠️ JANGAN pakai nama `.gerbang-*` di sini: itu milik gerbang login di atas
      (`.gerbang-isi` = flex column, input 3.4rem). Kelas yang sama membuat kolom scan
      melar jadi kotak raksasa yang berhamburan - kejadian sekali, terlihat di
@@ -323,6 +325,13 @@
      placeholder cukup "Scan QR" - dan kolom yang lebih sempit membuat dua gerbang tetap
      satu baris sampai 1024 px. */
   .timbang-baris input.plat { flex:0 0 10rem; }
+  /* "Menunggu timbang (n): ..." berubah tiap poll 15 detik. Lebarnya NOL bagi tahap 1
+     (lalu mengisi lebar tahap itu) dan tingginya tetap satu baris, juga saat kosong:
+     tanpa ini tahap 1 melebar atau meninggi setiap ada truk datang, dan tahap 2 sampai 4
+     bergeser di bawah tangan operator. Jumlahnya di depan selalu terbaca; daftar yang
+     terpotong ada utuh di `title`. */
+  #antre { width:0; min-width:100%; line-height:1.4; min-height:1.4em; white-space:nowrap;
+           overflow:hidden; text-overflow:ellipsis; }
 
   /* ---- kolom tara di gerbang keluar ---- */
   /* Inline, BUKAN lapisan di atas layar: dialog yang menutup layar menghilangkan kamera
@@ -343,6 +352,9 @@
   @media (max-width:1330px) {
     .timbang-keluar, .timbang-pisah { padding-left:0; padding-top:12px; border-left:0;
                       border-top:1px solid var(--line-kuat); width:100%; }
+    /* Tahap 1 juga satu baris penuh: daftar tunggunya melipat selebar layar, bukan
+       selebar dropdown, jadi tahap di bawahnya tidak turun tiap ada truk datang. */
+    .timbang-alat > .timbang-sisi:first-child { width:100%; }
   }
   .scan-pesan.salah { color:var(--danger-fg); }
 
@@ -5648,7 +5660,9 @@ async function muatTimbangan() {
     const items = data.items;
     tulisKalauBeda($("timbangan"), items.length
       ? items.map(barisTimbangan).join("") : barisKosong(11, "kosongTiket"));
-    $("antre").textContent = teksAntre(data.waiting);
+    const antre = teksAntre(data.waiting);
+    $("antre").textContent = antre;
+    $("antre").title = antre;
   } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
 }
 

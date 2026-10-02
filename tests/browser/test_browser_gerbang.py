@@ -245,3 +245,66 @@ def test_the_four_steps_never_scroll_sideways(halaman, konsol, browser_name, leb
         assert all(atas != "0px" and kiri == "0px" for atas, kiri in pemisah), pemisah
     else:
         assert all(atas == "0px" and kiri != "0px" for atas, kiri in pemisah), pemisah
+
+
+# Where each step starts inside the toolbar: label, picker, weight field and button of steps
+# 2 to 4. Relative to the toolbar, because the page above it (line cards, the scroll) moves
+# on its own between two polls.
+_POSISI_LANGKAH = """() => {
+  const alat = document.querySelector('#sec-timbangan .timbang-alat').getBoundingClientRect();
+  return ['[data-t="lbGerbangMasuk"]', '#plat-timbang', '#bruto', '#masuk',
+          '[data-t="lbGerbangKeluar"]', '[data-t="lbPergi"]']
+    .map((sel) => { const r = document.querySelector('#sec-timbangan ' + sel).getBoundingClientRect();
+                    return [sel, Math.round(r.left - alat.left), Math.round(r.top - alat.top)]; });
+}"""
+
+
+_LEBAR_ANTRE = (1024, 1440, 1920)
+
+
+@pytest.mark.parametrize("lebar", _LEBAR_ANTRE)
+def test_the_waiting_list_never_moves_the_other_steps(halaman, konsol, browser_name, lebar, penugasan_bersih):
+    """`#antre` under step 1 changes on every 15 s poll ("Menunggu timbang (n): ..."). It never
+    widens or heightens step 1 (one line, cut inside it), so steps 2 to 4 stay where the
+    operator's hand is, side by side or stacked (Q6)."""
+    halaman.set_viewport_size({"width": lebar, "height": 900})
+    masuk(halaman, OPERATOR)
+    buka_tab(halaman, "timbangan")
+    halaman.evaluate("() => muatTimbangan()")
+    expect(halaman.locator("#antre")).to_have_text("")
+    sebelum = halaman.evaluate(_POSISI_LANGKAH)
+
+    nomor = [plat(browser_name, 1221 + 3 * _LEBAR_ANTRE.index(lebar) + i) for i in range(3)]
+    try:
+        for n in nomor:
+            r = halaman.request.post(konsol.url + "/api/console/trucks", data={"plate_number": n})
+            assert r.status == 201, r.text()
+            jam = halaman.evaluate("() => new Date().toISOString()")
+            r = halaman.request.post(konsol.url + "/api/console/arrivals", data={"qr": n, "at": jam})
+            assert r.status == 200 and r.json()["hasil"] == "tercatat", r.text()
+        halaman.evaluate("() => muatTimbangan()")
+        for n in nomor:
+            expect(halaman.locator("#antre")).to_contain_text(n)
+            # One line, cut with an ellipsis when long: the whole list is in the tooltip.
+            expect(halaman.locator("#antre")).to_have_attribute("title", re.compile(re.escape(n)))
+
+        assert halaman.evaluate(_POSISI_LANGKAH) == sebelum
+        lebar_antre, lebar_sisi = halaman.evaluate(
+            "() => [document.querySelector('#antre').getBoundingClientRect().width,"
+            " document.querySelector('#antre').parentElement.getBoundingClientRect().width]"
+        )
+        assert lebar_antre <= lebar_sisi, (lebar_antre, lebar_sisi)
+    finally:
+        # Every arrival is claimed by a weigh-in, then weighed out and gone: the console is
+        # shared by the whole session, a leftover would sit in the next test's waiting list.
+        for n in nomor:
+            masuk_pada = halaman.evaluate("() => new Date().toISOString()")
+            halaman.request.post(konsol.url + "/api/console/trucks", data={"plate_number": n})
+            r = halaman.request.post(konsol.url + "/api/console/weighings",
+                                     data={"plate_number": n, "gross_kg": "14000", "entered_at": masuk_pada})
+            assert r.status == 201, r.text()
+            tiket = next(w for w in halaman.request.get(konsol.url + "/api/console/weighings").json()["items"]
+                         if w["plate_number"] == n)
+            _tutup_tiket(halaman, konsol, tiket)
+    halaman.evaluate("() => muatTimbangan()")
+    expect(halaman.locator("#antre")).to_have_text("")
