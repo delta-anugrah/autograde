@@ -330,21 +330,27 @@
   .timbang-baris input.plat { flex:0 0 10rem; }
   /* Dropdown plat boleh menyempit sampai 10rem (plat paling panjang 11 huruf masih muat):
      di grid empat kolom di bawah, 16rem membuat Bruto turun ke baris berikutnya. */
-  .timbang-alat .timbang-baris .pilih { flex:1 1 12rem; min-width:10rem; max-width:16rem; }
-  /* Langkah 2: Bruto dan petunjuk desimalnya satu kolom, jadi pilihan dan tombol rata atas. */
+  .timbang-alat .timbang-baris .pilih { flex:1 1 10rem; min-width:10rem; max-width:16rem; }
+  /* Kolom QR yang nanti dimunculkan boleh menyempit di kolom grid yang sempit (langkah 4). */
+  .timbang-alat .timbang-baris input.plat { flex:0 1 10rem; min-width:0; }
+  /* Langkah 2: Bruto dan petunjuk desimalnya satu kolom, jadi pilihan dan tombol rata atas.
+     Pilih truk, Bruto, Timbang isi tetap SATU baris dari kiri ke kanan (user 2026-10-02):
+     itu tindakan yang dibayar, tombolnya tidak boleh turun ke bawah pilihan truk. */
   .timbang-isi { align-items:flex-start; }
-  .bruto-grup { display:flex; flex-direction:column; gap:4px; flex:0 0 11rem; min-width:0; }
+  .tools .timbang-isi button { flex:0 0 8.5rem; }
+  .bruto-grup { display:flex; flex-direction:column; gap:4px; flex:0 0 9rem; min-width:0; }
   .tools .bruto-grup input.kg { flex:none; width:100%; max-width:none; }
   .bruto-grup .catatan { line-height:1.3; }
   /* Empat langkah dalam SATU baris mulai 1331 px (user 2026-10-02, screenshot 1440 px:
      "4. Keluar" turun ke baris kedua). Grid, bukan flex: lebar tiap langkah ditentukan
      layar, bukan isinya, jadi kolom tara yang muncul di langkah 3 atau daftar tunggu yang
-     berubah tidak pernah menggeser langkah lain. Langkah 2 paling lebar (dropdown, Bruto,
-     tombol); isi langkah boleh melipat DI DALAM kolomnya. Di bawah 1331 px tetap bertumpuk
+     berubah tidak pernah menggeser langkah lain. Langkah 2 paling lebar: dropdown, Bruto dan
+     tombol muat satu baris dari 1331 px (10rem + 9rem + 8.5rem + celah); isi langkah lain boleh
+     melipat DI DALAM kolomnya. Di bawah 1331 px tetap bertumpuk
      (aturan `max-width:1330px` di bawah). */
   @media (min-width:1331px) {
     .tools.timbang-alat { display:grid;
-      grid-template-columns:minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, .75fr); }
+      grid-template-columns:minmax(0, 1fr) minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, .7fr); }
   }
   /* "Menunggu timbang (n): ..." berubah tiap poll 15 detik. Lebarnya NOL bagi tahap 1
      (lalu mengisi lebar tahap itu) dan tingginya tetap DUA baris, juga saat kosong: tanpa

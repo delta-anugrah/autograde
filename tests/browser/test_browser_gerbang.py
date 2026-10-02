@@ -262,6 +262,9 @@ def test_the_four_steps_never_scroll_sideways(halaman, konsol, browser_name, leb
         # One row from 1331 px (user 2026-10-02: at 1440 "4. Keluar" wrapped to a second row).
         atas = halaman.evaluate(_ATAS_LANGKAH)
         assert len(set(atas)) == 1, atas
+        # The paid action reads left to right on ONE line: plate, Bruto, Timbang isi.
+        baris_isi = halaman.evaluate(_ATAS_ISI)
+        assert len(set(baris_isi)) == 1, baris_isi
     # The decimal hint sits inside step 2, right under the Bruto field (it used to float
     # at the end of the toolbar, next to "4. Keluar").
     letak = halaman.evaluate(_LETAK_PETUNJUK)
@@ -272,6 +275,8 @@ def test_the_four_steps_never_scroll_sideways(halaman, konsol, browser_name, leb
 
 _ATAS_LANGKAH = """() => ['lbDatang', 'lbGerbangMasuk', 'lbGerbangKeluar', 'lbPergi']
   .map((k) => Math.round(document.querySelector(`#sec-timbangan [data-t="${k}"]`).getBoundingClientRect().top))"""
+_ATAS_ISI = """() => ['#plat-timbang', '#bruto', '#masuk']
+  .map((sel) => Math.round(document.querySelector(sel).getBoundingClientRect().top))"""
 _LETAK_PETUNJUK = """() => {
   const petunjuk = document.querySelector('#sec-timbangan [data-t="hintDesimal"]');
   const kotak = (el) => { const r = el.getBoundingClientRect(); return {top: r.top, bottom: r.bottom, left: r.left}; };
