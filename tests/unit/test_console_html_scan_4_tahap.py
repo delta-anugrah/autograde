@@ -88,7 +88,7 @@ def test_kata_baru_ada_di_dua_bahasa(bahasa):
 def test_kolom_antre_dan_total_di_kepala_tabel():
     kepala = HTML.split('<section id="sec-timbangan"', 1)[1].split("</thead>", 1)[0]
     assert kepala.index('data-t="thAntre"') < kepala.index('data-t="thLama"') < kepala.index('data-t="thTotal"')
-    assert "barisKosong(11" in _fungsi("muatTimbangan")
+    assert "barisKosong(12" in _fungsi("muatTimbangan")
 
 
 def test_tabel_dan_antrean_timbang_ditulis_aman():

@@ -52,10 +52,11 @@ def test_baris_kosong_selebar_tabel_yang_sudah_ditambah_kolom():
     """`colspan` yang tertinggal di lebar lama tidak melempar apa pun."""
     kolom = HTML.count('<th data-t="thMasuk"')
     assert kolom == 1, "header tabel timbangan tidak tunggal lagi, hitungan di bawah tak sahih"
-    awal = HTML.index('<th data-t="thMasuk"')
+    # Status (2026-10-02) is the first column, left of thMasuk.
+    awal = HTML.rindex("<thead>", 0, HTML.index('<th data-t="thMasuk"')) + len("<thead>")
     kepala = HTML[awal : HTML.index("</thead>", awal)]
-    assert kepala.count("<th") == 11, "lebar header berubah - colspan baris kosong ikut berubah"
-    assert 'barisKosong(11, "kosongTiket")' in HTML, (
+    assert kepala.count("<th") == 12, "lebar header berubah - colspan baris kosong ikut berubah"
+    assert 'barisKosong(12, "kosongTiket")' in HTML, (
         "baris 'belum ada tiket' tidak selebar tabel timbangan"
     )
 

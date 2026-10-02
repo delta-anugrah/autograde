@@ -133,3 +133,101 @@ def test_kata_dropdown_di_dua_bahasa(bahasa):
     harap = {"id": ("Menunggu timbang", "Truk lain"), "en": ("Waiting to weigh", "Other trucks")}[bahasa]
     assert f'grupMenungguTimbang:"{harap[0]}"' in isi
     assert f'grupTrukLain:"{harap[1]}"' in isi
+
+
+# ── U5: Status badge per row, step headers in the same colours ──────────
+
+_TAHAP = {  # stage from the backend -> CSS class, KAMUS key
+    "datang": ("tahap-datang", "tahapDatang"),
+    "bongkar": ("tahap-bongkar", "tahapBongkar"),
+    "timbang_kosong": ("tahap-kosong", "tahapTimbangKosong"),
+    "selesai": ("tahap-selesai", "tahapSelesai"),
+}
+_LANGKAH = {"lbDatang": "tahap-datang", "lbGerbangMasuk": "tahap-bongkar",
+            "lbGerbangKeluar": "tahap-kosong", "lbPergi": "tahap-selesai"}
+
+
+def _kepala_tabel() -> str:
+    return HTML.split('<section id="sec-timbangan"', 1)[1].split("</thead>", 1)[0].split("<thead>", 1)[1]
+
+
+def test_kolom_status_paling_kiri_dua_belas_kolom():
+    kepala = _kepala_tabel()
+    assert len(re.findall(r"<th\b", kepala)) == 12
+    assert re.search(r"<tr><th data-t=\"thStatus\">", kepala), "Status is the FIRST column"
+    assert "barisKosong(12" in _fungsi("muatTimbangan") and "barisKosong(11" not in _fungsi("muatTimbangan")
+
+
+@butuh_node
+@pytest.mark.parametrize("tahap", sorted(_TAHAP))
+def test_lencana_tahap_berwarna_dan_berkata(tahap):
+    kelas, kunci = _TAHAP[tahap]
+    html = _jalankan(f'lencanaTahap("{tahap}")', "lencanaTahap")
+    assert f'class="lencana {kelas}"' in html and f">{kunci}<" in html
+
+
+@butuh_node
+def test_tahap_tak_dikenal_jadi_strip_bukan_tebakan():
+    assert _jalankan('lencanaTahap("aneh")', "lencanaTahap") == "-"
+    assert _jalankan("lencanaTahap(undefined)", "lencanaTahap") == "-"
+
+
+@butuh_node
+def test_baris_tiket_diawali_lencana_dua_belas_sel():
+    awal = "const waktu = (x) => x; const kg = (x) => String(x ?? '-'); const lamaProses = () => null;"
+    html = _jalankan(
+        '[barisTimbangan({id:"w1", plate_number:"BE 1 AA", tahap:"bongkar", tare_kg:null, gross_kg:14000}),'
+        ' barisMenunggu({plate_number:"BE 2 BB", arrived_at:"2026-10-02T01:00:00Z", menit:7, tahap:"datang"})]',
+        "barisTimbangan", "durasiAntre", "teksMenit", "aksiTiket", "tandaErp", "lencanaTahap", "barisMenunggu",
+        awal=awal,
+    )
+    for baris, kelas in zip(html, ("tahap-bongkar", "tahap-datang"), strict=True):
+        sel = re.findall(r"<td\b[^>]*>(.*?)</td>", baris, re.S)
+        assert len(sel) == 12, baris
+        assert kelas in sel[0]
+    menunggu = re.findall(r"<td\b[^>]*>(.*?)</td>", html[1], re.S)
+    assert menunggu[3] == "7 mnt" and menunggu[6] == "BE 2 BB"
+    assert "<button" not in html[1] and "data-id" not in html[1]
+
+
+def test_yang_menunggu_jadi_baris_paling_atas():
+    fn = _fungsi("muatTimbangan")
+    assert re.search(r"menungguTimbang\.map\(barisMenunggu\)[\s\S]*items\.map\(barisTimbangan\)", fn)
+
+
+@pytest.mark.parametrize("kunci, kelas", sorted(_LANGKAH.items()))
+def test_judul_langkah_berwarna_seperti_lencananya(kunci, kelas):
+    blok = HTML.split('<section id="sec-timbangan"', 1)[1].split('<div class="tabel">', 1)[0]
+    label = re.search(rf'<label class="([^"]*)"[^>]*data-t="{kunci}"', blok)
+    assert label and kelas in label.group(1).split(), kunci
+
+
+def test_warna_tahap_dari_token_tema_dua_tema():
+    for kelas, token in (("tahap-datang", "--muted"), ("tahap-bongkar", "--warn"),
+                         ("tahap-kosong", "--info"), ("tahap-selesai", "--acc")):
+        aturan = re.search(rf"\.{kelas}\s*\{{([^}}]*)\}}", HTML)
+        assert aturan and f"color:var({token})" in aturan.group(1).replace(" ", ""), kelas
+    terang = HTML.split(":root { color-scheme:light;", 1)[1].split("}", 1)[0]
+    gelap = HTML.split(':root[data-theme="dark"] { color-scheme:dark;', 1)[1].split("}", 1)[0]
+    for blok in (terang, gelap):
+        assert "--info:" in blok and "--info-bg:" in blok
+
+
+@pytest.mark.parametrize("bahasa", ["id", "en"])
+def test_kata_status_di_dua_bahasa(bahasa):
+    isi = _kamus(bahasa)
+    harap = {
+        "id": {"thStatus": "Status", "tahapDatang": "Datang", "tahapBongkar": "Bongkar",
+               "tahapTimbangKosong": "Timbang kosong", "tahapSelesai": "Selesai"},
+        "en": {"thStatus": "Status", "tahapDatang": "Arrived", "tahapBongkar": "Unloading",
+               "tahapTimbangKosong": "Weighed out", "tahapSelesai": "Done"},
+    }[bahasa]
+    for kunci, teks in harap.items():
+        assert f'{kunci}:"{teks}"' in isi, kunci
+
+
+def test_petunjuk_desimal_di_bawah_bruto_di_langkah_2():
+    blok = HTML.split('<section id="sec-timbangan"', 1)[1].split('<div class="tabel">', 1)[0]
+    langkah2 = blok.split('data-t="lbGerbangMasuk"', 1)[1].split('class="timbang-sisi', 1)[0]
+    assert re.search(r'<input id="bruto"[^>]*>\s*<span class="catatan" data-t="hintDesimal"', langkah2)
+    assert blok.count('data-t="hintDesimal"') == 1

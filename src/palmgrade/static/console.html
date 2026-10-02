@@ -56,6 +56,8 @@
           --acc:#04613a; --acc-bg:#dff0e6; --on-acc:#ffffff;
           --rej:#a72119; --rej-bg:#fdeeec;
           --warn:#7a4b00; --warn-bg:#fbeed2;
+          /* Blue for the "Timbang kosong" stage only (badge + step 3 header). */
+          --info:#0b4a85; --info-bg:#e2edf9;
           --input:#ffffff; --hover:#414a57;
           --danger-bg:#fde8e6; --danger-line:#d99a94; --danger-fg:#8c1d18;
           --bayang:rgba(12,19,16,.22);
@@ -76,6 +78,7 @@
           --acc:#4ee39f; --acc-bg:#0f2c20; --on-acc:#07211a;
           --rej:#ff8078; --rej-bg:#331a18;
           --warn:#ffcf70; --warn-bg:#33260c;
+          --info:#9ccbff; --info-bg:#132639;
           --input:#222933; --hover:#5b667a;
           --danger-bg:#40211f; --danger-line:#6b312d; --danger-fg:#ffc4bf;
           --bayang:rgba(0,0,0,.55);
@@ -325,6 +328,24 @@
      placeholder cukup "Scan QR" - dan kolom yang lebih sempit membuat dua gerbang tetap
      satu baris sampai 1024 px. */
   .timbang-baris input.plat { flex:0 0 10rem; }
+  /* Dropdown plat boleh menyempit sampai 10rem (plat paling panjang 11 huruf masih muat):
+     di grid empat kolom di bawah, 16rem membuat Bruto turun ke baris berikutnya. */
+  .timbang-alat .timbang-baris .pilih { flex:1 1 12rem; min-width:10rem; max-width:16rem; }
+  /* Langkah 2: Bruto dan petunjuk desimalnya satu kolom, jadi pilihan dan tombol rata atas. */
+  .timbang-isi { align-items:flex-start; }
+  .bruto-grup { display:flex; flex-direction:column; gap:4px; flex:0 0 11rem; min-width:0; }
+  .tools .bruto-grup input.kg { flex:none; width:100%; max-width:none; }
+  .bruto-grup .catatan { line-height:1.3; }
+  /* Empat langkah dalam SATU baris mulai 1331 px (user 2026-10-02, screenshot 1440 px:
+     "4. Keluar" turun ke baris kedua). Grid, bukan flex: lebar tiap langkah ditentukan
+     layar, bukan isinya, jadi kolom tara yang muncul di langkah 3 atau daftar tunggu yang
+     berubah tidak pernah menggeser langkah lain. Langkah 2 paling lebar (dropdown, Bruto,
+     tombol); isi langkah boleh melipat DI DALAM kolomnya. Di bawah 1331 px tetap bertumpuk
+     (aturan `max-width:1330px` di bawah). */
+  @media (min-width:1331px) {
+    .tools.timbang-alat { display:grid;
+      grid-template-columns:minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, .75fr); }
+  }
   /* "Menunggu timbang (n): ..." berubah tiap poll 15 detik. Lebarnya NOL bagi tahap 1
      (lalu mengisi lebar tahap itu) dan tingginya tetap DUA baris, juga saat kosong: tanpa
      ini tahap 1 melebar atau meninggi setiap ada truk datang, dan tahap 2 sampai 4 bergeser
@@ -338,7 +359,7 @@
   /* Inline, BUKAN lapisan di atas layar: dialog yang menutup layar menghilangkan kamera
      line dan strip tally sampai tara selesai diisi, dan di gerbang yang sibuk itu
      kehilangan pandangan justru saat paling butuh. Dilaporkan operator 2026-09-15. */
-  .tara-grup { display:flex; align-items:center; gap:8px; }
+  .tara-grup { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
   .tara-grup[hidden] { display:none; }
   /* Platnya disebut: operator melihat beberapa truk sehari sambil memegang HP supir,
      dan kolom tanpa nama truk bisa mendarat di kunjungan yang salah. */
@@ -1301,6 +1322,20 @@
   /* TANPA SCAN 1 (user 2026-10-02): kuning peringatan, bukan abu-abu yang terbaca seperti
      teks biasa. Katanya tetap tertulis, jadi warnanya bukan satu-satunya tanda. */
   .tag.peringatan { color:var(--warn); background:var(--warn-bg); border-color:var(--warn); }
+  /* Tahap kunjungan (user 2026-10-02): lencana di kolom Status dan judul empat langkah di
+     atasnya memakai warna yang sama, jadi operator menyambungkan baris dengan langkahnya
+     sekali lihat. Warnanya tanda kedua: katanya selalu tertulis. Datang abu-abu, Bongkar
+     kuning, Timbang kosong biru, Selesai hijau; tiap pasangan di atas 6:1 di dua tema. */
+  .tahap-datang  { color:var(--muted); background:var(--bg); border-color:var(--line-kuat); }
+  .tahap-bongkar { color:var(--warn); background:var(--warn-bg); border-color:var(--warn); }
+  .tahap-kosong  { color:var(--info); background:var(--info-bg); border-color:var(--info); }
+  .tahap-selesai { color:var(--acc); background:var(--acc-bg); border-color:var(--acc); }
+  .lencana { display:inline-block; font:700 .78rem/1 var(--font); letter-spacing:.08em;
+             text-transform:uppercase; padding:6px 10px; border-radius:var(--r-pill);
+             border:1px solid; white-space:nowrap; }
+  /* Judul langkah: label kecil yang sama, kini sebagai pita berwarna tahapnya. */
+  .lb.langkah { align-self:flex-start; padding:4px 10px; border-radius:var(--r-pill);
+                border:1px solid; }
 
   /* One staggered reveal on load, nothing after it. A screen that is watched
      all day must not keep moving. */
@@ -1576,7 +1611,7 @@
       ini. Scan 1 boleh terlewat; tiketnya lalu ditandai di kolom Antre.
     -->
     <div class="timbang-sisi">
-      <label class="lb" for="scan-datang" data-t="lbDatang">1. Datang</label>
+      <label class="lb langkah tahap-datang" for="scan-datang" data-t="lbDatang">1. Datang</label>
       <div class="timbang-baris">
         <input id="scan-datang" class="plat" data-t-ph="phScanDatang" placeholder="QR datang"
                autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
@@ -1587,13 +1622,18 @@
       <span id="scan-datang-pesan" class="scan-pesan" role="status"></span>
     </div>
     <div class="timbang-sisi timbang-pisah">
-      <label class="lb" for="scan-plat" data-t="lbGerbangMasuk">2. Timbang isi</label>
-      <div class="timbang-baris">
+      <label class="lb langkah tahap-bongkar" for="scan-plat" data-t="lbGerbangMasuk">2. Timbang isi</label>
+      <div class="timbang-baris timbang-isi">
         <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="QR timbang isi"
                autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
         <div class="pilih" id="plat-timbang" data-nilai=""></div>
-        <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
-               inputmode="decimal" autocomplete="off">
+        <!-- Petunjuk desimal tepat di bawah Bruto, satu-satunya kolom yang ia jelaskan
+             (user 2026-10-02): di ujung baris alat ia melayang di samping "4. Keluar". -->
+        <span class="bruto-grup">
+          <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
+                 inputmode="decimal" autocomplete="off">
+          <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
+        </span>
         <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang isi</button>
       </div>
       <!--
@@ -1604,7 +1644,7 @@
       <span id="scan-pesan" class="scan-pesan" role="status"></span>
     </div>
     <div class="timbang-sisi timbang-keluar">
-      <label class="lb" for="scan-keluar" data-t="lbGerbangKeluar">3. Timbang kosong</label>
+      <label class="lb langkah tahap-kosong" for="scan-keluar" data-t="lbGerbangKeluar">3. Timbang kosong</label>
       <div class="timbang-baris">
         <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="QR timbang kosong"
                autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
@@ -1636,7 +1676,7 @@
       <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
     </div>
     <div class="timbang-sisi timbang-pisah">
-      <label class="lb" for="scan-pergi" data-t="lbPergi">4. Keluar</label>
+      <label class="lb langkah tahap-selesai" for="scan-pergi" data-t="lbPergi">4. Keluar</label>
       <div class="timbang-baris">
         <input id="scan-pergi" class="plat" data-t-ph="phScanPergi" placeholder="QR keluar"
                autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
@@ -1644,11 +1684,10 @@
       <span id="petunjuk-pergi" class="catatan" data-t="hintPergi">Tekan Keluar di baris truknya pada tabel di bawah</span>
       <span id="scan-pergi-pesan" class="scan-pesan" role="status"></span>
     </div>
-    <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
   </div>
   <div class="tabel">
     <table>
-      <thead><tr><th data-t="thMasuk">Jam isi</th><th data-t="thKeluar">Jam kosong</th>
+      <thead><tr><th data-t="thStatus">Status</th><th data-t="thMasuk">Jam isi</th><th data-t="thKeluar">Jam kosong</th>
         <th data-t="thAntre">Antre</th><th data-t="thLama">Lama</th><th data-t="thTotal">Total</th>
         <th data-t="thTruk">Truk</th>
         <th data-t="thSumber">Sumber</th><th class="num" data-t="thBruto">Bruto (kg)</th>
@@ -2580,6 +2619,8 @@ const KAMUS = {
     geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
     thNo:"No", thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
+    tahapDatang:"Datang", tahapBongkar:"Bongkar", tahapTimbangKosong:"Timbang kosong",
+    tahapSelesai:"Selesai",
     thMasuk:"Jam isi", thKeluar:"Jam kosong", thLama:"Lama", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
     thLevel:"Level", thPesan:"Pesan", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan, sumber, atau line",
@@ -3018,6 +3059,8 @@ const KAMUS = {
     geserKiri:"Move left", geserKanan:"Move right",
     thNo:"No", thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
+    tahapDatang:"Arrived", tahapBongkar:"Unloading", tahapTimbangKosong:"Weighed out",
+    tahapSelesai:"Done",
     thMasuk:"Weighed in", thKeluar:"Weighed out", thLama:"Duration", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
     thLevel:"Level", thPesan:"Message", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message, source, or line",
@@ -4308,6 +4351,7 @@ function barisTimbangan(w) {
   const jamPergi = w.left_at ? `${t("jamPergi")} ${waktu(w.left_at)}` : "";
   return `<tr data-id="${esc(w.id)}" data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
               data-masuk="${esc(w.entered_at ?? "")}">
+    <td>${lencanaTahap(w.tahap)}</td>
     <td>${w.entered_at ? waktu(w.entered_at) : KOSONG}</td>
     <td>${w.exited_at ? waktu(w.exited_at) : KOSONG}</td>
     <td title="${esc(jamDatang)}">${durasiAntre(w)}</td>
@@ -4320,6 +4364,41 @@ function barisTimbangan(w) {
     <td class="num">${kg(w.net_kg)}</td>
     <td>${aksiTiket(w)}</td>
   </tr>`;
+}
+
+// Truk yang sudah "Catat datang" tapi belum timbang isi, sebagai baris paling atas
+// (user 2026-10-02): keempat tahap terlihat di satu tabel. Belum ada tiket, jadi tidak ada
+// jam, berat, atau tombol; Antre berisi menit tunggu dari server, yang naik tiap poll.
+function barisMenunggu(a) {
+  const jamDatang = a.arrived_at ? `${t("jamDatang")} ${waktu(a.arrived_at)}` : "";
+  return `<tr class="baris-menunggu" data-plat="${esc(a.plate_number)}">
+    <td>${lencanaTahap(a.tahap)}</td>
+    <td>${KOSONG}</td>
+    <td>${KOSONG}</td>
+    <td title="${esc(jamDatang)}">${dash(teksMenit(a.menit))}</td>
+    <td>${KOSONG}</td>
+    <td>${KOSONG}</td>
+    <td class="key">${dash(a.plate_number)}</td>
+    <td>${KOSONG}</td>
+    <td class="num">${KOSONG}</td>
+    <td class="num">${KOSONG}</td>
+    <td class="num">${KOSONG}</td>
+    <td></td>
+  </tr>`;
+}
+
+// Tahap kunjungan sebagai lencana berwarna dan berkata, warnanya sama dengan judul langkah
+// di atas tabel. Tahapnya dari server (`tahap`, domain/gerbang.py), layar tidak menebak
+// (standar L4); nilai yang tidak dikenal jadi strip.
+function lencanaTahap(tahap) {
+  const [kelas, kunci] = {
+    datang: ["tahap-datang", "tahapDatang"],
+    bongkar: ["tahap-bongkar", "tahapBongkar"],
+    timbang_kosong: ["tahap-kosong", "tahapTimbangKosong"],
+    selesai: ["tahap-selesai", "tahapSelesai"],
+  }[tahap] || [];
+  if (!kelas) return KOSONG;
+  return `<span class="lencana ${kelas}">${esc(t(kunci))}</span>`;
 }
 
 // Antre = scan 1 sampai timbang isi. Tanpa scan 1 bukan "0 mnt": itu menarik rata-rata
@@ -5688,9 +5767,10 @@ async function muatTimbangan() {
   try {
     const data = await api("/api/console/weighings");
     const items = data.items;
-    tulisKalauBeda($("timbangan"), items.length
-      ? items.map(barisTimbangan).join("") : barisKosong(11, "kosongTiket"));
     menungguTimbang = data.waiting || [];
+    // Yang menunggu di atas (tertua dulu), lalu tiket terbaru dulu: urutan dari server.
+    const baris = menungguTimbang.map(barisMenunggu).join("") + items.map(barisTimbangan).join("");
+    tulisKalauBeda($("timbangan"), baris || barisKosong(12, "kosongTiket"));
     isiPlatTimbang();
     const antre = teksAntre(data.waiting);
     $("antre").textContent = antre;

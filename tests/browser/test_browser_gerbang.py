@@ -19,8 +19,8 @@ import pytest
 from langkah import OPERATOR, buka_tab, kamus, masuk, plat
 from playwright.sync_api import expect
 
-# Cells of a ticket row (`barisTimbangan` in console.html).
-_ANTRE, _TOTAL = 2, 4
+# Cells of a ticket row (`barisTimbangan` in console.html); Status is the first since 2026-10-02.
+_STATUS, _ANTRE, _TOTAL = 0, 3, 5
 _SALAH = re.compile(r"\bsalah\b")
 _BUKAN_PLAT = "https://promo.example/qr"
 _LANGKAH = ("lbDatang", "lbGerbangMasuk", "lbGerbangKeluar", "lbPergi")
@@ -94,7 +94,8 @@ def test_four_labelled_steps_and_two_new_columns(halaman):
         expect(halaman.locator(f'#sec-timbangan [data-t="{kunci}"]')).to_have_text(kamus(halaman, kunci))
     for kolom in _KOLOM_SCAN:
         expect(halaman.locator(kolom)).to_be_hidden()
-    expect(halaman.locator("#sec-timbangan thead th")).to_have_count(11)
+    expect(halaman.locator("#sec-timbangan thead th")).to_have_count(12)
+    expect(halaman.locator("#sec-timbangan thead th").first).to_have_text(kamus(halaman, "thStatus"))
     for kunci in ("thAntre", "thTotal"):
         expect(halaman.locator(f'#sec-timbangan th[data-t="{kunci}"]')).to_have_text(kamus(halaman, kunci))
     expect(halaman.locator("#petunjuk-pergi")).to_have_text(kamus(halaman, "hintPergi"))
@@ -239,7 +240,7 @@ def test_the_four_steps_never_scroll_sideways(halaman, konsol, browser_name, leb
     buka_tab(halaman, "timbangan")
     halaman.evaluate("() => muatTimbangan()")
     # The row button is the operator's only per-row action without a scanner: on screen
-    # without scrolling the table sideways (11 columns are wider than 1280 and 1440 px).
+    # without scrolling the table sideways (12 columns are wider than 1280 and 1440 px).
     tombol = _baris(halaman, tiket["plate_number"]).locator('button[data-aksi="keluar"]')
     expect(tombol).to_have_count(1)
     tombol.evaluate("(el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 200)")
@@ -258,6 +259,25 @@ def test_the_four_steps_never_scroll_sideways(halaman, konsol, browser_name, leb
         assert all(atas != "0px" and kiri == "0px" for atas, kiri in pemisah), pemisah
     else:
         assert all(atas == "0px" and kiri != "0px" for atas, kiri in pemisah), pemisah
+        # One row from 1331 px (user 2026-10-02: at 1440 "4. Keluar" wrapped to a second row).
+        atas = halaman.evaluate(_ATAS_LANGKAH)
+        assert len(set(atas)) == 1, atas
+    # The decimal hint sits inside step 2, right under the Bruto field (it used to float
+    # at the end of the toolbar, next to "4. Keluar").
+    letak = halaman.evaluate(_LETAK_PETUNJUK)
+    assert letak["diLangkah2"], letak
+    assert letak["petunjuk"]["top"] >= letak["bruto"]["bottom"] - 1, letak
+    assert abs(letak["petunjuk"]["left"] - letak["bruto"]["left"]) <= 1, letak
+
+
+_ATAS_LANGKAH = """() => ['lbDatang', 'lbGerbangMasuk', 'lbGerbangKeluar', 'lbPergi']
+  .map((k) => Math.round(document.querySelector(`#sec-timbangan [data-t="${k}"]`).getBoundingClientRect().top))"""
+_LETAK_PETUNJUK = """() => {
+  const petunjuk = document.querySelector('#sec-timbangan [data-t="hintDesimal"]');
+  const kotak = (el) => { const r = el.getBoundingClientRect(); return {top: r.top, bottom: r.bottom, left: r.left}; };
+  return {diLangkah2: Boolean(petunjuk.closest('.timbang-sisi').querySelector('[data-t="lbGerbangMasuk"]')),
+          petunjuk: kotak(petunjuk), bruto: kotak(document.querySelector('#bruto'))};
+}"""
 
 
 # Where each step starts inside the toolbar: label, picker, weight field and button of steps
@@ -388,3 +408,49 @@ def test_waiting_trucks_lead_the_weigh_in_picker_and_a_poll_keeps_the_pick(halam
             _selesaikan(halaman, konsol, n)
     halaman.evaluate("() => muatTimbangan()")
     expect(halaman.locator("#plat-timbang .pilih-grup")).to_have_count(0)
+
+
+def _lencana(baris):
+    return baris.locator("td").nth(_STATUS).locator(".lencana")
+
+
+def test_status_badge_follows_the_four_steps_and_the_newest_row_leads(halaman, konsol, browser_name,
+                                                                      penugasan_bersih):
+    """User 2026-10-02: a Status badge per row in its step's colour (Datang grey, Bongkar
+    yellow, Timbang kosong blue, Selesai green), the arrival as the top row before its
+    weigh-in, and the newest weigh-in on top after it."""
+    nomor = plat(browser_name, 1241)
+    masuk(halaman, OPERATOR)
+    _datang_api(halaman, konsol, nomor)
+    buka_tab(halaman, "timbangan")
+    halaman.evaluate("() => muatTrucks().then(() => muatTimbangan())")
+    atas = halaman.locator("#timbangan tr").first
+    expect(atas).to_contain_text(nomor)
+    expect(_lencana(atas)).to_have_text(kamus(halaman, "tahapDatang"))
+    expect(_lencana(atas)).to_have_class(re.compile(r"\btahap-datang\b"))
+    expect(atas.locator("button")).to_have_count(0)
+
+    langkah = {"lbDatang": "tahap-datang", "lbGerbangMasuk": "tahap-bongkar",
+               "lbGerbangKeluar": "tahap-kosong", "lbPergi": "tahap-selesai"}
+    for kunci, kelas in langkah.items():
+        judul = halaman.locator(f'#sec-timbangan label[data-t="{kunci}"]')
+        expect(judul).to_have_class(re.compile(rf"\b{kelas}\b"))
+
+    def _sama_warna(kunci: str) -> None:
+        """The badge and its step header resolve to the same colours in this theme."""
+        badge = _lencana(_baris(halaman, nomor))
+        judul = halaman.locator(f'#sec-timbangan label[data-t="{kunci}"]')
+        assert badge.evaluate(_WARNA) == judul.evaluate(_WARNA)
+
+    _sama_warna("lbDatang")
+    _isi(halaman, nomor)
+    # Newest weigh-in first: the ticket just weighed in is the top row.
+    expect(halaman.locator("#timbangan tr").first).to_contain_text(nomor)
+    expect(_lencana(_baris(halaman, nomor))).to_have_text(kamus(halaman, "tahapBongkar"))
+    _sama_warna("lbGerbangMasuk")
+    _kosong(halaman, nomor)
+    expect(_lencana(_baris(halaman, nomor))).to_have_text(kamus(halaman, "tahapTimbangKosong"))
+    _sama_warna("lbGerbangKeluar")
+    _pergi(halaman, nomor)
+    expect(_lencana(_baris(halaman, nomor))).to_have_text(kamus(halaman, "tahapSelesai"))
+    _sama_warna("lbPergi")
