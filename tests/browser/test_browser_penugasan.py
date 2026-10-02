@@ -91,7 +91,7 @@ def test_the_switch_is_off_by_default_and_keeps_what_support_saved(halaman, kons
     halaman.check("#set-otomatis")
     halaman.uncheck('#set-otomatis-lines input[data-line="line-3"]')
     halaman.click("#set-penugasan-simpan")
-    expect(halaman.locator("#set-penugasan-pesan")).to_have_text(kamus(halaman, "penugasanTersimpan"))
+    expect(halaman.locator("#toasts .toast.sukses", has_text=kamus(halaman, "penugasanTersimpan"))).to_have_count(1)
 
     halaman.reload()
     expect(halaman.locator("#keluar")).to_be_visible()
@@ -248,7 +248,7 @@ def test_switch_off_hides_the_strip_and_saving_it_on_puts_the_waiting_truck_on(
     halaman.check("#set-otomatis")
     halaman.uncheck('#set-otomatis-lines input[data-line="line-3"]')
     halaman.click("#set-penugasan-simpan")
-    expect(halaman.locator("#set-penugasan-pesan")).to_have_text(kamus(halaman, "penugasanTersimpan"))
+    expect(halaman.locator("#toasts .toast.sukses", has_text=kamus(halaman, "penugasanTersimpan"))).to_have_count(1)
     expect(halaman.locator("#toasts")).to_contain_text(_ditugaskan(halaman, b, _DUA_LINE))
     for kode in _DUA_LINE:
         expect(_kartu(halaman, kode).locator(".truk")).to_contain_text(b)

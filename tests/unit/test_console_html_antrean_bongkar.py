@@ -132,20 +132,23 @@ def test_tidak_ada_dipasang_baru_di_tingkat_atas():
 
 def test_saklar_penugasan_di_setelan_dengan_tombol_sendiri():
     setelan = HTML.split('<section id="sec-setelan"', 1)[1].split("</section>", 1)[0]
-    for id_ in ("set-otomatis", "set-otomatis-lines", "set-penugasan-simpan", "set-penugasan-pesan"):
+    for id_ in ("set-otomatis", "set-otomatis-lines", "set-penugasan-simpan"):
         assert f'id="{id_}"' in setelan
     assert "/api/console/dev/auto-assign" in _fungsi("muatPenugasan")
     assert "await muatPenugasan()" in _fungsi("muatSetelan")
 
 
-def test_pesan_penugasan_bergaya_seperti_pesan_setelan():
-    assert re.search(r"#set-pesan:not\(:empty\),\s*#set-penugasan-pesan:not\(:empty\)", HTML)
+def test_pesan_penugasan_jadi_toast_bukan_kotak_kuning():
+    """User 2026-10-02: "Penugasan line tersimpan." as a toast, like every other save."""
+    assert "set-penugasan-pesan" not in HTML
 
 
 def test_simpan_penugasan_memakai_kalimatnya_sendiri():
     awal = HTML.index('$("set-penugasan-simpan").addEventListener("click"')
     blok = HTML[awal : HTML.index("\n}));", awal)]
-    assert 't("penugasanTersimpan")' in blok and "setelanTersimpan" not in blok
+    assert 'toastSukses(t("penugasanTersimpan"))' in blok and "setelanTersimpan" not in blok
+    assert 'toastGagal(alasan(e, "gagalSetelan"))' in blok
+    assert 'toastGagal(alasan(e, "gagalSetelanMuat"))' in _fungsi("muatPenugasan")
     assert "umumkanPasang(r.dipasang)" in blok, "simpan nyala bisa langsung memasang truk"
     assert "denganSibuk(" in blok
 

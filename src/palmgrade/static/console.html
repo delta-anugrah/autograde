@@ -1133,7 +1133,7 @@
      sekaligus, jadi dia tidak boleh terbaca sebagai bagian dari kolom terakhir. */
   .setelan-form .tools { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
                          padding-top:14px; border-top:1px solid var(--line); }
-  #set-pesan:not(:empty), #set-penugasan-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
+  #set-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
                            background:var(--warn-bg); color:var(--warn); }
   #set-lines:not(:empty) { color:var(--rej); }
   /* Sumber kamera: tiga kartu SEJAJAR (bukan ditumpuk) supaya layar lebar pabrik
@@ -1881,7 +1881,6 @@
     <div class="tools lepas">
       <button id="set-penugasan-simpan" class="utama" data-t="btnSimpanPenugasan">Simpan penugasan</button>
     </div>
-    <p id="set-penugasan-pesan" role="alert"></p>
   </div>
 
   <!--
@@ -7319,27 +7318,26 @@ async function muatPenugasan() {
       `<label class="saklar"><input type="checkbox" data-line="${esc(l.line_code)}"${
         dipakai.has(l.line_code) ? " checked" : ""}><span><span>${esc(l.name || l.line_code)}</span></span></label>`
     ).join("");
-    $("set-penugasan-pesan").textContent = "";
   } catch (e) {
-    if (e.kode !== "belum_masuk") $("set-penugasan-pesan").textContent = alasan(e, "gagalSetelanMuat");
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e, "gagalSetelanMuat"));
   }
 }
 
+// Hasilnya toast, seperti simpan lain di layar ini (user 2026-10-02): kotak kuning di bawah
+// tombol terbaca seperti peringatan, padahal simpannya berhasil.
 $("set-penugasan-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
-  const pesan = $("set-penugasan-pesan");
-  pesan.textContent = "";
   try {
     const lines = [...document.querySelectorAll("#set-otomatis-lines input[data-line]:checked")]
       .map((el) => el.dataset.line);
     const r = await api("/api/console/dev/auto-assign", {
       method: "POST", body: JSON.stringify({ aktif: $("set-otomatis").checked, lines }),
     });
-    pesan.textContent = t("penugasanTersimpan");
+    toastSukses(t("penugasanTersimpan"));
     // Disimpan nyala: truk yang sudah menunggu langsung naik ke line yang bebas.
     umumkanPasang(r.dipasang);
     await refresh();
   } catch (e) {
-    pesan.textContent = alasan(e, "gagalSetelan");
+    toastGagal(alasan(e, "gagalSetelan"));
   }
 }));
 
