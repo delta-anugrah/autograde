@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-02 · docs · The manual smoke run needs the workflow on main (PR #n)
+## 2026-10-02 · docs · The manual smoke run needs the workflow on main (PR #211)
 Changed:        `docs/rules.md` (batch 4.2 bullet) and the `image-smoke.yml` header say the Run
                 workflow button exists only once `image-smoke.yml` is on `main`: GitHub offers
                 manual runs for workflows on the default branch, and this repository's default
