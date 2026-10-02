@@ -28,8 +28,9 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 - Penugasan otomatis (aturan 36): strip **Antrean bongkar** `#antrean-bongkar` di atas kartu line di tab
   Grading (`htmlAntreanBongkar` / `gambarAntreanBongkar`, tombol `data-aksi="pasang"|"lewati"`,
   routes `/api/console/unloading-queue/{id}/assign|skip`), dari kunci `antrean_bongkar` dan
-  `penugasan_otomatis` di `/api/console/state`. Jawaban timbang dan Lepas membawa `dipasang`
-  (per line `terpasang`), jangan pernah namai variabel tingkat atas `dipasang` (sudah dipakai
+  `penugasan_otomatis` di `/api/console/state`; strip cuma tampil saat saklar nyala (D13).
+  Jawaban timbang, Lepas, dan simpan saklar membawa `dipasang` (per line `terpasang`, plus
+  `tertahan` + `plate_lama` untuk line yang masih memegang truk yang sudah keluar), jangan pernah namai variabel tingkat atas `dipasang` (sudah dipakai
   "kartu line tergambar"). Bukan "Antrean line": itu antrean janjang line ke konsol (tab Status).
   Tes: `test_console_html_antrean_bongkar.py`, `tests/browser/test_browser_penugasan.py`.
 - Registri: `TAB_SAH`, `SUB_LINE`, `MUAT_TAB`, `MUAT_SUB_LINE`. Tab lama yang tersimpan di

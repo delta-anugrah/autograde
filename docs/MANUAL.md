@@ -189,20 +189,31 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 | 5 | Timbang keluar | Tombol **Timbang keluar** di baris tiket truk itu → isi tara (sesudah scanner dipasang: scan QR di kolom **Truk keluar**; dua tiket terbuka → konsol menolak menebak, pilih di tabel) | tahap `departed`: tara + jam keluar |
 | 6 | AutoERP | - | neto = bruto − tara, potongan, harga, Purchase Receipt |
 
-**Penugasan otomatis** (bawaannya mati; support yang menyalakannya di tab **Setelan**). Kalau
-dinyalakan, truk yang timbang isi langsung ditugaskan ke line yang dipilih support, dan
-notifikasi menyebut line-nya. Satu truk memegang line sampai timbang kosong. Truk berikutnya
-menunggu di **Antrean bongkar** di atas kartu line (plat dan sudah berapa menit menunggu),
-dan naik sendiri begitu truk sebelumnya timbang kosong atau dilepas dari line terakhirnya. Truk
-dengan tiket lama yang tertinggal terbuka tidak ikut antre; hanya tiket terbarunya.
+**Penugasan otomatis** (bawaannya mati; support yang menyalakannya di tab **Setelan**). Selama
+mati, layar sama seperti sebelumnya: tidak ada strip antrean, truk ditugaskan lewat kartu line.
+Kalau dinyalakan, truk yang timbang isi langsung ditugaskan ke line yang dipilih support, dan
+notifikasi menyebut line-nya. Truk yang sudah menunggu saat saklar disimpan nyala langsung ikut
+naik. Satu truk memegang line sampai timbang kosong. Truk berikutnya menunggu di **Antrean
+bongkar** di atas kartu line (plat dan sudah berapa menit menunggu; strip ini cuma tampil saat
+saklar nyala), dan naik sendiri begitu truk sebelumnya timbang kosong atau dilepas dari line
+terakhirnya. Truk dengan tiket lama yang tertinggal terbuka tidak ikut antre; hanya tiket
+terbarunya. Line yang dilepas oleh timbang kosong diumumkan dalam satu notifikasi per truk.
 
-- **Tugaskan sekarang**: pakai kalau urutan truk di lapangan beda dengan urutan timbang. Kalau
-  semua line masih dipakai, layar menolak dan menyebut alasannya.
+- **Tugaskan sekarang**: pakai kalau urutan truk di lapangan beda dengan urutan timbang. Truknya
+  hanya dipasang ke line pilihan yang **bebas**: tombol ini tidak pernah mengambil line dari truk
+  lain, tapi juga tidak menunggu truk sebelumnya selesai. Layar menolak dan menyebut alasannya
+  kalau tidak ada line pilihan yang bebas, selama timbang kosong truk lain masih melepas line,
+  atau kalau support belum memilih satu line pun.
 - **Lewati**: truk yang tidak jadi bongkar. Layar bertanya dulu; truk yang dilewati keluar dari
-  antrean dan tidak ditugaskan otomatis.
+  antrean dan tidak ditugaskan otomatis. Ditolak kalau truk itu sedang dipasang ke line.
 - Dropdown **Pilih Truk** dan tombol **Lepas** di kartu line tetap bisa dipakai untuk koreksi.
 - Kalau sebuah line tidak menjawab saat truk dipasang, layar menyebut line-nya. Timbangannya
   tetap tersimpan; tugaskan truknya manual di kartu line itu.
+- Kalau timbang kosong tidak bisa melepas sebuah line (line itu mati), line itu masih memegang
+  truk yang sudah keluar dan truk berikutnya hanya naik ke line lain. Notifikasinya menyebut
+  line itu dan plat truk lama. Begitu line itu menjawab lagi, tekan **Lepas** di kartunya, lalu
+  tugaskan truk yang menunggu di kartu yang sama. Selama line masih mati, Lepas juga ditolak
+  "tidak menjawab".
 
 Tabel Timbangan memakai kolom **Lama**: berapa lama truk itu diproses, dihitung
 dari jam timbang masuk ke jam timbang keluar (`25 mnt`, `1 j 45 mnt`). Tiket
@@ -700,6 +711,8 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Log line: "PLC … tidak bisa disambung" / "Kamera tidak mengirim gambar" | kabel PLC atau kamera lepas, perangkat mati | cek kabel dan lampu perangkat; baris "tersambung lagi sesudah …" / "mengirim gambar lagi sesudah …" muncul sendiri begitu pulih |
 | Tab Log: "Lapor ke Discord DITOLAK ... (HTTP 404)" | webhook Discord salah atau sudah dihapus | buat webhook baru di kanal support, isi `DISCORD_WEBHOOK_URL` di `.env` PC, lalu `autograde restart`; pesan yang menunggu tidak hilang |
 | Tab Log: "Lapor ke Discord tertahan" | internet pabrik putus | tidak perlu apa-apa, terkirim sendiri begitu internet ada |
+| Notifikasi "Line N tidak menjawab. Tugaskan … manual di kartunya" | penugasan otomatis tidak sampai ke line itu (line mati, restart, atau sedang hapus data); timbangannya tetap tersimpan | nyalakan line-nya, lalu tugaskan truk itu lewat dropdown di kartu line tersebut |
+| Notifikasi "Line N masih memegang truk … yang sudah keluar" | timbang kosong tidak bisa melepas line itu karena line mati; truk berikutnya cuma naik ke line lain | tunggu line menjawab lagi, **Lepas** di kartunya, lalu tugaskan truk yang menunggu di kartu itu |
 
 ### 7.1 Janjang yang ditolak konsol
 
@@ -837,7 +850,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
-| 2.2 | 2 Oktober 2026 | Penugasan line otomatis (§3.3 dan §3.5): truk yang timbang isi ditugaskan ke line sendiri, truk berikutnya menunggu di **Antrean bongkar** sampai timbang kosong, tombol **Tugaskan sekarang** dan **Lewati**, dan saklar **Penugasan line** di tab Setelan (support, bawaan mati). |
+| 2.2 | 2 Oktober 2026 | Penugasan line otomatis (§3.3 dan §3.5): truk yang timbang isi ditugaskan ke line sendiri, truk berikutnya menunggu di **Antrean bongkar** sampai timbang kosong, tombol **Tugaskan sekarang** dan **Lewati**, dan saklar **Penugasan line** di tab Setelan (support, bawaan mati; selama mati layar tidak berubah dan strip antrean tidak tampil). §7: notifikasi line yang tidak menjawab dan line yang masih memegang truk yang sudah keluar. |
 | 2.1 | 1 Oktober 2026 | §3.2 sampai §3.4 mengikuti layar sekarang: kolom scan QR disembunyikan sampai scanner dipasang, plat dipilih dari daftar, tara lewat tombol **Timbang keluar** di baris tiket (petunjuk di layar kini menyebut nama tombol itu). Scan yang menemukan truk yang belum ada di daftar layar memuat ulang daftarnya dulu, dan truk yang dinonaktifkan disebut nonaktif. Tab Setelan: line yang belum menerima perubahan ditulis dalam bahasa layar. Tabel Rekap tidak lagi melebarkan halaman di layar 1024 px. |
 | 2.0 | 30 September 2026 | Log line dan konsol bertanda jam zona pabrik dan kode line; konsol kini menulis ke `docker logs` dan galat 500 masuk tab Log; PLC, kamera, dan AutoERP yang putus cuma dicatat saat putus dan saat pulih; `LOG_LEVEL` bisa diatur. Tab Log menampilkan galat ketiga line (tetap ada walau line direstart), traceback, dan jam pertama muncul; galat penting bisa dilaporkan otomatis ke Discord. Kartu line merah FRAME_BERHENTI kalau kamera tersambung tapi berhenti mengirim gambar; video uji yang selesai tidak lagi terbaca rusak; satu pita disk di atas kartu saat disk hampir penuh atau kritis; kartu Diagnostik memakai fps terukur, umur frame, disk, lisensi, dan status sambungan PLC. |
 | 1.9 | 29 September 2026 | §3.2: kotak kamera line yang sedang restart memakai bar berjalan, bukan hitungan detik, dan tidak lagi ikut menulis "Kamera tidak tersambung"; strip "Hari ini" berlabel **Data timbangan** (dulu Neto timbangan). Tab Akun: semua tombol aksi selebar sama. Tab Line: empat pilihan membentang selebar panel. |

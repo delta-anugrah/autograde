@@ -1142,32 +1142,46 @@ end of this file.
     Tiap timbang isi dan tiap Lepas memanggil `isi_line_otomatis()`
     (`services/penugasan_otomatis.py`, mixin `ConsoleService`; aturan murni di
     `domain/penugasan_line.py`): truk tertua di **antrean bongkar** (sudah timbang isi, belum
-    timbang kosong, belum pernah di line, tidak dilewati, dan tiket terbukanya yang terbaru:
-    tiket lama yang tertinggal terbuka tidak pernah ditawarkan) dipasang ke line pilihan yang
+    timbang kosong, belum pernah di line, tidak dilewati, dan tiket terbarunya, terbuka atau
+    tertutup: tiket lama yang tertinggal terbuka tidak pernah ditawarkan) dipasang ke line pilihan yang
     bebas, **asalkan** tidak ada line pilihan yang masih memegang truk yang belum timbang
     kosong, atau truk yang timbang kosongnya masih melepas line. Kalau masih ada, truk baru
     menunggu; memasangnya sekarang membuat sisa janjang truk lama tercatat ke truk baru.
     Timbang kosong atau Lepas manual pada line TERAKHIR yang memegang truk memasang truk
     berikutnya. Setelannya di `sync_state` (`setelan_penugasan_line`, selamat dari Danger
     Zone), **mati sampai support menyalakannya** (bawaan mati, supaya pembaruan tidak mengubah
-    cara kerja pabrik di hari ia terpasang), dan hanya support yang mengubahnya (`GET/POST
-    /api/console/dev/auto-assign`). `baca_setelan` tidak pernah melempar (dibaca tiap polling
+    cara kerja pabrik di hari ia terpasang: selama mati strip antrean bongkar tidak tampil),
+    dan hanya support yang mengubahnya (`GET/POST /api/console/dev/auto-assign`). Menyimpan
+    saklar nyala langsung menjalankan `isi_line_otomatis()` (truk yang sudah menunggu naik
+    sekarang); rute itu `async def` karena bertanya ke line (aturan 30). `baca_setelan` tidak pernah melempar (dibaca tiap polling
     `state()`): teks rusak, JSON bukan objek, atau `lines` salah bentuk = bawaan.
     Penugasan tetap lewat `assign_truck` (aturan 13: line menerima dulu, baru dicatat); line
     yang tidak menjawab dilaporkan ke layar (`dipasang[].terpasang: false`) dan tidak pernah
-    menggagalkan timbangan. Jalan manual: dropdown Tugaskan/Lepas per line, serta tombol
-    **Tugaskan sekarang** dan **Lewati** (dengan konfirmasi) di strip antrean bongkar
-    (`POST /api/console/unloading-queue/{weighing_id}/assign|skip`, operator). Kolom
+    menggagalkan timbangan. Sebelum tiap line tiketnya dibaca lagi: tiket yang sudah dilewati
+    atau sudah bertara tidak dipasang ke line berikutnya. Jalan manual: dropdown Tugaskan/Lepas
+    per line, serta tombol **Tugaskan sekarang** dan **Lewati** (dengan konfirmasi) di strip
+    antrean bongkar (`POST /api/console/unloading-queue/{weighing_id}/assign|skip`, operator).
+    **Tugaskan sekarang** hanya memakai line pilihan yang BEBAS (tidak pernah mengambil line
+    dari truk lain) dan melewati pemeriksaan satu-truk-satu-waktu; ditolak
+    `line_semua_terpakai` kalau tidak ada line pilihan yang bebas ATAU selama timbang kosong
+    truk lain masih melepas line, dan `penugasan_tanpa_line` kalau support tidak menyimpan satu
+    line pun. **Lewati** ditolak `bukan_antrean` selama truk itu sedang dipasang ke line. Kolom
     `weighings.unloading_queue_skipped_at` menandai truk yang dilewati. Jendela antrean =
     `JENDELA_ANTREAN_BONGKAR`, sama dengan `JENDELA_KUNJUNGAN_DETIK` (12 jam): satu angka
     untuk "berapa lama satu kunjungan". Jawaban rilis dan timbangan membawa `dipasang`; layar
-    membaca `antrean_bongkar` dan `penugasan_otomatis` dari `/api/console/state`.
+    membaca `antrean_bongkar` dan `penugasan_otomatis` dari `/api/console/state`. Saklar
+    nyala: pelepasan otomatis satu timbang kosong diumumkan sebagai SATU toast per truk
+    (`pelepasanOtomatisGabung`, tanpa saran "tugaskan lagi" yang akan menimpa truk berikutnya);
+    saklar mati: satu toast per line seperti dulu.
     ⚠️ "Antrean bongkar" bukan "Antrean line": yang kedua sudah dipakai untuk antrean janjang
     line ke konsol (aturan 31, tab Status). ⚠️ Selama saklar nyala, satu timbang isi bisa
     menunggu sampai 10 detik per line yang menggantung (pemasangan memanggil tiap line satu
     per satu, 10 detik batas per panggilan). ⚠️ Kalau timbang kosong sebuah truk tidak
-    bisa melepas line yang mati, truk itu tetap di line mati tersebut dan truk berikutnya
-    hanya dipasang ke line yang bebas, sampai line yang mati dilepas dari kartunya.
+    bisa melepas line yang mati, line itu tetap memegang truk yang sudah keluar dan truk
+    berikutnya hanya dipasang ke line yang bebas. Line itu dilaporkan di `dipasang` sebagai
+    `{terpasang: false, tertahan: true, plate_lama}` dan layar memunculkan toast
+    `tugaskanTertahan` dengan kedua plat. Lepas pada line yang mati dijawab 502: begitu line
+    itu menjawab lagi, Lepas di kartunya lalu tugaskan truk yang menunggu.
 
 ---
 

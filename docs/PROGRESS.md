@@ -26,7 +26,13 @@ Changed:        Part 2 of the scan work. With the support-only switch on, a truc
                 the unloading queue, oldest first, and only a truck's newest open ticket is offered.
                 A weigh-out, or a manual Lepas of the last line, puts the next truck on. Manual ways:
                 the per-line Tugaskan/Lepas dropdown, strip buttons "Tugaskan sekarang" and "Lewati"
-                (with confirm), and the switch with the line choice in Setelan (support). Routes
+                (with confirm), and the switch with the line choice in Setelan (support). Off by
+                default: nothing on the screen changes until support turns it on (the strip shows
+                only while the switch is on). "Tugaskan sekarang" uses only the FREE chosen lines
+                (never takes a line from another truck) and skips the one-truck-at-a-time check; it
+                is refused with `line_semua_terpakai` when no chosen line is free or while another
+                truck's weigh-out is still releasing lines, and with `penugasan_tanpa_line` when
+                support saved no line. Routes
                 `POST /api/console/unloading-queue/{weighing_id}/assign|skip` (Operator) and
                 `GET/POST /api/console/dev/auto-assign` (Support); the weighing and release-truck
                 answers carry `dipasang`; `/api/console/state` carries `antrean_bongkar` and
@@ -36,11 +42,19 @@ Changed:        Part 2 of the scan work. With the support-only switch on, a truc
                 `docs/backend-overview.md`, `docs/MANUAL.md` v2.2 plus regenerated `docs/MANUAL.pdf`
                 (37 pages), skill `konsol-autograde`. The new queue is "Antrean bongkar", not "Antrean
                 line" (that name already belongs to the line-to-console outbox on the Status tab).
-Validated:      `pytest tests/unit tests/e2e tests/integration` → 4446 passed, 45 skipped, 0 failed
+                Final review fixes: a chosen line still holding a truck that already weighed out
+                (its release failed) is reported in `dipasang` as `tertahan` with `plate_lama`, and
+                the screen names both plates (`tugaskanTertahan`); with the switch on, the releases
+                of one weigh-out are one toast without "assign again" (`pelepasanOtomatisGabung`);
+                the ticket is read again before each line and Lewati is refused while the truck is
+                going on; saving the switch on puts a waiting truck on at once (`POST
+                /api/console/dev/auto-assign` is now `async def` and answers `dipasang`); browser
+                test that drives the strip as OPERATOR.
+Validated:      `pytest tests/unit tests/e2e tests/integration` → 4460 passed, 45 skipped, 0 failed
                 (`tests/unit/test_dokumen_tanpa_em_dash.py`, `test_coding_standard.py`,
                 `test_manual_doc.py`, `test_skill_mirror.py` included).
                 `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
-                88 passed (the unloading queue strip and the switch, both engines).
+                90 passed (the unloading queue strip, the switch and the OPERATOR test, both engines).
                 `scripts/md_to_pdf.py docs/MANUAL.md` → 37 pages, new text present in the PDF.
 Not validated:  Not on the factory PC and not against real lines: the Playwright suite uses fake
                 lines. No manual browser pass (the suite is the check). No PR yet.
@@ -48,9 +62,14 @@ Risks:          Off by default, so nothing changes at a mill until support turns
                 on, a weigh-in waits up to 10 s per hung line (assignment calls each line in turn
                 with a 10 s limit), so a camera line that hangs slows the weigh-in itself, though
                 the ticket is saved first. A truck whose weigh-out cannot release a dead line stays
-                on that line and the next truck goes on the free lines only, until the dead line is
-                released from its card. A truck weighed in out of order at the gate needs
-                "Tugaskan sekarang" by the operator.
+                on that line and the next truck goes on the free lines only; the screen names the
+                line and both plates. Lepas on a dead line answers 502, so once the line answers
+                again, Lepas it on its card and assign the waiting truck there. A truck weighed in
+                out of order at the gate needs "Tugaskan sekarang" by the operator. A ticket typed
+                after its truck was already sorted and released has no link, so with the switch on
+                it goes back onto the lines (Part 1 logs the lost grading); operators should weigh
+                in before assigning. A line holding a truck that never had a ticket is reported as
+                held by a truck that "already left".
 Next:           Open the PR for this branch against staging (assignee `marcoabelz`, reviewer
                 `supportusahaai`), then turn the switch on at one mill and watch a full shift.
 
