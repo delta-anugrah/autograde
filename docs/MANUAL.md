@@ -178,7 +178,7 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 ### 3.3 Alur satu kunjungan truk
 
 ```diagram:kunjungan-truk Perjalanan satu truk, dari gerbang masuk sampai pemasok dibayar
-1 timbang masuk → 2 buah dituang, kamera menilai → 3 timbang keluar → 4 AutoERP hitung → 5 bayar
+1 datang → 2 timbang isi → buah dituang, kamera menilai → 3 timbang kosong → 4 keluar → AutoERP hitung → bayar
 ```
 
 | # | Kejadian | Yang dilakukan di konsol | Yang dikirim ke AutoERP |
@@ -190,7 +190,7 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 | 5 | Timbang kosong dan keluar | Scan QR di kolom **3. Timbang kosong** atau tekan **Timbang kosong** di baris truknya, isi tara. Di gerbang, scan di kolom **4. Keluar** atau tekan **Keluar** di barisnya. Truk yang belum timbang kosong ditolak dengan peringatan. Dua tiket terbuka → konsol menolak menebak, pilih di tabel | tahap `departed`: tara + jam keluar (jam keluar gerbang tidak ikut) |
 | 6 | AutoERP | - | neto = bruto − tara, potongan, harga, Purchase Receipt |
 
-Kolom **Antre** = datang sampai timbang isi; "tanpa scan 1" artinya scan datang terlewat. **Total** = datang sampai keluar gerbang. Jam datang dan jam keluar cuma disimpan di PC pabrik, tidak dikirim ke AutoERP. Kalau jamnya belum ada, kolomnya menulis strip, bukan "0 mnt". Truk yang sudah dicatat datang tapi belum ditimbang tampil di baris **Menunggu timbang** di atas tabel.
+Kolom **Antre** = datang sampai timbang isi; "tanpa scan 1" artinya scan datang terlewat. **Total** = datang sampai keluar gerbang; kalau scan datang terlewat, Total dihitung dari timbang isi. Jam datang dan jam keluar cuma disimpan di PC pabrik, tidak dikirim ke AutoERP. Kalau jamnya belum ada, kolomnya menulis strip, bukan "0 mnt". Truk yang sudah dicatat datang tapi belum timbang isi tampil di baris **Menunggu timbang** di bawah kolom **1. Datang**, sampai 12 jam, juga lewat tengah malam. Daftar yang panjang terpotong; arahkan kursor ke baris itu untuk membaca semuanya. Truk terdaftar yang platnya tidak berbentuk plat biasa (plat dinas, plat lama) tetap bisa dicatat datang dari daftar truk.
 
 **Penugasan otomatis** (bawaannya mati; support yang menyalakannya di tab **Setelan**). Selama
 mati, layar sama seperti sebelumnya: tidak ada strip antrean, truk ditugaskan lewat kartu line.
@@ -219,8 +219,8 @@ terbarunya. Line yang dilepas oleh timbang kosong diumumkan dalam satu notifikas
   "tidak menjawab".
 
 Tabel Timbangan memakai kolom **Lama**: berapa lama truk itu diproses, dihitung
-dari jam timbang masuk ke jam timbang keluar (`25 mnt`, `1 j 45 mnt`). Tiket
-yang belum timbang keluar tampil `-`, bukan nol, truknya masih di pabrik. Angka
+dari jam timbang isi ke jam timbang kosong (`25 mnt`, `1 j 45 mnt`). Tiket
+yang belum timbang kosong tampil `-`, bukan nol, truknya masih di pabrik. Angka
 ini tidak disimpan di mana pun, selalu dihitung ulang dari dua jam timbangan,
 supaya tidak pernah ada dua angka yang bisa berbeda kalau salah satu jam
 dikoreksi.
@@ -328,8 +328,8 @@ merah (kalau ada, tombol eksekusinya tidak muncul), dan **peringatan** kuning. `
 huruf besar.
 
 **Kapan ditolak:** ada line yang tidak menjawab, ada line yang sedang dipasangi truk, masih ada
-janjang yang belum sampai ke konsol, ada truk yang sudah timbang masuk **hari ini** tapi belum
-timbang keluar (bruto-nya yang dibayar, jadi tunggu tiketnya lengkap), atau masih ada kiriman
+janjang yang belum sampai ke konsol, ada truk yang sudah timbang isi **hari ini** tapi belum
+timbang kosong (bruto-nya yang dibayar, jadi tunggu tiketnya lengkap), atau masih ada kiriman
 yang belum sampai ke AutoERP (tunggu Antrean ERP di tab Status kosong). "Hapus semua data" juga ditolak
 kalau `.env` tidak punya hash akun **support** yang terbaca (`CONSOLE_SUPPORT_HASH`) dan AutoERP
 tidak disetel, karena sesudahnya tidak ada yang bisa membuka menu support. Tiket terbuka dari hari-hari
@@ -707,7 +707,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Laptop: `make console` terasa memakai kode lama | port 8100 masih dipegang proses lama | cari pid-nya dengan `lsof -ti:8100`, matikan, jalankan ulang |
 | Laptop: `make up` gagal "MVS SDK not found" | memang, target Docker untuk Linux + GPU | pakai `make console` / `make line` |
 | Kamera "tidak terjawab" saat E2E di macOS | `CONSOLE_LINE_HOST=http://localhost` → IPv6 | ganti `http://127.0.0.1` |
-| Tab Timbangan: tanda **Cek AutoERP** di plat | janjang tiba sesudah tiket AutoERP-nya final (konsol sempat tidak terjangkau dari line, atau truk ditimbang keluar saat janjang terakhir masih diproses); AutoERP tidak mengubah angka yang dibukukan | tab Log baris `[TIKET_FINAL_BERBEDA]` menyebut tiketnya; minta backoffice memeriksa tiket itu di AutoERP (tanda `grading_revised`) |
+| Tab Timbangan: tanda **Cek AutoERP** di plat | janjang tiba sesudah tiket AutoERP-nya final (konsol sempat tidak terjangkau dari line, atau truk sudah timbang kosong saat janjang terakhir masih diproses); AutoERP tidak mengubah angka yang dibukukan | tab Log baris `[TIKET_FINAL_BERBEDA]` menyebut tiketnya; minta backoffice memeriksa tiket itu di AutoERP (tanda `grading_revised`) |
 | Antrean ERP: satu baris `HTTP 500` dengan alasan Frappe, yang lain terkirim | isi kunjungan itu membuat AutoERP galat | kirim alasannya ke pengelola AutoERP; setelah dibetulkan, **Kirim Ulang** |
 | Kartu line merah, AI berhenti memproses | loop deteksi melempar galat terus (CUDA/GPU), atau macet | `curl :800N/health/detail` → `ai.galat_terakhir` (galat terakhir sejak boot, lihat `galat_at` untuk umurnya); restart line (Setelan, Danger Zone); kalau terulang, `nvidia-smi` dan log line |
 | Kartu line merah sesudah update ke versi baru | model/engine versi baru gagal pada frame sungguhan. **Update tidak mundur sendiri**: gerbang `autograde` selesai pada jawaban sehat pertama, yang selalu jatuh di 30 detik pertama | lihat kartu line paling cepat 30 detik sesudah update; kalau merah, `autograde use <versi sebelumnya>` |
@@ -840,7 +840,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 | **JK / TP** | janjang kosong (→ REJ) / tangkai panjang (penanda, bukan verdict) |
 | **Line** | satu conveyor + satu kamera + satu container |
 | **Assignment** | penugasan truk ke line; janjang di antara Tugaskan dan Lepas milik truk itu |
-| **Kunjungan (visit)** | satu truk dari timbang masuk sampai timbang keluar; satu tiket timbangan |
+| **Kunjungan (visit)** | satu truk dari timbang isi sampai timbang kosong; satu tiket timbangan (jam datang dan keluar gerbang dicatat di PC pabrik saja) |
 | **Bruto / tara / neto** | berat masuk / berat keluar / selisih yang dibayar |
 | **Hari kerja (`work_date`)** | tanggal operasional menurut `FACTORY_TZ`, dihitung saat data masuk |
 | **Outbox** | antrean SQLite di disk untuk kiriman yang belum sampai (ke konsol, ke ERP, ke R2) |
@@ -853,7 +853,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
-| 2.3 | 2 Oktober 2026 | Empat tahap scan (§3.2, §3.3 dan §3.4): **1. Datang**, **2. Timbang isi**, **3. Timbang kosong**, **4. Keluar**; kolom **Antre** dan **Total** di tabel Timbangan, jam datang dan keluar hanya disimpan di PC pabrik. |
+| 2.3 | 2 Oktober 2026 | Empat tahap scan (§3.2, §3.3 dan §3.4): **1. Datang**, **2. Timbang isi**, **3. Timbang kosong**, **4. Keluar**; kolom **Antre** dan **Total** di tabel Timbangan, jam datang dan keluar hanya disimpan di PC pabrik. **Menunggu timbang** bertahan lewat tengah malam (12 jam) dan tidak lagi menggeser kolom lain; truk terdaftar berplat tak biasa bisa dicatat datang. Kata langkah lama (timbang masuk, timbang keluar) diganti di §3.3, §3.4, §7 dan glosarium. |
 | 2.2 | 2 Oktober 2026 | Penugasan line otomatis (§3.3 dan §3.5): truk yang timbang isi ditugaskan ke line sendiri, truk berikutnya menunggu di **Antrean bongkar** sampai timbang kosong, tombol **Tugaskan sekarang** dan **Lewati**, dan saklar **Penugasan line** di tab Setelan (support, bawaan mati; selama mati layar tidak berubah dan strip antrean tidak tampil). §7: notifikasi line yang tidak menjawab dan line yang masih memegang truk yang sudah keluar. |
 | 2.1 | 1 Oktober 2026 | §3.2 sampai §3.4 mengikuti layar sekarang: kolom scan QR disembunyikan sampai scanner dipasang, plat dipilih dari daftar, tara lewat tombol **Timbang keluar** di baris tiket (petunjuk di layar kini menyebut nama tombol itu). Scan yang menemukan truk yang belum ada di daftar layar memuat ulang daftarnya dulu, dan truk yang dinonaktifkan disebut nonaktif. Tab Setelan: line yang belum menerima perubahan ditulis dalam bahasa layar. Tabel Rekap tidak lagi melebarkan halaman di layar 1024 px. |
 | 2.0 | 30 September 2026 | Log line dan konsol bertanda jam zona pabrik dan kode line; konsol kini menulis ke `docker logs` dan galat 500 masuk tab Log; PLC, kamera, dan AutoERP yang putus cuma dicatat saat putus dan saat pulih; `LOG_LEVEL` bisa diatur. Tab Log menampilkan galat ketiga line (tetap ada walau line direstart), traceback, dan jam pertama muncul; galat penting bisa dilaporkan otomatis ke Discord. Kartu line merah FRAME_BERHENTI kalau kamera tersambung tapi berhenti mengirim gambar; video uji yang selesai tidak lagi terbaca rusak; satu pita disk di atas kartu saat disk hampir penuh atau kritis; kartu Diagnostik memakai fps terukur, umur frame, disk, lisensi, dan status sambungan PLC. |

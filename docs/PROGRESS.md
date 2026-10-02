@@ -34,18 +34,30 @@ Changed:        Part 3 of the scan work. The Timbangan tab has four labelled ste
                 times (about 10% without scan 1). Row button column pinned on the right. Docs: rule
                 20 rewritten and rule 37 added (`docs/rules.md`, `CLAUDE.md` §3),
                 `docs/backend-overview.md`, `docs/MANUAL.md` v2.3 (+ PDF), `docs/overview.md`, skill
-                `konsol-autograde`. Step words "Timbang masuk/keluar" became "Timbang isi/kosong".
+                `konsol-autograde`. Step words "Timbang masuk/keluar" became "Timbang isi/kosong"
+                on the step labels and buttons; the final review fix wave (Q1 to Q7) changed the
+                remaining toasts, Danger Zone messages, field labels, manual and overview text.
+                Fix wave: the waiting list uses the 12 h claim window, not the work date (a truck
+                arriving 23:50 still waits at 00:10); a registered truck with an odd plate can
+                arrive and leave by QR; both gate windows come from `JENDELA_KUNJUNGAN_DETIK`;
+                the waiting text no longer moves steps 2 to 4 (one line, full list in `title`);
+                the AutoERP gate-time test pins exact key sets.
 Validated:      `pytest tests/unit tests/e2e tests/integration` → 4593 passed, 45 skipped, 0 failed.
                 `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
                 110 passed. Doc guards (em dash, manual, skill mirror) → 53 passed.
-                `scripts/md_to_pdf.py docs/MANUAL.md` → 38 pages, "1. Datang" present, "Timbang masuk" gone.
+                `scripts/md_to_pdf.py docs/MANUAL.md` → 38 pages, "1. Datang" present. ("Timbang
+                masuk" gone was wrong at first: §3.3, §3.4, §7 and the glossary still had it;
+                fixed in the fix wave, see its report for the PDF search.)
 Not validated:  No manual browser check at 1920/1440/1280/1024 px and no hand-started console
                 (the browser suite covers the four widths in both engines). Not pushed, no PR yet.
 Risks:          Naive timestamps are read as UTC: the future scale/PLC lane must send offset-aware
                 times. The live "waiting N min" compares the server clock with the browser's
                 arrival time, so a wrong PC clock shows there. A ticket first written tare-only
                 never claims its arrival. The scanner is not bought yet, so the QR inputs are hidden
-                and only the dropdown and row buttons are exercised in the field.
+                and only the dropdown and row buttons are exercised in the field. A truck that
+                arrived and was turned away cannot be cancelled: it stays in Menunggu timbang for
+                up to 12 h (product follow-up: a "Batal datang" button or a shorter stale cut-off).
+                The diagram SVG in the manual still reads "timbang masuk/keluar" (left as is).
 Next:           Push `feat/gate-scans`, open the PR 3 to `staging`, then the sawit-repo docs
                 (`ALUR-TIMBANGAN-AUTOGRADE-AUTOERP.md`, `PERTANYAAN-TERBUKA.md` S6).
 

@@ -1185,13 +1185,20 @@ end of this file.
 
 37. **Jam gerbang: scan 1 dan 4 tinggal di PC pabrik** (keputusan user 2026-09-30).
     Scan 1 (truk datang) menulis tabel `arrivals`; scan 4 (truk keluar gerbang) menulis
-    `weighings.left_at`. Penulisnya cuma `GateService` (`services/gate_service.py`);
-    `ScanService` tetap cuma mencari dan `record_weighing` tetap satu-satunya penulis berat.
+    `weighings.left_at`. Penulisnya cuma `GateService` (`services/gate_service.py`), dengan
+    dua pengecualian: `ConsoleService` menautkan kedatangan ke tiketnya saat timbang isi
+    (`arrivals.weighing_id`, `services/gerbang_konsol.py`), dan seeder demo menulis kedua jam
+    untuk data demo. `ScanService` tetap cuma mencari dan `record_weighing` tetap satu-satunya
+    penulis berat.
     Keduanya **tidak pernah** masuk pesan AutoERP: AutoERP cuma kenal tiga tahap, dan
     `erp_messages` memilih field satu per satu. Tiket BARU mengklaim kedatangan truknya di
     `record_weighing`, bukan di jalur scan, supaya tiket dari dropdown plat atau program
-    timbangan juga dapat waktu antrenya. Pencarian pakai jendela 12 jam (`domain/gerbang.py`),
-    bukan hari kerja: antrean bisa lewat tengah malam. Scan 1 **boleh terlewat**: kolom Antre
+    timbangan juga dapat waktu antrenya. Pencarian pakai jendela 12 jam (`domain/gerbang.py`,
+    dari `JENDELA_KUNJUNGAN_DETIK`), bukan hari kerja: antrean bisa lewat tengah malam. Daftar
+    **Menunggu timbang** memakai jendela yang sama dari jam server, jadi truk yang datang 23:50
+    masih menunggu pukul 00:10. Scan yang tidak berbentuk plat ditolak `bukan_plat`, kecuali
+    platnya milik truk terdaftar (plat dinas, plat lama): truk itu tetap bisa dicatat datang
+    dan keluar. Scan 1 **boleh terlewat**: kolom Antre
     menulis "tanpa scan 1", bukan 0 menit, dan Total dihitung dari timbang isi. Menit yang
     kosong tampil strip, bukan 0. Menitnya dihitung backend (`durasi_kunjungan`). Scan 4 atas
     truk yang belum timbang kosong **ditolak dan diperingatkan**, tidak ditulis. Tiap tahap

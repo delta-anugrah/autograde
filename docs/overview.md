@@ -630,7 +630,7 @@ di situ. **Tidak ada boolean `is_internal` di manapun.**
 
 **Per janjang tidak dikirim ke ERP.** Kontrak AutoERP §2 tegas: *"Not synced: per-bunch rows,
 images"*. Janjang dan gambarnya tetap di edge sebagai bukti; AutoERP menerima **satu pesan per
-kunjungan truk** (`upsert_visit`: timbang masuk → grading selesai → timbang keluar). Karena itu
+kunjungan truk** (`upsert_visit`: timbang isi → grading selesai → timbang kosong). Karena itu
 `ErpPushWorker` (POST per janjang ke `palmos.interfaces.api.terima_event`, endpoint yang tidak
 ada di autoerp) dihapus. Kolom `inspections.erp_state` dibiarkan tanpa dipakai supaya database
 pabrik tidak perlu dibangun ulang; indeksnya dilepas lewat `_MIGRATE_SQL`.
@@ -668,7 +668,7 @@ pesannya: AutoERP sudah menerima, tapi kirim ulang aman (semua handler upsert) s
 kehilangan jawabannya tidak.
 
 **Kunjungan truk (§4.C).** Satu pesan per kunjungan, dikirim tiga kali saat kejadian yang
-memang terjadi: **timbang masuk**, **truk dilepas dari line**, dan **timbang keluar**. Plus
+memang terjadi: **timbang isi**, **truk dilepas dari line**, dan **timbang kosong**. Plus
 kirim ulang kunjungan kemarin sekali sehari (`VisitResendWorker`, penanda harinya di
 `sync_state`) sebagai jaring pengaman.
 
@@ -693,7 +693,7 @@ untuk buah Inti itu butuh Gudang Penerimaan TBS + Akun Pendapatan Transfer di Pe
 yang di situs demo belum diisi (AutoERP membalas 417 dan antrean menahannya dengan alasannya).
 
 **Janjang susulan (batch 2.3).** Kamera line boleh mengirim janjang yang tiba **sesudah**
-truknya dilepas: line offline sebentar, atau truk sudah ditimbang keluar sementara janjang
+truknya dilepas: line offline sebentar, atau truk sudah timbang kosong sementara janjang
 terakhir masih diproses. `ConsoleService.ingest` mendeteksinya lewat `add_inspection`: cuma
 kalau baris itu **insert sungguhan** (bukan kiriman ulang `event_id` yang sudah ada), ia mencari
 tiket timbangan milik penugasan itu (`weighing_for_assignment`) dan memanggil `ErpQueue.visit`
@@ -709,7 +709,7 @@ di AutoERP sendiri (`upsert_visit`), bukan konsol:
 - **Sebelum baris antrean lama berangkat**: `enqueue` mengganti baris `(kind, key)` yang sama
   (kunci alami = id kunjungan), jadi AutoERP menerima **satu kiriman** berisi seluruh janjang,
   tanpa ada yang ditandai. Ini kasus umum: sampai 8 janjang bisa menumpuk di antrean simpan
-  line saat truk ditimbang keluar.
+  line saat truk timbang kosong.
 - **Sesudah tiket difinalisasi**: AutoERP menjawab `revised: true` + catatan, dan **tidak
   menulis ulang** bruto/neto/grading yang sudah dibukukan (`_after_finalisation`). Konsol
   menandainya untuk operator dan support: tab **Timbangan** menampilkan tag **Cek AutoERP** di
