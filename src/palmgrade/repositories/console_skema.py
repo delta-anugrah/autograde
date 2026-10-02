@@ -18,7 +18,8 @@ import sqlite3
 #:
 #: 1 = batch 4.5 (PR #213). 2 = `visit_assignments` + `idx_weighings_truck` (PR #208).
 #: 3 = `weighings.unloading_queue_skipped_at` + `idx_weighings_terbuka` (PR #212).
-VERSI_SKEMA = 3
+#: 4 = `arrivals` + its three indexes + `weighings.left_at` (gate scans).
+VERSI_SKEMA = 4
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (

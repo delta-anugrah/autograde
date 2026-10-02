@@ -22,8 +22,9 @@ Next:           ...
 Changed:        Part 3 of the scan work. The Timbangan tab has four labelled steps: 1 Datang
                 (truck dropdown + Catat datang, or QR when the scanner exists), 2 Timbang isi,
                 3 Timbang kosong, 4 Keluar (per-row button, or QR). Scans 1 and 4 live only in
-                AutoGrade (`arrivals` table, `weighings.left_at`), written only by
-                `services/gate_service.py`, never sent to AutoERP (rule 37). Weigh-in claims the
+                AutoGrade (`arrivals` table, `weighings.left_at`; together they raise `VERSI_SKEMA`
+                from 3 to 4, the #213 rule), written only by `services/gate_service.py`, never sent
+                to AutoERP (rule 37). Weigh-in claims the
                 truck's newest waiting arrival (same truck, within 12 h). New routes
                 `POST /api/console/arrivals` and `POST /api/console/departures` (Operator);
                 `GET /api/console/weighings` adds `waiting` and per-ticket `arrived_at`, `left_at`,

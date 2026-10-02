@@ -28,8 +28,9 @@ def _versi(path) -> int:
 
 def test_versi_skema_naik_satu_per_perubahan_skema():
     # 1 = batch 4.5 (PR #213), 2 = `visit_assignments` + `idx_weighings_truck` (PR #208),
-    # 3 = `weighings.unloading_queue_skipped_at` + `idx_weighings_terbuka` (PR #212).
-    assert VERSI_SKEMA == 3
+    # 3 = `weighings.unloading_queue_skipped_at` + `idx_weighings_terbuka` (PR #212),
+    # 4 = `arrivals` + its three indexes + `weighings.left_at` (gate scans).
+    assert VERSI_SKEMA == 4
 
 
 def test_db_baru_diberi_nomor_versi_skema(tmp_path):
