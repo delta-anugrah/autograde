@@ -520,6 +520,27 @@
                  min-width:4.6rem; text-align:center; }
   #tally .stat b { display:block; font-family:var(--mono); font-size:2rem; font-weight:700;
                    line-height:1.1; font-variant-numeric:tabular-nums; }
+  /* Odometer angka tally (user 2026-10-03, gaya NumberFlow, dibangun tangan tanpa npm): tiap
+     digit yang berubah adalah pita 0 sampai 9 (`::before`) yang bergeser ke digit barunya.
+     Kotak digitnya diukur oleh digit tujuannya sendiri (`::after`, tak terlihat), jadi
+     tingginya satu baris tulisan angka itu, di strip mana pun. Pita dan isinya pseudo-elemen:
+     `textContent` tetap angka biasa lewat `.odo-baca`, yang tidak terlihat tapi terbaca
+     pembaca layar dan test. Cuma transform dan opacity yang bergerak. Ditulis `tulisAngka`. */
+  .odo-baca { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%);
+              white-space:nowrap; }
+  .odo { display:inline-flex; vertical-align:top; }
+  .odo-d { position:relative; overflow:hidden; }
+  .odo-d::after { content:attr(data-ke); visibility:hidden; }
+  .odo-d::before { content:"0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9"; white-space:pre;
+                   position:absolute; top:0; left:0; right:0; text-align:center;
+                   transform:translateY(calc(var(--ke) * -10%));
+                   animation:odo-gulir .7s cubic-bezier(.16,1,.3,1) both; }
+  .odo-d[data-masuk]::before { animation-name:odo-masuk; }
+  .odo-d[data-keluar]::before { opacity:0; animation-name:odo-keluar; }
+  @keyframes odo-gulir { from { transform:translateY(calc(var(--dari) * -10%)); } }
+  @keyframes odo-masuk { from { transform:translateY(calc(var(--ke) * -10% + 10%)); opacity:0; } }
+  @keyframes odo-keluar { from { opacity:1; }
+                          to { transform:translateY(calc(var(--ke) * -10% - 10%)); opacity:0; } }
   #tally .stat.acc b { color:var(--acc); }
   #tally .stat.rej b { color:var(--rej); }
   /* TP tidak hijau dan tidak merah: tangkai panjang itu sifat janjang, bukan
@@ -4854,16 +4875,57 @@ function isiTally(lines) {
   // keempat angka kelas ini bisa nol padahal `total` tidak. Itu bukan bug:
   // kelas aslinya memang tidak pernah direkam, dan menebaknya dari verdict
   // akan mengarang — REJ bisa Unripe atau JK.
-  $("tot-ripe").textContent = jml("ripe");
-  $("tot-unripe").textContent = jml("unripe");
-  $("tot-jk").textContent = jml("jk");
-  $("tot-tp").textContent = jml("tp");
-  $("tot-all").textContent = total;
+  tulisAngka($("tot-ripe"), jml("ripe"));
+  tulisAngka($("tot-unripe"), jml("unripe"));
+  tulisAngka($("tot-jk"), jml("jk"));
+  tulisAngka($("tot-tp"), jml("tp"));
+  tulisAngka($("tot-all"), total);
   // Rasio tetap dihitung dari verdict biner, BUKAN dari `ripe/total`: piston
   // memang biner, dan baris lama tanpa kelas akan menyeret rasio ke nol.
   const rasio = total ? (acc / total) * 100 : 0;
   $("tot-rate").textContent = total ? Math.round(rasio) + "%" : KOSONG;
   $("bar-acc").style.width = rasio + "%";
+}
+
+// Angka tally yang berubah bergulir seperti odometer (user 2026-10-03, gaya NumberFlow).
+// Cuma kalau nilainya sungguh berubah: poll dengan nilai yang sama tidak menyentuh DOM (F9),
+// dan tulisan pertama (halaman dibuka, kartu digambar ulang sesudah ganti bahasa atau
+// login), tab browser yang tersembunyi, dan `prefers-reduced-motion` menulis angkanya
+// langsung. Selama bergulir `textContent` tetap angka barunya (`.odo-baca`); begitu
+// animasinya selesai elemennya kembali berisi teks biasa. Satu listener per perubahan,
+// tanpa timer per digit.
+function tulisAngka(el, nilai) {
+  const n = Number(nilai) || 0;
+  const lama = el._angka;
+  if (lama === n) return;
+  el._angka = n;
+  const teks = String(n);
+  if (lama === undefined || document.hidden || gerakDikurangi() || !/^\d+$/.test(teks + String(lama))) {
+    el.textContent = teks;
+    return;
+  }
+  el.innerHTML = `<span class="odo-baca">${teks}</span><span class="odo" aria-hidden="true">${kolomOdometer(String(lama), teks)}</span>`;
+  const giliran = (el._giliranOdo || 0) + 1;
+  el._giliranOdo = giliran;
+  el.addEventListener("animationend", () => {
+    if (el._giliranOdo === giliran) el.textContent = teks;
+  }, { once: true });
+}
+
+// Kolom digit dari angka lama ke angka baru, rata kanan: digit yang ada di keduanya
+// bergulir, digit depan yang baru muncul naik masuk, yang hilang naik keluar. Isinya cuma
+// digit 0 sampai 9 dari `tulisAngka`, jadi aman tanpa esc().
+function kolomOdometer(dari, ke) {
+  const n = Math.max(dari.length, ke.length);
+  const a = dari.padStart(n, " ");
+  const b = ke.padStart(n, " ");
+  let html = "";
+  for (let i = 0; i < n; i++) {
+    if (b[i] === " ") html += `<span class="odo-d" data-keluar data-ke="${a[i]}" style="--ke:${a[i]}"></span>`;
+    else if (a[i] === " ") html += `<span class="odo-d" data-masuk data-ke="${b[i]}" style="--ke:${b[i]}"></span>`;
+    else html += `<span class="odo-d" data-ke="${b[i]}" style="--dari:${a[i]};--ke:${b[i]}"></span>`;
+  }
+  return html;
 }
 
 // ── Last Sync ──────────────────────────────────────────────────────────
@@ -6134,6 +6196,9 @@ async function refresh() {
     if (!dipasang) {
       const dipasangPada = Date.now();
       $("lines").innerHTML = s.lines.map((l) => kartuLine(l, dipasangPada)).join("");
+      // Angka yang baru digambar jadi titik awal odometer (`tulisAngka`): poll berikutnya
+      // bergulir dari sini, bukan menulis polos seolah tulisan pertama.
+      $("lines").querySelectorAll(".counts b[data-k]").forEach((el) => { el._angka = Number(el.textContent) || 0; });
       capFeedBaru(dipasangPada);
       dipasang = true;
       terapkanUrutan();
@@ -6145,7 +6210,7 @@ async function refresh() {
         // menukar urutan markup di `kartuLine` diam-diam menukar angka yang
         // tampil di layar line — salah yang tidak kelihatan salah.
         c.querySelectorAll(".counts b[data-k]").forEach((el) => {
-          el.textContent = l[el.dataset.k] || 0;
+          tulisAngka(el, l[el.dataset.k] || 0);
         });
         c.querySelector(".truk").innerHTML = isiTruk(l.assignment);
         // The piston button and banner must follow what the PLC just confirmed,
