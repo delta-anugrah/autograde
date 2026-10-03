@@ -15,11 +15,11 @@ from playwright.sync_api import expect
 _RIPE = "#tot-ripe"
 _KARTU = '.card[data-line="line-1"] .counts b[data-k="ripe"]'
 # Counts every rolling element put into the two numbers from now on.
-_AWASI = """() => { window.__gulir = 0;
+_AWASI = """(kartu) => { window.__gulir = 0;
   const o = new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => {
     if (n.classList && n.classList.contains('odo')) window.__gulir += 1; })));
-  [document.querySelector('#tot-ripe'), document.querySelector('%s')]
-    .forEach((el) => o.observe(el, {childList: true})); }""" % _KARTU
+  [document.querySelector('#tot-ripe'), document.querySelector(kartu)]
+    .forEach((el) => o.observe(el, {childList: true})); }"""
 
 
 def _patok_ripe(halaman) -> dict:
@@ -42,7 +42,7 @@ def test_a_change_rolls_and_ends_on_the_new_value(halaman):
     expect(halaman.locator(_RIPE)).to_have_text("5")
     # First write: the plain number, never a roll from the markup's 0.
     expect(halaman.locator(f"{_RIPE} .odo")).to_have_count(0)
-    halaman.evaluate(_AWASI)
+    halaman.evaluate(_AWASI, _KARTU)
 
     nilai["ripe"] = 12
     halaman.evaluate("() => refresh()")
@@ -69,7 +69,7 @@ def test_reduced_motion_shows_the_new_value_at_once(halaman):
     nilai = _patok_ripe(halaman)
     masuk(halaman, OPERATOR)
     expect(halaman.locator(_RIPE)).to_have_text("5")
-    halaman.evaluate(_AWASI)
+    halaman.evaluate(_AWASI, _KARTU)
     nilai["ripe"] = 103
     hasil = halaman.evaluate("async () => { await refresh();"
                              " return [document.querySelector('#tot-ripe').innerHTML, window.__gulir]; }")
