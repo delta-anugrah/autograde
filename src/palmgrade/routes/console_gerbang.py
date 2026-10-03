@@ -11,6 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from ..domain.operator_error import InvalidInput, OperatorError
+from ..domain.pembaruan import PembaruanBerjalan
 from ..schemas.console_schema import ArrivalBody, DepartureBody
 from .console_deps import Gate, Operator, Service, _operator_error
 
@@ -64,7 +65,8 @@ async def unloading_queue_assign(weighing_id: str, service: Service, operator: O
     """
     try:
         return {"dipasang": await service.pasang_dari_antrean(weighing_id)}
-    except InvalidInput as exc:
+    except (InvalidInput, PembaruanBerjalan) as exc:
+        # PembaruanBerjalan: an Update now install is running (rule 38), as on assign-truck.
         raise _operator_error(409, exc) from exc
 
 
