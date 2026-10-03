@@ -12,6 +12,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from .core.dependencies import (
+    get_camera,
     get_capture_repository,
     get_folder_db_line,
     get_health_service,
@@ -45,6 +46,7 @@ from .routes.inspection import router as inspection_router
 from .routes.internal import _jadwalkan_keluar
 from .routes.internal import router as internal_router
 from .routes.internal_bahaya import buat_router as buat_router_bahaya
+from .routes.internal_kamera import buat_router as buat_router_kamera
 from .routes.internal_log import buat_router as buat_router_log
 from .routes.internal_outbox import buat_router as buat_router_outbox
 from .routes.streaming import router as streaming_router
@@ -500,6 +502,11 @@ def create_app() -> FastAPI:
 
     # Log line untuk tab Log konsol (batch 3.2): store yang SAMA dengan handler di atas.
     app.include_router(buat_router_log(settings=get_settings, store=lambda: log_line))
+    # Reconnect camera button (2026-10-04): the same camera and RuntimeState as the
+    # capture worker, which does the reconnect itself.
+    app.include_router(
+        buat_router_kamera(settings=get_settings, state=get_runtime_state, kamera=get_camera)
+    )
 
     @app.websocket("/ws/results")
     async def websocket_endpoint(websocket: WebSocket) -> None:

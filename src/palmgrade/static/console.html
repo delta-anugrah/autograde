@@ -617,6 +617,24 @@
      so the glyphs sit high against the ONLINE text beside them. */
   .card h2 .ord { display:flex; align-items:center; gap:4px; }
   .card h2 button { padding:2px 9px; font-size:.85rem; line-height:1.2; color:var(--muted); }
+  /* Sambung ulang (2026-10-04): the one header control an operator presses with a glove,
+     so a full 44px target with a word, not a bare glyph like the reorder arrows. In the
+     header, away from the Tugaskan / Lepas / Reject rows. The icon makes way for the busy
+     spinner (`button.sibuk::before`). */
+  .card h2 button.sambung-ulang { min-height:44px; display:inline-flex; align-items:center; gap:6px;
+                                  padding:0 12px; font-size:.8rem; color:var(--fg); white-space:nowrap; }
+  .card h2 button.sambung-ulang .ikon-sambung { flex:none; width:1.05rem; height:1.05rem; }
+  .card h2 button.sambung-ulang.sibuk .ikon-sambung { display:none; }
+  .card h2 button.sambung-ulang.sibuk::before { margin-right:0; }
+  /* A narrow card (three columns at 1280 px) has no room for the word next to the line name
+     and OFFLINE: the name would be cut to "Lin...". Icon only there, still 44px square; the
+     `title` names it. Measured on the header, not the viewport: the operator picks the
+     column count. */
+  .card h2 { container-type:inline-size; }
+  @container (max-width:460px) {
+    .card h2 button.sambung-ulang { width:44px; padding:0; justify-content:center; }
+    .card h2 button.sambung-ulang > span { display:none; }
+  }
 
   /* Diagnostik: one .card per line, same grid rhythm as #lines above. */
   .kartu-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
@@ -2933,6 +2951,7 @@ const KAMUS = {
     err_line_semua_terpakai:"Semua line masih dipakai. Lepas dulu truk yang sedang di line",
     err_line_tidak_menjawab:"{line} tidak menjawab. Pastikan layanan kameranya menyala",
     err_line_menolak:"{line} menolak perintah. Panggil teknisi; rinciannya di tab Log",
+    err_kamera_tanpa_sambung_ulang:"{line} memakai berkas video atau foto, bukan kamera. Tidak ada kamera yang bisa disambung ulang",
     // Kalimat umum untuk kode yang tidak dikenal atau tidak ada (alasan()), dan untuk konsol
     // yang tidak menjawab sama sekali (api(), fetch ditolak). Tidak pernah teks server/browser.
     err_umum:"Coba sekali lagi. Kalau tetap gagal, panggil teknisi; rinciannya ada di tab Log",
@@ -3011,6 +3030,11 @@ const KAMUS = {
     konfirmasiYa:"Lanjutkan", konfirmasiTidak:"Batal",
     labelInternal:"Internal · REJ tidak dibuang",
     gagalPiston:"Perintah piston gagal",
+    btnSambungUlang:"Sambung ulang", sambungUlangTitle:"Sambung ulang kamera line ini",
+    konfirmasiSambungUlangJudul:"Sambung ulang kamera {line}?",
+    konfirmasiSambungUlang:"Grading di line ini berhenti beberapa detik selama kamera disambung ulang. Truk yang terpasang tetap terpasang.",
+    sukSambungUlang:"Kamera {line} sedang disambung ulang. Gambarnya kembali dalam beberapa detik",
+    gagalSambungUlang:"Sambung ulang kamera gagal",
     thSebab:"Sebab", thKamera:"Kamera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Antrean lokal", lineTidakTerjangkau:"Tidak terjangkau",
     // Kenapa konsol tidak bisa membaca satu line: `sebab_kode` dari backend
@@ -3405,6 +3429,7 @@ const KAMUS = {
     err_line_semua_terpakai:"Every line is still in use. Release the truck on the lines first",
     err_line_tidak_menjawab:"{line} is not responding. Check that its camera service is running",
     err_line_menolak:"{line} refused the command. Call a technician; the details are in the Log tab",
+    err_kamera_tanpa_sambung_ulang:"{line} plays a video or photo file, not a camera. There is no camera to reconnect",
     err_umum:"Try once more. If it keeps failing, call a technician; the details are in the Log tab",
     err_konsol_putus:"The console is not answering. Wait a moment and try again; if it stays that way, call a technician",
     gagalUmum:"Failed",
@@ -3476,6 +3501,11 @@ const KAMUS = {
     konfirmasiYa:"Continue", konfirmasiTidak:"Cancel",
     labelInternal:"Internal · REJ not discarded",
     gagalPiston:"Piston command failed",
+    btnSambungUlang:"Reconnect", sambungUlangTitle:"Reconnect this line's camera",
+    konfirmasiSambungUlangJudul:"Reconnect the camera on {line}?",
+    konfirmasiSambungUlang:"Grading on this line pauses for a few seconds while the camera reconnects. The assigned truck stays assigned.",
+    sukSambungUlang:"Reconnecting the camera on {line}. The picture comes back in a few seconds",
+    gagalSambungUlang:"Camera reconnect failed",
     thSebab:"Reason", thKamera:"Camera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Local queue", lineTidakTerjangkau:"Unreachable",
     lineSebab_tak_terjangkau:"The line does not answer at all: it is down or restarting.",
@@ -4496,6 +4526,63 @@ function tombolPiston(l) {
      data-buka="${terbuka ? "0" : "1"}"${menunggu ? " disabled" : ""}>${esc(teks)}${esc(catatan)}<span class="pintas"></span></button>`;
 }
 
+// ── Sambung ulang kamera (user 2026-10-04) ────────────────────────────
+// The line reconnects a silent camera by itself; this is the spare, for every account. The
+// line only raises a flag and its capture thread reconnects (rule 3), so the card shows the
+// result through ONLINE/OFFLINE and the feed, as for an automatic reconnect.
+// Lines with a request in flight. The busy mark lives here, not only on the button: a
+// language switch, a login or a new truck rebuilds every card (`dipasang = false`), and the
+// button drawn then must still refuse a second press until the first one is answered.
+const sambungUlangBerjalan = new Set();
+
+function tombolSambungUlang(l) {
+  const sibuk = sambungUlangBerjalan.has(l.line_code);
+  // Circular arrow, SVG inside the page: the console runs offline and an emoji depends on the
+  // factory PC's fonts. It follows the button text colour (currentColor) in both themes.
+  const ikon = '<svg class="ikon-sambung" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor"'
+    + ' stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
+  return `<button type="button" class="sambung-ulang${sibuk ? " sibuk" : ""}" data-aksi="sambung-ulang"`
+    + ` title="${esc(t("sambungUlangTitle"))}"${sibuk ? ' aria-busy="true"' : ""}>`
+    + `${ikon}<span>${esc(t("btnSambungUlang"))}</span></button>`;
+}
+
+// The button as it is on screen NOW: the card may have been redrawn since the click.
+function tombolSambungUlangDi(line) {
+  const kartu = [...$("lines").querySelectorAll(".card")].find((k) => k.dataset.line === line);
+  return kartu ? kartu.querySelector("button.sambung-ulang") : null;
+}
+
+// Ask first (F12), before the lock, so the focus can come back to the button. The answer
+// is immediate (the line answers before it touches the camera); success = toast, a refusal
+// is worded from its code (F6).
+async function sambungUlangKamera(kartu) {
+  const line = kartu.dataset.line;
+  if (sambungUlangBerjalan.has(line)) return;
+  const namaLine = kartu.querySelector(".nama")?.textContent?.trim() || line;
+  if (!(await tanyaKonfirmasi({
+    judul: t("konfirmasiSambungUlangJudul").replace("{line}", namaLine),
+    pesan: t("konfirmasiSambungUlang"), ya: t("btnSambungUlang"),
+    asal: () => tombolSambungUlangDi(line),
+  }))) return;
+  sambungUlangBerjalan.add(line);
+  try {
+    await denganSibuk(tombolSambungUlangDi(line), () =>
+      api(`/api/console/lines/${encodeURIComponent(line)}/reconnect-camera`, { method: "POST" }));
+    toastSukses(t("sukSambungUlang").replace("{line}", namaLine));
+  } catch (e) {
+    toastGagal(gagalKarena("gagalSambungUlang", e));
+  } finally {
+    sambungUlangBerjalan.delete(line);
+    // A button drawn mid-request carries the mark from the set, not from denganSibuk.
+    const kini = tombolSambungUlangDi(line);
+    if (kini) {
+      kini.classList.remove("sibuk");
+      kini.removeAttribute("aria-busy");
+    }
+  }
+}
+
 // Red, large text: read from a few metres away while the hardware is
 // actually moving. `belumKonfirmasi` uses the same phrase as the button so
 // the banner and the button never say two different things about the same line.
@@ -4689,6 +4776,7 @@ function kartuLine(l, sekarang = Date.now()) {
         <span class="on" data-t="statusOnline">Online</span>
         <span class="off" data-t="statusOffline">Offline</span>
       </span>
+      ${tombolSambungUlang(l)}
       <span class="ord">
         <button data-aksi="geser" data-arah="-1" title="${esc(t("geserKiri"))}">&#9664;</button>
         <button data-aksi="geser" data-arah="1" title="${esc(t("geserKanan"))}">&#9654;</button>
@@ -5142,6 +5230,11 @@ $("lines").addEventListener("click", async (ev) => {
     [urutan[i], urutan[j]] = [urutan[j], urutan[i]];
     simpan("urutan", JSON.stringify(urutan));
     terapkanUrutan();
+    return;
+  }
+  // Its own flow: asks, locks its button through denganSibuk, and survives a card redraw.
+  if (tombol.dataset.aksi === "sambung-ulang") {
+    await sambungUlangKamera(kartu);
     return;
   }
   // Opening the piston moves metal: ask first, BEFORE the button is locked, so the focus can
