@@ -23,9 +23,12 @@ from pathlib import Path
 import pytest
 
 IMAGE = os.getenv("E2E_DEMO_IMAGE", "")
-pytestmark = pytest.mark.skipif(
-    not IMAGE or shutil.which("docker") is None, reason="E2E_DEMO_IMAGE not set or no docker"
-)
+_TIDAK_BISA = not IMAGE or shutil.which("docker") is None
+# `E2E_WAJIB=1` (the image smoke workflow, batch 4.2): what would skip fails instead, so
+# a step that never ran cannot read as green.
+if _TIDAK_BISA and os.getenv("E2E_WAJIB") == "1":
+    raise RuntimeError("E2E_WAJIB=1 but E2E_DEMO_IMAGE not set or no docker")
+pytestmark = pytest.mark.skipif(_TIDAK_BISA, reason="E2E_DEMO_IMAGE not set or no docker")
 
 KIT = Path(__file__).resolve().parents[2] / "deploy" / "demo"
 PORT = int(os.getenv("E2E_DEMO_PORT", "18100"))

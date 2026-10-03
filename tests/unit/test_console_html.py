@@ -565,6 +565,41 @@ def test_truk_belum_terdaftar_diarahkan_ke_pendaftaran_manual():
         assert "scanBelumAda:" in _kamus(bahasa)
 
 
+def _badan_kirim_scan() -> str:
+    # `_fungsi` memotong di `\n}` pertama, dan `kirimScan` punya blok bersarang.
+    return HTML.split("async function kirimScan()", 1)[1].split('$("scan-plat").addEventListener', 1)[0]
+
+
+def test_truk_yang_belum_ada_di_daftar_layar_memuat_ulang_daftarnya_dulu():
+    """Ketemu tes browser 2026-10-01: daftar truk di layar dimuat ulang tiap 60 detik,
+    jadi truk yang baru turun dari AutoERP belum ada di pilihan. `pilihNilai` lalu diam
+    saja dan kolom plat tetap kosong. Daftarnya dimuat ulang sebelum plat dipilih."""
+    badan = _badan_kirim_scan()
+    assert "muatTrucks()" in badan, "scan tidak memuat ulang daftar truk"
+    assert badan.index("muatTrucks()") < badan.index('pilihNilai($("plat-timbang")')
+
+
+def test_scan_tidak_bilang_berhasil_kalau_plat_tidak_terisi():
+    """Toast "berhasil" dengan kolom plat kosong membuat operator menekan Timbang masuk
+    lalu ditolak "wajib diisi" tanpa tahu sebabnya. Berhasil hanya kalau platnya terisi."""
+    badan = _badan_kirim_scan()
+    assert "scanDaftarBelumMuat" in badan
+    assert badan.index('$("plat-timbang").dataset.nilai') < badan.index('t("sukScan")')
+    for bahasa in ("id", "en"):
+        assert "scanDaftarBelumMuat:" in _kamus(bahasa)
+
+
+def test_truk_nonaktif_dikatakan_bukan_dicari_di_daftar():
+    """Server menandai truk nonaktif (`truck.status`, test_scan_plat) supaya layar bisa
+    mengatakan kenapa truknya tidak bisa dipakai. Daftar truk menyembunyikannya, jadi
+    memuat ulang daftar tidak pernah menemukannya dan pesan "belum termuat" akan bohong."""
+    badan = _badan_kirim_scan()
+    assert 'status === "inactive"' in badan
+    assert badan.index('status === "inactive"') < badan.index("muatTrucks()")
+    for bahasa in ("id", "en"):
+        assert "scanTrukNonaktif:" in _kamus(bahasa)
+
+
 def test_kolom_scan_dikosongkan_setelah_dibaca():
     """Isi yang tertinggal akan tersambung dengan scan berikutnya menjadi satu teks
     panjang yang tidak cocok plat mana pun."""
@@ -1275,3 +1310,13 @@ def test_kamus_tanpa_kunci_ganda():
         kunci = re.findall(r'(?:^|[\s,{])([A-Za-z_][A-Za-z0-9_]*):"', _kamus(bahasa))
         ganda = sorted({k for k in kunci if kunci.count(k) > 1})
         assert not ganda, f"KAMUS.{bahasa} punya kunci ganda: {ganda}"
+
+
+def test_tabel_menahan_teks_sr_only_di_dalam_geserannya():
+    """Ketemu tes browser di CI 2026-10-01: `.sr-only` (position:absolute) di kepala kolom
+    terakhir Rekap lolos dari `overflow-x:auto` wadah `.tabel`, karena wadahnya tidak
+    positioned. Halaman jadi bisa digeser ke samping di layar 1024 px dan kolom NETO
+    terpotong. `position:relative` menjadikan wadah itu pemilik elemen absolut di dalamnya."""
+    aturan = re.search(r"\n  \.tabel \{([^}]*)\}", HTML)
+    assert aturan, "aturan .tabel tidak ketemu"
+    assert "position:relative" in aturan.group(1)

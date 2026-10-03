@@ -1,6 +1,8 @@
 # Project-specific
 artifacts/
 state/
+# Update now (batch 4.6): status/request/result files shared with the host watcher.
+update/
 # Rekaman video developer (layar Rekam Video). Berkasnya ratusan MB dan isinya
 # conveyor pabrik pelanggan — tidak pernah boleh ikut ke repo.
 videos/
@@ -253,3 +255,5 @@ media.env
 # Berkas video/foto uji; foldernya sendiri dipertahankan .gitkeep.
 media/*
 !media/.gitkeep
+# Trace dan screenshot tes browser yang gagal (pytest-playwright `--output`).
+test-results/

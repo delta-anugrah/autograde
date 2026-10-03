@@ -306,10 +306,12 @@ end of this file.
     setumpuk kertas terbuang yang baru terlihat sesudahnya. `@media print`
     menyembunyikan kamera, tally, tab, dan tabel: tanpa itu puluhan lembar terbuang
     sebelum kartu pertama muncul.
-    **Kolom scan di tab Timbangan** mengisi plat lalu memindahkan kursor ke Bruto,
+    **Kolom scan di tab Timbangan** (disembunyikan dengan `hidden` sampai scanner dibeli;
+    sampai saat itu plat dipilih dari daftar dan tara lewat **Timbang keluar** di baris
+    tiket) mengisi plat lalu memindahkan kursor ke Bruto,
     itu satu sentuhan layar yang dihemat per truk, dan itulah gunanya scan. Enter
     datang dari scanner sendiri (scanner = papan ketik), jadi tidak ada tombol; kolomnya
-    juga menerima ketikan, yang membuatnya bisa dipakai sebelum scanner datang.
+    juga menerima ketikan tangan.
     `scanSibuk` menolak bacaan kedua dalam sekejap: scanner kadang membaca satu QR dua
     kali dalam beberapa ratus milidetik. **Hasil scan punya `#scan-pesan` sendiri, bukan
     banner global**: `refresh()` membersihkan banner tiap kali berhasil, jadi pesan
@@ -317,6 +319,13 @@ end of this file.
     membacanya (ketemu di browser). **`BUKAN_PLAT` kode tersendiri, bukan `PLAT_KOSONG`**:
     layar menerjemahkan per kode, dan QR berisi URL yang dijawab "tidak boleh kosong"
     adalah pesan salah di depan operator gerbang.
+    **Scan tidak pernah bilang berhasil di atas kolom plat yang kosong** (ketemu tes
+    browser 2026-10-01): daftar truk di layar dimuat ulang tiap 60 detik, jadi truk yang
+    baru turun dari AutoERP belum jadi pilihan dan `pilihNilai` diam saja. Plat yang
+    belum ada di daftar membuat layar memuat ulang daftarnya dulu; kalau tetap tidak ada,
+    `scanDaftarBelumMuat` (kuning), bukan `sukScan`. Truk yang dinonaktifkan tetap terbaca
+    dan ditandai server (`truck.status`), dan layar mengatakannya (`scanTrukNonaktif`)
+    sebelum mencari di daftar yang memang menyembunyikannya.
     **Tara diisi di kolom yang muncul DI BARIS ALAT, bukan dialog yang menutup layar**
     (dua kali dilaporkan operator 2026-09-15). `prompt()` bawaan browser ditolak lebih
     dulu: kotaknya kecil untuk jempol bersarung tangan, ukurannya tidak bisa diatur, dan
@@ -1119,6 +1128,29 @@ end of this file.
     gambar" (aturan 33, mulai 5 grab gagal) dan FRAME_BERHENTI (sesudah `AI_MATI_DETIK`, coil
     ERROR naik) sengaja dua baris: yang pertama menyebut alasan kamera, yang kedua keputusan
     sehat.
+36. **Update now dari konsol** (batch 4.6, 2026-10-03). Konsol **tidak pernah** menyentuh Docker
+    (tanpa `docker.sock`, selamanya). Satu-satunya jalurnya folder `update/` (`UPDATE_DIR`,
+    mount `./update:/app/update` di container konsol saja): launcher menulis `status.json`
+    (versi terpasang, versi `staged`, `watcher`), konsol menulis `request.json` (tmp lalu
+    rename), penunggu systemd di host (sawit `autograde-update.path` +
+    `autograde-update.service`, dipasang `pasang-penunggu-update.sh`) menjalankan
+    `autograde _update-now` dan menjawab `result.json`. Tombol hanya muncul kalau `watcher` true
+    dan versi `staged` lebih baru dari `APP_VERSION` konsol. **Ditolak 409
+    `pembaruan_ada_truk` selama ada truk di-assign di line mana pun**, termasuk truk yang lupa
+    dilepas sejak hari kerja lalu (sumber `assignments`): pemasangan me-restart konsol dan
+    ketiga line. Sebaliknya assign-truck ditolak 409 `pembaruan_berjalan` selama pemasangan
+    berjalan. Install memegang `PembaruanService.kunci` (satu `asyncio.Lock`) selama periksa dan
+    tulis penanda; assign memegangnya cuma untuk mendaftar diri (`menugaskan`), lalu memanggil
+    line TANPA kunci, dan line yang assign-nya belum dijawab ikut menolak install. Jadi tidak ada
+    celah antara "tidak ada truk" dan penanda mendarat, dan line mati (10 detik) tidak membuat
+    assign di line lain antre. Server mengirim kode line, layar
+    menulis nama di kartunya (`namaLineDari`). `rolled_back` menyembunyikan versi itu sampai
+    versi yang lebih baru di-stage; `failed` berarti belum dicoba (kunci launcher, promote
+    dilewat, skrip terhenti) dan ditawarkan lagi. Penanda tanpa jawaban 20 menit
+    (`BATAS_TUNGGU_S`) terbaca `timeout`; hasil tampil 24 jam. Kabar hasil cukup di layar dan
+    tab Log (sekali per hasil, `.result-logged.json` bertahan lewat restart; gagal = ERROR
+    sampai Discord), tanpa notifikasi desktop (keputusan user 2026-10-02). Aturan murni:
+    `domain/pembaruan.py`; kontrak berkas: `docs/backend-overview.md` § Update now.
 
 ---
 
@@ -1247,7 +1279,7 @@ memang khas satu mesin.
   `git diff --stat origin/staging origin/main` (kosong = nol beda), jangan `git cherry`.
 - **Tag rilis `vX.Y.Z` menunggu CI hijau di commit tag itu sendiri** (batch 4.1). `deploy.yml`
   memanggil `ci.yml` sebagai job `ci` (`workflow_call`, dari commit yang sama), lalu dua job
-  menunggunya: `build-and-push` (image pabrik + `latest`) dan `demo` (memanggil
+  menunggunya: `build-and-push` (image pabrik) dan `demo` (memanggil
   `demo-image.yml`, image `vX.Y.Z-cpu`). CI merah = tidak ada image sama sekali, dan PC pabrik
   tetap di versi lama tanpa error. Tag tidak pernah dipindah, jadi perbaikannya commit baru +
   tag baru; CI yang cuma flaky boleh di-"Re-run failed jobs". Satu rilis kini memakan kira-kira
@@ -1255,6 +1287,23 @@ memang khas satu mesin.
   (`workflow_dispatch`) cuma untuk versi yang image pabriknya sudah terbit. Dijaga
   `tests/unit/test_ci_gerbang_rilis.py` dan `tests/integration/test_alur_rilis_integrasi.py`;
   langkah parse skrip dijaga `tests/unit/test_ci_skrip_konsol.py`.
+- **Image dicek dulu sebelum dapat tag rilis** (batch 4.2). Build cuma menulis tag sementara
+  `candidate-vX.Y.Z` (demo: `candidate-vX.Y.Z-cpu`). Job `smoke` (`image-smoke.yml`, runner
+  baru) menarik digest itu dan menjalankan `scripts/smoke_image.py`: label
+  `org.opencontainers.image.version` benar (launcher membaca versi dari situ), `main` dan
+  `console_main` bisa diimpor (konsol tanpa torch/cv2), konsol nyala tanpa jaringan dan
+  `/health` menjawab versi yang benar; lalu `tests/e2e/test_image_tracker_deps.py` (tracker
+  jalan offline) dan, untuk demo, `tests/e2e/test_demo_kit_docker.py`. Baru sesudah lulus job
+  `promote` menyalin digest yang sama ke `vX.Y.Z` + `latest` (demo: `vX.Y.Z-cpu`) dengan
+  `docker buildx imagetools create`, tanpa build ulang. Smoke gagal = tidak ada tag rilis,
+  pabrik tetap di versi lama; tag kandidat tertinggal di registry dan tidak dibaca siapa pun
+  (launcher cuma membaca `latest`). Uji coba tanpa rilis (baru bisa sesudah `image-smoke.yml` ada di `main`: branch default repo di GitHub adalah `main`, dan GitHub cuma menawarkan Run workflow untuk workflow di branch default): Actions, **Smoke Test AutoGrade
+  Image**, Run workflow, isi image yang sudah ada (misalnya
+  `ghcr.io/delta-anugrah/autograde:v1.21.0-cpu`, versi `v1.21.0`, label `v1.21.0-cpu`, centang
+  demo); workflow ini cuma membaca, tidak punya izin tulis. Variabel `E2E_WAJIB=1` membuat test
+  image yang mestinya dilewati jadi gagal. Dijaga `tests/unit/test_rilis_lewat_smoke.py`,
+  `tests/unit/test_smoke_image.py`, `tests/integration/test_alur_rilis_integrasi.py`,
+  `tests/e2e/test_smoke_image_docker.py`.
 - **CI memparse seluruh `<script>` `console.html`** (batch 4.3) lewat
   `python tests/cek_skrip_konsol.py src/palmgrade/static/console.html`: test konsol lain cuma
   menjalankan fungsi yang diekstrak, jadi syntax error di tingkat atas lolos semua test sementara

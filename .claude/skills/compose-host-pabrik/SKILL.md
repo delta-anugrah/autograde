@@ -179,5 +179,20 @@ cat "$f"
 docker exec ripe_line_1 python -c 'import os,sqlite3,sys; p=next(x for x in ("/app/state/outbox.db","/app/artifacts/outbox.db") if os.path.exists(x)); db=sqlite3.connect(p); n=db.execute("delete from outbox_events where event_id=? and ditolak_at is not null", (sys.argv[1],)).rowcount; db.commit(); print(n, "baris dihapus")' EVENT_ID
 ```
 
+## Urutan pasang batch 4.6 (Update now) di Lampung
+
+**Status Lampung:** belum dipasang. Wajib **sebelum** tag rilis yang membawa tombolnya (`v1.22.0`).
+
+Rilis ini **butuh perubahan host**: compose HOST service `console` mendapat volume
+`./update:/app/update` dan env `UPDATE_DIR=${UPDATE_DIR:-/app/update}` (tulis **seluruh** blok
+`environment:` konsol, aturan inti di atas). Line tidak mendapat apa pun, dan konsol tidak pernah
+mendapat `docker.sock`. Folder `update/` dibuat skrip `pasang-penunggu-update.sh` milik akun
+desktop pabrik **sebelum** `autograde restart`: kalau Docker yang membuatnya, folder itu milik
+root, launcher tidak bisa menulis `status.json`, dan tombolnya diam-diam tidak pernah muncul.
+
+Langkah lengkap (salin launcher + unit systemd, tambal compose, `sudo ./pasang-penunggu-update.sh`,
+`autograde restart`, uji kering yang harus berakhir `"state": "nothing"` tanpa restart):
+`sawit/docs/FACTORY-PC.md` § "Update now dari konsol". Aturannya: `docs/rules.md` aturan 36.
+
 Terkait: skill `install-factory-pc` dan `spek-pc-pabrik`, runbook `docs/runbooks/` di repo ini
 dan di `sawit`.

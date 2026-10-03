@@ -767,12 +767,8 @@ Dari `autograde/`:
 ```bash
 # CI menjalankan keduanya (lihat .github/workflows/ci.yml).
 # Di Mac, venv dari Quick Start sudah berisi semua paket ini — cukup .venv/bin/pytest tests/unit
-pip install ruff pytest cryptography aiosqlite psutil httpx boto3 pydantic pyyaml fastapi
-ruff check tests/ src/palmgrade/domain/ src/palmgrade/integrations/outbox/ src/palmgrade/integrations/upload/ \
-  src/palmgrade/license/ src/palmgrade/plc/ src/palmgrade/workers/batch_upload_worker.py \
-  src/palmgrade/workers/master_data_worker.py \
-  src/palmgrade/integrations/notifications/line_client.py src/palmgrade/repositories/console_repository.py \
-  src/palmgrade/services/console_service.py src/palmgrade/routes/console.py src/palmgrade/console_main.py
+pip install -r requirements-ci.txt    # versi dikunci, sama dengan requirements.txt
+ruff check src/ tests/
 python tests/cek_skrip_konsol.py src/palmgrade/static/console.html   # seluruh <script> konsol bisa diparse
 pytest tests/unit/ -rs
 ```
@@ -800,7 +796,7 @@ pytest tests/unit/ -rs
 | Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |
 | PLC | `tests/unit/plc/`, `tests/e2e/test_mc_protocol_lane.py` | Klien MC Protocol + Modbus, state machine pulse/heartbeat/piston, alamat M ≡ compose |
 | Config | `test_config_validation.py` | Fail-fast saat secret masih default di `APP_ENV=production` |
-| **CI dan rilis** | `test_ci_gerbang_rilis.py`, `test_ci_skrip_konsol.py`, `test_cek_skrip_konsol.py`, `test_demo_image_workflow.py`, `tests/integration/test_alur_rilis_integrasi.py`, `tests/e2e/test_ci_skrip_konsol_lane.py` | Image pabrik dan demo baru dibangun sesudah `ci.yml` hijau di commit tag yang sama; seluruh `<script>` `console.html` diparse seperti browser (syntax error di luar fungsi yang diuji ikut ketahuan) |
+| **CI dan rilis** | `test_ci_gerbang_rilis.py`, `test_ci_skrip_konsol.py`, `test_requirements_ci_terkunci.py`, `test_rilis_lewat_smoke.py`, `test_smoke_image.py`, `tests/e2e/test_smoke_image_docker.py`, `test_cek_skrip_konsol.py`, `test_demo_image_workflow.py`, `tests/integration/test_alur_rilis_integrasi.py`, `tests/e2e/test_ci_skrip_konsol_lane.py` | Image pabrik dan demo baru dibangun sesudah `ci.yml` hijau di commit tag yang sama; seluruh `<script>` `console.html` diparse seperti browser (syntax error di luar fungsi yang diuji ikut ketahuan); paket CI dikunci ke versi runtime; ruff seluruh `src/`; image tidak `pip install` sendiri saat jalan; image baru dapat tag rilis + `latest` sesudah lolos cek asap |
 | Camera selector | `test_device_selector.py` | Pilih kamera by-serial (enum GigE tidak deterministik) |
 | Streaming | `test_streaming_service.py` | MJPEG keep-alive multi-viewer |
 | SDK boundary | `test_hikrobot_frame.py`, `test_mvs_error.py` | Konversi frame + mapping error SDK |
@@ -809,7 +805,7 @@ pytest tests/unit/ -rs
 **Prinsip menambah test:**
 - Uji **logic murni** (domain, state machine, persistence SQLite), hindari test yang menyeret framework berat/hardware ke CI.
 - Untuk async, ikuti pola `asyncio.run` (lihat `test_event_broadcast_worker.py` / `test_license_local_repo.py`).
-- Kalau menambah modul baru ke lint, perluas juga scope `ruff check` di `ci.yml` (bertahap per modul yang sudah bersih).
+- Seluruh `src/` dan `tests/` di-lint (`ruff check src/ tests/`, sejak batch 4.4); berkas baru ikut otomatis.
 
 ---
 

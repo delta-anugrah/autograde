@@ -54,14 +54,16 @@ make reset-data                 # SHOW what would be deleted;  make reset-data-f
 make build-engine               # TensorRT FP16 engine, once per GPU
 .venv/bin/pytest tests/unit/ -q               # pure-logic tests, no torch/cv2/SDK
 .venv/bin/pytest tests/integration/ -rs       # real components without hardware
-.venv/bin/ruff check <scope in .github/workflows/ci.yml>
+make test-browser               # Playwright on the real console, Firefox + Chromium (make browser-siap once)
+.venv/bin/ruff check src/ tests/              # the whole code base, same as CI
 curl :8001/health               # 503 while the AI guard says AI dead or frames stopped;  /health/detail: capture_save_dropped must be 0
 ```
 
-CI (`ci.yml`) runs ruff + unit + e2e + integration on every PR to `staging`/`main`, without GPU,
-torch, cv2 or SDK. New tests: pure logic first; never drag hardware into CI. FastAPI
-`TestClient` only for the HTTP-only bits, with an app assembled in the test, never
-`create_console_app()` (it opens the developer's `state/console.db`).
+CI (`ci.yml`) runs ruff + unit + e2e + integration, and the browser suite in Firefox and
+Chromium, on every PR to `staging`/`main`, without GPU, torch, cv2 or SDK. New tests: pure
+logic first; never drag hardware into CI. FastAPI `TestClient` only for the HTTP-only bits,
+with an app assembled in the test, never `create_console_app()` (it opens the developer's
+`state/console.db`).
 
 ## 3. Rules (index; full text and rationale in `docs/rules.md`, same numbers)
 
@@ -103,6 +105,7 @@ torch, cv2 or SDK. New tests: pure logic first; never drag hardware into CI. Fas
 33. Logging: one install for lines and console, lines tagged with zone and line code, a fault logged once when it starts and once when it ends.
 34. Line log and Discord: line warnings and errors reach the Log tab through a cursor pull; errors reach Discord as a digest, off while `DISCORD_WEBHOOK_URL` is empty.
 35. Honest health and disk monitor: a connected camera that stops sending frames is a fault; free disk is watched on every line, with or without R2, and nothing is deleted.
+36. Update now: the console never touches Docker, it only writes a marker in `UPDATE_DIR` for the host watcher; refused while any truck is assigned.
 
 Conventions (full text in `docs/rules.md` § Conventions): process env vars beat `.env`
 (`override=False`); three image sources (`CAMERA_TYPE` = `hikrobot` / `opencv` / `photo`,
@@ -115,6 +118,8 @@ no confidence number on bunch labels (`mode_dev` shows it); toasts close by them
 
 Git: default branch `staging`, PR-only, squash to `staging`, merge commit to `main` (so `main`
 always has merge commits `staging` lacks; compare with `git diff --stat`, not `git cherry`).
+CI green required by ruleset `ci-wajib-lolos` (id 24315701, `staging` and `main`): `lint-and-test`,
+`browser (chromium)`, `browser (firefox)`; renaming a job or matrix entry locks every PR.
 PR title `<type>(<scope>): ...`, PR body and **every commit message in English**, no em dash,
 never a "Co-Authored-By: Claude" or other AI mention.
 

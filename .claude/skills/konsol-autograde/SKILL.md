@@ -17,7 +17,7 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 |---|---|---|---|
 | Grading | semua | polling `refresh` 2 dtk | 20 grading terakhir hari ini, kartu line merah + pita AI mati / kamera berhenti mengirim dari blok `plc.ai` (`pitaAi`, `perbaruiAi` tiap polling, keadaan `ai_mati` atau `frame_berhenti`, test `test_console_html_ai_mati.py` + `test_console_html_frame_disk.py`); satu pita disk PC untuk seluruh layar dari blok `plc.disk` (`#pita-disk`, `gambarPitaDisk` tiap polling, aturan 35): satu baris (ikon SVG, judul, jam, line, sisa GB; langkah pengosongan cuma di MANUAL dan log line), peringatan berdenyut pelan dan bisa ditutup 24 jam per browser (`localStorage` `pitaDiskDitutupPada`), kritis tidak bisa ditutup; tanda "sedang dinyalakan ulang" di kotak kamera sesudah aksi yang merestart line (`tandaiRestart`, `pantauRestart` 1 dtk, spinner + bar berjalan tanpa hitungan detik, kelas kartu `sedang-restart` menyembunyikan "Kamera tidak tersambung" selama itu, test `test_console_html_restart.py`); strip "Hari ini" berlabel **Data timbangan** (`labelNetoTimbangan`) |
 | Truk | semua | `muatTrucks` 60 dtk | master truk, truk manual, kartu QR |
-| Timbangan | semua | `muatTimbangan` 15 dtk | tiket, scan masuk/keluar, tara, tanda **Cek AutoERP** untuk janjang susulan pada tiket yang sudah final (`erp_perlu_dicek`, `tests/unit/test_console_html_timbangan_erp.py`) |
+| Timbangan | semua | `muatTimbangan` 15 dtk | tiket, plat dari daftar **Pilih Truk**, **Timbang keluar** per baris, tara; kolom scan masuk/keluar `hidden` sampai scanner dipasang (tes browser memunculkannya lewat JS), tanda **Cek AutoERP** untuk janjang susulan pada tiket yang sudah final (`erp_perlu_dicek`, `tests/unit/test_console_html_timbangan_erp.py`) |
 | Rekap | semua | `muatRiwayat` (+ `segarkanRekap` 15 dtk) | Rekap + Riwayat: buka di Hari ini, Per truk; Impor CSV support saja |
 | Log | support | `muatLog` (+ `muatLaporDiscord`) | ERROR/WARNING 180 hari, konsol DAN ketiga line (tag line-1/2/3 atau konsol), jam pertama muncul untuk baris gabungan, traceback bisa dibuka per baris; kalimat di atas tabel menyebut keadaan lapor ke Discord (`mati`/`url_salah`/`aktif`/`tertahan`/`ditolak`); pesan identik dalam 60 dtk digabung sesudah id yang berganti (uuid, hex 8+, desimal, bilangan 6+ digit) dinormalkan (`domain/sidik_log.py`, batch 3.3); galat 500 uvicorn konsol (termasuk saat start gagal) kini ikut masuk lewat `configure_logging` (batch 3.1) |
 | Status | support | `muatStatus` (diagnostik 5 dtk, antrean line 5 dtk) | Versi, Diagnostik (fps terukur, umur gambar, PLC ✓ hanya kalau `plc.connected`, disk, lisensi, versi / model, `capture_save_dropped` + `tp_telat` harus nol; pembantu `diag*`, test `test_console_html_diagnostik_jujur.py`), Antrean line, Antrean ERP + manifest R2 |
@@ -70,6 +70,23 @@ seluruh skrip sehat: sebelum PR jalankan juga
 batch 4.3), yang memparse tiap `<script>` utuh seperti browser.
 
 ## Cek di browser (tanpa menyentuh punya user)
+
+Alur yang diklik operator dijaga otomatis oleh `tests/browser/` (Playwright, Firefox dan
+Chromium, wajib lolos di CI lewat ruleset `ci-wajib-lolos`): `make test-browser`. Resep manual
+di bawah untuk yang tidak bisa dinilai test, yaitu tampilan.
+
+Menulis tes browser baru (pelajaran dari #203):
+- Fixture `halaman` sudah menggagalkan galat skrip, jawaban 5xx konsol, 404 untuk route API
+  yang tidak ada (404 sengaja ber-`detail.code` lolos), dan request ke luar 127.0.0.1.
+  Penjaganya jangan dilonggarkan: yang tersandung dilaporkan sebagai bug layar.
+- Kalimat dibaca dari layar (`kamus(halaman, kunci)`), tidak disalin ke tes.
+- Angka dicek di selnya sendiri (`td.num`), bukan `to_contain_text` satu baris: `8.620` ikut
+  cocok di dalam `8.620,5`. Tabel kosong juga satu `<tr>` (`barisKosong`), jadi tunggu sel data.
+- Ukur tata letak sesudah data tab tergambar: `halaman.evaluate("(t) => MUAT_TAB[t] ? MUAT_TAB[t]() : null", tab)`.
+  `MUAT_TAB` cuma punya enam tab (rekap, log, status, akun, line, setelan); grading, truk dan
+  timbangan diisi polling layar.
+  `wait_for_load_state("networkidle")` langsung lolos kalau halaman pernah diam.
+- Tiap tes dibuktikan bisa gagal sekali (ubah satu harapan, lihat merah, kembalikan).
 
 Jangan pakai port 8100 atau 8001 (milik `make console` / `make line` user). Worktree terpisah,
 konsol uji di 8110/8111 dengan `env -i`, `CONSOLE_LINE_HOST=http://127.0.0.2`, data demo lewat

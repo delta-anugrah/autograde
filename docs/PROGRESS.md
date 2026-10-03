@@ -18,6 +18,174 @@ Next:           ...
 
 ---
 
+## 2026-10-03 · console · Update now button with a host watcher (PR #215)
+Changed:        Batch 4.6, console half. `domain/pembaruan.py`, `services/pembaruan_service.py`,
+                `GET /api/console/update`, `POST /api/console/update/install`, `pembaruan` in
+                `/state`, assign-truck 409 `pembaruan_berjalan`; console-only compose mount
+                `./update:/app/update` + `UPDATE_DIR` (demo kit: env without mount); screen badge,
+                Pasang sekarang button, result sentence; request and each outcome in the Log tab
+                once. Rule 36, backend-overview, MANUAL 2.2 + PDF, skill compose-host-pabrik.
+Validated:      `pytest tests/unit tests/integration` → 4135 passed, 28 skipped;
+                `pytest tests/e2e` → 335 passed, 20 skipped (image/service gated);
+                `pytest tests/browser --browser chromium --browser firefox` → 74 passed;
+                `ruff check src tests` → All checks passed.
+Not validated:  factory PC (needs sawit #74 watcher installed first); a real image swap from the
+                button (first release after v1.22.0); eye check on a dev server (browser test
+                screenshots instead).
+Decisions:      user 2026-10-02: rolled_back hidden until newer staged; old-day trucks refuse;
+                refusal names the card's line; outcome on screen + Log tab only. Ruling: failed =
+                never tried, offered again, worded "try again". Review: assign registers under the
+                lock and calls the line without it (a dead line no longer queues other assigns).
+Next:           AnyDesk: install the sawit watcher + host compose mount BEFORE tag v1.22.0.
+
+## 2026-10-02 · console · Stamp console.db with a schema number (PR #213)
+Changed:        `repositories/console_skema.py`: `VERSI_SKEMA = 1`; `siapkan_skema()` ends with
+                `_tandai_versi()`, which raises `PRAGMA user_version` to that number and never lowers
+                it. Migrations stay `PRAGMA table_info` based (B5); the number is a marker for the
+                factory launcher and a technician. New `tests/unit/test_console_skema_versi.py`.
+                Known gap row in `docs/coding-standard.md` now lists only the two outboxes.
+Validated:      pytest unit 3935 passed / 28 skipped; integration 127 passed; e2e 334 passed /
+                20 skipped; `ruff check src tests` clean.
+Not validated:  an older image opening a stamped file on the factory PC (Tahap 2 rollback step).
+Decisions:      the number is never lowered, so a rollback to an older image keeps it.
+Next:           sawit launcher PR #73 (batch 4.5 health gate + console.db backup), installed over
+                AnyDesk before tag `v1.22.0`.
+
+## 2026-10-02 · docs · The manual smoke run needs the workflow on main (PR #211)
+Changed:        `docs/rules.md` (batch 4.2 bullet) and the `image-smoke.yml` header say the Run
+                workflow button exists only once `image-smoke.yml` is on `main`: GitHub offers
+                manual runs for workflows on the default branch, and this repository's default
+                branch on GitHub is `main` (checked: `gh workflow view image-smoke.yml` answers 404
+                "not found on the default branch" after #210 merged to `staging`).
+Validated:      doc tests (links, em dash) pass.
+Not validated:  nothing else; no behaviour change.
+Next:           trial run at the batch 4 release PR, before the `v1.22.0` tag.
+
+## 2026-10-02 · ci · Smoke-test the image before it gets its release tag (PR #210)
+Changed:        Batch 4.2. The factory and demo builds push only `candidate-vX.Y.Z[-cpu]`. New
+                `image-smoke.yml` pulls that digest on a fresh runner: `scripts/smoke_image.py`
+                (version label, line and console imports, console boot with `/health` version),
+                offline tracker test, demo kit test for the CPU image. Job `promote` then copies
+                the digest to `vX.Y.Z` + `latest` (demo `vX.Y.Z-cpu`) without a rebuild. The
+                workflow also runs by hand on any existing image (trial mode, read-only).
+Validated:      unit 3865 passed; e2e 289 passed; integration 126 passed; actionlint clean. Script
+                against a real CPU image from this repo: healthy image passes in 16 s; removed
+                module, console that refuses to boot, empty label and wrong version all FAIL; image
+                without `lap` fails the tracker test. `test_smoke_image_docker.py` 3 passed.
+Not validated:  the workflow on GitHub (dispatch works only after merge; the first full run is
+                the next tag) and the factory CUDA image (not built locally).
+Next:           after merge, trial mode on `v1.21.0-cpu` (Tahap 2 in the sawit plan).
+
+## 2026-10-02 · ci · Lint the whole code base, pin CI packages to the runtime versions (PR #209)
+Changed:        Batch 4.4. Ruff checks `src/ tests/` (was an allow-list of about 80 modules that
+                skipped `main.py` and the detection workers); the separate F821 step for `main.py`
+                is gone. `requirements-ci.txt` pins every package `==` at the `requirements.txt`
+                version and adds `pymcprotocol` + `pymodbus`, so the 18 MC Protocol wire tests run
+                in CI. Dockerfile sets `YOLO_AUTOINSTALL=false`. Six safe ruff autofixes in `src/`.
+                Guard: `tests/unit/test_requirements_ci_terkunci.py`.
+Validated:      fresh Python 3.11 venv from the new file: ruff clean; unit 3865 passed, 40 skipped;
+                e2e 289 passed, 26 skipped (MC lane 18 passed); integration 124 passed, 1 skipped.
+                Torch tests that import `main.py`, local venv: 61 passed. Each guard fails when its
+                rule is broken (6 mutations, each reverted).
+Not validated:  the factory image with `YOLO_AUTOINSTALL=false`; it is first built at the next tag,
+                and batch 4.2 runs `test_image_tracker_deps.py` against it before it is published.
+Decisions:      CI pins equal runtime pins; raising a version edits both files in one PR.
+Next:           batch 4.2, smoke test the image before the release tags are written.
+
+## 2026-10-01 · docs · Stale text found by the markdown audit (PR #207)
+Changed:        Audit of all 31 tracked .md files: none to remove (the repo was cleaned in #180 and
+                #186). Fixed in place: the 2026-09-23 PLC commissioning runbook says the `UJI`
+                confirmation is gone and that `autograde restart` now recreates the containers
+                (`--force-recreate`), so its "stop then start, not restart" advice is no longer
+                needed; agent docs-sync no longer skips the untracked `docs/superpowers/`; a test
+                docstring no longer lists autoerp's `autograde-integration.md` as an autograde doc;
+                skill model-swap-eval names the support account and the Line tab plainly.
+Validated:      unit suite and test_doc_links / em dash / skill mirror tests pass (output in the PR).
+Not validated:  Nothing else.
+Next:           None.
+
+## 2026-10-01 · console, tests · Follow-ups from the browser suite (PR #206)
+Changed:        Console: the Setelan line that did not receive a change is a KAMUS sentence
+                (`setelanBelumSampai`, id + en), guarded by `test_kalimat_layar_hanya_dari_kamus`;
+                the weigh-out hint names the row button "Timbang keluar" (it said "Keluar").
+                Browser tests: exit scan (tare box, no ticket, two tickets refused), unregistered
+                plate names the plate and leaves the form empty; the guard also fails a console
+                /api/ 404 without a code and a 405; `jalankan_terbatas` stops a hung seeder or probe
+                with its process group and keeps its output; fixtures typed. MANUAL 2.1 + PDF
+                (hidden scan fields, plate picker, Timbang keluar), rule 20, skills konsol-autograde
+                (how to write browser tests) and panduan-autograde (manual version).
+Validated:      on 4b72c97: unit 3823 passed / 37 skipped; e2e 271 passed / 27 skipped;
+                integration 124 passed / 1 skipped; `make test-browser` 72 passed (Chromium +
+                Firefox); CI ruff scope + F821 clean; cek_skrip_konsol OK; test_manual_pdf 3 passed.
+                New tests each made to fail once on purpose; the copy guard fails on the old HTML.
+Not validated:  None beyond CI on the PR.
+Decisions:      Holding the offline line-3 port was dropped: a bound, non-listening socket is
+                refused on Linux but times out on macOS, unlike a stopped line.
+Next:           None from #203's list.
+
+## 2026-10-01 · ci · CI checks required by a repo ruleset (PR #205)
+Changed:        Repo ruleset `ci-wajib-lolos` (id 24315701, active) on `refs/heads/staging` and
+                `refs/heads/main` requires `lint-and-test`, `browser (chromium)` and
+                `browser (firefox)`; branches need not be up to date. Before it, the org ruleset
+                `protected-branch` required one approval and no check, so a red PR could merge.
+                CLAUDE.md §3 Git names it. `tests/unit/test_ci_gerbang_rilis.py` pins the job name
+                and matrix the ruleset matches on.
+Validated:      `gh api repos/delta-anugrah/autograde/rulesets/24315701` → enforcement active,
+                include staging + main, the three checks, strict false.
+Not validated:  See this PR's merge state below once its checks run.
+Next:           None.
+
+## 2026-10-01 · console, tests · Browser tests with Playwright (PR #203)
+Changed:        `tests/browser/`: Playwright drives the real console (copy of `src/palmgrade` in a
+                temp folder, free ports, two fake lines and a dead one, 10 seeded days) through
+                sign-in, line cards, manual truck, gate scan, weigh-in and weigh-out, assignment,
+                Rekap + CSV, every tab in id and en and at 1024 px, roles, settings, accounts.
+                A page guard fails the test call on a script error, a console 5xx or a request
+                beyond 127.0.0.1. CI job `browser` (chromium, firefox), `requirements-browser.txt`,
+                `make browser-siap` / `make test-browser`, qa-runner step 5, T3, CLAUDE.md §2.
+                Console fix found by the suite: `kirimScan` reloads the truck list when the scanned
+                plate is not an option yet, never toasts "scanned" over an empty plate field
+                (`scanDaftarBelumMuat`), and names a deactivated truck (`scanTrukNonaktif`); rule 20.
+                Second fix, found in CI: `.tabel` is `position:relative`, so the `.sr-only` header
+                label no longer widens the Rekap page past a 1024 px screen (Linux Chromium 1079 px).
+Validated:      on 149f3c0: unit 3817 passed / 37 skipped; e2e 271 passed / 27 skipped; integration
+                124 passed / 1 skipped; CI ruff scope + F821 clean; cek_skrip_konsol OK. On cd54aed:
+                `make test-browser` 58 passed in 135.97s (Chromium + Firefox). Each browser test
+                was made to fail once on purpose. On c192970: unit 3818 passed / 37 skipped,
+                `make test-browser` 58 passed; GitHub CI: lint-and-test pass, browser (chromium)
+                33 passed, browser (firefox) 33 passed.
+Not validated:  The ruleset (separate step).
+Decisions:      The QR fields ship hidden, so scan tests un-hide `#scan-plat` and the weighing test
+                uses the plate picker and the row's Keluar button (today's operator path). The
+                ruleset that makes the three checks required is a separate step after merge, with
+                the user's go-ahead (needs repo admin).
+Next:           Merge by the user; then the ruleset `ci-wajib-lolos`. Open: `Belum sampai ke:` in
+                Setelan is a literal, not KAMUS; no browser test for the weigh-out scan.
+
+## 2026-10-01 · release · v1.21.0 released and installed in Lampung, PLC docs follow (PR #204)
+Changed:        Release PR #202 (staging to main, merge commit 1adadec, tag v1.21.0) shipped #196,
+                #197, the coding standard, the Codex skill mirror guard, #199, #201 and #200
+                (Batch 3 logging plus the 4.1 and 4.3 gates). This PR: the "after #200, not yet
+                installed in Lampung" wording becomes v1.21.0, installed 2026-10-01, in
+                docs/plc-mc-handoff.md 1.9 (summary, table 4.2, field test paragraph and table,
+                PDF reprinted) and skill plc-mc-protocol (address map note, Coil ERROR heading and
+                summary, waiting list item 0).
+Validated:      Deploy run 36821091663: ci / lint-and-test 3m44s first (the 4.1 gate holds), then
+                the factory image 8m06s and the demo -cpu image 1m00s, all success; its log pushes
+                v1.21.0, latest and v1.21.0-cpu. GitHub Release v1.21.0 = Latest. Lampung, by the
+                user: `autograde use v1.21.0`, everything checked as expected. Check before the
+                install (12:40 WIB): 3 lines healthy, cameras 20 fps, 201 GB free; the E-STOP
+                ribbon was on (a PLC reading, not a blocker). This PR: unit 3824 passed /
+                28 skipped; doc guard tests 62 passed; md_to_pdf → 12 pages, pages 3, 7 and 9
+                checked by eye; rule-reviewer → 0 blocking, 4 warnings, all fixed.
+Not validated:  The ERROR coil on a real panel, for AI dead and for frames stopped alike. Last Sync
+                Cloud Photo in Lampung still read 25 Sep 14:00 before the install (normal if
+                nothing was graded since; the user checks it).
+Decisions:      The handoff stays at version 1.9: only the install status changed, and the PLC
+                team has not received 1.9 yet.
+Next:           Hand the 1.9 PDF to the PLC team once this is merged. Demo console to
+                v1.21.0-cpu (the user runs it). Batch 4: 4.4, 4.2, 4.5, 4.6.
+
 ## 2026-10-01 · console, logging · Fixes from the manual browser test (PR #200)
 Changed:        Unreachable-line sentence ends at "mati atau sedang restart." (no technician tail).
                 Disk strip: as wide as the cards (`--pad`, also `#pita-alarm`), one line with an

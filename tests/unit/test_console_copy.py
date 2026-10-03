@@ -51,12 +51,18 @@ def test_teks_statis_html_tanpa_em_dash():
     assert not ada, ada
 
 
-def test_string_js_di_luar_kamus_tanpa_em_dash():
+def _string_js_di_luar_kamus() -> list[str]:
+    """Isi string JS layar di luar KAMUS, tanpa komentar. Template bersarang (backtick di dalam
+    `${}`) terpotong di backtick pertama, jadi yang ada di dalamnya bisa lolos."""
     skrip = "\n".join(re.findall(r"<script>(.*?)</script>", HTML, re.S)).replace(KAMUS, "")
     skrip = re.sub(r"/\*.*?\*/", "", skrip, flags=re.S)
     skrip = "\n".join(re.sub(r"(^|\s)//.*$", "", b) for b in skrip.splitlines())
     literal = re.findall(r'"([^"\n]*)"|`([^`]*)`|\'([^\'\n]*)\'', skrip)
-    ada = [s for grup in literal for s in grup if s and _ada_dash(s)]
+    return [s for grup in literal for s in grup if s]
+
+
+def test_string_js_di_luar_kamus_tanpa_em_dash():
+    ada = [s for s in _string_js_di_luar_kamus() if _ada_dash(s)]
     assert not ada, ada
 
 
@@ -98,3 +104,32 @@ def test_pesan_log_tanpa_em_dash():
                 if isinstance(sub, ast.Constant) and isinstance(sub.value, str) and _ada_dash(sub.value):
                     ada.append(f"{berkas.relative_to(SRC)}:{sub.lineno} {sub.value[:80]}")
     assert not ada, ada
+
+
+def test_kalimat_layar_hanya_dari_kamus():
+    """Ketemu tes browser 2026-10-01: "Belum sampai ke:" di tab Setelan ditulis langsung
+    di JS, jadi layar berbahasa Inggris tetap menampilkan bahasa Indonesia di situ (F6).
+    Kalimat yang dibaca orang hanya boleh datang dari KAMUS; yang dicari di sini string JS
+    yang terbaca seperti kalimat: kata berawalan huruf besar lalu kata biasa. Tidak menangkap
+    kalimat berawalan huruf kecil, satu kata saja, atau teks atribut (`title`, `aria-label`)."""
+    kalimat = []
+    for s in _string_js_di_luar_kamus():
+        polos = re.sub(r"<[^>]+>", " ", re.sub(r"\$\{[^}]*\}", " ", s))
+        if re.search(r"\b[A-Z][a-z]+ [a-z]{2,}\b", polos):
+            kalimat.append(s.strip()[:80])
+    assert not kalimat, kalimat
+
+
+@pytest.mark.parametrize("bahasa", ["id", "en"])
+def test_petunjuk_gerbang_keluar_menyebut_tombol_yang_ada_di_baris(bahasa):
+    """Petunjuk di sisi Truk keluar menyuruh menekan tombol di baris tiket; kata yang dipakai
+    harus tulisan tombol itu sendiri (`btnKeluar`), bukan kata lain yang tidak ada di layar."""
+    kamus = _kamus(bahasa)
+    assert kamus["btnKeluar"] in kamus["hintGerbangKeluar"], (kamus["btnKeluar"], kamus["hintGerbangKeluar"])
+
+
+@pytest.mark.parametrize("bahasa", ["id", "en"])
+def test_line_yang_belum_menerima_setelan_disebut_dalam_bahasa_layar(bahasa):
+    """Tab Setelan menyebut line yang belum menerima perubahan; kalimatnya ada di kedua bahasa
+    dan memberi tempat untuk daftar line (`{lines}`)."""
+    assert "{lines}" in _kamus(bahasa).get("setelanBelumSampai", "")

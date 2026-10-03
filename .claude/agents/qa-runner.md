@@ -12,6 +12,7 @@ Order (from `.github/workflows/ci.yml`; use the same `.venv`):
 2. `.venv/bin/pytest tests/unit/ -q`
 3. `.venv/bin/pytest tests/e2e/ -rs`
 4. `.venv/bin/pytest tests/integration/ -rs`
+5. `.venv/bin/pytest tests/browser/ -rs --browser chromium --browser firefox` (Playwright). If it reports the Playwright skip reason, the result is NOT RUN with "run `make browser-siap`", never a pass.
 
 Never install torch, cv2 or the SDK; never run anything against a real camera, GPU or Docker. If a suite needs something this machine lacks, it is NOT RUN with the reason, not skipped by editing it.
 

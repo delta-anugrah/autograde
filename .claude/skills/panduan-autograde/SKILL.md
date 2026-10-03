@@ -5,7 +5,7 @@ description: Use when working on or operating AutoGrade (repo autograde) as some
 
 # Panduan AutoGrade: peta untuk pemegang baru
 
-Sumber utama: **`docs/MANUAL.md`** (Bahasa Indonesia, ±20 halaman; PDF di sampingnya).
+Sumber utama: **`docs/MANUAL.md`** (Bahasa Indonesia, versi 2.1; PDF 37 halaman di sampingnya, dibuat ulang dengan `scripts/md_to_pdf.py docs/MANUAL.md` tiap MANUAL berubah).
 Baca bagian yang relevan dari situ dulu, bukan menyusun ulang dari kode. Skill ini
 cuma peta: ke mana melihat, apa yang tidak boleh, dan jawaban cepat yang paling sering
 ditanya.
@@ -139,7 +139,8 @@ ditanya.
 - **Mengirim data per janjang ke AutoERP.** Hanya rekap per kunjungan.
 - **Menyalakan lagi api/frontend lama** di PC Lampung (di-stop sejak 2026-09-20): rebutan kamera dan nama container.
 - **Tag `vX.Y.Z` tanpa "ya" eksplisit** dari pemilik. Rilis: PR merge commit `staging` → `main`,
-  tag, GitHub Release (skill `tag-release` di workspace `sawit`). Tag menerbitkan `:latest`: sesudah
+  tag, GitHub Release (skill `tag-release` di workspace `sawit`). Tag menerbitkan `:latest` (sesudah
+  image lolos cek `image-smoke.yml`, batch 4.2): sesudah
   Start yang sehat, launcher pabrik mengunduhnya diam-diam dan **memasangnya di Start berikutnya**
   (balik sendiri ke versi lama kalau tidak sehat). `autograde pull` cuma jalur manualnya. Karena itu
   cek baca-saja di PC pabrik (di badan PR rilis) dijalankan **sebelum** tag, bukan sesudahnya.

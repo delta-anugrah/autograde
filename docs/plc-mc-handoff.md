@@ -23,7 +23,7 @@ Coupler remote IO ODOT CN-8031 yang dulu direncanakan **dibatalkan** dan tidak l
 
 Sisi aplikasi **sudah selesai dan teruji**. Yang ditunggu ada di bab 5.
 
-**Yang baru di versi 1.9** (rilis AutoGrade sesudah `v1.20.0`, belum terpasang di PC Lampung).
+**Yang baru di versi 1.9** (AutoGrade `v1.21.0`, terpasang di PC Lampung 1 Oktober 2026).
 Tidak ada alamat yang berubah dan program PLC tidak perlu diubah:
 
 - Bit **ERROR** (M1002 / M1005 / M1008) sekarang juga naik kalau **kamera line itu berhenti
@@ -171,7 +171,7 @@ ter-reset. Naik untuk tiga keadaan:
 | Kamera putus | **naik** (sejak awal) |
 | **AI mati**: kamera mengirim gambar, tapi tidak ada yang selesai dinilai lebih dari **30 detik** | **naik** (baru di versi 1.8 / `v1.20.0`) |
 | Langganan berhenti (habis, token tidak ada atau tidak terbaca) | tidak, yang mati M1009 (bab 3) |
-| **Kamera berhenti mengirim**: tersambung, tapi tidak ada gambar masuk lebih dari **30 detik** | **naik** (baru di versi 1.9) |
+| **Kamera berhenti mengirim**: tersambung, tapi tidak ada gambar masuk lebih dari **30 detik** | **naik** (baru di versi 1.9 / `v1.21.0`) |
 | Video uji yang sudah habis diputar (bukan kamera sungguhan) | tidak |
 | Line baru menyala, atau gambar baru mengalir lagi sesudah jeda | tidak, line diberi waktu 30 detik dulu |
 | Terlalu banyak keputusan sekaligus (pulse dibuang, bab 4.1) | tidak, sengaja |
@@ -213,9 +213,10 @@ M1008) kini bisa dipicu dari layar Uji PLC, supaya ketiganya bisa dibuktikan ter
 line yang sehat tidak pernah menaikkan ERROR dengan sendirinya. Sesudah pulse uji selesai,
 levelnya kembali mengikuti kesehatan line di tick berikutnya.
 
-Sejak batch 2.1 ERROR juga naik kalau AI line itu berhenti memproses (kamera jalan, tidak ada
-yang digrading lebih dari 30 detik). Tidak ada perubahan program PLC yang diminta; kalau tim
-PLC mau menghentikan conveyor dari bit ini, itu keputusan dan pekerjaan terpisah.
+Sejak `v1.20.0` ERROR juga naik kalau AI line itu berhenti memproses (kamera jalan, tidak ada
+yang digrading lebih dari 30 detik), dan sejak `v1.21.0` kalau kamera berhenti mengirim gambar.
+Tidak ada perubahan program PLC yang diminta; kalau tim PLC mau menghentikan conveyor dari bit
+ini, itu keputusan dan pekerjaan terpisah.
 
 | Yang diuji | Hasil |
 |---|---|
@@ -224,6 +225,7 @@ PLC mau menghentikan conveyor dari bit ini, itu keputusan dan pekerjaan terpisah
 | PLC → PC: **M1111** (E-stop) | ✅ tampil di layar konsol |
 | Heartbeat **M1009** berkedip 500 ms | jalan sejak tersambung: **belum dipantau** di GX Works2 |
 | ERROR untuk AI mati (`v1.20.0`, terpasang 1 Okt) | ikut terpasang di PC Lampung (selama PLC menyala di sana): **belum dibuktikan** di panel |
+| ERROR untuk kamera berhenti mengirim (`v1.21.0`, terpasang 1 Okt) | ikut terpasang di PC Lampung (selama PLC menyala di sana): **belum dibuktikan** di panel |
 
 Dua hal yang sempat menghambat, dan jawabannya, supaya tidak terulang di panel lain:
 

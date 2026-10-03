@@ -110,6 +110,15 @@
   #info-sistem:hover { color:var(--fg); text-decoration:underline; }
   /* Tingkat dari server, sama dengan banner langganan. */
   #info-sistem[data-tingkat="warning"] { color:var(--warn); }
+  /* Batch 4.6: "Versi X siap dipasang", sejajar #info-sistem. */
+  #badge-pembaruan { align-self:flex-start; min-height:0; margin-left:calc(.7rem + 10px);
+                     padding:2px 10px; border-radius:999px; font-weight:700;
+                     background:var(--warn); color:var(--bg); }
+  .pembaruan-judul { margin:16px 0 8px; font-size:1.1rem; }
+  .pembaruan-ket { margin:6px 0; }
+  .pembaruan-pasang { min-height:44px; min-width:12rem; display:inline-flex; gap:8px; align-items:center; }
+  .pembaruan-hasil[data-state="rolled_back"], .pembaruan-hasil[data-state="failed"],
+  .pembaruan-hasil[data-state="timeout"] { color:var(--rej); font-weight:700; }
   #info-sistem[data-tingkat="grace"] { color:var(--rej); }
   #info-sistem[data-tingkat="blocked"] { color:var(--rej); }
   #info-sistem-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
@@ -916,7 +925,9 @@
   @media (max-width:600px) { #line-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
      screen, and without this the page itself scrolls sideways. */
-  .tabel { overflow-x:auto; background:var(--card);
+  /* position:relative: an absolute child (`.sr-only` in a header cell) otherwise escapes
+     the sideways scroll and widens the whole page on a 1024 px screen (Rekap, 2026-10-01). */
+  .tabel { position:relative; overflow-x:auto; background:var(--card);
            border:1px solid var(--line-kuat); border-radius:var(--r-md); }
   .tools + .tabel { border-top:none; border-radius:0 0 var(--r-md) var(--r-md); }
   /* Bar simpan yang BERDIRI SENDIRI, bukan kepala tabel. Kotak `.tools` di atas
@@ -1281,6 +1292,8 @@
   <div class="merek">
     <h1>AutoGrade</h1>
     <button type="button" id="info-sistem" hidden aria-haspopup="dialog"></button>
+    <!-- Batch 4.6: "Versi X siap dipasang", semua akun. Klik membuka kotak Versi & lisensi. -->
+    <button type="button" id="badge-pembaruan" hidden aria-haspopup="dialog"></button>
   </div>
   <span class="jam"><b id="jam">-</b> <span id="tz" class="lb"></span></span>
   <span class="aksi">
@@ -1564,12 +1577,12 @@
       </div>
       <!--
         Selama kolom QR disembunyikan (scanner belum dibeli), sisi ini kosong
-        sampai operator menekan Keluar di baris tiket. Label "Truk keluar" di
+        sampai operator menekan Timbang keluar di baris tiket. Label "Truk keluar" di
         atas ruang kosong terbaca seperti alat yang rusak, jadi petunjuk ini
         yang menunjukkan ke mana harus pergi. Hapus bersama `hidden` di
         `#scan-keluar` begitu scanner datang.
       -->
-      <span id="petunjuk-keluar" class="catatan" data-t="hintGerbangKeluar">Tekan Keluar di baris truknya pada tabel di bawah</span>
+      <span id="petunjuk-keluar" class="catatan" data-t="hintGerbangKeluar">Tekan Timbang keluar di baris truknya pada tabel di bawah</span>
       <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
     </div>
     <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
@@ -1866,6 +1879,7 @@
   <h2 class="status-judul" data-t="judulVersi">Versi</h2>
   <!-- Support-only. Version, machine id, licence state - never a secret. -->
   <dl id="versi-daftar" class="daftar-definisi"></dl>
+  <div id="pembaruan-support"></div>
   <h2 class="status-judul" data-t="judulDiagnostik">Diagnostik</h2>
   <!--
     Support-only: /health/detail from each line, gathered concurrently server-side.
@@ -2311,6 +2325,7 @@
   <div class="info-sistem-isi">
     <h2 id="info-sistem-judul" data-t="judulInfoSistem">Versi &amp; lisensi</h2>
     <dl id="info-sistem-daftar" class="daftar-definisi"></dl>
+    <div id="pembaruan-isi"></div>
     <div class="tools">
       <button type="button" id="info-sistem-tutup" data-t="btnTutup">Tutup</button>
     </div>
@@ -2393,6 +2408,7 @@ const KAMUS = {
     bantuGarisMendatar:"Piksel dari ATAS. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
     labelDev:"Mode dev", bantuDev:"Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.",
     btnSimpanSetelan:"Simpan", setelanTersimpan:"Tersimpan dan dikirim ke line.",
+    setelanBelumSampai:"Belum sampai ke: {lines}",
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart semua line",
     bahayaRestartTeks:"Ketiga line mati sekitar 10 detik, lalu hidup lagi. Janjang yang lewat selama itu tidak dihitung.",
@@ -2468,7 +2484,7 @@ const KAMUS = {
     thLevel:"Level", thPesan:"Pesan", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan, sumber, atau line",
     hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
-    hintGerbangKeluar:"Tekan Keluar di baris truknya pada tabel di bawah",
+    hintGerbangKeluar:"Tekan Timbang keluar di baris truknya pada tabel di bawah",
     logSemua:"Semua", kosongLog:"Belum ada galat tercatat", gagalLog:"Gagal memuat log",
     logKonsol:"konsol", logPertama:"pertama {waktu}",
     discordMati:"Lapor ke Discord: mati (DISCORD_WEBHOOK_URL kosong). Galat tetap tercatat di tab ini.",
@@ -2555,6 +2571,8 @@ const KAMUS = {
     phTara:"Tara (kg)",
     taraMinimum:"Tara minimal 1.000 kg, cek lagi angkanya",
     phScan:"QR masuk", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
+    scanDaftarBelumMuat:"Truk ditemukan, tapi daftar truk di layar belum termuat. Scan sekali lagi.",
+    scanTrukNonaktif:"Truk ini sudah dinonaktifkan, tidak bisa ditimbang:",
     phScanKeluar:"QR keluar", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
     scanGanda:"Ada 2 tiket terbuka, pilih di tabel bawah untuk",
     rentangBaris:"{dari}-{sampai} dari {total}",
@@ -2643,6 +2661,19 @@ const KAMUS = {
     judulInfoSistem:"Versi & lisensi", infoLisensiSampai:"Lisensi s/d {tanggal}",
     infoTenggangSampai:"Tenggang s/d {tanggal}", infoLisensiHabis:"Lisensi habis",
     infoTanpaToken:"Token lisensi belum dipasang", infoLisensiAktif:"Lisensi aktif",
+    judulPembaruan:"Pembaruan", pembaruanSiap:"Versi {versi} siap dipasang",
+    pembaruanSyarat:"Lepas semua truk dulu. Konsol dan ketiga line berhenti sekitar 2 menit, lalu menyala sendiri.",
+    btnPasangSekarang:"Pasang sekarang", pembaruanTerbaru:"Sudah versi terbaru",
+    pembaruanBerjalan:"Sedang memasang versi baru. Layar akan tersambung lagi sendiri.",
+    pembaruanTersambungLagi:"Sedang memasang versi baru. Layar akan tersambung lagi sendiri.",
+    pembaruanBelumTerpasang:"Pembaruan dari layar belum dipasang di PC ini. Panggil teknisi untuk memasangnya.",
+    pembaruanDimulai:"Pemasangan dimulai", gagalPasangPembaruan:"Gagal memulai pemasangan",
+    pembaruanHasilOk:"Versi {versi} sudah terpasang.",
+    pembaruanHasilBalik:"Versi {versi} gagal dinyalakan, sistem kembali ke {lama}. Panggil teknisi.",
+    pembaruanHasilGagal:"Versi {versi} belum terpasang, sistem tetap di {lama}. Coba tekan lagi sebentar lagi.",
+    pembaruanVersiLama:"versi sebelumnya",
+    pembaruanHasilNihil:"Tidak ada versi baru yang bisa dipasang.",
+    pembaruanHasilBasi:"Pembaruan {versi} tidak selesai. Panggil teknisi.",
     versiDariSource:"dev (dari source)",
     lisensiAktif:"Aktif", lisensiTanpaToken:"Aktif, token belum terpasang", lisensiMati:"Mati",
     lisensiSaklarMati:"Mati. Token ada, tapi saklar lisensi di konsol belum menyala. Panggil teknisi",
@@ -2667,6 +2698,10 @@ const KAMUS = {
     err_plc_sibuk:"Line sedang memproses truk, jadi coil tidak bisa dipicu",
     err_coil_tidak_dikenal:"Coil ini tidak dikenal line",
     err_hapus_berjalan:"Data sedang dihapus dari menu support (Danger Zone). Tunggu sebentar, lalu tugaskan truknya lagi.",
+    err_pembaruan_ada_truk:"Lepas dulu truk di {line}, baru pasang versi baru.",
+    err_pembaruan_tidak_ada:"Tidak ada versi baru yang siap dipasang.",
+    err_pembaruan_berjalan:"Pembaruan sedang dipasang. Tunggu sampai selesai.",
+    err_pembaruan_belum_terpasang:"Pembaruan dari layar belum dipasang di PC ini. Panggil teknisi.",
     err_akun_email_tidak_sah:"Email tidak valid. Contoh: budi@pabrik.id",
     err_akun_nama_kosong:"Nama tidak boleh kosong",
     err_akun_sandi_beda:"Sandi kedua tidak sama dengan yang pertama",
@@ -2803,6 +2838,7 @@ const KAMUS = {
     bantuGarisMendatar:"Pixels from the TOP. A bunch is photographed when it touches the blue line. 0 = no line.",
     labelDev:"Dev mode", bantuDev:"Show the confidence number on bunch boxes. For tuning the threshold, not for operators.",
     btnSimpanSetelan:"Save", setelanTersimpan:"Saved and sent to the lines.",
+    setelanBelumSampai:"Not received yet by: {lines}",
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart all lines",
     bahayaRestartTeks:"All three lines stop for about 10 seconds, then come back. Bunches that pass during that time are not counted.",
@@ -2876,7 +2912,7 @@ const KAMUS = {
     thLevel:"Level", thPesan:"Message", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message, source, or line",
     hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
-    hintGerbangKeluar:"Press Out on the truck's row in the table below",
+    hintGerbangKeluar:"Press Weigh out on the truck's row in the table below",
     logSemua:"All", kosongLog:"No faults logged yet", gagalLog:"Failed to load the log",
     logKonsol:"console", logPertama:"first {waktu}",
     discordMati:"Discord report: off (DISCORD_WEBHOOK_URL is empty). Faults are still logged on this tab.",
@@ -2959,6 +2995,8 @@ const KAMUS = {
     phTara:"Tare (kg)",
     taraMinimum:"Tare must be at least 1,000 kg, check the figure",
     phScan:"QR in", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
+    scanDaftarBelumMuat:"Truck found, but the truck list on screen has not loaded. Scan once more.",
+    scanTrukNonaktif:"This truck is deactivated and cannot be weighed:",
     phScanKeluar:"QR out", scanTakAdaTiket:"No open ticket today for",
     scanGanda:"Two open tickets, pick one in the table below for",
     rentangBaris:"{dari}-{sampai} of {total}",
@@ -3043,6 +3081,19 @@ const KAMUS = {
     judulInfoSistem:"Version & licence", infoLisensiSampai:"Licence until {tanggal}",
     infoTenggangSampai:"Grace until {tanggal}", infoLisensiHabis:"Licence expired",
     infoTanpaToken:"No licence token installed", infoLisensiAktif:"Licence active",
+    judulPembaruan:"Update", pembaruanSiap:"Version {versi} ready to install",
+    pembaruanSyarat:"Release every truck first. The console and all three lines stop for about 2 minutes, then start again by themselves.",
+    btnPasangSekarang:"Update now", pembaruanTerbaru:"Already on the latest version",
+    pembaruanBerjalan:"Installing the new version. The screen will reconnect by itself.",
+    pembaruanTersambungLagi:"Installing the new version. The screen will reconnect by itself.",
+    pembaruanBelumTerpasang:"Updating from the screen is not set up on this PC. Call a technician to set it up.",
+    pembaruanDimulai:"Installation started", gagalPasangPembaruan:"Could not start the installation",
+    pembaruanHasilOk:"Version {versi} is installed.",
+    pembaruanHasilBalik:"Version {versi} failed to start, so the system went back to {lama}. Call a technician.",
+    pembaruanHasilGagal:"Version {versi} was not installed, the system stays on {lama}. Try again in a moment.",
+    pembaruanVersiLama:"the previous version",
+    pembaruanHasilNihil:"There is no new version to install.",
+    pembaruanHasilBasi:"Update {versi} did not finish. Call a technician.",
     versiDariSource:"dev (from source)",
     lisensiAktif:"Active", lisensiTanpaToken:"Active, no token installed", lisensiMati:"Inactive",
     lisensiSaklarMati:"Inactive. A token is installed, but the console's licence switch is off. Call a technician",
@@ -3067,6 +3118,10 @@ const KAMUS = {
     err_plc_sibuk:"The line is processing a truck, so the coil cannot be fired",
     err_coil_tidak_dikenal:"This coil is not known to the line",
     err_hapus_berjalan:"Data is being deleted from the support menu (Danger Zone). Wait a moment, then assign the truck again.",
+    err_pembaruan_ada_truk:"Release the truck on {line} first, then install the new version.",
+    err_pembaruan_tidak_ada:"No new version is ready to install.",
+    err_pembaruan_berjalan:"An update is being installed. Wait until it finishes.",
+    err_pembaruan_belum_terpasang:"Updating from the screen is not set up on this PC. Call a technician.",
     err_akun_email_tidak_sah:"That email is not valid. Example: budi@mill.id",
     err_akun_nama_kosong:"The name cannot be empty",
     err_akun_sandi_beda:"The second password does not match the first",
@@ -4476,8 +4531,30 @@ async function kirimScan() {
       toastPeringatan(`${t("scanBelumAda")} ${hasil.plate_number}`);
       return;
     }
+    const plat = hasil.truck.plate_number;
+    // The server marks a retired truck instead of hiding it (the driver does not
+    // know), and the truck list leaves it out, so reloading the list below would
+    // never find it. Say why it cannot be used. Yellow, like an unregistered truck.
+    if (hasil.truck.status === "inactive") {
+      pesanScan(`${t("scanTrukNonaktif")} ${plat}`, true);
+      toastPeringatan(`${t("scanTrukNonaktif")} ${plat}`);
+      return;
+    }
     pesanScan("");
-    pilihNilai($("plat-timbang"), hasil.truck.plate_number);
+    // The truck list on screen reloads every 60 s, so a truck that reached the
+    // server since (synced from AutoERP, registered on another screen) is not
+    // an option yet, and `pilihNilai` would leave the form empty without a word.
+    if (!$("plat-timbang").querySelector(`[role="option"][data-nilai="${CSS.escape(plat)}"]`)) {
+      await muatTrucks();
+    }
+    pilihNilai($("plat-timbang"), plat);
+    // Never "scanned" over an empty plate field: the operator would press
+    // weigh-in and be told to fill in a field they believe is filled.
+    if ($("plat-timbang").dataset.nilai !== plat) {
+      pesanScan(t("scanDaftarBelumMuat"), true);
+      toastPeringatan(t("scanDaftarBelumMuat"));
+      return;
+    }
     // Cursor straight to the next field: the operator is weighing while
     // holding the driver's phone, and that one saved screen touch is the
     // whole point of scanning.
@@ -5195,6 +5272,8 @@ async function refresh() {
     if (s.work_date) hariKerja = s.work_date;
     gambarBannerLisensi(s.lisensi);
     gambarInfoSistem(s.versi, s.lisensi);
+    namaLineKartu = Object.fromEntries(s.lines.map((l) => [l.line_code, l.name || l.line_code]));
+    gambarPembaruan(s.pembaruan);
     umumkanPelepasanOtomatis(s.auto_releases);
     selarasUrutan(s.lines);
     isiTally(s.lines);
@@ -5250,6 +5329,9 @@ async function refresh() {
     // that banner, which is the one that matters when it really has stopped answering.
     // A console that did not answer at all already says so in its own sentence.
     if (e.kode === "belum_masuk") pesan("");
+    // Konsol memang sedang di-restart oleh pemasangan (batch 4.6): bukan kerusakan, dan
+    // pita merah di sini membuat operator menekan tombol lain di tengah pemasangan.
+    else if (e.kode === "konsol_putus" && pembaruanTerakhir && pembaruanTerakhir.berjalan) pesan(t("pembaruanTersambungLagi"));
     else pesan(e.kode === "konsol_putus" ? alasan(e) : gagalKarena("gagalKonsol", e));
   }
 }
@@ -6482,10 +6564,14 @@ function gambarInfoSistem(versi, l) {
   if ($("info-sistem-modal").open) tulisKalauBeda($("info-sistem-daftar"), barisInfoSistem(versi, l));
 }
 
-$("info-sistem").addEventListener("click", () => {
+// Badge pembaruan membuka kotak yang sama: tombol Update now ada di dalamnya.
+function bukaInfoSistem() {
   tulisKalauBeda($("info-sistem-daftar"), barisInfoSistem(infoVersi, infoLisensi));
+  tulisKalauBeda($("pembaruan-isi"), htmlPembaruan(pembaruanTerakhir, false));
   $("info-sistem-modal").showModal();
-});
+}
+$("info-sistem").addEventListener("click", bukaInfoSistem);
+$("badge-pembaruan").addEventListener("click", bukaInfoSistem);
 $("info-sistem-tutup").addEventListener("click", () => $("info-sistem-modal").close());
 // Klik di backdrop menutup, pola yang sama dengan lapisan foto.
 $("info-sistem-modal").addEventListener("click", (ev) => {
@@ -6510,10 +6596,86 @@ async function muatVersi() {
       ...barisLisensi(l),
     ];
     $("versi-daftar").innerHTML = baris.join("");
+    tulisKalauBeda($("pembaruan-support"), htmlPembaruan(pembaruanTerakhir, true));
   } catch (e) {
     if (e.kode !== "belum_masuk") $("versi-daftar").innerHTML = `<dt>${esc(t("gagalVersi"))}</dt><dd></dd>`;
   }
 }
+
+// ── pembaruan (batch 4.6, operator dan support) ─────────────────────────
+// Konsol cuma menulis penanda; penunggu di PC memasang. Aturan "boleh pasang" ada di
+// server (domain/pembaruan.py): layar hanya menampilkan apa yang dikirim (F3).
+let pembaruanTerakhir = null;
+let namaLineKartu = {};   // line_code -> nama di kartunya, dari polling state terakhir
+const IKON_UNDUH = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>';
+
+function teksBadgePembaruan(p) {
+  if (!p || !p.terpasang || p.berjalan || !p.siap) return "";
+  return t("pembaruanSiap").replace("{versi}", p.siap);
+}
+
+function teksHasilPembaruan(h) {
+  if (!h) return "";
+  const kunci = { ok:"pembaruanHasilOk", rolled_back:"pembaruanHasilBalik", failed:"pembaruanHasilGagal",
+                  nothing:"pembaruanHasilNihil", timeout:"pembaruanHasilBasi" }[h.state];
+  if (!kunci) return "";
+  // `failed` = the launcher never tried (busy downloading, cut off): the button is back at
+  // once, so the sentence asks to try again rather than sending for a technician.
+  return t(kunci).replace("{versi}", h.target || "").replace("{lama}", h.installed || t("pembaruanVersiLama"));
+}
+
+function htmlPembaruan(p, support) {
+  if (!p || (!p.terpasang && !support)) return "";
+  const isi = [];
+  if (!p.terpasang) isi.push(`<p class="pembaruan-ket">${esc(t("pembaruanBelumTerpasang"))}</p>`);
+  else if (p.berjalan) isi.push(`<p class="pembaruan-ket" role="status">${esc(t("pembaruanBerjalan"))}</p>`);
+  else if (p.siap) isi.push(
+    `<p class="pembaruan-ket"><b>${esc(t("pembaruanSiap").replace("{versi}", p.siap))}</b></p>`,
+    `<p class="pembaruan-ket">${esc(t("pembaruanSyarat"))}</p>`,
+    `<button type="button" class="pembaruan-pasang" data-target="${esc(p.siap)}">${IKON_UNDUH}<span>${esc(t("btnPasangSekarang"))}</span></button>`);
+  else isi.push(`<p class="pembaruan-ket">${esc(t("pembaruanTerbaru"))}</p>`);
+  const hasil = teksHasilPembaruan(p.hasil);
+  if (hasil) isi.push(`<p class="pembaruan-hasil" data-state="${esc(p.hasil.state)}">${esc(hasil)}</p>`);
+  return `<h3 class="pembaruan-judul">${esc(t("judulPembaruan"))}</h3>${isi.join("")}`;
+}
+
+// Server menolak dengan kode line ("line-1, line-3"); operator membaca nama di kartunya
+// (keputusan user 2026-10-02). Kode tanpa kartu tetap ditulis, tidak pernah dibuang.
+function namaLineDari(kode, peta) {
+  if (!kode) return "";
+  return String(kode).split(/,\s*/).map((k) => peta[k] || k).join(", ");
+}
+
+function gambarPembaruan(p) {
+  pembaruanTerakhir = p || null;
+  const badge = $("badge-pembaruan");
+  const teks = teksBadgePembaruan(p);
+  if (badge.textContent !== teks) badge.textContent = teks;
+  badge.hidden = !teks;
+  if ($("info-sistem-modal").open) tulisKalauBeda($("pembaruan-isi"), htmlPembaruan(p, false));
+  // Support-only: tab Status tidak ada di DOM untuk akun operator.
+  const status = $("sec-status");
+  if (status && !status.hidden) tulisKalauBeda($("pembaruan-support"), htmlPembaruan(p, true));
+}
+
+async function pasangSekarang(tombol) {
+  await denganSibuk(tombol, async () => {
+    try {
+      await api("/api/console/update/install",
+                { method: "POST", body: JSON.stringify({ target: tombol.dataset.target }) });
+      gambarPembaruan({ ...pembaruanTerakhir, berjalan: true, siap: null, hasil: null });
+      toast("sukses", t("pembaruanDimulai"));
+    } catch (e) {
+      if (e.kode === "pembaruan_ada_truk") e.params = { ...e.params, line: namaLineDari(e.params.line, namaLineKartu) };
+      toast("gagal", gagalKarena("gagalPasangPembaruan", e));
+    }
+  });
+}
+
+document.addEventListener("click", (ev) => {
+  const tombol = ev.target.closest(".pembaruan-pasang");
+  if (tombol) pasangSekarang(tombol);
+});
 
 // ── developer: akun (support only) ─────────────────────────────────────
 // Tanggal saja, tanpa jam: yang membuka layar ini mencari siapa yang bisa
@@ -6922,7 +7084,8 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
     // line itu saja yang belum menerimanya. Menyembunyikannya membuat operator
     // mengira semua line sudah berubah.
     const belum = (r.lines || []).filter((l) => !l.terkirim).map((l) => l.line_code);
-    $("set-lines").textContent = belum.length ? `Belum sampai ke: ${belum.join(", ")}` : "";
+    $("set-lines").textContent = belum.length
+      ? t("setelanBelumSampai").replace("{lines}", belum.join(", ")) : "";
   } catch (e) {
     pesan.textContent = alasan(e, "gagalSetelan");
     // Server menyebut nama field di pesannya (SetelanTidakSah, tanpa kode); kolomnya ikut
