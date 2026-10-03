@@ -78,6 +78,9 @@ class HealthDetailSchema(BaseModel):
     fps_kamera: float = 0.0
     fps_deteksi: float = 0.0
     frame_umur_detik: float | None = None
+    # Suhu badan kamera (°C). None = tidak tahu: sumber tanpa sensor, kamera menolak
+    # menjawab, atau bacaan terakhir lebih tua dari `SUHU_BASI_DETIK`.
+    suhu_kamera_c: float | None = None
     # Batch 3.7: `PemantauDisk.ringkas()` (tingkat, sisa GB, ambang, sejak).
     # None = pemantau belum dipasang (line versi lama tidak mengirimnya).
     disk: dict | None = None
