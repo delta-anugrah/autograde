@@ -40,6 +40,7 @@ from ..services.impor_grading_service import ImporGradingService
 from ..services.lapor_discord import LaporDiscord, rakit_lapor_discord
 from ..services.operator_admin import OperatorAdmin
 from ..services.pantau_antrean_line import PantauAntreanLine
+from ..services.pembaruan_service import PembaruanService
 from ..services.riwayat_service import RiwayatService
 from ..services.scan_service import ScanService
 from ..services.status_sinkron import StatusSinkron
@@ -252,6 +253,18 @@ def get_impor_grading_service() -> ImporGradingService:
         hari_ini=service.today,
     )
 
+
+@lru_cache
+def get_pembaruan_service() -> PembaruanService:
+    """Batch 4.6. Not built on get_console_service(): it needs only a folder, the running
+    version and the factory clock, and route tests swap it without a console DB."""
+    settings = Settings()
+    zona = ZoneInfo(settings.factory_tz)
+    return PembaruanService(
+        settings.update_dir, lambda: settings.app_version, lambda: datetime.now(zona)
+    )
+
+
 def hangatkan_singleton() -> None:
     """Build, before the first request, EVERY `lru_cache` singleton in this module.
 
@@ -275,6 +288,7 @@ def hangatkan_singleton() -> None:
     get_operator_admin()
     get_riwayat_service()
     get_impor_grading_service()
+    get_pembaruan_service()
 
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
@@ -284,6 +298,7 @@ Bahaya = Annotated[BahayaService, Depends(get_bahaya_service)]
 Admin = Annotated[OperatorAdmin, Depends(get_operator_admin)]
 Riwayat = Annotated[RiwayatService, Depends(get_riwayat_service)]
 Impor = Annotated[ImporGradingService, Depends(get_impor_grading_service)]
+Pembaruan = Annotated[PembaruanService, Depends(get_pembaruan_service)]
 
 
 def require_operator(

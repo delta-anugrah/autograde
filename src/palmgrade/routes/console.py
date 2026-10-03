@@ -27,12 +27,13 @@ from ..domain.operator_error import (
     InvalidInput,
     OperatorError,
 )
+from ..domain.pembaruan import PembaruanBelumTerpasang, PembaruanBerjalan, line_bertruk
 from ..domain.pilihan_model import ModelTidakSah
 from ..domain.setelan_grading import SetelanTidakSah
 from ..domain.setelan_rekam import SetelanRekamTidakSah
 from ..domain.sumber_kamera import SumberTidakSah
 from ..integrations.notifications.line_client import LinePlcTolak, LineUnavailable
-from ..schemas.console_schema import LoginBody, ManualTruckBody, ScanBody, WeighingBody
+from ..schemas.console_schema import LoginBody, ManualTruckBody, PasangBody, ScanBody, WeighingBody
 from ..services.bahaya_service import BahayaDitolak, BahayaSemuaMenolak, BahayaTidakSah
 from ..services.dev_service import CoilTidakDikenal, PlcSibuk
 from ..services.impor_grading_service import ImporDitolak, ImporTidakAda
@@ -42,7 +43,19 @@ from ..services.riwayat_service import RiwayatService
 # Wiring and guards live in console_deps.py. The `x as x` form re-exports them:
 # tests override these by identity and have imported them from here since Fase 4.
 from .console_deps import SESSION_COOKIE as SESSION_COOKIE
-from .console_deps import Admin, Auth, Bahaya, Dev, Impor, Operator, Riwayat, Scan, Service, Support
+from .console_deps import (
+    Admin,
+    Auth,
+    Bahaya,
+    Dev,
+    Impor,
+    Operator,
+    Pembaruan,
+    Riwayat,
+    Scan,
+    Service,
+    Support,
+)
 from .console_deps import _operator_error as _operator_error
 from .console_deps import get_auth_service as get_auth_service
 from .console_deps import get_bahaya_service as get_bahaya_service
@@ -50,6 +63,7 @@ from .console_deps import get_console_service as get_console_service
 from .console_deps import get_dev_service as get_dev_service
 from .console_deps import get_impor_grading_service as get_impor_grading_service
 from .console_deps import get_operator_admin as get_operator_admin
+from .console_deps import get_pembaruan_service as get_pembaruan_service
 from .console_deps import get_riwayat_service as get_riwayat_service
 from .console_deps import get_scan_service as get_scan_service
 from .console_deps import require_operator as require_operator
@@ -128,7 +142,9 @@ async def console_me(operator: Operator) -> dict:
 
 
 @router.get("/api/console/state")
-async def console_state(service: Service, dev: Dev, operator: Operator) -> dict:
+async def console_state(
+    service: Service, dev: Dev, pembaruan: Pembaruan, operator: Operator
+) -> dict:
     """Ringkasan hari kerja, plus keadaan langganan untuk banner operator.
 
     Menumpang di sini, bukan endpoint sendiri: layar sudah memanggil ini tiap 2
@@ -149,6 +165,9 @@ async def console_state(service: Service, dev: Dev, operator: Operator) -> dict:
         **(await run_in_threadpool(service.state)),
         "lisensi": await dev.license_state(),
         "versi": dev.app_version(),
+        # Badge "versi X siap dipasang" (batch 4.6) rides this 2 s poll, as the licence
+        # banner does: zero extra requests. Two small file reads, off the event loop.
+        "pembaruan": (await run_in_threadpool(pembaruan.keadaan)).as_dict(),
     }
 
 
@@ -362,11 +381,17 @@ async def record_weighing_manual(
 async def assign_truck(
     line_code: str,
     service: Service,
+    pembaruan: Pembaruan,
     operator: Operator,
     truck_id: Annotated[str, Body(embed=True)],
 ) -> dict:
+    # Batch 4.6: refused while an install runs, and visible to install until the line
+    # answers, so no truck lands between "no truck on any line" and the restart.
     try:
-        return await service.assign_truck(line_code, truck_id)
+        async with pembaruan.menugaskan(line_code):
+            return await service.assign_truck(line_code, truck_id)
+    except PembaruanBerjalan as exc:
+        raise _operator_error(409, exc) from exc
     except HapusBerjalan as exc:
         raise _operator_error(409, exc) from exc
     except ValueError as exc:
@@ -412,6 +437,34 @@ async def piston(
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
         raise _operator_error(502, exc) from exc
+
+
+# ── pembaruan (batch 4.6): operator AND support ─────────────────────────
+# The console only writes a marker; the host watcher installs. No Docker in here.
+
+
+@router.get("/api/console/update")
+async def update_status(pembaruan: Pembaruan, operator: Operator) -> dict:
+    return (await run_in_threadpool(pembaruan.keadaan)).as_dict()
+
+
+@router.post("/api/console/update/install", status_code=202)
+async def update_install(
+    payload: PasangBody, service: Service, pembaruan: Pembaruan, operator: Operator
+) -> dict:
+    async with pembaruan.kunci:
+        assignments = await run_in_threadpool(service.assignments)
+        # An assign still waiting for its line is not in `assignments` yet, but will be.
+        bertruk = sorted(set(line_bertruk(assignments)) | set(pembaruan.line_sedang_ditugaskan()))
+        try:
+            return await run_in_threadpool(pembaruan.pasang, payload.target or "", bertruk, operator["email"])
+        except PembaruanBelumTerpasang as exc:
+            raise _operator_error(503, exc) from exc
+        except OperatorError as exc:
+            raise _operator_error(409, exc) from exc
+        except OSError as exc:
+            # Folder mounted read-only or disk full: the marker never landed, nothing runs.
+            raise _operator_error(500, exc) from exc
 
 
 # ── developer lanes (support only) ───────────────────────────────────────

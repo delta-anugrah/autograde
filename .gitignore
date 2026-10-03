@@ -1,6 +1,8 @@
 # Project-specific
 artifacts/
 state/
+# Update now (batch 4.6): status/request/result files shared with the host watcher.
+update/
 # Rekaman video developer (layar Rekam Video). Berkasnya ratusan MB dan isinya
 # conveyor pabrik pelanggan — tidak pernah boleh ikut ke repo.
 videos/

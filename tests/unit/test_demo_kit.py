@@ -55,6 +55,12 @@ def test_forwards_every_setting_the_factory_console_gets():
     assert not missing, f"factory console gets these, demo does not: {sorted(missing)}"
 
 
+def test_never_offers_update_now():
+    """The demo upgrades with demo-autograde; no watcher answers a request.json there."""
+    assert _environment()["UPDATE_DIR"] == "/app/update"
+    assert not [v for v in _console()["volumes"] if v.split(":")[1:2] == ["/app/update"]]
+
+
 def test_image_and_name_come_from_the_kit():
     console = _console()
     assert console["image"] == "${PALMGRADE_AUTOGRADE_IMAGE}"
