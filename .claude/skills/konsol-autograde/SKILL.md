@@ -41,6 +41,14 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   24 jam atau truknya datang lagi) berlencana Selesai dan `aksiTiket` menaruh `.tag.peringatan`
   **tanpa scan 4** di tempat tombol Keluar. Tes: `test_console_html_batal_datang.py`,
   `tests/browser/test_browser_batal_datang.py`.
+- Riwayat Batal datang (round 4, 2026-10-03): `<details id="riwayat-batal">` di bawah tabel
+  Timbangan, `hidden` selama `dibatalkan` (dari `GET /api/console/weighings`) kosong.
+  `gambarRiwayatBatal` (dipanggil `muatTimbangan`) cuma menulis `#riwayat-batal-judul` dan
+  `#riwayat-batal-isi` lewat `tulisKalauBeda`, tidak pernah `<details>`-nya, jadi buka/tutup
+  bertahan melewati poll 15 dtk; `barisBatal` = Plat, Jam datang, Jam dibatalkan, Oleh (email).
+  Kolom terakhirnya dilepas dari paku `#sec-timbangan td:last-child`. KAMUS `riwayatBatalJudul`,
+  `thJamDatang`, `thJamBatal`, `thOleh`. Tes: `test_console_html_riwayat_batal.py`,
+  `tests/browser/test_browser_riwayat_batal.py`.
 - Registri: `TAB_SAH`, `SUB_LINE`, `MUAT_TAB`, `MUAT_SUB_LINE`. Tab lama yang tersimpan di
   localStorage dipetakan `tabDariSimpanan` / `TAB_LAMA` (riwayat → rekap, diagnostik/antrean/versi
   → status, empat layar per line → line + pilihannya).

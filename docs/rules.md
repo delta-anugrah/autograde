@@ -1214,10 +1214,20 @@ end of this file.
     **Batal datang** (2026-10-03): kedatangan yang truknya tidak akan ditimbang (salah pilih,
     ditolak di gerbang) dihapus lewat `POST /api/console/arrivals/{arrival_id}/cancel`, di bawah
     kunci `GateService`. Cuma yang masih menunggu (`weighing_id` kosong); selain itu dijawab
-    `tidak_ada`, bukan galat. Barisnya dihapus, bukan ditandai: kedatangan yang salah bukan jam
-    gerbang, dan baris yang ditandai harus dilewati setiap pembaca `arrivals`. Jejaknya satu baris
-    log (plat dan email operator). Yang dibatalkan tidak pernah tampil di `waiting`, tidak pernah
-    diklaim, dan tidak pernah ke AutoERP.
+    `tidak_ada`, bukan galat. **Disimpan sebagai riwayat** (round 4, user 2026-10-03: "riwayat
+    pembatalan yang bisa dilihat"): barisnya tidak dihapus, tapi diberi `cancelled_at` (jam server)
+    dan `cancelled_by` (email operator), skema `console.db` versi 5. Akibatnya setiap pembaca
+    kedatangan MENUNGGU wajib menyaring `cancelled_at IS NULL` (`waiting_arrivals`,
+    `waiting_arrivals_for_truck`, `claim_arrival`, `jejak_truk` di
+    `repositories/console_gerbang_repository.py`; masing-masing punya tes di
+    `tests/unit/test_batal_datang_riwayat.py`). Yang dibatalkan tidak pernah tampil di `waiting`,
+    tidak pernah diklaim, tidak dihitung "truk datang lagi" (kunjungan lama tetap dapat tombol
+    Keluar), dan tidak pernah ke AutoERP. Riwayatnya dibaca lewat `dibatalkan` di
+    `GET /api/console/weighings` (hari kerja yang tampil) dan tampil di panel **Kedatangan
+    dibatalkan (n)** di bawah tabel Timbangan. Danger Zone dan `make demo-reset` menghapusnya
+    bersama kedatangan lain; selain itu tidak ada pembersihan berkala untuk jam gerbang.
+    ⚠️ Image sebelum versi skema 5 (rollback) tidak mengenal kolom itu: kedatangan yang sudah
+    dibatalkan terbaca menunggu lagi selama jendela 12 jamnya.
     **Tanpa scan 4** (keputusan user 2026-10-03): tiket bertara yang tidak pernah Keluar
     **dihitung** selesai, tidak ditulis: tidak ada `left_at` karangan. `selesai_tanpa_scan_4`
     memutuskannya kalau timbang kosongnya (`exited_at`, cadangan `entered_at`) lebih dari 24 jam

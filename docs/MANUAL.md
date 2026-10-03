@@ -244,6 +244,13 @@ kedatangan itu keburu diklaim timbang isi (atau sudah dibatalkan dari layar lain
 kuning mengatakan kedatangan itu sudah tidak menunggu. Seperti jam datang, pembatalan cuma di PC
 pabrik, tidak dikirim ke AutoERP.
 
+Pembatalan tidak hilang begitu saja: di bawah tabel Timbangan muncul baris **Kedatangan
+dibatalkan (n)** begitu hari itu punya satu pembatalan atau lebih (selama belum ada, baris itu
+tidak tampil). Klik untuk membuka tabel kecil berisi **Plat**, **Jam datang**, **Jam dibatalkan**
+dan **Oleh** (email operator yang menekan Batal datang), yang terakhir dibatalkan paling atas.
+Tabel itu tetap terbuka atau tertutup seperti yang dipilih walau layar menyegarkan diri tiap 15
+detik.
+
 **Truk yang tidak pernah Keluar.** Truk yang sudah timbang kosong tapi tidak pernah dicatat
 **Keluar** tetap berlencana **Timbang kosong** dengan tombol **Keluar** sampai 24 jam sesudah
 timbang kosongnya, juga di tabel hari berikutnya. Lewat 24 jam, atau begitu truk yang sama
