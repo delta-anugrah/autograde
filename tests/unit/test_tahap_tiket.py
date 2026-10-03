@@ -67,6 +67,8 @@ def _tiket(store, wid, plat, *, tara=None, pergi=None):
 
 def test_tampilan_timbangan_membawa_tahap_tiap_tiket(tmp_path):
     service, store = _konsol(tmp_path)
+    # Pinned: a weighed-out ticket without Keluar is finished 24 h later (2026-10-03).
+    service.sekarang = lambda: datetime(2026, 10, 2, 3, 0, tzinfo=UTC)
     _tiket(store, "w1", "BE 1 AA")
     _tiket(store, "w2", "BE 2 BB", tara=6000.0)
     _tiket(store, "w3", "BE 3 CC", tara=6000.0, pergi="2026-10-02T02:00:00Z")

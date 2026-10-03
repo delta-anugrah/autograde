@@ -210,10 +210,19 @@ def test_keluar_truk_lain_tidak_tersentuh(gate, store):
 
 
 def test_tombol_baris_menutup_tiket_yang_ditunjuk(gate, store):
+    _selesai(store, "w1", "2026-09-30T00:00:00+00:00", "2026-09-30T00:50:00+00:00")
+    _selesai(store, "w2", "2026-09-30T01:00:00+00:00", "2026-09-30T02:00:00+00:00", plat=LAIN)
+    assert gate.leave(None, "2026-09-30T02:10:00+00:00", weighing_id="w1")["hasil"] == "tercatat"
+    assert store.weighing("w2")["left_at"] is None
+
+
+def test_tombol_baris_kunjungan_yang_sudah_digantikan_tidak_ditutup(gate, store):
+    """User 2026-10-03: the truck weighed in again, so its earlier visit is finished
+    "tanpa scan 4"; the old row's button closes nothing, and the new visit is untouched."""
     _selesai(store, "lama", "2026-09-30T00:00:00+00:00", "2026-09-30T00:50:00+00:00")
     _selesai(store, "baru", "2026-09-30T01:00:00+00:00", "2026-09-30T02:00:00+00:00")
-    assert gate.leave(None, "2026-09-30T02:10:00+00:00", weighing_id="lama")["hasil"] == "tercatat"
-    assert store.weighing("baru")["left_at"] is None
+    assert gate.leave(None, "2026-09-30T02:10:00+00:00", weighing_id="lama")["hasil"] == "sudah_keluar"
+    assert store.weighing("lama")["left_at"] is None and store.weighing("baru")["left_at"] is None
 
 
 def test_tombol_baris_tiket_belum_timbang_kosong_ditolak(gate, store):

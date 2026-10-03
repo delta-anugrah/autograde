@@ -321,6 +321,16 @@ def console_arrival(gate: Gate, operator: Operator, payload: ArrivalBody) -> dic
         raise _operator_error(400, exc) from exc
 
 
+@router.post("/api/console/arrivals/{arrival_id}/cancel")
+def console_arrival_cancel(arrival_id: str, gate: Gate, operator: Operator) -> dict:
+    """"Batal datang" (2026-10-03): take back an arrival whose truck will not be weighed.
+
+    `dibatalkan` or `tidak_ada` (already weighed in, already cancelled, unknown id), both
+    200: a second press or a race with the weigh-in is not an error. Never reaches AutoERP.
+    """
+    return gate.cancel_arrival(arrival_id, oleh=operator["email"])
+
+
 @router.post("/api/console/departures")
 def console_departure(gate: Gate, operator: Operator, payload: DepartureBody) -> dict:
     """Scan 4 (2026-09-30): the truck leaves the gate. Recorded on this PC only.

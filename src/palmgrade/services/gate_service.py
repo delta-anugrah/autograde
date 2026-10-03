@@ -18,17 +18,20 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
-from datetime import UTC, datetime, tzinfo
+from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Any
 
 from ..domain.gerbang import (
     BELUM_TIMBANG_KOSONG,
+    DIBATALKAN,
     JENDELA_KEDATANGAN,
     JENDELA_KELUAR,
+    JENDELA_TANPA_KELUAR,
     MASIH_DI_DALAM,
     SUDAH_KELUAR,
     SUDAH_TERCATAT,
     TERCATAT,
+    TIDAK_ADA,
     TIDAK_ADA_TIKET,
     baca_waktu,
     pilih_kedatangan,
@@ -41,6 +44,10 @@ from ..domain.working_day import work_date_for
 from ..repositories.console_repository import ConsoleStore
 
 logger = logging.getLogger(__name__)
+
+#: The furthest back any gate decision reads, plus a day of slack for the work date that
+#: only narrows the trail read (`jejak_truk`): the browser's clock stamped it.
+_JANGKAUAN = max(JENDELA_KEDATANGAN, JENDELA_KELUAR, JENDELA_TANPA_KELUAR) + timedelta(days=1)
 
 
 class GateService:
@@ -70,8 +77,8 @@ class GateService:
             # Everything the domain and the store will do with it, done once here.
             work_date_for(teks, self.tz)
             dt.astimezone(UTC)
-            dt - max(JENDELA_KEDATANGAN, JENDELA_KELUAR)
-            dt + max(JENDELA_KEDATANGAN, JENDELA_KELUAR)
+            work_date_for((dt - _JANGKAUAN).isoformat(), self.tz)
+            dt + _JANGKAUAN
         except (ValueError, OverflowError) as exc:
             raise InvalidInput(INPUT_TIDAK_SAH, f"jam tidak terbaca: {teks!r}", field="at") from exc
         return teks
@@ -124,6 +131,25 @@ class GateService:
         })
         return {"hasil": TERCATAT, "plate_number": tampil, "arrived_at": waktu}
 
+    def cancel_arrival(self, arrival_id: str, oleh: str) -> dict[str, Any]:
+        """"Batal datang" (2026-10-03): the truck will not be weighed (wrong truck picked, or
+        turned away at the gate). Only a waiting arrival; otherwise `tidak_ada`, an answer."""
+        with self._kunci:
+            row = self.store.cancel_arrival(arrival_id)
+        if row is None:
+            return {"hasil": TIDAK_ADA}
+        logger.info("Batal datang %s oleh %s (kedatangan %s, jam %s)",
+                    row["plate_number"], oleh, arrival_id, row["arrived_at"])
+        return {"hasil": DIBATALKAN, "plate_number": row["plate_number"]}
+
+    def _kembali(self, truck_id: str | None, waktu: str) -> list[str]:
+        """When this truck was seen again (waiting arrivals, weigh-ins): a weighed-out ticket
+        it left behind is then finished "tanpa scan 4" and a new Keluar never closes it."""
+        if not truck_id:
+            return []
+        sejak_hari = work_date_for((baca_waktu(waktu) - _JANGKAUAN).isoformat(), self.tz)
+        return self.store.jejak_truk([truck_id], sejak_hari).get(truck_id, [])
+
     def leave(
         self, qr_text: str | None = None, at: Any = None, weighing_id: str | None = None
     ) -> dict[str, Any]:
@@ -137,11 +163,14 @@ class GateService:
             row = self.store.weighing(weighing_id)
             if row is None:
                 return {"hasil": TIDAK_ADA_TIKET, "plate_number": None, "weighing_id": None}
-            keputusan = putuskan_keluar([row], waktu, jendela=None)
+            keputusan = putuskan_keluar([row], waktu, jendela=None, kembali=self._kembali(row.get("truck_id"), waktu))
             plate = row.get("plate_number")
         else:
             plate = self._plat(qr_text or "")
-            keputusan = putuskan_keluar(self.store.weighings_for_truck(truck_id_for(plate)), waktu)
+            truck_id = truck_id_for(plate)
+            keputusan = putuskan_keluar(
+                self.store.weighings_for_truck(truck_id), waktu, kembali=self._kembali(truck_id, waktu)
+            )
 
         tiket = keputusan.weighing or {}
         jawaban = {"hasil": keputusan.hasil, "plate_number": tiket.get("plate_number") or plate,

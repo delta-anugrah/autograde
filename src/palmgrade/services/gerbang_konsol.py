@@ -21,8 +21,9 @@ from ..domain.gerbang import (
     masih_menunggu,
     menit_antara,
     pilih_kedatangan,
+    selesai_tanpa_scan_4,
 )
-from ..domain.working_day import awal_kunjungan, work_date_for
+from ..domain.working_day import JENDELA_TANPA_KELUAR_DETIK, awal_kunjungan, work_date_for
 from ..repositories.console_repository import ConsoleStore
 
 logger = logging.getLogger(__name__)
@@ -55,14 +56,39 @@ class GerbangKonsol:
         """
         if work_date != self.today():
             return []
-        sejak = awal_kunjungan(self.sekarang())
+        sekarang = self.sekarang()
+        sejak = awal_kunjungan(sekarang)
+        # A ticket with its tare waits 24 h for its Keluar, one without keeps 12 h
+        # (`JENDELA_TANPA_KELUAR_DETIK` says why); the domain then drops a carried visit that
+        # is finished "tanpa scan 4" because its truck came back.
+        sejak_tara = sekarang.timestamp() - JENDELA_TANPA_KELUAR_DETIK
         # The work date only narrows the read; a day of slack, because it was stamped from
         # the weigh-in text while the window reads the real instant (a PC clock off at
         # weigh-in must not hide a truck still in the yard).
         sejak_hari = work_date_for(
-            (datetime.fromtimestamp(sejak, UTC) - KELONGGARAN_HARI).isoformat(), self.tz
+            (datetime.fromtimestamp(min(sejak, sejak_tara), UTC) - KELONGGARAN_HARI).isoformat(), self.tz
         )
-        return self.store.weighings_terbawa(work_date, sejak, sejak_hari)
+        rows = self.store.weighings_terbawa(work_date, sejak, sejak_hari, sejak_tara)
+        return [row for row in self.tandai_tanpa_scan_4(rows, sekarang) if not row["tanpa_scan_4"]]
+
+    def tandai_tanpa_scan_4(
+        self, rows: list[dict[str, Any]], sekarang: datetime | None = None
+    ) -> list[dict[str, Any]]:
+        """Set `tanpa_scan_4` on every Timbangan row (user 2026-10-03, standard L4).
+
+        True for a weighed-out ticket that never got its Keluar and now counts as finished:
+        24 h after its weigh-out, or once its truck arrived or weighed in again
+        (`selesai_tanpa_scan_4`). `tahap_tiket` and `durasi_kunjungan` read the flag. Only the
+        tared, not-left rows need the truck's trail, read once for all of them.
+        """
+        nyata = sekarang or self.sekarang()
+        cek = [r for r in rows if r.get("tare_kg") is not None and not r.get("left_at") and r.get("truck_id")]
+        jejak = (
+            self.store.jejak_truk({r["truck_id"] for r in cek}, min(r["work_date"] for r in cek)) if cek else {}
+        )
+        for row in rows:
+            row["tanpa_scan_4"] = selesai_tanpa_scan_4(row, nyata, jejak.get(row.get("truck_id"), ()))
+        return rows
 
     def _klaim_kedatangan(
         self, baru: bool, truck_id: str, entered_at: str | None, weighing_id: str
@@ -85,9 +111,9 @@ class GerbangKonsol:
     def waiting_arrivals(self, sekarang: datetime | None = None) -> list[dict[str, Any]]:
         """Trucks that scanned in (scan 1) and are not weighed in yet, with minutes waited.
 
-        Each row: `plate_number`, `arrived_at`, `menit`, and `tahap` ("datang", the first
-        badge on the Timbangan table). Chosen by the claim window back
-        from now (`masih_menunggu`), not by work date: a truck that arrived at 23:50 still
+        Each row: `id` (named by "Batal datang"), `plate_number`, `arrived_at`, `menit`, and
+        `tahap` ("datang", the first badge on the Timbangan table). Chosen by the claim window
+        back from now (`masih_menunggu`), not by work date: a truck that arrived at 23:50 still
         waits at 00:10, because its weigh-in then still claims it.
 
         The basis is the SERVER clock (now), not the browser's: the arrival time was the

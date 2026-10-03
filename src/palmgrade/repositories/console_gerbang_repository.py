@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+from collections.abc import Collection
 from typing import Any
 
 
@@ -27,6 +28,23 @@ class GerbangStore:
                    VALUES (:id, :plate_number, :plate_norm, :truck_id, :work_date, :arrived_at)""",
                 row,
             )
+
+    def cancel_arrival(self, arrival_id: str) -> dict[str, Any] | None:
+        """"Batal datang": delete one arrival that is still WAITING; the deleted row, or None.
+
+        Deleted, not flagged: a cancelled arrival is a mistake at the gate, not a gate time,
+        and a row nobody reads again would need every reader of `arrivals` to skip it. The
+        log line `GateService` writes is its trace. `weighing_id IS NULL` in the same
+        transaction: a weigh-in that claimed it a moment earlier keeps it.
+        """
+        with self._lock, self._db:
+            row = self._db.execute(
+                "SELECT * FROM arrivals WHERE id = ? AND weighing_id IS NULL", (arrival_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            self._db.execute("DELETE FROM arrivals WHERE id = ? AND weighing_id IS NULL", (arrival_id,))
+        return dict(row)
 
     def arrival(self, arrival_id: str) -> dict[str, Any] | None:
         with self._lock:
@@ -69,12 +87,37 @@ class GerbangStore:
         """
         with self._lock:
             rows = self._db.execute(
-                """SELECT plate_number, arrived_at FROM arrivals
+                """SELECT id, plate_number, arrived_at FROM arrivals
                    WHERE work_date >= ? AND weighing_id IS NULL
                    ORDER BY julianday(arrived_at), rowid""",
                 (sejak_hari,),
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def jejak_truk(self, truck_ids: Collection[str], sejak_hari: str) -> dict[str, list[str]]:
+        """When these trucks were seen again: waiting arrivals (scan 1) and weigh-ins, from work
+        date `sejak_hari` on, per truck. What `selesai_tanpa_scan_4` compares a weighed-out
+        ticket's weigh-out with; one read for the whole table (B6).
+
+        A claimed arrival is left out on purpose: it belongs to a ticket whose weigh-in is
+        already here, or to the ticket being judged, whose arrival came before its weigh-out.
+        """
+        if not truck_ids:
+            return {}
+        tanda = ", ".join("?" for _ in truck_ids)  # placeholders only, values stay bound (B5)
+        with self._lock:
+            rows = self._db.execute(
+                f"""SELECT truck_id, arrived_at AS saat FROM arrivals
+                     WHERE truck_id IN ({tanda}) AND weighing_id IS NULL AND work_date >= ?
+                    UNION ALL
+                    SELECT truck_id, entered_at FROM weighings
+                     WHERE truck_id IN ({tanda}) AND work_date >= ? AND entered_at IS NOT NULL""",
+                (*truck_ids, sejak_hari, *truck_ids, sejak_hari),
+            ).fetchall()
+        hasil: dict[str, list[str]] = {}
+        for row in rows:
+            hasil.setdefault(row["truck_id"], []).append(row["saat"])
+        return hasil
 
     def weighings_for_truck(self, truck_id: str) -> list[dict[str, Any]]:
         """One truck's newest tickets, for scan 4 to choose from (window in the domain)."""

@@ -365,7 +365,7 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol):
         return [_with_source_label(row) for row in self.store.trucks()]
 
     def weighings(self, work_date: str, *, limit: int = 100) -> list[dict[str, Any]]:
-        rows = self.store.weighings(work_date, limit=limit) + self.kunjungan_terbawa(work_date)
+        rows = self.tandai_tanpa_scan_4(self.store.weighings(work_date, limit=limit)) + self.kunjungan_terbawa(work_date)
         return [_tiket_view(row) for row in rows]
 
     def recap(self, work_date: str) -> list[dict[str, Any]]:

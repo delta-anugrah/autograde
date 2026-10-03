@@ -41,6 +41,9 @@ def pabrik(tmp_path):
     service = ConsoleService(
         replace(Settings(), factory_tz="Asia/Jakarta"), store, None, erp_queue=ErpQueue(store, outbox)
     )
+    # The console's "now" on the day of these visits: a weighed-out ticket without Keluar
+    # counts as finished 24 h after its weigh-out (2026-10-03), so the real clock would age it.
+    service.sekarang = lambda: baca_waktu(f"{HARI}T03:00:00Z")
     return service, GateService(store, service.tz), store, outbox
 
 

@@ -24,6 +24,10 @@ MASIH_DI_DALAM = "masih_di_dalam"
 BELUM_TIMBANG_KOSONG = "belum_timbang_kosong"
 SUDAH_KELUAR = "sudah_keluar"
 TIDAK_ADA_TIKET = "tidak_ada_tiket"
+#: "Batal datang" (2026-10-03): the waiting arrival is gone, or there was none to take back
+#: (already claimed by a weigh-in, already cancelled, unknown id).
+DIBATALKAN = "dibatalkan"
+TIDAK_ADA = "tidak_ada"
 
 #: The four stages of a visit, one per gate step (user 2026-10-02). The Timbangan table
 #: shows one as a badge per row, coloured like its step header; the screen never works it out.
