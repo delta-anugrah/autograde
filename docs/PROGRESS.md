@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-03 · console · One modal component; Versi & lisensi box tidied (PR pending)
+## 2026-10-03 · console · One modal component; Versi & lisensi box tidied (PR #220)
 Changed:        The four text dialogs (model swap, confirmation, CSV import, Versi & lisensi) share
                 one component: `dialog.modal`, `.modal-isi`, `.modal-tombol` (equal-width buttons,
                 48 px). Per-dialog copies of the box, backdrop and `.tools` rows are gone. In the
@@ -26,7 +26,7 @@ Changed:        The four text dialogs (model swap, confirmation, CSV import, Ver
                 (`tombolPasang`, green `utama`), next to Tutup (red `bahaya`, first, keeps the focus).
                 The Pembaruan heading reads like a section label. Impor CSV's Tutup is red too.
                 Coding standard F12 names the component.
-Validated:      See the PR body for the suite counts; screenshots checked in light, dark and 390 px.
+Validated:      unit 4487, e2e 380, integration 160, browser 206, ruff clean; screenshots light, dark, 390 px.
 Next:           Merge, then release with the camera temperature.
 
 ## 2026-10-03 · camera · Camera temperature on the Diagnostics card (PR #218)
