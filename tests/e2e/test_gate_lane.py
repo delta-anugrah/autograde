@@ -181,3 +181,44 @@ def test_tahap_tiap_langkah_lewat_rute(klien):
     assert _lihat() == (["timbang_kosong"], [])
     assert klien.post("/api/console/departures", json={"qr": PLAT, "at": pergi}).json()["hasil"] == "tercatat"
     assert _lihat() == (["selesai"], [])
+
+
+# ── Batal datang and "tanpa scan 4" (user 2026-10-03) ────────────────────────
+
+
+def test_batal_datang_tertutup_tanpa_sesi(klien):
+    assert klien.post("/api/console/arrivals/apa-saja/cancel").status_code == 401
+
+
+def test_batal_datang_lewat_rute(klien):
+    _masuk(klien)
+    datang = _jam(datetime.now(UTC).replace(microsecond=0) - timedelta(minutes=10))
+    klien.post("/api/console/arrivals", json={"qr": PLAT, "at": datang})
+    [a] = klien.get("/api/console/weighings").json()["waiting"]
+    assert set(a) >= {"id", "plate_number", "arrived_at", "menit", "tahap"}
+
+    r = klien.post(f"/api/console/arrivals/{a['id']}/cancel")
+    assert r.status_code == 200 and r.json() == {"hasil": "dibatalkan", "plate_number": PLAT}
+    assert klien.get("/api/console/weighings").json()["waiting"] == []
+    # A second press and an unknown id are answers, not errors.
+    assert klien.post(f"/api/console/arrivals/{a['id']}/cancel").json() == {"hasil": "tidak_ada"}
+    assert klien.post("/api/console/arrivals/tidak-dikenal/cancel").json() == {"hasil": "tidak_ada"}
+
+
+def test_tabel_membawa_tanpa_scan_4(klien):
+    """A visit weighed out more than 24 h ago that never got its Keluar: SELESAI, flagged,
+    total to the weigh-out, and its row button closes nothing."""
+    _masuk(klien)
+    t0 = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=26)
+    datang, masuk, kosong = (_jam(t0 + timedelta(minutes=m)) for m in (0, 30, 90))
+    hari = work_date_for(masuk, ZoneInfo("Asia/Jakarta"))
+    klien.post("/api/console/arrivals", json={"qr": PLAT, "at": datang})
+    klien.post("/api/console/weighings", json={"plate_number": PLAT, "gross_kg": "14000", "entered_at": masuk})
+    klien.post("/api/console/weighings", json={"plate_number": PLAT, "entered_at": masuk,
+                                               "tare_kg": "6000", "exited_at": kosong})
+
+    [tiket] = klien.get("/api/console/weighings", params={"work_date": hari}).json()["items"]
+    assert (tiket["tahap"], tiket["tanpa_scan_4"], tiket["total_menit"], tiket["left_at"]) == (
+        "selesai", True, 90, None)
+    r = klien.post("/api/console/departures", json={"weighing_id": tiket["id"], "at": _jam(datetime.now(UTC))})
+    assert r.json()["hasil"] == "sudah_keluar"

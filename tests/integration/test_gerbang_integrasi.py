@@ -252,3 +252,52 @@ def test_kunjungan_lewat_tengah_malam_selesai_dan_tetap_di_harinya(pabrik):
     assert store.weighing_ids_on(HARI) == [row["id"]] and store.weighing_ids_on(hari_2) == []
     pesan = _pesan_visit(outbox)
     assert pesan and {m.payload["weighing"]["time_in"] for m in pesan} == {"2026-09-30T23:50:00+07:00"}
+
+
+# ── Batal datang and "tanpa scan 4" (user 2026-10-03) ────────────────────────
+
+
+def _cek_pesan_tanpa_jam_gerbang(outbox):
+    pesan = _pesan_visit(outbox)
+    assert pesan, "no visit message was queued"
+    for m in pesan:
+        assert set(m.payload) == KUNCI_PESAN, sorted(m.payload)
+        assert set(m.payload["weighing"]) == KUNCI_TIMBANGAN, sorted(m.payload["weighing"])
+
+
+def test_batal_datang_lalu_datang_lagi_antre_dari_kedatangan_kedua(pabrik):
+    service, gate, store, outbox = pabrik
+    gate.arrive(PLAT, "2026-09-30T00:10:00+00:00")  # the wrong truck was picked
+    [salah] = service.waiting_arrivals(baca_waktu("2026-09-30T00:15:00+00:00"))
+    assert gate.cancel_arrival(salah["id"], oleh="op@pks.test")["hasil"] == "dibatalkan"
+    assert service.waiting_arrivals(baca_waktu("2026-09-30T00:20:00+00:00")) == []
+
+    assert gate.arrive(PLAT, "2026-09-30T00:40:00+00:00")["hasil"] == "tercatat"
+    _isi(service, "2026-09-30T01:00:00+00:00")
+    [tiket] = service.weighings(HARI)
+    assert (tiket["arrived_at"], tiket["antre_menit"]) == ("2026-09-30T00:40:00+00:00", 20)
+    assert store.arrival(salah["id"]) is None
+
+    _kosong(service, "2026-09-30T01:00:00+00:00", "2026-09-30T02:00:00+00:00")
+    _cek_pesan_tanpa_jam_gerbang(outbox)
+
+
+def test_truk_datang_lagi_tanpa_keluar_kunjungan_lama_selesai(pabrik):
+    service, gate, store, outbox = pabrik
+    gate.arrive(PLAT, "2026-09-30T00:30:00+00:00")
+    lama = _isi(service, "2026-09-30T01:00:00+00:00")
+    _kosong(service, "2026-09-30T01:00:00+00:00", "2026-09-30T02:00:00+00:00")
+    sebelum = [(m.kind, m.key, m.payload) for m in outbox.due(50)]
+
+    service.sekarang = lambda: baca_waktu("2026-09-30T05:05:00+00:00")
+    assert gate.arrive(PLAT, "2026-09-30T05:00:00+00:00")["hasil"] == "tercatat"
+
+    [tiket] = service.weighings(HARI)
+    assert (tiket["id"], tiket["tahap"], tiket["tanpa_scan_4"]) == (lama["id"], TAHAP_SELESAI, True)
+    assert (tiket["total_menit"], tiket["left_at"]) == (90, None)
+    [baru] = service.waiting_arrivals()
+    assert (baru["tahap"], baru["menit"]) == (TAHAP_DATANG, 5)
+    # The new arrival changes nothing AutoERP holds, and writes no leave time.
+    assert [(m.kind, m.key, m.payload) for m in outbox.due(50)] == sebelum
+    assert store.weighing(lama["id"])["left_at"] is None
+    _cek_pesan_tanpa_jam_gerbang(outbox)
