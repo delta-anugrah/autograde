@@ -1148,7 +1148,10 @@
   #sec-timbangan th { white-space:normal; vertical-align:bottom; }
   #sec-timbangan td.sel-waktu { line-height:1.25; font-variant-numeric:tabular-nums; }
   #sec-timbangan td.sel-waktu .tgl { display:block; font-size:.78rem; color:var(--muted); }
-  #sec-timbangan th, #sec-timbangan td { padding-left:8px; padding-right:8px; }
+  #sec-timbangan th, #sec-timbangan td { padding-left:6px; padding-right:6px; }
+  /* Spasi huruf lencana dan tag di tabel ini sedikit lebih rapat: font Linux (kiosk pabrik,
+     CI) lebih lebar dari macOS, dan di 1440 px tabel ini dulu lewat 19 px di sana. */
+  #sec-timbangan td .lencana, #sec-timbangan td .tag { letter-spacing:.04em; }
   #sec-timbangan tbody tr:nth-child(even) td:last-child:not(.kosong) { background:var(--zebra); }
   /* Riwayat Batal datang (2026-10-03) di bawah tabel Timbangan: `<details>` apa adanya, jadi
      buka/tutupnya milik browser dan bertahan melewati poll. Kolom terakhirnya (Oleh) bukan

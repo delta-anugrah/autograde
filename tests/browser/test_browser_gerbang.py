@@ -238,7 +238,13 @@ _LEBAR_TABEL_MUAT = 1440
 _TABEL_MUAT = """() => {
   const t = document.querySelector('#sec-timbangan .tabel');
   const kepala = [...t.querySelectorAll('thead th')];
-  return {lebar: t.scrollWidth, kotak: t.clientWidth,
+  // The narrowest the table can get (headers wrap, cells do not): the real requirement.
+  // `scrollWidth` alone shows no headroom, because the table always stretches to 100%.
+  const tabel = t.querySelector('table');
+  tabel.style.width = 'min-content';
+  const perlu = Math.ceil(tabel.getBoundingClientRect().width);
+  tabel.style.width = '';
+  return {lebar: t.scrollWidth, kotak: t.clientWidth, perlu,
           neto: Math.round(kepala[kepala.length - 2].getBoundingClientRect().right),
           tombol: Math.round(kepala[kepala.length - 1].getBoundingClientRect().left),
           kolom: kepala.map((h) => Math.round(h.getBoundingClientRect().width)),
@@ -272,6 +278,9 @@ def test_the_four_steps_never_scroll_sideways(halaman, konsol, browser_name, leb
         # hid under the pinned button column at 1680 px).
         muat = halaman.evaluate(_TABEL_MUAT)
         assert muat["lebar"] <= muat["kotak"], muat
+        # 40 px headroom: Linux fonts (factory kiosk, CI) run wider than macOS ones; CI once
+        # needed 19 px more than a Mac for the same table.
+        assert muat["perlu"] + 40 <= muat["kotak"], muat
         assert muat["neto"] <= muat["tombol"] + 1, muat
         assert muat["geser"] == 0, muat
     _tutup_tiket(halaman, konsol, tiket)
