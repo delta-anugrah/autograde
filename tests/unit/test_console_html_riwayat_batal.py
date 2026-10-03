@@ -125,3 +125,28 @@ def test_baris_riwayat_jam_dua_baris_seperti_tabel_timbangan():
     )
     assert hasil.count('class="sel-waktu"') == 2 and hasil.count('class="tgl"') == 2
     assert 'class="key">BE 1 AA<' in hasil and ">op@pks.test<" in hasil
+
+
+@butuh_node
+def test_oleh_menampilkan_nama_dan_email_jadi_title():
+    """Oleh = the stored name (user 2026-10-03); the email is the cell's `title`. No stored
+    name (an older row, an empty name) = the email, as before."""
+    dasar = 'plate_number:"BE 1 AA", arrived_at:null, cancelled_at:null, cancelled_by:"op@pks.test"'
+    nama = _jalankan(f'barisBatal({{{dasar}, cancelled_by_name:"Budi Santoso"}})',
+                     "waktu", "waktuDuaBaris", "barisBatal")
+    assert '<td title="op@pks.test">Budi Santoso</td>' in nama and ">op@pks.test<" not in nama
+    for kosong in ("null", '""', "undefined"):
+        tanpa = _jalankan(f"barisBatal({{{dasar}, cancelled_by_name:{kosong}}})",
+                          "waktu", "waktuDuaBaris", "barisBatal")
+        assert "<td>op@pks.test</td>" in tanpa and "title=" not in tanpa, kosong
+
+
+@butuh_node
+def test_nama_dan_email_lolos_esc():
+    hasil = _jalankan(
+        'barisBatal({plate_number:"BE 1 AA", arrived_at:null, cancelled_at:null,'
+        ' cancelled_by:"a\\"b<c>@x", cancelled_by_name:"<img src=x onerror=1>"})',
+        "waktu", "waktuDuaBaris", "barisBatal",
+    )
+    assert "<img" not in hasil and "&lt;img src=x onerror=1&gt;" in hasil
+    assert 'title="a&quot;b&lt;c&gt;@x"' in hasil and hasil.count("<td") == 4

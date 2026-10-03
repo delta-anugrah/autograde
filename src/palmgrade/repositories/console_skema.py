@@ -19,7 +19,8 @@ import sqlite3
 #: 1 = batch 4.5 (PR #213). 2 = `visit_assignments` + `idx_weighings_truck` (PR #208).
 #: 3 = `weighings.unloading_queue_skipped_at` + `idx_weighings_terbuka` (PR #212).
 #: 4 = `arrivals` + its three indexes + `weighings.left_at` (gate scans).
-#: 5 = `arrivals.cancelled_at` + `arrivals.cancelled_by` (Batal datang kept as history).
+#: 5 = `arrivals.cancelled_at` + `arrivals.cancelled_by` + `arrivals.cancelled_by_name`
+#:     (Batal datang kept as history; the name joined the same step before 5 shipped).
 VERSI_SKEMA = 5
 
 _CREATE_SQL = """
@@ -159,7 +160,8 @@ CREATE TABLE IF NOT EXISTS arrivals (
     arrived_at    TEXT NOT NULL,
     weighing_id   TEXT,
     cancelled_at  TEXT,
-    cancelled_by  TEXT
+    cancelled_by  TEXT,
+    cancelled_by_name TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_arrivals_menunggu ON arrivals (truck_id) WHERE weighing_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_arrivals_hari ON arrivals (work_date);
@@ -344,6 +346,8 @@ def _migrate(db: sqlite3.Connection) -> None:
         # Batal datang kept as history (2026-10-03). NULL = not cancelled.
         ("arrivals", "cancelled_at"),
         ("arrivals", "cancelled_by"),
+        # The operator's display name when the button was pressed. NULL = show the email.
+        ("arrivals", "cancelled_by_name"),
         # Konsol pabrik yang sudah jalan punya tabel `inspections` tanpa kolom ini;
         # `CREATE TABLE IF NOT EXISTS` di atas tidak akan menambahkannya. Baris lama
         # tetap NULL, sengaja: kelas aslinya memang tidak pernah direkam, dan

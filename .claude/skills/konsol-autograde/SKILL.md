@@ -45,7 +45,8 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   Timbangan, `hidden` selama `dibatalkan` (dari `GET /api/console/weighings`) kosong.
   `gambarRiwayatBatal` (dipanggil `muatTimbangan`) cuma menulis `#riwayat-batal-judul` dan
   `#riwayat-batal-isi` lewat `tulisKalauBeda`, tidak pernah `<details>`-nya, jadi buka/tutup
-  bertahan melewati poll 15 dtk; `barisBatal` = Plat, Jam datang, Jam dibatalkan, Oleh (email).
+  bertahan melewati poll 15 dtk; `barisBatal` = Plat, Jam datang, Jam dibatalkan, Oleh
+  (`cancelled_by_name`, nama yang disimpan saat batal, email jadi `title`; tanpa nama = email).
   Kolom terakhirnya dilepas dari paku `#sec-timbangan td:last-child`. KAMUS `riwayatBatalJudul`,
   `thJamDatang`, `thJamBatal`, `thOleh`. Tes: `test_console_html_riwayat_batal.py`,
   `tests/browser/test_browser_riwayat_batal.py`.

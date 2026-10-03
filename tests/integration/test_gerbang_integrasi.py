@@ -269,7 +269,7 @@ def test_batal_datang_lalu_datang_lagi_antre_dari_kedatangan_kedua(pabrik):
     service, gate, store, outbox = pabrik
     gate.arrive(PLAT, "2026-09-30T00:10:00+00:00")  # the wrong truck was picked
     [salah] = service.waiting_arrivals(baca_waktu("2026-09-30T00:15:00+00:00"))
-    assert gate.cancel_arrival(salah["id"], oleh="op@pks.test")["hasil"] == "dibatalkan"
+    assert gate.cancel_arrival(salah["id"], oleh="op@pks.test", nama="Operator Satu")["hasil"] == "dibatalkan"
     assert service.waiting_arrivals(baca_waktu("2026-09-30T00:20:00+00:00")) == []
 
     assert gate.arrive(PLAT, "2026-09-30T00:40:00+00:00")["hasil"] == "tercatat"
@@ -280,6 +280,7 @@ def test_batal_datang_lalu_datang_lagi_antre_dari_kedatangan_kedua(pabrik):
     # ticket's own and is not history.
     [riwayat] = service.kedatangan_dibatalkan(HARI)
     assert (riwayat["arrived_at"], riwayat["cancelled_by"]) == ("2026-09-30T00:10:00+00:00", "op@pks.test")
+    assert riwayat["cancelled_by_name"] == "Operator Satu"
     assert store.arrival(salah["id"])["weighing_id"] is None
 
     _kosong(service, "2026-09-30T01:00:00+00:00", "2026-09-30T02:00:00+00:00")

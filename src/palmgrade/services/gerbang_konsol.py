@@ -132,5 +132,6 @@ class GerbangKonsol:
 
     def kedatangan_dibatalkan(self, work_date: str) -> list[dict[str, Any]]:
         """The day's "Batal datang" history (round 4, 2026-10-03), newest first: plate, arrival
-        time, cancel time and the operator's email, as stored. The screen formats the times."""
+        time, cancel time, the operator's email and the name stored at cancel time (`None` =
+        none known, the screen falls back to the email). The screen formats the times."""
         return self.store.cancelled_arrivals(work_date)

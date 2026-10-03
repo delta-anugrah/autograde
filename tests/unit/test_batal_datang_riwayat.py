@@ -50,7 +50,7 @@ def store(tmp_path):
 
 def test_database_baru_punya_kolom_batal(tmp_path):
     ConsoleStore(tmp_path / "console.db")
-    assert {"cancelled_at", "cancelled_by"} <= _kolom(tmp_path / "console.db", "arrivals")
+    assert {"cancelled_at", "cancelled_by", "cancelled_by_name"} <= _kolom(tmp_path / "console.db", "arrivals")
 
 
 def test_database_versi_4_mendapat_kolom_batal_tanpa_kehilangan_kedatangan(tmp_path):
@@ -66,9 +66,30 @@ def test_database_versi_4_mendapat_kolom_batal_tanpa_kehilangan_kedatangan(tmp_p
                PRAGMA user_version = 4;"""
         )
     store = ConsoleStore(db_path)
-    assert {"cancelled_at", "cancelled_by"} <= _kolom(db_path, "arrivals")
+    assert {"cancelled_at", "cancelled_by", "cancelled_by_name"} <= _kolom(db_path, "arrivals")
     assert [a["id"] for a in store.waiting_arrivals_for_truck("t1")] == ["lama"]
     assert store.arrival("lama")["cancelled_at"] is None
+
+
+def test_database_versi_5_tanpa_nama_mendapat_kolomnya_dan_riwayat_lama_tetap(tmp_path):
+    """A console.db from this branch before the name column (a developer's, never a release):
+    already `user_version` 5, cancelled rows with the email only. The migration reads
+    `table_info`, not the number, so the column still arrives and the old row keeps its
+    email with no name."""
+    db_path = tmp_path / "console.db"
+    with sqlite3.connect(db_path) as db:
+        db.executescript(
+            f"""CREATE TABLE arrivals (id TEXT PRIMARY KEY, plate_number TEXT NOT NULL,
+                   plate_norm TEXT NOT NULL, truck_id TEXT NOT NULL, work_date TEXT NOT NULL,
+                   arrived_at TEXT NOT NULL, weighing_id TEXT, cancelled_at TEXT, cancelled_by TEXT);
+               INSERT INTO arrivals VALUES ('lama', 'BE 1 AA', 'BE1AA', 't1', '{HARI}',
+                   '{HARI}T00:30:00+00:00', NULL, '{JAM_BATAL}', '{OLEH}');
+               PRAGMA user_version = 5;"""
+        )
+    store = ConsoleStore(db_path)
+    assert "cancelled_by_name" in _kolom(db_path, "arrivals")
+    [r] = store.cancelled_arrivals(HARI)
+    assert (r["cancelled_by"], r["cancelled_by_name"]) == (OLEH, None)
 
 
 # ── store: cancel keeps the row ──────────────────────────────────────────────
@@ -158,16 +179,20 @@ def test_riwayat_batal_satu_hari_terbaru_dulu(store):
     _datang(store, "a2", truck="t2", plat="BE 2 BB", jam=f"{HARI}T00:20:00+00:00")
     _datang(store, "a3", truck="t3", plat="BE 3 CC")  # still waiting: not history
     _datang(store, "a4", truck="t4", plat="BE 4 DD", hari="2026-09-29", jam="2026-09-29T03:00:00+00:00")
-    store.cancel_arrival("a1", cancelled_at=f"{HARI}T00:50:00+00:00", cancelled_by=OLEH)
+    store.cancel_arrival("a1", cancelled_at=f"{HARI}T00:50:00+00:00", cancelled_by=OLEH,
+                         cancelled_by_name="Operator Gerbang")
     # Written by the seeder's offset: the real instant decides the order, not the text.
     store.cancel_arrival("a2", cancelled_at=f"{HARI}T07:45:00+07:00", cancelled_by="b@pks.test")
     store.cancel_arrival("a4", cancelled_at="2026-09-29T03:10:00+00:00", cancelled_by=OLEH)
 
     riwayat = store.cancelled_arrivals(HARI)
     assert [r["plate_number"] for r in riwayat] == ["BE 1 AA", "BE 2 BB"]
-    assert set(riwayat[0]) == {"plate_number", "arrived_at", "cancelled_at", "cancelled_by"}
+    assert set(riwayat[0]) == {"plate_number", "arrived_at", "cancelled_at", "cancelled_by", "cancelled_by_name"}
     assert riwayat[0] == {"plate_number": "BE 1 AA", "arrived_at": f"{HARI}T00:10:00+00:00",
-                          "cancelled_at": f"{HARI}T00:50:00+00:00", "cancelled_by": OLEH}
+                          "cancelled_at": f"{HARI}T00:50:00+00:00", "cancelled_by": OLEH,
+                          "cancelled_by_name": "Operator Gerbang"}
+    # No name given: stored as NULL, the email stays the identity.
+    assert (riwayat[1]["cancelled_by"], riwayat[1]["cancelled_by_name"]) == ("b@pks.test", None)
     assert [r["plate_number"] for r in store.cancelled_arrivals("2026-09-29")] == ["BE 4 DD"]
 
 
@@ -208,4 +233,32 @@ def test_layanan_riwayat_batal_hari_kerja(konsol):
     gate.cancel_arrival(a["id"], oleh=OLEH)
     [r] = service.kedatangan_dibatalkan("2026-10-01")
     assert (r["plate_number"], r["arrived_at"], r["cancelled_by"]) == ("BE7742ZB", "2026-10-01T01:00:00Z", OLEH)
+    assert r["cancelled_by_name"] is None
     assert service.kedatangan_dibatalkan("2026-10-02") == []
+
+
+def test_nama_operator_disimpan_saat_batal_dan_bertahan_sesudah_akun_dihapus(konsol, store):
+    """The name is a snapshot (user 2026-10-03): renaming or deleting the account later does
+    not change who the history says pressed the button. The email stays next to it."""
+    service, gate = konsol
+    store.upsert_operator_manual({"email": OLEH, "full_name": "Budi Santoso", "password_hash": "x"})
+    gate.arrive("BE 7742 ZB", "2026-10-01T01:00:00Z")
+    [a] = service.waiting_arrivals(baca_waktu("2026-10-01T01:05:00Z"))
+    gate.cancel_arrival(a["id"], oleh=OLEH, nama="  Budi   Santoso ")
+
+    store.upsert_operator_manual({"email": OLEH, "full_name": "Nama Baru", "password_hash": "x"})
+    [r] = service.kedatangan_dibatalkan("2026-10-01")
+    assert (r["cancelled_by"], r["cancelled_by_name"]) == (OLEH, "Budi Santoso")
+    with store._lock, store._db:
+        store._db.execute("DELETE FROM operators WHERE email = ?", (OLEH,))
+    [r] = service.kedatangan_dibatalkan("2026-10-01")
+    assert (r["cancelled_by"], r["cancelled_by_name"]) == (OLEH, "Budi Santoso")
+
+
+@pytest.mark.parametrize("nama", [None, "", "   "])
+def test_nama_kosong_disimpan_null(konsol, store, nama):
+    service, gate = konsol
+    gate.arrive("BE 7742 ZB", "2026-10-01T01:00:00Z")
+    [a] = service.waiting_arrivals(baca_waktu("2026-10-01T01:05:00Z"))
+    gate.cancel_arrival(a["id"], oleh=OLEH, nama=nama)
+    assert store.arrival(a["id"])["cancelled_by_name"] is None

@@ -249,7 +249,10 @@ pabrik, tidak dikirim ke AutoERP.
 Pembatalan tidak hilang begitu saja: di bawah tabel Timbangan muncul baris **Kedatangan
 dibatalkan (n)** begitu hari itu punya satu pembatalan atau lebih (selama belum ada, baris itu
 tidak tampil). Klik untuk membuka tabel kecil berisi **Plat**, **Jam datang**, **Jam dibatalkan**
-dan **Oleh** (email operator yang menekan Batal datang), yang terakhir dibatalkan paling atas.
+dan **Oleh** (nama operator yang menekan Batal datang, seperti tercatat saat itu; emailnya
+muncul kalau kursor diarahkan ke nama, dan dipakai sebagai gantinya kalau namanya tidak
+tercatat), yang terakhir dibatalkan paling atas. Nama itu tidak berubah walau akunnya kemudian
+diganti nama atau dihapus.
 Tabel itu tetap terbuka atau tertutup seperti yang dipilih walau layar menyegarkan diri tiap 15
 detik.
 

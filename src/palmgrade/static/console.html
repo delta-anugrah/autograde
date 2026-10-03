@@ -6317,13 +6317,18 @@ function gambarRiwayatBatal(daftar) {
 }
 
 // Satu kedatangan yang dibatalkan. Jamnya dua baris seperti kolom jam tabel di atasnya;
-// `Oleh` adalah email operator yang menekan tombolnya, apa adanya.
+// `Oleh` adalah NAMA operator yang menekan tombolnya, seperti tersimpan saat itu
+// (`cancelled_by_name`); emailnya jadi `title`. Tanpa nama tersimpan (baris lama, nama
+// kosong) yang tampil emailnya.
 function barisBatal(r) {
+  const oleh = r.cancelled_by_name
+    ? `<td title="${esc(r.cancelled_by || "")}">${esc(r.cancelled_by_name)}</td>`
+    : `<td>${dash(r.cancelled_by)}</td>`;
   return `<tr>
     <td class="key">${dash(r.plate_number)}</td>
     <td class="sel-waktu">${r.arrived_at ? waktuDuaBaris(r.arrived_at) : KOSONG}</td>
     <td class="sel-waktu">${r.cancelled_at ? waktuDuaBaris(r.cancelled_at) : KOSONG}</td>
-    <td>${dash(r.cancelled_by)}</td>
+    ${oleh}
   </tr>`;
 }
 

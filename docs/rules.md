@@ -1216,7 +1216,14 @@ end of this file.
     kunci `GateService`. Cuma yang masih menunggu (`weighing_id` kosong); selain itu dijawab
     `tidak_ada`, bukan galat. **Disimpan sebagai riwayat** (round 4, user 2026-10-03: "riwayat
     pembatalan yang bisa dilihat"): barisnya tidak dihapus, tapi diberi `cancelled_at` (jam server)
-    dan `cancelled_by` (email operator), skema `console.db` versi 5. Akibatnya setiap pembaca
+    dan `cancelled_by` (email operator), skema `console.db` versi 5. **Nama operator disimpan
+    saat itu juga** di `cancelled_by_name` (kolom ketiga di langkah skema 5 yang sama, karena 5
+    belum pernah dirilis): panel menampilkan nama, bukan email, dan nama itu salinan saat
+    tombol ditekan, tidak dicari ulang dari tabel `operators` saat dibaca. Alasannya: akun lokal
+    yang dihapus benar-benar hilang dan akun AutoERP bisa berganti nama lewat sinkron, sedangkan
+    riwayat harus tetap menyebut orang yang menekan tombol. Email tetap disimpan sebagai
+    identitas; `cancelled_by_name` kosong (nama tak diketahui) = layar menampilkan emailnya.
+    Akibatnya setiap pembaca
     kedatangan MENUNGGU wajib menyaring `cancelled_at IS NULL` (`waiting_arrivals`,
     `waiting_arrivals_for_truck`, `claim_arrival`, `jejak_truk` di
     `repositories/console_gerbang_repository.py`; masing-masing punya tes di

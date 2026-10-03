@@ -217,8 +217,10 @@ def test_riwayat_batal_datang_lewat_rute(klien):
     klien.post(f"/api/console/arrivals/{a['id']}/cancel")
 
     [r] = klien.get("/api/console/weighings", params={"work_date": hari}).json()["dibatalkan"]
-    assert set(r) == {"plate_number", "arrived_at", "cancelled_at", "cancelled_by"}
+    assert set(r) == {"plate_number", "arrived_at", "cancelled_at", "cancelled_by", "cancelled_by_name"}
     assert (r["plate_number"], r["arrived_at"], r["cancelled_by"]) == (PLAT, datang, EMAIL)
+    # The session's display name, stored with the cancel; the email stays as the identity.
+    assert r["cancelled_by_name"] == "Operator Gerbang"
     assert datetime.fromisoformat(r["cancelled_at"]) >= datetime.fromisoformat(datang)
     # Another day's table carries none of it.
     assert klien.get("/api/console/weighings", params={"work_date": "2020-01-01"}).json()["dibatalkan"] == []

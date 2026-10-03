@@ -328,7 +328,7 @@ def console_arrival_cancel(arrival_id: str, gate: Gate, operator: Operator) -> d
     `dibatalkan` or `tidak_ada` (already weighed in, already cancelled, unknown id), both
     200: a second press or a race with the weigh-in is not an error. Never reaches AutoERP.
     """
-    return gate.cancel_arrival(arrival_id, oleh=operator["email"])
+    return gate.cancel_arrival(arrival_id, oleh=operator["email"], nama=operator.get("full_name"))
 
 
 @router.post("/api/console/departures")

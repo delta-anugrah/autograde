@@ -42,9 +42,10 @@ def _ganti_daftar_batal(halaman, wadah: dict) -> None:
     halaman.route(_RUTE_TIMBANGAN, ganti)
 
 
-def _baris_palsu(nomor: str, oleh: str = "op@pks.test") -> dict:
+def _baris_palsu(nomor: str, oleh: str = "op@pks.test", nama: str | None = None) -> dict:
     jam = datetime.now(UTC).replace(microsecond=0).isoformat()
-    return {"plate_number": nomor, "arrived_at": jam, "cancelled_at": jam, "cancelled_by": oleh}
+    return {"plate_number": nomor, "arrived_at": jam, "cancelled_at": jam, "cancelled_by": oleh,
+            "cancelled_by_name": nama}
 
 
 def test_cancel_through_the_ui_lists_plate_times_and_operator(halaman, konsol, browser_name, penugasan_bersih):
@@ -73,7 +74,11 @@ def test_cancel_through_the_ui_lists_plate_times_and_operator(halaman, konsol, b
     expect(sel.nth(0)).to_have_text(nomor)
     expect(sel.nth(1)).to_have_text(halaman.evaluate("(iso) => waktu(iso)", simpan["arrived_at"]))
     expect(sel.nth(2)).to_have_text(halaman.evaluate("(iso) => waktu(iso)", simpan["cancelled_at"]))
-    expect(sel.nth(3)).to_have_text(OPERATOR[0])
+    # Oleh = the operator's NAME as stored with the cancel; the email is the cell's title.
+    assert simpan["cancelled_by"] == OPERATOR[0]
+    assert simpan["cancelled_by_name"] and simpan["cancelled_by_name"] != OPERATOR[0], simpan
+    expect(sel.nth(3)).to_have_text(simpan["cancelled_by_name"])
+    expect(sel.nth(3)).to_have_attribute("title", OPERATOR[0])
     # Not the pinned row-button column of the table above (round 3 trap: global rules on cells).
     assert sel.nth(3).evaluate("(el) => getComputedStyle(el).position") == "static"
 
@@ -113,4 +118,11 @@ def test_open_panel_stays_open_across_polls_and_escapes_server_text(halaman, bro
 
     oleh = halaman.locator("#riwayat-batal-isi tr", has_text=satu["plate_number"]).locator("td").nth(3)
     expect(oleh).to_have_text(satu["cancelled_by"])
+    # A row with a stored name shows the name, also as text and never as markup.
+    bernama = _baris_palsu(plat(browser_name, 1405), nama='<img src=x onerror="window.kena=2">')
+    wadah["daftar"] = [bernama]
+    halaman.evaluate("() => muatTimbangan()")
+    oleh = halaman.locator("#riwayat-batal-isi tr", has_text=bernama["plate_number"]).locator("td").nth(3)
+    expect(oleh).to_have_text(bernama["cancelled_by_name"])
+    expect(oleh).to_have_attribute("title", "op@pks.test")
     assert halaman.evaluate("() => window.kena") is None

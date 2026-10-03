@@ -30,7 +30,8 @@ class GerbangStore:
             )
 
     def cancel_arrival(
-        self, arrival_id: str, *, cancelled_at: str, cancelled_by: str
+        self, arrival_id: str, *, cancelled_at: str, cancelled_by: str,
+        cancelled_by_name: str | None = None,
     ) -> dict[str, Any] | None:
         """"Batal datang": mark one arrival that is still WAITING; the row, or None.
 
@@ -39,12 +40,17 @@ class GerbangStore:
         arrival below says `cancelled_at IS NULL`. `weighing_id IS NULL` in the same
         statement: a weigh-in that claimed it a moment earlier keeps it, and a second cancel
         keeps the first one's time and operator.
+
+        `cancelled_by` is the operator's email (identity); `cancelled_by_name` is the display
+        name AT THAT MOMENT, a snapshot: an account renamed or deleted later (a local account
+        is deleted for real, an AutoERP one disappears with the next sync) still reads as
+        the person who pressed the button. NULL = no name known, the screen shows the email.
         """
         with self._lock, self._db:
             cur = self._db.execute(
-                """UPDATE arrivals SET cancelled_at = ?, cancelled_by = ?
+                """UPDATE arrivals SET cancelled_at = ?, cancelled_by = ?, cancelled_by_name = ?
                     WHERE id = ? AND weighing_id IS NULL AND cancelled_at IS NULL""",
-                (cancelled_at, cancelled_by, arrival_id),
+                (cancelled_at, cancelled_by, cancelled_by_name, arrival_id),
             )
             if cur.rowcount != 1:
                 return None
@@ -59,7 +65,8 @@ class GerbangStore:
         """
         with self._lock:
             rows = self._db.execute(
-                """SELECT plate_number, arrived_at, cancelled_at, cancelled_by FROM arrivals
+                """SELECT plate_number, arrived_at, cancelled_at, cancelled_by, cancelled_by_name
+                     FROM arrivals
                    WHERE work_date = ? AND cancelled_at IS NOT NULL
                    ORDER BY julianday(cancelled_at) DESC, rowid DESC""",
                 (work_date,),

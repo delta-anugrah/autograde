@@ -131,16 +131,19 @@ class GateService:
         })
         return {"hasil": TERCATAT, "plate_number": tampil, "arrived_at": waktu}
 
-    def cancel_arrival(self, arrival_id: str, oleh: str) -> dict[str, Any]:
+    def cancel_arrival(self, arrival_id: str, oleh: str, nama: str | None = None) -> dict[str, Any]:
         """"Batal datang" (2026-10-03): the truck will not be weighed (wrong truck picked, or
         turned away at the gate). Only a waiting arrival; otherwise `tidak_ada`, an answer.
 
         The row is kept with who cancelled it and when (round 4): the Timbangan tab lists it.
         The time is the server's: the button sends no clock, and nothing is computed from it.
+        `oleh` is the operator's email (identity), `nama` the display name as the session
+        knows it now; stored as a snapshot so the history outlives a renamed or deleted account.
         """
         with self._kunci:
             row = self.store.cancel_arrival(
-                arrival_id, cancelled_at=datetime.now(UTC).isoformat(), cancelled_by=oleh
+                arrival_id, cancelled_at=datetime.now(UTC).isoformat(), cancelled_by=oleh,
+                cancelled_by_name=" ".join(str(nama or "").split()) or None,
             )
         if row is None:
             return {"hasil": TIDAK_ADA}
