@@ -11,6 +11,8 @@ once (one registered through the API would wait for the 60 s poll).
 
 from __future__ import annotations
 
+import re
+
 from langkah import OPERATOR, SUPPORT, buka_tab, kamus, keluar, masuk, plat
 from playwright.sync_api import expect
 
@@ -158,7 +160,11 @@ def test_the_next_truck_waits_until_the_first_is_weighed_out(halaman, konsol, br
     strip = halaman.locator("#antrean-bongkar")
     expect(strip).to_contain_text(kamus(halaman, "antreanBongkarOtomatis"))
     expect(_antre(halaman, b).locator('button[data-aksi="pasang"]')).to_have_text(kamus(halaman, "btnTugaskanSekarang"))
-    expect(_antre(halaman, b).locator('button[data-aksi="lewati"]')).to_have_text(kamus(halaman, "btnLewati"))
+    lewati = _antre(halaman, b).locator('button[data-aksi="lewati"]')
+    expect(lewati).to_have_text(kamus(halaman, "btnLewati"))
+    # Red danger button (user 2026-10-03): the truck leaves the queue, behind a confirm.
+    expect(lewati).to_have_class(re.compile(r"\bbahaya\b"))
+    expect(_antre(halaman, b).locator('button[data-aksi="pasang"]')).not_to_have_class(re.compile(r"\bbahaya\b"))
     for kode in _DUA_LINE:
         expect(_kartu(halaman, kode).locator(".truk")).to_contain_text(a)
 

@@ -110,13 +110,14 @@ def test_arrival_by_picker_then_weigh_in_shows_queue_minutes(halaman, browser_na
     expect(halaman.locator("#datang")).to_be_enabled()
     halaman.click("#datang")
     expect(halaman.locator("#toasts")).to_contain_text(f"{kamus(halaman, 'sukDatang')} {nomor}")
-    expect(halaman.locator("#antre")).to_contain_text(nomor)
+    # The badge counts, the plates are in its title (user 2026-10-03: the long sentence went).
+    expect(halaman.locator("#antre")).to_have_attribute("title", re.compile(re.escape(nomor)))
     # The picker empties once the arrival is recorded, so a second press cannot repeat it.
     expect(halaman.locator("#plat-datang")).to_have_attribute("data-nilai", "")
     expect(halaman.locator("#datang")).to_be_disabled()
 
     _isi(halaman, nomor)
-    expect(halaman.locator("#antre")).not_to_contain_text(nomor)
+    expect(halaman.locator("#antre")).not_to_have_attribute("title", re.compile(re.escape(nomor)))
     sel = _baris(halaman, nomor).locator("td")
     expect(sel.nth(_ANTRE)).to_have_text(halaman.evaluate("() => teksMenit(0)"))
     expect(sel.nth(_ANTRE)).to_have_attribute("title", re.compile("^" + re.escape(kamus(halaman, "jamDatang"))))
@@ -229,7 +230,9 @@ def _tutup_tiket(halaman, konsol, tiket: dict) -> None:
     assert r.status == 200 and r.json()["hasil"] == "tercatat", r.text()
 
 
-_LEBAR = (1024, 1280, 1440, 1920)
+_LEBAR = (390, 1024, 1280, 1331, 1440, 1680, 1920)
+# Below this the 12-column table scrolls sideways inside its own box (a phone).
+_LEBAR_TABEL_PENUH = 1024
 
 
 @pytest.mark.parametrize("lebar", _LEBAR)
@@ -239,65 +242,98 @@ def test_the_four_steps_never_scroll_sideways(halaman, konsol, browser_name, leb
     tiket = _tiket_terbuka(halaman, konsol, plat(browser_name, 1205 + _LEBAR.index(lebar)))
     buka_tab(halaman, "timbangan")
     halaman.evaluate("() => muatTimbangan()")
-    # The row button is the operator's only per-row action without a scanner: on screen
-    # without scrolling the table sideways (12 columns are wider than 1280 and 1440 px).
     tombol = _baris(halaman, tiket["plate_number"]).locator('button[data-aksi="keluar"]')
     expect(tombol).to_have_count(1)
-    tombol.evaluate("(el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 200)")
-    assert halaman.evaluate("() => document.querySelector('#sec-timbangan .tabel').scrollLeft") == 0
-    expect(tombol).to_be_in_viewport(ratio=1)
+    if lebar >= _LEBAR_TABEL_PENUH:
+        # The row button is the operator's only per-row action without a scanner: on screen
+        # without scrolling the table sideways (12 columns are wider than 1280 and 1440 px).
+        tombol.evaluate("(el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 200)")
+        assert halaman.evaluate("() => document.querySelector('#sec-timbangan .tabel').scrollLeft") == 0
+        expect(tombol).to_be_in_viewport(ratio=1)
     _tutup_tiket(halaman, konsol, tiket)
     ukuran = halaman.evaluate("() => [document.documentElement.scrollWidth, window.innerWidth]")
     assert ukuran[0] <= ukuran[1], f"Timbangan is {ukuran[0]} px wide on a {ukuran[1]} px screen"
-    # Each step is its own card (user 2026-10-02: the four columns split by thin lines read
-    # as "jelek banget"): stacked one under the other below 1331 px, side by side above.
-    kartu = halaman.evaluate(_KARTU_LANGKAH)
-    assert len(kartu) == 4, kartu
-    if lebar <= 1330:
-        assert [k["top"] for k in kartu] == sorted({k["top"] for k in kartu}), kartu
-        assert len({k["width"] for k in kartu}) == 1, kartu
-    else:
-        assert len({k["top"] for k in kartu}) == 1, kartu
-        assert max(k["height"] for k in kartu) - min(k["height"] for k in kartu) <= 1, kartu
-        # One row from 1331 px (user 2026-10-02: at 1440 "4. Keluar" wrapped to a second row).
-        atas = halaman.evaluate(_ATAS_LANGKAH)
-        assert len(set(atas)) == 1, atas
-        # The paid action reads left to right on ONE line: plate, Bruto, Timbang isi.
-        baris_isi = halaman.evaluate(_ATAS_ISI)
-        assert len(set(baris_isi)) == 1, baris_isi
-    # The decimal hint sits inside step 2, right under the Bruto field (it used to float
-    # at the end of the toolbar, next to "4. Keluar").
-    letak = halaman.evaluate(_LETAK_PETUNJUK)
-    assert letak["diLangkah2"], letak
-    assert letak["petunjuk"]["top"] >= letak["bruto"]["bottom"] - 1, letak
-    assert abs(letak["petunjuk"]["left"] - letak["bruto"]["left"]) <= 1, letak
+    # Nothing in the step area pokes out of its own box (a pill wider than its segment).
+    luber = halaman.evaluate(_LUBER)
+    assert not luber, luber
 
 
-_KARTU_LANGKAH = """() => [...document.querySelectorAll('#sec-timbangan .timbang-sisi')].map((el) => {
-  const r = el.getBoundingClientRect();
-  return {top: Math.round(r.top), height: Math.round(r.height), width: Math.round(r.width)};
-})"""
-_ATAS_LANGKAH = """() => ['lbDatang', 'lbGerbangMasuk', 'lbGerbangKeluar', 'lbPergi']
-  .map((k) => Math.round(document.querySelector(`#sec-timbangan [data-t="${k}"]`).getBoundingClientRect().top))"""
-_ATAS_ISI = """() => ['#plat-timbang', '#bruto', '#masuk']
-  .map((sel) => Math.round(document.querySelector(sel).getBoundingClientRect().top))"""
-_LETAK_PETUNJUK = """() => {
-  const petunjuk = document.querySelector('#sec-timbangan [data-t="hintDesimal"]');
-  const kotak = (el) => { const r = el.getBoundingClientRect(); return {top: r.top, bottom: r.bottom, left: r.left}; };
-  return {diLangkah2: Boolean(petunjuk.closest('.timbang-sisi').querySelector('[data-t="lbGerbangMasuk"]')),
-          petunjuk: kotak(petunjuk), bruto: kotak(document.querySelector('#bruto'))};
+# Every element of the step area whose right edge passes its segment, form or bar.
+_LUBER = """() => {
+  const keluar = [];
+  document.querySelectorAll('#sec-timbangan .langkah-ruas, #sec-timbangan .timbang-form, #tara-grup')
+    .forEach((kotak) => {
+      const k = kotak.getBoundingClientRect();
+      kotak.querySelectorAll('*').forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width && r.right > k.right + 1) keluar.push([el.id || el.className, Math.round(r.right), Math.round(k.right)]);
+      });
+    });
+  return keluar;
 }"""
 
+# Boxes of the step area: the four segments, the two forms, the controls of each form.
+_KOTAK_LANGKAH = """() => {
+  const kotak = (el) => { const r = el.getBoundingClientRect();
+    return {left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width),
+            height: Math.round(r.height), bottom: Math.round(r.bottom)}; };
+  const semua = (sel) => [...document.querySelectorAll(sel)].map(kotak);
+  return {ruas: semua('#sec-timbangan .langkah-ruas'), form: semua('#sec-timbangan .timbang-form'),
+          kontrol: semua('#sec-timbangan .timbang-kontrol > :not([hidden])'),
+          tombol: semua('#datang, #masuk')};
+}"""
+_SELISIH_PX = 2
 
-# Where each step starts inside the toolbar: label, picker, weight field and button of steps
-# 2 to 4. Relative to the toolbar, because the page above it (line cards, the scroll) moves
-# on its own between two polls.
+
+def _sama(nilai: list[int]) -> bool:
+    return max(nilai) - min(nilai) <= _SELISIH_PX
+
+
+@pytest.mark.parametrize("lebar", (1440, 1680))
+def test_steps_and_forms_are_equal_width_and_height(halaman, lebar):
+    """User 2026-10-03: "width beda2, height juga". Four segments of one width and height on
+    one row, two forms of one width and height side by side, every control one height and the
+    two main buttons one width."""
+    halaman.set_viewport_size({"width": lebar, "height": 900})
+    masuk(halaman, OPERATOR)
+    buka_tab(halaman, "timbangan")
+    k = halaman.evaluate(_KOTAK_LANGKAH)
+    assert len(k["ruas"]) == 4 and len(k["form"]) == 2, k
+    assert len({r["top"] for r in k["ruas"]}) == 1, k["ruas"]
+    assert _sama([r["width"] for r in k["ruas"]]) and _sama([r["height"] for r in k["ruas"]]), k["ruas"]
+    assert len({f["top"] for f in k["form"]}) == 1, k["form"]
+    assert _sama([f["width"] for f in k["form"]]) and _sama([f["height"] for f in k["form"]]), k["form"]
+    assert _sama([c["height"] for c in k["kontrol"]]), k["kontrol"]
+    assert len({c["top"] for c in k["kontrol"]}) == 1, k["kontrol"]
+    assert _sama([b["width"] for b in k["tombol"]]), k["tombol"]
+    # The decimal hint is under form 2, where Bruto is, and nothing of it sits inside a form.
+    petunjuk = halaman.locator("#bruto-petunjuk").bounding_box()
+    assert petunjuk["y"] >= k["form"][1]["bottom"] - 1, (petunjuk, k["form"])
+    assert abs(petunjuk["x"] - k["form"][1]["left"]) <= _SELISIH_PX, (petunjuk, k["form"])
+    expect(halaman.locator("#bruto")).to_have_attribute("title", kamus(halaman, "hintDesimal"))
+
+
+def test_steps_and_forms_stack_on_a_phone(halaman):
+    halaman.set_viewport_size({"width": 390, "height": 900})
+    masuk(halaman, OPERATOR)
+    buka_tab(halaman, "timbangan")
+    k = halaman.evaluate(_KOTAK_LANGKAH)
+    for kelompok in ("ruas", "form"):
+        atas = [r["top"] for r in k[kelompok]]
+        assert atas == sorted(set(atas)), k[kelompok]
+        assert _sama([r["width"] for r in k[kelompok]]), k[kelompok]
+    assert k["ruas"][-1]["bottom"] <= k["form"][0]["top"], k
+
+
+# Where each control of the step area sits inside the toolbar. Relative to the toolbar, because
+# the page above it (line cards, the scroll) moves on its own between two polls.
 _POSISI_LANGKAH = """() => {
   const alat = document.querySelector('#sec-timbangan .timbang-alat').getBoundingClientRect();
-  return ['[data-t="lbGerbangMasuk"]', '#plat-timbang', '#bruto', '#masuk',
-          '[data-t="lbGerbangKeluar"]', '[data-t="lbPergi"]']
+  return ['[data-t="lbDatang"]', '[data-t="lbGerbangMasuk"]', '[data-t="lbGerbangKeluar"]',
+          '[data-t="lbPergi"]', '#plat-datang', '#datang', '#plat-timbang', '#bruto', '#masuk']
     .map((sel) => { const r = document.querySelector('#sec-timbangan ' + sel).getBoundingClientRect();
-                    return [sel, Math.round(r.left - alat.left), Math.round(r.top - alat.top)]; });
+                    return [sel, Math.round(r.left - alat.left), Math.round(r.top - alat.top),
+                            Math.round(r.width), Math.round(r.height)]; });
 }"""
 
 
@@ -306,56 +342,38 @@ _LEBAR_ANTRE = (1024, 1440, 1920)
 
 @pytest.mark.parametrize("lebar", _LEBAR_ANTRE)
 def test_the_waiting_list_never_moves_the_other_steps(halaman, konsol, browser_name, lebar, penugasan_bersih):
-    """`#antre` under step 1 changes on every 15 s poll ("Menunggu timbang (n): ..."). It never
-    widens or heightens step 1 (a fixed two-line box, cut inside it), so steps 2 to 4 stay where
-    the operator's hand is, side by side or stacked (Q6)."""
+    """The Menunggu badge in step 1 changes on every 15 s poll. It is one line that never
+    wraps (cut inside its segment when narrow), so no segment, form or control moves (Q6)."""
     halaman.set_viewport_size({"width": lebar, "height": 900})
     masuk(halaman, OPERATOR)
     buka_tab(halaman, "timbangan")
     halaman.evaluate("() => muatTimbangan()")
-    expect(halaman.locator("#antre")).to_have_text("")
+    lencana = halaman.locator("#antre")
+    expect(lencana).to_be_hidden()
     sebelum = halaman.evaluate(_POSISI_LANGKAH)
 
     nomor = [plat(browser_name, 1221 + 3 * _LEBAR_ANTRE.index(lebar) + i) for i in range(3)]
     try:
         for n in nomor:
-            r = halaman.request.post(konsol.url + "/api/console/trucks", data={"plate_number": n})
-            assert r.status == 201, r.text()
-            jam = halaman.evaluate("() => new Date().toISOString()")
-            r = halaman.request.post(konsol.url + "/api/console/arrivals", data={"qr": n, "at": jam})
-            assert r.status == 200 and r.json()["hasil"] == "tercatat", r.text()
+            _datang_api(halaman, konsol, n)
         halaman.evaluate("() => muatTimbangan()")
+        expect(lencana).to_be_visible()
+        expect(lencana).to_have_text(kamus(halaman, "antreLencana").replace("{n}", "3"))
         for n in nomor:
-            expect(halaman.locator("#antre")).to_contain_text(n)
-            # Two lines, cut when longer: the whole list is also in the tooltip.
-            expect(halaman.locator("#antre")).to_have_attribute("title", re.compile(re.escape(n)))
-
+            # Only the count on the badge; the plates are in its title.
+            expect(lencana).to_have_attribute("title", re.compile(re.escape(n)))
         assert halaman.evaluate(_POSISI_LANGKAH) == sebelum
-        lebar_antre, lebar_sisi = halaman.evaluate(
-            "() => [document.querySelector('#antre').getBoundingClientRect().width,"
-            " document.querySelector('#antre').parentElement.getBoundingClientRect().width]"
-        )
-        assert lebar_antre <= lebar_sisi, (lebar_antre, lebar_sisi)
-        # Readable from a distance: two lines of text, never one, and the box never grows.
-        tinggi, baris = halaman.evaluate(
-            "() => { const el = document.querySelector('#antre'), g = getComputedStyle(el);"
-            " return [el.getBoundingClientRect().height, parseFloat(g.lineHeight)]; }"
-        )
-        assert round(tinggi / baris) == 2, (tinggi, baris)
+        ruas = lencana.evaluate("(el) => [el.getBoundingClientRect().right,"
+                                " el.closest('.langkah-ruas').getBoundingClientRect().right]")
+        assert ruas[0] <= ruas[1], ruas
     finally:
         # Every arrival is claimed by a weigh-in, then weighed out and gone: the console is
         # shared by the whole session, a leftover would sit in the next test's waiting list.
         for n in nomor:
-            masuk_pada = halaman.evaluate("() => new Date().toISOString()")
-            halaman.request.post(konsol.url + "/api/console/trucks", data={"plate_number": n})
-            r = halaman.request.post(konsol.url + "/api/console/weighings",
-                                     data={"plate_number": n, "gross_kg": "14000", "entered_at": masuk_pada})
-            assert r.status == 201, r.text()
-            tiket = next(w for w in halaman.request.get(konsol.url + "/api/console/weighings").json()["items"]
-                         if w["plate_number"] == n)
-            _tutup_tiket(halaman, konsol, tiket)
+            _selesaikan(halaman, konsol, n)
     halaman.evaluate("() => muatTimbangan()")
-    expect(halaman.locator("#antre")).to_have_text("")
+    expect(lencana).to_be_hidden()
+    assert halaman.evaluate(_POSISI_LANGKAH) == sebelum
 
 
 def _datang_api(halaman, konsol, nomor: str) -> None:
@@ -500,51 +518,81 @@ def test_a_poll_never_takes_the_weigh_in_picker_from_the_operator(halaman, konso
             _selesaikan(halaman, konsol, n)
 
 
-_LEBAR_KARTU = (1200, 1440)
-_SEJAJAR_PX = 2
+_LEBAR_TARA = (390, 1440, 1680)
 _KOTAK = """(sel) => sel.map((s) => { const r = document.querySelector(s).getBoundingClientRect();
-  return {top: Math.round(r.top), height: Math.round(r.height)}; })"""
+  return {top: Math.round(r.top), height: Math.round(r.height), width: Math.round(r.width)}; })"""
+_TARA = ["#tara-nilai", "#tara-simpan", "#tara-batal"]
 
 
-@pytest.mark.parametrize("lebar", _LEBAR_KARTU)
-def test_step_cards_and_the_tara_form_line_up(halaman, konsol, browser_name, lebar, penugasan_bersih):
-    """User 2026-10-02: four tidy steps, one button component, and the step 3 buttons no
-    longer stacked full width under the tare field ("berantakan")."""
+@pytest.mark.parametrize("lebar", _LEBAR_TARA)
+def test_the_tara_bar_opens_under_the_forms_on_one_row(halaman, konsol, browser_name, lebar, penugasan_bersih):
+    """User 2026-10-03: Timbang kosong on a row opens a full-width bar in the step 3 colour
+    under the two forms: plate, Tara, Simpan, Batal on one row, as tall as the form controls.
+    Step 3 lights up while it is open; Batal closes it and the stripe is plain again."""
     halaman.set_viewport_size({"width": lebar, "height": 900})
     masuk(halaman, OPERATOR)
-    tiket = _tiket_terbuka(halaman, konsol, plat(browser_name, 1261 + _LEBAR_KARTU.index(lebar)))
+    tiket = _tiket_terbuka(halaman, konsol, plat(browser_name, 1261 + _LEBAR_TARA.index(lebar)))
     try:
         buka_tab(halaman, "timbangan")
         halaman.evaluate("() => muatTimbangan()")
         utama, bahaya = re.compile(r"\butama\b"), re.compile(r"\bbahaya\b")
-        # Catat datang is the same primary button as Timbang isi.
+        aktif = re.compile(r"\baktif\b")
         expect(halaman.locator("#datang")).to_have_class(utama)
         expect(halaman.locator("#masuk")).to_have_class(utama)
-        expect(halaman.locator("#petunjuk-keluar")).to_be_visible()
+        expect(halaman.locator("#ruas-kosong")).not_to_have_class(aktif)
 
         _baris(halaman, tiket["plate_number"]).locator('button[data-aksi="keluar"]').click()
         expect(halaman.locator("#tara-grup")).to_be_visible()
         expect(halaman.locator("#tara-plat")).to_have_text(tiket["plate_number"])
-        # The hint pointed at the row; with the form open it would only be in the way.
-        expect(halaman.locator("#petunjuk-keluar")).to_be_hidden()
+        expect(halaman.locator("#tara-nilai")).to_be_focused()
         expect(halaman.locator("#tara-simpan")).to_have_class(utama)
         expect(halaman.locator("#tara-batal")).to_have_class(bahaya)
+        expect(halaman.locator("#ruas-kosong")).to_have_class(aktif)
 
-        kartu = halaman.evaluate(_KARTU_LANGKAH)
-        if lebar == 1440:
-            assert len({k["top"] for k in kartu}) == 1, kartu
-            assert max(k["height"] for k in kartu) - min(k["height"] for k in kartu) <= 1, kartu
-            # Tara, Simpan, Batal on ONE row, as tall as step 2's controls, and level with them.
-            tara = halaman.evaluate(_KOTAK, ["#tara-nilai", "#tara-simpan", "#tara-batal", "#bruto", "#masuk"])
-            assert max(k["top"] for k in tara) - min(k["top"] for k in tara) <= _SEJAJAR_PX, tara
-            assert max(k["height"] for k in tara) - min(k["height"] for k in tara) <= _SEJAJAR_PX, tara
-        else:
-            assert [k["top"] for k in kartu] == sorted({k["top"] for k in kartu}), kartu
-            assert len({k["width"] for k in kartu}) == 1, kartu
+        bar = halaman.locator("#tara-grup").bounding_box()
+        form = halaman.locator("#sec-timbangan .timbang-form").last.bounding_box()
+        assert bar["y"] >= form["y"] + form["height"], (bar, form)
+        tara = halaman.evaluate(_KOTAK, [*_TARA, "#bruto", "#masuk"])
+        assert max(k["height"] for k in tara) - min(k["height"] for k in tara) <= _SELISIH_PX, tara
+        if lebar > _LEBAR_TABEL_PENUH:
+            # One row, and the bar is as wide as the two forms together.
+            assert max(k["top"] for k in tara[:3]) - min(k["top"] for k in tara[:3]) <= _SELISIH_PX, tara
+            alat = halaman.locator("#sec-timbangan .timbang-aksi").bounding_box()
+            assert abs(bar["width"] - alat["width"]) <= _SELISIH_PX, (bar, alat)
+            assert tara[1]["width"] == tara[2]["width"] == tara[4]["width"], tara
 
+        halaman.keyboard.press("Escape")
+        expect(halaman.locator("#tara-grup")).to_be_hidden()
+        _baris(halaman, tiket["plate_number"]).locator('button[data-aksi="keluar"]').click()
         halaman.click("#tara-batal")
         expect(halaman.locator("#tara-grup")).to_be_hidden()
         expect(halaman.locator("#tara-plat")).to_have_text("")
-        expect(halaman.locator("#petunjuk-keluar")).to_be_visible()
+        expect(halaman.locator("#ruas-kosong")).not_to_have_class(aktif)
+    finally:
+        _tutup_tiket(halaman, konsol, tiket)
+
+
+def test_a_tara_below_the_floor_is_worded_next_to_the_field(halaman, konsol, browser_name, penugasan_bersih):
+    """The tare message sits in the bar, beside the field the operator is typing in."""
+    halaman.set_viewport_size({"width": 1440, "height": 900})
+    masuk(halaman, OPERATOR)
+    tiket = _tiket_terbuka(halaman, konsol, plat(browser_name, 1264))
+    try:
+        buka_tab(halaman, "timbangan")
+        halaman.evaluate("() => muatTimbangan()")
+        _baris(halaman, tiket["plate_number"]).locator('button[data-aksi="keluar"]').click()
+        halaman.fill("#tara-nilai", "12")
+        halaman.click("#tara-simpan")
+        pesan = halaman.locator("#tara-grup #scan-keluar-pesan")
+        expect(pesan).to_have_text(kamus(halaman, "taraMinimum"))
+        expect(pesan).to_have_class(_SALAH)
+        # Beside the buttons, never over them (Firefox once laid it across Batal).
+        batal = halaman.locator("#tara-batal").bounding_box()
+        assert pesan.bounding_box()["x"] >= batal["x"] + batal["width"], (pesan.bounding_box(), batal)
+        # A new tare starts clean: the old message does not follow the next truck.
+        halaman.click("#tara-batal")
+        _baris(halaman, tiket["plate_number"]).locator('button[data-aksi="keluar"]').click()
+        expect(pesan).to_have_text("")
+        halaman.click("#tara-batal")
     finally:
         _tutup_tiket(halaman, konsol, tiket)
