@@ -234,11 +234,17 @@ def test_kata_status_di_dua_bahasa(bahasa):
         assert f'{kunci}:"{teks}"' in isi, kunci
 
 
-def test_petunjuk_desimal_di_bawah_bruto_di_langkah_2():
+def test_petunjuk_desimal_di_bawah_kedua_form_dan_di_kolom_bruto():
+    """User 2026-10-03: di dalam form 2 petunjuk itu membuat form 2 lebih tinggi dari form 1.
+    Kini satu baris di bawah kedua form, dan `title` kolom Bruto."""
     blok = HTML.split('<section id="sec-timbangan"', 1)[1].split('<div class="tabel">', 1)[0]
-    langkah2 = blok.split('data-t="lbGerbangMasuk"', 1)[1].split('class="timbang-sisi', 1)[0]
-    assert re.search(r'<input id="bruto"[^>]*>\s*<span class="catatan" data-t="hintDesimal"', langkah2)
     assert blok.count('data-t="hintDesimal"') == 1
+    form = blok.split('class="timbang-form ruas-bongkar', 1)[1].split('<p class="catatan timbang-kaki', 1)[0]
+    assert 'data-t="hintDesimal"' not in form
+    bruto = re.search(r'<input id="bruto"[^>]*>', blok).group(0)
+    assert 'data-t-title="hintDesimal"' in bruto and 'aria-describedby="bruto-petunjuk"' in bruto
+    assert re.search(r'<span\s+id="bruto-petunjuk" data-t="hintDesimal"', blok)
+    assert 'querySelectorAll("[data-t-title]")' in HTML
 
 
 def test_escape_operator_tidak_melempar_galat():

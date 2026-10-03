@@ -308,109 +308,144 @@
   #sec-rekap th, #sec-rekap td { padding:10px 10px; }
   .riwayat-catatan { margin:10px 0 0; }
 
-  /* Hasil scan, di bawah kolomnya. Tinggi dipatok supaya kartu langkah tidak bergeser
-     saat pesannya muncul dan hilang - tombol yang bergerak sulit ditekan. */
+  /* Hasil scan dan tombol baris. Tinggi dipatok di formnya supaya form tidak bergeser saat
+     pesannya muncul dan hilang: tombol yang bergerak sulit ditekan. */
   .scan-pesan { min-height:1.4rem; font-weight:700; color:var(--acc); }
   .scan-pesan.salah { color:var(--danger-fg); }
 
-  /* ---- empat langkah Timbangan: Datang, Timbang isi, Timbang kosong, Keluar ---- */
-  /* Tiap langkah KARTUNYA sendiri (user 2026-10-02: "jelek banget pembagian 4 section ...
-     button di Timbang kosong juga berantakan"), bukan kolom yang dipisah garis tipis. Satu
-     susunan untuk keempatnya, dibaca kiri ke kanan seperti truknya bergerak:
-       kepala  : pita tahap berwarna (+ plat truk di langkah 3 saat tara diisi)
-       baris   : kontrol, semuanya setinggi `--tinggi-timbang`; langkah tanpa kontrol
-                 (3 dan 4 tanpa scanner) memakai slot bergaris putus setinggi kontrol
-       catatan : teks bantu kecil tepat di bawah kontrolnya (daftar tunggu, desimal)
-       pesan   : hasil scan
-     Kepala dan baris kontrol keempat kartu sejajar, jadi mata operator yang membaca dari
-     beberapa meter cukup menyapu satu garis.
+  /* ---- tab Timbangan: strip empat langkah, dua form, bar tara ---- */
+  /* User 2026-10-03: "yg skrng berantakan banget, width beda2, height juga". Empat kartu
+     langkah berbobot lebar beda-beda dengan pita kosong di bawah tiap kartu
+     diganti tiga baris yang lebarnya ditentukan layar, bukan isinya:
+       strip   : empat ruas SAMA lebar dan tinggi, pita tahap + satu kalimat "di mana langkah
+                 ini dikerjakan", panah di antaranya supaya terbaca kiri ke kanan
+       form    : Datang dan Timbang isi berdampingan, SAMA lebar dan tinggi; langkah 3 dan 4
+                 tidak punya kontrol sendiri (tombolnya di baris tabel), jadi tidak diberi form
+       tara    : bar selebar panel berwarna langkah 3, muncul di bawah form saat operator
+                 menekan Timbang kosong di baris truknya
+     Semua kontrol setinggi `--tinggi-timbang`, kedua tombol utama selebar `--lebar-aksi-timbang`.
      ⚠️ JANGAN pakai nama `.gerbang-*` di sini: itu milik gerbang login di atas
-     (`.gerbang-isi` = flex column, input 3.4rem). Kelas yang sama membuat kolom scan
-     melar jadi kotak raksasa yang berhamburan - kejadian sekali, terlihat di
-     screenshot operator, dan tidak ada test statis yang bisa menangkapnya. */
-  .timbang-alat { --tinggi-timbang:2.9rem; }
-  /* `.tools.timbang-alat`, not `.timbang-alat`: the `.tools` rule further down says
-     `display:flex; align-items:center` and would win. Grid in every width: one column
-     stacked, four from 1331 px. `stretch` makes the four cards one height. */
+     (`.gerbang-isi` = flex column, input 3.4rem); kelas yang sama pernah membuat kolom scan
+     melar jadi kotak raksasa. */
+  .timbang-alat { --tinggi-timbang:2.9rem; --lebar-aksi-timbang:9rem; }
+  /* `.tools.timbang-alat`, bukan `.timbang-alat`: aturan `.tools` di bawah (flex,
+     `align-items:center`) datang belakangan dan akan menang. */
   .tools.timbang-alat { display:grid; grid-template-columns:minmax(0, 1fr); align-items:stretch;
                         gap:12px; padding:12px; }
-  .timbang-sisi { min-width:0; display:flex; flex-direction:column; gap:8px; padding:12px;
-                  background:var(--zebra); border:1px solid var(--line); border-radius:var(--r-sm); }
-  .timbang-kepala { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; min-height:1.9rem; }
-  .timbang-baris { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; }
   .timbang-alat :is(button, input, .pilih-tombol) { min-height:var(--tinggi-timbang); }
-  /* Lebih sempit dari 13rem bawaan: labelnya sudah mengatakan tahapnya, jadi placeholder
-     cukup "QR ...". Kolom QR yang nanti dimunculkan boleh menyempit di kartu yang sempit. */
-  .timbang-alat .timbang-baris input.plat { flex:0 1 10rem; min-width:0; }
-  /* Dropdown plat boleh menyempit sampai 10rem (plat paling panjang 11 huruf masih muat). */
-  .timbang-alat .timbang-baris .pilih { flex:1 1 10rem; min-width:10rem; max-width:16rem; }
-  /* Catat datang: satu baris dengan dropdown kalau kartunya cukup lebar, turun ke bawahnya
-     selebar kartu kalau tidak (`flex-grow` 1, dibatasi 16rem seperti dropdown-nya). */
-  .tools .timbang-baris #datang { flex:1 0 8.5rem; max-width:16rem; }
-  /* Langkah 2: Bruto dan petunjuk desimalnya satu kolom, jadi pilihan dan tombol rata atas.
-     Pilih truk, Bruto, Timbang isi tetap SATU baris dari kiri ke kanan (user 2026-10-02):
-     itu tindakan yang dibayar, tombolnya tidak boleh turun ke bawah pilihan truk. */
-  .tools .timbang-isi #masuk { flex:0 0 8.5rem; }
-  .bruto-grup { display:flex; flex-direction:column; gap:4px; flex:0 0 8.5rem; min-width:0; }
-  .tools .bruto-grup input.kg { flex:none; width:100%; max-width:none; }
-  .bruto-grup .catatan { line-height:1.3; }
-  /* Langkah 3 dan 4 tanpa scanner: tidak ada kontrol, jadi tempatnya diisi slot bergaris
-     putus setinggi kontrol dengan kalimat pendek di tengahnya. Terbaca sengaja ("di sini
-     nanti muncul sesuatu"), bukan paragraf yang tertinggal. Hapus bersama `hidden` di
-     kolom QR-nya begitu scanner datang. */
-  .timbang-slot { flex:1 1 100%; display:flex; align-items:center; justify-content:center;
-                  min-height:var(--tinggi-timbang); padding:6px 12px; text-align:center;
-                  border:1px dashed var(--line-kuat); border-radius:var(--r-sm);
-                  font-size:.82rem; line-height:1.3; color:var(--muted); }
-  .timbang-slot[hidden] { display:none; }
-  /* Empat langkah dalam SATU baris mulai 1331 px (user 2026-10-02, screenshot 1440 px:
-     "4. Keluar" turun ke baris kedua). Grid, bukan flex: lebar tiap langkah ditentukan
-     layar, bukan isinya, jadi kolom tara yang muncul di langkah 3 atau daftar tunggu yang
-     berubah tidak pernah menggeser langkah lain. Langkah 2 punya lebar minimum: dropdown,
-     Bruto dan tombol muat satu baris dari 1331 px (10rem + 8.5rem + 8.5rem + celah + padding
-     kartu). Langkah 3 cukup untuk Tara + Simpan + Batal satu baris dari 1440 px; di antara
-     1331 dan 1440 px kedua tombolnya turun bersama ke baris kedua. Di bawah 1331 px
-     bertumpuk, satu kartu selebar layar per langkah. */
-  @media (min-width:1331px) {
-    .tools.timbang-alat {
-      grid-template-columns:minmax(0, 1fr) minmax(29.5rem, 2.1fr) minmax(0, 1.6fr) minmax(0, .7fr); }
-  }
-  /* Layar lebar (monitor pabrik 1920 px): bobot keempat kartu lebih rata, langkah 2 tidak
-     lagi dua kali lebar yang lain. */
-  @media (min-width:1700px) {
-    .tools.timbang-alat {
-      grid-template-columns:minmax(0, 1.1fr) minmax(29.5rem, 1.6fr) minmax(0, 1.4fr) minmax(0, 1fr); }
-  }
-  /* "Menunggu timbang (n): ..." berubah tiap poll 15 detik. Lebarnya NOL bagi tahap 1
-     (lalu mengisi lebar tahap itu) dan tingginya tetap DUA baris, juga saat kosong: tanpa
-     ini tahap 1 melebar atau meninggi setiap ada truk datang, dan tahap 2 sampai 4 bergeser
-     di bawah tangan operator. Dua baris, bukan satu: layar pabrik dibaca dari jauh dan
-     disentuh, jadi `title` saja tidak cukup untuk melihat truk yang terpotong. */
-  #antre { width:0; min-width:100%; line-height:1.4; height:2.8em; white-space:normal;
-           overflow-wrap:anywhere; overflow:hidden; display:-webkit-box;
-           -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; }
 
-  /* ---- kolom tara di langkah 3 ---- */
+  /* Strip langkah. Warna garis atas ruas = warna lencana tahap di kolom Status, jadi baris
+     tabel dan langkahnya tersambung sekali lihat. */
+  .timbang-langkah { list-style:none; margin:0; padding:0; display:grid;
+                     grid-template-columns:minmax(0, 1fr); gap:8px; }
+  .langkah-ruas { position:relative; min-width:0; display:flex; flex-direction:column; gap:4px;
+                  padding:8px 10px 10px; background:var(--zebra); border:1px solid var(--line);
+                  border-top:4px solid var(--warna-tahap, var(--line-kuat));
+                  border-radius:var(--r-sm); }
+  .ruas-datang  { --warna-tahap:var(--line-kuat); }
+  .ruas-bongkar { --warna-tahap:var(--warn); }
+  .ruas-kosong  { --warna-tahap:var(--info); }
+  .ruas-selesai { --warna-tahap:var(--acc); }
+  /* Langkah 3 menyala selama bar tara terbuka: bar di bawah dan ruasnya satu warna. Cuma
+     warna yang berubah, garisnya sama tebal, jadi tidak ada yang bergeser. */
+  .langkah-ruas.aktif { background:var(--info-bg); border-color:var(--info); }
+  /* Satu baris, tidak pernah dua: lencana Menunggu berubah tiap poll 15 detik, dan ruas yang
+     meninggi saat ada truk datang menggeser form dan tabel di bawah tangan operator. Kalau
+     ruasnya terlalu sempit, lencananya yang terpotong, bukan barisnya yang turun. */
+  .langkah-kepala { display:flex; flex-wrap:nowrap; align-items:center; gap:6px; min-width:0;
+                    min-height:1.9rem; }
+  .langkah-kepala .lb.langkah { flex:none; white-space:nowrap; }
+  .langkah-hitung { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis;
+                    white-space:nowrap; padding:2px 6px; border-radius:var(--r-pill);
+                    background:var(--card); border:1px solid var(--line-kuat);
+                    font-size:.75rem; font-weight:700; line-height:1.3; color:var(--fg); }
+  .langkah-hitung[hidden] { display:none; }
+  .langkah-di { font-size:.85rem; line-height:1.3; color:var(--muted); }
+  /* Pesan langkah 4 (scan keluar dan tombol Keluar di baris) menggantikan kalimat petunjuknya
+     selama ada, di tempat yang sama: ruasnya tidak bertambah satu baris kosong untuk pesan
+     yang belum ada. */
+  .langkah-ruas .scan-pesan { min-height:0; font-size:.85rem; line-height:1.3; }
+  .langkah-ruas .scan-pesan:empty { display:none; }
+  .langkah-ruas .scan-pesan:not(:empty) + .langkah-di { display:none; }
+  /* Kolom QR langkah 3 dan 4, `hidden` sampai scanner dibeli: begitu dimunculkan ia mengisi
+     lebar ruasnya. `flex:none`: `.tools input.plat` memberi basis 13rem, dan di kolom flex basis
+     itu menjadi TINGGI. */
+  .timbang-alat .langkah-ruas input.plat { flex:none; width:100%; max-width:none; margin-top:4px; }
+  /* 2 x 2 dari 600 px, empat sejajar dari 960 px dengan panah di celahnya: di bawah itu pita
+     "3. Timbang kosong" tidak muat satu baris di ruas seperempat lebar. */
+  @media (min-width:600px) {
+    .timbang-langkah { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width:960px) {
+    .timbang-langkah { grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; }
+    .langkah-ruas:not(:last-child)::after { content:""; position:absolute; top:50%; right:-11px;
+      width:8px; height:8px; border:solid var(--muted); border-width:2px 2px 0 0;
+      transform:translateY(-50%) rotate(45deg); }
+  }
+
+  /* Dua form, berdampingan dari 1100 px, bertumpuk di bawahnya. Garis kiri berwarna tahapnya,
+     sama dengan garis atas ruas langkahnya di strip. */
+  .timbang-aksi { display:grid; grid-template-columns:minmax(0, 1fr); gap:8px 12px; }
+  .timbang-form { min-width:0; display:flex; flex-direction:column; gap:4px; padding:10px 12px;
+                  background:var(--zebra); border:1px solid var(--line);
+                  border-left:5px solid var(--warna-tahap, var(--line-kuat));
+                  border-radius:var(--r-sm); }
+  .timbang-kontrol { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; }
+  /* Berawalan `.timbang-alat`: `.tools .pilih`, `.tools input.kg` dan `.tools button` di
+     bawah sama kuatnya tanpa itu dan datang belakangan. Dropdown plat mengisi sisa baris,
+     kedua tombol utama selebar sama. */
+  .timbang-alat .timbang-kontrol .pilih { flex:1 1 9rem; min-width:9rem; }
+  .timbang-alat .timbang-kontrol input.plat { flex:1 1 9rem; min-width:0; max-width:none; }
+  .timbang-alat .timbang-kontrol input.kg { flex:0 0 7.5rem; min-width:0; }
+  .timbang-alat .timbang-kontrol button { flex:0 0 var(--lebar-aksi-timbang); }
+  /* HP: tombol utama yang turun ke baris kedua selebar formnya, bukan sepotong di kiri. */
+  @media (max-width:599px) {
+    .timbang-alat .timbang-kontrol button { flex:1 1 100%; }
+  }
+  /* Baris kaki di bawah KEDUA form: pesan scan langkah 1 di bawah form 1, petunjuk desimal
+     (atau pesan scan langkah 2 yang menggantikannya) di bawah form 2. Di dalam form, pesan dan
+     petunjuk membuat form 2 lebih tinggi dari form 1 atau memberi keduanya pita kosong. Baris
+     ini selalu terisi petunjuk, jadi pesan yang muncul tidak menggeser tabel. */
+  .timbang-kaki { margin:0; min-width:0; font-size:.85rem; line-height:1.3; }
+  .timbang-kaki.scan-pesan { min-height:0; }
+  .timbang-kaki.scan-pesan:empty { display:none; }
+  .kaki-isi .scan-pesan { min-height:0; }
+  .kaki-isi .scan-pesan:empty { display:none; }
+  .kaki-isi .scan-pesan:not(:empty) + span { display:none; }
+  /* Berdampingan: dua form di baris 1, kakinya di baris 2 di bawah form masing-masing. Di
+     bawah 1100 px urutannya urutan dokumen: form 1, pesannya, form 2, kakinya. */
+  @media (min-width:1100px) {
+    .timbang-aksi { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    .timbang-form.ruas-datang { grid-area:1 / 1; }
+    .timbang-form.timbang-isi { grid-area:1 / 2; }
+    .kaki-datang { grid-area:2 / 1; }
+    .kaki-isi { grid-area:2 / 2; }
+  }
+
+  /* ---- bar tara (langkah 3) ---- */
   /* Inline, BUKAN lapisan di atas layar: dialog yang menutup layar menghilangkan kamera
      line dan strip tally sampai tara selesai diisi, dan di gerbang yang sibuk itu
      kehilangan pandangan justru saat paling butuh. Dilaporkan operator 2026-09-15.
-     Tara, Simpan dan Batal SATU baris, setinggi kontrol langkah lain (user 2026-10-02:
-     dulu Simpan dan Batal bertumpuk selebar kartu di bawah kolomnya). */
-  .tara-grup { flex:1 1 100%; display:flex; flex-wrap:wrap; align-items:flex-start; gap:8px; min-width:0; }
+     Judul dengan plat, Tara, Simpan dan Batal SATU baris, setinggi kontrol form di atasnya. */
+  .tara-grup { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; min-width:0;
+               padding:10px 12px; background:var(--info-bg); border:1px solid var(--info);
+               border-left:5px solid var(--info); border-radius:var(--r-sm); }
   .tara-grup[hidden] { display:none; }
-  /* Berawalan `.timbang-alat`: `.tools input.kg` dan `.tools button` di bawah sama kuatnya
-     dan datang belakangan, jadi tanpa itu lebarnya kalah. */
-  .timbang-alat .tara-grup input.kg { flex:1 1 6rem; min-width:6rem; max-width:none;
-                                      font-family:var(--mono); text-align:right; }
-  /* Simpan dan Batal sepasang: kartu yang terlalu sempit (1331 sampai 1440 px, dan layar
-     HP) menurunkan KEDUANYA ke baris kedua, tidak pernah Batal sendirian. */
-  .tara-tombol { flex:0 0 auto; display:flex; gap:8px; }
-  .timbang-alat .tara-grup button { flex:0 0 6rem; }
-  /* Platnya disebut, di kepala kartu di samping pitanya: operator melihat beberapa truk
-     sehari sambil memegang HP supir, dan kolom tanpa nama truk bisa mendarat di kunjungan
-     yang salah. Kosong = tidak ada tara yang sedang diisi. */
-  .tara-plat { font-family:var(--mono); font-weight:700; font-size:1.15rem; white-space:nowrap; }
+  .tara-judul { display:flex; align-items:center; gap:10px; min-height:var(--tinggi-timbang);
+                font-weight:700; color:var(--info); white-space:nowrap; }
+  /* Platnya disebut: operator melihat beberapa truk sehari sambil memegang HP supir, dan
+     kolom tanpa nama truk bisa mendarat di kunjungan yang salah. */
+  .tara-plat { font-family:var(--mono); font-weight:700; font-size:1.15rem; color:var(--fg);
+               white-space:nowrap; }
   .tara-plat:empty { display:none; }
+  .timbang-alat .tara-grup input.kg { flex:0 1 12rem; min-width:7.5rem; max-width:none;
+                                      font-family:var(--mono); text-align:right; }
+  /* Simpan dan Batal sepasang: layar sempit menurunkan KEDUANYA, tidak pernah Batal sendirian. */
+  .tara-tombol { flex:0 0 auto; display:flex; gap:8px; }
+  .timbang-alat .tara-grup button { flex:0 0 var(--lebar-aksi-timbang); }
+  /* Pesan tara (angka di bawah 1.000 kg, tolakan server) di ujung baris yang sama, tepat di
+     samping kolom yang sedang diisi. */
+  .tara-grup .scan-pesan { flex:1 1 0; min-width:6rem; min-height:0; }
 
   /* ---- kartu QR truk ---- */
   #qr-cetak { padding:16px 0; }
@@ -625,7 +660,6 @@
   /* Warna menurut akibatnya, supaya terbaca sebagai tombol dan bedanya terlihat sekilas
      (tes staging 2026-09-28: tombol abu-abu menyatu dengan tabel). */
   .akun-tombol button.aksi-sandi { background:var(--acc-bg); color:var(--acc); border-color:var(--acc); }
-  .akun-tombol button.aksi-matikan { background:var(--rej-bg); color:var(--rej); border-color:var(--rej); }
   .akun-tombol button.aksi-aktifkan { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
   .akun-tombol button.aksi-role { background:var(--warn-bg); color:var(--warn); border-color:var(--warn); }
   /* Kolom sandi berikut tombol Lihat (form Tambah akun dan panel Ganti sandi). */
@@ -1629,7 +1663,7 @@
     registered in the Trucks tab first.
   -->
   <!--
-    Satu baris alat, dua gerbang, masing-masing berlabel. Ketemu dari screenshot
+    Satu kotak alat, empat langkah, masing-masing berlabel. Ketemu dari screenshot
     operator: dua kolom bertulisan "Scan QR truk" yang sama, satu di atas satu di
     bawah, tanpa penanda mana yang mana. Yang kiri MEMBUAT tiket, yang kanan MENUTUP
     tiket - tertukar berarti tiket dobel untuk satu kunjungan.
@@ -1644,100 +1678,108 @@
   -->
   <div class="tools timbang-alat">
     <!--
-      Scan 1 dan 4 (2026-09-30): jam datang dan jam keluar gerbang, cuma disimpan di PC
-      ini. Scan 1 boleh terlewat; tiketnya lalu ditandai di kolom Antre.
+      Strip empat langkah (user 2026-10-03): tiap ruas = pita tahap + di mana langkah itu
+      dikerjakan. Langkah 3 dan 4 tidak punya kontrol sendiri (tombolnya di baris tabel),
+      jadi tidak diberi kartu berisi kotak kosong. Label tetap `for` kolom QR-nya: kolom itu
+      `hidden` sampai scanner dibeli, lalu muncul di form (1, 2) atau di ruasnya (3, 4).
+      Scan 1 dan 4 (2026-09-30): jam datang dan jam keluar gerbang, cuma disimpan di PC ini.
+      Scan 1 boleh terlewat; tiketnya lalu ditandai di kolom Antre.
     -->
-    <div class="timbang-sisi">
-      <div class="timbang-kepala">
-        <label class="lb langkah tahap-datang" for="scan-datang" data-t="lbDatang">1. Datang</label>
-      </div>
-      <div class="timbang-baris">
-        <input id="scan-datang" class="plat" data-t-ph="phScanDatang" placeholder="QR datang"
-               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
-        <div class="pilih" id="plat-datang" data-nilai=""></div>
-        <button id="datang" class="utama" data-t="btnDatang" disabled>Catat datang</button>
-      </div>
-      <span id="antre" class="catatan"></span>
-      <span id="scan-datang-pesan" class="scan-pesan" role="status"></span>
-    </div>
-    <div class="timbang-sisi">
-      <div class="timbang-kepala">
-        <label class="lb langkah tahap-bongkar" for="scan-plat" data-t="lbGerbangMasuk">2. Timbang isi</label>
-      </div>
-      <div class="timbang-baris timbang-isi">
-        <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="QR timbang isi"
-               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
-        <div class="pilih" id="plat-timbang" data-nilai=""></div>
-        <!-- Petunjuk desimal tepat di bawah Bruto, satu-satunya kolom yang ia jelaskan
-             (user 2026-10-02): di ujung baris alat ia melayang di samping "4. Keluar". -->
-        <span class="bruto-grup">
-          <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
-                 inputmode="decimal" autocomplete="off">
-          <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
+    <ol class="timbang-langkah">
+      <li class="langkah-ruas ruas-datang">
+        <span class="langkah-kepala">
+          <label class="lb langkah tahap-datang" id="lb-langkah-datang" for="scan-datang" data-t="lbDatang">1. Datang</label>
+          <!-- Jumlah truk yang menunggu timbang isi; platnya di `title` dan sebagai baris
+               DATANG di tabel. Disembunyikan kalau nol. -->
+          <span id="antre" class="langkah-hitung" hidden></span>
         </span>
-        <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang isi</button>
-      </div>
-      <!--
-        Hasil scan punya tempatnya sendiri, bukan banner global `#err`: `refresh()`
-        membersihkan banner itu setiap kali berhasil, jadi pesan scan hilang dalam 2
-        detik dan operator yang sedang memegang HP supir tidak pernah membacanya.
-      -->
-      <span id="scan-pesan" class="scan-pesan" role="status"></span>
-    </div>
-    <div class="timbang-sisi timbang-keluar">
-      <!-- Plat truk yang sedang ditara di kepala kartu, di samping pitanya: baris kontrol di
-           bawahnya tetap sejajar dengan baris kontrol tiga langkah lain. -->
-      <div class="timbang-kepala">
-        <label class="lb langkah tahap-kosong" for="scan-keluar" data-t="lbGerbangKeluar">3. Timbang kosong</label>
-        <b id="tara-plat" class="tara-plat"></b>
-      </div>
-      <div class="timbang-baris">
+        <span class="langkah-di" data-t="hintDatang">Pilih truk, lalu Catat datang</span>
+      </li>
+      <li class="langkah-ruas ruas-bongkar">
+        <span class="langkah-kepala">
+          <label class="lb langkah tahap-bongkar" id="lb-langkah-isi" for="scan-plat" data-t="lbGerbangMasuk">2. Timbang isi</label>
+        </span>
+        <span class="langkah-di" data-t="hintTimbangIsi">Pilih truk, isi Bruto, lalu Timbang isi</span>
+      </li>
+      <li class="langkah-ruas ruas-kosong" id="ruas-kosong">
+        <span class="langkah-kepala">
+          <label class="lb langkah tahap-kosong" for="scan-keluar" data-t="lbGerbangKeluar">3. Timbang kosong</label>
+        </span>
+        <span id="petunjuk-keluar" class="langkah-di" data-t="hintGerbangKeluar">Tekan Timbang kosong di baris truknya</span>
+        <!-- Hasil scan ini membuka bar tara di bawah; pesannya di bar itu (`#scan-keluar-pesan`). -->
         <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="QR timbang kosong"
                autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
-        <!--
-          Kolom tara muncul DI SINI setelah scan berhasil, bukan sebagai lapisan di atas
-          layar: dialog yang menutup seluruh layar menghilangkan kamera line dan strip
-          tally sampai tara selesai diisi, dan di gerbang yang sibuk itu kehilangan
-          pandangan justru saat paling butuh. Dilaporkan operator 2026-09-15.
-
-          Disembunyikan sampai ada truk terpilih: kolom yang bisa diisi tanpa tiket
-          adalah kolom yang tidak tahu harus menulis ke mana.
-        -->
-        <div id="tara-grup" class="tara-grup" hidden>
-          <input id="tara-nilai" class="kg" inputmode="decimal" autocomplete="off"
-                 data-t-ph="phTara" placeholder="Tara (kg)">
-          <span class="tara-tombol">
-            <button type="button" id="tara-simpan" class="utama" data-t="btnSimpanTara">Simpan</button>
-            <button type="button" id="tara-batal" class="bahaya" data-t="btnBatal">Batal</button>
-          </span>
-        </div>
-        <!--
-          Selama kolom QR disembunyikan (scanner belum dibeli), sisi ini kosong
-          sampai operator menekan Timbang kosong di baris tiket. Label "3. Timbang kosong" di
-          atas ruang kosong terbaca seperti alat yang rusak, jadi petunjuk ini
-          yang menunjukkan ke mana harus pergi, di slot tempat kolom tara nanti muncul.
-          Disembunyikan selama kolom tara terbuka (`tanyaTara`). Hapus bersama `hidden` di
-          `#scan-keluar` begitu scanner datang.
-        -->
-        <span id="petunjuk-keluar" class="timbang-slot" data-t="hintGerbangKeluar">Tekan Timbang kosong di baris truknya</span>
-      </div>
-      <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
-    </div>
-    <div class="timbang-sisi">
-      <div class="timbang-kepala">
-        <label class="lb langkah tahap-selesai" for="scan-pergi" data-t="lbPergi">4. Keluar</label>
-      </div>
-      <div class="timbang-baris">
+      </li>
+      <li class="langkah-ruas ruas-selesai">
+        <span class="langkah-kepala">
+          <label class="lb langkah tahap-selesai" for="scan-pergi" data-t="lbPergi">4. Keluar</label>
+        </span>
+        <!-- Pesan sebelum petunjuknya: selama ada, ia menggantikan petunjuk di tempat yang sama. -->
+        <span id="scan-pergi-pesan" class="scan-pesan" role="status"></span>
+        <span id="petunjuk-pergi" class="langkah-di" data-t="hintPergi">Tekan Keluar di baris truknya</span>
         <input id="scan-pergi" class="plat" data-t-ph="phScanPergi" placeholder="QR keluar"
                autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
-        <span id="petunjuk-pergi" class="timbang-slot" data-t="hintPergi">Tekan Keluar di baris truknya</span>
+      </li>
+    </ol>
+    <!--
+      Dua form sama lebar dan sama tinggi, isinya cuma satu baris kontrol. Pesan scan dan
+      petunjuk desimal berbagi SATU baris di bawah keduanya (`.timbang-kaki`), jadi tidak ada
+      form yang lebih tinggi atau berpita kosong. Hasil scan punya tempatnya sendiri, bukan
+      banner global `#err`: `refresh()` membersihkan banner itu setiap kali berhasil, jadi pesan
+      scan hilang dalam 2 detik dan operator yang memegang HP supir tidak pernah membacanya.
+    -->
+    <div class="timbang-aksi">
+      <div class="timbang-form ruas-datang" role="group" aria-labelledby="lb-langkah-datang">
+        <div class="timbang-kontrol">
+          <input id="scan-datang" class="plat" data-t-ph="phScanDatang" placeholder="QR datang"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
+          <div class="pilih" id="plat-datang" data-nilai=""></div>
+          <button id="datang" class="utama" data-t="btnDatang" disabled>Catat datang</button>
+        </div>
       </div>
-      <span id="scan-pergi-pesan" class="scan-pesan" role="status"></span>
+      <span id="scan-datang-pesan" class="scan-pesan timbang-kaki kaki-datang" role="status"></span>
+      <div class="timbang-form ruas-bongkar timbang-isi" role="group" aria-labelledby="lb-langkah-isi">
+        <div class="timbang-kontrol">
+          <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="QR timbang isi"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
+          <div class="pilih" id="plat-timbang" data-nilai=""></div>
+          <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
+                 data-t-title="hintDesimal" title="Desimal: titik atau koma, mis. 14820,5"
+                 aria-describedby="bruto-petunjuk" inputmode="decimal" autocomplete="off">
+          <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang isi</button>
+        </div>
+      </div>
+      <!-- Pesan scan langkah 2 sebelum petunjuknya: selama ada, ia menggantikan petunjuk. -->
+      <p class="catatan timbang-kaki kaki-isi"><span id="scan-pesan" class="scan-pesan" role="status"></span><span
+         id="bruto-petunjuk" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span></p>
+    </div>
+    <!--
+      Bar tara, muncul DI SINI setelah Timbang kosong ditekan di baris tiket (atau scan
+      langkah 3 berhasil), bukan sebagai lapisan di atas layar: dialog yang menutup seluruh
+      layar menghilangkan kamera line dan strip tally sampai tara selesai diisi, dan di
+      gerbang yang sibuk itu kehilangan pandangan justru saat paling butuh. Dilaporkan
+      operator 2026-09-15.
+
+      Disembunyikan sampai ada truk terpilih: kolom yang bisa diisi tanpa tiket adalah kolom
+      yang tidak tahu harus menulis ke mana.
+    -->
+    <div id="tara-grup" class="tara-grup" role="group" aria-labelledby="tara-judul" hidden>
+      <label id="tara-judul" class="tara-judul" for="tara-nilai">
+        <span data-t="taraJudul">Timbang kosong</span>
+        <b id="tara-plat" class="tara-plat"></b>
+      </label>
+      <input id="tara-nilai" class="kg" inputmode="decimal" autocomplete="off"
+             data-t-ph="phTara" placeholder="Tara (kg)">
+      <span class="tara-tombol">
+        <button type="button" id="tara-simpan" class="utama" data-t="btnSimpanTara">Simpan</button>
+        <button type="button" id="tara-batal" class="bahaya" data-t="btnBatal">Batal</button>
+      </span>
+      <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
     </div>
   </div>
   <div class="tabel">
     <table>
-      <thead><tr><th data-t="thStatus">Status</th><th data-t="thMasuk">Jam isi</th><th data-t="thKeluar">Jam kosong</th>
+      <thead><tr><th data-t="thStatus">Status</th><th data-t="thMasuk">Jam timbang isi</th><th data-t="thKeluar">Jam timbang kosong</th>
         <th data-t="thAntre">Antre</th><th data-t="thLama">Lama</th><th data-t="thTotal">Total</th>
         <th data-t="thTruk">Truk</th>
         <th data-t="thSumber">Sumber</th><th class="num" data-t="thBruto">Bruto (kg)</th>
@@ -2670,7 +2712,7 @@ const KAMUS = {
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
     tahapDatang:"Datang", tahapBongkar:"Bongkar", tahapTimbangKosong:"Timbang kosong",
     tahapSelesai:"Selesai",
-    thMasuk:"Jam isi", thKeluar:"Jam kosong", thLama:"Lama", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
+    thMasuk:"Jam timbang isi", thKeluar:"Jam timbang kosong", thLama:"Lama", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
     thLevel:"Level", thPesan:"Pesan", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan, sumber, atau line",
     hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
@@ -2773,6 +2815,8 @@ const KAMUS = {
     lbDatang:"1. Datang", lbPergi:"4. Keluar", phScanDatang:"QR datang", phScanPergi:"QR keluar",
     btnDatang:"Catat datang", btnPergi:"Keluar",
     hintPergi:"Tekan Keluar di baris truknya",
+    hintDatang:"Pilih truk, lalu Catat datang", hintTimbangIsi:"Pilih truk, isi Bruto, lalu Timbang isi",
+    antreLencana:"Menunggu {n}", taraJudul:"Timbang kosong",
     thAntre:"Antre", antreKelewat:"tanpa scan 1",
     antreKelewatJudul:"Scan datang terlewat: waktu antre tidak diketahui, total dihitung dari timbang isi",
     antreMenunggu:"Menunggu timbang ({n})", jamDatang:"Datang", jamPergi:"Keluar",
@@ -3113,7 +3157,7 @@ const KAMUS = {
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
     tahapDatang:"Arrived", tahapBongkar:"Unloading", tahapTimbangKosong:"Weighed out",
     tahapSelesai:"Done",
-    thMasuk:"Weighed in", thKeluar:"Weighed out", thLama:"Duration", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
+    thMasuk:"Weigh-in time", thKeluar:"Weigh-out time", thLama:"Duration", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
     thLevel:"Level", thPesan:"Message", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message, source, or line",
     hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
@@ -3211,6 +3255,8 @@ const KAMUS = {
     lbDatang:"1. Arrive", lbPergi:"4. Leave", phScanDatang:"Arrival QR", phScanPergi:"Leave QR",
     btnDatang:"Record arrival", btnPergi:"Leave",
     hintPergi:"Press Leave on the truck's row",
+    hintDatang:"Pick the truck, then Record arrival", hintTimbangIsi:"Pick the truck, enter Gross, then Weigh in",
+    antreLencana:"Waiting {n}", taraJudul:"Weigh out",
     thAntre:"Queue", antreKelewat:"no scan 1",
     antreKelewatJudul:"Arrival scan skipped: queue time unknown, total counted from weigh-in",
     antreMenunggu:"Waiting to weigh ({n})", jamDatang:"Arrived", jamPergi:"Left",
@@ -3433,6 +3479,8 @@ function terapkanBahasa() {
   document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
   // Placeholders are their own channel: a field's hint is not its textContent.
   document.querySelectorAll("[data-t-ph]").forEach((el) => { el.placeholder = t(el.dataset.tPh); });
+  // A hover hint is its own channel too (Bruto carries the decimal hint, 2026-10-03).
+  document.querySelectorAll("[data-t-title]").forEach((el) => { el.title = t(el.dataset.tTitle); });
   // So are labels read only by a screen reader - a button whose face is an icon says
   // nothing at all without one.
   document.querySelectorAll("[data-t-lb]").forEach((el) => {
@@ -4482,6 +4530,20 @@ function teksAntre(daftar) {
   return `${t("antreMenunggu").replace("{n}", daftar.length)}: ${isi.join(", ")}`;
 }
 
+// Lencana "Menunggu n" di ruas langkah 1 (user 2026-10-03): cuma jumlahnya, platnya di
+// `title`. Daftar lengkapnya sudah tampil sebagai baris DATANG di tabel dan di bagian
+// Menunggu timbang dropdown langkah 2. Satu baris yang tidak pernah turun (CSS
+// `.langkah-hitung`), jadi poll 15 detik tidak menggeser apa pun. Ditulis cuma kalau beda.
+function gambarLencanaAntre(daftar) {
+  const el = $("antre");
+  const n = daftar ? daftar.length : 0;
+  const teks = n ? t("antreLencana").replace("{n}", n) : "";
+  const judul = teksAntre(daftar);
+  if (el.textContent !== teks) el.textContent = teks;
+  if (el.title !== judul) el.title = judul;
+  el.hidden = !n;
+}
+
 // Jawaban AutoERP yang butuh orang (batch 2.3). Server yang menggolongkan
 // (`erp_perlu_dicek`, domain/jawaban_kunjungan.py); layar cuma memberi kata. Tiket
 // final tidak pernah ditulis ulang AutoERP, jadi janjang yang datang sesudahnya
@@ -4975,15 +5037,17 @@ function tanyaTara(w) {
   $("tara-plat").textContent = w.plate_number || "";
   $("tara-nilai").value = "";
   $("tara-grup").hidden = false;
-  // Petunjuk langkah 3 menunjuk ke baris tabel; selama kolom tara terbuka sudah tidak perlu.
-  $("petunjuk-keluar").hidden = true;
+  // Ruas langkah 3 di strip menyala selama bar tara terbuka; pesan tara lama tidak ikut
+  // ke truk berikutnya.
+  $("ruas-kosong").classList.add("aktif");
+  pesanScanKeluar("");
   $("tara-nilai").focus();
 }
 
 function tutupTara() {
   $("tara-grup").hidden = true;
   $("tara-plat").textContent = "";
-  $("petunjuk-keluar").hidden = false;
+  $("ruas-kosong").classList.remove("aktif");
   taraUntuk = null;
 }
 
@@ -5656,7 +5720,7 @@ function htmlAntreanBongkar(daftar, aktif) {
        <b>${esc(a.plate_number)}</b>
        <span class="muted">${esc(teksMenit(a.menit) || "0 mnt")}</span>
        <button data-aksi="pasang">${esc(t("btnTugaskanSekarang"))}</button>
-       <button data-aksi="lewati">${esc(t("btnLewati"))}</button>
+       <button class="bahaya" data-aksi="lewati">${esc(t("btnLewati"))}</button>
      </span>`).join("");
 }
 
@@ -5830,9 +5894,7 @@ async function muatTimbangan() {
     const baris = menungguTimbang.map(barisMenunggu).join("") + items.map(barisTimbangan).join("");
     tulisKalauBeda($("timbangan"), baris || barisKosong(12, "kosongTiket"));
     isiPlatTimbang();
-    const antre = teksAntre(data.waiting);
-    $("antre").textContent = antre;
-    $("antre").title = antre;
+    gambarLencanaAntre(data.waiting);
   } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
 }
 
@@ -7187,7 +7249,8 @@ function aksiAkun(a) {
   const isi = [tombol("sandi", "akunGantiSandi", "aksi-sandi")];
   if (!saya) {
     const mati = a.keadaan === "mati";
-    isi.push(tombol("status", mati ? "akunAktifkan" : "akunMatikan", mati ? "aksi-aktifkan" : "aksi-matikan"));
+    // Matikan = varian bahaya (F11, user 2026-10-03), bukan warna satu-satu.
+    isi.push(tombol("status", mati ? "akunAktifkan" : "akunMatikan", mati ? "aksi-aktifkan" : "bahaya"));
     isi.push(tombol("role", a.role === "support" ? "akunJadikanOperator" : "akunJadikanSupport", "aksi-role"));
   }
   return `<span class="akun-tombol">${isi.join("")}</span>`

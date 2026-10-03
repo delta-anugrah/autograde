@@ -20,7 +20,7 @@ HTML = (Path(__file__).resolve().parents[2] / "src/palmgrade/static/console.html
 KUNCI_BAHAYA = frozenset({
     "btnBatal", "imporBatal", "btnLepas", "tombolKeluar",
     "bahayaRestartTombol", "bahayaLogoutTombol", "bahayaRekamanTombol",
-    "bahayaTransaksiTombol", "bahayaSemuaTombol",
+    "bahayaTransaksiTombol", "bahayaSemuaTombol", "btnLewati",
 })
 #: Attributes that mark such a button where its label is built elsewhere.
 ATRIBUT_BAHAYA = (
@@ -88,8 +88,8 @@ def test_aturan_danger_zone_tidak_bocor_ke_tombol_bahaya():
 def test_setiap_tombol_batal_hapus_reset_lepas_memakai_varian_bahaya():
     tombol = [t for t in _tombol() if _bermakna_bahaya(t[0], t[2])]
     # Static: tara, akun, PLC, model, keluar, five Danger Zone rows. Templates: akun, two in
-    # Danger Zone, impor, Lepas, the Danger Zone run button.
-    assert len(tombol) >= 16, [t[0] for t in tombol]
+    # Danger Zone, impor, Lepas, Lewati, the Danger Zone run button.
+    assert len(tombol) >= 17, [t[0] for t in tombol]
     tanpa = [(atribut.strip(), sorted(kunci)) for atribut, _, kunci, kelas in tombol if "bahaya" not in kelas]
     assert not tanpa, f"cancel/delete buttons without class bahaya: {tanpa}"
 
@@ -122,3 +122,11 @@ def test_catat_datang_memakai_varian_utama_seperti_timbang_isi():
     for id_ in ("datang", "masuk", "tara-simpan"):
         tag = re.search(rf'<button\b[^>]*\bid="{id_}"[^>]*>', HTML).group(0)
         assert "utama" in _kelas(tag), tag
+
+
+def test_lewati_dan_matikan_akun_memakai_varian_bahaya():
+    """User 2026-10-03: Lewati (truk keluar dari antrean bongkar) dan Matikan (akun) merah."""
+    lewati = re.search(r'<button\b[^>]*data-aksi="lewati"[^>]*>', HTML).group(0)
+    assert "bahaya" in _kelas(lewati), lewati
+    # Kelas tombol akun dirakit dari argumen ketiga `tombol(aksi, kunci, kelas)`.
+    assert re.search(r'"akunMatikan", mati \? "aksi-aktifkan" : "bahaya"\)', HTML)

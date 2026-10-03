@@ -713,20 +713,42 @@ def test_kelas_gerbang_login_tidak_dipakai_di_tab_timbangan():
     assert not bocor, f"kelas gerbang login dipakai di tab Timbangan: {bocor}"
 
 
-def test_empat_langkah_kartu_sendiri_bertumpuk_di_layar_sempit():
-    """Dulu empat kolom dipisah garis tipis yang pindah dari kiri ke atas di layar sempit;
-    user 2026-10-02 menyebutnya "jelek banget". Sekarang tiap langkah kartunya sendiri dalam
-    grid: satu kolom (bertumpuk) secara bawaan, empat kolom mulai 1331 px. Dibuktikan di
-    browser (`test_browser_gerbang.py`): satu baris dan sama tinggi di 1440 px, bertumpuk di
-    1200 px."""
-    assert "timbang-pisah" not in HTML, "garis pemisah lama masih dipakai"
-    kartu = re.search(r"\n  \.timbang-sisi \{([^}]*)\}", HTML).group(1)
-    assert "border:" in kartu and "background:var(--zebra)" in kartu.replace(" ", "")
-    alat = re.search(r"\n  \.tools\.timbang-alat \{([^}]*)\}", HTML).group(1).replace(" ", "")
+def _aturan(selektor: str) -> str:
+    cocok = re.search(r"\n  " + re.escape(selektor) + r" \{([^}]*)\}", HTML)
+    assert cocok, selektor
+    return cocok.group(1).replace(" ", "")
+
+
+def test_strip_empat_langkah_dan_dua_form_yang_lebarnya_ditentukan_layar():
+    """User 2026-10-03: "width beda2, height juga". Empat kartu selebar isinya (1fr 2.1fr 1.6fr
+    .7fr) diganti strip empat ruas SAMA lebar dan dua form SAMA lebar (`minmax(0, 1fr)`, tidak
+    pernah bobot lain). Lebar dan tinggi yang sama dibuktikan di browser
+    (`test_browser_gerbang.py`)."""
+    assert "timbang-sisi" not in HTML and "timbang-slot" not in HTML, "kartu langkah lama masih ada"
+    assert "2.1fr" not in HTML and "1.6fr" not in HTML
+    alat = _aturan(".tools.timbang-alat")
     assert "display:grid" in alat and "grid-template-columns:minmax(0,1fr)" in alat
-    assert "align-items:stretch" in alat
-    lebar = HTML.split("@media (min-width:1331px)", 1)
-    assert len(lebar) == 2 and "grid-template-columns" in lebar[1][:300]
+    strip = HTML.split("@media (min-width:960px) {", 1)[1][:200].replace(" ", "")
+    assert ".timbang-langkah{grid-template-columns:repeat(4,minmax(0,1fr))" in strip
+    aksi = HTML.split("@media (min-width:1100px) {", 1)[1][:200].replace(" ", "")
+    assert ".timbang-aksi{grid-template-columns:repeat(2,minmax(0,1fr))" in aksi
+    blok = HTML.split('<section id="sec-timbangan"', 1)[1].split('<div class="tabel">', 1)[0]
+    assert blok.count('class="langkah-ruas') == 4
+    assert blok.count('class="timbang-form') == 2
+
+
+def test_tombol_utama_timbangan_selebar_sama():
+    assert "flex:00var(--lebar-aksi-timbang)" in _aturan(".timbang-alat .timbang-kontrol button")
+    assert "flex:00var(--lebar-aksi-timbang)" in _aturan(".timbang-alat .tara-grup button")
+
+
+def test_lencana_antre_satu_baris_yang_terpotong_bukan_turun():
+    """Lencana Menunggu berubah tiap poll; ruas yang meninggi menggeser form dan tabel."""
+    kepala = _aturan(".langkah-kepala")
+    assert "flex-wrap:nowrap" in kepala
+    lencana = _aturan(".langkah-hitung")
+    assert "white-space:nowrap" in lencana and "text-overflow:ellipsis" in lencana
+    assert ".langkah-hitung[hidden] { display:none; }" in HTML
 
 
 # ── kolom tara inline, bukan dialog yang menutup layar ─────────────────────
@@ -749,10 +771,16 @@ def test_tara_tidak_menutup_layar():
     assert "position:fixed" not in HTML.split(".tara-isi", 1)[0][-400:]
 
 
-def test_kolom_tara_ada_di_baris_alat_gerbang_keluar():
-    blok = HTML.split('class="timbang-sisi timbang-keluar"', 1)[1].split("</div>\n  </div>", 1)[0]
-    assert 'id="tara-nilai"' in blok, "kolom tara tidak ada di sisi gerbang keluar"
-    assert 'id="tara-simpan"' in blok
+def test_bar_tara_di_kotak_alat_timbangan_satu_warna_dengan_langkah_3():
+    blok = HTML.split('<div id="tara-grup"', 1)[1].split("</div>", 1)[0]
+    for id_ in ("tara-plat", "tara-nilai", "tara-simpan", "tara-batal", "scan-keluar-pesan"):
+        assert f'id="{id_}"' in blok, id_
+    alat = HTML.split('<div class="tools timbang-alat">', 1)[1].split('<div class="tabel">', 1)[0]
+    assert '<div id="tara-grup"' in alat
+    assert "var(--info)" in _aturan(".tara-grup")
+    # Langkah 3 di strip menyala selama bar terbuka.
+    assert '"ruas-kosong").classList.add("aktif")' in _fungsi("tanyaTara")
+    assert '"ruas-kosong").classList.remove("aktif")' in _fungsi("tutupTara")
 
 
 def test_kolom_tara_disembunyikan_sampai_scan_berhasil():

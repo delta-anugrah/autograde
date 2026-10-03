@@ -19,6 +19,7 @@ KUNCI_BARU = (
     "btnPergi", "hintPergi", "thAntre", "thTotal", "antreKelewat", "antreKelewatJudul",
     "antreMenunggu", "jamDatang", "jamPergi", "sukDatang", "datangSudah",
     "datangMasihDiDalam", "sukPergi", "pergiBelumKosong", "pergiSudah", "pergiTakAdaTiket",
+    "hintDatang", "hintTimbangIsi", "antreLencana", "taraJudul",
 )
 
 _STUB = """
@@ -94,7 +95,16 @@ def test_kolom_antre_dan_total_di_kepala_tabel():
 def test_tabel_dan_antrean_timbang_ditulis_aman():
     fn = _fungsi("muatTimbangan")
     assert "tulisKalauBeda(" in fn
-    assert '$("antre").textContent' in fn
+    assert "gambarLencanaAntre(data.waiting)" in fn
+
+
+def test_lencana_antre_cuma_jumlah_dan_plat_di_title():
+    """User 2026-10-03: kalimat panjang "Menunggu timbang (2): ..." diganti lencana
+    "Menunggu 2"; platnya tetap terbaca di `title`. Ditulis cuma kalau beda (F9)."""
+    fn = _fungsi("gambarLencanaAntre")
+    assert 't("antreLencana")' in fn and "teksAntre(daftar)" in fn
+    assert "el.hidden = !n" in fn
+    assert "el.textContent !== teks" in fn and "el.title !== judul" in fn
 
 
 def test_jalur_gerbang_dipakai_dan_terkunci():
