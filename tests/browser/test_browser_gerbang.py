@@ -508,6 +508,46 @@ def test_status_badge_follows_the_four_steps_and_the_newest_row_leads(halaman, k
     _sama_warna("lbPergi")
 
 
+# Width of every Status badge in the table, and the text each one shows.
+_LEBAR_LENCANA = """() => [...document.querySelectorAll('#timbangan td:first-child .lencana')]
+  .map((el) => [el.textContent, el.getBoundingClientRect().width])"""
+
+
+def test_status_badges_share_one_width_in_both_languages(halaman, konsol, browser_name, penugasan_bersih):
+    """User 2026-10-03: Datang, Bongkar, Timbang kosong and Selesai are as wide as the widest
+    of them, in Indonesian and in English (Arrived, Unloading, Weighed out, Done)."""
+    datang, bongkar, kosong, selesai = (plat(browser_name, n) for n in (1601, 1602, 1603, 1604))
+    masuk(halaman, OPERATOR)
+    _datang_api(halaman, konsol, datang)
+    _tiket_terbuka(halaman, konsol, bongkar)
+    tiket_kosong = _tiket_terbuka(halaman, konsol, kosong)
+    r = halaman.request.post(konsol.url + "/api/console/weighings", data={
+        "plate_number": kosong, "entered_at": tiket_kosong["entered_at"], "tare_kg": "6000",
+        "exited_at": halaman.evaluate("() => new Date().toISOString()")})
+    assert r.status == 201, r.text()
+    _tutup_tiket(halaman, konsol, _tiket_terbuka(halaman, konsol, selesai))
+    try:
+        buka_tab(halaman, "timbangan")
+        for _ in range(2):
+            halaman.evaluate("() => muatTrucks().then(() => muatTimbangan())")
+            for kunci in ("tahapDatang", "tahapBongkar", "tahapTimbangKosong", "tahapSelesai"):
+                expect(halaman.locator("#timbangan td:first-child .lencana", has_text=kamus(halaman, kunci))
+                       .first).to_be_visible()
+            lebar = halaman.evaluate(_LEBAR_LENCANA)
+            assert len({teks for teks, _ in lebar}) == 4, lebar
+            assert max(w for _, w in lebar) - min(w for _, w in lebar) <= 1, lebar
+            # Second round in English (Arrived, Unloading, Weighed out, Done), then back.
+            halaman.click("#bahasa")
+    finally:
+        _selesaikan(halaman, konsol, datang)
+        _tutup_tiket(halaman, konsol, next(w for w in halaman.request.get(
+            konsol.url + "/api/console/weighings").json()["items"] if w["plate_number"] == bongkar))
+        r = halaman.request.post(konsol.url + "/api/console/departures",
+                                 data={"weighing_id": tiket_kosong["id"],
+                                       "at": halaman.evaluate("() => new Date().toISOString()")})
+        assert r.status == 200, r.text()
+
+
 def test_a_poll_never_takes_the_weigh_in_picker_from_the_operator(halaman, konsol, browser_name, penugasan_bersih):
     """Review 2026-10-02: a poll with a changed waiting list keeps an open panel open, and after
     a keyboard pick the focus stays on the picker (an `outerHTML` redraw sent it to <body>)."""

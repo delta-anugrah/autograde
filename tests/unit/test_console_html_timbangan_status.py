@@ -175,6 +175,27 @@ def test_lencana_tahap_berwarna_dan_berkata(tahap):
 
 
 @butuh_node
+def test_lencana_membawa_keempat_kata_untuk_lebar_yang_sama():
+    """User 2026-10-03: every Status badge as wide as the widest word, in the screen's language.
+    The four words ride in `data-ukur`, one per line, drawn by an invisible zero-height
+    `::after`; the badge's own text stays the one word."""
+    html = _jalankan('lencanaTahap("selesai")', "lencanaTahap")
+    ukur = re.search(r'data-ukur="([^"]*)"', html).group(1)
+    assert ukur.split("\n") == ["tahapDatang", "tahapBongkar", "tahapTimbangKosong", "tahapSelesai"]
+    assert html.endswith(">tahapSelesai</span>")
+
+
+def test_lencana_lebar_dari_pseudo_elemen_tak_terlihat():
+    aturan = re.search(r"\.lencana::after \{([^}]*)\}", HTML)
+    assert aturan, "no .lencana::after rule"
+    isi = aturan.group(1).replace(" ", "")
+    for sifat in ("content:attr(data-ukur)", "height:0", "visibility:hidden", "white-space:pre"):
+        assert sifat in isi, sifat
+    lencana = re.search(r"\n  \.lencana \{([^}]*)\}", HTML).group(1).replace(" ", "")
+    assert "align-items:center" in lencana
+
+
+@butuh_node
 def test_tahap_tak_dikenal_jadi_strip_bukan_tebakan():
     assert _jalankan('lencanaTahap("aneh")', "lencanaTahap") == "-"
     assert _jalankan("lencanaTahap(undefined)", "lencanaTahap") == "-"

@@ -1414,9 +1414,16 @@
   .tahap-bongkar { color:var(--warn); background:var(--warn-bg); border-color:var(--warn); }
   .tahap-kosong  { color:var(--info); background:var(--info-bg); border-color:var(--info); }
   .tahap-selesai { color:var(--acc); background:var(--acc-bg); border-color:var(--acc); }
-  .lencana { display:inline-block; font:700 .78rem/1 var(--font); letter-spacing:.08em;
+  /* Semua lencana Status selebar yang terlebar (user 2026-10-03): `data-ukur` membawa keempat
+     kata tahap dalam bahasa layar, satu per baris, sebagai pseudo-elemen tak terlihat setinggi
+     nol. Lebarnya = kata terlebar, katanya sendiri di tengah. Pseudo-elemen tidak masuk
+     `textContent` maupun pembaca layar, jadi yang terbaca tetap satu kata. */
+  .lencana { display:inline-flex; flex-direction:column; align-items:center;
+             font:700 .78rem/1 var(--font); letter-spacing:.08em;
              text-transform:uppercase; padding:6px 10px; border-radius:var(--r-pill);
              border:1px solid; white-space:nowrap; }
+  .lencana::after { content:attr(data-ukur); height:0; overflow:hidden; visibility:hidden;
+                    white-space:pre; }
   /* Judul langkah: label kecil yang sama, kini sebagai pita berwarna tahapnya. */
   .lb.langkah { align-self:flex-start; padding:4px 10px; border-radius:var(--r-pill);
                 border:1px solid; }
@@ -4535,7 +4542,9 @@ function lencanaTahap(tahap) {
     selesai: ["tahap-selesai", "tahapSelesai"],
   }[tahap] || [];
   if (!kelas) return KOSONG;
-  return `<span class="lencana ${kelas}">${esc(t(kunci))}</span>`;
+  // Keempat kata tahap ikut di `data-ukur`, supaya semua lencana selebar yang terlebar.
+  const ukur = ["tahapDatang", "tahapBongkar", "tahapTimbangKosong", "tahapSelesai"].map((k) => t(k)).join("\n");
+  return `<span class="lencana ${kelas}" data-ukur="${esc(ukur)}">${esc(t(kunci))}</span>`;
 }
 
 // Antre = scan 1 sampai timbang isi. Tanpa scan 1 bukan "0 mnt": itu menarik rata-rata
