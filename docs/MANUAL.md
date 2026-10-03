@@ -466,7 +466,7 @@ python3.12 -m venv .venv
   pytest ruff cryptography aiosqlite psutil boto3 pyyaml
 
 make operator          # akun lokal: email + nama + sandi (min. 8 karakter)
-make demo              # opsional: 10 truk, seminggu riwayat, akun operator@/support@demo.autoerp.test sandi sawit2026
+make demo              # opsional: 10 truk, seminggu riwayat, 2 kedatangan dibatalkan hari ini, akun operator@/support@demo.autoerp.test sandi sawit2026
 make demo-reset        # hapus data demo lalu isi ulang bersih
 make demo-off          # sesudah demo: hapus data demo, berhenti di situ (data sungguhan tidak disentuh)
 make console           # http://127.0.0.1:8100/console  (Ctrl-C untuk berhenti)

@@ -1233,6 +1233,9 @@ end of this file.
     `GET /api/console/weighings` (hari kerja yang tampil) dan tampil di panel **Kedatangan
     dibatalkan (n)** di bawah tabel Timbangan. Danger Zone dan `make demo-reset` menghapusnya
     bersama kedatangan lain; selain itu tidak ada pembersihan berkala untuk jam gerbang.
+    `make demo` menanam dua kedatangan dibatalkan untuk hari ini (`seed_batal_datang`, lewat
+    `record_arrival` + `cancel_arrival` milik store) supaya panelnya tampil di site demo; cuma di
+    AutoGrade, seeder AutoERP tidak disentuh.
     ⚠️ Image sebelum versi skema 5 (rollback) tidak mengenal kolom itu: kedatangan yang sudah
     dibatalkan terbaca menunggu lagi selama jendela 12 jamnya.
     **Tanpa scan 4** (keputusan user 2026-10-03): tiket bertara yang tidak pernah Keluar

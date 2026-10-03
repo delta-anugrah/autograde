@@ -86,3 +86,77 @@ def test_wipe_juga_menghapus_kedatangan_demo_yang_dibatalkan(tmp_path):
     assert store.arrival("a-batal") is None
     assert store.cancelled_arrivals("2026-09-29") == []
 
+
+
+# ── cancelled arrivals for the "Kedatangan dibatalkan" panel (2026-10-03) ─────────────
+
+
+def test_demo_menanam_dua_kedatangan_dibatalkan_hari_ini(tmp_path):
+    seeder = _muat_seeder()
+    store = ConsoleStore(tmp_path / "console.db")
+    now = datetime(2026, 10, 3, 10, 0, tzinfo=WIB)
+    assert seeder.seed_batal_datang(store, WIB, now=now) == 2
+
+    riwayat = store.cancelled_arrivals("2026-10-03")
+    assert len(riwayat) == 2
+    email, nama, _role = seeder.ACCOUNTS[0]
+    for r in riwayat:
+        assert r["plate_number"] in seeder.PLATES
+        assert (r["cancelled_by"], r["cancelled_by_name"]) == (email, nama)
+        datang, batal = datetime.fromisoformat(r["arrived_at"]), datetime.fromisoformat(r["cancelled_at"])
+        assert timedelta(minutes=1) <= batal - datang <= timedelta(minutes=15)
+        assert batal <= now and now - datang <= timedelta(hours=1)
+    assert len({r["plate_number"] for r in riwayat}) == 2
+    # Cancelled = not waiting: the demo's Timbangan table gets no extra "Datang" row.
+    assert store.waiting_arrivals("2026-10-01") == []
+
+
+def test_kedatangan_dibatalkan_demo_tidak_digandakan_seed_ulang(tmp_path):
+    seeder = _muat_seeder()
+    store = ConsoleStore(tmp_path / "console.db")
+    now = datetime(2026, 10, 3, 10, 0, tzinfo=WIB)
+    seeder.seed_batal_datang(store, WIB, now=now)
+    pertama = store.cancelled_arrivals("2026-10-03")
+    # Later the same day: still two, with the first run's times.
+    assert seeder.seed_batal_datang(store, WIB, now=now + timedelta(hours=3)) == 2
+    assert store.cancelled_arrivals("2026-10-03") == pertama
+
+
+def test_kedatangan_dibatalkan_demo_tetap_di_hari_ini_sesudah_tengah_malam(tmp_path):
+    """Seeded at 00:10: "50 minutes ago" is yesterday's work date and the panel of today
+    would stay empty. Both times are clamped into today and never pass now."""
+    seeder = _muat_seeder()
+    store = ConsoleStore(tmp_path / "console.db")
+    now = datetime(2026, 10, 3, 0, 10, tzinfo=WIB)
+    assert seeder.seed_batal_datang(store, WIB, now=now) == 2
+    assert store.cancelled_arrivals("2026-10-02") == []
+    for r in store.cancelled_arrivals("2026-10-03"):
+        assert datetime.fromisoformat(r["arrived_at"]) <= datetime.fromisoformat(r["cancelled_at"]) <= now
+
+
+def test_demo_reset_dan_demo_off_menghapus_kedatangan_dibatalkan_demo(tmp_path):
+    """`make demo-reset` and `make demo-off` both go through `wipe`: the seeded cancelled
+    arrivals go, a real truck's cancelled arrival stays."""
+    seeder = _muat_seeder()
+    store = ConsoleStore(tmp_path / "console.db")
+    now = datetime(2026, 10, 3, 10, 0, tzinfo=WIB)
+    seeder.seed_batal_datang(store, WIB, now=now)
+    store.record_arrival({"id": "a-asli", "plate_number": "BE 1 AA", "plate_norm": "BE1AA",
+                          "truck_id": truck_id_for("BE 1 AA"), "work_date": "2026-10-03",
+                          "arrived_at": "2026-10-03T02:00:00+00:00"})
+    store.cancel_arrival("a-asli", cancelled_at="2026-10-03T02:05:00+00:00", cancelled_by="op@pks.test")
+
+    assert seeder.wipe(store) == 2
+    assert [r["plate_number"] for r in store.cancelled_arrivals("2026-10-03")] == ["BE 1 AA"]
+    # Seeding again after the wipe (`demo-reset`) puts the two back.
+    assert seeder.seed_batal_datang(store, WIB, now=now) == 3
+
+
+def test_seed_utuh_melaporkan_kedatangan_dibatalkan(tmp_path, monkeypatch):
+    seeder = _muat_seeder()
+    monkeypatch.setattr(seeder, "tulis_gambar_demo", lambda *a, **k: None)
+    store = ConsoleStore(tmp_path / "console.db")
+    hasil = seeder.seed(store, WIB, tmp_path / "artifacts", days=1)
+    assert hasil["batal"] == 2
+    hari = datetime.now(WIB).strftime("%Y-%m-%d")
+    assert len(store.cancelled_arrivals(hari)) == 2
