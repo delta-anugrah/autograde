@@ -2,7 +2,7 @@
 
 It serves what the console and the screen ask a line for during the browser flows:
 `/health`, a healthy `/internal/status` (no alarms, AI alive, the shape
-`LineStatusWorker` reads), the camera feed (one PNG frame, enough for the card to count
+`LineStatusWorker` reads), a `/health/detail` for the Status tab's Diagnostics card, the camera feed (one PNG frame, enough for the card to count
 as connected) and the two commands the tests trigger (`/internal/assignment`,
 `/internal/setelan`). Everything else is 404, which is what an older line image answers,
 and the screen must word that without a script error. Every POST is recorded.
@@ -28,6 +28,15 @@ STATUS_SEHAT = {
     "ai": {"mati": False},
     "ffb_source": None,
 }
+# What the Diagnostics card needs from a healthy Hikrobot line; the console passes it through.
+DETAIL_SEHAT = {
+    "camera_connected": True,
+    "fps_kamera": 14.9,
+    "fps_deteksi": 7.2,
+    "frame_umur_detik": 0.1,
+    "suhu_kamera_c": 47.3,
+    "workers": [{"name": "capture", "alive": True}],
+}
 _PERINTAH = ("/internal/assignment", "/internal/setelan")
 
 
@@ -42,6 +51,8 @@ class _Penjawab(BaseHTTPRequestHandler):
             self._json(200, {"status": "ok"})
         elif jalur == "/internal/status":
             self._json(200, STATUS_SEHAT)
+        elif jalur == "/health/detail":
+            self._json(200, DETAIL_SEHAT)
         else:
             self._json(404, {"detail": "Not Found"})
 
