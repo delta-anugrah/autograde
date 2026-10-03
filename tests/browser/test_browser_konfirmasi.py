@@ -76,11 +76,11 @@ def test_enter_on_the_confirm_button_answers_yes(halaman):
     expect(halaman.locator("#bahasa")).to_be_focused()
 
 
-def test_danger_makes_the_confirm_red_and_leaves_cancel_plain(halaman):
+def test_danger_makes_the_confirm_solid_red_and_cancel_light_red(halaman):
     masuk(halaman, OPERATOR)
     _buka_dari(halaman, "#bahasa", bahaya=True)
     expect(halaman.locator("#konfirmasi-ya")).to_have_class(re.compile(r"^bahaya pekat$"))
-    assert halaman.locator("#konfirmasi-tidak").evaluate("(el) => el.classList.length") == 0
+    expect(halaman.locator("#konfirmasi-tidak")).to_have_class(re.compile(r"^bahaya$"))
     halaman.click("#konfirmasi-ya")
     assert _jawaban(halaman) is True
 

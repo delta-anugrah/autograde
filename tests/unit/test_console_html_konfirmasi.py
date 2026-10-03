@@ -58,9 +58,9 @@ def test_dialog_bersama_ada_dengan_batal_lebih_dulu():
     assert isi.index('id="konfirmasi-tidak"') < isi.index('id="konfirmasi-ya"'), (
         "Batal comes first: an accidental Enter cancels"
     )
-    # The cancel button is the plain base button: in this dialog it is the safe choice.
+    # Red like every other cancel (F11, user 2026-10-03); the first focus keeps it the safe choice.
     tidak = re.search(r'<button\b[^>]*id="konfirmasi-tidak"[^>]*>', isi).group(0)
-    assert "class=" not in tidak, tidak
+    assert 'class="bahaya"' in tidak, tidak
 
 
 def test_bahaya_membuat_konfirmasi_merah_pekat():

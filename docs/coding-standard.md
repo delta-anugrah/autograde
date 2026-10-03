@@ -54,7 +54,7 @@ PRs; a PR is not blocked by a gap it did not add.
 - **F9.** A timer that belongs to one tab starts and stops in `bukaTabDev` (rule 21); the screen-wide polls (`refresh`, `muatTrucks`, `muatTimbangan`) run on every tab on purpose (rules 22, 24, 27). A poll that rewrites a view uses `tulisKalauBeda`, so an unchanged view is not redrawn.
 - **F10.** No secret, API key or licence token in the page. What must survive a reload (the open tab) sits in `localStorage`; data always comes back from the server.
 - **F11.** One button component: the base `button`, `button.utama` for the main action of a step, `button.bahaya` for every cancel, delete, reset, undo, release or sign-out (`bahaya pekat` for the final irreversible run); never a one-off colour rule (`tests/unit/test_console_tombol_bahaya.py`). A successful action answers with a toast (`toastSukses`; saved but not reached everywhere = `toastPeringatan`), never a box of text that looks like a warning.
-- **F12.** No native browser dialog (`confirm`, `alert`, `prompt`): every "are you sure?" goes through `tanyaKonfirmasi()`, the one in-page `<dialog>`, whose Batal is the plain base button because there it is the safe choice (`tests/unit/test_console_html_konfirmasi.py`).
+- **F12.** No native browser dialog (`confirm`, `alert`, `prompt`): every "are you sure?" goes through `tanyaKonfirmasi()`, the one in-page `<dialog>`, whose Batal is `button.bahaya` like every other cancel (F11, user 2026-10-03) and keeps the first focus, so an accidental Enter still cancels (`tests/unit/test_console_html_konfirmasi.py`).
 
 ## Tests
 
