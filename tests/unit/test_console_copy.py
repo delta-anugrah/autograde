@@ -126,7 +126,10 @@ def test_petunjuk_gerbang_keluar_menyebut_tombol_yang_ada_di_baris(bahasa):
     baris tiket; kata yang dipakai harus tulisan tombol itu sendiri (`btnTimbangKosong`,
     `btnPergi`), bukan kata lain yang tidak ada di layar."""
     kamus = _kamus(bahasa)
-    for tombol, petunjuk in (("btnTimbangKosong", "hintGerbangKeluar"), ("btnPergi", "hintPergi")):
+    pasangan = (("btnTimbangKosong", "hintGerbangKeluar"), ("btnPergi", "hintPergi"),
+                # Strip langkah 2026-10-03: ruas 1 dan 2 menyebut tombol formnya.
+                ("btnDatang", "hintDatang"), ("btnMasuk", "hintTimbangIsi"))
+    for tombol, petunjuk in pasangan:
         assert kamus[tombol] in kamus[petunjuk], (kamus[tombol], kamus[petunjuk])
 
 
