@@ -163,6 +163,10 @@ services:
       # pabrik dan layar menyebut tempat yang tidak bisa dibuka siapa pun.
       - REKAMAN_TAMPIL=${REKAMAN_TAMPIL:-/opt/palmgrade/autograde/videos}
       - MEDIA_FILE=${MEDIA_FILE:-}
+      # Batch 4.6, Update now: the launcher writes status.json here, the console writes
+      # request.json, the host watcher answers with result.json. The console gets this
+      # folder and nothing else of the host: no Docker socket, ever.
+      - UPDATE_DIR=${UPDATE_DIR:-/app/update}
     volumes: !override
       - ./state/console:/app/state
       - ./artifacts/line-1:/app/artifacts/line-1:ro
@@ -174,6 +178,11 @@ services:
       # Read-only: konsol memilih model, tidak pernah menulisnya.
       - ./models:/app/models:ro
       - ./engines:/app/engines:ro
-      # Satu-satunya berkas host yang konsol boleh TULIS. `.env` sengaja tidak
+      # Berkas host yang konsol boleh TULIS (selain folder update di bawah). `.env` sengaja tidak
       # di-mount: ia memuat lisensi, R2, dan webhook secret.
       - ./media.env:/config/media.env
+      # Writable on purpose (batch 4.6): the console's only way to ask the host for
+      # an install. The host folder is created by sawit `pasang-penunggu-update.sh`,
+      # owned by the desktop user; one Docker creates is root-owned and the launcher
+      # cannot write status.json into it.
+      - ./update:/app/update
