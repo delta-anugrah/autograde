@@ -128,9 +128,11 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   misalnya `v1.18.0 · Lisensi s/d 30 Sep 2027`. Kuning saat langganan tinggal sebentar, merah
   saat masa tenggang atau habis. Klik untuk melihat perusahaan, tanggal aktif, dan masa
   tenggang. PC tanpa lisensi cuma menampilkan versinya.
-- **Pita kuning "Versi vX.Y.Z siap dipasang"** (semua akun) di bawahnya: versi baru sudah
-  diunduh PC dan menunggu dipasang. Klik pitanya, kotak Versi & lisensi terbuka dengan tombol
-  **Pasang sekarang**. Syaratnya: **lepas dulu semua truk** di ketiga line (termasuk truk yang
+- **Pita kuning "Versi vX.Y.Z siap dipasang"** (semua akun) selebar layar, di atas kartu line:
+  versi baru sudah diunduh PC dan menunggu dipasang. Ketuk pitanya, kotak Versi & lisensi
+  terbuka dengan tombol hijau **Pasang sekarang** di sebelah **Tutup**. Tombol **×** di ujung
+  pita menyembunyikannya untuk versi itu saja (di PC itu); versi berikutnya memunculkannya lagi,
+  dan angka versi di bawah AUTOGRADE tetap membuka kotak yang sama. Syaratnya: **lepas dulu semua truk** di ketiga line (termasuk truk yang
   lupa dilepas kemarin). Konsol dan ketiga line berhenti sekitar 2 menit lalu menyala sendiri;
   selama itu layar menulis "Sedang memasang versi baru" dan tersambung lagi sendiri, jangan
   tekan apa-apa. Hasilnya tertulis di kotak yang sama (dan di tab Log): "sudah terpasang" berarti

@@ -75,3 +75,10 @@ def test_tombol_pasang_utama_dan_terpisah_dari_isi():
     assert "pembaruan-pasang" not in isi and "v1.23.0" in isi
     berjalan = "{terpasang:true, siap:null, berjalan:true, hasil:null}"
     assert jalankan(fungsi, f"tombolPasang({berjalan})", tambahan=ikon) == ""
+
+
+def test_impor_pilih_berkas_tiga_perempat_periksa_seperempat():
+    """User 2026-10-04: the file box and Periksa fill the row, 3/4 and 1/4."""
+    aturan = _aturan(".impor-pilih")
+    assert "display:grid" in aturan and "3fr" in aturan and "1fr" in aturan
+    assert "width:100%" in _aturan(".impor-pilih > *")

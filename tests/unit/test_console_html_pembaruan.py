@@ -6,7 +6,7 @@ import pytest
 from konsol_js import HTML, NODE, jalankan
 
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada (image CI)")
-FUNGSI = ["teksBadgePembaruan", "teksHasilPembaruan", "tombolPasang", "htmlPembaruan", "namaLineDari"]
+FUNGSI = ["teksBadgePembaruan", "pitaPembaruan", "teksHasilPembaruan", "tombolPasang", "htmlPembaruan", "namaLineDari"]
 IKON = "const IKON_UNDUH = '<svg></svg>';"
 
 
@@ -103,9 +103,42 @@ def test_layar_saat_konsol_tidak_menjawab_selama_pasang():
     assert "pembaruanTerakhir" in badan and "pembaruanTersambungLagi" in badan
 
 
-def test_badge_dan_wadah_ada_di_markup():
-    for penanda in ('id="badge-pembaruan"', 'id="pembaruan-isi"', 'id="pembaruan-support"'):
+def test_pita_dan_wadah_ada_di_markup():
+    for penanda in ('id="pita-pembaruan"', 'id="pembaruan-isi"', 'id="pembaruan-support"'):
         assert penanda in HTML, penanda
+    # The header badge became a banner (user 2026-10-04): one place says a version is ready.
+    assert 'id="badge-pembaruan"' not in HTML
+
+
+SIAP = "{terpasang:true, siap:'v1.23.0', berjalan:false, hasil:null}"
+
+
+@butuh_node
+def test_pita_bisa_dibuka_dan_ditutup():
+    html = _j(f"pitaPembaruan({SIAP}, '')")
+    assert "Versi v1.23.0 siap dipasang" in html
+    assert "data-buka-pembaruan" in html and "data-tutup-pembaruan" in html
+
+
+@butuh_node
+def test_pita_yang_ditutup_diam_sampai_versi_berikutnya():
+    """Closing hides the banner for that version only: a newer one shows it again."""
+    assert _j(f"pitaPembaruan({SIAP}, 'v1.23.0')") == ""
+    assert "v1.23.0" in _j(f"pitaPembaruan({SIAP}, 'v1.22.1')")
+
+
+@butuh_node
+def test_tanpa_pita_saat_memasang_atau_tanpa_versi():
+    assert _j("pitaPembaruan({terpasang:true, siap:'v1.23.0', berjalan:true, hasil:null}, '')") == ""
+    assert _j("pitaPembaruan({terpasang:true, siap:null, berjalan:false, hasil:null}, '')") == ""
+    assert _j("pitaPembaruan(null, '')") == ""
+
+
+@butuh_node
+def test_pita_dua_bahasa_tanpa_kunci_mentah():
+    for bahasa in ("id", "en"):
+        html = _j(f"pitaPembaruan({SIAP}, '')", bahasa)
+        assert "pembaruanPita" not in html and "toastTutup" not in html, bahasa
 
 
 @butuh_node

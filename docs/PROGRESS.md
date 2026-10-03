@@ -25,8 +25,13 @@ Changed:        The four text dialogs (model swap, confirmation, CSV import, Ver
                 Versi & lisensi box, Pasang sekarang moved from under the text into the button row
                 (`tombolPasang`, green `utama`), next to Tutup (red `bahaya`, first, keeps the focus).
                 The Pembaruan heading reads like a section label. Impor CSV's Tutup is red too.
+                Round 2 (user 2026-10-04): the header badge "Versi X siap dipasang" became a
+                full-width banner above the line cards (`#pita-pembaruan`, `pitaPembaruan()`): tap
+                opens the box, × hides it for that version only (`localStorage` key
+                `pembaruanDitutup`), a newer version shows it again. Impor CSV: file box 3/4,
+                Periksa 1/4, full row.
                 Coding standard F12 names the component.
-Validated:      unit 4487, e2e 380, integration 160, browser 206, ruff clean; screenshots light, dark, 390 px.
+Validated:      See the PR body for the suite counts; screenshots light, dark, 390 px, banner, import row.
 Next:           Merge, then release with the camera temperature.
 
 ## 2026-10-03 · camera · Camera temperature on the Diagnostics card (PR #218)
