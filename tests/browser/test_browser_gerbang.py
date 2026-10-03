@@ -94,8 +94,10 @@ def test_four_labelled_steps_and_two_new_columns(halaman):
         expect(halaman.locator(f'#sec-timbangan [data-t="{kunci}"]')).to_have_text(kamus(halaman, kunci))
     for kolom in _KOLOM_SCAN:
         expect(halaman.locator(kolom)).to_be_hidden()
-    expect(halaman.locator("#sec-timbangan thead th")).to_have_count(12)
-    expect(halaman.locator("#sec-timbangan thead th").first).to_have_text(kamus(halaman, "thStatus"))
+    # The Timbangan table itself, not the cancelled arrivals table under it (round 4).
+    kepala = halaman.locator("#sec-timbangan > .tabel thead th")
+    expect(kepala).to_have_count(12)
+    expect(kepala.first).to_have_text(kamus(halaman, "thStatus"))
     for kunci in ("thAntre", "thTotal"):
         expect(halaman.locator(f'#sec-timbangan th[data-t="{kunci}"]')).to_have_text(kamus(halaman, kunci))
     expect(halaman.locator("#petunjuk-pergi")).to_have_text(kamus(halaman, "hintPergi"))
