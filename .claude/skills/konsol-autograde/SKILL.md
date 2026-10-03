@@ -70,8 +70,22 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   untuk eksekusi terakhir; tanpa aturan warna satu-satu (`test_console_tombol_bahaya.py`).
   Aksi yang berhasil selalu menjawab dengan toast (`toastSukses`; tersimpan tapi belum sampai
   ke semua line = `toastPeringatan`), bukan kotak teks.
-- Toast menutup sendiri paling lama 10 detik, ditahan selama kursor di atasnya; tidak ada
-  lagi toast yang menunggu × (`test_console_html_toast.py`).
+- Toast menutup sendiri paling lama 10 detik; tidak ada lagi toast yang menunggu ×
+  (`test_console_html_toast.py`). Tumpukannya ala Sonner (2026-10-03): terbaru di depan, yang
+  lama terlipat (`TOAST_TERLIHAT` 3 dari `TOAST_MAKS` 4 di DOM), kursor atau fokus membuka
+  tumpukan dan menahan semua hitung mundur (`bukaTumpukanToast`), geser kanan membuang
+  (`pasangGeserToast`). Posisi dari variabel CSS yang ditulis `susunToast`; tinggi diukur sekali
+  saat toast dibuat. Kait test tetap: `#toasts`, `.toast.<jenis>`, `.pesan`, `.tutup`
+  (`test_browser_toast_tumpukan.py`).
+- Tidak ada `confirm`/`alert`/`prompt` bawaan browser (coding standard F12): tanya lewat
+  `await tanyaKonfirmasi({judul, pesan, ya, batal, bahaya, asal})` (Promise<boolean>,
+  `<dialog id="konfirmasi-modal">`), dan tanya SEBELUM tombolnya dikunci supaya fokus bisa
+  kembali (`test_console_html_konfirmasi.py`, `test_browser_konfirmasi.py`).
+- Angka tally (strip Hari ini dan `.counts b[data-k]` kartu line) ditulis lewat
+  `tulisAngka(el, nilai)`: odometer kalau nilainya berubah, polos untuk tulisan pertama, tab
+  tersembunyi, dan gerak dikurangi. `textContent` tetap angkanya (`.odo-baca`).
+- Nama kelas baru dicek dulu terhadap aturan global (`.jam` misalnya `display:flex`); untuk
+  keadaan elemen pakai atribut `data-*` seperti toast, bukan kelas umum.
 - Aksi baru yang merestart line memanggil `tandaiRestart(lineDirestart(jawaban))` dari
   jawaban server; stream kamera diminta ulang lewat `mintaUlangFeed` saja (cap waktu
   `_dimintaPada` yang dipakai `restartSelesai`).

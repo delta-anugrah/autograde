@@ -162,12 +162,21 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   layar tempat tombolnya ditekan (biasanya PC pabrik lewat AnyDesk); layar lain cuma melihat
   kartu OFFLINE lalu ONLINE lagi.
 - **Notifikasi di pojok kanan bawah** menutup sendiri: hijau dan kuning 5 detik, merah dan hasil
-  Danger Zone yang perlu dibaca 10 detik. Selama kursor di atasnya hitungannya berhenti, jadi
-  kalimat panjang bisa dibaca sampai habis, tapi tidak ada yang bertahan lebih dari 30 detik;
-  tombol × menutupnya kapan saja.
+  Danger Zone yang perlu dibaca 10 detik. Tiap notifikasi berikon (centang hijau, segitiga
+  kuning, tanda seru merah). Yang terbaru di depan; yang lebih lama terlipat di belakangnya dan
+  cuma tepinya yang mengintip, paling banyak tiga terlihat. Kursor di atas tumpukan membukanya
+  jadi daftar dan menghentikan hitungan semuanya, jadi kalimat panjang bisa dibaca sampai habis,
+  tapi tidak ada yang bertahan lebih dari 30 detik. Tombol × menutupnya kapan saja; menggesernya
+  ke kanan (mouse atau jari) juga membuangnya.
+- Angka **RIPE, UNRIPE, JK, TP, TOTAL** di kartu line dan di strip **Hari ini** bergulir seperti
+  odometer saat berubah, supaya perubahan terlihat dari jauh. Angka yang sama tidak bergerak.
 - **Reject manual tanpa mouse**: tahan `Spasi` lalu tekan `1` / `2` / `3` sesuai line.
-- **Piston manual** per line (Buka / Tutup) kalau PLC aktif. Ada konfirmasi karena ini
-  menggerakkan besi sungguhan.
+- **Piston manual** per line (Buka / Tutup) kalau PLC aktif. **Buka** bertanya dulu di kotak
+  konfirmasi di layar karena ini menggerakkan besi sungguhan; **Tutup** langsung jalan.
+- Semua pertanyaan "yakin?" muncul di kotak konfirmasi di tengah layar, bukan kotak bawaan
+  browser: **Batal** (sudah terpilih, jadi Enter yang tidak disengaja membatalkan), `Esc`, atau
+  klik di luar kotak membatalkan; tombol kanan menjalankan, merah pekat kalau aksinya mengeluarkan
+  atau membuang sesuatu.
 - Sumber TBS **Internal** ditandai "REJ tidak dibuang": buah kebun sendiri tetap dinilai, tapi
   piston tidak membuangnya.
 - Di atas tabel Timbangan ada strip empat langkah: **1. Datang**, **2. Timbang isi**,
@@ -208,8 +217,9 @@ Kolom **Antre** = datang sampai timbang isi; "tanpa scan 1" artinya scan datang 
 
 Kolom pertama tabel Timbangan, **Status**, menulis tahap tiap truk dengan lencana berwarna yang
 sama dengan judul langkah di atasnya: **Datang** (abu-abu, langkah 1), **Bongkar** (kuning,
-langkah 2), **Timbang kosong** (biru, langkah 3), **Selesai** (hijau, langkah 4). Tahapnya
-dihitung konsol, bukan ditebak layar. Truk yang sudah dicatat datang tapi belum timbang isi juga
+langkah 2), **Timbang kosong** (biru, langkah 3), **Selesai** (hijau, langkah 4). Semua lencana
+sama lebar (selebar kata terpanjang, di bahasa Indonesia maupun Inggris), jadi kolomnya rapi.
+Tahapnya dihitung konsol, bukan ditebak layar. Truk yang sudah dicatat datang tapi belum timbang isi juga
 tampil sebagai baris paling atas berlencana **Datang**, dengan menit tunggunya di kolom Antre
 dan satu tombol merah **Batal datang** (lihat di bawah). Di bawahnya tiket urut **timbang isi terbaru dulu**, menurut jam sebenarnya
 (jam dari browser dan jam dari data demo atau program timbangan dibandingkan dengan benar).
@@ -268,8 +278,9 @@ terbarunya. Line yang dilepas oleh timbang kosong diumumkan dalam satu notifikas
   lain, tapi juga tidak menunggu truk sebelumnya selesai. Layar menolak dan menyebut alasannya
   kalau tidak ada line pilihan yang bebas, selama timbang kosong truk lain masih melepas line,
   atau kalau support belum memilih satu line pun.
-- **Lewati**: truk yang tidak jadi bongkar. Layar bertanya dulu; truk yang dilewati keluar dari
-  antrean dan tidak ditugaskan otomatis. Ditolak kalau truk itu sedang dipasang ke line.
+- **Lewati**: truk yang tidak jadi bongkar. Layar bertanya dulu di kotak konfirmasi (**Batal**
+  membiarkan truknya di antrean); truk yang dilewati keluar dari antrean dan tidak ditugaskan
+  otomatis. Ditolak kalau truk itu sedang dipasang ke line.
 - Dropdown **Pilih Truk** dan tombol **Lepas** di kartu line tetap bisa dipakai untuk koreksi.
 - Kalau sebuah line tidak menjawab saat truk dipasang, layar menyebut line-nya. Timbangannya
   tetap tersimpan; tugaskan truknya manual di kartu line itu.
