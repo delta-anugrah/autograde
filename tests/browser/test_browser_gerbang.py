@@ -231,6 +231,15 @@ def _tutup_tiket(halaman, konsol, tiket: dict) -> None:
 
 
 _LEBAR = (390, 1024, 1280, 1331, 1440, 1680, 1920)
+# From here the whole table, row button included, fits without scrolling sideways.
+_LEBAR_TABEL_MUAT = 1440
+_TABEL_MUAT = """() => {
+  const t = document.querySelector('#sec-timbangan .tabel');
+  const kepala = [...t.querySelectorAll('thead th')];
+  return {lebar: t.scrollWidth, kotak: t.clientWidth,
+          neto: Math.round(kepala[kepala.length - 2].getBoundingClientRect().right),
+          tombol: Math.round(kepala[kepala.length - 1].getBoundingClientRect().left)};
+}"""
 # Below this the 12-column table scrolls sideways inside its own box (a phone).
 _LEBAR_TABEL_PENUH = 1024
 
@@ -250,6 +259,12 @@ def test_the_four_steps_never_scroll_sideways(halaman, konsol, browser_name, leb
         tombol.evaluate("(el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 200)")
         assert halaman.evaluate("() => document.querySelector('#sec-timbangan .tabel').scrollLeft") == 0
         expect(tombol).to_be_in_viewport(ratio=1)
+    if lebar >= _LEBAR_TABEL_MUAT:
+        # Every column fits with the row button pinned (user 2026-10-03: Neto, the paid figure,
+        # hid under the pinned button column at 1680 px).
+        muat = halaman.evaluate(_TABEL_MUAT)
+        assert muat["lebar"] <= muat["kotak"], muat
+        assert muat["neto"] <= muat["tombol"] + 1, muat
     _tutup_tiket(halaman, konsol, tiket)
     ukuran = halaman.evaluate("() => [document.documentElement.scrollWidth, window.innerWidth]")
     assert ukuran[0] <= ukuran[1], f"Timbangan is {ukuran[0]} px wide on a {ukuran[1]} px screen"

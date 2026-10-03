@@ -1078,6 +1078,12 @@
   #sec-timbangan th:last-child, #sec-timbangan td:last-child:not(.kosong) {
     position:sticky; right:0; z-index:1; border-left:1px solid var(--line); }
   #sec-timbangan td:last-child:not(.kosong) { background:var(--card); }
+  /* Dua belas kolom plus tombol baris harus muat di 1440 px (user 2026-10-03, Neto tertutup
+     kolom tombol yang dipaku): judul kolom boleh dua baris ("Jam timbang / kosong") dan jarak
+     sel lebih rapat, jadi lebar kolom ditentukan isinya, bukan judulnya. Neto adalah angka yang
+     dibayar; ia tidak boleh bersembunyi di bawah kolom tombol. */
+  #sec-timbangan th { white-space:normal; vertical-align:bottom; }
+  #sec-timbangan th, #sec-timbangan td { padding-left:8px; padding-right:8px; }
   #sec-timbangan tbody tr:nth-child(even) td:last-child:not(.kosong) { background:var(--zebra); }
   /* The column heads already say ACC and REJ, so the colour is a second signal
      here, never the only one. */
