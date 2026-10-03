@@ -207,9 +207,18 @@ end of this file.
     timbang masuk, truk dilepas dari line, timbang keluar. **`stage` diturunkan dari keadaan
     kunjungan**, bukan ditentukan pemanggil. Bagian yang tidak kita punya **tidak dikirim**,
     tiap kiriman mengganti bagian yang dibawanya, jadi bagian kosong menghapus isi ERP.
-    Grading ditautkan lewat `weighings.assignment_id` yang **ditulis saat truk dilepas**; tanpa
-    tautan itu tiket kedua di hari yang sama mewarisi janjang tiket pertama. Kriteria: mentah =
-    REJ, tangkai panjang = ACC dengan `tp_confidence > 0.8`, matang diturunkan AutoERP sendiri.
+    Grading kunjungan = **semua** penugasan line yang tertaut ke tiketnya, dijumlah (tabel
+    `visit_assignments`, satu baris per penugasan, `grading_counts_for_visit`, 2026-10-01): satu
+    truk boleh dibongkar di beberapa line, dan dulu cuma line yang dilepas terakhir yang terhitung.
+    Tautannya **ditulis saat truk dilepas**; tanpa tautan itu tiket kedua di hari yang sama
+    mewarisi janjang tiket pertama. Kolom lama `weighings.assignment_id` tetap ditulis supaya
+    image lama masih jalan setelah rollback. Tiketnya dicari lewat **jendela waktu**
+    (`JENDELA_KUNJUNGAN_DETIK`, 12 jam sejak tiket diterima konsol), bukan hari kerja: hari kerja
+    berganti pukul 00:00, kunjungan tidak. Timbang keluar melepas semua line truk itu lebih dulu
+    dan mengantre kunjungannya **sekali** sesudahnya: AutoERP memfinalisasi tiket begitu bobot dan
+    grading sama-sama ada, jadi pesan di antara dua pelepasan akan membukukan sebagian line.
+    Kriteria: mentah = REJ, tangkai panjang = ACC dengan `tp_confidence > 0.8`, matang
+    diturunkan AutoERP sendiri.
     Karena angka itu dijumlah dari `ripeness_status`, **`ripeness_status` divalidasi saat ingest**
     (`domain/vision_event.verdict_of`, satu kosakata untuk penulis dan pembaca field ini): di luar
     `{ACC, REJ}` → 400, seperti timestamp cacat. Nilai asing dulu ikut `total` tapi tidak masuk

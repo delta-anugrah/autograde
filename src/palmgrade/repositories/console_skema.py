@@ -15,7 +15,9 @@ import sqlite3
 #: berbasis `PRAGMA table_info` (aturan B5), dan angkanya tidak pernah diturunkan,
 #: jadi image lama yang membuka berkas dari image lebih baru tidak mengubahnya
 #: (rollback lewat `autograde use`).
-VERSI_SKEMA = 1
+#:
+#: 1 = batch 4.5 (PR #213). 2 = `visit_assignments` + `idx_weighings_truck` (PR #208).
+VERSI_SKEMA = 2
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
@@ -122,6 +124,18 @@ CREATE TABLE IF NOT EXISTS weighings (
 CREATE INDEX IF NOT EXISTS idx_weighings_hari ON weighings (work_date, entered_at DESC);
 CREATE INDEX IF NOT EXISTS idx_weighings_plat ON weighings (plate_norm);
 
+-- One visit, every line that unloaded it (2026-10-01). A truck on three lines has three
+-- assignments, and `weighings.assignment_id` holds one: the AutoERP recap counted the
+-- line released last. That column is still written (an older image reads it); this
+-- table is what the recap sums. Written when a line lets the truck go.
+CREATE TABLE IF NOT EXISTS visit_assignments (
+    assignment_id TEXT PRIMARY KEY,
+    weighing_id   TEXT NOT NULL,
+    line_code     TEXT,
+    linked_at     REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_visit_assignments_tiket ON visit_assignments (weighing_id);
+
 CREATE TABLE IF NOT EXISTS sync_state (
     key   TEXT PRIMARY KEY,
     value TEXT
@@ -197,7 +211,7 @@ DROP INDEX IF EXISTS idx_inspections_erp;
 -- jadi ingest dari line tidak membayar apa pun untuk indeks ini.
 CREATE INDEX IF NOT EXISTS idx_inspections_impor ON inspections (import_batch)
     WHERE import_batch IS NOT NULL;
--- Batch 2.5. Rekap satu penugasan (`grading_counts`, `bunches_for_assignment`) dulu
+-- Batch 2.5. Rekap satu penugasan (`grading_counts`, `grading_counts_for_visit`, `bunches_for_visit`) dulu
 -- memindai seluruh `inspections` sambil memegang lock konsol (63 ms di 558 ribu baris).
 -- Parsial: janjang tanpa penugasan dan janjang impor tidak ikut diindeks. `timestamp`
 -- di belakang supaya daftar janjang manifest keluar berurutan tanpa sortir.
@@ -209,6 +223,14 @@ CREATE INDEX IF NOT EXISTS idx_weighings_assignment ON weighings (assignment_id)
 -- `/api/console/state` tiap 2 detik membaca pelepasan otomatis sejam terakhir; tabelnya
 -- tidak pernah dibersihkan.
 CREATE INDEX IF NOT EXISTS idx_auto_releases_waktu ON auto_releases (released_at);
+-- Lepas truk mencari tiket truk itu dalam jendela 12 jam (`latest_weighing_for_truck_since`),
+-- bukan lagi lewat hari kerja yang berindeks.
+CREATE INDEX IF NOT EXISTS idx_weighings_truck ON weighings (truck_id, received_at);
+-- Visits linked before `visit_assignments` existed. Safe to repeat on every boot: the
+-- assignment is the primary key, so a second run inserts nothing.
+INSERT OR IGNORE INTO visit_assignments (assignment_id, weighing_id, line_code, linked_at)
+    SELECT assignment_id, id, NULL, received_at FROM weighings
+    WHERE assignment_id IS NOT NULL AND assignment_id != '';
 """
 
 # Columns renamed to English after the schema had already been created on

@@ -691,10 +691,11 @@ dibuka dari tiket AutoERP di kantor, bukan cuma dari PC pabrik. PC pabrik nol in
 AnyDesk), jadi halamannya tidak bisa hidup di konsol; dia hidup di R2, domain publik yang sama
 dengan foto (`captures.smagri.id`).
 
-Alurnya, saat konsol melepas truk dari line (`_queue_grading`):
+Alurnya, saat konsol melepas truk dari line (`_queue_grading`; pada timbang keluar, sekali
+sesudah semua line truk itu lepas, di `record_weighing`):
 
-1. Konsol membaca semua janjang assignment itu dari SQLite-nya sendiri
-   (`ConsoleStore.bunches_for_assignment`), lalu merakit **satu JSON per kunjungan**
+1. Konsol membaca semua janjang kunjungan itu, dari setiap line yang membongkar truknya, dari
+   SQLite-nya sendiri (`ConsoleStore.bunches_for_visit`), lalu merakit **satu JSON per kunjungan**
    (`domain/visit_manifest.py`, murni: tanpa I/O) di kunci `visits/<visit_id>.json`.
    `visit_id` = id baris `weighings`, angka yang sama dengan `autograde_visit_id` di tiket ERP.
 2. JSON itu masuk **antrean sendiri** (`workers/visit_manifest_worker.py`, `ErpOutboxStore` yang
@@ -791,7 +792,7 @@ pytest tests/unit/ -rs
 | **Master data AutoERP** | `test_erp_master_data.py`, `test_ffb_source.py` | Field yang diminta persis milik DocType (Frappe balas 417 kalau tidak); truk ERP mengadopsi baris yang diketik operator; kursor per-DocType tidak maju kalau ada baris gagal; Sumber TBS mengikuti `sumber_for_supplier` AutoERP |
 | **Antrean ke AutoERP** | `test_erp_client.py`, `test_erp_outbox_store.py`, `test_erp_outbox_worker.py`, `test_erp_link.py`, `test_manual_truck_to_erp.py` | Ditolak (4xx) vs tidak terjangkau (jaringan/5xx) dibedakan; backoff 30 dtk → 1 jam; pesan yang diganti saat masih di jalan tidak ditandai terkirim; ERP mati = batch berhenti, bukan dihajar terus; truk manual naik lewat `upsert_truck`; truk milik AutoERP read-only |
 | **Kunjungan truk** | `test_visit_message.py`, `test_erp_queue.py`, `test_visit_triggers.py`, `test_visit_resend.py` | Bentuk pesan §4.C; `stage` diturunkan dari keadaan kunjungan; bagian yang tidak ada tidak dikirim; grading ikut lewat tautan assignment yang ditulis saat truk dilepas; kirim ulang harian sekali sehari |
-| **Detail grading per truk (R2)** | `test_capture_layout.py`, `test_visit_manifest.py`, `test_console_store.py` (`bunches_for_assignment`), `test_visit_manifest_worker.py`, `test_viewer_html.py`, `test_console_compose_env.py` | Varian `thumb` + pasangan/kunci R2 (`twins_of`, `thumb_key_of`); bentuk JSON manifest murni tanpa I/O; janjang satu assignment urut waktu; antrean manifest sendiri (`manifest_outbox.db`): R2 mati menahan baris, viewer diunggah sekali per proses; invarian statis `viewer.html` (nol dependensi eksternal, manifest dibaca relatif); env `R2_*` konsol wajib ada di `docker-compose.yml` |
+| **Detail grading per truk (R2)** | `test_capture_layout.py`, `test_visit_manifest.py`, `test_console_store.py` (`bunches_for_visit`), `test_visit_manifest_worker.py`, `test_viewer_html.py`, `test_console_compose_env.py` | Varian `thumb` + pasangan/kunci R2 (`twins_of`, `thumb_key_of`); bentuk JSON manifest murni tanpa I/O; janjang satu kunjungan (semua line) urut waktu; antrean manifest sendiri (`manifest_outbox.db`): R2 mati menahan baris, viewer diunggah sekali per proses; invarian statis `viewer.html` (nol dependensi eksternal, manifest dibaca relatif); env `R2_*` konsol wajib ada di `docker-compose.yml` |
 | **End-to-end** | `tests/e2e/test_console_autoerp.py` | Konsol + AutoERP sungguhan: truk dibuat di ERP lalu ditarik konsol, truk diketik di konsol lalu muncul di ERP, timbangan jadi Weighbridge Ticket, grading mendarat di tiket saat truk dilepas dari line. Di-skip tanpa variabel `E2E_*` |
 | Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |
 | PLC | `tests/unit/plc/`, `tests/e2e/test_mc_protocol_lane.py` | Klien MC Protocol + Modbus, state machine pulse/heartbeat/piston, alamat M ≡ compose |

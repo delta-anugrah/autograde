@@ -38,6 +38,71 @@ Decisions:      user 2026-10-02: rolled_back hidden until newer staged; old-day 
                 lock and calls the line without it (a dead line no longer queues other assigns).
 Next:           AnyDesk: install the sawit watcher + host compose mount BEFORE tag v1.22.0.
 
+## 2026-10-01 · console · A visit's grading is summed over every line that unloaded it (PR #208)
+Changed:        A truck unloaded on three lines has three line assignments, but `weighings.assignment_id`
+                holds one, so AutoERP, the detail page and the Log tab counted only the line released
+                last. New table `visit_assignments` (one row per assignment, written when a line lets
+                the truck go, back-filled at start-up; the old column is still written so an older
+                image works after a rollback). `ConsoleStore.grading_counts_for_visit` and
+                `bunches_for_visit` sum every linked assignment; `ErpQueue`, `VisitManifestWorker` and
+                the Log tab context (`erp_link._konteks`) read them. Every assignment now finds its
+                ticket, so a late bunch on the first released line re-queues the visit. Cross-midnight
+                fix: `_queue_grading` finds the ticket by a 12 hour window on the console clock
+                (`JENDELA_KUNJUNGAN_DETIK`, `latest_weighing_for_truck_since`), not by work date, so a
+                truck weighed in at 23:30 and released at 00:30 is no longer linked to nothing. Demo
+                seeder: `wipe()` also deletes the link rows of the visits it deleted, and the seed
+                writes the line code. Rule 18 and `docs/overview.md` name the new link.
+                Final review fixes: the weigh-out stores the tare and then releases the truck's lines
+                one by one, and each release queued the visit, so an outbox drain between two
+                releases would have sent the tare with only some lines and AutoERP finalises at once.
+                `release_truck(line_code, *, kirim=True)` and `_queue_grading(..., kirim=True)` take a
+                `kirim` keyword: the weigh-out releases with `kirim=False`, then queues the detail
+                page and the visit once after the last line (the operator's single Lepas keeps
+                `kirim=True`). A release with graded bunches that finds no ticket in the window now
+                logs a WARNING (plate, line, assignment) instead of dropping the bunches silently.
+                The dead `ConsoleStore.bunches_for_assignment` is gone (its tests moved to
+                `bunches_for_visit`); `grading_counts` stays, the warning uses it. Residual of the
+                single send: a late bunch of a released line or an operator Lepas during the
+                weigh-out loop still queued the visit (tare plus the lines linked so far), so the
+                console keeps a locked count of trucks being weighed out and `_kirim_kunjungan`
+                skips their tickets; the queue after the loop rebuilds from the store and counts
+                the late bunch. After the loop the visits are queued first and the detail pages
+                last, and a page that cannot be queued is logged, never raised.
+Validated:      RED first: `test_kunjungan_banyak_line_kirim.py` 7 failed before the change (total 2 of
+                5, link rows without a line code, nothing linked across midnight); the new integration
+                test failed against the previous commit with 4 of 9 bunches sent. For the final review
+                fixes: against f1eb217 the weigh-out test failed with "kunjungan dengan tara sudah di
+                antrean saat line ke-2 dilepas", the detail page was queued 3 times instead of once,
+                and the no-ticket warning test found no log record. Against 2d77bf5 the late-bunch
+                and operator-Lepas tests failed with "kunjungan dengan tara sudah di antrean pada
+                pelepasan ke-2" and "ke-3", and a page that raises escaped `record_weighing`. After:
+                `pytest tests/unit tests/e2e tests/integration` → 4324 passed, 45 skipped;
+                `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
+                58 passed; `ruff check` on every touched file clean. New tests:
+                `tests/unit/test_kunjungan_banyak_line_kirim.py` (send, detail page, Log line, window,
+                weigh-out queues once, no-ticket warning), `tests/unit/test_kunjungan_banyak_line.py`
+                (an unlinked assignment never leaks into a visit's recap, window query),
+                `tests/unit/test_demo_wipe.py` (link rows),
+                `tests/integration/test_kunjungan_banyak_line_integrasi.py` (three lines, real
+                `LineClient`, real queues and workers).
+Not validated:  A real factory PC and a real AutoERP; the fake AutoERP is `tests/autoerp_palsu.py`.
+Risks:          A release before the ticket is typed can attach the grading to the truck's previous
+                ticket, up to 12 hours back and across midnight, because the link takes the truck's
+                newest ticket in the window. A visit longer than 12 hours from weigh-in to release
+                loses its grading link (the bunches stay in the console, never reach that visit);
+                this is now logged as a WARNING in the Log tab, not fixed. A line that does not
+                answer at weigh-out keeps the truck: the visit is queued with the lines that did
+                release; a later manual Lepas re-sends it whole and AutoERP marks it revised
+                (Cek AutoERP).
+Decisions:      The key AutoERP stores (`autograde_assignment_id`, unique) is the FIRST assignment
+                linked, so it stays the same across resends. `line_code` in the message now names every
+                line ("line-1, line-2"); AutoERP does not read it. The window query filters on
+                `truck_id` and `received_at`, so it gets its own index (`idx_weighings_truck`, added
+                at start-up like the others, nothing dropped) instead of scanning `weighings`.
+                The new table and index raise `VERSI_SKEMA` from 1 to 2 (the #213 rule: one step
+                per schema change).
+Next:           Part 2 of the plan, automatic line assignment (stacked on this PR).
+
 ## 2026-10-02 · console · Stamp console.db with a schema number (PR #213)
 Changed:        `repositories/console_skema.py`: `VERSI_SKEMA = 1`; `siapkan_skema()` ends with
                 `_tandai_versi()`, which raises `PRAGMA user_version` to that number and never lowers

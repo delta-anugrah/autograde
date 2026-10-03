@@ -17,7 +17,7 @@ from .capture_layout import build_r2_key, thumb_key_of
 MANIFEST_KIND = "manifest"
 VIEWER_KEY = "viewer.html"
 SCHEMA = 1
-# Mirrors `ConsoleStore.grading_counts()` — a bunch must agree with its recap.
+# Mirrors `ConsoleStore.grading_counts_for_visit()`: a bunch must agree with its recap.
 TP_THRESHOLD = 0.8
 
 

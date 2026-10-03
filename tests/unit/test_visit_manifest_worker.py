@@ -212,11 +212,29 @@ def test_viewer_upload_failing_does_not_mark_it_uploaded(tmp_path):
     assert worker.outbox.due() == []
 
 
-def test_an_assignment_that_graded_nothing_is_dropped_not_retried(tmp_path):
-    store, wid = _store(tmp_path)
+def test_a_visit_with_no_graded_bunch_is_dropped_not_retried(tmp_path):
+    """A ticket none of whose lines graded anything has no page to make, and no amount of
+    retrying changes that."""
+    store, _ = _store(tmp_path)
+    # A second ticket of the same truck, never linked to any line assignment.
+    store.upsert_weighing(
+        {
+            "id": "w-vacant",
+            "ref": "SCL-2",
+            "plate_number": "BE 8821 KL",
+            "plate_norm": "BE8821KL",
+            "truck_id": None,
+            "work_date": "2026-09-16",
+            "gross_kg": 9000.0,
+            "tare_kg": None,
+            "net_kg": None,
+            "entered_at": "2026-09-16T09:41:00+07:00",
+            "exited_at": None,
+        }
+    )
     uploader = FakeUploader()
     worker = _worker(tmp_path, store, uploader)
-    worker.enqueue(wid, "kosong")
+    worker.enqueue("w-vacant", "kosong")
     asyncio.run(worker.drain_once())
     assert worker.outbox.failed_count() == 0 and not [k for k, _, _ in uploader.puts if k.startswith("visits/")]
     # `failed_count() == 0` and "nothing uploaded" are both equally true of a

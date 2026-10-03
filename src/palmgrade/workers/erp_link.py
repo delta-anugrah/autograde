@@ -89,8 +89,7 @@ def visit_recorded(store: ConsoleStore, *, tz: ZoneInfo) -> Callable[[str, Any],
 def _konteks(store: ConsoleStore, key: str, answer: dict[str, Any], tz: ZoneInfo) -> KonteksKunjungan:
     """Truck, line, weigh-in time and current recap of this visit, for one Log tab line."""
     visit = store.visit(key) or {}
-    assignment_id = visit.get("assignment_id")
-    grading = (store.grading_counts(assignment_id) if assignment_id else None) or {}
+    grading = store.grading_counts_for_visit(key) or {}
     return KonteksKunjungan(
         plat=visit.get("plate_number") or "-",
         line=grading.get("line_code") or "-",
