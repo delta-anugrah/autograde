@@ -270,15 +270,16 @@ def _aturan_css(selektor: str) -> str:
 def test_tombol_aksi_akun_berwarna_menurut_akibatnya():
     """Dulu abu-abu kusam dan menyatu dengan tabel, tidak terbaca sebagai tombol."""
     def kelas(html: str) -> list[str]:
-        return re.findall(r'<button[^>]*class="(aksi-[a-z]+)"', html)
+        return re.findall(r'<button[^>]*class="([a-z-]+)"', html)
 
     aktif = _baris({**_AKUN, "asal": "lokal", "role": "operator"})
     mati = _baris({**_AKUN, "asal": "lokal", "keadaan": "mati", "role": "support"})
 
-    assert kelas(aktif) == ["aksi-sandi", "aksi-matikan", "aksi-role"]
+    # Matikan memakai varian bahaya (F11, user 2026-10-03), bukan warna satu-satu.
+    assert kelas(aktif) == ["aksi-sandi", "bahaya", "aksi-role"]
     assert kelas(mati) == ["aksi-sandi", "aksi-aktifkan", "aksi-role"]
+    assert "aksi-matikan" not in HTML
     assert "--acc-bg" in _aturan_css(".akun-tombol button.aksi-sandi")
-    assert "--rej" in _aturan_css(".akun-tombol button.aksi-matikan")
     assert "background:var(--acc)" in _aturan_css(".akun-tombol button.aksi-aktifkan").replace(" ", "")
     assert "--warn" in _aturan_css(".akun-tombol button.aksi-role")
 

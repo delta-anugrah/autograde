@@ -20,7 +20,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from palmgrade.core.config import Settings
 from palmgrade.domain.operator_auth import hash_password
 from palmgrade.domain.operator_error import BELUM_MASUK, BUKAN_PLAT, PLAT_KOSONG
 from palmgrade.domain.plate import truck_id_for
@@ -34,6 +33,9 @@ from palmgrade.services.scan_service import ScanService
 EMAIL = "gerbang@pks.test"
 SANDI = "timbangan2026"
 PLAT = "BE 4412 OFL"
+#: The console's clock in the full-flow tests: noon, so 08:00 to 10:00 tickets are inside
+#: the visit window whatever time the suite runs.
+SEKARANG = datetime(2026, 9, 15, 12, 0, tzinfo=ZoneInfo("Asia/Jakarta"))
 
 
 class _StubConsole:
@@ -96,6 +98,7 @@ def gerbang_penuh(tmp_path):
     service = ConsoleService(
         replace(Settings(), factory_tz="Asia/Jakarta"), store, SilentLine()
     )
+    service.sekarang = lambda: SEKARANG
 
     app = FastAPI()
     app.include_router(console_router)
@@ -405,13 +408,13 @@ def test_a_printed_qr_card_can_be_used_to_scan(gerbang):
 
 
 def _today() -> str:
-    """The working day the console is on right now — the same way it computes it.
+    """The working day of the pinned console clock (`SEKARANG`, set in `gerbang_penuh`).
 
-    These tests drive the real exit-scan lane, which only looks for a ticket on
-    today's working day. A hard-coded date passes on the day it is written and
-    fails every day after.
+    The exit scan looks for a ticket weighed in within the visit window before now. With
+    the wall clock, an 08:00 ticket fell out of that window after 20:00 and these tests
+    turned red every evening; with the clock pinned they cannot.
     """
-    return datetime.now(ZoneInfo(Settings().factory_tz)).strftime("%Y-%m-%d")
+    return SEKARANG.strftime("%Y-%m-%d")
 
 
 def _weigh_in(client, plate: str, time: str = "08:00:00") -> dict:

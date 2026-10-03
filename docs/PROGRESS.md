@@ -18,13 +18,237 @@ Next:           ...
 
 ---
 
+## 2026-10-03 · console · Merge staging (PR #215 Update now) into the gate scan branch (PR #214)
+Changed:        PR #208 merged first; PR #212 is merged through this PR (it is fully inside it), so its
+                conflicts with #215 were resolved once. Rule numbers: 36 automatic assignment, 37
+                gate times, 38 Update now (was 36 in #215; `CLAUDE.md`, `rules.md`, backend-overview
+                and skill compose-host-pabrik follow). Two `namaLineDari` functions had landed in
+                console.html (the second silently replaced the first and would have broken the
+                automatic assignment toasts): ours is now `namaKartuLine`, and
+                `tests/unit/test_console_html_fungsi_unik.py` fails on any duplicate top-level
+                function. File caps: gate and unloading-queue routes moved to
+                `routes/console_gerbang.py`, included at their old spots so the route map keeps its
+                order; `assignments()` moved to the `PenugasanOtomatis` mixin. MANUAL v2.8 (+ PDF).
+Validated:      See the PR body for the suite counts after this merge.
+Next:           Squash-merge PR #214, close PR #212 as merged through it.
+
+## 2026-10-03 · console · Timbangan round 4: dialog, toasts, odometer, cancel history (PR #214)
+Changed:        Status badges share one width (`data-ukur` + `::after`, both languages). No native
+                browser dialog anywhere: `tanyaKonfirmasi()` on one `<dialog>` (Lewati, Buka
+                piston), Batal red and first-focused; coding standard F12 pinned by a unit test.
+                Toasts rebuilt in the Sonner style by hand (offline, no React): stacked, expand and
+                pause on hover, icons, swipe to dismiss; same API and DOM hooks. Tally numbers roll
+                like an odometer on change only (`tulisAngka`, transform only, instant under reduced
+                motion). A cancelled arrival is now kept (`arrivals.cancelled_at`, `cancelled_by`,
+                `VERSI_SKEMA` 5) and listed in `dibatalkan` on GET weighings and in a collapsible
+                "Kedatangan dibatalkan" panel; every waiting-arrival reader skips it. Follow-ups:
+                the odometer rolls forward past 9 when a number rises and back when it falls; the
+                panel's Oleh shows the operator's name stored at cancel time (email kept, same
+                schema step 5, still unshipped); the demo seeder adds two cancelled arrivals for
+                today. Docs audit fixes: rule 37 says cancelled not deleted, rule 20 names the tare
+                bar, rule 11 and overview list the fourth store file, old "timbang masuk/keluar"
+                words gone from README, commands and skills. `MANUAL.md` v2.7 (+ PDF), rule 37,
+                backend-overview, skill, `CLAUDE.md` rule 37 line.
+Validated:      See the PR body for the suite counts; both branches reviewed, no Critical or
+                Important findings.
+Not validated:  Not seen on the Lampung kiosk Firefox; swipe tested with a mouse, not a touch screen.
+Risks:          Rolling back below schema 5 shows cancelled arrivals as waiting again (gate
+                statistics only). A byte-identical retry of a cancelled arrival answers "tercatat"
+                without a waiting row. Toast heights are measured once per show.
+Next:           Merge #208, retarget #212 and #214 to staging in order.
+
+## 2026-10-03 · console · Timbangan round 3: stepper layout, Batal datang, tanpa scan 4 (PR #214)
+Changed:        After a third manual test. The step area is a stepper strip of four equal segments
+                (stage pill + one line saying where the step happens, "Menunggu n" badge on
+                segment 1 instead of the old two-line waiting list) above two equal forms (Catat
+                datang; Timbang isi) with one control height; the tare form is a full-width bar
+                under them. Columns read "Jam timbang isi" / "Jam timbang kosong" and show the date
+                small above the time, cells are tighter and headers may wrap, so all twelve columns
+                fit next to the pinned row button from 1440 px (Neto, the paid figure, used to hide
+                under it). Lewati and Matikan are red (`button.bahaya`). New route
+                `POST /api/console/arrivals/{id}/cancel` (Operator): deletes a waiting arrival only,
+                one log line, red two-step "Batal datang" on DATANG rows; `waiting` items carry `id`.
+                A weighed-out ticket that never gets Keluar is carried for 24 h
+                (`JENDELA_TANPA_KELUAR_DETIK`) and then, or as soon as the same truck arrives or
+                weighs in again, is computed `selesai` with `tanpa_scan_4` (yellow tag, Total to
+                the weigh-out); no `left_at` is ever written for it. Untared tickets keep 12 h.
+                Schema unchanged (4). `MANUAL.md` v2.6 (+ PDF), rule 37, backend-overview, skill.
+Validated:      `pytest tests/unit tests/e2e tests/integration` and browser: see the PR body;
+                `ruff check src tests` → All checks passed. Both branches reviewed: no Critical or
+                Important findings.
+Not validated:  Not seen on the Lampung kiosk. Not run between 00:00 and 01:21 WIB.
+Risks:          The 15 s poll can reset a pending "Yakin? Klik lagi". A cancelled arrival leaves
+                only a log line. "Truck came back" compares clocks, so a wrong PC clock shifts it;
+                the 24 h rule still ends the visit. At 1440 px the table fits with little to spare.
+Next:           Merge #208, retarget #212 and #214 to staging in order.
+
+## 2026-10-02 · console · Timbangan polish round 2 and a visit across midnight (PR #214)
+Changed:        After a second manual test by the user. Every successful action answers with a
+                toast (Setelan Simpan, which used to write a yellow box plus red "Belum sampai ke"
+                text, now gives one success or one warning toast; Uji PLC, AutoERP Kirim Ulang,
+                recording start/stop and piston gained one). Toast text is centred against its
+                close button. One button language: `button.utama` (Catat datang joined it),
+                `button.bahaya` for every cancel/delete/reset/release/sign-out button and
+                `button.bahaya.pekat` for the final irreversible run; the old one-off red rules
+                are gone and the Danger Zone container rule is scoped to `details.bahaya`
+                (coding standard F11, pinned by `tests/unit/test_console_tombol_bahaya.py`). The
+                four Timbangan steps are equal-height cards with aligned controls; the tare form
+                is plate in the card header plus Tara, Simpan, Batal on one row, and the step 3
+                hint hides while it is open. Midnight: a truck weighed in at 23:50 and weighed
+                out at 00:10 was lost (scan 3 answered "no open ticket", and the row with its
+                Timbang kosong / Keluar buttons left today's table at 00:00). Open tickets are
+                now found within the 12 h visit window on the real instant
+                (`open_weighings_for_truck(truck_id, sejak)`), today's table carries unfinished
+                visits from an earlier work date (`kunjungan_terbawa`, `weighings_terbawa`), and
+                the Danger Zone open-ticket block counts them. A ticket keeps its own work date:
+                totals, Rekap, Riwayat, CSV, the daily resend and the AutoERP message unchanged.
+                The two browser tests that failed between 00:00 and 01:21 WIB are clock
+                independent now. `MANUAL.md` v2.5 (+ PDF), `rules.md` rule 37, backend-overview,
+                skill `konsol-autograde`.
+Validated:      `pytest tests/unit tests/e2e tests/integration` → 4785 passed, 48 skipped;
+                `ruff check src tests` → All checks passed; browser: see the PR body.
+                Each branch was reviewed separately: no Critical or Important findings.
+Not validated:  Not run with the real clock between 00:00 and 01:21 WIB (midnight is faked by
+                seeding yesterday's work date with a 20 minute old weigh-in). Not seen on the
+                factory PC's Firefox kiosk fonts.
+Risks:          At 1331 px step 2 has about 5 px to spare in Chromium. A ticket with a tare but no
+                Keluar stays on today's table up to 12 h after its weigh-in. The summary strip
+                counts today's work date only, so a carried "waiting for tare" row is not in it.
+                `console_service.py` is at 999 of 1000 lines.
+Next:           User decisions: "Batal datang" button, the "Jam kosong" wording.
+
+## 2026-10-02 · console · Four gate scans (PR #214)
+Changed:        Part 3 of the scan work. The Timbangan tab has four labelled steps: 1 Datang
+                (truck dropdown + Catat datang, or QR when the scanner exists), 2 Timbang isi,
+                3 Timbang kosong, 4 Keluar (per-row button, or QR). Scans 1 and 4 live only in
+                AutoGrade (`arrivals` table, `weighings.left_at`; together they raise `VERSI_SKEMA`
+                from 3 to 4, the #213 rule), written only by `services/gate_service.py`, never sent
+                to AutoERP (rule 37). Weigh-in claims the
+                truck's newest waiting arrival (same truck, within 12 h). New routes
+                `POST /api/console/arrivals` and `POST /api/console/departures` (Operator);
+                `GET /api/console/weighings` adds `waiting` and per-ticket `arrived_at`, `left_at`,
+                `antre_menit`, `total_menit`, `tanpa_scan_1`. Table columns Antre and Total; no scan
+                1 reads "tanpa scan 1", never "0 mnt"; null minutes show a dash. Keluar before the
+                weigh-out is refused and writes nothing. Bad times answer 400 `input_tidak_sah`.
+                The four QR inputs stay hidden until a scanner is bought. The demo seeder seeds gate
+                times (about 10% without scan 1). Row button column pinned on the right. Docs: rule
+                20 rewritten and rule 37 added (`docs/rules.md`, `CLAUDE.md` §3),
+                `docs/backend-overview.md`, `docs/MANUAL.md` v2.3 (+ PDF), `docs/overview.md`, skill
+                `konsol-autograde`. Step words "Timbang masuk/keluar" became "Timbang isi/kosong"
+                on the step labels and buttons; the final review fix wave (Q1 to Q7) changed the
+                remaining toasts, Danger Zone messages, field labels, manual and overview text.
+                Fix wave: the waiting list uses the 12 h claim window, not the work date (a truck
+                arriving 23:50 still waits at 00:10); a registered truck with an odd plate can
+                arrive and leave by QR; both gate windows come from `JENDELA_KUNJUNGAN_DETIK`;
+                the waiting text no longer moves steps 2 to 4 (fixed two-line box, full list also in `title`);
+                the AutoERP gate-time test pins exact key sets.
+                Polish (user's manual test): the Penugasan line save answers with a toast; step 2's
+                plate picker lists waiting trucks first ("Menunggu timbang", oldest first, with
+                minutes; "Truk lain" below), kept across the 15 s poll; the table, the truck's
+                newest ticket and the unloading queue order by the real instant (`julianday`), so
+                `Z` and `+07:00` tickets no longer interleave; "tanpa scan 1" in the warning colour;
+                a first Status column with a stage badge (`tahap` from `domain/gerbang.tahap_tiket`),
+                waiting arrivals as top rows, step headers in the badge colours, the four steps on
+                one row from 1331 px and the decimal hint under Bruto. No schema change.
+                Polish review fixes: plate, Bruto and Timbang isi stay on one line from 1331 px
+                (grid 1 / 2.2 / 1 / .7); a truck's open tickets (where the tare lands) use the same
+                real-instant order; the picker redraws only when its options change and keeps the
+                keyboard focus; only registered trucks are offered (an unregistered arrival stays a
+                "Datang" row); the PLC dialog's Escape handler no longer throws for an operator.
+Validated:      `pytest tests/unit tests/e2e tests/integration` → 4593 passed, 45 skipped, 0 failed.
+                `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
+                110 passed. Doc guards (em dash, manual, skill mirror) → 53 passed.
+                `scripts/md_to_pdf.py docs/MANUAL.md` → 38 pages, "1. Datang" present. ("Timbang
+                masuk" gone was wrong at first: §3.3, §3.4, §7 and the glossary still had it;
+                fixed in the fix wave, see its report for the PDF search.)
+                Polish run (after its review fixes): Python suite → 4752 passed, 48 skipped;
+                `uvx ruff@0.16.9 check src/ tests/ scripts/smoke_image.py` → All checks passed;
+                browser suite → 122 passed (56 chromium, 56 firefox, 10 harness);
+                `scripts/md_to_pdf.py docs/MANUAL.md` → 38 pages (v2.4).
+Not validated:  No manual browser check at 1920/1440/1280/1024 px and no hand-started console
+                (the browser suite covers the four widths in both engines). Not pushed, no PR yet.
+Risks:          Naive timestamps are read as UTC: the future scale/PLC lane must send offset-aware
+                times. The live "waiting N min" compares the server clock with the browser's
+                arrival time, so a wrong PC clock shows there. A ticket first written tare-only
+                never claims its arrival. The scanner is not bought yet, so the QR inputs are hidden
+                and only the dropdown and row buttons are exercised in the field. A truck that
+                arrived and was turned away cannot be cancelled: it stays in Menunggu timbang for
+                up to 12 h (product follow-up: a "Batal datang" button or a shorter stale cut-off).
+                The diagram SVG in the manual still reads "timbang masuk/keluar" (left as is).
+                SQLite `julianday()` returns NULL for offsets like `+0700`, `+07` or compact ISO
+                that Python accepts; such a ticket sorts by `received_at` (the table, the truck's
+                newest ticket, its open tickets and the unloading queue still agree). The scale/PLC
+                lane must send standard ISO with `+HH:MM` or `Z`.
+Next:           Push `feat/gate-scans`, open the PR 3 to `staging`, then the sawit-repo docs
+                (`ALUR-TIMBANGAN-AUTOGRADE-AUTOERP.md`, `PERTANYAAN-TERBUKA.md` S6).
+
+## 2026-10-02 · console · Automatic line assignment (PR #212)
+Changed:        Part 2 of the scan work. With the support-only switch on, a truck that weighs in goes
+                onto the chosen lines by itself (`isi_line_otomatis`, `services/penugasan_otomatis.py`,
+                rules in `domain/penugasan_line.py`). While a chosen line still holds a truck that is
+                not weighed out (or whose weigh-out is still releasing lines) the next truck waits in
+                the unloading queue, oldest first, and only a truck's newest open ticket is offered.
+                A weigh-out, or a manual Lepas of the last line, puts the next truck on. Manual ways:
+                the per-line Tugaskan/Lepas dropdown, strip buttons "Tugaskan sekarang" and "Lewati"
+                (with confirm), and the switch with the line choice in Setelan (support). Off by
+                default: nothing on the screen changes until support turns it on (the strip shows
+                only while the switch is on). "Tugaskan sekarang" uses only the FREE chosen lines
+                (never takes a line from another truck) and skips the one-truck-at-a-time check; it
+                is refused with `line_semua_terpakai` when no chosen line is free or while another
+                truck's weigh-out is still releasing lines, and with `penugasan_tanpa_line` when
+                support saved no line. Routes
+                `POST /api/console/unloading-queue/{weighing_id}/assign|skip` (Operator) and
+                `GET/POST /api/console/dev/auto-assign` (Support); the weighing and release-truck
+                answers carry `dipasang`; `/api/console/state` carries `antrean_bongkar` and
+                `penugasan_otomatis`. Setting key `setelan_penugasan_line` survives a Danger Zone wipe.
+                Store: `unloading_queue`, `trucks_with_open_ticket`, `skip_unloading_queue`, column
+                `weighings.unloading_queue_skipped_at` (with `idx_weighings_terbuka`, it raises
+                `VERSI_SKEMA` from 2 to 3, the #213 rule). Docs: rule 36 (`docs/rules.md`, `CLAUDE.md` §3),
+                `docs/backend-overview.md`, `docs/MANUAL.md` v2.2 plus regenerated `docs/MANUAL.pdf`
+                (37 pages), skill `konsol-autograde`. The new queue is "Antrean bongkar", not "Antrean
+                line" (that name already belongs to the line-to-console outbox on the Status tab).
+                Final review fixes: a chosen line still holding a truck that already weighed out
+                (its release failed; its newest ticket has a tare) is reported in `dipasang` as
+                `tertahan` with `plate_lama`, and
+                the screen names both plates (`tugaskanTertahan`); with the switch on, the releases
+                of one weigh-out are one toast without "assign again" (`pelepasanOtomatisGabung`);
+                the ticket is read again before each line and Lewati is refused while the truck is
+                going on; saving the switch on puts a waiting truck on at once (`POST
+                /api/console/dev/auto-assign` is now `async def` and answers `dipasang`); browser
+                test that drives the strip as OPERATOR.
+Validated:      `pytest tests/unit tests/e2e tests/integration` → 4463 passed, 45 skipped, 0 failed
+                (`tests/unit/test_dokumen_tanpa_em_dash.py`, `test_coding_standard.py`,
+                `test_manual_doc.py`, `test_skill_mirror.py` included).
+                `WAJIB_BROWSER=1 pytest tests/browser/ --browser chromium --browser firefox` →
+                90 passed (the unloading queue strip, the switch and the OPERATOR test, both engines).
+                `scripts/md_to_pdf.py docs/MANUAL.md` → 37 pages, new text present in the PDF.
+Not validated:  Not on the factory PC and not against real lines: the Playwright suite uses fake
+                lines. No manual browser pass (the suite is the check). No PR yet.
+Risks:          Off by default, so nothing changes at a mill until support turns it on. While it is
+                on, a weigh-in waits up to 10 s per hung line (assignment calls each line in turn
+                with a 10 s limit), so a camera line that hangs slows the weigh-in itself, though
+                the ticket is saved first. A truck whose weigh-out cannot release a dead line stays
+                on that line and the next truck goes on the free lines only; the screen names the
+                line and both plates. Lepas on a dead line answers 502, so once the line answers
+                again, Lepas it on its card and assign the waiting truck there. A truck weighed in
+                out of order at the gate needs "Tugaskan sekarang" by the operator. A ticket typed
+                after its truck was already sorted and released has no link, so with the switch on
+                it goes back onto the lines (Part 1 logs the lost grading); operators should weigh
+                in before assigning. A line is reported as held only when its truck's newest
+                ticket in the 12 hour window carries a tare (it really weighed out) and a plate is
+                known; a truck put on by hand without a ticket (or with an open ticket older than
+                the window) is left out silently, so that line is simply not free and the next
+                truck goes on the other lines without a warning naming it.
+Next:           Open the PR for this branch against staging (assignee `marcoabelz`, reviewer
+                `supportusahaai`), then turn the switch on at one mill and watch a full shift.
+
 ## 2026-10-03 · console · Update now button with a host watcher (PR #215)
 Changed:        Batch 4.6, console half. `domain/pembaruan.py`, `services/pembaruan_service.py`,
                 `GET /api/console/update`, `POST /api/console/update/install`, `pembaruan` in
                 `/state`, assign-truck 409 `pembaruan_berjalan`; console-only compose mount
                 `./update:/app/update` + `UPDATE_DIR` (demo kit: env without mount); screen badge,
                 Pasang sekarang button, result sentence; request and each outcome in the Log tab
-                once. Rule 36, backend-overview, MANUAL 2.2 + PDF, skill compose-host-pabrik.
+                once. Rule 36 (renumbered 38 when merged after PR #214), backend-overview, MANUAL 2.2 (now 2.8) + PDF, skill compose-host-pabrik.
 Validated:      `pytest tests/unit tests/integration` → 4135 passed, 28 skipped;
                 `pytest tests/e2e` → 335 passed, 20 skipped (image/service gated);
                 `pytest tests/browser --browser chromium --browser firefox` → 74 passed;
@@ -37,6 +261,7 @@ Decisions:      user 2026-10-02: rolled_back hidden until newer staged; old-day 
                 never tried, offered again, worded "try again". Review: assign registers under the
                 lock and calls the line without it (a dead line no longer queues other assigns).
 Next:           AnyDesk: install the sawit watcher + host compose mount BEFORE tag v1.22.0.
+
 
 ## 2026-10-01 · console · A visit's grading is summed over every line that unloaded it (PR #208)
 Changed:        A truck unloaded on three lines has three line assignments, but `weighings.assignment_id`

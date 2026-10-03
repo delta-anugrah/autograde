@@ -185,7 +185,7 @@ def test_keadaan_dipilih_dari_yang_paling_perlu_tindakan(d, kunci):
 def _baris(kode: str, d: dict, sekarang_ms: int) -> str:
     return _jalankan(
         f"barisAntreanLine({json.dumps(kode)}, {json.dumps(d)}, {sekarang_ms})",
-        "kunciSebabTakTerbaca", "keadaanAntreanLine", "barisAntreanLine", "waktu", "lamaProses",
+        "kunciSebabTakTerbaca", "keadaanAntreanLine", "barisAntreanLine", "waktu", "teksMenit", "lamaProses",
     )
 
 

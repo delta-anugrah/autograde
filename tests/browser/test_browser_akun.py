@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from langkah import SUPPORT, buka_tab, kamus, keluar, masuk
 from playwright.sync_api import expect
 
@@ -21,6 +23,12 @@ def test_a_new_account_can_sign_in(halaman, browser_name):
     halaman.click("#akun-tambah-simpan")
     expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "akunDibuat").replace("{email}", email))
     expect(halaman.locator("#akun-baris")).to_contain_text(email)
+    # Matikan is the red danger button (user 2026-10-03), the same colours as every Batal.
+    matikan = halaman.locator("#akun-baris tr", has_text=email).locator('button[data-akun-aksi="status"]')
+    expect(matikan).to_have_text(kamus(halaman, "akunMatikan"))
+    expect(matikan).to_have_class(re.compile(r"\bbahaya\b"))
+    warna = "(el) => [getComputedStyle(el).color, getComputedStyle(el).backgroundColor]"
+    assert matikan.evaluate(warna) == halaman.locator("#keluar").evaluate(warna)
 
     keluar(halaman)
     masuk(halaman, (email, SANDI))

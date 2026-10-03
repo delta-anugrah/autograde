@@ -17,7 +17,11 @@ import sqlite3
 #: (rollback lewat `autograde use`).
 #:
 #: 1 = batch 4.5 (PR #213). 2 = `visit_assignments` + `idx_weighings_truck` (PR #208).
-VERSI_SKEMA = 2
+#: 3 = `weighings.unloading_queue_skipped_at` + `idx_weighings_terbuka` (PR #212).
+#: 4 = `arrivals` + its three indexes + `weighings.left_at` (gate scans).
+#: 5 = `arrivals.cancelled_at` + `arrivals.cancelled_by` + `arrivals.cancelled_by_name`
+#:     (Batal datang kept as history; the name joined the same step before 5 shipped).
+VERSI_SKEMA = 5
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
@@ -119,7 +123,10 @@ CREATE TABLE IF NOT EXISTS weighings (
     -- finalised ticket whose grading changed, or a cancelled one it ignored.
     erp_ticket    TEXT,
     erp_status    TEXT,
-    erp_note      TEXT
+    erp_note      TEXT,
+    -- Scan 4 (truck leaves the gate), 2026-09-30. Stays on this PC: never in the AutoERP
+    -- visit message. Written only by `GateService`, once the ticket has its tare.
+    left_at       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_weighings_hari ON weighings (work_date, entered_at DESC);
 CREATE INDEX IF NOT EXISTS idx_weighings_plat ON weighings (plate_norm);
@@ -135,6 +142,32 @@ CREATE TABLE IF NOT EXISTS visit_assignments (
     linked_at     REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_visit_assignments_tiket ON visit_assignments (weighing_id);
+-- The unloading queue and the busy check read open tickets of the last hours, every 2 s.
+CREATE INDEX IF NOT EXISTS idx_weighings_terbuka ON weighings (received_at)
+    WHERE tare_kg IS NULL;
+
+-- Scan 1 (truck reaches the gate), 2026-09-30. Stays on this PC: "arrived" is not one of
+-- AutoERP's stages. A row waits with `weighing_id` NULL until the truck's weigh-in
+-- claims it; that link is how queue time (arrival to weigh-in) is read.
+-- "Batal datang" (2026-10-03) keeps the row as history: `cancelled_at` set = no longer
+-- waiting, never claimed, and every reader of a waiting arrival skips it.
+CREATE TABLE IF NOT EXISTS arrivals (
+    id            TEXT PRIMARY KEY,
+    plate_number  TEXT NOT NULL,
+    plate_norm    TEXT NOT NULL,
+    truck_id      TEXT NOT NULL,
+    work_date     TEXT NOT NULL,
+    arrived_at    TEXT NOT NULL,
+    weighing_id   TEXT,
+    cancelled_at  TEXT,
+    cancelled_by  TEXT,
+    cancelled_by_name TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_arrivals_menunggu ON arrivals (truck_id) WHERE weighing_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_arrivals_hari ON arrivals (work_date);
+-- One arrival per ticket. NULLs are exempt, so every waiting arrival is allowed.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_arrivals_tiket ON arrivals (weighing_id)
+    WHERE weighing_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS sync_state (
     key   TEXT PRIMARY KEY,
@@ -306,6 +339,15 @@ def _migrate(db: sqlite3.Connection) -> None:
         ("weighings", "erp_ticket"),
         ("weighings", "erp_status"),
         ("weighings", "erp_note"),
+        # "Lewati" on the unloading queue (2026-10-01). NULL = still eligible.
+        ("weighings", "unloading_queue_skipped_at"),
+        # Scan 4, gate leave time (2026-09-30). NULL = not scanned out.
+        ("weighings", "left_at"),
+        # Batal datang kept as history (2026-10-03). NULL = not cancelled.
+        ("arrivals", "cancelled_at"),
+        ("arrivals", "cancelled_by"),
+        # The operator's display name when the button was pressed. NULL = show the email.
+        ("arrivals", "cancelled_by_name"),
         # Konsol pabrik yang sudah jalan punya tabel `inspections` tanpa kolom ini;
         # `CREATE TABLE IF NOT EXISTS` di atas tidak akan menambahkannya. Baris lama
         # tetap NULL, sengaja: kelas aslinya memang tidak pernah direkam, dan

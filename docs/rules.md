@@ -161,7 +161,8 @@ end of this file.
 11. **Konsol tidak boleh memindai direktori** (§6.2): semua yang dibaca layar operator datang
     dari **index SQLite** `state/console.db`, di **`repositories/console_repository.py`**
     dengan skema dan migrasinya di **`repositories/console_skema.py`** dan akunnya di mixin
-    **`repositories/console_akun_repository.py`** (batch 2). Konvensi sama dengan `OutboxStore`:
+    **`repositories/console_akun_repository.py`** (batch 2), dan jam gerbang di mixin
+    **`repositories/console_gerbang_repository.py`** (aturan 37). Konvensi sama dengan `OutboxStore`:
     WAL + `synchronous=FULL` + satu lock + `INSERT OR IGNORE`.
     Gambar tetap di disk line-nya, di-mount read-only dan di-serve statis. Polling `listdir`
     tiap 2 detik akan memakan I/O yang dipakai grading.
@@ -204,7 +205,7 @@ end of this file.
 18. **Kunjungan truk: satu pesan, dibangun ulang tiap kali, tidak pernah ditambal** (§4.C).
     `ErpQueue` satu-satunya yang merakit pesan, pemicu langsung dan kirim ulang harian memakai
     jalan yang sama, jadi tidak bisa berbeda isi. Tiga pemicunya kejadian yang memang terjadi:
-    timbang masuk, truk dilepas dari line, timbang keluar. **`stage` diturunkan dari keadaan
+    timbang isi, truk dilepas dari line, timbang kosong. **`stage` diturunkan dari keadaan
     kunjungan**, bukan ditentukan pemanggil. Bagian yang tidak kita punya **tidak dikirim**,
     tiap kiriman mengganti bagian yang dibawanya, jadi bagian kosong menghapus isi ERP.
     Grading kunjungan = **semua** penugasan line yang tertaut ke tiketnya, dijumlah (tabel
@@ -214,7 +215,7 @@ end of this file.
     mewarisi janjang tiket pertama. Kolom lama `weighings.assignment_id` tetap ditulis supaya
     image lama masih jalan setelah rollback. Tiketnya dicari lewat **jendela waktu**
     (`JENDELA_KUNJUNGAN_DETIK`, 12 jam sejak tiket diterima konsol), bukan hari kerja: hari kerja
-    berganti pukul 00:00, kunjungan tidak. Timbang keluar melepas semua line truk itu lebih dulu
+    berganti pukul 00:00, kunjungan tidak. Timbang kosong melepas semua line truk itu lebih dulu
     dan mengantre kunjungannya **sekali** sesudahnya: AutoERP memfinalisasi tiket begitu bobot dan
     grading sama-sama ada, jadi pesan di antara dua pelepasan akan membukukan sebagian line.
     Kriteria: mentah = REJ, tangkai panjang = ACC dengan `tp_confidence > 0.8`, matang
@@ -246,10 +247,10 @@ end of this file.
     menyertakannya; kalau bedanya dari `bruto − tara` lewat `TOLERANSI_NETO_KG` (1 kg) kiriman
     **ditolak 400**. Ini angka yang dibayar ke petani, dua sumber kebenaran yang diam-diam
     berbeda adalah cara paling rapi untuk salah bayar berbulan-bulan.
-    Timbang-masuk dan timbang-keluar adalah **dua POST untuk satu baris**, digabung lewat
+    Timbang isi dan timbang kosong adalah **dua POST untuk satu baris**, digabung lewat
     `COALESCE` per kolom: kiriman kedua yang cuma membawa tara tidak boleh menghapus bruto.
     Kuncinya `ref` kalau ada, kalau tidak uuid5 dari (plat ternormalisasi + `entered_at`),
-    tanpa salah satu dari keduanya kiriman **ditolak**, karena timbang-keluar tidak akan bisa
+    tanpa salah satu dari keduanya kiriman **ditolak**, karena timbang kosong tidak akan bisa
     menemukan barisnya dan satu tiket pecah jadi dua.
     Pemisah ribuan tanpa desimal (`"14.820"` untuk empat belas ton) parse **bersih** jadi
     14,82 dan tidak ada apa pun di payload yang membantahnya, jadi yang menangkapnya lantai
@@ -288,11 +289,9 @@ end of this file.
     gagal. `trucks_semua()` dipakai, bukan `trucks()`: yang terakhir menyembunyikan baris
     `inactive`, dan baris inactive ber-id lama tetap akan kembar begitu platnya ditarik.
 20. **Scan QR: isinya nomor plat, tidak lebih** (keputusan operator 2026-09-15).
-    **Dua** tahap scan, dua-duanya di gerbang timbangan (masuk + keluar), karena cuma
-    di situ scan menggantikan ketikan yang sungguhan ada. Tahap sortir **tidak**
-    di-scan: yang tahu bak sudah kosong itu operator line, bukan supir yang datang
-    membawa HP, dan tombol Lepas sudah ada di depan mata operator. Empat scan menambah
-    dua langkah tanpa menambah satu data pun.
+    **Empat** tahap scan sejak 2026-09-30 (aturan 37): datang, timbang isi, timbang
+    kosong, keluar. Tahap sortir tetap **tidak** di-scan: yang tahu bak sudah kosong itu
+    operator line, dan tombol Lepas sudah ada di depan mata operator.
     **QR isinya cuma plat ternormalisasi** (`domain/qr.py`). Bukan seluruh data truk:
     supplier dan nama sopir berubah di ERP **sesudah** QR dicetak, jadi QR yang
     membawanya jadi bohong tanpa ada yang tahu, dan nama sopir itu data pribadi yang
@@ -316,7 +315,7 @@ end of this file.
     menyembunyikan kamera, tally, tab, dan tabel: tanpa itu puluhan lembar terbuang
     sebelum kartu pertama muncul.
     **Kolom scan di tab Timbangan** (disembunyikan dengan `hidden` sampai scanner dibeli;
-    sampai saat itu plat dipilih dari daftar dan tara lewat **Timbang keluar** di baris
+    sampai saat itu plat dipilih dari daftar dan tara lewat **Timbang kosong** di baris
     tiket) mengisi plat lalu memindahkan kursor ke Bruto,
     itu satu sentuhan layar yang dihemat per truk, dan itulah gunanya scan. Enter
     datang dari scanner sendiri (scanner = papan ketik), jadi tidak ada tombol; kolomnya
@@ -335,14 +334,15 @@ end of this file.
     `scanDaftarBelumMuat` (kuning), bukan `sukScan`. Truk yang dinonaktifkan tetap terbaca
     dan ditandai server (`truck.status`), dan layar mengatakannya (`scanTrukNonaktif`)
     sebelum mencari di daftar yang memang menyembunyikannya.
-    **Tara diisi di kolom yang muncul DI BARIS ALAT, bukan dialog yang menutup layar**
+    **Tara diisi di bar tara (`#tara-grup`) di bawah kedua form, bukan dialog yang menutup layar**
     (dua kali dilaporkan operator 2026-09-15). `prompt()` bawaan browser ditolak lebih
     dulu: kotaknya kecil untuk jempol bersarung tangan, ukurannya tidak bisa diatur, dan
     menerima teks apa pun tanpa validasi. Lalu dialog sendiri **juga** ditolak, dan
     alasannya lebih penting: lapisan yang menutup layar menghilangkan kamera line dan
     strip tally sampai tara selesai diisi, dan di gerbang yang sibuk itu kehilangan
-    pandangan justru saat paling butuh. Kolomnya **tersembunyi sampai scan berhasil** -
-    kolom yang bisa diisi tanpa tiket adalah kolom yang tidak tahu harus menulis ke mana.
+    pandangan justru saat paling butuh. (Ini soal mengisi angka; pertanyaan ya/tidak memakai
+    `tanyaKonfirmasi`, coding standard F12.) Bar itu **tersembunyi sampai Timbang kosong ditekan
+    di baris tiket atau scan langkah 3 berhasil**: kolom yang bisa diisi tanpa tiket adalah kolom yang tidak tahu harus menulis ke mana.
     Platnya disebut di sebelahnya: operator melihat beberapa truk sehari sambil memegang
     HP supir. Angkanya divalidasi **di layar** sebelum dikirim, karena bolak-balik
     jaringan untuk hal yang terlihat di tempat itu satu detik yang hilang di gerbang;
@@ -683,8 +683,8 @@ end of this file.
     **Hambatan (409)**: line mati, truk terpasang, antrean lama line yang gagal dipindah ke
     `state/` (`outbox_lama`, aturan 28), outbox line belum kosong (tak terbaca =
     belum kosong), antrean AutoERP `pending` kalau `ERP_URL` terisi, **tiket timbang
-    terbuka hari kerja berjalan** (bruto ada, tara belum = truk di tengah kunjungan, dan
-    bruto itu yang dibayar), dan (mode semua) tidak ada hash akun **support** yang
+    terbuka hari kerja berjalan atau dalam jendela kunjungan 12 jam** (bruto ada, tara belum =
+    truk di tengah kunjungan, juga lewat tengah malam, dan bruto itu yang dibayar), dan (mode semua) tidak ada hash akun **support** yang
     terbaca (`hash_is_usable`, aturan yang sama dengan seed akun bawaan) DAN tidak ada
     AutoERP: tanpa akun support, Danger Zone dan seluruh lane developer terkunci. Line juga
     memeriksa truknya sendiri (409): truk bisa dipasang di antara keduanya.
@@ -881,7 +881,9 @@ end of this file.
     menjalankannya di thread pool), atau kalau route itu juga harus `await` (`console_state`,
     yang menunggu lisensi), panggilan sinkronnya sendiri dibungkus `run_in_threadpool`.
     `login`, `console_history`, `console_trucks`, `console_weighings` (GET), `console_recap`,
-    `dev_log`, dan `ingest_event` jadi `def`.
+    `dev_log`, dan `ingest_event` jadi `def`; rute gerbang dan antrean bongkar
+    (`console_arrival`, `console_arrival_cancel`, `console_departure`, `unloading_queue_skip`)
+    lahir `def`.
     **Yang sengaja tetap `async`**: route yang menunggu panggilan ke line (`assign`/`release`/
     `manual-reject`/`piston`, `record_weighing`, rekam, model, bahaya, diagnostik), yang cuma
     satu pencarian primary-key (`me`, `operators`, `scan`, `setelan`, `penugasan`, `akun`), dan
@@ -1137,7 +1139,130 @@ end of this file.
     gambar" (aturan 33, mulai 5 grab gagal) dan FRAME_BERHENTI (sesudah `AI_MATI_DETIK`, coil
     ERROR naik) sengaja dua baris: yang pertama menyebut alasan kamera, yang kedua keputusan
     sehat.
-36. **Update now dari konsol** (batch 4.6, 2026-10-03). Konsol **tidak pernah** menyentuh Docker
+36. **Penugasan line otomatis: satu truk di line sampai selesai** (keputusan user 2026-10-01).
+    Tiap timbang isi dan tiap Lepas memanggil `isi_line_otomatis()`
+    (`services/penugasan_otomatis.py`, mixin `ConsoleService`; aturan murni di
+    `domain/penugasan_line.py`): truk tertua di **antrean bongkar** (sudah timbang isi, belum
+    timbang kosong, belum pernah di line, tidak dilewati, dan tiket terbarunya, terbuka atau
+    tertutup: tiket lama yang tertinggal terbuka tidak pernah ditawarkan) dipasang ke line pilihan yang
+    bebas, **asalkan** tidak ada line pilihan yang masih memegang truk yang belum timbang
+    kosong, atau truk yang timbang kosongnya masih melepas line. Kalau masih ada, truk baru
+    menunggu; memasangnya sekarang membuat sisa janjang truk lama tercatat ke truk baru.
+    Timbang kosong atau Lepas manual pada line TERAKHIR yang memegang truk memasang truk
+    berikutnya. Setelannya di `sync_state` (`setelan_penugasan_line`, selamat dari Danger
+    Zone), **mati sampai support menyalakannya** (bawaan mati, supaya pembaruan tidak mengubah
+    cara kerja pabrik di hari ia terpasang: selama mati strip antrean bongkar tidak tampil),
+    dan hanya support yang mengubahnya (`GET/POST /api/console/dev/auto-assign`). Menyimpan
+    saklar nyala langsung menjalankan `isi_line_otomatis()` (truk yang sudah menunggu naik
+    sekarang); rute itu `async def` karena bertanya ke line (aturan 30). `baca_setelan` tidak pernah melempar (dibaca tiap polling
+    `state()`): teks rusak, JSON bukan objek, atau `lines` salah bentuk = bawaan.
+    Penugasan tetap lewat `assign_truck` (aturan 13: line menerima dulu, baru dicatat); line
+    yang tidak menjawab dilaporkan ke layar (`dipasang[].terpasang: false`) dan tidak pernah
+    menggagalkan timbangan. Sebelum tiap line tiketnya dibaca lagi: tiket yang sudah dilewati
+    atau sudah bertara tidak dipasang ke line berikutnya. Jalan manual: dropdown Tugaskan/Lepas
+    per line, serta tombol **Tugaskan sekarang** dan **Lewati** (dengan konfirmasi) di strip
+    antrean bongkar (`POST /api/console/unloading-queue/{weighing_id}/assign|skip`, operator).
+    **Tugaskan sekarang** hanya memakai line pilihan yang BEBAS (tidak pernah mengambil line
+    dari truk lain) dan melewati pemeriksaan satu-truk-satu-waktu; ditolak
+    `line_semua_terpakai` kalau tidak ada line pilihan yang bebas ATAU selama timbang kosong
+    truk lain masih melepas line, dan `penugasan_tanpa_line` kalau support tidak menyimpan satu
+    line pun. **Lewati** ditolak `bukan_antrean` selama truk itu sedang dipasang ke line. Kolom
+    `weighings.unloading_queue_skipped_at` menandai truk yang dilewati. Jendela antrean =
+    `JENDELA_ANTREAN_BONGKAR`, sama dengan `JENDELA_KUNJUNGAN_DETIK` (12 jam): satu angka
+    untuk "berapa lama satu kunjungan". Jawaban rilis dan timbangan membawa `dipasang`; layar
+    membaca `antrean_bongkar` dan `penugasan_otomatis` dari `/api/console/state`. Saklar
+    nyala: pelepasan otomatis satu timbang kosong diumumkan sebagai SATU toast per truk
+    (`pelepasanOtomatisGabung`, tanpa saran "tugaskan lagi" yang akan menimpa truk berikutnya);
+    saklar mati: satu toast per line seperti dulu.
+    ⚠️ "Antrean bongkar" bukan "Antrean line": yang kedua sudah dipakai untuk antrean janjang
+    line ke konsol (aturan 31, tab Status). ⚠️ Selama saklar nyala, satu timbang isi bisa
+    menunggu sampai 10 detik per line yang menggantung (pemasangan memanggil tiap line satu
+    per satu, 10 detik batas per panggilan). ⚠️ Kalau timbang kosong sebuah truk tidak
+    bisa melepas line yang mati, line itu tetap memegang truk yang sudah timbang kosong dan truk
+    berikutnya hanya dipasang ke line yang bebas. Line itu (hanya kalau tiket terbaru truknya
+    dalam jendela sudah bertara dan platnya diketahui; truk yang dipasang tangan tanpa tiket
+    masih disortir dan tidak dilaporkan) dilaporkan di `dipasang` sebagai
+    `{terpasang: false, tertahan: true, plate_lama}` dan layar memunculkan toast
+    `tugaskanTertahan` dengan kedua plat. Lepas pada line yang mati dijawab 502: begitu line
+    itu menjawab lagi, Lepas di kartunya lalu tugaskan truk yang menunggu.
+
+37. **Jam gerbang: scan 1 dan 4 tinggal di PC pabrik** (keputusan user 2026-09-30).
+    Scan 1 (truk datang) menulis tabel `arrivals`; scan 4 (truk keluar gerbang) menulis
+    `weighings.left_at`. Penulisnya cuma `GateService` (`services/gate_service.py`), dengan
+    dua pengecualian: `ConsoleService` menautkan kedatangan ke tiketnya saat timbang isi
+    (`arrivals.weighing_id`, `services/gerbang_konsol.py`), dan seeder demo menulis kedua jam
+    untuk data demo. `ScanService` tetap cuma mencari dan `record_weighing` tetap satu-satunya
+    penulis berat.
+    Keduanya **tidak pernah** masuk pesan AutoERP: AutoERP cuma kenal tiga tahap, dan
+    `erp_messages` memilih field satu per satu. Tiket BARU mengklaim kedatangan truknya di
+    `record_weighing`, bukan di jalur scan, supaya tiket dari dropdown plat atau program
+    timbangan juga dapat waktu antrenya. Pencarian pakai jendela 12 jam (`domain/gerbang.py`,
+    dari `JENDELA_KUNJUNGAN_DETIK`), bukan hari kerja: antrean bisa lewat tengah malam. Daftar
+    menunggu (`waiting`: lencana **Menunggu n**, baris Datang, dan bagian **Menunggu timbang** di
+    dropdown langkah 2) memakai jendela yang sama dari jam server, jadi truk yang datang 23:50
+    masih menunggu pukul 00:10. Scan 3 (`open_weighings_for_truck`) mencari tiket tanpa tara
+    yang timbang isi dalam jendela yang sama sebelum sekarang, dan tabel Timbangan hari ini
+    membawa kunjungan hari kerja sebelumnya yang belum keluar gerbang (tanpa tara: dalam jendela
+    itu; bertara: 24 jam dari timbang kosong, lihat Tanpa scan 4)
+    (`kunjungan_terbawa`, 2026-10-02): truk 23:50 ditimbang kosong 00:10. Tiketnya tetap
+    milik hari kerjanya sendiri; total hari, Rekap, CSV dan AutoERP tidak berpindah hari.
+    Scan yang tidak berbentuk plat ditolak `bukan_plat`, kecuali
+    platnya milik truk terdaftar (plat dinas, plat lama): truk itu tetap bisa dicatat datang
+    dan keluar. Scan 1 **boleh terlewat**: kolom Antre
+    menulis "tanpa scan 1", bukan 0 menit, dan Total dihitung dari timbang isi. Menit yang
+    kosong tampil strip, bukan 0. Menitnya dihitung backend (`durasi_kunjungan`). Scan 4 atas
+    truk yang belum timbang kosong **ditolak dan diperingatkan**, tidak ditulis. Tiap tahap
+    punya kolom sendiri karena konsol tidak bisa menebak ini scan ke berapa.
+    Tahap tiap tiket (`tahap`: bongkar, timbang_kosong, selesai; kedatangan yang menunggu
+    = datang) diputuskan `tahap_tiket` di `domain/gerbang.py`, dikirim backend, dan layar cuma
+    mewarnainya (2026-10-02).
+    **Batal datang** (2026-10-03): kedatangan yang truknya tidak akan ditimbang (salah pilih,
+    ditolak di gerbang) **dibatalkan** lewat `POST /api/console/arrivals/{arrival_id}/cancel`, di bawah
+    kunci `GateService`. Cuma yang masih menunggu (`weighing_id` kosong); selain itu dijawab
+    `tidak_ada`, bukan galat. **Disimpan sebagai riwayat** (round 4, user 2026-10-03: "riwayat
+    pembatalan yang bisa dilihat"): barisnya tidak dihapus, tapi diberi `cancelled_at` (jam server)
+    dan `cancelled_by` (email operator), skema `console.db` versi 5. **Nama operator disimpan
+    saat itu juga** di `cancelled_by_name` (kolom ketiga di langkah skema 5 yang sama, karena 5
+    belum pernah dirilis): panel menampilkan nama, bukan email, dan nama itu salinan saat
+    tombol ditekan, tidak dicari ulang dari tabel `operators` saat dibaca. Alasannya: akun lokal
+    yang dihapus benar-benar hilang dan akun AutoERP bisa berganti nama lewat sinkron, sedangkan
+    riwayat harus tetap menyebut orang yang menekan tombol. Email tetap disimpan sebagai
+    identitas; `cancelled_by_name` kosong (nama tak diketahui) = layar menampilkan emailnya.
+    Akibatnya setiap pembaca
+    kedatangan MENUNGGU wajib menyaring `cancelled_at IS NULL` (`waiting_arrivals`,
+    `waiting_arrivals_for_truck`, `claim_arrival`, `jejak_truk` di
+    `repositories/console_gerbang_repository.py`; masing-masing punya tes di
+    `tests/unit/test_batal_datang_riwayat.py`). Yang dibatalkan tidak pernah tampil di `waiting`,
+    tidak pernah diklaim, tidak dihitung "truk datang lagi" (kunjungan lama tetap dapat tombol
+    Keluar), dan tidak pernah ke AutoERP. Riwayatnya dibaca lewat `dibatalkan` di
+    `GET /api/console/weighings` (hari kerja yang tampil) dan tampil di panel **Kedatangan
+    dibatalkan (n)** di bawah tabel Timbangan. Danger Zone dan `make demo-reset` menghapusnya
+    bersama kedatangan lain; selain itu tidak ada pembersihan berkala untuk jam gerbang.
+    `make demo` menanam dua kedatangan dibatalkan untuk hari ini (`seed_batal_datang`, lewat
+    `record_arrival` + `cancel_arrival` milik store) supaya panelnya tampil di site demo; cuma di
+    AutoGrade, seeder AutoERP tidak disentuh.
+    ⚠️ Image sebelum versi skema 5 (rollback) tidak mengenal kolom itu: kedatangan yang sudah
+    dibatalkan terbaca menunggu lagi selama jendela 12 jamnya.
+    **Tanpa scan 4** (keputusan user 2026-10-03): tiket bertara yang tidak pernah Keluar
+    **dihitung** selesai, tidak ditulis: tidak ada `left_at` karangan. `selesai_tanpa_scan_4`
+    memutuskannya kalau timbang kosongnya (`exited_at`, cadangan `entered_at`) lebih dari 24 jam
+    lalu (`JENDELA_TANPA_KELUAR_DETIK`), atau kalau truk yang sama sudah datang lagi (kedatangan
+    menunggu) atau timbang isi lagi sesudah timbang kosong itu. Barisnya `tahap` selesai dengan
+    `tanpa_scan_4: true` dan Total sampai timbang kosong. Tabel hari ini membawa tiket bertara
+    yang belum keluar sampai 24 jam dari timbang kosong; tiket tanpa tara tetap 12 jam di mana pun
+    (bawa, scan 3, scan 4), supaya tiket kemarin pagi yang terlupa tidak mengambil tara hari ini
+    dan membayar neto yang salah. Scan 4 dan tombol Keluar menjawab `sudah_keluar` untuk tiket
+    yang sudah selesai tanpa scan 4, jadi Keluar kunjungan baru tidak pernah menutup kunjungan
+    lama. Tiket bertara tidak menahan kedatangan baru (`masih_di_dalam` cuma untuk tiket tanpa tara).
+    Rute: `POST /api/console/arrivals {qr, at}` dan `POST /api/console/departures
+    {qr?, weighing_id?, at}` (Operator); jam salah dijawab 400 `input_tidak_sah`.
+    ⚠️ Jam datang dan jam keluar berasal dari jam browser; stempel tanpa zona dibaca sebagai
+    UTC, jadi jalur timbangan atau PLC kelak wajib mengirim jam dengan offset. ⚠️ Tulisan
+    "menunggu N menit" yang hidup membandingkan jam server dengan jam browser saat datang.
+    ⚠️ Tiket yang pertama kali ditulis langsung dengan tara tidak pernah mengklaim
+    kedatangannya. ⚠️ Empat kolom QR tetap `hidden` sampai scanner dibeli.
+
+38. **Update now dari konsol** (batch 4.6, 2026-10-03). Konsol **tidak pernah** menyentuh Docker
     (tanpa `docker.sock`, selamanya). Satu-satunya jalurnya folder `update/` (`UPDATE_DIR`,
     mount `./update:/app/update` di container konsol saja): launcher menulis `status.json`
     (versi terpasang, versi `staged`, `watcher`), konsol menulis `request.json` (tmp lalu
@@ -1228,6 +1353,10 @@ memang khas satu mesin.
   (`TOAST_UMUR_MAKS_MS`: kursor yang diparkir di pojok kiosk mendapat `mouseenter` buatan
   browser tiap tata letak berubah). Toast yang tak pernah ditutup menumpuk di layar
   yang dibiarkan menyala berhari-hari. Test: `tests/unit/test_console_html_toast.py`.
+  Sejak 2026-10-03 toast bertumpuk ala Sonner, dibuat sendiri karena konsol harus jalan offline:
+  terbaru di depan, `TOAST_TERLIHAT` 3 dari `TOAST_MAKS` 4, kursor atau fokus di tumpukan
+  membukanya dan menahan SEMUA hitungan (`bukaTumpukanToast`), geser ke kanan membuang
+  (`pasangGeserToast`). Test: `tests/browser/test_browser_toast_tumpukan.py`.
 - **Line yang direstart dari konsol diberi tanda di kotak kameranya** (2026-09-29): Sumber
   Kamera, Model Deteksi, dan Danger Zone (restart, hapus data) menandai line yang dijawab
   SERVER sudah restart/menerima (`lineDirestart`), bukan yang diklik. Spinner + bar berjalan

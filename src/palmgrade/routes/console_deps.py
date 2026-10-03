@@ -36,6 +36,7 @@ from ..services.bahaya_service import BahayaService
 from ..services.console_service import ConsoleService
 from ..services.dev_service import DevService
 from ..services.erp_queue import ErpQueue
+from ..services.gate_service import GateService
 from ..services.impor_grading_service import ImporGradingService
 from ..services.lapor_discord import LaporDiscord, rakit_lapor_discord
 from ..services.operator_admin import OperatorAdmin
@@ -121,6 +122,15 @@ def get_scan_service() -> ScanService:
     trucks, and keeping it apart is what stops it growing a second way to create one.
     """
     return ScanService(get_console_service().store)
+
+
+@lru_cache
+def get_gate_service() -> GateService:
+    """Scan 1 and 4. Shares the store like the scan service; its own dependency so the one
+    writer of gate times is not also a way to write weight. One instance on purpose: it
+    holds the lock that serializes two scans of one QR."""
+    console = get_console_service()
+    return GateService(console.store, console.tz)
 
 
 @lru_cache
@@ -281,6 +291,7 @@ def hangatkan_singleton() -> None:
     get_console_service()
     get_auth_service()
     get_scan_service()
+    get_gate_service()
     get_dev_service()
     get_pantau_antrean_line()
     get_lapor_discord()
@@ -293,6 +304,7 @@ def hangatkan_singleton() -> None:
 Service = Annotated[ConsoleService, Depends(get_console_service)]
 Auth = Annotated[AuthService, Depends(get_auth_service)]
 Scan = Annotated[ScanService, Depends(get_scan_service)]
+Gate = Annotated[GateService, Depends(get_gate_service)]
 Dev = Annotated[DevService, Depends(get_dev_service)]
 Bahaya = Annotated[BahayaService, Depends(get_bahaya_service)]
 Admin = Annotated[OperatorAdmin, Depends(get_operator_admin)]

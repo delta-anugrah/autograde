@@ -24,12 +24,17 @@ RUTE_OPERATOR = [
     ("POST", "/api/console/trucks"),
     ("POST", "/api/console/scan"),
     ("POST", "/api/console/scan/keluar"),
+    ("POST", "/api/console/arrivals"),
+    ("POST", "/api/console/arrivals/{arrival_id}/cancel"),
+    ("POST", "/api/console/departures"),
     ("GET", "/api/console/trucks/{plate_number}/qr.png"),
     ("GET", "/api/console/weighings"),
     ("GET", "/api/console/recap"),
     ("POST", "/api/console/weighings"),
     ("POST", "/api/console/lines/{line_code}/assign-truck"),
     ("POST", "/api/console/lines/{line_code}/release-truck"),
+    ("POST", "/api/console/unloading-queue/{weighing_id}/assign"),
+    ("POST", "/api/console/unloading-queue/{weighing_id}/skip"),
     ("POST", "/api/console/lines/{line_code}/manual-reject"),
     ("POST", "/api/console/lines/{line_code}/piston"),
     ("GET", "/api/console/update"),
@@ -48,6 +53,8 @@ RUTE_OPERATOR = [
     ("POST", "/api/console/dev/akun/role"),
     ("GET", "/api/console/dev/setelan"),
     ("POST", "/api/console/dev/setelan"),
+    ("GET", "/api/console/dev/auto-assign"),
+    ("POST", "/api/console/dev/auto-assign"),
     ("GET", "/api/console/dev/rekam"),
     ("POST", "/api/console/dev/rekam/setelan"),
     ("POST", "/api/console/dev/rekam/{line_code}/mulai"),
@@ -77,7 +84,7 @@ RUTE_MESIN = [
 ]
 
 DITIMPA_TEST = (
-    "SESSION_COOKIE", "get_console_service", "get_auth_service", "get_scan_service",
+    "SESSION_COOKIE", "get_console_service", "get_auth_service", "get_scan_service", "get_gate_service",
     "get_dev_service", "get_bahaya_service", "get_operator_admin", "get_riwayat_service",
     "get_impor_grading_service", "require_operator", "require_support", "_operator_error",
 )

@@ -187,7 +187,7 @@ POTONGAN_MENTAH = ("404", "Not Found", "http", "did not answer", "internal/statu
 DASH = 'const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));'
 DIAG = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol",
         "kunciSebabTakTerbaca", "kartuDiagnostik"]
-ANTREAN_LINE = ["kunciSebabTakTerbaca", "keadaanAntreanLine", "barisAntreanLine", "waktu", "lamaProses"]
+ANTREAN_LINE = ["kunciSebabTakTerbaca", "keadaanAntreanLine", "barisAntreanLine", "waktu", "teksMenit", "lamaProses"]
 SEHAT = {"terjangkau": True, "aktif": True, "lama_tertinggal": False, "menunggu": 3, "tersambung": True}
 JAM = 1_789_873_200
 

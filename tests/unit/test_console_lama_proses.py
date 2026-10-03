@@ -52,10 +52,11 @@ def test_baris_kosong_selebar_tabel_yang_sudah_ditambah_kolom():
     """`colspan` yang tertinggal di lebar lama tidak melempar apa pun."""
     kolom = HTML.count('<th data-t="thMasuk"')
     assert kolom == 1, "header tabel timbangan tidak tunggal lagi, hitungan di bawah tak sahih"
-    awal = HTML.index('<th data-t="thMasuk"')
+    # Status (2026-10-02) is the first column, left of thMasuk.
+    awal = HTML.rindex("<thead>", 0, HTML.index('<th data-t="thMasuk"')) + len("<thead>")
     kepala = HTML[awal : HTML.index("</thead>", awal)]
-    assert kepala.count("<th") == 9, "lebar header berubah - colspan baris kosong ikut berubah"
-    assert 'barisKosong(9, "kosongTiket")' in HTML, (
+    assert kepala.count("<th") == 12, "lebar header berubah - colspan baris kosong ikut berubah"
+    assert 'barisKosong(12, "kosongTiket")' in HTML, (
         "baris 'belum ada tiket' tidak selebar tabel timbangan"
     )
 
@@ -81,7 +82,7 @@ def _lama(masuk: str | None, keluar: str | None) -> str | None:
 
     Disalin ke test, fungsinya akan terus lulus setelah yang di layar diubah.
     """
-    skrip = _fungsi("lamaProses") + f"\nconsole.log(JSON.stringify(lamaProses({json.dumps(masuk)}, {json.dumps(keluar)})));"
+    skrip = _fungsi("teksMenit") + _fungsi("lamaProses") + f"\nconsole.log(JSON.stringify(lamaProses({json.dumps(masuk)}, {json.dumps(keluar)})));"
     keluaran = subprocess.run(
         [NODE, "-e", skrip], capture_output=True, text=True, check=True, timeout=30
     ).stdout.strip()

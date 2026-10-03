@@ -21,6 +21,10 @@ demo can show a visit at the mill and then the ticket it became in the ERP. Chan
 plate here and change it there in the same pull request.
 
 Every id is a uuid5 of its natural key, so re-running adds nothing new.
+
+Today also gets two cancelled arrivals (`seed_batal_datang`), so the "Kedatangan
+dibatalkan" panel of the Timbangan tab has something to show. Those exist on this side
+only: an arrival never reaches AutoERP.
 """
 
 from __future__ import annotations
@@ -279,6 +283,7 @@ def main(argv: list[str]) -> int:
     artifacts_dir = settings.artifacts_dir
     made = seed(store, tz, artifacts_dir, days=max(1, args.hari))
     print(f"  {made['trucks']} truk, {made['visits']} kunjungan, {made['bunches']} janjang")
+    print(f"  {made['batal']} kedatangan dibatalkan hari ini (panel di bawah tabel Timbangan)")
     # Disebut eksplisit: kalau nol, kolom FOTO berisi gambar sintetis dan itu
     # keputusan yang harus dilihat sebelum demo ke klien, bukan kejutan di layar.
     if made["capture_nyata"]:
@@ -316,6 +321,7 @@ def wipe(store: ConsoleStore) -> int:
     with store._lock, store._db:  # noqa: SLF001 — no public bulk-delete; this is a dev tool
         for table, column in (
             ("inspections", "truck_id"),
+            ("arrivals", "truck_id"),
             ("weighings", "truck_id"),
             ("assignments", "truck_id"),
         ):
@@ -351,6 +357,7 @@ def seed(store: ConsoleStore, tz, artifacts_dir: Path, days: int = DAYS) -> dict
         "trucks": trucks,
         "visits": visits,
         "bunches": bunches,
+        "batal": seed_batal_datang(store, tz),
         "capture_nyata": len(nyata["acc"]) + len(nyata["rej"]),
     }
 
@@ -461,6 +468,7 @@ def _seed_one_visit(
         }
     )
     store.link_weighing_to_assignment(_uid("weighing", key), assignment_id, line)
+    _seed_gerbang(store, tz, key, plate, truck_id, start)
 
     total = rng.randint(*BUNCHES_PER_VISIT)
     rej_share = rng.uniform(*REJ_SHARE)
@@ -519,6 +527,79 @@ def _seed_one_visit(
             nyata=nyata,
         )
     return total
+
+
+def _seed_gerbang(store: ConsoleStore, tz, key: str, plate: str, truck_id: str, start) -> None:
+    """Scan 1 and 4 for one demo visit (2026-09-30), so the Timbangan tab shows queue and
+    total times instead of "no scan 1" on every row.
+
+    Its own random stream (`:gerbang`): drawing from the visit's stream would shift every
+    bunch count after it, and a partly seeded day would fill in different numbers.
+    """
+    rng = random.Random(f"{SEED}:{key}:gerbang")
+    weighing_id = _uid("weighing", key)
+    # About one visit in ten skips scan 1, like a real gate on a quiet morning.
+    if rng.random() >= 0.1:
+        datang = start - timedelta(minutes=rng.randint(5, 90))
+        arrival_id = _uid("arrival", key)
+        store.record_arrival(
+            {
+                "id": arrival_id,
+                "plate_number": plate,
+                "plate_norm": normalisasi_plat(plate),
+                "truck_id": truck_id,
+                "work_date": work_date_for(datang.isoformat(), tz),
+                "arrived_at": datang.isoformat(),
+            }
+        )
+        store.claim_arrival(arrival_id, weighing_id)
+    pergi = start + timedelta(hours=1, minutes=rng.randint(2, 15))
+    # Never in the future: the table would show a leave time that has not happened.
+    store.set_left_at(weighing_id, min(pergi, datetime.now(tz)).isoformat())
+
+
+# Minutes before now the truck arrived, and minutes it then waited before "Batal datang".
+BATAL_DATANG = ((50, 6), (25, 4))
+
+
+def seed_batal_datang(store: ConsoleStore, tz, now: datetime | None = None) -> int:
+    """Two cancelled arrivals for today (2026-10-03), so the demo shows the "Kedatangan
+    dibatalkan" panel under the Timbangan table. Returns how many today has.
+
+    Through the store calls a real cancel uses (`record_arrival`, then `cancel_arrival`), with
+    the demo operator's email and name. Not through `GateService`: it stamps the cancel with
+    the clock of this run, and the demo wants "arrived, then cancelled minutes later".
+    AutoGrade only: an arrival never reaches AutoERP, so its seeder has no counterpart and
+    the plates stay the same ten on both sides.
+
+    Never in the future and never on yesterday's work date: both times are clamped between
+    the start of today and now. Ids come from the date, so seeding again the same day
+    changes nothing (the first run's times stay); `wipe` removes them with the other arrivals.
+    """
+    now = now or datetime.now(tz)
+    awal_hari = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    email, nama, _role = ACCOUNTS[0]
+    rng = random.Random(f"{SEED}:{now:%Y%m%d}:batal")
+    for n, ((mundur, jeda), plate) in enumerate(zip(BATAL_DATANG, rng.sample(PLATES, len(BATAL_DATANG)), strict=True)):
+        datang = max(now - timedelta(minutes=mundur), awal_hari)
+        arrival_id = _uid("arrival-batal", f"{now:%Y%m%d}:{n}")
+        store.record_arrival(
+            {
+                "id": arrival_id,
+                "plate_number": plate,
+                "plate_norm": normalisasi_plat(plate),
+                "truck_id": truck_id_for(plate),
+                "work_date": work_date_for(datang.isoformat(), tz),
+                "arrived_at": datang.isoformat(),
+            }
+        )
+        store.cancel_arrival(
+            arrival_id,
+            cancelled_at=min(datang + timedelta(minutes=jeda), now).isoformat(),
+            cancelled_by=email,
+            cancelled_by_name=nama,
+        )
+    return len(store.cancelled_arrivals(work_date_for(now.isoformat(), tz)))
 
 
 if __name__ == "__main__":

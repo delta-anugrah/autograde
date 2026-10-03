@@ -1,6 +1,11 @@
-"""Weighbridge exit scan: the plate finds today's open ticket and opens its tare box; no open
+"""Weighbridge exit scan: the plate finds its open ticket and opens its tare box; no open
 ticket is said, and two open tickets are refused, never guessed (rule 20, operator's
 decision 2026-09-15: a guess can put the tare on the wrong visit).
+
+"Open" is no tare yet within the visit window (12 h) before now, not on today's work date
+(2026-10-02). That is also why these tests no longer depend on the hour: a ticket weighed in
+30 minutes ago used to land on yesterday's work date before 00:30 and drop out of the
+lookup. Across an actual work-date boundary: `test_browser_tengah_malam.py`.
 
 `#scan-keluar` ships `hidden` until the mill buys a scanner, like `#scan-plat` in
 `test_browser_scan.py`; these tests un-hide it the way that day will.

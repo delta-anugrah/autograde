@@ -1,9 +1,10 @@
 """Scan a QR at the weighbridge gate: one plate in, one truck out.
 
-Two scan stages, both at the gate, both replacing **typing that genuinely
-happens**: weigh-in and weigh-out. The sorting stage is not scanned — knowing
-the hopper is empty is the line operator's call, not the driver's who just
-carries a phone, and the button is already right in front of the operator.
+Scans 2 and 3 of four (2026-09-30): weigh-in and weigh-out, both at the
+weighbridge, both replacing typing that genuinely happens. Scans 1 (arrive) and
+4 (leave) only record times and live in `GateService`, so this service can stay
+read-only. The sorting stage is not scanned: knowing the hopper is empty is the
+line operator's call, and the button is already in front of them.
 
 This layer **only searches**. It never creates a truck and never touches weight:
 
@@ -21,10 +22,12 @@ factory gate.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from ..domain.plate import truck_id_for
 from ..domain.qr import baca_qr
+from ..domain.working_day import awal_kunjungan
 from ..repositories.console_repository import ConsoleStore
 
 logger = logging.getLogger(__name__)
@@ -53,12 +56,16 @@ class ScanService:
 
         return {"ditemukan": True, "plate_number": plate, "truck": truck}
 
-    def open_ticket(self, qr_text: str, work_date: str) -> dict[str, Any]:
+    def open_ticket(self, qr_text: str, sekarang: datetime) -> dict[str, Any]:
         """Second scan, at the exit gate: which ticket is waiting for its tare.
 
         The operator scans the plate and the system finds the ticket — instead
         of the operator combing the table for that truck's row among dozens
         for the day.
+
+        Open = no tare yet and weighed in within the visit window before `sekarang`
+        (`awal_kunjungan`), not on today's work date: a truck weighed in at 23:50 is
+        weighed out at 00:10 (2026-10-02). The ticket keeps its own work date.
 
         **Two open tickets are refused, not guessed** (operator's decision,
         2026-09-15): guessing here can attach the tare to the wrong visit and
@@ -66,7 +73,7 @@ class ScanService:
         reported to AutoERP. The screen shows both and the operator picks.
         """
         plate = baca_qr(qr_text)
-        open_weighings = self.store.open_weighings_for_truck(truck_id_for(plate), work_date)
+        open_weighings = self.store.open_weighings_for_truck(truck_id_for(plate), awal_kunjungan(sekarang))
 
         if len(open_weighings) == 1:
             return {"ditemukan": True, "plate_number": plate, "weighing": open_weighings[0]}
@@ -79,5 +86,5 @@ class ScanService:
                 "plate_number": plate, "choices": open_weighings,
             }
 
-        logger.info("Scan keluar %s: no open ticket today", plate)
+        logger.info("Scan keluar %s: no open ticket in the visit window", plate)
         return {"ditemukan": False, "plate_number": plate, "weighing": None}

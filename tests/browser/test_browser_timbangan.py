@@ -1,6 +1,7 @@
 """One truck visit on the weighbridge screen, the way the operator does it today: pick the
-plate from the list, gross with a keypad comma, Keluar on the ticket row, tare, and the net
-the server computed (rule 15) shown in the row.
+plate from the list, gross with a keypad comma, Timbang kosong on the ticket row, tare, the
+net the server computed (rule 15) shown in the row, and then Keluar on the same row (scan 4,
+the truck leaves the gate).
 
 The plate comes from the list, not a scan: the QR field ships hidden until the mill buys a
 scanner (`test_browser_scan.py` covers that path). The truck is registered on the Truk tab,
@@ -37,10 +38,20 @@ def test_a_visit_from_gross_to_net(halaman, browser_name):
     angka = baris.locator("td.num")
     expect(angka.nth(_BRUTO)).to_have_text(halaman.evaluate("() => kg(14820.5)"))
 
-    baris.locator('button[data-aksi="keluar"]').click()
+    tombol = baris.locator('button[data-aksi="keluar"]')
+    expect(tombol).to_have_text(kamus(halaman, "btnTimbangKosong"))
+    tombol.click()
     expect(halaman.locator("#tara-grup")).to_be_visible()
     expect(halaman.locator("#tara-plat")).to_have_text(nomor)
     halaman.fill("#tara-nilai", "6200")
     halaman.click("#tara-simpan")
     expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukTara"))
     expect(angka.nth(_NETO)).to_have_text(halaman.evaluate("() => kg(8620.5)"))
+
+    # Weighed out, the row's one button moves on to the next step: the truck leaving the gate.
+    expect(baris.locator('button[data-aksi="keluar"]')).to_have_count(0)
+    pergi = baris.locator('button[data-aksi="pergi"]')
+    expect(pergi).to_have_text(kamus(halaman, "btnPergi"))
+    pergi.click()
+    expect(halaman.locator("#toasts")).to_contain_text(f"{kamus(halaman, 'sukPergi')} {nomor}")
+    expect(baris.locator("button[data-aksi]")).to_have_count(0)

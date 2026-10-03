@@ -13,6 +13,7 @@ directory scanning anywhere (§6.2).
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import threading
@@ -26,6 +27,7 @@ from zoneinfo import ZoneInfo
 from ..core.config import LineEndpoint, Settings
 from ..domain.bahaya import HapusBerjalan
 from ..domain.ffb_source import ffb_source_label
+from ..domain.gerbang import durasi_kunjungan, tahap_tiket
 from ..domain.grade_class import grade_class_or_none
 from ..domain.jawaban_kunjungan import golongkan
 from ..domain.operator_error import (
@@ -45,7 +47,9 @@ from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
 from ..workers.visit_manifest_worker import VisitManifestWorker
 from .erp_queue import ErpQueue
+from .gerbang_konsol import GerbangKonsol
 from .layar_line_support import LayarLineSupport
+from .penugasan_otomatis import PenugasanOtomatis
 from .status_sinkron import StatusSinkron
 
 logger = logging.getLogger(__name__)
@@ -64,7 +68,7 @@ NET_TOLERANCE_KG = 1.0
 MINIMUM_WEIGHT_KG = 1000.0
 
 
-class ConsoleService(LayarLineSupport):
+class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol):
     def __init__(
         self,
         settings: Settings,
@@ -114,11 +118,17 @@ class ConsoleService(LayarLineSupport):
         self._truk_ditutup: dict[str, int] = {}
         self._tertunda: dict[str, dict[str, str]] = {}
         self._kunci_ditutup = threading.Lock()
+        # One automatic assignment at a time (2026-10-01): two weighings landing together
+        # would both see the lines free and the second would overwrite the first.
+        self._kunci_penugasan = asyncio.Lock()
+        # Tickets going onto the lines right now: Lewati refuses them (route runs in a thread).
+        self._tiket_dipasang: set[str] = set()
+        self._kunci_antrean = threading.Lock()
 
     # ------------------------------------------------------------ ingest
 
     def today(self) -> str:
-        return datetime.now(self.tz).strftime("%Y-%m-%d")
+        return self.sekarang().astimezone(self.tz).strftime("%Y-%m-%d")
 
     def ingest(self, payload: dict[str, Any]) -> str:
         """Take one grading event from a line. Returns its `work_date`.
@@ -263,6 +273,12 @@ class ConsoleService(LayarLineSupport):
             # Ditampilkan supaya pelepasannya terlihat: kalau bongkar ternyata
             # belum habis, operator masih bisa meng-assign ulang.
             "auto_releases": self.store.auto_releases_terbaru(),
+            # Antrean bongkar di atas kartu line (2026-10-01), di polling 2 detik yang sama:
+            # yang perlu melihatnya operator yang sedang memegang tombol line.
+            "antrean_bongkar": self.antrean_bongkar(),
+            "penugasan_otomatis": {
+                k: v for k, v in self.penugasan_otomatis().items() if k != "lines_tersedia"
+            },
             # Menumpang polling 2 detik ini, bukan endpoint sendiri: yang melihat
             # sambungan putus itu operator biasa (alasan sama dengan banner lisensi).
             "sinkron": self._sinkron_aman(),
@@ -349,7 +365,8 @@ class ConsoleService(LayarLineSupport):
         return [_with_source_label(row) for row in self.store.trucks()]
 
     def weighings(self, work_date: str, *, limit: int = 100) -> list[dict[str, Any]]:
-        return [_tiket_view(row) for row in self.store.weighings(work_date, limit=limit)]
+        rows = self.tandai_tanpa_scan_4(self.store.weighings(work_date, limit=limit)) + self.kunjungan_terbawa(work_date)
+        return [_tiket_view(row) for row in rows]
 
     def recap(self, work_date: str) -> list[dict[str, Any]]:
         """Per-truck tally with the weighbridge neto folded in.
@@ -490,6 +507,8 @@ class ConsoleService(LayarLineSupport):
                     "exited_at": exited_at,
                 }
             )
+            # Scan 1: a NEW ticket claims its truck's arrival (never fails the weighing).
+            self._klaim_kedatangan(not existing and gross is not None, truck_id, entered_at, weighing_id)
             # Timbang keluar = truk sudah pergi. Line yang masih memegangnya akan
             # menstempel janjang truk BERIKUTNYA dengan truk ini (G5), jadi dilepas
             # di sini alih-alih menunggu operator ingat.
@@ -510,7 +529,11 @@ class ConsoleService(LayarLineSupport):
         # The pages last: the visit never depends on the page.
         for tiket, assignment_id in halaman.items():
             self._antre_halaman(tiket, assignment_id)
-        return self.store.weighing(weighing_id) or {}
+        # Automatic line assignment (2026-10-01), only after everything above is queued and
+        # outside the weigh-out guard: a new ticket may go straight onto the lines, and a
+        # weigh-out just freed them for the next truck in the unloading queue.
+        dipasang = await self.isi_line_otomatis()
+        return {**(self.store.weighing(weighing_id) or {}), "dipasang": dipasang}
 
     # ------------------------------------------------------ send to AutoERP
 
@@ -696,10 +719,6 @@ class ConsoleService(LayarLineSupport):
         truck = self.store.truck(truck_id) or {}
         return truck.get("plate_number") or None
 
-    def assignments(self) -> dict[str, dict[str, Any]]:
-        """Every line's current assignment row (a released line keeps an empty truck_id)."""
-        return self.store.assignments()
-
     async def assign_truck(self, line_code: str, truck_id: str) -> dict[str, Any]:
         line = self._require_line(line_code)
         if self.store.hapus_berjalan:
@@ -746,6 +765,8 @@ class ConsoleService(LayarLineSupport):
             assigned_at=datetime.now(self.tz).isoformat(),
             ffb_source=None,
         )
+        # No `await` between these two (2026-10-01): until the link is written, the truck is
+        # on no line and linked to nothing, so the unloading queue would offer it again.
         self.store.set_assignment(line_code, "", None)
         self._queue_grading(closing, kirim=kirim)
         return {"line_code": line_code, "truck_id": None}
@@ -944,9 +965,10 @@ def _with_source_label(row: dict[str, Any]) -> dict[str, Any]:
 
 def _tiket_view(row: dict[str, Any]) -> dict[str, Any]:
     """One Timbangan row: the source label, and whether AutoERP's last answer for this
-    visit needs a human (batch 2.3). Classified here so the screen never parses
-    AutoERP's sentences."""
+    visit needs a human (batch 2.3), the queue and total minutes and the stage (standard L4).
+    Computed here so the screen never parses AutoERP's sentences or adds up clocks."""
     row["erp_perlu_dicek"] = golongkan(row.get("erp_note"))
+    row.update(durasi_kunjungan(row), tahap=tahap_tiket(row))
     return _with_source_label(row)
 
 

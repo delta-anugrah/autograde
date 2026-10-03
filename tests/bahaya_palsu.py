@@ -114,12 +114,19 @@ def isi_data(store: ConsoleStore) -> None:
     store.create_session("tok", oid, now=time.time(), ttl_s=3600)
 
 
-def buka_tiket(store: ConsoleStore, *, hari: str, tara: float | None = None, nomor: str = "w1") -> None:
-    """Satu tiket timbang: bruto sudah ada; tanpa `tara` = truk belum timbang keluar."""
+def buka_tiket(
+    store: ConsoleStore, *, hari: str, tara: float | None = None, nomor: str = "w1",
+    diterima: float | None = None,
+) -> None:
+    """Satu tiket timbang: bruto sudah ada; tanpa `tara` = truk belum timbang keluar.
+
+    Tanpa jam isi, jadi jam terimanya (`diterima`, bawaan sekarang) yang menjadi saat
+    timbang isi: tiket yang diterima barusan masih di dalam jendela kunjungan."""
     with store._lock, store._db:
         store._db.execute(
             "INSERT INTO weighings (id, plate_number, work_date, gross_kg, tare_kg, received_at) "
-            "VALUES (?, 'B1234XY', ?, 14820, ?, ?)", (nomor, hari, tara, time.time()),
+            "VALUES (?, 'B1234XY', ?, 14820, ?, ?)",
+            (nomor, hari, tara, time.time() if diterima is None else diterima),
         )
 
 

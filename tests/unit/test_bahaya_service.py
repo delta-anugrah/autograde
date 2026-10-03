@@ -144,15 +144,28 @@ def test_tiket_terbuka_hari_ini_menolak_hapus(rakit):
 
 
 def test_tiket_terbuka_hari_lama_cuma_diperingatkan(rakit):
-    """Tiket kemarin yang taranya tidak pernah diisi hampir pasti sisa uji coba —
-    menghambatnya membuat tombol tidak bisa dipakai tanpa membereskan sampah dulu."""
+    """Tiket hari lain di luar jendela kunjungan yang taranya tidak pernah diisi hampir
+    pasti sisa uji coba: menghambatnya membuat tombol tidak bisa dipakai tanpa membereskan
+    sampah dulu."""
     svc, store, *_ = rakit()
-    buka_tiket(store, hari="2026-09-20")
+    buka_tiket(store, hari="2026-09-20", diterima=time.time() - 5 * 86400)
 
     r = asyncio.run(svc.ringkasan())
 
     assert r["aksi"]["transaksi"]["hambatan"] == []
     assert {"kode": "tiket_lama_terbuka", "jumlah": 1} in r["aksi"]["transaksi"]["peringatan"]
+
+
+def test_tiket_kemarin_yang_masih_di_jendela_kunjungan_menolak_hapus(rakit):
+    """Pukul 00:10 truk yang timbang isi 23:50 masih di tengah kunjungan, walau hari
+    kerjanya kemarin: bruto-nya yang dibayar, jadi tetap hambatan, bukan peringatan."""
+    svc, store, *_ = rakit()
+    buka_tiket(store, hari="2026-09-24", diterima=time.time() - 20 * 60)
+
+    r = asyncio.run(svc.ringkasan())
+
+    assert r["aksi"]["transaksi"]["hambatan"] == [{"kode": "tiket_terbuka", "jumlah": 1}]
+    assert not any(p["kode"] == "tiket_lama_terbuka" for p in r["aksi"]["transaksi"]["peringatan"])
 
 
 # ── hapus data ──────────────────────────────────────────────────────────────

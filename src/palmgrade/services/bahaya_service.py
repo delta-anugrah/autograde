@@ -44,6 +44,7 @@ from ..domain.bahaya import (
     peringatan_restart,
 )
 from ..domain.operator_error import OperatorError
+from ..domain.working_day import JENDELA_KUNJUNGAN_DETIK
 from ..integrations.erp.outbox_store import ErpOutboxStore
 from ..integrations.notifications.line_client import LinePlcTolak, LineUnavailable
 from ..repositories.console_repository import ConsoleStore
@@ -167,7 +168,8 @@ class BahayaService:
         return list(await asyncio.gather(*(self._satu_line(ln) for ln in self._lines)))
 
     def _keadaan_konsol(self) -> KeadaanKonsol:
-        tiket = self._store.tiket_terbuka(self._hari_kerja())
+        # Hari kerja ATAU jendela kunjungan: pukul 00:10 truk yang timbang isi 23:50 masih di dalam.
+        tiket = self._store.tiket_terbuka(self._hari_kerja(), time.time() - JENDELA_KUNJUNGAN_DETIK)
         return KeadaanKonsol(
             erp_aktif=self._erp_aktif,
             erp_pending=self._erp_outbox.pending_count(),
@@ -175,7 +177,7 @@ class BahayaService:
             # Aturan yang sama dengan `seed_default_accounts`: hash yang tidak
             # terbaca tidak pernah jadi akun, jadi tidak dihitung sebagai jalan kembali.
             akun_support_bawaan=hash_is_usable(self._hash_support),
-            tiket_terbuka=tiket["hari_ini"],
+            tiket_terbuka=tiket["berjalan"],
             tiket_lama_terbuka=tiket["lama"],
         )
 
