@@ -254,6 +254,7 @@ pemanggil, dan keduanya tanpa auth. Penggantinya `/internal/assignment` (yang ju
 | GET / POST | `/api/console/weighings` | Timbangan; bruto/tara di bawah 1.000 kg ditolak (`MINIMUM_WEIGHT_KG`). Baris GET membawa `erp_perlu_dicek` (`tiket_final_berbeda` / `tiket_dibatalkan` / null, batch 2.3) |
 | GET | `/api/console/recap` | Rekap per truk satu hari. Tidak dipanggil layar sejak tab digabung 2026-09-28; endpoint tetap |
 | POST | `/api/console/lines/{line_code}/assign-truck`, `/release-truck`, `/manual-reject`, `/piston` | Diteruskan ke `/internal/*` line; line yang tidak menjawab → 502 |
+| GET | `/api/console/update` · POST `/api/console/update/install` | Update now (batch 4.6), lihat § Update now di bawah |
 
 ### Rekap (tab Rekap, 2026-09-26; dulu tab Riwayat)
 
@@ -296,6 +297,39 @@ Rinciannya: `docs/rules.md`, Critical Rule 27.
 | `workers/cek_sinkron_worker.py` | tiap 60 detik: `ErpClient.ping()` + `R2Uploader.cek()` (`head_object viewer.html`, 404 = tersambung) |
 | `MasterDataWorker`, `ErpOutboxWorker`, `VisitManifestWorker` | mencatat hasil kirim/tarik (`berhasil` / `gagal`) |
 | `LineStatusWorker` | membawa blok `unggah` tiap line + mencatat putus/pulih upload foto line ke tab Log |
+
+### Update now (batch 4.6, 2026-10-03)
+
+Lane operator biasa (semua akun). Aturannya: `docs/rules.md`, Critical Rule 36. Konsol cuma
+membaca dan menulis tiga berkas kecil di `UPDATE_DIR`; penunggu systemd di host yang memasang.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/console/update` | `{terpasang, versi_jalan, siap, berjalan, hasil}`; sama dengan kunci `pembaruan` di `/api/console/state` |
+| POST | `/api/console/update/install` | `{target}` = versi yang dilihat operator → **202** `{id, target}` (penanda tertulis). **409** `pembaruan_ada_truk` (`params.line` = kode line, dipisah koma), `pembaruan_tidak_ada` (target bukan versi siap), `pembaruan_berjalan`; **503** `pembaruan_belum_terpasang` (tidak ada penunggu); **500** folder tidak bisa ditulis |
+
+`assign-truck` menjawab **409** `pembaruan_berjalan` selama pemasangan berjalan.
+
+`pembaruan`: `terpasang` = `status.json` ada dengan `watcher: true`; `versi_jalan` = `APP_VERSION`
+konsol (bukan berkas); `siap` = versi yang boleh dipasang atau `null`; `berjalan` = penanda belum
+dijawab dan belum 20 menit; `hasil` = `{state, target, installed, at}` selama 24 jam, `state`
+`ok` / `rolled_back` / `failed` / `nothing` / `timeout` (`timeout` dibuat konsol).
+
+Kontrak berkas (skema 1, semua ditulis tmp lalu rename; sisi host: `sawit/docs/runbooks/files/autograde.sh`):
+
+```json
+status.json  {"schema": 1, "installed": "v1.22.0", "staged": "v1.22.1", "checked_at": "2026-10-20T07:00:00+07:00", "watcher": true}
+request.json {"schema": 1, "id": "<uuid>", "target": "v1.22.1", "by": "op@pks.test", "at": "2026-10-20T08:00:00+07:00"}
+result.json  {"schema": 1, "id": "<uuid>", "state": "ok", "target": "v1.22.1", "installed": "v1.22.1", "at": "2026-10-20T08:03:10+07:00"}
+```
+
+`.result-logged.json` milik konsol saja: hasil mana yang sudah ditulis ke tab Log.
+
+| Komponen | Peran |
+|---|---|
+| `domain/pembaruan.py` | aturan murni: urai tiga berkas, `keadaan_pembaruan`, `boleh_pasang`, `line_bertruk`, `baris_log_hasil` |
+| `services/pembaruan_service.py` | `PembaruanService`: baca berkas, tulis penanda atomik, `kunci` + `menugaskan` (assign mendaftar diri tanpa memegang kunci selama memanggil line), catat hasil sekali |
+| `routes/console.py` | dua endpoint di atas + kunci `pembaruan` di `/state` + 409 di assign-truck |
 
 ### Lane support (`require_support`)
 
@@ -431,6 +465,7 @@ seperti variabel mati padahal bukan: jangan dihapus karena `grep os.getenv` tida
 | `BORDER_THICKNESS` / `FONT_SCALE` / `FONT_THICKNESS` | `2` / `0.7` / `2` | Kotak dan label deteksi; frame 2448×2048 butuh angka jauh lebih besar |
 | `CAMERA_TYPE` | `hikrobot` | Jenis sumber. Di Docker diisi compose dari `LINE_N_CAMERA_TYPE` di `media.env` (tab Line → Sumber Kamera), dan line membaca ulang `media.env` sendiri saat boot |
 | `MEDIA_FILE` / `MEDIA_DIR` / `MEDIA_ENV_PATH` | - / `/media` / `/config/media.env` (compose) | Nama berkas video/foto (bukan path), foldernya, dan berkas setelan sumber kamera |
+| `UPDATE_DIR` | `<repo>/update`; compose `/app/update` | Konsol saja: folder Update now (`./update:/app/update`). Demo droplet mengisinya tanpa mount, jadi tombol tidak pernah muncul |
 | `CAMERA_VIDEO_LOOP` | `false` | `true` = video diulang terus (uji performa); tiap putaran me-reset ByteTrack. Dari `LINE_N_VIDEO_LOOP` |
 | `CAMERA_VIDEO_PATH` / `CAMERA_PHOTO_PATH` | - | Path penuh sumber video/foto untuk `make line` (native, tanpa `media.env`). `MEDIA_FILE` menang kalau ada |
 | `CAMERA_SERIAL` | - | Pilih kamera Hikrobot by serial. Dari `LINE_N_CAMERA_SERIAL` di `.env`; kosong = fallback index |
@@ -539,7 +574,8 @@ konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x
 | POST | `/api/console/dev/riwayat/impor` | **support**: berkas yang SAMA + `?sidik=` hasil periksa → **201** `{batch}`. **409** kalau berkas berubah, ada baris salah, tidak ada yang baru, impor lain berjalan, atau Danger Zone sedang menghapus |
 | GET | `/api/console/dev/riwayat/impor` | **support**: 20 impor terakhir |
 | POST | `/api/console/dev/riwayat/impor/{id}/batal` | **support**: hapus janjang satu impor. **404** tidak ada, **409** sudah dibatalkan |
-| POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line. **409** `hapus_berjalan` selama Danger Zone menghapus data (line tidak disentuh) |
+| POST | `/api/console/lines/{line}/assign-truck` | → diteruskan ke `/internal/assignment` line. **409** `hapus_berjalan` selama Danger Zone menghapus data (line tidak disentuh), **409** `pembaruan_berjalan` selama Update now berjalan |
+| GET / POST | `/api/console/update`, `/api/console/update/install` | Update now (batch 4.6): § Update now di atas |
 | POST | `/api/console/lines/{line}/release-truck` | truk pergi → `/internal/assignment` line dengan truk kosong |
 | POST | `/api/console/lines/{line}/manual-reject` | → diteruskan ke `/internal/manual-reject` line |
 | POST | `/api/console/lines/{line}/piston` | `{open}` → diteruskan ke `/internal/piston` line. Menggerakkan hardware, jadi butuh sesi operator seperti lane operator lain (batch 1.1), dan tiap percobaan dicatat WARNING menyebut siapa yang menekan (tab Log), dipicu atau ditolak |

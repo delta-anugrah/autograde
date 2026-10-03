@@ -122,6 +122,9 @@ class KonsolUji:
             "ERP_URL": "",
             "FACTORY_TZ": "Asia/Jakarta",
             "CONSOLE_LINE_HOST": "http://127.0.0.1",
+            # A release number, not `unknown`: Update now (batch 4.6) offers nothing above a
+            # version it cannot read.
+            "APP_VERSION": "v1.22.0",
         }
 
     def seed(self, *, hari: int) -> None:

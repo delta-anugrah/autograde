@@ -18,6 +18,26 @@ Next:           ...
 
 ---
 
+## 2026-10-03 · console · Update now button with a host watcher (PR #215)
+Changed:        Batch 4.6, console half. `domain/pembaruan.py`, `services/pembaruan_service.py`,
+                `GET /api/console/update`, `POST /api/console/update/install`, `pembaruan` in
+                `/state`, assign-truck 409 `pembaruan_berjalan`; console-only compose mount
+                `./update:/app/update` + `UPDATE_DIR` (demo kit: env without mount); screen badge,
+                Pasang sekarang button, result sentence; request and each outcome in the Log tab
+                once. Rule 36, backend-overview, MANUAL 2.2 + PDF, skill compose-host-pabrik.
+Validated:      `pytest tests/unit tests/integration` → 4135 passed, 28 skipped;
+                `pytest tests/e2e` → 335 passed, 20 skipped (image/service gated);
+                `pytest tests/browser --browser chromium --browser firefox` → 74 passed;
+                `ruff check src tests` → All checks passed.
+Not validated:  factory PC (needs sawit #74 watcher installed first); a real image swap from the
+                button (first release after v1.22.0); eye check on a dev server (browser test
+                screenshots instead).
+Decisions:      user 2026-10-02: rolled_back hidden until newer staged; old-day trucks refuse;
+                refusal names the card's line; outcome on screen + Log tab only. Ruling: failed =
+                never tried, offered again, worded "try again". Review: assign registers under the
+                lock and calls the line without it (a dead line no longer queues other assigns).
+Next:           AnyDesk: install the sawit watcher + host compose mount BEFORE tag v1.22.0.
+
 ## 2026-10-02 · console · Stamp console.db with a schema number (PR #213)
 Changed:        `repositories/console_skema.py`: `VERSI_SKEMA = 1`; `siapkan_skema()` ends with
                 `_tandai_versi()`, which raises `PRAGMA user_version` to that number and never lowers
