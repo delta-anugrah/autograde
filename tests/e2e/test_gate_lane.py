@@ -205,6 +205,28 @@ def test_batal_datang_lewat_rute(klien):
     assert klien.post("/api/console/arrivals/tidak-dikenal/cancel").json() == {"hasil": "tidak_ada"}
 
 
+
+def test_riwayat_batal_datang_lewat_rute(klien):
+    """Round 4: the cancel is kept and `GET /weighings` lists it for the day it shows."""
+    _masuk(klien)
+    datang = _jam(datetime.now(UTC).replace(microsecond=0) - timedelta(minutes=10))
+    hari = work_date_for(datang, ZoneInfo("Asia/Jakarta"))
+    assert klien.get("/api/console/weighings", params={"work_date": hari}).json()["dibatalkan"] == []
+    klien.post("/api/console/arrivals", json={"qr": PLAT, "at": datang})
+    [a] = klien.get("/api/console/weighings").json()["waiting"]
+    klien.post(f"/api/console/arrivals/{a['id']}/cancel")
+
+    [r] = klien.get("/api/console/weighings", params={"work_date": hari}).json()["dibatalkan"]
+    assert set(r) == {"plate_number", "arrived_at", "cancelled_at", "cancelled_by"}
+    assert (r["plate_number"], r["arrived_at"], r["cancelled_by"]) == (PLAT, datang, EMAIL)
+    assert datetime.fromisoformat(r["cancelled_at"]) >= datetime.fromisoformat(datang)
+    # Another day's table carries none of it.
+    assert klien.get("/api/console/weighings", params={"work_date": "2020-01-01"}).json()["dibatalkan"] == []
+
+
+def test_riwayat_batal_datang_tertutup_tanpa_sesi(klien):
+    assert klien.get("/api/console/weighings").status_code == 401
+
 def test_tabel_membawa_tanpa_scan_4(klien):
     """A visit weighed out more than 24 h ago that never got its Keluar: SELESAI, flagged,
     total to the weigh-out, and its row button closes nothing."""

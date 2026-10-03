@@ -383,6 +383,9 @@ def console_weighings(
         "items": service.weighings(resolved_date, limit=limit),
         # "Who is waiting at the scale" is always now, whatever day the table shows.
         "waiting": service.waiting_arrivals(),
+        # Batal datang history (round 4) of the day the table shows: the same 15 s poll,
+        # no second request from the screen.
+        "dibatalkan": service.kedatangan_dibatalkan(resolved_date),
     }
 
 
