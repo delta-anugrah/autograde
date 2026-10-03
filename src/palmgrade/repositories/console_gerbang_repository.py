@@ -29,22 +29,42 @@ class GerbangStore:
                 row,
             )
 
-    def cancel_arrival(self, arrival_id: str) -> dict[str, Any] | None:
-        """"Batal datang": delete one arrival that is still WAITING; the deleted row, or None.
+    def cancel_arrival(
+        self, arrival_id: str, *, cancelled_at: str, cancelled_by: str
+    ) -> dict[str, Any] | None:
+        """"Batal datang": mark one arrival that is still WAITING; the row, or None.
 
-        Deleted, not flagged: a cancelled arrival is a mistake at the gate, not a gate time,
-        and a row nobody reads again would need every reader of `arrivals` to skip it. The
-        log line `GateService` writes is its trace. `weighing_id IS NULL` in the same
-        transaction: a weigh-in that claimed it a moment earlier keeps it.
+        Kept, not deleted (round 4, 2026-10-03): the operator asked to see who cancelled which
+        truck and when. `cancelled_at` set = no longer waiting; every reader of a waiting
+        arrival below says `cancelled_at IS NULL`. `weighing_id IS NULL` in the same
+        statement: a weigh-in that claimed it a moment earlier keeps it, and a second cancel
+        keeps the first one's time and operator.
         """
         with self._lock, self._db:
-            row = self._db.execute(
-                "SELECT * FROM arrivals WHERE id = ? AND weighing_id IS NULL", (arrival_id,)
-            ).fetchone()
-            if row is None:
+            cur = self._db.execute(
+                """UPDATE arrivals SET cancelled_at = ?, cancelled_by = ?
+                    WHERE id = ? AND weighing_id IS NULL AND cancelled_at IS NULL""",
+                (cancelled_at, cancelled_by, arrival_id),
+            )
+            if cur.rowcount != 1:
                 return None
-            self._db.execute("DELETE FROM arrivals WHERE id = ? AND weighing_id IS NULL", (arrival_id,))
+            row = self._db.execute("SELECT * FROM arrivals WHERE id = ?", (arrival_id,)).fetchone()
         return dict(row)
+
+    def cancelled_arrivals(self, work_date: str) -> list[dict[str, Any]]:
+        """One work day's cancelled arrivals, newest cancel first: the Timbangan history.
+
+        By the arrival's work date (index `idx_arrivals_hari`), the day the table shows.
+        Newest by the real instant (`julianday`), not the text, as `waiting_arrivals`.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT plate_number, arrived_at, cancelled_at, cancelled_by FROM arrivals
+                   WHERE work_date = ? AND cancelled_at IS NOT NULL
+                   ORDER BY julianday(cancelled_at) DESC, rowid DESC""",
+                (work_date,),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def arrival(self, arrival_id: str) -> dict[str, Any] | None:
         with self._lock:
@@ -55,7 +75,8 @@ class GerbangStore:
         """This truck's unclaimed arrivals, every day: the caller's time window decides."""
         with self._lock:
             rows = self._db.execute(
-                """SELECT * FROM arrivals WHERE truck_id = ? AND weighing_id IS NULL
+                """SELECT * FROM arrivals
+                   WHERE truck_id = ? AND weighing_id IS NULL AND cancelled_at IS NULL
                    ORDER BY arrived_at, rowid""",
                 (truck_id,),
             ).fetchall()
@@ -68,7 +89,7 @@ class GerbangStore:
         with self._lock, self._db:
             cur = self._db.execute(
                 """UPDATE arrivals SET weighing_id = ?
-                    WHERE id = ? AND weighing_id IS NULL
+                    WHERE id = ? AND weighing_id IS NULL AND cancelled_at IS NULL
                       AND truck_id = (SELECT truck_id FROM weighings WHERE id = ?)
                       AND NOT EXISTS (SELECT 1 FROM arrivals WHERE weighing_id = ?)""",
                 (weighing_id, arrival_id, weighing_id, weighing_id),
@@ -88,7 +109,7 @@ class GerbangStore:
         with self._lock:
             rows = self._db.execute(
                 """SELECT id, plate_number, arrived_at FROM arrivals
-                   WHERE work_date >= ? AND weighing_id IS NULL
+                   WHERE work_date >= ? AND weighing_id IS NULL AND cancelled_at IS NULL
                    ORDER BY julianday(arrived_at), rowid""",
                 (sejak_hari,),
             ).fetchall()
@@ -101,6 +122,8 @@ class GerbangStore:
 
         A claimed arrival is left out on purpose: it belongs to a ticket whose weigh-in is
         already here, or to the ticket being judged, whose arrival came before its weigh-out.
+        A cancelled one too: that truck never came back (round 3 test: cancelling gives the old
+        visit its Keluar back).
         """
         if not truck_ids:
             return {}
@@ -108,7 +131,8 @@ class GerbangStore:
         with self._lock:
             rows = self._db.execute(
                 f"""SELECT truck_id, arrived_at AS saat FROM arrivals
-                     WHERE truck_id IN ({tanda}) AND weighing_id IS NULL AND work_date >= ?
+                     WHERE truck_id IN ({tanda}) AND weighing_id IS NULL AND cancelled_at IS NULL
+                       AND work_date >= ?
                     UNION ALL
                     SELECT truck_id, entered_at FROM weighings
                      WHERE truck_id IN ({tanda}) AND work_date >= ? AND entered_at IS NOT NULL""",

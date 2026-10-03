@@ -71,3 +71,18 @@ def test_wipe_menghapus_kedatangan_demo(tmp_path):
                           "arrived_at": "2026-09-29T00:30:00+00:00"})
     seeder.wipe(store)
     assert store.arrival("a-demo") is None
+
+
+def test_wipe_juga_menghapus_kedatangan_demo_yang_dibatalkan(tmp_path):
+    """A cancelled arrival is kept as history (round 4); `make demo-reset` still clears it."""
+    seeder = _muat_seeder()
+    store = ConsoleStore(tmp_path / "console.db")
+    plate = seeder.PLATES[0]
+    store.record_arrival({"id": "a-batal", "plate_number": plate, "plate_norm": normalisasi_plat(plate),
+                          "truck_id": truck_id_for(plate), "work_date": "2026-09-29",
+                          "arrived_at": "2026-09-29T00:30:00+00:00"})
+    store.cancel_arrival("a-batal", cancelled_at="2026-09-29T00:40:00+00:00", cancelled_by="op@pks.test")
+    seeder.wipe(store)
+    assert store.arrival("a-batal") is None
+    assert store.cancelled_arrivals("2026-09-29") == []
+

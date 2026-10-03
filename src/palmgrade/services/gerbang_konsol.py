@@ -129,3 +129,8 @@ class GerbangKonsol:
             {**a, "menit": menit_antara(a["arrived_at"], jam), "tahap": TAHAP_DATANG}
             for a in masih_menunggu(self.store.waiting_arrivals(sejak_hari), nyata)
         ]
+
+    def kedatangan_dibatalkan(self, work_date: str) -> list[dict[str, Any]]:
+        """The day's "Batal datang" history (round 4, 2026-10-03), newest first: plate, arrival
+        time, cancel time and the operator's email, as stored. The screen formats the times."""
+        return self.store.cancelled_arrivals(work_date)

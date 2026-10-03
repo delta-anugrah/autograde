@@ -45,7 +45,7 @@ def test_kedatangan_menunggu_dibatalkan(konsol, caplog):
 
     assert jawab == {"hasil": DIBATALKAN, "plate_number": "BE7742ZB"}
     assert _id_menunggu(service) == []
-    assert store.arrival(arrival_id) is None
+    assert store.arrival(arrival_id)["cancelled_by"] == OLEH  # kept as history (round 4)
     assert any(PLAT.replace(" ", "") in r.getMessage() and OLEH in r.getMessage() for r in caplog.records)
 
 

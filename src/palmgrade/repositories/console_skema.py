@@ -19,7 +19,8 @@ import sqlite3
 #: 1 = batch 4.5 (PR #213). 2 = `visit_assignments` + `idx_weighings_truck` (PR #208).
 #: 3 = `weighings.unloading_queue_skipped_at` + `idx_weighings_terbuka` (PR #212).
 #: 4 = `arrivals` + its three indexes + `weighings.left_at` (gate scans).
-VERSI_SKEMA = 4
+#: 5 = `arrivals.cancelled_at` + `arrivals.cancelled_by` (Batal datang kept as history).
+VERSI_SKEMA = 5
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
@@ -147,6 +148,8 @@ CREATE INDEX IF NOT EXISTS idx_weighings_terbuka ON weighings (received_at)
 -- Scan 1 (truck reaches the gate), 2026-09-30. Stays on this PC: "arrived" is not one of
 -- AutoERP's stages. A row waits with `weighing_id` NULL until the truck's weigh-in
 -- claims it; that link is how queue time (arrival to weigh-in) is read.
+-- "Batal datang" (2026-10-03) keeps the row as history: `cancelled_at` set = no longer
+-- waiting, never claimed, and every reader of a waiting arrival skips it.
 CREATE TABLE IF NOT EXISTS arrivals (
     id            TEXT PRIMARY KEY,
     plate_number  TEXT NOT NULL,
@@ -154,7 +157,9 @@ CREATE TABLE IF NOT EXISTS arrivals (
     truck_id      TEXT NOT NULL,
     work_date     TEXT NOT NULL,
     arrived_at    TEXT NOT NULL,
-    weighing_id   TEXT
+    weighing_id   TEXT,
+    cancelled_at  TEXT,
+    cancelled_by  TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_arrivals_menunggu ON arrivals (truck_id) WHERE weighing_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_arrivals_hari ON arrivals (work_date);
@@ -336,6 +341,9 @@ def _migrate(db: sqlite3.Connection) -> None:
         ("weighings", "unloading_queue_skipped_at"),
         # Scan 4, gate leave time (2026-09-30). NULL = not scanned out.
         ("weighings", "left_at"),
+        # Batal datang kept as history (2026-10-03). NULL = not cancelled.
+        ("arrivals", "cancelled_at"),
+        ("arrivals", "cancelled_by"),
         # Konsol pabrik yang sudah jalan punya tabel `inspections` tanpa kolom ini;
         # `CREATE TABLE IF NOT EXISTS` di atas tidak akan menambahkannya. Baris lama
         # tetap NULL, sengaja: kelas aslinya memang tidak pernah direkam, dan

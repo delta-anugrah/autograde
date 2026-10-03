@@ -133,9 +133,15 @@ class GateService:
 
     def cancel_arrival(self, arrival_id: str, oleh: str) -> dict[str, Any]:
         """"Batal datang" (2026-10-03): the truck will not be weighed (wrong truck picked, or
-        turned away at the gate). Only a waiting arrival; otherwise `tidak_ada`, an answer."""
+        turned away at the gate). Only a waiting arrival; otherwise `tidak_ada`, an answer.
+
+        The row is kept with who cancelled it and when (round 4): the Timbangan tab lists it.
+        The time is the server's: the button sends no clock, and nothing is computed from it.
+        """
         with self._kunci:
-            row = self.store.cancel_arrival(arrival_id)
+            row = self.store.cancel_arrival(
+                arrival_id, cancelled_at=datetime.now(UTC).isoformat(), cancelled_by=oleh
+            )
         if row is None:
             return {"hasil": TIDAK_ADA}
         logger.info("Batal datang %s oleh %s (kedatangan %s, jam %s)",
