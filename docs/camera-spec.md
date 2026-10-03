@@ -300,6 +300,23 @@ Tiga container line di port **8001** / **8002** / **8003** (plus konsol operator
 tanpa kamera di 8100), dengan `network_mode: host` (diperlukan agar GigE discovery
 bisa menjangkau subnet kamera) dan GPU passthrough.
 
+### 6.4 Suhu kamera
+
+Kartu Diagnostik (tab **Status**, support) menampilkan suhu badan tiap kamera dalam °C.
+
+- Sumbernya node `DeviceTemperature`, dibaca thread capture tiap **10 detik** selama gambar
+  mengalir, di bawah kunci kamera yang sama dengan `grab_frame()` (aturan 3). Nilainya ikut
+  `/health/detail` sebagai `suhu_kamera_c`.
+- Bacaan yang lebih tua dari **60 detik** dilaporkan `null` (kartu menampilkan `-`): kamera
+  yang dicabut tidak meninggalkan angka lama di layar.
+- Kamera yang menolak menjawab: satu WARNING `Camera did not report DeviceTemperature (<kode SDK>)`
+  di tab Log, sesudahnya diam; line tetap jalan. Webcam, video, dan foto selalu `-`.
+- **Belum ada batas aman dan warna.** Batasnya diputuskan nanti dari datasheet dan beberapa hari
+  bacaan Lampung.
+- Cek manual di MVS: Feature Tree mode **Expert** atau **Guru**, **Device Control**,
+  **Device Temperature**. Line harus dimatikan dulu, karena kamera dibuka eksklusif (§8,
+  `MV_E_ACCESS_DENIED`).
+
 ---
 
 ## 7. Catatan GPU

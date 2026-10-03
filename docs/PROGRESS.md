@@ -18,6 +18,24 @@ Next:           ...
 
 ---
 
+## 2026-10-03 · camera · Camera temperature on the Diagnostics card (PR pending)
+Changed:        Each Hikrobot line reads `DeviceTemperature` every 10 s on the capture thread under
+                `state.lock` (`FrameCaptureWorker._baca_suhu_kalau_waktunya`), `/health/detail`
+                reports it as `suhu_kamera_c` and drops it to null once older than 60 s, and the
+                support Diagnostics card shows one row "Suhu kamera" (`47,3 °C`, dash when unknown,
+                no colour yet). A failed read logs one WARNING with the SDK code, then DEBUG; a raise
+                never stops capture. The frame-rate WARNING now names the SDK code per node too, so
+                the next Lampung log says why the cameras do not report their frame rate. The
+                browser fake line answers `/health/detail`, and `tests/browser/test_browser_status.py`
+                pins the row on a real console.
+Validated:      unit, e2e, integration and browser (chromium + firefox) suites; counts in the PR body.
+Not validated:  A real Hikrobot camera: CI and the Mac have no SDK. Lampung decides it.
+Decisions:      No thresholds or colours until the datasheet and a few days of Lampung readings
+                (stage 1 of the camera monitoring design, 2026-10-02).
+Next:           Release, `autograde use vX.Y.Z` at Lampung, open tab Status: a number in °C on all
+                three cards, or dashes plus the `DeviceTemperature` and frame-rate WARNINGs with
+                their SDK codes in `autograde logs`.
+
 ## 2026-10-03 · console · Merge staging (PR #215 Update now) into the gate scan branch (PR #214)
 Changed:        PR #208 merged first; PR #212 is merged through this PR (it is fully inside it), so its
                 conflicts with #215 were resolved once. Rule numbers: 36 automatic assignment, 37
