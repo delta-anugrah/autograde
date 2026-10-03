@@ -92,6 +92,8 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 - Angka tally (strip Hari ini dan `.counts b[data-k]` kartu line) ditulis lewat
   `tulisAngka(el, nilai)`: odometer kalau nilainya berubah, polos untuk tulisan pertama, tab
   tersembunyi, dan gerak dikurangi. `textContent` tetap angkanya (`.odo-baca`).
+  Arah gulir ikut arah angka: naik = semua digit yang berubah maju dan 9 menyambung ke 0
+  (pita dua putaran, `--dari`/`--ke` baris 0 sampai 19 dari `kolomOdometer`), turun sebaliknya.
 - Nama kelas baru dicek dulu terhadap aturan global (`.jam` misalnya `display:flex`); untuk
   keadaan elemen pakai atribut `data-*` seperti toast, bukan kelas umum.
 - Aksi baru yang merestart line memanggil `tandaiRestart(lineDirestart(jawaban))` dari

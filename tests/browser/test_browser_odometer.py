@@ -75,3 +75,46 @@ def test_reduced_motion_shows_the_new_value_at_once(halaman):
                              " return [document.querySelector('#tot-ripe').innerHTML, window.__gulir]; }")
     assert hasil == ["103", 0], hasil
     expect(halaman.locator(_KARTU)).to_have_text("103")
+
+
+# Rolls #tot-ripe to the pinned value and measures every rolling digit strip: the animation
+# is paused, then read at its start and at its end. Returns one entry per digit, left to
+# right: [strip row at the start, strip row at the end, pixels moved (negative = upwards)].
+_UKUR = """async () => {
+  await refresh();
+  const el = document.querySelector('#tot-ripe');
+  const hasil = [];
+  for (const d of el.querySelectorAll('.odo-d')) {
+    const anim = d.getAnimations({subtree: true}).find((a) => a.effect.pseudoElement === '::before');
+    const ty = () => new DOMMatrixReadOnly(getComputedStyle(d, '::before').transform).m42;
+    anim.pause();
+    anim.currentTime = 0;
+    const awal = ty();
+    anim.currentTime = anim.effect.getComputedTiming().endTime;
+    const baris = d.getBoundingClientRect().height;
+    hasil.push([Math.round(-awal / baris), Math.round(-ty() / baris), Math.sign(ty() - awal)]);
+  }
+  el.querySelectorAll('.odo-d').forEach((d) => d.getAnimations({subtree: true}).forEach((a) => a.finish()));
+  return hasil;
+}"""
+
+
+def test_going_up_rolls_forward_past_nine_and_down_rolls_back(halaman):
+    """19 -> 20: both digits roll upwards, the ones digit from 9 on to the 0 of the second
+    lap (row 10), never back through 8..1. 20 -> 19 is the mirror image (user 2026-10-03)."""
+    nilai = _patok_ripe(halaman)
+    nilai["ripe"] = 19
+    masuk(halaman, OPERATOR)
+    expect(halaman.locator(_RIPE)).to_have_text("19")
+
+    nilai["ripe"] = 20
+    naik = halaman.evaluate(_UKUR)
+    assert naik == [[1, 2, -1], [9, 10, -1]], naik
+    expect(halaman.locator(f"{_RIPE} .odo")).to_have_count(0)
+    expect(halaman.locator(_RIPE)).to_have_text("20")
+
+    nilai["ripe"] = 19
+    turun = halaman.evaluate(_UKUR)
+    assert turun == [[2, 1, 1], [10, 9, 1]], turun
+    expect(halaman.locator(f"{_RIPE} .odo")).to_have_count(0)
+    expect(halaman.locator(_RIPE)).to_have_text("19")

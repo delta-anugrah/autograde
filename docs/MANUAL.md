@@ -170,6 +170,8 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   ke kanan (mouse atau jari) juga membuangnya.
 - Angka **RIPE, UNRIPE, JK, TP, TOTAL** di kartu line dan di strip **Hari ini** bergulir seperti
   odometer saat berubah, supaya perubahan terlihat dari jauh. Angka yang sama tidak bergerak.
+  Angka yang naik bergulir maju (9 lanjut ke 0, misalnya 19 ke 20), angka yang turun bergulir
+  mundur.
 - **Reject manual tanpa mouse**: tahan `Spasi` lalu tekan `1` / `2` / `3` sesuai line.
 - **Piston manual** per line (Buka / Tutup) kalau PLC aktif. **Buka** bertanya dulu di kotak
   konfirmasi di layar karena ini menggerakkan besi sungguhan; **Tutup** langsung jalan.

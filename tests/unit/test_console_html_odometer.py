@@ -85,11 +85,53 @@ def test_kolom_rata_kanan_masuk_dan_keluar():
     naik, turun, sama = kolom
     assert re.findall(r"<span ([^>]*)>", naik) == [
         'class="odo-d" data-masuk data-ke="1" style="--ke:1"',
-        'class="odo-d" data-ke="0" style="--dari:9;--ke:0"',
-        'class="odo-d" data-ke="0" style="--dari:9;--ke:0"',
+        'class="odo-d" data-ke="0" style="--dari:9;--ke:10"',
+        'class="odo-d" data-ke="0" style="--dari:9;--ke:10"',
     ]
-    assert re.findall(r"<span ([^>]*)>", turun)[0] == 'class="odo-d" data-keluar data-ke="1" style="--ke:1"'
+    assert re.findall(r"<span ([^>]*)>", turun) == [
+        'class="odo-d" data-keluar data-ke="1" style="--ke:1"',
+        'class="odo-d" data-ke="9" style="--dari:10;--ke:9"',
+        'class="odo-d" data-ke="9" style="--dari:10;--ke:9"',
+    ]
     assert sama == '<span class="odo-d" data-ke="7" style="--dari:5;--ke:7"></span>'
+
+
+def _baris(html: str) -> list[tuple[int, int]]:
+    return [(int(a), int(b)) for a, b in re.findall(r"--dari:(\d+);--ke:(\d+)", html)]
+
+
+@butuh_node
+def test_angka_naik_semua_digit_maju_dan_9_menyambung_ke_0():
+    """Going up, every changing digit moves to a HIGHER strip row: 9 -> 0 lands on row 10
+    (the second lap), it never spins back through 8..1 (user 2026-10-03)."""
+    kolom = _jalan("[kolomOdometer('19', '20'), kolomOdometer('5', '12'), kolomOdometer('19', '31'),"
+                   " kolomOdometer('12', '15')]")
+    assert _baris(kolom[0]) == [(1, 2), (9, 10)]
+    assert _baris(kolom[1]) == [(5, 12)]
+    assert _baris(kolom[2]) == [(1, 3), (9, 11)]
+    assert _baris(kolom[3]) == [(1, 1), (2, 5)]
+    for html in kolom:
+        assert all(ke >= dari for dari, ke in _baris(html)), html
+
+
+@butuh_node
+def test_angka_turun_semua_digit_mundur_dan_0_menyambung_ke_9():
+    kolom = _jalan("[kolomOdometer('20', '19'), kolomOdometer('31', '19'), kolomOdometer('15', '12')]")
+    assert _baris(kolom[0]) == [(2, 1), (10, 9)]
+    assert _baris(kolom[1]) == [(3, 1), (11, 9)]
+    assert _baris(kolom[2]) == [(1, 1), (5, 2)]
+    for html in kolom:
+        assert all(ke <= dari for dari, ke in _baris(html)), html
+
+
+@butuh_node
+def test_arah_ditulis_di_pembungkus():
+    hasil = _jalan(
+        "(() => { const el = buatEl(); tulisAngka(el, 19); tulisAngka(el, 20); const naik = el.innerHTML;"
+        " tulisAngka(el, 19); return [naik.includes('style=\"--arah:1\"'),"
+        " el.innerHTML.includes('style=\"--arah:-1\"'), el.textContent]; })()"
+    )
+    assert hasil == [True, True, "19"]
 
 
 def test_tally_dan_kartu_menulis_lewat_odometer():
@@ -106,7 +148,10 @@ def test_odometer_cuma_transform_dan_opacity():
     blok += HTML[HTML.index("@keyframes odo-keluar") :].split("\n", 2)[0]
     for sifat in re.findall(r"@keyframes[^{]*\{(.*)", blok):
         assert "height" not in sifat and "width" not in sifat and "top" not in sifat
-    assert 'content:"0\\A 1\\A 2\\A 3\\A 4\\A 5\\A 6\\A 7\\A 8\\A 9"' in HTML
+    # Two laps of 0..9 (20 rows, 5% each), so 9 -> 0 keeps rolling the same way.
+    putaran = "0\\A 1\\A 2\\A 3\\A 4\\A 5\\A 6\\A 7\\A 8\\A 9"
+    assert f'content:"{putaran}\\A {putaran}"' in HTML
+    assert "* -10%" not in blok and "var(--dari) * -5%" in blok and "var(--arah) * 5%" in blok
     assert "setTimeout(" not in fungsi("tulisAngka") and "requestAnimationFrame" not in fungsi("tulisAngka")
 
 

@@ -521,7 +521,11 @@
   #tally .stat b { display:block; font-family:var(--mono); font-size:2rem; font-weight:700;
                    line-height:1.1; font-variant-numeric:tabular-nums; }
   /* Odometer angka tally (user 2026-10-03, gaya NumberFlow, dibangun tangan tanpa npm): tiap
-     digit yang berubah adalah pita 0 sampai 9 (`::before`) yang bergeser ke digit barunya.
+     digit yang berubah adalah pita 0 sampai 9 dua putaran (`::before`, 20 baris) yang
+     bergeser ke digit barunya. Dua putaran supaya 9 ke 0 tetap maju: angka naik menggulung
+     pita ke atas terus (9 lalu 0 putaran kedua), angka turun ke bawah terus (0 putaran
+     kedua lalu 9), tidak pernah berputar balik lewat 8..1. `--dari` dan `--ke` adalah
+     baris pita (0 sampai 19), `--arah` 1 naik dan -1 turun; dihitung `kolomOdometer`.
      Kotak digitnya diukur oleh digit tujuannya sendiri (`::after`, tak terlihat), jadi
      tingginya satu baris tulisan angka itu, di strip mana pun. Pita dan isinya pseudo-elemen:
      `textContent` tetap angka biasa lewat `.odo-baca`, yang tidak terlihat tapi terbaca
@@ -531,16 +535,17 @@
   .odo { display:inline-flex; vertical-align:top; }
   .odo-d { position:relative; overflow:hidden; }
   .odo-d::after { content:attr(data-ke); visibility:hidden; }
-  .odo-d::before { content:"0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9"; white-space:pre;
+  .odo-d::before { content:"0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9\A 0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9";
+                   white-space:pre;
                    position:absolute; top:0; left:0; right:0; text-align:center;
-                   transform:translateY(calc(var(--ke) * -10%));
+                   transform:translateY(calc(var(--ke) * -5%));
                    animation:odo-gulir .7s cubic-bezier(.16,1,.3,1) both; }
   .odo-d[data-masuk]::before { animation-name:odo-masuk; }
   .odo-d[data-keluar]::before { opacity:0; animation-name:odo-keluar; }
-  @keyframes odo-gulir { from { transform:translateY(calc(var(--dari) * -10%)); } }
-  @keyframes odo-masuk { from { transform:translateY(calc(var(--ke) * -10% + 10%)); opacity:0; } }
+  @keyframes odo-gulir { from { transform:translateY(calc(var(--dari) * -5%)); } }
+  @keyframes odo-masuk { from { transform:translateY(calc(var(--ke) * -5% + var(--arah) * 5%)); opacity:0; } }
   @keyframes odo-keluar { from { opacity:1; }
-                          to { transform:translateY(calc(var(--ke) * -10% - 10%)); opacity:0; } }
+                          to { transform:translateY(calc(var(--ke) * -5% - var(--arah) * 5%)); opacity:0; } }
   #tally .stat.acc b { color:var(--acc); }
   #tally .stat.rej b { color:var(--rej); }
   /* TP tidak hijau dan tidak merah: tangkai panjang itu sifat janjang, bukan
@@ -4932,7 +4937,7 @@ function tulisAngka(el, nilai) {
     el.textContent = teks;
     return;
   }
-  el.innerHTML = `<span class="odo-baca">${teks}</span><span class="odo" aria-hidden="true">${kolomOdometer(String(lama), teks)}</span>`;
+  el.innerHTML = `<span class="odo-baca">${teks}</span><span class="odo" aria-hidden="true" style="--arah:${n > lama ? 1 : -1}">${kolomOdometer(String(lama), teks)}</span>`;
   const giliran = (el._giliranOdo || 0) + 1;
   el._giliranOdo = giliran;
   el.addEventListener("animationend", () => {
@@ -4941,17 +4946,27 @@ function tulisAngka(el, nilai) {
 }
 
 // Kolom digit dari angka lama ke angka baru, rata kanan: digit yang ada di keduanya
-// bergulir, digit depan yang baru muncul naik masuk, yang hilang naik keluar. Isinya cuma
-// digit 0 sampai 9 dari `tulisAngka`, jadi aman tanpa esc().
+// bergulir, digit depan yang baru muncul masuk, yang hilang keluar. Arah gulirnya ikut arah
+// angkanya, untuk SEMUA digit yang berubah: naik = pita ke atas dan 9 menyambung ke 0
+// (19 ke 20: satuan 9 ke baris 10, puluhan 1 ke 2), turun = pita ke bawah dan 0 menyambung
+// ke 9 (20 ke 19: satuan dari baris 10 ke 9). Baris 10 sampai 19 adalah putaran kedua pita.
+// Isinya cuma digit 0 sampai 9 dari `tulisAngka`, jadi aman tanpa esc().
 function kolomOdometer(dari, ke) {
   const n = Math.max(dari.length, ke.length);
   const a = dari.padStart(n, " ");
   const b = ke.padStart(n, " ");
+  const naik = Number(ke) > Number(dari);
   let html = "";
   for (let i = 0; i < n; i++) {
     if (b[i] === " ") html += `<span class="odo-d" data-keluar data-ke="${a[i]}" style="--ke:${a[i]}"></span>`;
     else if (a[i] === " ") html += `<span class="odo-d" data-masuk data-ke="${b[i]}" style="--ke:${b[i]}"></span>`;
-    else html += `<span class="odo-d" data-ke="${b[i]}" style="--dari:${a[i]};--ke:${b[i]}"></span>`;
+    else {
+      const x = Number(a[i]);
+      const y = Number(b[i]);
+      const awal = !naik && x < y ? x + 10 : x;
+      const akhir = naik && y < x ? y + 10 : y;
+      html += `<span class="odo-d" data-ke="${b[i]}" style="--dari:${awal};--ke:${akhir}"></span>`;
+    }
   }
   return html;
 }
