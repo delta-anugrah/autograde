@@ -192,9 +192,11 @@ def keadaan_pembaruan(
     menunggu = permintaan is not None and not selesai
     basi = menunggu and (sekarang - permintaan.at).total_seconds() >= BATAS_TUNGGU_S
     berjalan = menunggu and not basi
-    # A version that already failed the 4.5 gate is not offered again: pressing it
-    # again restarts the factory into the same rollback. A technician clears it.
-    gagal = selesai and jawaban.state in ("rolled_back", "failed")
+    # A version that already failed the 4.5 gate is not offered again until a newer one
+    # is staged (user decision 2026-10-02): pressing it again restarts the factory into
+    # the same rollback. `failed` is different: the launcher never tried the version
+    # (lock held, promote skipped, launcher cut off), so it is offered again.
+    gagal = selesai and jawaban.state == "rolled_back"
     siap = None
     if terpasang and not berjalan and lebih_baru(status.staged, versi_jalan):
         if not (gagal and jawaban.target == status.staged):

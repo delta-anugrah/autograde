@@ -83,11 +83,18 @@ def test_hasil_ok_ditampilkan_sesudah_konsol_hidup_lagi():
     assert k.hasil == {"state": "ok", "target": "v1.22.1", "installed": "v1.22.1", "at": "2026-10-20T08:00:00+07:00"}
 
 
-def test_versi_yang_gagal_tidak_ditawarkan_lagi():
-    for state in ("rolled_back", "failed"):
-        k = _keadaan(permintaan=_permintaan(), hasil=_hasil(state))
-        assert k.siap is None, state
-        assert k.hasil["state"] == state
+def test_versi_yang_gagal_gerbang_tidak_ditawarkan_lagi():
+    k = _keadaan(permintaan=_permintaan(), hasil=_hasil("rolled_back"))
+    assert k.siap is None
+    assert k.hasil["state"] == "rolled_back"
+
+
+def test_failed_berarti_belum_dicoba_jadi_ditawarkan_lagi():
+    # Launcher menulis `failed` kalau versi baru TIDAK dicoba (kunci dipegang proses
+    # lain, promote dilewat, launcher berhenti di tengah). Versinya tidak terbukti rusak.
+    k = _keadaan(permintaan=_permintaan(), hasil=_hasil("failed"))
+    assert k.siap == "v1.22.1"
+    assert k.hasil["state"] == "failed"
 
 
 def test_hasil_lama_tidak_ditampilkan():
