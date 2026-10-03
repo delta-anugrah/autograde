@@ -69,6 +69,10 @@ class _Service:
         self.catatan.tandai("weighings")
         return []
 
+    def kedatangan_dibatalkan(self, *_a, **_k) -> list:
+        self.catatan.tandai("weighings")
+        return []
+
     def recap(self, *_a, **_k) -> list:
         self.catatan.tandai("recap")
         return []
