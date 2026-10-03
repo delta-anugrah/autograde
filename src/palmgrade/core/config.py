@@ -772,6 +772,15 @@ class Settings:
         return Path(dari_env) if dari_env else self.repo_root / "state"
 
     @property
+    def update_dir(self) -> Path:
+        """Folder shared with the host launcher (batch 4.6): `status.json` in,
+        `request.json` out, `result.json` back. In Docker `UPDATE_DIR=/app/update` from
+        compose (`./update` on the host). Natively it falls to `update/` in the repo, which
+        does not exist: the feature then stays quiet, as a missing media folder does."""
+        dari_env = os.getenv("UPDATE_DIR", "").strip()
+        return Path(dari_env) if dari_env else self.repo_root / "update"
+
+    @property
     def results_dir(self) -> Path:
         """The only artifact folder anything writes to."""
         return self.artifacts_dir / "results"
