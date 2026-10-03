@@ -6,7 +6,7 @@ import pytest
 from konsol_js import HTML, NODE, jalankan
 
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada (image CI)")
-FUNGSI = ["teksBadgePembaruan", "teksHasilPembaruan", "htmlPembaruan", "namaLineDari"]
+FUNGSI = ["teksBadgePembaruan", "teksHasilPembaruan", "tombolPasang", "htmlPembaruan", "namaLineDari"]
 IKON = "const IKON_UNDUH = '<svg></svg>';"
 
 
@@ -26,7 +26,7 @@ def test_badge_cuma_saat_ada_versi_siap():
 @butuh_node
 def test_tombol_membawa_versi_yang_dilihat_operator():
     html = _j("htmlPembaruan({terpasang:true, siap:'v1.22.1', berjalan:false, hasil:null}, false)")
-    assert 'class="pembaruan-pasang" data-target="v1.22.1"' in html
+    assert 'class="pembaruan-pasang utama" data-target="v1.22.1"' in html
     assert "<svg" in html
     assert "Lepas semua truk dulu" in html
 

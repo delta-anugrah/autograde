@@ -51,7 +51,7 @@ def test_update_now_refused_with_a_truck_then_accepted_without(halaman, lines, k
         badge = halaman.locator("#badge-pembaruan")
         expect(badge).to_have_text(kamus(halaman, "pembaruanSiap").replace("{versi}", "v1.22.1"))
         badge.click()
-        tombol = halaman.locator("#pembaruan-isi .pembaruan-pasang")
+        tombol = halaman.locator("#info-sistem-modal .pembaruan-pasang")
         tombol.click()
         # User decision 2026-10-02: the refusal names the line as its card does.
         ditolak = kamus(halaman, "err_pembaruan_ada_truk").replace("{line}", nama_line)
@@ -85,7 +85,7 @@ def test_update_now_refused_with_a_truck_then_accepted_without(halaman, lines, k
         expect(halaman.locator("#pembaruan-isi")).to_contain_text(
             kamus(halaman, "pembaruanHasilOk").replace("{versi}", "v1.22.1")
         )
-        expect(halaman.locator("#pembaruan-isi .pembaruan-pasang")).to_have_count(0)
+        expect(halaman.locator("#info-sistem-modal .pembaruan-pasang")).to_have_count(0)
         expect(badge).to_be_hidden()
     finally:
         halaman.request.post(f"{konsol.url}/api/console/lines/line-1/release-truck")
