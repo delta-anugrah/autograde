@@ -38,7 +38,7 @@ def _masuk_tanpa_toast_lama(halaman, akun) -> None:
                      " document.querySelectorAll('#toasts .toast').forEach((el) => el.remove()); }")
 
 
-def _toast(halaman, kelas: str, teks: str):
+def _toast(halaman, kelas: str, teks: str | re.Pattern[str]):
     """The toast of this kind carrying `teks`; others from the shared console are ignored."""
     return halaman.locator(f"#toasts .toast.{kelas}", has_text=teks)
 
@@ -91,7 +91,10 @@ def test_erp_resend_answers_with_a_toast(halaman):
     _masuk_tanpa_toast_lama(halaman, SUPPORT)
     buka_tab(halaman, "status")
     halaman.click("#antrean-kirim-ulang")
-    expect(_toast(halaman, "sukses", kamus(halaman, "antreanDikirimUlang").replace("{n}", "0"))).to_have_count(1)
+    # Any count: the console is shared by the whole session, and tests before this one may
+    # have queued AutoERP messages (it failed in Firefox when run after the gate tests).
+    pola = re.compile(re.escape(kamus(halaman, "antreanDikirimUlang")).replace(re.escape("{n}"), r"\d+"))
+    expect(_toast(halaman, "sukses", pola)).to_have_count(1)
 
 
 _PLC = {"enabled": True, "coil_base": 1000, "testable_coils": [1000, 1001], "device_prefix": "M"}
