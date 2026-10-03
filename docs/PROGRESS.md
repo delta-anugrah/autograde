@@ -30,6 +30,10 @@ Changed:        The four text dialogs (model swap, confirmation, CSV import, Ver
                 opens the box, × hides it for that version only (`localStorage` key
                 `pembaruanDitutup`), a newer version shows it again. Impor CSV: file box 3/4,
                 Periksa 1/4, full row.
+                Round 3 (user 2026-10-04): language, theme and sign-out buttons carry an icon
+                (`.tombol-ikon`, text in a span so a switch keeps the icon); the brand dot is a
+                circle centred on AUTOGRADE; "release every truck first" under Update now is
+                warn-coloured (`.pembaruan-syarat`). A camera reconnect button comes in its own PR.
                 Coding standard F12 names the component.
 Validated:      See the PR body for the suite counts; screenshots light, dark, 390 px, banner, import row.
 Next:           Merge, then release with the camera temperature.

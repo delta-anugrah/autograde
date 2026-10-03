@@ -104,7 +104,12 @@
             border-bottom:3px solid var(--acc); }
   h1 { font-size:1rem; margin:0; font-weight:700; letter-spacing:.14em;
        text-transform:uppercase; display:flex; align-items:center; gap:10px; }
-  h1::before { content:""; width:.7rem; height:1rem; background:var(--acc); border-radius:var(--r-pill); }
+  /* Titik merek bulat (user 2026-10-04), di tengah tinggi huruf lewat `align-items:center` h1. */
+  h1::before { content:""; flex:none; width:.7rem; height:.7rem; background:var(--acc); border-radius:50%; }
+  /* Tombol berikon di kepala layar: ikon dan kata di tengah vertikal, satu jarak. */
+  .tombol-ikon { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+  .tombol-ikon[hidden] { display:none; }
+  .tombol-ikon svg { flex:none; }
   .merek { display:flex; flex-direction:column; gap:1px; }
   /* Menjorok sejajar huruf pertama AUTOGRADE (pil hijau .7rem + jarak 10px). */
   #info-sistem { align-self:flex-start; min-height:0; padding:0 0 0 calc(.7rem + 10px);
@@ -115,6 +120,8 @@
   #info-sistem[data-tingkat="warning"] { color:var(--warn); }
   .pembaruan-judul { margin:16px 0 8px; font-size:1.1rem; }
   .pembaruan-ket { margin:6px 0; }
+  /* Syarat "lepas semua truk dulu" berwarna: yang terlewat di sini membuat pemasangan ditolak. */
+  .pembaruan-syarat { margin:6px 0; color:var(--warn); font-weight:600; }
   .pembaruan-pasang { min-height:44px; min-width:12rem; display:inline-flex; gap:8px; align-items:center; }
   .pembaruan-hasil[data-state="rolled_back"], .pembaruan-hasil[data-state="failed"],
   .pembaruan-hasil[data-state="timeout"] { color:var(--rej); font-weight:700; }
@@ -127,7 +134,7 @@
   #pembaruan-isi:empty { display:none; }
   #pembaruan-isi .pembaruan-judul { margin:0 0 8px; font-size:.8rem; font-weight:700;
                                     letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
-  #pembaruan-isi .pembaruan-ket { margin:4px 0 0; }
+  #pembaruan-isi .pembaruan-ket, #pembaruan-isi .pembaruan-syarat { margin:4px 0 0; }
   #jam { font-family:var(--mono); font-size:1.15rem; font-weight:700; letter-spacing:.01em; }
   .jam { display:flex; align-items:baseline; gap:8px; }
   /* `flex-wrap`: on a 390 px phone the account name and three buttons are wider than the bar,
@@ -1549,9 +1556,11 @@
   <span class="jam"><b id="jam">-</b> <span id="tz" class="lb"></span></span>
   <span class="aksi">
     <span id="operator-aktif" hidden></span>
-    <button id="bahasa">EN</button>
-    <button id="tema">Terang</button>
-    <button id="keluar" class="bahaya" hidden data-t="tombolKeluar">Keluar</button>
+    <!-- Ikon di tiap tombol (user 2026-10-04): bola dunia = bahasa, lingkaran setengah = tema,
+         pintu = keluar. Katanya di span, supaya ganti bahasa/tema tidak menghapus ikonnya. -->
+    <button id="bahasa" class="tombol-ikon"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span id="bahasa-teks">EN</span></button>
+    <button id="tema" class="tombol-ikon"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg><span id="tema-teks">Terang</span></button>
+    <button id="keluar" class="bahaya tombol-ikon" hidden><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span id="keluar-teks" data-t="tombolKeluar">Keluar</span></button>
   </span>
 </header>
 <div id="err"></div>
@@ -3679,7 +3688,7 @@ const lokal = () => (bahasa === "id" ? "id-ID" : "en-GB");
 function terapkanTema() {
   document.documentElement.dataset.theme = tema === "gelap" ? "dark" : "light";
   // The button names the TARGET theme, not the current one.
-  $("tema").textContent = tema === "terang" ? t("temaGelap") : t("temaTerang");
+  $("tema-teks").textContent = tema === "terang" ? t("temaGelap") : t("temaTerang");
 }
 
 function terapkanBahasa() {
@@ -3694,7 +3703,7 @@ function terapkanBahasa() {
   document.querySelectorAll("[data-t-lb]").forEach((el) => {
     el.setAttribute("aria-label", t(el.dataset.tLb));
   });
-  $("bahasa").textContent = bahasa === "id" ? "EN" : "ID";
+  $("bahasa-teks").textContent = bahasa === "id" ? "EN" : "ID";
   // Its face alternates between two keys, so it cannot be a plain `data-t`; re-applied
   // here in whichever state it is currently in.
   lihatSandi($("gerbang-sandi").type === "text");
@@ -7769,7 +7778,7 @@ function htmlPembaruan(p, support, denganTombol = true) {
   else if (p.berjalan) isi.push(`<p class="pembaruan-ket" role="status">${esc(t("pembaruanBerjalan"))}</p>`);
   else if (p.siap) isi.push(
     `<p class="pembaruan-ket"><b>${esc(t("pembaruanSiap").replace("{versi}", p.siap))}</b></p>`,
-    `<p class="pembaruan-ket">${esc(t("pembaruanSyarat"))}</p>`,
+    `<p class="pembaruan-syarat">${esc(t("pembaruanSyarat"))}</p>`,
     denganTombol ? tombolPasang(p) : "");
   else isi.push(`<p class="pembaruan-ket">${esc(t("pembaruanTerbaru"))}</p>`);
   const hasil = teksHasilPembaruan(p.hasil);
