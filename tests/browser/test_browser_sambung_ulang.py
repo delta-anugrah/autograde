@@ -6,6 +6,9 @@ late (the busy lock must survive a full card redraw) or as a video line (409 wit
 
 from __future__ import annotations
 
+import re
+
+import pytest
 from langkah import JEDA_HALAMAN_MS, OPERATOR, kamus, masuk
 from playwright.sync_api import expect
 
@@ -16,9 +19,23 @@ def _diminta(line) -> list[dict]:
     return [isi for jalur, isi in line.diterima if jalur == _JALUR]
 
 
+@pytest.fixture(autouse=True)
+def tanpa_gambar(lines):
+    """The button sits under "Kamera tidak tersambung" (user 2026-10-04): lines 1 and 2 answer
+    but send no picture for these tests. Set before login, so the first feed load fails."""
+    for kode in ("line-1", "line-2"):
+        lines[kode].atur_feed(False)
+    yield
+    for kode in ("line-1", "line-2"):
+        lines[kode].atur_feed(True)
+
+
 def _tekan(halaman, kode: str):
     kartu = halaman.locator(f'#lines .card[data-line="{kode}"]')
     tombol = kartu.locator('button[data-aksi="sambung-ulang"]')
+    # The screen probes the feeds every 5 s; probe now instead of waiting for the timer.
+    halaman.evaluate("cekKamera()")
+    expect(kartu).to_have_class(re.compile(r"\bputus\b"))
     expect(tombol).to_be_visible()
     tombol.click()
     expect(halaman.locator("#konfirmasi-modal")).to_be_visible()
@@ -84,3 +101,14 @@ def test_a_video_line_is_worded_from_the_code(halaman, lines):
         expect(halaman.locator("#toasts .toast.gagal")).not_to_contain_text("409")
     finally:
         lines["line-2"].atur_sambung_ulang()
+
+
+def test_no_button_while_the_picture_comes_through(halaman, lines):
+    lines["line-1"].atur_feed(True)
+    masuk(halaman, OPERATOR)
+    kartu = halaman.locator('#lines .card[data-line="line-1"]')
+    expect(kartu.locator(".feed img")).to_be_visible()
+    halaman.evaluate("cekKamera()")
+    halaman.wait_for_timeout(JEDA_HALAMAN_MS)
+    expect(kartu).not_to_have_class(re.compile(r"\bputus\b"))
+    expect(kartu.locator('button[data-aksi="sambung-ulang"]')).to_be_hidden()
