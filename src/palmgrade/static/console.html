@@ -1136,6 +1136,15 @@
   #sec-timbangan td.sel-waktu .tgl { display:block; font-size:.78rem; color:var(--muted); }
   #sec-timbangan th, #sec-timbangan td { padding-left:8px; padding-right:8px; }
   #sec-timbangan tbody tr:nth-child(even) td:last-child:not(.kosong) { background:var(--zebra); }
+  /* Riwayat Batal datang (2026-10-03) di bawah tabel Timbangan: `<details>` apa adanya, jadi
+     buka/tutupnya milik browser dan bertahan melewati poll. Kolom terakhirnya (Oleh) bukan
+     kolom tombol: aturan paku `#sec-timbangan td:last-child` di atas tidak berlaku di sini. */
+  .riwayat-batal { margin-top:12px; }
+  .riwayat-batal > summary { cursor:pointer; padding:10px 4px; font-weight:600; color:var(--muted);
+                             user-select:none; list-style:revert; }
+  .riwayat-batal > summary:hover { color:var(--fg); }
+  #sec-timbangan .riwayat-batal th:last-child,
+  #sec-timbangan .riwayat-batal td:last-child:not(.kosong) { position:static; border-left:0; }
   /* The column heads already say ACC and REJ, so the colour is a second signal
      here, never the only one. */
   /* Form setelan: kolom sempit dan label di atas, bukan sebaris. Angkanya
@@ -1871,6 +1880,20 @@
       <tbody id="timbangan"></tbody>
     </table>
   </div>
+  <!--
+    Riwayat Batal datang (user 2026-10-03): siapa membatalkan truk mana dan kapan, hari yang
+    tampil. Tersembunyi utuh selama kosong; isinya dari `dibatalkan` di /weighings.
+  -->
+  <details id="riwayat-batal" class="riwayat-batal" hidden>
+    <summary id="riwayat-batal-judul"></summary>
+    <div class="tabel">
+      <table>
+        <thead><tr><th data-t="thPlat">Plat</th><th data-t="thJamDatang">Jam datang</th>
+          <th data-t="thJamBatal">Jam dibatalkan</th><th data-t="thOleh">Oleh</th></tr></thead>
+        <tbody id="riwayat-batal-isi"></tbody>
+      </table>
+    </div>
+  </details>
 </section>
 
 <section id="sec-rekap" class="panel" hidden>
@@ -2932,6 +2955,9 @@ const KAMUS = {
     sukBatalDatang:"Kedatangan {plat} dibatalkan", batalDatangTakAda:"Kedatangan ini sudah tidak menunggu",
     tanpaScan4:"tanpa scan 4",
     tanpaScan4Judul:"Keluar tidak pernah dicatat: kunjungan dianggap selesai (lewat 24 jam atau truk sudah datang lagi), total dihitung sampai timbang kosong",
+    // Riwayat Batal datang (2026-10-03), panel di bawah tabel Timbangan.
+    riwayatBatalJudul:"Kedatangan dibatalkan ({n})", thJamDatang:"Jam datang",
+    thJamBatal:"Jam dibatalkan", thOleh:"Oleh",
     rentangBaris:"{dari}-{sampai} dari {total}",
     gerbangKosong:"Belum ada operator. Minta teknisi membuat akun operator di PC ini.",
     btnPistonBuka:"Buka piston", btnPistonTutup:"Tutup piston",
@@ -3377,6 +3403,8 @@ const KAMUS = {
     sukBatalDatang:"Arrival {plat} cancelled", batalDatangTakAda:"This arrival is no longer waiting",
     tanpaScan4:"no scan 4",
     tanpaScan4Judul:"Leave was never recorded: the visit counts as finished (24 hours passed or the truck came back), total counted to weigh-out",
+    riwayatBatalJudul:"Cancelled arrivals ({n})", thJamDatang:"Arrived at",
+    thJamBatal:"Cancelled at", thOleh:"By",
     rentangBaris:"{dari}-{sampai} of {total}",
     gerbangKosong:"No operators yet. Ask a technician to create an operator account on this PC.",
     btnPistonBuka:"Open piston", btnPistonTutup:"Close piston",
@@ -6258,7 +6286,30 @@ async function muatTimbangan() {
     tulisKalauBeda($("timbangan"), baris || barisKosong(12, "kosongTiket"));
     isiPlatTimbang();
     gambarLencanaAntre(data.waiting);
+    gambarRiwayatBatal(data.dibatalkan);
   } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
+}
+
+// Riwayat Batal datang (user 2026-10-03): siapa membatalkan truk mana dan kapan, hari yang
+// tampil, terbaru dulu (urutan dari server). Tersembunyi utuh kalau kosong. Yang ditulis ulang
+// cuma judul dan isi tabelnya, lewat `tulisKalauBeda`, tidak pernah `<details>`-nya sendiri:
+// buka/tutup milik browser, jadi bertahan melewati poll 15 detik.
+function gambarRiwayatBatal(daftar) {
+  const rows = Array.isArray(daftar) ? daftar : [];
+  $("riwayat-batal").hidden = rows.length === 0;
+  tulisKalauBeda($("riwayat-batal-judul"), esc(t("riwayatBatalJudul").replace("{n}", rows.length)));
+  tulisKalauBeda($("riwayat-batal-isi"), rows.map(barisBatal).join(""));
+}
+
+// Satu kedatangan yang dibatalkan. Jamnya dua baris seperti kolom jam tabel di atasnya;
+// `Oleh` adalah email operator yang menekan tombolnya, apa adanya.
+function barisBatal(r) {
+  return `<tr>
+    <td class="key">${dash(r.plate_number)}</td>
+    <td class="sel-waktu">${r.arrived_at ? waktuDuaBaris(r.arrived_at) : KOSONG}</td>
+    <td class="sel-waktu">${r.cancelled_at ? waktuDuaBaris(r.cancelled_at) : KOSONG}</td>
+    <td>${dash(r.cancelled_by)}</td>
+  </tr>`;
 }
 
 // ── tab Riwayat ────────────────────────────────────────────────────────
