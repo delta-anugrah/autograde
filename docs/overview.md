@@ -578,13 +578,14 @@ aturan itu nanti cuma menyentuh satu fungsi. `python:3.11-slim` butuh `tzdata` (
 ditambahkan): tanpa itu `ZoneInfo` gagal dan tanggal diam-diam kembali ke UTC.
 
 **Index, bukan pindai (§6.2).** Semua yang dibaca layar datang dari `state/console.db`, dibagi
-tiga berkas (batch 2): `repositories/console_repository.py` (query), skema dan migrasinya di
-`repositories/console_skema.py`, dan akun di mixin `repositories/console_akun_repository.py`.
+empat berkas: `repositories/console_repository.py` (query), skema dan migrasinya di
+`repositories/console_skema.py`, akun di mixin `repositories/console_akun_repository.py` (batch 2),
+dan jam gerbang di mixin `repositories/console_gerbang_repository.py` (aturan 37).
 Konvensinya sama dengan `OutboxStore`: WAL, `synchronous=FULL`, satu `threading.Lock`,
 `INSERT OR IGNORE` dengan kunci `event_id`. Layar polling tiap 2 detik lewat
 `GET /api/console/state`; tidak ada `listdir` di jalur manapun.
 Tabelnya: `inspections` (+ index `(work_date, line_code)` dan `(work_date, timestamp)`),
-`trucks`, `suppliers`, `assignments`, `sync_state`. Tiga index tambahan (batch 2.5):
+`trucks`, `suppliers`, `assignments`, `weighings`, `arrivals`, `sync_state`. Tiga index tambahan (batch 2.5):
 `idx_inspections_assignment` (`inspections(assignment_id, timestamp)`, dipakai query per
 penugasan), `idx_weighings_assignment` (`weighings(assignment_id)`), dan
 `idx_auto_releases_waktu` (`auto_releases(released_at)`, dipakai pencarian pelepasan

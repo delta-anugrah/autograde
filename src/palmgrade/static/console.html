@@ -4696,7 +4696,8 @@ $("foto-modal").addEventListener("close", () => {
 // tombol konfirmasi (klik atau Enter); Batal, Esc, dan klik di backdrop = false. Fokus kembali
 // ke `asal` (elemen, atau fungsi yang mencarinya lagi: tombol piston digambar ulang tiap
 // poll), atau ke elemen yang berfokus saat dialog dibuka. `bahaya` = konfirmasinya merah
-// pekat (F11); Batal tetap tombol biasa, karena di sini Batal adalah pilihan yang aman.
+// pekat (F11); Batal merah muda seperti semua Batal (F11, F12) dan memegang fokus pertama,
+// jadi Enter yang tidak sengaja tetap membatalkan.
 let jawabKonfirmasi = null;
 function tanyaKonfirmasi({ judul, pesan, ya, batal, bahaya = false, asal } = {}) {
   const modal = $("konfirmasi-modal");

@@ -27,8 +27,14 @@ Changed:        Status badges share one width (`data-ukur` + `::after`, both lan
                 like an odometer on change only (`tulisAngka`, transform only, instant under reduced
                 motion). A cancelled arrival is now kept (`arrivals.cancelled_at`, `cancelled_by`,
                 `VERSI_SKEMA` 5) and listed in `dibatalkan` on GET weighings and in a collapsible
-                "Kedatangan dibatalkan" panel; every waiting-arrival reader skips it. `MANUAL.md`
-                v2.7 (+ PDF), rule 37, backend-overview, skill.
+                "Kedatangan dibatalkan" panel; every waiting-arrival reader skips it. Follow-ups:
+                the odometer rolls forward past 9 when a number rises and back when it falls; the
+                panel's Oleh shows the operator's name stored at cancel time (email kept, same
+                schema step 5, still unshipped); the demo seeder adds two cancelled arrivals for
+                today. Docs audit fixes: rule 37 says cancelled not deleted, rule 20 names the tare
+                bar, rule 11 and overview list the fourth store file, old "timbang masuk/keluar"
+                words gone from README, commands and skills. `MANUAL.md` v2.7 (+ PDF), rule 37,
+                backend-overview, skill, `CLAUDE.md` rule 37 line.
 Validated:      See the PR body for the suite counts; both branches reviewed, no Critical or
                 Important findings.
 Not validated:  Not seen on the Lampung kiosk Firefox; swipe tested with a mouse, not a touch screen.

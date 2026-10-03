@@ -161,7 +161,8 @@ end of this file.
 11. **Konsol tidak boleh memindai direktori** (§6.2): semua yang dibaca layar operator datang
     dari **index SQLite** `state/console.db`, di **`repositories/console_repository.py`**
     dengan skema dan migrasinya di **`repositories/console_skema.py`** dan akunnya di mixin
-    **`repositories/console_akun_repository.py`** (batch 2). Konvensi sama dengan `OutboxStore`:
+    **`repositories/console_akun_repository.py`** (batch 2), dan jam gerbang di mixin
+    **`repositories/console_gerbang_repository.py`** (aturan 37). Konvensi sama dengan `OutboxStore`:
     WAL + `synchronous=FULL` + satu lock + `INSERT OR IGNORE`.
     Gambar tetap di disk line-nya, di-mount read-only dan di-serve statis. Polling `listdir`
     tiap 2 detik akan memakan I/O yang dipakai grading.
@@ -204,7 +205,7 @@ end of this file.
 18. **Kunjungan truk: satu pesan, dibangun ulang tiap kali, tidak pernah ditambal** (§4.C).
     `ErpQueue` satu-satunya yang merakit pesan, pemicu langsung dan kirim ulang harian memakai
     jalan yang sama, jadi tidak bisa berbeda isi. Tiga pemicunya kejadian yang memang terjadi:
-    timbang masuk, truk dilepas dari line, timbang keluar. **`stage` diturunkan dari keadaan
+    timbang isi, truk dilepas dari line, timbang kosong. **`stage` diturunkan dari keadaan
     kunjungan**, bukan ditentukan pemanggil. Bagian yang tidak kita punya **tidak dikirim**,
     tiap kiriman mengganti bagian yang dibawanya, jadi bagian kosong menghapus isi ERP.
     Grading kunjungan = **semua** penugasan line yang tertaut ke tiketnya, dijumlah (tabel
@@ -246,10 +247,10 @@ end of this file.
     menyertakannya; kalau bedanya dari `bruto − tara` lewat `TOLERANSI_NETO_KG` (1 kg) kiriman
     **ditolak 400**. Ini angka yang dibayar ke petani, dua sumber kebenaran yang diam-diam
     berbeda adalah cara paling rapi untuk salah bayar berbulan-bulan.
-    Timbang-masuk dan timbang-keluar adalah **dua POST untuk satu baris**, digabung lewat
+    Timbang isi dan timbang kosong adalah **dua POST untuk satu baris**, digabung lewat
     `COALESCE` per kolom: kiriman kedua yang cuma membawa tara tidak boleh menghapus bruto.
     Kuncinya `ref` kalau ada, kalau tidak uuid5 dari (plat ternormalisasi + `entered_at`),
-    tanpa salah satu dari keduanya kiriman **ditolak**, karena timbang-keluar tidak akan bisa
+    tanpa salah satu dari keduanya kiriman **ditolak**, karena timbang kosong tidak akan bisa
     menemukan barisnya dan satu tiket pecah jadi dua.
     Pemisah ribuan tanpa desimal (`"14.820"` untuk empat belas ton) parse **bersih** jadi
     14,82 dan tidak ada apa pun di payload yang membantahnya, jadi yang menangkapnya lantai
@@ -333,14 +334,15 @@ end of this file.
     `scanDaftarBelumMuat` (kuning), bukan `sukScan`. Truk yang dinonaktifkan tetap terbaca
     dan ditandai server (`truck.status`), dan layar mengatakannya (`scanTrukNonaktif`)
     sebelum mencari di daftar yang memang menyembunyikannya.
-    **Tara diisi di kolom yang muncul DI BARIS ALAT, bukan dialog yang menutup layar**
+    **Tara diisi di bar tara (`#tara-grup`) di bawah kedua form, bukan dialog yang menutup layar**
     (dua kali dilaporkan operator 2026-09-15). `prompt()` bawaan browser ditolak lebih
     dulu: kotaknya kecil untuk jempol bersarung tangan, ukurannya tidak bisa diatur, dan
     menerima teks apa pun tanpa validasi. Lalu dialog sendiri **juga** ditolak, dan
     alasannya lebih penting: lapisan yang menutup layar menghilangkan kamera line dan
     strip tally sampai tara selesai diisi, dan di gerbang yang sibuk itu kehilangan
-    pandangan justru saat paling butuh. Kolomnya **tersembunyi sampai scan berhasil** -
-    kolom yang bisa diisi tanpa tiket adalah kolom yang tidak tahu harus menulis ke mana.
+    pandangan justru saat paling butuh. (Ini soal mengisi angka; pertanyaan ya/tidak memakai
+    `tanyaKonfirmasi`, coding standard F12.) Bar itu **tersembunyi sampai Timbang kosong ditekan
+    di baris tiket atau scan langkah 3 berhasil**: kolom yang bisa diisi tanpa tiket adalah kolom yang tidak tahu harus menulis ke mana.
     Platnya disebut di sebelahnya: operator melihat beberapa truk sehari sambil memegang
     HP supir. Angkanya divalidasi **di layar** sebelum dikirim, karena bolak-balik
     jaringan untuk hal yang terlihat di tempat itu satu detik yang hilang di gerbang;
@@ -879,7 +881,9 @@ end of this file.
     menjalankannya di thread pool), atau kalau route itu juga harus `await` (`console_state`,
     yang menunggu lisensi), panggilan sinkronnya sendiri dibungkus `run_in_threadpool`.
     `login`, `console_history`, `console_trucks`, `console_weighings` (GET), `console_recap`,
-    `dev_log`, dan `ingest_event` jadi `def`.
+    `dev_log`, dan `ingest_event` jadi `def`; rute gerbang dan antrean bongkar
+    (`console_arrival`, `console_arrival_cancel`, `console_departure`, `unloading_queue_skip`)
+    lahir `def`.
     **Yang sengaja tetap `async`**: route yang menunggu panggilan ke line (`assign`/`release`/
     `manual-reject`/`piston`, `record_weighing`, rekam, model, bahaya, diagnostik), yang cuma
     satu pencarian primary-key (`me`, `operators`, `scan`, `setelan`, `penugasan`, `akun`), dan
@@ -1195,10 +1199,12 @@ end of this file.
     `record_weighing`, bukan di jalur scan, supaya tiket dari dropdown plat atau program
     timbangan juga dapat waktu antrenya. Pencarian pakai jendela 12 jam (`domain/gerbang.py`,
     dari `JENDELA_KUNJUNGAN_DETIK`), bukan hari kerja: antrean bisa lewat tengah malam. Daftar
-    **Menunggu timbang** memakai jendela yang sama dari jam server, jadi truk yang datang 23:50
+    menunggu (`waiting`: lencana **Menunggu n**, baris Datang, dan bagian **Menunggu timbang** di
+    dropdown langkah 2) memakai jendela yang sama dari jam server, jadi truk yang datang 23:50
     masih menunggu pukul 00:10. Scan 3 (`open_weighings_for_truck`) mencari tiket tanpa tara
     yang timbang isi dalam jendela yang sama sebelum sekarang, dan tabel Timbangan hari ini
-    membawa kunjungan hari kerja sebelumnya yang belum keluar gerbang dalam jendela itu
+    membawa kunjungan hari kerja sebelumnya yang belum keluar gerbang (tanpa tara: dalam jendela
+    itu; bertara: 24 jam dari timbang kosong, lihat Tanpa scan 4)
     (`kunjungan_terbawa`, 2026-10-02): truk 23:50 ditimbang kosong 00:10. Tiketnya tetap
     milik hari kerjanya sendiri; total hari, Rekap, CSV dan AutoERP tidak berpindah hari.
     Scan yang tidak berbentuk plat ditolak `bukan_plat`, kecuali
@@ -1212,7 +1218,7 @@ end of this file.
     = datang) diputuskan `tahap_tiket` di `domain/gerbang.py`, dikirim backend, dan layar cuma
     mewarnainya (2026-10-02).
     **Batal datang** (2026-10-03): kedatangan yang truknya tidak akan ditimbang (salah pilih,
-    ditolak di gerbang) dihapus lewat `POST /api/console/arrivals/{arrival_id}/cancel`, di bawah
+    ditolak di gerbang) **dibatalkan** lewat `POST /api/console/arrivals/{arrival_id}/cancel`, di bawah
     kunci `GateService`. Cuma yang masih menunggu (`weighing_id` kosong); selain itu dijawab
     `tidak_ada`, bukan galat. **Disimpan sebagai riwayat** (round 4, user 2026-10-03: "riwayat
     pembatalan yang bisa dilihat"): barisnya tidak dihapus, tapi diberi `cancelled_at` (jam server)
@@ -1324,6 +1330,10 @@ memang khas satu mesin.
   (`TOAST_UMUR_MAKS_MS`: kursor yang diparkir di pojok kiosk mendapat `mouseenter` buatan
   browser tiap tata letak berubah). Toast yang tak pernah ditutup menumpuk di layar
   yang dibiarkan menyala berhari-hari. Test: `tests/unit/test_console_html_toast.py`.
+  Sejak 2026-10-03 toast bertumpuk ala Sonner, dibuat sendiri karena konsol harus jalan offline:
+  terbaru di depan, `TOAST_TERLIHAT` 3 dari `TOAST_MAKS` 4, kursor atau fokus di tumpukan
+  membukanya dan menahan SEMUA hitungan (`bukaTumpukanToast`), geser ke kanan membuang
+  (`pasangGeserToast`). Test: `tests/browser/test_browser_toast_tumpukan.py`.
 - **Line yang direstart dari konsol diberi tanda di kotak kameranya** (2026-09-29): Sumber
   Kamera, Model Deteksi, dan Danger Zone (restart, hapus data) menandai line yang dijawab
   SERVER sudah restart/menerima (`lineDirestart`), bukan yang diklik. Spinner + bar berjalan

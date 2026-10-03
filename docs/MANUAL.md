@@ -3,7 +3,7 @@ judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
 versi: "2.7"
-tanggal: 2 Oktober 2026
+tanggal: 3 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
 sorotan: Isi = Fitur · Setup · Operasional · Troubleshooting; Pembaca = Pemegang baru AutoGrade; Bentuk = Ringkas, tabel, perintah siap tempel
@@ -324,7 +324,7 @@ Aturan angka yang dijaga konsol:
 |---|---|---|
 | **Grading** | riwayat janjang: waktu, line, truk, sumber, hasil, kelas, confidence, foto | filter per line/truk, pagination, klik foto → tampilan besar |
 | **Truk** | master truk + supplier + asal data (ERP / manual) | **Daftar truk manual**, **Cetak QR truk** (kartu QR berisi plat, dibuat di server) |
-| **Timbangan** | tiket hari kerja, plus truk dari hari kerja sebelumnya yang belum selesai (12 jam): masuk, keluar, bruto, tara, neto, antre, total | **Datang**, **Timbang isi**, lalu **Timbang kosong** dan **Keluar** di baris tiket |
+| **Timbangan** | tiket hari kerja, plus truk dari hari kerja sebelumnya yang belum selesai (belum timbang kosong: 12 jam; sudah timbang kosong tapi belum Keluar: 24 jam): status, jam timbang isi, jam timbang kosong, antre, lama, total, bruto, tara, neto; di bawahnya panel **Kedatangan dibatalkan** | **Catat datang**, **Timbang isi**, lalu **Timbang kosong** dan **Keluar** di baris tiket; **Batal datang** di baris Datang |
 | **Rekap** | grading per truk dan per hari, untuk hari ini atau hari-hari sebelumnya (paling panjang 31 hari). Dibuka di **Hari ini, Per truk**: satu baris per truk, ini yang diserahkan ke supplier | ganti tanggal untuk hari sebelumnya, **Unduh CSV**, **Impor CSV** untuk akun support; rinciannya di bawah |
 
 > Angka keyakinan ada di tabel Grading, tapi **tidak** digambar di kotak janjang pada layar
@@ -937,7 +937,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
-| 2.7 | 3 Oktober 2026 | Lencana Status di tabel Timbangan sama lebar. Konfirmasi (Lewati, Buka piston) memakai dialog konsol sendiri, bukan kotak bawaan browser. Notifikasi bertumpuk di kanan bawah, terbuka saat disentuh kursor, bisa digeser ke kanan untuk ditutup. Angka RIPE, UNRIPE, JK, TP dan TOTAL bergulir seperti odometer saat berubah. Kedatangan yang dibatalkan disimpan dan tampil di panel **Kedatangan dibatalkan** di bawah tabel Timbangan. |
+| 2.7 | 3 Oktober 2026 | Lencana Status di tabel Timbangan sama lebar. Konfirmasi (Lewati, Buka piston) memakai dialog konsol sendiri, bukan kotak bawaan browser. Notifikasi bertumpuk di kanan bawah, terbuka saat disentuh kursor, bisa digeser ke kanan untuk ditutup. Angka RIPE, UNRIPE, JK, TP dan TOTAL bergulir seperti odometer saat berubah (naik bergulir maju lewat 9, turun bergulir mundur). Kedatangan yang dibatalkan disimpan dan tampil di panel **Kedatangan dibatalkan** di bawah tabel Timbangan, kolom **Oleh** menulis nama operator; data demo menyertakan dua contoh pembatalan. |
 | 2.6 | 3 Oktober 2026 | §3.2 dan §3.3: tab Timbangan disusun ulang jadi strip empat langkah yang sama lebar dan dua form sama besar (Catat datang, Timbang isi); form tara jadi satu bar di bawahnya; daftar tunggu jadi lencana **Menunggu n**. Kolom **Jam timbang isi** dan **Jam timbang kosong**; semua kolom tabel muat mulai 1.440 px. Tombol **Batal datang** di baris Datang. Truk yang tidak pernah Keluar selesai sendiri dengan tanda **TANPA SCAN 4** setelah 24 jam atau saat datang lagi. **Lewati** dan **Matikan** jadi tombol merah. |
 | 2.5 | 2 Oktober 2026 | §3.2: empat langkah Timbangan jadi kartu sendiri yang sejajar dan sama tinggi; Tara, Simpan, Batal satu baris dengan plat di judul kartu 3; petunjuk kartu 3 dan 4 di kotak bergaris putus. Satu bahasa warna tombol (hijau aksi utama, merah muda batal/hapus/lepas, merah pekat eksekusi terakhir). Setiap aksi yang berhasil menjawab lewat notifikasi, juga Simpan di tab Setelan (dulu kotak kuning), Uji PLC, Kirim Ulang antrean ERP, mulai rekam, dan piston. §3.3: truk yang timbang isi sebelum tengah malam tetap ada di tabel hari ini dan tetap bisa ditimbang kosong, lewat tombol baris maupun scan, sampai keluar atau 12 jam lewat; tiketnya tetap tercatat di hari pertama. |
 | 2.4 | 2 Oktober 2026 | Tab Timbangan (§3.3): kolom **Status** dengan lencana tahap (Datang, Bongkar, Timbang kosong, Selesai) berwarna sama dengan judul langkahnya; truk yang menunggu jadi baris paling atas dan bagian **Menunggu timbang** di dropdown **2. Timbang isi**; tabel urut timbang isi terbaru menurut jam sebenarnya; "tanpa scan 1" kuning; empat langkah satu baris mulai sekitar 1.330 px dan petunjuk desimal di bawah Bruto. Simpan **Penugasan line** di tab Setelan kini menjawab lewat notifikasi. |

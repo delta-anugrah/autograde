@@ -114,7 +114,7 @@ ditanya.
   dan antrean ERP **tidak hilang** selama lisensi mati.
 - **Hapus data / restart / logout massal tanpa terminal:** tab **Setelan → Danger Zone**
   (support). Hapus wajib ketik `HAPUS` dan ditolak kalau ada line mati, truk terpasang,
-  truk yang belum timbang keluar hari ini, atau antrean belum terkirim. Line menghapus
+  truk yang belum timbang kosong (hari ini atau 12 jam terakhir), atau antrean belum terkirim. Line menghapus
   datanya sendiri saat boot (penanda `artifacts/.hapus-data`); setelan grading dan
   `license.db` selamat: beda dengan `autograde reset-data-fresh` yang menghapus
   semuanya. Tidak satu line pun menerima (mis. lisensi line habis) = tidak ada yang
