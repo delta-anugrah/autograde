@@ -201,7 +201,7 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 | 2 | Timbang isi | Di timbangan scan di kolom **2. Timbang isi** atau pilih plat, isi bruto (kg). Berat di bawah 1.000 kg ditolak | tahap `gate`: bruto + jam masuk |
 | 3 | Bongkar | Kartu line → **Tugaskan** → pilih truk. Janjang berikutnya dicatat atas nama truk itu. Kalau penugasan otomatis dinyalakan support, langkah ini jalan sendiri (lihat di bawah tabel) | - |
 | 4 | Selesai bongkar | **Lepas** di kartu line | tahap `grading`: total, ACC, REJ, persen |
-| 5 | Timbang kosong dan keluar | Scan QR di kolom **3. Timbang kosong** atau tekan **Timbang kosong** di baris truknya, isi tara. Di gerbang, scan di kolom **4. Keluar** atau tekan **Keluar** di barisnya. Truk yang belum timbang kosong ditolak dengan peringatan. Dua tiket terbuka → konsol menolak menebak, pilih di tabel. Truk yang timbang isi sebelum tengah malam tetap ditemukan sesudahnya (sampai 12 jam) | tahap `departed`: tara + jam keluar (jam keluar gerbang tidak ikut) |
+| 5 | Timbang kosong dan keluar | Scan QR di kolom **3. Timbang kosong** atau tekan **Timbang kosong** di baris truknya, isi tara. Di gerbang, scan di kolom **4. Keluar** atau tekan **Keluar** di barisnya. Truk yang belum timbang kosong ditolak dengan peringatan. Dua tiket terbuka → konsol menolak menebak, pilih di tabel. Truk yang timbang isi sebelum tengah malam tetap ditemukan sesudahnya (sampai 12 jam). Truk yang tidak pernah Keluar selesai sendiri "tanpa scan 4" (24 jam, atau saat datang lagi) | tahap `departed`: tara + jam keluar (jam keluar gerbang tidak ikut) |
 | 6 | AutoERP | - | neto = bruto − tara, potongan, harga, Purchase Receipt |
 
 Kolom **Antre** = datang sampai timbang isi; "tanpa scan 1" artinya scan datang terlewat. **Total** = datang sampai keluar gerbang; kalau scan datang terlewat, Total dihitung dari timbang isi. Jam datang dan jam keluar cuma disimpan di PC pabrik, tidak dikirim ke AutoERP. Kalau jamnya belum ada, kolomnya menulis strip, bukan "0 mnt". Truk yang sudah dicatat datang tapi belum timbang isi dihitung di lencana **Menunggu n** di langkah **1. Datang**, sampai 12 jam, juga lewat tengah malam; platnya tampil kalau kursor diam di atas lencana itu, sebagai baris **Datang** di tabel, dan di bagian **Menunggu timbang** dropdown langkah 2. Lencana itu tidak pernah menggeser form atau tabel saat jumlahnya berubah. Truk terdaftar yang platnya tidak berbentuk plat biasa (plat dinas, plat lama) tetap bisa dicatat datang dari daftar truk.
@@ -211,7 +211,7 @@ sama dengan judul langkah di atasnya: **Datang** (abu-abu, langkah 1), **Bongkar
 langkah 2), **Timbang kosong** (biru, langkah 3), **Selesai** (hijau, langkah 4). Tahapnya
 dihitung konsol, bukan ditebak layar. Truk yang sudah dicatat datang tapi belum timbang isi juga
 tampil sebagai baris paling atas berlencana **Datang**, dengan menit tunggunya di kolom Antre
-dan tanpa tombol. Di bawahnya tiket urut **timbang isi terbaru dulu**, menurut jam sebenarnya
+dan satu tombol merah **Batal datang** (lihat di bawah). Di bawahnya tiket urut **timbang isi terbaru dulu**, menurut jam sebenarnya
 (jam dari browser dan jam dari data demo atau program timbangan dibandingkan dengan benar).
 Tanda "tanpa scan 1" berwarna kuning peringatan. Dropdown plat di **2. Timbang isi** menaruh
 truk terdaftar yang sedang menunggu di bagian **Menunggu timbang** paling atas (yang datang
@@ -224,11 +224,32 @@ satu baris; petunjuk desimal ada di bawah form itu dan juga muncul kalau kursor 
 Bruto. Strip langkah berdiri dalam satu baris mulai lebar layar sekitar 960 px, dan kedua form
 berdampingan mulai sekitar 1.100 px; di layar lebih sempit keduanya bertumpuk.
 
+**Batal datang.** Kalau truk yang dicatat datang ternyata tidak akan ditimbang (salah pilih truk
+di dropdown, atau truknya ditolak di gerbang), tekan **Batal datang** di baris **Datang**-nya.
+Tombolnya bertanya dulu: tulisannya berubah jadi **Yakin? Klik lagi**, dan klik kedua dalam 5
+detik membatalkan kedatangan itu; barisnya hilang dan notifikasi hijau menyebut platnya. Tanpa
+klik kedua tombolnya kembali seperti semula. Kedatangan yang dibatalkan tidak pernah diklaim
+timbang isi, jadi kalau truk yang sama datang lagi, Antre dihitung dari kedatangan barunya. Kalau
+kedatangan itu keburu diklaim timbang isi (atau sudah dibatalkan dari layar lain), notifikasi
+kuning mengatakan kedatangan itu sudah tidak menunggu. Seperti jam datang, pembatalan cuma di PC
+pabrik, tidak dikirim ke AutoERP.
+
+**Truk yang tidak pernah Keluar.** Truk yang sudah timbang kosong tapi tidak pernah dicatat
+**Keluar** tetap berlencana **Timbang kosong** dengan tombol **Keluar** sampai 24 jam sesudah
+timbang kosongnya, juga di tabel hari berikutnya. Lewat 24 jam, atau begitu truk yang sama
+dicatat datang lagi atau timbang isi lagi, kunjungan lamanya dianggap selesai: lencananya
+**Selesai**, tombol Keluar diganti tanda kuning **TANPA SCAN 4**, dan **Total** dihitung sampai
+timbang kosong. Konsol tidak mengarang jam keluar. Keluar untuk kunjungan baru tidak pernah
+menutup kunjungan lama. Kalau kedatangan baru itu ternyata salah lalu dibatalkan, kunjungan
+lama kembali menunggu **Keluar**. Tiket yang belum timbang kosong tetap memakai batas 12 jam:
+tiket kemarin pagi yang terlupa tidak boleh mengambil tara hari ini.
+
 **Lewat tengah malam.** Pabrik jalan sampai lewat tengah malam, jadi truk yang timbang isi pukul
 23:50 dan belum selesai tetap ada di tabel hari ini sesudah pukul 00:00, lengkap dengan lencana
 tahap dan tombol **Timbang kosong** atau **Keluar**-nya; kolom **Jam timbang isi** menunjukkan tanggal
-kemarin. Barisnya hilang dari tabel hari ini begitu truknya keluar gerbang, atau kalau timbang
-isinya sudah lebih dari 12 jam lalu. Scan di kolom **3. Timbang kosong** juga mencari tiket 12
+kemarin. Barisnya hilang dari tabel hari ini begitu truknya keluar gerbang, kalau tiket tanpa
+tara timbang isinya sudah lebih dari 12 jam lalu, atau kalau tiket bertara sudah selesai tanpa
+scan 4. Scan di kolom **3. Timbang kosong** juga mencari tiket 12
 jam ke belakang, bukan cuma tiket hari ini. Tiketnya tetap milik tanggal kerja kemarin: strip
 "Hari ini", Rekap, CSV dan AutoERP menghitungnya di hari itu, tidak dua kali.
 

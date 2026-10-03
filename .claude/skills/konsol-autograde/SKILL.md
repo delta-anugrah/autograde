@@ -33,6 +33,14 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   `tertahan` + `plate_lama` untuk line yang masih memegang truk yang sudah keluar), jangan pernah namai variabel tingkat atas `dipasang` (sudah dipakai
   "kartu line tergambar"). Bukan "Antrean line": itu antrean janjang line ke konsol (tab Status).
   Tes: `test_console_html_antrean_bongkar.py`, `tests/browser/test_browser_penugasan.py`.
+- Baris tabel Timbangan (aturan 37, 2026-10-03): baris **Datang** (`barisMenunggu`) membawa tombol
+  merah **Batal datang** (`button.bahaya`, `data-aksi="batal-datang"`, `data-arrival` = `id` dari
+  `waiting`); `batalDatang` dua klik seperti Batalkan impor (`yakin pekat`, 5 dtk), `denganSibuk`,
+  `POST /api/console/arrivals/{id}/cancel` → `dibatalkan` = `toastSukses`, `tidak_ada` =
+  `toastPeringatan`. Tiket yang server tandai `tanpa_scan_4` (bertara, tidak pernah Keluar, lewat
+  24 jam atau truknya datang lagi) berlencana Selesai dan `aksiTiket` menaruh `.tag.peringatan`
+  **tanpa scan 4** di tempat tombol Keluar. Tes: `test_console_html_batal_datang.py`,
+  `tests/browser/test_browser_batal_datang.py`.
 - Registri: `TAB_SAH`, `SUB_LINE`, `MUAT_TAB`, `MUAT_SUB_LINE`. Tab lama yang tersimpan di
   localStorage dipetakan `tabDariSimpanan` / `TAB_LAMA` (riwayat → rekap, diagnostik/antrean/versi
   → status, empat layar per line → line + pilihannya).

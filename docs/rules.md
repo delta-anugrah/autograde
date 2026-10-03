@@ -1211,6 +1211,24 @@ end of this file.
     Tahap tiap tiket (`tahap`: bongkar, timbang_kosong, selesai; kedatangan yang menunggu
     = datang) diputuskan `tahap_tiket` di `domain/gerbang.py`, dikirim backend, dan layar cuma
     mewarnainya (2026-10-02).
+    **Batal datang** (2026-10-03): kedatangan yang truknya tidak akan ditimbang (salah pilih,
+    ditolak di gerbang) dihapus lewat `POST /api/console/arrivals/{arrival_id}/cancel`, di bawah
+    kunci `GateService`. Cuma yang masih menunggu (`weighing_id` kosong); selain itu dijawab
+    `tidak_ada`, bukan galat. Barisnya dihapus, bukan ditandai: kedatangan yang salah bukan jam
+    gerbang, dan baris yang ditandai harus dilewati setiap pembaca `arrivals`. Jejaknya satu baris
+    log (plat dan email operator). Yang dibatalkan tidak pernah tampil di `waiting`, tidak pernah
+    diklaim, dan tidak pernah ke AutoERP.
+    **Tanpa scan 4** (keputusan user 2026-10-03): tiket bertara yang tidak pernah Keluar
+    **dihitung** selesai, tidak ditulis: tidak ada `left_at` karangan. `selesai_tanpa_scan_4`
+    memutuskannya kalau timbang kosongnya (`exited_at`, cadangan `entered_at`) lebih dari 24 jam
+    lalu (`JENDELA_TANPA_KELUAR_DETIK`), atau kalau truk yang sama sudah datang lagi (kedatangan
+    menunggu) atau timbang isi lagi sesudah timbang kosong itu. Barisnya `tahap` selesai dengan
+    `tanpa_scan_4: true` dan Total sampai timbang kosong. Tabel hari ini membawa tiket bertara
+    yang belum keluar sampai 24 jam dari timbang kosong; tiket tanpa tara tetap 12 jam di mana pun
+    (bawa, scan 3, scan 4), supaya tiket kemarin pagi yang terlupa tidak mengambil tara hari ini
+    dan membayar neto yang salah. Scan 4 dan tombol Keluar menjawab `sudah_keluar` untuk tiket
+    yang sudah selesai tanpa scan 4, jadi Keluar kunjungan baru tidak pernah menutup kunjungan
+    lama. Tiket bertara tidak menahan kedatangan baru (`masih_di_dalam` cuma untuk tiket tanpa tara).
     Rute: `POST /api/console/arrivals {qr, at}` dan `POST /api/console/departures
     {qr?, weighing_id?, at}` (Operator); jam salah dijawab 400 `input_tidak_sah`.
     ⚠️ Jam datang dan jam keluar berasal dari jam browser; stempel tanpa zona dibaca sebagai
