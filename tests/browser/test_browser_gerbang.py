@@ -456,7 +456,9 @@ def test_status_badge_follows_the_four_steps_and_the_newest_row_leads(halaman, k
     expect(atas).to_contain_text(nomor)
     expect(_lencana(atas)).to_have_text(kamus(halaman, "tahapDatang"))
     expect(_lencana(atas)).to_have_class(re.compile(r"\btahap-datang\b"))
-    expect(atas.locator("button")).to_have_count(0)
+    # No ticket yet, so no weighing button; its one button is Batal datang (2026-10-03).
+    expect(atas.locator("button")).to_have_count(1)
+    expect(atas.locator('button[data-aksi="batal-datang"]')).to_have_count(1)
 
     langkah = {"lbDatang": "tahap-datang", "lbGerbangMasuk": "tahap-bongkar",
                "lbGerbangKeluar": "tahap-kosong", "lbPergi": "tahap-selesai"}
