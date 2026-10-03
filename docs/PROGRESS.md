@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-04 · console · Reconnect button moves under "Kamera tidak tersambung" (PR pending)
+## 2026-10-04 · console · Reconnect button moves under "Kamera tidak tersambung" (PR #222)
 Changed:        User 2026-10-04: in the card header the button was too big. It now sits in the
                 camera box under "Kamera tidak tersambung" (`.feed-putus`, replacing the bare
                 `.feed span`), so it shows only when there is no picture: the card is `putus`, or
@@ -26,7 +26,7 @@ Changed:        User 2026-10-04: in the card header the button was too big. It n
                 last frame stays on screen there and the browser never marks the card). The
                 header container query and icon-only layout are gone. The browser fake line can
                 stop sending its picture (`atur_feed(False)`).
-Validated:      See the PR body for the suite counts; screenshot of three cards at 1920 px.
+Validated:      unit 4541, e2e 387, integration 162, browser 218, ruff clean; screenshot at 1920 px.
 Next:           Merge, then release v1.23.0.
 
 ## 2026-10-04 · console · Reconnect camera button on each line card (PR #221)
