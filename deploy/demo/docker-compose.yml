@@ -58,6 +58,9 @@ services:
       - MEDIA_ENV_PATH=/config/media.env
       - REKAMAN_TAMPIL=/opt/autograde-demo/videos
       - MEDIA_FILE=
+      # No host watcher on the droplet and no ./update mount: the console finds no
+      # status.json and never offers Update now. The demo upgrades with demo-autograde.
+      - UPDATE_DIR=/app/update
     volumes:
       - ./state/console:/app/state
       # Writable, unlike the factory console: with no camera lines the seeder writes the demo photos.

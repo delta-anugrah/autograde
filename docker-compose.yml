@@ -638,6 +638,10 @@ services:
       # yang cuma ada di dalam container line.
       - REKAMAN_TAMPIL=${REKAMAN_TAMPIL:-/opt/palmgrade/autograde/videos}
       - MEDIA_FILE=${MEDIA_FILE:-}
+      # Batch 4.6, Update now: the launcher writes status.json here, the console writes
+      # request.json, the host watcher answers with result.json. The console gets this
+      # folder and nothing else of the host: no Docker socket, ever.
+      - UPDATE_DIR=${UPDATE_DIR:-/app/update}
     volumes:
       - .:/app
       - /app/.venv
@@ -654,3 +658,8 @@ services:
       # Satu-satunya berkas host yang konsol boleh tulis. `.env` sengaja TIDAK
       # di-mount: ia memuat lisensi, R2, dan webhook secret.
       - ./media.env:/config/media.env
+      # Writable on purpose (batch 4.6): the console's only way to ask the host for
+      # an install. The host folder is created by sawit `pasang-penunggu-update.sh`,
+      # owned by the desktop user; one Docker creates is root-owned and the launcher
+      # cannot write status.json into it.
+      - ./update:/app/update

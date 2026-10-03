@@ -228,6 +228,27 @@ Risks:          Off by default, so nothing changes at a mill until support turns
 Next:           Open the PR for this branch against staging (assignee `marcoabelz`, reviewer
                 `supportusahaai`), then turn the switch on at one mill and watch a full shift.
 
+## 2026-10-03 · console · Update now button with a host watcher (PR #215)
+Changed:        Batch 4.6, console half. `domain/pembaruan.py`, `services/pembaruan_service.py`,
+                `GET /api/console/update`, `POST /api/console/update/install`, `pembaruan` in
+                `/state`, assign-truck 409 `pembaruan_berjalan`; console-only compose mount
+                `./update:/app/update` + `UPDATE_DIR` (demo kit: env without mount); screen badge,
+                Pasang sekarang button, result sentence; request and each outcome in the Log tab
+                once. Rule 36 (renumbered 38 when merged after PR #214), backend-overview, MANUAL 2.2 (now 2.8) + PDF, skill compose-host-pabrik.
+Validated:      `pytest tests/unit tests/integration` → 4135 passed, 28 skipped;
+                `pytest tests/e2e` → 335 passed, 20 skipped (image/service gated);
+                `pytest tests/browser --browser chromium --browser firefox` → 74 passed;
+                `ruff check src tests` → All checks passed.
+Not validated:  factory PC (needs sawit #74 watcher installed first); a real image swap from the
+                button (first release after v1.22.0); eye check on a dev server (browser test
+                screenshots instead).
+Decisions:      user 2026-10-02: rolled_back hidden until newer staged; old-day trucks refuse;
+                refusal names the card's line; outcome on screen + Log tab only. Ruling: failed =
+                never tried, offered again, worded "try again". Review: assign registers under the
+                lock and calls the line without it (a dead line no longer queues other assigns).
+Next:           AnyDesk: install the sawit watcher + host compose mount BEFORE tag v1.22.0.
+
+
 ## 2026-10-01 · console · A visit's grading is summed over every line that unloaded it (PR #208)
 Changed:        A truck unloaded on three lines has three line assignments, but `weighings.assignment_id`
                 holds one, so AutoERP, the detail page and the Log tab counted only the line released

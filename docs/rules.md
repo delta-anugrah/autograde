@@ -1139,7 +1139,6 @@ end of this file.
     gambar" (aturan 33, mulai 5 grab gagal) dan FRAME_BERHENTI (sesudah `AI_MATI_DETIK`, coil
     ERROR naik) sengaja dua baris: yang pertama menyebut alasan kamera, yang kedua keputusan
     sehat.
-
 36. **Penugasan line otomatis: satu truk di line sampai selesai** (keputusan user 2026-10-01).
     Tiap timbang isi dan tiap Lepas memanggil `isi_line_otomatis()`
     (`services/penugasan_otomatis.py`, mixin `ConsoleService`; aturan murni di
@@ -1262,6 +1261,30 @@ end of this file.
     "menunggu N menit" yang hidup membandingkan jam server dengan jam browser saat datang.
     ⚠️ Tiket yang pertama kali ditulis langsung dengan tara tidak pernah mengklaim
     kedatangannya. ⚠️ Empat kolom QR tetap `hidden` sampai scanner dibeli.
+
+38. **Update now dari konsol** (batch 4.6, 2026-10-03). Konsol **tidak pernah** menyentuh Docker
+    (tanpa `docker.sock`, selamanya). Satu-satunya jalurnya folder `update/` (`UPDATE_DIR`,
+    mount `./update:/app/update` di container konsol saja): launcher menulis `status.json`
+    (versi terpasang, versi `staged`, `watcher`), konsol menulis `request.json` (tmp lalu
+    rename), penunggu systemd di host (sawit `autograde-update.path` +
+    `autograde-update.service`, dipasang `pasang-penunggu-update.sh`) menjalankan
+    `autograde _update-now` dan menjawab `result.json`. Tombol hanya muncul kalau `watcher` true
+    dan versi `staged` lebih baru dari `APP_VERSION` konsol. **Ditolak 409
+    `pembaruan_ada_truk` selama ada truk di-assign di line mana pun**, termasuk truk yang lupa
+    dilepas sejak hari kerja lalu (sumber `assignments`): pemasangan me-restart konsol dan
+    ketiga line. Sebaliknya assign-truck ditolak 409 `pembaruan_berjalan` selama pemasangan
+    berjalan. Install memegang `PembaruanService.kunci` (satu `asyncio.Lock`) selama periksa dan
+    tulis penanda; assign memegangnya cuma untuk mendaftar diri (`menugaskan`), lalu memanggil
+    line TANPA kunci, dan line yang assign-nya belum dijawab ikut menolak install. Jadi tidak ada
+    celah antara "tidak ada truk" dan penanda mendarat, dan line mati (10 detik) tidak membuat
+    assign di line lain antre. Server mengirim kode line, layar
+    menulis nama di kartunya (`namaLineDari`). `rolled_back` menyembunyikan versi itu sampai
+    versi yang lebih baru di-stage; `failed` berarti belum dicoba (kunci launcher, promote
+    dilewat, skrip terhenti) dan ditawarkan lagi. Penanda tanpa jawaban 20 menit
+    (`BATAS_TUNGGU_S`) terbaca `timeout`; hasil tampil 24 jam. Kabar hasil cukup di layar dan
+    tab Log (sekali per hasil, `.result-logged.json` bertahan lewat restart; gagal = ERROR
+    sampai Discord), tanpa notifikasi desktop (keputusan user 2026-10-02). Aturan murni:
+    `domain/pembaruan.py`; kontrak berkas: `docs/backend-overview.md` § Update now.
 
 ---
 

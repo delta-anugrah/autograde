@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.7"
+versi: "2.8"
 tanggal: 3 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -128,6 +128,15 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   misalnya `v1.18.0 · Lisensi s/d 30 Sep 2027`. Kuning saat langganan tinggal sebentar, merah
   saat masa tenggang atau habis. Klik untuk melihat perusahaan, tanggal aktif, dan masa
   tenggang. PC tanpa lisensi cuma menampilkan versinya.
+- **Pita kuning "Versi vX.Y.Z siap dipasang"** (semua akun) di bawahnya: versi baru sudah
+  diunduh PC dan menunggu dipasang. Klik pitanya, kotak Versi & lisensi terbuka dengan tombol
+  **Pasang sekarang**. Syaratnya: **lepas dulu semua truk** di ketiga line (termasuk truk yang
+  lupa dilepas kemarin). Konsol dan ketiga line berhenti sekitar 2 menit lalu menyala sendiri;
+  selama itu layar menulis "Sedang memasang versi baru" dan tersambung lagi sendiri, jangan
+  tekan apa-apa. Hasilnya tertulis di kotak yang sama (dan di tab Log): "sudah terpasang" berarti
+  beres; kalimat merah berarti versi baru gagal dan sistem kembali ke versi lama, panggil
+  teknisi. Kalau tidak ditekan, versi itu tetap terpasang sendiri saat **Start** pagi
+  berikutnya. Tombol ini cuma ada di PC yang sudah dipasangi penunggu pembaruan (§6.2).
 - **Strip "Hari ini"**: jumlah janjang per kelas (Ripe, Unripe, JK, TP) dan total, rasio Ripe,
   **Data timbangan** (neto hari ini dan jumlah tiket), dan **Last Sync**.
 - **Last Sync**: dua baris, **AutoERP** dan **Cloud Photo** (foto di R2). Jamnya = kapan data
@@ -732,6 +741,14 @@ Di PC pabrik image-nya dipilih `PALMGRADE_AUTOGRADE_IMAGE` di `/opt/palmgrade/au
 (dulu `vision`, diganti 2026-09-18). Jangan diedit tangan: pakai `autograde use vX.Y.Z`, yang juga
 membuat ulang container supaya versinya benar-benar terpasang.
 
+**Update now dari konsol** (sejak 3 Oktober 2026): operator bisa memasang versi yang sudah
+diunduh tanpa menunggu Start pagi, lewat pita kuning di bawah tulisan AUTOGRADE (§3.2). Konsol
+sendiri tidak pernah menyentuh Docker; ia cuma menaruh berkas permintaan di
+`/opt/palmgrade/autograde/update/`, dan **penunggu** di PC (systemd, dipasang sekali lewat
+AnyDesk dengan `sudo ./pasang-penunggu-update.sh`) yang menjalankan `autograde`. Cara pasang,
+cek, dan cabut penunggunya ada di `sawit/docs/FACTORY-PC.md`. Tanpa penunggu, tombolnya tidak
+muncul dan semuanya berjalan seperti dulu.
+
 ### 6.3 Cek kesehatan
 
 | Cara | Yang dilihat |
@@ -800,6 +817,10 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Tab Log: "Lapor ke Discord tertahan" | internet pabrik putus | tidak perlu apa-apa, terkirim sendiri begitu internet ada |
 | Notifikasi "Line N tidak menjawab. Tugaskan … manual di kartunya" | penugasan otomatis tidak sampai ke line itu (line mati, restart, atau sedang hapus data); timbangannya tetap tersimpan | nyalakan line-nya, lalu tugaskan truk itu lewat dropdown di kartu line tersebut |
 | Notifikasi "Line N masih memegang truk … yang sudah timbang kosong" | timbang kosong tidak bisa melepas line itu karena line mati; truk berikutnya cuma naik ke line lain | tunggu line menjawab lagi, **Lepas** di kartunya, lalu tugaskan truk yang menunggu di kartu itu |
+| **Pasang sekarang** ditolak "Lepas dulu truk di Line N" | masih ada truk di-assign di line itu, bisa juga sisa kemarin | lepas truknya di kartu line, tekan lagi |
+| Sesudah **Pasang sekarang**: "Versi X gagal dinyalakan, sistem kembali ke Y" | versi baru tidak lolos gerbang sehat dan sistem mundur sendiri; versi itu tidak ditawarkan lagi sampai ada versi yang lebih baru | panggil teknisi; tab Log baris "Pembaruan dari konsol"; teknisi memeriksa `autograde logs` |
+| Sesudah **Pasang sekarang**: "Versi X belum terpasang, sistem tetap di Y" | launcher sedang sibuk (mengunduh) atau terhenti, versi baru belum dicoba | tunggu beberapa menit, tombolnya muncul lagi, tekan ulang; kalau berulang panggil teknisi |
+| "Pembaruan X tidak selesai" | penunggu di PC tidak menjawab 20 menit (dicabut, mati, atau PC sibuk) | panggil teknisi: `systemctl status autograde-update.path` dan `journalctl -u autograde-update.service` (`sawit/docs/FACTORY-PC.md`) |
 
 ### 7.1 Janjang yang ditolak konsol
 
@@ -937,6 +958,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.8 | 3 Oktober 2026 | **Update now**: pita kuning "Versi X siap dipasang" untuk semua akun, tombol **Pasang sekarang** di kotak Versi & lisensi (ditolak selama ada truk di-assign), hasil di kotak itu dan di tab Log (§3.2, §6.2), plus empat baris penanganan masalahnya di §7. |
 | 2.7 | 3 Oktober 2026 | Lencana Status di tabel Timbangan sama lebar. Konfirmasi (Lewati, Buka piston) memakai dialog konsol sendiri, bukan kotak bawaan browser. Notifikasi bertumpuk di kanan bawah, terbuka saat disentuh kursor, bisa digeser ke kanan untuk ditutup. Angka RIPE, UNRIPE, JK, TP dan TOTAL bergulir seperti odometer saat berubah (naik bergulir maju lewat 9, turun bergulir mundur). Kedatangan yang dibatalkan disimpan dan tampil di panel **Kedatangan dibatalkan** di bawah tabel Timbangan, kolom **Oleh** menulis nama operator; data demo menyertakan dua contoh pembatalan. |
 | 2.6 | 3 Oktober 2026 | §3.2 dan §3.3: tab Timbangan disusun ulang jadi strip empat langkah yang sama lebar dan dua form sama besar (Catat datang, Timbang isi); form tara jadi satu bar di bawahnya; daftar tunggu jadi lencana **Menunggu n**. Kolom **Jam timbang isi** dan **Jam timbang kosong**; semua kolom tabel muat mulai 1.440 px. Tombol **Batal datang** di baris Datang. Truk yang tidak pernah Keluar selesai sendiri dengan tanda **TANPA SCAN 4** setelah 24 jam atau saat datang lagi. **Lewati** dan **Matikan** jadi tombol merah. |
 | 2.5 | 2 Oktober 2026 | §3.2: empat langkah Timbangan jadi kartu sendiri yang sejajar dan sama tinggi; Tara, Simpan, Batal satu baris dengan plat di judul kartu 3; petunjuk kartu 3 dan 4 di kotak bergaris putus. Satu bahasa warna tombol (hijau aksi utama, merah muda batal/hapus/lepas, merah pekat eksekusi terakhir). Setiap aksi yang berhasil menjawab lewat notifikasi, juga Simpan di tab Setelan (dulu kotak kuning), Uji PLC, Kirim Ulang antrean ERP, mulai rekam, dan piston. §3.3: truk yang timbang isi sebelum tengah malam tetap ada di tabel hari ini dan tetap bisa ditimbang kosong, lewat tombol baris maupun scan, sampai keluar atau 12 jam lewat; tiketnya tetap tercatat di hari pertama. |

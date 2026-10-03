@@ -75,6 +75,12 @@ INPUT_TIDAK_SAH = "input_tidak_sah"
 PENUGASAN_TANPA_LINE = "penugasan_tanpa_line"
 BUKAN_ANTREAN = "bukan_antrean"
 LINE_SEMUA_TERPAKAI = "line_semua_terpakai"
+# Batch 4.6, the Update now button (operator and support). `pembaruan_ada_truk` carries
+# param `line` ("L1, L3"): the operator has to know which truck to release first.
+PEMBARUAN_ADA_TRUK = "pembaruan_ada_truk"
+PEMBARUAN_TIDAK_ADA = "pembaruan_tidak_ada"
+PEMBARUAN_BERJALAN = "pembaruan_berjalan"
+PEMBARUAN_BELUM_TERPASANG = "pembaruan_belum_terpasang"
 
 CODES = (
     PLAT_KOSONG,
@@ -121,6 +127,10 @@ CODES = (
     PENUGASAN_TANPA_LINE,
     BUKAN_ANTREAN,
     LINE_SEMUA_TERPAKAI,
+    PEMBARUAN_ADA_TRUK,
+    PEMBARUAN_TIDAK_ADA,
+    PEMBARUAN_BERJALAN,
+    PEMBARUAN_BELUM_TERPASANG,
 )
 
 

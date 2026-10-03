@@ -719,6 +719,10 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol):
         truck = self.store.truck(truck_id) or {}
         return truck.get("plate_number") or None
 
+    def assignments(self) -> dict[str, dict[str, Any]]:
+        """Every line's current assignment row (a released line keeps an empty truck_id)."""
+        return self.store.assignments()
+
     async def assign_truck(self, line_code: str, truck_id: str) -> dict[str, Any]:
         line = self._require_line(line_code)
         if self.store.hapus_berjalan:

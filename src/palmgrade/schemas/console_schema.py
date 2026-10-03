@@ -73,3 +73,10 @@ class AutoAssignBody(_Body):
 
     aktif: bool | None = None
     lines: list[str] | None = None
+
+
+class PasangBody(_Body):
+    """Update now (batch 4.6). The version the screen showed, so a status file that moved
+    on in between cannot make one press install a version nobody saw."""
+
+    target: str | None = None
