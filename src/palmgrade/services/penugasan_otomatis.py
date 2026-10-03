@@ -66,6 +66,14 @@ class PenugasanOtomatis:
     def _sejak_antrean() -> float:
         return time.time() - JENDELA_ANTREAN_BONGKAR.total_seconds()
 
+    def assignments(self) -> dict[str, dict[str, Any]]:
+        """Every line's current assignment row (a released line keeps an empty truck_id).
+
+        Update now (rule 38) reads it to refuse an install while a truck is on a line. Here,
+        not in `console_service.py`, which stays under 1,000 lines.
+        """
+        return self.store.assignments()
+
     def penugasan_otomatis(self) -> dict[str, Any]:
         """The setting as the Setelan tab shows it, with the lines it can choose from."""
         setelan = self._setelan_penugasan()

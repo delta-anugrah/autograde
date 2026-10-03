@@ -6150,7 +6150,7 @@ function umumkanPelepasanOtomatis(daftar, otomatis) {
   const perTruk = new Map();
   baru.forEach((r) => {
     const truk = r.plate_number || r.truck_id;
-    perTruk.set(truk, [...(perTruk.get(truk) || []), namaLineDari(r.line_code)]);
+    perTruk.set(truk, [...(perTruk.get(truk) || []), namaKartuLine(r.line_code)]);
   });
   perTruk.forEach((lines, truk) => toastPeringatan(
     t("pelepasanOtomatisGabung").replace("{line}", lines.join(", ")).replace("{truk}", truk)));
@@ -6180,7 +6180,9 @@ function gambarAntreanBongkar(daftar, setelan) {
 }
 
 // Nama line seperti di kartunya ("Line 1"), bukan kode internal.
-function namaLineDari(kode) {
+// Satu kode line -> nama di kartunya. Bukan `namaLineDari` (Update now): yang itu memetakan
+// daftar kode "line-1, line-3" lewat peta; dua fungsi bernama sama saling menimpa diam-diam.
+function namaKartuLine(kode) {
   const el = document.querySelector(`#lines .card[data-line="${CSS.escape(kode)}"] .nama`);
   return el ? el.textContent.trim() : kode;
 }
@@ -6193,11 +6195,11 @@ function umumkanPasang(daftarPasang) {
   const daftar = daftarPasang || [];
   if (!daftar.length) return;
   const truk = daftar[0].plate_number || "";
-  const ok = daftar.filter((d) => d.terpasang).map((d) => namaLineDari(d.line_code));
-  const gagal = daftar.filter((d) => !d.terpasang && !d.tertahan).map((d) => namaLineDari(d.line_code));
+  const ok = daftar.filter((d) => d.terpasang).map((d) => namaKartuLine(d.line_code));
+  const gagal = daftar.filter((d) => !d.terpasang && !d.tertahan).map((d) => namaKartuLine(d.line_code));
   const tertahan = new Map();
   daftar.filter((d) => d.tertahan).forEach((d) => {
-    tertahan.set(d.plate_lama, [...(tertahan.get(d.plate_lama) || []), namaLineDari(d.line_code)]);
+    tertahan.set(d.plate_lama, [...(tertahan.get(d.plate_lama) || []), namaKartuLine(d.line_code)]);
   });
   if (ok.length) toastSukses(t("sukDitugaskanOtomatis").replace("{truk}", truk).replace("{line}", ok.join(", ")));
   if (gagal.length) toastPeringatan(t("tugaskanGagalLine").replace("{truk}", truk).replace("{line}", gagal.join(", ")));

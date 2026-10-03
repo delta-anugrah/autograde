@@ -18,6 +18,20 @@ Next:           ...
 
 ---
 
+## 2026-10-03 · console · Merge staging (PR #215 Update now) into the gate scan branch (PR #214)
+Changed:        PR #208 merged first; PR #212 is merged through this PR (it is fully inside it), so its
+                conflicts with #215 were resolved once. Rule numbers: 36 automatic assignment, 37
+                gate times, 38 Update now (was 36 in #215; `CLAUDE.md`, `rules.md`, backend-overview
+                and skill compose-host-pabrik follow). Two `namaLineDari` functions had landed in
+                console.html (the second silently replaced the first and would have broken the
+                automatic assignment toasts): ours is now `namaKartuLine`, and
+                `tests/unit/test_console_html_fungsi_unik.py` fails on any duplicate top-level
+                function. File caps: gate and unloading-queue routes moved to
+                `routes/console_gerbang.py`, included at their old spots so the route map keeps its
+                order; `assignments()` moved to the `PenugasanOtomatis` mixin. MANUAL v2.8 (+ PDF).
+Validated:      See the PR body for the suite counts after this merge.
+Next:           Squash-merge PR #214, close PR #212 as merged through it.
+
 ## 2026-10-03 · console · Timbangan round 4: dialog, toasts, odometer, cancel history (PR #214)
 Changed:        Status badges share one width (`data-ukur` + `::after`, both languages). No native
                 browser dialog anywhere: `tanyaKonfirmasi()` on one `<dialog>` (Lewati, Buka

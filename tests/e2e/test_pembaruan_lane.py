@@ -59,6 +59,10 @@ class _StubConsole:
         self.store.set_assignment(line_code, "a-1", "")
         return {"line_code": line_code}
 
+    async def release_truck_by_operator(self, line_code: str) -> dict:
+        """The Lepas route's entry since automatic assignment (rule 36): nothing queued here."""
+        return {**await self.release_truck(line_code), "dipasang": []}
+
 
 @pytest.fixture
 def konsol(tmp_path):

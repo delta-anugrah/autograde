@@ -65,7 +65,7 @@ _TOAST = """
 const toasts = [];
 const toastSukses = (m) => toasts.push(["sukses", m]);
 const toastPeringatan = (m) => toasts.push(["peringatan", m]);
-const namaLineDari = (k) => k.replace("line-", "Line ");
+const namaKartuLine = (k) => k.replace("line-", "Line ");
 const pelepasanSudahDiumumkan = new Set();
 """
 
