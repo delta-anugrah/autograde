@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-03 · camera · Camera temperature on the Diagnostics card (PR pending)
+## 2026-10-03 · camera · Camera temperature on the Diagnostics card (PR #218)
 Changed:        Each Hikrobot line reads `DeviceTemperature` every 10 s on the capture thread under
                 `state.lock` (`FrameCaptureWorker._baca_suhu_kalau_waktunya`), `/health/detail`
                 reports it as `suhu_kamera_c` and drops it to null once older than 60 s, and the
@@ -28,7 +28,7 @@ Changed:        Each Hikrobot line reads `DeviceTemperature` every 10 s on the c
                 the next Lampung log says why the cameras do not report their frame rate. The
                 browser fake line answers `/health/detail`, and `tests/browser/test_browser_status.py`
                 pins the row on a real console.
-Validated:      unit, e2e, integration and browser (chromium + firefox) suites; counts in the PR body.
+Validated:      unit 4470 passed, e2e 379, integration 160, browser 206 (chromium + firefox), ruff clean.
 Not validated:  A real Hikrobot camera: CI and the Mac have no SDK. Lampung decides it.
 Decisions:      No thresholds or colours until the datasheet and a few days of Lampung readings
                 (stage 1 of the camera monitoring design, 2026-10-02).
