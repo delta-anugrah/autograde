@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-03 · console · Update now button with a host watcher (PR #TBD)
+## 2026-10-03 · console · Update now button with a host watcher (PR #215)
 Changed:        Batch 4.6, console half. `domain/pembaruan.py`, `services/pembaruan_service.py`,
                 `GET /api/console/update`, `POST /api/console/update/install`, `pembaruan` in
                 `/state`, assign-truck 409 `pembaruan_berjalan`; console-only compose mount
