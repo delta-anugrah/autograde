@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-04 · console · Reconnect camera button on each line card (PR #NNN)
+## 2026-10-04 · console · Reconnect camera button on each line card (PR #221)
 Changed:        A **Sambung ulang** button (circular arrow + word, 44 px; icon only when the card
                 header is narrower than 460 px) in every line card header next to ONLINE/OFFLINE,
                 for every account. It asks first (`tanyaKonfirmasi`: grading on that line pauses a
