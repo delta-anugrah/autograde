@@ -2,8 +2,8 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.1"
-tanggal: 1 Oktober 2026
+versi: "2.2"
+tanggal: 3 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
 sorotan: Isi = Fitur · Setup · Operasional · Troubleshooting; Pembaca = Pemegang baru AutoGrade; Bentuk = Ringkas, tabel, perintah siap tempel
@@ -128,6 +128,15 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   misalnya `v1.18.0 · Lisensi s/d 30 Sep 2027`. Kuning saat langganan tinggal sebentar, merah
   saat masa tenggang atau habis. Klik untuk melihat perusahaan, tanggal aktif, dan masa
   tenggang. PC tanpa lisensi cuma menampilkan versinya.
+- **Pita kuning "Versi vX.Y.Z siap dipasang"** (semua akun) di bawahnya: versi baru sudah
+  diunduh PC dan menunggu dipasang. Klik pitanya, kotak Versi & lisensi terbuka dengan tombol
+  **Pasang sekarang**. Syaratnya: **lepas dulu semua truk** di ketiga line (termasuk truk yang
+  lupa dilepas kemarin). Konsol dan ketiga line berhenti sekitar 2 menit lalu menyala sendiri;
+  selama itu layar menulis "Sedang memasang versi baru" dan tersambung lagi sendiri, jangan
+  tekan apa-apa. Hasilnya tertulis di kotak yang sama (dan di tab Log): "sudah terpasang" berarti
+  beres; kalimat merah berarti versi baru gagal dan sistem kembali ke versi lama, panggil
+  teknisi. Kalau tidak ditekan, versi itu tetap terpasang sendiri saat **Start** pagi
+  berikutnya. Tombol ini cuma ada di PC yang sudah dipasangi penunggu pembaruan (§6.2).
 - **Strip "Hari ini"**: jumlah janjang per kelas (Ripe, Unripe, JK, TP) dan total, rasio Ripe,
   **Data timbangan** (neto hari ini dan jumlah tiket), dan **Last Sync**.
 - **Last Sync**: dua baris, **AutoERP** dan **Cloud Photo** (foto di R2). Jamnya = kapan data
@@ -619,6 +628,14 @@ Di PC pabrik image-nya dipilih `PALMGRADE_AUTOGRADE_IMAGE` di `/opt/palmgrade/au
 (dulu `vision`, diganti 2026-09-18). Jangan diedit tangan: pakai `autograde use vX.Y.Z`, yang juga
 membuat ulang container supaya versinya benar-benar terpasang.
 
+**Update now dari konsol** (sejak 3 Oktober 2026): operator bisa memasang versi yang sudah
+diunduh tanpa menunggu Start pagi, lewat pita kuning di bawah tulisan AUTOGRADE (§3.2). Konsol
+sendiri tidak pernah menyentuh Docker; ia cuma menaruh berkas permintaan di
+`/opt/palmgrade/autograde/update/`, dan **penunggu** di PC (systemd, dipasang sekali lewat
+AnyDesk dengan `sudo ./pasang-penunggu-update.sh`) yang menjalankan `autograde`. Cara pasang,
+cek, dan cabut penunggunya ada di `sawit/docs/FACTORY-PC.md`. Tanpa penunggu, tombolnya tidak
+muncul dan semuanya berjalan seperti dulu.
+
 ### 6.3 Cek kesehatan
 
 | Cara | Yang dilihat |
@@ -685,6 +702,10 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Log line: "PLC … tidak bisa disambung" / "Kamera tidak mengirim gambar" | kabel PLC atau kamera lepas, perangkat mati | cek kabel dan lampu perangkat; baris "tersambung lagi sesudah …" / "mengirim gambar lagi sesudah …" muncul sendiri begitu pulih |
 | Tab Log: "Lapor ke Discord DITOLAK ... (HTTP 404)" | webhook Discord salah atau sudah dihapus | buat webhook baru di kanal support, isi `DISCORD_WEBHOOK_URL` di `.env` PC, lalu `autograde restart`; pesan yang menunggu tidak hilang |
 | Tab Log: "Lapor ke Discord tertahan" | internet pabrik putus | tidak perlu apa-apa, terkirim sendiri begitu internet ada |
+| **Pasang sekarang** ditolak "Lepas dulu truk di Line N" | masih ada truk di-assign di line itu, bisa juga sisa kemarin | lepas truknya di kartu line, tekan lagi |
+| Sesudah **Pasang sekarang**: "Versi X gagal dinyalakan, sistem kembali ke Y" | versi baru tidak lolos gerbang sehat dan sistem mundur sendiri; versi itu tidak ditawarkan lagi sampai ada versi yang lebih baru | panggil teknisi; tab Log baris "Pembaruan dari konsol"; teknisi memeriksa `autograde logs` |
+| Sesudah **Pasang sekarang**: "Pemasangan versi X gagal. Sistem tetap di Y" | launcher sedang sibuk (mengunduh) atau terhenti, versi baru belum dicoba | tunggu beberapa menit, tombolnya muncul lagi, tekan ulang; kalau berulang panggil teknisi |
+| "Pembaruan X tidak selesai" | penunggu di PC tidak menjawab 20 menit (dicabut, mati, atau PC sibuk) | panggil teknisi: `systemctl status autograde-update.path` dan `journalctl -u autograde-update.service` (`sawit/docs/FACTORY-PC.md`) |
 
 ### 7.1 Janjang yang ditolak konsol
 
@@ -822,6 +843,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.2 | 3 Oktober 2026 | **Update now**: pita kuning "Versi X siap dipasang" untuk semua akun, tombol **Pasang sekarang** di kotak Versi & lisensi (ditolak selama ada truk di-assign), hasil di kotak itu dan di tab Log (§3.2, §6.2), plus empat baris penanganan masalahnya di §7. |
 | 2.1 | 1 Oktober 2026 | §3.2 sampai §3.4 mengikuti layar sekarang: kolom scan QR disembunyikan sampai scanner dipasang, plat dipilih dari daftar, tara lewat tombol **Timbang keluar** di baris tiket (petunjuk di layar kini menyebut nama tombol itu). Scan yang menemukan truk yang belum ada di daftar layar memuat ulang daftarnya dulu, dan truk yang dinonaktifkan disebut nonaktif. Tab Setelan: line yang belum menerima perubahan ditulis dalam bahasa layar. Tabel Rekap tidak lagi melebarkan halaman di layar 1024 px. |
 | 2.0 | 30 September 2026 | Log line dan konsol bertanda jam zona pabrik dan kode line; konsol kini menulis ke `docker logs` dan galat 500 masuk tab Log; PLC, kamera, dan AutoERP yang putus cuma dicatat saat putus dan saat pulih; `LOG_LEVEL` bisa diatur. Tab Log menampilkan galat ketiga line (tetap ada walau line direstart), traceback, dan jam pertama muncul; galat penting bisa dilaporkan otomatis ke Discord. Kartu line merah FRAME_BERHENTI kalau kamera tersambung tapi berhenti mengirim gambar; video uji yang selesai tidak lagi terbaca rusak; satu pita disk di atas kartu saat disk hampir penuh atau kritis; kartu Diagnostik memakai fps terukur, umur frame, disk, lisensi, dan status sambungan PLC. |
 | 1.9 | 29 September 2026 | §3.2: kotak kamera line yang sedang restart memakai bar berjalan, bukan hitungan detik, dan tidak lagi ikut menulis "Kamera tidak tersambung"; strip "Hari ini" berlabel **Data timbangan** (dulu Neto timbangan). Tab Akun: semua tombol aksi selebar sama. Tab Line: empat pilihan membentang selebar panel. |
