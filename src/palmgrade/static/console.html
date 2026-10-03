@@ -179,21 +179,49 @@
      while it fades. z-index 40 - above the dropdown panels (20) so a toast is
      never hidden under an open one, below the sign-in gate (50) so a toast
      can never sit on top of the login screen. */
+  /* Tumpukan ala Sonner (user 2026-10-03, varian richColors), dibangun tangan karena layar
+     ini tanpa npm: toast terbaru di depan, yang lebih lama terlipat di belakangnya (lebih
+     kecil dan naik sedikit, paling banyak tiga terlihat), dan kursor atau fokus di atas
+     tumpukan membukanya jadi daftar sambil menahan hitung mundur semuanya. Posisinya dari
+     variabel yang ditulis `susunToast`: `--urut` (0 = depan), `--offset` (tinggi toast yang
+     lebih baru + jaraknya), `--tinggi` (tinggi aslinya). Cuma transform dan opacity yang
+     bergerak; tinggi berubah sekali saat tumpukan dibuka atau dilipat.
+     Wadahnya setinggi toast depan dan menempel di pojok; kartunya absolut di dasarnya. */
   #toasts { position:fixed; z-index:40; right:var(--pad); bottom:var(--pad);
-            display:flex; flex-direction:column-reverse; gap:8px;
-            width:min(24rem, calc(100vw - 2 * var(--pad)));
-            pointer-events:none; }
+            width:min(24rem, calc(100vw - 2 * var(--pad))); height:var(--tinggi-depan, 0px);
+            pointer-events:none; --jarak:14px; }
   /* `align-items:center` (user 2026-10-02): rata atas membuat kalimat satu baris menempel
      di tepi atas, jauh dari tengah tombol ×. Di tengah, satu baris dan banyak baris sama rapi. */
-  .toast { pointer-events:auto; display:flex; align-items:center; gap:10px;
+  .toast { position:absolute; left:0; right:0; bottom:0; box-sizing:border-box;
+           pointer-events:auto; display:flex; align-items:center; gap:10px;
            padding:12px 14px; border-radius:var(--r-sm); border:1px solid;
            box-shadow:var(--tinggi-2); font-weight:600; line-height:1.35;
            /* Slightly transparent on purpose - it must never fully hide
               whatever card or feed sits behind it while it is up. Opaque text
               on a translucent card: the background is see-through, the
               message is not. */
-          opacity:.94; animation:toast-masuk .2s ease backwards; }
-  @keyframes toast-masuk { from { opacity:0; transform:translateY(6px); } }
+           opacity:.94; touch-action:pan-y;
+           transform:translateY(calc(var(--urut, 0) * -1 * var(--jarak))) scale(calc(1 - var(--urut, 0) * .05));
+           translate:var(--geser, 0px) 0;
+           transition:transform .4s cubic-bezier(.21,1.02,.73,1), opacity .3s ease,
+                      height .4s cubic-bezier(.21,1.02,.73,1), translate .2s ease; }
+  /* Terlipat: kartu di belakang setinggi kartu depan dan isinya tidak terlihat, seperti
+     Sonner; yang mengintip cuma tepi atasnya. */
+  #toasts:not([data-terbuka]) .toast[data-belakang] { height:var(--tinggi-depan); }
+  #toasts:not([data-terbuka]) .toast[data-belakang] > * { opacity:0; pointer-events:none; }
+  .toast > * { transition:opacity .3s ease; }
+  /* Terbuka: daftar biasa, tiap kartu setinggi aslinya. Pengisi celah di bawah kartu
+     belakang (`::after`) menjaga kursor tetap "di atas tumpukan" saat melewati celahnya;
+     kartu depan tidak punya, jadi area kosong di sekitar tumpukan tetap tembus klik. */
+  #toasts[data-terbuka] .toast { transform:translateY(calc(-1 * var(--offset, 0px))); height:var(--tinggi); }
+  #toasts[data-terbuka] .toast[data-belakang]::after { content:""; position:absolute; left:0; right:0;
+                                                       top:100%; height:calc(var(--jarak) + 1px); }
+  .toast[data-sembunyi] { opacity:0; pointer-events:none; }
+  #toasts .toast[data-masuk] { transform:translateY(100%); opacity:0; }
+  .toast[data-keluar] { opacity:0; pointer-events:none; }
+  .toast[data-keluar-geser] { translate:110% 0; }
+  .toast[data-geser] { transition:none; }
+  .toast .ikon-toast { flex:none; width:1.25rem; height:1.25rem; }
   /* `min-width:0` wajib: item flex menolak menyusut di bawah lebar isinya,
      jadi satu kata panjang — jalur berkas rekaman, misalnya — mendorong toast
      melewati tepi layar dan bagian yang paling perlu dibaca justru terpotong.
@@ -4120,10 +4148,21 @@ const TOAST_PALING_LAMA_MS = 10000;
 // berubah, dan tanpa batas ini toast-nya tidak pernah tertutup.
 const TOAST_UMUR_MAKS_MS = 30000;
 const TOAST_DURASI = { sukses: 5000, peringatan: 5000, gagal: TOAST_PALING_LAMA_MS };
-// More than this and the stack would climb high enough to cover the tab
-// table underneath it - four is as many as fit in the corner without that,
-// even during a run of rapid manual rejects.
+// Toasts kept on the page at once; the oldest goes first. Since the Sonner-style stack
+// (2026-10-03) only TOAST_TERLIHAT of them show, the rest wait folded away behind.
 const TOAST_MAKS = 4;
+const TOAST_TERLIHAT = 3;
+// Jarak antarkartu saat tumpukan terbuka (sama dengan `--jarak` di CSS), lama animasi keluar,
+// dan seberapa jauh kartu digeser ke kanan sebelum dilepas dianggap "buang".
+const TOAST_JARAK_PX = 14;
+const TOAST_KELUAR_MS = 300;
+const TOAST_GESER_PX = 80;
+// Ikon per jenis, SVG di tempat (tanpa font ikon, tanpa CDN), warnanya ikut teks toast.
+const IKON_TOAST = {
+  sukses: '<path d="M10 1.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Zm4.1 6.3-4.9 5.6a.9.9 0 0 1-1.3.1L5.6 11a.9.9 0 1 1 1.2-1.3l1.6 1.5 4.3-4.9a.9.9 0 0 1 1.4 1.2Z"/>',
+  peringatan: '<path d="M11.3 2.6a1.5 1.5 0 0 0-2.6 0L1.4 15.3A1.5 1.5 0 0 0 2.7 17.5h14.6a1.5 1.5 0 0 0 1.3-2.2L11.3 2.6ZM10 6.5a.9.9 0 0 1 .9.9v4a.9.9 0 1 1-1.8 0v-4a.9.9 0 0 1 .9-.9Zm0 8.8a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2Z"/>',
+  gagal: '<path d="M10 1.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Zm0 4a.9.9 0 0 1 .9.9v4.2a.9.9 0 1 1-1.8 0V6.4a.9.9 0 0 1 .9-.9Zm0 9.1a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2Z"/>',
+};
 
 // `durasi` 0 (dipakai hasil Danger Zone yang harus dibaca) = paling lama, 10
 // detik. Angka di atas batas itu juga dipotong ke 10 detik.
@@ -4131,12 +4170,12 @@ function durasiToast(durasi) {
   return durasi > 0 ? Math.min(durasi, TOAST_PALING_LAMA_MS) : TOAST_PALING_LAMA_MS;
 }
 
-// Hitung mundur yang berhenti selama kursor di atas toast dan jalan lagi dari
-// sisanya saat kursor pergi. Layar sentuh tidak punya hover: di sana toast
-// tetap tertutup tepat waktunya. Apa pun yang terjadi dengan kursor, toast
-// tertutup paling lambat TOAST_UMUR_MAKS_MS sesudah muncul. Mengembalikan
-// `tutup`, untuk tombol ×.
-function hitungMundurToast(el, ms, hapus) {
+// Hitung mundur yang bisa ditahan dan dilanjutkan dari sisanya: tumpukan menahan semua
+// toast-nya selama kursor atau fokus ada di atasnya (`pasangTumpukanToast`). Layar sentuh
+// tidak punya hover: di sana toast tetap tertutup tepat waktunya. Apa pun yang terjadi
+// dengan kursor, toast tertutup paling lambat TOAST_UMUR_MAKS_MS sesudah muncul.
+// Mengembalikan { tutup, tahan, lanjut }; `tutup` dipakai tombol × dan geser.
+function hitungMundurToast(ms, hapus) {
   let sisa = ms;
   let mulai = Date.now();
   let selesai = false;
@@ -4150,38 +4189,131 @@ function hitungMundurToast(el, ms, hapus) {
   };
   const umur = setTimeout(tutup, TOAST_UMUR_MAKS_MS);
   timer = setTimeout(tutup, sisa);
-  el.addEventListener("mouseenter", () => {
+  const tahan = () => {
     if (selesai || timer === null) return;
     clearTimeout(timer);
     timer = null;
     sisa -= Date.now() - mulai;
-  });
-  el.addEventListener("mouseleave", () => {
+  };
+  const lanjut = () => {
     if (selesai || timer !== null) return;
     mulai = Date.now();
     timer = setTimeout(tutup, sisa);
+  };
+  return { tutup, tahan, lanjut };
+}
+
+const gerakDikurangi = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Posisi tiap toast di tumpukan, terbaru di depan. Cuma menulis variabel CSS dan atribut;
+// tingginya diukur sekali saat toast dibuat (`_tinggi`), jadi tidak ada baca-tulis tata
+// letak bergantian di sini.
+function susunToast() {
+  const wadah = $("toasts");
+  const kartu = [...wadah.querySelectorAll(".toast:not([data-keluar])")].reverse();
+  let offset = 0;
+  kartu.forEach((el, i) => {
+    el.style.setProperty("--urut", String(i));
+    el.style.setProperty("--offset", `${offset}px`);
+    el.style.setProperty("--tinggi", `${el._tinggi}px`);
+    el.style.zIndex = String(kartu.length - i);
+    el.toggleAttribute("data-belakang", i > 0);
+    el.toggleAttribute("data-sembunyi", i >= TOAST_TERLIHAT);
+    offset += el._tinggi + TOAST_JARAK_PX;
   });
-  return tutup;
+  wadah.style.setProperty("--tinggi-depan", `${kartu.length ? kartu[0]._tinggi : 0}px`);
+  if (!kartu.length) bukaTumpukanToast(false);
+}
+
+// Keluar dengan memudar (atau terlempar ke kanan sesudah digeser), lalu dibuang. Tanpa
+// animasi (`prefers-reduced-motion`) langsung dibuang.
+function lepasToast(el) {
+  if (el.hasAttribute("data-keluar")) return;
+  el.setAttribute("data-keluar", "");
+  susunToast();
+  if (gerakDikurangi()) el.remove();
+  else setTimeout(() => el.remove(), TOAST_KELUAR_MS);
+}
+
+// Geser ke kanan untuk membuang (pointer events: mouse, sentuh, pena). Ke kiri tidak
+// bergerak. Dilepas sebelum TOAST_GESER_PX kembali ke tempatnya.
+function pasangGeserToast(el, tutup) {
+  let awalX = null;
+  let dx = 0;
+  el.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0 || ev.target.closest(".tutup")) return;
+    awalX = ev.clientX;
+    dx = 0;
+    el.setPointerCapture(ev.pointerId);
+    el.setAttribute("data-geser", "");
+  });
+  el.addEventListener("pointermove", (ev) => {
+    if (awalX === null) return;
+    dx = Math.max(0, ev.clientX - awalX);
+    el.style.setProperty("--geser", `${dx}px`);
+  });
+  const lepas = () => {
+    if (awalX === null) return;
+    awalX = null;
+    el.removeAttribute("data-geser");
+    if (dx >= TOAST_GESER_PX) {
+      el.setAttribute("data-keluar-geser", "");
+      tutup();
+    } else {
+      el.style.setProperty("--geser", "0px");
+    }
+  };
+  el.addEventListener("pointerup", lepas);
+  el.addEventListener("pointercancel", lepas);
+}
+
+// Tumpukan terbuka (daftar) atau terlipat. Terbuka = semua hitung mundur ditahan.
+function bukaTumpukanToast(buka) {
+  const wadah = $("toasts");
+  if (buka === wadah.hasAttribute("data-terbuka")) return;
+  wadah.toggleAttribute("data-terbuka", buka);
+  wadah.querySelectorAll(".toast").forEach((el) => {
+    if (el._hitung) (buka ? el._hitung.tahan : el._hitung.lanjut)();
+  });
 }
 
 function toast(kind, text, durasi = TOAST_DURASI[kind]) {
   if (!text) return;
   const wadah = $("toasts");
-  while (wadah.children.length >= TOAST_MAKS) wadah.firstElementChild.remove();
+  const hidup = () => wadah.querySelectorAll(".toast:not([data-keluar])");
+  while (hidup().length >= TOAST_MAKS) hidup()[0].remove();
   const el = document.createElement("div");
   el.className = `toast ${kind}`;
   el.setAttribute("role", kind === "gagal" ? "alert" : "status");
-  el.innerHTML = `<span class="pesan"></span><button type="button" class="tutup" aria-label="${esc(t("toastTutup"))}">&times;</button>`;
+  el.setAttribute("data-masuk", "");
+  el.innerHTML = `<svg class="ikon-toast" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">${IKON_TOAST[kind] || ""}</svg>`
+    + `<span class="pesan"></span><button type="button" class="tutup" aria-label="${esc(t("toastTutup"))}">&times;</button>`;
   el.querySelector(".pesan").textContent = text;
-  const hapus = () => el.remove();
-  // × memakai `tutup`: kedua timer (sisa dan umur maksimal) ikut dibersihkan.
-  const tutup = hitungMundurToast(el, durasiToast(durasi), hapus);
-  el.querySelector(".tutup").addEventListener("click", tutup);
   wadah.append(el);
+  // Satu baca tata letak per toast baru: tinggi aslinya, untuk tumpukan yang terbuka. Baca
+  // ini juga yang membuat browser menggambar posisi `data-masuk` dulu, jadi animasi masuknya
+  // jalan begitu atribut itu dicabut.
+  el._tinggi = el.getBoundingClientRect().height;
+  // × dan geser memakai `tutup`: kedua timer (sisa dan umur maksimal) ikut dibersihkan.
+  const hitung = hitungMundurToast(durasiToast(durasi), () => lepasToast(el));
+  el._hitung = hitung;
+  if (wadah.hasAttribute("data-terbuka")) hitung.tahan();
+  el.querySelector(".tutup").addEventListener("click", hitung.tutup);
+  pasangGeserToast(el, hitung.tutup);
+  el.removeAttribute("data-masuk");
+  susunToast();
 }
 const toastSukses = (text) => toast("sukses", text);
 const toastGagal = (text) => toast("gagal", text);
 const toastPeringatan = (text) => toast("peringatan", text);
+// Kursor atau fokus di atas tumpukan membukanya (ala Sonner). Wadahnya `pointer-events:none`,
+// tapi mouseenter dan mouseleave tetap sampai ke wadah lewat kartu-kartunya.
+$("toasts").addEventListener("mouseenter", () => bukaTumpukanToast(true));
+$("toasts").addEventListener("mouseleave", () => bukaTumpukanToast($("toasts").contains(document.activeElement)));
+$("toasts").addEventListener("focusin", () => bukaTumpukanToast(true));
+$("toasts").addEventListener("focusout", (ev) => {
+  if (!$("toasts").contains(ev.relatedTarget)) bukaTumpukanToast($("toasts").matches(":hover"));
+});
 
 // Tombol yang memanggil server dikunci sampai jawabannya datang: klik kedua di
 // tengah proses tidak menjalankan pekerjaan kedua, dan spinner di tombolnya
