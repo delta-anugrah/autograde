@@ -18,6 +18,23 @@ Next:           ...
 
 ---
 
+## 2026-10-03 · console · Automatic assignment takes the Update now lock (PR #TBD)
+Changed:        Manual Tugaskan went through `PembaruanService.menugaskan(line)` (rule 38), but the
+                automatic paths from #214 (after a weigh-in, after Lepas, Tugaskan sekarang) did not:
+                a truck weighed in during an install could be put on a line about to restart. Now
+                `PenugasanOtomatis` holds an optional guard (`pakai_penjaga_pembaruan`, wired in
+                `console_deps.get_console_service` with the same singleton the install route uses):
+                while an install runs the truck stays queued and Tugaskan sekarang answers 409
+                `pembaruan_berjalan`; otherwise every automatic assign registers per line, so an
+                install that starts meanwhile sees it in flight. Found while preparing the release
+                after #214 (the v1.22.0 release PR had flagged it). Rules 38 text, backend-overview.
+Validated:      `pytest tests/unit tests/e2e tests/integration` → 4994 passed, 48 skipped;
+                `ruff check src tests scripts` → All checks passed.
+Not validated:  No browser change; browser suite runs in CI.
+Risks:          A queued truck waits after the restart until the next weigh-in, Lepas or Tugaskan
+                sekarang; it is not put on the lines at start-up.
+Next:           Release staging to main.
+
 ## 2026-10-03 · console · Merge staging (PR #215 Update now) into the gate scan branch (PR #214)
 Changed:        PR #208 merged first; PR #212 is merged through this PR (it is fully inside it), so its
                 conflicts with #215 were resolved once. Rule numbers: 36 automatic assignment, 37

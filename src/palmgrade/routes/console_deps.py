@@ -98,7 +98,7 @@ def get_console_service() -> ConsoleService:
             else (lambda visit_id: None)
         ),
     )
-    return ConsoleService(
+    service = ConsoleService(
         settings,
         store,
         LineClient(settings),
@@ -106,6 +106,10 @@ def get_console_service() -> ConsoleService:
         manifest_queue=manifest_worker,
         status_sinkron=status_sinkron,
     )
+    # Automatic assignment takes the same Update now lock as manual Tugaskan (rules 36, 38):
+    # the SAME singleton the install route reads, or the two would not see each other.
+    service.pakai_penjaga_pembaruan(get_pembaruan_service())
+    return service
 
 
 @lru_cache

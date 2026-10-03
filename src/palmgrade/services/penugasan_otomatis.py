@@ -12,8 +12,9 @@ import logging
 import threading
 import time
 from collections.abc import Awaitable, Callable
+from contextlib import AbstractAsyncContextManager
 from datetime import datetime
-from typing import Any
+from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
 from ..core.config import LineEndpoint
@@ -24,6 +25,7 @@ from ..domain.operator_error import (
     PENUGASAN_TANPA_LINE,
     InvalidInput,
 )
+from ..domain.pembaruan import PembaruanBerjalan
 from ..domain.penugasan_line import (
     JENDELA_ANTREAN_BONGKAR,
     KUNCI_PENUGASAN,
@@ -42,8 +44,19 @@ from ..repositories.console_repository import ConsoleStore
 logger = logging.getLogger(__name__)
 
 
+class PenjagaPembaruan(Protocol):
+    """What automatic assignment needs from `PembaruanService` (Update now, rule 38)."""
+
+    def sedang_berjalan(self) -> bool: ...
+
+    def menugaskan(self, line_code: str) -> AbstractAsyncContextManager[None]: ...
+
+
 class PenugasanOtomatis:
     """Provided by `ConsoleService`: the attributes below, `assign_truck` and `release_truck`."""
+
+    # Update now (rule 38). None where no install can run (tests, tools): assign as before.
+    _penjaga_pembaruan: PenjagaPembaruan | None = None
 
     store: ConsoleStore
     lines: tuple[LineEndpoint, ...]
@@ -55,6 +68,18 @@ class PenugasanOtomatis:
     _kunci_antrean: threading.Lock
     assign_truck: Callable[[str, str], Awaitable[dict[str, Any]]]
     release_truck: Callable[[str], Awaitable[dict[str, Any]]]
+
+    def pakai_penjaga_pembaruan(self, penjaga: PenjagaPembaruan) -> None:
+        """Wired by the composition root (`console_deps.get_console_service`).
+
+        Manual Tugaskan already goes through `penjaga.menugaskan(line)`; the automatic paths
+        must too, or a truck weighed in during an install lands on a line about to restart.
+        """
+        self._penjaga_pembaruan = penjaga
+
+    async def _pembaruan_berjalan(self) -> bool:
+        penjaga = self._penjaga_pembaruan
+        return bool(penjaga) and await asyncio.to_thread(penjaga.sedang_berjalan)
 
     def _kode_line(self) -> list[str]:
         return [ln.line_code for ln in self.lines]
@@ -135,6 +160,11 @@ class PenugasanOtomatis:
             if not setelan.aktif:
                 return []
             async with self._kunci_penugasan:
+                if await self._pembaruan_berjalan():
+                    # The truck stays queued and goes on after the restart (next weighing,
+                    # Lepas or Tugaskan sekarang), never onto a line that is about to restart.
+                    logger.info("Penugasan otomatis ditahan: pembaruan sedang dipasang")
+                    return []
                 sejak = self._sejak_antrean()
                 antrean = self.store.unloading_queue(sejak)
                 if not antrean:
@@ -144,6 +174,10 @@ class PenugasanOtomatis:
                 if line_sibuk(setelan.lines, pegangan, terbuka):
                     return []
                 return await self._pasang(antrean[0], setelan.lines, pegangan, terbuka, sejak)
+        except PembaruanBerjalan:
+            # An install started between the check and a line's assign (menugaskan refused).
+            logger.info("Penugasan otomatis berhenti: pembaruan mulai dipasang")
+            return []
         except Exception:
             logger.exception("Penugasan line otomatis gagal; truk tetap di antrean bongkar")
             return []
@@ -158,6 +192,8 @@ class PenugasanOtomatis:
         """
         setelan = self._setelan_penugasan()
         async with self._kunci_penugasan:
+            if await self._pembaruan_berjalan():
+                raise PembaruanBerjalan()
             antre = self._di_antrean(weighing_id)
             sejak = self._sejak_antrean()
             if not setelan.lines:
@@ -277,7 +313,11 @@ class PenugasanOtomatis:
 
     async def _pasang_satu(self, line_code: str, antre: dict[str, Any]) -> dict[str, Any]:
         try:
-            await self.assign_truck(line_code, antre["truck_id"])
+            if (penjaga := self._penjaga_pembaruan) is None:
+                await self.assign_truck(line_code, antre["truck_id"])
+            else:
+                async with penjaga.menugaskan(line_code):
+                    await self.assign_truck(line_code, antre["truck_id"])
         except (LineUnavailable, HapusBerjalan) as exc:
             logger.warning(
                 "Line %s tidak menerima truk %s otomatis (%s); tugaskan manual di kartunya",

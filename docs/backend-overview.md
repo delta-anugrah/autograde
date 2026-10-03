@@ -312,7 +312,7 @@ membaca dan menulis tiga berkas kecil di `UPDATE_DIR`; penunggu systemd di host 
 | GET | `/api/console/update` | `{terpasang, versi_jalan, siap, berjalan, hasil}`; sama dengan kunci `pembaruan` di `/api/console/state` |
 | POST | `/api/console/update/install` | `{target}` = versi yang dilihat operator → **202** `{id, target}` (penanda tertulis). **409** `pembaruan_ada_truk` (`params.line` = kode line, dipisah koma), `pembaruan_tidak_ada` (target bukan versi siap), `pembaruan_berjalan`; **503** `pembaruan_belum_terpasang` (tidak ada penunggu); **500** folder tidak bisa ditulis |
 
-`assign-truck` menjawab **409** `pembaruan_berjalan` selama pemasangan berjalan.
+`assign-truck` dan `unloading-queue/{weighing_id}/assign` menjawab **409** `pembaruan_berjalan` selama pemasangan berjalan; penugasan otomatis sesudah timbang isi atau Lepas menahan truk di antrean bongkar sampai pemasangan selesai.
 
 `pembaruan`: `terpasang` = `status.json` ada dengan `watcher: true`; `versi_jalan` = `APP_VERSION`
 konsol (bukan berkas); `siap` = versi yang boleh dipasang atau `null`; `berjalan` = penanda belum
