@@ -1273,7 +1273,11 @@ end of this file.
     `pembaruan_ada_truk` selama ada truk di-assign di line mana pun**, termasuk truk yang lupa
     dilepas sejak hari kerja lalu (sumber `assignments`): pemasangan me-restart konsol dan
     ketiga line. Sebaliknya assign-truck ditolak 409 `pembaruan_berjalan` selama pemasangan
-    berjalan. Install memegang `PembaruanService.kunci` (satu `asyncio.Lock`) selama periksa dan
+    berjalan. Penugasan otomatis (aturan 36) memakai kunci yang sama (2026-10-03): selama
+    pemasangan truk yang timbang isi tetap di antrean bongkar, **Tugaskan sekarang** ditolak 409
+    `pembaruan_berjalan`, dan tiap line yang ditugaskan otomatis lewat `menugaskan` seperti
+    tombol manual (`PenugasanOtomatis.pakai_penjaga_pembaruan`, dipasang di
+    `console_deps.get_console_service` dengan singleton yang sama). Install memegang `PembaruanService.kunci` (satu `asyncio.Lock`) selama periksa dan
     tulis penanda; assign memegangnya cuma untuk mendaftar diri (`menugaskan`), lalu memanggil
     line TANPA kunci, dan line yang assign-nya belum dijawab ikut menolak install. Jadi tidak ada
     celah antara "tidak ada truk" dan penanda mendarat, dan line mati (10 detik) tidak membuat

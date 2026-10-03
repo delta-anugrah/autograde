@@ -195,3 +195,27 @@ def test_jalur_antrean_tertutup_tanpa_sesi(konsol):
     assert client.post("/api/console/unloading-queue/x/skip").status_code == 401
     assert client.get("/api/console/dev/auto-assign").status_code == 401
     assert client.post("/api/console/dev/auto-assign", json={}).status_code == 401
+
+
+class _PembaruanBerjalan:
+    """An Update now install in progress (rule 38): every assign is refused."""
+
+    def sedang_berjalan(self) -> bool:
+        return True
+
+    def menugaskan(self, line_code):
+        raise AssertionError("no assign may even start while an install runs")
+
+
+def test_selama_pembaruan_truk_menunggu_dan_tugaskan_sekarang_409(konsol):
+    """Automatic assignment takes the Update now lock like manual Tugaskan (2026-10-03)."""
+    app, service = konsol
+    service.pakai_penjaga_pembaruan(_PembaruanBerjalan())
+    sup = _masuk(app, SUPPORT)
+    assert sup.post("/api/console/dev/auto-assign", json={"aktif": True, "lines": ["line-1"]}).status_code == 200
+    op = _masuk(app, OPERATOR)
+    assert _isi(op, "BE 1 AA")["dipasang"] == []
+    antrean = op.get("/api/console/state").json()["antrean_bongkar"]
+    assert [a["plate_number"] for a in antrean] == ["BE 1 AA"]
+    r = op.post(f"/api/console/unloading-queue/{antrean[0]['weighing_id']}/assign")
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "pembaruan_berjalan", r.text
