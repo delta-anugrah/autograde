@@ -229,3 +229,27 @@ def boleh_pasang(keadaan: KeadaanPembaruan, target: str, bertruk: list[str]) -> 
 
 def isi_permintaan(id_: str, target: str, oleh: str, sekarang: datetime) -> dict:
     return {"schema": SKEMA, "id": id_, "target": target, "by": oleh, "at": sekarang.isoformat()}
+
+
+# What reaches the Log tab (it stores WARNING and above) for each final outcome. A failure
+# is ERROR so it also reaches the Discord digest (rule 34): someone has to come and look.
+_LOG_HASIL = {
+    "ok": ("WARNING", "Pembaruan dari konsol: versi {target} terpasang"),
+    "nothing": ("WARNING", "Pembaruan dari konsol: {target} tidak dipasang, versi itu tidak siap di PC"),
+    "rolled_back": ("ERROR", "Pembaruan dari konsol: versi {target} gagal dinyalakan, sistem kembali ke {installed}"),
+    "failed": (
+        "ERROR",
+        "Pembaruan dari konsol: versi {target} tidak dicoba (launcher sibuk atau terhenti), tetap {installed}",
+    ),
+    "timeout": ("ERROR", "Pembaruan dari konsol: {target} tidak dijawab penunggu di PC dalam {menit} menit"),
+}
+
+
+def baris_log_hasil(hasil: dict | None) -> tuple[str, str] | None:
+    """(level, message) for the Log tab, or None when there is nothing final to report."""
+    if not hasil or hasil.get("state") not in _LOG_HASIL:
+        return None
+    level, pola = _LOG_HASIL[hasil["state"]]
+    return level, pola.format(
+        target=hasil.get("target") or "-", installed=hasil.get("installed") or "-", menit=BATAS_TUNGGU_S // 60
+    )

@@ -187,3 +187,21 @@ def test_hasil_kontrak_launcher_terurai():
     h = p.urai_hasil(teks)
     assert (h.id, h.state, h.target, h.installed) == ("r-1", "rolled_back", "v1.22.1", "v1.22.0")
     assert p.urai_hasil(teks.replace("rolled_back", "aneh")) is None
+
+
+# ── log line for the Log tab (user decision 4: outcome on screen and in the Log tab) ──
+
+
+def test_baris_log_hasil_gagal_naik_error_berhasil_warning():
+    def h(state, installed="v1.22.0"):
+        return {"state": state, "target": "v1.22.1", "installed": installed, "at": "2026-10-20T08:04:00+07:00"}
+
+    assert p.baris_log_hasil(h("ok", "v1.22.1"))[0] == "WARNING"
+    assert p.baris_log_hasil(h("nothing"))[0] == "WARNING"
+    for state in ("rolled_back", "failed", "timeout"):
+        level, pesan = p.baris_log_hasil(h(state))
+        assert level == "ERROR", state
+        assert "v1.22.1" in pesan, state
+    assert "v1.22.0" in p.baris_log_hasil(h("rolled_back"))[1]
+    assert p.baris_log_hasil(None) is None
+    assert p.baris_log_hasil(h("running")) is None

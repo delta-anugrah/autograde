@@ -130,3 +130,48 @@ def test_status_dari_launcher_dibaca(tmp_path, svc):
     )
     keadaan = svc.keadaan()
     assert (keadaan.terpasang, keadaan.siap) == (True, "v1.22.1")
+
+
+def _hasil_rollback(folder):
+    (folder / HASIL).write_text(
+        '{"schema": 1, "id": "r-1", "state": "rolled_back", "target": "v1.22.1", '
+        '"installed": "v1.22.0", "at": "2026-10-20T08:04:00+07:00"}\n'
+    )
+
+
+def _baris(caplog, level):
+    return [r for r in caplog.records if r.name.endswith("pembaruan_service") and r.levelname == level]
+
+
+def test_permintaan_tercatat_di_tab_log_dengan_nama_penekan(tmp_path, svc, caplog):
+    # The Log tab stores WARNING and above only (SqliteLogHandler).
+    _status(tmp_path)
+    svc.pasang("v1.22.1", [], "op@pks.test")
+    assert any("op@pks.test" in r.getMessage() for r in _baris(caplog, "WARNING"))
+
+
+def test_hasil_tercatat_sekali_walau_konsol_restart(tmp_path, svc, caplog):
+    _status(tmp_path)
+    svc.pasang("v1.22.1", [], "op@pks.test")
+    _hasil_rollback(tmp_path)
+    svc.keadaan()
+    svc.keadaan()
+    # The install restarts the console: a new process reads the same result.json.
+    PembaruanService(tmp_path, lambda: "v1.22.0", lambda: JAM).keadaan()
+    error = _baris(caplog, "ERROR")
+    assert len(error) == 1, [r.getMessage() for r in error]
+    assert "v1.22.1" in error[0].getMessage()
+
+
+def test_folder_hanya_baca_tetap_mencatat_tanpa_crash(tmp_path, svc, caplog, monkeypatch):
+    _status(tmp_path)
+    svc.pasang("v1.22.1", [], "op@pks.test")
+    _hasil_rollback(tmp_path)
+
+    def menolak(*_a, **_k):
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(svc, "_tulis_atomik", menolak)
+    assert svc.keadaan().hasil["state"] == "rolled_back"
+    svc.keadaan()
+    assert len(_baris(caplog, "ERROR")) == 1
