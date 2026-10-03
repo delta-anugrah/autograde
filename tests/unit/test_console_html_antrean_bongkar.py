@@ -29,6 +29,7 @@ KUNCI_BARU = (
     "btnTugaskanSekarang",
     "btnLewati",
     "konfirmasiLewati",
+    "konfirmasiLewatiJudul",
     "sukLewati",
     "sukDitugaskanOtomatis",
     "tugaskanGagalLine",
@@ -111,7 +112,8 @@ def test_tombol_antrean_memakai_jalur_baru_dan_terkunci():
     blok = HTML[awal : HTML.index("\n});", awal)]
     assert "/api/console/unloading-queue/" in blok and "/assign" in blok and "/skip" in blok
     assert "denganSibuk(" in blok
-    assert "confirm(" in blok, "Lewati harus ditanya dulu"
+    assert "tanyaKonfirmasi(" in blok, "Lewati harus ditanya dulu"
+    assert "bahaya: true" in blok, "Lewati mengeluarkan truk dari antrean: konfirmasinya merah"
 
 
 def test_jawaban_timbang_tara_dan_lepas_diumumkan():

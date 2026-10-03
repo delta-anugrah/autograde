@@ -192,14 +192,22 @@ def test_assign_now_is_refused_while_the_lines_still_sort(halaman, konsol, brows
 def test_skip_asks_first_and_takes_the_truck_out_of_the_queue(halaman, konsol, browser_name, penugasan_bersih):
     a, b = _a_di_line_b_antre(halaman, konsol, browser_name, 1106, 1107)
     lewati = _antre(halaman, b).locator('button[data-aksi="lewati"]')
-    pesan: list[str] = []
-    halaman.once("dialog", lambda d: (pesan.append(d.message), d.dismiss()))
+    bawaan: list[str] = []
+    halaman.on("dialog", lambda d: (bawaan.append(d.message), d.dismiss()))
+    # The in-page dialog (2026-10-03), never the browser's own box.
+    dialog = halaman.locator("#konfirmasi-modal")
     lewati.click()
+    expect(dialog).to_be_visible()
+    expect(dialog.locator("#konfirmasi-judul")).to_contain_text(b)
+    expect(dialog.locator("#konfirmasi-ya")).to_have_text(kamus(halaman, "btnLewati"))
+    expect(dialog.locator("#konfirmasi-ya")).to_have_class(re.compile(r"\bbahaya\b.*\bpekat\b"))
+    halaman.click("#konfirmasi-tidak")
+    expect(dialog).to_be_hidden()
     expect(_antre(halaman, b)).to_be_visible()
-    assert pesan and b in pesan[0], pesan
 
-    halaman.once("dialog", lambda d: d.accept())
     lewati.click()
+    halaman.click("#konfirmasi-ya")
+    expect(dialog).to_be_hidden()
     expect(halaman.locator("#toasts")).to_contain_text(kamus(halaman, "sukLewati").replace("{truk}", b))
     expect(halaman.locator("#antrean-bongkar")).to_be_hidden()
 
@@ -211,6 +219,7 @@ def test_skip_asks_first_and_takes_the_truck_out_of_the_queue(halaman, konsol, b
         expect(_kartu(halaman, kode).locator(".truk")).not_to_contain_text(b)
     expect(halaman.locator("#toasts")).not_to_contain_text(_ditugaskan(halaman, b, _DUA_LINE))
     _kosong(halaman, b)
+    assert not bawaan, bawaan
 
 
 def test_lepas_on_the_last_line_puts_the_next_truck_on(halaman, konsol, browser_name, penugasan_bersih):
@@ -288,8 +297,8 @@ def test_the_operator_works_the_strip(halaman, konsol, browser_name, penugasan_b
     expect(toasts).to_contain_text(kamus(halaman, "err_line_semua_terpakai"))
     expect(_antre(halaman, b)).to_be_visible()
 
-    halaman.once("dialog", lambda d: d.accept())
     _antre(halaman, b).locator('button[data-aksi="lewati"]').click()
+    halaman.click("#konfirmasi-ya")
     expect(toasts).to_contain_text(kamus(halaman, "sukLewati").replace("{truk}", b))
     expect(strip).to_be_hidden()
 

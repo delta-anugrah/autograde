@@ -160,54 +160,44 @@ def test_halaman_tidak_pernah_membaca_cookie():
 
 
 def _blok_klik_piston() -> str:
-    """The body of the `data-aksi === "piston"` branch in the delegated click
-    handler — from its own `else if` guard up to (not including) the next
-    branch's guard.
+    """The delegated click handler of the line cards, from the piston question up to (not
+    including) the manual-reject fallback, the last branch in the chain.
 
-    Slicing on the guard STRING (not a fixed character count) means the slice
-    boundary moves with the code: it starts exactly where the piston branch's
-    condition is written and ends exactly where the next `} else {` (the
-    manual-reject fallback, the last branch in the chain) begins. Bunches of
-    unrelated code before (`tugaskan`, `lepas`) can never leak in because the
-    split point is *after* them; the reject fallback after the piston branch
-    can never leak in because the split point on `} else {` is *before* it.
+    Since 2026-10-03 the question is the in-page dialog `tanyaKonfirmasi`, asked at the top of
+    the handler BEFORE the button is locked (so the focus can come back to it); the piston
+    branch further down only sends the command. Slicing on the guard string, not on a
+    character count, moves the slice with the code.
     """
-    setelah_guard = HTML.split('tombol.dataset.aksi === "piston"', 1)[1]
-    return setelah_guard.split("} else {", 1)[0]
+    awal = HTML.index('$("lines").addEventListener("click"')
+    setelah = HTML[awal:].split('if (tombol.dataset.aksi === "piston") {', 1)[1]
+    return setelah.split("} else {", 1)[0]
 
 
 def test_membuka_lewat_dialog_menutup_langsung():
     # Opening moves metal: it must ask first. Closing returns to the safe
-    # state: it must never be blocked by anything, confirm() included.
+    # state: it must never be blocked by anything, a dialog included.
     blok = _blok_klik_piston()
 
-    # (a) Opening requires confirmation. There must be exactly one confirm()
-    # in the branch, and it must be reached only when `buka` (open) is true -
-    # a version that wrapped the WHOLE branch (open and close alike) behind
-    # one `if (buka ...) confirm(...)` would still contain both the strings
-    # "confirm(" and "buka", so the guard's shape is checked, not just its
-    # presence.
-    assert blok.count("confirm(") == 1, "harus ada tepat satu confirm() di cabang piston"
-    sebelum_confirm = blok.split("confirm(", 1)[0]
-    assert re.search(r"if\s*\(\s*buka\s*&&", sebelum_confirm), (
-        "confirm() harus dijaga oleh `if (buka && ...)` - kalau tidak, "
-        "menutup piston (buka=false) ikut kena dialog juga"
+    # (a) Opening requires confirmation, exactly once, and only when `buka`
+    # (open) is true: a version that wrapped open and close alike behind one
+    # dialog would still contain both strings, so the guard's shape is checked.
+    assert blok.count("tanyaKonfirmasi(") == 1, "exactly one question for the piston"
+    sebelum = blok.split("tanyaKonfirmasi(", 1)[0]
+    assert re.search(r"if\s*\(\s*buka\s*&&", sebelum), (
+        "the question must be guarded by `if (buka && ...)`, or closing asks too"
+    )
+    assert blok.index("tanyaKonfirmasi(") < blok.index("tombol.disabled = true"), (
+        "ask before the button is locked, or the focus cannot return to it"
     )
 
-    # (b) Closing is instant: past that one guard line, the call that reaches
-    # the server is not wrapped in any further `if (buka` condition. Cutting
-    # the branch right after the guard's early-return (`return;`) isolates
-    # exactly the code both open (once confirmed) and close fall through to -
-    # a second `if (buka ...)` gating the API call there would mean closing
-    # silently does nothing, which "confirm(" being merely absent would not
-    # catch.
-    setelah_guard = blok.split("confirm(", 1)[1]
-    setelah_return = setelah_guard.split("return;", 1)[1]
-    assert "api(" in setelah_return, "cabang piston tidak pernah memanggil endpoint"
-    jalur_bersama = setelah_return.split("api(", 1)[0]
-    assert "if (buka" not in jalur_bersama, (
-        "panggilan API tidak boleh digerbangi `if (buka` lagi setelah dialog - "
-        "kalau begitu menutup piston tidak melakukan apa-apa"
+    # (b) Closing is instant: the piston branch that reaches the server is not
+    # gated by any further `if (buka` condition or a second question.
+    setelah_return = blok.split("tanyaKonfirmasi(", 1)[1].split("return;", 1)[1]
+    cabang = setelah_return.split('tombol.dataset.aksi === "piston"', 1)[1]
+    assert "api(" in cabang, "the piston branch never calls the endpoint"
+    jalur = cabang.split("api(", 1)[0]
+    assert "if (buka" not in jalur and "tanyaKonfirmasi(" not in jalur, (
+        "the API call must not be gated again after the question, or closing does nothing"
     )
 
 

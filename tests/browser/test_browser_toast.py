@@ -152,6 +152,8 @@ def test_piston_command_answers_with_a_toast(halaman):
     expect(tombol).to_be_enabled()
     nama = halaman.locator('.card[data-line="line-1"] .nama').inner_text().strip()
     kunci = "sukPistonBuka" if tombol.get_attribute("data-buka") == "1" else "sukPistonTutup"
-    halaman.once("dialog", lambda dialog: dialog.accept())
     tombol.click()
+    if kunci == "sukPistonBuka":
+        # Opening asks first, in the page's own dialog (2026-10-03).
+        halaman.click("#konfirmasi-ya")
     expect(_toast(halaman, "sukses", kamus(halaman, kunci).replace("{line}", nama))).to_have_count(1)

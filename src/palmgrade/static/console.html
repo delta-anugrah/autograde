@@ -1315,6 +1315,20 @@
      tabel model panjang, dan terpotong di kanan kalau tidak boleh membungkus. */
   #model-baris td.bungkus { white-space:normal; min-width:14rem; }
   #model-modal .tools button { flex:0 0 auto; min-height:44px; min-width:9rem; }
+  /* Dialog konfirmasi bersama (`tanyaKonfirmasi`, user 2026-10-03), pengganti kotak
+     `confirm` bawaan browser: kotak bawaan itu tidak ikut tema gelap, menulis alamat konsol di
+     judulnya, dan tidak bisa dibaca dari jauh. Bahasa visualnya sama dengan model-modal. */
+  #konfirmasi-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
+                      background:var(--card); color:var(--fg); width:min(92vw, 30rem);
+                      box-shadow:var(--tinggi-2); }
+  #konfirmasi-modal[open] { animation:muncul .15s ease; }
+  #konfirmasi-modal::backdrop { background:rgba(0,0,0,.72); }
+  .konfirmasi-isi { padding:20px 24px; }
+  #konfirmasi-modal h2 { margin:0 0 8px; font-size:1.25rem; overflow-wrap:anywhere; }
+  #konfirmasi-modal p { margin:0; color:var(--muted); }
+  #konfirmasi-modal .tools { padding:20px 0 0; justify-content:flex-end; flex-wrap:wrap;
+                             background:none; border:0; border-radius:0; }
+  #konfirmasi-modal .tools button { flex:0 0 auto; min-height:44px; min-width:9rem; }
   /* Impor CSV (tab Riwayat, support). Padding di pembungkus isi, bukan di <dialog>,
      dengan alasan yang sama dengan model-modal. */
   #impor-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
@@ -2517,6 +2531,24 @@
 </dialog>
 
 <!--
+  Satu dialog konfirmasi untuk seluruh layar (user 2026-10-03), dibuka `tanyaKonfirmasi()`:
+  piston dibuka, truk dilewati di antrean bongkar. Pengganti kotak `confirm` bawaan browser, yang
+  kini dilarang (`tests/unit/test_console_html_konfirmasi.py`). Batal tombol pertama dan
+  mendapat fokus awal: Enter yang tidak disengaja membatalkan. Esc dan klik di luar kotak
+  juga membatalkan. Kata dan kelas tombolnya diisi tiap kali dibuka.
+-->
+<dialog id="konfirmasi-modal" aria-labelledby="konfirmasi-judul" aria-describedby="konfirmasi-pesan">
+  <div class="konfirmasi-isi">
+    <h2 id="konfirmasi-judul"></h2>
+    <p id="konfirmasi-pesan"></p>
+    <div class="tools">
+      <button type="button" id="konfirmasi-tidak">Batal</button>
+      <button type="button" id="konfirmasi-ya" class="utama">Lanjutkan</button>
+    </div>
+  </div>
+</dialog>
+
+<!--
   Impor grading dari CSV Per janjang (tab Riwayat, support, 2026-09-27). Dua langkah:
   Periksa tidak menyimpan apa pun; Impor mengirim berkas yang SAMA (sidiknya dicocokkan
   server). Batalkan di daftar bawah menghapus janjang satu impor, dengan dua klik.
@@ -2653,7 +2685,7 @@ const KAMUS = {
     penugasanTersimpan:"Penugasan line tersimpan.",
     antreanBongkarOtomatis:"Antrean bongkar (otomatis)",
     btnTugaskanSekarang:"Tugaskan sekarang", btnLewati:"Lewati",
-    konfirmasiLewati:"Lewati {truk}? Truk ini tidak akan ditugaskan otomatis.",
+    konfirmasiLewatiJudul:"Lewati {truk}?", konfirmasiLewati:"Truk ini tidak akan ditugaskan otomatis.",
     sukLewati:"{truk} dilewati di antrean bongkar", sukDitugaskanOtomatis:"{truk} ditugaskan ke {line}",
     tugaskanGagalLine:"{line} tidak menjawab. Tugaskan {truk} manual di kartunya",
     tugaskanTertahan:"{line} masih memegang truk {lama} yang sudah timbang kosong. Lepas di kartunya, lalu tugaskan {truk}.",
@@ -2859,7 +2891,8 @@ const KAMUS = {
     pistonTerbuka:"PISTON TERBUKA. Hati-hati, besi bergerak",
     alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP DITEKAN: line berhenti darurat",
     alarm_lain:"ALARM PLC menyala: periksa panel PLC",
-    konfirmasiBuka:"Buka piston {line}? Ini menggerakkan besi.",
+    konfirmasiBukaJudul:"Buka piston {line}?", konfirmasiBuka:"Ini menggerakkan besi.",
+    konfirmasiYa:"Lanjutkan", konfirmasiTidak:"Batal",
     labelInternal:"Internal · REJ tidak dibuang",
     gagalPiston:"Perintah piston gagal",
     thSebab:"Sebab", thKamera:"Kamera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
@@ -3105,7 +3138,7 @@ const KAMUS = {
     penugasanTersimpan:"Line assignment saved.",
     antreanBongkarOtomatis:"Unloading queue (automatic)",
     btnTugaskanSekarang:"Assign now", btnLewati:"Skip",
-    konfirmasiLewati:"Skip {truk}? It will not be assigned automatically.",
+    konfirmasiLewatiJudul:"Skip {truk}?", konfirmasiLewati:"It will not be assigned automatically.",
     sukLewati:"{truk} skipped in the unloading queue", sukDitugaskanOtomatis:"{truk} assigned to {line}",
     tugaskanGagalLine:"{line} did not answer. Assign {truk} by hand on its card",
     tugaskanTertahan:"{line} still holds truck {lama}, which has already weighed out. Release it on its card, then assign {truk}.",
@@ -3303,7 +3336,8 @@ const KAMUS = {
     pistonTerbuka:"PISTON OPEN. Moving metal, stand clear",
     alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP PRESSED: emergency stop active",
     alarm_lain:"PLC ALARM on: check the PLC panel",
-    konfirmasiBuka:"Open the piston on {line}? This moves metal.",
+    konfirmasiBukaJudul:"Open the piston on {line}?", konfirmasiBuka:"This moves metal.",
+    konfirmasiYa:"Continue", konfirmasiTidak:"Cancel",
     labelInternal:"Internal · REJ not discarded",
     gagalPiston:"Piston command failed",
     thSebab:"Reason", thKamera:"Camera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
@@ -4470,6 +4504,52 @@ $("foto-modal").addEventListener("close", () => {
   $("foto-besar").removeAttribute("src");
 });
 
+// ── Dialog konfirmasi ──────────────────────────────────────────────────
+// Satu-satunya cara layar ini bertanya "yakin?" (user 2026-10-03): kotak `confirm`, `alert`
+// dan `prompt` bawaan browser tidak dipakai lagi. Mengembalikan Promise<boolean>: true cuma dari
+// tombol konfirmasi (klik atau Enter); Batal, Esc, dan klik di backdrop = false. Fokus kembali
+// ke `asal` (elemen, atau fungsi yang mencarinya lagi: tombol piston digambar ulang tiap
+// poll), atau ke elemen yang berfokus saat dialog dibuka. `bahaya` = konfirmasinya merah
+// pekat (F11); Batal tetap tombol biasa, karena di sini Batal adalah pilihan yang aman.
+let jawabKonfirmasi = null;
+function tanyaKonfirmasi({ judul, pesan, ya, batal, bahaya = false, asal } = {}) {
+  const modal = $("konfirmasi-modal");
+  if (jawabKonfirmasi) jawabKonfirmasi(false);
+  const fokusAwal = document.activeElement;
+  $("konfirmasi-judul").textContent = judul || "";
+  $("konfirmasi-pesan").textContent = pesan || "";
+  $("konfirmasi-pesan").hidden = !pesan;
+  const tombolYa = $("konfirmasi-ya");
+  tombolYa.textContent = ya || t("konfirmasiYa");
+  tombolYa.className = bahaya ? "bahaya pekat" : "utama";
+  $("konfirmasi-tidak").textContent = batal || t("konfirmasiTidak");
+  return new Promise((resolve) => {
+    const jawab = (hasil) => {
+      if (jawabKonfirmasi !== jawab) return;
+      jawabKonfirmasi = null;
+      if (modal.open) modal.close();
+      const kembali = (typeof asal === "function" ? asal() : asal) || fokusAwal;
+      if (kembali && kembali.isConnected && typeof kembali.focus === "function") kembali.focus();
+      resolve(hasil);
+    };
+    jawabKonfirmasi = jawab;
+    modal.showModal();
+    $("konfirmasi-tidak").focus();
+  });
+}
+
+$("konfirmasi-ya").addEventListener("click", () => jawabKonfirmasi && jawabKonfirmasi(true));
+$("konfirmasi-tidak").addEventListener("click", () => jawabKonfirmasi && jawabKonfirmasi(false));
+// Klik yang target-nya dialog itu sendiri cuma bisa dari backdrop (padding 0, seperti foto).
+$("konfirmasi-modal").addEventListener("click", (ev) => {
+  if (ev.target === ev.currentTarget && jawabKonfirmasi) jawabKonfirmasi(false);
+});
+// Esc menutup <dialog> bawaan; `close` datang sesudahnya. Dialog yang sudah dibuka lagi oleh
+// pertanyaan berikutnya tidak ikut dijawab oleh `close` milik pertanyaan sebelumnya.
+$("konfirmasi-modal").addEventListener("close", (ev) => {
+  if (!ev.currentTarget.open && jawabKonfirmasi) jawabKonfirmasi(false);
+});
+
 const tagHasil = (s, kelas) => {
   if (!s && !kelas) return KOSONG;
   const lolos = String(s).toUpperCase() === "ACC";
@@ -4754,6 +4834,16 @@ $("lines").addEventListener("click", async (ev) => {
     terapkanUrutan();
     return;
   }
+  // Opening the piston moves metal: ask first, BEFORE the button is locked, so the focus can
+  // come back to it. Closing is the safe state: never asked, never blocked by a dialog.
+  if (tombol.dataset.aksi === "piston") {
+    const buka = tombol.dataset.buka === "1";
+    if (buka && !(await tanyaKonfirmasi({
+      judul: t("konfirmasiBukaJudul").replace("{line}", kartu.querySelector(".nama").textContent),
+      pesan: t("konfirmasiBuka"), ya: t("btnPistonBuka"),
+      asal: () => kartu.querySelector("button.piston"),
+    }))) return;
+  }
   tombol.disabled = true;
   tombol.classList.add("sibuk");
   try {
@@ -4777,12 +4867,8 @@ $("lines").addEventListener("click", async (ev) => {
       // Lepas di line terakhir truk ini membuat truk berikutnya di antrean bongkar naik.
       umumkanPasang(r.dipasang);
     } else if (tombol.dataset.aksi === "piston") {
-      // Opening moves metal: ask first. Closing is the safe state - it must
-      // never be blocked by a dialog, so the guard below only ever runs when
-      // `buka` is true and returns before touching the network.
+      // Already asked above when opening.
       const buka = tombol.dataset.buka === "1";
-      if (buka && !confirm(t("konfirmasiBuka").replace("{line}", kartu.querySelector(".nama").textContent)))
-        return;
       await api(`/api/console/lines/${encodeURIComponent(line)}/piston`,
                 { method: "POST", body: JSON.stringify({ open: buka }) });
       await refresh();
@@ -5834,14 +5920,17 @@ function umumkanPasang(daftarPasang) {
     .replace("{line}", lines.join(", ")).replace("{lama}", lama || "").replace("{truk}", truk)));
 }
 
-$("antrean-bongkar").addEventListener("click", (ev) => {
+$("antrean-bongkar").addEventListener("click", async (ev) => {
   const tombol = ev.target.closest("button[data-aksi]");
   if (!tombol) return;
   const truk = tombol.closest(".antrean-truk");
   const id = truk.dataset.id;
   const plat = truk.dataset.plat;
   const lewati = tombol.dataset.aksi === "lewati";
-  if (lewati && !confirm(t("konfirmasiLewati").replace("{truk}", plat))) return;
+  if (lewati && !(await tanyaKonfirmasi({
+    judul: t("konfirmasiLewatiJudul").replace("{truk}", plat), pesan: t("konfirmasiLewati"),
+    ya: t("btnLewati"), bahaya: true, asal: tombol,
+  }))) return;
   denganSibuk(tombol, async () => {
     try {
       if (lewati) {
