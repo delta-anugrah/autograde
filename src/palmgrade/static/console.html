@@ -4526,9 +4526,9 @@ function aksiTiket(w) {
   return "";
 }
 
-// Antrean di sisi Datang: truk yang sudah scan 1 tapi belum timbang isi. Menitnya dari
-// server; null (jam datang tak terbaca) jadi strip, bukan "0 mnt". Dipakai lewat
-// textContent, jadi tidak perlu esc().
+// Truk yang sudah scan 1 tapi belum timbang isi, sebagai kalimat untuk `title` lencana
+// Menunggu di ruas langkah 1. Menitnya dari server; null (jam datang tak terbaca) jadi strip,
+// bukan "0 mnt". Dipakai lewat atribut, bukan innerHTML, jadi tidak perlu esc().
 function teksAntre(daftar) {
   if (!daftar || !daftar.length) return "";
   const isi = daftar.map((a) => `${a.plate_number} (${teksMenit(a.menit) ?? KOSONG})`);

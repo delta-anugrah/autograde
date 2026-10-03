@@ -170,16 +170,22 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   menggerakkan besi sungguhan.
 - Sumber TBS **Internal** ditandai "REJ tidak dibuang": buah kebun sendiri tetap dinilai, tapi
   piston tidak membuangnya.
-- Empat kartu langkah di atas tabel Timbangan: **1. Datang**, **2. Timbang isi**, **3. Timbang
-  kosong**, **4. Keluar**, satu baris dan sama tinggi di layar lebar, bertumpuk di layar sempit.
-  Kolom scan QR muncul setelah scanner dipasang; sebelum itu pakai pilihan truk (Datang) dan
-  tombol di baris tabel (Timbang kosong, Keluar); kartu 3 dan 4 menulis petunjuknya di kotak
-  bergaris putus. Setelah **Timbang kosong** ditekan, plat truknya tampil di samping judul
-  kartu 3, dan kolom **Tara**, **Simpan**, **Batal** berjajar satu baris. Plat dipilih dari
-  daftar **Pilih Truk** (§3.3).
+- Di atas tabel Timbangan ada strip empat langkah: **1. Datang**, **2. Timbang isi**,
+  **3. Timbang kosong**, **4. Keluar**, sama lebar dan sama tinggi, dengan panah di antaranya.
+  Tiap langkah menulis di mana ia dikerjakan (misalnya "Tekan Keluar di baris truknya"); langkah
+  1 juga menampilkan lencana **Menunggu n**, jumlah truk yang sudah datang tapi belum timbang
+  isi. Di bawah strip ada dua form yang sama lebar: **Datang** (pilih truk, **Catat datang**)
+  dan **Timbang isi** (pilih truk, **Bruto**, **Timbang isi**), lalu satu baris kecil untuk
+  pesan scan dan petunjuk desimal. Langkah 3 dan 4 tidak punya form: tombolnya ada di baris
+  tabel. Setelah **Timbang kosong** ditekan di baris truk, bar biru selebar layar muncul di
+  bawah kedua form: **Timbang kosong** dengan plat truknya, kolom **Tara**, **Simpan**,
+  **Batal**, satu baris; langkah 3 di strip ikut menyala biru selama bar itu terbuka. Di layar
+  sempit strip jadi 2 x 2 lalu satu kolom, dan kedua form bertumpuk. Kolom scan QR muncul
+  setelah scanner dipasang. Plat dipilih dari daftar **Pilih Truk** (§3.3).
 - Warna tombol sama di semua tab: **hijau penuh** = aksi utama langkah itu (Catat datang,
   Timbang isi, Simpan); **merah muda** = membatalkan, menghapus, mereset, melepas, atau keluar
-  dari akun (Batal, Lepas, Keluar di bar atas, tombol Danger Zone); **merah pekat** = eksekusi
+  dari akun (Batal, Lepas, Lewati di antrean bongkar, Matikan di tab Akun, Keluar di bar atas,
+  tombol Danger Zone); **merah pekat** = eksekusi
   terakhir yang tidak bisa diurungkan. Setiap aksi yang berhasil menjawab lewat notifikasi
   hijau di pojok kanan bawah; kuning kalau tersimpan tapi belum sampai ke semua line.
 
@@ -198,7 +204,7 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 | 5 | Timbang kosong dan keluar | Scan QR di kolom **3. Timbang kosong** atau tekan **Timbang kosong** di baris truknya, isi tara. Di gerbang, scan di kolom **4. Keluar** atau tekan **Keluar** di barisnya. Truk yang belum timbang kosong ditolak dengan peringatan. Dua tiket terbuka → konsol menolak menebak, pilih di tabel. Truk yang timbang isi sebelum tengah malam tetap ditemukan sesudahnya (sampai 12 jam) | tahap `departed`: tara + jam keluar (jam keluar gerbang tidak ikut) |
 | 6 | AutoERP | - | neto = bruto − tara, potongan, harga, Purchase Receipt |
 
-Kolom **Antre** = datang sampai timbang isi; "tanpa scan 1" artinya scan datang terlewat. **Total** = datang sampai keluar gerbang; kalau scan datang terlewat, Total dihitung dari timbang isi. Jam datang dan jam keluar cuma disimpan di PC pabrik, tidak dikirim ke AutoERP. Kalau jamnya belum ada, kolomnya menulis strip, bukan "0 mnt". Truk yang sudah dicatat datang tapi belum timbang isi tampil di baris **Menunggu timbang** di bawah kolom **1. Datang**, sampai 12 jam, juga lewat tengah malam. Daftarnya selalu dua baris; yang lebih panjang terpotong di ujung baris kedua. Truk terdaftar yang platnya tidak berbentuk plat biasa (plat dinas, plat lama) tetap bisa dicatat datang dari daftar truk.
+Kolom **Antre** = datang sampai timbang isi; "tanpa scan 1" artinya scan datang terlewat. **Total** = datang sampai keluar gerbang; kalau scan datang terlewat, Total dihitung dari timbang isi. Jam datang dan jam keluar cuma disimpan di PC pabrik, tidak dikirim ke AutoERP. Kalau jamnya belum ada, kolomnya menulis strip, bukan "0 mnt". Truk yang sudah dicatat datang tapi belum timbang isi dihitung di lencana **Menunggu n** di langkah **1. Datang**, sampai 12 jam, juga lewat tengah malam; platnya tampil kalau kursor diam di atas lencana itu, sebagai baris **Datang** di tabel, dan di bagian **Menunggu timbang** dropdown langkah 2. Lencana itu tidak pernah menggeser form atau tabel saat jumlahnya berubah. Truk terdaftar yang platnya tidak berbentuk plat biasa (plat dinas, plat lama) tetap bisa dicatat datang dari daftar truk.
 
 Kolom pertama tabel Timbangan, **Status**, menulis tahap tiap truk dengan lencana berwarna yang
 sama dengan judul langkah di atasnya: **Datang** (abu-abu, langkah 1), **Bongkar** (kuning,
@@ -214,12 +220,13 @@ belum terdaftar tetap tampil di tabel sebagai **Datang** dan baru bisa dipilih s
 didaftarkan di tab Truk; kalau tidak ada yang
 menunggu, daftarnya seperti biasa. Daftar itu diperbarui tiap 15 detik tanpa mengubah plat yang
 sudah dipilih, dan tidak dibangun ulang selama sedang dibuka. Pilih truk, Bruto dan tombol **Timbang isi** berada
-satu baris; petunjuk desimal ada tepat di bawah kolom Bruto. Mulai lebar layar sekitar 1.330 px keempat langkah berdiri dalam satu baris; di layar
-lebih sempit langkahnya bertumpuk.
+satu baris; petunjuk desimal ada di bawah form itu dan juga muncul kalau kursor diam di kolom
+Bruto. Strip langkah berdiri dalam satu baris mulai lebar layar sekitar 960 px, dan kedua form
+berdampingan mulai sekitar 1.100 px; di layar lebih sempit keduanya bertumpuk.
 
 **Lewat tengah malam.** Pabrik jalan sampai lewat tengah malam, jadi truk yang timbang isi pukul
 23:50 dan belum selesai tetap ada di tabel hari ini sesudah pukul 00:00, lengkap dengan lencana
-tahap dan tombol **Timbang kosong** atau **Keluar**-nya; kolom jam isi menunjukkan tanggal
+tahap dan tombol **Timbang kosong** atau **Keluar**-nya; kolom **Jam timbang isi** menunjukkan tanggal
 kemarin. Barisnya hilang dari tabel hari ini begitu truknya keluar gerbang, atau kalau timbang
 isinya sudah lebih dari 12 jam lalu. Scan di kolom **3. Timbang kosong** juga mencari tiket 12
 jam ke belakang, bukan cuma tiket hari ini. Tiketnya tetap milik tanggal kerja kemarin: strip
