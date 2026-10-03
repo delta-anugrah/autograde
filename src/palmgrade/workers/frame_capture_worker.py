@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 _MAX_CONSECUTIVE_FAILURES = 5
 _RECONNECT_BACKOFF_BASE = 1.0
 _RECONNECT_BACKOFF_MAX = 30.0
+# Suhu kamera berubah dalam hitungan menit; 10 detik sudah lebih rapat dari yang
+# dibaca orang di kartu Diagnostik (disegarkan tiap 5 detik).
+SUHU_JEDA_DETIK = 10.0
 
 
 class FrameCaptureWorker:
@@ -38,6 +41,8 @@ class FrameCaptureWorker:
         # kembali. Di antaranya grab gagal tiap 100 ms dan sambung ulang tiap <=30 dtk
         # cuma DEBUG.
         self._putus = PelacakTransisi()
+        self._suhu_dibaca_at: float | None = None
+        self._suhu_galat_dilapor = False
         self._percobaan_sambung = 0
         self._sambung_gagal = 0
 
@@ -148,6 +153,24 @@ class FrameCaptureWorker:
         self._percobaan_sambung = 0
         self._sambung_gagal = 0
 
+    def _baca_suhu_kalau_waktunya(self) -> None:
+        """Satu panggilan SDK per `SUHU_JEDA_DETIK`, di bawah kunci kamera yang sama
+        dengan `grab_frame()`. Gagal = tidak tahu, bukan alasan berhenti mengambil gambar."""
+        sekarang = self.state.jam()
+        if self._suhu_dibaca_at is not None and sekarang - self._suhu_dibaca_at < SUHU_JEDA_DETIK:
+            return
+        self._suhu_dibaca_at = sekarang
+        try:
+            with self.state.lock:
+                suhu = self.camera.get_temperature()
+        except Exception as exc:
+            level = logging.DEBUG if self._suhu_galat_dilapor else logging.WARNING
+            self._suhu_galat_dilapor = True
+            logger.log(level, "Reading the camera temperature raised %s: %s", type(exc).__name__, exc)
+            return
+        if suhu is not None:
+            self.state.catat_suhu_kamera(suhu)
+
     def run_once(self) -> None:
         now = time.time()
         wait = self._frame_interval - (now - self._last_frame_time)
@@ -187,6 +210,7 @@ class FrameCaptureWorker:
         # Penjaga AI mati (batch 2.1): gambar MASUK. Tanpa cap ini penilai tidak
         # bisa membedakan "AI mati" dari "kamera tidak mengirim apa pun".
         self.state.catat_frame_masuk()
+        self._baca_suhu_kalau_waktunya()
 
         # Rekaman developer, kalau menyala. Frame di sini masih CLEAN — bbox
         # digambar jauh di hilir — jadi rekamannya otomatis polos tanpa kerja
