@@ -127,7 +127,10 @@
   #info-sistem-modal .tools button { min-height:44px; min-width:9rem; }
   #jam { font-family:var(--mono); font-size:1.15rem; font-weight:700; letter-spacing:.01em; }
   .jam { display:flex; align-items:baseline; gap:8px; }
-  #topbar .aksi { margin-left:auto; display:flex; gap:8px; }
+  /* `flex-wrap`: on a 390 px phone the account name and three buttons are wider than the bar,
+     and without it the whole page scrolled sideways by 19 px (found 2026-10-03). */
+  #topbar .aksi { margin-left:auto; display:flex; flex-wrap:wrap; justify-content:flex-end;
+                  gap:8px; max-width:100%; }
   #topbar .aksi button { min-width:5.5rem; min-height:2.6rem; border-radius:var(--r-pill); }
   /* Sign-out (`#keluar`) is last in the row and wears `button.bahaya`: it drops a
      shift's screen back to the login gate, so it must never be the button a gloved
@@ -442,7 +445,9 @@
                                       font-family:var(--mono); text-align:right; }
   /* Simpan dan Batal sepasang: layar sempit menurunkan KEDUANYA, tidak pernah Batal sendirian. */
   .tara-tombol { flex:0 0 auto; display:flex; gap:8px; }
-  .timbang-alat .tara-grup button { flex:0 0 var(--lebar-aksi-timbang); }
+  /* `width` as well as the basis: Firefox sizes `.tara-tombol` from its buttons' content, not
+     their flex basis, so the pair overflowed it and the message beside it covered Batal. */
+  .timbang-alat .tara-grup button { flex:0 0 var(--lebar-aksi-timbang); width:var(--lebar-aksi-timbang); }
   /* Pesan tara (angka di bawah 1.000 kg, tolakan server) di ujung baris yang sama, tepat di
      samping kolom yang sedang diisi. */
   .tara-grup .scan-pesan { flex:1 1 0; min-width:6rem; min-height:0; }
