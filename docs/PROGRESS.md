@@ -18,6 +18,25 @@ Next:           ...
 
 ---
 
+## 2026-10-03 · console · Timbangan round 4: dialog, toasts, odometer, cancel history (PR #214)
+Changed:        Status badges share one width (`data-ukur` + `::after`, both languages). No native
+                browser dialog anywhere: `tanyaKonfirmasi()` on one `<dialog>` (Lewati, Buka
+                piston), Batal red and first-focused; coding standard F12 pinned by a unit test.
+                Toasts rebuilt in the Sonner style by hand (offline, no React): stacked, expand and
+                pause on hover, icons, swipe to dismiss; same API and DOM hooks. Tally numbers roll
+                like an odometer on change only (`tulisAngka`, transform only, instant under reduced
+                motion). A cancelled arrival is now kept (`arrivals.cancelled_at`, `cancelled_by`,
+                `VERSI_SKEMA` 5) and listed in `dibatalkan` on GET weighings and in a collapsible
+                "Kedatangan dibatalkan" panel; every waiting-arrival reader skips it. `MANUAL.md`
+                v2.7 (+ PDF), rule 37, backend-overview, skill.
+Validated:      See the PR body for the suite counts; both branches reviewed, no Critical or
+                Important findings.
+Not validated:  Not seen on the Lampung kiosk Firefox; swipe tested with a mouse, not a touch screen.
+Risks:          Rolling back below schema 5 shows cancelled arrivals as waiting again (gate
+                statistics only). A byte-identical retry of a cancelled arrival answers "tercatat"
+                without a waiting row. Toast heights are measured once per show.
+Next:           Merge #208, retarget #212 and #214 to staging in order.
+
 ## 2026-10-03 · console · Timbangan round 3: stepper layout, Batal datang, tanpa scan 4 (PR #214)
 Changed:        After a third manual test. The step area is a stepper strip of four equal segments
                 (stage pill + one line saying where the step happens, "Menunggu n" badge on
