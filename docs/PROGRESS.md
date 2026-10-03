@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-03 · console · Automatic assignment takes the Update now lock (PR #TBD)
+## 2026-10-03 · console · Automatic assignment takes the Update now lock (PR #217)
 Changed:        Manual Tugaskan went through `PembaruanService.menugaskan(line)` (rule 38), but the
                 automatic paths from #214 (after a weigh-in, after Lepas, Tugaskan sekarang) did not:
                 a truck weighed in during an install could be put on a line about to restart. Now
