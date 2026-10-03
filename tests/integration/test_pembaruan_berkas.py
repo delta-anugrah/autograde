@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import threading
 from datetime import datetime, timedelta, timezone
@@ -175,3 +176,51 @@ def test_folder_hanya_baca_tetap_mencatat_tanpa_crash(tmp_path, svc, caplog, mon
     assert svc.keadaan().hasil["state"] == "rolled_back"
     svc.keadaan()
     assert len(_baris(caplog, "ERROR")) == 1
+
+
+# ── assign and install: no gap, but no queue behind a slow line (review 2026-10-03) ──
+
+
+def test_assign_di_line_lain_tidak_antre_di_belakang_line_yang_lambat(tmp_path, svc):
+    """The line call can take 10 s (dead line): it must not run under the shared lock."""
+    _status(tmp_path)
+
+    async def jalan():
+        masuk_keduanya = asyncio.Event()
+        di_dalam = []
+
+        async def tugaskan(line):
+            async with svc.menugaskan(line):
+                di_dalam.append(line)
+                if len(di_dalam) == 2:
+                    masuk_keduanya.set()
+                await asyncio.wait_for(masuk_keduanya.wait(), 1)
+
+        await asyncio.gather(tugaskan("line-1"), tugaskan("line-2"))
+
+    asyncio.run(jalan())
+
+
+def test_install_melihat_line_yang_assign_nya_belum_dijawab(tmp_path, svc):
+    _status(tmp_path)
+
+    async def jalan():
+        async with svc.menugaskan("line-2"):
+            assert not svc.kunci.locked()
+            assert svc.line_sedang_ditugaskan() == ["line-2"]
+        assert svc.line_sedang_ditugaskan() == []
+
+    asyncio.run(jalan())
+
+
+def test_assign_ditolak_selama_pemasangan_berjalan(tmp_path, svc):
+    _status(tmp_path)
+    svc.pasang("v1.22.1", [], "op@pks.test")
+
+    async def jalan():
+        async with svc.menugaskan("line-1"):
+            pass
+
+    with pytest.raises(PembaruanBerjalan):
+        asyncio.run(jalan())
+    assert svc.line_sedang_ditugaskan() == []

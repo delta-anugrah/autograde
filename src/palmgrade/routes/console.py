@@ -385,19 +385,19 @@ async def assign_truck(
     operator: Operator,
     truck_id: Annotated[str, Body(embed=True)],
 ) -> dict:
-    # Same lock as update/install: a truck assigned between "no truck on any line" and the
-    # restart would lose the bunches graded while the line is down (batch 4.6).
-    async with pembaruan.kunci:
-        if await run_in_threadpool(pembaruan.sedang_berjalan):
-            raise _operator_error(409, PembaruanBerjalan())
-        try:
+    # Batch 4.6: refused while an install runs, and visible to install until the line
+    # answers, so no truck lands between "no truck on any line" and the restart.
+    try:
+        async with pembaruan.menugaskan(line_code):
             return await service.assign_truck(line_code, truck_id)
-        except HapusBerjalan as exc:
-            raise _operator_error(409, exc) from exc
-        except ValueError as exc:
-            raise _operator_error(404, exc) from exc
-        except LineUnavailable as exc:
-            raise _operator_error(502, exc) from exc
+    except PembaruanBerjalan as exc:
+        raise _operator_error(409, exc) from exc
+    except HapusBerjalan as exc:
+        raise _operator_error(409, exc) from exc
+    except ValueError as exc:
+        raise _operator_error(404, exc) from exc
+    except LineUnavailable as exc:
+        raise _operator_error(502, exc) from exc
 
 
 @router.post("/api/console/lines/{line_code}/release-truck")
@@ -453,11 +453,11 @@ async def update_install(
     payload: PasangBody, service: Service, pembaruan: Pembaruan, operator: Operator
 ) -> dict:
     async with pembaruan.kunci:
-        assignments = await run_in_threadpool(service.store.assignments)
+        assignments = await run_in_threadpool(service.assignments)
+        # An assign still waiting for its line is not in `assignments` yet, but will be.
+        bertruk = sorted(set(line_bertruk(assignments)) | set(pembaruan.line_sedang_ditugaskan()))
         try:
-            return await run_in_threadpool(
-                pembaruan.pasang, payload.target or "", line_bertruk(assignments), operator["email"]
-            )
+            return await run_in_threadpool(pembaruan.pasang, payload.target or "", bertruk, operator["email"])
         except PembaruanBelumTerpasang as exc:
             raise _operator_error(503, exc) from exc
         except OperatorError as exc:

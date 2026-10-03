@@ -328,7 +328,7 @@ result.json  {"schema": 1, "id": "<uuid>", "state": "ok", "target": "v1.22.1", "
 | Komponen | Peran |
 |---|---|
 | `domain/pembaruan.py` | aturan murni: urai tiga berkas, `keadaan_pembaruan`, `boleh_pasang`, `line_bertruk`, `baris_log_hasil` |
-| `services/pembaruan_service.py` | `PembaruanService`: baca berkas, tulis penanda atomik, `kunci` bersama assign-truck, catat hasil sekali |
+| `services/pembaruan_service.py` | `PembaruanService`: baca berkas, tulis penanda atomik, `kunci` + `menugaskan` (assign mendaftar diri tanpa memegang kunci selama memanggil line), catat hasil sekali |
 | `routes/console.py` | dua endpoint di atas + kunci `pembaruan` di `/state` + 409 di assign-truck |
 
 ### Lane support (`require_support`)

@@ -11,12 +11,15 @@ import logging
 import os
 import threading
 import uuid
-from collections.abc import Callable
+from collections import Counter
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
 from ..domain.pembaruan import (
     KeadaanPembaruan,
+    PembaruanBerjalan,
     baris_log_hasil,
     boleh_pasang,
     isi_permintaan,
@@ -51,9 +54,12 @@ class PembaruanService:
         self._tulis = threading.Lock()
         self._catat = threading.Lock()
         self._tercatat: str | None = None
-        #: Held by the install route AND the assign-truck route, so a truck cannot be
-        #: assigned between "no truck on any line" and the marker landing on disk.
+        #: Held by the install route for the whole check-and-write, and by an assign only
+        #: long enough to register itself in `_ditugaskan`: no truck can slip in between
+        #: "no truck on any line" and the marker landing, and no assign waits behind another
+        #: line's network call (a dead line answers after 10 s).
         self.kunci = asyncio.Lock()
+        self._ditugaskan: Counter[str] = Counter()
 
     def _baca(self, nama: str) -> str | None:
         try:
@@ -104,6 +110,24 @@ class PembaruanService:
 
     def sedang_berjalan(self) -> bool:
         return self.keadaan().berjalan
+
+    @asynccontextmanager
+    async def menugaskan(self, line_code: str) -> AsyncIterator[None]:
+        """Wrap an assign: refused while an install runs, visible to install until it ends."""
+        async with self.kunci:
+            if await asyncio.to_thread(self.sedang_berjalan):
+                raise PembaruanBerjalan()
+            self._ditugaskan[line_code] += 1
+        try:
+            yield
+        finally:
+            self._ditugaskan[line_code] -= 1
+            if self._ditugaskan[line_code] <= 0:
+                del self._ditugaskan[line_code]
+
+    def line_sedang_ditugaskan(self) -> list[str]:
+        """Lines whose assign is still waiting for the line to answer."""
+        return sorted(self._ditugaskan)
 
     def pasang(self, target: str, bertruk: list[str], oleh: str) -> dict:
         with self._tulis:

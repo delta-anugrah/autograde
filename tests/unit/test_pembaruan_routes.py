@@ -34,12 +34,20 @@ class _StubConsole:
     def __init__(self, store: ConsoleStore) -> None:
         self.store = store
         self.ditugaskan: list[tuple[str, str]] = []
+        self.pembaruan = None
+        self.selama_panggilan: list = []
 
     def state(self) -> dict:
         return {"lines": [], "timezone": "Asia/Jakarta"}
 
+    def assignments(self) -> dict:
+        return self.store.assignments()
+
     async def assign_truck(self, line_code: str, truck_id: str) -> dict:
         self.ditugaskan.append((line_code, truck_id))
+        if self.pembaruan is not None:
+            # What the install route would see while this line has not answered yet.
+            self.selama_panggilan.append((self.pembaruan.kunci.locked(), self.pembaruan.line_sedang_ditugaskan()))
         self.store.set_assignment(line_code, "a-1", truck_id)
         return {"assignment_id": "a-1", "truck_id": truck_id, "line_code": line_code}
 
@@ -70,6 +78,7 @@ def rakit(tmp_path):
     )
     konsol = _StubConsole(store)
     svc = PembaruanService(folder, lambda: "v1.22.0", lambda: JAM, buat_id=lambda: "r-1")
+    konsol.pembaruan = svc
     aplikasi = FastAPI()
     aplikasi.include_router(console_router)
     pasang_penangan_validasi(aplikasi)
@@ -213,3 +222,20 @@ def test_target_yang_tidak_dilihat_operator_ditolak(rakit):
     )
     assert (res.status_code, res.json()["detail"]["code"]) == (409, "pembaruan_tidak_ada")
     assert not (folder / PERMINTAAN).exists()
+
+
+def test_assign_tidak_memegang_kunci_saat_menunggu_line_tapi_terlihat_install(rakit):
+    """Review 2026-10-03: a dead line (10 s timeout) must not queue the other lines' assigns."""
+    aplikasi, store, _folder, konsol = rakit
+    op = _masuk(aplikasi, store, "op@pks.test", "operator")
+    assert op.post("/api/console/lines/line-2/assign-truck", json={"truck_id": "t-1"}).status_code == 200
+    assert konsol.selama_panggilan == [(False, ["line-2"])]
+
+
+def test_route_tidak_membaca_store_langsung():
+    """L1: route → service → repository."""
+    from pathlib import Path
+
+    import palmgrade.routes.console as rute
+
+    assert "service.store." not in Path(rute.__file__).read_text(encoding="utf-8")

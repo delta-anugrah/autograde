@@ -704,7 +704,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Tab Log: "Lapor ke Discord tertahan" | internet pabrik putus | tidak perlu apa-apa, terkirim sendiri begitu internet ada |
 | **Pasang sekarang** ditolak "Lepas dulu truk di Line N" | masih ada truk di-assign di line itu, bisa juga sisa kemarin | lepas truknya di kartu line, tekan lagi |
 | Sesudah **Pasang sekarang**: "Versi X gagal dinyalakan, sistem kembali ke Y" | versi baru tidak lolos gerbang sehat dan sistem mundur sendiri; versi itu tidak ditawarkan lagi sampai ada versi yang lebih baru | panggil teknisi; tab Log baris "Pembaruan dari konsol"; teknisi memeriksa `autograde logs` |
-| Sesudah **Pasang sekarang**: "Pemasangan versi X gagal. Sistem tetap di Y" | launcher sedang sibuk (mengunduh) atau terhenti, versi baru belum dicoba | tunggu beberapa menit, tombolnya muncul lagi, tekan ulang; kalau berulang panggil teknisi |
+| Sesudah **Pasang sekarang**: "Versi X belum terpasang, sistem tetap di Y" | launcher sedang sibuk (mengunduh) atau terhenti, versi baru belum dicoba | tunggu beberapa menit, tombolnya muncul lagi, tekan ulang; kalau berulang panggil teknisi |
 | "Pembaruan X tidak selesai" | penunggu di PC tidak menjawab 20 menit (dicabut, mati, atau PC sibuk) | panggil teknisi: `systemctl status autograde-update.path` dan `journalctl -u autograde-update.service` (`sawit/docs/FACTORY-PC.md`) |
 
 ### 7.1 Janjang yang ditolak konsol

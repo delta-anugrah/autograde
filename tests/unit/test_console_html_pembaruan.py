@@ -106,3 +106,20 @@ def test_layar_saat_konsol_tidak_menjawab_selama_pasang():
 def test_badge_dan_wadah_ada_di_markup():
     for penanda in ('id="badge-pembaruan"', 'id="pembaruan-isi"', 'id="pembaruan-support"'):
         assert penanda in HTML, penanda
+
+
+@butuh_node
+def test_failed_mengajak_coba_lagi_bukan_memanggil_teknisi():
+    """`failed` = never tried, and the button comes right back (ruling 2026-10-03)."""
+    for bahasa, teknisi in (("id", "teknisi"), ("en", "technician")):
+        teks = _j("teksHasilPembaruan({state:'failed', target:'v1.22.1', installed:'v1.22.0'})", bahasa)
+        assert teknisi not in teks.lower(), (bahasa, teks)
+        assert "v1.22.0" in teks
+
+
+@butuh_node
+def test_versi_lama_kosong_tidak_meninggalkan_lubang():
+    for state in ("rolled_back", "failed"):
+        teks = _j(f"teksHasilPembaruan({{state:'{state}', target:'v1.22.1', installed:''}})")
+        assert " ." not in teks and "ke ." not in teks and "di ." not in teks, teks
+        assert "versi sebelumnya" in teks, teks

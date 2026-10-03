@@ -2670,7 +2670,8 @@ const KAMUS = {
     pembaruanDimulai:"Pemasangan dimulai", gagalPasangPembaruan:"Gagal memulai pemasangan",
     pembaruanHasilOk:"Versi {versi} sudah terpasang.",
     pembaruanHasilBalik:"Versi {versi} gagal dinyalakan, sistem kembali ke {lama}. Panggil teknisi.",
-    pembaruanHasilGagal:"Pemasangan versi {versi} gagal. Sistem tetap di {lama}. Panggil teknisi.",
+    pembaruanHasilGagal:"Versi {versi} belum terpasang, sistem tetap di {lama}. Coba tekan lagi sebentar lagi.",
+    pembaruanVersiLama:"versi sebelumnya",
     pembaruanHasilNihil:"Tidak ada versi baru yang bisa dipasang.",
     pembaruanHasilBasi:"Pembaruan {versi} tidak selesai. Panggil teknisi.",
     versiDariSource:"dev (dari source)",
@@ -3089,7 +3090,8 @@ const KAMUS = {
     pembaruanDimulai:"Installation started", gagalPasangPembaruan:"Could not start the installation",
     pembaruanHasilOk:"Version {versi} is installed.",
     pembaruanHasilBalik:"Version {versi} failed to start, so the system went back to {lama}. Call a technician.",
-    pembaruanHasilGagal:"Installing version {versi} failed. The system stays on {lama}. Call a technician.",
+    pembaruanHasilGagal:"Version {versi} was not installed, the system stays on {lama}. Try again in a moment.",
+    pembaruanVersiLama:"the previous version",
     pembaruanHasilNihil:"There is no new version to install.",
     pembaruanHasilBasi:"Update {versi} did not finish. Call a technician.",
     versiDariSource:"dev (from source)",
@@ -6617,7 +6619,9 @@ function teksHasilPembaruan(h) {
   const kunci = { ok:"pembaruanHasilOk", rolled_back:"pembaruanHasilBalik", failed:"pembaruanHasilGagal",
                   nothing:"pembaruanHasilNihil", timeout:"pembaruanHasilBasi" }[h.state];
   if (!kunci) return "";
-  return t(kunci).replace("{versi}", h.target || "").replace("{lama}", h.installed || "");
+  // `failed` = the launcher never tried (busy downloading, cut off): the button is back at
+  // once, so the sentence asks to try again rather than sending for a technician.
+  return t(kunci).replace("{versi}", h.target || "").replace("{lama}", h.installed || t("pembaruanVersiLama"));
 }
 
 function htmlPembaruan(p, support) {
