@@ -1,7 +1,9 @@
 """Suhu kamera dari capture worker line sampai jawaban `/api/console/dev/diagnostik` konsol.
 
-Line ASLI (route `/health/detail` + `HealthService` + `FrameCaptureWorker` di `LinePalsu`),
-konsol ASLI (`LineClient` + `DevService`), disambung `httpx.ASGITransport` tanpa jaringan.
+Line ASLI (`HealthService` + `FrameCaptureWorker` di `LinePalsu`, dijawab sebagai
+`HealthDetailSchema` seperti `routes/health.py`), konsol ASLI (`LineClient` + `DevService`),
+disambung `httpx.ASGITransport` tanpa jaringan. Rutenya dirakit di sini, bukan di-import:
+`routes/health.py` menarik `core.dependencies`, yang meng-import torch (CI tidak punya).
 """
 from __future__ import annotations
 
@@ -16,10 +18,9 @@ from ai_palsu import LinePalsu
 from fastapi import FastAPI
 
 from palmgrade.core.config import LineEndpoint, Settings
-from palmgrade.core.dependencies import get_health_service
 from palmgrade.integrations.notifications.line_client import LineClient
 from palmgrade.repositories.log_repository import LogStore
-from palmgrade.routes.health import router as health_router
+from palmgrade.schemas.common_schema import HealthDetailSchema
 from palmgrade.services.dev_service import DevService
 from palmgrade.services.health_service import HealthService
 
@@ -41,11 +42,13 @@ def torch_palsu(monkeypatch):
 
 
 def _diagnostik(tmp_path, line: LinePalsu) -> dict:
+    health = HealthService(settings=line.settings, state=line.state, camera=line.kamera, outbox=_Outbox())
     app = FastAPI()
-    app.include_router(health_router)
-    app.dependency_overrides[get_health_service] = lambda: HealthService(
-        settings=line.settings, state=line.state, camera=line.kamera, outbox=_Outbox()
-    )
+
+    @app.get("/health/detail", response_model=HealthDetailSchema)
+    async def detail() -> HealthDetailSchema:
+        return health.get_health_detail()
+
     settings = replace(Settings(), repo_root=tmp_path)
     dev = DevService(
         LogStore(tmp_path / "log.db"),
