@@ -6649,7 +6649,9 @@ function gambarPembaruan(p) {
   if (badge.textContent !== teks) badge.textContent = teks;
   badge.hidden = !teks;
   if ($("info-sistem-modal").open) tulisKalauBeda($("pembaruan-isi"), htmlPembaruan(p, false));
-  if (!$("sec-status").hidden) tulisKalauBeda($("pembaruan-support"), htmlPembaruan(p, true));
+  // Support-only: tab Status tidak ada di DOM untuk akun operator.
+  const status = $("sec-status");
+  if (status && !status.hidden) tulisKalauBeda($("pembaruan-support"), htmlPembaruan(p, true));
 }
 
 async function pasangSekarang(tombol) {

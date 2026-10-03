@@ -53,8 +53,10 @@ def test_rollback_tidak_terbaca_berhasil():
 
 @butuh_node
 def test_hasil_ditandai_supaya_gagal_terbaca_merah():
-    html = _j("htmlPembaruan({terpasang:true, siap:null, berjalan:false,"
-              " hasil:{state:'rolled_back', target:'v1.22.1', installed:'v1.22.0'}}, false)")
+    html = _j(
+        "htmlPembaruan({terpasang:true, siap:null, berjalan:false,"
+        " hasil:{state:'rolled_back', target:'v1.22.1', installed:'v1.22.0'}}, false)"
+    )
     assert 'class="pembaruan-hasil" data-state="rolled_back"' in html
 
 
