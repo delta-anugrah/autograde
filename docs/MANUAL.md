@@ -2,8 +2,8 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.8"
-tanggal: 3 Oktober 2026
+versi: "2.9"
+tanggal: 4 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
 sorotan: Isi = Fitur · Setup · Operasional · Troubleshooting; Pembaca = Pemegang baru AutoGrade; Bentuk = Ringkas, tabel, perintah siap tempel
@@ -184,6 +184,16 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 - **Reject manual tanpa mouse**: tahan `Spasi` lalu tekan `1` / `2` / `3` sesuai line.
 - **Piston manual** per line (Buka / Tutup) kalau PLC aktif. **Buka** bertanya dulu di kotak
   konfirmasi di layar karena ini menggerakkan besi sungguhan; **Tutup** langsung jalan.
+- **Sambung ulang** (ikon panah melingkar) di judul tiap kartu line, di sebelah ONLINE /
+  OFFLINE, untuk semua akun. Kamera yang diam sebenarnya sudah disambung ulang otomatis oleh
+  line; tombol ini cadangan kalau gambar tidak juga kembali: kartu OFFLINE atau "Kamera tidak
+  tersambung" padahal line jalan, atau pita **kamera berhenti mengirim gambar**. Tombol bertanya
+  dulu, karena grading di line itu berhenti beberapa detik selama kamera disambung ulang (truk
+  yang terpasang tetap terpasang). Sesudah **Sambung ulang** ditekan, notifikasi hijau muncul dan
+  gambar kembali dalam beberapa detik. Line yang memakai berkas video atau foto menjawab "bukan
+  kamera". Di kartu yang sempit (tiga kolom di layar kecil) tombolnya cuma ikon. Siapa yang
+  menekan dan kapan tercatat di tab Log. Kalau gambar tetap tidak kembali, periksa kabel dan
+  restart line (§7).
 - Semua pertanyaan "yakin?" muncul di kotak konfirmasi di tengah layar, bukan kotak bawaan
   browser: **Batal** (sudah terpilih, jadi Enter yang tidak disengaja membatalkan), `Esc`, atau
   klik di luar kotak membatalkan; tombol kanan menjalankan, merah pekat kalau aksinya mengeluarkan
@@ -802,7 +812,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Impor CSV ditolak "bukan CSV Per janjang" | berkas ringkasan (Per hari / Per truk), atau disimpan ulang dari Excel | di tab Rekap pilih **Per janjang**, **Unduh CSV**, impor berkas itu tanpa dibuka di Excel |
 | Disk penuh, grading berhenti tersimpan | penjaga disk mati (`UPLOAD_DISK_MIN_FREE_GB=0`) atau Docker menumpuk image lama | `docker system prune`; kembalikan penjaga ke 20 |
 | Pita **Disk PC hampir penuh / hampir habis** | sisa disk di bawah `DISK_PERINGATAN_GB` / `DISK_KRITIS_GB`. Tanpa R2 tidak ada yang membersihkan arsip lokal (itu satu-satunya salinan bukti, jadi sengaja tidak dihapus otomatis) | `docker system prune`, hapus rekaman video lama (`/opt/palmgrade/autograde/videos/`), pastikan unggah Cloud Photo jalan; pita hilang sendiri begitu lega |
-| Pita **kamera berhenti mengirim gambar** (di log line tertulis `FRAME_BERHENTI`; pitanya sendiri tanpa kode) | kamera masih terbuka di SDK tapi gambarnya tidak datang: kabel data longgar, switch/splitter, bandwidth GigE, SDK macet | periksa kabel dan LED link, lalu restart line (Danger Zone atau `autograde restart`); log line menyebut `FRAME_BERHENTI` |
+| Pita **kamera berhenti mengirim gambar** (di log line tertulis `FRAME_BERHENTI`; pitanya sendiri tanpa kode) | kamera masih terbuka di SDK tapi gambarnya tidak datang: kabel data longgar, switch/splitter, bandwidth GigE, SDK macet | tekan **Sambung ulang** di kartu line itu dulu; kalau gambar tidak kembali, periksa kabel dan LED link, lalu restart line (Danger Zone atau `autograde restart`); log line menyebut `FRAME_BERHENTI` |
 | Log line `Tutup line: N janjang TIDAK tertulis` | disk lambat atau macet saat line diminta restart/hapus data | cek disk (`df -h`, `dmesg`), janjang yang disebut tidak punya foto; laporkan ke support |
 | Cloud Photo: foto `rusak` bertambah sesudah update | foto atau sidecar 0 byte dari listrik padam sebelum versi ini; tidak diunggah, dibiarkan di disk | tidak perlu apa-apa; boleh diperiksa lalu dihapus tangan |
 | Laptop: `make console` terasa memakai kode lama | port 8100 masih dipegang proses lama | cari pid-nya dengan `lsof -ti:8100`, matikan, jalankan ulang |
@@ -958,6 +968,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.9 | 4 Oktober 2026 | Tombol **Sambung ulang** (sambung ulang kamera) di judul tiap kartu line untuk semua akun, bertanya dulu, tercatat di tab Log; cadangan kalau sambung ulang otomatis tidak membawa gambar kembali (§3.2, §7). |
 | 2.8 | 3 Oktober 2026 | **Update now**: pita kuning "Versi X siap dipasang" untuk semua akun, tombol **Pasang sekarang** di kotak Versi & lisensi (ditolak selama ada truk di-assign), hasil di kotak itu dan di tab Log (§3.2, §6.2), plus empat baris penanganan masalahnya di §7. |
 | 2.7 | 3 Oktober 2026 | Lencana Status di tabel Timbangan sama lebar. Konfirmasi (Lewati, Buka piston) memakai dialog konsol sendiri, bukan kotak bawaan browser. Notifikasi bertumpuk di kanan bawah, terbuka saat disentuh kursor, bisa digeser ke kanan untuk ditutup. Angka RIPE, UNRIPE, JK, TP dan TOTAL bergulir seperti odometer saat berubah (naik bergulir maju lewat 9, turun bergulir mundur). Kedatangan yang dibatalkan disimpan dan tampil di panel **Kedatangan dibatalkan** di bawah tabel Timbangan, kolom **Oleh** menulis nama operator; data demo menyertakan dua contoh pembatalan. |
 | 2.6 | 3 Oktober 2026 | §3.2 dan §3.3: tab Timbangan disusun ulang jadi strip empat langkah yang sama lebar dan dua form sama besar (Catat datang, Timbang isi); form tara jadi satu bar di bawahnya; daftar tunggu jadi lencana **Menunggu n**. Kolom **Jam timbang isi** dan **Jam timbang kosong**; semua kolom tabel muat mulai 1.440 px. Tombol **Batal datang** di baris Datang. Truk yang tidak pernah Keluar selesai sendiri dengan tanda **TANPA SCAN 4** setelah 24 jam atau saat datang lagi. **Lewati** dan **Matikan** jadi tombol merah. |

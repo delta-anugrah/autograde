@@ -18,6 +18,37 @@ Next:           ...
 
 ---
 
+## 2026-10-04 · console · Reconnect camera button on each line card (PR #NNN)
+Changed:        A **Sambung ulang** button (circular arrow + word, 44 px; icon only when the card
+                header is narrower than 460 px) in every line card header next to ONLINE/OFFLINE,
+                for every account. It asks first (`tanyaKonfirmasi`: grading on that line pauses a
+                few seconds), then `POST /api/console/lines/{line}/reconnect-camera` inside
+                `denganSibuk`, toast on success, refusals worded from their code
+                (`kamera_tanpa_sambung_ulang` for a video or photo line, `line_tidak_menjawab`,
+                `line_menolak`). The busy mark also lives in `sambungUlangBerjalan`, so a card
+                redrawn mid-request stays locked. Console: `routes/console_kamera.py` +
+                `services/sambung_ulang_kamera.py` (own modules: console.py and console_service.py
+                sit at the 1,000-line guard), WARNING naming the account before the call. Line:
+                `POST /internal/camera/reconnect` (`routes/internal_kamera.py`, no torch) only
+                raises a flag on `RuntimeState` and answers 202; `FrameCaptureWorker` reconnects on
+                its next turn under `state.lock`, no backoff wait, INFO on request and outcome
+                (WARNING if the connect fails). The automatic reconnect now also holds `state.lock`
+                and sleeps its backoff in 0.25 s slices, so a press during a 30 s backoff is served
+                at once and not followed by a second reconnect. `PhotoCamera.supports_reconnect` is
+                False (409 like a video). Docs: backend-overview, MANUAL v2.9, skill
+                konsol-autograde, coding-standard known gaps (the silent except in the capture
+                worker is gone).
+Validated:      unit 4516 passed, 28 skipped; e2e 387 passed, 20 skipped; integration 162 passed;
+                browser 214 passed (chromium + firefox); ruff clean; `cek_skrip_konsol.py` OK. The
+                new tests also pass with torch, cv2 and ultralytics blocked (103 passed). Cards
+                checked by eye in both themes, both browsers, at 1920 and 1280 px.
+Not validated:  A real Hikrobot camera: no SDK on the Mac or in CI. MANUAL.pdf not regenerated.
+Decisions:      Allowed while a truck is assigned (the button exists for the moment grading is
+                stuck); the dialog says grading pauses. The account is logged as a WARNING on the
+                console, not INFO on the line: the Log tab keeps only WARNING and ERROR.
+Next:           Release, then at Lampung press Sambung ulang on one line: the card stays ONLINE or
+                comes back within seconds, and `autograde logs` shows the INFO pair on that line.
+
 ## 2026-10-03 · camera · Camera temperature on the Diagnostics card (PR #218)
 Changed:        Each Hikrobot line reads `DeviceTemperature` every 10 s on the capture thread under
                 `state.lock` (`FrameCaptureWorker._baca_suhu_kalau_waktunya`), `/health/detail`

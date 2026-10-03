@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class AssignmentSyncRequest(BaseModel):
@@ -60,6 +60,12 @@ class PistonCommandRequest(BaseModel):
     open: bool
     requested_by: str = "operator"
     requested_at: str
+
+
+class CameraReconnectRequest(BaseModel):
+    """`POST /internal/camera/reconnect` from the console. The name is for the line log only."""
+
+    requested_by: str = Field("?", max_length=200)
 
 
 class LineStatusResponse(BaseModel):

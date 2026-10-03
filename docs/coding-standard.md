@@ -89,7 +89,7 @@ PRs; a PR is not blocked by a gap it did not add.
 |---|---|---|
 | Outbox schema changes are ad-hoc blocks with no version number (`console.db` carries `PRAGMA user_version` since batch 4.5) | `integrations/erp/outbox_store.py`, `integrations/outbox/outbox_store.py` | B5, C3 |
 | The console column renames date from developer machines | `repositories/console_skema.py` | B5, C3 |
-| A silent `except Exception: pass` | `workers/frame_capture_worker.py`, `pipelines/realtime_inspection_pipeline.py` | L6 |
+| A silent `except Exception: pass` | `pipelines/realtime_inspection_pipeline.py` | L6 |
 | The ripe rate and the yard totals across lines are computed on the screen | `static/console.html` (`isiTally`, `rasioRiwayat`) | L4, F3 |
 | Ruff runs with rules E, F, I, UP, B only | `pyproject.toml` | S5 |
 | No JS linter; the node-based console tests skip themselves where node is missing | `static/console.html` | T3 |

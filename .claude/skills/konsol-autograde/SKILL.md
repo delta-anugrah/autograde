@@ -35,6 +35,16 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   `tertahan` + `plate_lama` untuk line yang masih memegang truk yang sudah keluar), jangan pernah namai variabel tingkat atas `dipasang` (sudah dipakai
   "kartu line tergambar"). Bukan "Antrean line": itu antrean janjang line ke konsol (tab Status).
   Tes: `test_console_html_antrean_bongkar.py`, `tests/browser/test_browser_penugasan.py`.
+- Tombol **Sambung ulang** kamera (2026-10-04, semua akun) di `<h2>` kartu line, di sebelah
+  ONLINE/OFFLINE (`tombolSambungUlang`, 44 px; di kartu sempit cuma ikon lewat
+  `@container (max-width:460px)` pada `.card h2`). Klik → `sambungUlangKamera`: tanya dulu
+  (`tanyaKonfirmasi`), lalu `denganSibuk` + `POST /api/console/lines/{kode}/reconnect-camera`
+  (route `routes/console_kamera.py`) → `toastSukses`; kode `kamera_tanpa_sambung_ulang`
+  (video/foto) dan `line_tidak_menjawab`/`line_menolak` lewat `gagalKarena`. Tanda sibuk juga
+  disimpan di `sambungUlangBerjalan`, jadi kartu yang digambar ulang (`dipasang = false`) di
+  tengah permintaan tetap sibuk. Line cuma memasang bendera; `FrameCaptureWorker` yang
+  menyambung ulang di bawah `state.lock`. Tes: `test_console_html_sambung_ulang.py`,
+  `tests/browser/test_browser_sambung_ulang.py`.
 - Baris tabel Timbangan (aturan 37, 2026-10-03): baris **Datang** (`barisMenunggu`) membawa tombol
   merah **Batal datang** (`button.bahaya`, `data-aksi="batal-datang"`, `data-arrival` = `id` dari
   `waiting`); `batalDatang` dua klik seperti Batalkan impor (`yakin pekat`, 5 dtk), `denganSibuk`,

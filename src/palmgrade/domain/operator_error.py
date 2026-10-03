@@ -81,6 +81,9 @@ PEMBARUAN_ADA_TRUK = "pembaruan_ada_truk"
 PEMBARUAN_TIDAK_ADA = "pembaruan_tidak_ada"
 PEMBARUAN_BERJALAN = "pembaruan_berjalan"
 PEMBARUAN_BELUM_TERPASANG = "pembaruan_belum_terpasang"
+# Reconnect camera button (2026-10-04, every account): the line's image source is a video
+# file or a photo, so there is no camera to reconnect. Carries param `line` (the card name).
+KAMERA_TANPA_SAMBUNG_ULANG = "kamera_tanpa_sambung_ulang"
 
 CODES = (
     PLAT_KOSONG,
@@ -131,6 +134,7 @@ CODES = (
     PEMBARUAN_TIDAK_ADA,
     PEMBARUAN_BERJALAN,
     PEMBARUAN_BELUM_TERPASANG,
+    KAMERA_TANPA_SAMBUNG_ULANG,
 )
 
 

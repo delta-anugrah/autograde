@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import queue
 import threading
 import time
@@ -14,6 +15,9 @@ logger = logging.getLogger(__name__)
 _MAX_CONSECUTIVE_FAILURES = 5
 _RECONNECT_BACKOFF_BASE = 1.0
 _RECONNECT_BACKOFF_MAX = 30.0
+# The automatic backoff sleeps in slices this long, so a press of the reconnect button
+# (or a stop) waits at most one slice instead of up to `_RECONNECT_BACKOFF_MAX`.
+_IRIS_JEDA_DETIK = 0.25
 # Suhu kamera berubah dalam hitungan menit; 10 detik sudah lebih rapat dari yang
 # dibaca orang di kartu Diagnostik (disegarkan tiap 5 detik).
 SUHU_JEDA_DETIK = 10.0
@@ -101,25 +105,27 @@ class FrameCaptureWorker:
         logger.log(level, pesan, nilai)
 
     def _try_reconnect(self) -> None:
+        """Automatic reconnect after `_MAX_CONSECUTIVE_FAILURES` failed grabs, with backoff.
+
+        A press of the reconnect button during the backoff wait cuts it short: the
+        connect below then counts as that press, so it is not followed by a second one.
+        """
         if self._berhenti.is_set():
             return
         logger.debug("Camera: %d consecutive failures, attempting reconnect", self._consecutive_failures)
         self._percobaan_sambung += 1
-        try:
-            self.camera.disconnect()
-        except Exception:
-            pass
-        time.sleep(self._reconnect_backoff)
+        self._lepas_kamera()
+        ditekan = self._tunggu_jeda(self._reconnect_backoff)
         self._reconnect_backoff = min(self._reconnect_backoff * 2, _RECONNECT_BACKOFF_MAX)
         if self._berhenti.is_set():
             return
+        oleh = self.state.ambil_permintaan_sambung_ulang() if ditekan else None
         try:
-            self.camera.connect(index=self._device_index, serial=self._serial, feature_file=self._feature_file)
-            self._consecutive_failures = 0
-            self._reconnect_backoff = _RECONNECT_BACKOFF_BASE
-            self.adopt_camera_frame_rate()
-            logger.debug("Camera reconnected")
+            self._sambung_kamera()
         except Exception as exc:
+            if oleh is not None:
+                self._catat_hasil_manual(oleh, exc)
+                return
             self._sambung_gagal += 1
             if self._sambung_gagal == 1:
                 logger.error(
@@ -129,6 +135,66 @@ class FrameCaptureWorker:
                 )
             else:
                 logger.debug("Camera reconnect failed: %s", exc)
+            return
+        if oleh is not None:
+            self._catat_hasil_manual(oleh, None)
+
+    def _sambung_ulang_manual(self, oleh: str) -> None:
+        """The reconnect button: one disconnect and connect now, no backoff wait.
+
+        The route already refused a source that cannot reconnect (409); this check only
+        keeps a video file or a photo from being reopened if a request slips through.
+        """
+        if not self.camera.supports_reconnect:
+            logger.info("Manual camera reconnect requested by %s ignored: this source is not a camera", oleh)
+            return
+        self._lepas_kamera()
+        try:
+            self._sambung_kamera()
+        except Exception as exc:
+            self._catat_hasil_manual(oleh, exc)
+        else:
+            self._catat_hasil_manual(oleh, None)
+        self.state.catat_sambung_kamera(berhasil=self.camera.connected)
+
+    def _catat_hasil_manual(self, oleh: str, galat: Exception | None) -> None:
+        """One line per press. A failure is a WARNING, not the automatic path's ERROR: the
+        operator is watching the card, and Discord carries only ERROR (rule 34)."""
+        if galat is None:
+            logger.info("Manual camera reconnect requested by %s: camera connected", oleh)
+        else:
+            logger.warning("Manual camera reconnect requested by %s failed: %s", oleh, galat)
+
+    def _lepas_kamera(self) -> None:
+        with self.state.lock:
+            try:
+                self.camera.disconnect()
+            except Exception as exc:
+                # A camera that is already gone may refuse to close; the connect below decides.
+                logger.debug("Camera disconnect before reconnect raised %s: %s", type(exc).__name__, exc)
+
+    def _sambung_kamera(self) -> None:
+        """Connect under `state.lock` (rule 3). Raises what `connect()` raises."""
+        with self.state.lock:
+            self.camera.connect(index=self._device_index, serial=self._serial, feature_file=self._feature_file)
+            self._consecutive_failures = 0
+            self._reconnect_backoff = _RECONNECT_BACKOFF_BASE
+            self.adopt_camera_frame_rate()
+        logger.debug("Camera reconnected")
+
+    def _tunggu_jeda(self, detik: float) -> bool:
+        """Sleep `detik` in slices; True as soon as the reconnect button was pressed.
+
+        Slices of `time.sleep`, not `Event.wait`: the worker tests replace `time.sleep`
+        to skip the backoff, and a stop request is noticed within one slice too.
+        """
+        for _ in range(max(1, math.ceil(detik / _IRIS_JEDA_DETIK))):
+            if self.state.sambung_ulang_kamera.is_set():
+                return True
+            if self._berhenti.is_set():
+                return False
+            time.sleep(min(_IRIS_JEDA_DETIK, detik))
+        return self.state.sambung_ulang_kamera.is_set()
 
     def _catat_kamera_putus(self) -> None:
         """Kejadian dimulai saat grab gagal `_MAX_CONSECUTIVE_FAILURES` kali berturut:
@@ -172,6 +238,11 @@ class FrameCaptureWorker:
             self.state.catat_suhu_kamera(suhu)
 
     def run_once(self) -> None:
+        oleh = self.state.ambil_permintaan_sambung_ulang()
+        if oleh is not None:
+            self._sambung_ulang_manual(oleh)
+            return
+
         now = time.time()
         wait = self._frame_interval - (now - self._last_frame_time)
         if wait > 0:
