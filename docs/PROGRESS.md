@@ -18,6 +18,31 @@ Next:           ...
 
 ---
 
+## 2026-10-03 · console · Timbangan round 3: stepper layout, Batal datang, tanpa scan 4 (PR #214)
+Changed:        After a third manual test. The step area is a stepper strip of four equal segments
+                (stage pill + one line saying where the step happens, "Menunggu n" badge on
+                segment 1 instead of the old two-line waiting list) above two equal forms (Catat
+                datang; Timbang isi) with one control height; the tare form is a full-width bar
+                under them. Columns read "Jam timbang isi" / "Jam timbang kosong" and show the date
+                small above the time, cells are tighter and headers may wrap, so all twelve columns
+                fit next to the pinned row button from 1440 px (Neto, the paid figure, used to hide
+                under it). Lewati and Matikan are red (`button.bahaya`). New route
+                `POST /api/console/arrivals/{id}/cancel` (Operator): deletes a waiting arrival only,
+                one log line, red two-step "Batal datang" on DATANG rows; `waiting` items carry `id`.
+                A weighed-out ticket that never gets Keluar is carried for 24 h
+                (`JENDELA_TANPA_KELUAR_DETIK`) and then, or as soon as the same truck arrives or
+                weighs in again, is computed `selesai` with `tanpa_scan_4` (yellow tag, Total to
+                the weigh-out); no `left_at` is ever written for it. Untared tickets keep 12 h.
+                Schema unchanged (4). `MANUAL.md` v2.6 (+ PDF), rule 37, backend-overview, skill.
+Validated:      `pytest tests/unit tests/e2e tests/integration` and browser: see the PR body;
+                `ruff check src tests` → All checks passed. Both branches reviewed: no Critical or
+                Important findings.
+Not validated:  Not seen on the Lampung kiosk. Not run between 00:00 and 01:21 WIB.
+Risks:          The 15 s poll can reset a pending "Yakin? Klik lagi". A cancelled arrival leaves
+                only a log line. "Truck came back" compares clocks, so a wrong PC clock shifts it;
+                the 24 h rule still ends the visit. At 1440 px the table fits with little to spare.
+Next:           Merge #208, retarget #212 and #214 to staging in order.
+
 ## 2026-10-02 · console · Timbangan polish round 2 and a visit across midnight (PR #214)
 Changed:        After a second manual test by the user. Every successful action answers with a
                 toast (Setelan Simpan, which used to write a yellow box plus red "Belum sampai ke"

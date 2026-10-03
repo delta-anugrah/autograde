@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.5"
+versi: "2.6"
 tanggal: 2 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -914,6 +914,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.6 | 3 Oktober 2026 | §3.2 dan §3.3: tab Timbangan disusun ulang jadi strip empat langkah yang sama lebar dan dua form sama besar (Catat datang, Timbang isi); form tara jadi satu bar di bawahnya; daftar tunggu jadi lencana **Menunggu n**. Kolom **Jam timbang isi** dan **Jam timbang kosong**; semua kolom tabel muat mulai 1.440 px. Tombol **Batal datang** di baris Datang. Truk yang tidak pernah Keluar selesai sendiri dengan tanda **TANPA SCAN 4** setelah 24 jam atau saat datang lagi. **Lewati** dan **Matikan** jadi tombol merah. |
 | 2.5 | 2 Oktober 2026 | §3.2: empat langkah Timbangan jadi kartu sendiri yang sejajar dan sama tinggi; Tara, Simpan, Batal satu baris dengan plat di judul kartu 3; petunjuk kartu 3 dan 4 di kotak bergaris putus. Satu bahasa warna tombol (hijau aksi utama, merah muda batal/hapus/lepas, merah pekat eksekusi terakhir). Setiap aksi yang berhasil menjawab lewat notifikasi, juga Simpan di tab Setelan (dulu kotak kuning), Uji PLC, Kirim Ulang antrean ERP, mulai rekam, dan piston. §3.3: truk yang timbang isi sebelum tengah malam tetap ada di tabel hari ini dan tetap bisa ditimbang kosong, lewat tombol baris maupun scan, sampai keluar atau 12 jam lewat; tiketnya tetap tercatat di hari pertama. |
 | 2.4 | 2 Oktober 2026 | Tab Timbangan (§3.3): kolom **Status** dengan lencana tahap (Datang, Bongkar, Timbang kosong, Selesai) berwarna sama dengan judul langkahnya; truk yang menunggu jadi baris paling atas dan bagian **Menunggu timbang** di dropdown **2. Timbang isi**; tabel urut timbang isi terbaru menurut jam sebenarnya; "tanpa scan 1" kuning; empat langkah satu baris mulai sekitar 1.330 px dan petunjuk desimal di bawah Bruto. Simpan **Penugasan line** di tab Setelan kini menjawab lewat notifikasi. |
 | 2.3 | 2 Oktober 2026 | Empat tahap scan (§3.2, §3.3 dan §3.4): **1. Datang**, **2. Timbang isi**, **3. Timbang kosong**, **4. Keluar**; kolom **Antre** dan **Total** di tabel Timbangan, jam datang dan keluar hanya disimpan di PC pabrik. **Menunggu timbang** bertahan lewat tengah malam (12 jam) dan tidak lagi menggeser kolom lain; truk terdaftar berplat tak biasa bisa dicatat datang. Kata langkah lama (timbang masuk, timbang keluar) diganti di §3.3, §3.4, §7 dan glosarium. |
