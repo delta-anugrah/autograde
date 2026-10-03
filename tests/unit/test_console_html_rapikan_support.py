@@ -35,7 +35,7 @@ const lokal = () => "id-ID";
 """
 
 # Pembantu baris kartu Diagnostik (batch 3.6 / 3.7), diekstrak bersama kartunya.
-_FUNGSI_DIAG = ("tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol")
+_FUNGSI_DIAG = ("tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol", "diagSuhu")
 
 
 def _fungsi(nama: str) -> str:

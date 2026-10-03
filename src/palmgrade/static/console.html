@@ -3000,7 +3000,7 @@ const KAMUS = {
     lineSebab_kunci_ditolak:"Line hidup tapi menolak kunci konsol, jadi datanya tidak terbaca. Panggil teknisi untuk menyamakan kunci konsol dan line itu.",
     lineSebab_line_galat:"Line menjawab tapi sedang galat. Restart line lewat Setelan, Danger Zone; kalau masih muncul, panggil teknisi. Rinciannya di tab Log.",
     lineSebab_lain:"Konsol tidak bisa membaca line ini. Rinciannya di tab Log.",
-    thFps:"FPS kamera / deteksi", thFrameTerakhir:"Gambar terakhir", thDisk:"Disk",
+    thFps:"FPS kamera / deteksi", thSuhuKamera:"Suhu kamera", thFrameTerakhir:"Gambar terakhir", thDisk:"Disk",
     thLisensiLine:"Lisensi", thVersiModel:"Versi / model", thTersimpanGagal:"Janjang tak tersimpan",
     thTpTelat:"TP telat", diagDetikLalu:"{n} dtk lalu", diagDiskBebas:"{bebas} GB bebas ({persen}%)",
     diagPlcTakDiketahui:"tidak diketahui (line versi lama)",
@@ -3462,7 +3462,7 @@ const KAMUS = {
     lineSebab_kunci_ditolak:"The line is alive but refuses the console key, so its data cannot be read. Call a technician to make the console and line keys match.",
     lineSebab_line_galat:"The line answers but reports an error. Restart the lines under Settings, Danger Zone; if it stays, call a technician. The details are in the Log tab.",
     lineSebab_lain:"The console cannot read this line. The details are in the Log tab.",
-    thFps:"Camera / detection FPS", thFrameTerakhir:"Last image", thDisk:"Disk",
+    thFps:"Camera / detection FPS", thSuhuKamera:"Camera temperature", thFrameTerakhir:"Last image", thDisk:"Disk",
     thLisensiLine:"Licence", thVersiModel:"Version / model", thTersimpanGagal:"Bunches not saved",
     thTpTelat:"Late TP", diagDetikLalu:"{n} s ago", diagDiskBebas:"{bebas} GB free ({persen}%)",
     diagPlcTakDiketahui:"unknown (older line version)",
@@ -7255,6 +7255,15 @@ function diagFrame(d) {
   return d.ai && d.ai.keadaan === "frame_berhenti" ? `<span class="tanda-gagal">${teks}</span>` : teks;
 }
 
+// Suhu badan kamera dari line (°C). Strip kalau sumbernya tidak punya sensor, kamera
+// menolak membacanya, atau bacaan terakhir sudah basi: line yang memutuskan basi
+// (SUHU_BASI_DETIK), layar cuma menampilkan. Sengaja tanpa warna sampai batas aman
+// diputuskan dari datasheet dan pola suhu Lampung.
+function diagSuhu(c) {
+  if (c === null || c === undefined) return KOSONG;
+  return `${esc(diagAngka(c))} °C`;
+}
+
 // Sisa disk (batch 3.7) dengan warna tingkatnya; tingkat asing tidak masuk atribut.
 function diagDisk(disk) {
   if (!disk || disk.bebas_gb === null || disk.bebas_gb === undefined) return KOSONG;
@@ -7315,6 +7324,7 @@ function kartuDiagnostik(kode, d) {
     <h2><span class="nama">${esc(kode)}</span></h2>
     <dl>
       <dt>${esc(t("thKamera"))}</dt><dd>${tanda(d.camera_connected)}</dd>
+      <dt>${esc(t("thSuhuKamera"))}</dt><dd>${diagSuhu(d.suhu_kamera_c)}</dd>
       <dt>${esc(t("thFps"))}</dt><dd>${diagAngka(d.fps_kamera)} / ${diagAngka(d.fps_deteksi)}</dd>
       <dt>${esc(t("thFrameTerakhir"))}</dt><dd>${diagFrame(d)}</dd>
       <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : tanda(d.gpu_available)}</dd>

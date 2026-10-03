@@ -12,7 +12,7 @@ import pytest
 from konsol_js import HTML, NODE, jalankan
 
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada")
-FUNGSI = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol", "kartuDiagnostik"]
+FUNGSI = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol", "diagSuhu", "kartuDiagnostik"]
 TAMBAHAN = 'const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));'
 
 SEHAT = {
@@ -20,7 +20,7 @@ SEHAT = {
     "plc": {"connected": True, "inputs": []}, "workers": [{"name": "capture", "alive": True}],
     "outbox_pending": 0, "outbox_failed": 0, "capture_save_dropped": 0, "tp_telat": 0,
     "version": "v1.20.0", "model_file": "best.pt", "model_backend": "tensorrt",
-    "fps_kamera": 14.94, "fps_deteksi": 7.2, "frame_umur_detik": 0.1,
+    "fps_kamera": 14.94, "fps_deteksi": 7.2, "frame_umur_detik": 0.1, "suhu_kamera_c": 47.3,
     "ai": {"keadaan": "sehat"},
     "disk": {"tingkat": "aman", "bebas_gb": 232.0, "persen_bebas": 49.6},
     "lisensi": {"aktif": True, "grading_diblokir": False, "berlaku_sampai": 1_822_000_000},
@@ -115,3 +115,26 @@ def test_bahasa_inggris():
 
 def test_tanda_waspada_memakai_token_tema():
     assert re.search(r"\.tanda-waspada\s*\{[^}]*color:var\(--warn\)", HTML)
+
+
+@butuh_node
+def test_suhu_kamera_terbaca():
+    assert _baris(_kartu(SEHAT), "Suhu kamera") == "47,3 °C"
+    assert _baris(_kartu(SEHAT, bahasa="en"), "Camera temperature") == "47.3 °C"
+
+
+@butuh_node
+def test_suhu_tidak_tahu_strip():
+    assert _baris(_kartu({**SEHAT, "suhu_kamera_c": None}), "Suhu kamera") == "-"
+
+
+@butuh_node
+def test_line_versi_lama_tanpa_suhu_strip():
+    lama = {k: v for k, v in SEHAT.items() if k != "suhu_kamera_c"}
+    assert _baris(_kartu(lama), "Suhu kamera") == "-"
+
+
+@butuh_node
+def test_suhu_belum_berwarna():
+    """Batas aman belum diputuskan: tidak ada hijau/kuning/merah di baris ini."""
+    assert "tanda-" not in _baris(_kartu({**SEHAT, "suhu_kamera_c": 71.0}), "Suhu kamera")

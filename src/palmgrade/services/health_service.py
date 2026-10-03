@@ -16,6 +16,10 @@ from .pemantau_disk import ringkas_disk_dari_state
 from .penjaga_ai import ringkas_ai_dari_state
 from .pindah_db_line import outbox_lama_tertinggal
 
+# Bacaan suhu lebih tua dari ini tidak dilaporkan: capture membaca tiap 10 detik,
+# jadi 60 detik tanpa bacaan baru berarti gambar sudah berhenti atau kamera putus.
+SUHU_BASI_DETIK = 60.0
+
 
 @dataclass
 class HealthService:
@@ -70,6 +74,8 @@ class HealthService:
         umur_frame = sekarang - s.frame_terakhir_at if s.frame_terakhir_at > 0 else None
         umur_deteksi = sekarang - s.inferensi_selesai_at if s.inferensi_selesai_at > 0 else None
 
+        umur_suhu = sekarang - s.suhu_kamera_at if s.suhu_kamera_c is not None else None
+
         def segar(umur: float | None) -> bool:
             return umur is not None and umur <= JEDA_ALIRAN_DETIK
 
@@ -77,6 +83,7 @@ class HealthService:
             "fps_kamera": round(s.fps_kamera, 1) if segar(umur_frame) else 0.0,
             "fps_deteksi": round(s.inference_fps, 1) if segar(umur_deteksi) else 0.0,
             "frame_umur_detik": None if umur_frame is None else round(umur_frame, 1),
+            "suhu_kamera_c": s.suhu_kamera_c if umur_suhu is not None and umur_suhu <= SUHU_BASI_DETIK else None,
         }
 
     def ringkasan_lisensi(self) -> dict[str, Any]:

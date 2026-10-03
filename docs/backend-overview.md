@@ -161,6 +161,7 @@ per `track_id`): `docs/overview.md` §3.
   "fps_kamera": 14.9,
   "fps_deteksi": 7.2,
   "frame_umur_detik": 0.1,
+  "suhu_kamera_c": 47.3,
   "disk": {
     "tingkat": "aman",
     "kode": null,
@@ -191,6 +192,7 @@ per `track_id`): `docs/overview.md` §3.
 | `ai` | penjaga AI mati (batch 2.1, `services/penjaga_ai.py`): `keadaan` (`sehat`/`memulai`/`kamera_putus`/`lisensi`/`sumber_selesai`/`frame_berhenti`/`ai_mati`; line versi 2.1 masih bisa mengirim `sumber_diam`), `mati` (bool, **AI saja**), `kode` (`AI_MATI`, `FRAME_BERHENTI`, atau `null`), `sejak` (epoch mulai diam, cuma saat `ai_mati`/`frame_berhenti`), `umur_detik` (detik sejak frame terakhir selesai digrading), `ambang_detik` (`AI_MATI_DETIK` yang berlaku), `galat_terakhir` + `galat_at` (galat deteksi TERAKHIR sejak boot dan umurnya, **bukan** bukti ada galat sekarang). `mati:true` (AI mati) dan `keadaan:"frame_berhenti"` menaikkan coil ERROR dan membuat `/health` 503; `/health/detail` sendiri **tetap 200** walau keduanya |
 | `fps_kamera` / `fps_deteksi` | laju TERUKUR gambar masuk / frame selesai digrading (batch 3.6). **0** kalau yang terakhir lebih tua dari 5 detik, jadi angka lama tidak pernah tampil sebagai laju sekarang |
 | `frame_umur_detik` | detik sejak gambar terakhir masuk dari kamera; `null` = belum pernah |
+| `suhu_kamera_c` | suhu badan kamera Hikrobot (°C, node `DeviceTemperature`), dibaca thread capture tiap 10 detik selama gambar mengalir. `null` = tidak tahu: webcam/video/foto, kamera menolak menjawab (WARNING sekali dengan kode SDK di tab Log), atau bacaan terakhir lebih tua dari 60 detik |
 | `disk` | pemantau disk (batch 3.7, `services/pemantau_disk.py`), partisi foto + DB line yang PALING sempit: `tingkat` (`aman`/`peringatan`/`kritis`/`tidak_terbaca`), `kode` (`DISK_HAMPIR_PENUH`/`DISK_KRITIS`/`null`), `bebas_gb`, `total_gb`, `persen_bebas`, `jalur`, ambang yang berlaku, `sejak` (epoch mulai tingkat sekarang). Jalan **tanpa R2** dan tidak menghapus apa pun; `null` = line versi lama |
 | `lisensi` | lisensi line ini: `aktif` (`LICENSE_ENABLED`), `grading_diblokir` (gerbang yang sama dengan thread grading), `berlaku_sampai` (epoch akhir tenggang) |
 
@@ -534,7 +536,7 @@ Verbatim copy of the former `CLAUDE.md` sections "HTTP Surface" and "Integration
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/health`, `/health/detail` | `/health` ringan, **503 kalau AI mati atau frame berhenti** (`ai` = keadaan penjaga AI, `routes/health_ringan.py`, tanpa torch); detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending` = semua janjang belum sampai konsol, `outbox_failed` selalu `0` sejak batch 2.4, rincian di tab Status → Antrean line) + `model_file`/`model_backend`/`model_kelas`/`model_kelas_cocok`/`gpu_sm` = model yang benar-benar dimuat + `ai` (keadaan + `galat_terakhir`) + `fps_kamera`/`fps_deteksi` (terukur, 0 kalau basi) + `frame_umur_detik` + `disk` (pemantau disk) + `lisensi` + `plc.connected` (aturan 35) |
+| GET | `/health`, `/health/detail` | `/health` ringan, **503 kalau AI mati atau frame berhenti** (`ai` = keadaan penjaga AI, `routes/health_ringan.py`, tanpa torch); detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending` = semua janjang belum sampai konsol, `outbox_failed` selalu `0` sejak batch 2.4, rincian di tab Status → Antrean line) + `model_file`/`model_backend`/`model_kelas`/`model_kelas_cocok`/`gpu_sm` = model yang benar-benar dimuat + `ai` (keadaan + `galat_terakhir`) + `fps_kamera`/`fps_deteksi` (terukur, 0 kalau basi) + `frame_umur_detik` + `suhu_kamera_c` (°C, `null` kalau basi atau tidak terbaca) + `disk` (pemantau disk) + `lisensi` + `plc.connected` (aturan 35) |
 | GET | `/api/video_feed` | MJPEG live (multi-viewer) |
 | GET | `/api/results_today` | today's results (read from disk) |
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |
