@@ -20,12 +20,12 @@ HTML = (Path(__file__).resolve().parents[2] / "src/palmgrade/static/console.html
 KUNCI_BAHAYA = frozenset({
     "btnBatal", "imporBatal", "btnLepas", "tombolKeluar",
     "bahayaRestartTombol", "bahayaLogoutTombol", "bahayaRekamanTombol",
-    "bahayaTransaksiTombol", "bahayaSemuaTombol", "btnLewati",
+    "bahayaTransaksiTombol", "bahayaSemuaTombol", "btnLewati", "btnBatalDatang",
 })
 #: Attributes that mark such a button where its label is built elsewhere.
 ATRIBUT_BAHAYA = (
     "data-akun-batal", "data-bahaya-batal", "data-batal=", "data-bahaya-buka=",
-    "data-bahaya-jalankan=", 'data-aksi="lepas"',
+    "data-bahaya-jalankan=", 'data-aksi="lepas"', 'data-aksi="batal-datang"',
 )
 #: Never danger: the steps of a truck visit and the grading actions keep their meaning.
 KUNCI_BUKAN_BAHAYA = frozenset({"btnPergi", "btnTimbangKosong", "btnDatang", "btnMasuk", "btnSimpanTara"})

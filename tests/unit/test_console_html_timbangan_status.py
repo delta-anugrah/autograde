@@ -195,7 +195,8 @@ def test_baris_tiket_diawali_lencana_dua_belas_sel():
         assert kelas in sel[0]
     menunggu = re.findall(r"<td\b[^>]*>(.*?)</td>", html[1], re.S)
     assert menunggu[3] == "7 mnt" and menunggu[6] == "BE 2 BB"
-    assert "<button" not in html[1] and "data-id" not in html[1]
+    # No ticket yet: no weighing button and no ticket id. Its one button is Batal datang (2026-10-03).
+    assert re.findall(r"data-aksi=\"([\w-]+)\"", html[1]) == ["batal-datang"] and "data-id" not in html[1]
 
 
 def test_yang_menunggu_jadi_baris_paling_atas():
