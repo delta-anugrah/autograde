@@ -33,7 +33,14 @@ from ..domain.setelan_grading import SetelanTidakSah
 from ..domain.setelan_rekam import SetelanRekamTidakSah
 from ..domain.sumber_kamera import SumberTidakSah
 from ..integrations.notifications.line_client import LinePlcTolak, LineUnavailable
-from ..schemas.console_schema import LoginBody, ManualTruckBody, PasangBody, ScanBody, WeighingBody
+from ..schemas.console_schema import (
+    AutoAssignBody,
+    LoginBody,
+    ManualTruckBody,
+    PasangBody,
+    ScanBody,
+    WeighingBody,
+)
 from ..services.bahaya_service import BahayaDitolak, BahayaSemuaMenolak, BahayaTidakSah
 from ..services.dev_service import CoilTidakDikenal, PlcSibuk
 from ..services.impor_grading_service import ImporDitolak, ImporTidakAda
@@ -61,6 +68,7 @@ from .console_deps import get_auth_service as get_auth_service
 from .console_deps import get_bahaya_service as get_bahaya_service
 from .console_deps import get_console_service as get_console_service
 from .console_deps import get_dev_service as get_dev_service
+from .console_deps import get_gate_service as get_gate_service
 from .console_deps import get_impor_grading_service as get_impor_grading_service
 from .console_deps import get_operator_admin as get_operator_admin
 from .console_deps import get_pembaruan_service as get_pembaruan_service
@@ -68,6 +76,7 @@ from .console_deps import get_riwayat_service as get_riwayat_service
 from .console_deps import get_scan_service as get_scan_service
 from .console_deps import require_operator as require_operator
 from .console_deps import require_support as require_support
+from .console_gerbang import antrean_bongkar_router, gerbang_router
 
 logger = logging.getLogger(__name__)
 
@@ -308,12 +317,16 @@ async def console_scan_exit(
     **Two open tickets are refused, not guessed** (operator's decision, 2026-09-15):
     guessing here can attach the tare to the wrong visit and mix two visits' tonnage —
     the same shape as the ticket-adoption bug we reported to AutoERP. The screen shows
-    both and the operator picks.
+    both and the operator picks. Open = no tare yet within the visit window, not today's
+    work date: a truck weighed in at 23:50 is weighed out at 00:10.
     """
     try:
-        return scan.open_ticket(payload.qr or "", service.today())
+        return scan.open_ticket(payload.qr or "", service.sekarang())
     except OperatorError as exc:
         raise _operator_error(400, exc) from exc
+
+
+router.include_router(gerbang_router)  # scans 1 and 4, Batal datang (rule 37)
 
 
 @router.get("/api/console/trucks/{plate_number}/qr.png", include_in_schema=False)
@@ -350,7 +363,15 @@ def console_weighings(
     limit: int = Query(100, ge=1, le=500),
 ) -> dict:
     resolved_date = work_date or service.today()
-    return {"work_date": resolved_date, "items": service.weighings(resolved_date, limit=limit)}
+    return {
+        "work_date": resolved_date,
+        "items": service.weighings(resolved_date, limit=limit),
+        # "Who is waiting at the scale" is always now, whatever day the table shows.
+        "waiting": service.waiting_arrivals(),
+        # Batal datang history (round 4) of the day the table shows: the same 15 s poll,
+        # no second request from the screen.
+        "dibatalkan": service.kedatangan_dibatalkan(resolved_date),
+    }
 
 
 @router.get("/api/console/recap")
@@ -402,13 +423,17 @@ async def assign_truck(
 
 @router.post("/api/console/lines/{line_code}/release-truck")
 async def release_truck(line_code: str, service: Service, operator: Operator) -> dict:
-    """Truck leaves. The line is told too — see `ConsoleService.lepas_truk`."""
+    """Truck leaves. The line is told too; then the next truck in the unloading queue
+    may go on (`release_truck_by_operator`, 2026-10-01), and the answer says which."""
     try:
-        return await service.release_truck(line_code)
+        return await service.release_truck_by_operator(line_code)
     except ValueError as exc:
         raise _operator_error(404, exc) from exc
     except LineUnavailable as exc:
         raise _operator_error(502, exc) from exc
+
+
+router.include_router(antrean_bongkar_router)  # Tugaskan sekarang / Lewati (rule 36)
 
 
 @router.post("/api/console/lines/{line_code}/manual-reject")
@@ -631,6 +656,27 @@ async def dev_setelan_simpan(
             payload, diubah_oleh=operator["email"]
         )
     except SetelanTidakSah as exc:
+        raise _operator_error(400, exc) from exc
+
+
+@router.get("/api/console/dev/auto-assign")
+def dev_penugasan_baca(service: Service, operator: Support) -> dict:
+    """Penugasan line otomatis: nyala atau mati, dan line mana yang dipakai."""
+    return service.penugasan_otomatis()
+
+
+@router.post("/api/console/dev/auto-assign")
+async def dev_penugasan_simpan(service: Service, operator: Support, payload: AutoAssignBody) -> dict:
+    """Support only, like the grading settings: this decides which truck the bunches are
+    counted to. Every change is logged WARNING with who made it.
+
+    `async def` (rule 30): saved on, a truck already waiting goes onto the free lines
+    right away, and that asks the lines. The answer's `dipasang` says where."""
+    try:
+        return await service.simpan_penugasan_lalu_isi(
+            payload.aktif, payload.lines, diubah_oleh=operator["email"]
+        )
+    except InvalidInput as exc:
         raise _operator_error(400, exc) from exc
 
 

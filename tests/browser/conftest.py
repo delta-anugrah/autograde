@@ -11,6 +11,7 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
+import httpx
 import pytest
 from harness import KonsolUji, port_bebas
 from line_palsu import LinePalsu
@@ -63,6 +64,37 @@ def konsol(tmp_path_factory: pytest.TempPathFactory, lines: dict[str, Any]) -> I
         yield k
     finally:
         k.berhenti()
+
+
+# Lines a cleanup may release: line-3 is the offline one, and releasing it answers 502.
+_LINE_HIDUP = ("line-1", "line-2")
+_SEMUA_LINE = ("line-1", "line-2", "line-3")
+_BERES_MAKS_S = 10.0
+
+
+@pytest.fixture
+def penugasan_bersih(konsol: KonsolUji) -> Iterator[None]:
+    """Automatic assignment OFF on all three lines, lines 1-2 free, unloading queue empty,
+    before AND after the test.
+
+    The console and the fake lines live for the whole session: a switch left ON or a truck
+    left on line-1 would change test_browser_timbangan, tugaskan and semua_halaman, and a
+    truck another test left weighed in would be the first one put on the lines.
+    """
+    from langkah import SUPPORT  # here, not at the top: langkah decides the Playwright skip
+
+    def bereskan() -> None:
+        with httpx.Client(base_url=konsol.url, timeout=_BERES_MAKS_S) as c:
+            c.post("/api/console/login", json={"email": SUPPORT[0], "sandi": SUPPORT[1]}).raise_for_status()
+            c.post("/api/console/dev/auto-assign", json={"aktif": False, "lines": list(_SEMUA_LINE)}).raise_for_status()
+            for kode in _LINE_HIDUP:
+                c.post(f"/api/console/lines/{kode}/release-truck").raise_for_status()
+            for antre in c.get("/api/console/state").json().get("antrean_bongkar", []):
+                c.post(f"/api/console/unloading-queue/{antre['weighing_id']}/skip").raise_for_status()
+
+    bereskan()
+    yield
+    bereskan()
 
 
 @pytest.fixture(scope="session")

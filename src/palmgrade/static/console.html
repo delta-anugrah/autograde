@@ -56,6 +56,8 @@
           --acc:#04613a; --acc-bg:#dff0e6; --on-acc:#ffffff;
           --rej:#a72119; --rej-bg:#fdeeec;
           --warn:#7a4b00; --warn-bg:#fbeed2;
+          /* Blue for the "Timbang kosong" stage only (badge + step 3 header). */
+          --info:#0b4a85; --info-bg:#e2edf9;
           --input:#ffffff; --hover:#414a57;
           --danger-bg:#fde8e6; --danger-line:#d99a94; --danger-fg:#8c1d18;
           --bayang:rgba(12,19,16,.22);
@@ -76,6 +78,7 @@
           --acc:#4ee39f; --acc-bg:#0f2c20; --on-acc:#07211a;
           --rej:#ff8078; --rej-bg:#331a18;
           --warn:#ffcf70; --warn-bg:#33260c;
+          --info:#9ccbff; --info-bg:#132639;
           --input:#222933; --hover:#5b667a;
           --danger-bg:#40211f; --danger-line:#6b312d; --danger-fg:#ffc4bf;
           --bayang:rgba(0,0,0,.55);
@@ -133,14 +136,14 @@
   #info-sistem-modal .tools button { min-height:44px; min-width:9rem; }
   #jam { font-family:var(--mono); font-size:1.15rem; font-weight:700; letter-spacing:.01em; }
   .jam { display:flex; align-items:baseline; gap:8px; }
-  #topbar .aksi { margin-left:auto; display:flex; gap:8px; }
+  /* `flex-wrap`: on a 390 px phone the account name and three buttons are wider than the bar,
+     and without it the whole page scrolled sideways by 19 px (found 2026-10-03). */
+  #topbar .aksi { margin-left:auto; display:flex; flex-wrap:wrap; justify-content:flex-end;
+                  gap:8px; max-width:100%; }
   #topbar .aksi button { min-width:5.5rem; min-height:2.6rem; border-radius:var(--r-pill); }
-  /* Last in the row and in the danger colours: signing out drops a shift's
-     screen back to the login gate, so it must never be the button a gloved
+  /* Sign-out (`#keluar`) is last in the row and wears `button.bahaya`: it drops a
+     shift's screen back to the login gate, so it must never be the button a gloved
      hand hits while reaching for the language or theme toggle. */
-  #topbar .aksi #keluar { background:var(--danger-bg); border-color:var(--danger-line);
-                          color:var(--danger-fg); }
-  #topbar .aksi #keluar:hover { border-color:var(--danger-fg); }
 
   #err { display:none; padding:13px var(--pad); font-weight:700;
          background:var(--danger-bg); color:var(--danger-fg);
@@ -185,19 +188,49 @@
      while it fades. z-index 40 - above the dropdown panels (20) so a toast is
      never hidden under an open one, below the sign-in gate (50) so a toast
      can never sit on top of the login screen. */
+  /* Tumpukan ala Sonner (user 2026-10-03, varian richColors), dibangun tangan karena layar
+     ini tanpa npm: toast terbaru di depan, yang lebih lama terlipat di belakangnya (lebih
+     kecil dan naik sedikit, paling banyak tiga terlihat), dan kursor atau fokus di atas
+     tumpukan membukanya jadi daftar sambil menahan hitung mundur semuanya. Posisinya dari
+     variabel yang ditulis `susunToast`: `--urut` (0 = depan), `--offset` (tinggi toast yang
+     lebih baru + jaraknya), `--tinggi` (tinggi aslinya). Cuma transform dan opacity yang
+     bergerak; tinggi berubah sekali saat tumpukan dibuka atau dilipat.
+     Wadahnya setinggi toast depan dan menempel di pojok; kartunya absolut di dasarnya. */
   #toasts { position:fixed; z-index:40; right:var(--pad); bottom:var(--pad);
-            display:flex; flex-direction:column-reverse; gap:8px;
-            width:min(24rem, calc(100vw - 2 * var(--pad)));
-            pointer-events:none; }
-  .toast { pointer-events:auto; display:flex; align-items:flex-start; gap:10px;
+            width:min(24rem, calc(100vw - 2 * var(--pad))); height:var(--tinggi-depan, 0px);
+            pointer-events:none; --jarak:14px; }
+  /* `align-items:center` (user 2026-10-02): rata atas membuat kalimat satu baris menempel
+     di tepi atas, jauh dari tengah tombol ×. Di tengah, satu baris dan banyak baris sama rapi. */
+  .toast { position:absolute; left:0; right:0; bottom:0; box-sizing:border-box;
+           pointer-events:auto; display:flex; align-items:center; gap:10px;
            padding:12px 14px; border-radius:var(--r-sm); border:1px solid;
            box-shadow:var(--tinggi-2); font-weight:600; line-height:1.35;
            /* Slightly transparent on purpose - it must never fully hide
               whatever card or feed sits behind it while it is up. Opaque text
               on a translucent card: the background is see-through, the
               message is not. */
-          opacity:.94; animation:toast-masuk .2s ease backwards; }
-  @keyframes toast-masuk { from { opacity:0; transform:translateY(6px); } }
+           opacity:.94; touch-action:pan-y;
+           transform:translateY(calc(var(--urut, 0) * -1 * var(--jarak))) scale(calc(1 - var(--urut, 0) * .05));
+           translate:var(--geser, 0px) 0;
+           transition:transform .4s cubic-bezier(.21,1.02,.73,1), opacity .3s ease,
+                      height .4s cubic-bezier(.21,1.02,.73,1), translate .2s ease; }
+  /* Terlipat: kartu di belakang setinggi kartu depan dan isinya tidak terlihat, seperti
+     Sonner; yang mengintip cuma tepi atasnya. */
+  #toasts:not([data-terbuka]) .toast[data-belakang] { height:var(--tinggi-depan); }
+  #toasts:not([data-terbuka]) .toast[data-belakang] > * { opacity:0; pointer-events:none; }
+  .toast > * { transition:opacity .3s ease; }
+  /* Terbuka: daftar biasa, tiap kartu setinggi aslinya. Pengisi celah di bawah kartu
+     belakang (`::after`) menjaga kursor tetap "di atas tumpukan" saat melewati celahnya;
+     kartu depan tidak punya, jadi area kosong di sekitar tumpukan tetap tembus klik. */
+  #toasts[data-terbuka] .toast { transform:translateY(calc(-1 * var(--offset, 0px))); height:var(--tinggi); }
+  #toasts[data-terbuka] .toast[data-belakang]::after { content:""; position:absolute; left:0; right:0;
+                                                       top:100%; height:calc(var(--jarak) + 1px); }
+  .toast[data-sembunyi] { opacity:0; pointer-events:none; }
+  #toasts .toast[data-masuk] { transform:translateY(100%); opacity:0; }
+  .toast[data-keluar] { opacity:0; pointer-events:none; }
+  .toast[data-keluar-geser] { translate:110% 0; }
+  .toast[data-geser] { transition:none; }
+  .toast .ikon-toast { flex:none; width:1.25rem; height:1.25rem; }
   /* `min-width:0` wajib: item flex menolak menyusut di bawah lebar isinya,
      jadi satu kata panjang — jalur berkas rekaman, misalnya — mendorong toast
      melewati tepi layar dan bagian yang paling perlu dibaca justru terpotong.
@@ -315,45 +348,146 @@
   #sec-rekap th, #sec-rekap td { padding:10px 10px; }
   .riwayat-catatan { margin:10px 0 0; }
 
-  /* Hasil scan, di sebelah kolomnya. Tinggi dipatok supaya baris alat tidak bergeser
-     saat pesannya muncul dan hilang - tombol yang bergerak sulit ditekan. */
+  /* Hasil scan dan tombol baris. Tinggi dipatok di formnya supaya form tidak bergeser saat
+     pesannya muncul dan hilang: tombol yang bergerak sulit ditekan. */
   .scan-pesan { min-height:1.4rem; font-weight:700; color:var(--acc); }
-  /* Dua gerbang dalam satu baris alat, masing-masing berlabel. Labelnya yang membuat
-     dua kolom scan bisa dibedakan sekali lihat - tanpa itu keduanya terbaca sama dan
-     scan keluar mendarat di jalur masuk, membuat tiket kedua untuk satu kunjungan. */
-  .timbang-alat { align-items:flex-start; gap:18px; }
-  /* ⚠️ JANGAN pakai nama `.gerbang-*` di sini: itu milik gerbang login di atas
-     (`.gerbang-isi` = flex column, input 3.4rem). Kelas yang sama membuat kolom scan
-     melar jadi kotak raksasa yang berhamburan - kejadian sekali, terlihat di
-     screenshot operator, dan tidak ada test statis yang bisa menangkapnya. */
-  .timbang-sisi { flex:0 1 auto; min-width:0; display:flex; flex-direction:column; gap:6px; }
-  .timbang-baris { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-  /* Lebih sempit dari 13rem bawaan: labelnya sudah mengatakan MASUK atau KELUAR, jadi
-     placeholder cukup "Scan QR" - dan kolom yang lebih sempit membuat dua gerbang tetap
-     satu baris sampai 1024 px. */
-  .timbang-baris input.plat { flex:0 0 10rem; }
+  .scan-pesan.salah { color:var(--danger-fg); }
 
-  /* ---- kolom tara di gerbang keluar ---- */
+  /* ---- tab Timbangan: strip empat langkah, dua form, bar tara ---- */
+  /* User 2026-10-03: "yg skrng berantakan banget, width beda2, height juga". Empat kartu
+     langkah berbobot lebar beda-beda dengan pita kosong di bawah tiap kartu
+     diganti tiga baris yang lebarnya ditentukan layar, bukan isinya:
+       strip   : empat ruas SAMA lebar dan tinggi, pita tahap + satu kalimat "di mana langkah
+                 ini dikerjakan", panah di antaranya supaya terbaca kiri ke kanan
+       form    : Datang dan Timbang isi berdampingan, SAMA lebar dan tinggi; langkah 3 dan 4
+                 tidak punya kontrol sendiri (tombolnya di baris tabel), jadi tidak diberi form
+       tara    : bar selebar panel berwarna langkah 3, muncul di bawah form saat operator
+                 menekan Timbang kosong di baris truknya
+     Semua kontrol setinggi `--tinggi-timbang`, kedua tombol utama selebar `--lebar-aksi-timbang`.
+     ⚠️ JANGAN pakai nama `.gerbang-*` di sini: itu milik gerbang login di atas
+     (`.gerbang-isi` = flex column, input 3.4rem); kelas yang sama pernah membuat kolom scan
+     melar jadi kotak raksasa. */
+  .timbang-alat { --tinggi-timbang:2.9rem; --lebar-aksi-timbang:9rem; }
+  /* `.tools.timbang-alat`, bukan `.timbang-alat`: aturan `.tools` di bawah (flex,
+     `align-items:center`) datang belakangan dan akan menang. */
+  .tools.timbang-alat { display:grid; grid-template-columns:minmax(0, 1fr); align-items:stretch;
+                        gap:12px; padding:12px; }
+  .timbang-alat :is(button, input, .pilih-tombol) { min-height:var(--tinggi-timbang); }
+
+  /* Strip langkah. Warna garis atas ruas = warna lencana tahap di kolom Status, jadi baris
+     tabel dan langkahnya tersambung sekali lihat. */
+  .timbang-langkah { list-style:none; margin:0; padding:0; display:grid;
+                     grid-template-columns:minmax(0, 1fr); gap:8px; }
+  .langkah-ruas { position:relative; min-width:0; display:flex; flex-direction:column; gap:4px;
+                  padding:8px 10px 10px; background:var(--zebra); border:1px solid var(--line);
+                  border-top:4px solid var(--warna-tahap, var(--line-kuat));
+                  border-radius:var(--r-sm); }
+  .ruas-datang  { --warna-tahap:var(--line-kuat); }
+  .ruas-bongkar { --warna-tahap:var(--warn); }
+  .ruas-kosong  { --warna-tahap:var(--info); }
+  .ruas-selesai { --warna-tahap:var(--acc); }
+  /* Langkah 3 menyala selama bar tara terbuka: bar di bawah dan ruasnya satu warna. Cuma
+     warna yang berubah, garisnya sama tebal, jadi tidak ada yang bergeser. */
+  .langkah-ruas.aktif { background:var(--info-bg); border-color:var(--info); }
+  /* Satu baris, tidak pernah dua: lencana Menunggu berubah tiap poll 15 detik, dan ruas yang
+     meninggi saat ada truk datang menggeser form dan tabel di bawah tangan operator. Kalau
+     ruasnya terlalu sempit, lencananya yang terpotong, bukan barisnya yang turun. */
+  .langkah-kepala { display:flex; flex-wrap:nowrap; align-items:center; gap:6px; min-width:0;
+                    min-height:1.9rem; }
+  .langkah-kepala .lb.langkah { flex:none; white-space:nowrap; }
+  .langkah-hitung { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis;
+                    white-space:nowrap; padding:2px 6px; border-radius:var(--r-pill);
+                    background:var(--card); border:1px solid var(--line-kuat);
+                    font-size:.75rem; font-weight:700; line-height:1.3; color:var(--fg); }
+  .langkah-hitung[hidden] { display:none; }
+  .langkah-di { font-size:.85rem; line-height:1.3; color:var(--muted); }
+  /* Pesan langkah 4 (scan keluar dan tombol Keluar di baris) menggantikan kalimat petunjuknya
+     selama ada, di tempat yang sama: ruasnya tidak bertambah satu baris kosong untuk pesan
+     yang belum ada. */
+  .langkah-ruas .scan-pesan { min-height:0; font-size:.85rem; line-height:1.3; }
+  .langkah-ruas .scan-pesan:empty { display:none; }
+  .langkah-ruas .scan-pesan:not(:empty) + .langkah-di { display:none; }
+  /* Kolom QR langkah 3 dan 4, `hidden` sampai scanner dibeli: begitu dimunculkan ia mengisi
+     lebar ruasnya. `flex:none`: `.tools input.plat` memberi basis 13rem, dan di kolom flex basis
+     itu menjadi TINGGI. */
+  .timbang-alat .langkah-ruas input.plat { flex:none; width:100%; max-width:none; margin-top:4px; }
+  /* 2 x 2 dari 600 px, empat sejajar dari 960 px dengan panah di celahnya: di bawah itu pita
+     "3. Timbang kosong" tidak muat satu baris di ruas seperempat lebar. */
+  @media (min-width:600px) {
+    .timbang-langkah { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width:960px) {
+    .timbang-langkah { grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; }
+    .langkah-ruas:not(:last-child)::after { content:""; position:absolute; top:50%; right:-11px;
+      width:8px; height:8px; border:solid var(--muted); border-width:2px 2px 0 0;
+      transform:translateY(-50%) rotate(45deg); }
+  }
+
+  /* Dua form, berdampingan dari 1100 px, bertumpuk di bawahnya. Garis kiri berwarna tahapnya,
+     sama dengan garis atas ruas langkahnya di strip. */
+  .timbang-aksi { display:grid; grid-template-columns:minmax(0, 1fr); gap:8px 12px; }
+  .timbang-form { min-width:0; display:flex; flex-direction:column; gap:4px; padding:10px 12px;
+                  background:var(--zebra); border:1px solid var(--line);
+                  border-left:5px solid var(--warna-tahap, var(--line-kuat));
+                  border-radius:var(--r-sm); }
+  .timbang-kontrol { display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; }
+  /* Berawalan `.timbang-alat`: `.tools .pilih`, `.tools input.kg` dan `.tools button` di
+     bawah sama kuatnya tanpa itu dan datang belakangan. Dropdown plat mengisi sisa baris,
+     kedua tombol utama selebar sama. */
+  .timbang-alat .timbang-kontrol .pilih { flex:1 1 9rem; min-width:9rem; }
+  .timbang-alat .timbang-kontrol input.plat { flex:1 1 9rem; min-width:0; max-width:none; }
+  .timbang-alat .timbang-kontrol input.kg { flex:0 0 7.5rem; min-width:0; }
+  .timbang-alat .timbang-kontrol button { flex:0 0 var(--lebar-aksi-timbang); }
+  /* HP: tombol utama yang turun ke baris kedua selebar formnya, bukan sepotong di kiri. */
+  @media (max-width:599px) {
+    .timbang-alat .timbang-kontrol button { flex:1 1 100%; }
+  }
+  /* Baris kaki di bawah KEDUA form: pesan scan langkah 1 di bawah form 1, petunjuk desimal
+     (atau pesan scan langkah 2 yang menggantikannya) di bawah form 2. Di dalam form, pesan dan
+     petunjuk membuat form 2 lebih tinggi dari form 1 atau memberi keduanya pita kosong. Baris
+     ini selalu terisi petunjuk, jadi pesan yang muncul tidak menggeser tabel. */
+  .timbang-kaki { margin:0; min-width:0; font-size:.85rem; line-height:1.3; }
+  .timbang-kaki.scan-pesan { min-height:0; }
+  .timbang-kaki.scan-pesan:empty { display:none; }
+  .kaki-isi .scan-pesan { min-height:0; }
+  .kaki-isi .scan-pesan:empty { display:none; }
+  .kaki-isi .scan-pesan:not(:empty) + span { display:none; }
+  /* Berdampingan: dua form di baris 1, kakinya di baris 2 di bawah form masing-masing. Di
+     bawah 1100 px urutannya urutan dokumen: form 1, pesannya, form 2, kakinya. */
+  @media (min-width:1100px) {
+    .timbang-aksi { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    .timbang-form.ruas-datang { grid-area:1 / 1; }
+    .timbang-form.timbang-isi { grid-area:1 / 2; }
+    .kaki-datang { grid-area:2 / 1; }
+    .kaki-isi { grid-area:2 / 2; }
+  }
+
+  /* ---- bar tara (langkah 3) ---- */
   /* Inline, BUKAN lapisan di atas layar: dialog yang menutup layar menghilangkan kamera
      line dan strip tally sampai tara selesai diisi, dan di gerbang yang sibuk itu
-     kehilangan pandangan justru saat paling butuh. Dilaporkan operator 2026-09-15. */
-  .tara-grup { display:flex; align-items:center; gap:8px; }
+     kehilangan pandangan justru saat paling butuh. Dilaporkan operator 2026-09-15.
+     Judul dengan plat, Tara, Simpan dan Batal SATU baris, setinggi kontrol form di atasnya. */
+  .tara-grup { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; min-width:0;
+               padding:10px 12px; background:var(--info-bg); border:1px solid var(--info);
+               border-left:5px solid var(--info); border-radius:var(--r-sm); }
   .tara-grup[hidden] { display:none; }
-  /* Platnya disebut: operator melihat beberapa truk sehari sambil memegang HP supir,
-     dan kolom tanpa nama truk bisa mendarat di kunjungan yang salah. */
-  .tara-plat { font-family:var(--mono); font-weight:700; font-size:1.05rem;
+  .tara-judul { display:flex; align-items:center; gap:10px; min-height:var(--tinggi-timbang);
+                font-weight:700; color:var(--info); white-space:nowrap; }
+  /* Platnya disebut: operator melihat beberapa truk sehari sambil memegang HP supir, dan
+     kolom tanpa nama truk bisa mendarat di kunjungan yang salah. */
+  .tara-plat { font-family:var(--mono); font-weight:700; font-size:1.15rem; color:var(--fg);
                white-space:nowrap; }
-  .tara-grup input { flex:0 0 8rem; font-family:var(--mono); text-align:right; }
-  .tara-grup button { flex:0 0 7rem; }
-  /* Pemisah: dua gerbang itu dua tempat fisik, dan garis ini yang mengatakannya. */
-  .timbang-keluar { padding-left:18px; border-left:1px solid var(--line-kuat); }
-  /* Di layar sempit gerbang keluar turun ke baris kedua, dan garis di KIRI jadi
-     janggal karena tidak ada apa pun di sebelahnya lagi. Pemisahnya pindah ke atas. */
-  @media (max-width:1330px) {
-    .timbang-keluar { padding-left:0; padding-top:12px; border-left:0;
-                      border-top:1px solid var(--line-kuat); width:100%; }
-  }
-  .scan-pesan.salah { color:var(--danger-fg); }
+  .tara-plat:empty { display:none; }
+  .timbang-alat .tara-grup input.kg { flex:0 1 12rem; min-width:7.5rem; max-width:none;
+                                      font-family:var(--mono); text-align:right; }
+  /* Simpan dan Batal sepasang: layar sempit menurunkan KEDUANYA, tidak pernah Batal sendirian. */
+  .tara-tombol { flex:0 0 auto; display:flex; gap:8px; }
+  /* `width` as well as the basis: Firefox sizes `.tara-tombol` from its buttons' content, not
+     their flex basis, so the pair overflowed it and the message beside it covered Batal. */
+  .timbang-alat .tara-grup button { flex:0 0 var(--lebar-aksi-timbang); width:var(--lebar-aksi-timbang); }
+  /* Pesan tara (angka di bawah 1.000 kg, tolakan server) di ujung baris yang sama, tepat di
+     samping kolom yang sedang diisi. */
+  .tara-grup .scan-pesan { flex:1 1 0; min-width:6rem; min-height:0; }
 
   /* ---- kartu QR truk ---- */
   #qr-cetak { padding:16px 0; }
@@ -395,6 +529,32 @@
                  min-width:4.6rem; text-align:center; }
   #tally .stat b { display:block; font-family:var(--mono); font-size:2rem; font-weight:700;
                    line-height:1.1; font-variant-numeric:tabular-nums; }
+  /* Odometer angka tally (user 2026-10-03, gaya NumberFlow, dibangun tangan tanpa npm): tiap
+     digit yang berubah adalah pita 0 sampai 9 dua putaran (`::before`, 20 baris) yang
+     bergeser ke digit barunya. Dua putaran supaya 9 ke 0 tetap maju: angka naik menggulung
+     pita ke atas terus (9 lalu 0 putaran kedua), angka turun ke bawah terus (0 putaran
+     kedua lalu 9), tidak pernah berputar balik lewat 8..1. `--dari` dan `--ke` adalah
+     baris pita (0 sampai 19), `--arah` 1 naik dan -1 turun; dihitung `kolomOdometer`.
+     Kotak digitnya diukur oleh digit tujuannya sendiri (`::after`, tak terlihat), jadi
+     tingginya satu baris tulisan angka itu, di strip mana pun. Pita dan isinya pseudo-elemen:
+     `textContent` tetap angka biasa lewat `.odo-baca`, yang tidak terlihat tapi terbaca
+     pembaca layar dan test. Cuma transform dan opacity yang bergerak. Ditulis `tulisAngka`. */
+  .odo-baca { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%);
+              white-space:nowrap; }
+  .odo { display:inline-flex; vertical-align:top; }
+  .odo-d { position:relative; overflow:hidden; }
+  .odo-d::after { content:attr(data-ke); visibility:hidden; }
+  .odo-d::before { content:"0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9\A 0\A 1\A 2\A 3\A 4\A 5\A 6\A 7\A 8\A 9";
+                   white-space:pre;
+                   position:absolute; top:0; left:0; right:0; text-align:center;
+                   transform:translateY(calc(var(--ke) * -5%));
+                   animation:odo-gulir .7s cubic-bezier(.16,1,.3,1) both; }
+  .odo-d[data-masuk]::before { animation-name:odo-masuk; }
+  .odo-d[data-keluar]::before { opacity:0; animation-name:odo-keluar; }
+  @keyframes odo-gulir { from { transform:translateY(calc(var(--dari) * -5%)); } }
+  @keyframes odo-masuk { from { transform:translateY(calc(var(--ke) * -5% + var(--arah) * 5%)); opacity:0; } }
+  @keyframes odo-keluar { from { opacity:1; }
+                          to { transform:translateY(calc(var(--ke) * -5% - var(--arah) * 5%)); opacity:0; } }
   #tally .stat.acc b { color:var(--acc); }
   #tally .stat.rej b { color:var(--rej); }
   /* TP tidak hijau dan tidak merah: tangkai panjang itu sifat janjang, bukan
@@ -568,7 +728,6 @@
   /* Warna menurut akibatnya, supaya terbaca sebagai tombol dan bedanya terlihat sekilas
      (tes staging 2026-09-28: tombol abu-abu menyatu dengan tabel). */
   .akun-tombol button.aksi-sandi { background:var(--acc-bg); color:var(--acc); border-color:var(--acc); }
-  .akun-tombol button.aksi-matikan { background:var(--rej-bg); color:var(--rej); border-color:var(--rej); }
   .akun-tombol button.aksi-aktifkan { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
   .akun-tombol button.aksi-role { background:var(--warn-bg); color:var(--warn); border-color:var(--warn); }
   /* Kolom sandi berikut tombol Lihat (form Tambah akun dan panel Ganti sandi). */
@@ -583,8 +742,6 @@
   .akun-panel.awas { border-left-color:var(--rej); }
   .akun-panel p { flex:1 1 100%; margin:0; }
   .akun-panel input { flex:0 1 14rem; min-width:0; }
-  .akun-panel.awas button[data-akun-jalankan] { background:var(--rej); border-color:var(--rej);
-                                                 color:#fff; }
   /* Semua tombol aksi tab Akun selebar SAMA (permintaan operator 2026-09-29): tombol per
      baris, Tambah akun, form, dan panel konfirmasi. Dulu empat lebar (12rem, 10rem, 8rem,
      dan selebar label), jadi Ganti sandi / Matikan / Jadikan operator bergerigi di tiap
@@ -725,12 +882,23 @@
      filled button on the card. */
   button.utama { background:var(--acc); border-color:var(--acc); color:var(--on-acc); }
   button.utama:hover { border-color:var(--fg); }
-  /* Release throws away the line's current assignment, so it wears the same
-     palette as the reject button - the two destructive actions on the card look
-     alike, and Assign is the only filled one. */
-  .assign [data-aksi="lepas"] { background:var(--danger-bg); border-color:var(--danger-line);
-                                color:var(--danger-fg); }
-  .assign [data-aksi="lepas"]:hover:not(:disabled) { border-color:var(--danger-fg); }
+  /* Varian bahaya, SATU untuk semua tombol yang membatalkan, menghapus, mereset, mengurungkan,
+     melepas, atau keluar dari sesi (user 2026-10-02: "button batal dibuat warna merah ... pake
+     component button ya supaya seragam semua"). Bentuk, tinggi, hover dan disabled tetap dari
+     `button` dasar; cuma warnanya yang berubah. Lepas di kartu line, Batal di mana pun, Keluar
+     di bar atas, dan lima tombol Danger Zone memakai ini. `tests/unit/test_console_tombol_bahaya.py`
+     menolak tombol Batal/Hapus/Reset baru tanpa kelas ini. BUKAN untuk Keluar di tabel
+     Timbangan (truk meninggalkan gerbang, langkah 4) atau Reject/Piston (aksi grading). */
+  button.bahaya { background:var(--danger-bg); border-color:var(--danger-line); color:var(--danger-fg); }
+  button.bahaya:hover:not(:disabled) { border-color:var(--danger-fg); }
+  /* Pekat: eksekusi terakhir yang tidak bisa diurungkan (Jalankan di Danger Zone, Ya matikan
+     akun, Batal impor yang sudah ditanya). Lebih keras dari `bahaya` supaya tidak tertukar
+     dengan Batal di sebelahnya. Mati = tanpa warna, seperti menunggu HAPUS diketik. Pasangan
+     token bahaya dibalik, bukan `--rej` + putih: di tema gelap `--rej` terang dan teks putih
+     di atasnya di bawah 3:1. */
+  button.bahaya.pekat { background:var(--danger-fg); border-color:var(--danger-fg); color:var(--danger-bg); }
+  button.bahaya.pekat:hover:not(:disabled) { border-color:var(--fg); }
+  button.bahaya.pekat:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
   /* Reject manual dan piston satu baris, lebar dibagi dua (permintaan
      2026-09-26): satu baris tombol, bukan dua, jadi kartu line lebih pendek.
      `min-width:0` supaya label panjang turun baris di dalam tombolnya sendiri,
@@ -802,6 +970,13 @@
      memakai palet --warn dengan denyut pelan supaya operator melihatnya; kritis
      memakai palet dan denyut bahaya yang sama dengan pita AI. */
   #pita-disk { margin:10px var(--pad) 0; }
+  /* ---- antrean bongkar (2026-10-01): truk yang menunggu line, di atas kartu line ---- */
+  .antrean-bongkar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px;
+                     margin:10px var(--pad) 0; padding:8px 12px; background:var(--card);
+                     border:1px solid var(--line-kuat); border-radius:8px; }
+  .antrean-bongkar[hidden] { display:none; }
+  .antrean-truk { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  .antrean-truk b { font-family:var(--mono); font-size:1.05rem; }
   #pita-disk p { position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px;
                  margin:0 0 6px; padding:11px 13px; border-radius:var(--r-sm);
                  background:var(--warn-bg); color:var(--warn); border-left:4px solid var(--warn);
@@ -848,6 +1023,14 @@
   .pilih-panel [role="option"]:focus { outline:none; background:var(--zebra);
                                        box-shadow:inset 4px 0 0 var(--acc); }
   .pilih-panel [role="option"][aria-selected="true"] { background:var(--acc-bg); color:var(--acc); }
+  /* Section header inside a list (step 2: "Menunggu timbang" / "Truk lain"). Styled like
+     the `.lb` micro-label so it reads as a legend, never as a truck to pick. */
+  .pilih-grup { padding:10px 14px 4px; font-size:.72rem; font-weight:700; letter-spacing:.12em;
+                text-transform:uppercase; color:var(--muted); }
+  .pilih-grup:not(:first-child) { margin-top:4px; border-top:1px solid var(--line); }
+  /* The minutes waited, on the right of the plate. */
+  .pilih-catatan { margin-left:auto; padding-left:16px; font-family:var(--mono); font-weight:600;
+                   color:var(--muted); }
   /* A panel on a button already flush with the right edge grows off-screen: `left:0`
      measures from the button's left, and the panel is wider than the button. Anchored
      to the right edge instead. Not applied to every `.pilih` - the ones on the left
@@ -951,6 +1134,34 @@
   td.no { font-family:var(--mono); font-variant-numeric:tabular-nums; }
   th.num, td.num { text-align:right; }
   td.num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  /* Tombol baris Timbangan (Timbang kosong / Keluar) dipaku di kanan: 11 kolom lebih
+     lebar dari layar 1280 dan 1440 px, dan tanpa scanner tombol itu satu-satunya jalan
+     per tiket. Latarnya pekat (juga baris zebra) supaya kolom yang lewat di bawahnya
+     tidak tembus. Baris "belum ada tiket" (colspan) tidak ikut dipaku. */
+  #sec-timbangan th:last-child, #sec-timbangan td:last-child:not(.kosong) {
+    position:sticky; right:0; z-index:1; border-left:1px solid var(--line); }
+  #sec-timbangan td:last-child:not(.kosong) { background:var(--card); }
+  /* Dua belas kolom plus tombol baris harus muat di 1440 px (user 2026-10-03, Neto tertutup
+     kolom tombol yang dipaku): judul kolom boleh dua baris ("Jam timbang / kosong") dan jarak
+     sel lebih rapat, jadi lebar kolom ditentukan isinya, bukan judulnya. Neto adalah angka yang
+     dibayar; ia tidak boleh bersembunyi di bawah kolom tombol. */
+  #sec-timbangan th { white-space:normal; vertical-align:bottom; }
+  #sec-timbangan td.sel-waktu { line-height:1.25; font-variant-numeric:tabular-nums; }
+  #sec-timbangan td.sel-waktu .tgl { display:block; font-size:.78rem; color:var(--muted); }
+  #sec-timbangan th, #sec-timbangan td { padding-left:6px; padding-right:6px; }
+  /* Spasi huruf lencana dan tag di tabel ini sedikit lebih rapat: font Linux (kiosk pabrik,
+     CI) lebih lebar dari macOS, dan di 1440 px tabel ini dulu lewat 19 px di sana. */
+  #sec-timbangan td :is(.lencana, .tag) { letter-spacing:.04em; }
+  #sec-timbangan tbody tr:nth-child(even) td:last-child:not(.kosong) { background:var(--zebra); }
+  /* Riwayat Batal datang (2026-10-03) di bawah tabel Timbangan: `<details>` apa adanya, jadi
+     buka/tutupnya milik browser dan bertahan melewati poll. Kolom terakhirnya (Oleh) bukan
+     kolom tombol: aturan paku `#sec-timbangan td:last-child` di atas tidak berlaku di sini. */
+  .riwayat-batal { margin-top:12px; }
+  .riwayat-batal > summary { cursor:pointer; padding:10px 4px; font-weight:600; color:var(--muted);
+                             user-select:none; list-style:revert; }
+  .riwayat-batal > summary:hover { color:var(--fg); }
+  #sec-timbangan .riwayat-batal th:last-child,
+  #sec-timbangan .riwayat-batal td:last-child:not(.kosong) { position:static; border-left:0; }
   /* The column heads already say ACC and REJ, so the colour is a second signal
      here, never the only one. */
   /* Form setelan: kolom sempit dan label di atas, bukan sebaris. Angkanya
@@ -992,7 +1203,9 @@
   /* Danger Zone: bingkai merah di bawah kartu Setelan, tertutup saat tab
      dibuka. Token bahaya yang sama dengan tombol Uji PLC — satu bahasa warna
      untuk "ini bisa merusak". */
-  .bahaya { margin:18px var(--pad) 0; border:1px solid var(--danger-line);
+  /* `details.bahaya`, bukan `.bahaya`: `button.bahaya` adalah varian tombol bahaya, dan
+     aturan tanpa nama elemen akan memberi setiap tombol Batal margin dan bingkai ini. */
+  details.bahaya { margin:18px var(--pad) 0; border:1px solid var(--danger-line);
             border-radius:var(--r); background:var(--kartu); }
   .bahaya > summary { cursor:pointer; padding:12px 16px; font-weight:700; user-select:none;
                       color:var(--danger-fg); letter-spacing:.04em; list-style:revert; }
@@ -1004,9 +1217,7 @@
   /* Lebar TETAP, sama untuk kelima tombol (permintaan 2026-09-26): muat label
      terpanjang dua bahasa ("Delete transaction data…"); label yang lebih
      panjang nanti turun ke baris kedua, lebarnya tetap. */
-  button.bahaya-buka { flex:0 0 15rem; width:15rem; white-space:normal; font-weight:600;
-                       border-color:var(--danger-line); background:var(--danger-bg);
-                       color:var(--danger-fg); }
+  button.bahaya-buka { flex:0 0 15rem; width:15rem; white-space:normal; font-weight:600; }
   .bahaya-panel { margin:0 16px 12px; padding:12px 14px; border-radius:var(--r-sm);
                   border:1px solid var(--danger-line); background:var(--danger-bg); }
   .bahaya-panel[hidden] { display:none; }
@@ -1018,8 +1229,6 @@
   /* Sengaja TANPA text-transform: "hapus" yang terlihat seperti "HAPUS" padahal
      tombolnya tetap mati akan terbaca seperti layar yang rusak. */
   .bahaya-tombol input { flex:0 0 11rem; font-family:var(--mono); }
-  button.bahaya-jalankan { border-color:var(--rej); background:var(--rej); color:#fff; font-weight:700; }
-  button.bahaya-jalankan:disabled { background:none; color:var(--muted); border-color:var(--line-kuat); }
 
   /* Layar Rekam Video memakai ulang `.setelan-form`, tapi kolomnya empat dan
      berdampingan dengan tabel selebar layar. Kolomnya dibuat lebih sempit dari
@@ -1116,7 +1325,6 @@
                          padding-top:14px; border-top:1px solid var(--line); }
   #set-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
                            background:var(--warn-bg); color:var(--warn); }
-  #set-lines:not(:empty) { color:var(--rej); }
   /* Sumber kamera: tiga kartu SEJAJAR (bukan ditumpuk) supaya layar lebar pabrik
      tidak kosong di kanan sementara Simpan terdorong jauh ke bawah. `.tools`
      ada DI LUAR baris kartu (lihat markup) supaya dia tetap satu blok penuh di
@@ -1182,6 +1390,20 @@
      tabel model panjang, dan terpotong di kanan kalau tidak boleh membungkus. */
   #model-baris td.bungkus { white-space:normal; min-width:14rem; }
   #model-modal .tools button { flex:0 0 auto; min-height:44px; min-width:9rem; }
+  /* Dialog konfirmasi bersama (`tanyaKonfirmasi`, user 2026-10-03), pengganti kotak
+     `confirm` bawaan browser: kotak bawaan itu tidak ikut tema gelap, menulis alamat konsol di
+     judulnya, dan tidak bisa dibaca dari jauh. Bahasa visualnya sama dengan model-modal. */
+  #konfirmasi-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
+                      background:var(--card); color:var(--fg); width:min(92vw, 30rem);
+                      box-shadow:var(--tinggi-2); }
+  #konfirmasi-modal[open] { animation:muncul .15s ease; }
+  #konfirmasi-modal::backdrop { background:rgba(0,0,0,.72); }
+  .konfirmasi-isi { padding:20px 24px; }
+  #konfirmasi-modal h2 { margin:0 0 8px; font-size:1.25rem; overflow-wrap:anywhere; }
+  #konfirmasi-modal p { margin:0; color:var(--muted); }
+  #konfirmasi-modal .tools { padding:20px 0 0; justify-content:flex-end; flex-wrap:wrap;
+                             background:none; border:0; border-radius:0; }
+  #konfirmasi-modal .tools button { flex:0 0 auto; min-height:44px; min-width:9rem; }
   /* Impor CSV (tab Riwayat, support). Padding di pembungkus isi, bukan di <dialog>,
      dengan alasan yang sama dengan model-modal. */
   #impor-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
@@ -1207,7 +1429,6 @@
                  border:1px solid var(--line); border-radius:var(--r); }
   .impor-batch .muted { font-size:.85rem; }
   .impor-batch button { margin-left:auto; min-height:2.4rem; min-width:7rem; }
-  .impor-batch button.yakin { color:var(--rej); border-color:var(--rej); }
   .impor-batch[data-status="undone"] { opacity:.7; }
   /* Janjang dari impor CSV, di tampilan Per janjang tab Riwayat. */
   .label-impor { display:inline-block; margin-left:6px; padding:2px 6px; border:1px solid var(--line-kuat);
@@ -1271,6 +1492,30 @@
 
   .tag.ok { color:var(--acc); background:var(--acc-bg); border-color:var(--acc); }
   .tag.no { color:var(--rej); background:var(--rej-bg); border-color:var(--rej); }
+  /* TANPA SCAN 1 (user 2026-10-02): kuning peringatan, bukan abu-abu yang terbaca seperti
+     teks biasa. Katanya tetap tertulis, jadi warnanya bukan satu-satunya tanda. */
+  .tag.peringatan { color:var(--warn); background:var(--warn-bg); border-color:var(--warn); }
+  /* Tahap kunjungan (user 2026-10-02): lencana di kolom Status dan judul empat langkah di
+     atasnya memakai warna yang sama, jadi operator menyambungkan baris dengan langkahnya
+     sekali lihat. Warnanya tanda kedua: katanya selalu tertulis. Datang abu-abu, Bongkar
+     kuning, Timbang kosong biru, Selesai hijau; tiap pasangan di atas 6:1 di dua tema. */
+  .tahap-datang  { color:var(--muted); background:var(--bg); border-color:var(--line-kuat); }
+  .tahap-bongkar { color:var(--warn); background:var(--warn-bg); border-color:var(--warn); }
+  .tahap-kosong  { color:var(--info); background:var(--info-bg); border-color:var(--info); }
+  .tahap-selesai { color:var(--acc); background:var(--acc-bg); border-color:var(--acc); }
+  /* Semua lencana Status selebar yang terlebar (user 2026-10-03): `data-ukur` membawa keempat
+     kata tahap dalam bahasa layar, satu per baris, sebagai pseudo-elemen tak terlihat setinggi
+     nol. Lebarnya = kata terlebar, katanya sendiri di tengah. Pseudo-elemen tidak masuk
+     `textContent` maupun pembaca layar, jadi yang terbaca tetap satu kata. */
+  .lencana { display:inline-flex; flex-direction:column; align-items:center;
+             font:700 .78rem/1 var(--font); letter-spacing:.08em;
+             text-transform:uppercase; padding:6px 10px; border-radius:var(--r-pill);
+             border:1px solid; white-space:nowrap; }
+  .lencana::after { content:attr(data-ukur); height:0; overflow:hidden; visibility:hidden;
+                    white-space:pre; }
+  /* Judul langkah: label kecil yang sama, kini sebagai pita berwarna tahapnya. */
+  .lb.langkah { align-self:flex-start; padding:4px 10px; border-radius:var(--r-pill);
+                border:1px solid; }
 
   /* One staggered reveal on load, nothing after it. A screen that is watched
      all day must not keep moving. */
@@ -1300,7 +1545,7 @@
     <span id="operator-aktif" hidden></span>
     <button id="bahasa">EN</button>
     <button id="tema">Terang</button>
-    <button id="keluar" hidden data-t="tombolKeluar">Keluar</button>
+    <button id="keluar" class="bahaya" hidden data-t="tombolKeluar">Keluar</button>
   </span>
 </header>
 <div id="err"></div>
@@ -1415,6 +1660,13 @@
 
 <div id="pita-alarm" hidden></div>
 <div id="pita-disk" hidden></div>
+<!--
+  Antrean bongkar (2026-10-01): truk yang sudah timbang isi tapi belum di line. Satu truk di
+  line sampai selesai; truk berikutnya menunggu di sini sampai truk sebelumnya timbang
+  kosong atau dilepas. Tersembunyi kalau kosong: kamera tidak kehilangan ruang untuk
+  sesuatu yang tidak ada.
+-->
+<div id="antrean-bongkar" class="antrean-bongkar" hidden></div>
 <div id="lines"></div>
 
 <nav id="tabs">
@@ -1522,7 +1774,7 @@
     registered in the Trucks tab first.
   -->
   <!--
-    Satu baris alat, dua gerbang, masing-masing berlabel. Ketemu dari screenshot
+    Satu kotak alat, empat langkah, masing-masing berlabel. Ketemu dari screenshot
     operator: dua kolom bertulisan "Scan QR truk" yang sama, satu di atas satu di
     bawah, tanpa penanda mana yang mana. Yang kiri MEMBUAT tiket, yang kanan MENUTUP
     tiket - tertukar berarti tiket dobel untuk satu kunjungan.
@@ -1536,66 +1788,131 @@
     bukan disembunyikan di balik satu klik lagi.
   -->
   <div class="tools timbang-alat">
-    <div class="timbang-sisi">
-      <label class="lb" for="scan-plat" data-t="lbGerbangMasuk">Truk masuk</label>
-      <div class="timbang-baris">
-        <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="QR masuk"
-               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
-        <div class="pilih" id="plat-timbang" data-nilai=""></div>
-        <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
-               inputmode="decimal" autocomplete="off">
-        <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang masuk</button>
-      </div>
-      <!--
-        Hasil scan punya tempatnya sendiri, bukan banner global `#err`: `refresh()`
-        membersihkan banner itu setiap kali berhasil, jadi pesan scan hilang dalam 2
-        detik dan operator yang sedang memegang HP supir tidak pernah membacanya.
-      -->
-      <span id="scan-pesan" class="scan-pesan" role="status"></span>
-    </div>
-    <div class="timbang-sisi timbang-keluar">
-      <label class="lb" for="scan-keluar" data-t="lbGerbangKeluar">Truk keluar</label>
-      <div class="timbang-baris">
-        <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="QR keluar"
-               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
-        <!--
-          Kolom tara muncul DI SINI setelah scan berhasil, bukan sebagai lapisan di atas
-          layar: dialog yang menutup seluruh layar menghilangkan kamera line dan strip
-          tally sampai tara selesai diisi, dan di gerbang yang sibuk itu kehilangan
-          pandangan justru saat paling butuh. Dilaporkan operator 2026-09-15.
-
-          Disembunyikan sampai ada truk terpilih: kolom yang bisa diisi tanpa tiket
-          adalah kolom yang tidak tahu harus menulis ke mana.
-        -->
-        <span id="tara-grup" class="tara-grup" hidden>
-          <b id="tara-plat" class="tara-plat"></b>
-          <input id="tara-nilai" class="kg" inputmode="decimal" autocomplete="off"
-                 data-t-ph="phTara" placeholder="Tara (kg)">
-          <button type="button" id="tara-simpan" class="utama" data-t="btnSimpanTara">Simpan</button>
-          <button type="button" id="tara-batal" data-t="btnBatal">Batal</button>
+    <!--
+      Strip empat langkah (user 2026-10-03): tiap ruas = pita tahap + di mana langkah itu
+      dikerjakan. Langkah 3 dan 4 tidak punya kontrol sendiri (tombolnya di baris tabel),
+      jadi tidak diberi kartu berisi kotak kosong. Label tetap `for` kolom QR-nya: kolom itu
+      `hidden` sampai scanner dibeli, lalu muncul di form (1, 2) atau di ruasnya (3, 4).
+      Scan 1 dan 4 (2026-09-30): jam datang dan jam keluar gerbang, cuma disimpan di PC ini.
+      Scan 1 boleh terlewat; tiketnya lalu ditandai di kolom Antre.
+    -->
+    <ol class="timbang-langkah">
+      <li class="langkah-ruas ruas-datang">
+        <span class="langkah-kepala">
+          <label class="lb langkah tahap-datang" id="lb-langkah-datang" for="scan-datang" data-t="lbDatang">1. Datang</label>
+          <!-- Jumlah truk yang menunggu timbang isi; platnya di `title` dan sebagai baris
+               DATANG di tabel. Disembunyikan kalau nol. -->
+          <span id="antre" class="langkah-hitung" hidden></span>
         </span>
+        <span class="langkah-di" data-t="hintDatang">Pilih truk, lalu Catat datang</span>
+      </li>
+      <li class="langkah-ruas ruas-bongkar">
+        <span class="langkah-kepala">
+          <label class="lb langkah tahap-bongkar" id="lb-langkah-isi" for="scan-plat" data-t="lbGerbangMasuk">2. Timbang isi</label>
+        </span>
+        <span class="langkah-di" data-t="hintTimbangIsi">Pilih truk, isi Bruto, lalu Timbang isi</span>
+      </li>
+      <li class="langkah-ruas ruas-kosong" id="ruas-kosong">
+        <span class="langkah-kepala">
+          <label class="lb langkah tahap-kosong" for="scan-keluar" data-t="lbGerbangKeluar">3. Timbang kosong</label>
+        </span>
+        <span id="petunjuk-keluar" class="langkah-di" data-t="hintGerbangKeluar">Tekan Timbang kosong di baris truknya</span>
+        <!-- Hasil scan ini membuka bar tara di bawah; pesannya di bar itu (`#scan-keluar-pesan`). -->
+        <input id="scan-keluar" class="plat" data-t-ph="phScanKeluar" placeholder="QR timbang kosong"
+               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
+      </li>
+      <li class="langkah-ruas ruas-selesai">
+        <span class="langkah-kepala">
+          <label class="lb langkah tahap-selesai" for="scan-pergi" data-t="lbPergi">4. Keluar</label>
+        </span>
+        <!-- Pesan sebelum petunjuknya: selama ada, ia menggantikan petunjuk di tempat yang sama. -->
+        <span id="scan-pergi-pesan" class="scan-pesan" role="status"></span>
+        <span id="petunjuk-pergi" class="langkah-di" data-t="hintPergi">Tekan Keluar di baris truknya</span>
+        <input id="scan-pergi" class="plat" data-t-ph="phScanPergi" placeholder="QR keluar"
+               autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
+      </li>
+    </ol>
+    <!--
+      Dua form sama lebar dan sama tinggi, isinya cuma satu baris kontrol. Pesan scan dan
+      petunjuk desimal berbagi SATU baris di bawah keduanya (`.timbang-kaki`), jadi tidak ada
+      form yang lebih tinggi atau berpita kosong. Hasil scan punya tempatnya sendiri, bukan
+      banner global `#err`: `refresh()` membersihkan banner itu setiap kali berhasil, jadi pesan
+      scan hilang dalam 2 detik dan operator yang memegang HP supir tidak pernah membacanya.
+    -->
+    <div class="timbang-aksi">
+      <div class="timbang-form ruas-datang" role="group" aria-labelledby="lb-langkah-datang">
+        <div class="timbang-kontrol">
+          <input id="scan-datang" class="plat" data-t-ph="phScanDatang" placeholder="QR datang"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
+          <div class="pilih" id="plat-datang" data-nilai=""></div>
+          <button id="datang" class="utama" data-t="btnDatang" disabled>Catat datang</button>
+        </div>
       </div>
-      <!--
-        Selama kolom QR disembunyikan (scanner belum dibeli), sisi ini kosong
-        sampai operator menekan Timbang keluar di baris tiket. Label "Truk keluar" di
-        atas ruang kosong terbaca seperti alat yang rusak, jadi petunjuk ini
-        yang menunjukkan ke mana harus pergi. Hapus bersama `hidden` di
-        `#scan-keluar` begitu scanner datang.
-      -->
-      <span id="petunjuk-keluar" class="catatan" data-t="hintGerbangKeluar">Tekan Timbang keluar di baris truknya pada tabel di bawah</span>
+      <span id="scan-datang-pesan" class="scan-pesan timbang-kaki kaki-datang" role="status"></span>
+      <div class="timbang-form ruas-bongkar timbang-isi" role="group" aria-labelledby="lb-langkah-isi">
+        <div class="timbang-kontrol">
+          <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="QR timbang isi"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
+          <div class="pilih" id="plat-timbang" data-nilai=""></div>
+          <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
+                 data-t-title="hintDesimal" title="Desimal: titik atau koma, mis. 14820,5"
+                 aria-describedby="bruto-petunjuk" inputmode="decimal" autocomplete="off">
+          <button id="masuk" class="utama" data-t="btnMasuk" disabled>Timbang isi</button>
+        </div>
+      </div>
+      <!-- Pesan scan langkah 2 sebelum petunjuknya: selama ada, ia menggantikan petunjuk. -->
+      <p class="catatan timbang-kaki kaki-isi"><span id="scan-pesan" class="scan-pesan" role="status"></span><span
+         id="bruto-petunjuk" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span></p>
+    </div>
+    <!--
+      Bar tara, muncul DI SINI setelah Timbang kosong ditekan di baris tiket (atau scan
+      langkah 3 berhasil), bukan sebagai lapisan di atas layar: dialog yang menutup seluruh
+      layar menghilangkan kamera line dan strip tally sampai tara selesai diisi, dan di
+      gerbang yang sibuk itu kehilangan pandangan justru saat paling butuh. Dilaporkan
+      operator 2026-09-15.
+
+      Disembunyikan sampai ada truk terpilih: kolom yang bisa diisi tanpa tiket adalah kolom
+      yang tidak tahu harus menulis ke mana.
+    -->
+    <div id="tara-grup" class="tara-grup" role="group" aria-labelledby="tara-judul" hidden>
+      <label id="tara-judul" class="tara-judul" for="tara-nilai">
+        <span data-t="taraJudul">Timbang kosong</span>
+        <b id="tara-plat" class="tara-plat"></b>
+      </label>
+      <input id="tara-nilai" class="kg" inputmode="decimal" autocomplete="off"
+             data-t-ph="phTara" placeholder="Tara (kg)">
+      <span class="tara-tombol">
+        <button type="button" id="tara-simpan" class="utama" data-t="btnSimpanTara">Simpan</button>
+        <button type="button" id="tara-batal" class="bahaya" data-t="btnBatal">Batal</button>
+      </span>
       <span id="scan-keluar-pesan" class="scan-pesan" role="status"></span>
     </div>
-    <span class="catatan" data-t="hintDesimal">Desimal: titik atau koma, mis. 14820,5</span>
   </div>
   <div class="tabel">
     <table>
-      <thead><tr><th data-t="thMasuk">Masuk</th><th data-t="thKeluar">Keluar</th><th data-t="thLama">Lama</th><th data-t="thTruk">Truk</th>
+      <thead><tr><th data-t="thStatus">Status</th><th data-t="thMasuk">Jam timbang isi</th><th data-t="thKeluar">Jam timbang kosong</th>
+        <th data-t="thAntre">Antre</th><th data-t="thLama">Lama</th><th data-t="thTotal">Total</th>
+        <th data-t="thTruk">Truk</th>
         <th data-t="thSumber">Sumber</th><th class="num" data-t="thBruto">Bruto (kg)</th>
         <th class="num" data-t="thTara">Tara (kg)</th><th class="num" data-t="thNeto">Neto (kg)</th>
         <th></th></tr></thead>
       <tbody id="timbangan"></tbody>
     </table>
   </div>
+  <!--
+    Riwayat Batal datang (user 2026-10-03): siapa membatalkan truk mana dan kapan, hari yang
+    tampil. Tersembunyi utuh selama kosong; isinya dari `dibatalkan` di /weighings.
+  -->
+  <details id="riwayat-batal" class="riwayat-batal" hidden>
+    <summary id="riwayat-batal-judul"></summary>
+    <div class="tabel">
+      <table>
+        <thead><tr><th data-t="thPlat">Plat</th><th data-t="thJamDatang">Jam datang</th>
+          <th data-t="thJamBatal">Jam dibatalkan</th><th data-t="thOleh">Oleh</th></tr></thead>
+        <tbody id="riwayat-batal-isi"></tbody>
+      </table>
+    </div>
+  </details>
 </section>
 
 <section id="sec-rekap" class="panel" hidden>
@@ -1805,7 +2122,31 @@
       <span id="set-sumber" class="muted"></span>
     </div>
     <p id="set-pesan" role="alert"></p>
-    <div id="set-lines" class="muted"></div>
+  </div>
+
+  <!--
+    Penugasan line otomatis (2026-10-01). Tombol simpannya SENDIRI, bukan Simpan setelan
+    di atas: jalurnya lain, dan berlaku seketika untuk truk berikutnya. Support saja,
+    seperti setelan grading: ini menentukan janjang dihitung ke truk mana.
+  -->
+  <div class="setelan-form">
+    <details class="setelan-grup" data-setelan-grup="penugasan" open>
+      <summary data-t="grupPenugasan">Penugasan line</summary>
+      <div class="setelan-grup-isi">
+        <label class="saklar">
+          <input id="set-otomatis" type="checkbox">
+          <span>
+            <span data-t="labelOtomatis">Tugaskan truk ke line otomatis saat timbang isi</span>
+            <small class="muted" data-t="bantuOtomatis">Satu truk di line sampai timbang kosong. Truk berikutnya menunggu di antrean bongkar.</small>
+          </span>
+        </label>
+        <span class="lb" data-t="labelLineOtomatis">Line yang dipakai</span>
+        <div id="set-otomatis-lines"></div>
+      </div>
+    </details>
+    <div class="tools lepas">
+      <button id="set-penugasan-simpan" class="utama" data-t="btnSimpanPenugasan">Simpan penugasan</button>
+    </div>
   </div>
 
   <!--
@@ -1831,7 +2172,7 @@
           <b data-t="bahayaRestartJudul">Restart semua line</b>
           <small class="muted" data-t="bahayaRestartTeks">Ketiga line mati sekitar 10 detik, lalu hidup lagi. Janjang yang lewat selama itu tidak dihitung.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="restart" data-t="bahayaRestartTombol">Restart</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="restart" data-t="bahayaRestartTombol">Restart</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="restart" hidden></div>
       <div class="bahaya-baris" data-bahaya="logout">
@@ -1839,7 +2180,7 @@
           <b data-t="bahayaLogoutJudul">Logout paksa semua akun</b>
           <small class="muted" data-t="bahayaLogoutTeks">Semua sesi dihapus, termasuk layar operator di PC pabrik dan akunmu sendiri.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="logout" data-t="bahayaLogoutTombol">Logout semua</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="logout" data-t="bahayaLogoutTombol">Logout semua</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="logout" hidden></div>
       <div class="bahaya-baris" data-bahaya="rekaman">
@@ -1847,7 +2188,7 @@
           <b data-t="bahayaRekamanJudul">Hapus rekaman video</b>
           <small class="muted" data-t="bahayaRekamanTeks">Rekaman video ketiga line di folder videos/ hilang permanen. Line yang sedang merekam atau mati dilewati.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="rekaman" data-t="bahayaRekamanTombol">Hapus rekaman</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="rekaman" data-t="bahayaRekamanTombol">Hapus rekaman</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="rekaman" hidden></div>
       <div class="bahaya-baris" data-bahaya="transaksi">
@@ -1855,7 +2196,7 @@
           <b data-t="bahayaTransaksiJudul">Hapus data transaksi</b>
           <small class="muted" data-t="bahayaTransaksiTeks">Grading, foto, timbangan, antrean, dan log hilang permanen. Truk, akun, dan setelan tetap.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="transaksi" data-t="bahayaTransaksiTombol">Hapus data transaksi</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="transaksi" data-t="bahayaTransaksiTombol">Hapus data transaksi</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="transaksi" hidden></div>
       <div class="bahaya-baris" data-bahaya="semua">
@@ -1863,7 +2204,7 @@
           <b data-t="bahayaSemuaJudul">Hapus semua data</b>
           <small class="muted" data-t="bahayaSemuaTeks">Data transaksi, akun yang dibuat di PC ini, truk, dan supplier hilang permanen. Setelan tetap.</small>
         </div>
-        <button type="button" class="bahaya-buka" data-bahaya-buka="semua" data-t="bahayaSemuaTombol">Hapus semua data</button>
+        <button type="button" class="bahaya bahaya-buka" data-bahaya-buka="semua" data-t="bahayaSemuaTombol">Hapus semua data</button>
       </div>
       <div class="bahaya-panel" data-bahaya-panel="semua" hidden></div>
     </div>
@@ -1983,7 +2324,7 @@
     <p class="muted akun-form-catatan" data-t="akunTambahCatatan">Akun ini cuma ada di PC ini dan tidak masuk ke AutoERP. Sandi minimal 8 karakter.</p>
     <div class="akun-form-tombol">
       <button type="submit" id="akun-tambah-simpan" class="utama" data-t="akunSimpan">Simpan</button>
-      <button type="button" id="akun-tambah-batal" data-t="btnBatal">Batal</button>
+      <button type="button" id="akun-tambah-batal" class="bahaya" data-t="btnBatal">Batal</button>
     </div>
     <p id="akun-tambah-pesan" class="akun-pesan" role="alert"></p>
   </form>
@@ -2149,7 +2490,7 @@
   <div id="plc-konfirmasi" class="plc-konfirmasi" hidden>
     <b id="plc-konfirmasi-teks"></b>
     <button type="button" id="plc-konfirmasi-jalankan" class="utama" data-t="btnUjiPlcJalankan">Jalankan</button>
-    <button type="button" id="plc-konfirmasi-batal" data-t="btnBatal">Batal</button>
+    <button type="button" id="plc-konfirmasi-batal" class="bahaya" data-t="btnBatal">Batal</button>
   </div>
   <!--
     Peta alamat, statis: daftar yang dipegang tim PLC (23 Sep 2026), ditaruh di
@@ -2275,8 +2616,26 @@
     <ul id="model-modal-daftar"></ul>
     <p class="muted" data-t="modelModalRestart">Line di atas akan restart sekitar 10 detik. Janjang yang lewat selama itu tidak dihitung.</p>
     <div class="tools">
-      <button type="button" id="model-modal-batal" data-t="btnBatal">Batal</button>
+      <button type="button" id="model-modal-batal" class="bahaya" data-t="btnBatal">Batal</button>
       <button type="button" id="model-modal-jalankan" class="utama" data-t="btnModelJalankan">Ganti &amp; Restart</button>
+    </div>
+  </div>
+</dialog>
+
+<!--
+  Satu dialog konfirmasi untuk seluruh layar (user 2026-10-03), dibuka `tanyaKonfirmasi()`:
+  piston dibuka, truk dilewati di antrean bongkar. Pengganti kotak `confirm` bawaan browser, yang
+  kini dilarang (`tests/unit/test_console_html_konfirmasi.py`). Batal tombol pertama dan
+  mendapat fokus awal: Enter yang tidak disengaja membatalkan. Esc dan klik di luar kotak
+  juga membatalkan. Kata dan kelas tombolnya diisi tiap kali dibuka.
+-->
+<dialog id="konfirmasi-modal" aria-labelledby="konfirmasi-judul" aria-describedby="konfirmasi-pesan">
+  <div class="konfirmasi-isi">
+    <h2 id="konfirmasi-judul"></h2>
+    <p id="konfirmasi-pesan"></p>
+    <div class="tools">
+      <button type="button" id="konfirmasi-tidak" class="bahaya">Batal</button>
+      <button type="button" id="konfirmasi-ya" class="utama">Lanjutkan</button>
     </div>
   </div>
 </dialog>
@@ -2348,6 +2707,11 @@ const esc = (s) => String(s ?? "").replace(/[&<>"'`]/g, (c) =>
 const KOSONG = "-";
 const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));
 let trucks = [];
+// Trucks that did "Catat datang" and are not weighed in yet (`waiting` of /weighings,
+// oldest first): the top section of step 2's plate picker and the top rows of the table.
+let menungguTimbang = [];
+// The options `isiPlatTimbang` last wrote: the picker is rebuilt only when they change.
+let platTimbangTerakhir = "";
 // Versi + lisensi terakhir dari `/api/console/state`, untuk menggambar ulang header saat
 // bahasa diganti tanpa menunggu polling berikutnya.
 let infoVersi;
@@ -2408,7 +2772,18 @@ const KAMUS = {
     bantuGarisMendatar:"Piksel dari ATAS. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
     labelDev:"Mode dev", bantuDev:"Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.",
     btnSimpanSetelan:"Simpan", setelanTersimpan:"Tersimpan dan dikirim ke line.",
-    setelanBelumSampai:"Belum sampai ke: {lines}",
+    grupPenugasan:"Penugasan line", labelOtomatis:"Tugaskan truk ke line otomatis saat timbang isi",
+    bantuOtomatis:"Satu truk di line sampai timbang kosong. Truk berikutnya menunggu di antrean bongkar.",
+    labelLineOtomatis:"Line yang dipakai", btnSimpanPenugasan:"Simpan penugasan",
+    penugasanTersimpan:"Penugasan line tersimpan.",
+    antreanBongkarOtomatis:"Antrean bongkar (otomatis)",
+    btnTugaskanSekarang:"Tugaskan sekarang", btnLewati:"Lewati",
+    konfirmasiLewatiJudul:"Lewati {truk}?", konfirmasiLewati:"Truk ini tidak akan ditugaskan otomatis.",
+    sukLewati:"{truk} dilewati di antrean bongkar", sukDitugaskanOtomatis:"{truk} ditugaskan ke {line}",
+    tugaskanGagalLine:"{line} tidak menjawab. Tugaskan {truk} manual di kartunya",
+    tugaskanTertahan:"{line} masih memegang truk {lama} yang sudah timbang kosong. Lepas di kartunya, lalu tugaskan {truk}.",
+    pelepasanOtomatisGabung:"{line} dilepas otomatis karena {truk} sudah timbang kosong.",
+    setelanTersimpanSebagian:"Tersimpan. Belum sampai ke: {lines}.",
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart semua line",
     bahayaRestartTeks:"Ketiga line mati sekitar 10 detik, lalu hidup lagi. Janjang yang lewat selama itu tidak dihitung.",
@@ -2447,12 +2822,12 @@ const KAMUS = {
     hambatan_outbox_lama:"{line}: antrean janjang lama gagal dipindah ke tempat barunya saat line menyala. Isinya belum sampai ke konsol dan tidak ikut terhitung. Restart line itu supaya dicoba lagi; kalau masih muncul, buka tab Log dan panggil teknisi.",
     hambatan_antrean_line:"{line} masih punya {jumlah} janjang yang belum sampai ke konsol. Tunggu sebentar.",
     hambatan_antrean_erp:"{jumlah} kiriman belum sampai ke AutoERP. Tunggu sampai antreannya kosong (tab Antrean ERP).",
-    hambatan_tiket_terbuka:"{jumlah} truk sudah timbang masuk hari ini tapi belum timbang keluar. Tunggu sampai tiketnya lengkap.",
+    hambatan_tiket_terbuka:"{jumlah} truk sudah timbang isi tapi belum timbang kosong. Tunggu sampai tiketnya lengkap.",
     hambatan_tanpa_sumber_akun:"Akun support dari pemasangan PC ini tidak terbaca dan AutoERP tidak disetel, jadi sesudah ini tidak ada yang bisa membuka menu support. Panggil teknisi dulu.",
     peringatan_foto_belum_r2:"Foto yang belum naik ke R2 ikut hilang.",
     peringatan_kiriman_gagal:"{jumlah} kiriman AutoERP yang gagal ikut terhapus.",
     peringatan_antrean_line_gagal:"{line} punya {jumlah} janjang yang ditolak konsol dan tidak akan terkirim lagi. Janjang itu ikut terhapus.",
-    peringatan_tiket_lama_terbuka:"{jumlah} tiket dari hari sebelumnya tidak pernah timbang keluar dan ikut terhapus.",
+    peringatan_tiket_lama_terbuka:"{jumlah} tiket dari hari sebelumnya tidak pernah timbang kosong dan ikut terhapus.",
     peringatan_erp_mati:"AutoERP tidak disetel: {jumlah} baris antrean yang tidak pernah terkirim ikut terhapus.",
     peringatan_semua_keluar:"Semua orang keluar, termasuk layar operator di PC pabrik dan kamu.",
     peringatan_line_mati:"{line} tidak menjawab, jadi dilewati.",
@@ -2480,11 +2855,13 @@ const KAMUS = {
     geserKiri:"Geser ke kiri", geserKanan:"Geser ke kanan",
     thNo:"No", thWaktu:"Waktu", thLine:"Line", thTruk:"Truk", thSumber:"Sumber", thHasil:"Hasil",
     thConf:"Conf", thFoto:"Foto", thPlat:"Plat", thSupplier:"Supplier", thStatus:"Status",
-    thMasuk:"Masuk", thKeluar:"Keluar", thLama:"Lama", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
+    tahapDatang:"Datang", tahapBongkar:"Bongkar", tahapTimbangKosong:"Timbang kosong",
+    tahapSelesai:"Selesai",
+    thMasuk:"Jam timbang isi", thKeluar:"Jam timbang kosong", thLama:"Lama", thBruto:"Bruto (kg)", thTara:"Tara (kg)", thNeto:"Neto (kg)",
     thLevel:"Level", thPesan:"Pesan", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Bruto (kg)", phCariLog:"Cari pesan, sumber, atau line",
     hintDesimal:"Desimal: titik atau koma, mis. 14820,5",
-    hintGerbangKeluar:"Tekan Timbang keluar di baris truknya pada tabel di bawah",
+    hintGerbangKeluar:"Tekan Timbang kosong di baris truknya",
     logSemua:"Semua", kosongLog:"Belum ada galat tercatat", gagalLog:"Gagal memuat log",
     logKonsol:"konsol", logPertama:"pertama {waktu}",
     discordMati:"Lapor ke Discord: mati (DISCORD_WEBHOOK_URL kosong). Galat tetap tercatat di tab ini.",
@@ -2494,11 +2871,12 @@ const KAMUS = {
     discordDitolak:"Lapor ke Discord DITOLAK pukul {jam} (HTTP {status}): webhook salah atau sudah dihapus. Periksa DISCORD_WEBHOOK_URL di .env PC ini, lalu autograde restart. {kiriman} pesan menunggu, tidak dibuang.",
     discordRusak:"Lapor ke Discord MATI: antrean di disk rusak ({galat}). Pindahkan berkas state/console/lapor_discord.db di folder autograde PC ini, lalu autograde restart. Galat tetap tercatat di tab ini.",
     discordIsiDitolak:"Discord menolak ISI pesan pukul {jam} (HTTP {status}), alamat webhook benar. Pesan yang 3 kali ditolak disisihkan dan tetap di disk; laporan berikutnya jalan terus. {kiriman} pesan menunggu, {disisihkan} disisihkan.",
-    btnDaftar:"Daftar truk manual", btnMasuk:"Timbang masuk", btnKeluar:"Timbang keluar",
+    btnDaftar:"Daftar truk manual", btnMasuk:"Timbang isi", btnTimbangKosong:"Timbang kosong",
     btnTugaskan:"Tugaskan", btnLepas:"Lepas", btnReject:"Reject Manual",
     temaGelap:"Gelap", temaTerang:"Terang",
     truk:"Truk", supplier:"Supplier", trukBelum:"Truk belum dipilih",
     pilihTruk:"Pilih Truk", lepasTitle:"Truk sudah pergi", spasi:"Spasi",
+    grupMenungguTimbang:"Menunggu timbang", grupTrukLain:"Truk lain",
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
     erpFinalBeda:"Cek AutoERP", erpFinalBedaJudul:"Tiket {tiket} sudah final di AutoERP saat data terbaru tiba. Angka yang dibukukan tidak berubah; minta backoffice memeriksa tiket ini.", erpBatal:"Tiket batal", erpBatalJudul:"Tiket {tiket} dibatalkan di AutoERP, kunjungan ini tidak dibukukan. Minta backoffice memeriksanya.", erpTanpaNomor:"(tanpa nomor)",
     kosongGrading:"Belum ada grading hari ini",
@@ -2513,9 +2891,10 @@ const KAMUS = {
     restartLamaJudul:"{line} belum kembali",
     restartLamaRinci:"Restart diminta pukul {jam}. Sudah lewat {batas}, line ini belum mengirim gambar lagi. Cek tab Log dan terminal line itu.",
     toastTutup:"Tutup",
-    sukTugaskan:"Truk ditugaskan di {line}", pelepasanOtomatis:"{line} dilepas otomatis karena {truk} sudah timbang keluar. Tugaskan lagi kalau bongkarnya belum selesai.", sukLepas:"Truk dilepas dari {line}",
+    sukTugaskan:"Truk ditugaskan di {line}", pelepasanOtomatis:"{line} dilepas otomatis karena {truk} sudah timbang kosong. Tugaskan lagi kalau bongkarnya belum selesai.", sukLepas:"Truk dilepas dari {line}",
     sukReject:"Reject manual tercatat di {line}", sukDaftar:"Truk terdaftar",
-    sukMasuk:"Timbang masuk tercatat", sukTara:"Timbang keluar tercatat",
+    sukPistonBuka:"Perintah buka piston dikirim ke {line}", sukPistonTutup:"Perintah tutup piston dikirim ke {line}",
+    sukMasuk:"Timbang isi tercatat", sukTara:"Timbang kosong tercatat",
     sukScan:"Truk ditemukan",
     gross_kg:"Bruto", tare_kg:"Tara",
     err_plat_kosong:"Nomor polisi tidak boleh kosong",
@@ -2523,12 +2902,15 @@ const KAMUS = {
     err_bukan_angka:"{field} bukan angka: {value}",
     err_input_tidak_sah:"Isian {field} tidak sah",
     qr:"Hasil scan", plate_number:"Nomor polisi", email:"Email", sandi:"Sandi",
-    supplier_id:"Pemasok", capacity:"Kapasitas", ref:"Nomor tiket", entered_at:"Jam masuk",
-    exited_at:"Jam keluar", net_kg:"Neto", body:"Data",
+    supplier_id:"Pemasok", capacity:"Kapasitas", ref:"Nomor tiket", entered_at:"Jam isi",
+    exited_at:"Jam kosong", net_kg:"Neto", body:"Data",
     err_negatif:"{field} tidak boleh negatif",
     err_di_bawah_minimum:"{field} {value} kg di bawah {minimum} kg. Cek pemisah ribuan, misalnya 14.820 terbaca 14,82",
     err_tara_lebih_besar:"Tara {tara} kg lebih besar dari bruto {bruto} kg",
     err_line_tidak_dikenal:"{line} tidak dikenal konsol",
+    err_penugasan_tanpa_line:"Pilih minimal satu line untuk penugasan otomatis",
+    err_bukan_antrean:"Truk ini sudah tidak ada di antrean bongkar",
+    err_line_semua_terpakai:"Semua line masih dipakai. Lepas dulu truk yang sedang di line",
     err_line_tidak_menjawab:"{line} tidak menjawab. Pastikan layanan kameranya menyala",
     err_line_menolak:"{line} menolak perintah. Panggil teknisi; rinciannya di tab Log",
     // Kalimat umum untuk kode yang tidak dikenal atau tidak ada (alasan()), dan untuk konsol
@@ -2566,15 +2948,37 @@ const KAMUS = {
     perHalaman:"Baris per halaman", halamanSebelum:"Sebelumnya", halamanBerikut:"Berikutnya",
     keHalaman:"Ke halaman",
     btnCetakQr:"Cetak QR truk", qrJudul:"Kartu QR truk",
-    lbGerbangMasuk:"Truk masuk", lbGerbangKeluar:"Truk keluar",
-    taraJudul:"Timbang keluar", btnSimpanTara:"Simpan", btnBatal:"Batal",
+    lbGerbangMasuk:"2. Timbang isi", lbGerbangKeluar:"3. Timbang kosong",
+    btnSimpanTara:"Simpan", btnBatal:"Batal",
     phTara:"Tara (kg)",
     taraMinimum:"Tara minimal 1.000 kg, cek lagi angkanya",
-    phScan:"QR masuk", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
+    phScan:"QR timbang isi", scanBelumAda:"Truk belum terdaftar, daftarkan dulu di tab Truk:",
     scanDaftarBelumMuat:"Truk ditemukan, tapi daftar truk di layar belum termuat. Scan sekali lagi.",
     scanTrukNonaktif:"Truk ini sudah dinonaktifkan, tidak bisa ditimbang:",
-    phScanKeluar:"QR keluar", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
+    phScanKeluar:"QR timbang kosong", scanTakAdaTiket:"Tidak ada tiket terbuka hari ini untuk",
+    // Empat scan gerbang (2026-09-30): 1 datang dan 4 keluar cuma disimpan di PC ini.
+    lbDatang:"1. Datang", lbPergi:"4. Keluar", phScanDatang:"QR datang", phScanPergi:"QR keluar",
+    btnDatang:"Catat datang", btnPergi:"Keluar",
+    hintPergi:"Tekan Keluar di baris truknya",
+    hintDatang:"Pilih truk, lalu Catat datang", hintTimbangIsi:"Pilih truk, isi Bruto, lalu Timbang isi",
+    antreLencana:"Menunggu {n}", taraJudul:"Timbang kosong",
+    thAntre:"Antre", antreKelewat:"tanpa scan 1",
+    antreKelewatJudul:"Scan datang terlewat: waktu antre tidak diketahui, total dihitung dari timbang isi",
+    antreMenunggu:"Menunggu timbang ({n})", jamDatang:"Datang", jamPergi:"Keluar",
+    sukDatang:"Kedatangan tercatat", datangSudah:"Sudah tercatat datang jam {jam}",
+    datangMasihDiDalam:"Truk ini masih di dalam, belum timbang kosong",
+    sukPergi:"Keluar tercatat",
+    pergiBelumKosong:"BELUM timbang kosong. Timbang kosong dulu sebelum truk keluar",
+    pergiSudah:"Sudah tercatat keluar", pergiTakAdaTiket:"Tidak ada tiket untuk truk ini",
     scanGanda:"Ada 2 tiket terbuka, pilih di tabel bawah untuk",
+    // Batal datang dan tanpa scan 4 (2026-10-03): keduanya cuma di PC ini, tidak ke AutoERP.
+    btnBatalDatang:"Batal datang", batalDatangYakin:"Yakin? Klik lagi",
+    sukBatalDatang:"Kedatangan {plat} dibatalkan", batalDatangTakAda:"Kedatangan ini sudah tidak menunggu",
+    tanpaScan4:"tanpa scan 4",
+    tanpaScan4Judul:"Keluar tidak pernah dicatat: kunjungan dianggap selesai (lewat 24 jam atau truk sudah datang lagi), total dihitung sampai timbang kosong",
+    // Riwayat Batal datang (2026-10-03), panel di bawah tabel Timbangan.
+    riwayatBatalJudul:"Kedatangan dibatalkan ({n})", thJamDatang:"Jam datang",
+    thJamBatal:"Jam dibatalkan", thOleh:"Oleh",
     rentangBaris:"{dari}-{sampai} dari {total}",
     gerbangKosong:"Belum ada operator. Minta teknisi membuat akun operator di PC ini.",
     btnPistonBuka:"Buka piston", btnPistonTutup:"Tutup piston",
@@ -2583,7 +2987,8 @@ const KAMUS = {
     pistonTerbuka:"PISTON TERBUKA. Hati-hati, besi bergerak",
     alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP DITEKAN: line berhenti darurat",
     alarm_lain:"ALARM PLC menyala: periksa panel PLC",
-    konfirmasiBuka:"Buka piston {line}? Ini menggerakkan besi.",
+    konfirmasiBukaJudul:"Buka piston {line}?", konfirmasiBuka:"Ini menggerakkan besi.",
+    konfirmasiYa:"Lanjutkan", konfirmasiTidak:"Batal",
     labelInternal:"Internal · REJ tidak dibuang",
     gagalPiston:"Perintah piston gagal",
     thSebab:"Sebab", thKamera:"Kamera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
@@ -2595,7 +3000,7 @@ const KAMUS = {
     lineSebab_kunci_ditolak:"Line hidup tapi menolak kunci konsol, jadi datanya tidak terbaca. Panggil teknisi untuk menyamakan kunci konsol dan line itu.",
     lineSebab_line_galat:"Line menjawab tapi sedang galat. Restart line lewat Setelan, Danger Zone; kalau masih muncul, panggil teknisi. Rinciannya di tab Log.",
     lineSebab_lain:"Konsol tidak bisa membaca line ini. Rinciannya di tab Log.",
-    thFps:"FPS kamera / deteksi", thFrameTerakhir:"Gambar terakhir", thDisk:"Disk",
+    thFps:"FPS kamera / deteksi", thSuhuKamera:"Suhu kamera", thFrameTerakhir:"Gambar terakhir", thDisk:"Disk",
     thLisensiLine:"Lisensi", thVersiModel:"Versi / model", thTersimpanGagal:"Janjang tak tersimpan",
     thTpTelat:"TP telat", diagDetikLalu:"{n} dtk lalu", diagDiskBebas:"{bebas} GB bebas ({persen}%)",
     diagPlcTakDiketahui:"tidak diketahui (line versi lama)",
@@ -2651,6 +3056,7 @@ const KAMUS = {
     antreanLineGalatTerakhir:"Pengiriman terakhir gagal pukul {jam}. Rinciannya di tab Log.",
     antreanLineDitolak:"{jumlah} janjang DITOLAK konsol, terakhir pukul {jam}. Tidak dibuang dan dicoba lagi tiap 10 menit, tapi tidak akan sampai sendiri, dan selama masih ada, Danger Zone dan autograde reset-data menolak menghapus data. Buka tab Log untuk sebabnya, lalu panggil teknisi (MANUAL §7).",
     antreanLineDikirimUlang:"{line}: {jumlah} janjang dijadwalkan kirim sekarang",
+    antreanDikirimUlang:"{n} pesan ke AutoERP dijadwalkan kirim ulang sekarang",
     antreanLineGagalKirimUlang:"Kirim Ulang {line} gagal pukul {jam}: {alasan}. {saran}",
     saranKunciLine:"Kunci konsol dan line itu perlu disamakan, lalu line itu direstart.",
     saranLineMati:"Periksa line itu di Diagnostik dan nyalakan lagi kalau mati.",
@@ -2728,6 +3134,7 @@ const KAMUS = {
     judulRekamVideo:"Rekam Video", kosongLine:"Belum ada line", thMajuRekam:"Terekam",
     rekamMenunggu:"Menunggu…",
     rekamSelesai:"Rekaman tersimpan di folder videos/:",
+    rekamDimulai:"Rekaman {line} dimulai", rekamDihentikan:"Rekaman {line} dihentikan",
     rekamDisimpanDi:"Disimpan di", thAksi:"Aksi",
     err_rekam_keadaan_berubah:"Keadaan line sudah berubah, layar disegarkan",
     err_rekam_disk_mepet:"Disk PC pabrik hampir penuh, rekaman tidak dimulai",
@@ -2838,7 +3245,18 @@ const KAMUS = {
     bantuGarisMendatar:"Pixels from the TOP. A bunch is photographed when it touches the blue line. 0 = no line.",
     labelDev:"Dev mode", bantuDev:"Show the confidence number on bunch boxes. For tuning the threshold, not for operators.",
     btnSimpanSetelan:"Save", setelanTersimpan:"Saved and sent to the lines.",
-    setelanBelumSampai:"Not received yet by: {lines}",
+    grupPenugasan:"Line assignment", labelOtomatis:"Assign the truck to the lines automatically at weigh-in",
+    bantuOtomatis:"One truck on the lines until it is weighed out. The next truck waits in the unloading queue.",
+    labelLineOtomatis:"Lines to use", btnSimpanPenugasan:"Save assignment",
+    penugasanTersimpan:"Line assignment saved.",
+    antreanBongkarOtomatis:"Unloading queue (automatic)",
+    btnTugaskanSekarang:"Assign now", btnLewati:"Skip",
+    konfirmasiLewatiJudul:"Skip {truk}?", konfirmasiLewati:"It will not be assigned automatically.",
+    sukLewati:"{truk} skipped in the unloading queue", sukDitugaskanOtomatis:"{truk} assigned to {line}",
+    tugaskanGagalLine:"{line} did not answer. Assign {truk} by hand on its card",
+    tugaskanTertahan:"{line} still holds truck {lama}, which has already weighed out. Release it on its card, then assign {truk}.",
+    pelepasanOtomatisGabung:"{line} released automatically because {truk} has weighed out.",
+    setelanTersimpanSebagian:"Saved. Not received yet by: {lines}.",
     bahayaJudul:"Danger Zone",
     bahayaRestartJudul:"Restart all lines",
     bahayaRestartTeks:"All three lines stop for about 10 seconds, then come back. Bunches that pass during that time are not counted.",
@@ -2877,7 +3295,7 @@ const KAMUS = {
     hambatan_outbox_lama:"{line}: the old bunch queue failed to move to its new place when the line started. It has not reached the console and is not counted. Restart that line to retry; if it still shows, open the Log tab and call a technician.",
     hambatan_antrean_line:"{line} still has {jumlah} bunches that have not reached the console. Wait a moment.",
     hambatan_antrean_erp:"{jumlah} messages have not reached AutoERP yet. Wait until the queue is empty (ERP Queue tab).",
-    hambatan_tiket_terbuka:"{jumlah} trucks weighed in today but have not weighed out yet. Wait until their tickets are complete.",
+    hambatan_tiket_terbuka:"{jumlah} trucks weighed in but have not weighed out yet. Wait until their tickets are complete.",
     hambatan_tanpa_sumber_akun:"The support account set up with this PC cannot be read and AutoERP is not configured, so afterwards nobody could open the support menu. Call a technician first.",
     peringatan_foto_belum_r2:"Photos not yet uploaded to R2 are lost too.",
     peringatan_kiriman_gagal:"{jumlah} failed AutoERP messages are deleted too.",
@@ -2908,11 +3326,13 @@ const KAMUS = {
     geserKiri:"Move left", geserKanan:"Move right",
     thNo:"No", thWaktu:"Time", thLine:"Line", thTruk:"Truck", thSumber:"Source", thHasil:"Result",
     thConf:"Conf", thFoto:"Photo", thPlat:"Plate", thSupplier:"Supplier", thStatus:"Status",
-    thMasuk:"In", thKeluar:"Out", thLama:"Duration", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
+    tahapDatang:"Arrived", tahapBongkar:"Unloading", tahapTimbangKosong:"Weighed out",
+    tahapSelesai:"Done",
+    thMasuk:"Weigh-in time", thKeluar:"Weigh-out time", thLama:"Duration", thBruto:"Gross (kg)", thTara:"Tare (kg)", thNeto:"Net (kg)",
     thLevel:"Level", thPesan:"Message", thJumlah:"×",
     phPlat:"KT 2509 ABC", phBruto:"Gross (kg)", phCariLog:"Search message, source, or line",
     hintDesimal:"Decimals: dot or comma, e.g. 14820.5",
-    hintGerbangKeluar:"Press Weigh out on the truck's row in the table below",
+    hintGerbangKeluar:"Press Weigh out on the truck's row",
     logSemua:"All", kosongLog:"No faults logged yet", gagalLog:"Failed to load the log",
     logKonsol:"console", logPertama:"first {waktu}",
     discordMati:"Discord report: off (DISCORD_WEBHOOK_URL is empty). Faults are still logged on this tab.",
@@ -2922,11 +3342,12 @@ const KAMUS = {
     discordDitolak:"Discord report REFUSED at {jam} (HTTP {status}): the webhook is wrong or was deleted. Check DISCORD_WEBHOOK_URL in this PC's .env, then run autograde restart. {kiriman} messages wait; nothing is dropped.",
     discordRusak:"Discord report OFF: the queue on disk is corrupt ({galat}). Move the file state/console/lapor_discord.db out of the autograde folder on this PC, then run autograde restart. Faults are still logged on this tab.",
     discordIsiDitolak:"Discord refused the CONTENT of a message at {jam} (HTTP {status}); the webhook address is fine. A message refused 3 times is set aside and kept on disk; later reports keep going. {kiriman} messages wait, {disisihkan} set aside.",
-    btnDaftar:"Register truck", btnMasuk:"Weigh in", btnKeluar:"Weigh out",
+    btnDaftar:"Register truck", btnMasuk:"Weigh in", btnTimbangKosong:"Weigh out",
     btnTugaskan:"Assign", btnLepas:"Release", btnReject:"Manual Reject",
     temaGelap:"Dark", temaTerang:"Light",
     truk:"Truck", supplier:"Supplier", trukBelum:"No truck selected",
     pilihTruk:"Select Truck", lepasTitle:"Truck has left", spasi:"Space",
+    grupMenungguTimbang:"Waiting to weigh", grupTrukLain:"Other trucks",
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
     erpFinalBeda:"Check AutoERP", erpFinalBedaJudul:"Ticket {tiket} was already final in AutoERP when the latest data arrived. The booked figures did not change; ask the back office to review this ticket.", erpBatal:"Ticket cancelled", erpBatalJudul:"Ticket {tiket} was cancelled in AutoERP, so this visit is not booked. Ask the back office to look at it.", erpTanpaNomor:"(no number)",
     kosongGrading:"No grading yet today",
@@ -2943,6 +3364,7 @@ const KAMUS = {
     toastTutup:"Dismiss",
     sukTugaskan:"Truck assigned on {line}", pelepasanOtomatis:"{line} was released automatically because {truk} has weighed out. Assign it again if unloading is not finished.", sukLepas:"Truck released from {line}",
     sukReject:"Manual reject recorded on {line}", sukDaftar:"Truck registered",
+    sukPistonBuka:"Open piston command sent to {line}", sukPistonTutup:"Close piston command sent to {line}",
     sukMasuk:"Weigh-in recorded", sukTara:"Weigh-out recorded",
     sukScan:"Truck found",
     gross_kg:"Gross", tare_kg:"Tare",
@@ -2957,6 +3379,9 @@ const KAMUS = {
     err_di_bawah_minimum:"{field} {value} kg is below {minimum} kg. Check the thousands separator, e.g. 14.820 is read as 14.82",
     err_tara_lebih_besar:"Tare {tara} kg is greater than gross {bruto} kg",
     err_line_tidak_dikenal:"{line} is not known to the console",
+    err_penugasan_tanpa_line:"Choose at least one line for automatic assignment",
+    err_bukan_antrean:"This truck is no longer in the unloading queue",
+    err_line_semua_terpakai:"Every line is still in use. Release the truck on the lines first",
     err_line_tidak_menjawab:"{line} is not responding. Check that its camera service is running",
     err_line_menolak:"{line} refused the command. Call a technician; the details are in the Log tab",
     err_umum:"Try once more. If it keeps failing, call a technician; the details are in the Log tab",
@@ -2990,15 +3415,34 @@ const KAMUS = {
     perHalaman:"Rows per page", halamanSebelum:"Previous", halamanBerikut:"Next",
     keHalaman:"Go to page",
     btnCetakQr:"Print truck QR", qrJudul:"Truck QR cards",
-    lbGerbangMasuk:"Truck in", lbGerbangKeluar:"Truck out",
-    taraJudul:"Weigh out", btnSimpanTara:"Save", btnBatal:"Cancel",
+    lbGerbangMasuk:"2. Weigh in", lbGerbangKeluar:"3. Weigh out",
+    btnSimpanTara:"Save", btnBatal:"Cancel",
     phTara:"Tare (kg)",
     taraMinimum:"Tare must be at least 1,000 kg, check the figure",
-    phScan:"QR in", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
+    phScan:"Weigh-in QR", scanBelumAda:"Truck not registered, add it in the Trucks tab first:",
     scanDaftarBelumMuat:"Truck found, but the truck list on screen has not loaded. Scan once more.",
     scanTrukNonaktif:"This truck is deactivated and cannot be weighed:",
-    phScanKeluar:"QR out", scanTakAdaTiket:"No open ticket today for",
+    phScanKeluar:"Weigh-out QR", scanTakAdaTiket:"No open ticket today for",
+    lbDatang:"1. Arrive", lbPergi:"4. Leave", phScanDatang:"Arrival QR", phScanPergi:"Leave QR",
+    btnDatang:"Record arrival", btnPergi:"Leave",
+    hintPergi:"Press Leave on the truck's row",
+    hintDatang:"Pick the truck, then Record arrival", hintTimbangIsi:"Pick the truck, enter Gross, then Weigh in",
+    antreLencana:"Waiting {n}", taraJudul:"Weigh out",
+    thAntre:"Queue", antreKelewat:"no scan 1",
+    antreKelewatJudul:"Arrival scan skipped: queue time unknown, total counted from weigh-in",
+    antreMenunggu:"Waiting to weigh ({n})", jamDatang:"Arrived", jamPergi:"Left",
+    sukDatang:"Arrival recorded", datangSudah:"Already recorded at {jam}",
+    datangMasihDiDalam:"This truck is still inside, not weighed out yet",
+    sukPergi:"Leave recorded",
+    pergiBelumKosong:"NOT weighed out. Weigh it out before the truck leaves",
+    pergiSudah:"Already recorded as left", pergiTakAdaTiket:"No ticket for this truck",
     scanGanda:"Two open tickets, pick one in the table below for",
+    btnBatalDatang:"Cancel arrival", batalDatangYakin:"Sure? Click again",
+    sukBatalDatang:"Arrival {plat} cancelled", batalDatangTakAda:"This arrival is no longer waiting",
+    tanpaScan4:"no scan 4",
+    tanpaScan4Judul:"Leave was never recorded: the visit counts as finished (24 hours passed or the truck came back), total counted to weigh-out",
+    riwayatBatalJudul:"Cancelled arrivals ({n})", thJamDatang:"Arrived at",
+    thJamBatal:"Cancelled at", thOleh:"By",
     rentangBaris:"{dari}-{sampai} of {total}",
     gerbangKosong:"No operators yet. Ask a technician to create an operator account on this PC.",
     btnPistonBuka:"Open piston", btnPistonTutup:"Close piston",
@@ -3007,7 +3451,8 @@ const KAMUS = {
     pistonTerbuka:"PISTON OPEN. Moving metal, stand clear",
     alarm_motor_fault:"MOTOR {n} FAULT", alarm_estop:"E-STOP PRESSED: emergency stop active",
     alarm_lain:"PLC ALARM on: check the PLC panel",
-    konfirmasiBuka:"Open the piston on {line}? This moves metal.",
+    konfirmasiBukaJudul:"Open the piston on {line}?", konfirmasiBuka:"This moves metal.",
+    konfirmasiYa:"Continue", konfirmasiTidak:"Cancel",
     labelInternal:"Internal · REJ not discarded",
     gagalPiston:"Piston command failed",
     thSebab:"Reason", thKamera:"Camera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
@@ -3017,7 +3462,7 @@ const KAMUS = {
     lineSebab_kunci_ditolak:"The line is alive but refuses the console key, so its data cannot be read. Call a technician to make the console and line keys match.",
     lineSebab_line_galat:"The line answers but reports an error. Restart the lines under Settings, Danger Zone; if it stays, call a technician. The details are in the Log tab.",
     lineSebab_lain:"The console cannot read this line. The details are in the Log tab.",
-    thFps:"Camera / detection FPS", thFrameTerakhir:"Last image", thDisk:"Disk",
+    thFps:"Camera / detection FPS", thSuhuKamera:"Camera temperature", thFrameTerakhir:"Last image", thDisk:"Disk",
     thLisensiLine:"Licence", thVersiModel:"Version / model", thTersimpanGagal:"Bunches not saved",
     thTpTelat:"Late TP", diagDetikLalu:"{n} s ago", diagDiskBebas:"{bebas} GB free ({persen}%)",
     diagPlcTakDiketahui:"unknown (older line version)",
@@ -3071,6 +3516,7 @@ const KAMUS = {
     antreanLineGalatTerakhir:"The last send failed at {jam}. The details are in the Log tab.",
     antreanLineDitolak:"{jumlah} bunches REFUSED by the console, last at {jam}. Not dropped and retried every 10 minutes, but they will never arrive on their own, and while they remain, Danger Zone and autograde reset-data refuse to delete data. Open the Log tab for the cause, then call a technician (MANUAL §7).",
     antreanLineDikirimUlang:"{line}: {jumlah} bunches scheduled to send now",
+    antreanDikirimUlang:"{n} messages to AutoERP scheduled to resend now",
     antreanLineGagalKirimUlang:"Resend {line} failed at {jam}: {alasan}. {saran}",
     saranKunciLine:"The console and line keys need to match, then that line restarted.",
     saranLineMati:"Check that line under Diagnostics and start it again if it is down.",
@@ -3148,6 +3594,7 @@ const KAMUS = {
     judulRekamVideo:"Record Video", kosongLine:"No lines yet", thMajuRekam:"Recorded",
     rekamMenunggu:"Working…",
     rekamSelesai:"Recording saved in the videos/ folder:",
+    rekamDimulai:"Recording started on {line}", rekamDihentikan:"Recording stopped on {line}",
     rekamDisimpanDi:"Saved in", thAksi:"Action",
     err_rekam_keadaan_berubah:"The line's state changed, so the screen was refreshed",
     err_rekam_disk_mepet:"The mill PC is low on disk, so recording did not start",
@@ -3227,6 +3674,8 @@ function terapkanBahasa() {
   document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
   // Placeholders are their own channel: a field's hint is not its textContent.
   document.querySelectorAll("[data-t-ph]").forEach((el) => { el.placeholder = t(el.dataset.tPh); });
+  // A hover hint is its own channel too (Bruto carries the decimal hint, 2026-10-03).
+  document.querySelectorAll("[data-t-title]").forEach((el) => { el.title = t(el.dataset.tTitle); });
   // So are labels read only by a screen reader - a button whose face is an icon says
   // nothing at all without one.
   document.querySelectorAll("[data-t-lb]").forEach((el) => {
@@ -3266,11 +3715,23 @@ $("tema").addEventListener("click", () => {
 // A real listbox, not a <select>. Its rows are sized for a gloved hand and read
 // at distance, which the OS picker cannot do. Value lives on the root as
 // data-nilai; picking one fires a "pilih" event that bubbles.
+//
+// An option may carry `grup` (a section header is written where it changes; the header is
+// not an option, so the arrow keys skip it) and `catatan` (a note on the right, such as
+// the minutes waited, which the closed trigger leaves out: it would go stale there).
 function komponenPilih(opsi, terpilih, id) {
   const aktif = opsi.find((o) => o.v === terpilih) || opsi[0];
-  const baris = opsi.map((o) =>
-    `<div role="option" tabindex="-1" data-nilai="${esc(o.v)}"
-          aria-selected="${o.v === aktif.v}">${esc(o.teks)}</div>`).join("");
+  let grup;
+  const baris = opsi.map((o) => {
+    const kepala = o.grup && o.grup !== grup
+      ? `<div class="pilih-grup" role="presentation">${esc(o.grup)}</div>` : "";
+    grup = o.grup;
+    const catatan = o.catatan == null ? ""
+      : `<span class="pilih-catatan">${esc(o.catatan)}</span>`;
+    return `${kepala}<div role="option" tabindex="-1" data-nilai="${esc(o.v)}"${
+      catatan ? ` data-teks="${esc(o.teks)}"` : ""}
+          aria-selected="${o.v === aktif.v}">${esc(o.teks)}${catatan}</div>`;
+  }).join("");
   return `<div class="pilih"${id ? ` id="${esc(id)}"` : ""} data-nilai="${esc(aktif.v)}">
     <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false">
       <span class="pilih-teks">${esc(aktif.teks)}</span>
@@ -3293,7 +3754,7 @@ function bukaPilih(root) {
   const panel = root.querySelector(".pilih-panel");
   panel.hidden = false;
   tombolPilih(root).setAttribute("aria-expanded", "true");
-  const awal = panel.querySelector('[aria-selected="true"]') || panel.firstElementChild;
+  const awal = panel.querySelector('[aria-selected="true"]') || panel.querySelector('[role="option"]');
   // preventScroll: the panel opens right under a button the operator just
   // pressed, so it is already in view - scrolling the cameras off screen to
   // reach it is worse than not scrolling at all.
@@ -3304,7 +3765,7 @@ function pilihNilai(root, v) {
   const opt = root.querySelector(`[role="option"][data-nilai="${CSS.escape(v)}"]`);
   if (!opt) return;
   root.dataset.nilai = v;
-  root.querySelector(".pilih-teks").textContent = opt.textContent;
+  root.querySelector(".pilih-teks").textContent = opt.dataset.teks ?? opt.textContent;
   root.querySelectorAll('[role="option"]')
       .forEach((o) => o.setAttribute("aria-selected", String(o === opt)));
   root.dispatchEvent(new CustomEvent("pilih", { bubbles: true }));
@@ -3315,7 +3776,7 @@ function pilihNilai(root, v) {
 function segarkanPilih() {
   document.querySelectorAll(".pilih").forEach((root) => {
     const opt = root.querySelector('[role="option"][aria-selected="true"]');
-    if (opt) root.querySelector(".pilih-teks").textContent = opt.textContent;
+    if (opt) root.querySelector(".pilih-teks").textContent = opt.dataset.teks ?? opt.textContent;
   });
 }
 
@@ -3635,6 +4096,28 @@ function waktu(iso) {
        + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+// Tabel Timbangan (user 2026-10-03): tanggal kecil di atas jamnya, bukan satu baris panjang.
+// Isinya sama dengan `waktu()`, tapi dua kolom jam menyempit separuh, dan itu yang membuat
+// dua belas kolom plus tombol baris muat di 1440 px tanpa Neto tertutup kolom tombol.
+function waktuDuaBaris(iso) {
+  const teks = waktu(iso);
+  const pisah = teks.lastIndexOf(" ");
+  if (pisah < 0) return teks;
+  // Spasi tetap ada: teks sel yang disalin atau dibaca pembaca layar tetap "03/10/2026 10:14:00".
+  return `<span class="tgl">${teks.slice(0, pisah)}</span> ${teks.slice(pisah + 1)}`;
+}
+
+// Menit -> "25 mnt" / "1 j 45 mnt". Satu bentuk untuk semua durasi di layar (kolom Lama,
+// antrean bongkar). Null, bukan "0 mnt", kalau angkanya tidak ada.
+function teksMenit(menit) {
+  const m = Number(menit);
+  if (menit === null || menit === undefined || !Number.isFinite(m) || m < 0) return null;
+  if (m < 60) return `${m} mnt`;
+  const jam = Math.floor(m / 60);
+  const sisa = m % 60;
+  return sisa ? `${jam} j ${sisa} mnt` : `${jam} j`;
+}
+
 // Berapa lama truk diproses: dari timbang masuk sampai timbang keluar.
 // Dihitung di layar dari dua kolom yang MEMANG sudah ada (`entered_at` /
 // `exited_at`), bukan disimpan sebagai kolom ketiga di SQLite. Alasannya satu:
@@ -3650,10 +4133,7 @@ function lamaProses(masuk, keluar) {
   // Jam mundur (koreksi manual, NTP menyentak) memberi selisih negatif. Itu
   // bukan durasi dan tidak boleh tampil sebagai "-12 mnt" - baris itu diam.
   if (menit < 0) return null;
-  if (menit < 60) return `${menit} mnt`;
-  const jam = Math.floor(menit / 60);
-  const sisa = menit % 60;
-  return sisa ? `${jam} j ${sisa} mnt` : `${jam} j`;
+  return teksMenit(menit);
 }
 
 // Wall clock from the browser, not the server: it keeps ticking when the
@@ -3772,10 +4252,21 @@ const TOAST_PALING_LAMA_MS = 10000;
 // berubah, dan tanpa batas ini toast-nya tidak pernah tertutup.
 const TOAST_UMUR_MAKS_MS = 30000;
 const TOAST_DURASI = { sukses: 5000, peringatan: 5000, gagal: TOAST_PALING_LAMA_MS };
-// More than this and the stack would climb high enough to cover the tab
-// table underneath it - four is as many as fit in the corner without that,
-// even during a run of rapid manual rejects.
+// Toasts kept on the page at once; the oldest goes first. Since the Sonner-style stack
+// (2026-10-03) only TOAST_TERLIHAT of them show, the rest wait folded away behind.
 const TOAST_MAKS = 4;
+const TOAST_TERLIHAT = 3;
+// Jarak antarkartu saat tumpukan terbuka (sama dengan `--jarak` di CSS), lama animasi keluar,
+// dan seberapa jauh kartu digeser ke kanan sebelum dilepas dianggap "buang".
+const TOAST_JARAK_PX = 14;
+const TOAST_KELUAR_MS = 300;
+const TOAST_GESER_PX = 80;
+// Ikon per jenis, SVG di tempat (tanpa font ikon, tanpa CDN), warnanya ikut teks toast.
+const IKON_TOAST = {
+  sukses: '<path d="M10 1.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Zm4.1 6.3-4.9 5.6a.9.9 0 0 1-1.3.1L5.6 11a.9.9 0 1 1 1.2-1.3l1.6 1.5 4.3-4.9a.9.9 0 0 1 1.4 1.2Z"/>',
+  peringatan: '<path d="M11.3 2.6a1.5 1.5 0 0 0-2.6 0L1.4 15.3A1.5 1.5 0 0 0 2.7 17.5h14.6a1.5 1.5 0 0 0 1.3-2.2L11.3 2.6ZM10 6.5a.9.9 0 0 1 .9.9v4a.9.9 0 1 1-1.8 0v-4a.9.9 0 0 1 .9-.9Zm0 8.8a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2Z"/>',
+  gagal: '<path d="M10 1.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Zm0 4a.9.9 0 0 1 .9.9v4.2a.9.9 0 1 1-1.8 0V6.4a.9.9 0 0 1 .9-.9Zm0 9.1a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2Z"/>',
+};
 
 // `durasi` 0 (dipakai hasil Danger Zone yang harus dibaca) = paling lama, 10
 // detik. Angka di atas batas itu juga dipotong ke 10 detik.
@@ -3783,12 +4274,12 @@ function durasiToast(durasi) {
   return durasi > 0 ? Math.min(durasi, TOAST_PALING_LAMA_MS) : TOAST_PALING_LAMA_MS;
 }
 
-// Hitung mundur yang berhenti selama kursor di atas toast dan jalan lagi dari
-// sisanya saat kursor pergi. Layar sentuh tidak punya hover: di sana toast
-// tetap tertutup tepat waktunya. Apa pun yang terjadi dengan kursor, toast
-// tertutup paling lambat TOAST_UMUR_MAKS_MS sesudah muncul. Mengembalikan
-// `tutup`, untuk tombol ×.
-function hitungMundurToast(el, ms, hapus) {
+// Hitung mundur yang bisa ditahan dan dilanjutkan dari sisanya: tumpukan menahan semua
+// toast-nya selama kursor atau fokus ada di atasnya (`pasangTumpukanToast`). Layar sentuh
+// tidak punya hover: di sana toast tetap tertutup tepat waktunya. Apa pun yang terjadi
+// dengan kursor, toast tertutup paling lambat TOAST_UMUR_MAKS_MS sesudah muncul.
+// Mengembalikan { tutup, tahan, lanjut }; `tutup` dipakai tombol × dan geser.
+function hitungMundurToast(ms, hapus) {
   let sisa = ms;
   let mulai = Date.now();
   let selesai = false;
@@ -3802,38 +4293,131 @@ function hitungMundurToast(el, ms, hapus) {
   };
   const umur = setTimeout(tutup, TOAST_UMUR_MAKS_MS);
   timer = setTimeout(tutup, sisa);
-  el.addEventListener("mouseenter", () => {
+  const tahan = () => {
     if (selesai || timer === null) return;
     clearTimeout(timer);
     timer = null;
     sisa -= Date.now() - mulai;
-  });
-  el.addEventListener("mouseleave", () => {
+  };
+  const lanjut = () => {
     if (selesai || timer !== null) return;
     mulai = Date.now();
     timer = setTimeout(tutup, sisa);
+  };
+  return { tutup, tahan, lanjut };
+}
+
+const gerakDikurangi = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Posisi tiap toast di tumpukan, terbaru di depan. Cuma menulis variabel CSS dan atribut;
+// tingginya diukur sekali saat toast dibuat (`_tinggi`), jadi tidak ada baca-tulis tata
+// letak bergantian di sini.
+function susunToast() {
+  const wadah = $("toasts");
+  const kartu = [...wadah.querySelectorAll(".toast:not([data-keluar])")].reverse();
+  let offset = 0;
+  kartu.forEach((el, i) => {
+    el.style.setProperty("--urut", String(i));
+    el.style.setProperty("--offset", `${offset}px`);
+    el.style.setProperty("--tinggi", `${el._tinggi}px`);
+    el.style.zIndex = String(kartu.length - i);
+    el.toggleAttribute("data-belakang", i > 0);
+    el.toggleAttribute("data-sembunyi", i >= TOAST_TERLIHAT);
+    offset += el._tinggi + TOAST_JARAK_PX;
   });
-  return tutup;
+  wadah.style.setProperty("--tinggi-depan", `${kartu.length ? kartu[0]._tinggi : 0}px`);
+  if (!kartu.length) bukaTumpukanToast(false);
+}
+
+// Keluar dengan memudar (atau terlempar ke kanan sesudah digeser), lalu dibuang. Tanpa
+// animasi (`prefers-reduced-motion`) langsung dibuang.
+function lepasToast(el) {
+  if (el.hasAttribute("data-keluar")) return;
+  el.setAttribute("data-keluar", "");
+  susunToast();
+  if (gerakDikurangi()) el.remove();
+  else setTimeout(() => el.remove(), TOAST_KELUAR_MS);
+}
+
+// Geser ke kanan untuk membuang (pointer events: mouse, sentuh, pena). Ke kiri tidak
+// bergerak. Dilepas sebelum TOAST_GESER_PX kembali ke tempatnya.
+function pasangGeserToast(el, tutup) {
+  let awalX = null;
+  let dx = 0;
+  el.addEventListener("pointerdown", (ev) => {
+    if (ev.button !== 0 || ev.target.closest(".tutup")) return;
+    awalX = ev.clientX;
+    dx = 0;
+    el.setPointerCapture(ev.pointerId);
+    el.setAttribute("data-geser", "");
+  });
+  el.addEventListener("pointermove", (ev) => {
+    if (awalX === null) return;
+    dx = Math.max(0, ev.clientX - awalX);
+    el.style.setProperty("--geser", `${dx}px`);
+  });
+  const lepas = () => {
+    if (awalX === null) return;
+    awalX = null;
+    el.removeAttribute("data-geser");
+    if (dx >= TOAST_GESER_PX) {
+      el.setAttribute("data-keluar-geser", "");
+      tutup();
+    } else {
+      el.style.setProperty("--geser", "0px");
+    }
+  };
+  el.addEventListener("pointerup", lepas);
+  el.addEventListener("pointercancel", lepas);
+}
+
+// Tumpukan terbuka (daftar) atau terlipat. Terbuka = semua hitung mundur ditahan.
+function bukaTumpukanToast(buka) {
+  const wadah = $("toasts");
+  if (buka === wadah.hasAttribute("data-terbuka")) return;
+  wadah.toggleAttribute("data-terbuka", buka);
+  wadah.querySelectorAll(".toast").forEach((el) => {
+    if (el._hitung) (buka ? el._hitung.tahan : el._hitung.lanjut)();
+  });
 }
 
 function toast(kind, text, durasi = TOAST_DURASI[kind]) {
   if (!text) return;
   const wadah = $("toasts");
-  while (wadah.children.length >= TOAST_MAKS) wadah.firstElementChild.remove();
+  const hidup = () => wadah.querySelectorAll(".toast:not([data-keluar])");
+  while (hidup().length >= TOAST_MAKS) hidup()[0].remove();
   const el = document.createElement("div");
   el.className = `toast ${kind}`;
   el.setAttribute("role", kind === "gagal" ? "alert" : "status");
-  el.innerHTML = `<span class="pesan"></span><button type="button" class="tutup" aria-label="${esc(t("toastTutup"))}">&times;</button>`;
+  el.setAttribute("data-masuk", "");
+  el.innerHTML = `<svg class="ikon-toast" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">${IKON_TOAST[kind] || ""}</svg>`
+    + `<span class="pesan"></span><button type="button" class="tutup" aria-label="${esc(t("toastTutup"))}">&times;</button>`;
   el.querySelector(".pesan").textContent = text;
-  const hapus = () => el.remove();
-  // × memakai `tutup`: kedua timer (sisa dan umur maksimal) ikut dibersihkan.
-  const tutup = hitungMundurToast(el, durasiToast(durasi), hapus);
-  el.querySelector(".tutup").addEventListener("click", tutup);
   wadah.append(el);
+  // Satu baca tata letak per toast baru: tinggi aslinya, untuk tumpukan yang terbuka. Baca
+  // ini juga yang membuat browser menggambar posisi `data-masuk` dulu, jadi animasi masuknya
+  // jalan begitu atribut itu dicabut.
+  el._tinggi = el.getBoundingClientRect().height;
+  // × dan geser memakai `tutup`: kedua timer (sisa dan umur maksimal) ikut dibersihkan.
+  const hitung = hitungMundurToast(durasiToast(durasi), () => lepasToast(el));
+  el._hitung = hitung;
+  if (wadah.hasAttribute("data-terbuka")) hitung.tahan();
+  el.querySelector(".tutup").addEventListener("click", hitung.tutup);
+  pasangGeserToast(el, hitung.tutup);
+  el.removeAttribute("data-masuk");
+  susunToast();
 }
 const toastSukses = (text) => toast("sukses", text);
 const toastGagal = (text) => toast("gagal", text);
 const toastPeringatan = (text) => toast("peringatan", text);
+// Kursor atau fokus di atas tumpukan membukanya (ala Sonner). Wadahnya `pointer-events:none`,
+// tapi mouseenter dan mouseleave tetap sampai ke wadah lewat kartu-kartunya.
+$("toasts").addEventListener("mouseenter", () => bukaTumpukanToast(true));
+$("toasts").addEventListener("mouseleave", () => bukaTumpukanToast($("toasts").contains(document.activeElement)));
+$("toasts").addEventListener("focusin", () => bukaTumpukanToast(true));
+$("toasts").addEventListener("focusout", (ev) => {
+  if (!$("toasts").contains(ev.relatedTarget)) bukaTumpukanToast($("toasts").matches(":hover"));
+});
 
 // Tombol yang memanggil server dikunci sampai jawabannya datang: klik kedua di
 // tengah proses tidak menjalankan pekerjaan kedua, dan spinner di tombolnya
@@ -4104,7 +4688,7 @@ function kartuLine(l, sekarang = Date.now()) {
       <div class="assign">
         ${komponenPilih(opsi, l.assignment ? l.assignment.truck_id : "")}
         <button class="utama" data-aksi="tugaskan"${l.assignment ? "" : " disabled"}>${esc(t("btnTugaskan"))}</button>
-        <button data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>
+        <button class="bahaya" data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>
       </div>
       <div class="aksi-line">
         <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
@@ -4156,6 +4740,53 @@ $("foto-modal").addEventListener("close", () => {
   $("foto-besar").removeAttribute("src");
 });
 
+// ── Dialog konfirmasi ──────────────────────────────────────────────────
+// Satu-satunya cara layar ini bertanya "yakin?" (user 2026-10-03): kotak `confirm`, `alert`
+// dan `prompt` bawaan browser tidak dipakai lagi. Mengembalikan Promise<boolean>: true cuma dari
+// tombol konfirmasi (klik atau Enter); Batal, Esc, dan klik di backdrop = false. Fokus kembali
+// ke `asal` (elemen, atau fungsi yang mencarinya lagi: tombol piston digambar ulang tiap
+// poll), atau ke elemen yang berfokus saat dialog dibuka. `bahaya` = konfirmasinya merah
+// pekat (F11); Batal merah muda seperti semua Batal (F11, F12) dan memegang fokus pertama,
+// jadi Enter yang tidak sengaja tetap membatalkan.
+let jawabKonfirmasi = null;
+function tanyaKonfirmasi({ judul, pesan, ya, batal, bahaya = false, asal } = {}) {
+  const modal = $("konfirmasi-modal");
+  if (jawabKonfirmasi) jawabKonfirmasi(false);
+  const fokusAwal = document.activeElement;
+  $("konfirmasi-judul").textContent = judul || "";
+  $("konfirmasi-pesan").textContent = pesan || "";
+  $("konfirmasi-pesan").hidden = !pesan;
+  const tombolYa = $("konfirmasi-ya");
+  tombolYa.textContent = ya || t("konfirmasiYa");
+  tombolYa.className = bahaya ? "bahaya pekat" : "utama";
+  $("konfirmasi-tidak").textContent = batal || t("konfirmasiTidak");
+  return new Promise((resolve) => {
+    const jawab = (hasil) => {
+      if (jawabKonfirmasi !== jawab) return;
+      jawabKonfirmasi = null;
+      if (modal.open) modal.close();
+      const kembali = (typeof asal === "function" ? asal() : asal) || fokusAwal;
+      if (kembali && kembali.isConnected && typeof kembali.focus === "function") kembali.focus();
+      resolve(hasil);
+    };
+    jawabKonfirmasi = jawab;
+    modal.showModal();
+    $("konfirmasi-tidak").focus();
+  });
+}
+
+$("konfirmasi-ya").addEventListener("click", () => jawabKonfirmasi && jawabKonfirmasi(true));
+$("konfirmasi-tidak").addEventListener("click", () => jawabKonfirmasi && jawabKonfirmasi(false));
+// Klik yang target-nya dialog itu sendiri cuma bisa dari backdrop (padding 0, seperti foto).
+$("konfirmasi-modal").addEventListener("click", (ev) => {
+  if (ev.target === ev.currentTarget && jawabKonfirmasi) jawabKonfirmasi(false);
+});
+// Esc menutup <dialog> bawaan; `close` datang sesudahnya. Dialog yang sudah dibuka lagi oleh
+// pertanyaan berikutnya tidak ikut dijawab oleh `close` milik pertanyaan sebelumnya.
+$("konfirmasi-modal").addEventListener("close", (ev) => {
+  if (!ev.currentTarget.open && jawabKonfirmasi) jawabKonfirmasi(false);
+});
+
 const tagHasil = (s, kelas) => {
   if (!s && !kelas) return KOSONG;
   const lolos = String(s).toUpperCase() === "ACC";
@@ -4172,21 +4803,110 @@ function barisTruk(tr) {
 }
 
 function barisTimbangan(w) {
-  // The row carries the ticket identity so weigh-out resends exactly the same
-  // key (ref, or plate + entered_at) - miss it and one ticket splits into two
-  // rows with its neto gone.
-  return `<tr data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
+  // The row carries the ticket identity so weigh-out resends exactly the same key
+  // (ref, or plate + entered_at): miss it and one ticket splits into two rows with its
+  // neto gone. `data-id` is for the Keluar button (scan 4). Minutes come from the
+  // backend (standard L4); only the clock times are formatted here.
+  const jamDatang = w.arrived_at ? `${t("jamDatang")} ${waktu(w.arrived_at)}` : "";
+  const jamPergi = w.left_at ? `${t("jamPergi")} ${waktu(w.left_at)}` : "";
+  return `<tr data-id="${esc(w.id)}" data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
               data-masuk="${esc(w.entered_at ?? "")}">
-    <td>${w.entered_at ? waktu(w.entered_at) : KOSONG}</td>
-    <td>${w.exited_at ? waktu(w.exited_at) : KOSONG}</td>
+    <td>${lencanaTahap(w.tahap)}</td>
+    <td class="sel-waktu">${w.entered_at ? waktuDuaBaris(w.entered_at) : KOSONG}</td>
+    <td class="sel-waktu">${w.exited_at ? waktuDuaBaris(w.exited_at) : KOSONG}</td>
+    <td title="${esc(jamDatang)}">${durasiAntre(w)}</td>
     <td>${dash(lamaProses(w.entered_at, w.exited_at))}</td>
+    <td title="${esc(jamPergi)}">${dash(teksMenit(w.total_menit))}</td>
     <td class="key">${dash(w.plate_number)}${tandaErp(w)}</td>
     <td>${dash(w.source_label)}</td>
     <td class="num">${kg(w.gross_kg)}</td>
     <td class="num">${kg(w.tare_kg)}</td>
     <td class="num">${kg(w.net_kg)}</td>
-    <td>${w.tare_kg == null ? `<button data-aksi="keluar">${esc(t("btnKeluar"))}</button>` : ""}</td>
+    <td>${aksiTiket(w)}</td>
   </tr>`;
+}
+
+// Truk yang sudah "Catat datang" tapi belum timbang isi, sebagai baris paling atas
+// (user 2026-10-02): keempat tahap terlihat di satu tabel. Belum ada tiket, jadi tidak ada
+// jam atau berat; Antre berisi menit tunggu dari server, yang naik tiap poll. Satu tombol:
+// Batal datang (2026-10-03), untuk truk salah pilih atau yang ditolak di gerbang.
+function barisMenunggu(a) {
+  const jamDatang = a.arrived_at ? `${t("jamDatang")} ${waktu(a.arrived_at)}` : "";
+  return `<tr class="baris-menunggu" data-plat="${esc(a.plate_number)}">
+    <td>${lencanaTahap(a.tahap)}</td>
+    <td>${KOSONG}</td>
+    <td>${KOSONG}</td>
+    <td title="${esc(jamDatang)}">${dash(teksMenit(a.menit))}</td>
+    <td>${KOSONG}</td>
+    <td>${KOSONG}</td>
+    <td class="key">${dash(a.plate_number)}</td>
+    <td>${KOSONG}</td>
+    <td class="num">${KOSONG}</td>
+    <td class="num">${KOSONG}</td>
+    <td class="num">${KOSONG}</td>
+    <td><button class="bahaya" data-aksi="batal-datang" data-arrival="${esc(a.id)}">${esc(t("btnBatalDatang"))}</button></td>
+  </tr>`;
+}
+
+// Tahap kunjungan sebagai lencana berwarna dan berkata, warnanya sama dengan judul langkah
+// di atas tabel. Tahapnya dari server (`tahap`, domain/gerbang.py), layar tidak menebak
+// (standar L4); nilai yang tidak dikenal jadi strip.
+function lencanaTahap(tahap) {
+  const [kelas, kunci] = {
+    datang: ["tahap-datang", "tahapDatang"],
+    bongkar: ["tahap-bongkar", "tahapBongkar"],
+    timbang_kosong: ["tahap-kosong", "tahapTimbangKosong"],
+    selesai: ["tahap-selesai", "tahapSelesai"],
+  }[tahap] || [];
+  if (!kelas) return KOSONG;
+  // Keempat kata tahap ikut di `data-ukur`, supaya semua lencana selebar yang terlebar.
+  const ukur = ["tahapDatang", "tahapBongkar", "tahapTimbangKosong", "tahapSelesai"].map((k) => t(k)).join("\n");
+  return `<span class="lencana ${kelas}" data-ukur="${esc(ukur)}">${esc(t(kunci))}</span>`;
+}
+
+// Antre = scan 1 sampai timbang isi. Tanpa scan 1 bukan "0 mnt": itu menarik rata-rata
+// antre ke bawah padahal antreannya memang tidak tercatat (keputusan D4).
+function durasiAntre(w) {
+  if (w.tanpa_scan_1) {
+    return `<span class="tag peringatan" title="${esc(t("antreKelewatJudul"))}">${esc(t("antreKelewat"))}</span>`;
+  }
+  return dash(teksMenit(w.antre_menit));
+}
+
+// Satu tombol per baris, sesuai tahap berikutnya: timbang kosong dulu, baru keluar.
+// Layar tidak menebak tahap (D6): tombolnya ditentukan isi tiket dari server. Kunjungan yang
+// server nyatakan selesai tanpa Keluar (`tanpa_scan_4`: lewat 24 jam, atau truknya sudah
+// datang lagi) tidak punya tombol lagi; label kuningnya di tempat tombol Keluar.
+function aksiTiket(w) {
+  if (w.tare_kg == null) return `<button data-aksi="keluar">${esc(t("btnTimbangKosong"))}</button>`;
+  if (w.tanpa_scan_4) {
+    return `<span class="tag peringatan" title="${esc(t("tanpaScan4Judul"))}">${esc(t("tanpaScan4"))}</span>`;
+  }
+  if (!w.left_at) return `<button data-aksi="pergi">${esc(t("btnPergi"))}</button>`;
+  return "";
+}
+
+// Truk yang sudah scan 1 tapi belum timbang isi, sebagai kalimat untuk `title` lencana
+// Menunggu di ruas langkah 1. Menitnya dari server; null (jam datang tak terbaca) jadi strip,
+// bukan "0 mnt". Dipakai lewat atribut, bukan innerHTML, jadi tidak perlu esc().
+function teksAntre(daftar) {
+  if (!daftar || !daftar.length) return "";
+  const isi = daftar.map((a) => `${a.plate_number} (${teksMenit(a.menit) ?? KOSONG})`);
+  return `${t("antreMenunggu").replace("{n}", daftar.length)}: ${isi.join(", ")}`;
+}
+
+// Lencana "Menunggu n" di ruas langkah 1 (user 2026-10-03): cuma jumlahnya, platnya di
+// `title`. Daftar lengkapnya sudah tampil sebagai baris DATANG di tabel dan di bagian
+// Menunggu timbang dropdown langkah 2. Satu baris yang tidak pernah turun (CSS
+// `.langkah-hitung`), jadi poll 15 detik tidak menggeser apa pun. Ditulis cuma kalau beda.
+function gambarLencanaAntre(daftar) {
+  const el = $("antre");
+  const n = daftar ? daftar.length : 0;
+  const teks = n ? t("antreLencana").replace("{n}", n) : "";
+  const judul = teksAntre(daftar);
+  if (el.textContent !== teks) el.textContent = teks;
+  if (el.title !== judul) el.title = judul;
+  el.hidden = !n;
 }
 
 // Jawaban AutoERP yang butuh orang (batch 2.3). Server yang menggolongkan
@@ -4239,16 +4959,67 @@ function isiTally(lines) {
   // keempat angka kelas ini bisa nol padahal `total` tidak. Itu bukan bug:
   // kelas aslinya memang tidak pernah direkam, dan menebaknya dari verdict
   // akan mengarang — REJ bisa Unripe atau JK.
-  $("tot-ripe").textContent = jml("ripe");
-  $("tot-unripe").textContent = jml("unripe");
-  $("tot-jk").textContent = jml("jk");
-  $("tot-tp").textContent = jml("tp");
-  $("tot-all").textContent = total;
+  tulisAngka($("tot-ripe"), jml("ripe"));
+  tulisAngka($("tot-unripe"), jml("unripe"));
+  tulisAngka($("tot-jk"), jml("jk"));
+  tulisAngka($("tot-tp"), jml("tp"));
+  tulisAngka($("tot-all"), total);
   // Rasio tetap dihitung dari verdict biner, BUKAN dari `ripe/total`: piston
   // memang biner, dan baris lama tanpa kelas akan menyeret rasio ke nol.
   const rasio = total ? (acc / total) * 100 : 0;
   $("tot-rate").textContent = total ? Math.round(rasio) + "%" : KOSONG;
   $("bar-acc").style.width = rasio + "%";
+}
+
+// Angka tally yang berubah bergulir seperti odometer (user 2026-10-03, gaya NumberFlow).
+// Cuma kalau nilainya sungguh berubah: poll dengan nilai yang sama tidak menyentuh DOM (F9),
+// dan tulisan pertama (halaman dibuka, kartu digambar ulang sesudah ganti bahasa atau
+// login), tab browser yang tersembunyi, dan `prefers-reduced-motion` menulis angkanya
+// langsung. Selama bergulir `textContent` tetap angka barunya (`.odo-baca`); begitu
+// animasinya selesai elemennya kembali berisi teks biasa. Satu listener per perubahan,
+// tanpa timer per digit.
+function tulisAngka(el, nilai) {
+  const n = Number(nilai) || 0;
+  const lama = el._angka;
+  if (lama === n) return;
+  el._angka = n;
+  const teks = String(n);
+  if (lama === undefined || document.hidden || gerakDikurangi() || !/^\d+$/.test(teks + String(lama))) {
+    el.textContent = teks;
+    return;
+  }
+  el.innerHTML = `<span class="odo-baca">${teks}</span><span class="odo" aria-hidden="true" style="--arah:${n > lama ? 1 : -1}">${kolomOdometer(String(lama), teks)}</span>`;
+  const giliran = (el._giliranOdo || 0) + 1;
+  el._giliranOdo = giliran;
+  el.addEventListener("animationend", () => {
+    if (el._giliranOdo === giliran) el.textContent = teks;
+  }, { once: true });
+}
+
+// Kolom digit dari angka lama ke angka baru, rata kanan: digit yang ada di keduanya
+// bergulir, digit depan yang baru muncul masuk, yang hilang keluar. Arah gulirnya ikut arah
+// angkanya, untuk SEMUA digit yang berubah: naik = pita ke atas dan 9 menyambung ke 0
+// (19 ke 20: satuan 9 ke baris 10, puluhan 1 ke 2), turun = pita ke bawah dan 0 menyambung
+// ke 9 (20 ke 19: satuan dari baris 10 ke 9). Baris 10 sampai 19 adalah putaran kedua pita.
+// Isinya cuma digit 0 sampai 9 dari `tulisAngka`, jadi aman tanpa esc().
+function kolomOdometer(dari, ke) {
+  const n = Math.max(dari.length, ke.length);
+  const a = dari.padStart(n, " ");
+  const b = ke.padStart(n, " ");
+  const naik = Number(ke) > Number(dari);
+  let html = "";
+  for (let i = 0; i < n; i++) {
+    if (b[i] === " ") html += `<span class="odo-d" data-keluar data-ke="${a[i]}" style="--ke:${a[i]}"></span>`;
+    else if (a[i] === " ") html += `<span class="odo-d" data-masuk data-ke="${b[i]}" style="--ke:${b[i]}"></span>`;
+    else {
+      const x = Number(a[i]);
+      const y = Number(b[i]);
+      const awal = !naik && x < y ? x + 10 : x;
+      const akhir = naik && y < x ? y + 10 : y;
+      html += `<span class="odo-d" data-ke="${b[i]}" style="--dari:${awal};--ke:${akhir}"></span>`;
+    }
+  }
+  return html;
 }
 
 // ── Last Sync ──────────────────────────────────────────────────────────
@@ -4351,6 +5122,16 @@ $("lines").addEventListener("click", async (ev) => {
     terapkanUrutan();
     return;
   }
+  // Opening the piston moves metal: ask first, BEFORE the button is locked, so the focus can
+  // come back to it. Closing is the safe state: never asked, never blocked by a dialog.
+  if (tombol.dataset.aksi === "piston") {
+    const buka = tombol.dataset.buka === "1";
+    if (buka && !(await tanyaKonfirmasi({
+      judul: t("konfirmasiBukaJudul").replace("{line}", kartu.querySelector(".nama").textContent),
+      pesan: t("konfirmasiBuka"), ya: t("btnPistonBuka"),
+      asal: () => kartu.querySelector("button.piston"),
+    }))) return;
+  }
   tombol.disabled = true;
   tombol.classList.add("sibuk");
   try {
@@ -4368,24 +5149,21 @@ $("lines").addEventListener("click", async (ev) => {
       await refresh();
       toastSukses(t("sukTugaskan").replace("{line}", namaLine));
     } else if (tombol.dataset.aksi === "lepas") {
-      await api(`/api/console/lines/${encodeURIComponent(line)}/release-truck`, { method: "POST" });
+      const r = await api(`/api/console/lines/${encodeURIComponent(line)}/release-truck`, { method: "POST" });
       await refresh();
       toastSukses(t("sukLepas").replace("{line}", namaLine));
+      // Lepas di line terakhir truk ini membuat truk berikutnya di antrean bongkar naik.
+      umumkanPasang(r.dipasang);
     } else if (tombol.dataset.aksi === "piston") {
-      // Opening moves metal: ask first. Closing is the safe state - it must
-      // never be blocked by a dialog, so the guard below only ever runs when
-      // `buka` is true and returns before touching the network.
+      // Already asked above when opening.
       const buka = tombol.dataset.buka === "1";
-      if (buka && !confirm(t("konfirmasiBuka").replace("{line}", kartu.querySelector(".nama").textContent)))
-        return;
       await api(`/api/console/lines/${encodeURIComponent(line)}/piston`,
                 { method: "POST", body: JSON.stringify({ open: buka }) });
       await refresh();
-      // No toast here on purpose: the button itself already reports the
-      // outcome (state now driven by the PLC, `.kedip` flash on click), and
-      // the guard above already interrupted the operator with a dialog for
-      // the one case (opening) that needs their attention. A toast on top
-      // would be a third signal for the same event.
+      // Toast seperti tombol lain (user 2026-10-02: "semua action button ... kalo berhasil
+      // munculnya toast"). Katanya "perintah dikirim", bukan "piston terbuka": yang
+      // menyatakan keadaan piston tetap tombolnya sendiri, dari PLC (E-stop bisa menolak).
+      toastSukses(t(buka ? "sukPistonBuka" : "sukPistonTutup").replace("{line}", namaLine));
     } else {
       // No `requested_by`: the server records whoever holds the session (Fase 4). The
       // page used to send the literal "operator", which the server now ignores — left
@@ -4634,12 +5412,15 @@ $("masuk").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async
   if (!plate_number || !gross_kg) { pesan(t("wajibIsi")); return; }
   $("masuk").disabled = true;
   try {
-    await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
+    const r = await api("/api/console/weighings", { method: "POST", body: JSON.stringify(
       { plate_number, gross_kg, entered_at: new Date().toISOString() }) });
     pilihNilai($("plat-timbang"), ""); $("bruto").value = "";
     await muatTimbangan();
     pesan("");
     toastSukses(t("sukMasuk"));
+    umumkanPasang(r.dipasang);
+    // Kartu line dan antrean bongkar langsung ikut, tidak menunggu poll 2 detik.
+    await refresh();
   } catch (e) {
     const teks = gagalKarena("gagalTimbang", e);
     pesan(teks);
@@ -4652,6 +5433,10 @@ $("masuk").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async
 // Tare goes through a dialog, not a column inside its row: this table is
 // rebuilt on every poll, which would wipe out anything the operator is typing.
 $("timbangan").addEventListener("click", async (ev) => {
+  const batal = ev.target.closest("button[data-aksi='batal-datang']");
+  if (batal) { batalDatang(batal); return; }
+  const pergi = ev.target.closest("button[data-aksi='pergi']");
+  if (pergi) { kirimPergi({ weighing_id: pergi.closest("tr").dataset.id }); return; }
   const tombol = ev.target.closest("button[data-aksi='keluar']");
   if (!tombol) return;
   const baris = tombol.closest("tr").dataset;
@@ -4676,11 +5461,17 @@ function tanyaTara(w) {
   $("tara-plat").textContent = w.plate_number || "";
   $("tara-nilai").value = "";
   $("tara-grup").hidden = false;
+  // Ruas langkah 3 di strip menyala selama bar tara terbuka; pesan tara lama tidak ikut
+  // ke truk berikutnya.
+  $("ruas-kosong").classList.add("aktif");
+  pesanScanKeluar("");
   $("tara-nilai").focus();
 }
 
 function tutupTara() {
   $("tara-grup").hidden = true;
+  $("tara-plat").textContent = "";
+  $("ruas-kosong").classList.remove("aktif");
   taraUntuk = null;
 }
 
@@ -4700,7 +5491,7 @@ async function simpanTara() {
   $("tara-simpan").disabled = true;
   $("tara-simpan").classList.add("sibuk");
   try {
-    await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
+    const r = await api("/api/console/weighings", { method: "POST", body: JSON.stringify({
       plate_number: w.plate_number, ref: w.ref, entered_at: w.entered_at,
       tare_kg: teks, exited_at: new Date().toISOString() }) });
     tutupTara();
@@ -4709,6 +5500,9 @@ async function simpanTara() {
     // the only confirmation left on screen - unlike weigh-in, there is no
     // more field nearby that still shows what happened.
     toastSukses(t("sukTara"));
+    // Timbang kosong melepas line truk ini; truk berikutnya di antrean bongkar naik.
+    umumkanPasang(r.dipasang);
+    await refresh();
   } catch (e) {
     // The field is left open: the number is still there, so the operator can
     // fix it without retyping from scratch. pesanScanKeluar already puts the
@@ -4732,6 +5526,126 @@ $("tara-nilai").addEventListener("keydown", (ev) => {
   // Esc closes it, like any dialog: a wrongly scanned truck must not force
   // the operator to save anything.
   if (ev.key === "Escape") tutupTara();
+});
+
+// ── scan 1 dan 4: jam datang dan jam keluar gerbang (2026-09-30) ───────────
+// Cuma disimpan di PC ini, tidak naik ke AutoERP. Hasil yang bukan "tercatat" dijawab
+// 200 dengan `hasil`: toast-nya peringatan kuning, bukan gagal merah, karena gerbangnya
+// bekerja; pesan di sebelah kolomnya tetap merah (`.salah`), seperti scan masuk. Layar
+// tidak menebak tahap (D6): kolom datang selalu scan 1, kolom keluar selalu scan 4.
+function pesanGerbang(id, teks, salah = false) {
+  const el = $(id);
+  el.textContent = teks || "";
+  el.classList.toggle("salah", Boolean(teks) && salah);
+}
+
+// Mengembalikan true kalau server menjawab (hasil apa pun), supaya tombol cadangan
+// tahu pilihannya boleh dikosongkan.
+async function kirimDatang(qr) {
+  if (!qr || scanSibuk) return false;
+  scanSibuk = true;
+  try {
+    const h = await api("/api/console/arrivals", {
+      method: "POST", body: JSON.stringify({ qr, at: new Date().toISOString() }),
+    });
+    if (h.hasil === "tercatat") {
+      pesanGerbang("scan-datang-pesan", "");
+      toastSukses(`${t("sukDatang")} ${h.plate_number}`);
+    } else {
+      const teks = h.hasil === "sudah_tercatat"
+        ? t("datangSudah").replace("{jam}", waktu(h.arrived_at))
+        : t("datangMasihDiDalam");
+      pesanGerbang("scan-datang-pesan", `${teks} ${h.plate_number}`, true);
+      toastPeringatan(`${teks} ${h.plate_number}`);
+    }
+    await muatTimbangan();
+    return true;
+  } catch (e) {
+    pesanGerbang("scan-datang-pesan", alasan(e), true);
+    toastGagal(alasan(e));
+    return false;
+  } finally {
+    scanSibuk = false;
+  }
+}
+
+// Batal datang (2026-10-03): dua klik seperti Batalkan impor, karena satu klik yang meleset
+// menghapus kedatangan truk lain; pertanyaannya hilang sendiri sesudah 5 detik. `tidak_ada`
+// (sudah timbang isi, sudah dibatalkan) bukan galat: gerbangnya bekerja, toast kuning.
+async function batalDatang(tombol) {
+  if (!tombol.classList.contains("yakin")) {
+    tombol.classList.add("yakin", "pekat");
+    tombol.textContent = t("batalDatangYakin");
+    setTimeout(() => {
+      if (!tombol.isConnected || tombol.classList.contains("sibuk")) return;
+      tombol.classList.remove("yakin", "pekat");
+      tombol.textContent = t("btnBatalDatang");
+    }, 5000);
+    return undefined;
+  }
+  return denganSibuk(tombol, async () => {
+    try {
+      const h = await api(`/api/console/arrivals/${encodeURIComponent(tombol.dataset.arrival)}/cancel`,
+        { method: "POST" });
+      if (h.hasil === "dibatalkan") toastSukses(t("sukBatalDatang").replace("{plat}", h.plate_number || ""));
+      else toastPeringatan(t("batalDatangTakAda"));
+      await muatTimbangan();
+    } catch (e) {
+      if (e.kode !== "belum_masuk") toastGagal(alasan(e));
+    }
+  });
+}
+
+// `isi` = { qr } dari scanner, atau { weighing_id } dari tombol Keluar di baris tiket.
+async function kirimPergi(isi) {
+  if (scanSibuk) return;
+  scanSibuk = true;
+  try {
+    const h = await api("/api/console/departures", {
+      method: "POST", body: JSON.stringify({ ...isi, at: new Date().toISOString() }),
+    });
+    const kunci = {
+      belum_timbang_kosong: "pergiBelumKosong",
+      sudah_keluar: "pergiSudah",
+      tidak_ada_tiket: "pergiTakAdaTiket",
+    }[h.hasil];
+    const plat = h.plate_number || "";
+    if (!kunci) {
+      pesanGerbang("scan-pergi-pesan", "");
+      toastSukses(`${t("sukPergi")} ${plat}`.trim());
+    } else {
+      const teks = `${t(kunci)} ${plat}`.trim();
+      pesanGerbang("scan-pergi-pesan", teks, true);
+      toastPeringatan(teks);
+    }
+    await muatTimbangan();
+  } catch (e) {
+    pesanGerbang("scan-pergi-pesan", alasan(e), true);
+    toastGagal(alasan(e));
+  } finally {
+    scanSibuk = false;
+  }
+}
+
+$("scan-datang").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  ev.preventDefault();
+  const qr = $("scan-datang").value.trim();
+  $("scan-datang").value = "";
+  kirimDatang(qr);
+});
+
+$("datang").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
+  if (await kirimDatang($("plat-datang").dataset.nilai)) pilihNilai($("plat-datang"), "");
+  segarkanTombol();
+}));
+
+$("scan-pergi").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter") return;
+  ev.preventDefault();
+  const qr = $("scan-pergi").value.trim();
+  $("scan-pergi").value = "";
+  if (qr) kirimPergi({ qr });
 });
 
 // ── camera status ──────────────────────────────────────────────────────
@@ -4997,6 +5911,8 @@ function segarkanTombol() {
   $("daftar").disabled = !$("plat").value.trim();
   const timbang = $("plat-timbang");
   $("masuk").disabled = !(timbang && timbang.dataset.nilai && $("bruto").value.trim());
+  const datang = $("plat-datang");
+  $("datang").disabled = !(datang && datang.dataset.nilai);
 }
 // One pair of listeners for the whole page: dropdowns bubble `pilih`, text
 // boxes bubble `input`, and cards built in JS need no wiring of their own.
@@ -5218,15 +6134,108 @@ $("keluar").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, asyn
 // sekali per pelepasan: state di-poll tiap 2 detik, dan toast yang sama muncul
 // berulang selama satu jam adalah cara tercepat mengajari operator mengabaikan
 // kotak peringatan.
+//
+// Saklar penugasan otomatis nyala: melepas memang jalannya dan truk berikutnya
+// langsung naik. Satu toast per truk (tiga line = satu kalimat, bukan tiga toast
+// yang membuang toast suksesnya dari TOAST_MAKS), tanpa "tugaskan lagi": menugaskan
+// lagi akan menimpa truk berikutnya. Saklar mati: per line seperti dulu (D13).
 const pelepasanSudahDiumumkan = new Set();
-function umumkanPelepasanOtomatis(daftar) {
-  (daftar || []).forEach((r) => {
-    if (pelepasanSudahDiumumkan.has(r.id)) return;
-    pelepasanSudahDiumumkan.add(r.id);
+function umumkanPelepasanOtomatis(daftar, otomatis) {
+  const baru = (daftar || []).filter((r) => !pelepasanSudahDiumumkan.has(r.id));
+  baru.forEach((r) => pelepasanSudahDiumumkan.add(r.id));
+  if (!otomatis) {
+    baru.forEach((r) => {
+      const truk = r.plate_number || r.truck_id;
+      toastPeringatan(t("pelepasanOtomatis").replace("{line}", r.line_code).replace("{truk}", truk));
+    });
+    return;
+  }
+  const perTruk = new Map();
+  baru.forEach((r) => {
     const truk = r.plate_number || r.truck_id;
-    toastPeringatan(t("pelepasanOtomatis").replace("{line}", r.line_code).replace("{truk}", truk));
+    perTruk.set(truk, [...(perTruk.get(truk) || []), namaKartuLine(r.line_code)]);
   });
+  perTruk.forEach((lines, truk) => toastPeringatan(
+    t("pelepasanOtomatisGabung").replace("{line}", lines.join(", ")).replace("{truk}", truk)));
 }
+
+// ── antrean bongkar + penugasan otomatis (2026-10-01) ──────────────────
+// Antrean bongkar = truk yang sudah timbang isi tapi belum di line. Bukan "antrean line"
+// di tab Status (kiriman line ke konsol). Cuma tampil saat saklar nyala: saklar mati
+// berarti layar sama seperti sebelum fitur ini (D13), dan dropdown per line tetap cara
+// manualnya. Jalur Tugaskan sekarang / Lewati tetap ada di server.
+function htmlAntreanBongkar(daftar, aktif) {
+  if (!aktif || !daftar || !daftar.length) return "";
+  return `<span class="lb">${esc(t("antreanBongkarOtomatis"))}</span>` + daftar.map((a) =>
+    `<span class="antrean-truk" data-id="${esc(a.weighing_id)}" data-plat="${esc(a.plate_number)}">
+       <b>${esc(a.plate_number)}</b>
+       <span class="muted">${esc(teksMenit(a.menit) || "0 mnt")}</span>
+       <button data-aksi="pasang">${esc(t("btnTugaskanSekarang"))}</button>
+       <button class="bahaya" data-aksi="lewati">${esc(t("btnLewati"))}</button>
+     </span>`).join("");
+}
+
+function gambarAntreanBongkar(daftar, setelan) {
+  const el = $("antrean-bongkar");
+  const html = htmlAntreanBongkar(daftar, Boolean(setelan && setelan.aktif));
+  el.hidden = !html;
+  tulisKalauBeda(el, html);
+}
+
+// Nama line seperti di kartunya ("Line 1"), bukan kode internal.
+// Satu kode line -> nama di kartunya. Bukan `namaLineDari` (Update now): yang itu memetakan
+// daftar kode "line-1, line-3" lewat peta; dua fungsi bernama sama saling menimpa diam-diam.
+function namaKartuLine(kode) {
+  const el = document.querySelector(`#lines .card[data-line="${CSS.escape(kode)}"] .nama`);
+  return el ? el.textContent.trim() : kode;
+}
+
+// Yang terpasang jadi satu toast sukses; line yang tidak menjawab jadi peringatan
+// sendiri, supaya operator tahu kartu mana yang harus ditugaskan manual. Line yang
+// masih memegang truk yang sudah keluar (pelepasannya gagal) juga, dengan plat truk
+// lama itu: kalau tidak dilepas, line itu menstempel truk lama ke janjang berikutnya.
+function umumkanPasang(daftarPasang) {
+  const daftar = daftarPasang || [];
+  if (!daftar.length) return;
+  const truk = daftar[0].plate_number || "";
+  const ok = daftar.filter((d) => d.terpasang).map((d) => namaKartuLine(d.line_code));
+  const gagal = daftar.filter((d) => !d.terpasang && !d.tertahan).map((d) => namaKartuLine(d.line_code));
+  const tertahan = new Map();
+  daftar.filter((d) => d.tertahan).forEach((d) => {
+    tertahan.set(d.plate_lama, [...(tertahan.get(d.plate_lama) || []), namaKartuLine(d.line_code)]);
+  });
+  if (ok.length) toastSukses(t("sukDitugaskanOtomatis").replace("{truk}", truk).replace("{line}", ok.join(", ")));
+  if (gagal.length) toastPeringatan(t("tugaskanGagalLine").replace("{truk}", truk).replace("{line}", gagal.join(", ")));
+  tertahan.forEach((lines, lama) => toastPeringatan(t("tugaskanTertahan")
+    .replace("{line}", lines.join(", ")).replace("{lama}", lama || "").replace("{truk}", truk)));
+}
+
+$("antrean-bongkar").addEventListener("click", async (ev) => {
+  const tombol = ev.target.closest("button[data-aksi]");
+  if (!tombol) return;
+  const truk = tombol.closest(".antrean-truk");
+  const id = truk.dataset.id;
+  const plat = truk.dataset.plat;
+  const lewati = tombol.dataset.aksi === "lewati";
+  if (lewati && !(await tanyaKonfirmasi({
+    judul: t("konfirmasiLewatiJudul").replace("{truk}", plat), pesan: t("konfirmasiLewati"),
+    ya: t("btnLewati"), bahaya: true, asal: tombol,
+  }))) return;
+  denganSibuk(tombol, async () => {
+    try {
+      if (lewati) {
+        await api(`/api/console/unloading-queue/${encodeURIComponent(id)}/skip`, { method: "POST" });
+        toastSukses(t("sukLewati").replace("{truk}", plat));
+      } else {
+        const r = await api(`/api/console/unloading-queue/${encodeURIComponent(id)}/assign`, { method: "POST" });
+        umumkanPasang(r.dipasang);
+      }
+      await refresh();
+    } catch (e) {
+      toastGagal(alasan(e));
+    }
+  });
+});
 
 // ── banner langganan ────────────────────────────────────────────────────
 // Kenapa ini ada sama sekali: sebelumnya, saat langganan habis, kamera berhenti
@@ -5274,7 +6283,8 @@ async function refresh() {
     gambarInfoSistem(s.versi, s.lisensi);
     namaLineKartu = Object.fromEntries(s.lines.map((l) => [l.line_code, l.name || l.line_code]));
     gambarPembaruan(s.pembaruan);
-    umumkanPelepasanOtomatis(s.auto_releases);
+    umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif));
+    gambarAntreanBongkar(s.antrean_bongkar, s.penugasan_otomatis);
     selarasUrutan(s.lines);
     isiTally(s.lines);
     isiTallyTimbangan(s.timbangan);
@@ -5285,6 +6295,9 @@ async function refresh() {
       const dipasangPada = Date.now();
       $("lines").innerHTML = s.lines.map((l) => kartuLine(l, dipasangPada)).join("");
       capFeedBaru(dipasangPada);
+      // Angka yang baru digambar jadi titik awal odometer (`tulisAngka`): poll berikutnya
+      // bergulir dari sini, bukan menulis polos seolah tulisan pertama.
+      $("lines").querySelectorAll(".counts b[data-k]").forEach((el) => { el._angka = Number(el.textContent) || 0; });
       dipasang = true;
       terapkanUrutan();
     } else {
@@ -5295,7 +6308,7 @@ async function refresh() {
         // menukar urutan markup di `kartuLine` diam-diam menukar angka yang
         // tampil di layar line — salah yang tidak kelihatan salah.
         c.querySelectorAll(".counts b[data-k]").forEach((el) => {
-          el.textContent = l[el.dataset.k] || 0;
+          tulisAngka(el, l[el.dataset.k] || 0);
         });
         c.querySelector(".truk").innerHTML = isiTruk(l.assignment);
         // The piston button and banner must follow what the PLC just confirmed,
@@ -5338,10 +6351,43 @@ async function refresh() {
 
 async function muatTimbangan() {
   try {
-    const items = (await api("/api/console/weighings")).items;
-    $("timbangan").innerHTML = items.length
-      ? items.map(barisTimbangan).join("") : barisKosong(9, "kosongTiket");
+    const data = await api("/api/console/weighings");
+    const items = data.items;
+    menungguTimbang = data.waiting || [];
+    // Yang menunggu di atas (tertua dulu), lalu tiket terbaru dulu: urutan dari server.
+    const baris = menungguTimbang.map(barisMenunggu).join("") + items.map(barisTimbangan).join("");
+    tulisKalauBeda($("timbangan"), baris || barisKosong(12, "kosongTiket"));
+    isiPlatTimbang();
+    gambarLencanaAntre(data.waiting);
+    gambarRiwayatBatal(data.dibatalkan);
   } catch (e) { /* the scale program has sent nothing yet - the screen keeps working */ }
+}
+
+// Riwayat Batal datang (user 2026-10-03): siapa membatalkan truk mana dan kapan, hari yang
+// tampil, terbaru dulu (urutan dari server). Tersembunyi utuh kalau kosong. Yang ditulis ulang
+// cuma judul dan isi tabelnya, lewat `tulisKalauBeda`, tidak pernah `<details>`-nya sendiri:
+// buka/tutup milik browser, jadi bertahan melewati poll 15 detik.
+function gambarRiwayatBatal(daftar) {
+  const rows = Array.isArray(daftar) ? daftar : [];
+  $("riwayat-batal").hidden = rows.length === 0;
+  tulisKalauBeda($("riwayat-batal-judul"), esc(t("riwayatBatalJudul").replace("{n}", rows.length)));
+  tulisKalauBeda($("riwayat-batal-isi"), rows.map(barisBatal).join(""));
+}
+
+// Satu kedatangan yang dibatalkan. Jamnya dua baris seperti kolom jam tabel di atasnya;
+// `Oleh` adalah NAMA operator yang menekan tombolnya, seperti tersimpan saat itu
+// (`cancelled_by_name`); emailnya jadi `title`. Tanpa nama tersimpan (baris lama, nama
+// kosong) yang tampil emailnya.
+function barisBatal(r) {
+  const oleh = r.cancelled_by_name
+    ? `<td title="${esc(r.cancelled_by || "")}">${esc(r.cancelled_by_name)}</td>`
+    : `<td>${dash(r.cancelled_by)}</td>`;
+  return `<tr>
+    <td class="key">${dash(r.plate_number)}</td>
+    <td class="sel-waktu">${r.arrived_at ? waktuDuaBaris(r.arrived_at) : KOSONG}</td>
+    <td class="sel-waktu">${r.cancelled_at ? waktuDuaBaris(r.cancelled_at) : KOSONG}</td>
+    ${oleh}
+  </tr>`;
 }
 
 // ── tab Riwayat ────────────────────────────────────────────────────────
@@ -5752,7 +6798,7 @@ function barisImpor(b) {
     <span class="muted">${esc(mulai)} · ${esc(b.imported_by)}</span>
     <span>${esc(jumlah)} · ${esc(rentangImpor(b.date_from, b.date_to))}</span>
     <span class="pill">${esc(status)}</span>${batal}
-    ${bisaBatal ? `<button type="button" data-batal="${esc(b.id)}">${esc(t("imporBatal"))}</button>` : ""}
+    ${bisaBatal ? `<button type="button" class="bahaya" data-batal="${esc(b.id)}">${esc(t("imporBatal"))}</button>` : ""}
   </div>`;
 }
 
@@ -5827,11 +6873,12 @@ async function jalankanImpor(tombol) {
 // meleset tidak boleh cukup; pertanyaannya hilang sendiri sesudah 5 detik.
 async function batalkanImpor(tombol) {
   if (!tombol.classList.contains("yakin")) {
-    tombol.classList.add("yakin");
+    // Ditanya = varian pekat: klik kedua menghapus janjang, jadi tombolnya ikut mengeras.
+    tombol.classList.add("yakin", "pekat");
     tombol.textContent = t("imporYakinBatal");
     setTimeout(() => {
       if (!tombol.isConnected || tombol.classList.contains("sibuk")) return;
-      tombol.classList.remove("yakin");
+      tombol.classList.remove("yakin", "pekat");
       tombol.textContent = t("imporBatal");
     }, 5000);
     return undefined;
@@ -5973,12 +7020,63 @@ window.addEventListener("afterprint", () => { $("qr-cetak").hidden = true; });
 function isiTrucks() {
   $("trucks").innerHTML = trucks.length
     ? trucks.map(barisTruk).join("") : barisKosong(4, "kosongTruk");
+  isiPlatTimbang();
   // Rebuilt on every poll, so whatever is picked has to be carried over -
   // otherwise a 60 s refresh clears it while the operator is typing bruto.
-  const pilih = $("plat-timbang");
   const opsi = [{ v: "", teks: t("pilihTruk") }]
     .concat(trucks.map((tr) => ({ v: tr.plate_number, teks: tr.plate_number || KOSONG })));
+  // Scan 1 memilih dari daftar yang sama. Selalu ada di markup: `kirimScan` sampai ke
+  // sini lewat `muatTrucks()` pada setiap scan masuk.
+  const datang = $("plat-datang");
+  datang.outerHTML = komponenPilih(opsi, datang.dataset.nilai, "plat-datang");
+  segarkanTombol();
+}
+
+// The plate picker of step 2 (user 2026-10-02): trucks that did "Catat datang" first, in
+// their own section with the minutes waited, then the rest. No one waiting = no header,
+// the list looks as it always did. `menunggu` comes oldest first from the server; a plate
+// stored normalised at scan 1 (not registered then) still finds its truck by `kunciPlat`.
+// Only REGISTERED trucks are offered, as before: an unregistered arrival stays a "Datang"
+// row in the table until its truck is registered in the Truk tab.
+function opsiPlatTimbang(daftar, menunggu) {
+  const kosong = { v: "", teks: t("pilihTruk") };
+  const semua = daftar.map((tr) => ({ v: tr.plate_number, teks: tr.plate_number || KOSONG }));
+  if (!menunggu.length) return [kosong, ...semua];
+  const truk = new Map(daftar.map((tr) => [kunciPlat(tr.plate_number), tr.plate_number]));
+  const dipakai = new Set();
+  const atas = [];
+  menunggu.forEach((a) => {
+    const kunci = kunciPlat(a.plate_number);
+    if (!truk.has(kunci) || dipakai.has(kunci)) return;
+    dipakai.add(kunci);
+    const plat = truk.get(kunci);
+    atas.push({ v: plat, teks: plat, catatan: teksMenit(a.menit) ?? KOSONG, grup: t("grupMenungguTimbang") });
+  });
+  if (!atas.length) return [kosong, ...semua];
+  const lain = semua.filter((o) => !dipakai.has(kunciPlat(o.v))).map((o) => ({ ...o, grup: t("grupTrukLain") }));
+  return [kosong, ...atas, ...lain];
+}
+
+// Same as `normalisasi_plat` in domain/plate.py: "be 1 aa" and "BE1AA" are one truck.
+function kunciPlat(plat) {
+  return String(plat ?? "").replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+}
+
+// Called by the 60 s truck poll and the 15 s weighing poll. Written only when the options
+// changed (the key leaves the pick out, so picking alone never redraws), and never while
+// the panel is open: a list that rebuilds under the operator's finger loses the row they
+// were about to press. The picked plate is carried over, and so is the keyboard focus:
+// `outerHTML` would otherwise drop it on <body> right after a keyboard pick.
+function isiPlatTimbang() {
+  const pilih = $("plat-timbang");
+  if (pilih.dataset.buka === "1") return;
+  const opsi = opsiPlatTimbang(trucks, menungguTimbang);
+  const kunci = JSON.stringify(opsi);
+  if (kunci === platTimbangTerakhir) return;
+  platTimbangTerakhir = kunci;
+  const fokus = pilih.contains(document.activeElement);
   pilih.outerHTML = komponenPilih(opsi, pilih.dataset.nilai, "plat-timbang");
+  if (fokus) tombolPilih($("plat-timbang")).focus({ preventScroll: true });
   segarkanTombol();
 }
 
@@ -6157,6 +7255,15 @@ function diagFrame(d) {
   return d.ai && d.ai.keadaan === "frame_berhenti" ? `<span class="tanda-gagal">${teks}</span>` : teks;
 }
 
+// Suhu badan kamera dari line (°C). Strip kalau sumbernya tidak punya sensor, kamera
+// menolak membacanya, atau bacaan terakhir sudah basi: line yang memutuskan basi
+// (SUHU_BASI_DETIK), layar cuma menampilkan. Sengaja tanpa warna sampai batas aman
+// diputuskan dari datasheet dan pola suhu Lampung.
+function diagSuhu(c) {
+  if (c === null || c === undefined) return KOSONG;
+  return `${esc(diagAngka(c))} °C`;
+}
+
 // Sisa disk (batch 3.7) dengan warna tingkatnya; tingkat asing tidak masuk atribut.
 function diagDisk(disk) {
   if (!disk || disk.bebas_gb === null || disk.bebas_gb === undefined) return KOSONG;
@@ -6217,6 +7324,7 @@ function kartuDiagnostik(kode, d) {
     <h2><span class="nama">${esc(kode)}</span></h2>
     <dl>
       <dt>${esc(t("thKamera"))}</dt><dd>${tanda(d.camera_connected)}</dd>
+      <dt>${esc(t("thSuhuKamera"))}</dt><dd>${diagSuhu(d.suhu_kamera_c)}</dd>
       <dt>${esc(t("thFps"))}</dt><dd>${diagAngka(d.fps_kamera)} / ${diagAngka(d.fps_deteksi)}</dd>
       <dt>${esc(t("thFrameTerakhir"))}</dt><dd>${diagFrame(d)}</dd>
       <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : tanda(d.gpu_available)}</dd>
@@ -6317,7 +7425,8 @@ async function muatManifest() {
 $("antrean-kirim-ulang").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   $("antrean-kirim-ulang").disabled = true;
   try {
-    await api("/api/console/dev/antrean/kirim-ulang", { method: "POST" });
+    const r = await api("/api/console/dev/antrean/kirim-ulang", { method: "POST" });
+    toastSukses(t("antreanDikirimUlang").replace("{n}", Number(r.dikirim_ulang) || 0));
     await muatAntrean();
   } catch (e) {
     // Same element the summary normally lives in - the next successful
@@ -6722,7 +7831,8 @@ function aksiAkun(a) {
   const isi = [tombol("sandi", "akunGantiSandi", "aksi-sandi")];
   if (!saya) {
     const mati = a.keadaan === "mati";
-    isi.push(tombol("status", mati ? "akunAktifkan" : "akunMatikan", mati ? "aksi-aktifkan" : "aksi-matikan"));
+    // Matikan = varian bahaya (F11, user 2026-10-03), bukan warna satu-satu.
+    isi.push(tombol("status", mati ? "akunAktifkan" : "akunMatikan", mati ? "aksi-aktifkan" : "bahaya"));
     isi.push(tombol("role", a.role === "support" ? "akunJadikanOperator" : "akunJadikanSupport", "aksi-role"));
   }
   return `<span class="akun-tombol">${isi.join("")}</span>`
@@ -6819,7 +7929,7 @@ function tutupPanelAkun() {
 // kuasa (jadikan support).
 function panelAkun(aksi, a) {
   const nama = a.nama || a.email;
-  const batal = `<button type="button" data-akun-batal>${esc(t("btnBatal"))}</button>`;
+  const batal = `<button type="button" class="bahaya" data-akun-batal>${esc(t("btnBatal"))}</button>`;
   const lihat = `<button type="button" class="sandi-lihat" data-lihat-sandi aria-pressed="false"
       aria-label="${esc(t("lihatSandi"))}">${esc(t("lihatSingkat"))}</button>`;
   const pesan = `<p class="akun-pesan" role="alert"></p>`;
@@ -6846,7 +7956,7 @@ function panelAkun(aksi, a) {
       : ["akunSupportTanya", "akunYaUbah", true]);
   return `<div class="akun-panel${awas ? " awas" : ""}">
     <p>${esc(t(tanya).replace("{nama}", nama))}</p>
-    <button type="button" class="utama" data-akun-jalankan>${esc(t(ya))}</button>
+    <button type="button" class="${awas ? "bahaya pekat" : "utama"}" data-akun-jalankan>${esc(t(ya))}</button>
     ${batal}${pesan}
   </div>`;
 }
@@ -7057,9 +8167,42 @@ async function muatSetelan() {
     labelGaris();
     $("set-sumber").textContent = t(r.sumber === "konsol" ? "setelanDariKonsol" : "setelanDariEnv");
     $("set-pesan").textContent = "";
-    $("set-lines").textContent = "";
   } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = alasan(e, "gagalSetelanMuat"); }
+  await muatPenugasan();
 }
+
+// Saklar penugasan line otomatis: jalurnya sendiri, dimuat sesudah setelan grading.
+async function muatPenugasan() {
+  try {
+    const r = await api("/api/console/dev/auto-assign");
+    $("set-otomatis").checked = Boolean(r.aktif);
+    const dipakai = new Set(r.lines || []);
+    $("set-otomatis-lines").innerHTML = (r.lines_tersedia || []).map((l) =>
+      `<label class="saklar"><input type="checkbox" data-line="${esc(l.line_code)}"${
+        dipakai.has(l.line_code) ? " checked" : ""}><span><span>${esc(l.name || l.line_code)}</span></span></label>`
+    ).join("");
+  } catch (e) {
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e, "gagalSetelanMuat"));
+  }
+}
+
+// Hasilnya toast, seperti simpan lain di layar ini (user 2026-10-02): kotak kuning di bawah
+// tombol terbaca seperti peringatan, padahal simpannya berhasil.
+$("set-penugasan-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
+  try {
+    const lines = [...document.querySelectorAll("#set-otomatis-lines input[data-line]:checked")]
+      .map((el) => el.dataset.line);
+    const r = await api("/api/console/dev/auto-assign", {
+      method: "POST", body: JSON.stringify({ aktif: $("set-otomatis").checked, lines }),
+    });
+    toastSukses(t("penugasanTersimpan"));
+    // Disimpan nyala: truk yang sudah menunggu langsung naik ke line yang bebas.
+    umumkanPasang(r.dipasang);
+    await refresh();
+  } catch (e) {
+    toastGagal(alasan(e, "gagalSetelan"));
+  }
+}));
 
 $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
   const pesan = $("set-pesan");
@@ -7079,13 +8222,14 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
       }),
     });
     $("set-sumber").textContent = t("setelanDariKonsol");
-    pesan.textContent = t("setelanTersimpan");
-    // Line yang tidak menjawab disebut apa adanya: nilainya SUDAH tersimpan,
-    // line itu saja yang belum menerimanya. Menyembunyikannya membuat operator
-    // mengira semua line sudah berubah.
+    // Hasilnya toast (user 2026-10-02): kotak kuning di bawah tombol terbaca seperti
+    // peringatan, dan kalimat merah di bawahnya seperti gagal, padahal simpannya berhasil.
+    // Line yang tidak menjawab tetap disebut apa adanya, dalam SATU toast peringatan:
+    // nilainya SUDAH tersimpan, line itu saja yang belum menerimanya. Menyembunyikannya
+    // membuat operator mengira semua line sudah berubah.
     const belum = (r.lines || []).filter((l) => !l.terkirim).map((l) => l.line_code);
-    $("set-lines").textContent = belum.length
-      ? t("setelanBelumSampai").replace("{lines}", belum.join(", ")) : "";
+    if (belum.length) toastPeringatan(t("setelanTersimpanSebagian").replace("{lines}", belum.join(", ")));
+    else toastSukses(t("setelanTersimpan"));
   } catch (e) {
     pesan.textContent = alasan(e, "gagalSetelan");
     // Server menyebut nama field di pesannya (SetelanTidakSah, tanpa kode); kolomnya ikut
@@ -7156,13 +8300,13 @@ function panelBahaya(aksi, r) {
     ? `<ul class="${kelas}">${items.map((i) => `<li>${esc(teksKode(awalan(i), i))}</li>`).join("")}</ul>`
     : "";
   const ketik = BAHAYA_HAPUS.has(aksi);
-  let tombol = `<button type="button" data-bahaya-batal>${esc(t("btnBatal"))}</button>`;
+  let tombol = `<button type="button" class="bahaya" data-bahaya-batal>${esc(t("btnBatal"))}</button>`;
   if (!hambatan.length) {
     if (ketik) {
       tombol += `<input data-bahaya-ketik autocomplete="off" autocapitalize="characters"
         spellcheck="false" placeholder="${esc(t("bahayaKetikHapus"))}" aria-label="${esc(t("bahayaKetikHapus"))}">`;
     }
-    tombol += `<button type="button" class="bahaya-jalankan" data-bahaya-jalankan="${esc(aksi)}"${ketik ? " disabled" : ""}>${esc(t("bahayaJalankan_" + aksi))}</button>`;
+    tombol += `<button type="button" class="bahaya pekat" data-bahaya-jalankan="${esc(aksi)}"${ketik ? " disabled" : ""}>${esc(t("bahayaJalankan_" + aksi))}</button>`;
   }
   return `<p class="bahaya-akibat">${esc(akibatBahaya(aksi, r))}</p>`
     + (aksi === "transaksi" || aksi === "semua" ? `<p class="muted">${esc(t("bahayaTidakTersentuh"))}</p>` : "")
@@ -7194,7 +8338,7 @@ async function bukaPanelBahaya(aksi) {
     // "Memeriksa…" di belakangnya terbaca macet sesudah login.
     if (e.kode === "belum_masuk") return tutupPanelBahaya();
     panel.innerHTML = `<p class="bahaya-akibat">${esc(alasan(e, "gagalBahaya"))}</p>`
-      + `<div class="bahaya-tombol"><button type="button" data-bahaya-batal>${esc(t("btnBatal"))}</button></div>`;
+      + `<div class="bahaya-tombol"><button type="button" class="bahaya" data-bahaya-batal>${esc(t("btnBatal"))}</button></div>`;
   }
 }
 
@@ -7446,6 +8590,8 @@ $("rekam-baris").addEventListener("click", async (ev) => {
     if (stop && hasil && hasil.berkas) {
       const lokasi = rekamFolder ? `${rekamFolder}/${hasil.berkas}` : hasil.berkas;
       toastSukses(`${t("rekamSelesai")} ${lokasi}`);
+    } else {
+      toastSukses(t(mulai ? "rekamDimulai" : "rekamDihentikan").replace("{line}", kode));
     }
     await muatRekam();
   } catch (e) {
@@ -7995,9 +9141,14 @@ async function jalankanUjiPlc() {
       method: "POST",
       body: JSON.stringify({ coil }),
     }));
-    pesan(hasil.fired ? t("ujiPlcBerhasil").replace("{coil}", coil) : t("ujiPlcDijatuhkan").replace("{coil}", coil));
+    // Toast, bukan banner `#err` (user 2026-10-02): `refresh()` membersihkan banner itu
+    // dalam 2 detik, jadi hasil uji coil hilang sebelum support sempat menoleh dari PLC.
+    // Coil yang dijatuhkan antrean pulse bukan sukses: kuning, coba lagi.
+    if (hasil === undefined) return;
+    if (hasil.fired) toastSukses(t("ujiPlcBerhasil").replace("{coil}", coil));
+    else toastPeringatan(t("ujiPlcDijatuhkan").replace("{coil}", coil));
   } catch (e) {
-    if (e.kode !== "belum_masuk") pesan(gagalKarena("gagalUjiPlc", e));
+    if (e.kode !== "belum_masuk") toastGagal(gagalKarena("gagalUjiPlc", e));
   } finally {
     await muatPlcSatuLine(line_code);          // re-enables the button if the line is still idle
   }
@@ -8008,8 +9159,12 @@ $("plc-konfirmasi-batal").addEventListener("click", tutupUjiPlc);
 
 // Esc menutup, seperti dialog mana pun: coil yang salah dipilih tidak boleh
 // memaksa siapa pun menekan Jalankan.
+// The dialog lives in the support-only Line tab, which an operator's screen removes
+// (`aturTabDeveloper`): without the null check every Escape an operator pressed (closing a
+// dropdown) threw a TypeError. Found by the browser test of 2026-10-02.
 document.addEventListener("keydown", (ev) => {
-  if (ev.key === "Escape" && !$("plc-konfirmasi").hidden) tutupUjiPlc();
+  const dialog = $("plc-konfirmasi");
+  if (ev.key === "Escape" && dialog && !dialog.hidden) tutupUjiPlc();
 });
 
 $("plc-kartu").addEventListener("click", (ev) => {

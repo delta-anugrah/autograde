@@ -31,7 +31,7 @@ ke XML). Load balik = **Load Feature**.
 
 | Yang dicari | Lokasi di Feature Tree |
 |---|---|
-| Serial, model, User Set, firmware | **Device Control** |
+| Serial, model, User Set, firmware, **Device Temperature** (suhu badan) | **Device Control** (suhu cuma tampil di mode Expert/Guru) |
 | Width/Height, Binning, ReverseX/Y, PixelFormat, ROI/AOI | **Image Format Control** |
 | Exposure, AcquisitionFrameRate(+Enable), Trigger Mode/Source | **Acquisition Control** |
 | Gain, GainAuto, BlackLevel, Balance White Auto + Balance Ratio | **Analog Control** |
@@ -40,6 +40,9 @@ ke XML). Load balik = **Load Feature**.
 | Auto Function AOI (jendela buat auto-exposure/auto-WB) | **Advanced Features → AOI** |
 | Chunk Data, Event Control, CCM, Embedded Info | **Advanced Features** |
 | Simpan setting ke firmware | **User Set Control** |
+
+Suhu kamera tanpa MVS (line tetap jalan): konsol tab **Status**, kartu Diagnostik, baris
+"Suhu kamera"; rinciannya `docs/camera-spec.md` §6.4.
 
 Shortcut MVS: panel **Common Features** (Basic / ISP / Transport) isinya node yang sama,
 cuma dikurasi: cukup buat 90% tuning harian.

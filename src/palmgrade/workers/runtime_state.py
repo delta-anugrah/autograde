@@ -150,6 +150,12 @@ class RuntimeState:
     # dihitung tiap `JENDELA_FPS_DETIK`. Dibaca bersama `frame_terakhir_at`:
     # angkanya membeku saat gambar berhenti, jadi pembaca yang menentukan 0.
     fps_kamera: float = 0.0
+    # Suhu badan kamera (°C) dan jam bacanya (`jam()`), diisi `FrameCaptureWorker`
+    # tiap `SUHU_JEDA_DETIK` selama gambar mengalir. None = belum pernah terbaca:
+    # sumber tanpa sensor, atau kamera menolak menjawab. Basi-tidaknya diputuskan
+    # `HealthService.ringkasan_kamera`, bukan di sini.
+    suhu_kamera_c: float | None = None
+    suhu_kamera_at: float = 0.0
     _fps_jendela_mulai: float = 0.0
     _fps_jumlah: int = 0
     # `PemantauDisk` line ini (batch 3.7), dipasang main.py. None di konsol.
@@ -188,6 +194,10 @@ class RuntimeState:
         else:
             self.kamera_sambung_gagal_sejak_frame = True
         self.kamera_sambung_ok = berhasil
+
+    def catat_suhu_kamera(self, suhu_c: float) -> None:
+        self.suhu_kamera_c = suhu_c
+        self.suhu_kamera_at = self.jam()
 
     def catat_inferensi_selesai(self) -> None:
         self.inferensi_selesai_at = self.jam()

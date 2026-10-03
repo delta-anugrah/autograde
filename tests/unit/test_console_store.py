@@ -330,7 +330,7 @@ def test_truk_kosong_paling_ringan_tetap_diterima(service):
     assert hasil["gross_kg"] == 2500.0
 
 
-# ── manifest janjang R2: visit() + bunches_for_assignment() ─────────────────
+# ── manifest janjang R2: visit() + bunches_for_visit() ──────────────────────
 
 
 def _inspection_row(**over) -> dict:
@@ -356,22 +356,24 @@ def _inspection_row(**over) -> dict:
     return row
 
 
-def test_bunches_for_assignment_come_back_in_time_order(tmp_path):
+def test_bunches_for_visit_come_back_in_time_order(tmp_path):
     store = ConsoleStore(tmp_path / "c.db")
     store.add_inspection(_inspection_row(event_id="e-2", timestamp="2026-09-16T08:02:00+07:00"))
     store.add_inspection(_inspection_row(event_id="e-1", timestamp="2026-09-16T08:01:00+07:00"))
     store.add_inspection(
         _inspection_row(event_id="e-9", timestamp="2026-09-16T08:03:00+07:00", assignment_id="lain")
     )
-    assert [b["event_id"] for b in store.bunches_for_assignment("a-1")] == ["e-1", "e-2"]
+    store.link_weighing_to_assignment("w-1", "a-1", "line-1")
+    assert [b["event_id"] for b in store.bunches_for_visit("w-1")] == ["e-1", "e-2"]
 
 
-def test_bunches_for_assignment_carries_every_key_the_manifest_reads(tmp_path):
+def test_bunches_for_visit_carries_every_key_the_manifest_reads(tmp_path):
     # build_manifest() reads these off each bunch row (task-B3 brief). Missing
     # one means the manifest silently renders with a hole in it.
     store = ConsoleStore(tmp_path / "c.db")
     store.add_inspection(_inspection_row(grade_class="Ripe", tp_confidence=0.91))
-    (bunch,) = store.bunches_for_assignment("a-1")
+    store.link_weighing_to_assignment("w-1", "a-1", "line-1")
+    (bunch,) = store.bunches_for_visit("w-1")
     for key in (
         "event_id", "machine_id", "timestamp", "ripeness_status", "ripeness_confidence",
         "capture_type", "grade_class", "tp_confidence", "image_path",

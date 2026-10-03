@@ -35,6 +35,21 @@ class ScanBody(_Body):
     qr: str | None = None
 
 
+class ArrivalBody(_Body):
+    """Scan 1 (2026-09-30). `at` is the browser clock; the domain checks it."""
+
+    qr: str | None = None
+    at: str | None = None
+
+
+class DepartureBody(_Body):
+    """Scan 4: the scanner sends `qr`, the per-row button sends `weighing_id`."""
+
+    qr: str | None = None
+    weighing_id: str | None = None
+    at: str | None = None
+
+
 class WeighingBody(_Body):
     """The manual lane of the scale program's shape (`record_weighing`)."""
 
@@ -47,6 +62,17 @@ class WeighingBody(_Body):
     gross_kg: str | float | None = None
     tare_kg: str | float | None = None
     net_kg: str | float | None = None
+
+
+class AutoAssignBody(_Body):
+    """Automatic line assignment (support, 2026-10-01). The domain checks the lines.
+
+    The screen always sends both. A missing field reads as off / no lines, so `{}` saves
+    "off" (it never crashes and never turns the setting on).
+    """
+
+    aktif: bool | None = None
+    lines: list[str] | None = None
 
 
 class PasangBody(_Body):

@@ -91,6 +91,8 @@ class VisitManifestWorker:
         self._status = status
 
     def enqueue(self, weighing_id: str, assignment_id: str) -> None:
+        """Queue this visit's page. It is rebuilt from the store at upload time, over every
+        line linked to the visit; `assignment_id` only records which release queued it."""
         self.outbox.enqueue(MANIFEST_KIND, weighing_id, {"assignment_id": assignment_id})
 
     async def run_loop(self) -> None:
@@ -129,11 +131,14 @@ class VisitManifestWorker:
         return uploaded
 
     def _build(self, weighing_id: str, payload: dict[str, Any]) -> bytes | None:
+        # The whole visit, every line (2026-10-01). `payload["assignment_id"]` is no
+        # longer read: the release that queued this message may have been any one of
+        # the truck's lines, and rows queued by an older build still carry it.
         visit = self._store.visit(weighing_id)
-        grading = self._store.grading_counts(payload["assignment_id"])
+        grading = self._store.grading_counts_for_visit(weighing_id)
         if not visit or not grading:
             return None
-        bunches = self._store.bunches_for_assignment(payload["assignment_id"])
+        bunches = self._store.bunches_for_visit(weighing_id)
         manifest = build_manifest(visit, grading, bunches, public_url=self._public_url, generated_at=self._clock())
         return json.dumps(manifest, ensure_ascii=False).encode("utf-8")
 

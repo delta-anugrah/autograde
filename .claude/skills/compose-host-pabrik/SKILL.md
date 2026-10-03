@@ -192,7 +192,7 @@ root, launcher tidak bisa menulis `status.json`, dan tombolnya diam-diam tidak p
 
 Langkah lengkap (salin launcher + unit systemd, tambal compose, `sudo ./pasang-penunggu-update.sh`,
 `autograde restart`, uji kering yang harus berakhir `"state": "nothing"` tanpa restart):
-`sawit/docs/FACTORY-PC.md` § "Update now dari konsol". Aturannya: `docs/rules.md` aturan 36.
+`sawit/docs/FACTORY-PC.md` § "Update now dari konsol". Aturannya: `docs/rules.md` aturan 38.
 
 Terkait: skill `install-factory-pc` dan `spek-pc-pabrik`, runbook `docs/runbooks/` di repo ini
 dan di `sawit`.

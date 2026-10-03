@@ -127,3 +127,22 @@ def test_wipe_boleh_dijalankan_dua_kali(store, seeder):
 
     assert kedua == 0
     assert _hitung(store, "weighings", PLAT_ASLI) == 1
+
+
+def _tautan(store: ConsoleStore) -> set[str]:
+    with store._lock:  # noqa: SLF001 (membaca langsung; tabel tautan tidak punya API hitung)
+        rows = store._db.execute("SELECT weighing_id FROM visit_assignments").fetchall()  # noqa: SLF001
+    return {r["weighing_id"] for r in rows}
+
+
+def test_wipe_membuang_tautan_kunjungan_demo_saja(store, seeder):
+    """Tabel tautan tidak punya kolom truk, jadi `wipe()` mencarinya lewat tiket yang sudah
+    hilang. Tautan yang tertinggal menunjuk ke tiket yang tidak ada; tautan truk pabrik
+    harus tetap."""
+    for i in range(len(seeder.PLATES)):
+        store.link_weighing_to_assignment(f"w-demo-{i}", f"a-demo-{i}", "line-1")
+    store.link_weighing_to_assignment("w-asli-1", "a-asli-1", "line-1")
+
+    seeder.wipe(store)
+
+    assert _tautan(store) == {"w-asli-1"}

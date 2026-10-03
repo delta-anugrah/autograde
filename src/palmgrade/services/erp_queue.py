@@ -69,9 +69,9 @@ class ErpQueue:
             # no visit to send. The daily resend picks it up once there is.
             return False
 
-        grading = (
-            self._store.grading_counts(visit["assignment_id"]) if visit.get("assignment_id") else None
-        )
+        # Every line that unloaded this truck, summed (2026-10-01): a truck on three
+        # lines is one visit, and AutoERP pays on its whole recap.
+        grading = self._store.grading_counts_for_visit(visit["id"])
         if grading and (url := self._detail_url_for(visit["id"])):
             grading = grading | {"detail_url": url}
         emitted_at = datetime.now(tz).isoformat() if tz else datetime.now().astimezone().isoformat()

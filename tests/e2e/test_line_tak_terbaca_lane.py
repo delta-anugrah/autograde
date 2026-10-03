@@ -44,9 +44,9 @@ LINES = (
     LineEndpoint("line-3", "Line 3", 8003, "m-3"),
 )
 DASH = 'const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));'
-DIAG = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol",
+DIAG = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol", "diagSuhu",
         "kunciSebabTakTerbaca", "kartuDiagnostik"]
-ANTREAN_LINE = ["kunciSebabTakTerbaca", "keadaanAntreanLine", "barisAntreanLine", "waktu", "lamaProses"]
+ANTREAN_LINE = ["kunciSebabTakTerbaca", "keadaanAntreanLine", "barisAntreanLine", "waktu", "teksMenit", "lamaProses"]
 MENTAH = ("404", "Not Found", "http", "did not answer", "tidak ada line di port", "401", "refused", "HTTP")
 DIHARAPKAN = {"line-1": "tak_terjangkau", "line-2": "bukan_line", "line-3": "kunci_ditolak"}
 

@@ -26,8 +26,13 @@ def _versi(path) -> int:
         db.close()
 
 
-def test_versi_skema_dimulai_dari_satu():
-    assert VERSI_SKEMA == 1
+def test_versi_skema_naik_satu_per_perubahan_skema():
+    # 1 = batch 4.5 (PR #213), 2 = `visit_assignments` + `idx_weighings_truck` (PR #208),
+    # 3 = `weighings.unloading_queue_skipped_at` + `idx_weighings_terbuka` (PR #212),
+    # 4 = `arrivals` + its three indexes + `weighings.left_at` (gate scans),
+    # 5 = `arrivals.cancelled_at` + `arrivals.cancelled_by` + `arrivals.cancelled_by_name`
+    #     (Batal datang kept as history; 5 had not shipped when the name joined it).
+    assert VERSI_SKEMA == 5
 
 
 def test_db_baru_diberi_nomor_versi_skema(tmp_path):

@@ -30,6 +30,14 @@ class CameraSource(ABC):
     def get_fps(self) -> float:
         return 0.0
 
+    def get_temperature(self) -> float | None:
+        """Camera body temperature in °C, or None when the source cannot say.
+
+        Only a real camera has a sensor. A webcam, a video file and a photo
+        folder answer None, and the Diagnostics card shows a dash for them.
+        """
+        return None
+
     @property
     def exhausted(self) -> bool:
         return False

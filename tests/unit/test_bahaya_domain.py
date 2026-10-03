@@ -355,6 +355,7 @@ def test_setiap_kunci_sync_state_di_kode_sudah_digolongkan():
     import re
     from pathlib import Path
 
+    from palmgrade.domain.penugasan_line import KUNCI_PENUGASAN
     from palmgrade.domain.setelan_grading import KUNCI_SETELAN
     from palmgrade.domain.setelan_rekam import KUNCI_SETELAN_REKAM
     from palmgrade.services.status_sinkron import KUNCI_SINKRON
@@ -372,9 +373,10 @@ def test_setiap_kunci_sync_state_di_kode_sudah_digolongkan():
         for m in re.finditer(r"\.set_state\(\s*([A-Za-z_.]+)", f.read_text())
     }
     assert pemanggil == {
-        "KUNCI_SETELAN", "KUNCI_SETELAN_REKAM", "KUNCI_SINKRON", "RESEND_DAY_KEY", "resource.cursor_key",
+        "KUNCI_PENUGASAN", "KUNCI_SETELAN", "KUNCI_SETELAN_REKAM", "KUNCI_SINKRON", "RESEND_DAY_KEY",
+        "resource.cursor_key",
     }, pemanggil
-    for kunci in (KUNCI_SETELAN, KUNCI_SETELAN_REKAM):
+    for kunci in (KUNCI_SETELAN, KUNCI_SETELAN_REKAM, KUNCI_PENUGASAN):
         assert not kunci_state_dihapus(kunci, MODE_SEMUA), kunci
     for kunci in (SUPPLIER_CURSOR_KEY, TRUCK_CURSOR_KEY, OPERATOR_CURSOR_KEY):
         assert not kunci_state_dihapus(kunci, MODE_TRANSAKSI), kunci

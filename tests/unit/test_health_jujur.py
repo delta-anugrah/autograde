@@ -143,3 +143,32 @@ def test_skema_lama_tanpa_field_baru_tetap_sah():
     d = HealthDetailSchema(status="ok", environment="t", camera_type="hikrobot", camera_connected=True,
                            gpu_available=False, gpu_device=None, machine_id="m", workers=[])
     assert (d.fps_kamera, d.fps_deteksi, d.frame_umur_detik, d.disk, d.lisensi) == (0.0, 0.0, None, None, None)
+
+
+def test_suhu_kamera_dilaporkan(torch_palsu):
+    line = LinePalsu()
+    line.mulai()
+    line.kamera.suhu = 47.3
+    line.jalan(3)
+    d = _service(line).get_health_detail()
+    assert d.suhu_kamera_c == 47.3
+    assert d.model_dump()["suhu_kamera_c"] == 47.3
+
+
+def test_suhu_basi_jadi_none(torch_palsu):
+    """Kamera dicabut sesudah bacaan bagus: 45 °C dari lima menit lalu bukan suhu sekarang."""
+    line = LinePalsu()
+    line.mulai()
+    line.kamera.suhu = 47.3
+    line.jalan(1)                          # terbaca di jam 1000, jam lanjut ke 1001
+    line.jam.sekarang += 59                # umur tepat 60 dtk: masih sah
+    assert _service(line).get_health_detail().suhu_kamera_c == 47.3
+    line.jam.sekarang += 1                 # 61 dtk: basi
+    assert _service(line).get_health_detail().suhu_kamera_c is None
+
+
+def test_tanpa_sensor_suhu_none(torch_palsu):
+    line = LinePalsu()
+    line.mulai()
+    line.jalan(3)
+    assert _service(line).get_health_detail().suhu_kamera_c is None

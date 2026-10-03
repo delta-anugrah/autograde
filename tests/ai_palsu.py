@@ -44,6 +44,9 @@ class KameraPalsu(CameraSource):
         self.habis = False
         self.bisa_sambung_ulang = False
         self.sambung_gagal = False
+        self.suhu: float | None = None      # None = sumber tanpa sensor (webcam/video)
+        self.suhu_dibaca = 0                # berapa kali line bertanya
+        self.suhu_melempar = False          # SDK melempar, bukan memberi kode
 
     def connect(self, index=0, serial=None, feature_file=None) -> None:
         if self.sambung_gagal:
@@ -57,6 +60,12 @@ class KameraPalsu(CameraSource):
 
     def disconnect(self) -> None:
         self.connected = False
+
+    def get_temperature(self) -> float | None:
+        self.suhu_dibaca += 1
+        if self.suhu_melempar:
+            raise OSError("handle kamera sudah dilepas")
+        return self.suhu
 
     @property
     def exhausted(self) -> bool:

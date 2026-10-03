@@ -160,54 +160,44 @@ def test_halaman_tidak_pernah_membaca_cookie():
 
 
 def _blok_klik_piston() -> str:
-    """The body of the `data-aksi === "piston"` branch in the delegated click
-    handler — from its own `else if` guard up to (not including) the next
-    branch's guard.
+    """The delegated click handler of the line cards, from the piston question up to (not
+    including) the manual-reject fallback, the last branch in the chain.
 
-    Slicing on the guard STRING (not a fixed character count) means the slice
-    boundary moves with the code: it starts exactly where the piston branch's
-    condition is written and ends exactly where the next `} else {` (the
-    manual-reject fallback, the last branch in the chain) begins. Bunches of
-    unrelated code before (`tugaskan`, `lepas`) can never leak in because the
-    split point is *after* them; the reject fallback after the piston branch
-    can never leak in because the split point on `} else {` is *before* it.
+    Since 2026-10-03 the question is the in-page dialog `tanyaKonfirmasi`, asked at the top of
+    the handler BEFORE the button is locked (so the focus can come back to it); the piston
+    branch further down only sends the command. Slicing on the guard string, not on a
+    character count, moves the slice with the code.
     """
-    setelah_guard = HTML.split('tombol.dataset.aksi === "piston"', 1)[1]
-    return setelah_guard.split("} else {", 1)[0]
+    awal = HTML.index('$("lines").addEventListener("click"')
+    setelah = HTML[awal:].split('if (tombol.dataset.aksi === "piston") {', 1)[1]
+    return setelah.split("} else {", 1)[0]
 
 
 def test_membuka_lewat_dialog_menutup_langsung():
     # Opening moves metal: it must ask first. Closing returns to the safe
-    # state: it must never be blocked by anything, confirm() included.
+    # state: it must never be blocked by anything, a dialog included.
     blok = _blok_klik_piston()
 
-    # (a) Opening requires confirmation. There must be exactly one confirm()
-    # in the branch, and it must be reached only when `buka` (open) is true -
-    # a version that wrapped the WHOLE branch (open and close alike) behind
-    # one `if (buka ...) confirm(...)` would still contain both the strings
-    # "confirm(" and "buka", so the guard's shape is checked, not just its
-    # presence.
-    assert blok.count("confirm(") == 1, "harus ada tepat satu confirm() di cabang piston"
-    sebelum_confirm = blok.split("confirm(", 1)[0]
-    assert re.search(r"if\s*\(\s*buka\s*&&", sebelum_confirm), (
-        "confirm() harus dijaga oleh `if (buka && ...)` - kalau tidak, "
-        "menutup piston (buka=false) ikut kena dialog juga"
+    # (a) Opening requires confirmation, exactly once, and only when `buka`
+    # (open) is true: a version that wrapped open and close alike behind one
+    # dialog would still contain both strings, so the guard's shape is checked.
+    assert blok.count("tanyaKonfirmasi(") == 1, "exactly one question for the piston"
+    sebelum = blok.split("tanyaKonfirmasi(", 1)[0]
+    assert re.search(r"if\s*\(\s*buka\s*&&", sebelum), (
+        "the question must be guarded by `if (buka && ...)`, or closing asks too"
+    )
+    assert blok.index("tanyaKonfirmasi(") < blok.index("tombol.disabled = true"), (
+        "ask before the button is locked, or the focus cannot return to it"
     )
 
-    # (b) Closing is instant: past that one guard line, the call that reaches
-    # the server is not wrapped in any further `if (buka` condition. Cutting
-    # the branch right after the guard's early-return (`return;`) isolates
-    # exactly the code both open (once confirmed) and close fall through to -
-    # a second `if (buka ...)` gating the API call there would mean closing
-    # silently does nothing, which "confirm(" being merely absent would not
-    # catch.
-    setelah_guard = blok.split("confirm(", 1)[1]
-    setelah_return = setelah_guard.split("return;", 1)[1]
-    assert "api(" in setelah_return, "cabang piston tidak pernah memanggil endpoint"
-    jalur_bersama = setelah_return.split("api(", 1)[0]
-    assert "if (buka" not in jalur_bersama, (
-        "panggilan API tidak boleh digerbangi `if (buka` lagi setelah dialog - "
-        "kalau begitu menutup piston tidak melakukan apa-apa"
+    # (b) Closing is instant: the piston branch that reaches the server is not
+    # gated by any further `if (buka` condition or a second question.
+    setelah_return = blok.split("tanyaKonfirmasi(", 1)[1].split("return;", 1)[1]
+    cabang = setelah_return.split('tombol.dataset.aksi === "piston"', 1)[1]
+    assert "api(" in cabang, "the piston branch never calls the endpoint"
+    jalur = cabang.split("api(", 1)[0]
+    assert "if (buka" not in jalur and "tanyaKonfirmasi(" not in jalur, (
+        "the API call must not be gated again after the question, or closing does nothing"
     )
 
 
@@ -713,14 +703,42 @@ def test_kelas_gerbang_login_tidak_dipakai_di_tab_timbangan():
     assert not bocor, f"kelas gerbang login dipakai di tab Timbangan: {bocor}"
 
 
-def test_pemisah_dua_gerbang_ikut_berpindah_saat_turun_baris():
-    """Di layar sempit gerbang keluar turun ke baris kedua, dan garis di KIRI jadi
-    janggal karena tidak ada apa pun di sebelahnya. Dibuktikan di browser: 1440 px
-    garis kiri, 1280 px garis atas."""
-    assert ".timbang-keluar" in HTML
-    aturan = HTML.split("@media (max-width:1330px)", 1)
-    assert len(aturan) == 2, "belum ada aturan layar sempit untuk pemisah gerbang"
-    assert "border-top" in aturan[1][:300]
+def _aturan(selektor: str) -> str:
+    cocok = re.search(r"\n  " + re.escape(selektor) + r" \{([^}]*)\}", HTML)
+    assert cocok, selektor
+    return cocok.group(1).replace(" ", "")
+
+
+def test_strip_empat_langkah_dan_dua_form_yang_lebarnya_ditentukan_layar():
+    """User 2026-10-03: "width beda2, height juga". Empat kartu selebar isinya (1fr 2.1fr 1.6fr
+    .7fr) diganti strip empat ruas SAMA lebar dan dua form SAMA lebar (`minmax(0, 1fr)`, tidak
+    pernah bobot lain). Lebar dan tinggi yang sama dibuktikan di browser
+    (`test_browser_gerbang.py`)."""
+    assert "timbang-sisi" not in HTML and "timbang-slot" not in HTML, "kartu langkah lama masih ada"
+    assert "2.1fr" not in HTML and "1.6fr" not in HTML
+    alat = _aturan(".tools.timbang-alat")
+    assert "display:grid" in alat and "grid-template-columns:minmax(0,1fr)" in alat
+    strip = HTML.split("@media (min-width:960px) {", 1)[1][:200].replace(" ", "")
+    assert ".timbang-langkah{grid-template-columns:repeat(4,minmax(0,1fr))" in strip
+    aksi = HTML.split("@media (min-width:1100px) {", 1)[1][:200].replace(" ", "")
+    assert ".timbang-aksi{grid-template-columns:repeat(2,minmax(0,1fr))" in aksi
+    blok = HTML.split('<section id="sec-timbangan"', 1)[1].split('<div class="tabel">', 1)[0]
+    assert blok.count('class="langkah-ruas') == 4
+    assert blok.count('class="timbang-form') == 2
+
+
+def test_tombol_utama_timbangan_selebar_sama():
+    assert "flex:00var(--lebar-aksi-timbang)" in _aturan(".timbang-alat .timbang-kontrol button")
+    assert "flex:00var(--lebar-aksi-timbang)" in _aturan(".timbang-alat .tara-grup button")
+
+
+def test_lencana_antre_satu_baris_yang_terpotong_bukan_turun():
+    """Lencana Menunggu berubah tiap poll; ruas yang meninggi menggeser form dan tabel."""
+    kepala = _aturan(".langkah-kepala")
+    assert "flex-wrap:nowrap" in kepala
+    lencana = _aturan(".langkah-hitung")
+    assert "white-space:nowrap" in lencana and "text-overflow:ellipsis" in lencana
+    assert ".langkah-hitung[hidden] { display:none; }" in HTML
 
 
 # ── kolom tara inline, bukan dialog yang menutup layar ─────────────────────
@@ -743,10 +761,16 @@ def test_tara_tidak_menutup_layar():
     assert "position:fixed" not in HTML.split(".tara-isi", 1)[0][-400:]
 
 
-def test_kolom_tara_ada_di_baris_alat_gerbang_keluar():
-    blok = HTML.split('class="timbang-sisi timbang-keluar"', 1)[1].split("</div>\n  </div>", 1)[0]
-    assert 'id="tara-nilai"' in blok, "kolom tara tidak ada di sisi gerbang keluar"
-    assert 'id="tara-simpan"' in blok
+def test_bar_tara_di_kotak_alat_timbangan_satu_warna_dengan_langkah_3():
+    blok = HTML.split('<div id="tara-grup"', 1)[1].split("</div>", 1)[0]
+    for id_ in ("tara-plat", "tara-nilai", "tara-simpan", "tara-batal", "scan-keluar-pesan"):
+        assert f'id="{id_}"' in blok, id_
+    alat = HTML.split('<div class="tools timbang-alat">', 1)[1].split('<div class="tabel">', 1)[0]
+    assert '<div id="tara-grup"' in alat
+    assert "var(--info)" in _aturan(".tara-grup")
+    # Langkah 3 di strip menyala selama bar terbuka.
+    assert '"ruas-kosong").classList.add("aktif")' in _fungsi("tanyaTara")
+    assert '"ruas-kosong").classList.remove("aktif")' in _fungsi("tutupTara")
 
 
 def test_kolom_tara_disembunyikan_sampai_scan_berhasil():

@@ -367,8 +367,8 @@ make reset-data-fresh # HAPUS SEMUA DATA (artifacts/ + state/) — minta ketik H
 > tombol hapus: **data transaksi** (grading, foto, timbangan, antrean, log; truk/akun tetap)
 > dan **semua data**: plus restart semua line, logout paksa, dan hapus rekaman video.
 > Bedanya dengan target di atas: setelan grading dan `license.db` tidak ikut terhapus, dan
-> tombolnya menolak kalau ada line mati, truk terpasang, truk yang belum timbang keluar
-> hari ini, atau antrean yang belum terkirim.
+> tombolnya menolak kalau ada line mati, truk terpasang, truk yang belum timbang kosong
+> (hari ini atau 12 jam terakhir), atau antrean yang belum terkirim.
 
 > **Satu image, tiga container**, hanya line-1 yang punya `build:` di docker-compose. Line-2 dan line-3 reuse image `palmgrade-vision:latest`. Jadi `make rebuild` cukup untuk update semua line (tinggal `make start` setelahnya).
 >
@@ -691,10 +691,11 @@ dibuka dari tiket AutoERP di kantor, bukan cuma dari PC pabrik. PC pabrik nol in
 AnyDesk), jadi halamannya tidak bisa hidup di konsol; dia hidup di R2, domain publik yang sama
 dengan foto (`captures.smagri.id`).
 
-Alurnya, saat konsol melepas truk dari line (`_queue_grading`):
+Alurnya, saat konsol melepas truk dari line (`_queue_grading`; pada timbang kosong, sekali
+sesudah semua line truk itu lepas, di `record_weighing`):
 
-1. Konsol membaca semua janjang assignment itu dari SQLite-nya sendiri
-   (`ConsoleStore.bunches_for_assignment`), lalu merakit **satu JSON per kunjungan**
+1. Konsol membaca semua janjang kunjungan itu, dari setiap line yang membongkar truknya, dari
+   SQLite-nya sendiri (`ConsoleStore.bunches_for_visit`), lalu merakit **satu JSON per kunjungan**
    (`domain/visit_manifest.py`, murni: tanpa I/O) di kunci `visits/<visit_id>.json`.
    `visit_id` = id baris `weighings`, angka yang sama dengan `autograde_visit_id` di tiket ERP.
 2. JSON itu masuk **antrean sendiri** (`workers/visit_manifest_worker.py`, `ErpOutboxStore` yang
@@ -787,11 +788,11 @@ pytest tests/unit/ -rs
 | Timestamp TZ | `test_capture_timestamp.py` | Regression guard geser 7 jam: timestamp **wajib** tz-aware (vision UTC vs API `TZ=Asia/Jakarta`) |
 | Outbox realtime | `test_outbox_store.py`, `test_outbox_requeue.py`, `test_outbox_migrasi.py`, `test_outbox_retry_worker.py`, `test_kirim_antrean_line.py`, `test_edge_realtime_outbox.py` | Persist → jeda per baris 5 dtk sampai 10 mnt, TANPA batas nyerah; baris failed versi lama dihidupkan saat dibuka; konsol mati = satu percobaan per ≤30 dtk; tersambung lagi = semua dikirim sekarang |
 | **Konsol** | `test_console_store.py`, `test_working_day.py`, `test_console_html.py` | Index SQLite (konsol tidak pernah memindai direktori); `work_date` lewat tengah malam; invarian `console.html` (tanpa `on*=` inline, `esc()` meloloskan `& < > " ' \``, `data-line=` tetap ada) |
-| **Timbangan** | `test_weighing.py` | `neto_kg` dihitung bukan dipercaya; timbang-keluar **menggabung** bukan menimpa; plat beda tulisan tetap satu truk; koma = desimal, pemisah ribuan ditolak |
+| **Timbangan** | `test_weighing.py` | `neto_kg` dihitung bukan dipercaya; timbang kosong **menggabung** bukan menimpa; plat beda tulisan tetap satu truk; koma = desimal, pemisah ribuan ditolak |
 | **Master data AutoERP** | `test_erp_master_data.py`, `test_ffb_source.py` | Field yang diminta persis milik DocType (Frappe balas 417 kalau tidak); truk ERP mengadopsi baris yang diketik operator; kursor per-DocType tidak maju kalau ada baris gagal; Sumber TBS mengikuti `sumber_for_supplier` AutoERP |
 | **Antrean ke AutoERP** | `test_erp_client.py`, `test_erp_outbox_store.py`, `test_erp_outbox_worker.py`, `test_erp_link.py`, `test_manual_truck_to_erp.py` | Ditolak (4xx) vs tidak terjangkau (jaringan/5xx) dibedakan; backoff 30 dtk → 1 jam; pesan yang diganti saat masih di jalan tidak ditandai terkirim; ERP mati = batch berhenti, bukan dihajar terus; truk manual naik lewat `upsert_truck`; truk milik AutoERP read-only |
 | **Kunjungan truk** | `test_visit_message.py`, `test_erp_queue.py`, `test_visit_triggers.py`, `test_visit_resend.py` | Bentuk pesan §4.C; `stage` diturunkan dari keadaan kunjungan; bagian yang tidak ada tidak dikirim; grading ikut lewat tautan assignment yang ditulis saat truk dilepas; kirim ulang harian sekali sehari |
-| **Detail grading per truk (R2)** | `test_capture_layout.py`, `test_visit_manifest.py`, `test_console_store.py` (`bunches_for_assignment`), `test_visit_manifest_worker.py`, `test_viewer_html.py`, `test_console_compose_env.py` | Varian `thumb` + pasangan/kunci R2 (`twins_of`, `thumb_key_of`); bentuk JSON manifest murni tanpa I/O; janjang satu assignment urut waktu; antrean manifest sendiri (`manifest_outbox.db`): R2 mati menahan baris, viewer diunggah sekali per proses; invarian statis `viewer.html` (nol dependensi eksternal, manifest dibaca relatif); env `R2_*` konsol wajib ada di `docker-compose.yml` |
+| **Detail grading per truk (R2)** | `test_capture_layout.py`, `test_visit_manifest.py`, `test_console_store.py` (`bunches_for_visit`), `test_visit_manifest_worker.py`, `test_viewer_html.py`, `test_console_compose_env.py` | Varian `thumb` + pasangan/kunci R2 (`twins_of`, `thumb_key_of`); bentuk JSON manifest murni tanpa I/O; janjang satu kunjungan (semua line) urut waktu; antrean manifest sendiri (`manifest_outbox.db`): R2 mati menahan baris, viewer diunggah sekali per proses; invarian statis `viewer.html` (nol dependensi eksternal, manifest dibaca relatif); env `R2_*` konsol wajib ada di `docker-compose.yml` |
 | **End-to-end** | `tests/e2e/test_console_autoerp.py` | Konsol + AutoERP sungguhan: truk dibuat di ERP lalu ditarik konsol, truk diketik di konsol lalu muncul di ERP, timbangan jadi Weighbridge Ticket, grading mendarat di tiket saat truk dilepas dari line. Di-skip tanpa variabel `E2E_*` |
 | Lepas truk | `test_release_truck.py` | Penugasan yang tidak pernah berakhir bikin tandan truk berikutnya nempel ke truk yang sudah pulang |
 | PLC | `tests/unit/plc/`, `tests/e2e/test_mc_protocol_lane.py` | Klien MC Protocol + Modbus, state machine pulse/heartbeat/piston, alamat M ≡ compose |

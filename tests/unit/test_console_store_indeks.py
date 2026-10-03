@@ -49,11 +49,18 @@ def store(tmp_path) -> ConsoleStore:
     "panggil, indeks",
     [
         (lambda s: s.grading_counts("a1"), "idx_inspections_assignment (assignment_id=?)"),
-        (lambda s: s.bunches_for_assignment("a1"), "idx_inspections_assignment (assignment_id=?)"),
-        (lambda s: s.weighing_for_assignment("a1"), "idx_weighings_assignment (assignment_id=?)"),
+        (lambda s: s.bunches_for_visit("w1"), "idx_inspections_assignment (assignment_id=?)"),
+        (lambda s: s.grading_counts_for_visit("w1"), "idx_inspections_assignment (assignment_id=?)"),
+        # Sejak 2026-10-01 tautan dibaca dari `visit_assignments`, kuncinya penugasan itu sendiri.
+        (lambda s: s.weighing_for_assignment("a1"), "sqlite_autoindex_visit_assignments_1 (assignment_id=?)"),
         (lambda s: s.auto_releases_terbaru(), "idx_auto_releases_waktu (released_at>?)"),
+        # Sejak 2026-10-01 tiket truk dicari lewat jendela waktu, bukan hari kerja.
+        # Sejak 2026-10-02 diurutkan menurut julianday: TEMP B-TREE atas tiket satu truk di
+        # jendela itu (segelintir baris) diterima; yang dijaga tetap pencarian lewat indeksnya.
+        (lambda s: s.latest_weighing_for_truck_since("t1", 0.0), "idx_weighings_truck (truck_id=? AND received_at>?)"),
     ],
-    ids=["grading_counts", "bunches_for_assignment", "weighing_for_assignment", "auto_releases_terbaru"],
+    ids=["grading_counts", "bunches_for_visit", "grading_counts_for_visit", "weighing_for_assignment",
+         "auto_releases_terbaru", "latest_weighing_for_truck_since"],
 )
 def test_query_penugasan_dan_pelepasan_memakai_indeksnya(store, panggil, indeks):
     [plan] = rencana(store._db, lambda: panggil(store))
@@ -62,9 +69,34 @@ def test_query_penugasan_dan_pelepasan_memakai_indeksnya(store, panggil, indeks)
     assert "SCAN" not in plan, plan
 
 
-@pytest.mark.parametrize("panggil", [lambda s: s.bunches_for_assignment("a1"),
-                                     lambda s: s.auto_releases_terbaru()],
-                         ids=["bunches_for_assignment", "auto_releases_terbaru"])
+@pytest.mark.parametrize(
+    "panggil",
+    [lambda s: s.unloading_queue(0.0), lambda s: s.trucks_with_open_ticket(0.0)],
+    ids=["unloading_queue", "trucks_with_open_ticket"],
+)
+def test_antrean_bongkar_dibaca_lewat_indeks_tiket_terbuka(store, panggil):
+    """Dibaca tiap 2 detik. `SCAN a` di subquery antrean = tabel `assignments`, satu baris per
+    line; yang tidak boleh adalah memindai `weighings`, tabel yang tidak pernah dibersihkan."""
+    [plan] = rencana(store._db, lambda: panggil(store))
+
+    assert "idx_weighings_terbuka (received_at>?)" in plan, plan
+    assert not re.search(r"\bSCAN (weighings|w)\b", plan), plan
+
+
+def test_tiket_terbaru_truk_dicari_lewat_indeks_truk(store):
+    """Satu tiket per truk di antrean: tiket yang lebih baru dicari per truk, bukan dipindai."""
+    [plan] = rencana(store._db, lambda: store.unloading_queue(0.0))
+
+    assert "idx_weighings_truck (truck_id=? AND received_at>?)" in plan, plan
+
+
+def test_antrean_bongkar_urut_dari_indeks_tanpa_sortir_ulang(store):
+    [plan] = rencana(store._db, lambda: store.unloading_queue(0.0))
+
+    assert "TEMP B-TREE" not in plan, plan
+
+
+@pytest.mark.parametrize("panggil", [lambda s: s.auto_releases_terbaru()], ids=["auto_releases_terbaru"])
 def test_urutan_datang_dari_indeks_tanpa_sortir_ulang(store, panggil):
     [plan] = rencana(store._db, lambda: panggil(store))
 
@@ -81,7 +113,8 @@ HOT = {
     "inspection_count_truk": lambda s: s.inspection_count(HARI, truck_id="t1"),
     "truck_recap": lambda s: s.truck_recap(HARI),
     "grading_counts": lambda s: s.grading_counts("a1"),
-    "bunches_for_assignment": lambda s: s.bunches_for_assignment("a1"),
+    "grading_counts_for_visit": lambda s: s.grading_counts_for_visit("w1"),
+    "bunches_for_visit": lambda s: s.bunches_for_visit("w1"),
 }
 
 
@@ -103,14 +136,14 @@ def test_database_lama_mendapat_indeks_tanpa_mengubah_isi(tmp_path):
     with lama._lock, lama._db:
         for nama in INDEKS_BARU:
             lama._db.execute(f"DROP INDEX {nama}")
-    sebelum = (lama.grading_counts("a1"), lama.bunches_for_assignment("a1"),
+    sebelum = (lama.grading_counts("a1"), lama.bunches_for_visit("w1"),
                lama.weighing_for_assignment("a1"), len(lama.auto_releases_terbaru()))
     lama._db.close()
 
     baru = ConsoleStore(path)
 
     assert set(INDEKS_BARU) <= _indeks(baru)
-    assert (baru.grading_counts("a1"), baru.bunches_for_assignment("a1"),
+    assert (baru.grading_counts("a1"), baru.bunches_for_visit("w1"),
             baru.weighing_for_assignment("a1"), len(baru.auto_releases_terbaru())) == sebelum
 
 
@@ -131,3 +164,29 @@ def test_versi_lama_tetap_bisa_menulis_ke_database_berindeks(tmp_path):
     db.close()
 
     assert ConsoleStore(path).grading_counts("a-lama")["total"] == 1
+
+
+GERBANG_KUERI = [
+    # Dibaca tiap 15 detik lewat tampilan Timbangan (antrean timbang + join jam datang).
+    # Sejak hari kerja "sekarang dikurangi jendela klaim"; jendelanya disaring di domain.
+    (lambda s: s.waiting_arrivals(HARI), "idx_arrivals_hari (work_date>?)"),
+    (lambda s: s.waiting_arrivals_for_truck("t1"), "idx_arrivals_menunggu (truck_id=?)"),
+    (lambda s: s.weighings_for_truck("t1"), "idx_weighings_truck (truck_id=?)"),
+]
+
+
+@pytest.mark.parametrize("panggil, indeks", GERBANG_KUERI, ids=["waiting_arrivals", "waiting_arrivals_for_truck", "weighings_for_truck"])
+def test_query_gerbang_memakai_indeksnya(store, panggil, indeks):
+    [plan] = rencana(store._db, lambda: panggil(store))
+
+    assert indeks in plan, plan
+    assert "SCAN" not in plan, plan
+
+
+def test_jam_datang_di_tampilan_timbangan_dicari_lewat_indeks_tiket(store):
+    """`weighings()` menggabung `arrivals` per tiket: tanpa indeks `weighing_id` tiap baris
+    memindai seluruh `arrivals`, tabel yang tumbuh satu baris per kedatangan."""
+    plans = rencana(store._db, lambda: store.weighings(HARI))
+
+    assert any("idx_arrivals_tiket (weighing_id=?)" in p for p in plans), plans
+    assert not any(re.search(r"\bSCAN (arrivals|a)\b", p) for p in plans), plans

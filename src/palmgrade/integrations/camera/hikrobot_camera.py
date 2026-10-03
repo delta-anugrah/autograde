@@ -14,6 +14,10 @@ from .mvs_error import format_mvs_ret
 
 logger = logging.getLogger(__name__)
 
+# Rentang yang mungkin untuk badan kamera yang menyala. Di luar ini angkanya datang
+# dari struct yang tidak cocok dengan versi SDK, bukan dari sensor.
+_SUHU_MASUK_AKAL_C = (-40.0, 150.0)
+
 try:
     from MvImport.MvCameraControl_class import (  # type: ignore
         MV_CC_DEVICE_INFO,
@@ -42,6 +46,8 @@ class HikrobotCamera(CameraSource):
     _jumlah_sambung = 0
     #: Laju objek ini sudah pernah dilaporkan (atau tidak bisa dilaporkan) sekali.
     _laju_sudah_dilapor = False
+    #: Suhu objek ini sudah pernah gagal dibaca (WARNING sekali, sesudahnya DEBUG).
+    _suhu_gagal_dilapor = False
 
     def _level_rinci(self) -> int:
         return logging.INFO if self._jumlah_sambung <= 1 else logging.DEBUG
@@ -164,6 +170,7 @@ class HikrobotCamera(CameraSource):
 
         pertama = not self._laju_sudah_dilapor
         self._laju_sudah_dilapor = True
+        hasil = []
         for node in ("ResultingFrameRate", "AcquisitionFrameRate"):
             value = MVCC_FLOATVALUE()
             ret = self.cam.MV_CC_GetFloatValue(node, value)
@@ -171,14 +178,43 @@ class HikrobotCamera(CameraSource):
                 logger.log(logging.INFO if pertama else logging.DEBUG,
                            "Camera reports %s = %.2f fps", node, value.fCurValue)
                 return float(value.fCurValue)
+            hasil.append(f"{node}: {format_mvs_ret(ret)}, value {value.fCurValue:.2f}")
         # Sekali per proses: kamera yang memang tidak melaporkan lajunya (Lampung) akan
-        # tetap begitu di tiap sambung ulang, dan WARNING ini ikut ke tab Log.
+        # tetap begitu di tiap sambung ulang, dan WARNING ini ikut ke tab Log. Kode SDK
+        # per node ikut tercatat supaya log berikutnya menjawab KENAPA.
         logger.log(
             logging.WARNING if pertama else logging.DEBUG,
-            "Camera did not report a frame rate; pacing falls back to CAMERA_FPS, "
+            "Camera did not report a frame rate (%s); pacing falls back to CAMERA_FPS, "
             "so the rate in the feature file cannot be confirmed.",
+            "; ".join(hasil),
         )
         return 0.0
+
+    def get_temperature(self) -> float | None:
+        """`DeviceTemperature` in °C, rounded to 0.1. None = cannot say.
+
+        Called by `FrameCaptureWorker` every few seconds under `state.lock`, never
+        from a request handler: the SDK is not safe across threads.
+        """
+        if not self.connected:
+            return None
+        try:
+            from MvImport.MvCameraControl_class import MVCC_FLOATVALUE  # type: ignore
+        except ImportError:  # pragma: no cover - depends on the vendored SDK
+            return None
+        nilai = MVCC_FLOATVALUE()
+        ret = self.cam.MV_CC_GetFloatValue("DeviceTemperature", nilai)
+        suhu = float(nilai.fCurValue)
+        if ret == 0 and _SUHU_MASUK_AKAL_C[0] < suhu < _SUHU_MASUK_AKAL_C[1] and suhu != 0.0:
+            return round(suhu, 1)
+        level = logging.DEBUG if self._suhu_gagal_dilapor else logging.WARNING
+        self._suhu_gagal_dilapor = True
+        logger.log(
+            level,
+            "Camera did not report DeviceTemperature (%s, value %.1f); the Diagnostics card shows a dash",
+            format_mvs_ret(ret), suhu,
+        )
+        return None
 
     def grab_frame(self):
         if not self.connected:

@@ -15,7 +15,13 @@ import sqlite3
 #: berbasis `PRAGMA table_info` (aturan B5), dan angkanya tidak pernah diturunkan,
 #: jadi image lama yang membuka berkas dari image lebih baru tidak mengubahnya
 #: (rollback lewat `autograde use`).
-VERSI_SKEMA = 1
+#:
+#: 1 = batch 4.5 (PR #213). 2 = `visit_assignments` + `idx_weighings_truck` (PR #208).
+#: 3 = `weighings.unloading_queue_skipped_at` + `idx_weighings_terbuka` (PR #212).
+#: 4 = `arrivals` + its three indexes + `weighings.left_at` (gate scans).
+#: 5 = `arrivals.cancelled_at` + `arrivals.cancelled_by` + `arrivals.cancelled_by_name`
+#:     (Batal datang kept as history; the name joined the same step before 5 shipped).
+VERSI_SKEMA = 5
 
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS inspections (
@@ -117,10 +123,51 @@ CREATE TABLE IF NOT EXISTS weighings (
     -- finalised ticket whose grading changed, or a cancelled one it ignored.
     erp_ticket    TEXT,
     erp_status    TEXT,
-    erp_note      TEXT
+    erp_note      TEXT,
+    -- Scan 4 (truck leaves the gate), 2026-09-30. Stays on this PC: never in the AutoERP
+    -- visit message. Written only by `GateService`, once the ticket has its tare.
+    left_at       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_weighings_hari ON weighings (work_date, entered_at DESC);
 CREATE INDEX IF NOT EXISTS idx_weighings_plat ON weighings (plate_norm);
+
+-- One visit, every line that unloaded it (2026-10-01). A truck on three lines has three
+-- assignments, and `weighings.assignment_id` holds one: the AutoERP recap counted the
+-- line released last. That column is still written (an older image reads it); this
+-- table is what the recap sums. Written when a line lets the truck go.
+CREATE TABLE IF NOT EXISTS visit_assignments (
+    assignment_id TEXT PRIMARY KEY,
+    weighing_id   TEXT NOT NULL,
+    line_code     TEXT,
+    linked_at     REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_visit_assignments_tiket ON visit_assignments (weighing_id);
+-- The unloading queue and the busy check read open tickets of the last hours, every 2 s.
+CREATE INDEX IF NOT EXISTS idx_weighings_terbuka ON weighings (received_at)
+    WHERE tare_kg IS NULL;
+
+-- Scan 1 (truck reaches the gate), 2026-09-30. Stays on this PC: "arrived" is not one of
+-- AutoERP's stages. A row waits with `weighing_id` NULL until the truck's weigh-in
+-- claims it; that link is how queue time (arrival to weigh-in) is read.
+-- "Batal datang" (2026-10-03) keeps the row as history: `cancelled_at` set = no longer
+-- waiting, never claimed, and every reader of a waiting arrival skips it.
+CREATE TABLE IF NOT EXISTS arrivals (
+    id            TEXT PRIMARY KEY,
+    plate_number  TEXT NOT NULL,
+    plate_norm    TEXT NOT NULL,
+    truck_id      TEXT NOT NULL,
+    work_date     TEXT NOT NULL,
+    arrived_at    TEXT NOT NULL,
+    weighing_id   TEXT,
+    cancelled_at  TEXT,
+    cancelled_by  TEXT,
+    cancelled_by_name TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_arrivals_menunggu ON arrivals (truck_id) WHERE weighing_id IS NULL;
+CREATE INDEX IF NOT EXISTS idx_arrivals_hari ON arrivals (work_date);
+-- One arrival per ticket. NULLs are exempt, so every waiting arrival is allowed.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_arrivals_tiket ON arrivals (weighing_id)
+    WHERE weighing_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS sync_state (
     key   TEXT PRIMARY KEY,
@@ -197,7 +244,7 @@ DROP INDEX IF EXISTS idx_inspections_erp;
 -- jadi ingest dari line tidak membayar apa pun untuk indeks ini.
 CREATE INDEX IF NOT EXISTS idx_inspections_impor ON inspections (import_batch)
     WHERE import_batch IS NOT NULL;
--- Batch 2.5. Rekap satu penugasan (`grading_counts`, `bunches_for_assignment`) dulu
+-- Batch 2.5. Rekap satu penugasan (`grading_counts`, `grading_counts_for_visit`, `bunches_for_visit`) dulu
 -- memindai seluruh `inspections` sambil memegang lock konsol (63 ms di 558 ribu baris).
 -- Parsial: janjang tanpa penugasan dan janjang impor tidak ikut diindeks. `timestamp`
 -- di belakang supaya daftar janjang manifest keluar berurutan tanpa sortir.
@@ -209,6 +256,14 @@ CREATE INDEX IF NOT EXISTS idx_weighings_assignment ON weighings (assignment_id)
 -- `/api/console/state` tiap 2 detik membaca pelepasan otomatis sejam terakhir; tabelnya
 -- tidak pernah dibersihkan.
 CREATE INDEX IF NOT EXISTS idx_auto_releases_waktu ON auto_releases (released_at);
+-- Lepas truk mencari tiket truk itu dalam jendela 12 jam (`latest_weighing_for_truck_since`),
+-- bukan lagi lewat hari kerja yang berindeks.
+CREATE INDEX IF NOT EXISTS idx_weighings_truck ON weighings (truck_id, received_at);
+-- Visits linked before `visit_assignments` existed. Safe to repeat on every boot: the
+-- assignment is the primary key, so a second run inserts nothing.
+INSERT OR IGNORE INTO visit_assignments (assignment_id, weighing_id, line_code, linked_at)
+    SELECT assignment_id, id, NULL, received_at FROM weighings
+    WHERE assignment_id IS NOT NULL AND assignment_id != '';
 """
 
 # Columns renamed to English after the schema had already been created on
@@ -284,6 +339,15 @@ def _migrate(db: sqlite3.Connection) -> None:
         ("weighings", "erp_ticket"),
         ("weighings", "erp_status"),
         ("weighings", "erp_note"),
+        # "Lewati" on the unloading queue (2026-10-01). NULL = still eligible.
+        ("weighings", "unloading_queue_skipped_at"),
+        # Scan 4, gate leave time (2026-09-30). NULL = not scanned out.
+        ("weighings", "left_at"),
+        # Batal datang kept as history (2026-10-03). NULL = not cancelled.
+        ("arrivals", "cancelled_at"),
+        ("arrivals", "cancelled_by"),
+        # The operator's display name when the button was pressed. NULL = show the email.
+        ("arrivals", "cancelled_by_name"),
         # Konsol pabrik yang sudah jalan punya tabel `inspections` tanpa kolom ini;
         # `CREATE TABLE IF NOT EXISTS` di atas tidak akan menambahkannya. Baris lama
         # tetap NULL, sengaja: kelas aslinya memang tidak pernah direkam, dan

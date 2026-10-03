@@ -122,14 +122,20 @@ def test_kalimat_layar_hanya_dari_kamus():
 
 @pytest.mark.parametrize("bahasa", ["id", "en"])
 def test_petunjuk_gerbang_keluar_menyebut_tombol_yang_ada_di_baris(bahasa):
-    """Petunjuk di sisi Truk keluar menyuruh menekan tombol di baris tiket; kata yang dipakai
-    harus tulisan tombol itu sendiri (`btnKeluar`), bukan kata lain yang tidak ada di layar."""
+    """Petunjuk di sisi 3 (timbang kosong) dan sisi 4 (keluar) menyuruh menekan tombol di
+    baris tiket; kata yang dipakai harus tulisan tombol itu sendiri (`btnTimbangKosong`,
+    `btnPergi`), bukan kata lain yang tidak ada di layar."""
     kamus = _kamus(bahasa)
-    assert kamus["btnKeluar"] in kamus["hintGerbangKeluar"], (kamus["btnKeluar"], kamus["hintGerbangKeluar"])
+    pasangan = (("btnTimbangKosong", "hintGerbangKeluar"), ("btnPergi", "hintPergi"),
+                # Strip langkah 2026-10-03: ruas 1 dan 2 menyebut tombol formnya.
+                ("btnDatang", "hintDatang"), ("btnMasuk", "hintTimbangIsi"))
+    for tombol, petunjuk in pasangan:
+        assert kamus[tombol] in kamus[petunjuk], (kamus[tombol], kamus[petunjuk])
 
 
 @pytest.mark.parametrize("bahasa", ["id", "en"])
 def test_line_yang_belum_menerima_setelan_disebut_dalam_bahasa_layar(bahasa):
     """Tab Setelan menyebut line yang belum menerima perubahan; kalimatnya ada di kedua bahasa
-    dan memberi tempat untuk daftar line (`{lines}`)."""
-    assert "{lines}" in _kamus(bahasa).get("setelanBelumSampai", "")
+    dan memberi tempat untuk daftar line (`{lines}`). Sejak 2026-10-02 satu toast peringatan
+    yang juga mengatakan nilainya sudah tersimpan."""
+    assert "{lines}" in _kamus(bahasa).get("setelanTersimpanSebagian", "")

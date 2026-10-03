@@ -66,7 +66,8 @@ def _baca_layar(store: ConsoleStore) -> dict:
         "recap": client.get("/api/console/recap", params={"work_date": HARI}).json(),
         "weighings": client.get("/api/console/weighings", params={"work_date": HARI}).json(),
         "grading": {a: store.grading_counts(a) for a in PENUGASAN},
-        "bunches": {a: store.bunches_for_assignment(a) for a in PENUGASAN},
+        "grading_visit": {f"w{k}": store.grading_counts_for_visit(f"w{k}") for k in range(len(PENUGASAN))},
+        "bunches": {f"w{k}": store.bunches_for_visit(f"w{k}") for k in range(len(PENUGASAN))},
         "tiket": {a: store.weighing_for_assignment(a) for a in PENUGASAN},
         "auto_releases": [r["assignment_id"] for r in store.auto_releases_terbaru(sejak_detik=86_400)],
     }

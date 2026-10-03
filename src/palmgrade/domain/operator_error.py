@@ -70,6 +70,11 @@ IMPOR_HAPUS_BERJALAN = "impor_hapus_berjalan"
 # A body of the wrong shape on an operator route (a list, or a number where text belongs),
 # refused by the Pydantic model before the domain sees it (2026-09-30, standard B1).
 INPUT_TIDAK_SAH = "input_tidak_sah"
+# Penugasan line otomatis (2026-10-01). Setelan tanpa line ditolak 400; antrean bongkar yang
+# sudah berubah sejak layar menggambarnya ditolak 409.
+PENUGASAN_TANPA_LINE = "penugasan_tanpa_line"
+BUKAN_ANTREAN = "bukan_antrean"
+LINE_SEMUA_TERPAKAI = "line_semua_terpakai"
 # Batch 4.6, the Update now button (operator and support). `pembaruan_ada_truk` carries
 # param `line` ("L1, L3"): the operator has to know which truck to release first.
 PEMBARUAN_ADA_TRUK = "pembaruan_ada_truk"
@@ -119,6 +124,9 @@ CODES = (
     IMPOR_SUDAH_DIBATALKAN,
     IMPOR_HAPUS_BERJALAN,
     INPUT_TIDAK_SAH,
+    PENUGASAN_TANPA_LINE,
+    BUKAN_ANTREAN,
+    LINE_SEMUA_TERPAKAI,
     PEMBARUAN_ADA_TRUK,
     PEMBARUAN_TIDAK_ADA,
     PEMBARUAN_BERJALAN,
