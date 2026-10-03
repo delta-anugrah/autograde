@@ -47,3 +47,10 @@ class WeighingBody(_Body):
     gross_kg: str | float | None = None
     tare_kg: str | float | None = None
     net_kg: str | float | None = None
+
+
+class PasangBody(_Body):
+    """Update now (batch 4.6). The version the screen showed, so a status file that moved
+    on in between cannot make one press install a version nobody saw."""
+
+    target: str | None = None

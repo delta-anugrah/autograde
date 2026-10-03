@@ -32,6 +32,8 @@ RUTE_OPERATOR = [
     ("POST", "/api/console/lines/{line_code}/release-truck"),
     ("POST", "/api/console/lines/{line_code}/manual-reject"),
     ("POST", "/api/console/lines/{line_code}/piston"),
+    ("GET", "/api/console/update"),
+    ("POST", "/api/console/update/install"),
     ("GET", "/api/console/dev/ping"),
     ("GET", "/api/console/dev/log"),
     ("GET", "/api/console/dev/diagnostik"),
