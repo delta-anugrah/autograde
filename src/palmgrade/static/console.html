@@ -1083,6 +1083,8 @@
      sel lebih rapat, jadi lebar kolom ditentukan isinya, bukan judulnya. Neto adalah angka yang
      dibayar; ia tidak boleh bersembunyi di bawah kolom tombol. */
   #sec-timbangan th { white-space:normal; vertical-align:bottom; }
+  #sec-timbangan td.sel-waktu { line-height:1.25; font-variant-numeric:tabular-nums; }
+  #sec-timbangan td.sel-waktu .tgl { display:block; font-size:.78rem; color:var(--muted); }
   #sec-timbangan th, #sec-timbangan td { padding-left:8px; padding-right:8px; }
   #sec-timbangan tbody tr:nth-child(even) td:last-child:not(.kosong) { background:var(--zebra); }
   /* The column heads already say ACC and REJ, so the colour is a second signal
@@ -3921,6 +3923,17 @@ function waktu(iso) {
        + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+// Tabel Timbangan (user 2026-10-03): tanggal kecil di atas jamnya, bukan satu baris panjang.
+// Isinya sama dengan `waktu()`, tapi dua kolom jam menyempit separuh, dan itu yang membuat
+// dua belas kolom plus tombol baris muat di 1440 px tanpa Neto tertutup kolom tombol.
+function waktuDuaBaris(iso) {
+  const teks = waktu(iso);
+  const pisah = teks.lastIndexOf(" ");
+  if (pisah < 0) return teks;
+  // Spasi tetap ada: teks sel yang disalin atau dibaca pembaca layar tetap "03/10/2026 10:14:00".
+  return `<span class="tgl">${teks.slice(0, pisah)}</span> ${teks.slice(pisah + 1)}`;
+}
+
 // Menit -> "25 mnt" / "1 j 45 mnt". Satu bentuk untuk semua durasi di layar (kolom Lama,
 // antrean bongkar). Null, bukan "0 mnt", kalau angkanya tidak ada.
 function teksMenit(menit) {
@@ -4475,8 +4488,8 @@ function barisTimbangan(w) {
   return `<tr data-id="${esc(w.id)}" data-plat="${esc(w.plate_number)}" data-ref="${esc(w.ref ?? "")}"
               data-masuk="${esc(w.entered_at ?? "")}">
     <td>${lencanaTahap(w.tahap)}</td>
-    <td>${w.entered_at ? waktu(w.entered_at) : KOSONG}</td>
-    <td>${w.exited_at ? waktu(w.exited_at) : KOSONG}</td>
+    <td class="sel-waktu">${w.entered_at ? waktuDuaBaris(w.entered_at) : KOSONG}</td>
+    <td class="sel-waktu">${w.exited_at ? waktuDuaBaris(w.exited_at) : KOSONG}</td>
     <td title="${esc(jamDatang)}">${durasiAntre(w)}</td>
     <td>${dash(lamaProses(w.entered_at, w.exited_at))}</td>
     <td title="${esc(jamPergi)}">${dash(teksMenit(w.total_menit))}</td>

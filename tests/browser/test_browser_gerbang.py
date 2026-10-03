@@ -238,7 +238,13 @@ _TABEL_MUAT = """() => {
   const kepala = [...t.querySelectorAll('thead th')];
   return {lebar: t.scrollWidth, kotak: t.clientWidth,
           neto: Math.round(kepala[kepala.length - 2].getBoundingClientRect().right),
-          tombol: Math.round(kepala[kepala.length - 1].getBoundingClientRect().left)};
+          tombol: Math.round(kepala[kepala.length - 1].getBoundingClientRect().left),
+          kolom: kepala.map((h) => Math.round(h.getBoundingClientRect().width)),
+          // Cells of every full row line up with their column head (a global rule on a cell
+          // class once turned two time cells into one flex box and shifted the whole row).
+          geser: [...t.querySelectorAll('tbody tr')].filter((tr) => tr.cells.length === kepala.length)
+            .flatMap((tr) => [...tr.cells].map((c, i) => Math.abs(c.getBoundingClientRect().left
+              - kepala[i].getBoundingClientRect().left))).filter((d) => d > 1).length};
 }"""
 # Below this the 12-column table scrolls sideways inside its own box (a phone).
 _LEBAR_TABEL_PENUH = 1024
@@ -265,6 +271,7 @@ def test_the_four_steps_never_scroll_sideways(halaman, konsol, browser_name, leb
         muat = halaman.evaluate(_TABEL_MUAT)
         assert muat["lebar"] <= muat["kotak"], muat
         assert muat["neto"] <= muat["tombol"] + 1, muat
+        assert muat["geser"] == 0, muat
     _tutup_tiket(halaman, konsol, tiket)
     ukuran = halaman.evaluate("() => [document.documentElement.scrollWidth, window.innerWidth]")
     assert ukuran[0] <= ukuran[1], f"Timbangan is {ukuran[0]} px wide on a {ukuran[1]} px screen"
