@@ -104,7 +104,12 @@
             border-bottom:3px solid var(--acc); }
   h1 { font-size:1rem; margin:0; font-weight:700; letter-spacing:.14em;
        text-transform:uppercase; display:flex; align-items:center; gap:10px; }
-  h1::before { content:""; width:.7rem; height:1rem; background:var(--acc); border-radius:var(--r-pill); }
+  /* Titik merek bulat (user 2026-10-04), di tengah tinggi huruf lewat `align-items:center` h1. */
+  h1::before { content:""; flex:none; width:.7rem; height:.7rem; background:var(--acc); border-radius:50%; }
+  /* Tombol berikon di kepala layar: ikon dan kata di tengah vertikal, satu jarak. */
+  .tombol-ikon { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+  .tombol-ikon[hidden] { display:none; }
+  .tombol-ikon svg { flex:none; }
   .merek { display:flex; flex-direction:column; gap:1px; }
   /* Menjorok sejajar huruf pertama AUTOGRADE (pil hijau .7rem + jarak 10px). */
   #info-sistem { align-self:flex-start; min-height:0; padding:0 0 0 calc(.7rem + 10px);
@@ -113,27 +118,23 @@
   #info-sistem:hover { color:var(--fg); text-decoration:underline; }
   /* Tingkat dari server, sama dengan banner langganan. */
   #info-sistem[data-tingkat="warning"] { color:var(--warn); }
-  /* Batch 4.6: "Versi X siap dipasang", sejajar #info-sistem. */
-  #badge-pembaruan { align-self:flex-start; min-height:0; margin-left:calc(.7rem + 10px);
-                     padding:2px 10px; border-radius:999px; font-weight:700;
-                     background:var(--warn); color:var(--bg); }
   .pembaruan-judul { margin:16px 0 8px; font-size:1.1rem; }
   .pembaruan-ket { margin:6px 0; }
+  /* Syarat "lepas semua truk dulu" berwarna: yang terlewat di sini membuat pemasangan ditolak. */
+  .pembaruan-syarat { margin:6px 0; color:var(--warn); font-weight:600; }
   .pembaruan-pasang { min-height:44px; min-width:12rem; display:inline-flex; gap:8px; align-items:center; }
   .pembaruan-hasil[data-state="rolled_back"], .pembaruan-hasil[data-state="failed"],
   .pembaruan-hasil[data-state="timeout"] { color:var(--rej); font-weight:700; }
   #info-sistem[data-tingkat="grace"] { color:var(--rej); }
   #info-sistem[data-tingkat="blocked"] { color:var(--rej); }
-  #info-sistem-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
-                       background:var(--card); color:var(--fg); width:min(92vw, 30rem); }
-  #info-sistem-modal::backdrop { background:rgba(0,0,0,.72); }
-  .info-sistem-isi { padding:20px 24px; }
-  #info-sistem-modal h2 { margin:0 0 12px; font-size:1.25rem; }
-  #info-sistem-daftar { margin:0; grid-template-columns:1fr; }
-  #info-sistem-daftar > div { grid-template-columns:9rem 1fr; }
-  #info-sistem-modal .tools { padding:16px 0 0; justify-content:flex-end;
-                              background:none; border:0; border-radius:0; }
-  #info-sistem-modal .tools button { min-height:44px; min-width:9rem; }
+  #info-sistem-modal { width:min(92vw, 32rem); }
+  #info-sistem-daftar { grid-template-columns:1fr; }
+  #info-sistem-daftar > div { grid-template-columns:7rem 1fr; }
+  /* Di dalam modal, judul Pembaruan dibaca seperti judul bagian tab Status, bukan judul kedua. */
+  #pembaruan-isi:empty { display:none; }
+  #pembaruan-isi .pembaruan-judul { margin:0 0 8px; font-size:.8rem; font-weight:700;
+                                    letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+  #pembaruan-isi .pembaruan-ket, #pembaruan-isi .pembaruan-syarat { margin:4px 0 0; }
   #jam { font-family:var(--mono); font-size:1.15rem; font-weight:700; letter-spacing:.01em; }
   .jam { display:flex; align-items:baseline; gap:8px; }
   /* `flex-wrap`: on a 390 px phone the account name and three buttons are wider than the bar,
@@ -1012,6 +1013,24 @@
                       padding:0; border:0; background:transparent; color:inherit;
                       font-size:1.4rem; line-height:1; opacity:.7; cursor:pointer; }
   #pita-disk .tutup:hover { opacity:1; }
+  /* Pita pembaruan: kabar baik, jadi tanpa denyut dan tanpa merah. Seluruh pita satu tombol
+     (target besar untuk sarung tangan), × di pojok seperti pita disk. */
+  #pita-pembaruan { margin:10px var(--pad) 0; }
+  #pita-pembaruan p { position:relative; margin:0; border-radius:var(--r-sm);
+                      background:var(--warn-bg); color:var(--warn); border-left:4px solid var(--warn); }
+  #pita-pembaruan .pita-buka { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px;
+                               width:100%; min-height:48px; padding:11px 3.5rem 11px 13px;
+                               border:0; background:transparent; color:inherit; text-align:left;
+                               cursor:pointer; border-radius:inherit; }
+  #pita-pembaruan .pita-buka:hover b { text-decoration:underline; }
+  #pita-pembaruan .ikon-pita { flex:none; width:1.5rem; height:1.5rem; }
+  #pita-pembaruan b { font-size:1rem; letter-spacing:.02em; }
+  #pita-pembaruan span { padding-left:12px; border-left:2px solid currentColor; font-size:.9rem; font-weight:600; }
+  #pita-pembaruan .tutup { position:absolute; top:50%; right:.35rem; transform:translateY(-50%);
+                           min-width:2.5rem; min-height:2.5rem; padding:0; border:0;
+                           background:transparent; color:inherit; font-size:1.4rem; line-height:1;
+                           opacity:.7; cursor:pointer; }
+  #pita-pembaruan .tutup:hover { opacity:1; }
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
@@ -1395,53 +1414,49 @@
   /* Padding 0 di <dialog>, padding di pembungkus isinya: klik yang target-nya
      dialog itu sendiri cuma bisa datang dari backdrop, jadi klik di tepi kotak
      tidak ikut membatalkan. */
-  #model-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
-                 background:var(--card); color:var(--fg); max-width:min(92vw, 36rem); }
-  .model-modal-isi { padding:20px 24px; }
-  #model-modal::backdrop { background:rgba(0,0,0,.72); }
-  #model-modal h2 { margin:0 0 12px; font-size:1.25rem; }
-  #model-modal ul { margin:0 0 12px; padding-left:1.2rem; display:grid; gap:8px; }
-  /* `.tools` global adalah kepala tabel berbingkai; di sini cuma baris tombol. */
-  #model-modal .tools { padding:16px 0 0; justify-content:flex-end;
-                        background:none; border:0; border-radius:0; }
+  /* Komponen modal (user 2026-10-03): satu kotak, satu backdrop, satu baris tombol untuk
+     semua dialog teks (ganti model, konfirmasi, impor CSV, versi & lisensi). Dulu tiap
+     dialog menyalin aturannya sendiri dan kotak versi melenceng: tombol Pasang sekarang
+     sendirian di kiri dengan ukurannya sendiri, Tutup di kanan dengan ukuran lain.
+     Tombol di `.modal-tombol` selebar satu sama lain (F5); yang batal/tutup di kiri, merah,
+     dan mendapat fokus awal, jadi Enter yang tidak disengaja tidak menjalankan apa pun. */
+  dialog.modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
+                 background:var(--card); color:var(--fg); width:min(92vw, 30rem);
+                 box-shadow:var(--tinggi-2); }
+  dialog.modal[open] { animation:muncul .15s ease; }
+  dialog.modal::backdrop { background:rgba(0,0,0,.72); }
+  .modal-isi { padding:22px 24px; display:grid; gap:14px; }
+  .modal-isi h2 { margin:0; font-size:1.25rem; overflow-wrap:anywhere; }
+  .modal-isi p { margin:0; }
+  .modal-tombol { display:flex; flex-wrap:wrap; gap:12px; justify-content:flex-end; padding-top:6px; }
+  .modal-tombol > button { flex:1 1 0; min-width:9rem; min-height:48px;
+                           display:inline-flex; gap:8px; align-items:center; justify-content:center; }
+  /* Tombol yang digambar ulang dari data (Pasang sekarang) ikut baris tombol tanpa pembungkus. */
+  .modal-slot { display:contents; }
+  .modal-slot > button { flex:1 1 0; min-width:9rem; min-height:48px; justify-content:center; }
+  .modal-tombol > [hidden] { display:none; }
+  #model-modal { width:min(92vw, 36rem); }
+  #model-modal ul { margin:0; padding-left:1.2rem; display:grid; gap:8px; }
   /* `th, td` global menahan satu baris. Kalimat alasan dan status engine di
      tabel model panjang, dan terpotong di kanan kalau tidak boleh membungkus. */
   #model-baris td.bungkus { white-space:normal; min-width:14rem; }
-  #model-modal .tools button { flex:0 0 auto; min-height:44px; min-width:9rem; }
   /* Dialog konfirmasi bersama (`tanyaKonfirmasi`, user 2026-10-03), pengganti kotak
      `confirm` bawaan browser: kotak bawaan itu tidak ikut tema gelap, menulis alamat konsol di
      judulnya, dan tidak bisa dibaca dari jauh. Bahasa visualnya sama dengan model-modal. */
-  #konfirmasi-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
-                      background:var(--card); color:var(--fg); width:min(92vw, 30rem);
-                      box-shadow:var(--tinggi-2); }
-  #konfirmasi-modal[open] { animation:muncul .15s ease; }
-  #konfirmasi-modal::backdrop { background:rgba(0,0,0,.72); }
-  .konfirmasi-isi { padding:20px 24px; }
-  #konfirmasi-modal h2 { margin:0 0 8px; font-size:1.25rem; overflow-wrap:anywhere; }
-  #konfirmasi-modal p { margin:0; color:var(--muted); }
-  #konfirmasi-modal .tools { padding:20px 0 0; justify-content:flex-end; flex-wrap:wrap;
-                             background:none; border:0; border-radius:0; }
-  #konfirmasi-modal .tools button { flex:0 0 auto; min-height:44px; min-width:9rem; }
+  #konfirmasi-modal p { color:var(--muted); }
   /* Impor CSV (tab Riwayat, support). Padding di pembungkus isi, bukan di <dialog>,
      dengan alasan yang sama dengan model-modal. */
-  #impor-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
-                 background:var(--card); color:var(--fg); width:min(92vw, 44rem); }
-  #impor-modal::backdrop { background:rgba(0,0,0,.72); }
-  .impor-isi { padding:20px 24px; display:grid; gap:12px; }
-  #impor-modal h2 { margin:0; font-size:1.25rem; }
+  #impor-modal { width:min(92vw, 44rem); }
   #impor-modal h3 { margin:8px 0 0; font-size:1rem; }
-  #impor-modal p { margin:0; }
-  .impor-pilih { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
-  .impor-pilih button { min-height:2.6rem; min-width:9rem; }
+  /* Kotak berkas 3/4, Periksa 1/4, selebar baris (user 2026-10-04). */
+  .impor-pilih { display:grid; grid-template-columns:minmax(0, 3fr) minmax(7rem, 1fr); gap:10px; align-items:stretch; }
+  .impor-pilih > * { width:100%; min-height:48px; margin:0; }
   .impor-angka { display:grid; grid-template-columns:1fr auto; gap:4px 16px; margin:0; }
   .impor-angka dt { color:var(--muted); }
   .impor-angka dd { margin:0; text-align:right; font-weight:700; font-variant-numeric:tabular-nums; }
   .impor-angka dd.salah { color:var(--rej); }
   .impor-salah { margin:8px 0 0; padding-left:1.2rem; color:var(--rej); max-height:12rem; overflow:auto; }
   .impor-catatan { margin-top:8px; color:var(--warn); font-weight:600; }
-  #impor-modal .tools { padding:4px 0 0; justify-content:flex-end;
-                        background:none; border:0; border-radius:0; }
-  #impor-modal .tools button { flex:0 0 auto; min-height:44px; min-width:9rem; }
   .impor-daftar { display:grid; gap:8px; max-height:16rem; overflow:auto; }
   .impor-batch { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; padding:8px 10px;
                  border:1px solid var(--line); border-radius:var(--r); }
@@ -1555,15 +1570,15 @@
   <div class="merek">
     <h1>AutoGrade</h1>
     <button type="button" id="info-sistem" hidden aria-haspopup="dialog"></button>
-    <!-- Batch 4.6: "Versi X siap dipasang", semua akun. Klik membuka kotak Versi & lisensi. -->
-    <button type="button" id="badge-pembaruan" hidden aria-haspopup="dialog"></button>
   </div>
   <span class="jam"><b id="jam">-</b> <span id="tz" class="lb"></span></span>
   <span class="aksi">
     <span id="operator-aktif" hidden></span>
-    <button id="bahasa">EN</button>
-    <button id="tema">Terang</button>
-    <button id="keluar" class="bahaya" hidden data-t="tombolKeluar">Keluar</button>
+    <!-- Ikon di tiap tombol (user 2026-10-04): bola dunia = bahasa, lingkaran setengah = tema,
+         pintu = keluar. Katanya di span, supaya ganti bahasa/tema tidak menghapus ikonnya. -->
+    <button id="bahasa" class="tombol-ikon"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span id="bahasa-teks">EN</span></button>
+    <button id="tema" class="tombol-ikon"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg><span id="tema-teks">Terang</span></button>
+    <button id="keluar" class="bahaya tombol-ikon" hidden><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span id="keluar-teks" data-t="tombolKeluar">Keluar</span></button>
   </span>
 </header>
 <div id="err"></div>
@@ -1676,6 +1691,10 @@
   </div>
 </section>
 
+<!-- Batch 4.6, pita sejak 2026-10-04 (dulu lencana kecil di bawah AUTOGRADE): "Versi X siap
+     dipasang", semua akun. Ketuk membuka kotak Versi & lisensi; × menyembunyikannya sampai
+     versi berikutnya. Angka versi di bawah AUTOGRADE tetap membuka kotak yang sama. -->
+<div id="pita-pembaruan" hidden></div>
 <div id="pita-alarm" hidden></div>
 <div id="pita-disk" hidden></div>
 <!--
@@ -2628,12 +2647,12 @@
   awal `showModal()` jatuh di situ — Enter yang tidak disengaja membatalkan,
   bukan merestart. Esc dan klik di luar kotak juga membatalkan.
 -->
-<dialog id="model-modal" aria-labelledby="model-modal-judul" data-dev="1">
-  <div class="model-modal-isi">
+<dialog id="model-modal" class="modal" aria-labelledby="model-modal-judul" data-dev="1">
+  <div class="modal-isi">
     <h2 id="model-modal-judul" data-t="modelModalJudul">Ganti model dan restart line?</h2>
     <ul id="model-modal-daftar"></ul>
     <p class="muted" data-t="modelModalRestart">Line di atas akan restart sekitar 10 detik. Janjang yang lewat selama itu tidak dihitung.</p>
-    <div class="tools">
+    <div class="modal-tombol">
       <button type="button" id="model-modal-batal" class="bahaya" data-t="btnBatal">Batal</button>
       <button type="button" id="model-modal-jalankan" class="utama" data-t="btnModelJalankan">Ganti &amp; Restart</button>
     </div>
@@ -2647,11 +2666,11 @@
   mendapat fokus awal: Enter yang tidak disengaja membatalkan. Esc dan klik di luar kotak
   juga membatalkan. Kata dan kelas tombolnya diisi tiap kali dibuka.
 -->
-<dialog id="konfirmasi-modal" aria-labelledby="konfirmasi-judul" aria-describedby="konfirmasi-pesan">
-  <div class="konfirmasi-isi">
+<dialog id="konfirmasi-modal" class="modal" aria-labelledby="konfirmasi-judul" aria-describedby="konfirmasi-pesan">
+  <div class="modal-isi">
     <h2 id="konfirmasi-judul"></h2>
     <p id="konfirmasi-pesan"></p>
-    <div class="tools">
+    <div class="modal-tombol">
       <button type="button" id="konfirmasi-tidak" class="bahaya">Batal</button>
       <button type="button" id="konfirmasi-ya" class="utama">Lanjutkan</button>
     </div>
@@ -2663,8 +2682,8 @@
   Periksa tidak menyimpan apa pun; Impor mengirim berkas yang SAMA (sidiknya dicocokkan
   server). Batalkan di daftar bawah menghapus janjang satu impor, dengan dua klik.
 -->
-<dialog id="impor-modal" aria-labelledby="impor-judul" data-dev="1">
-  <div class="impor-isi">
+<dialog id="impor-modal" class="modal" aria-labelledby="impor-judul" data-dev="1">
+  <div class="modal-isi">
     <h2 id="impor-judul" data-t="imporJudul">Impor grading dari CSV</h2>
     <p class="muted" data-t="imporPenjelasan">Pakai CSV Per janjang dari Unduh CSV, dari PC ini atau PC lain. Janjang yang sudah ada dilewati. Tanggal hari ini dan sesudahnya tidak diimpor karena masih berjalan.</p>
     <div class="impor-pilih">
@@ -2673,8 +2692,8 @@
     </div>
     <p id="impor-pesan" class="riwayat-pesan" role="alert"></p>
     <div id="impor-hasil" hidden></div>
-    <div class="tools">
-      <button type="button" id="impor-tutup" data-t="btnTutup">Tutup</button>
+    <div class="modal-tombol">
+      <button type="button" id="impor-tutup" class="bahaya" data-t="btnTutup">Tutup</button>
       <button type="button" id="impor-jalankan" class="utama" hidden>Impor</button>
     </div>
     <h3 data-t="imporDaftar">Impor sebelumnya</h3>
@@ -2698,13 +2717,14 @@
   menutup layar memang yang diminta — melihat foto lebih besar, sebentar, lalu
   kembali.
 -->
-<dialog id="info-sistem-modal" aria-labelledby="info-sistem-judul">
-  <div class="info-sistem-isi">
+<dialog id="info-sistem-modal" class="modal" aria-labelledby="info-sistem-judul">
+  <div class="modal-isi">
     <h2 id="info-sistem-judul" data-t="judulInfoSistem">Versi &amp; lisensi</h2>
     <dl id="info-sistem-daftar" class="daftar-definisi"></dl>
     <div id="pembaruan-isi"></div>
-    <div class="tools">
-      <button type="button" id="info-sistem-tutup" data-t="btnTutup">Tutup</button>
+    <div class="modal-tombol">
+      <button type="button" id="info-sistem-tutup" class="bahaya" data-t="btnTutup">Tutup</button>
+      <div id="info-sistem-pasang" class="modal-slot"></div>
     </div>
   </div>
 </dialog>
@@ -3094,6 +3114,7 @@ const KAMUS = {
     judulPembaruan:"Pembaruan", pembaruanSiap:"Versi {versi} siap dipasang",
     pembaruanSyarat:"Lepas semua truk dulu. Konsol dan ketiga line berhenti sekitar 2 menit, lalu menyala sendiri.",
     btnPasangSekarang:"Pasang sekarang", pembaruanTerbaru:"Sudah versi terbaru",
+    pembaruanPitaAjak:"Ketuk untuk melihat dan memasang",
     pembaruanBerjalan:"Sedang memasang versi baru. Layar akan tersambung lagi sendiri.",
     pembaruanTersambungLagi:"Sedang memasang versi baru. Layar akan tersambung lagi sendiri.",
     pembaruanBelumTerpasang:"Pembaruan dari layar belum dipasang di PC ini. Panggil teknisi untuk memasangnya.",
@@ -3560,6 +3581,7 @@ const KAMUS = {
     judulPembaruan:"Update", pembaruanSiap:"Version {versi} ready to install",
     pembaruanSyarat:"Release every truck first. The console and all three lines stop for about 2 minutes, then start again by themselves.",
     btnPasangSekarang:"Update now", pembaruanTerbaru:"Already on the latest version",
+    pembaruanPitaAjak:"Tap to see it and install",
     pembaruanBerjalan:"Installing the new version. The screen will reconnect by itself.",
     pembaruanTersambungLagi:"Installing the new version. The screen will reconnect by itself.",
     pembaruanBelumTerpasang:"Updating from the screen is not set up on this PC. Call a technician to set it up.",
@@ -3696,7 +3718,7 @@ const lokal = () => (bahasa === "id" ? "id-ID" : "en-GB");
 function terapkanTema() {
   document.documentElement.dataset.theme = tema === "gelap" ? "dark" : "light";
   // The button names the TARGET theme, not the current one.
-  $("tema").textContent = tema === "terang" ? t("temaGelap") : t("temaTerang");
+  $("tema-teks").textContent = tema === "terang" ? t("temaGelap") : t("temaTerang");
 }
 
 function terapkanBahasa() {
@@ -3711,7 +3733,7 @@ function terapkanBahasa() {
   document.querySelectorAll("[data-t-lb]").forEach((el) => {
     el.setAttribute("aria-label", t(el.dataset.tLb));
   });
-  $("bahasa").textContent = bahasa === "id" ? "EN" : "ID";
+  $("bahasa-teks").textContent = bahasa === "id" ? "EN" : "ID";
   // Its face alternates between two keys, so it cannot be a plain `data-t`; re-applied
   // here in whichever state it is currently in.
   lihatSandi($("gerbang-sandi").type === "text");
@@ -7769,11 +7791,10 @@ function gambarInfoSistem(versi, l) {
 // Badge pembaruan membuka kotak yang sama: tombol Update now ada di dalamnya.
 function bukaInfoSistem() {
   tulisKalauBeda($("info-sistem-daftar"), barisInfoSistem(infoVersi, infoLisensi));
-  tulisKalauBeda($("pembaruan-isi"), htmlPembaruan(pembaruanTerakhir, false));
+  gambarPembaruanModal(pembaruanTerakhir);
   $("info-sistem-modal").showModal();
 }
 $("info-sistem").addEventListener("click", bukaInfoSistem);
-$("badge-pembaruan").addEventListener("click", bukaInfoSistem);
 $("info-sistem-tutup").addEventListener("click", () => $("info-sistem-modal").close());
 // Klik di backdrop menutup, pola yang sama dengan lapisan foto.
 $("info-sistem-modal").addEventListener("click", (ev) => {
@@ -7816,6 +7837,16 @@ function teksBadgePembaruan(p) {
   return t("pembaruanSiap").replace("{versi}", p.siap);
 }
 
+// Pita "Versi X siap dipasang". `ditutup` = versi yang terakhir ditutup operator di PC ini
+// (localStorage): pita diam untuk versi itu saja, versi berikutnya memunculkannya lagi.
+function pitaPembaruan(p, ditutup) {
+  const teks = teksBadgePembaruan(p);
+  if (!teks || ditutup === p.siap) return "";
+  return `<p role="status"><button type="button" class="pita-buka" data-buka-pembaruan aria-haspopup="dialog">`
+    + `${IKON_UNDUH.replace("<svg ", '<svg class="ikon-pita" ')}<b>${esc(teks)}</b><span>${esc(t("pembaruanPitaAjak"))}</span></button>`
+    + `<button type="button" class="tutup" data-tutup-pembaruan aria-label="${esc(t("toastTutup"))}">&times;</button></p>`;
+}
+
 function teksHasilPembaruan(h) {
   if (!h) return "";
   const kunci = { ok:"pembaruanHasilOk", rolled_back:"pembaruanHasilBalik", failed:"pembaruanHasilGagal",
@@ -7826,15 +7857,22 @@ function teksHasilPembaruan(h) {
   return t(kunci).replace("{versi}", h.target || "").replace("{lama}", h.installed || t("pembaruanVersiLama"));
 }
 
-function htmlPembaruan(p, support) {
+// Tombol Pasang sekarang sendiri: di tab Status ia ikut di bawah kalimatnya, di kotak Versi &
+// lisensi ia duduk di baris tombol modal, sebelah Tutup.
+function tombolPasang(p) {
+  if (!p || !p.terpasang || p.berjalan || !p.siap) return "";
+  return `<button type="button" class="pembaruan-pasang utama" data-target="${esc(p.siap)}">${IKON_UNDUH}<span>${esc(t("btnPasangSekarang"))}</span></button>`;
+}
+
+function htmlPembaruan(p, support, denganTombol = true) {
   if (!p || (!p.terpasang && !support)) return "";
   const isi = [];
   if (!p.terpasang) isi.push(`<p class="pembaruan-ket">${esc(t("pembaruanBelumTerpasang"))}</p>`);
   else if (p.berjalan) isi.push(`<p class="pembaruan-ket" role="status">${esc(t("pembaruanBerjalan"))}</p>`);
   else if (p.siap) isi.push(
     `<p class="pembaruan-ket"><b>${esc(t("pembaruanSiap").replace("{versi}", p.siap))}</b></p>`,
-    `<p class="pembaruan-ket">${esc(t("pembaruanSyarat"))}</p>`,
-    `<button type="button" class="pembaruan-pasang" data-target="${esc(p.siap)}">${IKON_UNDUH}<span>${esc(t("btnPasangSekarang"))}</span></button>`);
+    `<p class="pembaruan-syarat">${esc(t("pembaruanSyarat"))}</p>`,
+    denganTombol ? tombolPasang(p) : "");
   else isi.push(`<p class="pembaruan-ket">${esc(t("pembaruanTerbaru"))}</p>`);
   const hasil = teksHasilPembaruan(p.hasil);
   if (hasil) isi.push(`<p class="pembaruan-hasil" data-state="${esc(p.hasil.state)}">${esc(hasil)}</p>`);
@@ -7848,13 +7886,31 @@ function namaLineDari(kode, peta) {
   return String(kode).split(/,\s*/).map((k) => peta[k] || k).join(", ");
 }
 
+function gambarPembaruanModal(p) {
+  tulisKalauBeda($("pembaruan-isi"), htmlPembaruan(p, false, false));
+  tulisKalauBeda($("info-sistem-pasang"), tombolPasang(p));
+}
+
+function gambarPitaPembaruan(p) {
+  const el = $("pita-pembaruan");
+  const html = pitaPembaruan(p, baca("pembaruanDitutup", ""));
+  el.hidden = !html;
+  tulisKalauBeda(el, html);
+}
+
+$("pita-pembaruan").addEventListener("click", (ev) => {
+  if (ev.target.closest("[data-tutup-pembaruan]")) {
+    if (pembaruanTerakhir && pembaruanTerakhir.siap) simpan("pembaruanDitutup", pembaruanTerakhir.siap);
+    gambarPitaPembaruan(pembaruanTerakhir);
+  } else if (ev.target.closest("[data-buka-pembaruan]")) {
+    bukaInfoSistem();
+  }
+});
+
 function gambarPembaruan(p) {
   pembaruanTerakhir = p || null;
-  const badge = $("badge-pembaruan");
-  const teks = teksBadgePembaruan(p);
-  if (badge.textContent !== teks) badge.textContent = teks;
-  badge.hidden = !teks;
-  if ($("info-sistem-modal").open) tulisKalauBeda($("pembaruan-isi"), htmlPembaruan(p, false));
+  gambarPitaPembaruan(p);
+  if ($("info-sistem-modal").open) gambarPembaruanModal(p);
   // Support-only: tab Status tidak ada di DOM untuk akun operator.
   const status = $("sec-status");
   if (status && !status.hidden) tulisKalauBeda($("pembaruan-support"), htmlPembaruan(p, true));

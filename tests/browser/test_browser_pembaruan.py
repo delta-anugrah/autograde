@@ -48,10 +48,10 @@ def test_update_now_refused_with_a_truck_then_accepted_without(halaman, lines, k
     nama_line = kartu.locator(".nama").inner_text().strip()
 
     try:
-        badge = halaman.locator("#badge-pembaruan")
-        expect(badge).to_have_text(kamus(halaman, "pembaruanSiap").replace("{versi}", "v1.22.1"))
-        badge.click()
-        tombol = halaman.locator("#pembaruan-isi .pembaruan-pasang")
+        badge = halaman.locator("#pita-pembaruan")
+        expect(badge).to_contain_text(kamus(halaman, "pembaruanSiap").replace("{versi}", "v1.22.1"))
+        badge.locator("[data-buka-pembaruan]").click()
+        tombol = halaman.locator("#info-sistem-modal .pembaruan-pasang")
         tombol.click()
         # User decision 2026-10-02: the refusal names the line as its card does.
         ditolak = kamus(halaman, "err_pembaruan_ada_truk").replace("{line}", nama_line)
@@ -85,7 +85,28 @@ def test_update_now_refused_with_a_truck_then_accepted_without(halaman, lines, k
         expect(halaman.locator("#pembaruan-isi")).to_contain_text(
             kamus(halaman, "pembaruanHasilOk").replace("{versi}", "v1.22.1")
         )
-        expect(halaman.locator("#pembaruan-isi .pembaruan-pasang")).to_have_count(0)
+        expect(halaman.locator("#info-sistem-modal .pembaruan-pasang")).to_have_count(0)
         expect(badge).to_be_hidden()
     finally:
         halaman.request.post(f"{konsol.url}/api/console/lines/line-1/release-truck")
+
+
+def test_update_banner_closes_until_the_next_version(halaman, konsol, folder_update):
+    """User 2026-10-04: the banner opens the box when tapped and can be closed; closed stays
+    closed for that version, and a newer staged version brings it back."""
+    masuk(halaman, OPERATOR)
+    halaman.evaluate("localStorage.removeItem('pembaruanDitutup')")
+    pita = halaman.locator("#pita-pembaruan")
+    expect(pita).to_contain_text("v1.22.1")
+    pita.locator("[data-buka-pembaruan]").click()
+    expect(halaman.locator("#info-sistem-modal")).to_be_visible()
+    halaman.click("#info-sistem-tutup")
+    pita.locator("[data-tutup-pembaruan]").click()
+    expect(pita).to_be_hidden()
+    halaman.reload()
+    # The session survives a reload; wait for the first poll to draw the header.
+    expect(halaman.locator("#info-sistem")).to_be_visible()
+    expect(pita).to_be_hidden()
+    (folder_update / "status.json").write_text(json.dumps({**STATUS, "staged": "v1.22.2"}))
+    expect(pita).to_contain_text("v1.22.2")
+    halaman.evaluate("localStorage.removeItem('pembaruanDitutup')")
