@@ -18,6 +18,24 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · vision · Batch 6.3: display shrinks first and rests with no viewer (PR #231)
+Changed:        `DisplayWorker` shrinks the frame to stream size first and draws the boxes on the
+                small frame (`draw_boxes(skala=...)`, geometry in `domain/skala_tampilan.py`); the
+                sensor frame is never copied or drawn on. `StreamingService` counts MJPEG viewers in
+                and out; with none, nothing is rendered and `latest_frame` is set back to `None`.
+                `cv2` is an argument of the worker, so it runs in the unit suite. New
+                `scripts/bench_display.py`.
+Validated:      unit 4650 passed, e2e 396, integration 169, ruff clean; mutations fail the tests;
+                rule 4 pinned. Real pixels: every box border centre within 1 px of the old render,
+                capture line and ROI box unmoved, evidence photo drawing byte-identical to staging.
+                Benchmark on the MacBook (M2), ms per render of a 2448x2048 frame: 5.05 to 4.70 with
+                no box, 5.38 to 4.78 with 2, 6.08 to 5.01 with 6; 0.001 with nobody watching.
+Not validated:  The factory PC was not measured. The stream was not watched in a browser on a line.
+Decisions:      One scale factor for the label on both axes (geometric mean): the label is a little
+                taller and no longer squashed. The saving from shrinking first is small on this Mac
+                (7 to 18 %); the saving that counts is the render that no longer happens for nobody.
+Next:           The user looks at one line card on a real line and confirms the label reads well.
+
 ## 2026-10-04 · console + vision · Detection area box from the console, collapsible Diagnostics (PR #225)
 Changed:        The ROI box is set from Settings, Camera & Conveyor (four stream-space pixels,
                 `roi_x1..roi_y2`) through the grading settings path: `domain/setelan_grading`
