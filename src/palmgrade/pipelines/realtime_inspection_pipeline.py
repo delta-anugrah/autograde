@@ -114,7 +114,8 @@ class RealtimeInspectionPipeline:
         return rx1, ry1, rx2, ry2
 
     def draw_roi(
-        self, frame: np.ndarray, garis_capture: int = 0, sumbu: str = TEGAK
+        self, frame: np.ndarray, garis_capture: int = 0, sumbu: str = TEGAK,
+        *, tampil_garis: bool = True, tampil_roi: bool = True,
     ) -> np.ndarray:
         """Kotak ROI (hijau, tipis) + garis capture (biru, tebal, bertanda).
 
@@ -135,14 +136,18 @@ class RealtimeInspectionPipeline:
         perilaku sebelum fitur ini ada, dan tetap sah — tapi artinya janjang
         difoto begitu masuk ROI, yang pada ROI penuh layar berarti begitu
         terdeteksi di mana pun.
+
+        `tampil_garis` / `tampil_roi` (console switches, 2026-10-04) only decide
+        whether each one is DRAWN. Detection never reads them: a hidden line still
+        triggers the capture and a hidden box still filters the region.
         """
         h, w = frame.shape[:2]
         kotak = self.roi_in_stream_space(w, h)
-        if kotak is not None and self._roi_enabled:
+        if tampil_roi and kotak is not None and self._roi_enabled:
             rx1, ry1, rx2, ry2 = kotak
             cv2.rectangle(frame, (rx1, ry1), (rx2, ry2), COLOR_ROI, 2)
 
-        if garis_capture <= 0:
+        if garis_capture <= 0 or not tampil_garis:
             return frame
 
         teks = "CAPTURE"

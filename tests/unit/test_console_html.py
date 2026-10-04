@@ -1344,3 +1344,23 @@ def test_tabel_menahan_teks_sr_only_di_dalam_geserannya():
     aturan = re.search(r"\n  \.tabel \{([^}]*)\}", HTML)
     assert aturan, "aturan .tabel tidak ketemu"
     assert "position:relative" in aturan.group(1)
+
+
+# ── 2026-10-04: show/hide the capture line and the ROI box, card button row ──
+
+
+def test_saklar_tampil_garis_dan_kotak_ada_dan_terkirim():
+    for id_, kunci in (("set-tampil-garis", "tampil_garis"), ("set-tampil-roi", "tampil_roi")):
+        assert f'id="{id_}" type="checkbox" checked' in HTML, "drawn by default, like before the switch"
+        assert f'{kunci}: $("{id_}").checked' in HTML
+        # An older server has no such field: the box must stay ticked, not fall to off.
+        assert f'$("{id_}").checked = r.{kunci} !== false' in HTML
+    for kunci in ("labelTampilGaris", "bantuTampilGaris", "labelTampilRoi", "bantuTampilRoi"):
+        assert HTML.count(f"{kunci}:") == 2, f"{kunci} must exist in both languages"
+
+
+def test_baris_tugaskan_empat_kolom_pemilih_selebar_reject():
+    """The truck picker spans two of four equal columns, so it is as wide as Manual Reject
+    below it, and a long label (Force release) cannot widen its button."""
+    assert ".assign { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px; }" in HTML
+    assert ".assign .pilih { grid-column:span 2; }" in HTML

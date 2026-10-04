@@ -92,6 +92,8 @@ async def setelan_grading(
     state.garis_capture_override = bersih["garis_capture"]
     state.sumbu_garis_override = bersih["sumbu_garis"]
     state.mode_dev_override = bersih["mode_dev"]
+    state.tampil_garis_override = bersih["tampil_garis"]
+    state.tampil_roi_override = bersih["tampil_roi"]
     logger.warning(
         "Setelan grading diubah dari konsol: conf=%s minimum_size=%s garis=%s sumbu=%s "
         "(sebelumnya env conf=%s size=%s garis=%s sumbu=%s)",
@@ -121,6 +123,8 @@ async def setelan_grading_aktif(
         if state.sumbu_garis_override is not None else settings.sumbu_garis,
         mode_dev=state.mode_dev_override
         if state.mode_dev_override is not None else settings.mode_dev,
+        tampil_garis=state.tampil_garis_override is not False,
+        tampil_roi=state.tampil_roi_override is not False,
         sumber="konsol" if ditimpa else "env",
     )
 

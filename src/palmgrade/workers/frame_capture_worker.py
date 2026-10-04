@@ -13,6 +13,10 @@ from .runtime_state import RuntimeState
 logger = logging.getLogger(__name__)
 
 _MAX_CONSECUTIVE_FAILURES = 5
+#: Pace for a source with no rate of its own that never waits in `grab_frame` (photo, video
+#: file without a rate) while `CAMERA_FPS` is 0 or empty. Same number as the `CAMERA_FPS`
+#: default (`tests/unit/test_camera_frame_rate.py`).
+LAJU_TANPA_SUMBER_FPS = 20
 _RECONNECT_BACKOFF_BASE = 1.0
 _RECONNECT_BACKOFF_MAX = 30.0
 # The automatic backoff sleeps in slices this long, so a press of the reconnect button
@@ -84,18 +88,24 @@ class FrameCaptureWorker:
         #
         # `0` disisakan untuk kasus yang benar-benar tidak punya laju
         # (`CAMERA_FPS=0`), dan di situ angka layar memang yang dipakai.
-        self.state.camera_fps_terukur = (
-            float(detected) if detected > 0
-            else float(self._target_fps) if self._target_fps > 0
-            else 0.0
+        #
+        # A source that never waits (photo, video file with no rate in its header) is
+        # paced at the fallback even then: unpaced, the loop spun at 5,600 grabs a second
+        # on a Mac photo line and starved detection (2026-10-04).
+        cadangan = self._target_fps if self._target_fps > 0 else (
+            0 if self.camera.menunggu_frame else LAJU_TANPA_SUMBER_FPS
         )
+        self.state.camera_fps_terukur = float(detected) if detected > 0 else float(cadangan)
         # INFO hanya saat lajunya BERUBAH: kamera yang diam disambung ulang tiap ~2 detik
         # selama FRAME_BERHENTI, dan baris yang sama tiap siklus cuma derau.
         if detected > 0:
             self._frame_interval = 1.0 / detected
             self._catat_laju("Capture paced by the camera: %.2f fps", detected)
             return
-        self._frame_interval = 1.0 / self._target_fps if self._target_fps > 0 else 0.0
+        self._frame_interval = 1.0 / cadangan if cadangan > 0 else 0.0
+        if cadangan and self._target_fps <= 0:
+            self._catat_laju("Source has no frame rate and never waits; pacing at %s fps", cadangan)
+            return
         self._catat_laju("Camera reports no frame rate; pacing from CAMERA_FPS=%s", self._target_fps)
 
     def _catat_laju(self, pesan: str, nilai: float) -> None:

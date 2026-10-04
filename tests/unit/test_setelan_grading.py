@@ -35,6 +35,8 @@ def test_nilai_wajar_diterima_apa_adanya():
         "garis_capture": 0,
         "sumbu_garis": "tegak",
         "mode_dev": False,
+        "tampil_garis": True,
+        "tampil_roi": True,
     }
 
 
@@ -48,6 +50,8 @@ def test_angka_berbentuk_teks_diterima():
         "garis_capture": 900,
         "sumbu_garis": "tegak",
         "mode_dev": False,
+        "tampil_garis": True,
+        "tampil_roi": True,
     }
 
 
@@ -95,3 +99,15 @@ def test_field_yang_tidak_dikenal_ditolak():
 def test_dua_duanya_wajib_ada():
     with pytest.raises(SetelanTidakSah):
         bersihkan_setelan({"conf_threshold": 0.5})
+
+
+def test_saklar_tampil_bawaannya_nyala_dan_bisa_dimatikan():
+    """Display only (2026-10-04). A payload without them is an older console, where the
+    capture line and the ROI box were always drawn; False hides the drawing."""
+    dasar = {"conf_threshold": 0.5, "minimum_size": 3000}
+    bersih = bersihkan_setelan(dasar)
+    assert (bersih["tampil_garis"], bersih["tampil_roi"]) == (True, True)
+    bersih = bersihkan_setelan({**dasar, "tampil_garis": False, "tampil_roi": False})
+    assert (bersih["tampil_garis"], bersih["tampil_roi"]) == (False, False)
+    # Hiding the line never moves it: the capture trigger keeps its position.
+    assert bersihkan_setelan({**dasar, "garis_capture": 900, "tampil_garis": False})["garis_capture"] == 900

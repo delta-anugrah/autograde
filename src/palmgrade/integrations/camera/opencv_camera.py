@@ -28,6 +28,8 @@ class OpenCVCamera(CameraSource):
         self._is_video_file = is_video_file
         # Start over at the end instead of stopping (CAMERA_VIDEO_LOOP). Video only.
         self._loop = loop and is_video_file
+        # Reading a file never waits; a webcam's driver does.
+        self.menunggu_frame = not is_video_file
         self._cap: cv2.VideoCapture | None = None
         self.connected: bool = False
         self._rewound: bool = False

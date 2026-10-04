@@ -123,7 +123,7 @@ def test_ringkasan_worker_menyebut_berapa_yang_hidup():
     """Baris judul Workers memberi hitungan, jadi satu worker mati terbaca dari
     jauh tanpa menyisir daftarnya."""
     html = _kartu(_LINE_SEHAT)
-    judul = re.search(r"<dt>thWorkers</dt><dd>(.*?)</dd>", html)
+    judul = re.search(r'<h3 class="diag-grup">thWorkers (.*?)</h3>', html)
     assert judul, html
     assert "2/3" in judul.group(1)
     assert "tanda-gagal" in judul.group(1)
@@ -151,7 +151,7 @@ def test_plc_mati_tetap_strip_bukan_silang():
 def test_line_tanpa_worker_tidak_menulis_baris_kosong():
     html = _kartu({**_LINE_SEHAT, "workers": []})
     assert 'class="diag-worker"' not in html
-    judul = re.search(r"<dt>thWorkers</dt><dd>(.*?)</dd>", html).group(1)
+    judul = re.search(r'<h3 class="diag-grup">thWorkers (.*?)</h3>', html).group(1)
     assert judul == "-"
 
 

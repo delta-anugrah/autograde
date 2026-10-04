@@ -43,6 +43,10 @@ class RuntimeState:
     # Mode dev: tampilkan angka confidence di kotak janjang. Untuk support
     # yang menyetel ambang; operator tidak butuh dan salah membacanya.
     mode_dev_override: bool | None = None
+    # Draw the capture line / the ROI box on the video (2026-10-04). Display only:
+    # detection and capture keep using both. None = never set from the console = drawn.
+    tampil_garis_override: bool | None = None
+    tampil_roi_override: bool | None = None
 
     # Laju yang BENAR-BENAR dikirim kamera, diisi `adopt_camera_frame_rate()`
     # tiap connect. `0` = sumber tidak bisa melapor (berkas video, webcam).
