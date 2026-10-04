@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-04 · console · Fresh data without a manual refresh, taps never lost (batch 5.3, 5.4, 5.8, 6.4) (PR #PRNUM)
+## 2026-10-04 · console · Fresh data without a manual refresh, taps never lost (batch 5.3, 5.4, 5.8, 6.4) (PR #229)
 Changed:        `static/console.html`: the 2 s poll takes a turn (`kunciAntre`), a timer tick that
                 lands while a pull is in flight is dropped (`detakRefresh`, `sekaliJalan` for the
                 truck and weighbridge polls), every request has a time limit
