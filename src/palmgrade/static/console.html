@@ -617,24 +617,6 @@
      so the glyphs sit high against the ONLINE text beside them. */
   .card h2 .ord { display:flex; align-items:center; gap:4px; }
   .card h2 button { padding:2px 9px; font-size:.85rem; line-height:1.2; color:var(--muted); }
-  /* Sambung ulang (2026-10-04): the one header control an operator presses with a glove,
-     so a full 44px target with a word, not a bare glyph like the reorder arrows. In the
-     header, away from the Tugaskan / Lepas / Reject rows. The icon makes way for the busy
-     spinner (`button.sibuk::before`). */
-  .card h2 button.sambung-ulang { min-height:44px; display:inline-flex; align-items:center; gap:6px;
-                                  padding:0 12px; font-size:.8rem; color:var(--fg); white-space:nowrap; }
-  .card h2 button.sambung-ulang .ikon-sambung { flex:none; width:1.05rem; height:1.05rem; }
-  .card h2 button.sambung-ulang.sibuk .ikon-sambung { display:none; }
-  .card h2 button.sambung-ulang.sibuk::before { margin-right:0; }
-  /* A narrow card (three columns at 1280 px) has no room for the word next to the line name
-     and OFFLINE: the name would be cut to "Lin...". Icon only there, still 44px square; the
-     `title` names it. Measured on the header, not the viewport: the operator picks the
-     column count. */
-  .card h2 { container-type:inline-size; }
-  @container (max-width:460px) {
-    .card h2 button.sambung-ulang { width:44px; padding:0; justify-content:center; }
-    .card h2 button.sambung-ulang > span { display:none; }
-  }
 
   /* Diagnostik: one .card per line, same grid rhythm as #lines above. */
   .kartu-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
@@ -793,11 +775,24 @@
      FPS counter the vision service burns into the frame moves on a live feed
      and freezes on a dead one - so the badge only repeated what was already
      on screen, over the picture the operator is trying to read. */
-  .feed span { position:absolute; inset:0; z-index:4; display:none; place-items:center;
-               padding:16px; text-align:center; color:#fff;
-               font-size:1.15rem; font-weight:700; background:rgba(0,0,0,.72); }
+  /* "Kamera tidak tersambung" dan, di bawahnya, tombol Sambung ulang (user 2026-10-04: di
+     kepala kartu tombolnya terlalu besar). Cuma tampil saat gambarnya memang tidak ada. */
+  .feed-putus { position:absolute; inset:0; z-index:4; display:none; flex-direction:column;
+                align-items:center; justify-content:center; gap:14px; padding:16px;
+                text-align:center; color:#fff; font-size:1.15rem; font-weight:700;
+                background:rgba(0,0,0,.72); }
   .card.putus .feed img { visibility:hidden; }
-  .card.putus .feed span { display:grid; }
+  .card.putus .feed-putus { display:flex; }
+  /* Kamera terbuka tapi diam (FRAME_BERHENTI): frame terakhir tetap di layar dan browser tidak
+     pernah menandai `putus`, padahal di sinilah tombol Sambung ulang paling dibutuhkan. */
+  .card.frame-berhenti .feed-putus { display:flex; }
+  /* Sarung tangan: 44px, tapi tidak lebih lebar dari kata dan ikonnya. Ikon memberi tempat
+     untuk spinner sibuk (`button.sibuk::before`). */
+  .feed-putus button.sambung-ulang { min-height:44px; display:inline-flex; align-items:center; gap:8px;
+                                     padding:0 16px; font-size:.9rem; white-space:nowrap; }
+  .feed-putus button.sambung-ulang .ikon-sambung { flex:none; width:1.05rem; height:1.05rem; }
+  .feed-putus button.sambung-ulang.sibuk .ikon-sambung { display:none; }
+  .feed-putus button.sambung-ulang.sibuk::before { margin-right:0; }
   /* Line yang sedang dinyalakan ulang (Sumber Kamera, Model Deteksi, Danger
      Zone): di atas "Kamera tidak tersambung", karena selama restart itu memang
      bukan kerusakan. Spinner dan bar CSS murni, tanpa gambar: konsol harus jalan offline.
@@ -810,8 +805,8 @@
      belakangnya (permintaan operator 2026-09-29: "cukup loadingnya aja"). Kelasnya
      dipasang `gambarRestart` dan hilang saat tanda hilang atau berganti kotak merah,
      jadi kamera yang benar-benar putus sesudahnya tetap terbaca. Harus SESUDAH
-     `.card.putus .feed span`: spesifisitasnya sama. */
-  .card.sedang-restart .feed > span { display:none; }
+     `.card.putus .feed-putus`: spesifisitasnya sama. */
+  .card.sedang-restart .feed-putus { display:none; }
   .feed .restart-kotak b { font-size:1.15rem; }
   .feed .restart-kotak p { margin:0; }
   .feed .restart-kotak.lama { background:var(--danger-bg); color:var(--danger-fg); }
@@ -4616,6 +4611,12 @@ function pitaKunciDitolak(l) {
 // dengan coil ERROR PLC. Line yang tidak terbaca tidak menggambar pita ini:
 // kartunya sudah OFFLINE. `ai.mati` sengaja tetap AI saja (konsol versi lama
 // membacanya), jadi frame berhenti dikenali dari `keadaan`.
+// Line menjawab dan bilang kameranya berhenti mengirim gambar (penjaga AI, aturan 35).
+function frameBerhenti(l) {
+  const p = l.plc || {};
+  return Boolean(p.reachable && p.ai && p.ai.keadaan === "frame_berhenti");
+}
+
 function aiMati(l) {
   const p = l.plc || {};
   return Boolean(p.reachable && p.ai && (p.ai.mati || p.ai.keadaan === "frame_berhenti"));
@@ -4770,13 +4771,12 @@ function kartuLine(l, sekarang = Date.now()) {
     .concat(trucks.map((tr) => ({ v: tr.id, teks: tr.plate_number || KOSONG })));
   // line_code only rides along as data-line and is read via dataset - it never
   // enters an onclick attribute, so there is no JS string context to inject.
-  return `<div class="card${aiMati(l) ? " ai-mati" : ""}" data-line="${esc(l.line_code)}">
+  return `<div class="card${aiMati(l) ? " ai-mati" : ""}${frameBerhenti(l) ? " frame-berhenti" : ""}" data-line="${esc(l.line_code)}">
     <h2><span class="nama">${esc(l.name)}</span>
       <span class="sinyal">
         <span class="on" data-t="statusOnline">Online</span>
         <span class="off" data-t="statusOffline">Offline</span>
       </span>
-      ${tombolSambungUlang(l)}
       <span class="ord">
         <button data-aksi="geser" data-arah="-1" title="${esc(t("geserKiri"))}">&#9664;</button>
         <button data-aksi="geser" data-arah="1" title="${esc(t("geserKanan"))}">&#9654;</button>
@@ -4785,7 +4785,7 @@ function kartuLine(l, sekarang = Date.now()) {
     ${pitaPiston(l)}
     ${pitaKunciDitolak(l)}
     <div class="slot-ai">${pitaAi(l)}</div>
-    ${feed ? `<div class="feed"><img src="${feed}" alt=""><span>${esc(t("kameraPutus"))}</span><div class="slot-restart"></div></div>` : ""}
+    ${feed ? `<div class="feed"><img src="${feed}" alt=""><div class="feed-putus"><span>${esc(t("kameraPutus"))}</span>${tombolSambungUlang(l)}</div><div class="slot-restart"></div></div>` : ""}
     <div class="counts">
       <span class="acc"><span class="lb">${esc(t("clsRipe"))}</span><b data-k="ripe">${l.ripe || 0}</b></span>
       <span class="rej"><span class="lb">${esc(t("clsUnripe"))}</span><b data-k="unripe">${l.unripe || 0}</b></span>

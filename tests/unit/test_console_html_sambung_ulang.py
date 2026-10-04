@@ -33,15 +33,23 @@ def test_every_word_is_in_both_languages(bahasa):
         assert f"{kunci}:" in isi, f"KAMUS.{bahasa} misses {kunci}"
 
 
-def test_the_button_sits_in_the_card_header_away_from_the_action_row():
+def test_the_button_sits_under_the_camera_dropped_notice():
+    """User 2026-10-04: in the header it was too big; it belongs where the picture is missing,
+    under "Kamera tidak tersambung", so it only shows when there is something to reconnect."""
     kartu = fungsi("kartuLine")
     kepala = kartu[kartu.index("<h2>") : kartu.index("</h2>")]
-    assert "${tombolSambungUlang(l)}" in kepala
-    assert "tombolSambungUlang" not in kartu[kartu.index('<div class="body">') :]
+    assert "tombolSambungUlang" not in kepala
+    putus = re.search(r'<div class="feed-putus"><span>\$\{esc\(t\("kameraPutus"\)\)\}</span>\$\{tombolSambungUlang\(l\)\}</div>', kartu)
+    assert putus, kartu[kartu.index('<div class="feed">') :][:300]
 
 
-def test_the_header_button_is_a_44px_touch_target():
-    aturan = re.search(r"\.card h2 button\.sambung-ulang\s*\{([^}]*)\}", HTML).group(1).replace(" ", "")
+def test_the_notice_and_button_show_only_when_the_camera_dropped():
+    assert re.search(r"\n  \.feed-putus \{[^}]*display:none", HTML)
+    assert re.search(r"\n  \.card\.putus \.feed-putus \{ display:flex; \}", HTML)
+
+
+def test_the_button_is_a_44px_touch_target():
+    aturan = re.search(r"\.feed-putus button\.sambung-ulang\s*\{([^}]*)\}", HTML).group(1).replace(" ", "")
     assert "min-height:44px" in aturan
 
 
@@ -150,9 +158,15 @@ def test_a_refusal_is_worded_from_its_code_and_the_lock_comes_off():
     assert (hasil["sukses"], hasil["sisa"], hasil["sibukSesudah"]) == ([], [], False)
 
 
-def test_a_narrow_card_keeps_the_line_name_and_shows_the_icon_only():
-    """Three columns at 1280 px: the word would push "Line 3" down to "Lin..."."""
-    assert re.search(r"\.card h2\s*\{\s*container-type:inline-size;", HTML)
-    sempit = HTML[HTML.index("@container (max-width:460px)") :].split("\n  }\n", 1)[0]
-    assert "button.sambung-ulang > span { display:none; }" in sempit
-    assert "width:44px" in sempit
+def test_the_header_no_longer_needs_a_narrow_layout_for_the_button():
+    assert "button.sambung-ulang > span { display:none; }" not in HTML
+    assert ".card h2 button.sambung-ulang" not in HTML
+
+def test_a_camera_that_stopped_sending_also_gets_the_button():
+    """FRAME_BERHENTI: the camera is open but silent, the last frame stays on screen, and the
+    browser never marks the card `putus`. That is the case the button exists for."""
+    assert re.search(r"\n  \.card\.frame-berhenti \.feed-putus \{ display:flex; \}", HTML)
+    kartu = fungsi("kartuLine")
+    assert '${frameBerhenti(l) ? " frame-berhenti" : ""}' in kartu
+    berhenti = fungsi("frameBerhenti")
+    assert 'keadaan === "frame_berhenti"' in berhenti and "reachable" in berhenti

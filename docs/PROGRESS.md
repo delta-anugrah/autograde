@@ -18,6 +18,17 @@ Next:           ...
 
 ---
 
+## 2026-10-04 · console · Reconnect button moves under "Kamera tidak tersambung" (PR #222)
+Changed:        User 2026-10-04: in the card header the button was too big. It now sits in the
+                camera box under "Kamera tidak tersambung" (`.feed-putus`, replacing the bare
+                `.feed span`), so it shows only when there is no picture: the card is `putus`, or
+                the line reports FRAME_BERHENTI (`frameBerhenti(l)` adds `.frame-berhenti`; the
+                last frame stays on screen there and the browser never marks the card). The
+                header container query and icon-only layout are gone. The browser fake line can
+                stop sending its picture (`atur_feed(False)`).
+Validated:      unit 4541, e2e 387, integration 162, browser 218, ruff clean; screenshot at 1920 px.
+Next:           Merge, then release v1.23.0.
+
 ## 2026-10-04 · console · Reconnect camera button on each line card (PR #221)
 Changed:        A **Sambung ulang** button (circular arrow + word, 44 px; icon only when the card
                 header is narrower than 460 px) in every line card header next to ONLINE/OFFLINE,

@@ -49,7 +49,10 @@ class _Penjawab(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         jalur = urlsplit(self.path).path
         if jalur == "/api/video_feed":
-            self._kirim(200, PNG_1PX, "image/png")
+            if self.server.feed_ada:
+                self._kirim(200, PNG_1PX, "image/png")
+            else:
+                self._json(404, {"detail": "Not Found"})
         elif jalur == "/health":
             self._json(200, {"status": "ok"})
         elif jalur == "/internal/status":
@@ -96,6 +99,7 @@ class _Server(ThreadingHTTPServer):
         super().__init__(("127.0.0.1", port), _Penjawab)
         self.diterima: list[tuple[str, dict]] = []
         self.sambung_ulang_jeda = 0.0
+        self.feed_ada = True
         self.sambung_ulang_tanpa_kamera = False
 
 
@@ -119,6 +123,11 @@ class LinePalsu:
         video or photo line. The lines live for the whole session: reset it afterwards."""
         self._server.sambung_ulang_jeda = jeda
         self._server.sambung_ulang_tanpa_kamera = tanpa_kamera
+
+    def atur_feed(self, ada: bool = True) -> None:
+        """`False`: the line answers but sends no picture, so its card shows "Kamera tidak
+        tersambung" (and the Sambung ulang button under it). Reset it afterwards."""
+        self._server.feed_ada = ada
 
     def berhenti(self) -> None:
         self._server.shutdown()
