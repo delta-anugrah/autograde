@@ -52,7 +52,7 @@ class PenyimpanBerkas:
     def write_image(self, path: Path, frame, quality: int = 80) -> None:
         varian = self._varian(path)
         self.thread[varian] = threading.current_thread().name
-        if self.bersama is not None:
+        if self.bersama is not None and varian != "thumb":
             self.bersama.wait(timeout=BATAS_TUNGGU_S)
         if varian in self.gagal:
             raise self.galat(f"disk menolak {varian}")
