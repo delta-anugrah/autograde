@@ -94,7 +94,9 @@ async def setelan_grading(
     state.mode_dev_override = bersih["mode_dev"]
     state.tampil_garis_override = bersih["tampil_garis"]
     state.tampil_roi_override = bersih["tampil_roi"]
-    state.roi_override = kotak_dari(bersih)
+    state.roi_override = kotak_dari(bersih, settings.stream_width, settings.stream_height)
+    if state.roi_override is None and bersih["roi_x1"] is not None:
+        logger.warning("Detection box from the console covers none of the picture, keeping ROI_* from .env")
     logger.warning(
         "Setelan grading diubah dari konsol: conf=%s minimum_size=%s garis=%s sumbu=%s "
         "(sebelumnya env conf=%s size=%s garis=%s sumbu=%s)",

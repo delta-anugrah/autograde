@@ -848,7 +848,7 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         sah, tinggal line itu yang belum menerimanya. Hasil per line dikembalikan
         apa adanya supaya layar bisa bilang line mana yang belum kena.
         """
-        bersih = bersihkan_setelan(payload)
+        bersih = bersihkan_setelan(payload, stream=(self.settings.stream_width, self.settings.stream_height))
         self.store.set_state(KUNCI_SETELAN, json.dumps(bersih))
         logger.warning(
             "Setelan grading diubah oleh %s: conf=%s minimum_size=%s garis=%s sumbu=%s",

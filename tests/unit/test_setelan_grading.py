@@ -157,3 +157,30 @@ def test_kotak_cacat_ditolak(kotak):
     """A box with no area filters every bunch out while the line looks healthy."""
     with pytest.raises(SetelanTidakSah):
         bersihkan_setelan({**_DASAR, **kotak})
+
+
+@pytest.mark.parametrize("kotak", [
+    (5000, 0, 0, 0),        # starts right of a 1280 px picture, "to the edge" is then behind it
+    (0, 900, 0, 0),         # starts below a 720 px picture
+    (1280, 0, 2000, 400),   # wholly off screen
+])
+def test_kotak_di_luar_gambar_ditolak_konsol_dan_diabaikan_line(kotak):
+    """The plain range check cannot know the stream size. Such a box would drop every bunch
+    with no error: the console refuses it at save, and a line that still receives one keeps
+    its own `.env` box (None) instead of filtering everything out."""
+    from palmgrade.domain.setelan_grading import kotak_berluas, kotak_dari
+
+    isi = dict(zip(("roi_x1", "roi_y1", "roi_x2", "roi_y2"), kotak, strict=True))
+    assert not kotak_berluas(kotak, 1280, 720)
+    with pytest.raises(SetelanTidakSah):
+        bersihkan_setelan({**_DASAR, **isi}, stream=(1280, 720))
+    assert kotak_dari(bersihkan_setelan({**_DASAR, **isi}), 1280, 720) is None
+
+
+def test_kotak_di_dalam_gambar_lolos_dengan_ukuran_stream():
+    from palmgrade.domain.setelan_grading import kotak_dari
+
+    isi = {"roi_x1": 100, "roi_y1": 50, "roi_x2": 0, "roi_y2": 620}
+    bersih = bersihkan_setelan({**_DASAR, **isi}, stream=(1280, 720))
+    assert kotak_dari(bersih, 1280, 720) == (100, 50, 0, 620)
+    assert kotak_dari(bersihkan_setelan({**_DASAR, **dict.fromkeys(_KOSONG, 0)}), 1280, 720) == (0, 0, 0, 0)
