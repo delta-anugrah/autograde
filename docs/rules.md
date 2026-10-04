@@ -110,6 +110,13 @@ end of this file.
 2. **`_processed_objects`**: never `discard()` an active track (single-trigger). Trim only IDs that are inactive (gone from `track_history`) **and** stale >300s.
 3. **`state.lock`** around all physical camera access (`FrameCaptureWorker` + `capture_manual_reject`).
 4. **MJPEG**: only `DisplayWorker` writes `state.latest_frame`, via `threading.Condition.notify_all()` (multi-viewer). It renders `last_yolo_frame` (paired with results) and runs at `STREAM_FPS` (default 12), decoupled from `CAMERA_FPS`.
+   Since batch 6.3 it shrinks the frame to stream size first and draws the boxes on the small frame
+   (`draw_boxes(skala=...)`; the sensor frame is never copied or drawn on: the detection thread hands
+   the same array to the photo writer as the clean copy). `StreamingService` counts every MJPEG viewer
+   in and out (`state.penonton_masuk` / `penonton_keluar`); with nobody counted in, `DisplayWorker`
+   renders nothing and sets `latest_frame` back to `None`, so a viewer who returns waits one interval
+   for a new picture and is never handed the last one from before the pause. Clearing it is still
+   `DisplayWorker` writing, under the same condition. Numbers: `scripts/bench_display.py`.
 5. **DI** (`core/dependencies.py`): `@lru_cache` singletons **except** `get_capture_service()` / `get_health_service()` (camera injected at startup). `get_outbox_store()` may cache (SQLite singleton).
 6. **Lifespan** (not `@app.on_event`); `repo_root = parents[3]`; every worker `run_loop` wraps `run_once` in `try/except`; `FrameCaptureWorker` needs `device_index` (so line-2/3 reconnect to the correct camera).
 7. **`tp_status`: boolean di sidecar, `"PASS"`/`null` di kawat.** Dua kosakata, satu
