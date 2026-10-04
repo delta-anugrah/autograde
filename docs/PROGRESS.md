@@ -18,6 +18,27 @@ Next:           ...
 
 ---
 
+## 2026-10-04 · console · Lepas paksa for a line that does not answer (PR pending)
+Changed:        On a card that holds a truck while its line's status cannot be read at all, Lepas
+                becomes **Lepas paksa** (`bahaya pekat`, with a confirmation). The server decides
+                (`POST /api/console/lines/{line_code}/force-release`, `services/lepas_paksa.py`,
+                `domain/lepas_paksa.py`): the normal release first (3 s); a line that answers is
+                released normally, a line that answers with a refusal is never forced (502), and
+                only a silent line is released on the console alone, with the same bookkeeping as
+                Lepas (grading link, one AutoERP message, rule 18) and one WARNING naming the account.
+                A line that was only cut off hears the release again: forced releases are kept in
+                `sync_state` `lepas_paksa_tertunda`, and `LineStatusWorker` hands every answered
+                status to `cocokkan_lepas_paksa`; `assign_truck` holds a per-line lock so that
+                re-send never overwrites a newer truck. Rule 13 (+ 36, 38), CLAUDE.md index line,
+                backend-overview, MANUAL, skill konsol-autograde.
+Validated:      unit 4599 passed, 28 skipped; e2e 390 passed, 20 skipped; integration 166 passed;
+                browser 220 passed (chromium + firefox); ruff clean; console script parses.
+Not validated:  A real dead or cut-off line at Lampung.
+Decisions:      Remaining risk (rules.md 13): bunches a cut-off line grades BEFORE it answers again
+                still carry the forced-off truck; the re-send closes it within about a second of the
+                line answering.
+Next:           Merge after PR #222, then release v1.23.0.
+
 ## 2026-10-04 · console · Reconnect camera button on each line card (PR #221)
 Changed:        A **Sambung ulang** button (circular arrow + word, 44 px; icon only when the card
                 header is narrower than 460 px) in every line card header next to ONLINE/OFFLINE,
