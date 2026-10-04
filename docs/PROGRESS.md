@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-04 · console · Lepas paksa for a line that does not answer (PR pending)
+## 2026-10-04 · console · Lepas paksa for a line that does not answer (PR #223)
 Changed:        On a card that holds a truck while its line's status cannot be read at all, Lepas
                 becomes **Lepas paksa** (`bahaya pekat`, with a confirmation). The server decides
                 (`POST /api/console/lines/{line_code}/force-release`, `services/lepas_paksa.py`,
