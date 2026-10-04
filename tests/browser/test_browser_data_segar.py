@@ -20,8 +20,23 @@ from playwright.sync_api import expect
 POLL_MAKS_MS = 15_000
 
 
+def _patok_grading(halaman) -> None:
+    """Two grading rows out of 60, whatever the clock says: just after midnight the seeded
+    console has no bunch for the new working day yet, and an empty table has no row to keep."""
+    baris = [
+        {"timestamp": f"2026-10-04T08:0{n}:00+07:00", "line_code": "line-1", "plate_number": "BE 1 AA",
+         "source_label": "Internal", "ripeness_status": "ACC", "grade_class": "Ripe", "image_url": None}
+        for n in (1, 2)
+    ]
+    halaman.route(
+        "**/api/console/history*",
+        lambda route: route.fulfill(json={"work_date": "2026-10-04", "items": baris, "total": 60}),
+    )
+
+
 def test_two_polls_leave_the_card_buttons_and_the_grading_rows_in_place(halaman):
     """The element a finger is on must still be the same element after the poll."""
+    _patok_grading(halaman)
     masuk(halaman, OPERATOR)
     expect(halaman.locator("#recent tr td.no").first).to_be_visible()
 
