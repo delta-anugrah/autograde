@@ -149,6 +149,13 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   yang hilang: semuanya menunggu di antrean dan terkirim sendiri begitu sambungan pulih.
 - **Tiga kartu line**, satu per kamera, dengan stream langsung, status **ONLINE / OFFLINE** di
   judul, tombol **Tugaskan** (pilih truk), **Lepas** (truk pergi), dan **Reject Manual**.
+- **Lepas paksa** (merah tua, di tempat **Lepas**) muncul kalau line itu sama sekali tidak
+  menjawab konsol padahal masih memegang truk. Layar bertanya dulu. Truknya dilepas **di konsol
+  saja**: tiket dan berat aman, grading truk itu tetap masuk kunjungannya, dan Update now serta
+  penugasan otomatis tidak tertahan lagi. Line itu ikut melepasnya sendiri begitu menyala lagi.
+  Notifikasi kuning "di konsol saja" itu normal. Pakai hanya kalau truknya sudah selesai bongkar.
+  Kalau ternyata line menjawab, yang terjadi Lepas biasa; kalau line menjawab tapi menolak,
+  tidak ada yang dipaksa dan layar menyebut alasannya.
 - Kartu berbingkai **merah** dengan pita **AI berhenti memproses** (jam mulai, tindakan) =
   kamera jalan tapi tidak ada yang digrading: tahan umpan buah ke line itu dan panggil teknisi.
   Pita hilang sendiri begitu line memproses lagi.
@@ -322,7 +329,7 @@ terbarunya. Line yang dilepas oleh timbang kosong diumumkan dalam satu notifikas
   truk yang sudah timbang kosong dan truk berikutnya hanya naik ke line lain. Notifikasinya menyebut
   line itu dan plat truk lama. Begitu line itu menjawab lagi, tekan **Lepas** di kartunya, lalu
   tugaskan truk yang menunggu di kartu yang sama. Selama line masih mati, Lepas juga ditolak
-  "tidak menjawab".
+  "tidak menjawab"; pakai **Lepas paksa** yang muncul di kartu itu.
 
 Tabel Timbangan memakai kolom **Lama**: berapa lama truk itu diproses, dihitung
 dari jam timbang isi ke jam timbang kosong (`25 mnt`, `1 j 45 mnt`). Tiket
@@ -829,8 +836,8 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Tab Log: "Lapor ke Discord DITOLAK ... (HTTP 404)" | webhook Discord salah atau sudah dihapus | buat webhook baru di kanal support, isi `DISCORD_WEBHOOK_URL` di `.env` PC, lalu `autograde restart`; pesan yang menunggu tidak hilang |
 | Tab Log: "Lapor ke Discord tertahan" | internet pabrik putus | tidak perlu apa-apa, terkirim sendiri begitu internet ada |
 | Notifikasi "Line N tidak menjawab. Tugaskan … manual di kartunya" | penugasan otomatis tidak sampai ke line itu (line mati, restart, atau sedang hapus data); timbangannya tetap tersimpan | nyalakan line-nya, lalu tugaskan truk itu lewat dropdown di kartu line tersebut |
-| Notifikasi "Line N masih memegang truk … yang sudah timbang kosong" | timbang kosong tidak bisa melepas line itu karena line mati; truk berikutnya cuma naik ke line lain | tunggu line menjawab lagi, **Lepas** di kartunya, lalu tugaskan truk yang menunggu di kartu itu |
-| **Pasang sekarang** ditolak "Lepas dulu truk di Line N" | masih ada truk di-assign di line itu, bisa juga sisa kemarin | lepas truknya di kartu line, tekan lagi |
+| Notifikasi "Line N masih memegang truk … yang sudah timbang kosong" | timbang kosong tidak bisa melepas line itu karena line mati; truk berikutnya cuma naik ke line lain | **Lepas paksa** di kartu line itu (atau tunggu line menjawab lagi lalu **Lepas**), lalu tugaskan truk yang menunggu di kartu itu |
+| **Pasang sekarang** ditolak "Lepas dulu truk di Line N" | masih ada truk di-assign di line itu, bisa juga sisa kemarin | lepas truknya di kartu line (line yang mati: **Lepas paksa**), tekan lagi |
 | Sesudah **Pasang sekarang**: "Versi X gagal dinyalakan, sistem kembali ke Y" | versi baru tidak lolos gerbang sehat dan sistem mundur sendiri; versi itu tidak ditawarkan lagi sampai ada versi yang lebih baru | panggil teknisi; tab Log baris "Pembaruan dari konsol"; teknisi memeriksa `autograde logs` |
 | Sesudah **Pasang sekarang**: "Versi X belum terpasang, sistem tetap di Y" | launcher sedang sibuk (mengunduh) atau terhenti, versi baru belum dicoba | tunggu beberapa menit, tombolnya muncul lagi, tekan ulang; kalau berulang panggil teknisi |
 | "Pembaruan X tidak selesai" | penunggu di PC tidak menjawab 20 menit (dicabut, mati, atau PC sibuk) | panggil teknisi: `systemctl status autograde-update.path` dan `journalctl -u autograde-update.service` (`sawit/docs/FACTORY-PC.md`) |

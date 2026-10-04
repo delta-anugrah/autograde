@@ -275,6 +275,7 @@ const frameBerhenti = () => false;
 const isiTruk = () => "";
 const tombolPiston = () => "";
 const tombolSambungUlang = () => "";
+const tombolLepas = () => "";
 """
 
 

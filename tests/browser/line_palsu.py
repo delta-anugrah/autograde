@@ -7,6 +7,11 @@ as connected) and the commands the tests trigger (`/internal/assignment`,
 `/internal/setelan`, `/internal/camera/reconnect`; the last one can be told to answer late
 or as a video line, `atur_sambung_ulang`). Everything else is 404, which is what an older line image answers,
 and the screen must word that without a script error. Every POST is recorded.
+
+Like a real line it remembers the truck it was last assigned and reports it in
+`/internal/status`, and it can be told to stop answering (`atur_diam`): every connection is
+closed unanswered, the way a stopped container or a cut cable looks to the console, while the
+truck stays in memory as on a line that was only cut off (Lepas paksa).
 """
 
 from __future__ import annotations
@@ -46,6 +51,11 @@ _SAMBUNG_ULANG = "/internal/camera/reconnect"
 class _Penjawab(BaseHTTPRequestHandler):
     server: _Server
 
+    def handle(self) -> None:
+        if self.server.diam:
+            return  # closed unanswered: to httpx and the browser, a line that does not answer
+        super().handle()
+
     def do_GET(self) -> None:
         jalur = urlsplit(self.path).path
         if jalur == "/api/video_feed":
@@ -56,7 +66,7 @@ class _Penjawab(BaseHTTPRequestHandler):
         elif jalur == "/health":
             self._json(200, {"status": "ok"})
         elif jalur == "/internal/status":
-            self._json(200, STATUS_SEHAT)
+            self._json(200, {**STATUS_SEHAT, "truck_id": self.server.truk})
         elif jalur == "/health/detail":
             self._json(200, DETAIL_SEHAT)
         else:
@@ -68,6 +78,8 @@ class _Penjawab(BaseHTTPRequestHandler):
         jalur = urlsplit(self.path).path
         self.server.diterima.append((jalur, isi))
         if jalur in _PERINTAH:
+            if jalur == "/internal/assignment":
+                self.server.truk = isi.get("truck_id") or None  # "" = released, as on the line
             self._json(200, {"status": "ok"})
         elif jalur == _SAMBUNG_ULANG:
             time.sleep(self.server.sambung_ulang_jeda)
@@ -101,6 +113,8 @@ class _Server(ThreadingHTTPServer):
         self.sambung_ulang_jeda = 0.0
         self.feed_ada = True
         self.sambung_ulang_tanpa_kamera = False
+        self.diam = False
+        self.truk: str | None = None
 
 
 class LinePalsu:
@@ -123,6 +137,16 @@ class LinePalsu:
         video or photo line. The lines live for the whole session: reset it afterwards."""
         self._server.sambung_ulang_jeda = jeda
         self._server.sambung_ulang_tanpa_kamera = tanpa_kamera
+
+    @property
+    def truk(self) -> str | None:
+        """The truck this line stamps on the next bunches, as the console last told it."""
+        return self._server.truk
+
+    def atur_diam(self, diam: bool) -> None:
+        """Stop (True) or resume (False) answering anything. The lines live for the whole
+        session: resume afterwards."""
+        self._server.diam = diam
 
     def atur_feed(self, ada: bool = True) -> None:
         """`False`: the line answers but sends no picture, so its card shows "Kamera tidak

@@ -45,6 +45,16 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   tengah permintaan tetap sibuk. Line cuma memasang bendera; `FrameCaptureWorker` yang
   menyambung ulang di bawah `state.lock`. Tes: `test_console_html_sambung_ulang.py`,
   `tests/browser/test_browser_sambung_ulang.py`.
+- Tombol **Lepas paksa** (2026-10-04, aturan 13, semua akun) menggantikan Lepas di slot
+  `.slot-lepas` (`display:contents`) selama `l.plc.reachable === false` dengan `sebab_kode`
+  `tak_terjangkau` DAN kartu memegang truk (`bisaLepasPaksa`, `tombolLepas`, `bahaya pekat`,
+  `data-aksi="lepas-paksa"`). Slot ditulis ulang tiap poll lewat `tulisKalauBeda`. Klik →
+  `lepasPaksa`: `tanyaKonfirmasi({bahaya: true})`, lalu `denganSibuk` +
+  `POST /api/console/lines/{kode}/force-release` (`routes/console_lepas_paksa.py`); `paksa: true`
+  = `toastPeringatan` `sukLepasPaksa` (sampai konsol saja), `paksa: false` = `toastSukses`
+  `sukLepas`; gagal lewat `gagalKarena("gagalLepasPaksa", e)`. Tanda sibuk juga di
+  `lepasPaksaBerjalan`. Tes: `test_console_html_lepas_paksa.py`,
+  `tests/browser/test_browser_lepas_paksa.py` (line palsu `atur_diam`).
 - Baris tabel Timbangan (aturan 37, 2026-10-03): baris **Datang** (`barisMenunggu`) membawa tombol
   merah **Batal datang** (`button.bahaya`, `data-aksi="batal-datang"`, `data-arrival` = `id` dari
   `waiting`); `batalDatang` dua klik seperti Batalkan impor (`yakin pekat`, 5 dtk), `denganSibuk`,

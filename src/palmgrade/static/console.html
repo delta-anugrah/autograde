@@ -866,6 +866,8 @@
   /* One fixed basis for both, so the pair stays a matched set in either
      language instead of following word length. */
   .assign button { flex:0 0 7.5rem; }
+  /* Lepas or Lepas paksa (tombolLepas), rewritten by the poll: the slot itself is no box. */
+  .slot-lepas { display:contents; }
 
   button, input { background:var(--input); color:var(--fg); border:1px solid var(--line-kuat);
                   border-radius:var(--r-sm); padding:10px 13px; font:inherit; }
@@ -2916,6 +2918,11 @@ const KAMUS = {
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio Ripe", trukTanpaNama:"Tanpa truk",
     wajibIsi:"Plat dan bruto wajib diisi",
     gagalTugaskan:"Gagal menugaskan truk", gagalLepas:"Gagal melepas truk",
+    btnLepasPaksa:"Lepas paksa", lepasPaksaTitle:"Line tidak menjawab. Truk dilepas di konsol saja",
+    konfirmasiLepasPaksaJudul:"Lepas paksa truk dari {line}?",
+    konfirmasiLepasPaksa:"Line ini tidak menjawab. Truk {truk} dilepas di konsol saja, bukan di line. Begitu line menyala lagi, ia ikut melepasnya sendiri. Pakai ini hanya kalau truknya sudah selesai bongkar.",
+    sukLepasPaksa:"Truk dilepas dari {line} di konsol saja. Line ikut melepasnya begitu menyala lagi",
+    gagalLepasPaksa:"Lepas paksa gagal",
     gagalReject:"Reject manual gagal", gagalDaftar:"Gagal mendaftarkan truk",
     gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
@@ -3394,6 +3401,11 @@ const KAMUS = {
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Ripe rate", trukTanpaNama:"No truck",
     wajibIsi:"Plate and gross weight are required",
     gagalTugaskan:"Failed to assign truck", gagalLepas:"Failed to release truck",
+    btnLepasPaksa:"Force release", lepasPaksaTitle:"The line is not responding. The truck is released on the console only",
+    konfirmasiLepasPaksaJudul:"Force release the truck from {line}?",
+    konfirmasiLepasPaksa:"This line is not responding. Truck {truk} is released on the console only, not on the line. Once the line starts again, it releases the truck as well. Use this only when the truck has finished unloading.",
+    sukLepasPaksa:"Truck released from {line} on the console only. The line follows once it starts again",
+    gagalLepasPaksa:"Force release failed",
     gagalReject:"Manual reject failed", gagalDaftar:"Failed to register truck",
     gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
     gagalKonsol:"Console not responding", kameraPutus:"Camera not connected",
@@ -4578,6 +4590,71 @@ async function sambungUlangKamera(kartu) {
   }
 }
 
+// ── Lepas paksa (user 2026-10-04) ─────────────────────────────────────
+// A dead line can never hear Lepas (rule 13), so its truck used to stay on the console. While
+// the console's status poll cannot reach the line at all and the card holds a truck, Lepas
+// paksa takes the place of Lepas (which would only fail after its wait). The server decides
+// again on the press: a line that answers is released normally, a refusing one never forced.
+// Lines with a request in flight: the mark survives a card redraw, as for Sambung ulang.
+const lepasPaksaBerjalan = new Set();
+
+function bisaLepasPaksa(l) {
+  const p = l.plc || {};
+  return Boolean(l.assignment) && p.reachable === false && p.sebab_kode === "tak_terjangkau";
+}
+
+// The release control of one card, Lepas or Lepas paksa. Rewritten by every poll through
+// `tulisKalauBeda`, so it follows the line going silent and coming back.
+function tombolLepas(l) {
+  if (!bisaLepasPaksa(l)) {
+    return `<button class="bahaya" data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>`;
+  }
+  const sibuk = lepasPaksaBerjalan.has(l.line_code);
+  return `<button class="bahaya pekat${sibuk ? " sibuk" : ""}" data-aksi="lepas-paksa"`
+    + ` title="${esc(t("lepasPaksaTitle"))}"${sibuk ? ' aria-busy="true"' : ""}>${esc(t("btnLepasPaksa"))}</button>`;
+}
+
+// The button as it is on screen NOW: the poll may have redrawn it since the click.
+function tombolLepasPaksaDi(line) {
+  const kartu = [...$("lines").querySelectorAll(".card")].find((k) => k.dataset.line === line);
+  return kartu ? kartu.querySelector('button[data-aksi="lepas-paksa"]') : null;
+}
+
+// Ask first (F12, red because it skips the line), then lock (F8). `paksa` from the server
+// says which release happened: on the console only = a warning toast (saved, not reached
+// everywhere, F11); the line answered after all = the plain Lepas toast. Failures are worded
+// from their codes (F6).
+async function lepasPaksa(kartu) {
+  const line = kartu.dataset.line;
+  if (lepasPaksaBerjalan.has(line)) return;
+  const namaLine = kartu.querySelector(".nama")?.textContent?.trim() || line;
+  const plat = kartu.querySelector(".truk .plat")?.textContent?.trim() || "";
+  if (!(await tanyaKonfirmasi({
+    judul: t("konfirmasiLepasPaksaJudul").replace("{line}", namaLine),
+    pesan: t("konfirmasiLepasPaksa").replace("{truk}", plat),
+    ya: t("btnLepasPaksa"), bahaya: true,
+    asal: () => tombolLepasPaksaDi(line),
+  }))) return;
+  lepasPaksaBerjalan.add(line);
+  try {
+    const r = await denganSibuk(tombolLepasPaksaDi(line), () =>
+      api(`/api/console/lines/${encodeURIComponent(line)}/force-release`, { method: "POST" }));
+    await refresh();
+    if (r && r.paksa) toastPeringatan(t("sukLepasPaksa").replace("{line}", namaLine));
+    else toastSukses(t("sukLepas").replace("{line}", namaLine));
+    umumkanPasang(r && r.dipasang);
+  } catch (e) {
+    toastGagal(gagalKarena("gagalLepasPaksa", e));
+  } finally {
+    lepasPaksaBerjalan.delete(line);
+    const kini = tombolLepasPaksaDi(line);
+    if (kini) {
+      kini.classList.remove("sibuk");
+      kini.removeAttribute("aria-busy");
+    }
+  }
+}
+
 // Red, large text: read from a few metres away while the hardware is
 // actually moving. `belumKonfirmasi` uses the same phrase as the button so
 // the banner and the button never say two different things about the same line.
@@ -4798,7 +4875,7 @@ function kartuLine(l, sekarang = Date.now()) {
       <div class="assign">
         ${komponenPilih(opsi, l.assignment ? l.assignment.truck_id : "")}
         <button class="utama" data-aksi="tugaskan"${l.assignment ? "" : " disabled"}>${esc(t("btnTugaskan"))}</button>
-        <button class="bahaya" data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>
+        <span class="slot-lepas">${tombolLepas(l)}</span>
       </div>
       <div class="aksi-line">
         <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
@@ -5235,6 +5312,11 @@ $("lines").addEventListener("click", async (ev) => {
   // Its own flow: asks, locks its button through denganSibuk, and survives a card redraw.
   if (tombol.dataset.aksi === "sambung-ulang") {
     await sambungUlangKamera(kartu);
+    return;
+  }
+  // The same: asks in red, locks through denganSibuk, survives the poll redrawing it.
+  if (tombol.dataset.aksi === "lepas-paksa") {
+    await lepasPaksa(kartu);
     return;
   }
   // Opening the piston moves metal: ask first, BEFORE the button is locked, so the focus can
@@ -6413,6 +6495,11 @@ async function refresh() {
       // Angka yang baru digambar jadi titik awal odometer (`tulisAngka`): poll berikutnya
       // bergulir dari sini, bukan menulis polos seolah tulisan pertama.
       $("lines").querySelectorAll(".counts b[data-k]").forEach((el) => { el._angka = Number(el.textContent) || 0; });
+      // What kartuLine just drew is what the next poll compares with (`tulisKalauBeda`).
+      s.lines.forEach((l, i) => {
+        const slot = $("lines").children[i]?.querySelector(".slot-lepas");
+        if (slot) slot._terakhirDitulis = tombolLepas(l);
+      });
       dipasang = true;
       terapkanUrutan();
     } else {
@@ -6426,6 +6513,8 @@ async function refresh() {
           tulisAngka(el, l[el.dataset.k] || 0);
         });
         c.querySelector(".truk").innerHTML = isiTruk(l.assignment);
+        // Lepas, or Lepas paksa while the line does not answer and holds a truck.
+        tulisKalauBeda(c.querySelector(".slot-lepas"), tombolLepas(l));
         // The piston button and banner must follow what the PLC just confirmed,
         // every poll - not only on the first render. outerHTML (not innerHTML on
         // a wrapper) so the button's own hint span comes back with it, and
