@@ -43,6 +43,12 @@ class RuntimeState:
     # Mode dev: tampilkan angka confidence di kotak janjang. Untuk support
     # yang menyetel ambang; operator tidak butuh dan salah membacanya.
     mode_dev_override: bool | None = None
+    # Draw the capture line / the ROI box on the video (2026-10-04). Display only:
+    # detection and capture keep using both. None = never set from the console = drawn.
+    tampil_garis_override: bool | None = None
+    tampil_roi_override: bool | None = None
+    # ROI box (x1, y1, x2, y2) in stream space, set from the console. None = `ROI_*` from `.env`.
+    roi_override: tuple[int, int, int, int] | None = None
 
     # Laju yang BENAR-BENAR dikirim kamera, diisi `adopt_camera_frame_rate()`
     # tiap connect. `0` = sumber tidak bisa melapor (berkas video, webcam).
@@ -161,6 +167,12 @@ class RuntimeState:
     # `PemantauDisk` line ini (batch 3.7), dipasang main.py. None di konsol.
     pemantau_disk: Any = None
 
+    # Reconnect camera button (2026-10-04). The route only raises this flag; the capture
+    # thread is the one that touches the camera, under `lock` (rule 3: the SDK is not
+    # thread safe). An Event so the automatic backoff wait can be cut short by a press.
+    sambung_ulang_kamera: threading.Event = field(default_factory=threading.Event)
+    sambung_ulang_oleh: str | None = None
+
     def catat_ai_dimulai(self) -> None:
         """Sekali per proses: watchdog yang menyalakan ulang thread deteksi tidak
         boleh memberi tenggang baru, kalau tidak thread yang mati berulang tidak
@@ -194,6 +206,19 @@ class RuntimeState:
         else:
             self.kamera_sambung_gagal_sejak_frame = True
         self.kamera_sambung_ok = berhasil
+
+    def minta_sambung_ulang_kamera(self, oleh: str) -> None:
+        """Ask the capture thread to reconnect the camera on its next turn. Repeating it
+        before then still means one reconnect."""
+        self.sambung_ulang_oleh = oleh
+        self.sambung_ulang_kamera.set()
+
+    def ambil_permintaan_sambung_ulang(self) -> str | None:
+        """Who asked for a reconnect, once; None when nobody did since the last call."""
+        if not self.sambung_ulang_kamera.is_set():
+            return None
+        self.sambung_ulang_kamera.clear()
+        return self.sambung_ulang_oleh or "?"
 
     def catat_suhu_kamera(self, suhu_c: float) -> None:
         self.suhu_kamera_c = suhu_c

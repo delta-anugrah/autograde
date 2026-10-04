@@ -2,8 +2,8 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.8"
-tanggal: 3 Oktober 2026
+versi: "2.10"
+tanggal: 4 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
 sorotan: Isi = Fitur · Setup · Operasional · Troubleshooting; Pembaca = Pemegang baru AutoGrade; Bentuk = Ringkas, tabel, perintah siap tempel
@@ -128,9 +128,11 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   misalnya `v1.18.0 · Lisensi s/d 30 Sep 2027`. Kuning saat langganan tinggal sebentar, merah
   saat masa tenggang atau habis. Klik untuk melihat perusahaan, tanggal aktif, dan masa
   tenggang. PC tanpa lisensi cuma menampilkan versinya.
-- **Pita kuning "Versi vX.Y.Z siap dipasang"** (semua akun) di bawahnya: versi baru sudah
-  diunduh PC dan menunggu dipasang. Klik pitanya, kotak Versi & lisensi terbuka dengan tombol
-  **Pasang sekarang**. Syaratnya: **lepas dulu semua truk** di ketiga line (termasuk truk yang
+- **Pita kuning "Versi vX.Y.Z siap dipasang"** (semua akun) selebar layar, di atas kartu line:
+  versi baru sudah diunduh PC dan menunggu dipasang. Ketuk pitanya, kotak Versi & lisensi
+  terbuka dengan tombol hijau **Pasang sekarang** di sebelah **Tutup**. Tombol **×** di ujung
+  pita menyembunyikannya untuk versi itu saja (di PC itu); versi berikutnya memunculkannya lagi,
+  dan angka versi di bawah AUTOGRADE tetap membuka kotak yang sama. Syaratnya: **lepas dulu semua truk** di ketiga line (termasuk truk yang
   lupa dilepas kemarin). Konsol dan ketiga line berhenti sekitar 2 menit lalu menyala sendiri;
   selama itu layar menulis "Sedang memasang versi baru" dan tersambung lagi sendiri, jangan
   tekan apa-apa. Hasilnya tertulis di kotak yang sama (dan di tab Log): "sudah terpasang" berarti
@@ -147,6 +149,13 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   yang hilang: semuanya menunggu di antrean dan terkirim sendiri begitu sambungan pulih.
 - **Tiga kartu line**, satu per kamera, dengan stream langsung, status **ONLINE / OFFLINE** di
   judul, tombol **Tugaskan** (pilih truk), **Lepas** (truk pergi), dan **Reject Manual**.
+- **Lepas paksa** (merah tua, di tempat **Lepas**) muncul kalau line itu sama sekali tidak
+  menjawab konsol padahal masih memegang truk. Layar bertanya dulu. Truknya dilepas **di konsol
+  saja**: tiket dan berat aman, grading truk itu tetap masuk kunjungannya, dan Update now serta
+  penugasan otomatis tidak tertahan lagi. Line itu ikut melepasnya sendiri begitu menyala lagi.
+  Notifikasi kuning "di konsol saja" itu normal. Pakai hanya kalau truknya sudah selesai bongkar.
+  Kalau ternyata line menjawab, yang terjadi Lepas biasa; kalau line menjawab tapi menolak,
+  tidak ada yang dipaksa dan layar menyebut alasannya.
 - Kartu berbingkai **merah** dengan pita **AI berhenti memproses** (jam mulai, tindakan) =
   kamera jalan tapi tidak ada yang digrading: tahan umpan buah ke line itu dan panggil teknisi.
   Pita hilang sendiri begitu line memproses lagi.
@@ -184,6 +193,17 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 - **Reject manual tanpa mouse**: tahan `Spasi` lalu tekan `1` / `2` / `3` sesuai line.
 - **Piston manual** per line (Buka / Tutup) kalau PLC aktif. **Buka** bertanya dulu di kotak
   konfirmasi di layar karena ini menggerakkan besi sungguhan; **Tutup** langsung jalan.
+- **Sambung ulang** (ikon panah melingkar) di kotak kamera tiap kartu line, di bawah tulisan
+  "Kamera tidak tersambung", untuk semua akun. Tombolnya cuma muncul saat gambarnya tidak ada
+  (kamera putus, atau kamera berhenti mengirim gambar). Kamera yang diam sebenarnya sudah disambung ulang otomatis oleh
+  line; tombol ini cadangan kalau gambar tidak juga kembali: kartu OFFLINE atau "Kamera tidak
+  tersambung" padahal line jalan, atau pita **kamera berhenti mengirim gambar**. Tombol bertanya
+  dulu, karena grading di line itu berhenti beberapa detik selama kamera disambung ulang (truk
+  yang terpasang tetap terpasang). Sesudah **Sambung ulang** ditekan, notifikasi hijau muncul dan
+  gambar kembali dalam beberapa detik. Line yang memakai berkas video atau foto menjawab "bukan
+  kamera". Siapa yang
+  menekan dan kapan tercatat di tab Log. Kalau gambar tetap tidak kembali, periksa kabel dan
+  restart line (§7).
 - Semua pertanyaan "yakin?" muncul di kotak konfirmasi di tengah layar, bukan kotak bawaan
   browser: **Batal** (sudah terpilih, jadi Enter yang tidak disengaja membatalkan), `Esc`, atau
   klik di luar kotak membatalkan; tombol kanan menjalankan, merah pekat kalau aksinya mengeluarkan
@@ -309,7 +329,7 @@ terbarunya. Line yang dilepas oleh timbang kosong diumumkan dalam satu notifikas
   truk yang sudah timbang kosong dan truk berikutnya hanya naik ke line lain. Notifikasinya menyebut
   line itu dan plat truk lama. Begitu line itu menjawab lagi, tekan **Lepas** di kartunya, lalu
   tugaskan truk yang menunggu di kartu yang sama. Selama line masih mati, Lepas juga ditolak
-  "tidak menjawab".
+  "tidak menjawab"; pakai **Lepas paksa** yang muncul di kartu itu.
 
 Tabel Timbangan memakai kolom **Lama**: berapa lama truk itu diproses, dihitung
 dari jam timbang isi ke jam timbang kosong (`25 mnt`, `1 j 45 mnt`). Tiket
@@ -386,15 +406,16 @@ Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riw
 |---|---|
 | **Log** | galat dan peringatan konsol DAN ketiga line (kolom Sumber menyebut line-1/2/3 atau konsol), jam pertama muncul untuk baris gabungan, traceback bisa dibuka per baris; kalimat di atas tabel menyebut keadaan lapor ke Discord. 180 hari terakhir, selamat dari restart; pesan berulang digabung `×N`; sandi/token tertulis `«ditutup»` |
 | **Status**, bagian Versi | versi, environment, status lisensi (tanpa token; versi dan tanggal lisensi juga tampil di bawah tulisan AUTOGRADE untuk semua akun). Machine ID disembunyikan sejak 2026-09-25. Lisensi **Mati. Token ada, tapi saklar lisensi di konsol belum menyala** berarti tokennya sampai ke konsol tapi saklarnya (`LICENSE_ENABLED`) tidak: periksa blok konsol di compose host, bukan tokennya |
-| **Status**, bagian Diagnostik | tiga kartu line: kamera, suhu kamera (°C, `-` kalau kamera tidak melaporkan atau sudah lebih dari 60 detik tidak terbaca; belum ada batas aman atau warna), FPS kamera / deteksi (terukur, 0 kalau gambar berhenti), umur gambar terakhir (merah kalau kamera berhenti mengirim), GPU, PLC (✓ **hanya kalau benar-benar tersambung**, ✗ kalau PLC menyala tapi terputus, `-` kalau PLC dimatikan), disk (sisa GB, kuning/merah di bawah ambang), lisensi, versi / model, antrean lokal, **Janjang tak tersimpan** (`capture_save_dropped`) dan **TP telat** (`tp_telat`), lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ Janjang tak tersimpan dan TP telat **harus nol** (hijau), di atas nol merah: ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat. Disegarkan tiap 5 detik selama tab Status terbuka |
+| **Status**, bagian Diagnostik | tiga kartu line, tiap kartu berisi empat kelompok yang **tertutup dari awal** dan dibuka dengan menekan judulnya (**Kamera dan gambar**, **Mesin**, **Data**, **Workers**); kelompok yang dibuka tetap terbuka di browser itu, dan judul kelompok jadi **merah** kalau ada baris bermasalah di dalamnya. Isinya: kamera, suhu kamera (°C, `-` kalau kamera tidak melaporkan atau sudah lebih dari 60 detik tidak terbaca; belum ada batas aman atau warna), FPS kamera / deteksi (terukur, 0 kalau gambar berhenti), umur gambar terakhir (merah kalau kamera berhenti mengirim), GPU, PLC (✓ **hanya kalau benar-benar tersambung**, ✗ kalau PLC menyala tapi terputus, `-` kalau PLC dimatikan), disk (sisa GB, kuning/merah di bawah ambang), lisensi, versi / model, antrean lokal, **Janjang tak tersimpan** (`capture_save_dropped`) dan **TP telat** (`tp_telat`), lalu worker satu per baris (✓ hijau hidup, ✗ merah mati; judulnya memberi hitungan, mis. `5/6`). Line mati tetap tampil dengan sebabnya. ⚠️ Janjang tak tersimpan dan TP telat **harus nol** (hijau), di atas nol merah: ada janjang yang tidak tersimpan, atau tangkai panjang yang tidak tercatat. Disegarkan tiap 5 detik selama tab Status terbuka |
 | **Status**, bagian Antrean line | janjang yang belum sampai dari tiap line ke konsol: jumlah, umur yang tertua, keadaan (dengan sebab, sejak kapan, dan harus ngapain), jam pengiriman terakhir yang gagal (teks galatnya di tab Log); tombol **Kirim Ulang** per line. Antrean ini tidak pernah menyerah: konsol mati berjam-jam pun janjangnya menunggu dan terkirim sendiri begitu konsol hidup lagi |
-| **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang**. Plus antrean manifest R2 |
+| **Status**, bagian Antrean ERP | pesan yang belum sampai ke AutoERP: sebab gagal, percobaan, jadwal berikutnya; tombol **Kirim Ulang** |
+| **Status**, bagian Manifest R2 | antrean manifest foto per truk ke R2, tabel sendiri di bawah Antrean ERP; kalau R2 belum disetel tertulis begitu, bukan angka nol |
 | **Akun** | semua akun yang bisa masuk konsol di PC ini: nama, email, role, asal (**Lokal** / **AutoERP**), status (Aktif / Mati / Terkunci), sedang masuk atau tidak. **Tambah akun** membuat akun **Lokal** baru (nama, email, role, sandi minimal 8 karakter); akun ini cuma ada di PC ini dan **tidak masuk ke AutoERP**. Tiap akun Lokal punya tombol **Ganti sandi** (semua sesinya langsung berakhir), **Matikan / Aktifkan**, dan **Jadikan support / operator**; di baris akunmu sendiri cuma Ganti sandi. Akun AutoERP tidak punya tombol: diurus di AutoERP. **Sandi tidak bisa dilihat**: yang disimpan cuma hash-nya. Lupa sandi: akun AutoERP diganti di AutoERP (AutoGrade Operator → New Password, sampai ke PC ±5 menit), akun Lokal dengan Ganti sandi. Tiap perubahan tercatat di tab Log beserta siapa yang mengubah |
 | **Line** → Sumber Kamera | pilih sumber gambar tiap line: kamera Hikrobot, webcam, berkas video, atau foto diam. Menyimpan **merestart** line yang berubah (~10 detik); kotak kamera line itu menulis "sedang dinyalakan ulang" sampai gambarnya muncul lagi (§3.2) |
 | **Line** → Model Deteksi | pilih model YOLO tiap line dari berkas di `models/release/`. Tiap model menampilkan **kelasnya** dan status engine TensorRT; model yang kelasnya bukan `Ripe/Unripe/JK/TP` tampil tapi tidak bisa dipilih. Kartu line menunjukkan model yang **sedang jalan** menurut line itu sendiri, beserta kelasnya, **merah** kalau bukan empat kelas itu, artinya line tidak menghitung janjang. Simpan membuka **modal konfirmasi** yang menyebut line yang akan restart (~10 detik) dan truk yang sedang diproses di situ. Bawaan PC = `MODEL_FILE` di `.env`. Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md` |
 | **Line** → Uji PLC | tombol uji coil per line (OK hijau, NG merah, Error kuning, alamat M di tiap tombol) + kartu peta alamat PLC di bawahnya. Mati saat line memproses truk; konfirmasi tombol Jalankan/Batal; hasilnya notifikasi (hijau coil menyala, kuning coil tidak menyala karena antrean pulse PLC penuh); heartbeat (M1009) sengaja tidak ada |
 | **Line** → Rekam Video | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi (lebar × tinggi) diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya**, mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **FPS mengikuti sumbernya, tidak diatur dari layar** (kolom FPS dan Bitrate dicabut 2026-09-25, dua-duanya tidak pernah sampai ke berkas): berkas video memakai laju aslinya, kamera Hikrobot memakai `CAMERA_FPS`. Itu yang membuat durasi rekaman sama dengan lama menekan Record. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari folder yang tertulis di kaki layar (`Disimpan di …`, di PC pabrik `/opt/palmgrade/autograde/videos/`). Sesudah menekan Stop, jalur lengkap berkasnya juga muncul sekali di notifikasi hijau. Stop menulis dulu gambar yang sudah antre saat tombol ditekan (paling banyak 30 gambar; di Mac sekitar 0,6 detik, belum diukur di Lampung); yang berhenti karena disk mepet tetap berhenti seketika. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
-| **Setelan** | ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`; notifikasi hijau kalau semua line menerimanya, kuning yang menyebut line yang belum menerima (nilainya tetap tersimpan dan dikirim lagi saat line itu hidup). Tab paling kanan. Di bawahnya **Penugasan line**: saklar otomatis dan line yang dipakai, dengan tombol simpan sendiri. Bawaannya mati |
+| **Setelan** | ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), **kotak area deteksi** (empat angka piksel pada video 1280 x 720: Kiri, Atas, Kanan, Bawah; janjang di luar kotak tidak dihitung; keempatnya kosong = tiap line memakai `ROI_*` dari `.env`-nya, `0` semua = seluruh gambar, kotak yang tidak menutup gambar ditolak), dua saklar **Tampilkan garis capture** dan **Tampilkan kotak area deteksi** (cuma menyembunyikan gambarnya di video, deteksi tidak berubah), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`; notifikasi hijau kalau semua line menerimanya, kuning yang menyebut line yang belum menerima (nilainya tetap tersimpan dan dikirim lagi saat line itu hidup). Tab paling kanan. Di bawahnya **Penugasan line**: saklar otomatis dan line yang dipakai, dengan tombol simpan sendiri. Bawaannya mati |
 
 ### 3.6 Layar penuh di PC pabrik
 
@@ -497,7 +518,7 @@ Yang perlu diketahui:
 - `make up` / `make up-prod` berhenti di `Hikrobot MVS SDK not found`. Memang seharusnya; target
   Docker adalah jalur Linux + GPU.
 - Satu line kamera **native** dari file video: `make line` (port 8001, `CAMERA_TYPE=opencv`,
-  `CAMERA_VIDEO_PATH=/path/video.mp4`, `CAMERA_FPS=` kosong supaya laju mengikuti berkas). Ini
+  `CAMERA_VIDEO_PATH=/path/video.mp4`, `CAMERA_FPS=` kosong supaya laju mengikuti berkas; sumber foto, atau berkas video tanpa laju, berjalan 20 fps). Ini
   butuh venv penuh dari `requirements.txt` (torch, ultralytics, OpenCV). `make line N=2` untuk
   line kedua; port dan `MACHINE_ID` ikut berubah bersama.
 - Menyambung ke AutoERP lokal: dari repo `autoerp` jalankan `make up` lalu `make key-show`, tempel
@@ -601,7 +622,7 @@ Baris yang wajib disentuh. Sisanya biarkan bawaan.
 | `WEBHOOK_SECRET` | `openssl rand -hex 32` | dipakai line ↔ konsol di PC ini |
 | `FACTORY_TZ` | `Asia/Jakarta` (sesuaikan) | batas tanggal kerja |
 | `CONSOLE_DEFAULT_HASH`, `CONSOLE_SUPPORT_HASH` | keluaran `make hash-sandi` | dua sandi **berbeda**, catat di catatan internal. Tulis `$$` untuk tiap `$` (compose memakan `$`) |
-| `CONF_THRESHOLD`, `MINIMUM_SIZE`, `ROI_*` | nilai pabrik | Lampung: 0.5, 3000, ROI 100/100/1180/620. Bisa diubah dari tab Setelan |
+| `CONF_THRESHOLD`, `MINIMUM_SIZE`, `ROI_*` | nilai pabrik | Lampung: 0.5, 3000, ROI 100/100/1180/620. Bisa diubah dari tab Setelan (ROI: kotak area deteksi, selama dikosongkan di sana `.env` yang dipakai) |
 | `GARIS_CAPTURE`, `SUMBU_GARIS`, `MODE_DEV` | `300`, `tegak`, `false` | **nilai awal saja**: yang dipakai sehari-hari diatur dari tab Setelan, berlaku tanpa restart. Garis `0` = tanpa garis |
 | `BORDER_THICKNESS`, `FONT_SCALE`, `FONT_THICKNESS` | 8, 2.5, 5 | frame 2448×2048 butuh angka besar |
 | `R2_ACCOUNT_ID` … `R2_PUBLIC_URL` | dari Cloudflare, atau kosong | kosong = foto tidak diunggah, tidak ada `detail_url` di tiket ERP |
@@ -802,7 +823,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Impor CSV ditolak "bukan CSV Per janjang" | berkas ringkasan (Per hari / Per truk), atau disimpan ulang dari Excel | di tab Rekap pilih **Per janjang**, **Unduh CSV**, impor berkas itu tanpa dibuka di Excel |
 | Disk penuh, grading berhenti tersimpan | penjaga disk mati (`UPLOAD_DISK_MIN_FREE_GB=0`) atau Docker menumpuk image lama | `docker system prune`; kembalikan penjaga ke 20 |
 | Pita **Disk PC hampir penuh / hampir habis** | sisa disk di bawah `DISK_PERINGATAN_GB` / `DISK_KRITIS_GB`. Tanpa R2 tidak ada yang membersihkan arsip lokal (itu satu-satunya salinan bukti, jadi sengaja tidak dihapus otomatis) | `docker system prune`, hapus rekaman video lama (`/opt/palmgrade/autograde/videos/`), pastikan unggah Cloud Photo jalan; pita hilang sendiri begitu lega |
-| Pita **kamera berhenti mengirim gambar** (di log line tertulis `FRAME_BERHENTI`; pitanya sendiri tanpa kode) | kamera masih terbuka di SDK tapi gambarnya tidak datang: kabel data longgar, switch/splitter, bandwidth GigE, SDK macet | periksa kabel dan LED link, lalu restart line (Danger Zone atau `autograde restart`); log line menyebut `FRAME_BERHENTI` |
+| Pita **kamera berhenti mengirim gambar** (di log line tertulis `FRAME_BERHENTI`; pitanya sendiri tanpa kode) | kamera masih terbuka di SDK tapi gambarnya tidak datang: kabel data longgar, switch/splitter, bandwidth GigE, SDK macet | tekan **Sambung ulang** di kartu line itu dulu; kalau gambar tidak kembali, periksa kabel dan LED link, lalu restart line (Danger Zone atau `autograde restart`); log line menyebut `FRAME_BERHENTI` |
 | Log line `Tutup line: N janjang TIDAK tertulis` | disk lambat atau macet saat line diminta restart/hapus data | cek disk (`df -h`, `dmesg`), janjang yang disebut tidak punya foto; laporkan ke support |
 | Cloud Photo: foto `rusak` bertambah sesudah update | foto atau sidecar 0 byte dari listrik padam sebelum versi ini; tidak diunggah, dibiarkan di disk | tidak perlu apa-apa; boleh diperiksa lalu dihapus tangan |
 | Laptop: `make console` terasa memakai kode lama | port 8100 masih dipegang proses lama | cari pid-nya dengan `lsof -ti:8100`, matikan, jalankan ulang |
@@ -816,8 +837,8 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | Tab Log: "Lapor ke Discord DITOLAK ... (HTTP 404)" | webhook Discord salah atau sudah dihapus | buat webhook baru di kanal support, isi `DISCORD_WEBHOOK_URL` di `.env` PC, lalu `autograde restart`; pesan yang menunggu tidak hilang |
 | Tab Log: "Lapor ke Discord tertahan" | internet pabrik putus | tidak perlu apa-apa, terkirim sendiri begitu internet ada |
 | Notifikasi "Line N tidak menjawab. Tugaskan … manual di kartunya" | penugasan otomatis tidak sampai ke line itu (line mati, restart, atau sedang hapus data); timbangannya tetap tersimpan | nyalakan line-nya, lalu tugaskan truk itu lewat dropdown di kartu line tersebut |
-| Notifikasi "Line N masih memegang truk … yang sudah timbang kosong" | timbang kosong tidak bisa melepas line itu karena line mati; truk berikutnya cuma naik ke line lain | tunggu line menjawab lagi, **Lepas** di kartunya, lalu tugaskan truk yang menunggu di kartu itu |
-| **Pasang sekarang** ditolak "Lepas dulu truk di Line N" | masih ada truk di-assign di line itu, bisa juga sisa kemarin | lepas truknya di kartu line, tekan lagi |
+| Notifikasi "Line N masih memegang truk … yang sudah timbang kosong" | timbang kosong tidak bisa melepas line itu karena line mati; truk berikutnya cuma naik ke line lain | **Lepas paksa** di kartu line itu (atau tunggu line menjawab lagi lalu **Lepas**), lalu tugaskan truk yang menunggu di kartu itu |
+| **Pasang sekarang** ditolak "Lepas dulu truk di Line N" | masih ada truk di-assign di line itu, bisa juga sisa kemarin | lepas truknya di kartu line (line yang mati: **Lepas paksa**), tekan lagi |
 | Sesudah **Pasang sekarang**: "Versi X gagal dinyalakan, sistem kembali ke Y" | versi baru tidak lolos gerbang sehat dan sistem mundur sendiri; versi itu tidak ditawarkan lagi sampai ada versi yang lebih baru | panggil teknisi; tab Log baris "Pembaruan dari konsol"; teknisi memeriksa `autograde logs` |
 | Sesudah **Pasang sekarang**: "Versi X belum terpasang, sistem tetap di Y" | launcher sedang sibuk (mengunduh) atau terhenti, versi baru belum dicoba | tunggu beberapa menit, tombolnya muncul lagi, tekan ulang; kalau berulang panggil teknisi |
 | "Pembaruan X tidak selesai" | penunggu di PC tidak menjawab 20 menit (dicabut, mati, atau PC sibuk) | panggil teknisi: `systemctl status autograde-update.path` dan `journalctl -u autograde-update.service` (`sawit/docs/FACTORY-PC.md`) |
@@ -958,6 +979,8 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.10 | 4 Oktober 2026 | Tab Setelan: **kotak area deteksi** bisa diatur dari layar, dua saklar tampilkan garis capture dan kotak area deteksi, bagian Kamera & Conveyor jadi tiga kotak. Tab Status: kartu Diagnostik berkelompok dan tertutup dari awal, Manifest R2 jadi bagian sendiri. Kartu line: pemilih truk selebar Reject Manual, Tugaskan dan Lepas / Lepas paksa berbagi sisanya (§3.2, §3.5). |
+| 2.9 | 4 Oktober 2026 | Tombol **Sambung ulang** (sambung ulang kamera) di kotak kamera tiap kartu line, di bawah "Kamera tidak tersambung", untuk semua akun, bertanya dulu, tercatat di tab Log; cadangan kalau sambung ulang otomatis tidak membawa gambar kembali (§3.2, §7). |
 | 2.8 | 3 Oktober 2026 | **Update now**: pita kuning "Versi X siap dipasang" untuk semua akun, tombol **Pasang sekarang** di kotak Versi & lisensi (ditolak selama ada truk di-assign), hasil di kotak itu dan di tab Log (§3.2, §6.2), plus empat baris penanganan masalahnya di §7. |
 | 2.7 | 3 Oktober 2026 | Lencana Status di tabel Timbangan sama lebar. Konfirmasi (Lewati, Buka piston) memakai dialog konsol sendiri, bukan kotak bawaan browser. Notifikasi bertumpuk di kanan bawah, terbuka saat disentuh kursor, bisa digeser ke kanan untuk ditutup. Angka RIPE, UNRIPE, JK, TP dan TOTAL bergulir seperti odometer saat berubah (naik bergulir maju lewat 9, turun bergulir mundur). Kedatangan yang dibatalkan disimpan dan tampil di panel **Kedatangan dibatalkan** di bawah tabel Timbangan, kolom **Oleh** menulis nama operator; data demo menyertakan dua contoh pembatalan. |
 | 2.6 | 3 Oktober 2026 | §3.2 dan §3.3: tab Timbangan disusun ulang jadi strip empat langkah yang sama lebar dan dua form sama besar (Catat datang, Timbang isi); form tara jadi satu bar di bawahnya; daftar tunggu jadi lencana **Menunggu n**. Kolom **Jam timbang isi** dan **Jam timbang kosong**; semua kolom tabel muat mulai 1.440 px. Tombol **Batal datang** di baris Datang. Truk yang tidak pernah Keluar selesai sendiri dengan tanda **TANPA SCAN 4** setelah 24 jam atau saat datang lagi. **Lewati** dan **Matikan** jadi tombol merah. |

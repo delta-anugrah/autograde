@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 class PhotoCamera(CameraSource):
     """Camera source dari single image file — frame yang sama dikembalikan terus."""
 
+    menunggu_frame = False
+
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self._frame = None
@@ -43,6 +45,12 @@ class PhotoCamera(CameraSource):
         daripada bug yang cuma muncul di satu `CAMERA_TYPE`.
         """
         return None if self._frame is None else self._frame.copy()
+
+    @property
+    def supports_reconnect(self) -> bool:
+        """No camera behind it: a reconnect would only read the same file again, so the
+        console's reconnect button answers "not a camera" (409) for it, as for a video."""
+        return False
 
     def disconnect(self) -> None:
         self._frame = None

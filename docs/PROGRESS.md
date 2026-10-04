@@ -18,6 +18,143 @@ Next:           ...
 
 ---
 
+## 2026-10-04 · console + vision · Detection area box from the console, collapsible Diagnostics (PR #225)
+Changed:        The ROI box is set from Settings, Camera & Conveyor (four stream-space pixels,
+                `roi_x1..roi_y2`) through the grading settings path: `domain/setelan_grading`
+                (`_kotak`, `kotak_dari`), `RuntimeState.roi_override`, read by
+                `FrameProcessingWorker._roi_box_for` (filter) and `draw_roi` (drawing). Camera &
+                Conveyor is three named blocks (Conveyor, Capture line, Detection area box).
+                Diagnostics groups are `<details>`, closed by default; an opened group is remembered in
+                the browser and opened again after every 5 s redraw, and a group heading turns red
+                while a row inside it carries a red mark. A box that covers none of the stream
+                picture is refused at save (console) and ignored by a line (keeps `.env`).
+Validated:      see PR #225 (unit, e2e, integration, browser in both browsers, ruff). Screenshots of
+                Settings and Status.
+Not validated:  The box on a live video stream and on real bunches. Nothing on the factory PC.
+Decisions:      `null` = never set from the console = each line keeps `ROI_*` from `.env`. An older
+                console or an older saved row therefore never resets a calibrated box. All zeros is a
+                real value (full frame). A box with no area is refused at save (it would filter every
+                bunch out with no error). One box for all lines, like `ROI_*` in `.env`.
+Next:           User tests on the laptop, then release v1.23.0.
+
+## 2026-10-04 · console + capture · Card button row, Diagnostics groups, show/hide overlays, runaway capture loop (PR #224)
+Changed:        Console (`static/console.html`): the `.assign` row on a line card is a grid of four
+                equal columns (truck picker two, as wide as Manual Reject below; Assign and Release /
+                Force release one each), so "Force release" wraps inside its button instead of
+                widening the row. Diagnostics cards are grouped (Camera and image, Machine, Data,
+                Workers with the `n/m` count) with a hairline per row, and long values wrap instead of
+                `…`. R2 manifest has its own heading and no longer sits against the ERP queue table.
+                Two display-only switches in Settings, Camera & Conveyor: `tampil_garis` and
+                `tampil_roi` (default on) ride the existing grading settings (`domain/setelan_grading`,
+                `/internal/setelan`, `RuntimeState`, `DisplayWorker`, `draw_roi`); they hide the
+                DRAWING of the capture line and the ROI box on all lines, detection never reads them.
+                Capture: a source that never waits in `grab_frame` (`CameraSource.menunggu_frame`
+                False: photo, video file) is paced at `LAJU_TANPA_SUMBER_FPS` (20) when neither the
+                source nor `CAMERA_FPS` gives a rate.
+Validated:      `pytest tests/unit` → 4633 passed, 1 failed (`test_doc_links`, local only: it reads the
+                git-excluded `docs/superpowers/` plans on this Mac); `tests/e2e` → 390 passed, 20
+                skipped; `tests/integration` → 166 passed; `make test-browser` → 221 passed, 1 failed
+                once at a tab switch (`langkah.py:58`), full rerun → 222 passed; `ruff check src/ tests/`
+                → All checks passed; `tests/cek_skrip_konsol.py` → OK. Playwright screenshots of the
+                card row (1920 and 1366 px, id and en), the Status tab and Settings.
+Not validated:  The two switches against a real video stream (no line was restarted: the user's own
+                line and console were running). The pacing fix on the running Mac line (same reason).
+                Nothing on the factory PC.
+Decisions:      The "Camera FPS 5,624.8" on Diagnostics was not a wrong calculation. The Mac `.env` has
+                `CAMERA_FPS=0` and Line 2 was a photo source, which reports no rate, so the capture
+                loop ran with no pause at all (line process at 245 % CPU, detection down to 1.2 fps).
+                The number was honest; the loop was the bug. Lampung is not affected (Hikrobot waits
+                for each frame, `CAMERA_FPS` is 20).
+                The switches are one setting for all lines, not per line: they reuse the settings
+                path that already survives a line restart, and a per-card button would crowd the card.
+                ROI question from the user: bunches whose centre is outside the ROI box are already
+                not counted or captured (`FrameProcessingWorker`, TP excepted); their boxes are still
+                drawn. The box only exists when `ROI_X1..Y2` are set.
+Next:           Release v1.23.0 (staging to main, release-gate, tag), then Lampung install.
+
+## 2026-10-04 · console · Lepas paksa for a line that does not answer (PR #223)
+Changed:        On a card that holds a truck while its line's status cannot be read at all, Lepas
+                becomes **Lepas paksa** (`bahaya pekat`, with a confirmation). The server decides
+                (`POST /api/console/lines/{line_code}/force-release`, `services/lepas_paksa.py`,
+                `domain/lepas_paksa.py`): the normal release first (3 s); a line that answers is
+                released normally, a line that answers with a refusal is never forced (502), and
+                only a silent line is released on the console alone, with the same bookkeeping as
+                Lepas (grading link, one AutoERP message, rule 18) and one WARNING naming the account.
+                A line that was only cut off hears the release again: forced releases are kept in
+                `sync_state` `lepas_paksa_tertunda`, and `LineStatusWorker` hands every answered
+                status to `cocokkan_lepas_paksa`; `assign_truck` holds a per-line lock so that
+                re-send never overwrites a newer truck. Rule 13 (+ 36, 38), CLAUDE.md index line,
+                backend-overview, MANUAL, skill konsol-autograde.
+Validated:      unit 4599 passed, 28 skipped; e2e 390 passed, 20 skipped; integration 166 passed;
+                browser 220 passed (chromium + firefox); ruff clean; console script parses.
+Not validated:  A real dead or cut-off line at Lampung.
+Decisions:      Remaining risk (rules.md 13): bunches a cut-off line grades BEFORE it answers again
+                still carry the forced-off truck; the re-send closes it within about a second of the
+                line answering.
+Next:           Merge after PR #222, then release v1.23.0.
+
+## 2026-10-04 · console · Reconnect button moves under "Kamera tidak tersambung" (PR #222)
+Changed:        User 2026-10-04: in the card header the button was too big. It now sits in the
+                camera box under "Kamera tidak tersambung" (`.feed-putus`, replacing the bare
+                `.feed span`), so it shows only when there is no picture: the card is `putus`, or
+                the line reports FRAME_BERHENTI (`frameBerhenti(l)` adds `.frame-berhenti`; the
+                last frame stays on screen there and the browser never marks the card). The
+                header container query and icon-only layout are gone. The browser fake line can
+                stop sending its picture (`atur_feed(False)`).
+Validated:      unit 4541, e2e 387, integration 162, browser 218, ruff clean; screenshot at 1920 px.
+Next:           Merge, then release v1.23.0.
+
+## 2026-10-04 · console · Reconnect camera button on each line card (PR #221)
+Changed:        A **Sambung ulang** button (circular arrow + word, 44 px; icon only when the card
+                header is narrower than 460 px) in every line card header next to ONLINE/OFFLINE,
+                for every account. It asks first (`tanyaKonfirmasi`: grading on that line pauses a
+                few seconds), then `POST /api/console/lines/{line}/reconnect-camera` inside
+                `denganSibuk`, toast on success, refusals worded from their code
+                (`kamera_tanpa_sambung_ulang` for a video or photo line, `line_tidak_menjawab`,
+                `line_menolak`). The busy mark also lives in `sambungUlangBerjalan`, so a card
+                redrawn mid-request stays locked. Console: `routes/console_kamera.py` +
+                `services/sambung_ulang_kamera.py` (own modules: console.py and console_service.py
+                sit at the 1,000-line guard), WARNING naming the account before the call. Line:
+                `POST /internal/camera/reconnect` (`routes/internal_kamera.py`, no torch) only
+                raises a flag on `RuntimeState` and answers 202; `FrameCaptureWorker` reconnects on
+                its next turn under `state.lock`, no backoff wait, INFO on request and outcome
+                (WARNING if the connect fails). The automatic reconnect now also holds `state.lock`
+                and sleeps its backoff in 0.25 s slices, so a press during a 30 s backoff is served
+                at once and not followed by a second reconnect. `PhotoCamera.supports_reconnect` is
+                False (409 like a video). Docs: backend-overview, MANUAL v2.9, skill
+                konsol-autograde, coding-standard known gaps (the silent except in the capture
+                worker is gone).
+Validated:      unit 4516 passed, 28 skipped; e2e 387 passed, 20 skipped; integration 162 passed;
+                browser 214 passed (chromium + firefox); ruff clean; `cek_skrip_konsol.py` OK. The
+                new tests also pass with torch, cv2 and ultralytics blocked (103 passed). Cards
+                checked by eye in both themes, both browsers, at 1920 and 1280 px.
+Not validated:  A real Hikrobot camera: no SDK on the Mac or in CI. MANUAL.pdf not regenerated.
+Decisions:      Allowed while a truck is assigned (the button exists for the moment grading is
+                stuck); the dialog says grading pauses. The account is logged as a WARNING on the
+                console, not INFO on the line: the Log tab keeps only WARNING and ERROR.
+Next:           Release, then at Lampung press Sambung ulang on one line: the card stays ONLINE or
+                comes back within seconds, and `autograde logs` shows the INFO pair on that line.
+
+## 2026-10-03 · console · One modal component; Versi & lisensi box tidied (PR #220)
+Changed:        The four text dialogs (model swap, confirmation, CSV import, Versi & lisensi) share
+                one component: `dialog.modal`, `.modal-isi`, `.modal-tombol` (equal-width buttons,
+                48 px). Per-dialog copies of the box, backdrop and `.tools` rows are gone. In the
+                Versi & lisensi box, Pasang sekarang moved from under the text into the button row
+                (`tombolPasang`, green `utama`), next to Tutup (red `bahaya`, first, keeps the focus).
+                The Pembaruan heading reads like a section label. Impor CSV's Tutup is red too.
+                Round 2 (user 2026-10-04): the header badge "Versi X siap dipasang" became a
+                full-width banner above the line cards (`#pita-pembaruan`, `pitaPembaruan()`): tap
+                opens the box, × hides it for that version only (`localStorage` key
+                `pembaruanDitutup`), a newer version shows it again. Impor CSV: file box 3/4,
+                Periksa 1/4, full row.
+                Round 3 (user 2026-10-04): language, theme and sign-out buttons carry an icon
+                (`.tombol-ikon`, text in a span so a switch keeps the icon); the brand dot is a
+                circle centred on AUTOGRADE; "release every truck first" under Update now is
+                warn-coloured (`.pembaruan-syarat`). A camera reconnect button comes in its own PR.
+                Coding standard F12 names the component.
+Validated:      See the PR body for the suite counts; screenshots light, dark, 390 px, banner, import row.
+Next:           Merge, then release with the camera temperature.
+
 ## 2026-10-03 · camera · Camera temperature on the Diagnostics card (PR #218)
 Changed:        Each Hikrobot line reads `DeviceTemperature` every 10 s on the capture thread under
                 `state.lock` (`FrameCaptureWorker._baca_suhu_kalau_waktunya`), `/health/detail`

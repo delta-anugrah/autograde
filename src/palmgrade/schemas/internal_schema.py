@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class AssignmentSyncRequest(BaseModel):
@@ -60,6 +60,12 @@ class PistonCommandRequest(BaseModel):
     open: bool
     requested_by: str = "operator"
     requested_at: str
+
+
+class CameraReconnectRequest(BaseModel):
+    """`POST /internal/camera/reconnect` from the console. The name is for the line log only."""
+
+    requested_by: str = Field("?", max_length=200)
 
 
 class LineStatusResponse(BaseModel):
@@ -123,6 +129,14 @@ class SetelanGradingRequest(BaseModel):
     garis_capture: int = 0
     sumbu_garis: str = "tegak"
     mode_dev: bool = False
+    # Display only (2026-10-04). True by default: an older console never sends them.
+    tampil_garis: bool = True
+    tampil_roi: bool = True
+    # ROI box in stream space. None = not set from the console, the line's `.env` decides.
+    roi_x1: int | None = None
+    roi_y1: int | None = None
+    roi_x2: int | None = None
+    roi_y2: int | None = None
 
 
 class SetelanGradingResponse(BaseModel):
@@ -131,6 +145,13 @@ class SetelanGradingResponse(BaseModel):
     garis_capture: int = 0
     sumbu_garis: str = "tegak"
     mode_dev: bool = False
+    tampil_garis: bool = True
+    tampil_roi: bool = True
+    # ROI box in stream space. None = not set from the console, the line's `.env` decides.
+    roi_x1: int | None = None
+    roi_y1: int | None = None
+    roi_x2: int | None = None
+    roi_y2: int | None = None
     sumber: str  # "konsol" kalau ditimpa, "env" kalau masih dari .env
 
 

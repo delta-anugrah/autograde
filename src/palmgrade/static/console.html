@@ -104,7 +104,12 @@
             border-bottom:3px solid var(--acc); }
   h1 { font-size:1rem; margin:0; font-weight:700; letter-spacing:.14em;
        text-transform:uppercase; display:flex; align-items:center; gap:10px; }
-  h1::before { content:""; width:.7rem; height:1rem; background:var(--acc); border-radius:var(--r-pill); }
+  /* Titik merek bulat (user 2026-10-04), di tengah tinggi huruf lewat `align-items:center` h1. */
+  h1::before { content:""; flex:none; width:.7rem; height:.7rem; background:var(--acc); border-radius:50%; }
+  /* Tombol berikon di kepala layar: ikon dan kata di tengah vertikal, satu jarak. */
+  .tombol-ikon { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+  .tombol-ikon[hidden] { display:none; }
+  .tombol-ikon svg { flex:none; }
   .merek { display:flex; flex-direction:column; gap:1px; }
   /* Menjorok sejajar huruf pertama AUTOGRADE (pil hijau .7rem + jarak 10px). */
   #info-sistem { align-self:flex-start; min-height:0; padding:0 0 0 calc(.7rem + 10px);
@@ -113,27 +118,23 @@
   #info-sistem:hover { color:var(--fg); text-decoration:underline; }
   /* Tingkat dari server, sama dengan banner langganan. */
   #info-sistem[data-tingkat="warning"] { color:var(--warn); }
-  /* Batch 4.6: "Versi X siap dipasang", sejajar #info-sistem. */
-  #badge-pembaruan { align-self:flex-start; min-height:0; margin-left:calc(.7rem + 10px);
-                     padding:2px 10px; border-radius:999px; font-weight:700;
-                     background:var(--warn); color:var(--bg); }
   .pembaruan-judul { margin:16px 0 8px; font-size:1.1rem; }
   .pembaruan-ket { margin:6px 0; }
+  /* Syarat "lepas semua truk dulu" berwarna: yang terlewat di sini membuat pemasangan ditolak. */
+  .pembaruan-syarat { margin:6px 0; color:var(--warn); font-weight:600; }
   .pembaruan-pasang { min-height:44px; min-width:12rem; display:inline-flex; gap:8px; align-items:center; }
   .pembaruan-hasil[data-state="rolled_back"], .pembaruan-hasil[data-state="failed"],
   .pembaruan-hasil[data-state="timeout"] { color:var(--rej); font-weight:700; }
   #info-sistem[data-tingkat="grace"] { color:var(--rej); }
   #info-sistem[data-tingkat="blocked"] { color:var(--rej); }
-  #info-sistem-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
-                       background:var(--card); color:var(--fg); width:min(92vw, 30rem); }
-  #info-sistem-modal::backdrop { background:rgba(0,0,0,.72); }
-  .info-sistem-isi { padding:20px 24px; }
-  #info-sistem-modal h2 { margin:0 0 12px; font-size:1.25rem; }
-  #info-sistem-daftar { margin:0; grid-template-columns:1fr; }
-  #info-sistem-daftar > div { grid-template-columns:9rem 1fr; }
-  #info-sistem-modal .tools { padding:16px 0 0; justify-content:flex-end;
-                              background:none; border:0; border-radius:0; }
-  #info-sistem-modal .tools button { min-height:44px; min-width:9rem; }
+  #info-sistem-modal { width:min(92vw, 32rem); }
+  #info-sistem-daftar { grid-template-columns:1fr; }
+  #info-sistem-daftar > div { grid-template-columns:7rem 1fr; }
+  /* Di dalam modal, judul Pembaruan dibaca seperti judul bagian tab Status, bukan judul kedua. */
+  #pembaruan-isi:empty { display:none; }
+  #pembaruan-isi .pembaruan-judul { margin:0 0 8px; font-size:.8rem; font-weight:700;
+                                    letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+  #pembaruan-isi .pembaruan-ket, #pembaruan-isi .pembaruan-syarat { margin:4px 0 0; }
   #jam { font-family:var(--mono); font-size:1.15rem; font-weight:700; letter-spacing:.01em; }
   .jam { display:flex; align-items:baseline; gap:8px; }
   /* `flex-wrap`: on a 390 px phone the account name and three buttons are wider than the bar,
@@ -620,15 +621,41 @@
   /* Diagnostik: one .card per line, same grid rhythm as #lines above. */
   .kartu-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
   .kartu-grid .card.tidak-terjangkau { border-color:var(--rej); }
-  .kartu-grid dl { margin:0; padding:10px 13px; display:grid; grid-template-columns:auto 1fr;
-                   gap:4px 10px; font-size:.85rem; }
-  .kartu-grid dt { color:var(--muted); }
-  .kartu-grid dd { margin:0; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Tidied 2026-10-04 (user: "berantakan banget"): rows in named groups, a hairline under
+     each row so the eye can follow a label to its value across a wide card, and a long
+     value (model file, licence) wraps instead of being cut with an ellipsis. */
+  .kartu-grid dl { margin:0; padding:0 13px 8px; display:grid;
+                   grid-template-columns:minmax(0, auto) minmax(0, 1fr); font-size:.9rem; }
+  .kartu-grid dl:empty { display:none; }
+  .kartu-grid :is(dt, dd) { padding:6px 0; border-bottom:1px solid var(--line); }
+  .kartu-grid :is(dt, dd):nth-last-child(-n+2) { border-bottom:none; }
+  .kartu-grid dt { color:var(--muted); padding-right:12px; }
+  .kartu-grid dd { margin:0; text-align:right; font-weight:600; overflow-wrap:anywhere; }
+  .kartu-grid .diag-grup { margin:0; padding:10px 13px 4px; background:var(--zebra);
+                           border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+                           font-size:.72rem; font-weight:700; letter-spacing:.12em;
+                           text-transform:uppercase; color:var(--muted);
+                           display:flex; justify-content:space-between; align-items:baseline; }
+  .kartu-grid .card > details:first-of-type > .diag-grup { border-top:none; }
+  .kartu-grid .diag-grup + dl { padding-top:2px; }
+  /* Each group opens and closes. The marker is drawn here because the flex summary has
+     none of its own; the worker count stays at the right edge. */
+  .kartu-grid summary.diag-grup { cursor:pointer; user-select:none; list-style:none;
+                                  justify-content:flex-start; gap:8px; }
+  .kartu-grid summary.diag-grup::-webkit-details-marker { display:none; }
+  .kartu-grid summary.diag-grup::before { content:"\25B8"; }
+  .kartu-grid details[open] > summary.diag-grup::before { content:"\25BE"; }
+  .kartu-grid summary.diag-grup > span { margin-left:auto; }
+  .kartu-grid details:not([open]) > summary.diag-grup { border-bottom:none; }
+  .kartu-grid summary.diag-grup:hover { color:var(--fg); }
+  /* Closed by default, so a fault inside must show on the heading itself: red while any
+     row of the group carries a red mark. */
+  .kartu-grid details:has(dd .tanda-gagal) > summary.diag-grup { color:var(--rej); }
   /* Worker satu per baris di bawah judul Workers, menjorok supaya terbaca
      sebagai anak judul itu, bukan baris diagnostik yang setara. */
-  .kartu-grid dt.diag-worker { padding-left:14px; font-family:var(--mono); font-size:.8rem; }
+  .kartu-grid dt.diag-worker { font-family:var(--mono); font-size:.8rem; }
   /* Sebab line tak terbaca: satu kalimat utuh yang dibaca, bukan nilai yang boleh dipotong `…`. */
-  .kartu-grid dd.diag-sebab { white-space:normal; text-align:left; }
+  .kartu-grid dd.diag-sebab { text-align:left; font-weight:400; }
   /* ✓/✗ berwarna. Token tema, bukan hex: terang dan gelap punya hijau-merah
      sendiri, dan hex yang dipatok cuma terbaca di salah satunya. */
   .tanda-ok { color:var(--acc); font-weight:700; }
@@ -774,11 +801,24 @@
      FPS counter the vision service burns into the frame moves on a live feed
      and freezes on a dead one - so the badge only repeated what was already
      on screen, over the picture the operator is trying to read. */
-  .feed span { position:absolute; inset:0; z-index:4; display:none; place-items:center;
-               padding:16px; text-align:center; color:#fff;
-               font-size:1.15rem; font-weight:700; background:rgba(0,0,0,.72); }
+  /* "Kamera tidak tersambung" dan, di bawahnya, tombol Sambung ulang (user 2026-10-04: di
+     kepala kartu tombolnya terlalu besar). Cuma tampil saat gambarnya memang tidak ada. */
+  .feed-putus { position:absolute; inset:0; z-index:4; display:none; flex-direction:column;
+                align-items:center; justify-content:center; gap:14px; padding:16px;
+                text-align:center; color:#fff; font-size:1.15rem; font-weight:700;
+                background:rgba(0,0,0,.72); }
   .card.putus .feed img { visibility:hidden; }
-  .card.putus .feed span { display:grid; }
+  .card.putus .feed-putus { display:flex; }
+  /* Kamera terbuka tapi diam (FRAME_BERHENTI): frame terakhir tetap di layar dan browser tidak
+     pernah menandai `putus`, padahal di sinilah tombol Sambung ulang paling dibutuhkan. */
+  .card.frame-berhenti .feed-putus { display:flex; }
+  /* Sarung tangan: 44px, tapi tidak lebih lebar dari kata dan ikonnya. Ikon memberi tempat
+     untuk spinner sibuk (`button.sibuk::before`). */
+  .feed-putus button.sambung-ulang { min-height:44px; display:inline-flex; align-items:center; gap:8px;
+                                     padding:0 16px; font-size:.9rem; white-space:nowrap; }
+  .feed-putus button.sambung-ulang .ikon-sambung { flex:none; width:1.05rem; height:1.05rem; }
+  .feed-putus button.sambung-ulang.sibuk .ikon-sambung { display:none; }
+  .feed-putus button.sambung-ulang.sibuk::before { margin-right:0; }
   /* Line yang sedang dinyalakan ulang (Sumber Kamera, Model Deteksi, Danger
      Zone): di atas "Kamera tidak tersambung", karena selama restart itu memang
      bukan kerusakan. Spinner dan bar CSS murni, tanpa gambar: konsol harus jalan offline.
@@ -791,8 +831,8 @@
      belakangnya (permintaan operator 2026-09-29: "cukup loadingnya aja"). Kelasnya
      dipasang `gambarRestart` dan hilang saat tanda hilang atau berganti kotak merah,
      jadi kamera yang benar-benar putus sesudahnya tetap terbaca. Harus SESUDAH
-     `.card.putus .feed span`: spesifisitasnya sama. */
-  .card.sedang-restart .feed > span { display:none; }
+     `.card.putus .feed-putus`: spesifisitasnya sama. */
+  .card.sedang-restart .feed-putus { display:none; }
   .feed .restart-kotak b { font-size:1.15rem; }
   .feed .restart-kotak p { margin:0; }
   .feed .restart-kotak.lama { background:var(--danger-bg); color:var(--danger-fg); }
@@ -847,11 +887,14 @@
                min-width:0; font-size:.95rem; font-weight:600; }
   .truk .sup span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-  .assign { display:flex; gap:8px; flex-wrap:wrap; }
-  .assign .pilih { flex:1 1 9rem; }
-  /* One fixed basis for both, so the pair stays a matched set in either
-     language instead of following word length. */
-  .assign button { flex:0 0 7.5rem; }
+  /* Four equal columns (user 2026-10-04): the truck picker takes two, so it is exactly as
+     wide as Manual Reject in the row below, and Assign and Release (or Force release) share
+     the other half. A long label wraps inside its own button and never widens the row. */
+  .assign { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px; }
+  .assign .pilih { grid-column:span 2; }
+  .assign button { min-width:0; padding-left:8px; padding-right:8px; }
+  /* Lepas or Lepas paksa (tombolLepas), rewritten by the poll: the slot itself is no box. */
+  .slot-lepas { display:contents; }
 
   button, input { background:var(--input); color:var(--fg); border:1px solid var(--line-kuat);
                   border-radius:var(--r-sm); padding:10px 13px; font:inherit; }
@@ -994,6 +1037,24 @@
                       padding:0; border:0; background:transparent; color:inherit;
                       font-size:1.4rem; line-height:1; opacity:.7; cursor:pointer; }
   #pita-disk .tutup:hover { opacity:1; }
+  /* Pita pembaruan: kabar baik, jadi tanpa denyut dan tanpa merah. Seluruh pita satu tombol
+     (target besar untuk sarung tangan), × di pojok seperti pita disk. */
+  #pita-pembaruan { margin:10px var(--pad) 0; }
+  #pita-pembaruan p { position:relative; margin:0; border-radius:var(--r-sm);
+                      background:var(--warn-bg); color:var(--warn); border-left:4px solid var(--warn); }
+  #pita-pembaruan .pita-buka { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px;
+                               width:100%; min-height:48px; padding:11px 3.5rem 11px 13px;
+                               border:0; background:transparent; color:inherit; text-align:left;
+                               cursor:pointer; border-radius:inherit; }
+  #pita-pembaruan .pita-buka:hover b { text-decoration:underline; }
+  #pita-pembaruan .ikon-pita { flex:none; width:1.5rem; height:1.5rem; }
+  #pita-pembaruan b { font-size:1rem; letter-spacing:.02em; }
+  #pita-pembaruan span { padding-left:12px; border-left:2px solid currentColor; font-size:.9rem; font-weight:600; }
+  #pita-pembaruan .tutup { position:absolute; top:50%; right:.35rem; transform:translateY(-50%);
+                           min-width:2.5rem; min-height:2.5rem; padding:0; border:0;
+                           background:transparent; color:inherit; font-size:1.4rem; line-height:1;
+                           opacity:.7; cursor:pointer; }
+  #pita-pembaruan .tutup:hover { opacity:1; }
   /* Touch/click targets for a step back, gloves, a dusty screen. The reorder
      arrows in card titles are deliberately excluded - rarely used, and they
      would fatten every card title. */
@@ -1113,6 +1174,12 @@
   .tabel { position:relative; overflow-x:auto; background:var(--card);
            border:1px solid var(--line-kuat); border-radius:var(--r-md); }
   .tools + .tabel { border-top:none; border-radius:0 0 var(--r-md) var(--r-md); }
+  /* The R2 manifest table is a second block under the ERP queue table, not a part of it. */
+  #manifest-nonaktif { margin:0 var(--pad) 8px; }
+  /* No summary to show (R2 not set): no empty bar above the table, which then closes its
+     own top edge. A browser without :has() just keeps the empty bar. */
+  .tools:has(> #manifest-ringkas:empty) { display:none; }
+  .tools:has(> #manifest-ringkas:empty) + .tabel { border-top:1px solid var(--line-kuat); border-radius:var(--r-md); }
   /* Bar simpan yang BERDIRI SENDIRI, bukan kepala tabel. Kotak `.tools` di atas
      sengaja tanpa garis bawah karena menempel ke `.tabel`; tanpa tabel, kotaknya
      menggantung dengan bawah terbuka (keluhan 2026-09-25). Di sini kotaknya
@@ -1194,6 +1261,23 @@
   .setelan-grup-isi { display:grid; gap:18px; padding:16px;
                       grid-template-columns:repeat(auto-fit, minmax(min(22rem, 100%), 1fr)); }
   .setelan-form label { display:grid; gap:6px; align-content:start; }
+  /* A named block inside a group: its fields stack, the blocks sit side by side. */
+  .setelan-sub { margin:0; min-width:0; padding:14px 16px 16px; display:grid; gap:16px; align-content:start;
+                 border:1px solid var(--line); border-radius:var(--r); }
+  .setelan-sub > legend { padding:0 6px; font-size:.72rem; font-weight:700; letter-spacing:.12em;
+                          text-transform:uppercase; color:var(--muted); }
+  /* Fields fill their block: a 22 rem cap inside a wide block left half of it empty. */
+  .setelan-grup-isi .setelan-sub :is(input[type="text"], select) { max-width:none; width:100%; box-sizing:border-box; }
+  /* The four sides of the detection box in one row, two by two on a narrow block. */
+  .setelan-kotak { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; }
+  @container (max-width:26rem) { .setelan-kotak { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+  /* Camera & Conveyor: the box block carries four fields, so it gets the widest share;
+     one column on a screen too narrow for three. */
+  .setelan-tiga { grid-template-columns:minmax(0, 1fr); }
+  .setelan-tiga > .setelan-sub { container-type:inline-size; }
+  @media (min-width:1100px) {
+    .setelan-tiga { grid-template-columns:minmax(0, 3fr) minmax(0, 4fr) minmax(0, 5fr); }
+  }
   /* Kolomnya ikut melebar bersama kartunya kalau tidak dibatasi: kotak selebar
      863 px untuk mengetik "0.5" terbaca seperti kolom yang salah, dan angkanya
      terlempar jauh dari labelnya. Yang melebar kartunya, bukan kotaknya. */
@@ -1377,53 +1461,49 @@
   /* Padding 0 di <dialog>, padding di pembungkus isinya: klik yang target-nya
      dialog itu sendiri cuma bisa datang dari backdrop, jadi klik di tepi kotak
      tidak ikut membatalkan. */
-  #model-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
-                 background:var(--card); color:var(--fg); max-width:min(92vw, 36rem); }
-  .model-modal-isi { padding:20px 24px; }
-  #model-modal::backdrop { background:rgba(0,0,0,.72); }
-  #model-modal h2 { margin:0 0 12px; font-size:1.25rem; }
-  #model-modal ul { margin:0 0 12px; padding-left:1.2rem; display:grid; gap:8px; }
-  /* `.tools` global adalah kepala tabel berbingkai; di sini cuma baris tombol. */
-  #model-modal .tools { padding:16px 0 0; justify-content:flex-end;
-                        background:none; border:0; border-radius:0; }
+  /* Komponen modal (user 2026-10-03): satu kotak, satu backdrop, satu baris tombol untuk
+     semua dialog teks (ganti model, konfirmasi, impor CSV, versi & lisensi). Dulu tiap
+     dialog menyalin aturannya sendiri dan kotak versi melenceng: tombol Pasang sekarang
+     sendirian di kiri dengan ukurannya sendiri, Tutup di kanan dengan ukuran lain.
+     Tombol di `.modal-tombol` selebar satu sama lain (F5); yang batal/tutup di kiri, merah,
+     dan mendapat fokus awal, jadi Enter yang tidak disengaja tidak menjalankan apa pun. */
+  dialog.modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
+                 background:var(--card); color:var(--fg); width:min(92vw, 30rem);
+                 box-shadow:var(--tinggi-2); }
+  dialog.modal[open] { animation:muncul .15s ease; }
+  dialog.modal::backdrop { background:rgba(0,0,0,.72); }
+  .modal-isi { padding:22px 24px; display:grid; gap:14px; }
+  .modal-isi h2 { margin:0; font-size:1.25rem; overflow-wrap:anywhere; }
+  .modal-isi p { margin:0; }
+  .modal-tombol { display:flex; flex-wrap:wrap; gap:12px; justify-content:flex-end; padding-top:6px; }
+  .modal-tombol > button { flex:1 1 0; min-width:9rem; min-height:48px;
+                           display:inline-flex; gap:8px; align-items:center; justify-content:center; }
+  /* Tombol yang digambar ulang dari data (Pasang sekarang) ikut baris tombol tanpa pembungkus. */
+  .modal-slot { display:contents; }
+  .modal-slot > button { flex:1 1 0; min-width:9rem; min-height:48px; justify-content:center; }
+  .modal-tombol > [hidden] { display:none; }
+  #model-modal { width:min(92vw, 36rem); }
+  #model-modal ul { margin:0; padding-left:1.2rem; display:grid; gap:8px; }
   /* `th, td` global menahan satu baris. Kalimat alasan dan status engine di
      tabel model panjang, dan terpotong di kanan kalau tidak boleh membungkus. */
   #model-baris td.bungkus { white-space:normal; min-width:14rem; }
-  #model-modal .tools button { flex:0 0 auto; min-height:44px; min-width:9rem; }
   /* Dialog konfirmasi bersama (`tanyaKonfirmasi`, user 2026-10-03), pengganti kotak
      `confirm` bawaan browser: kotak bawaan itu tidak ikut tema gelap, menulis alamat konsol di
      judulnya, dan tidak bisa dibaca dari jauh. Bahasa visualnya sama dengan model-modal. */
-  #konfirmasi-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
-                      background:var(--card); color:var(--fg); width:min(92vw, 30rem);
-                      box-shadow:var(--tinggi-2); }
-  #konfirmasi-modal[open] { animation:muncul .15s ease; }
-  #konfirmasi-modal::backdrop { background:rgba(0,0,0,.72); }
-  .konfirmasi-isi { padding:20px 24px; }
-  #konfirmasi-modal h2 { margin:0 0 8px; font-size:1.25rem; overflow-wrap:anywhere; }
-  #konfirmasi-modal p { margin:0; color:var(--muted); }
-  #konfirmasi-modal .tools { padding:20px 0 0; justify-content:flex-end; flex-wrap:wrap;
-                             background:none; border:0; border-radius:0; }
-  #konfirmasi-modal .tools button { flex:0 0 auto; min-height:44px; min-width:9rem; }
+  #konfirmasi-modal p { color:var(--muted); }
   /* Impor CSV (tab Riwayat, support). Padding di pembungkus isi, bukan di <dialog>,
      dengan alasan yang sama dengan model-modal. */
-  #impor-modal { border:1px solid var(--line-kuat); border-radius:var(--r); padding:0;
-                 background:var(--card); color:var(--fg); width:min(92vw, 44rem); }
-  #impor-modal::backdrop { background:rgba(0,0,0,.72); }
-  .impor-isi { padding:20px 24px; display:grid; gap:12px; }
-  #impor-modal h2 { margin:0; font-size:1.25rem; }
+  #impor-modal { width:min(92vw, 44rem); }
   #impor-modal h3 { margin:8px 0 0; font-size:1rem; }
-  #impor-modal p { margin:0; }
-  .impor-pilih { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
-  .impor-pilih button { min-height:2.6rem; min-width:9rem; }
+  /* Kotak berkas 3/4, Periksa 1/4, selebar baris (user 2026-10-04). */
+  .impor-pilih { display:grid; grid-template-columns:minmax(0, 3fr) minmax(7rem, 1fr); gap:10px; align-items:stretch; }
+  .impor-pilih > * { width:100%; min-height:48px; margin:0; }
   .impor-angka { display:grid; grid-template-columns:1fr auto; gap:4px 16px; margin:0; }
   .impor-angka dt { color:var(--muted); }
   .impor-angka dd { margin:0; text-align:right; font-weight:700; font-variant-numeric:tabular-nums; }
   .impor-angka dd.salah { color:var(--rej); }
   .impor-salah { margin:8px 0 0; padding-left:1.2rem; color:var(--rej); max-height:12rem; overflow:auto; }
   .impor-catatan { margin-top:8px; color:var(--warn); font-weight:600; }
-  #impor-modal .tools { padding:4px 0 0; justify-content:flex-end;
-                        background:none; border:0; border-radius:0; }
-  #impor-modal .tools button { flex:0 0 auto; min-height:44px; min-width:9rem; }
   .impor-daftar { display:grid; gap:8px; max-height:16rem; overflow:auto; }
   .impor-batch { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; padding:8px 10px;
                  border:1px solid var(--line); border-radius:var(--r); }
@@ -1537,15 +1617,15 @@
   <div class="merek">
     <h1>AutoGrade</h1>
     <button type="button" id="info-sistem" hidden aria-haspopup="dialog"></button>
-    <!-- Batch 4.6: "Versi X siap dipasang", semua akun. Klik membuka kotak Versi & lisensi. -->
-    <button type="button" id="badge-pembaruan" hidden aria-haspopup="dialog"></button>
   </div>
   <span class="jam"><b id="jam">-</b> <span id="tz" class="lb"></span></span>
   <span class="aksi">
     <span id="operator-aktif" hidden></span>
-    <button id="bahasa">EN</button>
-    <button id="tema">Terang</button>
-    <button id="keluar" class="bahaya" hidden data-t="tombolKeluar">Keluar</button>
+    <!-- Ikon di tiap tombol (user 2026-10-04): bola dunia = bahasa, lingkaran setengah = tema,
+         pintu = keluar. Katanya di span, supaya ganti bahasa/tema tidak menghapus ikonnya. -->
+    <button id="bahasa" class="tombol-ikon"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span id="bahasa-teks">EN</span></button>
+    <button id="tema" class="tombol-ikon"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg><span id="tema-teks">Terang</span></button>
+    <button id="keluar" class="bahaya tombol-ikon" hidden><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg><span id="keluar-teks" data-t="tombolKeluar">Keluar</span></button>
   </span>
 </header>
 <div id="err"></div>
@@ -1658,6 +1738,10 @@
   </div>
 </section>
 
+<!-- Batch 4.6, pita sejak 2026-10-04 (dulu lencana kecil di bawah AUTOGRADE): "Versi X siap
+     dipasang", semua akun. Ketuk membuka kotak Versi & lisensi; × menyembunyikannya sampai
+     versi berikutnya. Angka versi di bawah AUTOGRADE tetap membuka kotak yang sama. -->
+<div id="pita-pembaruan" hidden></div>
 <div id="pita-alarm" hidden></div>
 <div id="pita-disk" hidden></div>
 <!--
@@ -2085,21 +2169,59 @@
 
     <details class="setelan-grup" data-setelan-grup="kamera">
       <summary data-t="grupKamera">Kamera &amp; Conveyor</summary>
-      <div class="setelan-grup-isi">
-        <label>
-          <span data-t="labelSumbu">Arah conveyor</span>
-          <select id="set-sumbu">
-            <option value="tegak" data-t="sumbuTegak">Mendatar (buah lewat kiri-kanan)</option>
-            <option value="mendatar" data-t="sumbuMendatar">Menurun (buah lewat atas-bawah)</option>
-          </select>
-          <small class="muted" data-t="bantuSumbu">Menentukan garis capture tegak atau mendatar.</small>
-        </label>
-        <label>
-          <span data-t="labelGaris">Garis capture (piksel)</span>
-          <input id="set-garis" type="text" inputmode="numeric" autocomplete="off"
-                 data-angka="bulat" maxlength="5">
-          <small class="muted" id="set-garis-bantu">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
-        </label>
+      <div class="setelan-grup-isi setelan-tiga">
+        <!-- Three named blocks (user 2026-10-04): conveyor, capture line, detection area box. -->
+        <fieldset class="setelan-sub">
+          <legend data-t="subConveyor">Conveyor</legend>
+          <label>
+            <span data-t="labelSumbu">Arah conveyor</span>
+            <select id="set-sumbu">
+              <option value="tegak" data-t="sumbuTegak">Mendatar (buah lewat kiri-kanan)</option>
+              <option value="mendatar" data-t="sumbuMendatar">Menurun (buah lewat atas-bawah)</option>
+            </select>
+            <small class="muted" data-t="bantuSumbu">Menentukan garis capture tegak atau mendatar.</small>
+          </label>
+        </fieldset>
+        <fieldset class="setelan-sub">
+          <legend data-t="subGaris">Garis capture</legend>
+          <label>
+            <span data-t="labelGaris">Posisi garis (piksel)</span>
+            <input id="set-garis" type="text" inputmode="numeric" autocomplete="off"
+                   data-angka="bulat" maxlength="5">
+            <small class="muted" id="set-garis-bantu">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
+          </label>
+          <!-- Display only: hiding the line or the box never changes what is detected or captured. -->
+          <label class="saklar">
+            <input id="set-tampil-garis" type="checkbox" checked>
+            <span>
+              <span data-t="labelTampilGaris">Tampilkan garis capture</span>
+              <small class="muted" data-t="bantuTampilGaris">Garis biru di video. Disembunyikan pun janjang tetap difoto di garis itu.</small>
+            </span>
+          </label>
+        </fieldset>
+        <fieldset class="setelan-sub">
+          <legend data-t="subKotak">Kotak area deteksi</legend>
+          <!-- The ROI box, four stream-space pixels. All four empty = never set here, each
+               line keeps the box of its own installation. -->
+          <div class="setelan-kotak">
+            <label><span data-t="labelRoiX1">Kiri (X1)</span>
+              <input id="set-roi-x1" type="text" inputmode="numeric" autocomplete="off" data-angka="bulat" maxlength="5"></label>
+            <label><span data-t="labelRoiY1">Atas (Y1)</span>
+              <input id="set-roi-y1" type="text" inputmode="numeric" autocomplete="off" data-angka="bulat" maxlength="5"></label>
+            <label><span data-t="labelRoiX2">Kanan (X2)</span>
+              <input id="set-roi-x2" type="text" inputmode="numeric" autocomplete="off" data-angka="bulat" maxlength="5"></label>
+            <label><span data-t="labelRoiY2">Bawah (Y2)</span>
+              <input id="set-roi-y2" type="text" inputmode="numeric" autocomplete="off" data-angka="bulat" maxlength="5"></label>
+          </div>
+          <small class="muted" data-t="bantuKotak">Piksel pada video (1280 x 720). Janjang di luar kotak tidak dihitung. Isi keempatnya, atau kosongkan keempatnya untuk memakai setelan bawaan PC. 0 semua = seluruh gambar.</small>
+          <label class="saklar">
+            <input id="set-tampil-roi" type="checkbox" checked>
+            <span>
+              <span data-t="labelTampilRoi">Tampilkan kotak area deteksi</span>
+              <small class="muted" data-t="bantuTampilRoi">Kotak hijau di video. Disembunyikan pun janjang di luar kotak tetap tidak dihitung.</small>
+            </span>
+          </label>
+        </fieldset>
       </div>
     </details>
 
@@ -2268,9 +2390,9 @@
   -->
   <!-- Pesan nonaktif di ATAS kepala tabel: di antara keduanya ia memutus
        `.tools + .tabel` dan kepala tabelnya menggantung. -->
+  <h2 class="status-judul" data-t="judulManifest">Manifest R2</h2>
   <p id="manifest-nonaktif" hidden class="muted" data-t="manifestNonaktif">R2 belum disetel.</p>
   <div class="tools">
-    <strong data-t="judulManifest">Manifest R2</strong>
     <span id="manifest-ringkas" class="muted"></span>
   </div>
   <div class="tabel">
@@ -2610,12 +2732,12 @@
   awal `showModal()` jatuh di situ — Enter yang tidak disengaja membatalkan,
   bukan merestart. Esc dan klik di luar kotak juga membatalkan.
 -->
-<dialog id="model-modal" aria-labelledby="model-modal-judul" data-dev="1">
-  <div class="model-modal-isi">
+<dialog id="model-modal" class="modal" aria-labelledby="model-modal-judul" data-dev="1">
+  <div class="modal-isi">
     <h2 id="model-modal-judul" data-t="modelModalJudul">Ganti model dan restart line?</h2>
     <ul id="model-modal-daftar"></ul>
     <p class="muted" data-t="modelModalRestart">Line di atas akan restart sekitar 10 detik. Janjang yang lewat selama itu tidak dihitung.</p>
-    <div class="tools">
+    <div class="modal-tombol">
       <button type="button" id="model-modal-batal" class="bahaya" data-t="btnBatal">Batal</button>
       <button type="button" id="model-modal-jalankan" class="utama" data-t="btnModelJalankan">Ganti &amp; Restart</button>
     </div>
@@ -2629,11 +2751,11 @@
   mendapat fokus awal: Enter yang tidak disengaja membatalkan. Esc dan klik di luar kotak
   juga membatalkan. Kata dan kelas tombolnya diisi tiap kali dibuka.
 -->
-<dialog id="konfirmasi-modal" aria-labelledby="konfirmasi-judul" aria-describedby="konfirmasi-pesan">
-  <div class="konfirmasi-isi">
+<dialog id="konfirmasi-modal" class="modal" aria-labelledby="konfirmasi-judul" aria-describedby="konfirmasi-pesan">
+  <div class="modal-isi">
     <h2 id="konfirmasi-judul"></h2>
     <p id="konfirmasi-pesan"></p>
-    <div class="tools">
+    <div class="modal-tombol">
       <button type="button" id="konfirmasi-tidak" class="bahaya">Batal</button>
       <button type="button" id="konfirmasi-ya" class="utama">Lanjutkan</button>
     </div>
@@ -2645,8 +2767,8 @@
   Periksa tidak menyimpan apa pun; Impor mengirim berkas yang SAMA (sidiknya dicocokkan
   server). Batalkan di daftar bawah menghapus janjang satu impor, dengan dua klik.
 -->
-<dialog id="impor-modal" aria-labelledby="impor-judul" data-dev="1">
-  <div class="impor-isi">
+<dialog id="impor-modal" class="modal" aria-labelledby="impor-judul" data-dev="1">
+  <div class="modal-isi">
     <h2 id="impor-judul" data-t="imporJudul">Impor grading dari CSV</h2>
     <p class="muted" data-t="imporPenjelasan">Pakai CSV Per janjang dari Unduh CSV, dari PC ini atau PC lain. Janjang yang sudah ada dilewati. Tanggal hari ini dan sesudahnya tidak diimpor karena masih berjalan.</p>
     <div class="impor-pilih">
@@ -2655,8 +2777,8 @@
     </div>
     <p id="impor-pesan" class="riwayat-pesan" role="alert"></p>
     <div id="impor-hasil" hidden></div>
-    <div class="tools">
-      <button type="button" id="impor-tutup" data-t="btnTutup">Tutup</button>
+    <div class="modal-tombol">
+      <button type="button" id="impor-tutup" class="bahaya" data-t="btnTutup">Tutup</button>
       <button type="button" id="impor-jalankan" class="utama" hidden>Impor</button>
     </div>
     <h3 data-t="imporDaftar">Impor sebelumnya</h3>
@@ -2680,13 +2802,14 @@
   menutup layar memang yang diminta — melihat foto lebih besar, sebentar, lalu
   kembali.
 -->
-<dialog id="info-sistem-modal" aria-labelledby="info-sistem-judul">
-  <div class="info-sistem-isi">
+<dialog id="info-sistem-modal" class="modal" aria-labelledby="info-sistem-judul">
+  <div class="modal-isi">
     <h2 id="info-sistem-judul" data-t="judulInfoSistem">Versi &amp; lisensi</h2>
     <dl id="info-sistem-daftar" class="daftar-definisi"></dl>
     <div id="pembaruan-isi"></div>
-    <div class="tools">
-      <button type="button" id="info-sistem-tutup" data-t="btnTutup">Tutup</button>
+    <div class="modal-tombol">
+      <button type="button" id="info-sistem-tutup" class="bahaya" data-t="btnTutup">Tutup</button>
+      <div id="info-sistem-pasang" class="modal-slot"></div>
     </div>
   </div>
 </dialog>
@@ -2765,12 +2888,17 @@ const KAMUS = {
     grupGrading:"Grading", grupKamera:"Kamera & Conveyor", grupDev:"Mode Developer",
     bantuConf:"Makin tinggi = makin sedikit yang dianggap buah.",
     bantuMinSize:"Janjang lebih kecil dari ini otomatis REJ.",
-    labelGaris:"Garis capture (piksel)", labelSumbu:"Arah conveyor",
+    labelGaris:"Posisi garis (piksel)", labelSumbu:"Arah conveyor",
+    subConveyor:"Conveyor", subGaris:"Garis capture", subKotak:"Kotak area deteksi",
+    labelRoiX1:"Kiri (X1)", labelRoiY1:"Atas (Y1)", labelRoiX2:"Kanan (X2)", labelRoiY2:"Bawah (Y2)",
+    bantuKotak:"Piksel pada video (1280 x 720). Janjang di luar kotak tidak dihitung. Isi keempatnya, atau kosongkan keempatnya untuk memakai setelan bawaan PC. 0 semua = seluruh gambar.",
     sumbuTegak:"Mendatar (buah lewat kiri-kanan)", sumbuMendatar:"Menurun (buah lewat atas-bawah)",
     bantuSumbu:"Menentukan garis capture tegak atau mendatar.",
     bantuGarisTegak:"Piksel dari KIRI. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
     bantuGarisMendatar:"Piksel dari ATAS. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
     labelDev:"Mode dev", bantuDev:"Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.",
+    labelTampilGaris:"Tampilkan garis capture", bantuTampilGaris:"Garis biru di video. Disembunyikan pun janjang tetap difoto di garis itu.",
+    labelTampilRoi:"Tampilkan kotak area deteksi", bantuTampilRoi:"Kotak hijau di video. Disembunyikan pun janjang di luar kotak tetap tidak dihitung.",
     btnSimpanSetelan:"Simpan", setelanTersimpan:"Tersimpan dan dikirim ke line.",
     grupPenugasan:"Penugasan line", labelOtomatis:"Tugaskan truk ke line otomatis saat timbang isi",
     bantuOtomatis:"Satu truk di line sampai timbang kosong. Truk berikutnya menunggu di antrean bongkar.",
@@ -2883,6 +3011,11 @@ const KAMUS = {
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio Ripe", trukTanpaNama:"Tanpa truk",
     wajibIsi:"Plat dan bruto wajib diisi",
     gagalTugaskan:"Gagal menugaskan truk", gagalLepas:"Gagal melepas truk",
+    btnLepasPaksa:"Lepas paksa", lepasPaksaTitle:"Line tidak menjawab. Truk dilepas di konsol saja",
+    konfirmasiLepasPaksaJudul:"Lepas paksa truk dari {line}?",
+    konfirmasiLepasPaksa:"Line ini tidak menjawab. Truk {truk} dilepas di konsol saja, bukan di line. Begitu line menyala lagi, ia ikut melepasnya sendiri. Pakai ini hanya kalau truknya sudah selesai bongkar.",
+    sukLepasPaksa:"Truk dilepas dari {line} di konsol saja. Line ikut melepasnya begitu menyala lagi",
+    gagalLepasPaksa:"Lepas paksa gagal",
     gagalReject:"Reject manual gagal", gagalDaftar:"Gagal mendaftarkan truk",
     gagalTimbang:"Gagal mencatat timbangan", gagalTara:"Gagal mencatat tara",
     gagalKonsol:"Konsol tidak merespons", kameraPutus:"Kamera tidak tersambung",
@@ -2913,6 +3046,7 @@ const KAMUS = {
     err_line_semua_terpakai:"Semua line masih dipakai. Lepas dulu truk yang sedang di line",
     err_line_tidak_menjawab:"{line} tidak menjawab. Pastikan layanan kameranya menyala",
     err_line_menolak:"{line} menolak perintah. Panggil teknisi; rinciannya di tab Log",
+    err_kamera_tanpa_sambung_ulang:"{line} memakai berkas video atau foto, bukan kamera. Tidak ada kamera yang bisa disambung ulang",
     // Kalimat umum untuk kode yang tidak dikenal atau tidak ada (alasan()), dan untuk konsol
     // yang tidak menjawab sama sekali (api(), fetch ditolak). Tidak pernah teks server/browser.
     err_umum:"Coba sekali lagi. Kalau tetap gagal, panggil teknisi; rinciannya ada di tab Log",
@@ -2991,6 +3125,12 @@ const KAMUS = {
     konfirmasiYa:"Lanjutkan", konfirmasiTidak:"Batal",
     labelInternal:"Internal · REJ tidak dibuang",
     gagalPiston:"Perintah piston gagal",
+    btnSambungUlang:"Sambung ulang", sambungUlangTitle:"Sambung ulang kamera line ini",
+    konfirmasiSambungUlangJudul:"Sambung ulang kamera {line}?",
+    konfirmasiSambungUlang:"Grading di line ini berhenti beberapa detik selama kamera disambung ulang. Truk yang terpasang tetap terpasang.",
+    sukSambungUlang:"Kamera {line} sedang disambung ulang. Gambarnya kembali dalam beberapa detik",
+    gagalSambungUlang:"Sambung ulang kamera gagal",
+    diagGrupKamera:"Kamera dan gambar", diagGrupMesin:"Mesin", diagGrupData:"Data",
     thSebab:"Sebab", thKamera:"Kamera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Antrean lokal", lineTidakTerjangkau:"Tidak terjangkau",
     // Kenapa konsol tidak bisa membaca satu line: `sebab_kode` dari backend
@@ -3070,6 +3210,7 @@ const KAMUS = {
     judulPembaruan:"Pembaruan", pembaruanSiap:"Versi {versi} siap dipasang",
     pembaruanSyarat:"Lepas semua truk dulu. Konsol dan ketiga line berhenti sekitar 2 menit, lalu menyala sendiri.",
     btnPasangSekarang:"Pasang sekarang", pembaruanTerbaru:"Sudah versi terbaru",
+    pembaruanPitaAjak:"Ketuk untuk melihat dan memasang",
     pembaruanBerjalan:"Sedang memasang versi baru. Layar akan tersambung lagi sendiri.",
     pembaruanTersambungLagi:"Sedang memasang versi baru. Layar akan tersambung lagi sendiri.",
     pembaruanBelumTerpasang:"Pembaruan dari layar belum dipasang di PC ini. Panggil teknisi untuk memasangnya.",
@@ -3238,12 +3379,17 @@ const KAMUS = {
     grupGrading:"Grading", grupKamera:"Camera & Conveyor", grupDev:"Developer Mode",
     bantuConf:"Higher = fewer things counted as fruit.",
     bantuMinSize:"Bunches smaller than this are auto-REJ.",
-    labelGaris:"Capture line (pixels)", labelSumbu:"Conveyor direction",
+    labelGaris:"Line position (pixels)", labelSumbu:"Conveyor direction",
+    subConveyor:"Conveyor", subGaris:"Capture line", subKotak:"Detection area box",
+    labelRoiX1:"Left (X1)", labelRoiY1:"Top (Y1)", labelRoiX2:"Right (X2)", labelRoiY2:"Bottom (Y2)",
+    bantuKotak:"Pixels on the video (1280 x 720). Bunches outside the box are not counted. Fill all four, or leave all four empty to use the PC's installation default. All 0 = the whole picture.",
     sumbuTegak:"Horizontal (fruit crosses left-right)", sumbuMendatar:"Vertical (fruit crosses top-bottom)",
     bantuSumbu:"Sets whether the capture line is vertical or horizontal.",
     bantuGarisTegak:"Pixels from the LEFT. A bunch is photographed when it touches the blue line. 0 = no line.",
     bantuGarisMendatar:"Pixels from the TOP. A bunch is photographed when it touches the blue line. 0 = no line.",
     labelDev:"Dev mode", bantuDev:"Show the confidence number on bunch boxes. For tuning the threshold, not for operators.",
+    labelTampilGaris:"Show the capture line", bantuTampilGaris:"The blue line on the video. Hidden or not, bunches are still captured at that line.",
+    labelTampilRoi:"Show the detection area box", bantuTampilRoi:"The green box on the video. Hidden or not, bunches outside the box are still not counted.",
     btnSimpanSetelan:"Save", setelanTersimpan:"Saved and sent to the lines.",
     grupPenugasan:"Line assignment", labelOtomatis:"Assign the truck to the lines automatically at weigh-in",
     bantuOtomatis:"One truck on the lines until it is weighed out. The next truck waits in the unloading queue.",
@@ -3354,6 +3500,11 @@ const KAMUS = {
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Ripe rate", trukTanpaNama:"No truck",
     wajibIsi:"Plate and gross weight are required",
     gagalTugaskan:"Failed to assign truck", gagalLepas:"Failed to release truck",
+    btnLepasPaksa:"Force release", lepasPaksaTitle:"The line is not responding. The truck is released on the console only",
+    konfirmasiLepasPaksaJudul:"Force release the truck from {line}?",
+    konfirmasiLepasPaksa:"This line is not responding. Truck {truk} is released on the console only, not on the line. Once the line starts again, it releases the truck as well. Use this only when the truck has finished unloading.",
+    sukLepasPaksa:"Truck released from {line} on the console only. The line follows once it starts again",
+    gagalLepasPaksa:"Force release failed",
     gagalReject:"Manual reject failed", gagalDaftar:"Failed to register truck",
     gagalTimbang:"Failed to record weighing", gagalTara:"Failed to record tare",
     gagalKonsol:"Console not responding", kameraPutus:"Camera not connected",
@@ -3384,6 +3535,7 @@ const KAMUS = {
     err_line_semua_terpakai:"Every line is still in use. Release the truck on the lines first",
     err_line_tidak_menjawab:"{line} is not responding. Check that its camera service is running",
     err_line_menolak:"{line} refused the command. Call a technician; the details are in the Log tab",
+    err_kamera_tanpa_sambung_ulang:"{line} plays a video or photo file, not a camera. There is no camera to reconnect",
     err_umum:"Try once more. If it keeps failing, call a technician; the details are in the Log tab",
     err_konsol_putus:"The console is not answering. Wait a moment and try again; if it stays that way, call a technician",
     gagalUmum:"Failed",
@@ -3455,6 +3607,12 @@ const KAMUS = {
     konfirmasiYa:"Continue", konfirmasiTidak:"Cancel",
     labelInternal:"Internal · REJ not discarded",
     gagalPiston:"Piston command failed",
+    btnSambungUlang:"Reconnect", sambungUlangTitle:"Reconnect this line's camera",
+    konfirmasiSambungUlangJudul:"Reconnect the camera on {line}?",
+    konfirmasiSambungUlang:"Grading on this line pauses for a few seconds while the camera reconnects. The assigned truck stays assigned.",
+    sukSambungUlang:"Reconnecting the camera on {line}. The picture comes back in a few seconds",
+    gagalSambungUlang:"Camera reconnect failed",
+    diagGrupKamera:"Camera and image", diagGrupMesin:"Machine", diagGrupData:"Data",
     thSebab:"Reason", thKamera:"Camera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Local queue", lineTidakTerjangkau:"Unreachable",
     lineSebab_tak_terjangkau:"The line does not answer at all: it is down or restarting.",
@@ -3530,6 +3688,7 @@ const KAMUS = {
     judulPembaruan:"Update", pembaruanSiap:"Version {versi} ready to install",
     pembaruanSyarat:"Release every truck first. The console and all three lines stop for about 2 minutes, then start again by themselves.",
     btnPasangSekarang:"Update now", pembaruanTerbaru:"Already on the latest version",
+    pembaruanPitaAjak:"Tap to see it and install",
     pembaruanBerjalan:"Installing the new version. The screen will reconnect by itself.",
     pembaruanTersambungLagi:"Installing the new version. The screen will reconnect by itself.",
     pembaruanBelumTerpasang:"Updating from the screen is not set up on this PC. Call a technician to set it up.",
@@ -3666,7 +3825,7 @@ const lokal = () => (bahasa === "id" ? "id-ID" : "en-GB");
 function terapkanTema() {
   document.documentElement.dataset.theme = tema === "gelap" ? "dark" : "light";
   // The button names the TARGET theme, not the current one.
-  $("tema").textContent = tema === "terang" ? t("temaGelap") : t("temaTerang");
+  $("tema-teks").textContent = tema === "terang" ? t("temaGelap") : t("temaTerang");
 }
 
 function terapkanBahasa() {
@@ -3681,7 +3840,7 @@ function terapkanBahasa() {
   document.querySelectorAll("[data-t-lb]").forEach((el) => {
     el.setAttribute("aria-label", t(el.dataset.tLb));
   });
-  $("bahasa").textContent = bahasa === "id" ? "EN" : "ID";
+  $("bahasa-teks").textContent = bahasa === "id" ? "EN" : "ID";
   // Its face alternates between two keys, so it cannot be a plain `data-t`; re-applied
   // here in whichever state it is currently in.
   lihatSandi($("gerbang-sandi").type === "text");
@@ -4474,6 +4633,128 @@ function tombolPiston(l) {
      data-buka="${terbuka ? "0" : "1"}"${menunggu ? " disabled" : ""}>${esc(teks)}${esc(catatan)}<span class="pintas"></span></button>`;
 }
 
+// ── Sambung ulang kamera (user 2026-10-04) ────────────────────────────
+// The line reconnects a silent camera by itself; this is the spare, for every account. The
+// line only raises a flag and its capture thread reconnects (rule 3), so the card shows the
+// result through ONLINE/OFFLINE and the feed, as for an automatic reconnect.
+// Lines with a request in flight. The busy mark lives here, not only on the button: a
+// language switch, a login or a new truck rebuilds every card (`dipasang = false`), and the
+// button drawn then must still refuse a second press until the first one is answered.
+const sambungUlangBerjalan = new Set();
+
+function tombolSambungUlang(l) {
+  const sibuk = sambungUlangBerjalan.has(l.line_code);
+  // Circular arrow, SVG inside the page: the console runs offline and an emoji depends on the
+  // factory PC's fonts. It follows the button text colour (currentColor) in both themes.
+  const ikon = '<svg class="ikon-sambung" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor"'
+    + ' stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
+  return `<button type="button" class="sambung-ulang${sibuk ? " sibuk" : ""}" data-aksi="sambung-ulang"`
+    + ` title="${esc(t("sambungUlangTitle"))}"${sibuk ? ' aria-busy="true"' : ""}>`
+    + `${ikon}<span>${esc(t("btnSambungUlang"))}</span></button>`;
+}
+
+// The button as it is on screen NOW: the card may have been redrawn since the click.
+function tombolSambungUlangDi(line) {
+  const kartu = [...$("lines").querySelectorAll(".card")].find((k) => k.dataset.line === line);
+  return kartu ? kartu.querySelector("button.sambung-ulang") : null;
+}
+
+// Ask first (F12), before the lock, so the focus can come back to the button. The answer
+// is immediate (the line answers before it touches the camera); success = toast, a refusal
+// is worded from its code (F6).
+async function sambungUlangKamera(kartu) {
+  const line = kartu.dataset.line;
+  if (sambungUlangBerjalan.has(line)) return;
+  const namaLine = kartu.querySelector(".nama")?.textContent?.trim() || line;
+  if (!(await tanyaKonfirmasi({
+    judul: t("konfirmasiSambungUlangJudul").replace("{line}", namaLine),
+    pesan: t("konfirmasiSambungUlang"), ya: t("btnSambungUlang"),
+    asal: () => tombolSambungUlangDi(line),
+  }))) return;
+  sambungUlangBerjalan.add(line);
+  try {
+    await denganSibuk(tombolSambungUlangDi(line), () =>
+      api(`/api/console/lines/${encodeURIComponent(line)}/reconnect-camera`, { method: "POST" }));
+    toastSukses(t("sukSambungUlang").replace("{line}", namaLine));
+  } catch (e) {
+    toastGagal(gagalKarena("gagalSambungUlang", e));
+  } finally {
+    sambungUlangBerjalan.delete(line);
+    // A button drawn mid-request carries the mark from the set, not from denganSibuk.
+    const kini = tombolSambungUlangDi(line);
+    if (kini) {
+      kini.classList.remove("sibuk");
+      kini.removeAttribute("aria-busy");
+    }
+  }
+}
+
+// ── Lepas paksa (user 2026-10-04) ─────────────────────────────────────
+// A dead line can never hear Lepas (rule 13), so its truck used to stay on the console. While
+// the console's status poll cannot reach the line at all and the card holds a truck, Lepas
+// paksa takes the place of Lepas (which would only fail after its wait). The server decides
+// again on the press: a line that answers is released normally, a refusing one never forced.
+// Lines with a request in flight: the mark survives a card redraw, as for Sambung ulang.
+const lepasPaksaBerjalan = new Set();
+
+function bisaLepasPaksa(l) {
+  const p = l.plc || {};
+  return Boolean(l.assignment) && p.reachable === false && p.sebab_kode === "tak_terjangkau";
+}
+
+// The release control of one card, Lepas or Lepas paksa. Rewritten by every poll through
+// `tulisKalauBeda`, so it follows the line going silent and coming back.
+function tombolLepas(l) {
+  if (!bisaLepasPaksa(l)) {
+    return `<button class="bahaya" data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>`;
+  }
+  const sibuk = lepasPaksaBerjalan.has(l.line_code);
+  return `<button class="bahaya pekat${sibuk ? " sibuk" : ""}" data-aksi="lepas-paksa"`
+    + ` title="${esc(t("lepasPaksaTitle"))}"${sibuk ? ' aria-busy="true"' : ""}>${esc(t("btnLepasPaksa"))}</button>`;
+}
+
+// The button as it is on screen NOW: the poll may have redrawn it since the click.
+function tombolLepasPaksaDi(line) {
+  const kartu = [...$("lines").querySelectorAll(".card")].find((k) => k.dataset.line === line);
+  return kartu ? kartu.querySelector('button[data-aksi="lepas-paksa"]') : null;
+}
+
+// Ask first (F12, red because it skips the line), then lock (F8). `paksa` from the server
+// says which release happened: on the console only = a warning toast (saved, not reached
+// everywhere, F11); the line answered after all = the plain Lepas toast. Failures are worded
+// from their codes (F6).
+async function lepasPaksa(kartu) {
+  const line = kartu.dataset.line;
+  if (lepasPaksaBerjalan.has(line)) return;
+  const namaLine = kartu.querySelector(".nama")?.textContent?.trim() || line;
+  const plat = kartu.querySelector(".truk .plat")?.textContent?.trim() || "";
+  if (!(await tanyaKonfirmasi({
+    judul: t("konfirmasiLepasPaksaJudul").replace("{line}", namaLine),
+    pesan: t("konfirmasiLepasPaksa").replace("{truk}", plat),
+    ya: t("btnLepasPaksa"), bahaya: true,
+    asal: () => tombolLepasPaksaDi(line),
+  }))) return;
+  lepasPaksaBerjalan.add(line);
+  try {
+    const r = await denganSibuk(tombolLepasPaksaDi(line), () =>
+      api(`/api/console/lines/${encodeURIComponent(line)}/force-release`, { method: "POST" }));
+    await refresh();
+    if (r && r.paksa) toastPeringatan(t("sukLepasPaksa").replace("{line}", namaLine));
+    else toastSukses(t("sukLepas").replace("{line}", namaLine));
+    umumkanPasang(r && r.dipasang);
+  } catch (e) {
+    toastGagal(gagalKarena("gagalLepasPaksa", e));
+  } finally {
+    lepasPaksaBerjalan.delete(line);
+    const kini = tombolLepasPaksaDi(line);
+    if (kini) {
+      kini.classList.remove("sibuk");
+      kini.removeAttribute("aria-busy");
+    }
+  }
+}
+
 // Red, large text: read from a few metres away while the hardware is
 // actually moving. `belumKonfirmasi` uses the same phrase as the button so
 // the banner and the button never say two different things about the same line.
@@ -4507,6 +4788,12 @@ function pitaKunciDitolak(l) {
 // dengan coil ERROR PLC. Line yang tidak terbaca tidak menggambar pita ini:
 // kartunya sudah OFFLINE. `ai.mati` sengaja tetap AI saja (konsol versi lama
 // membacanya), jadi frame berhenti dikenali dari `keadaan`.
+// Line menjawab dan bilang kameranya berhenti mengirim gambar (penjaga AI, aturan 35).
+function frameBerhenti(l) {
+  const p = l.plc || {};
+  return Boolean(p.reachable && p.ai && p.ai.keadaan === "frame_berhenti");
+}
+
 function aiMati(l) {
   const p = l.plc || {};
   return Boolean(p.reachable && p.ai && (p.ai.mati || p.ai.keadaan === "frame_berhenti"));
@@ -4661,7 +4948,7 @@ function kartuLine(l, sekarang = Date.now()) {
     .concat(trucks.map((tr) => ({ v: tr.id, teks: tr.plate_number || KOSONG })));
   // line_code only rides along as data-line and is read via dataset - it never
   // enters an onclick attribute, so there is no JS string context to inject.
-  return `<div class="card${aiMati(l) ? " ai-mati" : ""}" data-line="${esc(l.line_code)}">
+  return `<div class="card${aiMati(l) ? " ai-mati" : ""}${frameBerhenti(l) ? " frame-berhenti" : ""}" data-line="${esc(l.line_code)}">
     <h2><span class="nama">${esc(l.name)}</span>
       <span class="sinyal">
         <span class="on" data-t="statusOnline">Online</span>
@@ -4675,7 +4962,7 @@ function kartuLine(l, sekarang = Date.now()) {
     ${pitaPiston(l)}
     ${pitaKunciDitolak(l)}
     <div class="slot-ai">${pitaAi(l)}</div>
-    ${feed ? `<div class="feed"><img src="${feed}" alt=""><span>${esc(t("kameraPutus"))}</span><div class="slot-restart"></div></div>` : ""}
+    ${feed ? `<div class="feed"><img src="${feed}" alt=""><div class="feed-putus"><span>${esc(t("kameraPutus"))}</span>${tombolSambungUlang(l)}</div><div class="slot-restart"></div></div>` : ""}
     <div class="counts">
       <span class="acc"><span class="lb">${esc(t("clsRipe"))}</span><b data-k="ripe">${l.ripe || 0}</b></span>
       <span class="rej"><span class="lb">${esc(t("clsUnripe"))}</span><b data-k="unripe">${l.unripe || 0}</b></span>
@@ -4688,7 +4975,7 @@ function kartuLine(l, sekarang = Date.now()) {
       <div class="assign">
         ${komponenPilih(opsi, l.assignment ? l.assignment.truck_id : "")}
         <button class="utama" data-aksi="tugaskan"${l.assignment ? "" : " disabled"}>${esc(t("btnTugaskan"))}</button>
-        <button class="bahaya" data-aksi="lepas" title="${esc(t("lepasTitle"))}"${l.assignment ? "" : " disabled"}>${esc(t("btnLepas"))}</button>
+        <span class="slot-lepas">${tombolLepas(l)}</span>
       </div>
       <div class="aksi-line">
         <button class="reject" data-aksi="tolak"${l.assignment ? "" : " disabled"}>${esc(t("btnReject"))}<span class="pintas"></span></button>
@@ -5120,6 +5407,16 @@ $("lines").addEventListener("click", async (ev) => {
     [urutan[i], urutan[j]] = [urutan[j], urutan[i]];
     simpan("urutan", JSON.stringify(urutan));
     terapkanUrutan();
+    return;
+  }
+  // Its own flow: asks, locks its button through denganSibuk, and survives a card redraw.
+  if (tombol.dataset.aksi === "sambung-ulang") {
+    await sambungUlangKamera(kartu);
+    return;
+  }
+  // The same: asks in red, locks through denganSibuk, survives the poll redrawing it.
+  if (tombol.dataset.aksi === "lepas-paksa") {
+    await lepasPaksa(kartu);
     return;
   }
   // Opening the piston moves metal: ask first, BEFORE the button is locked, so the focus can
@@ -6298,6 +6595,11 @@ async function refresh() {
       // Angka yang baru digambar jadi titik awal odometer (`tulisAngka`): poll berikutnya
       // bergulir dari sini, bukan menulis polos seolah tulisan pertama.
       $("lines").querySelectorAll(".counts b[data-k]").forEach((el) => { el._angka = Number(el.textContent) || 0; });
+      // What kartuLine just drew is what the next poll compares with (`tulisKalauBeda`).
+      s.lines.forEach((l, i) => {
+        const slot = $("lines").children[i]?.querySelector(".slot-lepas");
+        if (slot) slot._terakhirDitulis = tombolLepas(l);
+      });
       dipasang = true;
       terapkanUrutan();
     } else {
@@ -6311,6 +6613,8 @@ async function refresh() {
           tulisAngka(el, l[el.dataset.k] || 0);
         });
         c.querySelector(".truk").innerHTML = isiTruk(l.assignment);
+        // Lepas, or Lepas paksa while the line does not answer and holds a truck.
+        tulisKalauBeda(c.querySelector(".slot-lepas"), tombolLepas(l));
         // The piston button and banner must follow what the PLC just confirmed,
         // every poll - not only on the first render. outerHTML (not innerHTML on
         // a wrapper) so the button's own hint span comes back with it, and
@@ -7322,29 +7626,60 @@ function kartuDiagnostik(kode, d) {
     .filter(Boolean).join(" · ");
   return `<div class="card" data-line="${esc(kode)}">
     <h2><span class="nama">${esc(kode)}</span></h2>
+    <details class="diag-kelompok" data-grup="kamera">
+    <summary class="diag-grup">${esc(t("diagGrupKamera"))}</summary>
     <dl>
       <dt>${esc(t("thKamera"))}</dt><dd>${tanda(d.camera_connected)}</dd>
       <dt>${esc(t("thSuhuKamera"))}</dt><dd>${diagSuhu(d.suhu_kamera_c)}</dd>
       <dt>${esc(t("thFps"))}</dt><dd>${diagAngka(d.fps_kamera)} / ${diagAngka(d.fps_deteksi)}</dd>
       <dt>${esc(t("thFrameTerakhir"))}</dt><dd>${diagFrame(d)}</dd>
+    </dl>
+    </details>
+    <details class="diag-kelompok" data-grup="mesin">
+    <summary class="diag-grup">${esc(t("diagGrupMesin"))}</summary>
+    <dl>
       <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : tanda(d.gpu_available)}</dd>
       <dt>${esc(t("thPlc"))}</dt><dd>${diagPlc(d.plc)}</dd>
       <dt>${esc(t("thDisk"))}</dt><dd>${diagDisk(d.disk)}</dd>
       <dt>${esc(t("thLisensiLine"))}</dt><dd>${diagLisensi(d.lisensi)}</dd>
       <dt>${esc(t("thVersiModel"))}</dt><dd>${dash(model)}</dd>
+    </dl>
+    </details>
+    <details class="diag-kelompok" data-grup="data">
+    <summary class="diag-grup">${esc(t("diagGrupData"))}</summary>
+    <dl>
       <dt>${esc(t("thAntreanLokal"))}</dt><dd>${dash(d.outbox_pending)} / ${dash(d.outbox_failed)}</dd>
       <dt>${esc(t("thTersimpanGagal"))}</dt><dd>${diagNol(d.capture_save_dropped)}</dd>
       <dt>${esc(t("thTpTelat"))}</dt><dd>${diagNol(d.tp_telat)}</dd>
-      <dt>${esc(t("thWorkers"))}</dt><dd>${ringkasWorker}</dd>${barisWorker}
     </dl>
+    </details>
+    <details class="diag-kelompok" data-grup="workers">
+    <summary class="diag-grup">${esc(t("thWorkers"))} ${ringkasWorker}</summary>
+    <dl>${barisWorker}</dl>
+    </details>
   </div>`;
 }
+
+// Diagnostics groups start closed (user 2026-10-04). The ones the reader opened are kept by
+// group name, for every line card alike, in this browser. `toggle` does not bubble, hence
+// the capture listener.
+const diagTerbuka = new Set(baca("diagTerbuka", "").split(",").filter(Boolean));
+$("diagnostik-kartu").addEventListener("toggle", (e) => {
+  const grup = e.target.dataset && e.target.dataset.grup;
+  if (!grup) return;
+  if (e.target.open) diagTerbuka.add(grup); else diagTerbuka.delete(grup);
+  simpan("diagTerbuka", [...diagTerbuka].join(","));
+}, true);
 
 async function muatDiagnostik() {
   try {
     const r = await api("/api/console/dev/diagnostik");
     $("diagnostik-kartu").innerHTML = Object.entries(r.lines)
       .map(([kode, d]) => kartuDiagnostik(kode, d)).join("");
+    // Drawn closed; the cards are redrawn every 5 s, so a group the reader opened is opened again.
+    $("diagnostik-kartu").querySelectorAll("details[data-grup]").forEach((el) => {
+      if (diagTerbuka.has(el.dataset.grup)) el.open = true;
+    });
   } catch (e) {
     if (e.kode !== "belum_masuk") $("diagnostik-kartu").innerHTML = `<p class="muted">${esc(t("gagalDiagnostik"))}</p>`;
   }
@@ -7676,11 +8011,10 @@ function gambarInfoSistem(versi, l) {
 // Badge pembaruan membuka kotak yang sama: tombol Update now ada di dalamnya.
 function bukaInfoSistem() {
   tulisKalauBeda($("info-sistem-daftar"), barisInfoSistem(infoVersi, infoLisensi));
-  tulisKalauBeda($("pembaruan-isi"), htmlPembaruan(pembaruanTerakhir, false));
+  gambarPembaruanModal(pembaruanTerakhir);
   $("info-sistem-modal").showModal();
 }
 $("info-sistem").addEventListener("click", bukaInfoSistem);
-$("badge-pembaruan").addEventListener("click", bukaInfoSistem);
 $("info-sistem-tutup").addEventListener("click", () => $("info-sistem-modal").close());
 // Klik di backdrop menutup, pola yang sama dengan lapisan foto.
 $("info-sistem-modal").addEventListener("click", (ev) => {
@@ -7723,6 +8057,16 @@ function teksBadgePembaruan(p) {
   return t("pembaruanSiap").replace("{versi}", p.siap);
 }
 
+// Pita "Versi X siap dipasang". `ditutup` = versi yang terakhir ditutup operator di PC ini
+// (localStorage): pita diam untuk versi itu saja, versi berikutnya memunculkannya lagi.
+function pitaPembaruan(p, ditutup) {
+  const teks = teksBadgePembaruan(p);
+  if (!teks || ditutup === p.siap) return "";
+  return `<p role="status"><button type="button" class="pita-buka" data-buka-pembaruan aria-haspopup="dialog">`
+    + `${IKON_UNDUH.replace("<svg ", '<svg class="ikon-pita" ')}<b>${esc(teks)}</b><span>${esc(t("pembaruanPitaAjak"))}</span></button>`
+    + `<button type="button" class="tutup" data-tutup-pembaruan aria-label="${esc(t("toastTutup"))}">&times;</button></p>`;
+}
+
 function teksHasilPembaruan(h) {
   if (!h) return "";
   const kunci = { ok:"pembaruanHasilOk", rolled_back:"pembaruanHasilBalik", failed:"pembaruanHasilGagal",
@@ -7733,15 +8077,22 @@ function teksHasilPembaruan(h) {
   return t(kunci).replace("{versi}", h.target || "").replace("{lama}", h.installed || t("pembaruanVersiLama"));
 }
 
-function htmlPembaruan(p, support) {
+// Tombol Pasang sekarang sendiri: di tab Status ia ikut di bawah kalimatnya, di kotak Versi &
+// lisensi ia duduk di baris tombol modal, sebelah Tutup.
+function tombolPasang(p) {
+  if (!p || !p.terpasang || p.berjalan || !p.siap) return "";
+  return `<button type="button" class="pembaruan-pasang utama" data-target="${esc(p.siap)}">${IKON_UNDUH}<span>${esc(t("btnPasangSekarang"))}</span></button>`;
+}
+
+function htmlPembaruan(p, support, denganTombol = true) {
   if (!p || (!p.terpasang && !support)) return "";
   const isi = [];
   if (!p.terpasang) isi.push(`<p class="pembaruan-ket">${esc(t("pembaruanBelumTerpasang"))}</p>`);
   else if (p.berjalan) isi.push(`<p class="pembaruan-ket" role="status">${esc(t("pembaruanBerjalan"))}</p>`);
   else if (p.siap) isi.push(
     `<p class="pembaruan-ket"><b>${esc(t("pembaruanSiap").replace("{versi}", p.siap))}</b></p>`,
-    `<p class="pembaruan-ket">${esc(t("pembaruanSyarat"))}</p>`,
-    `<button type="button" class="pembaruan-pasang" data-target="${esc(p.siap)}">${IKON_UNDUH}<span>${esc(t("btnPasangSekarang"))}</span></button>`);
+    `<p class="pembaruan-syarat">${esc(t("pembaruanSyarat"))}</p>`,
+    denganTombol ? tombolPasang(p) : "");
   else isi.push(`<p class="pembaruan-ket">${esc(t("pembaruanTerbaru"))}</p>`);
   const hasil = teksHasilPembaruan(p.hasil);
   if (hasil) isi.push(`<p class="pembaruan-hasil" data-state="${esc(p.hasil.state)}">${esc(hasil)}</p>`);
@@ -7755,13 +8106,31 @@ function namaLineDari(kode, peta) {
   return String(kode).split(/,\s*/).map((k) => peta[k] || k).join(", ");
 }
 
+function gambarPembaruanModal(p) {
+  tulisKalauBeda($("pembaruan-isi"), htmlPembaruan(p, false, false));
+  tulisKalauBeda($("info-sistem-pasang"), tombolPasang(p));
+}
+
+function gambarPitaPembaruan(p) {
+  const el = $("pita-pembaruan");
+  const html = pitaPembaruan(p, baca("pembaruanDitutup", ""));
+  el.hidden = !html;
+  tulisKalauBeda(el, html);
+}
+
+$("pita-pembaruan").addEventListener("click", (ev) => {
+  if (ev.target.closest("[data-tutup-pembaruan]")) {
+    if (pembaruanTerakhir && pembaruanTerakhir.siap) simpan("pembaruanDitutup", pembaruanTerakhir.siap);
+    gambarPitaPembaruan(pembaruanTerakhir);
+  } else if (ev.target.closest("[data-buka-pembaruan]")) {
+    bukaInfoSistem();
+  }
+});
+
 function gambarPembaruan(p) {
   pembaruanTerakhir = p || null;
-  const badge = $("badge-pembaruan");
-  const teks = teksBadgePembaruan(p);
-  if (badge.textContent !== teks) badge.textContent = teks;
-  badge.hidden = !teks;
-  if ($("info-sistem-modal").open) tulisKalauBeda($("pembaruan-isi"), htmlPembaruan(p, false));
+  gambarPitaPembaruan(p);
+  if ($("info-sistem-modal").open) gambarPembaruanModal(p);
   // Support-only: tab Status tidak ada di DOM untuk akun operator.
   const status = $("sec-status");
   if (status && !status.hidden) tulisKalauBeda($("pembaruan-support"), htmlPembaruan(p, true));
@@ -8148,6 +8517,10 @@ function labelGaris() {
 
 $("set-sumbu").addEventListener("change", labelGaris);
 
+// The detection area box (ROI): field names as the server knows them; the input of each is
+// `set-roi-x1` and so on.
+const KOTAK_ROI = ["roi_x1", "roi_y1", "roi_x2", "roi_y2"];
+
 async function muatSetelan() {
   // Kotak Danger Zone selalu tertutup saat tab dibuka (spec §2): panel yang
   // tertinggal terbuka membawa angka lama dan mengundang tombol ditekan tanpa
@@ -8164,6 +8537,11 @@ async function muatSetelan() {
     $("set-garis").value = r.garis_capture ?? 0;
     $("set-sumbu").value = r.sumbu_garis ?? "tegak";
     $("set-dev").checked = Boolean(r.mode_dev);
+    // `!== false`, not Boolean(): an older server has no such field, and there both are drawn.
+    $("set-tampil-garis").checked = r.tampil_garis !== false;
+    $("set-tampil-roi").checked = r.tampil_roi !== false;
+    // Empty = never set from the console (null), not 0: 0 is a real value, the picture edge.
+    for (const k of KOTAK_ROI) $(`set-${k.replace("_", "-")}`).value = r[k] ?? "";
     labelGaris();
     $("set-sumber").textContent = t(r.sumber === "konsol" ? "setelanDariKonsol" : "setelanDariEnv");
     $("set-pesan").textContent = "";
@@ -8219,6 +8597,9 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
         garis_capture: $("set-garis").value.replace(",", "."),
         sumbu_garis: $("set-sumbu").value,
         mode_dev: $("set-dev").checked,
+        tampil_garis: $("set-tampil-garis").checked,
+        tampil_roi: $("set-tampil-roi").checked,
+        ...Object.fromEntries(KOTAK_ROI.map((k) => [k, $(`set-${k.replace("_", "-")}`).value.trim() || null])),
       }),
     });
     $("set-sumber").textContent = t("setelanDariKonsol");
@@ -8238,6 +8619,7 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
     const teks = String(e.message || "");
     for (const [field, id] of Object.entries({
       conf_threshold: "set-conf", minimum_size: "set-minsize", garis_capture: "set-garis",
+      roi_x1: "set-roi-x1", roi_y1: "set-roi-y1", roi_x2: "set-roi-x2", roi_y2: "set-roi-y2",
     })) {
       if (teks.includes(field)) $(id).setAttribute("aria-invalid", "true");
     }

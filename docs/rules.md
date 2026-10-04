@@ -185,6 +185,30 @@ end of this file.
     kelihatan salah di layar. Kontrak `/internal/assignment` beku, jadi kosong dikirim sebagai
     string kosong dan line-lah yang mengubahnya jadi `None` (`schemas/internal_schema.py`);
     `""` yang lolos apa adanya akan ditolak validasi UUID palmgrade-api.
+    **Satu pengecualian: Lepas paksa** (keputusan user 2026-10-04,
+    `POST /api/console/lines/{line_code}/force-release`, `services/lepas_paksa.py`). Line yang
+    mati tidak pernah mendengar Lepas, jadi truknya dulu tertinggal di konsol: Update now ditolak
+    (aturan 38), penugasan otomatis tertahan (aturan 36), dan line yang menyala lagi menarik truk
+    yang sudah pulang itu lewat `GET /internal/penugasan`. Tombolnya cuma muncul di kartu yang
+    memegang truk selama status line tidak terbaca sama sekali (`sebab_kode` `tak_terjangkau`),
+    menggantikan Lepas, dengan konfirmasi. Server yang memutuskan, bukan layar: Lepas biasa dicoba
+    dulu (`TIMEOUT_LEPAS_PAKSA_S` 3 detik); line yang menjawab dilepas biasa, line yang menjawab
+    dengan **penolakan** (4xx/5xx, kunci salah) **tidak pernah** dipaksa (502), dan hanya line yang
+    tidak menjawab apa pun (koneksi ditolak, timeout; `domain/lepas_paksa.boleh_paksa`, aturan yang
+    sama dengan `sebab_tak_terbaca`) dilepas di konsol saja, dengan pembukuan yang sama persis
+    (`_catat_lepas`: tautan grading ke tiket, satu pesan AutoERP, aturan 18) dan satu WARNING
+    menyebut akun, line, dan plat. Tiket dan berat tidak pernah tersentuh.
+    **Line yang cuma terputus** (hidup, kabel putus) masih memegang truk itu di memorinya. Konsol
+    mengingat tiap Lepas paksa di `sync_state` `lepas_paksa_tertunda` (bertahan restart konsol,
+    ikut terhapus Danger Zone), dan `LineStatusWorker` meneruskan tiap status yang terbaca ke
+    `cocokkan_lepas_paksa`: line yang menjawab lagi dan `truck_id`-nya masih truk yang dipaksa,
+    sementara konsol tidak memasang apa pun di line itu, dikirimi pelepasan sekali lagi (satu
+    WARNING); jawaban lain menutup catatannya. Selama `assign_truck` ke line itu berjalan
+    (`kunci_line`, dipegang dari panggilan line sampai konsol mencatat) keputusan ditunda ke poll
+    berikutnya, supaya kiriman ulang tidak menimpa truk baru yang sudah diterima line tapi belum
+    dicatat. ⚠️ Sisa risiko: janjang yang digrading line terputus itu SEBELUM ia menjawab lagi
+    tetap distempel truk yang sudah dipaksa lepas; yang menutupnya cuma kiriman ulang begitu status
+    terbaca (paling lama sekitar satu detik sesudah line menjawab).
 14. **Konsol yang memanggil AutoERP; AutoERP tidak pernah memanggil ke pabrik.** PC pabrik
     tidak punya inbound sama sekali. Kontraknya `autoerp/docs/autograde-integration.md`, dan
     **per janjang tidak pernah dikirim** (§2: *"Not synced: per-bunch rows, images"*): janjang
@@ -1184,7 +1208,8 @@ end of this file.
     masih disortir dan tidak dilaporkan) dilaporkan di `dipasang` sebagai
     `{terpasang: false, tertahan: true, plate_lama}` dan layar memunculkan toast
     `tugaskanTertahan` dengan kedua plat. Lepas pada line yang mati dijawab 502: begitu line
-    itu menjawab lagi, Lepas di kartunya lalu tugaskan truk yang menunggu.
+    itu menjawab lagi, Lepas di kartunya lalu tugaskan truk yang menunggu. Sejak 2026-10-04
+    **Lepas paksa** (aturan 13) membebaskan line yang tidak menjawab tanpa menunggunya.
 
 37. **Jam gerbang: scan 1 dan 4 tinggal di PC pabrik** (keputusan user 2026-09-30).
     Scan 1 (truk datang) menulis tabel `arrivals`; scan 4 (truk keluar gerbang) menulis
@@ -1272,7 +1297,7 @@ end of this file.
     dan versi `staged` lebih baru dari `APP_VERSION` konsol. **Ditolak 409
     `pembaruan_ada_truk` selama ada truk di-assign di line mana pun**, termasuk truk yang lupa
     dilepas sejak hari kerja lalu (sumber `assignments`): pemasangan me-restart konsol dan
-    ketiga line. Sebaliknya assign-truck ditolak 409 `pembaruan_berjalan` selama pemasangan
+    ketiga line. Truk di line yang mati dilepas lewat **Lepas paksa** (aturan 13). Sebaliknya assign-truck ditolak 409 `pembaruan_berjalan` selama pemasangan
     berjalan. Penugasan otomatis (aturan 36) memakai kunci yang sama (2026-10-03): selama
     pemasangan truk yang timbang isi tetap di antrean bongkar, **Tugaskan sekarang** ditolak 409
     `pembaruan_berjalan`, dan tiap line yang ditugaskan otomatis lewat `menugaskan` seperti
@@ -1317,6 +1342,7 @@ memang khas satu mesin.
 - All paths via `Settings` (`core/config.py`): never hardcode. New env var → add to `core/config.py` with a sane default.
 - `CAMERA_TYPE`: `hikrobot` (prod) / `opencv` (dev: webcam or video file) / `photo` (test). Switching needs **no code edit**.
 - ROI (`ROI_X1/Y1/X2/Y2`) coordinates are in **stream space** (`STREAM_WIDTH×STREAM_HEIGHT`, default 1280×720), not sensor space.
+  Since 2026-10-04 the box can also be set from the console (Settings, Camera & Conveyor), one box for all lines: `RuntimeState.roi_override` wins over `.env`, and `null` (never set, or an older console) leaves each line its own `ROI_*`. Never default it to zeros: that would reset a calibrated box to the full frame.
 - **Garis capture (biru, bertanda `CAPTURE`) menentukan KAPAN janjang difoto; ROI menentukan DI MANA.**
   Dua hal berbeda, sengaja dipisah sejak 2026-09-18. Janjang difoto saat kotaknya **menyentuh**
   garis (`domain/garis_capture.menyentuh_garis`): bukan lagi saat titik tengahnya masuk kotak ROI,

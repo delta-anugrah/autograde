@@ -112,10 +112,9 @@ def _aturan_css(selector: str) -> str:
 def test_tombol_modal_tanpa_bingkai_tools():
     # `.tools` global adalah kepala tabel berbingkai. Di dalam modal bingkai
     # itu terpotong di bawah dan terbaca seperti kotak rusak (terlihat di
-    # browser 2026-09-24).
-    aturan = _aturan_css("#model-modal .tools")
-    assert "border:0" in aturan
-    assert "background:none" in aturan
+    # browser 2026-09-24). Baris tombolnya kini komponen `.modal-tombol`.
+    assert '<div class="modal-tombol">' in HTML[HTML.index('<dialog id="model-modal"'):]
+    assert "#model-modal .tools" not in HTML
 
 
 def test_alasan_dan_engine_di_tabel_boleh_membungkus():
@@ -185,6 +184,6 @@ def test_engine_gpu_lain_tidak_ditulis_siap():
 def test_klik_di_padding_dialog_tidak_membatalkan():
     """Padding milik pembungkus isi, bukan <dialog>: klik yang target-nya
     dialog itu sendiri cuma bisa datang dari backdrop (minor #10 review)."""
-    assert '<div class="model-modal-isi">' in HTML
-    assert "padding:0" in _aturan_css("#model-modal")
-    assert "padding:20px 24px" in _aturan_css(".model-modal-isi")
+    assert '<dialog id="model-modal" class="modal"' in HTML
+    assert "padding:0" in _aturan_css("dialog.modal")
+    assert "padding:22px 24px" in _aturan_css(".modal-isi")

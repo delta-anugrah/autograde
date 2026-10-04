@@ -119,7 +119,8 @@ class FrameProcessingWorker:
 
     @staticmethod
     def _roi_box_for(
-        settings: Settings, width: int, height: int
+        settings: Settings, width: int, height: int,
+        roi: tuple[int, int, int, int] | None = None,
     ) -> tuple[int, int, int, int]:
         """Effective ROI (x1,y1,x2,y2) in the coordinate space of THIS frame.
 
@@ -134,8 +135,8 @@ class FrameProcessingWorker:
         outside that top-left corner was tracked, drawn, then dropped without a
         word — read as "detection sometimes misses", not as a bad calibration.
         """
-        x1, y1 = settings.roi_x1, settings.roi_y1
-        x2, y2 = settings.roi_x2, settings.roi_y2
+        # `roi` = the box set from the console, same stream space; None = `ROI_*` from `.env`.
+        x1, y1, x2, y2 = roi or (settings.roi_x1, settings.roi_y1, settings.roi_x2, settings.roi_y2)
         if x1 == 0 and y1 == 0 and x2 == 0 and y2 == 0:
             return 0, 0, width, height
 
@@ -150,7 +151,7 @@ class FrameProcessingWorker:
         return round(x1 * fx), round(y1 * fy), round(x2 * fx), round(y2 * fy)
 
     def _roi_box(self, width: int, height: int) -> tuple[int, int, int, int]:
-        return self._roi_box_for(self.settings, width, height)
+        return self._roi_box_for(self.settings, width, height, self.state.roi_override)
 
     @staticmethod
     def _is_in_roi_box(cx: int, cy: int, roi: tuple[int, int, int, int]) -> bool:

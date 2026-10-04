@@ -22,11 +22,19 @@ import httpx
 
 from ...core.config import LineEndpoint, Settings
 from ...domain.kesehatan_ai import kode_http_health
-from ...domain.operator_error import LINE_MENOLAK, LINE_TIDAK_MENJAWAB, OperatorError
+from ...domain.operator_error import (
+    KAMERA_TANPA_SAMBUNG_ULANG,
+    LINE_MENOLAK,
+    LINE_TIDAK_MENJAWAB,
+    OperatorError,
+)
 
 logger = logging.getLogger(__name__)
 
 _TIMEOUT_S = 10.0
+#: The line answers a reconnect request before it touches the camera, so the button
+#: never waits on the camera itself; a line that needs longer than this is not answering.
+TIMEOUT_SAMBUNG_ULANG_S = 5.0
 
 
 class LineUnavailable(OperatorError, RuntimeError):
@@ -45,6 +53,23 @@ class LinePlcTolak(RuntimeError):
         super().__init__(detail)
         self.status_code = status_code
         self.detail = detail
+
+
+class KameraTanpaSambungUlang(OperatorError):
+    """The line's image source is a video file or a photo: nothing to reconnect (409).
+
+    Not a `ValueError` on purpose: the console route answers 404 for those (unknown line).
+    """
+
+
+def _kode_line(res: httpx.Response) -> str | None:
+    """`detail.kode` of a line refusal (`{"detail": {"kode": ..., "pesan": ...}}`), or None."""
+    try:
+        isi = res.json()
+    except ValueError:
+        return None
+    detail = isi.get("detail") if isinstance(isi, dict) else None
+    return detail.get("kode") if isinstance(detail, dict) else None
 
 
 def _503_dari_penjaga(res: httpx.Response) -> bool:
@@ -121,6 +146,43 @@ class LineClient:
             },
         )
 
+    async def reconnect_camera(self, line: LineEndpoint, *, requested_by: str) -> None:
+        """Ask `line` to reconnect its camera (the button on every line card).
+
+        The line only raises a flag and answers 202; its capture thread reconnects on the
+        next turn. Every refusal becomes a code the screen words: 409 with the line's code
+        = `KameraTanpaSambungUlang` (a video or photo source), 401/403 = `LINE_MENOLAK`
+        (the INTERNAL_SECRET differs), anything else or no answer = `LINE_TIDAK_MENJAWAB`.
+        """
+        url = f"{self._settings.console_line_host}:{line.port}/internal/camera/reconnect"
+        try:
+            async with httpx.AsyncClient(timeout=TIMEOUT_SAMBUNG_ULANG_S, transport=self._transport) as client:
+                res = await client.post(
+                    url,
+                    json={"requested_by": requested_by},
+                    headers={"x-internal-secret": self._settings.internal_secret},
+                )
+        except httpx.HTTPError as exc:
+            logger.warning("Camera reconnect on %s failed: %s", line.line_code, exc)
+            raise LineUnavailable(
+                LINE_TIDAK_MENJAWAB, f"{line.line_code} did not answer: {exc}", line=line.name
+            ) from exc
+        if res.status_code < 400:
+            return
+        logger.warning(
+            "Camera reconnect refused by %s: HTTP %s %s", line.line_code, res.status_code, res.text[:200]
+        )
+        if res.status_code == 409 and _kode_line(res) == KAMERA_TANPA_SAMBUNG_ULANG:
+            raise KameraTanpaSambungUlang(
+                KAMERA_TANPA_SAMBUNG_ULANG, f"{line.line_code} has no camera to reconnect", line=line.name
+            )
+        raise LineUnavailable(
+            LINE_MENOLAK if res.status_code in (401, 403) else LINE_TIDAK_MENJAWAB,
+            f"{line.line_code} answered: HTTP {res.status_code} {res.text[:200]}",
+            line=line.name,
+            status=res.status_code,
+        )
+
     async def plc_state(self, line: LineEndpoint) -> dict[str, Any]:
         """DI snapshot + testable coils for the commissioning test screen.
 
@@ -161,6 +223,9 @@ class LineClient:
         garis_capture: int = 0,
         sumbu_garis: str = "tegak",
         mode_dev: bool = False,
+        tampil_garis: bool = True,
+        tampil_roi: bool = True,
+        **kotak: int | None,
     ) -> dict[str, Any]:
         """Kirim setelan grading ke satu line. Melempar kalau line tidak menjawab.
 
@@ -179,6 +244,9 @@ class LineClient:
                         "garis_capture": garis_capture,
                         "sumbu_garis": sumbu_garis,
                         "mode_dev": mode_dev,
+                        "tampil_garis": tampil_garis,
+                        "tampil_roi": tampil_roi,
+                        **kotak,  # roi_x1..roi_y2, None = the line keeps its `.env` box
                     },
                     headers={"x-internal-secret": self._settings.internal_secret},
                 )

@@ -12,6 +12,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from .core.dependencies import (
+    get_camera,
     get_capture_repository,
     get_folder_db_line,
     get_health_service,
@@ -24,7 +25,7 @@ from .core.dependencies import (
     set_camera,
 )
 from .core.logging import configure_logging
-from .domain.setelan_grading import bersihkan_setelan
+from .domain.setelan_grading import KOTAK, bersihkan_setelan, kotak_dari
 from .domain.sumber_kamera_resolver import rencana_kamera
 from .integrations.camera.base import CameraSource
 from .integrations.camera.hikrobot_camera import HikrobotCamera
@@ -45,6 +46,7 @@ from .routes.inspection import router as inspection_router
 from .routes.internal import _jadwalkan_keluar
 from .routes.internal import router as internal_router
 from .routes.internal_bahaya import buat_router as buat_router_bahaya
+from .routes.internal_kamera import buat_router as buat_router_kamera
 from .routes.internal_log import buat_router as buat_router_log
 from .routes.internal_outbox import buat_router as buat_router_outbox
 from .routes.streaming import router as streaming_router
@@ -102,7 +104,10 @@ async def _tarik_setelan_grading(settings, state) -> None:
         bersih = bersihkan_setelan(
             {
                 k: data[k]
-                for k in ("conf_threshold", "minimum_size", "garis_capture", "sumbu_garis", "mode_dev")
+                for k in (
+                    "conf_threshold", "minimum_size", "garis_capture", "sumbu_garis",
+                    "mode_dev", "tampil_garis", "tampil_roi", *KOTAK,
+                )
                 if k in data
             }
         )
@@ -111,6 +116,11 @@ async def _tarik_setelan_grading(settings, state) -> None:
         state.garis_capture_override = bersih["garis_capture"]
         state.sumbu_garis_override = bersih["sumbu_garis"]
         state.mode_dev_override = bersih["mode_dev"]
+        state.tampil_garis_override = bersih["tampil_garis"]
+        state.tampil_roi_override = bersih["tampil_roi"]
+        state.roi_override = kotak_dari(bersih, settings.stream_width, settings.stream_height)
+        if state.roi_override is None and bersih["roi_x1"] is not None:
+            logger.warning("Detection box from the console covers none of the picture, keeping ROI_* from .env")
         logger.info(
             "Setelan grading diambil dari konsol: conf=%s minimum_size=%s garis=%s sumbu=%s",
             bersih["conf_threshold"], bersih["minimum_size"],
@@ -500,6 +510,11 @@ def create_app() -> FastAPI:
 
     # Log line untuk tab Log konsol (batch 3.2): store yang SAMA dengan handler di atas.
     app.include_router(buat_router_log(settings=get_settings, store=lambda: log_line))
+    # Reconnect camera button (2026-10-04): the same camera and RuntimeState as the
+    # capture worker, which does the reconnect itself.
+    app.include_router(
+        buat_router_kamera(settings=get_settings, state=get_runtime_state, kamera=get_camera)
+    )
 
     @app.websocket("/ws/results")
     async def websocket_endpoint(websocket: WebSocket) -> None:

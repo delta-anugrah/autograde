@@ -139,3 +139,44 @@ def test_rate_logged_at_info_only_when_it_changes(caplog):
         worker.adopt_camera_frame_rate()
     info = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO]
     assert info == ["Capture paced by the camera: 15.00 fps", "Capture paced by the camera: 10.00 fps"]
+
+
+# ------------------------------------------ a source that never waits (2026-10-04)
+
+
+def test_a_source_that_never_waits_is_still_paced_without_any_rate():
+    """Diagnostics showed "Camera FPS 5,624.8" on a photo line with `CAMERA_FPS=0`.
+
+    A camera blocks in `grab_frame` until the next frame exists, so "no pacing" is safe for
+    it. A photo (and a video file with no rate in its header) hands a frame over at once:
+    with nothing to pace it the capture loop spun thousands of times a second, took the CPU
+    and starved detection. Such a source gets the fallback rate, and that is the rate
+    published, so a recording still lasts as long as what it shows.
+    """
+    kamera = FakeCamera(fps=0.0)
+    kamera.menunggu_frame = False
+    state = RuntimeState()
+    worker = FrameCaptureWorker(camera=kamera, state=state, target_fps=0)
+
+    worker.adopt_camera_frame_rate()
+
+    assert worker.frame_interval == pytest.approx(1 / FALLBACK_FPS)
+    assert state.camera_fps_terukur == float(FALLBACK_FPS)
+
+
+def test_camera_fps_still_wins_for_a_source_that_never_waits():
+    kamera = FakeCamera(fps=0.0)
+    kamera.menunggu_frame = False
+    worker = FrameCaptureWorker(camera=kamera, state=RuntimeState(), target_fps=5)
+
+    worker.adopt_camera_frame_rate()
+
+    assert worker.frame_interval == pytest.approx(1 / 5)
+
+
+def test_the_never_waiting_sources_say_so():
+    """Photo and video file never wait; a webcam and the Hikrobot camera do."""
+    kamera = Path(__file__).resolve().parents[2] / "src/palmgrade/integrations/camera"
+    assert re.search(r"menunggu_frame\s*=\s*False", (kamera / "photo_camera.py").read_text())
+    assert "self.menunggu_frame = not is_video_file" in (kamera / "opencv_camera.py").read_text()
+    assert re.search(r"menunggu_frame: bool = True", (kamera / "base.py").read_text())

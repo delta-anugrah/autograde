@@ -22,10 +22,10 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
 | Timbangan | semua | `muatTimbangan` 15 dtk | tiket, empat langkah berlabel (1 Datang = `arrivals` lewat `POST /api/console/arrivals`, 2 Timbang isi, 3 Timbang kosong, 4 Keluar = `weighings.left_at` lewat `POST /api/console/departures`; aturan 37, tidak pernah ke AutoERP), plat dari daftar **Pilih Truk**, tombol baris **Timbang kosong** lalu **Keluar** (`data-aksi="pergi"`, kolom dipaku di kanan), kolom pertama **Status** (`lencanaTahap(w.tahap)`, warna sama dengan judul langkah; yang menunggu = baris teratas `barisMenunggu`), urut timbang isi terbaru menurut `julianday`, kolom **Antre** / **Total** (`tanpa scan 1` kuning `.tag.peringatan`, strip bukan 0), lencana **Menunggu n** (`#antre`, `gambarLencanaAntre`, plat di `title`) dari `waiting`, dan dropdown langkah 2 dengan bagian **Menunggu timbang** / **Truk lain** (`opsiPlatTimbang`, `isiPlatTimbang`: tidak dibangun ulang saat terbuka); 12 kolom (kepala **Jam timbang isi** / **Jam timbang kosong**); di atasnya strip empat ruas `.langkah-ruas` (pita tahap + kalimat di mana langkah itu dikerjakan, sama lebar dan tinggi, `repeat(4, minmax(0,1fr))` mulai 960 px, 2 x 2 dari 600 px), dua form `.timbang-form` sama lebar (Datang, Timbang isi; berdampingan mulai 1100 px) dengan baris kaki `.timbang-kaki` untuk pesan scan dan petunjuk desimal (juga `title` Bruto), dan bar tara `#tara-grup` selebar panel berwarna langkah 3 (plat, Tara, Simpan, Batal satu baris; ruas `#ruas-kosong` menyala `.aktif` selama terbuka; pesan tara `#scan-keluar-pesan` di bar itu); semua kontrol setinggi `--tinggi-timbang`, tombol utama selebar `--lebar-aksi-timbang`; empat kolom scan `hidden` sampai scanner dipasang (tes browser memunculkannya lewat JS), tanda **Cek AutoERP** untuk janjang susulan pada tiket yang sudah final (`erp_perlu_dicek`, `tests/unit/test_console_html_timbangan_erp.py`) |
 | Rekap | semua | `muatRiwayat` (+ `segarkanRekap` 15 dtk) | Rekap + Riwayat: buka di Hari ini, Per truk; Impor CSV support saja |
 | Log | support | `muatLog` (+ `muatLaporDiscord`) | ERROR/WARNING 180 hari, konsol DAN ketiga line (tag line-1/2/3 atau konsol), jam pertama muncul untuk baris gabungan, traceback bisa dibuka per baris; kalimat di atas tabel menyebut keadaan lapor ke Discord (`mati`/`url_salah`/`aktif`/`tertahan`/`ditolak`); pesan identik dalam 60 dtk digabung sesudah id yang berganti (uuid, hex 8+, desimal, bilangan 6+ digit) dinormalkan (`domain/sidik_log.py`, batch 3.3); galat 500 uvicorn konsol (termasuk saat start gagal) kini ikut masuk lewat `configure_logging` (batch 3.1) |
-| Status | support | `muatStatus` (diagnostik 5 dtk, antrean line 5 dtk) | Versi, Diagnostik (fps terukur, umur gambar, PLC ✓ hanya kalau `plc.connected`, disk, lisensi, versi / model, `capture_save_dropped` + `tp_telat` harus nol; pembantu `diag*`, test `test_console_html_diagnostik_jujur.py`), Antrean line, Antrean ERP + manifest R2 |
+| Status | support | `muatStatus` (diagnostik 5 dtk, antrean line 5 dtk) | Versi, Diagnostik (fps terukur, umur gambar, PLC ✓ hanya kalau `plc.connected`, disk, lisensi, versi / model, `capture_save_dropped` + `tp_telat` harus nol; pembantu `diag*`, test `test_console_html_diagnostik_jujur.py`), Antrean line, Antrean ERP, Manifest R2 (judul `.status-judul` sendiri sejak 2026-10-04; bar ringkasnya hilang lewat `:has()` selama R2 belum disetel). Kartu Diagnostik berkelompok dan bisa dibuka-tutup: `<details class="diag-kelompok" data-grup=...>` + `<summary class="diag-grup">`, TERTUTUP dari awal, kelompok yang dibuka diingat di `diagTerbuka` (localStorage) dan dibuka lagi sesudah tiap gambar ulang 5 dtk di `muatDiagnostik`, judul kelompok merah lewat `:has(dd .tanda-gagal)` supaya galat tidak tersembunyi; dulu `<h3 class="diag-grup">` (Kamera dan gambar, Mesin, Data, Workers + hitungan `n/m`) masing-masing diikuti `<dl>`-nya; nilai panjang turun baris, tidak dipotong `…` |
 | Akun | support | `muatAkun` | akun lokal/AutoERP, tombol aksi berwarna, semua tombol aksi satu lebar (`--lebar-tombol-akun`, satu aturan `#sec-akun :is(...) button`) |
 | Line | support | `muatLine` → `MUAT_SUB_LINE[subLine]` | Sumber Kamera, Model Deteksi, Uji PLC (1 dtk), Rekam Video (3 dtk); empat tombol pilihan `#line-sub` = grid 4 kolom selebar panel, 2 x 2 di bawah 600 px |
-| Setelan | support | `muatSetelan` (+ `muatPenugasan`) | setelan grading, garis capture, **Penugasan line** (saklar + line pilihan, tombol simpan sendiri, `GET/POST /api/console/dev/auto-assign`, hasil simpan lewat toast), Danger Zone. Selalu paling kanan |
+| Setelan | support | `muatSetelan` (+ `muatPenugasan`) | setelan grading, garis capture, dua saklar tampilan `#set-tampil-garis` / `#set-tampil-roi` (2026-10-04: sembunyikan GAMBAR garis capture dan kotak ROI di video untuk semua line; deteksi dan pemotretan tidak berubah; bawaan nyala, `r.tampil_* !== false` supaya server lama tetap tercentang); grup Kamera & Conveyor = tiga `<fieldset class="setelan-sub">` (Conveyor, Garis capture, Kotak area deteksi) dalam `.setelan-tiga` (3fr 4fr 5fr mulai 1100 px, satu kolom di bawahnya; empat sisi kotak satu baris); kotak area deteksi (ROI) diatur lewat `#set-roi-x1/y1/x2/y2` (`KOTAK_ROI`): keempatnya kosong dikirim `null` = line memakai `ROI_*` dari `.env`, `0` semua = seluruh gambar, `domain/setelan_grading._kotak` menolak kotak tanpa luas; tes `tests/browser/test_browser_setelan.py`, **Penugasan line** (saklar + line pilihan, tombol simpan sendiri, `GET/POST /api/console/dev/auto-assign`, hasil simpan lewat toast), Danger Zone. Selalu paling kanan |
 
 - Penugasan otomatis (aturan 36): strip **Antrean bongkar** `#antrean-bongkar` di atas kartu line di tab
   Grading (`htmlAntreanBongkar` / `gambarAntreanBongkar`, tombol `data-aksi="pasang"|"lewati"`,
@@ -35,6 +35,29 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   `tertahan` + `plate_lama` untuk line yang masih memegang truk yang sudah keluar), jangan pernah namai variabel tingkat atas `dipasang` (sudah dipakai
   "kartu line tergambar"). Bukan "Antrean line": itu antrean janjang line ke konsol (tab Status).
   Tes: `test_console_html_antrean_bongkar.py`, `tests/browser/test_browser_penugasan.py`.
+- Tombol **Sambung ulang** kamera (2026-10-04, semua akun) di `<h2>` kartu line, di sebelah
+  ONLINE/OFFLINE (`tombolSambungUlang`, 44 px; di kartu sempit cuma ikon lewat
+  `@container (max-width:460px)` pada `.card h2`). Klik → `sambungUlangKamera`: tanya dulu
+  (`tanyaKonfirmasi`), lalu `denganSibuk` + `POST /api/console/lines/{kode}/reconnect-camera`
+  (route `routes/console_kamera.py`) → `toastSukses`; kode `kamera_tanpa_sambung_ulang`
+  (video/foto) dan `line_tidak_menjawab`/`line_menolak` lewat `gagalKarena`. Tanda sibuk juga
+  disimpan di `sambungUlangBerjalan`, jadi kartu yang digambar ulang (`dipasang = false`) di
+  tengah permintaan tetap sibuk. Line cuma memasang bendera; `FrameCaptureWorker` yang
+  menyambung ulang di bawah `state.lock`. Tes: `test_console_html_sambung_ulang.py`,
+  `tests/browser/test_browser_sambung_ulang.py`.
+- Baris tombol kartu line `.assign` (2026-10-04) = grid empat kolom sama lebar: pemilih truk dua kolom
+  (persis selebar Reject Manual di `.aksi-line`), Tugaskan dan Lepas / Lepas paksa satu kolom
+  masing-masing; label panjang turun baris di dalam tombolnya.
+- Tombol **Lepas paksa** (2026-10-04, aturan 13, semua akun) menggantikan Lepas di slot
+  `.slot-lepas` (`display:contents`) selama `l.plc.reachable === false` dengan `sebab_kode`
+  `tak_terjangkau` DAN kartu memegang truk (`bisaLepasPaksa`, `tombolLepas`, `bahaya pekat`,
+  `data-aksi="lepas-paksa"`). Slot ditulis ulang tiap poll lewat `tulisKalauBeda`. Klik →
+  `lepasPaksa`: `tanyaKonfirmasi({bahaya: true})`, lalu `denganSibuk` +
+  `POST /api/console/lines/{kode}/force-release` (`routes/console_lepas_paksa.py`); `paksa: true`
+  = `toastPeringatan` `sukLepasPaksa` (sampai konsol saja), `paksa: false` = `toastSukses`
+  `sukLepas`; gagal lewat `gagalKarena("gagalLepasPaksa", e)`. Tanda sibuk juga di
+  `lepasPaksaBerjalan`. Tes: `test_console_html_lepas_paksa.py`,
+  `tests/browser/test_browser_lepas_paksa.py` (line palsu `atur_diam`).
 - Baris tabel Timbangan (aturan 37, 2026-10-03): baris **Datang** (`barisMenunggu`) membawa tombol
   merah **Batal datang** (`button.bahaya`, `data-aksi="batal-datang"`, `data-arrival` = `id` dari
   `waiting`); `batalDatang` dua klik seperti Batalkan impor (`yakin pekat`, 5 dtk), `denganSibuk`,

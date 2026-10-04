@@ -128,6 +128,9 @@ each YOLO frame (ByteTrack assigns track_id per object):
 NOT sensor space: operators calibrate from what they see in the browser. Center `(cx,cy)` must be
 inside the box. `0,0,0,0` = full frame (X2=0→stream width, Y2=0→stream height); require `X2>X1` & `Y2>Y1`.
 TP is exempt from the ROI check. `draw_roi()` runs in `DisplayWorker` **after** resize.
+Since 2026-10-04 the console can set the box (`RuntimeState.roi_override`, grading settings path): it wins over
+`ROI_*`, `null` = not set there, so `.env` decides; a box covering none of the stream picture is refused at
+save and ignored by a line. Two display switches (`tampil_garis`, `tampil_roi`) only skip the drawing.
 
 **Garis capture (biru, bertanda `CAPTURE`)**: sejak 2026-09-18 menggantikan aturan lama "titik
 tengah masuk kotak ROI" sebagai penentu KAPAN janjang difoto. Dua hal yang sengaja dipisah:

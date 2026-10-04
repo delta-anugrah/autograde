@@ -21,7 +21,7 @@ from ..core.dependencies import (
     get_runtime_state,
     get_settings,
 )
-from ..domain.setelan_grading import bersihkan_setelan
+from ..domain.setelan_grading import KOTAK, bersihkan_setelan, kotak_dari
 from ..domain.setelan_rekam import SetelanRekamTidakSah, bersihkan_setelan_rekam
 from ..schemas.internal_schema import (
     AssignmentSyncRequest,
@@ -92,6 +92,11 @@ async def setelan_grading(
     state.garis_capture_override = bersih["garis_capture"]
     state.sumbu_garis_override = bersih["sumbu_garis"]
     state.mode_dev_override = bersih["mode_dev"]
+    state.tampil_garis_override = bersih["tampil_garis"]
+    state.tampil_roi_override = bersih["tampil_roi"]
+    state.roi_override = kotak_dari(bersih, settings.stream_width, settings.stream_height)
+    if state.roi_override is None and bersih["roi_x1"] is not None:
+        logger.warning("Detection box from the console covers none of the picture, keeping ROI_* from .env")
     logger.warning(
         "Setelan grading diubah dari konsol: conf=%s minimum_size=%s garis=%s sumbu=%s "
         "(sebelumnya env conf=%s size=%s garis=%s sumbu=%s)",
@@ -121,6 +126,10 @@ async def setelan_grading_aktif(
         if state.sumbu_garis_override is not None else settings.sumbu_garis,
         mode_dev=state.mode_dev_override
         if state.mode_dev_override is not None else settings.mode_dev,
+        tampil_garis=state.tampil_garis_override is not False,
+        tampil_roi=state.tampil_roi_override is not False,
+        **dict(zip(KOTAK, state.roi_override or (
+            settings.roi_x1, settings.roi_y1, settings.roi_x2, settings.roi_y2), strict=True)),
         sumber="konsol" if ditimpa else "env",
     )
 

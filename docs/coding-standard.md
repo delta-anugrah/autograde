@@ -54,7 +54,7 @@ PRs; a PR is not blocked by a gap it did not add.
 - **F9.** A timer that belongs to one tab starts and stops in `bukaTabDev` (rule 21); the screen-wide polls (`refresh`, `muatTrucks`, `muatTimbangan`) run on every tab on purpose (rules 22, 24, 27). A poll that rewrites a view uses `tulisKalauBeda`, so an unchanged view is not redrawn.
 - **F10.** No secret, API key or licence token in the page. What must survive a reload (the open tab) sits in `localStorage`; data always comes back from the server.
 - **F11.** One button component: the base `button`, `button.utama` for the main action of a step, `button.bahaya` for every cancel, delete, reset, undo, release or sign-out (`bahaya pekat` for the final irreversible run); never a one-off colour rule (`tests/unit/test_console_tombol_bahaya.py`). A successful action answers with a toast (`toastSukses`; saved but not reached everywhere = `toastPeringatan`), never a box of text that looks like a warning.
-- **F12.** No native browser dialog (`confirm`, `alert`, `prompt`): every "are you sure?" goes through `tanyaKonfirmasi()`, the one in-page `<dialog>`, whose Batal is `button.bahaya` like every other cancel (F11, user 2026-10-03) and keeps the first focus, so an accidental Enter still cancels (`tests/unit/test_console_html_konfirmasi.py`).
+- **F12.** No native browser dialog (`confirm`, `alert`, `prompt`): every "are you sure?" goes through `tanyaKonfirmasi()`, the one in-page `<dialog>`, whose Batal is `button.bahaya` like every other cancel (F11, user 2026-10-03) and keeps the first focus, so an accidental Enter still cancels (`tests/unit/test_console_html_konfirmasi.py`). Every text dialog is the one modal component: `dialog.modal`, `.modal-isi`, and a `.modal-tombol` row whose buttons share one width, close or cancel first (`tests/unit/test_console_html_modal.py`).
 
 ## Tests
 
@@ -89,7 +89,7 @@ PRs; a PR is not blocked by a gap it did not add.
 |---|---|---|
 | Outbox schema changes are ad-hoc blocks with no version number (`console.db` carries `PRAGMA user_version` since batch 4.5) | `integrations/erp/outbox_store.py`, `integrations/outbox/outbox_store.py` | B5, C3 |
 | The console column renames date from developer machines | `repositories/console_skema.py` | B5, C3 |
-| A silent `except Exception: pass` | `workers/frame_capture_worker.py`, `pipelines/realtime_inspection_pipeline.py` | L6 |
+| A silent `except Exception: pass` | `pipelines/realtime_inspection_pipeline.py` | L6 |
 | The ripe rate and the yard totals across lines are computed on the screen | `static/console.html` (`isiTally`, `rasioRiwayat`) | L4, F3 |
 | Ruff runs with rules E, F, I, UP, B only | `pyproject.toml` | S5 |
 | No JS linter; the node-based console tests skip themselves where node is missing | `static/console.html` | T3 |

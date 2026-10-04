@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from ..domain.episode_tak_terbaca import TAK_TERBACA_POLL_BERTURUT, TENGGANG_START_S
@@ -38,10 +38,14 @@ class LineStatusWorker:
         jam: Callable[[], float] = time.monotonic,
         mulai: float | None = None,
         tenggang_start_s: float = TENGGANG_START_S,
+        sesudah_terbaca: Callable[[str, dict[str, Any]], Awaitable[None]] | None = None,
     ) -> None:
         self._lines = list(lines)
         self._client = line_client
         self._interval_s = interval_s
+        # Every status a line answered, handed on (Lepas paksa, 2026-10-04): a line that was
+        # cut off, not dead, says here which truck it still holds once it answers again.
+        self._sesudah_terbaca = sesudah_terbaca
         self._state: dict[str, dict[str, Any]] = {}
         # Sejak kapan upload foto tiap line gagal, menurut putaran terakhir. Hanya
         # untuk mencatat putus/pulih sekali masing-masing ke tab Log.
@@ -113,6 +117,17 @@ class LineStatusWorker:
             self._catat_frame(line.line_code, jawab.get("ai"))
             self._catat_disk(line.line_code, jawab.get("disk"))
             self._tak_terbaca.pulih(line.line_code)
+            await self._teruskan(line.line_code, jawab)
+
+    async def _teruskan(self, kode: str, jawab: dict[str, Any]) -> None:
+        """Hand one answered status to the hook. A failing hook is logged and never stops the
+        poll: the operator screen reads every line's state from this loop."""
+        if self._sesudah_terbaca is None:
+            return
+        try:
+            await self._sesudah_terbaca(kode, jawab)
+        except Exception:
+            logger.exception("%s: status terbaca, tapi pemeriksaan sesudahnya gagal", kode)
 
     def _catat_ai(self, kode: str, ai: dict[str, Any] | None) -> None:
         """AI line mati / tidak lagi mati → satu baris di `docker logs` konsol.

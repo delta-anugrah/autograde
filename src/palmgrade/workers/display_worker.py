@@ -91,6 +91,9 @@ class DisplayWorker:
                 if self.state.sumbu_garis_override is not None
                 else self.settings.sumbu_garis
             ),
+            tampil_garis=self.state.tampil_garis_override is not False,
+            tampil_roi=self.state.tampil_roi_override is not False,
+            roi=self.state.roi_override,
         )
 
         # YOLO inference FPS overlay (from FrameProcessingWorker; drawn in stream space → fixed, always readable)
