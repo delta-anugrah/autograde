@@ -25,7 +25,7 @@ from .core.dependencies import (
     set_camera,
 )
 from .core.logging import configure_logging
-from .domain.setelan_grading import bersihkan_setelan
+from .domain.setelan_grading import KOTAK, bersihkan_setelan, kotak_dari
 from .domain.sumber_kamera_resolver import rencana_kamera
 from .integrations.camera.base import CameraSource
 from .integrations.camera.hikrobot_camera import HikrobotCamera
@@ -106,7 +106,7 @@ async def _tarik_setelan_grading(settings, state) -> None:
                 k: data[k]
                 for k in (
                     "conf_threshold", "minimum_size", "garis_capture", "sumbu_garis",
-                    "mode_dev", "tampil_garis", "tampil_roi",
+                    "mode_dev", "tampil_garis", "tampil_roi", *KOTAK,
                 )
                 if k in data
             }
@@ -118,6 +118,7 @@ async def _tarik_setelan_grading(settings, state) -> None:
         state.mode_dev_override = bersih["mode_dev"]
         state.tampil_garis_override = bersih["tampil_garis"]
         state.tampil_roi_override = bersih["tampil_roi"]
+        state.roi_override = kotak_dari(bersih)
         logger.info(
             "Setelan grading diambil dari konsol: conf=%s minimum_size=%s garis=%s sumbu=%s",
             bersih["conf_threshold"], bersih["minimum_size"],

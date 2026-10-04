@@ -37,6 +37,7 @@ def test_nilai_wajar_diterima_apa_adanya():
         "mode_dev": False,
         "tampil_garis": True,
         "tampil_roi": True,
+        "roi_x1": None, "roi_y1": None, "roi_x2": None, "roi_y2": None,
     }
 
 
@@ -52,6 +53,7 @@ def test_angka_berbentuk_teks_diterima():
         "mode_dev": False,
         "tampil_garis": True,
         "tampil_roi": True,
+        "roi_x1": None, "roi_y1": None, "roi_x2": None, "roi_y2": None,
     }
 
 
@@ -111,3 +113,47 @@ def test_saklar_tampil_bawaannya_nyala_dan_bisa_dimatikan():
     assert (bersih["tampil_garis"], bersih["tampil_roi"]) == (False, False)
     # Hiding the line never moves it: the capture trigger keeps its position.
     assert bersihkan_setelan({**dasar, "garis_capture": 900, "tampil_garis": False})["garis_capture"] == 900
+
+
+# ── detection area box (ROI) from the console, 2026-10-04 ───────────────────
+
+_DASAR = {"conf_threshold": 0.5, "minimum_size": 3000}
+_KOSONG = {"roi_x1": None, "roi_y1": None, "roi_x2": None, "roi_y2": None}
+
+
+def test_kotak_tidak_dikirim_berarti_ikut_env():
+    """An older console, or a row saved before the box existed, must not reset a calibrated
+    box: None means "the line keeps its own ROI_*", never "full frame"."""
+    from palmgrade.domain.setelan_grading import kotak_dari
+
+    bersih = bersihkan_setelan(_DASAR)
+    assert {k: bersih[k] for k in _KOSONG} == _KOSONG
+    assert kotak_dari(bersih) is None
+    # Four empty inputs from the screen mean the same.
+    bersih = bersihkan_setelan({**_DASAR, **dict.fromkeys(_KOSONG, "")})
+    assert kotak_dari(bersih) is None
+
+
+def test_kotak_diisi_jadi_empat_bilangan_bulat():
+    from palmgrade.domain.setelan_grading import kotak_dari
+
+    bersih = bersihkan_setelan({**_DASAR, "roi_x1": "100", "roi_y1": 50, "roi_x2": "1180", "roi_y2": 620})
+    assert kotak_dari(bersih) == (100, 50, 1180, 620)
+    # All zeros is a real value: the full frame, on purpose.
+    assert kotak_dari(bersihkan_setelan({**_DASAR, **dict.fromkeys(_KOSONG, 0)})) == (0, 0, 0, 0)
+    # 0 on the far edge alone = up to the edge of the picture, as in `.env`.
+    assert kotak_dari(bersihkan_setelan({**_DASAR, "roi_x1": 100, "roi_y1": 0, "roi_x2": 0, "roi_y2": 0})) == (100, 0, 0, 0)
+
+
+@pytest.mark.parametrize("kotak", [
+    {"roi_x1": 100, "roi_y1": None, "roi_x2": 500, "roi_y2": 400},   # one left empty
+    {"roi_x1": 500, "roi_y1": 0, "roi_x2": 500, "roi_y2": 400},      # no width
+    {"roi_x1": 0, "roi_y1": 400, "roi_x2": 500, "roi_y2": 300},      # upside down
+    {"roi_x1": -1, "roi_y1": 0, "roi_x2": 500, "roi_y2": 400},
+    {"roi_x1": 0, "roi_y1": 0, "roi_x2": 20000, "roi_y2": 400},
+    {"roi_x1": "abc", "roi_y1": 0, "roi_x2": 500, "roi_y2": 400},
+])
+def test_kotak_cacat_ditolak(kotak):
+    """A box with no area filters every bunch out while the line looks healthy."""
+    with pytest.raises(SetelanTidakSah):
+        bersihkan_setelan({**_DASAR, **kotak})
