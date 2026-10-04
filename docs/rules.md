@@ -1342,6 +1342,7 @@ memang khas satu mesin.
 - All paths via `Settings` (`core/config.py`): never hardcode. New env var → add to `core/config.py` with a sane default.
 - `CAMERA_TYPE`: `hikrobot` (prod) / `opencv` (dev: webcam or video file) / `photo` (test). Switching needs **no code edit**.
 - ROI (`ROI_X1/Y1/X2/Y2`) coordinates are in **stream space** (`STREAM_WIDTH×STREAM_HEIGHT`, default 1280×720), not sensor space.
+  Since 2026-10-04 the box can also be set from the console (Settings, Camera & Conveyor), one box for all lines: `RuntimeState.roi_override` wins over `.env`, and `null` (never set, or an older console) leaves each line its own `ROI_*`. Never default it to zeros: that would reset a calibrated box to the full frame.
 - **Garis capture (biru, bertanda `CAPTURE`) menentukan KAPAN janjang difoto; ROI menentukan DI MANA.**
   Dua hal berbeda, sengaja dipisah sejak 2026-09-18. Janjang difoto saat kotaknya **menyentuh**
   garis (`domain/garis_capture.menyentuh_garis`): bukan lagi saat titik tengahnya masuk kotak ROI,

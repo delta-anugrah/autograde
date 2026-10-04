@@ -132,6 +132,11 @@ class SetelanGradingRequest(BaseModel):
     # Display only (2026-10-04). True by default: an older console never sends them.
     tampil_garis: bool = True
     tampil_roi: bool = True
+    # ROI box in stream space. None = not set from the console, the line's `.env` decides.
+    roi_x1: int | None = None
+    roi_y1: int | None = None
+    roi_x2: int | None = None
+    roi_y2: int | None = None
 
 
 class SetelanGradingResponse(BaseModel):
@@ -142,6 +147,11 @@ class SetelanGradingResponse(BaseModel):
     mode_dev: bool = False
     tampil_garis: bool = True
     tampil_roi: bool = True
+    # ROI box in stream space. None = not set from the console, the line's `.env` decides.
+    roi_x1: int | None = None
+    roi_y1: int | None = None
+    roi_x2: int | None = None
+    roi_y2: int | None = None
     sumber: str  # "konsol" kalau ditimpa, "env" kalau masih dari .env
 
 

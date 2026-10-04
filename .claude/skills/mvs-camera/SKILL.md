@@ -117,7 +117,7 @@ LINE_1_CAMERA_SERIAL / LINE_2_ / LINE_3_  # pilih kamera by serial (WAJIB di pab
 LINE_1_FEATURE_FILE  / LINE_2_ / LINE_3_  # path .mfs → ini yang nentuin fps/exposure/gain
 CAMERA_FPS                                # target loop capture, BUKAN fps kamera
 STREAM_WIDTH/HEIGHT/FPS                   # preview MJPEG, nggak nyentuh kamera
-ROI_X1/Y1/X2/Y2                           # zona deteksi di software (0,0,0,0 = full frame)
+ROI_X1/Y1/X2/Y2                           # zona deteksi di software (0,0,0,0 = full frame); bisa ditimpa dari tab Setelan konsol
 GARIS_CAPTURE / SUMBU_GARIS               # kapan janjang difoto; sumbu mendatar diskalakan
                                           # pakai TINGGI frame (sensor 2448x2048 nggak persegi)
 ```

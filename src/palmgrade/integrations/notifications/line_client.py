@@ -225,6 +225,7 @@ class LineClient:
         mode_dev: bool = False,
         tampil_garis: bool = True,
         tampil_roi: bool = True,
+        **kotak: int | None,
     ) -> dict[str, Any]:
         """Kirim setelan grading ke satu line. Melempar kalau line tidak menjawab.
 
@@ -245,6 +246,7 @@ class LineClient:
                         "mode_dev": mode_dev,
                         "tampil_garis": tampil_garis,
                         "tampil_roi": tampil_roi,
+                        **kotak,  # roi_x1..roi_y2, None = the line keeps its `.env` box
                     },
                     headers={"x-internal-secret": self._settings.internal_secret},
                 )

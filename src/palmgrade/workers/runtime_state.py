@@ -47,6 +47,8 @@ class RuntimeState:
     # detection and capture keep using both. None = never set from the console = drawn.
     tampil_garis_override: bool | None = None
     tampil_roi_override: bool | None = None
+    # ROI box (x1, y1, x2, y2) in stream space, set from the console. None = `ROI_*` from `.env`.
+    roi_override: tuple[int, int, int, int] | None = None
 
     # Laju yang BENAR-BENAR dikirim kamera, diisi `adopt_camera_frame_rate()`
     # tiap connect. `0` = sumber tidak bisa melapor (berkas video, webcam).

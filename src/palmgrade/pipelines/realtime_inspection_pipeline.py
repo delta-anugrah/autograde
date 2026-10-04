@@ -97,7 +97,9 @@ class RealtimeInspectionPipeline:
             cv2.putText(frame, text, (x1, ty), FONT, fs, color, ft + 1, cv2.LINE_AA)      # teks warna, agak tebal
         return frame
 
-    def roi_in_stream_space(self, width: int, height: int) -> tuple[int, int, int, int] | None:
+    def roi_in_stream_space(
+        self, width: int, height: int, roi: tuple[int, int, int, int] | None = None
+    ) -> tuple[int, int, int, int] | None:
         """Kotak ROI seperti yang terlihat di layar, atau `None` kalau tidak sah.
 
         `ROI_*` memang ditulis dalam ruang stream (operator mengalibrasinya dari
@@ -105,10 +107,11 @@ class RealtimeInspectionPipeline:
         ke ruang sensor adalah `FrameProcessingWorker._roi_box_for`, karena di
         sanalah deteksi benar-benar berjalan.
         """
-        rx1 = self.settings.roi_x1
-        ry1 = self.settings.roi_y1
-        rx2 = self.settings.roi_x2 if self.settings.roi_x2 > 0 else width
-        ry2 = self.settings.roi_y2 if self.settings.roi_y2 > 0 else height
+        # `roi` = the box set from the console (`RuntimeState.roi_override`); None = `.env`.
+        s = self.settings
+        rx1, ry1, x2, y2 = roi or (s.roi_x1, s.roi_y1, s.roi_x2, s.roi_y2)
+        rx2 = x2 if x2 > 0 else width
+        ry2 = y2 if y2 > 0 else height
         if rx2 <= rx1 or ry2 <= ry1:
             return None
         return rx1, ry1, rx2, ry2
@@ -116,6 +119,7 @@ class RealtimeInspectionPipeline:
     def draw_roi(
         self, frame: np.ndarray, garis_capture: int = 0, sumbu: str = TEGAK,
         *, tampil_garis: bool = True, tampil_roi: bool = True,
+        roi: tuple[int, int, int, int] | None = None,
     ) -> np.ndarray:
         """Kotak ROI (hijau, tipis) + garis capture (biru, tebal, bertanda).
 
@@ -142,8 +146,10 @@ class RealtimeInspectionPipeline:
         triggers the capture and a hidden box still filters the region.
         """
         h, w = frame.shape[:2]
-        kotak = self.roi_in_stream_space(w, h)
-        if tampil_roi and kotak is not None and self._roi_enabled:
+        kotak = self.roi_in_stream_space(w, h, roi)
+        # A console box of all zeros is the full frame: nothing to draw, as with `.env`.
+        aktif = any(roi) if roi is not None else self._roi_enabled
+        if tampil_roi and kotak is not None and aktif:
             rx1, ry1, rx2, ry2 = kotak
             cv2.rectangle(frame, (rx1, ry1), (rx2, ry2), COLOR_ROI, 2)
 

@@ -18,6 +18,25 @@ Next:           ...
 
 ---
 
+## 2026-10-04 · console + vision · Detection area box from the console, collapsible Diagnostics (PR #225)
+Changed:        The ROI box is set from Settings, Camera & Conveyor (four stream-space pixels,
+                `roi_x1..roi_y2`) through the grading settings path: `domain/setelan_grading`
+                (`_kotak`, `kotak_dari`), `RuntimeState.roi_override`, read by
+                `FrameProcessingWorker._roi_box_for` (filter) and `draw_roi` (drawing). Camera &
+                Conveyor is three named blocks (Conveyor, Capture line, Detection area box).
+                Diagnostics groups are `<details>`, closed by default; an opened group is remembered in
+                the browser and opened again after every 5 s redraw, and a group heading turns red
+                while a row inside it carries a red mark. A box that covers none of the stream
+                picture is refused at save (console) and ignored by a line (keeps `.env`).
+Validated:      see PR #225 (unit, e2e, integration, browser in both browsers, ruff). Screenshots of
+                Settings and Status.
+Not validated:  The box on a live video stream and on real bunches. Nothing on the factory PC.
+Decisions:      `null` = never set from the console = each line keeps `ROI_*` from `.env`. An older
+                console or an older saved row therefore never resets a calibrated box. All zeros is a
+                real value (full frame). A box with no area is refused at save (it would filter every
+                bunch out with no error). One box for all lines, like `ROI_*` in `.env`.
+Next:           User tests on the laptop, then release v1.23.0.
+
 ## 2026-10-04 · console + capture · Card button row, Diagnostics groups, show/hide overlays, runaway capture loop (PR #224)
 Changed:        Console (`static/console.html`): the `.assign` row on a line card is a grid of four
                 equal columns (truck picker two, as wide as Manual Reject below; Assign and Release /

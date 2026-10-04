@@ -69,7 +69,16 @@ SAKLAR: tuple[str, ...] = ("mode_dev", "tampil_garis", "tampil_roi")
 OPSIONAL: dict[str, Any] = {
     "garis_capture": 0, "sumbu_garis": TEGAK, "mode_dev": False,
     "tampil_garis": True, "tampil_roi": True,
+    "roi_x1": None, "roi_y1": None, "roi_x2": None, "roi_y2": None,
 }
+
+#: The detection area box (ROI), four stream-space pixels like `garis_capture` (2026-10-04).
+#: All four together or none: None = never set from the console, the line keeps its own
+#: `ROI_*` from `.env`. That default matters: an older console, or a row saved before this
+#: existed, must not silently reset a calibrated box to the full frame. All four 0 = full
+#: frame. `roi_x2` / `roi_y2` 0 alone = up to the right / bottom edge, as in `.env`.
+KOTAK: tuple[str, ...] = ("roi_x1", "roi_y1", "roi_x2", "roi_y2")
+BATAS_KOTAK = 10_000
 
 #: Field yang batas bawahnya INKLUSIF (`bawah <= nilai`), bukan eksklusif.
 #:
@@ -98,8 +107,34 @@ def _angka(field: str, nilai: Any) -> float:
         raise SetelanTidakSah(f"{field} harus angka") from exc
 
 
-def bersihkan_setelan(payload: dict[str, Any]) -> dict[str, Any]:
+def _kotak(payload: dict[str, Any]) -> dict[str, int | None]:
+    """The four ROI numbers, or four None when the screen left them all empty."""
+    mentah = {f: payload.get(f) for f in KOTAK}
+    kosong = [f for f, v in mentah.items() if v is None or (isinstance(v, str) and not v.strip())]
+    if len(kosong) == len(KOTAK):
+        return dict.fromkeys(KOTAK)
+    if kosong:
+        raise SetelanTidakSah(f"{kosong[0]} harus diisi: keempat angka kotak diisi bersama")
+    kotak: dict[str, int | None] = {}
+    for field, nilai in mentah.items():
+        angka = _angka(field, nilai)
+        if not 0 <= angka <= BATAS_KOTAK:
+            raise SetelanTidakSah(f"{field} harus minimal 0 dan maksimal {BATAS_KOTAK}")
+        kotak[field] = int(angka)
+    # A box with no area filters every bunch out while the line looks healthy.
+    for awal, akhir in (("roi_x1", "roi_x2"), ("roi_y1", "roi_y2")):
+        if 0 < kotak[akhir] <= kotak[awal]:
+            raise SetelanTidakSah(f"{akhir} harus lebih besar dari {awal}, atau 0")
+    return kotak
+
+
+def bersihkan_setelan(
+    payload: dict[str, Any], *, stream: tuple[int, int] | None = None
+) -> dict[str, Any]:
     """Payload dari layar -> dict siap simpan. `SetelanTidakSah` kalau meleset.
+
+    `stream` (width, height of the video picture) is given by the console at save: a
+    detection box that covers none of that picture is refused there, at the gate.
 
     Field asing ditolak, tidak diabaikan: salah ketik nama field yang diterima
     diam-diam akan terlihat berhasil padahal tidak mengubah apa pun.
@@ -107,7 +142,7 @@ def bersihkan_setelan(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise SetelanTidakSah("setelan harus objek")
 
-    dikenal = set(BATAS) | set(PILIHAN) | set(SAKLAR)
+    dikenal = set(BATAS) | set(PILIHAN) | set(SAKLAR) | set(KOTAK)
     asing = set(payload) - dikenal
     if asing:
         raise SetelanTidakSah(f"field tidak dikenal: {', '.join(sorted(asing))}")
@@ -116,7 +151,11 @@ def bersihkan_setelan(payload: dict[str, Any]) -> dict[str, Any]:
     if kurang:
         raise SetelanTidakSah(f"field wajib belum diisi: {', '.join(sorted(kurang))}")
 
-    bersih: dict[str, Any] = {}
+    bersih: dict[str, Any] = _kotak(payload)
+    if stream and bersih[KOTAK[0]] is not None and not kotak_berluas(
+        tuple(bersih[f] for f in KOTAK), *stream  # type: ignore[arg-type]
+    ):
+        raise SetelanTidakSah("roi_x1 dan roi_y1 harus di dalam gambar: kotak tidak menutup apa pun")
     for field in SAKLAR:
         nilai = payload.get(field, OPSIONAL[field])
         # Layar mengirim boolean JSON; nilai lain ("true", 1) juga diterima
@@ -156,3 +195,33 @@ def bersihkan_setelan(payload: dict[str, Any]) -> dict[str, Any]:
         # angka yang bukan piksel. `garis_capture` sama: koordinat px.
         bersih[field] = nilai if field == "conf_threshold" else int(nilai)
     return bersih
+
+
+def kotak_berluas(kotak: tuple[int, int, int, int], lebar: int, tinggi: int) -> bool:
+    """True when the box covers some of a `lebar` x `tinggi` stream picture.
+
+    Read the way the line reads it: 0 on the far edge means the picture edge. `_kotak`
+    cannot know the stream size, so `(5000, 0, 0, 0)` passes it while lying wholly outside
+    a 1280 px picture. Such a box drops every bunch with no error, hence this second check.
+    """
+    x1, y1, x2, y2 = kotak
+    kanan = min(x2 if x2 > 0 else lebar, lebar)
+    bawah = min(y2 if y2 > 0 else tinggi, tinggi)
+    return kanan > x1 and bawah > y1
+
+
+def kotak_dari(
+    bersih: dict[str, Any], lebar: int = 0, tinggi: int = 0
+) -> tuple[int, int, int, int] | None:
+    """The ROI box of a cleaned setting as (x1, y1, x2, y2), or None when it was never set.
+
+    With the line's own stream size (`lebar`, `tinggi`) a box that covers none of the
+    picture also answers None: the line then keeps its `.env` box and keeps grading, which
+    is the safe side for a value that slipped past an older or differently sized console.
+    """
+    if bersih.get(KOTAK[0]) is None:
+        return None
+    kotak = tuple(int(bersih[f]) for f in KOTAK)
+    if lebar > 0 and tinggi > 0 and not kotak_berluas(kotak, lebar, tinggi):  # type: ignore[arg-type]
+        return None
+    return kotak  # type: ignore[return-value]

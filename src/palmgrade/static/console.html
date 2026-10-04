@@ -636,8 +636,21 @@
                            font-size:.72rem; font-weight:700; letter-spacing:.12em;
                            text-transform:uppercase; color:var(--muted);
                            display:flex; justify-content:space-between; align-items:baseline; }
-  .kartu-grid .card > .diag-grup:first-of-type { border-top:none; }
+  .kartu-grid .card > details:first-of-type > .diag-grup { border-top:none; }
   .kartu-grid .diag-grup + dl { padding-top:2px; }
+  /* Each group opens and closes. The marker is drawn here because the flex summary has
+     none of its own; the worker count stays at the right edge. */
+  .kartu-grid summary.diag-grup { cursor:pointer; user-select:none; list-style:none;
+                                  justify-content:flex-start; gap:8px; }
+  .kartu-grid summary.diag-grup::-webkit-details-marker { display:none; }
+  .kartu-grid summary.diag-grup::before { content:"\25B8"; }
+  .kartu-grid details[open] > summary.diag-grup::before { content:"\25BE"; }
+  .kartu-grid summary.diag-grup > span { margin-left:auto; }
+  .kartu-grid details:not([open]) > summary.diag-grup { border-bottom:none; }
+  .kartu-grid summary.diag-grup:hover { color:var(--fg); }
+  /* Closed by default, so a fault inside must show on the heading itself: red while any
+     row of the group carries a red mark. */
+  .kartu-grid details:has(dd .tanda-gagal) > summary.diag-grup { color:var(--rej); }
   /* Worker satu per baris di bawah judul Workers, menjorok supaya terbaca
      sebagai anak judul itu, bukan baris diagnostik yang setara. */
   .kartu-grid dt.diag-worker { font-family:var(--mono); font-size:.8rem; }
@@ -1248,6 +1261,23 @@
   .setelan-grup-isi { display:grid; gap:18px; padding:16px;
                       grid-template-columns:repeat(auto-fit, minmax(min(22rem, 100%), 1fr)); }
   .setelan-form label { display:grid; gap:6px; align-content:start; }
+  /* A named block inside a group: its fields stack, the blocks sit side by side. */
+  .setelan-sub { margin:0; min-width:0; padding:14px 16px 16px; display:grid; gap:16px; align-content:start;
+                 border:1px solid var(--line); border-radius:var(--r); }
+  .setelan-sub > legend { padding:0 6px; font-size:.72rem; font-weight:700; letter-spacing:.12em;
+                          text-transform:uppercase; color:var(--muted); }
+  /* Fields fill their block: a 22 rem cap inside a wide block left half of it empty. */
+  .setelan-grup-isi .setelan-sub :is(input[type="text"], select) { max-width:none; width:100%; box-sizing:border-box; }
+  /* The four sides of the detection box in one row, two by two on a narrow block. */
+  .setelan-kotak { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; }
+  @container (max-width:26rem) { .setelan-kotak { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+  /* Camera & Conveyor: the box block carries four fields, so it gets the widest share;
+     one column on a screen too narrow for three. */
+  .setelan-tiga { grid-template-columns:minmax(0, 1fr); }
+  .setelan-tiga > .setelan-sub { container-type:inline-size; }
+  @media (min-width:1100px) {
+    .setelan-tiga { grid-template-columns:minmax(0, 3fr) minmax(0, 4fr) minmax(0, 5fr); }
+  }
   /* Kolomnya ikut melebar bersama kartunya kalau tidak dibatasi: kotak selebar
      863 px untuk mengetik "0.5" terbaca seperti kolom yang salah, dan angkanya
      terlempar jauh dari labelnya. Yang melebar kartunya, bukan kotaknya. */
@@ -2139,36 +2169,59 @@
 
     <details class="setelan-grup" data-setelan-grup="kamera">
       <summary data-t="grupKamera">Kamera &amp; Conveyor</summary>
-      <div class="setelan-grup-isi">
-        <label>
-          <span data-t="labelSumbu">Arah conveyor</span>
-          <select id="set-sumbu">
-            <option value="tegak" data-t="sumbuTegak">Mendatar (buah lewat kiri-kanan)</option>
-            <option value="mendatar" data-t="sumbuMendatar">Menurun (buah lewat atas-bawah)</option>
-          </select>
-          <small class="muted" data-t="bantuSumbu">Menentukan garis capture tegak atau mendatar.</small>
-        </label>
-        <label>
-          <span data-t="labelGaris">Garis capture (piksel)</span>
-          <input id="set-garis" type="text" inputmode="numeric" autocomplete="off"
-                 data-angka="bulat" maxlength="5">
-          <small class="muted" id="set-garis-bantu">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
-        </label>
-        <!-- Display only: hiding the line or the box never changes what is detected or captured. -->
-        <label class="saklar">
-          <input id="set-tampil-garis" type="checkbox" checked>
-          <span>
-            <span data-t="labelTampilGaris">Tampilkan garis capture</span>
-            <small class="muted" data-t="bantuTampilGaris">Garis biru di video. Disembunyikan pun janjang tetap difoto di garis itu.</small>
-          </span>
-        </label>
-        <label class="saklar">
-          <input id="set-tampil-roi" type="checkbox" checked>
-          <span>
-            <span data-t="labelTampilRoi">Tampilkan kotak area deteksi</span>
-            <small class="muted" data-t="bantuTampilRoi">Kotak hijau di video. Disembunyikan pun janjang di luar kotak tetap tidak dihitung.</small>
-          </span>
-        </label>
+      <div class="setelan-grup-isi setelan-tiga">
+        <!-- Three named blocks (user 2026-10-04): conveyor, capture line, detection area box. -->
+        <fieldset class="setelan-sub">
+          <legend data-t="subConveyor">Conveyor</legend>
+          <label>
+            <span data-t="labelSumbu">Arah conveyor</span>
+            <select id="set-sumbu">
+              <option value="tegak" data-t="sumbuTegak">Mendatar (buah lewat kiri-kanan)</option>
+              <option value="mendatar" data-t="sumbuMendatar">Menurun (buah lewat atas-bawah)</option>
+            </select>
+            <small class="muted" data-t="bantuSumbu">Menentukan garis capture tegak atau mendatar.</small>
+          </label>
+        </fieldset>
+        <fieldset class="setelan-sub">
+          <legend data-t="subGaris">Garis capture</legend>
+          <label>
+            <span data-t="labelGaris">Posisi garis (piksel)</span>
+            <input id="set-garis" type="text" inputmode="numeric" autocomplete="off"
+                   data-angka="bulat" maxlength="5">
+            <small class="muted" id="set-garis-bantu">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
+          </label>
+          <!-- Display only: hiding the line or the box never changes what is detected or captured. -->
+          <label class="saklar">
+            <input id="set-tampil-garis" type="checkbox" checked>
+            <span>
+              <span data-t="labelTampilGaris">Tampilkan garis capture</span>
+              <small class="muted" data-t="bantuTampilGaris">Garis biru di video. Disembunyikan pun janjang tetap difoto di garis itu.</small>
+            </span>
+          </label>
+        </fieldset>
+        <fieldset class="setelan-sub">
+          <legend data-t="subKotak">Kotak area deteksi</legend>
+          <!-- The ROI box, four stream-space pixels. All four empty = never set here, each
+               line keeps the box of its own installation. -->
+          <div class="setelan-kotak">
+            <label><span data-t="labelRoiX1">Kiri (X1)</span>
+              <input id="set-roi-x1" type="text" inputmode="numeric" autocomplete="off" data-angka="bulat" maxlength="5"></label>
+            <label><span data-t="labelRoiY1">Atas (Y1)</span>
+              <input id="set-roi-y1" type="text" inputmode="numeric" autocomplete="off" data-angka="bulat" maxlength="5"></label>
+            <label><span data-t="labelRoiX2">Kanan (X2)</span>
+              <input id="set-roi-x2" type="text" inputmode="numeric" autocomplete="off" data-angka="bulat" maxlength="5"></label>
+            <label><span data-t="labelRoiY2">Bawah (Y2)</span>
+              <input id="set-roi-y2" type="text" inputmode="numeric" autocomplete="off" data-angka="bulat" maxlength="5"></label>
+          </div>
+          <small class="muted" data-t="bantuKotak">Piksel pada video (1280 x 720). Janjang di luar kotak tidak dihitung. Isi keempatnya, atau kosongkan keempatnya untuk memakai setelan bawaan PC. 0 semua = seluruh gambar.</small>
+          <label class="saklar">
+            <input id="set-tampil-roi" type="checkbox" checked>
+            <span>
+              <span data-t="labelTampilRoi">Tampilkan kotak area deteksi</span>
+              <small class="muted" data-t="bantuTampilRoi">Kotak hijau di video. Disembunyikan pun janjang di luar kotak tetap tidak dihitung.</small>
+            </span>
+          </label>
+        </fieldset>
       </div>
     </details>
 
@@ -2835,7 +2888,10 @@ const KAMUS = {
     grupGrading:"Grading", grupKamera:"Kamera & Conveyor", grupDev:"Mode Developer",
     bantuConf:"Makin tinggi = makin sedikit yang dianggap buah.",
     bantuMinSize:"Janjang lebih kecil dari ini otomatis REJ.",
-    labelGaris:"Garis capture (piksel)", labelSumbu:"Arah conveyor",
+    labelGaris:"Posisi garis (piksel)", labelSumbu:"Arah conveyor",
+    subConveyor:"Conveyor", subGaris:"Garis capture", subKotak:"Kotak area deteksi",
+    labelRoiX1:"Kiri (X1)", labelRoiY1:"Atas (Y1)", labelRoiX2:"Kanan (X2)", labelRoiY2:"Bawah (Y2)",
+    bantuKotak:"Piksel pada video (1280 x 720). Janjang di luar kotak tidak dihitung. Isi keempatnya, atau kosongkan keempatnya untuk memakai setelan bawaan PC. 0 semua = seluruh gambar.",
     sumbuTegak:"Mendatar (buah lewat kiri-kanan)", sumbuMendatar:"Menurun (buah lewat atas-bawah)",
     bantuSumbu:"Menentukan garis capture tegak atau mendatar.",
     bantuGarisTegak:"Piksel dari KIRI. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
@@ -3323,7 +3379,10 @@ const KAMUS = {
     grupGrading:"Grading", grupKamera:"Camera & Conveyor", grupDev:"Developer Mode",
     bantuConf:"Higher = fewer things counted as fruit.",
     bantuMinSize:"Bunches smaller than this are auto-REJ.",
-    labelGaris:"Capture line (pixels)", labelSumbu:"Conveyor direction",
+    labelGaris:"Line position (pixels)", labelSumbu:"Conveyor direction",
+    subConveyor:"Conveyor", subGaris:"Capture line", subKotak:"Detection area box",
+    labelRoiX1:"Left (X1)", labelRoiY1:"Top (Y1)", labelRoiX2:"Right (X2)", labelRoiY2:"Bottom (Y2)",
+    bantuKotak:"Pixels on the video (1280 x 720). Bunches outside the box are not counted. Fill all four, or leave all four empty to use the PC's installation default. All 0 = the whole picture.",
     sumbuTegak:"Horizontal (fruit crosses left-right)", sumbuMendatar:"Vertical (fruit crosses top-bottom)",
     bantuSumbu:"Sets whether the capture line is vertical or horizontal.",
     bantuGarisTegak:"Pixels from the LEFT. A bunch is photographed when it touches the blue line. 0 = no line.",
@@ -7567,14 +7626,17 @@ function kartuDiagnostik(kode, d) {
     .filter(Boolean).join(" · ");
   return `<div class="card" data-line="${esc(kode)}">
     <h2><span class="nama">${esc(kode)}</span></h2>
-    <h3 class="diag-grup">${esc(t("diagGrupKamera"))}</h3>
+    <details class="diag-kelompok" data-grup="kamera">
+    <summary class="diag-grup">${esc(t("diagGrupKamera"))}</summary>
     <dl>
       <dt>${esc(t("thKamera"))}</dt><dd>${tanda(d.camera_connected)}</dd>
       <dt>${esc(t("thSuhuKamera"))}</dt><dd>${diagSuhu(d.suhu_kamera_c)}</dd>
       <dt>${esc(t("thFps"))}</dt><dd>${diagAngka(d.fps_kamera)} / ${diagAngka(d.fps_deteksi)}</dd>
       <dt>${esc(t("thFrameTerakhir"))}</dt><dd>${diagFrame(d)}</dd>
     </dl>
-    <h3 class="diag-grup">${esc(t("diagGrupMesin"))}</h3>
+    </details>
+    <details class="diag-kelompok" data-grup="mesin">
+    <summary class="diag-grup">${esc(t("diagGrupMesin"))}</summary>
     <dl>
       <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : tanda(d.gpu_available)}</dd>
       <dt>${esc(t("thPlc"))}</dt><dd>${diagPlc(d.plc)}</dd>
@@ -7582,22 +7644,42 @@ function kartuDiagnostik(kode, d) {
       <dt>${esc(t("thLisensiLine"))}</dt><dd>${diagLisensi(d.lisensi)}</dd>
       <dt>${esc(t("thVersiModel"))}</dt><dd>${dash(model)}</dd>
     </dl>
-    <h3 class="diag-grup">${esc(t("diagGrupData"))}</h3>
+    </details>
+    <details class="diag-kelompok" data-grup="data">
+    <summary class="diag-grup">${esc(t("diagGrupData"))}</summary>
     <dl>
       <dt>${esc(t("thAntreanLokal"))}</dt><dd>${dash(d.outbox_pending)} / ${dash(d.outbox_failed)}</dd>
       <dt>${esc(t("thTersimpanGagal"))}</dt><dd>${diagNol(d.capture_save_dropped)}</dd>
       <dt>${esc(t("thTpTelat"))}</dt><dd>${diagNol(d.tp_telat)}</dd>
     </dl>
-    <h3 class="diag-grup">${esc(t("thWorkers"))} ${ringkasWorker}</h3>
+    </details>
+    <details class="diag-kelompok" data-grup="workers">
+    <summary class="diag-grup">${esc(t("thWorkers"))} ${ringkasWorker}</summary>
     <dl>${barisWorker}</dl>
+    </details>
   </div>`;
 }
+
+// Diagnostics groups start closed (user 2026-10-04). The ones the reader opened are kept by
+// group name, for every line card alike, in this browser. `toggle` does not bubble, hence
+// the capture listener.
+const diagTerbuka = new Set(baca("diagTerbuka", "").split(",").filter(Boolean));
+$("diagnostik-kartu").addEventListener("toggle", (e) => {
+  const grup = e.target.dataset && e.target.dataset.grup;
+  if (!grup) return;
+  if (e.target.open) diagTerbuka.add(grup); else diagTerbuka.delete(grup);
+  simpan("diagTerbuka", [...diagTerbuka].join(","));
+}, true);
 
 async function muatDiagnostik() {
   try {
     const r = await api("/api/console/dev/diagnostik");
     $("diagnostik-kartu").innerHTML = Object.entries(r.lines)
       .map(([kode, d]) => kartuDiagnostik(kode, d)).join("");
+    // Drawn closed; the cards are redrawn every 5 s, so a group the reader opened is opened again.
+    $("diagnostik-kartu").querySelectorAll("details[data-grup]").forEach((el) => {
+      if (diagTerbuka.has(el.dataset.grup)) el.open = true;
+    });
   } catch (e) {
     if (e.kode !== "belum_masuk") $("diagnostik-kartu").innerHTML = `<p class="muted">${esc(t("gagalDiagnostik"))}</p>`;
   }
@@ -8435,6 +8517,10 @@ function labelGaris() {
 
 $("set-sumbu").addEventListener("change", labelGaris);
 
+// The detection area box (ROI): field names as the server knows them; the input of each is
+// `set-roi-x1` and so on.
+const KOTAK_ROI = ["roi_x1", "roi_y1", "roi_x2", "roi_y2"];
+
 async function muatSetelan() {
   // Kotak Danger Zone selalu tertutup saat tab dibuka (spec §2): panel yang
   // tertinggal terbuka membawa angka lama dan mengundang tombol ditekan tanpa
@@ -8454,6 +8540,8 @@ async function muatSetelan() {
     // `!== false`, not Boolean(): an older server has no such field, and there both are drawn.
     $("set-tampil-garis").checked = r.tampil_garis !== false;
     $("set-tampil-roi").checked = r.tampil_roi !== false;
+    // Empty = never set from the console (null), not 0: 0 is a real value, the picture edge.
+    for (const k of KOTAK_ROI) $(`set-${k.replace("_", "-")}`).value = r[k] ?? "";
     labelGaris();
     $("set-sumber").textContent = t(r.sumber === "konsol" ? "setelanDariKonsol" : "setelanDariEnv");
     $("set-pesan").textContent = "";
@@ -8511,6 +8599,7 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
         mode_dev: $("set-dev").checked,
         tampil_garis: $("set-tampil-garis").checked,
         tampil_roi: $("set-tampil-roi").checked,
+        ...Object.fromEntries(KOTAK_ROI.map((k) => [k, $(`set-${k.replace("_", "-")}`).value.trim() || null])),
       }),
     });
     $("set-sumber").textContent = t("setelanDariKonsol");
@@ -8530,6 +8619,7 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
     const teks = String(e.message || "");
     for (const [field, id] of Object.entries({
       conf_threshold: "set-conf", minimum_size: "set-minsize", garis_capture: "set-garis",
+      roi_x1: "set-roi-x1", roi_y1: "set-roi-y1", roi_x2: "set-roi-x2", roi_y2: "set-roi-y2",
     })) {
       if (teks.includes(field)) $(id).setAttribute("aria-invalid", "true");
     }

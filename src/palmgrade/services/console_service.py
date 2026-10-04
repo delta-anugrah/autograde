@@ -825,12 +825,12 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
             # operator menyimpan setelan lain.
             return {**OPSIONAL, **nilai, "sumber": "konsol"}
         return {
+            **OPSIONAL,
             "conf_threshold": self.settings.conf_threshold,
             "minimum_size": self.settings.minimum_size,
             "garis_capture": self.settings.garis_capture,
             "sumbu_garis": self.settings.sumbu_garis,
             "mode_dev": self.settings.mode_dev,
-            "tampil_garis": True, "tampil_roi": True,  # display only, no env twin
             "sumber": "env",
         }
 
@@ -848,7 +848,7 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         sah, tinggal line itu yang belum menerimanya. Hasil per line dikembalikan
         apa adanya supaya layar bisa bilang line mana yang belum kena.
         """
-        bersih = bersihkan_setelan(payload)
+        bersih = bersihkan_setelan(payload, stream=(self.settings.stream_width, self.settings.stream_height))
         self.store.set_state(KUNCI_SETELAN, json.dumps(bersih))
         logger.warning(
             "Setelan grading diubah oleh %s: conf=%s minimum_size=%s garis=%s sumbu=%s",

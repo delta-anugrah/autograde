@@ -129,3 +129,31 @@ def test_roi_tidak_pernah_melampaui_frame(monkeypatch: pytest.MonkeyPatch) -> No
 
     assert 0 <= x1 < x2 <= SENSOR_W
     assert 0 <= y1 < y2 <= SENSOR_H
+
+
+# ── the box set from the console wins over `.env` (2026-10-04) ──────────────
+
+
+def test_kotak_dari_konsol_menang_atas_env(monkeypatch):
+    """`RuntimeState.roi_override` is in the same stream space and is scaled the same way."""
+    from palmgrade.workers.frame_processing_worker import FrameProcessingWorker
+
+    settings = _settings(monkeypatch)
+    konsol = (200, 150, 1000, 600)
+    fx, fy = SENSOR_W / STREAM_W, SENSOR_H / STREAM_H
+
+    assert FrameProcessingWorker._roi_box_for(settings, SENSOR_W, SENSOR_H, konsol) == (
+        round(200 * fx), round(150 * fy), round(1000 * fx), round(600 * fy)
+    )
+    # None = never set from the console: `.env` still decides.
+    assert FrameProcessingWorker._roi_box_for(settings, STREAM_W, STREAM_H, None) == ROI
+
+
+def test_kotak_nol_dari_konsol_berarti_seluruh_frame(monkeypatch):
+    """All zeros from the console is a choice (full frame), not "follow `.env`"."""
+    from palmgrade.workers.frame_processing_worker import FrameProcessingWorker
+
+    settings = _settings(monkeypatch)
+    assert FrameProcessingWorker._roi_box_for(settings, SENSOR_W, SENSOR_H, (0, 0, 0, 0)) == (
+        0, 0, SENSOR_W, SENSOR_H
+    )
