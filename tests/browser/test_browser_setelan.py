@@ -3,6 +3,8 @@ the one that does not is named in a warning toast (its value is still saved)."""
 
 from __future__ import annotations
 
+import re
+
 from langkah import SUPPORT, buka_tab, kamus, masuk
 from playwright.sync_api import expect
 
@@ -61,6 +63,10 @@ def test_the_detection_box_and_the_two_show_switches_reach_the_lines(halaman, li
         halaman.fill(f"#set-roi-{sisi}", "")
     halaman.check("#set-tampil-garis")
     halaman.click("#set-simpan")
-    expect(halaman.locator("#toasts .toast.peringatan")).to_have_count(2)
-    isi = [isi for jalur, isi in lines["line-1"].diterima if jalur == "/internal/setelan"][-1]
-    assert isi["roi_x1"] is None and isi["tampil_garis"] is True, isi
+    # Not a toast count: the first toast closes by itself and may be gone on a slow runner.
+    # The button is busy for the whole save, so its release means the lines were told.
+    expect(halaman.locator("#set-simpan")).not_to_have_class(re.compile(r"\bsibuk\b"))
+    halaman.wait_for_function("() => document.querySelector('#set-pesan').textContent === ''")
+    terkirim = [isi for jalur, isi in lines["line-1"].diterima if jalur == "/internal/setelan"]
+    assert terkirim, "the save never reached line-1"
+    assert terkirim[-1]["roi_x1"] is None and terkirim[-1]["tampil_garis"] is True, terkirim[-1]
