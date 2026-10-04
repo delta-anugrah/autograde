@@ -193,14 +193,15 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
 - **Reject manual tanpa mouse**: tahan `Spasi` lalu tekan `1` / `2` / `3` sesuai line.
 - **Piston manual** per line (Buka / Tutup) kalau PLC aktif. **Buka** bertanya dulu di kotak
   konfirmasi di layar karena ini menggerakkan besi sungguhan; **Tutup** langsung jalan.
-- **Sambung ulang** (ikon panah melingkar) di judul tiap kartu line, di sebelah ONLINE /
-  OFFLINE, untuk semua akun. Kamera yang diam sebenarnya sudah disambung ulang otomatis oleh
+- **Sambung ulang** (ikon panah melingkar) di kotak kamera tiap kartu line, di bawah tulisan
+  "Kamera tidak tersambung", untuk semua akun. Tombolnya cuma muncul saat gambarnya tidak ada
+  (kamera putus, atau kamera berhenti mengirim gambar). Kamera yang diam sebenarnya sudah disambung ulang otomatis oleh
   line; tombol ini cadangan kalau gambar tidak juga kembali: kartu OFFLINE atau "Kamera tidak
   tersambung" padahal line jalan, atau pita **kamera berhenti mengirim gambar**. Tombol bertanya
   dulu, karena grading di line itu berhenti beberapa detik selama kamera disambung ulang (truk
   yang terpasang tetap terpasang). Sesudah **Sambung ulang** ditekan, notifikasi hijau muncul dan
   gambar kembali dalam beberapa detik. Line yang memakai berkas video atau foto menjawab "bukan
-  kamera". Di kartu yang sempit (tiga kolom di layar kecil) tombolnya cuma ikon. Siapa yang
+  kamera". Siapa yang
   menekan dan kapan tercatat di tab Log. Kalau gambar tetap tidak kembali, periksa kabel dan
   restart line (§7).
 - Semua pertanyaan "yakin?" muncul di kotak konfirmasi di tengah layar, bukan kotak bawaan
@@ -977,7 +978,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
-| 2.9 | 4 Oktober 2026 | Tombol **Sambung ulang** (sambung ulang kamera) di judul tiap kartu line untuk semua akun, bertanya dulu, tercatat di tab Log; cadangan kalau sambung ulang otomatis tidak membawa gambar kembali (§3.2, §7). |
+| 2.9 | 4 Oktober 2026 | Tombol **Sambung ulang** (sambung ulang kamera) di kotak kamera tiap kartu line, di bawah "Kamera tidak tersambung", untuk semua akun, bertanya dulu, tercatat di tab Log; cadangan kalau sambung ulang otomatis tidak membawa gambar kembali (§3.2, §7). |
 | 2.8 | 3 Oktober 2026 | **Update now**: pita kuning "Versi X siap dipasang" untuk semua akun, tombol **Pasang sekarang** di kotak Versi & lisensi (ditolak selama ada truk di-assign), hasil di kotak itu dan di tab Log (§3.2, §6.2), plus empat baris penanganan masalahnya di §7. |
 | 2.7 | 3 Oktober 2026 | Lencana Status di tabel Timbangan sama lebar. Konfirmasi (Lewati, Buka piston) memakai dialog konsol sendiri, bukan kotak bawaan browser. Notifikasi bertumpuk di kanan bawah, terbuka saat disentuh kursor, bisa digeser ke kanan untuk ditutup. Angka RIPE, UNRIPE, JK, TP dan TOTAL bergulir seperti odometer saat berubah (naik bergulir maju lewat 9, turun bergulir mundur). Kedatangan yang dibatalkan disimpan dan tampil di panel **Kedatangan dibatalkan** di bawah tabel Timbangan, kolom **Oleh** menulis nama operator; data demo menyertakan dua contoh pembatalan. |
 | 2.6 | 3 Oktober 2026 | §3.2 dan §3.3: tab Timbangan disusun ulang jadi strip empat langkah yang sama lebar dan dua form sama besar (Catat datang, Timbang isi); form tara jadi satu bar di bawahnya; daftar tunggu jadi lencana **Menunggu n**. Kolom **Jam timbang isi** dan **Jam timbang kosong**; semua kolom tabel muat mulai 1.440 px. Tombol **Batal datang** di baris Datang. Truk yang tidak pernah Keluar selesai sendiri dengan tanda **TANPA SCAN 4** setelah 24 jam atau saat datang lagi. **Lewati** dan **Matikan** jadi tombol merah. |

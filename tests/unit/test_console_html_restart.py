@@ -271,6 +271,7 @@ const pitaPiston = () => "";
 const pitaKunciDitolak = () => "";
 const pitaAi = () => "";
 const aiMati = () => false;
+const frameBerhenti = () => false;
 const isiTruk = () => "";
 const tombolPiston = () => "";
 const tombolSambungUlang = () => "";
@@ -504,11 +505,11 @@ def _css() -> str:
 
 def test_css_menyembunyikan_tulisan_kamera_putus_selama_restart():
     css = _css()
-    aturan = re.search(r"\.card\.sedang-restart \.feed > span\s*\{([^}]*)\}", css)
-    assert aturan, "aturan .card.sedang-restart .feed > span tidak ada"
+    aturan = re.search(r"\.card\.sedang-restart \.feed-putus\s*\{([^}]*)\}", css)
+    assert aturan, "aturan .card.sedang-restart .feed-putus tidak ada"
     assert "display:none" in aturan.group(1).replace(" ", "")
-    # Spesifisitasnya sama dengan `.card.putus .feed span`: yang menang yang belakangan.
-    assert css.index(".card.putus .feed span") < aturan.start()
+    # Spesifisitasnya sama dengan `.card.putus .feed-putus`: yang menang yang belakangan.
+    assert css.index(".card.putus .feed-putus") < aturan.start()
 
 
 def test_kartu_line_punya_slot_restart_di_dalam_kotak_kamera():
