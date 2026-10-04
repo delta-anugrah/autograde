@@ -648,6 +648,9 @@
   .kartu-grid summary.diag-grup > span { margin-left:auto; }
   .kartu-grid details:not([open]) > summary.diag-grup { border-bottom:none; }
   .kartu-grid summary.diag-grup:hover { color:var(--fg); }
+  /* Closed by default, so a fault inside must show on the heading itself: red while any
+     row of the group carries a red mark. */
+  .kartu-grid details:has(dd .tanda-gagal) > summary.diag-grup { color:var(--rej); }
   /* Worker satu per baris di bawah judul Workers, menjorok supaya terbaca
      sebagai anak judul itu, bukan baris diagnostik yang setara. */
   .kartu-grid dt.diag-worker { font-family:var(--mono); font-size:.8rem; }
@@ -1263,7 +1266,18 @@
                  border:1px solid var(--line); border-radius:var(--r); }
   .setelan-sub > legend { padding:0 6px; font-size:.72rem; font-weight:700; letter-spacing:.12em;
                           text-transform:uppercase; color:var(--muted); }
-  .setelan-kotak { display:grid; grid-template-columns:repeat(2, minmax(0, 10rem)); gap:12px; }
+  /* Fields fill their block: a 22 rem cap inside a wide block left half of it empty. */
+  .setelan-grup-isi .setelan-sub :is(input[type="text"], select) { max-width:none; width:100%; box-sizing:border-box; }
+  /* The four sides of the detection box in one row, two by two on a narrow block. */
+  .setelan-kotak { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; }
+  @container (max-width:26rem) { .setelan-kotak { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+  /* Camera & Conveyor: the box block carries four fields, so it gets the widest share;
+     one column on a screen too narrow for three. */
+  .setelan-tiga { grid-template-columns:minmax(0, 1fr); }
+  .setelan-tiga > .setelan-sub { container-type:inline-size; }
+  @media (min-width:1100px) {
+    .setelan-tiga { grid-template-columns:minmax(0, 3fr) minmax(0, 4fr) minmax(0, 5fr); }
+  }
   /* Kolomnya ikut melebar bersama kartunya kalau tidak dibatasi: kotak selebar
      863 px untuk mengetik "0.5" terbaca seperti kolom yang salah, dan angkanya
      terlempar jauh dari labelnya. Yang melebar kartunya, bukan kotaknya. */
@@ -2155,7 +2169,7 @@
 
     <details class="setelan-grup" data-setelan-grup="kamera">
       <summary data-t="grupKamera">Kamera &amp; Conveyor</summary>
-      <div class="setelan-grup-isi">
+      <div class="setelan-grup-isi setelan-tiga">
         <!-- Three named blocks (user 2026-10-04): conveyor, capture line, detection area box. -->
         <fieldset class="setelan-sub">
           <legend data-t="subConveyor">Conveyor</legend>
@@ -7612,7 +7626,7 @@ function kartuDiagnostik(kode, d) {
     .filter(Boolean).join(" · ");
   return `<div class="card" data-line="${esc(kode)}">
     <h2><span class="nama">${esc(kode)}</span></h2>
-    <details class="diag-kelompok" data-grup="kamera" open>
+    <details class="diag-kelompok" data-grup="kamera">
     <summary class="diag-grup">${esc(t("diagGrupKamera"))}</summary>
     <dl>
       <dt>${esc(t("thKamera"))}</dt><dd>${tanda(d.camera_connected)}</dd>
@@ -7621,7 +7635,7 @@ function kartuDiagnostik(kode, d) {
       <dt>${esc(t("thFrameTerakhir"))}</dt><dd>${diagFrame(d)}</dd>
     </dl>
     </details>
-    <details class="diag-kelompok" data-grup="mesin" open>
+    <details class="diag-kelompok" data-grup="mesin">
     <summary class="diag-grup">${esc(t("diagGrupMesin"))}</summary>
     <dl>
       <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : tanda(d.gpu_available)}</dd>
@@ -7631,7 +7645,7 @@ function kartuDiagnostik(kode, d) {
       <dt>${esc(t("thVersiModel"))}</dt><dd>${dash(model)}</dd>
     </dl>
     </details>
-    <details class="diag-kelompok" data-grup="data" open>
+    <details class="diag-kelompok" data-grup="data">
     <summary class="diag-grup">${esc(t("diagGrupData"))}</summary>
     <dl>
       <dt>${esc(t("thAntreanLokal"))}</dt><dd>${dash(d.outbox_pending)} / ${dash(d.outbox_failed)}</dd>
@@ -7639,21 +7653,22 @@ function kartuDiagnostik(kode, d) {
       <dt>${esc(t("thTpTelat"))}</dt><dd>${diagNol(d.tp_telat)}</dd>
     </dl>
     </details>
-    <details class="diag-kelompok" data-grup="workers" open>
+    <details class="diag-kelompok" data-grup="workers">
     <summary class="diag-grup">${esc(t("thWorkers"))} ${ringkasWorker}</summary>
     <dl>${barisWorker}</dl>
     </details>
   </div>`;
 }
 
-// Diagnostics groups the reader closed (user 2026-10-04), by group name and for every line
-// card alike, kept in this browser. `toggle` does not bubble, hence the capture listener.
-const diagTertutup = new Set(baca("diagTertutup", "").split(",").filter(Boolean));
+// Diagnostics groups start closed (user 2026-10-04). The ones the reader opened are kept by
+// group name, for every line card alike, in this browser. `toggle` does not bubble, hence
+// the capture listener.
+const diagTerbuka = new Set(baca("diagTerbuka", "").split(",").filter(Boolean));
 $("diagnostik-kartu").addEventListener("toggle", (e) => {
   const grup = e.target.dataset && e.target.dataset.grup;
   if (!grup) return;
-  if (e.target.open) diagTertutup.delete(grup); else diagTertutup.add(grup);
-  simpan("diagTertutup", [...diagTertutup].join(","));
+  if (e.target.open) diagTerbuka.add(grup); else diagTerbuka.delete(grup);
+  simpan("diagTerbuka", [...diagTerbuka].join(","));
 }, true);
 
 async function muatDiagnostik() {
@@ -7661,9 +7676,9 @@ async function muatDiagnostik() {
     const r = await api("/api/console/dev/diagnostik");
     $("diagnostik-kartu").innerHTML = Object.entries(r.lines)
       .map(([kode, d]) => kartuDiagnostik(kode, d)).join("");
-    // The cards are redrawn every 5 s: a group the reader closed stays closed.
+    // Drawn closed; the cards are redrawn every 5 s, so a group the reader opened is opened again.
     $("diagnostik-kartu").querySelectorAll("details[data-grup]").forEach((el) => {
-      if (diagTertutup.has(el.dataset.grup)) el.open = false;
+      if (diagTerbuka.has(el.dataset.grup)) el.open = true;
     });
   } catch (e) {
     if (e.kode !== "belum_masuk") $("diagnostik-kartu").innerHTML = `<p class="muted">${esc(t("gagalDiagnostik"))}</p>`;

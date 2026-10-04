@@ -24,8 +24,10 @@ Changed:        The ROI box is set from Settings, Camera & Conveyor (four stream
                 (`_kotak`, `kotak_dari`), `RuntimeState.roi_override`, read by
                 `FrameProcessingWorker._roi_box_for` (filter) and `draw_roi` (drawing). Camera &
                 Conveyor is three named blocks (Conveyor, Capture line, Detection area box).
-                Diagnostics groups are `<details>`; a closed group is remembered in the browser and
-                closed again after every 5 s redraw.
+                Diagnostics groups are `<details>`, closed by default; an opened group is remembered in
+                the browser and opened again after every 5 s redraw, and a group heading turns red
+                while a row inside it carries a red mark. A box that covers none of the stream
+                picture is refused at save (console) and ignored by a line (keeps `.env`).
 Validated:      see PR #225 (unit, e2e, integration, browser in both browsers, ruff). Screenshots of
                 Settings and Status.
 Not validated:  The box on a live video stream and on real bunches. Nothing on the factory PC.

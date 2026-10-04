@@ -1380,9 +1380,11 @@ def test_kotak_area_deteksi_bisa_diatur_dan_kosong_berarti_null():
     assert blok.count('<fieldset class="setelan-sub">') == 3
 
 
-def test_kelompok_diagnostik_bisa_ditutup_dan_diingat():
-    """The cards are redrawn every 5 s, so the closed groups are put back after each draw."""
+def test_kelompok_diagnostik_tertutup_dan_yang_dibuka_diingat():
+    """Closed by default (user 2026-10-04). The cards are redrawn every 5 s, so the groups
+    the reader opened are opened again after each draw."""
     assert HTML.count('<details class="diag-kelompok" data-grup="') == 4
+    assert '<details class="diag-kelompok" data-grup="kamera" open' not in HTML
     muat = HTML.split("async function muatDiagnostik", 1)[1].split("\n}", 1)[0]
-    assert "diagTertutup.has(el.dataset.grup)" in muat
-    assert 'simpan("diagTertutup"' in HTML
+    assert "diagTerbuka.has(el.dataset.grup)" in muat
+    assert 'simpan("diagTerbuka"' in HTML

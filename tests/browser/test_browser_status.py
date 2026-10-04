@@ -22,18 +22,18 @@ def test_camera_temperature_on_the_diagnostics_card(halaman):
     expect(halaman.locator('#diagnostik-kartu .card[data-line="line-3"] dt', has_text=label)).to_have_count(0)
 
 
-def test_a_closed_diagnostics_group_stays_closed_across_the_refresh(halaman):
-    """The cards are redrawn every 5 s; a group the reader closed must not spring open."""
+def test_diagnostics_groups_start_closed_and_an_opened_one_stays_open(halaman):
+    """The cards are redrawn every 5 s; a group the reader opened must not snap shut."""
     masuk(halaman, SUPPORT)
     buka_tab(halaman, "status")
     grup = halaman.locator('#diagnostik-kartu .card[data-line="line-1"] details[data-grup="mesin"]')
-    expect(grup).to_have_attribute("open", "")
-    grup.locator("summary").click()
     expect(grup).not_to_have_attribute("open", "")
+    grup.locator("summary").click()
+    expect(grup).to_have_attribute("open", "")
     halaman.evaluate("() => muatDiagnostik()")
-    expect(grup).not_to_have_attribute("open", "")
-    # Same group on the other card, and the camera group is untouched.
-    expect(halaman.locator('#diagnostik-kartu .card[data-line="line-2"] details[data-grup="mesin"]')).not_to_have_attribute("open", "")
-    expect(halaman.locator('#diagnostik-kartu .card[data-line="line-1"] details[data-grup="kamera"]')).to_have_attribute("open", "")
-    grup.locator("summary").click()
     expect(grup).to_have_attribute("open", "")
+    # Same group on the other card; a group nobody opened stays closed.
+    expect(halaman.locator('#diagnostik-kartu .card[data-line="line-2"] details[data-grup="mesin"]')).to_have_attribute("open", "")
+    expect(halaman.locator('#diagnostik-kartu .card[data-line="line-1"] details[data-grup="data"]')).not_to_have_attribute("open", "")
+    grup.locator("summary").click()
+    expect(grup).not_to_have_attribute("open", "")
