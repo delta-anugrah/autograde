@@ -18,6 +18,41 @@ Next:           ...
 
 ---
 
+## 2026-10-04 · console + capture · Card button row, Diagnostics groups, show/hide overlays, runaway capture loop (PR #224)
+Changed:        Console (`static/console.html`): the `.assign` row on a line card is a grid of four
+                equal columns (truck picker two, as wide as Manual Reject below; Assign and Release /
+                Force release one each), so "Force release" wraps inside its button instead of
+                widening the row. Diagnostics cards are grouped (Camera and image, Machine, Data,
+                Workers with the `n/m` count) with a hairline per row, and long values wrap instead of
+                `…`. R2 manifest has its own heading and no longer sits against the ERP queue table.
+                Two display-only switches in Settings, Camera & Conveyor: `tampil_garis` and
+                `tampil_roi` (default on) ride the existing grading settings (`domain/setelan_grading`,
+                `/internal/setelan`, `RuntimeState`, `DisplayWorker`, `draw_roi`); they hide the
+                DRAWING of the capture line and the ROI box on all lines, detection never reads them.
+                Capture: a source that never waits in `grab_frame` (`CameraSource.menunggu_frame`
+                False: photo, video file) is paced at `LAJU_TANPA_SUMBER_FPS` (20) when neither the
+                source nor `CAMERA_FPS` gives a rate.
+Validated:      `pytest tests/unit` → 4633 passed, 1 failed (`test_doc_links`, local only: it reads the
+                git-excluded `docs/superpowers/` plans on this Mac); `tests/e2e` → 390 passed, 20
+                skipped; `tests/integration` → 166 passed; `make test-browser` → 221 passed, 1 failed
+                once at a tab switch (`langkah.py:58`), full rerun → 222 passed; `ruff check src/ tests/`
+                → All checks passed; `tests/cek_skrip_konsol.py` → OK. Playwright screenshots of the
+                card row (1920 and 1366 px, id and en), the Status tab and Settings.
+Not validated:  The two switches against a real video stream (no line was restarted: the user's own
+                line and console were running). The pacing fix on the running Mac line (same reason).
+                Nothing on the factory PC.
+Decisions:      The "Camera FPS 5,624.8" on Diagnostics was not a wrong calculation. The Mac `.env` has
+                `CAMERA_FPS=0` and Line 2 was a photo source, which reports no rate, so the capture
+                loop ran with no pause at all (line process at 245 % CPU, detection down to 1.2 fps).
+                The number was honest; the loop was the bug. Lampung is not affected (Hikrobot waits
+                for each frame, `CAMERA_FPS` is 20).
+                The switches are one setting for all lines, not per line: they reuse the settings
+                path that already survives a line restart, and a per-card button would crowd the card.
+                ROI question from the user: bunches whose centre is outside the ROI box are already
+                not counted or captured (`FrameProcessingWorker`, TP excepted); their boxes are still
+                drawn. The box only exists when `ROI_X1..Y2` are set.
+Next:           Release v1.23.0 (staging to main, release-gate, tag), then Lampung install.
+
 ## 2026-10-04 · console · Lepas paksa for a line that does not answer (PR #223)
 Changed:        On a card that holds a truck while its line's status cannot be read at all, Lepas
                 becomes **Lepas paksa** (`bahaya pekat`, with a confirmation). The server decides

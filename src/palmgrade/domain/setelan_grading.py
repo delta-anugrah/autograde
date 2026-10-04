@@ -52,7 +52,10 @@ PILIHAN: dict[str, tuple[str, ...]] = {"sumbu_garis": SUMBU}
 #: Field saklar (True/False). `mode_dev` menampilkan angka confidence di
 #: kotak janjang — untuk support yang sedang menyetel ambang, BUKAN untuk
 #: operator: dari jarak jauh "54%" terbaca seperti "54% matang".
-SAKLAR: tuple[str, ...] = ("mode_dev",)
+#:
+#: `tampil_garis` dan `tampil_roi` (2026-10-04) cuma menyembunyikan GAMBAR garis
+#: capture dan kotak ROI di video; deteksi dan pemotretan tetap memakai keduanya.
+SAKLAR: tuple[str, ...] = ("mode_dev", "tampil_garis", "tampil_roi")
 
 #: Field yang boleh tidak ada di payload, beserta nilai bawaannya.
 #:
@@ -60,7 +63,13 @@ SAKLAR: tuple[str, ...] = ("mode_dev",)
 #: (juga `.env` yang belum tahu field ini) mengirim payload tanpa dia. Menolaknya
 #: 400 akan membuat line berhenti menerima setelan **sama sekali** — termasuk dua
 #: setelan lain yang sudah lama jalan. Bawaan `0` = garis mati = perilaku lama.
-OPSIONAL: dict[str, Any] = {"garis_capture": 0, "sumbu_garis": TEGAK, "mode_dev": False}
+#:
+#: Dua saklar tampil bawaannya NYALA: konsol lama dan baris `sync_state` lama
+#: tidak mengenalnya, dan di sana garis dan kotak memang selalu digambar.
+OPSIONAL: dict[str, Any] = {
+    "garis_capture": 0, "sumbu_garis": TEGAK, "mode_dev": False,
+    "tampil_garis": True, "tampil_roi": True,
+}
 
 #: Field yang batas bawahnya INKLUSIF (`bawah <= nilai`), bukan eksklusif.
 #:

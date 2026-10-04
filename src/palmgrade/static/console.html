@@ -621,15 +621,28 @@
   /* Diagnostik: one .card per line, same grid rhythm as #lines above. */
   .kartu-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
   .kartu-grid .card.tidak-terjangkau { border-color:var(--rej); }
-  .kartu-grid dl { margin:0; padding:10px 13px; display:grid; grid-template-columns:auto 1fr;
-                   gap:4px 10px; font-size:.85rem; }
-  .kartu-grid dt { color:var(--muted); }
-  .kartu-grid dd { margin:0; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Tidied 2026-10-04 (user: "berantakan banget"): rows in named groups, a hairline under
+     each row so the eye can follow a label to its value across a wide card, and a long
+     value (model file, licence) wraps instead of being cut with an ellipsis. */
+  .kartu-grid dl { margin:0; padding:0 13px 8px; display:grid;
+                   grid-template-columns:minmax(0, auto) minmax(0, 1fr); font-size:.9rem; }
+  .kartu-grid dl:empty { display:none; }
+  .kartu-grid :is(dt, dd) { padding:6px 0; border-bottom:1px solid var(--line); }
+  .kartu-grid :is(dt, dd):nth-last-child(-n+2) { border-bottom:none; }
+  .kartu-grid dt { color:var(--muted); padding-right:12px; }
+  .kartu-grid dd { margin:0; text-align:right; font-weight:600; overflow-wrap:anywhere; }
+  .kartu-grid .diag-grup { margin:0; padding:10px 13px 4px; background:var(--zebra);
+                           border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+                           font-size:.72rem; font-weight:700; letter-spacing:.12em;
+                           text-transform:uppercase; color:var(--muted);
+                           display:flex; justify-content:space-between; align-items:baseline; }
+  .kartu-grid .card > .diag-grup:first-of-type { border-top:none; }
+  .kartu-grid .diag-grup + dl { padding-top:2px; }
   /* Worker satu per baris di bawah judul Workers, menjorok supaya terbaca
      sebagai anak judul itu, bukan baris diagnostik yang setara. */
-  .kartu-grid dt.diag-worker { padding-left:14px; font-family:var(--mono); font-size:.8rem; }
+  .kartu-grid dt.diag-worker { font-family:var(--mono); font-size:.8rem; }
   /* Sebab line tak terbaca: satu kalimat utuh yang dibaca, bukan nilai yang boleh dipotong `…`. */
-  .kartu-grid dd.diag-sebab { white-space:normal; text-align:left; }
+  .kartu-grid dd.diag-sebab { text-align:left; font-weight:400; }
   /* ✓/✗ berwarna. Token tema, bukan hex: terang dan gelap punya hijau-merah
      sendiri, dan hex yang dipatok cuma terbaca di salah satunya. */
   .tanda-ok { color:var(--acc); font-weight:700; }
@@ -861,11 +874,12 @@
                min-width:0; font-size:.95rem; font-weight:600; }
   .truk .sup span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-  .assign { display:flex; gap:8px; flex-wrap:wrap; }
-  .assign .pilih { flex:1 1 9rem; }
-  /* One fixed basis for both, so the pair stays a matched set in either
-     language instead of following word length. */
-  .assign button { flex:0 0 7.5rem; }
+  /* Four equal columns (user 2026-10-04): the truck picker takes two, so it is exactly as
+     wide as Manual Reject in the row below, and Assign and Release (or Force release) share
+     the other half. A long label wraps inside its own button and never widens the row. */
+  .assign { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px; }
+  .assign .pilih { grid-column:span 2; }
+  .assign button { min-width:0; padding-left:8px; padding-right:8px; }
   /* Lepas or Lepas paksa (tombolLepas), rewritten by the poll: the slot itself is no box. */
   .slot-lepas { display:contents; }
 
@@ -1147,6 +1161,12 @@
   .tabel { position:relative; overflow-x:auto; background:var(--card);
            border:1px solid var(--line-kuat); border-radius:var(--r-md); }
   .tools + .tabel { border-top:none; border-radius:0 0 var(--r-md) var(--r-md); }
+  /* The R2 manifest table is a second block under the ERP queue table, not a part of it. */
+  #manifest-nonaktif { margin:0 var(--pad) 8px; }
+  /* No summary to show (R2 not set): no empty bar above the table, which then closes its
+     own top edge. A browser without :has() just keeps the empty bar. */
+  .tools:has(> #manifest-ringkas:empty) { display:none; }
+  .tools:has(> #manifest-ringkas:empty) + .tabel { border-top:1px solid var(--line-kuat); border-radius:var(--r-md); }
   /* Bar simpan yang BERDIRI SENDIRI, bukan kepala tabel. Kotak `.tools` di atas
      sengaja tanpa garis bawah karena menempel ke `.tabel`; tanpa tabel, kotaknya
      menggantung dengan bawah terbuka (keluhan 2026-09-25). Di sini kotaknya
@@ -2134,6 +2154,21 @@
                  data-angka="bulat" maxlength="5">
           <small class="muted" id="set-garis-bantu">Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.</small>
         </label>
+        <!-- Display only: hiding the line or the box never changes what is detected or captured. -->
+        <label class="saklar">
+          <input id="set-tampil-garis" type="checkbox" checked>
+          <span>
+            <span data-t="labelTampilGaris">Tampilkan garis capture</span>
+            <small class="muted" data-t="bantuTampilGaris">Garis biru di video. Disembunyikan pun janjang tetap difoto di garis itu.</small>
+          </span>
+        </label>
+        <label class="saklar">
+          <input id="set-tampil-roi" type="checkbox" checked>
+          <span>
+            <span data-t="labelTampilRoi">Tampilkan kotak area deteksi</span>
+            <small class="muted" data-t="bantuTampilRoi">Kotak hijau di video. Disembunyikan pun janjang di luar kotak tetap tidak dihitung.</small>
+          </span>
+        </label>
       </div>
     </details>
 
@@ -2302,9 +2337,9 @@
   -->
   <!-- Pesan nonaktif di ATAS kepala tabel: di antara keduanya ia memutus
        `.tools + .tabel` dan kepala tabelnya menggantung. -->
+  <h2 class="status-judul" data-t="judulManifest">Manifest R2</h2>
   <p id="manifest-nonaktif" hidden class="muted" data-t="manifestNonaktif">R2 belum disetel.</p>
   <div class="tools">
-    <strong data-t="judulManifest">Manifest R2</strong>
     <span id="manifest-ringkas" class="muted"></span>
   </div>
   <div class="tabel">
@@ -2806,6 +2841,8 @@ const KAMUS = {
     bantuGarisTegak:"Piksel dari KIRI. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
     bantuGarisMendatar:"Piksel dari ATAS. Janjang difoto saat menyentuh garis biru. 0 = tanpa garis.",
     labelDev:"Mode dev", bantuDev:"Tampilkan angka keyakinan di kotak janjang. Untuk menyetel ambang, bukan untuk operator.",
+    labelTampilGaris:"Tampilkan garis capture", bantuTampilGaris:"Garis biru di video. Disembunyikan pun janjang tetap difoto di garis itu.",
+    labelTampilRoi:"Tampilkan kotak area deteksi", bantuTampilRoi:"Kotak hijau di video. Disembunyikan pun janjang di luar kotak tetap tidak dihitung.",
     btnSimpanSetelan:"Simpan", setelanTersimpan:"Tersimpan dan dikirim ke line.",
     grupPenugasan:"Penugasan line", labelOtomatis:"Tugaskan truk ke line otomatis saat timbang isi",
     bantuOtomatis:"Satu truk di line sampai timbang kosong. Truk berikutnya menunggu di antrean bongkar.",
@@ -3037,6 +3074,7 @@ const KAMUS = {
     konfirmasiSambungUlang:"Grading di line ini berhenti beberapa detik selama kamera disambung ulang. Truk yang terpasang tetap terpasang.",
     sukSambungUlang:"Kamera {line} sedang disambung ulang. Gambarnya kembali dalam beberapa detik",
     gagalSambungUlang:"Sambung ulang kamera gagal",
+    diagGrupKamera:"Kamera dan gambar", diagGrupMesin:"Mesin", diagGrupData:"Data",
     thSebab:"Sebab", thKamera:"Kamera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Antrean lokal", lineTidakTerjangkau:"Tidak terjangkau",
     // Kenapa konsol tidak bisa membaca satu line: `sebab_kode` dari backend
@@ -3291,6 +3329,8 @@ const KAMUS = {
     bantuGarisTegak:"Pixels from the LEFT. A bunch is photographed when it touches the blue line. 0 = no line.",
     bantuGarisMendatar:"Pixels from the TOP. A bunch is photographed when it touches the blue line. 0 = no line.",
     labelDev:"Dev mode", bantuDev:"Show the confidence number on bunch boxes. For tuning the threshold, not for operators.",
+    labelTampilGaris:"Show the capture line", bantuTampilGaris:"The blue line on the video. Hidden or not, bunches are still captured at that line.",
+    labelTampilRoi:"Show the detection area box", bantuTampilRoi:"The green box on the video. Hidden or not, bunches outside the box are still not counted.",
     btnSimpanSetelan:"Save", setelanTersimpan:"Saved and sent to the lines.",
     grupPenugasan:"Line assignment", labelOtomatis:"Assign the truck to the lines automatically at weigh-in",
     bantuOtomatis:"One truck on the lines until it is weighed out. The next truck waits in the unloading queue.",
@@ -3513,6 +3553,7 @@ const KAMUS = {
     konfirmasiSambungUlang:"Grading on this line pauses for a few seconds while the camera reconnects. The assigned truck stays assigned.",
     sukSambungUlang:"Reconnecting the camera on {line}. The picture comes back in a few seconds",
     gagalSambungUlang:"Camera reconnect failed",
+    diagGrupKamera:"Camera and image", diagGrupMesin:"Machine", diagGrupData:"Data",
     thSebab:"Reason", thKamera:"Camera", thGpu:"GPU", thPlc:"PLC", thWorkers:"Workers",
     thAntreanLokal:"Local queue", lineTidakTerjangkau:"Unreachable",
     lineSebab_tak_terjangkau:"The line does not answer at all: it is down or restarting.",
@@ -7526,21 +7567,29 @@ function kartuDiagnostik(kode, d) {
     .filter(Boolean).join(" · ");
   return `<div class="card" data-line="${esc(kode)}">
     <h2><span class="nama">${esc(kode)}</span></h2>
+    <h3 class="diag-grup">${esc(t("diagGrupKamera"))}</h3>
     <dl>
       <dt>${esc(t("thKamera"))}</dt><dd>${tanda(d.camera_connected)}</dd>
       <dt>${esc(t("thSuhuKamera"))}</dt><dd>${diagSuhu(d.suhu_kamera_c)}</dd>
       <dt>${esc(t("thFps"))}</dt><dd>${diagAngka(d.fps_kamera)} / ${diagAngka(d.fps_deteksi)}</dd>
       <dt>${esc(t("thFrameTerakhir"))}</dt><dd>${diagFrame(d)}</dd>
+    </dl>
+    <h3 class="diag-grup">${esc(t("diagGrupMesin"))}</h3>
+    <dl>
       <dt>${esc(t("thGpu"))}</dt><dd>${dash(d.gpu_device) !== KOSONG ? esc(d.gpu_device) : tanda(d.gpu_available)}</dd>
       <dt>${esc(t("thPlc"))}</dt><dd>${diagPlc(d.plc)}</dd>
       <dt>${esc(t("thDisk"))}</dt><dd>${diagDisk(d.disk)}</dd>
       <dt>${esc(t("thLisensiLine"))}</dt><dd>${diagLisensi(d.lisensi)}</dd>
       <dt>${esc(t("thVersiModel"))}</dt><dd>${dash(model)}</dd>
+    </dl>
+    <h3 class="diag-grup">${esc(t("diagGrupData"))}</h3>
+    <dl>
       <dt>${esc(t("thAntreanLokal"))}</dt><dd>${dash(d.outbox_pending)} / ${dash(d.outbox_failed)}</dd>
       <dt>${esc(t("thTersimpanGagal"))}</dt><dd>${diagNol(d.capture_save_dropped)}</dd>
       <dt>${esc(t("thTpTelat"))}</dt><dd>${diagNol(d.tp_telat)}</dd>
-      <dt>${esc(t("thWorkers"))}</dt><dd>${ringkasWorker}</dd>${barisWorker}
     </dl>
+    <h3 class="diag-grup">${esc(t("thWorkers"))} ${ringkasWorker}</h3>
+    <dl>${barisWorker}</dl>
   </div>`;
 }
 
@@ -8402,6 +8451,9 @@ async function muatSetelan() {
     $("set-garis").value = r.garis_capture ?? 0;
     $("set-sumbu").value = r.sumbu_garis ?? "tegak";
     $("set-dev").checked = Boolean(r.mode_dev);
+    // `!== false`, not Boolean(): an older server has no such field, and there both are drawn.
+    $("set-tampil-garis").checked = r.tampil_garis !== false;
+    $("set-tampil-roi").checked = r.tampil_roi !== false;
     labelGaris();
     $("set-sumber").textContent = t(r.sumber === "konsol" ? "setelanDariKonsol" : "setelanDariEnv");
     $("set-pesan").textContent = "";
@@ -8457,6 +8509,8 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
         garis_capture: $("set-garis").value.replace(",", "."),
         sumbu_garis: $("set-sumbu").value,
         mode_dev: $("set-dev").checked,
+        tampil_garis: $("set-tampil-garis").checked,
+        tampil_roi: $("set-tampil-roi").checked,
       }),
     });
     $("set-sumber").textContent = t("setelanDariKonsol");

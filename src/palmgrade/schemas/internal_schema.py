@@ -129,6 +129,9 @@ class SetelanGradingRequest(BaseModel):
     garis_capture: int = 0
     sumbu_garis: str = "tegak"
     mode_dev: bool = False
+    # Display only (2026-10-04). True by default: an older console never sends them.
+    tampil_garis: bool = True
+    tampil_roi: bool = True
 
 
 class SetelanGradingResponse(BaseModel):
@@ -137,6 +140,8 @@ class SetelanGradingResponse(BaseModel):
     garis_capture: int = 0
     sumbu_garis: str = "tegak"
     mode_dev: bool = False
+    tampil_garis: bool = True
+    tampil_roi: bool = True
     sumber: str  # "konsol" kalau ditimpa, "env" kalau masih dari .env
 
 

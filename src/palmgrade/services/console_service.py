@@ -39,7 +39,7 @@ from ..domain.operator_error import (
     InvalidInput,
 )
 from ..domain.plate import normalisasi_plat, truck_id_for
-from ..domain.setelan_grading import KUNCI_SETELAN, bersihkan_setelan
+from ..domain.setelan_grading import KUNCI_SETELAN, OPSIONAL, bersihkan_setelan
 from ..domain.sinkron import gabung_cloud
 from ..domain.vision_event import prediction_for, verdict_of
 from ..domain.working_day import JENDELA_KUNJUNGAN_DETIK, work_date_for
@@ -823,13 +823,14 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
             # itu. Dilengkapi di sini, bukan dibiarkan hilang: layar yang
             # menerima `undefined` akan mengirim balik payload cacat saat
             # operator menyimpan setelan lain.
-            return {"garis_capture": 0, "sumbu_garis": "tegak", "mode_dev": False, **nilai, "sumber": "konsol"}
+            return {**OPSIONAL, **nilai, "sumber": "konsol"}
         return {
             "conf_threshold": self.settings.conf_threshold,
             "minimum_size": self.settings.minimum_size,
             "garis_capture": self.settings.garis_capture,
             "sumbu_garis": self.settings.sumbu_garis,
             "mode_dev": self.settings.mode_dev,
+            "tampil_garis": True, "tampil_roi": True,  # display only, no env twin
             "sumber": "env",
         }
 

@@ -223,6 +223,8 @@ class LineClient:
         garis_capture: int = 0,
         sumbu_garis: str = "tegak",
         mode_dev: bool = False,
+        tampil_garis: bool = True,
+        tampil_roi: bool = True,
     ) -> dict[str, Any]:
         """Kirim setelan grading ke satu line. Melempar kalau line tidak menjawab.
 
@@ -241,6 +243,8 @@ class LineClient:
                         "garis_capture": garis_capture,
                         "sumbu_garis": sumbu_garis,
                         "mode_dev": mode_dev,
+                        "tampil_garis": tampil_garis,
+                        "tampil_roi": tampil_roi,
                     },
                     headers={"x-internal-secret": self._settings.internal_secret},
                 )

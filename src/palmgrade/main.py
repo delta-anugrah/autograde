@@ -104,7 +104,10 @@ async def _tarik_setelan_grading(settings, state) -> None:
         bersih = bersihkan_setelan(
             {
                 k: data[k]
-                for k in ("conf_threshold", "minimum_size", "garis_capture", "sumbu_garis", "mode_dev")
+                for k in (
+                    "conf_threshold", "minimum_size", "garis_capture", "sumbu_garis",
+                    "mode_dev", "tampil_garis", "tampil_roi",
+                )
                 if k in data
             }
         )
@@ -113,6 +116,8 @@ async def _tarik_setelan_grading(settings, state) -> None:
         state.garis_capture_override = bersih["garis_capture"]
         state.sumbu_garis_override = bersih["sumbu_garis"]
         state.mode_dev_override = bersih["mode_dev"]
+        state.tampil_garis_override = bersih["tampil_garis"]
+        state.tampil_roi_override = bersih["tampil_roi"]
         logger.info(
             "Setelan grading diambil dari konsol: conf=%s minimum_size=%s garis=%s sumbu=%s",
             bersih["conf_threshold"], bersih["minimum_size"],
