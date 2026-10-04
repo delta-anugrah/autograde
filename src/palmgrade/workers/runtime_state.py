@@ -72,6 +72,10 @@ class RuntimeState:
     # MJPEG broadcast — hanya DisplayWorker yang boleh nulis ke sini.
     latest_frame: bytes | None = None
     frame_condition: threading.Condition = field(default_factory=threading.Condition)
+    # Who is reading the MJPEG stream right now (batch 6.3). `StreamingService` counts each
+    # viewer in and out; `DisplayWorker` renders only while this is above zero.
+    penonton_stream: int = 0
+    kunci_penonton: threading.Lock = field(default_factory=threading.Lock)
 
     # Shared display state — capture worker set raw_frame, processing worker set last_results.
     # DisplayWorker baca keduanya untuk render MJPEG.
@@ -172,6 +176,17 @@ class RuntimeState:
     # thread safe). An Event so the automatic backoff wait can be cut short by a press.
     sambung_ulang_kamera: threading.Event = field(default_factory=threading.Event)
     sambung_ulang_oleh: str | None = None
+
+    def penonton_masuk(self) -> None:
+        """One more reader of the MJPEG stream."""
+        with self.kunci_penonton:
+            self.penonton_stream += 1
+
+    def penonton_keluar(self) -> None:
+        """One reader left. Never below zero: a count that went negative would stop the
+        display for the viewers that are still there."""
+        with self.kunci_penonton:
+            self.penonton_stream = max(0, self.penonton_stream - 1)
 
     def catat_ai_dimulai(self) -> None:
         """Sekali per proses: watchdog yang menyalakan ulang thread deteksi tidak
