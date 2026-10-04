@@ -246,7 +246,7 @@ pemanggil, dan keduanya tanpa auth. Penggantinya `/internal/assignment` (yang ju
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/console` | Halaman `console.html` |
+| GET | `/console` | Halaman `console.html`, dengan `Cache-Control: no-cache` (batch 5.3): browser selalu bertanya dulu, jadi layar yang memuat ulang dirinya sesudah pembaruan mendapat halaman baru |
 | GET | `/api/console/operators` | Daftar akun untuk kolom email (tanpa hash), bisa dibaca sebelum masuk |
 | POST | `/api/console/login`, `/api/console/logout` · GET `/api/console/me` | Sesi cookie `konsol_sesi`, 12 jam |
 | GET | `/api/console/state` | Ringkasan hari kerja + langganan + `sinkron` (Last Sync) + `antrean_bongkar` (`[{weighing_id, plate_number, menit}]`, truk yang menunggu line) + `penugasan_otomatis` (`{aktif, lines}`); layar polling tiap 2 detik |
@@ -568,7 +568,7 @@ konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x
 | POST | `/api/console/login` | `{email, sandi}` → cookie `konsol_sesi` HttpOnly, 12 jam. Sandi salah 401, login terkunci 429 |
 | POST | `/api/console/logout` | akhiri sesi ini saja |
 | GET | `/api/console/me` | operator yang sedang masuk |
-| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) + `antrean_bongkar` + `penugasan_otomatis` (aturan 36) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator + `plc.alarms` per line (motor fault / E-stop) untuk pita alarm + `sinkron` untuk **Last Sync** (`autoerp` dan `cloud`: `keadaan`/`terakhir`/`sejak`/`antre`, aturan 27). + `versi` image, untuk baris versi + lisensi di bawah tulisan AUTOGRADE (semua akun, 2026-09-28). Semuanya di sini, **bukan** lane support: yang melihat kamera berhenti, motor mati, atau sambungan putus itu operator biasa |
+| GET | `/api/console/state` | ringkasan hari kerja (di-polling 2 detik; tanpa baris grading sejak batch 6.4: kunci `recent` dibuang, tabel Grading cuma dari `/api/console/history`) + `antrean_bongkar` + `penugasan_otomatis` (aturan 36) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator + `plc.alarms` per line (motor fault / E-stop) untuk pita alarm + `sinkron` untuk **Last Sync** (`autoerp` dan `cloud`: `keadaan`/`terakhir`/`sejak`/`antre`, aturan 27). + `versi` image, untuk baris versi + lisensi di bawah tulisan AUTOGRADE (semua akun, 2026-09-28). Semuanya di sini, **bukan** lane support: yang melihat kamera berhenti, motor mati, atau sambungan putus itu operator biasa |
 | GET | `/api/console/history` | filter `work_date` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas |
 | GET | `/api/console/trucks` | master truk + supplier + `source_label` |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar), id = uuid5 plat ternormalisasi |

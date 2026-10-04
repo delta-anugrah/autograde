@@ -90,7 +90,6 @@ class _StubConsole:
             "work_date": "2026-09-22",
             "timezone": "Asia/Jakarta",
             "lines": [],
-            "recent": [],
             "auto_releases": [],
         }
 

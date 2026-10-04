@@ -103,7 +103,7 @@ def test_truk_menunggu_yang_belum_terdaftar_tidak_ditawarkan():
 def test_kepala_bagian_bukan_pilihan_dan_menit_tidak_ikut_ke_tombol():
     opsi = ('[{v:"", teks:"Pilih"}, {v:"BE 1 AA", teks:"BE 1 AA", catatan:"5 mnt", grup:"Menunggu"},'
             ' {v:"BE 2 BB", teks:"BE 2 BB", grup:"Lain"}]')
-    html = _jalankan(f'komponenPilih({opsi}, "BE 1 AA", "plat-timbang")', "komponenPilih")
+    html = _jalankan(f'komponenPilih({opsi}, "BE 1 AA", "plat-timbang")', "barisPilih", "komponenPilih")
     assert html.count('class="pilih-grup"') == 2
     assert re.search(r'<div class="pilih-grup" role="presentation">Menunggu</div>', html)
     assert len(re.findall(r'role="option"', html)) == 3

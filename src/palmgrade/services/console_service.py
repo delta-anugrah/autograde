@@ -265,7 +265,6 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
             "work_date": work_date,
             "timezone": self.settings.factory_tz,
             "lines": lines,
-            "recent": self.history(work_date, limit=20),
             # Ringkasan timbangan hari kerja ini untuk strip "Hari ini". Dari
             # tabel yang sama dengan tab Timbangan, jadi begitu program timbangan
             # tersambung angkanya ikut tanpa perubahan layar.

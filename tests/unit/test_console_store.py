@@ -173,7 +173,7 @@ def test_every_console_view_labels_the_source_the_same_way(service):
     state = service.state()
     labels = [
         state["lines"][0]["assignment"]["source_label"],
-        state["recent"][0]["source_label"],
+        service.history(today, limit=1)[0]["source_label"],
         service.recap(today)[0]["source_label"],
         service.weighings(today)[0]["source_label"],
     ]
@@ -583,3 +583,17 @@ def test_migration_renames_every_indonesian_column_not_just_operators(tmp_path):
             "SELECT gross_kg, tare_kg, net_kg FROM weighings WHERE id = 'w1'"
         ).fetchone()
     assert (row["gross_kg"], row["tare_kg"], row["net_kg"]) == (12480.0, 5120.0, 7360.0)
+
+
+def test_state_carries_no_grading_rows(service):
+    """Batch 6.4: `/state` is read every 2 s and used to query 20 `recent` rows nobody
+    drew, while the Grading table asked `/history` for the same rows again."""
+    dipanggil = []
+    asli = service.store.inspections
+    service.store.inspections = lambda *a, **k: dipanggil.append(a) or asli(*a, **k)
+
+    state = service.state()
+
+    assert "recent" not in state
+    assert dipanggil == [], "the poll must not read the grading rows at all"
+

@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.10"
+versi: "2.11"
 tanggal: 4 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -139,6 +139,20 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   beres; kalimat merah berarti versi baru gagal dan sistem kembali ke versi lama, panggil
   teknisi. Kalau tidak ditekan, versi itu tetap terpasang sendiri saat **Start** pagi
   berikutnya. Tombol ini cuma ada di PC yang sudah dipasangi penunggu pembaruan (§6.2).
+- **Di bawah jam** (semua akun): **Diperbarui 14:03:22**, jam terakhir angka di layar ini dibaca
+  dari konsol. Layar memperbarui dirinya sendiri tiap 2 detik: truk baru muncul di daftar
+  **Pilih Truk** tiap kartu tanpa memuat ulang halaman, dan daftar yang sedang terbuka tidak
+  berubah sampai ditutup. Kalau konsol tiga kali berturut-turut tidak menjawab (6 detik),
+  tulisannya jadi merah **Data lama, terakhir diperbarui 14:03:22**, dan angka, kartu, serta
+  tabel jadi abu-abu: angkanya angka lama, jangan dipakai untuk memutuskan. Gambar kamera tetap
+  berwarna karena datang langsung dari line. Begitu konsol menjawab lagi semuanya kembali
+  sendiri.
+- **Tombol bundar panah melingkar** di kanan atas (**Segarkan data**): cadangan kalau ragu
+  layarnya tertinggal. Menarik ulang semua data sekaligus, lalu menjawab "Data sudah
+  diperbarui" atau, kalau konsol tidak menjawab, notifikasi merah.
+- Sesudah versi baru terpasang, layar yang sedang terbuka **memuat ulang dirinya sendiri**
+  (tidak perlu F5). Ia menunggu dulu kalau ada kotak dialog terbuka, tombol yang masih
+  berputar, atau isian yang sedang diketik.
 - **Strip "Hari ini"**: jumlah janjang per kelas (Ripe, Unripe, JK, TP) dan total, rasio Ripe,
   **Data timbangan** (neto hari ini dan jumlah tiket), dan **Last Sync**.
 - **Last Sync**: dua baris, **AutoERP** dan **Cloud Photo** (foto di R2). Jamnya = kapan data
@@ -979,6 +993,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.11 | 4 Oktober 2026 | §3.2: tulisan **Diperbarui HH:MM:SS** di bawah jam, layar jadi abu-abu dengan tulisan merah **Data lama** kalau konsol berhenti menjawab, tombol **Segarkan data**, daftar **Pilih Truk** di kartu line ikut truk baru tanpa memuat ulang, dan layar memuat ulang dirinya sendiri sesudah versi baru terpasang. |
 | 2.10 | 4 Oktober 2026 | Tab Setelan: **kotak area deteksi** bisa diatur dari layar, dua saklar tampilkan garis capture dan kotak area deteksi, bagian Kamera & Conveyor jadi tiga kotak. Tab Status: kartu Diagnostik berkelompok dan tertutup dari awal, Manifest R2 jadi bagian sendiri. Kartu line: pemilih truk selebar Reject Manual, Tugaskan dan Lepas / Lepas paksa berbagi sisanya (§3.2, §3.5). |
 | 2.9 | 4 Oktober 2026 | Tombol **Sambung ulang** (sambung ulang kamera) di kotak kamera tiap kartu line, di bawah "Kamera tidak tersambung", untuk semua akun, bertanya dulu, tercatat di tab Log; cadangan kalau sambung ulang otomatis tidak membawa gambar kembali (§3.2, §7). |
 | 2.8 | 3 Oktober 2026 | **Update now**: pita kuning "Versi X siap dipasang" untuk semua akun, tombol **Pasang sekarang** di kotak Versi & lisensi (ditolak selama ada truk di-assign), hasil di kotak itu dan di tab Log (§3.2, §6.2), plus empat baris penanganan masalahnya di §7. |

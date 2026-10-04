@@ -256,6 +256,7 @@ def _jalankan_api(fetch_js: str, bahasa: str = "id") -> dict:
         "const LANE_GERBANG = new Set();",
         "function bukaGerbang() {}",
         f"globalThis.fetch = {fetch_js};",
+        "const BATAS_JAWAB_MS = 10000; const BATAS_JAWAB_UBAH_MS = 60000;", fungsi("batasJawab"),
         fungsi("ambil"), fungsi("galatJawaban"), fungsi("api"), fungsi("kodeDikenal"), fungsi("saranUmum"), fungsi("alasan"),
         "(async () => { try { await api('/api/console/state'); console.log('null'); }"
         " catch (e) { console.log(JSON.stringify({ kode: e.kode ?? null, teks: alasan(e) })); } })();",
@@ -440,6 +441,7 @@ def _jalankan_api_status(status: int, gagal: str, bahasa: str = "id") -> str:
         'const lokal = () => (bahasa === "id" ? "id-ID" : "en-GB");',
         "const $ = () => ({ hidden: true }); const LANE_GERBANG = new Set(); function bukaGerbang() {}",
         f"globalThis.fetch = async () => ({{ ok: false, status: {status}, json: async () => ({{ detail: 'conf_threshold harus antara 0 dan 1' }}) }});",
+        "const BATAS_JAWAB_MS = 10000; const BATAS_JAWAB_UBAH_MS = 60000;", fungsi("batasJawab"),
         fungsi("ambil"), fungsi("galatJawaban"), fungsi("api"), fungsi("kodeDikenal"), fungsi("saranUmum"), fungsi("alasan"),
         f"(async () => {{ try {{ await api('/x'); }} catch (e) {{ console.log(JSON.stringify(alasan(e, {json.dumps(gagal)}))); }} }})();",
     ])

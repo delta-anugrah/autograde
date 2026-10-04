@@ -18,6 +18,32 @@ Next:           ...
 
 ---
 
+## 2026-10-04 · console · Fresh data without a manual refresh, taps never lost (batch 5.3, 5.4, 5.8, 6.4) (PR #PRNUM)
+Changed:        `static/console.html`: the 2 s poll takes a turn (`kunciAntre`), a timer tick that
+                lands while a pull is in flight is dropped (`detakRefresh`, `sekaliJalan` for the
+                truck and weighbridge polls), every request has a time limit
+                (`AbortSignal.timeout`, 10 s reads, 60 s writes). A line card is updated through
+                `perbaruiKartu`, each part only when its markup changed (`tulisKalauBeda`): truck
+                line, Lepas, piston button and ribbon; the Grading table and its page numbers too.
+                The Tugaskan list of a card that is already on screen takes new trucks
+                (`isiUlangPilih`), never while it is open. Cards are drawn again when the set of
+                lines changes. The page reloads itself when the console version changes, not under
+                an open dialog, a busy button or a typed field. Header: "Diperbarui HH:MM:SS";
+                after 3 failed polls it turns red and numbers, cards and tables go grey. One Refresh
+                button. A language flip reloads the open tab (Akun, Log, Status kept the old words).
+                Server: `/api/console/state` no longer carries `recent` (20 rows queried every 2 s
+                and never drawn), `/console` is sent with `Cache-Control: no-cache`.
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                14 mutations, each turned its test red.
+Not validated:  A real `autograde pull` on a kiosk (the reload was tested by changing `versi` in the
+                poll answer). Nothing on the factory PC.
+Decisions:      The stale state greys numbers and tables, not the camera picture: the picture comes
+                from the line and is still live when the console is down. Setelan and Line are not
+                reloaded on a language flip: they are forms, and a reload would throw away what
+                support is typing. "Rekap is not redrawn on a language flip" in the audit was
+                already fixed (`gambarUlangRiwayat`); the tabs that still had it were Akun, Log, Status.
+Next:           PR 2, the dropdown component (5.6).
+
 ## 2026-10-04 · console + vision · Detection area box from the console, collapsible Diagnostics (PR #225)
 Changed:        The ROI box is set from Settings, Camera & Conveyor (four stream-space pixels,
                 `roi_x1..roi_y2`) through the grading settings path: `domain/setelan_grading`

@@ -99,7 +99,8 @@ router = APIRouter(tags=["console"])
 
 @router.get("/console", include_in_schema=False)
 async def console_page() -> FileResponse:
-    return FileResponse(_CONSOLE_HTML, media_type="text/html")
+    # `no-cache`: ask every time (304 when unchanged), so a reload after an update is the new page.
+    return FileResponse(_CONSOLE_HTML, media_type="text/html", headers={"Cache-Control": "no-cache"})
 
 
 @router.get("/api/console/operators")

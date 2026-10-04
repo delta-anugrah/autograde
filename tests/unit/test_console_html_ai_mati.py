@@ -44,7 +44,8 @@ def test_kartu_line_punya_slot_pita_ai_dan_bingkai_merah():
 
 
 def test_pita_ai_diperbarui_tiap_polling_bukan_cuma_render_pertama():
-    assert "perbaruiAi(c, l)" in fungsi("refresh")
+    assert "perbaruiAi(c, l)" in fungsi("perbaruiKartu")
+    assert "perbaruiKartu(c, l)" in fungsi("refresh")
     assert "tulisKalauBeda(slot, pitaAi(l))" in fungsi("perbaruiAi")
 
 
