@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 class PhotoCamera(CameraSource):
     """Camera source dari single image file — frame yang sama dikembalikan terus."""
 
+    menunggu_frame = False
+
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self._frame = None

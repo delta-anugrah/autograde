@@ -12,6 +12,11 @@ class CameraSource(ABC):
     #: tetap punya nilainya.
     galat_terakhir: str | None = None
 
+    #: `grab_frame` waits for the next frame (a real camera). False for a source that hands
+    #: a frame over at once (a photo, a video file): `FrameCaptureWorker` must then pace the
+    #: loop itself even with no rate at all, or it spins thousands of times a second.
+    menunggu_frame: bool = True
+
     def __init__(self) -> None:
         self.connected: bool = False
 
