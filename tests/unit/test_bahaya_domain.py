@@ -355,6 +355,7 @@ def test_setiap_kunci_sync_state_di_kode_sudah_digolongkan():
     import re
     from pathlib import Path
 
+    from palmgrade.domain.lepas_paksa import KUNCI_LEPAS_PAKSA
     from palmgrade.domain.penugasan_line import KUNCI_PENUGASAN
     from palmgrade.domain.setelan_grading import KUNCI_SETELAN
     from palmgrade.domain.setelan_rekam import KUNCI_SETELAN_REKAM
@@ -374,7 +375,7 @@ def test_setiap_kunci_sync_state_di_kode_sudah_digolongkan():
     }
     assert pemanggil == {
         "KUNCI_PENUGASAN", "KUNCI_SETELAN", "KUNCI_SETELAN_REKAM", "KUNCI_SINKRON", "RESEND_DAY_KEY",
-        "resource.cursor_key",
+        "resource.cursor_key", "KUNCI_LEPAS_PAKSA",
     }, pemanggil
     for kunci in (KUNCI_SETELAN, KUNCI_SETELAN_REKAM, KUNCI_PENUGASAN):
         assert not kunci_state_dihapus(kunci, MODE_SEMUA), kunci
@@ -382,6 +383,8 @@ def test_setiap_kunci_sync_state_di_kode_sudah_digolongkan():
         assert not kunci_state_dihapus(kunci, MODE_TRANSAKSI), kunci
         assert kunci_state_dihapus(kunci, MODE_SEMUA), kunci
     assert kunci_state_dihapus(RESEND_DAY_KEY, MODE_TRANSAKSI)
+    # Lepas paksa yang belum didengar line ikut hilang bersama penugasan yang ia lepaskan.
+    assert kunci_state_dihapus(KUNCI_LEPAS_PAKSA, MODE_TRANSAKSI)
     # Jam Last Sync mengikuti kursor ERP: jam sambungan bukan data transaksi, tapi PC
     # yang dikosongkan total (mungkin untuk AutoERP lain) mulai dari "belum pernah".
     for kunci in KUNCI_SINKRON.values():

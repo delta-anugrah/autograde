@@ -33,6 +33,7 @@ RUTE_OPERATOR = [
     ("POST", "/api/console/weighings"),
     ("POST", "/api/console/lines/{line_code}/assign-truck"),
     ("POST", "/api/console/lines/{line_code}/release-truck"),
+    ("POST", "/api/console/lines/{line_code}/force-release"),
     ("POST", "/api/console/unloading-queue/{weighing_id}/assign"),
     ("POST", "/api/console/unloading-queue/{weighing_id}/skip"),
     ("POST", "/api/console/lines/{line_code}/manual-reject"),

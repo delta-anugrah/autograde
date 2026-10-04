@@ -49,6 +49,7 @@ from ..workers.visit_manifest_worker import VisitManifestWorker
 from .erp_queue import ErpQueue
 from .gerbang_konsol import GerbangKonsol
 from .layar_line_support import LayarLineSupport
+from .lepas_paksa import LepasPaksa
 from .penugasan_otomatis import PenugasanOtomatis
 from .status_sinkron import StatusSinkron
 
@@ -68,7 +69,7 @@ NET_TOLERANCE_KG = 1.0
 MINIMUM_WEIGHT_KG = 1000.0
 
 
-class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol):
+class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPaksa):
     def __init__(
         self,
         settings: Settings,
@@ -729,18 +730,19 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol):
         # Line first, then store. If the line does not answer, DO NOT record:
         # a screen showing a truck assigned while the line knows nothing makes
         # the operator think it is done, and the next event ships with no
-        # truck. A failure has to look like one.
-        await self.line_client.assign_truck(
-            line,
-            assignment_id=assignment_id,
-            truck_id=truck_id,
-            assigned_at=datetime.now(self.tz).isoformat(),
-            ffb_source=self._ffb_source(truck_id),
-            plate=self._plate(truck_id),
-        )
-        # Stored, not kept in memory (§6.4): the truck being unloaded must stay
-        # on its line after a console restart mid-shift.
-        self.store.set_assignment(line_code, assignment_id, truck_id)
+        # truck. A failure has to look like one. The line lock spans both steps (Lepas paksa).
+        async with self.kunci_line(line_code):
+            await self.line_client.assign_truck(
+                line,
+                assignment_id=assignment_id,
+                truck_id=truck_id,
+                assigned_at=datetime.now(self.tz).isoformat(),
+                ffb_source=self._ffb_source(truck_id),
+                plate=self._plate(truck_id),
+            )
+            # Stored, not kept in memory (§6.4): the truck being unloaded must stay
+            # on its line after a console restart mid-shift.
+            self.store.set_assignment(line_code, assignment_id, truck_id)
         return {"assignment_id": assignment_id, "truck_id": truck_id, "line_code": line_code}
 
     async def release_truck(self, line_code: str, *, kirim: bool = True) -> dict[str, Any]:
@@ -765,10 +767,7 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol):
             assigned_at=datetime.now(self.tz).isoformat(),
             ffb_source=None,
         )
-        # No `await` between these two (2026-10-01): until the link is written, the truck is
-        # on no line and linked to nothing, so the unloading queue would offer it again.
-        self.store.set_assignment(line_code, "", None)
-        self._queue_grading(closing, kirim=kirim)
+        self._catat_lepas(line_code, closing, kirim=kirim)  # shared with Lepas paksa
         return {"line_code": line_code, "truck_id": None}
 
     def penugasan_untuk_mesin(self, machine_id: str) -> dict[str, Any]:

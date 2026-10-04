@@ -128,7 +128,10 @@ async def lifespan(app: FastAPI):
 
     # Separate from the ERP workers above: the piston button must survive an
     # empty ERP_URL, so it cannot depend on build_erp_workers().
-    status_worker = LineStatusWorker(service.lines, service.line_client)
+    # Every answered status also closes a forced release the line has not heard (Lepas paksa).
+    status_worker = LineStatusWorker(
+        service.lines, service.line_client, sesudah_terbaca=service.cocokkan_lepas_paksa
+    )
     service.line_status = status_worker.snapshot
     tasks.append(asyncio.create_task(status_worker.run_loop()))
 

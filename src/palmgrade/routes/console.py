@@ -78,6 +78,7 @@ from .console_deps import require_operator as require_operator
 from .console_deps import require_support as require_support
 from .console_gerbang import antrean_bongkar_router, gerbang_router
 from .console_kamera import kamera_router
+from .console_lepas_paksa import lepas_paksa_router
 
 logger = logging.getLogger(__name__)
 
@@ -434,6 +435,7 @@ async def release_truck(line_code: str, service: Service, operator: Operator) ->
         raise _operator_error(502, exc) from exc
 
 
+router.include_router(lepas_paksa_router)  # Lepas paksa: a line that does not answer
 router.include_router(antrean_bongkar_router)  # Tugaskan sekarang / Lewati (rule 36)
 
 
