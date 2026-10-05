@@ -403,8 +403,8 @@ Setelan). Dwibahasa ID/EN, tema terang (default) / gelap, pilihan operator disim
 - **Login (Fase 4).** Layar tertutup gerbang sampai ada yang masuk: operator mengetik **email
   dan sandi** (tombol nama yang ada cuma mengisi kolom email, sandinya tetap wajib), dan topbar
   menampilkan namanya plus tombol **Keluar**. Semua `/api/console/*` menjawab 401 tanpa cookie
-  `konsol_sesi`; yang tetap terbuka cuma `/console`, daftar akun, dan `login`. Sesi 12 jam, dan
-  Reject Manual tercatat atas nama yang sedang masuk.
+  `konsol_sesi`; yang tetap terbuka cuma `/console`, daftar akun, dan `login`. Sesi berakhir 12 jam sesudah layar terakhir
+  disentuh (geser, aturan 19; polling tidak memperpanjang), dan Reject Manual tercatat atas nama yang sedang masuk.
 
   Akun datang dari **dua tempat**: AutoERP (DocType `AutoGrade Operator`, ditarik bareng master
   data) dan **lokal** di PC ini (akun bawaan + akun support, supaya pabrik yang belum pernah

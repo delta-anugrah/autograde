@@ -101,7 +101,7 @@ def test_baris_dari_jawaban_sungguhan_tergambar_di_layar(pabrik):
         'const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));\n'
         'const kg = (v) => (v === null || v === undefined ? KOSONG : Number(v).toLocaleString(lokal()));\n'
         'const tagHasil = (s, kelas) => `<span class="tag">${esc(kelas || s)}</span>`;\n'
-        'const waktu = (iso) => String(iso); let riwayatOffset = 0;\n'
+        'const waktu = (iso) => String(iso); let riwayatOffset = 0; let slipCetak = false;\n'
         + "\n".join(fungsi(n) for n in ("tanggalRiwayat", "rasioRiwayat", "barisRiwayatTruk",
                                         "selFoto", "barisRiwayatJanjang"))
         + f"\nconsole.log(JSON.stringify([{json.dumps(per_truk)}.map(barisRiwayatTruk),"

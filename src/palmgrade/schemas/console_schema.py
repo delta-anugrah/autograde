@@ -75,6 +75,12 @@ class AutoAssignBody(_Body):
     lines: list[str] | None = None
 
 
+class SlipBody(_Body):
+    """The printable slip switch (support, batch 5.9). A missing field saves "off"."""
+
+    aktif: bool = False
+
+
 class PasangBody(_Body):
     """Update now (batch 4.6). The version the screen showed, so a status file that moved
     on in between cannot make one press install a version nobody saw."""

@@ -61,6 +61,7 @@ from .console_deps import (
     Riwayat,
     Scan,
     Service,
+    Slip,
     Support,
 )
 from .console_deps import _operator_error as _operator_error
@@ -74,12 +75,14 @@ from .console_deps import get_operator_admin as get_operator_admin
 from .console_deps import get_pembaruan_service as get_pembaruan_service
 from .console_deps import get_riwayat_service as get_riwayat_service
 from .console_deps import get_scan_service as get_scan_service
+from .console_deps import get_slip_service as get_slip_service
 from .console_deps import require_operator as require_operator
 from .console_deps import require_support as require_support
 from .console_gerbang import antrean_bongkar_router, gerbang_router
 from .console_kamera import kamera_router
 from .console_lepas_paksa import lepas_paksa_router
 from .console_sesi import pasang_cookie_sesi, sesi_router
+from .console_slip import slip_router
 
 logger = logging.getLogger(__name__)
 
@@ -154,11 +157,12 @@ async def console_me(operator: Operator) -> dict:
 
 
 router.include_router(sesi_router)  # renew a sliding session (batch 5.7)
+router.include_router(slip_router)  # printable grading slip (batch 5.9)
 
 
 @router.get("/api/console/state")
 async def console_state(
-    service: Service, dev: Dev, pembaruan: Pembaruan, operator: Operator
+    service: Service, dev: Dev, pembaruan: Pembaruan, slip: Slip, operator: Operator
 ) -> dict:
     """Ringkasan hari kerja, plus keadaan langganan untuk banner operator.
 
@@ -183,6 +187,8 @@ async def console_state(
         # Badge "versi X siap dipasang" (batch 4.6) rides this 2 s poll, as the licence
         # banner does: zero extra requests. Two small file reads, off the event loop.
         "pembaruan": (await run_in_threadpool(pembaruan.keadaan)).as_dict(),
+        # Batch 5.9: whether the Rekap tab offers Print (support switch, one small read).
+        "slip_cetak": slip.aktif(),
     }
 
 

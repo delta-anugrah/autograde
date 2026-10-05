@@ -146,7 +146,7 @@ never a "Co-Authored-By: Claude" or other AI mention.
 - The feed URL in `kartuLine` must carry a unique `?t=` per render; a bare URL is served from the browser image cache with an old frame.
 - `/ws/results` sends `image_url` before the file exists (hundreds of ms); nothing uses that lane today.
 - TensorRT installs only from `pypi.nvidia.com`; the engine is hardware-locked and never committed; missing engine falls back to `.pt`.
-- A horizontal capture line is scaled by frame **height**, not width (2448×2048 is not square; using width is ~19 % off with no error).
+- A horizontal capture line is scaled by frame **height**, not width (the 1224×1024 camera frame is not square; using width is ~19 % off with no error).
 - Kiosk: `requestFullscreen()` needs a user gesture, so `scripts/console-kiosk.sh` does it (keep `--user-data-dir`, wait for the console to answer, `xset s off -dpms`).
 
 ## 6. When to read what

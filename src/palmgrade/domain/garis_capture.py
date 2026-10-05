@@ -96,7 +96,8 @@ def skala_garis_ke_frame(garis_x: int, *, stream_width: int, frame_width: int) -
 
     Operator menyetel angkanya dari gambar yang dia lihat di browser
     (`STREAM_WIDTH`, bawaan 1280), sementara deteksi berjalan pada frame mentah
-    kamera — `frame_queue` tidak pernah di-resize, jadi di Hikrobot itu 2448 px.
+    kamera: `frame_queue` tidak pernah di-resize, jadi di Hikrobot itu 1224 px (binning 2x2 di
+    `config/camera/hikrobot.mfs`; 2448 px tanpa binning).
 
     Melewatkan penskalaan ini adalah bug yang sudah pernah terjadi pada ROI
     (diperbaiki commit `bdcb300`): satu angka dipakai di dua ruang koordinat,

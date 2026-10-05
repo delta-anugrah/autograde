@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.15"
+versi: "2.16"
 tanggal: 5 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -133,7 +133,8 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   saat masa tenggang atau habis. Klik untuk melihat perusahaan, tanggal aktif, dan masa
   tenggang. PC tanpa lisensi cuma menampilkan versinya.
 - **Pita kuning "Versi vX.Y.Z siap dipasang"** (semua akun) selebar layar, di atas kartu line:
-  versi baru sudah diunduh PC dan menunggu dipasang. Ketuk pitanya, kotak Versi & lisensi
+  versi baru sudah diunduh PC, sudah diperiksa utuh, dan menunggu dipasang. PC mencari versi baru
+  sendiri tiap jam (sejak launcher 5 Oktober 2026), jadi pita ini tidak menunggu Start besok pagi. Ketuk pitanya, kotak Versi & lisensi
   terbuka dengan tombol hijau **Pasang sekarang** di sebelah **Tutup**. Tombol **×** di ujung
   pita menyembunyikannya untuk versi itu saja (di PC itu); versi berikutnya memunculkannya lagi,
   dan angka versi di bawah AUTOGRADE tetap membuka kotak yang sama. Syaratnya: **lepas dulu semua truk** di ketiga line (termasuk truk yang
@@ -380,7 +381,7 @@ Aturan angka yang dijaga konsol:
 | **Grading** | riwayat janjang: waktu, line, truk, sumber, hasil, kelas, confidence, foto | saringan **Line** dan **Truk** di atas tabel (ikut polling, kembali ke halaman 1 tiap ganti), pagination; tabel memuat foto kecil (400 px), klik foto → foto penuh |
 | **Truk** | master truk + supplier + asal data (ERP / manual) | **Daftar truk manual**, **Cetak QR truk** (kartu QR berisi plat, dibuat di server) |
 | **Timbangan** | tiket hari kerja, plus truk dari hari kerja sebelumnya yang belum selesai (belum timbang kosong: 12 jam; sudah timbang kosong tapi belum Keluar: 24 jam): status, jam timbang isi, jam timbang kosong, antre, lama, total, bruto, tara, neto; di bawahnya panel **Kedatangan dibatalkan** | **Catat datang**, **Timbang isi**, lalu **Timbang kosong** dan **Keluar** di baris tiket; **Batal datang** di baris Datang |
-| **Rekap** | grading per truk dan per hari, untuk hari ini atau hari-hari sebelumnya (paling panjang 31 hari). Dibuka di **Hari ini, Per truk**: satu baris per truk, ini yang diserahkan ke supplier | ganti tanggal untuk hari sebelumnya, **Unduh CSV**, **Impor CSV** untuk akun support; rinciannya di bawah |
+| **Rekap** | grading per truk dan per hari, untuk hari ini atau hari-hari sebelumnya (paling panjang 31 hari). Dibuka di **Hari ini, Per truk**: satu baris per truk, ini yang diserahkan ke supplier | ganti tanggal untuk hari sebelumnya, **Unduh CSV**, **Impor CSV** untuk akun support; tombol **Cetak** di tiap baris truk kalau support menyalakan slip grading (satu lembar per truk per hari kerja: plat, supplier, sumber, jam grading, hitungan tiap kelas, rasio Ripe, neto, tiket timbang, tanda tangan Operator dan Supir); rinciannya di bawah |
 
 > Angka keyakinan ada di tabel Grading, tapi **tidak** digambar di kotak janjang pada layar
 > line: dari beberapa meter "54%" terbaca seperti "54% matang". Saklar **Mode dev** di tab
@@ -441,7 +442,7 @@ Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riw
 | **Line** → Model Deteksi | pilih model YOLO tiap line dari berkas di `models/release/`. Tiap model menampilkan **kelasnya** dan status engine TensorRT; model yang kelasnya bukan `Ripe/Unripe/JK/TP` tampil tapi tidak bisa dipilih. Kartu line menunjukkan model yang **sedang jalan** menurut line itu sendiri, beserta kelasnya, **merah** kalau bukan empat kelas itu, artinya line tidak menghitung janjang. Simpan membuka **modal konfirmasi** yang menyebut line yang akan restart (~10 detik) dan truk yang sedang diproses di situ. Bawaan PC = `MODEL_FILE` di `.env`. Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md` |
 | **Line** → Uji PLC | tombol uji coil per line (OK hijau, NG merah, Error kuning, alamat M di tiap tombol) + kartu peta alamat PLC di bawahnya. Mati saat line memproses truk; konfirmasi tombol Jalankan/Batal; hasilnya notifikasi (hijau coil menyala, kuning coil tidak menyala karena antrean pulse PLC penuh); heartbeat (M1009) sengaja tidak ada |
 | **Line** → Rekam Video | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi (lebar × tinggi) diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya**, mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **FPS mengikuti sumbernya, tidak diatur dari layar** (kolom FPS dan Bitrate dicabut 2026-09-25, dua-duanya tidak pernah sampai ke berkas): berkas video memakai laju aslinya, kamera Hikrobot memakai `CAMERA_FPS`. Itu yang membuat durasi rekaman sama dengan lama menekan Record. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari folder yang tertulis di kaki layar (`Disimpan di …`, di PC pabrik `/opt/palmgrade/autograde/videos/`). Sesudah menekan Stop, jalur lengkap berkasnya juga muncul sekali di notifikasi hijau. Stop menulis dulu gambar yang sudah antre saat tombol ditekan (paling banyak 30 gambar; di Mac sekitar 0,6 detik, belum diukur di Lampung); yang berhenti karena disk mepet tetap berhenti seketika. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
-| **Setelan** | ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), **kotak area deteksi** (empat angka piksel pada video 1280 x 720: Kiri, Atas, Kanan, Bawah; janjang di luar kotak tidak dihitung; keempatnya kosong = tiap line memakai `ROI_*` dari `.env`-nya, `0` semua = seluruh gambar, kotak yang tidak menutup gambar ditolak), dua saklar **Tampilkan garis capture** dan **Tampilkan kotak area deteksi** (cuma menyembunyikan gambarnya di video, deteksi tidak berubah), **Ukuran tulisan label (%)** di bagian Tampilan video (tulisan Ripe, Unripe, JK, TP di atas kotak pada video: 100 = bawaan, 200 = dua kali lebih besar, 25 sampai 400; foto bukti tidak berubah), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`; notifikasi hijau kalau semua line menerimanya, kuning yang menyebut line yang belum menerima (nilainya tetap tersimpan dan dikirim lagi saat line itu hidup). Tab paling kanan. Di bawahnya **Penugasan line**: saklar otomatis dan line yang dipakai, dengan tombol simpan sendiri. Bawaannya mati |
+| **Setelan** | saklar **Slip grading** (tombol Cetak di tab Rekap untuk semua akun, simpan sendiri lewat **Simpan slip**; bawaan mati); ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), **kotak area deteksi** (empat angka piksel pada video 1280 x 720: Kiri, Atas, Kanan, Bawah; janjang di luar kotak tidak dihitung; keempatnya kosong = tiap line memakai `ROI_*` dari `.env`-nya, `0` semua = seluruh gambar, kotak yang tidak menutup gambar ditolak), dua saklar **Tampilkan garis capture** dan **Tampilkan kotak area deteksi** (cuma menyembunyikan gambarnya di video, deteksi tidak berubah), **Ukuran tulisan label (%)** di bagian Tampilan video (tulisan Ripe, Unripe, JK, TP di atas kotak pada video: 100 = bawaan, 200 = dua kali lebih besar, 25 sampai 400; foto bukti tidak berubah), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`; notifikasi hijau kalau semua line menerimanya, kuning yang menyebut line yang belum menerima (nilainya tetap tersimpan dan dikirim lagi saat line itu hidup). Tab paling kanan. Di bawahnya **Penugasan line**: saklar otomatis dan line yang dipakai, dengan tombol simpan sendiri. Bawaannya mati |
 
 ### 3.6 Layar penuh di PC pabrik
 
@@ -650,7 +651,7 @@ Baris yang wajib disentuh. Sisanya biarkan bawaan.
 | `CONSOLE_DEFAULT_HASH`, `CONSOLE_SUPPORT_HASH` | keluaran `make hash-sandi` | dua sandi **berbeda**, catat di catatan internal. Tulis `$$` untuk tiap `$` (compose memakan `$`) |
 | `CONF_THRESHOLD`, `MINIMUM_SIZE`, `ROI_*` | nilai pabrik | Lampung: 0.5, 3000, ROI 100/100/1180/620. Bisa diubah dari tab Setelan (ROI: kotak area deteksi, selama dikosongkan di sana `.env` yang dipakai) |
 | `GARIS_CAPTURE`, `SUMBU_GARIS`, `MODE_DEV` | `300`, `tegak`, `false` | **nilai awal saja**: yang dipakai sehari-hari diatur dari tab Setelan, berlaku tanpa restart. Garis `0` = tanpa garis |
-| `BORDER_THICKNESS`, `FONT_SCALE`, `FONT_THICKNESS` | 8, 2.5, 5 | frame 2448×2048 butuh angka besar |
+| `BORDER_THICKNESS`, `FONT_SCALE`, `FONT_THICKNESS` | 8, 2.5, 5 | frame kamera besar (1224×1024 di Lampung) butuh angka besar |
 | `R2_ACCOUNT_ID` … `R2_PUBLIC_URL` | dari Cloudflare, atau kosong | kosong = foto tidak diunggah, tidak ada `detail_url` di tiket ERP |
 | `UPLOAD_API_URL`, `UPLOAD_API_SECRET` | **kosong** | penerima teks per janjang sudah pensiun |
 | `UPLOAD_RETENTION_DAYS`, `UPLOAD_DISK_MIN_FREE_GB` | 180, 20 | penjaga disk membuang arsip `done` tertua saat disk tinggal 20 GB |
@@ -1005,7 +1006,8 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
-| 2.15 | 5 Oktober 2026 | Tab Setelan, bagian baru **Tampilan video**: **Ukuran tulisan label (%)** untuk tulisan kelas di atas kotak deteksi pada video (100 = bawaan). |
+| 2.16 | 5 Oktober 2026 | Tab Setelan, bagian baru **Tampilan video**: **Ukuran tulisan label (%)** untuk tulisan kelas di atas kotak deteksi pada video (100 = bawaan). |
+| 2.15 | 5 Oktober 2026 | §3.4 dan §3.5: slip grading per truk yang bisa dicetak dari tab Rekap, dinyalakan support di tab Setelan. |
 | 2.14 | 5 Oktober 2026 | §3.4: saringan **Line** dan **Truk** di tab Grading; tabel Grading dan Riwayat memuat foto kecil, foto penuh hanya saat diklik. |
 | 2.13 | 5 Oktober 2026 | §3.1: sesi diperpanjang sendiri selama layar dipakai (habis 12 jam sesudah sentuhan terakhir), pita kuning 15 menit sebelum habis dengan tombol **Perpanjang**. |
 | 2.12 | 5 Oktober 2026 | §3.2: semua daftar pilihan satu bentuk; daftar panjang bisa **diketik untuk mencari**; truk yang sedang di lokasi (sudah timbang isi) di bagian **Di lokasi** paling atas **Pilih Truk** kartu line. |
