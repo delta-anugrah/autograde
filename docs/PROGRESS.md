@@ -18,6 +18,33 @@ Next:           ...
 
 ---
 
+## 2026-10-06 · console · Scanner QR switch (PR pending)
+Changed:        Support turns on the four QR scan fields of the Timbangan tab with a new Settings
+                sub-tab Scanner QR (default off, so a PC without a scanner looks as before; plate
+                picker and row buttons stay). Key `setelan_scanner_qr` in sync_state (survives
+                Danger Zone), `GET/POST /api/console/dev/scanner-qr` (support, plain def, WARNING
+                with who), `/api/console/state` carries `scanner_qr`; `tampilkanKolomScan` in
+                `refresh()` writes `hidden` only on a change, `=== true` so an older server reads
+                off; Save goes through `refresh()` so a stale poll cannot flip it back. Old scan
+                browser tests now turn the switch on (`scanner_nyala`, `setel_scanner`) instead of
+                un-hiding by JS, which the poll now undoes. Bought for it: Cashcow HC-4208DB (USB
+                2.4G receiver, types the plate plus Enter).
+Validated:      unit + e2e + integration 5752 passed / 48 skipped / 0 failed, ruff clean;
+                make test-browser 322 passed (Chromium + Firefox). First full browser run had 2
+                unrelated-looking failures, one of them caused by this branch (poll re-hid a field
+                an old test un-hid by JS, fixed); rerun 322/322. After the review fix: the scanner,
+                Setelan and gerbang browser files 68 passed. Final review (fresh reviewer): no
+                Critical; PROGRESS entry and the save flicker fixed.
+Not validated:  The real scanner on the Lampung PC (needs a release, the scanner arrives later).
+                Linux keyboard layout for the scanner (must be US English).
+Decisions:      User 2026-10-05: a switch in Settings, support only, default off. Own sub-tab
+                because Settings has sub-tabs since 2026-10-05. Deferred: a half-typed scan stays
+                in a field the switch hides; layout with the switch on is not pinned by a test
+                (passes today; at 1280 px the Timbang isi button wraps to a second row); rule 21
+                still says "Ketujuh /api/console/dev/*".
+Next:           Merge to staging, release, install on the Lampung PC, plug in the scanner, turn
+                the switch on, scan a printed card and a phone screen.
+
 ## 2026-10-05 · console · Working day cutoff set by support (batch 5.11) (PR #246)
 Changed:        Support sets when the working day starts (Settings, new sub-tab Hari kerja, any hour
                 in the factory zone shown next to the field, default 00:00 = old behaviour; after

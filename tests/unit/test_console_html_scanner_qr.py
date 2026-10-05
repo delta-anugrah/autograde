@@ -45,6 +45,10 @@ def test_simpan_scanner_lewat_denganSibuk_dan_toast():
     mulai = HTML.index('$("set-scanner-simpan").addEventListener')
     blok = HTML[mulai : HTML.index("}));", mulai)]
     assert "denganSibuk(" in blok and 'toastSukses(t("scannerTersimpan"))' in blok
+    # Through the refresh queue like the sibling switches: a poll that read /state before the
+    # POST committed must not land after it and flip the fields back for 2 s.
+    assert "await refresh();" in blok
+    assert "tampilkanKolomScan(" not in blok
 
 
 def test_kata_layar_ada_di_dua_bahasa():

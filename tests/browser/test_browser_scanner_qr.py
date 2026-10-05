@@ -2,9 +2,10 @@
 appear on the Timbangan tab, and a scan works in the field without un-hiding it by hand.
 
 The console lives for the whole session, so every test runs inside `scanner_mati`
-(switch OFF before and after, from `conftest.py`): the other scan tests un-hide the field themselves and must
-keep starting from the shipped state. That an operator never sees Setelan is pinned by
-`test_browser_peran.py`, and the 403 by `tests/e2e/test_scanner_qr_lane.py`.
+(switch OFF before and after, from `conftest.py`): the other scan tests turn it on
+themselves (`scanner_nyala`) and must keep starting from the shipped state. That an operator
+never sees Setelan is pinned by `test_browser_peran.py`, the 403 by
+`tests/e2e/test_scanner_qr_lane.py`.
 """
 
 from __future__ import annotations
