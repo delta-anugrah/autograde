@@ -331,7 +331,7 @@ scan 4. Scan di kolom **3. Timbang kosong** juga mencari tiket 12
 jam ke belakang, bukan cuma tiket hari ini. Tiketnya tetap milik tanggal kerja kemarin: strip
 "Hari ini", Rekap, CSV dan AutoERP menghitungnya di hari itu, tidak dua kali.
 
-**Penugasan otomatis** (bawaannya mati; support yang menyalakannya di tab **Setelan**). Selama
+**Penugasan otomatis** (bawaannya nyala di semua line sejak 5 Oktober 2026; support bisa mematikannya di tab **Setelan**, sub-tab Penugasan line). Selama
 mati, layar sama seperti sebelumnya: tidak ada strip antrean, truk ditugaskan lewat kartu line.
 Kalau dinyalakan, truk yang timbang isi langsung ditugaskan ke line yang dipilih support, dan
 notifikasi menyebut line-nya. Truk yang sudah menunggu saat saklar disimpan nyala langsung ikut
