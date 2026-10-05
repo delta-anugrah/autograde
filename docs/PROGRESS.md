@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-05 · console · Shift cutoff for the working day: design only (batch 5.11) (draft PR #PRNUM)
+## 2026-10-05 · console · Shift cutoff for the working day: design only (batch 5.11) (draft PR #237)
 Changed:        `docs/runbooks/2026-10-05-shift-cutoff-design.md`: the problem, every reader of
                 `work_date`, three options (shift the stored date, a second column, screen only),
                 the AutoERP dating risk, six open questions, the work list for option A. No code.
