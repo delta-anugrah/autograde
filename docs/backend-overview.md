@@ -55,6 +55,7 @@ autograde/
         camera/                # HikrobotCamera / OpenCVCamera / PhotoCamera
         erp/                   # klien AutoERP + antrean kirim (erp_outbox)
         notifications/         # LineClient (konsol → line); WebhookClient lama
+        klien_http.py          # KlienBersama: one kept httpx.AsyncClient for LineClient and ErpClient (batch 6.5), no cookies stored
         outbox/                # OutboxStore: antrean realtime ke konsol
         storage/               # LocalFileStorage (read/write JSON + WebP)
         upload/                # R2Uploader (boto3) + UploadManifest (SQLite state per-item)
@@ -162,6 +163,12 @@ per `track_id`): `docs/overview.md` §3.
   "fps_deteksi": 7.2,
   "frame_umur_detik": 0.1,
   "suhu_kamera_c": 47.3,
+  "suhu_kamera_didukung": true,
+  "fps_kamera_target": 15.0,
+  "fps_kamera_turun": false,
+  "frame_hilang": {"hilang": 0, "total": 9000, "persen": 0.0, "tingkat": "aman"},
+  "putus_kamera": {"jumlah": 0, "tingkat": "aman"},
+  "kamera_tingkat": "aman",
   "disk": {
     "tingkat": "aman",
     "kode": null,
@@ -193,6 +200,11 @@ per `track_id`): `docs/overview.md` §3.
 | `fps_kamera` / `fps_deteksi` | laju TERUKUR gambar masuk / frame selesai digrading (batch 3.6). **0** kalau yang terakhir lebih tua dari 5 detik, jadi angka lama tidak pernah tampil sebagai laju sekarang |
 | `frame_umur_detik` | detik sejak gambar terakhir masuk dari kamera; `null` = belum pernah |
 | `suhu_kamera_c` | suhu badan kamera Hikrobot (°C, node `DeviceTemperature`), dibaca thread capture tiap 10 detik selama gambar mengalir. `null` = tidak tahu: webcam/video/foto, kamera menolak menjawab (WARNING sekali dengan kode SDK di tab Log), atau bacaan terakhir lebih tua dari 60 detik |
+| `suhu_kamera_didukung` | `false` = kamera menjawab `DeviceTemperature` tidak diimplementasikan (akses NI, mis. MV-CS050-10GC Lampung): kartu menulis "tidak didukung kamera" dan line berhenti bertanya sampai sambung berikutnya. `true` = pernah terbaca, `null` = belum tahu atau bukan Hikrobot |
+| `fps_kamera_target` / `fps_kamera_turun` | laju yang dijanjikan kamera (`camera_fps_terukur`, `null` kalau sumber tanpa laju) dan apakah `fps_kamera` tertahan di bawah 90% target selama 2 menit (pulih sesudah 1 menit normal). `false` begitu gambar berhenti (aturan 35) |
+| `frame_hilang` | frame yang hilang di jaringan dalam 10 menit terakhir (GigE `MV_MATCH_TYPE_NET_DETECT`): `hilang`, `total` (diterima + hilang), `persen`, `tingkat` (`aman` 0, `waspada` ada, `kritis` mulai 5%). `null` = sumber tidak menghitung (webcam/video/foto) atau belum ada bacaan |
+| `putus_kamera` | kejadian kamera berhenti mengirim gambar dalam 24 jam terakhir: `jumlah`, `tingkat` (`aman` 0, `waspada` 1-2, `kritis` 3 ke atas) |
+| `kamera_tingkat` | tingkat terburuk dari tiga di atas (laju tertahan = `waspada`), untuk tanda "perlu dicek" di judul grup kartu. `null` = line versi lama |
 | `disk` | pemantau disk (batch 3.7, `services/pemantau_disk.py`), partisi foto + DB line yang PALING sempit: `tingkat` (`aman`/`peringatan`/`kritis`/`tidak_terbaca`), `kode` (`DISK_HAMPIR_PENUH`/`DISK_KRITIS`/`null`), `bebas_gb`, `total_gb`, `persen_bebas`, `jalur`, ambang yang berlaku, `sejak` (epoch mulai tingkat sekarang). Jalan **tanpa R2** dan tidak menghapus apa pun; `null` = line versi lama |
 | `lisensi` | lisensi line ini: `aktif` (`LICENSE_ENABLED`), `grading_diblokir` (gerbang yang sama dengan thread grading), `berlaku_sampai` (epoch akhir tenggang) |
 
@@ -207,7 +219,7 @@ secret yang dikonfigurasi kosong tidak pernah membuka lane (`routes/penjaga_raha
 | Method | Path | Notes |
 |---|---|---|
 | POST | `/internal/assignment` | `{machine_id, assignment_id, truck_id, assigned_at, ffb_source?, plate?}` → `{accepted, machine_id, truck_id, assignment_id}`. Set `current_truck_id` + `current_assignment_id`; `plate` + `assigned_at` menamai folder capture truk (`domain/capture_layout.py`). ⚠️ `plate` itu label, bukan identitas; opsional supaya konsol lama tidak ditolak saat upgrade separuh jalan |
-| GET | `/internal/status` | Dipanggil tiap 1 detik (`LineStatusWorker`) → `{machine_id, truck_id, ffb_source, piston, alarms, unggah, ai, disk}`. `unggah` = ringkasan upload R2 untuk **Last Sync** (`aktif`, `terakhir`, `gagal_sejak`, `pesan`, `antre`, `rusak`), dihitung sekali per batch; `null` sebelum worker upload ada. `ai` = blok penjaga AI mati (sama bentuknya dengan `/health/detail` tapi tanpa `galat_terakhir`/`galat_at`), dibaca kartu line konsol (`pitaAi`). `disk` = blok pemantau disk (sama dengan `/health/detail`), dibaca pita disk konsol (`pitaDisk`) |
+| GET | `/internal/status` | Dipanggil tiap 1 detik (`LineStatusWorker`) → `{machine_id, truck_id, ffb_source, piston, alarms, unggah, ai, disk}`. `unggah` = ringkasan upload R2 untuk **Last Sync** (`aktif`, `terakhir`, `gagal_sejak`, `pesan`, `antre`, `rusak`), dihitung sekali per batch; `null` sebelum worker upload ada. `ai` = blok penjaga AI mati (sama bentuknya dengan `/health/detail` tapi tanpa `galat_terakhir`/`galat_at`), dibaca kartu line konsol (`pitaAi`). `disk` = blok pemantau disk (sama dengan `/health/detail`), dibaca pita disk konsol (`pitaDisk`) Since batch 6.5 the three lines are asked side by side, each in its own loop (`asyncio.gather`), over one kept HTTP client: a line that hangs until its 1.5 s timeout is read less often and holds up no other line. |
 | POST | `/internal/manual-reject` | `{machine_id, assignment_id, requested_by, requested_at}` → `{accepted, message}`. `capture_manual_reject()` lewat executor: WebP + JSON + satu baris outbox, sampai di konsol ~1 detik |
 | GET / POST | `/internal/setelan` | Setelan grading yang berlaku / timpa tanpa restart (`conf_threshold`, `minimum_size`, `garis_capture`, `sumbu_garis`, `mode_dev`, plus `tampil_garis` dan `tampil_roi`: cuma gambar garis capture dan kotak ROI di video, bawaan `true`, deteksi tidak membacanya; dan `roi_x1`, `roi_y1`, `roi_x2`, `roi_y2`: kotak area deteksi dalam ruang stream, `null` = line memakai `ROI_*` dari `.env`, `0` semua = seluruh frame). Disimpan di `RuntimeState`; konsol pemegang nilai sebenarnya |
 | GET | `/internal/outbox` | Ringkasan antrean line untuk tab Status → Antrean line: `{line_code, aktif, menunggu, tertua_at, ditolak, ditolak_at, ditolak_alasan, lama_tertinggal, tersambung, putus_sejak, sebab_putus, coba_lagi_at, galat, galat_at}` (`ditolak` = baris yang percobaan terakhirnya ditolak konsol 400/422). Router `routes/internal_outbox.py`, tanpa torch |
@@ -542,7 +554,7 @@ Verbatim copy of the former `CLAUDE.md` sections "HTTP Surface" and "Integration
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/health`, `/health/detail` | `/health` ringan, **503 kalau AI mati atau frame berhenti** (`ai` = keadaan penjaga AI, `routes/health_ringan.py`, tanpa torch); detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending` = semua janjang belum sampai konsol, `outbox_failed` selalu `0` sejak batch 2.4, rincian di tab Status → Antrean line) + `model_file`/`model_backend`/`model_kelas`/`model_kelas_cocok`/`gpu_sm` = model yang benar-benar dimuat + `ai` (keadaan + `galat_terakhir`) + `fps_kamera`/`fps_deteksi` (terukur, 0 kalau basi) + `frame_umur_detik` + `suhu_kamera_c` (°C, `null` kalau basi atau tidak terbaca) + `disk` (pemantau disk) + `lisensi` + `plc.connected` (aturan 35) |
+| GET | `/health`, `/health/detail` | `/health` ringan, **503 kalau AI mati atau frame berhenti** (`ai` = keadaan penjaga AI, `routes/health_ringan.py`, tanpa torch); detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending` = semua janjang belum sampai konsol, `outbox_failed` selalu `0` sejak batch 2.4, rincian di tab Status → Antrean line) + `model_file`/`model_backend`/`model_kelas`/`model_kelas_cocok`/`gpu_sm` = model yang benar-benar dimuat + `ai` (keadaan + `galat_terakhir`) + `fps_kamera`/`fps_deteksi` (terukur, 0 kalau basi) + `frame_umur_detik` + `suhu_kamera_c` (°C, `null` kalau basi atau tidak terbaca) + `suhu_kamera_didukung` + kesehatan kamera (`fps_kamera_turun`, `frame_hilang`, `putus_kamera`, `kamera_tingkat`) + `disk` (pemantau disk) + `lisensi` + `plc.connected` (aturan 35) |
 | GET | `/api/video_feed` | MJPEG live (multi-viewer) |
 | GET | `/api/results_today` | today's results (read from disk) |
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |

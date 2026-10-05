@@ -2,15 +2,23 @@ from __future__ import annotations
 
 import logging
 import time
-
-import cv2
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from ..core.config import Settings
-from ..core.constants import FONT, JPEG_QUALITY_STREAM
-from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
+from ..core.constants import JPEG_QUALITY_STREAM
+from ..domain.skala_tampilan import TANPA_SKALA, skala_ke
 from .runtime_state import RuntimeState
 
+if TYPE_CHECKING:  # annotation only: the pipeline module pulls in cv2 and ultralytics, and
+    # the unit suite runs this worker without either (the pipeline is injected).
+    from ..pipelines.realtime_inspection_pipeline import RealtimeInspectionPipeline
+
 logger = logging.getLogger(__name__)
+
+#: A YOLO frame older than this is no longer drawn with its boxes: on a slow model (CPU) the
+#: fruit has moved on, and the stream falls back to the raw frame so it does not freeze.
+_SEGAR_S = 0.5
 
 
 class DisplayWorker:
@@ -19,6 +27,15 @@ class DisplayWorker:
     Reads latest_raw_frame + last_yolo_results from state, draws zone lines and
     detection boxes, then pushes encoded JPEG to latest_frame so all MJPEG clients
     get a consistent, smooth stream independent of YOLO timing.
+
+    Since batch 6.3 it does the least it can:
+
+    * nobody reading the stream (`state.penonton_stream == 0`) = nothing is rendered at all;
+    * the frame is shrunk to stream size FIRST and everything is drawn on the small frame,
+      so the full sensor frame (2448x2048, 14.3 MB) is neither copied nor drawn on.
+
+    `cv` is the `cv2` module; it is an argument so the unit suite can run the worker without
+    OpenCV (CLAUDE.md § Tests). Left out, the real one is imported here, on first use.
     """
 
     def __init__(
@@ -27,10 +44,19 @@ class DisplayWorker:
         pipeline: RealtimeInspectionPipeline,
         settings: Settings,
         target_fps: int = 24,
+        *,
+        cv: Any = None,
+        jam: Callable[[], float] = time.time,
+        tidur: Callable[[float], None] = time.sleep,
     ) -> None:
         self.state = state
         self.pipeline = pipeline
         self.settings = settings
+        if cv is None:
+            import cv2 as cv
+        self._cv = cv
+        self._jam = jam
+        self._tidur = tidur
         self._frame_interval = 1.0 / max(1, target_fps)
         self._last_render_time: float = 0.0
         self._fps_counter: int = 0
@@ -38,25 +64,30 @@ class DisplayWorker:
         self._display_fps: float = 0.0
 
     def run_once(self) -> None:
-        now = time.time()
+        now = self._jam()
         wait = self._frame_interval - (now - self._last_render_time)
         if wait > 0:
-            time.sleep(wait)
-        self._last_render_time = time.time()
+            self._tidur(wait)
+        self._last_render_time = self._jam()
+
+        if self.state.penonton_stream <= 0:
+            self._istirahat()
+            return
 
         # Pakai last_yolo_frame jika fresh (< 500ms) supaya box selalu aligned.
         # Kalau YOLO lambat (CPU), fallback ke raw frame biar stream tidak freeze.
         yolo_frame = self.state.last_yolo_frame
-        yolo_fresh = (time.time() - self.state.last_yolo_frame_at) < 0.5
+        yolo_fresh = (self._jam() - self.state.last_yolo_frame_at) < _SEGAR_S
         if yolo_frame is not None and yolo_fresh:
-            display = yolo_frame.copy()
+            sumber = yolo_frame
             use_boxes = True
         else:
-            frame = self.state.latest_raw_frame
-            if frame is None:
+            sumber = self.state.latest_raw_frame
+            if sumber is None:
                 return
-            display = frame.copy()
             use_boxes = False  # box tidak di-render di raw frame — posisi tidak aligned
+
+        display, skala = self._ke_ukuran_stream(sumber)
 
         results = self.state.last_yolo_results
         if use_boxes and results is not None:
@@ -67,18 +98,13 @@ class DisplayWorker:
                     if self.state.mode_dev_override is not None
                     else self.settings.mode_dev
                 ),
+                skala=skala,
             )
 
-        target_w = self.settings.stream_width
-        target_h = self.settings.stream_height
-        h, w = display.shape[:2]
-        if w != target_w or h != target_h:
-            display = cv2.resize(display, (target_w, target_h), interpolation=cv2.INTER_NEAREST)
-
-        # Garis capture digambar dalam ruang STREAM — sesudah resize, sama
-        # seperti ROI, dan sama seperti ruang tempat operator menyetelnya. Dibaca
-        # dari `RuntimeState` tiap render supaya perubahan dari konsol langsung
-        # terlihat tanpa restart line.
+        # Garis capture digambar dalam ruang STREAM, sama seperti ROI, dan sama
+        # seperti ruang tempat operator menyetelnya. Dibaca dari `RuntimeState`
+        # tiap render supaya perubahan dari konsol langsung terlihat tanpa
+        # restart line.
         display = self.pipeline.draw_roi(
             display,
             garis_capture=(
@@ -97,23 +123,48 @@ class DisplayWorker:
         )
 
         # YOLO inference FPS overlay (from FrameProcessingWorker; drawn in stream space → fixed, always readable)
+        cv = self._cv
         fps_text = f"{self.state.inference_fps:.0f} FPS"
-        cv2.putText(display, fps_text, (12, 36), FONT, 1.0, (0, 0, 0), 5, cv2.LINE_AA)
-        cv2.putText(display, fps_text, (12, 36), FONT, 1.0, (0, 255, 0), 2, cv2.LINE_AA)
+        cv.putText(display, fps_text, (12, 36), cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 5, cv.LINE_AA)
+        cv.putText(display, fps_text, (12, 36), cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2, cv.LINE_AA)
 
-        _, buf = cv2.imencode(".jpg", display, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY_STREAM])
+        _, buf = cv.imencode(".jpg", display, [int(cv.IMWRITE_JPEG_QUALITY), JPEG_QUALITY_STREAM])
         with self.state.frame_condition:
             self.state.latest_frame = buf.tobytes()
             self.state.frame_condition.notify_all()
 
         self._fps_counter += 1
-        fps_now = time.time()
+        fps_now = self._jam()
         if self._fps_timer == 0.0:
             self._fps_timer = fps_now
         elif fps_now - self._fps_timer >= 1.0:
             self._display_fps = self._fps_counter / (fps_now - self._fps_timer)
             self._fps_counter = 0
             self._fps_timer = fps_now
+
+    def _ke_ukuran_stream(self, frame: Any) -> tuple[Any, tuple[float, float]]:
+        """A stream-size frame that is safe to draw on, and the scale that led to it.
+
+        `frame` is shared with the detection thread (and, for a captured bunch, with the
+        photo writer as the clean copy), so it is never drawn on. Shrinking already makes a
+        new array; only a frame that is stream size already has to be copied.
+        """
+        target_w = self.settings.stream_width
+        target_h = self.settings.stream_height
+        h, w = frame.shape[:2]
+        if w == target_w and h == target_h:
+            return frame.copy(), TANPA_SKALA
+        kecil = self._cv.resize(frame, (target_w, target_h), interpolation=self._cv.INTER_NEAREST)
+        return kecil, skala_ke(w, h, target_w, target_h)
+
+    def _istirahat(self) -> None:
+        """Nobody reads the stream: render nothing, and drop the last picture so a viewer who
+        comes back waits one interval for a new frame, never served the old one. Still this
+        worker writing `latest_frame`, under the same condition (rule 4)."""
+        if self.state.latest_frame is None:
+            return
+        with self.state.frame_condition:
+            self.state.latest_frame = None
 
     def run_loop(self) -> None:
         while True:

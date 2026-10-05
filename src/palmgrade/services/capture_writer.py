@@ -10,8 +10,11 @@ the JSON sidecar, which stays flat in the day folder (see `capture_layout`).
 """
 from __future__ import annotations
 
+import contextlib
 import datetime
 import logging
+import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -35,6 +38,32 @@ class ImageStorage(Protocol):
 
     def write_image(self, path: Path, frame: Any, quality: int = ...) -> None: ...
     def write_thumbnail(self, path: Path, frame: Any, *, max_width: int, quality: int) -> None: ...
+
+
+class _TulisDiSamping:
+    """One write on its own thread, started at once (batch 6.2).
+
+    A thread per bunch, not a pool: a line saves a bunch every few seconds at most, so there
+    is nothing to keep warm and nothing to shut down. `tunggu()` always joins, so the helper
+    never outlives the `write_pair` call that started it.
+    """
+
+    def __init__(self, tulis: Callable[[], None]) -> None:
+        self._tulis = tulis
+        self._galat: BaseException | None = None
+        self._thread = threading.Thread(target=self._jalan, name="capture_clean", daemon=True)
+        self._thread.start()
+
+    def _jalan(self) -> None:
+        try:
+            self._tulis()
+        except BaseException as exc:  # handed to the caller by `tunggu()`, never lost here
+            self._galat = exc
+
+    def tunggu(self) -> BaseException | None:
+        """Wait for the write to end; what it raised, or None."""
+        self._thread.join()
+        return self._galat
 
 
 class CaptureWriter:
@@ -136,10 +165,17 @@ class CaptureWriter:
     ) -> str:
         """Write both variants and return the annotated one's `captures/` path.
 
-        Annotated goes first on purpose: it is the copy `image_path` names, so if
-        the disk fails the write raises before any record can point at a file
-        that was never created (Critical Rule #8). The clean copy is the training
-        material — worth keeping, never worth failing a grading run for.
+        The annotated copy is the one `image_path` names, so if the disk fails this raises
+        before any record can point at a file that was never created (Critical Rule #8). The
+        clean copy is the training material: worth keeping, never worth failing a grading
+        run for.
+
+        Both are full-size WebP encodes, the slow part of saving a bunch. Since batch 6.2
+        the clean copy is written on a helper thread WHILE the annotated copy is written
+        here (cv2 releases the GIL while it encodes). The annotated copy stays on this
+        thread because its failure is the one that raises. If it fails, the clean copy that
+        was written beside it is removed again: it has no manifest row of its own, so
+        without its annotated twin retention would never delete it (rule 9).
         """
         annotated_relative = image_relative_path(
             date_folder=date_folder,
@@ -149,12 +185,6 @@ class CaptureWriter:
             filename=filename,
             tp=tp,
         )
-        self._storage.write_image(
-            self._settings.results_dir / annotated_relative,
-            annotated_frame,
-            quality=_SAVE_QUALITY,
-        )
-
         clean_relative = image_relative_path(
             date_folder=date_folder,
             truck_folder=truck_folder,
@@ -163,16 +193,30 @@ class CaptureWriter:
             filename=filename,
             tp=tp,
         )
+        clean_path = self._settings.results_dir / clean_relative
+        clean_di_samping = _TulisDiSamping(
+            lambda: self._storage.write_image(clean_path, clean_frame, quality=_SAVE_QUALITY)
+        )
         try:
             self._storage.write_image(
-                self._settings.results_dir / clean_relative,
-                clean_frame,
+                self._settings.results_dir / annotated_relative,
+                annotated_frame,
                 quality=_SAVE_QUALITY,
             )
-        except OSError as exc:
+        except BaseException:
+            clean_di_samping.tunggu()
+            with contextlib.suppress(OSError):
+                clean_path.unlink(missing_ok=True)
+            raise
+
+        galat_clean = clean_di_samping.tunggu()
+        if isinstance(galat_clean, OSError):
             # Never fatal: the evidence copy and its sidecar are already safe, and
             # a grading line must not stop because the training copy did not fit.
-            logger.error("Clean capture copy failed (%s): %s", clean_relative, exc)
+            logger.error("Clean capture copy failed (%s): %s", clean_relative, galat_clean)
+        elif galat_clean is not None:
+            # Not a disk refusal: raised here as it was when this ran on the calling thread.
+            raise galat_clean
 
         thumb_relative = image_relative_path(
             date_folder=date_folder, truck_folder=truck_folder,
