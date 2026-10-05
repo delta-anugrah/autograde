@@ -203,6 +203,18 @@ previous version's page. The version number was right (it comes from the API) bu
 section and the new features were missing until Ctrl+Shift+R. The operator who presses
 Pasang sekarang would not know to do that.
 
+## 2026-10-05 · console · Shift cutoff for the working day: design only (batch 5.11) (draft PR #237)
+Changed:        `docs/runbooks/2026-10-05-shift-cutoff-design.md`: the problem, every reader of
+                `work_date`, three options (shift the stored date, a second column, screen only),
+                the AutoERP dating risk, six open questions, the work list for option A. No code.
+Validated:      `pytest tests/unit/test_doc_links.py tests/unit/test_dokumen_tanpa_em_dash.py`
+                (see the PR).
+Not validated:  Nothing to run: design only.
+Decisions:      None yet. Parked for the user: AutoERP dates a ticket from the local date of
+                `time_in`, so a console cutoff after midnight makes the console's working day and
+                AutoERP's ticket date differ for trucks weighed between midnight and the cutoff.
+Next:           User answers §6 of the design, then build (or not).
+
 ## 2026-10-05 · vision · Batch 6.3: display shrinks first and rests with no viewer (PR #231)
 Changed:        `DisplayWorker` shrinks the frame to stream size first and draws the boxes on the
                 small frame (`draw_boxes(skala=...)`, geometry in `domain/skala_tampilan.py`); the
