@@ -175,6 +175,16 @@ end of this file.
     Status → Antrean line); sengaja terlihat gagal daripada mendarat di hari yang salah.
     `python:3.11-slim` butuh `tzdata`
     (sudah di Dockerfile): tanpa itu `ZoneInfo` gagal dan tanggal diam-diam balik ke UTC.
+    **Cutoff hari kerja** (batch 5.11, 2026-10-05): support bisa menggeser awal hari kerja dari
+    00:00 sampai 23:59 (tab Setelan; lewat 12:00 layar minta konfirmasi dengan contoh efeknya,
+    user 2026-10-05; `sync_state` `setelan_cutoff_shift`,
+    `services/hari_kerja.py`). `work_date` = tanggal dari `timestamp - cutoff` di `FACTORY_TZ`.
+    Satu-satunya jalan menghitung tanggal kerja adalah `HariKerja.untuk` / `kini` (ingest, timbang,
+    scan gerbang, "Hari ini"). Bawaan 00:00 = perilaku lama. **Baris yang sudah tersimpan tidak
+    pernah dihitung ulang**: perubahan cutoff berlaku untuk baris berikutnya. AutoERP tetap
+    menanggali tiket dari tanggal lokal `time_in`, jadi dengan cutoff lewat 00:00 truk yang timbang
+    antara 00:00 dan jam cutoff tanggalnya beda di konsol dan di AutoERP (total tidak berubah);
+    tab Rekap menulis "(dipotong jam HH:MM <zona>)" di belakang judul hari kerjanya.
 11. **Konsol tidak boleh memindai direktori** (§6.2): semua yang dibaca layar operator datang
     dari **index SQLite** `state/console.db`, di **`repositories/console_repository.py`**
     dengan skema dan migrasinya di **`repositories/console_skema.py`** dan akunnya di mixin
@@ -1275,7 +1285,8 @@ end of this file.
     yang timbang isi dalam jendela yang sama sebelum sekarang, dan tabel Timbangan hari ini
     membawa kunjungan hari kerja sebelumnya yang belum keluar gerbang (tanpa tara: dalam jendela
     itu; bertara: 24 jam dari timbang kosong, lihat Tanpa scan 4)
-    (`kunjungan_terbawa`, 2026-10-02): truk 23:50 ditimbang kosong 00:10. Tiketnya tetap
+    (`kunjungan_terbawa`, 2026-10-02; sejak batch 5.11 juga dari hari kerja SESUDAHNYA, kalau
+    cutoff dinaikkan malam hari): truk 23:50 ditimbang kosong 00:10. Tiketnya tetap
     milik hari kerjanya sendiri; total hari, Rekap, CSV dan AutoERP tidak berpindah hari.
     Scan yang tidak berbentuk plat ditolak `bukan_plat`, kecuali
     platnya milik truk terdaftar (plat dinas, plat lama): truk itu tetap bisa dicatat datang

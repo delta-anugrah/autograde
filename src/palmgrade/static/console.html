@@ -1352,7 +1352,7 @@
      kartu selebar 480 px menyisakan dua pertiga layar kosong, dan kolomnya
      berdesak di kiri justru saat support membaca dari jarak beberapa meter. */
   /* Settings sub-tabs (2026-10-05): the Line tab's component, six parts. */
-  #setelan-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:0; }
+  #setelan-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:0; }
   @media (max-width:1100px) { #setelan-sub { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
   @media (max-width:600px) { #setelan-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   /* `display:grid` beats the browser's `[hidden]`, as for `#akun-tambah`. */
@@ -1584,6 +1584,8 @@
   .modal-isi { padding:22px 24px; display:grid; gap:14px; }
   .modal-isi h2 { margin:0; font-size:1.25rem; overflow-wrap:anywhere; }
   .modal-isi p { margin:0; }
+  /* A confirm text may hold short paragraphs separated by a blank line (cutoff, 2026-10-05). */
+  #konfirmasi-pesan { white-space:pre-line; }
   .modal-tombol { display:flex; flex-wrap:wrap; gap:12px; justify-content:flex-end; padding-top:6px; }
   .modal-tombol > button { flex:1 1 0; min-width:9rem; min-height:48px;
                            display:inline-flex; gap:8px; align-items:center; justify-content:center; }
@@ -2201,6 +2203,7 @@
       <button type="button" data-tampilan="janjang" data-t="riwayatPerJanjang">Per janjang</button>
     </div>
     <span id="riwayat-judul-rentang" class="muted"></span>
+    <span id="riwayat-cutoff" class="muted" hidden></span>
   </div>
   <div class="tabel">
     <table>
@@ -2282,6 +2285,7 @@
       <button type="button" data-sub="dev" data-t="grupDev">Mode Developer</button>
       <button type="button" data-sub="penugasan" data-t="grupPenugasan">Penugasan line</button>
       <button type="button" data-sub="slip" data-t="grupSlip">Slip grading</button>
+      <button type="button" data-sub="harikerja" data-t="grupHariKerja">Hari kerja</button>
       <button type="button" data-sub="bahaya" data-t="bahayaJudul">Danger Zone</button>
     </div>
   </div>
@@ -2459,6 +2463,22 @@
     </div>
     <div class="tools lepas">
       <button id="set-slip-simpan" class="utama" data-t="btnSimpanSlip">Simpan slip</button>
+    </div>
+  </div>
+
+  <!-- Batch 5.11: when the working day starts. Its own save, like Penugasan line and Slip. -->
+  <div class="setelan-form" id="setform-harikerja">
+    <div class="setelan-grup" data-setelan-grup="harikerja">
+      <div class="setelan-grup-isi">
+        <label>
+          <span><span data-t="labelCutoff">Hari kerja mulai jam</span> <span id="set-cutoff-zona" class="muted"></span></span>
+          <input id="set-cutoff" type="time" step="60">
+          <small class="muted" data-t="bantuCutoff">00:00 = tengah malam seperti biasa.</small>
+        </label>
+      </div>
+    </div>
+    <div class="tools lepas">
+      <button id="set-cutoff-simpan" class="utama" data-t="btnSimpanCutoff" disabled>Simpan hari kerja</button>
     </div>
   </div>
 
@@ -3285,6 +3305,14 @@ const KAMUS = {
     btnSimpanSlip:"Simpan slip", slipTersimpan:"Setelan slip tersimpan.",
     err_slip_mati:"Slip grading sedang dimatikan. Minta support menyalakannya di tab Setelan",
     err_slip_tidak_ada:"Truk ini tidak punya janjang pada tanggal itu",
+    err_cutoff_tidak_sah:"Jam tidak sah. Isi antara 00:00 dan 23:59",
+    konfirmasiCutoffJudul:"Hari kerja mulai jam {jam}?",
+    konfirmasiCutoffPesan:"Lewat jam 12:00, hari kerja tetap memakai tanggal jam mulainya.\n\nContoh: janjang Selasa jam 09:00 masuk hari kerja Senin.\n\nDi AutoERP, tiket truk yang timbang antara 00:00 dan {jam} tetap bertanggal hari timbangnya.",
+    grupHariKerja:"Hari kerja", labelCutoff:"Hari kerja mulai jam",
+    bantuCutoff:"00:00 = tengah malam seperti biasa. Misal 05:00: semua yang terjadi sampai jam 5 pagi masih hari kemarin. Berlaku untuk data berikutnya; data yang sudah tersimpan tidak pindah tanggal.",
+    btnSimpanCutoff:"Simpan hari kerja", cutoffTersimpan:"Jam mulai hari kerja tersimpan.",
+    rekapCutoff:"(dipotong jam {jam} {zona})", riwayatSatuHari:"Hari kerja {tanggal}",
+    riwayatJudulRentang:"Hari kerja {dari} sampai {sampai}",
     saringLine:"Line", saringTruk:"Truk", saringSemuaLine:"Semua line", saringSemuaTruk:"Semua truk",
     kosongGradingSaring:"Tidak ada grading hari ini untuk line dan truk yang dipilih",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio Ripe", trukTanpaNama:"Tanpa truk",
@@ -3818,6 +3846,14 @@ const KAMUS = {
     btnSimpanSlip:"Save slip", slipTersimpan:"Slip setting saved.",
     err_slip_mati:"The grading slip is switched off. Ask support to switch it on in the Settings tab",
     err_slip_tidak_ada:"This truck has no bunches on that day",
+    err_cutoff_tidak_sah:"Not a valid time. Enter one between 00:00 and 23:59",
+    konfirmasiCutoffJudul:"Start the working day at {jam}?",
+    konfirmasiCutoffPesan:"After 12:00, the working day keeps the date it starts on.\n\nExample: a bunch graded Tuesday 09:00 belongs to Monday's working day.\n\nIn AutoERP, tickets of trucks weighed between 00:00 and {jam} keep the date they were weighed.",
+    grupHariKerja:"Working day", labelCutoff:"Working day starts at",
+    bantuCutoff:"00:00 = midnight as before. For example 05:00: everything until 5 in the morning still belongs to the day before. Applies to new data; stored data keeps its date.",
+    btnSimpanCutoff:"Save working day", cutoffTersimpan:"Working day start saved.",
+    rekapCutoff:"(cut at {jam} {zona})", riwayatSatuHari:"Working day {tanggal}",
+    riwayatJudulRentang:"Working days {dari} to {sampai}",
     saringLine:"Line", saringTruk:"Truck", saringSemuaLine:"All lines", saringSemuaTruk:"All trucks",
     kosongGradingSaring:"No grading today for the chosen line and truck",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Ripe rate", trukTanpaNama:"No truck",
@@ -4199,6 +4235,7 @@ $("bahasa").addEventListener("click", async () => {
   dipasang = false;
   isiTrucks();
   gambarUlangRiwayat();
+  aturCutoffShift(cutoffShift);
   await refresh();
   await muatTimbangan();
   await muatUlangTabTerbuka();
@@ -4545,10 +4582,10 @@ $("tabs").addEventListener("click", (ev) => {
 
 // Settings sub-tabs (user 2026-10-05): one part at a time. The three parts saved by one
 // Simpan live in one form (`setform-utama`); the others have their own form and button.
-const SUB_SETELAN = ["grading", "kamera", "dev", "penugasan", "slip", "bahaya"];
+const SUB_SETELAN = ["grading", "kamera", "dev", "penugasan", "slip", "harikerja", "bahaya"];
 const FORM_SETELAN = {
   grading: "setform-utama", kamera: "setform-utama", dev: "setform-utama",
-  penugasan: "setform-penugasan", slip: "setform-slip", bahaya: "setform-bahaya",
+  penugasan: "setform-penugasan", slip: "setform-slip", harikerja: "setform-harikerja", bahaya: "setform-bahaya",
 };
 let subSetelan = SUB_SETELAN.includes(baca("subSetelan", "grading")) ? baca("subSetelan", "grading") : "grading";
 
@@ -7387,12 +7424,14 @@ async function refresh() {
     const s = await api("/api/console/state");
     cekVersiBaru(s.versi);
     $("tz").textContent = "(" + s.timezone + ")";
+    zonaPabrik = s.timezone;
     if (s.work_date) hariKerja = s.work_date;
     gambarBannerLisensi(s.lisensi);
     gambarInfoSistem(s.versi, s.lisensi);
     namaLineKartu = Object.fromEntries(s.lines.map((l) => [l.line_code, l.name || l.line_code]));
     gambarPembaruan(s.pembaruan);
     aturSlipCetak(s.slip_cetak);
+    aturCutoffShift(s.cutoff_shift);
     umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif));
     gambarAntreanBongkar(s.antrean_bongkar, s.penugasan_otomatis);
     selarasUrutan(s.lines);
@@ -7701,10 +7740,17 @@ function segarkanTampilanRiwayat() {
   $("riwayat-next").disabled = riwayatOffset + per >= total;
   $("riwayat-nomor").innerHTML = tombolNomorHalaman(total, per, riwayatOffset);
   if (riwayatFilter && riwayatFilter.dari) {
-    $("riwayat-judul-rentang").textContent = t("riwayatRentang")
-      .replace("{dari}", tanggalRiwayat(riwayatFilter.dari))
-      .replace("{sampai}", tanggalRiwayat(riwayatFilter.sampai));
+    $("riwayat-judul-rentang").textContent = judulRentangRiwayat(
+      tanggalRiwayat(riwayatFilter.dari), tanggalRiwayat(riwayatFilter.sampai));
   }
+}
+
+// The Rekap title (user 2026-10-05): one day is written once, and the dates say they are
+// working days, not calendar days.
+function judulRentangRiwayat(dari, sampai) {
+  return dari === sampai
+    ? t("riwayatSatuHari").replace("{tanggal}", dari)
+    : t("riwayatJudulRentang").replace("{dari}", dari).replace("{sampai}", sampai);
 }
 
 function gambarRiwayat(items) {
@@ -8067,6 +8113,25 @@ $("riwayat-nomor").addEventListener("click", (ev) => {
   const tombol = ev.target.closest("button[data-halaman]");
   if (tombol) keHalamanRiwayat(Number(tombol.dataset.halaman), tombol);
 });
+
+// Batch 5.11: the cutoff from the poll, named on the Rekap tab when it is not midnight.
+let cutoffShift = "00:00";
+// The factory zone from the poll; written next to the cutoff field when Settings loads (that
+// tab is taken out of the page for an operator, so the poll itself never touches it).
+let zonaPabrik = "";
+
+function teksCutoffRekap(teks, zona = "") {
+  if (!teks || teks === "00:00") return "";
+  return t("rekapCutoff").replace("{jam}", teks).replace(" {zona}", zona ? ` ${zona}` : "");
+}
+
+function aturCutoffShift(teks) {
+  cutoffShift = teks || "00:00";
+  const el = $("riwayat-cutoff");
+  const isi = teksCutoffRekap(cutoffShift, zonaPabrik);
+  if (el.textContent !== isi) el.textContent = isi;
+  el.hidden = !isi;
+}
 
 // ── slip grading (batch 5.9) ─────────────────────────────────────────────
 let slipCetak = false;
@@ -9479,6 +9544,7 @@ async function muatSetelan() {
   } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = alasan(e, "gagalSetelanMuat"); }
   await muatPenugasan();
   await muatSlipSetelan();
+  await muatCutoffSetelan();
 }
 
 // Saklar penugasan line otomatis: jalurnya sendiri, dimuat sesudah setelan grading.
@@ -9499,6 +9565,45 @@ $("set-slip-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTar
     toastGagal(alasan(e, "gagalSetelan"));
   }
 }));
+
+async function muatCutoffSetelan() {
+  // Save stays off until the stored value is in the field: an empty field would save 00:00
+  // over a cutoff the load never showed.
+  $("set-cutoff-simpan").disabled = true;
+  $("set-cutoff-zona").textContent = zonaPabrik ? `(${zonaPabrik})` : "";
+  try {
+    $("set-cutoff").value = (await api("/api/console/dev/shift")).cutoff;
+    $("set-cutoff-simpan").disabled = false;
+  } catch (e) {
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e, "gagalSetelanMuat"));
+  }
+}
+
+// Any hour is allowed (user 2026-10-05); after 12:00 most of the working day falls on the next
+// date while it keeps the start's date, so the screen warns with an example and asks first.
+function cutoffPerluTanya(teks) {
+  return Boolean(teks) && teks > "12:00";
+}
+
+// Ask first (F12), before the lock, so the focus can come back to the button.
+$("set-cutoff-simpan").addEventListener("click", async (ev) => {
+  const tombol = ev.currentTarget;
+  const jam = $("set-cutoff").value;
+  if (cutoffPerluTanya(jam) && !(await tanyaKonfirmasi({
+    judul: t("konfirmasiCutoffJudul").replace("{jam}", jam),
+    pesan: t("konfirmasiCutoffPesan").replace(/\{jam\}/g, jam),
+    ya: t("btnSimpanCutoff"), asal: tombol,
+  }))) return;
+  await denganSibuk(tombol, async () => {
+    try {
+      await api("/api/console/dev/shift", { method: "POST", body: JSON.stringify({ cutoff: jam }) });
+      toastSukses(t("cutoffTersimpan"));
+      await refresh();
+    } catch (e) {
+      toastGagal(gagalKarena("gagalSetelan", e));
+    }
+  });
+});
 
 async function muatPenugasan() {
   try {

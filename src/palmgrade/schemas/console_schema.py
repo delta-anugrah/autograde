@@ -81,6 +81,12 @@ class SlipBody(_Body):
     aktif: bool = False
 
 
+class ShiftBody(_Body):
+    """The working day cutoff (support, batch 5.11). Text: the domain reads `5:00` too."""
+
+    cutoff: str | None = None
+
+
 class PasangBody(_Body):
     """Update now (batch 4.6). The version the screen showed, so a status file that moved
     on in between cannot make one press install a version nobody saw."""

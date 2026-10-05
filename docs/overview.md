@@ -578,8 +578,10 @@ timestamp event itu sendiri (`domain/working_day.py`, zona `FACTORY_TZ`) lalu **
 sebagai kolom**: bukan diturunkan ulang saat query, dan tidak pernah dari `now()`, `creation`,
 atau nama folder. Event yang datang telat (outbox menyusul setelah listrik mati) tetap mendarat
 di harinya sendiri. Timestamp cacat → 400 → outbox line menahannya dan terus mencoba (tab Status
-→ Antrean line), sengaja terlihat gagal. Batasnya **kalender**, tanpa cutoff shift; karena kolomnya disimpan, mengubah
-aturan itu nanti cuma menyentuh satu fungsi. `python:3.11-slim` butuh `tzdata` (sudah
+→ Antrean line), sengaja terlihat gagal. Batasnya tengah malam, kecuali support menggeser awal
+hari kerja (batch 5.11, tab Setelan, jam apa saja; lewat 12:00 layar minta konfirmasi): `work_date` = tanggal dari
+`timestamp - cutoff`, dihitung hanya lewat `services/hari_kerja.py` (`HariKerja.untuk` / `kini`),
+dan baris yang sudah tersimpan tidak pernah dihitung ulang (aturan 10). `python:3.11-slim` butuh `tzdata` (sudah
 ditambahkan): tanpa itu `ZoneInfo` gagal dan tanggal diam-diam kembali ke UTC.
 
 **Index, bukan pindai (§6.2).** Semua yang dibaca layar datang dari `state/console.db`, dibagi

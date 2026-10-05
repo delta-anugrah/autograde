@@ -628,16 +628,18 @@ class ConsoleStore(AkunStore, GerbangStore):
     def weighings_terbawa(
         self, work_date: str, sejak: float, sejak_hari: str, sejak_tara: float | None = None
     ) -> list[dict[str, Any]]:
-        """Visits from an earlier work date still in the yard: not left yet, and weighed in
+        """Visits from another work date still in the yard: not left yet, and weighed in
         since `sejak` (epoch, the real instant) or, with a tare, weighed out since `sejak_tara`
         (24 h, `JENDELA_TANPA_KELUAR_DETIK`). Today's Timbangan table carries them past midnight
         so their Timbang kosong / Keluar buttons stay; their work date stays.
 
         `sejak_hari` (a work date at or before the window's start) only narrows the read
         to the index `idx_weighings_hari`; the window decides. No limit: the window bounds it.
+        "Another", not only "earlier": a working day cutoff raised at night (batch 5.11) makes
+        today the day before a ticket weighed in after midnight; it is carried all the same.
         """
         return self._baris_timbangan(
-            f"""w.work_date >= ? AND w.work_date < ? AND w.left_at IS NULL
+            f"""w.work_date >= ? AND w.work_date <> ? AND w.left_at IS NULL
                 AND CASE WHEN w.tare_kg IS NULL THEN {_saat_isi('w')} >= julianday(?, 'unixepoch')
                     ELSE COALESCE(julianday(w.exited_at), {_saat_isi('w')}) >= julianday(?, 'unixepoch') END""",
             (sejak_hari, work_date, sejak, sejak if sejak_tara is None else sejak_tara), -1,

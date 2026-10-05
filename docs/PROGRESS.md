@@ -18,6 +18,31 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · console · Working day cutoff set by support (batch 5.11) (PR #246)
+Changed:        Support sets when the working day starts (Settings, new sub-tab Hari kerja, any hour
+                in the factory zone shown next to the field, default 00:00 = old behaviour; after
+                12:00 the Save asks first with a short example, user 2026-10-05). `work_date` = date of `timestamp - cutoff`,
+                computed only in `services/hari_kerja.py` (ingest, weighing, gate scans, "Hari
+                ini"); stored rows never move (rule 10). `GET/POST /api/console/dev/shift`,
+                `/api/console/state` carries `cutoff_shift`, the Rekap tab says "Hari kerja dipotong
+                jam HH:MM" when not midnight. State route moved to `routes/console_keadaan.py`
+                (console.py 999 -> 972 lines). Review fixes: Impor CSV reads its own export under a
+                cutoff, gate windows keep a day of slack, a cutoff raised at night keeps the truck on
+                the Timbangan table, every change logged with old, new and who. From the user's test: the
+                Rekap title names one working day once ("Hari kerja Sen, 5 Okt 2026") with "(dipotong
+                jam 05:00 Asia/Jakarta)"; the operator's 2 s poll broke on the zone label (Settings is
+                not in the page for an operator) and was fixed before merge.
+Validated:      unit 5072 passed / 28 skipped, e2e 412 passed / 20 skipped, integration 191 passed,
+                ruff clean, cek_skrip_konsol OK (all on 582e3644). make test-browser 312 passed,
+                2 failed in Firefox (test_browser_gerbang, test_browser_setelan, unrelated); both
+                files rerun twice in Chromium and Firefox: 62 passed each time.
+Not validated:  On the factory PC (needs a release). Not tried with a real night shift.
+Decisions:      User 2026-10-05: option A, support only, new rows only, no end-of-shift summary.
+                Accepted: AutoERP dates tickets from the local date of `time_in`, so for trucks
+                weighed between 00:00 and the cutoff the console day and the AutoERP date differ;
+                totals do not change.
+Next:           Release with the next tag; support sets the real cutoff at Lampung.
+
 ## 2026-10-05 · vision + console · Camera settings phase 1, read only (PR #245)
 Changed:        Tab Line gets a fifth choice **Setelan Kamera** (support): one card per line with the values
                 the Hikrobot camera uses now (exposure, gain, black level, white balance, frame rate, exposure
@@ -301,6 +326,18 @@ Found in Lampung on 2026-10-05: after v1.22.0 and then v1.23.0 were installed, t
 previous version's page. The version number was right (it comes from the API) but the Update
 section and the new features were missing until Ctrl+Shift+R. The operator who presses
 Pasang sekarang would not know to do that.
+
+## 2026-10-05 · console · Shift cutoff for the working day: design only (batch 5.11) (draft PR #237)
+Changed:        `docs/runbooks/2026-10-05-shift-cutoff-design.md`: the problem, every reader of
+                `work_date`, three options (shift the stored date, a second column, screen only),
+                the AutoERP dating risk, six open questions, the work list for option A. No code.
+Validated:      `pytest tests/unit/test_doc_links.py tests/unit/test_dokumen_tanpa_em_dash.py`
+                (see the PR).
+Not validated:  Nothing to run: design only.
+Decisions:      None yet. Parked for the user: AutoERP dates a ticket from the local date of
+                `time_in`, so a console cutoff after midnight makes the console's working day and
+                AutoERP's ticket date differ for trucks weighed between midnight and the cutoff.
+Next:           User answers §6 of the design, then build (or not).
 
 ## 2026-10-05 · vision · Batch 6.3: display shrinks first and rests with no viewer (PR #231)
 Changed:        `DisplayWorker` shrinks the frame to stream size first and draws the boxes on the

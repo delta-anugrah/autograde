@@ -40,12 +40,13 @@ from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.setelan_grading import KUNCI_SETELAN, OPSIONAL, bersihkan_setelan
 from ..domain.sinkron import gabung_cloud
 from ..domain.vision_event import prediction_for, verdict_of
-from ..domain.working_day import JENDELA_KUNJUNGAN_DETIK, awal_kunjungan, work_date_for
+from ..domain.working_day import JENDELA_KUNJUNGAN_DETIK, awal_kunjungan, teks_cutoff
 from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
 from ..workers.visit_manifest_worker import VisitManifestWorker
 from .erp_queue import ErpQueue
 from .gerbang_konsol import GerbangKonsol
+from .hari_kerja import HariKerja
 from .layar_line_support import LayarLineSupport
 from .lepas_paksa import LepasPaksa
 from .penugasan_otomatis import PenugasanOtomatis
@@ -103,6 +104,8 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         # Resolved in the constructor on purpose: a bad FACTORY_TZ must kill
         # startup, not quietly file tonnage under the wrong date.
         self.tz = ZoneInfo(settings.factory_tz)
+        # Batch 5.11: every working date of this console, with the support-set cutoff.
+        self.hari_kerja = HariKerja(self.store, self.tz)
         self._by_machine = {ln.machine_id: ln for ln in self.lines}
         self._by_code = {ln.line_code: ln for ln in self.lines}
         # event_id yang penolakannya sudah di-WARNING di proses ini. Ingest jalan di
@@ -129,7 +132,7 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
     # ------------------------------------------------------------ ingest
 
     def today(self) -> str:
-        return self.sekarang().astimezone(self.tz).strftime("%Y-%m-%d")
+        return self.hari_kerja.kini(self.sekarang())
 
     def ingest(self, payload: dict[str, Any]) -> str:
         """Take one grading event from a line. Returns its `work_date`.
@@ -186,7 +189,7 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
             )
 
         # §6.1: computed HERE from the event timestamp, once, then stored.
-        work_date = work_date_for(timestamp, self.tz)
+        work_date = self.hari_kerja.untuk(timestamp)
 
         line = self._by_machine.get(machine_id)
         baru = self.store.add_inspection(
@@ -264,6 +267,9 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         return {
             "work_date": work_date,
             "timezone": self.settings.factory_tz,
+            # Batch 5.11: the Rekap tab names the cutoff when it is not midnight. Here, not in
+            # the route, so the read runs in the thread pool with the rest (rule 30).
+            "cutoff_shift": teks_cutoff(self.hari_kerja.cutoff()),
             "lines": lines,
             # Ringkasan timbangan hari kerja ini untuk strip "Hari ini". Dari
             # tabel yang sama dengan tab Timbangan, jadi begitu program timbangan
@@ -462,7 +468,7 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         reference_time = entered_at or exited_at
         if reference_time is None:
             raise ValueError("entered_at atau exited_at wajib diisi")
-        work_date = work_date_for(reference_time, self.tz)
+        work_date = self.hari_kerja.untuk(reference_time)
 
         cache_key = f"timbangan:{ref}" if ref else f"timbangan:{plate_norm}:{entered_at}"
         weighing_id = str(uuid.uuid5(uuid.NAMESPACE_URL, cache_key))

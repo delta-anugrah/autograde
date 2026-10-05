@@ -15,14 +15,14 @@ HTML = (REPO_ROOT / "src" / "palmgrade" / "static" / "console.html").read_text(e
 
 # ── Setelan: sub-tabs (user 2026-10-05, replacing the accordion) ───────────
 
-SUB = ("grading", "kamera", "dev", "penugasan", "slip", "bahaya")
+SUB = ("grading", "kamera", "dev", "penugasan", "slip", "harikerja", "bahaya")
 
 
 def _bagian() -> str:
     return HTML.split('<section id="sec-setelan"', 1)[1].split("</section>", 1)[0]
 
 
-def test_enam_sub_tab_berlabel_dua_bahasa():
+def test_tujuh_sub_tab_berlabel_dua_bahasa():
     """Same component as the Line tab, one button per part, each worded through KAMUS."""
     bar = re.search(r'<div class="sub-tab" id="setelan-sub" role="group">(.*?)</div>', _bagian(), re.S)
     assert bar, "the Settings sub-tab bar is missing"

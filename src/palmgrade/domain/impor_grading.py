@@ -22,7 +22,7 @@ import re
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from .grade_class import JK, UNRIPE, grade_class_of
@@ -214,12 +214,14 @@ def _tanggal(nilai: str) -> str:
 
 def _waktu(nilai: str, work_date: str) -> str:
     try:
-        datetime.strptime(nilai, _FORMAT_WAKTU)
+        jam = datetime.strptime(nilai, _FORMAT_WAKTU)
     except ValueError:
         raise _Salah("waktu_tidak_sah", nilai=_potong(nilai)) from None
-    # Tanggal kerja = tanggal kalender jam pabrik (§6.1), jadi keduanya selalu sama
-    # di berkas yang dibuat konsol. Beda berarti berkasnya sudah diubah.
-    if nilai[:10] != work_date:
+    # The working day is the date of `time - cutoff` (§6.1, batch 5.11), and a cutoff is under
+    # 24 h: in a file the console made, the time falls on the working day itself or on the next
+    # calendar day. Anything else means the file was edited.
+    hari = date.fromisoformat(work_date)
+    if jam.date() not in (hari, hari + timedelta(days=1)):
         raise _Salah("waktu_beda_tanggal", nilai=nilai, tanggal=work_date)
     return nilai
 
