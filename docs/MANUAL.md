@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.16"
+versi: "2.17"
 tanggal: 5 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -371,7 +371,9 @@ Aturan angka yang dijaga konsol:
 - Desimal boleh titik atau koma (`14820,5`). Pemisah ribuan (`14.820`) **ditolak** oleh lantai
   1.000 kg pada bruto dan tara, karena terbaca 14,82 kg.
 - **Tanggal kerja** dihitung saat data masuk dengan `FACTORY_TZ`. Pabrik jalan ±20 jam lewat
-  tengah malam; ini yang mencegah satu shift terbelah jadi dua hari.
+  tengah malam; ini yang mencegah satu shift terbelah jadi dua hari. Support bisa menggeser awal
+  hari kerja di tab Setelan (bagian **Hari kerja**, misal 05:00; bawaannya 00:00). Data yang sudah
+  tersimpan tidak pindah tanggal.
 - Buah REJ dinaikkan lagi ke truk dan ikut ditimbang saat keluar, jadi otomatis tidak dibayar.
 
 ### 3.4 Empat tab operator
@@ -392,6 +394,11 @@ sama seperti tab Rekap dulu, dan menyegarkan diri tiap 15 detik selama rentangny
 Ganti tanggal untuk melihat hari-hari sebelumnya. Rekap menyandingkan dua sumber terpisah (grading
 dan timbangan): neto dijumlah per truk, dan satu truk boleh punya lebih dari satu tiket sehari.
 Baris **Tanpa truk** = janjang ter-grading sebelum truk ditugaskan.
+
+Kalau support menggeser awal hari kerja (tab Setelan, **Hari kerja**), di atas tabel tertulis
+**Hari kerja dipotong jam 05:00** (jamnya ikut setelan). Truk yang timbang isi antara 00:00 dan jam
+itu masuk hari kerja kemarin di konsol, tapi di AutoERP tiketnya tetap bertanggal hari timbang isi.
+Totalnya sama; cuma tanggalnya yang beda.
 
 | Bagian | Isi |
 |---|---|
@@ -442,7 +449,7 @@ Uji PLC, Rekam Video** → tab **Line** (empat tombol pilihan di atasnya); **Riw
 | **Line** → Model Deteksi | pilih model YOLO tiap line dari berkas di `models/release/`. Tiap model menampilkan **kelasnya** dan status engine TensorRT; model yang kelasnya bukan `Ripe/Unripe/JK/TP` tampil tapi tidak bisa dipilih. Kartu line menunjukkan model yang **sedang jalan** menurut line itu sendiri, beserta kelasnya, **merah** kalau bukan empat kelas itu, artinya line tidak menghitung janjang. Simpan membuka **modal konfirmasi** yang menyebut line yang akan restart (~10 detik) dan truk yang sedang diproses di situ. Bawaan PC = `MODEL_FILE` di `.env`. Runbook: `docs/runbooks/2026-09-24-model-deteksi-per-line.md` |
 | **Line** → Uji PLC | tombol uji coil per line (OK hijau, NG merah, Error kuning, alamat M di tiap tombol) + kartu peta alamat PLC di bawahnya. Mati saat line memproses truk; konfirmasi tombol Jalankan/Batal; hasilnya notifikasi (hijau coil menyala, kuning coil tidak menyala karena antrean pulse PLC penuh); heartbeat (M1009) sengaja tidak ada |
 | **Line** → Rekam Video | rekam gambar kamera ke MP4, satu tombol per line, jalan sampai ditekan Stop. Gambarnya **polos tanpa kotak deteksi** (diambil sebelum model jalan). Resolusi (lebar × tinggi) diatur di tab ini juga, dan berlaku untuk rekaman **berikutnya**, mengubahnya di tengah rekaman menghasilkan berkas rusak. ⚠️ **FPS mengikuti sumbernya, tidak diatur dari layar** (kolom FPS dan Bitrate dicabut 2026-09-25, dua-duanya tidak pernah sampai ke berkas): berkas video memakai laju aslinya, kamera Hikrobot memakai `CAMERA_FPS`. Itu yang membuat durasi rekaman sama dengan lama menekan Record. ⚠️ **Rekaman tidak pernah dihapus otomatis**: hapus sendiri dari folder yang tertulis di kaki layar (`Disimpan di …`, di PC pabrik `/opt/palmgrade/autograde/videos/`). Sesudah menekan Stop, jalur lengkap berkasnya juga muncul sekali di notifikasi hijau. Stop menulis dulu gambar yang sudah antre saat tombol ditekan (paling banyak 30 gambar; di Mac sekitar 0,6 detik, belum diukur di Lampung); yang berhenti karena disk mepet tetap berhenti seketika. Berhenti sendiri kalau sisa disk di bawah 20 GB, supaya grading tidak pernah kehabisan tempat menulis |
-| **Setelan** | saklar **Slip grading** (tombol Cetak di tab Rekap untuk semua akun, simpan sendiri lewat **Simpan slip**; bawaan mati); ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), **kotak area deteksi** (empat angka piksel pada video 1280 x 720: Kiri, Atas, Kanan, Bawah; janjang di luar kotak tidak dihitung; keempatnya kosong = tiap line memakai `ROI_*` dari `.env`-nya, `0` semua = seluruh gambar, kotak yang tidak menutup gambar ditolak), dua saklar **Tampilkan garis capture** dan **Tampilkan kotak area deteksi** (cuma menyembunyikan gambarnya di video, deteksi tidak berubah), **Ukuran tulisan label (%)** di bagian Tampilan video (tulisan Ripe, Unripe, JK, TP di atas kotak pada video: 100 = bawaan, 200 = dua kali lebih besar, 25 sampai 400; foto bukti tidak berubah), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`; notifikasi hijau kalau semua line menerimanya, kuning yang menyebut line yang belum menerima (nilainya tetap tersimpan dan dikirim lagi saat line itu hidup). Tab paling kanan. Di bawahnya **Penugasan line**: saklar otomatis dan line yang dipakai, dengan tombol simpan sendiri. Bawaannya mati |
+| **Setelan** | saklar **Slip grading** (tombol Cetak di tab Rekap untuk semua akun, simpan sendiri lewat **Simpan slip**; bawaan mati); ambang keyakinan (0–1), ukuran minimum (piksel), **arah conveyor**, **garis capture** (piksel), **kotak area deteksi** (empat angka piksel pada video 1280 x 720: Kiri, Atas, Kanan, Bawah; janjang di luar kotak tidak dihitung; keempatnya kosong = tiap line memakai `ROI_*` dari `.env`-nya, `0` semua = seluruh gambar, kotak yang tidak menutup gambar ditolak), dua saklar **Tampilkan garis capture** dan **Tampilkan kotak area deteksi** (cuma menyembunyikan gambarnya di video, deteksi tidak berubah), **Ukuran tulisan label (%)** di bagian Tampilan video (tulisan Ripe, Unripe, JK, TP di atas kotak pada video: 100 = bawaan, 200 = dua kali lebih besar, 25 sampai 400; foto bukti tidak berubah), dan saklar **Mode dev**. Tersimpan dan langsung dikirim ke tiga line, menang atas `.env`; notifikasi hijau kalau semua line menerimanya, kuning yang menyebut line yang belum menerima (nilainya tetap tersimpan dan dikirim lagi saat line itu hidup). Tab paling kanan. Di bawahnya **Penugasan line**: saklar otomatis dan line yang dipakai, dengan tombol simpan sendiri. Bawaannya mati. Paling bawah **Hari kerja**: jam mulai hari kerja, 00:00 sampai 12:00, simpan sendiri lewat **Simpan hari kerja**. 00:00 = tengah malam seperti biasa. Misal 05:00: semua yang terjadi sampai jam 5 pagi masih hari kemarin. Berlaku untuk data berikutnya; data yang sudah tersimpan tidak pindah tanggal |
 
 ### 3.6 Layar penuh di PC pabrik
 
@@ -1006,6 +1013,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.17 | 5 Oktober 2026 | §3.4 dan §3.5: support bisa menggeser awal hari kerja (tab Setelan, bagian **Hari kerja**, 00:00 sampai 12:00); tab Rekap menulis **Hari kerja dipotong jam HH:MM** kalau bukan tengah malam. |
 | 2.16 | 5 Oktober 2026 | Tab Setelan, bagian baru **Tampilan video**: **Ukuran tulisan label (%)** untuk tulisan kelas di atas kotak deteksi pada video (100 = bawaan). |
 | 2.15 | 5 Oktober 2026 | §3.4 dan §3.5: slip grading per truk yang bisa dicetak dari tab Rekap, dinyalakan support di tab Setelan. |
 | 2.14 | 5 Oktober 2026 | §3.4: saringan **Line** dan **Truk** di tab Grading; tabel Grading dan Riwayat memuat foto kecil, foto penuh hanya saat diklik. |

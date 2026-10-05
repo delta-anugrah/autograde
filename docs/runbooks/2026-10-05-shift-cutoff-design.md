@@ -1,7 +1,7 @@
-# Shift cutoff for the working day: design (batch 5.11, not built)
+# Shift cutoff for the working day: design (batch 5.11)
 
-Status: **design only, waiting for the user's answers**. No code changes until the open
-questions in §6 are answered. Master plan: the runbook "Rencana Perbaikan AutoGrade" of
+Status: **option A built in PR #PRNUM** (branch `feat/console-shift-cutoff`). The user answered
+§6 on 2026-10-05; the answers are written under each question. Master plan: the runbook "Rencana Perbaikan AutoGrade" of
 2026-09-28 in the `sawit` workspace, Batch 5 item 5.11.
 
 ## 1. The problem
@@ -78,22 +78,32 @@ Ways out, each a decision, not a code detail:
    Mas Samuel's design, `autoerp/docs/autograde-integration.md` is the contract).
 3. Use option C, which never moves a stored date.
 
-## 6. Open questions for the user
+## 6. Open questions for the user (answered 2026-10-05)
+
+Decision: **option A**, as listed in §7, without the end-of-shift summary.
 
 1. **AutoERP dating** (§5): is it acceptable that the console's working day and AutoERP's ticket
    date differ for trucks weighed between midnight and the cutoff? If not: option C, or a
    contract change in AutoERP first?
+   **Answer:** accepted. Totals do not change; the Rekap tab says "Hari kerja dipotong jam HH:MM"
+   when the cutoff is not midnight. No AutoERP change.
 2. **Cutoff time at Lampung**: what time does the last shift really end? (The plan says about
    20 hours of operation; 05:00 is a guess.)
+   **Answer:** a setting, default 00:00 (today's behaviour), latest 12:00. Support sets the real
+   hour at the factory.
 3. **One cutoff or several shifts?** "Ringkasan akhir shift" could mean one summary per working
    day, or one per shift (for example 06:00 to 14:00, 14:00 to 22:00). Several shifts per day is a
    second concept (shift id per bunch) and a bigger change.
+   **Answer:** one cutoff per working day.
 4. **End-of-shift summary**: printed (like the grading slip, batch 5.9), shown on screen, sent somewhere
    (Discord, AutoERP), or all of these? Who reads it?
+   **Answer:** not in this work; asked again when it is wanted.
 5. **Who may change the cutoff**: support only (proposed, like every setting that decides which
    day a number belongs to), or also an operator?
+   **Answer:** support only, on the Settings tab (`/api/console/dev/shift`, rule 21).
 6. **Past rows**: confirm that changing the cutoff never recomputes rows already stored
    (rule 10). Recomputing would move tonnage between days that may already be reconciled.
+   **Answer:** confirmed. A change applies to new rows only; stored rows keep their date.
 
 ## 7. If option A is chosen: the work, in order
 

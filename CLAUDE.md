@@ -79,7 +79,7 @@ with an app assembled in the test, never `create_console_app()` (it opens the de
 7. `tp_status` is a boolean in the sidecar and `"PASS"`/`null` on the wire.
 8. Encode or write failure raises `OSError` from `LocalFileStorage.write_image`; no orphan JSON.
 9. Retention deletes all three WebP variants (`bbox/`, `clean/`, `thumb/`).
-10. Console: `work_date` is computed at ingest and stored.
+10. Console: `work_date` is computed at ingest and stored; the day starts at a support-set cutoff (default 00:00), never recomputed.
 11. The console never scans directories; the screen reads only from `console.db`.
 12. Sumber TBS: the edge mirrors AutoERP rules, never guesses.
 13. Truck assignment: the line accepts first, then it is recorded; only Lepas paksa clears a line that gives no answer at all.
