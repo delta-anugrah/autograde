@@ -19,15 +19,19 @@ Next:           ...
 ---
 
 ## 2026-10-05 · console · Working day cutoff set by support (batch 5.11) (PR #246)
-Changed:        Support sets when the working day starts (Settings, new sub-tab Hari kerja, 00:00 to
-                12:00, default 00:00 = old behaviour). `work_date` = date of `timestamp - cutoff`,
+Changed:        Support sets when the working day starts (Settings, new sub-tab Hari kerja, any hour
+                in the factory zone shown next to the field, default 00:00 = old behaviour; after
+                12:00 the Save asks first with a short example, user 2026-10-05). `work_date` = date of `timestamp - cutoff`,
                 computed only in `services/hari_kerja.py` (ingest, weighing, gate scans, "Hari
                 ini"); stored rows never move (rule 10). `GET/POST /api/console/dev/shift`,
                 `/api/console/state` carries `cutoff_shift`, the Rekap tab says "Hari kerja dipotong
                 jam HH:MM" when not midnight. State route moved to `routes/console_keadaan.py`
                 (console.py 999 -> 972 lines). Review fixes: Impor CSV reads its own export under a
                 cutoff, gate windows keep a day of slack, a cutoff raised at night keeps the truck on
-                the Timbangan table, every change logged with old, new and who.
+                the Timbangan table, every change logged with old, new and who. From the user's test: the
+                Rekap title names one working day once ("Hari kerja Sen, 5 Okt 2026") with "(dipotong
+                jam 05:00 Asia/Jakarta)"; the operator's 2 s poll broke on the zone label (Settings is
+                not in the page for an operator) and was fixed before merge.
 Validated:      unit 5072 passed / 28 skipped, e2e 412 passed / 20 skipped, integration 191 passed,
                 ruff clean, cek_skrip_konsol OK (all on 582e3644). make test-browser 312 passed,
                 2 failed in Firefox (test_browser_gerbang, test_browser_setelan, unrelated); both
