@@ -84,6 +84,10 @@ PEMBARUAN_BELUM_TERPASANG = "pembaruan_belum_terpasang"
 # Reconnect camera button (2026-10-04, every account): the line's image source is a video
 # file or a photo, so there is no camera to reconnect. Carries param `line` (the card name).
 KAMERA_TANPA_SAMBUNG_ULANG = "kamera_tanpa_sambung_ulang"
+# Printable grading slip (batch 5.9): refused while support has it switched off (403), and
+# for a truck with no bunch on that working day (404).
+SLIP_MATI = "slip_mati"
+SLIP_TIDAK_ADA = "slip_tidak_ada"
 
 CODES = (
     PLAT_KOSONG,
@@ -135,6 +139,8 @@ CODES = (
     PEMBARUAN_BERJALAN,
     PEMBARUAN_BELUM_TERPASANG,
     KAMERA_TANPA_SAMBUNG_ULANG,
+    SLIP_MATI,
+    SLIP_TIDAK_ADA,
 )
 
 

@@ -105,6 +105,17 @@ Aturan coding untuk setiap perubahan layar ini: `docs/coding-standard.md` bagian
   Kolom terakhirnya dilepas dari paku `#sec-timbangan td:last-child`. KAMUS `riwayatBatalJudul`,
   `thJamDatang`, `thJamBatal`, `thOleh`. Tes: `test_console_html_riwayat_batal.py`,
   `tests/browser/test_browser_riwayat_batal.py`.
+- Slip grading (batch 5.9): saklar support `#set-slip` + `#set-slip-simpan` di Setelan
+  (`/api/console/dev/slip`, `services/slip_grading.py`, kunci `sync_state` `setelan_slip_cetak`, ikut selamat dari Danger Zone, bawaan
+  mati). `/state` membawa `slip_cetak` -> `aturSlipCetak` -> `slipCetak`; berubah = tabel Rekap
+  digambar ulang. Baris truk Rekap (`barisRiwayatTruk`) dapat tombol `data-cetak` selama nyala.
+  `cetakSlip`: `GET /api/console/slip` (server menolak 403 `slip_mati` kalau mati, aturan 21)
+  -> `htmlSlip` ke `#slip-cetak` (anak langsung `body`) -> `body[data-cetak="slip"]` ->
+  `window.print()`; `afterprint` mencabut atributnya. Aturan `@media print` kartu QR hanya
+  berlaku tanpa atribut itu, jadi dua mode cetak tidak bentrok. Angka slip dari server (L4).
+  Tes: `test_console_html_slip.py`, `test_slip_grading.py`,
+  `tests/integration/test_slip_grading_integrasi.py`, `tests/e2e/test_slip_grading_lane.py`,
+  `tests/browser/test_browser_slip.py`.
 - Tab Grading (batch 5.10, 5.12): saringan `#grading-line` dan `#grading-truk` (komponen
   dropdown, diisi `segarkanSaringGrading` dari `refresh` dan `isiTrucks`), nilainya di
   `gradingSaring` (memori, tidak disimpan), permintaan dirakit `paramGrading`; ganti saringan =
