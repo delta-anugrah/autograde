@@ -43,6 +43,12 @@ COMMAND_TIMEOUT_S = 600
 LOG_TAIL_LINES = 60
 
 IMPORT_LINE = "import src.palmgrade.main"
+# Every file named in the image's own fingerprint list matches it (factory launcher check).
+CEK_SIDIK = (
+    "import hashlib, json; b = json.load(open('/app/.sidik-image.json'))['berkas']; "
+    "beda = [p for p, s in b.items() if hashlib.sha256(open(p, 'rb').read()).hexdigest() != s]; "
+    "assert len(b) > 50 and not beda, ('fingerprint list', len(b), beda[:5])"
+)
 IMPORT_CONSOLE = (
     "import sys, src.palmgrade.console_main\n"
     "berat = sorted(m for m in ('torch', 'cv2', 'ultralytics') if m in sys.modules)\n"
@@ -125,6 +131,10 @@ def check_console_import(run: Runner, image: str) -> None:
     _python(run, image, IMPORT_CONSOLE, "console import")
 
 
+def check_fingerprints(run: Runner, image: str) -> None:
+    _python(run, image, CEK_SIDIK, "fingerprint list")
+
+
 def _read_health(run: Runner, container: str) -> dict | None:
     result = run(["exec", container, "python", "-c", READ_HEALTH])
     if result.returncode != 0:
@@ -177,7 +187,7 @@ def check_console_boot(
         run(["rm", "-f", container])
 
 
-CHECKS = ("label", "line", "console", "boot")
+CHECKS = ("label", "line", "console", "boot", "sidik")
 
 
 def _log(line: str) -> None:
@@ -191,6 +201,7 @@ def smoke(run: Runner, image: str, version: str, label: str, log: Callable[[str]
         "line": lambda: check_line_import(run, image),
         "console": lambda: check_console_import(run, image),
         "boot": lambda: check_console_boot(run, image, version),
+        "sidik": lambda: check_fingerprints(run, image),
     }
     for name in CHECKS:
         steps[name]()
