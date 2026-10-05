@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-05 · console · Detection box: the PC's default is shown, one button goes back to it (PR #TBD)
+## 2026-10-05 · console · Detection box: the PC's default is shown, one button goes back to it (PR #243)
 Changed:        Settings, Camera & Conveyor, detection area box: the box each line uses while the
                 console sets none (`ROI_*` in the lines' `.env`) is now shown, as the placeholder of the
                 four inputs and in one sentence ("Bawaan PC ini: Kiri 100, ..."). New button **Kembalikan
