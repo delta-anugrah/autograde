@@ -184,7 +184,7 @@ end of this file.
     pernah dihitung ulang**: perubahan cutoff berlaku untuk baris berikutnya. AutoERP tetap
     menanggali tiket dari tanggal lokal `time_in`, jadi dengan cutoff lewat 00:00 truk yang timbang
     antara 00:00 dan jam cutoff tanggalnya beda di konsol dan di AutoERP (total tidak berubah);
-    tab Rekap menulis "Hari kerja dipotong jam HH:MM".
+    tab Rekap menulis "(dipotong jam HH:MM)" di belakang judul hari kerjanya.
 11. **Konsol tidak boleh memindai direktori** (§6.2): semua yang dibaca layar operator datang
     dari **index SQLite** `state/console.db`, di **`repositories/console_repository.py`**
     dengan skema dan migrasinya di **`repositories/console_skema.py`** dan akunnya di mixin

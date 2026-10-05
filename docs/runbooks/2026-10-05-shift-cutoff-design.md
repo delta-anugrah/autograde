@@ -85,7 +85,7 @@ Decision: **option A**, as listed in §7, without the end-of-shift summary.
 1. **AutoERP dating** (§5): is it acceptable that the console's working day and AutoERP's ticket
    date differ for trucks weighed between midnight and the cutoff? If not: option C, or a
    contract change in AutoERP first?
-   **Answer:** accepted. Totals do not change; the Rekap tab says "Hari kerja dipotong jam HH:MM"
+   **Answer:** accepted. Totals do not change; the Rekap tab says "(dipotong jam HH:MM)" after the working day title
    when the cutoff is not midnight. No AutoERP change.
 2. **Cutoff time at Lampung**: what time does the last shift really end? (The plan says about
    20 hours of operation; 05:00 is a guess.)

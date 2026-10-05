@@ -70,4 +70,28 @@ def test_the_save_asks_with_the_example_and_the_field_shows_the_zone():
     assert 't("konfirmasiCutoffPesan")' in kerja and 't("konfirmasiCutoffJudul")' in kerja
     assert '<input id="set-cutoff" type="time" step="60">' in HTML, "no max: any hour is allowed"
     assert '<span id="set-cutoff-zona" class="muted"></span>' in HTML
-    assert '$("set-cutoff-zona").textContent' in fungsi("refresh")
+    # The Settings tab is taken out of the page for an operator (`data-dev`), so the 2 s poll
+    # only keeps the zone name; the support-only load writes it (an operator's poll broke on it).
+    assert "set-cutoff-zona" not in fungsi("refresh") and "zonaPabrik = s.timezone" in fungsi("refresh")
+    assert '$("set-cutoff-zona").textContent' in fungsi("muatCutoffSetelan")
+
+
+def test_the_confirm_text_is_short_paragraphs_not_one_block():
+    """User 2026-10-05: the warning read as one wall of text; one point per paragraph."""
+    for bahasa in ("id", "en"):
+        pesan = re.search(r'konfirmasiCutoffPesan:"([^"]*)"', _kamus(bahasa)).group(1)
+        assert pesan.count("\\n\\n") == 2, bahasa
+    assert re.search(r"#konfirmasi-pesan\s*\{[^}]*white-space:\s*pre-line", HTML)
+
+
+@butuh_node
+@pytest.mark.parametrize("bahasa", ["id", "en"])
+def test_the_recap_title_names_one_working_day_once(bahasa):
+    """User 2026-10-05: "Mon, 5 Oct 2026 to Mon, 5 Oct 2026" repeated itself and did not say
+    what the dates are. One day is written once, and both say they are working days."""
+    satu = jalankan(["judulRentangRiwayat"], 'judulRentangRiwayat("Sen", "Sen")', bahasa=bahasa)
+    dua = jalankan(["judulRentangRiwayat"], 'judulRentangRiwayat("Sen", "Jum")', bahasa=bahasa)
+    assert satu.count("Sen") == 1 and satu == jalankan([], "KAMUS[bahasa].riwayatSatuHari", bahasa=bahasa).replace(
+        "{tanggal}", "Sen")
+    assert dua == jalankan([], "KAMUS[bahasa].riwayatJudulRentang", bahasa=bahasa).replace(
+        "{dari}", "Sen").replace("{sampai}", "Jum")

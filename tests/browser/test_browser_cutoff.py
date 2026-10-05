@@ -44,6 +44,10 @@ def test_support_sets_five_and_the_rekap_says_so(halaman, tengah_malam):
     masuk(halaman, OPERATOR)
     buka_tab(halaman, "rekap")
     expect(halaman.locator("#riwayat-cutoff")).to_have_text(kamus(halaman, "rekapCutoff").replace("{jam}", "05:00"))
+    # One working day is named once, as a working day (user 2026-10-05).
+    judul = halaman.locator("#riwayat-judul-rentang")
+    expect(judul).to_contain_text(kamus(halaman, "riwayatSatuHari").split("{")[0].strip())
+    assert " to " not in judul.inner_text() and " sampai " not in judul.inner_text()
 
 
 def test_midnight_shows_no_label(halaman, tengah_malam):
