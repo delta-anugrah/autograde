@@ -365,9 +365,10 @@ end of this file.
     setumpuk kertas terbuang yang baru terlihat sesudahnya. `@media print`
     menyembunyikan kamera, tally, tab, dan tabel: tanpa itu puluhan lembar terbuang
     sebelum kartu pertama muncul.
-    **Kolom scan di tab Timbangan** (disembunyikan dengan `hidden` sampai scanner dibeli;
-    sampai saat itu plat dipilih dari daftar dan tara lewat **Timbang kosong** di baris
-    tiket) mengisi plat lalu memindahkan kursor ke Bruto,
+    **Kolom scan di tab Timbangan** (markup-nya `hidden`; saklar **Scanner QR** di tab
+    Setelan, support saja, bawaan mati, memunculkannya di semua layar lewat polling 2 detik,
+    kunci `setelan_scanner_qr` di `sync_state`, 2026-10-05; daftar plat dan tombol
+    **Timbang kosong** di baris tiket tetap ada dengan saklar nyala) mengisi plat lalu memindahkan kursor ke Bruto,
     itu satu sentuhan layar yang dihemat per truk, dan itulah gunanya scan. Enter
     datang dari scanner sendiri (scanner = papan ketik), jadi tidak ada tombol; kolomnya
     juga menerima ketikan tangan.
@@ -1342,7 +1343,7 @@ end of this file.
     UTC, jadi jalur timbangan atau PLC kelak wajib mengirim jam dengan offset. ⚠️ Tulisan
     "menunggu N menit" yang hidup membandingkan jam server dengan jam browser saat datang.
     ⚠️ Tiket yang pertama kali ditulis langsung dengan tara tidak pernah mengklaim
-    kedatangannya. ⚠️ Empat kolom QR tetap `hidden` sampai scanner dibeli.
+    kedatangannya. Empat kolom QR muncul kalau saklar **Scanner QR** (Setelan, support) nyala; bawaan mati.
 
 38. **Update now dari konsol** (batch 4.6, 2026-10-03). Konsol **tidak pernah** menyentuh Docker
     (tanpa `docker.sock`, selamanya). Satu-satunya jalurnya folder `update/` (`UPDATE_DIR`,
