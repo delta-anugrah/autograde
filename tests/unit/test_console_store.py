@@ -597,3 +597,18 @@ def test_state_carries_no_grading_rows(service):
     assert "recent" not in state
     assert dipanggil == [], "the poll must not read the grading rows at all"
 
+
+def test_trucks_say_which_of_them_are_on_site(service):
+    """Batch 5.6: a truck weighed in and not yet weighed out leads the Tugaskan list. The
+    server decides which (the same open-ticket rule as the unloading queue), not the screen."""
+    service.register_manual_truck("BE 1 AA")
+    service.register_manual_truck("BE 2 BB")
+    masuk = datetime.now(WIB).isoformat()
+    asyncio.run(service.record_weighing({"plate_number": "BE 2 BB", "gross_kg": 12000, "entered_at": masuk}))
+
+    assert {t["plate_number"]: t["di_lokasi"] for t in service.trucks()} == {"BE 1 AA": False, "BE 2 BB": True}
+
+    asyncio.run(service.record_weighing({"plate_number": "BE 2 BB", "tare_kg": 4000, "entered_at": masuk}))
+
+    assert {t["plate_number"]: t["di_lokasi"] for t in service.trucks()} == {"BE 1 AA": False, "BE 2 BB": False}
+

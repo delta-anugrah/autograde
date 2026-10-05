@@ -749,7 +749,7 @@
      tanpa baris ini form tidak pernah tertutup (ketemu di browser 2026-09-26). */
   #akun-tambah[hidden] { display:none; }
   #akun-tambah .setelan-grup-isi { padding:0; }
-  #akun-tambah input, #akun-tambah select { max-width:22rem; }
+  #akun-tambah input, #akun-tambah .pilih { max-width:22rem; }
   .akun-form-tombol { display:flex; gap:8px; flex-wrap:wrap; }
   .akun-form-tombol button { min-height:2.6rem; }
   .akun-form-catatan { margin:0; }
@@ -1094,6 +1094,15 @@
   .pilih-panel [role="option"]:focus { outline:none; background:var(--zebra);
                                        box-shadow:inset 4px 0 0 var(--acc); }
   .pilih-panel [role="option"][aria-selected="true"] { background:var(--acc-bg); color:var(--acc); }
+  /* Shown but not pickable (a model that does not fit this build), with its reason as the hint. */
+  .pilih-panel [role="option"][aria-disabled="true"] { color:var(--muted); cursor:not-allowed; }
+  /* `display:flex` on a row beats the `hidden` attribute: rows the search filtered out. */
+  .pilih-panel [role="option"][hidden], .pilih-grup[hidden], .pilih-kosong[hidden] { display:none; }
+  /* Type to filter (batch 5.6), only in a long list. It stays at the top while the rows scroll. */
+  .pilih-cari-baris { position:sticky; top:-4px; z-index:1; margin:-4px -4px 4px; padding:8px;
+                      background:var(--card); border-bottom:1px solid var(--line); }
+  .pilih-cari { width:100%; min-height:2.6rem; }
+  .pilih-kosong { padding:10px 14px; color:var(--muted); }
   /* Section header inside a list (step 2: "Menunggu timbang" / "Truk lain"). Styled like
      the `.lb` micro-label so it reads as a legend, never as a truck to pick. */
   .pilih-grup { padding:10px 14px 4px; font-size:.72rem; font-weight:700; letter-spacing:.12em;
@@ -1270,7 +1279,7 @@
      bawah lebar isinya dan layar ikut melebar ke samping. */
   .setelan-grup-isi { display:grid; gap:18px; padding:16px;
                       grid-template-columns:repeat(auto-fit, minmax(min(22rem, 100%), 1fr)); }
-  .setelan-form label { display:grid; gap:6px; align-content:start; }
+  .setelan-form label, .setelan-form .label { display:grid; gap:6px; align-content:start; }
   /* A named block inside a group: its fields stack, the blocks sit side by side. */
   .setelan-sub { margin:0; min-width:0; padding:14px 16px 16px; display:grid; gap:16px; align-content:start;
                  border:1px solid var(--line); border-radius:var(--r); }
@@ -1292,7 +1301,7 @@
      863 px untuk mengetik "0.5" terbaca seperti kolom yang salah, dan angkanya
      terlempar jauh dari labelnya. Yang melebar kartunya, bukan kotaknya. */
   .setelan-grup-isi input[type="text"],
-  .setelan-grup-isi select { max-width:22rem; }
+  .setelan-grup-isi .pilih { max-width:22rem; }
 
   /* Danger Zone: bingkai merah di bawah kartu Setelan, tertutup saat tab
      dibuka. Token bahaya yang sama dengan tombol Uji PLC — satu bahasa warna
@@ -1395,12 +1404,11 @@
   #sub-rekam .tabel { margin:0 var(--pad); }
   #sub-rekam .rekam-kaki { display:flex; flex-wrap:wrap; gap:12px 24px;
                            align-items:center; margin:12px var(--pad) 0; }
-  .setelan-form label > span:first-child { font-weight:600; }
-  .setelan-form input, .setelan-form select {
+  .setelan-form :is(label, .label) > span:first-child { font-weight:600; }
+  .setelan-form input {
     padding:10px 12px; font-family:var(--mono); font-size:1.1rem;
     border:1px solid var(--line-kuat); border-radius:var(--r);
     background:var(--input); color:var(--fg); width:100%; box-sizing:border-box; }
-  .setelan-form select { font-family:inherit; }
   /* Saklar: kotak centang di kiri, teks di kanan, sejajar atas. `grid` milik
      label biasa akan menaruh kotaknya selebar kolom. */
   .setelan-form label.saklar { display:flex; gap:12px; align-items:flex-start; cursor:pointer; }
@@ -1430,7 +1438,7 @@
      kartu tidak memepet sampai tulisan dan radio ikut mengecil. */
   .sumber-baris { flex:1 1 18rem; min-width:18rem; display:grid; gap:10px; padding:16px 20px;
                   border:1px solid var(--line); border-radius:var(--r); background:var(--kartu); }
-  .sumber-baris label { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .sumber-baris label, .sumber-baris .label { display:flex; align-items:center; gap:8px; cursor:pointer; }
   .sumber-berkas { display:grid; gap:10px; padding-top:10px; margin-top:4px;
                    border-top:1px solid var(--line); }
   /* Tanpa baris ini `[hidden]` kalah lawan `display:grid` di atas (spesifisitas
@@ -1442,22 +1450,13 @@
      nama berkas panjang terpotong habis - di layar terbaca sebagai dropdown
      kosong, seolah folder media memang tidak berisi. `min-width:0` mencabut
      lantai itu, `width:100%` menyuruhnya mengisi kartunya. */
-  .sumber-berkas select { width:100%; min-width:0; padding:8px 10px;
-                          font-family:inherit; font-size:1rem;
-                          border:1px solid var(--line-kuat); border-radius:var(--r);
-                          background:var(--input); color:var(--fg); }
-  /* Label pembungkusnya sudah flex (lihat `.sumber-baris label`); dropdown
-     memakan sisa lebar di sebelah kata "Berkas". */
-  .sumber-berkas label select { flex:1 1 auto; }
+  .sumber-berkas .pilih { flex:1 1 auto; width:100%; min-width:0; }
   /* Model Deteksi meminjam kartu Sumber Kamera (`.sumber-baris`), jadi tiga
      line tetap sejajar di layar lebar dan turun satu-satu di layar sempit. */
   #model-deteksi-panel { display:grid; gap:16px; }
   /* Sama dengan dropdown berkas Sumber Kamera: tanpa `min-width:0` nama model
      yang panjang memotong dropdown sampai terbaca kosong. */
-  .model-baris select { flex:1 1 auto; width:100%; min-width:0; padding:8px 10px;
-                        font-family:inherit; font-size:1rem;
-                        border:1px solid var(--line-kuat); border-radius:var(--r);
-                        background:var(--input); color:var(--fg); }
+  .model-baris .pilih { flex:1 1 auto; width:100%; min-width:0; }
   .model-jalan, .model-rinci { display:grid; gap:6px; font-size:.95rem; }
   .model-rinci { padding-top:10px; border-top:1px solid var(--line); }
   .kelas-chip { display:inline-block; padding:2px 8px; margin:0 4px 4px 0; border-radius:999px;
@@ -1941,7 +1940,10 @@
         <div class="timbang-kontrol">
           <input id="scan-datang" class="plat" data-t-ph="phScanDatang" placeholder="QR datang"
                  autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
-          <div class="pilih" id="plat-datang" data-nilai=""></div>
+          <div class="pilih" id="plat-datang" data-nilai="">
+            <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
+            <div class="pilih-panel" role="listbox" hidden></div>
+          </div>
           <button id="datang" class="utama" data-t="btnDatang" disabled>Catat datang</button>
         </div>
       </div>
@@ -1950,7 +1952,10 @@
         <div class="timbang-kontrol">
           <input id="scan-plat" class="plat" data-t-ph="phScan" placeholder="QR timbang isi"
                  autocomplete="off" autocapitalize="characters" spellcheck="false" hidden>
-          <div class="pilih" id="plat-timbang" data-nilai=""></div>
+          <div class="pilih" id="plat-timbang" data-nilai="">
+            <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
+            <div class="pilih-panel" role="listbox" hidden></div>
+          </div>
           <input id="bruto" class="kg" data-t-ph="phBruto" placeholder="Bruto (kg)"
                  data-t-title="hintDesimal" title="Desimal: titik atau koma, mis. 14820,5"
                  aria-describedby="bruto-petunjuk" inputmode="decimal" autocomplete="off">
@@ -2035,7 +2040,10 @@
     </div>
     <div class="riwayat-isian"><span class="lb" data-t="thLine">Line</span>
       <!-- Pilihannya dirakit dari line yang sedang tampil (siapkanLineRiwayat). -->
-      <div class="pilih" id="riwayat-line" data-nilai=""></div>
+      <div class="pilih" id="riwayat-line" data-nilai="">
+            <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
+            <div class="pilih-panel" role="listbox" hidden></div>
+      </div>
     </div>
     <label class="riwayat-isian"><span class="lb" data-t="riwayatPlat">Plat</span>
       <input id="riwayat-plat" class="plat" data-t-ph="riwayatPlatPh" placeholder="Semua truk"
@@ -2186,14 +2194,19 @@
         <!-- Three named blocks (user 2026-10-04): conveyor, capture line, detection area box. -->
         <fieldset class="setelan-sub">
           <legend data-t="subConveyor">Conveyor</legend>
-          <label>
+          <!-- A `div`, not a `label`: a click on a row inside a label is sent on to the
+               trigger and reopens the list (batch 5.6). -->
+          <div class="label">
             <span data-t="labelSumbu">Arah conveyor</span>
-            <select id="set-sumbu">
-              <option value="tegak" data-t="sumbuTegak">Mendatar (buah lewat kiri-kanan)</option>
-              <option value="mendatar" data-t="sumbuMendatar">Menurun (buah lewat atas-bawah)</option>
-            </select>
+            <div class="pilih" id="set-sumbu" data-nilai="tegak">
+              <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks" data-t="sumbuTegak">Mendatar (buah lewat kiri-kanan)</span></button>
+              <div class="pilih-panel" role="listbox" hidden>
+                <div role="option" tabindex="-1" data-nilai="tegak" aria-selected="true" data-t="sumbuTegak">Mendatar (buah lewat kiri-kanan)</div>
+                <div role="option" tabindex="-1" data-nilai="mendatar" aria-selected="false" data-t="sumbuMendatar">Menurun (buah lewat atas-bawah)</div>
+              </div>
+            </div>
             <small class="muted" data-t="bantuSumbu">Menentukan garis capture tegak atau mendatar.</small>
-          </label>
+          </div>
         </fieldset>
         <fieldset class="setelan-sub">
           <legend data-t="subGaris">Garis capture</legend>
@@ -2443,8 +2456,14 @@
       <label><span data-t="thEmail">Email</span>
         <input type="email" id="akun-email" maxlength="254" autocomplete="off"
                autocapitalize="none" spellcheck="false"></label>
-      <label><span data-t="thRole">Role</span>
-        <select id="akun-role"><option value="operator">Operator</option><option value="support">Support</option></select></label>
+      <div class="label"><span data-t="thRole">Role</span>
+        <div class="pilih" id="akun-role" data-nilai="operator">
+          <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks">Operator</span></button>
+          <div class="pilih-panel" role="listbox" hidden>
+            <div role="option" tabindex="-1" data-nilai="operator" aria-selected="true">Operator</div>
+            <div role="option" tabindex="-1" data-nilai="support" aria-selected="false">Support</div>
+          </div>
+        </div></div>
       <!-- new-password: tanpa ini Firefox menawarkan sandi support yang sedang
            masuk untuk akun orang lain. -->
       <label><span data-t="lbSandi">Sandi</span>
@@ -2512,7 +2531,11 @@
         <label><input type="radio" name="sumber-line-1" value="video"> <span data-t="sumberVideo">Video</span></label>
         <label><input type="radio" name="sumber-line-1" value="foto"> <span data-t="sumberFoto">Foto</span></label>
         <div class="sumber-berkas" hidden>
-          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-1"></select></label>
+          <div class="label"><span data-t="sumberBerkas">Berkas</span>
+            <div class="pilih" data-berkas="line-1" data-nilai="">
+            <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
+            <div class="pilih-panel" role="listbox" hidden></div>
+            </div></div>
           <label><input type="checkbox" data-ulang="line-1"> <span data-t="sumberUlang">Ulang terus</span></label>
         </div>
       </div>
@@ -2524,7 +2547,11 @@
         <label><input type="radio" name="sumber-line-2" value="video"> <span data-t="sumberVideo">Video</span></label>
         <label><input type="radio" name="sumber-line-2" value="foto"> <span data-t="sumberFoto">Foto</span></label>
         <div class="sumber-berkas" hidden>
-          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-2"></select></label>
+          <div class="label"><span data-t="sumberBerkas">Berkas</span>
+            <div class="pilih" data-berkas="line-2" data-nilai="">
+            <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
+            <div class="pilih-panel" role="listbox" hidden></div>
+            </div></div>
           <label><input type="checkbox" data-ulang="line-2"> <span data-t="sumberUlang">Ulang terus</span></label>
         </div>
       </div>
@@ -2536,7 +2563,11 @@
         <label><input type="radio" name="sumber-line-3" value="video"> <span data-t="sumberVideo">Video</span></label>
         <label><input type="radio" name="sumber-line-3" value="foto"> <span data-t="sumberFoto">Foto</span></label>
         <div class="sumber-berkas" hidden>
-          <label><span data-t="sumberBerkas">Berkas</span> <select data-berkas="line-3"></select></label>
+          <div class="label"><span data-t="sumberBerkas">Berkas</span>
+            <div class="pilih" data-berkas="line-3" data-nilai="">
+            <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
+            <div class="pilih-panel" role="listbox" hidden></div>
+            </div></div>
           <label><input type="checkbox" data-ulang="line-3"> <span data-t="sumberUlang">Ulang terus</span></label>
         </div>
       </div>
@@ -2567,19 +2598,31 @@
       <div data-model-line="line-1" class="sumber-baris model-baris">
         <strong data-t="sumberLabelLine1">Line 1</strong>
         <div class="model-jalan" data-model-jalan="line-1"></div>
-        <label><span data-t="modelPilih">Model</span> <select data-model="line-1"></select></label>
+        <div class="label"><span data-t="modelPilih">Model</span>
+          <div class="pilih" data-model="line-1" data-nilai="">
+            <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
+            <div class="pilih-panel" role="listbox" hidden></div>
+          </div></div>
         <div class="model-rinci" data-model-rinci="line-1"></div>
       </div>
       <div data-model-line="line-2" class="sumber-baris model-baris">
         <strong data-t="sumberLabelLine2">Line 2</strong>
         <div class="model-jalan" data-model-jalan="line-2"></div>
-        <label><span data-t="modelPilih">Model</span> <select data-model="line-2"></select></label>
+        <div class="label"><span data-t="modelPilih">Model</span>
+          <div class="pilih" data-model="line-2" data-nilai="">
+            <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
+            <div class="pilih-panel" role="listbox" hidden></div>
+          </div></div>
         <div class="model-rinci" data-model-rinci="line-2"></div>
       </div>
       <div data-model-line="line-3" class="sumber-baris model-baris">
         <strong data-t="sumberLabelLine3">Line 3</strong>
         <div class="model-jalan" data-model-jalan="line-3"></div>
-        <label><span data-t="modelPilih">Model</span> <select data-model="line-3"></select></label>
+        <div class="label"><span data-t="modelPilih">Model</span>
+          <div class="pilih" data-model="line-3" data-nilai="">
+            <button type="button" class="pilih-tombol" aria-haspopup="listbox" aria-expanded="false"><span class="pilih-teks"></span></button>
+            <div class="pilih-panel" role="listbox" hidden></div>
+          </div></div>
         <div class="model-rinci" data-model-rinci="line-3"></div>
       </div>
     </div>
@@ -2846,8 +2889,6 @@ let trucks = [];
 // Trucks that did "Catat datang" and are not weighed in yet (`waiting` of /weighings,
 // oldest first): the top section of step 2's plate picker and the top rows of the table.
 let menungguTimbang = [];
-// The options `isiPlatTimbang` last wrote: the picker is rebuilt only when they change.
-let platTimbangTerakhir = "";
 // Versi + lisensi terakhir dari `/api/console/state`, untuk menggambar ulang header saat
 // bahasa diganti tanpa menunggu polling berikutnya.
 let infoVersi;
@@ -3020,7 +3061,8 @@ const KAMUS = {
     tombolSegarkan:"Segarkan data", sukSegarkan:"Data sudah diperbarui",
     gagalSegarkan:"Data belum bisa diperbarui. Konsol belum menjawab, coba lagi sebentar.",
     pilihTruk:"Pilih Truk", lepasTitle:"Truk sudah pergi", spasi:"Spasi",
-    grupMenungguTimbang:"Menunggu timbang", grupTrukLain:"Truk lain",
+    grupMenungguTimbang:"Menunggu timbang", grupTrukLain:"Truk lain", grupDiLokasi:"Di lokasi",
+    pilihCari:"Ketik untuk mencari", pilihTakCocok:"Tidak ada yang cocok",
     kosongTruk:"Belum ada truk", kosongTiket:"Belum ada tiket timbangan",
     erpFinalBeda:"Cek AutoERP", erpFinalBedaJudul:"Tiket {tiket} sudah final di AutoERP saat data terbaru tiba. Angka yang dibukukan tidak berubah; minta backoffice memeriksa tiket ini.", erpBatal:"Tiket batal", erpBatalJudul:"Tiket {tiket} dibatalkan di AutoERP, kunjungan ini tidak dibukukan. Minta backoffice memeriksanya.", erpTanpaNomor:"(tanpa nomor)",
     kosongGrading:"Belum ada grading hari ini",
@@ -3512,7 +3554,8 @@ const KAMUS = {
     tombolSegarkan:"Refresh data", sukSegarkan:"Data refreshed",
     gagalSegarkan:"The data could not be refreshed. The console is not answering, try again shortly.",
     pilihTruk:"Select Truck", lepasTitle:"Truck has left", spasi:"Space",
-    grupMenungguTimbang:"Waiting to weigh", grupTrukLain:"Other trucks",
+    grupMenungguTimbang:"Waiting to weigh", grupTrukLain:"Other trucks", grupDiLokasi:"On site",
+    pilihCari:"Type to search", pilihTakCocok:"Nothing matches",
     kosongTruk:"No trucks yet", kosongTiket:"No weighing tickets yet",
     erpFinalBeda:"Check AutoERP", erpFinalBedaJudul:"Ticket {tiket} was already final in AutoERP when the latest data arrived. The booked figures did not change; ask the back office to review this ticket.", erpBatal:"Ticket cancelled", erpBatalJudul:"Ticket {tiket} was cancelled in AutoERP, so this visit is not booked. Ask the back office to look at it.", erpTanpaNomor:"(no number)",
     kosongGrading:"No grading yet today",
@@ -3915,8 +3958,11 @@ function barisPilih(opsi, terpilih) {
     grup = o.grup;
     const catatan = o.catatan == null ? ""
       : `<span class="pilih-catatan">${esc(o.catatan)}</span>`;
+    // `mati` = shown but not pickable, `judul` = why (a model that does not fit this build).
+    const mati = o.mati ? ' aria-disabled="true"' : "";
+    const judul = o.judul ? ` title="${esc(o.judul)}"` : "";
     return `${kepala}<div role="option" tabindex="-1" data-nilai="${esc(o.v)}"${
-      catatan ? ` data-teks="${esc(o.teks)}"` : ""}
+      catatan ? ` data-teks="${esc(o.teks)}"` : ""}${mati}${judul}
           aria-selected="${o.v === terpilih}">${esc(o.teks)}${catatan}</div>`;
   }).join("");
 }
@@ -3946,33 +3992,106 @@ function isiUlangPilih(root, opsi) {
 
 const tombolPilih = (root) => root.querySelector(".pilih-tombol");
 
+// ── type to filter (batch 5.6) ──
+// 100+ trucks were a long scroll for a gloved hand. A long list gets a search field while
+// it is open; a short one (rows per page, layout) stays as it was.
+const AMBANG_CARI = 8;
+
+function perluCari(jumlah) {
+  return jumlah >= AMBANG_CARI;
+}
+
+// "be1234" finds "BE 1234 AB": case, spaces, dots and hyphens never decide a match.
+function ratakanCari(teks) {
+  return String(teks ?? "").toLowerCase().replace(/[\s.\-]/g, "");
+}
+
+function cocokCari(teks, cari) {
+  const dicari = ratakanCari(cari);
+  return !dicari || ratakanCari(teks).includes(dicari);
+}
+
+// Which rows of a panel stay, in order. A section header stays only while a row under it does.
+function hasilSaring(daftar, cari) {
+  const tampil = daftar.map((b) => !b.grup && cocokCari(b.teks, cari));
+  let kepala = -1;
+  daftar.forEach((b, i) => {
+    if (b.grup) kepala = i;
+    else if (tampil[i] && kepala >= 0) tampil[kepala] = true;
+  });
+  return tampil;
+}
+
+const barisPanel = (root) => [...root.querySelectorAll('.pilih-panel > [role="option"], .pilih-panel > .pilih-grup')];
+const opsiTampak = (root) => [...root.querySelectorAll('.pilih-panel > [role="option"]')].filter((o) => !o.hidden);
+
+function saringPilih(root, cari) {
+  const baris = barisPanel(root);
+  const tampil = hasilSaring(baris.map((el) => ({
+    grup: el.classList.contains("pilih-grup"), teks: el.dataset.teks ?? el.textContent,
+  })), cari);
+  baris.forEach((el, i) => { el.hidden = !tampil[i]; });
+  const kosong = root.querySelector(".pilih-kosong");
+  if (kosong) kosong.hidden = opsiTampak(root).length > 0;
+}
+
+// The field lives in the panel only while it is open: closed, the panel holds its rows and
+// nothing else, which is what `isiUlangPilih` writes and compares.
+function pasangCari(root) {
+  const panel = root.querySelector(".pilih-panel");
+  if (!perluCari(panel.querySelectorAll('[role="option"]').length)) return null;
+  panel.insertAdjacentHTML("afterbegin", `<div class="pilih-cari-baris"><input class="pilih-cari" type="search"
+    autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="${esc(t("pilihCari"))}"
+    aria-label="${esc(t("pilihCari"))}"></div>`);
+  panel.insertAdjacentHTML("beforeend", `<div class="pilih-kosong" hidden>${esc(t("pilihTakCocok"))}</div>`);
+  return panel.querySelector(".pilih-cari");
+}
+
+function lepasCari(root) {
+  root.querySelectorAll(".pilih-cari-baris, .pilih-kosong").forEach((el) => el.remove());
+  barisPanel(root).forEach((el) => { el.hidden = false; });
+}
+
 function tutupPilih(root) {
+  // Taking the search field out moves the focus, which comes back here (`focusout`).
+  if (root.dataset.buka !== "1") return;
   root.dataset.buka = "";
   root.querySelector(".pilih-panel").hidden = true;
   tombolPilih(root).setAttribute("aria-expanded", "false");
+  lepasCari(root);
 }
 
-function bukaPilih(root) {
+// `cariDulu`: opened by a tap, the focus lands in the search field (a gloved hand types next).
+// Opened from the keyboard it lands on the picked row, as it always did, so the arrow keys
+// keep counting from there; a letter typed on a row still goes to the field.
+function bukaPilih(root, { cariDulu = false } = {}) {
   document.querySelectorAll('.pilih[data-buka="1"]').forEach(tutupPilih);
   root.dataset.buka = "1";
   const panel = root.querySelector(".pilih-panel");
   panel.hidden = false;
   tombolPilih(root).setAttribute("aria-expanded", "true");
-  const awal = panel.querySelector('[aria-selected="true"]') || panel.querySelector('[role="option"]');
+  const cari = pasangCari(root);
+  const awal = (cariDulu && cari) || panel.querySelector('[aria-selected="true"]') || panel.querySelector('[role="option"]');
   // preventScroll: the panel opens right under a button the operator just
   // pressed, so it is already in view - scrolling the cameras off screen to
   // reach it is worse than not scrolling at all.
   if (awal) awal.focus({ preventScroll: true });
 }
 
-function pilihNilai(root, v) {
+// Sets the value without telling anyone (a form filled from the server). False = no such
+// row, or a row that cannot be picked.
+function aturPilih(root, v) {
   const opt = root.querySelector(`[role="option"][data-nilai="${CSS.escape(v)}"]`);
-  if (!opt) return;
+  if (!opt || opt.getAttribute("aria-disabled") === "true") return false;
   root.dataset.nilai = v;
   root.querySelector(".pilih-teks").textContent = opt.dataset.teks ?? opt.textContent;
   root.querySelectorAll('[role="option"]')
       .forEach((o) => o.setAttribute("aria-selected", String(o === opt)));
-  root.dispatchEvent(new CustomEvent("pilih", { bubbles: true }));
+  return true;
+}
+
+function pilihNilai(root, v) {
+  if (aturPilih(root, v)) root.dispatchEvent(new CustomEvent("pilih", { bubbles: true }));
 }
 
 // After a language flip the option rows are re-translated in place by data-t,
@@ -3988,6 +4107,7 @@ function segarkanPilih() {
 document.addEventListener("click", (ev) => {
   const opt = ev.target.closest('.pilih [role="option"]');
   if (opt) {
+    if (opt.getAttribute("aria-disabled") === "true") return;
     const root = opt.closest(".pilih");
     pilihNilai(root, opt.dataset.nilai);
     tutupPilih(root);
@@ -3995,36 +4115,55 @@ document.addEventListener("click", (ev) => {
     return;
   }
   const tombol = ev.target.closest(".pilih-tombol");
-  const root = tombol ? tombol.closest(".pilih") : null;
+  // A click inside the open panel (the search field, a section header) is not a click outside.
+  const dalam = tombol || ev.target.closest(".pilih-panel");
+  const root = dalam ? dalam.closest(".pilih") : null;
   // Anything else on the page is a click outside: close what is open.
   document.querySelectorAll('.pilih[data-buka="1"]').forEach((p) => { if (p !== root) tutupPilih(p); });
-  if (!root) return;
-  if (root.dataset.buka === "1") tutupPilih(root); else bukaPilih(root);
+  if (!tombol) return;
+  if (root.dataset.buka === "1") tutupPilih(root); else bukaPilih(root, { cariDulu: true });
+});
+
+document.addEventListener("input", (ev) => {
+  const cari = ev.target.closest && ev.target.closest(".pilih-cari");
+  if (cari) saringPilih(cari.closest(".pilih"), cari.value);
 });
 
 document.addEventListener("keydown", (ev) => {
   const root = ev.target.closest && ev.target.closest(".pilih");
   if (!root) return;
-  const opsi = [...root.querySelectorAll('[role="option"]')];
+  // Only the rows the search left on screen.
+  const opsi = opsiTampak(root);
   const i = opsi.indexOf(document.activeElement);
   const buka = root.dataset.buka === "1";
+  const cari = root.querySelector(".pilih-cari");
+  const diCari = Boolean(cari) && ev.target === cari;
   if (ev.key === "Escape") {
     tutupPilih(root);
     tombolPilih(root).focus();
   } else if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
     if (!buka) bukaPilih(root);
-    else {
+    else if (ev.key === "ArrowUp" && i === 0 && cari) cari.focus({ preventScroll: true });
+    else if (opsi.length) {
       const j = Math.min(opsi.length - 1, Math.max(0, i + (ev.key === "ArrowDown" ? 1 : -1)));
       opsi[j].focus();
     }
-  } else if (ev.key === "Enter" || ev.key === " ") {
+  } else if (ev.key === "Enter" || (ev.key === " " && !diCari)) {
     if (!buka) bukaPilih(root);
-    else if (i >= 0) {
-      pilihNilai(root, opsi[i].dataset.nilai);
-      tutupPilih(root);
-      tombolPilih(root).focus();
+    else {
+      // Enter in the search field takes the first row that is left.
+      const dipilih = i >= 0 ? opsi[i] : (diCari ? opsi[0] : null);
+      if (dipilih && dipilih.getAttribute("aria-disabled") !== "true") {
+        pilihNilai(root, dipilih.dataset.nilai);
+        tutupPilih(root);
+        tombolPilih(root).focus();
+      }
     }
-  } else return;
+  } else {
+    // A letter or digit typed on a row goes to the search field, where it lands.
+    if (buka && cari && !diCari && ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey) cari.focus({ preventScroll: true });
+    return;
+  }
   ev.preventDefault();
 });
 
@@ -4995,8 +5134,15 @@ $("pita-disk").addEventListener("click", (ev) => {
 // The truck list of a line card, also what the poll writes back into a card that is
 // already on screen (`segarkanPilihTruk`).
 function opsiTrukKartu() {
-  return [{ v: "", teks: t("pilihTruk") }]
-    .concat(trucks.map((tr) => ({ v: tr.id, teks: tr.plate_number || KOSONG })));
+  const baris = (tr, grup) => ({ v: tr.id, teks: tr.plate_number || KOSONG, grup });
+  const kosong = { v: "", teks: t("pilihTruk") };
+  // Trucks with an open ticket (weighed in, not yet weighed out) are the ones about to be
+  // assigned: they lead the list in their own section (batch 5.6). The server says which
+  // (`di_lokasi`). No one on site = the list as it always was, with no headers.
+  const diLokasi = trucks.filter((tr) => tr.di_lokasi);
+  if (!diLokasi.length) return [kosong, ...trucks.map((tr) => baris(tr))];
+  return [kosong, ...diLokasi.map((tr) => baris(tr, t("grupDiLokasi"))),
+    ...trucks.filter((tr) => !tr.di_lokasi).map((tr) => baris(tr, t("grupTrukLain")))];
 }
 
 // Batch 5.3: a truck that arrived from AutoERP after the cards were drawn used to stay
@@ -7116,21 +7262,9 @@ function gambarUlangRiwayat() {
 // Pilihan line dirakit dari line yang sedang tampil di layar (`urutan`), bukan
 // dipatok: tiap PKS punya jumlah line sendiri.
 function siapkanLineRiwayat() {
-  const root = $("riwayat-line");
   const kode = [...urutan].sort();
-  if (root.dataset.kode === kode.join(",") && root.children.length) return;
-  const terpilih = kode.includes(root.dataset.nilai) ? root.dataset.nilai : "";
-  root.dataset.kode = kode.join(",");
-  const opsi = [`<div role="option" tabindex="-1" data-nilai="" aria-selected="${terpilih === ""}"
-      data-t="riwayatSemuaLine">${esc(t("riwayatSemuaLine"))}</div>`]
-    .concat(kode.map((k) => `<div role="option" tabindex="-1" data-nilai="${esc(k)}"
-      aria-selected="${k === terpilih}">${esc(k)}</div>`));
-  root.innerHTML = `<button type="button" class="pilih-tombol" aria-haspopup="listbox"
-      aria-expanded="false"><span class="pilih-teks"></span></button>
-    <div class="pilih-panel" role="listbox" hidden>${opsi.join("")}</div>`;
-  const aktif = root.querySelector('[role="option"][aria-selected="true"]');
-  root.dataset.nilai = aktif.dataset.nilai;
-  root.querySelector(".pilih-teks").textContent = aktif.textContent;
+  isiUlangPilih($("riwayat-line"), [{ v: "", teks: t("riwayatSemuaLine") }]
+    .concat(kode.map((k) => ({ v: k, teks: k }))));
 }
 
 function paramRiwayat(tambahan) {
@@ -7523,8 +7657,7 @@ function isiTrucks() {
     .concat(trucks.map((tr) => ({ v: tr.plate_number, teks: tr.plate_number || KOSONG })));
   // Scan 1 memilih dari daftar yang sama. Selalu ada di markup: `kirimScan` sampai ke
   // sini lewat `muatTrucks()` pada setiap scan masuk.
-  const datang = $("plat-datang");
-  datang.outerHTML = komponenPilih(opsi, datang.dataset.nilai, "plat-datang");
+  isiUlangPilih($("plat-datang"), opsi);
   segarkanPilihTruk();
   segarkanTombol();
 }
@@ -7565,15 +7698,7 @@ function kunciPlat(plat) {
 // were about to press. The picked plate is carried over, and so is the keyboard focus:
 // `outerHTML` would otherwise drop it on <body> right after a keyboard pick.
 function isiPlatTimbang() {
-  const pilih = $("plat-timbang");
-  if (pilih.dataset.buka === "1") return;
-  const opsi = opsiPlatTimbang(trucks, menungguTimbang);
-  const kunci = JSON.stringify(opsi);
-  if (kunci === platTimbangTerakhir) return;
-  platTimbangTerakhir = kunci;
-  const fokus = pilih.contains(document.activeElement);
-  pilih.outerHTML = komponenPilih(opsi, pilih.dataset.nilai, "plat-timbang");
-  if (fokus) tombolPilih($("plat-timbang")).focus({ preventScroll: true });
+  isiUlangPilih($("plat-timbang"), opsiPlatTimbang(trucks, menungguTimbang));
   segarkanTombol();
 }
 
@@ -8457,6 +8582,7 @@ document.addEventListener("click", (ev) => {
 function tutupFormAkun() {
   tutupLihatSandi($("akun-tambah"));
   $("akun-tambah").reset();
+  aturPilih($("akun-role"), "operator");
   $("akun-tambah").hidden = true;
   $("akun-tambah-pesan").textContent = "";
 }
@@ -8468,7 +8594,7 @@ $("akun-tambah").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   $("akun-tambah-pesan").textContent = "";
   const isi = {
-    nama: $("akun-nama").value, email: $("akun-email").value, role: $("akun-role").value,
+    nama: $("akun-nama").value, email: $("akun-email").value, role: $("akun-role").dataset.nilai,
     sandi: $("akun-sandi").value, sandi_ulang: $("akun-sandi-ulang").value,
   };
   try {
@@ -8705,10 +8831,10 @@ document.querySelectorAll("[data-angka]").forEach((el) => {
 // mengukur dari sisi yang salah.
 function labelGaris() {
   $("set-garis-bantu").textContent =
-    t($("set-sumbu").value === "mendatar" ? "bantuGarisMendatar" : "bantuGarisTegak");
+    t($("set-sumbu").dataset.nilai === "mendatar" ? "bantuGarisMendatar" : "bantuGarisTegak");
 }
 
-$("set-sumbu").addEventListener("change", labelGaris);
+$("set-sumbu").addEventListener("pilih", labelGaris);
 
 // The detection area box (ROI): field names as the server knows them; the input of each is
 // `set-roi-x1` and so on.
@@ -8728,7 +8854,7 @@ async function muatSetelan() {
     // menukarnya dengan 0 juga — kebetulan benar di sini, tapi salah begitu
     // nilainya berubah makna. Yang dijaga: server lama tanpa field ini.
     $("set-garis").value = r.garis_capture ?? 0;
-    $("set-sumbu").value = r.sumbu_garis ?? "tegak";
+    aturPilih($("set-sumbu"), r.sumbu_garis ?? "tegak");
     $("set-dev").checked = Boolean(r.mode_dev);
     // `!== false`, not Boolean(): an older server has no such field, and there both are drawn.
     $("set-tampil-garis").checked = r.tampil_garis !== false;
@@ -8788,7 +8914,7 @@ $("set-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, 
         conf_threshold: $("set-conf").value.replace(",", "."),
         minimum_size: $("set-minsize").value.replace(",", "."),
         garis_capture: $("set-garis").value.replace(",", "."),
-        sumbu_garis: $("set-sumbu").value,
+        sumbu_garis: $("set-sumbu").dataset.nilai,
         mode_dev: $("set-dev").checked,
         tampil_garis: $("set-tampil-garis").checked,
         tampil_roi: $("set-tampil-roi").checked,
@@ -9219,23 +9345,14 @@ let sumberKameraTerakhir = null;
 function isiBerkasSumber(kode, sumber, terpilih) {
   const pilih = document.querySelector(`[data-berkas="${kode}"]`);
   if (!pilih || !sumberKameraTerakhir) return;
-  const daftar = sumber === "foto" ? sumberKameraTerakhir.foto : sumberKameraTerakhir.video;
-  pilih.innerHTML = "";
-  for (const nama of daftar || []) {
-    const opt = document.createElement("option");
-    opt.value = nama;
-    opt.textContent = nama;
-    if (nama === terpilih) opt.selected = true;
-    pilih.appendChild(opt);
-  }
-  if (!daftar || !daftar.length) {
-    // Folder kosong dikatakan, bukan dibiarkan kosong tanpa keterangan -
-    // dropdown yang kosong begitu saja terbaca seperti layar belum termuat.
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = t("sumberBerkasKosong");
-    pilih.appendChild(opt);
-  }
+  const daftar = (sumber === "foto" ? sumberKameraTerakhir.foto : sumberKameraTerakhir.video) || [];
+  // Folder kosong dikatakan, bukan dibiarkan kosong tanpa keterangan -
+  // dropdown yang kosong begitu saja terbaca seperti layar belum termuat.
+  const opsi = daftar.length
+    ? daftar.map((nama) => ({ v: nama, teks: nama }))
+    : [{ v: "", teks: t("sumberBerkasKosong") }];
+  pilih.dataset.nilai = terpilih ?? "";
+  isiUlangPilih(pilih, opsi);
 }
 
 function perbaruiTampakSumber(kode) {
@@ -9288,7 +9405,7 @@ $("sumber-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarge
     const pakaiBerkas = SUMBER_BUTUH_BERKAS.has(sumber);
     payload[kode] = {
       sumber,
-      berkas: pakaiBerkas ? (blok.querySelector(`[data-berkas="${kode}"]`).value || "") : "",
+      berkas: pakaiBerkas ? (blok.querySelector(`[data-berkas="${kode}"]`).dataset.nilai || "") : "",
       ulang: sumber === "video" && Boolean(blok.querySelector(`[data-ulang="${kode}"]`).checked),
     };
   }
@@ -9382,30 +9499,26 @@ function alasanModel(m) {
 function opsiModel(kode, terpilih) {
   const pilih = document.querySelector(`[data-model="${kode}"]`);
   if (!pilih || !modelTerakhir) return;
-  pilih.innerHTML = "";
-  pilih.append(new Option(t("modelBawaanPanjang"), ""));
+  const opsi = [{ v: "", teks: t("modelBawaanPanjang") }];
   for (const m of modelTerakhir.model) {
-    const opt = new Option(m.cocok ? m.berkas : `${m.berkas} (${t("modelTidakBisa")})`, m.berkas);
     // Tampil tapi tidak bisa dipilih, dengan alasannya: menyembunyikan model
     // lama membuat orang mengira berkasnya hilang lalu menyalinnya lagi.
-    opt.disabled = !m.cocok;
-    opt.title = m.cocok ? "" : alasanModel(m);
-    pilih.append(opt);
+    opsi.push(m.cocok ? { v: m.berkas, teks: m.berkas }
+      : { v: m.berkas, teks: `${m.berkas} (${t("modelTidakBisa")})`, mati: true, judul: alasanModel(m) });
   }
   if (terpilih && !modelTerakhir.model.some((m) => m.berkas === terpilih)) {
     // Tersimpan tapi berkasnya sudah dihapus dari folder. Ditampilkan apa
     // adanya, bukan diam-diam jatuh ke Bawaan: menyimpan layar ini tanpa
     // sadar akan mengganti model line itu.
-    const hilang = new Option(`${terpilih} (${t("modelTidakBisa")})`, terpilih);
-    hilang.disabled = true;
-    pilih.append(hilang);
+    opsi.push({ v: terpilih, teks: `${terpilih} (${t("modelTidakBisa")})`, mati: true });
   }
-  pilih.value = terpilih || "";
+  pilih.dataset.nilai = terpilih || "";
+  isiUlangPilih(pilih, opsi);
 }
 
 function rinciModel(kode) {
   const wadah = document.querySelector(`[data-model-rinci="${kode}"]`);
-  const nama = document.querySelector(`[data-model="${kode}"]`)?.value || "";
+  const nama = document.querySelector(`[data-model="${kode}"]`)?.dataset.nilai || "";
   if (!wadah || !modelTerakhir) return;
   if (!nama) {
     wadah.innerHTML = `<span class="muted">${esc(t("modelRinciBawaan"))}</span>`;
@@ -9505,7 +9618,7 @@ async function muatModelDeteksi() {
 }
 
 document.querySelectorAll("[data-model]").forEach((el) => {
-  el.addEventListener("change", () => rinciModel(el.dataset.model));
+  el.addEventListener("pilih", () => rinciModel(el.dataset.model));
 });
 
 // Sesudah simpan: tanyai line tiap 5 detik sampai tiap line yang berubah
@@ -9546,7 +9659,7 @@ $("model-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget
   if (!modelTerakhir || modelSibukKirim) return;
   const pilihan = {};
   for (const kode of MODEL_KODE_LINE) {
-    pilihan[kode] = document.querySelector(`[data-model="${kode}"]`).value || "";
+    pilihan[kode] = document.querySelector(`[data-model="${kode}"]`).dataset.nilai || "";
   }
   const berubah = MODEL_KODE_LINE.filter((k) => (modelTerakhir.lines[k] || "") !== pilihan[k]);
   if (!berubah.length) {
