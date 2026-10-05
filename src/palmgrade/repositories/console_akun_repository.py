@@ -242,6 +242,19 @@ class AkunStore:
             ).fetchone()
         return dict(row) if row else None
 
+    def extend_session(self, token: str, *, now: float, ttl_s: int) -> float | None:
+        """Slide a live session to `now + ttl_s`; the new end, or None when it has already
+        ended or its operator is switched off (a late renew never brings a session back)."""
+        expires_at = now + ttl_s
+        with self._lock, self._db:
+            cursor = self._db.execute(
+                """UPDATE sesi SET expires_at = ?
+                    WHERE token = ? AND expires_at > ?
+                      AND operator_id IN (SELECT id FROM operators WHERE status = 'active')""",
+                (expires_at, token, now),
+            )
+        return expires_at if cursor.rowcount else None
+
     def delete_session(self, token: str) -> None:
         with self._lock, self._db:
             self._db.execute("DELETE FROM sesi WHERE token = ?", (token,))

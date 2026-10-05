@@ -397,7 +397,15 @@ end of this file.
     padahal sandinya benar) dan `scrypt` untuk akun lokal. `_verify_scrypt` **hanya** menerima
     parameter yang ditulis build ini (barisnya data dan bisa diubah); rounds pbkdf2 **diikuti**
     di atas lantai minimum, karena AutoERP yang punya biaya itu dan boleh menaikkannya.
-    Sesi 12 jam di `sesi`. Hitungan sandi salah di disk (lockout 5× lalu berlipat dua sampai
+    Sesi di `sesi`, **geser** sejak batch 5.7 (2026-10-05): berakhir 12 jam sesudah aktivitas
+    operator terakhir, bukan 12 jam sesudah login (pabrik jalan ±20 jam; sesi tetap 12 jam dulu
+    menjatuhkan gerbang login di atas kamera di tengah shift). Aktivitas = sentuhan atau tombol
+    keyboard di layar; layar mengirim `POST /api/console/session/renew` paling sering sekali per
+    5 menit, dan langsung kalau sisa sesi 15 menit atau kurang (pita kuning di layar). **Polling
+    layar tidak pernah memperpanjang**: kalau iya, layar yang ditinggal tidak akan pernah keluar
+    sendiri. Sesi yang sudah habis tidak bisa dihidupkan lagi lewat renew. `/me` dan login
+    membawa `sisa_detik` (detik, bukan jam: jam browser bisa beda dengan jam konsol), dan renew
+    mengirim ulang cookie dengan umur penuh. Hitungan sandi salah di disk (lockout 5× lalu berlipat dua sampai
     15 menit), karena di memori muat-ulang halaman akan mengosongkannya. Reset sandi **dan**
     mematikan operator sama-sama menghapus sesinya, menyaring status saja akan menghidupkan
     token lama begitu akun diaktifkan lagi. Satu jawaban untuk sandi salah / akun tidak ada /

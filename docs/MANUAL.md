@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.12"
+versi: "2.13"
 tanggal: 4 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -108,7 +108,11 @@ terang/gelap, pilihan tersimpan di browser.
 ### 3.1 Masuk
 
 Layar terkunci sampai ada yang masuk dengan **email + sandi**. Tombol nama di gerbang cuma
-mengisi kolom email; sandi tetap wajib. Sesi 12 jam, tidak diperpanjang otomatis.
+mengisi kolom email; sandi tetap wajib. Sesi berakhir **12 jam sesudah layar terakhir disentuh**
+(bukan 12 jam sesudah masuk): selama operator memakai layar, sesinya ikut diperpanjang sendiri.
+15 menit sebelum habis muncul pita kuning **Sesi berakhir dalam N menit**: sentuh layar di mana
+saja atau tekan **Perpanjang**. Layar yang dibiarkan tanpa disentuh tetap keluar sendiri
+sesudah 12 jam, walau datanya terus diperbarui.
 
 | Sumber akun | Dibuat di | Reset sandi |
 |---|---|---|
@@ -828,7 +832,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | fps tidak berubah walau `CAMERA_FPS` diganti | Hikrobot membaca laju dari `.mfs` | ubah `config/camera/hikrobot.mfs`, `make restart` |
 | `backend=pt` di log, bukan `tensorrt` | engine belum dibangun / GPU beda | `make build-engine` lalu `make restart` |
 | `gpu_available: false` | NVIDIA Container Toolkit belum benar | ulangi §5.4, tes `nvidia-smi` di container |
-| Login 401 "belum masuk" | sesi 12 jam habis | masuk lagi |
+| Login 401 "belum masuk" | layar tidak disentuh 12 jam, sesi habis | masuk lagi |
 | 403 "menu ini untuk akun support" | akun berperan operator membuka tab support | akun support lain: tab Akun → **Jadikan support**; atau `make operator-docker AKSI=role ROLE=support` |
 | Log konsol: "Tidak ada akun dengan peran support" | `.env` dibuat sebelum fitur peran ada | perintah yang sama di atas |
 | Akun bawaan ditolak saat start | hash di `.env` terpotong karena `$` | tulis `$$` untuk tiap `$` |
@@ -1001,6 +1005,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
+| 2.13 | 5 Oktober 2026 | §3.1: sesi diperpanjang sendiri selama layar dipakai (habis 12 jam sesudah sentuhan terakhir), pita kuning 15 menit sebelum habis dengan tombol **Perpanjang**. |
 | 2.12 | 5 Oktober 2026 | §3.2: semua daftar pilihan satu bentuk; daftar panjang bisa **diketik untuk mencari**; truk yang sedang di lokasi (sudah timbang isi) di bagian **Di lokasi** paling atas **Pilih Truk** kartu line. |
 | 2.11 | 4 Oktober 2026 | §3.2: tulisan **Diperbarui HH:MM:SS** di bawah jam, layar jadi abu-abu dengan tulisan merah **Data lama** kalau konsol berhenti menjawab, tombol **Segarkan data**, daftar **Pilih Truk** di kartu line ikut truk baru tanpa memuat ulang, dan layar memuat ulang dirinya sendiri sesudah versi baru terpasang. |
 | 2.10 | 4 Oktober 2026 | Tab Setelan: **kotak area deteksi** bisa diatur dari layar, dua saklar tampilkan garis capture dan kotak area deteksi, bagian Kamera & Conveyor jadi tiga kotak. Tab Status: kartu Diagnostik berkelompok dan tertutup dari awal, Manifest R2 jadi bagian sendiri. Kartu line: pemilih truk selebar Reject Manual, Tugaskan dan Lepas / Lepas paksa berbagi sisanya (§3.2, §3.5). |

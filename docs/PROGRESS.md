@@ -18,6 +18,26 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · console · Sliding session with a warning 15 minutes before the end (batch 5.7) (PR #PRNUM)
+Changed:        Server: `AuthService.renew` + `ConsoleStore.extend_session` slide a live session to
+                12 h from now (never an ended one, never for a switched-off operator); new route
+                `POST /api/console/session/renew` (`routes/console_sesi.py`) answers `{sisa_detik}`
+                and sends the cookie again; login and `/me` carry `sisa_detik`. Screen: a touch or
+                a key marks activity (`tandaiAktif`), a 1 s watch (`pantauSesi`) renews at most every
+                5 minutes, and at once inside the last 15 minutes, when the yellow ribbon
+                (`#pita-sesi`, Perpanjang button) shows. At zero the screen asks `/me` before the gate
+                comes down. Rule 19 rewritten (`docs/rules.md`, `CLAUDE.md` index line).
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                10 mutations, each turned its test red.
+Not validated:  A real 12-hour idle on the factory PC; the end was moved on the page and on a test
+                clock. A touch screen (pointerdown covers touch in both browsers, not tried on
+                the kiosk).
+Decisions:      Polls never renew (otherwise a kiosk left alone never signs out). No absolute cap:
+                a screen in use stays signed in for as long as it is used; the plan asked for a
+                sliding session and named no cap. Seconds left, not a clock time, so a browser
+                clock that is off does not move the end.
+Next:           PR 4, Grading filter and thumbnails (5.10, 5.12).
+
 ## 2026-10-05 · console · One dropdown everywhere: type to filter, trucks on site first (batch 5.6) (PR #232)
 Changed:        `static/console.html`: a list with 8 rows or more gets a search field while it is
                 open (`pasangCari`, `saringPilih`, `cocokCari`, `hasilSaring`); arrows walk only the
