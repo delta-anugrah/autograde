@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-05 · docs · The camera frame at Lampung is 1224x1024, not 2448x2048 (PR #TBD)
+## 2026-10-05 · docs · The camera frame at Lampung is 1224x1024, not 2448x2048 (PR #241)
 Changed:        Rule 1b, the save queue sizing, the capture line trap (`CLAUDE.md`, `docs/overview.md`,
                 `docs/rules.md`), `docs/MANUAL.md`, `docs/backend-overview.md` and code comments now
                 say what reaches a line: 1224x1024 (binning 2x2 in `config/camera/hikrobot.mfs`), with
