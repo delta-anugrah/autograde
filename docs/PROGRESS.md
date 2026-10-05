@@ -77,6 +77,27 @@ Not validated:  stream counters never read from a real camera (SDK call per the 
                 tested with ctypes fakes); thresholds are first guesses; `MANUAL.pdf` not rebuilt.
 Next:           release, then read the card on the Lampung PC for a day and tune the thresholds.
 
+## 2026-10-05 · console · The console page is always fetched fresh after an update (PR #236)
+
+```
+Changed:        GET /console now answers with `Cache-Control: no-cache` (routes/console.py). Before, the
+                page had no cache header, so Firefox kept it on a guessed lifetime from Last-Modified.
+                New test tests/unit/test_console_halaman_tanpa_cache.py; docs/backend-overview.md rows updated.
+Validated:      new test red on staging ee1f442 ("assert 'no-cache' in ''"), green with the fix.
+                pytest tests/unit/ → 4787 tests, 0 failures, 28 skipped.
+                pytest tests/e2e/ tests/integration/ → 592 tests, 0 failures, 20 skipped.
+                ruff check src/ tests/ → All checks passed!
+Not validated:  Not seen in the Lampung kiosk yet; needs the next release installed there.
+                Browser suite left to CI.
+Decisions:      `no-cache`, not `no-store`: the browser may keep the 525 KB file but must ask the console first.
+Next:           Release with the next tag, then check the Lampung kiosk shows the new page without Ctrl+Shift+R.
+```
+
+Found in Lampung on 2026-10-05: after v1.22.0 and then v1.23.0 were installed, the kiosk kept the
+previous version's page. The version number was right (it comes from the API) but the Update
+section and the new features were missing until Ctrl+Shift+R. The operator who presses
+Pasang sekarang would not know to do that.
+
 ## 2026-10-05 · vision · Batch 6.3: display shrinks first and rests with no viewer (PR #231)
 Changed:        `DisplayWorker` shrinks the frame to stream size first and draws the boxes on the
                 small frame (`draw_boxes(skala=...)`, geometry in `domain/skala_tampilan.py`); the
