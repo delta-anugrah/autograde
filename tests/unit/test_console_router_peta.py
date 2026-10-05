@@ -20,6 +20,8 @@ RUTE_OPERATOR = [
     ("GET", "/api/console/slip"),
     ("GET", "/api/console/dev/slip"),
     ("POST", "/api/console/dev/slip"),
+    ("GET", "/api/console/dev/shift"),
+    ("POST", "/api/console/dev/shift"),
     ("GET", "/api/console/state"),
     ("GET", "/api/console/history"),
     ("GET", "/api/console/riwayat"),

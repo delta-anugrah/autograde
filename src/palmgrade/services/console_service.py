@@ -40,7 +40,7 @@ from ..domain.plate import normalisasi_plat, truck_id_for
 from ..domain.setelan_grading import KUNCI_SETELAN, OPSIONAL, bersihkan_setelan
 from ..domain.sinkron import gabung_cloud
 from ..domain.vision_event import prediction_for, verdict_of
-from ..domain.working_day import JENDELA_KUNJUNGAN_DETIK, awal_kunjungan
+from ..domain.working_day import JENDELA_KUNJUNGAN_DETIK, awal_kunjungan, teks_cutoff
 from ..integrations.notifications.line_client import LineClient
 from ..repositories.console_repository import ConsoleStore
 from ..workers.visit_manifest_worker import VisitManifestWorker
@@ -267,6 +267,9 @@ class ConsoleService(LayarLineSupport, PenugasanOtomatis, GerbangKonsol, LepasPa
         return {
             "work_date": work_date,
             "timezone": self.settings.factory_tz,
+            # Batch 5.11: the Rekap tab names the cutoff when it is not midnight. Here, not in
+            # the route, so the read runs in the thread pool with the rest (rule 30).
+            "cutoff_shift": teks_cutoff(self.hari_kerja.cutoff()),
             "lines": lines,
             # Ringkasan timbangan hari kerja ini untuk strip "Hari ini". Dari
             # tabel yang sama dengan tab Timbangan, jadi begitu program timbangan

@@ -82,6 +82,7 @@ from .console_kamera import kamera_router
 from .console_keadaan import keadaan_router
 from .console_lepas_paksa import lepas_paksa_router
 from .console_sesi import pasang_cookie_sesi, sesi_router
+from .console_shift import shift_router
 from .console_slip import slip_router
 
 logger = logging.getLogger(__name__)
@@ -158,6 +159,7 @@ async def console_me(operator: Operator) -> dict:
 
 router.include_router(sesi_router)  # renew a sliding session (batch 5.7)
 router.include_router(slip_router)  # printable grading slip (batch 5.9)
+router.include_router(shift_router)  # working day cutoff (batch 5.11)
 
 
 router.include_router(keadaan_router)  # GET /api/console/state, the 2 s poll
