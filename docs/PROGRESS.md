@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-05 · console · Sliding session with a warning 15 minutes before the end (batch 5.7) (PR #PRNUM)
+## 2026-10-05 · console · Sliding session with a warning 15 minutes before the end (batch 5.7) (PR #233)
 Changed:        Server: `AuthService.renew` + `ConsoleStore.extend_session` slide a live session to
                 12 h from now (never an ended one, never for a switched-off operator); new route
                 `POST /api/console/session/renew` (`routes/console_sesi.py`) answers `{sisa_detik}`
