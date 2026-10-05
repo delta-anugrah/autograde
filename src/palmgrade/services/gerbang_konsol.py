@@ -17,6 +17,7 @@ from typing import Any
 
 from ..domain.gerbang import (
     JENDELA_KEDATANGAN,
+    KUNCI_SCANNER_QR,
     TAHAP_DATANG,
     masih_menunggu,
     menit_antara,
@@ -50,6 +51,16 @@ class GerbangKonsol:
         """The console's clock for "now": the work date, the visit window, the waiting
         list. One method, so a test can stand the whole console just after midnight."""
         return datetime.now(UTC)
+
+    def scanner_qr(self) -> bool:
+        """Whether the four QR fields show on the Timbangan tab. Off until support turns it on."""
+        return self.store.get_state(KUNCI_SCANNER_QR) == "1"
+
+    def simpan_scanner_qr(self, aktif: bool, *, diubah_oleh: str) -> dict[str, bool]:
+        """Support only (route guard). WARNING with who, like the other Setelan switches."""
+        self.store.set_state(KUNCI_SCANNER_QR, "1" if aktif else "0")
+        logger.warning("Scanner QR %s, diubah oleh %s", "NYALA" if aktif else "MATI", diubah_oleh)
+        return {"aktif": aktif}
 
     def kunjungan_terbawa(self, work_date: str) -> list[dict[str, Any]]:
         """Yesterday's visits still in the yard, for TODAY's Timbangan table only (2026-10-02).
