@@ -607,6 +607,18 @@ services:
       # Batch 3.5: ringkasan ERROR ke kanal Discord support, antre di disk sampai ada
       # internet. Kosong = mati. Alamat webhook itu rahasia, isi di .env saja.
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      # Timbangan live (2026-10-06): konsol membaca berat dari register D PLC lewat
+      # MC Protocol, port sendiri (bawaan 1028). SCALE_PLC_REGISTER kosong = mati,
+      # kotak Timbangan menulis "Belum tersambung". Host kosong = ikut PLC_HOST.
+      - PLC_HOST=${PLC_HOST:-}
+      - SCALE_PLC_HOST=${SCALE_PLC_HOST:-}
+      - SCALE_PLC_PORT=${SCALE_PLC_PORT:-1028}
+      - SCALE_PLC_REGISTER=${SCALE_PLC_REGISTER:-}
+      - SCALE_PLC_WORDS=${SCALE_PLC_WORDS:-2}
+      - SCALE_PLC_DECIMALS=${SCALE_PLC_DECIMALS:-0}
+      - SCALE_PLC_STABLE_BIT=${SCALE_PLC_STABLE_BIT:-}
+      - SCALE_PLC_ERROR_BIT=${SCALE_PLC_ERROR_BIT:-}
+      - SCALE_POLL_MS=${SCALE_POLL_MS:-500}
       # R2: tempat manifest per truk + viewer.html, bucket yang sama dengan foto
       # dari tiga line. R2_BUCKET kosong = tidak ada manifest, tidak ada detail_url.
       - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}

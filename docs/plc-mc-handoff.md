@@ -47,7 +47,8 @@ Tidak ada alamat yang berubah dan program PLC tidak perlu diubah:
 | IP PLC | `192.168.0.14` (dari tim PLC, 23 Sep) |
 | Port | **`1025` / `1026` / `1027`**: camera 1 / 2 / 3, satu Open Setting per koneksi |
 | Device | Internal relay `M` |
-| Jumlah koneksi | **3**: satu per line kamera |
+| Jumlah koneksi | **3 + 1**: satu per line kamera, plus satu untuk konsol (timbangan live) |
+| Port `1028` | konsol, **baca saja** register D berat timbangan (aturan 39). Perlu Open Setting baru + Write to PLC + reset CPU. Rincian: `docs/plc-integration.md` § Timbangan live |
 | Perioda polling PC | 200 ms |
 
 ---

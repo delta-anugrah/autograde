@@ -230,3 +230,69 @@ def test_recv_dikembalikan_seperti_semula_sesudah_pembacaan():
     c = _client(inner)
     c.read_discrete_inputs(200, 20)
     assert inner._recv == asli
+
+
+# ── baca register kata (timbangan live, 2026-10-06) ─────────────────────────
+
+
+class _InnerKata:
+    """pymcprotocol for word reads: `panjang_balasan` raw bytes, `kata` returned."""
+
+    def __init__(self, kata: list[int], panjang_balasan: int | None = None, io_raises=False):
+        self._kata = kata
+        self._panjang = 11 + 2 * len(kata) if panjang_balasan is None else panjang_balasan
+        self._io_raises = io_raises
+        self.dibaca: list[tuple[str, int]] = []
+        self.dibaca_bit: list[tuple[str, int]] = []
+        self.closed = False
+
+    def connect(self, ip, port):
+        pass
+
+    def setaccessopt(self, **kwargs):
+        pass
+
+    def _recv(self):
+        return b"\x00" * self._panjang
+
+    def batchread_wordunits(self, headdevice, readsize):
+        if self._io_raises:
+            raise OSError("boom")
+        self.dibaca.append((headdevice, readsize))
+        self._recv()
+        return list(self._kata)
+
+    def batchread_bitunits(self, headdevice, readsize):
+        self.dibaca_bit.append((headdevice, readsize))
+        self._panjang = 11 + (readsize + 1) // 2
+        self._recv()
+        return [1] * readsize
+
+    def close(self):
+        self.closed = True
+
+
+def test_read_words_memakai_nama_device_utuh_bukan_prefiks_line():
+    # Line memakai blok M (prefiks), timbangan ada di register D: nama utuh dari .env.
+    inner = _InnerKata([-20536, 0])
+    assert _client(inner).read_words("D100", 2) == [-20536, 0]
+    assert inner.dibaca == [("D100", 2)]
+
+
+def test_read_words_balasan_terpotong_jadi_none():
+    # Socket tertutup di tengah: pustaka tetap mengembalikan kata nol, yang di layar
+    # terbaca "jembatan timbang kosong". Dua kata butuh 15 byte.
+    c = _client(_InnerKata([0, 0], panjang_balasan=13))
+    assert c.read_words("D100", 2) is None
+    assert c.connected is False
+
+
+def test_read_words_exception_jadi_none():
+    c = _client(_InnerKata([1], io_raises=True))
+    assert c.read_words("D100", 1) is None
+
+
+def test_read_bits_memakai_nama_device_utuh():
+    inner = _InnerKata([])
+    assert _client(inner).read_bits("M2000", 1) == [True]
+    assert inner.dibaca_bit == [("M2000", 1)]

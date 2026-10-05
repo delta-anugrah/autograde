@@ -328,6 +328,8 @@ src/palmgrade/plc/
 │                        # pymcprotocol. Menempelkan prefiks device (M1000), menjaga
 │                        # panjang balasan, tidak pernah raise ke worker.
 ├── modbus_client.py    # ModbusPlcClient: jalur coupler ODOT lama (pymodbus).
+├── pembaca_timbangan.py # PembacaTimbangan: berat jembatan timbang dari register D,
+│                        # dipakai KONSOL saja (aturan 39, bagian Timbangan live).
 ├── pulse.py            # PulseScheduler: logika murni, nol I/O. Satu keputusan jadi
 │                        # satu pulse ON/OFF per coil dengan jeda wajib.
 ├── hold.py             # HoldScheduler: mode tahan (PLC_HOLD_MS > 0), antarmuka sama.
@@ -339,6 +341,7 @@ tests/unit/plc/
 ├── test_plc_config.py
 ├── test_plc_hold.py
 ├── test_plc_mc_client.py
+├── test_pembaca_timbangan.py
 ├── test_plc_modbus_client.py
 ├── test_plc_piston.py
 ├── test_plc_pulse.py
@@ -349,6 +352,33 @@ Kedua klien memberi antarmuka yang sama (`write_coil` / `read_discrete_inputs` /
 mengembalikan sentinel (`False`/`None`) alih-alih melempar: worker adalah thread panjang yang
 tidak boleh mati karena kabel dicabut. Kelas klien, `PlcWorker`, `PulseScheduler`, dan
 `HoldScheduler` diekspor juga, tapi hanya untuk pemanggil yang merakit worker sendiri (test).
+
+---
+
+## Timbangan live (konsol, 2026-10-06)
+
+Berat di jembatan timbang masuk ke PLC, dan **konsol** (bukan line) membacanya dari register
+kata lewat MC Protocol, lalu menampilkannya di kotak **Data timbangan** (aturan 39). Sambungan
+sendiri: satu Open Setting satu pemakai, dan 1025-1027 dipegang tiga line, jadi panel perlu
+membuka port keempat (bawaan **1028**, Write to PLC + reset CPU saat line berhenti).
+
+Semua yang ditanyakan ke Pak Ocit (pertanyaan terbuka X1 di workspace sawit) adalah `.env`; begitu
+dijawab, pabrik mengisi lalu `autograde restart`, tanpa rilis:
+
+| Env | Bawaan | Isi |
+|---|---|---|
+| `SCALE_PLC_REGISTER` | kosong = mati | register berat, mis. `D100` (D/W/R/ZR) |
+| `SCALE_PLC_HOST` | ikut `PLC_HOST` | IP PLC |
+| `SCALE_PLC_PORT` | `1028` | port Open Setting khusus konsol |
+| `SCALE_PLC_WORDS` | `2` | 2 = 32-bit (kata rendah `Dn`, tinggi `Dn+1`); 1 = 16-bit, mentok 32.767 kg |
+| `SCALE_PLC_DECIMALS` | `0` | desimal tersirat: 1 berarti `123456` dibaca 12.345,6 kg |
+| `SCALE_PLC_STABLE_BIT` | kosong | bit "berat stabil", mis. `M2000`; kosong = layar tidak bisa bilang Stabil/Bergerak |
+| `SCALE_PLC_ERROR_BIT` | kosong | bit "timbangan error"; menyala = angka disembunyikan |
+| `SCALE_POLL_MS` | `500` | seberapa sering konsol bertanya (minimal 200) |
+
+Variabel ini harus ada di blok `console:` compose host pabrik (skill `compose-host-pabrik`).
+Nilai yang tidak sah mematikan fitur dengan satu WARNING, tidak menghentikan konsol. Cek dari
+luar: `curl -b <cookie> :8100/api/console/scale/live` → `{keadaan, kg, umur_detik}`.
 
 ---
 
