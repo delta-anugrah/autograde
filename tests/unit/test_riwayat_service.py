@@ -93,6 +93,8 @@ def test_tampilan_janjang_berhalaman_dengan_foto(layanan):
     assert hasil["total"] == 3
     assert [j["event_id"] for j in hasil["items"]] == ["e1", "e2"]
     assert hasil["items"][0]["image_url"] == "/captures/line-1/results/2026-09-25/e1.webp"
+    # A flat (pre-layout) photo has no small copy; the screen falls back to the full one.
+    assert hasil["items"][0]["thumb_url"] is None
     assert hasil["items"][0]["source_label"] == "External"
     assert "in_erp" not in hasil["items"][0]
 
@@ -159,3 +161,18 @@ def test_csv_janjang_ikut_saringan_hasil_dan_tidak_terpotong_halaman(layanan):
 
     assert len(_baris(semua)) == 1 + 3
     assert len(_baris(jk)) == 1 + 1
+
+
+def test_history_rows_name_their_small_photo(tmp_path):
+    """Batch 5.12: the same 400 px copy as the Grading tab."""
+    store = ConsoleStore(tmp_path / "console.db")
+    baris = _janjang("e9", "2026-09-25", "2026-09-25T09:00:00+07:00")
+    baris["image_path"] = "captures/results/2026-09-25/090000_BE1_ab/bbox/Ripe/e9.webp"
+    store.add_inspection(baris)
+    layanan = RiwayatService(RiwayatStore(tmp_path / "console.db"), hari_ini=lambda: HARI_INI, zona="Asia/Jakarta")
+
+    item = layanan.halaman(layanan.filter(), tampilan="janjang", limit=5, offset=0, ringkasan=False)["items"][0]
+
+    assert item["thumb_url"] == "/captures/line-1/results/2026-09-25/090000_BE1_ab/thumb/Ripe/e9.webp"
+    assert item["image_url"].endswith("/bbox/Ripe/e9.webp")
+

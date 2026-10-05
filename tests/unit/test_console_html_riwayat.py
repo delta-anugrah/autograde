@@ -183,7 +183,7 @@ def test_baris_janjang_bernomor_lanjut_halaman_dan_berfoto():
          "line_code": "line-1", "plate_number": "BE 1", "source_label": None,
          "ripeness_status": "ACC", "grade_class": "Ripe",
          "image_url": "/captures/line-1/results/2026-09-24/e1.webp"}
-    html = _node(["barisRiwayatJanjang"], f"barisRiwayatJanjang({json.dumps(j)}, 2)")
+    html = _node(["selFoto", "barisRiwayatJanjang"], f"barisRiwayatJanjang({json.dumps(j)}, 2)")
 
     assert '<td class="no">53</td>' in html
     assert 'class="foto"' in html and 'data-foto="/captures/line-1/results/2026-09-24/e1.webp"' in html
