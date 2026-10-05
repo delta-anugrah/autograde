@@ -34,6 +34,91 @@ Decisions:      Percent of the current drawing, not pixels: 100 keeps every PC a
                 value works for every camera size. Video only, so evidence photos stay comparable.
 Next:           User picks the size at Lampung after the next release.
 
+## 2026-10-05 · console · Grading filter by line and truck, small photos in tables (batch 5.10, 5.12) (PR #234)
+Changed:        Server: every grading and history row carries `thumb_url` (the 400 px copy in
+                `thumb/` that the line already writes and uploads), from `_with_foto` in the new
+                `services/tampilan_baris.py`. The row-view helpers moved there from
+                `console_service.py`, which had reached 1,010 lines. Screen: `#grading-line` and
+                `#grading-truk` above the Grading table (dropdown component with search), sent as
+                `line_code` / `truck_id`, page one on every change, kept by the 2 s poll. The Grading
+                and History tables draw `selFoto`: small copy in the table, full size only in the
+                dialog, one fallback to the full photo when the small one fails to load.
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                7 mutations, each turned its test red.
+Not validated:  Thumbnails on the factory PC or from R2 (the browser test answers `/history` itself).
+Decisions:      A photo older than the bbox/clean/thumb layout has no small copy: the table shows the
+                full one (rare, old days only) rather than no picture. The filter is not remembered
+                across reloads, like the page number.
+Next:           PR 5, printable grading slip (5.9).
+
+## 2026-10-05 · console · Sliding session with a warning 15 minutes before the end (batch 5.7) (PR #233)
+Changed:        Server: `AuthService.renew` + `ConsoleStore.extend_session` slide a live session to
+                12 h from now (never an ended one, never for a switched-off operator); new route
+                `POST /api/console/session/renew` (`routes/console_sesi.py`) answers `{sisa_detik}`
+                and sends the cookie again; login and `/me` carry `sisa_detik`. Screen: a touch or
+                a key marks activity (`tandaiAktif`), a 1 s watch (`pantauSesi`) renews at most every
+                5 minutes, and at once inside the last 15 minutes, when the yellow ribbon
+                (`#pita-sesi`, Perpanjang button) shows. At zero the screen asks `/me` before the gate
+                comes down. Rule 19 rewritten (`docs/rules.md`, `CLAUDE.md` index line).
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                10 mutations, each turned its test red.
+Not validated:  A real 12-hour idle on the factory PC; the end was moved on the page and on a test
+                clock. A touch screen (pointerdown covers touch in both browsers, not tried on
+                the kiosk).
+Decisions:      Polls never renew (otherwise a kiosk left alone never signs out). No absolute cap:
+                a screen in use stays signed in for as long as it is used; the plan asked for a
+                sliding session and named no cap. Seconds left, not a clock time, so a browser
+                clock that is off does not move the end.
+Next:           PR 4, Grading filter and thumbnails (5.10, 5.12).
+
+## 2026-10-05 · console · One dropdown everywhere: type to filter, trucks on site first (batch 5.6) (PR #232)
+Changed:        `static/console.html`: a list with 8 rows or more gets a search field while it is
+                open (`pasangCari`, `saringPilih`, `cocokCari`, `hasilSaring`); arrows walk only the
+                rows left, Enter in the field takes the first, a letter typed on a row goes to the
+                field. Rows can be shown but not pickable (`mati`, `judul`). The three pickers that
+                were replaced whole (`outerHTML`: plat-datang, plat-timbang, riwayat-line) are
+                refilled in place (`isiUlangPilih`). The eight native `<select>` (Role, Arah conveyor,
+                Berkas x3, Model x3) are the same component; read through `dataset.nilai`, set
+                through `aturPilih`, event `pilih`. The card truck list puts trucks on site first
+                in their own section. Server: `GET /api/console/trucks` carries `di_lokasi`.
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                14 mutations, each turned its test red.
+Not validated:  Sumber Kamera and Model Deteksi with real media and model files (the browser
+                harness has none; the option building is covered by unit tests only). A touch
+                screen. Nothing on the factory PC.
+Decisions:      "On site" = weighed in and not yet weighed out (open ticket inside the 12 h visit
+                window), decided by the server, the same rule as the unloading queue. Not applied
+                to the scan 1 picker: a truck already on site is not arriving. An open list is
+                left alone until it closes (kept from PR #229) rather than updated under the finger.
+                Search only from 8 rows: Rows per page and Layout stay as they were.
+Next:           PR 3, sliding session (5.7).
+
+## 2026-10-04 · console · Fresh data without a manual refresh, taps never lost (batch 5.3, 5.4, 5.8, 6.4) (PR #229)
+Changed:        `static/console.html`: the 2 s poll takes a turn (`kunciAntre`), a timer tick that
+                lands while a pull is in flight is dropped (`detakRefresh`, `sekaliJalan` for the
+                truck and weighbridge polls), every request has a time limit
+                (`AbortSignal.timeout`, 10 s reads, 60 s writes). A line card is updated through
+                `perbaruiKartu`, each part only when its markup changed (`tulisKalauBeda`): truck
+                line, Lepas, piston button and ribbon; the Grading table and its page numbers too.
+                The Tugaskan list of a card that is already on screen takes new trucks
+                (`isiUlangPilih`), never while it is open. Cards are drawn again when the set of
+                lines changes. The page reloads itself when the console version changes, not under
+                an open dialog, a busy button or a typed field. Header: "Diperbarui HH:MM:SS";
+                after 3 failed polls it turns red and numbers, cards and tables go grey. One Refresh
+                button. A language flip reloads the open tab (Akun, Log, Status kept the old words).
+                Server: `/api/console/state` no longer carries `recent` (20 rows queried every 2 s
+                and never drawn), `/console` is sent with `Cache-Control: no-cache`.
+Validated:      see the PR (unit, e2e, integration, browser in both browsers, ruff, script check).
+                14 mutations, each turned its test red.
+Not validated:  A real `autograde pull` on a kiosk (the reload was tested by changing `versi` in the
+                poll answer). Nothing on the factory PC.
+Decisions:      The stale state greys numbers and tables, not the camera picture: the picture comes
+                from the line and is still live when the console is down. Setelan and Line are not
+                reloaded on a language flip: they are forms, and a reload would throw away what
+                support is typing. "Rekap is not redrawn on a language flip" in the audit was
+                already fixed (`gambarUlangRiwayat`); the tabs that still had it were Akun, Log, Status.
+Next:           PR 2, the dropdown component (5.6).
+
 ## 2026-10-05 · release · Images carry their own fingerprint list (PR #240)
 Changed:        `scripts/tulis_sidik_image.py` writes `/app/.sidik-image.json` (sha256 of every file in
                 `/app/src`, `/app/config`, `/app/scripts`, `/entrypoint.sh`) as the last Dockerfile step.

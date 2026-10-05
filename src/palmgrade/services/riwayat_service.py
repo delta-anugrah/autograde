@@ -28,7 +28,7 @@ from ..domain.riwayat import (
     ringkas_periode,
 )
 from ..repositories.riwayat_repository import RiwayatStore
-from .console_service import _capture_url, _with_source_label
+from .tampilan_baris import _capture_url, _with_foto, _with_source_label
 
 _TANPA_TRUK = {"id": "Tanpa truk", "en": "No truck"}
 
@@ -87,8 +87,7 @@ class RiwayatService:
 
     @staticmethod
     def _janjang_layar(row: dict[str, Any]) -> dict[str, Any]:
-        row["image_url"] = _capture_url(row.get("line_code"), row.get("image_path"))
-        return _with_source_label(row)
+        return _with_source_label(_with_foto(row))
 
     # ------------------------------------------------------------------- CSV
 

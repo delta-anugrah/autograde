@@ -258,11 +258,12 @@ pemanggil, dan keduanya tanpa auth. Penggantinya `/internal/assignment` (yang ju
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/console` | Halaman `console.html`, dengan `Cache-Control: no-cache` supaya kiosk memuat halaman versi baru sesudah update |
+| GET | `/console` | Halaman `console.html`, dengan `Cache-Control: no-cache` (#236, batch 5.3): browser selalu bertanya dulu, jadi kiosk yang memuat ulang dirinya sesudah pembaruan mendapat halaman versi baru |
 | GET | `/api/console/operators` | Daftar akun untuk kolom email (tanpa hash), bisa dibaca sebelum masuk |
-| POST | `/api/console/login`, `/api/console/logout` · GET `/api/console/me` | Sesi cookie `konsol_sesi`, 12 jam |
+| POST | `/api/console/login`, `/api/console/logout` · GET `/api/console/me` | Sesi cookie `konsol_sesi`, geser 12 jam sejak aktivitas terakhir; login dan `/me` membawa `sisa_detik` |
+| POST | `/api/console/session/renew` | Batch 5.7: perpanjang sesi ini 12 jam dari sekarang (layar mengirimnya untuk sentuhan dan tombol, bukan untuk polling); `{sisa_detik}` + cookie baru, 401 `belum_masuk` kalau sudah habis |
 | GET | `/api/console/state` | Ringkasan hari kerja + langganan + `sinkron` (Last Sync) + `antrean_bongkar` (`[{weighing_id, plate_number, menit}]`, truk yang menunggu line) + `penugasan_otomatis` (`{aktif, lines}`); layar polling tiap 2 detik |
-| GET | `/api/console/history` | Janjang per hari kerja (`work_date`, `line_code`, `truck_id`, `limit` ≤ 200) |
+| GET | `/api/console/history` | Janjang per hari kerja (`work_date`, `line_code`, `truck_id`, `limit` ≤ 200); tiap baris membawa `image_url` (foto penuh) dan `thumb_url` (salinan 400 px di `thumb/`, `null` untuk foto sebelum tata letak bbox/clean/thumb) |
 | GET / POST | `/api/console/trucks` | Daftar truk / truk ketik operator (masuk antrean ERP) |
 | POST | `/api/console/scan`, `/api/console/scan/keluar` | Scan QR gerbang timbang isi / timbang kosong |
 | POST | `/api/console/arrivals`, `/api/console/departures` | Scan 1 (datang) / scan 4 (keluar gerbang), aturan 37; hanya di PC pabrik, tidak ke AutoERP |
@@ -579,10 +580,11 @@ konsol dari line/program timbangan) tetap pakai secret di header, bukan sesi: `x
 | GET | `/api/console/operators` | email + nama akun aktif untuk mengisi kolom email, **tanpa** hash, terbuka |
 | POST | `/api/console/login` | `{email, sandi}` → cookie `konsol_sesi` HttpOnly, 12 jam. Sandi salah 401, login terkunci 429 |
 | POST | `/api/console/logout` | akhiri sesi ini saja |
-| GET | `/api/console/me` | operator yang sedang masuk |
-| GET | `/api/console/state` | ringkasan hari kerja + 20 grading terakhir (di-polling 2 detik) + `antrean_bongkar` + `penugasan_otomatis` (aturan 36) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator + `plc.alarms` per line (motor fault / E-stop) untuk pita alarm + `sinkron` untuk **Last Sync** (`autoerp` dan `cloud`: `keadaan`/`terakhir`/`sejak`/`antre`, aturan 27). + `versi` image, untuk baris versi + lisensi di bawah tulisan AUTOGRADE (semua akun, 2026-09-28). Semuanya di sini, **bukan** lane support: yang melihat kamera berhenti, motor mati, atau sambungan putus itu operator biasa |
-| GET | `/api/console/history` | filter `work_date` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas |
-| GET | `/api/console/trucks` | master truk + supplier + `source_label` |
+| GET | `/api/console/me` | operator yang sedang masuk + `sisa_detik` sesinya |
+| POST | `/api/console/session/renew` | geser sesi ini 12 jam dari sekarang (aturan 19, batch 5.7) |
+| GET | `/api/console/state` | ringkasan hari kerja (di-polling 2 detik; tanpa baris grading sejak batch 6.4: kunci `recent` dibuang, tabel Grading cuma dari `/api/console/history`) + `antrean_bongkar` + `penugasan_otomatis` (aturan 36) + `lisensi` (severity/tanggal/sisa hari) untuk banner operator + `plc.alarms` per line (motor fault / E-stop) untuk pita alarm + `sinkron` untuk **Last Sync** (`autoerp` dan `cloud`: `keadaan`/`terakhir`/`sejak`/`antre`, aturan 27). + `versi` image, untuk baris versi + lisensi di bawah tulisan AUTOGRADE (semua akun, 2026-09-28). Semuanya di sini, **bukan** lane support: yang melihat kamera berhenti, motor mati, atau sambungan putus itu operator biasa |
+| GET | `/api/console/history` | filter `work_date` / `line_code` / `truck_id`; `limit`+`offset` untuk pagination, dan `total` (jumlah baris yang cocok filter, bukan sepanjang halaman) ikut dibalas; `thumb_url` per baris untuk tabel (batch 5.12), juga di `/api/console/riwayat` tampilan janjang |
+| GET | `/api/console/trucks` | master truk + supplier + `source_label` + `di_lokasi` (batch 5.6: sudah timbang isi, belum timbang kosong, dalam jendela kunjungan 12 jam; layar menaruh truk itu di bagian **Di lokasi** paling atas daftar Pilih Truk kartu line) |
 | POST | `/api/console/trucks` | truk manual (truk pinjaman / belum terdaftar), id = uuid5 plat ternormalisasi |
 | GET | `/api/console/trucks/{plat}/qr.png` | kartu QR untuk ditempel di truk / dikirim ke HP supir. **Dibuat di server** (`segno`, pure-Python) karena `console.html` nol referensi `https://`, pustaka CDN akan mati saat internet putus. Isinya plat ternormalisasi, divalidasi ulang sebelum dicetak. Truk yang belum terdaftar tetap dilayani: kartu dicetak dulu, truknya didaftarkan kemudian |
 | POST | `/api/console/scan/keluar` | `{qr}` scan 3 (timbang kosong) → tiket yang menunggu tara. **Dua tiket terbuka ditolak, tidak ditebak** (keputusan operator 2026-09-15): menebak bisa memasangkan tara ke kunjungan yang salah dan mencampur tonase dua kunjungan. Dibatasi jendela kunjungan 12 jam sebelum jam konsol pada waktu timbang isi sebenarnya (`awal_kunjungan`), bukan hari kerja: truk yang timbang isi 23:50 ditemukan pukul 00:10, sedangkan tiket yang taranya kosong sejak lebih dari 12 jam tidak (netonya akan memakai bruto lama dan tara malam ini) |

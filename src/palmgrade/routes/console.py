@@ -79,6 +79,7 @@ from .console_deps import require_support as require_support
 from .console_gerbang import antrean_bongkar_router, gerbang_router
 from .console_kamera import kamera_router
 from .console_lepas_paksa import lepas_paksa_router
+from .console_sesi import pasang_cookie_sesi, sesi_router
 
 logger = logging.getLogger(__name__)
 
@@ -125,17 +126,8 @@ def login(auth: Auth, response: Response, payload: LoginBody) -> dict:
         token, operator = auth.login(payload.email or "", payload.sandi or "")
     except OperatorError as exc:
         raise _operator_error(429 if exc.code == TERKUNCI else 401, exc) from exc
-    response.set_cookie(
-        SESSION_COOKIE,
-        token,
-        max_age=SESSION_TTL_S,
-        httponly=True,
-        samesite="strict",
-        path="/",
-        # No `secure`: the factory console is plain HTTP on the LAN, and a Secure
-        # cookie would simply never be sent back.
-    )
-    return {"operator": operator}
+    pasang_cookie_sesi(response, token)
+    return {"operator": operator, "sisa_detik": SESSION_TTL_S}
 
 
 @router.post("/api/console/logout")
@@ -155,8 +147,13 @@ async def console_me(operator: Operator) -> dict:
             "email": operator["email"],
             "full_name": operator["full_name"],
             "role": operator["role"],
-        }
+        },
+        # Batch 5.7: the screen warns 15 minutes before the end.
+        "sisa_detik": operator["sisa_detik"],
     }
+
+
+router.include_router(sesi_router)  # renew a sliding session (batch 5.7)
 
 
 @router.get("/api/console/state")

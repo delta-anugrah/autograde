@@ -2,7 +2,7 @@
 judul: Manual AutoGrade
 subjudul: Cara pakai, daftar fitur, pemasangan dari nol, operasional harian, dan penanganan masalah, untuk orang yang ikut memegang AutoGrade.
 label: Internal · Tim Engineering
-versi: "2.11"
+versi: "2.15"
 tanggal: 5 Oktober 2026
 klasifikasi: Internal, tidak untuk dibagikan ke pihak luar
 pemilik: Tim Engineering AutoGrade
@@ -108,7 +108,11 @@ terang/gelap, pilihan tersimpan di browser.
 ### 3.1 Masuk
 
 Layar terkunci sampai ada yang masuk dengan **email + sandi**. Tombol nama di gerbang cuma
-mengisi kolom email; sandi tetap wajib. Sesi 12 jam, tidak diperpanjang otomatis.
+mengisi kolom email; sandi tetap wajib. Sesi berakhir **12 jam sesudah layar terakhir disentuh**
+(bukan 12 jam sesudah masuk): selama operator memakai layar, sesinya ikut diperpanjang sendiri.
+15 menit sebelum habis muncul pita kuning **Sesi berakhir dalam N menit**: sentuh layar di mana
+saja atau tekan **Perpanjang**. Layar yang dibiarkan tanpa disentuh tetap keluar sendiri
+sesudah 12 jam, walau datanya terus diperbarui.
 
 | Sumber akun | Dibuat di | Reset sandi |
 |---|---|---|
@@ -139,6 +143,28 @@ endpoint support dijawab 403 untuk operator, dan 401 untuk yang belum masuk.
   beres; kalimat merah berarti versi baru gagal dan sistem kembali ke versi lama, panggil
   teknisi. Kalau tidak ditekan, versi itu tetap terpasang sendiri saat **Start** pagi
   berikutnya. Tombol ini cuma ada di PC yang sudah dipasangi penunggu pembaruan (§6.2).
+- **Di bawah jam** (semua akun): **Diperbarui 14:03:22**, jam terakhir angka di layar ini dibaca
+  dari konsol. Layar memperbarui dirinya sendiri tiap 2 detik: truk baru muncul di daftar
+  **Pilih Truk** tiap kartu tanpa memuat ulang halaman, dan daftar yang sedang terbuka tidak
+  berubah sampai ditutup. Kalau konsol tiga kali berturut-turut tidak menjawab (6 detik),
+  tulisannya jadi merah **Data lama, terakhir diperbarui 14:03:22**, dan angka, kartu, serta
+  tabel jadi abu-abu: angkanya angka lama, jangan dipakai untuk memutuskan. Gambar kamera tetap
+  berwarna karena datang langsung dari line. Begitu konsol menjawab lagi semuanya kembali
+  sendiri.
+- **Semua daftar pilihan** di konsol satu bentuk (termasuk Role di tab Akun, Arah conveyor di
+  Setelan, Berkas di Sumber Kamera, dan Model di Model Deteksi). Daftar yang panjang (8 pilihan
+  ke atas, misalnya **Pilih Truk**) punya kotak **Ketik untuk mencari** di atasnya: ketik
+  sebagian plat, huruf besar-kecil dan spasi tidak berpengaruh (`be1234` menemukan
+  `BE 1234 AB`), lalu Enter mengambil baris teratas yang tersisa. Panah atas-bawah berpindah
+  baris, Esc menutup. Di **Pilih Truk** kartu line, truk yang sudah timbang isi dan belum
+  timbang kosong ada di bagian **Di lokasi** paling atas, sisanya di **Truk lain**. Daftar
+  yang sedang terbuka tidak pernah tertutup atau berubah sendiri.
+- **Tombol bundar panah melingkar** di kanan atas (**Segarkan data**): cadangan kalau ragu
+  layarnya tertinggal. Menarik ulang semua data sekaligus, lalu menjawab "Data sudah
+  diperbarui" atau, kalau konsol tidak menjawab, notifikasi merah.
+- Sesudah versi baru terpasang, layar yang sedang terbuka **memuat ulang dirinya sendiri**
+  (tidak perlu F5). Ia menunggu dulu kalau ada kotak dialog terbuka, tombol yang masih
+  berputar, atau isian yang sedang diketik.
 - **Strip "Hari ini"**: jumlah janjang per kelas (Ripe, Unripe, JK, TP) dan total, rasio Ripe,
   **Data timbangan** (neto hari ini dan jumlah tiket), dan **Last Sync**.
 - **Last Sync**: dua baris, **AutoERP** dan **Cloud Photo** (foto di R2). Jamnya = kapan data
@@ -351,7 +377,7 @@ Aturan angka yang dijaga konsol:
 
 | Tab | Isi | Yang bisa dilakukan |
 |---|---|---|
-| **Grading** | riwayat janjang: waktu, line, truk, sumber, hasil, kelas, confidence, foto | filter per line/truk, pagination, klik foto → tampilan besar |
+| **Grading** | riwayat janjang: waktu, line, truk, sumber, hasil, kelas, confidence, foto | saringan **Line** dan **Truk** di atas tabel (ikut polling, kembali ke halaman 1 tiap ganti), pagination; tabel memuat foto kecil (400 px), klik foto → foto penuh |
 | **Truk** | master truk + supplier + asal data (ERP / manual) | **Daftar truk manual**, **Cetak QR truk** (kartu QR berisi plat, dibuat di server) |
 | **Timbangan** | tiket hari kerja, plus truk dari hari kerja sebelumnya yang belum selesai (belum timbang kosong: 12 jam; sudah timbang kosong tapi belum Keluar: 24 jam): status, jam timbang isi, jam timbang kosong, antre, lama, total, bruto, tara, neto; di bawahnya panel **Kedatangan dibatalkan** | **Catat datang**, **Timbang isi**, lalu **Timbang kosong** dan **Keluar** di baris tiket; **Batal datang** di baris Datang |
 | **Rekap** | grading per truk dan per hari, untuk hari ini atau hari-hari sebelumnya (paling panjang 31 hari). Dibuka di **Hari ini, Per truk**: satu baris per truk, ini yang diserahkan ke supplier | ganti tanggal untuk hari sebelumnya, **Unduh CSV**, **Impor CSV** untuk akun support; rinciannya di bawah |
@@ -806,7 +832,7 @@ Angka kapasitas terukur (±178 KB per gambar, tiga line satu disk): skill `spek-
 | fps tidak berubah walau `CAMERA_FPS` diganti | Hikrobot membaca laju dari `.mfs` | ubah `config/camera/hikrobot.mfs`, `make restart` |
 | `backend=pt` di log, bukan `tensorrt` | engine belum dibangun / GPU beda | `make build-engine` lalu `make restart` |
 | `gpu_available: false` | NVIDIA Container Toolkit belum benar | ulangi §5.4, tes `nvidia-smi` di container |
-| Login 401 "belum masuk" | sesi 12 jam habis | masuk lagi |
+| Login 401 "belum masuk" | layar tidak disentuh 12 jam, sesi habis | masuk lagi |
 | 403 "menu ini untuk akun support" | akun berperan operator membuka tab support | akun support lain: tab Akun → **Jadikan support**; atau `make operator-docker AKSI=role ROLE=support` |
 | Log konsol: "Tidak ada akun dengan peran support" | `.env` dibuat sebelum fitur peran ada | perintah yang sama di atas |
 | Akun bawaan ditolak saat start | hash di `.env` terpotong karena `$` | tulis `$$` untuk tiap `$` |
@@ -979,7 +1005,11 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
-| 2.11 | 5 Oktober 2026 | Tab Setelan, bagian baru **Tampilan video**: **Ukuran tulisan label (%)** untuk tulisan kelas di atas kotak deteksi pada video (100 = bawaan). |
+| 2.15 | 5 Oktober 2026 | Tab Setelan, bagian baru **Tampilan video**: **Ukuran tulisan label (%)** untuk tulisan kelas di atas kotak deteksi pada video (100 = bawaan). |
+| 2.14 | 5 Oktober 2026 | §3.4: saringan **Line** dan **Truk** di tab Grading; tabel Grading dan Riwayat memuat foto kecil, foto penuh hanya saat diklik. |
+| 2.13 | 5 Oktober 2026 | §3.1: sesi diperpanjang sendiri selama layar dipakai (habis 12 jam sesudah sentuhan terakhir), pita kuning 15 menit sebelum habis dengan tombol **Perpanjang**. |
+| 2.12 | 5 Oktober 2026 | §3.2: semua daftar pilihan satu bentuk; daftar panjang bisa **diketik untuk mencari**; truk yang sedang di lokasi (sudah timbang isi) di bagian **Di lokasi** paling atas **Pilih Truk** kartu line. |
+| 2.11 | 4 Oktober 2026 | §3.2: tulisan **Diperbarui HH:MM:SS** di bawah jam, layar jadi abu-abu dengan tulisan merah **Data lama** kalau konsol berhenti menjawab, tombol **Segarkan data**, daftar **Pilih Truk** di kartu line ikut truk baru tanpa memuat ulang, dan layar memuat ulang dirinya sendiri sesudah versi baru terpasang. |
 | 2.10 | 4 Oktober 2026 | Tab Setelan: **kotak area deteksi** bisa diatur dari layar, dua saklar tampilkan garis capture dan kotak area deteksi, bagian Kamera & Conveyor jadi tiga kotak. Tab Status: kartu Diagnostik berkelompok dan tertutup dari awal, Manifest R2 jadi bagian sendiri. Kartu line: pemilih truk selebar Reject Manual, Tugaskan dan Lepas / Lepas paksa berbagi sisanya (§3.2, §3.5). |
 | 2.9 | 4 Oktober 2026 | Tombol **Sambung ulang** (sambung ulang kamera) di kotak kamera tiap kartu line, di bawah "Kamera tidak tersambung", untuk semua akun, bertanya dulu, tercatat di tab Log; cadangan kalau sambung ulang otomatis tidak membawa gambar kembali (§3.2, §7). |
 | 2.8 | 3 Oktober 2026 | **Update now**: pita kuning "Versi X siap dipasang" untuk semua akun, tombol **Pasang sekarang** di kotak Versi & lisensi (ditolak selama ada truk di-assign), hasil di kotak itu dan di tab Log (§3.2, §6.2), plus empat baris penanganan masalahnya di §7. |

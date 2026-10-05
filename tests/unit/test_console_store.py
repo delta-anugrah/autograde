@@ -129,6 +129,26 @@ def test_url_gambar_menyuntikkan_folder_line(service):
     assert row["image_url"] == "/captures/line-1/results/2026-09-09/f.webp"
 
 
+@pytest.mark.parametrize(
+    ("image_path", "thumb"),
+    [
+        ("captures/results/2026-10-05/070000_BE1AA_ab/bbox/Ripe/f.webp",
+         "/captures/line-1/results/2026-10-05/070000_BE1AA_ab/thumb/Ripe/f.webp"),
+        ("https://captures.smagri.id/m1/results/2026-10-05/x/bbox/Unripe/f.webp",
+         "https://captures.smagri.id/m1/results/2026-10-05/x/thumb/Unripe/f.webp"),
+        # Written before the bbox/clean/thumb layout: there is no small copy.
+        ("captures/results/2026-09-09/f.webp", None),
+    ],
+)
+def test_every_grading_row_names_its_small_photo(service, image_path, thumb):
+    """Batch 5.12: the table loads the 400 px copy the line already writes, never the
+    5 MP one, which is for the photo dialog only."""
+    service.ingest(_event(service, image_path=image_path))
+    row = service.history("2026-09-10")[0]
+    assert row["thumb_url"] == thumb
+    assert row["image_url"] != thumb
+
+
 def test_url_r2_absolut_diteruskan_apa_adanya(service):
     service.ingest(_event(service, image_path="https://captures.smagri.id/x/f.webp"))
     assert service.history("2026-09-10")[0]["image_url"] == "https://captures.smagri.id/x/f.webp"
@@ -173,7 +193,7 @@ def test_every_console_view_labels_the_source_the_same_way(service):
     state = service.state()
     labels = [
         state["lines"][0]["assignment"]["source_label"],
-        state["recent"][0]["source_label"],
+        service.history(today, limit=1)[0]["source_label"],
         service.recap(today)[0]["source_label"],
         service.weighings(today)[0]["source_label"],
     ]
@@ -583,3 +603,32 @@ def test_migration_renames_every_indonesian_column_not_just_operators(tmp_path):
             "SELECT gross_kg, tare_kg, net_kg FROM weighings WHERE id = 'w1'"
         ).fetchone()
     assert (row["gross_kg"], row["tare_kg"], row["net_kg"]) == (12480.0, 5120.0, 7360.0)
+
+
+def test_state_carries_no_grading_rows(service):
+    """Batch 6.4: `/state` is read every 2 s and used to query 20 `recent` rows nobody
+    drew, while the Grading table asked `/history` for the same rows again."""
+    dipanggil = []
+    asli = service.store.inspections
+    service.store.inspections = lambda *a, **k: dipanggil.append(a) or asli(*a, **k)
+
+    state = service.state()
+
+    assert "recent" not in state
+    assert dipanggil == [], "the poll must not read the grading rows at all"
+
+
+def test_trucks_say_which_of_them_are_on_site(service):
+    """Batch 5.6: a truck weighed in and not yet weighed out leads the Tugaskan list. The
+    server decides which (the same open-ticket rule as the unloading queue), not the screen."""
+    service.register_manual_truck("BE 1 AA")
+    service.register_manual_truck("BE 2 BB")
+    masuk = datetime.now(WIB).isoformat()
+    asyncio.run(service.record_weighing({"plate_number": "BE 2 BB", "gross_kg": 12000, "entered_at": masuk}))
+
+    assert {t["plate_number"]: t["di_lokasi"] for t in service.trucks()} == {"BE 1 AA": False, "BE 2 BB": True}
+
+    asyncio.run(service.record_weighing({"plate_number": "BE 2 BB", "tare_kg": 4000, "entered_at": masuk}))
+
+    assert {t["plate_number"]: t["di_lokasi"] for t in service.trucks()} == {"BE 1 AA": False, "BE 2 BB": False}
+
