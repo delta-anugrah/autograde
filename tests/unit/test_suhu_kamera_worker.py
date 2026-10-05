@@ -24,7 +24,7 @@ def test_dibaca_tiap_sepuluh_detik_bukan_tiap_frame():
     line = LinePalsu()
     line.kamera.suhu = 47.3
     line.jalan(25)                     # frame di detik 0..24
-    assert frame_capture_worker.SUHU_JEDA_DETIK == 10.0
+    assert frame_capture_worker.PANTAU_KAMERA_JEDA_DETIK == 10.0
     assert line.kamera.suhu_dibaca == 3  # detik 0, 10, 20
 
 

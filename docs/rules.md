@@ -1176,6 +1176,24 @@ end of this file.
     gambar" (aturan 33, mulai 5 grab gagal) dan FRAME_BERHENTI (sesudah `AI_MATI_DETIK`, coil
     ERROR naik) sengaja dua baris: yang pertama menyebut alasan kamera, yang kedua keputusan
     sehat.
+    **Kesehatan kamera tanpa sensor suhu** (2026-10-05). Kamera Lampung (MV-CS050-10GC,
+    firmware V4.0.43) tidak punya `DeviceTemperature` (akses NI, dicek di kamera), jadi kamera
+    yang kepanasan atau rusak dibaca dari kelakuannya, aturannya murni di
+    `domain/kesehatan_kamera.py`: **laju tertahan** (fps terukur di bawah 90% target kamera
+    `camera_fps_terukur` selama 2 menit; pulih sesudah 1 menit normal, supaya tidak berkedip),
+    **frame hilang** (`MV_MATCH_TYPE_NET_DETECT`, selisih hitungan SDK dalam jendela 10 menit,
+    bukan total sejak nyala; ada = kuning, mulai 5% = merah; hitungan yang mengecil = handle baru
+    sesudah sambung ulang), dan **putus-nyambung** (satu per kejadian "Kamera tidak mengirim
+    gambar", jendela 24 jam bergulir, bukan sejak tengah malam; 1-2 kuning, 3 merah). Ditanya
+    thread capture tiap `PANTAU_KAMERA_JEDA_DETIK` (10 detik) di bawah kunci kamera (aturan 3),
+    bersama suhu. Line yang menilai (`ringkas_kesehatan_kamera`, L4), layar cuma mewarnai, dan
+    judul grup Kamera dan gambar menulis "perlu dicek" supaya terlihat walau grupnya tertutup.
+    Laju tertahan dan frame hilang ditulis ke tab Log sekali saat mulai dan sekali saat pulih
+    (aturan 33). "Laju tertahan" dilapor `false` begitu gambar berhenti: baris gambar terakhir
+    sudah merah. Kamera yang menjawab NI untuk `DeviceTemperature` ditanya **sekali per
+    sambung** lalu tidak lagi (`suhu_didukung = False`), dan kartu menulis "tidak didukung
+    kamera" alih-alih strip yang terbaca seperti kerusakan; NA (ada tapi belum tersedia) tetap
+    ditanya.
 36. **Penugasan line otomatis: satu truk di line sampai selesai** (keputusan user 2026-10-01).
     Tiap timbang isi dan tiap Lepas memanggil `isi_line_otomatis()`
     (`services/penugasan_otomatis.py`, mixin `ConsoleService`; aturan murni di
@@ -1473,7 +1491,10 @@ memang khas satu mesin.
   baru) menarik digest itu dan menjalankan `scripts/smoke_image.py`: label
   `org.opencontainers.image.version` benar (launcher membaca versi dari situ), `main` dan
   `console_main` bisa diimpor (konsol tanpa torch/cv2), konsol nyala tanpa jaringan dan
-  `/health` menjawab versi yang benar; lalu `tests/e2e/test_image_tracker_deps.py` (tracker
+  `/health` menjawab versi yang benar, dan tiap berkas di `/app/.sidik-image.json` cocok (sejak
+  2026-10-05: daftar sidik kode kita yang ditulis `scripts/tulis_sidik_image.py` di akhir
+  Dockerfile, dibaca cek keutuhan launcher pabrik `periksa_image` sebelum memasang; listrik
+  padam sesudah `docker pull` pernah meninggalkan berkas 0 byte tanpa error); lalu `tests/e2e/test_image_tracker_deps.py` (tracker
   jalan offline) dan, untuk demo, `tests/e2e/test_demo_kit_docker.py`. Baru sesudah lulus job
   `promote` menyalin digest yang sama ke `vX.Y.Z` + `latest` (demo: `vX.Y.Z-cpu`) dengan
   `docker buildx imagetools create`, tanpa build ulang. Smoke gagal = tidak ada tag rilis,

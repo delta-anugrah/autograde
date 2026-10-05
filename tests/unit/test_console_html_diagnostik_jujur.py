@@ -12,7 +12,8 @@ import pytest
 from konsol_js import HTML, NODE, jalankan
 
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada")
-FUNGSI = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol", "diagSuhu", "kartuDiagnostik"]
+FUNGSI = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol", "diagSuhu",
+          "spanTingkat", "diagFpsKamera", "diagFrameHilang", "diagPutus", "diagTandaGrupKamera", "kartuDiagnostik"]
 TAMBAHAN = 'const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));'
 
 SEHAT = {
@@ -24,6 +25,10 @@ SEHAT = {
     "ai": {"keadaan": "sehat"},
     "disk": {"tingkat": "aman", "bebas_gb": 232.0, "persen_bebas": 49.6},
     "lisensi": {"aktif": True, "grading_diblokir": False, "berlaku_sampai": 1_822_000_000},
+    "suhu_kamera_didukung": True, "fps_kamera_target": 15.0, "fps_kamera_turun": False,
+    "frame_hilang": {"hilang": 0, "total": 9000, "persen": 0.0, "tingkat": "aman"},
+    "putus_kamera": {"jumlah": 0, "tingkat": "aman"},
+    "kamera_tingkat": "aman",
 }
 
 
@@ -138,3 +143,70 @@ def test_line_versi_lama_tanpa_suhu_strip():
 def test_suhu_belum_berwarna():
     """Batas aman belum diputuskan: tidak ada hijau/kuning/merah di baris ini."""
     assert "tanda-" not in _baris(_kartu({**SEHAT, "suhu_kamera_c": 71.0}), "Suhu kamera")
+
+
+
+def _ringkasan_grup_kamera(html: str) -> str:
+    cocok = re.search(r'data-grup="kamera">\s*<summary class="diag-grup">(.*?)</summary>', html, re.S)
+    assert cocok, html
+    return cocok.group(1)
+
+
+@butuh_node
+def test_kamera_tanpa_sensor_suhu_tidak_didukung():
+    """Lampung MV-CS050-10GC: a dash read like a fault; the camera simply has no sensor."""
+    html = _kartu({**SEHAT, "suhu_kamera_c": None, "suhu_kamera_didukung": False})
+    assert _baris(html, "Suhu kamera") == "tidak didukung kamera"
+    en = _kartu({**SEHAT, "suhu_kamera_c": None, "suhu_kamera_didukung": False}, bahasa="en")
+    assert _baris(en, "Camera temperature") == "not supported by the camera"
+
+
+@butuh_node
+def test_baris_kesehatan_kamera_sehat_hijau():
+    html = _kartu(SEHAT)
+    assert _baris(html, "Frame hilang (10 mnt)") == '<span class="tanda-ok">0</span>'
+    assert _baris(html, "Putus-nyambung (24 jam)") == '<span class="tanda-ok">0</span>'
+    assert _ringkasan_grup_kamera(html) == "Kamera dan gambar"
+
+
+@butuh_node
+def test_fps_kamera_turun_kuning_dan_grup_ditandai():
+    html = _kartu({**SEHAT, "fps_kamera": 11.2, "fps_kamera_turun": True, "kamera_tingkat": "waspada"})
+    assert _baris(html, "FPS kamera / deteksi") == '<span class="tanda-waspada">11,2</span> / 7,2'
+    assert _ringkasan_grup_kamera(html) == 'Kamera dan gambar <span class="tanda-waspada">perlu dicek</span>'
+
+
+@butuh_node
+def test_frame_hilang_kuning_dan_merah():
+    kuning = _kartu({**SEHAT, "frame_hilang": {"hilang": 12, "total": 9000, "persen": 0.1, "tingkat": "waspada"}})
+    merah = _kartu({**SEHAT, "frame_hilang": {"hilang": 600, "total": 9000, "persen": 6.7, "tingkat": "kritis"},
+                    "kamera_tingkat": "kritis"})
+    assert _baris(kuning, "Frame hilang (10 mnt)") == '<span class="tanda-waspada">12 (0,1%)</span>'
+    assert _baris(merah, "Frame hilang (10 mnt)") == '<span class="tanda-gagal">600 (6,7%)</span>'
+    assert _ringkasan_grup_kamera(merah) == 'Kamera dan gambar <span class="tanda-gagal">perlu dicek</span>'
+
+
+@butuh_node
+def test_putus_nyambung_berwarna():
+    html = _kartu({**SEHAT, "putus_kamera": {"jumlah": 3, "tingkat": "kritis"}})
+    assert _baris(html, "Putus-nyambung (24 jam)") == '<span class="tanda-gagal">3</span>'
+
+
+@butuh_node
+def test_line_lama_tanpa_kesehatan_kamera_strip():
+    lama = {k: v for k, v in SEHAT.items()
+            if k not in ("suhu_kamera_didukung", "fps_kamera_target", "fps_kamera_turun",
+                         "frame_hilang", "putus_kamera", "kamera_tingkat")}
+    html = _kartu(lama)
+    assert _baris(html, "Frame hilang (10 mnt)") == "-"
+    assert _baris(html, "Putus-nyambung (24 jam)") == "-"
+    assert _baris(html, "FPS kamera / deteksi") == "14,9 / 7,2"
+    assert _ringkasan_grup_kamera(html) == "Kamera dan gambar"
+
+
+@butuh_node
+def test_tingkat_asing_tidak_masuk_atribut():
+    html = _kartu({**SEHAT, "putus_kamera": {"jumlah": 1, "tingkat": '"><script>'},
+                   "kamera_tingkat": '"><script>'})
+    assert "<script>" not in html
+    assert _baris(html, "Putus-nyambung (24 jam)") == "<span>1</span>"

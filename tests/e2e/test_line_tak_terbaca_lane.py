@@ -45,6 +45,7 @@ LINES = (
 )
 DASH = 'const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));'
 DIAG = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol", "diagSuhu",
+        "spanTingkat", "diagFpsKamera", "diagFrameHilang", "diagPutus", "diagTandaGrupKamera",
         "kunciSebabTakTerbaca", "kartuDiagnostik"]
 ANTREAN_LINE = ["kunciSebabTakTerbaca", "keadaanAntreanLine", "barisAntreanLine", "waktu", "teksMenit", "lamaProses"]
 MENTAH = ("404", "Not Found", "http", "did not answer", "tidak ada line di port", "401", "refused", "HTTP")

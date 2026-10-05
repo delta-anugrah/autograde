@@ -313,6 +313,10 @@ Kartu Diagnostik (tab **Status**, support) menampilkan suhu badan tiap kamera da
   di tab Log, sesudahnya diam; line tetap jalan. Webcam, video, dan foto selalu `-`.
 - **Belum ada batas aman dan warna.** Batasnya diputuskan nanti dari datasheet dan beberapa hari
   bacaan Lampung.
+- **Kamera Lampung tidak punya sensor suhu** (MV-CS050-10GC firmware V4.0.43, dicek 2026-10-05:
+  `DeviceTemperature` dan `DeviceTemperatureSelector` akses NI). Line menanyakannya sekali per
+  sambung lalu berhenti, dan kartu menulis "tidak didukung kamera". Penggantinya baris laju,
+  frame hilang, dan putus-nyambung di kartu yang sama (aturan 35, `docs/rules.md`).
 - Cek manual di MVS: Feature Tree mode **Expert** atau **Guru**, **Device Control**,
   **Device Temperature**. Line harus dimatikan dulu, karena kamera dibuka eksklusif (§8,
   `MV_E_ACCESS_DENIED`).

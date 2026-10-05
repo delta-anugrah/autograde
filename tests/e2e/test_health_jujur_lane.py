@@ -52,7 +52,8 @@ from palmgrade.workers.line_status_worker import LineStatusWorker
 SANDI = "sandi-e2e-health-jujur"
 butuh_node = pytest.mark.skipif(NODE is None, reason="node tidak ada")
 Usage = namedtuple("Usage", "total used free")
-DIAG = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol", "diagSuhu", "kartuDiagnostik"]
+DIAG = ["tanda", "diagPlc", "diagAngka", "diagFrame", "diagDisk", "diagLisensi", "diagNol", "diagSuhu",
+        "spanTingkat", "diagFpsKamera", "diagFrameHilang", "diagPutus", "diagTandaGrupKamera", "kartuDiagnostik"]
 DASH = 'const dash = (v) => (v === null || v === undefined || v === "" ? KOSONG : esc(v));'
 
 
