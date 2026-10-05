@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-05 · console · Printable grading slip per truck behind a support switch (batch 5.9) (PR #PRNUM)
+## 2026-10-05 · console · Printable grading slip per truck behind a support switch (batch 5.9) (PR #239)
 Changed:        Server: `domain/slip_grading.py` (`susun_slip`, `rasio_ripe_persen`),
                 `services/slip_grading.py` (`SlipGrading`: switch in `sync_state` `setelan_slip_cetak` (kept by the Danger Zone wipes), off by
                 default; slip refused 403 `slip_mati` while off, 404 `slip_tidak_ada`), new
