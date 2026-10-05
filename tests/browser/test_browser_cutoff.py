@@ -43,7 +43,8 @@ def test_support_sets_five_and_the_rekap_says_so(halaman, tengah_malam):
 
     masuk(halaman, OPERATOR)
     buka_tab(halaman, "rekap")
-    expect(halaman.locator("#riwayat-cutoff")).to_have_text(kamus(halaman, "rekapCutoff").replace("{jam}", "05:00"))
+    expect(halaman.locator("#riwayat-cutoff")).to_have_text(
+        kamus(halaman, "rekapCutoff").replace("{jam}", "05:00").replace("{zona}", "Asia/Jakarta"))
     # One working day is named once, as a working day (user 2026-10-05).
     judul = halaman.locator("#riwayat-judul-rentang")
     expect(judul).to_contain_text(kamus(halaman, "riwayatSatuHari").split("{")[0].strip())

@@ -3311,7 +3311,7 @@ const KAMUS = {
     grupHariKerja:"Hari kerja", labelCutoff:"Hari kerja mulai jam",
     bantuCutoff:"00:00 = tengah malam seperti biasa. Misal 05:00: semua yang terjadi sampai jam 5 pagi masih hari kemarin. Berlaku untuk data berikutnya; data yang sudah tersimpan tidak pindah tanggal.",
     btnSimpanCutoff:"Simpan hari kerja", cutoffTersimpan:"Jam mulai hari kerja tersimpan.",
-    rekapCutoff:"(dipotong jam {jam})", riwayatSatuHari:"Hari kerja {tanggal}",
+    rekapCutoff:"(dipotong jam {jam} {zona})", riwayatSatuHari:"Hari kerja {tanggal}",
     riwayatJudulRentang:"Hari kerja {dari} sampai {sampai}",
     saringLine:"Line", saringTruk:"Truk", saringSemuaLine:"Semua line", saringSemuaTruk:"Semua truk",
     kosongGradingSaring:"Tidak ada grading hari ini untuk line dan truk yang dipilih",
@@ -3852,7 +3852,7 @@ const KAMUS = {
     grupHariKerja:"Working day", labelCutoff:"Working day starts at",
     bantuCutoff:"00:00 = midnight as before. For example 05:00: everything until 5 in the morning still belongs to the day before. Applies to new data; stored data keeps its date.",
     btnSimpanCutoff:"Save working day", cutoffTersimpan:"Working day start saved.",
-    rekapCutoff:"(cut at {jam})", riwayatSatuHari:"Working day {tanggal}",
+    rekapCutoff:"(cut at {jam} {zona})", riwayatSatuHari:"Working day {tanggal}",
     riwayatJudulRentang:"Working days {dari} to {sampai}",
     saringLine:"Line", saringTruk:"Truck", saringSemuaLine:"All lines", saringSemuaTruk:"All trucks",
     kosongGradingSaring:"No grading today for the chosen line and truck",
@@ -8120,14 +8120,15 @@ let cutoffShift = "00:00";
 // tab is taken out of the page for an operator, so the poll itself never touches it).
 let zonaPabrik = "";
 
-function teksCutoffRekap(teks) {
-  return teks && teks !== "00:00" ? t("rekapCutoff").replace("{jam}", teks) : "";
+function teksCutoffRekap(teks, zona = "") {
+  if (!teks || teks === "00:00") return "";
+  return t("rekapCutoff").replace("{jam}", teks).replace(" {zona}", zona ? ` ${zona}` : "");
 }
 
 function aturCutoffShift(teks) {
   cutoffShift = teks || "00:00";
   const el = $("riwayat-cutoff");
-  const isi = teksCutoffRekap(cutoffShift);
+  const isi = teksCutoffRekap(cutoffShift, zonaPabrik);
   if (el.textContent !== isi) el.textContent = isi;
   el.hidden = !isi;
 }

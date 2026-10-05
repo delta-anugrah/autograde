@@ -402,7 +402,7 @@ Di atas tabel tertulis hari kerja yang sedang ditampilkan: **Hari kerja Sen, 5 O
 hari, atau **Hari kerja Sen, 5 Okt 2026 sampai Jum, 9 Okt 2026** untuk rentang.
 
 Kalau support menggeser awal hari kerja (tab Setelan, sub-tab **Hari kerja**), di belakangnya tertulis
-**(dipotong jam 05:00)** (jamnya ikut setelan). Truk yang timbang isi antara 00:00 dan jam
+**(dipotong jam 05:00 Asia/Jakarta)** (jam dan zonanya ikut setelan PC). Truk yang timbang isi antara 00:00 dan jam
 itu masuk hari kerja kemarin di konsol, tapi di AutoERP tiketnya tetap bertanggal hari timbang isi.
 Totalnya sama; cuma tanggalnya yang beda.
 
@@ -1026,7 +1026,7 @@ Yang membingungkan atau tampak keliru: **catat sebagai temuan**, jangan dianggap
 
 | Versi | Tanggal | Perubahan |
 |---|---|---|
-| 2.20 | 5 Oktober 2026 | §3.4 dan §3.5: sub-tab Setelan baru **Hari kerja**: support bisa menggeser awal hari kerja (jam apa saja, zona `FACTORY_TZ`; lewat 12:00 layar minta konfirmasi dengan contoh efeknya); tab Rekap menulis **(dipotong jam HH:MM)** kalau bukan tengah malam; judul tabel Rekap menulis satu hari sekali saja (**Hari kerja Sen, 5 Okt 2026**), tidak lagi "5 Okt s.d. 5 Okt". |
+| 2.20 | 5 Oktober 2026 | §3.4 dan §3.5: sub-tab Setelan baru **Hari kerja**: support bisa menggeser awal hari kerja (jam apa saja, zona `FACTORY_TZ`; lewat 12:00 layar minta konfirmasi dengan contoh efeknya); tab Rekap menulis **(dipotong jam HH:MM Asia/Jakarta)** (zona `FACTORY_TZ`) kalau bukan tengah malam; judul tabel Rekap menulis satu hari sekali saja (**Hari kerja Sen, 5 Okt 2026**), tidak lagi "5 Okt s.d. 5 Okt". |
 | 2.19 | 5 Oktober 2026 | Tab Line, pilihan baru **Setelan Kamera** (support): nilai yang sedang dipakai kamera tiap line, baca saja. |
 | 2.18 | 5 Oktober 2026 | Tab Setelan jadi enam sub-tab (Grading, Kamera & Conveyor, Mode Developer, Penugasan line, Slip grading, Danger Zone), satu bagian tampil sekaligus. **Ukuran tulisan label** pindah ke Kamera & Conveyor, kotak **Conveyor & tampilan**. **Penugasan line otomatis** bawaannya nyala di semua line; **Line yang dipakai** satu kotak dengan centang sejajar. Tab **Status** juga jadi lima sub-tab (Versi & pembaruan, Diagnostik, Antrean line ke konsol, Antrean ERP, Manifest R2). Baris sub-tab Setelan, Line, Status, dan tampilan Rekap selebar baris tab utama dan bergaris bawah, bukan deretan tombol. Setelan tanpa kotak bertumpuk: satu kartu per bagian. Tombol saring tab Log bergaris tepi berwarna: Semua putih, WARNING kuning, ERROR merah. Tombol kanan atas menampilkan keterangan saat kursor di atasnya. Strip empat langkah Timbangan berikon dan berwarna tahap. Rekam Video selebar sub-tab, setelan rekaman tidak lagi menempel di tabel. |
 | 2.17 | 5 Oktober 2026 | Tab Setelan, kotak area deteksi: angka **bawaan PC** (kotak dari `.env` line) tampil di kolom dan di satu kalimat di bawahnya; tombol **Kembalikan ke bawaan** mengosongkan keempat kolom, lalu **Simpan**. |

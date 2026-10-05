@@ -32,7 +32,9 @@ def test_every_word_is_in_both_languages(bahasa):
 @pytest.mark.parametrize("bahasa", ["id", "en"])
 def test_the_rekap_names_the_cutoff_only_when_it_is_not_midnight(bahasa):
     pola = jalankan([], "KAMUS[bahasa].rekapCutoff", bahasa=bahasa)
-    assert jalankan(["teksCutoffRekap"], 'teksCutoffRekap("05:00")', bahasa=bahasa) == pola.replace("{jam}", "05:00")
+    # With the factory zone (user 2026-10-06): "(dipotong jam 05:00 Asia/Jakarta)".
+    hasil = jalankan(["teksCutoffRekap"], 'teksCutoffRekap("05:00", "Asia/Jakarta")', bahasa=bahasa)
+    assert hasil == pola.replace("{jam}", "05:00").replace("{zona}", "Asia/Jakarta") and "Asia/Jakarta" in hasil
     for kosong in ('"00:00"', '""', "null", "undefined"):
         assert jalankan(["teksCutoffRekap"], f"teksCutoffRekap({kosong})", bahasa=bahasa) == ""
 
