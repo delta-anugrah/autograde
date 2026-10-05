@@ -209,3 +209,26 @@ def test_tanpa_penonton_render_sungguhan_tidak_menghasilkan_gambar():
     worker.run_once()
 
     assert state.latest_frame is None
+
+
+def _baris_label(gambar, kotak_sensor, warna) -> int:
+    """Rows of `warna` in the strip just above a box: how tall its label is drawn."""
+    sx, sy = STREAM_W / SENSOR_W, STREAM_H / SENSOR_H
+    x1, y1 = round(kotak_sensor[0] * sx), round(kotak_sensor[1] * sy)
+    di_atas = gambar[max(0, y1 - 90):y1 - 3, x1:x1 + 260]
+    return int((di_atas == np.array(warna, dtype=np.uint8)).all(axis=2).any(axis=1).sum())
+
+
+def test_ukuran_label_dari_konsol_membesarkan_tulisan_bukan_kotaknya():
+    """Support sets the label size in percent (2026-10-05); the box stays where and as thick as it was."""
+    pipeline = RealtimeInspectionPipeline(_Registry(), _settings())
+    kecil = cv2.resize(_sensor(), (STREAM_W, STREAM_H), interpolation=cv2.INTER_NEAREST)
+    skala = skala_ke(SENSOR_W, SENSOR_H, STREAM_W, STREAM_H)
+
+    biasa = pipeline.draw_boxes(kecil.copy(), _hasil(), skala=skala)
+    besar = pipeline.draw_boxes(kecil.copy(), _hasil(), skala=skala, ukuran_label=200)
+
+    tinggi_biasa = _baris_label(biasa, MATANG, COLOR_PASS)
+    tinggi_besar = _baris_label(besar, MATANG, COLOR_PASS)
+    assert 1.6 * tinggi_biasa <= tinggi_besar <= 2.4 * tinggi_biasa, (tinggi_biasa, tinggi_besar)
+    assert _tepi(besar, MATANG, COLOR_PASS) == _tepi(biasa, MATANG, COLOR_PASS), "the box itself must not move"

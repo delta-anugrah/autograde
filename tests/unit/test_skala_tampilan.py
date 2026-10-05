@@ -13,6 +13,7 @@ from palmgrade.domain.skala_tampilan import (
     TANPA_SKALA,
     GayaKotak,
     gaya_berskala,
+    gaya_label,
     kotak_berskala,
     skala_ke,
 )
@@ -72,3 +73,27 @@ def test_garis_dan_huruf_tidak_pernah_hilang():
 
     assert gaya.border >= 1 and gaya.font_thickness >= 1 and gaya.jarak_label >= 1
     assert gaya.font_scale > 0
+
+
+# ── label size from the console (2026-10-05) ────────────────────────────────
+
+
+def test_seratus_persen_tidak_mengubah_apa_pun():
+    gaya = GayaKotak(3, 1.08, 2, 4)
+    assert gaya_label(gaya, 100) == gaya
+
+
+def test_persen_mengubah_tulisan_saja_bukan_garis_kotak():
+    gaya = gaya_label(GayaKotak(3, 1.0, 2, 4), 200)
+
+    assert gaya.border == 3, "the box border is not the label"
+    assert gaya.font_scale == pytest.approx(2.0)
+    assert gaya.font_thickness == 4
+    assert gaya.jarak_label == 8, "a bigger label keeps its distance from the box"
+
+
+def test_tulisan_kecil_tidak_pernah_hilang():
+    gaya = gaya_label(GayaKotak(3, 1.0, 1, 4), 25)
+
+    assert gaya.font_scale == pytest.approx(0.25)
+    assert gaya.font_thickness == 1 and gaya.jarak_label >= 1

@@ -70,3 +70,35 @@ def test_the_detection_box_and_the_two_show_switches_reach_the_lines(halaman, li
     terkirim = [isi for jalur, isi in lines["line-1"].diterima if jalur == "/internal/setelan"]
     assert terkirim, "the save never reached line-1"
     assert terkirim[-1]["roi_x1"] is None and terkirim[-1]["tampil_garis"] is True, terkirim[-1]
+
+
+def test_the_label_size_reaches_the_lines(halaman, lines):
+    """Video display (2026-10-05): the label size goes out as a whole percent; a size out of
+    range is refused at the console, its input marked, nothing sent."""
+    for kode in _HIDUP:
+        lines[kode].diterima.clear()
+    masuk(halaman, SUPPORT)
+    buka_tab(halaman, "setelan")
+    expect(halaman.locator("#set-conf")).not_to_have_value("")
+    halaman.locator('details[data-setelan-grup="tampilan"] > summary').click()
+    expect(halaman.locator("#set-ukuran-label")).to_have_value("100")
+    halaman.fill("#set-ukuran-label", "150")
+    halaman.click("#set-simpan")
+    expect(halaman.locator("#set-simpan")).not_to_have_class(re.compile(r"\bsibuk\b"))
+    halaman.wait_for_function("() => document.querySelector('#set-pesan').textContent === ''")
+    for kode in _HIDUP:
+        isi = [isi for jalur, isi in lines[kode].diterima if jalur == "/internal/setelan"][-1]
+        assert isi["ukuran_label"] == 150, isi
+
+    for kode in _HIDUP:
+        lines[kode].diterima.clear()
+    halaman.fill("#set-ukuran-label", "900")
+    halaman.click("#set-simpan")
+    expect(halaman.locator("#set-ukuran-label")).to_have_attribute("aria-invalid", "true")
+    assert not any(jalur == "/internal/setelan" for kode in _HIDUP for jalur, _ in lines[kode].diterima)
+
+    # Back to the default for the next test.
+    halaman.fill("#set-ukuran-label", "100")
+    halaman.click("#set-simpan")
+    expect(halaman.locator("#set-simpan")).not_to_have_class(re.compile(r"\bsibuk\b"))
+    halaman.wait_for_function("() => document.querySelector('#set-pesan').textContent === ''")

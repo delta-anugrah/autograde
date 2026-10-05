@@ -100,3 +100,11 @@ def test_timeout_dipatok():
 def test_fungsinya_async():
     """Lifespan meng-`await` ini. Kalau suatu saat jadi sinkron, startup pecah."""
     assert "async def _tarik_setelan_grading(" in _sumber_main()
+
+
+def test_ukuran_label_ikut_ditarik_dan_dipakai():
+    """A line that restarts must get the label size back from the console (2026-10-05), not
+    fall back to 100 until support saves again."""
+    f = _fungsi_tarik()
+    assert '"ukuran_label"' in f
+    assert 'state.ukuran_label_override = bersih["ukuran_label"]' in f

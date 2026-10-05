@@ -106,7 +106,7 @@ async def _tarik_setelan_grading(settings, state) -> None:
                 k: data[k]
                 for k in (
                     "conf_threshold", "minimum_size", "garis_capture", "sumbu_garis",
-                    "mode_dev", "tampil_garis", "tampil_roi", *KOTAK,
+                    "mode_dev", "tampil_garis", "tampil_roi", "ukuran_label", *KOTAK,
                 )
                 if k in data
             }
@@ -118,6 +118,7 @@ async def _tarik_setelan_grading(settings, state) -> None:
         state.mode_dev_override = bersih["mode_dev"]
         state.tampil_garis_override = bersih["tampil_garis"]
         state.tampil_roi_override = bersih["tampil_roi"]
+        state.ukuran_label_override = bersih["ukuran_label"]
         state.roi_override = kotak_dari(bersih, settings.stream_width, settings.stream_height)
         if state.roi_override is None and bersih["roi_x1"] is not None:
             logger.warning("Detection box from the console covers none of the picture, keeping ROI_* from .env")
