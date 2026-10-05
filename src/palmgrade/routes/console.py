@@ -83,6 +83,11 @@ from .console_lepas_paksa import lepas_paksa_router
 logger = logging.getLogger(__name__)
 
 _CONSOLE_HTML = Path(__file__).resolve().parents[1] / "static" / "console.html"
+# Without a Cache-Control the kiosk guesses a lifetime from Last-Modified and keeps showing the
+# previous version's page after an update (Lampung 2026-10-05): the version number is right,
+# it comes from the API, but new sections are missing until someone presses Ctrl+Shift+R.
+# `no-cache` still lets the browser keep the file; it only has to ask the console first.
+_CONSOLE_HTML_CACHE = "no-cache"
 
 
 # ── operator screen + its API ───────────────────────────────────────────
@@ -99,7 +104,9 @@ router = APIRouter(tags=["console"])
 
 @router.get("/console", include_in_schema=False)
 async def console_page() -> FileResponse:
-    return FileResponse(_CONSOLE_HTML, media_type="text/html")
+    return FileResponse(
+        _CONSOLE_HTML, media_type="text/html", headers={"Cache-Control": _CONSOLE_HTML_CACHE}
+    )
 
 
 @router.get("/api/console/operators")
