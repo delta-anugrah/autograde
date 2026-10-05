@@ -6,6 +6,7 @@ import queue
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import TypeVar
 
 from ..domain.kesehatan_kamera import (
@@ -16,6 +17,7 @@ from ..domain.kesehatan_kamera import (
 )
 from ..domain.transisi import PelacakTransisi, teks_lama
 from ..integrations.camera.base import CameraSource
+from ..integrations.camera.berkas_fitur import pilih_berkas_fitur
 from .runtime_state import RuntimeState
 
 logger = logging.getLogger(__name__)
@@ -37,12 +39,14 @@ PANTAU_KAMERA_JEDA_DETIK = 10.0
 
 
 class FrameCaptureWorker:
-    def __init__(self, camera: CameraSource, state: RuntimeState, target_fps: int = 20, device_index: int = 0, serial: str | None = None, feature_file: str | None = None, **_) -> None:
+    def __init__(self, camera: CameraSource, state: RuntimeState, target_fps: int = 20, device_index: int = 0, serial: str | None = None, feature_file: str | None = None, setelan_dir: Path | None = None, line_code: str = "", **_) -> None:
         self.camera = camera
         self.state = state
         self._device_index = device_index
         self._serial = serial
         self._feature_file = feature_file
+        self._setelan_dir = setelan_dir
+        self._line_code = line_code
         self._target_fps = target_fps
         self._frame_interval = 1.0 / max(1, target_fps) if target_fps > 0 else 0.0
         self._last_frame_time: float = 0.0
@@ -196,8 +200,10 @@ class FrameCaptureWorker:
 
     def _sambung_kamera(self) -> None:
         """Connect under `state.lock` (rule 3). Raises what `connect()` raises."""
+        berkas = pilih_berkas_fitur(self._setelan_dir, self._line_code, self._feature_file)
         with self.state.lock:
-            self.camera.connect(index=self._device_index, serial=self._serial, feature_file=self._feature_file)
+            self.camera.connect(index=self._device_index, serial=self._serial, feature_file=berkas)
+            self.state.berkas_fitur_aktif = berkas
             self._consecutive_failures = 0
             self._reconnect_backoff = _RECONNECT_BACKOFF_BASE
             self.adopt_camera_frame_rate()

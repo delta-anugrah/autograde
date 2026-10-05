@@ -273,6 +273,12 @@ class Settings:
     camera_feature_file: str | None = field(
         default_factory=lambda: (os.getenv("CAMERA_FEATURE_FILE", "").strip() or None)
     )
+    # Folder of settings files saved from the console, one per line (`line-1.mfs`), spec §3.1. A saved file
+    # wins over `camera_feature_file`, which stays the baseline. Empty = off (an old `.env` changes nothing);
+    # the factory compose sets it together with the folder mount in phase 2.
+    camera_setelan_dir: Path | None = field(
+        default_factory=lambda: (Path(v) if (v := os.getenv("CAMERA_SETELAN_DIR", "").strip()) else None)
+    )
     camera_video_path: str = field(default_factory=lambda: os.getenv("CAMERA_VIDEO_PATH", ""))
     # Loop the video until the line is stopped (performance runs). Off = play once.
     camera_video_loop: bool = field(default_factory=lambda: _as_bool(os.getenv("CAMERA_VIDEO_LOOP"), False))

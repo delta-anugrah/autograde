@@ -191,6 +191,9 @@ class RuntimeState:
     # Camera commands from request threads (camera settings, spec §3.2), run by the capture thread between two
     # grabs under `lock` (rule 3). The route waits on it; it never calls the SDK itself.
     perintah_kamera: AntreanPerintahKamera = field(default_factory=AntreanPerintahKamera)
+    # The `.mfs` pushed at the last connect (`integrations/camera/berkas_fitur.py`): the settings screen says
+    # whether the camera runs on a saved file or on the baseline. None = no file pushed.
+    berkas_fitur_aktif: str | None = None
 
     def penonton_masuk(self) -> None:
         """One more reader of the MJPEG stream."""
