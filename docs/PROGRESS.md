@@ -18,6 +18,26 @@ Next:           ...
 
 ---
 
+## 2026-10-05 · console · Status in sub-tabs, flat Settings card, tab-style sub-tabs, Log colours (PR #243)
+Changed:        Status is five sub-tabs (Versi & pembaruan, Diagnostik, Antrean line ke konsol, Antrean
+                ERP, Manifest R2), the Settings pattern (`SUB_STATUS`, `terapkanSubStatus`, remembered
+                as `subStatus`); all five still load when the tab opens. Every sub-tab bar (Settings,
+                Line, Status, Recap views) is one `.sub-tab` component: as wide as the main tab bar
+                (`.line-sub-bar` lost its second `var(--pad)`), drawn as tabs with an accent underline.
+                Settings: the open part is one card; groups and named blocks draw no box (a block is a
+                heading on a rule). Log filters keep their colour when chosen: All white, WARNING
+                yellow, ERROR red; the chosen one gets a dark ring and a tick.
+Validated:      `pytest tests --ignore=tests/browser --deselect tests/unit/test_doc_links.py` → 5648
+                passed, 25 skipped; `ruff check src/ tests/` → clean; browser suite Chromium + Firefox
+                → all passed except one Firefox slip in `test_browser_grading_saring` (an "auto-released"
+                toast from an earlier test covered the photo), which passed on its own run in both
+                browsers; new tests: Status sub-tabs + remembered on reload, every sub-tab bar as wide
+                as `#tabs`, Log filter colours, Status sections on a 1024 px screen. Screenshots of
+                Settings, Line, Status (all five), Log, Recap in Indonesian and English, plus dark theme,
+                looked at. `docs/MANUAL.pdf` rebuilt (45 pages).
+Not validated:  On the factory PC (needs a release).
+Next:           Same as below: release v1.25.0 (#244).
+
 ## 2026-10-05 · console · Settings in sub-tabs, automatic assignment on by default (PR #243)
 Changed:        Settings is six sub-tabs (the Line tab's component): Grading, Kamera & Conveyor, Mode
                 Developer, Penugasan line, Slip grading, Danger Zone; one part at a time, the last one

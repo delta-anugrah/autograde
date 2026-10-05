@@ -4,7 +4,7 @@ request beyond this machine, so opening each tab as support is itself the test."
 from __future__ import annotations
 
 import pytest
-from langkah import SUPPORT, buka_tab, masuk
+from langkah import SUPPORT, buka_status, buka_tab, masuk
 from playwright.sync_api import expect
 
 TABS = ("grading", "truk", "timbangan", "rekap", "log", "status", "akun", "line", "setelan")
@@ -49,3 +49,10 @@ def test_a_narrow_screen_never_scrolls_sideways(halaman):
         halaman.evaluate(_MUAT_TAB, tab)
         lebar = halaman.evaluate("() => [document.documentElement.scrollWidth, window.innerWidth]")
         assert lebar[0] <= lebar[1], f"tab {tab} is {lebar[0]} px wide on a {lebar[1]} px screen"
+    # Status shows one section at a time since 2026-10-05: each of them is measured too.
+    buka_tab(halaman, "status")
+    halaman.evaluate(_MUAT_TAB, "status")
+    for sub in ("versi", "diagnostik", "antrean-line", "antrean-erp", "manifest"):
+        buka_status(halaman, sub)
+        lebar = halaman.evaluate("() => [document.documentElement.scrollWidth, window.innerWidth]")
+        assert lebar[0] <= lebar[1], f"Status {sub} is {lebar[0]} px wide on a {lebar[1]} px screen"

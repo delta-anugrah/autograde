@@ -24,7 +24,7 @@ def _bagian() -> str:
 
 def test_enam_sub_tab_berlabel_dua_bahasa():
     """Same component as the Line tab, one button per part, each worded through KAMUS."""
-    bar = re.search(r'<div class="log-level" id="setelan-sub" role="group">(.*?)</div>', _bagian(), re.S)
+    bar = re.search(r'<div class="sub-tab" id="setelan-sub" role="group">(.*?)</div>', _bagian(), re.S)
     assert bar, "the Settings sub-tab bar is missing"
     tombol = re.findall(r'<button type="button" data-sub="(\w+)" data-t="(\w+)">', bar.group(1))
     assert [sub for sub, _ in tombol] == list(SUB)
@@ -72,6 +72,73 @@ def test_setelan_form_tidak_dipatok_sempit():
     cocok = re.search(r"\.setelan-form\s*\{[^}]*\}", HTML, re.S)
     assert cocok is not None
     assert "max-width:30rem" not in cocok.group(0).replace(" ", "")
+
+
+# ── Status: sub-tabs (user 2026-10-05), the Settings pattern ────────────────
+
+SUB_STATUS = ("versi", "diagnostik", "antrean-line", "antrean-erp", "manifest")
+
+
+def _status() -> str:
+    return HTML.split('<section id="sec-status"', 1)[1].split("</section>", 1)[0]
+
+
+def test_status_lima_sub_tab_berlabel_dua_bahasa():
+    bar = re.search(r'<div class="sub-tab" id="status-sub" role="group">(.*?)</div>', _status(), re.S)
+    assert bar, "the Status sub-tab bar is missing"
+    tombol = re.findall(r'<button type="button" data-sub="([\w-]+)" data-t="(\w+)">', bar.group(1))
+    assert [sub for sub, _ in tombol] == list(SUB_STATUS)
+    for _, kunci in tombol:
+        assert HTML.count(f"{kunci}:") == 2, f"{kunci} must exist in id and en"
+
+
+def test_status_tiap_bagian_punya_panel_dan_isinya():
+    """Every section the tab had is still there, each inside its own sub-tab panel."""
+    isi = {"versi": ("versi-daftar", "pembaruan-support"), "diagnostik": ("diagnostik-kartu",),
+           "antrean-line": ("antrean-line-baris",), "antrean-erp": ("antrean-kirim-ulang", "antrean-baris"),
+           "manifest": ("manifest-nonaktif", "manifest-baris")}
+    potong = re.split(r'<div class="status-bagian" data-status-sub="([\w-]+)"', _status())
+    panel = dict(zip(potong[1::2], potong[2::2], strict=True))
+    assert list(panel) == list(SUB_STATUS)
+    for sub, ids in isi.items():
+        for el in ids:
+            assert f'id="{el}"' in panel[sub], (sub, el)
+    assert 'data-status-sub="versi">' in _status(), "the first section opens without a stored choice"
+
+
+def test_status_pindah_sub_tab_menyembunyikan_yang_lain_dan_diingat():
+    js = HTML.split("function terapkanSubStatus()", 1)[1].split("\n}", 1)[0]
+    assert "g.hidden = g.dataset.statusSub !== subStatus" in js
+    assert 'simpan("subStatus", subStatus)' in HTML
+    assert 'baca("subStatus", "versi")' in HTML
+    assert ".status-bagian[hidden] { display:none; }" in HTML
+
+
+# ── Sub-tab bars and the Log filter (user 2026-10-05) ─────────────────────
+
+
+def test_semua_bar_sub_tab_satu_komponen_selebar_tab_utama():
+    for bar in ('id="setelan-sub"', 'id="line-sub"', 'id="status-sub"'):
+        assert f'<div class="sub-tab" {bar} role="group">' in HTML, bar
+    assert '<div class="sub-tab riwayat-tampilan" role="group">' in HTML
+    # The panel's padding is the main tab bar's: a second `var(--pad)` made the bar narrower.
+    bar = re.search(r"\.line-sub-bar\s*\{([^}]*)\}", HTML)
+    assert bar and "padding:0 0 16px" in bar.group(1)
+
+
+def test_filter_log_berwarna_tetap_saat_dipilih():
+    for nilai, warna in (('""', "#ffffff"), ('"WARNING"', "#ffd44d"), ('"ERROR"', "#c62828")):
+        aturan = re.search(rf"#log-level button\[data-nilai={nilai}\]\s*\{{([^}}]*)\}}", HTML)
+        assert aturan and f"background:{warna}" in aturan.group(1), nilai
+    aktif = re.search(r"#log-level button\.aktif\s*\{([^}]*)\}", HTML)
+    assert aktif and "background" not in aktif.group(1), "the chosen filter must keep its colour"
+
+
+def test_kartu_setelan_tanpa_kotak_dalam_kotak():
+    """User 2026-10-05: the open part is one card; the group and its named blocks draw no box."""
+    sub = re.search(r"\.setelan-sub\s*\{([^}]*)\}", HTML)
+    assert sub and "border:0" in sub.group(1).replace(" ", "")
+    assert not re.search(r"\.setelan-grup\s*\{[^}]*border", HTML)
 
 
 # ── Versi ───────────────────────────────────────────────────────────────────

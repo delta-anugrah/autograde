@@ -354,6 +354,8 @@
   .riwayat-ringkasan .stat.tp b { color:var(--warn); }
   .riwayat-kepala-tabel { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px;
                           margin:14px 0 8px; }
+  /* The three views are sub-tabs (2026-10-05): the full width, the range under them. */
+  .riwayat-tampilan { flex:1 1 100%; grid-template-columns:repeat(3, minmax(0, 1fr)); }
   button.riwayat-lihat { padding:5px 10px; font-size:.85rem; }
   /* Lebih rapat dari tabel lain: Per hari punya 10 kolom, dan di layar 1024 px tombol
      Lihat truk di ujung kanan terdorong keluar sampai tabelnya harus digeser. */
@@ -1192,13 +1194,30 @@
   .log-level { display:flex; gap:4px; flex:0 0 auto; }
   .log-level button { flex:0 0 auto; min-width:5rem; background:var(--zebra);
                        color:var(--muted); border:1px solid var(--line); }
-  /* Tab Status (2026-09-28): tiga bagian bertumpuk, masing-masing diberi judul kecil. */
-  .status-judul { margin:18px var(--pad) 8px; font-size:.8rem; font-weight:700;
-                  letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
-  .status-judul:first-of-type { margin-top:4px; }
-  /* Pilihan di dalam tab Line (2026-09-28). */
-  .line-sub-bar { display:flex; flex-wrap:wrap; gap:8px; padding:0 var(--pad) 14px; }
   .log-level button.aktif { background:var(--acc); color:var(--on-acc); border-color:var(--acc); }
+  /* Log filter (user 2026-10-05): each level keeps its own colour, chosen or not (All white,
+     WARNING yellow, ERROR red), so the colour says which level, and a dark ring plus a tick
+     say which one is chosen. Fixed colours, not theme tokens: the same in both themes. */
+  #log-level button { min-width:7rem; border-width:2px; }
+  #log-level button[data-nilai=""] { background:#ffffff; color:#1b2129; border-color:#9aa4b1; }
+  #log-level button[data-nilai="WARNING"] { background:#ffd44d; color:#2b2100; border-color:#c99a00; }
+  #log-level button[data-nilai="ERROR"] { background:#c62828; color:#ffffff; border-color:#8e1c1c; }
+  #log-level button.aktif { box-shadow:0 0 0 3px var(--bg), 0 0 0 6px var(--fg); }
+  #log-level button.aktif::before { content:"\2713\00a0"; }
+
+  /* Sub-tabs (user 2026-10-05): the bar under a main tab is as wide as the main tab bar (the
+     panel's own padding, no second indent) and reads as tabs, not as a row of buttons: plain
+     labels on one rule, the chosen one carried by a thick accent underline. One component for
+     Settings, Line, Status and the Recap views; each bar sets only its column count. */
+  .line-sub-bar { display:flex; flex-wrap:wrap; gap:8px; padding:0 0 16px; }
+  .sub-tab { display:grid; gap:0; }
+  .sub-tab button { width:100%; min-width:0; min-height:2.8rem; padding:8px 12px;
+                    background:none; color:var(--muted); border:0; border-radius:0;
+                    box-shadow:inset 0 -2px 0 var(--line); font-size:1rem; letter-spacing:.02em; }
+  .sub-tab button:hover:not(:disabled) { color:var(--fg); background:var(--zebra);
+                                         box-shadow:inset 0 -2px 0 var(--line-kuat); transform:none; }
+  .sub-tab button.aktif, .sub-tab button.aktif:hover:not(:disabled) {
+    color:var(--fg); background:none; box-shadow:inset 0 -4px 0 var(--acc); }
   /* Tab Log (batch 3.2/3.5): asal baris, waktu pertama, traceback, keadaan lapor Discord. */
   .log-asal { display:inline-block; margin-right:6px; padding:2px 6px; border-radius:var(--r-xs);
               background:var(--zebra); border:1px solid var(--line); font-size:.78rem; font-weight:700; }
@@ -1212,9 +1231,13 @@
   /* Empat pilihan Line membentang selebar panel, dibagi empat sama rata (permintaan
      operator 2026-09-29); layar sempit jadi 2 x 2, tetap sama lebar. `minmax(0,1fr)`,
      bukan `1fr`: label panjang tidak boleh melebarkan kolomnya sendiri. */
-  #line-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:8px; }
+  #line-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:0; }
   #line-sub button { width:100%; min-width:0; }
   @media (max-width:600px) { #line-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+  /* Status sub-tabs (user 2026-10-05): one section of the tab at a time. */
+  #status-sub { flex:1 1 100%; grid-template-columns:repeat(5, minmax(0, 1fr)); }
+  @media (max-width:800px) { #status-sub { grid-template-columns:repeat(3, minmax(0, 1fr)); } }
+  .status-bagian[hidden] { display:none; }
   /* Wrapper, not the bare table: eight nowrap columns do not fit a narrow
      screen, and without this the page itself scrolls sideways. */
   /* position:relative: an absolute child (`.sr-only` in a header cell) otherwise escapes
@@ -1290,38 +1313,30 @@
      kartu selebar 480 px menyisakan dua pertiga layar kosong, dan kolomnya
      berdesak di kiri justru saat support membaca dari jarak beberapa meter. */
   /* Settings sub-tabs (2026-10-05): the Line tab's component, six parts. */
-  #setelan-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:8px; }
-  #setelan-sub button { width:100%; min-width:0; }
+  #setelan-sub { flex:1 1 100%; display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:0; }
   @media (max-width:1100px) { #setelan-sub { grid-template-columns:repeat(4, minmax(0, 1fr)); } }
   @media (max-width:600px) { #setelan-sub { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
   /* `display:grid` beats the browser's `[hidden]`, as for `#akun-tambah`. */
   .setelan-form[hidden], .setelan-grup[hidden], #setform-bahaya[hidden] { display:none; }
   /* The lines a truck is assigned to: side by side under their heading. */
   .setelan-lines { display:flex; flex-wrap:wrap; gap:12px 32px; }
+  /* The card (user 2026-10-05: "too many borders"): the open part is ONE card, as wide as
+     the sub-tab bar above it. Nothing inside draws another box: the group is a plain layout
+     wrapper and a named block is a heading on a rule (`.setelan-sub` below). */
   .setelan-form { display:grid; gap:18px; padding:20px;
-                  border:1px solid var(--line); border-radius:var(--r);
-                  background:var(--kartu); margin:0 var(--pad); }
-
-  /* Accordion: satu kelompok terbuka pada satu waktu sudah cukup untuk
-     menyetel, dan yang tertutup tidak ikut menarik mata. `<details>` dipakai
-     apa adanya — buka/tutupnya ditangani browser, jadi tidak ada state JS yang
-     bisa melenceng dari yang terlihat. */
-  .setelan-grup { border:1px solid var(--line); border-radius:var(--r);
-                  background:var(--bg); }
-  .setelan-grup > summary { cursor:pointer; padding:12px 16px; font-weight:600;
-                            user-select:none; list-style:revert; }
-  .setelan-grup > summary:hover { background:var(--kartu); }
-  .setelan-grup[open] > summary { border-bottom:1px solid var(--line); }
+                  border:1px solid var(--line-kuat); border-radius:var(--r-md);
+                  background:var(--card); }
   /* Isi kelompok menyebar jadi beberapa kolom di layar lebar, satu kolom di
      layar sempit. `minmax(0,…)` wajib: tanpanya kolom grid menolak menyusut di
      bawah lebar isinya dan layar ikut melebar ke samping. */
-  .setelan-grup-isi { display:grid; gap:18px; padding:16px;
+  .setelan-grup-isi { display:grid; gap:18px 32px;
                       grid-template-columns:repeat(auto-fit, minmax(min(22rem, 100%), 1fr)); }
   .setelan-form label, .setelan-form .label { display:grid; gap:6px; align-content:start; }
-  /* A named block inside a group: its fields stack, the blocks sit side by side. */
-  .setelan-sub { margin:0; min-width:0; padding:14px 16px 16px; display:grid; gap:16px; align-content:start;
-                 border:1px solid var(--line); border-radius:var(--r); }
-  .setelan-sub > legend { padding:0 6px; font-size:.72rem; font-weight:700; letter-spacing:.12em;
+  /* A named block inside a group: its fields stack, the blocks sit side by side. A heading on
+     a rule, not a framed box: the card around it is the only frame. */
+  .setelan-sub { margin:0; min-width:0; padding:12px 0 0; display:grid; gap:16px; align-content:start;
+                 border:0; border-top:2px solid var(--line); }
+  .setelan-sub > legend { padding:0 10px 0 0; font-size:.78rem; font-weight:700; letter-spacing:.12em;
                           text-transform:uppercase; color:var(--muted); }
   /* Fields fill their block: a 22 rem cap inside a wide block left half of it empty. */
   .setelan-grup-isi .setelan-sub :is(input[type="text"], select) { max-width:none; width:100%; box-sizing:border-box; }
@@ -1346,8 +1361,8 @@
      untuk "ini bisa merusak". */
   /* `details.bahaya`, bukan `.bahaya`: `button.bahaya` adalah varian tombol bahaya, dan
      aturan tanpa nama elemen akan memberi setiap tombol Batal margin dan bingkai ini. */
-  details.bahaya { margin:18px var(--pad) 0; border:1px solid var(--danger-line);
-            border-radius:var(--r); background:var(--kartu); }
+  details.bahaya { margin:0; border:1px solid var(--danger-line);
+            border-radius:var(--r-md); background:var(--card); }
   .bahaya > summary { cursor:pointer; padding:12px 16px; font-weight:700; user-select:none;
                       color:var(--danger-fg); letter-spacing:.04em; list-style:revert; }
   .bahaya[open] > summary { border-bottom:1px solid var(--danger-line); }
@@ -1463,6 +1478,8 @@
      sekaligus, jadi dia tidak boleh terbaca sebagai bagian dari kolom terakhir. */
   .setelan-form .tools { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
                          padding-top:14px; border-top:1px solid var(--line); }
+  /* Empty: no room under Simpan (its own margins plus the card's gap left a blank band). */
+  #set-pesan:empty { margin:-18px 0 0; }
   #set-pesan:not(:empty) { margin:0; padding:8px 10px; border-radius:var(--r);
                            background:var(--warn-bg); color:var(--warn); }
   /* Sumber kamera: tiga kartu SEJAJAR (bukan ditumpuk) supaya layar lebar pabrik
@@ -2129,7 +2146,7 @@
   </div>
   <div id="riwayat-ringkasan" class="riwayat-ringkasan"></div>
   <div class="riwayat-kepala-tabel">
-    <div class="log-level riwayat-tampilan" role="group">
+    <div class="sub-tab riwayat-tampilan" role="group">
       <button type="button" data-tampilan="hari" data-t="riwayatPerHari">Per hari</button>
       <button type="button" data-tampilan="truk" data-t="riwayatPerTruk">Per truk</button>
       <button type="button" data-tampilan="janjang" data-t="riwayatPerJanjang">Per janjang</button>
@@ -2210,7 +2227,7 @@
     assignment, Grading slip and Danger Zone keep their own.
   -->
   <div class="line-sub-bar">
-    <div class="log-level" id="setelan-sub" role="group">
+    <div class="sub-tab" id="setelan-sub" role="group">
       <button type="button" data-sub="grading" data-t="grupGrading">Grading</button>
       <button type="button" data-sub="kamera" data-t="grupKamera">Kamera &amp; Conveyor</button>
       <button type="button" data-sub="dev" data-t="grupDev">Mode Developer</button>
@@ -2466,17 +2483,32 @@
     menjawab satu pertanyaan, "sistemnya sehat?". Diagnostik tetap disegarkan tiap 5 detik
     selama tab ini terbuka (`bukaTabDev`).
   -->
-  <h2 class="status-judul" data-t="judulVersi">Versi</h2>
+  <!--
+    Sub-tabs since 2026-10-05 (user): one section at a time, the Settings component. Every
+    section still loads when the tab opens (`muatStatus`), so a sub-tab switch is instant.
+  -->
+  <div class="line-sub-bar">
+    <div class="sub-tab" id="status-sub" role="group">
+      <button type="button" data-sub="versi" data-t="subStatusVersi">Versi &amp; pembaruan</button>
+      <button type="button" data-sub="diagnostik" data-t="judulDiagnostik">Diagnostik</button>
+      <button type="button" data-sub="antrean-line" data-t="judulAntreanLine">Antrean line ke konsol</button>
+      <button type="button" data-sub="antrean-erp" data-t="judulAntrean">Antrean ERP</button>
+      <button type="button" data-sub="manifest" data-t="judulManifest">Manifest R2</button>
+    </div>
+  </div>
+  <div class="status-bagian" data-status-sub="versi">
   <!-- Support-only. Version, machine id, licence state - never a secret. -->
   <dl id="versi-daftar" class="daftar-definisi"></dl>
   <div id="pembaruan-support"></div>
-  <h2 class="status-judul" data-t="judulDiagnostik">Diagnostik</h2>
+  </div>
+  <div class="status-bagian" data-status-sub="diagnostik" hidden>
   <!--
     Support-only: /health/detail from each line, gathered concurrently server-side.
     An unreachable line still gets a card - that is the one worth seeing.
   -->
   <div id="diagnostik-kartu" class="kartu-grid"></div>
-  <h2 class="status-judul" data-t="judulAntreanLine">Antrean line ke konsol</h2>
+  </div>
+  <div class="status-bagian" data-status-sub="antrean-line" hidden>
   <!--
     Support-only (batch 2.4, 2026-09-28): janjang yang belum sampai dari tiap line ke
     konsol. Antrean ini tidak pernah menyerah lagi, jadi yang perlu dilihat: berapa,
@@ -2491,7 +2523,8 @@
       <tbody id="antrean-line-baris"></tbody>
     </table>
   </div>
-  <h2 class="status-judul" data-t="judulAntrean">Antrean ERP</h2>
+  </div>
+  <div class="status-bagian" data-status-sub="antrean-erp" hidden>
   <!--
     Support-only: what is stuck in the ERP outbox, why, and one button to
     move it all back to pending so the next tick tries again.
@@ -2508,8 +2541,9 @@
       <tbody id="antrean-baris"></tbody>
     </table>
   </div>
+  </div>
   <!--
-    Second row, same screen: the R2 manifest queue (VisitManifestWorker's own
+    Its own sub-tab: the R2 manifest queue (VisitManifestWorker's own
     ErpOutboxStore, a different file). Manifest not configured (no R2) reads
     as its own explicit message, never as zeros - 0 pending/0 failed looks
     identical to a healthy idle queue, and that is exactly the outage this
@@ -2517,7 +2551,7 @@
   -->
   <!-- Pesan nonaktif di ATAS kepala tabel: di antara keduanya ia memutus
        `.tools + .tabel` dan kepala tabelnya menggantung. -->
-  <h2 class="status-judul" data-t="judulManifest">Manifest R2</h2>
+  <div class="status-bagian" data-status-sub="manifest" hidden>
   <p id="manifest-nonaktif" hidden class="muted" data-t="manifestNonaktif">R2 belum disetel.</p>
   <div class="tools">
     <span id="manifest-ringkas" class="muted"></span>
@@ -2529,6 +2563,7 @@
         <th data-t="thBerikutnya">Percobaan berikutnya</th></tr></thead>
       <tbody id="manifest-baris"></tbody>
     </table>
+  </div>
   </div>
 </section>
 
@@ -2602,7 +2637,7 @@
     dan rekam cuma jalan untuk pilihan yang sedang dilihat (`bukaTabDev`).
   -->
   <div class="line-sub-bar">
-    <div class="log-level" id="line-sub" role="group">
+    <div class="sub-tab" id="line-sub" role="group">
       <button type="button" data-sub="sumber-kamera" data-t="judulSumberKamera">Sumber Kamera</button>
       <button type="button" data-sub="model-deteksi" data-t="judulModelDeteksi">Model Deteksi</button>
       <button type="button" data-sub="plc" data-t="judulPlc">Uji PLC</button>
@@ -3038,7 +3073,7 @@ const KAMUS = {
     imporSalah_jenis_tidak_sah:"Jenis {nilai} harus otomatis atau manual",
     imporSalah_foto_tidak_sah:"Alamat foto {nilai} tidak sah", imporSalah_plat_tidak_sah:"Plat {nilai} tidak sah",
     riwayatCatatanFoto:"Foto disimpan di PC ini selama masa simpannya (180 hari di Lampung). Foto yang lebih tua sudah terhapus dari PC; barisnya tetap ada. CSV berisi semua baris filter ini, bukan cuma halaman yang tampil.",
-    judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", judulPlc:"Uji PLC",
+    judulLog:"Log", judulDiagnostik:"Diagnostik", judulAntrean:"Antrean ERP", judulVersi:"Versi", subStatusVersi:"Versi & pembaruan", judulPlc:"Uji PLC",
     judulSetelan:"Setelan", labelConf:"Ambang keyakinan (0-1)", labelMinSize:"Ukuran minimum (piksel)",
     grupGrading:"Grading", grupKamera:"Kamera & Conveyor", grupDev:"Mode Developer",
     labelUkuranLabel:"Ukuran tulisan label (%)", bantuUkuranLabel:"Tulisan Ripe, Unripe, JK, TP di atas kotak pada video. 100 = bawaan, 200 = dua kali lebih besar (25 sampai 400).",
@@ -3557,7 +3592,7 @@ const KAMUS = {
     imporSalah_jenis_tidak_sah:"Capture {nilai} must be auto or manual",
     imporSalah_foto_tidak_sah:"Photo address {nilai} is not valid", imporSalah_plat_tidak_sah:"Plate {nilai} is not valid",
     riwayatCatatanFoto:"Photos stay on this PC for its retention period (180 days in Lampung). Older photos are already deleted from the PC; their rows stay. The CSV holds every row of this filter, not only the page on screen.",
-    judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", judulPlc:"PLC Test",
+    judulLog:"Log", judulDiagnostik:"Diagnostics", judulAntrean:"ERP Queue", judulVersi:"Version", subStatusVersi:"Version & update", judulPlc:"PLC Test",
     judulSetelan:"Settings", labelConf:"Confidence threshold (0-1)", labelMinSize:"Minimum size (pixels)",
     grupGrading:"Grading", grupKamera:"Camera & Conveyor", grupDev:"Developer Mode",
     labelUkuranLabel:"Label text size (%)", bantuUkuranLabel:"The Ripe, Unripe, JK, TP text above each box on the video. 100 = default, 200 = twice as big (25 to 400).",
@@ -4443,6 +4478,31 @@ $("setelan-sub").addEventListener("click", (ev) => {
   subSetelan = b.dataset.sub;
   simpan("subSetelan", subSetelan);
   terapkanSubSetelan();
+});
+
+// Status sub-tabs (user 2026-10-05): one section at a time, remembered like Settings. All of
+// them keep loading together when the tab opens, so switching never waits on the network.
+const SUB_STATUS = ["versi", "diagnostik", "antrean-line", "antrean-erp", "manifest"];
+let subStatus = SUB_STATUS.includes(baca("subStatus", "versi")) ? baca("subStatus", "versi") : "versi";
+
+function terapkanSubStatus() {
+  document.querySelectorAll("#status-sub button[data-sub]").forEach((b) => {
+    const aktif = b.dataset.sub === subStatus;
+    b.classList.toggle("aktif", aktif);
+    b.setAttribute("aria-pressed", String(aktif));
+  });
+  document.querySelectorAll("#sec-status [data-status-sub]").forEach((g) => {
+    g.hidden = g.dataset.statusSub !== subStatus;
+  });
+}
+
+terapkanSubStatus();
+$("status-sub").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-sub]");
+  if (!b || b.dataset.sub === subStatus) return;
+  subStatus = b.dataset.sub;
+  simpan("subStatus", subStatus);
+  terapkanSubStatus();
 });
 
 terapkanSubLine();

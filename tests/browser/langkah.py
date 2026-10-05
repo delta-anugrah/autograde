@@ -64,3 +64,12 @@ def buka_setelan(page: Page, sub: str) -> None:
     buka_tab(page, "setelan")
     page.click(f'#setelan-sub button[data-sub="{sub}"]')
     expect(page.locator(f'#setelan-sub button[data-sub="{sub}"]')).to_have_attribute("aria-pressed", "true")
+
+
+def buka_status(page: Page, sub: str) -> None:
+    """The Status tab, then one of its sub-tabs (2026-10-05), like `buka_setelan`: only the
+    chosen section is visible, and the browser remembers the last one."""
+    buka_tab(page, "status")
+    page.click(f'#status-sub button[data-sub="{sub}"]')
+    expect(page.locator(f'#status-sub button[data-sub="{sub}"]')).to_have_attribute("aria-pressed", "true")
+    expect(page.locator(f'#sec-status [data-status-sub="{sub}"]')).to_be_visible()
