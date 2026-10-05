@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-06 · console · Setelan Kamera: Refresh button, spacing, reason text inset (PR #__PR__)
+## 2026-10-06 · console · Setelan Kamera: Refresh button, spacing, reason text inset (PR #247)
 Changed:        The Setelan Kamera button reads **Segarkan** / **Refresh** (was Baca ulang / Read again), and
                 the "camera not answering" sentence names the same verb. 16 px under the button, and the
                 reason on an unreadable line's card gets the card's own inset instead of touching its border
