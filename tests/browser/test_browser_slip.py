@@ -11,7 +11,7 @@ from collections.abc import Iterator
 
 import httpx
 import pytest
-from langkah import OPERATOR, SUPPORT, buka_tab, kamus, keluar, masuk
+from langkah import OPERATOR, SUPPORT, buka_setelan, buka_tab, kamus, keluar, masuk
 from playwright.sync_api import expect
 
 _CETAK = '#riwayat-baris button[data-cetak]'
@@ -39,7 +39,7 @@ def _rekap_tujuh_hari(halaman) -> None:
 
 def test_support_switches_it_on_and_an_operator_prints_one_truck(halaman, slip_mati):
     masuk(halaman, SUPPORT)
-    buka_tab(halaman, "setelan")
+    buka_setelan(halaman, "slip")
     halaman.evaluate("() => MUAT_TAB.setelan()")
     expect(halaman.locator("#set-slip")).not_to_be_checked()
     halaman.check("#set-slip")

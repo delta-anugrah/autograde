@@ -61,6 +61,7 @@ def konsol(tmp_path_factory: pytest.TempPathFactory, lines: dict[str, Any]) -> I
     k.seed(hari=10)
     k.mulai()
     try:
+        _penugasan_manual(k)
         yield k
     finally:
         k.berhenti()
@@ -70,6 +71,16 @@ def konsol(tmp_path_factory: pytest.TempPathFactory, lines: dict[str, Any]) -> I
 _LINE_HIDUP = ("line-1", "line-2")
 _SEMUA_LINE = ("line-1", "line-2", "line-3")
 _BERES_MAKS_S = 10.0
+
+
+def _penugasan_manual(konsol: KonsolUji) -> None:
+    """The session console assigns trucks by hand, as every browser test was written for. A
+    console that never saved the switch starts ON since 2026-10-05; saved OFF here once."""
+    from langkah import SUPPORT  # here, not at the top: langkah decides the Playwright skip
+
+    with httpx.Client(base_url=konsol.url, timeout=_BERES_MAKS_S) as c:
+        c.post("/api/console/login", json={"email": SUPPORT[0], "sandi": SUPPORT[1]}).raise_for_status()
+        c.post("/api/console/dev/auto-assign", json={"aktif": False, "lines": list(_SEMUA_LINE)}).raise_for_status()
 
 
 @pytest.fixture

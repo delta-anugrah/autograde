@@ -155,6 +155,9 @@ class SetelanGradingResponse(BaseModel):
     roi_x2: int | None = None
     roi_y2: int | None = None
     ukuran_label: int = 100
+    # The line's own `.env` box (ROI_X1..ROI_Y2), whatever the console set (2026-10-05):
+    # Settings shows it as the PC's default. Only on GET; None on the POST answer.
+    roi_env: list[int] | None = None
     sumber: str  # "konsol" kalau ditimpa, "env" kalau masih dari .env
 
 
