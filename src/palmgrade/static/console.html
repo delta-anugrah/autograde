@@ -2126,6 +2126,7 @@
       <button type="button" data-tampilan="janjang" data-t="riwayatPerJanjang">Per janjang</button>
     </div>
     <span id="riwayat-judul-rentang" class="muted"></span>
+    <span id="riwayat-cutoff" class="muted" hidden></span>
   </div>
   <div class="tabel">
     <table>
@@ -2372,6 +2373,23 @@
     </details>
     <div class="tools lepas">
       <button id="set-slip-simpan" class="utama" data-t="btnSimpanSlip">Simpan slip</button>
+    </div>
+  </div>
+
+  <!-- Batch 5.11: when the working day starts. Its own save, like Penugasan line and Slip. -->
+  <div class="setelan-form">
+    <details class="setelan-grup" data-setelan-grup="hari-kerja" open>
+      <summary data-t="grupHariKerja">Hari kerja</summary>
+      <div class="setelan-grup-isi">
+        <label>
+          <span data-t="labelCutoff">Hari kerja mulai jam</span>
+          <input id="set-cutoff" type="time" step="60" min="00:00" max="12:00">
+          <small class="muted" data-t="bantuCutoff">00:00 = tengah malam seperti biasa.</small>
+        </label>
+      </div>
+    </details>
+    <div class="tools lepas">
+      <button id="set-cutoff-simpan" class="utama" data-t="btnSimpanCutoff">Simpan hari kerja</button>
     </div>
   </div>
 
@@ -3160,6 +3178,10 @@ const KAMUS = {
     err_slip_mati:"Slip grading sedang dimatikan. Minta support menyalakannya di tab Setelan",
     err_slip_tidak_ada:"Truk ini tidak punya janjang pada tanggal itu",
     err_cutoff_tidak_sah:"Jam tidak sah. Isi antara 00:00 dan 12:00",
+    grupHariKerja:"Hari kerja", labelCutoff:"Hari kerja mulai jam",
+    bantuCutoff:"00:00 = tengah malam seperti biasa. Misal 05:00: semua yang terjadi sampai jam 5 pagi masih hari kemarin. Berlaku untuk data berikutnya; data yang sudah tersimpan tidak pindah tanggal.",
+    btnSimpanCutoff:"Simpan hari kerja", cutoffTersimpan:"Jam mulai hari kerja tersimpan.",
+    rekapCutoff:"Hari kerja dipotong jam {jam}",
     saringLine:"Line", saringTruk:"Truk", saringSemuaLine:"Semua line", saringSemuaTruk:"Semua truk",
     kosongGradingSaring:"Tidak ada grading hari ini untuk line dan truk yang dipilih",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Rasio Ripe", trukTanpaNama:"Tanpa truk",
@@ -3673,6 +3695,10 @@ const KAMUS = {
     err_slip_mati:"The grading slip is switched off. Ask support to switch it on in the Settings tab",
     err_slip_tidak_ada:"This truck has no bunches on that day",
     err_cutoff_tidak_sah:"Not a valid time. Enter one between 00:00 and 12:00",
+    grupHariKerja:"Working day", labelCutoff:"Working day starts at",
+    bantuCutoff:"00:00 = midnight as before. For example 05:00: everything until 5 in the morning still belongs to the day before. Applies to new data; stored data keeps its date.",
+    btnSimpanCutoff:"Save working day", cutoffTersimpan:"Working day start saved.",
+    rekapCutoff:"Working day cut at {jam}",
     saringLine:"Line", saringTruk:"Truck", saringSemuaLine:"All lines", saringSemuaTruk:"All trucks",
     kosongGradingSaring:"No grading today for the chosen line and truck",
     thTotal:"Total", thAcc:"ACC", thRej:"REJ", thRasio:"Ripe rate", trukTanpaNama:"No truck",
@@ -4040,6 +4066,7 @@ $("bahasa").addEventListener("click", async () => {
   dipasang = false;
   isiTrucks();
   gambarUlangRiwayat();
+  aturCutoffShift(cutoffShift);
   await refresh();
   await muatTimbangan();
   await muatUlangTabTerbuka();
@@ -7179,6 +7206,7 @@ async function refresh() {
     namaLineKartu = Object.fromEntries(s.lines.map((l) => [l.line_code, l.name || l.line_code]));
     gambarPembaruan(s.pembaruan);
     aturSlipCetak(s.slip_cetak);
+    aturCutoffShift(s.cutoff_shift);
     umumkanPelepasanOtomatis(s.auto_releases, Boolean(s.penugasan_otomatis && s.penugasan_otomatis.aktif));
     gambarAntreanBongkar(s.antrean_bongkar, s.penugasan_otomatis);
     selarasUrutan(s.lines);
@@ -7853,6 +7881,21 @@ $("riwayat-nomor").addEventListener("click", (ev) => {
   const tombol = ev.target.closest("button[data-halaman]");
   if (tombol) keHalamanRiwayat(Number(tombol.dataset.halaman), tombol);
 });
+
+// Batch 5.11: the cutoff from the poll, named on the Rekap tab when it is not midnight.
+let cutoffShift = "00:00";
+
+function teksCutoffRekap(teks) {
+  return teks && teks !== "00:00" ? t("rekapCutoff").replace("{jam}", teks) : "";
+}
+
+function aturCutoffShift(teks) {
+  cutoffShift = teks || "00:00";
+  const el = $("riwayat-cutoff");
+  const isi = teksCutoffRekap(cutoffShift);
+  if (el.textContent !== isi) el.textContent = isi;
+  el.hidden = !isi;
+}
 
 // ── slip grading (batch 5.9) ─────────────────────────────────────────────
 let slipCetak = false;
@@ -9235,6 +9278,7 @@ async function muatSetelan() {
   } catch (e) { if (e.kode !== "belum_masuk") $("set-pesan").textContent = alasan(e, "gagalSetelanMuat"); }
   await muatPenugasan();
   await muatSlipSetelan();
+  await muatCutoffSetelan();
 }
 
 // Saklar penugasan line otomatis: jalurnya sendiri, dimuat sesudah setelan grading.
@@ -9253,6 +9297,24 @@ $("set-slip-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTar
     await refresh();
   } catch (e) {
     toastGagal(alasan(e, "gagalSetelan"));
+  }
+}));
+
+async function muatCutoffSetelan() {
+  try {
+    $("set-cutoff").value = (await api("/api/console/dev/shift")).cutoff;
+  } catch (e) {
+    if (e.kode !== "belum_masuk") toastGagal(alasan(e, "gagalSetelanMuat"));
+  }
+}
+
+$("set-cutoff-simpan").addEventListener("click", (ev) => denganSibuk(ev.currentTarget, async () => {
+  try {
+    await api("/api/console/dev/shift", { method: "POST", body: JSON.stringify({ cutoff: $("set-cutoff").value }) });
+    toastSukses(t("cutoffTersimpan"));
+    await refresh();
+  } catch (e) {
+    toastGagal(gagalKarena("gagalSetelan", e));
   }
 }));
 
