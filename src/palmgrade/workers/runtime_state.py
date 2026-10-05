@@ -10,6 +10,7 @@ from typing import Any
 
 from ..domain.kesehatan_ai import JEDA_ALIRAN_DETIK
 from ..domain.kesehatan_kamera import HitungPutus, JendelaFrameHilang, PenilaiLaju
+from .perintah_kamera import AntreanPerintahKamera
 
 #: Lebar jendela hitung `fps_kamera`. Sama dengan log `[FPS] capture` di
 #: `FrameCaptureWorker`, supaya dua angka itu bisa dibandingkan langsung.
@@ -187,6 +188,9 @@ class RuntimeState:
     # thread safe). An Event so the automatic backoff wait can be cut short by a press.
     sambung_ulang_kamera: threading.Event = field(default_factory=threading.Event)
     sambung_ulang_oleh: str | None = None
+    # Camera commands from request threads (camera settings, spec §3.2), run by the capture thread between two
+    # grabs under `lock` (rule 3). The route waits on it; it never calls the SDK itself.
+    perintah_kamera: AntreanPerintahKamera = field(default_factory=AntreanPerintahKamera)
 
     def penonton_masuk(self) -> None:
         """One more reader of the MJPEG stream."""

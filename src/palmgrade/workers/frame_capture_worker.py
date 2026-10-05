@@ -301,6 +301,9 @@ class FrameCaptureWorker:
             self._sambung_ulang_manual(oleh)
             return
 
+        # Between two grabs, never during one: the settings screen's reads (and phase 2's writes) wait here.
+        self.state.perintah_kamera.jalankan(self.state.lock)
+
         now = time.time()
         wait = self._frame_interval - (now - self._last_frame_time)
         if wait > 0:
