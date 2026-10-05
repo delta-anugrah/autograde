@@ -18,7 +18,7 @@ Next:           ...
 
 ---
 
-## 2026-10-05 · release · Images carry their own fingerprint list (PR #TBD)
+## 2026-10-05 · release · Images carry their own fingerprint list (PR #240)
 Changed:        `scripts/tulis_sidik_image.py` writes `/app/.sidik-image.json` (sha256 of every file in
                 `/app/src`, `/app/config`, `/app/scripts`, `/entrypoint.sh`) as the last Dockerfile step.
                 The release smoke (`scripts/smoke_image.py`) gains a `sidik` check: an image whose files
