@@ -9,6 +9,7 @@ from queue import Queue
 from typing import Any
 
 from ..domain.kesehatan_ai import JEDA_ALIRAN_DETIK
+from ..domain.kesehatan_kamera import HitungPutus, JendelaFrameHilang, PenilaiLaju
 
 #: Lebar jendela hitung `fps_kamera`. Sama dengan log `[FPS] capture` di
 #: `FrameCaptureWorker`, supaya dua angka itu bisa dibandingkan langsung.
@@ -161,11 +162,19 @@ class RuntimeState:
     # angkanya membeku saat gambar berhenti, jadi pembaca yang menentukan 0.
     fps_kamera: float = 0.0
     # Suhu badan kamera (°C) dan jam bacanya (`jam()`), diisi `FrameCaptureWorker`
-    # tiap `SUHU_JEDA_DETIK` selama gambar mengalir. None = belum pernah terbaca:
+    # tiap `PANTAU_KAMERA_JEDA_DETIK` selama gambar mengalir. None = belum pernah terbaca:
     # sumber tanpa sensor, atau kamera menolak menjawab. Basi-tidaknya diputuskan
     # `HealthService.ringkasan_kamera`, bukan di sini.
     suhu_kamera_c: float | None = None
     suhu_kamera_at: float = 0.0
+    # `CameraSource.suhu_didukung` as last seen by the capture thread: False = the camera
+    # has no sensor, and the card says so instead of a dash.
+    suhu_kamera_didukung: bool | None = None
+    # Camera health without a sensor (`domain/kesehatan_kamera.py`): written only by the
+    # capture thread every `PANTAU_KAMERA_JEDA_DETIK`, read by `HealthService`.
+    laju_kamera: PenilaiLaju = field(default_factory=PenilaiLaju)
+    frame_hilang: JendelaFrameHilang = field(default_factory=JendelaFrameHilang)
+    putus_kamera: HitungPutus = field(default_factory=HitungPutus)
     _fps_jendela_mulai: float = 0.0
     _fps_jumlah: int = 0
     # `PemantauDisk` line ini (batch 3.7), dipasang main.py. None di konsol.

@@ -6,6 +6,7 @@ from typing import Any
 
 from ..core.config import Settings
 from ..domain.kesehatan_ai import JEDA_ALIRAN_DETIK
+from ..domain.kesehatan_kamera import ringkas_kesehatan_kamera
 from ..integrations.camera.base import CameraSource
 from ..integrations.outbox.outbox_store import OutboxStore
 from ..license.gate import grading_blocked
@@ -84,6 +85,15 @@ class HealthService:
             "fps_deteksi": round(s.inference_fps, 1) if segar(umur_deteksi) else 0.0,
             "frame_umur_detik": None if umur_frame is None else round(umur_frame, 1),
             "suhu_kamera_c": s.suhu_kamera_c if umur_suhu is not None and umur_suhu <= SUHU_BASI_DETIK else None,
+            "suhu_kamera_didukung": s.suhu_kamera_didukung,
+            "fps_kamera_target": round(s.camera_fps_terukur, 1) if s.camera_fps_terukur > 0 else None,
+            # "Held low" is only true while frames flow: once they stop, the last-image row
+            # is already red and a frozen "low" would only repeat it.
+            **ringkas_kesehatan_kamera(
+                laju_turun=s.laju_kamera.turun and segar(umur_frame),
+                frame_hilang=s.frame_hilang.ringkas(sekarang),
+                putus=s.putus_kamera.jumlah(sekarang),
+            ),
         }
 
     def ringkasan_lisensi(self) -> dict[str, Any]:

@@ -19,6 +19,7 @@ from ai_palsu import LinePalsu
 import palmgrade.plc as plc
 from palmgrade.core.config import Settings
 from palmgrade.domain.kesehatan_disk import GB
+from palmgrade.domain.kesehatan_kamera import StatistikAliran
 from palmgrade.schemas.common_schema import HealthDetailSchema
 from palmgrade.services.health_service import HealthService
 from palmgrade.services.pemantau_disk import PemantauDisk
@@ -172,3 +173,49 @@ def test_tanpa_sensor_suhu_none(torch_palsu):
     line.mulai()
     line.jalan(3)
     assert _service(line).get_health_detail().suhu_kamera_c is None
+
+
+def test_kesehatan_kamera_line_sehat(torch_palsu):
+    line = LinePalsu()
+    line.mulai()
+    line.state.camera_fps_terukur = 1.0
+    line.kamera.statistik = StatistikAliran(diterima=0, hilang=0)
+    line.jalan(10)
+    line.kamera.statistik = StatistikAliran(diterima=10, hilang=0)
+    line.jalan(10)
+    d = _service(line).get_health_detail()
+    assert d.fps_kamera_target == 1.0
+    assert d.fps_kamera_turun is False
+    assert d.frame_hilang == {"hilang": 0, "total": 10, "persen": 0.0, "tingkat": "aman"}
+    assert d.putus_kamera == {"jumlah": 0, "tingkat": "aman"}
+    assert d.kamera_tingkat == "aman"
+
+
+def test_laju_turun_dilaporkan_selama_gambar_mengalir(torch_palsu):
+    line = LinePalsu()
+    line.mulai()
+    line.state.camera_fps_terukur = 2.0
+    line.jalan(200)
+    d = _service(line).get_health_detail()
+    assert d.fps_kamera_turun is True
+    assert d.kamera_tingkat == "waspada"
+    # Frames stopped: the card already shows the last image in red, a stale "low" says nothing.
+    line.jam.sekarang += 60
+    assert _service(line).get_health_detail().fps_kamera_turun is False
+
+
+def test_kamera_tanpa_sensor_suhu_dilaporkan(torch_palsu):
+    line = LinePalsu()
+    line.mulai()
+    line.kamera.suhu_didukung = False
+    line.jalan(3)
+    d = _service(line).get_health_detail()
+    assert d.suhu_kamera_didukung is False
+    assert d.suhu_kamera_c is None
+
+
+def test_skema_lama_tanpa_field_kesehatan_kamera():
+    d = HealthDetailSchema(status="ok", environment="t", camera_type="hikrobot", camera_connected=True,
+                           gpu_available=False, gpu_device=None, machine_id="m", workers=[])
+    assert (d.suhu_kamera_didukung, d.fps_kamera_target, d.fps_kamera_turun) == (None, None, False)
+    assert (d.frame_hilang, d.putus_kamera, d.kamera_tingkat) == (None, None, None)

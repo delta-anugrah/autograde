@@ -163,6 +163,12 @@ per `track_id`): `docs/overview.md` §3.
   "fps_deteksi": 7.2,
   "frame_umur_detik": 0.1,
   "suhu_kamera_c": 47.3,
+  "suhu_kamera_didukung": true,
+  "fps_kamera_target": 15.0,
+  "fps_kamera_turun": false,
+  "frame_hilang": {"hilang": 0, "total": 9000, "persen": 0.0, "tingkat": "aman"},
+  "putus_kamera": {"jumlah": 0, "tingkat": "aman"},
+  "kamera_tingkat": "aman",
   "disk": {
     "tingkat": "aman",
     "kode": null,
@@ -194,6 +200,11 @@ per `track_id`): `docs/overview.md` §3.
 | `fps_kamera` / `fps_deteksi` | laju TERUKUR gambar masuk / frame selesai digrading (batch 3.6). **0** kalau yang terakhir lebih tua dari 5 detik, jadi angka lama tidak pernah tampil sebagai laju sekarang |
 | `frame_umur_detik` | detik sejak gambar terakhir masuk dari kamera; `null` = belum pernah |
 | `suhu_kamera_c` | suhu badan kamera Hikrobot (°C, node `DeviceTemperature`), dibaca thread capture tiap 10 detik selama gambar mengalir. `null` = tidak tahu: webcam/video/foto, kamera menolak menjawab (WARNING sekali dengan kode SDK di tab Log), atau bacaan terakhir lebih tua dari 60 detik |
+| `suhu_kamera_didukung` | `false` = kamera menjawab `DeviceTemperature` tidak diimplementasikan (akses NI, mis. MV-CS050-10GC Lampung): kartu menulis "tidak didukung kamera" dan line berhenti bertanya sampai sambung berikutnya. `true` = pernah terbaca, `null` = belum tahu atau bukan Hikrobot |
+| `fps_kamera_target` / `fps_kamera_turun` | laju yang dijanjikan kamera (`camera_fps_terukur`, `null` kalau sumber tanpa laju) dan apakah `fps_kamera` tertahan di bawah 90% target selama 2 menit (pulih sesudah 1 menit normal). `false` begitu gambar berhenti (aturan 35) |
+| `frame_hilang` | frame yang hilang di jaringan dalam 10 menit terakhir (GigE `MV_MATCH_TYPE_NET_DETECT`): `hilang`, `total` (diterima + hilang), `persen`, `tingkat` (`aman` 0, `waspada` ada, `kritis` mulai 5%). `null` = sumber tidak menghitung (webcam/video/foto) atau belum ada bacaan |
+| `putus_kamera` | kejadian kamera berhenti mengirim gambar dalam 24 jam terakhir: `jumlah`, `tingkat` (`aman` 0, `waspada` 1-2, `kritis` 3 ke atas) |
+| `kamera_tingkat` | tingkat terburuk dari tiga di atas (laju tertahan = `waspada`), untuk tanda "perlu dicek" di judul grup kartu. `null` = line versi lama |
 | `disk` | pemantau disk (batch 3.7, `services/pemantau_disk.py`), partisi foto + DB line yang PALING sempit: `tingkat` (`aman`/`peringatan`/`kritis`/`tidak_terbaca`), `kode` (`DISK_HAMPIR_PENUH`/`DISK_KRITIS`/`null`), `bebas_gb`, `total_gb`, `persen_bebas`, `jalur`, ambang yang berlaku, `sejak` (epoch mulai tingkat sekarang). Jalan **tanpa R2** dan tidak menghapus apa pun; `null` = line versi lama |
 | `lisensi` | lisensi line ini: `aktif` (`LICENSE_ENABLED`), `grading_diblokir` (gerbang yang sama dengan thread grading), `berlaku_sampai` (epoch akhir tenggang) |
 
@@ -540,7 +551,7 @@ Verbatim copy of the former `CLAUDE.md` sections "HTTP Surface" and "Integration
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/health`, `/health/detail` | `/health` ringan, **503 kalau AI mati atau frame berhenti** (`ai` = keadaan penjaga AI, `routes/health_ringan.py`, tanpa torch); detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending` = semua janjang belum sampai konsol, `outbox_failed` selalu `0` sejak batch 2.4, rincian di tab Status → Antrean line) + `model_file`/`model_backend`/`model_kelas`/`model_kelas_cocok`/`gpu_sm` = model yang benar-benar dimuat + `ai` (keadaan + `galat_terakhir`) + `fps_kamera`/`fps_deteksi` (terukur, 0 kalau basi) + `frame_umur_detik` + `suhu_kamera_c` (°C, `null` kalau basi atau tidak terbaca) + `disk` (pemantau disk) + `lisensi` + `plc.connected` (aturan 35) |
+| GET | `/health`, `/health/detail` | `/health` ringan, **503 kalau AI mati atau frame berhenti** (`ai` = keadaan penjaga AI, `routes/health_ringan.py`, tanpa torch); detail = camera / gpu / workers / current_assignment_id (+ `outbox_pending` = semua janjang belum sampai konsol, `outbox_failed` selalu `0` sejak batch 2.4, rincian di tab Status → Antrean line) + `model_file`/`model_backend`/`model_kelas`/`model_kelas_cocok`/`gpu_sm` = model yang benar-benar dimuat + `ai` (keadaan + `galat_terakhir`) + `fps_kamera`/`fps_deteksi` (terukur, 0 kalau basi) + `frame_umur_detik` + `suhu_kamera_c` (°C, `null` kalau basi atau tidak terbaca) + `suhu_kamera_didukung` + kesehatan kamera (`fps_kamera_turun`, `frame_hilang`, `putus_kamera`, `kamera_tingkat`) + `disk` (pemantau disk) + `lisensi` + `plc.connected` (aturan 35) |
 | GET | `/api/video_feed` | MJPEG live (multi-viewer) |
 | GET | `/api/results_today` | today's results (read from disk) |
 | POST | `/internal/assignment` | ← from api: set current truck/assignment (`x-internal-secret`) |

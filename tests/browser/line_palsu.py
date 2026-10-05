@@ -43,6 +43,11 @@ DETAIL_SEHAT = {
     "frame_umur_detik": 0.1,
     "suhu_kamera_c": 47.3,
     "workers": [{"name": "capture", "alive": True}],
+    "fps_kamera_target": 15.0,
+    "fps_kamera_turun": False,
+    "frame_hilang": {"hilang": 12, "total": 9000, "persen": 0.1, "tingkat": "waspada"},
+    "putus_kamera": {"jumlah": 0, "tingkat": "aman"},
+    "kamera_tingkat": "waspada",
 }
 _PERINTAH = ("/internal/assignment", "/internal/setelan")
 _SAMBUNG_ULANG = "/internal/camera/reconnect"
